@@ -1,4 +1,6 @@
-#[derive(clap::Parser)]
+use clap::{Parser, Subcommand};
+use strum_macros::{Display, EnumIter, EnumString};
+#[derive(Parser)]
 #[command(author, version, about)]
 #[command(arg_required_else_help = true)]
 pub struct Cli {
@@ -6,18 +8,24 @@ pub struct Cli {
     pub create: Create,
 }
 
-
-
-#[derive(clap::Subcommand)]
+#[derive(Subcommand, Clone)]
+#[command(subcommand_required = true)]
 pub enum Create {
-    /// Extended Parachain Template
-    Ept,
-    /// Frontier Parachain Template
-    Fpt,
-    #[clap(name = "solo-contracts")]
-    /// Contracts Solochain Template
-    SoloContracts,
-    #[clap(name = "parachain-contracts")]
-    /// Contracts Parachain Template
-    ParaContracts,
+    Create(TemplateCmd),
+}
+
+#[derive(Clone, Parser, Debug, Display, EnumIter, EnumString, PartialEq)]
+pub enum Template {
+    #[strum(serialize = "ept")]
+    EPT,
+    // Vanilla,
+    // Kitchensink,
+    // Frontier,
+    // Contracts,
+}
+
+#[derive(Parser, Clone)]
+pub struct TemplateCmd {
+    pub name: String,
+    pub template: Template,
 }
