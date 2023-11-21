@@ -6,8 +6,8 @@ use cli::Cli;
 use std::path::Path;
 
 fn main() -> anyhow::Result<()> {
-    generator::generate();
-    std::process::exit(0);
+    // generator::generate();
+    // std::process::exit(0);
     
     let cli = <Cli as clap::Parser>::parse();
     let (app_name, template) = match cli.create {

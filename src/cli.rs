@@ -20,12 +20,16 @@ pub enum Template {
     EPT,
     // Vanilla,
     // Kitchensink,
-    // Frontier,
-    // Contracts,
+    #[strum(serialize = "fpt")]
+    FPT,
+    #[strum(serialize = "cpt")]
+    Contracts,
 }
 
 #[derive(Parser, Clone)]
 pub struct TemplateCmd {
+    #[arg(help = "Name of the app")]
     pub name: String,
+    #[arg(help = "Template to create; Options are ept, fpt, cpt")]
     pub template: Template,
 }
