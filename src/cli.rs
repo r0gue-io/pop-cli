@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use strum_macros::{Display, EnumIter, EnumString};
+use strum_macros::{Display, EnumString};
 #[derive(Parser)]
 #[command(author, version, about)]
 #[command(arg_required_else_help = true)]
@@ -14,16 +14,16 @@ pub enum Create {
     Create(TemplateCmd),
 }
 
-#[derive(Clone, Parser, Debug, Display, EnumIter, EnumString, PartialEq)]
+#[derive(Clone, Parser, Debug, Display, EnumString, PartialEq)]
 pub enum Template {
-    #[strum(serialize = "ept")]
+    #[strum(serialize = "Extended Parachain Template", serialize = "ept")]
     EPT,
+    #[strum(serialize = "Frontier Parachain Template", serialize = "fpt")]
+    FPT,
+    #[strum(serialize = "Contracts Node Template", serialize = "cpt")]
+    Contracts,
     // Vanilla,
     // Kitchensink,
-    #[strum(serialize = "fpt")]
-    FPT,
-    #[strum(serialize = "cpt")]
-    Contracts,
 }
 
 #[derive(Parser, Clone)]

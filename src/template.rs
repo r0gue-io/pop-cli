@@ -9,6 +9,7 @@ pub fn instantiate_template_dir(
     // config: &Config,
 ) -> Result<()> {
     use Template::*;
+    // TODO : if target folder exists, prompt user to clean dir or abort 
     let url = match template {
         EPT => "https://github.com/paritytech/extended-parachain-template.git",
         FPT => "https://github.com/paritytech/frontier-parachain-template.git",
