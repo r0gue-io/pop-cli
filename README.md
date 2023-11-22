@@ -17,3 +17,13 @@ dotemplate create my-app cpt
 dotemplate create my-app fpt
 ```
 
+You can also customize a template by providing config options for token symbol (as it appears on polkadot-js apps UI), token decimals, and the initial endowment for substrate developer accounts. Here's how: 
+
+```sh
+# Create a minimal parachain template
+dotemplate create my-app --symbol DOT --decimals 6 --endowment 1_000_000_000
+```
+There's also the shorter version: 
+```sh
+dotemplate create my-app -s DOT -d 6 -i 1_000_000_000
+```
