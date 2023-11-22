@@ -5,7 +5,7 @@ use strum_macros::{Display, EnumString};
 #[command(arg_required_else_help = true)]
 pub struct Cli {
     #[command(subcommand)]
-    pub create: Create,
+    pub(crate) create: Create,
 }
 
 #[derive(Subcommand, Clone)]
@@ -30,8 +30,21 @@ pub enum Template {
 #[derive(Parser, Clone)]
 pub struct TemplateCmd {
     #[arg(help = "Name of the app. Also works as a directory path for your project")]
-    pub name: String,
-    #[arg(help = "Template to create; Options are ept, fpt, cpt")]
+    pub(crate) name: String,
+    #[arg(
+        help = "Template to create; Options are 'ept', 'fpt', 'cpt'. Leave empty for default parachain template"
+    )]
     #[arg(default_value = "vanilla")]
-    pub template: Template,
+    pub(crate) template: Template,
+    #[arg(long, short, help = "Token Symbol", default_value = "UNIT")]
+    pub(crate) symbol: Option<String>,
+    #[arg(long, short, help = "Token Decimals", default_value = "12")]
+    pub(crate) decimals: Option<String>,
+    #[arg(
+        long = "endowment",
+        short,
+        help = "Token Endowment for dev accounts",
+        default_value = "1u64 << 60"
+    )]
+    pub(crate) initial_endowment: Option<String>,
 }

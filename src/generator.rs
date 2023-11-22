@@ -1,35 +1,31 @@
+//! TODO: Generators should reference files that live in the repository
+
 use std::{fs::OpenOptions, path::Path};
 
 use askama::Template;
 
-#[derive(Template)]
-#[template(path = "test.templ", escape = "none")]
-struct Runtime<'a> {
-    code: &'a str,
-    balances: bool,
-}
-
 // TODO: This should be coupled with Runtime in the sense that pallets part of a Runtime may need a default genesis config
 #[derive(Template)]
 #[template(path = "chain_spec.templ", escape = "none")]
-struct ChainSpec<'a> {
-    token_symbol : &'a str,
-    decimals: u8,
-    initial_endowment: &'a str,
+pub(crate) struct ChainSpec {
+    pub(crate) token_symbol: String,
+    pub(crate) decimals: u8,
+    pub(crate) initial_endowment: String,
 }
 // todo : generate directory structure
-
+// todo : This is only for development
 pub fn generate() {
     let cs = ChainSpec {
-        token_symbol: "DOT",
+        token_symbol: "DOT".to_owned(),
         decimals: 10,
-        initial_endowment: "1u64 << 15"
+        initial_endowment: "1u64 << 15".to_owned(),
     };
     let rendered = cs.render().unwrap();
     write_to_file(Path::new("src/x.rs"), &rendered);
 }
 
-fn write_to_file<'a>(path: &Path, contents: &'a str) {
+// TODO: Check the usage of `expect`. We don't want to leave the outdir in a unhygenic state
+pub(crate) fn write_to_file<'a>(path: &Path, contents: &'a str) {
     use std::io::Write;
     let mut file = OpenOptions::new()
         .write(true)
