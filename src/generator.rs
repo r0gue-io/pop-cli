@@ -8,16 +8,24 @@ struct Runtime<'a> {
     code: &'a str,
     balances: bool,
 }
+
+// TODO: This should be coupled with Runtime in the sense that pallets part of a Runtime may need a default genesis config
+#[derive(Template)]
+#[template(path = "chain_spec.templ", escape = "none")]
+struct ChainSpec<'a> {
+    token_symbol : &'a str,
+    decimals: u8,
+    initial_endowment: &'a str,
+}
 // todo : generate directory structure
 
 pub fn generate() {
-    let hello = Runtime {
-        code: r#"fn main() { 
-            println!("Hello, world!"); 
-        }"#,
-        balances: false,
-    }; // instantiate your struct
-    let rendered = hello.render().unwrap();
+    let cs = ChainSpec {
+        token_symbol: "DOT",
+        decimals: 10,
+        initial_endowment: "1u64 << 15"
+    };
+    let rendered = cs.render().unwrap();
     write_to_file(Path::new("src/x.rs"), &rendered);
 }
 
