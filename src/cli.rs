@@ -22,14 +22,16 @@ pub enum Template {
     FPT,
     #[strum(serialize = "Contracts Node Template", serialize = "cpt")]
     Contracts,
-    // Vanilla,
+    #[strum(serialize = "Vanilla Parachain Template", serialize = "vanilla")]
+    Vanilla,
     // Kitchensink,
 }
 
 #[derive(Parser, Clone)]
 pub struct TemplateCmd {
-    #[arg(help = "Name of the app")]
+    #[arg(help = "Name of the app. Also works as a directory path for your project")]
     pub name: String,
     #[arg(help = "Template to create; Options are ept, fpt, cpt")]
+    #[arg(default_value = "vanilla")]
     pub template: Template,
 }
