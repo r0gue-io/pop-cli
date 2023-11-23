@@ -36,6 +36,7 @@ pub fn instantiate_vanilla_template(target: &Path, config: Config) -> Result<()>
     // println!("Temporary directory created at {:?}", temp_path);
 
     Repository::clone("https://github.com/weezy20/DoTemplate.git", temp_path)?;
+
     let source = temp_path.join("templates/vanilla-parachain");
 
     for entry in WalkDir::new(&source) {
