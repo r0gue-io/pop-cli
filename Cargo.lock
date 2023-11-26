@@ -190,20 +190,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "acbf1af155f9b9ef647e42cdc158db4b64a1b61f743629225fde6f3e0be2a7c7"
 
 [[package]]
-name = "dotemplate"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "askama",
- "clap",
- "git2",
- "strum",
- "strum_macros",
- "tempfile",
- "walkdir",
-]
-
-[[package]]
 name = "errno"
 version = "0.3.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -417,6 +403,20 @@ name = "pkg-config"
 version = "0.3.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "26072860ba924cbfa98ea39c8c19b4dd6a4a25423dbdf219c1eca91aa0cf6964"
+
+[[package]]
+name = "pop"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "askama",
+ "clap",
+ "git2",
+ "strum",
+ "strum_macros",
+ "tempfile",
+ "walkdir",
+]
 
 [[package]]
 name = "proc-macro2"
