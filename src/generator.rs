@@ -6,7 +6,7 @@ use askama::Template;
 
 // TODO: This should be coupled with Runtime in the sense that pallets part of a Runtime may need a default genesis config
 #[derive(Template)]
-#[template(path = "chain_spec.templ", escape = "none")]
+#[template(path = "vanilla/chain_spec.templ", escape = "none")]
 pub(crate) struct ChainSpec {
     pub(crate) token_symbol: String,
     pub(crate) decimals: u8,
@@ -14,6 +14,7 @@ pub(crate) struct ChainSpec {
 }
 // todo : generate directory structure
 // todo : This is only for development
+#[allow(unused)]
 pub fn generate() {
     let cs = ChainSpec {
         token_symbol: "DOT".to_owned(),

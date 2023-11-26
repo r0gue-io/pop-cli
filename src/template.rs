@@ -14,10 +14,10 @@ pub struct Config {
     pub(crate) initial_endowment: String,
 }
 
+/// Creates a new template at `target` dir
 pub fn instantiate_template_dir(template: &Template, target: &Path, config: Config) -> Result<()> {
-    use Template::*;
-    // TODO : if target folder exists, prompt user to clean dir or abort
     sanitize(target)?;
+    use Template::*;
     let url = match template {
         EPT => "https://github.com/paritytech/extended-parachain-template.git",
         FPT => "https://github.com/paritytech/frontier-parachain-template.git",
@@ -26,18 +26,16 @@ pub fn instantiate_template_dir(template: &Template, target: &Path, config: Conf
             return instantiate_vanilla_template(target, config);
         }
     };
-    Repository::clone(url, target)?;
+    clone_and_degit(url, target)?;
+    Repository::init(target)?;
     Ok(())
 }
 // TODO: The config will shape the emitted template
 pub fn instantiate_vanilla_template(target: &Path, config: Config) -> Result<()> {
     let temp_dir = ::tempfile::TempDir::new_in(std::env::temp_dir())?;
-    let temp_path = temp_dir.path();
+    let source = temp_dir.path();
     // println!("Temporary directory created at {:?}", temp_path);
-
-    Repository::clone("https://github.com/weezy20/DoTemplate.git", temp_path)?;
-
-    let source = temp_path.join("templates/vanilla-parachain");
+    clone_and_degit("https://github.com/r0guelabs/vanilla-parachain.git", source)?;
 
     for entry in WalkDir::new(&source) {
         let entry = entry?;
@@ -61,7 +59,7 @@ pub fn instantiate_vanilla_template(target: &Path, config: Config) -> Result<()>
         &target.join("node/src/chain_spec.rs"),
         chainspec.render().expect("infallible").as_ref(),
     );
-
+    Repository::init(target)?;
     Ok(())
 }
 
@@ -85,5 +83,13 @@ fn sanitize(target: &Path) -> Result<()> {
             ));
         }
     }
+    Ok(())
+}
+
+/// Clone `url` into `target` and degit it
+fn clone_and_degit(url: &str, target: &Path) -> Result<()> {
+    let repo = Repository::clone(url, target)?;
+    let git_dir = repo.path();
+    fs::remove_dir_all(&git_dir)?;
     Ok(())
 }
