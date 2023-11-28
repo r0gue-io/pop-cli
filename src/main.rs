@@ -1,8 +1,11 @@
 mod cli;
 mod generator;
+mod pallet;
 mod template;
+mod helpers;
 
 use cli::Cli;
+use pallet::PalletConfig;
 use std::path::Path;
 
 use crate::template::Config;
@@ -13,27 +16,39 @@ fn main() -> anyhow::Result<()> {
     // std::process::exit(0);
 
     let cli = <Cli as clap::Parser>::parse();
-    let (app_name, template, config) = match cli.create {
-        cli::Create::Create(cli::TemplateCmd {
+    match cli.intent {
+        cli::Intention::Create(cli::TemplateCmd {
             name,
             template,
             symbol,
             decimals,
             initial_endowment,
-        }) => (
+        }) => {
+            println!("Starting {} on `{}`!", template, name);
+            let destination_path = Path::new(&name);
+            template::instantiate_template_dir(
+                &template,
+                destination_path,
+                Config {
+                    symbol: symbol.expect("default values"),
+                    decimals: decimals.expect("default values").parse::<u8>()?,
+                    initial_endowment: initial_endowment.expect("default values"),
+                },
+            )?;
+            println!("cd into `{name}` and enjoy hacking! 🚀");
+        }
+        cli::Intention::Pallet(cli::PalletCmd {
             name,
-            template,
-            Config {
-                symbol: symbol.expect("default values"),
-                decimals: decimals.expect("default values").parse::<u8>()?,
-                initial_endowment: initial_endowment.expect("default values"),
-            },
-        ),
+            authors,
+            description,
+        }) => {
+            pallet::create_pallet_template(PalletConfig {
+                name,
+                authors: authors.expect("default values"),
+                description: description.expect("default values"),
+            })?;
+        }
     };
-    println!("Starting {} on `{}`!", template, app_name);
-    let destination_path = Path::new(&app_name);
-    template::instantiate_template_dir(&template, destination_path, config)?;
-    println!("cd into `{app_name}` and enjoy hacking! 🚀");
 
     Ok(())
 }
