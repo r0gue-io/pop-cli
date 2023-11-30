@@ -5,7 +5,7 @@ mod template;
 mod helpers;
 
 use cli::Cli;
-use pallet::PalletConfig;
+use pallet::TemplatePalletConfig;
 use std::path::Path;
 
 use crate::template::Config;
@@ -43,7 +43,7 @@ fn main() -> anyhow::Result<()> {
             description,
             path
         }) => {
-            pallet::create_pallet_template(path, PalletConfig {
+            pallet::create_pallet_template(path, TemplatePalletConfig {
                 name,
                 authors: authors.expect("default values"),
                 description: description.expect("default values"),

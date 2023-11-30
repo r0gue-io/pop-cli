@@ -1,39 +1,72 @@
 use crate::{
     generator::PalletItem,
-    helpers::{clone_and_degit, resolve_pallet_path},
+    helpers::{resolve_pallet_path, sanitize},
 };
-use std::fs;
+use std::{fs, path::PathBuf};
 
-pub fn create_pallet_template(path: Option<String>, config: PalletConfig) -> anyhow::Result<()> {
+pub fn create_pallet_template(path: Option<String>, config: TemplatePalletConfig) -> anyhow::Result<()> {
     let target = resolve_pallet_path(path);
-    fs::create_dir(&target.join("pallet_template"))?;
-    fs::create_dir(&target.join("pallet_template/src"))?;
+    // TODO : config.name might use `-` or use snake_case. We want to use pallet_template for the pallet dirs
+    // and PalletTemplate for the runtime macro
+    // TODO: this can be further polished (edge cases: no pallet prefix.)
+    let pallet_name = config.name.clone();
+    let pallet_path = target.join(pallet_name.clone());
+    sanitize(&pallet_path)?;
+    generate_pallet_structure(&target, &pallet_name)?;
+    // todo let pallet_module_name = ... ;
+    render_pallet(pallet_name, config, &pallet_path)?;
+    Ok(())
+}
+pub struct TemplatePalletConfig {
+    pub(crate) name: String,
+    pub(crate) authors: String,
+    pub(crate) description: String,
+}
+/// Generate a pallet folder and file structure 
+fn generate_pallet_structure(target: &PathBuf, pallet_name: &str) -> anyhow::Result<()> {
+    use fs::{create_dir, File};
+    let (pallet, src) = (
+        target.join(pallet_name),
+        target.join(pallet_name.to_string() + "/src"),
+    );
+    // println!("source = > {}", src.display());
+    create_dir(&pallet)?;
+    create_dir(&src)?;
+    File::create(format!("{}/Cargo.toml", pallet.display()))?;
+    File::create(format!("{}/lib.rs", src.display()))?;
+    File::create(format!("{}/benchmarking.rs", src.display()))?;
+    File::create(format!("{}/tests.rs", src.display()))?;
+    File::create(format!("{}/mock.rs", src.display()))?;
+    Ok(())
+}
+
+fn render_pallet(
+    pallet_name: String,
+    config: TemplatePalletConfig,
+    pallet_path: &PathBuf,
+) -> anyhow::Result<()> {
+    let pallet_name = pallet_name.replace('-', "_");
     use crate::generator::{
         PalletBenchmarking, PalletCargoToml, PalletLib, PalletMock, PalletTests,
     };
-
+    // Todo `module` must be of the form Template if pallet_name : `pallet_template`
     let pallet: Vec<Box<dyn PalletItem>> = vec![
-        Box::new(PalletBenchmarking {}),
         Box::new(PalletCargoToml {
-            name: config.name.clone(),
+            name: pallet_name.clone(),
             authors: config.authors,
             description: config.description,
         }),
         Box::new(PalletLib {}),
+        Box::new(PalletBenchmarking {}),
         Box::new(PalletMock {
-            pallet_name: config.name.clone(),
+            module: pallet_name.clone(),
         }),
         Box::new(PalletTests {
-            pallet_name: config.name,
+            module: pallet_name,
         }),
     ];
     for item in pallet {
-        item.execute(&target)?;
+        item.execute(pallet_path)?;
     }
     Ok(())
-}
-pub struct PalletConfig {
-    pub(crate) name: String,
-    pub(crate) authors: String,
-    pub(crate) description: String,
 }

@@ -1,6 +1,6 @@
 //! TODO: Generators should reference files that live in the repository
 
-use std::{fs::OpenOptions, path::Path};
+use std::path::{Path, PathBuf};
 
 use askama::Template;
 
@@ -31,12 +31,12 @@ pub(crate) struct PalletLib {}
 #[derive(Template)]
 #[template(path = "pallet/src/mock.rs.templ", escape = "none")]
 pub(crate) struct PalletMock {
-    pub(crate) pallet_name: String,
+    pub(crate) module: String,
 }
 #[derive(Template)]
 #[template(path = "pallet/src/tests.rs.templ", escape = "none")]
 pub(crate) struct PalletTests {
-    pub(crate) pallet_name: String,
+    pub(crate) module: String,
 }
 
 // todo : generate directory structure
@@ -53,39 +53,39 @@ pub fn generate() {
 }
 
 pub trait PalletItem {
-    fn execute(&self, root: &Path) -> anyhow::Result<()>;
+    fn execute(&self, root: &PathBuf) -> anyhow::Result<()>;
 }
 
 impl PalletItem for PalletTests {
-    fn execute(&self, root: &Path) -> anyhow::Result<()> {
+    fn execute(&self, root: &PathBuf) -> anyhow::Result<()> {
         let rendered = self.render()?;
         write_to_file(&root.join("src/tests.rs"), &rendered);
         Ok(())
     }
 }
 impl PalletItem for PalletMock {
-    fn execute(&self, root: &Path) -> anyhow::Result<()> {
+    fn execute(&self, root: &PathBuf) -> anyhow::Result<()> {
         let rendered = self.render()?;
         write_to_file(&root.join("src/mock.rs"), &rendered);
         Ok(())
     }
 }
 impl PalletItem for PalletLib {
-    fn execute(&self, root: &Path) -> anyhow::Result<()> {
+    fn execute(&self, root: &PathBuf) -> anyhow::Result<()> {
         let rendered = self.render()?;
         write_to_file(&root.join("src/lib.rs"), &rendered);
         Ok(())
     }
 }
 impl PalletItem for PalletBenchmarking {
-    fn execute(&self, root: &Path) -> anyhow::Result<()> {
+    fn execute(&self, root: &PathBuf) -> anyhow::Result<()> {
         let rendered = self.render()?;
         write_to_file(&root.join("src/benchmarking.rs"), &rendered);
         Ok(())
     }
 }
 impl PalletItem for PalletCargoToml {
-    fn execute(&self, root: &Path) -> anyhow::Result<()> {
+    fn execute(&self, root: &PathBuf) -> anyhow::Result<()> {
         let rendered = self.render()?;
         write_to_file(&root.join("Cargo.toml"), &rendered);
         Ok(())

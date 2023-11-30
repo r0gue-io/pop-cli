@@ -30,6 +30,7 @@ pub(crate) fn sanitize(target: &Path) -> Result<()> {
 
 // TODO: Check the usage of `expect`. We don't want to leave the outdir in a unhygenic state
 pub(crate) fn write_to_file<'a>(path: &Path, contents: &'a str) {
+    println!("Writing to {}", path.display());
     use std::io::Write;
     let mut file = OpenOptions::new()
         .write(true)
@@ -37,13 +38,15 @@ pub(crate) fn write_to_file<'a>(path: &Path, contents: &'a str) {
         .open(path)
         .unwrap();
     file.write_all(contents.as_bytes()).unwrap();
-    let output = std::process::Command::new("rustfmt")
-        .arg(path.to_str().unwrap())
-        .output()
-        .expect("failed to execute rustfmt");
-
-    if !output.status.success() {
-        println!("rustfmt exited with non-zero status code.");
+    if path.extension().map_or(false, |ext| ext == "rs") {
+        let output = std::process::Command::new("rustfmt")
+            .arg(path.to_str().unwrap())
+            .output()
+            .expect("failed to execute rustfmt");
+    
+        if !output.status.success() {
+            eprintln!("rustfmt exited with non-zero status code.");
+        }
     }
 }
 

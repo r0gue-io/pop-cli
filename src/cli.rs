@@ -52,12 +52,17 @@ pub struct TemplateCmd {
 
 #[derive(Parser, Clone)]
 pub struct PalletCmd {
-    #[arg(help = "Name of the pallet")]
+    #[arg(help = "Name of the pallet", default_value = "pallet-template")]
     pub(crate) name: String,
-    #[arg(help = "Name of authors", default_value = "Anonymous")]
+    #[arg(short, long, help = "Name of authors", default_value = "Anonymous")]
     pub(crate) authors: Option<String>,
-    #[arg(help = "Pallet description", default_value = "Frame Pallet")]
+    #[arg(
+        short,
+        long,
+        help = "Pallet description",
+        default_value = "Frame Pallet"
+    )]
     pub(crate) description: Option<String>,
-    #[arg(short = 'p', long = "path", help = "Path to the pallet")]
+    #[arg(short = 'p', long = "path", help = "Path to the pallet, [default: current directory]")]
     pub(crate) path: Option<String>,
 }
