@@ -41,8 +41,9 @@ fn main() -> anyhow::Result<()> {
             name,
             authors,
             description,
+            path
         }) => {
-            pallet::create_pallet_template(PalletConfig {
+            pallet::create_pallet_template(path, PalletConfig {
                 name,
                 authors: authors.expect("default values"),
                 description: description.expect("default values"),

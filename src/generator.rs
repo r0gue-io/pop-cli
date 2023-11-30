@@ -4,6 +4,8 @@ use std::{fs::OpenOptions, path::Path};
 
 use askama::Template;
 
+use crate::helpers::write_to_file;
+
 // TODO: This should be coupled with Runtime in the sense that pallets part of a Runtime may need a default genesis config
 #[derive(Template)]
 #[template(path = "vanilla/chain_spec.templ", escape = "none")]
@@ -12,6 +14,31 @@ pub(crate) struct ChainSpec {
     pub(crate) decimals: u8,
     pub(crate) initial_endowment: String,
 }
+
+#[derive(Template)]
+#[template(path = "pallet/Cargo.templ", escape = "none")]
+pub(crate) struct PalletCargoToml {
+    pub(crate) name: String,
+    pub(crate) authors: String,
+    pub(crate) description: String,
+}
+#[derive(Template)]
+#[template(path = "pallet/src/benchmarking.rs.templ", escape = "none")]
+pub(crate) struct PalletBenchmarking {}
+#[derive(Template)]
+#[template(path = "pallet/src/lib.rs.templ", escape = "none")]
+pub(crate) struct PalletLib {}
+#[derive(Template)]
+#[template(path = "pallet/src/mock.rs.templ", escape = "none")]
+pub(crate) struct PalletMock {
+    pub(crate) pallet_name: String,
+}
+#[derive(Template)]
+#[template(path = "pallet/src/tests.rs.templ", escape = "none")]
+pub(crate) struct PalletTests {
+    pub(crate) pallet_name: String,
+}
+
 // todo : generate directory structure
 // todo : This is only for development
 #[allow(unused)]
@@ -25,21 +52,42 @@ pub fn generate() {
     write_to_file(Path::new("src/x.rs"), &rendered);
 }
 
-// TODO: Check the usage of `expect`. We don't want to leave the outdir in a unhygenic state
-pub(crate) fn write_to_file<'a>(path: &Path, contents: &'a str) {
-    use std::io::Write;
-    let mut file = OpenOptions::new()
-        .write(true)
-        .truncate(true)
-        .open(path)
-        .unwrap();
-    file.write_all(contents.as_bytes()).unwrap();
-    let output = std::process::Command::new("rustfmt")
-        .arg(path.to_str().unwrap())
-        .output()
-        .expect("failed to execute rustfmt");
+pub trait PalletItem {
+    fn execute(&self, root: &Path) -> anyhow::Result<()>;
+}
 
-    if !output.status.success() {
-        println!("rustfmt exited with non-zero status code.");
+impl PalletItem for PalletTests {
+    fn execute(&self, root: &Path) -> anyhow::Result<()> {
+        let rendered = self.render()?;
+        write_to_file(&root.join("src/tests.rs"), &rendered);
+        Ok(())
+    }
+}
+impl PalletItem for PalletMock {
+    fn execute(&self, root: &Path) -> anyhow::Result<()> {
+        let rendered = self.render()?;
+        write_to_file(&root.join("src/mock.rs"), &rendered);
+        Ok(())
+    }
+}
+impl PalletItem for PalletLib {
+    fn execute(&self, root: &Path) -> anyhow::Result<()> {
+        let rendered = self.render()?;
+        write_to_file(&root.join("src/lib.rs"), &rendered);
+        Ok(())
+    }
+}
+impl PalletItem for PalletBenchmarking {
+    fn execute(&self, root: &Path) -> anyhow::Result<()> {
+        let rendered = self.render()?;
+        write_to_file(&root.join("src/benchmarking.rs"), &rendered);
+        Ok(())
+    }
+}
+impl PalletItem for PalletCargoToml {
+    fn execute(&self, root: &Path) -> anyhow::Result<()> {
+        let rendered = self.render()?;
+        write_to_file(&root.join("Cargo.toml"), &rendered);
+        Ok(())
     }
 }

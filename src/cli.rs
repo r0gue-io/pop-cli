@@ -58,4 +58,6 @@ pub struct PalletCmd {
     pub(crate) authors: Option<String>,
     #[arg(help = "Pallet description", default_value = "Frame Pallet")]
     pub(crate) description: Option<String>,
+    #[arg(short = 'p', long = "path", help = "Path to the pallet")]
+    pub(crate) path: Option<String>,
 }

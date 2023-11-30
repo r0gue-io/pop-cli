@@ -1,6 +1,7 @@
 use crate::{
     cli::Template,
-    generator::{write_to_file, ChainSpec}, helpers::{clone_and_degit, sanitize},
+    generator::ChainSpec,
+    helpers::{clone_and_degit, sanitize, write_to_file},
 };
 use anyhow::Result;
 use git2::Repository;
@@ -62,4 +63,3 @@ pub fn instantiate_vanilla_template(target: &Path, config: Config) -> Result<()>
     Repository::init(target)?;
     Ok(())
 }
-
