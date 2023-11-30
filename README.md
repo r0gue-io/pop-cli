@@ -28,6 +28,14 @@ There's also the shorter version:
 ```sh
 pop create my-app -s DOT -d 6 -i 1_000_000_000
 ```
+To create a new pallet, simply `pop pallet`. And that's it. You will have a new `pallet-template` ready for hacking.
+To customize the new pallet you can follow these options:
+```sh
+# create a pallet with name `pallet-awesome` in the current working directory
+pop pallet pallet-awesome
+# or with options
+pop pallet pallet-awesome --authors Me --description "This pallet oozes awesomeness" --path my_app/pallets
+```
 
 Finally, you would need to build and run it.
 ```sh
