@@ -1,6 +1,7 @@
 use crate::{
     cli::Template,
-    generator::{write_to_file, ChainSpec},
+    generator::ChainSpec,
+    helpers::{clone_and_degit, sanitize, write_to_file},
 };
 use anyhow::Result;
 use git2::Repository;
@@ -60,36 +61,5 @@ pub fn instantiate_vanilla_template(target: &Path, config: Config) -> Result<()>
         chainspec.render().expect("infallible").as_ref(),
     );
     Repository::init(target)?;
-    Ok(())
-}
-
-fn sanitize(target: &Path) -> Result<()> {
-    use std::io::{stdin, stdout, Write};
-    if target.exists() {
-        print!(
-            "\"{}\" folder exists. Do you want to clean it? [y/n]: ",
-            target.display()
-        );
-        stdout().flush()?;
-
-        let mut input = String::new();
-        stdin().read_line(&mut input)?;
-
-        if input.trim().to_lowercase() == "y" {
-            fs::remove_dir_all(target)?;
-        } else {
-            return Err(anyhow::anyhow!(
-                "User aborted due to existing target folder."
-            ));
-        }
-    }
-    Ok(())
-}
-
-/// Clone `url` into `target` and degit it
-fn clone_and_degit(url: &str, target: &Path) -> Result<()> {
-    let repo = Repository::clone(url, target)?;
-    let git_dir = repo.path();
-    fs::remove_dir_all(&git_dir)?;
     Ok(())
 }

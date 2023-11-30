@@ -5,13 +5,14 @@ use strum_macros::{Display, EnumString};
 #[command(arg_required_else_help = true)]
 pub struct Cli {
     #[command(subcommand)]
-    pub(crate) create: Create,
+    pub(crate) intent: Intention,
 }
 
 #[derive(Subcommand, Clone)]
 #[command(subcommand_required = true)]
-pub enum Create {
+pub enum Intention {
     Create(TemplateCmd),
+    Pallet(PalletCmd),
 }
 
 #[derive(Clone, Parser, Debug, Display, EnumString, PartialEq)]
@@ -47,4 +48,21 @@ pub struct TemplateCmd {
         default_value = "1u64 << 60"
     )]
     pub(crate) initial_endowment: Option<String>,
+}
+
+#[derive(Parser, Clone)]
+pub struct PalletCmd {
+    #[arg(help = "Name of the pallet", default_value = "pallet-template")]
+    pub(crate) name: String,
+    #[arg(short, long, help = "Name of authors", default_value = "Anonymous")]
+    pub(crate) authors: Option<String>,
+    #[arg(
+        short,
+        long,
+        help = "Pallet description",
+        default_value = "Frame Pallet"
+    )]
+    pub(crate) description: Option<String>,
+    #[arg(short = 'p', long = "path", help = "Path to the pallet, [default: current directory]")]
+    pub(crate) path: Option<String>,
 }
