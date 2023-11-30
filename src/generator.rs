@@ -53,41 +53,23 @@ pub fn generate() {
 }
 
 pub trait PalletItem {
+    /// Render and Write to file, root is the path to the pallet
     fn execute(&self, root: &PathBuf) -> anyhow::Result<()>;
 }
+macro_rules! generate_pallet_item {
+    ($item:ty, $filename:expr) => {
+        impl PalletItem for $item {
+            fn execute(&self, root: &PathBuf) -> anyhow::Result<()> {
+                let rendered = self.render()?;
+                write_to_file(&root.join($filename), &rendered);
+                Ok(())
+            }
+        }
+    };
+}
 
-impl PalletItem for PalletTests {
-    fn execute(&self, root: &PathBuf) -> anyhow::Result<()> {
-        let rendered = self.render()?;
-        write_to_file(&root.join("src/tests.rs"), &rendered);
-        Ok(())
-    }
-}
-impl PalletItem for PalletMock {
-    fn execute(&self, root: &PathBuf) -> anyhow::Result<()> {
-        let rendered = self.render()?;
-        write_to_file(&root.join("src/mock.rs"), &rendered);
-        Ok(())
-    }
-}
-impl PalletItem for PalletLib {
-    fn execute(&self, root: &PathBuf) -> anyhow::Result<()> {
-        let rendered = self.render()?;
-        write_to_file(&root.join("src/lib.rs"), &rendered);
-        Ok(())
-    }
-}
-impl PalletItem for PalletBenchmarking {
-    fn execute(&self, root: &PathBuf) -> anyhow::Result<()> {
-        let rendered = self.render()?;
-        write_to_file(&root.join("src/benchmarking.rs"), &rendered);
-        Ok(())
-    }
-}
-impl PalletItem for PalletCargoToml {
-    fn execute(&self, root: &PathBuf) -> anyhow::Result<()> {
-        let rendered = self.render()?;
-        write_to_file(&root.join("Cargo.toml"), &rendered);
-        Ok(())
-    }
-}
+generate_pallet_item!(PalletTests, "src/tests.rs");
+generate_pallet_item!(PalletMock, "src/mock.rs");
+generate_pallet_item!(PalletLib, "src/lib.rs");
+generate_pallet_item!(PalletBenchmarking, "src/benchmarking.rs");
+generate_pallet_item!(PalletCargoToml, "Cargo.toml");
