@@ -1,6 +1,6 @@
 use crate::{
     commands::new::parachain::Template,
-    generator::ChainSpec,
+    engines::generator::ChainSpec,
     helpers::{clone_and_degit, sanitize, write_to_file},
 };
 use anyhow::Result;

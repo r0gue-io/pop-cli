@@ -1,8 +1,6 @@
-// mod cli;
-mod generator;
+mod commands;
 mod engines;
 mod helpers;
-mod commands;
 
 use clap::{Args, Parser, Subcommand};
 
@@ -13,7 +11,6 @@ pub struct Cli {
     command: Commands,
 }
 
-// Here goes new, build, test, add, up, update, install, bench
 #[derive(Subcommand)]
 #[command(subcommand_required = true)]
 pub enum Commands {
