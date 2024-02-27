@@ -1,5 +1,5 @@
 use crate::{
-    cli::Template,
+    commands::new::parachain::Template,
     generator::ChainSpec,
     helpers::{clone_and_degit, sanitize, write_to_file},
 };

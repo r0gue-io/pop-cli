@@ -56,6 +56,7 @@ pub trait PalletItem {
     /// Render and Write to file, root is the path to the pallet
     fn execute(&self, root: &PathBuf) -> anyhow::Result<()>;
 }
+
 macro_rules! generate_pallet_item {
     ($item:ty, $filename:expr) => {
         impl PalletItem for $item {
