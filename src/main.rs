@@ -5,7 +5,6 @@ mod helpers;
 mod commands;
 
 use clap::{Args, Parser, Subcommand};
-use std::path::Path;
 
 #[derive(Parser)]
 #[command(author, version, about)]
@@ -23,7 +22,7 @@ pub enum Commands {
 
 #[derive(Args)]
 #[command(args_conflicts_with_subcommands = true)]
-struct NewArgs {
+pub struct NewArgs {
     #[command(subcommand)]
     command: NewCommands,
 }
@@ -39,7 +38,7 @@ pub enum NewCommands {
 
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
-    match &cli.command {
+    let _  = match &cli.command {
         Commands::New(args) => match &args.command {
             NewCommands::Parachain(cmd) => cmd.execute(),
             NewCommands::Pallet(cmd) => cmd.execute(),
