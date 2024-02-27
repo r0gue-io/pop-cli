@@ -1,15 +1,11 @@
 // mod cli;
 mod generator;
-mod pallet;
-mod template;
+mod engines;
 mod helpers;
 mod commands;
 
 use clap::{Args, Parser, Subcommand};
-use pallet::TemplatePalletConfig;
 use std::path::Path;
-
-// use crate::template::Config;
 
 #[derive(Parser)]
 #[command(author, version, about)]

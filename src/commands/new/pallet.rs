@@ -1,5 +1,5 @@
 use clap::Args;
-use crate::pallet::{TemplatePalletConfig, create_pallet_template};
+use crate::engines::pallet_engine::{TemplatePalletConfig, create_pallet_template};
 
 #[derive(Args)]
 pub struct NewPalletCommand {

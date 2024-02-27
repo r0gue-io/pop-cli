@@ -2,7 +2,7 @@ use clap::{Parser, Args};
 use strum_macros::{Display, EnumString};
 use std::path::Path;
 
-use crate::template::{Config, instantiate_template_dir};
+use crate::engines::parachain_engine::{Config, instantiate_template_dir};
 
 #[derive(Clone, Parser, Debug, Display, EnumString, PartialEq)]
 pub enum Template {
