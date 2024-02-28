@@ -1,19 +1,8 @@
-use clap::{Parser, Subcommand};
+use clap::{Parser, Args};
 use strum_macros::{Display, EnumString};
-#[derive(Parser)]
-#[command(author, version, about)]
-#[command(arg_required_else_help = true)]
-pub struct Cli {
-    #[command(subcommand)]
-    pub(crate) intent: Intention,
-}
+use std::path::Path;
 
-#[derive(Subcommand, Clone)]
-#[command(subcommand_required = true)]
-pub enum Intention {
-    Create(TemplateCmd),
-    Pallet(PalletCmd),
-}
+use crate::engines::parachain_engine::{Config, instantiate_template_dir};
 
 #[derive(Clone, Parser, Debug, Display, EnumString, PartialEq)]
 pub enum Template {
@@ -28,8 +17,8 @@ pub enum Template {
     // Kitchensink,
 }
 
-#[derive(Parser, Clone)]
-pub struct TemplateCmd {
+#[derive(Args)]
+pub struct NewParachainCommand {
     #[arg(help = "Name of the app. Also works as a directory path for your project")]
     pub(crate) name: String,
     #[arg(
@@ -50,19 +39,21 @@ pub struct TemplateCmd {
     pub(crate) initial_endowment: Option<String>,
 }
 
-#[derive(Parser, Clone)]
-pub struct PalletCmd {
-    #[arg(help = "Name of the pallet", default_value = "pallet-template")]
-    pub(crate) name: String,
-    #[arg(short, long, help = "Name of authors", default_value = "Anonymous")]
-    pub(crate) authors: Option<String>,
-    #[arg(
-        short,
-        long,
-        help = "Pallet description",
-        default_value = "Frame Pallet"
-    )]
-    pub(crate) description: Option<String>,
-    #[arg(short = 'p', long = "path", help = "Path to the pallet, [default: current directory]")]
-    pub(crate) path: Option<String>,
+impl NewParachainCommand {
+    pub(crate) fn execute(&self) -> anyhow::Result<()> {
+        println!("Starting {} on `{}`!", &self.template,  &self.name);
+        let destination_path = Path::new(&self.name);
+        instantiate_template_dir(
+            &self.template,
+            destination_path,
+            Config {
+                symbol: self.symbol.clone().expect("default values"),
+                decimals: self.decimals.clone().expect("default values").parse::<u8>()?,
+                initial_endowment: self.initial_endowment.clone().expect("default values"),
+            },
+        )?;
+        println!("cd into {} and enjoy hacking! 🚀",  &self.name);
+        Ok(())
+    }
 }
+

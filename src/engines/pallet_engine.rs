@@ -1,5 +1,5 @@
 use crate::{
-    generator::PalletItem,
+    engines::generator::PalletItem,
     helpers::{resolve_pallet_path, sanitize},
 };
 use std::{fs, path::PathBuf};
@@ -46,7 +46,7 @@ fn render_pallet(
     pallet_path: &PathBuf,
 ) -> anyhow::Result<()> {
     let pallet_name = pallet_name.replace('-', "_");
-    use crate::generator::{
+    use crate::engines::generator::{
         PalletBenchmarking, PalletCargoToml, PalletLib, PalletMock, PalletTests,
     };
     // Todo `module` must be of the form Template if pallet_name : `pallet_template`
