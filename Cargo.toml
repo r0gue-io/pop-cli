@@ -1,17 +1,20 @@
 [package]
-name = "pop"
+name = "pop-cli"
+description = "Your one-stop entry into the exciting world of blockchain development with Polkadot"
 version = "0.1.0"
 edition = "2021"
-description = "todo"
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[[bin]]
+name = "pop"
+path = "src/main.rs"
 
 [dependencies]
-anyhow = "1.0.75"
-askama = "0.12.1"
-clap = { version = "4.4.8", features = ["derive"] }
-git2 = "0.18.1"
+anyhow = "1.0"
+askama = "0.12"
+clap = { version = "4.4", features = ["derive"] }
+git2 = "0.18"
 # semver = "1.0.20"
-strum = "0.25.0"
-strum_macros = "0.25.3"
-tempfile = "3.8.1"
-walkdir = "2.4.0"
+strum = "0.26"
+strum_macros = "0.26"
+tempfile = "3.8"
+walkdir = "2.4"
