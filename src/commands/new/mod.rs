@@ -1,6 +1,8 @@
 use clap::{Args, Subcommand};
 
+#[cfg(feature = "parachain")]
 pub mod pallet;
+#[cfg(feature = "parachain")]
 pub mod parachain;
 
 #[derive(Args)]
@@ -13,7 +15,9 @@ pub struct NewArgs {
 #[derive(Subcommand)]
 pub enum NewCommands {
     /// Generate a new parachain template
+    #[cfg(feature = "parachain")]
     Parachain(parachain::NewParachainCommand),
-     /// Generate a new pallet template
+    /// Generate a new pallet template
+    #[cfg(feature = "parachain")]
     Pallet(pallet::NewPalletCommand),
 }
