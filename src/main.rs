@@ -37,6 +37,8 @@ async fn main() -> Result<()> {
             commands::new::NewCommands::Parachain(cmd) => cmd.execute(),
             #[cfg(feature = "parachain")]
             commands::new::NewCommands::Pallet(cmd) => cmd.execute(),
+            #[cfg(feature = "contract")]
+            commands::new::NewCommands::Contract(cmd) => cmd.execute(),
         },
         Commands::Up(args) => Ok(match &args.command {
             #[cfg(feature = "parachain")]
