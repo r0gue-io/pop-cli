@@ -59,3 +59,28 @@ impl NewParachainCommand {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    #[test]
+    fn test_new_parachain_command_execute() -> anyhow::Result<()> {
+        let command = NewParachainCommand {
+            name: "test_parachain".to_string(),
+            template: Template::Vanilla,
+            symbol: Some("UNIT".to_string()),
+            decimals: Some("12".to_string()),
+            initial_endowment: Some("1u64 << 60".to_string()),
+        };
+        let result = command.execute();
+        assert!(result.is_ok());
+        
+        // Clean up
+        if let Err(err) = fs::remove_dir_all("test_parachain") {
+            eprintln!("Failed to delete directory: {}", err);
+        }
+        Ok(())
+    }
+}
