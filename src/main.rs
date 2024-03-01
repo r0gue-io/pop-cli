@@ -23,7 +23,10 @@ pub struct Cli {
 #[derive(Subcommand)]
 #[command(subcommand_required = true)]
 enum Commands {
+    /// Create a parachain, a pallet or smart contract.
     New(commands::new::NewArgs),
+    /// Deploy a parachain or smart contract.
+    Build(commands::build::BuildArgs),
     /// Deploy a parachain or smart contract.
     Up(commands::up::UpArgs),
 }
@@ -39,6 +42,9 @@ async fn main() -> Result<()> {
             commands::new::NewCommands::Pallet(cmd) => cmd.execute(),
             #[cfg(feature = "contract")]
             commands::new::NewCommands::Contract(cmd) => cmd.execute(),
+        },
+        Commands::Build(args) => match &args.command {
+            commands::build::BuildCommands::Contract(cmd) => cmd.execute(),
         },
         Commands::Up(args) => Ok(match &args.command {
             #[cfg(feature = "parachain")]
