@@ -57,3 +57,21 @@ impl NewParachainCommand {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_new_parachain_command_execute() -> anyhow::Result<()> {
+        let command = NewParachainCommand {
+            name: "my_parachain".to_string(),
+            template: Template::Vanilla,
+            symbol: Some("UNIT".to_string()),
+            decimals: Some("12".to_string()),
+            initial_endowment: Some("1u64 << 60".to_string()),
+        };
+        let result = command.execute();
+        assert!(result.is_ok());
+        Ok(())
+    }
+}
