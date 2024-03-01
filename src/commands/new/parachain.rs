@@ -1,8 +1,7 @@
-use clap::{Parser, Args};
-use strum_macros::{Display, EnumString};
+use crate::engines::parachain_engine::{instantiate_template_dir, Config};
+use clap::{Args, Parser};
 use std::path::Path;
-
-use crate::engines::parachain_engine::{Config, instantiate_template_dir};
+use strum_macros::{Display, EnumString};
 
 #[derive(Clone, Parser, Debug, Display, EnumString, PartialEq)]
 pub enum Template {
@@ -41,18 +40,22 @@ pub struct NewParachainCommand {
 
 impl NewParachainCommand {
     pub(crate) fn execute(&self) -> anyhow::Result<()> {
-        println!("Starting {} on `{}`!", &self.template,  &self.name);
+        println!("Starting {} on `{}`!", &self.template, &self.name);
         let destination_path = Path::new(&self.name);
         instantiate_template_dir(
             &self.template,
             destination_path,
             Config {
                 symbol: self.symbol.clone().expect("default values"),
-                decimals: self.decimals.clone().expect("default values").parse::<u8>()?,
+                decimals: self
+                    .decimals
+                    .clone()
+                    .expect("default values")
+                    .parse::<u8>()?,
                 initial_endowment: self.initial_endowment.clone().expect("default values"),
             },
         )?;
-        println!("cd into {} and enjoy hacking! 🚀",  &self.name);
+        println!("cd into {} and enjoy hacking! 🚀", &self.name);
         Ok(())
     }
 }
