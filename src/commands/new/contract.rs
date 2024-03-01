@@ -6,11 +6,11 @@ use cliclack::log;
 use crate::engines::contract_engine::create_smart_contract;
 
 #[derive(Args)]
-pub struct NewContractCommand {
+pub(crate) struct NewContractCommand {
     #[arg(help = "Name of the contract")]
-    pub(crate) name: String,
+    name: String,
     #[arg(short = 'p', long = "path", help = "Path for the contract project, [default: current directory]")]
-    pub(crate) path: Option<PathBuf>,
+    path: Option<PathBuf>,
 }
 
 impl NewContractCommand {

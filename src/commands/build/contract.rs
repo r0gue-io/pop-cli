@@ -6,9 +6,9 @@ use cliclack::log;
 use crate::engines::contract_engine::build_smart_contract;
 
 #[derive(Args)]
-pub struct BuildContractCommand {
+pub(crate) struct BuildContractCommand {
     #[arg(short = 'p', long = "path", help = "Path for the contract project, [default: current directory]")]
-    pub(crate) path: Option<PathBuf>,
+    path: Option<PathBuf>,
 }
 
 impl BuildContractCommand {

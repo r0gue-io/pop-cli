@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use duct::cmd;
 
 use contract_build::{
     new_contract_project, execute, 
@@ -38,3 +39,18 @@ pub fn build_smart_contract(path: &Option<PathBuf>) -> anyhow::Result<()> {
     execute(args)?;
     Ok(())
 }
+
+
+pub fn test_smart_contract(path: &Option<PathBuf>) -> anyhow::Result<()> {
+    cmd(
+        "cargo",
+        vec![
+            "test",
+        ],
+    )
+    .dir(path.clone().unwrap_or(PathBuf::new()))
+    .run()?;
+
+    Ok(())
+}
+

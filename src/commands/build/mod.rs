@@ -4,13 +4,13 @@ pub mod contract;
 
 #[derive(Args)]
 #[command(args_conflicts_with_subcommands = true)]
-pub struct BuildArgs {
+pub(crate) struct BuildArgs {
     #[command(subcommand)]
     pub command: BuildCommands,
 }
 
 #[derive(Subcommand)]
-pub enum BuildCommands {
+pub(crate) enum BuildCommands {
     /// Compiles the contract, generates metadata, bundles both together in a
     /// `<name>.contract` file
     #[cfg(feature = "contract")]

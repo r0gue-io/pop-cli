@@ -29,6 +29,8 @@ enum Commands {
     Build(commands::build::BuildArgs),
     /// Deploy a parachain or smart contract.
     Up(commands::up::UpArgs),
+    /// Test a smart contract.
+    Test(commands::test::TestArgs),
 }
 
 #[tokio::main]
@@ -44,12 +46,17 @@ async fn main() -> Result<()> {
             commands::new::NewCommands::Contract(cmd) => cmd.execute(),
         },
         Commands::Build(args) => match &args.command {
+            #[cfg(feature = "contract")]
             commands::build::BuildCommands::Contract(cmd) => cmd.execute(),
         },
         Commands::Up(args) => Ok(match &args.command {
             #[cfg(feature = "parachain")]
             commands::up::UpCommands::Parachain(cmd) => cmd.execute().await?,
         }),
+        Commands::Test(args) => match &args.command {
+            #[cfg(feature = "contract")]
+            commands::test::TestCommands::Contract(cmd) => cmd.execute(),
+        },
     }
 }
 
