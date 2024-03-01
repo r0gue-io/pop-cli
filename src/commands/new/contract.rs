@@ -1,10 +1,7 @@
 use clap::Args;
-use std::path::Path;
-use contract_build::new_contract_project;
-use crate::{
-    engines::pallet_engine::{TemplatePalletConfig, create_pallet_template},
-    helpers::{resolve_pallet_path},
-};
+use cliclack::log;
+
+use crate::{engines::contract_engine::create_smart_contract,helpers::resolve_pallet_path};
 
 #[derive(Args)]
 pub struct NewContractCommand {
@@ -17,7 +14,11 @@ pub struct NewContractCommand {
 impl NewContractCommand {
     pub(crate) fn execute(&self) -> anyhow::Result<()> {
         let target = resolve_pallet_path(self.path.clone());
-        new_contract_project(&self.name, Some(target));
+        create_smart_contract(self.name.clone(), target)?;
+        log::info(format!(
+            "Smart contract created at {}",
+            self.path.clone().unwrap_or(format!("folder {}",self.name).to_string())
+        ))?;
         Ok(())
     }
 }
