@@ -1,28 +1,23 @@
 use crate::Result;
 use anyhow::anyhow;
-use duct::cmd;
+use git2::{build::RepoBuilder, FetchOptions};
+use log::trace;
 use std::path::Path;
 use url::Url;
 
 pub(crate) struct Git;
 impl Git {
     pub(crate) fn clone(url: &Url, working_dir: &Path, branch: Option<&str>) -> Result<()> {
-        // todo: use git dependency instead of command
         if !working_dir.exists() {
-            let mut args = vec![
-                "clone",
-                "--depth",
-                "1",
-                url.as_str(),
-                working_dir.to_str().expect("working directory is invalid"),
-                "--quiet",
-            ];
+            trace!("cloning {url}...");
+            let mut fo = FetchOptions::new();
+            fo.depth(1);
+            let mut repo = RepoBuilder::new();
+            repo.fetch_options(fo);
             if let Some(branch) = branch {
-                args.push("--branch");
-                args.push(branch);
+                repo.branch(branch);
             }
-            let command = cmd("git", args);
-            command.read()?;
+            repo.clone(url.as_str(), working_dir)?;
         }
         Ok(())
     }

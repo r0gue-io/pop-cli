@@ -267,7 +267,7 @@ impl Zombienet {
             if cfg!(target_os = "macos") {
                 sources.push(Source::Git {
                     url: repo.into(),
-                    branch: Some(format!("polkadot-{version}")),
+                    branch: Some(format!("release-polkadot-{version}")),
                     package: "polkadot-parachain-bin".into(),
                     binaries: vec![BINARY.into()],
                     version: Some(version.into()),
@@ -374,6 +374,7 @@ impl Source {
         package: &str,
         names: impl Iterator<Item = (&'b String, PathBuf)>,
     ) -> Result<()> {
+        info!("building {package}");
         // Build binaries and then copy to cache and target
         cmd(
             "cargo",
@@ -441,7 +442,12 @@ impl Source {
                 // Clone repository into working directory
                 let working_dir = cache.join(".src").join(repository_name);
                 let working_dir = Path::new(&working_dir);
-                Git::clone(url, working_dir, branch.as_deref())?;
+                if let Err(e) = Git::clone(url, working_dir, branch.as_deref()) {
+                    if working_dir.exists() {
+                        Self::remove(working_dir)?;
+                    }
+                    return Err(e);
+                }
                 // Build binaries and finally remove working directory
                 Self::build_binaries(
                     working_dir,
