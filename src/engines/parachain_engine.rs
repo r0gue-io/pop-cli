@@ -63,3 +63,31 @@ pub fn instantiate_vanilla_template(target: &Path, config: Config) -> Result<()>
     Repository::init(target)?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempdir;
+    use std::fs;
+
+    #[test]
+    fn test_instantiate_template_dir_vanilla() -> Result<(), Box<dyn std::error::Error>> {
+        let temp_dir = tempdir::TempDir::new("vanilla_template")?;
+        let config = Config {
+            symbol: "DOT".to_string(),
+            decimals: 18,
+            initial_endowment: "1000000000000000000000000".to_string(),
+        };
+        let result: Result<()> = instantiate_vanilla_template(temp_dir.path(), config);
+        assert!(result.is_ok());
+
+        // Verify that the generated chain_spec.rs file contains the expected content
+        let generated_file_content =
+            fs::read_to_string(temp_dir.path().join("node/src/chain_spec.rs"))?;
+        assert!(generated_file_content.contains("DOT"));
+        assert!(generated_file_content.contains("18"));
+        assert!(generated_file_content.contains("1000000000000000000000000"));
+
+        Ok(())
+    }
+}
