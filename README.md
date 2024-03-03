@@ -5,6 +5,7 @@ Your one-stop entry into the exciting world of Blockchain development with *Polk
 
 ## Getting Started
 
+### Parachains
 Use `pop` to either clone of your existing templates or instantiate a new parachain template: 
 
 ```sh
@@ -43,3 +44,24 @@ cd my-app
 cargo build --release
 ```
 For running any parachain, we recommend using [zombienet](https://github.com/paritytech/zombienet).
+
+
+### Contracts
+Use `pop` to create a smart contract template: 
+
+```sh
+# Create a minimal smart contract template
+pop new contract my-contract
+```
+
+Test the smart contract: 
+```sh
+# Test an existing smart contract
+pop test contract -p ./my-contract
+```
+
+Build the smart contract: 
+```sh
+# Build an existing smart contract
+pop build contract -p ./my-contract
+```
