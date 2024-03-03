@@ -42,14 +42,25 @@ pub fn build_smart_contract(path: &Option<PathBuf>) -> anyhow::Result<()> {
 
 
 pub fn test_smart_contract(path: &Option<PathBuf>) -> anyhow::Result<()> {
-    cmd(
-        "cargo",
-        vec![
-            "test",
-        ],
-    )
-    .dir(path.clone().unwrap_or(PathBuf::new()))
-    .run()?;
+    if path.is_some(){
+        cmd(
+            "cargo",
+            vec![
+                "test",
+            ],
+        )
+        .dir(path.clone().unwrap())
+        .run()?;
+    }
+    else {
+        cmd(
+            "cargo",
+            vec![
+                "test",
+            ],
+        )
+        .run()?;
+    }
 
     Ok(())
 }
