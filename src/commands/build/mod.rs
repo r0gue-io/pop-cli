@@ -14,5 +14,6 @@ pub(crate) enum BuildCommands {
     /// Compiles the contract, generates metadata, bundles both together in a
     /// `<name>.contract` file
     #[cfg(feature = "contract")]
+    #[clap(alias = "c")]
     Contract(contract::BuildContractCommand),
 }

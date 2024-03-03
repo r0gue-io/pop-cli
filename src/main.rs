@@ -12,7 +12,6 @@ mod helpers;
 #[cfg(feature = "parachain")]
 mod parachains;
 
-
 use anyhow::{anyhow, Result};
 use clap::{Parser, Subcommand};
 use std::{fs::create_dir_all, path::PathBuf};
@@ -28,12 +27,16 @@ pub struct Cli {
 #[command(subcommand_required = true)]
 enum Commands {
     /// Build a parachain, a pallet or smart contract.
+    #[clap(alias = "n")]
     New(commands::new::NewArgs),
     /// Compile a parachain or smart contract.
+    #[clap(alias = "b")]
     Build(commands::build::BuildArgs),
     /// Deploy a parachain or smart contract.
+    #[clap(alias = "u")]
     Up(commands::up::UpArgs),
     /// Test a smart contract.
+    #[clap(alias = "t")]
     Test(commands::test::TestArgs),
 }
 

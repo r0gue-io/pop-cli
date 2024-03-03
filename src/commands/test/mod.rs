@@ -13,5 +13,6 @@ pub(crate) struct TestArgs {
 pub(crate) enum TestCommands {
     /// Test the contract
     #[cfg(feature = "contract")]
+    #[clap(alias = "c")]
     Contract(contract::TestContractCommand),
 }
