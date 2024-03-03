@@ -44,6 +44,10 @@ enum Commands {
 	/// Test a smart contract.
 	#[clap(alias = "t")]
 	Test(commands::test::TestArgs),
+    /// Follow one or more chains.
+    #[cfg(feature = "light-client")]
+    #[clap(alias = "f")]
+    Follow(commands::follow::FollowArgs),
 }
 
 #[tokio::main]
@@ -78,6 +82,10 @@ async fn main() -> Result<()> {
 			#[cfg(feature = "contract")]
 			commands::test::TestCommands::Contract(cmd) => cmd.execute(),
 		},
+        #[cfg(feature = "light-client")]
+        Commands::Follow(args) => Ok(match &args.command {
+            commands::follow::FollowCommands::Chain(cmd) => cmd.execute().await?,
+        }),
 	}
 }
 
