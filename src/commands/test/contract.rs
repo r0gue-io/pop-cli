@@ -24,3 +24,4 @@ impl TestContractCommand {
         Ok(())
     }
 }
+

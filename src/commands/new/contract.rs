@@ -6,11 +6,11 @@ use cliclack::log;
 use crate::engines::contract_engine::create_smart_contract;
 
 #[derive(Args)]
-pub(crate) struct NewContractCommand {
+pub struct NewContractCommand {
     #[arg(help = "Name of the contract")]
-    name: String,
+    pub(crate) name: String,
     #[arg(short = 'p', long = "path", help = "Path for the contract project, [default: current directory]")]
-    path: Option<PathBuf>,
+    pub(crate) path: Option<PathBuf>,
 }
 
 impl NewContractCommand {
@@ -20,6 +20,28 @@ impl NewContractCommand {
             "Smart contract created. Move to dir {:?}",
             self.path.clone().unwrap_or(PathBuf::from(format!("/{}", self.name))).display()
         ))?;
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    #[test]
+    fn test_new_contract_command_execute() -> anyhow::Result<()> {
+        let command = NewContractCommand {
+            name: "test_contract".to_string(),
+            path: Some(PathBuf::new())
+        };
+        let result = command.execute();
+        assert!(result.is_ok());
+        
+        // Clean up
+        if let Err(err) = fs::remove_dir_all("test_contract") {
+            eprintln!("Failed to delete directory: {}", err);
+        }
         Ok(())
     }
 }
