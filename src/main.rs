@@ -1,13 +1,14 @@
 mod commands;
-#[cfg(feature = "parachain")]
 mod engines;
+mod style;
+
 #[cfg(feature = "parachain")]
 mod git;
 #[cfg(feature = "parachain")]
 mod helpers;
 #[cfg(feature = "parachain")]
 mod parachains;
-mod style;
+
 
 use anyhow::{anyhow, Result};
 use clap::{Parser, Subcommand};
