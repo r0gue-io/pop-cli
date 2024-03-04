@@ -51,17 +51,17 @@ Use `pop` to create a smart contract template:
 
 ```sh
 # Create a minimal smart contract template
-pop new contract my-contract
+pop new contract my_contract
 ```
 
 Test the smart contract: 
 ```sh
 # Test an existing smart contract
-pop test contract -p ./my-contract
+pop test contract -p ./my_contract
 ```
 
 Build the smart contract: 
 ```sh
 # Build an existing smart contract
-pop build contract -p ./my-contract
+pop build contract -p ./my_contract
 ```
