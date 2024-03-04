@@ -24,9 +24,9 @@ pub struct Cli {
 #[derive(Subcommand)]
 #[command(subcommand_required = true)]
 enum Commands {
-    /// Create a parachain, a pallet or smart contract.
+    /// Build a parachain, a pallet or smart contract.
     New(commands::new::NewArgs),
-    /// Deploy a parachain or smart contract.
+    /// Compile a parachain or smart contract.
     Build(commands::build::BuildArgs),
     /// Deploy a parachain or smart contract.
     Up(commands::up::UpArgs),
