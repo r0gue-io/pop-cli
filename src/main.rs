@@ -11,37 +11,42 @@ mod style;
 
 use anyhow::{anyhow, Result};
 use clap::{Parser, Subcommand};
+use commands::{new, add, up};
 use std::{fs::create_dir_all, path::PathBuf};
 
 #[derive(Parser)]
 #[command(author, version, about, styles=style::get_styles())]
 pub struct Cli {
     #[command(subcommand)]
-    command: Commands,
+    branch: Branch,
 }
 
 #[derive(Subcommand)]
 #[command(subcommand_required = true)]
-enum Commands {
-    New(commands::new::NewArgs),
+enum Branch {
+    /// Create a new parachain or smart contract.
+    New(new::NewArgs),
     /// Deploy a parachain or smart contract.
-    Up(commands::up::UpArgs),
+    Up(up::UpArgs),
+    /// Add a pallet into a runtime
+    Add(add::AddArgs),
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
-    match &cli.command {
-        Commands::New(args) => match &args.command {
+    match &cli.branch {
+        Branch::New(args) => match &args.command {
             #[cfg(feature = "parachain")]
-            commands::new::NewCommands::Parachain(cmd) => cmd.execute(),
+            new::NewCommands::Parachain(cmd) => cmd.execute(),
             #[cfg(feature = "parachain")]
-            commands::new::NewCommands::Pallet(cmd) => cmd.execute(),
+            new::NewCommands::Pallet(cmd) => cmd.execute(),
         },
-        Commands::Up(args) => Ok(match &args.command {
+        Branch::Up(args) => Ok(match &args.command {
             #[cfg(feature = "parachain")]
-            commands::up::UpCommands::Parachain(cmd) => cmd.execute().await?,
+            up::UpCommands::Parachain(cmd) => cmd.execute().await?,
         }),
+        Branch::Add(args) => args.execute(),
     }
 }
 

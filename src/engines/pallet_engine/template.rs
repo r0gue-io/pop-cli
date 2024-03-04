@@ -4,7 +4,12 @@ use crate::{
 };
 use std::{fs, path::PathBuf};
 
-pub fn create_pallet_template(path: Option<String>, config: TemplatePalletConfig) -> anyhow::Result<()> {
+use super::{pallet_entry::AddPalletEntry, PalletEngine};
+
+pub fn create_pallet_template(
+    path: Option<String>,
+    config: TemplatePalletConfig,
+) -> anyhow::Result<()> {
     let target = resolve_pallet_path(path);
     // TODO : config.name might use `-` or use snake_case. We want to use pallet_template for the pallet dirs
     // and PalletTemplate for the runtime macro
@@ -17,12 +22,16 @@ pub fn create_pallet_template(path: Option<String>, config: TemplatePalletConfig
     render_pallet(pallet_name, config, &pallet_path)?;
     Ok(())
 }
+#[derive(clap::Args)]
 pub struct TemplatePalletConfig {
-    pub(crate) name: String,
-    pub(crate) authors: String,
-    pub(crate) description: String,
+    #[arg(short, long, default_value_t = String::from("template"))]
+    pub name: String,
+    #[arg(short, long, default_value_t = String::from("author"))]
+    pub authors: String,
+    #[arg(short, long, default_value_t = String::from("description"))]
+    pub description: String,
 }
-/// Generate a pallet folder and file structure 
+/// Generate a pallet folder and file structure
 fn generate_pallet_structure(target: &PathBuf, pallet_name: &str) -> anyhow::Result<()> {
     use fs::{create_dir, File};
     let (pallet, src) = (

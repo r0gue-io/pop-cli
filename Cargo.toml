@@ -26,6 +26,12 @@ strum_macros = "0.26"
 tempfile = "3.8"
 tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
 walkdir = "2.4"
+frame-support-procedural-tools = "9.0.0"
+proc-macro2 = { version = "1.0.70", features = ["span-locations"] }
+quote = "1.0.33"
+syn = { version = "2.0.39", features = ["full"] }
+cfg-expr = "0.15.5"
+prettyplease = "0.2.15"
 
 # contracts
 
