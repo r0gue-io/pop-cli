@@ -56,6 +56,8 @@ async fn main() -> Result<()> {
         Commands::Up(args) => Ok(match &args.command {
             #[cfg(feature = "parachain")]
             commands::up::UpCommands::Parachain(cmd) => cmd.execute().await?,
+            #[cfg(feature = "contract")]
+            commands::up::UpCommands::Contract(cmd) => cmd.execute().await?,
         }),
         Commands::Test(args) => match &args.command {
             #[cfg(feature = "contract")]
