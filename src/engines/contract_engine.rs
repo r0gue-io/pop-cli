@@ -65,6 +65,32 @@ pub fn test_smart_contract(path: &Option<PathBuf>) -> anyhow::Result<()> {
     Ok(())
 }
 
+pub fn test_e2e_smart_contract(path: &Option<PathBuf>) -> anyhow::Result<()> {
+    if path.is_some(){
+        cmd(
+            "cargo",
+            vec![
+                "test",
+                "--features=e2e-tests"
+            ],
+        )
+        .dir(path.clone().unwrap())
+        .run()?;
+    }
+    else {
+        cmd(
+            "cargo",
+            vec![
+                "test",
+                "--features=e2e-tests"
+            ],
+        )
+        .run()?;
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
