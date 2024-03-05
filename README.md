@@ -65,3 +65,18 @@ Build the smart contract:
 # Build an existing smart contract
 pop build contract -p ./my_contract
 ```
+
+### Build locally
+
+Build the tool locally with all the features:
+```sh
+cargo build --all-features
+```
+Build the tool only for parachain functionality:
+```sh
+cargo build --features parachain
+```
+Build the tool only for contracts functionality:
+```sh
+cargo build --features contract
+```
