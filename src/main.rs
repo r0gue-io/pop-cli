@@ -1,13 +1,17 @@
+#[cfg(any(feature = "parachain", feature = "contract"))]
 mod commands;
-#[cfg(feature = "parachain")]
+#[cfg(any(feature = "parachain", feature = "contract"))]
 mod engines;
+#[cfg(any(feature = "parachain", feature = "contract"))]
+mod style;
+
 #[cfg(feature = "parachain")]
 mod git;
 #[cfg(feature = "parachain")]
 mod helpers;
 #[cfg(feature = "parachain")]
 mod parachains;
-mod style;
+
 
 use anyhow::{anyhow, Result};
 use clap::{Parser, Subcommand};
@@ -23,9 +27,14 @@ pub struct Cli {
 #[derive(Subcommand)]
 #[command(subcommand_required = true)]
 enum Commands {
+    /// Build a parachain, a pallet or smart contract.
     New(commands::new::NewArgs),
+    /// Compile a parachain or smart contract.
+    Build(commands::build::BuildArgs),
     /// Deploy a parachain or smart contract.
     Up(commands::up::UpArgs),
+    /// Test a smart contract.
+    Test(commands::test::TestArgs),
 }
 
 #[tokio::main]
@@ -37,11 +46,21 @@ async fn main() -> Result<()> {
             commands::new::NewCommands::Parachain(cmd) => cmd.execute(),
             #[cfg(feature = "parachain")]
             commands::new::NewCommands::Pallet(cmd) => cmd.execute(),
+            #[cfg(feature = "contract")]
+            commands::new::NewCommands::Contract(cmd) => cmd.execute(),
+        },
+        Commands::Build(args) => match &args.command {
+            #[cfg(feature = "contract")]
+            commands::build::BuildCommands::Contract(cmd) => cmd.execute(),
         },
         Commands::Up(args) => Ok(match &args.command {
             #[cfg(feature = "parachain")]
             commands::up::UpCommands::Parachain(cmd) => cmd.execute().await?,
         }),
+        Commands::Test(args) => match &args.command {
+            #[cfg(feature = "contract")]
+            commands::test::TestCommands::Contract(cmd) => cmd.execute(),
+        },
     }
 }
 
