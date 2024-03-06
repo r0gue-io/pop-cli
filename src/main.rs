@@ -4,11 +4,11 @@ mod commands;
 mod engines;
 #[cfg(any(feature = "parachain", feature = "contract"))]
 mod style;
+#[cfg(any(feature = "parachain", feature = "contract"))]
+mod helpers;
 
 #[cfg(feature = "parachain")]
 mod git;
-#[cfg(feature = "parachain")]
-mod helpers;
 #[cfg(feature = "parachain")]
 mod parachains;
 

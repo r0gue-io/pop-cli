@@ -4,7 +4,9 @@ use duct::cmd;
 use contract_build::{
     new_contract_project, execute, 
     ExecuteArgs, ManifestPath,Verbosity, BuildMode,Features,Network,BuildArtifacts, UnstableFlags, OptimizationPasses, OutputType, Target,
+    DEFAULT_MAX_MEMORY_PAGES
 };
+use contract_extrinsics::{ExtrinsicOptsBuilder, InstantiateExec};
 
 pub fn create_smart_contract(name: String, target: &Option<PathBuf>) -> anyhow::Result<()> {
     new_contract_project(&name, target.as_ref())
@@ -31,10 +33,12 @@ pub fn build_smart_contract(path: &Option<PathBuf>) -> anyhow::Result<()> {
         unstable_flags: UnstableFlags::default(),
         optimization_passes: Some(OptimizationPasses::default()),
         keep_debug_symbols: false,
-        lint: false,
+        extra_lints: false,
         output_type: OutputType::Json,
         skip_wasm_validation: false,
         target: Target::Wasm,
+        max_memory_pages: DEFAULT_MAX_MEMORY_PAGES,
+        image: Default::default(),
     };
     execute(args)?;
     Ok(())
@@ -50,6 +54,11 @@ pub fn test_smart_contract(path: &Option<PathBuf>) -> anyhow::Result<()> {
         )
         .dir(path.clone().unwrap_or("./".into()))
         .run()?;
+
+    Ok(())
+}
+
+pub async fn instantiate_smart_contract() -> anyhow::Result<()> {
 
     Ok(())
 }

@@ -1,10 +1,13 @@
 use anyhow::Result;
+use sp_core::Bytes;
 use git2::Repository;
 use std::{
     env::current_dir,
     fs::{self, OpenOptions},
     path::{Path, PathBuf},
 };
+use contract_build::util::decode_hex;
+
 pub(crate) fn sanitize(target: &Path) -> Result<()> {
     use std::io::{stdin, stdout, Write};
     if target.exists() {
@@ -72,4 +75,10 @@ pub(crate) fn resolve_pallet_path(path: Option<String>) -> PathBuf {
     } else {
         cwd
     }
+}
+
+/// Parse hex encoded bytes.
+pub(crate) fn parse_hex_bytes(input: &str) -> Result<Bytes> {
+    let bytes = decode_hex(input)?;
+    Ok(bytes.into())
 }
