@@ -85,7 +85,7 @@ Run e2e testing on the smart contract:
  pop test contract  -p ./my_contract --features e2e-tests
 ```
 
-### Build locally
+## Building Pop CLI locally
 
 Build the tool locally with all the features:
 ```sh
