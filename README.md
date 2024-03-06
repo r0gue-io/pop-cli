@@ -1,7 +1,13 @@
 # POP
 <img src=".icons/logo.jpeg"></img>
 
-Your one-stop entry into the exciting world of Blockchain development with *Polkadot*
+An all-in-one tool for Polkadot development.
+
+## Install
+You can install Pop CLI as follows:
+```shell
+cargo install --git https://github.com/r0gue-io/pop-cli
+```
 
 ## Getting Started
 
@@ -79,4 +85,12 @@ cargo build --features parachain
 Build the tool only for contracts functionality:
 ```sh
 cargo build --features contract
+```
+
+For running any parachain, we recommend using [zombienet](https://github.com/paritytech/zombienet).
+
+## Spawn Network using Zombienet
+You can spawn a local network as follows:
+```shell
+pop up parachain -f ./tests/zombienet.toml -p https://github.com/r0gue-io/pop-node
 ```
