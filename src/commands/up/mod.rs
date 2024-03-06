@@ -16,6 +16,7 @@ pub(crate) struct UpArgs {
 pub(crate) enum UpCommands {
     #[cfg(feature = "parachain")]
     /// Deploy a parachain to a network.
+    #[clap(alias = "p")]
     Parachain(parachain::ZombienetCommand),
     #[cfg(feature = "contract")]
     /// Deploy a smart contract to a network.
