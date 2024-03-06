@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use sp_core::Bytes;
 use clap::Args;
-use cliclack::intro;
+use cliclack::{intro, log};
 use anyhow::anyhow;
 
 use crate::{
@@ -75,14 +75,19 @@ impl UpContractCommand {
             weight_limit = Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap());
         }
         else {
+            log::info("Doing a dry run to estimate the gas...")?;
             weight_limit = dry_run_gas_estimate_instantiate(&instantiate_exec).await?;
-            println!("{:?}", weight_limit);
+            log::info(format!(
+                "Gas limit {:?}",
+                weight_limit
+            ))?;
         }
+        log::info("Uploading and instantiating the contract...")?;
         instantiate_smart_contract(instantiate_exec, weight_limit).await.map_err(|err| anyhow!(
             "{} {}",
             "ERROR:",
             format!("{err:?}")
-        ));
+        ))?;
         Ok(())
     }
 

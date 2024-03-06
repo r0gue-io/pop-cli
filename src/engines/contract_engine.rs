@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 use duct::cmd;
+use cliclack::{outro, log};
 
 use contract_build::{
     new_contract_project, execute, 
@@ -71,8 +72,9 @@ pub async fn instantiate_smart_contract(instantiate_exec: InstantiateExec<
     Keypair,
 >, gas_limit: Weight) -> anyhow::Result<(), ErrorVariant> {
     let instantiate_result = instantiate_exec.instantiate(Some(gas_limit)).await?;
-    println!("Contract Address {:?}", instantiate_result.contract_address.to_string());
-    println!("Code Hash {:?}", instantiate_result.code_hash);
+    log::info("Contract deployed and instantiate:")?;
+    outro(format!("Contract Address {:?}", instantiate_result.contract_address.to_string()))?;
+    outro(format!("Code Hash {:?}", instantiate_result.code_hash))?;
     Ok(())
 }
 
