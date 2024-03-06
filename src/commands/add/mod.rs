@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use clap::{Args, Subcommand};
 
-use crate::engines::pallet_engine::TemplatePalletConfig;
+use crate::engines::pallet_engine::{self, TemplatePalletConfig};
 
 #[derive(Args)]
 #[command(args_conflicts_with_subcommands = true)]
@@ -50,7 +50,7 @@ impl AddArgs {
                 // format!("FRAME-pallet-{name}")
             },
         };
-        crate::engines::pallet_engine::execute(self.pallet.clone(), runtime_path.clone())?;
+        pallet_engine::execute(self.pallet.clone(), runtime_path.clone())?;
         println!("Added {}\n-> to {}", pallet, runtime_path.display());
         Ok(())
     }

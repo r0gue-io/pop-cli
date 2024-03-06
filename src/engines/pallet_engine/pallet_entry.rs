@@ -8,7 +8,7 @@ pub(super) struct AddPalletEntry {
     pub(super) name: Ident,
 }
 impl AddPalletEntry {
-    fn new(index: Option<u8>, path: &str, name: &str) -> Self {
+    pub(super) fn new(index: Option<u8>, path: &str, name: &str) -> Self {
         let path = Ident::new(path, proc_macro2::Span::call_site());
         let name = Ident::new(name, proc_macro2::Span::call_site());
         Self { index, path, name }

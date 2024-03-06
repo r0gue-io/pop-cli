@@ -15,10 +15,13 @@
 
 mod pallet_entry;
 mod parser;
+mod steps;
 mod template;
 
+use crate::commands::add::AddPallet;
 use anyhow::{anyhow, bail, Context};
 use pallet_entry::Numbers;
+use pallet_entry::{AddPalletEntry, ReadPalletEntry};
 use parser::RuntimeDeclaration;
 use proc_macro2::TokenStream;
 use std::{
@@ -27,17 +30,15 @@ use std::{
     io::{BufRead, BufReader, Write},
     path::{Path, PathBuf},
 };
+use steps::{run_steps, step_builder, Steps};
 use syn::{spanned::Spanned, ItemMacro};
 pub use template::{create_pallet_template, TemplatePalletConfig};
 
-use pallet_entry::{AddPalletEntry, ReadPalletEntry};
-
 /// The main entry point into the engine.
-pub fn execute(
-    pallet: crate::commands::add::AddPallet,
-    runtime_path: PathBuf,
-) -> anyhow::Result<()> {
-    Ok(())
+pub fn execute(pallet: AddPallet, runtime_path: PathBuf) -> anyhow::Result<()> {
+    let mut pe = PalletEngine::new(input)?;
+    let steps = step_builder(pallet)?;
+    run_steps(pe, steps)
 }
 
 /// The Pallet Engine has two Paths `input` and `output`.
@@ -84,9 +85,9 @@ impl PalletEngine {
         &self.output
     }
     /// Create a new PalletEngine
-    pub fn new(input: PathBuf) -> anyhow::Result<Self> {
+    pub fn new(input: &PathBuf) -> anyhow::Result<Self> {
         let tmp_dir = tempfile::TempDir::new()?;
-        let output: PathBuf = tmp_dir.path().join("lib.rs");
+        let output: PathBuf = tmp_dir.path().join("temp_lib.rs");
         // Open the file specified in `output`. If non-empty, delete its contents.
         if output.exists() && output.is_file() {
             std::fs::remove_file(output.as_path())?;
@@ -130,7 +131,7 @@ impl PalletEngine {
             bail!("No pallets/construct_runtime! found in input");
         };
         Ok(Self {
-            input,
+            input: input.to_owned(),
             output,
             details,
         })
@@ -195,6 +196,7 @@ impl PalletEngine {
 }
 
 // Private methods for internal use.
+#[allow(unused)]
 impl PalletEngine {
     /// Add `n` line-breaks to output
     fn add_new_line(&self, n: usize) -> anyhow::Result<()> {
