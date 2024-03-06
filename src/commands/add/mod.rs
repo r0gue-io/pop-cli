@@ -16,18 +16,19 @@ pub(crate) struct AddArgs {
     pub(crate) runtime: Option<String>,
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Clone)]
 #[command(subcommand_required = true)]
 pub(crate) enum AddPallet {
-    /// Insert `pallet-template` into the runtime. Useful for quick start pallet-template dev
-    Template(TemplatePalletConfig),
+    /// Insert `pallet-template` into the runtime.
+    Template,
     /// Insert a frame-pallet into the runtime.
     Frame(FrameArgs),
 }
 
-#[derive(Args)]
+#[derive(Args, Clone)]
 pub(crate) struct FrameArgs {
     #[arg(short, long)]
+    // TODO: Not ready for use
     pub(crate) name: String,
 }
 
@@ -42,16 +43,14 @@ impl AddArgs {
             }
         };
         let pallet = match self.pallet {
-            AddPallet::Template(TemplatePalletConfig {
-                ref name,
-                ref authors,
-                ref description,
-            }) => format!(
-                "Template with name: {name}, authors: {authors:?}, description: {description:?}"
-            ),
-            AddPallet::Frame(FrameArgs { ref name }) => format!("p-frame-{name}"),
+            AddPallet::Template => format!("pallet-template"),
+            AddPallet::Frame(FrameArgs { ref name }) => {
+                eprintln!("Sorry, frame pallets cannot be added right now");
+                std::process::exit(1);
+                // format!("FRAME-pallet-{name}")
+            },
         };
-        crate::engines::pallet_engine::execute(self.pallet.clone(), runtime_path)?;
+        crate::engines::pallet_engine::execute(self.pallet.clone(), runtime_path.clone())?;
         println!("Added {}\n-> to {}", pallet, runtime_path.display());
         Ok(())
     }

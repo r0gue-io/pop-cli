@@ -22,7 +22,7 @@ pub fn create_pallet_template(
     render_pallet(pallet_name, config, &pallet_path)?;
     Ok(())
 }
-#[derive(clap::Args)]
+#[derive(clap::Args, Clone)]
 pub struct TemplatePalletConfig {
     #[arg(short, long, default_value_t = String::from("template"))]
     pub name: String,

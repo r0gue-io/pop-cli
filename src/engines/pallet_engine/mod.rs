@@ -1,4 +1,3 @@
-#![allow(unused)]
 //! Pallet Engine - A set of tools to add pallets to your runtime
 //! To add a pallet one usually needs to consider a few pieces of information together:
 //!
@@ -10,7 +9,7 @@
 //! 1. Does adding this pallet exceed the total number of pallets > 255?
 //! 2. Does the computed pallet index overflow the u8 bound? (gaps in explicit pallet index declarations)
 //! 3. Is the pallet already in the runtime? If yes, do we add a second instance or abort?
-//! 4. Does this pallet require a genesis configuration? 
+//! 4. Does this pallet require a genesis configuration?
 //!
 //! It is the goal of this module, to answer all of these questions.
 
@@ -33,12 +32,13 @@ pub use template::{create_pallet_template, TemplatePalletConfig};
 
 use pallet_entry::{AddPalletEntry, ReadPalletEntry};
 
-
 /// The main entry point into the engine.
-pub fn execute(pallet: AddPallet, runtime_path: PathBuf) -> anyhow::Result<()> {
+pub fn execute(
+    pallet: crate::commands::add::AddPallet,
+    runtime_path: PathBuf,
+) -> anyhow::Result<()> {
     Ok(())
 }
-
 
 /// The Pallet Engine has two Paths `input` and `output`.
 /// During processing, we want to keep the input source and the output source separate as
@@ -86,7 +86,7 @@ impl PalletEngine {
     /// Create a new PalletEngine
     pub fn new(input: PathBuf) -> anyhow::Result<Self> {
         let tmp_dir = tempfile::TempDir::new()?;
-        let output : PathBuf = tmp_dir.path().join("lib.rs");
+        let output: PathBuf = tmp_dir.path().join("lib.rs");
         // Open the file specified in `output`. If non-empty, delete its contents.
         if output.exists() && output.is_file() {
             std::fs::remove_file(output.as_path())?;

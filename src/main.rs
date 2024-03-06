@@ -12,60 +12,57 @@ mod helpers;
 #[cfg(feature = "parachain")]
 mod parachains;
 
-
 use anyhow::{anyhow, Result};
 use clap::{Parser, Subcommand};
-use commands::{build, new, add, up, test};
 use std::{fs::create_dir_all, path::PathBuf};
 
 #[derive(Parser)]
 #[command(author, version, about, styles=style::get_styles())]
 pub struct Cli {
     #[command(subcommand)]
-    branch: Branch,
+    command: Commands,
 }
 
 #[derive(Subcommand)]
 #[command(subcommand_required = true)]
-enum Branch {
+enum Commands {
     /// Build a parachain, a pallet or smart contract.
-    /// Create a new parachain or smart contract.
-    New(new::NewArgs),
+    New(commands::new::NewArgs),
     /// Compile a parachain or smart contract.
-    Build(build::BuildArgs),
+    Build(commands::build::BuildArgs),
     /// Deploy a parachain or smart contract.
-    Up(up::UpArgs),
-    /// Add a pallet into a runtime
-    Add(add::AddArgs),
+    Up(commands::up::UpArgs),
     /// Test a smart contract.
-    Test(test::TestArgs),
+    Test(commands::test::TestArgs),
+    /// Add a pallet to the runtime
+    Add(commands::add::AddArgs),
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
-    match &cli.branch {
-        Branch::New(args) => match &args.command {
+    match &cli.command {
+        Commands::New(args) => match &args.command {
             #[cfg(feature = "parachain")]
-            new::NewCommands::Parachain(cmd) => cmd.execute(),
+            commands::new::NewCommands::Parachain(cmd) => cmd.execute(),
             #[cfg(feature = "parachain")]
-            new::NewCommands::Pallet(cmd) => cmd.execute(),
+            commands::new::NewCommands::Pallet(cmd) => cmd.execute(),
             #[cfg(feature = "contract")]
-            new::NewCommands::Contract(cmd) => cmd.execute(),
+            commands::new::NewCommands::Contract(cmd) => cmd.execute(),
         },
-        Branch::Build(args) => match &args.command {
+        Commands::Build(args) => match &args.command {
             #[cfg(feature = "contract")]
-            build::BuildCommands::Contract(cmd) => cmd.execute(),
+            commands::build::BuildCommands::Contract(cmd) => cmd.execute(),
         },
-        Branch::Up(args) => Ok(match &args.command {
+        Commands::Up(args) => Ok(match &args.command {
             #[cfg(feature = "parachain")]
-            up::UpCommands::Parachain(cmd) => cmd.execute().await?,
+            commands::up::UpCommands::Parachain(cmd) => cmd.execute().await?,
         }),
-        Branch::Test(args) => match &args.command {
+        Commands::Test(args) => match &args.command {
             #[cfg(feature = "contract")]
-            test::TestCommands::Contract(cmd) => cmd.execute(),
+            commands::test::TestCommands::Contract(cmd) => cmd.execute(),
         },
-        Branch::Add(args) => args.execute(),
+        Commands::Add(args) => args.execute(),
     }
 }
 
