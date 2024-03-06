@@ -19,6 +19,17 @@ pop new parachain my-app cpt
 pop new parachain my-app fpt
 ```
 
+Use `pop` to build your just created parachain.
+```sh
+# Build your parachain
+pop build parachain -p ./my-app
+```
+or 
+```sh
+cd my-app
+pop build parachain
+```
+
 You can also customize a template by providing config options for token symbol (as it appears on polkadot-js apps UI), token decimals, and the initial endowment for substrate developer accounts. Here's how: 
 
 ```sh

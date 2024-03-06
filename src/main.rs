@@ -53,6 +53,8 @@ async fn main() -> Result<()> {
             commands::new::NewCommands::Contract(cmd) => cmd.execute(),
         },
         Commands::Build(args) => match &args.command {
+            #[cfg(feature = "parachain")]
+            commands::build::BuildCommands::Parachain(cmd) => cmd.execute(),
             #[cfg(feature = "contract")]
             commands::build::BuildCommands::Contract(cmd) => cmd.execute(),
         },
