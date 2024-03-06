@@ -17,7 +17,7 @@ impl NewContractCommand {
     pub(crate) fn execute(&self) -> anyhow::Result<()> {
         create_smart_contract(self.name.clone(), &self.path)?;
         log::info(format!(
-            "Smart contract created. Move to dir {:?}",
+            "Smart contract created! Located in the following directory {:?}",
             self.path.clone().unwrap_or(PathBuf::from(format!("/{}", self.name))).display()
         ))?;
         Ok(())
