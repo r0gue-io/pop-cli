@@ -1,13 +1,17 @@
+#[cfg(any(feature = "parachain", feature = "contract"))]
 mod commands;
-#[cfg(feature = "parachain")]
+#[cfg(any(feature = "parachain", feature = "contract"))]
 mod engines;
+#[cfg(any(feature = "parachain", feature = "contract"))]
+mod style;
+
 #[cfg(feature = "parachain")]
 mod git;
 #[cfg(feature = "parachain")]
 mod helpers;
 #[cfg(feature = "parachain")]
 mod parachains;
-mod style;
+
 
 use anyhow::{anyhow, Result};
 use clap::{Parser, Subcommand};
@@ -23,9 +27,9 @@ pub struct Cli {
 #[derive(Subcommand)]
 #[command(subcommand_required = true)]
 enum Commands {
-    /// Create a parachain, a pallet or smart contract.
+    /// Build a parachain, a pallet or smart contract.
     New(commands::new::NewArgs),
-    /// Deploy a parachain or smart contract.
+    /// Compile a parachain or smart contract.
     Build(commands::build::BuildArgs),
     /// Deploy a parachain or smart contract.
     Up(commands::up::UpArgs),

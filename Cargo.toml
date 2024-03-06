@@ -28,6 +28,7 @@ tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
 walkdir = "2.4"
 
 # contracts
+contract-build = { version = "3.2.0", optional = true } 
 
 # parachains
 dirs = { version = "5.0", optional = true }
@@ -42,6 +43,7 @@ url = { version = "2.5", optional = true }
 zombienet-sdk = { git = "https://github.com/paritytech/zombienet-sdk", optional = true }
 zombienet-support = { git = "https://github.com/paritytech/zombienet-sdk", optional = true }
 contract-build = { version = "3.2.0", optional = true } 
+
 
 [features]
 default = ["contract", "parachain"]

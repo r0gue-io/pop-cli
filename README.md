@@ -51,20 +51,22 @@ Use `pop` to create a smart contract template:
 
 ```sh
 # Create a minimal smart contract template
-pop new contract my-contract
+pop new contract my_contract
 ```
 
 Test the smart contract: 
 ```sh
 # Test an existing smart contract
-pop test contract -p ./my-contract
+pop test contract -p ./my_contract
 ```
 
 Build the smart contract: 
 ```sh
 # Build an existing smart contract
-pop build contract -p ./my-contract
+pop build contract -p ./my_contract
 ```
+
+### E2E testing
 
 For e2e testing you will need to have a Substrate node with `pallet contracts`.
 You do not need to run it in the background since the node is started for each test independently. 
@@ -81,4 +83,19 @@ Run e2e testing on the smart contract:
 ```sh
 # Run e2e tests for an existing smart contract
  pop test contract  -p ./my_contract --features e2e-tests
+```
+
+### Build locally
+
+Build the tool locally with all the features:
+```sh
+cargo build --all-features
+```
+Build the tool only for parachain functionality:
+```sh
+cargo build --features parachain
+```
+Build the tool only for contracts functionality:
+```sh
+cargo build --features contract
 ```
