@@ -66,6 +66,15 @@ Build the smart contract:
 pop build contract -p ./my_contract
 ```
 
+Deploy and instantiate the smart contract:
+```sh
+pop up contract -p ./my_contract --constructor new --args "false" --suri //Alice
+```
+- Have to specify the contract constructor to use, which in this example is new()
+- Have to specify the argument to the constructor, which in this example is false
+- Have to specify the account uploading and instantiating the contract, which in this example is the default development account of //Alice
+
+You can specify the url of your network with `--url ws://your-endpoint`, by default is using `ws://localhost:9944`
 ### Build locally
 
 Build the tool locally with all the features:
