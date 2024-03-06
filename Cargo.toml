@@ -42,7 +42,6 @@ tracing-subscriber = { version = "0.3", optional = true }
 url = { version = "2.5", optional = true }
 zombienet-sdk = { git = "https://github.com/paritytech/zombienet-sdk", optional = true }
 zombienet-support = { git = "https://github.com/paritytech/zombienet-sdk", optional = true }
-contract-build = { version = "3.2.0", optional = true } 
 
 
 [features]
