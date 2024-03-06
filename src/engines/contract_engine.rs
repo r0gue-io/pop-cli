@@ -6,7 +6,12 @@ use contract_build::{
     ExecuteArgs, ManifestPath,Verbosity, BuildMode,Features,Network,BuildArtifacts, UnstableFlags, OptimizationPasses, OutputType, Target,
     DEFAULT_MAX_MEMORY_PAGES
 };
-use contract_extrinsics::{ExtrinsicOptsBuilder, InstantiateExec};
+use sp_weights::Weight;
+use contract_extrinsics::{InstantiateExec, ErrorVariant};
+use subxt::PolkadotConfig as DefaultConfig;
+use subxt_signer::sr25519::Keypair;
+use ink_env::DefaultEnvironment;
+
 
 pub fn create_smart_contract(name: String, target: &Option<PathBuf>) -> anyhow::Result<()> {
     new_contract_project(&name, target.as_ref())
@@ -58,9 +63,43 @@ pub fn test_smart_contract(path: &Option<PathBuf>) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub async fn instantiate_smart_contract() -> anyhow::Result<()> {
 
+
+pub async fn instantiate_smart_contract(instantiate_exec: InstantiateExec<
+    DefaultConfig,
+    DefaultEnvironment,
+    Keypair,
+>, gas_limit: Weight) -> anyhow::Result<(), ErrorVariant> {
+    let instantiate_result = instantiate_exec.instantiate(Some(gas_limit)).await?;
+    println!("Contract Address {:?}", instantiate_result.contract_address.to_string());
+    println!("Code Hash {:?}", instantiate_result.code_hash);
     Ok(())
+}
+
+pub async fn dry_run_gas_estimate_instantiate(
+    instantiate_exec: &InstantiateExec<DefaultConfig, DefaultEnvironment, Keypair>,
+) -> anyhow::Result<Weight>  {
+    let instantiate_result = instantiate_exec.instantiate_dry_run().await?;
+    match instantiate_result.result {
+        Ok(_) => {
+            // use user specified values where provided, otherwise use the estimates
+            let ref_time = instantiate_exec
+                .args()
+                .gas_limit()
+                .unwrap_or_else(|| instantiate_result.gas_required.ref_time());
+            let proof_size = instantiate_exec
+                .args()
+                .proof_size()
+                .unwrap_or_else(|| instantiate_result.gas_required.proof_size());
+            Ok(Weight::from_parts(ref_time, proof_size))
+        }
+        Err(ref _err) => {
+             Err(anyhow::anyhow!(
+                "Pre-submission dry-run failed. Add gas_limit and proof_size manually to skip this step."
+            ))
+        }
+    }
+
 }
 
 #[cfg(test)]
