@@ -70,11 +70,14 @@ Deploy and instantiate the smart contract:
 ```sh
 pop up contract -p ./my_contract --constructor new --args "false" --suri //Alice
 ```
-- Have to specify the contract constructor to use, which in this example is new()
-- Have to specify the argument to the constructor, which in this example is false
-- Have to specify the account uploading and instantiating the contract, which in this example is the default development account of //Alice
+Some of the options available are:
+- Specify the contract `constructor `to use, which in this example is new()
+- Specify the argument (`args`) to the constructor, which in this example is false
+- Specify the account uploading and instantiating the contract with `--suri`, which in this example is the default development account of //Alice
+For other accounts, the actual secret key must be provided e.g. an 0x prefixed 64 bit hex string, or the seed phrase.
+> :warning: **Use only for development**: Use a safer method of signing here before using this tool with production projects.
 
-You can specify the url of your network with `--url ws://your-endpoint`, by default is using `ws://localhost:9944`
+- You also can specify the url of your network with `--url ws://your-endpoint`, by default is using `ws://localhost:9944`
 ### Build locally
 
 Build the tool locally with all the features:
