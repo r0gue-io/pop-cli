@@ -1,8 +1,4 @@
-[submodule "templates/ept"]
-	path = templates/ept
-	url = git@github.com:paritytech/extended-parachain-template.git
-
-[submodule "templates/vanilla-parachain"]
-	path = templates/vanilla-parachain
-	url = git@github.com:r0guelabs/vanilla-parachain.git
+[submodule "templates/base-parachain"]
+	path = templates/base-parachain
+	url = git@github.com:r0gue-io/base-parachain.git
 
