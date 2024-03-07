@@ -72,7 +72,26 @@ Build the smart contract:
 pop build contract -p ./my_contract
 ```
 
-### Build locally
+### E2E testing
+
+For e2e testing you will need to have a Substrate node with `pallet contracts`.
+You do not need to run it in the background since the node is started for each test independently. 
+To install the latest version:
+```
+cargo install contracts-node --git https://github.com/paritytech/substrate-contracts-node.git
+```
+If you want to run any other node with `pallet-contracts` you need to change `CONTRACTS_NODE` environment variable:
+```
+export CONTRACTS_NODE="YOUR_CONTRACTS_NODE_PATH"
+```
+
+Run e2e testing on the smart contract: 
+```sh
+# Run e2e tests for an existing smart contract
+ pop test contract  -p ./my_contract --features e2e-tests
+```
+
+## Building Pop CLI locally
 
 Build the tool locally with all the features:
 ```sh
@@ -86,6 +105,7 @@ Build the tool only for contracts functionality:
 ```sh
 cargo build --features contract
 ```
+
 
 For running any parachain, we recommend using [zombienet](https://github.com/paritytech/zombienet).
 
