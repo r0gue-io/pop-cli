@@ -1,4 +1,4 @@
-# POP
+# POP [WIP]
 <img src=".icons/logo.jpeg"></img>
 
 An all-in-one tool for Polkadot development.
