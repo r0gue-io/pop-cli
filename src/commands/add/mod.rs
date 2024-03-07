@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use clap::{Args, Subcommand};
 
-use crate::engines::pallet_engine::{self, TemplatePalletConfig};
+use crate::engines::pallet_engine;
 
 #[derive(Args)]
 #[command(args_conflicts_with_subcommands = true)]
@@ -44,7 +44,7 @@ impl AddArgs {
         };
         let pallet = match self.pallet {
             AddPallet::Template => format!("pallet-template"),
-            AddPallet::Frame(FrameArgs { ref name }) => {
+            AddPallet::Frame(FrameArgs { .. }) => {
                 eprintln!("Sorry, frame pallets cannot be added right now");
                 std::process::exit(1);
                 // format!("FRAME-pallet-{name}")

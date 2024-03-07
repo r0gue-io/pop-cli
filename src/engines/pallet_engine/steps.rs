@@ -1,8 +1,9 @@
+#![allow(unused)]
 use super::{pallet_entry::AddPalletEntry, PalletEngine};
 use crate::commands::add::AddPallet;
-use anyhow::{bail, Result};
+use anyhow::Result;
 use dependency::Dependency;
-use log::error;
+use log::{error, warn};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use Steps::*;
@@ -70,9 +71,9 @@ pub(super) fn run_steps(mut pe: PalletEngine, steps: Vec<Steps>) -> Result<()> {
                         pe.state = Import;
                         pe.insert_import(stmt);
                     }
-                    Import => pe.insert_import(stmt),
+                    Import => pe.insert_import(stmt)?,
                     _ => {
-                        // We don't support writing import statements in any other engine state 
+                        // We don't support writing import statements in any other engine state
                         // Log non-fatal error and continue
                         error!("Cannot write import stmts. Check step builder");
                         continue;
@@ -92,8 +93,8 @@ pub(super) fn run_steps(mut pe: PalletEngine, steps: Vec<Steps>) -> Result<()> {
             _ => {
                 unimplemented!()
             }
-        }
-    }
+        }; // -- match --
+    } // -- for --
     Ok(())
 }
 
@@ -101,7 +102,7 @@ mod dependency {
     use strum_macros::{Display, EnumString};
 
     #[derive(EnumString, Display)]
-    pub(super) enum Features {
+    pub(in crate::engines::pallet_engine) enum Features {
         #[strum(serialize = "std")]
         Std,
         #[strum(serialize = "runtime-benchmarks")]
@@ -110,7 +111,7 @@ mod dependency {
         TryRuntime,
         Custom(String),
     }
-    pub(super) struct Dependency {
+    pub(in crate::engines::pallet_engine) struct Dependency {
         features: Vec<Features>,
         path: String,
         no_default_features: bool,
@@ -118,7 +119,7 @@ mod dependency {
 
     impl Dependency {
         /// Dependencies required for adding a pallet-parachain-template to runtime
-        pub(super) fn runtime_template() -> Self {
+        pub(in crate::engines::pallet_engine) fn runtime_template() -> Self {
             Self {
                 features: vec![
                     Features::RuntimeBenchmarks,
@@ -131,7 +132,7 @@ mod dependency {
             }
         }
         /// Dependencies required for adding a pallet-parachain-template to node
-        pub(super) fn node_template() -> Self {
+        pub(in crate::engines::pallet_engine) fn node_template() -> Self {
             Self {
                 features: vec![Features::RuntimeBenchmarks, Features::TryRuntime],
                 // TODO hardcode for now

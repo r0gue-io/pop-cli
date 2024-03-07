@@ -1,3 +1,4 @@
+#![allow(unused)]
 //! Pallet Engine - A set of tools to add pallets to your runtime
 //! To add a pallet one usually needs to consider a few pieces of information together:
 //!
@@ -30,13 +31,13 @@ use std::{
     io::{BufRead, BufReader, Write},
     path::{Path, PathBuf},
 };
-use steps::{run_steps, step_builder, Steps};
+use steps::{run_steps, step_builder};
 use syn::{spanned::Spanned, Item, ItemMacro};
 pub use template::{create_pallet_template, TemplatePalletConfig};
 
 /// The main entry point into the engine.
 pub fn execute(pallet: AddPallet, runtime_path: PathBuf) -> anyhow::Result<()> {
-    let mut pe = PalletEngine::new(input)?;
+    let mut pe = PalletEngine::new(&runtime_path)?;
     let steps = step_builder(pallet)?;
     run_steps(pe, steps)
 }
@@ -111,7 +112,7 @@ impl PalletEngine {
     }
     /// Consume self merging `output` and `input`
     /// Call this to finalize edits
-    pub fn merge(self) -> Result<()> {
+    pub fn merge(self) -> anyhow::Result<()> {
         fs::copy(&self.output, &self.input)?;
         fs::remove_file(self.output);
         Ok(())
@@ -125,9 +126,9 @@ impl PalletEngine {
         }
         else {
             // First pre-CRT items - imports
-            pe.append_lines(0, self.imports.last_import)?;
-            pe.cursor = self.imports.last_import;
-            pe.state = State::Import;
+            self.append_lines_from(0, self.imports.last_import)?;
+            self.cursor = self.imports.last_import;
+            self.state = State::Import;
             Ok(())
         }
     }
@@ -151,7 +152,7 @@ impl PalletEngine {
         let mut details = Option::<PalletDetails>::None;
         let mut last_import = None;
         let mut _macro_cross = false;
-        for (idx, item) in ast.items.iter().enumerate() {
+        for item in ast.items.iter() {
             match item {
                 Item::Use(_) => {
                     // Fetch last import
@@ -268,7 +269,7 @@ impl PalletEngine {
 #[allow(unused)]
 impl PalletEngine {
     /// Add `n` line-breaks to output
-    fn add_new_line(&self, n: usize) -> anyhow::Result<()> {
+    fn add_new_line(&mut self, n: usize) -> anyhow::Result<()> {
         let mut file = OpenOptions::new().append(true).open(&self.output)?;
         let newlines: String = std::iter::repeat('\n').take(n).collect();
         let rs = file.write_all(format!("{newlines}").as_bytes())?;
