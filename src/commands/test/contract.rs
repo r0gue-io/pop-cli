@@ -9,7 +9,7 @@ use crate::engines::contract_engine::test_e2e_smart_contract;
 
 #[derive(Args)]
 pub(crate) struct TestContractCommand {
-    #[arg(short = 'p', long = "path", help = "Path for the contract project [default: current directory]")]
+    #[arg(short = 'p', long, help = "Path for the contract project [default: current directory]")]
     path: Option<PathBuf>,
     #[arg(short = 'f', long = "features", help = "Features for the contract project")]
     features: Option<String>,

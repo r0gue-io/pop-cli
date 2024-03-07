@@ -20,7 +20,7 @@ use ink_env::{DefaultEnvironment, Environment};
 #[derive(Args)]
 pub struct UpContractCommand {
     /// Path to a contract build folder
-    #[arg(short = 'p', long = "path")]
+    #[arg(short = 'p', long)]
     path: Option<PathBuf>,
     /// The name of the contract constructor to call
     #[clap(name = "constructor", long, default_value = "new")]

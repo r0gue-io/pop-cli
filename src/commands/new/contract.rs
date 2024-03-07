@@ -9,7 +9,7 @@ use crate::engines::contract_engine::create_smart_contract;
 pub struct NewContractCommand {
     #[arg(help = "Name of the contract")]
     pub(crate) name: String,
-    #[arg(short = 'p', long = "path", help = "Path for the contract project, [default: current directory]")]
+    #[arg(short = 'p', long, help = "Path for the contract project, [default: current directory]")]
     pub(crate) path: Option<PathBuf>,
 }
 

@@ -72,12 +72,19 @@ Build the smart contract:
 pop build contract -p ./my_contract
 ```
 
+To deploy a contract you need your chain running. For testing purposes one option is to run [substrate-contracts-node](https://github.com/paritytech/substrate-contracts-node):
+
+```sh
+cargo install contracts-node
+substrate-contracts-node
+```
+
 Deploy and instantiate the smart contract:
 ```sh
 pop up contract -p ./my_contract --constructor new --args "false" --suri //Alice
 ```
 Some of the options available are:
-- Specify the contract `constructor `to use, which in this example is new()
+- Specify the contract `constructor `to use, which in this example is new(). 
 - Specify the argument (`args`) to the constructor, which in this example is false
 - Specify the account uploading and instantiating the contract with `--suri`, which in this example is the default development account of //Alice
 For other accounts, the actual secret key must be provided e.g. an 0x prefixed 64 bit hex string, or the seed phrase.
@@ -85,6 +92,7 @@ For other accounts, the actual secret key must be provided e.g. an 0x prefixed 6
 
 - You also can specify the url of your network with `--url ws://your-endpoint`, by default is using `ws://localhost:9944`
 
+For more information about the options, check [cargo-contract documentation](https://github.com/paritytech/cargo-contract/blob/master/crates/extrinsics/README.md#instantiate)
 
 ### E2E testing
 
