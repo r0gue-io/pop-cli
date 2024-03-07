@@ -34,7 +34,6 @@ pub fn instantiate_template_dir(template: &Template, target: &Path, config: Conf
 pub fn instantiate_base_template(target: &Path, config: Config) -> Result<()> {
 	let temp_dir = ::tempfile::TempDir::new_in(std::env::temp_dir())?;
 	let source = temp_dir.path();
-	// println!("Temporary directory created at {:?}", temp_path);
 	clone_and_degit("https://github.com/r0gue-io/base-parachain", source)?;
 
 	for entry in WalkDir::new(&source) {

@@ -5,6 +5,8 @@ use std::{
 	fs::{self, OpenOptions},
 	path::{Path, PathBuf},
 };
+use cliclack::{log, outro_cancel};
+
 pub(crate) fn sanitize(target: &Path) -> Result<()> {
 	use std::io::{stdin, stdout, Write};
 	if target.exists() {
@@ -24,7 +26,7 @@ pub(crate) fn sanitize(target: &Path) -> Result<()> {
 }
 
 pub(crate) fn write_to_file<'a>(path: &Path, contents: &'a str) {
-	println!("Writing to {}", path.display());
+	log::info(format!("Writing to {}", path.display())).ok();
 	use std::io::Write;
 	let mut file = OpenOptions::new().write(true).truncate(true).open(path).unwrap();
 	file.write_all(contents.as_bytes()).unwrap();
@@ -35,7 +37,7 @@ pub(crate) fn write_to_file<'a>(path: &Path, contents: &'a str) {
 			.expect("failed to execute rustfmt");
 
 		if !output.status.success() {
-			eprintln!("rustfmt exited with non-zero status code.");
+			outro_cancel("rustfmt exited with non-zero status code.").ok();
 		}
 	}
 }

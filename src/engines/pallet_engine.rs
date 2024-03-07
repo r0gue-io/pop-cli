@@ -26,7 +26,6 @@ pub struct TemplatePalletConfig {
 fn generate_pallet_structure(target: &PathBuf, pallet_name: &str) -> anyhow::Result<()> {
 	use fs::{create_dir, File};
 	let (pallet, src) = (target.join(pallet_name), target.join(pallet_name.to_string() + "/src"));
-	// println!("source = > {}", src.display());
 	create_dir(&pallet)?;
 	create_dir(&src)?;
 	File::create(format!("{}/Cargo.toml", pallet.display()))?;
