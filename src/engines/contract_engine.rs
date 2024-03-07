@@ -42,14 +42,28 @@ pub fn build_smart_contract(path: &Option<PathBuf>) -> anyhow::Result<()> {
 
 
 pub fn test_smart_contract(path: &Option<PathBuf>) -> anyhow::Result<()> {
-        cmd(
-            "cargo",
-            vec![
-                "test",
-            ],
-        )
-        .dir(path.clone().unwrap_or("./".into()))
-        .run()?;
+    cmd(
+        "cargo",
+        vec![
+            "test",
+        ],
+    )
+    .dir(path.clone().unwrap_or("./".into()))
+    .run()?;
+
+    Ok(())
+}
+
+pub fn test_e2e_smart_contract(path: &Option<PathBuf>) -> anyhow::Result<()> {
+    cmd(
+        "cargo",
+        vec![
+            "test",
+            "--features=e2e-tests"
+        ],
+    )
+    .dir(path.clone().unwrap_or("./".into()))
+    .run()?;
 
     Ok(())
 }
