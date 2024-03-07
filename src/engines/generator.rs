@@ -1,12 +1,9 @@
-//! TODO: Generators should reference files that live in the repository
-
 use std::path::{Path, PathBuf};
 
 use askama::Template;
 
 use crate::helpers::write_to_file;
 
-// TODO: This should be coupled with Runtime in the sense that pallets part of a Runtime may need a default genesis config
 #[derive(Template)]
 #[template(path = "vanilla/chain_spec.templ", escape = "none")]
 pub(crate) struct ChainSpec {

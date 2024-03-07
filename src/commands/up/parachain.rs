@@ -58,7 +58,6 @@ impl ZombienetCommand {
             for binary in missing {
                 let mut spinner = cliclack::spinner();
                 spinner.start(format!("Sourcing {}...", binary.name));
-                // todo: improve progress
                 binary.source(&cache).await?;
                 spinner.stop("Sourcing complete");
             }

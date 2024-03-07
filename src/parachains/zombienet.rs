@@ -299,7 +299,7 @@ impl Zombienet {
             None => GitHub::name(&url)?,
         }
         .to_string();
-        // todo: check for latest release
+
         let path = cache.join(&binary);
         let mut sources = Vec::new();
         if !path.exists() {

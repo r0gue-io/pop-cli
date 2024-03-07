@@ -6,14 +6,11 @@ use std::{fs, path::PathBuf};
 
 pub fn create_pallet_template(path: Option<String>, config: TemplatePalletConfig) -> anyhow::Result<()> {
     let target = resolve_pallet_path(path);
-    // TODO : config.name might use `-` or use snake_case. We want to use pallet_template for the pallet dirs
-    // and PalletTemplate for the runtime macro
-    // TODO: this can be further polished (edge cases: no pallet prefix.)
     let pallet_name = config.name.clone();
     let pallet_path = target.join(pallet_name.clone());
     sanitize(&pallet_path)?;
     generate_pallet_structure(&target, &pallet_name)?;
-    // todo let pallet_module_name = ... ;
+
     render_pallet(pallet_name, config, &pallet_path)?;
     Ok(())
 }

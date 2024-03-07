@@ -28,7 +28,6 @@ pub(crate) fn sanitize(target: &Path) -> Result<()> {
     Ok(())
 }
 
-// TODO: Check the usage of `expect`. We don't want to leave the outdir in a unhygenic state
 pub(crate) fn write_to_file<'a>(path: &Path, contents: &'a str) {
     println!("Writing to {}", path.display());
     use std::io::Write;

@@ -31,7 +31,7 @@ pub fn instantiate_template_dir(template: &Template, target: &Path, config: Conf
     Repository::init(target)?;
     Ok(())
 }
-// TODO: The config will shape the emitted template
+
 pub fn instantiate_vanilla_template(target: &Path, config: Config) -> Result<()> {
     let temp_dir = ::tempfile::TempDir::new_in(std::env::temp_dir())?;
     let source = temp_dir.path();
