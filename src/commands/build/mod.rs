@@ -1,7 +1,7 @@
 use clap::{Args, Subcommand};
 
-pub mod contract;
-pub mod parachain;
+pub(crate) mod contract;
+pub(crate) mod parachain;
 
 #[derive(Args)]
 #[command(args_conflicts_with_subcommands = true)]

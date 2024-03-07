@@ -8,7 +8,7 @@ use crate::engines::parachain_engine::build_parachain;
 
 #[derive(Args)]
 pub struct BuildParachainCommand {
-    #[arg(short = 'p', long = "path", help = "Directory ath for your project, [default: current directory]")]
+    #[arg(short = 'p', long = "path", help = "Directory path for your project, [default: current directory]")]
     pub(crate) path: Option<PathBuf>,
 }
 
