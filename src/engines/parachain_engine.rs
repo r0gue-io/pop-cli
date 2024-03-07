@@ -20,7 +20,6 @@ pub fn instantiate_template_dir(template: &Template, target: &Path, config: Conf
 	sanitize(target)?;
 	use Template::*;
 	let url = match template {
-		EPT => "https://github.com/paritytech/extended-parachain-template.git",
 		FPT => "https://github.com/paritytech/frontier-parachain-template.git",
 		Contracts => "https://github.com/paritytech/substrate-contracts-node.git",
 		Vanilla => {

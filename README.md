@@ -11,8 +11,6 @@ Use `pop` to either clone of your existing templates or instantiate a new parach
 ```sh
 # Create a minimal parachain template
 pop new parachain my-app
-# Get the extended-parachain-template
-pop new parachain my-app ept
 # Get a pallet-contracts enabled template
 pop new parachain my-app cpt
 # Get a evm compatible parachain template
