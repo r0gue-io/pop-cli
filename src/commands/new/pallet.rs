@@ -3,14 +3,19 @@ use clap::Args;
 
 #[derive(Args)]
 pub struct NewPalletCommand {
-	#[arg(help = "Name of the pallet", default_value = "pallet-template")]
-	pub(crate) name: String,
-	#[arg(short, long, help = "Name of authors", default_value = "Anonymous")]
-	pub(crate) authors: Option<String>,
-	#[arg(short, long, help = "Pallet description", default_value = "Frame Pallet")]
-	pub(crate) description: Option<String>,
-	#[arg(short = 'p', long = "path", help = "Path to the pallet, [default: current directory]")]
-	pub(crate) path: Option<String>,
+    #[arg(help = "Name of the pallet", default_value = "pallet-template")]
+    pub(crate) name: String,
+    #[arg(short, long, help = "Name of authors", default_value = "Anonymous")]
+    pub(crate) authors: Option<String>,
+    #[arg(
+        short,
+        long,
+        help = "Pallet description",
+        default_value = "Frame Pallet"
+    )]
+    pub(crate) description: Option<String>,
+    #[arg(short = 'p', long, help = "Path to the pallet, [default: current directory]")]
+    pub(crate) path: Option<String>,
 }
 
 impl NewPalletCommand {

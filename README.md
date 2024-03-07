@@ -1,7 +1,13 @@
-# POP
+# POP [WIP]
 <img src=".icons/logo.jpeg"></img>
 
-Your one-stop entry into the exciting world of Blockchain development with *Polkadot*
+An all-in-one tool for Polkadot development.
+
+## Install
+You can install Pop CLI as follows:
+```shell
+cargo install --git https://github.com/r0gue-io/pop-cli
+```
 
 ## Getting Started
 
@@ -15,6 +21,17 @@ pop new parachain my-app
 pop new parachain my-app cpt
 # Get a evm compatible parachain template
 pop new parachain my-app fpt
+```
+
+Use `pop` to build your just created parachain.
+```sh
+# Build your parachain
+pop build parachain -p ./my-app
+```
+or 
+```sh
+cd my-app
+pop build parachain
 ```
 
 You can also customize a template by providing config options for token symbol (as it appears on polkadot-js apps UI), token decimals, and the initial endowment for substrate developer accounts. Here's how: 
@@ -64,7 +81,48 @@ Build the smart contract:
 pop build contract -p ./my_contract
 ```
 
-### Build locally
+To deploy a contract you need your chain running. For testing purposes one option is to run [substrate-contracts-node](https://github.com/paritytech/substrate-contracts-node):
+
+```sh
+cargo install contracts-node
+substrate-contracts-node
+```
+
+Deploy and instantiate the smart contract:
+```sh
+pop up contract -p ./my_contract --constructor new --args "false" --suri //Alice
+```
+Some of the options available are:
+- Specify the contract `constructor `to use, which in this example is new(). 
+- Specify the argument (`args`) to the constructor, which in this example is false
+- Specify the account uploading and instantiating the contract with `--suri`, which in this example is the default development account of //Alice
+For other accounts, the actual secret key must be provided e.g. an 0x prefixed 64 bit hex string, or the seed phrase.
+> :warning: **Use only for development**: Use a safer method of signing here before using this tool with production projects.
+
+- You also can specify the url of your network with `--url ws://your-endpoint`, by default is using `ws://localhost:9944`
+
+For more information about the options, check [cargo-contract documentation](https://github.com/paritytech/cargo-contract/blob/master/crates/extrinsics/README.md#instantiate)
+
+### E2E testing
+
+For e2e testing you will need to have a Substrate node with `pallet contracts`.
+You do not need to run it in the background since the node is started for each test independently. 
+To install the latest version:
+```
+cargo install contracts-node --git https://github.com/paritytech/substrate-contracts-node.git
+```
+If you want to run any other node with `pallet-contracts` you need to change `CONTRACTS_NODE` environment variable:
+```
+export CONTRACTS_NODE="YOUR_CONTRACTS_NODE_PATH"
+```
+
+Run e2e testing on the smart contract: 
+```sh
+# Run e2e tests for an existing smart contract
+ pop test contract  -p ./my_contract --features e2e-tests
+```
+
+## Building Pop CLI locally
 
 Build the tool locally with all the features:
 ```sh
@@ -77,4 +135,13 @@ cargo build --features parachain
 Build the tool only for contracts functionality:
 ```sh
 cargo build --features contract
+```
+
+
+For running any parachain, we recommend using [zombienet](https://github.com/paritytech/zombienet).
+
+## Spawn Network using Zombienet
+You can spawn a local network as follows:
+```shell
+pop up parachain -f ./tests/zombienet.toml -p https://github.com/r0gue-io/pop-node
 ```
