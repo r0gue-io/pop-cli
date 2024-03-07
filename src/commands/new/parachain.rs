@@ -9,9 +9,8 @@ pub enum Template {
 	FPT,
 	#[strum(serialize = "Contracts Node Template", serialize = "cpt")]
 	Contracts,
-	#[strum(serialize = "Vanilla Parachain Template", serialize = "vanilla")]
-	Vanilla,
-	// Kitchensink,
+	#[strum(serialize = "Base Parachain Template", serialize = "base")]
+	Base,
 }
 
 #[derive(Args)]
@@ -21,7 +20,7 @@ pub struct NewParachainCommand {
 	#[arg(
 		help = "Template to create; Options are 'fpt', 'cpt'. Leave empty for default parachain template"
 	)]
-	#[arg(default_value = "vanilla")]
+	#[arg(default_value = "base")]
 	pub(crate) template: Template,
 	#[arg(long, short, help = "Token Symbol", default_value = "UNIT")]
 	pub(crate) symbol: Option<String>,
@@ -63,7 +62,7 @@ mod tests {
 	fn test_new_parachain_command_execute() -> anyhow::Result<()> {
 		let command = NewParachainCommand {
 			name: "test_parachain".to_string(),
-			template: Template::Vanilla,
+			template: Template::Base,
 			symbol: Some("UNIT".to_string()),
 			decimals: Some("12".to_string()),
 			initial_endowment: Some("1u64 << 60".to_string()),

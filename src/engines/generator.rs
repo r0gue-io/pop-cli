@@ -5,7 +5,7 @@ use askama::Template;
 use crate::helpers::write_to_file;
 
 #[derive(Template)]
-#[template(path = "vanilla/chain_spec.templ", escape = "none")]
+#[template(path = "base/chain_spec.templ", escape = "none")]
 pub(crate) struct ChainSpec {
 	pub(crate) token_symbol: String,
 	pub(crate) decimals: u8,
