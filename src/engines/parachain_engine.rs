@@ -5,8 +5,9 @@ use crate::{
 };
 use anyhow::Result;
 use git2::Repository;
-use std::{fs, path::Path};
+use std::{fs, path::{Path, PathBuf}};
 use walkdir::WalkDir;
+use duct::cmd;
 
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -61,6 +62,20 @@ pub fn instantiate_vanilla_template(target: &Path, config: Config) -> Result<()>
         chainspec.render().expect("infallible").as_ref(),
     );
     Repository::init(target)?;
+    Ok(())
+}
+
+pub fn build_parachain(path: &Option<PathBuf>) -> anyhow::Result<()> {
+    cmd(
+        "cargo",
+        vec![
+            "build",
+            "--release",
+        ],
+    )
+    .dir(path.clone().unwrap_or("./".into()))
+    .run()?;
+
     Ok(())
 }
 
