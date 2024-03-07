@@ -19,7 +19,7 @@ pub(crate) struct AddArgs {
 #[derive(Subcommand, Clone)]
 #[command(subcommand_required = true)]
 pub(crate) enum AddPallet {
-    /// Insert `pallet-template` into the runtime.
+    /// Insert `pallet-parachain-template` into the runtime.
     Template,
     /// Insert a frame-pallet into the runtime.
     Frame(FrameArgs),

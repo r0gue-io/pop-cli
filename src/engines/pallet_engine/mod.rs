@@ -31,7 +31,7 @@ use std::{
     path::{Path, PathBuf},
 };
 use steps::{run_steps, step_builder, Steps};
-use syn::{spanned::Spanned, ItemMacro};
+use syn::{spanned::Spanned, Item, ItemMacro};
 pub use template::{create_pallet_template, TemplatePalletConfig};
 
 /// The main entry point into the engine.
@@ -41,10 +41,21 @@ pub fn execute(pallet: AddPallet, runtime_path: PathBuf) -> anyhow::Result<()> {
     run_steps(pe, steps)
 }
 
+/// State of PalletEngine at any given moment in time
+#[derive(Debug, Default, PartialEq)]
+enum State {
+    #[default]
+    Init,
+    Import,
+    Config,
+    ConstructRuntime,
+    Benchmarks,
+    ImplRuntimeApi,
+}
 /// The Pallet Engine has two Paths `input` and `output`.
-/// During processing, we want to keep the input source and the output source separate as
-/// to have assurance that our references into the `input` file are still valid during construction of `output`.
-/// Once fully processed, `output` can simply overwrite `input`
+/// During processing, we keep the input source as read only and perform all processing into the `output` sink
+/// This allows for manual checking using a diff tool that the edits performed are indeed satisfactory before calling merge
+///  which will overwrite `input` with the processed `output`
 pub struct PalletEngine {
     /// Input source to PalletEngine - This will be the path to the runtime/src/lib.rs
     /// In code, this is never touched directly until the final step where it's overwritten
@@ -52,12 +63,18 @@ pub struct PalletEngine {
     input: PathBuf,
     /// Stores the details of the runtime pallets built from input
     details: PalletDetails,
+    /// Stores imports necessary to make new items available
+    imports: ImportDetails,
     /// This stores the path to the runtime file being processed
     /// User must have read/write permissions for potentially destructive editing
     /// All insertions are ultimately written here
     output: PathBuf,
     // /// This stores the path to the runtime manifest file runtime/Cargo.toml
     // manifest: PathBuf,
+    /// State
+    state: State,
+    /// Cursor for tracking where we are in the output
+    cursor: usize,
 }
 
 /// PalletDetails is data generated after parsing of a given `input` runtime file
@@ -68,21 +85,51 @@ struct PalletDetails {
     pallets: Vec<ReadPalletEntry>,
     /// construct_runtime! macro span start location. Any pallet that's being added
     /// should search, uptil this point to make sure existing pallets do not conflict
+    /// Note: Read-only from self.input
     crt_start: usize,
     /// construct_runtime! macro span end location.
-    /// construct_runtime! macro span end location.
     /// For changes that happen after construct_runtime! is edited
+    /// Note: Read-only from self.input
     crt_end: usize,
     /// Total number of lines in input. Useful for inserting lines.
     file_end: usize,
     /// Type of runtime declaration being processed
     declaration: RuntimeDeclaration,
 }
+struct ImportDetails {
+    /// On reading the source file, we obtain `last_import` which is the ending line of final import
+    /// statement, and also from where additional pallet imports must be added
+    last_import: usize,
+    /// Tracker for the number of imports added by PalletEngine. Initial value is 0.
+    counter: usize,
+}
 // Public API
 impl PalletEngine {
     /// Query the output path
     pub fn output(&self) -> &Path {
         &self.output
+    }
+    /// Consume self merging `output` and `input`
+    /// Call this to finalize edits
+    pub fn merge(self) -> Result<()> {
+        fs::copy(&self.output, &self.input)?;
+        fs::remove_file(self.output);
+        Ok(())
+    }
+    /// Prepare `output` by first, adding pre-CRT items such as imports and modules
+    /// Then adding the construct_runtime! macro
+    /// And finally adding the post-CRT items such as benchmarks, impl_runtime_apis! and so forth
+    pub fn prepare_output(&mut self) -> anyhow::Result<()> {
+        if self.state != State::Init {
+            bail!("PalletEngine is not in Init stage, cursor: {}", self.cursor);
+        }
+        else {
+            // First pre-CRT items - imports
+            pe.append_lines(0, self.imports.last_import)?;
+            pe.cursor = self.imports.last_import;
+            pe.state = State::Import;
+            Ok(())
+        }
     }
     /// Create a new PalletEngine
     pub fn new(input: &PathBuf) -> anyhow::Result<Self> {
@@ -102,11 +149,22 @@ impl PalletEngine {
         let rt = fs::read_to_string(&input)?;
         let ast: syn::File = syn::parse_file(rt.as_ref())?;
         let mut details = Option::<PalletDetails>::None;
-        for item in ast.items.iter() {
+        let mut last_import = None;
+        let mut _macro_cross = false;
+        for (idx, item) in ast.items.iter().enumerate() {
             match item {
-                syn::Item::Macro(ItemMacro { mac, .. }) => {
+                Item::Use(_) => {
+                    // Fetch last import
+                    // Note, other use statements are present inside modules in a standard runtime
+                    // Additional safety mechanism to make sure pallet-imports are always before construct_runtime!
+                    if !_macro_cross {
+                        last_import = Some(item.span().end().line);
+                    }
+                }
+                Item::Macro(ItemMacro { mac, .. }) => {
                     if let Some(mac_id) = mac.path.get_ident() {
                         if mac_id == "construct_runtime" {
+                            _macro_cross = true;
                             let (crt_start, crt_end) =
                                 (item.span().start().line, item.span().end().line);
                             let declaration =
@@ -127,13 +185,20 @@ impl PalletEngine {
                 _ => {}
             };
         }
+        let imports = ImportDetails {
+            last_import: last_import.expect("Imports are always present"),
+            counter: 0,
+        };
         let Some(details) = details else {
             bail!("No pallets/construct_runtime! found in input");
         };
         Ok(Self {
             input: input.to_owned(),
+            imports,
             output,
             details,
+            state: State::Init,
+            cursor: 0
         })
     }
     /// Helper for PalletEngine::new, Builds pallet details from the construct_runtime! macro
@@ -196,25 +261,42 @@ impl PalletEngine {
 }
 
 // Private methods for internal use.
+// Note: Some methods update `self.cursor` and they take exclusive refs (&mut self)
+// For functions which don't do that (i.e. take ref by &self), the caller must decide how to increment cursor
+// This is relevant when calling methods like `append_tokens` or `append_str` which append single and multi-line strs
+// without analyzing it for newlines.
 #[allow(unused)]
 impl PalletEngine {
     /// Add `n` line-breaks to output
     fn add_new_line(&self, n: usize) -> anyhow::Result<()> {
         let mut file = OpenOptions::new().append(true).open(&self.output)?;
         let newlines: String = std::iter::repeat('\n').take(n).collect();
-        Ok(file.write_all(format!("{newlines}").as_bytes())?)
+        let rs = file.write_all(format!("{newlines}").as_bytes())?;
+        self.cursor += 1;
+        Ok(rs)
     }
-    /// Append raw tokens to `output` file
+    /// Append raw tokens to `output` file, cursor should be handled by caller
     fn append_tokens(&self, tokens: TokenStream) -> anyhow::Result<()> {
         let content = prettyplease::unparse(&syn::parse_file(&tokens.to_string())?);
         let mut file = OpenOptions::new().append(true).open(&self.output)?;
         file.write_all(content.as_bytes())?;
         Ok(())
     }
-    /// Append string as is to `output` file
+    /// Append string as is to `output` file, cursor should be handled by caller
     fn append_str(&self, content: String) -> anyhow::Result<()> {
         let mut file = OpenOptions::new().append(true).open(&self.output)?;
         file.write_all(content.as_bytes())?;
+        Ok(())
+    }
+    /// Insert import statement
+    /// As of now, it's imperative to call this function for pre-CRT item insertions
+    /// The correctness of calling this function depends on the `state` of PalletEngine
+    /// and the step_runner makes sure that it will only call this function when State is either
+    /// `State::Init` or `State::Import`
+    fn insert_import(&mut self, import_stmt: TokenStream) -> anyhow::Result<()> {
+        self.append_tokens(import_stmt);
+        self.imports.counter += 1;
+        self.imports.last_import += 1;
         Ok(())
     }
     /// Append lines [start..end] from `input` source to `output`.
@@ -246,6 +328,7 @@ impl PalletEngine {
         Ok(())
     }
     /// Insert string at line. Errors if line number doesn't exist in `output`
+    /// cursor should be handled by caller
     fn insert_at(&self, line: usize, str: &str) -> anyhow::Result<()> {
         let reader = BufReader::new(File::open(&self.output)?);
         let mut temp_file = tempfile::NamedTempFile::new()?;
@@ -266,7 +349,7 @@ impl PalletEngine {
     }
     /// Insert raw string at construct_runtime! Fails if there's no construct_runtime! in `output`
     /// By default inserts at the end of the macro
-    fn insert_str_runtime(&self, str: &str) -> anyhow::Result<()> {
+    fn insert_str_runtime(&mut self, str: &str) -> anyhow::Result<()> {
         let runtime_contents = fs::read_to_string(&self.output)?;
         let ast: syn::File = syn::parse_file(runtime_contents.as_ref())?;
         let mut runtime_found = false;
@@ -313,6 +396,8 @@ impl PalletEngine {
             // Should never happen
             panic!("Construct Runtime not found in PalletEngine output. Cannot add pallet");
         }
+        // Typically insert_str_runtime would be used to insert a single pallet entry so this is okay
+        self.cursor += 1;
         Ok(())
     }
     /// Add a new pallet to RuntimeDeclaration and return it.

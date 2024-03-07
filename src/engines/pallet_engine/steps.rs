@@ -1,9 +1,11 @@
 use super::{pallet_entry::AddPalletEntry, PalletEngine};
 use crate::commands::add::AddPallet;
 use anyhow::{bail, Result};
+use dependency::Dependency;
+use log::error;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
-use dependency::Dependency;
+use Steps::*;
 /// Define the steps needed for a particular pallet insertion
 pub(super) enum Steps {
     /// Import statements for pallet
@@ -26,13 +28,11 @@ pub(super) enum Steps {
 }
 
 pub(super) fn step_builder(pallet: AddPallet) -> Result<Vec<Steps>> {
-    use Steps::*;
     let mut steps: Vec<Steps> = vec![];
     match pallet {
         // Adding a pallet-parachain-template requires 5 distinct steps
         AddPallet::Template => {
-            // TODO: Add cargo dependency
-            // steps.push(RuntimePalletDependency(Dependency::runtime_template()));
+            steps.push(RuntimePalletDependency(Dependency::runtime_template()));
             steps.push(RuntimePalletImport(quote!(
                 pub use pallet_parachain_template;
             )));
@@ -51,15 +51,49 @@ pub(super) fn step_builder(pallet: AddPallet) -> Result<Vec<Steps>> {
                 // TODO (high priority): implement name conflict resolution strategy
                 "Template",
             )));
-            // TODO
-            // steps.push(NodePalletDependency(Dependency::node_template()))
+            steps.push(NodePalletDependency(Dependency::node_template()))
         }
         AddPallet::Frame(_) => unimplemented!("Frame pallets not yet implemented"),
     };
     Ok(steps)
 }
 
-pub(super) fn run_steps(pe: PalletEngine, steps: Vec<Steps>) -> Result<()> {
+pub(super) fn run_steps(mut pe: PalletEngine, steps: Vec<Steps>) -> Result<()> {
+    use super::State::*;
+    pe.prepare_output()?;
+    for step in steps.into_iter() {
+        match step {
+            RuntimePalletImport(stmt) => {
+                match pe.state {
+                    Init => {
+                        warn!("Non fatal: `prepare_output` was not called");
+                        pe.state = Import;
+                        pe.insert_import(stmt);
+                    }
+                    Import => pe.insert_import(stmt),
+                    _ => {
+                        // We don't support writing import statements in any other engine state 
+                        // Log non-fatal error and continue
+                        error!("Cannot write import stmts. Check step builder");
+                        continue;
+                    }
+                }
+                pe.insert_import(quote!(
+                    pub use pallet_parachain_template;
+                ));
+            }
+            // RuntimePalletConfiguration(step) => pe.insert(step),
+            // RuntimePalletDependency(step) => pe.insert(step),
+            // ConstructRuntimeEntry(step) => pe.insert(step),
+            // ListBenchmarks(step) => pe.insert(step),
+            // ChainspecGenesisConfig(step) => pe.insert(step),
+            // ChainspecGenesisImport(step) => pe.insert(step),
+            // NodePalletDependency(step) => pe.insert(step),
+            _ => {
+                unimplemented!()
+            }
+        }
+    }
     Ok(())
 }
 
@@ -87,7 +121,9 @@ mod dependency {
         pub(super) fn runtime_template() -> Self {
             Self {
                 features: vec![
-                    Features::RuntimeBenchmarks, Features::TryRuntime, Features::Std,
+                    Features::RuntimeBenchmarks,
+                    Features::TryRuntime,
+                    Features::Std,
                 ],
                 // TODO hardcode for now
                 path: format!(r#"path = "../pallets/template""#),
