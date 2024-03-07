@@ -1,11 +1,11 @@
 use anyhow::Result;
+use cliclack::{log, outro_cancel};
 use git2::Repository;
 use std::{
 	env::current_dir,
 	fs::{self, OpenOptions},
 	path::{Path, PathBuf},
 };
-use cliclack::{log, outro_cancel};
 
 pub(crate) fn sanitize(target: &Path) -> Result<()> {
 	use std::io::{stdin, stdout, Write};

@@ -4,10 +4,13 @@ use crate::{
 	helpers::{clone_and_degit, sanitize, write_to_file},
 };
 use anyhow::Result;
-use git2::Repository;
-use std::{fs, path::{Path, PathBuf}};
-use walkdir::WalkDir;
 use duct::cmd;
+use git2::Repository;
+use std::{
+	fs,
+	path::{Path, PathBuf},
+};
+use walkdir::WalkDir;
 
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -64,17 +67,11 @@ pub fn instantiate_base_template(target: &Path, config: Config) -> Result<()> {
 }
 
 pub fn build_parachain(path: &Option<PathBuf>) -> anyhow::Result<()> {
-    cmd(
-        "cargo",
-        vec![
-            "build",
-            "--release",
-        ],
-    )
-    .dir(path.clone().unwrap_or("./".into()))
-    .run()?;
+	cmd("cargo", vec!["build", "--release"])
+		.dir(path.clone().unwrap_or("./".into()))
+		.run()?;
 
-    Ok(())
+	Ok(())
 }
 
 #[cfg(test)]

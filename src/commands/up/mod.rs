@@ -1,7 +1,7 @@
-#[cfg(feature = "parachain")]
-mod parachain;
 #[cfg(feature = "contract")]
 mod contract;
+#[cfg(feature = "parachain")]
+mod parachain;
 
 use clap::{Args, Subcommand};
 
@@ -14,12 +14,12 @@ pub(crate) struct UpArgs {
 
 #[derive(Subcommand)]
 pub(crate) enum UpCommands {
-    #[cfg(feature = "parachain")]
-    /// Deploy a parachain to a network.
-    #[clap(alias = "p")]
-    Parachain(parachain::ZombienetCommand),
-    #[cfg(feature = "contract")]
-    /// Deploy a smart contract to a network.
-    #[clap(alias = "c")]
-    Contract(contract::UpContractCommand),
+	#[cfg(feature = "parachain")]
+	/// Deploy a parachain to a network.
+	#[clap(alias = "p")]
+	Parachain(parachain::ZombienetCommand),
+	#[cfg(feature = "contract")]
+	/// Deploy a smart contract to a network.
+	#[clap(alias = "c")]
+	Contract(contract::UpContractCommand),
 }

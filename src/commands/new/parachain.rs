@@ -1,9 +1,12 @@
-use crate::{engines::parachain_engine::{instantiate_template_dir, Config}, style::{style, Theme}};
+use crate::{
+	engines::parachain_engine::{instantiate_template_dir, Config},
+	style::{style, Theme},
+};
 use clap::{Args, Parser};
 use std::path::Path;
 use strum_macros::{Display, EnumString};
 
-use cliclack::{clear_screen,intro, outro, set_theme};
+use cliclack::{clear_screen, intro, outro, set_theme};
 
 #[derive(Clone, Parser, Debug, Display, EnumString, PartialEq)]
 pub enum Template {
@@ -40,7 +43,12 @@ pub struct NewParachainCommand {
 impl NewParachainCommand {
 	pub(crate) fn execute(&self) -> anyhow::Result<()> {
 		clear_screen()?;
-		intro(format!("{}: Starting {} on {}!", style(" Pop CLI ").black().on_magenta(),  &self.template, &self.name))?;
+		intro(format!(
+			"{}: Starting {} on {}!",
+			style(" Pop CLI ").black().on_magenta(),
+			&self.template,
+			&self.name
+		))?;
 		set_theme(Theme);
 		let destination_path = Path::new(&self.name);
 		instantiate_template_dir(

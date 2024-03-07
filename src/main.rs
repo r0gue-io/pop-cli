@@ -5,13 +5,12 @@ mod engines;
 #[cfg(any(feature = "parachain", feature = "contract"))]
 mod style;
 
-
 #[cfg(feature = "parachain")]
 mod git;
 #[cfg(feature = "parachain")]
-mod parachains;
-#[cfg(feature = "parachain")]
 mod helpers;
+#[cfg(feature = "parachain")]
+mod parachains;
 
 #[cfg(feature = "contract")]
 mod signer;
@@ -46,33 +45,33 @@ enum Commands {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let cli = Cli::parse();
-    match &cli.command {
-        Commands::New(args) => match &args.command {
-            #[cfg(feature = "parachain")]
-            commands::new::NewCommands::Parachain(cmd) => cmd.execute(),
-            #[cfg(feature = "parachain")]
-            commands::new::NewCommands::Pallet(cmd) => cmd.execute(),
-            #[cfg(feature = "contract")]
-            commands::new::NewCommands::Contract(cmd) => cmd.execute(),
-        },
-        Commands::Build(args) => match &args.command {
-            #[cfg(feature = "parachain")]
-            commands::build::BuildCommands::Parachain(cmd) => cmd.execute(),
-            #[cfg(feature = "contract")]
-            commands::build::BuildCommands::Contract(cmd) => cmd.execute(),
-        },
-        Commands::Up(args) => Ok(match &args.command {
-            #[cfg(feature = "parachain")]
-            commands::up::UpCommands::Parachain(cmd) => cmd.execute().await?,
-            #[cfg(feature = "contract")]
-            commands::up::UpCommands::Contract(cmd) => cmd.execute().await?,
-        }),
-        Commands::Test(args) => match &args.command {
-            #[cfg(feature = "contract")]
-            commands::test::TestCommands::Contract(cmd) => cmd.execute(),
-        },
-    }
+	let cli = Cli::parse();
+	match &cli.command {
+		Commands::New(args) => match &args.command {
+			#[cfg(feature = "parachain")]
+			commands::new::NewCommands::Parachain(cmd) => cmd.execute(),
+			#[cfg(feature = "parachain")]
+			commands::new::NewCommands::Pallet(cmd) => cmd.execute(),
+			#[cfg(feature = "contract")]
+			commands::new::NewCommands::Contract(cmd) => cmd.execute(),
+		},
+		Commands::Build(args) => match &args.command {
+			#[cfg(feature = "parachain")]
+			commands::build::BuildCommands::Parachain(cmd) => cmd.execute(),
+			#[cfg(feature = "contract")]
+			commands::build::BuildCommands::Contract(cmd) => cmd.execute(),
+		},
+		Commands::Up(args) => Ok(match &args.command {
+			#[cfg(feature = "parachain")]
+			commands::up::UpCommands::Parachain(cmd) => cmd.execute().await?,
+			#[cfg(feature = "contract")]
+			commands::up::UpCommands::Contract(cmd) => cmd.execute().await?,
+		}),
+		Commands::Test(args) => match &args.command {
+			#[cfg(feature = "contract")]
+			commands::test::TestCommands::Contract(cmd) => cmd.execute(),
+		},
+	}
 }
 
 #[cfg(feature = "parachain")]
