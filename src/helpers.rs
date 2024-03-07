@@ -5,6 +5,8 @@ use std::{
     fs::{self, OpenOptions},
     path::{Path, PathBuf},
 };
+
+
 pub(crate) fn sanitize(target: &Path) -> Result<()> {
     use std::io::{stdin, stdout, Write};
     if target.exists() {

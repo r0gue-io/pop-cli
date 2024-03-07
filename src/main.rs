@@ -5,12 +5,16 @@ mod engines;
 #[cfg(any(feature = "parachain", feature = "contract"))]
 mod style;
 
+
 #[cfg(feature = "parachain")]
 mod git;
 #[cfg(feature = "parachain")]
-mod helpers;
-#[cfg(feature = "parachain")]
 mod parachains;
+#[cfg(feature = "parachain")]
+mod helpers;
+
+#[cfg(feature = "contract")]
+mod signer;
 
 use anyhow::{anyhow, Result};
 use clap::{Parser, Subcommand};
@@ -59,6 +63,8 @@ async fn main() -> Result<()> {
         Commands::Up(args) => Ok(match &args.command {
             #[cfg(feature = "parachain")]
             commands::up::UpCommands::Parachain(cmd) => cmd.execute().await?,
+            #[cfg(feature = "contract")]
+            commands::up::UpCommands::Contract(cmd) => cmd.execute().await?,
         }),
         Commands::Test(args) => match &args.command {
             #[cfg(feature = "contract")]

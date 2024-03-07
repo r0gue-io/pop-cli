@@ -14,7 +14,7 @@ pub struct NewPalletCommand {
         default_value = "Frame Pallet"
     )]
     pub(crate) description: Option<String>,
-    #[arg(short = 'p', long = "path", help = "Path to the pallet, [default: current directory]")]
+    #[arg(short = 'p', long, help = "Path to the pallet, [default: current directory]")]
     pub(crate) path: Option<String>,
 }
 
