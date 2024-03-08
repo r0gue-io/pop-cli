@@ -1,6 +1,6 @@
 use anyhow::anyhow;
 use clap::Args;
-use cliclack::{intro, log};
+use cliclack::{clear_screen, intro, log, outro, outro_cancel};
 use sp_core::Bytes;
 use std::path::PathBuf;
 
@@ -46,7 +46,7 @@ pub struct UpContractCommand {
 	/// instances of the same contract code from the same account.
 	#[clap(long, value_parser = parse_hex_bytes)]
 	salt: Option<Bytes>,
-	/// Websockets url of a substrate node.
+	/// Websocket endpoint of a node.
 	#[clap(name = "url", long, value_parser, default_value = "ws://localhost:9944")]
 	url: url::Url,
 	/// Secret key URI for the account deploying the contract.
@@ -60,6 +60,7 @@ pub struct UpContractCommand {
 
 impl UpContractCommand {
 	pub(crate) async fn execute(&self) -> anyhow::Result<()> {
+		clear_screen()?;
 		intro(format!("{}: Deploy a smart contract", style(" Pop CLI ").black().on_magenta()))?;
 		let instantiate_exec = self.set_up_deployment().await?;
 
@@ -67,14 +68,30 @@ impl UpContractCommand {
 		if self.gas_limit.is_some() && self.proof_size.is_some() {
 			weight_limit = Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap());
 		} else {
-			log::info("Doing a dry run to estimate the gas...")?;
-			weight_limit = dry_run_gas_estimate_instantiate(&instantiate_exec).await?;
-			log::info(format!("Gas limit {:?}", weight_limit))?;
+			let mut spinner = cliclack::spinner();
+			spinner.start("Doing a dry run to estimate the gas...");
+			weight_limit = match dry_run_gas_estimate_instantiate(&instantiate_exec).await {
+				Ok(w) => {
+					log::info(format!("Gas limit {:?}", w))?;
+					w
+				},
+				Err(e) => {
+					spinner.error(format!("{e}"));
+					outro_cancel("Deployment failed.")?;
+					return Ok(());
+				},
+			};
 		}
-		log::info("Uploading and instantiating the contract...")?;
-		instantiate_smart_contract(instantiate_exec, weight_limit)
+		let mut spinner = cliclack::spinner();
+		spinner.start("Uploading and instantiating the contract...");
+		let contract_address = instantiate_smart_contract(instantiate_exec, weight_limit)
 			.await
 			.map_err(|err| anyhow!("{} {}", "ERROR:", format!("{err:?}")))?;
+		spinner.stop(format!(
+			"Contract deployed and instantiated: The Contract Address is {:?}",
+			contract_address
+		));
+		outro("Deployment complete")?;
 		Ok(())
 	}
 
