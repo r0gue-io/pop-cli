@@ -28,7 +28,7 @@ pub(crate) fn sanitize(target: &Path) -> Result<()> {
 pub(crate) fn write_to_file<'a>(path: &Path, contents: &'a str) {
 	log::info(format!("Writing to {}", path.display())).ok();
 	use std::io::Write;
-	let mut file = OpenOptions::new().write(true).truncate(true).open(path).unwrap();
+	let mut file = OpenOptions::new().write(true).truncate(true).create(true).open(path).unwrap();
 	file.write_all(contents.as_bytes()).unwrap();
 	if path.extension().map_or(false, |ext| ext == "rs") {
 		let output = std::process::Command::new("rustfmt")

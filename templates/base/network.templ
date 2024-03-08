@@ -1,0 +1,13 @@
+[relaychain]
+chain = "rococo-local"
+
+[[relaychain.nodes]]
+name = "alice"
+validator = true
+
+[[parachains]]
+id = 1000
+default_command = "./target/release/^^node^^"
+
+[[parachains.collators]]
+name = "collator-01"
