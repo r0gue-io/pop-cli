@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use clap::Args;
-use cliclack::{clear_screen, intro};
+use cliclack::{clear_screen, intro, outro};
 
 use crate::{
 	engines::contract_engine::{test_e2e_smart_contract, test_smart_contract},
@@ -20,11 +20,16 @@ impl TestContractCommand {
 	pub(crate) fn execute(&self) -> anyhow::Result<()> {
 		clear_screen()?;
 		if self.features.is_some() && self.features.clone().unwrap().contains("e2e-tests") {
-			intro(format!("{}: Starting e2e tests", style(" Pop CLI ").black().on_magenta()))?;
+			intro(format!(
+				"{}: Starting end-to-end tests",
+				style(" Pop CLI ").black().on_magenta()
+			))?;
 			test_e2e_smart_contract(&self.path)?;
+			outro("End-to-end testing complete")?;
 		} else {
 			intro(format!("{}: Starting unit tests", style(" Pop CLI ").black().on_magenta()))?;
 			test_smart_contract(&self.path)?;
+			outro("Unit testing complete")?;
 		}
 		Ok(())
 	}
