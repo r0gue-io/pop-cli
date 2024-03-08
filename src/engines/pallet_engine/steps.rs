@@ -105,7 +105,7 @@ pub(super) fn run_steps(mut pe: PalletEngine, steps: Vec<Steps>) -> Result<()> {
                 pe.insert_config(config)?
             }
             SwitchTo(State::ConstructRuntime) => pe.prepare_crt()?,
-            ConstructRuntimeEntry(_entry) => {
+            ConstructRuntimeEntry(entry) => {
                 // TODO : Switch to add_pallet_runtime
                 // pe.add_pallet_runtime(entry)?
                 pe.insert_str_runtime("\t\tTemplate: pallet_parachain_template = 100,")?;
