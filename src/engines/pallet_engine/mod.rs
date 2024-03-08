@@ -21,6 +21,7 @@ mod template;
 
 use crate::commands::add::AddPallet;
 use anyhow::{anyhow, bail, Context};
+use log::warn;
 use pallet_entry::Numbers;
 use pallet_entry::{AddPalletEntry, ReadPalletEntry};
 use parser::RuntimeDeclaration;
@@ -44,6 +45,7 @@ pub fn execute(pallet: AddPallet, runtime_path: PathBuf) -> anyhow::Result<()> {
 
 /// State of PalletEngine at any given moment in time
 #[derive(Debug, Default, PartialEq)]
+// TODO: Impl sequence checking through discriminants
 enum State {
     #[default]
     Init,
@@ -117,21 +119,6 @@ impl PalletEngine {
         fs::remove_file(self.output);
         Ok(())
     }
-    /// Prepare `output` by first, adding pre-CRT items such as imports and modules
-    /// Then adding the construct_runtime! macro
-    /// And finally adding the post-CRT items such as benchmarks, impl_runtime_apis! and so forth
-    pub fn prepare_output(&mut self) -> anyhow::Result<()> {
-        if self.state != State::Init {
-            bail!("PalletEngine is not in Init stage, cursor: {}", self.cursor);
-        }
-        else {
-            // First pre-CRT items - imports
-            self.append_lines_from(0, self.imports.last_import)?;
-            self.cursor = self.imports.last_import;
-            self.state = State::Import;
-            Ok(())
-        }
-    }
     /// Create a new PalletEngine
     pub fn new(input: &PathBuf) -> anyhow::Result<Self> {
         let tmp_dir = tempfile::TempDir::new()?;
@@ -199,7 +186,7 @@ impl PalletEngine {
             output,
             details,
             state: State::Init,
-            cursor: 0
+            cursor: 0,
         })
     }
     /// Helper for PalletEngine::new, Builds pallet details from the construct_runtime! macro
@@ -268,6 +255,52 @@ impl PalletEngine {
 // without analyzing it for newlines.
 #[allow(unused)]
 impl PalletEngine {
+    /// Prepare `output` by first, adding pre-CRT items such as imports and modules
+    /// Then adding the construct_runtime! macro
+    /// And finally adding the post-CRT items such as benchmarks, impl_runtime_apis! and so forth
+    fn prepare_output(&mut self) -> anyhow::Result<()> {
+        if self.state != State::Init {
+            bail!("PalletEngine is not in Init stage, cursor: {}", self.cursor);
+        } else {
+            // First pre-CRT items - imports
+            self.append_lines_from(0, self.imports.last_import)?;
+            self.cursor = self.imports.last_import;
+            self.state = State::Import;
+            Ok(())
+        }
+    }
+    /// Prepare `output` for taking new pallet configurations
+    fn prepare_config(&mut self) -> anyhow::Result<()> {
+        if self.state != State::Import {
+            bail!(
+                "PalletEngine is not in Import stage, cursor: {}",
+                self.cursor
+            );
+        } else {
+            self.append_lines_from(self.imports.last_import + 1, self.details.crt_start - 1);
+            self.state = State::Config;
+            Ok(())
+        }
+    }
+    /// Prepare `output` for CRT items
+    fn prepare_crt(&mut self) -> anyhow::Result<()> {
+        if self.state != State::Config {
+            bail!(
+                "PalletEngine is not in Config stage, cursor: {}",
+                self.cursor
+            );
+        } else if self.state == State::ConstructRuntime {
+            warn!(
+                "PalletEngine is already in ConstructRuntime stage, cursor: {}",
+                self.cursor
+            );
+            return Ok(());
+        }
+        self.add_new_line(1)?;
+        self.append_lines_from(self.details.crt_start, self.details.crt_end);
+        self.state = State::ConstructRuntime;
+        Ok(())
+    }
     /// Add `n` line-breaks to output
     fn add_new_line(&mut self, n: usize) -> anyhow::Result<()> {
         let mut file = OpenOptions::new().append(true).open(&self.output)?;
@@ -298,6 +331,12 @@ impl PalletEngine {
         self.append_tokens(import_stmt);
         self.imports.counter += 1;
         self.imports.last_import += 1;
+        Ok(())
+    }
+    /// Insert configuartion for a pallet - only for pallet-template atm
+    fn insert_config(&mut self, config: TokenStream) -> anyhow::Result<()> {
+        self.append_tokens(config);
+        self.cursor += 3; // TODO : change to count_newlines()
         Ok(())
     }
     /// Append lines [start..end] from `input` source to `output`.
@@ -414,7 +453,6 @@ impl PalletEngine {
                 ultimate.index = new_pallet.index;
                 ultimate.path.inner.segments[0].ident = new_pallet.path;
                 ultimate.name = new_pallet.name;
-                // println!("Ultimate pallet: {:?}", ultimate);
                 i.pallets.push(ultimate);
                 Ok(())
             }
@@ -424,6 +462,11 @@ impl PalletEngine {
             RuntimeDeclaration::ExplicitExpanded(e) => {
                 todo!()
             }
-        }
+        };
+        Ok(())
     }
 }
+// TODO
+// fn count_newlines(tokens: TokenStream) -> usize {
+//     unimplemented!()
+// }

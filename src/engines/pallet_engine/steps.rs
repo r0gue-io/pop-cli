@@ -1,4 +1,3 @@
-#![allow(unused)]
 use super::{pallet_entry::AddPalletEntry, PalletEngine};
 use crate::commands::add::AddPallet;
 use anyhow::Result;
@@ -26,8 +25,22 @@ pub(super) enum Steps {
     ChainspecGenesisImport(TokenStream2),
     /// Node specific imports if the above two are required
     NodePalletDependency(Dependency),
+    /// PalletEngine Specific Commands
+    Commands,
 }
-
+enum Commands {
+    SwitchToConfig,
+    SwitchToCRT,
+}
+macro_rules! steps {
+    ($cmd:expr) => {
+        steps.push($cmd);
+    };
+}
+/// Some rules to follow when constructing steps:
+/// The pallet engine state expects to go as edits would, i.e. top to bottom lexically
+/// So it makes sense for any given file, to first include an import, then items that refer to it
+/// In case of a pallet, you'd always put `RuntimePalletImport`, `RuntimePalletConfiguration`, `ConstructRuntimeEntry` sin that order.
 pub(super) fn step_builder(pallet: AddPallet) -> Result<Vec<Steps>> {
     let mut steps: Vec<Steps> = vec![];
     match pallet {
@@ -37,12 +50,14 @@ pub(super) fn step_builder(pallet: AddPallet) -> Result<Vec<Steps>> {
             steps.push(RuntimePalletImport(quote!(
                 pub use pallet_parachain_template;
             )));
+            steps.push(SwitchToConfig);
             steps.push(RuntimePalletConfiguration(quote!(
                 /// Configure the pallet template in pallets/template.
                 impl pallet_parachain_template::Config for Runtime {
                     type RuntimeEvent = RuntimeEvent;
                 }
             )));
+            steps.push(SwitchToCrt);
             steps.push(ConstructRuntimeEntry(AddPalletEntry::new(
                 // Index
                 None,
@@ -58,16 +73,19 @@ pub(super) fn step_builder(pallet: AddPallet) -> Result<Vec<Steps>> {
     };
     Ok(steps)
 }
-
+/// Execute steps on PalletEngine.
+/// Each execution edits a file.
+/// Sequence of steps matters so take care when ordering them
 pub(super) fn run_steps(mut pe: PalletEngine, steps: Vec<Steps>) -> Result<()> {
     use super::State::*;
     pe.prepare_output()?;
     for step in steps.into_iter() {
         match step {
+            // RuntimePalletDependency(step) => pe.insert(step),
             RuntimePalletImport(stmt) => {
                 match pe.state {
                     Init => {
-                        warn!("Non fatal: `prepare_output` was not called");
+                        warn!("`prepare_output` was not called");
                         pe.state = Import;
                         pe.insert_import(stmt);
                     }
@@ -75,17 +93,24 @@ pub(super) fn run_steps(mut pe: PalletEngine, steps: Vec<Steps>) -> Result<()> {
                     _ => {
                         // We don't support writing import statements in any other engine state
                         // Log non-fatal error and continue
-                        error!("Cannot write import stmts. Check step builder");
+                        error!(
+                            "Cannot write import stmts in state {0:?}. Check step builder",
+                            pe.state
+                        );
                         continue;
                     }
-                }
-                pe.insert_import(quote!(
-                    pub use pallet_parachain_template;
-                ));
+                };
             }
-            // RuntimePalletConfiguration(step) => pe.insert(step),
-            // RuntimePalletDependency(step) => pe.insert(step),
-            // ConstructRuntimeEntry(step) => pe.insert(step),
+            SwitchToConfig => pe.prepare_config()?,
+            RuntimePalletConfiguration(config) => {
+                if pe.state != Config {
+                    // Not really a fatal error, but may cause unexpected behaviour
+                    warn!("Engine not in Config state, executing config insertion anyways");
+                }
+                pe.insert_config(config)?
+            },
+            SwitchToCRT => pe.prepare_crt()?,
+            ConstructRuntimeEntry(p) => pe.add_pallet_runtime(p)?,
             // ListBenchmarks(step) => pe.insert(step),
             // ChainspecGenesisConfig(step) => pe.insert(step),
             // ChainspecGenesisImport(step) => pe.insert(step),
