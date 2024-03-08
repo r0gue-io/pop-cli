@@ -1,4 +1,4 @@
-# POP [WIP]
+# Pop CLI
 <img src=".icons/logo.jpeg"></img>
 
 An all-in-one tool for Polkadot development.
