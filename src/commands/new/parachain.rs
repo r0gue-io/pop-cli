@@ -10,20 +10,20 @@ use cliclack::{clear_screen, intro, outro, set_theme};
 
 #[derive(Clone, Parser, Debug, Display, EnumString, PartialEq)]
 pub enum Template {
-	#[strum(serialize = "Frontier Parachain Template", serialize = "fpt")]
-	FPT,
 	#[strum(serialize = "Contracts Node Template", serialize = "cpt")]
 	Contracts,
+	#[strum(serialize = "Frontier Parachain Template", serialize = "fpt")]
+	FPT,
 	#[strum(serialize = "Base Parachain Template", serialize = "base")]
 	Base,
 }
 
 #[derive(Args)]
 pub struct NewParachainCommand {
-	#[arg(help = "Name of the app. Also works as a directory path for your project")]
+	#[arg(help = "Name of the project. Also works as a directory path for your project")]
 	pub(crate) name: String,
 	#[arg(
-		help = "Template to create; Options are 'fpt', 'cpt'. Leave empty for default parachain template"
+		help = "Template to use; Options are 'cpt', 'fpt'. Leave empty for default parachain template"
 	)]
 	#[arg(default_value = "base")]
 	pub(crate) template: Template,

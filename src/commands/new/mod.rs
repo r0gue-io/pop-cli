@@ -16,15 +16,15 @@ pub struct NewArgs {
 
 #[derive(Subcommand)]
 pub enum NewCommands {
-	/// Generate a new parachain template
+	/// Generate a new parachain
 	#[cfg(feature = "parachain")]
 	#[clap(alias = "p")]
 	Parachain(parachain::NewParachainCommand),
-	/// Generate a new pallet template
+	/// Generate a new pallet
 	#[cfg(feature = "parachain")]
 	#[clap(alias = "m")] // (m)odule, as p used above
 	Pallet(pallet::NewPalletCommand),
-	/// Generate a new smart contract template
+	/// Generate a new smart contract
 	#[cfg(feature = "contract")]
 	#[clap(alias = "c")]
 	Contract(contract::NewContractCommand),
