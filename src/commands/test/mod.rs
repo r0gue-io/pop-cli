@@ -11,7 +11,7 @@ pub(crate) struct TestArgs {
 
 #[derive(Subcommand)]
 pub(crate) enum TestCommands {
-	/// Test the contract
+	/// Test a smart contract
 	#[cfg(feature = "contract")]
 	#[clap(alias = "c")]
 	Contract(contract::TestContractCommand),
