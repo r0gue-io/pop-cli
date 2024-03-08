@@ -1,5 +1,12 @@
-use crate::engines::pallet_engine::{create_pallet_template, TemplatePalletConfig};
+use crate::{
+	engines::pallet_engine::{create_pallet_template, TemplatePalletConfig},
+	helpers::resolve_pallet_path,
+	style::Theme,
+};
 use clap::Args;
+use cliclack::{clear_screen, confirm, intro, outro, outro_cancel, set_theme};
+use console::style;
+use std::fs;
 
 #[derive(Args)]
 pub struct NewPalletCommand {
@@ -15,6 +22,33 @@ pub struct NewPalletCommand {
 
 impl NewPalletCommand {
 	pub(crate) fn execute(&self) -> anyhow::Result<()> {
+		clear_screen()?;
+		intro(format!(
+			"{}: Generating new pallet \"{}\"!",
+			style(" Pop CLI ").black().on_magenta(),
+			&self.name,
+		))?;
+		set_theme(Theme);
+		let target = resolve_pallet_path(self.path.clone());
+		let pallet_name = self.name.clone();
+		let pallet_path = target.join(pallet_name.clone());
+		if pallet_path.exists() {
+			if !confirm(format!(
+				"\"{}\" directory already exists. Would you like to remove it?",
+				pallet_path.display()
+			))
+			.interact()?
+			{
+				outro_cancel(format!(
+					"Cannot generate pallet until \"{}\" directory is removed.",
+					pallet_path.display()
+				))?;
+				return Ok(());
+			}
+			fs::remove_dir_all(pallet_path)?;
+		}
+		let mut spinner = cliclack::spinner();
+		spinner.start("Generating pallet...");
 		create_pallet_template(
 			self.path.clone(),
 			TemplatePalletConfig {
@@ -23,6 +57,8 @@ impl NewPalletCommand {
 				description: self.description.clone().expect("default values"),
 			},
 		)?;
+		spinner.stop("Generation complete");
+		outro(format!("cd into \"{}\" and enjoy hacking! 🚀", &self.name))?;
 		Ok(())
 	}
 }

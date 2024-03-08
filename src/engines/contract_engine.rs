@@ -1,4 +1,3 @@
-use cliclack::outro;
 use duct::cmd;
 use std::path::PathBuf;
 
@@ -67,13 +66,9 @@ pub fn test_e2e_smart_contract(path: &Option<PathBuf>) -> anyhow::Result<()> {
 pub async fn instantiate_smart_contract(
 	instantiate_exec: InstantiateExec<DefaultConfig, DefaultEnvironment, Keypair>,
 	gas_limit: Weight,
-) -> anyhow::Result<(), ErrorVariant> {
+) -> anyhow::Result<String, ErrorVariant> {
 	let instantiate_result = instantiate_exec.instantiate(Some(gas_limit)).await?;
-	outro(format!(
-		"Contract deployed and instantiate: The Contract Address is {:?}",
-		instantiate_result.contract_address.to_string()
-	))?;
-	Ok(())
+	Ok(instantiate_result.contract_address.to_string())
 }
 
 pub async fn dry_run_gas_estimate_instantiate(
