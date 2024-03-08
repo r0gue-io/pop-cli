@@ -1,3 +1,5 @@
 **/target/
 **/node_modules/
 /src/x.rs
+
+.DS_Store
