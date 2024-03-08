@@ -1,5 +1,6 @@
 use duct::cmd;
 use std::path::PathBuf;
+use cliclack::log;
 
 use contract_build::{
 	execute, new_contract_project, BuildArtifacts, BuildMode, ExecuteArgs, Features, ManifestPath,
@@ -45,7 +46,12 @@ pub fn build_smart_contract(path: &Option<PathBuf>) -> anyhow::Result<()> {
 		max_memory_pages: DEFAULT_MAX_MEMORY_PAGES,
 		image: Default::default(),
 	};
-	execute(args)?;
+
+	// Execute the build and log the output of the build
+	let result = execute(args)?;
+	let formatted_result = result.display();
+    log::success(formatted_result.to_string())?;
+
 	Ok(())
 }
 
