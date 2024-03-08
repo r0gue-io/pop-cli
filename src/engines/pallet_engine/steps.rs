@@ -30,12 +30,6 @@ pub(super) enum Steps {
     /// PalletEngine State transitions
     SwitchTo(State),
 }
-
-macro_rules! steps {
-    ($cmd:expr) => {
-        steps.push($cmd);
-    };
-}
 /// Some rules to follow when constructing steps:
 /// The pallet engine state expects to go as edits would, i.e. top to bottom lexically
 /// So it makes sense for any given file, to first include an import, then items that refer to it
@@ -47,6 +41,7 @@ pub(super) fn step_builder(pallet: AddPallet) -> Result<Vec<Steps>> {
         AddPallet::Template => {
             // steps.push(RuntimePalletDependency(Dependency::runtime_template()));
             steps.push(RuntimePalletImport(quote!(
+                // Imports by pop-cli
                 pub use pallet_parachain_template;
             )));
             steps.push(SwitchTo(State::Config));
