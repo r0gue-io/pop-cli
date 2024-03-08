@@ -2,6 +2,7 @@
 use syn::Ident;
 
 /// Format containing necessary information for appending pallets
+#[derive(Debug)]
 pub(super) struct AddPalletEntry {
     pub(super) index: Option<u8>,
     pub(super) path: Ident,

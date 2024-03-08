@@ -6,7 +6,9 @@ use log::{error, warn};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use Steps::*;
+use super::State;
 /// Define the steps needed for a particular pallet insertion
+#[derive(Debug)]
 pub(super) enum Steps {
     /// Import statements for pallet
     RuntimePalletImport(TokenStream2),
@@ -25,13 +27,10 @@ pub(super) enum Steps {
     ChainspecGenesisImport(TokenStream2),
     /// Node specific imports if the above two are required
     NodePalletDependency(Dependency),
-    /// PalletEngine Specific Commands
-    Commands,
+    /// PalletEngine State transitions
+    SwitchTo(State),
 }
-enum Commands {
-    SwitchToConfig,
-    SwitchToCRT,
-}
+
 macro_rules! steps {
     ($cmd:expr) => {
         steps.push($cmd);
@@ -46,18 +45,18 @@ pub(super) fn step_builder(pallet: AddPallet) -> Result<Vec<Steps>> {
     match pallet {
         // Adding a pallet-parachain-template requires 5 distinct steps
         AddPallet::Template => {
-            steps.push(RuntimePalletDependency(Dependency::runtime_template()));
+            // steps.push(RuntimePalletDependency(Dependency::runtime_template()));
             steps.push(RuntimePalletImport(quote!(
                 pub use pallet_parachain_template;
             )));
-            steps.push(SwitchToConfig);
+            steps.push(SwitchTo(State::Config));
             steps.push(RuntimePalletConfiguration(quote!(
                 /// Configure the pallet template in pallets/template.
                 impl pallet_parachain_template::Config for Runtime {
                     type RuntimeEvent = RuntimeEvent;
                 }
             )));
-            steps.push(SwitchToCrt);
+            steps.push(SwitchTo(State::ConstructRuntime));
             steps.push(ConstructRuntimeEntry(AddPalletEntry::new(
                 // Index
                 None,
@@ -67,7 +66,7 @@ pub(super) fn step_builder(pallet: AddPallet) -> Result<Vec<Steps>> {
                 // TODO (high priority): implement name conflict resolution strategy
                 "Template",
             )));
-            steps.push(NodePalletDependency(Dependency::node_template()))
+            // steps.push(NodePalletDependency(Dependency::node_template()))
         }
         AddPallet::Frame(_) => unimplemented!("Frame pallets not yet implemented"),
     };
@@ -76,6 +75,7 @@ pub(super) fn step_builder(pallet: AddPallet) -> Result<Vec<Steps>> {
 /// Execute steps on PalletEngine.
 /// Each execution edits a file.
 /// Sequence of steps matters so take care when ordering them
+/// Works only for Template pallets at the moment.. See config and CRT inserts
 pub(super) fn run_steps(mut pe: PalletEngine, steps: Vec<Steps>) -> Result<()> {
     use super::State::*;
     pe.prepare_output()?;
@@ -101,32 +101,40 @@ pub(super) fn run_steps(mut pe: PalletEngine, steps: Vec<Steps>) -> Result<()> {
                     }
                 };
             }
-            SwitchToConfig => pe.prepare_config()?,
+            SwitchTo(State::Config) => pe.prepare_config()?,
             RuntimePalletConfiguration(config) => {
                 if pe.state != Config {
                     // Not really a fatal error, but may cause unexpected behaviour
                     warn!("Engine not in Config state, executing config insertion anyways");
                 }
                 pe.insert_config(config)?
-            },
-            SwitchToCRT => pe.prepare_crt()?,
-            ConstructRuntimeEntry(p) => pe.add_pallet_runtime(p)?,
+            }
+            SwitchTo(State::ConstructRuntime) => pe.prepare_crt()?,
+            ConstructRuntimeEntry(_entry) => {
+                // TODO : Switch to add_pallet_runtime
+                // pe.add_pallet_runtime(entry)?
+                pe.insert_str_runtime("\t\tTemplate: pallet_parachain_template = 100,")?;
+            }
+            // ListBenchmarks(step) => pe.insert(step),
             // ListBenchmarks(step) => pe.insert(step),
             // ChainspecGenesisConfig(step) => pe.insert(step),
             // ChainspecGenesisImport(step) => pe.insert(step),
             // NodePalletDependency(step) => pe.insert(step),
-            _ => {
-                unimplemented!()
+            step => {
+                unimplemented!("{step:?} unimplemented")
             }
         }; // -- match --
     } // -- for --
+    // Finalize runtime edits 
+    pe.merge()?;
+    // TODO: Finalize toml and chainspec edits
     Ok(())
 }
 
 mod dependency {
     use strum_macros::{Display, EnumString};
 
-    #[derive(EnumString, Display)]
+    #[derive(EnumString, Display, Debug)]
     pub(in crate::engines::pallet_engine) enum Features {
         #[strum(serialize = "std")]
         Std,
@@ -136,6 +144,7 @@ mod dependency {
         TryRuntime,
         Custom(String),
     }
+    #[derive(Debug)]
     pub(in crate::engines::pallet_engine) struct Dependency {
         features: Vec<Features>,
         path: String,

@@ -4452,6 +4452,7 @@ dependencies = [
  "toml_edit 0.22.6",
  "tracing-subscriber 0.3.18",
  "url",
+ "uuid",
  "walkdir",
  "zombienet-sdk",
  "zombienet-support",

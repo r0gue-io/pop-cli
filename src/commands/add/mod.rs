@@ -10,7 +10,7 @@ pub(crate) struct AddArgs {
     #[command(subcommand)]
     /// Pallet to add to the runtime
     pub(crate) pallet: AddPallet,
-    #[arg(global = true, short)]
+    #[arg(global = true, short, long)]
     /// Runtime path;
     /// Cargo Manifest path will be inferred as `../Cargo.toml`
     pub(crate) runtime: Option<String>,
@@ -35,11 +35,20 @@ pub(crate) struct FrameArgs {
 impl AddArgs {
     pub(crate) fn execute(&self) -> anyhow::Result<()> {
         let runtime_path = match self.runtime {
-            Some(ref s) => PathBuf::from(s),
+            Some(ref s) => {
+                let path = PathBuf::from(s);
+                // println!("Using runtime path: {}", &path.display());
+                if !path.exists() {
+                    anyhow::bail!("Runtime path does not exist: {}", path.display());
+                }
+                path
+            }
             None => {
                 // TODO: Fetch runtime either from cache
                 // Fix: This is a placeholder path, should not be used
-                PathBuf::from("my-app/runtime/src/lib.rs")
+                unimplemented!(
+                    "provide a runtime path until cache is implemented: --runtime <path>"
+                );
             }
         };
         let pallet = match self.pallet {
@@ -48,7 +57,7 @@ impl AddArgs {
                 eprintln!("Sorry, frame pallets cannot be added right now");
                 std::process::exit(1);
                 // format!("FRAME-pallet-{name}")
-            },
+            }
         };
         pallet_engine::execute(self.pallet.clone(), runtime_path.clone())?;
         println!("Added {}\n-> to {}", pallet, runtime_path.display());

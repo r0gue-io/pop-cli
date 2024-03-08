@@ -79,6 +79,12 @@ pub struct PalletEngine {
     /// Cursor for tracking where we are in the output
     cursor: usize,
 }
+impl Drop for PalletEngine {
+    fn drop(&mut self) {
+        let output_dir = self.output.parent().unwrap();
+        let _ = fs::remove_dir_all(output_dir);
+    }
+}
 
 /// PalletDetails is data generated after parsing of a given `input` runtime file
 /// This will make observations as to which pallets are there, if there are instances of the pallets
@@ -115,19 +121,22 @@ impl PalletEngine {
     /// Consume self merging `output` and `input`
     /// Call this to finalize edits
     pub fn merge(self) -> anyhow::Result<()> {
+        // TODO: since we are not interacting with any post-CRT items, this is ok
+        self.append_lines_from(self.details.crt_end + 1, self.details.file_end)?;
         fs::copy(&self.output, &self.input)?;
-        fs::remove_file(self.output);
+        fs::remove_file(&self.output);
         Ok(())
     }
     /// Create a new PalletEngine
     pub fn new(input: &PathBuf) -> anyhow::Result<Self> {
-        let tmp_dir = tempfile::TempDir::new()?;
-        let output: PathBuf = tmp_dir.path().join("temp_lib.rs");
+        let tmp_dir = PathBuf::from(format!("/tmp/pallet_engine_{}", uuid::Uuid::new_v4()));
+        fs::create_dir(&tmp_dir).context("Failed to create temporary directory for PalletEngine")?;
+        let output: PathBuf = tmp_dir.join("out_lib.rs");
         // Open the file specified in `output`. If non-empty, delete its contents.
         if output.exists() && output.is_file() {
             std::fs::remove_file(output.as_path())?;
         }
-        File::create(output.as_path()).context(format!(
+        File::create(&output).context(format!(
             "Failed to create PalletEngine with output: {}",
             output.display()
         ))?;
@@ -363,7 +372,10 @@ impl PalletEngine {
             snip.push_str(&line?);
             snip.push('\n');
         }
-        let mut file = OpenOptions::new().append(true).open(&self.output)?;
+        let mut file = OpenOptions::new()
+            .append(true)
+            .open(&self.output)
+            .context("fn append_lines_from - cannot open output")?;
         file.write_all(snip.as_bytes())?;
         Ok(())
     }
@@ -448,13 +460,12 @@ impl PalletEngine {
                 let mut ultimate = i
                     .pallets
                     .last()
-                    .expect("Fatal: No pallets defined in construct_runtime!")
+                    .ok_or(anyhow!("Fatal: No pallets defined in construct_runtime!"))?
                     .clone();
                 ultimate.index = new_pallet.index;
                 ultimate.path.inner.segments[0].ident = new_pallet.path;
                 ultimate.name = new_pallet.name;
                 i.pallets.push(ultimate);
-                Ok(())
             }
             RuntimeDeclaration::Explicit(e) => {
                 todo!()
