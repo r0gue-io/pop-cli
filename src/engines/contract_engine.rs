@@ -50,8 +50,7 @@ pub fn build_smart_contract(path: &Option<PathBuf>) -> anyhow::Result<()> {
 	// Execute the build and log the output of the build
 	let result = execute(args)?;
 	let formatted_result = result.display();
-	let colored_output = ansi_term::Color::Green.paint(formatted_result).to_string();	
-    log::info(colored_output.to_string())?;
+    log::success(formatted_result.to_string())?;
 
 	Ok(())
 }
