@@ -5254,6 +5254,7 @@ dependencies = [
 name = "pop-cli"
 version = "0.1.0"
 dependencies = [
+ "ansi_term",
  "anyhow",
  "askama",
  "clap",
