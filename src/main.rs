@@ -64,10 +64,10 @@ async fn main() -> Result<()> {
 			#[cfg(feature = "contract")]
 			commands::build::BuildCommands::Contract(cmd) => cmd.execute(),
 		},
-		Commands::Call(args) => match &args.command {
+		Commands::Call(args) => Ok(match &args.command {
 			#[cfg(feature = "contract")]
-			commands::call::CallCommands::Contract(cmd) => cmd.execute(),
-		},
+			commands::call::CallCommands::Contract(cmd) => cmd.execute().await?,
+		}),
 		Commands::Up(args) => Ok(match &args.command {
 			#[cfg(feature = "parachain")]
 			commands::up::UpCommands::Parachain(cmd) => cmd.execute().await?,

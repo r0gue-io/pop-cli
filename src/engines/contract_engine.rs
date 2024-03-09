@@ -5,9 +5,9 @@ use std::path::PathBuf;
 use contract_build::{
 	execute, new_contract_project, BuildArtifacts, BuildMode, ExecuteArgs, Features, ManifestPath,
 	Network, OptimizationPasses, OutputType, Target, UnstableFlags, Verbosity,
-	DEFAULT_MAX_MEMORY_PAGES,
+	DEFAULT_MAX_MEMORY_PAGES
 };
-use contract_extrinsics::{ErrorVariant, InstantiateExec};
+use contract_extrinsics::{CallExec, DisplayEvents, ErrorVariant, InstantiateExec, TokenMetadata};
 use ink_env::DefaultEnvironment;
 use sp_weights::Weight;
 use subxt::PolkadotConfig as DefaultConfig;
@@ -92,6 +92,48 @@ pub async fn dry_run_gas_estimate_instantiate(
                 .args()
                 .proof_size()
                 .unwrap_or_else(|| instantiate_result.gas_required.proof_size());
+            Ok(Weight::from_parts(ref_time, proof_size))
+        }
+        Err(ref _err) => {
+             Err(anyhow::anyhow!(
+                "Pre-submission dry-run failed. Add gas_limit and proof_size manually to skip this step."
+            ))
+        }
+    }
+}
+
+pub async fn call_smart_contract(
+	call_exec: CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
+	gas_limit: Weight,
+	token_metadata: TokenMetadata
+) -> anyhow::Result<String, ErrorVariant> {
+	let metadata = call_exec.client().metadata();
+	let events = call_exec.call(Some(gas_limit)).await?;
+	let display_events = DisplayEvents::from_events::<
+		DefaultConfig,
+		DefaultEnvironment,
+	>(&events, None, &metadata)?;
+
+	let output = display_events.display_events::<DefaultEnvironment>(
+		Verbosity::Default,
+		&token_metadata,
+	)?;
+	Ok(output)
+}
+
+pub async fn dry_run_gas_estimate_call(
+	call_exec: &mut CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
+) -> anyhow::Result<Weight> {
+	let call_result = call_exec.call_dry_run().await?;
+	match call_result.result {
+        Ok(_) => {
+            // use user specified values where provided, otherwise use the estimates
+            let ref_time = call_exec
+                .gas_limit()
+                .unwrap_or_else(|| call_result.gas_required.ref_time());
+            let proof_size = call_exec
+                .proof_size()
+                .unwrap_or_else(|| call_result.gas_required.proof_size());
             Ok(Weight::from_parts(ref_time, proof_size))
         }
         Err(ref _err) => {
