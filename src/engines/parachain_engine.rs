@@ -1,6 +1,6 @@
 use crate::{
 	commands::new::parachain::Template,
-	engines::generator::ChainSpec,
+	engines::generator::{ChainSpec, Network},
 	helpers::{clone_and_degit, sanitize, write_to_file},
 };
 use anyhow::Result;
@@ -62,6 +62,9 @@ pub fn instantiate_base_template(target: &Path, config: Config) -> Result<()> {
 		&target.join("node/src/chain_spec.rs"),
 		chainspec.render().expect("infallible").as_ref(),
 	);
+	// Add network configuration
+	let network = Network { node: "parachain-template-node".into() };
+	write_to_file(&target.join("network.toml"), network.render().expect("infallible").as_ref());
 	Repository::init(target)?;
 	Ok(())
 }
@@ -77,7 +80,7 @@ pub fn build_parachain(path: &Option<PathBuf>) -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use std::fs;
+	use std::{env::current_dir, fs};
 	use tempdir;
 
 	#[test]
@@ -97,6 +100,15 @@ mod tests {
 		assert!(generated_file_content.contains("DOT"));
 		assert!(generated_file_content.contains("18"));
 		assert!(generated_file_content.contains("1000000000000000000000000"));
+
+		// Verify network.toml contains expected content
+		let generated_file_content = fs::read_to_string(temp_dir.path().join("network.toml"))?;
+		let expected_file_content =
+			fs::read_to_string(current_dir()?.join("./templates/base/network.templ"))?;
+		assert_eq!(
+			generated_file_content,
+			expected_file_content.replace("^^node^^", "parachain-template-node")
+		);
 
 		Ok(())
 	}

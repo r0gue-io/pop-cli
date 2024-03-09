@@ -36,6 +36,12 @@ pub(crate) struct PalletTests {
 	pub(crate) module: String,
 }
 
+#[derive(Template)]
+#[template(path = "base/network.templ", escape = "none")]
+pub(crate) struct Network {
+	pub(crate) node: String,
+}
+
 // todo : generate directory structure
 // todo : This is only for development
 #[allow(unused)]
