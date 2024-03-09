@@ -61,7 +61,7 @@ pub(super) fn step_builder(pallet: AddPallet) -> Result<Vec<Steps>> {
 			)));
 			steps.push(SwitchTo(State::ConstructRuntime));
 			steps.push(ConstructRuntimeEntry(AddPalletEntry::new(
-				// Index
+				// Index - None, means Pallet Engine will automatically compute an index
 				None,
 				// Path
 				"pallet_parachain_template",
@@ -114,9 +114,7 @@ pub(super) fn run_steps(mut pe: PalletEngine, steps: Vec<Steps>) -> Result<()> {
 			},
 			SwitchTo(State::ConstructRuntime) => pe.prepare_crt()?,
 			ConstructRuntimeEntry(entry) => {
-				// TODO : Switch to add_pallet_runtime
 				pe.add_pallet_runtime(entry)?
-				// pe.insert_str_runtime("\t\tTemplate: pallet_parachain_template = 100,")?;
 			},
 			// ListBenchmarks(step) => pe.insert(step),
 			// ListBenchmarks(step) => pe.insert(step),

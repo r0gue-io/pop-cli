@@ -26,6 +26,7 @@ use pallet_entry::Numbers;
 use pallet_entry::{AddPalletEntry, ReadPalletEntry};
 use parser::RuntimeDeclaration;
 use proc_macro2::TokenStream;
+use quote::quote;
 use std::{
 	collections::HashMap,
 	fs::{self, File, OpenOptions},
@@ -78,7 +79,6 @@ pub struct PalletEngine {
 	state: State,
 	/// Cursor for tracking where we are in the output
 	cursor: usize,
-
 }
 impl Drop for PalletEngine {
 	fn drop(&mut self) {
@@ -180,9 +180,8 @@ impl PalletEngine {
 				_ => {},
 			};
 		}
-		let imports = ImportDetails {
-			last_import: last_import.expect("Imports are always present"),
-		};
+		let imports =
+			ImportDetails { last_import: last_import.expect("Imports are always present") };
 		let Some(details) = details else {
 			bail!("No pallets/construct_runtime! found in input");
 		};
@@ -328,7 +327,7 @@ impl PalletEngine {
 	/// Insert configuartion for a pallet - only for pallet-template atm
 	fn insert_config(&mut self, config: (TokenStream, usize)) -> anyhow::Result<()> {
 		self.append_tokens(config.0);
-		self.cursor += config.1; 
+		self.cursor += config.1;
 		Ok(())
 	}
 	/// Append lines [start..end] from `input` source to `output`.
@@ -449,31 +448,33 @@ impl PalletEngine {
 	/// Overwrites existing CRT in output, this means that `self.cursor` has to backtracked to crt_start
 	/// and updated after the pallet entry has been inserted
 	fn add_pallet_runtime(&mut self, new_pallet: AddPalletEntry) -> anyhow::Result<()> {
-		use std::io::{Seek, SeekFrom};
-		// re-render output CRT:
-		self.insert_at(self.cursor, "//---- ReRender from add_pallet_runtime ----\n")?;
-		println!("cursor -> {}", self.cursor);
-		match &mut self.details.declaration {
-			RuntimeDeclaration::Implicit(i) => {
-				let mut ultimate = i
-					.pallets
-					.last()
-					.ok_or(anyhow!("Fatal: No pallets defined in construct_runtime!"))?
-					.clone();
-				ultimate.index = new_pallet.index;
-				ultimate.path.inner.segments[0].ident = new_pallet.path;
-				ultimate.name = new_pallet.name;
-				i.pallets.push(ultimate);
-			},
-			RuntimeDeclaration::Explicit(e) => {
-				todo!()
-			},
-			RuntimeDeclaration::ExplicitExpanded(e) => {
-				todo!()
-			},
-		};
-		// new_lines will tell cursor to update accounting for the new pallet
-		// self.render_pallets(new_lines)?;
+		let mut entry = String::new();
+		let AddPalletEntry { name, path, index } = new_pallet;
+		if let Some(idx) = index {
+			entry = format!("\t\t{}: {} = {},", name, path, idx);
+		} else {
+			entry = format!("\t\t{}: {},", name, path);
+		}
+		self.insert_str_runtime(&entry)?;
+		// match &mut self.details.declaration {
+		// 	RuntimeDeclaration::Implicit(i) => {
+		// 		let mut ultimate = i
+		// 			.pallets
+		// 			.last()
+		// 			.ok_or(anyhow!("Fatal: No pallets defined in construct_runtime!"))?
+		// 			.clone();
+		// 		ultimate.index = new_pallet.index;
+		// 		ultimate.path.inner.segments[0].ident = new_pallet.path;
+		// 		ultimate.name = new_pallet.name;
+		// 		i.pallets.push(ultimate);
+		// 	},
+		// 	RuntimeDeclaration::Explicit(e) => {
+		// 		todo!()
+		// 	},
+		// 	RuntimeDeclaration::ExplicitExpanded(e) => {
+		// 		todo!()
+		// 	},
+		// };
 		Ok(())
 	}
 }
