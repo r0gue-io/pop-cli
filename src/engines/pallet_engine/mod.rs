@@ -78,6 +78,7 @@ pub struct PalletEngine {
 	state: State,
 	/// Cursor for tracking where we are in the output
 	cursor: usize,
+
 }
 impl Drop for PalletEngine {
 	fn drop(&mut self) {
@@ -109,8 +110,6 @@ struct ImportDetails {
 	/// On reading the source file, we obtain `last_import` which is the ending line of final import
 	/// statement, and also from where additional pallet imports must be added
 	last_import: usize,
-	/// Tracker for the number of imports added by PalletEngine. Initial value is 0.
-	counter: usize,
 }
 // Public API
 impl PalletEngine {
@@ -120,9 +119,9 @@ impl PalletEngine {
 	}
 	/// Consume self merging `output` and `input`
 	/// Call this to finalize edits
-	pub fn merge(self) -> anyhow::Result<()> {
+	pub fn merge(mut self) -> anyhow::Result<()> {
 		// TODO: since we are not interacting with any post-CRT items, this is ok
-		self.append_lines_from(self.details.crt_end + 1, self.details.file_end)?;
+		&mut self.append_lines_from(self.details.crt_end + 1, self.details.file_end)?;
 		fs::copy(&self.output, &self.input)?;
 		fs::remove_file(&self.output);
 		Ok(())
@@ -183,7 +182,6 @@ impl PalletEngine {
 		}
 		let imports = ImportDetails {
 			last_import: last_import.expect("Imports are always present"),
-			counter: 0,
 		};
 		let Some(details) = details else {
 			bail!("No pallets/construct_runtime! found in input");
@@ -268,7 +266,7 @@ impl PalletEngine {
 		} else {
 			// First pre-CRT items - imports
 			self.append_lines_from(0, self.imports.last_import)?;
-			self.cursor = self.imports.last_import;
+
 			self.state = State::Import;
 			Ok(())
 		}
@@ -292,7 +290,6 @@ impl PalletEngine {
 			return Ok(());
 		}
 		self.add_new_line(1)?;
-		self.cursor += 1;
 		self.append_lines_from(self.details.crt_start, self.details.crt_end);
 		self.state = State::ConstructRuntime;
 		Ok(())
@@ -323,21 +320,21 @@ impl PalletEngine {
 	/// The correctness of calling this function depends on the `state` of PalletEngine
 	/// and the step_runner makes sure that it will only call this function when State is either
 	/// `State::Init` or `State::Import`
-	fn insert_import(&mut self, import_stmt: TokenStream) -> anyhow::Result<()> {
-		self.append_tokens(import_stmt);
-		self.imports.counter += 1;
-		self.imports.last_import += 1;
+	fn insert_import(&mut self, import_stmt: (TokenStream, usize)) -> anyhow::Result<()> {
+		self.append_tokens(import_stmt.0);
+		self.imports.last_import += import_stmt.1;
 		Ok(())
 	}
 	/// Insert configuartion for a pallet - only for pallet-template atm
-	fn insert_config(&mut self, config: TokenStream) -> anyhow::Result<()> {
-		self.append_tokens(config);
-		self.cursor += 3; // TODO : change to count_newlines()
+	fn insert_config(&mut self, config: (TokenStream, usize)) -> anyhow::Result<()> {
+		self.append_tokens(config.0);
+		self.cursor += config.1; 
 		Ok(())
 	}
 	/// Append lines [start..end] from `input` source to `output`.
 	/// Typically used to scaffold the `output` before and after making changes
-	fn append_lines_from(&self, start: usize, end: usize) -> anyhow::Result<()> {
+	/// Increment cursor by exactly the number of lines inserted
+	fn append_lines_from(&mut self, start: usize, end: usize) -> anyhow::Result<()> {
 		let file = File::open(self.input.as_path())?;
 		let reader = BufReader::new(file);
 		// Assuming a worst case of 150 chars per line which is almost never the case in a typical substrate runtime file
@@ -364,6 +361,13 @@ impl PalletEngine {
 			.open(&self.output)
 			.context("fn append_lines_from - cannot open output")?;
 		file.write_all(snip.as_bytes())?;
+		self.cursor += end - start;
+		Ok(())
+	}
+	/// Same as `append_lines_from` but doesn't update cursor
+	fn append_lines_from_no_update(&mut self, start: usize, end: usize) -> anyhow::Result<()> {
+		self.append_lines_from(start, end)?;
+		self.cursor -= (end - start);
 		Ok(())
 	}
 	/// Insert string at line. Errors if line number doesn't exist in `output`
@@ -441,8 +445,14 @@ impl PalletEngine {
 		Ok(())
 	}
 	/// Add a new pallet to RuntimeDeclaration and return it.
-	/// Used to pass a typed AddPallet struct to modify the RuntimeDeclaration
+	/// Used to pass a typed AddPallet to modify the RuntimeDeclaration
+	/// Overwrites existing CRT in output, this means that `self.cursor` has to backtracked to crt_start
+	/// and updated after the pallet entry has been inserted
 	fn add_pallet_runtime(&mut self, new_pallet: AddPalletEntry) -> anyhow::Result<()> {
+		use std::io::{Seek, SeekFrom};
+		// re-render output CRT:
+		self.insert_at(self.cursor, "//---- ReRender from add_pallet_runtime ----\n")?;
+		println!("cursor -> {}", self.cursor);
 		match &mut self.details.declaration {
 			RuntimeDeclaration::Implicit(i) => {
 				let mut ultimate = i
@@ -462,10 +472,9 @@ impl PalletEngine {
 				todo!()
 			},
 		};
+		// new_lines will tell cursor to update accounting for the new pallet
+		// self.render_pallets(new_lines)?;
 		Ok(())
 	}
 }
 // TODO
-// fn count_newlines(tokens: TokenStream) -> usize {
-//     unimplemented!()
-// }
