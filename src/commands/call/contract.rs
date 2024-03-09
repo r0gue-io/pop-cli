@@ -14,7 +14,7 @@ use subxt::{Config, PolkadotConfig as DefaultConfig};
 use subxt_signer::sr25519::Keypair;
 
 use crate::{
-	engines::contract_engine::{dry_run_gas_estimate_call, call_smart_contract},
+	engines::contract_engine::{dry_run_gas_estimate_call, call_smart_contract, dry_run_call},
 	signer::create_signer, style::Theme,
 };
 
@@ -54,6 +54,9 @@ pub struct CallContractCommand {
 	/// - with a password "//Alice///SECRET_PASSWORD"
 	#[clap(name = "suri", long, short)]
 	suri: String,
+    /// Submit the extrinsic for on-chain execution.
+    #[clap(short('x'), long)]
+    execute: bool,
 }
 
 impl CallContractCommand {
@@ -63,34 +66,48 @@ impl CallContractCommand {
 		set_theme(Theme);
 
         let token_metadata = TokenMetadata::query::<DefaultConfig>(&self.url).await?;
-        let mut call_exec = self.set_up_call(token_metadata.clone()).await?;
+        let call_exec = self.set_up_call(token_metadata.clone()).await?;
 
-        let weight_limit;
-		if self.gas_limit.is_some() && self.proof_size.is_some() {
-			weight_limit = Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap());
-		} else {
+        if !self.execute {
             let mut spinner = cliclack::spinner();
-			spinner.start("Doing a dry run to estimate the gas...");
-            weight_limit = match dry_run_gas_estimate_call(&mut call_exec).await {
-				Ok(w) => {
-					log::info(format!("Gas limit {:?}", w))?;
-					w
-				},
-				Err(e) => {
-					spinner.error(format!("{e}"));
-					outro_cancel("Deployment failed.")?;
-					return Ok(());
-				},
-			};
+            spinner.start("Calling the contract...");
+            let call_dry_run_result = dry_run_call(&call_exec).await?;
+            log::info(format!("Result: {}", call_dry_run_result))?;
+            log::warning("Your call has not been executed.")?;
+            log::warning(format!(
+                    "To submit the transaction and execute the call on chain, add {} flag to the command.",
+                    "-x/--execute"
+            ))?;
         }
-        let mut spinner = cliclack::spinner();
-		spinner.start("Calling the contract...");
+        else{
+            let weight_limit;
+            if self.gas_limit.is_some() && self.proof_size.is_some() {
+                weight_limit = Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap());
+            } else {
+                let mut spinner = cliclack::spinner();
+                spinner.start("Doing a dry run to estimate the gas...");
+                weight_limit = match dry_run_gas_estimate_call(&call_exec).await {
+                    Ok(w) => {
+                        log::info(format!("Gas limit {:?}", w))?;
+                        w
+                    },
+                    Err(e) => {
+                        spinner.error(format!("{e}"));
+                        outro_cancel("Deployment failed.")?;
+                        return Ok(());
+                    },
+                };
+            }
+            let mut spinner = cliclack::spinner();
+            spinner.start("Calling the contract...");
 
-        let call_result = call_smart_contract(call_exec, weight_limit, token_metadata)
-        .await
-        .map_err(|err| anyhow!("{} {}", "ERROR:", format!("{err:?}")))?;
+            let call_result = call_smart_contract(call_exec, weight_limit, token_metadata)
+                .await
+                .map_err(|err| anyhow!("{} {}", "ERROR:", format!("{err:?}")))?;
 
-        log::info(call_result)?;
+            log::info(call_result)?;
+        }
+
 		outro("Call completed successfully!")?;
 		Ok(())
 	}

@@ -1,3 +1,4 @@
+use anyhow::Context;
 use cliclack::log;
 use duct::cmd;
 use std::path::PathBuf;
@@ -122,7 +123,7 @@ pub async fn call_smart_contract(
 }
 
 pub async fn dry_run_gas_estimate_call(
-	call_exec: &mut CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
+	call_exec: &CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
 ) -> anyhow::Result<Weight> {
 	let call_result = call_exec.call_dry_run().await?;
 	match call_result.result {
@@ -135,6 +136,32 @@ pub async fn dry_run_gas_estimate_call(
                 .proof_size()
                 .unwrap_or_else(|| call_result.gas_required.proof_size());
             Ok(Weight::from_parts(ref_time, proof_size))
+        }
+        Err(ref _err) => {
+             Err(anyhow::anyhow!(
+                "Pre-submission dry-run failed. Add gas_limit and proof_size manually to skip this step."
+            ))
+        }
+    }
+}
+
+pub async fn dry_run_call(
+	call_exec: &CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
+) -> anyhow::Result<String> {
+	let call_result = call_exec.call_dry_run().await?;
+	match call_result.result {
+        Ok(ref ret_val) => {
+            let value = call_exec
+				.transcoder()
+				.decode_message_return(
+					call_exec.message(),
+					&mut &ret_val.data[..],
+				)
+				.context(format!(
+					"Failed to decode return value {:?}",
+					&ret_val
+			))?;
+			Ok(value.to_string())
         }
         Err(ref _err) => {
              Err(anyhow::anyhow!(
