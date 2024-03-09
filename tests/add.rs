@@ -2,6 +2,7 @@ use assert_cmd::Command;
 use std::fs;
 use std::path::PathBuf;
 use tempdir::TempDir;
+
 #[test]
 fn add_parachain_pallet_template() {
 	let temp_dir = TempDir::new("add-pallet-test").unwrap();
