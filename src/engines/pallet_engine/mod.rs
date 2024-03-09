@@ -21,6 +21,7 @@ mod template;
 
 use crate::commands::add::AddPallet;
 use anyhow::{anyhow, bail, Context};
+use dependency::{Dependency, Features};
 use log::warn;
 use pallet_entry::Numbers;
 use pallet_entry::{AddPalletEntry, ReadPalletEntry};
@@ -40,8 +41,26 @@ pub use template::{create_pallet_template, TemplatePalletConfig};
 /// The main entry point into the engine.
 pub fn execute(pallet: AddPallet, runtime_path: PathBuf) -> anyhow::Result<()> {
 	let mut pe = PalletEngine::new(&runtime_path)?;
+	// Todo: move logic to sep. function. Add option to source from cli
+	let runtime_manifest = &runtime_path.parent().unwrap().join("Cargo.toml");
+	let node_manifest = &runtime_path.parent().unwrap().parent().unwrap().join("node/Cargo.toml");
+	let dep = TomlEditor { runtime: runtime_manifest.to_owned(), node: node_manifest.to_owned() };
 	let steps = step_builder(pallet)?;
-	run_steps(pe, steps)
+	run_steps(pe, dep, steps)
+}
+
+struct TomlEditor {
+	// workspace
+	runtime: PathBuf,
+	node: PathBuf,
+}
+impl TomlEditor {
+	fn inject_node(&self, dep: Dependency) -> anyhow::Result<()> {
+		todo!()
+	}
+	fn inject_runtime(&self, dep: Dependency) -> anyhow::Result<()> {
+		todo!()
+	}
 }
 
 /// State of PalletEngine at any given moment in time
@@ -479,3 +498,44 @@ impl PalletEngine {
 	}
 }
 // TODO
+mod dependency {
+	use strum_macros::{Display, EnumString};
+
+	#[derive(EnumString, Display, Debug)]
+	pub(in crate::engines::pallet_engine) enum Features {
+		#[strum(serialize = "std")]
+		Std,
+		#[strum(serialize = "runtime-benchmarks")]
+		RuntimeBenchmarks,
+		#[strum(serialize = "try-runtime")]
+		TryRuntime,
+		Custom(String),
+	}
+	#[derive(Debug)]
+	pub(in crate::engines::pallet_engine) struct Dependency {
+		features: Vec<Features>,
+		path: String,
+		no_default_features: bool,
+	}
+
+	impl Dependency {
+		/// Dependencies required for adding a pallet-parachain-template to runtime
+		pub(in crate::engines::pallet_engine) fn runtime_template() -> Self {
+			Self {
+				features: vec![Features::RuntimeBenchmarks, Features::TryRuntime, Features::Std],
+				// TODO hardcode for now
+				path: format!(r#"path = "../pallets/template""#),
+				no_default_features: true,
+			}
+		}
+		/// Dependencies required for adding a pallet-parachain-template to node
+		pub(in crate::engines::pallet_engine) fn node_template() -> Self {
+			Self {
+				features: vec![Features::RuntimeBenchmarks, Features::TryRuntime],
+				// TODO hardcode for now
+				path: format!(r#"path = "../pallets/template""#),
+				no_default_features: false,
+			}
+		}
+	}
+}

@@ -5473,6 +5473,7 @@ dependencies = [
  "tempdir",
  "tempfile",
  "tokio",
+ "toml 0.8.10",
  "toml_edit 0.22.6",
  "tracing-subscriber 0.3.18",
  "url",

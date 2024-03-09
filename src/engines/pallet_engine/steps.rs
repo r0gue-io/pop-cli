@@ -1,8 +1,6 @@
-use super::State;
-use super::{pallet_entry::AddPalletEntry, PalletEngine};
+use super::{pallet_entry::AddPalletEntry, Dependency, Features, PalletEngine, State, TomlEditor};
 use crate::commands::add::AddPallet;
 use anyhow::Result;
-use dependency::Dependency;
 use log::{error, warn};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
@@ -41,7 +39,7 @@ pub(super) fn step_builder(pallet: AddPallet) -> Result<Vec<Steps>> {
 	match pallet {
 		// Adding a pallet-parachain-template requires 5 distinct steps
 		AddPallet::Template => {
-			// steps.push(RuntimePalletDependency(Dependency::runtime_template()));
+			steps.push(RuntimePalletDependency(Dependency::runtime_template()));
 			steps.push(RuntimePalletImport((
 				quote!(
 					// Imports by pop-cli
@@ -69,7 +67,7 @@ pub(super) fn step_builder(pallet: AddPallet) -> Result<Vec<Steps>> {
 				// TODO (high priority): implement name conflict resolution strategy
 				"Template",
 			)));
-			// steps.push(NodePalletDependency(Dependency::node_template()))
+			steps.push(NodePalletDependency(Dependency::node_template()))
 		},
 		AddPallet::Frame(_) => unimplemented!("Frame pallets not yet implemented"),
 	};
@@ -79,12 +77,12 @@ pub(super) fn step_builder(pallet: AddPallet) -> Result<Vec<Steps>> {
 /// Each execution edits a file.
 /// Sequence of steps matters so take care when ordering them
 /// Works only for Template pallets at the moment.. See config and CRT inserts
-pub(super) fn run_steps(mut pe: PalletEngine, steps: Vec<Steps>) -> Result<()> {
+pub(super) fn run_steps(mut pe: PalletEngine, mut te: TomlEditor, steps: Vec<Steps>) -> Result<()> {
 	use super::State::*;
 	pe.prepare_output()?;
 	for step in steps.into_iter() {
 		match step {
-			// RuntimePalletDependency(step) => pe.insert(step),
+			RuntimePalletDependency(dep) => te.inject_runtime(dep)?,
 			RuntimePalletImport(stmt) => {
 				match pe.state {
 					Init => {
@@ -113,14 +111,12 @@ pub(super) fn run_steps(mut pe: PalletEngine, steps: Vec<Steps>) -> Result<()> {
 				pe.insert_config(config)?
 			},
 			SwitchTo(State::ConstructRuntime) => pe.prepare_crt()?,
-			ConstructRuntimeEntry(entry) => {
-				pe.add_pallet_runtime(entry)?
-			},
+			ConstructRuntimeEntry(entry) => pe.add_pallet_runtime(entry)?,
 			// ListBenchmarks(step) => pe.insert(step),
 			// ListBenchmarks(step) => pe.insert(step),
 			// ChainspecGenesisConfig(step) => pe.insert(step),
 			// ChainspecGenesisImport(step) => pe.insert(step),
-			// NodePalletDependency(step) => pe.insert(step),
+			NodePalletDependency(dep) => te.inject_node(dep)?,
 			step => {
 				unimplemented!("{step:?} unimplemented")
 			},
@@ -130,46 +126,4 @@ pub(super) fn run_steps(mut pe: PalletEngine, steps: Vec<Steps>) -> Result<()> {
 	pe.merge()?;
 	// TODO: Finalize toml and chainspec edits
 	Ok(())
-}
-
-mod dependency {
-	use strum_macros::{Display, EnumString};
-
-	#[derive(EnumString, Display, Debug)]
-	pub(in crate::engines::pallet_engine) enum Features {
-		#[strum(serialize = "std")]
-		Std,
-		#[strum(serialize = "runtime-benchmarks")]
-		RuntimeBenchmarks,
-		#[strum(serialize = "try-runtime")]
-		TryRuntime,
-		Custom(String),
-	}
-	#[derive(Debug)]
-	pub(in crate::engines::pallet_engine) struct Dependency {
-		features: Vec<Features>,
-		path: String,
-		no_default_features: bool,
-	}
-
-	impl Dependency {
-		/// Dependencies required for adding a pallet-parachain-template to runtime
-		pub(in crate::engines::pallet_engine) fn runtime_template() -> Self {
-			Self {
-				features: vec![Features::RuntimeBenchmarks, Features::TryRuntime, Features::Std],
-				// TODO hardcode for now
-				path: format!(r#"path = "../pallets/template""#),
-				no_default_features: true,
-			}
-		}
-		/// Dependencies required for adding a pallet-parachain-template to node
-		pub(in crate::engines::pallet_engine) fn node_template() -> Self {
-			Self {
-				features: vec![Features::RuntimeBenchmarks, Features::TryRuntime],
-				// TODO hardcode for now
-				path: format!(r#"path = "../pallets/template""#),
-				no_default_features: false,
-			}
-		}
-	}
 }
