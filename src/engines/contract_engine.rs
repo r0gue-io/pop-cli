@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use contract_build::{
 	execute, new_contract_project, BuildArtifacts, BuildMode, ExecuteArgs, Features, ManifestPath,
 	Network, OptimizationPasses, OutputType, Target, UnstableFlags, Verbosity,
-	DEFAULT_MAX_MEMORY_PAGES
+	DEFAULT_MAX_MEMORY_PAGES,
 };
 use contract_extrinsics::{CallExec, DisplayEvents, ErrorVariant, InstantiateExec, TokenMetadata};
 use ink_env::DefaultEnvironment;
@@ -106,19 +106,15 @@ pub async fn dry_run_gas_estimate_instantiate(
 pub async fn call_smart_contract(
 	call_exec: CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
 	gas_limit: Weight,
-	token_metadata: TokenMetadata
+	token_metadata: TokenMetadata,
 ) -> anyhow::Result<String, ErrorVariant> {
 	let metadata = call_exec.client().metadata();
 	let events = call_exec.call(Some(gas_limit)).await?;
-	let display_events = DisplayEvents::from_events::<
-		DefaultConfig,
-		DefaultEnvironment,
-	>(&events, None, &metadata)?;
+	let display_events =
+		DisplayEvents::from_events::<DefaultConfig, DefaultEnvironment>(&events, None, &metadata)?;
 
-	let output = display_events.display_events::<DefaultEnvironment>(
-		Verbosity::Default,
-		&token_metadata,
-	)?;
+	let output =
+		display_events.display_events::<DefaultEnvironment>(Verbosity::Default, &token_metadata)?;
 	Ok(output)
 }
 

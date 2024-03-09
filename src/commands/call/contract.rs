@@ -1,21 +1,22 @@
-use std::path::PathBuf;
 use anyhow::anyhow;
 use clap::Args;
-use cliclack::{clear_screen, intro, outro, set_theme, log, outro_cancel};
+use cliclack::{clear_screen, intro, log, outro, outro_cancel, set_theme};
 use console::style;
+use std::path::PathBuf;
 
-use contract_extrinsics::{
-	BalanceVariant, ExtrinsicOptsBuilder, CallCommandBuilder, CallExec, TokenMetadata,
-};
 use contract_build::ManifestPath;
+use contract_extrinsics::{
+	BalanceVariant, CallCommandBuilder, CallExec, ExtrinsicOptsBuilder, TokenMetadata,
+};
 use ink_env::{DefaultEnvironment, Environment};
 use sp_weights::Weight;
 use subxt::{Config, PolkadotConfig as DefaultConfig};
 use subxt_signer::sr25519::Keypair;
 
 use crate::{
-	engines::contract_engine::{dry_run_gas_estimate_call, call_smart_contract, dry_run_call},
-	signer::create_signer, style::Theme,
+	engines::contract_engine::{call_smart_contract, dry_run_call, dry_run_gas_estimate_call},
+	signer::create_signer,
+	style::Theme,
 };
 
 #[derive(Args)]
@@ -24,11 +25,11 @@ pub struct CallContractCommand {
 	#[arg(short = 'p', long)]
 	path: Option<PathBuf>,
 	/// The address of the the contract to call.
-    #[clap(name = "contract", long, env = "CONTRACT")]
-    contract: <DefaultConfig as Config>::AccountId,
-    /// The name of the contract message to call.
-    #[clap(long, short)]
-    message: String,
+	#[clap(name = "contract", long, env = "CONTRACT")]
+	contract: <DefaultConfig as Config>::AccountId,
+	/// The name of the contract message to call.
+	#[clap(long, short)]
+	message: String,
 	/// The constructor arguments, encoded as strings
 	#[clap(long, num_args = 0..)]
 	args: Vec<String>,
@@ -54,9 +55,9 @@ pub struct CallContractCommand {
 	/// - with a password "//Alice///SECRET_PASSWORD"
 	#[clap(name = "suri", long, short)]
 	suri: String,
-    /// Submit the extrinsic for on-chain execution.
-    #[clap(short('x'), long)]
-    execute: bool,
+	/// Submit the extrinsic for on-chain execution.
+	#[clap(short('x'), long)]
+	execute: bool,
 }
 
 impl CallContractCommand {
@@ -65,56 +66,56 @@ impl CallContractCommand {
 		intro(format!("{}: Calling a contract", style(" Pop CLI ").black().on_magenta()))?;
 		set_theme(Theme);
 
-        let token_metadata = TokenMetadata::query::<DefaultConfig>(&self.url).await?;
-        let call_exec = self.set_up_call(token_metadata.clone()).await?;
+		let token_metadata = TokenMetadata::query::<DefaultConfig>(&self.url).await?;
+		let call_exec = self.set_up_call(token_metadata.clone()).await?;
 
-        if !self.execute {
-            let mut spinner = cliclack::spinner();
-            spinner.start("Calling the contract...");
-            let call_dry_run_result = dry_run_call(&call_exec).await?;
-            log::info(format!("Result: {}", call_dry_run_result))?;
-            log::warning("Your call has not been executed.")?;
-            log::warning(format!(
+		if !self.execute {
+			let mut spinner = cliclack::spinner();
+			spinner.start("Calling the contract...");
+			let call_dry_run_result = dry_run_call(&call_exec).await?;
+			log::info(format!("Result: {}", call_dry_run_result))?;
+			log::warning("Your call has not been executed.")?;
+			log::warning(format!(
                     "To submit the transaction and execute the call on chain, add {} flag to the command.",
                     "-x/--execute"
             ))?;
-        }
-        else{
-            let weight_limit;
-            if self.gas_limit.is_some() && self.proof_size.is_some() {
-                weight_limit = Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap());
-            } else {
-                let mut spinner = cliclack::spinner();
-                spinner.start("Doing a dry run to estimate the gas...");
-                weight_limit = match dry_run_gas_estimate_call(&call_exec).await {
-                    Ok(w) => {
-                        log::info(format!("Gas limit {:?}", w))?;
-                        w
-                    },
-                    Err(e) => {
-                        spinner.error(format!("{e}"));
-                        outro_cancel("Deployment failed.")?;
-                        return Ok(());
-                    },
-                };
-            }
-            let mut spinner = cliclack::spinner();
-            spinner.start("Calling the contract...");
+		} else {
+			let weight_limit;
+			if self.gas_limit.is_some() && self.proof_size.is_some() {
+				weight_limit =
+					Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap());
+			} else {
+				let mut spinner = cliclack::spinner();
+				spinner.start("Doing a dry run to estimate the gas...");
+				weight_limit = match dry_run_gas_estimate_call(&call_exec).await {
+					Ok(w) => {
+						log::info(format!("Gas limit {:?}", w))?;
+						w
+					},
+					Err(e) => {
+						spinner.error(format!("{e}"));
+						outro_cancel("Deployment failed.")?;
+						return Ok(());
+					},
+				};
+			}
+			let mut spinner = cliclack::spinner();
+			spinner.start("Calling the contract...");
 
-            let call_result = call_smart_contract(call_exec, weight_limit, token_metadata)
-                .await
-                .map_err(|err| anyhow!("{} {}", "ERROR:", format!("{err:?}")))?;
+			let call_result = call_smart_contract(call_exec, weight_limit, token_metadata)
+				.await
+				.map_err(|err| anyhow!("{} {}", "ERROR:", format!("{err:?}")))?;
 
-            log::info(call_result)?;
-        }
+			log::info(call_result)?;
+		}
 
 		outro("Call completed successfully!")?;
 		Ok(())
 	}
 
-    async fn set_up_call(
+	async fn set_up_call(
 		&self,
-        token_metadata: TokenMetadata
+		token_metadata: TokenMetadata,
 	) -> anyhow::Result<CallExec<DefaultConfig, DefaultEnvironment, Keypair>> {
 		// If the user specify a path (not current directory) have to manually add Cargo.toml here
 		// or ask to the user the specific path
@@ -127,7 +128,6 @@ impl CallContractCommand {
 		} else {
 			manifest_path = ManifestPath::try_from(self.path.as_ref())?;
 		}
-
 
 		let signer = create_signer(&self.suri)?;
 		let extrinsic_opts = ExtrinsicOptsBuilder::new(signer)
