@@ -138,7 +138,7 @@ Call the smart contract:
 
 To call our smart contract we have two options, first one if we only need to read from the blockchain state (we're not writing any new data) we can use skip the flag `x/--execute` flag to avoid submitting an extrinsic.
 
-In pur smart contract example, we can call the `get()` message
+In our smart contract example, we can call the `get()` message
 ```sh
 pop call contract -p ./my_contract --contract $INSTANTIATED_CONTRACT_ADDRESS --message get --suri //Alice
 ```
