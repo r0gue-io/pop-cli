@@ -35,7 +35,7 @@ pub(super) enum Steps {
 /// Some rules to follow when constructing steps:
 /// The pallet engine state expects to go as edits would, i.e. top to bottom lexically
 /// So it makes sense for any given file, to first include an import, then items that refer to it
-/// In case of a pallet, you'd always put `RuntimePalletImport`, `RuntimePalletConfiguration`, `ConstructRuntimeEntry` sin that order.
+/// In case of a pallet, you'd always put `RuntimePalletImport`, `RuntimePalletConfiguration`, `ConstructRuntimeEntry` in that order.
 pub(super) fn step_builder(pallet: AddPallet) -> Result<Vec<Steps>> {
 	let mut steps: Vec<Steps> = vec![];
 	match pallet {
