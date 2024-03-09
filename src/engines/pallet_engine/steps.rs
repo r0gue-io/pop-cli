@@ -1,5 +1,5 @@
 use super::{pallet_entry::AddPalletEntry, Dependency, Features, PalletEngine, State, TomlEditor};
-use crate::commands::add::AddPallet;
+use crate::commands::add::pallet::{PalletInfo, PalletType};
 use anyhow::Result;
 use log::{error, warn};
 use proc_macro2::TokenStream as TokenStream2;
@@ -34,11 +34,11 @@ pub(super) enum Steps {
 /// The pallet engine state expects to go as edits would, i.e. top to bottom lexically
 /// So it makes sense for any given file, to first include an import, then items that refer to it
 /// In case of a pallet, you'd always put `RuntimePalletImport`, `RuntimePalletConfiguration`, `ConstructRuntimeEntry` in that order.
-pub(super) fn step_builder(pallet: AddPallet) -> Result<Vec<Steps>> {
+pub(super) fn step_builder(pallet: PalletInfo) -> Result<Vec<Steps>> {
 	let mut steps: Vec<Steps> = vec![];
-	match pallet {
+	match pallet.pallet_type {
 		// Adding a pallet-parachain-template requires 5 distinct steps
-		AddPallet::Template => {
+		PalletType::Template => {
 			steps.push(RuntimePalletDependency(Dependency::runtime_template()));
 			steps.push(RuntimePalletImport((
 				quote!(
@@ -69,7 +69,7 @@ pub(super) fn step_builder(pallet: AddPallet) -> Result<Vec<Steps>> {
 			)));
 			steps.push(NodePalletDependency(Dependency::node_template()))
 		},
-		AddPallet::Frame(_) => unimplemented!("Frame pallets not yet implemented"),
+		PalletType::Frame => unimplemented!("Frame pallets not yet implemented"),
 	};
 	Ok(steps)
 }

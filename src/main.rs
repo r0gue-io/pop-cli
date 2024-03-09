@@ -41,7 +41,8 @@ enum Commands {
 	/// Test a smart contract.
 	#[clap(alias = "t")]
 	Test(commands::test::TestArgs),
-    /// Add a pallet to the runtime
+    /// Add a pallet into the runtime
+	#[clap(alias = "a")]
     Add(commands::add::AddArgs),
 }
 
@@ -73,7 +74,9 @@ async fn main() -> Result<()> {
 			#[cfg(feature = "contract")]
 			commands::test::TestCommands::Contract(cmd) => cmd.execute(),
 		},
-        Commands::Add(args) => args.execute(),
+        Commands::Add(args) => match &args.command {
+			commands::add::AddCommands::Pallet(cmd) => cmd.execute(),
+		},
 	}
 }
 
