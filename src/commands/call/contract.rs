@@ -21,28 +21,28 @@ use crate::{
 
 #[derive(Args)]
 pub struct CallContractCommand {
-	/// Path to a contract build folder
+	/// Path to the contract build folder.
 	#[arg(short = 'p', long)]
 	path: Option<PathBuf>,
-	/// The address of the the contract to call.
+	/// The address of the contract to call.
 	#[clap(name = "contract", long, env = "CONTRACT")]
 	contract: <DefaultConfig as Config>::AccountId,
 	/// The name of the contract message to call.
 	#[clap(long, short)]
 	message: String,
-	/// The constructor arguments, encoded as strings
+	/// The constructor arguments, encoded as strings.
 	#[clap(long, num_args = 0..)]
 	args: Vec<String>,
-	/// Transfers an initial balance to the instantiated contract
+	/// Transfers an initial balance to the instantiated contract.
 	#[clap(name = "value", long, default_value = "0")]
 	value: BalanceVariant<<DefaultEnvironment as Environment>::Balance>,
 	/// Maximum amount of gas to be used for this command.
-	/// If not specified will perform a dry-run to estimate the gas consumed for the
+	/// If not specified it will perform a dry-run to estimate the gas consumed for the
 	/// instantiation.
 	#[clap(name = "gas", long)]
 	gas_limit: Option<u64>,
-	/// Maximum proof size for this instantiation.
-	/// If not specified will perform a dry-run to estimate the proof size required.
+	/// Maximum proof size for this command.
+	/// If not specified it will perform a dry-run to estimate the proof size required.
 	#[clap(long)]
 	proof_size: Option<u64>,
 	/// Websocket endpoint of a node.
@@ -55,7 +55,7 @@ pub struct CallContractCommand {
 	/// - with a password "//Alice///SECRET_PASSWORD"
 	#[clap(name = "suri", long, short)]
 	suri: String,
-	/// Submit the extrinsic for on-chain execution.
+	/// Submit an extrinsic for on-chain execution.
 	#[clap(short('x'), long)]
 	execute: bool,
 }
@@ -117,7 +117,7 @@ impl CallContractCommand {
 		&self,
 		token_metadata: TokenMetadata,
 	) -> anyhow::Result<CallExec<DefaultConfig, DefaultEnvironment, Keypair>> {
-		// If the user specify a path (not current directory) have to manually add Cargo.toml here
+		// If the user specifies a path (which is not the current directory), it will have to manually add a Cargo.toml file. If not provided, pop-cli will ask the user for a specific path.
 		// or ask to the user the specific path
 		let manifest_path;
 		if self.path.is_some() {

@@ -134,19 +134,19 @@ For more information about the options,
 check [cargo-contract documentation](https://github.com/paritytech/cargo-contract/blob/master/crates/extrinsics/README.md#instantiate)
 
 
-Call the smart contract:
+Interacting with the Smart Contract:
 
-To call our smart contract we have two options, first one if we only need to read from the blockchain state (we're not writing any new data) we can use skip the flag `x/--execute` flag to avoid submitting an extrinsic.
+1. Read-only Operations: For operations that only require reading from the blockchain state. This approach does not require to submit an extrinsic (skip the flag `x/--execute`).
+Example using the get() message:
 
-In our smart contract example, we can call the `get()` message
 ```sh
 pop call contract -p ./my_contract --contract $INSTANTIATED_CONTRACT_ADDRESS --message get --suri //Alice
 ```
 
-If we need to call a function that changes a storage value, we will need to submit an extrinsic on-chain because we are altering the state of the blockchain, to specify that add `x/--execute` flag.
+2. State-modifying Operations: For operations that change a storage value, thus altering the blockchain state. Include the `x/--execute`  flag to submit an extrinsic on-chain.
 
+Example executing the `flip()` message:
 
-In our example this is the `flip()` message
 ```sh
 pop call contract -p ./my_contract --contract $INSTANTIATED_CONTRACT_ADDRESS --message flip --suri //Alice -x
 ```
