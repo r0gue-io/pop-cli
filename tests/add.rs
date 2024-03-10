@@ -12,7 +12,7 @@ fn add_parachain_pallet_template() {
 	fs::copy(&source_file, &output).unwrap();
 	Command::cargo_bin("pop")
 		.unwrap()
-		.args(&["add", "template", "-r", "test_lib.rs"])
+		.args(&["add", "pallet", "template", "-r", "test_lib.rs"])
 		.current_dir(&temp_dir)
 		.assert()
 		.success();

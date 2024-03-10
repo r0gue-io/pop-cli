@@ -41,6 +41,7 @@ enum Commands {
 	/// Test a smart contract.
 	#[clap(alias = "t")]
 	Test(commands::test::TestArgs),
+	#[clap(alias = "a")]
     /// Add a pallet to the runtime
     Add(commands::add::AddArgs),
 }

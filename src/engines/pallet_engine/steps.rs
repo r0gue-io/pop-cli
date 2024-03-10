@@ -39,7 +39,7 @@ pub(super) fn step_builder(pallet: AddPallet) -> Result<Vec<Steps>> {
 	match pallet {
 		// Adding a pallet-parachain-template requires 5 distinct steps
 		AddPallet::Template => {
-			steps.push(RuntimePalletDependency(Dependency::runtime_template()));
+			// steps.push(RuntimePalletDependency(Dependency::runtime_template()));
 			steps.push(RuntimePalletImport((
 				quote!(
 					// Imports by pop-cli
@@ -67,7 +67,7 @@ pub(super) fn step_builder(pallet: AddPallet) -> Result<Vec<Steps>> {
 				// TODO (high priority): implement name conflict resolution strategy
 				"Template",
 			)));
-			steps.push(NodePalletDependency(Dependency::node_template()))
+			// steps.push(NodePalletDependency(Dependency::node_template()))
 		},
 		AddPallet::Frame(_) => unimplemented!("Frame pallets not yet implemented"),
 	};

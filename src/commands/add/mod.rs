@@ -19,6 +19,7 @@ pub(crate) struct AddArgs {
 #[command(subcommand_required = true)]
 pub(crate) enum AddCommands {
 	#[command(subcommand)]
+	#[clap(alias = "p")]
 	Pallet(AddPallet),
 }
 
