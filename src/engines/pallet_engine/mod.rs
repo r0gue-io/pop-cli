@@ -19,7 +19,7 @@ mod parser;
 mod steps;
 mod template;
 
-use crate::commands::add::pallet::PalletInfo;
+use crate::commands::add::AddPallet;
 use anyhow::{anyhow, bail, Context};
 use dependency::{Dependency, Features};
 use log::warn;
@@ -39,7 +39,7 @@ use syn::{spanned::Spanned, Item, ItemMacro};
 pub use template::{create_pallet_template, TemplatePalletConfig};
 
 /// The main entry point into the engine.
-pub fn execute(pallet: PalletInfo, runtime_path: PathBuf) -> anyhow::Result<()> {
+pub fn execute(pallet: AddPallet, runtime_path: PathBuf) -> anyhow::Result<()> {
 	let mut pe = PalletEngine::new(&runtime_path)?;
 	// Todo: move logic to sep. function. Add option to source from cli
 	let runtime_manifest = &runtime_path.parent().unwrap().join("Cargo.toml");
