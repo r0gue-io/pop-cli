@@ -42,17 +42,18 @@ pub use template::{create_pallet_template, TemplatePalletConfig};
 pub fn execute(pallet: AddPallet, runtime_path: PathBuf) -> anyhow::Result<()> {
 	let mut pe = PalletEngine::new(&runtime_path)?;
 	// Todo: move logic to sep. function. Add option to source from cli
-	let runtime_manifest = &runtime_path.parent().unwrap().join("Cargo.toml");
-	let node_manifest = &runtime_path.parent().unwrap().parent().unwrap().join("node/Cargo.toml");
-	let dep = TomlEditor { runtime: runtime_manifest.to_owned(), node: node_manifest.to_owned() };
+	// let runtime_manifest = &runtime_path.parent().unwrap().join("Cargo.toml");
+	// let node_manifest = &runtime_path.parent().unwrap().parent().unwrap().join("node/Cargo.toml");
+	// let dep = TomlEditor { runtime: runtime_manifest.to_owned(), node: node_manifest.to_owned() };
+	let dep = TomlEditor { ..Default::default() };
 	let steps = step_builder(pallet)?;
 	run_steps(pe, dep, steps)
 }
-
+#[derive(Default)]
 struct TomlEditor {
 	// workspace
-	runtime: PathBuf,
-	node: PathBuf,
+	runtime: Option<PathBuf>,
+	node: Option<PathBuf>,
 }
 impl TomlEditor {
 	fn inject_node(&self, dep: Dependency) -> anyhow::Result<()> {

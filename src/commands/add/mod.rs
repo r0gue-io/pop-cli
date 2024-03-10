@@ -9,12 +9,17 @@ use console::style;
 #[command(args_conflicts_with_subcommands = true)]
 pub(crate) struct AddArgs {
 	#[command(subcommand)]
-	/// Pallet to add to the runtime
-	pub(crate) pallet: AddPallet,
+	commands: AddCommands,
 	#[arg(global = true, short, long)]
 	/// Runtime path; for example: `sub0/runtime/src/lib.rs`
 	/// Cargo Manifest path will be inferred as `../Cargo.toml`
 	pub(crate) runtime: Option<String>,
+}
+#[derive(Subcommand)]
+#[command(subcommand_required = true)]
+pub(crate) enum AddCommands {
+	#[command(subcommand)]
+	Pallet(AddPallet),
 }
 
 #[derive(Subcommand, Clone)]
@@ -35,7 +40,14 @@ pub(crate) struct FrameArgs {
 
 impl AddArgs {
 	pub(crate) fn execute(&self) -> anyhow::Result<()> {
-		let runtime_path = match self.runtime {
+		match self.commands {
+			AddCommands::Pallet(ref cmd) => cmd.clone().execute(&self.runtime),
+		}
+	}
+}
+impl AddPallet {
+	pub(crate) fn execute(self, runtime_path: &Option<String>) -> anyhow::Result<()> {
+		let runtime_path = match runtime_path {
 			Some(ref s) => {
 				let path = PathBuf::from(s);
 				if !path.exists() {
@@ -51,7 +63,7 @@ impl AddArgs {
 				);
 			},
 		};
-		let pallet = match self.pallet {
+		let pallet = match self {
 			AddPallet::Template => format!("pallet-parachain-template"),
 			AddPallet::Frame(FrameArgs { .. }) => {
 				eprintln!("Sorry, frame pallets cannot be added right now");
@@ -64,7 +76,7 @@ impl AddArgs {
 			style(" Pop CLI ").black().on_magenta(),
 			&pallet,
 		))?;
-		pallet_engine::execute(self.pallet.clone(), runtime_path.clone())?;
+		pallet_engine::execute(self, runtime_path.clone())?;
 		outro(format!("Added {}\n-> to {}", pallet, runtime_path.display()))?;
 		Ok(())
 	}
