@@ -22,8 +22,8 @@ pub(crate) struct ZombienetCommand {
 	#[arg(short, long)]
 	parachain: Option<Vec<String>>,
 	/// Path to the setup script to run to initialize your environment (e.g `--init /tests/setup-rococo.rs`).
-	#[arg(short = 'i', long)]
-	init: Option<PathBuf>,
+	#[clap(name = "init", short = 'i', long)]
+	setup_script: Option<PathBuf>,
 	/// The script arguments, encoded as strings.
 	#[clap(long, num_args = 0..)]
 	args: Vec<String>,
@@ -68,8 +68,8 @@ impl ZombienetCommand {
 		tracing_subscriber::fmt().init();
 		match zombienet.spawn().await {
 			Ok(_network) => {
-				if self.init.is_some() {
-					let _ = self.initialize_setup_script();
+				if self.setup_script.is_some() {
+					self.initialize_setup_script()?;
 				}
 				let mut spinner = cliclack::spinner();
 				spinner.start("Local network launched - ctrl-c to terminate.");
@@ -87,7 +87,7 @@ impl ZombienetCommand {
 	fn initialize_setup_script(&self) -> anyhow::Result<()> {
 		let mut spinner = cliclack::spinner();
 		spinner.start("Initializing your setup script - ctrl-c to terminate");
-		match cmd(self.init.clone().unwrap(), self.args.clone()).run() {
+		match cmd(self.setup_script.clone().unwrap(), self.args.clone()).run() {
 			Ok(_network) => {
 				spinner.stop("Script executed");
 			},

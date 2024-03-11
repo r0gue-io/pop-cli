@@ -204,3 +204,10 @@ pop up parachain -f ./tests/zombienet.toml -p https://github.com/r0gue-io/pop-no
 
 > :information_source: Pop CLI will automatically source the necessary polkadot binaries. Currently, these will be built
 > if on a non-linux system.
+
+If you want to run a script to setup some environment values after spawn your network, for example add balance into an account, open HRMP channel... you can execute this script using `pop-cli` adding the flag `--init`:
+
+```shell
+pop up parachain -f ./tests/zombienet.toml -p https://github.com/r0gue-io/pop-node --init ./tests/setup-rococo
+```
+If the script needs arguments you can add them with the flag `--args`
