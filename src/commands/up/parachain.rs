@@ -1,6 +1,8 @@
 use crate::style::{style, Theme};
 use clap::Args;
 use cliclack::{clear_screen, confirm, intro, log, outro, outro_cancel, set_theme};
+use console::{Emoji, Style};
+use zombienet_sdk::NetworkNode;
 
 #[derive(Args)]
 pub(crate) struct ZombienetCommand {
@@ -52,16 +54,55 @@ impl ZombienetCommand {
 				let mut spinner = cliclack::spinner();
 				spinner.start(format!("Sourcing {}...", binary.name));
 				binary.source(&cache).await?;
-				spinner.stop("Sourcing complete");
+				spinner.stop(format!("Sourcing {} complete.", binary.name));
 			}
 		}
 		// Finally spawn network and wait for signal to terminate
-		log::info("Launching local network...")?;
-		tracing_subscriber::fmt().init();
+		let mut spinner = cliclack::spinner();
+		spinner.start("🚀 Launching local network...");
+		//tracing_subscriber::fmt().init();
 		match zombienet.spawn().await {
-			Ok(_network) => {
-				let mut spinner = cliclack::spinner();
-				spinner.start("Local network launched - ctrl-c to terminate.");
+			Ok(network) => {
+				let mut result =
+					"🚀 Network launched successfully - ctrl-c to terminate".to_string();
+				let base_dir = network.base_dir().expect("base_dir expected to exist");
+				let bar = Style::new().magenta().dim().apply_to(Emoji("│", "|"));
+
+				let output = |node: &NetworkNode| -> String {
+					let name = node.name();
+					format!(
+						"\n{bar}       {name}:
+{bar}         portal: https://polkadot.js.org/apps/?rpc={}#/explorer
+{bar}         logs: tail -f {base_dir}/{name}/{name}.log",
+						node.ws_uri(),
+					)
+				};
+				// Add relay info
+				let mut validators = network.relaychain().nodes();
+				validators.sort_by_key(|n| n.name());
+				result.push_str(&format!("\n{bar}  ⛓️ {}", network.relaychain().chain()));
+				for node in validators {
+					result.push_str(&output(node));
+				}
+				// Add parachain info
+				let mut parachains = network.parachains();
+				parachains.sort_by_key(|p| p.para_id());
+				for parachain in network.parachains() {
+					result.push_str(&format!(
+						"\n{bar}  ⛓️ {}",
+						parachain.chain_id().map_or(
+							format!("para_id: {}", parachain.para_id()),
+							|chain| format!("{chain}: {}", parachain.para_id())
+						)
+					));
+					let mut collators = parachain.collators();
+					collators.sort_by_key(|n| n.name());
+					for node in collators {
+						result.push_str(&output(node));
+					}
+				}
+
+				spinner.stop(result);
 				tokio::signal::ctrl_c().await?;
 				outro("Done")?;
 			},
