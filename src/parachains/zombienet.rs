@@ -297,7 +297,7 @@ impl Zombienet {
 					sources.push(Source::Url {
 						name: b.to_string(),
 						version: version.clone(),
-						url: GitHub::release(&repo, &version, b),
+						url: GitHub::release(&repo, &format!("polkadot-{version}"), b),
 					})
 				}
 			};
@@ -325,7 +325,7 @@ impl Zombienet {
 				sources.push(Source::Url {
 					name: BINARY.into(),
 					version: version.into(),
-					url: GitHub::release(&repo, version, BINARY),
+					url: GitHub::release(&repo, &format!("polkadot-{version}"), BINARY),
 				})
 			};
 		}
