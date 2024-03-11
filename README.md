@@ -133,6 +133,24 @@ Some of the options available are:
 For more information about the options,
 check [cargo-contract documentation](https://github.com/paritytech/cargo-contract/blob/master/crates/extrinsics/README.md#instantiate)
 
+
+Interacting with the Smart Contract:
+
+1. Read-only Operations: For operations that only require reading from the blockchain state. This approach does not require to submit an extrinsic (skip the flag `x/--execute`).
+Example using the get() message:
+
+```sh
+pop call contract -p ./my_contract --contract $INSTANTIATED_CONTRACT_ADDRESS --message get --suri //Alice
+```
+
+2. State-modifying Operations: For operations that change a storage value, thus altering the blockchain state. Include the `x/--execute`  flag to submit an extrinsic on-chain.
+
+Example executing the `flip()` message:
+
+```sh
+pop call contract -p ./my_contract --contract $INSTANTIATED_CONTRACT_ADDRESS --message flip --suri //Alice -x
+```
+
 ### E2E testing
 
 For end-to-end testing you will need to have a Substrate node with `pallet contracts`.
