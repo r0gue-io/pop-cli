@@ -50,12 +50,13 @@ impl ZombienetCommand {
 			}
 			log::info(format!("They will be cached at {}", &cache.to_str().unwrap()))?;
 			// Source binaries
+			let mut spinner = cliclack::spinner();
 			for binary in missing {
-				let mut spinner = cliclack::spinner();
 				spinner.start(format!("Sourcing {}...", binary.name));
 				binary.source(&cache).await?;
-				spinner.stop(format!("Sourcing {} complete.", binary.name));
+				spinner.start(format!("Sourcing {} complete.", binary.name));
 			}
+			spinner.stop("Sourcing complete.");
 		}
 		// Finally spawn network and wait for signal to terminate
 		let mut spinner = cliclack::spinner();
