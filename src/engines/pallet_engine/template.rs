@@ -54,7 +54,7 @@ fn render_pallet(
     config: TemplatePalletConfig,
     pallet_path: &PathBuf,
 ) -> anyhow::Result<()> {
-    let pallet_name = pallet_name.replace('-', "_");
+    // let pallet_name = pallet_name.replace('-', "_");
     use crate::engines::generator::{
         PalletBenchmarking, PalletCargoToml, PalletLib, PalletMock, PalletTests,
     };

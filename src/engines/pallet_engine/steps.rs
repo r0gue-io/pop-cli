@@ -67,7 +67,6 @@ pub(super) fn step_builder(pallet: AddPallet) -> Result<Vec<Steps>> {
 				"Template",
 			)));
 			steps.push(RuntimePalletDependency(Dependency::template_runtime()));
-			// steps.push(NodePalletDependency(Dependency::template_node()))
 		},
 		AddPallet::Frame(_) => unimplemented!("Frame pallets not yet implemented"),
 	};

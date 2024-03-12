@@ -596,7 +596,7 @@ mod dependency {
 			}
 		}
 		// TODO: Remove code - Node doesn't require template pallet deps by default
-		// but this maybe desirable for custom pallets. 
+		// but this maybe desirable for custom pallets.
 		// /// Create dependencies required for adding a pallet-parachain-template to node
 		// pub(in crate::engines::pallet_engine) fn template_node() -> Self {
 		// 	Self {
