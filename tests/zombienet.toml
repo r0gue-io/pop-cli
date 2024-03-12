@@ -1,10 +1,5 @@
-[settings]
-timeout = 1000
-node_spawn_timeout = 300
-
 [relaychain]
 chain = "rococo-local"
-default_command = "./polkadot"
 
 [[relaychain.nodes]]
 name = "alice"
@@ -17,14 +12,13 @@ validator = true
 [[parachains]]
 id = 1000
 chain = "asset-hub-rococo-local"
-default_command = "./polkadot-parachain"
 
 [[parachains.collators]]
 name = "asset-hub"
 
 [[parachains]]
-id = 909
-default_command = "./pop-node"
+id = 9090
+default_command = "pop-node"
 
 [[parachains.collators]]
 name = "pop"
