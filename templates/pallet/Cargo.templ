@@ -14,17 +14,17 @@ codec = { package = "parity-scale-codec", version = "3.0.0", features = ["derive
 scale-info = { version = "2.10.0", default-features = false, features = ["derive"] }
 
 # Substrate
-frame-benchmarking = { version = "26.0.0", default-features = false, optional = true}
-frame-support = { version = "26.0.0", default-features = false}
-frame-system = { version = "26.0.0", default-features = false}
+frame-benchmarking = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.1", default-features = false }
+frame-support = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.1", default-features = false }
+frame-system = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.1", default-features = false }
 
 [dev-dependencies]
 serde = { version = "1.0.188" }
 
 # Substrate
-sp-core = { version = "26.0.0", default-features = false }
+sp-core = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.1", default-features = false }
 # sp-io = { version = "28.0.0", default-features = false}
-sp-runtime = { version = "29.0.0", default-features = false}
+sp-runtime = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.1", default-features = false }
 
 [features]
 default = [ "std" ]
