@@ -54,11 +54,10 @@ symlink = { version = "0.1", optional = true }
 toml_edit = { version = "0.22", optional = true }
 tracing-subscriber = { version = "0.3", optional = true }
 url = { version = "2.5", optional = true }
-zombienet-sdk = { git = "https://github.com/paritytech/zombienet-sdk", optional = true }
-zombienet-support = { git = "https://github.com/paritytech/zombienet-sdk", optional = true }
+zombienet-sdk = { git = "https://github.com/r0gue-io/zombienet-sdk", branch = "pop", optional = true }
+zombienet-support = { git = "https://github.com/r0gue-io/zombienet-sdk", branch = "pop", optional = true }
 uuid = { version = "1.7.0", features = ["v4"] }
 toml = "0.8.10"
-
 
 [features]
 default = ["contract", "parachain"]

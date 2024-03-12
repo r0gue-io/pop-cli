@@ -28,7 +28,7 @@ pub(crate) fn sanitize(target: &Path) -> Result<()> {
 pub(crate) fn write_to_file<'a>(path: &Path, contents: &'a str) {
 	log::info(format!("Writing to {}", path.display())).ok();
 	use std::io::Write;
-	let mut file = OpenOptions::new().write(true).truncate(true).open(path).unwrap();
+	let mut file = OpenOptions::new().write(true).truncate(true).create(true).open(path).unwrap();
 	file.write_all(contents.as_bytes()).unwrap();
 	if path.extension().map_or(false, |ext| ext == "rs") {
 		let output = std::process::Command::new("rustfmt")
@@ -54,14 +54,29 @@ pub(crate) fn clone_and_degit(url: &str, target: &Path) -> Result<()> {
 /// For a template it should be `<template>/pallets/`
 /// For no path, it should just place it in the current working directory
 pub(crate) fn resolve_pallet_path(path: Option<String>) -> PathBuf {
+	use std::process;
+
 	if let Some(path) = path {
 		return Path::new(&path).to_path_buf();
 	}
 	// Check if inside a template
 	let cwd = current_dir().expect("current dir is inaccessible");
-	if cwd.join("runtime").exists() && cwd.join("node").exists() && cwd.join("pallets").exists() {
-		Path::new("pallets").to_path_buf()
-	} else {
+
+	let output = process::Command::new(env!("CARGO"))
+		.arg("locate-project")
+		.arg("--workspace")
+		.arg("--message-format=plain")
+		.output()
+		.unwrap()
+		.stdout;
+	let workspace_path = Path::new(std::str::from_utf8(&output).unwrap().trim());
+	if workspace_path == Path::new("") {
 		cwd
+	} else {
+		let pallet_path = workspace_path.parent().unwrap().to_path_buf().join("pallets");
+		match fs::create_dir_all(pallet_path.clone()) {
+			Ok(_) => pallet_path,
+			Err(_) => cwd,
+		}
 	}
 }

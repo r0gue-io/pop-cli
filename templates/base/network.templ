@@ -11,14 +11,7 @@ validator = true
 
 [[parachains]]
 id = 1000
-chain = "asset-hub-rococo-local"
+default_command = "./target/release/^^node^^"
 
 [[parachains.collators]]
-name = "asset-hub"
-
-[[parachains]]
-id = 9090
-default_command = "pop-node"
-
-[[parachains.collators]]
-name = "pop"
+name = "collator-01"

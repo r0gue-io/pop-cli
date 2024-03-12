@@ -10303,7 +10303,7 @@ dependencies = [
 [[package]]
 name = "zombienet-configuration"
 version = "0.1.0-alpha.1"
-source = "git+https://github.com/paritytech/zombienet-sdk#81f5aabaddd1b5dd93c5dd2ae79adab4c7df8a63"
+source = "git+https://github.com/r0gue-io/zombienet-sdk?branch=pop#183f49156dc9d0f55fb2ea8632e87b522c69bcd5"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -10319,7 +10319,7 @@ dependencies = [
 [[package]]
 name = "zombienet-orchestrator"
 version = "0.1.0-alpha.1"
-source = "git+https://github.com/paritytech/zombienet-sdk#81f5aabaddd1b5dd93c5dd2ae79adab4c7df8a63"
+source = "git+https://github.com/r0gue-io/zombienet-sdk?branch=pop#183f49156dc9d0f55fb2ea8632e87b522c69bcd5"
 dependencies = [
  "anyhow",
  "futures",
@@ -10347,7 +10347,7 @@ dependencies = [
 [[package]]
 name = "zombienet-prom-metrics-parser"
 version = "0.1.0-alpha.1"
-source = "git+https://github.com/paritytech/zombienet-sdk#81f5aabaddd1b5dd93c5dd2ae79adab4c7df8a63"
+source = "git+https://github.com/r0gue-io/zombienet-sdk?branch=pop#183f49156dc9d0f55fb2ea8632e87b522c69bcd5"
 dependencies = [
  "pest",
  "pest_derive",
@@ -10357,7 +10357,7 @@ dependencies = [
 [[package]]
 name = "zombienet-provider"
 version = "0.1.0-alpha.1"
-source = "git+https://github.com/paritytech/zombienet-sdk#81f5aabaddd1b5dd93c5dd2ae79adab4c7df8a63"
+source = "git+https://github.com/r0gue-io/zombienet-sdk?branch=pop#183f49156dc9d0f55fb2ea8632e87b522c69bcd5"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -10387,7 +10387,7 @@ dependencies = [
 [[package]]
 name = "zombienet-sdk"
 version = "0.1.0-alpha.1"
-source = "git+https://github.com/paritytech/zombienet-sdk#81f5aabaddd1b5dd93c5dd2ae79adab4c7df8a63"
+source = "git+https://github.com/r0gue-io/zombienet-sdk?branch=pop#183f49156dc9d0f55fb2ea8632e87b522c69bcd5"
 dependencies = [
  "async-trait",
  "futures",
@@ -10403,7 +10403,7 @@ dependencies = [
 [[package]]
 name = "zombienet-support"
 version = "0.1.0-alpha.1"
-source = "git+https://github.com/paritytech/zombienet-sdk#81f5aabaddd1b5dd93c5dd2ae79adab4c7df8a63"
+source = "git+https://github.com/r0gue-io/zombienet-sdk?branch=pop#183f49156dc9d0f55fb2ea8632e87b522c69bcd5"
 dependencies = [
  "anyhow",
  "async-trait",
