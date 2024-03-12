@@ -587,22 +587,24 @@ mod dependency {
 	impl Dependency {
 		/// Create dependencies required for adding a pallet-parachain-template to runtime
 		pub(in crate::engines::pallet_engine) fn template_runtime() -> Self {
-			log::warn!("Using default path for pallet-template `pallets/template`");
+			log::warn!("Using default path for pallet-parachain-template `pallets/pallet-parachain-template`");
 			Self {
 				features: vec![Features::RuntimeBenchmarks, Features::TryRuntime, Features::Std],
 				// TODO hardcode for now
-				path: format!("../pallets/template"),
+				path: format!("../pallets/pallet-parachain-template"),
 				default_features: false,
 			}
 		}
-		/// Create dependencies required for adding a pallet-parachain-template to node
-		pub(in crate::engines::pallet_engine) fn template_node() -> Self {
-			Self {
-				features: vec![Features::RuntimeBenchmarks, Features::TryRuntime],
-				// TODO hardcode for now
-				path: format!("../pallets/template"),
-				default_features: true,
-			}
-		}
+		// TODO: Remove code - Node doesn't require template pallet deps by default
+		// but this maybe desirable for custom pallets. 
+		// /// Create dependencies required for adding a pallet-parachain-template to node
+		// pub(in crate::engines::pallet_engine) fn template_node() -> Self {
+		// 	Self {
+		// 		features: vec![Features::RuntimeBenchmarks, Features::TryRuntime],
+		// 		// TODO hardcode for now
+		// 		path: format!("../pallets/pallet-parachain-template"),
+		// 		default_features: true,
+		// 	}
+		// }
 	}
 }
