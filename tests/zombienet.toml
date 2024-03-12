@@ -23,7 +23,7 @@ default_command = "./polkadot-parachain"
 name = "asset-hub"
 
 [[parachains]]
-id = 909
+id = 9090
 default_command = "./pop-node"
 
 [[parachains.collators]]
