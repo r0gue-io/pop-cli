@@ -44,7 +44,7 @@ pub(super) fn step_builder(pallet: AddPallet) -> Result<Vec<Steps>> {
 					// Imports by pop-cli
 					pub use pallet_parachain_template;
 				),
-				3,
+				2,
 			)));
 			steps.push(SwitchTo(State::Config));
 			steps.push(RuntimePalletConfiguration((
