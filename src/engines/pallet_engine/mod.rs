@@ -96,7 +96,7 @@ impl TomlEditor {
 		let Dependency { features, path, default_features } = dep;
 		let mut t = Table::new();
 		t["path"] = value(Into::<toml_edit::Value>::into(path));
-		t["version"] = value("0.1.0");
+		t["version"] = value("1.0.0");
 		t["default-features"] = value(default_features);
 		doc["dependencies"]["pallet-parachain-template"] = value(t.into_inline_table());
 		for feat in features {
