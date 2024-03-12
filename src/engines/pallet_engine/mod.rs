@@ -20,6 +20,7 @@ mod steps;
 mod template;
 
 use crate::commands::add::AddPallet;
+use crate::helpers::write_to_file;
 use anyhow::{anyhow, bail, Context};
 use dependency::{Dependency, Features};
 use log::warn;
@@ -28,6 +29,7 @@ use pallet_entry::{AddPalletEntry, ReadPalletEntry};
 use parser::RuntimeDeclaration;
 use proc_macro2::TokenStream;
 use quote::quote;
+use std::io::Read;
 use std::{
 	collections::HashMap,
 	fs::{self, File, OpenOptions},
@@ -37,30 +39,93 @@ use std::{
 use steps::{run_steps, step_builder};
 use syn::{spanned::Spanned, Item, ItemMacro};
 pub use template::{create_pallet_template, TemplatePalletConfig};
+use toml_edit::DocumentMut;
 
 /// The main entry point into the engine.
 pub fn execute(pallet: AddPallet, runtime_path: PathBuf) -> anyhow::Result<()> {
 	let mut pe = PalletEngine::new(&runtime_path)?;
-	// Todo: move logic to sep. function. Add option to source from cli
-	// let runtime_manifest = &runtime_path.parent().unwrap().join("Cargo.toml");
-	// let node_manifest = &runtime_path.parent().unwrap().parent().unwrap().join("node/Cargo.toml");
-	// let dep = TomlEditor { runtime: runtime_manifest.to_owned(), node: node_manifest.to_owned() };
-	let dep = TomlEditor { ..Default::default() };
+	// Todo: Add option to source from cli
+	let dep = TomlEditor::from(&runtime_path);
 	let steps = step_builder(pallet)?;
 	run_steps(pe, dep, steps)
 }
 #[derive(Default)]
 struct TomlEditor {
-	// workspace
-	runtime: Option<PathBuf>,
-	node: Option<PathBuf>,
+	// workspace: PathBuf,
+	runtime: PathBuf,
+	node: PathBuf,
 }
 impl TomlEditor {
-	fn inject_node(&self, dep: Dependency) -> anyhow::Result<()> {
-		todo!()
+	/// Use default values for runtime/Cargo.toml and ../node/Cargo.toml
+	fn from(runtime_path: &Path) -> Self {
+		let runtime_manifest = runtime_path.parent().unwrap().parent().unwrap().join("Cargo.toml");
+		let node_manifest = runtime_path
+			.parent()
+			.unwrap()
+			.parent()
+			.unwrap()
+			.parent()
+			.unwrap()
+			.join("node/Cargo.toml");
+		// println!("{} {}", runtime_manifest.display(), node_manifest.display());
+		Self { runtime: runtime_manifest, node: node_manifest }
 	}
+	// fn inject_node(&self, dep: Dependency) -> anyhow::Result<()> {
+
+	// 	self.inject(&self.node, dep)
+	// }
 	fn inject_runtime(&self, dep: Dependency) -> anyhow::Result<()> {
-		todo!()
+		let mut s = String::new();
+		let mut f = BufReader::new(File::open(&self.node)?);
+		f.read_to_string(&mut s)
+			.context("Dependency Injection: Failed to read runtime:Cargo.toml")?;
+		let doc = s.parse::<DocumentMut>().context("Cannot parse toml")?;
+		let updated_doc = self.inject(doc, dep)?.to_string();
+		use std::io::Write;
+		let mut file = OpenOptions::new()
+			.write(true)
+			.truncate(true)
+			.create(false)
+			.open(&self.runtime)
+			.unwrap();
+		file.write_all(updated_doc.as_bytes())
+			.context("failed to update runtime:Cargo.toml")
+	}
+	fn inject(&self, mut doc: DocumentMut, dep: Dependency) -> anyhow::Result<DocumentMut> {
+		use toml_edit::{value, Item, Table};
+		let Dependency { features, path, default_features } = dep;
+		let mut t = Table::new();
+		t["path"] = value(Into::<toml_edit::Value>::into(path));
+		t["version"] = value("1.0.0-dev");
+		t["default-features"] = value(default_features);
+		doc["dependencies"]["pallet-parachain-template"] = value(t.into_inline_table());
+		// for feat in features {
+		// 	match feat {
+		// 		Features::Std => {
+		// 			// features
+		// 			println!("std -> {:#?}", doc["features"]);
+		// 			let std = doc["features"]["std"].as_value_mut().expect("feature std not found");
+		// 			let arr = std.as_array_mut().unwrap();
+		// 			arr.push_formatted("pallet-parachain-template/std".into());
+		// 		},
+		// 		Features::RuntimeBenchmarks => {
+		// 			let rt_bnch = doc["features"]["runtime-benchmarks"]
+		// 				.as_value_mut()
+		// 				.expect("feature runtime-benchmarks not found");
+		// 			let arr = rt_bnch.as_array_mut().unwrap();
+		// 			arr.push_formatted("pallet-parachain-template/runtime-benchmarks".into());
+		// 		},
+		// 		Features::TryRuntime => {
+		// 			let try_rt = doc["features"]["try-runtime"]
+		// 				.as_value_mut()
+		// 				.expect("feature try-runtime not found");
+		// 			let arr = try_rt.as_array_mut().unwrap();
+		// 			arr.push_formatted("pallet-parachain-template/try-runtime".into());
+		// 		},
+		// 		Features::Custom(_) => unimplemented!("Custom features not supported yet"),
+		// 	}
+		// }
+		Ok(doc)
 	}
 }
 
@@ -514,28 +579,30 @@ mod dependency {
 	}
 	#[derive(Debug)]
 	pub(in crate::engines::pallet_engine) struct Dependency {
-		features: Vec<Features>,
-		path: String,
-		no_default_features: bool,
+		pub(in crate::engines::pallet_engine) features: Vec<Features>,
+		/// Maybe local path, git url, or from crates.io in which case we will use this for version
+		pub(in crate::engines::pallet_engine) path: String,
+		pub(in crate::engines::pallet_engine) default_features: bool,
 	}
 
 	impl Dependency {
-		/// Dependencies required for adding a pallet-parachain-template to runtime
-		pub(in crate::engines::pallet_engine) fn runtime_template() -> Self {
+		/// Create dependencies required for adding a pallet-parachain-template to runtime
+		pub(in crate::engines::pallet_engine) fn template_runtime() -> Self {
+			log::warn!("Using default path for pallet-template `pallets/template`");
 			Self {
 				features: vec![Features::RuntimeBenchmarks, Features::TryRuntime, Features::Std],
 				// TODO hardcode for now
-				path: format!(r#"path = "../pallets/template""#),
-				no_default_features: true,
+				path: format!("../pallets/template"),
+				default_features: false,
 			}
 		}
-		/// Dependencies required for adding a pallet-parachain-template to node
-		pub(in crate::engines::pallet_engine) fn node_template() -> Self {
+		/// Create dependencies required for adding a pallet-parachain-template to node
+		pub(in crate::engines::pallet_engine) fn template_node() -> Self {
 			Self {
 				features: vec![Features::RuntimeBenchmarks, Features::TryRuntime],
 				// TODO hardcode for now
 				path: format!(r#"path = "../pallets/template""#),
-				no_default_features: false,
+				default_features: true,
 			}
 		}
 	}

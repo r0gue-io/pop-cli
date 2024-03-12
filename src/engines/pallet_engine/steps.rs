@@ -39,7 +39,6 @@ pub(super) fn step_builder(pallet: AddPallet) -> Result<Vec<Steps>> {
 	match pallet {
 		// Adding a pallet-parachain-template requires 5 distinct steps
 		AddPallet::Template => {
-			// steps.push(RuntimePalletDependency(Dependency::runtime_template()));
 			steps.push(RuntimePalletImport((
 				quote!(
 					// Imports by pop-cli
@@ -67,7 +66,8 @@ pub(super) fn step_builder(pallet: AddPallet) -> Result<Vec<Steps>> {
 				// TODO (high priority): implement name conflict resolution strategy
 				"Template",
 			)));
-			// steps.push(NodePalletDependency(Dependency::node_template()))
+			steps.push(RuntimePalletDependency(Dependency::template_runtime()));
+			// steps.push(NodePalletDependency(Dependency::template_node()))
 		},
 		AddPallet::Frame(_) => unimplemented!("Frame pallets not yet implemented"),
 	};
@@ -112,11 +112,12 @@ pub(super) fn run_steps(mut pe: PalletEngine, mut te: TomlEditor, steps: Vec<Ste
 			},
 			SwitchTo(State::ConstructRuntime) => pe.prepare_crt()?,
 			ConstructRuntimeEntry(entry) => pe.add_pallet_runtime(entry)?,
+			RuntimePalletDependency(dep) => te.inject_runtime(dep)?,
+			// NodePalletDependency(dep) => te.inject_node(dep)?,
 			// ListBenchmarks(step) => pe.insert(step),
 			// ListBenchmarks(step) => pe.insert(step),
 			// ChainspecGenesisConfig(step) => pe.insert(step),
 			// ChainspecGenesisImport(step) => pe.insert(step),
-			NodePalletDependency(dep) => te.inject_node(dep)?,
 			step => {
 				unimplemented!("{step:?} unimplemented")
 			},

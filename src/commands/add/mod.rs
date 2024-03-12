@@ -12,7 +12,7 @@ pub(crate) struct AddArgs {
 	commands: AddCommands,
 	#[arg(global = true, short, long)]
 	/// Runtime path; for example: `sub0/runtime/src/lib.rs`
-	/// Cargo Manifest path will be inferred as `../Cargo.toml`
+	/// Runtime cargo manifest path will be inferred as `(parent of lib.rs)/Cargo.toml`
 	pub(crate) runtime: Option<String>,
 }
 #[derive(Subcommand)]
@@ -60,7 +60,7 @@ impl AddPallet {
 				// TODO: Fetch runtime either from cache
 				// Fix: This is a placeholder path, should not be used
 				unimplemented!(
-					"provide a runtime path until cache is implemented: --runtime <path>"
+					"provide a runtime path until feat:cache is implemented: --runtime <path>"
 				);
 			},
 		};
@@ -69,7 +69,7 @@ impl AddPallet {
 			AddPallet::Frame(FrameArgs { .. }) => {
 				eprintln!("Sorry, frame pallets cannot be added right now");
 				std::process::exit(1);
-				// format!("FRAME-pallet-{name}")
+				// format!("FRAME pallet-{name}")
 			},
 		};
 		intro(format!(

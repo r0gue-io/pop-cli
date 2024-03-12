@@ -15,7 +15,7 @@ use std::{
 };
 use symlink::{remove_symlink_file, symlink_file};
 use tempfile::{Builder, NamedTempFile};
-use toml_edit::{value, Document, Formatted, Item, Table, Value};
+use toml_edit::{value, DocumentMut, Formatted, Item, Table, Value};
 use url::Url;
 use zombienet_sdk::{Network, NetworkConfig, NetworkConfigExt};
 use zombienet_support::fs::local::LocalFileSystem;
@@ -26,7 +26,7 @@ pub struct Zombienet {
 	/// The cache location, used for caching binaries.
 	cache: PathBuf,
 	/// The config to be used to launch a network.
-	network_config: (PathBuf, Document),
+	network_config: (PathBuf, DocumentMut),
 	/// The binary required to launch the relay chain.
 	relay_chain: Binary,
 	/// The binaries required to launch parachains.
@@ -43,7 +43,7 @@ impl Zombienet {
 	) -> Result<Self> {
 		// Parse network config
 		let network_config_path = PathBuf::from(network_config);
-		let config = std::fs::read_to_string(&network_config_path)?.parse::<Document>()?;
+		let config = std::fs::read_to_string(&network_config_path)?.parse::<DocumentMut>()?;
 		// Determine binaries
 		let relay_chain_binary = Self::relay_chain(relay_chain_version, &config, &cache).await?;
 		let mut parachain_binaries = IndexMap::new();
@@ -257,7 +257,7 @@ impl Zombienet {
 
 	async fn relay_chain(
 		version: Option<&String>,
-		network_config: &Document,
+		network_config: &DocumentMut,
 		cache: &PathBuf,
 	) -> Result<Binary> {
 		const BINARY: &str = "polkadot";

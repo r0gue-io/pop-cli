@@ -33,6 +33,7 @@ quote = "1.0.33"
 syn = { version = "2.0.52", features = ["full"] }
 cfg-expr = "0.15.5"
 prettyplease = "0.2.15"
+toml_edit = { version = "0.22.7" }
 
 # contracts
 contract-build = { version = "4.0.0-rc.3", optional = true }
@@ -51,13 +52,11 @@ reqwest = { version = "0.11", optional = true }
 serde_json = { version = "1.0", optional = true }
 serde = { version = "1.0", features = ["derive"], optional = true }
 symlink = { version = "0.1", optional = true }
-toml_edit = { version = "0.22", optional = true }
 tracing-subscriber = { version = "0.3", optional = true }
 url = { version = "2.5", optional = true }
 zombienet-sdk = { git = "https://github.com/r0gue-io/zombienet-sdk", branch = "pop", optional = true }
 zombienet-support = { git = "https://github.com/r0gue-io/zombienet-sdk", branch = "pop", optional = true }
 uuid = { version = "1.7.0", features = ["v4"] }
-toml = "0.8.10"
 
 [features]
 default = ["contract", "parachain"]
@@ -76,7 +75,6 @@ parachain = [
     "dep:reqwest",
     "dep:serde_json",
     "dep:symlink",
-    "dep:toml_edit",
     "dep:tracing-subscriber",
     "dep:url",
     "dep:zombienet-sdk",
