@@ -45,8 +45,8 @@ enum Commands {
 	#[clap(alias = "t")]
 	Test(commands::test::TestArgs),
 	#[clap(alias = "a")]
-    /// Add a pallet to the runtime
-    Add(commands::add::AddArgs),
+	/// Add a pallet to the runtime
+	Add(commands::add::AddArgs),
 }
 
 #[tokio::main]
@@ -81,7 +81,7 @@ async fn main() -> Result<()> {
 			#[cfg(feature = "contract")]
 			commands::test::TestCommands::Contract(cmd) => cmd.execute(),
 		},
-        Commands::Add(args) => args.execute(),
+		Commands::Add(args) => args.execute(),
 	}
 }
 
