@@ -57,7 +57,7 @@ There's also the shorter version:
 pop new parachain my-app -s DOT -d 6 -i 1_000_000_000
 ```
 
-To create a new pallet, simply `pop new pallet`. And that's it. You will have a new `pallet-template` ready for hacking.
+To create a new pallet, simply `pop new pallet`. And that's it. You will have a new `pallet-parachain-template` ready for hacking.
 To customize the new pallet you can follow these options:
 
 ```sh

@@ -419,6 +419,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "assert_cmd"
+version = "2.0.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ed72493ac66d5804837f480ab3766c72bdfab91a65e565fc54fa9e42db0073a8"
+dependencies = [
+ "anstyle",
+ "bstr",
+ "doc-comment",
+ "predicates",
+ "predicates-core",
+ "predicates-tree",
+ "wait-timeout",
+]
+
+[[package]]
 name = "ast_node"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1058,6 +1073,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "bstr"
+version = "1.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "05efc5cfd9110c8416e471df0e96702d58690178e206e61b7173706673c93706"
+dependencies = [
+ "memchr",
+ "regex-automata 0.4.6",
+ "serde",
+]
+
+[[package]]
 name = "bumpalo"
 version = "3.15.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1158,6 +1184,15 @@ checksum = "8cd6604a82acf3039f1144f54b8eb34e91ffba622051189e71b781822d5ee1f5"
 dependencies = [
  "jobserver",
  "libc",
+]
+
+[[package]]
+name = "cfg-expr"
+version = "0.15.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fa50868b64a9a6fda9d593ce778849ea8715cd2a3d2cc17ffdb4a2f2f2f1961d"
+dependencies = [
+ "smallvec",
 ]
 
 [[package]]
@@ -2191,6 +2226,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "difflib"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6184e33543162437515c2e2b48714794e37845ec9851711914eec9d308f6ebe8"
+
+[[package]]
 name = "digest"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2263,6 +2304,12 @@ dependencies = [
  "quote",
  "syn 2.0.52",
 ]
+
+[[package]]
+name = "doc-comment"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fea41bba32d969b513997752735605054bc0dfa92b4c56bf1189f2e174be7a10"
 
 [[package]]
 name = "docify"
@@ -2724,6 +2771,30 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "serde",
+]
+
+[[package]]
+name = "frame-support-procedural-tools"
+version = "9.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b3ac1266522a8c9a2d2d26d205ec3028b88582d5f3cd5cbc75d0ec8271d197b7"
+dependencies = [
+ "frame-support-procedural-tools-derive",
+ "proc-macro-crate 1.3.1",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.52",
+]
+
+[[package]]
+name = "frame-support-procedural-tools-derive"
+version = "10.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d9c078db2242ea7265faa486004e7fd8daaf1a577cfcac0070ce55d926922883"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.52",
 ]
 
 [[package]]
@@ -5371,6 +5442,8 @@ dependencies = [
  "ansi_term",
  "anyhow",
  "askama",
+ "assert_cmd",
+ "cfg-expr",
  "clap",
  "cliclack",
  "console",
@@ -5378,10 +5451,14 @@ dependencies = [
  "contract-extrinsics",
  "dirs",
  "duct",
+ "frame-support-procedural-tools",
  "git2",
  "indexmap 2.2.5",
  "ink_env",
  "log",
+ "prettyplease",
+ "proc-macro2",
+ "quote",
  "reqwest",
  "serde",
  "serde_json",
@@ -5392,12 +5469,14 @@ dependencies = [
  "subxt 0.34.0",
  "subxt-signer 0.34.0",
  "symlink",
+ "syn 2.0.52",
  "tempdir",
  "tempfile",
  "tokio",
- "toml_edit 0.22.6",
+ "toml_edit 0.22.7",
  "tracing-subscriber 0.3.18",
  "url",
+ "uuid",
  "walkdir",
  "zombienet-sdk",
  "zombienet-support",
@@ -5422,10 +5501,47 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5b40af805b3121feab8a3c29f04d8ad262fa8e0561883e7653e024ae4479e6de"
 
 [[package]]
+name = "predicates"
+version = "3.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "68b87bfd4605926cdfefc1c3b5f8fe560e3feca9d5552cf68c466d3d8236c7e8"
+dependencies = [
+ "anstyle",
+ "difflib",
+ "predicates-core",
+]
+
+[[package]]
+name = "predicates-core"
+version = "1.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b794032607612e7abeb4db69adb4e33590fa6cf1149e95fd7cb00e634b92f174"
+
+[[package]]
+name = "predicates-tree"
+version = "1.0.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "368ba315fb8c5052ab692e68a0eefec6ec57b23a36959c14496f0b0df2c0cecf"
+dependencies = [
+ "predicates-core",
+ "termtree",
+]
+
+[[package]]
 name = "prettier-please"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "22020dfcf177fcc7bf5deaf7440af371400c67c0de14c399938d8ed4fb4645d3"
+dependencies = [
+ "proc-macro2",
+ "syn 2.0.52",
+]
+
+[[package]]
+name = "prettyplease"
+version = "0.2.16"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a41cf62165e97c7f814d2221421dbb9afcbcdb0a88068e5ea206e19951c2cbb5"
 dependencies = [
  "proc-macro2",
  "syn 2.0.52",
@@ -8563,6 +8679,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "termtree"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3369f5ac52d5eb6ab48c6b4ffdc8efbcad6b89c765749064ba298f2c68a16a76"
+
+[[package]]
 name = "text_lines"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8820,7 +8942,7 @@ dependencies = [
  "serde",
  "serde_spanned",
  "toml_datetime",
- "toml_edit 0.22.6",
+ "toml_edit 0.22.7",
 ]
 
 [[package]]
@@ -8869,9 +8991,9 @@ dependencies = [
 
 [[package]]
 name = "toml_edit"
-version = "0.22.6"
+version = "0.22.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2c1b5fd4128cc8d3e0cb74d4ed9a9cc7c7284becd4df68f5f940e1ad123606f6"
+checksum = "18769cd1cec395d70860ceb4d932812a0b4d06b1a4bb336745a4d21b9496e992"
 dependencies = [
  "indexmap 2.2.5",
  "serde",
@@ -9420,6 +9542,15 @@ dependencies = [
  "sha3",
  "thiserror",
  "zeroize",
+]
+
+[[package]]
+name = "wait-timeout"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9f200f5b12eb75f8c1ed65abd4b2db8a6e1b138a20de009dacee265a2498f3f6"
+dependencies = [
+ "libc",
 ]
 
 [[package]]
@@ -10171,7 +10302,7 @@ dependencies = [
 [[package]]
 name = "zombienet-configuration"
 version = "0.1.0-alpha.1"
-source = "git+https://github.com/paritytech/zombienet-sdk#81f5aabaddd1b5dd93c5dd2ae79adab4c7df8a63"
+source = "git+https://github.com/r0gue-io/zombienet-sdk?branch=pop#183f49156dc9d0f55fb2ea8632e87b522c69bcd5"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -10187,7 +10318,7 @@ dependencies = [
 [[package]]
 name = "zombienet-orchestrator"
 version = "0.1.0-alpha.1"
-source = "git+https://github.com/paritytech/zombienet-sdk#81f5aabaddd1b5dd93c5dd2ae79adab4c7df8a63"
+source = "git+https://github.com/r0gue-io/zombienet-sdk?branch=pop#183f49156dc9d0f55fb2ea8632e87b522c69bcd5"
 dependencies = [
  "anyhow",
  "futures",
@@ -10215,7 +10346,7 @@ dependencies = [
 [[package]]
 name = "zombienet-prom-metrics-parser"
 version = "0.1.0-alpha.1"
-source = "git+https://github.com/paritytech/zombienet-sdk#81f5aabaddd1b5dd93c5dd2ae79adab4c7df8a63"
+source = "git+https://github.com/r0gue-io/zombienet-sdk?branch=pop#183f49156dc9d0f55fb2ea8632e87b522c69bcd5"
 dependencies = [
  "pest",
  "pest_derive",
@@ -10225,7 +10356,7 @@ dependencies = [
 [[package]]
 name = "zombienet-provider"
 version = "0.1.0-alpha.1"
-source = "git+https://github.com/paritytech/zombienet-sdk#81f5aabaddd1b5dd93c5dd2ae79adab4c7df8a63"
+source = "git+https://github.com/r0gue-io/zombienet-sdk?branch=pop#183f49156dc9d0f55fb2ea8632e87b522c69bcd5"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -10255,7 +10386,7 @@ dependencies = [
 [[package]]
 name = "zombienet-sdk"
 version = "0.1.0-alpha.1"
-source = "git+https://github.com/paritytech/zombienet-sdk#81f5aabaddd1b5dd93c5dd2ae79adab4c7df8a63"
+source = "git+https://github.com/r0gue-io/zombienet-sdk?branch=pop#183f49156dc9d0f55fb2ea8632e87b522c69bcd5"
 dependencies = [
  "async-trait",
  "futures",
@@ -10271,7 +10402,7 @@ dependencies = [
 [[package]]
 name = "zombienet-support"
 version = "0.1.0-alpha.1"
-source = "git+https://github.com/paritytech/zombienet-sdk#81f5aabaddd1b5dd93c5dd2ae79adab4c7df8a63"
+source = "git+https://github.com/r0gue-io/zombienet-sdk?branch=pop#183f49156dc9d0f55fb2ea8632e87b522c69bcd5"
 dependencies = [
  "anyhow",
  "async-trait",

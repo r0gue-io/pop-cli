@@ -14,8 +14,8 @@ use std::{
 	path::{Path, PathBuf},
 };
 use symlink::{remove_symlink_file, symlink_file};
-use tempfile::Builder;
-use toml_edit::{value, Document, Value};
+use tempfile::{Builder, NamedTempFile};
+use toml_edit::{value, DocumentMut, Formatted, Item, Table, Value};
 use url::Url;
 use zombienet_sdk::{Network, NetworkConfig, NetworkConfigExt};
 use zombienet_support::fs::local::LocalFileSystem;
@@ -26,7 +26,7 @@ pub struct Zombienet {
 	/// The cache location, used for caching binaries.
 	cache: PathBuf,
 	/// The config to be used to launch a network.
-	network_config: (PathBuf, Document),
+	network_config: (PathBuf, DocumentMut),
 	/// The binary required to launch the relay chain.
 	relay_chain: Binary,
 	/// The binaries required to launch parachains.
@@ -43,7 +43,7 @@ impl Zombienet {
 	) -> Result<Self> {
 		// Parse network config
 		let network_config_path = PathBuf::from(network_config);
-		let config = std::fs::read_to_string(&network_config_path)?.parse::<Document>()?;
+		let config = std::fs::read_to_string(&network_config_path)?.parse::<DocumentMut>()?;
 		// Determine binaries
 		let relay_chain_binary = Self::relay_chain(relay_chain_version, &config, &cache).await?;
 		let mut parachain_binaries = IndexMap::new();
@@ -55,13 +55,35 @@ impl Zombienet {
 					.ok_or(anyhow!("expected `parachain` to have `id`"))? as u32;
 				let default_command = table
 					.get("default_command")
-					.ok_or(anyhow!("expected `parachain` to have `default_command`"))?;
+					.cloned()
+					.or_else(|| {
+						// Check if any collators define command
+						if let Some(collators) =
+							table.get("collators").and_then(|p| p.as_array_of_tables())
+						{
+							for collator in collators.iter() {
+								if let Some(command) =
+									collator.get("command").and_then(|i| i.as_str())
+								{
+									return Some(Item::Value(Value::String(Formatted::new(
+										command.into(),
+									))));
+								}
+							}
+						}
+
+						// Otherwise default to polkadot-parachain
+						Some(Item::Value(Value::String(Formatted::new(
+							"polkadot-parachain".into(),
+						))))
+					})
+					.expect("missing default_command set above");
 				let Some(Value::String(command)) = default_command.as_value() else {
 					continue;
 				};
 
 				let command = command.value().to_lowercase();
-				if command.contains("polkadot-parachain") {
+				if command == "polkadot-parachain" {
 					parachain_binaries.insert(
 						id,
 						Self::system_parachain(
@@ -73,7 +95,7 @@ impl Zombienet {
 					for parachain in parachains {
 						let url = Url::parse(parachain)?;
 						let name = GitHub::name(&url)?;
-						if command.contains(name) {
+						if command == name {
 							parachain_binaries.insert(id, Self::parachain(url, &cache)?);
 						}
 					}
@@ -101,19 +123,53 @@ impl Zombienet {
 	}
 
 	pub async fn spawn(&mut self) -> Result<Network<LocalFileSystem>> {
+		// Symlink polkadot-related binaries
+		for file in ["polkadot-execute-worker", "polkadot-prepare-worker"] {
+			let dest = self.cache.join(file);
+			if dest.exists() {
+				remove_symlink_file(&dest)?;
+			}
+			symlink_file(self.cache.join(format!("{file}-{}", self.relay_chain.version)), dest)?;
+		}
+
+		// Load from config and spawn network
+		let config = self.configure()?;
+		let path = config.path().to_str().expect("temp config file should have a path").into();
+		info!("spawning network...");
+		let network_config = NetworkConfig::load_from_toml(path)?;
+		Ok(network_config.spawn_native().await?)
+	}
+
+	// Adapts provided config file to one that is compatible with current zombienet-sdk requirements
+	fn configure(&mut self) -> Result<NamedTempFile> {
+		let (network_config_path, network_config) = &mut self.network_config;
+
+		// Add zombienet-sdk specific settings if missing
+		let Item::Table(settings) =
+			network_config.entry("settings").or_insert(Item::Table(Table::new()))
+		else {
+			return Err(anyhow!("expected `settings` to be table"));
+		};
+		settings
+			.entry("timeout")
+			.or_insert(Item::Value(Value::Integer(Formatted::new(1_000))));
+		settings
+			.entry("node_spawn_timeout")
+			.or_insert(Item::Value(Value::Integer(Formatted::new(300))));
+
 		// Update relay chain config
 		let relay_path = self
 			.relay_chain
 			.path
 			.to_str()
 			.ok_or(anyhow!("the relay chain path is invalid"))?;
-		let (network_config_path, network_config) = &mut self.network_config;
-		let relay_chain_config =
-			network_config.get_mut("relaychain").ok_or(anyhow!("expected `relaychain`"))?;
-		match relay_chain_config.get_mut("default_command") {
-			None => relay_chain_config["default_command"] = value(relay_path),
-			Some(command) => *command = value(relay_path),
-		}
+		let Item::Table(relay_chain) =
+			network_config.entry("relaychain").or_insert(Item::Table(Table::new()))
+		else {
+			return Err(anyhow!("expected `relaychain` to be table"));
+		};
+		*relay_chain.entry("default_command").or_insert(value(relay_path)) = value(relay_path);
+
 		// Update parachain config
 		if let Some(tables) =
 			network_config.get_mut("parachains").and_then(|p| p.as_array_of_tables_mut())
@@ -123,51 +179,54 @@ impl Zombienet {
 					.get("id")
 					.and_then(|i| i.as_integer())
 					.ok_or(anyhow!("expected `parachain` to have `id`"))? as u32;
-				if let Some(para) = self.parachains.get(&id) {
-					let para_path =
-						para.path.to_str().ok_or(anyhow!("the parachain path is invalid"))?;
-					match table.get_mut("default_command") {
-						None => table["default_command"] = value(para_path),
-						Some(command) => *command = value(para_path),
+
+				// Resolve default_command to binary
+				{
+					// Check if provided via args, therefore cached
+					if let Some(para) = self.parachains.get(&id) {
+						let para_path =
+							para.path.to_str().ok_or(anyhow!("the parachain path is invalid"))?;
+						table.insert("default_command", value(para_path));
+					} else if let Some(default_command) = table.get_mut("default_command") {
+						// Otherwise assume local binary, fix path accordingly
+						let command_path = default_command
+							.as_str()
+							.ok_or(anyhow!("expected `default_command` value to be a string"))?;
+						let path = Self::resolve_path(network_config_path, command_path)?;
+						*default_command = value(path.to_str().ok_or(anyhow!(
+							"the parachain binary was not found: {0}",
+							command_path
+						))?);
 					}
-				} else {
-					// Assume local binary, fix path accordingly
-					match table.get_mut("default_command") {
-						None => {
-							return Err(anyhow!("expected `default_command` value to be a string"));
-						},
-						Some(command) => {
-							let command_path = command.as_str().ok_or(anyhow!(
-								"expected `default_command` value to be a string"
-							))?;
-							let path = {
-								network_config_path
-									.join(command_path)
-									.canonicalize()
-									.or_else(|_| {
-										current_dir().unwrap().join(command_path).canonicalize()
-									})
-									.map_err(|_| {
-										anyhow!("unable to find canonical local path to specified command: {}", command_path)
-									})?
-							};
-							*command = value(path.to_str().ok_or(anyhow!(
-								"the parachain binary was not found: {0}",
-								command_path
-							))?)
-						},
+				}
+
+				// Resolve individual collator command to binary
+				if let Some(collators) =
+					table.get_mut("collators").and_then(|p| p.as_array_of_tables_mut())
+				{
+					for collator in collators.iter_mut() {
+						if let Some(command) = collator.get_mut("command") {
+							// Check if provided via args, therefore cached
+							if let Some(para) = self.parachains.get(&id) {
+								let para_path = para
+									.path
+									.to_str()
+									.ok_or(anyhow!("the parachain path is invalid"))?;
+								*command = value(para_path);
+							} else {
+								let command_path = command
+									.as_str()
+									.ok_or(anyhow!("expected `command` value to be a string"))?;
+								let path = Self::resolve_path(network_config_path, command_path)?;
+								*command = value(path.to_str().ok_or(anyhow!(
+									"the parachain binary was not found: {0}",
+									command_path
+								))?);
+							}
+						}
 					}
 				}
 			}
-		}
-
-		// Symlink polkadot-related binaries
-		for file in ["polkadot-execute-worker", "polkadot-prepare-worker"] {
-			let dest = self.cache.join(file);
-			if dest.exists() {
-				remove_symlink_file(&dest)?;
-			}
-			symlink_file(self.cache.join(format!("{file}-{}", self.relay_chain.version)), dest)?;
 		}
 
 		// Write adapted zombienet config to temp file
@@ -178,19 +237,27 @@ impl Zombienet {
 		let path = network_config_file
 			.path()
 			.to_str()
-			.expect("temp config file should have a path")
-			.into();
+			.expect("temp config file should have a path");
 		write(path, network_config.to_string())?;
+		Ok(network_config_file)
+	}
 
-		// Load from config and spawn network
-		info!("spawning network...");
-		let network_config = NetworkConfig::load_from_toml(path)?;
-		Ok(network_config.spawn_native().await?)
+	fn resolve_path(network_config_path: &mut PathBuf, command_path: &str) -> Result<PathBuf> {
+		network_config_path
+			.join(command_path)
+			.canonicalize()
+			.or_else(|_| current_dir().unwrap().join(command_path).canonicalize())
+			.map_err(|_| {
+				anyhow!(
+					"unable to find canonical local path to specified command: `{}` are you missing an argument?",
+					command_path
+				)
+			})
 	}
 
 	async fn relay_chain(
 		version: Option<&String>,
-		network_config: &Document,
+		network_config: &DocumentMut,
 		cache: &PathBuf,
 	) -> Result<Binary> {
 		const BINARY: &str = "polkadot";
@@ -230,7 +297,7 @@ impl Zombienet {
 					sources.push(Source::Url {
 						name: b.to_string(),
 						version: version.clone(),
-						url: GitHub::release(&repo, &version, b),
+						url: GitHub::release(&repo, &format!("polkadot-{version}"), b),
 					})
 				}
 			};
@@ -258,7 +325,7 @@ impl Zombienet {
 				sources.push(Source::Url {
 					name: BINARY.into(),
 					version: version.into(),
-					url: GitHub::release(&repo, version, BINARY),
+					url: GitHub::release(&repo, &format!("polkadot-{version}"), BINARY),
 				})
 			};
 		}
