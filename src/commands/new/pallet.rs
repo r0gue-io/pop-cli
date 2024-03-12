@@ -10,7 +10,7 @@ use std::fs;
 
 #[derive(Args)]
 pub struct NewPalletCommand {
-	#[arg(help = "Name of the pallet", default_value = "pallet-template")]
+	#[arg(help = "Name of the pallet", default_value = "pallet-parachain-template")]
 	pub(crate) name: String,
 	#[arg(short, long, help = "Name of authors", default_value = "Anonymous")]
 	pub(crate) authors: Option<String>,

@@ -76,7 +76,7 @@ impl TomlEditor {
 	// }
 	fn inject_runtime(&self, dep: Dependency) -> anyhow::Result<()> {
 		let mut s = String::new();
-		let mut f = BufReader::new(File::open(&self.node)?);
+		let mut f = BufReader::new(File::open(&self.runtime)?);
 		f.read_to_string(&mut s)
 			.context("Dependency Injection: Failed to read runtime:Cargo.toml")?;
 		let doc = s.parse::<DocumentMut>().context("Cannot parse toml")?;
@@ -96,7 +96,7 @@ impl TomlEditor {
 		let Dependency { features, path, default_features } = dep;
 		let mut t = Table::new();
 		t["path"] = value(Into::<toml_edit::Value>::into(path));
-		t["version"] = value("1.0.0-dev");
+		t["version"] = value("0.1.0");
 		t["default-features"] = value(default_features);
 		doc["dependencies"]["pallet-parachain-template"] = value(t.into_inline_table());
 		for feat in features {
