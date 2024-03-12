@@ -1,6 +1,8 @@
 use clap::{Args, Subcommand};
 
+#[cfg(feature = "contract")]
 pub(crate) mod contract;
+#[cfg(feature = "parachain")]
 pub(crate) mod parachain;
 
 #[derive(Args)]

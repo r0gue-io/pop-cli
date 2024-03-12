@@ -53,6 +53,7 @@ pub(crate) fn clone_and_degit(url: &str, target: &Path) -> Result<()> {
 /// Resolve pallet path
 /// For a template it should be `<template>/pallets/`
 /// For no path, it should just place it in the current working directory
+#[cfg(feature = "parachain")]
 pub(crate) fn resolve_pallet_path(path: Option<String>) -> PathBuf {
 	use std::process;
 
