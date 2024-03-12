@@ -7,7 +7,7 @@ mod style;
 
 #[cfg(feature = "parachain")]
 mod git;
-#[cfg(feature = "parachain")]
+#[cfg(any(feature = "contract", feature = "parachain"))]
 mod helpers;
 #[cfg(feature = "parachain")]
 mod parachains;
@@ -37,12 +37,14 @@ enum Commands {
 	Build(commands::build::BuildArgs),
 	/// Call a smart contract.
 	#[clap(alias = "c")]
+	#[cfg(feature = "contract")]
 	Call(commands::call::CallArgs),
 	/// Deploy a parachain or smart contract.
 	#[clap(alias = "u")]
 	Up(commands::up::UpArgs),
 	/// Test a smart contract.
 	#[clap(alias = "t")]
+	#[cfg(feature = "contract")]
 	Test(commands::test::TestArgs),
 }
 
@@ -64,8 +66,8 @@ async fn main() -> Result<()> {
 			#[cfg(feature = "contract")]
 			commands::build::BuildCommands::Contract(cmd) => cmd.execute(),
 		},
+		#[cfg(feature = "contract")]
 		Commands::Call(args) => Ok(match &args.command {
-			#[cfg(feature = "contract")]
 			commands::call::CallCommands::Contract(cmd) => cmd.execute().await?,
 		}),
 		Commands::Up(args) => Ok(match &args.command {
@@ -74,8 +76,8 @@ async fn main() -> Result<()> {
 			#[cfg(feature = "contract")]
 			commands::up::UpCommands::Contract(cmd) => cmd.execute().await?,
 		}),
+		#[cfg(feature = "contract")]
 		Commands::Test(args) => match &args.command {
-			#[cfg(feature = "contract")]
 			commands::test::TestCommands::Contract(cmd) => cmd.execute(),
 		},
 	}
