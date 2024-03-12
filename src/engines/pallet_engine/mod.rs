@@ -99,32 +99,31 @@ impl TomlEditor {
 		t["version"] = value("1.0.0-dev");
 		t["default-features"] = value(default_features);
 		doc["dependencies"]["pallet-parachain-template"] = value(t.into_inline_table());
-		// for feat in features {
-		// 	match feat {
-		// 		Features::Std => {
-		// 			// features
-		// 			println!("std -> {:#?}", doc["features"]);
-		// 			let std = doc["features"]["std"].as_value_mut().expect("feature std not found");
-		// 			let arr = std.as_array_mut().unwrap();
-		// 			arr.push_formatted("pallet-parachain-template/std".into());
-		// 		},
-		// 		Features::RuntimeBenchmarks => {
-		// 			let rt_bnch = doc["features"]["runtime-benchmarks"]
-		// 				.as_value_mut()
-		// 				.expect("feature runtime-benchmarks not found");
-		// 			let arr = rt_bnch.as_array_mut().unwrap();
-		// 			arr.push_formatted("pallet-parachain-template/runtime-benchmarks".into());
-		// 		},
-		// 		Features::TryRuntime => {
-		// 			let try_rt = doc["features"]["try-runtime"]
-		// 				.as_value_mut()
-		// 				.expect("feature try-runtime not found");
-		// 			let arr = try_rt.as_array_mut().unwrap();
-		// 			arr.push_formatted("pallet-parachain-template/try-runtime".into());
-		// 		},
-		// 		Features::Custom(_) => unimplemented!("Custom features not supported yet"),
-		// 	}
-		// }
+		for feat in features {
+			match feat {
+				Features::Std => {
+					// features
+					let std = doc["features"]["std"].as_value_mut().expect("feature std not found");
+					let arr = std.as_array_mut().unwrap();
+					arr.push_formatted("pallet-parachain-template/std".into());
+				},
+				Features::RuntimeBenchmarks => {
+					let rt_bnch = doc["features"]["runtime-benchmarks"]
+						.as_value_mut()
+						.expect("feature runtime-benchmarks not found");
+					let arr = rt_bnch.as_array_mut().unwrap();
+					arr.push_formatted("pallet-parachain-template/runtime-benchmarks".into());
+				},
+				Features::TryRuntime => {
+					let try_rt = doc["features"]["try-runtime"]
+						.as_value_mut()
+						.expect("feature try-runtime not found");
+					let arr = try_rt.as_array_mut().unwrap();
+					arr.push_formatted("pallet-parachain-template/try-runtime".into());
+				},
+				Features::Custom(_) => unimplemented!("Custom features not supported yet"),
+			}
+		}
 		Ok(doc)
 	}
 }
@@ -601,7 +600,7 @@ mod dependency {
 			Self {
 				features: vec![Features::RuntimeBenchmarks, Features::TryRuntime],
 				// TODO hardcode for now
-				path: format!(r#"path = "../pallets/template""#),
+				path: format!("../pallets/template"),
 				default_features: true,
 			}
 		}
