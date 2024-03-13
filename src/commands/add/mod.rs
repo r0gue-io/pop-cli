@@ -75,9 +75,18 @@ impl AddPallet {
 		};
 
 		// Check if pallet folder exists, create it otherwise
-		match workspace_dir() {
-			None => create_dir_all(Path::new("pallets").join(pallet.clone()))
-				.expect("Err: Couldn't create pallet folder."),
+		match workspace_dir(None) {
+			None => match workspace_dir(Some(runtime_path.parent().unwrap().to_path_buf())) {
+				Some(dir) => {
+					// Init pallet in runtime's workspace directory.
+					create_dir_all(dir.join("pallets").join(pallet.clone()).as_path())
+						.expect("Err: Couldn't create pallet folder.");
+				},
+				None => {
+					create_dir_all(Path::new("pallets").join(pallet.clone()))
+						.expect("Err: Couldn't create pallet folder.");
+				},
+			},
 			Some(dir) => {
 				create_dir_all(dir.join("pallets").join(pallet.clone()).as_path())
 					.expect("Err: Couldn't create pallet folder.");

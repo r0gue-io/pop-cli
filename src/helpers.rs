@@ -59,7 +59,7 @@ pub(crate) fn resolve_pallet_path(path: Option<String>) -> PathBuf {
 	}
 	// Check if inside a project
 	let cwd = current_dir().expect("current dir is inaccessible");
-	match workspace_dir() {
+	match workspace_dir(None) {
 		// No workspace available, return cwd.
 		None => cwd,
 		Some(dir) => {
@@ -73,17 +73,32 @@ pub(crate) fn resolve_pallet_path(path: Option<String>) -> PathBuf {
 }
 
 // Locate the workspace directory if any
-pub(crate) fn workspace_dir() -> Option<PathBuf> {
+pub(crate) fn workspace_dir(path: Option<PathBuf>) -> Option<PathBuf> {
 	use std::process;
 
 	let mut locate_project = process::Command::new(env!("CARGO"));
-	let output = locate_project
-		.arg("locate-project")
-		.arg("--workspace")
-		.arg("--message-format=plain")
-		.output()
-		.unwrap()
-		.stdout;
+	let output = match path {
+		Some(dir) => {
+			// Execute command at the given path
+			locate_project
+				.current_dir(dir)
+				.arg("locate-project")
+				.arg("--workspace")
+				.arg("--message-format=plain")
+				.output()
+				.unwrap()
+				.stdout
+		},
+		None => {
+			locate_project
+				.arg("locate-project")
+				.arg("--workspace")
+				.arg("--message-format=plain")
+				.output()
+				.unwrap()
+				.stdout
+		},
+	};
 
 	let maybe_workspace_path = Path::new(std::str::from_utf8(&output).unwrap().trim());
 
