@@ -3,7 +3,7 @@ use cliclack::{log, outro_cancel};
 use git2::Repository;
 use std::{
 	env::current_dir,
-	fs::{self, OpenOptions},
+	fs::{self, create_dir_all, OpenOptions},
 	path::{Path, PathBuf},
 };
 
@@ -54,29 +54,42 @@ pub(crate) fn clone_and_degit(url: &str, target: &Path) -> Result<()> {
 /// For a template it should be `<template>/pallets/`
 /// For no path, it should just place it in the current working directory
 pub(crate) fn resolve_pallet_path(path: Option<String>) -> PathBuf {
-	use std::process;
-
 	if let Some(path) = path {
 		return Path::new(&path).to_path_buf();
 	}
-	// Check if inside a template
+	// Check if inside a project
 	let cwd = current_dir().expect("current dir is inaccessible");
+	match workspace_dir() {
+		// No workspace available, return cwd.
+		None => cwd,
+		Some(dir) => {
+			let pallet_target = dir.join("pallets");
+			match create_dir_all(pallet_target.clone()) {
+				Ok(_) => pallet_target,
+				Err(_) => cwd, // Error creating folder.
+			}
+		},
+	}
+}
 
-	let output = process::Command::new(env!("CARGO"))
+// Locate the workspace directory if any
+pub(crate) fn workspace_dir() -> Option<PathBuf> {
+	use std::process;
+
+	let mut locate_project = process::Command::new(env!("CARGO"));
+	let output = locate_project
 		.arg("locate-project")
 		.arg("--workspace")
 		.arg("--message-format=plain")
 		.output()
 		.unwrap()
 		.stdout;
-	let workspace_path = Path::new(std::str::from_utf8(&output).unwrap().trim());
-	if workspace_path == Path::new("") {
-		cwd
+
+	let maybe_workspace_path = Path::new(std::str::from_utf8(&output).unwrap().trim());
+
+	if maybe_workspace_path == Path::new("") {
+		None
 	} else {
-		let pallet_path = workspace_path.parent().unwrap().to_path_buf().join("pallets");
-		match fs::create_dir_all(pallet_path.clone()) {
-			Ok(_) => pallet_path,
-			Err(_) => cwd,
-		}
+		Some(maybe_workspace_path.parent().unwrap().to_path_buf())
 	}
 }

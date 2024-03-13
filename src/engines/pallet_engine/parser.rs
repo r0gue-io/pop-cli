@@ -300,9 +300,9 @@ impl ToTokens for PalletDeclaration {
 			let idx = format!(" = {},", idx);
 			// This means no help from rustfmt
 			tokens.extend(TokenStream::from_str(&idx));
-			// If we want rustfmt we would have to handroll our own solution or forgo indices
-			// (which is bad and probably not what the developer wants which is to delete code)
-			// tokens.extend(quote!(,));
+		// If we want rustfmt we would have to handroll our own solution or forgo indices
+		// (which is bad and probably not what the developer wants which is to delete code)
+		// tokens.extend(quote!(,));
 		} else {
 			tokens.append(Punct::new(',', Spacing::Alone));
 		}

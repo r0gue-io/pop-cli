@@ -1,9 +1,10 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-use crate::engines::pallet_engine;
+use crate::{engines::pallet_engine, helpers::workspace_dir};
 use clap::{Args, Subcommand};
 use cliclack::{intro, outro};
 use console::style;
+use std::fs::create_dir_all;
 
 #[derive(Args)]
 #[command(args_conflicts_with_subcommands = true)]
@@ -72,6 +73,17 @@ impl AddPallet {
 				// format!("FRAME pallet-{name}")
 			},
 		};
+
+		// Check if pallet folder exists, create it otherwise
+		match workspace_dir() {
+			None => create_dir_all(Path::new("pallets").join(pallet.clone()))
+				.expect("Err: Couldn't create pallet folder."),
+			Some(dir) => {
+				create_dir_all(dir.join("pallets").join(pallet.clone()).as_path())
+					.expect("Err: Couldn't create pallet folder.");
+			},
+		}
+
 		intro(format!(
 			"{}: Adding pallet \"{}\"!",
 			style(" Pop CLI ").black().on_magenta(),
