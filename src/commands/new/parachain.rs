@@ -1,6 +1,5 @@
 use crate::{
-	engines::parachain_engine::{instantiate_template_dir, Config},
-	style::{style, Theme},
+	engines::parachain_engine::{instantiate_template_dir, Config}, helpers::git_init, style::{style, Theme}
 };
 use clap::{Args, Parser};
 use std::{fs, path::Path};
@@ -77,6 +76,7 @@ impl NewParachainCommand {
 				initial_endowment: self.initial_endowment.clone().expect("default values"),
 			},
 		)?;
+        git_init(destination_path, "initialized parachain")?;
 		spinner.stop("Generation complete");
 		outro(format!("cd into \"{}\" and enjoy hacking! 🚀", &self.name))?;
 		Ok(())
@@ -85,6 +85,7 @@ impl NewParachainCommand {
 
 #[cfg(test)]
 mod tests {
+
 	use super::*;
 	use std::fs;
 
@@ -98,7 +99,14 @@ mod tests {
 			initial_endowment: Some("1u64 << 60".to_string()),
 		};
 		let result = command.execute();
+
+		// Check if the Git repository was initialized
+		let destination_path = Path::new(&command.name);
+        let git_dir = destination_path.join(".git");
+        assert!(git_dir.exists(), "Git repository not initialized correctly");
+
 		assert!(result.is_ok());
+
 
 		// Clean up
 		if let Err(err) = fs::remove_dir_all("test_parachain") {
