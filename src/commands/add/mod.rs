@@ -1,3 +1,4 @@
+#![cfg(feature = "parachain")]
 use std::path::PathBuf;
 
 use crate::engines::pallet_engine;

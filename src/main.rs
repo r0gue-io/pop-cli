@@ -46,6 +46,7 @@ enum Commands {
 	#[clap(alias = "t")]
 	#[cfg(feature = "contract")]
 	Test(commands::test::TestArgs),
+	#[cfg(feature = "parachain")]
 	#[clap(alias = "a")]
 	/// Add a pallet to the runtime
 	Add(commands::add::AddArgs),
@@ -83,6 +84,7 @@ async fn main() -> Result<()> {
 		Commands::Test(args) => match &args.command {
 			commands::test::TestCommands::Contract(cmd) => cmd.execute(),
 		},
+		#[cfg(feature = "parachain")]
 		Commands::Add(args) => args.execute(),
 	}
 }
