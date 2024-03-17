@@ -1,3 +1,4 @@
+#![allow(unused)]
 use anyhow::Result;
 use cliclack::{log, outro_cancel};
 use git2::Repository;

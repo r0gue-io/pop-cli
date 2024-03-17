@@ -28,19 +28,16 @@ tempfile = "3.8"
 tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
 url = { version = "2.5", optional = true }
 walkdir = "2.4"
-frame-support-procedural-tools = "9.0.0"
-proc-macro2 = { version = "1.0.70", features = ["span-locations"] }
-quote = "1.0.33"
-syn = { version = "2.0.52", features = ["full"] }
-cfg-expr = "0.15.5"
-prettyplease = "0.2.15"
 toml_edit = { version = "0.22.7" }
 
 # contracts
 contract-build = { version = "4.0.0-rc.3", optional = true }
 contract-extrinsics = { version = "4.0.0-rc.3", optional = true }
 sp-core = { version = "30.0.0", optional = true }
-subxt-signer = { version = "0.34.0", features = ["subxt", "sr25519"], optional = true }
+subxt-signer = { version = "0.34.0", features = [
+    "subxt",
+    "sr25519",
+], optional = true }
 subxt = { version = "0.34.0", optional = true }
 ink_env = { version = "5.0.0-rc.2", optional = true }
 sp-weights = { version = "29.0.0", optional = true }
@@ -56,7 +53,15 @@ symlink = { version = "0.1", optional = true }
 tracing-subscriber = { version = "0.3", optional = true }
 zombienet-sdk = { git = "https://github.com/r0gue-io/zombienet-sdk", branch = "pop", optional = true }
 zombienet-support = { git = "https://github.com/r0gue-io/zombienet-sdk", branch = "pop", optional = true }
-uuid = { version = "1.7.0", features = ["v4"] }
+uuid = { version = "1.7.0", features = ["v4"], optional = true }
+frame-support-procedural-tools = { version = "9.0.0", optional = true }
+proc-macro2 = { version = "1.0.70", features = [
+    "span-locations",
+], optional = true }
+quote = { version = "1.0.33", optional = true }
+syn = { version = "2.0.52", features = ["full"], optional = true }
+cfg-expr = { version = "0.15.5", optional = true }
+prettyplease = { version = "0.2.15", optional = true }
 
 [features]
 default = ["contract", "parachain"]
@@ -79,5 +84,12 @@ parachain = [
     "dep:tracing-subscriber",
     "dep:url",
     "dep:zombienet-sdk",
-    "dep:zombienet-support"
+    "dep:zombienet-support",
+    "uuid",
+    "frame-support-procedural-tools",
+    "proc-macro2",
+    "quote",
+    "syn",
+    "cfg-expr",
+    "prettyplease",
 ]
