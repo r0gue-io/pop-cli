@@ -405,7 +405,7 @@ impl PalletEngine {
 	/// `State::Init` or `State::Import`
 	fn insert_import(&mut self, import_stmt: (TokenStream, usize)) -> anyhow::Result<()> {
 		self.append_tokens(import_stmt.0);
-		self.imports.last_import += import_stmt.1;
+		self.cursor += import_stmt.1;
 		Ok(())
 	}
 	/// Insert configuartion for a pallet - only for pallet-template atm
