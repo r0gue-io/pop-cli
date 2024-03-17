@@ -20,7 +20,7 @@ mod steps;
 mod template;
 
 use crate::commands::add::AddPallet;
-use crate::helpers::write_to_file;
+use crate::helpers::{is_git_repo_with_commits, write_to_file};
 use anyhow::{anyhow, bail, Context};
 use dependency::{Dependency, Features};
 use log::warn;
@@ -46,6 +46,10 @@ pub fn execute(pallet: AddPallet, runtime_path: PathBuf) -> anyhow::Result<()> {
 	let mut pe = PalletEngine::new(&runtime_path)?;
 	// Todo: Add option to source from cli
 	let dep = TomlEditor::from(&runtime_path);
+	// Check if workspace has uncommitted changes, if yes, abort
+	if !is_git_repo_with_commits(dep.runtime.parent().unwrap().parent().unwrap()) {
+		bail!("Workspace has uncommitted changes, aborting pallet addition");
+	}
 	let steps = step_builder(pallet)?;
 	run_steps(pe, dep, steps)
 }

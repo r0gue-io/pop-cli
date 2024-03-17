@@ -58,14 +58,13 @@ impl AddPallet {
 			},
 			None => {
 				// TODO: Fetch runtime either from cache
-				// Fix: This is a placeholder path, should not be used
 				unimplemented!(
 					"provide a runtime path until feat:cache is implemented: --runtime <path>"
 				);
 			},
 		};
 		let pallet = match self {
-			AddPallet::Template => format!("pallet-parachain-template"),
+			AddPallet::Template => "pallet-parachain-template".to_string(),
 			AddPallet::Frame(FrameArgs { .. }) => {
 				eprintln!("Sorry, frame pallets cannot be added right now");
 				std::process::exit(1);
