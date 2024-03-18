@@ -2,18 +2,17 @@ use assert_cmd::Command;
 use std::fs;
 use tempdir::TempDir;
 
-#[ignore = "test fails to run"]
+#[ignore = "test fails due to no git commit on `pop new parachain`"]
 #[test]
 fn add_parachain_pallet_template() {
 	let temp_dir = TempDir::new("add-pallet-test").unwrap();
 	// Setup new parachain
 	Command::cargo_bin("pop")
 		.unwrap()
+		.current_dir(&temp_dir)
 		.args(&["new", "parachain", "testchain"])
 		.assert()
-		.success();
-
-	println!("{:?}", temp_dir.path().display());
+		.success();		
 	// Add pallet-parachain-template
 	Command::cargo_bin("pop")
 		.unwrap()
