@@ -1,5 +1,7 @@
 use crate::{
-	engines::parachain_engine::{instantiate_template_dir, Config}, helpers::git_init, style::{style, Theme}
+	engines::parachain_engine::{instantiate_template_dir, Config},
+	helpers::git_init,
+	style::{style, Theme},
 };
 use clap::{Args, Parser};
 use std::{fs, path::Path};
@@ -76,7 +78,11 @@ impl NewParachainCommand {
 				initial_endowment: self.initial_endowment.clone().expect("default values"),
 			},
 		)?;
-        git_init(destination_path, "initialized parachain")?;
+		if let Err(err) = git_init(destination_path, "initialized parachain") {
+			if err.class() == git2::ErrorClass::Config && err.code() == git2::ErrorCode::NotFound {
+				outro_cancel("git signature could not be found. Please configure your git config with your name and email")?;
+			}
+		}
 		spinner.stop("Generation complete");
 		outro(format!("cd into \"{}\" and enjoy hacking! 🚀", &self.name))?;
 		Ok(())
