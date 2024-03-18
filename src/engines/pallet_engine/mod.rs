@@ -45,7 +45,7 @@ use toml_edit::DocumentMut;
 pub fn execute(pallet: AddPallet, runtime_path: PathBuf) -> anyhow::Result<()> {
 	let mut pe = PalletEngine::new(&runtime_path)?;
 	// Todo: Add option to source from cli
-	let dep = TomlEditor::from(&runtime_path);
+	let dep = TomlEditor::infer(&runtime_path);
 	// Check if workspace has uncommitted changes, if yes, abort
 	if !is_git_repo_with_commits(dep.runtime.parent().unwrap().parent().unwrap()) {
 		bail!("Workspace has uncommitted changes, aborting pallet addition");
@@ -60,24 +60,44 @@ struct TomlEditor {
 	node: PathBuf,
 }
 impl TomlEditor {
-	/// Use default values for runtime/Cargo.toml and ../node/Cargo.toml
-	fn from(runtime_path: &Path) -> Self {
+	fn new(runtime: &Path, node: &Path) -> Self {
+		Self { runtime: runtime.to_path_buf(), node: node.to_path_buf() }
+	}
+	/// Infer a given runtime and node manifest paths from the given runtime path
+	/// runtime -> ../Cargo.toml
+	/// node 	-> ../node/Cargo.toml
+	fn infer(runtime_path: &Path) -> Self {
 		let runtime_manifest = runtime_path.parent().unwrap().parent().unwrap().join("Cargo.toml");
 		let node_manifest = runtime_path
-			.parent()
+			.parent() // src
 			.unwrap()
-			.parent()
+			.parent() // runtime
 			.unwrap()
-			.parent()
+			.parent() // workspace
 			.unwrap()
 			.join("node/Cargo.toml");
 		// println!("{} {}", runtime_manifest.display(), node_manifest.display());
 		Self { runtime: runtime_manifest, node: node_manifest }
 	}
-	// fn inject_node(&self, dep: Dependency) -> anyhow::Result<()> {
-
-	// 	self.inject(&self.node, dep)
-	// }
+	/// Inject a dependency into the node manifest
+	fn inject_node(&self, dep: Dependency) -> anyhow::Result<()> {
+		let mut s = String::new();
+		let mut f = BufReader::new(File::open(&self.node)?);
+		f.read_to_string(&mut s)
+			.context("Dependency Injection: Failed to read node:Cargo.toml")?;
+		let doc = s.parse::<DocumentMut>().context("Cannot parse toml")?;
+		let updated_doc = self.inject(doc, dep)?.to_string();
+		use std::io::Write;
+		let mut file = OpenOptions::new()
+			.write(true)
+			.truncate(true)
+			.create(false)
+			.open(&self.node)
+			.unwrap();
+		file.write_all(updated_doc.as_bytes())
+			.context("failed to update node:Cargo.toml")
+	}
+	/// Inject a dependency into the runtime manifest
 	fn inject_runtime(&self, dep: Dependency) -> anyhow::Result<()> {
 		let mut s = String::new();
 		let mut f = BufReader::new(File::open(&self.runtime)?);
@@ -103,8 +123,8 @@ impl TomlEditor {
 		t["version"] = value("1.0.0");
 		t["default-features"] = value(default_features);
 		doc["dependencies"]["pallet-parachain-template"] = value(t.into_inline_table());
-		for feat in features {
-			match feat {
+		for feature in features {
+			match feature {
 				Features::Std => {
 					// features
 					let std = doc["features"]["std"].as_value_mut().expect("feature std not found");
