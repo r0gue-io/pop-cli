@@ -2,7 +2,7 @@ use crate::{
 	git::{Git, GitHub},
 	Result,
 };
-use anyhow::anyhow;
+use anyhow::bail;
 use duct::cmd;
 use indexmap::IndexMap;
 use log::{debug, info};
@@ -148,7 +148,7 @@ impl Zombienet {
 		let Item::Table(settings) =
 			network_config.entry("settings").or_insert(Item::Table(Table::new()))
 		else {
-			return Err(anyhow!("expected `settings` to be table"));
+			bail!("expected `settings` to be table"));
 		};
 		settings
 			.entry("timeout")
@@ -166,7 +166,7 @@ impl Zombienet {
 		let Item::Table(relay_chain) =
 			network_config.entry("relaychain").or_insert(Item::Table(Table::new()))
 		else {
-			return Err(anyhow!("expected `relaychain` to be table"));
+			bail!("expected `relaychain` to be table"));
 		};
 		*relay_chain.entry("default_command").or_insert(value(relay_path)) = value(relay_path);
 
@@ -267,7 +267,7 @@ impl Zombienet {
 			.get("default_command");
 		if let Some(Value::String(command)) = relay_command.and_then(|c| c.as_value()) {
 			if !command.value().to_lowercase().contains(BINARY) {
-				return Err(anyhow!(
+				bail!(
 					"the relay chain command is unsupported: {0}",
 					command.to_string()
 				));

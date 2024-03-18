@@ -19,7 +19,7 @@ pub(crate) fn sanitize(target: &Path) -> Result<()> {
 		if input.trim().to_lowercase() == "y" {
 			fs::remove_dir_all(target)?;
 		} else {
-			return Err(anyhow::anyhow!("User aborted due to existing target folder."));
+			anyhow::bail!("User aborted due to existing target folder.");
 		}
 	}
 	Ok(())
