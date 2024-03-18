@@ -86,6 +86,8 @@ impl NewParachainCommand {
 #[cfg(test)]
 mod tests {
 
+	use git2::Repository;
+
 	use super::*;
 	use std::fs;
 
@@ -99,14 +101,12 @@ mod tests {
 			initial_endowment: Some("1u64 << 60".to_string()),
 		};
 		let result = command.execute();
-
-		// Check if the Git repository was initialized
-		let destination_path = Path::new(&command.name);
-        let git_dir = destination_path.join(".git");
-        assert!(git_dir.exists(), "Git repository not initialized correctly");
-
 		assert!(result.is_ok());
 
+		// check for git_init
+		let repo = Repository::open(Path::new(&command.name))?;
+		let reflog = repo.reflog("HEAD")?;
+		assert_eq!(reflog.len(), 1);
 
 		// Clean up
 		if let Err(err) = fs::remove_dir_all("test_parachain") {
