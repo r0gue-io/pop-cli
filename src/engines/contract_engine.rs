@@ -171,21 +171,37 @@ pub async fn dry_run_call(
 mod tests {
 	use super::*;
 	use std::fs;
-	use tempdir;
+	use std::path::PathBuf;
+    use tempdir::TempDir;
+
+	fn setup_test_environment() -> Result<TempDir, Box<dyn std::error::Error>> {
+        let temp_contract_dir = TempDir::new("test_folder")?;
+        let result: anyhow::Result<()> = create_smart_contract("test".to_string(), &Some(PathBuf::from(temp_contract_dir.path())));
+        assert!(result.is_ok(), "Failed to create smart contract");
+
+        Ok(temp_contract_dir)
+    }
 
 	#[test]
 	fn test_create_smart_contract() -> Result<(), Box<dyn std::error::Error>> {
-		let temp_dir = tempdir::TempDir::new("test_folder")?;
-		let result: anyhow::Result<()> =
-			create_smart_contract("test".to_string(), &Some(PathBuf::from(temp_dir.path())));
-		assert!(result.is_ok());
+		let temp_contract_dir = setup_test_environment()?;
 
 		// Verify that the generated smart contract contains the expected content
-		let generated_file_content = fs::read_to_string(temp_dir.path().join("test/lib.rs"))?;
+		let generated_file_content = fs::read_to_string(temp_contract_dir.path().join("test/lib.rs"))?;
 
 		assert!(generated_file_content.contains("#[ink::contract]"));
 		assert!(generated_file_content.contains("mod test {"));
 
 		Ok(())
 	}
+
+	#[test]
+    fn test_test_smart_contract() -> Result<(), Box<dyn std::error::Error>> {
+        let temp_contract_dir = setup_test_environment()?;
+
+		let result = test_smart_contract(&Some(temp_contract_dir.path().join("test")));
+
+        assert!(result.is_ok(), "Result should be Ok");
+		Ok(())
+    }
 }
