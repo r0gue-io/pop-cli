@@ -14,11 +14,11 @@
 //!
 //! It is the goal of this module, to answer all of these questions.
 
+mod dependency;
 mod pallet_entry;
 mod parser;
 mod steps;
 mod template;
-mod dependency;
 
 use crate::commands::add::AddPallet;
 use crate::helpers::{is_git_repo_with_commits, write_to_file};
@@ -116,35 +116,32 @@ impl TomlEditor {
 		file.write_all(updated_doc.as_bytes())
 			.context("failed to update runtime:Cargo.toml")
 	}
+	/// Inject a dependency to a DocumentMut representation of a toml file
 	fn inject(&self, mut doc: DocumentMut, dep: Dependency) -> anyhow::Result<DocumentMut> {
 		use toml_edit::{value, Item, Table};
-		let Dependency { features, path, default_features } = dep;
-		let mut t = Table::new();
-		t["path"] = value(Into::<toml_edit::Value>::into(path));
-		t["version"] = value("1.0.0");
-		t["default-features"] = value(default_features);
-		doc["dependencies"]["pallet-parachain-template"] = value(t.into_inline_table());
+		doc["dependencies"][&dep.name] = value(dep.entry());
+		let Dependency { name, features, .. } = dep;
 		for feature in features {
 			match feature {
 				Features::Std => {
 					// features
 					let std = doc["features"]["std"].as_value_mut().expect("feature std not found");
 					let arr = std.as_array_mut().unwrap();
-					arr.push_formatted("pallet-parachain-template/std".into());
+					arr.push_formatted(format!("{}/std", name).into());
 				},
 				Features::RuntimeBenchmarks => {
 					let rt_bnch = doc["features"]["runtime-benchmarks"]
 						.as_value_mut()
 						.expect("feature runtime-benchmarks not found");
 					let arr = rt_bnch.as_array_mut().unwrap();
-					arr.push_formatted("pallet-parachain-template/runtime-benchmarks".into());
+					arr.push_formatted(format!("{}/runtime-benchmarks", name).into());
 				},
 				Features::TryRuntime => {
 					let try_rt = doc["features"]["try-runtime"]
 						.as_value_mut()
 						.expect("feature try-runtime not found");
 					let arr = try_rt.as_array_mut().unwrap();
-					arr.push_formatted("pallet-parachain-template/try-runtime".into());
+					arr.push_formatted(format!("{}/try-runtime", name).into());
 				},
 				Features::Custom(_) => unimplemented!("Custom features not supported yet"),
 			}
