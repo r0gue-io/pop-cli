@@ -66,7 +66,7 @@ pub(super) fn step_builder(pallet: AddPallet) -> Result<Vec<Steps>> {
 				// TODO (high priority): implement name conflict resolution strategy
 				"Template",
 			)));
-			steps.push(RuntimePalletDependency(Dependency::template_runtime()));
+			steps.push(RuntimePalletDependency(Dependency::local_template_runtime()));
 		},
 		AddPallet::Frame(_) => unimplemented!("Frame pallets not yet implemented"),
 	};

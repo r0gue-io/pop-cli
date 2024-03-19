@@ -5460,6 +5460,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "reqwest",
+ "semver 1.0.22",
  "serde",
  "serde_json",
  "sp-core 30.0.0",

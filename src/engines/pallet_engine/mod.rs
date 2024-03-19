@@ -18,6 +18,7 @@ mod pallet_entry;
 mod parser;
 mod steps;
 mod template;
+mod dependency;
 
 use crate::commands::add::AddPallet;
 use crate::helpers::{is_git_repo_with_commits, write_to_file};
@@ -584,51 +585,5 @@ impl PalletEngine {
 		// 	},
 		// };
 		Ok(())
-	}
-}
-// TODO
-mod dependency {
-	use strum_macros::{Display, EnumString};
-
-	#[derive(EnumString, Display, Debug)]
-	pub(in crate::engines::pallet_engine) enum Features {
-		#[strum(serialize = "std")]
-		Std,
-		#[strum(serialize = "runtime-benchmarks")]
-		RuntimeBenchmarks,
-		#[strum(serialize = "try-runtime")]
-		TryRuntime,
-		Custom(String),
-	}
-	#[derive(Debug)]
-	pub(in crate::engines::pallet_engine) struct Dependency {
-		pub(in crate::engines::pallet_engine) features: Vec<Features>,
-		/// Maybe local path, git url, or from crates.io in which case we will use this for version
-		pub(in crate::engines::pallet_engine) path: String,
-		pub(in crate::engines::pallet_engine) default_features: bool,
-	}
-
-	impl Dependency {
-		/// Create dependencies required for adding a pallet-parachain-template to runtime
-		pub(in crate::engines::pallet_engine) fn template_runtime() -> Self {
-			log::warn!("Using default path for pallet-parachain-template `pallets/pallet-parachain-template`");
-			Self {
-				features: vec![Features::RuntimeBenchmarks, Features::TryRuntime, Features::Std],
-				// TODO hardcode for now
-				path: format!("../pallets/pallet-parachain-template"),
-				default_features: false,
-			}
-		}
-		// TODO: Remove code - Node doesn't require template pallet deps by default
-		// but this maybe desirable for custom pallets.
-		// /// Create dependencies required for adding a pallet-parachain-template to node
-		// pub(in crate::engines::pallet_engine) fn template_node() -> Self {
-		// 	Self {
-		// 		features: vec![Features::RuntimeBenchmarks, Features::TryRuntime],
-		// 		// TODO hardcode for now
-		// 		path: format!("../pallets/pallet-parachain-template"),
-		// 		default_features: true,
-		// 	}
-		// }
 	}
 }

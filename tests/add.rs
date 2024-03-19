@@ -18,6 +18,7 @@ fn add_parachain_pallet_template() {
 	cmd!("git", "add", ".").dir(&temp_dir.path().join("testchain")).run().unwrap();
 	cmd!("git", "commit", "--no-gpg-sign", "-m", "Initialized testchain")
 		.dir(&temp_dir.path().join("testchain"))
+		.stdout_null()
 		.run()
 		.unwrap();
 	// Add pallet-parachain-template
