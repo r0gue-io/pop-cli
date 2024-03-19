@@ -8,6 +8,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  GITHUB_ACTOR: pop-cli
 
 jobs:
   build:
@@ -27,6 +28,11 @@ jobs:
       with:
         cache-on-failure: true
         cache-all-crates: true
+    
+    - name: Setup git config
+      run: |
+        git config --global user.name "${GITHUB_ACTOR}"
+        git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
 
     - uses: actions/checkout@v3
     - name: Check Feature Contracts Excl.
