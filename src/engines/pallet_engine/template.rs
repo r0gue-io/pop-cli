@@ -4,7 +4,6 @@ use crate::{
 };
 use std::{fs, path::PathBuf};
 
-// use super::{pallet_entry::AddPalletEntry, PalletEngine};
 
 pub fn create_pallet_template(
 	path: Option<String>,

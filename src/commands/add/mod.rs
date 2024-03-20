@@ -11,10 +11,10 @@ use console::style;
 pub(crate) struct AddArgs {
 	#[command(subcommand)]
 	commands: AddCommands,
-	#[arg(global = true, short, long)]
+	#[arg(global = true, short, long = "runtime")]
 	/// Runtime path; for example: `sub0/runtime/src/lib.rs`
 	/// Runtime cargo manifest path will be inferred as `(parent of lib.rs)/Cargo.toml`
-	pub(crate) runtime: Option<String>,
+	pub(crate) runtime_path: Option<String>,
 }
 #[derive(Subcommand)]
 #[command(subcommand_required = true)]
@@ -43,7 +43,7 @@ pub(crate) struct FrameArgs {
 impl AddArgs {
 	pub(crate) fn execute(&self) -> anyhow::Result<()> {
 		match self.commands {
-			AddCommands::Pallet(ref cmd) => cmd.clone().execute(&self.runtime),
+			AddCommands::Pallet(ref cmd) => cmd.clone().execute(&self.runtime_path),
 		}
 	}
 }
