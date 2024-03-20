@@ -116,7 +116,8 @@ impl Dependency {
 				// The reason is, `pop new pallet` places a new pallet on $(workspace_root)/pallets
 				std::path::Path::new("../pallets/pallet-parachain-template").to_path_buf(),
 				semver::Version::new(1, 0, 0),
-			).into(),
+			)
+				.into(),
 			default_features: false,
 		}
 	}
