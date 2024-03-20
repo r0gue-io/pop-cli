@@ -83,24 +83,24 @@ pub(crate) fn resolve_pallet_path(path: Option<String>) -> PathBuf {
 	}
 }
 
-pub(crate) fn is_git_repo_with_commits(repo_path: &Path) -> bool {
+pub(crate) fn is_git_repo_with_commits(repo_path: &Path) -> anyhow::Result<bool> {
 	match Repository::open(repo_path) {
 		Ok(repo) => {
 			let mut status_opts = git2::StatusOptions::new();
-			status_opts.include_untracked(true);
-			let statuses = repo.statuses(Some(&mut status_opts)).unwrap();
+			status_opts.include_untracked(false);
+			let statuses = repo.statuses(Some(&mut status_opts))?;
 
 			// Check if there are no changes to commit
-			if !statuses.iter().any(|s| s.status() != git2::Status::CURRENT) {
+			Ok(if !statuses.iter().any(|s| s.status() != git2::Status::CURRENT) {
 				true
 			} else {
-				println!("Repository has uncommitted changes.");
+				log::warning(format!("Repository has uncommitted changes."));
 				false
-			}
+			})
 		},
 		Err(e) => {
-			eprintln!("Failed to open repository: {}", e);
-			false
+			log::error(format!("Failed to open repository: {}", e));
+			Err(e.into())
 		},
 	}
 }

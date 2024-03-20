@@ -46,9 +46,10 @@ use toml_edit::DocumentMut;
 pub fn execute(pallet: AddPallet, runtime_path: PathBuf) -> anyhow::Result<()> {
 	let mut pe = PalletEngine::new(&runtime_path)?;
 	// Todo: Add option to source from cli
-	let dep = TomlEditor::infer(&runtime_path);
+	let dep = TomlEditor::infer(&runtime_path)?;
 	// Check if workspace has uncommitted changes, if yes, abort
-	if !is_git_repo_with_commits(dep.runtime.parent().unwrap().parent().unwrap()) {
+	if !is_git_repo_with_commits(&dep.workspace)? {
+		cliclack::log::error(format!("Workspace -> {}", dep.workspace.display()));
 		bail!("Workspace has uncommitted changes, aborting pallet addition");
 	}
 	let steps = step_builder(pallet)?;
@@ -56,29 +57,44 @@ pub fn execute(pallet: AddPallet, runtime_path: PathBuf) -> anyhow::Result<()> {
 }
 #[derive(Default)]
 struct TomlEditor {
-	// workspace: PathBuf,
+	/// Path to workspace toml file
+	workspace: PathBuf,
+	/// Path to runtime toml file
 	runtime: PathBuf,
+	/// Path to node toml file
 	node: PathBuf,
 }
 impl TomlEditor {
-	fn new(runtime: &Path, node: &Path) -> Self {
-		Self { runtime: runtime.to_path_buf(), node: node.to_path_buf() }
+	fn new(workspace: &Path, runtime: &Path, node: &Path) -> Self {
+		Self {
+			workspace: workspace.to_path_buf(),
+			runtime: runtime.to_path_buf(),
+			node: node.to_path_buf(),
+		}
 	}
 	/// Infer a given runtime and node manifest paths from the given runtime path
-	/// runtime -> ../Cargo.toml
-	/// node 	-> ../node/Cargo.toml
-	fn infer(runtime_path: &Path) -> Self {
-		let runtime_manifest = runtime_path.parent().unwrap().parent().unwrap().join("Cargo.toml");
-		let node_manifest = runtime_path
+	/// runtime   -> ../Cargo.toml
+	/// node 	  -> ../../node/Cargo.toml
+	/// workspace ->  ../../Cargo.toml
+	fn infer(runtime_path: &Path) -> anyhow::Result<Self> {
+		let runtime_path = fs::canonicalize(runtime_path).with_context(|| {
+			format!("Failed to resolve {} into absolute path", runtime_path.display())
+		})?;
+		let workspace_manifest = runtime_path
 			.parent() // src
 			.unwrap()
 			.parent() // runtime
 			.unwrap()
-			.parent() // workspace
-			.unwrap()
-			.join("node/Cargo.toml");
+			.parent()
+			.unwrap(); // workspace
+		let runtime_manifest = workspace_manifest.join("runtime/Cargo.toml");
+		let node_manifest = workspace_manifest.join("node/Cargo.toml");
 		// println!("{} {}", runtime_manifest.display(), node_manifest.display());
-		Self { runtime: runtime_manifest, node: node_manifest }
+		Ok(Self {
+			workspace: workspace_manifest.to_path_buf(),
+			runtime: runtime_manifest,
+			node: node_manifest,
+		})
 	}
 	/// Inject a dependency into the node manifest
 	fn inject_node(&self, dep: Dependency) -> anyhow::Result<()> {

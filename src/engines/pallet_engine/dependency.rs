@@ -111,8 +111,9 @@ impl Dependency {
 		Self {
 			name: format!("pallet-parachain-template"),
 			features: vec![Features::RuntimeBenchmarks, Features::TryRuntime, Features::Std],
-			// TODO hardcode for now
 			path: (
+				// TODO hardcode for now
+				// The reason is, `pop new pallet` places a new pallet on $(workspace_root)/pallets
 				std::path::Path::new("../pallets/pallet-parachain-template").to_path_buf(),
 				semver::Version::new(1, 0, 0),
 			).into(),
