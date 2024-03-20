@@ -9,6 +9,7 @@ An all-in-one tool for Polkadot development.
 You can install Pop CLI as follows:
 
 ```shell
+rustup update
 cargo install --git https://github.com/r0gue-io/pop-cli
 ```
 
