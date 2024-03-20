@@ -89,7 +89,6 @@ impl TomlEditor {
 			.unwrap(); // workspace
 		let runtime_manifest = workspace_manifest.join("runtime/Cargo.toml");
 		let node_manifest = workspace_manifest.join("node/Cargo.toml");
-		// println!("{} {}", runtime_manifest.display(), node_manifest.display());
 		Ok(Self {
 			workspace: workspace_manifest.to_path_buf(),
 			runtime: runtime_manifest,
