@@ -7,7 +7,6 @@ components = [
 	"rust-src",
 	"rust-std",
 	"rustc",
-	"rustc-dev",
 	"rustfmt",
 ]
 targets = ["wasm32-unknown-unknown"]
