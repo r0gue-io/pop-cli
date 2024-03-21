@@ -198,8 +198,7 @@ mod tests {
 		assert!(generated_file_content.contains("mod test_contract {"));
 
 		// Verify that the generated Cargo.toml file contains the expected content
-		let generated_file_content =
-			fs::read_to_string(temp_contract_dir.path().join("test_contract/Cargo.toml"))
+		fs::read_to_string(temp_contract_dir.path().join("test_contract/Cargo.toml"))
 				.expect("Could not read file");
 		Ok(())
 	}
