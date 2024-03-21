@@ -171,11 +171,10 @@ pub async fn dry_run_call(
 mod tests {
 	use super::*;
 	use std::fs;
-	use tempdir;
 
 	#[test]
 	fn test_create_smart_contract() -> Result<(), Box<dyn std::error::Error>> {
-		let temp_dir = tempdir::TempDir::new("test_folder")?;
+		let temp_dir = tempfile::tempdir()?;
 		let result: anyhow::Result<()> =
 			create_smart_contract("test".to_string(), &Some(PathBuf::from(temp_dir.path())));
 		assert!(result.is_ok());
