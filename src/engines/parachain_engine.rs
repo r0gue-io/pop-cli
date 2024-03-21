@@ -80,36 +80,40 @@ pub fn build_parachain(path: &Option<PathBuf>) -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use anyhow::{Error, Result};
 	use std::{env::current_dir, fs};
 
-	#[test]
-	fn test_instantiate_template_dir_base() -> Result<(), Box<dyn std::error::Error>> {
-		let temp_dir = tempfile::tempdir()?;
+	fn setup_template_and_instantiate() -> Result<tempfile::TempDir, Error> {
+		let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
 		let config = Config {
 			symbol: "DOT".to_string(),
 			decimals: 18,
 			initial_endowment: "1000000".to_string(),
 		};
-		let result = instantiate_base_template(temp_dir.path(), config);
+		let result: anyhow::Result<()> = instantiate_base_template(temp_dir.path(), config);
 		assert!(result.is_ok());
 		Ok(temp_dir)
 	}
 
 	#[test]
-	fn test_parachain_instantiate_base_template() -> Result<anyhow::Result<()>, anyhow::Error> {
-		let temp_dir = setup_template_and_instantiate()?;
+	fn test_parachain_instantiate_base_template() -> Result<(), Error> {
+		let temp_dir =
+			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
 
 		// Verify that the generated chain_spec.rs file contains the expected content
 		let generated_file_content =
-			fs::read_to_string(temp_dir.path().join("node/src/chain_spec.rs"))?;
+			fs::read_to_string(temp_dir.path().join("node/src/chain_spec.rs"))
+				.expect("Failed to read file");
 		assert!(generated_file_content.contains("DOT"));
 		assert!(generated_file_content.contains("18"));
 		assert!(generated_file_content.contains("1000000"));
 
 		// Verify network.toml contains expected content
-		let generated_file_content = fs::read_to_string(temp_dir.path().join("network.toml"))?;
+		let generated_file_content =
+			fs::read_to_string(temp_dir.path().join("network.toml")).expect("Failed to read file");
 		let expected_file_content =
-			fs::read_to_string(current_dir()?.join("./templates/base/network.templ"))?;
+			fs::read_to_string(current_dir()?.join("./templates/base/network.templ"))
+				.expect("Failed to read file");
 		assert_eq!(
 			generated_file_content,
 			expected_file_content.replace("^^node^^", "parachain-template-node")
@@ -118,11 +122,11 @@ mod tests {
 		Ok(())
 	}
 
-    #[test]
-    fn test_parachain_build_after_instantiating_template() -> Result<anyhow::Result<()>, anyhow::Error> {
-        let temp_dir = setup_template_and_instantiate()?;
-        let build = build_parachain(&Some(temp_dir.path().to_path_buf()));
-        assert!(build.is_ok(), "Result should be Ok");
-        Ok(())
-    }
+	#[test]
+	fn test_parachain_build_after_instantiating_template() -> Result<(), Error> {
+		let temp_dir = setup_template_and_instantiate()?;
+		let build = build_parachain(&Some(temp_dir.path().to_path_buf()));
+		assert!(build.is_ok(), "Result should be Ok");
+		Ok(())
+	}
 }
