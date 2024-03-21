@@ -15,7 +15,7 @@ pub(crate) struct UpArgs {
 #[derive(Subcommand)]
 pub(crate) enum UpCommands {
 	#[cfg(feature = "parachain")]
-	/// Deploy a parachain to a network.
+	/// Deploy a parachain to a local network, powered by zombienet-sdk <https://github.com/paritytech/zombienet-sdk>.
 	#[clap(alias = "p")]
 	Parachain(parachain::ZombienetCommand),
 	#[cfg(feature = "contract")]

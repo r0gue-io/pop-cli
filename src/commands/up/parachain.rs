@@ -6,8 +6,7 @@ use zombienet_sdk::NetworkNode;
 
 #[derive(Args)]
 pub(crate) struct ZombienetCommand {
-	/// The configuration file to be used. Only Zombienet configuration files are currently
-	/// supported.
+	/// The Zombienet configuration file to be used.
 	#[arg(short, long)]
 	file: String,
 	/// The version of Polkadot to be used for the relay chain, as per the release tag (e.g.
