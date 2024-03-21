@@ -181,9 +181,7 @@ mod tests {
 			&Some(PathBuf::from(temp_contract_dir.path())),
 		);
 
-		if !result.is_ok() {
-			anyhow::bail!("Failed to create smart contract");
-		}
+		assert!(result.is_ok(), "Result should be Ok");
 
 		Ok(temp_contract_dir)
 	}
