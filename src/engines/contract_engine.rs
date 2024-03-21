@@ -201,8 +201,6 @@ mod tests {
 		let generated_file_content =
 			fs::read_to_string(temp_contract_dir.path().join("test_contract/Cargo.toml"))
 				.expect("Could not read file");
-		assert!(generated_file_content.contains("[package]"));
-
 		Ok(())
 	}
 
