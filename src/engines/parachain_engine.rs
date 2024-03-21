@@ -96,7 +96,7 @@ mod tests {
 	}
 
 	#[test]
-	fn test_parachain_instantiate_base_template() -> Result<anyhow::Result<TempDir>, anyhow::Error> {
+	fn test_parachain_instantiate_base_template() -> Result<anyhow::Result<()>, anyhow::Error> {
 		let temp_dir = setup_template_and_instantiate()?;
 
 		// Verify that the generated chain_spec.rs file contains the expected content
@@ -119,7 +119,7 @@ mod tests {
 	}
 
     #[test]
-    fn test_parachain_build_after_instantiating_template() -> Result<anyhow::Result<TempDir>, anyhow::Error> {
+    fn test_parachain_build_after_instantiating_template() -> Result<anyhow::Result<()>, anyhow::Error> {
         let temp_dir = setup_template_and_instantiate()?;
         let build = build_parachain(&Some(temp_dir.path().to_path_buf()));
         assert!(build.is_ok(), "Result should be Ok");
