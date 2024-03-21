@@ -56,7 +56,7 @@ pub fn build_smart_contract(path: &Option<PathBuf>) -> anyhow::Result<()> {
 	Ok(())
 }
 
-pub fn 	(path: &Option<PathBuf>) -> anyhow::Result<()> {
+pub fn test_smart_contract(path: &Option<PathBuf>) -> anyhow::Result<()> {
 	cmd("cargo", vec!["test"]).dir(path.clone().unwrap_or("./".into())).run()?;
 
 	Ok(())
@@ -172,36 +172,48 @@ mod tests {
 	use super::*;
 	use std::fs;
 	use std::path::PathBuf;
-    use tempdir::TempDir;
+	use tempdir::TempDir;
 
-	fn setup_test_environment() -> Result<anyhow::Result<TempDir>, anyhow::Error> {
-        let temp_contract_dir = TempDir::new("test_folder")?;
-        let result: anyhow::Result<()> = create_smart_contract("test".to_string(), &Some(PathBuf::from(temp_contract_dir.path())));
-        assert!(result.is_ok(), "Failed to create smart contract");
+	fn setup_test_environment() -> anyhow::Result<TempDir, anyhow::Error> {
+		let temp_contract_dir = TempDir::new("test_folder")?;
+		let result: anyhow::Result<()> = create_smart_contract(
+			"test".to_string(),
+			&Some(PathBuf::from(temp_contract_dir.path())),
+		);
 
-        Ok(temp_contract_dir)
-    }
+		if !result.is_ok() {
+			anyhow::bail!("Failed to create smart contract");
+		}
+
+		Ok(temp_contract_dir)
+	}
 
 	#[test]
-	fn test_contract_create() -> Result<anyhow::Result<()>, anyhow::Error> {
+	fn test_contract_create() -> anyhow::Result<(), anyhow::Error> {
 		let temp_contract_dir = setup_test_environment()?;
 
 		// Verify that the generated smart contract contains the expected content
-		let generated_file_content = fs::read_to_string(temp_contract_dir.path().join("test/lib.rs"))?;
+		let generated_file_content =
+			fs::read_to_string(temp_contract_dir.path().join("test/lib.rs"))?;
 
 		assert!(generated_file_content.contains("#[ink::contract]"));
 		assert!(generated_file_content.contains("mod test {"));
+
+		// Verify that the generated Cargo.toml file contains the expected content
+		let generated_file_content =
+			fs::read_to_string(temp_contract_dir.path().join("test/Cargo.toml"))?;
+		assert!(generated_file_content.contains("[package]"));		
 
 		Ok(())
 	}
 
 	#[test]
-    fn test_contract_test() -> Result<anyhow::Result<()>, anyhow::Error> {
-        let temp_contract_dir = setup_test_environment()?;
+	fn test_contract_test() -> anyhow::Result<(), anyhow::Error> {
+		let temp_contract_dir = setup_test_environment()?;
 
 		let result = test_smart_contract(&Some(temp_contract_dir.path().join("test")));
 
-        assert!(result.is_ok(), "Result should be Ok");
+		assert!(result.is_ok(), "Result should be Ok");
 		Ok(())
-    }
+	}
 }
