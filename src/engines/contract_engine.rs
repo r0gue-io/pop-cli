@@ -56,7 +56,7 @@ pub fn build_smart_contract(path: &Option<PathBuf>) -> anyhow::Result<()> {
 	Ok(())
 }
 
-pub fn test_smart_contract(path: &Option<PathBuf>) -> anyhow::Result<()> {
+pub fn 	(path: &Option<PathBuf>) -> anyhow::Result<()> {
 	cmd("cargo", vec!["test"]).dir(path.clone().unwrap_or("./".into())).run()?;
 
 	Ok(())
@@ -174,7 +174,7 @@ mod tests {
 	use std::path::PathBuf;
     use tempdir::TempDir;
 
-	fn setup_test_environment() -> Result<TempDir, Box<dyn std::error::Error>> {
+	fn setup_test_environment() -> Result<anyhow::Result<TempDir>, anyhow::Error> {
         let temp_contract_dir = TempDir::new("test_folder")?;
         let result: anyhow::Result<()> = create_smart_contract("test".to_string(), &Some(PathBuf::from(temp_contract_dir.path())));
         assert!(result.is_ok(), "Failed to create smart contract");
@@ -183,7 +183,7 @@ mod tests {
     }
 
 	#[test]
-	fn test_create_smart_contract() -> Result<(), Box<dyn std::error::Error>> {
+	fn test_create_smart_contract() -> Result<anyhow::Result<()>, anyhow::Error> {
 		let temp_contract_dir = setup_test_environment()?;
 
 		// Verify that the generated smart contract contains the expected content
@@ -196,7 +196,7 @@ mod tests {
 	}
 
 	#[test]
-    fn test_test_smart_contract() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_test_smart_contract() -> Result<anyhow::Result<()>, anyhow::Error> {
         let temp_contract_dir = setup_test_environment()?;
 
 		let result = test_smart_contract(&Some(temp_contract_dir.path().join("test")));
