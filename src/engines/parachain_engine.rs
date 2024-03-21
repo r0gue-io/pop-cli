@@ -81,11 +81,10 @@ pub fn build_parachain(path: &Option<PathBuf>) -> anyhow::Result<()> {
 mod tests {
 	use super::*;
 	use std::{env::current_dir, fs};
-	use tempdir;
 
 	#[test]
 	fn test_instantiate_template_dir_base() -> Result<(), Box<dyn std::error::Error>> {
-		let temp_dir = tempdir::TempDir::new("base_template")?;
+		let temp_dir = tempfile::tempdir()?;
 		let config = Config {
 			symbol: "DOT".to_string(),
 			decimals: 18,

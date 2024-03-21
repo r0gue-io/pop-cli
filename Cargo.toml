@@ -8,9 +8,6 @@ edition = "2021"
 name = "pop"
 path = "src/main.rs"
 
-[dev-dependencies]
-tempdir = "0.3.7"
-
 [dependencies]
 anyhow = "1.0"
 askama = "0.12"
