@@ -174,7 +174,7 @@ mod tests {
 	use std::path::PathBuf;
 
 	fn setup_test_environment() -> anyhow::Result<tempfile::TempDir, anyhow::Error> {
-		let temp_contract_dir = tempfile::tempdir()?;
+		let temp_contract_dir = tempfile::tempdir().expect("Could not create temp dir");
 		let result: anyhow::Result<()> = create_smart_contract(
 			"test_contract".to_string(),
 			&Some(PathBuf::from(temp_contract_dir.path())),
@@ -191,15 +191,17 @@ mod tests {
 
 		// Verify that the generated smart contract contains the expected content
 		let generated_file_content =
-			fs::read_to_string(temp_contract_dir.path().join("test_contract/lib.rs"))?;
+			fs::read_to_string(temp_contract_dir.path().join("test_contract/lib.rs"))
+				.expect("Could not read file");
 
 		assert!(generated_file_content.contains("#[ink::contract]"));
 		assert!(generated_file_content.contains("mod test_contract {"));
 
 		// Verify that the generated Cargo.toml file contains the expected content
 		let generated_file_content =
-			fs::read_to_string(temp_contract_dir.path().join("test_contract/Cargo.toml"))?;
-		assert!(generated_file_content.contains("[package]"));		
+			fs::read_to_string(temp_contract_dir.path().join("test_contract/Cargo.toml"))
+				.expect("Could not read file");
+		assert!(generated_file_content.contains("[package]"));
 
 		Ok(())
 	}
