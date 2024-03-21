@@ -45,15 +45,15 @@ use toml_edit::DocumentMut;
 /// The main entry point into the engine.
 pub fn execute(pallet: AddPallet, runtime_path: PathBuf) -> anyhow::Result<()> {
 	// Todo: Add option to source from cli
-	let dep = TomlEditor::infer(&runtime_path)?;
+	let te = TomlEditor::infer(&runtime_path)?;
 	// Check if workspace has uncommitted changes, if yes, abort
-	if !is_git_repo_with_commits(&dep.workspace)? {
-		cliclack::log::error(format!("Workspace -> {}", dep.workspace.display()));
+	if !is_git_repo_with_commits(&te.workspace)? {
+		cliclack::log::error(format!("Workspace -> {}", te.workspace.display()));
 		bail!("Workspace has uncommitted changes, aborting pallet addition");
 	}
 	let mut pe = PalletEngine::new(&runtime_path)?;
-	let steps = step_builder(pallet)?;
-	run_steps(pe, dep, steps)
+	let steps = step_builder(pallet, &te)?;
+	run_steps(pe, te, steps)
 }
 #[derive(Default)]
 struct TomlEditor {

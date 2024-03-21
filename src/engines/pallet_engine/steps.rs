@@ -34,7 +34,10 @@ pub(super) enum Steps {
 /// The pallet engine state expects to go as edits would, i.e. top to bottom lexically
 /// So it makes sense for any given file, to first include an import, then items that refer to it
 /// In case of a pallet, you'd always put `RuntimePalletImport`, `RuntimePalletConfiguration`, `ConstructRuntimeEntry` in that order.
-pub(super) fn step_builder(pallet: AddPallet) -> Result<Vec<Steps>> {
+pub(super) fn step_builder(
+	pallet: AddPallet,
+	&TomlEditor { ref workspace, .. }: &TomlEditor,
+) -> Result<Vec<Steps>> {
 	let mut steps: Vec<Steps> = vec![];
 	match pallet {
 		// Adding a pallet-parachain-template requires 5 distinct steps
@@ -66,7 +69,10 @@ pub(super) fn step_builder(pallet: AddPallet) -> Result<Vec<Steps>> {
 				// TODO (high priority): implement name conflict resolution strategy
 				"Template",
 			)));
-			steps.push(RuntimePalletDependency(Dependency::local_template_runtime()));
+			steps.push(RuntimePalletDependency(Dependency::local_template_runtime(
+				"pallet-parachain-template",
+				workspace,
+			)));
 		},
 		AddPallet::Frame(_) => unimplemented!("Frame pallets not yet implemented"),
 	};

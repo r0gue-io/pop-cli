@@ -1,5 +1,5 @@
 //! Dependency representations for Pallets
-use std::path;
+use std::path::{self, Path, PathBuf};
 use strum_macros::{Display, EnumString};
 
 #[derive(EnumString, Display, Debug)]
@@ -105,20 +105,22 @@ impl Dependency {
 		t["default-features"] = toml_edit::value(self.default_features);
 		t.into_inline_table()
 	}
-	/// Create dependencies required for adding a local pallet-parachain-template to runtime
-	/// ..$(runtime)/pallets/pallet-parachain-template
-	pub(super) fn local_template_runtime() -> Self {
+	/// Create dependencies required for adding a local pallet to runtime
+	/// $(workspace_root)/pallets/pallet-name
+	// Todo: Some values are hardcoded for now as this only deals with the pallet-parachain-template
+	// Should be moved to args once that's not the case
+	pub(super) fn local_template_runtime(pallet_name: &'static str, workspace: &PathBuf) -> Self {
+		let name = format!("{pallet_name}");
 		Self {
-			name: format!("pallet-parachain-template"),
 			features: vec![Features::RuntimeBenchmarks, Features::TryRuntime, Features::Std],
 			path: (
-				// TODO hardcode for now
 				// The reason is, `pop new pallet` places a new pallet on $(workspace_root)/pallets
-				std::path::Path::new("../pallets/pallet-parachain-template").to_path_buf(),
+				workspace.join("pallets/").join(&name).to_path_buf(),
 				semver::Version::new(1, 0, 0),
 			)
-				.into(),
+			.into(),
 			default_features: false,
+			name,
 		}
 	}
 	// TODO: Remove code - Node doesn't require template pallet deps by default
