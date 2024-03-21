@@ -81,25 +81,30 @@ pub fn build_parachain(path: &Option<PathBuf>) -> anyhow::Result<()> {
 mod tests {
 	use super::*;
 	use std::{env::current_dir, fs};
-	use tempdir;
+	use tempfile::TempDir;
 
-	#[test]
-	fn test_instantiate_template_dir_base() -> Result<(), Box<dyn std::error::Error>> {
-		let temp_dir = tempdir::TempDir::new("base_template")?;
+	fn setup_template_and_instantiate() -> Result<anyhow::Result<TempDir>, anyhow::Error> {
+		let temp_dir = TempDir::new()?;
 		let config = Config {
 			symbol: "DOT".to_string(),
 			decimals: 18,
-			initial_endowment: "1000000000000000000000000".to_string(),
+			initial_endowment: "1000000".to_string(),
 		};
-		let result: Result<()> = instantiate_base_template(temp_dir.path(), config);
+		let result = instantiate_base_template(temp_dir.path(), config);
 		assert!(result.is_ok());
+		Ok(temp_dir)
+	}
+
+	#[test]
+	fn test_parachain_instantiate_base_template() -> Result<anyhow::Result<TempDir>, anyhow::Error> {
+		let temp_dir = setup_template_and_instantiate()?;
 
 		// Verify that the generated chain_spec.rs file contains the expected content
 		let generated_file_content =
 			fs::read_to_string(temp_dir.path().join("node/src/chain_spec.rs"))?;
 		assert!(generated_file_content.contains("DOT"));
 		assert!(generated_file_content.contains("18"));
-		assert!(generated_file_content.contains("1000000000000000000000000"));
+		assert!(generated_file_content.contains("1000000"));
 
 		// Verify network.toml contains expected content
 		let generated_file_content = fs::read_to_string(temp_dir.path().join("network.toml"))?;
@@ -112,4 +117,12 @@ mod tests {
 
 		Ok(())
 	}
+
+    #[test]
+    fn test_parachain_build_after_instantiating_template() -> Result<anyhow::Result<TempDir>, anyhow::Error> {
+        let temp_dir = setup_template_and_instantiate()?;
+        let build = build_parachain(&Some(temp_dir.path().to_path_buf()));
+        assert!(build.is_ok(), "Result should be Ok");
+        Ok(())
+    }
 }
