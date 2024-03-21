@@ -171,8 +171,9 @@ pub async fn dry_run_call(
 mod tests {
 	use super::*;
 	use std::{fs, path::PathBuf};
+	use anyhow::{Result, Error};
 
-	fn setup_test_environment() -> anyhow::Result<tempfile::TempDir, anyhow::Error> {
+	fn setup_test_environment() -> Result<tempfile::TempDir, Error> {
 		let temp_contract_dir = tempfile::tempdir().expect("Could not create temp dir");
 		let result: anyhow::Result<()> = create_smart_contract(
 			"test_contract".to_string(),
@@ -185,7 +186,7 @@ mod tests {
 	}
 
 	#[test]
-	fn test_contract_create() -> anyhow::Result<(), anyhow::Error> {
+	fn test_contract_create() -> Result<(), Error> {
 		let temp_contract_dir = setup_test_environment()?;
 
 		// Verify that the generated smart contract contains the expected content
@@ -206,7 +207,7 @@ mod tests {
 	}
 
 	#[test]
-	fn test_contract_test() -> anyhow::Result<(), anyhow::Error> {
+	fn test_contract_test() -> Result<(), Error> {
 		let temp_contract_dir = setup_test_environment()?;
 
 		let result = test_smart_contract(&Some(temp_contract_dir.path().join("test_contract")));
