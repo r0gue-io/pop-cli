@@ -44,7 +44,6 @@ use toml_edit::DocumentMut;
 
 /// The main entry point into the engine.
 pub fn execute(pallet: AddPallet, runtime_path: PathBuf) -> anyhow::Result<()> {
-	let mut pe = PalletEngine::new(&runtime_path)?;
 	// Todo: Add option to source from cli
 	let dep = TomlEditor::infer(&runtime_path)?;
 	// Check if workspace has uncommitted changes, if yes, abort
@@ -52,6 +51,7 @@ pub fn execute(pallet: AddPallet, runtime_path: PathBuf) -> anyhow::Result<()> {
 		cliclack::log::error(format!("Workspace -> {}", dep.workspace.display()));
 		bail!("Workspace has uncommitted changes, aborting pallet addition");
 	}
+	let mut pe = PalletEngine::new(&runtime_path)?;
 	let steps = step_builder(pallet)?;
 	run_steps(pe, dep, steps)
 }
@@ -419,7 +419,7 @@ impl PalletEngine {
 		let mut file = OpenOptions::new().append(true).open(&self.output)?;
 		let newlines: String = std::iter::repeat('\n').take(n).collect();
 		let rs = file.write_all(format!("{newlines}").as_bytes())?;
-		self.cursor += 1;
+		self.cursor += n;
 		Ok(rs)
 	}
 	/// Append raw tokens to `output` file, cursor should be handled by caller
