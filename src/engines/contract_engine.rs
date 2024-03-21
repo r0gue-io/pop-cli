@@ -183,7 +183,7 @@ mod tests {
     }
 
 	#[test]
-	fn test_create_smart_contract() -> Result<anyhow::Result<()>, anyhow::Error> {
+	fn test_contract_create() -> Result<anyhow::Result<()>, anyhow::Error> {
 		let temp_contract_dir = setup_test_environment()?;
 
 		// Verify that the generated smart contract contains the expected content
@@ -196,7 +196,7 @@ mod tests {
 	}
 
 	#[test]
-    fn test_test_smart_contract() -> Result<anyhow::Result<()>, anyhow::Error> {
+    fn test_contract_test() -> Result<anyhow::Result<()>, anyhow::Error> {
         let temp_contract_dir = setup_test_environment()?;
 
 		let result = test_smart_contract(&Some(temp_contract_dir.path().join("test")));
