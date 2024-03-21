@@ -170,8 +170,7 @@ pub async fn dry_run_call(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use std::fs;
-	use std::path::PathBuf;
+	use std::{fs, path::PathBuf};
 
 	fn setup_test_environment() -> anyhow::Result<tempfile::TempDir, anyhow::Error> {
 		let temp_contract_dir = tempfile::tempdir().expect("Could not create temp dir");
