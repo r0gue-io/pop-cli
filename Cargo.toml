@@ -10,7 +10,6 @@ path = "src/main.rs"
 
 [dev-dependencies]
 assert_cmd = "2.0.14"
-tempdir = "0.3.7"
 
 [dependencies]
 anyhow = "1.0"

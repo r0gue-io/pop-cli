@@ -1,11 +1,11 @@
 use assert_cmd::Command;
 use std::fs;
-use tempdir::TempDir;
+use tempfile::tempdir;
 use toml_edit::DocumentMut;
 
 #[test]
 fn add_parachain_pallet_template() {
-	let temp_dir = TempDir::new("add-pallet-test").unwrap();
+	let temp_dir = tempdir().unwrap();
 	// Setup new parachain
 	Command::cargo_bin("pop")
 		.unwrap()
