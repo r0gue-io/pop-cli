@@ -9,7 +9,7 @@ An all-in-one tool for Polkadot development.
 You can install Pop CLI as follows:
 
 ```shell
-cargo install --git https://github.com/r0gue-io/pop-cli
+cargo install --locked --git https://github.com/r0gue-io/pop-cli
 ```
 
 > :information_source: A [crates.io](https://crates.io/crates/pop-cli) version will be available soon!
