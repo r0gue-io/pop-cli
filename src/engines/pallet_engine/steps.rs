@@ -66,7 +66,6 @@ pub(super) fn step_builder(
 				// Path
 				"pallet_parachain_template",
 				// Pallet name
-				// TODO (high priority): implement name conflict resolution strategy
 				"Template",
 			)));
 			steps.push(RuntimePalletDependency(Dependency::local_template_runtime(
