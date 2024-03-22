@@ -44,7 +44,6 @@ jobs:
       with:
         profile: minimal
         toolchain: stable
-        target: wasm32-unknown-unknown
         override: true
         components: rustfmt, clippy, rust-src
   
