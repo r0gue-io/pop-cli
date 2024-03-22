@@ -104,8 +104,8 @@ mod tests {
 		let generated_file_content =
 			fs::read_to_string(temp_dir.path().join("node/src/chain_spec.rs"))
 				.expect("Failed to read file");
-		assert!(generated_file_content.contains("DOT"));
-		assert!(generated_file_content.contains("18"));
+		assert!(generated_file_content.contains("properties.insert(\"tokenSymbol\".into(), \"DOT\".into());"));
+		assert!(generated_file_content.contains("properties.insert(\"tokenDecimals\".into(), 18.into());"));
 		assert!(generated_file_content.contains("1000000"));
 
 		// Verify network.toml contains expected content
