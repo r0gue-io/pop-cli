@@ -204,3 +204,10 @@ pop up parachain -f ./tests/zombienet.toml -p https://github.com/r0gue-io/pop-no
 
 > :information_source: Pop CLI will automatically source the necessary polkadot binaries. Currently, these will be built
 > if on a non-linux system.
+
+
+## License
+
+The entire code within this repository is licensed under the [Apache License 2.0](LICENSE).
+
+Please [contact us](https://r0gue.io/contact) if you have questions about the licensing of our products.
