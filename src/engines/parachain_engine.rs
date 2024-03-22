@@ -80,10 +80,10 @@ pub fn build_parachain(path: &Option<PathBuf>) -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use anyhow::{Error, Result};
+	use anyhow::Result;
 	use std::{env::current_dir, fs};
 
-	fn setup_template_and_instantiate() -> Result<tempfile::TempDir, Error> {
+	fn setup_template_and_instantiate() -> Result<tempfile::TempDir> {
 		let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
 		let config = Config {
 			symbol: "DOT".to_string(),
@@ -96,7 +96,7 @@ mod tests {
 	}
 
 	#[test]
-	fn test_parachain_instantiate_base_template() -> Result<(), Error> {
+	fn test_parachain_instantiate_base_template() -> Result<()> {
 		let temp_dir =
 			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
 
@@ -123,7 +123,7 @@ mod tests {
 	}
 
 	#[test]
-	fn test_parachain_build_after_instantiating_template() -> Result<(), Error> {
+	fn test_parachain_build_after_instantiating_template() -> Result<()> {
 		let temp_dir = setup_template_and_instantiate().expect("Failed to setup template and instantiate");
 		let build = build_parachain(&Some(temp_dir.path().to_path_buf()));
 		assert!(build.is_ok(), "Result should be Ok");
