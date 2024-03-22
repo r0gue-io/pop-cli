@@ -27,7 +27,16 @@ jobs:
       with:
         cache-on-failure: true
         cache-all-crates: true
-
+        
+    - name: Rust Setup
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        target: wasm32-unknown-unknown
+        override: true
+        components: rustfmt, clippy, rust-src
+  
     - uses: actions/checkout@v3
     - name: Check Feature Contracts Excl.
       run: cargo check --no-default-features --features contract
