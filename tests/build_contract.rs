@@ -19,7 +19,7 @@ fn setup_test_environment() -> Result<tempfile::TempDir, Error> {
 fn test_contract_build() -> Result<(), Error> {
     let temp_contract_dir = setup_test_environment()?;
 
-    // pop new contract test_contract
+    // pop build contract
 	Command::cargo_bin("pop")
         .unwrap()
         .current_dir(&temp_contract_dir.path().join("test_contract"))
@@ -41,7 +41,7 @@ fn test_contract_build() -> Result<(), Error> {
 fn test_contract_build_specify_path() -> Result<(), Error> {
     let temp_contract_dir = setup_test_environment()?;
 
-    // pop new contract test_contract
+    // pop build contract --path ./test_contract
 	Command::cargo_bin("pop")
         .unwrap()
         .current_dir(&temp_contract_dir.path())
@@ -62,7 +62,7 @@ fn test_contract_build_specify_path() -> Result<(), Error> {
 #[test]
 fn test_contract_build_fails_if_no_contract_exists() -> Result<(), Error> {
 
-    // pop new contract test_contract
+    // pop build contract
 	Command::cargo_bin("pop")
         .unwrap()
         .args(&["build", "contract",])
