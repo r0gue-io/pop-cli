@@ -204,6 +204,23 @@ mod tests {
 	}
 
 	#[test]
+	fn test_contract_build() -> Result<(), Error> {
+		let temp_contract_dir = setup_test_environment()?;
+
+		let build = build_smart_contract(&Some(temp_contract_dir.path().join("test_contract")));
+		assert!(build.is_ok(), "Result should be Ok");
+
+		// Verify that the folder target has been created
+		assert!(temp_contract_dir.path().join("test_contract/target").exists());
+		// Verify that all the artifacts has been generated
+		assert!(temp_contract_dir.path().join("test_contract/target/ink/test_contract.contract").exists());
+		assert!(temp_contract_dir.path().join("test_contract/target/ink/test_contract.wasm").exists());
+		assert!(temp_contract_dir.path().join("test_contract/target/ink/test_contract.json").exists());
+
+		Ok(())
+	}
+
+	#[test]
 	fn test_contract_test() -> Result<(), Error> {
 		let temp_contract_dir = setup_test_environment()?;
 
