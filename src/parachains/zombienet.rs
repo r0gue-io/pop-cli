@@ -728,4 +728,76 @@ mod tests {
 		Ok(())
 	}
 
+	#[tokio::test]
+	async fn test_configure() -> Result<()> {
+		//cache
+		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
+        let cache = PathBuf::from(temp_dir.path());
+
+        let mut zombienet = Zombienet::new(
+         cache.clone(),
+         "./tests/zombienet.toml",
+         Some(&"v1.7.0".to_string()),
+         Some(&"v1.7.0".to_string()),
+         Some(&vec!["https://github.com/r0gue-io/pop-node".to_string()])
+        )
+        .await?;
+		
+		let config = zombienet.configure();
+		assert!(config.is_ok());
+
+		Ok(())
+	}
+
+
+	// Source tests
+	#[tokio::test]
+	async fn test_process_url() -> Result<()> {
+		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
+        let cache = PathBuf::from(temp_dir.path());
+
+        let source = Source::Url { 
+			name: "polkadot".to_string(), 
+			version: "v1.7.0".to_string(), 
+			url: "https://github.com/paritytech/polkadot-sdk/releases/download/polkadot-v1.7.0/polkadot".to_string()
+		};
+		let result = source.process(&cache).await;
+		assert!(result.is_ok());
+		assert!(temp_dir.path().join("polkadot-v1.7.0").exists());
+
+		Ok(())
+	}
+
+	#[tokio::test] #[ignore] // It takes long time to build 
+	async fn test_process_git() -> Result<()> {
+		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
+        let cache = PathBuf::from(temp_dir.path());
+
+		let version = "v1.7.0".to_string();
+		let repo = Url::parse(POLKADOT_SDK).expect("repository url valid");
+        let source = Source::Git { 
+			url: repo.into(),
+			branch: Some(format!("release-polkadot-{version}")),
+			package: "polkadot".to_string(),
+			binaries: ["polkadot", "polkadot-execute-worker", "polkadot-prepare-worker"].iter().map(|b| b.to_string()).collect(),
+			version: Some(version), 
+		};
+
+		let result = source.process(&cache).await;
+		assert!(result.is_ok());
+		assert!(temp_dir.path().join("polkadot-v1.7.0").exists());
+
+		Ok(())
+	}
+	#[test]
+	fn test_versioned_name() -> Result<()> {
+        let versioned_name = Source::versioned_name("polkadot", Some(&"v1.7.0".to_string()));
+		assert_eq!(versioned_name, "polkadot-v1.7.0");
+
+		let versioned_name_no_version = Source::versioned_name("polkadot", None);
+		assert_eq!(versioned_name_no_version, "polkadot");
+		Ok(())
+	}
+
+
 }
