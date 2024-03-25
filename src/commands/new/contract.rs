@@ -64,7 +64,7 @@ mod tests {
 	use anyhow::{Result, Error};
 
 	#[test]
-	fn test_new_contract_command_execute_success() -> Result<(), Error> {
+	fn test_new_contract_command_execute_success() -> Result<()> {
 		let command =
 			NewContractCommand { name: "test_contract".to_string(), path: Some(PathBuf::new()) };
 		let result = command.execute();
