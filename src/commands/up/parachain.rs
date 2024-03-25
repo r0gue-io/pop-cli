@@ -1,4 +1,4 @@
-use crate::style::{style, Theme};
+use crate::{style::{style, Theme}, parachains::zombienet::Zombienet};
 use clap::Args;
 use cliclack::{clear_screen, confirm, intro, log, outro, outro_cancel, set_theme};
 use console::{Emoji, Style};
@@ -29,7 +29,7 @@ impl ZombienetCommand {
 		set_theme(Theme);
 		// Parse arguments
 		let cache = crate::cache()?;
-		let mut zombienet = crate::parachains::zombienet::Zombienet::new(
+		let mut zombienet = Zombienet::new(
 			cache.clone(),
 			&self.file,
 			self.relay_chain.as_ref(),
