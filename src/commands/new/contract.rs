@@ -60,19 +60,26 @@ impl NewContractCommand {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use std::fs;
+	use anyhow::Result;
 
 	#[test]
-	fn test_new_contract_command_execute() -> anyhow::Result<()> {
+	fn test_new_contract_command_execute_success() -> Result<()> {
+		let temp_contract_dir = tempfile::tempdir().expect("Could not create temp dir");
 		let command =
-			NewContractCommand { name: "test_contract".to_string(), path: Some(PathBuf::new()) };
+			NewContractCommand { name: "test_contract".to_string(), path: Some(PathBuf::from(temp_contract_dir.path())) };
 		let result = command.execute();
 		assert!(result.is_ok());
 
-		// Clean up
-		if let Err(err) = fs::remove_dir_all("test_contract") {
-			eprintln!("Failed to delete directory: {}", err);
-		}
+		Ok(())
+	}
+
+	#[test]
+	fn test_new_contract_command_execute_fails_path_no_exist() -> Result<()> {
+		let temp_contract_dir = tempfile::tempdir().expect("Could not create temp dir");
+		let command =
+			NewContractCommand { name: "test_contract".to_string(), path: Some(temp_contract_dir.path().join("new_contract")) };
+		let result_error = command.execute();
+		assert!(result_error.is_err());
 		Ok(())
 	}
 }
