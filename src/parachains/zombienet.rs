@@ -519,6 +519,7 @@ impl Source {
 
 #[cfg(test)]
 mod tests {
+
 	use super::*;
 	use anyhow::Result;
 
@@ -557,6 +558,22 @@ mod tests {
 		assert!(binary_relay_chain.name.starts_with("polkadot-v"));
 		assert!(binary_relay_chain.version.starts_with("v"));
 		assert_eq!(binary_relay_chain.sources.len(), 1);
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn test_relay_chain_fails_wrong_config() -> Result<()> {
+		//cache
+		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
+        let cache = PathBuf::from(temp_dir.path());
+		// Parse network config
+		let network_config_path = PathBuf::from("./tests/wrong_config_no_relay.toml");
+		let config = std::fs::read_to_string(&network_config_path)?.parse::<Document>()?;
+
+		let result_error = Zombienet::relay_chain(Some(&"v1.7.0".to_string()), &config, &cache ).await;
+		assert!(result_error.is_err());
+		let error_message = result_error.err().unwrap();
+		assert_eq!(error_message.root_cause().to_string(), "expected `relaychain`");
 		Ok(())
 	}
 
