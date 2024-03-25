@@ -5,7 +5,7 @@ version = "0.1.0"
 edition = "2021"
 authors = ["R0GUE IO LTD"]
 repository = "https://github.com/r0gue-io/pop-cli"
-license = "Apache-2.0"
+license = "GPL-3.0"
 
 
 [[bin]]

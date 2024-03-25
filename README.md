@@ -208,6 +208,6 @@ pop up parachain -f ./tests/zombienet.toml -p https://github.com/r0gue-io/pop-no
 
 ## License
 
-The entire code within this repository is licensed under the [Apache License 2.0](LICENSE).
+The entire code within this repository is licensed under the [GPLv3](LICENSE).
 
 Please [contact us](https://r0gue.io/contact) if you have questions about the licensing of our products.
