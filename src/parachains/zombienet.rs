@@ -366,6 +366,7 @@ impl Zombienet {
 			.strip_prefix("polkadot-")
 			.map_or_else(|| release_tag.clone(), |v| v.to_string()))
 	}
+
 }
 
 pub struct Binary {
@@ -514,4 +515,57 @@ impl Source {
 			None => name.to_string(),
 		}
 	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use anyhow::Result;
+
+	#[tokio::test]
+	async fn test_relay_chain() -> Result<()> {
+		//cache
+		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
+        let cache = PathBuf::from(temp_dir.path());
+		// Parse network config
+		let network_config_path = PathBuf::from("./tests/zombienet.toml");
+		let config = std::fs::read_to_string(&network_config_path)?.parse::<Document>()?;
+
+
+		let binary_relay_chain = Zombienet::relay_chain(Some(&"v1.7.0".to_string()), &config, &cache ).await?;
+		
+		assert_eq!(binary_relay_chain.name, "polkadot-v1.7.0");
+		assert_eq!(binary_relay_chain.path, temp_dir.path().join("polkadot-v1.7.0"));
+		assert_eq!(binary_relay_chain.version, "v1.7.0");
+		assert_eq!(binary_relay_chain.sources.len(), 1);
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn test_relay_chain_no_specifying_version() -> Result<()> {
+		//cache
+		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
+        let cache = PathBuf::from(temp_dir.path());
+		// Parse network config
+		let network_config_path = PathBuf::from("./tests/zombienet.toml");
+		let config = std::fs::read_to_string(&network_config_path)?.parse::<Document>()?;
+
+		
+		// Ideally here we will Mock GitHub struct and its get_latest_release function response
+		let binary_relay_chain = Zombienet::relay_chain(None, &config, &cache ).await?;
+		
+		assert!(binary_relay_chain.name.starts_with("polkadot-v"));
+		assert!(binary_relay_chain.version.starts_with("v"));
+		assert_eq!(binary_relay_chain.sources.len(), 1);
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn test_latest_polkadot_release() -> Result<()> {
+		let version = Zombienet::latest_polkadot_release().await?;
+		// Result will change all the time to the current version (e.g: v1.9.0), check at least starts with v
+		assert!(version.starts_with("v"));
+		Ok(())
+	}
+
 }
