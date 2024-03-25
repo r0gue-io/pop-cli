@@ -678,4 +678,54 @@ mod tests {
 		Ok(())
 	}
 
+	#[tokio::test]
+	async fn test_missing_binaries() -> Result<()> {
+		//cache
+		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
+        let cache = PathBuf::from(temp_dir.path());
+
+        let zombienet = Zombienet::new(
+			cache.clone(),
+			"./tests/zombienet.toml",
+			Some(&"v1.7.0".to_string()),
+			Some(&"v1.7.0".to_string()),
+			Some(&vec!["https://github.com/r0gue-io/pop-node".to_string()])
+		)
+        .await?;
+
+		let missing_binaries = zombienet.missing_binaries();
+		assert_eq!(missing_binaries.len(), 3);
+
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn test_missing_binaries_no_missing() -> Result<()> {
+		//cache
+		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
+        let cache = PathBuf::from(temp_dir.path());
+
+		// Create "fake" binary files
+		let relay_chain_file_path = temp_dir.path().join("polkadot-v1.7.0");
+		File::create(relay_chain_file_path)?;
+		let system_chain_file_path = temp_dir.path().join("polkadot-parachain-v1.7.0");
+		File::create(system_chain_file_path)?;
+		let pop_file_path = temp_dir.path().join("pop-node");
+		File::create(pop_file_path)?;
+
+        let zombienet = Zombienet::new(
+			cache.clone(),
+			"./tests/zombienet.toml",
+			Some(&"v1.7.0".to_string()),
+			Some(&"v1.7.0".to_string()),
+			Some(&vec!["https://github.com/r0gue-io/pop-node".to_string()])
+		)
+        .await?;
+
+		let missing_binaries = zombienet.missing_binaries();
+		assert_eq!(missing_binaries.len(), 0);
+
+		Ok(())
+	}
+
 }
