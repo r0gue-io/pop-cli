@@ -1,0 +1,22 @@
+[relaychain]
+chain = "rococo-local"
+
+[[relaychain.nodes]]
+name = "alice"
+validator = true
+
+[[relaychain.nodes]]
+name = "bob"
+validator = true
+
+[[parachains]]
+chain = "asset-hub-rococo-local"
+
+[[parachains.collators]]
+name = "asset-hub"
+
+[[parachains]]
+default_command = "pop-node"
+
+[[parachains.collators]]
+name = "pop"

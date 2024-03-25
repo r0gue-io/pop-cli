@@ -524,6 +524,67 @@ mod tests {
 	use anyhow::Result;
 
 	#[tokio::test]
+	async fn test_new_success() -> Result<()> {
+		//cache
+		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
+        let cache = PathBuf::from(temp_dir.path());
+
+        let zombienet = Zombienet::new(
+         cache.clone(),
+         "./tests/zombienet.toml",
+         Some(&"v1.7.0".to_string()),
+         Some(&"v1.7.0".to_string()),
+         Some(&vec!["https://github.com/r0gue-io/pop-node".to_string()])
+        )
+        .await?;
+
+		// Check has the binary for Polkadot
+		assert_eq!(zombienet.relay_chain.name, "polkadot-v1.7.0");
+		assert_eq!(zombienet.relay_chain.path, temp_dir.path().join("polkadot-v1.7.0"));
+		assert_eq!(zombienet.relay_chain.version, "v1.7.0");
+		assert_eq!(zombienet.relay_chain.sources.len(), 1);
+
+		// Check has the binary for the System Chain
+		assert_eq!(zombienet.parachains.len(), 2);
+
+		let system_chain  = &zombienet.parachains[0];
+		assert_eq!(system_chain.name, "polkadot-parachain-v1.7.0");
+		assert_eq!(system_chain.path, temp_dir.path().join("polkadot-parachain-v1.7.0"));
+		assert_eq!(system_chain.version, "v1.7.0");
+		assert_eq!(system_chain.sources.len(), 1);
+
+		// Check has the binary for POP
+		let parachain  = &zombienet.parachains[1];
+		assert_eq!(parachain.name, "pop-node");
+		assert_eq!(parachain.path, temp_dir.path().join("pop-node"));
+		assert_eq!(parachain.version, "");
+		assert_eq!(parachain.sources.len(), 1);
+
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn test_new_fails_wrong_config_no_para_id() -> Result<()> {
+		//cache
+		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
+        let cache = PathBuf::from(temp_dir.path());
+
+        let result_error = Zombienet::new(
+         cache.clone(),
+         "./tests/wrong_config_no_para_id.toml",
+         Some(&"v1.7.0".to_string()),
+         Some(&"v1.7.0".to_string()),
+         Some(&vec!["https://github.com/r0gue-io/pop-node".to_string()])
+        )
+        .await;
+
+		assert!(result_error.is_err());
+		let error_message = result_error.err().unwrap();
+		assert_eq!(error_message.root_cause().to_string(), "expected `parachain` to have `id`");
+		Ok(())
+	}
+
+	#[tokio::test]
 	async fn test_relay_chain() -> Result<()> {
 		//cache
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
@@ -582,6 +643,38 @@ mod tests {
 		let version = Zombienet::latest_polkadot_release().await?;
 		// Result will change all the time to the current version (e.g: v1.9.0), check at least starts with v
 		assert!(version.starts_with("v"));
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn test_system_parachain() -> Result<()> {
+		//cache
+		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
+        let cache = PathBuf::from(temp_dir.path());
+
+		let binary_system_chain = Zombienet::system_parachain(&"v1.7.0".to_string(), &cache )?;
+		
+		assert_eq!(binary_system_chain.name, "polkadot-parachain-v1.7.0");
+		assert_eq!(binary_system_chain.path, temp_dir.path().join("polkadot-parachain-v1.7.0"));
+		assert_eq!(binary_system_chain.version, "v1.7.0");
+		assert_eq!(binary_system_chain.sources.len(), 1);
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn test_parachain() -> Result<()> {
+		//cache
+		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
+        let cache = PathBuf::from(temp_dir.path());
+
+		let url = Url::parse("https://github.com/r0gue-io/pop-node")?;
+
+		let binary_system_chain = Zombienet::parachain(url, &cache )?;
+		
+		assert_eq!(binary_system_chain.name, "pop-node");
+		assert_eq!(binary_system_chain.path, temp_dir.path().join("pop-node"));
+		assert_eq!(binary_system_chain.version, "");
+		assert_eq!(binary_system_chain.sources.len(), 1);
 		Ok(())
 	}
 
