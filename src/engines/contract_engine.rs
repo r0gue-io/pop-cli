@@ -170,8 +170,8 @@ pub async fn dry_run_call(
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use anyhow::{Error, Result};
 	use std::{fs, path::PathBuf};
-	use anyhow::{Result, Error};
 
 	fn setup_test_environment() -> Result<tempfile::TempDir, Error> {
 		let temp_contract_dir = tempfile::tempdir().expect("Could not create temp dir");
@@ -199,7 +199,7 @@ mod tests {
 
 		// Verify that the generated Cargo.toml file contains the expected content
 		fs::read_to_string(temp_contract_dir.path().join("test_contract/Cargo.toml"))
-				.expect("Could not read file");
+			.expect("Could not read file");
 		Ok(())
 	}
 
@@ -213,9 +213,18 @@ mod tests {
 		// Verify that the folder target has been created
 		assert!(temp_contract_dir.path().join("test_contract/target").exists());
 		// Verify that all the artifacts has been generated
-		assert!(temp_contract_dir.path().join("test_contract/target/ink/test_contract.contract").exists());
-		assert!(temp_contract_dir.path().join("test_contract/target/ink/test_contract.wasm").exists());
-		assert!(temp_contract_dir.path().join("test_contract/target/ink/test_contract.json").exists());
+		assert!(temp_contract_dir
+			.path()
+			.join("test_contract/target/ink/test_contract.contract")
+			.exists());
+		assert!(temp_contract_dir
+			.path()
+			.join("test_contract/target/ink/test_contract.wasm")
+			.exists());
+		assert!(temp_contract_dir
+			.path()
+			.join("test_contract/target/ink/test_contract.json")
+			.exists());
 
 		Ok(())
 	}
