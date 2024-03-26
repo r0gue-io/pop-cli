@@ -39,6 +39,8 @@ jobs:
       with:
         version: "3.6.1"
 
+    - uses: actions/checkout@v4
+    
     - name: Rust Setup
       uses: actions-rs/toolchain@v1
       with:
