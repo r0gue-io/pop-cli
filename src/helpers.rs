@@ -107,19 +107,18 @@ mod tests {
     #[test]
     fn test_resolve_pallet_path_with_no_path() {
         let result = resolve_pallet_path(None);
-		// Should resolve to the current working directory
-        assert_eq!(result, std::env::current_dir().unwrap());
+        let working_path = std::env::current_dir().unwrap().join("pallets");
+        assert_eq!(result, working_path);
     }
 
-	#[test]
-	fn test_resolve_pallet_path_with_custom_path() {
-		// Create a temporary directory for the custom pallet path
-		let custom_path = tempfile::tempdir().expect("Failed to create temp dir");
-		let custom_path_str = custom_path.path().join("my_pallets").to_str().unwrap().to_string();
-	
-		let result = resolve_pallet_path(Some(custom_path_str.clone()));
-	
-		assert_eq!(result, custom_path.path().join("my_pallets"), "Unexpected result path");
-	}
-	
+    #[test]
+    fn test_resolve_pallet_path_with_custom_path() {
+        let custom_path = tempfile::tempdir().expect("Failed to create temp dir");
+        let custom_path_str = custom_path.path().join("my_pallets").to_str().unwrap().to_string();
+
+        let result = resolve_pallet_path(Some(custom_path_str.clone()));
+
+        assert_eq!(result, custom_path.path().join("my_pallets"), "Unexpected result path");
+    }
+
 }
