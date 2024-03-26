@@ -749,6 +749,52 @@ mod tests {
 		Ok(())
 	}
 
+	#[tokio::test] #[ignore] // It takes long time to build 
+	async fn test_spawn() -> Result<()> {
+		//cache
+		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
+        let cache = PathBuf::from(temp_dir.path());
+
+        let mut zombienet = Zombienet::new(
+         cache.clone(),
+         "./tests/zombienet.toml",
+         Some(&"v1.7.0".to_string()),
+         Some(&"v1.7.0".to_string()),
+         Some(&vec!["https://github.com/r0gue-io/pop-node".to_string()])
+        )
+        .await?;
+		let missing_binaries = zombienet.missing_binaries();
+		for binary in missing_binaries {
+			binary.source(&cache).await?;
+		}
+		
+		let spawn =  zombienet.spawn().await;
+		assert!(spawn.is_ok());
+	
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn test_spawn_error_no_binaries() -> Result<()> {
+		//cache
+		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
+        let cache = PathBuf::from(temp_dir.path());
+
+        let mut zombienet = Zombienet::new(
+         cache.clone(),
+         "./tests/zombienet.toml",
+         Some(&"v1.7.0".to_string()),
+         Some(&"v1.7.0".to_string()),
+         Some(&vec!["https://github.com/r0gue-io/pop-node".to_string()])
+        )
+        .await?;
+		
+		let spawn =  zombienet.spawn().await;
+		assert!(spawn.is_err());
+	
+		Ok(())
+	}
+
 
 	// Source tests
 	#[tokio::test]
