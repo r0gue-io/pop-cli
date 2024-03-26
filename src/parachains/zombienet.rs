@@ -366,7 +366,6 @@ impl Zombienet {
 			.strip_prefix("polkadot-")
 			.map_or_else(|| release_tag.clone(), |v| v.to_string()))
 	}
-
 }
 
 pub struct Binary {
@@ -527,16 +526,16 @@ mod tests {
 	async fn test_new_success() -> Result<()> {
 		//cache
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
-        let cache = PathBuf::from(temp_dir.path());
+		let cache = PathBuf::from(temp_dir.path());
 
-        let zombienet = Zombienet::new(
-         cache.clone(),
-         "./tests/zombienet.toml",
-         Some(&"v1.7.0".to_string()),
-         Some(&"v1.7.0".to_string()),
-         Some(&vec!["https://github.com/r0gue-io/pop-node".to_string()])
-        )
-        .await?;
+		let zombienet = Zombienet::new(
+			cache.clone(),
+			"./tests/zombienet.toml",
+			Some(&"v1.7.0".to_string()),
+			Some(&"v1.7.0".to_string()),
+			Some(&vec!["https://github.com/r0gue-io/pop-node".to_string()]),
+		)
+		.await?;
 
 		// Check has the binary for Polkadot
 		assert_eq!(zombienet.relay_chain.name, "polkadot-v1.7.0");
@@ -547,14 +546,14 @@ mod tests {
 		// Check has the binary for the System Chain
 		assert_eq!(zombienet.parachains.len(), 2);
 
-		let system_chain  = &zombienet.parachains[0];
+		let system_chain = &zombienet.parachains[0];
 		assert_eq!(system_chain.name, "polkadot-parachain-v1.7.0");
 		assert_eq!(system_chain.path, temp_dir.path().join("polkadot-parachain-v1.7.0"));
 		assert_eq!(system_chain.version, "v1.7.0");
 		assert_eq!(system_chain.sources.len(), 1);
 
 		// Check has the binary for POP
-		let parachain  = &zombienet.parachains[1];
+		let parachain = &zombienet.parachains[1];
 		assert_eq!(parachain.name, "pop-node");
 		assert_eq!(parachain.path, temp_dir.path().join("pop-node"));
 		assert_eq!(parachain.version, "");
@@ -567,16 +566,16 @@ mod tests {
 	async fn test_new_fails_wrong_config_no_para_id() -> Result<()> {
 		//cache
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
-        let cache = PathBuf::from(temp_dir.path());
+		let cache = PathBuf::from(temp_dir.path());
 
-        let result_error = Zombienet::new(
-         cache.clone(),
-         "./tests/wrong_config_no_para_id.toml",
-         Some(&"v1.7.0".to_string()),
-         Some(&"v1.7.0".to_string()),
-         Some(&vec!["https://github.com/r0gue-io/pop-node".to_string()])
-        )
-        .await;
+		let result_error = Zombienet::new(
+			cache.clone(),
+			"./tests/wrong_config_no_para_id.toml",
+			Some(&"v1.7.0".to_string()),
+			Some(&"v1.7.0".to_string()),
+			Some(&vec!["https://github.com/r0gue-io/pop-node".to_string()]),
+		)
+		.await;
 
 		assert!(result_error.is_err());
 		let error_message = result_error.err().unwrap();
@@ -588,14 +587,14 @@ mod tests {
 	async fn test_relay_chain() -> Result<()> {
 		//cache
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
-        let cache = PathBuf::from(temp_dir.path());
+		let cache = PathBuf::from(temp_dir.path());
 		// Parse network config
 		let network_config_path = PathBuf::from("./tests/zombienet.toml");
 		let config = std::fs::read_to_string(&network_config_path)?.parse::<Document>()?;
 
+		let binary_relay_chain =
+			Zombienet::relay_chain(Some(&"v1.7.0".to_string()), &config, &cache).await?;
 
-		let binary_relay_chain = Zombienet::relay_chain(Some(&"v1.7.0".to_string()), &config, &cache ).await?;
-		
 		assert_eq!(binary_relay_chain.name, "polkadot-v1.7.0");
 		assert_eq!(binary_relay_chain.path, temp_dir.path().join("polkadot-v1.7.0"));
 		assert_eq!(binary_relay_chain.version, "v1.7.0");
@@ -607,15 +606,14 @@ mod tests {
 	async fn test_relay_chain_no_specifying_version() -> Result<()> {
 		//cache
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
-        let cache = PathBuf::from(temp_dir.path());
+		let cache = PathBuf::from(temp_dir.path());
 		// Parse network config
 		let network_config_path = PathBuf::from("./tests/zombienet.toml");
 		let config = std::fs::read_to_string(&network_config_path)?.parse::<Document>()?;
 
-		
 		// Ideally here we will Mock GitHub struct and its get_latest_release function response
-		let binary_relay_chain = Zombienet::relay_chain(None, &config, &cache ).await?;
-		
+		let binary_relay_chain = Zombienet::relay_chain(None, &config, &cache).await?;
+
 		assert!(binary_relay_chain.name.starts_with("polkadot-v"));
 		assert!(binary_relay_chain.version.starts_with("v"));
 		assert_eq!(binary_relay_chain.sources.len(), 1);
@@ -626,12 +624,13 @@ mod tests {
 	async fn test_relay_chain_fails_wrong_config() -> Result<()> {
 		//cache
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
-        let cache = PathBuf::from(temp_dir.path());
+		let cache = PathBuf::from(temp_dir.path());
 		// Parse network config
 		let network_config_path = PathBuf::from("./tests/wrong_config_no_relay.toml");
 		let config = std::fs::read_to_string(&network_config_path)?.parse::<Document>()?;
 
-		let result_error = Zombienet::relay_chain(Some(&"v1.7.0".to_string()), &config, &cache ).await;
+		let result_error =
+			Zombienet::relay_chain(Some(&"v1.7.0".to_string()), &config, &cache).await;
 		assert!(result_error.is_err());
 		let error_message = result_error.err().unwrap();
 		assert_eq!(error_message.root_cause().to_string(), "expected `relaychain`");
@@ -650,10 +649,10 @@ mod tests {
 	async fn test_system_parachain() -> Result<()> {
 		//cache
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
-        let cache = PathBuf::from(temp_dir.path());
+		let cache = PathBuf::from(temp_dir.path());
 
-		let binary_system_chain = Zombienet::system_parachain(&"v1.7.0".to_string(), &cache )?;
-		
+		let binary_system_chain = Zombienet::system_parachain(&"v1.7.0".to_string(), &cache)?;
+
 		assert_eq!(binary_system_chain.name, "polkadot-parachain-v1.7.0");
 		assert_eq!(binary_system_chain.path, temp_dir.path().join("polkadot-parachain-v1.7.0"));
 		assert_eq!(binary_system_chain.version, "v1.7.0");
@@ -665,12 +664,12 @@ mod tests {
 	async fn test_parachain() -> Result<()> {
 		//cache
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
-        let cache = PathBuf::from(temp_dir.path());
+		let cache = PathBuf::from(temp_dir.path());
 
 		let url = Url::parse("https://github.com/r0gue-io/pop-node")?;
 
-		let binary_system_chain = Zombienet::parachain(url, &cache )?;
-		
+		let binary_system_chain = Zombienet::parachain(url, &cache)?;
+
 		assert_eq!(binary_system_chain.name, "pop-node");
 		assert_eq!(binary_system_chain.path, temp_dir.path().join("pop-node"));
 		assert_eq!(binary_system_chain.version, "");
@@ -682,16 +681,16 @@ mod tests {
 	async fn test_missing_binaries() -> Result<()> {
 		//cache
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
-        let cache = PathBuf::from(temp_dir.path());
+		let cache = PathBuf::from(temp_dir.path());
 
-        let zombienet = Zombienet::new(
+		let zombienet = Zombienet::new(
 			cache.clone(),
 			"./tests/zombienet.toml",
 			Some(&"v1.7.0".to_string()),
 			Some(&"v1.7.0".to_string()),
-			Some(&vec!["https://github.com/r0gue-io/pop-node".to_string()])
+			Some(&vec!["https://github.com/r0gue-io/pop-node".to_string()]),
 		)
-        .await?;
+		.await?;
 
 		let missing_binaries = zombienet.missing_binaries();
 		assert_eq!(missing_binaries.len(), 3);
@@ -703,7 +702,7 @@ mod tests {
 	async fn test_missing_binaries_no_missing() -> Result<()> {
 		//cache
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
-        let cache = PathBuf::from(temp_dir.path());
+		let cache = PathBuf::from(temp_dir.path());
 
 		// Create "fake" binary files
 		let relay_chain_file_path = temp_dir.path().join("polkadot-v1.7.0");
@@ -713,14 +712,14 @@ mod tests {
 		let pop_file_path = temp_dir.path().join("pop-node");
 		File::create(pop_file_path)?;
 
-        let zombienet = Zombienet::new(
+		let zombienet = Zombienet::new(
 			cache.clone(),
 			"./tests/zombienet.toml",
 			Some(&"v1.7.0".to_string()),
 			Some(&"v1.7.0".to_string()),
-			Some(&vec!["https://github.com/r0gue-io/pop-node".to_string()])
+			Some(&vec!["https://github.com/r0gue-io/pop-node".to_string()]),
 		)
-        .await?;
+		.await?;
 
 		let missing_binaries = zombienet.missing_binaries();
 		assert_eq!(missing_binaries.len(), 0);
@@ -732,45 +731,46 @@ mod tests {
 	async fn test_configure() -> Result<()> {
 		//cache
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
-        let cache = PathBuf::from(temp_dir.path());
+		let cache = PathBuf::from(temp_dir.path());
 
-        let mut zombienet = Zombienet::new(
-         cache.clone(),
-         "./tests/zombienet.toml",
-         Some(&"v1.7.0".to_string()),
-         Some(&"v1.7.0".to_string()),
-         Some(&vec!["https://github.com/r0gue-io/pop-node".to_string()])
-        )
-        .await?;
-		
+		let mut zombienet = Zombienet::new(
+			cache.clone(),
+			"./tests/zombienet.toml",
+			Some(&"v1.7.0".to_string()),
+			Some(&"v1.7.0".to_string()),
+			Some(&vec!["https://github.com/r0gue-io/pop-node".to_string()]),
+		)
+		.await?;
+
 		let config = zombienet.configure();
 		assert!(config.is_ok());
 
 		Ok(())
 	}
 
-	#[tokio::test] #[ignore] // It takes long time to build 
+	#[tokio::test]
+	#[ignore] // It takes long time to build
 	async fn test_spawn() -> Result<()> {
 		//cache
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
-        let cache = PathBuf::from(temp_dir.path());
+		let cache = PathBuf::from(temp_dir.path());
 
-        let mut zombienet = Zombienet::new(
-         cache.clone(),
-         "./tests/zombienet.toml",
-         Some(&"v1.7.0".to_string()),
-         Some(&"v1.7.0".to_string()),
-         Some(&vec!["https://github.com/r0gue-io/pop-node".to_string()])
-        )
-        .await?;
+		let mut zombienet = Zombienet::new(
+			cache.clone(),
+			"./tests/zombienet.toml",
+			Some(&"v1.7.0".to_string()),
+			Some(&"v1.7.0".to_string()),
+			Some(&vec!["https://github.com/r0gue-io/pop-node".to_string()]),
+		)
+		.await?;
 		let missing_binaries = zombienet.missing_binaries();
 		for binary in missing_binaries {
 			binary.source(&cache).await?;
 		}
-		
-		let spawn =  zombienet.spawn().await;
+
+		let spawn = zombienet.spawn().await;
 		assert!(spawn.is_ok());
-	
+
 		Ok(())
 	}
 
@@ -778,31 +778,30 @@ mod tests {
 	async fn test_spawn_error_no_binaries() -> Result<()> {
 		//cache
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
-        let cache = PathBuf::from(temp_dir.path());
+		let cache = PathBuf::from(temp_dir.path());
 
-        let mut zombienet = Zombienet::new(
-         cache.clone(),
-         "./tests/zombienet.toml",
-         Some(&"v1.7.0".to_string()),
-         Some(&"v1.7.0".to_string()),
-         Some(&vec!["https://github.com/r0gue-io/pop-node".to_string()])
-        )
-        .await?;
-		
-		let spawn =  zombienet.spawn().await;
+		let mut zombienet = Zombienet::new(
+			cache.clone(),
+			"./tests/zombienet.toml",
+			Some(&"v1.7.0".to_string()),
+			Some(&"v1.7.0".to_string()),
+			Some(&vec!["https://github.com/r0gue-io/pop-node".to_string()]),
+		)
+		.await?;
+
+		let spawn = zombienet.spawn().await;
 		assert!(spawn.is_err());
-	
+
 		Ok(())
 	}
-
 
 	// Source tests
 	#[tokio::test]
 	async fn test_process_url() -> Result<()> {
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
-        let cache = PathBuf::from(temp_dir.path());
+		let cache = PathBuf::from(temp_dir.path());
 
-        let source = Source::Url { 
+		let source = Source::Url { 
 			name: "polkadot".to_string(), 
 			version: "v1.7.0".to_string(), 
 			url: "https://github.com/paritytech/polkadot-sdk/releases/download/polkadot-v1.7.0/polkadot".to_string()
@@ -814,19 +813,23 @@ mod tests {
 		Ok(())
 	}
 
-	#[tokio::test] #[ignore] // It takes long time to build 
+	#[tokio::test]
+	#[ignore] // It takes long time to build
 	async fn test_process_git() -> Result<()> {
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
-        let cache = PathBuf::from(temp_dir.path());
+		let cache = PathBuf::from(temp_dir.path());
 
 		let version = "v1.7.0".to_string();
 		let repo = Url::parse(POLKADOT_SDK).expect("repository url valid");
-        let source = Source::Git { 
+		let source = Source::Git {
 			url: repo.into(),
 			branch: Some(format!("release-polkadot-{version}")),
 			package: "polkadot".to_string(),
-			binaries: ["polkadot", "polkadot-execute-worker", "polkadot-prepare-worker"].iter().map(|b| b.to_string()).collect(),
-			version: Some(version), 
+			binaries: ["polkadot", "polkadot-execute-worker", "polkadot-prepare-worker"]
+				.iter()
+				.map(|b| b.to_string())
+				.collect(),
+			version: Some(version),
 		};
 
 		let result = source.process(&cache).await;
@@ -837,13 +840,11 @@ mod tests {
 	}
 	#[test]
 	fn test_versioned_name() -> Result<()> {
-        let versioned_name = Source::versioned_name("polkadot", Some(&"v1.7.0".to_string()));
+		let versioned_name = Source::versioned_name("polkadot", Some(&"v1.7.0".to_string()));
 		assert_eq!(versioned_name, "polkadot-v1.7.0");
 
 		let versioned_name_no_version = Source::versioned_name("polkadot", None);
 		assert_eq!(versioned_name_no_version, "polkadot");
 		Ok(())
 	}
-
-
 }

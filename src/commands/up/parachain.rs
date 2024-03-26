@@ -1,4 +1,7 @@
-use crate::{style::{style, Theme}, parachains::zombienet::Zombienet};
+use crate::{
+	parachains::zombienet::Zombienet,
+	style::{style, Theme},
+};
 use clap::Args;
 use cliclack::{clear_screen, confirm, intro, log, outro, outro_cancel, set_theme};
 use console::{Emoji, Style};

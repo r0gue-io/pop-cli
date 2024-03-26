@@ -1,76 +1,78 @@
-use std::{fs, path::PathBuf, process::{Command, Stdio}};
-use assert_cmd::{cargo::cargo_bin, Command as AssertCmd};
 use anyhow::Result;
+use assert_cmd::{cargo::cargo_bin, Command as AssertCmd};
 use nix::{
 	sys::signal::{kill, Signal},
 	unistd::Pid,
 };
+use std::{
+	fs,
+	path::PathBuf,
+	process::{Command, Stdio},
+};
 use tokio::time::{sleep, Duration};
 
 fn setup_test_environment() -> Result<()> {
-    // pop new parachain test_parachain
-    AssertCmd::cargo_bin("pop")
-        .unwrap()
-        .args(&["new", "parachain", "test_parachain"])
-        .assert()
-        .success();
-    println!("Parachain created, building it");
+	// pop new parachain test_parachain
+	AssertCmd::cargo_bin("pop")
+		.unwrap()
+		.args(&["new", "parachain", "test_parachain"])
+		.assert()
+		.success();
+	println!("Parachain created, building it");
 
-    // pup build parachain test_parachain
-    AssertCmd::cargo_bin("pop")
-        .unwrap()
-        .args(&["build", "parachain", "-p", "./test_parachain"])
-        .assert()
-        .success();
+	// pup build parachain test_parachain
+	AssertCmd::cargo_bin("pop")
+		.unwrap()
+		.args(&["build", "parachain", "-p", "./test_parachain"])
+		.assert()
+		.success();
 
-    println!("Parachain built");
+	println!("Parachain built");
 
-    Ok(())
+	Ok(())
 }
-
 
 fn clean_test_environment() -> Result<()> {
-    if let Err(err) = fs::remove_dir_all("test_parachain") {
-        eprintln!("Failed to delete directory: {}", err);
-    }
-    Ok(())
+	if let Err(err) = fs::remove_dir_all("test_parachain") {
+		eprintln!("Failed to delete directory: {}", err);
+	}
+	Ok(())
 }
-
 
 #[tokio::test]
 async fn test_parachain_up() -> Result<()> {
-    let _ = setup_test_environment();
+	let _ = setup_test_environment();
 
-    println!("pop parachain up -f ./tests/integration_tests.toml");
+	println!("pop parachain up -f ./tests/integration_tests.toml");
 
-    // pop up parachain
-    let mut cmd = Command::new(cargo_bin("pop"))
-        .stdout(Stdio::piped())
-        .args(&["up", "parachain", "-f", "./tests/integration_tests.toml"])
-        .spawn()
-        .unwrap();
+	// pop up parachain
+	let mut cmd = Command::new(cargo_bin("pop"))
+		.stdout(Stdio::piped())
+		.args(&["up", "parachain", "-f", "./tests/integration_tests.toml"])
+		.spawn()
+		.unwrap();
 
-    // Ideally should parse the output of the command 
+	// Ideally should parse the output of the command
 
-    //let stdout = cmd.stdout.take().unwrap();
+	//let stdout = cmd.stdout.take().unwrap();
 
-    // thread::spawn(move || {
-    //     let reader = BufReader::new(stdout);
-    //     for line in reader.lines() {
-    //         let output = line.unwrap();
-    //         println!("All the lines: {:?}", output);
-    //     }
-    // });
+	// thread::spawn(move || {
+	//     let reader = BufReader::new(stdout);
+	//     for line in reader.lines() {
+	//         let output = line.unwrap();
+	//         println!("All the lines: {:?}", output);
+	//     }
+	// });
 
-    // If after 15 secs is still running probably excution is ok
-    sleep(Duration::from_secs(15)).await;
-    assert!(cmd.try_wait().unwrap().is_none(), "the process should still be running");
+	// If after 15 secs is still running probably excution is ok
+	sleep(Duration::from_secs(15)).await;
+	assert!(cmd.try_wait().unwrap().is_none(), "the process should still be running");
 
-    // Stop the process
-    kill(Pid::from_raw(cmd.id().try_into().unwrap()), Signal::SIGINT).unwrap();
+	// Stop the process
+	kill(Pid::from_raw(cmd.id().try_into().unwrap()), Signal::SIGINT).unwrap();
 
-    // Clean up
-    let _ = clean_test_environment();
+	// Clean up
+	let _ = clean_test_environment();
 
-    Ok(())
+	Ok(())
 }
