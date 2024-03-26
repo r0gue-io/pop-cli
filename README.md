@@ -133,17 +133,18 @@ Some of the options available are:
 For more information about the options,
 check [cargo-contract documentation](https://github.com/paritytech/cargo-contract/blob/master/crates/extrinsics/README.md#instantiate)
 
-
 Interacting with the Smart Contract:
 
-1. Read-only Operations: For operations that only require reading from the blockchain state. This approach does not require to submit an extrinsic (skip the flag `x/--execute`).
-Example using the get() message:
+1. Read-only Operations: For operations that only require reading from the blockchain state. This approach does not
+   require to submit an extrinsic (skip the flag `x/--execute`).
+   Example using the get() message:
 
 ```sh
 pop call contract -p ./my_contract --contract $INSTANTIATED_CONTRACT_ADDRESS --message get --suri //Alice
 ```
 
-2. State-modifying Operations: For operations that change a storage value, thus altering the blockchain state. Include the `x/--execute`  flag to submit an extrinsic on-chain.
+2. State-modifying Operations: For operations that change a storage value, thus altering the blockchain state. Include
+   the `x/--execute`  flag to submit an extrinsic on-chain.
 
 Example executing the `flip()` message:
 
@@ -204,3 +205,9 @@ pop up parachain -f ./tests/zombienet.toml -p https://github.com/r0gue-io/pop-no
 
 > :information_source: Pop CLI will automatically source the necessary polkadot binaries. Currently, these will be built
 > if on a non-linux system.
+
+## Acknowledgements
+
+Pop CLI would not be possible without these awesome crates!
+
+- `zombienet-sdk`: https://github.com/paritytech/zombienet-sdk
