@@ -47,7 +47,10 @@ jobs:
         target: wasm32-unknown-unknown
         override: true
         components: rustfmt, clippy, rust-src
-  
+
+    - name: Check formatting
+      run: cargo fmt --all -- --check
+        
     - uses: actions/checkout@v3
     - name: Check Feature Contracts Excl.
       run: cargo check --no-default-features --features contract
