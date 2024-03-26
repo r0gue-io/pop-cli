@@ -96,4 +96,22 @@ mod tests {
 		let lib_rs_content = fs::read_to_string(pallet_path.join("src").join("lib.rs")).expect("Failed to read lib.rs");
         assert!(lib_rs_content.contains("pub mod pallet"), "lib.rs should contain pub mod pallet");
     }
+
+	#[test]
+	fn test_pallet_create_template_invalid_path() {
+		let invalid_path = "/invalid/path/that/does/not/exist";
+		let pallet_name = "MyPallet";
+		let config = TemplatePalletConfig {
+			name: pallet_name.to_string(),
+			authors: "Alice".to_string(),
+			description: "A sample pallet".to_string(),
+		};
+
+		// Call the function being tested with an invalid path
+		let result = create_pallet_template(Some(invalid_path.to_string()), config);
+
+		// Assert that the result is an error
+		assert!(result.is_err(), "Result should be an error");
+	}
+
 }
