@@ -65,37 +65,42 @@ fn render_pallet(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+	use super::*;
 
-    #[test]
-    fn test_pallet_create_template() {
-        let temp_dir =  tempfile::tempdir().expect("Failed to create temp dir");
-        let pallet_name = "MyPallet";
-        let config = TemplatePalletConfig {
-            name: pallet_name.to_string(),
-            authors: "Alice".to_string(),
-            description: "A sample pallet".to_string(),
-        };
+	#[test]
+	fn test_pallet_create_template() {
+		let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
+		let pallet_name = "MyPallet";
+		let config = TemplatePalletConfig {
+			name: pallet_name.to_string(),
+			authors: "Alice".to_string(),
+			description: "A sample pallet".to_string(),
+		};
 
-        // Call the function being tested
-        let result = create_pallet_template(Some(temp_dir.path().to_str().unwrap().to_string()), config);
+		// Call the function being tested
+		let result =
+			create_pallet_template(Some(temp_dir.path().to_str().unwrap().to_string()), config);
 
-        // Assert that the result is Ok
-        assert!(result.is_ok(), "Result should be Ok");
+		// Assert that the result is Ok
+		assert!(result.is_ok(), "Result should be Ok");
 
-        // Assert that the pallet structure is generated
-        let pallet_path = temp_dir.path().join(pallet_name);
-        assert!(pallet_path.exists(), "Pallet folder should be created");
-        assert!(pallet_path.join("src").exists(), "src folder should be created");
-        assert!(pallet_path.join("Cargo.toml").exists(), "Cargo.toml should be created");
-        assert!(pallet_path.join("src").join("lib.rs").exists(), "lib.rs should be created");
-        assert!(pallet_path.join("src").join("benchmarking.rs").exists(), "benchmarking.rs should be created");
-        assert!(pallet_path.join("src").join("tests.rs").exists(), "tests.rs should be created");
-        assert!(pallet_path.join("src").join("mock.rs").exists(), "mock.rs should be created");
+		// Assert that the pallet structure is generated
+		let pallet_path = temp_dir.path().join(pallet_name);
+		assert!(pallet_path.exists(), "Pallet folder should be created");
+		assert!(pallet_path.join("src").exists(), "src folder should be created");
+		assert!(pallet_path.join("Cargo.toml").exists(), "Cargo.toml should be created");
+		assert!(pallet_path.join("src").join("lib.rs").exists(), "lib.rs should be created");
+		assert!(
+			pallet_path.join("src").join("benchmarking.rs").exists(),
+			"benchmarking.rs should be created"
+		);
+		assert!(pallet_path.join("src").join("tests.rs").exists(), "tests.rs should be created");
+		assert!(pallet_path.join("src").join("mock.rs").exists(), "mock.rs should be created");
 
-		let lib_rs_content = fs::read_to_string(pallet_path.join("src").join("lib.rs")).expect("Failed to read lib.rs");
-        assert!(lib_rs_content.contains("pub mod pallet"), "lib.rs should contain pub mod pallet");
-    }
+		let lib_rs_content = fs::read_to_string(pallet_path.join("src").join("lib.rs"))
+			.expect("Failed to read lib.rs");
+		assert!(lib_rs_content.contains("pub mod pallet"), "lib.rs should contain pub mod pallet");
+	}
 
 	#[test]
 	fn test_pallet_create_template_invalid_path() {
@@ -113,5 +118,4 @@ mod tests {
 		// Assert that the result is an error
 		assert!(result.is_err(), "Result should be an error");
 	}
-
 }
