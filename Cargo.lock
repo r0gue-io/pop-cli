@@ -4656,6 +4656,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "nix"
+version = "0.28.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ab2156c4fce2f8df6c499cc1c763e4394b7482525bf2a9701c9d79d215f519e4"
+dependencies = [
+ "bitflags 2.4.2",
+ "cfg-if",
+ "cfg_aliases",
+ "libc",
+]
+
+[[package]]
 name = "no-std-net"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5430,6 +5442,7 @@ dependencies = [
  "indexmap 2.2.5",
  "ink_env",
  "log",
+ "nix 0.28.0",
  "predicates",
  "reqwest",
  "serde",
@@ -10271,7 +10284,7 @@ dependencies = [
  "hex",
  "k8s-openapi",
  "kube",
- "nix",
+ "nix 0.27.1",
  "regex",
  "reqwest",
  "serde",
@@ -10313,7 +10326,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "futures",
- "nix",
+ "nix 0.27.1",
  "rand 0.8.5",
  "reqwest",
  "thiserror",

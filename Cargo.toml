@@ -49,6 +49,7 @@ zombienet-support = { git = "https://github.com/r0gue-io/zombienet-sdk", branch 
 
 [dev-dependencies]
 assert_cmd = "2.0.14"
+nix = { version = "0.28.0", features = ["signal"] }
 predicates = "3.1.0"
 
 [features]
