@@ -104,8 +104,10 @@ mod tests {
 		let generated_file_content =
 			fs::read_to_string(temp_dir.path().join("node/src/chain_spec.rs"))
 				.expect("Failed to read file");
-		assert!(generated_file_content.contains("properties.insert(\"tokenSymbol\".into(), \"DOT\".into());"));
-		assert!(generated_file_content.contains("properties.insert(\"tokenDecimals\".into(), 18.into());"));
+		assert!(generated_file_content
+			.contains("properties.insert(\"tokenSymbol\".into(), \"DOT\".into());"));
+		assert!(generated_file_content
+			.contains("properties.insert(\"tokenDecimals\".into(), 18.into());"));
 		assert!(generated_file_content.contains("1000000"));
 
 		// Verify network.toml contains expected content
@@ -124,7 +126,8 @@ mod tests {
 
 	#[test]
 	fn test_parachain_build_after_instantiating_template() -> Result<()> {
-		let temp_dir = setup_template_and_instantiate().expect("Failed to setup template and instantiate");
+		let temp_dir =
+			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
 		let build = build_parachain(&Some(temp_dir.path().to_path_buf()));
 		assert!(build.is_ok(), "Result should be Ok");
 		Ok(())
