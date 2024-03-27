@@ -577,25 +577,6 @@ impl PalletEngine {
 			entry = format!("\t\t{}: {},", name, path);
 		}
 		self.insert_str_runtime(&entry)?;
-		// match &mut self.details.declaration {
-		// 	RuntimeDeclaration::Implicit(i) => {
-		// 		let mut ultimate = i
-		// 			.pallets
-		// 			.last()
-		// 			.ok_or(anyhow!("Fatal: No pallets defined in construct_runtime!"))?
-		// 			.clone();
-		// 		ultimate.index = new_pallet.index;
-		// 		ultimate.path.inner.segments[0].ident = new_pallet.path;
-		// 		ultimate.name = new_pallet.name;
-		// 		i.pallets.push(ultimate);
-		// 	},
-		// 	RuntimeDeclaration::Explicit(e) => {
-		// 		todo!()
-		// 	},
-		// 	RuntimeDeclaration::ExplicitExpanded(e) => {
-		// 		todo!()
-		// 	},
-		// };
 		Ok(())
 	}
 }
