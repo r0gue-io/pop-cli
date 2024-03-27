@@ -801,7 +801,7 @@ mod tests {
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
 		let cache = PathBuf::from(temp_dir.path());
 
-		let source = Source::Url { 
+		let source = Source::Url {
 			name: "polkadot".to_string(), 
 			version: "v1.7.0".to_string(), 
 			url: "https://github.com/paritytech/polkadot-sdk/releases/download/polkadot-v1.7.0/polkadot".to_string()
