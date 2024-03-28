@@ -570,9 +570,14 @@ mod tests {
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
 		let cache = PathBuf::from(temp_dir.path());
 
+		let toml_file = generate_wrong_config_no_para_id(&temp_dir)
+			.expect("Error generating the testing toml file");
+		let toml_file_path =
+			toml_file.to_str().expect("Error generating the path of the testing toml file");
+
 		let result_error = Zombienet::new(
 			cache.clone(),
-			"./tests/wrong_config_no_para_id.toml",
+			toml_file_path,
 			Some(&"v1.7.0".to_string()),
 			Some(&"v1.7.0".to_string()),
 			Some(&vec!["https://github.com/r0gue-io/pop-node".to_string()]),
@@ -634,7 +639,9 @@ mod tests {
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
 		let cache = PathBuf::from(temp_dir.path());
 		// Parse network config
-		let network_config_path = PathBuf::from("./tests/wrong_config_no_relay.toml");
+		let network_config_path = generate_wrong_config_no_relay(&temp_dir)
+			.expect("Error generating the testing toml file");
+
 		let config = std::fs::read_to_string(&network_config_path)?.parse::<Document>()?;
 
 		let result_error =
@@ -867,5 +874,51 @@ mod tests {
 		let versioned_name_no_version = Source::versioned_name("polkadot", None);
 		assert_eq!(versioned_name_no_version, "polkadot");
 		Ok(())
+	}
+
+	fn generate_wrong_config_no_para_id(temp_dir: &tempfile::TempDir) -> Result<PathBuf> {
+		let file_path = temp_dir.path().join("wrong_config_no_para_id.toml");
+		let mut file = File::create(file_path.clone())?;
+		writeln!(
+			file,
+			r#"
+				[relaychain]
+				chain = "rococo-local"
+
+				[[relaychain.nodes]]
+				name = "alice"
+				validator = true
+
+				[[parachains]]
+				default_command = "pop-node"
+
+				[[parachains.collators]]
+				name = "pop"
+			"#
+		)?;
+		Ok(file_path)
+	}
+	fn generate_wrong_config_no_relay(temp_dir: &tempfile::TempDir) -> Result<PathBuf> {
+		let file_path = temp_dir.path().join("wrong_config_no_para_id.toml");
+		let mut file = File::create(file_path.clone())?;
+		writeln!(
+			file,
+			r#"
+				[[parachains]]
+				id = 1000
+				chain = "asset-hub-rococo-local"
+				
+				[[parachains.collators]]
+				name = "asset-hub"
+				
+				[[parachains]]
+				id = 9090
+				default_command = "pop-node"
+				
+				[[parachains.collators]]
+				name = "pop"
+			"#
+		)?;
+		Ok(file_path)
 	}
 }
