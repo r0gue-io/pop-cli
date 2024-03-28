@@ -1,12 +1,7 @@
 use anyhow::Result;
 use assert_cmd::{cargo::cargo_bin, Command as AssertCmd};
-use nix::{
-	sys::signal::{kill, Signal},
-	unistd::Pid,
-};
 use std::{
 	fs,
-	path::PathBuf,
 	process::{Command, Stdio},
 };
 use tokio::time::{sleep, Duration};
@@ -69,7 +64,7 @@ async fn test_parachain_up() -> Result<()> {
 	assert!(cmd.try_wait().unwrap().is_none(), "the process should still be running");
 
 	// Stop the process
-	kill(Pid::from_raw(cmd.id().try_into().unwrap()), Signal::SIGINT).unwrap();
+	Command::new("kill").args(["-s", "TERM", &cmd.id().to_string()]).spawn()?;
 
 	// Clean up
 	let _ = clean_test_environment();
