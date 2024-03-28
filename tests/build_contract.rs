@@ -43,6 +43,7 @@ fn test_contract_build() -> Result<(), Error> {
 		.join("test_contract/target/ink/test_contract.json")
 		.exists());
 
+	temp_contract_dir.close()?;
 	Ok(())
 }
 
@@ -74,6 +75,7 @@ fn test_contract_build_specify_path() -> Result<(), Error> {
 		.join("test_contract/target/ink/test_contract.json")
 		.exists());
 
+	temp_contract_dir.close()?;
 	Ok(())
 }
 

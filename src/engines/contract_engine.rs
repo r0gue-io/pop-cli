@@ -200,6 +200,8 @@ mod tests {
 		// Verify that the generated Cargo.toml file contains the expected content
 		fs::read_to_string(temp_contract_dir.path().join("test_contract/Cargo.toml"))
 			.expect("Could not read file");
+
+		temp_contract_dir.close()?;
 		Ok(())
 	}
 
@@ -226,6 +228,7 @@ mod tests {
 			.join("test_contract/target/ink/test_contract.json")
 			.exists());
 
+		temp_contract_dir.close()?;
 		Ok(())
 	}
 
@@ -236,6 +239,7 @@ mod tests {
 		let result = test_smart_contract(&Some(temp_contract_dir.path().join("test_contract")));
 
 		assert!(result.is_ok(), "Result should be Ok");
+		temp_contract_dir.close()?;
 		Ok(())
 	}
 }

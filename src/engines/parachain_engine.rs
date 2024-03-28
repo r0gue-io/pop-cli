@@ -121,6 +121,8 @@ mod tests {
 			expected_file_content.replace("^^node^^", "parachain-template-node")
 		);
 
+		temp_dir.close()?;
+
 		Ok(())
 	}
 
@@ -130,6 +132,8 @@ mod tests {
 			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
 		let build = build_parachain(&Some(temp_dir.path().to_path_buf()));
 		assert!(build.is_ok(), "Result should be Ok");
+
+		temp_dir.close()?;
 		Ok(())
 	}
 }

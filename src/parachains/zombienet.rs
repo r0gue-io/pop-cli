@@ -559,6 +559,8 @@ mod tests {
 		assert_eq!(parachain.version, "");
 		assert_eq!(parachain.sources.len(), 1);
 
+		temp_dir.close()?;
+
 		Ok(())
 	}
 
@@ -580,6 +582,8 @@ mod tests {
 		assert!(result_error.is_err());
 		let error_message = result_error.err().unwrap();
 		assert_eq!(error_message.root_cause().to_string(), "expected `parachain` to have `id`");
+
+		temp_dir.close()?;
 		Ok(())
 	}
 
@@ -599,6 +603,8 @@ mod tests {
 		assert_eq!(binary_relay_chain.path, temp_dir.path().join("polkadot-v1.7.0"));
 		assert_eq!(binary_relay_chain.version, "v1.7.0");
 		assert_eq!(binary_relay_chain.sources.len(), 1);
+
+		temp_dir.close()?;
 		Ok(())
 	}
 
@@ -617,6 +623,8 @@ mod tests {
 		assert!(binary_relay_chain.name.starts_with("polkadot-v"));
 		assert!(binary_relay_chain.version.starts_with("v"));
 		assert_eq!(binary_relay_chain.sources.len(), 1);
+
+		temp_dir.close()?;
 		Ok(())
 	}
 
@@ -634,6 +642,8 @@ mod tests {
 		assert!(result_error.is_err());
 		let error_message = result_error.err().unwrap();
 		assert_eq!(error_message.root_cause().to_string(), "expected `relaychain`");
+
+		temp_dir.close()?;
 		Ok(())
 	}
 
@@ -657,6 +667,8 @@ mod tests {
 		assert_eq!(binary_system_chain.path, temp_dir.path().join("polkadot-parachain-v1.7.0"));
 		assert_eq!(binary_system_chain.version, "v1.7.0");
 		assert_eq!(binary_system_chain.sources.len(), 1);
+
+		temp_dir.close()?;
 		Ok(())
 	}
 
@@ -674,6 +686,8 @@ mod tests {
 		assert_eq!(binary_system_chain.path, temp_dir.path().join("pop-node"));
 		assert_eq!(binary_system_chain.version, "");
 		assert_eq!(binary_system_chain.sources.len(), 1);
+
+		temp_dir.close()?;
 		Ok(())
 	}
 
@@ -695,6 +709,7 @@ mod tests {
 		let missing_binaries = zombienet.missing_binaries();
 		assert_eq!(missing_binaries.len(), 3);
 
+		temp_dir.close()?;
 		Ok(())
 	}
 
@@ -724,6 +739,7 @@ mod tests {
 		let missing_binaries = zombienet.missing_binaries();
 		assert_eq!(missing_binaries.len(), 0);
 
+		temp_dir.close()?;
 		Ok(())
 	}
 
@@ -745,6 +761,7 @@ mod tests {
 		let config = zombienet.configure();
 		assert!(config.is_ok());
 
+		temp_dir.close()?;
 		Ok(())
 	}
 
@@ -771,6 +788,7 @@ mod tests {
 		let spawn = zombienet.spawn().await;
 		assert!(spawn.is_ok());
 
+		temp_dir.close()?;
 		Ok(())
 	}
 
@@ -792,6 +810,7 @@ mod tests {
 		let spawn = zombienet.spawn().await;
 		assert!(spawn.is_err());
 
+		temp_dir.close()?;
 		Ok(())
 	}
 
@@ -810,6 +829,7 @@ mod tests {
 		assert!(result.is_ok());
 		assert!(temp_dir.path().join("polkadot-v1.7.0").exists());
 
+		temp_dir.close()?;
 		Ok(())
 	}
 
@@ -836,6 +856,7 @@ mod tests {
 		assert!(result.is_ok());
 		assert!(temp_dir.path().join("polkadot-v1.7.0").exists());
 
+		temp_dir.close()?;
 		Ok(())
 	}
 	#[test]
