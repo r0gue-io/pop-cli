@@ -607,7 +607,8 @@ mod tests {
 		let config = std::fs::read_to_string(&network_config_path)?.parse::<Document>()?;
 
 		let binary_relay_chain =
-			Zombienet::relay_chain(Some(&TESTING_POLKADOT_VERSION.to_string()), &config, &cache).await?;
+			Zombienet::relay_chain(Some(&TESTING_POLKADOT_VERSION.to_string()), &config, &cache)
+				.await?;
 
 		assert_eq!(binary_relay_chain.name, POLKADOT_BINARY);
 		assert_eq!(binary_relay_chain.path, temp_dir.path().join(POLKADOT_BINARY));
@@ -650,7 +651,8 @@ mod tests {
 		let config = std::fs::read_to_string(&network_config_path)?.parse::<Document>()?;
 
 		let result_error =
-			Zombienet::relay_chain(Some(&TESTING_POLKADOT_VERSION.to_string()), &config, &cache).await;
+			Zombienet::relay_chain(Some(&TESTING_POLKADOT_VERSION.to_string()), &config, &cache)
+				.await;
 		assert!(result_error.is_err());
 		let error_message = result_error.err().unwrap();
 		assert_eq!(error_message.root_cause().to_string(), "expected `relaychain`");
@@ -673,7 +675,8 @@ mod tests {
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
 		let cache = PathBuf::from(temp_dir.path());
 
-		let binary_system_chain = Zombienet::system_parachain(&TESTING_POLKADOT_VERSION.to_string(), &cache)?;
+		let binary_system_chain =
+			Zombienet::system_parachain(&TESTING_POLKADOT_VERSION.to_string(), &cache)?;
 
 		assert_eq!(binary_system_chain.name, POLKADOT_PARACHAIN_BINARY);
 		assert_eq!(binary_system_chain.path, temp_dir.path().join(POLKADOT_PARACHAIN_BINARY));
@@ -833,8 +836,8 @@ mod tests {
 		let cache = PathBuf::from(temp_dir.path());
 
 		let source = Source::Url {
-			name: "polkadot".to_string(), 
-			version: TESTING_POLKADOT_VERSION.to_string(), 
+			name: "polkadot".to_string(),
+			version: TESTING_POLKADOT_VERSION.to_string(),
 			url: "https://github.com/paritytech/polkadot-sdk/releases/download/polkadot-v1.7.0/polkadot".to_string()
 		};
 		let result = source.process(&cache).await;
@@ -873,7 +876,8 @@ mod tests {
 	}
 	#[test]
 	fn test_versioned_name() -> Result<()> {
-		let versioned_name = Source::versioned_name("polkadot", Some(&TESTING_POLKADOT_VERSION.to_string()));
+		let versioned_name =
+			Source::versioned_name("polkadot", Some(&TESTING_POLKADOT_VERSION.to_string()));
 		assert_eq!(versioned_name, POLKADOT_BINARY);
 
 		let versioned_name_no_version = Source::versioned_name("polkadot", None);
