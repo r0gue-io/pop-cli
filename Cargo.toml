@@ -48,6 +48,10 @@ tracing-subscriber = { version = "0.3", optional = true }
 zombienet-sdk = { git = "https://github.com/r0gue-io/zombienet-sdk", branch = "pop", optional = true }
 zombienet-support = { git = "https://github.com/r0gue-io/zombienet-sdk", branch = "pop", optional = true }
 
+[dev-dependencies]
+assert_cmd = "2.0.14"
+predicates = "3.1.0"
+
 [features]
 default = ["contract", "parachain"]
 contract = [

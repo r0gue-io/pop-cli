@@ -19,8 +19,9 @@ pub fn create_smart_contract(name: String, target: &Option<PathBuf>) -> anyhow::
 }
 
 pub fn build_smart_contract(path: &Option<PathBuf>) -> anyhow::Result<()> {
-	// If the user specifies a path (which is not the current directory), it will have to manually add a Cargo.toml file. If not provided, pop-cli will ask the user for a specific path. or
-	// ask to the user the specific path (Like cargo-contract does)
+	// If the user specifies a path (which is not the current directory), it will have to manually
+	// add a Cargo.toml file. If not provided, pop-cli will ask the user for a specific path. or ask
+	// to the user the specific path (Like cargo-contract does)
 	let manifest_path;
 	if path.is_some() {
 		let full_path: PathBuf =
@@ -200,6 +201,32 @@ mod tests {
 		// Verify that the generated Cargo.toml file contains the expected content
 		fs::read_to_string(temp_contract_dir.path().join("test_contract/Cargo.toml"))
 			.expect("Could not read file");
+		Ok(())
+	}
+
+	#[test]
+	fn test_contract_build() -> Result<(), Error> {
+		let temp_contract_dir = setup_test_environment()?;
+
+		let build = build_smart_contract(&Some(temp_contract_dir.path().join("test_contract")));
+		assert!(build.is_ok(), "Result should be Ok");
+
+		// Verify that the folder target has been created
+		assert!(temp_contract_dir.path().join("test_contract/target").exists());
+		// Verify that all the artifacts has been generated
+		assert!(temp_contract_dir
+			.path()
+			.join("test_contract/target/ink/test_contract.contract")
+			.exists());
+		assert!(temp_contract_dir
+			.path()
+			.join("test_contract/target/ink/test_contract.wasm")
+			.exists());
+		assert!(temp_contract_dir
+			.path()
+			.join("test_contract/target/ink/test_contract.json")
+			.exists());
+
 		Ok(())
 	}
 
