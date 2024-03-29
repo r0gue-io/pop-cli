@@ -1,6 +1,7 @@
 use anyhow::Result;
 use cliclack::{log, outro_cancel};
 use git2::{IndexAddOption, Repository, ResetType};
+use regex::Regex;
 use std::{
 	env::current_dir,
 	fs::{self, OpenOptions},
@@ -19,7 +20,7 @@ pub(crate) fn sanitize(target: &Path) -> Result<()> {
 		if input.trim().to_lowercase() == "y" {
 			fs::remove_dir_all(target)?;
 		} else {
-			return Err(anyhow::anyhow!("User aborted due to existing target folder."));
+			return Err(anyhow::anyhow!("User aborted due to existing target folder."))
 		}
 	}
 	Ok(())
@@ -43,11 +44,32 @@ pub(crate) fn write_to_file<'a>(path: &Path, contents: &'a str) {
 }
 
 /// Clone `url` into `target` and degit it
-pub(crate) fn clone_and_degit(url: &str, target: &Path) -> Result<()> {
+pub(crate) fn clone_and_degit(url: &str, target: &Path) -> Result<String> {
 	let repo = Repository::clone(url, target)?;
+
+	// fetch tags from remote
+	let release = fetch_tag(&repo);
+
 	let git_dir = repo.path();
 	fs::remove_dir_all(&git_dir)?;
-	Ok(())
+	Ok(release)
+}
+
+/// Fetch the latest release from a repository
+fn fetch_tag(repo: &Repository) -> String {
+	let mut release = String::new();
+
+	let version_reg = Regex::new(r"v\d+\.\d+\.\d+").unwrap();
+
+	for tag in repo.tag_names(None).unwrap().iter() {
+		let tag = tag.unwrap();
+		if version_reg.is_match(tag) {
+			if release.is_empty() || *tag > *release {
+				release = tag.to_string();
+			}
+		}
+	}
+	release
 }
 
 /// Init a new git repo on creation of a parachain
@@ -76,7 +98,7 @@ pub(crate) fn resolve_pallet_path(path: Option<String>) -> PathBuf {
 	use std::process;
 
 	if let Some(path) = path {
-		return Path::new(&path).to_path_buf();
+		return Path::new(&path).to_path_buf()
 	}
 	// Check if inside a template
 	let cwd = current_dir().expect("current dir is inaccessible");

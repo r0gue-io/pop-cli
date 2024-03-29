@@ -5376,6 +5376,7 @@ dependencies = [
  "indexmap 2.2.5",
  "ink_env",
  "log",
+ "regex",
  "reqwest",
  "serde",
  "serde_json",

@@ -63,13 +63,13 @@ impl NewParachainCommand {
 					"Cannot generate parachain until \"{}\" directory is removed.",
 					destination_path.display()
 				))?;
-				return Ok(());
+				return Ok(())
 			}
 			fs::remove_dir_all(destination_path)?;
 		}
 		let mut spinner = cliclack::spinner();
 		spinner.start("Generating parachain...");
-		instantiate_template_dir(
+		let tag = instantiate_template_dir(
 			&self.template,
 			destination_path,
 			Config {
@@ -83,7 +83,7 @@ impl NewParachainCommand {
 				outro_cancel("git signature could not be found. Please configure your git config with your name and email")?;
 			}
 		}
-		spinner.stop("Generation complete");
+		spinner.stop(format!("Generation complete using {}", tag));
 		outro(format!("cd into \"{}\" and enjoy hacking! 🚀", &self.name))?;
 		Ok(())
 	}

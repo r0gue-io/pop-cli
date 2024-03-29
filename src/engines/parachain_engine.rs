@@ -20,7 +20,7 @@ pub struct Config {
 }
 
 /// Creates a new template at `target` dir
-pub fn instantiate_template_dir(template: &Template, target: &Path, config: Config) -> Result<()> {
+pub fn instantiate_template_dir(template: &Template, target: &Path, config: Config) -> Result<String> {
 	sanitize(target)?;
 	use Template::*;
 	let url = match template {
@@ -30,15 +30,15 @@ pub fn instantiate_template_dir(template: &Template, target: &Path, config: Conf
 			return instantiate_base_template(target, config);
 		},
 	};
-	clone_and_degit(url, target)?;
+	let tag = clone_and_degit(url, target)?;
 	Repository::init(target)?;
-	Ok(())
+	Ok(tag)
 }
 
-pub fn instantiate_base_template(target: &Path, config: Config) -> Result<()> {
+pub fn instantiate_base_template(target: &Path, config: Config) -> Result<String> {
 	let temp_dir = ::tempfile::TempDir::new_in(std::env::temp_dir())?;
 	let source = temp_dir.path();
-	clone_and_degit("https://github.com/r0gue-io/base-parachain", source)?;
+	let tag = clone_and_degit("https://github.com/r0gue-io/base-parachain", source)?;
 
 	for entry in WalkDir::new(&source) {
 		let entry = entry?;
@@ -66,7 +66,7 @@ pub fn instantiate_base_template(target: &Path, config: Config) -> Result<()> {
 	let network = Network { node: "parachain-template-node".into() };
 	write_to_file(&target.join("network.toml"), network.render().expect("infallible").as_ref());
 	Repository::init(target)?;
-	Ok(())
+	Ok(tag)
 }
 
 pub fn build_parachain(path: &Option<PathBuf>) -> anyhow::Result<()> {
@@ -90,7 +90,7 @@ mod tests {
 			decimals: 18,
 			initial_endowment: "1000000000000000000000000".to_string(),
 		};
-		let result: Result<()> = instantiate_base_template(temp_dir.path(), config);
+		let result: Result<String> = instantiate_base_template(temp_dir.path(), config);
 		assert!(result.is_ok());
 
 		// Verify that the generated chain_spec.rs file contains the expected content
