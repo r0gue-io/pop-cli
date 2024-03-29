@@ -9,6 +9,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   GITHUB_ACTOR: pop-cli
+
 jobs:
   build:
 
@@ -27,12 +28,30 @@ jobs:
       with:
         cache-on-failure: true
         cache-all-crates: true
-
+            
     - name: Setup git config
       run: |
         git config --global user.name "${GITHUB_ACTOR}"
         git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
 
+    - name: Install Protoc
+      uses: arduino/setup-protoc@v1.3.0
+      with:
+        version: "3.6.1"
+
+    - name: Rust Setup
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        target: wasm32-unknown-unknown
+        override: true
+        components: rustfmt, clippy, rust-src
+
+    - uses: actions/checkout@v4
+    - name: Check formatting
+      run: cargo fmt --all -- --check
+        
     - uses: actions/checkout@v3
     - name: Check Feature Contracts Excl.
       run: cargo check --no-default-features --features contract

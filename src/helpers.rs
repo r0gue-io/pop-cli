@@ -1,7 +1,7 @@
 #![allow(unused)]
 use anyhow::Result;
 use cliclack::{log, outro_cancel};
-use git2::Repository;
+use git2::{IndexAddOption, Repository, ResetType};
 use std::{
 	env::current_dir,
 	fs::{self, OpenOptions},
@@ -48,6 +48,24 @@ pub(crate) fn clone_and_degit(url: &str, target: &Path) -> Result<()> {
 	let repo = Repository::clone(url, target)?;
 	let git_dir = repo.path();
 	fs::remove_dir_all(&git_dir)?;
+	Ok(())
+}
+
+/// Init a new git repo on creation of a parachain
+pub(crate) fn git_init(target: &Path, message: &str) -> Result<(), git2::Error> {
+	let repo = Repository::init(target)?;
+	let signature = repo.signature()?;
+
+	let mut index = repo.index()?;
+	index.add_all(["*"].iter(), IndexAddOption::DEFAULT, None)?;
+	let tree_id = index.write_tree()?;
+
+	let tree = repo.find_tree(tree_id)?;
+	let commit_id = repo.commit(Some("HEAD"), &signature, &signature, message, &tree, &[])?;
+
+	let commit_object = repo.find_object(commit_id, Some(git2::ObjectType::Commit))?;
+	repo.reset(&commit_object, ResetType::Hard, None)?;
+
 	Ok(())
 }
 

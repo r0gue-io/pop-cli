@@ -170,21 +170,72 @@ pub async fn dry_run_call(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use std::fs;
+	use anyhow::{Error, Result};
+	use std::{fs, path::PathBuf};
+
+	fn setup_test_environment() -> Result<tempfile::TempDir, Error> {
+		let temp_contract_dir = tempfile::tempdir().expect("Could not create temp dir");
+		let result: anyhow::Result<()> = create_smart_contract(
+			"test_contract".to_string(),
+			&Some(PathBuf::from(temp_contract_dir.path())),
+		);
+
+		assert!(result.is_ok(), "Result should be Ok");
+
+		Ok(temp_contract_dir)
+	}
 
 	#[test]
-	fn test_create_smart_contract() -> Result<(), Box<dyn std::error::Error>> {
-		let temp_dir = tempfile::tempdir()?;
-		let result: anyhow::Result<()> =
-			create_smart_contract("test".to_string(), &Some(PathBuf::from(temp_dir.path())));
-		assert!(result.is_ok());
+	fn test_contract_create() -> Result<(), Error> {
+		let temp_contract_dir = setup_test_environment()?;
 
 		// Verify that the generated smart contract contains the expected content
-		let generated_file_content = fs::read_to_string(temp_dir.path().join("test/lib.rs"))?;
+		let generated_file_content =
+			fs::read_to_string(temp_contract_dir.path().join("test_contract/lib.rs"))
+				.expect("Could not read file");
 
 		assert!(generated_file_content.contains("#[ink::contract]"));
-		assert!(generated_file_content.contains("mod test {"));
+		assert!(generated_file_content.contains("mod test_contract {"));
 
+		// Verify that the generated Cargo.toml file contains the expected content
+		fs::read_to_string(temp_contract_dir.path().join("test_contract/Cargo.toml"))
+			.expect("Could not read file");
+		Ok(())
+	}
+
+	#[test]
+	fn test_contract_build() -> Result<(), Error> {
+		let temp_contract_dir = setup_test_environment()?;
+
+		let build = build_smart_contract(&Some(temp_contract_dir.path().join("test_contract")));
+		assert!(build.is_ok(), "Result should be Ok");
+
+		// Verify that the folder target has been created
+		assert!(temp_contract_dir.path().join("test_contract/target").exists());
+		// Verify that all the artifacts has been generated
+		assert!(temp_contract_dir
+			.path()
+			.join("test_contract/target/ink/test_contract.contract")
+			.exists());
+		assert!(temp_contract_dir
+			.path()
+			.join("test_contract/target/ink/test_contract.wasm")
+			.exists());
+		assert!(temp_contract_dir
+			.path()
+			.join("test_contract/target/ink/test_contract.json")
+			.exists());
+
+		Ok(())
+	}
+
+	#[test]
+	fn test_contract_test() -> Result<(), Error> {
+		let temp_contract_dir = setup_test_environment()?;
+
+		let result = test_smart_contract(&Some(temp_contract_dir.path().join("test_contract")));
+
+		assert!(result.is_ok(), "Result should be Ok");
 		Ok(())
 	}
 }
