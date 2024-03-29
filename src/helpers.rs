@@ -20,7 +20,7 @@ pub(crate) fn sanitize(target: &Path) -> Result<()> {
 		if input.trim().to_lowercase() == "y" {
 			fs::remove_dir_all(target)?;
 		} else {
-			return Err(anyhow::anyhow!("User aborted due to existing target folder."))
+			return Err(anyhow::anyhow!("User aborted due to existing target folder."));
 		}
 	}
 	Ok(())
@@ -98,7 +98,7 @@ pub(crate) fn resolve_pallet_path(path: Option<String>) -> PathBuf {
 	use std::process;
 
 	if let Some(path) = path {
-		return Path::new(&path).to_path_buf()
+		return Path::new(&path).to_path_buf();
 	}
 	// Check if inside a template
 	let cwd = current_dir().expect("current dir is inaccessible");

@@ -63,7 +63,7 @@ impl NewParachainCommand {
 					"Cannot generate parachain until \"{}\" directory is removed.",
 					destination_path.display()
 				))?;
-				return Ok(())
+				return Ok(());
 			}
 			fs::remove_dir_all(destination_path)?;
 		}

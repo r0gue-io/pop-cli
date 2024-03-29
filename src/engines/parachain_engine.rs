@@ -20,7 +20,11 @@ pub struct Config {
 }
 
 /// Creates a new template at `target` dir
-pub fn instantiate_template_dir(template: &Template, target: &Path, config: Config) -> Result<String> {
+pub fn instantiate_template_dir(
+	template: &Template,
+	target: &Path,
+	config: Config,
+) -> Result<String> {
 	sanitize(target)?;
 	use Template::*;
 	let url = match template {
