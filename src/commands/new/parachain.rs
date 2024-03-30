@@ -7,7 +7,7 @@ use clap::{Args, Parser};
 use std::{fs, path::Path};
 use strum_macros::{Display, EnumString};
 
-use cliclack::{clear_screen, confirm, intro, outro, outro_cancel, set_theme,log};
+use cliclack::{clear_screen, confirm, intro, log, outro, outro_cancel, set_theme};
 
 #[derive(Clone, Parser, Debug, Display, EnumString, PartialEq)]
 pub enum Template {
@@ -63,7 +63,7 @@ impl NewParachainCommand {
 					"Cannot generate parachain until \"{}\" directory is removed.",
 					destination_path.display()
 				))?;
-				return Ok(())
+				return Ok(());
 			}
 			fs::remove_dir_all(destination_path)?;
 		}
