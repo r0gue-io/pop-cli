@@ -7,7 +7,7 @@ use clap::{Args, Parser};
 use std::{fs, path::Path};
 use strum_macros::{Display, EnumString};
 
-use cliclack::{clear_screen, confirm, intro, outro, outro_cancel, set_theme};
+use cliclack::{clear_screen, confirm, intro, outro, outro_cancel, set_theme,log};
 
 #[derive(Clone, Parser, Debug, Display, EnumString, PartialEq)]
 pub enum Template {
@@ -63,7 +63,7 @@ impl NewParachainCommand {
 					"Cannot generate parachain until \"{}\" directory is removed.",
 					destination_path.display()
 				))?;
-				return Ok(());
+				return Ok(())
 			}
 			fs::remove_dir_all(destination_path)?;
 		}
@@ -83,7 +83,8 @@ impl NewParachainCommand {
 				outro_cancel("git signature could not be found. Please configure your git config with your name and email")?;
 			}
 		}
-		spinner.stop(format!("Generation complete using {}", tag));
+		spinner.stop("Generation complete");
+		log::info(format!("Version: {}", tag))?;
 		outro(format!("cd into \"{}\" and enjoy hacking! 🚀", &self.name))?;
 		Ok(())
 	}
