@@ -125,7 +125,7 @@ mod tests {
 	}
 
 	#[test]
-	#[ignore] // It takes long time to build
+	#[ignore = "Build parachain takes long time to build"]
 	fn test_parachain_build_after_instantiating_template() -> Result<()> {
 		let temp_dir =
 			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
