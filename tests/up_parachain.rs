@@ -51,18 +51,6 @@ async fn test_parachain_up() -> Result<()> {
 		.spawn()
 		.unwrap();
 
-	// Ideally should parse the output of the command
-
-	//let stdout = cmd.stdout.take().unwrap();
-
-	// thread::spawn(move || {
-	//     let reader = BufReader::new(stdout);
-	//     for line in reader.lines() {
-	//         let output = line.unwrap();
-	//         println!("All the lines: {:?}", output);
-	//     }
-	// });
-
 	// If after 15 secs is still running probably execution is ok
 	sleep(Duration::from_secs(15)).await;
 	assert!(cmd.try_wait().unwrap().is_none(), "the process should still be running");

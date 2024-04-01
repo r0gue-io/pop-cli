@@ -528,8 +528,7 @@ mod tests {
 	const POLKADOT_PARACHAIN_BINARY: &str = "polkadot-parachain-v1.7.0";
 
 	#[tokio::test]
-	async fn test_new_success() -> Result<()> {
-		//cache
+	async fn test_new_zombienet_success() -> Result<()> {
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
 		let cache = PathBuf::from(temp_dir.path());
 
@@ -571,7 +570,6 @@ mod tests {
 
 	#[tokio::test]
 	async fn test_new_fails_wrong_config_no_para_id() -> Result<()> {
-		//cache
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
 		let cache = PathBuf::from(temp_dir.path());
 
@@ -599,10 +597,9 @@ mod tests {
 
 	#[tokio::test]
 	async fn test_relay_chain() -> Result<()> {
-		//cache
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
 		let cache = PathBuf::from(temp_dir.path());
-		// Parse network config
+
 		let network_config_path = PathBuf::from(CONFIG_FILE_PATH);
 		let config = std::fs::read_to_string(&network_config_path)?.parse::<Document>()?;
 
@@ -621,10 +618,9 @@ mod tests {
 
 	#[tokio::test]
 	async fn test_relay_chain_no_specifying_version() -> Result<()> {
-		//cache
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
 		let cache = PathBuf::from(temp_dir.path());
-		// Parse network config
+
 		let network_config_path = PathBuf::from(CONFIG_FILE_PATH);
 		let config = std::fs::read_to_string(&network_config_path)?.parse::<Document>()?;
 
@@ -641,10 +637,9 @@ mod tests {
 
 	#[tokio::test]
 	async fn test_relay_chain_fails_wrong_config() -> Result<()> {
-		//cache
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
 		let cache = PathBuf::from(temp_dir.path());
-		// Parse network config
+
 		let network_config_path = generate_wrong_config_no_relay(&temp_dir)
 			.expect("Error generating the testing toml file");
 
@@ -671,7 +666,6 @@ mod tests {
 
 	#[tokio::test]
 	async fn test_system_parachain() -> Result<()> {
-		//cache
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
 		let cache = PathBuf::from(temp_dir.path());
 
@@ -689,7 +683,6 @@ mod tests {
 
 	#[tokio::test]
 	async fn test_parachain() -> Result<()> {
-		//cache
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
 		let cache = PathBuf::from(temp_dir.path());
 
@@ -708,7 +701,6 @@ mod tests {
 
 	#[tokio::test]
 	async fn test_missing_binaries() -> Result<()> {
-		//cache
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
 		let cache = PathBuf::from(temp_dir.path());
 
@@ -730,7 +722,6 @@ mod tests {
 
 	#[tokio::test]
 	async fn test_missing_binaries_no_missing() -> Result<()> {
-		//cache
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
 		let cache = PathBuf::from(temp_dir.path());
 
@@ -759,8 +750,7 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn test_configure() -> Result<()> {
-		//cache
+	async fn test_configure_zombienet() -> Result<()> {
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
 		let cache = PathBuf::from(temp_dir.path());
 
@@ -781,9 +771,8 @@ mod tests {
 	}
 
 	#[tokio::test]
-	#[ignore] // It takes long time to build
-	async fn test_spawn() -> Result<()> {
-		//cache
+	#[ignore = "Download and spawn networks takes too long"]
+	async fn test_spawn_polkadot_and_two_parachains() -> Result<()> {
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
 		let cache = PathBuf::from(temp_dir.path());
 
@@ -809,7 +798,6 @@ mod tests {
 
 	#[tokio::test]
 	async fn test_spawn_error_no_binaries() -> Result<()> {
-		//cache
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
 		let cache = PathBuf::from(temp_dir.path());
 
@@ -829,7 +817,6 @@ mod tests {
 		Ok(())
 	}
 
-	// Source tests
 	#[tokio::test]
 	async fn test_process_url() -> Result<()> {
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
@@ -849,7 +836,7 @@ mod tests {
 	}
 
 	#[tokio::test]
-	#[ignore] // It takes long time to build
+	#[ignore = "Download all missing binaries takes too long"]
 	async fn test_process_git() -> Result<()> {
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
 		let cache = PathBuf::from(temp_dir.path());
@@ -874,6 +861,7 @@ mod tests {
 		temp_dir.close()?;
 		Ok(())
 	}
+
 	#[test]
 	fn test_versioned_name() -> Result<()> {
 		let versioned_name =
