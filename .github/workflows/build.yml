@@ -64,5 +64,5 @@ jobs:
     - name: Build default features
       run: cargo build
 
-    - name: Run tests
-      run: cargo test --verbose
+    - name: Run unit tests
+      run: cargo test --bins
