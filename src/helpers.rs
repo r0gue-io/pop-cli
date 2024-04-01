@@ -99,3 +99,25 @@ pub(crate) fn resolve_pallet_path(path: Option<String>) -> PathBuf {
 		}
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn test_resolve_pallet_path_with_no_path() {
+		let result = resolve_pallet_path(None);
+		let working_path = std::env::current_dir().unwrap().join("pallets");
+		assert_eq!(result, working_path);
+	}
+
+	#[test]
+	fn test_resolve_pallet_path_with_custom_path() {
+		let custom_path = tempfile::tempdir().expect("Failed to create temp dir");
+		let custom_path_str = custom_path.path().join("my_pallets").to_str().unwrap().to_string();
+
+		let result = resolve_pallet_path(Some(custom_path_str.clone()));
+
+		assert_eq!(result, custom_path.path().join("my_pallets"), "Unexpected result path");
+	}
+}
