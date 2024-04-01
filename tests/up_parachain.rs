@@ -32,13 +32,6 @@ fn clean_test_environment() -> Result<()> {
 	if let Err(err) = fs::remove_dir_all("test_parachain") {
 		eprintln!("Failed to delete directory: {}", err);
 	}
-	let cache_path = dirs::cache_dir()
-		.ok_or(anyhow!("the cache directory could not be determined"))?
-		.join("pop");
-
-	if let Err(err) = fs::remove_dir_all(cache_path) {
-		eprintln!("Failed to delete directory: {}", err);
-	}
 	Ok(())
 }
 

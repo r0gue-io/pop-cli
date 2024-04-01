@@ -72,8 +72,6 @@ mod tests {
 		let result = command.execute();
 		assert!(result.is_ok());
 
-		temp_contract_dir.close()?;
-
 		Ok(())
 	}
 
@@ -86,7 +84,6 @@ mod tests {
 		};
 		let result_error = command.execute();
 		assert!(result_error.is_err());
-		temp_contract_dir.close()?;
 		Ok(())
 	}
 }

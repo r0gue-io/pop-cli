@@ -567,8 +567,6 @@ mod tests {
 		assert_eq!(parachain.version, "");
 		assert_eq!(parachain.sources.len(), 1);
 
-		temp_dir.close()?;
-
 		Ok(())
 	}
 
@@ -595,7 +593,6 @@ mod tests {
 		let error_message = result_error.err().unwrap();
 		assert_eq!(error_message.root_cause().to_string(), "expected `parachain` to have `id`");
 
-		temp_dir.close()?;
 		Ok(())
 	}
 
@@ -621,7 +618,6 @@ mod tests {
 			assert_eq!(binary_relay_chain.sources.len(), 3);
 		}
 
-		temp_dir.close()?;
 		Ok(())
 	}
 
@@ -644,7 +640,6 @@ mod tests {
 			assert_eq!(binary_relay_chain.sources.len(), 3);
 		}
 
-		temp_dir.close()?;
 		Ok(())
 	}
 
@@ -665,7 +660,6 @@ mod tests {
 		let error_message = result_error.err().unwrap();
 		assert_eq!(error_message.root_cause().to_string(), "expected `relaychain`");
 
-		temp_dir.close()?;
 		Ok(())
 	}
 
@@ -690,7 +684,6 @@ mod tests {
 		assert_eq!(binary_system_chain.version, TESTING_POLKADOT_VERSION);
 		assert_eq!(binary_system_chain.sources.len(), 1);
 
-		temp_dir.close()?;
 		Ok(())
 	}
 
@@ -708,7 +701,6 @@ mod tests {
 		assert_eq!(binary_system_chain.version, "");
 		assert_eq!(binary_system_chain.sources.len(), 1);
 
-		temp_dir.close()?;
 		Ok(())
 	}
 
@@ -729,7 +721,6 @@ mod tests {
 		let missing_binaries = zombienet.missing_binaries();
 		assert_eq!(missing_binaries.len(), 3);
 
-		temp_dir.close()?;
 		Ok(())
 	}
 
@@ -758,7 +749,6 @@ mod tests {
 		let missing_binaries = zombienet.missing_binaries();
 		assert_eq!(missing_binaries.len(), 0);
 
-		temp_dir.close()?;
 		Ok(())
 	}
 
@@ -779,7 +769,6 @@ mod tests {
 		let config = zombienet.configure();
 		assert!(config.is_ok());
 
-		temp_dir.close()?;
 		Ok(())
 	}
 
@@ -805,7 +794,6 @@ mod tests {
 		let spawn = zombienet.spawn().await;
 		assert!(spawn.is_ok());
 
-		temp_dir.close()?;
 		Ok(())
 	}
 
@@ -826,7 +814,6 @@ mod tests {
 		let spawn = zombienet.spawn().await;
 		assert!(spawn.is_err());
 
-		temp_dir.close()?;
 		Ok(())
 	}
 
@@ -844,7 +831,6 @@ mod tests {
 		assert!(result.is_ok());
 		assert!(temp_dir.path().join(POLKADOT_BINARY).exists());
 
-		temp_dir.close()?;
 		Ok(())
 	}
 
@@ -871,7 +857,6 @@ mod tests {
 		assert!(result.is_ok());
 		assert!(temp_dir.path().join(POLKADOT_BINARY).exists());
 
-		temp_dir.close()?;
 		Ok(())
 	}
 
