@@ -545,7 +545,11 @@ mod tests {
 		assert_eq!(zombienet.relay_chain.name, POLKADOT_BINARY);
 		assert_eq!(zombienet.relay_chain.path, temp_dir.path().join(POLKADOT_BINARY));
 		assert_eq!(zombienet.relay_chain.version, TESTING_POLKADOT_VERSION);
-		assert_eq!(zombienet.relay_chain.sources.len(), 1);
+		if cfg!(target_os = "macos") {
+			assert_eq!(zombienet.relay_chain.sources.len(), 1);
+		} else {
+			assert_eq!(zombienet.relay_chain.sources.len(), 3);
+		}
 
 		// Check has the binary for the System Chain
 		assert_eq!(zombienet.parachains.len(), 2);
@@ -610,7 +614,12 @@ mod tests {
 		assert_eq!(binary_relay_chain.name, POLKADOT_BINARY);
 		assert_eq!(binary_relay_chain.path, temp_dir.path().join(POLKADOT_BINARY));
 		assert_eq!(binary_relay_chain.version, TESTING_POLKADOT_VERSION);
-		assert_eq!(binary_relay_chain.sources.len(), 1);
+
+		if cfg!(target_os = "macos") {
+			assert_eq!(binary_relay_chain.sources.len(), 1);
+		} else {
+			assert_eq!(binary_relay_chain.sources.len(), 3);
+		}
 
 		temp_dir.close()?;
 		Ok(())
@@ -629,7 +638,11 @@ mod tests {
 
 		assert!(binary_relay_chain.name.starts_with("polkadot-v"));
 		assert!(binary_relay_chain.version.starts_with("v"));
-		assert_eq!(binary_relay_chain.sources.len(), 1);
+		if cfg!(target_os = "macos") {
+			assert_eq!(binary_relay_chain.sources.len(), 1);
+		} else {
+			assert_eq!(binary_relay_chain.sources.len(), 3);
+		}
 
 		temp_dir.close()?;
 		Ok(())
