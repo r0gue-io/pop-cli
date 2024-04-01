@@ -16,6 +16,7 @@ fn setup_test_environment() -> Result<tempfile::TempDir, Error> {
 }
 
 #[test]
+#[cfg_attr(not(feature = "e2e_contract"), ignore)]
 fn test_contract_build() -> Result<(), Error> {
 	let temp_contract_dir = setup_test_environment()?;
 
@@ -47,6 +48,7 @@ fn test_contract_build() -> Result<(), Error> {
 }
 
 #[test]
+#[cfg_attr(not(feature = "e2e_contract"), ignore)]
 fn test_contract_build_specify_path() -> Result<(), Error> {
 	let temp_contract_dir = setup_test_environment()?;
 
@@ -78,6 +80,7 @@ fn test_contract_build_specify_path() -> Result<(), Error> {
 }
 
 #[test]
+#[cfg_attr(not(feature = "e2e_contract"), ignore)]
 fn test_contract_build_fails_if_no_contract_exists() -> Result<(), Error> {
 	// pop build contract
 	Command::cargo_bin("pop")

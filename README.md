@@ -204,3 +204,32 @@ pop up parachain -f ./tests/zombienet.toml -p https://github.com/r0gue-io/pop-no
 
 > :information_source: Pop CLI will automatically source the necessary polkadot binaries. Currently, these will be built
 > if on a non-linux system.
+
+
+## Testing Pop CLI 
+
+To test the tool locally.
+
+Run the unit tests:
+
+```sh
+cargo test
+```
+
+Run the contracts e2e tests:
+
+```sh
+cargo test --features e2e_contract
+```
+
+Run the parachain e2e tests:
+
+```sh
+cargo test --features e2e_parachain
+```
+
+Run all tests, including the ignored ones:
+
+```sh
+cargo test --all-features -- --include-ignored
+```
