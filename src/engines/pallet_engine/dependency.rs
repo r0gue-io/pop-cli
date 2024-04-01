@@ -118,7 +118,7 @@ impl Dependency {
 				workspace.join("pallets/").join(&name).to_path_buf(),
 				semver::Version::new(1, 0, 0),
 			)
-			.into(),
+				.into(),
 			default_features: false,
 			name,
 		}

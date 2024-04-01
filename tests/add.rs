@@ -54,14 +54,16 @@ fn add_parachain_pallet_template() {
 	);
 	let rt_bench = toml["features"]["runtime-benchmarks"].as_value().unwrap().as_array().unwrap();
 	assert_eq!(
-		rt_bench.iter()
+		rt_bench
+			.iter()
 			.filter(|val| val.as_str().unwrap() == "pallet-parachain-template/runtime-benchmarks")
 			.count(),
 		1
 	);
 	let try_rt = toml["features"]["try-runtime"].as_value().unwrap().as_array().unwrap();
 	assert_eq!(
-		try_rt.iter()
+		try_rt
+			.iter()
 			.filter(|val| val.as_str().unwrap() == "pallet-parachain-template/try-runtime")
 			.count(),
 		1

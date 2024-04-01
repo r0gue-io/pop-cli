@@ -4,7 +4,6 @@ use crate::{
 };
 use std::{fs, path::PathBuf};
 
-
 pub fn create_pallet_template(
 	path: Option<String>,
 	config: TemplatePalletConfig,
