@@ -17,7 +17,7 @@ fn setup_test_environment() -> Result<tempfile::TempDir, Error> {
 
 #[test]
 #[cfg_attr(not(feature = "e2e_contract"), ignore)]
-fn test_contract_build() -> Result<(), Error> {
+fn test_contract_build_success() -> Result<(), Error> {
 	let temp_contract_dir = setup_test_environment()?;
 
 	// pop build contract
