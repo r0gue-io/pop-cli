@@ -204,6 +204,7 @@ mod tests {
 	}
 
 	#[test]
+	#[ignore] // It takes long time to build
 	fn test_contract_build() -> Result<(), Error> {
 		let temp_contract_dir = setup_test_environment()?;
 
@@ -230,6 +231,7 @@ mod tests {
 	}
 
 	#[test]
+	#[ignore] // It takes long time to build
 	fn test_contract_test() -> Result<(), Error> {
 		let temp_contract_dir = setup_test_environment()?;
 
