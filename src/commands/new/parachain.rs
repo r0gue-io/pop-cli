@@ -2,6 +2,7 @@ use crate::{
 	engines::parachain_engine::{instantiate_template_dir, Config},
 	helpers::git_init,
 	style::{style, Theme},
+	db::PopDb,
 };
 use clap::{Args, Parser};
 use std::{fs, path::Path};
@@ -84,6 +85,8 @@ impl NewParachainCommand {
 			}
 		}
 		spinner.stop("Generation complete");
+		let pop_db = PopDb::open_or_init();
+		pop_db.set_parachain_path(destination_path);
 		outro(format!("cd into \"{}\" and enjoy hacking! 🚀", &self.name))?;
 		Ok(())
 	}

@@ -69,7 +69,7 @@ pub fn instantiate_base_template(target: &Path, config: Config) -> Result<()> {
 	Ok(())
 }
 
-pub fn build_parachain(path: &Option<PathBuf>) -> anyhow::Result<()> {
+pub fn build_parachain(path: Option<PathBuf>) -> anyhow::Result<()> {
 	cmd("cargo", vec!["build", "--release"])
 		.dir(path.clone().unwrap_or("./".into()))
 		.run()?;

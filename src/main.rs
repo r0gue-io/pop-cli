@@ -15,6 +15,8 @@ mod parachains;
 #[cfg(feature = "contract")]
 mod signer;
 
+mod db;
+
 use anyhow::{anyhow, Result};
 use clap::{Parser, Subcommand};
 use std::{fs::create_dir_all, path::PathBuf};
@@ -51,7 +53,7 @@ enum Commands {
 #[tokio::main]
 async fn main() -> Result<()> {
 	let cli = Cli::parse();
-	match &cli.command {
+	match cli.command {
 		Commands::New(args) => match &args.command {
 			#[cfg(feature = "parachain")]
 			commands::new::NewCommands::Parachain(cmd) => cmd.execute(),
@@ -60,7 +62,7 @@ async fn main() -> Result<()> {
 			#[cfg(feature = "contract")]
 			commands::new::NewCommands::Contract(cmd) => cmd.execute(),
 		},
-		Commands::Build(args) => match &args.command {
+		Commands::Build(args) => match args.command {
 			#[cfg(feature = "parachain")]
 			commands::build::BuildCommands::Parachain(cmd) => cmd.execute(),
 			#[cfg(feature = "contract")]
