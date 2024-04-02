@@ -84,7 +84,9 @@ impl NewParachainCommand {
 			}
 		}
 		spinner.stop("Generation complete");
-		log::info(format!("Version: {}", tag))?;
+		if let Some(tag) = tag {
+			log::info(format!("Version: {}", tag))?;
+		}
 		outro(format!("cd into \"{}\" and enjoy hacking! 🚀", &self.name))?;
 		Ok(())
 	}

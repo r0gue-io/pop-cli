@@ -24,7 +24,7 @@ pub fn instantiate_template_dir(
 	template: &Template,
 	target: &Path,
 	config: Config,
-) -> Result<String> {
+) -> Result<Option<String>> {
 	sanitize(target)?;
 	use Template::*;
 	let url = match template {
@@ -39,7 +39,7 @@ pub fn instantiate_template_dir(
 	Ok(tag)
 }
 
-pub fn instantiate_base_template(target: &Path, config: Config) -> Result<String> {
+pub fn instantiate_base_template(target: &Path, config: Config) -> Result<Option<String>> {
 	let temp_dir = ::tempfile::TempDir::new_in(std::env::temp_dir())?;
 	let source = temp_dir.path();
 	let tag = clone_and_degit("https://github.com/r0gue-io/base-parachain", source)?;

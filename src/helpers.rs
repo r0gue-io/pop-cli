@@ -44,11 +44,11 @@ pub(crate) fn write_to_file<'a>(path: &Path, contents: &'a str) {
 }
 
 /// Clone `url` into `target` and degit it
-pub(crate) fn clone_and_degit(url: &str, target: &Path) -> Result<String> {
+pub(crate) fn clone_and_degit(url: &str, target: &Path) -> Result<Option<String>> {
 	let repo = Repository::clone(url, target)?;
 
 	// fetch tags from remote
-	let release = fetch_tag(&repo);
+	let release = fetch_latest_tag(&repo);
 
 	let git_dir = repo.path();
 	fs::remove_dir_all(&git_dir)?;
@@ -56,20 +56,18 @@ pub(crate) fn clone_and_degit(url: &str, target: &Path) -> Result<String> {
 }
 
 /// Fetch the latest release from a repository
-fn fetch_tag(repo: &Repository) -> String {
-	let mut release = String::new();
-
-	let version_reg = Regex::new(r"v\d+\.\d+\.\d+").unwrap();
-
-	for tag in repo.tag_names(None).unwrap().iter() {
-		let tag = tag.unwrap();
-		if version_reg.is_match(tag) {
-			if release.is_empty() || *tag > *release {
-				release = tag.to_string();
+fn fetch_latest_tag(repo: &Repository) -> Option<String> {
+	let version_reg = Regex::new(r"v\d+\.\d+\.\d+").expect("Valid regex");
+	let tags = repo.tag_names(None).ok()?;
+	// Start from latest tags
+	for tag in tags.iter().rev() {
+		if let Some(tag) = tag {
+			if version_reg.is_match(tag) {
+				return Some(tag.to_string());
 			}
 		}
 	}
-	release
+	None
 }
 
 /// Init a new git repo on creation of a parachain
