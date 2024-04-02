@@ -75,6 +75,7 @@ pop build parachain --release
 ```
 
 For running any parachain, we recommend using [zombienet](https://github.com/paritytech/zombienet).
+
 See below for more information about using `pop up parachain` to help you with this.
 
 ### Contracts
@@ -130,7 +131,10 @@ Some of the options available are:
 - You also can specify the url of your node with `--url ws://your-endpoint`, by default it is
   using `ws://localhost:9944`.
 
-For more information about the options,
+
+> Under-the-hood Pop uses much of [cargo contract](https://github.com/paritytech/cargo-contract)'s features to make the contract commands possible.
+>
+> For more information about the options,
 check [cargo-contract documentation](https://github.com/paritytech/cargo-contract/blob/master/crates/extrinsics/README.md#instantiate)
 
 
