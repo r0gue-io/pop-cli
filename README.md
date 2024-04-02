@@ -210,4 +210,4 @@ pop up parachain -f ./tests/zombienet.toml -p https://github.com/r0gue-io/pop-no
 
 Pop CLI would not be possible without these awesome crates!
 
-- `zombienet-sdk`: https://github.com/paritytech/zombienet-sdk
+- Local network deployment powered by [zombienet-sdk](https://github.com/paritytech/zombienet-sdk)
