@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use assert_cmd::{cargo::cargo_bin, Command as AssertCmd};
 use std::{
 	fs,
@@ -51,8 +51,8 @@ async fn test_parachain_up() -> Result<()> {
 		.spawn()
 		.unwrap();
 
-	// If after 15 secs is still running probably execution is ok
-	sleep(Duration::from_secs(15)).await;
+	// If after 10 secs is still running probably execution is ok, or waiting for user response
+	sleep(Duration::from_secs(10)).await;
 	assert!(cmd.try_wait().unwrap().is_none(), "the process should still be running");
 
 	// Stop the process
