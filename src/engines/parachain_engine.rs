@@ -94,7 +94,7 @@ mod tests {
 			decimals: 18,
 			initial_endowment: "1000000".to_string(),
 		};
-		let result: anyhow::Result<String> = instantiate_base_template(temp_dir.path(), config);
+		let result = instantiate_base_template(temp_dir.path(), config);
 		assert!(result.is_ok());
 		Ok(temp_dir)
 	}
