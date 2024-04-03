@@ -4,7 +4,7 @@ use crate::{
 		templates::{Provider, Template},
 	},
 	git::GitHub,
-	helpers::{display_release_versions_to_user, git_init},
+	helpers::{display_release_versions_to_user, git_init, prompt_customizable_options},
 	style::{style, Theme},
 };
 use anyhow::Result;
@@ -75,6 +75,7 @@ async fn guide_user_to_generate_template() -> Result<()> {
 	intro("User guide to generate a template")?;
 	let name: String = input("Where should your project be created?")
 		.placeholder("./my-parachain")
+		.default_input("./my-parachain")
 		.interact()?;
 
 	let provider_name = cliclack::select(format!("Select a template provider: "))
@@ -100,17 +101,16 @@ async fn guide_user_to_generate_template() -> Result<()> {
 		release_name = Some(display_release_versions_to_user(latest_3_releases)?);
 	}
 
-	generate_template(
-		&name,
-		&provider,
-		&template,
-		release_name,
-		Config {
-			symbol: "UNIT".to_string(),
-			decimals: 12,
-			initial_endowment: "1u64 << 60".to_string(),
-		},
-	)
+	let mut customizable_options = Config {
+		symbol: "UNIT".to_string(),
+		decimals: 12,
+		initial_endowment: "1u64 << 60".to_string(),
+	};
+	if matches!(template, Template::Base) {
+		customizable_options = prompt_customizable_options()?;
+	}
+
+	generate_template(&name, &provider, &template, release_name, customizable_options)
 }
 
 fn generate_template(

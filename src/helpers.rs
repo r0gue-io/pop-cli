@@ -1,5 +1,5 @@
 use anyhow::Result;
-use cliclack::{log, outro_cancel};
+use cliclack::{input, log, outro_cancel};
 use git2::{IndexAddOption, Repository, ResetType};
 use std::{
 	env::current_dir,
@@ -7,7 +7,7 @@ use std::{
 	path::{Path, PathBuf},
 };
 
-use crate::git::TagInfo;
+use crate::{engines::parachain_engine::Config, git::TagInfo};
 
 pub(crate) fn sanitize(target: &Path) -> Result<()> {
 	use std::io::{stdin, stdout, Write};
@@ -160,6 +160,25 @@ pub fn display_release_versions_to_user(latest_3_releases: Vec<TagInfo>) -> Resu
 			.interact()?;
 	}
 	Ok(version.to_string())
+}
+
+pub fn prompt_customizable_options() -> Result<Config> {
+	let symbol: String = input("What is the symbol of your parachain token?")
+		.placeholder("UNIT")
+		.default_input("UNIT")
+		.interact()?;
+
+	let decimals_input: String = input("How many token decimals?")
+		.placeholder("12")
+		.default_input("12")
+		.interact()?;
+	let decimals: u8 = decimals_input.parse::<u8>().expect("input has to be a number");
+
+	let endowment: String = input("And the initial endowment for dev accounts?")
+		.placeholder("1u64 << 60")
+		.default_input("1u64 << 60")
+		.interact()?;
+	Ok(Config { symbol, decimals, initial_endowment: endowment })
 }
 
 #[cfg(test)]
