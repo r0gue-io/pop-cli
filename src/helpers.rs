@@ -7,6 +7,8 @@ use std::{
 	path::{Path, PathBuf},
 };
 
+use crate::git::TagInfo;
+
 pub(crate) fn sanitize(target: &Path) -> Result<()> {
 	use std::io::{stdin, stdout, Write};
 	if target.exists() {
@@ -110,6 +112,54 @@ pub(crate) fn resolve_pallet_path(path: Option<String>) -> PathBuf {
 			Err(_) => cwd,
 		}
 	}
+}
+
+pub fn display_release_versions_to_user(latest_3_releases: Vec<TagInfo>) -> Result<String> {
+	let version;
+	if latest_3_releases.len() == 3 {
+		version = cliclack::select(format!("Select a specific release:"))
+			.initial_value(&latest_3_releases[0].tag_name)
+			.item(
+				&latest_3_releases[0].tag_name,
+				&latest_3_releases[0].name,
+				format!("{} ({})", &latest_3_releases[0].tag_name, &latest_3_releases[0].id),
+			)
+			.item(
+				&latest_3_releases[1].tag_name,
+				&latest_3_releases[1].name,
+				format!("{} ({})", &latest_3_releases[1].tag_name, &latest_3_releases[1].id),
+			)
+			.item(
+				&latest_3_releases[2].tag_name,
+				&latest_3_releases[2].name,
+				format!("{} ({})", &latest_3_releases[2].tag_name, &latest_3_releases[2].id),
+			)
+			.interact()?;
+	} else if latest_3_releases.len() == 2 {
+		version = cliclack::select(format!("Select a specific release:"))
+			.initial_value(&latest_3_releases[0].tag_name)
+			.item(
+				&latest_3_releases[0].tag_name,
+				&latest_3_releases[0].name,
+				format!("{} ({})", &latest_3_releases[0].tag_name, &latest_3_releases[0].id),
+			)
+			.item(
+				&latest_3_releases[1].tag_name,
+				&latest_3_releases[1].name,
+				format!("{} ({})", &latest_3_releases[1].tag_name, &latest_3_releases[1].id),
+			)
+			.interact()?;
+	} else {
+		version = cliclack::select(format!("Select a specific release:"))
+			.initial_value(&latest_3_releases[0].tag_name)
+			.item(
+				&latest_3_releases[0].tag_name,
+				&latest_3_releases[0].name,
+				format!("{} ({})", &latest_3_releases[0].tag_name, &latest_3_releases[0].id),
+			)
+			.interact()?;
+	}
+	Ok(version.to_string())
 }
 
 #[cfg(test)]

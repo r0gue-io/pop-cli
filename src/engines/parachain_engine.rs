@@ -1,6 +1,8 @@
 use crate::{
-	commands::new::parachain::Template,
-	engines::generator::{ChainSpec, Network},
+	engines::{
+		generator::{ChainSpec, Network},
+		templates::Template,
+	},
 	helpers::{clone_and_degit, sanitize, write_to_file},
 };
 use anyhow::Result;
@@ -27,16 +29,11 @@ pub fn instantiate_template_dir(
 	config: Config,
 ) -> Result<()> {
 	sanitize(target)?;
-	use Template::*;
-	let url = match template {
-		OZTemplate => "https://github.com/OpenZeppelin/polkadot-runtime-template.git",
-		ParityFPT => "https://github.com/paritytech/frontier-parachain-template.git",
-		ParityContracts => "https://github.com/paritytech/substrate-contracts-node.git",
-		Base => {
-			return instantiate_base_template(target, config, tag_version);
-		},
-	};
-	clone_and_degit(url, target, tag_version)?;
+
+	if matches!(template, &Template::Base) {
+		return instantiate_base_template(target, config, tag_version);
+	}
+	clone_and_degit(template.repository_url(), target, tag_version)?;
 	Repository::init(target)?;
 	Ok(())
 }
@@ -48,7 +45,9 @@ pub fn instantiate_base_template(
 ) -> Result<()> {
 	let temp_dir = ::tempfile::TempDir::new_in(std::env::temp_dir())?;
 	let source = temp_dir.path();
-	clone_and_degit("https://github.com/r0gue-io/base-parachain", source, tag_version)?;
+	let template = crate::engines::templates::Template::Base;
+
+	clone_and_degit(template.repository_url(), source, tag_version)?;
 
 	for entry in WalkDir::new(&source) {
 		let entry = entry?;
@@ -100,7 +99,7 @@ mod tests {
 			decimals: 18,
 			initial_endowment: "1000000".to_string(),
 		};
-		let result: anyhow::Result<()> = instantiate_base_template(temp_dir.path(), config);
+		let result: anyhow::Result<()> = instantiate_base_template(temp_dir.path(), config, None);
 		assert!(result.is_ok());
 		Ok(temp_dir)
 	}

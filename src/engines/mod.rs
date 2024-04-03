@@ -5,3 +5,5 @@ pub mod generator;
 pub mod pallet_engine;
 #[cfg(feature = "parachain")]
 pub mod parachain_engine;
+#[cfg(feature = "parachain")]
+pub mod templates;
