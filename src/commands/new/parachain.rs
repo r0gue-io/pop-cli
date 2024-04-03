@@ -11,17 +11,17 @@ use anyhow::Result;
 use clap::Args;
 use std::{fs, path::Path};
 
-use cliclack::{clear_screen, confirm, input, intro, outro, outro_cancel, set_theme};
+use cliclack::{clear_screen, confirm, input, intro, log, outro, outro_cancel, set_theme};
 
 #[derive(Args)]
 pub struct NewParachainCommand {
 	#[arg(help = "Name of the project. Also works as a directory path for your project")]
 	pub(crate) name: Option<String>,
-	#[arg(help = "Template provider among 'pop', 'openzeppelin' and 'parity'.")]
+	#[arg(help = "Template provider.")]
 	#[arg(default_value = "pop")]
 	pub(crate) provider: Option<Provider>,
 	#[arg(
-		help = "Template to use. Options are 'base' for Pop, 'template' for OpenZeppelin and 'cpt' and 'fpt' for Parity templates"
+		help = "Template to use: 'base' for Pop, 'template' for OpenZeppelin and 'cpt' and 'fpt' for Parity templates"
 	)]
 	pub(crate) template: Option<Template>,
 	#[arg(long, short, help = "Token Symbol", default_value = "UNIT")]
@@ -51,6 +51,13 @@ impl NewParachainCommand {
 				))?;
 				return Ok(());
 			};
+			if !matches!(template, Template::Base)
+				&& (self.symbol.is_some()
+					|| self.decimals.is_some()
+					|| self.initial_endowment.is_some())
+			{
+				log::warning("Customization options are not available for this template")?;
+			}
 			let config = Config {
 				symbol: self.symbol.clone().expect("default values"),
 				decimals: self.decimals.clone().expect("default values"),
