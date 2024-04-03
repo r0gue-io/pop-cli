@@ -1,6 +1,7 @@
 use anyhow::Result;
 use cliclack::{input, log, outro_cancel};
 use git2::{IndexAddOption, Repository, ResetType};
+use regex::Regex;
 use std::{
 	env::current_dir,
 	fs::{self, OpenOptions},
@@ -45,10 +46,13 @@ pub(crate) fn write_to_file<'a>(path: &Path, contents: &'a str) {
 }
 
 /// Clone `url` into `target` and degit it
-pub(crate) fn clone_and_degit(url: &str, target: &Path, tag_version: Option<String>) -> Result<()> {
+pub(crate) fn clone_and_degit(url: &str, target: &Path, tag_version: Option<String>) -> Result<Option<String>> {
 	let repo = Repository::clone(url, target)?;
+	// fetch tags from remote
+	let release = fetch_latest_tag(&repo);
+
 	if tag_version.is_some() {
-		let tag = tag_version.unwrap();
+		let tag = tag_version.clone().unwrap();
 		let (object, reference) = repo.revparse_ext(&tag).expect("Object not found");
 		repo.checkout_tree(&object, None).expect("Failed to checkout");
 		match reference {
@@ -58,10 +62,31 @@ pub(crate) fn clone_and_degit(url: &str, target: &Path, tag_version: Option<Stri
 			None => repo.set_head_detached(object.id()),
 		}
 		.expect("Failed to set HEAD");
+
+		let git_dir = repo.path();
+		fs::remove_dir_all(&git_dir)?;
+		// Return release version selected by the user
+		return Ok(tag_version);
 	}
 	let git_dir = repo.path();
 	fs::remove_dir_all(&git_dir)?;
-	Ok(())
+	// Or by default the last one
+	Ok(release)
+}
+
+/// Fetch the latest release from a repository
+fn fetch_latest_tag(repo: &Repository) -> Option<String> {
+	let version_reg = Regex::new(r"v\d+\.\d+\.\d+").expect("Valid regex");
+	let tags = repo.tag_names(None).ok()?;
+	// Start from latest tags
+	for tag in tags.iter().rev() {
+		if let Some(tag) = tag {
+			if version_reg.is_match(tag) {
+				return Some(tag.to_string());
+			}
+		}
+	}
+	None
 }
 
 /// Init a new git repo on creation of a parachain

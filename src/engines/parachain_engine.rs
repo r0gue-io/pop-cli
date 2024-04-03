@@ -27,27 +27,27 @@ pub fn instantiate_template_dir(
 	target: &Path,
 	tag_version: Option<String>,
 	config: Config,
-) -> Result<()> {
+) -> Result<Option<String>> {
 	sanitize(target)?;
 
 	if matches!(template, &Template::Base) {
 		return instantiate_base_template(target, config, tag_version);
 	}
-	clone_and_degit(template.repository_url(), target, tag_version)?;
+	let tag = clone_and_degit(template.repository_url(), target, tag_version)?;
 	Repository::init(target)?;
-	Ok(())
+	Ok(tag)
 }
 
 pub fn instantiate_base_template(
 	target: &Path,
 	config: Config,
 	tag_version: Option<String>,
-) -> Result<()> {
+) -> Result<Option<String>> {
 	let temp_dir = ::tempfile::TempDir::new_in(std::env::temp_dir())?;
 	let source = temp_dir.path();
 	let template = crate::engines::templates::Template::Base;
 
-	clone_and_degit(template.repository_url(), source, tag_version)?;
+	let tag = clone_and_degit(template.repository_url(), source, tag_version)?;
 
 	for entry in WalkDir::new(&source) {
 		let entry = entry?;
@@ -75,7 +75,7 @@ pub fn instantiate_base_template(
 	let network = Network { node: "parachain-template-node".into() };
 	write_to_file(&target.join("network.toml"), network.render().expect("infallible").as_ref());
 	Repository::init(target)?;
-	Ok(())
+	Ok(tag)
 }
 
 pub fn build_parachain(path: &Option<PathBuf>) -> anyhow::Result<()> {
@@ -99,7 +99,7 @@ mod tests {
 			decimals: 18,
 			initial_endowment: "1000000".to_string(),
 		};
-		let result: anyhow::Result<()> = instantiate_base_template(temp_dir.path(), config, None);
+		let result: anyhow::Result<Option<String>> = instantiate_base_template(temp_dir.path(), config, None);
 		assert!(result.is_ok());
 		Ok(temp_dir)
 	}

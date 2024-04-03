@@ -145,13 +145,16 @@ fn generate_template(
 	}
 	let mut spinner = cliclack::spinner();
 	spinner.start("Generating parachain...");
-	instantiate_template_dir(template, destination_path, tag_version, config)?;
+	let tag = instantiate_template_dir(template, destination_path, tag_version, config)?;
 	if let Err(err) = git_init(destination_path, "initialized parachain") {
 		if err.class() == git2::ErrorClass::Config && err.code() == git2::ErrorCode::NotFound {
 			outro_cancel("git signature could not be found. Please configure your git config with your name and email")?;
 		}
 	}
 	spinner.stop("Generation complete");
+	if let Some(tag) = tag {
+		log::info(format!("Version: {}", tag))?;
+	}
 
 	if !matches!(provider, Provider::Pop) {
 		cliclack::note(
