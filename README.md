@@ -18,15 +18,44 @@ cargo install --locked --git https://github.com/r0gue-io/pop-cli
 
 ### Parachains
 
-Use `pop` to generate a new parachain from a template:
+Use `pop` to generate a new parachain from a template.
+
+To be guided through the entire parachain creation process, simply execute
+```sh
+pop new parachain
+```
 
 ```sh
 # Create a minimal parachain
 pop new parachain my-app
-# Get a pallet-contracts enabled parachain
-pop new parachain my-app cpt
-# Get a evm compatible parachain
-pop new parachain my-app fpt
+```
+
+We also integrate other provider templates in the tool, check them running:
+```sh
+pop new parachain --help
+```
+Some examples are: 
+```sh
+# Get OpenZeppelin polkadot runtime parachain template
+pop new parachain my-app openzeppelin template
+# Get Parity's pallet-contracts enabled parachain template
+pop new parachain my-app parity cpt
+# Get Parity's evm compatible parachain template
+pop new parachain my-app parity fpt
+```
+
+For POP templates you can also customize your parachain by providing config options for token symbol (as it appears in chain metadata),
+token decimals, and the initial endowment for developer accounts. Here's how:
+
+```sh
+# Create a minimal parachain with "DOT" as token symbol, 6 token decimals and 1 billion tokens per dev account
+pop new parachain my-app --symbol DOT --decimals 6 --endowment 1_000_000_000
+```
+
+There's also the shorter version:
+
+```sh
+pop new parachain my-app -s DOT -d 6 -i 1_000_000_000
 ```
 
 Use `pop` to build your parachain.
@@ -43,19 +72,6 @@ cd my-app
 pop build parachain
 ```
 
-You can also customize your parachain by providing config options for token symbol (as it appears in chain metadata),
-token decimals, and the initial endowment for developer accounts. Here's how:
-
-```sh
-# Create a minimal parachain with "DOT" as token symbol, 6 token decimals and 1 billion tokens per dev account
-pop new parachain my-app --symbol DOT --decimals 6 --endowment 1_000_000_000
-```
-
-There's also the shorter version:
-
-```sh
-pop new parachain my-app -s DOT -d 6 -i 1_000_000_000
-```
 
 To create a new pallet, simply `pop new pallet`. And that's it. You will have a new `pallet-template` ready for hacking.
 To customize the new pallet you can follow these options:
