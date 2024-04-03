@@ -46,7 +46,11 @@ pub(crate) fn write_to_file<'a>(path: &Path, contents: &'a str) {
 }
 
 /// Clone `url` into `target` and degit it
-pub(crate) fn clone_and_degit(url: &str, target: &Path, tag_version: Option<String>) -> Result<Option<String>> {
+pub(crate) fn clone_and_degit(
+	url: &str,
+	target: &Path,
+	tag_version: Option<String>,
+) -> Result<Option<String>> {
 	let repo = Repository::clone(url, target)?;
 	// fetch tags from remote
 	let release = fetch_latest_tag(&repo);

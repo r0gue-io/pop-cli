@@ -99,7 +99,8 @@ mod tests {
 			decimals: 18,
 			initial_endowment: "1000000".to_string(),
 		};
-		let result: anyhow::Result<Option<String>> = instantiate_base_template(temp_dir.path(), config, None);
+		let result: anyhow::Result<Option<String>> =
+			instantiate_base_template(temp_dir.path(), config, None);
 		assert!(result.is_ok());
 		Ok(temp_dir)
 	}
