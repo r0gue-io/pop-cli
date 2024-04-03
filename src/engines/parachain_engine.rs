@@ -24,8 +24,9 @@ pub fn instantiate_template_dir(template: &Template, target: &Path, config: Conf
 	sanitize(target)?;
 	use Template::*;
 	let url = match template {
-		FPT => "https://github.com/paritytech/frontier-parachain-template.git",
-		Contracts => "https://github.com/paritytech/substrate-contracts-node.git",
+		OZTemplate => "https://github.com/OpenZeppelin/polkadot-runtime-template.git",
+		ParityFPT => "https://github.com/paritytech/frontier-parachain-template.git",
+		ParityContracts => "https://github.com/paritytech/substrate-contracts-node.git",
 		Base => {
 			return instantiate_base_template(target, config);
 		},

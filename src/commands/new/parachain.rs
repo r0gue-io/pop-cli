@@ -11,23 +11,58 @@ use cliclack::{clear_screen, confirm, intro, outro, outro_cancel, set_theme};
 
 #[derive(Clone, Parser, Debug, Display, EnumString, PartialEq)]
 pub enum Template {
-	#[strum(serialize = "Contracts Node Template", serialize = "cpt")]
-	Contracts,
-	#[strum(serialize = "Frontier Parachain Template", serialize = "fpt")]
-	FPT,
-	#[strum(serialize = "Base Parachain Template", serialize = "base")]
+	#[strum(serialize = "Pop Base Parachain Template", serialize = "base")]
 	Base,
+	#[strum(serialize = "OpenZeppeling Runtime Parachain Template", serialize = "template")]
+	OZTemplate,
+	#[strum(serialize = "Parity Contracts Node Template", serialize = "cpt")]
+	ParityContracts,
+	#[strum(serialize = "Parity Frontier Parachain Template", serialize = "fpt")]
+	ParityFPT,
+}
+impl Template {
+	fn is_provider_correct(&self, provider: &Provider) -> bool {
+		match provider {
+			Provider::Pop => return self == &Template::Base,
+			Provider::OpenZeppelin => return self == &Template::OZTemplate,
+			Provider::Parity => {
+				return self == &Template::ParityContracts || self == &Template::ParityFPT
+			},
+		}
+	}
+}
+
+#[derive(Clone, Default, Parser, Debug, Display, EnumString, PartialEq)]
+pub enum Provider {
+	#[default]
+	#[strum(serialize = "Pop", serialize = "pop")]
+	Pop,
+	#[strum(serialize = "OpenZeppelin", serialize = "openzeppelin")]
+	OpenZeppelin,
+	#[strum(serialize = "Parity", serialize = "parity")]
+	Parity,
+}
+impl Provider {
+	fn default_template(&self) -> Template {
+		match &self {
+			Provider::Pop => return Template::Base,
+			Provider::OpenZeppelin => return Template::OZTemplate,
+			Provider::Parity => return Template::ParityContracts,
+		}
+	}
 }
 
 #[derive(Args)]
 pub struct NewParachainCommand {
 	#[arg(help = "Name of the project. Also works as a directory path for your project")]
 	pub(crate) name: String,
+	#[arg(help = "Provider to pick template: Options are pop, openzeppelin and parity.")]
+	#[arg(default_value = "pop")]
+	pub(crate) provider: Option<Provider>,
 	#[arg(
-		help = "Template to use; Options are 'cpt', 'fpt'. Leave empty for default parachain template"
+		help = "Template to use. Options are base for Pop, template for OpenZeppelin and cpt and fpt for Parity templates"
 	)]
-	#[arg(default_value = "base")]
-	pub(crate) template: Template,
+	pub(crate) template: Option<Template>,
 	#[arg(long, short, help = "Token Symbol", default_value = "UNIT")]
 	pub(crate) symbol: Option<String>,
 	#[arg(long, short, help = "Token Decimals", default_value = "12")]
@@ -44,11 +79,21 @@ pub struct NewParachainCommand {
 impl NewParachainCommand {
 	pub(crate) fn execute(&self) -> anyhow::Result<()> {
 		clear_screen()?;
+		let provider = &self.provider.clone().unwrap_or(Provider::Pop);
+		let template = &self.template.clone().unwrap_or(provider.default_template());
+		if !template.is_provider_correct(provider) {
+			outro_cancel(format!(
+				"The provider \"{}\" doesn't support the {} template.",
+				provider, template
+			))?;
+			return Ok(());
+		}
 		intro(format!(
-			"{}: Generating \"{}\" using {}!",
+			"{}: Generating \"{}\" using {} from {}!",
 			style(" Pop CLI ").black().on_magenta(),
 			&self.name,
-			&self.template
+			template,
+			provider
 		))?;
 		set_theme(Theme);
 		let destination_path = Path::new(&self.name);
@@ -70,7 +115,7 @@ impl NewParachainCommand {
 		let mut spinner = cliclack::spinner();
 		spinner.start("Generating parachain...");
 		instantiate_template_dir(
-			&self.template,
+			template,
 			destination_path,
 			Config {
 				symbol: self.symbol.clone().expect("default values"),
@@ -101,7 +146,8 @@ mod tests {
 	fn test_new_parachain_command_execute() -> anyhow::Result<()> {
 		let command = NewParachainCommand {
 			name: "test_parachain".to_string(),
-			template: Template::Base,
+			provider: Some(Provider::Pop),
+			template: Some(Template::Base),
 			symbol: Some("UNIT".to_string()),
 			decimals: Some(12),
 			initial_endowment: Some("1u64 << 60".to_string()),
