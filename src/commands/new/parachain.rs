@@ -145,7 +145,15 @@ fn generate_template(
 		}
 	}
 	spinner.stop("Generation complete");
+
+	if !matches!(provider, Provider::Pop) {
+		cliclack::note(
+			"NOTE: the resulting parachain has not been guaranteed to be audited or reviewed for security vulnerabilities.",
+		format!("Please consult the source repository at {} to assess production suitability.", template.repository_url()))?;
+	}
+
 	outro(format!("cd into \"{}\" and enjoy hacking! 🚀", name_template))?;
+
 	Ok(())
 }
 
