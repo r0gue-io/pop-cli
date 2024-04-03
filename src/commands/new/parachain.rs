@@ -162,7 +162,7 @@ impl NewParachainCommand {
 				decimals: self.decimals.clone().expect("default values"),
 				initial_endowment: self.initial_endowment.clone().expect("default values"),
 			};
-			generate_template(name_template, provider, template, config)?
+			generate_template(name_template, provider, template, None, config)?
 		} else {
 			guide_user().await?;
 		}
@@ -194,27 +194,26 @@ async fn guide_user() -> Result<()> {
 	let url = template.repository();
 	let latest_3_releases = GitHub::get_latest_releases(3, &url).await?;
 
-	let version = display_versions(latest_3_releases)?;
-	//println!("{:?}", version);
+	let tag_name = display_versions(latest_3_releases)?;
 
 	generate_template(
 		&name,
 		&provider,
 		&template,
+		Some(tag_name),
 		Config {
 			symbol: "UNIT".to_string(),
 			decimals: 12,
 			initial_endowment: "1u64 << 60".to_string(),
 		},
 	)
-	Ok(())
 }
 
 fn generate_template(
 	name_template: &String,
 	provider: &Provider,
 	template: &Template,
-	version: Option<String>,
+	tag_version: Option<String>,
 	config: Config,
 ) -> Result<()> {
 	intro(format!(
@@ -243,7 +242,7 @@ fn generate_template(
 	}
 	let mut spinner = cliclack::spinner();
 	spinner.start("Generating parachain...");
-	instantiate_template_dir(template, destination_path, config)?;
+	instantiate_template_dir(template, destination_path, tag_version, config)?;
 	if let Err(err) = git_init(destination_path, "initialized parachain") {
 		if err.class() == git2::ErrorClass::Config && err.code() == git2::ErrorCode::NotFound {
 			outro_cancel("git signature could not be found. Please configure your git config with your name and email")?;
@@ -257,26 +256,26 @@ fn generate_template(
 fn display_versions(latest_3_releases: Vec<TagInfo>) -> Result<String> {
 	let version;
 	if latest_3_releases.len() == 3 {
-		version = cliclack::select(format!("Select a template provider: "))
+		version = cliclack::select(format!("Select a specific release:"))
 			.initial_value(&latest_3_releases[0].tag_name)
 			.item(
 				&latest_3_releases[0].tag_name,
 				&latest_3_releases[0].name,
-				format!("{} ({})", &latest_3_releases[0].tag_name, &latest_3_releases[0].id)
+				format!("{} ({})", &latest_3_releases[0].tag_name, &latest_3_releases[0].id),
 			)
 			.item(
 				&latest_3_releases[1].tag_name,
 				&latest_3_releases[1].name,
-				format!("{} ({})", &latest_3_releases[1].tag_name, &latest_3_releases[1].id)
+				format!("{} ({})", &latest_3_releases[1].tag_name, &latest_3_releases[1].id),
 			)
 			.item(
 				&latest_3_releases[2].tag_name,
 				&latest_3_releases[2].name,
-				format!("{} ({})", &latest_3_releases[2].tag_name, &latest_3_releases[2].id)
+				format!("{} ({})", &latest_3_releases[2].tag_name, &latest_3_releases[2].id),
 			)
 			.interact()?;
 	} else if latest_3_releases.len() == 2 {
-		version = cliclack::select(format!("Select a template provider: "))
+		version = cliclack::select(format!("Select a specific release:"))
 			.initial_value(&latest_3_releases[0].tag_name)
 			.item(
 				&latest_3_releases[0].tag_name,
@@ -290,12 +289,12 @@ fn display_versions(latest_3_releases: Vec<TagInfo>) -> Result<String> {
 			)
 			.interact()?;
 	} else {
-		version = cliclack::select(format!("Select a template provider: "))
+		version = cliclack::select(format!("Select a specific release:"))
 			.initial_value(&latest_3_releases[0].tag_name)
 			.item(
 				&latest_3_releases[0].tag_name,
 				&latest_3_releases[0].name,
-				format!("{} ({})", &latest_3_releases[0].tag_name, &latest_3_releases[0].id)
+				format!("{} ({})", &latest_3_releases[0].tag_name, &latest_3_releases[0].id),
 			)
 			.interact()?;
 	}

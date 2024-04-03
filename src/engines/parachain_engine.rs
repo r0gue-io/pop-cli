@@ -20,7 +20,12 @@ pub struct Config {
 }
 
 /// Creates a new template at `target` dir
-pub fn instantiate_template_dir(template: &Template, target: &Path, config: Config) -> Result<()> {
+pub fn instantiate_template_dir(
+	template: &Template,
+	target: &Path,
+	tag_version: Option<String>,
+	config: Config,
+) -> Result<()> {
 	sanitize(target)?;
 	use Template::*;
 	let url = match template {
@@ -28,18 +33,22 @@ pub fn instantiate_template_dir(template: &Template, target: &Path, config: Conf
 		ParityFPT => "https://github.com/paritytech/frontier-parachain-template.git",
 		ParityContracts => "https://github.com/paritytech/substrate-contracts-node.git",
 		Base => {
-			return instantiate_base_template(target, config);
+			return instantiate_base_template(target, config, tag_version);
 		},
 	};
-	clone_and_degit(url, target)?;
+	clone_and_degit(url, target, tag_version)?;
 	Repository::init(target)?;
 	Ok(())
 }
 
-pub fn instantiate_base_template(target: &Path, config: Config) -> Result<()> {
+pub fn instantiate_base_template(
+	target: &Path,
+	config: Config,
+	tag_version: Option<String>,
+) -> Result<()> {
 	let temp_dir = ::tempfile::TempDir::new_in(std::env::temp_dir())?;
 	let source = temp_dir.path();
-	clone_and_degit("https://github.com/r0gue-io/base-parachain", source)?;
+	clone_and_degit("https://github.com/r0gue-io/base-parachain", source, tag_version)?;
 
 	for entry in WalkDir::new(&source) {
 		let entry = entry?;

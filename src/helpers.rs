@@ -43,8 +43,20 @@ pub(crate) fn write_to_file<'a>(path: &Path, contents: &'a str) {
 }
 
 /// Clone `url` into `target` and degit it
-pub(crate) fn clone_and_degit(url: &str, target: &Path) -> Result<()> {
+pub(crate) fn clone_and_degit(url: &str, target: &Path, tag_version: Option<String>) -> Result<()> {
 	let repo = Repository::clone(url, target)?;
+	if tag_version.is_some() {
+		let tag = tag_version.unwrap();
+		let (object, reference) = repo.revparse_ext(&tag).expect("Object not found");
+		repo.checkout_tree(&object, None).expect("Failed to checkout");
+		match reference {
+			// gref is an actual reference like branches or tags
+			Some(gref) => repo.set_head(gref.name().unwrap()),
+			// this is a commit, not a reference
+			None => repo.set_head_detached(object.id()),
+		}
+		.expect("Failed to set HEAD");
+	}
 	let git_dir = repo.path();
 	fs::remove_dir_all(&git_dir)?;
 	Ok(())

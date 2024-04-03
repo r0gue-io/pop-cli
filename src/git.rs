@@ -54,7 +54,6 @@ impl GitHub {
 			.ok_or(anyhow!("the github release tag was not found"))
 	}
 	pub async fn get_latest_releases(number: usize, repo: &Url) -> Result<Vec<TagInfo>> {
-		println!("get releases");
 		static APP_USER_AGENT: &str =
 			concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 
