@@ -23,6 +23,13 @@ impl Git {
 	}
 }
 
+#[derive(Debug, Clone)]
+pub struct TagInfo {
+	pub(crate) tag_name: String,
+	pub(crate) name: String,
+	pub(crate) id: String,
+}
+
 pub struct GitHub;
 type Tag = String;
 impl GitHub {
@@ -45,6 +52,49 @@ impl GitHub {
 			.and_then(|v| v.as_str())
 			.map(|v| v.to_owned())
 			.ok_or(anyhow!("the github release tag was not found"))
+	}
+	pub async fn get_latest_releases(number: usize, repo: &Url) -> Result<Vec<TagInfo>> {
+		println!("get releases");
+		static APP_USER_AGENT: &str =
+			concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
+
+		let client = reqwest::ClientBuilder::new().user_agent(APP_USER_AGENT).build()?;
+		let response = client
+			.get(format!(
+				"https://api.github.com/repos/{}/{}/releases",
+				Self::org(repo)?,
+				Self::name(repo)?
+			))
+			.send()
+			.await?;
+		let value = response.json::<serde_json::Value>().await?;
+
+		let mut latest_releases: Vec<TagInfo> = Vec::new();
+		for i in 0..number {
+			if value[i].get("tag_name").is_some() {
+				let tag_name = value[i]
+					.get("tag_name")
+					.and_then(|v| v.as_str())
+					.map(|v| v.to_owned())
+					.ok_or(anyhow!("the github release tag name was not found"))?;
+
+				let name = value[i]
+					.get("name")
+					.and_then(|v| v.as_str())
+					.map(|v| v.to_owned())
+					.ok_or(anyhow!("the github release tag was not found"))?;
+
+				let id = value[i]
+					.get("id")
+					.and_then(|v| v.as_number())
+					.map(|v| v.to_owned())
+					.ok_or(anyhow!("the github release tag id was not found"))?;
+
+				latest_releases.push(TagInfo { name, tag_name, id: id.to_string() });
+			}
+		}
+
+		Ok(latest_releases)
 	}
 
 	fn org(repo: &Url) -> Result<&str> {

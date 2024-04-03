@@ -1,5 +1,6 @@
 use crate::{
 	engines::parachain_engine::{instantiate_template_dir, Config},
+	git::{GitHub, TagInfo},
 	helpers::git_init,
 	style::{style, Theme},
 };
@@ -7,6 +8,7 @@ use anyhow::Result;
 use clap::{Args, Parser};
 use std::{fs, path::Path};
 use strum_macros::{Display, EnumString};
+use url::Url;
 
 use cliclack::{clear_screen, confirm, input, intro, outro, outro_cancel, set_theme};
 
@@ -38,6 +40,24 @@ impl Template {
 			"cpt" => Template::ParityContracts,
 			"fpt" => Template::ParityFPT,
 			_ => Template::Base,
+		}
+	}
+	fn repository(&self) -> Url {
+		match &self {
+			Template::Base => Url::parse("https://github.com/r0gue-io/base-parachain")
+				.expect("valid pop base template repository url"),
+			Template::OZTemplate => {
+				Url::parse("https://github.com/OpenZeppelin/polkadot-runtime-template")
+					.expect("valid openzeppelin template repository url")
+			},
+			Template::ParityContracts => {
+				Url::parse("https://github.com/paritytech/substrate-contracts-node")
+					.expect("valid parity substrate contract repository url")
+			},
+			Template::ParityFPT => {
+				Url::parse("https://github.com/paritytech/frontier-parachain-template")
+					.expect("valid partity frontier repository url")
+			},
 		}
 	}
 }
@@ -125,7 +145,7 @@ pub struct NewParachainCommand {
 }
 
 impl NewParachainCommand {
-	pub(crate) fn execute(&self) -> Result<()> {
+	pub(crate) async fn execute(&self) -> Result<()> {
 		clear_screen()?;
 		if let Some(name_template) = &self.name {
 			let provider = &self.provider.clone().unwrap_or(Provider::Pop);
@@ -144,13 +164,13 @@ impl NewParachainCommand {
 			};
 			generate_template(name_template, provider, template, config)?
 		} else {
-			guide_user()?;
+			guide_user().await?;
 		}
 		Ok(())
 	}
 }
 
-fn guide_user() -> Result<()> {
+async fn guide_user() -> Result<()> {
 	let name: String = input("Where should your project be created?")
 		.placeholder("my-parachain")
 		.interact()?;
@@ -170,6 +190,13 @@ fn guide_user() -> Result<()> {
 	let template_name = provider.display_select_options();
 	let template = Template::from(template_name);
 
+	// Get the releases
+	let url = template.repository();
+	let latest_3_releases = GitHub::get_latest_releases(3, &url).await?;
+
+	let version = display_versions(latest_3_releases)?;
+	//println!("{:?}", version);
+
 	generate_template(
 		&name,
 		&provider,
@@ -180,12 +207,14 @@ fn guide_user() -> Result<()> {
 			initial_endowment: "1u64 << 60".to_string(),
 		},
 	)
+	Ok(())
 }
 
 fn generate_template(
 	name_template: &String,
 	provider: &Provider,
 	template: &Template,
+	version: Option<String>,
 	config: Config,
 ) -> Result<()> {
 	intro(format!(
@@ -225,6 +254,54 @@ fn generate_template(
 	Ok(())
 }
 
+fn display_versions(latest_3_releases: Vec<TagInfo>) -> Result<String> {
+	let version;
+	if latest_3_releases.len() == 3 {
+		version = cliclack::select(format!("Select a template provider: "))
+			.initial_value(&latest_3_releases[0].tag_name)
+			.item(
+				&latest_3_releases[0].tag_name,
+				&latest_3_releases[0].name,
+				format!("{} ({})", &latest_3_releases[0].tag_name, &latest_3_releases[0].id)
+			)
+			.item(
+				&latest_3_releases[1].tag_name,
+				&latest_3_releases[1].name,
+				format!("{} ({})", &latest_3_releases[1].tag_name, &latest_3_releases[1].id)
+			)
+			.item(
+				&latest_3_releases[2].tag_name,
+				&latest_3_releases[2].name,
+				format!("{} ({})", &latest_3_releases[2].tag_name, &latest_3_releases[2].id)
+			)
+			.interact()?;
+	} else if latest_3_releases.len() == 2 {
+		version = cliclack::select(format!("Select a template provider: "))
+			.initial_value(&latest_3_releases[0].tag_name)
+			.item(
+				&latest_3_releases[0].tag_name,
+				&latest_3_releases[0].name,
+				format!("{} ({})", &latest_3_releases[0].tag_name, &latest_3_releases[0].id),
+			)
+			.item(
+				&latest_3_releases[1].tag_name,
+				&latest_3_releases[1].name,
+				format!("{} ({})", &latest_3_releases[1].tag_name, &latest_3_releases[1].id),
+			)
+			.interact()?;
+	} else {
+		version = cliclack::select(format!("Select a template provider: "))
+			.initial_value(&latest_3_releases[0].tag_name)
+			.item(
+				&latest_3_releases[0].tag_name,
+				&latest_3_releases[0].name,
+				format!("{} ({})", &latest_3_releases[0].tag_name, &latest_3_releases[0].id)
+			)
+			.interact()?;
+	}
+	Ok(version.to_string())
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -233,8 +310,8 @@ mod tests {
 	use super::*;
 	use std::fs;
 
-	#[test]
-	fn test_new_parachain_command_execute() -> anyhow::Result<()> {
+	#[tokio::test]
+	async fn test_new_parachain_command_execute() -> anyhow::Result<()> {
 		let command = NewParachainCommand {
 			name: Some("test_parachain".to_string()),
 			provider: Some(Provider::Pop),
@@ -243,7 +320,7 @@ mod tests {
 			decimals: Some(12),
 			initial_endowment: Some("1u64 << 60".to_string()),
 		};
-		let result = command.execute();
+		let result = command.execute().await;
 		assert!(result.is_ok());
 
 		// check for git_init

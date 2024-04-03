@@ -15,7 +15,7 @@ pub struct NewContractCommand {
 }
 
 impl NewContractCommand {
-	pub(crate) fn execute(&self) -> anyhow::Result<()> {
+	pub(crate) async fn execute(&self) -> anyhow::Result<()> {
 		clear_screen()?;
 		intro(format!(
 			"{}: Generating new contract \"{}\"!",
@@ -62,27 +62,27 @@ mod tests {
 	use super::*;
 	use anyhow::Result;
 
-	#[test]
-	fn test_new_contract_command_execute_success() -> Result<()> {
+	#[tokio::test]
+	async fn test_new_contract_command_execute_success() -> Result<()> {
 		let temp_contract_dir = tempfile::tempdir().expect("Could not create temp dir");
 		let command = NewContractCommand {
 			name: "test_contract".to_string(),
 			path: Some(PathBuf::from(temp_contract_dir.path())),
 		};
-		let result = command.execute();
+		let result = command.execute().await;
 		assert!(result.is_ok());
 
 		Ok(())
 	}
 
-	#[test]
-	fn test_new_contract_command_execute_fails_path_no_exist() -> Result<()> {
+	#[tokio::test]
+	async fn test_new_contract_command_execute_fails_path_no_exist() -> Result<()> {
 		let temp_contract_dir = tempfile::tempdir().expect("Could not create temp dir");
 		let command = NewContractCommand {
 			name: "test_contract".to_string(),
 			path: Some(temp_contract_dir.path().join("new_contract")),
 		};
-		let result_error = command.execute();
+		let result_error = command.execute().await;
 		assert!(result_error.is_err());
 		Ok(())
 	}
