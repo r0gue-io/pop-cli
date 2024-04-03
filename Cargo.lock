@@ -5431,6 +5431,7 @@ dependencies = [
  "ink_env",
  "log",
  "predicates",
+ "regex",
  "reqwest",
  "serde",
  "serde_json",
