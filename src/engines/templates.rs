@@ -10,7 +10,6 @@ pub struct Config {
 	pub(crate) initial_endowment: String,
 }
 
-
 #[derive(Clone, Parser, Debug, Display, EnumString, PartialEq)]
 pub enum Template {
 	// Pop

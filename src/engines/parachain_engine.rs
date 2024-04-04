@@ -1,7 +1,7 @@
 use crate::{
 	engines::{
 		generator::{ChainSpec, Network},
-		templates::{Template, Config},
+		templates::{Config, Template},
 	},
 	helpers::{clone_and_degit, sanitize, write_to_file},
 };
