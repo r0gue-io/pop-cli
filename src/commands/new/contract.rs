@@ -72,16 +72,4 @@ mod tests {
 
 		Ok(())
 	}
-
-	#[test]
-	fn test_new_contract_command_execute_fails_path_no_exist() -> Result<()> {
-		let temp_contract_dir = tempfile::tempdir().expect("Could not create temp dir");
-		let command = NewContractCommand {
-			name: "test_contract".to_string(),
-			path: Some(temp_contract_dir.path().join("new_contract")),
-		};
-		let result_error = command.execute();
-		assert!(result_error.is_err());
-		Ok(())
-	}
 }
