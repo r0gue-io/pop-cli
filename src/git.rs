@@ -27,7 +27,7 @@ impl Git {
 pub struct TagInfo {
 	pub(crate) tag_name: String,
 	pub(crate) name: String,
-	pub(crate) id: String,
+	pub(crate) commit: String,
 }
 
 pub struct GitHub;
@@ -83,13 +83,25 @@ impl GitHub {
 					.map(|v| v.to_owned())
 					.ok_or(anyhow!("the github release tag was not found"))?;
 
-				let id = value[i]
-					.get("id")
-					.and_then(|v| v.as_number())
+				// Additional lookup for commit sha
+				let response = client
+					.get(format!(
+						"https://api.github.com/repos/{}/{}/git/ref/tags/{}",
+						Self::org(repo)?,
+						Self::name(repo)?,
+						tag_name
+					))
+					.send()
+					.await?;
+				let value = response.json::<serde_json::Value>().await?;
+				let commit = value
+					.get("object")
+					.and_then(|v| v.get("sha"))
+					.and_then(|v| v.as_str())
 					.map(|v| v.to_owned())
-					.ok_or(anyhow!("the github release tag id was not found"))?;
+					.ok_or(anyhow!("the github release tag sha was not found"))?;
 
-				latest_releases.push(TagInfo { name, tag_name, id: id.to_string() });
+				latest_releases.push(TagInfo { name, tag_name, commit });
 			}
 		}
 

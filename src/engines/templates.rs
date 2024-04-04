@@ -13,10 +13,13 @@ pub struct Config {
 
 #[derive(Clone, Parser, Debug, Display, EnumString, PartialEq)]
 pub enum Template {
-	#[strum(serialize = "Pop Base Parachain Template", serialize = "base")]
+	// Pop
+	#[strum(serialize = "Standard Template", serialize = "base")]
 	Base,
-	#[strum(serialize = "OpenZeppeling Runtime Parachain Template", serialize = "template")]
+	// OpenZeppelin
+	#[strum(serialize = "Generic Template", serialize = "template")]
 	OZTemplate,
+	// Parity
 	#[strum(serialize = "Parity Contracts Node Template", serialize = "cpt")]
 	ParityContracts,
 	#[strum(serialize = "Parity Frontier Parachain Template", serialize = "fpt")]
@@ -25,11 +28,9 @@ pub enum Template {
 impl Template {
 	pub fn is_provider_correct(&self, provider: &Provider) -> bool {
 		match provider {
-			Provider::Pop => return self == &Template::Base,
-			Provider::OpenZeppelin => return self == &Template::OZTemplate,
-			Provider::Parity => {
-				return self == &Template::ParityContracts || self == &Template::ParityFPT
-			},
+			Provider::Pop => self == &Template::Base,
+			Provider::OpenZeppelin => self == &Template::OZTemplate,
+			Provider::Parity => self == &Template::ParityContracts || self == &Template::ParityFPT,
 		}
 	}
 	pub fn from(provider_name: &str) -> Self {
@@ -54,19 +55,19 @@ impl Template {
 #[derive(Clone, Default, Parser, Debug, Display, EnumString, PartialEq)]
 pub enum Provider {
 	#[default]
-	#[strum(serialize = "Pop", serialize = "pop")]
+	#[strum(ascii_case_insensitive)]
 	Pop,
-	#[strum(serialize = "OpenZeppelin", serialize = "openzeppelin")]
+	#[strum(ascii_case_insensitive)]
 	OpenZeppelin,
-	#[strum(serialize = "Parity", serialize = "parity")]
+	#[strum(ascii_case_insensitive)]
 	Parity,
 }
 impl Provider {
 	pub fn default_template(&self) -> Template {
 		match &self {
-			Provider::Pop => return Template::Base,
-			Provider::OpenZeppelin => return Template::OZTemplate,
-			Provider::Parity => return Template::ParityContracts,
+			Provider::Pop => Template::Base,
+			Provider::OpenZeppelin => Template::OZTemplate,
+			Provider::Parity => Template::ParityContracts,
 		}
 	}
 	pub fn from(provider_name: &str) -> Self {
@@ -79,32 +80,26 @@ impl Provider {
 	}
 	pub fn display_select_options(&self) -> &str {
 		match &self {
-			Provider::Pop => {
-				return cliclack::select(format!("Select the type of parachain:"))
-					.initial_value("base")
-					.item("base", "Base Parachain", "A standard parachain")
-					.interact()
-					.expect("Error parsing user input");
-			},
-			Provider::OpenZeppelin => {
-				return cliclack::select(format!("Select the type of parachain:"))
-					.initial_value("template")
-					.item(
-						"template",
-						"OpenZeppeling Template",
-						"OpenZeppeling Runtime Parachain Template",
-					)
-					.interact()
-					.expect("Error parsing user input");
-			},
-			Provider::Parity => {
-				return cliclack::select(format!("Select the type of parachain:"))
-					.initial_value("cpt")
-					.item("cpt", "Parity Contracts", "A parachain supporting WebAssembly smart contracts such as ink!.")
-					.item("fpt", "Parity EVM", "A parachain supporting smart contracts targeting the Ethereum Virtual Machine (EVM).")
-					.interact()
-					.expect("Error parsing user input");
-			},
-		};
+			Provider::Pop => cliclack::select("Select the type of parachain:".to_string())
+				.initial_value("base")
+				.item("base", "Standard Template", "A standard parachain")
+				.interact()
+				.expect("Error parsing user input"),
+			Provider::OpenZeppelin => cliclack::select("Select the type of parachain:".to_string())
+				.initial_value("template")
+				.item("template", "Generic Template", "A generic template for Substrate Runtime.")
+				.interact()
+				.expect("Error parsing user input"),
+			Provider::Parity => cliclack::select("Select the type of parachain:".to_string())
+				.initial_value("cpt")
+				.item(
+					"cpt",
+					"Contracts",
+					"Minimal Substrate node configured for smart contracts via pallet-contracts.",
+				)
+				.item("fpt", "EVM", "Template node for a Frontier (EVM) based parachain.")
+				.interact()
+				.expect("Error parsing user input"),
+		}
 	}
 }
