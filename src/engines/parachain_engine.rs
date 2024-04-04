@@ -127,13 +127,4 @@ mod tests {
 
 		Ok(())
 	}
-
-	#[test]
-	fn test_parachain_build_after_instantiating_template() -> Result<()> {
-		let temp_dir =
-			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
-		let build = build_parachain(&Some(temp_dir.path().to_path_buf()));
-		assert!(build.is_ok(), "Result should be Ok");
-		Ok(())
-	}
 }

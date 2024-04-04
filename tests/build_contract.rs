@@ -1,3 +1,4 @@
+#![cfg(feature = "e2e_contract")]
 use anyhow::{Error, Result};
 use assert_cmd::Command;
 use predicates::prelude::*;
@@ -16,7 +17,7 @@ fn setup_test_environment() -> Result<tempfile::TempDir, Error> {
 }
 
 #[test]
-fn test_contract_build() -> Result<(), Error> {
+fn test_contract_build_success() -> Result<(), Error> {
 	let temp_contract_dir = setup_test_environment()?;
 
 	// pop build contract

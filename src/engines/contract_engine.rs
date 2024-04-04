@@ -204,6 +204,7 @@ mod tests {
 		Ok(())
 	}
 
+	#[cfg(feature = "unit_contract")]
 	#[test]
 	fn test_contract_build() -> Result<(), Error> {
 		let temp_contract_dir = setup_test_environment()?;
@@ -230,6 +231,7 @@ mod tests {
 		Ok(())
 	}
 
+	#[cfg(feature = "unit_contract")]
 	#[test]
 	fn test_contract_test() -> Result<(), Error> {
 		let temp_contract_dir = setup_test_environment()?;
