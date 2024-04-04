@@ -15,7 +15,7 @@ pub struct NewContractCommand {
 }
 
 impl NewContractCommand {
-	pub(crate) fn execute(&self) -> anyhow::Result<()> {
+	pub(crate) fn execute(self) -> anyhow::Result<()> {
 		clear_screen()?;
 		intro(format!(
 			"{}: Generating new contract \"{}\"!",
@@ -42,11 +42,13 @@ impl NewContractCommand {
 				return Ok(());
 			}
 			fs::remove_dir_all(contract_path.as_path())?;
+		} else {
+			fs::create_dir_all(contract_path.as_path())?;
 		}
 		let mut spinner = cliclack::spinner();
 		spinner.start("Generating contract...");
 
-		create_smart_contract(self.name.clone(), &self.path)?;
+		create_smart_contract(self.name, contract_path.as_path())?;
 		spinner.stop("Smart contract created!");
 		outro(format!("cd into \"{}\" and enjoy hacking! 🚀", contract_path.display()))?;
 		Ok(())

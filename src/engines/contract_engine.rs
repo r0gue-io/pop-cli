@@ -1,7 +1,7 @@
 use anyhow::Context;
 use cliclack::log;
 use duct::cmd;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use contract_build::{
 	execute, new_contract_project, BuildArtifacts, BuildMode, ExecuteArgs, Features, ManifestPath,
@@ -14,8 +14,8 @@ use sp_weights::Weight;
 use subxt::PolkadotConfig as DefaultConfig;
 use subxt_signer::sr25519::Keypair;
 
-pub fn create_smart_contract(name: String, target: &Option<PathBuf>) -> anyhow::Result<()> {
-	new_contract_project(&name, target.as_ref())
+pub fn create_smart_contract(name: String, target: &Path) -> anyhow::Result<()> {
+	new_contract_project(&name, Some(target))
 }
 
 pub fn build_smart_contract(path: &Option<PathBuf>) -> anyhow::Result<()> {
@@ -172,14 +172,12 @@ pub async fn dry_run_call(
 mod tests {
 	use super::*;
 	use anyhow::{Error, Result};
-	use std::{fs, path::PathBuf};
+	use std::fs;
 
 	fn setup_test_environment() -> Result<tempfile::TempDir, Error> {
 		let temp_contract_dir = tempfile::tempdir().expect("Could not create temp dir");
-		let result: anyhow::Result<()> = create_smart_contract(
-			"test_contract".to_string(),
-			&Some(PathBuf::from(temp_contract_dir.path())),
-		);
+		let result: anyhow::Result<()> =
+			create_smart_contract("test_contract".to_string(), temp_contract_dir.path());
 
 		assert!(result.is_ok(), "Result should be Ok");
 
