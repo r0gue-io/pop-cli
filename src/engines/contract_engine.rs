@@ -203,8 +203,8 @@ mod tests {
 		Ok(())
 	}
 
+	#[cfg(feature = "unit_contract")]
 	#[test]
-	#[ignore = "Build a contract takes long time to build"]
 	fn test_contract_build() -> Result<(), Error> {
 		let temp_contract_dir = setup_test_environment()?;
 
@@ -229,9 +229,9 @@ mod tests {
 
 		Ok(())
 	}
-
+	
+	#[cfg(feature = "unit_contract")]
 	#[test]
-	#[ignore = "Build a contract to test it takes long time to build"]
 	fn test_contract_test() -> Result<(), Error> {
 		let temp_contract_dir = setup_test_environment()?;
 

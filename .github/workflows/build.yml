@@ -65,4 +65,4 @@ jobs:
       run: cargo build
 
     - name: Run tests
-      run: cargo test --all-features -- --include-ignored
+      run: cargo test --all-features

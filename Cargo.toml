@@ -64,6 +64,7 @@ contract = [
     "dep:url",
 ]
 e2e_contract = []
+unit_contract = []
 parachain = [
     "dep:dirs",
     "dep:indexmap",
