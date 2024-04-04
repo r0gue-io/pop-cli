@@ -64,5 +64,5 @@ jobs:
     - name: Build default features
       run: cargo build
 
-    - name: Run unit tests
+    - name: Run tests
       run: cargo test --all-features -- --include-ignored
