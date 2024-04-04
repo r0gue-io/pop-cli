@@ -1,4 +1,4 @@
-use std::{fs, path::PathBuf};
+use std::{env::current_dir, fs, path::PathBuf};
 
 use clap::Args;
 use cliclack::{clear_screen, confirm, intro, outro, outro_cancel, set_theme};
@@ -26,7 +26,7 @@ impl NewContractCommand {
 		let contract_path = if let Some(ref path) = self.path {
 			path.join(&self.name)
 		} else {
-			PathBuf::from(&self.name)
+			current_dir()?.join(&self.name)
 		};
 		if contract_path.exists() {
 			if !confirm(format!(
@@ -42,12 +42,10 @@ impl NewContractCommand {
 				return Ok(());
 			}
 			fs::remove_dir_all(contract_path.as_path())?;
-		} else {
-			fs::create_dir_all(contract_path.as_path())?;
 		}
+		fs::create_dir_all(contract_path.as_path())?;
 		let mut spinner = cliclack::spinner();
 		spinner.start("Generating contract...");
-
 		create_smart_contract(self.name, contract_path.as_path())?;
 		spinner.stop("Smart contract created!");
 		outro(format!("cd into \"{}\" and enjoy hacking! 🚀", contract_path.display()))?;

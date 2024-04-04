@@ -15,7 +15,10 @@ use subxt::PolkadotConfig as DefaultConfig;
 use subxt_signer::sr25519::Keypair;
 
 pub fn create_smart_contract(name: String, target: &Path) -> anyhow::Result<()> {
-	new_contract_project(&name, Some(target))
+	// In this code, out_dir will automatically join `name` to `target`,
+	// which is created prior to the call to this function
+	// So we must pass `target.parent()`
+	new_contract_project(&name, target.parent())
 }
 
 pub fn build_smart_contract(path: &Option<PathBuf>) -> anyhow::Result<()> {
