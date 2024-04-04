@@ -216,6 +216,12 @@ Run the unit tests:
 cargo test
 ```
 
+Run only contracts unit tests:
+
+```sh
+cargo test --features unit_contract
+```
+
 Run the contracts e2e tests:
 
 ```sh
@@ -228,8 +234,8 @@ Run the parachain e2e tests:
 cargo test --features e2e_parachain
 ```
 
-Run all tests, including the ignored ones:
+Run all tests:
 
 ```sh
-cargo test --all-features -- --include-ignored
+cargo test --all-features
 ```
