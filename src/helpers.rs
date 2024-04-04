@@ -143,52 +143,19 @@ pub(crate) fn resolve_pallet_path(path: Option<String>) -> PathBuf {
 	}
 }
 
-pub fn display_release_versions_to_user(latest_3_releases: Vec<TagInfo>) -> Result<String> {
-	let version;
-	if latest_3_releases.len() == 3 {
-		version = cliclack::select(format!("Select a specific release:"))
-			.initial_value(&latest_3_releases[0].tag_name)
-			.item(
-				&latest_3_releases[0].tag_name,
-				&latest_3_releases[0].name,
-				format!("{} ({})", &latest_3_releases[0].tag_name, &latest_3_releases[0].id),
-			)
-			.item(
-				&latest_3_releases[1].tag_name,
-				&latest_3_releases[1].name,
-				format!("{} ({})", &latest_3_releases[1].tag_name, &latest_3_releases[1].id),
-			)
-			.item(
-				&latest_3_releases[2].tag_name,
-				&latest_3_releases[2].name,
-				format!("{} ({})", &latest_3_releases[2].tag_name, &latest_3_releases[2].id),
-			)
-			.interact()?;
-	} else if latest_3_releases.len() == 2 {
-		version = cliclack::select(format!("Select a specific release:"))
-			.initial_value(&latest_3_releases[0].tag_name)
-			.item(
-				&latest_3_releases[0].tag_name,
-				&latest_3_releases[0].name,
-				format!("{} ({})", &latest_3_releases[0].tag_name, &latest_3_releases[0].id),
-			)
-			.item(
-				&latest_3_releases[1].tag_name,
-				&latest_3_releases[1].name,
-				format!("{} ({})", &latest_3_releases[1].tag_name, &latest_3_releases[1].id),
-			)
-			.interact()?;
-	} else {
-		version = cliclack::select(format!("Select a specific release:"))
-			.initial_value(&latest_3_releases[0].tag_name)
-			.item(
-				&latest_3_releases[0].tag_name,
-				&latest_3_releases[0].name,
-				format!("{} ({})", &latest_3_releases[0].tag_name, &latest_3_releases[0].id),
-			)
-			.interact()?;
+pub fn display_release_versions_to_user(releases: Vec<TagInfo>) -> Result<String> {
+	let mut prompt = cliclack::select("Select a specific release:".to_string());
+	for (i, release) in releases.iter().enumerate() {
+		if i == 0 {
+			prompt = prompt.initial_value(&release.tag_name);
+		}
+		prompt = prompt.item(
+			&release.tag_name,
+			&release.name,
+			format!("{} / {}", &release.tag_name, &release.commit[..=6]),
+		)
 	}
-	Ok(version.to_string())
+	Ok(prompt.interact()?.to_string())
 }
 
 pub fn prompt_customizable_options() -> Result<Config> {

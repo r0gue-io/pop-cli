@@ -17,8 +17,7 @@ use cliclack::{clear_screen, confirm, input, intro, log, outro, outro_cancel, se
 pub struct NewParachainCommand {
 	#[arg(help = "Name of the project. Also works as a directory path for your project")]
 	pub(crate) name: Option<String>,
-	#[arg(help = "Template provider.")]
-	#[arg(default_value = "pop")]
+	#[arg(help = "Template provider.", default_value = "pop")]
 	pub(crate) provider: Option<Provider>,
 	#[arg(
 		help = "Template to use: 'base' for Pop, 'template' for OpenZeppelin and 'cpt' and 'fpt' for Parity templates"
@@ -63,22 +62,18 @@ impl NewParachainCommand {
 				decimals: self.decimals.clone().expect("default values"),
 				initial_endowment: self.initial_endowment.clone().expect("default values"),
 			};
-			generate_template(name_template, provider, template, None, config)?
+			generate_parachain_from_template(name_template, provider, template, None, config)?
 		} else {
-			guide_user_to_generate_template().await?;
+			guide_user_to_generate_parachain().await?;
 		}
 		Ok(())
 	}
 }
 
-async fn guide_user_to_generate_template() -> Result<()> {
-	intro("User guide to generate a template")?;
-	let name: String = input("Where should your project be created?")
-		.placeholder("./my-parachain")
-		.default_input("./my-parachain")
-		.interact()?;
+async fn guide_user_to_generate_parachain() -> Result<()> {
+	intro(format!("{}: Generate a parachain", style(" Pop CLI ").black().on_magenta(),))?;
 
-	let provider_name = cliclack::select(format!("Select a template provider: "))
+	let provider_name = cliclack::select("Select a template provider: ".to_string())
 		.initial_value("Pop")
 		.item("Pop", "Pop", "An all-in-one tool for Polkadot development. 1 available options")
 		.item(
@@ -101,6 +96,11 @@ async fn guide_user_to_generate_template() -> Result<()> {
 		release_name = Some(display_release_versions_to_user(latest_3_releases)?);
 	}
 
+	let name: String = input("Where should your project be created?")
+		.placeholder("./my-parachain")
+		.default_input("./my-parachain")
+		.interact()?;
+
 	let mut customizable_options = Config {
 		symbol: "UNIT".to_string(),
 		decimals: 12,
@@ -110,10 +110,18 @@ async fn guide_user_to_generate_template() -> Result<()> {
 		customizable_options = prompt_customizable_options()?;
 	}
 
-	generate_template(&name, &provider, &template, release_name, customizable_options)
+	clear_screen()?;
+
+	generate_parachain_from_template(
+		&name,
+		&provider,
+		&template,
+		release_name,
+		customizable_options,
+	)
 }
 
-fn generate_template(
+fn generate_parachain_from_template(
 	name_template: &String,
 	provider: &Provider,
 	template: &Template,
@@ -158,8 +166,8 @@ fn generate_template(
 
 	if !matches!(provider, Provider::Pop) {
 		cliclack::note(
-			"NOTE: the resulting parachain has not been guaranteed to be audited or reviewed for security vulnerabilities.",
-		format!("Please consult the source repository at {} to assess production suitability.", template.repository_url()))?;
+			"NOTE: the resulting parachain is not guaranteed to be audited or reviewed for security vulnerabilities.",
+		format!("Please consult the source repository at {} to assess production suitability and licensing restrictions.", template.repository_url()))?;
 	}
 
 	outro(format!("cd into \"{}\" and enjoy hacking! 🚀", name_template))?;
