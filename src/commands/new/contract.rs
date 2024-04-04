@@ -1,4 +1,4 @@
-use std::{env::current_dir, fs, path::PathBuf};
+use std::{fs, path::PathBuf};
 
 use clap::Args;
 use cliclack::{clear_screen, confirm, intro, outro, outro_cancel, set_theme};
@@ -23,12 +23,11 @@ impl NewContractCommand {
 			&self.name,
 		))?;
 		set_theme(Theme);
-		let contract_name = self.name.clone();
-		let contract_path = self
-			.path
-			.as_ref()
-			.unwrap_or(&current_dir().expect("current dir is inaccessible"))
-			.join(contract_name.clone());
+		let contract_path = if let Some(ref path) = self.path {
+			path.join(&self.name)
+		} else {
+			PathBuf::from(&self.name)
+		};
 		if contract_path.exists() {
 			if !confirm(format!(
 				"\"{}\" directory already exists. Would you like to remove it?",
@@ -42,17 +41,14 @@ impl NewContractCommand {
 				))?;
 				return Ok(());
 			}
-			fs::remove_dir_all(contract_path)?;
+			fs::remove_dir_all(contract_path.as_path())?;
 		}
 		let mut spinner = cliclack::spinner();
 		spinner.start("Generating contract...");
 
 		create_smart_contract(self.name.clone(), &self.path)?;
-		spinner.stop(format!(
-			"Smart contract created! Located in the following directory {:?}",
-			self.path.clone().unwrap_or(PathBuf::from(format!("{}", self.name))).display()
-		));
-		outro(format!("cd into \"{}\" and enjoy hacking! 🚀", &self.name))?;
+		spinner.stop("Smart contract created!");
+		outro(format!("cd into \"{}\" and enjoy hacking! 🚀", contract_path.display()))?;
 		Ok(())
 	}
 }
