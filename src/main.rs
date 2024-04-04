@@ -5,7 +5,7 @@ mod engines;
 #[cfg(any(feature = "parachain", feature = "contract"))]
 mod style;
 
-#[cfg(feature = "parachain")]
+#[cfg(any(feature = "contract", feature = "parachain"))]
 mod git;
 #[cfg(any(feature = "contract", feature = "parachain"))]
 mod helpers;

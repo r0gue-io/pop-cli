@@ -1,7 +1,7 @@
 use crate::{
 	engines::{
-		parachain_engine::{instantiate_template_dir, Config},
-		templates::{Provider, Template},
+		parachain_engine::instantiate_template_dir,
+		templates::{Provider, Template, Config},
 	},
 	git::GitHub,
 	helpers::{display_release_versions_to_user, git_init, prompt_customizable_options},

@@ -1,7 +1,7 @@
 use crate::{
 	engines::{
 		generator::{ChainSpec, Network},
-		templates::Template,
+		templates::{Template, Config},
 	},
 	helpers::{clone_and_degit, sanitize, write_to_file},
 };
@@ -13,13 +13,6 @@ use std::{
 	path::{Path, PathBuf},
 };
 use walkdir::WalkDir;
-
-#[derive(Debug, Clone)]
-pub struct Config {
-	pub(crate) symbol: String,
-	pub(crate) decimals: u8,
-	pub(crate) initial_endowment: String,
-}
 
 /// Creates a new template at `target` dir
 pub fn instantiate_template_dir(

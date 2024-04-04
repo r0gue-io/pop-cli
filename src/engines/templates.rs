@@ -3,6 +3,14 @@ use strum_macros::{Display, EnumString};
 
 use cliclack;
 
+#[derive(Debug, Clone)]
+pub struct Config {
+	pub(crate) symbol: String,
+	pub(crate) decimals: u8,
+	pub(crate) initial_endowment: String,
+}
+
+
 #[derive(Clone, Parser, Debug, Display, EnumString, PartialEq)]
 pub enum Template {
 	#[strum(serialize = "Pop Base Parachain Template", serialize = "base")]

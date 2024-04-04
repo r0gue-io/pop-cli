@@ -8,7 +8,7 @@ use std::{
 	path::{Path, PathBuf},
 };
 
-use crate::{engines::parachain_engine::Config, git::TagInfo};
+use crate::{engines::templates::Config, git::TagInfo};
 
 pub(crate) fn sanitize(target: &Path) -> Result<()> {
 	use std::io::{stdin, stdout, Write};
