@@ -230,7 +230,7 @@ mod tests {
 
 		Ok(())
 	}
-	
+
 	#[cfg(feature = "unit_contract")]
 	#[test]
 	fn test_contract_test() -> Result<(), Error> {

@@ -17,16 +17,16 @@ fn setup_test_environment() -> Result<tempfile::TempDir, Error> {
 
 #[test]
 fn test_parachain_build_after_instantiating_template() -> Result<()> {
-    let temp_dir = setup_test_environment()?;
+	let temp_dir = setup_test_environment()?;
 
-    // pop build contract -p "./test_parachain"
+	// pop build contract -p "./test_parachain"
 	Command::cargo_bin("pop")
-        .unwrap()
-        .current_dir(&temp_dir)
-        .args(&["build", "parachain", "-p", "./test_parachain"])
-        .assert()
-        .success();
+		.unwrap()
+		.current_dir(&temp_dir)
+		.args(&["build", "parachain", "-p", "./test_parachain"])
+		.assert()
+		.success();
 
-    assert!(temp_dir.path().join("test_parachain/target").exists());
-    Ok(())
+	assert!(temp_dir.path().join("test_parachain/target").exists());
+	Ok(())
 }
