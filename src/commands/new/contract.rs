@@ -50,7 +50,7 @@ impl NewContractCommand {
 		create_smart_contract(self.name.clone(), &self.path)?;
 		spinner.stop(format!(
 			"Smart contract created! Located in the following directory {:?}",
-			self.path.clone().unwrap_or(PathBuf::from(format!("/{}", self.name))).display()
+			self.path.clone().unwrap_or(PathBuf::from(format!("{}", self.name))).display()
 		));
 		outro(format!("cd into \"{}\" and enjoy hacking! 🚀", &self.name))?;
 		Ok(())
