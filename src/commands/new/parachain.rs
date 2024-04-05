@@ -8,7 +8,7 @@ use clap::{Args, Parser};
 use std::{fs, path::Path};
 use strum_macros::{Display, EnumString};
 
-use cliclack::{clear_screen, confirm, intro, outro, outro_cancel, set_theme};
+use cliclack::{clear_screen, confirm, intro, log, outro, outro_cancel, set_theme};
 
 #[derive(Clone, Parser, Debug, Display, EnumString, PartialEq)]
 pub enum Template {
@@ -70,7 +70,7 @@ impl NewParachainCommand {
 		}
 		let mut spinner = cliclack::spinner();
 		spinner.start("Generating parachain...");
-		instantiate_template_dir(
+		let tag = instantiate_template_dir(
 			&self.template,
 			destination_path,
 			Config {
@@ -85,6 +85,9 @@ impl NewParachainCommand {
 			}
 		}
 		spinner.stop("Generation complete");
+		if let Some(tag) = tag {
+			log::info(format!("Version: {}", tag))?;
+		}
 		let pop_db = PopDb::open_or_init();
 		pop_db.set_parachain_path(destination_path);
 		outro(format!("cd into \"{}\" and enjoy hacking! 🚀", &self.name))?;

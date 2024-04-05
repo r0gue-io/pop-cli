@@ -211,3 +211,4 @@ pop up parachain -f ./tests/zombienet.toml -p https://github.com/r0gue-io/pop-no
 Pop CLI would not be possible without these awesome crates!
 
 - Local network deployment powered by [zombienet-sdk](https://github.com/paritytech/zombienet-sdk)
+- [cargo contract](https://github.com/paritytech/cargo-contract) a setup and deployment tool for developing Wasm based smart contracts via ink!

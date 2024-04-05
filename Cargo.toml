@@ -25,6 +25,7 @@ tempfile = "3.8"
 tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
 url = { version = "2.5", optional = true }
 walkdir = "2.4"
+regex="1.5.4"
 
 # contracts
 contract-build = { version = "4.0.0-rc.3", optional = true }
