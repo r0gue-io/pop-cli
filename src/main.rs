@@ -9,6 +9,9 @@ mod style;
 mod git;
 #[cfg(any(feature = "contract", feature = "parachain"))]
 mod helpers;
+
+#[cfg(any(feature = "parachain"))]
+mod parachain_helpers;
 #[cfg(feature = "parachain")]
 mod parachains;
 

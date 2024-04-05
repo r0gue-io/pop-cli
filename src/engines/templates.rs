@@ -3,7 +3,7 @@ use strum_macros::{Display, EnumString};
 
 use cliclack;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Config {
 	pub(crate) symbol: String,
 	pub(crate) decimals: u8,
@@ -100,5 +100,81 @@ impl Provider {
 				.interact()
 				.expect("Error parsing user input"),
 		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn test_is_template_correct() {
+		let mut template = Template::Base;
+		assert_eq!(template.is_provider_correct(&Provider::Pop), true);
+		assert_eq!(template.is_provider_correct(&Provider::Parity), false);
+		assert_eq!(template.is_provider_correct(&Provider::OpenZeppelin), false);
+
+		template = Template::ParityContracts;
+		assert_eq!(template.is_provider_correct(&Provider::Pop), false);
+		assert_eq!(template.is_provider_correct(&Provider::Parity), true);
+		assert_eq!(template.is_provider_correct(&Provider::OpenZeppelin), false);
+
+		template = Template::ParityFPT;
+		assert_eq!(template.is_provider_correct(&Provider::Pop), false);
+		assert_eq!(template.is_provider_correct(&Provider::Parity), true);
+		assert_eq!(template.is_provider_correct(&Provider::OpenZeppelin), false);
+
+		template = Template::OZTemplate;
+		assert_eq!(template.is_provider_correct(&Provider::Pop), false);
+		assert_eq!(template.is_provider_correct(&Provider::Parity), false);
+		assert_eq!(template.is_provider_correct(&Provider::OpenZeppelin), true);
+	}
+
+	#[test]
+	fn test_convert_string_to_template() {
+		assert_eq!(Template::from("base"), Template::Base);
+		assert_eq!(Template::from(""), Template::Base);
+		assert_eq!(Template::from("template"), Template::OZTemplate);
+		assert_eq!(Template::from("cpt"), Template::ParityContracts);
+		assert_eq!(Template::from("fpt"), Template::ParityFPT);
+	}
+
+	#[test]
+	fn test_repository_url() {
+		let mut template = Template::Base;
+		assert_eq!(template.repository_url(), "https://github.com/r0gue-io/base-parachain");
+		template = Template::OZTemplate;
+		assert_eq!(
+			template.repository_url(),
+			"https://github.com/OpenZeppelin/polkadot-runtime-template"
+		);
+		template = Template::ParityContracts;
+		assert_eq!(
+			template.repository_url(),
+			"https://github.com/paritytech/substrate-contracts-node"
+		);
+		template = Template::ParityFPT;
+		assert_eq!(
+			template.repository_url(),
+			"https://github.com/paritytech/frontier-parachain-template"
+		);
+	}
+
+	#[test]
+	fn test_default_provider() {
+		let mut provider = Provider::Pop;
+		assert_eq!(provider.default_template(), Template::Base);
+		provider = Provider::OpenZeppelin;
+		assert_eq!(provider.default_template(), Template::OZTemplate);
+		provider = Provider::Parity;
+		assert_eq!(provider.default_template(), Template::ParityContracts);
+	}
+
+	#[test]
+	fn test_convert_string_to_provider() {
+		assert_eq!(Provider::from("Pop"), Provider::Pop);
+		assert_eq!(Provider::from(""), Provider::Pop);
+		assert_eq!(Provider::from("OpenZeppelin"), Provider::OpenZeppelin);
+		assert_eq!(Provider::from("Parity"), Provider::Parity);
 	}
 }

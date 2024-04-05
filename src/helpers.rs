@@ -1,15 +1,12 @@
 use anyhow::Result;
-use cliclack::{input, log, outro_cancel};
-use git2::{IndexAddOption, Repository, ResetType};
+use cliclack::{log, outro_cancel};
+use git2::Repository;
 use regex::Regex;
 use std::{
 	env::current_dir,
 	fs::{self, OpenOptions},
 	path::{Path, PathBuf},
 };
-
-use crate::{engines::templates::Config, git::TagInfo};
-
 pub(crate) fn sanitize(target: &Path) -> Result<()> {
 	use std::io::{stdin, stdout, Write};
 	if target.exists() {
@@ -93,24 +90,6 @@ fn fetch_latest_tag(repo: &Repository) -> Option<String> {
 	None
 }
 
-/// Init a new git repo on creation of a parachain
-pub(crate) fn git_init(target: &Path, message: &str) -> Result<(), git2::Error> {
-	let repo = Repository::init(target)?;
-	let signature = repo.signature()?;
-
-	let mut index = repo.index()?;
-	index.add_all(["*"].iter(), IndexAddOption::DEFAULT, None)?;
-	let tree_id = index.write_tree()?;
-
-	let tree = repo.find_tree(tree_id)?;
-	let commit_id = repo.commit(Some("HEAD"), &signature, &signature, message, &tree, &[])?;
-
-	let commit_object = repo.find_object(commit_id, Some(git2::ObjectType::Commit))?;
-	repo.reset(&commit_object, ResetType::Hard, None)?;
-
-	Ok(())
-}
-
 /// Resolve pallet path
 /// For a template it should be `<template>/pallets/`
 /// For no path, it should just place it in the current working directory
@@ -141,40 +120,6 @@ pub(crate) fn resolve_pallet_path(path: Option<String>) -> PathBuf {
 			Err(_) => cwd,
 		}
 	}
-}
-
-pub fn display_release_versions_to_user(releases: Vec<TagInfo>) -> Result<String> {
-	let mut prompt = cliclack::select("Select a specific release:".to_string());
-	for (i, release) in releases.iter().enumerate() {
-		if i == 0 {
-			prompt = prompt.initial_value(&release.tag_name);
-		}
-		prompt = prompt.item(
-			&release.tag_name,
-			&release.name,
-			format!("{} / {}", &release.tag_name, &release.commit[..=6]),
-		)
-	}
-	Ok(prompt.interact()?.to_string())
-}
-
-pub fn prompt_customizable_options() -> Result<Config> {
-	let symbol: String = input("What is the symbol of your parachain token?")
-		.placeholder("UNIT")
-		.default_input("UNIT")
-		.interact()?;
-
-	let decimals_input: String = input("How many token decimals?")
-		.placeholder("12")
-		.default_input("12")
-		.interact()?;
-	let decimals: u8 = decimals_input.parse::<u8>().expect("input has to be a number");
-
-	let endowment: String = input("And the initial endowment for dev accounts?")
-		.placeholder("1u64 << 60")
-		.default_input("1u64 << 60")
-		.interact()?;
-	Ok(Config { symbol, decimals, initial_endowment: endowment })
 }
 
 #[cfg(test)]
