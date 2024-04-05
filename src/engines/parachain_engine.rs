@@ -20,7 +20,11 @@ pub struct Config {
 }
 
 /// Creates a new template at `target` dir
-pub fn instantiate_template_dir(template: &Template, target: &Path, config: Config) -> Result<()> {
+pub fn instantiate_template_dir(
+	template: &Template,
+	target: &Path,
+	config: Config,
+) -> Result<Option<String>> {
 	sanitize(target)?;
 	use Template::*;
 	let url = match template {
@@ -30,15 +34,15 @@ pub fn instantiate_template_dir(template: &Template, target: &Path, config: Conf
 			return instantiate_base_template(target, config);
 		},
 	};
-	clone_and_degit(url, target)?;
+	let tag = clone_and_degit(url, target)?;
 	Repository::init(target)?;
-	Ok(())
+	Ok(tag)
 }
 
-pub fn instantiate_base_template(target: &Path, config: Config) -> Result<()> {
+pub fn instantiate_base_template(target: &Path, config: Config) -> Result<Option<String>> {
 	let temp_dir = ::tempfile::TempDir::new_in(std::env::temp_dir())?;
 	let source = temp_dir.path();
-	clone_and_degit("https://github.com/r0gue-io/base-parachain", source)?;
+	let tag = clone_and_degit("https://github.com/r0gue-io/base-parachain", source)?;
 
 	for entry in WalkDir::new(&source) {
 		let entry = entry?;
@@ -66,7 +70,7 @@ pub fn instantiate_base_template(target: &Path, config: Config) -> Result<()> {
 	let network = Network { node: "parachain-template-node".into() };
 	write_to_file(&target.join("network.toml"), network.render().expect("infallible").as_ref());
 	Repository::init(target)?;
-	Ok(())
+	Ok(tag)
 }
 
 pub fn build_parachain(path: &Option<PathBuf>) -> anyhow::Result<()> {
@@ -90,7 +94,7 @@ mod tests {
 			decimals: 18,
 			initial_endowment: "1000000".to_string(),
 		};
-		let result: anyhow::Result<()> = instantiate_base_template(temp_dir.path(), config);
+		let result = instantiate_base_template(temp_dir.path(), config);
 		assert!(result.is_ok());
 		Ok(temp_dir)
 	}
@@ -120,16 +124,6 @@ mod tests {
 			generated_file_content,
 			expected_file_content.replace("^^node^^", "parachain-template-node")
 		);
-
-		Ok(())
-	}
-
-	#[test]
-	fn test_parachain_build_after_instantiating_template() -> Result<()> {
-		let temp_dir =
-			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
-		let build = build_parachain(&Some(temp_dir.path().to_path_buf()));
-		assert!(build.is_ok(), "Result should be Ok");
 
 		Ok(())
 	}

@@ -133,17 +133,18 @@ Some of the options available are:
 For more information about the options,
 check [cargo-contract documentation](https://github.com/paritytech/cargo-contract/blob/master/crates/extrinsics/README.md#instantiate)
 
-
 Interacting with the Smart Contract:
 
-1. Read-only Operations: For operations that only require reading from the blockchain state. This approach does not require to submit an extrinsic (skip the flag `x/--execute`).
-Example using the get() message:
+1. Read-only Operations: For operations that only require reading from the blockchain state. This approach does not
+   require to submit an extrinsic (skip the flag `x/--execute`).
+   Example using the get() message:
 
 ```sh
 pop call contract -p ./my_contract --contract $INSTANTIATED_CONTRACT_ADDRESS --message get --suri //Alice
 ```
 
-2. State-modifying Operations: For operations that change a storage value, thus altering the blockchain state. Include the `x/--execute`  flag to submit an extrinsic on-chain.
+2. State-modifying Operations: For operations that change a storage value, thus altering the blockchain state. Include
+   the `x/--execute`  flag to submit an extrinsic on-chain.
 
 Example executing the `flip()` message:
 
@@ -204,3 +205,44 @@ pop up parachain -f ./tests/zombienet.toml -p https://github.com/r0gue-io/pop-no
 
 > :information_source: Pop CLI will automatically source the necessary polkadot binaries. Currently, these will be built
 > if on a non-linux system.
+
+
+## Testing Pop CLI 
+
+To test the tool locally.
+
+Run the unit tests:
+
+```sh
+cargo test
+```
+
+Run only contracts unit tests:
+
+```sh
+cargo test --features unit_contract
+```
+
+Run the contracts e2e tests:
+
+```sh
+cargo test --features e2e_contract
+```
+
+Run the parachain e2e tests:
+
+```sh
+cargo test --features e2e_parachain
+```
+
+Run all tests:
+
+```sh
+cargo test --all-features
+```
+## Acknowledgements
+
+Pop CLI would not be possible without these awesome crates!
+
+- Local network deployment powered by [zombienet-sdk](https://github.com/paritytech/zombienet-sdk)
+- [cargo contract](https://github.com/paritytech/cargo-contract) a setup and deployment tool for developing Wasm based smart contracts via ink!

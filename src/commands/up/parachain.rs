@@ -9,8 +9,7 @@ use zombienet_sdk::NetworkNode;
 
 #[derive(Args)]
 pub(crate) struct ZombienetCommand {
-	/// The configuration file to be used. Only Zombienet configuration files are currently
-	/// supported.
+	/// The Zombienet configuration file to be used.
 	#[arg(short, long)]
 	file: String,
 	/// The version of Polkadot to be used for the relay chain, as per the release tag (e.g.
@@ -24,6 +23,9 @@ pub(crate) struct ZombienetCommand {
 	/// The url of the git repository of a parachain to be used, with branch/release tag specified as #fragment (e.g. 'https://github.com/org/repository#tag'). A specific binary name can also be optionally specified via query string parameter (e.g. 'https://github.com/org/repository?binaryname#tag'), defaulting to the name of the repository when not specified.
 	#[arg(short, long)]
 	parachain: Option<Vec<String>>,
+	/// Whether the output should be verbose.
+	#[arg(short, long, action)]
+	verbose: bool,
 }
 impl ZombienetCommand {
 	pub(crate) async fn execute(&self) -> anyhow::Result<()> {
@@ -74,12 +76,20 @@ impl ZombienetCommand {
 
 				let output = |node: &NetworkNode| -> String {
 					let name = node.name();
-					format!(
+					let mut output = format!(
 						"\n{bar}       {name}:
 {bar}         portal: https://polkadot.js.org/apps/?rpc={}#/explorer
 {bar}         logs: tail -f {base_dir}/{name}/{name}.log",
 						node.ws_uri(),
-					)
+					);
+					if self.verbose {
+						output += &format!(
+							"\n{bar}         command: {} {}",
+							node.spec().command(),
+							node.args().join(" ")
+						);
+					}
+					output
 				};
 				// Add relay info
 				let mut validators = network.relaychain().nodes();

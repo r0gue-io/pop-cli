@@ -19,8 +19,9 @@ pub fn create_smart_contract(name: String, target: &Option<PathBuf>) -> anyhow::
 }
 
 pub fn build_smart_contract(path: &Option<PathBuf>) -> anyhow::Result<()> {
-	// If the user specifies a path (which is not the current directory), it will have to manually add a Cargo.toml file. If not provided, pop-cli will ask the user for a specific path. or
-	// ask to the user the specific path (Like cargo-contract does)
+	// If the user specifies a path (which is not the current directory), it will have to manually
+	// add a Cargo.toml file. If not provided, pop-cli will ask the user for a specific path. or ask
+	// to the user the specific path (Like cargo-contract does)
 	let manifest_path;
 	if path.is_some() {
 		let full_path: PathBuf =
@@ -204,6 +205,7 @@ mod tests {
 		Ok(())
 	}
 
+	#[cfg(feature = "unit_contract")]
 	#[test]
 	fn test_contract_build() -> Result<(), Error> {
 		let temp_contract_dir = setup_test_environment()?;
@@ -230,6 +232,7 @@ mod tests {
 		Ok(())
 	}
 
+	#[cfg(feature = "unit_contract")]
 	#[test]
 	fn test_contract_test() -> Result<(), Error> {
 		let temp_contract_dir = setup_test_environment()?;
