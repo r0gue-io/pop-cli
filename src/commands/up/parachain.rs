@@ -49,7 +49,10 @@ impl ZombienetCommand {
 				"The following missing binaries are required: {}",
 				missing.iter().map(|b| b.name.as_str()).collect::<Vec<_>>().join(", ")
 			))?;
-			if !confirm("Would you like to source them automatically now?").interact()? {
+			if !confirm("Would you like to source them automatically now?")
+				.initial_value(true)
+				.interact()?
+			{
 				outro_cancel("Cannot deploy parachain to local network until all required binaries are available.")?;
 				return Ok(());
 			}
