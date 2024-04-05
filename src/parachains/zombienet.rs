@@ -772,8 +772,8 @@ mod tests {
 		Ok(())
 	}
 
+	#[cfg(feature = "unit_parachain")]
 	#[tokio::test]
-	#[ignore = "Download and spawn networks takes too long"]
 	async fn test_spawn_polkadot_and_two_parachains() -> Result<()> {
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
 		let cache = PathBuf::from(temp_dir.path());
@@ -834,8 +834,8 @@ mod tests {
 		Ok(())
 	}
 
+	#[cfg(feature = "unit_parachain")]
 	#[tokio::test]
-	#[ignore = "Download all missing binaries takes too long"]
 	async fn test_process_git() -> Result<()> {
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
 		let cache = PathBuf::from(temp_dir.path());

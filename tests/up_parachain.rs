@@ -1,3 +1,4 @@
+#![cfg(feature = "e2e_parachain")]
 use anyhow::Result;
 use assert_cmd::{cargo::cargo_bin, Command as AssertCmd};
 use std::{
