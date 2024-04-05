@@ -11,7 +11,7 @@ fn setup_test_environment() -> Result<()> {
 	// pop new parachain test_parachain
 	AssertCmd::cargo_bin("pop")
 		.unwrap()
-		.args(&["new", "parachain", "test_parachain"])
+		.args(&["new", "parachain", "test_parachain_up"])
 		.assert()
 		.success();
 	println!("Parachain created, building it");
@@ -19,7 +19,7 @@ fn setup_test_environment() -> Result<()> {
 	// pop build parachain test_parachain
 	AssertCmd::cargo_bin("pop")
 		.unwrap()
-		.args(&["build", "parachain", "-p", "./test_parachain"])
+		.args(&["build", "parachain", "-p", "./test_parachain_up"])
 		.assert()
 		.success();
 
@@ -29,7 +29,7 @@ fn setup_test_environment() -> Result<()> {
 }
 
 fn clean_test_environment() -> Result<()> {
-	if let Err(err) = fs::remove_dir_all("test_parachain") {
+	if let Err(err) = fs::remove_dir_all("test_parachain_up") {
 		eprintln!("Failed to delete directory: {}", err);
 	}
 	Ok(())
@@ -39,9 +39,9 @@ fn clean_test_environment() -> Result<()> {
 async fn test_parachain_up() -> Result<()> {
 	setup_test_environment()?;
 
-	println!("pop up parachain -f ./test_parachain/network.toml");
+	println!("pop up parachain -f ./test_parachain_up/network.toml");
 	let mut dir = PathBuf::new();
-	dir.push("test_parachain");
+	dir.push("test_parachain_up");
 
 	// pop up parachain
 	let mut cmd = Command::new(cargo_bin("pop"))
@@ -53,8 +53,8 @@ async fn test_parachain_up() -> Result<()> {
 
 	// If after 10 secs is still running probably execution is ok, or waiting for user response
 	sleep(Duration::from_secs(10)).await;
-	assert!(cmd.try_wait().unwrap().is_none(), "the process should still be running");
 
+	assert!(cmd.try_wait().unwrap().is_none(), "the process should still be running");
 	// Stop the process
 	Command::new("kill").args(["-s", "TERM", &cmd.id().to_string()]).spawn()?;
 
