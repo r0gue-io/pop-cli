@@ -21,7 +21,7 @@ pub enum Template {
 
 #[derive(Args)]
 pub struct NewParachainCommand {
-	#[arg(help = "Name of the project. Also works as a directory path for your project")]
+	#[arg(help = "Name of the project")]
 	pub(crate) name: String,
 	#[arg(
 		help = "Template to use; Options are 'cpt', 'fpt'. Leave empty for default parachain template"
