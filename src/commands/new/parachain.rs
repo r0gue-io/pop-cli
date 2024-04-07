@@ -5,24 +5,28 @@ use crate::{
 	},
 	git::GitHub,
 	parachain_helpers::{
-		display_release_versions_to_user, get_customization_value, git_init, is_template_supported,
-		prompt_customizable_options,
+		check_destination_path, display_release_versions_to_user, get_customization_value,
+		git_init, is_template_supported, prompt_customizable_options,
 	},
 	style::{style, Theme},
 };
 use anyhow::Result;
 use clap::Args;
-use std::{fs, path::Path};
 
-use cliclack::{clear_screen, confirm, input, intro, log, outro, outro_cancel, set_theme};
+use cliclack::{clear_screen, input, intro, log, outro, outro_cancel, set_theme};
 
 #[derive(Args)]
 pub struct NewParachainCommand {
 	#[arg(help = "Name of the project. Also works as a directory path for your project")]
 	pub(crate) name: Option<String>,
-	#[arg(help = "Template provider.", default_value = "pop")]
+	#[arg(
+		help = "Template provider. Options are pop, openzeppelin or parity",
+		default_value = "pop"
+	)]
 	pub(crate) provider: Option<Provider>,
 	#[arg(
+		short = 't',
+		long,
 		help = "Template to use: 'base' for Pop, 'template' for OpenZeppelin and 'cpt' and 'fpt' for Parity templates"
 	)]
 	pub(crate) template: Option<Template>,
@@ -79,22 +83,8 @@ fn generate_parachain_from_template(
 		template,
 		provider
 	))?;
-	let destination_path = Path::new(name_template);
-	if destination_path.exists() {
-		if !confirm(format!(
-			"\"{}\" directory already exists. Would you like to remove it?",
-			destination_path.display()
-		))
-		.interact()?
-		{
-			outro_cancel(format!(
-				"Cannot generate parachain until \"{}\" directory is removed.",
-				destination_path.display()
-			))?;
-			return Ok(());
-		}
-		fs::remove_dir_all(destination_path)?;
-	}
+	let destination_path = check_destination_path(name_template)?;
+
 	let mut spinner = cliclack::spinner();
 	spinner.start("Generating parachain...");
 	let tag = instantiate_template_dir(template, destination_path, tag_version, config)?;
@@ -122,18 +112,18 @@ fn generate_parachain_from_template(
 async fn guide_user_to_generate_parachain() -> Result<()> {
 	intro(format!("{}: Generate a parachain", style(" Pop CLI ").black().on_magenta(),))?;
 
-	let provider_name = cliclack::select("Select a template provider: ".to_string())
-		.initial_value("Pop")
-		.item("Pop", "Pop", "An all-in-one tool for Polkadot development. 1 available options")
-		.item(
-			"OpenZeppelin",
-			"OpenZeppelin",
-			"The standard for secure blockchain applications. 1 available options",
-		)
-		.item("Parity", "Parity", "Solutions for a trust-free world. 2 available options")
-		.interact()?;
-
-	let provider = Provider::from(provider_name);
+	let provider = Provider::from(
+		cliclack::select("Select a template provider: ".to_string())
+			.initial_value("Pop")
+			.item("Pop", "Pop", "An all-in-one tool for Polkadot development. 1 available options")
+			.item(
+				"OpenZeppelin",
+				"OpenZeppelin",
+				"The standard for secure blockchain applications. 1 available options",
+			)
+			.item("Parity", "Parity", "Solutions for a trust-free world. 2 available options")
+			.interact()?,
+	);
 	let template_name = provider.display_select_options();
 	let template = Template::from(template_name);
 
@@ -176,7 +166,7 @@ mod tests {
 	use git2::Repository;
 
 	use super::*;
-	use std::fs;
+	use std::{fs, path::Path};
 
 	#[tokio::test]
 	async fn test_new_parachain_command_execute() -> anyhow::Result<()> {

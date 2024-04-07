@@ -87,6 +87,29 @@ pub fn prompt_customizable_options() -> Result<Config> {
 	Ok(Config { symbol, decimals, initial_endowment: endowment })
 }
 
+pub fn check_destination_path(name_template: &String) -> Result<&Path> {
+	let destination_path = Path::new(name_template);
+	if destination_path.exists() {
+		if !confirm(format!(
+			"\"{}\" directory already exists. Would you like to remove it?",
+			destination_path.display()
+		))
+		.interact()?
+		{
+			outro_cancel(format!(
+				"Cannot generate parachain until \"{}\" directory is removed.",
+				destination_path.display()
+			))?;
+			return Err(anyhow::anyhow!(format!(
+				"\"{}\" directory already exists.",
+				destination_path.display()
+			)));
+		}
+		fs::remove_dir_all(destination_path)?;
+	}
+	Ok(destination_path)
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
