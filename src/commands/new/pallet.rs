@@ -1,5 +1,8 @@
 use crate::{
-	db::PopDb, engines::pallet_engine::{create_pallet_template, TemplatePalletConfig}, helpers::resolve_pallet_path, style::Theme
+	db::PopDb,
+	engines::pallet_engine::{create_pallet_template, TemplatePalletConfig},
+	helpers::resolve_pallet_path,
+	style::Theme,
 };
 use clap::Args;
 use cliclack::{clear_screen, confirm, intro, outro, outro_cancel, set_theme};

@@ -1,8 +1,8 @@
 use crate::{
+	db::PopDb,
 	engines::parachain_engine::{instantiate_template_dir, Config},
 	helpers::git_init,
 	style::{style, Theme},
-	db::PopDb,
 };
 use clap::{Args, Parser};
 use std::{fs, path::PathBuf};
