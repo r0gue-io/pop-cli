@@ -5,7 +5,7 @@ use crate::{
 	db::PopDb,
 };
 use clap::{Args, Parser};
-use std::{fs, path::Path};
+use std::{fs, path::PathBuf};
 use strum_macros::{Display, EnumString};
 
 use cliclack::{clear_screen, confirm, intro, log, outro, outro_cancel, set_theme};
@@ -22,7 +22,7 @@ pub enum Template {
 
 #[derive(Args)]
 pub struct NewParachainCommand {
-	#[arg(help = "Name of the project. Also works as a directory path for your project")]
+	#[arg(help = "Name of the project")]
 	pub(crate) name: String,
 	#[arg(
 		help = "Template to use; Options are 'cpt', 'fpt'. Leave empty for default parachain template"
@@ -40,6 +40,12 @@ pub struct NewParachainCommand {
 		default_value = "1u64 << 60"
 	)]
 	pub(crate) initial_endowment: Option<String>,
+	#[arg(
+		short = 'p',
+		long,
+		help = "Path for the parachain project, [default: current directory]"
+	)]
+	pub(crate) path: Option<PathBuf>,
 }
 
 impl NewParachainCommand {
@@ -52,7 +58,11 @@ impl NewParachainCommand {
 			&self.template
 		))?;
 		set_theme(Theme);
-		let destination_path = Path::new(&self.name);
+		let destination_path = if let Some(ref path) = self.path {
+			path.join(&self.name)
+		} else {
+			PathBuf::from(&self.name)
+		};
 		if destination_path.exists() {
 			if !confirm(format!(
 				"\"{}\" directory already exists. Would you like to remove it?",
@@ -66,20 +76,20 @@ impl NewParachainCommand {
 				))?;
 				return Ok(());
 			}
-			fs::remove_dir_all(destination_path)?;
+			fs::remove_dir_all(destination_path.as_path())?;
 		}
 		let mut spinner = cliclack::spinner();
 		spinner.start("Generating parachain...");
 		let tag = instantiate_template_dir(
 			&self.template,
-			destination_path,
+			destination_path.as_path(),
 			Config {
 				symbol: self.symbol.clone().expect("default values"),
 				decimals: self.decimals.clone().expect("default values"),
 				initial_endowment: self.initial_endowment.clone().expect("default values"),
 			},
 		)?;
-		if let Err(err) = git_init(destination_path, "initialized parachain") {
+		if let Err(err) = git_init(destination_path.as_path(), "initialized parachain") {
 			if err.class() == git2::ErrorClass::Config && err.code() == git2::ErrorCode::NotFound {
 				outro_cancel("git signature could not be found. Please configure your git config with your name and email")?;
 			}
@@ -89,8 +99,8 @@ impl NewParachainCommand {
 			log::info(format!("Version: {}", tag))?;
 		}
 		let pop_db = PopDb::open_or_init();
-		pop_db.set_parachain_path(destination_path);
-		outro(format!("cd into \"{}\" and enjoy hacking! 🚀", &self.name))?;
+		pop_db.set_parachain_path(&destination_path);
+		outro(format!("cd into \"{}\" and enjoy hacking! 🚀", destination_path.display()))?;
 		Ok(())
 	}
 }
@@ -101,7 +111,7 @@ mod tests {
 	use git2::Repository;
 
 	use super::*;
-	use std::fs;
+	use std::{fs, path::Path};
 
 	#[test]
 	fn test_new_parachain_command_execute() -> anyhow::Result<()> {
@@ -111,6 +121,7 @@ mod tests {
 			symbol: Some("UNIT".to_string()),
 			decimals: Some(12),
 			initial_endowment: Some("1u64 << 60".to_string()),
+			path: None,
 		};
 		let result = command.execute();
 		assert!(result.is_ok());

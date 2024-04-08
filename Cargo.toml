@@ -65,6 +65,8 @@ contract = [
     "dep:sp-weights",
     "dep:url",
 ]
+e2e_contract = []
+unit_contract = []
 parachain = [
     "dep:dirs",
     "dep:indexmap",
@@ -77,3 +79,5 @@ parachain = [
     "dep:zombienet-sdk",
     "dep:zombienet-support"
 ]
+e2e_parachain = []
+

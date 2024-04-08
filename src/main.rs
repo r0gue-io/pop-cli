@@ -54,7 +54,7 @@ enum Commands {
 async fn main() -> Result<()> {
 	let cli = Cli::parse();
 	match cli.command {
-		Commands::New(args) => match &args.command {
+		Commands::New(args) => match args.command {
 			#[cfg(feature = "parachain")]
 			commands::new::NewCommands::Parachain(cmd) => cmd.execute(),
 			#[cfg(feature = "parachain")]
