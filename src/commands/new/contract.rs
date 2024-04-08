@@ -15,7 +15,7 @@ pub struct NewContractCommand {
 }
 
 impl NewContractCommand {
-	pub(crate) fn execute(&self) -> anyhow::Result<()> {
+	pub(crate) fn execute(self) -> anyhow::Result<()> {
 		clear_screen()?;
 		intro(format!(
 			"{}: Generating new contract \"{}\"!",
@@ -23,12 +23,11 @@ impl NewContractCommand {
 			&self.name,
 		))?;
 		set_theme(Theme);
-		let contract_name = self.name.clone();
-		let contract_path = self
-			.path
-			.as_ref()
-			.unwrap_or(&current_dir().expect("current dir is inaccessible"))
-			.join(contract_name.clone());
+		let contract_path = if let Some(ref path) = self.path {
+			path.join(&self.name)
+		} else {
+			current_dir()?.join(&self.name)
+		};
 		if contract_path.exists() {
 			if !confirm(format!(
 				"\"{}\" directory already exists. Would you like to remove it?",
@@ -42,17 +41,14 @@ impl NewContractCommand {
 				))?;
 				return Ok(());
 			}
-			fs::remove_dir_all(contract_path)?;
+			fs::remove_dir_all(contract_path.as_path())?;
 		}
+		fs::create_dir_all(contract_path.as_path())?;
 		let mut spinner = cliclack::spinner();
 		spinner.start("Generating contract...");
-
-		create_smart_contract(self.name.clone(), &self.path)?;
-		spinner.stop(format!(
-			"Smart contract created! Located in the following directory {:?}",
-			self.path.clone().unwrap_or(PathBuf::from(format!("/{}", self.name))).display()
-		));
-		outro(format!("cd into \"{}\" and enjoy hacking! 🚀", &self.name))?;
+		create_smart_contract(self.name, contract_path.as_path())?;
+		spinner.stop("Smart contract created!");
+		outro(format!("cd into \"{}\" and enjoy hacking! 🚀", contract_path.display()))?;
 		Ok(())
 	}
 }
@@ -72,18 +68,6 @@ mod tests {
 		let result = command.execute();
 		assert!(result.is_ok());
 
-		Ok(())
-	}
-
-	#[test]
-	fn test_new_contract_command_execute_fails_path_no_exist() -> Result<()> {
-		let temp_contract_dir = tempfile::tempdir().expect("Could not create temp dir");
-		let command = NewContractCommand {
-			name: "test_contract".to_string(),
-			path: Some(temp_contract_dir.path().join("new_contract")),
-		};
-		let result_error = command.execute();
-		assert!(result_error.is_err());
 		Ok(())
 	}
 }
