@@ -74,10 +74,15 @@ pub fn instantiate_base_template(target: &Path, config: Config) -> Result<Option
 }
 
 pub fn build_parachain(path: Option<PathBuf>) -> anyhow::Result<()> {
-	cmd("cargo", vec!["build", "--release"])
-		.dir(path.clone().unwrap_or("./".into()))
-		.run()?;
-
+	if let Some(path) = path {
+		cmd("cargo", vec!["build", "--release"]).dir(path).run()?;
+	} else {
+		// TODO : check if current dir is a parachain project issue #91
+		// if is_parachain(&current_dir()) {
+		cmd("cargo", vec!["build", "--release"]).dir("./").run()?;
+		// }
+		// else fetch from popdb
+	}
 	Ok(())
 }
 
