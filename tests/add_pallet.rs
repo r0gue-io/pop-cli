@@ -13,14 +13,6 @@ fn add_parachain_pallet_template() {
 		.args(&["new", "parachain", "testchain"])
 		.assert()
 		.success();
-	// Git setup
-	use duct::cmd;
-	cmd!("git", "add", ".").dir(&temp_dir.path().join("testchain")).run().unwrap();
-	cmd!("git", "commit", "--no-gpg-sign", "-m", "Initialized testchain")
-		.dir(&temp_dir.path().join("testchain"))
-		.stdout_null()
-		.run()
-		.unwrap();
 	// Add pallet-parachain-template
 	Command::cargo_bin("pop")
 		.unwrap()
