@@ -1,7 +1,5 @@
 use crate::{
-	engines::pallet_engine::{create_pallet_template, TemplatePalletConfig},
-	helpers::resolve_pallet_path,
-	style::Theme,
+	db::PopDb, engines::pallet_engine::{create_pallet_template, TemplatePalletConfig}, helpers::resolve_pallet_path, style::Theme
 };
 use clap::Args;
 use cliclack::{clear_screen, confirm, intro, outro, outro_cancel, set_theme};
@@ -21,7 +19,7 @@ pub struct NewPalletCommand {
 }
 
 impl NewPalletCommand {
-	pub(crate) fn execute(&self) -> anyhow::Result<()> {
+	pub(crate) fn execute(self) -> anyhow::Result<()> {
 		clear_screen()?;
 		intro(format!(
 			"{}: Generating new pallet \"{}\"!",
@@ -45,7 +43,7 @@ impl NewPalletCommand {
 				))?;
 				return Ok(());
 			}
-			fs::remove_dir_all(pallet_path)?;
+			fs::remove_dir_all(&pallet_path)?;
 		}
 		let mut spinner = cliclack::spinner();
 		spinner.start("Generating pallet...");
@@ -57,6 +55,7 @@ impl NewPalletCommand {
 				description: self.description.clone().expect("default values"),
 			},
 		)?;
+		PopDb::open_or_init().set_pallet_path(&pallet_path);
 		spinner.stop("Generation complete");
 		outro(format!("cd into \"{}\" and enjoy hacking! 🚀", &self.name))?;
 		Ok(())

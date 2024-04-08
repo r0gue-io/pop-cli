@@ -109,4 +109,29 @@ impl PopDb {
 		}
 		None
 	}
+	/// Set pallet path
+	pub(crate) fn set_pallet_path(&self, path: &Path) {
+		if let Some(ref db) = self.inner {
+			let path = match path.canonicalize() {
+				Ok(p) => p,
+				Err(err) => {
+					error!("Failed to canonicalize {}\nDue to : {}", path.display(), err);
+					return;
+				},
+			};
+			let _ = db
+				.insert(b"pallet", path.to_string_lossy().as_bytes())
+				.map_err(|err| error!("Failed to set key pallet in database\nDue to : {}", err));
+		}
+	}
+	/// Get most recent pallet path
+	#[allow(unused)]
+	pub(crate) fn get_pallet_path(&self) -> Option<PathBuf> {
+		if let Some(ref db) = self.inner {
+			if let Some(Some(pallet_path)) = db.get(b"pallet").ok() {
+				return Some(PathBuf::from(String::from_utf8_lossy(&pallet_path).to_string()));
+			}
+		}
+		None
+	}
 }
