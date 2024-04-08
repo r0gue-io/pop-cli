@@ -4,7 +4,7 @@ use clap::Args;
 use cliclack::{clear_screen, confirm, intro, outro, outro_cancel, set_theme};
 use console::style;
 
-use crate::{engines::contract_engine::create_smart_contract, style::Theme};
+use crate::{db::PopDb, engines::contract_engine::create_smart_contract, style::Theme};
 
 #[derive(Args)]
 pub struct NewContractCommand {
@@ -47,6 +47,7 @@ impl NewContractCommand {
 		let mut spinner = cliclack::spinner();
 		spinner.start("Generating contract...");
 		create_smart_contract(self.name, contract_path.as_path())?;
+		PopDb::open_or_init().set_contract_path(contract_path.as_path());
 		spinner.stop("Smart contract created!");
 		outro(format!("cd into \"{}\" and enjoy hacking! 🚀", contract_path.display()))?;
 		Ok(())

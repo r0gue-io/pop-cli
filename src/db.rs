@@ -75,10 +75,36 @@ impl PopDb {
 		}
 	}
 	/// Get most recent parachain path
+	#[allow(unused)]
 	pub(crate) fn get_parachain_path(&self) -> Option<PathBuf> {
 		if let Some(ref db) = self.inner {
 			if let Some(Some(parachain_path)) = db.get(b"parachain").ok() {
 				return Some(PathBuf::from(String::from_utf8_lossy(&parachain_path).to_string()));
+			}
+		}
+		None
+	}
+	/// Set contract path
+	pub(crate) fn set_contract_path(&self, path: &Path) {
+		if let Some(ref db) = self.inner {
+			let path = match path.canonicalize() {
+				Ok(p) => p,
+				Err(err) => {
+					error!("Failed to canonicalize {}\nDue to : {}", path.display(), err);
+					return;
+				},
+			};
+			let _ = db
+				.insert(b"contract", path.to_string_lossy().as_bytes())
+				.map_err(|err| error!("Failed to set key contract in database\nDue to : {}", err));
+		}
+	}
+	/// Get most recent contract path
+	#[allow(unused)]
+	pub(crate) fn get_contract_path(&self) -> Option<PathBuf> {
+		if let Some(ref db) = self.inner {
+			if let Some(Some(contract_path)) = db.get(b"contract").ok() {
+				return Some(PathBuf::from(String::from_utf8_lossy(&contract_path).to_string()));
 			}
 		}
 		None
