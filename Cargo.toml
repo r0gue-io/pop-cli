@@ -25,6 +25,7 @@ tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
 url = { version = "2.5", optional = true }
 walkdir = "2.4"
 toml_edit = { version = "0.22.7" }
+regex="1.5.4"
 
 # contracts
 contract-build = { version = "4.0.0-rc.3", optional = true }
@@ -75,6 +76,8 @@ contract = [
     "dep:sp-weights",
     "dep:url",
 ]
+e2e_contract = []
+unit_contract = []
 parachain = [
     "dep:dirs",
     "dep:indexmap",
@@ -93,3 +96,5 @@ parachain = [
     "cfg-expr",
     "prettyplease",
 ]
+e2e_parachain = []
+

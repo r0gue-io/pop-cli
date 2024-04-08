@@ -2,6 +2,7 @@
 use anyhow::Result;
 use cliclack::{log, outro_cancel};
 use git2::{IndexAddOption, Repository, ResetType};
+use regex::Regex;
 use std::{
 	env::current_dir,
 	fs::{self, OpenOptions},
@@ -44,11 +45,30 @@ pub(crate) fn write_to_file<'a>(path: &Path, contents: &'a str) {
 }
 
 /// Clone `url` into `target` and degit it
-pub(crate) fn clone_and_degit(url: &str, target: &Path) -> Result<()> {
+pub(crate) fn clone_and_degit(url: &str, target: &Path) -> Result<Option<String>> {
 	let repo = Repository::clone(url, target)?;
+
+	// fetch tags from remote
+	let release = fetch_latest_tag(&repo);
+
 	let git_dir = repo.path();
 	fs::remove_dir_all(&git_dir)?;
-	Ok(())
+	Ok(release)
+}
+
+/// Fetch the latest release from a repository
+fn fetch_latest_tag(repo: &Repository) -> Option<String> {
+	let version_reg = Regex::new(r"v\d+\.\d+\.\d+").expect("Valid regex");
+	let tags = repo.tag_names(None).ok()?;
+	// Start from latest tags
+	for tag in tags.iter().rev() {
+		if let Some(tag) = tag {
+			if version_reg.is_match(tag) {
+				return Some(tag.to_string());
+			}
+		}
+	}
+	None
 }
 
 /// Init a new git repo on creation of a parachain
