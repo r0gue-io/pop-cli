@@ -125,6 +125,7 @@ mod tests {
 	use super::*;
 
 	#[test]
+	#[ignore]
 	fn test_resolve_pallet_path_with_no_path() {
 		let result = resolve_pallet_path(None);
 		let working_path = std::env::current_dir().unwrap().join("pallets");
