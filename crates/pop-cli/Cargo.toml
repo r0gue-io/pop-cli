@@ -9,6 +9,8 @@ name = "pop"
 path = "src/main.rs"
 
 [dependencies]
+pop-contracts = { version = "0.1.0", path = "../pop-contracts" }
+
 anyhow = "1.0"
 askama = "0.12"
 clap = { version = "4.4", features = ["derive"] }

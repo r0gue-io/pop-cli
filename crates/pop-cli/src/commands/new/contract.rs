@@ -4,7 +4,8 @@ use clap::Args;
 use cliclack::{clear_screen, confirm, intro, outro, outro_cancel, set_theme};
 use console::style;
 
-use crate::{engines::contract_engine::create_smart_contract, style::Theme};
+use crate::style::Theme;
+use pop_contracts::create_smart_contract;
 
 #[derive(Args)]
 pub struct NewContractCommand {

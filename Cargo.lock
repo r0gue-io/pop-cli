@@ -5460,6 +5460,7 @@ dependencies = [
  "indexmap 2.2.6",
  "ink_env",
  "log",
+ "pop-contracts",
  "predicates",
  "regex",
  "reqwest",
@@ -5481,6 +5482,19 @@ dependencies = [
  "zombienet-sdk",
  "zombienet-support",
 ]
+
+[[package]]
+name = "pop-contracts"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "contract-build",
+ "tempfile",
+]
+
+[[package]]
+name = "pop-parachains"
+version = "0.0.0"
 
 [[package]]
 name = "portable-atomic"

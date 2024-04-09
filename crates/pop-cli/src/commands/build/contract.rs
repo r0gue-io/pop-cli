@@ -1,10 +1,11 @@
 use std::path::PathBuf;
 
 use clap::Args;
-use cliclack::{clear_screen, intro, outro, set_theme};
+use cliclack::{clear_screen, intro, log, outro, set_theme};
 use console::style;
 
-use crate::{engines::contract_engine::build_smart_contract, style::Theme};
+use crate::style::Theme;
+use pop_contracts::build_smart_contract;
 
 #[derive(Args)]
 pub struct BuildContractCommand {
@@ -18,8 +19,9 @@ impl BuildContractCommand {
 		intro(format!("{}: Building a contract", style(" Pop CLI ").black().on_magenta()))?;
 		set_theme(Theme);
 
-		build_smart_contract(&self.path)?;
+		let result_build = build_smart_contract(&self.path)?;
 		outro("Build completed successfully!")?;
+		log::success(result_build.to_string())?;
 		Ok(())
 	}
 }
