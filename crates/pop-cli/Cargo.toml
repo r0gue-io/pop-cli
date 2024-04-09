@@ -9,8 +9,6 @@ name = "pop"
 path = "src/main.rs"
 
 [dependencies]
-pop-contracts = { version = "0.1.0", path = "../pop-contracts" }
-
 anyhow = "1.0"
 askama = "0.12"
 clap = { version = "4.4", features = ["derive"] }
@@ -24,19 +22,14 @@ strum = "0.26"
 strum_macros = "0.26"
 tempfile = "3.8"
 tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
-url = { version = "2.5", optional = true }
+url = { version = "2.5"}
 walkdir = "2.4"
 regex="1.5.4"
 
 # contracts
-contract-build = { version = "4.0.2", optional = true }
-contract-extrinsics = { version = "4.0.0-rc.3", optional = true }
+pop-contracts = { version = "0.1.0", path = "../pop-contracts", optional = true}
 sp-core = { version = "30.0.0", optional = true }
-subxt-signer = { version = "0.34.0", features = ["subxt", "sr25519"], optional = true }
-subxt = { version = "0.34.0", optional = true }
-ink_env = { version = "5.0.0-rc.2", optional = true }
 sp-weights = { version = "29.0.0", optional = true }
-ansi_term = "0.12.1"
 
 # parachains
 dirs = { version = "5.0", optional = true }
@@ -57,14 +50,9 @@ predicates = "3.1.0"
 [features]
 default = ["contract", "parachain"]
 contract = [
-    "dep:contract-build",
-    "dep:contract-extrinsics",
+    "dep:pop-contracts",
     "dep:sp-core",
-    "dep:subxt-signer",
-    "dep:subxt",
-    "dep:ink_env",
     "dep:sp-weights",
-    "dep:url",
 ]
 e2e_contract = []
 unit_contract = []
@@ -76,7 +64,6 @@ parachain = [
     "dep:symlink",
     "dep:toml_edit",
     "dep:tracing-subscriber",
-    "dep:url",
     "dep:zombienet-sdk",
     "dep:zombienet-support"
 ]
