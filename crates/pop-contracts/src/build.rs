@@ -1,38 +1,24 @@
-use contract_build::{
-	execute, BuildArtifacts, BuildMode, ExecuteArgs, Features, ManifestPath, Network,
-	OptimizationPasses, OutputType, Target, UnstableFlags, Verbosity, DEFAULT_MAX_MEMORY_PAGES,
-};
+use contract_build::{execute, ExecuteArgs, ManifestPath};
 use std::path::PathBuf;
+
+fn get_manifest_path(path: &Option<PathBuf>) -> anyhow::Result<ManifestPath> {
+	if path.is_some() {
+		let full_path: PathBuf =
+			PathBuf::from(path.as_ref().unwrap().to_string_lossy().to_string() + "/Cargo.toml");
+
+		return ManifestPath::try_from(Some(full_path));
+	} else {
+		return ManifestPath::try_from(path.as_ref());
+	}
+}
 
 pub fn build_smart_contract(path: &Option<PathBuf>) -> anyhow::Result<String> {
 	// If the user specifies a path (which is not the current directory), it will have to manually
 	// add a Cargo.toml file. If not provided, pop-cli will ask the user for a specific path. or ask
 	// to the user the specific path (Like cargo-contract does)
-	let manifest_path;
-	if path.is_some() {
-		let full_path: PathBuf =
-			PathBuf::from(path.as_ref().unwrap().to_string_lossy().to_string() + "/Cargo.toml");
-		manifest_path = ManifestPath::try_from(Some(full_path))?;
-	} else {
-		manifest_path = ManifestPath::try_from(path.as_ref())?;
-	}
-	let args = ExecuteArgs {
-		manifest_path,
-		verbosity: Verbosity::Default,
-		build_mode: BuildMode::Release,
-		features: Features::default(),
-		network: Network::Online,
-		build_artifact: BuildArtifacts::All,
-		unstable_flags: UnstableFlags::default(),
-		optimization_passes: Some(OptimizationPasses::default()),
-		keep_debug_symbols: false,
-		extra_lints: false,
-		output_type: OutputType::Json,
-		skip_wasm_validation: false,
-		target: Target::Wasm,
-		max_memory_pages: DEFAULT_MAX_MEMORY_PAGES,
-		image: Default::default(),
-	};
+	let manifest_path = get_manifest_path(path)?;
+	// Default values
+	let args = ExecuteArgs { manifest_path, ..Default::default() };
 
 	// Execute the build and log the output of the build
 	let result = execute(args)?;
@@ -56,6 +42,15 @@ mod tests {
 		assert!(result.is_ok(), "Contract test environment setup failed");
 
 		Ok(temp_dir)
+	}
+
+	#[test]
+	fn test_get_manifest_path() -> Result<(), Error> {
+		let temp_dir = setup_test_environment()?;
+		let manifest_path =
+			get_manifest_path(&Some(PathBuf::from(temp_dir.path().join("test_contract"))));
+		assert!(manifest_path.is_ok());
+		Ok(())
 	}
 
 	#[cfg(feature = "unit_contract")]

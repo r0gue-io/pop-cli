@@ -9,6 +9,7 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0"
 contract-build = { version = "4.0.2" }
+duct = "0.13"
 
 [dev-dependencies]
 tempfile = "3.8"

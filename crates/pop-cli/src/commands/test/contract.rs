@@ -2,11 +2,9 @@ use std::path::PathBuf;
 
 use clap::Args;
 use cliclack::{clear_screen, intro, outro};
+use pop_contracts::{test_e2e_smart_contract, test_smart_contract};
 
-use crate::{
-	engines::contract_engine::{test_e2e_smart_contract, test_smart_contract},
-	style::style,
-};
+use crate::style::style;
 
 #[derive(Args)]
 pub(crate) struct TestContractCommand {
