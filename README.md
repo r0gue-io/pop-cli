@@ -217,19 +217,29 @@ Run the unit tests:
 cargo test
 ```
 
-Run only contracts unit tests:
+Due to the time it can take to build a test or a contract some tests has been separate to the normal testing flow.
+
+To run the unit tests that involves building a contract:
 
 ```sh
 cargo test --features unit_contract
 ```
 
-Run the contracts e2e tests:
+To run the unit tests that involves building a parachain:
+
+```sh
+cargo test --features unit_parachain
+```
+
+Then we have some tests that check all the flow is correct:
+
+Run the e2e tests for contracts functionality:
 
 ```sh
 cargo test --features e2e_contract
 ```
 
-Run the parachain e2e tests:
+Run the e2e tests for parachain functionality:
 
 ```sh
 cargo test --features e2e_parachain

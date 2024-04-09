@@ -1,4 +1,7 @@
-use crate::style::{style, Theme};
+use crate::{
+	parachains::zombienet::Zombienet,
+	style::{style, Theme},
+};
 use clap::Args;
 use cliclack::{clear_screen, confirm, intro, log, outro, outro_cancel, set_theme};
 use console::{Emoji, Style};
@@ -31,7 +34,7 @@ impl ZombienetCommand {
 		set_theme(Theme);
 		// Parse arguments
 		let cache = crate::cache()?;
-		let mut zombienet = crate::parachains::zombienet::Zombienet::new(
+		let mut zombienet = Zombienet::new(
 			cache.clone(),
 			&self.file,
 			self.relay_chain.as_ref(),
@@ -46,7 +49,10 @@ impl ZombienetCommand {
 				"The following missing binaries are required: {}",
 				missing.iter().map(|b| b.name.as_str()).collect::<Vec<_>>().join(", ")
 			))?;
-			if !confirm("Would you like to source them automatically now?").interact()? {
+			if !confirm("Would you like to source them automatically now?")
+				.initial_value(true)
+				.interact()?
+			{
 				outro_cancel("Cannot deploy parachain to local network until all required binaries are available.")?;
 				return Ok(());
 			}
