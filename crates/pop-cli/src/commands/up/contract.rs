@@ -1,23 +1,15 @@
 use anyhow::anyhow;
 use clap::Args;
 use cliclack::{clear_screen, intro, log, outro, outro_cancel};
+use pop_contracts::{
+	dry_run_gas_estimate_instantiate, instantiate_smart_contract, parse_hex_bytes,
+	set_up_deployment, UpOpts,
+};
 use sp_core::Bytes;
+use sp_weights::Weight;
 use std::path::PathBuf;
 
-use crate::{
-	engines::contract_engine::{dry_run_gas_estimate_instantiate, instantiate_smart_contract},
-	signer::{create_signer, parse_hex_bytes},
-	style::style,
-};
-
-use contract_build::ManifestPath;
-use contract_extrinsics::{
-	BalanceVariant, ExtrinsicOptsBuilder, InstantiateCommandBuilder, InstantiateExec, TokenMetadata,
-};
-use ink_env::{DefaultEnvironment, Environment};
-use sp_weights::Weight;
-use subxt::PolkadotConfig as DefaultConfig;
-use subxt_signer::sr25519::Keypair;
+use crate::style::style;
 
 #[derive(Args)]
 pub struct UpContractCommand {
@@ -32,7 +24,7 @@ pub struct UpContractCommand {
 	args: Vec<String>,
 	/// Transfers an initial balance to the instantiated contract.
 	#[clap(name = "value", long, default_value = "0")]
-	value: BalanceVariant<<DefaultEnvironment as Environment>::Balance>,
+	value: String,
 	/// Maximum amount of gas to be used for this command.
 	/// If not specified it will perform a dry-run to estimate the gas consumed for the
 	/// instantiation.
@@ -57,12 +49,22 @@ pub struct UpContractCommand {
 	#[clap(name = "suri", long, short)]
 	suri: String,
 }
-
 impl UpContractCommand {
 	pub(crate) async fn execute(&self) -> anyhow::Result<()> {
 		clear_screen()?;
 		intro(format!("{}: Deploy a smart contract", style(" Pop CLI ").black().on_magenta()))?;
-		let instantiate_exec = self.set_up_deployment().await?;
+		let instantiate_exec = set_up_deployment(UpOpts {
+			path: self.path.clone(),
+			constructor: self.constructor.clone(),
+			args: self.args.clone(),
+			value: self.value.clone(),
+			gas_limit: self.gas_limit,
+			proof_size: self.proof_size,
+			salt: self.salt.clone(),
+			url: self.url.clone(),
+			suri: self.suri.clone(),
+		})
+		.await?;
 
 		let weight_limit;
 		if self.gas_limit.is_some() && self.proof_size.is_some() {
@@ -93,41 +95,5 @@ impl UpContractCommand {
 		));
 		outro("Deployment complete")?;
 		Ok(())
-	}
-
-	async fn set_up_deployment(
-		&self,
-	) -> anyhow::Result<InstantiateExec<DefaultConfig, DefaultEnvironment, Keypair>> {
-		// If the user specifies a path (which is not the current directory), it will have to manually add a Cargo.toml file. If not provided, pop-cli will ask the user for a specific path.
-		// or ask to the user the specific path
-		let manifest_path;
-		if self.path.is_some() {
-			let full_path: PathBuf = PathBuf::from(
-				self.path.as_ref().unwrap().to_string_lossy().to_string() + "/Cargo.toml",
-			);
-			manifest_path = ManifestPath::try_from(Some(full_path))?;
-		} else {
-			manifest_path = ManifestPath::try_from(self.path.as_ref())?;
-		}
-
-		let token_metadata = TokenMetadata::query::<DefaultConfig>(&self.url).await?;
-
-		let signer = create_signer(&self.suri)?;
-		let extrinsic_opts = ExtrinsicOptsBuilder::new(signer)
-			.manifest_path(Some(manifest_path))
-			.url(self.url.clone())
-			.done();
-
-		let instantiate_exec: InstantiateExec<DefaultConfig, DefaultEnvironment, Keypair> =
-			InstantiateCommandBuilder::new(extrinsic_opts)
-				.constructor(self.constructor.clone())
-				.args(self.args.clone())
-				.value(self.value.denominate_balance(&token_metadata)?)
-				.gas_limit(self.gas_limit)
-				.proof_size(self.proof_size)
-				.salt(self.salt.clone())
-				.done()
-				.await?;
-		return Ok(instantiate_exec);
 	}
 }

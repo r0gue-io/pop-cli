@@ -2,22 +2,13 @@ use anyhow::anyhow;
 use clap::Args;
 use cliclack::{clear_screen, intro, log, outro, outro_cancel, set_theme};
 use console::style;
+use pop_contracts::{
+	call_smart_contract, dry_run_call, dry_run_gas_estimate_call, set_up_call, CallOpts,
+};
+use sp_weights::Weight;
 use std::path::PathBuf;
 
-use contract_build::ManifestPath;
-use contract_extrinsics::{
-	BalanceVariant, CallCommandBuilder, CallExec, ExtrinsicOptsBuilder, TokenMetadata,
-};
-use ink_env::{DefaultEnvironment, Environment};
-use sp_weights::Weight;
-use subxt::{Config, PolkadotConfig as DefaultConfig};
-use subxt_signer::sr25519::Keypair;
-
-use crate::{
-	engines::contract_engine::{call_smart_contract, dry_run_call, dry_run_gas_estimate_call},
-	signer::create_signer,
-	style::Theme,
-};
+use crate::style::Theme;
 
 #[derive(Args)]
 pub struct CallContractCommand {
@@ -26,7 +17,7 @@ pub struct CallContractCommand {
 	path: Option<PathBuf>,
 	/// The address of the contract to call.
 	#[clap(name = "contract", long, env = "CONTRACT")]
-	contract: <DefaultConfig as Config>::AccountId,
+	contract: String,
 	/// The name of the contract message to call.
 	#[clap(long, short)]
 	message: String,
@@ -35,7 +26,7 @@ pub struct CallContractCommand {
 	args: Vec<String>,
 	/// Transfers an initial balance to the instantiated contract.
 	#[clap(name = "value", long, default_value = "0")]
-	value: BalanceVariant<<DefaultEnvironment as Environment>::Balance>,
+	value: String,
 	/// Maximum amount of gas to be used for this command.
 	/// If not specified it will perform a dry-run to estimate the gas consumed for the
 	/// instantiation.
@@ -66,8 +57,19 @@ impl CallContractCommand {
 		intro(format!("{}: Calling a contract", style(" Pop CLI ").black().on_magenta()))?;
 		set_theme(Theme);
 
-		let token_metadata = TokenMetadata::query::<DefaultConfig>(&self.url).await?;
-		let call_exec = self.set_up_call(token_metadata.clone()).await?;
+		let call_exec = set_up_call(CallOpts {
+			path: self.path.clone(),
+			contract: self.contract.clone(),
+			message: self.message.clone(),
+			args: self.args.clone(),
+			value: self.value.clone(),
+			gas_limit: self.gas_limit,
+			proof_size: self.proof_size,
+			url: self.url.clone(),
+			suri: self.suri.clone(),
+			execute: self.execute,
+		})
+		.await?;
 
 		if !self.execute {
 			let mut spinner = cliclack::spinner();
@@ -102,7 +104,7 @@ impl CallContractCommand {
 			let mut spinner = cliclack::spinner();
 			spinner.start("Calling the contract...");
 
-			let call_result = call_smart_contract(call_exec, weight_limit, token_metadata)
+			let call_result = call_smart_contract(call_exec, weight_limit, &self.url)
 				.await
 				.map_err(|err| anyhow!("{} {}", "ERROR:", format!("{err:?}")))?;
 
@@ -111,38 +113,5 @@ impl CallContractCommand {
 
 		outro("Call completed successfully!")?;
 		Ok(())
-	}
-
-	async fn set_up_call(
-		&self,
-		token_metadata: TokenMetadata,
-	) -> anyhow::Result<CallExec<DefaultConfig, DefaultEnvironment, Keypair>> {
-		// If the user specifies a path (which is not the current directory), it will have to manually add a Cargo.toml file. If not provided, pop-cli will ask the user for a specific path.
-		// or ask to the user the specific path
-		let manifest_path;
-		if self.path.is_some() {
-			let full_path: PathBuf = PathBuf::from(
-				self.path.as_ref().unwrap().to_string_lossy().to_string() + "/Cargo.toml",
-			);
-			manifest_path = ManifestPath::try_from(Some(full_path))?;
-		} else {
-			manifest_path = ManifestPath::try_from(self.path.as_ref())?;
-		}
-
-		let signer = create_signer(&self.suri)?;
-		let extrinsic_opts = ExtrinsicOptsBuilder::new(signer)
-			.manifest_path(Some(manifest_path))
-			.url(self.url.clone())
-			.done();
-
-		let call_exec: CallExec<DefaultConfig, DefaultEnvironment, Keypair> =
-			CallCommandBuilder::new(self.contract.clone(), &self.message, extrinsic_opts)
-				.args(self.args.clone())
-				.value(self.value.denominate_balance(&token_metadata)?)
-				.gas_limit(self.gas_limit)
-				.proof_size(self.proof_size)
-				.done()
-				.await?;
-		return Ok(call_exec);
 	}
 }

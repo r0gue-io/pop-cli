@@ -12,9 +12,6 @@ mod helpers;
 #[cfg(feature = "parachain")]
 mod parachains;
 
-#[cfg(feature = "contract")]
-mod signer;
-
 use anyhow::{anyhow, Result};
 use clap::{Parser, Subcommand};
 use std::{fs::create_dir_all, path::PathBuf};

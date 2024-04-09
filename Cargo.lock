@@ -5489,8 +5489,15 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "contract-build",
+ "contract-extrinsics",
  "duct",
+ "ink_env",
+ "sp-core 30.0.0",
+ "sp-weights",
+ "subxt 0.34.0",
+ "subxt-signer 0.34.0",
  "tempfile",
+ "url",
 ]
 
 [[package]]
