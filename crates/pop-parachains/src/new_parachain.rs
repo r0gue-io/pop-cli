@@ -1,7 +1,7 @@
 use crate::{
 	generator::parachain::{ChainSpec, Network},
 	utils::{
-		git_helpers::clone_and_degit,
+		git::Git,
 		helpers::{sanitize, write_to_file},
 	},
 };
@@ -37,7 +37,7 @@ pub fn instantiate_template_dir(
 			return instantiate_base_template(target, config);
 		},
 	};
-	let tag = clone_and_degit(url, target)?;
+	let tag = Git::clone_and_degit(url, target)?;
 	Repository::init(target)?;
 	Ok(tag)
 }
@@ -45,7 +45,7 @@ pub fn instantiate_template_dir(
 pub fn instantiate_base_template(target: &Path, config: Config) -> Result<Option<String>> {
 	let temp_dir = ::tempfile::TempDir::new_in(std::env::temp_dir())?;
 	let source = temp_dir.path();
-	let tag = clone_and_degit("https://github.com/r0gue-io/base-parachain", source)?;
+	let tag = Git::clone_and_degit("https://github.com/r0gue-io/base-parachain", source)?;
 
 	for entry in WalkDir::new(&source) {
 		let entry = entry?;

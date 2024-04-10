@@ -1,16 +1,8 @@
 #[cfg(any(feature = "parachain", feature = "contract"))]
 mod commands;
 #[cfg(any(feature = "parachain", feature = "contract"))]
-mod engines;
-#[cfg(any(feature = "parachain", feature = "contract"))]
 mod style;
 
-#[cfg(feature = "parachain")]
-mod git;
-#[cfg(any(feature = "contract", feature = "parachain"))]
-mod helpers;
-#[cfg(feature = "parachain")]
-mod parachains;
 
 use anyhow::{anyhow, Result};
 use clap::{Parser, Subcommand};

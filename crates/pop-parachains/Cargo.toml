@@ -14,3 +14,13 @@ regex="1.5.4"
 walkdir = "2.4"
 tempfile = "3.8"
 duct = "0.13"
+url = "2.5"
+indexmap = { version = "2.2"}
+zombienet-sdk = { git = "https://github.com/r0gue-io/zombienet-sdk", branch = "pop"}
+zombienet-support = { git = "https://github.com/r0gue-io/zombienet-sdk", branch = "pop" }
+toml_edit = { version = "0.22" }
+symlink = { version = "0.1" }
+reqwest = { version = "0.11" }
+serde_json = { version = "1.0"}
+serde = { version = "1.0", features = ["derive"] }
+tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }

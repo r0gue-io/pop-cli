@@ -5503,9 +5503,19 @@ dependencies = [
  "askama",
  "duct",
  "git2",
+ "indexmap 2.2.6",
  "regex",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "symlink",
  "tempfile",
+ "tokio",
+ "toml_edit 0.22.9",
+ "url",
  "walkdir",
+ "zombienet-sdk",
+ "zombienet-support",
 ]
 
 [[package]]

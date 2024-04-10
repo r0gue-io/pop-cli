@@ -1,15 +1,14 @@
-use crate::Result;
-use anyhow::anyhow;
-use git2::{build::RepoBuilder, FetchOptions};
-use log::trace;
+use anyhow::{anyhow, Result};
+use git2::{build::RepoBuilder, FetchOptions, IndexAddOption, Repository, ResetType};
+use regex::Regex;
+use std::fs;
 use std::path::Path;
 use url::Url;
 
-pub(crate) struct Git;
+pub struct Git;
 impl Git {
 	pub(crate) fn clone(url: &Url, working_dir: &Path, branch: Option<&str>) -> Result<()> {
 		if !working_dir.exists() {
-			trace!("cloning {url}...");
 			let mut fo = FetchOptions::new();
 			fo.depth(1);
 			let mut repo = RepoBuilder::new();
@@ -19,6 +18,50 @@ impl Git {
 			}
 			repo.clone(url.as_str(), working_dir)?;
 		}
+		Ok(())
+	}
+	/// Clone `url` into `target` and degit it
+	pub(crate) fn clone_and_degit(url: &str, target: &Path) -> Result<Option<String>> {
+		let repo = Repository::clone(url, target)?;
+
+		// fetch tags from remote
+		let release = Self::fetch_latest_tag(&repo);
+
+		let git_dir = repo.path();
+		fs::remove_dir_all(&git_dir)?;
+		Ok(release)
+	}
+
+	/// Fetch the latest release from a repository
+	fn fetch_latest_tag(repo: &Repository) -> Option<String> {
+		let version_reg = Regex::new(r"v\d+\.\d+\.\d+").expect("Valid regex");
+		let tags = repo.tag_names(None).ok()?;
+		// Start from latest tags
+		for tag in tags.iter().rev() {
+			if let Some(tag) = tag {
+				if version_reg.is_match(tag) {
+					return Some(tag.to_string());
+				}
+			}
+		}
+		None
+	}
+
+	/// Init a new git repo on creation of a parachain
+	pub fn git_init(target: &Path, message: &str) -> Result<(), git2::Error> {
+		let repo = Repository::init(target)?;
+		let signature = repo.signature()?;
+
+		let mut index = repo.index()?;
+		index.add_all(["*"].iter(), IndexAddOption::DEFAULT, None)?;
+		let tree_id = index.write_tree()?;
+
+		let tree = repo.find_tree(tree_id)?;
+		let commit_id = repo.commit(Some("HEAD"), &signature, &signature, message, &tree, &[])?;
+
+		let commit_object = repo.find_object(commit_id, Some(git2::ObjectType::Commit))?;
+		repo.reset(&commit_object, ResetType::Hard, None)?;
+
 		Ok(())
 	}
 }

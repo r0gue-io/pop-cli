@@ -4,7 +4,7 @@ use std::{fs, path::PathBuf};
 use strum_macros::{Display, EnumString};
 
 use cliclack::{clear_screen, confirm, intro, log, outro, outro_cancel, set_theme};
-use pop_parachains::{git_init, instantiate_template_dir, Config, Template as ParachainTemplate};
+use pop_parachains::{instantiate_template_dir, Config, Git, Template as ParachainTemplate};
 
 #[derive(Clone, Parser, Debug, Display, EnumString, PartialEq)]
 pub enum Template {
@@ -94,7 +94,7 @@ impl NewParachainCommand {
 				initial_endowment: self.initial_endowment.clone().expect("default values"),
 			},
 		)?;
-		if let Err(err) = git_init(destination_path.as_path(), "initialized parachain") {
+		if let Err(err) = Git::git_init(destination_path.as_path(), "initialized parachain") {
 			if err.class() == git2::ErrorClass::Config && err.code() == git2::ErrorCode::NotFound {
 				outro_cancel("git signature could not be found. Please configure your git config with your name and email")?;
 			}

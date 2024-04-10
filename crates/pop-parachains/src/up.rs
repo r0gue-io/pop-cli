@@ -1,11 +1,7 @@
-use crate::{
-	git::{Git, GitHub},
-	Result,
-};
-use anyhow::anyhow;
+use crate::utils::git::{Git, GitHub};
+use anyhow::{anyhow, Result};
 use duct::cmd;
 use indexmap::IndexMap;
-use log::{debug, info};
 use std::{
 	env::current_dir,
 	fs::{copy, metadata, remove_dir_all, write, File},
@@ -15,7 +11,7 @@ use std::{
 };
 use symlink::{remove_symlink_file, symlink_file};
 use tempfile::{Builder, NamedTempFile};
-use toml_edit::{value, Document, Formatted, Item, Table, Value};
+use toml_edit::{value, DocumentMut, Formatted, Item, Table, Value};
 use url::Url;
 use zombienet_sdk::{Network, NetworkConfig, NetworkConfigExt};
 use zombienet_support::fs::local::LocalFileSystem;
@@ -26,7 +22,7 @@ pub struct Zombienet {
 	/// The cache location, used for caching binaries.
 	cache: PathBuf,
 	/// The config to be used to launch a network.
-	network_config: (PathBuf, Document),
+	network_config: (PathBuf, DocumentMut),
 	/// The binary required to launch the relay chain.
 	relay_chain: Binary,
 	/// The binaries required to launch parachains.
@@ -43,7 +39,7 @@ impl Zombienet {
 	) -> Result<Self> {
 		// Parse network config
 		let network_config_path = PathBuf::from(network_config);
-		let config = std::fs::read_to_string(&network_config_path)?.parse::<Document>()?;
+		let config = std::fs::read_to_string(&network_config_path)?.parse::<DocumentMut>()?;
 		// Determine binaries
 		let relay_chain_binary = Self::relay_chain(relay_chain_version, &config, &cache).await?;
 		let mut parachain_binaries = IndexMap::new();
@@ -135,7 +131,6 @@ impl Zombienet {
 		// Load from config and spawn network
 		let config = self.configure()?;
 		let path = config.path().to_str().expect("temp config file should have a path").into();
-		info!("spawning network...");
 		let network_config = NetworkConfig::load_from_toml(path)?;
 		Ok(network_config.spawn_native().await?)
 	}
@@ -257,7 +252,7 @@ impl Zombienet {
 
 	async fn relay_chain(
 		version: Option<&String>,
-		network_config: &Document,
+		network_config: &DocumentMut,
 		cache: &PathBuf,
 	) -> Result<Binary> {
 		const BINARY: &str = "polkadot";
@@ -359,7 +354,6 @@ impl Zombienet {
 	}
 
 	async fn latest_polkadot_release() -> Result<String> {
-		debug!("relay chain version not specified - determining latest polkadot release...");
 		let repo = Url::parse(POLKADOT_SDK).expect("valid polkadot-sdk repository url");
 		let release_tag = GitHub::get_latest_release(&repo).await?;
 		Ok(release_tag
@@ -413,7 +407,6 @@ impl Source {
 		package: &str,
 		names: impl Iterator<Item = (&'b String, PathBuf)>,
 	) -> Result<()> {
-		info!("building {package}");
 		// Build binaries and then copy to cache and target
 		cmd(
 			"cargo",
@@ -456,7 +449,6 @@ impl Source {
 				}
 
 				// Download required version of binaries
-				info!("downloading {name} {version} from {url}...");
 				Self::download(&url, &cache.join(&versioned_name)).await?;
 				Ok(None)
 			},
@@ -471,7 +463,6 @@ impl Source {
 				}
 
 				let repository_name = GitHub::name(url)?;
-				info!("cloning {repository_name} repository...");
 				// Clone repository into working directory
 				let working_dir = cache.join(".src").join(repository_name);
 				let working_dir = Path::new(&working_dir);
@@ -522,7 +513,7 @@ mod tests {
 	use super::*;
 	use anyhow::Result;
 
-	const CONFIG_FILE_PATH: &str = "./tests/zombienet.toml";
+	const CONFIG_FILE_PATH: &str = "../../tests/zombienet.toml";
 	const TESTING_POLKADOT_VERSION: &str = "v1.7.0";
 	const POLKADOT_BINARY: &str = "polkadot-v1.7.0";
 	const POLKADOT_PARACHAIN_BINARY: &str = "polkadot-parachain-v1.7.0";
@@ -602,7 +593,7 @@ mod tests {
 		let cache = PathBuf::from(temp_dir.path());
 
 		let network_config_path = PathBuf::from(CONFIG_FILE_PATH);
-		let config = std::fs::read_to_string(&network_config_path)?.parse::<Document>()?;
+		let config = std::fs::read_to_string(&network_config_path)?.parse::<DocumentMut>()?;
 
 		let binary_relay_chain =
 			Zombienet::relay_chain(Some(&TESTING_POLKADOT_VERSION.to_string()), &config, &cache)
@@ -627,7 +618,7 @@ mod tests {
 		let cache = PathBuf::from(temp_dir.path());
 
 		let network_config_path = PathBuf::from(CONFIG_FILE_PATH);
-		let config = std::fs::read_to_string(&network_config_path)?.parse::<Document>()?;
+		let config = std::fs::read_to_string(&network_config_path)?.parse::<DocumentMut>()?;
 
 		// Ideally here we will Mock GitHub struct and its get_latest_release function response
 		let binary_relay_chain = Zombienet::relay_chain(None, &config, &cache).await?;
@@ -651,7 +642,7 @@ mod tests {
 		let network_config_path = generate_wrong_config_no_relay(&temp_dir)
 			.expect("Error generating the testing toml file");
 
-		let config = std::fs::read_to_string(&network_config_path)?.parse::<Document>()?;
+		let config = std::fs::read_to_string(&network_config_path)?.parse::<DocumentMut>()?;
 
 		let result_error =
 			Zombienet::relay_chain(Some(&TESTING_POLKADOT_VERSION.to_string()), &config, &cache)

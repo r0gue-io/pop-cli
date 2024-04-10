@@ -1,11 +1,11 @@
 use crate::{
-	parachains::zombienet::Zombienet,
 	style::{style, Theme},
 };
 use clap::Args;
 use cliclack::{clear_screen, confirm, intro, log, outro, outro_cancel, set_theme};
 use console::{Emoji, Style};
 use zombienet_sdk::NetworkNode;
+use pop_parachains::Zombienet;
 
 #[derive(Args)]
 pub(crate) struct ZombienetCommand {
