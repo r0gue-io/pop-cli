@@ -1,6 +1,6 @@
 # pop-contracts
 
-A crate for building [`ink!`](https://github.com/paritytech/ink) smart contracts. 
+A crate for generating, building, deploying and calling [`ink!`](https://github.com/paritytech/ink) smart contracts. 
 
 ## Usage
 
@@ -113,4 +113,4 @@ let contract_address = call_smart_contract(call_exec,  weight_limit, url)
 ```
 
 ## Acknowledgements
-`pop-contracts` would not be possible without this awsome crate: [`cargo-contract`](https://github.com/paritytech/cargo-contract).
+`pop-contracts` would not be possible without this awesome crate: [`cargo-contract`](https://github.com/paritytech/cargo-contract).

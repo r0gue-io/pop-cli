@@ -1,6 +1,6 @@
 [package]
 name = "pop-contracts"
-description = "Library for generating,building, deploying and calling ink! smart contracts."
+description = "Library for generating, building, deploying and calling ink! smart contracts."
 version = "0.1.0"
 edition = "2021"
 
