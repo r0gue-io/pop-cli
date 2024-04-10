@@ -11,3 +11,5 @@ pub use new_parachain::{instantiate_template_dir, Config, Template};
 pub use up::Zombienet;
 pub use utils::git::Git;
 pub use utils::pallet_helpers::resolve_pallet_path;
+// External exports
+pub use zombienet_sdk::NetworkNode;
