@@ -86,7 +86,7 @@ impl NewParachainCommand {
 		let mut spinner = cliclack::spinner();
 		spinner.start("Generating parachain...");
 		let tag = instantiate_template_dir(
-			&&self.template.into_parachain_template(),
+			&self.template.into_parachain_template(),
 			destination_path.as_path(),
 			Config {
 				symbol: self.symbol.clone().expect("default values"),
