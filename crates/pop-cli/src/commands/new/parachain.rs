@@ -1,13 +1,10 @@
-use crate::{
-	engines::parachain_engine::{instantiate_template_dir, Config},
-	helpers::git_init,
-	style::{style, Theme},
-};
+use crate::style::{style, Theme};
 use clap::{Args, Parser};
 use std::{fs, path::PathBuf};
 use strum_macros::{Display, EnumString};
 
 use cliclack::{clear_screen, confirm, intro, log, outro, outro_cancel, set_theme};
+use pop_parachains::{git_init, instantiate_template_dir, Config, Template as ParachainTemplate};
 
 #[derive(Clone, Parser, Debug, Display, EnumString, PartialEq)]
 pub enum Template {
@@ -17,6 +14,15 @@ pub enum Template {
 	FPT,
 	#[strum(serialize = "Base Parachain Template", serialize = "base")]
 	Base,
+}
+impl Template {
+	pub fn into_parachain_template(&self) -> ParachainTemplate {
+		match self {
+			Template::Base => ParachainTemplate::Base,
+			Template::Contracts => ParachainTemplate::Contracts,
+			Template::FPT => ParachainTemplate::FPT,
+		}
+	}
 }
 
 #[derive(Args)]
@@ -80,7 +86,7 @@ impl NewParachainCommand {
 		let mut spinner = cliclack::spinner();
 		spinner.start("Generating parachain...");
 		let tag = instantiate_template_dir(
-			&self.template,
+			&&self.template.into_parachain_template(),
 			destination_path.as_path(),
 			Config {
 				symbol: self.symbol.clone().expect("default values"),

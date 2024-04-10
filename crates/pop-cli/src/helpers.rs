@@ -70,24 +70,6 @@ fn fetch_latest_tag(repo: &Repository) -> Option<String> {
 	None
 }
 
-/// Init a new git repo on creation of a parachain
-pub(crate) fn git_init(target: &Path, message: &str) -> Result<(), git2::Error> {
-	let repo = Repository::init(target)?;
-	let signature = repo.signature()?;
-
-	let mut index = repo.index()?;
-	index.add_all(["*"].iter(), IndexAddOption::DEFAULT, None)?;
-	let tree_id = index.write_tree()?;
-
-	let tree = repo.find_tree(tree_id)?;
-	let commit_id = repo.commit(Some("HEAD"), &signature, &signature, message, &tree, &[])?;
-
-	let commit_object = repo.find_object(commit_id, Some(git2::ObjectType::Commit))?;
-	repo.reset(&commit_object, ResetType::Hard, None)?;
-
-	Ok(())
-}
-
 /// Resolve pallet path
 /// For a template it should be `<template>/pallets/`
 /// For no path, it should just place it in the current working directory

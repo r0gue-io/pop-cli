@@ -5457,6 +5457,7 @@ dependencies = [
  "indexmap 2.2.6",
  "log",
  "pop-contracts",
+ "pop-parachains",
  "predicates",
  "regex",
  "reqwest",
@@ -5496,7 +5497,15 @@ dependencies = [
 
 [[package]]
 name = "pop-parachains"
-version = "0.0.0"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "askama",
+ "git2",
+ "regex",
+ "tempfile",
+ "walkdir",
+]
 
 [[package]]
 name = "portable-atomic"

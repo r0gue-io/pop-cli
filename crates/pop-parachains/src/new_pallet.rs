@@ -1,8 +1,18 @@
-use crate::{
-	engines::generator::PalletItem,
-	helpers::{resolve_pallet_path, sanitize},
-};
 use std::{fs, path::PathBuf};
+
+use crate::{
+	generator::pallet::{
+		PalletBenchmarking, PalletCargoToml, PalletItem, PalletLib, PalletMock, PalletTests,
+	},
+	resolve_pallet_path,
+	utils::helpers::sanitize,
+};
+
+pub struct TemplatePalletConfig {
+	pub name: String,
+	pub authors: String,
+	pub description: String,
+}
 
 pub fn create_pallet_template(
 	path: Option<String>,
@@ -17,11 +27,7 @@ pub fn create_pallet_template(
 	render_pallet(pallet_name, config, &pallet_path)?;
 	Ok(())
 }
-pub struct TemplatePalletConfig {
-	pub(crate) name: String,
-	pub(crate) authors: String,
-	pub(crate) description: String,
-}
+
 /// Generate a pallet folder and file structure
 fn generate_pallet_structure(target: &PathBuf, pallet_name: &str) -> anyhow::Result<()> {
 	use fs::{create_dir, File};
@@ -42,9 +48,6 @@ fn render_pallet(
 	pallet_path: &PathBuf,
 ) -> anyhow::Result<()> {
 	let pallet_name = pallet_name.replace('-', "_");
-	use crate::engines::generator::{
-		PalletBenchmarking, PalletCargoToml, PalletLib, PalletMock, PalletTests,
-	};
 	// Todo `module` must be of the form Template if pallet_name : `pallet_template`
 	let pallet: Vec<Box<dyn PalletItem>> = vec![
 		Box::new(PalletCargoToml {

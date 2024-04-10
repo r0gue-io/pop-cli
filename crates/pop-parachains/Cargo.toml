@@ -1,9 +1,15 @@
 [package]
 name = "pop-parachains"
 description = "Library for generating, building and running parachains."
-version = "0.0.0"
+version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+anyhow = "1.0"
+askama = "0.12"
+git2 = "0.18"
+regex="1.5.4"
+walkdir = "2.4"
+tempfile = "3.8"

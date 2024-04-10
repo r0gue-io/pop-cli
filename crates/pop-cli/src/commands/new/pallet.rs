@@ -1,11 +1,8 @@
-use crate::{
-	engines::pallet_engine::{create_pallet_template, TemplatePalletConfig},
-	helpers::resolve_pallet_path,
-	style::Theme,
-};
+use crate::style::Theme;
 use clap::Args;
 use cliclack::{clear_screen, confirm, intro, outro, outro_cancel, set_theme};
 use console::style;
+use pop_parachains::{create_pallet_template, resolve_pallet_path, TemplatePalletConfig};
 use std::fs;
 
 #[derive(Args)]

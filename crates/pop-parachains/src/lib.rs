@@ -1,14 +1,9 @@
-pub fn add(left: usize, right: usize) -> usize {
-	left + right
-}
+mod generator;
+mod new_pallet;
+mod new_parachain;
+mod utils;
 
-#[cfg(test)]
-mod tests {
-	use super::*;
-
-	#[test]
-	fn it_works() {
-		let result = add(2, 2);
-		assert_eq!(result, 4);
-	}
-}
+pub use new_pallet::{create_pallet_template, TemplatePalletConfig};
+pub use new_parachain::{instantiate_template_dir, Config, Template};
+pub use utils::git_helpers::git_init;
+pub use utils::pallet_helpers::resolve_pallet_path;
