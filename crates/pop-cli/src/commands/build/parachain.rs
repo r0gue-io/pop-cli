@@ -1,9 +1,8 @@
 use crate::style::{style, Theme};
 use clap::Args;
 use cliclack::{clear_screen, intro, outro, set_theme};
+use pop_parachains::build_parachain;
 use std::path::PathBuf;
-
-use crate::engines::parachain_engine::build_parachain;
 
 #[derive(Args)]
 pub struct BuildParachainCommand {

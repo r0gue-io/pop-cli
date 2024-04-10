@@ -5501,6 +5501,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "askama",
+ "duct",
  "git2",
  "regex",
  "tempfile",
