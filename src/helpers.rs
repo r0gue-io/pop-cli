@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use cliclack::{log, outro_cancel};
 use git2::{IndexAddOption, Repository, ResetType};
 use regex::Regex;
@@ -119,7 +119,36 @@ pub(crate) fn resolve_pallet_path(path: Option<String>) -> PathBuf {
 		}
 	}
 }
-
+/// Checks if `path` is a ink contract project directory by searching its dependencies
+pub(crate) fn is_contract(path: &Path) -> Result<bool> {
+	let manifest_path = path.join("Cargo.toml");
+	Ok(if manifest_path.exists() {
+		let manifest =
+			fs::read_to_string(manifest_path).context("is_contract: Failed to read Cargo.toml")?;
+		let manifest: toml_edit::DocumentMut =
+			manifest.parse().context("is_contract: Cargo.toml is not well formed")?;
+		let dependencies =
+			manifest["dependencies"].as_table().expect("dependencies is not a table");
+		dependencies.contains_key("ink") && dependencies.contains_key("scale")
+	} else {
+		false
+	})
+}
+/// Checks if `path` is a substrate parachain project directory by searching its dependencies
+pub(crate) fn is_parachain(path: &Path) -> Result<bool> {
+	let workspace_manifest = path.join("Cargo.toml");
+	if workspace_manifest.exists() {
+		let workspace_manifest = fs::read_to_string(workspace_manifest)
+			.context("is_parachain: Failed to read Cargo.toml")?;
+		let workspace_manifest: toml_edit::DocumentMut = workspace_manifest
+			.parse()
+			.context("is_parachain: Cargo.toml is not well formed")?;
+		todo!("Check if workspace keys are present");
+		Ok(false)
+	} else {
+		Ok(false)
+	}
+}
 #[cfg(test)]
 mod tests {
 	use super::*;

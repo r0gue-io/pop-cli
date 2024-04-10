@@ -43,7 +43,7 @@ reqwest = { version = "0.11", optional = true }
 serde_json = { version = "1.0", optional = true }
 serde = { version = "1.0", features = ["derive"], optional = true }
 symlink = { version = "0.1", optional = true }
-toml_edit = { version = "0.22", optional = true }
+toml_edit = { version = "0.22.9" }
 tracing-subscriber = { version = "0.3", optional = true }
 zombienet-sdk = { git = "https://github.com/r0gue-io/zombienet-sdk", branch = "pop", optional = true }
 zombienet-support = { git = "https://github.com/r0gue-io/zombienet-sdk", branch = "pop", optional = true }
@@ -72,7 +72,6 @@ parachain = [
     "dep:reqwest",
     "dep:serde_json",
     "dep:symlink",
-    "dep:toml_edit",
     "dep:tracing-subscriber",
     "dep:url",
     "dep:zombienet-sdk",
