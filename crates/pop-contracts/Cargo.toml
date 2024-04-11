@@ -7,16 +7,19 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0"
-contract-build = { version = "4.0.2" }
-contract-extrinsics = { version = "4.0.0-rc.3"}
-duct = "0.13"
+anyhow.workspace = true
+duct.workspace = true
+url.workspace = true
+
 subxt-signer = { version = "0.34.0", features = ["subxt", "sr25519"]}
 subxt = { version = "0.34.0" }
 ink_env = { version = "5.0.0-rc.2" }
-sp-core = { version = "30.0.0" }
-url = { version = "2.5" }
-sp-weights = { version = "29.0.0"}
+sp-core = { version = "30.0.0"}
+sp-weights = { version = "29.0.0" }
+
+# cargo-contracts
+contract-build = { version = "4.0.2" }
+contract-extrinsics = { version = "4.0.0-rc.3"}
 
 [dev-dependencies]
-tempfile = "3.8"
+tempfile.workspace = true

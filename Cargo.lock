@@ -5435,6 +5435,7 @@ dependencies = [
  "cliclack",
  "console",
  "dirs",
+ "duct",
  "git2",
  "pop-contracts",
  "pop-parachains",
