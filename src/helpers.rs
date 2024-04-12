@@ -121,18 +121,29 @@ pub(crate) fn resolve_pallet_path(path: Option<String>) -> PathBuf {
 }
 /// Checks if `path` is a ink contract project directory by searching its dependencies
 pub(crate) fn is_contract(path: &Path) -> Result<bool> {
+	let mut confidence = 0;
 	let manifest_path = path.join("Cargo.toml");
-	Ok(if manifest_path.exists() {
+	if manifest_path.exists() {
 		let manifest =
 			fs::read_to_string(manifest_path).context("is_contract: Failed to read Cargo.toml")?;
 		let manifest: toml_edit::DocumentMut =
 			manifest.parse().context("is_contract: Cargo.toml is not well formed")?;
-		let dependencies =
-			manifest["dependencies"].as_table().expect("dependencies is not a table");
-		dependencies.contains_key("ink") && dependencies.contains_key("scale")
-	} else {
-		false
-	})
+		if let Some(deps) = manifest.get("dependencies") {
+			if let Some(dependencies) = deps.as_table() {
+				if dependencies.contains_key("ink") {
+					confidence += 5;
+				}
+			}
+		}
+		if let Some(dev_deps) = manifest.get("dev-dependencies") {
+			if let Some(dev_deps) = dev_deps.as_table() {
+				if dev_deps.contains_key("ink_e2e") {
+					confidence += 2;
+				}
+			}
+		}
+	}
+	Ok(if confidence >= 5 { true } else { false })
 }
 /// Checks if `path` is a substrate parachain project directory by searching its dependencies
 pub(crate) fn is_parachain(path: &Path) -> Result<bool> {
@@ -192,6 +203,4 @@ mod tests {
 
 		assert_eq!(result, custom_path.path().join("my_pallets"), "Unexpected result path");
 	}
-
-
 }

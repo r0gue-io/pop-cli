@@ -23,18 +23,16 @@ pub fn create_smart_contract(name: String, target: &Path) -> anyhow::Result<()> 
 }
 
 /// Build a smart contract
-pub fn build_smart_contract(path: &Option<PathBuf>) -> anyhow::Result<()> {
+pub fn build_smart_contract(path: Option<PathBuf>) -> anyhow::Result<()> {
 	// If the user specifies a path (which is not the current directory), it will have to manually
 	// add a Cargo.toml file. If not provided, pop-cli will ask the user for a specific path. or ask
 	// to the user the specific path (Like cargo-contract does)
-	let manifest_path;
-	if path.is_some() {
-		let full_path: PathBuf =
-			PathBuf::from(path.as_ref().unwrap().to_string_lossy().to_string() + "/Cargo.toml");
-		manifest_path = ManifestPath::try_from(Some(full_path))?;
+	let manifest_path = if let Some(path) = path {
+		let full_path = path.join("/Cargo.toml");
+		ManifestPath::try_from(Some(full_path))?
 	} else {
-		manifest_path = ManifestPath::try_from(path.as_ref())?;
-	}
+		ManifestPath::try_from(path.as_ref())?
+	};
 
 	let args = ExecuteArgs {
 		manifest_path,

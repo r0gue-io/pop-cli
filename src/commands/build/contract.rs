@@ -13,12 +13,11 @@ pub struct BuildContractCommand {
 }
 
 impl BuildContractCommand {
-	pub(crate) fn execute(&self) -> anyhow::Result<()> {
+	pub(crate) fn execute(self) -> anyhow::Result<()> {
 		clear_screen()?;
 		intro(format!("{}: Building a contract", style(" Pop CLI ").black().on_magenta()))?;
 		set_theme(Theme);
-
-		build_smart_contract(&self.path)?;
+		build_smart_contract(self.path)?;
 		outro("Build completed successfully!")?;
 		Ok(())
 	}
