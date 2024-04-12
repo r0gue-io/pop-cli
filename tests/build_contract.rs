@@ -90,3 +90,21 @@ fn test_contract_build_fails_if_no_contract_exists() -> Result<(), Error> {
 
 	Ok(())
 }
+
+#[test]
+fn build_non_contract_project() {
+	let non_contract_dir = tempfile::tempdir().unwrap();
+	Command::cargo_bin("pop")
+		.unwrap()
+		.current_dir(&non_contract_dir)
+		.args(&["new", "parachain", "test_parachain"])
+		.assert()
+		.success();
+	// pop build contract
+	Command::cargo_bin("pop")
+		.unwrap()
+		.args(&["build", "contract"])
+		.assert()
+		.failure()
+		.stderr(predicate::str::contains("Error: No 'ink' dependency found"));
+}
