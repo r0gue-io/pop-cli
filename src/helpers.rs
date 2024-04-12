@@ -136,6 +136,11 @@ pub(crate) fn is_contract(path: &Path) -> Result<bool> {
 }
 /// Checks if `path` is a substrate parachain project directory by searching its dependencies
 pub(crate) fn is_parachain(path: &Path) -> Result<bool> {
+	// +2 for dir structure node/ runtime/
+	// +5 for substrate core dependencies such as `frame` or `substrate-wasm-builder`
+	// We choose a threshold of 5 meanining that just having dir structures doesn't count as parachain
+	// It must have at least one substrate dependency
+	let mut confidence = 0;
 	let workspace_manifest = path.join("Cargo.toml");
 	if workspace_manifest.exists() {
 		let workspace_manifest = fs::read_to_string(workspace_manifest)
@@ -143,11 +148,29 @@ pub(crate) fn is_parachain(path: &Path) -> Result<bool> {
 		let workspace_manifest: toml_edit::DocumentMut = workspace_manifest
 			.parse()
 			.context("is_parachain: Cargo.toml is not well formed")?;
-		todo!("Check if workspace keys are present");
-		Ok(false)
-	} else {
-		Ok(false)
+		// workspace root checks
+		if let Some(workspace_root) = workspace_manifest.get("workspace") {
+			if let Some(deps) = workspace_root.get("dependencies") {
+				if let Some(deps) = deps.as_table() {
+					if deps.contains_key("substrate-wasm-builder") {
+						confidence += 5;
+					}
+				}
+			}
+		}
 	}
+	if path.join("node/Cargo.toml").exists() {
+		confidence += 2;
+	}
+	if path.join("pallets").exists() {
+		confidence += 2;
+	}
+	if path.join("runtime/Cargo.toml").exists() {
+		confidence += 1;
+	}
+	// We choose a threshold of 5 to determine if it is a parachain
+	// This is satisfied if one substrate-wasm-builder dependency is found
+	Ok(if confidence >= 5 { true } else { false })
 }
 #[cfg(test)]
 mod tests {
@@ -169,4 +192,6 @@ mod tests {
 
 		assert_eq!(result, custom_path.path().join("my_pallets"), "Unexpected result path");
 	}
+
+
 }

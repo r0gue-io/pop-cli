@@ -1,12 +1,13 @@
 use crate::{
 	commands::new::parachain::Template,
 	engines::generator::{ChainSpec, Network},
-	helpers::{clone_and_degit, sanitize, write_to_file},
+	helpers::{clone_and_degit, is_parachain, sanitize, write_to_file},
 };
-use anyhow::Result;
+use anyhow::{bail, Result};
 use duct::cmd;
 use git2::Repository;
 use std::{
+	env::current_dir,
 	fs,
 	path::{Path, PathBuf},
 };
@@ -73,11 +74,13 @@ pub fn instantiate_base_template(target: &Path, config: Config) -> Result<Option
 	Ok(tag)
 }
 
-pub fn build_parachain(path: &Option<PathBuf>) -> anyhow::Result<()> {
-	cmd("cargo", vec!["build", "--release"])
-		.dir(path.clone().unwrap_or("./".into()))
-		.run()?;
-
+pub fn build_parachain(path: Option<PathBuf>) -> anyhow::Result<()> {
+	let path = path.unwrap_or(current_dir()?);
+	if is_parachain(&path)? {
+		cmd("cargo", vec!["build", "--release"]).dir(path).run()?;
+	} else {
+		bail!("Build failed: Not a parachain project")
+	}
 	Ok(())
 }
 

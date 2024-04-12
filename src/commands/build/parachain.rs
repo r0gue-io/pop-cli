@@ -16,11 +16,11 @@ pub struct BuildParachainCommand {
 }
 
 impl BuildParachainCommand {
-	pub(crate) fn execute(&self) -> anyhow::Result<()> {
+	pub(crate) fn execute(self) -> anyhow::Result<()> {
 		clear_screen()?;
 		intro(format!("{}: Building a parachain", style(" Pop CLI ").black().on_magenta()))?;
 		set_theme(Theme);
-		build_parachain(&self.path)?;
+		build_parachain(self.path)?;
 
 		outro("Build Completed Successfully!")?;
 		Ok(())
