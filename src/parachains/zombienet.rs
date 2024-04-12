@@ -21,6 +21,7 @@ use zombienet_sdk::{Network, NetworkConfig, NetworkConfigExt};
 use zombienet_support::fs::local::LocalFileSystem;
 
 const POLKADOT_SDK: &str = "https://github.com/paritytech/polkadot-sdk";
+const POLKADOT_DEFAULT_VERSION: &str = "v1.10.0";
 
 pub struct Zombienet {
 	/// The cache location, used for caching binaries.
@@ -359,16 +360,15 @@ impl Zombienet {
 	}
 
 	async fn latest_polkadot_release() -> Result<String> {
-		const POLKADOT_DEFAULT_VERSION: &str = "v1.10.0";
 		debug!("relay chain version not specified - determining latest polkadot release...");
-		let repo = Url::parse(POLKADOT_SDK).expect("valid polkadot-sdk repository url");
-		// Fetching latest 5 releases, to find the polkadot one (ignoring parachain releases)
-		let release_tags = GitHub::get_latest_releases(5, &repo).await?;
-		for release_tag in release_tags {
-			if release_tag.starts_with("polkadot-v") {
-				return Ok(release_tag
+		let repo = Url::parse(POLKADOT_SDK).expect("repository url valid");
+		// Fetching latest releases
+		for release in GitHub::get_latest_releases(&repo).await? {
+			if !release.prerelease && release.tag_name.starts_with("polkadot-v") {
+				return Ok(release
+					.tag_name
 					.strip_prefix("polkadot-")
-					.map_or_else(|| release_tag.clone(), |v| v.to_string()));
+					.map_or_else(|| release.tag_name.clone(), |v| v.to_string()));
 			}
 		}
 		// It should never reach this point, but in case we download a default version of polkadot
