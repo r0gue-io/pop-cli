@@ -25,7 +25,8 @@ impl Git {
 
 pub struct GitHub;
 impl GitHub {
-	pub async fn get_latest_releases(number: usize, repo: &Url) -> Result<Vec<String>> {
+	#[cfg(feature = "parachain")]
+	pub async fn get_latest_releases(repo: &Url) -> Result<Vec<Release>> {
 		static APP_USER_AGENT: &str =
 			concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 
@@ -38,22 +39,7 @@ impl GitHub {
 			))
 			.send()
 			.await?;
-		let value = response.json::<serde_json::Value>().await?;
-
-		let mut latest_releases: Vec<String> = Vec::new();
-		for i in 0..number {
-			if value[i].get("tag_name").is_some() {
-				let tag_name = value[i]
-					.get("tag_name")
-					.and_then(|v| v.as_str())
-					.map(|v| v.to_owned())
-					.ok_or(anyhow!("the github release tag name was not found"))?;
-
-				latest_releases.push(tag_name);
-			}
-		}
-
-		Ok(latest_releases)
+		Ok(response.json::<Vec<Release>>().await?)
 	}
 
 	fn org(repo: &Url) -> Result<&str> {
@@ -79,4 +65,11 @@ impl GitHub {
 	pub(crate) fn release(repo: &Url, tag: &str, artifact: &str) -> String {
 		format!("{}/releases/download/{tag}/{artifact}", repo.as_str())
 	}
+}
+
+#[cfg(feature = "parachain")]
+#[derive(serde::Deserialize)]
+pub struct Release {
+	pub(crate) tag_name: String,
+	pub(crate) prerelease: bool,
 }
