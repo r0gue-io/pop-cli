@@ -359,12 +359,20 @@ impl Zombienet {
 	}
 
 	async fn latest_polkadot_release() -> Result<String> {
+		const POLKADOT_DEFAULT_VERSION: &str = "v1.10.0";
 		debug!("relay chain version not specified - determining latest polkadot release...");
 		let repo = Url::parse(POLKADOT_SDK).expect("valid polkadot-sdk repository url");
-		let release_tag = GitHub::get_latest_release(&repo).await?;
-		Ok(release_tag
-			.strip_prefix("polkadot-")
-			.map_or_else(|| release_tag.clone(), |v| v.to_string()))
+		// Fetching latest 5 releases, to find the polkadot one (ignoring parachain releases)
+		let release_tags = GitHub::get_latest_releases(5, &repo).await?;
+		for release_tag in release_tags {
+			if release_tag.starts_with("polkadot-v") {
+				return Ok(release_tag
+					.strip_prefix("polkadot-")
+					.map_or_else(|| release_tag.clone(), |v| v.to_string()));
+			}
+		}
+		// It should never reach this point, but in case we download a default version of polkadot
+		Ok(POLKADOT_DEFAULT_VERSION.to_string())
 	}
 }
 

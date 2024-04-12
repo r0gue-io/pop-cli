@@ -24,27 +24,36 @@ impl Git {
 }
 
 pub struct GitHub;
-type Tag = String;
 impl GitHub {
-	pub async fn get_latest_release(repo: &Url) -> Result<Tag> {
+	pub async fn get_latest_releases(number: usize, repo: &Url) -> Result<Vec<String>> {
 		static APP_USER_AGENT: &str =
 			concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 
 		let client = reqwest::ClientBuilder::new().user_agent(APP_USER_AGENT).build()?;
 		let response = client
 			.get(format!(
-				"https://api.github.com/repos/{}/{}/releases/latest",
+				"https://api.github.com/repos/{}/{}/releases",
 				Self::org(repo)?,
 				Self::name(repo)?
 			))
 			.send()
 			.await?;
 		let value = response.json::<serde_json::Value>().await?;
-		value
-			.get("tag_name")
-			.and_then(|v| v.as_str())
-			.map(|v| v.to_owned())
-			.ok_or(anyhow!("the github release tag was not found"))
+
+		let mut latest_releases: Vec<String> = Vec::new();
+		for i in 0..number {
+			if value[i].get("tag_name").is_some() {
+				let tag_name = value[i]
+					.get("tag_name")
+					.and_then(|v| v.as_str())
+					.map(|v| v.to_owned())
+					.ok_or(anyhow!("the github release tag name was not found"))?;
+
+				latest_releases.push(tag_name);
+			}
+		}
+
+		Ok(latest_releases)
 	}
 
 	fn org(repo: &Url) -> Result<&str> {
