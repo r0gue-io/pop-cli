@@ -1,6 +1,6 @@
 # pop-parachains
 
-A crate for generating, building and running parachains and pallets. 
+A crate for generating, building and running Parachains and Pallets. 
 
 ## Usage
 
@@ -49,7 +49,7 @@ let mut zombienet = Zombienet::new(
 zombienet.spawn().await?
 ```
 
-To download missing binaries before run the network:
+To download the missing binaries before starting the network:
 ```rust
 // Check if any binaries need to be sourced
 let missing = zombienet.missing_binaries();
@@ -75,4 +75,4 @@ create_pallet_template(path,pallet_config)?;
 ```
 
 ## Acknowledgements
-`pop-parachains` would not be possible without this awesome crate: [zombienet-sdk](https://github.com/paritytech/zombienet-sdk).
+`pop-parachains` would not be possible without the awesome crate: [zombienet-sdk](https://github.com/paritytech/zombienet-sdk).

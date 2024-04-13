@@ -18,7 +18,7 @@ cargo install --locked --git https://github.com/r0gue-io/pop-cli
 
 ### Parachains
 
-Use `pop` to generate a new parachain from a template:
+Use `pop` to start a new Parachain project:
 
 ```sh
 # Create a minimal parachain
@@ -29,7 +29,7 @@ pop new parachain my-app cpt
 pop new parachain my-app fpt
 ```
 
-Use `pop` to build your parachain.
+Use `pop` to build your Parachain:
 
 ```sh
 # Build your parachain
@@ -57,50 +57,49 @@ There's also the shorter version:
 pop new parachain my-app -s DOT -d 6 -i 1_000_000_000
 ```
 
-To create a new pallet, simply `pop new pallet`. And that's it. You will have a new `pallet-template` ready for hacking.
-To customize the new pallet you can follow these options:
-
-```sh
-# create a pallet with name `pallet-awesome` in the current working directory
-pop new pallet pallet-awesome
-# or with options
-pop new pallet pallet-awesome --authors Me --description "This pallet oozes awesomeness" --path my_app/pallets
-```
-
-Finally, you would need to build and run it.
+Finally, to build your Parachain:
 
 ```sh
 cd my-app
 pop build parachain --release
 ```
 
-For running any parachain, we recommend using [zombienet](https://github.com/paritytech/zombienet).
-See below for more information about using `pop up parachain` to help you with this.
+## Spawn Network using Zombienet
+
+You can spawn a local network using [zombienet](https://github.com/paritytech/zombienet-sdk) as follows:
+
+```shell
+pop up parachain -f ./tests/zombienet.toml -p https://github.com/r0gue-io/pop-node
+```
+
+> :information_source: Pop CLI will automatically source the necessary polkadot binaries. Currently, these will be built
+> if on a non-linux system.
+
 
 ### Contracts
 
-Use `pop` to create a smart contract:
+Use `pop` to start a new Smart Contract project:
 
 ```sh
-# Create a minimal smart contract
+# Create a minimal Smart Contract
 pop new contract my_contract
 ```
 
-Test the smart contract:
+Test the Smart Contract:
 
 ```sh
-# Test an existing smart contract
+# Test an existing Smart Contract
 pop test contract -p ./my_contract
 ```
 
-Build the smart contract:
+Build the Smart Contract:
 
 ```sh
-# Build an existing smart contract
+# Build an existing Smart Contract
 pop build contract -p ./my_contract
 ```
 
-To deploy a contract you need your chain running. For testing purposes one option is to
+To deploy a Smart Contract you need a chain running. For testing purposes one option is to
 run [substrate-contracts-node](https://github.com/paritytech/substrate-contracts-node):
 
 ```sh
@@ -110,7 +109,7 @@ substrate-contracts-node
 
 > :information_source: We plan to automate this in the future.
 
-Deploy and instantiate the smart contract:
+Deploy and instantiate the Smart Contract:
 
 ```sh
 pop up contract -p ./my_contract --constructor new --args "false" --suri //Alice
@@ -136,7 +135,7 @@ check [cargo-contract documentation](https://github.com/paritytech/cargo-contrac
 Interacting with the Smart Contract:
 
 1. Read-only Operations: For operations that only require reading from the blockchain state. This approach does not
-   require to submit an extrinsic (skip the flag `x/--execute`).
+   require to submit an extrinsic.
    Example using the get() message:
 
 ```sh
@@ -144,7 +143,7 @@ pop call contract -p ./my_contract --contract $INSTANTIATED_CONTRACT_ADDRESS --m
 ```
 
 2. State-modifying Operations: For operations that change a storage value, thus altering the blockchain state. Include
-   the `x/--execute`  flag to submit an extrinsic on-chain.
+   the `x / --execute`  flag to submit an extrinsic on-chain.
 
 Example executing the `flip()` message:
 
@@ -152,7 +151,7 @@ Example executing the `flip()` message:
 pop call contract -p ./my_contract --contract $INSTANTIATED_CONTRACT_ADDRESS --message flip --suri //Alice -x
 ```
 
-### E2E testing
+## E2E testing
 
 For end-to-end testing you will need to have a Substrate node with `pallet contracts`.
 You do not need to run it in the background since the node is started for each test independently.
@@ -168,11 +167,23 @@ If you want to run any other node with `pallet-contracts` you need to change `CO
 export CONTRACTS_NODE="YOUR_CONTRACTS_NODE_PATH"
 ```
 
-Run e2e testing on the smart contract:
+Run e2e testing on the Smart Contract:
 
 ```sh
 # Run e2e tests for an existing smart contract
  pop test contract  -p ./my_contract --features e2e-tests
+```
+
+### Pallets
+
+To create a new Pallet, simply run `pop new pallet`. You will have a new pallet ready for hacking.
+To customize the new Pallet you can follow these options:
+
+```sh
+# create a pallet with name `pallet-awesome` in the current working directory
+pop new pallet pallet-awesome
+# or with options
+pop new pallet pallet-awesome --authors Me --description "This pallet oozes awesomeness" --path my_app/pallets
 ```
 
 ## Building Pop CLI locally
@@ -183,29 +194,17 @@ Build the tool locally with all the features:
 cargo build --all-features
 ```
 
-Build the tool only for parachain functionality:
+Build the tool only for Parachain functionality:
 
 ```sh
 cargo build --features parachain
 ```
 
-Build the tool only for contracts functionality:
+Build the tool only for Smart Contracts functionality:
 
 ```sh
 cargo build --features contract
 ```
-
-## Spawn Network using Zombienet
-
-You can spawn a local network using [zombienet](https://github.com/paritytech/zombienet-sdk) as follows:
-
-```shell
-pop up parachain -f ./tests/zombienet.toml -p https://github.com/r0gue-io/pop-node
-```
-
-> :information_source: Pop CLI will automatically source the necessary polkadot binaries. Currently, these will be built
-> if on a non-linux system.
-
 
 ## Testing Pop CLI 
 
@@ -217,29 +216,29 @@ Run the unit tests:
 cargo test
 ```
 
-Due to the time it can take to build a test or a contract some tests has been separate to the normal testing flow.
+Due to the time it can take to build a Parachain or a Smart Contract, some tests have been separated from the normal testing flow.
 
-To run the unit tests that involves building a contract:
+To run the unit tests that involves building a Smart Contract:
 
 ```sh
 cargo test --features unit_contract
 ```
 
-To run the unit tests that involves building a parachain:
+To run the unit tests that involves building a Parachain:
 
 ```sh
 cargo test --features unit_parachain
 ```
 
-Then we have some tests that check all the flow is correct:
+Then we have some tests that check all the flows are correct:
 
-Run the e2e tests for contracts functionality:
+Run the e2e tests for Smart Contracts functionality:
 
 ```sh
 cargo test --features e2e_contract
 ```
 
-Run the e2e tests for parachain functionality:
+Run the e2e tests for Parachain functionality:
 
 ```sh
 cargo test --features e2e_parachain
@@ -255,4 +254,4 @@ cargo test --all-features
 Pop CLI would not be possible without these awesome crates!
 
 - Local network deployment powered by [zombienet-sdk](https://github.com/paritytech/zombienet-sdk)
-- [cargo contract](https://github.com/paritytech/cargo-contract) a setup and deployment tool for developing Wasm based smart contracts via ink!
+- [cargo contract](https://github.com/paritytech/cargo-contract) a setup and deployment tool for developing Wasm based Smart Contracts via ink!
