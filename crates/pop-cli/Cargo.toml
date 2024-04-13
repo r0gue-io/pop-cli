@@ -37,7 +37,7 @@ assert_cmd = "2.0.14"
 predicates = "3.1.0"
 
 [features]
-default = ["contract"]
+default = ["contract", "parachain"]
 contract = [
     "dep:pop-contracts",
     "dep:sp-core",
