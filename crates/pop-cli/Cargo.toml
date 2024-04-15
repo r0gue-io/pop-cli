@@ -23,12 +23,12 @@ strum.workspace = true
 strum_macros.workspace = true
 
 # contracts
-pop-contracts = { version = "0.1.0", path = "../pop-contracts", optional = true}
+pop-contracts = { path = "../pop-contracts", optional = true}
 sp-core = { workspace = true, optional = true }
 sp-weights = { workspace = true, optional = true }
 
 # parachains
-pop-parachains = { version = "0.1.0", path = "../pop-parachains", optional = true }
+pop-parachains = { path = "../pop-parachains", optional = true }
 dirs = { version = "5.0", optional = true}
 git2.workspace  = true
 

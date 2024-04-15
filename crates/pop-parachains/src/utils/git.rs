@@ -21,7 +21,7 @@ impl Git {
 		Ok(())
 	}
 	/// Clone `url` into `target` and degit it
-	pub(crate) fn clone_and_degit(url: &str, target: &Path) -> Result<Option<String>> {
+	pub fn clone_and_degit(url: &str, target: &Path) -> Result<Option<String>> {
 		let repo = Repository::clone(url, target)?;
 
 		// fetch tags from remote
