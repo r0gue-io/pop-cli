@@ -18,7 +18,7 @@ cargo install --locked --git https://github.com/r0gue-io/pop-cli
 
 ### Parachains
 
-Use `pop` to start a new Parachain project:
+Use `pop` to create a new Parachain project:
 
 ```sh
 # Create a minimal parachain
@@ -78,7 +78,7 @@ pop up parachain -f ./tests/zombienet.toml -p https://github.com/r0gue-io/pop-no
 
 ### Contracts
 
-Use `pop` to start a new Smart Contract project:
+Use `pop` to create a new Smart Contract project:
 
 ```sh
 # Create a minimal Smart Contract

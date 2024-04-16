@@ -2,6 +2,8 @@
 
 A crate for generating, building, deploying and calling [`ink!`](https://github.com/paritytech/ink) Smart Contracts. 
 
+> :information_source: A [crates.io](https://crates.io/crates/pop-contracts) version will be available soon!
+
 ## Usage
 
 Generate a new Smart Contract:

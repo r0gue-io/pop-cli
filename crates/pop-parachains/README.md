@@ -2,6 +2,7 @@
 
 A crate for generating, building and running Parachains and Pallets. 
 
+> :information_source: A [crates.io](https://crates.io/crates/pop-parachains) version will be available soon!
 ## Usage
 
 Generate a new Parachain:
