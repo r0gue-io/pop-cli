@@ -1,15 +1,15 @@
 use anyhow::Result;
-use thiserror::Error;
 use git2::{build::RepoBuilder, FetchOptions, IndexAddOption, Repository, ResetType};
 use regex::Regex;
 use std::fs;
 use std::path::Path;
+use thiserror::Error;
 use url::Url;
 
 #[derive(Error, Debug)]
 pub enum Error {
-    #[error("a git error occurred: {0}")]
-    Git(String),
+	#[error("a git error occurred: {0}")]
+	Git(String),
 }
 
 pub struct Git;
@@ -96,9 +96,9 @@ impl GitHub {
 			.path_segments()
 			.map(|c| c.collect::<Vec<_>>())
 			.expect("repository must have path segments");
-		Ok(path_segments
-			.get(0)
-			.ok_or(Error::Git("the organization (or user) is missing from the github url".to_string()))?)
+		Ok(path_segments.get(0).ok_or(Error::Git(
+			"the organization (or user) is missing from the github url".to_string(),
+		))?)
 	}
 
 	pub(crate) fn name(repo: &Url) -> Result<&str> {
