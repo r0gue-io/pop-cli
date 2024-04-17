@@ -1,0 +1,25 @@
+[package]
+name = "pop-contracts"
+description = "Library for generating, building, deploying and calling ink! smart contracts."
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow.workspace = true
+duct.workspace = true
+url.workspace = true
+
+subxt-signer.workspace = true
+subxt.workspace = true
+ink_env.workspace = true
+sp-core.workspace = true
+sp-weights.workspace = true
+
+# cargo-contracts
+contract-build.workspace = true
+contract-extrinsics.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
