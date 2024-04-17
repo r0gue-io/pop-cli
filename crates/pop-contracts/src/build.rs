@@ -1,26 +1,17 @@
 use contract_build::{execute, ExecuteArgs};
 use std::path::PathBuf;
-use thiserror::Error;
 
 use crate::utils::helpers::get_manifest_path;
 
-#[derive(Error, Debug)]
-pub enum Error {
-	#[error("Failed to build smart contract: {0}")]
-	BuildError(String),
-	#[error("Contract test environment setup failed: {0}")]
-	SetupError(String),
-}
-
-pub fn build_smart_contract(path: &Option<PathBuf>) -> Result<String, Error> {
-	let manifest_path = match get_manifest_path(path) {
-		Ok(path) => path,
-		Err(e) => return Err(Error::BuildError(format!("Failed to get manifest path: {}", e))),
-	};
-
+pub fn build_smart_contract(path: &Option<PathBuf>) -> anyhow::Result<String> {
+	let manifest_path = get_manifest_path(path)?;
+	// Default values
 	let args = ExecuteArgs { manifest_path, ..Default::default() };
-	let result = execute(args).map_err(|e| Error::BuildError(format!("{}", e)))?;
+
+	// Execute the build and log the output of the build
+	let result = execute(args)?;
 	let formatted_result = result.display();
+
 	Ok(formatted_result)
 }
 
@@ -28,24 +19,30 @@ pub fn build_smart_contract(path: &Option<PathBuf>) -> Result<String, Error> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use anyhow::Result;
+	use anyhow::{Error, Result};
 	use std::fs;
 
-	fn setup_test_environment() -> Result<tempfile::TempDir> {
-		let temp_dir = tempfile::tempdir()?;
+	fn setup_test_environment() -> Result<tempfile::TempDir, Error> {
+		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
 		let temp_contract_dir = temp_dir.path().join("test_contract");
 		fs::create_dir(&temp_contract_dir)?;
-		crate::create_smart_contract("test_contract".to_string(), temp_contract_dir.as_path())?;
+		let result =
+			crate::create_smart_contract("test_contract".to_string(), temp_contract_dir.as_path());
+		assert!(result.is_ok(), "Contract test environment setup failed");
+
 		Ok(temp_dir)
 	}
 
 	#[test]
-	fn test_contract_build() -> Result<()> {
+	fn test_contract_build() -> Result<(), Error> {
 		let temp_contract_dir = setup_test_environment()?;
-		let build = build_smart_contract(&Some(temp_contract_dir.path().join("test_contract")))?;
+
+		let build = build_smart_contract(&Some(temp_contract_dir.path().join("test_contract")));
 		assert!(build.is_ok(), "Result should be Ok");
 
+		// Verify that the folder target has been created
 		assert!(temp_contract_dir.path().join("test_contract/target").exists());
+		// Verify that all the artifacts has been generated
 		assert!(temp_contract_dir
 			.path()
 			.join("test_contract/target/ink/test_contract.contract")
