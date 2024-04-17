@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0
 #![cfg(feature = "e2e_parachain")]
 use anyhow::{Error, Result};
 use assert_cmd::Command;

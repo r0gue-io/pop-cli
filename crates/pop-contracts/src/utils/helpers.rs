@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache 2.0
 use anyhow::{anyhow, Result};
 use contract_build::ManifestPath;
 use contract_extrinsics::BalanceVariant;

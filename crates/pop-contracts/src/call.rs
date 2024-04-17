@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache 2.0
 use anyhow::Context;
 use contract_build::Verbosity;
 use contract_extrinsics::{

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache 2.0
 use std::path::PathBuf;
 
 use crate::utils::helpers::write_to_file;

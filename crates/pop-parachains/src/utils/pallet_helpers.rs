@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache 2.0
 use std::{
 	env::current_dir,
 	fs::{self},
