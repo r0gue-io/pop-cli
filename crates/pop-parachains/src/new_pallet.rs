@@ -18,7 +18,7 @@ pub fn create_pallet_template(
 	path: Option<String>,
 	config: TemplatePalletConfig,
 ) -> anyhow::Result<()> {
-	let target = resolve_pallet_path(path);
+	let target = resolve_pallet_path(path)?;
 	let pallet_name = config.name.clone();
 	let pallet_path = target.join(pallet_name.clone());
 	sanitize(&pallet_path)?;
