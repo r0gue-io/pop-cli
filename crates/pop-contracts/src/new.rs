@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache 2.0
+// SPDX-License-Identifier: GPL-3.0
 use contract_build::new_contract_project;
 use std::path::Path;
 
