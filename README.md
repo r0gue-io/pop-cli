@@ -18,7 +18,7 @@ cargo install --locked --git https://github.com/r0gue-io/pop-cli
 
 ### Parachains
 
-Use `pop` to c a new Parachain project:
+Use `pop` to create a new Parachain project:
 
 ```sh
 # Create a minimal parachain
