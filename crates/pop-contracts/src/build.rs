@@ -1,6 +1,6 @@
 use thiserror::Error;
 use contract_build::{execute, ExecuteArgs};
-use std::{path::PathBuf};
+use std::path::PathBuf;
 
 use crate::utils::helpers::get_manifest_path;
 
