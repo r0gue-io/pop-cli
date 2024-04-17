@@ -21,7 +21,7 @@ impl Git {
 		Ok(())
 	}
 	/// Clone `url` into `target` and degit it
-	pub(crate) fn clone_and_degit(url: &str, target: &Path) -> Result<Option<String>> {
+	pub fn clone_and_degit(url: &str, target: &Path) -> Result<Option<String>> {
 		let repo = Repository::clone(url, target)?;
 
 		// fetch tags from remote
@@ -67,27 +67,21 @@ impl Git {
 }
 
 pub struct GitHub;
-type Tag = String;
 impl GitHub {
-	pub async fn get_latest_release(repo: &Url) -> Result<Tag> {
+	pub async fn get_latest_releases(repo: &Url) -> Result<Vec<Release>> {
 		static APP_USER_AGENT: &str =
 			concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 
 		let client = reqwest::ClientBuilder::new().user_agent(APP_USER_AGENT).build()?;
 		let response = client
 			.get(format!(
-				"https://api.github.com/repos/{}/{}/releases/latest",
+				"https://api.github.com/repos/{}/{}/releases",
 				Self::org(repo)?,
 				Self::name(repo)?
 			))
 			.send()
 			.await?;
-		let value = response.json::<serde_json::Value>().await?;
-		value
-			.get("tag_name")
-			.and_then(|v| v.as_str())
-			.map(|v| v.to_owned())
-			.ok_or(anyhow!("the github release tag was not found"))
+		Ok(response.json::<Vec<Release>>().await?)
 	}
 
 	fn org(repo: &Url) -> Result<&str> {
@@ -113,4 +107,10 @@ impl GitHub {
 	pub(crate) fn release(repo: &Url, tag: &str, artifact: &str) -> String {
 		format!("{}/releases/download/{tag}/{artifact}", repo.as_str())
 	}
+}
+
+#[derive(serde::Deserialize)]
+pub struct Release {
+	pub(crate) tag_name: String,
+	pub(crate) prerelease: bool,
 }

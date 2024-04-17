@@ -5463,7 +5463,6 @@ dependencies = [
  "subxt 0.34.0",
  "subxt-signer 0.34.0",
  "tempfile",
- "tokio",
  "url",
 ]
 
