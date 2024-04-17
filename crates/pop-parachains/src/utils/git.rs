@@ -1,9 +1,12 @@
 use anyhow::{anyhow, Result};
 use git2::{build::RepoBuilder, FetchOptions, IndexAddOption, Repository, ResetType};
+use git2::{Cred, RemoteCallbacks};
 use regex::Regex;
-use std::fs;
 use std::path::Path;
+use std::{env, fs};
 use url::Url;
+
+use crate::Template;
 
 pub struct Git;
 impl Git {
@@ -21,8 +24,13 @@ impl Git {
 		Ok(())
 	}
 	/// Clone `url` into `target` and degit it
-	pub fn clone_and_degit(url: &str, target: &Path) -> Result<Option<String>> {
-		let repo = Repository::clone(url, target)?;
+	pub fn clone_and_degit(template: &Template, target: &Path) -> Result<Option<String>> {
+		let url = match template {
+			Template::FPT => "https://github.com/paritytech/frontier-parachain-template.git",
+			Template::Contracts => "https://github.com/paritytech/substrate-contracts-node.git",
+			Template::Base => "https://github.com/r0gue-io/base-parachain",
+		};
+		let repo = Repository::clone(url, target).unwrap_or(Self::ssh_clone(template, target)?);
 
 		// fetch tags from remote
 		let release = Self::fetch_latest_tag(&repo);
@@ -30,6 +38,33 @@ impl Git {
 		let git_dir = repo.path();
 		fs::remove_dir_all(&git_dir)?;
 		Ok(release)
+	}
+
+	/// For users that have ssh configuration for cloning repositories
+	fn ssh_clone(template: &Template, target: &Path) -> Result<Repository> {
+		let ssh_url = match template {
+			Template::FPT => "git@github.com:paritytech/frontier-parachain-template.git",
+			Template::Contracts => "git@github.com:paritytech/substrate-contracts-node.git",
+			Template::Base => "git@github.com:r0gue-io/base-parachain.git",
+		};
+		// Prepare callback and fetch options.
+		let mut callbacks = RemoteCallbacks::new();
+		callbacks.credentials(|_url, username_from_url, _allowed_types| {
+			Cred::ssh_key(
+				username_from_url.unwrap(),
+				None,
+				std::path::Path::new(&format!("{}/.ssh/id_rsa", env::var("HOME").unwrap())),
+				None,
+			)
+		});
+		let mut fo = git2::FetchOptions::new();
+		fo.remote_callbacks(callbacks);
+
+		// Prepare builder and clone.
+		let mut builder = git2::build::RepoBuilder::new();
+		builder.fetch_options(fo);
+		let repo = builder.clone(ssh_url, target)?;
+		Ok(repo)
 	}
 
 	/// Fetch the latest release from a repository
