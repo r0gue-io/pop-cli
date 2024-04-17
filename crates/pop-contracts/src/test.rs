@@ -1,46 +1,67 @@
 use duct::cmd;
 use std::path::PathBuf;
+use thiserror::Error;
 
-pub fn test_smart_contract(path: &Option<PathBuf>) -> anyhow::Result<()> {
-	cmd("cargo", vec!["test"]).dir(path.clone().unwrap_or("./".into())).run()?;
-
-	Ok(())
+#[derive(Error, Debug)]
+pub enum Error {
+    #[error("Failed to execute test command: {0}")]
+    TestCommandError(String),
+    #[error("Failed to set test directory: {0}")]
+    TestDirError(String),
+    #[error("Failed to create test environment: {0}")]
+    TestEnvironmentError(String),
 }
 
-pub fn test_e2e_smart_contract(path: &Option<PathBuf>) -> anyhow::Result<()> {
-	cmd("cargo", vec!["test", "--features=e2e-tests"])
-		.dir(path.clone().unwrap_or("./".into()))
-		.run()?;
+pub fn test_smart_contract(path: &Option<PathBuf>) -> Result<(), Error> {
+    // Execute `cargo test` command in the specified directory.
+    let result = cmd("cargo", vec!["test"])
+        .dir(path.clone().unwrap_or_else(|| PathBuf::from("./")))
+        .run()
+        .map_err(|e| Error::TestCommandError(format!("Cargo test command failed: {}", e)))?;
 
-	Ok(())
+    if result.status.success() {
+        Ok(())
+    } else {
+        Err(Error::TestCommandError("Cargo test command failed.".to_string()))
+    }
+}
+
+pub fn test_e2e_smart_contract(path: &Option<PathBuf>) -> Result<(), Error> {
+    // Execute `cargo test --features=e2e-tests` command in the specified directory.
+    let result = cmd("cargo", vec!["test", "--features=e2e-tests"])
+        .dir(path.clone().unwrap_or_else(|| PathBuf::from("./")))
+        .run()
+        .map_err(|e| Error::TestCommandError(format!("Cargo test command failed: {}", e)))?;
+
+    if result.status.success() {
+        Ok(())
+    } else {
+        Err(Error::TestCommandError("Cargo test command failed.".to_string()))
+    }
 }
 
 #[cfg(feature = "unit_contract")]
 #[cfg(test)]
 mod tests {
-	use super::*;
-	use anyhow::{Error, Result};
-	use std::fs;
+    use super::*;
+    use std::fs;
+    use tempfile;
 
-	fn setup_test_environment() -> Result<tempfile::TempDir, Error> {
-		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
-		let temp_contract_dir = temp_dir.path().join("test_contract");
-		fs::create_dir(&temp_contract_dir)?;
-		let result =
-			crate::create_smart_contract("test_contract".to_string(), temp_contract_dir.as_path());
-		assert!(result.is_ok(), "Contract test environment setup failed");
+    fn setup_test_environment() -> Result<tempfile::TempDir, Error> {
+        let temp_dir = tempfile::tempdir().map_err(|e| Error::TestEnvironmentError(format!("Failed to create temp dir: {}", e)))?;
+        let temp_contract_dir = temp_dir.path().join("test_contract");
+        fs::create_dir(&temp_contract_dir).map_err(|e| Error::TestEnvironmentError(format!("Failed to create test contract directory: {}", e)))?;
+        let result = crate::create_smart_contract("test_contract".to_string(), temp_contract_dir.as_path()).map_err(|e| Error::TestEnvironmentError(format!("Failed to create smart contract: {}", e)))?;
+        assert!(result.is_ok(), "Contract test environment setup failed");
+        Ok(temp_dir)
+    }
 
-		Ok(temp_dir)
-	}
-
-	#[test]
-	fn test_contract_test() -> Result<(), Error> {
-		let temp_contract_dir = setup_test_environment()?;
-
-		let result = test_smart_contract(&Some(temp_contract_dir.path().join("test_contract")));
-
-		assert!(result.is_ok(), "Result should be Ok");
-
-		Ok(())
-	}
+    #[test]
+    fn test_contract_test() -> Result<(), Error> {
+        let temp_contract_dir = setup_test_environment()?;
+        // Run unit tests for the smart contract in the temporary contract directory.
+        let result = test_smart_contract(&Some(temp_contract_dir.path().join("test_contract")))?;
+        assert!(result.is_ok(), "Result should be Ok");
+        Ok(())
+    }
 }
