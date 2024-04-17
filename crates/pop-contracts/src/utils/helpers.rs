@@ -39,7 +39,6 @@ pub fn parse_account(account: &str) -> Result<<DefaultConfig as Config>::Account
         .map_err(|e| Error::AccountAddressParsingFailed(format!("{}", e)))
 }
 
-
 #[cfg(test)]
 mod tests {
 	use super::*;
