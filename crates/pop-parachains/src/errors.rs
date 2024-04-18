@@ -16,7 +16,7 @@ pub enum Error {
 	PalletDirCreation,
 
 	#[error("IO error: {0}")]
-	IoError(#[from] std::io::Error),
+	IO(#[from] std::io::Error),
 
 	#[error("Git error: {0}")]
 	GitError(String),

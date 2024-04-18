@@ -41,7 +41,7 @@ impl Zombienet {
 		// Parse network config
 		let network_config_path = PathBuf::from(network_config);
 		let config = std::fs::read_to_string(&network_config_path)
-			.map_err(|err| Error::IoError(err))
+			.map_err(|err| Error::IO(err))
 			.and_then(|content| {
 				content.parse::<DocumentMut>().map_err(|err| Error::TomlError(err.into()))
 			})?;
@@ -236,7 +236,7 @@ impl Zombienet {
 		let network_config_file = Builder::new()
 			.suffix(".toml")
 			.tempfile()
-			.map_err(|err| Error::IoError(err))
+			.map_err(|err| Error::IO(err))
 			.expect("network config could not be created with .toml extension");
 		let path = network_config_file
 			.path()

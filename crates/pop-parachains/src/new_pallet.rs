@@ -7,6 +7,7 @@ use crate::{
 	resolve_pallet_path,
 	utils::helpers::sanitize,
 };
+use crate::errors::Error;
 
 pub struct TemplatePalletConfig {
 	pub name: String,
@@ -17,7 +18,7 @@ pub struct TemplatePalletConfig {
 pub fn create_pallet_template(
 	path: Option<String>,
 	config: TemplatePalletConfig,
-) -> anyhow::Result<()> {
+) -> Result<(), Error> {
 	let target = resolve_pallet_path(path)?;
 	let pallet_name = config.name.clone();
 	let pallet_path = target.join(pallet_name.clone());
@@ -29,7 +30,7 @@ pub fn create_pallet_template(
 }
 
 /// Generate a pallet folder and file structure
-fn generate_pallet_structure(target: &PathBuf, pallet_name: &str) -> anyhow::Result<()> {
+fn generate_pallet_structure(target: &PathBuf, pallet_name: &str) -> Result<(), Error> {
 	use fs::{create_dir, File};
 	let (pallet, src) = (target.join(pallet_name), target.join(pallet_name.to_string() + "/src"));
 	create_dir(&pallet)?;
@@ -46,7 +47,7 @@ fn render_pallet(
 	pallet_name: String,
 	config: TemplatePalletConfig,
 	pallet_path: &PathBuf,
-) -> anyhow::Result<()> {
+) -> Result<(), Error> {
 	let pallet_name = pallet_name.replace('-', "_");
 	// Todo `module` must be of the form Template if pallet_name : `pallet_template`
 	let pallet: Vec<Box<dyn PalletItem>> = vec![
