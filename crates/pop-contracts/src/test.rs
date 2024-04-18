@@ -1,6 +1,6 @@
+use crate::errors::Error;
 use duct::cmd;
 use std::path::PathBuf;
-use crate::errors::Error;
 
 pub fn test_smart_contract(path: &Option<PathBuf>) -> Result<(), Error> {
 	// Execute `cargo test` command in the specified directory.

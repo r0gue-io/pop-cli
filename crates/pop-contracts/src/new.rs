@@ -1,6 +1,6 @@
+use crate::errors::Error;
 use contract_build::new_contract_project;
 use std::path::Path;
-use crate::errors::Error;
 
 pub fn create_smart_contract(name: String, target: &Path) -> Result<(), Error> {
 	// Canonicalize the target path to ensure consistency and resolve any symbolic links.

@@ -1,16 +1,10 @@
+use crate::errors::Error;
 use anyhow::Result;
 use git2::{build::RepoBuilder, FetchOptions, IndexAddOption, Repository, ResetType};
 use regex::Regex;
 use std::fs;
 use std::path::Path;
-use thiserror::Error;
 use url::Url;
-
-#[derive(Error, Debug)]
-pub enum Error {
-	#[error("a git error occurred: {0}")]
-	Git(String),
-}
 
 pub struct Git;
 impl Git {

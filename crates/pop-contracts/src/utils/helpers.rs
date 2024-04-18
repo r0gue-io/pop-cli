@@ -1,9 +1,9 @@
+use crate::errors::Error;
 use contract_build::ManifestPath;
 use contract_extrinsics::BalanceVariant;
 use ink_env::{DefaultEnvironment, Environment};
 use std::{path::PathBuf, str::FromStr};
 use subxt::{Config, PolkadotConfig as DefaultConfig};
-use crate::errors::Error;
 
 pub fn get_manifest_path(path: &Option<PathBuf>) -> Result<ManifestPath, Error> {
 	if let Some(path) = path {
