@@ -4,15 +4,7 @@ use std::{
 	path::Path,
 };
 
-use thiserror::Error;
-
-#[derive(Error, Debug)]
-pub enum Error {
-	#[error("User aborted due to existing target folder.")]
-	Aborted,
-	#[error("Failed to execute rustfmt")]
-	RustfmtError(#[from] io::Error),
-}
+use crate::errors::Error;
 
 pub(crate) fn sanitize(target: &Path) -> Result<(), Error> {
 	if target.exists() {

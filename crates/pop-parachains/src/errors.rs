@@ -28,13 +28,10 @@ pub enum Error {
 	MissingBinary(String),
 
 	#[error("Configuration error: {0}")]
-	ConfigError(String),
+	Config(String),
 
 	#[error("Unsupported command: {0}")]
 	UnsupportedCommand(String),
-
-	#[error("Zombienet SDK error: {0}")]
-	ZombienetSdkError(String),
 
 	#[error("ParseError error: {0}")]
 	ParseError(#[from] url::ParseError),
@@ -47,4 +44,10 @@ pub enum Error {
 
 	#[error("Anyhow error: {0}")]
 	AnyhowError(#[from] anyhow::Error),
+
+	#[error("User aborted due to existing target folder.")]
+	Aborted,
+
+	#[error("Failed to execute rustfmt")]
+	RustfmtError(std::io::Error),
 }
