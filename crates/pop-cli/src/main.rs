@@ -34,6 +34,10 @@ enum Commands {
 	#[clap(alias = "t")]
 	#[cfg(feature = "contract")]
 	Test(commands::test::TestArgs),
+	/// Audit your code.
+	#[clap(alias = "a")]
+	#[cfg(feature = "contract")]
+	Audit(commands::audit::AuditArgs),
 }
 
 #[tokio::main]
@@ -67,6 +71,10 @@ async fn main() -> Result<()> {
 		#[cfg(feature = "contract")]
 		Commands::Test(args) => match &args.command {
 			commands::test::TestCommands::Contract(cmd) => cmd.execute(),
+		},
+		#[cfg(feature = "contract")]
+		Commands::Audit(args) => match &args.command {
+			commands::audit::AuditCommands::Contract(cmd) => cmd.execute(),
 		},
 	}
 }
