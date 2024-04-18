@@ -13,8 +13,8 @@ pub fn resolve_pallet_path(path: Option<String>) -> Result<PathBuf, Error> {
 	if let Some(path) = path {
 		return Ok(Path::new(&path).to_path_buf());
 	}
-	
-	// Check if inside a template	
+
+	// Check if inside a template
 	let cwd = current_dir().map_err(|_| Error::CurrentDirAccess)?;
 
 	let output = process::Command::new(env!("CARGO"))

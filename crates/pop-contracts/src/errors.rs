@@ -16,7 +16,7 @@ pub enum Error {
 
 	#[error("Failed to parse account address: {0}")]
 	AccountAddressParsing(String),
-	
+
 	#[error("Failed to get manifest path: {0}")]
 	ManifestPath(String),
 }

@@ -1,5 +1,6 @@
 use std::{fs, path::PathBuf};
 
+use crate::errors::Error;
 use crate::{
 	generator::pallet::{
 		PalletBenchmarking, PalletCargoToml, PalletItem, PalletLib, PalletMock, PalletTests,
@@ -7,7 +8,6 @@ use crate::{
 	resolve_pallet_path,
 	utils::helpers::sanitize,
 };
-use crate::errors::Error;
 
 pub struct TemplatePalletConfig {
 	pub name: String,

@@ -53,8 +53,7 @@ impl Zombienet {
 				let id = table
 					.get("id")
 					.and_then(|i| i.as_integer())
-					.ok_or(Error::Config("expected `parachain` to have `id`".into()))?
-					as u32;
+					.ok_or(Error::Config("expected `parachain` to have `id`".into()))? as u32;
 				let default_command = table
 					.get("default_command")
 					.cloned()
@@ -181,8 +180,7 @@ impl Zombienet {
 				let id = table
 					.get("id")
 					.and_then(|i| i.as_integer())
-					.ok_or(Error::Config("expected `parachain` to have `id`".into()))?
-					as u32;
+					.ok_or(Error::Config("expected `parachain` to have `id`".into()))? as u32;
 
 				// Resolve default_command to binary
 				{
@@ -199,9 +197,10 @@ impl Zombienet {
 							"expected `default_command` value to be a string".into(),
 						))?;
 						let path = Self::resolve_path(network_config_path, command_path)?;
-						*default_command = value(path.to_str().ok_or(Error::Config(
-							"the parachain binary was not found".into(),
-						))?);
+						*default_command =
+							value(path.to_str().ok_or(Error::Config(
+								"the parachain binary was not found".into(),
+							))?);
 					}
 				}
 
@@ -213,9 +212,10 @@ impl Zombienet {
 						if let Some(command) = collator.get_mut("command") {
 							// Check if provided via args, therefore cached
 							if let Some(para) = self.parachains.get(&id) {
-								let para_path = para.path.to_str().ok_or(Error::Config(
-									"the parachain path is invalid".into(),
-								))?;
+								let para_path = para
+									.path
+									.to_str()
+									.ok_or(Error::Config("the parachain path is invalid".into()))?;
 								*command = value(para_path);
 							} else {
 								let command_path = command.as_str().ok_or(Error::Config(
