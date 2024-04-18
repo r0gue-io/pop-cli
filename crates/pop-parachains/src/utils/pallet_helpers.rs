@@ -4,34 +4,24 @@ use std::{
 	path::{Path, PathBuf},
 	process,
 };
-use thiserror::Error;
-
-#[derive(Error, Debug)]
-pub enum ResolvePalletError {
-	#[error("Failed to access the current directory")]
-	CurrentDirAccessFailed,
-	#[error("Failed to locate the workspace")]
-	WorkspaceLocateFailed,
-	#[error("Failed to create pallet directory")]
-	PalletDirCreationFailed,
-}
+use crate::errors::Error;
 
 /// Resolve pallet path
 /// For a template it should be `<template>/pallets/`
 /// For no path, it should just place it in the current working directory
-pub fn resolve_pallet_path(path: Option<String>) -> Result<PathBuf, ResolvePalletError> {
+pub fn resolve_pallet_path(path: Option<String>) -> Result<PathBuf, Error> {
 	if let Some(path) = path {
 		return Ok(Path::new(&path).to_path_buf());
 	}
 
-	let cwd = current_dir().map_err(|_| ResolvePalletError::CurrentDirAccessFailed)?;
+	let cwd = current_dir().map_err(|_| Error::CurrentDirAccess)?;
 
 	let output = process::Command::new(env!("CARGO"))
 		.arg("locate-project")
 		.arg("--workspace")
 		.arg("--message-format=plain")
 		.output()
-		.map_err(|_| ResolvePalletError::WorkspaceLocateFailed)?
+		.map_err(|_| Error::WorkspaceLocate)?
 		.stdout;
 
 	let workspace_path = Path::new(std::str::from_utf8(&output).unwrap().trim());
@@ -41,10 +31,10 @@ pub fn resolve_pallet_path(path: Option<String>) -> Result<PathBuf, ResolvePalle
 
 	let pallet_path = workspace_path
 		.parent()
-		.ok_or(ResolvePalletError::WorkspaceLocateFailed)?
+		.ok_or(Error::WorkspaceLocate)?
 		.join("pallets");
 
-	fs::create_dir_all(&pallet_path).map_err(|_| ResolvePalletError::PalletDirCreationFailed)?;
+	fs::create_dir_all(&pallet_path).map_err(|_| Error::PalletDirCreation)?;
 
 	Ok(pallet_path)
 }
