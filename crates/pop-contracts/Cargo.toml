@@ -20,6 +20,7 @@ sp-weights.workspace = true
 # cargo-contracts
 contract-build.workspace = true
 contract-extrinsics.workspace = true
+cargo-scout-audit.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

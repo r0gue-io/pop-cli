@@ -18,6 +18,7 @@ sp-core = { version = "30.0.0"}
 sp-weights = { version = "29.0.0" }
 contract-build = { version = "4.0.2" }
 contract-extrinsics = { version = "4.0.0-rc.3"}
+cargo-scout-audit = "0.2.6"
 
 # parachains
 askama = "0.12"
