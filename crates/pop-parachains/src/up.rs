@@ -53,7 +53,7 @@ impl Zombienet {
 				let id = table
 					.get("id")
 					.and_then(|i| i.as_integer())
-					.ok_or(Error::ConfigError("expected `parachain` to have `id`".into()))?
+					.ok_or(Error::Config("expected `parachain` to have `id`".into()))?
 					as u32;
 				let default_command = table
 					.get("default_command")
@@ -151,7 +151,7 @@ impl Zombienet {
 		let Item::Table(settings) =
 			network_config.entry("settings").or_insert(Item::Table(Table::new()))
 		else {
-			return Err(Error::ConfigError("expected `settings`".into()));
+			return Err(Error::Config("expected `settings`".into()));
 		};
 		settings
 			.entry("timeout")
@@ -165,11 +165,11 @@ impl Zombienet {
 			.relay_chain
 			.path
 			.to_str()
-			.ok_or(Error::ConfigError("the relay chain path is invalid".into()))?;
+			.ok_or(Error::Config("the relay chain path is invalid".into()))?;
 		let Item::Table(relay_chain) =
 			network_config.entry("relaychain").or_insert(Item::Table(Table::new()))
 		else {
-			return Err(Error::ConfigError("expected `relaychain`".into()));
+			return Err(Error::Config("expected `relaychain`".into()));
 		};
 		*relay_chain.entry("default_command").or_insert(value(relay_path)) = value(relay_path);
 
@@ -181,7 +181,7 @@ impl Zombienet {
 				let id = table
 					.get("id")
 					.and_then(|i| i.as_integer())
-					.ok_or(Error::ConfigError("expected `parachain` to have `id`".into()))?
+					.ok_or(Error::Config("expected `parachain` to have `id`".into()))?
 					as u32;
 
 				// Resolve default_command to binary
@@ -191,15 +191,15 @@ impl Zombienet {
 						let para_path = para
 							.path
 							.to_str()
-							.ok_or(Error::ConfigError("the parachain path is invalid".into()))?;
+							.ok_or(Error::Config("the parachain path is invalid".into()))?;
 						table.insert("default_command", value(para_path));
 					} else if let Some(default_command) = table.get_mut("default_command") {
 						// Otherwise assume local binary, fix path accordingly
-						let command_path = default_command.as_str().ok_or(Error::ConfigError(
+						let command_path = default_command.as_str().ok_or(Error::Config(
 							"expected `default_command` value to be a string".into(),
 						))?;
 						let path = Self::resolve_path(network_config_path, command_path)?;
-						*default_command = value(path.to_str().ok_or(Error::ConfigError(
+						*default_command = value(path.to_str().ok_or(Error::Config(
 							"the parachain binary was not found".into(),
 						))?);
 					}
@@ -213,16 +213,16 @@ impl Zombienet {
 						if let Some(command) = collator.get_mut("command") {
 							// Check if provided via args, therefore cached
 							if let Some(para) = self.parachains.get(&id) {
-								let para_path = para.path.to_str().ok_or(Error::ConfigError(
+								let para_path = para.path.to_str().ok_or(Error::Config(
 									"the parachain path is invalid".into(),
 								))?;
 								*command = value(para_path);
 							} else {
-								let command_path = command.as_str().ok_or(Error::ConfigError(
+								let command_path = command.as_str().ok_or(Error::Config(
 									"expected `command` value to be a string".into(),
 								))?;
 								let path = Self::resolve_path(network_config_path, command_path)?;
-								*command = value(path.to_str().ok_or(Error::ConfigError(
+								*command = value(path.to_str().ok_or(Error::Config(
 									"the parachain binary was not found".into(),
 								))?);
 							}
@@ -241,7 +241,7 @@ impl Zombienet {
 		let path = network_config_file
 			.path()
 			.to_str()
-			.ok_or(Error::ConfigError("temp config file should have a path".into()))?;
+			.ok_or(Error::Config("temp config file should have a path".into()))?;
 		write(path, network_config.to_string())?;
 		Ok(network_config_file)
 	}
@@ -255,7 +255,7 @@ impl Zombienet {
             .canonicalize()
             .or_else(|_| current_dir().unwrap().join(command_path).canonicalize())
             .map_err(|_| {
-                Error::ConfigError(format!(
+                Error::Config(format!(
                     "unable to find canonical local path to specified command: `{}` are you missing an argument?",
                     command_path
                 ))
@@ -270,7 +270,7 @@ impl Zombienet {
 		const BINARY: &str = "polkadot";
 		let relay_command = network_config
 			.get("relaychain")
-			.ok_or(Error::ConfigError("expected `relaychain`".into()))?
+			.ok_or(Error::Config("expected `relaychain`".into()))?
 			.get("default_command");
 		if let Some(Value::String(command)) = relay_command.and_then(|c| c.as_value()) {
 			if !command.value().to_lowercase().contains(BINARY) {
