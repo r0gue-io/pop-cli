@@ -1,28 +1,18 @@
 use duct::cmd;
 use std::path::PathBuf;
-use thiserror::Error;
-
-#[derive(Error, Debug)]
-pub enum Error {
-	#[error("Failed to execute test command: {0}")]
-	TestCommandError(String),
-	#[error("Failed to set test directory: {0}")]
-	TestDirError(String),
-	#[error("Failed to create test environment: {0}")]
-	TestEnvironmentError(String),
-}
+use crate::errors::Error;
 
 pub fn test_smart_contract(path: &Option<PathBuf>) -> Result<(), Error> {
 	// Execute `cargo test` command in the specified directory.
 	let result = cmd("cargo", vec!["test"])
 		.dir(path.clone().unwrap_or_else(|| PathBuf::from("./")))
 		.run()
-		.map_err(|e| Error::TestCommandError(format!("Cargo test command failed: {}", e)))?;
+		.map_err(|e| Error::TestCommand(format!("Cargo test command failed: {}", e)))?;
 
 	if result.status.success() {
 		Ok(())
 	} else {
-		Err(Error::TestCommandError("Cargo test command failed.".to_string()))
+		Err(Error::TestCommand("Cargo test command failed.".to_string()))
 	}
 }
 
@@ -31,12 +21,12 @@ pub fn test_e2e_smart_contract(path: &Option<PathBuf>) -> Result<(), Error> {
 	let result = cmd("cargo", vec!["test", "--features=e2e-tests"])
 		.dir(path.clone().unwrap_or_else(|| PathBuf::from("./")))
 		.run()
-		.map_err(|e| Error::TestCommandError(format!("Cargo test command failed: {}", e)))?;
+		.map_err(|e| Error::TestCommand(format!("Cargo test command failed: {}", e)))?;
 
 	if result.status.success() {
 		Ok(())
 	} else {
-		Err(Error::TestCommandError("Cargo test command failed.".to_string()))
+		Err(Error::TestCommand("Cargo test command failed.".to_string()))
 	}
 }
 

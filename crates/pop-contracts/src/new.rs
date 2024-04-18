@@ -7,7 +7,7 @@ pub fn create_smart_contract(name: String, target: &Path) -> Result<(), Error> {
 	let canonicalized_path = target
 		.canonicalize()
 		// If an I/O error occurs during canonicalization, convert it into an Error enum variant.
-		.map_err(|e| Error::IoError(e))?;
+		.map_err(|e| Error::IO(e))?;
 
 	// Retrieve the parent directory of the canonicalized path.
 	let parent_path = canonicalized_path
