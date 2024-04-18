@@ -13,14 +13,14 @@ pub fn create_smart_contract(name: String, target: &Path) -> Result<(), Error> {
 	let parent_path = canonicalized_path
 		.parent()
 		// If the parent directory cannot be retrieved (e.g., if the path has no parent),
-		// return a NewContractFailed variant indicating the failure.
-		.ok_or(Error::NewContractFailed("Failed to get parent directory".to_string()))?;
+		// return a NewContract variant indicating the failure.
+		.ok_or(Error::NewContract("Failed to get parent directory".to_string()))?;
 
 	// Create a new contract project with the provided name in the parent directory.
 	new_contract_project(&name, Some(parent_path))
 		// If an error occurs during the creation of the contract project,
-		// convert it into a NewContractFailed variant with a formatted error message.
-		.map_err(|e| Error::NewContractFailed(format!("{}", e)))
+		// convert it into a NewContract variant with a formatted error message.
+		.map_err(|e| Error::NewContract(format!("{}", e)))
 }
 
 #[cfg(test)]
