@@ -5,7 +5,7 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum Error {
 	#[error("Failed to create new contract project: {0}")]
-	NewContractError(String),
+	NewContractFailed(String),
 	#[error("IO error: {0}")]
 	IoError(#[from] std::io::Error),
 }
@@ -21,14 +21,14 @@ pub fn create_smart_contract(name: String, target: &Path) -> Result<(), Error> {
 	let parent_path = canonicalized_path
 		.parent()
 		// If the parent directory cannot be retrieved (e.g., if the path has no parent),
-		// return a NewContractError variant indicating the failure.
-		.ok_or(Error::NewContractError("Failed to get parent directory".to_string()))?;
+		// return a NewContractFailed variant indicating the failure.
+		.ok_or(Error::NewContractFailed("Failed to get parent directory".to_string()))?;
 
 	// Create a new contract project with the provided name in the parent directory.
 	new_contract_project(&name, Some(parent_path))
 		// If an error occurs during the creation of the contract project,
-		// convert it into a NewContractError variant with a formatted error message.
-		.map_err(|e| Error::NewContractError(format!("{}", e)))
+		// convert it into a NewContractFailed variant with a formatted error message.
+		.map_err(|e| Error::NewContractFailed(format!("{}", e)))
 }
 
 #[cfg(test)]
