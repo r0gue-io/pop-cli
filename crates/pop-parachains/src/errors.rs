@@ -18,9 +18,6 @@ pub enum Error {
 	#[error("IO error: {0}")]
 	IO(#[from] std::io::Error),
 
-	#[error("Git error: {0}")]
-	GitError(String),
-
 	#[error("HTTP error: {0}")]
 	HttpError(#[from] reqwest::Error),
 
