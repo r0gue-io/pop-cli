@@ -1,10 +1,10 @@
+use crate::errors::Error;
 use std::{
 	env::current_dir,
 	fs,
 	path::{Path, PathBuf},
 	process,
 };
-use crate::errors::Error;
 
 /// Resolve pallet path
 /// For a template it should be `<template>/pallets/`
@@ -29,10 +29,7 @@ pub fn resolve_pallet_path(path: Option<String>) -> Result<PathBuf, Error> {
 		return Ok(cwd);
 	}
 
-	let pallet_path = workspace_path
-		.parent()
-		.ok_or(Error::WorkspaceLocate)?
-		.join("pallets");
+	let pallet_path = workspace_path.parent().ok_or(Error::WorkspaceLocate)?.join("pallets");
 
 	fs::create_dir_all(&pallet_path).map_err(|_| Error::PalletDirCreation)?;
 
