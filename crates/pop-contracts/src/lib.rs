@@ -4,6 +4,7 @@ mod new;
 mod test;
 mod up;
 pub mod utils;
+mod errors;
 
 pub use build::build_smart_contract;
 pub use call::{

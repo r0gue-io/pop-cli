@@ -1,14 +1,6 @@
 use contract_build::new_contract_project;
 use std::path::Path;
-use thiserror::Error;
-
-#[derive(Error, Debug)]
-pub enum Error {
-	#[error("Failed to create new contract project: {0}")]
-	NewContractFailed(String),
-	#[error("IO error: {0}")]
-	IoError(#[from] std::io::Error),
-}
+use crate::errors::Error;
 
 pub fn create_smart_contract(name: String, target: &Path) -> Result<(), Error> {
 	// Canonicalize the target path to ensure consistency and resolve any symbolic links.
