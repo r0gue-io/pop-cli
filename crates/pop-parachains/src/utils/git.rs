@@ -8,8 +8,6 @@ use std::path::Path;
 use std::{env, fs};
 use url::Url;
 
-use crate::Template;
-
 pub struct Git;
 impl Git {
 	pub(crate) fn clone(url: &Url, working_dir: &Path, branch: Option<&str>) -> Result<()> {
@@ -26,13 +24,9 @@ impl Git {
 		Ok(())
 	}
 	/// Clone `url` into `target` and degit it
-	pub fn clone_and_degit(template: &Template, target: &Path) -> Result<Option<String>> {
-		let url = match template {
-			Template::FPT => "https://github.com/paritytech/frontier-parachain-template.git",
-			Template::Contracts => "https://github.com/paritytech/substrate-contracts-node.git",
-			Template::Base => "https://github.com/r0gue-io/base-parachain",
-		};
-		let repo = Repository::clone(url, target).unwrap_or(Self::ssh_clone(template, target)?);
+	pub fn clone_and_degit(url: &str, target: &Path) -> Result<Option<String>> {
+		let repo = Repository::clone(&["https://github.com/", url].concat(), target)
+			.unwrap_or(Self::ssh_clone(url, target)?);
 
 		// fetch tags from remote
 		let release = Self::fetch_latest_tag(&repo);
@@ -43,15 +37,10 @@ impl Git {
 	}
 
 	/// For users that have ssh configuration for cloning repositories
-	fn ssh_clone(template: &Template, target: &Path) -> Result<Repository> {
-		let ssh_url = match template {
-			Template::FPT => "git@github.com:paritytech/frontier-parachain-template.git",
-			Template::Contracts => "git@github.com:paritytech/substrate-contracts-node.git",
-			Template::Base => "git@github.com:r0gue-io/base-parachain.git",
-		};
+	fn ssh_clone(url: &str, target: &Path) -> Result<Repository> {
 		// Prepare callback and fetch options.
 		let mut callbacks = RemoteCallbacks::new();
-		let git_config = git2::Config::open_default()?;
+		let git_config = git2::Config::open_default().expect("");
 		let mut ch = CredentialHandler::new(git_config);
 		callbacks.credentials(move |url, username, allowed| {
 			ch.try_next_credential(url, username, allowed)
@@ -62,7 +51,7 @@ impl Git {
 		// Prepare builder and clone.
 		let mut builder = git2::build::RepoBuilder::new();
 		builder.fetch_options(fo);
-		let repo = builder.clone(ssh_url, target)?;
+		let repo = builder.clone(&["git@github.com:", url].concat(), target)?;
 		Ok(repo)
 	}
 
