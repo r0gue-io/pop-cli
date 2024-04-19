@@ -10,6 +10,7 @@ edition = "2021"
 anyhow.workspace = true
 duct.workspace = true
 url.workspace = true
+tokio.workspace = true
 
 subxt-signer.workspace = true
 subxt.workspace = true
@@ -23,3 +24,7 @@ contract-extrinsics.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
+
+[features]
+e2e_contract = []
+unit_contract = []
