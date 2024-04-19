@@ -6,7 +6,6 @@ use crate::{
 	},
 };
 use anyhow::Result;
-use git2::Repository;
 use std::{fs, path::Path};
 use walkdir::WalkDir;
 
@@ -33,7 +32,7 @@ pub fn instantiate_template_dir(
 		return instantiate_base_template(target, config);
 	};
 	let tag = Git::clone_and_degit(template, target)?;
-	Repository::init(target)?;
+	//Repository::init(target)?;
 	Ok(tag)
 }
 
@@ -67,7 +66,7 @@ pub fn instantiate_base_template(target: &Path, config: Config) -> Result<Option
 	// Add network configuration
 	let network = Network { node: "parachain-template-node".into() };
 	write_to_file(&target.join("network.toml"), network.render().expect("infallible").as_ref())?;
-	Repository::init(target)?;
+	//Repository::init(target)?;
 	Ok(tag)
 }
 
