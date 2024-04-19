@@ -32,13 +32,10 @@ impl Git {
 			Template::Contracts => "https://github.com/paritytech/substrate-contracts-node.git",
 			Template::Base => "https://github.com/r0gue-io/base-parachain",
 		};
-		println!("Going to clone the repo");
 		let repo = Repository::clone(url, target).unwrap_or(Self::ssh_clone(template, target)?);
 
-		println!("Cloned");
 		// fetch tags from remote
 		let release = Self::fetch_latest_tag(&repo);
-		println!("Release: {:?}", release);
 
 		let git_dir = repo.path();
 		fs::remove_dir_all(&git_dir)?;
@@ -47,7 +44,6 @@ impl Git {
 
 	/// For users that have ssh configuration for cloning repositories
 	fn ssh_clone(template: &Template, target: &Path) -> Result<Repository> {
-		println!("ssh cloning");
 		let ssh_url = match template {
 			Template::FPT => "git@github.com:paritytech/frontier-parachain-template.git",
 			Template::Contracts => "git@github.com:paritytech/substrate-contracts-node.git",
@@ -60,16 +56,6 @@ impl Git {
 		callbacks.credentials(move |url, username, allowed| {
 			ch.try_next_credential(url, username, allowed)
 		});
-		// callbacks.credentials(|_url, username_from_url, _allowed_types| {
-		// 	println!("{:?}", _url);
-		// 	println!("{:?}", username_from_url);
-		// 	Cred::ssh_key(
-		// 		username_from_url.unwrap(),
-		// 		None,
-		// 		std::path::Path::new(&format!("{}/.ssh/id_rsa", env::var("HOME").unwrap())),
-		// 		None,
-		// 	)
-		// });
 		let mut fo = git2::FetchOptions::new();
 		fo.remote_callbacks(callbacks);
 
