@@ -30,8 +30,8 @@ pub fn instantiate_template_dir(
 	sanitize(target)?;
 	use Template::*;
 	let url = match template {
-		FPT => "paritytech/frontier-parachain-template",
-		Contracts => "paritytech/substrate-contracts-node",
+		FPT => "paritytech/frontier-parachain-template.git",
+		Contracts => "paritytech/substrate-contracts-node.git",
 		Base => {
 			return instantiate_base_template(target, config);
 		},
@@ -43,7 +43,7 @@ pub fn instantiate_template_dir(
 pub fn instantiate_base_template(target: &Path, config: Config) -> Result<Option<String>> {
 	let temp_dir = ::tempfile::TempDir::new_in(std::env::temp_dir())?;
 	let source = temp_dir.path();
-	let tag = Git::clone_and_degit("r0gue-io/base-parachain", source)?;
+	let tag = Git::clone_and_degit("r0gue-io/base-parachain.git", source)?;
 
 	for entry in WalkDir::new(&source) {
 		let entry = entry?;

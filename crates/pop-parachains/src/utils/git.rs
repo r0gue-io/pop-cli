@@ -45,9 +45,10 @@ impl Git {
 	}
 	/// Clone `url` into `target` and degit it
 	pub fn clone_and_degit(url: &str, target: &Path) -> Result<Option<String>> {
-		let repo = Repository::clone(&["https://github.com/", url].concat(), target)
-			.unwrap_or(Self::ssh_clone_and_degit(url, target)?);
-
+		let repo = match Repository::clone(&["https://github.com/", url].concat(), target) {
+			Ok(repo) => repo,
+			Err(_e) => Self::ssh_clone_and_degit(url, target)?,
+		};
 		// fetch tags from remote
 		let release = Self::fetch_latest_tag(&repo);
 
@@ -64,7 +65,7 @@ impl Git {
 		// Prepare builder and clone.
 		let mut builder = RepoBuilder::new();
 		builder.fetch_options(fo);
-		let repo = builder.clone(&["git@github.com:", url, ".git"].concat(), target)?;
+		let repo = builder.clone(&["git@github.com:", url].concat(), target)?;
 		Ok(repo)
 	}
 
