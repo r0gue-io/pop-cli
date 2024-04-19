@@ -51,7 +51,7 @@ impl Git {
 		};
 		// Prepare callback and fetch options.
 		let mut callbacks = RemoteCallbacks::new();
-		let git_config = git2::Config::open_default().unwrap();
+		let git_config = git2::Config::open_default()?;
 		let mut ch = CredentialHandler::new(git_config);
 		callbacks.credentials(move |url, username, allowed| {
 			ch.try_next_credential(url, username, allowed)
