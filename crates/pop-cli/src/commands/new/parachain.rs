@@ -94,14 +94,12 @@ impl NewParachainCommand {
 				initial_endowment: self.initial_endowment.clone().expect("default values"),
 			},
 		)?;
-		spinner.stop("Generation complete");
-		spinner.start("Git init");
 		if let Err(err) = Git::git_init(destination_path.as_path(), "initialized parachain") {
 			if err.class() == git2::ErrorClass::Config && err.code() == git2::ErrorCode::NotFound {
 				outro_cancel("git signature could not be found. Please configure your git config with your name and email")?;
 			}
 		}
-		spinner.stop("Git init complete");
+		spinner.stop("Generation complete");
 		if let Some(tag) = tag {
 			log::info(format!("Version: {}", tag))?;
 		}
