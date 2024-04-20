@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use git2::{
 	build::RepoBuilder, FetchOptions, IndexAddOption, RemoteCallbacks, Repository, ResetType,
 };
@@ -61,7 +61,7 @@ impl Git {
 	fn ssh_clone_and_degit(url: &str, target: &Path) -> Result<Repository> {
 		// Prepare callback and fetch options.
 		let mut fo = FetchOptions::new();
-		Self::set_up_ssh_fetch_options(&mut fo);
+		Self::set_up_ssh_fetch_options(&mut fo)?;
 		// Prepare builder and clone.
 		let mut builder = RepoBuilder::new();
 		builder.fetch_options(fo);
@@ -69,15 +69,16 @@ impl Git {
 		Ok(repo)
 	}
 
-	fn set_up_ssh_fetch_options(fo: &mut FetchOptions) {
+	fn set_up_ssh_fetch_options(fo: &mut FetchOptions) -> Result<()> {
 		let mut callbacks = RemoteCallbacks::new();
-		let git_config = git2::Config::open_default().expect("git configuration cannot open");
+		let git_config = git2::Config::open_default().context("Cannot open git configuration")?;
 		let mut ch = CredentialHandler::new(git_config);
 		callbacks.credentials(move |url, username, allowed| {
 			ch.try_next_credential(url, username, allowed)
 		});
 
 		fo.remote_callbacks(callbacks);
+		Ok(())
 	}
 
 	/// Fetch the latest release from a repository
