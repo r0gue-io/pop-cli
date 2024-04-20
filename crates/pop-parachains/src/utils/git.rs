@@ -71,7 +71,7 @@ impl Git {
 
 	fn set_up_ssh_fetch_options(fo: &mut FetchOptions) {
 		let mut callbacks = RemoteCallbacks::new();
-		let git_config = git2::Config::open_default().expect("Cannot open git configuration");
+		let git_config = git2::Config::open_default().expect("git configuration cannot open");
 		let mut ch = CredentialHandler::new(git_config);
 		callbacks.credentials(move |url, username, allowed| {
 			ch.try_next_credential(url, username, allowed)
