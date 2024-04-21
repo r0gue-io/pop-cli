@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 pub fn test_smart_contract(path: &Option<PathBuf>) -> Result<(), Error> {
 	// Execute `cargo test` command in the specified directory.
-	let result = cmd("cargo", vec!["test"])
+	cmd("cargo", vec!["test"])
 		.dir(path.clone().unwrap_or_else(|| PathBuf::from("./")))
 		.run()
 		.map_err(|e| Error::TestCommand(format!("Cargo test command failed: {}", e)))?;
@@ -13,7 +13,7 @@ pub fn test_smart_contract(path: &Option<PathBuf>) -> Result<(), Error> {
 
 pub fn test_e2e_smart_contract(path: &Option<PathBuf>) -> Result<(), Error> {
 	// Execute `cargo test --features=e2e-tests` command in the specified directory.
-	let result = cmd("cargo", vec!["test", "--features=e2e-tests"])
+	cmd("cargo", vec!["test", "--features=e2e-tests"])
 		.dir(path.clone().unwrap_or_else(|| PathBuf::from("./")))
 		.run()
 		.map_err(|e| Error::TestCommand(format!("Cargo test command failed: {}", e)))?;
