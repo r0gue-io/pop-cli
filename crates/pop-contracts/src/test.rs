@@ -8,12 +8,7 @@ pub fn test_smart_contract(path: &Option<PathBuf>) -> Result<(), Error> {
 		.dir(path.clone().unwrap_or_else(|| PathBuf::from("./")))
 		.run()
 		.map_err(|e| Error::TestCommand(format!("Cargo test command failed: {}", e)))?;
-
-	if result.status.success() {
-		Ok(())
-	} else {
-		Err(Error::TestCommand("Cargo test command failed.".to_string()))
-	}
+	Ok(())
 }
 
 pub fn test_e2e_smart_contract(path: &Option<PathBuf>) -> Result<(), Error> {
@@ -22,12 +17,7 @@ pub fn test_e2e_smart_contract(path: &Option<PathBuf>) -> Result<(), Error> {
 		.dir(path.clone().unwrap_or_else(|| PathBuf::from("./")))
 		.run()
 		.map_err(|e| Error::TestCommand(format!("Cargo test command failed: {}", e)))?;
-
-	if result.status.success() {
-		Ok(())
-	} else {
-		Err(Error::TestCommand("Cargo test command failed.".to_string()))
-	}
+	Ok(())
 }
 
 #[cfg(feature = "unit_contract")]
