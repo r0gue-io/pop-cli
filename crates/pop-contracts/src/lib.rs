@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 mod build;
 mod call;
+mod errors;
 mod new;
 mod test;
 mod up;

@@ -8,7 +8,6 @@ use crate::{
 	},
 };
 use anyhow::Result;
-use git2::Repository;
 use std::{fs, path::Path};
 use walkdir::WalkDir;
 
@@ -33,21 +32,20 @@ pub fn instantiate_template_dir(
 	sanitize(target)?;
 	use Template::*;
 	let url = match template {
-		FPT => "https://github.com/paritytech/frontier-parachain-template.git",
-		Contracts => "https://github.com/paritytech/substrate-contracts-node.git",
+		FPT => "paritytech/frontier-parachain-template.git",
+		Contracts => "paritytech/substrate-contracts-node.git",
 		Base => {
 			return instantiate_base_template(target, config);
 		},
 	};
 	let tag = Git::clone_and_degit(url, target)?;
-	Repository::init(target)?;
 	Ok(tag)
 }
 
 pub fn instantiate_base_template(target: &Path, config: Config) -> Result<Option<String>> {
 	let temp_dir = ::tempfile::TempDir::new_in(std::env::temp_dir())?;
 	let source = temp_dir.path();
-	let tag = Git::clone_and_degit("https://github.com/r0gue-io/base-parachain", source)?;
+	let tag = Git::clone_and_degit("r0gue-io/base-parachain.git", source)?;
 
 	for entry in WalkDir::new(&source) {
 		let entry = entry?;
@@ -74,7 +72,6 @@ pub fn instantiate_base_template(target: &Path, config: Config) -> Result<Option
 	// Add network configuration
 	let network = Network { node: "parachain-template-node".into() };
 	write_to_file(&target.join("network.toml"), network.render().expect("infallible").as_ref())?;
-	Repository::init(target)?;
 	Ok(tag)
 }
 

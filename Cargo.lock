@@ -2102,7 +2102,7 @@ dependencies = [
  "deno_core",
  "deno_native_certs",
  "once_cell",
- "rustls 0.21.10",
+ "rustls 0.21.11",
  "rustls-pemfile 1.0.4",
  "rustls-webpki 0.101.7",
  "serde",
@@ -2231,6 +2231,18 @@ dependencies = [
  "quote",
  "rustc_version 0.4.0",
  "syn 1.0.109",
+]
+
+[[package]]
+name = "dialoguer"
+version = "0.10.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "59c6f2989294b9a498d3ad5491a79c6deb604617378e1cdc4bfc1c1361fe2f87"
+dependencies = [
+ "console",
+ "shell-words",
+ "tempfile",
+ "zeroize",
 ]
 
 [[package]]
@@ -3046,6 +3058,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "git2_credentials"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a297fe29addafaf3c774fdbb8f410e487b819555f067ed94c44c5c2ae15e3702"
+dependencies = [
+ "dialoguer",
+ "dirs",
+ "git2",
+ "pest",
+ "pest_derive",
+ "regex",
+]
+
+[[package]]
 name = "group"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3377,7 +3403,7 @@ dependencies = [
  "http 0.2.12",
  "hyper 0.14.28",
  "log",
- "rustls 0.21.10",
+ "rustls 0.21.11",
  "rustls-native-certs 0.6.3",
  "tokio",
  "tokio-rustls 0.24.1",
@@ -4071,7 +4097,7 @@ dependencies = [
  "pem",
  "pin-project",
  "rand 0.8.5",
- "rustls 0.21.10",
+ "rustls 0.21.11",
  "rustls-pemfile 1.0.4",
  "secrecy",
  "serde",
@@ -5463,6 +5489,8 @@ dependencies = [
  "subxt 0.34.0",
  "subxt-signer 0.34.0",
  "tempfile",
+ "thiserror",
+ "tokio",
  "url",
 ]
 
@@ -5474,6 +5502,7 @@ dependencies = [
  "askama",
  "duct",
  "git2",
+ "git2_credentials",
  "indexmap 2.2.6",
  "regex",
  "reqwest",
@@ -5481,6 +5510,7 @@ dependencies = [
  "serde_json",
  "symlink",
  "tempfile",
+ "thiserror",
  "tokio",
  "toml_edit 0.22.9",
  "url",
@@ -5902,7 +5932,7 @@ dependencies = [
  "once_cell",
  "percent-encoding",
  "pin-project-lite",
- "rustls 0.21.10",
+ "rustls 0.21.11",
  "rustls-pemfile 1.0.4",
  "serde",
  "serde_json",
@@ -6109,9 +6139,9 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.21.10"
+version = "0.21.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f9d5a6813c0759e4609cd494e8e725babae6a2ca7b62a5536a13daaec6fcb7ba"
+checksum = "7fecbfb7b1444f477b345853b1fce097a2c6fb637b2bfb87e6bc5db0f043fae4"
 dependencies = [
  "log",
  "ring",
@@ -6190,7 +6220,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "55cae64d5219dfdd7f2d18dda421a2137ebdd63be6d0dc53d7836003f224f3d0"
 dependencies = [
  "futures",
- "rustls 0.21.10",
+ "rustls 0.21.11",
  "tokio",
 ]
 
@@ -6851,6 +6881,12 @@ dependencies = [
  "libc",
  "winapi",
 ]
+
+[[package]]
+name = "shell-words"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "24188a676b6ae68c3b2cb3a01be17fbf7240ce009799bb56d5b1409051e78fde"
 
 [[package]]
 name = "signal-hook"
@@ -8809,7 +8845,7 @@ version = "0.24.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c28327cf380ac148141087fbfb9de9d7bd4e84ab5d2c28fbc911d753de8a7081"
 dependencies = [
- "rustls 0.21.10",
+ "rustls 0.21.11",
  "tokio",
 ]
 

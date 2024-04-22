@@ -44,8 +44,8 @@ pub async fn set_up_call(
 ) -> anyhow::Result<CallExec<DefaultConfig, DefaultEnvironment, Keypair>> {
 	let token_metadata = TokenMetadata::query::<DefaultConfig>(&call_opts.url).await?;
 	let manifest_path = get_manifest_path(&call_opts.path)?;
-
 	let signer = create_signer(&call_opts.suri)?;
+
 	let extrinsic_opts = ExtrinsicOptsBuilder::new(signer)
 		.manifest_path(Some(manifest_path))
 		.url(call_opts.url.clone())
@@ -130,4 +130,99 @@ pub async fn call_smart_contract(
 	let output =
 		display_events.display_events::<DefaultEnvironment>(Verbosity::Default, &token_metadata)?;
 	Ok(output)
+}
+
+#[cfg(feature = "unit_contract")]
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::{build_smart_contract, create_smart_contract};
+	use anyhow::{Error, Result};
+	use std::fs;
+	use tempfile::TempDir;
+
+	const CONTRACTS_NETWORK_URL: &str = "wss://rococo-contracts-rpc.polkadot.io";
+
+	fn generate_smart_contract_test_environment() -> Result<tempfile::TempDir, Error> {
+		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
+		let temp_contract_dir = temp_dir.path().join("test_contract");
+		fs::create_dir(&temp_contract_dir)?;
+		let result =
+			create_smart_contract("test_contract".to_string(), temp_contract_dir.as_path());
+		assert!(result.is_ok(), "Contract test environment setup failed");
+
+		Ok(temp_dir)
+	}
+	fn build_smart_contract_test_environment(temp_dir: &TempDir) -> Result<(), Error> {
+		build_smart_contract(&Some(temp_dir.path().join("test_contract")))?;
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn test_set_up_call() -> Result<(), Error> {
+		let temp_dir = generate_smart_contract_test_environment()?;
+		build_smart_contract_test_environment(&temp_dir)?;
+
+		let call_opts = CallOpts {
+			path: Some(temp_dir.path().join("test_contract")),
+			contract: "5CLPm1CeUvJhZ8GCDZCR7nWZ2m3XXe4X5MtAQK69zEjut36A".to_string(),
+			message: "get".to_string(),
+			args: [].to_vec(),
+			value: "1000".to_string(),
+			gas_limit: None,
+			proof_size: None,
+			url: Url::parse(CONTRACTS_NETWORK_URL)?,
+			suri: "//Alice".to_string(),
+			execute: false,
+		};
+		let call = set_up_call(call_opts).await;
+		assert!(call.is_ok());
+		assert_eq!(call.unwrap().message(), "get");
+
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn test_set_up_call_error_contract_not_build() -> Result<(), Error> {
+		let temp_dir = generate_smart_contract_test_environment()?;
+		let call_opts = CallOpts {
+			path: Some(temp_dir.path().join("test_contract")),
+			contract: "5CLPm1CeUvJhZ8GCDZCR7nWZ2m3XXe4X5MtAQK69zEjut36A".to_string(),
+			message: "get".to_string(),
+			args: [].to_vec(),
+			value: "1000".to_string(),
+			gas_limit: None,
+			proof_size: None,
+			url: Url::parse(CONTRACTS_NETWORK_URL)?,
+			suri: "//Alice".to_string(),
+			execute: false,
+		};
+		let call = set_up_call(call_opts).await;
+		assert!(call.is_err());
+		let error = call.err().unwrap();
+		assert_eq!(error.root_cause().to_string(), "Failed to find any contract artifacts in target directory. \nRun `cargo contract build --release` to generate the artifacts.");
+
+		Ok(())
+	}
+	#[tokio::test]
+	async fn test_set_up_call_fails_no_smart_contract_folder() -> Result<(), Error> {
+		let call_opts = CallOpts {
+			path: None,
+			contract: "5CLPm1CeUvJhZ8GCDZCR7nWZ2m3XXe4X5MtAQK69zEjut36A".to_string(),
+			message: "get".to_string(),
+			args: [].to_vec(),
+			value: "1000".to_string(),
+			gas_limit: None,
+			proof_size: None,
+			url: Url::parse(CONTRACTS_NETWORK_URL)?,
+			suri: "//Alice".to_string(),
+			execute: false,
+		};
+		let call = set_up_call(call_opts).await;
+		assert!(call.is_err());
+		let error = call.err().unwrap();
+		assert_eq!(error.root_cause().to_string(), "No 'ink' dependency found");
+
+		Ok(())
+	}
 }
