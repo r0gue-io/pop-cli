@@ -1,4 +1,5 @@
 mod build;
+mod errors;
 mod generator;
 mod new_pallet;
 mod new_parachain;

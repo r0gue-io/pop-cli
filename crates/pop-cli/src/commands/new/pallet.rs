@@ -26,7 +26,7 @@ impl NewPalletCommand {
 			&self.name,
 		))?;
 		set_theme(Theme);
-		let target = resolve_pallet_path(self.path.clone());
+		let target = resolve_pallet_path(self.path.clone())?;
 		let pallet_name = self.name.clone();
 		let pallet_path = target.join(pallet_name.clone());
 		if pallet_path.exists() {
