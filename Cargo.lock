@@ -5464,6 +5464,7 @@ dependencies = [
  "subxt-signer 0.34.0",
  "tempfile",
  "thiserror",
+ "tokio",
  "url",
 ]
 
