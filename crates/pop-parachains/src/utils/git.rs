@@ -1,9 +1,12 @@
 use crate::errors::Error;
 use anyhow::Result;
-use git2::{build::RepoBuilder, FetchOptions, IndexAddOption, Repository, ResetType};
+use git2::{
+	build::RepoBuilder, FetchOptions, IndexAddOption, RemoteCallbacks, Repository, ResetType,
+};
+use git2_credentials::CredentialHandler;
 use regex::Regex;
-use std::fs;
 use std::path::Path;
+use std::{env, fs};
 use url::Url;
 
 pub struct Git;
@@ -17,20 +20,67 @@ impl Git {
 			if let Some(branch) = branch {
 				repo.branch(branch);
 			}
-			repo.clone(url.as_str(), working_dir)?;
+			if let Err(_e) = repo.clone(url.as_str(), working_dir) {
+				Self::ssh_clone(url, working_dir, branch)?;
+			}
+		}
+		Ok(())
+	}
+
+	pub(crate) fn ssh_clone(url: &Url, working_dir: &Path, branch: Option<&str>) -> Result<()> {
+		// Change the url to the ssh url with git@github.com: prefix, remove / from path and adding .git as suffix
+		let ssh_url = ["git@github.com:", &url.path()[1..], ".git"].concat();
+		if !working_dir.exists() {
+			// Prepare callback and fetch options.
+			let mut fo = FetchOptions::new();
+			Self::set_up_ssh_fetch_options(&mut fo)?;
+			// Prepare builder and clone.
+			let mut repo = RepoBuilder::new();
+			repo.fetch_options(fo);
+			if let Some(branch) = branch {
+				repo.branch(branch);
+			}
+			repo.clone(&ssh_url, working_dir)?;
 		}
 		Ok(())
 	}
 	/// Clone `url` into `target` and degit it
 	pub fn clone_and_degit(url: &str, target: &Path) -> Result<Option<String>> {
-		let repo = Repository::clone(url, target)?;
-
+		let repo = match Repository::clone(&["https://github.com/", url].concat(), target) {
+			Ok(repo) => repo,
+			Err(_e) => Self::ssh_clone_and_degit(url, target)?,
+		};
 		// fetch tags from remote
 		let release = Self::fetch_latest_tag(&repo);
 
 		let git_dir = repo.path();
 		fs::remove_dir_all(&git_dir)?;
 		Ok(release)
+	}
+
+	/// For users that have ssh configuration for cloning repositories
+	fn ssh_clone_and_degit(url: &str, target: &Path) -> Result<Repository> {
+		// Prepare callback and fetch options.
+		let mut fo = FetchOptions::new();
+		Self::set_up_ssh_fetch_options(&mut fo)?;
+		// Prepare builder and clone.
+		let mut builder = RepoBuilder::new();
+		builder.fetch_options(fo);
+		let repo = builder.clone(&["git@github.com:", url].concat(), target)?;
+		Ok(repo)
+	}
+
+	fn set_up_ssh_fetch_options(fo: &mut FetchOptions) -> Result<()> {
+		let mut callbacks = RemoteCallbacks::new();
+		let git_config = git2::Config::open_default()
+			.map_err(|e| Error::Config(format!("Cannot open git configuration: {}", e)))?;
+		let mut ch = CredentialHandler::new(git_config);
+		callbacks.credentials(move |url, username, allowed| {
+			ch.try_next_credential(url, username, allowed)
+		});
+
+		fo.remote_callbacks(callbacks);
+		Ok(())
 	}
 
 	/// Fetch the latest release from a repository
