@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0
 use anyhow::Context;
 use contract_build::Verbosity;
 use contract_extrinsics::{

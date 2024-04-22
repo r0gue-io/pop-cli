@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0
 use crate::errors::Error;
 use crate::utils::git::{Git, GitHub};
 use duct::cmd;

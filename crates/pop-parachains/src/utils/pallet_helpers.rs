@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0
 use crate::errors::Error;
 use std::{
 	env::current_dir,

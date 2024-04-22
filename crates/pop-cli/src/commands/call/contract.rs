@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0
+
 use anyhow::anyhow;
 use clap::Args;
 use cliclack::{clear_screen, intro, log, outro, outro_cancel, set_theme};

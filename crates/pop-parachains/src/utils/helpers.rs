@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0
 use std::{
 	fs::{self, OpenOptions},
 	io::{self, stdin, stdout, Write},

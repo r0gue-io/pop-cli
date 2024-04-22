@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0
 use crate::style::{style, Theme};
 use clap::{Args, Parser};
 use std::{fs, path::PathBuf};

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0
+
 #[cfg(feature = "contract")]
 mod contract;
 #[cfg(feature = "parachain")]

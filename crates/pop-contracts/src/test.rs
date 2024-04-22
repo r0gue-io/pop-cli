@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0
 use crate::errors::Error;
 use duct::cmd;
 use std::path::PathBuf;

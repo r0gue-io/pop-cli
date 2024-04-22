@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0
 use crate::utils::{
 	helpers::{get_manifest_path, parse_balance},
 	signer::create_signer,

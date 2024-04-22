@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0
+
 use cliclack::ThemeState;
 pub(crate) use console::style;
 use console::Style;

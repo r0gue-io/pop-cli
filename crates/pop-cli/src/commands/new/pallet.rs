@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0
 use crate::style::Theme;
 use clap::Args;
 use cliclack::{clear_screen, confirm, intro, outro, outro_cancel, set_theme};

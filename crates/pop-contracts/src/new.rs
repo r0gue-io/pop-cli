@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0
 use crate::errors::Error;
 use contract_build::new_contract_project;
 use std::path::Path;

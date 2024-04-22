@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0
 use std::path::Path;
 
 use askama::Template;
