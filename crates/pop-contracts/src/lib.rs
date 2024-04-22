@@ -1,5 +1,6 @@
 mod build;
 mod call;
+mod errors;
 mod new;
 mod test;
 mod up;

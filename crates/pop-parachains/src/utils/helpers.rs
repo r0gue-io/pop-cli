@@ -1,10 +1,12 @@
-use anyhow::Result;
 use std::{
 	fs::{self, OpenOptions},
+	io::{self, stdin, stdout, Write},
 	path::Path,
 };
-pub(crate) fn sanitize(target: &Path) -> Result<()> {
-	use std::io::{stdin, stdout, Write};
+
+use crate::errors::Error;
+
+pub(crate) fn sanitize(target: &Path) -> Result<(), Error> {
 	if target.exists() {
 		print!("\"{}\" folder exists. Do you want to clean it? [y/n]: ", target.display());
 		stdout().flush()?;
@@ -13,27 +15,37 @@ pub(crate) fn sanitize(target: &Path) -> Result<()> {
 		stdin().read_line(&mut input)?;
 
 		if input.trim().to_lowercase() == "y" {
-			fs::remove_dir_all(target)?;
+			fs::remove_dir_all(target).map_err(|_| Error::Aborted)?;
 		} else {
-			return Err(anyhow::anyhow!("User aborted due to existing target folder."));
+			return Err(Error::Aborted);
 		}
 	}
 	Ok(())
 }
 
-pub(crate) fn write_to_file<'a>(path: &Path, contents: &'a str) -> Result<()> {
-	use std::io::Write;
-	let mut file = OpenOptions::new().write(true).truncate(true).create(true).open(path).unwrap();
-	file.write_all(contents.as_bytes()).unwrap();
+pub(crate) fn write_to_file(path: &Path, contents: &str) -> Result<(), Error> {
+	let mut file = OpenOptions::new()
+		.write(true)
+		.truncate(true)
+		.create(true)
+		.open(path)
+		.map_err(|err| Error::RustfmtError(err))?;
+
+	file.write_all(contents.as_bytes()).map_err(|err| Error::RustfmtError(err))?;
+
 	if path.extension().map_or(false, |ext| ext == "rs") {
 		let output = std::process::Command::new("rustfmt")
 			.arg(path.to_str().unwrap())
 			.output()
-			.expect("failed to execute rustfmt");
+			.map_err(|err| Error::RustfmtError(err))?;
 
 		if !output.status.success() {
-			return Err(anyhow::anyhow!("rustfmt exited with non-zero status code."));
+			return Err(Error::RustfmtError(io::Error::new(
+				io::ErrorKind::Other,
+				"rustfmt exited with non-zero status code",
+			)));
 		}
 	}
+
 	Ok(())
 }

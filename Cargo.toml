@@ -4,6 +4,7 @@ members = ["crates/*"]
 
 [workspace.dependencies]
 anyhow = "1.0"
+thiserror = "1.0.58"
 duct = "0.13"
 git2 = "0.18"
 tempfile = "3.8"
