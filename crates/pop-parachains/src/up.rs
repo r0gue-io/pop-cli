@@ -1,5 +1,5 @@
+use crate::errors::Error;
 use crate::utils::git::{Git, GitHub};
-use anyhow::{anyhow, Result};
 use duct::cmd;
 use indexmap::IndexMap;
 use std::{
@@ -37,10 +37,14 @@ impl Zombienet {
 		relay_chain_version: Option<&String>,
 		system_parachain_version: Option<&String>,
 		parachains: Option<&Vec<String>>,
-	) -> Result<Self> {
+	) -> Result<Self, Error> {
 		// Parse network config
 		let network_config_path = PathBuf::from(network_config);
-		let config = std::fs::read_to_string(&network_config_path)?.parse::<DocumentMut>()?;
+		let config = std::fs::read_to_string(&network_config_path)
+			.map_err(|err| Error::IO(err))
+			.and_then(|content| {
+				content.parse::<DocumentMut>().map_err(|err| Error::TomlError(err.into()))
+			})?;
 		// Determine binaries
 		let relay_chain_binary = Self::relay_chain(relay_chain_version, &config, &cache).await?;
 		let mut parachain_binaries = IndexMap::new();
@@ -49,7 +53,7 @@ impl Zombienet {
 				let id = table
 					.get("id")
 					.and_then(|i| i.as_integer())
-					.ok_or(anyhow!("expected `parachain` to have `id`"))? as u32;
+					.ok_or(Error::Config("expected `parachain` to have `id`".into()))? as u32;
 				let default_command = table
 					.get("default_command")
 					.cloned()
@@ -78,7 +82,6 @@ impl Zombienet {
 				let Some(Value::String(command)) = default_command.as_value() else {
 					continue;
 				};
-
 				let command = command.value().to_lowercase();
 				if command == "polkadot-parachain" {
 					parachain_binaries.insert(
@@ -90,8 +93,11 @@ impl Zombienet {
 					);
 				} else if let Some(parachains) = parachains {
 					for parachain in parachains {
-						let url = Url::parse(parachain)?;
-						let name = GitHub::name(&url)?;
+						let url = Url::parse(parachain).map_err(|err| Error::from(err))?;
+						let name = match GitHub::name(&url) {
+							Ok(name) => name,
+							Err(err) => return Err(Error::from(err)),
+						};
 						if command == name {
 							parachain_binaries.insert(id, Self::parachain(url, &cache)?);
 						}
@@ -119,7 +125,7 @@ impl Zombienet {
 		missing
 	}
 
-	pub async fn spawn(&mut self) -> Result<Network<LocalFileSystem>> {
+	pub async fn spawn(&mut self) -> Result<Network<LocalFileSystem>, Error> {
 		// Symlink polkadot-related binaries
 		for file in ["polkadot-execute-worker", "polkadot-prepare-worker"] {
 			let dest = self.cache.join(file);
@@ -137,14 +143,14 @@ impl Zombienet {
 	}
 
 	// Adapts provided config file to one that is compatible with current zombienet-sdk requirements
-	fn configure(&mut self) -> Result<NamedTempFile> {
+	fn configure(&mut self) -> Result<NamedTempFile, Error> {
 		let (network_config_path, network_config) = &mut self.network_config;
 
 		// Add zombienet-sdk specific settings if missing
 		let Item::Table(settings) =
 			network_config.entry("settings").or_insert(Item::Table(Table::new()))
 		else {
-			return Err(anyhow!("expected `settings` to be table"));
+			return Err(Error::Config("expected `settings`".into()));
 		};
 		settings
 			.entry("timeout")
@@ -158,11 +164,11 @@ impl Zombienet {
 			.relay_chain
 			.path
 			.to_str()
-			.ok_or(anyhow!("the relay chain path is invalid"))?;
+			.ok_or(Error::Config("the relay chain path is invalid".into()))?;
 		let Item::Table(relay_chain) =
 			network_config.entry("relaychain").or_insert(Item::Table(Table::new()))
 		else {
-			return Err(anyhow!("expected `relaychain` to be table"));
+			return Err(Error::Config("expected `relaychain`".into()));
 		};
 		*relay_chain.entry("default_command").or_insert(value(relay_path)) = value(relay_path);
 
@@ -174,25 +180,27 @@ impl Zombienet {
 				let id = table
 					.get("id")
 					.and_then(|i| i.as_integer())
-					.ok_or(anyhow!("expected `parachain` to have `id`"))? as u32;
+					.ok_or(Error::Config("expected `parachain` to have `id`".into()))? as u32;
 
 				// Resolve default_command to binary
 				{
 					// Check if provided via args, therefore cached
 					if let Some(para) = self.parachains.get(&id) {
-						let para_path =
-							para.path.to_str().ok_or(anyhow!("the parachain path is invalid"))?;
+						let para_path = para
+							.path
+							.to_str()
+							.ok_or(Error::Config("the parachain path is invalid".into()))?;
 						table.insert("default_command", value(para_path));
 					} else if let Some(default_command) = table.get_mut("default_command") {
 						// Otherwise assume local binary, fix path accordingly
-						let command_path = default_command
-							.as_str()
-							.ok_or(anyhow!("expected `default_command` value to be a string"))?;
+						let command_path = default_command.as_str().ok_or(Error::Config(
+							"expected `default_command` value to be a string".into(),
+						))?;
 						let path = Self::resolve_path(network_config_path, command_path)?;
-						*default_command = value(path.to_str().ok_or(anyhow!(
-							"the parachain binary was not found: {0}",
-							command_path
-						))?);
+						*default_command =
+							value(path.to_str().ok_or(Error::Config(
+								"the parachain binary was not found".into(),
+							))?);
 					}
 				}
 
@@ -207,16 +215,15 @@ impl Zombienet {
 								let para_path = para
 									.path
 									.to_str()
-									.ok_or(anyhow!("the parachain path is invalid"))?;
+									.ok_or(Error::Config("the parachain path is invalid".into()))?;
 								*command = value(para_path);
 							} else {
-								let command_path = command
-									.as_str()
-									.ok_or(anyhow!("expected `command` value to be a string"))?;
+								let command_path = command.as_str().ok_or(Error::Config(
+									"expected `command` value to be a string".into(),
+								))?;
 								let path = Self::resolve_path(network_config_path, command_path)?;
-								*command = value(path.to_str().ok_or(anyhow!(
-									"the parachain binary was not found: {0}",
-									command_path
+								*command = value(path.to_str().ok_or(Error::Config(
+									"the parachain binary was not found".into(),
 								))?);
 							}
 						}
@@ -229,44 +236,48 @@ impl Zombienet {
 		let network_config_file = Builder::new()
 			.suffix(".toml")
 			.tempfile()
+			.map_err(|err| Error::IO(err))
 			.expect("network config could not be created with .toml extension");
 		let path = network_config_file
 			.path()
 			.to_str()
-			.expect("temp config file should have a path");
+			.ok_or(Error::Config("temp config file should have a path".into()))?;
 		write(path, network_config.to_string())?;
 		Ok(network_config_file)
 	}
 
-	fn resolve_path(network_config_path: &mut PathBuf, command_path: &str) -> Result<PathBuf> {
+	fn resolve_path(
+		network_config_path: &mut PathBuf,
+		command_path: &str,
+	) -> Result<PathBuf, Error> {
 		network_config_path
-			.join(command_path)
-			.canonicalize()
-			.or_else(|_| current_dir().unwrap().join(command_path).canonicalize())
-			.map_err(|_| {
-				anyhow!(
-					"unable to find canonical local path to specified command: `{}` are you missing an argument?",
-					command_path
-				)
-			})
+            .join(command_path)
+            .canonicalize()
+            .or_else(|_| current_dir().unwrap().join(command_path).canonicalize())
+            .map_err(|_| {
+                Error::Config(format!(
+                    "unable to find canonical local path to specified command: `{}` are you missing an argument?",
+                    command_path
+                ))
+            })
 	}
 
 	async fn relay_chain(
 		version: Option<&String>,
 		network_config: &DocumentMut,
 		cache: &PathBuf,
-	) -> Result<Binary> {
+	) -> Result<Binary, Error> {
 		const BINARY: &str = "polkadot";
 		let relay_command = network_config
 			.get("relaychain")
-			.ok_or(anyhow!("expected `relaychain`"))?
+			.ok_or(Error::Config("expected `relaychain`".into()))?
 			.get("default_command");
 		if let Some(Value::String(command)) = relay_command.and_then(|c| c.as_value()) {
 			if !command.value().to_lowercase().contains(BINARY) {
-				return Err(anyhow!(
+				return Err(Error::UnsupportedCommand(format!(
 					"the relay chain command is unsupported: {0}",
 					command.to_string()
-				));
+				)));
 			}
 		}
 		let version = match version {
@@ -302,7 +313,7 @@ impl Zombienet {
 		Ok(Binary { name: versioned_name, version, path, sources })
 	}
 
-	fn system_parachain(version: &String, cache: &PathBuf) -> Result<Binary> {
+	fn system_parachain(version: &String, cache: &PathBuf) -> Result<Binary, Error> {
 		const BINARY: &str = "polkadot-parachain";
 		let versioned_name = format!("{BINARY}-{version}");
 		let path = cache.join(&versioned_name);
@@ -328,7 +339,7 @@ impl Zombienet {
 		Ok(Binary { name: versioned_name, version: version.into(), path, sources })
 	}
 
-	fn parachain(repo: Url, cache: &PathBuf) -> Result<Binary> {
+	fn parachain(repo: Url, cache: &PathBuf) -> Result<Binary, Error> {
 		let binary = repo.query();
 		let branch = repo.fragment().map(|f| f.to_string());
 		let mut url = repo.clone();
@@ -354,7 +365,7 @@ impl Zombienet {
 		Ok(Binary { name: binary, version: "".into(), path, sources })
 	}
 
-	async fn latest_polkadot_release() -> Result<String> {
+	async fn latest_polkadot_release() -> Result<String, Error> {
 		let repo = Url::parse(POLKADOT_SDK).expect("repository url valid");
 		// Fetching latest releases
 		for release in GitHub::get_latest_releases(&repo).await? {
@@ -378,7 +389,7 @@ pub struct Binary {
 }
 
 impl Binary {
-	pub async fn source(&self, cache: &PathBuf) -> Result<()> {
+	pub async fn source(&self, cache: &PathBuf) -> Result<(), Error> {
 		for source in &self.sources {
 			source.process(cache).await?;
 		}
@@ -414,7 +425,7 @@ impl Source {
 		path: &Path,
 		package: &str,
 		names: impl Iterator<Item = (&'b String, PathBuf)>,
-	) -> Result<()> {
+	) -> Result<(), Error> {
 		// Build binaries and then copy to cache and target
 		cmd(
 			"cargo",
@@ -434,7 +445,7 @@ impl Source {
 		Ok(())
 	}
 
-	async fn download(url: &str, cache: &PathBuf) -> Result<()> {
+	async fn download(url: &str, cache: &PathBuf) -> Result<(), Error> {
 		// Download to cache
 		let response = reqwest::get(url).await?;
 		let mut file = File::create(&cache)?;
@@ -446,7 +457,7 @@ impl Source {
 		Ok(())
 	}
 
-	pub async fn process(&self, cache: &Path) -> Result<Option<Vec<PathBuf>>> {
+	pub async fn process(&self, cache: &Path) -> Result<Option<Vec<PathBuf>>, Error> {
 		// Download or clone and build from source
 		match self {
 			Source::Url { name, version, url } => {
@@ -478,7 +489,7 @@ impl Source {
 					if working_dir.exists() {
 						Self::remove(working_dir)?;
 					}
-					return Err(e);
+					return Err(e.into());
 				}
 				// Build binaries and finally remove working directory
 				Self::build_binaries(
@@ -495,7 +506,7 @@ impl Source {
 		}
 	}
 
-	fn remove(path: &Path) -> Result<()> {
+	fn remove(path: &Path) -> Result<(), Error> {
 		remove_dir_all(path)?;
 		if let Some(source) = path.parent() {
 			if source.exists() && source.read_dir().map(|mut i| i.next().is_none()).unwrap_or(false)
@@ -590,7 +601,10 @@ mod tests {
 
 		assert!(result_error.is_err());
 		let error_message = result_error.err().unwrap();
-		assert_eq!(error_message.root_cause().to_string(), "expected `parachain` to have `id`");
+		assert_eq!(
+			error_message.to_string(),
+			"Configuration error: expected `parachain` to have `id`"
+		);
 
 		Ok(())
 	}
@@ -657,7 +671,7 @@ mod tests {
 				.await;
 		assert!(result_error.is_err());
 		let error_message = result_error.err().unwrap();
-		assert_eq!(error_message.root_cause().to_string(), "expected `relaychain`");
+		assert_eq!(error_message.to_string(), "Configuration error: expected `relaychain`");
 
 		Ok(())
 	}

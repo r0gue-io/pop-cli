@@ -5489,6 +5489,7 @@ dependencies = [
  "subxt 0.34.0",
  "subxt-signer 0.34.0",
  "tempfile",
+ "thiserror",
  "url",
 ]
 
@@ -5508,6 +5509,7 @@ dependencies = [
  "serde_json",
  "symlink",
  "tempfile",
+ "thiserror",
  "tokio",
  "toml_edit 0.22.9",
  "url",

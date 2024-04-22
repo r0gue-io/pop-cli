@@ -1,4 +1,5 @@
-use anyhow::{anyhow, Context, Result};
+use crate::errors::Error;
+use anyhow::Result;
 use git2::{
 	build::RepoBuilder, FetchOptions, IndexAddOption, RemoteCallbacks, Repository, ResetType,
 };
@@ -32,7 +33,7 @@ impl Git {
 		if !working_dir.exists() {
 			// Prepare callback and fetch options.
 			let mut fo = FetchOptions::new();
-			Self::set_up_ssh_fetch_options(&mut fo);
+			Self::set_up_ssh_fetch_options(&mut fo)?;
 			// Prepare builder and clone.
 			let mut repo = RepoBuilder::new();
 			repo.fetch_options(fo);
@@ -71,7 +72,8 @@ impl Git {
 
 	fn set_up_ssh_fetch_options(fo: &mut FetchOptions) -> Result<()> {
 		let mut callbacks = RemoteCallbacks::new();
-		let git_config = git2::Config::open_default().context("Cannot open git configuration")?;
+		let git_config = git2::Config::open_default()
+			.map_err(|e| Error::Config(format!("Cannot open git configuration: {}", e)))?;
 		let mut ch = CredentialHandler::new(git_config);
 		callbacks.credentials(move |url, username, allowed| {
 			ch.try_next_credential(url, username, allowed)
@@ -138,9 +140,9 @@ impl GitHub {
 			.path_segments()
 			.map(|c| c.collect::<Vec<_>>())
 			.expect("repository must have path segments");
-		Ok(path_segments
-			.get(0)
-			.ok_or(anyhow!("the organization (or user) is missing from the github url"))?)
+		Ok(path_segments.get(0).ok_or(Error::Git(
+			"the organization (or user) is missing from the github url".to_string(),
+		))?)
 	}
 
 	pub(crate) fn name(repo: &Url) -> Result<&str> {
@@ -150,7 +152,7 @@ impl GitHub {
 			.expect("repository must have path segments");
 		Ok(path_segments
 			.get(1)
-			.ok_or(anyhow!("the repository name is missing from the github url"))?)
+			.ok_or(Error::Git("the repository name is missing from the github url".to_string()))?)
 	}
 
 	pub(crate) fn release(repo: &Url, tag: &str, artifact: &str) -> String {
