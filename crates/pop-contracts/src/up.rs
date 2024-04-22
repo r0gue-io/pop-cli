@@ -96,6 +96,7 @@ pub async fn instantiate_smart_contract(
 	Ok(instantiate_result.contract_address.to_string())
 }
 
+#[cfg(feature = "unit_contract")]
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -165,8 +166,8 @@ mod tests {
 		let result = dry_run_gas_estimate_instantiate(&instantiate_exec.unwrap()).await;
 		assert!(result.is_ok());
 		let weight = result.unwrap();
-		assert!(result.unwrap().ref_time() > 0);
-		assert!(result.unwrap().proof_size() > 0);
+		assert!(weight.clone().ref_time() > 0);
+		assert!(weight.proof_size() > 0);
 
 		Ok(())
 	}
