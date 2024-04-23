@@ -21,8 +21,6 @@ use pop_parachains::{
 pub enum Template {
 	#[strum(serialize = "Standard Template", serialize = "base")]
 	Base,
-	#[strum(serialize = "Generic Template", serialize = "template")]
-	OZTemplate,
 	#[strum(serialize = "Parity Contracts Node Template", serialize = "cpt")]
 	ParityContracts,
 	#[strum(serialize = "Parity Frontier Parachain Template", serialize = "fpt")]
@@ -32,7 +30,6 @@ impl Template {
 	pub fn into_parachain_template(&self) -> ParachainTemplate {
 		match self {
 			Template::Base => ParachainTemplate::Base,
-			Template::OZTemplate => ParachainTemplate::OZTemplate,
 			Template::ParityContracts => ParachainTemplate::ParityContracts,
 			Template::ParityFPT => ParachainTemplate::ParityFPT,
 		}
@@ -44,15 +41,12 @@ pub enum Provider {
 	#[strum(ascii_case_insensitive)]
 	Pop,
 	#[strum(ascii_case_insensitive)]
-	OpenZeppelin,
-	#[strum(ascii_case_insensitive)]
 	Parity,
 }
 impl Provider {
 	pub fn into_parachain_provider(&self) -> ParachainProvider {
 		match self {
 			Provider::Pop => ParachainProvider::Pop,
-			Provider::OpenZeppelin => ParachainProvider::OpenZeppelin,
 			Provider::Parity => ParachainProvider::Parity,
 		}
 	}
@@ -62,15 +56,12 @@ impl Provider {
 pub struct NewParachainCommand {
 	#[arg(help = "Name of the project. If empty assistance in the process will be provided.")]
 	pub(crate) name: Option<String>,
-	#[arg(
-		help = "Template provider. Options are pop, openzeppelin or parity",
-		default_value = "pop"
-	)]
+	#[arg(help = "Template provider. Options are pop or parity", default_value = "pop")]
 	pub(crate) provider: Option<Provider>,
 	#[arg(
 		short = 't',
 		long,
-		help = "Template to use: 'base' for Pop, 'template' for OpenZeppelin and 'cpt' and 'fpt' for Parity templates"
+		help = "Template to use: 'base' for Pop and 'cpt' and 'fpt' for Parity templates"
 	)]
 	pub(crate) template: Option<Template>,
 	#[arg(long, short, help = "Token Symbol", default_value = "UNIT")]
@@ -169,11 +160,6 @@ async fn guide_user_to_generate_parachain() -> Result<()> {
 		cliclack::select("Select a template provider: ".to_string())
 			.initial_value("Pop")
 			.item("Pop", "Pop", "An all-in-one tool for Polkadot development. 1 available options")
-			.item(
-				"OpenZeppelin",
-				"OpenZeppelin",
-				"The standard for secure blockchain applications. 1 available options",
-			)
 			.item("Parity", "Parity", "Solutions for a trust-free world. 2 available options")
 			.interact()?,
 	);

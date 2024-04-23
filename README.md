@@ -37,8 +37,6 @@ pop new parachain --help
 ```
 Some examples are: 
 ```sh
-# Get OpenZeppelin polkadot runtime parachain template
-pop new parachain my-app openzeppelin -t template
 # Get Parity's pallet-contracts enabled parachain template
 pop new parachain my-app parity -t cpt
 # Get Parity's evm compatible parachain template

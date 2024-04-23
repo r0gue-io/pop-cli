@@ -95,11 +95,6 @@ pub fn display_select_options(provider: &Provider) -> &str {
 			.item("base", "Standard Template", "A standard parachain")
 			.interact()
 			.expect("Error parsing user input"),
-		Provider::OpenZeppelin => cliclack::select("Select the type of parachain:".to_string())
-			.initial_value("template")
-			.item("template", "Generic Template", "A generic template for Substrate Runtime.")
-			.interact()
-			.expect("Error parsing user input"),
 		Provider::Parity => cliclack::select("Select the type of parachain:".to_string())
 			.initial_value("cpt")
 			.item(
@@ -138,17 +133,10 @@ mod tests {
 	#[test]
 	fn test_is_template_supported() {
 		assert!(is_template_supported(&Provider::Pop, &Template::Base).is_ok());
-		assert!(is_template_supported(&Provider::Pop, &Template::OZTemplate).is_err());
 		assert!(is_template_supported(&Provider::Pop, &Template::ParityContracts).is_err());
 		assert!(is_template_supported(&Provider::Pop, &Template::ParityFPT).is_err());
 
-		assert!(is_template_supported(&Provider::OpenZeppelin, &Template::Base).is_err());
-		assert!(is_template_supported(&Provider::OpenZeppelin, &Template::OZTemplate).is_ok());
-		assert!(is_template_supported(&Provider::OpenZeppelin, &Template::ParityContracts).is_err());
-		assert!(is_template_supported(&Provider::OpenZeppelin, &Template::ParityFPT).is_err());
-
 		assert!(is_template_supported(&Provider::Parity, &Template::Base).is_err());
-		assert!(is_template_supported(&Provider::Parity, &Template::OZTemplate).is_err());
 		assert!(is_template_supported(&Provider::Parity, &Template::ParityContracts).is_ok());
 		assert!(is_template_supported(&Provider::Parity, &Template::ParityFPT).is_ok());
 	}

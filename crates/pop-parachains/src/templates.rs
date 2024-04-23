@@ -9,8 +9,6 @@ pub struct Config {
 pub enum Template {
 	// Pop
 	Base,
-	// OpenZeppelin
-	OZTemplate,
 	// Parity
 	ParityContracts,
 	ParityFPT,
@@ -19,14 +17,12 @@ impl Template {
 	pub fn is_provider_correct(&self, provider: &Provider) -> bool {
 		match provider {
 			Provider::Pop => self == &Template::Base,
-			Provider::OpenZeppelin => self == &Template::OZTemplate,
 			Provider::Parity => self == &Template::ParityContracts || self == &Template::ParityFPT,
 		}
 	}
 	pub fn from(provider_name: &str) -> Self {
 		match provider_name {
 			"base" => Template::Base,
-			"template" => Template::OZTemplate,
 			"cpt" => Template::ParityContracts,
 			"fpt" => Template::ParityFPT,
 			_ => Template::Base,
@@ -35,7 +31,6 @@ impl Template {
 	pub fn repository_url(&self) -> &str {
 		match &self {
 			Template::Base => "r0gue-io/base-parachain",
-			Template::OZTemplate => "OpenZeppelin/polkadot-runtime-template",
 			Template::ParityContracts => "paritytech/substrate-contracts-node",
 			Template::ParityFPT => "paritytech/frontier-parachain-template",
 		}
@@ -46,21 +41,18 @@ impl Template {
 pub enum Provider {
 	#[default]
 	Pop,
-	OpenZeppelin,
 	Parity,
 }
 impl Provider {
 	pub fn default_template(&self) -> Template {
 		match &self {
 			Provider::Pop => Template::Base,
-			Provider::OpenZeppelin => Template::OZTemplate,
 			Provider::Parity => Template::ParityContracts,
 		}
 	}
 	pub fn from(provider_name: &str) -> Self {
 		match provider_name {
 			"Pop" => Provider::Pop,
-			"OpenZeppelin" => Provider::OpenZeppelin,
 			"Parity" => Provider::Parity,
 			_ => Provider::Pop,
 		}
@@ -76,29 +68,20 @@ mod tests {
 		let mut template = Template::Base;
 		assert_eq!(template.is_provider_correct(&Provider::Pop), true);
 		assert_eq!(template.is_provider_correct(&Provider::Parity), false);
-		assert_eq!(template.is_provider_correct(&Provider::OpenZeppelin), false);
 
 		template = Template::ParityContracts;
 		assert_eq!(template.is_provider_correct(&Provider::Pop), false);
 		assert_eq!(template.is_provider_correct(&Provider::Parity), true);
-		assert_eq!(template.is_provider_correct(&Provider::OpenZeppelin), false);
 
 		template = Template::ParityFPT;
 		assert_eq!(template.is_provider_correct(&Provider::Pop), false);
 		assert_eq!(template.is_provider_correct(&Provider::Parity), true);
-		assert_eq!(template.is_provider_correct(&Provider::OpenZeppelin), false);
-
-		template = Template::OZTemplate;
-		assert_eq!(template.is_provider_correct(&Provider::Pop), false);
-		assert_eq!(template.is_provider_correct(&Provider::Parity), false);
-		assert_eq!(template.is_provider_correct(&Provider::OpenZeppelin), true);
 	}
 
 	#[test]
 	fn test_convert_string_to_template() {
 		assert_eq!(Template::from("base"), Template::Base);
 		assert_eq!(Template::from(""), Template::Base);
-		assert_eq!(Template::from("template"), Template::OZTemplate);
 		assert_eq!(Template::from("cpt"), Template::ParityContracts);
 		assert_eq!(Template::from("fpt"), Template::ParityFPT);
 	}
@@ -107,8 +90,6 @@ mod tests {
 	fn test_repository_url() {
 		let mut template = Template::Base;
 		assert_eq!(template.repository_url(), "r0gue-io/base-parachain");
-		template = Template::OZTemplate;
-		assert_eq!(template.repository_url(), "OpenZeppelin/polkadot-runtime-template");
 		template = Template::ParityContracts;
 		assert_eq!(template.repository_url(), "paritytech/substrate-contracts-node");
 		template = Template::ParityFPT;
@@ -119,8 +100,6 @@ mod tests {
 	fn test_default_provider() {
 		let mut provider = Provider::Pop;
 		assert_eq!(provider.default_template(), Template::Base);
-		provider = Provider::OpenZeppelin;
-		assert_eq!(provider.default_template(), Template::OZTemplate);
 		provider = Provider::Parity;
 		assert_eq!(provider.default_template(), Template::ParityContracts);
 	}
@@ -129,7 +108,6 @@ mod tests {
 	fn test_convert_string_to_provider() {
 		assert_eq!(Provider::from("Pop"), Provider::Pop);
 		assert_eq!(Provider::from(""), Provider::Pop);
-		assert_eq!(Provider::from("OpenZeppelin"), Provider::OpenZeppelin);
 		assert_eq!(Provider::from("Parity"), Provider::Parity);
 	}
 }
