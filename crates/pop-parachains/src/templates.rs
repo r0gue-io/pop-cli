@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0
 #[derive(Debug, Clone, PartialEq)]
 pub struct Config {
 	pub symbol: String,

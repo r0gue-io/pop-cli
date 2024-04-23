@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0
 use anyhow::Result;
 use cliclack::{confirm, input, log, outro_cancel};
 use pop_parachains::{Config, Provider, TagInfo, Template};
