@@ -1,0 +1,35 @@
+[package]
+name = "pop-parachains"
+description = "Library for generating, building and running parachains."
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow.workspace = true
+thiserror.workspace = true
+duct.workspace = true
+git2.workspace = true
+git2_credentials.workspace = true
+tempfile.workspace = true
+url.workspace = true
+tokio.workspace = true
+
+askama.workspace = true
+regex.workspace = true
+walkdir.workspace = true
+indexmap.workspace = true
+toml_edit.workspace = true
+symlink.workspace = true
+reqwest.workspace = true
+serde_json.workspace = true
+serde.workspace = true
+# Zombienet
+zombienet-sdk.workspace = true
+zombienet-support.workspace = true
+
+[features]
+e2e_parachain = []
+unit_parachain = []

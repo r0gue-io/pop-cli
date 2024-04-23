@@ -18,45 +18,15 @@ cargo install --locked --git https://github.com/r0gue-io/pop-cli
 
 ### Parachains
 
-Use `pop` to create a new Parachain project.
-To be guided through the entire parachain creation process, simply execute
-```sh
-pop new parachain
-```
+Use `pop` to create a new Parachain project:
 
-If no guidance is needed, proceed with:
 ```sh
 # Create a minimal parachain
 pop new parachain my-app
-```
-
-
-We also integrate other provider templates in the tool, check them running:
-```sh
-pop new parachain --help
-```
-Some examples are: 
-```sh
-# Get OpenZeppelin polkadot runtime parachain template
-pop new parachain my-app openzeppelin -t template
-# Get Parity's pallet-contracts enabled parachain template
-pop new parachain my-app parity -t cpt
-# Get Parity's evm compatible parachain template
-pop new parachain my-app parity -t fpt
-```
-
-For POP templates you can also customize your parachain by providing config options for token symbol (as it appears in chain metadata),
-token decimals, and the initial endowment for developer accounts. Here's how:
-
-```sh
-# Create a minimal parachain with "DOT" as token symbol, 6 token decimals and 1 billion tokens per dev account
-pop new parachain my-app --symbol DOT --decimals 6 --endowment 1_000_000_000
-```
-
-There's also the shorter version:
-
-```sh
-pop new parachain my-app -s DOT -d 6 -i 1_000_000_000
+# Get a pallet-contracts enabled parachain
+pop new parachain my-app cpt
+# Get a evm compatible parachain
+pop new parachain my-app fpt
 ```
 
 Use `pop` to build your Parachain:
@@ -73,6 +43,19 @@ cd my-app
 pop build parachain
 ```
 
+You can also customize your parachain by providing config options for token symbol (as it appears in chain metadata),
+token decimals, and the initial endowment for developer accounts. Here's how:
+
+```sh
+# Create a minimal parachain with "DOT" as token symbol, 6 token decimals and 1 billion tokens per dev account
+pop new parachain my-app --symbol DOT --decimals 6 --endowment 1_000_000_000
+```
+
+There's also the shorter version:
+
+```sh
+pop new parachain my-app -s DOT -d 6 -i 1_000_000_000
+```
 
 Finally, to build your Parachain:
 
@@ -272,9 +255,3 @@ Pop CLI would not be possible without these awesome crates!
 
 - Local network deployment powered by [zombienet-sdk](https://github.com/paritytech/zombienet-sdk)
 - [cargo contract](https://github.com/paritytech/cargo-contract) a setup and deployment tool for developing Wasm based Smart Contracts via ink!
-
-## License
-
-The entire code within this repository is licensed under the [GPLv3](LICENSE).
-
-Please [contact us](https://r0gue.io/contact) if you have questions about the licensing of our products.
