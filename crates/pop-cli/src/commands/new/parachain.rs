@@ -7,50 +7,11 @@ use crate::{
 	style::{style, Theme},
 };
 use anyhow::Result;
-use clap::{Args, Parser};
+use clap::Args;
 use std::path::PathBuf;
-use strum_macros::{Display, EnumString};
 
 use cliclack::{clear_screen, input, intro, log, outro, outro_cancel, set_theme};
-use pop_parachains::{
-	instantiate_template_dir, Config, Git, GitHub, Provider as ParachainProvider,
-	Template as ParachainTemplate,
-};
-
-#[derive(Clone, Parser, Debug, Display, EnumString, PartialEq)]
-pub enum Template {
-	#[strum(serialize = "Standard Template", serialize = "base")]
-	Base,
-	#[strum(serialize = "Parity Contracts Node Template", serialize = "cpt")]
-	ParityContracts,
-	#[strum(serialize = "Parity Frontier Parachain Template", serialize = "fpt")]
-	ParityFPT,
-}
-impl Template {
-	pub fn into_parachain_template(&self) -> ParachainTemplate {
-		match self {
-			Template::Base => ParachainTemplate::Base,
-			Template::ParityContracts => ParachainTemplate::ParityContracts,
-			Template::ParityFPT => ParachainTemplate::ParityFPT,
-		}
-	}
-}
-#[derive(Clone, Default, Parser, Debug, Display, EnumString, PartialEq)]
-pub enum Provider {
-	#[default]
-	#[strum(ascii_case_insensitive)]
-	Pop,
-	#[strum(ascii_case_insensitive)]
-	Parity,
-}
-impl Provider {
-	pub fn into_parachain_provider(&self) -> ParachainProvider {
-		match self {
-			Provider::Pop => ParachainProvider::Pop,
-			Provider::Parity => ParachainProvider::Parity,
-		}
-	}
-}
+use pop_parachains::{instantiate_template_dir, Config, Git, GitHub, Provider, Template};
 
 #[derive(Args)]
 pub struct NewParachainCommand {
@@ -88,15 +49,14 @@ impl NewParachainCommand {
 		clear_screen()?;
 		set_theme(Theme);
 
-		match &self.name {
-			// If user doesn't select the name guide him in the process to generate a parachain.
-			None => return guide_user_to_generate_parachain().await,
+		return match &self.name {
+			// If user doesn't select the name guide them to generate a parachain.
+			None => guide_user_to_generate_parachain().await,
 			Some(name) => {
-				let provider =
-					&self.provider.clone().unwrap_or(Provider::Pop).into_parachain_provider(); //Provider by default POP
-				let template: ParachainTemplate = match &self.template {
-					Some(template) => template.into_parachain_template(),
-					None => provider.default_template(), //Each provider has a template by default
+				let provider = &self.provider.clone().unwrap_or_default();
+				let template = match &self.template {
+					Some(template) => template.clone(),
+					None => provider.default_template(), // Each provider has a template by default
 				};
 
 				is_template_supported(provider, &template)?;
@@ -107,7 +67,7 @@ impl NewParachainCommand {
 					self.initial_endowment.clone(),
 				)?;
 
-				return generate_parachain_from_template(name, provider, &template, None, config);
+				generate_parachain_from_template(name, provider, &template, None, config)
 			},
 		};
 	}
@@ -115,8 +75,8 @@ impl NewParachainCommand {
 
 fn generate_parachain_from_template(
 	name_template: &String,
-	provider: &ParachainProvider,
-	template: &ParachainTemplate,
+	provider: &Provider,
+	template: &Template,
 	tag_version: Option<String>,
 	config: Config,
 ) -> Result<()> {
@@ -142,11 +102,9 @@ fn generate_parachain_from_template(
 		log::info(format!("Version: {}", tag))?;
 	}
 
-	if !matches!(provider, ParachainProvider::Pop) {
-		cliclack::note(
+	cliclack::note(
 			"NOTE: the resulting parachain is not guaranteed to be audited or reviewed for security vulnerabilities.",
-		format!("Please consult the source repository at {} to assess production suitability and licensing restrictions.", template.repository_url()))?;
-	}
+		format!("Please consult the source repository at {} to assess production suitability and licensing restrictions.", template.repository_url()?))?;
 
 	outro(format!("cd into \"{}\" and enjoy hacking! 🚀", name_template))?;
 
@@ -154,19 +112,27 @@ fn generate_parachain_from_template(
 }
 
 async fn guide_user_to_generate_parachain() -> Result<()> {
-	intro(format!("{}: Generate a parachain", style(" Pop CLI ").black().on_magenta(),))?;
+	intro(format!("{}: Generate a parachain", style(" Pop CLI ").black().on_magenta()))?;
 
-	let provider: ParachainProvider = ParachainProvider::from(
-		cliclack::select("Select a template provider: ".to_string())
-			.initial_value("Pop")
-			.item("Pop", "Pop", "An all-in-one tool for Polkadot development. 1 available options")
-			.item("Parity", "Parity", "Solutions for a trust-free world. 2 available options")
-			.interact()?,
-	);
-	let template_name = display_select_options(&provider);
-	let template = ParachainTemplate::from(template_name);
+	let mut prompt = cliclack::select("Select a template provider: ".to_string());
+	for (i, provider) in Provider::providers().iter().enumerate() {
+		if i == 0 {
+			prompt = prompt.initial_value(provider);
+		}
+		prompt = prompt.item(
+			provider,
+			provider.name(),
+			format!(
+				"{} {} available option(s)",
+				provider.description(),
+				provider.templates().len()
+			),
+		);
+	}
+	let provider = prompt.interact()?;
+	let template = display_select_options(provider)?;
 
-	let url = url::Url::parse(&["https://github.com/", template.repository_url()].concat())
+	let url = url::Url::parse(&["https://github.com/", template.repository_url()?].concat())
 		.expect("valid repository url");
 	let latest_3_releases = GitHub::get_latest_n_releases(3, &url).await?;
 
@@ -185,7 +151,7 @@ async fn guide_user_to_generate_parachain() -> Result<()> {
 		decimals: 12,
 		initial_endowment: "1u64 << 60".to_string(),
 	};
-	if matches!(template, ParachainTemplate::Base) {
+	if matches!(template, Template::Base) {
 		customizable_options = prompt_customizable_options()?;
 	}
 
