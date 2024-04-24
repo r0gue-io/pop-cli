@@ -49,7 +49,7 @@ impl NewContractCommand {
 		fs::create_dir_all(contract_path.as_path())?;
 		let mut spinner = cliclack::spinner();
 		spinner.start("Generating contract...");
-		create_smart_contract(self.name.clone(), contract_path.as_path())?;
+		create_smart_contract(&self.name, contract_path.as_path())?;
 		spinner.stop("Smart contract created!");
 		outro(format!("cd into \"{}\" and enjoy hacking! 🚀", contract_path.display()))?;
 		Ok(())
