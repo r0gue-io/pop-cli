@@ -43,7 +43,7 @@ pop new parachain my-app parity -t cpt
 pop new parachain my-app parity -t fpt
 ```
 
-For POP templates you can also customize your parachain by providing config options for token symbol (as it appears in chain metadata),
+For Pop templates you can also customize your parachain by providing config options for token symbol (as it appears in chain metadata),
 token decimals, and the initial endowment for developer accounts. Here's how:
 
 ```sh
