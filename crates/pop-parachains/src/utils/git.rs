@@ -55,12 +55,9 @@ impl Git {
 			Ok(repo) => repo,
 			Err(_e) => Self::ssh_clone_and_degit(url, target)?,
 		};
-		// fetch tags from remote
-		let release = Self::fetch_latest_tag(&repo);
 
-		if tag_version.is_some() {
-			let tag = tag_version.clone().unwrap();
-			let (object, reference) = repo.revparse_ext(&tag).expect("Object not found");
+		if let Some(tag_version) = tag_version {
+			let (object, reference) = repo.revparse_ext(&tag_version).expect("Object not found");
 			repo.checkout_tree(&object, None).expect("Failed to checkout");
 			match reference {
 				// gref is an actual reference like branches or tags
@@ -72,9 +69,11 @@ impl Git {
 
 			let git_dir = repo.path();
 			fs::remove_dir_all(&git_dir)?;
-			// Return release version selected by the user
-			return Ok(tag_version);
+			return Ok(Some(tag_version));
 		}
+
+		// fetch tags from remote
+		let release = Self::fetch_latest_tag(&repo);
 
 		let git_dir = repo.path();
 		fs::remove_dir_all(&git_dir)?;
@@ -141,13 +140,6 @@ impl Git {
 	}
 }
 
-#[derive(Debug, Clone)]
-pub struct TagInfo {
-	pub tag_name: String,
-	pub name: String,
-	pub commit: String,
-}
-
 pub struct GitHub;
 impl GitHub {
 	pub async fn get_latest_releases(repo: &Url) -> Result<Vec<Release>> {
@@ -166,58 +158,39 @@ impl GitHub {
 		Ok(response.json::<Vec<Release>>().await?)
 	}
 
-	pub async fn get_latest_n_releases(number: usize, repo: &Url) -> Result<Vec<TagInfo>> {
+	pub async fn get_latest_n_releases(number: usize, repo: &Url) -> Result<Vec<Release>> {
 		static APP_USER_AGENT: &str =
 			concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 
 		let client = reqwest::ClientBuilder::new().user_agent(APP_USER_AGENT).build()?;
-		let response = client
-			.get(format!(
-				"https://api.github.com/repos/{}/{}/releases",
-				Self::org(repo)?,
-				Self::name(repo)?
-			))
-			.send()
-			.await?;
-		let value = response.json::<serde_json::Value>().await?;
 
-		let mut latest_releases: Vec<TagInfo> = Vec::new();
-		for i in 0..number {
-			if value[i].get("tag_name").is_some() {
-				let tag_name =
-					value[i].get("tag_name").and_then(|v| v.as_str()).map(|v| v.to_owned()).ok_or(
-						Error::Git("the github release tag name was not found".to_string()),
-					)?;
-
-				let name = value[i]
-					.get("name")
-					.and_then(|v| v.as_str())
-					.map(|v| v.to_owned())
-					.ok_or(Error::Git("the github release tag was not found".to_string()))?;
-
-				// Additional lookup for commit sha
-				let response = client
-					.get(format!(
-						"https://api.github.com/repos/{}/{}/git/ref/tags/{}",
-						Self::org(repo)?,
-						Self::name(repo)?,
-						tag_name
-					))
-					.send()
-					.await?;
-				let value = response.json::<serde_json::Value>().await?;
-				let commit = value
-					.get("object")
-					.and_then(|v| v.get("sha"))
-					.and_then(|v| v.as_str())
-					.map(|v| v.to_owned())
-					.ok_or(Error::Git("the github release tag sha was not found".to_string()))?;
-
-				latest_releases.push(TagInfo { name, tag_name, commit });
-			}
+		let mut releases: Vec<Release> = Self::get_latest_releases(repo)
+			.await?
+			.into_iter()
+			.filter(|r| !r.prerelease)
+			.take(number)
+			.collect();
+		// Additional lookup for commit sha
+		for release in releases.iter_mut() {
+			let response = client
+				.get(format!(
+					"https://api.github.com/repos/{}/{}/git/ref/tags/{}",
+					Self::org(repo)?,
+					Self::name(repo)?,
+					&release.tag_name
+				))
+				.send()
+				.await?;
+			let value = response.json::<serde_json::Value>().await?;
+			let commit = value
+				.get("object")
+				.and_then(|v| v.get("sha"))
+				.and_then(|v| v.as_str())
+				.map(|v| v.to_owned())
+				.ok_or(Error::Git("the github release tag sha was not found".to_string()))?;
+			release.commit = Some(commit);
 		}
-
-		Ok(latest_releases)
+		Ok(releases)
 	}
 
 	fn org(repo: &Url) -> Result<&str> {
@@ -247,6 +220,8 @@ impl GitHub {
 
 #[derive(serde::Deserialize)]
 pub struct Release {
-	pub(crate) tag_name: String,
-	pub(crate) prerelease: bool,
+	pub tag_name: String,
+	pub name: String,
+	pub prerelease: bool,
+	pub commit: Option<String>,
 }

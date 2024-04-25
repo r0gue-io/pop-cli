@@ -1,3 +1,4 @@
+use crate::templates;
 use thiserror::Error;
 use zombienet_sdk::OrchestratorError;
 
@@ -47,4 +48,7 @@ pub enum Error {
 
 	#[error("Failed to execute rustfmt")]
 	RustfmtError(std::io::Error),
+
+	#[error("Template error: {0}")]
+	TemplateError(#[from] templates::Error),
 }

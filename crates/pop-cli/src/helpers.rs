@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 use anyhow::Result;
 use cliclack::{confirm, input, log, outro_cancel};
-use pop_parachains::{Config, Provider, TagInfo, Template};
+use pop_parachains::{Config, Provider, Release, Template};
 use std::{fs, path::Path};
 
 pub(crate) fn get_customization_value(
@@ -23,7 +23,7 @@ pub(crate) fn get_customization_value(
 }
 
 pub(crate) fn is_template_supported(provider: &Provider, template: &Template) -> Result<()> {
-	if !template.is_provider_correct(provider) {
+	if !template.matches(provider) {
 		return Err(anyhow::anyhow!(format!(
 			"The provider \"{:?}\" doesn't support the {:?} template.",
 			provider, template
@@ -32,7 +32,7 @@ pub(crate) fn is_template_supported(provider: &Provider, template: &Template) ->
 	return Ok(());
 }
 
-pub fn display_release_versions_to_user(releases: Vec<TagInfo>) -> Result<String> {
+pub fn display_release_versions_to_user(releases: Vec<Release>) -> Result<String> {
 	let mut prompt = cliclack::select("Select a specific release:".to_string());
 	for (i, release) in releases.iter().enumerate() {
 		if i == 0 {
@@ -41,7 +41,10 @@ pub fn display_release_versions_to_user(releases: Vec<TagInfo>) -> Result<String
 		prompt = prompt.item(
 			&release.tag_name,
 			&release.name,
-			format!("{} / {}", &release.tag_name, &release.commit[..=6]),
+			match &release.commit {
+				Some(commit) => format!("{} / {}", &release.tag_name, &commit[..=6]),
+				None => release.tag_name.to_string(),
+			},
 		)
 	}
 	Ok(prompt.interact()?.to_string())
@@ -89,24 +92,15 @@ pub fn check_destination_path(name_template: &String) -> Result<&Path> {
 	Ok(destination_path)
 }
 
-pub fn display_select_options(provider: &Provider) -> &str {
-	match &provider {
-		Provider::Pop => cliclack::select("Select the type of parachain:".to_string())
-			.initial_value("base")
-			.item("base", "Standard Template", "A standard parachain")
-			.interact()
-			.expect("Error parsing user input"),
-		Provider::Parity => cliclack::select("Select the type of parachain:".to_string())
-			.initial_value("cpt")
-			.item(
-				"cpt",
-				"Contracts",
-				"Minimal Substrate node configured for smart contracts via pallet-contracts.",
-			)
-			.item("fpt", "EVM", "Template node for a Frontier (EVM) based parachain.")
-			.interact()
-			.expect("Error parsing user input"),
+pub fn display_select_options(provider: &Provider) -> Result<&Template> {
+	let mut prompt = cliclack::select("Select the type of parachain:".to_string());
+	for (i, template) in provider.templates().into_iter().enumerate() {
+		if i == 0 {
+			prompt = prompt.initial_value(template);
+		}
+		prompt = prompt.item(template, template.name(), template.description());
 	}
+	Ok(prompt.interact()?)
 }
 
 #[cfg(test)]
