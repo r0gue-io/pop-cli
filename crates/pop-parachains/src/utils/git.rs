@@ -144,6 +144,7 @@ impl Git {
 
 pub struct GitHub;
 impl GitHub {
+	const GITHUB: &'static str = "github.com";
 	pub async fn get_latest_releases(repo: &Url) -> Result<Vec<Release>> {
 		static APP_USER_AGENT: &str =
 			concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
@@ -219,7 +220,7 @@ impl GitHub {
 		format!("{}/releases/download/{tag}/{artifact}", repo.as_str())
 	}
 	pub(crate) fn convert_to_shh_url(url: &Url) -> String {
-		format!("git@{}:{}.git", url.host_str().unwrap_or("github.com"), &url.path()[1..])
+		format!("git@{}:{}.git", url.host_str().unwrap_or(Self::GITHUB), &url.path()[1..])
 	}
 }
 
