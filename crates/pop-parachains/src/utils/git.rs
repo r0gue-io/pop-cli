@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
 use crate::errors::Error;
-use crate::Template;
 use anyhow::Result;
 use git2::{
 	build::RepoBuilder, FetchOptions, IndexAddOption, RemoteCallbacks, Repository, ResetType,
@@ -13,8 +12,6 @@ use url::Url;
 
 pub struct Git;
 impl Git {
-	const GIT_SSH: &'static str = "git@github.com:";
-
 	pub(crate) fn clone(url: &Url, working_dir: &Path, branch: Option<&str>) -> Result<()> {
 		if !working_dir.exists() {
 			let mut fo = FetchOptions::new();
@@ -31,8 +28,7 @@ impl Git {
 		Ok(())
 	}
 	pub(crate) fn ssh_clone(url: &Url, working_dir: &Path, branch: Option<&str>) -> Result<()> {
-		// Change the url to the ssh url with git@github.com: prefix, remove / from path and adding .git as suffix
-		let ssh_url = [Self::GIT_SSH, &url.path()[1..], ".git"].concat();
+		let ssh_url = GitHub::convert_to_shh_url(url);
 		if !working_dir.exists() {
 			// Prepare callback and fetch options.
 			let mut fo = FetchOptions::new();
@@ -49,13 +45,16 @@ impl Git {
 	}
 	/// Clone `url` into `target` and degit it
 	pub fn clone_and_degit(
-		template: &Template,
+		url: &str,
 		target: &Path,
 		tag_version: Option<String>,
 	) -> Result<Option<String>> {
-		let repo = match Repository::clone(&template.repository_url()?, target) {
+		let repo = match Repository::clone(url, target) {
 			Ok(repo) => repo,
-			Err(_e) => Self::ssh_clone_and_degit(&template.ssh_repository_url()?, target)?,
+			Err(_e) => Self::ssh_clone_and_degit(
+				url::Url::parse(url).map_err(|err| Error::from(err))?,
+				target,
+			)?,
 		};
 
 		if let Some(tag_version) = tag_version {
@@ -84,14 +83,15 @@ impl Git {
 	}
 
 	/// For users that have ssh configuration for cloning repositories
-	fn ssh_clone_and_degit(url: &str, target: &Path) -> Result<Repository> {
+	fn ssh_clone_and_degit(url: Url, target: &Path) -> Result<Repository> {
+		let ssh_url = GitHub::convert_to_shh_url(&url);
 		// Prepare callback and fetch options.
 		let mut fo = FetchOptions::new();
 		Self::set_up_ssh_fetch_options(&mut fo)?;
 		// Prepare builder and clone.
 		let mut builder = RepoBuilder::new();
 		builder.fetch_options(fo);
-		let repo = builder.clone(url, target)?;
+		let repo = builder.clone(&ssh_url, target)?;
 		Ok(repo)
 	}
 
@@ -218,6 +218,9 @@ impl GitHub {
 	pub(crate) fn release(repo: &Url, tag: &str, artifact: &str) -> String {
 		format!("{}/releases/download/{tag}/{artifact}", repo.as_str())
 	}
+	pub(crate) fn convert_to_shh_url(url: &Url) -> String {
+		format!("git@{}:{}.git", url.host_str().unwrap_or("github.com"), &url.path()[1..])
+	}
 }
 
 #[derive(serde::Deserialize)]
@@ -226,4 +229,34 @@ pub struct Release {
 	pub name: String,
 	pub prerelease: bool,
 	pub commit: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn test_convert_to_shh_url() {
+		assert_eq!(
+			GitHub::convert_to_shh_url(
+				&Url::parse("https://github.com/r0gue-io/base-parachain")
+					.expect("valid repository url")
+			),
+			"git@github.com:r0gue-io/base-parachain.git"
+		);
+		assert_eq!(
+			GitHub::convert_to_shh_url(
+				&Url::parse("https://github.com/paritytech/substrate-contracts-node")
+					.expect("valid repository url")
+			),
+			"git@github.com:paritytech/substrate-contracts-node.git"
+		);
+		assert_eq!(
+			GitHub::convert_to_shh_url(
+				&Url::parse("https://github.com/paritytech/frontier-parachain-template")
+					.expect("valid repository url")
+			),
+			"git@github.com:paritytech/frontier-parachain-template.git"
+		);
+	}
 }

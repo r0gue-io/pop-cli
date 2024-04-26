@@ -24,7 +24,7 @@ pub fn instantiate_template_dir(
 	if matches!(template, &Template::Base) {
 		return instantiate_base_template(target, config, tag_version);
 	}
-	let tag = Git::clone_and_degit(template, target, tag_version)?;
+	let tag = Git::clone_and_degit(template.repository_url()?, target, tag_version)?;
 	Ok(tag)
 }
 
@@ -37,7 +37,7 @@ pub fn instantiate_base_template(
 	let source = temp_dir.path();
 	let template = crate::templates::Template::Base;
 
-	let tag = Git::clone_and_degit(&template, source, tag_version)?;
+	let tag = Git::clone_and_degit(template.repository_url()?, source, tag_version)?;
 
 	for entry in WalkDir::new(&source) {
 		let entry = entry?;
