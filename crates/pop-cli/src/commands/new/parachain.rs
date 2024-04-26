@@ -11,7 +11,9 @@ use clap::Args;
 use std::path::PathBuf;
 
 use cliclack::{clear_screen, input, intro, log, outro, outro_cancel, set_theme};
-use pop_parachains::{instantiate_template_dir, Config, Git, GitHub, Provider, Template};
+use pop_parachains::{
+	instantiate_template_dir, Config, Git, GitHub, Provider, Template, HTTPS_GITHUB_PREFIX,
+};
 
 #[derive(Args)]
 pub struct NewParachainCommand {
@@ -132,7 +134,7 @@ async fn guide_user_to_generate_parachain() -> Result<()> {
 	let provider = prompt.interact()?;
 	let template = display_select_options(provider)?;
 
-	let url = url::Url::parse(&["https://github.com/", template.repository_url()?].concat())
+	let url = url::Url::parse(&[HTTPS_GITHUB_PREFIX, template.repository_url()?].concat())
 		.expect("valid repository url");
 	let latest_3_releases = GitHub::get_latest_n_releases(3, &url).await?;
 

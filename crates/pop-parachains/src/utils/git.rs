@@ -10,6 +10,8 @@ use std::path::Path;
 use std::{env, fs};
 use url::Url;
 
+pub const SSH_GITHUB_PREFIX : &str = "git@github.com:";
+pub const HTTPS_GITHUB_PREFIX : &str = "https://github.com/";
 pub struct Git;
 impl Git {
 	pub(crate) fn clone(url: &Url, working_dir: &Path, branch: Option<&str>) -> Result<()> {
@@ -30,7 +32,7 @@ impl Git {
 
 	pub(crate) fn ssh_clone(url: &Url, working_dir: &Path, branch: Option<&str>) -> Result<()> {
 		// Change the url to the ssh url with git@github.com: prefix, remove / from path and adding .git as suffix
-		let ssh_url = ["git@github.com:", &url.path()[1..], ".git"].concat();
+		let ssh_url = [SSH_GITHUB_PREFIX, &url.path()[1..], ".git"].concat();
 		if !working_dir.exists() {
 			// Prepare callback and fetch options.
 			let mut fo = FetchOptions::new();
@@ -51,7 +53,7 @@ impl Git {
 		target: &Path,
 		tag_version: Option<String>,
 	) -> Result<Option<String>> {
-		let repo = match Repository::clone(&["https://github.com/", url].concat(), target) {
+		let repo = match Repository::clone(&[HTTPS_GITHUB_PREFIX, url].concat(), target) {
 			Ok(repo) => repo,
 			Err(_e) => Self::ssh_clone_and_degit(url, target)?,
 		};
@@ -89,7 +91,7 @@ impl Git {
 		// Prepare builder and clone.
 		let mut builder = RepoBuilder::new();
 		builder.fetch_options(fo);
-		let repo = builder.clone(&["git@github.com:", url, ".git"].concat(), target)?;
+		let repo = builder.clone(&[SSH_GITHUB_PREFIX, url, ".git"].concat(), target)?;
 		Ok(repo)
 	}
 
