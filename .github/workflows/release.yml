@@ -22,9 +22,6 @@ jobs:
             target: aarch64-unknown-linux-gnu
           - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
-          - os: ubuntu-22.04
-            target: x86_64-unknown-linux-gnu
-            cpu: skylake
           # macOS
           - os: macos-14
             target: aarch64-apple-darwin
@@ -33,7 +30,7 @@ jobs:
     env:
       RUSTFLAGS: "${{ matrix.platform.cpu != '' && format('-C target-cpu={0}', matrix.platform.cpu) || '' }} ${{ matrix.platform.target == 'aarch64-unknown-linux-gnu' && '-C linker=aarch64-linux-gnu-gcc' || '' }}"
       path: "target/${{ matrix.platform.target }}/production"
-      package: "pop-cli-${{ matrix.platform.target }}${{ matrix.platform.cpu != '' && format('-{0}', matrix.platform.cpu) || '' }}.tar.gz"
+      package: "pop-${{ matrix.platform.target }}${{ matrix.platform.cpu != '' && format('-{0}', matrix.platform.cpu) || '' }}.tar.gz"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -57,20 +54,21 @@ jobs:
         run: rustup target add ${{ matrix.platform.target }}
 
       - name: Build pop-cli
-        run: cargo build --profile=production -p pop-cli --target ${{ matrix.platform.target }}
+        run: cargo build --profile=production -p pop-cli --target ${{ matrix.platform.target }} --features static-ssl
+
       - name: Package binary (Linux)
         if: contains(matrix.platform.target, 'linux')
         run: |
           cd ${{ env.path }}
-          sha256sum pop-cli > pop-cli.sha256
-          tar -czf ${{ env.package }} pop-cli pop-cli.sha256
+          sha256sum pop > pop.sha256
+          tar -czf ${{ env.package }} pop pop.sha256
 
       - name: Package binary (macOS)
         if: contains(matrix.platform.target, 'apple')
         run: |
           cd ${{ env.path }}
-          shasum -a 256 pop-cli > pop-cli.sha256
-          tar -czf ${{ env.package }} pop-cli pop-cli.sha256
+          shasum -a 256 pop > pop.sha256
+          tar -czf ${{ env.package }} pop pop.sha256
 
       - name: Upload binary
         uses: actions/upload-artifact@v3
