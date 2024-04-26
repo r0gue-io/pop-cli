@@ -2,8 +2,6 @@
 
 #[cfg(any(feature = "parachain", feature = "contract"))]
 mod commands;
-#[cfg(feature = "parachain")]
-mod helpers;
 #[cfg(any(feature = "parachain", feature = "contract"))]
 mod style;
 
