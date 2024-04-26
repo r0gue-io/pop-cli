@@ -28,7 +28,7 @@ impl Git {
 		Ok(())
 	}
 	pub(crate) fn ssh_clone(url: &Url, working_dir: &Path, branch: Option<&str>) -> Result<()> {
-		let ssh_url = GitHub::convert_to_shh_url(url);
+		let ssh_url = GitHub::convert_to_ssh_url(url);
 		if !working_dir.exists() {
 			// Prepare callback and fetch options.
 			let mut fo = FetchOptions::new();
@@ -84,7 +84,7 @@ impl Git {
 
 	/// For users that have ssh configuration for cloning repositories
 	fn ssh_clone_and_degit(url: Url, target: &Path) -> Result<Repository> {
-		let ssh_url = GitHub::convert_to_shh_url(&url);
+		let ssh_url = GitHub::convert_to_ssh_url(&url);
 		// Prepare callback and fetch options.
 		let mut fo = FetchOptions::new();
 		Self::set_up_ssh_fetch_options(&mut fo)?;
@@ -219,7 +219,7 @@ impl GitHub {
 	pub(crate) fn release(repo: &Url, tag: &str, artifact: &str) -> String {
 		format!("{}/releases/download/{tag}/{artifact}", repo.as_str())
 	}
-	pub(crate) fn convert_to_shh_url(url: &Url) -> String {
+	pub(crate) fn convert_to_ssh_url(url: &Url) -> String {
 		format!("git@{}:{}.git", url.host_str().unwrap_or(Self::GITHUB), &url.path()[1..])
 	}
 }
@@ -237,23 +237,23 @@ mod tests {
 	use super::*;
 
 	#[test]
-	fn test_convert_to_shh_url() {
+	fn test_convert_to_ssh_url() {
 		assert_eq!(
-			GitHub::convert_to_shh_url(
+			GitHub::convert_to_ssh_url(
 				&Url::parse("https://github.com/r0gue-io/base-parachain")
 					.expect("valid repository url")
 			),
 			"git@github.com:r0gue-io/base-parachain.git"
 		);
 		assert_eq!(
-			GitHub::convert_to_shh_url(
+			GitHub::convert_to_ssh_url(
 				&Url::parse("https://github.com/paritytech/substrate-contracts-node")
 					.expect("valid repository url")
 			),
 			"git@github.com:paritytech/substrate-contracts-node.git"
 		);
 		assert_eq!(
-			GitHub::convert_to_shh_url(
+			GitHub::convert_to_ssh_url(
 				&Url::parse("https://github.com/paritytech/frontier-parachain-template")
 					.expect("valid repository url")
 			),
