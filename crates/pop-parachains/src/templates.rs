@@ -108,8 +108,13 @@ impl Template {
 		self.get_str("Provider") == Some(provider.to_string().as_str())
 	}
 
-	pub fn repository_url(&self) -> Result<&str, Error> {
-		self.get_str("Repository").ok_or(Error::RepositoryMissing)
+	pub fn repository_url(&self) -> Result<String, Error> {
+		Ok(["https://github.com/", self.get_str("Repository").ok_or(Error::RepositoryMissing)?]
+			.concat())
+	}
+	pub fn ssh_repository_url(&self) -> Result<String, Error> {
+		Ok(["git@github.com:", self.get_str("Repository").ok_or(Error::RepositoryMissing)?, ".git"]
+			.concat())
 	}
 }
 
@@ -150,11 +155,32 @@ mod tests {
 	#[test]
 	fn test_repository_url() {
 		let mut template = Template::Base;
-		assert_eq!(template.repository_url().unwrap(), "r0gue-io/base-parachain");
+		assert_eq!(
+			template.repository_url().unwrap(),
+			"https://github.com/r0gue-io/base-parachain"
+		);
+		assert_eq!(
+			template.ssh_repository_url().unwrap(),
+			"git@github.com:r0gue-io/base-parachain.git"
+		);
 		template = Template::ParityContracts;
-		assert_eq!(template.repository_url().unwrap(), "paritytech/substrate-contracts-node");
+		assert_eq!(
+			template.repository_url().unwrap(),
+			"https://github.com/paritytech/substrate-contracts-node"
+		);
+		assert_eq!(
+			template.ssh_repository_url().unwrap(),
+			"git@github.com:paritytech/substrate-contracts-node.git"
+		);
 		template = Template::ParityFPT;
-		assert_eq!(template.repository_url().unwrap(), "paritytech/frontier-parachain-template");
+		assert_eq!(
+			template.repository_url().unwrap(),
+			"https://github.com/paritytech/frontier-parachain-template"
+		);
+		assert_eq!(
+			template.ssh_repository_url().unwrap(),
+			"git@github.com:paritytech/frontier-parachain-template.git"
+		);
 	}
 
 	#[test]

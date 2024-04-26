@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 use crate::errors::Error;
+use crate::Template;
 use anyhow::Result;
 use git2::{
 	build::RepoBuilder, FetchOptions, IndexAddOption, RemoteCallbacks, Repository, ResetType,
@@ -12,6 +13,8 @@ use url::Url;
 
 pub struct Git;
 impl Git {
+	const GIT_SSH: &'static str = "git@github.com:";
+
 	pub(crate) fn clone(url: &Url, working_dir: &Path, branch: Option<&str>) -> Result<()> {
 		if !working_dir.exists() {
 			let mut fo = FetchOptions::new();
@@ -27,10 +30,9 @@ impl Git {
 		}
 		Ok(())
 	}
-
 	pub(crate) fn ssh_clone(url: &Url, working_dir: &Path, branch: Option<&str>) -> Result<()> {
 		// Change the url to the ssh url with git@github.com: prefix, remove / from path and adding .git as suffix
-		let ssh_url = ["git@github.com:", &url.path()[1..], ".git"].concat();
+		let ssh_url = [Self::GIT_SSH, &url.path()[1..], ".git"].concat();
 		if !working_dir.exists() {
 			// Prepare callback and fetch options.
 			let mut fo = FetchOptions::new();
@@ -47,13 +49,13 @@ impl Git {
 	}
 	/// Clone `url` into `target` and degit it
 	pub fn clone_and_degit(
-		url: &str,
+		template: &Template,
 		target: &Path,
 		tag_version: Option<String>,
 	) -> Result<Option<String>> {
-		let repo = match Repository::clone(&["https://github.com/", url].concat(), target) {
+		let repo = match Repository::clone(&template.repository_url()?, target) {
 			Ok(repo) => repo,
-			Err(_e) => Self::ssh_clone_and_degit(url, target)?,
+			Err(_e) => Self::ssh_clone_and_degit(&template.ssh_repository_url()?, target)?,
 		};
 
 		if let Some(tag_version) = tag_version {
@@ -89,7 +91,7 @@ impl Git {
 		// Prepare builder and clone.
 		let mut builder = RepoBuilder::new();
 		builder.fetch_options(fo);
-		let repo = builder.clone(&["git@github.com:", url, ".git"].concat(), target)?;
+		let repo = builder.clone(url, target)?;
 		Ok(repo)
 	}
 

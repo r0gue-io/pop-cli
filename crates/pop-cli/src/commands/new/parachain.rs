@@ -91,8 +91,7 @@ async fn guide_user_to_generate_parachain() -> Result<()> {
 	let provider = prompt.interact()?;
 	let template = display_select_options(provider)?;
 
-	let url = url::Url::parse(&["https://github.com/", template.repository_url()?].concat())
-		.expect("valid repository url");
+	let url = url::Url::parse(&template.repository_url()?).expect("valid repository url");
 	let latest_3_releases = GitHub::get_latest_n_releases(3, &url).await?;
 
 	let mut release_name = None;
