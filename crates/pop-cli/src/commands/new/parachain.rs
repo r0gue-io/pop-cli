@@ -14,7 +14,10 @@ use pop_parachains::{instantiate_template_dir, Config, Git, GitHub, Provider, Re
 pub struct NewParachainCommand {
 	#[arg(help = "Name of the project. If empty assistance in the process will be provided.")]
 	pub(crate) name: Option<String>,
-	#[arg(help = "Template provider. Options are pop or parity", default_value = "pop")]
+	#[arg(
+		help = "Template provider. Options are pop or parity (deprecated).",
+		default_value = "pop"
+	)]
 	pub(crate) provider: Option<Provider>,
 	#[arg(
 		short = 't',
@@ -82,9 +85,10 @@ async fn guide_user_to_generate_parachain() -> Result<()> {
 			provider,
 			provider.name(),
 			format!(
-				"{} {} available option(s)",
+				"{} {} available option(s) {}",
 				provider.description(),
-				provider.templates().len()
+				provider.templates().len(),
+				if provider.name() == "Parity" { "[deprecated]" } else { "" }
 			),
 		);
 	}
