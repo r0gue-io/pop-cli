@@ -6,7 +6,7 @@ use indexmap::IndexMap;
 use std::{
 	env::current_dir,
 	fs::{copy, metadata, remove_dir_all, write, File},
-	io::Write,
+	io::{BufRead, Write},
 	os::unix::fs::PermissionsExt,
 	path::{Path, PathBuf},
 };
@@ -390,9 +390,13 @@ pub struct Binary {
 }
 
 impl Binary {
-	pub async fn source(&self, cache: &PathBuf) -> Result<(), Error> {
+	pub async fn source(
+		&self,
+		cache: &PathBuf,
+		callback: &mut impl FnMut(&str),
+	) -> Result<(), Error> {
 		for source in &self.sources {
-			source.process(cache).await?;
+			source.process(cache, callback).await?;
 		}
 		Ok(())
 	}
@@ -426,20 +430,17 @@ impl Source {
 		path: &Path,
 		package: &str,
 		names: impl Iterator<Item = (&'b String, PathBuf)>,
+		callback: &mut impl FnMut(&str),
 	) -> Result<(), Error> {
 		// Build binaries and then copy to cache and target
-		cmd(
-			"cargo",
-			vec![
-				"build",
-				"--release",
-				"-p",
-				package,
-				//     "--quiet"
-			],
-		)
-		.dir(path)
-		.run()?;
+		let reader = cmd("cargo", vec!["build", "--release", "-p", package])
+			.dir(path)
+			.stderr_to_stdout()
+			.reader()?;
+		let mut output = std::io::BufReader::new(reader).lines();
+		while let Some(Ok(line)) = output.next() {
+			callback(&line);
+		}
 		for (name, dest) in names {
 			copy(path.join(format!("target/release/{name}")), dest)?;
 		}
@@ -458,7 +459,11 @@ impl Source {
 		Ok(())
 	}
 
-	pub async fn process(&self, cache: &Path) -> Result<Option<Vec<PathBuf>>, Error> {
+	pub async fn process(
+		&self,
+		cache: &Path,
+		callback: &mut impl FnMut(&str),
+	) -> Result<Option<Vec<PathBuf>>, Error> {
 		// Download or clone and build from source
 		match self {
 			Source::Url { name, version, url } => {
@@ -483,24 +488,37 @@ impl Source {
 				}
 
 				let repository_name = GitHub::name(url)?;
-				// Clone repository into working directory
 				let working_dir = cache.join(".src").join(repository_name);
 				let working_dir = Path::new(&working_dir);
-				if let Err(e) = Git::clone(url, working_dir, branch.as_deref()) {
-					if working_dir.exists() {
-						Self::remove(working_dir)?;
+
+				// Clone repository into working directory
+				if !working_dir.exists() {
+					callback(&format!("Cloning {url}..."));
+					if let Err(e) = Git::clone(url, working_dir, branch.as_deref()) {
+						if working_dir.exists() {
+							// Preserve original error
+							let _ = Self::remove(working_dir);
+						}
+						return Err(e.into());
 					}
-					return Err(e.into());
 				}
 				// Build binaries and finally remove working directory
-				Self::build_binaries(
+				if let Err(e) = Self::build_binaries(
 					working_dir,
 					package,
 					versioned_names
 						.iter()
 						.map(|(binary, versioned)| (*binary, cache.join(versioned))),
+					callback,
 				)
-				.await?;
+				.await
+				{
+					if working_dir.exists() {
+						// Preserve original error
+						let _ = Self::remove(working_dir);
+					}
+					return Err(e.into());
+				}
 				Self::remove(working_dir)?;
 				Ok(None)
 			},
@@ -841,7 +859,7 @@ mod tests {
 			version: TESTING_POLKADOT_VERSION.to_string(),
 			url: "https://github.com/paritytech/polkadot-sdk/releases/download/polkadot-v1.7.0/polkadot".to_string()
 		};
-		let result = source.process(&cache).await;
+		let result = source.process(&cache, &mut |_| {}).await;
 		assert!(result.is_ok());
 		assert!(temp_dir.path().join(POLKADOT_BINARY).exists());
 
