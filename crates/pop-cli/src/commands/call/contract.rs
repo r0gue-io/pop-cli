@@ -74,7 +74,7 @@ impl CallContractCommand {
 		.await?;
 
 		if !self.execute {
-			let mut spinner = cliclack::spinner();
+			let spinner = cliclack::spinner();
 			spinner.start("Calling the contract...");
 			let call_dry_run_result = dry_run_call(&call_exec).await?;
 			log::info(format!("Result: {}", call_dry_run_result))?;
@@ -89,7 +89,7 @@ impl CallContractCommand {
 				weight_limit =
 					Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap());
 			} else {
-				let mut spinner = cliclack::spinner();
+				let spinner = cliclack::spinner();
 				spinner.start("Doing a dry run to estimate the gas...");
 				weight_limit = match dry_run_gas_estimate_call(&call_exec).await {
 					Ok(w) => {
@@ -103,7 +103,7 @@ impl CallContractCommand {
 					},
 				};
 			}
-			let mut spinner = cliclack::spinner();
+			let spinner = cliclack::spinner();
 			spinner.start("Calling the contract...");
 
 			let call_result = call_smart_contract(call_exec, weight_limit, &self.url)

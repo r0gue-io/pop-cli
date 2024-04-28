@@ -84,7 +84,7 @@ impl ZombienetCommand {
 			}
 		}
 		// Finally spawn network and wait for signal to terminate
-		let mut spinner = cliclack::spinner();
+		let spinner = cliclack::spinner();
 		spinner.start("🚀 Launching local network...");
 		//tracing_subscriber::fmt().init();
 		match zombienet.spawn().await {
