@@ -1,3 +1,13 @@
+[profile.release]
+panic = "unwind"
+opt-level = 3
+debug = false
+
+[profile.production]
+inherits = "release"
+lto = true
+codegen-units = 1
+
 [workspace]
 resolver = "2"
 members = ["crates/*"]
