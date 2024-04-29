@@ -390,11 +390,7 @@ pub struct Binary {
 }
 
 impl Binary {
-	pub async fn source(
-		&self,
-		cache: &PathBuf,
-		callback: &mut impl FnMut(&str),
-	) -> Result<(), Error> {
+	pub async fn source(&self, cache: &PathBuf, callback: &impl Fn(&str)) -> Result<(), Error> {
 		for source in &self.sources {
 			source.process(cache, callback).await?;
 		}
@@ -430,7 +426,7 @@ impl Source {
 		path: &Path,
 		package: &str,
 		names: impl Iterator<Item = (&'b String, PathBuf)>,
-		callback: &mut impl FnMut(&str),
+		callback: impl Fn(&str),
 	) -> Result<(), Error> {
 		// Build binaries and then copy to cache and target
 		let reader = cmd("cargo", vec!["build", "--release", "-p", package])
@@ -462,7 +458,7 @@ impl Source {
 	pub async fn process(
 		&self,
 		cache: &Path,
-		callback: &mut impl FnMut(&str),
+		callback: impl Fn(&str),
 	) -> Result<Option<Vec<PathBuf>>, Error> {
 		// Download or clone and build from source
 		match self {
@@ -820,7 +816,7 @@ mod tests {
 		.await?;
 		let missing_binaries = zombienet.missing_binaries();
 		for binary in missing_binaries {
-			binary.source(&cache).await?;
+			binary.source(&cache, &|_| {}).await?;
 		}
 
 		let spawn = zombienet.spawn().await;
@@ -859,7 +855,7 @@ mod tests {
 			version: TESTING_POLKADOT_VERSION.to_string(),
 			url: "https://github.com/paritytech/polkadot-sdk/releases/download/polkadot-v1.7.0/polkadot".to_string()
 		};
-		let result = source.process(&cache, &mut |_| {}).await;
+		let result = source.process(&cache, |_| {}).await;
 		assert!(result.is_ok());
 		assert!(temp_dir.path().join(POLKADOT_BINARY).exists());
 
@@ -885,7 +881,7 @@ mod tests {
 			version: Some(version),
 		};
 
-		let result = source.process(&cache).await;
+		let result = source.process(&cache, |_| {}).await;
 		assert!(result.is_ok());
 		assert!(temp_dir.path().join(POLKADOT_BINARY).exists());
 

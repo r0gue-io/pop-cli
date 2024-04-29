@@ -64,7 +64,7 @@ impl ZombienetCommand {
 				let spinner = multi.add(cliclack::spinner());
 				for attempt in (0..=1).rev() {
 					if let Err(e) =
-						binary.source(&cache, &mut |status| spinner.start(format(status))).await
+						binary.source(&cache, &|status| spinner.start(format(status))).await
 					{
 						match attempt {
 							0 => {
