@@ -1,1 +1,1 @@
-../crates/pop-cli/README.md
+../README.md
