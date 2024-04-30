@@ -382,7 +382,9 @@ impl Zombienet {
 	}
 }
 
+/// A binary used to launch a node.
 pub struct Binary {
+	/// The name of a binary.
 	pub name: String,
 	version: String,
 	path: PathBuf,
@@ -390,6 +392,13 @@ pub struct Binary {
 }
 
 impl Binary {
+	/// Sources the binary by either downloading from a url or by cloning a git repository and
+	/// building locally from the resulting source code.
+	///
+	/// # Arguments
+	///
+	/// * `cache` - path to the local cache
+	/// * `callback` - a callback used to report status updates
 	pub async fn source(&self, cache: &PathBuf, callback: &impl Fn(&str)) -> Result<(), Error> {
 		for source in &self.sources {
 			source.process(cache, callback).await?;
@@ -455,6 +464,13 @@ impl Source {
 		Ok(())
 	}
 
+	/// Processes the binary source, by either downloading the binary from a url or by cloning a
+	/// git repository and building locally from the resulting source code.
+	///
+	/// # Arguments
+	///
+	/// * `cache` - path to the local cache
+	/// * `callback` - a callback used to report status updates
 	pub async fn process(
 		&self,
 		cache: &Path,
@@ -470,6 +486,7 @@ impl Source {
 				}
 
 				// Download required version of binaries
+				callback(&format!("Downloading from {url}..."));
 				Self::download(&url, &cache.join(&versioned_name)).await?;
 				Ok(None)
 			},
@@ -533,6 +550,10 @@ impl Source {
 	}
 
 	/// A versioned name of a binary.
+	///
+	/// # Arguments
+	///
+	/// * `version` - an optional version to be appended to the binary name
 	pub fn versioned_name(name: &str, version: Option<&str>) -> String {
 		match version {
 			Some(version) => format!("{name}-{version}"),
@@ -816,7 +837,7 @@ mod tests {
 		.await?;
 		let missing_binaries = zombienet.missing_binaries();
 		for binary in missing_binaries {
-			binary.source(&cache, &|_| {}).await?;
+			binary.source(&cache, &noop).await?;
 		}
 
 		let spawn = zombienet.spawn().await;
@@ -855,7 +876,7 @@ mod tests {
 			version: TESTING_POLKADOT_VERSION.to_string(),
 			url: "https://github.com/paritytech/polkadot-sdk/releases/download/polkadot-v1.7.0/polkadot".to_string()
 		};
-		let result = source.process(&cache, |_| {}).await;
+		let result = source.process(&cache, noop).await;
 		assert!(result.is_ok());
 		assert!(temp_dir.path().join(POLKADOT_BINARY).exists());
 
@@ -881,7 +902,7 @@ mod tests {
 			version: Some(version),
 		};
 
-		let result = source.process(&cache, |_| {}).await;
+		let result = source.process(&cache, noop).await;
 		assert!(result.is_ok());
 		assert!(temp_dir.path().join(POLKADOT_BINARY).exists());
 
@@ -944,4 +965,7 @@ mod tests {
 		)?;
 		Ok(file_path)
 	}
+
+	// no operation
+	fn noop(_: &str) {}
 }
