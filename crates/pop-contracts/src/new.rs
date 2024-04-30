@@ -3,7 +3,7 @@ use crate::errors::Error;
 use contract_build::new_contract_project;
 use std::path::Path;
 
-pub fn create_smart_contract(name: String, target: &Path) -> Result<(), Error> {
+pub fn create_smart_contract(name: &str, target: &Path) -> Result<(), Error> {
 	// Canonicalize the target path to ensure consistency and resolve any symbolic links.
 	let canonicalized_path = target
 		.canonicalize()
@@ -35,7 +35,7 @@ mod tests {
 		let temp_dir = tempfile::tempdir()?;
 		let temp_contract_dir = temp_dir.path().join("test_contract");
 		fs::create_dir(&temp_contract_dir)?;
-		create_smart_contract("test_contract".to_string(), temp_contract_dir.as_path())?;
+		create_smart_contract("test_contract", temp_contract_dir.as_path())?;
 		Ok(temp_dir)
 	}
 

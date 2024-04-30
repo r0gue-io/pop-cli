@@ -43,11 +43,10 @@ mod tests {
 		fs::create_dir(&temp_contract_dir).map_err(|e| {
 			Error::TestEnvironmentError(format!("Failed to create test contract directory: {}", e))
 		})?;
-		let result =
-			crate::create_smart_contract("test_contract".to_string(), temp_contract_dir.as_path())
-				.map_err(|e| {
-					Error::TestEnvironmentError(format!("Failed to create smart contract: {}", e))
-				});
+		let result = crate::create_smart_contract("test_contract", temp_contract_dir.as_path())
+			.map_err(|e| {
+				Error::TestEnvironmentError(format!("Failed to create smart contract: {}", e))
+			});
 		assert!(result.is_ok(), "Contract test environment setup failed");
 		Ok(temp_dir)
 	}

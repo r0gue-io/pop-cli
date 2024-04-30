@@ -18,7 +18,7 @@ pub struct NewContractCommand {
 }
 
 impl NewContractCommand {
-	pub(crate) fn execute(self) -> anyhow::Result<()> {
+	pub(crate) async fn execute(&self) -> anyhow::Result<()> {
 		clear_screen()?;
 		intro(format!(
 			"{}: Generating new contract \"{}\"!",
@@ -49,7 +49,7 @@ impl NewContractCommand {
 		fs::create_dir_all(contract_path.as_path())?;
 		let mut spinner = cliclack::spinner();
 		spinner.start("Generating contract...");
-		create_smart_contract(self.name, contract_path.as_path())?;
+		create_smart_contract(&self.name, contract_path.as_path())?;
 		spinner.stop("Smart contract created!");
 		outro(format!("cd into \"{}\" and enjoy hacking! 🚀", contract_path.display()))?;
 		Ok(())
@@ -61,14 +61,14 @@ mod tests {
 	use super::*;
 	use anyhow::Result;
 
-	#[test]
-	fn test_new_contract_command_execute_success() -> Result<()> {
+	#[tokio::test]
+	async fn test_new_contract_command_execute_success() -> Result<()> {
 		let temp_contract_dir = tempfile::tempdir().expect("Could not create temp dir");
 		let command = NewContractCommand {
 			name: "test_contract".to_string(),
 			path: Some(PathBuf::from(temp_contract_dir.path())),
 		};
-		let result = command.execute();
+		let result = command.execute().await;
 		assert!(result.is_ok());
 
 		Ok(())

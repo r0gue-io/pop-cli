@@ -19,7 +19,7 @@ pub struct NewPalletCommand {
 }
 
 impl NewPalletCommand {
-	pub(crate) fn execute(&self) -> anyhow::Result<()> {
+	pub(crate) async fn execute(&self) -> anyhow::Result<()> {
 		clear_screen()?;
 		intro(format!(
 			"{}: Generating new pallet \"{}\"!",

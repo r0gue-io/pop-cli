@@ -42,14 +42,14 @@ enum Commands {
 async fn main() -> Result<()> {
 	let cli = Cli::parse();
 	match cli.command {
-		Commands::New(args) => match args.command {
+		Commands::New(args) => Ok(match &args.command {
 			#[cfg(feature = "parachain")]
-			commands::new::NewCommands::Parachain(cmd) => cmd.execute(),
+			commands::new::NewCommands::Parachain(cmd) => cmd.execute().await?,
 			#[cfg(feature = "parachain")]
-			commands::new::NewCommands::Pallet(cmd) => cmd.execute(),
+			commands::new::NewCommands::Pallet(cmd) => cmd.execute().await?,
 			#[cfg(feature = "contract")]
-			commands::new::NewCommands::Contract(cmd) => cmd.execute(),
-		},
+			commands::new::NewCommands::Contract(cmd) => cmd.execute().await?,
+		}),
 		Commands::Build(args) => match &args.command {
 			#[cfg(feature = "parachain")]
 			commands::build::BuildCommands::Parachain(cmd) => cmd.execute(),

@@ -6,46 +6,38 @@ use crate::{
 		git::Git,
 		helpers::{sanitize, write_to_file},
 	},
+	Config, Template,
 };
 use anyhow::Result;
 use std::{fs, path::Path};
 use walkdir::WalkDir;
 
-#[derive(Debug, Clone)]
-pub struct Config {
-	pub symbol: String,
-	pub decimals: u8,
-	pub initial_endowment: String,
-}
-pub enum Template {
-	Contracts,
-	FPT,
-	Base,
-}
-
 /// Creates a new template at `target` dir
 pub fn instantiate_template_dir(
 	template: &Template,
 	target: &Path,
+	tag_version: Option<String>,
 	config: Config,
 ) -> Result<Option<String>> {
 	sanitize(target)?;
-	use Template::*;
-	let url = match template {
-		FPT => "paritytech/frontier-parachain-template.git",
-		Contracts => "paritytech/substrate-contracts-node.git",
-		Base => {
-			return instantiate_base_template(target, config);
-		},
-	};
-	let tag = Git::clone_and_degit(url, target)?;
+
+	if matches!(template, &Template::Base) {
+		return instantiate_base_template(target, config, tag_version);
+	}
+	let tag = Git::clone_and_degit(template.repository_url()?, target, tag_version)?;
 	Ok(tag)
 }
 
-pub fn instantiate_base_template(target: &Path, config: Config) -> Result<Option<String>> {
+pub fn instantiate_base_template(
+	target: &Path,
+	config: Config,
+	tag_version: Option<String>,
+) -> Result<Option<String>> {
 	let temp_dir = ::tempfile::TempDir::new_in(std::env::temp_dir())?;
 	let source = temp_dir.path();
-	let tag = Git::clone_and_degit("r0gue-io/base-parachain.git", source)?;
+	let template = crate::templates::Template::Base;
+
+	let tag = Git::clone_and_degit(template.repository_url()?, source, tag_version)?;
 
 	for entry in WalkDir::new(&source) {
 		let entry = entry?;
@@ -88,7 +80,8 @@ mod tests {
 			decimals: 18,
 			initial_endowment: "1000000".to_string(),
 		};
-		let result = instantiate_base_template(temp_dir.path(), config);
+		let result: anyhow::Result<Option<String>> =
+			instantiate_base_template(temp_dir.path(), config, None);
 		assert!(result.is_ok());
 		Ok(temp_dir)
 	}
