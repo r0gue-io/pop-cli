@@ -79,11 +79,21 @@ pub enum Template {
 		props(Provider = "Pop", Repository = "https://github.com/r0gue-io/base-parachain")
 	)]
 	Base,
+	#[strum(
+		serialize = "nfts",
+		message = "Nfts",
+		detailed_message = "Parachain configured with assets and nfts functionalities.",
+		props(
+			Provider = "Pop",
+			Repository = "https://github.com/r0gue-io/base-parachain/tree/nfts-parachain"
+		)
+	)]
+	Nfts,
 	// Parity
 	#[strum(
 		serialize = "cpt",
 		message = "Contracts",
-		detailed_message = "Minimal Substrate node configured for smart contracts via pallet-contracts.",
+		detailed_message = "Parachain configured with wasm smart contracts (pallet-contracts) support.",
 		props(
 			Provider = "Parity",
 			Repository = "https://github.com/paritytech/substrate-contracts-node"
@@ -93,7 +103,7 @@ pub enum Template {
 	#[strum(
 		serialize = "fpt",
 		message = "EVM",
-		detailed_message = "Template node for a Frontier (EVM) based parachain.",
+		detailed_message = "Parachain configured with EVM (Frontier) support.",
 		props(
 			Provider = "Parity",
 			Repository = "https://github.com/paritytech/frontier-parachain-template"
@@ -143,12 +153,17 @@ mod tests {
 		template = Template::ParityFPT;
 		assert_eq!(template.matches(&Provider::Pop), false);
 		assert_eq!(template.matches(&Provider::Parity), true);
+
+		template = Template::Nfts;
+		assert_eq!(template.matches(&Provider::Pop), true);
+		assert_eq!(template.matches(&Provider::Parity), false);
 	}
 
 	#[test]
 	fn test_convert_string_to_template() {
 		assert_eq!(Template::from_str("base").unwrap(), Template::Base);
 		assert_eq!(Template::from_str("").unwrap_or_default(), Template::Base);
+		assert_eq!(Template::from_str("nfts").unwrap(), Template::Nfts);
 		assert_eq!(Template::from_str("cpt").unwrap(), Template::ParityContracts);
 		assert_eq!(Template::from_str("fpt").unwrap(), Template::ParityFPT);
 	}
@@ -169,6 +184,11 @@ mod tests {
 		assert_eq!(
 			template.repository_url().unwrap(),
 			"https://github.com/paritytech/frontier-parachain-template"
+		);
+		template = Template::Nfts;
+		assert_eq!(
+			template.repository_url().unwrap(),
+			"https://github.com/r0gue-io/base-parachain/tree/nfts-parachain"
 		);
 	}
 
