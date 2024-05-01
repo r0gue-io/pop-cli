@@ -80,15 +80,15 @@ pub enum Template {
 	)]
 	Base,
 	#[strum(
-		serialize = "nfts",
-		message = "Nfts",
-		detailed_message = "Parachain configured with assets and nfts functionalities.",
+		serialize = "assets",
+		message = "Assets",
+		detailed_message = "Parachain configured with fungible and non-fungilble asset functionalities.",
 		props(
 			Provider = "Pop",
-			Repository = "https://github.com/r0gue-io/base-parachain/tree/nfts-parachain"
+			Repository = "https://github.com/r0gue-io/base-parachain/tree/assets-parachain"
 		)
 	)]
-	Nfts,
+	Assets,
 	// Parity
 	#[strum(
 		serialize = "cpt",
@@ -103,7 +103,7 @@ pub enum Template {
 	#[strum(
 		serialize = "fpt",
 		message = "EVM",
-		detailed_message = "Parachain configured with EVM (Frontier) support.",
+		detailed_message = "Template node for a Frontier (EVM) based parachain.",
 		props(
 			Provider = "Parity",
 			Repository = "https://github.com/paritytech/frontier-parachain-template"
