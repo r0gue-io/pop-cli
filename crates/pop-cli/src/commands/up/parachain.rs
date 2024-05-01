@@ -2,9 +2,11 @@
 
 use crate::style::{style, Theme};
 use clap::Args;
-use cliclack::{clear_screen, confirm, intro, log, multi_progress, outro, outro_cancel, set_theme};
+use cliclack::{
+	clear_screen, confirm, intro, log, multi_progress, outro, outro_cancel, set_theme, ProgressBar,
+};
 use console::{Emoji, Style};
-use pop_parachains::{NetworkNode, Zombienet};
+use pop_parachains::{NetworkNode, Status, Zombienet};
 use std::time::Duration;
 use tokio::time::sleep;
 
@@ -61,25 +63,24 @@ impl ZombienetCommand {
 			// Source binaries
 			for binary in missing {
 				let multi = multi_progress(format!("📦 Sourcing {}...", binary.name));
-				let spinner = multi.add(cliclack::spinner());
+				let progress = multi.add(cliclack::spinner());
+				let progress_reporter = ProgressReporter(&progress);
 				for attempt in (0..=1).rev() {
-					if let Err(e) =
-						binary.source(&cache, &|status| spinner.start(format(status))).await
-					{
+					if let Err(e) = binary.source(&cache, progress_reporter).await {
 						match attempt {
 							0 => {
-								spinner.error(format!("🚫 Sourcing failed: {e}"));
+								progress.error(format!("🚫 Sourcing failed: {e}"));
 								multi.stop();
 								return Ok(());
 							},
 							_ => {
-								spinner.error("🚫 Sourcing attempt failed, retrying...");
+								progress.error("🚫 Sourcing attempt failed, retrying...");
 								sleep(Duration::from_secs(1)).await;
 							},
 						}
 					}
 				}
-				spinner.stop(format!("✅ Sourcing {} complete.", binary.name));
+				progress.stop(format!("✅ Sourcing {} complete.", binary.name));
 				multi.stop();
 			}
 		}
@@ -149,6 +150,12 @@ impl ZombienetCommand {
 	}
 }
 
-fn format(status: &str) -> String {
-	status.replace("   Compiling", "Compiling")
+/// Reports any observed status updates to a progress bar.
+#[derive(Copy, Clone)]
+struct ProgressReporter<'a>(&'a ProgressBar);
+
+impl Status for ProgressReporter<'_> {
+	fn update(&self, status: &str) {
+		self.0.start(status.replace("   Compiling", "Compiling"))
+	}
 }

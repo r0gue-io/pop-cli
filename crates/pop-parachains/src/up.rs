@@ -398,10 +398,10 @@ impl Binary {
 	/// # Arguments
 	///
 	/// * `cache` - path to the local cache
-	/// * `callback` - a callback used to report status updates
-	pub async fn source(&self, cache: &PathBuf, callback: &impl Fn(&str)) -> Result<(), Error> {
+	/// * `status` - used to observe status updates
+	pub async fn source(&self, cache: &PathBuf, status: impl Status) -> Result<(), Error> {
 		for source in &self.sources {
-			source.process(cache, callback).await?;
+			source.process(cache, status).await?;
 		}
 		Ok(())
 	}
@@ -435,7 +435,7 @@ impl Source {
 		path: &Path,
 		package: &str,
 		names: impl Iterator<Item = (&'b String, PathBuf)>,
-		callback: impl Fn(&str),
+		status: impl Status,
 	) -> Result<(), Error> {
 		// Build binaries and then copy to cache and target
 		let reader = cmd("cargo", vec!["build", "--release", "-p", package])
@@ -444,7 +444,7 @@ impl Source {
 			.reader()?;
 		let mut output = std::io::BufReader::new(reader).lines();
 		while let Some(Ok(line)) = output.next() {
-			callback(&line);
+			status.update(&line);
 		}
 		for (name, dest) in names {
 			copy(path.join(format!("target/release/{name}")), dest)?;
@@ -470,11 +470,11 @@ impl Source {
 	/// # Arguments
 	///
 	/// * `cache` - path to the local cache
-	/// * `callback` - a callback used to report status updates
+	/// * `status` - used to observe status updates
 	pub async fn process(
 		&self,
 		cache: &Path,
-		callback: impl Fn(&str),
+		status: impl Status,
 	) -> Result<Option<Vec<PathBuf>>, Error> {
 		// Download or clone and build from source
 		match self {
@@ -486,7 +486,7 @@ impl Source {
 				}
 
 				// Download required version of binaries
-				callback(&format!("Downloading from {url}..."));
+				status.update(&format!("Downloading from {url}..."));
 				Self::download(&url, &cache.join(&versioned_name)).await?;
 				Ok(None)
 			},
@@ -506,7 +506,7 @@ impl Source {
 
 				// Clone repository into working directory
 				if !working_dir.exists() {
-					callback(&format!("Cloning {url}..."));
+					status.update(&format!("Cloning {url}..."));
 					if let Err(e) = Git::clone(url, working_dir, branch.as_deref()) {
 						if working_dir.exists() {
 							// Preserve original error
@@ -522,7 +522,7 @@ impl Source {
 					versioned_names
 						.iter()
 						.map(|(binary, versioned)| (*binary, cache.join(versioned))),
-					callback,
+					status,
 				)
 				.await
 				{
@@ -560,6 +560,17 @@ impl Source {
 			None => name.to_string(),
 		}
 	}
+}
+
+/// Trait for observing status updates.
+pub trait Status: Copy {
+	/// Update the observer with the provided `status`.
+	fn update(&self, status: &str);
+}
+
+impl Status for () {
+	// no-op: status updates are ignored
+	fn update(&self, _: &str) {}
 }
 
 #[cfg(test)]
@@ -837,7 +848,7 @@ mod tests {
 		.await?;
 		let missing_binaries = zombienet.missing_binaries();
 		for binary in missing_binaries {
-			binary.source(&cache, &noop).await?;
+			binary.source(&cache, ()).await?;
 		}
 
 		let spawn = zombienet.spawn().await;
@@ -876,7 +887,7 @@ mod tests {
 			version: TESTING_POLKADOT_VERSION.to_string(),
 			url: "https://github.com/paritytech/polkadot-sdk/releases/download/polkadot-v1.7.0/polkadot".to_string()
 		};
-		let result = source.process(&cache, noop).await;
+		let result = source.process(&cache, ()).await;
 		assert!(result.is_ok());
 		assert!(temp_dir.path().join(POLKADOT_BINARY).exists());
 
@@ -902,7 +913,7 @@ mod tests {
 			version: Some(version),
 		};
 
-		let result = source.process(&cache, noop).await;
+		let result = source.process(&cache, ()).await;
 		assert!(result.is_ok());
 		assert!(temp_dir.path().join(POLKADOT_BINARY).exists());
 
@@ -965,7 +976,4 @@ mod tests {
 		)?;
 		Ok(file_path)
 	}
-
-	// no operation
-	fn noop(_: &str) {}
 }
