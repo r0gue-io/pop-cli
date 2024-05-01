@@ -85,7 +85,7 @@ pub enum Template {
 		detailed_message = "Parachain configured with fungible and non-fungilble asset functionalities.",
 		props(
 			Provider = "Pop",
-			Repository = "https://github.com/r0gue-io/base-parachain#assets-parachain"
+			Repository = "https://github.com/r0gue-io/base-parachain/tree/assets-parachain"
 		)
 	)]
 	Assets,
