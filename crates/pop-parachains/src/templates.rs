@@ -93,7 +93,7 @@ pub enum Template {
 	#[strum(
 		serialize = "cpt",
 		message = "Contracts",
-		detailed_message = "Parachain configured with wasm smart contracts (pallet-contracts) support.",
+		detailed_message = "Minimal Substrate node configured for smart contracts via pallet-contracts.",
 		props(
 			Provider = "Parity",
 			Repository = "https://github.com/paritytech/substrate-contracts-node"
