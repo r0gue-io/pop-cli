@@ -36,20 +36,23 @@ enum Commands {
 	#[clap(alias = "t")]
 	#[cfg(feature = "contract")]
 	Test(commands::test::TestArgs),
+	/// Install tools for Substrate development
+	#[clap(alias = "i")]
+	Install(commands::install::InstallArgs)
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
 	let cli = Cli::parse();
 	match cli.command {
-		Commands::New(args) => Ok(match &args.command {
+		Commands::New(args) => match &args.command {
 			#[cfg(feature = "parachain")]
-			commands::new::NewCommands::Parachain(cmd) => cmd.execute().await?,
+			commands::new::NewCommands::Parachain(cmd) => cmd.execute().await,
 			#[cfg(feature = "parachain")]
-			commands::new::NewCommands::Pallet(cmd) => cmd.execute().await?,
+			commands::new::NewCommands::Pallet(cmd) => cmd.execute().await,
 			#[cfg(feature = "contract")]
-			commands::new::NewCommands::Contract(cmd) => cmd.execute().await?,
-		}),
+			commands::new::NewCommands::Contract(cmd) => cmd.execute().await,
+		},
 		Commands::Build(args) => match &args.command {
 			#[cfg(feature = "parachain")]
 			commands::build::BuildCommands::Parachain(cmd) => cmd.execute(),
@@ -57,19 +60,20 @@ async fn main() -> Result<()> {
 			commands::build::BuildCommands::Contract(cmd) => cmd.execute(),
 		},
 		#[cfg(feature = "contract")]
-		Commands::Call(args) => Ok(match &args.command {
-			commands::call::CallCommands::Contract(cmd) => cmd.execute().await?,
-		}),
-		Commands::Up(args) => Ok(match &args.command {
+		Commands::Call(args) => match &args.command {
+			commands::call::CallCommands::Contract(cmd) => cmd.execute().await,
+		},
+		Commands::Up(args) => match &args.command {
 			#[cfg(feature = "parachain")]
-			commands::up::UpCommands::Parachain(cmd) => cmd.execute().await?,
+			commands::up::UpCommands::Parachain(cmd) => cmd.execute().await,
 			#[cfg(feature = "contract")]
-			commands::up::UpCommands::Contract(cmd) => cmd.execute().await?,
-		}),
+			commands::up::UpCommands::Contract(cmd) => cmd.execute().await,
+		},
 		#[cfg(feature = "contract")]
 		Commands::Test(args) => match &args.command {
 			commands::test::TestCommands::Contract(cmd) => cmd.execute(),
 		},
+		Commands::Install(args) => args.execute().await,
 	}
 }
 

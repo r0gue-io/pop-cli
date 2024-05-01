@@ -14,6 +14,7 @@ duct.workspace = true
 tempfile.workspace = true
 url.workspace = true
 tokio.workspace = true
+reqwest.workspace = true
 
 # pop-cli
 clap.workspace = true

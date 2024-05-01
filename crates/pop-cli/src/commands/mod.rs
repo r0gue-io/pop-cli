@@ -5,3 +5,4 @@ pub(crate) mod call;
 pub(crate) mod new;
 pub(crate) mod test;
 pub(crate) mod up;
+pub(crate) mod install;

@@ -5476,6 +5476,7 @@ dependencies = [
  "pop-contracts",
  "pop-parachains",
  "predicates",
+ "reqwest",
  "sp-core 30.0.0",
  "sp-weights",
  "strum 0.26.2",
