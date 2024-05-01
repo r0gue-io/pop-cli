@@ -154,7 +154,7 @@ mod tests {
 		assert_eq!(template.matches(&Provider::Pop), false);
 		assert_eq!(template.matches(&Provider::Parity), true);
 
-		template = Template::Nfts;
+		template = Template::Assets;
 		assert_eq!(template.matches(&Provider::Pop), true);
 		assert_eq!(template.matches(&Provider::Parity), false);
 	}
@@ -163,7 +163,7 @@ mod tests {
 	fn test_convert_string_to_template() {
 		assert_eq!(Template::from_str("base").unwrap(), Template::Base);
 		assert_eq!(Template::from_str("").unwrap_or_default(), Template::Base);
-		assert_eq!(Template::from_str("nfts").unwrap(), Template::Nfts);
+		assert_eq!(Template::from_str("assets").unwrap(), Template::Assets);
 		assert_eq!(Template::from_str("cpt").unwrap(), Template::ParityContracts);
 		assert_eq!(Template::from_str("fpt").unwrap(), Template::ParityFPT);
 	}
