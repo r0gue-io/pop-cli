@@ -80,16 +80,30 @@ pub enum Template {
 	)]
 	Base,
 	#[strum(
+		serialize = "contracts",
+		message = "Contracts",
+		detailed_message = "Parachain configured to supports Wasm-based contracts.",
+		props(Provider = "Pop", Repository = "https://github.com/r0gue-io/contracts-parachain")
+	)]
+	Contracts,
+	#[strum(
 		serialize = "assets",
 		message = "Assets",
 		detailed_message = "Parachain configured with fungible and non-fungilble asset functionalities.",
 		props(Provider = "Pop", Repository = "https://github.com/r0gue-io/assets-parachain")
 	)]
 	Assets,
+	#[strum(
+		serialize = "evm",
+		message = "EVM",
+		detailed_message = "Parachain configured with frontier, enabling compatibility with the Ethereum Virtual Machine (EVM).",
+		props(Provider = "Pop", Repository = "https://github.com/r0gue-io/evm-parachain")
+	)]
+	EVM,
 	// Parity
 	#[strum(
 		serialize = "cpt",
-		message = "Contracts",
+		message = "Parity Contracts",
 		detailed_message = "Minimal Substrate node configured for smart contracts via pallet-contracts.",
 		props(
 			Provider = "Parity",
@@ -99,7 +113,7 @@ pub enum Template {
 	ParityContracts,
 	#[strum(
 		serialize = "fpt",
-		message = "EVM",
+		message = "Parity EVM",
 		detailed_message = "Template node for a Frontier (EVM) based parachain.",
 		props(
 			Provider = "Parity",
@@ -154,6 +168,14 @@ mod tests {
 		template = Template::Assets;
 		assert_eq!(template.matches(&Provider::Pop), true);
 		assert_eq!(template.matches(&Provider::Parity), false);
+
+		template = Template::Contracts;
+		assert_eq!(template.matches(&Provider::Pop), true);
+		assert_eq!(template.matches(&Provider::Parity), false);
+
+		template = Template::EVM;
+		assert_eq!(template.matches(&Provider::Pop), true);
+		assert_eq!(template.matches(&Provider::Parity), false);
 	}
 
 	#[test]
@@ -161,6 +183,8 @@ mod tests {
 		assert_eq!(Template::from_str("base").unwrap(), Template::Base);
 		assert_eq!(Template::from_str("").unwrap_or_default(), Template::Base);
 		assert_eq!(Template::from_str("assets").unwrap(), Template::Assets);
+		assert_eq!(Template::from_str("contracts").unwrap(), Template::Contracts);
+		assert_eq!(Template::from_str("evm").unwrap(), Template::EVM);
 		assert_eq!(Template::from_str("cpt").unwrap(), Template::ParityContracts);
 		assert_eq!(Template::from_str("fpt").unwrap(), Template::ParityFPT);
 	}
@@ -187,6 +211,13 @@ mod tests {
 			template.repository_url().unwrap(),
 			"https://github.com/r0gue-io/assets-parachain"
 		);
+		template = Template::Contracts;
+		assert_eq!(
+			template.repository_url().unwrap(),
+			"https://github.com/r0gue-io/contracts-parachain"
+		);
+		template = Template::EVM;
+		assert_eq!(template.repository_url().unwrap(), "https://github.com/r0gue-io/evm-parachain");
 	}
 
 	#[test]

@@ -6,7 +6,7 @@ use crate::{
 		git::Git,
 		helpers::{sanitize, write_to_file},
 	},
-	Config, Template,
+	Config, Provider, Template,
 };
 use anyhow::Result;
 use std::{fs, path::Path};
@@ -21,7 +21,7 @@ pub fn instantiate_template_dir(
 ) -> Result<Option<String>> {
 	sanitize(target)?;
 
-	if matches!(template, &Template::Base) {
+	if template.matches(&Provider::Pop) {
 		return instantiate_base_template(target, config, tag_version);
 	}
 	let tag = Git::clone_and_degit(template.repository_url()?, target, tag_version)?;
