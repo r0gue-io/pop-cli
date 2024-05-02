@@ -83,10 +83,7 @@ pub enum Template {
 		serialize = "assets",
 		message = "Assets",
 		detailed_message = "Parachain configured with fungible and non-fungilble asset functionalities.",
-		props(
-			Provider = "Pop",
-			Repository = "https://github.com/r0gue-io/assets-parachain"
-		)
+		props(Provider = "Pop", Repository = "https://github.com/r0gue-io/assets-parachain")
 	)]
 	Assets,
 	// Parity
