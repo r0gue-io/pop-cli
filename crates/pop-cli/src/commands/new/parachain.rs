@@ -144,7 +144,7 @@ fn generate_parachain_from_template(
 	))?;
 	let destination_path = check_destination_path(name_template)?;
 
-	let mut spinner = cliclack::spinner();
+	let spinner = cliclack::spinner();
 	spinner.start("Generating parachain...");
 	let tag = instantiate_template_dir(template, destination_path, tag_version, config)?;
 	if let Err(err) = Git::git_init(destination_path, "initialized parachain") {
