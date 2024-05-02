@@ -55,6 +55,13 @@ impl NewPalletCommand {
 				description: self.description.clone().expect("default values"),
 			},
 		)?;
+
+		let _ = tokio::spawn(pop_telemetry::record_cli_command(
+			"new",
+			serde_json::json!({"pallet": "template"}),
+		))
+		.await;
+
 		spinner.stop("Generation complete");
 		outro(format!("cd into \"{}\" and enjoy hacking! 🚀", &self.name))?;
 		Ok(())

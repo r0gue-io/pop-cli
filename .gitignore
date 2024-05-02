@@ -3,3 +3,7 @@
 /src/x.rs
 
 .DS_Store
+
+# IDEs
+.idea
+.vscode

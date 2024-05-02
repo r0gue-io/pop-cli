@@ -19,15 +19,27 @@ pub(crate) struct TestContractCommand {
 impl TestContractCommand {
 	pub(crate) fn execute(&self) -> anyhow::Result<()> {
 		clear_screen()?;
+
 		if self.features.is_some() && self.features.clone().unwrap().contains("e2e-tests") {
 			intro(format!(
 				"{}: Starting end-to-end tests",
 				style(" Pop CLI ").black().on_magenta()
 			))?;
+
+			let _ = tokio::spawn(pop_telemetry::record_cli_command(
+				"test",
+				serde_json::json!({"contract": "e2e"}),
+			));
+
 			test_e2e_smart_contract(&self.path)?;
 			outro("End-to-end testing complete")?;
 		} else {
 			intro(format!("{}: Starting unit tests", style(" Pop CLI ").black().on_magenta()))?;
+			let _ = tokio::spawn(pop_telemetry::record_cli_command(
+				"test",
+				serde_json::json!({"contract": "unit"}),
+			));
+
 			test_smart_contract(&self.path)?;
 			outro("Unit testing complete")?;
 		}

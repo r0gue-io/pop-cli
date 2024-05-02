@@ -142,6 +142,12 @@ fn generate_parachain_from_template(
 		template,
 		provider
 	))?;
+
+	tokio::spawn(pop_telemetry::record_cli_command(
+		"new",
+		serde_json::json!({"parachain": {provider.to_string(): template.to_string()}}),
+	));
+
 	let destination_path = check_destination_path(name_template)?;
 
 	let mut spinner = cliclack::spinner();

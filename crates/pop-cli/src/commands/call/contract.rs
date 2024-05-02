@@ -57,6 +57,11 @@ impl CallContractCommand {
 	pub(crate) async fn execute(&self) -> anyhow::Result<()> {
 		clear_screen()?;
 		intro(format!("{}: Calling a contract", style(" Pop CLI ").black().on_magenta()))?;
+		let _ = tokio::spawn(pop_telemetry::record_cli_command(
+			"call",
+			serde_json::json!({"contract": ""}),
+		));
+
 		set_theme(Theme);
 
 		let call_exec = set_up_call(CallOpts {

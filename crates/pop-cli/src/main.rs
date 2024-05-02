@@ -40,6 +40,9 @@ enum Commands {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+	// TODO: use tokio spawn
+	let _ = pop_telemetry::record_cli_used().await;
+
 	let cli = Cli::parse();
 	match cli.command {
 		Commands::New(args) => Ok(match &args.command {

@@ -20,6 +20,12 @@ impl BuildParachainCommand {
 	pub(crate) fn execute(&self) -> anyhow::Result<()> {
 		clear_screen()?;
 		intro(format!("{}: Building a parachain", style(" Pop CLI ").black().on_magenta()))?;
+
+		let _ = tokio::spawn(pop_telemetry::record_cli_command(
+			"build",
+			serde_json::json!({"parachain": ""}),
+		));
+
 		set_theme(Theme);
 		build_parachain(&self.path)?;
 

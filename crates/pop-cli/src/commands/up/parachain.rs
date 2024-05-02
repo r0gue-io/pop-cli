@@ -30,6 +30,13 @@ impl ZombienetCommand {
 	pub(crate) async fn execute(&self) -> anyhow::Result<()> {
 		clear_screen()?;
 		intro(format!("{}: Deploy a parachain", style(" Pop CLI ").black().on_magenta()))?;
+
+		let _ = tokio::spawn(pop_telemetry::record_cli_command(
+			"up",
+			serde_json::json!({"parachain": ""}),
+		))
+		.await;
+
 		set_theme(Theme);
 		// Parse arguments
 		let cache = crate::cache()?;
