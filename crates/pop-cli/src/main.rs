@@ -82,3 +82,10 @@ fn cache() -> Result<PathBuf> {
 	create_dir_all(cache_path.as_path())?;
 	Ok(cache_path)
 }
+
+#[test]
+fn verify_cli() {
+	// https://docs.rs/clap/latest/clap/_derive/_tutorial/chapter_4/index.html
+	use clap::CommandFactory;
+	Cli::command().debug_assert()
+}
