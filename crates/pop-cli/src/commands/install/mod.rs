@@ -1,53 +1,32 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use clap::{Args, Subcommand};
-use std::fs;
+use anyhow::Context;
+use clap::Args;
+use tokio::{fs, process::Command};
 
 #[derive(Args)]
 #[command(args_conflicts_with_subcommands = true)]
 /// Setup user environment for substrate development
 /// Runs script `scripts/get_substrate.sh`
-pub(crate) struct InstallArgs {
-	#[command(subcommand)]
-	pub command: Option<InstallCommands>,
-}
-
-#[derive(Subcommand)]
-pub(crate) enum InstallCommands {
-	/// Install necessary tools for parachain development.
-	/// Same as `pop install` 
-	#[clap(alias = "p")]
-	Parachain,
-	/// Install tools for ink! contract development
-	#[clap(alias = "c")]
-	Contract,
-	/// Install all tools
-	#[clap(alias = "a")]
-	All,
-}
+pub(crate) struct InstallArgs;
 
 impl InstallArgs {
 	pub(crate) async fn execute(self) -> anyhow::Result<()> {
-		let scripts_temp = tempfile::tempdir()?;
+		let temp = tempfile::tempdir()?;
+		let scripts_path = temp.path().join("get_substrate.sh");
 		let client = reqwest::Client::new();
-		let pre_substrate = client
-			.get("https://raw.githubusercontent.com/r0gue-io/pop-cli/main/scripts/get_substrate.sh")
+		let script = client
+			.get("https://raw.githubusercontent.com/r0gue-io/pop-cli/pop-install/scripts/get_substrate.sh")
 			.send()
-			.await?
+			.await
+			.context("Network Error: Failed to fetch script from Github")?
 			.text()
 			.await?;
-		fs::write(scripts_temp.path().join("substrate.sh"), pre_substrate)?;
-
-		// match self.command {
-		// 	InstallCommands::Parachain => install_parachain().await,
-		// 	InstallCommands::Contract => install_contract().await,
-		// 	InstallCommands::Zombienet => install_zombienet().await,
-		// 	InstallCommands::All => install_all().await,
-		// }
+		fs::write(scripts_path.as_path(), script).await?;
+		if cfg!(target_os = "windows") {
+			return Ok(cliclack::log::error("Windows is supported only with WSL2")?);
+		}
+		Command::new("bash").arg(scripts_path).spawn()?;
 		Ok(())
 	}
 }
-
-// async fn install_parachain() -> anyhow::Result<()> {
-// 	Ok(())
-// }

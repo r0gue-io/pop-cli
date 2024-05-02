@@ -1,5 +1,4 @@
 #!/bin/bash
-# Copyright 2015-2020 Parity Technologies (UK) Ltd.
 
 if [[ "$OSTYPE" == "linux-gnu" ]]; then
 	set -e
