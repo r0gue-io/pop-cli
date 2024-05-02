@@ -26,7 +26,7 @@ impl TestContractCommand {
 				style(" Pop CLI ").black().on_magenta()
 			))?;
 
-			let _ = tokio::spawn(pop_telemetry::record_cli_command(
+			tokio::spawn(pop_telemetry::record_cli_command(
 				"test",
 				serde_json::json!({"contract": "e2e"}),
 			));
@@ -35,7 +35,7 @@ impl TestContractCommand {
 			outro("End-to-end testing complete")?;
 		} else {
 			intro(format!("{}: Starting unit tests", style(" Pop CLI ").black().on_magenta()))?;
-			let _ = tokio::spawn(pop_telemetry::record_cli_command(
+			tokio::spawn(pop_telemetry::record_cli_command(
 				"test",
 				serde_json::json!({"contract": "unit"}),
 			));

@@ -20,7 +20,7 @@ impl BuildContractCommand {
 		clear_screen()?;
 		intro(format!("{}: Building a contract", style(" Pop CLI ").black().on_magenta()))?;
 
-		let _ = tokio::spawn(pop_telemetry::record_cli_command(
+		tokio::spawn(pop_telemetry::record_cli_command(
 			"build",
 			serde_json::json!({"contract": ""}),
 		));

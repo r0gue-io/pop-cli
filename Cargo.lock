@@ -5488,6 +5488,7 @@ dependencies = [
  "pop-parachains",
  "pop-telemetry",
  "predicates",
+ "serde",
  "serde_json",
  "sp-core 30.0.0",
  "sp-weights",
@@ -5548,9 +5549,11 @@ dependencies = [
 name = "pop-telemetry"
 version = "0.1.0"
 dependencies = [
+ "dirs",
  "hostname 0.4.0",
  "log",
  "reqwest",
+ "serde",
  "serde_json",
  "thiserror",
  "tokio",

@@ -11,3 +11,5 @@ reqwest.workspace = true
 serde_json.workspace = true
 hostname.workspace = true
 log.workspace = true
+dirs = { workspace = true }
+serde.workspace = true

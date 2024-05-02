@@ -7,6 +7,7 @@ mod style;
 
 use anyhow::{anyhow, Result};
 use clap::{Parser, Subcommand};
+use cliclack::log;
 use std::{fs::create_dir_all, path::PathBuf};
 
 #[derive(Parser)]
@@ -38,10 +39,28 @@ enum Commands {
 	Test(commands::test::TestArgs),
 }
 
+fn init_config() -> Result<()> {
+	match pop_telemetry::write_default_config() {
+		Ok(maybe_path) => {
+			if let Some(path) = maybe_path {
+				log::info(format!("Initialized config file at {}", &path.to_str().unwrap()))?;
+			}
+		},
+		Err(err) => {
+			log::warning(format!(
+				"Unable to initialize config file, continuing... {}",
+				err.to_string()
+			))?;
+		},
+	}
+	Ok(())
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
-	// TODO: use tokio spawn
-	let _ = pop_telemetry::record_cli_used().await;
+	init_config()?;
+
+	tokio::spawn(pop_telemetry::record_cli_used());
 
 	let cli = Cli::parse();
 	match cli.command {
@@ -75,7 +94,6 @@ async fn main() -> Result<()> {
 		},
 	}
 }
-
 #[cfg(feature = "parachain")]
 fn cache() -> Result<PathBuf> {
 	let cache_path = dirs::cache_dir()
