@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 use crate::style::{style, Theme};
 use anyhow::Result;
-use clap::Args;
+use clap::{builder::PossibleValue, Args};
 use std::{
 	fs,
 	path::{Path, PathBuf},
@@ -9,20 +9,23 @@ use std::{
 
 use cliclack::{clear_screen, confirm, input, intro, log, outro, outro_cancel, set_theme};
 use pop_parachains::{instantiate_template_dir, Config, Git, GitHub, Provider, Release, Template};
+use strum::VariantArray;
 
 #[derive(Args)]
 pub struct NewParachainCommand {
 	#[arg(help = "Name of the project. If empty assistance in the process will be provided.")]
 	pub(crate) name: Option<String>,
 	#[arg(
-		help = "Template provider. Options are pop or parity (deprecated).",
-		default_value = "pop"
+		help = "Template provider.",
+		default_value = Provider::Pop.as_ref(),
+		value_parser = crate::enum_variants!(Provider)
 	)]
 	pub(crate) provider: Option<Provider>,
 	#[arg(
 		short = 't',
 		long,
-		help = "Template to use: 'base' for Pop and 'cpt' and 'fpt' for Parity templates"
+		help = "Template to use.",
+		value_parser = crate::enum_variants!(Template)
 	)]
 	pub(crate) template: Option<Template>,
 	#[arg(long, short, help = "Token Symbol", default_value = "UNIT")]
@@ -42,6 +45,16 @@ pub struct NewParachainCommand {
 		help = "Path for the parachain project, [default: current directory]"
 	)]
 	pub(crate) path: Option<PathBuf>,
+}
+
+#[macro_export]
+macro_rules! enum_variants {
+	($e: ty) => {{
+		<$e>::VARIANTS
+			.iter()
+			.map(|p| PossibleValue::new(p.as_ref()))
+			.collect::<Vec<_>>()
+	}};
 }
 
 impl NewParachainCommand {
