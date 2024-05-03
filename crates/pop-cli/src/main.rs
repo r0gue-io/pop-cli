@@ -9,6 +9,7 @@ use anyhow::{anyhow, Result};
 use clap::{Parser, Subcommand};
 use cliclack::log;
 use std::{fs::create_dir_all, path::PathBuf};
+use tokio::task::JoinHandle;
 
 #[derive(Parser)]
 #[command(author, version, about, styles=style::get_styles())]
@@ -60,39 +61,104 @@ fn init_config() -> Result<()> {
 async fn main() -> Result<()> {
 	init_config()?;
 
+	// handle for await not used here as telemetry should complete before any of the commands do.
 	tokio::spawn(pop_telemetry::record_cli_used());
 
+	// If error occurs, this will be used to ensure error telemetry is complete before destructing.
+	// This await handle is used as the error will not have sufficient time to report before destruction.
+	let mut tel_error_handle: Option<JoinHandle<pop_telemetry::Result<()>>> = None;
+
 	let cli = Cli::parse();
-	match cli.command {
+	let res = match cli.command {
 		Commands::New(args) => Ok(match &args.command {
 			#[cfg(feature = "parachain")]
-			commands::new::NewCommands::Parachain(cmd) => cmd.execute().await?,
+			commands::new::NewCommands::Parachain(cmd) => cmd.execute().await.map_err(|err| {
+				tel_error_handle = Some(tokio::spawn(pop_telemetry::record_cli_command(
+					"error",
+					serde_json::json!({"new": "parachain"}),
+				)));
+				err
+			})?,
 			#[cfg(feature = "parachain")]
-			commands::new::NewCommands::Pallet(cmd) => cmd.execute().await?,
+			commands::new::NewCommands::Pallet(cmd) => cmd.execute().await.map_err(|err| {
+				tel_error_handle = Some(tokio::spawn(pop_telemetry::record_cli_command(
+					"error",
+					serde_json::json!({"new": "pallet"}),
+				)));
+				err
+			})?,
 			#[cfg(feature = "contract")]
-			commands::new::NewCommands::Contract(cmd) => cmd.execute().await?,
+			commands::new::NewCommands::Contract(cmd) => cmd.execute().await.map_err(|err| {
+				tel_error_handle = Some(tokio::spawn(pop_telemetry::record_cli_command(
+					"error",
+					serde_json::json!({"new": "contract"}),
+				)));
+				err
+			})?,
 		}),
 		Commands::Build(args) => match &args.command {
 			#[cfg(feature = "parachain")]
-			commands::build::BuildCommands::Parachain(cmd) => cmd.execute(),
+			commands::build::BuildCommands::Parachain(cmd) => cmd.execute().map_err(|err| {
+				tel_error_handle = Some(tokio::spawn(pop_telemetry::record_cli_command(
+					"error",
+					serde_json::json!({"build": "parachain"}),
+				)));
+				err
+			}),
 			#[cfg(feature = "contract")]
-			commands::build::BuildCommands::Contract(cmd) => cmd.execute(),
+			commands::build::BuildCommands::Contract(cmd) => cmd.execute().map_err(|err| {
+				tel_error_handle = Some(tokio::spawn(pop_telemetry::record_cli_command(
+					"error",
+					serde_json::json!({"build": "contract"}),
+				)));
+				err
+			}),
 		},
 		#[cfg(feature = "contract")]
 		Commands::Call(args) => Ok(match &args.command {
-			commands::call::CallCommands::Contract(cmd) => cmd.execute().await?,
+			commands::call::CallCommands::Contract(cmd) => cmd.execute().await.map_err(|err| {
+				tel_error_handle = Some(tokio::spawn(pop_telemetry::record_cli_command(
+					"error",
+					serde_json::json!({"call": "contract"}),
+				)));
+				err
+			})?,
 		}),
 		Commands::Up(args) => Ok(match &args.command {
 			#[cfg(feature = "parachain")]
-			commands::up::UpCommands::Parachain(cmd) => cmd.execute().await?,
+			commands::up::UpCommands::Parachain(cmd) => cmd.execute().await.map_err(|err| {
+				tel_error_handle = Some(tokio::spawn(pop_telemetry::record_cli_command(
+					"error",
+					serde_json::json!({"up": "parachain"}),
+				)));
+				err
+			})?,
 			#[cfg(feature = "contract")]
-			commands::up::UpCommands::Contract(cmd) => cmd.execute().await?,
+			commands::up::UpCommands::Contract(cmd) => cmd.execute().await.map_err(|err| {
+				tel_error_handle = Some(tokio::spawn(pop_telemetry::record_cli_command(
+					"error",
+					serde_json::json!({"up": "contract"}),
+				)));
+				err
+			})?,
 		}),
 		#[cfg(feature = "contract")]
 		Commands::Test(args) => match &args.command {
-			commands::test::TestCommands::Contract(cmd) => cmd.execute(),
+			commands::test::TestCommands::Contract(cmd) => cmd.execute().map_err(|err| {
+				tel_error_handle = Some(tokio::spawn(pop_telemetry::record_cli_command(
+					"error",
+					serde_json::json!({"test": "contract"}),
+				)));
+				err
+			}),
 		},
+	};
+
+	if let Some(handle) = tel_error_handle {
+		let _ = handle.await;
 	}
+
+	res
 }
 #[cfg(feature = "parachain")]
 fn cache() -> Result<PathBuf> {
