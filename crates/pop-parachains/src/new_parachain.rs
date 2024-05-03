@@ -22,20 +22,20 @@ pub fn instantiate_template_dir(
 	sanitize(target)?;
 
 	if template.matches(&Provider::Pop) {
-		return instantiate_base_template(target, config, tag_version);
+		return instantiate_base_template(template, target, config, tag_version);
 	}
 	let tag = Git::clone_and_degit(template.repository_url()?, target, tag_version)?;
 	Ok(tag)
 }
 
 pub fn instantiate_base_template(
+	template: &Template,
 	target: &Path,
 	config: Config,
 	tag_version: Option<String>,
 ) -> Result<Option<String>> {
 	let temp_dir = ::tempfile::TempDir::new_in(std::env::temp_dir())?;
 	let source = temp_dir.path();
-	let template = crate::templates::Template::Base;
 
 	let tag = Git::clone_and_degit(template.repository_url()?, source, tag_version)?;
 
@@ -81,7 +81,7 @@ mod tests {
 			initial_endowment: "1000000".to_string(),
 		};
 		let result: anyhow::Result<Option<String>> =
-			instantiate_base_template(temp_dir.path(), config, None);
+			instantiate_base_template(&Template::Standard, temp_dir.path(), config, None);
 		assert!(result.is_ok());
 		Ok(temp_dir)
 	}

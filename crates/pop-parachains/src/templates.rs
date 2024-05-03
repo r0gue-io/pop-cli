@@ -37,7 +37,7 @@ impl Provider {
 
 	pub fn default_template(&self) -> Template {
 		match &self {
-			Provider::Pop => Template::Base,
+			Provider::Pop => Template::Standard,
 			Provider::Parity => Template::ParityContracts,
 		}
 	}
@@ -78,12 +78,12 @@ pub enum Template {
 	// Pop
 	#[default]
 	#[strum(
-		serialize = "base",
+		serialize = "standard",
 		message = "Standard",
 		detailed_message = "A standard parachain",
 		props(Provider = "Pop", Repository = "https://github.com/r0gue-io/base-parachain")
 	)]
-	Base,
+	Standard,
 	#[strum(
 		serialize = "assets",
 		message = "Assets",
@@ -162,7 +162,7 @@ mod tests {
 		for template in Template::VARIANTS {
 			if matches!(
 				template,
-				Template::Base | Template::Assets | Template::Contracts | Template::EVM
+				Template::Standard | Template::Assets | Template::Contracts | Template::EVM
 			) {
 				assert_eq!(template.matches(&Provider::Pop), true);
 				assert_eq!(template.matches(&Provider::Parity), false);
@@ -177,7 +177,7 @@ mod tests {
 	#[test]
 	fn test_convert_string_to_template() {
 		let hash_map = HashMap::from([
-			("base".to_string(), Template::Base),
+			("standard".to_string(), Template::Standard),
 			("assets".to_string(), Template::Assets),
 			("contracts".to_string(), Template::Contracts),
 			("evm".to_string(), Template::EVM),
@@ -185,7 +185,7 @@ mod tests {
 			("fpt".to_string(), Template::ParityFPT),
 		]);
 		// Test the default
-		assert_eq!(Template::from_str("").unwrap_or_default(), Template::Base);
+		assert_eq!(Template::from_str("").unwrap_or_default(), Template::Standard);
 		// Test the rest
 		for template in Template::VARIANTS {
 			assert_eq!(
@@ -198,7 +198,7 @@ mod tests {
 	#[test]
 	fn test_repository_url() {
 		let hash_map = HashMap::from([
-			("base".to_string(), "https://github.com/r0gue-io/base-parachain"),
+			("standard".to_string(), "https://github.com/r0gue-io/base-parachain"),
 			("assets".to_string(), "https://github.com/r0gue-io/assets-parachain"),
 			("contracts".to_string(), "https://github.com/r0gue-io/contracts-parachain"),
 			("evm".to_string(), "https://github.com/r0gue-io/evm-parachain"),
@@ -216,7 +216,7 @@ mod tests {
 	#[test]
 	fn test_default_provider() {
 		let mut provider = Provider::Pop;
-		assert_eq!(provider.default_template(), Template::Base);
+		assert_eq!(provider.default_template(), Template::Standard);
 		provider = Provider::Parity;
 		assert_eq!(provider.default_template(), Template::ParityContracts);
 	}
