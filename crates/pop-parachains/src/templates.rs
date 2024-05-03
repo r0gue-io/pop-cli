@@ -157,6 +157,27 @@ mod tests {
 	use super::*;
 	use std::{collections::HashMap, str::FromStr};
 
+	fn templates_names() -> HashMap<String, Template> {
+		HashMap::from([
+			("standard".to_string(), Template::Standard),
+			("assets".to_string(), Template::Assets),
+			("contracts".to_string(), Template::Contracts),
+			("evm".to_string(), Template::EVM),
+			("cpt".to_string(), Template::ParityContracts),
+			("fpt".to_string(), Template::ParityFPT),
+		])
+	}
+	fn templates_urls() -> HashMap<String, &'static str> {
+		HashMap::from([
+			("standard".to_string(), "https://github.com/r0gue-io/base-parachain"),
+			("assets".to_string(), "https://github.com/r0gue-io/assets-parachain"),
+			("contracts".to_string(), "https://github.com/r0gue-io/contracts-parachain"),
+			("evm".to_string(), "https://github.com/r0gue-io/evm-parachain"),
+			("cpt".to_string(), "https://github.com/paritytech/substrate-contracts-node"),
+			("fpt".to_string(), "https://github.com/paritytech/frontier-parachain-template"),
+		])
+	}
+
 	#[test]
 	fn test_is_template_correct() {
 		for template in Template::VARIANTS {
@@ -176,39 +197,25 @@ mod tests {
 
 	#[test]
 	fn test_convert_string_to_template() {
-		let hash_map = HashMap::from([
-			("standard".to_string(), Template::Standard),
-			("assets".to_string(), Template::Assets),
-			("contracts".to_string(), Template::Contracts),
-			("evm".to_string(), Template::EVM),
-			("cpt".to_string(), Template::ParityContracts),
-			("fpt".to_string(), Template::ParityFPT),
-		]);
+		let template_names = templates_names();
 		// Test the default
 		assert_eq!(Template::from_str("").unwrap_or_default(), Template::Standard);
 		// Test the rest
 		for template in Template::VARIANTS {
 			assert_eq!(
 				&Template::from_str(&template.to_string()).unwrap(),
-				hash_map.get(&template.to_string()).unwrap()
+				template_names.get(&template.to_string()).unwrap()
 			);
 		}
 	}
 
 	#[test]
 	fn test_repository_url() {
-		let hash_map = HashMap::from([
-			("standard".to_string(), "https://github.com/r0gue-io/base-parachain"),
-			("assets".to_string(), "https://github.com/r0gue-io/assets-parachain"),
-			("contracts".to_string(), "https://github.com/r0gue-io/contracts-parachain"),
-			("evm".to_string(), "https://github.com/r0gue-io/evm-parachain"),
-			("cpt".to_string(), "https://github.com/paritytech/substrate-contracts-node"),
-			("fpt".to_string(), "https://github.com/paritytech/frontier-parachain-template"),
-		]);
+		let template_urls = templates_urls();
 		for template in Template::VARIANTS {
 			assert_eq!(
 				&template.repository_url().unwrap(),
-				hash_map.get(&template.to_string()).unwrap()
+				template_urls.get(&template.to_string()).unwrap()
 			);
 		}
 	}
