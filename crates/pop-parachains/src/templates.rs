@@ -2,20 +2,24 @@
 use strum::{
 	EnumMessage as EnumMessageT, EnumProperty as EnumPropertyT, VariantArray as VariantArrayT,
 };
-use strum_macros::{Display, EnumMessage, EnumProperty, EnumString, VariantArray};
+use strum_macros::{AsRefStr, Display, EnumMessage, EnumProperty, EnumString, VariantArray};
 use thiserror::Error;
 
-#[derive(Clone, Default, Debug, Display, EnumMessage, EnumString, Eq, PartialEq, VariantArray)]
+#[derive(
+	AsRefStr, Clone, Default, Debug, Display, EnumMessage, EnumString, Eq, PartialEq, VariantArray,
+)]
 pub enum Provider {
 	#[default]
 	#[strum(
 		ascii_case_insensitive,
+		serialize = "pop",
 		message = "Pop",
 		detailed_message = "An all-in-one tool for Polkadot development."
 	)]
 	Pop,
 	#[strum(
 		ascii_case_insensitive,
+		serialize = "parity",
 		message = "Parity",
 		detailed_message = "Solutions for a trust-free world."
 	)]
@@ -58,6 +62,7 @@ pub struct Config {
 }
 
 #[derive(
+	AsRefStr,
 	Clone,
 	Debug,
 	Default,
@@ -132,7 +137,8 @@ impl Template {
 	}
 
 	pub fn matches(&self, provider: &Provider) -> bool {
-		self.get_str("Provider") == Some(provider.to_string().as_str())
+		// Match explicitly on provider name (message)
+		self.get_str("Provider") == Some(provider.name())
 	}
 
 	pub fn repository_url(&self) -> Result<&str, Error> {
