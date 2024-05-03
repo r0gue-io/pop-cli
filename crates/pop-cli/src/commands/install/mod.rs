@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use std::process::Stdio;
-
 use anyhow::Context;
 use clap::Args;
 use tokio::{fs, process::Command};

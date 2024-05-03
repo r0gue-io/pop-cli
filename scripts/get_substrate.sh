@@ -16,7 +16,7 @@ if [[ "$OSTYPE" == "linux-gnu" ]]; then
 	elif [ -f /etc/SuSE-release ]; then
 		echo "Suse Linux detected."
 		echo "This OS is not supported with this script at present. Sorry."
-		echo "Please refer to https://github.com/paritytech/polkadot-sdk for setup information."
+		echo "Please refer to https://docs.substrate.io/install/ for setup information."
 		exit 1
 	elif [ -f /etc/arch-release ]; then
 		echo "Arch Linux detected."
@@ -26,7 +26,7 @@ if [[ "$OSTYPE" == "linux-gnu" ]]; then
 	elif [ -f /etc/mandrake-release ]; then
 		echo "Mandrake Linux detected."
 		echo "This OS is not supported with this script at present. Sorry."
-		echo "Please refer to https://github.com/paritytech/polkadot-sdk for setup information."
+		echo "Please refer to https://docs.substrate.io/install/ for setup information."
 		exit 1
 	elif [ -f /etc/debian_version ]; then
 		echo "Ubuntu/Debian Linux detected."
@@ -35,7 +35,7 @@ if [[ "$OSTYPE" == "linux-gnu" ]]; then
 	else
 		echo "Unknown Linux distribution."
 		echo "This OS is not supported with this script at present. Sorry."
-		echo "Please refer to https://github.com/paritytech/polkadot-sdk for setup information."
+		echo "Please refer to https://docs.substrate.io/install/ for setup information."
 		exit 1
 	fi
 elif [[ "$OSTYPE" == "darwin"* ]]; then
@@ -51,12 +51,12 @@ elif [[ "$OSTYPE" == "darwin"* ]]; then
 elif [[ "$OSTYPE" == "freebsd"* ]]; then
 	echo "FreeBSD detected."
 	echo "This OS is not supported with this script at present. Sorry."
-	echo "Please refer to https://github.com/paritytech/polkadot-sdk for setup information."
+	echo "Please refer to https://docs.substrate.io/install/ for setup information."
 	exit 1
 else
 	echo "Unknown operating system."
 	echo "This OS is not supported with this script at present. Sorry."
-	echo "Please refer to https://github.com/paritytech/polkadot-sdk for setup information."
+	echo "Please refer to https://docs.substrate.io/install/ for setup information."
 	exit 1
 fi
 
@@ -72,4 +72,4 @@ fi
 rustup update nightly
 rustup target add wasm32-unknown-unknown --toolchain nightly
 
-echo "Run source ~/.cargo/env now to update environment"
+echo "Run \`source ~/.cargo/env\` now to update environment"
