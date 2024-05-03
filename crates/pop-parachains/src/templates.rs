@@ -84,6 +84,13 @@ pub enum Template {
 		props(Provider = "Pop", Repository = "https://github.com/r0gue-io/base-parachain")
 	)]
 	Base,
+	#[strum(
+		serialize = "assets",
+		message = "Assets",
+		detailed_message = "Parachain configured with fungible and non-fungilble asset functionalities.",
+		props(Provider = "Pop", Repository = "https://github.com/r0gue-io/assets-parachain")
+	)]
+	Assets,
 	// Parity
 	#[strum(
 		serialize = "cpt",
@@ -149,12 +156,17 @@ mod tests {
 		template = Template::ParityFPT;
 		assert_eq!(template.matches(&Provider::Pop), false);
 		assert_eq!(template.matches(&Provider::Parity), true);
+
+		template = Template::Assets;
+		assert_eq!(template.matches(&Provider::Pop), true);
+		assert_eq!(template.matches(&Provider::Parity), false);
 	}
 
 	#[test]
 	fn test_convert_string_to_template() {
 		assert_eq!(Template::from_str("base").unwrap(), Template::Base);
 		assert_eq!(Template::from_str("").unwrap_or_default(), Template::Base);
+		assert_eq!(Template::from_str("assets").unwrap(), Template::Assets);
 		assert_eq!(Template::from_str("cpt").unwrap(), Template::ParityContracts);
 		assert_eq!(Template::from_str("fpt").unwrap(), Template::ParityFPT);
 	}
@@ -175,6 +187,11 @@ mod tests {
 		assert_eq!(
 			template.repository_url().unwrap(),
 			"https://github.com/paritytech/frontier-parachain-template"
+		);
+		template = Template::Assets;
+		assert_eq!(
+			template.repository_url().unwrap(),
+			"https://github.com/r0gue-io/assets-parachain"
 		);
 	}
 
