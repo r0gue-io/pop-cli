@@ -49,7 +49,7 @@ impl Provider {
 	pub fn templates(&self) -> Vec<&Template> {
 		Template::VARIANTS
 			.iter()
-			.filter(|t| t.get_str("Provider") == Some(self.name().to_string().as_str()))
+			.filter(|t| t.get_str("Provider") == Some(self.name()))
 			.collect()
 	}
 }
