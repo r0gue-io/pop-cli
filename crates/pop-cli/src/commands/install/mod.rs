@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
+use std::process::Stdio;
+
 use anyhow::Context;
 use clap::Args;
 use tokio::{fs, process::Command};
@@ -12,6 +14,9 @@ pub(crate) struct InstallArgs;
 
 impl InstallArgs {
 	pub(crate) async fn execute(self) -> anyhow::Result<()> {
+		if cfg!(target_os = "windows") {
+			return Ok(cliclack::log::error("Windows is supported only with WSL2")?);
+		}
 		let temp = tempfile::tempdir()?;
 		let scripts_path = temp.path().join("get_substrate.sh");
 		let client = reqwest::Client::new();
@@ -23,10 +28,8 @@ impl InstallArgs {
 			.text()
 			.await?;
 		fs::write(scripts_path.as_path(), script).await?;
-		if cfg!(target_os = "windows") {
-			return Ok(cliclack::log::error("Windows is supported only with WSL2")?);
-		}
-		Command::new("bash").arg(scripts_path).spawn()?;
+		Command::new("bash").arg(scripts_path).status().await?;
+		temp.close()?;
 		Ok(())
 	}
 }
