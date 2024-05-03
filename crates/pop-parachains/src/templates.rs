@@ -80,19 +80,19 @@ pub enum Template {
 	)]
 	Base,
 	#[strum(
-		serialize = "contracts",
-		message = "Contracts",
-		detailed_message = "Parachain configured to supports Wasm-based contracts.",
-		props(Provider = "Pop", Repository = "https://github.com/r0gue-io/contracts-parachain")
-	)]
-	Contracts,
-	#[strum(
 		serialize = "assets",
 		message = "Assets",
 		detailed_message = "Parachain configured with fungible and non-fungilble asset functionalities.",
 		props(Provider = "Pop", Repository = "https://github.com/r0gue-io/assets-parachain")
 	)]
 	Assets,
+	#[strum(
+		serialize = "contracts",
+		message = "Contracts",
+		detailed_message = "Parachain configured to supports Wasm-based contracts.",
+		props(Provider = "Pop", Repository = "https://github.com/r0gue-io/contracts-parachain")
+	)]
+	Contracts,
 	#[strum(
 		serialize = "evm",
 		message = "EVM",
@@ -103,7 +103,7 @@ pub enum Template {
 	// Parity
 	#[strum(
 		serialize = "cpt",
-		message = "Parity Contracts",
+		message = "Contracts",
 		detailed_message = "Minimal Substrate node configured for smart contracts via pallet-contracts.",
 		props(
 			Provider = "Parity",
@@ -113,7 +113,7 @@ pub enum Template {
 	ParityContracts,
 	#[strum(
 		serialize = "fpt",
-		message = "Parity EVM",
+		message = "EVM",
 		detailed_message = "Template node for a Frontier (EVM) based parachain.",
 		props(
 			Provider = "Parity",
@@ -149,7 +149,7 @@ pub enum Error {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use std::str::FromStr;
+	use std::{collections::HashMap, str::FromStr};
 
 	#[test]
 	fn test_is_template_correct() {
