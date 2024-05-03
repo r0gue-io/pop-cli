@@ -38,7 +38,7 @@ enum Commands {
 	Test(commands::test::TestArgs),
 	/// Install prerequisites for Substrate development
 	#[clap(alias = "i")]
-	Install(commands::install::InstallArgs)
+	Install(commands::install::InstallArgs),
 }
 
 #[tokio::main]
