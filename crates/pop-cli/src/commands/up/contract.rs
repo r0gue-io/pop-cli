@@ -56,8 +56,6 @@ impl UpContractCommand {
 		clear_screen()?;
 		intro(format!("{}: Deploy a smart contract", style(" Pop CLI ").black().on_magenta()))?;
 
-		tokio::spawn(pop_telemetry::record_cli_command("up", serde_json::json!({"contract": ""})));
-
 		let instantiate_exec = set_up_deployment(UpOpts {
 			path: self.path.clone(),
 			constructor: self.constructor.clone(),

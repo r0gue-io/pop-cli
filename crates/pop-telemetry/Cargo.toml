@@ -4,12 +4,12 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+dirs = { workspace = true }
+hostname.workspace = true
+log.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 url.workspace = true
-reqwest.workspace = true
-serde_json.workspace = true
-hostname.workspace = true
-log.workspace = true
-dirs = { workspace = true }
-serde.workspace = true

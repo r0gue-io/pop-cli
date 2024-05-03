@@ -11,11 +11,11 @@ path = "src/main.rs"
 [dependencies]
 anyhow.workspace = true
 duct.workspace = true
-tempfile.workspace = true
-url.workspace = true
-tokio.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+tempfile.workspace = true
+tokio.workspace = true
+url.workspace = true
 
 # pop-cli
 clap.workspace = true

@@ -51,11 +51,6 @@ impl NewContractCommand {
 		spinner.start("Generating contract...");
 		create_smart_contract(&self.name, contract_path.as_path())?;
 
-		tokio::spawn(pop_telemetry::record_cli_command(
-			"new",
-			serde_json::json!({"contract": "default"}),
-		));
-
 		spinner.stop("Smart contract created!");
 		outro(format!("cd into \"{}\" and enjoy hacking! 🚀", contract_path.display()))?;
 		Ok(())

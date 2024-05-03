@@ -56,11 +56,6 @@ impl NewPalletCommand {
 			},
 		)?;
 
-		tokio::spawn(pop_telemetry::record_cli_command(
-			"new",
-			serde_json::json!({"pallet": "template"}),
-		));
-
 		spinner.stop("Generation complete");
 		outro(format!("cd into \"{}\" and enjoy hacking! 🚀", &self.name))?;
 		Ok(())
