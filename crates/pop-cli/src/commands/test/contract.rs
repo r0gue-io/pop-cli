@@ -5,6 +5,8 @@ use std::path::PathBuf;
 use clap::Args;
 use cliclack::{clear_screen, intro, outro};
 use pop_contracts::{test_e2e_smart_contract, test_smart_contract};
+use pop_telemetry::Result as TelResult;
+use tokio::task::JoinHandle;
 
 use crate::style::style;
 
@@ -17,8 +19,9 @@ pub(crate) struct TestContractCommand {
 }
 
 impl TestContractCommand {
-	pub(crate) fn execute(&self) -> anyhow::Result<()> {
+	pub(crate) fn execute(&self) -> anyhow::Result<&str> {
 		clear_screen()?;
+		let mut feature = "";
 
 		if self.features.is_some() && self.features.clone().unwrap().contains("e2e-tests") {
 			intro(format!(
@@ -26,23 +29,17 @@ impl TestContractCommand {
 				style(" Pop CLI ").black().on_magenta()
 			))?;
 
-			tokio::spawn(pop_telemetry::record_cli_command(
-				"test",
-				serde_json::json!({"contract": "e2e"}),
-			));
+			feature = "e2e";
 
 			test_e2e_smart_contract(&self.path)?;
 			outro("End-to-end testing complete")?;
 		} else {
 			intro(format!("{}: Starting unit tests", style(" Pop CLI ").black().on_magenta()))?;
-			tokio::spawn(pop_telemetry::record_cli_command(
-				"test",
-				serde_json::json!({"contract": "unit"}),
-			));
+			feature = "unit";
 
 			test_smart_contract(&self.path)?;
 			outro("Unit testing complete")?;
 		}
-		Ok(())
+		Ok(feature)
 	}
 }

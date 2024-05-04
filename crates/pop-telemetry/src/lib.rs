@@ -26,7 +26,7 @@ pub enum TelemetryError {
 	SerializeFailed(String),
 }
 
-type Result<T> = std::result::Result<T, TelemetryError>;
+pub type Result<T> = std::result::Result<T, TelemetryError>;
 
 struct Telemetry {
 	// Endpoint to the telemetry API.

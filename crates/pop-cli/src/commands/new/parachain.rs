@@ -9,8 +9,10 @@ use std::{
 
 use cliclack::{clear_screen, confirm, input, intro, log, outro, outro_cancel, set_theme};
 use pop_parachains::{instantiate_template_dir, Config, Git, GitHub, Provider, Release, Template};
+use pop_telemetry::Result as TelResult;
+use tokio::task::JoinHandle;
 
-#[derive(Args)]
+#[derive(Args, Clone)]
 pub struct NewParachainCommand {
 	#[arg(help = "Name of the project. If empty assistance in the process will be provided.")]
 	pub(crate) name: Option<String>,
@@ -25,6 +27,8 @@ pub struct NewParachainCommand {
 		help = "Template to use: 'base' for Pop and 'cpt' and 'fpt' for Parity templates"
 	)]
 	pub(crate) template: Option<Template>,
+	#[arg(short = 'v', long, help = "Tag version to use for template")]
+	pub(crate) tag_version: Option<String>,
 	#[arg(long, short, help = "Token Symbol", default_value = "UNIT")]
 	pub(crate) symbol: Option<String>,
 	#[arg(long, short, help = "Token Decimals", default_value = "12")]
@@ -45,35 +49,40 @@ pub struct NewParachainCommand {
 }
 
 impl NewParachainCommand {
-	pub(crate) async fn execute(&self) -> Result<()> {
+	pub(crate) async fn execute(&self) -> Result<Template> {
 		clear_screen()?;
 		set_theme(Theme);
 
-		return match &self.name {
-			// If user doesn't select the name guide them to generate a parachain.
-			None => guide_user_to_generate_parachain().await,
-			Some(name) => {
-				let provider = &self.provider.clone().unwrap_or_default();
-				let template = match &self.template {
-					Some(template) => template.clone(),
-					None => provider.default_template(), // Each provider has a template by default
-				};
-
-				is_template_supported(provider, &template)?;
-				let config = get_customization_value(
-					&template,
-					self.symbol.clone(),
-					self.decimals,
-					self.initial_endowment.clone(),
-				)?;
-
-				generate_parachain_from_template(name, provider, &template, None, config)
-			},
+		let parachain_config = if self.name.is_none() {
+			guide_user_to_generate_parachain().await?
+		} else {
+			self.clone()
 		};
+
+		let name = &parachain_config
+			.name
+			.clone()
+			.expect("name can not be none as fallback above is interactive input; qed");
+		let provider = &parachain_config.provider.clone().unwrap_or_default();
+		let template = match &parachain_config.template {
+			Some(template) => template.clone(),
+			None => provider.default_template(), // Each provider has a template by default
+		};
+
+		is_template_supported(provider, &template)?;
+		let config = get_customization_value(
+			&template,
+			parachain_config.symbol.clone(),
+			parachain_config.decimals,
+			parachain_config.initial_endowment.clone(),
+		)?;
+
+		generate_parachain_from_template(name, provider, &template, None, config)?;
+		Ok(template)
 	}
 }
 
-async fn guide_user_to_generate_parachain() -> Result<()> {
+async fn guide_user_to_generate_parachain() -> Result<NewParachainCommand> {
 	intro(format!("{}: Generate a parachain", style(" Pop CLI ").black().on_magenta()))?;
 
 	let mut prompt = cliclack::select("Select a template provider: ".to_string());
@@ -119,15 +128,17 @@ async fn guide_user_to_generate_parachain() -> Result<()> {
 
 	clear_screen()?;
 
-	generate_parachain_from_template(
-		&name,
-		&provider,
-		&template,
-		release_name,
-		customizable_options,
-	)
+	Ok(NewParachainCommand {
+		name: Some(name),
+		provider: Some(provider.clone()),
+		template: Some(template.clone()),
+		tag_version: release_name,
+		symbol: Some(customizable_options.symbol),
+		decimals: Some(customizable_options.decimals),
+		initial_endowment: Some(customizable_options.initial_endowment),
+		path: None,
+	})
 }
-
 fn generate_parachain_from_template(
 	name_template: &String,
 	provider: &Provider,
@@ -142,11 +153,6 @@ fn generate_parachain_from_template(
 		template,
 		provider
 	))?;
-
-	tokio::spawn(pop_telemetry::record_cli_command(
-		"new",
-		serde_json::json!({"parachain": {provider.to_string(): template.to_string()}}),
-	));
 
 	let destination_path = check_destination_path(name_template)?;
 
@@ -285,6 +291,7 @@ mod tests {
 			name: Some("test_parachain".to_string()),
 			provider: Some(Provider::Pop),
 			template: Some(Template::Base),
+			tag_version: None,
 			symbol: Some("UNIT".to_string()),
 			decimals: Some(12),
 			initial_endowment: Some("1u64 << 60".to_string()),

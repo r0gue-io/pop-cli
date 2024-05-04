@@ -10,7 +10,7 @@ use clap::{Parser, Subcommand};
 use cliclack::log;
 use commands::*;
 use pop_telemetry::{record_cli_command, record_cli_used};
-use serde_json::json;
+use serde_json::{json, Value};
 use std::{fs::create_dir_all, path::PathBuf};
 use tokio::{spawn, task::JoinHandle};
 
@@ -53,24 +53,32 @@ async fn main() -> Result<()> {
 
 	// type to represent static telemetry data. I.e., does not contain data dynamically chosen by user
 	// like in pop new parachain.
-	let mut tel_data: (&str, &str, &str) = ("", "", "");
+	let mut tel_data: (&str, &str, Value) = ("", "", json!(""));
 
 	let cli = Cli::parse();
 	let res = match cli.command {
-		Commands::New(args) => Ok(match &args.command {
+		Commands::New(args) => Ok(match args.command {
 			#[cfg(feature = "parachain")]
-			new::NewCommands::Parachain(cmd) => cmd.execute().await?,
+			new::NewCommands::Parachain(cmd) => {
+				let template = cmd.execute().await?;
+				// should not panic so .expect is not used
+				tel_data = (
+					"new",
+					"parachain",
+					json!({template.provider().unwrap_or("provider-missing"): template.name()}),
+				);
+			},
 			#[cfg(feature = "parachain")]
 			new::NewCommands::Pallet(cmd) => {
 				// when there are more pallet selections, this will likely have to move deeper into the stack
-				tel_data = ("new", "pallet", "template");
+				tel_data = ("new", "pallet", json!("template"));
 
 				cmd.execute().await?
 			},
 			#[cfg(feature = "contract")]
 			new::NewCommands::Contract(cmd) => {
-				// When more contract selections are added this will likely need to go deeped in the stack
-				tel_data = ("new", "contract", "default");
+				// When more contract selections are added this will likely need to go deeper in the stack
+				tel_data = ("new", "contract", json!("default"));
 
 				cmd.execute().await?
 			},
@@ -78,13 +86,13 @@ async fn main() -> Result<()> {
 		Commands::Build(args) => match &args.command {
 			#[cfg(feature = "parachain")]
 			build::BuildCommands::Parachain(cmd) => {
-				tel_data = ("build", "parachain", "");
+				tel_data = ("build", "parachain", json!(""));
 
 				cmd.execute()
 			},
 			#[cfg(feature = "contract")]
 			build::BuildCommands::Contract(cmd) => {
-				tel_data = ("build", "contract", "");
+				tel_data = ("build", "contract", json!(""));
 
 				cmd.execute()
 			},
@@ -92,7 +100,7 @@ async fn main() -> Result<()> {
 		#[cfg(feature = "contract")]
 		Commands::Call(args) => Ok(match &args.command {
 			call::CallCommands::Contract(cmd) => {
-				tel_data = ("call", "contract", "");
+				tel_data = ("call", "contract", json!(""));
 
 				cmd.execute().await?
 			},
@@ -100,20 +108,24 @@ async fn main() -> Result<()> {
 		Commands::Up(args) => Ok(match &args.command {
 			#[cfg(feature = "parachain")]
 			up::UpCommands::Parachain(cmd) => {
-				tel_data = ("up", "parachain", "");
+				tel_data = ("up", "parachain", json!(""));
 
 				cmd.execute().await?
 			},
 			#[cfg(feature = "contract")]
 			up::UpCommands::Contract(cmd) => {
-				tel_data = ("up", "contract", "");
+				tel_data = ("up", "contract", json!(""));
 
 				cmd.execute().await?
 			},
 		}),
 		#[cfg(feature = "contract")]
 		Commands::Test(args) => match &args.command {
-			test::TestCommands::Contract(cmd) => cmd.execute(),
+			test::TestCommands::Contract(cmd) => {
+				let feature = cmd.execute()?;
+				tel_data = ("test", "contract", json!(feature));
+				Ok(())
+			},
 		},
 	};
 
