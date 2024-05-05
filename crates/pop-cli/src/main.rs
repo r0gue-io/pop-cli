@@ -57,32 +57,35 @@ async fn main() -> Result<()> {
 
 	let cli = Cli::parse();
 	let res = match cli.command {
-		Commands::New(args) => Ok(match args.command {
+		Commands::New(args) => match args.command {
 			#[cfg(feature = "parachain")]
-			new::NewCommands::Parachain(cmd) => {
-				let template = cmd.execute().await?;
-				// should not panic so .expect is not used
-				tel_data = (
-					"new",
-					"parachain",
-					json!({template.provider().unwrap_or("provider-missing"): template.name()}),
-				);
+			new::NewCommands::Parachain(cmd) => match cmd.execute().await {
+				Ok(template) => {
+					// telemetry should never cause a panic or early exit
+					tel_data = (
+						"new",
+						"parachain",
+						json!({template.provider().unwrap_or("provider-missing"): template.name()}),
+					);
+					Ok(())
+				},
+				Err(e) => Err(e),
 			},
 			#[cfg(feature = "parachain")]
 			new::NewCommands::Pallet(cmd) => {
 				// when there are more pallet selections, this will likely have to move deeper into the stack
 				tel_data = ("new", "pallet", json!("template"));
 
-				cmd.execute().await?
+				cmd.execute().await
 			},
 			#[cfg(feature = "contract")]
 			new::NewCommands::Contract(cmd) => {
 				// When more contract selections are added this will likely need to go deeper in the stack
 				tel_data = ("new", "contract", json!("default"));
 
-				cmd.execute().await?
+				cmd.execute().await
 			},
-		}),
+		},
 		Commands::Build(args) => match &args.command {
 			#[cfg(feature = "parachain")]
 			build::BuildCommands::Parachain(cmd) => {
@@ -98,40 +101,42 @@ async fn main() -> Result<()> {
 			},
 		},
 		#[cfg(feature = "contract")]
-		Commands::Call(args) => Ok(match &args.command {
+		Commands::Call(args) => match &args.command {
 			call::CallCommands::Contract(cmd) => {
 				tel_data = ("call", "contract", json!(""));
 
-				cmd.execute().await?
+				cmd.execute().await
 			},
-		}),
-		Commands::Up(args) => Ok(match &args.command {
+		},
+		Commands::Up(args) => match &args.command {
 			#[cfg(feature = "parachain")]
 			up::UpCommands::Parachain(cmd) => {
 				tel_data = ("up", "parachain", json!(""));
 
-				cmd.execute().await?
+				cmd.execute().await
 			},
 			#[cfg(feature = "contract")]
 			up::UpCommands::Contract(cmd) => {
 				tel_data = ("up", "contract", json!(""));
 
-				cmd.execute().await?
+				cmd.execute().await
 			},
-		}),
+		},
 		#[cfg(feature = "contract")]
 		Commands::Test(args) => match &args.command {
-			test::TestCommands::Contract(cmd) => {
-				let feature = cmd.execute()?;
-				tel_data = ("test", "contract", json!(feature));
-				Ok(())
+			test::TestCommands::Contract(cmd) => match cmd.execute() {
+				Ok(feature) => {
+					tel_data = ("test", "contract", json!(feature));
+					Ok(())
+				},
+				Err(e) => Err(e),
 			},
 		},
 	};
 
-	let tel_data_handle = spawn(record_cli_command(tel_data.0, json!({tel_data.1: tel_data.2})));
 	// Best effort to send on first try, no action if failure
-	let _ = tel_data_handle.await;
+	let _ = record_cli_command(tel_data.0, json!({tel_data.1: tel_data.2})).await;
+
 	// Send if error
 	if res.is_err() {
 		let _ = spawn(record_cli_command("error", json!({tel_data.0: tel_data.1}))).await;

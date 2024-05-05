@@ -77,7 +77,9 @@ impl NewParachainCommand {
 			parachain_config.initial_endowment.clone(),
 		)?;
 
-		generate_parachain_from_template(name, provider, &template, None, config)?;
+		let tag_version = parachain_config.tag_version.clone();
+
+		generate_parachain_from_template(name, provider, &template, tag_version, config)?;
 		Ok(template)
 	}
 }
