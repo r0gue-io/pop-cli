@@ -81,7 +81,7 @@ mod tests {
 			initial_endowment: "1000000".to_string(),
 		};
 		let result: anyhow::Result<Option<String>> =
-		instantiate_standard_template(&Template::Standard, temp_dir.path(), config, None);
+			instantiate_standard_template(&Template::Standard, temp_dir.path(), config, None);
 		assert!(result.is_ok());
 		Ok(temp_dir)
 	}
