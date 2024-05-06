@@ -14,8 +14,8 @@ jobs:
   build:
 
     runs-on: ubuntu-latest
-
     steps:
+    - uses: actions/checkout@v3
     - name: Free up space on runner
       run: |
         sudo rm -rf /usr/share/dotnet
@@ -48,19 +48,15 @@ jobs:
         override: true
         components: rustfmt, clippy, rust-src
 
-    - uses: actions/checkout@v4
     - name: Check formatting
       run: cargo fmt --all -- --check
         
-    - uses: actions/checkout@v3
     - name: Check Feature Contracts Excl.
       run: cargo check --no-default-features --features contract
 
-    - uses: actions/checkout@v3
     - name: Check Features Parachain Excl.
       run: cargo check --no-default-features --features parachain
 
-    - uses: actions/checkout@v3
     - name: Build default features
       run: cargo build
 
