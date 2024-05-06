@@ -47,7 +47,7 @@ impl NewContractCommand {
 			fs::remove_dir_all(contract_path.as_path())?;
 		}
 		fs::create_dir_all(contract_path.as_path())?;
-		let mut spinner = cliclack::spinner();
+		let spinner = cliclack::spinner();
 		spinner.start("Generating contract...");
 		create_smart_contract(&self.name, contract_path.as_path())?;
 

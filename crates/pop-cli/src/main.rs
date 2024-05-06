@@ -181,3 +181,10 @@ fn init_config() -> Result<()> {
 	}
 	Ok(())
 }
+
+#[test]
+fn verify_cli() {
+	// https://docs.rs/clap/latest/clap/_derive/_tutorial/chapter_4/index.html
+	use clap::CommandFactory;
+	Cli::command().debug_assert()
+}

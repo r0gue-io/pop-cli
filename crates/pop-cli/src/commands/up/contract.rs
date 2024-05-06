@@ -73,7 +73,7 @@ impl UpContractCommand {
 		if self.gas_limit.is_some() && self.proof_size.is_some() {
 			weight_limit = Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap());
 		} else {
-			let mut spinner = cliclack::spinner();
+			let spinner = cliclack::spinner();
 			spinner.start("Doing a dry run to estimate the gas...");
 			weight_limit = match dry_run_gas_estimate_instantiate(&instantiate_exec).await {
 				Ok(w) => {
@@ -87,7 +87,7 @@ impl UpContractCommand {
 				},
 			};
 		}
-		let mut spinner = cliclack::spinner();
+		let spinner = cliclack::spinner();
 		spinner.start("Uploading and instantiating the contract...");
 		let contract_address = instantiate_smart_contract(instantiate_exec, weight_limit)
 			.await

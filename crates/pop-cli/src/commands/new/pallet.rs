@@ -45,7 +45,7 @@ impl NewPalletCommand {
 			}
 			fs::remove_dir_all(pallet_path)?;
 		}
-		let mut spinner = cliclack::spinner();
+		let spinner = cliclack::spinner();
 		spinner.start("Generating pallet...");
 		create_pallet_template(
 			self.path.clone(),

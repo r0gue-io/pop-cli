@@ -1,28 +1,35 @@
 // SPDX-License-Identifier: GPL-3.0
 use crate::style::{style, Theme};
 use anyhow::Result;
-use clap::Args;
+use clap::{
+	builder::{PossibleValue, PossibleValuesParser, TypedValueParser},
+	Args,
+};
 use std::{
 	fs,
 	path::{Path, PathBuf},
+	str::FromStr,
 };
 
 use cliclack::{clear_screen, confirm, input, intro, log, outro, outro_cancel, set_theme};
 use pop_parachains::{instantiate_template_dir, Config, Git, GitHub, Provider, Release, Template};
+use strum::VariantArray;
 
 #[derive(Args, Clone)]
 pub struct NewParachainCommand {
 	#[arg(help = "Name of the project. If empty assistance in the process will be provided.")]
 	pub(crate) name: Option<String>,
 	#[arg(
-		help = "Template provider. Options are pop or parity (deprecated).",
-		default_value = "pop"
+		help = "Template provider.",
+		default_value = Provider::Pop.as_ref(),
+		value_parser = crate::enum_variants!(Provider)
 	)]
 	pub(crate) provider: Option<Provider>,
 	#[arg(
 		short = 't',
 		long,
-		help = "Template to use: 'base' for Pop and 'cpt' and 'fpt' for Parity templates"
+		help = "Template to use.",
+		value_parser = crate::enum_variants!(Template)
 	)]
 	pub(crate) template: Option<Template>,
 	#[arg(short = 'v', long, help = "Tag version to use for template")]
@@ -44,6 +51,21 @@ pub struct NewParachainCommand {
 		help = "Path for the parachain project, [default: current directory]"
 	)]
 	pub(crate) path: Option<PathBuf>,
+}
+
+#[macro_export]
+macro_rules! enum_variants {
+	($e: ty) => {{
+		PossibleValuesParser::new(
+			<$e>::VARIANTS
+				.iter()
+				.map(|p| PossibleValue::new(p.as_ref()))
+				.collect::<Vec<_>>(),
+		)
+		.try_map(|s| {
+			<$e>::from_str(&s).map_err(|e| format!("could not convert from {s} to provider"))
+		})
+	}};
 }
 
 impl NewParachainCommand {
@@ -156,7 +178,7 @@ fn generate_parachain_from_template(
 
 	let destination_path = check_destination_path(name_template)?;
 
-	let mut spinner = cliclack::spinner();
+	let spinner = cliclack::spinner();
 	spinner.start("Generating parachain...");
 	let tag = instantiate_template_dir(template, destination_path, tag_version, config)?;
 	if let Err(err) = Git::git_init(destination_path, "initialized parachain") {
@@ -280,15 +302,44 @@ fn prompt_customizable_options() -> Result<Config> {
 #[cfg(test)]
 mod tests {
 
-	use git2::Repository;
-
 	use super::*;
-	use std::{fs, path::Path};
+	use crate::{
+		commands::new::{NewArgs, NewCommands::Parachain},
+		Cli,
+		Commands::New,
+	};
+	use clap::Parser;
+	use git2::Repository;
+	use tempfile::tempdir;
 
 	#[tokio::test]
-	async fn test_new_parachain_command_execute() -> anyhow::Result<()> {
+	async fn test_new_parachain_command_with_defaults_executes() -> Result<()> {
+		let dir = tempdir()?;
+		let cli = Cli::parse_from([
+			"pop",
+			"new",
+			"parachain",
+			dir.path().join("test_parachain").to_str().unwrap(),
+		]);
+
+		let New(NewArgs { command: Parachain(command) }) = cli.command else {
+			panic!("unable to parse command")
+		};
+		// Execute
+		let name = command.name.as_ref().unwrap();
+		command.execute().await?;
+		// check for git_init
+		let repo = Repository::open(Path::new(name))?;
+		let reflog = repo.reflog("HEAD")?;
+		assert_eq!(reflog.len(), 1);
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn test_new_parachain_command_execute() -> Result<()> {
+		let dir = tempdir()?;
 		let command = NewParachainCommand {
-			name: Some("test_parachain".to_string()),
+			name: Some(dir.path().join("test_parachain").to_str().unwrap().to_string()),
 			provider: Some(Provider::Pop),
 			template: Some(Template::Base),
 			tag_version: None,
@@ -297,18 +348,13 @@ mod tests {
 			initial_endowment: Some("1u64 << 60".to_string()),
 			path: None,
 		};
-		let result = command.execute().await;
-		assert!(result.is_ok());
+		command.execute().await?;
 
 		// check for git_init
 		let repo = Repository::open(Path::new(&command.name.unwrap()))?;
 		let reflog = repo.reflog("HEAD")?;
 		assert_eq!(reflog.len(), 1);
 
-		// Clean up
-		if let Err(err) = fs::remove_dir_all("test_parachain") {
-			eprintln!("Failed to delete directory: {}", err);
-		}
 		Ok(())
 	}
 
