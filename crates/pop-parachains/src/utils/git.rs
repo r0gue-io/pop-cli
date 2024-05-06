@@ -150,6 +150,8 @@ impl GitHub {
 			concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 
 		let client = reqwest::ClientBuilder::new().user_agent(APP_USER_AGENT).build()?;
+		println!("https://api.github.com/repos/{}/{}/releases", Self::org(repo)?,
+		Self::name(repo)?);
 		let response = client
 			.get(format!(
 				"https://api.github.com/repos/{}/{}/releases",
@@ -158,6 +160,7 @@ impl GitHub {
 			))
 			.send()
 			.await?;
+		println!("Response");
 		Ok(response.json::<Vec<Release>>().await?)
 	}
 

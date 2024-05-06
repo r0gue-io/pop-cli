@@ -368,8 +368,10 @@ impl Zombienet {
 
 	async fn latest_polkadot_release() -> Result<String, Error> {
 		let repo = Url::parse(POLKADOT_SDK).expect("repository url valid");
+		println!("{:?}", repo);
 		// Fetching latest releases
 		for release in GitHub::get_latest_releases(&repo).await? {
+			println!("{:?}", release.tag_name);
 			if !release.prerelease && release.tag_name.starts_with("polkadot-v") {
 				return Ok(release
 					.tag_name
