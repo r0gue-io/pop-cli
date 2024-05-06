@@ -24,6 +24,16 @@ pub(crate) fn sanitize(target: &Path) -> Result<(), Error> {
 	Ok(())
 }
 
+pub fn is_initial_endowment_valid(initial_endowment: String) -> bool {
+	match initial_endowment.parse::<i128>() {
+		Ok(_) => return true,
+		Err(error) => {
+			println!("{:?}", error);
+			return false;
+		},
+	}
+}
+
 pub(crate) fn write_to_file(path: &Path, contents: &str) -> Result<(), Error> {
 	let mut file = OpenOptions::new()
 		.write(true)
@@ -49,4 +59,18 @@ pub(crate) fn write_to_file(path: &Path, contents: &str) -> Result<(), Error> {
 	}
 
 	Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn test_is_initial_endowment_valid() {
+		assert_eq!(is_initial_endowment_valid("100000".to_string()), true);
+		//assert_eq!(is_initial_endowment_valid("1u64 << 60".to_string()), true);
+		assert_eq!(is_initial_endowment_valid("1 << 60".to_string()), true);
+		// assert_eq!(is_initial_endowment_valid("wrong".to_string()), false);
+		// assert_eq!(is_initial_endowment_valid(" ".to_string()), false);
+	}
 }

@@ -12,8 +12,13 @@ use std::{
 };
 
 use cliclack::{clear_screen, confirm, input, intro, log, outro, outro_cancel, set_theme};
-use pop_parachains::{instantiate_template_dir, Config, Git, GitHub, Provider, Release, Template};
+use pop_parachains::{
+	instantiate_template_dir, is_initial_endowment_valid, Config, Git, GitHub, Provider, Release,
+	Template,
+};
 use strum::VariantArray;
+
+const DEFAULT_INITIAL_ENDOWMENT: &str = "1u64 << 60";
 
 #[derive(Args)]
 pub struct NewParachainCommand {
@@ -40,7 +45,7 @@ pub struct NewParachainCommand {
 		long = "endowment",
 		short,
 		help = "Token Endowment for dev accounts",
-		default_value = "1u64 << 60"
+		default_value = DEFAULT_INITIAL_ENDOWMENT
 	)]
 	pub(crate) initial_endowment: Option<String>,
 	#[arg(
@@ -82,11 +87,29 @@ impl NewParachainCommand {
 				};
 
 				is_template_supported(provider, &template)?;
+				let mut initial_endowment = self.initial_endowment.clone();
+				if initial_endowment.is_some()
+					&& !is_initial_endowment_valid(initial_endowment.unwrap())
+				{
+					log::warning(format!(
+						"⚠️ The specified initial endowment {} is not valid",
+						initial_endowment.unwrap()
+					))?;
+					//Prompt the user if want to use the one by default
+					if !confirm("📦 Would you like to use the one by default?")
+						.initial_value(true)
+						.interact()?
+					{
+						outro_cancel("🚫 Cannot create a parachain with an incorrect initial endowment value.")?;
+						return Ok(());
+					}
+					initial_endowment = Some(DEFAULT_INITIAL_ENDOWMENT.to_string());
+				}
 				let config = get_customization_value(
 					&template,
 					self.symbol.clone(),
 					self.decimals,
-					self.initial_endowment.clone(),
+					initial_endowment,
 				)?;
 
 				generate_parachain_from_template(name, provider, &template, None, config)
@@ -215,6 +238,7 @@ fn get_customization_value(
 	decimals: Option<u8>,
 	initial_endowment: Option<String>,
 ) -> Result<Config> {
+	println!("endowment {:?}", initial_endowment);
 	if !matches!(template, Template::Base)
 		&& (symbol.is_some() || decimals.is_some() || initial_endowment.is_some())
 	{

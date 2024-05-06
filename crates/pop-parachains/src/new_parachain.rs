@@ -51,6 +51,7 @@ pub fn instantiate_base_template(
 			fs::copy(source_path, &destination_path)?;
 		}
 	}
+
 	let chainspec = ChainSpec {
 		token_symbol: config.symbol,
 		decimals: config.decimals,
