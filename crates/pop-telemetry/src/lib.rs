@@ -31,7 +31,7 @@ pub enum TelemetryError {
 
 pub type Result<T> = std::result::Result<T, TelemetryError>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Telemetry {
 	// Endpoint to the telemetry API.
 	// This should include the domain and api path (e.g. localhost:3000/api/send)
@@ -86,7 +86,7 @@ impl Telemetry {
 /// Generically reports that the CLI was used to the telemetry endpoint.
 /// There is explicitly no reqwest retries on failure to ensure overhead
 /// stays to a minimum.
-pub async fn record_cli_used(maybe_tel: Option<&Telemetry>) -> Result<()> {
+pub async fn record_cli_used(maybe_tel: Option<Telemetry>) -> Result<()> {
 	let tel = maybe_tel.ok_or(TelemetryError::TelemetryNotSet)?;
 
 	let payload = generate_payload("", json!({}));
@@ -104,7 +104,7 @@ pub async fn record_cli_used(maybe_tel: Option<&Telemetry>) -> Result<()> {
 /// `data`: the JSON representation of subcommands. This should never include any user inputted
 /// data like a file name.
 pub async fn record_cli_command(
-	maybe_tel: Option<&Telemetry>,
+	maybe_tel: Option<Telemetry>,
 	command_name: &str,
 	data: Value,
 ) -> Result<()> {
@@ -275,7 +275,7 @@ mod tests {
 
 		let tel = Telemetry::new(endpoint.clone(), config_path);
 
-		assert!(record_cli_used(Some(&tel)).await.is_ok());
+		assert!(record_cli_used(Some(tel)).await.is_ok());
 		mock.assert_async().await;
 	}
 
@@ -297,7 +297,7 @@ mod tests {
 
 		let tel = Telemetry::new(endpoint.clone(), config_path);
 
-		assert!(record_cli_command(Some(&tel), "new", json!("parachain")).await.is_ok());
+		assert!(record_cli_command(Some(tel), "new", json!("parachain")).await.is_ok());
 		mock.assert_async().await;
 	}
 
@@ -323,11 +323,11 @@ mod tests {
 			Err(TelemetryError::NotOptedIn)
 		));
 		assert!(matches!(
-			record_cli_used(Some(&tel_with_bad_config_path)).await,
+			record_cli_used(Some(tel_with_bad_config_path.clone())).await,
 			Err(TelemetryError::NotOptedIn)
 		));
 		assert!(matches!(
-			record_cli_command(Some(&tel_with_bad_config_path), "foo", json!("bar")).await,
+			record_cli_command(Some(tel_with_bad_config_path.clone()), "foo", json!("bar")).await,
 			Err(TelemetryError::NotOptedIn)
 		));
 		mock.assert_async().await;
@@ -336,8 +336,8 @@ mod tests {
 		tel_with_bad_config_path.opt_in = true;
 		let mock = mock.expect_at_most(3);
 		assert!(tel_with_bad_config_path.send_json(json!("foo")).await.is_ok(),);
-		assert!(record_cli_used(Some(&tel_with_bad_config_path)).await.is_ok());
-		assert!(record_cli_command(Some(&tel_with_bad_config_path), "foo", json!("bar"))
+		assert!(record_cli_used(Some(tel_with_bad_config_path.clone())).await.is_ok());
+		assert!(record_cli_command(Some(tel_with_bad_config_path), "foo", json!("bar"))
 			.await
 			.is_ok());
 		mock.assert_async().await;

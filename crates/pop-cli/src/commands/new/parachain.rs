@@ -9,8 +9,6 @@ use std::{
 
 use cliclack::{clear_screen, confirm, input, intro, log, outro, outro_cancel, set_theme};
 use pop_parachains::{instantiate_template_dir, Config, Git, GitHub, Provider, Release, Template};
-use pop_telemetry::Result as TelResult;
-use tokio::task::JoinHandle;
 
 #[derive(Args, Clone)]
 pub struct NewParachainCommand {

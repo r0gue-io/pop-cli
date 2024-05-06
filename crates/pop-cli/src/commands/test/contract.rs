@@ -5,8 +5,6 @@ use std::path::PathBuf;
 use clap::Args;
 use cliclack::{clear_screen, intro, outro};
 use pop_contracts::{test_e2e_smart_contract, test_smart_contract};
-use pop_telemetry::Result as TelResult;
-use tokio::task::JoinHandle;
 
 use crate::style::style;
 
@@ -21,7 +19,7 @@ pub(crate) struct TestContractCommand {
 impl TestContractCommand {
 	pub(crate) fn execute(&self) -> anyhow::Result<&str> {
 		clear_screen()?;
-		let mut feature = "";
+		let feature;
 
 		if self.features.is_some() && self.features.clone().unwrap().contains("e2e-tests") {
 			intro(format!(

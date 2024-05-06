@@ -12,7 +12,7 @@ use commands::*;
 use pop_telemetry::{config_file_path, record_cli_command, record_cli_used, Telemetry};
 use serde_json::{json, Value};
 use std::{fs::create_dir_all, path::PathBuf};
-use tokio::{spawn, task::JoinHandle};
+use tokio::spawn;
 
 #[derive(Parser)]
 #[command(author, version, about, styles=style::get_styles())]
@@ -53,11 +53,11 @@ async fn main() -> Result<()> {
 
 	let maybe_config_file = config_file_path();
 	// if config file errors set telemetry to None, otherwise Some(tel)
-	let maybe_tel = maybe_config_file.ok().map(|path| &Telemetry::new(endpoint.to_string(), path));
+	let maybe_tel = maybe_config_file.ok().map(|path| Telemetry::new(endpoint.to_string(), path));
 
 	// handle for await not used here as telemetry should complete before any of the commands do.
 	// Sends a generic ping saying the CLI was used
-	spawn(record_cli_used(maybe_tel));
+	spawn(record_cli_used(maybe_tel.clone()));
 
 	// type to represent static telemetry data. I.e., does not contain data dynamically chosen by user
 	// like in pop new parachain.
@@ -143,12 +143,13 @@ async fn main() -> Result<()> {
 	};
 
 	// Best effort to send on first try, no action if failure
-	let _ = record_cli_command(maybe_tel, tel_data.0, json!({tel_data.1: tel_data.2})).await;
+	let _ =
+		record_cli_command(maybe_tel.clone(), tel_data.0, json!({tel_data.1: tel_data.2})).await;
 
 	// Send if error
 	if res.is_err() {
 		let _ =
-			spawn(record_cli_command(maybe_tel, "error", json!({tel_data.0: tel_data.1}))).await;
+			record_cli_command(maybe_tel.clone(), "error", json!({tel_data.0: tel_data.1})).await;
 	}
 
 	res
