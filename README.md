@@ -30,6 +30,15 @@ If no guidance is needed, proceed with:
 pop new parachain my-app
 ```
 
+`pop-cli` supports diverse project templates, to use a specific one use the flag `--template`:
+```sh
+# Create a contracts parachain
+pop new parachain my-app pop -t contracts
+# Create an assets parachain
+pop new parachain my-app pop -t assets
+# Create a evm parachain
+pop new parachain my-app pop -t evm
+```
 
 We also integrate other provider templates in the tool, check them running:
 ```sh
