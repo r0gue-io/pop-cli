@@ -1,4 +1,5 @@
 use reqwest::Client;
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
@@ -20,6 +21,8 @@ pub enum TelemetryError {
 	IO(io::Error),
 	#[error("opt-in is not set, can not report metrics")]
 	NotOptedIn,
+	#[error("telemetry is not set and no message will be sent")]
+	TelemetryNotSet,
 	#[error("unable to find config file")]
 	ConfigFileNotFound,
 	#[error("serialization failed: {0}")]
@@ -28,7 +31,8 @@ pub enum TelemetryError {
 
 pub type Result<T> = std::result::Result<T, TelemetryError>;
 
-struct Telemetry {
+#[derive(Debug)]
+pub struct Telemetry {
 	// Endpoint to the telemetry API.
 	// This should include the domain and api path (e.g. localhost:3000/api/send)
 	endpoint: String,
@@ -39,35 +43,20 @@ struct Telemetry {
 }
 
 impl Telemetry {
-	fn new(endpoint: String, config_path: PathBuf) -> Self {
-		let client = reqwest::Client::new();
-		let opt_in = Self::check_opt_in(&config_path);
+	pub fn new(endpoint: String, config_path: PathBuf) -> Self {
+		let opt_in = Self::check_opt_in_from_config(&config_path);
 
-		Telemetry { endpoint, opt_in, client }
+		Telemetry { endpoint, opt_in, client: Client::new() }
 	}
 
-	fn check_opt_in(config_file_path: &PathBuf) -> bool {
-		let mut file = File::open(config_file_path)
-			.map_err(|err| {
-				log::debug!("{}", err.to_string());
+	fn check_opt_in_from_config(config_file_path: &PathBuf) -> bool {
+		let config: Config = match read_json_file(config_file_path) {
+			Ok(config) => config,
+			Err(err) => {
+				log::debug!("{:?}", err.to_string());
 				return false;
-			})
-			.expect("error mapped above");
-
-		let mut config_json = String::new();
-		file.read_to_string(&mut config_json)
-			.map_err(|err| {
-				log::debug!("{}", err.to_string());
-				return false;
-			})
-			.expect("error mapped above");
-
-		let config: Config = serde_json::from_str(&config_json)
-			.map_err(|err| {
-				log::debug!("{}", err.to_string());
-				return false;
-			})
-			.expect("error mapped above");
+			},
+		};
 
 		config.opt_in.allow
 	}
@@ -97,19 +86,15 @@ impl Telemetry {
 /// Generically reports that the CLI was used to the telemetry endpoint.
 /// There is explicitly no reqwest retries on failure to ensure overhead
 /// stays to a minimum.
-pub async fn record_cli_used() -> Result<()> {
-	// environment variable `POP_TELEMETRY_ENDPOINT` is evaluated at compile time
-	let endpoint =
-		option_env!("POP_TELEMETRY_ENDPOINT").unwrap_or("http://127.0.0.1:3000/api/send");
-
-	let tel = Telemetry::new(endpoint.into(), config_file_path()?);
+pub async fn record_cli_used(maybe_tel: Option<&Telemetry>) -> Result<()> {
+	let tel = maybe_tel.ok_or(TelemetryError::TelemetryNotSet)?;
 
 	let payload = generate_payload("", json!({}));
 
 	let res = tel.send_json(payload).await;
 	log::debug!("send_cli_used result: {:?}", res);
 
-	Ok(())
+	res
 }
 
 /// Reports what CLI command was called to telemetry.
@@ -118,22 +103,22 @@ pub async fn record_cli_used() -> Result<()> {
 /// `command_name`: the name of the command entered (new, up, build, etc)
 /// `data`: the JSON representation of subcommands. This should never include any user inputted
 /// data like a file name.
-pub async fn record_cli_command(command_name: &str, data: Value) -> Result<()> {
-	// environment variable `POP_TELEMETRY_ENDPOINT` is evaluated at *compile* time
-	let endpoint =
-		option_env!("POP_TELEMETRY_ENDPOINT").unwrap_or("http://127.0.0.1:3000/api/send");
-
-	let tel = Telemetry::new(endpoint.into(), config_file_path()?);
+pub async fn record_cli_command(
+	maybe_tel: Option<&Telemetry>,
+	command_name: &str,
+	data: Value,
+) -> Result<()> {
+	let tel = maybe_tel.ok_or(TelemetryError::TelemetryNotSet)?;
 
 	let payload = generate_payload(command_name, data);
 
-	let res = tel.send_json(payload).await?;
+	let res = tel.send_json(payload).await;
 	log::debug!("send_cli_used result: {:?}", res);
 
-	Ok(())
+	res
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(PartialEq, Serialize, Deserialize, Debug)]
 struct OptIn {
 	// did user opt in
 	allow: bool,
@@ -143,7 +128,7 @@ struct OptIn {
 
 /// Type to represent pop cli configuration.
 /// This will be written as json to a config.json file.
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(PartialEq, Serialize, Deserialize, Debug)]
 pub struct Config {
 	opt_in: OptIn,
 }
@@ -156,11 +141,13 @@ pub fn config_file_path() -> Result<PathBuf> {
 	Ok(config_path.join("config.json"))
 }
 
-/// Writes a default config to the configuration file from `config_file_path`
-/// If return value is Result(None), this means that the config file already existed
-/// and no writing was necessary. Otherwise, the path to the file is returned.
-pub fn write_default_config() -> Result<Option<PathBuf>> {
-	let config_path = config_file_path()?;
+/// Writes a default config to the configuration file at the specified path.
+/// Returns true if file written.
+/// Returns false if file existed and nothing was written.
+///
+/// parameters:
+/// `config_path`: the path to write the config file to
+pub fn write_default_config(config_path: &PathBuf) -> Result<bool> {
 	if !Path::new(&config_path).exists() {
 		let default_config =
 			Config { opt_in: OptIn { allow: true, version: CARGO_PKG_VERSION.to_string() } };
@@ -172,11 +159,25 @@ pub fn write_default_config() -> Result<Option<PathBuf>> {
 		file.write_all(default_config_json.as_bytes())
 			.map_err(|err| TelemetryError::IO(err))?;
 	} else {
-		// if the file already existed, return None
-		return Ok(None);
+		// if the file already existed
+		return Ok(false);
 	}
 
-	Ok(Some(config_path))
+	Ok(true)
+}
+
+fn read_json_file<T>(file_path: &PathBuf) -> std::result::Result<T, io::Error>
+where
+	T: DeserializeOwned,
+{
+	let mut file = File::open(file_path)?;
+
+	let mut json = String::new();
+	file.read_to_string(&mut json)?;
+
+	let deserialized: T = serde_json::from_str(&json)?;
+
+	Ok(deserialized)
 }
 
 fn generate_payload(event_name: &str, data: Value) -> Value {
@@ -194,4 +195,171 @@ fn generate_payload(event_name: &str, data: Value) -> Value {
 		},
 		"type": "event"
 	})
+}
+
+#[cfg(test)]
+mod tests {
+
+	use super::*;
+	use mockito::{Matcher, Mock, Server};
+	use serde_json::json;
+	use tempfile::TempDir;
+
+	fn create_temp_config(temp_dir: &TempDir) -> PathBuf {
+		let config_path = temp_dir.path().join("config.json");
+		assert!(write_default_config(&config_path).is_ok());
+		config_path
+	}
+	async fn default_mock(mock_server: &mut Server, payload: String) -> Mock {
+		mock_server
+			.mock("POST", "/api/send")
+			.match_header("content-type", "application/json")
+			.match_header("accept", "*/*")
+			.match_body(Matcher::JsonString(payload.clone()))
+			.match_header("content-length", payload.len().to_string().as_str())
+			.match_header("host", mock_server.host_with_port().trim())
+			.create_async()
+			.await
+	}
+	#[tokio::test]
+	async fn write_default_config_works() {
+		// Mock config file path function to return a temporary path
+		let temp_dir = TempDir::new().unwrap();
+		let config_path = create_temp_config(&temp_dir);
+
+		let actual_config: Config = read_json_file(&config_path).unwrap();
+		let expected_config =
+			Config { opt_in: OptIn { allow: true, version: CARGO_PKG_VERSION.to_string() } };
+
+		assert_eq!(actual_config, expected_config);
+	}
+
+	#[tokio::test]
+	async fn new_telemetry_works() {
+		let _ = env_logger::try_init();
+		// assert that invalid config file results in a false opt_in (hence disabling telemetry)
+		assert!(!Telemetry::new("".to_string(), PathBuf::new()).opt_in);
+
+		// Mock config file path function to return a temporary path
+		let temp_dir = TempDir::new().unwrap();
+		let config_path = create_temp_config(&temp_dir);
+
+		let _: Config = read_json_file(&config_path).unwrap();
+
+		let tel = Telemetry::new("127.0.0.1".to_string(), config_path);
+		let expected_telemetry = Telemetry {
+			endpoint: "127.0.0.1".to_string(),
+			opt_in: true,
+			client: Default::default(),
+		};
+
+		assert_eq!(tel.endpoint, expected_telemetry.endpoint);
+		assert_eq!(tel.opt_in, expected_telemetry.opt_in);
+	}
+
+	#[tokio::test]
+	async fn test_record_cli_used() {
+		let _ = env_logger::try_init();
+		let mut mock_server = mockito::Server::new_async().await;
+
+		let mut endpoint = mock_server.url();
+		endpoint.push_str("/api/send");
+
+		// Mock config file path function to return a temporary path
+		let temp_dir = TempDir::new().unwrap();
+		let config_path = create_temp_config(&temp_dir);
+
+		let expected_payload = generate_payload("", json!({})).to_string();
+
+		let mock = default_mock(&mut mock_server, expected_payload).await;
+
+		let tel = Telemetry::new(endpoint.clone(), config_path);
+
+		assert!(record_cli_used(Some(&tel)).await.is_ok());
+		mock.assert_async().await;
+	}
+
+	#[tokio::test]
+	async fn test_record_cli_command() {
+		let _ = env_logger::try_init();
+		let mut mock_server = mockito::Server::new_async().await;
+
+		let mut endpoint = mock_server.url();
+		endpoint.push_str("/api/send");
+
+		// Mock config file path function to return a temporary path
+		let temp_dir = TempDir::new().unwrap();
+		let config_path = create_temp_config(&temp_dir);
+
+		let expected_payload = generate_payload("new", json!("parachain")).to_string();
+
+		let mock = default_mock(&mut mock_server, expected_payload).await;
+
+		let tel = Telemetry::new(endpoint.clone(), config_path);
+
+		assert!(record_cli_command(Some(&tel), "new", json!("parachain")).await.is_ok());
+		mock.assert_async().await;
+	}
+
+	#[tokio::test]
+	async fn opt_in_fails() {
+		let _ = env_logger::try_init();
+		let mut mock_server = mockito::Server::new_async().await;
+
+		let endpoint = mock_server.url();
+
+		// Mock config file path function to return a temporary path
+		let temp_dir = TempDir::new().unwrap();
+		let config_path = create_temp_config(&temp_dir);
+
+		let mock = mock_server.mock("POST", "/").create_async().await;
+		let mock = mock.expect_at_most(0);
+
+		let mut tel_with_bad_config_path =
+			Telemetry::new(endpoint.clone(), config_path.join("break_path"));
+
+		assert!(matches!(
+			tel_with_bad_config_path.send_json(json!("foo")).await,
+			Err(TelemetryError::NotOptedIn)
+		));
+		assert!(matches!(
+			record_cli_used(Some(&tel_with_bad_config_path)).await,
+			Err(TelemetryError::NotOptedIn)
+		));
+		assert!(matches!(
+			record_cli_command(Some(&tel_with_bad_config_path), "foo", json!("bar")).await,
+			Err(TelemetryError::NotOptedIn)
+		));
+		mock.assert_async().await;
+
+		// test it's set to true and works
+		tel_with_bad_config_path.opt_in = true;
+		let mock = mock.expect_at_most(3);
+		assert!(tel_with_bad_config_path.send_json(json!("foo")).await.is_ok(),);
+		assert!(record_cli_used(Some(&tel_with_bad_config_path)).await.is_ok());
+		assert!(record_cli_command(Some(&tel_with_bad_config_path), "foo", json!("bar"))
+			.await
+			.is_ok());
+		mock.assert_async().await;
+	}
+
+	#[tokio::test]
+	async fn no_telemetry_does_not_report() {
+		let _ = env_logger::try_init();
+		let mut mock_server = mockito::Server::new_async().await;
+
+		// Mock config file path function to return a temporary path
+		let temp_dir = TempDir::new().unwrap();
+		let _ = create_temp_config(&temp_dir);
+
+		let mock = mock_server.mock("POST", "/").create_async().await;
+		let mock = mock.expect_at_most(0);
+
+		assert!(matches!(record_cli_used(None).await, Err(TelemetryError::TelemetryNotSet)));
+		assert!(matches!(
+			record_cli_command(None, "foo", json!("bar")).await,
+			Err(TelemetryError::TelemetryNotSet)
+		));
+		mock.assert_async().await;
+	}
 }
