@@ -22,13 +22,13 @@ pub fn instantiate_template_dir(
 	sanitize(target)?;
 
 	if template.matches(&Provider::Pop) {
-		return instantiate_base_template(template, target, config, tag_version);
+		return instantiate_standard_template(template, target, config, tag_version);
 	}
 	let tag = Git::clone_and_degit(template.repository_url()?, target, tag_version)?;
 	Ok(tag)
 }
 
-pub fn instantiate_base_template(
+pub fn instantiate_standard_template(
 	template: &Template,
 	target: &Path,
 	config: Config,
@@ -81,13 +81,13 @@ mod tests {
 			initial_endowment: "1000000".to_string(),
 		};
 		let result: anyhow::Result<Option<String>> =
-			instantiate_base_template(&Template::Standard, temp_dir.path(), config, None);
+		instantiate_standard_template(&Template::Standard, temp_dir.path(), config, None);
 		assert!(result.is_ok());
 		Ok(temp_dir)
 	}
 
 	#[test]
-	fn test_parachain_instantiate_base_template() -> Result<()> {
+	fn test_parachain_instantiate_standard_template() -> Result<()> {
 		let temp_dir =
 			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
 
