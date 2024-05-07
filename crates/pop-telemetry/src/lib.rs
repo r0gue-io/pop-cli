@@ -21,8 +21,6 @@ pub enum TelemetryError {
 	IO(io::Error),
 	#[error("opt-in is not set, can not report metrics")]
 	NotOptedIn,
-	#[error("telemetry is not set and no message will be sent")]
-	TelemetryNotSet,
 	#[error("unable to find config file")]
 	ConfigFileNotFound,
 	#[error("serialization failed: {0}")]
@@ -86,9 +84,7 @@ impl Telemetry {
 /// Generically reports that the CLI was used to the telemetry endpoint.
 /// There is explicitly no reqwest retries on failure to ensure overhead
 /// stays to a minimum.
-pub async fn record_cli_used(maybe_tel: Option<Telemetry>) -> Result<()> {
-	let tel = maybe_tel.ok_or(TelemetryError::TelemetryNotSet)?;
-
+pub async fn record_cli_used(tel: Telemetry) -> Result<()> {
 	let payload = generate_payload("", json!({}));
 
 	let res = tel.send_json(payload).await;
@@ -103,13 +99,7 @@ pub async fn record_cli_used(maybe_tel: Option<Telemetry>) -> Result<()> {
 /// `command_name`: the name of the command entered (new, up, build, etc)
 /// `data`: the JSON representation of subcommands. This should never include any user inputted
 /// data like a file name.
-pub async fn record_cli_command(
-	maybe_tel: Option<Telemetry>,
-	command_name: &str,
-	data: Value,
-) -> Result<()> {
-	let tel = maybe_tel.ok_or(TelemetryError::TelemetryNotSet)?;
-
+pub async fn record_cli_command(tel: Telemetry, command_name: &str, data: Value) -> Result<()> {
 	let payload = generate_payload(command_name, data);
 
 	let res = tel.send_json(payload).await;
@@ -275,7 +265,7 @@ mod tests {
 
 		let tel = Telemetry::new(endpoint.clone(), config_path);
 
-		assert!(record_cli_used(Some(tel)).await.is_ok());
+		assert!(record_cli_used(tel).await.is_ok());
 		mock.assert_async().await;
 	}
 
@@ -297,7 +287,7 @@ mod tests {
 
 		let tel = Telemetry::new(endpoint.clone(), config_path);
 
-		assert!(record_cli_command(Some(tel), "new", json!("parachain")).await.is_ok());
+		assert!(record_cli_command(tel, "new", json!("parachain")).await.is_ok());
 		mock.assert_async().await;
 	}
 
@@ -323,11 +313,11 @@ mod tests {
 			Err(TelemetryError::NotOptedIn)
 		));
 		assert!(matches!(
-			record_cli_used(Some(tel_with_bad_config_path.clone())).await,
+			record_cli_used(tel_with_bad_config_path.clone()).await,
 			Err(TelemetryError::NotOptedIn)
 		));
 		assert!(matches!(
-			record_cli_command(Some(tel_with_bad_config_path.clone()), "foo", json!("bar")).await,
+			record_cli_command(tel_with_bad_config_path.clone(), "foo", json!("bar")).await,
 			Err(TelemetryError::NotOptedIn)
 		));
 		mock.assert_async().await;
@@ -336,30 +326,8 @@ mod tests {
 		tel_with_bad_config_path.opt_in = true;
 		let mock = mock.expect_at_most(3);
 		assert!(tel_with_bad_config_path.send_json(json!("foo")).await.is_ok(),);
-		assert!(record_cli_used(Some(tel_with_bad_config_path.clone())).await.is_ok());
-		assert!(record_cli_command(Some(tel_with_bad_config_path), "foo", json!("bar"))
-			.await
-			.is_ok());
-		mock.assert_async().await;
-	}
-
-	#[tokio::test]
-	async fn no_telemetry_does_not_report() {
-		let _ = env_logger::try_init();
-		let mut mock_server = mockito::Server::new_async().await;
-
-		// Mock config file path function to return a temporary path
-		let temp_dir = TempDir::new().unwrap();
-		let _ = create_temp_config(&temp_dir);
-
-		let mock = mock_server.mock("POST", "/").create_async().await;
-		let mock = mock.expect_at_most(0);
-
-		assert!(matches!(record_cli_used(None).await, Err(TelemetryError::TelemetryNotSet)));
-		assert!(matches!(
-			record_cli_command(None, "foo", json!("bar")).await,
-			Err(TelemetryError::TelemetryNotSet)
-		));
+		assert!(record_cli_used(tel_with_bad_config_path.clone()).await.is_ok());
+		assert!(record_cli_command(tel_with_bad_config_path, "foo", json!("bar")).await.is_ok());
 		mock.assert_async().await;
 	}
 }
