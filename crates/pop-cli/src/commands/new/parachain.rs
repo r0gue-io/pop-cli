@@ -303,11 +303,28 @@ fn prompt_customizable_options() -> Result<Config> {
 		.interact()?;
 	let decimals: u8 = decimals_input.parse::<u8>().expect("input has to be a number");
 
-	let endowment: String = input("And the initial endowment for dev accounts?")
+	let mut initial_endowment: String = input("And the initial endowment for dev accounts?")
 		.placeholder("1u64 << 60")
 		.default_input("1u64 << 60")
 		.interact()?;
-	Ok(Config { symbol, decimals, initial_endowment: endowment })
+	if !is_initial_endowment_valid(&initial_endowment) {
+		outro_cancel("⚠️ The specified initial endowment is not valid")?;
+		//Prompt the user if want to use the one by default
+		if !confirm(format!(
+			"📦 Would you like to use the one by default {}?",
+			DEFAULT_INITIAL_ENDOWMENT
+		))
+		.initial_value(true)
+		.interact()?
+		{
+			outro_cancel(
+				"🚫 Cannot create a parachain with an incorrect initial endowment value.",
+			)?;
+			return Err(anyhow::anyhow!("incorrect initial endowment value"));
+		}
+		initial_endowment = DEFAULT_INITIAL_ENDOWMENT.to_string();
+	}
+	Ok(Config { symbol, decimals, initial_endowment })
 }
 
 #[cfg(test)]
