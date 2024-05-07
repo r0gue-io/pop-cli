@@ -347,11 +347,11 @@ mod tests {
 
 	#[test]
 	fn test_is_template_supported() -> Result<()> {
-		is_template_supported(&Provider::Pop, &Template::Base)?;
+		is_template_supported(&Provider::Pop, &Template::Standard)?;
 		assert!(is_template_supported(&Provider::Pop, &Template::ParityContracts).is_err());
 		assert!(is_template_supported(&Provider::Pop, &Template::ParityFPT).is_err());
 
-		assert!(is_template_supported(&Provider::Parity, &Template::Base).is_err());
+		assert!(is_template_supported(&Provider::Parity, &Template::Standard).is_err());
 		is_template_supported(&Provider::Parity, &Template::ParityContracts)?;
 		is_template_supported(&Provider::Parity, &Template::ParityFPT)
 	}

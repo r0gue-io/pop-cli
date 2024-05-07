@@ -80,7 +80,7 @@ mod tests {
 			decimals: 18,
 			initial_endowment: "1000000".to_string(),
 		};
-		instantiate_base_template(temp_dir.path(), config, None)?;
+		instantiate_standard_template(&Template::Standard, temp_dir.path(), config, None)?;
 		Ok(temp_dir)
 	}
 

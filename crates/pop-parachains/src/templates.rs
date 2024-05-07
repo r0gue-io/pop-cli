@@ -231,7 +231,10 @@ mod tests {
 	#[test]
 	fn test_templates_of_provider() {
 		let mut provider = Provider::Pop;
-		assert_eq!(provider.templates(), [&Template::Base, &Template::Assets]);
+		assert_eq!(
+			provider.templates(),
+			[&Template::Standard, &Template::Assets, &Template::Contracts, &Template::EVM]
+		);
 		provider = Provider::Parity;
 		assert_eq!(provider.templates(), [&Template::ParityContracts, &Template::ParityFPT]);
 	}
