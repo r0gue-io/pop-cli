@@ -147,9 +147,7 @@ mod tests {
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
 		let temp_contract_dir = temp_dir.path().join("test_contract");
 		fs::create_dir(&temp_contract_dir)?;
-		let result = create_smart_contract("test_contract", temp_contract_dir.as_path());
-		assert!(result.is_ok(), "Contract test environment setup failed");
-
+		create_smart_contract("test_contract", temp_contract_dir.as_path())?;
 		Ok(temp_dir)
 	}
 	fn build_smart_contract_test_environment(temp_dir: &TempDir) -> Result<(), Error> {
@@ -174,10 +172,8 @@ mod tests {
 			suri: "//Alice".to_string(),
 			execute: false,
 		};
-		let call = set_up_call(call_opts).await;
-		assert!(call.is_ok());
-		assert_eq!(call.unwrap().message(), "get");
-
+		let call = set_up_call(call_opts).await?;
+		assert_eq!(call.message(), "get");
 		Ok(())
 	}
 

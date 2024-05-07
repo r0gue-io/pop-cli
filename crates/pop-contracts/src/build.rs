@@ -27,9 +27,7 @@ mod tests {
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
 		let temp_contract_dir = temp_dir.path().join("test_contract");
 		fs::create_dir(&temp_contract_dir)?;
-		let result = crate::create_smart_contract("test_contract", temp_contract_dir.as_path());
-		assert!(result.is_ok(), "Contract test environment setup failed");
-
+		crate::create_smart_contract("test_contract", temp_contract_dir.as_path())?;
 		Ok(temp_dir)
 	}
 
@@ -37,8 +35,7 @@ mod tests {
 	fn test_contract_build() -> Result<(), Error> {
 		let temp_contract_dir = setup_test_environment()?;
 
-		let build = build_smart_contract(&Some(temp_contract_dir.path().join("test_contract")));
-		assert!(build.is_ok(), "Result should be Ok");
+		build_smart_contract(&Some(temp_contract_dir.path().join("test_contract")))?;
 
 		// Verify that the folder target has been created
 		assert!(temp_contract_dir.path().join("test_contract/target").exists());

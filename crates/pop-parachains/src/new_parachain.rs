@@ -80,9 +80,7 @@ mod tests {
 			decimals: 18,
 			initial_endowment: "1000000".to_string(),
 		};
-		let result: anyhow::Result<Option<String>> =
-			instantiate_standard_template(&Template::Standard, temp_dir.path(), config, None);
-		assert!(result.is_ok());
+		instantiate_base_template(temp_dir.path(), config, None)?;
 		Ok(temp_dir)
 	}
 
