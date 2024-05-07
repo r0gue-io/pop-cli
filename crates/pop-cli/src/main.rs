@@ -44,6 +44,9 @@ enum Commands {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+	#[cfg(feature = "no_telemetry")]
+	let maybe_tel = None;
+	#[cfg(not(feature = "no_telemetry"))]
 	let maybe_tel = init().unwrap_or(None);
 
 	let args: Vec<_> = args().collect();
