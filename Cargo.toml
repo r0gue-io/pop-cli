@@ -12,13 +12,15 @@ codegen-units = 1
 resolver = "2"
 members = ["crates/*"]
 
+[workspace.package]
+edition = "2021"
+
 [workspace.dependencies]
 anyhow = "1.0"
-dirs = { version = "5.0" }
+dirs = "5.0"
 env_logger = "0.11.1"
 duct = "0.13"
 git2 = "0.18"
-hostname = "0.4.0"
 log = "0.4.20"
 mockito = "1.4.0"
 tempfile = "3.8"

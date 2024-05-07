@@ -1,12 +1,11 @@
 [package]
 name = "pop-telemetry"
 version = "0.1.0"
-edition = "2021"
+edition.workspace = true
 
 [dependencies]
 dirs = { workspace = true }
 env_logger.workspace = true
-hostname.workspace = true
 log.workspace = true
 reqwest.workspace = true
 serde.workspace = true
