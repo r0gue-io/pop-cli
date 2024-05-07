@@ -32,8 +32,12 @@ pub struct NewParachainCommand {
 		value_parser = crate::enum_variants!(Template)
 	)]
 	pub(crate) template: Option<Template>,
-	#[arg(short = 'v', long, help = "Tag version to use for template")]
-	pub(crate) tag_version: Option<String>,
+	#[arg(
+		short = 'r',
+		long,
+		help = "Release tag to use for template. If empty, latest release will be used."
+	)]
+	pub(crate) release_tag: Option<String>,
 	#[arg(long, short, help = "Token Symbol", default_value = "UNIT")]
 	pub(crate) symbol: Option<String>,
 	#[arg(long, short, help = "Token Decimals", default_value = "12")]
@@ -45,12 +49,6 @@ pub struct NewParachainCommand {
 		default_value = "1u64 << 60"
 	)]
 	pub(crate) initial_endowment: Option<String>,
-	#[arg(
-		short = 'p',
-		long,
-		help = "Path for the parachain project, [default: current directory]"
-	)]
-	pub(crate) path: Option<PathBuf>,
 }
 
 #[macro_export]
@@ -74,6 +72,7 @@ impl NewParachainCommand {
 		set_theme(Theme);
 
 		let parachain_config = if self.name.is_none() {
+			// If user doesn't select the name guide them to generate a parachain.
 			guide_user_to_generate_parachain().await?
 		} else {
 			self.clone()
@@ -97,7 +96,7 @@ impl NewParachainCommand {
 			parachain_config.initial_endowment.clone(),
 		)?;
 
-		let tag_version = parachain_config.tag_version.clone();
+		let tag_version = parachain_config.release_tag.clone();
 
 		generate_parachain_from_template(name, provider, &template, tag_version, config)?;
 		Ok(template)
@@ -154,11 +153,10 @@ async fn guide_user_to_generate_parachain() -> Result<NewParachainCommand> {
 		name: Some(name),
 		provider: Some(provider.clone()),
 		template: Some(template.clone()),
-		tag_version: release_name,
+		release_tag: release_name,
 		symbol: Some(customizable_options.symbol),
 		decimals: Some(customizable_options.decimals),
 		initial_endowment: Some(customizable_options.initial_endowment),
-		path: None,
 	})
 }
 fn generate_parachain_from_template(
@@ -342,11 +340,10 @@ mod tests {
 			name: Some(dir.path().join("test_parachain").to_str().unwrap().to_string()),
 			provider: Some(Provider::Pop),
 			template: Some(Template::Base),
-			tag_version: None,
+			release_tag: None,
 			symbol: Some("UNIT".to_string()),
 			decimals: Some(12),
 			initial_endowment: Some("1u64 << 60".to_string()),
-			path: None,
 		};
 		command.execute().await?;
 

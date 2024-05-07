@@ -106,11 +106,13 @@ async fn main() -> Result<()> {
 
 	if let Some(tel) = maybe_tel.clone() {
 		if let Ok(sub_data) = &res {
-			// Best effort to send on first try, no action if failure
+			// Best effort to send on first try, no action if failure.
+			// `args` is guaranteed to have at least 3 elements as clap will display help message if not set.
 			let _ =
 				record_cli_command(tel.clone(), &args[1], json!({&args[2]: sub_data.to_string()}))
 					.await;
 		} else {
+			// `args` is guaranteed to have at least 3 elements as clap will display help message if not set.
 			let _ = record_cli_command(tel, "error", json!({&args[1]: &args[2]})).await;
 		}
 	}

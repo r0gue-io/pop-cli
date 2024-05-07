@@ -1,6 +1,5 @@
 use reqwest::Client;
-use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
 	fs::{create_dir_all, File},
@@ -41,6 +40,11 @@ pub struct Telemetry {
 }
 
 impl Telemetry {
+	/// Create a new Telemetry instance.
+	///
+	/// parameters:
+	/// `endpoint`: the API endpoint that telemetry will call
+	/// `config_path`: the path to the configuration file (used for opt-in checks)
 	pub fn new(endpoint: String, config_path: PathBuf) -> Self {
 		let opt_in = Self::check_opt_in_from_config(&config_path);
 

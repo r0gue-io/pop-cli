@@ -27,17 +27,16 @@ impl TestContractCommand {
 				style(" Pop CLI ").black().on_magenta()
 			))?;
 
-			feature = "e2e";
-
 			test_e2e_smart_contract(&self.path)?;
 			outro("End-to-end testing complete")?;
+			Ok("e2e")
 		} else {
 			intro(format!("{}: Starting unit tests", style(" Pop CLI ").black().on_magenta()))?;
 			feature = "unit";
 
 			test_smart_contract(&self.path)?;
 			outro("Unit testing complete")?;
+			Ok("unit")
 		}
-		Ok(feature)
 	}
 }
