@@ -19,7 +19,6 @@ pub(crate) struct TestContractCommand {
 impl TestContractCommand {
 	pub(crate) fn execute(&self) -> anyhow::Result<&str> {
 		clear_screen()?;
-		let feature;
 
 		if self.features.is_some() && self.features.clone().unwrap().contains("e2e-tests") {
 			intro(format!(
@@ -32,7 +31,6 @@ impl TestContractCommand {
 			Ok("e2e")
 		} else {
 			intro(format!("{}: Starting unit tests", style(" Pop CLI ").black().on_magenta()))?;
-			feature = "unit";
 
 			test_smart_contract(&self.path)?;
 			outro("Unit testing complete")?;

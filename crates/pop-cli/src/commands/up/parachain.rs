@@ -34,8 +34,8 @@ impl ZombienetCommand {
 	pub(crate) async fn execute(&self) -> anyhow::Result<()> {
 		clear_screen()?;
 		intro(format!("{}: Deploy a parachain", style(" Pop CLI ").black().on_magenta()))?;
-
 		set_theme(Theme);
+
 		// Parse arguments
 		let cache = crate::cache()?;
 		let mut zombienet = Zombienet::new(

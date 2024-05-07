@@ -57,7 +57,6 @@ impl CallContractCommand {
 	pub(crate) async fn execute(&self) -> anyhow::Result<()> {
 		clear_screen()?;
 		intro(format!("{}: Calling a contract", style(" Pop CLI ").black().on_magenta()))?;
-
 		set_theme(Theme);
 
 		let call_exec = set_up_call(CallOpts {

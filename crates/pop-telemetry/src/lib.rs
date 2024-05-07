@@ -65,8 +65,8 @@ impl Telemetry {
 	}
 
 	/// Send JSON payload to saved api endpoint.
-	/// Will return error and not send anything if opt-in is false.
-	/// Will return error from reqwest if the sending fails.
+	/// Returns error and will not send anything if opt-out is true.
+	/// Returns error from reqwest if the sending fails.
 	/// It sends message only once as "best effort". There is no retry on error
 	/// in order to keep overhead to a minimal.
 	async fn send_json(&self, payload: Value) -> Result<()> {
