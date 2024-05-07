@@ -826,9 +826,7 @@ mod tests {
 		)
 		.await?;
 
-		let config = zombienet.configure();
-		assert!(config.is_ok());
-
+		zombienet.configure()?;
 		Ok(())
 	}
 
@@ -851,9 +849,7 @@ mod tests {
 			binary.source(&cache, ()).await?;
 		}
 
-		let spawn = zombienet.spawn().await;
-		assert!(spawn.is_ok());
-
+		zombienet.spawn().await?;
 		Ok(())
 	}
 
@@ -887,8 +883,7 @@ mod tests {
 			version: TESTING_POLKADOT_VERSION.to_string(),
 			url: "https://github.com/paritytech/polkadot-sdk/releases/download/polkadot-v1.7.0/polkadot".to_string()
 		};
-		let result = source.process(&cache, ()).await;
-		assert!(result.is_ok());
+		source.process(&cache, ()).await?;
 		assert!(temp_dir.path().join(POLKADOT_BINARY).exists());
 
 		Ok(())
@@ -913,8 +908,7 @@ mod tests {
 			version: Some(version),
 		};
 
-		let result = source.process(&cache, ()).await;
-		assert!(result.is_ok());
+		source.process(&cache, ()).await?;
 		assert!(temp_dir.path().join(POLKADOT_BINARY).exists());
 
 		Ok(())
