@@ -5,7 +5,7 @@ use std::{
 	fs::{create_dir_all, File},
 	io,
 	io::{Read, Write},
-	path::{Path, PathBuf},
+	path::PathBuf,
 };
 use thiserror::Error;
 
@@ -18,8 +18,8 @@ pub enum TelemetryError {
 	NetworkError(reqwest::Error),
 	#[error("io error occurred: {0}")]
 	IO(io::Error),
-	#[error("opt-in is not set, can not report metrics")]
-	NotOptedIn,
+	#[error("opt-out has been set, can not report metrics")]
+	OptedOut,
 	#[error("unable to find config file")]
 	ConfigFileNotFound,
 	#[error("serialization failed: {0}")]
@@ -33,8 +33,8 @@ pub struct Telemetry {
 	// Endpoint to the telemetry API.
 	// This should include the domain and api path (e.g. localhost:3000/api/send)
 	endpoint: String,
-	// Has the user opted-in to anonymous telemetry
-	opt_in: bool,
+	// Has the user opted-out to anonymous telemetry
+	opt_out: bool,
 	// Reqwest client
 	client: Client,
 }
@@ -44,14 +44,15 @@ impl Telemetry {
 	///
 	/// parameters:
 	/// `endpoint`: the API endpoint that telemetry will call
-	/// `config_path`: the path to the configuration file (used for opt-in checks)
+	/// `config_path`: the path to the configuration file (used for opt-out checks)
 	pub fn new(endpoint: String, config_path: PathBuf) -> Self {
-		let opt_in = Self::check_opt_in_from_config(&config_path);
+		let opt_out = Self::is_opt_out_from_config(&config_path);
+		log::debug!("**opt_out {:?}", opt_out);
 
-		Telemetry { endpoint, opt_in, client: Client::new() }
+		Telemetry { endpoint, opt_out, client: Client::new() }
 	}
 
-	fn check_opt_in_from_config(config_file_path: &PathBuf) -> bool {
+	fn is_opt_out_from_config(config_file_path: &PathBuf) -> bool {
 		let config: Config = match read_json_file(config_file_path) {
 			Ok(config) => config,
 			Err(err) => {
@@ -60,7 +61,7 @@ impl Telemetry {
 			},
 		};
 
-		config.opt_in.allow
+		!config.opt_out.version.is_empty()
 	}
 
 	/// Send JSON payload to saved api endpoint.
@@ -69,8 +70,8 @@ impl Telemetry {
 	/// It sends message only once as "best effort". There is no retry on error
 	/// in order to keep overhead to a minimal.
 	async fn send_json(&self, payload: Value) -> Result<()> {
-		if !self.opt_in {
-			return Err(TelemetryError::NotOptedIn);
+		if self.opt_out {
+			return Err(TelemetryError::OptedOut);
 		}
 
 		let request_builder = self.client.post(&self.endpoint);
@@ -113,10 +114,8 @@ pub async fn record_cli_command(tel: Telemetry, command_name: &str, data: Value)
 }
 
 #[derive(PartialEq, Serialize, Deserialize, Debug)]
-struct OptIn {
-	// did user opt in
-	allow: bool,
-	// what telemetry version did they opt-in for
+struct OptOut {
+	// what telemetry version did they opt-out for
 	version: String,
 }
 
@@ -124,7 +123,7 @@ struct OptIn {
 /// This will be written as json to a config.json file.
 #[derive(PartialEq, Serialize, Deserialize, Debug)]
 pub struct Config {
-	opt_in: OptIn,
+	opt_out: OptOut,
 }
 
 /// Returns the configuration file path based on OS's default config directory.
@@ -135,29 +134,22 @@ pub fn config_file_path() -> Result<PathBuf> {
 	Ok(config_path.join("config.json"))
 }
 
-/// Writes a default config to the configuration file at the specified path.
-/// Returns true if file written.
-/// Returns false if file existed and nothing was written.
+/// Writes opt-out to the configuration file at the specified path.
+/// opt-out is currently the only config type. Hence, if the file exists, it will be overwritten.
 ///
 /// parameters:
 /// `config_path`: the path to write the config file to
-pub fn write_default_config(config_path: &PathBuf) -> Result<bool> {
-	if !Path::new(&config_path).exists() {
-		let default_config =
-			Config { opt_in: OptIn { allow: true, version: CARGO_PKG_VERSION.to_string() } };
+pub fn write_config_opt_out(config_path: &PathBuf) -> Result<()> {
+	let config = Config { opt_out: OptOut { version: CARGO_PKG_VERSION.to_string() } };
 
-		let default_config_json = serde_json::to_string_pretty(&default_config)
-			.map_err(|err| TelemetryError::SerializeFailed(err.to_string()))?;
+	let config_json = serde_json::to_string_pretty(&config)
+		.map_err(|err| TelemetryError::SerializeFailed(err.to_string()))?;
 
-		let mut file = File::create(&config_path).map_err(|err| TelemetryError::IO(err))?;
-		file.write_all(default_config_json.as_bytes())
-			.map_err(|err| TelemetryError::IO(err))?;
-	} else {
-		// if the file already existed
-		return Ok(false);
-	}
+	// overwrites file if it exists
+	let mut file = File::create(&config_path).map_err(|err| TelemetryError::IO(err))?;
+	file.write_all(config_json.as_bytes()).map_err(|err| TelemetryError::IO(err))?;
 
-	Ok(true)
+	Ok(())
 }
 
 fn read_json_file<T>(file_path: &PathBuf) -> std::result::Result<T, io::Error>
@@ -201,7 +193,7 @@ mod tests {
 
 	fn create_temp_config(temp_dir: &TempDir) -> PathBuf {
 		let config_path = temp_dir.path().join("config.json");
-		assert!(write_default_config(&config_path).is_ok());
+		assert!(write_config_opt_out(&config_path).is_ok());
 		config_path
 	}
 	async fn default_mock(mock_server: &mut Server, payload: String) -> Mock {
@@ -216,14 +208,13 @@ mod tests {
 			.await
 	}
 	#[tokio::test]
-	async fn write_default_config_works() {
+	async fn write_config_opt_out_works() {
 		// Mock config file path function to return a temporary path
 		let temp_dir = TempDir::new().unwrap();
 		let config_path = create_temp_config(&temp_dir);
 
 		let actual_config: Config = read_json_file(&config_path).unwrap();
-		let expected_config =
-			Config { opt_in: OptIn { allow: true, version: CARGO_PKG_VERSION.to_string() } };
+		let expected_config = Config { opt_out: OptOut { version: CARGO_PKG_VERSION.to_string() } };
 
 		assert_eq!(actual_config, expected_config);
 	}
@@ -232,7 +223,7 @@ mod tests {
 	async fn new_telemetry_works() {
 		let _ = env_logger::try_init();
 		// assert that invalid config file results in a false opt_in (hence disabling telemetry)
-		assert!(!Telemetry::new("".to_string(), PathBuf::new()).opt_in);
+		assert!(!Telemetry::new("".to_string(), PathBuf::new()).opt_out);
 
 		// Mock config file path function to return a temporary path
 		let temp_dir = TempDir::new().unwrap();
@@ -243,12 +234,12 @@ mod tests {
 		let tel = Telemetry::new("127.0.0.1".to_string(), config_path);
 		let expected_telemetry = Telemetry {
 			endpoint: "127.0.0.1".to_string(),
-			opt_in: true,
+			opt_out: true,
 			client: Default::default(),
 		};
 
 		assert_eq!(tel.endpoint, expected_telemetry.endpoint);
-		assert_eq!(tel.opt_in, expected_telemetry.opt_in);
+		assert_eq!(tel.opt_out, expected_telemetry.opt_out);
 	}
 
 	#[tokio::test]
@@ -261,7 +252,7 @@ mod tests {
 
 		// Mock config file path function to return a temporary path
 		let temp_dir = TempDir::new().unwrap();
-		let config_path = create_temp_config(&temp_dir);
+		let config_path = temp_dir.path().join("config.json");
 
 		let expected_payload = generate_payload("", json!({})).to_string();
 
@@ -283,7 +274,8 @@ mod tests {
 
 		// Mock config file path function to return a temporary path
 		let temp_dir = TempDir::new().unwrap();
-		let config_path = create_temp_config(&temp_dir);
+
+		let config_path = temp_dir.path().join("config.json");
 
 		let expected_payload = generate_payload("new", json!("parachain")).to_string();
 
@@ -296,7 +288,7 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn opt_in_fails() {
+	async fn opt_out_fails() {
 		let _ = env_logger::try_init();
 		let mut mock_server = mockito::Server::new_async().await;
 
@@ -309,29 +301,22 @@ mod tests {
 		let mock = mock_server.mock("POST", "/").create_async().await;
 		let mock = mock.expect_at_most(0);
 
-		let mut tel_with_bad_config_path =
-			Telemetry::new(endpoint.clone(), config_path.join("break_path"));
+		let mut tel = Telemetry::new(endpoint.clone(), config_path);
 
+		assert!(matches!(tel.send_json(json!("foo")).await, Err(TelemetryError::OptedOut)));
+		assert!(matches!(record_cli_used(tel.clone()).await, Err(TelemetryError::OptedOut)));
 		assert!(matches!(
-			tel_with_bad_config_path.send_json(json!("foo")).await,
-			Err(TelemetryError::NotOptedIn)
-		));
-		assert!(matches!(
-			record_cli_used(tel_with_bad_config_path.clone()).await,
-			Err(TelemetryError::NotOptedIn)
-		));
-		assert!(matches!(
-			record_cli_command(tel_with_bad_config_path.clone(), "foo", json!("bar")).await,
-			Err(TelemetryError::NotOptedIn)
+			record_cli_command(tel.clone(), "foo", json!("bar")).await,
+			Err(TelemetryError::OptedOut)
 		));
 		mock.assert_async().await;
 
 		// test it's set to true and works
-		tel_with_bad_config_path.opt_in = true;
+		tel.opt_out = false;
 		let mock = mock.expect_at_most(3);
-		assert!(tel_with_bad_config_path.send_json(json!("foo")).await.is_ok(),);
-		assert!(record_cli_used(tel_with_bad_config_path.clone()).await.is_ok());
-		assert!(record_cli_command(tel_with_bad_config_path, "foo", json!("bar")).await.is_ok());
+		assert!(tel.send_json(json!("foo")).await.is_ok(),);
+		assert!(record_cli_used(tel.clone()).await.is_ok());
+		assert!(record_cli_command(tel, "foo", json!("bar")).await.is_ok());
 		mock.assert_async().await;
 	}
 }

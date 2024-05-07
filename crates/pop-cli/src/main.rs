@@ -130,30 +130,9 @@ fn cache() -> Result<PathBuf> {
 	Ok(cache_path)
 }
 
-fn init_config() -> Result<PathBuf> {
-	let path = config_file_path()?;
-	match pop_telemetry::write_default_config(&path) {
-		Ok(written) => {
-			if written {
-				cliclack::log::info(format!(
-					"Initialized config file at {}",
-					&path.to_str().unwrap()
-				))?;
-			}
-		},
-		Err(err) => {
-			cliclack::log::warning(format!(
-				"Unable to initialize config file, continuing... {}",
-				err.to_string()
-			))?;
-		},
-	}
-	Ok(path)
-}
-
 fn init() -> Result<Option<Telemetry>> {
 	env_logger::init();
-	let maybe_config_path = init_config();
+	let maybe_config_path = config_file_path();
 	// environment variable `POP_TELEMETRY_ENDPOINT` is evaluated at compile time
 	let endpoint =
 		option_env!("POP_TELEMETRY_ENDPOINT").unwrap_or("http://127.0.0.1:3000/api/send");
