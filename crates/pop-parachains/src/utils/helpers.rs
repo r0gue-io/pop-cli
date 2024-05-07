@@ -24,14 +24,33 @@ pub(crate) fn sanitize(target: &Path) -> Result<(), Error> {
 	Ok(())
 }
 
-pub fn is_initial_endowment_valid(initial_endowment: String) -> bool {
-	match initial_endowment.parse::<i128>() {
+pub fn is_initial_endowment_valid(initial_endowment: &str) -> bool {
+	match initial_endowment.parse::<u128>() {
 		Ok(_) => return true,
-		Err(error) => {
-			println!("{:?}", error);
-			return false;
+		Err(_error) => match left_shift(initial_endowment) {
+			Ok(_) => return true,
+			Err(_error) => return false,
 		},
 	}
+}
+fn left_shift(initial_endowment: &str) -> Result<u64, Error> {
+	let v: Vec<&str> = initial_endowment.split(" << ").collect();
+	if v.len() < 2 {
+		return Err(Error::EndowmentError);
+	}
+	let left = v[0]
+		.split("u") // parse 1u64 characters
+		.take(1)
+		.collect::<String>()
+		.parse::<u64>()
+		.or_else(|_e| Err(Error::EndowmentError))?;
+	let right = v[1]
+		.chars()
+		.filter(|c| c.is_numeric()) // parse 1u64 characters
+		.collect::<String>()
+		.parse::<u32>()
+		.or_else(|_e| Err(Error::EndowmentError))?;
+	left.checked_shl(right).ok_or(Error::EndowmentError)
 }
 
 pub(crate) fn write_to_file(path: &Path, contents: &str) -> Result<(), Error> {
@@ -67,10 +86,16 @@ mod tests {
 
 	#[test]
 	fn test_is_initial_endowment_valid() {
-		assert_eq!(is_initial_endowment_valid("100000".to_string()), true);
-		//assert_eq!(is_initial_endowment_valid("1u64 << 60".to_string()), true);
-		assert_eq!(is_initial_endowment_valid("1 << 60".to_string()), true);
-		// assert_eq!(is_initial_endowment_valid("wrong".to_string()), false);
-		// assert_eq!(is_initial_endowment_valid(" ".to_string()), false);
+		assert_eq!(is_initial_endowment_valid("100000"), true);
+		assert_eq!(is_initial_endowment_valid("1u64 << 60"), true);
+		assert_eq!(is_initial_endowment_valid("wrong"), false);
+		assert_eq!(is_initial_endowment_valid(" "), false);
+	}
+	#[test]
+	fn test_left_shift() {
+		// Values from https://stackoverflow.com/questions/56392875/how-can-i-initialize-a-users-balance-in-a-substrate-blockchain
+		assert_eq!(left_shift("1 << 60").unwrap(), 1152921504606846976);
+		let result = left_shift("wrong");
+		assert!(result.is_err());
 	}
 }

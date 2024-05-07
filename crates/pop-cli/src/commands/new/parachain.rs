@@ -89,16 +89,16 @@ impl NewParachainCommand {
 				is_template_supported(provider, &template)?;
 				let mut initial_endowment = self.initial_endowment.clone();
 				if initial_endowment.is_some()
-					&& !is_initial_endowment_valid(initial_endowment.unwrap())
+					&& !is_initial_endowment_valid(&initial_endowment.clone().unwrap())
 				{
-					log::warning(format!(
-						"⚠️ The specified initial endowment {} is not valid",
-						initial_endowment.unwrap()
-					))?;
+					log::warning("⚠️ The specified initial endowment is not valid")?;
 					//Prompt the user if want to use the one by default
-					if !confirm("📦 Would you like to use the one by default?")
-						.initial_value(true)
-						.interact()?
+					if !confirm(format!(
+						"📦 Would you like to use the one by default {}?",
+						DEFAULT_INITIAL_ENDOWMENT
+					))
+					.initial_value(true)
+					.interact()?
 					{
 						outro_cancel("🚫 Cannot create a parachain with an incorrect initial endowment value.")?;
 						return Ok(());
@@ -109,7 +109,7 @@ impl NewParachainCommand {
 					&template,
 					self.symbol.clone(),
 					self.decimals,
-					initial_endowment,
+					initial_endowment.clone(),
 				)?;
 
 				generate_parachain_from_template(name, provider, &template, None, config)
@@ -238,7 +238,6 @@ fn get_customization_value(
 	decimals: Option<u8>,
 	initial_endowment: Option<String>,
 ) -> Result<Config> {
-	println!("endowment {:?}", initial_endowment);
 	if !matches!(template, Template::Base)
 		&& (symbol.is_some() || decimals.is_some() || initial_endowment.is_some())
 	{
