@@ -49,7 +49,7 @@ impl Provider {
 	pub fn templates(&self) -> Vec<&Template> {
 		Template::VARIANTS
 			.iter()
-			.filter(|t| t.get_str("Provider") == Some(self.to_string().as_str()))
+			.filter(|t| t.get_str("Provider") == Some(self.name()))
 			.collect()
 	}
 }
@@ -221,11 +221,19 @@ mod tests {
 	}
 
 	#[test]
-	fn test_default_provider() {
+	fn test_default_template_of_provider() {
 		let mut provider = Provider::Pop;
 		assert_eq!(provider.default_template(), Template::Standard);
 		provider = Provider::Parity;
 		assert_eq!(provider.default_template(), Template::ParityContracts);
+	}
+
+	#[test]
+	fn test_templates_of_provider() {
+		let mut provider = Provider::Pop;
+		assert_eq!(provider.templates(), [&Template::Base, &Template::Assets]);
+		provider = Provider::Parity;
+		assert_eq!(provider.templates(), [&Template::ParityContracts, &Template::ParityFPT]);
 	}
 
 	#[test]
