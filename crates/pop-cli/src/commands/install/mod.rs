@@ -9,7 +9,7 @@ use tokio::{fs, process::Command};
 
 #[derive(Args)]
 #[command(args_conflicts_with_subcommands = true)]
-/// Setup user environment for substrate development
+/// Setup user environment for development
 pub(crate) struct InstallArgs {
 	/// Before install all the dependencies needed, do not ask the user for confirmation.
 	#[clap(short('y'), long)]
