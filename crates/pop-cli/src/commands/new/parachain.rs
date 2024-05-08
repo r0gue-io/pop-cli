@@ -356,32 +356,32 @@ mod tests {
 	}
 
 	#[test]
-	fn test_is_template_supported() {
-		assert!(is_template_supported(&Provider::Pop, &Template::Base).is_ok());
+	fn test_is_template_supported() -> Result<()> {
+		is_template_supported(&Provider::Pop, &Template::Base)?;
 		assert!(is_template_supported(&Provider::Pop, &Template::ParityContracts).is_err());
 		assert!(is_template_supported(&Provider::Pop, &Template::ParityFPT).is_err());
 
 		assert!(is_template_supported(&Provider::Parity, &Template::Base).is_err());
-		assert!(is_template_supported(&Provider::Parity, &Template::ParityContracts).is_ok());
-		assert!(is_template_supported(&Provider::Parity, &Template::ParityFPT).is_ok());
+		is_template_supported(&Provider::Parity, &Template::ParityContracts)?;
+		is_template_supported(&Provider::Parity, &Template::ParityFPT)
 	}
 
 	#[test]
-	fn test_get_customization_values() {
+	fn test_get_customization_values() -> Result<()> {
 		let config = get_customization_value(
 			&Template::Base,
 			Some("DOT".to_string()),
 			Some(6),
 			Some("10000".to_string()),
-		);
-		assert!(config.is_ok());
+		)?;
 		assert_eq!(
-			config.unwrap(),
+			config,
 			Config {
 				symbol: "DOT".to_string(),
 				decimals: 6,
 				initial_endowment: "10000".to_string()
 			}
 		);
+		Ok(())
 	}
 }

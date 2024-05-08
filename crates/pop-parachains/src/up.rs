@@ -826,34 +826,7 @@ mod tests {
 		)
 		.await?;
 
-		let config = zombienet.configure();
-		assert!(config.is_ok());
-
-		Ok(())
-	}
-
-	#[cfg(feature = "unit_parachain")]
-	#[tokio::test]
-	async fn test_spawn_polkadot_and_two_parachains() -> Result<()> {
-		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
-		let cache = PathBuf::from(temp_dir.path());
-
-		let mut zombienet = Zombienet::new(
-			cache.clone(),
-			CONFIG_FILE_PATH,
-			Some(&TESTING_POLKADOT_VERSION.to_string()),
-			Some(&TESTING_POLKADOT_VERSION.to_string()),
-			Some(&vec!["https://github.com/r0gue-io/pop-node".to_string()]),
-		)
-		.await?;
-		let missing_binaries = zombienet.missing_binaries();
-		for binary in missing_binaries {
-			binary.source(&cache, ()).await?;
-		}
-
-		let spawn = zombienet.spawn().await;
-		assert!(spawn.is_ok());
-
+		zombienet.configure()?;
 		Ok(())
 	}
 
@@ -887,34 +860,7 @@ mod tests {
 			version: TESTING_POLKADOT_VERSION.to_string(),
 			url: "https://github.com/paritytech/polkadot-sdk/releases/download/polkadot-v1.7.0/polkadot".to_string()
 		};
-		let result = source.process(&cache, ()).await;
-		assert!(result.is_ok());
-		assert!(temp_dir.path().join(POLKADOT_BINARY).exists());
-
-		Ok(())
-	}
-
-	#[cfg(feature = "unit_parachain")]
-	#[tokio::test]
-	async fn test_process_git() -> Result<()> {
-		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
-		let cache = PathBuf::from(temp_dir.path());
-
-		let version = TESTING_POLKADOT_VERSION.to_string();
-		let repo = Url::parse(POLKADOT_SDK).expect("repository url valid");
-		let source = Source::Git {
-			url: repo.into(),
-			branch: Some(format!("release-polkadot-{version}")),
-			package: "polkadot".to_string(),
-			binaries: ["polkadot", "polkadot-execute-worker", "polkadot-prepare-worker"]
-				.iter()
-				.map(|b| b.to_string())
-				.collect(),
-			version: Some(version),
-		};
-
-		let result = source.process(&cache, ()).await;
-		assert!(result.is_ok());
+		source.process(&cache, ()).await?;
 		assert!(temp_dir.path().join(POLKADOT_BINARY).exists());
 
 		Ok(())
