@@ -8,7 +8,7 @@ mod style;
 use anyhow::{anyhow, Result};
 use clap::{Parser, Subcommand};
 use commands::*;
-#[cfg(not(feature = "no_telemetry"))]
+#[cfg(feature = "telemetry")]
 use pop_telemetry::{config_file_path, record_cli_command, record_cli_used, Telemetry};
 use serde_json::{json, Value};
 use std::{fs::create_dir_all, path::PathBuf};
@@ -44,7 +44,7 @@ enum Commands {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-	#[cfg(not(feature = "no_telemetry"))]
+	#[cfg(feature = "telemetry")]
 	let maybe_tel = init().unwrap_or(None);
 
 	let cli = Cli::parse();
@@ -94,7 +94,7 @@ async fn main() -> Result<()> {
 		},
 	};
 
-	#[cfg(not(feature = "no_telemetry"))]
+	#[cfg(feature = "telemetry")]
 	if let Some(tel) = maybe_tel.clone() {
 		// `args` is guaranteed to have at least 3 elements as clap will display help message if not set.
 		let args: Vec<_> = std::env::args().collect();
@@ -124,7 +124,7 @@ fn cache() -> Result<PathBuf> {
 	Ok(cache_path)
 }
 
-#[cfg(not(feature = "no_telemetry"))]
+#[cfg(feature = "telemetry")]
 fn init() -> Result<Option<Telemetry>> {
 	env_logger::init();
 	let maybe_config_path = config_file_path();

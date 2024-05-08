@@ -43,7 +43,7 @@ assert_cmd = "2.0.14"
 predicates = "3.1.0"
 
 [features]
-default = ["contract", "parachain", "dep:pop-telemetry"]
+default = ["contract", "parachain", "telemetry"]
 static-ssl = ["git2/vendored-openssl"]
 contract = [
     "dep:pop-contracts",
@@ -54,4 +54,4 @@ parachain = [
     "dep:pop-parachains",
     "dep:dirs",
 ]
-no_telemetry = []
+telemetry = ["dep:pop-telemetry"]
