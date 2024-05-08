@@ -10,7 +10,11 @@ use tokio::{fs, process::Command};
 #[derive(Args)]
 #[command(args_conflicts_with_subcommands = true)]
 /// Setup user environment for substrate development
-pub(crate) struct InstallArgs;
+pub(crate) struct InstallArgs {
+	/// Before install all the dependencies needed, do not ask the user for confirmation.
+	#[clap(short('y'), long)]
+	skip_confirm: bool,
+}
 
 impl InstallArgs {
 	pub(crate) async fn execute(self) -> anyhow::Result<()> {
@@ -18,21 +22,25 @@ impl InstallArgs {
 			return not_supported_message();
 		} else if cfg!(target_os = "macos") {
 			log::info("ℹ️ Mac OS (Darwin) detected.")?;
-			return install_mac().await;
+			return install_mac(self.skip_confirm).await;
 		} else if cfg!(target_os = "linux") {
 			let info = os_info::get();
 			match info.os_type() {
 				Type::Arch => {
 					log::info("ℹ️ Arch Linux detected.")?;
-					return install_arch().await;
+					return install_arch(self.skip_confirm).await;
 				},
 				Type::Debian => {
-					log::info("ℹ️ Ubuntu/Debian Linux detected.")?;
-					return install_debian().await;
+					log::info("ℹ️ Debian Linux detected.")?;
+					return install_debian(self.skip_confirm).await;
 				},
 				Type::Redhat => {
 					log::info("ℹ️ Redhat Linux detected.")?;
-					return install_redhat().await;
+					return install_redhat(self.skip_confirm).await;
+				},
+				Type::Ubuntu => {
+					log::info("ℹ️ Ubuntu detected.")?;
+					return install_ubuntu(self.skip_confirm).await;
 				},
 				_ => return not_supported_message(),
 			}
@@ -42,9 +50,9 @@ impl InstallArgs {
 	}
 }
 
-async fn install_mac() -> anyhow::Result<()> {
+async fn install_mac(skip_confirm: bool) -> anyhow::Result<()> {
 	log::info("More information about the packages to be installed here: https://docs.substrate.io/install/macos/")?;
-	if !confirm("📦 Do you want to proceed with the installation of the following packages: Homebrew, protobuf, openssl, rustup, and cmake?")
+	if !skip_confirm && !confirm("📦 Do you want to proceed with the installation of the following packages: Homebrew, protobuf, openssl, rustup, and cmake?")
 		.initial_value(true)
 		.interact()?
 	{
@@ -59,13 +67,13 @@ async fn install_mac() -> anyhow::Result<()> {
 	cmd("brew", vec!["install", "protobuf", "openssl", "cmake"]).run()?;
 	install_rustup().await?;
 
-	log::success("✅ Installation complete.");
+	log::success("✅ Installation complete.")?;
 	Ok(())
 }
 
-async fn install_arch() -> anyhow::Result<()> {
+async fn install_arch(skip_confirm: bool) -> anyhow::Result<()> {
 	log::info("More information about the packages to be installed here: https://docs.substrate.io/install/linux/")?;
-	if !confirm("📦 Do you want to proceed with the installation of the following packages:cmake gcc openssl-1.0 pkgconf git clang?")
+	if !skip_confirm && !confirm("📦 Do you want to proceed with the installation of the following packages:cmake gcc openssl-1.0 pkgconf git clang?")
 		.initial_value(true)
 		.interact()?
 	{
@@ -92,12 +100,12 @@ async fn install_arch() -> anyhow::Result<()> {
 	cmd("export", vec!["OPENSSL_INCLUDE_DIR='/usr/include/openssl-1.0'"]).run()?;
 	install_rustup().await?;
 
-	log::success("✅ Installation complete.");
+	log::success("✅ Installation complete.")?;
 	Ok(())
 }
-async fn install_debian() -> anyhow::Result<()> {
+async fn install_debian(skip_confirm: bool) -> anyhow::Result<()> {
 	log::info("More information about the packages to be installed here: https://docs.substrate.io/install/linux/")?;
-	if !confirm("📦 Do you want to proceed with the installation of the following packages:cmake pkg-config libssl-dev git gcc build-essential git protobuf-compiler clang libclang-dev?")
+	if !skip_confirm && !confirm("📦 Do you want to proceed with the installation of the following packages:cmake pkg-config libssl-dev git gcc build-essential git protobuf-compiler clang libclang-dev?")
 		.initial_value(true)
 		.interact()?
 	{
@@ -126,13 +134,33 @@ async fn install_debian() -> anyhow::Result<()> {
 	.run()?;
 	install_rustup().await?;
 
-	log::success("✅ Installation complete.");
+	log::success("✅ Installation complete.")?;
+	Ok(())
+}
+async fn install_ubuntu(skip_confirm: bool) -> anyhow::Result<()> {
+	log::info("More information about the packages to be installed here: https://docs.substrate.io/install/linux/")?;
+	if !skip_confirm && !confirm("📦 Do you want to proceed with the installation of the following packages:git clang curl libssl-dev protobuf-compiler?")
+		.initial_value(true)
+		.interact()?
+	{
+		outro_cancel("🚫 You have cancelled the installation process.")?;
+		return Ok(());
+	}
+	cmd("sudo", vec!["apt", "update"]).run()?;
+	cmd(
+		"sudo",
+		vec!["apt", "install", "-y", "git", "clang", "curl", "libssl-dev", "protobuf-compiler"],
+	)
+	.run()?;
+	install_rustup().await?;
+
+	log::success("✅ Installation complete.")?;
 	Ok(())
 }
 
-async fn install_redhat() -> anyhow::Result<()> {
+async fn install_redhat(skip_confirm: bool) -> anyhow::Result<()> {
 	log::info("More information about the packages to be installed here: https://docs.substrate.io/install/linux/")?;
-	if !confirm("📦 Do you want to proceed with the installation of the following packages:cmake, openssl-devel, git, protobuf, protobuf-compiler, clang, clang-devel and srustup?")
+	if !skip_confirm && !confirm("📦 Do you want to proceed with the installation of the following packages:cmake, openssl-devel, git, protobuf, protobuf-compiler, clang, clang-devel and srustup?")
 		.initial_value(true)
 		.interact()?
 	{
@@ -159,7 +187,7 @@ async fn install_redhat() -> anyhow::Result<()> {
 	.run()?;
 	install_rustup().await?;
 
-	log::success("✅ Installation complete.");
+	log::success("✅ Installation complete.")?;
 	Ok(())
 }
 
@@ -192,7 +220,7 @@ async fn install_rustup() -> anyhow::Result<()> {
 			fs::write(scripts_path.as_path(), script).await?;
 			Command::new("sh").arg(scripts_path).status().await?;
 			temp.close()?;
-			outro("rustup installed!");
+			outro("rustup installed!")?;
 			cmd(
 				"source",
 				vec![
