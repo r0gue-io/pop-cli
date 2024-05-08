@@ -8,10 +8,10 @@ mod style;
 use anyhow::{anyhow, Result};
 use clap::{Parser, Subcommand};
 use commands::*;
+#[cfg(not(feature = "no_telemetry"))]
 use pop_telemetry::{config_file_path, record_cli_command, record_cli_used, Telemetry};
 use serde_json::{json, Value};
-use std::{env::args, fs::create_dir_all, path::PathBuf};
-use tokio::spawn;
+use std::{fs::create_dir_all, path::PathBuf};
 
 #[derive(Parser)]
 #[command(author, version, about, styles=style::get_styles())]
@@ -44,18 +44,8 @@ enum Commands {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-	#[cfg(feature = "no_telemetry")]
-	let maybe_tel = None;
 	#[cfg(not(feature = "no_telemetry"))]
 	let maybe_tel = init().unwrap_or(None);
-
-	let args: Vec<_> = args().collect();
-
-	// Handle for await not used here as telemetry should complete before any of the commands do.
-	// Sends a generic ping saying the CLI was used.
-	if let Some(tel) = maybe_tel.clone() {
-		spawn(record_cli_used(tel));
-	}
 
 	let cli = Cli::parse();
 	let res = match cli.command {
@@ -104,16 +94,20 @@ async fn main() -> Result<()> {
 		},
 	};
 
+	#[cfg(not(feature = "no_telemetry"))]
 	if let Some(tel) = maybe_tel.clone() {
+		// `args` is guaranteed to have at least 3 elements as clap will display help message if not set.
+		let args: Vec<_> = std::env::args().collect();
+		let command = args.get(1).expect("expected command missing");
+		let subcommand = args.get(2).expect("expected sub-command missing");
+
 		if let Ok(sub_data) = &res {
 			// Best effort to send on first try, no action if failure.
-			// `args` is guaranteed to have at least 3 elements as clap will display help message if not set.
 			let _ =
-				record_cli_command(tel.clone(), &args[1], json!({&args[2]: sub_data.to_string()}))
+				record_cli_command(tel.clone(), command, json!({subcommand: sub_data.to_string()}))
 					.await;
 		} else {
-			// `args` is guaranteed to have at least 3 elements as clap will display help message if not set.
-			let _ = record_cli_command(tel, "error", json!({&args[1]: &args[2]})).await;
+			let _ = record_cli_command(tel, "error", json!({command: subcommand})).await;
 		}
 	}
 
@@ -130,6 +124,7 @@ fn cache() -> Result<PathBuf> {
 	Ok(cache_path)
 }
 
+#[cfg(not(feature = "no_telemetry"))]
 fn init() -> Result<Option<Telemetry>> {
 	env_logger::init();
 	let maybe_config_path = config_file_path();
@@ -137,8 +132,16 @@ fn init() -> Result<Option<Telemetry>> {
 	let endpoint =
 		option_env!("POP_TELEMETRY_ENDPOINT").unwrap_or("http://127.0.0.1:3000/api/send");
 
+	let maybe_tel = maybe_config_path.ok().map(|path| Telemetry::new(endpoint.to_string(), path));
+
+	// Handle for await not used here as telemetry should complete before any of the commands do.
+	// Sends a generic ping saying the CLI was used.
+	if let Some(tel) = maybe_tel.clone() {
+		tokio::spawn(record_cli_used(tel));
+	}
+
 	// if config file errors set telemetry to None, otherwise Some(tel)
-	Ok(maybe_config_path.ok().map(|path| Telemetry::new(endpoint.to_string(), path)))
+	Ok(maybe_tel)
 }
 
 #[test]

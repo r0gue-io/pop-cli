@@ -36,14 +36,14 @@ dirs = { workspace = true, optional = true }
 git2.workspace = true
 
 # telemetry
-pop-telemetry = { path = "../pop-telemetry" }
+pop-telemetry = { path = "../pop-telemetry", optional = true }
 
 [dev-dependencies]
 assert_cmd = "2.0.14"
 predicates = "3.1.0"
 
 [features]
-default = ["contract", "parachain"]
+default = ["contract", "parachain", "dep:pop-telemetry"]
 static-ssl = ["git2/vendored-openssl"]
 contract = [
     "dep:pop-contracts",
