@@ -2,20 +2,24 @@
 use strum::{
 	EnumMessage as EnumMessageT, EnumProperty as EnumPropertyT, VariantArray as VariantArrayT,
 };
-use strum_macros::{Display, EnumMessage, EnumProperty, EnumString, VariantArray};
+use strum_macros::{AsRefStr, Display, EnumMessage, EnumProperty, EnumString, VariantArray};
 use thiserror::Error;
 
-#[derive(Clone, Default, Debug, Display, EnumMessage, EnumString, Eq, PartialEq, VariantArray)]
+#[derive(
+	AsRefStr, Clone, Default, Debug, Display, EnumMessage, EnumString, Eq, PartialEq, VariantArray,
+)]
 pub enum Provider {
 	#[default]
 	#[strum(
 		ascii_case_insensitive,
+		serialize = "pop",
 		message = "Pop",
 		detailed_message = "An all-in-one tool for Polkadot development."
 	)]
 	Pop,
 	#[strum(
 		ascii_case_insensitive,
+		serialize = "parity",
 		message = "Parity",
 		detailed_message = "Solutions for a trust-free world."
 	)]
@@ -45,7 +49,7 @@ impl Provider {
 	pub fn templates(&self) -> Vec<&Template> {
 		Template::VARIANTS
 			.iter()
-			.filter(|t| t.get_str("Provider") == Some(self.to_string().as_str()))
+			.filter(|t| t.get_str("Provider") == Some(self.name()))
 			.collect()
 	}
 }
@@ -58,6 +62,7 @@ pub struct Config {
 }
 
 #[derive(
+	AsRefStr,
 	Clone,
 	Debug,
 	Default,
@@ -79,6 +84,13 @@ pub enum Template {
 		props(Provider = "Pop", Repository = "https://github.com/r0gue-io/base-parachain")
 	)]
 	Base,
+	#[strum(
+		serialize = "assets",
+		message = "Assets",
+		detailed_message = "Parachain configured with fungible and non-fungilble asset functionalities.",
+		props(Provider = "Pop", Repository = "https://github.com/r0gue-io/assets-parachain")
+	)]
+	Assets,
 	// Parity
 	#[strum(
 		serialize = "cpt",
@@ -111,7 +123,8 @@ impl Template {
 	}
 
 	pub fn matches(&self, provider: &Provider) -> bool {
-		self.get_str("Provider") == Some(provider.to_string().as_str())
+		// Match explicitly on provider name (message)
+		self.get_str("Provider") == Some(provider.name())
 	}
 
 	pub fn repository_url(&self) -> Result<&str, Error> {
@@ -143,12 +156,17 @@ mod tests {
 		template = Template::ParityFPT;
 		assert_eq!(template.matches(&Provider::Pop), false);
 		assert_eq!(template.matches(&Provider::Parity), true);
+
+		template = Template::Assets;
+		assert_eq!(template.matches(&Provider::Pop), true);
+		assert_eq!(template.matches(&Provider::Parity), false);
 	}
 
 	#[test]
 	fn test_convert_string_to_template() {
 		assert_eq!(Template::from_str("base").unwrap(), Template::Base);
 		assert_eq!(Template::from_str("").unwrap_or_default(), Template::Base);
+		assert_eq!(Template::from_str("assets").unwrap(), Template::Assets);
 		assert_eq!(Template::from_str("cpt").unwrap(), Template::ParityContracts);
 		assert_eq!(Template::from_str("fpt").unwrap(), Template::ParityFPT);
 	}
@@ -170,14 +188,27 @@ mod tests {
 			template.repository_url().unwrap(),
 			"https://github.com/paritytech/frontier-parachain-template"
 		);
+		template = Template::Assets;
+		assert_eq!(
+			template.repository_url().unwrap(),
+			"https://github.com/r0gue-io/assets-parachain"
+		);
 	}
 
 	#[test]
-	fn test_default_provider() {
+	fn test_default_template_of_provider() {
 		let mut provider = Provider::Pop;
 		assert_eq!(provider.default_template(), Template::Base);
 		provider = Provider::Parity;
 		assert_eq!(provider.default_template(), Template::ParityContracts);
+	}
+
+	#[test]
+	fn test_templates_of_provider() {
+		let mut provider = Provider::Pop;
+		assert_eq!(provider.templates(), [&Template::Base, &Template::Assets]);
+		provider = Provider::Parity;
+		assert_eq!(provider.templates(), [&Template::ParityContracts, &Template::ParityFPT]);
 	}
 
 	#[test]
