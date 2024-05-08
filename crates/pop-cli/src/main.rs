@@ -1,12 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0
 
+#[cfg(not(any(feature = "contract", feature = "parachain")))]
+compile_error!("feature \"contract\" or feature \"parachain\" must be enabled");
+
 #[cfg(any(feature = "parachain", feature = "contract"))]
 mod commands;
-#[cfg(any(feature = "parachain", feature = "contract"))]
 mod style;
 
-use anyhow::{anyhow, Result};
+#[cfg(feature = "parachain")]
+use anyhow::anyhow;
+use anyhow::Result;
 use clap::{Parser, Subcommand};
+#[cfg(feature = "parachain")]
 use std::{fs::create_dir_all, path::PathBuf};
 
 #[derive(Parser)]
@@ -21,9 +26,11 @@ pub struct Cli {
 enum Commands {
 	/// Generate a new parachain, pallet or smart contract.
 	#[clap(alias = "n")]
+	#[cfg(any(feature = "parachain", feature = "contract"))]
 	New(commands::new::NewArgs),
 	/// Build a parachain or smart contract.
 	#[clap(alias = "b")]
+	#[cfg(any(feature = "parachain", feature = "contract"))]
 	Build(commands::build::BuildArgs),
 	/// Call a smart contract.
 	#[clap(alias = "c")]
@@ -31,6 +38,7 @@ enum Commands {
 	Call(commands::call::CallArgs),
 	/// Deploy a parachain or smart contract.
 	#[clap(alias = "u")]
+	#[cfg(any(feature = "parachain", feature = "contract"))]
 	Up(commands::up::UpArgs),
 	/// Test a smart contract.
 	#[clap(alias = "t")]
@@ -42,6 +50,7 @@ enum Commands {
 async fn main() -> Result<()> {
 	let cli = Cli::parse();
 	match cli.command {
+		#[cfg(any(feature = "parachain", feature = "contract"))]
 		Commands::New(args) => Ok(match &args.command {
 			#[cfg(feature = "parachain")]
 			commands::new::NewCommands::Parachain(cmd) => cmd.execute().await?,
@@ -50,6 +59,7 @@ async fn main() -> Result<()> {
 			#[cfg(feature = "contract")]
 			commands::new::NewCommands::Contract(cmd) => cmd.execute().await?,
 		}),
+		#[cfg(any(feature = "parachain", feature = "contract"))]
 		Commands::Build(args) => match &args.command {
 			#[cfg(feature = "parachain")]
 			commands::build::BuildCommands::Parachain(cmd) => cmd.execute(),
@@ -60,6 +70,7 @@ async fn main() -> Result<()> {
 		Commands::Call(args) => Ok(match &args.command {
 			commands::call::CallCommands::Contract(cmd) => cmd.execute().await?,
 		}),
+		#[cfg(any(feature = "parachain", feature = "contract"))]
 		Commands::Up(args) => Ok(match &args.command {
 			#[cfg(feature = "parachain")]
 			commands::up::UpCommands::Parachain(cmd) => cmd.execute().await?,
