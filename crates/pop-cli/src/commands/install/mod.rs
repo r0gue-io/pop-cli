@@ -2,7 +2,7 @@
 
 use anyhow::Context;
 use clap::Args;
-use cliclack::{confirm, log, outro, outro_cancel};
+use cliclack::{confirm, log, outro};
 use duct::cmd;
 use os_info::Type;
 use tokio::{fs, process::Command};
@@ -18,67 +18,54 @@ pub(crate) struct InstallArgs {
 
 impl InstallArgs {
 	pub(crate) async fn execute(self) -> anyhow::Result<()> {
-		if cfg!(target_os = "windows") {
-			return not_supported_message();
-		} else if cfg!(target_os = "macos") {
+		if cfg!(target_os = "macos") {
 			log::info("ℹ️ Mac OS (Darwin) detected.")?;
-			return install_mac(self.skip_confirm).await;
+			install_mac(self.skip_confirm).await?;
 		} else if cfg!(target_os = "linux") {
-			let info = os_info::get();
-			match info.os_type() {
+			match os_info::get().os_type() {
 				Type::Arch => {
 					log::info("ℹ️ Arch Linux detected.")?;
-					return install_arch(self.skip_confirm).await;
+					install_arch(self.skip_confirm).await?;
 				},
 				Type::Debian => {
 					log::info("ℹ️ Debian Linux detected.")?;
-					return install_debian(self.skip_confirm).await;
+					install_debian(self.skip_confirm).await?;
 				},
 				Type::Redhat => {
 					log::info("ℹ️ Redhat Linux detected.")?;
-					return install_redhat(self.skip_confirm).await;
+					install_redhat(self.skip_confirm).await?;
 				},
 				Type::Ubuntu => {
 					log::info("ℹ️ Ubuntu detected.")?;
-					return install_ubuntu(self.skip_confirm).await;
+					install_ubuntu(self.skip_confirm).await?;
 				},
 				_ => return not_supported_message(),
 			}
 		} else {
 			return not_supported_message();
 		}
+		install_rustup().await?;
+		log::success("✅ Installation complete.")?;
+		Ok(())
 	}
 }
 
 async fn install_mac(skip_confirm: bool) -> anyhow::Result<()> {
 	log::info("More information about the packages to be installed here: https://docs.substrate.io/install/macos/")?;
-	if !skip_confirm && !confirm("📦 Do you want to proceed with the installation of the following packages: Homebrew, protobuf, openssl, rustup, and cmake?")
-		.initial_value(true)
-		.interact()?
-	{
-		outro_cancel("🚫 You have cancelled the installation process.")?;
-		return Ok(());
+	if !skip_confirm {
+		prompt_for_confirmation("Homebrew, protobuf, openssl, rustup, and cmake")?
 	}
-	match cmd("which", vec!["brew"]).read() {
-		Ok(output) => log::info(format!("ℹ️ Homebrew installed already at {}.", output))?,
-		Err(_) => install_homebrew().await?,
-	}
+	install_homebrew().await?;
 	cmd("brew", vec!["update"]).run()?;
 	cmd("brew", vec!["install", "protobuf", "openssl", "cmake"]).run()?;
-	install_rustup().await?;
 
-	log::success("✅ Installation complete.")?;
 	Ok(())
 }
 
 async fn install_arch(skip_confirm: bool) -> anyhow::Result<()> {
 	log::info("More information about the packages to be installed here: https://docs.substrate.io/install/linux/")?;
-	if !skip_confirm && !confirm("📦 Do you want to proceed with the installation of the following packages:cmake gcc openssl-1.0 pkgconf git clang?")
-		.initial_value(true)
-		.interact()?
-	{
-		outro_cancel("🚫 You have cancelled the installation process.")?;
-		return Ok(());
+	if !skip_confirm {
+		prompt_for_confirmation("cmake, gcc, openssl-1.0, pkgconf, git, clang")?
 	}
 	cmd(
 		"sudo",
@@ -98,19 +85,29 @@ async fn install_arch(skip_confirm: bool) -> anyhow::Result<()> {
 	.run()?;
 	cmd("export", vec!["OPENSSL_LIB_DIR='/usr/lib/openssl-1.0'"]).run()?;
 	cmd("export", vec!["OPENSSL_INCLUDE_DIR='/usr/include/openssl-1.0'"]).run()?;
-	install_rustup().await?;
 
-	log::success("✅ Installation complete.")?;
 	Ok(())
 }
+
+async fn install_ubuntu(skip_confirm: bool) -> anyhow::Result<()> {
+	log::info("More information about the packages to be installed here: https://docs.substrate.io/install/linux/")?;
+	if !skip_confirm {
+		prompt_for_confirmation("git, clang, curl, libssl-dev, protobuf-compiler")?
+	}
+	cmd("sudo", vec!["apt", "update"]).run()?;
+	cmd(
+		"sudo",
+		vec!["apt", "install", "-y", "git", "clang", "curl", "libssl-dev", "protobuf-compiler"],
+	)
+	.run()?;
+
+	Ok(())
+}
+
 async fn install_debian(skip_confirm: bool) -> anyhow::Result<()> {
 	log::info("More information about the packages to be installed here: https://docs.substrate.io/install/linux/")?;
-	if !skip_confirm && !confirm("📦 Do you want to proceed with the installation of the following packages:cmake pkg-config libssl-dev git gcc build-essential git protobuf-compiler clang libclang-dev?")
-		.initial_value(true)
-		.interact()?
-	{
-		outro_cancel("🚫 You have cancelled the installation process.")?;
-		return Ok(());
+	if !skip_confirm {
+		prompt_for_confirmation("cmake, pkg-config, libssl-dev, git, gcc, build-essential, git, protobuf-compiler, clang, libclang-dev")?
 	}
 	cmd("sudo", vec!["apt", "update"]).run()?;
 	cmd(
@@ -132,40 +129,14 @@ async fn install_debian(skip_confirm: bool) -> anyhow::Result<()> {
 		],
 	)
 	.run()?;
-	install_rustup().await?;
 
-	log::success("✅ Installation complete.")?;
-	Ok(())
-}
-async fn install_ubuntu(skip_confirm: bool) -> anyhow::Result<()> {
-	log::info("More information about the packages to be installed here: https://docs.substrate.io/install/linux/")?;
-	if !skip_confirm && !confirm("📦 Do you want to proceed with the installation of the following packages:git clang curl libssl-dev protobuf-compiler?")
-		.initial_value(true)
-		.interact()?
-	{
-		outro_cancel("🚫 You have cancelled the installation process.")?;
-		return Ok(());
-	}
-	cmd("sudo", vec!["apt", "update"]).run()?;
-	cmd(
-		"sudo",
-		vec!["apt", "install", "-y", "git", "clang", "curl", "libssl-dev", "protobuf-compiler"],
-	)
-	.run()?;
-	install_rustup().await?;
-
-	log::success("✅ Installation complete.")?;
 	Ok(())
 }
 
 async fn install_redhat(skip_confirm: bool) -> anyhow::Result<()> {
 	log::info("More information about the packages to be installed here: https://docs.substrate.io/install/linux/")?;
-	if !skip_confirm && !confirm("📦 Do you want to proceed with the installation of the following packages:cmake, openssl-devel, git, protobuf, protobuf-compiler, clang, clang-devel and srustup?")
-		.initial_value(true)
-		.interact()?
-	{
-		outro_cancel("🚫 You have cancelled the installation process.")?;
-		return Ok(());
+	if !skip_confirm {
+		prompt_for_confirmation("cmake, openssl-devel, git, protobuf, protobuf-compiler, clang, clang-devel and srustup")?;
 	}
 	cmd("sudo", vec!["yum", "update", "-y"]).run()?;
 	cmd("sudo", vec!["yum", "groupinstall", "-y", "'Development Tool"]).run()?;
@@ -185,9 +156,20 @@ async fn install_redhat(skip_confirm: bool) -> anyhow::Result<()> {
 		],
 	)
 	.run()?;
-	install_rustup().await?;
 
-	log::success("✅ Installation complete.")?;
+	Ok(())
+}
+
+fn prompt_for_confirmation(message: &str) -> anyhow::Result<()> {
+	if !confirm(format!(
+		"📦 Do you want to proceed with the installation of the following packages: {} ?",
+		message
+	))
+	.initial_value(true)
+	.interact()?
+	{
+		return Err(anyhow::anyhow!("🚫 You have cancelled the installation process."));
+	}
 	Ok(())
 }
 
@@ -207,19 +189,7 @@ async fn install_rustup() -> anyhow::Result<()> {
 		Err(_) => {
 			let mut spinner = cliclack::spinner();
 			spinner.start("Installing rustup ...");
-			let temp = tempfile::tempdir()?;
-			let scripts_path = temp.path().join("rustup.sh");
-			let client = reqwest::Client::new();
-			let script = client
-				.get("https://sh.rustup.rs")
-				.send()
-				.await
-				.context("Network Error: Failed to fetch script from Github")?
-				.text()
-				.await?;
-			fs::write(scripts_path.as_path(), script).await?;
-			Command::new("sh").arg(scripts_path).status().await?;
-			temp.close()?;
+			run_external_script("https://sh.rustup.rs").await?;
 			outro("rustup installed!")?;
 			cmd(
 				"source",
@@ -240,11 +210,24 @@ async fn install_rustup() -> anyhow::Result<()> {
 }
 
 async fn install_homebrew() -> anyhow::Result<()> {
+	match cmd("which", vec!["brew"]).read() {
+		Ok(output) => log::info(format!("ℹ️ Homebrew installed already at {}.", output))?,
+		Err(_) => {
+			run_external_script(
+				"https://raw.githubusercontent.com/Homebrew/install/master/install.sh",
+			)
+			.await?
+		},
+	}
+	Ok(())
+}
+
+async fn run_external_script(script_url: &str) -> anyhow::Result<()> {
 	let temp = tempfile::tempdir()?;
 	let scripts_path = temp.path().join("install.sh");
 	let client = reqwest::Client::new();
 	let script = client
-		.get("https://raw.githubusercontent.com/Homebrew/install/master/install.sh")
+		.get(script_url)
 		.send()
 		.await
 		.context("Network Error: Failed to fetch script from Github")?
