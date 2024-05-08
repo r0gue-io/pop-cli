@@ -135,7 +135,7 @@ async fn guide_user_to_generate_parachain() -> Result<()> {
 		decimals: 12,
 		initial_endowment: "1u64 << 60".to_string(),
 	};
-	if matches!(template, Template::Standard) {
+	if template.matches(&Provider::Pop) {
 		customizable_options = prompt_customizable_options()?;
 	}
 
