@@ -69,9 +69,7 @@ mod tests {
 			name: "test_contract".to_string(),
 			path: Some(PathBuf::from(temp_contract_dir.path())),
 		};
-		let result = command.execute().await;
-		assert!(result.is_ok());
-
+		command.execute().await?;
 		Ok(())
 	}
 }
