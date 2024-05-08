@@ -62,7 +62,7 @@ jobs:
           git-user: ${{ env.GITHUB_ACTOR }}
 
       - name: Run integration tests
-        run: cargo test --test contract
+        run: cargo test --no-default-features --features contract --test contract
 
   parachain-integration-tests:
     needs: lint
@@ -75,4 +75,4 @@ jobs:
           git-user: ${{ env.GITHUB_ACTOR }}
 
       - name: Run integration tests
-        run: cargo test --test parachain
+        run: cargo test --no-default-features --features parachain --test parachain
