@@ -25,21 +25,21 @@ pub struct Cli {
 enum Commands {
 	/// Generate a new parachain, pallet or smart contract.
 	#[clap(alias = "n")]
-	New(commands::new::NewArgs),
+	New(new::NewArgs),
 	/// Build a parachain or smart contract.
 	#[clap(alias = "b")]
-	Build(commands::build::BuildArgs),
+	Build(build::BuildArgs),
 	/// Call a smart contract.
 	#[clap(alias = "c")]
 	#[cfg(feature = "contract")]
-	Call(commands::call::CallArgs),
+	Call(call::CallArgs),
 	/// Deploy a parachain or smart contract.
 	#[clap(alias = "u")]
-	Up(commands::up::UpArgs),
+	Up(up::UpArgs),
 	/// Test a smart contract.
 	#[clap(alias = "t")]
 	#[cfg(feature = "contract")]
-	Test(commands::test::TestArgs),
+	Test(test::TestArgs),
 }
 
 #[tokio::main]
