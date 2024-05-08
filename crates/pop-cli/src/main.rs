@@ -62,9 +62,11 @@ async fn main() -> Result<()> {
 			#[cfg(feature = "contract")]
 			commands::new::NewCommands::Contract(cmd) => cmd.execute().await,
 		},
+		#[cfg(any(feature = "parachain", feature = "contract"))]
 		Commands::Build(args) => match &args.command {
 			#[cfg(feature = "parachain")]
 			commands::build::BuildCommands::Parachain(cmd) => cmd.execute(),
+			#[cfg(feature = "contract")]
 			commands::build::BuildCommands::Contract(cmd) => cmd.execute(),
 		},
 		#[cfg(feature = "contract")]
@@ -82,6 +84,7 @@ async fn main() -> Result<()> {
 		Commands::Test(args) => match &args.command {
 			commands::test::TestCommands::Contract(cmd) => cmd.execute(),
 		},
+		#[cfg(any(feature = "parachain", feature = "contract"))]
 		Commands::Install(args) => args.execute().await,
 	}
 }
