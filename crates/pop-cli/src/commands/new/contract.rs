@@ -47,7 +47,7 @@ impl NewContractCommand {
 			fs::remove_dir_all(contract_path.as_path())?;
 		}
 		fs::create_dir_all(contract_path.as_path())?;
-		let mut spinner = cliclack::spinner();
+		let spinner = cliclack::spinner();
 		spinner.start("Generating contract...");
 		create_smart_contract(&self.name, contract_path.as_path())?;
 		spinner.stop("Smart contract created!");
@@ -68,9 +68,7 @@ mod tests {
 			name: "test_contract".to_string(),
 			path: Some(PathBuf::from(temp_contract_dir.path())),
 		};
-		let result = command.execute().await;
-		assert!(result.is_ok());
-
+		command.execute().await?;
 		Ok(())
 	}
 }

@@ -73,7 +73,7 @@ mod tests {
 	use super::*;
 
 	#[test]
-	fn test_pallet_create_template() {
+	fn test_pallet_create_template() -> Result<(), Error> {
 		let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
 		let pallet_name = "MyPallet";
 		let config = TemplatePalletConfig {
@@ -83,11 +83,7 @@ mod tests {
 		};
 
 		// Call the function being tested
-		let result =
-			create_pallet_template(Some(temp_dir.path().to_str().unwrap().to_string()), config);
-
-		// Assert that the result is Ok
-		assert!(result.is_ok(), "Result should be Ok");
+		create_pallet_template(Some(temp_dir.path().to_str().unwrap().to_string()), config)?;
 
 		// Assert that the pallet structure is generated
 		let pallet_path = temp_dir.path().join(pallet_name);
@@ -105,6 +101,7 @@ mod tests {
 		let lib_rs_content = fs::read_to_string(pallet_path.join("src").join("lib.rs"))
 			.expect("Failed to read lib.rs");
 		assert!(lib_rs_content.contains("pub mod pallet"), "lib.rs should contain pub mod pallet");
+		Ok(())
 	}
 
 	#[test]

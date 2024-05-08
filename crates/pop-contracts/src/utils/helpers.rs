@@ -38,18 +38,14 @@ mod tests {
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
 		let temp_contract_dir = temp_dir.path().join("test_contract");
 		fs::create_dir(&temp_contract_dir)?;
-		let result = crate::create_smart_contract("test_contract", temp_contract_dir.as_path());
-		assert!(result.is_ok(), "Contract test environment setup failed");
-
+		crate::create_smart_contract("test_contract", temp_contract_dir.as_path())?;
 		Ok(temp_dir)
 	}
 
 	#[test]
 	fn test_get_manifest_path() -> Result<(), Error> {
 		let temp_dir = setup_test_environment()?;
-		let manifest_path =
-			get_manifest_path(&Some(PathBuf::from(temp_dir.path().join("test_contract"))));
-		assert!(manifest_path.is_ok());
+		get_manifest_path(&Some(PathBuf::from(temp_dir.path().join("test_contract"))))?;
 		Ok(())
 	}
 }

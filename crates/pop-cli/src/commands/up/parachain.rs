@@ -2,9 +2,13 @@
 
 use crate::style::{style, Theme};
 use clap::Args;
-use cliclack::{clear_screen, confirm, intro, log, outro, outro_cancel, set_theme};
+use cliclack::{
+	clear_screen, confirm, intro, log, multi_progress, outro, outro_cancel, set_theme, ProgressBar,
+};
 use console::{Emoji, Style};
-use pop_parachains::{NetworkNode, Zombienet};
+use pop_parachains::{NetworkNode, Status, Zombienet};
+use std::time::Duration;
+use tokio::time::sleep;
 
 #[derive(Args)]
 pub(crate) struct ZombienetCommand {
@@ -45,28 +49,43 @@ impl ZombienetCommand {
 		let missing = zombienet.missing_binaries();
 		if missing.len() > 0 {
 			log::warning(format!(
-				"The following missing binaries are required: {}",
+				"⚠️ The following missing binaries are required: {}",
 				missing.iter().map(|b| b.name.as_str()).collect::<Vec<_>>().join(", ")
 			))?;
-			if !confirm("Would you like to source them automatically now?")
+			if !confirm("📦 Would you like to source them automatically now?")
 				.initial_value(true)
 				.interact()?
 			{
-				outro_cancel("Cannot deploy parachain to local network until all required binaries are available.")?;
+				outro_cancel("🚫 Cannot deploy parachain to local network until all required binaries are available.")?;
 				return Ok(());
 			}
-			log::info(format!("They will be cached at {}", &cache.to_str().unwrap()))?;
+			log::info(format!("ℹ️ They will be cached at {}", &cache.to_str().unwrap()))?;
 			// Source binaries
-			let mut spinner = cliclack::spinner();
 			for binary in missing {
-				spinner.start(format!("Sourcing {}...", binary.name));
-				binary.source(&cache).await?;
-				spinner.start(format!("Sourcing {} complete.", binary.name));
+				let multi = multi_progress(format!("📦 Sourcing {}...", binary.name));
+				let progress = multi.add(cliclack::spinner());
+				let progress_reporter = ProgressReporter(&progress);
+				for attempt in (0..=1).rev() {
+					if let Err(e) = binary.source(&cache, progress_reporter).await {
+						match attempt {
+							0 => {
+								progress.error(format!("🚫 Sourcing failed: {e}"));
+								multi.stop();
+								return Ok(());
+							},
+							_ => {
+								progress.error("🚫 Sourcing attempt failed, retrying...");
+								sleep(Duration::from_secs(1)).await;
+							},
+						}
+					}
+				}
+				progress.stop(format!("✅ Sourcing {} complete.", binary.name));
+				multi.stop();
 			}
-			spinner.stop("Sourcing complete.");
 		}
 		// Finally spawn network and wait for signal to terminate
-		let mut spinner = cliclack::spinner();
+		let spinner = cliclack::spinner();
 		spinner.start("🚀 Launching local network...");
 		//tracing_subscriber::fmt().init();
 		match zombienet.spawn().await {
@@ -128,5 +147,15 @@ impl ZombienetCommand {
 		}
 
 		Ok(())
+	}
+}
+
+/// Reports any observed status updates to a progress bar.
+#[derive(Copy, Clone)]
+struct ProgressReporter<'a>(&'a ProgressBar);
+
+impl Status for ProgressReporter<'_> {
+	fn update(&self, status: &str) {
+		self.0.start(status.replace("   Compiling", "Compiling"))
 	}
 }
