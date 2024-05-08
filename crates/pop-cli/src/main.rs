@@ -36,7 +36,7 @@ enum Commands {
 	#[clap(alias = "t")]
 	#[cfg(feature = "contract")]
 	Test(commands::test::TestArgs),
-	/// Install prerequisites for Substrate development
+	/// Set up the environment for Substrate development
 	#[clap(alias = "i")]
 	Install(commands::install::InstallArgs),
 }

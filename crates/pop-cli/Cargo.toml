@@ -15,6 +15,7 @@ tempfile.workspace = true
 url.workspace = true
 tokio.workspace = true
 reqwest.workspace = true
+os_info.workspace = true
 
 # pop-cli
 clap.workspace = true
