@@ -913,7 +913,7 @@ mod tests {
 				name = "asset-hub"
 				
 				[[parachains]]
-				id = 9090
+				id = 4385
 				default_command = "pop-node"
 				
 				[[parachains.collators]]
