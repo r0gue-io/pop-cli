@@ -94,7 +94,7 @@ impl NewParachainCommand {
 					log::warning("⚠️ The specified initial endowment is not valid")?;
 					//Prompt the user if want to use the one by default
 					if !confirm(format!(
-						"📦 Would you like to use the one by default {}?",
+						"📦 Would you like to use the default {}?",
 						DEFAULT_INITIAL_ENDOWMENT
 					))
 					.initial_value(true)
@@ -310,12 +310,9 @@ fn prompt_customizable_options() -> Result<Config> {
 	if !is_initial_endowment_valid(&initial_endowment) {
 		outro_cancel("⚠️ The specified initial endowment is not valid")?;
 		//Prompt the user if want to use the one by default
-		if !confirm(format!(
-			"📦 Would you like to use the one by default {}?",
-			DEFAULT_INITIAL_ENDOWMENT
-		))
-		.initial_value(true)
-		.interact()?
+		if !confirm(format!("📦 Would you like to use the default {}?", DEFAULT_INITIAL_ENDOWMENT))
+			.initial_value(true)
+			.interact()?
 		{
 			outro_cancel(
 				"🚫 Cannot create a parachain with an incorrect initial endowment value.",
