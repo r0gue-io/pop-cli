@@ -2,9 +2,9 @@ name: pop install
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "alexd10s/pop-install" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "alexd10s/pop-install" ]
 
 defaults:
   run:
@@ -24,4 +24,15 @@ jobs:
         run: |
           . "$HOME/.cargo/env"
           cargo install --locked --path ./crates/pop-cli
-          pop --version
+          pop install -y
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+      - name: Install Pop
+        run: |
+          . "$HOME/.cargo/env"
+          cargo install --locked --path ./crates/pop-cli
+          pop install -y
