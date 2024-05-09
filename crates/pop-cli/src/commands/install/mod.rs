@@ -65,21 +65,20 @@ async fn install_mac(skip_confirm: bool) -> anyhow::Result<()> {
 async fn install_arch(skip_confirm: bool) -> anyhow::Result<()> {
 	log::info("More information about the packages to be installed here: https://docs.substrate.io/install/linux/")?;
 	if !skip_confirm {
-		prompt_for_confirmation("cmake, gcc, openssl-1.0, pkgconf, git, clang")?
+		prompt_for_confirmation("curl, git, clang, make, protobuf, openssl-1.0")?
 	}
 	cmd(
-		"sudo",
+		"pacman",
 		vec![
-			"pacman",
 			"-Syu",
 			"--needed",
 			"--noconfirm",
-			"cmake",
-			"gcc",
-			"openssl-1.0",
-			"pkgconf",
+			"curl",
 			"git",
 			"clang",
+			"make",
+			"protobuf",
+			"openssl-1.0",
 		],
 	)
 	.run()?;
@@ -94,10 +93,9 @@ async fn install_ubuntu(skip_confirm: bool) -> anyhow::Result<()> {
 	if !skip_confirm {
 		prompt_for_confirmation("git, clang, curl, libssl-dev, protobuf-compiler")?
 	}
-	cmd("sudo", vec!["apt", "update"]).run()?;
 	cmd(
-		"sudo",
-		vec!["apt", "install", "-y", "git", "clang", "curl", "libssl-dev", "protobuf-compiler"],
+		"apt",
+		vec!["install", "--assume-yes", "git", "clang", "curl", "libssl-dev", "protobuf-compiler"],
 	)
 	.run()?;
 
@@ -109,11 +107,9 @@ async fn install_debian(skip_confirm: bool) -> anyhow::Result<()> {
 	if !skip_confirm {
 		prompt_for_confirmation("cmake, pkg-config, libssl-dev, git, gcc, build-essential, git, protobuf-compiler, clang, libclang-dev")?
 	}
-	cmd("sudo", vec!["apt", "update"]).run()?;
 	cmd(
-		"sudo",
+		"apt",
 		vec![
-			"apt",
 			"install",
 			"-y",
 			"cmake",
@@ -138,12 +134,11 @@ async fn install_redhat(skip_confirm: bool) -> anyhow::Result<()> {
 	if !skip_confirm {
 		prompt_for_confirmation("cmake, openssl-devel, git, protobuf, protobuf-compiler, clang, clang-devel and srustup")?;
 	}
-	cmd("sudo", vec!["yum", "update", "-y"]).run()?;
-	cmd("sudo", vec!["yum", "groupinstall", "-y", "'Development Tool"]).run()?;
+	cmd("yum", vec!["update", "-y"]).run()?;
+	cmd("yum", vec!["groupinstall", "-y", "'Development Tool"]).run()?;
 	cmd(
-		"sudo",
+		"yum",
 		vec![
-			"yum",
 			"install",
 			"-y",
 			"cmake",
