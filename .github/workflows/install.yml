@@ -4,7 +4,7 @@ on:
   push:
     branches: [ "alexd10s/pop-install" ]
   pull_request:
-    branches: [ "alexd10s/pop-install" ]
+    branches: [ "main" ]
 
 defaults:
   run:
