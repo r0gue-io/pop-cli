@@ -368,17 +368,23 @@ impl Zombienet {
 
 	async fn latest_polkadot_release() -> Result<String, Error> {
 		let repo = Url::parse(POLKADOT_SDK).expect("repository url valid");
-		// Fetching latest releases
-		for release in GitHub::get_latest_releases(&repo).await? {
-			if !release.prerelease && release.tag_name.starts_with("polkadot-v") {
-				return Ok(release
-					.tag_name
-					.strip_prefix("polkadot-")
-					.map_or_else(|| release.tag_name.clone(), |v| v.to_string()));
-			}
+		match GitHub::get_latest_releases(&repo).await {
+			Ok(releases) => {
+				// Fetching latest releases
+				for release in releases {
+					if !release.prerelease && release.tag_name.starts_with("polkadot-v") {
+						return Ok(release
+							.tag_name
+							.strip_prefix("polkadot-")
+							.map_or_else(|| release.tag_name.clone(), |v| v.to_string()));
+					}
+				}
+				// It should never reach this point, but in case we download a default version of polkadot
+				Ok(POLKADOT_DEFAULT_VERSION.to_string())
+			},
+			// If an error with Github API return the POLKADOT DEFAULT VERSION
+			Err(_) => Ok(POLKADOT_DEFAULT_VERSION.to_string()),
 		}
-		// It should never reach this point, but in case we download a default version of polkadot
-		Ok(POLKADOT_DEFAULT_VERSION.to_string())
 	}
 }
 
