@@ -24,4 +24,4 @@ jobs:
         run: |
           . "$HOME/.cargo/env"
           cargo install --locked --path ./crates/pop-cli
-          pop
+          pop --version
