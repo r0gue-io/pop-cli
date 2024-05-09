@@ -2,9 +2,9 @@ name: pop install
 
 on:
   push:
-    branches: [ "alexd10s/pop-install" ]
+    branches: [ "main" ]
   pull_request:
-    branches: [ "alexd10s/pop-install" ]
+    branches: [ "main" ]
 
 defaults:
   run:
