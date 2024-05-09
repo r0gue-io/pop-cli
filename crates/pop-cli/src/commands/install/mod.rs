@@ -10,42 +10,42 @@ use tokio::{fs, process::Command};
 
 #[derive(Display)]
 pub enum DEPENDENCIES {
-	#[strum(serialize = "homebrew")]
-	Homebrew,
-	#[strum(serialize = "protobuf")]
-	Protobuf,
-	#[strum(serialize = "openssl")]
-	Openssl,
-	#[strum(serialize = "rustup")]
-	Rustup,
+	#[strum(serialize = "build-essential")]
+	BuildEssential,
+	#[strum(serialize = "clang")]
+	Clang,
+	#[strum(serialize = "clang-devel")]
+	ClangDevel,
 	#[strum(serialize = "cmake")]
 	Cmake,
 	#[strum(serialize = "curl")]
 	Curl,
-	#[strum(serialize = "git")]
-	Git,
-	#[strum(serialize = "clang")]
-	Clang,
-	#[strum(serialize = "make")]
-	Make,
-	#[strum(serialize = "openssl-1.0")]
-	Openssl1,
-	#[strum(serialize = "libssl-dev")]
-	Libssl,
-	#[strum(serialize = "protobuf-compiler")]
-	ProtobufCompiler,
-	#[strum(serialize = "pkg-config")]
-	PkgConfig,
 	#[strum(serialize = "gcc")]
 	Gcc,
-	#[strum(serialize = "build-essential")]
-	BuildEssential,
+	#[strum(serialize = "git")]
+	Git,
+	#[strum(serialize = "homebrew")]
+	Homebrew,
 	#[strum(serialize = "libclang-dev")]
 	LibClang,
+	#[strum(serialize = "libssl-dev")]
+	Libssl,
+	#[strum(serialize = "make")]
+	Make,
+	#[strum(serialize = "openssl")]
+	Openssl,
 	#[strum(serialize = "openssl-devel")]
 	OpenSslDevel,
-	#[strum(serialize = "clang-devel")]
-	ClangDevel,
+	#[strum(serialize = "openssl-1.0")]
+	Openssl1,
+	#[strum(serialize = "pkg-config")]
+	PkgConfig,
+	#[strum(serialize = "protobuf")]
+	Protobuf,
+	#[strum(serialize = "protobuf-compiler")]
+	ProtobufCompiler,
+	#[strum(serialize = "rustup")]
+	Rustup,
 }
 
 #[derive(Args)]
