@@ -92,7 +92,7 @@ impl InstallArgs {
 			return not_supported_message();
 		}
 		install_rustup().await?;
-		log::success("✅ Installation complete.")?;
+		outro("✅ Installation complete.")?;
 		Ok(())
 	}
 }
