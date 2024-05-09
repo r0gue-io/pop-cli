@@ -11,20 +11,6 @@ defaults:
     shell: bash
 
 jobs:
-  ubuntu:
-    runs-on: ubuntu-latest
-    container: ubuntu
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install prerequisites
-        run: apt-get update && apt-get -y install build-essential cmake curl git
-      - name: Install Rust
-        run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-      - name: Pop Install
-        run: |
-          . "$HOME/.cargo/env"
-          cargo install --locked --path ./crates/pop-cli
-          pop install -y
   debian:
     runs-on: ubuntu-latest
     container: debian
@@ -34,10 +20,13 @@ jobs:
         run: apt-get update && apt-get -y install build-essential cmake curl git
       - name: Install Rust
         run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-      - name: Pop Install
+      - name: Install Pop
         run: |
           . "$HOME/.cargo/env"
           cargo install --locked --path ./crates/pop-cli
+      - name: Run Pop Install
+        run: |
+          . "$HOME/.cargo/env"
           pop install -y
   macos:
     runs-on: macos-latest
@@ -45,8 +34,27 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install Rust
         run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-      - name: Pop Install
+      - name: Install Pop
         run: |
           . "$HOME/.cargo/env"
           cargo install --locked --path ./crates/pop-cli
+      - name: Run Pop Install
+        run:
+          pop install -y
+  ubuntu:
+    runs-on: ubuntu-latest
+    container: ubuntu
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install prerequisites
+        run: apt-get update && apt-get -y install build-essential cmake curl git
+      - name: Install Rust
+        run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+      - name: Install Pop
+        run: |
+          . "$HOME/.cargo/env"
+          cargo install --locked --path ./crates/pop-cli
+      - name: Run Pop install
+        run: |
+          . "$HOME/.cargo/env"
           pop install -y
