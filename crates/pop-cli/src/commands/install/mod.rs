@@ -138,8 +138,6 @@ async fn install_arch(skip_confirm: bool) -> anyhow::Result<()> {
 	}
 	cmd("pacman", vec!["-Syu", "--needed", "--noconfirm", &Dependencies::Openssl.to_string()])
 		.run()?;
-	cmd("export", vec!["OPENSSL_LIB_DIR='/usr/lib/openssl-1.0'"]).run()?;
-	cmd("export", vec!["OPENSSL_INCLUDE_DIR='/usr/include/openssl-1.0'"]).run()?;
 	cmd(
 		"pacman",
 		vec![
@@ -153,12 +151,9 @@ async fn install_arch(skip_confirm: bool) -> anyhow::Result<()> {
 		],
 	)
 	.run()?;
-	cmd("export", vec!["OPENSSL_LIB_DIR='/usr/lib/openssl-1.0'"]).run()?;
-	cmd("export", vec!["OPENSSL_INCLUDE_DIR='/usr/include/openssl-1.0'"]).run()?;
 
 	Ok(())
 }
-
 async fn install_ubuntu(skip_confirm: bool) -> anyhow::Result<()> {
 	log::info("More information about the packages to be installed here: https://docs.substrate.io/install/linux/")?;
 	if !skip_confirm {
