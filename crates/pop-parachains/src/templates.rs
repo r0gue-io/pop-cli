@@ -94,14 +94,14 @@ pub enum Template {
 	#[strum(
 		serialize = "contracts",
 		message = "Contracts",
-		detailed_message = "Parachain configured to supports Wasm-based contracts.",
+		detailed_message = "Parachain configured to support WebAssembly smart contracts.",
 		props(Provider = "Pop", Repository = "https://github.com/r0gue-io/contracts-parachain")
 	)]
 	Contracts,
 	#[strum(
 		serialize = "evm",
 		message = "EVM",
-		detailed_message = "Parachain configured with frontier, enabling compatibility with the Ethereum Virtual Machine (EVM).",
+		detailed_message = "Parachain configured with Frontier, enabling compatibility with the Ethereum Virtual Machine (EVM).",
 		props(Provider = "Pop", Repository = "https://github.com/r0gue-io/evm-parachain")
 	)]
 	EVM,
