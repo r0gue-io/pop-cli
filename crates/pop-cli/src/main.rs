@@ -48,6 +48,9 @@ enum Commands {
 	#[clap(alias = "t")]
 	#[cfg(feature = "contract")]
 	Test(test::TestArgs),
+	/// Set up the environment for development by installing required packages
+	#[clap(alias = "i")]
+	Install(install::InstallArgs),
 }
 
 #[tokio::main]
@@ -103,6 +106,8 @@ async fn main() -> Result<()> {
 				Err(e) => Err(e),
 			},
 		},
+		#[cfg(any(feature = "parachain", feature = "contract"))]
+		Commands::Install(args) => args.execute().await.map(|_| Value::Null),
 	};
 
 	#[cfg(feature = "telemetry")]

@@ -11,7 +11,7 @@ You can install Pop CLI as follows:
 ```shell
 cargo install --locked --git https://github.com/r0gue-io/pop-cli
 ```
-
+> For detailed instructions on how to install Pop CLI, please refer to our documentation: https://learn.onpop.io/pop/v/pop-cli/welcome/installing-pop-cli
 > :information_source: A [crates.io](https://crates.io/crates/pop-cli) version will be available soon!
 
 ## Getting Started
