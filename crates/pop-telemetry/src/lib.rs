@@ -9,7 +9,7 @@ use std::{
 };
 use thiserror::Error;
 
-pub const ENDPOINT: &str = "https://insights.onpop.io/api/send";
+const ENDPOINT: &str = "https://insights.onpop.io/api/send";
 const WEBSITE_ID: &str = "0cbea0ba-4752-45aa-b3cd-8fd11fa722f7";
 const CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -44,9 +44,17 @@ impl Telemetry {
 	/// Create a new Telemetry instance.
 	///
 	/// parameters:
-	/// `endpoint`: the API endpoint that telemetry will call
 	/// `config_path`: the path to the configuration file (used for opt-out checks)
-	pub fn new(endpoint: String, config_path: PathBuf) -> Self {
+	pub fn new(config_path: PathBuf) -> Self {
+		Self::init(ENDPOINT.to_string(), config_path)
+	}
+
+	/// Initialize a new Telemetry instance with parameters.
+	/// Can be used in tests to provide mock endpoints.
+	/// parameters:
+	/// `endpoint`: the API endpoint that telemetry will call
+	///	`config_path`: the path to the configuration file (used for opt-out checks)
+	fn init(endpoint: String, config_path: PathBuf) -> Self {
 		let opt_out = Self::is_opt_out_from_config(&config_path);
 
 		Telemetry { endpoint, opt_out, client: Client::new() }
@@ -223,7 +231,7 @@ mod tests {
 	async fn new_telemetry_works() {
 		let _ = env_logger::try_init();
 		// assert that invalid config file results in a false opt_in (hence disabling telemetry)
-		assert!(!Telemetry::new("".to_string(), PathBuf::new()).opt_out);
+		assert!(!Telemetry::init("".to_string(), PathBuf::new()).opt_out);
 
 		// Mock config file path function to return a temporary path
 		let temp_dir = TempDir::new().unwrap();
@@ -231,7 +239,7 @@ mod tests {
 
 		let _: Config = read_json_file(&config_path).unwrap();
 
-		let tel = Telemetry::new("127.0.0.1".to_string(), config_path);
+		let tel = Telemetry::init("127.0.0.1".to_string(), config_path);
 		let expected_telemetry = Telemetry {
 			endpoint: "127.0.0.1".to_string(),
 			opt_out: true,
@@ -258,7 +266,7 @@ mod tests {
 
 		let mock = default_mock(&mut mock_server, expected_payload).await;
 
-		let tel = Telemetry::new(endpoint.clone(), config_path);
+		let tel = Telemetry::init(endpoint.clone(), config_path);
 
 		assert!(record_cli_used(tel).await.is_ok());
 		mock.assert_async().await;
@@ -281,7 +289,7 @@ mod tests {
 
 		let mock = default_mock(&mut mock_server, expected_payload).await;
 
-		let tel = Telemetry::new(endpoint.clone(), config_path);
+		let tel = Telemetry::init(endpoint.clone(), config_path);
 
 		assert!(record_cli_command(tel, "new", json!("parachain")).await.is_ok());
 		mock.assert_async().await;
@@ -301,7 +309,7 @@ mod tests {
 		let mock = mock_server.mock("POST", "/").create_async().await;
 		let mock = mock.expect_at_most(0);
 
-		let mut tel = Telemetry::new(endpoint.clone(), config_path);
+		let mut tel = Telemetry::init(endpoint.clone(), config_path);
 
 		assert!(matches!(tel.send_json(json!("foo")).await, Err(TelemetryError::OptedOut)));
 		assert!(matches!(record_cli_used(tel.clone()).await, Err(TelemetryError::OptedOut)));
