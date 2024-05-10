@@ -25,15 +25,12 @@ pub(crate) fn sanitize(target: &Path) -> Result<(), Error> {
 }
 
 pub fn is_initial_endowment_valid(initial_endowment: &str) -> bool {
-	match initial_endowment.parse::<u128>() {
-		Ok(_) => return true,
-		Err(_error) => match left_shift(initial_endowment) {
-			Ok(_) => return true,
-			Err(_error) => return false,
-		},
-	}
+	initial_endowment.parse::<u128>().is_ok()
+		|| is_valid_bitwise_left_shift(initial_endowment).is_ok()
 }
-fn left_shift(initial_endowment: &str) -> Result<u64, Error> {
+// Auxiliar method to check if the endowment input with a shift left (1u64 << 60) format is valid.
+// Parse the self << rhs format and check the shift left operation is valid.
+fn is_valid_bitwise_left_shift(initial_endowment: &str) -> Result<u128, Error> {
 	let v: Vec<&str> = initial_endowment.split(" << ").collect();
 	if v.len() < 2 {
 		return Err(Error::EndowmentError);
@@ -42,7 +39,7 @@ fn left_shift(initial_endowment: &str) -> Result<u64, Error> {
 		.split("u") // parse 1u64 characters
 		.take(1)
 		.collect::<String>()
-		.parse::<u64>()
+		.parse::<u128>()
 		.or_else(|_e| Err(Error::EndowmentError))?;
 	let right = v[1]
 		.chars()
@@ -94,8 +91,8 @@ mod tests {
 	#[test]
 	fn test_left_shift() {
 		// Values from https://stackoverflow.com/questions/56392875/how-can-i-initialize-a-users-balance-in-a-substrate-blockchain
-		assert_eq!(left_shift("1 << 60").unwrap(), 1152921504606846976);
-		let result = left_shift("wrong");
+		assert_eq!(is_valid_bitwise_left_shift("1 << 60").unwrap(), 1152921504606846976);
+		let result = is_valid_bitwise_left_shift("wrong");
 		assert!(result.is_err());
 	}
 }
