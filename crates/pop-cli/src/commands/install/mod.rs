@@ -263,14 +263,7 @@ async fn install_rustup() -> anyhow::Result<()> {
 			spinner.start("Installing rustup ...");
 			run_external_script("https://sh.rustup.rs").await?;
 			outro("rustup installed!")?;
-			cmd(
-				"source",
-				vec![
-					"~/.cargo/env
-",
-				],
-			)
-			.run()?;
+			cmd("source", vec!["~/.cargo/env"]).run()?;
 			cmd("rustup", vec!["default", "stable"]).run()?;
 		},
 	}
