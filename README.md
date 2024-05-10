@@ -11,7 +11,9 @@ You can install Pop CLI as follows:
 ```shell
 cargo install --locked --git https://github.com/r0gue-io/pop-cli
 ```
-> For detailed instructions on how to install Pop CLI, please refer to our documentation: https://learn.onpop.io/pop/v/pop-cli/welcome/installing-pop-cli
+
+> For detailed instructions on how to install Pop CLI, please refer to our
+> documentation: https://learn.onpop.io/pop/v/pop-cli/welcome/installing-pop-cli
 > :information_source: A [crates.io](https://crates.io/crates/pop-cli) version will be available soon!
 
 ## Getting Started
@@ -33,6 +35,7 @@ pop new parachain my-app
 ```
 
 `pop-cli` supports diverse project templates, to use a specific one use the flag `--template`:
+
 ```sh
 # Create an assets parachain
 pop new parachain my-app pop -t assets
@@ -275,3 +278,9 @@ Pop CLI would not be possible without these awesome crates!
 The entire code within this repository is licensed under the [GPLv3](LICENSE).
 
 Please [contact us](https://r0gue.io/contact) if you have questions about the licensing of our products.
+
+## Telemetry
+
+Pop CLI collects anonymous usage metrics to help us understand how the tool is being used and how we can improve it.
+We do not collect any personal information. You can read more about our telemetry practices in
+our [telemetry](crates/pop-telemetry/README.md) documentation.
