@@ -9,7 +9,8 @@ use std::{
 };
 use thiserror::Error;
 
-const WEBSITE_ID: &str = "3da3a7d3-0d51-4f23-a4e0-5e3f7f9442c8";
+pub const ENDPOINT: &str = "https://insights.onpop.io/api/send";
+const WEBSITE_ID: &str = "0cbea0ba-4752-45aa-b3cd-8fd11fa722f7";
 const CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Error, Debug)]
@@ -47,7 +48,6 @@ impl Telemetry {
 	/// `config_path`: the path to the configuration file (used for opt-out checks)
 	pub fn new(endpoint: String, config_path: PathBuf) -> Self {
 		let opt_out = Self::is_opt_out_from_config(&config_path);
-		log::debug!("**opt_out {:?}", opt_out);
 
 		Telemetry { endpoint, opt_out, client: Client::new() }
 	}

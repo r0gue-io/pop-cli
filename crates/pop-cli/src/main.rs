@@ -139,11 +139,10 @@ fn cache() -> Result<PathBuf> {
 fn init() -> Result<Option<Telemetry>> {
 	env_logger::init();
 	let maybe_config_path = config_file_path();
-	// environment variable `POP_TELEMETRY_ENDPOINT` is evaluated at compile time
-	let endpoint =
-		option_env!("POP_TELEMETRY_ENDPOINT").unwrap_or("http://127.0.0.1:3000/api/send");
 
-	let maybe_tel = maybe_config_path.ok().map(|path| Telemetry::new(endpoint.to_string(), path));
+	let maybe_tel = maybe_config_path
+		.ok()
+		.map(|path| Telemetry::new(pop_telemetry::ENDPOINT.to_string(), path));
 
 	// Handle for await not used here as telemetry should complete before any of the commands do.
 	// Sends a generic ping saying the CLI was used.
