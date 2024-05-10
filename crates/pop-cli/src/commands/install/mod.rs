@@ -7,6 +7,7 @@ use duct::cmd;
 use os_info::Type;
 use strum::Display;
 use tokio::{fs, process::Command};
+use Dependencies::*;
 
 #[derive(Display)]
 pub enum Dependencies {
@@ -45,7 +46,7 @@ pub enum Dependencies {
 	#[strum(serialize = "rustup")]
 	Rustup,
 }
-
+const MACOS_PACKAGES: [Dependencies; 5] = [Homebrew, Protobuf, Openssl, Rustup, Cmake];
 #[derive(Args)]
 #[command(args_conflicts_with_subcommands = true)]
 /// Setup user environment for development
@@ -109,16 +110,8 @@ async fn install_mac(skip_confirm: bool) -> anyhow::Result<()> {
 	}
 	install_homebrew().await?;
 	cmd("brew", vec!["update"]).run()?;
-	cmd(
-		"brew",
-		vec![
-			"install",
-			&Dependencies::Protobuf.to_string(),
-			&Dependencies::Openssl.to_string(),
-			&Dependencies::Cmake.to_string(),
-		],
-	)
-	.run()?;
+	cmd("brew", vec!["install", &Protobuf.to_string(), &Openssl.to_string(), &Cmake.to_string()])
+		.run()?;
 
 	Ok(())
 }
@@ -128,26 +121,20 @@ async fn install_arch(skip_confirm: bool) -> anyhow::Result<()> {
 	if !skip_confirm {
 		prompt_for_confirmation(&format!(
 			"{}, {}, {}, {}, {} and {}",
-			Dependencies::Curl,
-			Dependencies::Git,
-			Dependencies::Clang,
-			Dependencies::Make,
-			Dependencies::Openssl,
-			Dependencies::Rustup,
+			Curl, Git, Clang, Make, Openssl, Rustup,
 		))?
 	}
-	cmd("pacman", vec!["-Syu", "--needed", "--noconfirm", &Dependencies::Openssl.to_string()])
-		.run()?;
 	cmd(
 		"pacman",
 		vec![
 			"-Syu",
 			"--needed",
 			"--noconfirm",
-			&Dependencies::Curl.to_string(),
-			&Dependencies::Git.to_string(),
-			&Dependencies::Clang.to_string(),
-			&Dependencies::Make.to_string(),
+			&Curl.to_string(),
+			&Git.to_string(),
+			&Clang.to_string(),
+			&Make.to_string(),
+			&Openssl.to_string(),
 		],
 	)
 	.run()?;
@@ -159,12 +146,7 @@ async fn install_ubuntu(skip_confirm: bool) -> anyhow::Result<()> {
 	if !skip_confirm {
 		prompt_for_confirmation(&format!(
 			"{}, {}, {}, {}, {} and {}",
-			Dependencies::Git,
-			Dependencies::Clang,
-			Dependencies::Curl,
-			Dependencies::Libssl,
-			Dependencies::ProtobufCompiler,
-			Dependencies::Rustup,
+			Git, Clang, Curl, Libssl, ProtobufCompiler, Rustup,
 		))?
 	}
 	cmd(
@@ -172,11 +154,11 @@ async fn install_ubuntu(skip_confirm: bool) -> anyhow::Result<()> {
 		vec![
 			"install",
 			"--assume-yes",
-			&Dependencies::Git.to_string(),
-			&Dependencies::Clang.to_string(),
-			&Dependencies::Curl.to_string(),
-			&Dependencies::Libssl.to_string(),
-			&Dependencies::ProtobufCompiler.to_string(),
+			&Git.to_string(),
+			&Clang.to_string(),
+			&Curl.to_string(),
+			&Libssl.to_string(),
+			&ProtobufCompiler.to_string(),
 		],
 	)
 	.run()?;
@@ -189,16 +171,16 @@ async fn install_debian(skip_confirm: bool) -> anyhow::Result<()> {
 	if !skip_confirm {
 		prompt_for_confirmation(&format!(
 			"{}, {}, {}, {}, {}, {}, {}, {}, {} and {}",
-			Dependencies::Cmake,
-			Dependencies::PkgConfig,
-			Dependencies::Libssl,
-			Dependencies::Git,
-			Dependencies::Gcc,
-			Dependencies::BuildEssential,
-			Dependencies::ProtobufCompiler,
-			Dependencies::Clang,
-			Dependencies::LibClang,
-			Dependencies::Rustup,
+			Cmake,
+			PkgConfig,
+			Libssl,
+			Git,
+			Gcc,
+			BuildEssential,
+			ProtobufCompiler,
+			Clang,
+			LibClang,
+			Rustup,
 		))?
 	}
 	cmd(
@@ -206,15 +188,15 @@ async fn install_debian(skip_confirm: bool) -> anyhow::Result<()> {
 		vec![
 			"install",
 			"-y",
-			&Dependencies::Cmake.to_string(),
-			&Dependencies::PkgConfig.to_string(),
-			&Dependencies::Libssl.to_string(),
-			&Dependencies::Git.to_string(),
-			&Dependencies::Gcc.to_string(),
-			&Dependencies::BuildEssential.to_string(),
-			&Dependencies::ProtobufCompiler.to_string(),
-			&Dependencies::Clang.to_string(),
-			&Dependencies::LibClang.to_string(),
+			&Cmake.to_string(),
+			&PkgConfig.to_string(),
+			&Libssl.to_string(),
+			&Git.to_string(),
+			&Gcc.to_string(),
+			&BuildEssential.to_string(),
+			&ProtobufCompiler.to_string(),
+			&Clang.to_string(),
+			&LibClang.to_string(),
 		],
 	)
 	.run()?;
@@ -227,14 +209,7 @@ async fn install_redhat(skip_confirm: bool) -> anyhow::Result<()> {
 	if !skip_confirm {
 		prompt_for_confirmation(&format!(
 			"{}, {}, {}, {}, {}, {}, {} and {}",
-			Dependencies::Cmake,
-			Dependencies::OpenSslDevel,
-			Dependencies::Git,
-			Dependencies::Protobuf,
-			Dependencies::ProtobufCompiler,
-			Dependencies::Clang,
-			Dependencies::ClangDevel,
-			Dependencies::Rustup,
+			Cmake, OpenSslDevel, Git, Protobuf, ProtobufCompiler, Clang, ClangDevel, Rustup,
 		))?
 	}
 	cmd("yum", vec!["update", "-y"]).run()?;
@@ -244,13 +219,13 @@ async fn install_redhat(skip_confirm: bool) -> anyhow::Result<()> {
 		vec![
 			"install",
 			"-y",
-			&Dependencies::Cmake.to_string(),
-			&Dependencies::OpenSslDevel.to_string(),
-			&Dependencies::Git.to_string(),
-			&Dependencies::Protobuf.to_string(),
-			&Dependencies::ProtobufCompiler.to_string(),
-			&Dependencies::Clang.to_string(),
-			&Dependencies::ClangDevel.to_string(),
+			&Cmake.to_string(),
+			&OpenSslDevel.to_string(),
+			&Git.to_string(),
+			&Protobuf.to_string(),
+			&ProtobufCompiler.to_string(),
+			&Clang.to_string(),
+			&ClangDevel.to_string(),
 		],
 	)
 	.run()?;
