@@ -4765,6 +4765,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "os_info"
+version = "3.8.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ae99c7fa6dd38c7cafe1ec085e804f8f555a2f8659b0dbe03f1f9963a9b51092"
+dependencies = [
+ "log",
+ "windows-sys 0.52.0",
+]
+
+[[package]]
 name = "os_pipe"
 version = "1.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5311,9 +5321,11 @@ dependencies = [
  "dirs",
  "duct",
  "git2",
+ "os_info",
  "pop-contracts",
  "pop-parachains",
  "predicates",
+ "reqwest",
  "sp-core 30.0.0",
  "sp-weights 29.0.0",
  "strum 0.26.2",

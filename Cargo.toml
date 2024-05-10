@@ -50,3 +50,4 @@ cliclack = "0.2"
 console = "0.15"
 strum = "0.26"
 strum_macros = "0.26"
+os_info = { version = "3", default-features = false }

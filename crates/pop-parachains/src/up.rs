@@ -18,7 +18,7 @@ use zombienet_sdk::{Network, NetworkConfig, NetworkConfigExt};
 use zombienet_support::fs::local::LocalFileSystem;
 
 const POLKADOT_SDK: &str = "https://github.com/paritytech/polkadot-sdk";
-const POLKADOT_DEFAULT_VERSION: &str = "v1.10.0";
+const POLKADOT_DEFAULT_VERSION: &str = "v1.11.0";
 
 pub struct Zombienet {
 	/// The cache location, used for caching binaries.
