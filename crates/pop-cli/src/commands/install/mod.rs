@@ -46,7 +46,6 @@ pub enum Dependencies {
 	#[strum(serialize = "rustup")]
 	Rustup,
 }
-const MACOS_PACKAGES: [Dependencies; 5] = [Homebrew, Protobuf, Openssl, Rustup, Cmake];
 #[derive(Args)]
 #[command(args_conflicts_with_subcommands = true)]
 /// Setup user environment for development
