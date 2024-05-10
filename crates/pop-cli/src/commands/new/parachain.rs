@@ -12,8 +12,13 @@ use std::{
 };
 
 use cliclack::{clear_screen, confirm, input, intro, log, outro, outro_cancel, set_theme};
-use pop_parachains::{instantiate_template_dir, Config, Git, GitHub, Provider, Release, Template};
+use pop_parachains::{
+	instantiate_template_dir, is_initial_endowment_valid, Config, Git, GitHub, Provider, Release,
+	Template,
+};
 use strum::VariantArray;
+
+const DEFAULT_INITIAL_ENDOWMENT: &str = "1u64 << 60";
 
 #[derive(Args)]
 pub struct NewParachainCommand {
@@ -40,7 +45,7 @@ pub struct NewParachainCommand {
 		long = "endowment",
 		short,
 		help = "Token Endowment for dev accounts",
-		default_value = "1u64 << 60"
+		default_value = DEFAULT_INITIAL_ENDOWMENT
 	)]
 	pub(crate) initial_endowment: Option<String>,
 	#[arg(
@@ -82,11 +87,29 @@ impl NewParachainCommand {
 				};
 
 				is_template_supported(provider, &template)?;
+				let mut initial_endowment = self.initial_endowment.clone();
+				if initial_endowment.is_some()
+					&& !is_initial_endowment_valid(&initial_endowment.clone().unwrap())
+				{
+					log::warning("⚠️ The specified initial endowment is not valid")?;
+					//Prompt the user if want to use the one by default
+					if !confirm(format!(
+						"📦 Would you like to use the default {}?",
+						DEFAULT_INITIAL_ENDOWMENT
+					))
+					.initial_value(true)
+					.interact()?
+					{
+						outro_cancel("🚫 Cannot create a parachain with an incorrect initial endowment value.")?;
+						return Ok(());
+					}
+					initial_endowment = Some(DEFAULT_INITIAL_ENDOWMENT.to_string());
+				}
 				let config = get_customization_value(
 					&template,
 					self.symbol.clone(),
 					self.decimals,
-					self.initial_endowment.clone(),
+					initial_endowment.clone(),
 				)?;
 
 				generate_parachain_from_template(name, provider, &template, None, config)
@@ -280,11 +303,25 @@ fn prompt_customizable_options() -> Result<Config> {
 		.interact()?;
 	let decimals: u8 = decimals_input.parse::<u8>().expect("input has to be a number");
 
-	let endowment: String = input("And the initial endowment for dev accounts?")
+	let mut initial_endowment: String = input("And the initial endowment for dev accounts?")
 		.placeholder("1u64 << 60")
 		.default_input("1u64 << 60")
 		.interact()?;
-	Ok(Config { symbol, decimals, initial_endowment: endowment })
+	if !is_initial_endowment_valid(&initial_endowment) {
+		outro_cancel("⚠️ The specified initial endowment is not valid")?;
+		//Prompt the user if want to use the one by default
+		if !confirm(format!("📦 Would you like to use the default {}?", DEFAULT_INITIAL_ENDOWMENT))
+			.initial_value(true)
+			.interact()?
+		{
+			outro_cancel(
+				"🚫 Cannot create a parachain with an incorrect initial endowment value.",
+			)?;
+			return Err(anyhow::anyhow!("incorrect initial endowment value"));
+		}
+		initial_endowment = DEFAULT_INITIAL_ENDOWMENT.to_string();
+	}
+	Ok(Config { symbol, decimals, initial_endowment })
 }
 
 #[cfg(test)]

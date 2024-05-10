@@ -51,4 +51,7 @@ pub enum Error {
 
 	#[error("Template error: {0}")]
 	TemplateError(#[from] templates::Error),
+
+	#[error("Failed to parse the endowment value")]
+	EndowmentError,
 }
