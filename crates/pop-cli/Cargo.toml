@@ -44,7 +44,6 @@ predicates = "3.1.0"
 
 [features]
 default = ["contract", "parachain", "telemetry"]
-static-ssl = ["git2/vendored-openssl"]
 contract = [
     "dep:pop-contracts",
     "dep:sp-core",
