@@ -1,16 +1,21 @@
 // SPDX-License-Identifier: GPL-3.0
 
+#[cfg(not(any(feature = "contract", feature = "parachain")))]
+compile_error!("feature \"contract\" or feature \"parachain\" must be enabled");
+
 #[cfg(any(feature = "parachain", feature = "contract"))]
 mod commands;
-#[cfg(any(feature = "parachain", feature = "contract"))]
 mod style;
 
-use anyhow::{anyhow, Result};
+#[cfg(feature = "parachain")]
+use anyhow::anyhow;
+use anyhow::Result;
 use clap::{Parser, Subcommand};
 use commands::*;
 #[cfg(feature = "telemetry")]
 use pop_telemetry::{config_file_path, record_cli_command, record_cli_used, Telemetry};
 use serde_json::{json, Value};
+#[cfg(feature = "parachain")]
 use std::{fs::create_dir_all, path::PathBuf};
 
 #[derive(Parser)]
@@ -25,9 +30,11 @@ pub struct Cli {
 enum Commands {
 	/// Generate a new parachain, pallet or smart contract.
 	#[clap(alias = "n")]
+	#[cfg(any(feature = "parachain", feature = "contract"))]
 	New(new::NewArgs),
 	/// Build a parachain or smart contract.
 	#[clap(alias = "b")]
+	#[cfg(any(feature = "parachain", feature = "contract"))]
 	Build(build::BuildArgs),
 	/// Call a smart contract.
 	#[clap(alias = "c")]
@@ -35,6 +42,7 @@ enum Commands {
 	Call(call::CallArgs),
 	/// Deploy a parachain or smart contract.
 	#[clap(alias = "u")]
+	#[cfg(any(feature = "parachain", feature = "contract"))]
 	Up(up::UpArgs),
 	/// Test a smart contract.
 	#[clap(alias = "t")]
@@ -49,6 +57,7 @@ async fn main() -> Result<()> {
 
 	let cli = Cli::parse();
 	let res = match cli.command {
+		#[cfg(any(feature = "parachain", feature = "contract"))]
 		Commands::New(args) => match args.command {
 			#[cfg(feature = "parachain")]
 			new::NewCommands::Parachain(cmd) => match cmd.execute().await {
@@ -69,6 +78,7 @@ async fn main() -> Result<()> {
 				cmd.execute().await.map(|_| json!("default"))
 			},
 		},
+		#[cfg(any(feature = "parachain", feature = "contract"))]
 		Commands::Build(args) => match &args.command {
 			#[cfg(feature = "parachain")]
 			build::BuildCommands::Parachain(cmd) => cmd.execute().map(|_| Value::Null),
@@ -79,6 +89,7 @@ async fn main() -> Result<()> {
 		Commands::Call(args) => match &args.command {
 			call::CallCommands::Contract(cmd) => cmd.execute().await.map(|_| Value::Null),
 		},
+		#[cfg(any(feature = "parachain", feature = "contract"))]
 		Commands::Up(args) => match &args.command {
 			#[cfg(feature = "parachain")]
 			up::UpCommands::Parachain(cmd) => cmd.execute().await.map(|_| Value::Null),

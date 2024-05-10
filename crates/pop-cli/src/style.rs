@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
-
 use cliclack::ThemeState;
+#[cfg(any(feature = "parachain", feature = "contract"))]
 pub(crate) use console::style;
 use console::Style;
 

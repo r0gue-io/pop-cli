@@ -32,8 +32,8 @@ sp-weights = { workspace = true, optional = true }
 
 # parachains
 pop-parachains = { path = "../pop-parachains", optional = true }
-dirs = { workspace = true, optional = true }
-git2.workspace = true
+dirs = { version = "5.0", optional = true }
+git2 = { workspace = true, features = ["vendored-openssl"] }
 
 # telemetry
 pop-telemetry = { path = "../pop-telemetry", optional = true }

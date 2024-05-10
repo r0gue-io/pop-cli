@@ -37,7 +37,7 @@ impl Provider {
 
 	pub fn default_template(&self) -> Template {
 		match &self {
-			Provider::Pop => Template::Base,
+			Provider::Pop => Template::Standard,
 			Provider::Parity => Template::ParityContracts,
 		}
 	}
@@ -78,12 +78,12 @@ pub enum Template {
 	// Pop
 	#[default]
 	#[strum(
-		serialize = "base",
+		serialize = "standard",
 		message = "Standard",
 		detailed_message = "A standard parachain",
 		props(Provider = "Pop", Repository = "https://github.com/r0gue-io/base-parachain")
 	)]
-	Base,
+	Standard,
 	#[strum(
 		serialize = "assets",
 		message = "Assets",
@@ -91,6 +91,20 @@ pub enum Template {
 		props(Provider = "Pop", Repository = "https://github.com/r0gue-io/assets-parachain")
 	)]
 	Assets,
+	#[strum(
+		serialize = "contracts",
+		message = "Contracts",
+		detailed_message = "Parachain configured to supports Wasm-based contracts.",
+		props(Provider = "Pop", Repository = "https://github.com/r0gue-io/contracts-parachain")
+	)]
+	Contracts,
+	#[strum(
+		serialize = "evm",
+		message = "EVM",
+		detailed_message = "Parachain configured with frontier, enabling compatibility with the Ethereum Virtual Machine (EVM).",
+		props(Provider = "Pop", Repository = "https://github.com/r0gue-io/evm-parachain")
+	)]
+	EVM,
 	// Parity
 	#[strum(
 		serialize = "cpt",
@@ -147,64 +161,75 @@ pub enum Error {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use std::str::FromStr;
+	use std::{collections::HashMap, str::FromStr};
+
+	fn templates_names() -> HashMap<String, Template> {
+		HashMap::from([
+			("standard".to_string(), Template::Standard),
+			("assets".to_string(), Template::Assets),
+			("contracts".to_string(), Template::Contracts),
+			("evm".to_string(), Template::EVM),
+			("cpt".to_string(), Template::ParityContracts),
+			("fpt".to_string(), Template::ParityFPT),
+		])
+	}
+	fn templates_urls() -> HashMap<String, &'static str> {
+		HashMap::from([
+			("standard".to_string(), "https://github.com/r0gue-io/base-parachain"),
+			("assets".to_string(), "https://github.com/r0gue-io/assets-parachain"),
+			("contracts".to_string(), "https://github.com/r0gue-io/contracts-parachain"),
+			("evm".to_string(), "https://github.com/r0gue-io/evm-parachain"),
+			("cpt".to_string(), "https://github.com/paritytech/substrate-contracts-node"),
+			("fpt".to_string(), "https://github.com/paritytech/frontier-parachain-template"),
+		])
+	}
 
 	#[test]
 	fn test_is_template_correct() {
-		let mut template = Template::Base;
-		assert_eq!(template.matches(&Provider::Pop), true);
-		assert_eq!(template.matches(&Provider::Parity), false);
-
-		template = Template::ParityContracts;
-		assert_eq!(template.matches(&Provider::Pop), false);
-		assert_eq!(template.matches(&Provider::Parity), true);
-
-		template = Template::ParityFPT;
-		assert_eq!(template.matches(&Provider::Pop), false);
-		assert_eq!(template.matches(&Provider::Parity), true);
-
-		template = Template::Assets;
-		assert_eq!(template.matches(&Provider::Pop), true);
-		assert_eq!(template.matches(&Provider::Parity), false);
+		for template in Template::VARIANTS {
+			if matches!(
+				template,
+				Template::Standard | Template::Assets | Template::Contracts | Template::EVM
+			) {
+				assert_eq!(template.matches(&Provider::Pop), true);
+				assert_eq!(template.matches(&Provider::Parity), false);
+			}
+			if matches!(template, Template::ParityContracts | Template::ParityFPT) {
+				assert_eq!(template.matches(&Provider::Pop), false);
+				assert_eq!(template.matches(&Provider::Parity), true);
+			}
+		}
 	}
 
 	#[test]
 	fn test_convert_string_to_template() {
-		assert_eq!(Template::from_str("base").unwrap(), Template::Base);
-		assert_eq!(Template::from_str("").unwrap_or_default(), Template::Base);
-		assert_eq!(Template::from_str("assets").unwrap(), Template::Assets);
-		assert_eq!(Template::from_str("cpt").unwrap(), Template::ParityContracts);
-		assert_eq!(Template::from_str("fpt").unwrap(), Template::ParityFPT);
+		let template_names = templates_names();
+		// Test the default
+		assert_eq!(Template::from_str("").unwrap_or_default(), Template::Standard);
+		// Test the rest
+		for template in Template::VARIANTS {
+			assert_eq!(
+				&Template::from_str(&template.to_string()).unwrap(),
+				template_names.get(&template.to_string()).unwrap()
+			);
+		}
 	}
 
 	#[test]
 	fn test_repository_url() {
-		let mut template = Template::Base;
-		assert_eq!(
-			template.repository_url().unwrap(),
-			"https://github.com/r0gue-io/base-parachain"
-		);
-		template = Template::ParityContracts;
-		assert_eq!(
-			template.repository_url().unwrap(),
-			"https://github.com/paritytech/substrate-contracts-node"
-		);
-		template = Template::ParityFPT;
-		assert_eq!(
-			template.repository_url().unwrap(),
-			"https://github.com/paritytech/frontier-parachain-template"
-		);
-		template = Template::Assets;
-		assert_eq!(
-			template.repository_url().unwrap(),
-			"https://github.com/r0gue-io/assets-parachain"
-		);
+		let template_urls = templates_urls();
+		for template in Template::VARIANTS {
+			assert_eq!(
+				&template.repository_url().unwrap(),
+				template_urls.get(&template.to_string()).unwrap()
+			);
+		}
 	}
 
 	#[test]
 	fn test_default_template_of_provider() {
 		let mut provider = Provider::Pop;
-		assert_eq!(provider.default_template(), Template::Base);
+		assert_eq!(provider.default_template(), Template::Standard);
 		provider = Provider::Parity;
 		assert_eq!(provider.default_template(), Template::ParityContracts);
 	}
@@ -212,7 +237,10 @@ mod tests {
 	#[test]
 	fn test_templates_of_provider() {
 		let mut provider = Provider::Pop;
-		assert_eq!(provider.templates(), [&Template::Base, &Template::Assets]);
+		assert_eq!(
+			provider.templates(),
+			[&Template::Standard, &Template::Assets, &Template::Contracts, &Template::EVM]
+		);
 		provider = Provider::Parity;
 		assert_eq!(provider.templates(), [&Template::ParityContracts, &Template::ParityFPT]);
 	}

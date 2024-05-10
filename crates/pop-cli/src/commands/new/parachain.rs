@@ -139,7 +139,7 @@ async fn guide_user_to_generate_parachain() -> Result<NewParachainCommand> {
 		decimals: 12,
 		initial_endowment: "1u64 << 60".to_string(),
 	};
-	if matches!(template, Template::Base) {
+	if template.matches(&Provider::Pop) {
 		customizable_options = prompt_customizable_options()?;
 	}
 
@@ -221,7 +221,7 @@ fn get_customization_value(
 	decimals: Option<u8>,
 	initial_endowment: Option<String>,
 ) -> Result<Config> {
-	if !matches!(template, Template::Base)
+	if !matches!(template, Template::Standard)
 		&& (symbol.is_some() || decimals.is_some() || initial_endowment.is_some())
 	{
 		log::warning("Customization options are not available for this template")?;
@@ -335,7 +335,7 @@ mod tests {
 		let command = NewParachainCommand {
 			name: Some(dir.path().join("test_parachain").to_str().unwrap().to_string()),
 			provider: Some(Provider::Pop),
-			template: Some(Template::Base),
+			template: Some(Template::Standard),
 			release_tag: None,
 			symbol: Some("UNIT".to_string()),
 			decimals: Some(12),
@@ -353,11 +353,11 @@ mod tests {
 
 	#[test]
 	fn test_is_template_supported() -> Result<()> {
-		is_template_supported(&Provider::Pop, &Template::Base)?;
+		is_template_supported(&Provider::Pop, &Template::Standard)?;
 		assert!(is_template_supported(&Provider::Pop, &Template::ParityContracts).is_err());
 		assert!(is_template_supported(&Provider::Pop, &Template::ParityFPT).is_err());
 
-		assert!(is_template_supported(&Provider::Parity, &Template::Base).is_err());
+		assert!(is_template_supported(&Provider::Parity, &Template::Standard).is_err());
 		is_template_supported(&Provider::Parity, &Template::ParityContracts)?;
 		is_template_supported(&Provider::Parity, &Template::ParityFPT)
 	}
@@ -365,7 +365,7 @@ mod tests {
 	#[test]
 	fn test_get_customization_values() -> Result<()> {
 		let config = get_customization_value(
-			&Template::Base,
+			&Template::Standard,
 			Some("DOT".to_string()),
 			Some(6),
 			Some("10000".to_string()),
