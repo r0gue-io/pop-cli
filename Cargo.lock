@@ -413,6 +413,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "assert-json-diff"
+version = "2.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "47e4f2b81832e72834d7518d8487a0396a28cc408186a2e8854c0f98011faf12"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "assert_cmd"
 version = "2.0.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2416,6 +2426,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "env_filter"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a009aa4810eb158359dda09d0c87378e4bbb89b5a801f016885a4707ba24f7ea"
+dependencies = [
+ "log",
+ "regex",
+]
+
+[[package]]
+name = "env_logger"
+version = "0.11.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c012a26a7f605efc424dd53697843a72be7dc86ad2d01f7814337794a12231d"
+dependencies = [
+ "anstream",
+ "anstyle",
+ "env_filter",
+ "humantime",
+ "log",
+]
+
+[[package]]
 name = "environmental"
 version = "1.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3153,6 +3186,12 @@ checksum = "6cb51c9a029ddc91b07a787f1d86b53ccfa49b0e86688c946ebe8d3555685dd7"
 dependencies = [
  "libm",
 ]
+
+[[package]]
+name = "humantime"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9a3a5bfb195931eeb336b2a7b4d761daec841b97f947d34394601737a7bba5e4"
 
 [[package]]
 name = "hyper"
@@ -4423,6 +4462,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "mockito"
+version = "1.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d2f6e023aa5bdf392aa06c78e4a4e6d498baab5138d0c993503350ebbc37bf1e"
+dependencies = [
+ "assert-json-diff",
+ "colored",
+ "futures-core",
+ "hyper 0.14.28",
+ "log",
+ "rand",
+ "regex",
+ "serde_json",
+ "serde_urlencoded",
+ "similar",
+ "tokio",
+]
+
+[[package]]
 name = "multiaddr"
 version = "0.18.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5320,12 +5378,16 @@ dependencies = [
  "console",
  "dirs",
  "duct",
+ "env_logger",
  "git2",
  "os_info",
  "pop-contracts",
  "pop-parachains",
+ "pop-telemetry",
  "predicates",
  "reqwest",
+ "serde",
+ "serde_json",
  "sp-core 30.0.0",
  "sp-weights 29.0.0",
  "strum 0.26.2",
@@ -5379,6 +5441,23 @@ dependencies = [
  "walkdir",
  "zombienet-sdk",
  "zombienet-support",
+]
+
+[[package]]
+name = "pop-telemetry"
+version = "0.1.0"
+dependencies = [
+ "dirs",
+ "env_logger",
+ "log",
+ "mockito",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "url",
 ]
 
 [[package]]
@@ -6829,6 +6908,12 @@ name = "simdutf8"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f27f6278552951f1f2b8cf9da965d10969b2efdea95a6ec47987ab46edfe263a"
+
+[[package]]
+name = "similar"
+version = "2.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fa42c91313f1d05da9b26f267f931cf178d4aba455b4c4622dd7355eb80c6640"
 
 [[package]]
 name = "simple-mermaid"

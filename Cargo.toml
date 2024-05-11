@@ -12,12 +12,22 @@ codegen-units = 1
 resolver = "2"
 members = ["crates/*"]
 
+[workspace.package]
+edition = "2021"
+
 [workspace.dependencies]
 anyhow = "1.0"
-thiserror = "1.0.58"
+dirs = "5.0"
+env_logger = "0.11.1"
 duct = "0.13"
 git2 = "0.18"
+log = "0.4.20"
+mockito = "1.4.0"
 tempfile = "3.8"
+thiserror = "1.0.58"
+
+# networking
+reqwest = { version = "0.11", features = ["json"] }
 tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
 url = { version = "2.5" }
 
@@ -37,7 +47,6 @@ walkdir = "2.4"
 indexmap = { version = "2.2" }
 toml_edit = { version = "0.22", features = ["serde"] }
 symlink = { version = "0.1" }
-reqwest = { version = "0.11" }
 serde_json = { version = "1.0" }
 serde = { version = "1.0", features = ["derive"] }
 zombienet-sdk = { git = "https://github.com/r0gue-io/zombienet-sdk", branch = "pop" }

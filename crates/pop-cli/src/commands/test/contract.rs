@@ -17,20 +17,24 @@ pub(crate) struct TestContractCommand {
 }
 
 impl TestContractCommand {
-	pub(crate) fn execute(&self) -> anyhow::Result<()> {
+	pub(crate) fn execute(&self) -> anyhow::Result<&str> {
 		clear_screen()?;
+
 		if self.features.is_some() && self.features.clone().unwrap().contains("e2e-tests") {
 			intro(format!(
 				"{}: Starting end-to-end tests",
 				style(" Pop CLI ").black().on_magenta()
 			))?;
+
 			test_e2e_smart_contract(&self.path)?;
 			outro("End-to-end testing complete")?;
+			Ok("e2e")
 		} else {
 			intro(format!("{}: Starting unit tests", style(" Pop CLI ").black().on_magenta()))?;
+
 			test_smart_contract(&self.path)?;
 			outro("Unit testing complete")?;
+			Ok("unit")
 		}
-		Ok(())
 	}
 }

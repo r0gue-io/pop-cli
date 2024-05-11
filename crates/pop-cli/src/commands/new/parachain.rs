@@ -5,11 +5,7 @@ use clap::{
 	builder::{PossibleValue, PossibleValuesParser, TypedValueParser},
 	Args,
 };
-use std::{
-	fs,
-	path::{Path, PathBuf},
-	str::FromStr,
-};
+use std::{fs, path::Path, str::FromStr};
 
 use cliclack::{clear_screen, confirm, input, intro, log, outro, outro_cancel, set_theme};
 use pop_parachains::{
@@ -20,7 +16,7 @@ use strum::VariantArray;
 
 const DEFAULT_INITIAL_ENDOWMENT: &str = "1u64 << 60";
 
-#[derive(Args)]
+#[derive(Args, Clone)]
 pub struct NewParachainCommand {
 	#[arg(help = "Name of the project. If empty assistance in the process will be provided.")]
 	pub(crate) name: Option<String>,
@@ -37,6 +33,12 @@ pub struct NewParachainCommand {
 		value_parser = crate::enum_variants!(Template)
 	)]
 	pub(crate) template: Option<Template>,
+	#[arg(
+		short = 'r',
+		long,
+		help = "Release tag to use for template. If empty, latest release will be used."
+	)]
+	pub(crate) release_tag: Option<String>,
 	#[arg(long, short, help = "Token Symbol", default_value = "UNIT")]
 	pub(crate) symbol: Option<String>,
 	#[arg(long, short, help = "Token Decimals", default_value = "12")]
@@ -48,12 +50,6 @@ pub struct NewParachainCommand {
 		default_value = DEFAULT_INITIAL_ENDOWMENT
 	)]
 	pub(crate) initial_endowment: Option<String>,
-	#[arg(
-		short = 'p',
-		long,
-		help = "Path for the parachain project, [default: current directory]"
-	)]
-	pub(crate) path: Option<PathBuf>,
 }
 
 #[macro_export]
@@ -72,53 +68,43 @@ macro_rules! enum_variants {
 }
 
 impl NewParachainCommand {
-	pub(crate) async fn execute(&self) -> Result<()> {
+	pub(crate) async fn execute(&self) -> Result<Template> {
 		clear_screen()?;
 		set_theme(Theme);
 
-		return match &self.name {
+		let parachain_config = if self.name.is_none() {
 			// If user doesn't select the name guide them to generate a parachain.
-			None => guide_user_to_generate_parachain().await,
-			Some(name) => {
-				let provider = &self.provider.clone().unwrap_or_default();
-				let template = match &self.template {
-					Some(template) => template.clone(),
-					None => provider.default_template(), // Each provider has a template by default
-				};
-
-				is_template_supported(provider, &template)?;
-				let mut initial_endowment = self.initial_endowment.clone();
-				if initial_endowment.is_some()
-					&& !is_initial_endowment_valid(&initial_endowment.clone().unwrap())
-				{
-					log::warning("⚠️ The specified initial endowment is not valid")?;
-					//Prompt the user if want to use the one by default
-					if !confirm(format!(
-						"📦 Would you like to use the default {}?",
-						DEFAULT_INITIAL_ENDOWMENT
-					))
-					.initial_value(true)
-					.interact()?
-					{
-						outro_cancel("🚫 Cannot create a parachain with an incorrect initial endowment value.")?;
-						return Ok(());
-					}
-					initial_endowment = Some(DEFAULT_INITIAL_ENDOWMENT.to_string());
-				}
-				let config = get_customization_value(
-					&template,
-					self.symbol.clone(),
-					self.decimals,
-					initial_endowment.clone(),
-				)?;
-
-				generate_parachain_from_template(name, provider, &template, None, config)
-			},
+			guide_user_to_generate_parachain().await?
+		} else {
+			self.clone()
 		};
+
+		let name = &parachain_config
+			.name
+			.clone()
+			.expect("name can not be none as fallback above is interactive input; qed");
+		let provider = &parachain_config.provider.clone().unwrap_or_default();
+		let template = match &parachain_config.template {
+			Some(template) => template.clone(),
+			None => provider.default_template(), // Each provider has a template by default
+		};
+
+		is_template_supported(provider, &template)?;
+		let config = get_customization_value(
+			&template,
+			parachain_config.symbol.clone(),
+			parachain_config.decimals,
+			parachain_config.initial_endowment.clone(),
+		)?;
+
+		let tag_version = parachain_config.release_tag.clone();
+
+		generate_parachain_from_template(name, provider, &template, tag_version, config)?;
+		Ok(template)
 	}
 }
 
-async fn guide_user_to_generate_parachain() -> Result<()> {
+async fn guide_user_to_generate_parachain() -> Result<NewParachainCommand> {
 	intro(format!("{}: Generate a parachain", style(" Pop CLI ").black().on_magenta()))?;
 
 	let mut prompt = cliclack::select("Select a template provider: ".to_string());
@@ -164,15 +150,16 @@ async fn guide_user_to_generate_parachain() -> Result<()> {
 
 	clear_screen()?;
 
-	generate_parachain_from_template(
-		&name,
-		&provider,
-		&template,
-		release_name,
-		customizable_options,
-	)
+	Ok(NewParachainCommand {
+		name: Some(name),
+		provider: Some(provider.clone()),
+		template: Some(template.clone()),
+		release_tag: release_name,
+		symbol: Some(customizable_options.symbol),
+		decimals: Some(customizable_options.decimals),
+		initial_endowment: Some(customizable_options.initial_endowment),
+	})
 }
-
 fn generate_parachain_from_template(
 	name_template: &String,
 	provider: &Provider,
@@ -187,6 +174,7 @@ fn generate_parachain_from_template(
 		template,
 		provider
 	))?;
+
 	let destination_path = check_destination_path(name_template)?;
 
 	let spinner = cliclack::spinner();
@@ -367,10 +355,10 @@ mod tests {
 			name: Some(dir.path().join("test_parachain").to_str().unwrap().to_string()),
 			provider: Some(Provider::Pop),
 			template: Some(Template::Standard),
+			release_tag: None,
 			symbol: Some("UNIT".to_string()),
 			decimals: Some(12),
 			initial_endowment: Some("1u64 << 60".to_string()),
-			path: None,
 		};
 		command.execute().await?;
 

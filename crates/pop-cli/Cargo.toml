@@ -2,7 +2,7 @@
 name = "pop-cli"
 description = "An all-in-one tool for Polkadot development."
 version = "0.1.0"
-edition = "2021"
+edition.workspace = true
 
 [[bin]]
 name = "pop"
@@ -11,11 +11,14 @@ path = "src/main.rs"
 [dependencies]
 anyhow.workspace = true
 duct.workspace = true
-tempfile.workspace = true
-url.workspace = true
-tokio.workspace = true
-reqwest.workspace = true
+env_logger.workspace = true
 os_info.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tempfile.workspace = true
+tokio.workspace = true
+url.workspace = true
 
 # pop-cli
 clap.workspace = true
@@ -34,12 +37,15 @@ pop-parachains = { path = "../pop-parachains", optional = true }
 dirs = { version = "5.0", optional = true }
 git2 = { workspace = true, features = ["vendored-openssl"] }
 
+# telemetry
+pop-telemetry = { path = "../pop-telemetry", optional = true }
+
 [dev-dependencies]
 assert_cmd = "2.0.14"
 predicates = "3.1.0"
 
 [features]
-default = ["contract", "parachain"]
+default = ["contract", "parachain", "telemetry"]
 contract = [
     "dep:pop-contracts",
     "dep:sp-core",
@@ -49,3 +55,4 @@ parachain = [
     "dep:pop-parachains",
     "dep:dirs",
 ]
+telemetry = ["dep:pop-telemetry"]

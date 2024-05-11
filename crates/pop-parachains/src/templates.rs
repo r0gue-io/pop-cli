@@ -144,12 +144,18 @@ impl Template {
 	pub fn repository_url(&self) -> Result<&str, Error> {
 		self.get_str("Repository").ok_or(Error::RepositoryMissing)
 	}
+
+	pub fn provider(&self) -> Result<&str, Error> {
+		self.get_str("Provider").ok_or(Error::ProviderMissing)
+	}
 }
 
 #[derive(Error, Debug)]
 pub enum Error {
 	#[error("The `Repository` property is missing from the template variant")]
 	RepositoryMissing,
+	#[error("The `Provider` property is missing from the template variant")]
+	ProviderMissing,
 }
 
 #[cfg(test)]
