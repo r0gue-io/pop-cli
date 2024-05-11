@@ -40,7 +40,9 @@ We take privacy seriously and are committed to protecting the anonymity of our u
 - **Anonymous Data Collection**: We only collect anonymized usage metrics, which do not contain any personally
   identifiable information.
 
-- **Transparency**: We are transparent about the data we collect and how it is used.
+- **Transparency**: We are transparent about the data we collect and how it is used. Some portions of the data will be
+  made public,
+  such as the number of times a command was executed, and total number of users.
 
 - **Privacy-First Platform**: We use Umami, a privacy-focused and open-source analytics platform, to collect anonymous
   usage metrics.
