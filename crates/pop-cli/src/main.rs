@@ -10,13 +10,18 @@ mod style;
 #[cfg(feature = "parachain")]
 use anyhow::anyhow;
 use anyhow::Result;
+use assert_cmd::{assert::OutputAssertExt, cargo::CommandCargoExt};
 use clap::{Parser, Subcommand};
 use commands::*;
 #[cfg(feature = "telemetry")]
 use pop_telemetry::{config_file_path, record_cli_command, record_cli_used, Telemetry};
+use predicates::prelude::predicate;
 use serde_json::{json, Value};
 #[cfg(feature = "parachain")]
 use std::{fs::create_dir_all, path::PathBuf};
+use tempfile::tempdir;
+
+use std::process::Command;
 
 #[derive(Parser)]
 #[command(author, version, about, styles=style::get_styles())]
