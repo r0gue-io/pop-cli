@@ -23,7 +23,7 @@ jobs:
       - name: Install Pop
         run: |
           . "$HOME/.cargo/env"
-          cargo install --locked --path ./crates/pop-cli
+          cargo install --locked --no-default-features --features contract,parachain --path ./crates/pop-cli
       - name: Run Pop install
         run: |
           . "$HOME/.cargo/env"
@@ -40,7 +40,7 @@ jobs:
       - name: Install Pop
         run: |
           . "$HOME/.cargo/env"
-          cargo install --locked --path ./crates/pop-cli
+          cargo install --locked --no-default-features --features contract,parachain --path ./crates/pop-cli
       - name: Run Pop Install
         run: |
           . "$HOME/.cargo/env"
@@ -56,7 +56,7 @@ jobs:
       - name: Install Pop
         run: |
           . "$HOME/.cargo/env"
-          cargo install --locked --path ./crates/pop-cli
+          cargo install --locked --no-default-features --features contract,parachain --path ./crates/pop-cli
       - name: Run Pop Install
         run: |
           . "$HOME/.cargo/env"
@@ -73,7 +73,7 @@ jobs:
       - name: Install Pop
         run: |
           . "$HOME/.cargo/env"
-          cargo install --locked --path ./crates/pop-cli
+          cargo install --locked --no-default-features --features contract,parachain --path ./crates/pop-cli
       - name: Run Pop install
         run: |
           . "$HOME/.cargo/env"
@@ -90,7 +90,7 @@ jobs:
       - name: Install Pop
         run: |
           . "$HOME/.cargo/env"
-          cargo install --locked --path ./crates/pop-cli
+          cargo install --locked --no-default-features --features contract,parachain --path ./crates/pop-cli
       - name: Run Pop install
         run: |
           . "$HOME/.cargo/env"
