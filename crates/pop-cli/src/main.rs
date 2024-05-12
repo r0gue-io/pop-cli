@@ -168,3 +168,36 @@ fn verify_cli() {
 	use clap::CommandFactory;
 	Cli::command().debug_assert()
 }
+#[test]
+fn test_wrong_command() -> Result<(), Box<dyn std::error::Error>> {
+	let mut cmd = Command::cargo_bin("pop")?;
+	cmd.arg("new").arg("parachains").arg("my-parachain");
+	cmd.assert()
+		.failure()
+		.stderr(predicate::str::contains("unrecognized subcommand 'parachains'"));
+
+	Ok(())
+}
+#[test]
+fn test_new_parachain_all_flags_values() -> Result<(), Box<dyn std::error::Error>> {
+	let dir = tempdir()?;
+	let mut cmd = Command::cargo_bin("pop")?;
+	cmd.arg("new")
+		.arg("parachain")
+		.arg(dir.path().join("test_parachain").to_str().unwrap())
+		.arg("--symbol")
+		.arg("DOT")
+		.arg("--decimals")
+		.arg("6")
+		.arg("--endowment")
+		.arg("1_000_000_000");
+	cmd.assert().success();
+
+	Ok(())
+}
+#[test]
+fn test_cache() -> Result<(), Box<dyn std::error::Error>> {
+	let path = cache()?;
+	assert_eq!(path.file_name().unwrap().to_str().unwrap().to_string(), "pop");
+	Ok(())
+}
