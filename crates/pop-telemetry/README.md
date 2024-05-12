@@ -1,4 +1,6 @@
-# Anonymous Usage Metrics Collection with Umami
+# Telemetry
+
+Anonymous Usage Metrics Collection with Umami
 
 ## Umami
 
@@ -24,7 +26,7 @@ its performance, reliability, and user experience. Here's why we collect anonymo
 
 ## What We Collect
 
-We do **not** collect **any** personal information. We do not collect file names, github repositories, or anything
+We do **not** collect **any** personal information. We do not collect file names, GitHub repositories, or anything
 that is potentially sensitive. We do not even try to collect and sanitize this data, we simply do not collect it.
 Here is what we do collect, anonymously:
 

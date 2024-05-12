@@ -16,6 +16,13 @@ cargo install --locked --git https://github.com/r0gue-io/pop-cli
 > documentation: https://learn.onpop.io/pop/v/pop-cli/welcome/installing-pop-cli
 > :information_source: A [crates.io](https://crates.io/crates/pop-cli) version will be available soon!
 
+### Telemetry
+
+Pop CLI collects anonymous usage metrics to help us understand how the tool is being used and how we can improve it.
+We do not collect any personal information. If you wish to disable telemetry
+or read more about our telemetry practices please see
+our [telemetry](crates/pop-telemetry/README.md) documentation.
+
 ## Getting Started
 
 ### Parachains
@@ -279,8 +286,4 @@ The entire code within this repository is licensed under the [GPLv3](LICENSE).
 
 Please [contact us](https://r0gue.io/contact) if you have questions about the licensing of our products.
 
-## Telemetry
 
-Pop CLI collects anonymous usage metrics to help us understand how the tool is being used and how we can improve it.
-We do not collect any personal information. You can read more about our telemetry practices in
-our [telemetry](crates/pop-telemetry/README.md) documentation.
