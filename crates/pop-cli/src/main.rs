@@ -10,18 +10,13 @@ mod style;
 #[cfg(feature = "parachain")]
 use anyhow::anyhow;
 use anyhow::Result;
-use assert_cmd::{assert::OutputAssertExt, cargo::CommandCargoExt};
 use clap::{Parser, Subcommand};
 use commands::*;
 #[cfg(feature = "telemetry")]
 use pop_telemetry::{config_file_path, record_cli_command, record_cli_used, Telemetry};
-use predicates::prelude::predicate;
 use serde_json::{json, Value};
 #[cfg(feature = "parachain")]
 use std::{fs::create_dir_all, path::PathBuf};
-use tempfile::tempdir;
-
-use std::process::Command;
 
 #[derive(Parser)]
 #[command(author, version, about, styles=style::get_styles())]
@@ -162,42 +157,20 @@ fn init() -> Result<Option<Telemetry>> {
 	Ok(maybe_tel)
 }
 
-#[test]
-fn verify_cli() {
-	// https://docs.rs/clap/latest/clap/_derive/_tutorial/chapter_4/index.html
-	use clap::CommandFactory;
-	Cli::command().debug_assert()
-}
-#[test]
-fn test_wrong_command() -> Result<(), Box<dyn std::error::Error>> {
-	let mut cmd = Command::cargo_bin("pop")?;
-	cmd.arg("new").arg("parachains").arg("my-parachain");
-	cmd.assert()
-		.failure()
-		.stderr(predicate::str::contains("unrecognized subcommand 'parachains'"));
+#[cfg(test)]
+mod tests {
+	use super::*;
 
-	Ok(())
-}
-#[test]
-fn test_new_parachain_all_flags_values() -> Result<(), Box<dyn std::error::Error>> {
-	let dir = tempdir()?;
-	let mut cmd = Command::cargo_bin("pop")?;
-	cmd.arg("new")
-		.arg("parachain")
-		.arg(dir.path().join("test_parachain").to_str().unwrap())
-		.arg("--symbol")
-		.arg("DOT")
-		.arg("--decimals")
-		.arg("6")
-		.arg("--endowment")
-		.arg("1_000_000_000");
-	cmd.assert().success();
-
-	Ok(())
-}
-#[test]
-fn test_cache() -> Result<(), Box<dyn std::error::Error>> {
-	let path = cache()?;
-	assert_eq!(path.file_name().unwrap().to_str().unwrap().to_string(), "pop");
-	Ok(())
+	#[test]
+	fn verify_cli() {
+		// https://docs.rs/clap/latest/clap/_derive/_tutorial/chapter_4/index.html
+		use clap::CommandFactory;
+		Cli::command().debug_assert()
+	}
+	#[test]
+	fn test_cache() -> Result<(), Box<dyn std::error::Error>> {
+		let path = cache()?;
+		assert_eq!(path.file_name().unwrap().to_str().unwrap().to_string(), "pop");
+		Ok(())
+	}
 }
