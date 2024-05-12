@@ -23,6 +23,7 @@ duct = "0.13"
 git2 = "0.18"
 log = "0.4.20"
 mockito = "1.4.0"
+serial_test = "3.1.1"
 tempfile = "3.8"
 thiserror = "1.0.58"
 

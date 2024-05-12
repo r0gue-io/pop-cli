@@ -3,6 +3,7 @@ use reqwest::Client;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
+	env,
 	fs::{create_dir_all, File},
 	io,
 	io::{Read, Write},
@@ -46,7 +47,7 @@ impl Telemetry {
 	///
 	/// parameters:
 	/// `config_path`: the path to the configuration file (used for opt-out checks)
-	pub fn new(config_path: PathBuf) -> Self {
+	pub fn new(config_path: &PathBuf) -> Self {
 		Self::init(ENDPOINT.to_string(), config_path)
 	}
 
@@ -55,8 +56,8 @@ impl Telemetry {
 	/// parameters:
 	/// `endpoint`: the API endpoint that telemetry will call
 	///	`config_path`: the path to the configuration file (used for opt-out checks)
-	fn init(endpoint: String, config_path: PathBuf) -> Self {
-		let opt_out = Self::is_opt_out_from_config(&config_path);
+	fn init(endpoint: String, config_path: &PathBuf) -> Self {
+		let opt_out = Self::is_opt_out(&config_path);
 
 		Telemetry { endpoint, opt_out, client: Client::new() }
 	}
@@ -71,6 +72,17 @@ impl Telemetry {
 		};
 
 		!config.opt_out.version.is_empty()
+	}
+
+	fn is_opt_out_from_env() -> bool {
+		env::var("DO_NOT_TRACK").is_ok()
+	}
+
+	/// Check if the user has opted out of telemetry through two methods:
+	/// 1. Check environment variable DO_NOT_TRACK. If not set check...
+	/// 2. Configuration file
+	fn is_opt_out(config_file_path: &PathBuf) -> bool {
+		Self::is_opt_out_from_env() || Self::is_opt_out_from_config(config_file_path)
 	}
 
 	/// Send JSON payload to saved api endpoint.
@@ -198,6 +210,7 @@ mod tests {
 	use super::*;
 	use mockito::{Matcher, Mock, Server};
 	use serde_json::json;
+	use serial_test::serial;
 	use tempfile::TempDir;
 
 	fn create_temp_config(temp_dir: &TempDir) -> PathBuf {
@@ -229,10 +242,11 @@ mod tests {
 	}
 
 	#[tokio::test]
+	#[serial]
 	async fn new_telemetry_works() {
 		let _ = env_logger::try_init();
 		// assert that invalid config file results in a false opt_in (hence disabling telemetry)
-		assert!(!Telemetry::init("".to_string(), PathBuf::new()).opt_out);
+		assert!(!Telemetry::init("".to_string(), &PathBuf::new()).opt_out);
 
 		// Mock config file path function to return a temporary path
 		let temp_dir = TempDir::new().unwrap();
@@ -240,7 +254,7 @@ mod tests {
 
 		let _: Config = read_json_file(&config_path).unwrap();
 
-		let tel = Telemetry::init("127.0.0.1".to_string(), config_path);
+		let tel = Telemetry::init("127.0.0.1".to_string(), &config_path);
 		let expected_telemetry = Telemetry {
 			endpoint: "127.0.0.1".to_string(),
 			opt_out: true,
@@ -252,9 +266,10 @@ mod tests {
 	}
 
 	#[tokio::test]
+	#[serial]
 	async fn test_record_cli_used() {
 		let _ = env_logger::try_init();
-		let mut mock_server = mockito::Server::new_async().await;
+		let mut mock_server = Server::new_async().await;
 
 		let mut endpoint = mock_server.url();
 		endpoint.push_str("/api/send");
@@ -267,16 +282,17 @@ mod tests {
 
 		let mock = default_mock(&mut mock_server, expected_payload).await;
 
-		let tel = Telemetry::init(endpoint.clone(), config_path);
+		let tel = Telemetry::init(endpoint.clone(), &config_path);
 
 		assert!(record_cli_used(tel).await.is_ok());
 		mock.assert_async().await;
 	}
 
 	#[tokio::test]
+	#[serial]
 	async fn test_record_cli_command() {
 		let _ = env_logger::try_init();
-		let mut mock_server = mockito::Server::new_async().await;
+		let mut mock_server = Server::new_async().await;
 
 		let mut endpoint = mock_server.url();
 		endpoint.push_str("/api/send");
@@ -290,16 +306,17 @@ mod tests {
 
 		let mock = default_mock(&mut mock_server, expected_payload).await;
 
-		let tel = Telemetry::init(endpoint.clone(), config_path);
+		let tel = Telemetry::init(endpoint.clone(), &config_path);
 
 		assert!(record_cli_command(tel, "new", json!("parachain")).await.is_ok());
 		mock.assert_async().await;
 	}
 
 	#[tokio::test]
-	async fn opt_out_fails() {
+	#[serial]
+	async fn opt_out_with_config_fails() {
 		let _ = env_logger::try_init();
-		let mut mock_server = mockito::Server::new_async().await;
+		let mut mock_server = Server::new_async().await;
 
 		let endpoint = mock_server.url();
 
@@ -310,22 +327,49 @@ mod tests {
 		let mock = mock_server.mock("POST", "/").create_async().await;
 		let mock = mock.expect_at_most(0);
 
-		let mut tel = Telemetry::init(endpoint.clone(), config_path);
+		let mut tel = Telemetry::init(endpoint.clone(), &config_path);
 
-		assert!(matches!(tel.send_json(json!("foo")).await, Err(TelemetryError::OptedOut)));
+		assert!(matches!(tel.send_json(Value::Null).await, Err(TelemetryError::OptedOut)));
 		assert!(matches!(record_cli_used(tel.clone()).await, Err(TelemetryError::OptedOut)));
 		assert!(matches!(
-			record_cli_command(tel.clone(), "foo", json!("bar")).await,
+			record_cli_command(tel.clone(), "foo", Value::Null).await,
 			Err(TelemetryError::OptedOut)
 		));
 		mock.assert_async().await;
 
-		// test it's set to true and works
 		tel.opt_out = false;
 		let mock = mock.expect_at_most(3);
 		assert!(tel.send_json(json!("foo")).await.is_ok(),);
 		assert!(record_cli_used(tel.clone()).await.is_ok());
 		assert!(record_cli_command(tel, "foo", json!("bar")).await.is_ok());
 		mock.assert_async().await;
+	}
+
+	#[tokio::test]
+	#[serial]
+	async fn opt_out_with_env_fails() {
+		let _ = env_logger::try_init();
+		let mut mock_server = Server::new_async().await;
+
+		let endpoint = mock_server.url();
+
+		let mock = mock_server.mock("POST", "/").create_async().await;
+		let mock = mock.expect_at_most(0);
+
+		env::set_var("DO_NOT_TRACK", "true");
+
+		// config file does not exist, so env variable should be used
+		let mut tel = Telemetry::init(endpoint.clone(), &PathBuf::new());
+
+		assert!(matches!(tel.send_json(Value::Null).await, Err(TelemetryError::OptedOut)));
+		assert!(matches!(record_cli_used(tel.clone()).await, Err(TelemetryError::OptedOut)));
+		assert!(matches!(
+			record_cli_command(tel.clone(), "foo", Value::Null).await,
+			Err(TelemetryError::OptedOut)
+		));
+		mock.assert_async().await;
+
+		// IMPORTANT: needs to remove the env variable for the other tests
+		env::remove_var("DO_NOT_TRACK");
 	}
 }
