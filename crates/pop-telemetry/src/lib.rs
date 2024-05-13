@@ -279,9 +279,6 @@ mod tests {
 	}
 
 	#[test]
-	#[ignore]
-	/// ignore by default as to not mess up env variables for
-	/// remaining tests when running in CI
 	fn new_telemetry_env_vars_works() {
 		let _ = env_logger::try_init();
 
