@@ -127,19 +127,8 @@ async fn guide_user_to_generate_parachain() -> Result<NewParachainCommand> {
 	let template = display_select_options(provider)?;
 
 	let url = url::Url::parse(&template.repository_url()?).expect("valid repository url");
-	let api_url = GitHub::url_api_releases(&url)?;
-	// Get the latest n releases
-	let mut latest_3_releases: Vec<Release> = GitHub::get_latest_releases(api_url)
-		.await?
-		.into_iter()
-		.filter(|r| !r.prerelease)
-		.take(3)
-		.collect();
-	for release in latest_3_releases.iter_mut() {
-		let api_url = GitHub::url_api_tag_information(&url, &release.tag_name)?;
-		let commit = GitHub::get_commit_hash_from_release(api_url).await?;
-		release.commit = Some(commit);
-	}
+	// Get only the latest 3 releases
+	let latest_3_releases: Vec<Release> = get_latest_3_releases(url).await?;
 
 	let mut release_name = None;
 	if latest_3_releases.len() > 0 {
@@ -271,6 +260,23 @@ fn check_destination_path(name_template: &String) -> Result<&Path> {
 		fs::remove_dir_all(destination_path)?;
 	}
 	Ok(destination_path)
+}
+
+async fn get_latest_3_releases(url: url::Url) -> Result<Vec<Release>> {
+	let api_url = GitHub::url_api_releases(&url)?;
+	let mut latest_3_releases: Vec<Release> = GitHub::get_latest_releases(api_url)
+		.await?
+		.into_iter()
+		.filter(|r| !r.prerelease)
+		.take(3)
+		.collect();
+	// Get the commit sha for the releases
+	for release in latest_3_releases.iter_mut() {
+		let api_url = GitHub::url_api_tag_information(&url, &release.tag_name)?;
+		let commit = GitHub::get_commit_sha_from_release(api_url).await?;
+		release.commit = Some(commit);
+	}
+	Ok(latest_3_releases)
 }
 
 fn display_release_versions_to_user(releases: Vec<Release>) -> Result<String> {

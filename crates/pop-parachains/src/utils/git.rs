@@ -153,7 +153,7 @@ impl GitHub {
 		Ok(response.json::<Vec<Release>>().await?)
 	}
 
-	pub async fn get_commit_hash_from_release(api_url: String) -> Result<String> {
+	pub async fn get_commit_sha_from_release(api_url: String) -> Result<String> {
 		static APP_USER_AGENT: &str =
 			concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 
@@ -270,7 +270,7 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn get_releases_with_commit_hash() -> Result<(), Box<dyn std::error::Error>> {
+	async fn get_releases_with_commit_sha() -> Result<(), Box<dyn std::error::Error>> {
 		let mut mock_server = mockito::Server::new_async().await;
 
 		let mut endpoint = mock_server.url();
@@ -286,7 +286,7 @@ mod tests {
 			}
 		  }"#;
 		let mock = tag_mock(&mut mock_server, expected_payload.to_string()).await;
-		let hash = GitHub::get_commit_hash_from_release(endpoint).await?;
+		let hash = GitHub::get_commit_sha_from_release(endpoint).await?;
 		assert_eq!(hash, "0bb6249268c0b77d2834640b84cb52fdd3d7e860");
 		mock.assert_async().await;
 		Ok(())
