@@ -167,6 +167,7 @@ mod tests {
 		use clap::CommandFactory;
 		Cli::command().debug_assert()
 	}
+
 	#[test]
 	fn test_cache() -> Result<(), Box<dyn std::error::Error>> {
 		let path = cache()?;
