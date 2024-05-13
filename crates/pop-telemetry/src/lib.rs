@@ -78,10 +78,9 @@ impl Telemetry {
 	// Checks two env variables, CI & DO_NOT_TRACK. If either are set to true, disable telemetry
 	fn is_opt_out_from_env() -> bool {
 		// CI first as it is more likely to be set
-		env::var("CI").unwrap_or_default() == "true"
-			|| env::var("CI").unwrap_or_default() == "1"
-			|| env::var("DO_NOT_TRACK").unwrap_or_default() == "true"
-			|| env::var("DO_NOT_TRACK").unwrap_or_default() == "1"
+		let ci = env::var("CI").unwrap_or_default();
+		let do_not_track = env::var("DO_NOT_TRACK").unwrap_or_default();
+		ci == "true" || ci == "1" || do_not_track == "true" || do_not_track == "1"
 	}
 
 	/// Check if the user has opted out of telemetry through two methods:
