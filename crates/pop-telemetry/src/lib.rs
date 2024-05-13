@@ -75,8 +75,13 @@ impl Telemetry {
 		!config.opt_out.version.is_empty()
 	}
 
+	// Checks two env variables, CI & DO_NOT_TRACK. If either are set to true, disable telemetry
 	fn is_opt_out_from_env() -> bool {
-		env::var("DO_NOT_TRACK").unwrap_or("false".to_string()) == "true"
+		// CI first as it is more likely to be set
+		env::var("CI").unwrap_or_default() == "true"
+			|| env::var("CI").unwrap_or_default() == "1"
+			|| env::var("DO_NOT_TRACK").unwrap_or_default() == "true"
+			|| env::var("DO_NOT_TRACK").unwrap_or_default() == "1"
 	}
 
 	/// Check if the user has opted out of telemetry through two methods:
@@ -245,16 +250,6 @@ mod tests {
 	#[tokio::test]
 	async fn new_telemetry_works() {
 		let _ = env_logger::try_init();
-		// assert that no config file and false DO_NOT_TRACK sets opt-out to false
-		env::set_var("DO_NOT_TRACK", "false");
-		assert!(!Telemetry::init("".to_string(), &PathBuf::new()).opt_out);
-		// assert if DO_NOT_TRACK env var is set to false, opt-out is false
-		assert!(!Telemetry::init("".to_string(), &PathBuf::new()).opt_out);
-
-		// check that if DO_NOT_TRACK env var is set, opt-out is true
-		env::set_var("DO_NOT_TRACK", "true");
-		assert!(Telemetry::init("".to_string(), &PathBuf::new()).opt_out);
-		env::remove_var("DO_NOT_TRACK");
 
 		// Mock config file path function to return a temporary path
 		let temp_dir = TempDir::new().unwrap();
@@ -280,6 +275,29 @@ mod tests {
 
 		assert_eq!(tel.endpoint, expected_telemetry.endpoint);
 		assert_eq!(tel.opt_out, expected_telemetry.opt_out);
+	}
+
+	#[test]
+	#[ignore]
+	/// ignore by default as to not mess up env variables for
+	/// remaining tests when running in CI
+	fn new_telemetry_env_vars_works() {
+		let _ = env_logger::try_init();
+
+		// assert that no config file, and env vars not existing sets opt-out to false
+		env::remove_var("DO_NOT_TRACK");
+		env::set_var("CI", "false");
+		assert!(!Telemetry::init("".to_string(), &PathBuf::new()).opt_out);
+
+		// assert that if DO_NOT_TRACK env var is set, opt-out is true
+		env::set_var("DO_NOT_TRACK", "true");
+		assert!(Telemetry::init("".to_string(), &PathBuf::new()).opt_out);
+		env::remove_var("DO_NOT_TRACK");
+
+		// assert that if CI env var is set, opt-out is true
+		env::set_var("CI", "true");
+		assert!(Telemetry::init("".to_string(), &PathBuf::new()).opt_out);
+		env::remove_var("CI");
 	}
 
 	#[tokio::test]
