@@ -145,55 +145,57 @@ impl Git {
 pub struct GitHub;
 impl GitHub {
 	const GITHUB: &'static str = "github.com";
-	pub async fn get_latest_releases(repo: &Url) -> Result<Vec<Release>> {
+	pub async fn get_latest_releases(api_url: String) -> Result<Vec<Release>> {
 		static APP_USER_AGENT: &str =
 			concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
-
+		println!("{:?}", api_url);
 		let client = reqwest::ClientBuilder::new().user_agent(APP_USER_AGENT).build()?;
-		let response = client
-			.get(format!(
-				"https://api.github.com/repos/{}/{}/releases",
-				Self::org(repo)?,
-				Self::name(repo)?
-			))
-			.send()
-			.await?;
+		let response = client.get(api_url).send().await?;
+		println!("{:?}", response.status());
 		Ok(response.json::<Vec<Release>>().await?)
 	}
 
-	pub async fn get_latest_n_releases(number: usize, repo: &Url) -> Result<Vec<Release>> {
-		static APP_USER_AGENT: &str =
-			concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
+	// pub async fn get_latest_n_releases(number: usize, repo: &Url) -> Result<Vec<Release>> {
+	// 	static APP_USER_AGENT: &str =
+	// 		concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 
-		let client = reqwest::ClientBuilder::new().user_agent(APP_USER_AGENT).build()?;
+	// 	let client = reqwest::ClientBuilder::new().user_agent(APP_USER_AGENT).build()?;
 
-		let mut releases: Vec<Release> = Self::get_latest_releases(repo)
-			.await?
-			.into_iter()
-			.filter(|r| !r.prerelease)
-			.take(number)
-			.collect();
-		// Additional lookup for commit sha
-		for release in releases.iter_mut() {
-			let response = client
-				.get(format!(
-					"https://api.github.com/repos/{}/{}/git/ref/tags/{}",
-					Self::org(repo)?,
-					Self::name(repo)?,
-					&release.tag_name
-				))
-				.send()
-				.await?;
-			let value = response.json::<serde_json::Value>().await?;
-			let commit = value
-				.get("object")
-				.and_then(|v| v.get("sha"))
-				.and_then(|v| v.as_str())
-				.map(|v| v.to_owned())
-				.ok_or(Error::Git("the github release tag sha was not found".to_string()))?;
-			release.commit = Some(commit);
-		}
-		Ok(releases)
+	// 	let mut releases: Vec<Release> = Self::get_latest_releases(repo)
+	// 		.await?
+	// 		.into_iter()
+	// 		.filter(|r| !r.prerelease)
+	// 		.take(number)
+	// 		.collect();
+	// 	// Additional lookup for commit sha
+	// 	for release in releases.iter_mut() {
+	// 		let response = client
+	// 			.get(format!(
+	// 				"https://api.github.com/repos/{}/{}/git/ref/tags/{}",
+	// 				Self::org(repo)?,
+	// 				Self::name(repo)?,
+	// 				&release.tag_name
+	// 			))
+	// 			.send()
+	// 			.await?;
+	// 		let value = response.json::<serde_json::Value>().await?;
+	// 		let commit = value
+	// 			.get("object")
+	// 			.and_then(|v| v.get("sha"))
+	// 			.and_then(|v| v.as_str())
+	// 			.map(|v| v.to_owned())
+	// 			.ok_or(Error::Git("the github release tag sha was not found".to_string()))?;
+	// 		release.commit = Some(commit);
+	// 	}
+	// 	Ok(releases)
+	// }
+
+	pub fn url_api_releases(repo: &Url) -> Result<String> {
+		Ok(format!(
+			"https://api.github.com/repos/{}/{}/releases",
+			Self::org(repo)?,
+			Self::name(repo)?
+		))
 	}
 
 	fn org(repo: &Url) -> Result<&str> {
@@ -235,8 +237,48 @@ pub struct Release {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use mockito::{Mock, Server};
+
 	const BASE_PARACHAIN: &str = "https://github.com/r0gue-io/base-parachain";
 	const POLKADOT_SDK: &str = "https://github.com/paritytech/polkadot-sdk";
+
+	async fn default_mock(mock_server: &mut Server, payload: String) -> Mock {
+		mock_server
+			.mock("GET", "/releases")
+			.with_status(200)
+			.with_header("content-type", "application/json")
+			.with_body(payload)
+			.create_async()
+			.await
+	}
+
+	#[tokio::test]
+	async fn test_get_latest_releases() -> Result<(), Box<dyn std::error::Error>> {
+		let mut mock_server = mockito::Server::new_async().await;
+
+		let mut endpoint = mock_server.url();
+		endpoint.push_str("/releases");
+		let expected_payload = r#"[{
+			"tag_name": "polkadot-v1.10.0",
+			"name": "Polkadot v1.10.0",
+			"prerelease": false
+		  }]"#;
+		let mock = default_mock(&mut mock_server, expected_payload.to_string()).await;
+		let latest_release = GitHub::get_latest_releases(endpoint).await?;
+		assert_eq!(latest_release[0].name, "Polkadot v1.10.0");
+		assert_eq!(latest_release[0].tag_name, "polkadot-v1.10.0");
+		assert_eq!(latest_release[0].prerelease, false);
+		mock.assert_async().await;
+		Ok(())
+	}
+
+	#[test]
+	fn test_get_releases_api_url() -> Result<(), Box<dyn std::error::Error>> {
+		let url = Url::parse(POLKADOT_SDK)?;
+		let api_url = GitHub::url_api_releases(&url)?;
+		assert_eq!(api_url, "https://api.github.com/repos/paritytech/polkadot-sdk/releases");
+		Ok(())
+	}
 
 	#[test]
 	fn test_parse_org() -> Result<(), Box<dyn std::error::Error>> {
