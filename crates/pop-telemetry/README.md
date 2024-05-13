@@ -58,15 +58,13 @@ If you prefer not to participate in anonymous usage metrics collection, there ar
 few ways you can opt out. We support the [DO_NOT_TRACK](https://consoledonottrack.com/) and CI environment variable
 standards.
 
-1. Set the `DO_NOT_TRACK` environment variable to `true` or `1`:
-2. Set the `CI` environment variable to `true` or `1`:
-3. Completely disable telemetry
+1. Set the `DO_NOT_TRACK` environment variable to `true` or `1`
+2. Set the `CI` environment variable to `true` or `1`
+3. Completely disable telemetry, by installing with telemetry compiled out:
 
-Install Pop CLI with telemetry compiled out
-
-```bash
-cargo install --locked --no-default-features --features contract,parachain --git "https://github.com/r0gue-io/pop-cli"
-```
+    ```bash
+    cargo install --locked --no-default-features --features contract,parachain --git "https://github.com/r0gue-io/pop-cli"
+    ```
 
 ## Questions or Concerns?
 
