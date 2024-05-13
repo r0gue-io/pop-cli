@@ -127,12 +127,24 @@ async fn guide_user_to_generate_parachain() -> Result<NewParachainCommand> {
 	let template = display_select_options(provider)?;
 
 	let url = url::Url::parse(&template.repository_url()?).expect("valid repository url");
-	//let latest_3_releases = GitHub::get_latest_n_releases(3, &url).await?;
+	let api_url = GitHub::url_api_releases(&url)?;
+	// Get the latest n releases
+	let mut latest_3_releases: Vec<Release> = GitHub::get_latest_releases(api_url)
+		.await?
+		.into_iter()
+		.filter(|r| !r.prerelease)
+		.take(3)
+		.collect();
+	for release in latest_3_releases.iter_mut() {
+		let api_url = GitHub::url_api_tag_information(&url, &release.tag_name)?;
+		let commit = GitHub::get_commit_hash_from_release(api_url).await?;
+		release.commit = Some(commit);
+	}
 
 	let mut release_name = None;
-	// if latest_3_releases.len() > 0 {
-	// 	release_name = Some(display_release_versions_to_user(latest_3_releases)?);
-	// }
+	if latest_3_releases.len() > 0 {
+		release_name = Some(display_release_versions_to_user(latest_3_releases)?);
+	}
 
 	let name: String = input("Where should your project be created?")
 		.placeholder("./my-parachain")
