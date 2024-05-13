@@ -114,7 +114,7 @@ mod tests {
 		assert_eq!(is_initial_endowment_valid("wrong"), false);
 		assert_eq!(is_initial_endowment_valid(" "), false);
 	}
-	
+
 	#[test]
 	fn test_left_shift() {
 		// Values from https://stackoverflow.com/questions/56392875/how-can-i-initialize-a-users-balance-in-a-substrate-blockchain
