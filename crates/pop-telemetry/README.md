@@ -54,12 +54,17 @@ We take privacy seriously and are committed to protecting the anonymity of our u
 
 ## How to Opt-Out
 
-If you prefer not to participate in anonymous usage metrics collection, you can completely disable telemetry by
-installing Pop CLI with it disabled.
+If you prefer not to participate in anonymous usage metrics collection, there are a
+few ways you can opt out. We support the [DO_NOT_TRACK](https://consoledonottrack.com/) and CI environment variable
+standards.
 
-```bash
-cargo install --locked --no-default-features --features contract,parachain --git "https://github.com/r0gue-io/pop-cli"
-```
+1. Set the `DO_NOT_TRACK` environment variable to `true` or `1`
+2. Set the `CI` environment variable to `true` or `1`
+3. Completely disable telemetry, by installing with telemetry compiled out:
+
+    ```bash
+    cargo install --locked --no-default-features --features contract,parachain --git "https://github.com/r0gue-io/pop-cli"
+    ```
 
 ## Questions or Concerns?
 

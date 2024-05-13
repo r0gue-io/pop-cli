@@ -145,7 +145,7 @@ fn init() -> Result<Option<Telemetry>> {
 	env_logger::init();
 	let maybe_config_path = config_file_path();
 
-	let maybe_tel = maybe_config_path.ok().map(|path| Telemetry::new(path));
+	let maybe_tel = maybe_config_path.ok().map(|path| Telemetry::new(&path));
 
 	// Handle for await not used here as telemetry should complete before any of the commands do.
 	// Sends a generic ping saying the CLI was used.
