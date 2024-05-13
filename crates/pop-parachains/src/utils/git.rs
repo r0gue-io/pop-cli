@@ -235,14 +235,37 @@ pub struct Release {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	const BASE_PARACHAIN: &str = "https://github.com/r0gue-io/base-parachain";
+	const POLKADOT_SDK: &str = "https://github.com/paritytech/polkadot-sdk";
+
+	#[test]
+	fn test_parse_org() -> Result<(), Box<dyn std::error::Error>> {
+		let url = Url::parse(BASE_PARACHAIN)?;
+		let org = GitHub::org(&url)?;
+		assert_eq!(org, "r0gue-io");
+		Ok(())
+	}
+
+	#[test]
+	fn test_parse_name() -> Result<(), Box<dyn std::error::Error>> {
+		let url = Url::parse(BASE_PARACHAIN)?;
+		let name = GitHub::name(&url)?;
+		assert_eq!(name, "base-parachain");
+		Ok(())
+	}
+
+	#[test]
+	fn test_release_url() -> Result<(), Box<dyn std::error::Error>> {
+		let repo = Url::parse(POLKADOT_SDK)?;
+		let url = GitHub::release(&repo, &format!("polkadot-v1.9.0"), "polkadot");
+		assert_eq!(url, format!("{}/releases/download/polkadot-v1.9.0/polkadot", POLKADOT_SDK));
+		Ok(())
+	}
 
 	#[test]
 	fn test_convert_to_ssh_url() {
 		assert_eq!(
-			GitHub::convert_to_ssh_url(
-				&Url::parse("https://github.com/r0gue-io/base-parachain")
-					.expect("valid repository url")
-			),
+			GitHub::convert_to_ssh_url(&Url::parse(BASE_PARACHAIN).expect("valid repository url")),
 			"git@github.com:r0gue-io/base-parachain.git"
 		);
 		assert_eq!(

@@ -157,9 +157,21 @@ fn init() -> Result<Option<Telemetry>> {
 	Ok(maybe_tel)
 }
 
-#[test]
-fn verify_cli() {
-	// https://docs.rs/clap/latest/clap/_derive/_tutorial/chapter_4/index.html
-	use clap::CommandFactory;
-	Cli::command().debug_assert()
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn verify_cli() {
+		// https://docs.rs/clap/latest/clap/_derive/_tutorial/chapter_4/index.html
+		use clap::CommandFactory;
+		Cli::command().debug_assert()
+	}
+
+	#[test]
+	fn test_cache() -> Result<(), Box<dyn std::error::Error>> {
+		let path = cache()?;
+		assert_eq!(path.file_name().unwrap().to_str().unwrap().to_string(), "pop");
+		Ok(())
+	}
 }
