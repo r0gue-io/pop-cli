@@ -318,7 +318,8 @@ mod tests {
 
 		let mock = default_mock(&mut mock_server, expected_payload).await;
 
-		let tel = Telemetry::init(endpoint.clone(), &config_path);
+		let mut tel = Telemetry::init(endpoint.clone(), &config_path);
+		tel.opt_out = false; // override as endpoint is mocked
 
 		record_cli_used(tel).await?;
 		mock.assert_async().await;
@@ -342,7 +343,8 @@ mod tests {
 
 		let mock = default_mock(&mut mock_server, expected_payload).await;
 
-		let tel = Telemetry::init(endpoint.clone(), &config_path);
+		let mut tel = Telemetry::init(endpoint.clone(), &config_path);
+		tel.opt_out = false; // override as endpoint is mocked
 
 		record_cli_command(tel, "new", json!("parachain")).await?;
 		mock.assert_async().await;
