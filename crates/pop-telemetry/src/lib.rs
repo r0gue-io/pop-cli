@@ -78,10 +78,9 @@ impl Telemetry {
 	// Checks two env variables, CI & DO_NOT_TRACK. If either are set to true, disable telemetry
 	fn is_opt_out_from_env() -> bool {
 		// CI first as it is more likely to be set
-		env::var("CI").unwrap_or_default() == "true"
-			|| env::var("CI").unwrap_or_default() == "1"
-			|| env::var("DO_NOT_TRACK").unwrap_or_default() == "true"
-			|| env::var("DO_NOT_TRACK").unwrap_or_default() == "1"
+		let ci = env::var("CI").unwrap_or_default();
+		let do_not_track = env::var("DO_NOT_TRACK").unwrap_or_default();
+		ci == "true" || ci == "1" || do_not_track == "true" || do_not_track == "1"
 	}
 
 	/// Check if the user has opted out of telemetry through two methods:
@@ -218,10 +217,10 @@ mod tests {
 	use serde_json::json;
 	use tempfile::TempDir;
 
-	fn create_temp_config(temp_dir: &TempDir) -> PathBuf {
+	fn create_temp_config(temp_dir: &TempDir) -> Result<PathBuf> {
 		let config_path = temp_dir.path().join("config.json");
-		assert!(write_config_opt_out(&config_path).is_ok());
-		config_path
+		write_config_opt_out(&config_path)?;
+		Ok(config_path)
 	}
 	async fn default_mock(mock_server: &mut Server, payload: String) -> Mock {
 		mock_server
@@ -236,25 +235,26 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn write_config_opt_out_works() {
+	async fn write_config_opt_out_works() -> Result<()> {
 		// Mock config file path function to return a temporary path
 		let temp_dir = TempDir::new().unwrap();
-		let config_path = create_temp_config(&temp_dir);
+		let config_path = create_temp_config(&temp_dir)?;
 
 		let actual_config: Config = read_json_file(&config_path).unwrap();
 		let expected_config = Config { opt_out: OptOut { version: CARGO_PKG_VERSION.to_string() } };
 
 		assert_eq!(actual_config, expected_config);
+		Ok(())
 	}
 
 	#[tokio::test]
-	async fn new_telemetry_works() {
+	async fn new_telemetry_works() -> Result<()> {
 		let _ = env_logger::try_init();
 
 		// Mock config file path function to return a temporary path
 		let temp_dir = TempDir::new().unwrap();
 		// write a config file with opt-out set
-		let config_path = create_temp_config(&temp_dir);
+		let config_path = create_temp_config(&temp_dir)?;
 
 		let _: Config = read_json_file(&config_path).unwrap();
 
@@ -275,12 +275,10 @@ mod tests {
 
 		assert_eq!(tel.endpoint, expected_telemetry.endpoint);
 		assert_eq!(tel.opt_out, expected_telemetry.opt_out);
+		Ok(())
 	}
 
 	#[test]
-	#[ignore]
-	/// ignore by default as to not mess up env variables for
-	/// remaining tests when running in CI
 	fn new_telemetry_env_vars_works() {
 		let _ = env_logger::try_init();
 
@@ -301,7 +299,7 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn test_record_cli_used() {
+	async fn test_record_cli_used() -> Result<()> {
 		let _ = env_logger::try_init();
 		let mut mock_server = Server::new_async().await;
 
@@ -316,14 +314,16 @@ mod tests {
 
 		let mock = default_mock(&mut mock_server, expected_payload).await;
 
-		let tel = Telemetry::init(endpoint.clone(), &config_path);
+		let mut tel = Telemetry::init(endpoint.clone(), &config_path);
+		tel.opt_out = false; // override as endpoint is mocked
 
-		assert!(record_cli_used(tel).await.is_ok());
+		record_cli_used(tel).await?;
 		mock.assert_async().await;
+		Ok(())
 	}
 
 	#[tokio::test]
-	async fn test_record_cli_command() {
+	async fn test_record_cli_command() -> Result<()> {
 		let _ = env_logger::try_init();
 		let mut mock_server = Server::new_async().await;
 
@@ -339,10 +339,12 @@ mod tests {
 
 		let mock = default_mock(&mut mock_server, expected_payload).await;
 
-		let tel = Telemetry::init(endpoint.clone(), &config_path);
+		let mut tel = Telemetry::init(endpoint.clone(), &config_path);
+		tel.opt_out = false; // override as endpoint is mocked
 
-		assert!(record_cli_command(tel, "new", json!("parachain")).await.is_ok());
+		record_cli_command(tel, "new", json!("parachain")).await?;
 		mock.assert_async().await;
+		Ok(())
 	}
 
 	#[tokio::test]
