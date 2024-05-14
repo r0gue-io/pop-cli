@@ -26,11 +26,11 @@ duct = "0.13"
 git2 = { version = "0.18", features = ["vendored-openssl"] }
 log = "0.4.20"
 mockito = "1.4.0"
-tempfile = "3.8"
+tempfile = "3.10"
 thiserror = "1.0.58"
 
 # networking
-reqwest = { version = "0.11", features = ["json"] }
+reqwest = { version = "0.12", features = ["json"] }
 tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
 url = "2.5"
 
@@ -45,8 +45,8 @@ contract-extrinsics = "4.1"
 
 # parachains
 askama = "0.12"
-regex = "1.5.4"
-walkdir = "2.4"
+regex = "1.10"
+walkdir = "2.5"
 indexmap = "2.2"
 toml_edit = { version = "0.22", features = ["serde"] }
 symlink = "0.1"
@@ -57,7 +57,7 @@ zombienet-support = "0.2"
 git2_credentials = "0.13.0"
 
 # pop-cli
-clap = { version = "4.4", features = ["derive"] }
+clap = { version = "4.5", features = ["derive"] }
 cliclack = "0.2"
 console = "0.15"
 strum = "0.26"
