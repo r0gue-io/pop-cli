@@ -14,7 +14,7 @@ members = ["crates/*"]
 
 [workspace.package]
 edition = "2021"
-license = "GPL-3"
+license = "GPL-3.0"
 
 [workspace.dependencies]
 anyhow = "1.0"
