@@ -12,7 +12,7 @@ fn setup_test_environment() -> std::result::Result<tempfile::TempDir, Error> {
 	let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
 	let temp_contract_dir = temp_dir.path().join("test_contract");
 	fs::create_dir(&temp_contract_dir)?;
-	crate::create_smart_contract("test_contract", temp_contract_dir.as_path())?;
+	create_smart_contract("test_contract", temp_contract_dir.as_path())?;
 	Ok(temp_dir)
 }
 
@@ -65,7 +65,7 @@ async fn test_set_up_deployment() -> std::result::Result<(), Error> {
 		salt: None,
 	};
 	let result = set_up_deployment(call_opts).await?;
-	assert_eq!(result.url(), "wss://rococo-contracts-rpc.polkadot.io:443/");
+	assert_eq!(result.opts().url(), "wss://rococo-contracts-rpc.polkadot.io:443/");
 	Ok(())
 }
 
