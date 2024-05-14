@@ -2,7 +2,7 @@
 name = "pop-contracts"
 description = "Library for generating, building, deploying and calling ink! smart contracts."
 version = "0.1.0"
-license.workspace = true
+license = "Apache-2.0"
 edition.workspace = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
