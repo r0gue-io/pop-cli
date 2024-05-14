@@ -14,14 +14,16 @@ members = ["crates/*"]
 
 [workspace.package]
 edition = "2021"
-license = "GPL-3"
+license = "GPL-3.0"
 
 [workspace.dependencies]
 anyhow = "1.0"
+assert_cmd = "2.0.14"
+predicates = "3.1.0"
 dirs = "5.0"
 env_logger = "0.11.1"
 duct = "0.13"
-git2 = "0.18"
+git2 = { version = "0.18", features = ["vendored-openssl"] }
 log = "0.4.20"
 mockito = "1.4.0"
 tempfile = "3.8"
