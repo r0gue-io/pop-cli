@@ -2,7 +2,7 @@
 name = "pop-parachains"
 description = "Library for generating, building and running parachains."
 version = "0.1.0"
-license = "Apache-2.0"
+license.workspace = true
 edition.workspace = true
 
 [dependencies]
