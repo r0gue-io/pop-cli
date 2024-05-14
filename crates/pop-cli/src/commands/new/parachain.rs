@@ -263,8 +263,9 @@ fn check_destination_path(name_template: &String) -> Result<&Path> {
 }
 
 async fn get_latest_3_releases(url: url::Url) -> Result<Vec<Release>> {
-	let api_url = GitHub::url_api_releases(&url)?;
-	let mut latest_3_releases: Vec<Release> = GitHub::get_latest_releases(api_url)
+	let repo = GitHub::parse(url.as_str())?;
+	let mut latest_3_releases: Vec<Release> = repo
+		.get_latest_releases()
 		.await?
 		.into_iter()
 		.filter(|r| !r.prerelease)
@@ -272,8 +273,7 @@ async fn get_latest_3_releases(url: url::Url) -> Result<Vec<Release>> {
 		.collect();
 	// Get the commit sha for the releases
 	for release in latest_3_releases.iter_mut() {
-		let api_url = GitHub::url_api_tag_information(&url, &release.tag_name)?;
-		let commit = GitHub::get_commit_sha_from_release(api_url).await?;
+		let commit = repo.get_commit_sha_from_release(&release.tag_name).await?;
 		release.commit = Some(commit);
 	}
 	Ok(latest_3_releases)
