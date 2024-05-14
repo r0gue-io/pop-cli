@@ -29,3 +29,6 @@ walkdir.workspace = true
 # Zombienet
 zombienet-sdk.workspace = true
 zombienet-support.workspace = true
+
+[dev-dependencies]
+mockito.workspace = true

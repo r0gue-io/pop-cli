@@ -5426,6 +5426,7 @@ dependencies = [
  "git2",
  "git2_credentials",
  "indexmap 2.2.6",
+ "mockito",
  "regex",
  "reqwest",
  "serde",
