@@ -1,4 +1,6 @@
 # Pop CLI
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fr0gue-io%2Fpop-cli.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fr0gue-io%2Fpop-cli?ref=badge_shield)
+
 
 <img src="/.icons/logo.jpeg"></img>
 
@@ -286,3 +288,6 @@ Pop CLI would not be possible without these awesome crates!
 The entire code within this repository is licensed under the [GPLv3](LICENSE).
 
 Please [contact us](https://r0gue.io/contact) if you have questions about the licensing of our products.
+
+
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fr0gue-io%2Fpop-cli.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Fr0gue-io%2Fpop-cli?ref=badge_large)
