@@ -146,10 +146,17 @@ impl ZombienetCommand {
 				}
 
 				if self.setup_script.is_some() {
+					spinner.set_message("Initializing your setup script...");
+					// sleep for 15 seconds to allow the network to start up
+					sleep(Duration::from_secs(15)).await;
 					self.initialize_setup_script()?;
+					clear_screen()?;
+					spinner.start("Script executed.");
 				}
 
 				spinner.stop(result);
+				// spinner is finished
+				spinner.is_finished();
 				tokio::signal::ctrl_c().await?;
 				outro("Done")?;
 			},
@@ -162,11 +169,11 @@ impl ZombienetCommand {
 	}
 
 	fn initialize_setup_script(&self) -> anyhow::Result<()> {
-		let spinner = cliclack::spinner();
-		spinner.start("Initializing your setup script - ctrl-c to terminate");
+		// let spinner = cliclack::spinner();
+		// spinner.start("Initializing your setup script - ctrl-c to terminate");
 		match cmd(self.setup_script.clone().unwrap(), self.args.clone()).run() {
 			Ok(_network) => {
-				spinner.stop("Script executed");
+				// spinner.stop("Script executed");
 			},
 			Err(e) => {
 				outro_cancel(format!("Error running the script: {e}"))?;
