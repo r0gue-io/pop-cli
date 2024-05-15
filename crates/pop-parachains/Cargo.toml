@@ -4,6 +4,8 @@ description = "Library for generating, building and running parachains."
 version = "0.1.0"
 license = "Apache-2.0"
 edition.workspace = true
+documentation.workspace = true
+repository.workspace = true
 
 [dependencies]
 anyhow.workspace = true

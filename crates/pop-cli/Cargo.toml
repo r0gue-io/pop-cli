@@ -3,7 +3,9 @@ name = "pop-cli"
 description = "An all-in-one tool for Polkadot development."
 version = "0.1.0"
 edition.workspace = true
+documentation.workspace = true
 license.workspace = true
+repository.workspace = true
 
 [[bin]]
 name = "pop"
@@ -29,17 +31,17 @@ strum.workspace = true
 strum_macros.workspace = true
 
 # contracts
-pop-contracts = { path = "../pop-contracts", optional = true }
+pop-contracts = { path = "../pop-contracts", version = "0.1.0", optional = true }
 sp-core = { workspace = true, optional = true }
 sp-weights = { workspace = true, optional = true }
 
 # parachains
-pop-parachains = { path = "../pop-parachains", optional = true }
+pop-parachains = { path = "../pop-parachains", version = "0.1.0", optional = true }
 dirs = { workspace = true, optional = true }
 git2.workspace = true
 
 # telemetry
-pop-telemetry = { path = "../pop-telemetry", optional = true }
+pop-telemetry = { path = "../pop-telemetry", version = "0.1.0", optional = true }
 
 [dev-dependencies]
 assert_cmd.workspace = true
