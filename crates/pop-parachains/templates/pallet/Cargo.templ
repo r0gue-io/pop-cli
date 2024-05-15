@@ -1,30 +1,30 @@
 [package]
 name = "^^name^^"
-authors = ["^^authors^^"]
+authors.workspace = true
 description = "^^description^^"
 version = "0.1.0"
-license = "Unlicense"
-edition = "2021"
+homepage.workspace = true
+license.workspace = true
+edition.workspace = true
+repository.workspace = true
+publish = false
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "3.0.0", features = ["derive"], default-features = false }
-scale-info = { version = "2.10.0", default-features = false, features = ["derive"] }
+codec.workspace = true
+scale-info.workspace = true
 
 # Substrate
-frame-benchmarking = { version = "26.0.0", default-features = false, optional = true}
-frame-support = { version = "26.0.0", default-features = false}
-frame-system = { version = "26.0.0", default-features = false}
+frame-benchmarking.workspace = true
+frame-support.workspace = true
+frame-system.workspace = true
 
 [dev-dependencies]
-serde = { version = "1.0.188" }
-
-# Substrate
-sp-core = { version = "26.0.0", default-features = false }
-# sp-io = { version = "28.0.0", default-features = false}
-sp-runtime = { version = "29.0.0", default-features = false}
+sp-core.workspace = true
+sp-io.workspace = true
+sp-runtime.workspace = true
 
 [features]
 default = [ "std" ]
@@ -41,7 +41,7 @@ std = [
 	"frame-system/std",
 	"scale-info/std",
 	"sp-core/std",
-	# "sp-io/std",
+	"sp-io/std",
 	"sp-runtime/std",
 ]
 try-runtime = [
