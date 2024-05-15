@@ -12,10 +12,15 @@ allow = [
     "ISC",
     "GPL-3.0",
     "MIT",
-    "OpenSSL",
-    "Unicode-DFS-2016"
+    "MPL-2.0",
+    "Unicode-DFS-2016",
+    "Unlicense"
 ]
 confidence-threshold = 0.93
+
+[[licenses.exceptions]]
+allow = ["OpenSSL"]
+name = "ring"
 
 [[licenses.clarify]]
 name = "ring"
