@@ -3,6 +3,7 @@ chain = "rococo-local"
 
 [[relaychain.nodes]]
 name = "alice"
+rpc_port = 8833
 validator = true
 
 [[relaychain.nodes]]
@@ -22,4 +23,5 @@ default_command = "pop-node"
 
 [[parachains.collators]]
 name = "pop"
+rpc_port = 9944
 args = ["-lruntime::contracts=debug"]

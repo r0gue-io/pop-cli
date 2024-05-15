@@ -2,6 +2,7 @@
 
 use crate::style::{style, Theme};
 use clap::Args;
+use duct::cmd;
 use cliclack::{
 	clear_screen, confirm, intro, log, multi_progress, outro, outro_cancel, set_theme, ProgressBar,
 };
@@ -26,6 +27,12 @@ pub(crate) struct ZombienetCommand {
 	/// The url of the git repository of a parachain to be used, with branch/release tag specified as #fragment (e.g. 'https://github.com/org/repository#tag'). A specific binary name can also be optionally specified via query string parameter (e.g. 'https://github.com/org/repository?binaryname#tag'), defaulting to the name of the repository when not specified.
 	#[arg(short, long)]
 	parachain: Option<Vec<String>>,
+	/// The path to a script to be run after the network has been set up.
+	#[clap(name = "init", short = 'i', long)]
+	setup_script: Option<String>,
+	/// The script arguments, encoded as strings.
+	#[clap(name = "args", short = 'a', long, num_args = 0..)]
+	args: Vec<String>,
 	/// Whether the output should be verbose.
 	#[arg(short, long, action)]
 	verbose: bool,
@@ -138,6 +145,10 @@ impl ZombienetCommand {
 					}
 				}
 
+				if self.setup_script.is_some() {
+					self.initialize_setup_script()?;
+				}
+
 				spinner.stop(result);
 				tokio::signal::ctrl_c().await?;
 				outro("Done")?;
@@ -147,6 +158,20 @@ impl ZombienetCommand {
 			},
 		}
 
+		Ok(())
+	}
+
+	fn initialize_setup_script(&self) -> anyhow::Result<()> {
+		let spinner = cliclack::spinner();
+		spinner.start("Initializing your setup script - ctrl-c to terminate");
+		match cmd(self.setup_script.clone().unwrap(), self.args.clone()).run() {
+			Ok(_network) => {
+				spinner.stop("Script executed");
+			},
+			Err(e) => {
+				outro_cancel(format!("Error running the script: {e}"))?;
+			},
+		}
 		Ok(())
 	}
 }
