@@ -5,6 +5,7 @@ version = "0.1.0"
 edition.workspace = true
 documentation.workspace = true
 license.workspace = true
+readme = "README.md"
 repository.workspace = true
 
 [[bin]]

@@ -1,6 +1,7 @@
 [package]
 name = "pop-telemetry"
 version = "0.1.0"
+readme = "README.md"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
