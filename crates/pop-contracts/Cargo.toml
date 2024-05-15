@@ -9,16 +9,16 @@ edition.workspace = true
 
 [dependencies]
 anyhow.workspace = true
-thiserror.workspace = true
 duct.workspace = true
-url.workspace = true
+thiserror.workspace = true
 tokio.workspace = true
+url.workspace = true
 
-subxt-signer.workspace = true
-subxt.workspace = true
 ink_env.workspace = true
 sp-core.workspace = true
 sp-weights.workspace = true
+subxt-signer.workspace = true
+subxt.workspace = true
 
 # cargo-contracts
 contract-build.workspace = true
