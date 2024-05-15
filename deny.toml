@@ -1,6 +1,14 @@
 [graph]
 all-features = true
 
+# This section is considered when running `cargo deny check advisories`
+[advisories]
+unmaintained = "warn"
+ignore = [
+    { id = "RUSTSEC-2024-0336", reason = "No upgrade available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/173" },
+    { id = "RUSTSEC-2023-0071", reason = "No upgrade available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/173" },
+]
+
 [licenses]
 allow = [
     "Apache-2.0",
