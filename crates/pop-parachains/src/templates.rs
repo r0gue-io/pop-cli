@@ -71,6 +71,7 @@ pub struct Config {
 	EnumProperty,
 	EnumString,
 	Eq,
+	Hash,
 	PartialEq,
 	VariantArray,
 )]
@@ -81,28 +82,44 @@ pub enum Template {
 		serialize = "standard",
 		message = "Standard",
 		detailed_message = "A standard parachain",
-		props(Provider = "Pop", Repository = "https://github.com/r0gue-io/base-parachain")
+		props(
+			Provider = "Pop",
+			Repository = "https://github.com/r0gue-io/base-parachain",
+			Network = "./network.toml"
+		)
 	)]
 	Standard,
 	#[strum(
 		serialize = "assets",
 		message = "Assets",
 		detailed_message = "Parachain configured with fungible and non-fungilble asset functionalities.",
-		props(Provider = "Pop", Repository = "https://github.com/r0gue-io/assets-parachain")
+		props(
+			Provider = "Pop",
+			Repository = "https://github.com/r0gue-io/assets-parachain",
+			Network = "./network.toml"
+		)
 	)]
 	Assets,
 	#[strum(
 		serialize = "contracts",
 		message = "Contracts",
 		detailed_message = "Parachain configured to support WebAssembly smart contracts.",
-		props(Provider = "Pop", Repository = "https://github.com/r0gue-io/contracts-parachain")
+		props(
+			Provider = "Pop",
+			Repository = "https://github.com/r0gue-io/contracts-parachain",
+			Network = "./network.toml"
+		)
 	)]
 	Contracts,
 	#[strum(
 		serialize = "evm",
 		message = "EVM",
 		detailed_message = "Parachain configured with Frontier, enabling compatibility with the Ethereum Virtual Machine (EVM).",
-		props(Provider = "Pop", Repository = "https://github.com/r0gue-io/evm-parachain")
+		props(
+			Provider = "Pop",
+			Repository = "https://github.com/r0gue-io/evm-parachain",
+			Network = "./network.toml"
+		)
 	)]
 	EVM,
 	// Parity
@@ -112,7 +129,8 @@ pub enum Template {
 		detailed_message = "Minimal Substrate node configured for smart contracts via pallet-contracts.",
 		props(
 			Provider = "Parity",
-			Repository = "https://github.com/paritytech/substrate-contracts-node"
+			Repository = "https://github.com/paritytech/substrate-contracts-node",
+			Network = "./zombienet.toml"
 		)
 	)]
 	ParityContracts,
@@ -122,7 +140,8 @@ pub enum Template {
 		detailed_message = "Template node for a Frontier (EVM) based parachain.",
 		props(
 			Provider = "Parity",
-			Repository = "https://github.com/paritytech/frontier-parachain-template"
+			Repository = "https://github.com/paritytech/frontier-parachain-template",
+			Network = "./zombienet-config.toml"
 		)
 	)]
 	ParityFPT,
@@ -147,6 +166,11 @@ impl Template {
 
 	pub fn provider(&self) -> Result<&str, Error> {
 		self.get_str("Provider").ok_or(Error::ProviderMissing)
+	}
+
+	/// Returns the relative path to the default network configuration file to be used, if defined.
+	pub fn network_config(&self) -> Option<&str> {
+		self.get_str("Network")
 	}
 }
 
@@ -173,6 +197,7 @@ mod tests {
 			("fpt".to_string(), Template::ParityFPT),
 		])
 	}
+
 	fn templates_urls() -> HashMap<String, &'static str> {
 		HashMap::from([
 			("standard".to_string(), "https://github.com/r0gue-io/base-parachain"),
@@ -182,6 +207,18 @@ mod tests {
 			("cpt".to_string(), "https://github.com/paritytech/substrate-contracts-node"),
 			("fpt".to_string(), "https://github.com/paritytech/frontier-parachain-template"),
 		])
+	}
+
+	fn template_network_configs() -> HashMap<Template, Option<&'static str>> {
+		[
+			(Template::Standard, Some("./network.toml")),
+			(Template::Assets, Some("./network.toml")),
+			(Template::Contracts, Some("./network.toml")),
+			(Template::EVM, Some("./network.toml")),
+			(Template::ParityContracts, Some("./zombienet.toml")),
+			(Template::ParityFPT, Some("./zombienet-config.toml")),
+		]
+		.into()
 	}
 
 	#[test]
@@ -223,6 +260,14 @@ mod tests {
 				&template.repository_url().unwrap(),
 				template_urls.get(&template.to_string()).unwrap()
 			);
+		}
+	}
+
+	#[test]
+	fn test_network_config() {
+		let network_configs = template_network_configs();
+		for template in Template::VARIANTS {
+			assert_eq!(template.network_config(), network_configs[template]);
 		}
 	}
 

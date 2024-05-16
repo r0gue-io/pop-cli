@@ -7,7 +7,11 @@ use clap::{
 };
 use std::{fs, path::Path, str::FromStr};
 
-use cliclack::{clear_screen, confirm, input, intro, log, outro, outro_cancel, set_theme};
+use cliclack::{
+	clear_screen, confirm, input, intro,
+	log::{self, success, warning},
+	outro, outro_cancel, set_theme,
+};
 use pop_parachains::{
 	instantiate_template_dir, is_initial_endowment_valid, Config, Git, GitHub, Provider, Release,
 	Template,
@@ -186,17 +190,41 @@ fn generate_parachain_from_template(
 			outro_cancel("git signature could not be found. Please configure your git config with your name and email")?;
 		}
 	}
-	spinner.stop("Generation complete");
-	if let Some(tag) = tag {
-		log::info(format!("Version: {}", tag))?;
+	spinner.clear();
+
+	// replace spinner with success
+	console::Term::stderr().clear_last_lines(2)?;
+	success(format!(
+		"Generation complete{}",
+		tag.map(|t| format!("\n{}", style(format!("Version: {t}")).dim()))
+			.unwrap_or_default()
+	))?;
+
+	// warn about audit status and licensing
+	warning(format!("NOTE: the resulting parachain is not guaranteed to be audited or reviewed for security vulnerabilities.\n{}",
+		style(format!("Please consult the source repository at {} to assess production suitability and licensing restrictions.", template.repository_url()?))
+			.dim()))?;
+
+	// add next steps
+	let mut next_steps = vec![
+		format!("cd into \"{name_template}\" and enjoy hacking! 🚀"),
+		"Use `pop build parachain` to build your parachain.".into(),
+	];
+	if let Some(network_config) = template.network_config() {
+		next_steps.push(format!(
+			"Use `pop up parachain -f {network_config}` to launch your parachain on a local network."
+		))
 	}
+	let next_steps: Vec<_> = next_steps
+		.iter()
+		.map(|s| style(format!("{} {s}", console::Emoji("●", ">"))).dim().to_string())
+		.collect();
+	success(format!("Next Steps:\n{}", next_steps.join("\n")))?;
 
-	cliclack::note(
-			"NOTE: the resulting parachain is not guaranteed to be audited or reviewed for security vulnerabilities.",
-		format!("Please consult the source repository at {} to assess production suitability and licensing restrictions.", template.repository_url()?))?;
-
-	outro(format!("cd into \"{}\" and enjoy hacking! 🚀", name_template))?;
-
+	outro(format!(
+		"Need help? Learn more at {}\n",
+		style("https://learn.onpop.io/v/cli").magenta().underlined()
+	))?;
 	Ok(())
 }
 
