@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0
 use thiserror::Error;
 
 #[derive(Error, Debug)]

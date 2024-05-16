@@ -14,47 +14,50 @@ members = ["crates/*"]
 
 [workspace.package]
 edition = "2021"
+license = "GPL-3.0"
 
 [workspace.dependencies]
 anyhow = "1.0"
+assert_cmd = "2.0.14"
+predicates = "3.1.0"
 dirs = "5.0"
 env_logger = "0.11.1"
 duct = "0.13"
-git2 = "0.18"
+git2 = { version = "0.18", features = ["vendored-openssl"] }
 log = "0.4.20"
 mockito = "1.4.0"
-tempfile = "3.8"
+tempfile = "3.10"
 thiserror = "1.0.58"
 
 # networking
-reqwest = { version = "0.11", features = ["json"] }
+reqwest = { version = "0.12", features = ["json"] }
 tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
-url = { version = "2.5" }
+url = "2.5"
 
 # contracts
-subxt-signer = { version = "0.34.0", features = ["subxt", "sr25519"] }
-subxt = { version = "0.34.0" }
-ink_env = { version = "5.0.0-rc.2" }
-sp-core = { version = "30.0.0" }
-sp-weights = { version = "29.0.0" }
-contract-build = { version = "4.0.2" }
-contract-extrinsics = { version = "4.0.0-rc.3" }
+subxt-signer = { version = "0.35", features = ["subxt", "sr25519"] }
+subxt = "0.35"
+ink_env = "5.0.0"
+sp-core = "31"
+sp-weights = "30"
+contract-build = "4.1"
+contract-extrinsics = "4.1"
 
 # parachains
 askama = "0.12"
-regex = "1.5.4"
-walkdir = "2.4"
-indexmap = { version = "2.2" }
+regex = "1.10"
+walkdir = "2.5"
+indexmap = "2.2"
 toml_edit = { version = "0.22", features = ["serde"] }
-symlink = { version = "0.1" }
-serde_json = { version = "1.0" }
+symlink = "0.1"
+serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
-zombienet-sdk = { git = "https://github.com/r0gue-io/zombienet-sdk", branch = "pop" }
-zombienet-support = { git = "https://github.com/r0gue-io/zombienet-sdk", branch = "pop" }
+zombienet-sdk = "0.2"
+zombienet-support = "0.2"
 git2_credentials = "0.13.0"
 
 # pop-cli
-clap = { version = "4.4", features = ["derive"] }
+clap = { version = "4.5", features = ["derive"] }
 cliclack = "0.2"
 console = "0.15"
 strum = "0.26"
