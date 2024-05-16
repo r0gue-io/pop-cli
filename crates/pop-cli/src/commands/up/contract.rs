@@ -4,8 +4,8 @@ use anyhow::anyhow;
 use clap::Args;
 use cliclack::{clear_screen, intro, log, outro, outro_cancel};
 use pop_contracts::{
-	dry_run_gas_estimate_instantiate, instantiate_smart_contract, parse_hex_bytes,
-	set_up_deployment, UpOpts,
+	build_smart_contract, dry_run_gas_estimate_instantiate, instantiate_smart_contract,
+	parse_hex_bytes, set_up_deployment, UpOpts,
 };
 use sp_core::Bytes;
 use sp_weights::Weight;
@@ -54,7 +54,23 @@ pub struct UpContractCommand {
 impl UpContractCommand {
 	pub(crate) async fn execute(&self) -> anyhow::Result<()> {
 		clear_screen()?;
+
+		// Check if build exists in the specified "Contract build folder"
+		let build_path = PathBuf::from(
+			self.path.clone().unwrap_or("/.".into()).to_string_lossy().to_string()
+				+ "/target/release/ink",
+		);
+
+		if !build_path.exists() {
+			intro(format!("{}: Building a contract", style(" Pop CLI ").black().on_magenta()))?;
+			// Directory exists, proceed with the rest of the code
+			let result = build_smart_contract(&self.path)?;
+			log::success(result.to_string())?;
+		}
+
+		// if build exists then proceed
 		intro(format!("{}: Deploy a smart contract", style(" Pop CLI ").black().on_magenta()))?;
+
 		let instantiate_exec = set_up_deployment(UpOpts {
 			path: self.path.clone(),
 			constructor: self.constructor.clone(),
