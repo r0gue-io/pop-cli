@@ -19,6 +19,13 @@ pub enum Provider {
 	Pop,
 	#[strum(
 		ascii_case_insensitive,
+		serialize = "openzeppelin",
+		message = "OpenZeppelin",
+		detailed_message = "The standard for secure blockchain applications."
+	)]
+	OpenZeppelin,
+	#[strum(
+		ascii_case_insensitive,
 		serialize = "parity",
 		message = "Parity",
 		detailed_message = "Solutions for a trust-free world."
@@ -38,6 +45,7 @@ impl Provider {
 	pub fn default_template(&self) -> Template {
 		match &self {
 			Provider::Pop => Template::Standard,
+			Provider::OpenZeppelin => Template::OpenZeppelinGeneric,
 			Provider::Parity => Template::ParityContracts,
 		}
 	}
@@ -122,6 +130,29 @@ pub enum Template {
 		)
 	)]
 	EVM,
+	// OpenZeppelin
+	#[strum(
+		serialize = "polkadot-generic-runtime-template",
+		message = "Generic Runtime Template",
+		detailed_message = "A generic template for Substrate Runtime",
+		props(
+			Provider = "OpenZeppelin",
+			Repository = "https://github.com/OpenZeppelin/polkadot-generic-runtime-template",
+			Network = "./zombienet-config/devnet.toml"
+		)
+	)]
+	OpenZeppelinGeneric,
+	#[strum(
+		serialize = "polkadot-evm-runtime-template",
+		message = "EVM Runtime Template",
+		detailed_message = "EVM runtime template for Polkadot parachains ",
+		props(
+			Provider = "OpenZeppelin",
+			Repository = "https://github.com/OpenZeppelin/polkadot-evm-runtime-template",
+			Network = "./zombienet-config/devnet.toml"
+		)
+	)]
+	OpenZeppelinEVM,
 	// Parity
 	#[strum(
 		serialize = "cpt",
@@ -215,6 +246,8 @@ mod tests {
 			(Template::Assets, Some("./network.toml")),
 			(Template::Contracts, Some("./network.toml")),
 			(Template::EVM, Some("./network.toml")),
+			(Template::OpenZeppelinGeneric, Some("./zombienet-config/devnet.toml")),
+			(Template::OpenZeppelinEVM, Some("./zombienet-config/devnet.toml")),
 			(Template::ParityContracts, Some("./zombienet.toml")),
 			(Template::ParityFPT, Some("./zombienet-config.toml")),
 		]
