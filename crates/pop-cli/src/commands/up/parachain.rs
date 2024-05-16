@@ -2,11 +2,11 @@
 
 use crate::style::{style, Theme};
 use clap::Args;
-use duct::cmd;
 use cliclack::{
 	clear_screen, confirm, intro, log, multi_progress, outro, outro_cancel, set_theme, ProgressBar,
 };
 use console::{Emoji, Style};
+use duct::cmd;
 use pop_parachains::{NetworkNode, Status, Zombienet};
 use std::time::Duration;
 use tokio::time::sleep;
@@ -149,14 +149,13 @@ impl ZombienetCommand {
 					spinner.set_message("Initializing your setup script...");
 					// sleep for 15 seconds to allow the network to start up
 					sleep(Duration::from_secs(15)).await;
-					self.initialize_setup_script()?;
+					cmd(self.setup_script.clone().unwrap(), self.args.clone())
+						.run()
+						.map_err(|e| anyhow::Error::new(e).context("Error running the script"))?;
 					clear_screen()?;
-					spinner.start("Script executed.");
 				}
 
 				spinner.stop(result);
-				// spinner is finished
-				spinner.is_finished();
 				tokio::signal::ctrl_c().await?;
 				outro("Done")?;
 			},
@@ -165,20 +164,6 @@ impl ZombienetCommand {
 			},
 		}
 
-		Ok(())
-	}
-
-	fn initialize_setup_script(&self) -> anyhow::Result<()> {
-		// let spinner = cliclack::spinner();
-		// spinner.start("Initializing your setup script - ctrl-c to terminate");
-		match cmd(self.setup_script.clone().unwrap(), self.args.clone()).run() {
-			Ok(_network) => {
-				// spinner.stop("Script executed");
-			},
-			Err(e) => {
-				outro_cancel(format!("Error running the script: {e}"))?;
-			},
-		}
 		Ok(())
 	}
 }
