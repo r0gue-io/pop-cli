@@ -173,11 +173,11 @@ fn generate_parachain_from_template(
 	config: Config,
 ) -> Result<()> {
 	intro(format!(
-		"{}: Generating \"{}\" using {:?} from {:?}!",
+		"{}: Generating \"{}\" using {} from {}!",
 		style(" Pop CLI ").black().on_magenta(),
 		name_template,
-		template,
-		provider
+		template.name(),
+		provider.name()
 	))?;
 
 	let destination_path = check_destination_path(name_template)?;
