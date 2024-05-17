@@ -160,11 +160,18 @@ impl ZombienetCommand {
 }
 
 pub(crate) async fn run_custom_command(spinner: &ProgressBar, command: &str) -> Result<(), anyhow::Error> {
-	spinner.set_message("Running custom command...");
+	spinner.set_message(format!("Running command: {}", command.to_string()));
 	sleep(Duration::from_secs(15)).await;
-	cmd!(command)
+		
+	// Split the command into the base command and arguments
+	let mut parts = command.split_whitespace();
+	let base_command = parts.next().expect("Command cannot be empty");
+	let args: Vec<&str> = parts.collect();
+
+	cmd(base_command, &args)
 		.run()
 		.map_err(|e| anyhow::Error::new(e).context("Error running the command."))?;
+
 	clear_screen()?;
 	Ok(())
 }
