@@ -142,15 +142,8 @@ impl ZombienetCommand {
 					}
 				}
 
-				if self.command.is_some() {
-					spinner.set_message("Running custom command...");
-					// sleep for 15 seconds to allow the network to start up
-					sleep(Duration::from_secs(15)).await;
-					let command: String = self.command.clone().unwrap();
-					cmd!(command)
-						.run()
-						.map_err(|e| anyhow::Error::new(e).context("Error running the command."))?;
-					clear_screen()?;
+				if let Some(command) = &self.command {
+					run_custom_command(&spinner, command).await?;
 				}
 
 				spinner.stop(result);
@@ -166,6 +159,16 @@ impl ZombienetCommand {
 	}
 }
 
+pub(crate) async fn run_custom_command(spinner: &ProgressBar, command: &str) -> Result<(), anyhow::Error> {
+	spinner.set_message("Running custom command...");
+	sleep(Duration::from_secs(15)).await;
+	cmd!(command)
+		.run()
+		.map_err(|e| anyhow::Error::new(e).context("Error running the command."))?;
+	clear_screen()?;
+	Ok(())
+}
+
 /// Reports any observed status updates to a progress bar.
 #[derive(Copy, Clone)]
 struct ProgressReporter<'a>(&'a ProgressBar);
@@ -173,5 +176,24 @@ struct ProgressReporter<'a>(&'a ProgressBar);
 impl Status for ProgressReporter<'_> {
 	fn update(&self, status: &str) {
 		self.0.start(status.replace("   Compiling", "Compiling"))
+	}
+}
+
+// Write a test for run_custom_command
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[tokio::test]
+	async fn test_run_custom_command() -> Result<(), anyhow::Error> {
+		let spinner = ProgressBar::new(1);
+	
+		// Define the command to be executed
+		let command = "echo 2 + 2";
+	
+		// Call the run_custom_command function
+		run_custom_command(&spinner, command).await?;
+	
+		Ok(())
 	}
 }
