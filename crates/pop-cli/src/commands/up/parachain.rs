@@ -27,12 +27,9 @@ pub(crate) struct ZombienetCommand {
 	/// The url of the git repository of a parachain to be used, with branch/release tag specified as #fragment (e.g. 'https://github.com/org/repository#tag'). A specific binary name can also be optionally specified via query string parameter (e.g. 'https://github.com/org/repository?binaryname#tag'), defaulting to the name of the repository when not specified.
 	#[arg(short, long)]
 	parachain: Option<Vec<String>>,
-	/// The path to a script to be run after the network has been set up.
-	#[clap(name = "init", short = 'i', long)]
-	setup_script: Option<String>,
-	/// The script arguments, encoded as strings.
-	#[clap(name = "args", short = 'a', long, num_args = 0..)]
-	args: Vec<String>,
+	/// The command to run after the network has been launched.
+	#[clap(name = "cmd", short = 'c', long)]
+	command: Option<String>,
 	/// Whether the output should be verbose.
 	#[arg(short, long, action)]
 	verbose: bool,
@@ -145,13 +142,14 @@ impl ZombienetCommand {
 					}
 				}
 
-				if self.setup_script.is_some() {
-					spinner.set_message("Initializing your setup script...");
+				if self.command.is_some() {
+					spinner.set_message("Running custom command...");
 					// sleep for 15 seconds to allow the network to start up
 					sleep(Duration::from_secs(15)).await;
-					cmd(self.setup_script.clone().unwrap(), self.args.clone())
+					let command: String = self.command.clone().unwrap();
+					cmd!(command)
 						.run()
-						.map_err(|e| anyhow::Error::new(e).context("Error running the script"))?;
+						.map_err(|e| anyhow::Error::new(e).context("Error running the command."))?;
 					clear_screen()?;
 				}
 
