@@ -3,6 +3,12 @@ use crate::errors::Error;
 use contract_build::new_contract_project;
 use std::path::Path;
 
+/// Creates a new smart contract.
+///
+/// # Arguments
+///
+/// * `name` - name for the smart contract to be generated.
+/// * `target` - location where the smart contract will be generated.
 pub fn create_smart_contract(name: &str, target: &Path) -> Result<(), Error> {
 	// Canonicalize the target path to ensure consistency and resolve any symbolic links.
 	let canonicalized_path = target

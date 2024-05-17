@@ -1,6 +1,6 @@
 # pop-parachains
 
-A crate for generating, building and running Parachains and Pallets.  Used by
+A crate for generating, building and running Parachains and Pallets. Used by
 [`pop-cli`](https://github.com/r0gue-io/pop-cli).
 
 ## Usage
