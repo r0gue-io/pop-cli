@@ -20,6 +20,7 @@ use zombienet_support::fs::local::LocalFileSystem;
 const POLKADOT_SDK: &str = "https://github.com/paritytech/polkadot-sdk";
 const POLKADOT_DEFAULT_VERSION: &str = "v1.11.0";
 
+/// Spawn your network.
 pub struct Zombienet {
 	/// The cache location, used for caching binaries.
 	cache: PathBuf,
@@ -32,6 +33,15 @@ pub struct Zombienet {
 }
 
 impl Zombienet {
+	/// Creates a new Zombienet struct.
+	///
+	/// # Arguments
+	///
+	/// * `cache` - location, used for caching binaries
+	/// * `network_config` - config file to be used to launch a network.
+	/// * `relay_chain_version` - the specific version used for the relay chain (none will fetch the last one).
+	/// * `system_parachain_version` - the specific version used for the system chain (none will fetch the last one).
+	/// * `parachains` - list of parachains url.
 	pub async fn new(
 		cache: PathBuf,
 		network_config: &str,
@@ -115,6 +125,7 @@ impl Zombienet {
 		})
 	}
 
+	/// Keep a list of the missing binaries to be downloaded.
 	pub fn missing_binaries(&self) -> Vec<&Binary> {
 		let mut missing = Vec::new();
 		if !self.relay_chain.path.exists() {
@@ -126,6 +137,7 @@ impl Zombienet {
 		missing
 	}
 
+	/// Launch the networks specified in the Zombienet struct.
 	pub async fn spawn(&mut self) -> Result<Network<LocalFileSystem>, Error> {
 		// Symlink polkadot-related binaries
 		for file in ["polkadot-execute-worker", "polkadot-prepare-worker"] {

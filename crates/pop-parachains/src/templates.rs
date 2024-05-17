@@ -5,6 +5,7 @@ use strum::{
 use strum_macros::{AsRefStr, Display, EnumMessage, EnumProperty, EnumString, VariantArray};
 use thiserror::Error;
 
+/// Template providers supported.
 #[derive(
 	AsRefStr, Clone, Default, Debug, Display, EnumMessage, EnumString, Eq, PartialEq, VariantArray,
 )]
@@ -27,14 +28,17 @@ pub enum Provider {
 }
 
 impl Provider {
+	/// Get the list of providers supported.
 	pub fn providers() -> &'static [Provider] {
 		Provider::VARIANTS
 	}
 
+	/// Get provider's name.
 	pub fn name(&self) -> &str {
 		self.get_message().unwrap_or_default()
 	}
 
+	/// Get the default template of the provider.
 	pub fn default_template(&self) -> Template {
 		match &self {
 			Provider::Pop => Template::Standard,
@@ -42,10 +46,12 @@ impl Provider {
 		}
 	}
 
+	/// Get the providers detailed description message.
 	pub fn description(&self) -> &str {
 		self.get_detailed_message().unwrap_or_default()
 	}
 
+	/// Get the list of templates of the provider.
 	pub fn templates(&self) -> Vec<&Template> {
 		Template::VARIANTS
 			.iter()
@@ -54,6 +60,7 @@ impl Provider {
 	}
 }
 
+/// Configurable settings for parachain generation.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Config {
 	pub symbol: String,
@@ -61,6 +68,7 @@ pub struct Config {
 	pub initial_endowment: String,
 }
 
+/// Templates supported.
 #[derive(
 	AsRefStr,
 	Clone,
@@ -75,7 +83,7 @@ pub struct Config {
 	VariantArray,
 )]
 pub enum Template {
-	// Pop
+	/// Minimalist parachain template.
 	#[default]
 	#[strum(
 		serialize = "standard",
@@ -84,6 +92,7 @@ pub enum Template {
 		props(Provider = "Pop", Repository = "https://github.com/r0gue-io/base-parachain")
 	)]
 	Standard,
+	/// Parachain configured with fungible and non-fungilble asset functionalities.
 	#[strum(
 		serialize = "assets",
 		message = "Assets",
@@ -91,6 +100,7 @@ pub enum Template {
 		props(Provider = "Pop", Repository = "https://github.com/r0gue-io/assets-parachain")
 	)]
 	Assets,
+	/// Parachain configured to support WebAssembly smart contracts.
 	#[strum(
 		serialize = "contracts",
 		message = "Contracts",
@@ -98,6 +108,7 @@ pub enum Template {
 		props(Provider = "Pop", Repository = "https://github.com/r0gue-io/contracts-parachain")
 	)]
 	Contracts,
+	/// Parachain configured with Frontier, enabling compatibility with the Ethereum Virtual Machine (EVM).
 	#[strum(
 		serialize = "evm",
 		message = "EVM",
@@ -105,7 +116,7 @@ pub enum Template {
 		props(Provider = "Pop", Repository = "https://github.com/r0gue-io/evm-parachain")
 	)]
 	EVM,
-	// Parity
+	/// Minimal Substrate node configured for smart contracts via pallet-contracts.
 	#[strum(
 		serialize = "cpt",
 		message = "Contracts",
@@ -116,6 +127,7 @@ pub enum Template {
 		)
 	)]
 	ParityContracts,
+	/// Template node for a Frontier (EVM) based parachain.
 	#[strum(
 		serialize = "fpt",
 		message = "EVM",
@@ -129,22 +141,28 @@ pub enum Template {
 }
 
 impl Template {
+	/// Get the template's name.
 	pub fn name(&self) -> &str {
 		self.get_message().unwrap_or_default()
 	}
+
+	/// Get the detailed message of the template.
 	pub fn description(&self) -> &str {
 		self.get_detailed_message().unwrap_or_default()
 	}
 
+	/// Check the template belongs to a `provider`.
 	pub fn matches(&self, provider: &Provider) -> bool {
 		// Match explicitly on provider name (message)
 		self.get_str("Provider") == Some(provider.name())
 	}
 
+	/// Get the template's repository url.
 	pub fn repository_url(&self) -> Result<&str, Error> {
 		self.get_str("Repository").ok_or(Error::RepositoryMissing)
 	}
 
+	/// Get the provider of the template.
 	pub fn provider(&self) -> Result<&str, Error> {
 		self.get_str("Provider").ok_or(Error::ProviderMissing)
 	}

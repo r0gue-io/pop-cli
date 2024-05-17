@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
+#![doc = include_str!("../README.md")]
 mod build;
 mod errors;
 mod generator;
@@ -16,5 +17,5 @@ pub use up::{Source, Status, Zombienet};
 pub use utils::git::{Git, GitHub, Release};
 pub use utils::helpers::is_initial_endowment_valid;
 pub use utils::pallet_helpers::resolve_pallet_path;
-// External exports
+/// Information about the Node. External export from Zombienet-SDK.
 pub use zombienet_sdk::NetworkNode;
