@@ -159,10 +159,13 @@ impl ZombienetCommand {
 	}
 }
 
-pub(crate) async fn run_custom_command(spinner: &ProgressBar, command: &str) -> Result<(), anyhow::Error> {
+pub(crate) async fn run_custom_command(
+	spinner: &ProgressBar,
+	command: &str,
+) -> Result<(), anyhow::Error> {
 	spinner.set_message(format!("Running command: {}", command.to_string()));
 	sleep(Duration::from_secs(15)).await;
-		
+
 	// Split the command into the base command and arguments
 	let mut parts = command.split_whitespace();
 	let base_command = parts.next().expect("Command cannot be empty");
@@ -194,13 +197,13 @@ mod tests {
 	#[tokio::test]
 	async fn test_run_custom_command() -> Result<(), anyhow::Error> {
 		let spinner = ProgressBar::new(1);
-	
+
 		// Define the command to be executed
 		let command = "echo 2 + 2";
-	
+
 		// Call the run_custom_command function
 		run_custom_command(&spinner, command).await?;
-	
+
 		Ok(())
 	}
 }
