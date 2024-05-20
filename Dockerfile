@@ -1,11 +1,12 @@
 FROM rust as builder
-RUN apt-get update && apt-get -y install cmake
+
 WORKDIR /pop
 COPY . /pop
-RUN cargo build --release
 
-# Build image
-FROM rust:slim
-RUN apt-get update && apt install -y openssl ca-certificates protobuf-compiler
-COPY --from=builder /pop/target/release/pop /usr/bin/pop
-CMD ["/usr/bin/pop"]
+RUN apt-get update && \
+  apt upgrade -y && \
+  apt-get -y install cmake protobuf-compiler libprotobuf-dev libclang-dev && \
+  cargo build --release && \
+  cp ./target/release/pop /usr/bin
+
+CMD tail -f /dev/null
