@@ -119,7 +119,7 @@ pop up parachain -f ./tests/zombienet.toml -p https://github.com/r0gue-io/pop-no
 The following will spin up the network locally according the the zombienet file and once the network is up, it will run the command specified in `--cmd`:
 
 ```shell
-pop up parachain -f ./tests/zombienet.toml -p https://github.com/r0gue-io/pop-node --cmd "echo Hello World!"
+pop up parachain -f ./tests/zombienet.toml -p https://github.com/r0gue-io/pop-node --cmd ./path/to/my/script
 ```
 
 ### Contracts
