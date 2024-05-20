@@ -175,7 +175,6 @@ pub(crate) async fn run_custom_command(
 		.run()
 		.map_err(|e| anyhow::Error::new(e).context("Error running the command."))?;
 
-	clear_screen()?;
 	Ok(())
 }
 
