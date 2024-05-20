@@ -1,6 +1,6 @@
 # pop-contracts
 
-A crate for generating, building, deploying and calling [`ink!`](https://github.com/paritytech/ink) Smart Contracts. Used by [`pop-cli`](https://github.com/r0gue-io/pop-cli).
+A crate for generating, building, deploying, and calling [`ink!`](https://github.com/paritytech/ink) Smart Contracts. Used by [`pop-cli`](https://github.com/r0gue-io/pop-cli).
 
 ## Usage
 

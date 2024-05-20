@@ -14,7 +14,7 @@ use std::path::PathBuf;
 use subxt::PolkadotConfig as DefaultConfig;
 use subxt_signer::sr25519::Keypair;
 
-/// Attributes for the up command
+/// Attributes for the `up` command
 pub struct UpOpts {
 	/// Path to the contract build folder.
 	pub path: Option<PathBuf>,
@@ -37,11 +37,11 @@ pub struct UpOpts {
 	pub suri: String,
 }
 
-/// Prepare the struct for the deployment and instantiation to be executed.
+/// Prepare the `struct` for the deployment and instantiation to be executed.
 ///
 /// # Arguments
 ///
-/// * `up_opts` - attributes for the up command.
+/// * `up_opts` - attributes for the `up` command.
 ///
 pub async fn set_up_deployment(
 	up_opts: UpOpts,

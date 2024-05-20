@@ -1,11 +1,11 @@
 # pop-parachains
 
-A crate for generating, building and running Parachains and Pallets. Used by
+A crate for generating, building and running parachains and pallets. Used by
 [`pop-cli`](https://github.com/r0gue-io/pop-cli).
 
 ## Usage
 
-Generate a new Parachain:
+Generate a new parachain:
 ```rust
 use pop_parachains::{instantiate_template_dir, Config, Git, Template};
 

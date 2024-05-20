@@ -10,7 +10,7 @@ use std::path::Path;
 use std::{env, fs};
 use url::Url;
 
-/// A struct that handles Git operations.
+/// A `struct` that handles Git operations.
 pub struct Git;
 impl Git {
 	pub(crate) fn clone(url: &Url, working_dir: &Path, branch: Option<&str>) -> Result<()> {
@@ -154,7 +154,7 @@ impl Git {
 	}
 }
 
-/// A struct that handles GitHub operations.
+/// A `struct` that handles GitHub operations.
 pub struct GitHub {
 	pub org: String,
 	pub name: String,
@@ -164,7 +164,7 @@ pub struct GitHub {
 impl GitHub {
 	const GITHUB: &'static str = "github.com";
 
-	/// Parse url of a github repository to creat a GitHub struct
+	/// Parse URL of a github repository to create a GitHub `struct`.
 	///
 	/// # Arguments
 	///

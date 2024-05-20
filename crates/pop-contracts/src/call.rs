@@ -17,7 +17,7 @@ use crate::utils::{
 	signer::create_signer,
 };
 
-/// Attributes for the call command
+/// Attributes for the `call` command.
 pub struct CallOpts {
 	/// Path to the contract build folder.
 	pub path: Option<PathBuf>,
@@ -41,11 +41,11 @@ pub struct CallOpts {
 	pub execute: bool,
 }
 
-/// Prepare the struct for the call to be executed.
+/// Prepare the `struct` for the call to be executed.
 ///
 /// # Arguments
 ///
-/// * `call_opts` - attributes for the call command.
+/// * `call_opts` - attributes for the `call` command.
 ///
 pub async fn set_up_call(
 	call_opts: CallOpts,

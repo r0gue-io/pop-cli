@@ -17,7 +17,7 @@ pub fn test_smart_contract(path: &Option<PathBuf>) -> Result<(), Error> {
 	Ok(())
 }
 
-/// Run e2e tests of a smart contract.
+/// Run the e2e tests of a smart contract.
 ///
 /// # Arguments
 ///

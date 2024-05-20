@@ -33,7 +33,7 @@ pub struct Zombienet {
 }
 
 impl Zombienet {
-	/// Creates a new Zombienet struct.
+	/// Creates a new Zombienet  `struct`.
 	///
 	/// # Arguments
 	///
@@ -137,7 +137,7 @@ impl Zombienet {
 		missing
 	}
 
-	/// Launch the networks specified in the Zombienet struct.
+	/// Launch the networks specified in the Zombienet `struct`.
 	pub async fn spawn(&mut self) -> Result<Network<LocalFileSystem>, Error> {
 		// Symlink polkadot-related binaries
 		for file in ["polkadot-execute-worker", "polkadot-prepare-worker"] {
