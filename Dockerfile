@@ -4,8 +4,8 @@ WORKDIR /pop
 COPY . /pop
 RUN cargo build --release
 
-# Build image
+# Build image, preinstalling all dependencies for general Polkadot development
 FROM rust:slim
-RUN apt-get update && apt install -y openssl ca-certificates protobuf-compiler
 COPY --from=builder /pop/target/release/pop /usr/bin/pop
+RUN apt-get update && pop install -y && apt-get clean
 CMD ["/usr/bin/pop"]
