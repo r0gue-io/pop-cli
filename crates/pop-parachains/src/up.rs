@@ -302,15 +302,8 @@ impl Zombienet {
 			const BINARIES: [&str; 3] =
 				[BINARY, "polkadot-execute-worker", "polkadot-prepare-worker"];
 			let repo = Url::parse(POLKADOT_SDK).expect("repository url valid");
-			if cfg!(target_os = "macos") {
-				sources.push(Source::Git {
-					url: repo.into(),
-					branch: Some(format!("release-polkadot-{version}")),
-					package: BINARY.into(),
-					binaries: BINARIES.iter().map(|b| b.to_string()).collect(),
-					version: Some(version.clone()),
-				});
-			} else {
+			// Polkadot binaries only available for download for linux currently
+			if cfg!(all(target_arch = "x86_64", target_os = "linux")) {
 				for b in BINARIES {
 					sources.push(Source::Url {
 						name: b.to_string(),
@@ -318,6 +311,14 @@ impl Zombienet {
 						url: GitHub::release(&repo, &format!("polkadot-{version}"), b),
 					})
 				}
+			} else {
+				sources.push(Source::Git {
+					url: repo.into(),
+					branch: Some(format!("release-polkadot-{version}")),
+					package: BINARY.into(),
+					binaries: BINARIES.iter().map(|b| b.to_string()).collect(),
+					version: Some(version.clone()),
+				});
 			};
 		}
 
