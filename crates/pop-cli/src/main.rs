@@ -7,7 +7,6 @@ compile_error!("feature \"contract\" or feature \"parachain\" must be enabled");
 mod commands;
 mod style;
 
-#[cfg(feature = "parachain")]
 use anyhow::anyhow;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
@@ -15,8 +14,9 @@ use commands::*;
 #[cfg(feature = "telemetry")]
 use pop_telemetry::{config_file_path, record_cli_command, record_cli_used, Telemetry};
 use serde_json::{json, Value};
-#[cfg(feature = "parachain")]
-use std::{env::args, fs::create_dir_all, path::PathBuf};
+#[cfg(feature = "telemetry")]
+use std::env::args;
+use std::{fs::create_dir_all, path::PathBuf};
 
 #[derive(Parser)]
 #[command(author, version, about, styles=style::get_styles())]
@@ -98,6 +98,8 @@ async fn main() -> Result<()> {
 			up::UpCommands::Parachain(cmd) => cmd.execute().await.map(|_| Value::Null),
 			#[cfg(feature = "contract")]
 			up::UpCommands::Contract(cmd) => cmd.execute().await.map(|_| Value::Null),
+			#[cfg(feature = "contract")]
+			up::UpCommands::ContractsNode(cmd) => cmd.execute().await.map(|_| Value::Null),
 		},
 		#[cfg(feature = "contract")]
 		Commands::Test(args) => match &args.command {
@@ -131,7 +133,7 @@ async fn main() -> Result<()> {
 	// map result from Result<Value> to Result<()>
 	res.map(|_| ())
 }
-#[cfg(feature = "parachain")]
+
 fn cache() -> Result<PathBuf> {
 	let cache_path = dirs::cache_dir()
 		.ok_or(anyhow!("the cache directory could not be determined"))?
@@ -158,6 +160,7 @@ fn init() -> Result<Option<Telemetry>> {
 	Ok(maybe_tel)
 }
 
+#[cfg(feature = "telemetry")]
 fn parse_args(args: Vec<String>) -> (String, String) {
 	// command is always present as clap will print help if not set
 	let command = args.get(1).expect("expected command missing").to_string();
