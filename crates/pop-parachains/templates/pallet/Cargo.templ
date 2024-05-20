@@ -11,20 +11,17 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 codec = { package = "parity-scale-codec", version = "3.0.0", features = ["derive"], default-features = false }
-scale-info = { version = "2.10.0", default-features = false, features = ["derive"] }
+scale-info = { version = "2.11.1", default-features = false, features = ["derive"] }
 
 # Substrate
-frame-benchmarking = { version = "26.0.0", default-features = false, optional = true}
-frame-support = { version = "26.0.0", default-features = false}
-frame-system = { version = "26.0.0", default-features = false}
+frame-benchmarking = { version = "32.0.0", default-features = false, optional = true}
+frame-support = { version = "32.0.0", default-features = false}
+frame-system = { version = "32.0.0", default-features = false}
 
 [dev-dependencies]
-serde = { version = "1.0.188" }
-
-# Substrate
-sp-core = { version = "26.0.0", default-features = false }
-# sp-io = { version = "28.0.0", default-features = false}
-sp-runtime = { version = "29.0.0", default-features = false}
+sp-core = { version = "32.0.0", default-features = false }
+sp-io = { version = "34.0.0", default-features = false}
+sp-runtime = { version = "35.0.0", default-features = false}
 
 [features]
 default = [ "std" ]
@@ -41,7 +38,7 @@ std = [
 	"frame-system/std",
 	"scale-info/std",
 	"sp-core/std",
-	# "sp-io/std",
+	"sp-io/std",
 	"sp-runtime/std",
 ]
 try-runtime = [
