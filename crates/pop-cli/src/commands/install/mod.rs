@@ -256,7 +256,6 @@ async fn install_rustup() -> anyhow::Result<()> {
 		Ok(output) => {
 			log::info(format!("ℹ️ rustup installed already at {}.", output))?;
 			cmd("rustup", vec!["update"]).run()?;
-			cmd("rustup", vec!["default", "stable"]).run()?;
 		},
 		Err(_) => {
 			let spinner = cliclack::spinner();
@@ -264,12 +263,28 @@ async fn install_rustup() -> anyhow::Result<()> {
 			run_external_script("https://sh.rustup.rs").await?;
 			outro("rustup installed!")?;
 			cmd("source", vec!["~/.cargo/env"]).run()?;
-			cmd("rustup", vec!["default", "stable"]).run()?;
 		},
 	}
+	cmd("rustup", vec!["default", "stable"]).run()?;
+	cmd("rustup", vec!["target", "add", "wasm32-unknown-unknown"]).run()?;
 	cmd("rustup", vec!["update", "nightly"]).run()?;
 	cmd("rustup", vec!["target", "add", "wasm32-unknown-unknown", "--toolchain", "nightly"])
 		.run()?;
+	cmd(
+		"rustup",
+		vec![
+			"component",
+			"add",
+			"cargo",
+			"clippy",
+			"rust-analyzer",
+			"rust-src",
+			"rust-std",
+			"rustc",
+			"rustfmt",
+		],
+	)
+	.run()?;
 
 	Ok(())
 }
