@@ -17,20 +17,21 @@ pub(crate) struct ZombienetCommand {
 	#[arg(short, long)]
 	file: String,
 	/// The version of Polkadot to be used for the relay chain, as per the release tag (e.g.
-	/// "v1.7.0").
+	/// "v1.11.0").
 	#[arg(short, long)]
 	relay_chain: Option<String>,
 	/// The version of Polkadot to be used for a system parachain, as per the release tag (e.g.
-	/// "v1.7.0").
+	/// "v1.11.0"). Defaults to the relay chain version if not specified.
 	#[arg(short, long)]
 	system_parachain: Option<String>,
-	/// The url of the git repository of a parachain to be used, with branch/release tag specified as #fragment (e.g. 'https://github.com/org/repository#tag'). A specific binary name can also be optionally specified via query string parameter (e.g. 'https://github.com/org/repository?binaryname#tag'), defaulting to the name of the repository when not specified.
+	/// The url of the git repository of a parachain to be used, with branch/release tag specified as #fragment (e.g. 'https://github.com/org/repository#tag').
+	/// A specific binary name can also be optionally specified via query string parameter (e.g. 'https://github.com/org/repository?binaryname#tag'), defaulting to the name of the repository when not specified.
 	#[arg(short, long)]
 	parachain: Option<Vec<String>>,
 	/// The command to run after the network has been launched.
 	#[clap(name = "cmd", short = 'c', long)]
 	command: Option<String>,
-    /// Whether to only source any required binaries for the local network, without actually launching it.
+    /// Whether to only source the required binaries for the local network, without actually launching it.
     #[arg(short = 'S', long, action)]
     source: bool,
 	/// Whether the output should be verbose.
@@ -40,7 +41,7 @@ pub(crate) struct ZombienetCommand {
 impl ZombienetCommand {
 	pub(crate) async fn execute(&self) -> anyhow::Result<()> {
 		clear_screen()?;
-		intro(format!("{}: Deploy a parachain", style(" Pop CLI ").black().on_magenta()))?;
+		intro(format!("{}: Launch a local network", style(" Pop CLI ").black().on_magenta()))?;
 		set_theme(Theme);
 
 		// Parse arguments
@@ -69,17 +70,26 @@ impl ZombienetCommand {
 		let missing = zombienet.missing_binaries();
 		if missing.len() > 0 {
 			log::warning(format!(
-				"⚠️ The following missing binaries are required: {}",
+				"⚠️ The following missing binaries are required to launch the specified network: {}",
 				missing.iter().map(|b| b.name.as_str()).collect::<Vec<_>>().join(", ")
 			))?;
-			if !confirm("📦 Would you like to source them automatically now?")
-				.initial_value(true)
-				.interact()?
+			if !confirm(
+				"📦 Would you like to source them automatically now? It may take some time...",
+			)
+			.initial_value(true)
+			.interact()?
 			{
-				outro_cancel("🚫 Cannot deploy parachain to local network until all required binaries are available.")?;
+				outro_cancel(
+					"🚫 Cannot launch the specified network until all required binaries are available.",
+				)?;
 				return Ok(());
 			}
-			log::info(format!("ℹ️ They will be cached at {}", &cache.to_str().unwrap()))?;
+			console::Term::stderr().clear_last_lines(3)?;
+
+			log::info(format!(
+				"ℹ️ They will be cached at {}",
+				&cache.to_str().expect("expected local cache is invalid")
+			))?;
 			// Source binaries
 			for binary in missing {
 				let multi = multi_progress(format!("📦 Sourcing {}...", binary.name));
@@ -107,7 +117,10 @@ impl ZombienetCommand {
 
 		// Check if sourcing only
 		if self.source {
-			outro("All required binaries to launch a local network are available locally.")?;
+			outro(format!(
+				"ℹ️ All required binaries to launch the specified network are available and cached at {}.",
+				&cache.to_str().expect("expected local cache is invalid")
+			))?;
 			return Ok(());
 		}
 
@@ -173,7 +186,7 @@ impl ZombienetCommand {
 				outro("Done")?;
 			},
 			Err(e) => {
-				outro_cancel(format!("Could not spawn network: {e}"))?;
+				outro_cancel(format!("🚫 Could not launch local network: {e}"))?;
 			},
 		}
 
