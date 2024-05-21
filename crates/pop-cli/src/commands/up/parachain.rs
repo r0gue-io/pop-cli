@@ -163,7 +163,7 @@ pub(crate) async fn run_custom_command(
 	spinner: &ProgressBar,
 	command: &str,
 ) -> Result<(), anyhow::Error> {
-	spinner.set_message(format!("Running command: {}", command.to_string()));
+	spinner.set_message(format!("Spinning up network & running command: {}", command.to_string()));
 	sleep(Duration::from_secs(15)).await;
 
 	// Split the command into the base command and arguments
