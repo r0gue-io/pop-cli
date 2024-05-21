@@ -58,7 +58,7 @@ impl Zombienet {
 		let relay_chain_binary = Self::relay_chain(relay_chain_version, &config, &cache).await?;
 		let mut parachain_binaries = IndexMap::new();
 		if let Some(tables) = config.get("parachains").and_then(|p| p.as_array_of_tables()) {
-			for table in tables.iter() {
+			'outer: for table in tables.iter() {
 				let id = table
 					.get("id")
 					.and_then(|i| i.as_integer())
@@ -100,6 +100,7 @@ impl Zombienet {
 							&cache,
 						)?,
 					);
+					continue;
 				} else if let Some(parachains) = parachains {
 					for parachain in parachains {
 						let url = Url::parse(parachain).map_err(|err| Error::from(err))?;
@@ -109,9 +110,12 @@ impl Zombienet {
 						};
 						if command == name {
 							parachain_binaries.insert(id, Self::parachain(url, &cache)?);
+							continue 'outer;
 						}
 					}
 				}
+
+				return Err(Error::MissingBinary(command));
 			}
 		}
 

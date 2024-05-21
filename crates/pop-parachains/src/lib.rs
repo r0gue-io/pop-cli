@@ -10,6 +10,7 @@ mod up;
 mod utils;
 
 pub use build::build_parachain;
+pub use errors::Error;
 pub use new_pallet::{create_pallet_template, TemplatePalletConfig};
 pub use new_parachain::instantiate_template_dir;
 pub use templates::{Config, Provider, Template};

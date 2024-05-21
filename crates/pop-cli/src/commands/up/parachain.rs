@@ -7,7 +7,7 @@ use cliclack::{
 };
 use console::{Emoji, Style};
 use duct::cmd;
-use pop_parachains::{NetworkNode, Status, Zombienet};
+use pop_parachains::{Error, NetworkNode, Status, Zombienet};
 use std::time::Duration;
 use tokio::time::sleep;
 
@@ -30,6 +30,9 @@ pub(crate) struct ZombienetCommand {
 	/// The command to run after the network has been launched.
 	#[clap(name = "cmd", short = 'c', long)]
 	command: Option<String>,
+    /// Whether to only source any required binaries for the local network, without actually launching it.
+    #[arg(short = 'S', long, action)]
+    source: bool,
 	/// Whether the output should be verbose.
 	#[arg(short, long, action)]
 	verbose: bool,
@@ -42,14 +45,26 @@ impl ZombienetCommand {
 
 		// Parse arguments
 		let cache = crate::cache()?;
-		let mut zombienet = Zombienet::new(
+		let mut zombienet = match Zombienet::new(
 			cache.clone(),
 			&self.file,
 			self.relay_chain.as_ref(),
 			self.system_parachain.as_ref(),
 			self.parachain.as_ref(),
 		)
-		.await?;
+		.await
+		{
+			Ok(n) => n,
+			Err(e) => {
+				return match e {
+					Error::MissingBinary(name) => {
+						outro_cancel(format!("🚫 The `{name}` binary is specified in the network configuration file, but cannot be resolved to a source. Are you missing a `--parachain` argument?"))?;
+						Ok(())
+					},
+					_ => Err(e.into()),
+				}
+			},
+		};
 		// Check if any binaries need to be sourced
 		let missing = zombienet.missing_binaries();
 		if missing.len() > 0 {
@@ -89,6 +104,13 @@ impl ZombienetCommand {
 				multi.stop();
 			}
 		}
+
+		// Check if sourcing only
+		if self.source {
+			outro("All required binaries to launch a local network are available locally.")?;
+			return Ok(());
+		}
+
 		// Finally spawn network and wait for signal to terminate
 		let spinner = cliclack::spinner();
 		spinner.start("🚀 Launching local network...");
