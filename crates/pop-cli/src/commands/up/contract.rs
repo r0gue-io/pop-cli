@@ -58,7 +58,7 @@ impl UpContractCommand {
 		// Check if build exists in the specified "Contract build folder"
 		let build_path = PathBuf::from(
 			self.path.clone().unwrap_or("/.".into()).to_string_lossy().to_string()
-				+ "/target/release/ink",
+				+ "/target/ink",
 		);
 
 		if !build_path.as_path().exists() {
