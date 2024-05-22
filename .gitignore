@@ -2,4 +2,7 @@
 **/node_modules/
 /src/x.rs
 
+debug
+**/debug/
+
 .DS_Store

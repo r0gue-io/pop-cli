@@ -57,14 +57,11 @@ impl UpContractCommand {
 
 		// Check if build exists in the specified "Contract build folder"
 		let build_path = PathBuf::from(
-			self.path.clone().unwrap_or("/.".into()).to_string_lossy().to_string()
-				+ "/target/ink",
+			self.path.clone().unwrap_or("/.".into()).to_string_lossy().to_string() + "/target/ink",
 		);
 
 		if !build_path.as_path().exists() {
-			log::warning(format!(
-				"NOTE: contract has not yet been built."
-			))?;
+			log::warning(format!("NOTE: contract has not yet been built."))?;
 			intro(format!("{}: Building a contract", style(" Pop CLI ").black().on_magenta()))?;
 			// Directory exists, proceed with the rest of the code
 			let result = build_smart_contract(&self.path)?;
