@@ -7,8 +7,8 @@ use std::path::Path;
 ///
 /// # Arguments
 ///
-/// * `name` - name for the smart contract to be generated.
-/// * `target` - location where the smart contract will be generated.
+/// * `name` - name for the smart contract to be created.
+/// * `target` - location where the smart contract will be created.
 pub fn create_smart_contract(name: &str, target: &Path) -> Result<(), Error> {
 	// Canonicalize the target path to ensure consistency and resolve any symbolic links.
 	let canonicalized_path = target

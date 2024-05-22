@@ -17,8 +17,8 @@ use walkdir::WalkDir;
 /// # Arguments
 ///
 /// * `template` - template to generate the parachain from.
-/// * `target` - location where the parachain will be generated
-/// * `tag_version` - version to use (none to use the latest one)
+/// * `target` - location where the parachain will be created.
+/// * `tag_version` - version to use (`None` to use latest).
 /// * `config` - customization values to include in the new parachain.
 pub fn instantiate_template_dir(
 	template: &Template,

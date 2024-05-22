@@ -10,7 +10,7 @@ use std::path::Path;
 use std::{env, fs};
 use url::Url;
 
-/// A `struct` that handles Git operations.
+/// A helper for handling Git operations.
 pub struct Git;
 impl Git {
 	pub(crate) fn clone(url: &Url, working_dir: &Path, branch: Option<&str>) -> Result<()> {
@@ -44,7 +44,7 @@ impl Git {
 		}
 		Ok(())
 	}
-	/// Clones a Git repository and degit it
+	/// Clone a Git repository and degit it
 	///
 	/// # Arguments
 	///
@@ -134,7 +134,7 @@ impl Git {
 	///
 	/// # Arguments
 	///
-	/// * `target` - location where the parachain will be generated.
+	/// * `target` - location where the parachain will be created.
 	/// * `message` - message for first commit.
 	pub fn git_init(target: &Path, message: &str) -> Result<(), git2::Error> {
 		let repo = Repository::init(target)?;
@@ -154,7 +154,7 @@ impl Git {
 	}
 }
 
-/// A `struct` that handles GitHub operations.
+/// A helper for handling GitHub operations.
 pub struct GitHub {
 	pub org: String,
 	pub name: String,
@@ -164,7 +164,7 @@ pub struct GitHub {
 impl GitHub {
 	const GITHUB: &'static str = "github.com";
 
-	/// Parse URL of a github repository to create a GitHub `struct`.
+	/// Parse URL of a github repository.
 	///
 	/// # Arguments
 	///

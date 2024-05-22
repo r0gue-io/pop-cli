@@ -41,7 +41,7 @@ pub struct CallOpts {
 	pub execute: bool,
 }
 
-/// Prepare the `struct` for the call to be executed.
+/// Prepare the preprocessed data for a contract `call`.
 ///
 /// # Arguments
 ///
@@ -75,7 +75,7 @@ pub async fn set_up_call(
 	return Ok(call_exec);
 }
 
-/// Simulates a smart contract call without modifying the blockchain.
+/// Simulates a smart contract call without modifying the state of the blockchain..
 ///
 /// # Arguments
 ///
@@ -107,11 +107,11 @@ pub async fn dry_run_call(
     }
 }
 
-/// Estimates the gas required for a contract call without modifying the blockchain.
+/// Estimates the gas required for a contract call without modifying the state of the blockchain..
 ///
 /// # Arguments
 ///
-/// * `call_exec` - struct with the call to be executed.
+/// * `call_exec` - the preprocessed data to call a contract.
 ///
 pub async fn dry_run_gas_estimate_call(
 	call_exec: &CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
@@ -142,7 +142,7 @@ pub async fn dry_run_gas_estimate_call(
 ///
 /// * `call_exec` - struct with the call to be executed.
 /// * `gas_limit` - maximum amount of gas to be used for this call.
-/// * `url` - endpoint of the node where the smart contract is running.
+/// * `url` - endpoint of the node which to send the call to.
 ///
 pub async fn call_smart_contract(
 	call_exec: CallExec<DefaultConfig, DefaultEnvironment, Keypair>,

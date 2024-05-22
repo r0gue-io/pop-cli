@@ -37,7 +37,7 @@ pub struct UpOpts {
 	pub suri: String,
 }
 
-/// Prepare the `struct` for the deployment and instantiation to be executed.
+/// Prepare `InstantiateExec` data to upload and instantiate a contract.
 ///
 /// # Arguments
 ///
@@ -72,11 +72,11 @@ pub async fn set_up_deployment(
 	return Ok(instantiate_exec);
 }
 
-/// Estimates the gas required for the contract instantiation process without modifying the blockchain..
+/// Estimates the gas required for instantiating a contract without modifying the state of the blockchain.
 ///
 /// # Arguments
 ///
-/// * `instantiate_exec` - struct with the instantiation to be executed.
+/// * `instantiate_exec` - the preprocessed data to instantiate a contract.
 ///
 pub async fn dry_run_gas_estimate_instantiate(
 	instantiate_exec: &InstantiateExec<DefaultConfig, DefaultEnvironment, Keypair>,
@@ -103,11 +103,11 @@ pub async fn dry_run_gas_estimate_instantiate(
 	}
 }
 
-/// Initiates the deployment of a smart contract on the blockchain.
+/// Initiates a contract.
 ///
 /// # Arguments
 ///
-/// * `instantiate_exec` - struct with the instantiation to be executed.
+/// * `instantiate_exec` - the preprocessed data to instantiate a contract.
 /// * `gas_limit` - maximum amount of gas to be used for this call.
 ///
 pub async fn instantiate_smart_contract(

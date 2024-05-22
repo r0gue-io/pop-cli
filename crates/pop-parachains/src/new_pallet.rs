@@ -20,7 +20,7 @@ pub struct TemplatePalletConfig {
 ///
 /// # Arguments
 ///
-/// * `path` - location where the pallet will be generated.
+/// * `path` - location where the pallet will be created.
 /// * `config` - customization values to include in the new pallet.
 pub fn create_pallet_template(
 	path: Option<String>,
