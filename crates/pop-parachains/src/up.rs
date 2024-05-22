@@ -1205,11 +1205,7 @@ mod tests {
 		assert_eq!(parachain.binary.name, "pop-node");
 		assert_eq!(parachain.binary.path, temp_dir.path().join("pop-node"));
 		assert_eq!(parachain.binary.version, "");
-		if DOWNLOAD {
-			assert!(matches!(parachain.binary.source, Source::Url { .. }));
-		} else {
-			assert!(matches!(parachain.binary.source, Source::Git { .. }));
-		}
+		assert!(matches!(parachain.binary.source, Source::Git { .. }));
 
 		Ok(())
 	}
