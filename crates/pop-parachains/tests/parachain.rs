@@ -40,13 +40,12 @@ async fn test_process_git() -> Result<()> {
 	let repo = Url::parse(POLKADOT_SDK).expect("repository url valid");
 	let source = Source::Git {
 		url: repo.into(),
-		branch: Some(format!("release-polkadot-{version}")),
+		reference: Some(format!("release-polkadot-{version}")),
 		package: "polkadot".to_string(),
-		binaries: ["polkadot", "polkadot-execute-worker", "polkadot-prepare-worker"]
+		artifacts: ["polkadot", "polkadot-execute-worker", "polkadot-prepare-worker"]
 			.iter()
 			.map(|b| b.to_string())
 			.collect(),
-		version: Some(version),
 	};
 
 	source.process(&cache, ()).await?;

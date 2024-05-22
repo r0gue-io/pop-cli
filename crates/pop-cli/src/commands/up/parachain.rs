@@ -68,12 +68,10 @@ impl ZombienetCommand {
 		let missing: Vec<_> = zombienet
 			.missing_binaries()
 			.into_iter()
-			.flat_map(|b| {
-				b.sources().map(move |s| match s {
-					Source::Local { path } => (path.to_str().unwrap(), b, true),
-					Source::Url { name, .. } => (name.as_str(), b, false),
-					Source::Git { package, .. } => (package.as_str(), b, false),
-				})
+			.filter_map(|b| match &b.source {
+				Source::Local { .. } => Some((b.name.as_str(), b, true)),
+				Source::Url { .. } | Source::Git { .. } => Some((b.name.as_str(), b, false)),
+				Source::None | Source::Artifact => None,
 			})
 			.collect();
 		if missing.len() > 0 {
@@ -114,12 +112,13 @@ impl ZombienetCommand {
 				}
 
 				// Source binaries
+				let working_dir = cache.join(".src");
 				for (_name, binary, _local) in remote {
 					let multi = multi_progress(format!("📦 Sourcing {}...", binary.name));
 					let progress = multi.add(cliclack::spinner());
 					let progress_reporter = ProgressReporter(&progress);
 					for attempt in (0..=1).rev() {
-						if let Err(e) = binary.source(&cache, progress_reporter).await {
+						if let Err(e) = binary.source(&working_dir, progress_reporter).await {
 							match attempt {
 								0 => {
 									progress.error(format!("🚫 Sourcing failed: {e}"));
