@@ -16,7 +16,7 @@ pub struct TemplatePalletConfig {
 	pub authors: String,
 	pub description: String,
 }
-/// Creates a new pallet from a template .
+/// Create a new pallet from a template.
 ///
 /// # Arguments
 ///

@@ -5,7 +5,7 @@ use strum::{
 use strum_macros::{AsRefStr, Display, EnumMessage, EnumProperty, EnumString, VariantArray};
 use thiserror::Error;
 
-/// Template providers supported.
+/// Supported template providers.
 #[derive(
 	AsRefStr, Clone, Default, Debug, Display, EnumMessage, EnumString, Eq, PartialEq, VariantArray,
 )]

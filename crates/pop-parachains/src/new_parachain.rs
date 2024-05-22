@@ -12,7 +12,7 @@ use anyhow::Result;
 use std::{fs, path::Path};
 use walkdir::WalkDir;
 
-/// Creates a new parachain.
+/// Create a new parachain.
 ///
 /// # Arguments
 ///

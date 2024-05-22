@@ -3,7 +3,7 @@ use crate::errors::Error;
 use contract_build::new_contract_project;
 use std::path::Path;
 
-/// Creates a new smart contract.
+/// Create a new smart contract.
 ///
 /// # Arguments
 ///

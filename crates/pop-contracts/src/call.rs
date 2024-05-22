@@ -75,7 +75,7 @@ pub async fn set_up_call(
 	return Ok(call_exec);
 }
 
-/// Simulates a smart contract call without modifying the state of the blockchain..
+/// Simulate a smart contract call without modifying the state of the blockchain.
 ///
 /// # Arguments
 ///
@@ -107,7 +107,7 @@ pub async fn dry_run_call(
     }
 }
 
-/// Estimates the gas required for a contract call without modifying the state of the blockchain..
+/// Estimate the gas required for a contract call without modifying the state of the blockchain.
 ///
 /// # Arguments
 ///
@@ -136,7 +136,7 @@ pub async fn dry_run_gas_estimate_call(
     }
 }
 
-/// Calls a smart contract on the blockchain
+/// Call a smart contract on the blockchain.
 ///
 /// # Arguments
 ///

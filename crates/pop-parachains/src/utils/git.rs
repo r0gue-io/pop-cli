@@ -44,7 +44,8 @@ impl Git {
 		}
 		Ok(())
 	}
-	/// Clone a Git repository and degit it
+
+	/// Clone a Git repository and degit it.
 	///
 	/// # Arguments
 	///
@@ -89,7 +90,7 @@ impl Git {
 		Ok(release)
 	}
 
-	/// For users that have ssh configuration for cloning repositories
+	/// For users that have ssh configuration for cloning repositories.
 	fn ssh_clone_and_degit(url: Url, target: &Path) -> Result<Repository> {
 		let ssh_url = GitHub::convert_to_ssh_url(&url);
 		// Prepare callback and fetch options.
@@ -185,7 +186,7 @@ impl GitHub {
 		self
 	}
 
-	/// Fetch the latest releases of the Github repository
+	/// Fetch the latest releases of the Github repository.
 	pub async fn get_latest_releases(&self) -> Result<Vec<Release>> {
 		static APP_USER_AGENT: &str =
 			concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));

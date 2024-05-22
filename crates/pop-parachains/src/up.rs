@@ -20,7 +20,7 @@ use zombienet_support::fs::local::LocalFileSystem;
 const POLKADOT_SDK: &str = "https://github.com/paritytech/polkadot-sdk";
 const POLKADOT_DEFAULT_VERSION: &str = "v1.11.0";
 
-/// A helper to spawn a network.
+/// A helper to spawn a local network.
 pub struct Zombienet {
 	/// The cache location, used for caching binaries.
 	cache: PathBuf,
@@ -33,7 +33,6 @@ pub struct Zombienet {
 }
 
 impl Zombienet {
-	///
 	/// # Arguments
 	///
 	/// * `cache` - location, used for caching binaries

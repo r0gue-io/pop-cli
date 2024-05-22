@@ -72,7 +72,7 @@ pub async fn set_up_deployment(
 	return Ok(instantiate_exec);
 }
 
-/// Estimates the gas required for instantiating a contract without modifying the state of the blockchain.
+/// Estimate the gas required for instantiating a contract without modifying the state of the blockchain.
 ///
 /// # Arguments
 ///
@@ -103,7 +103,7 @@ pub async fn dry_run_gas_estimate_instantiate(
 	}
 }
 
-/// Initiates a contract.
+/// Instantiate a contract.
 ///
 /// # Arguments
 ///

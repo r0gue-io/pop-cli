@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use crate::utils::helpers::get_manifest_path;
 
-/// Build the smart contract located in the specified `path`
+/// Build the smart contract located in the specified `path`.
 pub fn build_smart_contract(path: &Option<PathBuf>) -> anyhow::Result<String> {
 	let manifest_path = get_manifest_path(path)?;
 	// Default values
