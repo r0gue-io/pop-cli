@@ -12,7 +12,17 @@ You can install Pop CLI as follows:
 cargo install --locked --git https://github.com/r0gue-io/pop-cli
 ```
 
-> :information_source: A [crates.io](https://crates.io/crates/pop-cli) version will be available soon!
+> :information_source: For detailed instructions on how to install Pop CLI, please refer to our
+> documentation: https://learn.onpop.io/v/cli/welcome/installing-pop-cli
+>
+> A [crates.io](https://crates.io/crates/pop-cli) version will be available soon!
+
+### Telemetry
+
+Pop CLI collects anonymous usage metrics to help us understand how the tool is being used and how we can improve it.
+We do not collect any personal information. If you wish to disable telemetry
+or read more about our telemetry practices please see
+our [telemetry](crates/pop-telemetry/README.md) documentation.
 
 ## Getting Started
 
@@ -20,22 +30,37 @@ cargo install --locked --git https://github.com/r0gue-io/pop-cli
 
 Use `pop` to create a new Parachain project.
 To be guided through the entire parachain creation process, simply execute
+
 ```sh
 pop new parachain
 ```
 
 If no guidance is needed, proceed with:
+
 ```sh
 # Create a minimal parachain
 pop new parachain my-app
 ```
 
+`pop-cli` supports diverse project templates, to use a specific one use the flag `--template`:
+
+```sh
+# Create an assets parachain
+pop new parachain my-app pop -t assets
+# Create a contracts parachain
+pop new parachain my-app pop -t contracts
+# Create a evm parachain
+pop new parachain my-app pop -t evm
+```
 
 We also integrate other provider templates in the tool, check them running:
+
 ```sh
 pop new parachain --help
 ```
-Some examples are: 
+
+Some examples are:
+
 ```sh
 # Get Parity's pallet-contracts enabled parachain template
 pop new parachain my-app parity -t cpt
@@ -43,8 +68,8 @@ pop new parachain my-app parity -t cpt
 pop new parachain my-app parity -t fpt
 ```
 
-For Pop templates you can also customize your parachain by providing config options for token symbol (as it appears in chain metadata),
-token decimals, and the initial endowment for developer accounts. Here's how:
+For Pop templates you can also customize your parachain by providing config options for token symbol (as it appears in
+chain metadata), token decimals, and the initial endowment for developer accounts. Here's how:
 
 ```sh
 # Create a minimal parachain with "DOT" as token symbol, 6 token decimals and 1 billion tokens per dev account
@@ -71,7 +96,6 @@ cd my-app
 pop build parachain
 ```
 
-
 Finally, to build your Parachain:
 
 ```sh
@@ -89,7 +113,6 @@ pop up parachain -f ./tests/zombienet.toml -p https://github.com/r0gue-io/pop-no
 
 > :information_source: Pop CLI will automatically source the necessary polkadot binaries. Currently, these will be built
 > if on a non-linux system.
-
 
 ### Contracts
 
@@ -221,55 +244,42 @@ Build the tool only for Smart Contracts functionality:
 cargo build --features contract
 ```
 
-## Testing Pop CLI 
+## Testing Pop CLI
 
-To test the tool locally.
+To test the tool locally. Due to the time it can take to build a Parachain or a Smart Contract, some tests have been
+separated from the normal testing flow into integration tests.
 
-Run the unit tests:
+Run the unit tests only:
+
+```sh
+cargo test --lib
+```
+
+To run the integration tests relating to Smart Contracts:
+
+```sh
+cargo test --test contract
+```
+
+To run the integration tests relating to Parachains:
+
+```sh
+cargo test --test parachain
+```
+
+Run all tests (unit + integration):
 
 ```sh
 cargo test
 ```
 
-Due to the time it can take to build a Parachain or a Smart Contract, some tests have been separated from the normal testing flow.
-
-To run the unit tests that involves building a Smart Contract:
-
-```sh
-cargo test --features unit_contract
-```
-
-To run the unit tests that involves building a Parachain:
-
-```sh
-cargo test --features unit_parachain
-```
-
-Then we have some tests that check all the flows are correct:
-
-Run the e2e tests for Smart Contracts functionality:
-
-```sh
-cargo test --features e2e_contract
-```
-
-Run the e2e tests for Parachain functionality:
-
-```sh
-cargo test --features e2e_parachain
-```
-
-Run all tests:
-
-```sh
-cargo test --all-features
-```
 ## Acknowledgements
 
 Pop CLI would not be possible without these awesome crates!
 
 - Local network deployment powered by [zombienet-sdk](https://github.com/paritytech/zombienet-sdk)
-- [cargo contract](https://github.com/paritytech/cargo-contract) a setup and deployment tool for developing Wasm based Smart Contracts via ink!
+- [cargo contract](https://github.com/paritytech/cargo-contract) a setup and deployment tool for developing Wasm based
+  Smart Contracts via ink!
 
 ## License
 

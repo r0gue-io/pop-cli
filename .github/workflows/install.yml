@@ -1,0 +1,97 @@
+name: pop install
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  arch:
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install prerequisites
+        run: pacman -Syu --needed --noconfirm cmake curl git base-devel
+      - name: Install Rust
+        run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+      - name: Install Pop
+        run: |
+          . "$HOME/.cargo/env"
+          cargo install --locked --no-default-features --features contract,parachain --path ./crates/pop-cli
+      - name: Run Pop install
+        run: |
+          . "$HOME/.cargo/env"
+          pop install -y
+  debian:
+    runs-on: ubuntu-latest
+    container: debian
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install prerequisites
+        run: apt-get update && apt-get -y install build-essential cmake curl git
+      - name: Install Rust
+        run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+      - name: Install Pop
+        run: |
+          . "$HOME/.cargo/env"
+          cargo install --locked --no-default-features --features contract,parachain --path ./crates/pop-cli
+      - name: Run Pop Install
+        run: |
+          . "$HOME/.cargo/env"
+          pop install -y
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install prerequisites
+        run: brew update && brew install cmake openssl protobuf
+      - name: Install Rust
+        run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+      - name: Install Pop
+        run: |
+          . "$HOME/.cargo/env"
+          cargo install --locked --no-default-features --features contract,parachain --path ./crates/pop-cli
+      - name: Run Pop Install
+        run: |
+          . "$HOME/.cargo/env"
+          pop install -y
+  redhat:
+    runs-on: ubuntu-latest
+    container: redhat/ubi8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install prerequisites
+        run: yum update -y && yum install -y perl-IPC-Cmd clang curl git make cmake protobuf-compiler gcc pkg-config openssl-devel
+      - name: Install Rust
+        run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+      - name: Install Pop
+        run: |
+          . "$HOME/.cargo/env"
+          cargo install --locked --no-default-features --features contract,parachain --path ./crates/pop-cli
+      - name: Run Pop install
+        run: |
+          . "$HOME/.cargo/env"
+          pop install -y
+  ubuntu:
+    runs-on: ubuntu-latest
+    container: ubuntu
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install prerequisites
+        run: apt-get update && apt-get -y install build-essential cmake curl git
+      - name: Install Rust
+        run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+      - name: Install Pop
+        run: |
+          . "$HOME/.cargo/env"
+          cargo install --locked --no-default-features --features contract,parachain --path ./crates/pop-cli
+      - name: Run Pop install
+        run: |
+          . "$HOME/.cargo/env"
+          pop install -y

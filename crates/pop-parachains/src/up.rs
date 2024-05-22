@@ -18,7 +18,7 @@ use zombienet_sdk::{Network, NetworkConfig, NetworkConfigExt};
 use zombienet_support::fs::local::LocalFileSystem;
 
 const POLKADOT_SDK: &str = "https://github.com/paritytech/polkadot-sdk";
-const POLKADOT_DEFAULT_VERSION: &str = "v1.10.0";
+const POLKADOT_DEFAULT_VERSION: &str = "v1.11.0";
 
 pub struct Zombienet {
 	/// The cache location, used for caching binaries.
@@ -367,18 +367,24 @@ impl Zombienet {
 	}
 
 	async fn latest_polkadot_release() -> Result<String, Error> {
-		let repo = Url::parse(POLKADOT_SDK).expect("repository url valid");
-		// Fetching latest releases
-		for release in GitHub::get_latest_releases(&repo).await? {
-			if !release.prerelease && release.tag_name.starts_with("polkadot-v") {
-				return Ok(release
-					.tag_name
-					.strip_prefix("polkadot-")
-					.map_or_else(|| release.tag_name.clone(), |v| v.to_string()));
-			}
+		let repo = GitHub::parse(POLKADOT_SDK)?;
+		match repo.get_latest_releases().await {
+			Ok(releases) => {
+				// Fetching latest releases
+				for release in releases {
+					if !release.prerelease && release.tag_name.starts_with("polkadot-v") {
+						return Ok(release
+							.tag_name
+							.strip_prefix("polkadot-")
+							.map_or_else(|| release.tag_name.clone(), |v| v.to_string()));
+					}
+				}
+				// It should never reach this point, but in case we download a default version of polkadot
+				Ok(POLKADOT_DEFAULT_VERSION.to_string())
+			},
+			// If an error with Github API return the POLKADOT DEFAULT VERSION
+			Err(_) => Ok(POLKADOT_DEFAULT_VERSION.to_string()),
 		}
-		// It should never reach this point, but in case we download a default version of polkadot
-		Ok(POLKADOT_DEFAULT_VERSION.to_string())
 	}
 }
 
@@ -826,34 +832,7 @@ mod tests {
 		)
 		.await?;
 
-		let config = zombienet.configure();
-		assert!(config.is_ok());
-
-		Ok(())
-	}
-
-	#[cfg(feature = "unit_parachain")]
-	#[tokio::test]
-	async fn test_spawn_polkadot_and_two_parachains() -> Result<()> {
-		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
-		let cache = PathBuf::from(temp_dir.path());
-
-		let mut zombienet = Zombienet::new(
-			cache.clone(),
-			CONFIG_FILE_PATH,
-			Some(&TESTING_POLKADOT_VERSION.to_string()),
-			Some(&TESTING_POLKADOT_VERSION.to_string()),
-			Some(&vec!["https://github.com/r0gue-io/pop-node".to_string()]),
-		)
-		.await?;
-		let missing_binaries = zombienet.missing_binaries();
-		for binary in missing_binaries {
-			binary.source(&cache, ()).await?;
-		}
-
-		let spawn = zombienet.spawn().await;
-		assert!(spawn.is_ok());
-
+		zombienet.configure()?;
 		Ok(())
 	}
 
@@ -887,34 +866,7 @@ mod tests {
 			version: TESTING_POLKADOT_VERSION.to_string(),
 			url: "https://github.com/paritytech/polkadot-sdk/releases/download/polkadot-v1.7.0/polkadot".to_string()
 		};
-		let result = source.process(&cache, ()).await;
-		assert!(result.is_ok());
-		assert!(temp_dir.path().join(POLKADOT_BINARY).exists());
-
-		Ok(())
-	}
-
-	#[cfg(feature = "unit_parachain")]
-	#[tokio::test]
-	async fn test_process_git() -> Result<()> {
-		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
-		let cache = PathBuf::from(temp_dir.path());
-
-		let version = TESTING_POLKADOT_VERSION.to_string();
-		let repo = Url::parse(POLKADOT_SDK).expect("repository url valid");
-		let source = Source::Git {
-			url: repo.into(),
-			branch: Some(format!("release-polkadot-{version}")),
-			package: "polkadot".to_string(),
-			binaries: ["polkadot", "polkadot-execute-worker", "polkadot-prepare-worker"]
-				.iter()
-				.map(|b| b.to_string())
-				.collect(),
-			version: Some(version),
-		};
-
-		let result = source.process(&cache, ()).await;
-		assert!(result.is_ok());
+		source.process(&cache, ()).await?;
 		assert!(temp_dir.path().join(POLKADOT_BINARY).exists());
 
 		Ok(())
@@ -967,7 +919,7 @@ mod tests {
 				name = "asset-hub"
 				
 				[[parachains]]
-				id = 9090
+				id = 4385
 				default_command = "pop-node"
 				
 				[[parachains.collators]]

@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: GPL-3.0
-#![cfg(feature = "e2e_contract")]
 use anyhow::{Error, Result};
 use assert_cmd::Command;
 use predicates::prelude::*;

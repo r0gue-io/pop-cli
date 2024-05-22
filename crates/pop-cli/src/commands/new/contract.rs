@@ -50,6 +50,7 @@ impl NewContractCommand {
 		let spinner = cliclack::spinner();
 		spinner.start("Generating contract...");
 		create_smart_contract(&self.name, contract_path.as_path())?;
+
 		spinner.stop("Smart contract created!");
 		outro(format!("cd into \"{}\" and enjoy hacking! 🚀", contract_path.display()))?;
 		Ok(())
@@ -68,9 +69,7 @@ mod tests {
 			name: "test_contract".to_string(),
 			path: Some(PathBuf::from(temp_contract_dir.path())),
 		};
-		let result = command.execute().await;
-		assert!(result.is_ok());
-
+		command.execute().await?;
 		Ok(())
 	}
 }

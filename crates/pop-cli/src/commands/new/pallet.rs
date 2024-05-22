@@ -55,6 +55,7 @@ impl NewPalletCommand {
 				description: self.description.clone().expect("default values"),
 			},
 		)?;
+
 		spinner.stop("Generation complete");
 		outro(format!("cd into \"{}\" and enjoy hacking! 🚀", &self.name))?;
 		Ok(())

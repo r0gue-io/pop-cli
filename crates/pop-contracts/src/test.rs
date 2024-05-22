@@ -27,27 +27,12 @@ mod tests {
 	use super::*;
 	use std::fs;
 	use tempfile;
-	use thiserror::Error;
-
-	#[derive(Error, Debug)]
-	pub enum Error {
-		#[error("Error in test: {0}")]
-		TestEnvironmentError(String),
-	}
 
 	fn setup_test_environment() -> Result<tempfile::TempDir, Error> {
-		let temp_dir = tempfile::tempdir().map_err(|e| {
-			Error::TestEnvironmentError(format!("Failed to create temp dir: {}", e))
-		})?;
+		let temp_dir = tempfile::tempdir()?;
 		let temp_contract_dir = temp_dir.path().join("test_contract");
-		fs::create_dir(&temp_contract_dir).map_err(|e| {
-			Error::TestEnvironmentError(format!("Failed to create test contract directory: {}", e))
-		})?;
-		let result = crate::create_smart_contract("test_contract", temp_contract_dir.as_path())
-			.map_err(|e| {
-				Error::TestEnvironmentError(format!("Failed to create smart contract: {}", e))
-			});
-		assert!(result.is_ok(), "Contract test environment setup failed");
+		fs::create_dir(&temp_contract_dir)?;
+		crate::create_smart_contract("test_contract", temp_contract_dir.as_path())?;
 		Ok(temp_dir)
 	}
 
@@ -55,8 +40,7 @@ mod tests {
 	fn test_contract_test() -> Result<(), Error> {
 		let temp_contract_dir = setup_test_environment()?;
 		// Run unit tests for the smart contract in the temporary contract directory.
-		let result = test_smart_contract(&Some(temp_contract_dir.path().join("test_contract")));
-		assert!(result.is_ok(), "Result should be Ok");
+		test_smart_contract(&Some(temp_contract_dir.path().join("test_contract")))?;
 		Ok(())
 	}
 }

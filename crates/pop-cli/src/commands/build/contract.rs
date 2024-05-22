@@ -18,7 +18,7 @@ pub struct BuildContractCommand {
 impl BuildContractCommand {
 	pub(crate) fn execute(&self) -> anyhow::Result<()> {
 		clear_screen()?;
-		intro(format!("{}: Building a contract", style(" Pop CLI ").black().on_magenta()))?;
+		intro(format!("{}: Building your contract", style(" Pop CLI ").black().on_magenta()))?;
 		set_theme(Theme);
 
 		let result_build = build_smart_contract(&self.path)?;

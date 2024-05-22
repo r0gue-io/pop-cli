@@ -17,8 +17,9 @@ chain = "asset-hub-rococo-local"
 name = "asset-hub"
 
 [[parachains]]
-id = 9090
+id = 4385
 default_command = "pop-node"
 
 [[parachains.collators]]
 name = "pop"
+args = ["-lruntime::contracts=debug"]

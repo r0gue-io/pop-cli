@@ -9,7 +9,7 @@ Generate a new Parachain:
 ```rust
 use pop_parachains::{instantiate_template_dir, Config, Git, Template};
 
-let template = Template::Base;
+let template = Template::Standard;
 let destination_path = ...;
 let config = Config {
     symbol: ...,
