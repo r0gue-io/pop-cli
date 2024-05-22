@@ -131,13 +131,8 @@ async fn guide_user_to_generate_parachain() -> Result<NewParachainCommand> {
 	let template = display_select_options(provider)?;
 
 	let url = url::Url::parse(&template.repository_url()?).expect("valid repository url");
-	// Get only the latest 3 releases
-	let latest_3_releases: Vec<Release> = get_latest_3_releases(url).await?;
 
-	let mut release_name = None;
-	if latest_3_releases.len() > 0 {
-		release_name = Some(display_release_versions_to_user(latest_3_releases)?);
-	}
+	let release_name = choose_release(url).await?;
 
 	let name: String = input("Where should your project be created?")
 		.placeholder("./my-parachain")
@@ -288,6 +283,24 @@ fn check_destination_path(name_template: &String) -> Result<&Path> {
 		fs::remove_dir_all(destination_path)?;
 	}
 	Ok(destination_path)
+}
+
+/// Gets the latest 3 releases. Prompts the user to choose if releases exist.
+/// Otherwise, the default release is used.
+///
+/// return: `Option<String>` - The release name selected by the user or None if no releases found.
+async fn choose_release(url: url::Url) -> Result<Option<String>> {
+	// Get only the latest 3 releases
+	let latest_3_releases: Vec<Release> = get_latest_3_releases(url).await?;
+
+	let mut release_name = None;
+	if latest_3_releases.len() > 0 {
+		release_name = Some(display_release_versions_to_user(latest_3_releases)?);
+	} else {
+		warning("No releases found for this template. Will use the default branch")?;
+	}
+
+	Ok(release_name)
 }
 
 async fn get_latest_3_releases(url: url::Url) -> Result<Vec<Release>> {
