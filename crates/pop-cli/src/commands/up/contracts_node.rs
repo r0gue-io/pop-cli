@@ -13,7 +13,7 @@ pub(crate) struct ContractsNodeCommand;
 impl ContractsNodeCommand {
 	pub(crate) async fn execute(&self) -> anyhow::Result<()> {
 		clear_screen()?;
-		intro(format!("{}: Deploy a contracts node", style(" Pop CLI ").black().on_magenta()))?;
+		intro(format!("{}: Launch a contracts node", style(" Pop CLI ").black().on_magenta()))?;
 		set_theme(Theme);
 
 		let cache = crate::cache()?;
