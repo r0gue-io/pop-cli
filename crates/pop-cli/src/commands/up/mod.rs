@@ -2,6 +2,8 @@
 
 #[cfg(feature = "contract")]
 mod contract;
+#[cfg(feature = "contract")]
+mod contracts_node;
 #[cfg(feature = "parachain")]
 mod parachain;
 
@@ -24,4 +26,8 @@ pub(crate) enum UpCommands {
 	/// Deploy a smart contract to a node.
 	#[clap(alias = "c")]
 	Contract(contract::UpContractCommand),
+	#[cfg(feature = "contract")]
+	/// Deploy a contracts node.
+	#[clap(alias = "n")]
+	ContractsNode(contracts_node::ContractsNodeCommand),
 }

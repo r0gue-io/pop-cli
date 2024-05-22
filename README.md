@@ -137,12 +137,10 @@ Build the Smart Contract:
 pop build contract -p ./my_contract
 ```
 
-To deploy a Smart Contract you need a chain running. For testing purposes one option is to
-run [substrate-contracts-node](https://github.com/paritytech/substrate-contracts-node):
+To deploy a Smart Contract you need a chain running. For testing purposes you can simply spawn a contract node:
 
 ```sh
-cargo install contracts-node
-substrate-contracts-node
+pop up contracts-node
 ```
 
 > :information_source: We plan to automate this in the future.
@@ -192,16 +190,15 @@ pop call contract -p ./my_contract --contract $INSTANTIATED_CONTRACT_ADDRESS --m
 ## E2E testing
 
 For end-to-end testing you will need to have a Substrate node with `pallet contracts`.
-You do not need to run it in the background since the node is started for each test independently.
-To install the latest version:
+Pop provides the latest version out-of-the-box by running:
 
-```
-cargo install contracts-node --git https://github.com/paritytech/substrate-contracts-node.git
+```sh
+pop up contracts-node
 ```
 
 If you want to run any other node with `pallet-contracts` you need to change `CONTRACTS_NODE` environment variable:
 
-```
+```sh
 export CONTRACTS_NODE="YOUR_CONTRACTS_NODE_PATH"
 ```
 
