@@ -940,7 +940,7 @@ pub struct Binary {
 }
 
 impl Binary {
-	fn new(
+	pub fn new(
 		name: impl Into<String>,
 		version: impl Into<String>,
 		path: impl Into<PathBuf>,
