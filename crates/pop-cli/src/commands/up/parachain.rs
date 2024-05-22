@@ -7,13 +7,13 @@ use cliclack::{
 };
 use console::{Emoji, Style};
 use duct::cmd;
-use pop_parachains::{Error, NetworkNode, Status, Zombienet};
+use pop_parachains::{Error, NetworkNode, Source, Status, Zombienet};
 use std::time::Duration;
 use tokio::time::sleep;
 
 #[derive(Args)]
 pub(crate) struct ZombienetCommand {
-	/// The Zombienet configuration file to be used.
+	/// The Zombienet network configuration file to be used.
 	#[arg(short, long)]
 	file: String,
 	/// The version of Polkadot to be used for the relay chain, as per the release tag (e.g.
@@ -31,9 +31,6 @@ pub(crate) struct ZombienetCommand {
 	/// The command to run after the network has been launched.
 	#[clap(name = "cmd", short = 'c', long)]
 	command: Option<String>,
-    /// Whether to only source the required binaries for the local network, without actually launching it.
-    #[arg(short = 'S', long, action)]
-    source: bool,
 	/// Whether the output should be verbose.
 	#[arg(short, long, action)]
 	verbose: bool,
@@ -66,62 +63,89 @@ impl ZombienetCommand {
 				}
 			},
 		};
-		// Check if any binaries need to be sourced
-		let missing = zombienet.missing_binaries();
+
+		// Check if any missing binaries
+		let missing: Vec<_> = zombienet
+			.missing_binaries()
+			.into_iter()
+			.flat_map(|b| {
+				b.sources().map(move |s| match s {
+					Source::Local { path } => (path.to_str().unwrap(), b, true),
+					Source::Url { name, .. } => (name.as_str(), b, false),
+					Source::Git { package, .. } => (package.as_str(), b, false),
+				})
+			})
+			.collect();
 		if missing.len() > 0 {
-			log::warning(format!(
-				"⚠️ The following missing binaries are required to launch the specified network: {}",
-				missing.iter().map(|b| b.name.as_str()).collect::<Vec<_>>().join(", ")
-			))?;
-			if !confirm(
-				"📦 Would you like to source them automatically now? It may take some time...",
-			)
-			.initial_value(true)
-			.interact()?
-			{
+			let list = style(format!(
+				"> {}",
+				missing.iter().map(|(item, _, _)| *item).collect::<Vec<_>>().join(", ")
+			))
+			.dim()
+			.to_string();
+			log::warning(format!("⚠️ The following binaries specified in the network configuration file cannot be found locally:\n   {list}"))?;
+
+			// Prompt for automatic sourcing of remote binaries
+			let remote: Vec<_> = missing.iter().filter(|(_, _, local)| !local).collect();
+			if remote.len() > 0 {
+				let list = style(format!(
+					"> {}",
+					remote
+						.iter()
+						.map(|(item, binary, _)| format!("{item} {}", binary.version()))
+						.collect::<Vec<_>>()
+						.join(", ")
+				))
+				.dim()
+				.to_string();
+				if !confirm(format!(
+					"📦 Would you like to source the following automatically now?. It may take some time...\n   {list}\n   {}",
+					format!(
+						"ℹ️ These binaries will be cached at {}",
+						&cache.to_str().expect("expected local cache is invalid")
+					)))
+				.initial_value(true)
+				.interact()?
+				{
+					outro_cancel(
+						"🚫 Cannot launch the specified network until all required binaries are available.",
+					)?;
+					return Ok(());
+				}
+
+				// Source binaries
+				for (_name, binary, _local) in remote {
+					let multi = multi_progress(format!("📦 Sourcing {}...", binary.name));
+					let progress = multi.add(cliclack::spinner());
+					let progress_reporter = ProgressReporter(&progress);
+					for attempt in (0..=1).rev() {
+						if let Err(e) = binary.source(&cache, progress_reporter).await {
+							match attempt {
+								0 => {
+									progress.error(format!("🚫 Sourcing failed: {e}"));
+									multi.stop();
+									return Ok(());
+								},
+								_ => {
+									progress.error("🚫 Sourcing attempt failed, retrying...");
+									sleep(Duration::from_secs(1)).await;
+								},
+							}
+						}
+					}
+					progress.stop(format!("✅ Sourcing {} complete.", binary.name));
+					multi.stop();
+				}
+			}
+
+			// Check for any local binaries which need to be built manually
+			let local: Vec<_> = missing.iter().filter(|(_, _, local)| *local).collect();
+			if local.len() > 0 {
 				outro_cancel(
-					"🚫 Cannot launch the specified network until all required binaries are available.",
+					"🚫 Please manually build the missing binaries at the paths specified and try again.",
 				)?;
 				return Ok(());
 			}
-			console::Term::stderr().clear_last_lines(3)?;
-
-			log::info(format!(
-				"ℹ️ They will be cached at {}",
-				&cache.to_str().expect("expected local cache is invalid")
-			))?;
-			// Source binaries
-			for binary in missing {
-				let multi = multi_progress(format!("📦 Sourcing {}...", binary.name));
-				let progress = multi.add(cliclack::spinner());
-				let progress_reporter = ProgressReporter(&progress);
-				for attempt in (0..=1).rev() {
-					if let Err(e) = binary.source(&cache, progress_reporter).await {
-						match attempt {
-							0 => {
-								progress.error(format!("🚫 Sourcing failed: {e}"));
-								multi.stop();
-								return Ok(());
-							},
-							_ => {
-								progress.error("🚫 Sourcing attempt failed, retrying...");
-								sleep(Duration::from_secs(1)).await;
-							},
-						}
-					}
-				}
-				progress.stop(format!("✅ Sourcing {} complete.", binary.name));
-				multi.stop();
-			}
-		}
-
-		// Check if sourcing only
-		if self.source {
-			outro(format!(
-				"ℹ️ All required binaries to launch the specified network are available and cached at {}.",
-				&cache.to_str().expect("expected local cache is invalid")
-			))?;
-			return Ok(());
 		}
 
 		// Finally spawn network and wait for signal to terminate

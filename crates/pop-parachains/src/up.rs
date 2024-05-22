@@ -4,7 +4,7 @@ use crate::utils::git::{Git, GitHub};
 use duct::cmd;
 use indexmap::IndexMap;
 use std::{
-	env::current_dir,
+	fmt::Debug,
 	fs::{copy, metadata, remove_dir_all, write, File},
 	io::{BufRead, Write},
 	os::unix::fs::PermissionsExt,
@@ -92,6 +92,8 @@ impl Zombienet {
 					continue;
 				};
 				let command = command.value().to_lowercase();
+
+				// Check if system parachain
 				if command == "polkadot-parachain" {
 					parachain_binaries.insert(
 						id,
@@ -101,7 +103,10 @@ impl Zombienet {
 						)?,
 					);
 					continue;
-				} else if let Some(parachains) = parachains {
+				}
+
+				// Check if parachain binary source specified as an argument
+				if let Some(parachains) = parachains {
 					for parachain in parachains {
 						let url = Url::parse(parachain).map_err(|err| Error::from(err))?;
 						let name = match GitHub::name(&url) {
@@ -113,6 +118,13 @@ impl Zombienet {
 							continue 'outer;
 						}
 					}
+				}
+
+				// Check if command references a local binary using a relative path
+				if command.starts_with("./") || command.starts_with("../") {
+					parachain_binaries
+						.insert(id, Self::local_parachain(&network_config_path, command.into())?);
+					continue;
 				}
 
 				return Err(Error::MissingBinary(command));
@@ -199,19 +211,22 @@ impl Zombienet {
 
 				// Resolve default_command to binary
 				{
-					// Check if provided via args, therefore cached
+					// Check if provided via args
 					if let Some(para) = self.parachains.get(&id) {
-						let para_path = para
-							.path
+						let path = match para.path.exists() {
+							true => para.path.canonicalize()?,
+							false => Self::resolve_relative_path(network_config_path, &para.path)?,
+						};
+						let path = path
 							.to_str()
 							.ok_or(Error::Config("the parachain path is invalid".into()))?;
-						table.insert("default_command", value(para_path));
+						table.insert("default_command", value(path));
 					} else if let Some(default_command) = table.get_mut("default_command") {
 						// Otherwise assume local binary, fix path accordingly
 						let command_path = default_command.as_str().ok_or(Error::Config(
 							"expected `default_command` value to be a string".into(),
 						))?;
-						let path = Self::resolve_path(network_config_path, command_path)?;
+						let path = Self::resolve_relative_path(network_config_path, command_path)?;
 						*default_command =
 							value(path.to_str().ok_or(Error::Config(
 								"the parachain binary was not found".into(),
@@ -225,18 +240,25 @@ impl Zombienet {
 				{
 					for collator in collators.iter_mut() {
 						if let Some(command) = collator.get_mut("command") {
-							// Check if provided via args, therefore cached
+							// Check if provided via args
 							if let Some(para) = self.parachains.get(&id) {
-								let para_path = para
-									.path
+								let path = match para.path.exists() {
+									true => para.path.canonicalize()?,
+									false => Self::resolve_relative_path(
+										network_config_path,
+										&para.path,
+									)?,
+								};
+								let path = path
 									.to_str()
 									.ok_or(Error::Config("the parachain path is invalid".into()))?;
-								*command = value(para_path);
+								*command = value(path);
 							} else {
 								let command_path = command.as_str().ok_or(Error::Config(
 									"expected `command` value to be a string".into(),
 								))?;
-								let path = Self::resolve_path(network_config_path, command_path)?;
+								let path =
+									Self::resolve_relative_path(network_config_path, command_path)?;
 								*command = value(path.to_str().ok_or(Error::Config(
 									"the parachain binary was not found".into(),
 								))?);
@@ -261,18 +283,18 @@ impl Zombienet {
 		Ok(network_config_file)
 	}
 
-	fn resolve_path(
-		network_config_path: &mut PathBuf,
-		command_path: &str,
+	fn resolve_relative_path(
+		network_config_path: &Path,
+		relative_path: impl AsRef<Path> + Debug,
 	) -> Result<PathBuf, Error> {
 		network_config_path
-            .join(command_path)
-            .canonicalize()
-            .or_else(|_| current_dir().unwrap().join(command_path).canonicalize())
+			.parent()
+			.expect("network config path already validated")
+			.join(&relative_path)
+			.canonicalize()
             .map_err(|_| {
                 Error::Config(format!(
-                    "unable to find canonical local path to specified command: `{}` are you missing an argument?",
-                    command_path
+                    "unable to find canonical local path to specified command: {relative_path:?} are you missing an argument?",
                 ))
             })
 	}
@@ -381,6 +403,34 @@ impl Zombienet {
 		Ok(Binary { name: binary, version: "".into(), path, sources })
 	}
 
+	fn local_parachain(
+		network_config_path: &Path,
+		relative_path: PathBuf,
+	) -> Result<Binary, Error> {
+		let mut sources = Vec::new();
+		// Check if relative path can be resolved from network config
+		if let Err(_) = network_config_path
+			.parent()
+			.expect("network config path already validated")
+			.join(&relative_path)
+			.canonicalize()
+		{
+			sources.push(Source::Local { path: relative_path.clone() })
+		}
+		Ok(Binary {
+			name: relative_path
+				.file_name()
+				.and_then(|f| f.to_str())
+				.ok_or(Error::Config(format!(
+					"unable to determine file name for {relative_path:?}"
+				)))?
+				.to_string(),
+			version: "".into(),
+			path: relative_path,
+			sources,
+		})
+	}
+
 	async fn latest_polkadot_release() -> Result<String, Error> {
 		let repo = GitHub::parse(POLKADOT_SDK)?;
 		match repo.get_latest_releases().await {
@@ -426,6 +476,13 @@ impl Binary {
 		}
 		Ok(())
 	}
+
+	pub fn sources(&self) -> impl Iterator<Item = &Source> {
+		self.sources.iter()
+	}
+	pub fn version(&self) -> &str {
+		&self.version
+	}
 }
 
 /// The source of a binary.
@@ -448,6 +505,11 @@ pub enum Source {
 		package: String,
 		binaries: Vec<String>,
 		version: Option<String>,
+	},
+	/// The source is local.
+	Local {
+		/// The binary path.
+		path: PathBuf,
 	},
 }
 
@@ -556,6 +618,7 @@ impl Source {
 				Self::remove(working_dir)?;
 				Ok(None)
 			},
+			Source::Local { .. } => Ok(None),
 		}
 	}
 
