@@ -196,6 +196,12 @@ Pop provides the latest version out-of-the-box by running:
 pop up contracts-node
 ```
 
+If you want to run any other node with `pallet-contracts` you need to change `CONTRACTS_NODE` environment variable:
+
+```sh
+export CONTRACTS_NODE="YOUR_CONTRACTS_NODE_PATH"
+```
+
 Run e2e testing on the Smart Contract:
 
 ```sh
