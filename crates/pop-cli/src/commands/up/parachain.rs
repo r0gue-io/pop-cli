@@ -124,26 +124,30 @@ impl ZombienetCommand {
 
 				// Source binaries
 				for (_name, binary, _local) in remote {
-					let multi = multi_progress(format!("📦 Sourcing {}...", binary.name));
-					let progress = multi.add(cliclack::spinner());
-					let progress_reporter = ProgressReporter(&progress);
-					for attempt in (0..=1).rev() {
-						if let Err(e) = binary.source(&working_dir, progress_reporter).await {
-							match attempt {
-								0 => {
-									progress.error(format!("🚫 Sourcing failed: {e}"));
-									multi.stop();
-									return Ok(());
-								},
-								_ => {
-									progress.error("🚫 Sourcing attempt failed, retrying...");
-									sleep(Duration::from_secs(1)).await;
-								},
+					match self.verbose {
+						true => {
+							log::info(format!("📦 Sourcing {}...", binary.name))?;
+							if let Err(e) = binary.source(&working_dir, (), self.verbose).await {
+								outro_cancel(format!("🚫 Sourcing failed: {e}"))?;
+								return Ok(());
 							}
-						}
+							log::info(format!("✅ Sourcing {} complete.", binary.name))?;
+						},
+						false => {
+							let multi = multi_progress(format!("📦 Sourcing {}...", binary.name));
+							let progress = multi.add(cliclack::spinner());
+							let progress_reporter = ProgressReporter(&progress);
+							if let Err(e) =
+								binary.source(&working_dir, progress_reporter, self.verbose).await
+							{
+								progress.error(format!("🚫 Sourcing failed: {e}"));
+								multi.stop();
+								return Ok(());
+							}
+							progress.stop(format!("✅ Sourcing {} complete.", binary.name));
+							multi.stop();
+						},
 					}
-					progress.stop(format!("✅ Sourcing {} complete.", binary.name));
-					multi.stop();
 				}
 
 				// Remove working directory once completed successfully

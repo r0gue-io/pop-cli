@@ -525,7 +525,13 @@ impl Binary {
 	///
 	/// * `working_dir` - the working directory to be used
 	/// * `status` - used to observe status updates
-	pub async fn source(&self, working_dir: &Path, status: impl Status) -> Result<(), Error> {
+	/// * `verbose` - whether verbose output is required
+	pub async fn source(
+		&self,
+		working_dir: &Path,
+		status: impl Status,
+		verbose: bool,
+	) -> Result<(), Error> {
 		// Download or clone and build from source
 		match &self.source {
 			Source::Url(url) => {
@@ -540,7 +546,7 @@ impl Binary {
 				status.update(&format!("Cloning {url}..."));
 				Git::clone(url, &working_dir, reference.as_deref())?;
 				// Build binaries
-				self.build(&working_dir, package, &artifacts, status).await?;
+				self.build(&working_dir, package, &artifacts, status, verbose).await?;
 			},
 			Source::None | Source::Artifact | Source::Local(..) => {},
 		}
@@ -553,15 +559,22 @@ impl Binary {
 		package: &str,
 		artifacts: &[(String, PathBuf)],
 		status: impl Status,
+		verbose: bool,
 	) -> Result<(), Error> {
 		// Build binaries and then copy to cache and target
-		let reader = cmd("cargo", vec!["build", "--release", "-p", package])
-			.dir(working_dir)
-			.stderr_to_stdout()
-			.reader()?;
-		let mut output = std::io::BufReader::new(reader).lines();
-		while let Some(line) = output.next() {
-			status.update(&line?);
+		let command = cmd("cargo", vec!["build", "--release", "-p", package]).dir(working_dir);
+		match verbose {
+			false => {
+				let reader = command.stderr_to_stdout().reader()?;
+				let mut output = std::io::BufReader::new(reader).lines();
+				while let Some(line) = output.next() {
+					status.update(&line?);
+				}
+			},
+			true => {
+				status.update("");
+				command.run()?;
+			},
 		}
 		// Copy artifacts required
 		for (name, dest) in artifacts {
@@ -944,7 +957,7 @@ mod tests {
 					.to_string(),
 			));
 		let working_dir = tempfile::tempdir()?;
-		binary.source(&working_dir.path(), ()).await?;
+		binary.source(&working_dir.path(), (), false).await?;
 		assert!(temp_dir.path().join(POLKADOT_BINARY).exists());
 
 		Ok(())
