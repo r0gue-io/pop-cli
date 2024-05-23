@@ -37,8 +37,8 @@ pub struct Zombienet {
 }
 
 impl Zombienet {
-    /// Initialises the configuration for launching a local network.
-    /// # Arguments
+	/// Initialises the configuration for launching a local network.
+	/// # Arguments
 	///
 	/// * `cache` - location, used for caching binaries
 	/// * `network_config` - config file to be used to launch a network.
