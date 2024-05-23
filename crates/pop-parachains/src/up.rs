@@ -378,245 +378,6 @@ impl NetworkConfiguration {
 	}
 }
 
-#[cfg(test)]
-mod network_config_tests {
-	use super::{Binary, Error, NetworkConfiguration, Parachain};
-	use std::fs::create_dir_all;
-	use std::{
-		fs::File,
-		io::{Read, Write},
-		path::PathBuf,
-	};
-	use tempfile::{tempdir, Builder};
-
-	#[test]
-	fn initialising_from_file_fails_when_missing() {
-		assert!(NetworkConfiguration::from(PathBuf::new()).is_err());
-	}
-
-	#[test]
-	fn initialising_from_file_fails_when_malformed() -> Result<(), Error> {
-		let config = Builder::new().suffix(".toml").tempfile()?;
-		writeln!(config.as_file(), "[")?;
-		assert!(matches!(NetworkConfiguration::from(config.path()), Err(Error::TomlError(..))));
-		Ok(())
-	}
-
-	#[test]
-	fn initialising_from_file_fails_when_relaychain_missing() -> Result<(), Error> {
-		let config = Builder::new().suffix(".toml").tempfile()?;
-		assert!(matches!(NetworkConfiguration::from(config.path()), Err(Error::Config(..))));
-		Ok(())
-	}
-
-	#[test]
-	fn initialises_relay_from_file() -> Result<(), Error> {
-		let config = Builder::new().suffix(".toml").tempfile()?;
-		writeln!(
-			config.as_file(),
-			r#"
-				[relaychain]
-				chain = "rococo-local"
-				default_command = "polkadot"
-				[[relaychain.nodes]]
-				name = "alice"
-			"#
-		)?;
-		let network_config = NetworkConfiguration::from(config.path())?;
-		let relay_chain = network_config.relay_chain()?;
-		assert_eq!("rococo-local", relay_chain["chain"].as_str().unwrap());
-		assert_eq!(
-			"polkadot",
-			NetworkConfiguration::default_command(relay_chain).unwrap().as_str().unwrap()
-		);
-		let nodes = NetworkConfiguration::nodes(relay_chain).unwrap();
-		assert_eq!("alice", nodes.get(0).unwrap()["name"].as_str().unwrap());
-		assert!(network_config.parachains().is_none());
-		Ok(())
-	}
-
-	#[test]
-	fn initialises_parachains_from_file() -> Result<(), Error> {
-		let config = Builder::new().suffix(".toml").tempfile()?;
-		writeln!(
-			config.as_file(),
-			r#"
-				[relaychain]
-				chain = "rococo-local"
-				[[parachains]]
-				id = 2000
-				default_command = "node"
-			"#
-		)?;
-		let network_config = NetworkConfiguration::from(config.path())?;
-		let parachains = network_config.parachains().unwrap();
-		let para_2000 = parachains.get(0).unwrap();
-		assert_eq!(2000, para_2000["id"].as_integer().unwrap());
-		assert_eq!(
-			"node",
-			NetworkConfiguration::default_command(para_2000).unwrap().as_str().unwrap()
-		);
-		Ok(())
-	}
-
-	#[test]
-	fn configure_works() -> Result<(), Error> {
-		let config = Builder::new().suffix(".toml").tempfile()?;
-		writeln!(
-			config.as_file(),
-			r#"
-[relaychain]
-chain = "rococo-local"
-
-[[relaychain.nodes]]
-name = "alice"
-command = "polkadot"
-
-[[parachains]]
-id = 1000
-chain = "asset-hub-rococo-local"
-
-[[parachains.collators]]
-name = "asset-hub"
-command = "polkadot-parachain"
-
-[[parachains]]
-id = 2000
-default_command = "pop-node"
-
-[[parachains.collators]]
-name = "pop"
-command = "pop-node"
-
-[[parachains]]
-id = 2001
-default_command = "./target/release/parachain-template-node"
-
-[[parachains.collators]]
-name = "collator"
-command = "./target/release/parachain-template-node"
-"#
-		)?;
-		let mut network_config = NetworkConfiguration::from(config.path())?;
-
-		let relay_chain_binary = Builder::new().tempfile()?;
-		let relay_chain = relay_chain_binary.path();
-		File::create(&relay_chain)?;
-		let system_chain_binary = Builder::new().tempfile()?;
-		let system_chain = system_chain_binary.path();
-		File::create(&system_chain)?;
-		let pop_binary = Builder::new().tempfile()?;
-		let pop = pop_binary.path();
-		File::create(&pop)?;
-		let parachain_template_node = Builder::new().tempfile()?;
-		let parachain_template = parachain_template_node.path();
-		create_dir_all(parachain_template.parent().unwrap())?;
-		File::create(&parachain_template)?;
-
-		let mut configured = network_config.configure(
-			&Binary { path: relay_chain.to_path_buf(), ..Default::default() },
-			&[
-				(
-					1000,
-					Parachain {
-						id: 1000,
-						binary: Binary { path: system_chain.to_path_buf(), ..Default::default() },
-					},
-				),
-				(
-					2000,
-					Parachain {
-						id: 2000,
-						binary: Binary { path: pop.to_path_buf(), ..Default::default() },
-					},
-				),
-				(
-					2001,
-					Parachain {
-						id: 2001,
-						binary: Binary {
-							path: parachain_template.to_path_buf(),
-							..Default::default()
-						},
-					},
-				),
-			]
-			.into(),
-		)?;
-		assert_eq!("toml", configured.path().extension().unwrap());
-
-		let mut contents = String::new();
-		configured.read_to_string(&mut contents)?;
-		println!("{contents}");
-		assert_eq!(
-			contents,
-			format!(
-				r#"
-[relaychain]
-chain = "rococo-local"
-default_command = "{0}"
-
-[[relaychain.nodes]]
-name = "alice"
-command = "{0}"
-
-[[parachains]]
-id = 1000
-chain = "asset-hub-rococo-local"
-default_command = "{1}"
-
-[[parachains.collators]]
-name = "asset-hub"
-command = "{1}"
-
-[[parachains]]
-id = 2000
-default_command = "{2}"
-
-[[parachains.collators]]
-name = "pop"
-command = "{2}"
-
-[[parachains]]
-id = 2001
-default_command = "{3}"
-
-[[parachains.collators]]
-name = "collator"
-command = "{3}"
-
-[settings]
-timeout = 1000
-node_spawn_timeout = 300
-
-"#,
-				relay_chain.canonicalize()?.to_str().unwrap(),
-				system_chain.canonicalize()?.to_str().unwrap(),
-				pop.canonicalize()?.to_str().unwrap(),
-				parachain_template.canonicalize()?.to_str().unwrap()
-			)
-		);
-		Ok(())
-	}
-
-	#[test]
-	fn resolves_path() -> Result<(), Error> {
-		let working_dir = tempdir()?;
-		let path = working_dir.path().join("./target/release/node");
-		assert!(matches!(NetworkConfiguration::resolve_path(&path), Err(Error::Config(message))
-				if message == format!("the canonical path of {:?} could not be resolved", path)
-		));
-
-		create_dir_all(path.parent().unwrap())?;
-		File::create(&path)?;
-		assert_eq!(
-			NetworkConfiguration::resolve_path(&path)?,
-			path.canonicalize()?.to_str().unwrap().to_string()
-		);
-		Ok(())
-	}
-}
-
 /// The configuration required to launch the relay chain.
 #[derive(Debug, PartialEq)]
 struct RelayChain {
@@ -661,86 +422,6 @@ impl RelayChain {
 		});
 
 		RelayChain { binary: Binary { name, version, path, source }, workers }
-	}
-}
-
-#[cfg(test)]
-mod relay_chain_tests {
-	use super::{
-		Binary, Error, GitHub, RelayChain, Source, POLKADOT_DEFAULT_VERSION, POLKADOT_SDK,
-	};
-	use tempfile::tempdir;
-	use url::Url;
-
-	#[test]
-	fn initialises_for_build() -> Result<(), Error> {
-		let version = POLKADOT_DEFAULT_VERSION;
-		let cache = tempdir()?;
-		let binary = RelayChain::BINARY;
-		let source = Source::Git {
-			url: Url::parse(POLKADOT_SDK)?,
-			reference: Some(format!("release-polkadot-{version}")),
-			package: binary.into(),
-			artifacts: RelayChain::WORKERS
-				.iter()
-				.map(|worker| {
-					(worker.to_string(), cache.path().join(format!("{worker}-{version}")))
-				})
-				.collect(),
-		};
-		let workers = RelayChain::WORKERS.map(|worker| {
-			Binary::new(
-				worker,
-				POLKADOT_DEFAULT_VERSION,
-				cache.path().join(format!("{worker}-{version}")),
-				Source::Artifact,
-			)
-		});
-
-		assert_eq!(
-			RelayChain::new(version, cache.path(), false),
-			RelayChain {
-				binary: Binary::new(
-					binary.to_string(),
-					POLKADOT_DEFAULT_VERSION,
-					cache.path().join(format!("{binary}-{version}")),
-					source
-				),
-				workers
-			}
-		);
-		Ok(())
-	}
-
-	#[test]
-	fn initialises_for_download() -> Result<(), Error> {
-		let version = POLKADOT_DEFAULT_VERSION;
-		let cache = tempdir()?;
-		let binary = RelayChain::BINARY;
-		let repo = Url::parse(POLKADOT_SDK)?;
-		let source = Source::Url(GitHub::release(&repo, &format!("polkadot-{version}"), binary));
-		let workers = RelayChain::WORKERS.map(|worker| {
-			Binary::new(
-				worker,
-				POLKADOT_DEFAULT_VERSION,
-				cache.path().join(format!("{worker}-{version}")),
-				Source::Url(GitHub::release(&repo, &format!("polkadot-{version}"), worker)),
-			)
-		});
-
-		assert_eq!(
-			RelayChain::new(version, cache.path(), true),
-			RelayChain {
-				binary: Binary::new(
-					binary,
-					POLKADOT_DEFAULT_VERSION,
-					cache.path().join(format!("{binary}-{version}")),
-					source
-				),
-				workers
-			}
-		);
-		Ok(())
 	}
 }
 
@@ -809,120 +490,6 @@ impl Parachain {
 			}
 		};
 		Parachain { id, binary: Binary::new(name, version, path, source) }
-	}
-}
-
-#[cfg(test)]
-mod parachain_tests {
-	use super::{
-		Binary, Error, GitHub, Parachain, Repository, Source, POLKADOT_DEFAULT_VERSION,
-		POLKADOT_SDK,
-	};
-	use std::path::PathBuf;
-	use tempfile::tempdir;
-	use url::Url;
-
-	#[test]
-	fn initialises_from_git() -> Result<(), Error> {
-		let repo = Repository::parse("https://github.com/r0gue-io/pop-node")?;
-		let cache = tempdir()?;
-		assert_eq!(
-			Parachain::from_git(
-				2000,
-				repo.url.clone(),
-				repo.reference.clone(),
-				repo.package.clone(),
-				cache.path()
-			)?,
-			Parachain {
-				id: 2000,
-				binary: Binary {
-					name: "pop-node".into(),
-					version: String::default(),
-					path: cache.path().join("pop-node"),
-					source: Source::Git {
-						url: repo.url,
-						reference: repo.reference,
-						package: repo.package,
-						artifacts: vec![],
-					},
-				}
-			}
-		);
-		Ok(())
-	}
-
-	#[test]
-	fn initialises_from_local() -> Result<(), Error> {
-		let working_dir = tempdir()?;
-		let command = PathBuf::from("./target/release/node");
-		assert_eq!(
-			Parachain::from_local(2000, &working_dir.path(), command.clone())?,
-			Parachain {
-				id: 2000,
-				binary: Binary {
-					name: "node".into(),
-					version: String::default(),
-					path: working_dir.path().join(&command),
-					source: Source::Local(command),
-				}
-			}
-		);
-		Ok(())
-	}
-
-	#[test]
-	fn initialises_system_parachain_for_build() -> Result<(), Error> {
-		let version = POLKADOT_DEFAULT_VERSION;
-		let cache = tempdir()?;
-		let binary = Parachain::SYSTEM_CHAIN_BINARY;
-		let repo = Url::parse(POLKADOT_SDK)?;
-		assert_eq!(
-			Parachain::system_parachain(1000, version, cache.path(), false),
-			Parachain {
-				id: 1000,
-				binary: Binary {
-					name: binary.into(),
-					version: version.into(),
-					path: cache.path().join(format!("{binary}-{version}")),
-					source: Source::Git {
-						url: repo,
-						reference: Some(format!("release-polkadot-{version}")),
-						package: "polkadot-parachain-bin".into(),
-						artifacts: vec![(
-							binary.into(),
-							cache.path().join(format!("{binary}-{version}"))
-						)],
-					},
-				}
-			}
-		);
-		Ok(())
-	}
-
-	#[test]
-	fn initialises_system_parachain_for_download() -> Result<(), Error> {
-		let version = POLKADOT_DEFAULT_VERSION;
-		let cache = tempdir()?;
-		let binary = Parachain::SYSTEM_CHAIN_BINARY;
-		let repo = Url::parse(POLKADOT_SDK)?;
-		assert_eq!(
-			Parachain::system_parachain(1000, version, cache.path(), true),
-			Parachain {
-				id: 1000,
-				binary: Binary {
-					name: binary.into(),
-					version: version.into(),
-					path: cache.path().join(format!("{binary}-{version}")),
-					source: Source::Url(GitHub::release(
-						&repo,
-						&format!("polkadot-{version}"),
-						binary,
-					),),
-				}
-			}
-		);
-		Ok(())
 	}
 }
 
@@ -1073,45 +640,6 @@ impl Repository {
 		.to_string();
 
 		Ok(Self { url, reference, package })
-	}
-}
-
-#[cfg(test)]
-mod repository_tests {
-	use super::{Error, Repository};
-	use url::Url;
-
-	#[test]
-	fn parsing_full_url_works() {
-		assert_eq!(
-			Repository::parse("https://github.com/org/repository?package#tag").unwrap(),
-			Repository {
-				url: Url::parse("https://github.com/org/repository").unwrap(),
-				reference: Some("tag".into()),
-				package: "package".into(),
-			}
-		);
-	}
-
-	#[test]
-	fn parsing_simple_url_works() {
-		let url = "https://github.com/org/repository";
-		assert_eq!(
-			Repository::parse(url).unwrap(),
-			Repository {
-				url: Url::parse(url).unwrap(),
-				reference: None,
-				package: "repository".into(),
-			}
-		);
-	}
-
-	#[test]
-	fn parsing_invalid_url_returns_error() {
-		assert!(matches!(
-			Repository::parse("github.com/org/repository"),
-			Err(Error::ParseError(..))
-		));
 	}
 }
 
@@ -1465,5 +993,479 @@ mod tests {
 			"#
 		)?;
 		Ok(file_path)
+	}
+
+	mod network_config {
+		use super::{Binary, Error, NetworkConfiguration, Parachain};
+		use std::fs::create_dir_all;
+		use std::{
+			fs::File,
+			io::{Read, Write},
+			path::PathBuf,
+		};
+		use tempfile::{tempdir, Builder};
+
+		#[test]
+		fn initialising_from_file_fails_when_missing() {
+			assert!(NetworkConfiguration::from(PathBuf::new()).is_err());
+		}
+
+		#[test]
+		fn initialising_from_file_fails_when_malformed() -> Result<(), Error> {
+			let config = Builder::new().suffix(".toml").tempfile()?;
+			writeln!(config.as_file(), "[")?;
+			assert!(matches!(NetworkConfiguration::from(config.path()), Err(Error::TomlError(..))));
+			Ok(())
+		}
+
+		#[test]
+		fn initialising_from_file_fails_when_relaychain_missing() -> Result<(), Error> {
+			let config = Builder::new().suffix(".toml").tempfile()?;
+			assert!(matches!(NetworkConfiguration::from(config.path()), Err(Error::Config(..))));
+			Ok(())
+		}
+
+		#[test]
+		fn initialises_relay_from_file() -> Result<(), Error> {
+			let config = Builder::new().suffix(".toml").tempfile()?;
+			writeln!(
+				config.as_file(),
+				r#"
+				[relaychain]
+				chain = "rococo-local"
+				default_command = "polkadot"
+				[[relaychain.nodes]]
+				name = "alice"
+			"#
+			)?;
+			let network_config = NetworkConfiguration::from(config.path())?;
+			let relay_chain = network_config.relay_chain()?;
+			assert_eq!("rococo-local", relay_chain["chain"].as_str().unwrap());
+			assert_eq!(
+				"polkadot",
+				NetworkConfiguration::default_command(relay_chain).unwrap().as_str().unwrap()
+			);
+			let nodes = NetworkConfiguration::nodes(relay_chain).unwrap();
+			assert_eq!("alice", nodes.get(0).unwrap()["name"].as_str().unwrap());
+			assert!(network_config.parachains().is_none());
+			Ok(())
+		}
+
+		#[test]
+		fn initialises_parachains_from_file() -> Result<(), Error> {
+			let config = Builder::new().suffix(".toml").tempfile()?;
+			writeln!(
+				config.as_file(),
+				r#"
+				[relaychain]
+				chain = "rococo-local"
+				[[parachains]]
+				id = 2000
+				default_command = "node"
+			"#
+			)?;
+			let network_config = NetworkConfiguration::from(config.path())?;
+			let parachains = network_config.parachains().unwrap();
+			let para_2000 = parachains.get(0).unwrap();
+			assert_eq!(2000, para_2000["id"].as_integer().unwrap());
+			assert_eq!(
+				"node",
+				NetworkConfiguration::default_command(para_2000).unwrap().as_str().unwrap()
+			);
+			Ok(())
+		}
+
+		#[test]
+		fn configure_works() -> Result<(), Error> {
+			let config = Builder::new().suffix(".toml").tempfile()?;
+			writeln!(
+				config.as_file(),
+				r#"
+[relaychain]
+chain = "rococo-local"
+
+[[relaychain.nodes]]
+name = "alice"
+command = "polkadot"
+
+[[parachains]]
+id = 1000
+chain = "asset-hub-rococo-local"
+
+[[parachains.collators]]
+name = "asset-hub"
+command = "polkadot-parachain"
+
+[[parachains]]
+id = 2000
+default_command = "pop-node"
+
+[[parachains.collators]]
+name = "pop"
+command = "pop-node"
+
+[[parachains]]
+id = 2001
+default_command = "./target/release/parachain-template-node"
+
+[[parachains.collators]]
+name = "collator"
+command = "./target/release/parachain-template-node"
+"#
+			)?;
+			let mut network_config = NetworkConfiguration::from(config.path())?;
+
+			let relay_chain_binary = Builder::new().tempfile()?;
+			let relay_chain = relay_chain_binary.path();
+			File::create(&relay_chain)?;
+			let system_chain_binary = Builder::new().tempfile()?;
+			let system_chain = system_chain_binary.path();
+			File::create(&system_chain)?;
+			let pop_binary = Builder::new().tempfile()?;
+			let pop = pop_binary.path();
+			File::create(&pop)?;
+			let parachain_template_node = Builder::new().tempfile()?;
+			let parachain_template = parachain_template_node.path();
+			create_dir_all(parachain_template.parent().unwrap())?;
+			File::create(&parachain_template)?;
+
+			let mut configured = network_config.configure(
+				&Binary { path: relay_chain.to_path_buf(), ..Default::default() },
+				&[
+					(
+						1000,
+						Parachain {
+							id: 1000,
+							binary: Binary {
+								path: system_chain.to_path_buf(),
+								..Default::default()
+							},
+						},
+					),
+					(
+						2000,
+						Parachain {
+							id: 2000,
+							binary: Binary { path: pop.to_path_buf(), ..Default::default() },
+						},
+					),
+					(
+						2001,
+						Parachain {
+							id: 2001,
+							binary: Binary {
+								path: parachain_template.to_path_buf(),
+								..Default::default()
+							},
+						},
+					),
+				]
+				.into(),
+			)?;
+			assert_eq!("toml", configured.path().extension().unwrap());
+
+			let mut contents = String::new();
+			configured.read_to_string(&mut contents)?;
+			println!("{contents}");
+			assert_eq!(
+				contents,
+				format!(
+					r#"
+[relaychain]
+chain = "rococo-local"
+default_command = "{0}"
+
+[[relaychain.nodes]]
+name = "alice"
+command = "{0}"
+
+[[parachains]]
+id = 1000
+chain = "asset-hub-rococo-local"
+default_command = "{1}"
+
+[[parachains.collators]]
+name = "asset-hub"
+command = "{1}"
+
+[[parachains]]
+id = 2000
+default_command = "{2}"
+
+[[parachains.collators]]
+name = "pop"
+command = "{2}"
+
+[[parachains]]
+id = 2001
+default_command = "{3}"
+
+[[parachains.collators]]
+name = "collator"
+command = "{3}"
+
+[settings]
+timeout = 1000
+node_spawn_timeout = 300
+
+"#,
+					relay_chain.canonicalize()?.to_str().unwrap(),
+					system_chain.canonicalize()?.to_str().unwrap(),
+					pop.canonicalize()?.to_str().unwrap(),
+					parachain_template.canonicalize()?.to_str().unwrap()
+				)
+			);
+			Ok(())
+		}
+
+		#[test]
+		fn resolves_path() -> Result<(), Error> {
+			let working_dir = tempdir()?;
+			let path = working_dir.path().join("./target/release/node");
+			assert!(
+				matches!(NetworkConfiguration::resolve_path(&path), Err(Error::Config(message))
+						if message == format!("the canonical path of {:?} could not be resolved", path)
+				)
+			);
+
+			create_dir_all(path.parent().unwrap())?;
+			File::create(&path)?;
+			assert_eq!(
+				NetworkConfiguration::resolve_path(&path)?,
+				path.canonicalize()?.to_str().unwrap().to_string()
+			);
+			Ok(())
+		}
+	}
+
+	mod relay_chain {
+		use super::{
+			Binary, Error, GitHub, RelayChain, Source, POLKADOT_DEFAULT_VERSION, POLKADOT_SDK,
+		};
+		use tempfile::tempdir;
+		use url::Url;
+
+		#[test]
+		fn initialises_for_build() -> Result<(), Error> {
+			let version = POLKADOT_DEFAULT_VERSION;
+			let cache = tempdir()?;
+			let binary = RelayChain::BINARY;
+			let source = Source::Git {
+				url: Url::parse(POLKADOT_SDK)?,
+				reference: Some(format!("release-polkadot-{version}")),
+				package: binary.into(),
+				artifacts: RelayChain::WORKERS
+					.iter()
+					.map(|worker| {
+						(worker.to_string(), cache.path().join(format!("{worker}-{version}")))
+					})
+					.collect(),
+			};
+			let workers = RelayChain::WORKERS.map(|worker| {
+				Binary::new(
+					worker,
+					POLKADOT_DEFAULT_VERSION,
+					cache.path().join(format!("{worker}-{version}")),
+					Source::Artifact,
+				)
+			});
+
+			assert_eq!(
+				RelayChain::new(version, cache.path(), false),
+				RelayChain {
+					binary: Binary::new(
+						binary.to_string(),
+						POLKADOT_DEFAULT_VERSION,
+						cache.path().join(format!("{binary}-{version}")),
+						source
+					),
+					workers
+				}
+			);
+			Ok(())
+		}
+
+		#[test]
+		fn initialises_for_download() -> Result<(), Error> {
+			let version = POLKADOT_DEFAULT_VERSION;
+			let cache = tempdir()?;
+			let binary = RelayChain::BINARY;
+			let repo = Url::parse(POLKADOT_SDK)?;
+			let source =
+				Source::Url(GitHub::release(&repo, &format!("polkadot-{version}"), binary));
+			let workers = RelayChain::WORKERS.map(|worker| {
+				Binary::new(
+					worker,
+					POLKADOT_DEFAULT_VERSION,
+					cache.path().join(format!("{worker}-{version}")),
+					Source::Url(GitHub::release(&repo, &format!("polkadot-{version}"), worker)),
+				)
+			});
+
+			assert_eq!(
+				RelayChain::new(version, cache.path(), true),
+				RelayChain {
+					binary: Binary::new(
+						binary,
+						POLKADOT_DEFAULT_VERSION,
+						cache.path().join(format!("{binary}-{version}")),
+						source
+					),
+					workers
+				}
+			);
+			Ok(())
+		}
+	}
+
+	mod parachain {
+		use super::{
+			Binary, Error, GitHub, Parachain, Repository, Source, POLKADOT_DEFAULT_VERSION,
+			POLKADOT_SDK,
+		};
+		use std::path::PathBuf;
+		use tempfile::tempdir;
+		use url::Url;
+
+		#[test]
+		fn initialises_from_git() -> Result<(), Error> {
+			let repo = Repository::parse("https://github.com/r0gue-io/pop-node")?;
+			let cache = tempdir()?;
+			assert_eq!(
+				Parachain::from_git(
+					2000,
+					repo.url.clone(),
+					repo.reference.clone(),
+					repo.package.clone(),
+					cache.path()
+				)?,
+				Parachain {
+					id: 2000,
+					binary: Binary {
+						name: "pop-node".into(),
+						version: String::default(),
+						path: cache.path().join("pop-node"),
+						source: Source::Git {
+							url: repo.url,
+							reference: repo.reference,
+							package: repo.package,
+							artifacts: vec![],
+						},
+					}
+				}
+			);
+			Ok(())
+		}
+
+		#[test]
+		fn initialises_from_local() -> Result<(), Error> {
+			let working_dir = tempdir()?;
+			let command = PathBuf::from("./target/release/node");
+			assert_eq!(
+				Parachain::from_local(2000, &working_dir.path(), command.clone())?,
+				Parachain {
+					id: 2000,
+					binary: Binary {
+						name: "node".into(),
+						version: String::default(),
+						path: working_dir.path().join(&command),
+						source: Source::Local(command),
+					}
+				}
+			);
+			Ok(())
+		}
+
+		#[test]
+		fn initialises_system_parachain_for_build() -> Result<(), Error> {
+			let version = POLKADOT_DEFAULT_VERSION;
+			let cache = tempdir()?;
+			let binary = Parachain::SYSTEM_CHAIN_BINARY;
+			let repo = Url::parse(POLKADOT_SDK)?;
+			assert_eq!(
+				Parachain::system_parachain(1000, version, cache.path(), false),
+				Parachain {
+					id: 1000,
+					binary: Binary {
+						name: binary.into(),
+						version: version.into(),
+						path: cache.path().join(format!("{binary}-{version}")),
+						source: Source::Git {
+							url: repo,
+							reference: Some(format!("release-polkadot-{version}")),
+							package: "polkadot-parachain-bin".into(),
+							artifacts: vec![(
+								binary.into(),
+								cache.path().join(format!("{binary}-{version}"))
+							)],
+						},
+					}
+				}
+			);
+			Ok(())
+		}
+
+		#[test]
+		fn initialises_system_parachain_for_download() -> Result<(), Error> {
+			let version = POLKADOT_DEFAULT_VERSION;
+			let cache = tempdir()?;
+			let binary = Parachain::SYSTEM_CHAIN_BINARY;
+			let repo = Url::parse(POLKADOT_SDK)?;
+			assert_eq!(
+				Parachain::system_parachain(1000, version, cache.path(), true),
+				Parachain {
+					id: 1000,
+					binary: Binary {
+						name: binary.into(),
+						version: version.into(),
+						path: cache.path().join(format!("{binary}-{version}")),
+						source: Source::Url(GitHub::release(
+							&repo,
+							&format!("polkadot-{version}"),
+							binary,
+						),),
+					}
+				}
+			);
+			Ok(())
+		}
+	}
+
+	mod repository {
+		use super::{Error, Repository};
+		use url::Url;
+
+		#[test]
+		fn parsing_full_url_works() {
+			assert_eq!(
+				Repository::parse("https://github.com/org/repository?package#tag").unwrap(),
+				Repository {
+					url: Url::parse("https://github.com/org/repository").unwrap(),
+					reference: Some("tag".into()),
+					package: "package".into(),
+				}
+			);
+		}
+
+		#[test]
+		fn parsing_simple_url_works() {
+			let url = "https://github.com/org/repository";
+			assert_eq!(
+				Repository::parse(url).unwrap(),
+				Repository {
+					url: Url::parse(url).unwrap(),
+					reference: None,
+					package: "repository".into(),
+				}
+			);
+		}
+
+		#[test]
+		fn parsing_invalid_url_returns_error() {
+			assert!(matches!(
+				Repository::parse("github.com/org/repository"),
+				Err(Error::ParseError(..))
+			));
+		}
 	}
 }
