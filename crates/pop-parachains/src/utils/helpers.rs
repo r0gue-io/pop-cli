@@ -24,6 +24,11 @@ pub(crate) fn sanitize(target: &Path) -> Result<(), Error> {
 	Ok(())
 }
 
+/// Check if the initial endowment input by the user is a valid balance.
+///
+/// # Arguments
+///
+/// * `initial_endowment` - initial endowment amount to be checked for validity.
 pub fn is_initial_endowment_valid(initial_endowment: &str) -> bool {
 	initial_endowment.parse::<u128>().is_ok()
 		|| is_valid_bitwise_left_shift(initial_endowment).is_ok()

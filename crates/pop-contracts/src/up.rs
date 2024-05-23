@@ -14,6 +14,7 @@ use std::path::PathBuf;
 use subxt::PolkadotConfig as DefaultConfig;
 use subxt_signer::sr25519::Keypair;
 
+/// Attributes for the `up` command
 pub struct UpOpts {
 	/// Path to the contract build folder.
 	pub path: Option<PathBuf>,
@@ -35,6 +36,13 @@ pub struct UpOpts {
 	/// Secret key URI for the account deploying the contract.
 	pub suri: String,
 }
+
+/// Prepare `InstantiateExec` data to upload and instantiate a contract.
+///
+/// # Arguments
+///
+/// * `up_opts` - attributes for the `up` command.
+///
 pub async fn set_up_deployment(
 	up_opts: UpOpts,
 ) -> anyhow::Result<InstantiateExec<DefaultConfig, DefaultEnvironment, Keypair>> {
@@ -64,6 +72,12 @@ pub async fn set_up_deployment(
 	return Ok(instantiate_exec);
 }
 
+/// Estimate the gas required for instantiating a contract without modifying the state of the blockchain.
+///
+/// # Arguments
+///
+/// * `instantiate_exec` - the preprocessed data to instantiate a contract.
+///
 pub async fn dry_run_gas_estimate_instantiate(
 	instantiate_exec: &InstantiateExec<DefaultConfig, DefaultEnvironment, Keypair>,
 ) -> anyhow::Result<Weight> {
@@ -89,6 +103,13 @@ pub async fn dry_run_gas_estimate_instantiate(
 	}
 }
 
+/// Instantiate a contract.
+///
+/// # Arguments
+///
+/// * `instantiate_exec` - the preprocessed data to instantiate a contract.
+/// * `gas_limit` - maximum amount of gas to be used for this call.
+///
 pub async fn instantiate_smart_contract(
 	instantiate_exec: InstantiateExec<DefaultConfig, DefaultEnvironment, Keypair>,
 	gas_limit: Weight,
