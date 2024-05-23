@@ -85,7 +85,7 @@ pub enum Template {
 		props(
 			Provider = "Pop",
 			Repository = "https://github.com/r0gue-io/base-parachain",
-			Network = "./network.toml"
+			Network = "./network.toml",
 		)
 	)]
 	Standard,
@@ -96,7 +96,7 @@ pub enum Template {
 		props(
 			Provider = "Pop",
 			Repository = "https://github.com/r0gue-io/assets-parachain",
-			Network = "./network.toml"
+			Network = "./network.toml",
 		)
 	)]
 	Assets,
@@ -107,7 +107,7 @@ pub enum Template {
 		props(
 			Provider = "Pop",
 			Repository = "https://github.com/r0gue-io/contracts-parachain",
-			Network = "./network.toml"
+			Network = "./network.toml",
 		)
 	)]
 	Contracts,
@@ -118,7 +118,7 @@ pub enum Template {
 		props(
 			Provider = "Pop",
 			Repository = "https://github.com/r0gue-io/evm-parachain",
-			Network = "./network.toml"
+			Network = "./network.toml",
 		)
 	)]
 	EVM,
@@ -130,7 +130,7 @@ pub enum Template {
 		props(
 			Provider = "Parity",
 			Repository = "https://github.com/paritytech/substrate-contracts-node",
-			Network = "./zombienet.toml"
+			Network = "./zombienet.toml",
 		)
 	)]
 	ParityContracts,
@@ -141,10 +141,33 @@ pub enum Template {
 		props(
 			Provider = "Parity",
 			Repository = "https://github.com/paritytech/frontier-parachain-template",
-			Network = "./zombienet-config.toml"
+			Network = "./zombienet-config.toml",
 		)
 	)]
 	ParityFPT,
+
+	// templates for unit tests below
+	#[cfg(test)]
+	#[strum(
+		serialize = "test_01",
+		message = "Test_01",
+		detailed_message = "Test template only compiled in test mode.",
+		props(
+			Provider = "Test",
+			Repository = "",
+			Network = "",
+			SupportedVersions = "v1.0.0,v2.0.0"
+		)
+	)]
+	TestTemplate01,
+	#[cfg(test)]
+	#[strum(
+		serialize = "test_02",
+		message = "Test_02",
+		detailed_message = "Test template only compiled in test mode.",
+		props(Provider = "Test", Repository = "", Network = "",)
+	)]
+	TestTemplate02,
 }
 
 impl Template {
@@ -171,6 +194,15 @@ impl Template {
 	/// Returns the relative path to the default network configuration file to be used, if defined.
 	pub fn network_config(&self) -> Option<&str> {
 		self.get_str("Network")
+	}
+
+	pub fn supported_versions(&self) -> Option<Vec<&str>> {
+		self.get_str("SupportedVersions").map(|s| s.split(',').collect())
+	}
+
+	pub fn is_supported_version(&self, version: &str) -> bool {
+		// if `SupportedVersion` is None, then all versions are supported. Otherwise, ensure version is present.
+		self.supported_versions().map_or(true, |versions| versions.contains(&version))
 	}
 }
 
@@ -295,5 +327,30 @@ mod tests {
 		assert_eq!(Provider::from_str("Pop").unwrap(), Provider::Pop);
 		assert_eq!(Provider::from_str("").unwrap_or_default(), Provider::Pop);
 		assert_eq!(Provider::from_str("Parity").unwrap(), Provider::Parity);
+	}
+
+	#[test]
+	fn supported_versions_have_no_whitespace() {
+		for template in Template::VARIANTS {
+			if let Some(versions) = template.supported_versions() {
+				for version in versions {
+					assert!(!version.contains(' '));
+				}
+			}
+		}
+	}
+
+	#[test]
+	fn test_supported_versions_works() {
+		let template = Template::TestTemplate01;
+		assert_eq!(template.supported_versions(), Some(vec!["v1.0.0", "v2.0.0"]));
+		assert_eq!(template.is_supported_version("v1.0.0"), true);
+		assert_eq!(template.is_supported_version("v2.0.0"), true);
+		assert_eq!(template.is_supported_version("v3.0.0"), false);
+
+		let template = Template::TestTemplate02;
+		assert_eq!(template.supported_versions(), None);
+		// will be true because an empty SupportedVersions defaults to all
+		assert_eq!(template.is_supported_version("v1.0.0"), true);
 	}
 }

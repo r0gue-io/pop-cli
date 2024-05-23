@@ -130,9 +130,7 @@ async fn guide_user_to_generate_parachain() -> Result<NewParachainCommand> {
 	let provider = prompt.interact()?;
 	let template = display_select_options(provider)?;
 
-	let url = url::Url::parse(&template.repository_url()?).expect("valid repository url");
-
-	let release_name = choose_release(url).await?;
+	let release_name = choose_release(template).await?;
 
 	let name: String = input("Where should your project be created?")
 		.placeholder("./my-parachain")
@@ -289,14 +287,26 @@ fn check_destination_path(name_template: &String) -> Result<&Path> {
 /// Otherwise, the default release is used.
 ///
 /// return: `Option<String>` - The release name selected by the user or None if no releases found.
-async fn choose_release(url: url::Url) -> Result<Option<String>> {
-	// Get only the latest 3 releases
-	let latest_3_releases: Vec<Release> = get_latest_3_releases(url).await?;
+async fn choose_release(template: &Template) -> Result<Option<String>> {
+	let url = url::Url::parse(&template.repository_url()?).expect("valid repository url");
+	// Get only the latest 3 releases that are supported by the template (default is all)
+	let latest_3_releases: Vec<Release> = get_latest_3_releases(url)
+		.await?
+		.into_iter()
+		.filter(|r| template.is_supported_version(&r.tag_name))
+		.collect();
 
 	let mut release_name = None;
 	if latest_3_releases.len() > 0 {
 		release_name = Some(display_release_versions_to_user(latest_3_releases)?);
 	} else {
+		// If supported_versions exists and no other releases are found,
+		// then the default branch is not supported and an error is returned
+		let _ = template.supported_versions().is_some()
+			&& Err(anyhow::anyhow!(
+				"No supported versions found for this template. Please open an issue here: https://github.com/r0gue-io/pop-cli/issues "
+			))?;
+
 		warning("No releases found for this template. Will use the default branch")?;
 	}
 
