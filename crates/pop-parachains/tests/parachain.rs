@@ -42,9 +42,9 @@ async fn test_process_git() -> Result<()> {
 		url: repo.into(),
 		reference: Some(format!("release-polkadot-{version}")),
 		package: "polkadot".to_string(),
-		artifacts: ["polkadot-execute-worker", "polkadot-prepare-worker"]
+		artifacts: ["polkadot", "polkadot-execute-worker", "polkadot-prepare-worker"]
 			.iter()
-			.map(|worker| (worker.to_string(), cache.join(format!("{worker}-{version}"))))
+			.map(|a| (a.to_string(), cache.join(format!("{a}-{version}"))))
 			.collect(),
 	};
 	let binary =

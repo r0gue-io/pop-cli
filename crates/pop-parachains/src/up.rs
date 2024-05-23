@@ -9,6 +9,7 @@ use std::{
 	fmt::Debug,
 	fs::{copy, metadata, write, File},
 	io::{BufRead, Write},
+	iter::once,
 	os::unix::fs::PermissionsExt,
 	path::{Path, PathBuf},
 };
@@ -405,9 +406,10 @@ impl RelayChain {
 				url: repo.clone(),
 				reference: Some(format!("release-polkadot-{version}")),
 				package: name.clone(),
-				artifacts: Self::WORKERS
-					.iter()
-					.map(|worker| (worker.to_string(), cache.join(&format!("{worker}-{version}"))))
+				artifacts: once((name.clone(), path.clone()))
+					.chain(Self::WORKERS.iter().map(|worker| {
+						(worker.to_string(), cache.join(&format!("{worker}-{version}")))
+					}))
 					.collect(),
 			},
 		};
@@ -449,7 +451,7 @@ impl Parachain {
 			url: repo.clone(),
 			reference: reference.clone(),
 			package: package.clone(),
-			artifacts: Vec::default(),
+			artifacts: vec![(package.clone(), path.clone())],
 		};
 		Ok(Parachain { id, binary: Binary::new(package, String::default(), path, source) })
 	}
@@ -558,11 +560,10 @@ impl Binary {
 			.stderr_to_stdout()
 			.reader()?;
 		let mut output = std::io::BufReader::new(reader).lines();
-		while let Some(Ok(line)) = output.next() {
-			status.update(&line);
+		while let Some(line) = output.next() {
+			status.update(&line?);
 		}
-		// Copy package to destination path, along with any additional artifacts required
-		copy(working_dir.join(format!("target/release/{package}")), &self.path)?;
+		// Copy artifacts required
 		for (name, dest) in artifacts {
 			copy(working_dir.join(format!("target/release/{name}")), dest)?;
 		}
@@ -1242,6 +1243,7 @@ node_spawn_timeout = 300
 		use super::{
 			Binary, Error, GitHub, RelayChain, Source, POLKADOT_DEFAULT_VERSION, POLKADOT_SDK,
 		};
+		use std::iter::once;
 		use tempfile::tempdir;
 		use url::Url;
 
@@ -1254,12 +1256,14 @@ node_spawn_timeout = 300
 				url: Url::parse(POLKADOT_SDK)?,
 				reference: Some(format!("release-polkadot-{version}")),
 				package: binary.into(),
-				artifacts: RelayChain::WORKERS
-					.iter()
-					.map(|worker| {
-						(worker.to_string(), cache.path().join(format!("{worker}-{version}")))
-					})
-					.collect(),
+				artifacts: once((
+					binary.to_string(),
+					cache.path().join(format!("{binary}-{version}")),
+				))
+				.chain(RelayChain::WORKERS.iter().map(|worker| {
+					(worker.to_string(), cache.path().join(format!("{worker}-{version}")))
+				}))
+				.collect(),
 			};
 			let workers = RelayChain::WORKERS.map(|worker| {
 				Binary::new(
@@ -1349,7 +1353,10 @@ node_spawn_timeout = 300
 							url: repo.url,
 							reference: repo.reference,
 							package: repo.package,
-							artifacts: vec![],
+							artifacts: vec![(
+								"pop-node".to_string(),
+								cache.path().join("pop-node")
+							)],
 						},
 					}
 				}
