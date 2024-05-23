@@ -11,8 +11,8 @@ const POLKADOT_SDK: &str = "https://github.com/paritytech/polkadot-sdk";
 
 #[tokio::test]
 async fn test_spawn_polkadot_and_two_parachains() -> Result<()> {
-	let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
-	let cache = PathBuf::from(temp_dir.path());
+	let temp_dir = tempfile::tempdir()?;
+	let cache = temp_dir.path().to_path_buf();
 
 	let mut zombienet = Zombienet::new(
 		cache.clone(),
@@ -22,9 +22,10 @@ async fn test_spawn_polkadot_and_two_parachains() -> Result<()> {
 		Some(&vec!["https://github.com/r0gue-io/pop-node".to_string()]),
 	)
 	.await?;
-	let missing_binaries = zombienet.missing_binaries();
-	for binary in missing_binaries {
-		binary.source(&cache, ()).await?;
+
+	let working_dir = cache.join(".src");
+	for binary in zombienet.missing_binaries() {
+		binary.source(&working_dir, ()).await?;
 	}
 
 	zombienet.spawn().await?;
