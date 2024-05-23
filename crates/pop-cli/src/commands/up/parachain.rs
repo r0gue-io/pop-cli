@@ -6,6 +6,7 @@ use cliclack::{
 	clear_screen, confirm, intro, log, multi_progress, outro, outro_cancel, set_theme, ProgressBar,
 };
 use console::{Emoji, Style};
+use duct::cmd;
 use pop_parachains::{NetworkNode, Status, Zombienet};
 use std::time::Duration;
 use tokio::time::sleep;
@@ -26,6 +27,9 @@ pub(crate) struct ZombienetCommand {
 	/// The url of the git repository of a parachain to be used, with branch/release tag specified as #fragment (e.g. 'https://github.com/org/repository#tag'). A specific binary name can also be optionally specified via query string parameter (e.g. 'https://github.com/org/repository?binaryname#tag'), defaulting to the name of the repository when not specified.
 	#[arg(short, long)]
 	parachain: Option<Vec<String>>,
+	/// The command to run after the network has been launched.
+	#[clap(name = "cmd", short = 'c', long)]
+	command: Option<String>,
 	/// Whether the output should be verbose.
 	#[arg(short, long, action)]
 	verbose: bool,
@@ -138,6 +142,10 @@ impl ZombienetCommand {
 					}
 				}
 
+				if let Some(command) = &self.command {
+					run_custom_command(&spinner, command).await?;
+				}
+
 				spinner.stop(result);
 				tokio::signal::ctrl_c().await?;
 				outro("Done")?;
@@ -151,6 +159,25 @@ impl ZombienetCommand {
 	}
 }
 
+pub(crate) async fn run_custom_command(
+	spinner: &ProgressBar,
+	command: &str,
+) -> Result<(), anyhow::Error> {
+	spinner.set_message(format!("Spinning up network & running command: {}", command.to_string()));
+	sleep(Duration::from_secs(15)).await;
+
+	// Split the command into the base command and arguments
+	let mut parts = command.split_whitespace();
+	let base_command = parts.next().expect("Command cannot be empty");
+	let args: Vec<&str> = parts.collect();
+
+	cmd(base_command, &args)
+		.run()
+		.map_err(|e| anyhow::Error::new(e).context("Error running the command."))?;
+
+	Ok(())
+}
+
 /// Reports any observed status updates to a progress bar.
 #[derive(Copy, Clone)]
 struct ProgressReporter<'a>(&'a ProgressBar);
@@ -158,5 +185,24 @@ struct ProgressReporter<'a>(&'a ProgressBar);
 impl Status for ProgressReporter<'_> {
 	fn update(&self, status: &str) {
 		self.0.start(status.replace("   Compiling", "Compiling"))
+	}
+}
+
+// Write a test for run_custom_command
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[tokio::test]
+	async fn test_run_custom_command() -> Result<(), anyhow::Error> {
+		let spinner = ProgressBar::new(1);
+
+		// Define the command to be executed
+		let command = "echo 2 + 2";
+
+		// Call the run_custom_command function
+		run_custom_command(&spinner, command).await?;
+
+		Ok(())
 	}
 }
