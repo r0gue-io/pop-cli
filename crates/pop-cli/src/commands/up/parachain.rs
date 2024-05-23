@@ -126,8 +126,11 @@ impl ZombienetCommand {
 				for (_name, binary, _local) in remote {
 					match self.verbose {
 						true => {
+							let log_reporter = LogReporter;
 							log::info(format!("📦 Sourcing {}...", binary.name))?;
-							if let Err(e) = binary.source(&working_dir, (), self.verbose).await {
+							if let Err(e) =
+								binary.source(&working_dir, log_reporter, self.verbose).await
+							{
 								outro_cancel(format!("🚫 Sourcing failed: {e}"))?;
 								return Ok(());
 							}
@@ -260,6 +263,18 @@ struct ProgressReporter<'a>(&'a ProgressBar);
 impl Status for ProgressReporter<'_> {
 	fn update(&self, status: &str) {
 		self.0.start(status.replace("   Compiling", "Compiling"))
+	}
+}
+
+/// Reports any observed status updates as info messages.
+#[derive(Copy, Clone)]
+struct LogReporter;
+
+impl Status for LogReporter {
+	fn update(&self, status: &str) {
+		if let Err(e) = log::info(status) {
+			println!("An error occurred logging the status message of '{status}': {e}")
+		}
 	}
 }
 
