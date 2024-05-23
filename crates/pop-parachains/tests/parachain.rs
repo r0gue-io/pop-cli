@@ -25,7 +25,7 @@ async fn test_spawn_polkadot_and_two_parachains() -> Result<()> {
 
 	let working_dir = cache.join(".src");
 	for binary in zombienet.missing_binaries() {
-		binary.source(&working_dir, ()).await?;
+		binary.source(&working_dir, (), true).await?;
 	}
 
 	zombienet.spawn().await?;
@@ -50,7 +50,7 @@ async fn test_process_git() -> Result<()> {
 	};
 	let binary =
 		Binary::new("polkadot", version, cache.join(format!("polkadot-{version}")), source);
-	binary.source(&cache, ()).await?;
+	binary.source(&cache, (), true).await?;
 	assert!(temp_dir.path().join(POLKADOT_BINARY).exists());
 
 	Ok(())
