@@ -7,7 +7,7 @@ use duct::cmd;
 use indexmap::IndexMap;
 use std::{
 	fmt::Debug,
-	fs::{copy, metadata, remove_dir_all, write, File},
+	fs::{copy, metadata, write, File},
 	io::{BufRead, Write},
 	os::unix::fs::PermissionsExt,
 	path::{Path, PathBuf},
@@ -969,23 +969,9 @@ impl Binary {
 				let repository_name = GitHub::name(url)?;
 				let working_dir = working_dir.join(repository_name);
 				status.update(&format!("Cloning {url}..."));
-				if let Err(e) = Git::clone(url, &working_dir, reference.as_deref()) {
-					if working_dir.exists() {
-						// Preserve original error
-						let _ = Self::remove(&working_dir);
-					}
-					return Err(e.into());
-				}
-
-				// Build binaries and finally remove working directory
-				if let Err(e) = self.build(&working_dir, package, &artifacts, status).await {
-					if working_dir.exists() {
-						// Preserve original error
-						let _ = Self::remove(&working_dir);
-					}
-					return Err(e.into());
-				}
-				Self::remove(&working_dir)?;
+				Git::clone(url, &working_dir, reference.as_deref())?;
+				// Build binaries
+				self.build(&working_dir, package, &artifacts, status).await?;
 			},
 			Source::None | Source::Artifact | Source::Local(..) => {},
 		}
@@ -1025,17 +1011,6 @@ impl Binary {
 		let mut perms = metadata(dest)?.permissions();
 		perms.set_mode(0o755);
 		std::fs::set_permissions(dest, perms)?;
-		Ok(())
-	}
-
-	fn remove(path: &Path) -> Result<(), Error> {
-		remove_dir_all(path)?;
-		if let Some(source) = path.parent() {
-			if source.exists() && source.read_dir().map(|mut i| i.next().is_none()).unwrap_or(false)
-			{
-				remove_dir_all(source)?;
-			}
-		}
 		Ok(())
 	}
 

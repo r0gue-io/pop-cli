@@ -8,7 +8,7 @@ use cliclack::{
 use console::{Emoji, Style};
 use duct::cmd;
 use pop_parachains::{Error, NetworkNode, Source, Status, Zombienet};
-use std::time::Duration;
+use std::{fs::remove_dir_all, time::Duration};
 use tokio::time::sleep;
 
 #[derive(Args)]
@@ -111,8 +111,18 @@ impl ZombienetCommand {
 					return Ok(());
 				}
 
-				// Source binaries
+				// Check for pre-existing working directory
 				let working_dir = cache.join(".src");
+				if working_dir.exists() && confirm(
+					"📦 A previous working directory has been detected. Would you like to remove it now?",
+				)
+					.initial_value(true)
+					.interact()? {
+					remove_dir_all(&working_dir)?;
+				}
+				console::Term::stderr().clear_last_lines(3)?;
+
+				// Source binaries
 				for (_name, binary, _local) in remote {
 					let multi = multi_progress(format!("📦 Sourcing {}...", binary.name));
 					let progress = multi.add(cliclack::spinner());
@@ -135,6 +145,9 @@ impl ZombienetCommand {
 					progress.stop(format!("✅ Sourcing {} complete.", binary.name));
 					multi.stop();
 				}
+
+				// Remove working directory once completed successfully
+				remove_dir_all(working_dir)?
 			}
 
 			// Check for any local binaries which need to be built manually
