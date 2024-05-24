@@ -7,24 +7,25 @@ use cliclack::{
 };
 use console::{Emoji, Style};
 use duct::cmd;
-use pop_parachains::{NetworkNode, Status, Zombienet};
-use std::time::Duration;
+use pop_parachains::{Error, NetworkNode, Source, Status, Zombienet};
+use std::{fs::remove_dir_all, time::Duration};
 use tokio::time::sleep;
 
 #[derive(Args)]
 pub(crate) struct ZombienetCommand {
-	/// The Zombienet configuration file to be used.
+	/// The Zombienet network configuration file to be used.
 	#[arg(short, long)]
 	file: String,
 	/// The version of Polkadot to be used for the relay chain, as per the release tag (e.g.
-	/// "v1.7.0").
+	/// "v1.11.0").
 	#[arg(short, long)]
 	relay_chain: Option<String>,
 	/// The version of Polkadot to be used for a system parachain, as per the release tag (e.g.
-	/// "v1.7.0").
+	/// "v1.11.0"). Defaults to the relay chain version if not specified.
 	#[arg(short, long)]
 	system_parachain: Option<String>,
-	/// The url of the git repository of a parachain to be used, with branch/release tag specified as #fragment (e.g. 'https://github.com/org/repository#tag'). A specific binary name can also be optionally specified via query string parameter (e.g. 'https://github.com/org/repository?binaryname#tag'), defaulting to the name of the repository when not specified.
+	/// The url of the git repository of a parachain to be used, with branch/release tag specified as #fragment (e.g. 'https://github.com/org/repository#tag').
+	/// A specific binary name can also be optionally specified via query string parameter (e.g. 'https://github.com/org/repository?binaryname#tag'), defaulting to the name of the repository when not specified.
 	#[arg(short, long)]
 	parachain: Option<Vec<String>>,
 	/// The command to run after the network has been launched.
@@ -37,58 +38,135 @@ pub(crate) struct ZombienetCommand {
 impl ZombienetCommand {
 	pub(crate) async fn execute(&self) -> anyhow::Result<()> {
 		clear_screen()?;
-		intro(format!("{}: Deploy a parachain", style(" Pop CLI ").black().on_magenta()))?;
+		intro(format!("{}: Launch a local network", style(" Pop CLI ").black().on_magenta()))?;
 		set_theme(Theme);
 
 		// Parse arguments
 		let cache = crate::cache()?;
-		let mut zombienet = Zombienet::new(
+		let mut zombienet = match Zombienet::new(
 			cache.clone(),
 			&self.file,
 			self.relay_chain.as_ref(),
 			self.system_parachain.as_ref(),
 			self.parachain.as_ref(),
 		)
-		.await?;
-		// Check if any binaries need to be sourced
-		let missing = zombienet.missing_binaries();
+		.await
+		{
+			Ok(n) => n,
+			Err(e) => {
+				return match e {
+					Error::MissingBinary(name) => {
+						outro_cancel(format!("🚫 The `{name}` binary is specified in the network configuration file, but cannot be resolved to a source. Are you missing a `--parachain` argument?"))?;
+						Ok(())
+					},
+					_ => Err(e.into()),
+				}
+			},
+		};
+
+		// Check if any missing binaries
+		let missing: Vec<_> = zombienet
+			.missing_binaries()
+			.into_iter()
+			.filter_map(|b| match &b.source {
+				Source::Local { .. } => Some((b.name.as_str(), b, true)),
+				Source::Url { .. } | Source::Git { .. } => Some((b.name.as_str(), b, false)),
+				Source::None | Source::Artifact => None,
+			})
+			.collect();
 		if missing.len() > 0 {
-			log::warning(format!(
-				"⚠️ The following missing binaries are required: {}",
-				missing.iter().map(|b| b.name.as_str()).collect::<Vec<_>>().join(", ")
-			))?;
-			if !confirm("📦 Would you like to source them automatically now?")
+			let list = style(format!(
+				"> {}",
+				missing.iter().map(|(item, _, _)| *item).collect::<Vec<_>>().join(", ")
+			))
+			.dim()
+			.to_string();
+			log::warning(format!("⚠️ The following binaries specified in the network configuration file cannot be found locally:\n   {list}"))?;
+
+			// Prompt for automatic sourcing of remote binaries
+			let remote: Vec<_> = missing.iter().filter(|(_, _, local)| !local).collect();
+			if remote.len() > 0 {
+				let list = style(format!(
+					"> {}",
+					remote
+						.iter()
+						.map(|(item, binary, _)| format!("{item} {}", binary.version()))
+						.collect::<Vec<_>>()
+						.join(", ")
+				))
+				.dim()
+				.to_string();
+				if !confirm(format!(
+					"📦 Would you like to source the following automatically now?. It may take some time...\n   {list}\n   {}",
+					format!(
+						"ℹ️ These binaries will be cached at {}",
+						&cache.to_str().expect("expected local cache is invalid")
+					)))
 				.initial_value(true)
 				.interact()?
-			{
-				outro_cancel("🚫 Cannot deploy parachain to local network until all required binaries are available.")?;
-				return Ok(());
-			}
-			log::info(format!("ℹ️ They will be cached at {}", &cache.to_str().unwrap()))?;
-			// Source binaries
-			for binary in missing {
-				let multi = multi_progress(format!("📦 Sourcing {}...", binary.name));
-				let progress = multi.add(cliclack::spinner());
-				let progress_reporter = ProgressReporter(&progress);
-				for attempt in (0..=1).rev() {
-					if let Err(e) = binary.source(&cache, progress_reporter).await {
-						match attempt {
-							0 => {
+				{
+					outro_cancel(
+						"🚫 Cannot launch the specified network until all required binaries are available.",
+					)?;
+					return Ok(());
+				}
+
+				// Check for pre-existing working directory
+				let working_dir = cache.join(".src");
+				if working_dir.exists() && confirm(
+					"📦 A previous working directory has been detected. Would you like to remove it now?",
+				)
+					.initial_value(true)
+					.interact()? {
+					remove_dir_all(&working_dir)?;
+				}
+				console::Term::stderr().clear_last_lines(3)?;
+
+				// Source binaries
+				for (_name, binary, _local) in remote {
+					match self.verbose {
+						true => {
+							let log_reporter = LogReporter;
+							log::info(format!("📦 Sourcing {}...", binary.name))?;
+							if let Err(e) =
+								binary.source(&working_dir, log_reporter, self.verbose).await
+							{
+								outro_cancel(format!("🚫 Sourcing failed: {e}"))?;
+								return Ok(());
+							}
+							log::info(format!("✅ Sourcing {} complete.", binary.name))?;
+						},
+						false => {
+							let multi = multi_progress(format!("📦 Sourcing {}...", binary.name));
+							let progress = multi.add(cliclack::spinner());
+							let progress_reporter = ProgressReporter(&progress);
+							if let Err(e) =
+								binary.source(&working_dir, progress_reporter, self.verbose).await
+							{
 								progress.error(format!("🚫 Sourcing failed: {e}"));
 								multi.stop();
 								return Ok(());
-							},
-							_ => {
-								progress.error("🚫 Sourcing attempt failed, retrying...");
-								sleep(Duration::from_secs(1)).await;
-							},
-						}
+							}
+							progress.stop(format!("✅ Sourcing {} complete.", binary.name));
+							multi.stop();
+						},
 					}
 				}
-				progress.stop(format!("✅ Sourcing {} complete.", binary.name));
-				multi.stop();
+
+				// Remove working directory once completed successfully
+				remove_dir_all(working_dir)?
+			}
+
+			// Check for any local binaries which need to be built manually
+			let local: Vec<_> = missing.iter().filter(|(_, _, local)| *local).collect();
+			if local.len() > 0 {
+				outro_cancel(
+					"🚫 Please manually build the missing binaries at the paths specified and try again.",
+				)?;
+				return Ok(());
 			}
 		}
+
 		// Finally spawn network and wait for signal to terminate
 		let spinner = cliclack::spinner();
 		spinner.start("🚀 Launching local network...");
@@ -151,7 +229,7 @@ impl ZombienetCommand {
 				outro("Done")?;
 			},
 			Err(e) => {
-				outro_cancel(format!("Could not spawn network: {e}"))?;
+				outro_cancel(format!("🚫 Could not launch local network: {e}"))?;
 			},
 		}
 
@@ -185,6 +263,18 @@ struct ProgressReporter<'a>(&'a ProgressBar);
 impl Status for ProgressReporter<'_> {
 	fn update(&self, status: &str) {
 		self.0.start(status.replace("   Compiling", "Compiling"))
+	}
+}
+
+/// Reports any observed status updates as info messages.
+#[derive(Copy, Clone)]
+struct LogReporter;
+
+impl Status for LogReporter {
+	fn update(&self, status: &str) {
+		if let Err(e) = log::info(status) {
+			println!("An error occurred logging the status message of '{status}': {e}")
+		}
 	}
 }
 

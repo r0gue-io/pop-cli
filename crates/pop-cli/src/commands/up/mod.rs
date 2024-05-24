@@ -19,7 +19,7 @@ pub(crate) struct UpArgs {
 #[derive(Subcommand)]
 pub(crate) enum UpCommands {
 	#[cfg(feature = "parachain")]
-	/// Deploy a parachain to a local network.
+	/// Launch a local network.
 	#[clap(alias = "p")]
 	Parachain(parachain::ZombienetCommand),
 	#[cfg(feature = "contract")]
