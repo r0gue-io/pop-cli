@@ -55,4 +55,7 @@ pub enum Error {
 
 	#[error("Failed to parse the endowment value")]
 	EndowmentError,
+
+	#[error("Unsupported platform: {arch} {os}")]
+	UnsupportedPlatform { arch: &'static str, os: &'static str },
 }

@@ -70,7 +70,9 @@ impl ZombienetCommand {
 			.into_iter()
 			.filter_map(|b| match &b.source {
 				Source::Local { .. } => Some((b.name.as_str(), b, true)),
-				Source::Url { .. } | Source::Git { .. } => Some((b.name.as_str(), b, false)),
+				Source::Archive { .. } | Source::Git { .. } | Source::Url(..) => {
+					Some((b.name.as_str(), b, false))
+				},
 				Source::None | Source::Artifact => None,
 			})
 			.collect();
@@ -154,7 +156,9 @@ impl ZombienetCommand {
 				}
 
 				// Remove working directory once completed successfully
-				remove_dir_all(working_dir)?
+				if working_dir.exists() {
+					remove_dir_all(working_dir)?
+				}
 			}
 
 			// Check for any local binaries which need to be built manually

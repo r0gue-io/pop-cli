@@ -7,22 +7,23 @@ use duct::cmd;
 use indexmap::IndexMap;
 use std::{
 	fmt::Debug,
-	fs::{copy, metadata, write, File},
-	io::{BufRead, Write},
+	fs::{copy, create_dir_all, metadata, rename, write, File},
+	io::{BufRead, Seek, SeekFrom, Write},
 	iter::once,
 	os::unix::fs::PermissionsExt,
 	path::{Path, PathBuf},
 };
 use symlink::{remove_symlink_file, symlink_file};
-use tempfile::{Builder, NamedTempFile};
+use tempfile::{tempdir, tempfile, Builder, NamedTempFile};
 use toml_edit::{value, ArrayOfTables, DocumentMut, Formatted, Item, Table, Value};
 use url::Url;
 use zombienet_sdk::{Network, NetworkConfig, NetworkConfigExt};
 use zombienet_support::fs::local::LocalFileSystem;
 
-const POLKADOT_SDK: &str = "https://github.com/paritytech/polkadot-sdk";
-const POLKADOT_DEFAULT_VERSION: &str = "v1.11.0";
-const DOWNLOAD: bool = cfg!(all(target_arch = "x86_64", target_os = "linux"));
+const POLKADOT: &str = "https://github.com/r0gue-io/polkadot";
+const POLKADOT_DEFAULT_VERSION: &str = "v1.12.0";
+const POP: &str = "https://github.com/r0gue-io/pop-node";
+const POP_DEFAULT_VERSION: &str = "v0.1.0-alpha2";
 
 /// Configuration to launch a local network.
 pub struct Zombienet {
@@ -61,7 +62,8 @@ impl Zombienet {
 			parachains,
 			&network_config,
 			&cache,
-		)?;
+		)
+		.await?;
 		Ok(Self { cache, network_config, relay_chain, parachains })
 	}
 
@@ -130,11 +132,11 @@ impl Zombienet {
 			Some(v) => v.to_string(),
 			None => Self::latest_polkadot_release().await?,
 		};
-		Ok(RelayChain::new(version, cache, DOWNLOAD))
+		Ok(RelayChain::new(version, cache)?)
 	}
 
 	// Determine parachain requirements based on specified version and config
-	fn parachains(
+	async fn parachains(
 		system_parachain_version: &str,
 		parachains: Option<&Vec<String>>,
 		network_config: &NetworkConfiguration,
@@ -180,10 +182,14 @@ impl Zombienet {
 
 			// Check if system parachain
 			if command == Parachain::SYSTEM_CHAIN_BINARY {
-				paras.insert(
-					id,
-					Parachain::system_parachain(id, system_parachain_version, &cache, DOWNLOAD),
-				);
+				paras
+					.insert(id, Parachain::system_parachain(id, system_parachain_version, &cache)?);
+				continue;
+			}
+
+			// Check if pop-node
+			if command == Parachain::POP_BINARY {
+				paras.insert(id, Parachain::pop(id, &Self::latest_pop_release().await?, &cache)?);
 				continue;
 			}
 
@@ -219,7 +225,7 @@ impl Zombienet {
 	}
 
 	async fn latest_polkadot_release() -> Result<String, Error> {
-		let repo = GitHub::parse(POLKADOT_SDK)?;
+		let repo = GitHub::parse(POLKADOT)?;
 		match repo.get_latest_releases().await {
 			Ok(releases) => {
 				// Fetching latest releases
@@ -236,6 +242,25 @@ impl Zombienet {
 			},
 			// If an error with GitHub API return the POLKADOT DEFAULT VERSION
 			Err(_) => Ok(POLKADOT_DEFAULT_VERSION.to_string()),
+		}
+	}
+
+	async fn latest_pop_release() -> Result<String, Error> {
+		let repo = GitHub::parse(POP)?;
+		match repo.get_latest_releases().await {
+			Ok(releases) => {
+				// Fetching latest releases
+				for release in releases {
+					return Ok(release
+						.tag_name
+						.strip_prefix("polkadot-")
+						.map_or_else(|| release.tag_name.clone(), |v| v.to_string()));
+				}
+				// It should never reach this point, but in case we download a default version of pop
+				Ok(POP_DEFAULT_VERSION.to_string())
+			},
+			// If an error with GitHub API return the default version
+			Err(_) => Ok(POP_DEFAULT_VERSION.to_string()),
 		}
 	}
 
@@ -391,39 +416,34 @@ struct RelayChain {
 impl RelayChain {
 	const BINARY: &'static str = "polkadot";
 	const WORKERS: [&'static str; 2] = ["polkadot-execute-worker", "polkadot-prepare-worker"];
-	fn new(version: impl Into<String>, cache: &Path, download: bool) -> Self {
+	fn new(version: impl Into<String>, cache: &Path) -> Result<Self, Error> {
 		let name = Self::BINARY.to_string();
 		let version = version.into();
 		let path = cache.join(format!("{name}-{version}"));
 
-		// Polkadot binaries only available for download for linux currently
-		let repo = Url::parse(POLKADOT_SDK).expect("repository url valid");
-		let source = match download {
-			true => {
-				Source::Url(GitHub::release(&repo, &format!("polkadot-{version}"), Self::BINARY))
-			},
-			false => Source::Git {
-				url: repo.clone(),
-				reference: Some(format!("release-polkadot-{version}")),
-				package: name.clone(),
-				artifacts: once((name.clone(), path.clone()))
+		let tag = format!("polkadot-{version}");
+		let archive = format!("polkadot-{}.tar.gz", target()?);
+		let source =
+			Source::Archive {
+				url: format!("{POLKADOT}/releases/download/{tag}/{archive}"),
+				contents: once((name.clone(), path.clone()))
 					.chain(Self::WORKERS.iter().map(|worker| {
 						(worker.to_string(), cache.join(&format!("{worker}-{version}")))
 					}))
 					.collect(),
-			},
-		};
+			};
 
 		// Add polkadot workers
 		let workers = Self::WORKERS.map(|worker| {
-			let source = match download {
-				true => Source::Url(GitHub::release(&repo, &format!("polkadot-{version}"), worker)),
-				false => Source::Artifact,
-			};
-			Binary::new(worker, &version, cache.join(&format!("{worker}-{version}")), source)
+			Binary::new(
+				worker,
+				&version,
+				cache.join(&format!("{worker}-{version}")),
+				Source::Artifact,
+			)
 		});
 
-		RelayChain { binary: Binary { name, version, path, source }, workers }
+		Ok(RelayChain { binary: Binary { name, version, path, source }, workers })
 	}
 }
 
@@ -438,6 +458,7 @@ struct Parachain {
 
 impl Parachain {
 	const SYSTEM_CHAIN_BINARY: &'static str = "polkadot-parachain";
+	const POP_BINARY: &'static str = "pop-node";
 
 	fn from_git(
 		id: u32,
@@ -473,25 +494,27 @@ impl Parachain {
 		})
 	}
 
-	fn system_parachain(id: u32, version: &str, cache: &Path, download: bool) -> Self {
+	fn pop(id: u32, version: &str, cache: &Path) -> Result<Self, Error> {
+		let name = Self::POP_BINARY;
+		let path = cache.join(format!("{name}-{version}"));
+		let archive = format!("{name}-{}.tar.gz", target()?);
+		let source = Source::Archive {
+			url: format!("{POLKADOT}/releases/download/{version}/{archive}"),
+			contents: vec![(name.to_string(), path.clone())],
+		};
+		Ok(Parachain { id, binary: Binary::new(name, version, path, source) })
+	}
+
+	fn system_parachain(id: u32, version: &str, cache: &Path) -> Result<Self, Error> {
 		let name = Self::SYSTEM_CHAIN_BINARY;
 		let path = cache.join(format!("{name}-{version}"));
-		let repo = Url::parse(POLKADOT_SDK).expect("repository url valid");
-		let source = if download {
-			Source::Url(GitHub::release(
-				&repo,
-				&format!("polkadot-{version}"),
-				Self::SYSTEM_CHAIN_BINARY,
-			))
-		} else {
-			Source::Git {
-				url: repo.into(),
-				reference: Some(format!("release-polkadot-{version}")),
-				package: "polkadot-parachain-bin".into(),
-				artifacts: vec![(Self::SYSTEM_CHAIN_BINARY.into(), path.clone())],
-			}
+		let tag = format!("polkadot-{version}");
+		let archive = format!("polkadot-parachain-{}.tar.gz", target()?);
+		let source = Source::Archive {
+			url: format!("{POLKADOT}/releases/download/{tag}/{archive}"),
+			contents: vec![(name.to_string(), path.clone())],
 		};
-		Parachain { id, binary: Binary::new(name, version, path, source) }
+		Ok(Parachain { id, binary: Binary::new(name, version, path, source) })
 	}
 }
 
@@ -532,12 +555,28 @@ impl Binary {
 		status: impl Status,
 		verbose: bool,
 	) -> Result<(), Error> {
+		// Ensure working directory exists
+		create_dir_all(working_dir)?;
 		// Download or clone and build from source
 		match &self.source {
-			Source::Url(url) => {
-				// Download required version of binaries
+			Source::Archive { url, contents } => {
+				// Download archive
 				status.update(&format!("Downloading from {url}..."));
-				Self::download(&url, &self.path).await?;
+				let response = reqwest::get(url.as_str()).await?.error_for_status()?;
+				let mut file = tempfile()?;
+				file.write_all(&response.bytes().await?)?;
+				file.seek(SeekFrom::Start(0))?;
+				// Extract contents
+				status.update("Extracting from archive...");
+				let tar = flate2::read::GzDecoder::new(file);
+				let mut archive = tar::Archive::new(tar);
+				let temp_dir = tempdir()?;
+				let working_dir = temp_dir.path();
+				archive.unpack(working_dir)?;
+				for (name, dest) in contents {
+					rename(working_dir.join(name), dest)?;
+				}
+				status.update("Sourcing complete.");
 			},
 			Source::Git { url, reference, package, artifacts } => {
 				// Clone repository into working directory
@@ -547,6 +586,11 @@ impl Binary {
 				Git::clone(url, &working_dir, reference.as_deref())?;
 				// Build binaries
 				self.build(&working_dir, package, &artifacts, status, verbose).await?;
+			},
+			Source::Url(url) => {
+				// Download required version of binaries
+				status.update(&format!("Downloading from {url}..."));
+				Self::download(&url, &self.path).await?;
 			},
 			Source::None | Source::Artifact | Source::Local(..) => {},
 		}
@@ -585,7 +629,7 @@ impl Binary {
 
 	async fn download(url: &str, dest: &PathBuf) -> Result<(), Error> {
 		// Download to destination path
-		let response = reqwest::get(url).await?;
+		let response = reqwest::get(url).await?.error_for_status()?;
 		let mut file = File::create(&dest)?;
 		file.write_all(&response.bytes().await?)?;
 		// Make executable
@@ -606,6 +650,13 @@ pub enum Source {
 	/// No source could be determined.
 	#[default]
 	None,
+	/// An archive for download.
+	Archive {
+		/// The url of the archive.
+		url: String,
+		/// The contents within the archive which are required.
+		contents: Vec<(String, PathBuf)>,
+	},
 	/// A build artifact.
 	Artifact,
 	/// A git repository.
@@ -668,6 +719,31 @@ impl Status for () {
 	fn update(&self, _: &str) {}
 }
 
+fn target() -> Result<&'static str, Error> {
+	use std::env::consts::*;
+
+	if OS == "windows" {
+		return Err(Error::UnsupportedPlatform { arch: ARCH, os: OS });
+	}
+
+	match ARCH {
+		"aarch64" => {
+			return match OS {
+				"macos" => Ok("aarch64-apple-darwin"),
+				_ => Ok("aarch64-unknown-linux-gnu"),
+			}
+		},
+		"x86_64" | "x86" => {
+			return match OS {
+				"macos" => Ok("x86_64-apple-darwin"),
+				_ => Ok("x86_64-unknown-linux-gnu"),
+			}
+		},
+		&_ => {},
+	}
+	Err(Error::UnsupportedPlatform { arch: ARCH, os: OS })
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -698,11 +774,7 @@ mod tests {
 		assert_eq!(relay_chain.binary.name, RelayChain::BINARY);
 		assert_eq!(relay_chain.binary.path, temp_dir.path().join(POLKADOT_BINARY));
 		assert_eq!(relay_chain.binary.version, TESTING_POLKADOT_VERSION);
-		if DOWNLOAD {
-			assert!(matches!(relay_chain.binary.source, Source::Url { .. }));
-		} else {
-			assert!(matches!(relay_chain.binary.source, Source::Git { .. }));
-		}
+		assert!(matches!(relay_chain.binary.source, Source::Archive { .. }));
 
 		// Check has the binary for the System Chain
 		assert_eq!(zombienet.parachains.len(), 2);
@@ -711,11 +783,7 @@ mod tests {
 		assert_eq!(system_chain.binary.name, Parachain::SYSTEM_CHAIN_BINARY);
 		assert_eq!(system_chain.binary.path, temp_dir.path().join(POLKADOT_PARACHAIN_BINARY));
 		assert_eq!(system_chain.binary.version, TESTING_POLKADOT_VERSION);
-		if DOWNLOAD {
-			assert!(matches!(system_chain.binary.source, Source::Url { .. }));
-		} else {
-			assert!(matches!(system_chain.binary.source, Source::Git { .. }));
-		}
+		assert!(matches!(system_chain.binary.source, Source::Archive { .. }));
 
 		// Check has the binary for Pop
 		let parachain = &zombienet.parachains[1];
@@ -771,12 +839,7 @@ mod tests {
 		assert_eq!(relay_chain.name, RelayChain::BINARY);
 		assert_eq!(relay_chain.path, temp_dir.path().join(POLKADOT_BINARY));
 		assert_eq!(relay_chain.version, TESTING_POLKADOT_VERSION);
-
-		if DOWNLOAD {
-			assert!(matches!(relay_chain.source, Source::Url { .. }));
-		} else {
-			assert!(matches!(relay_chain.source, Source::Git { .. }));
-		}
+		assert!(matches!(relay_chain.source, Source::Archive { .. }));
 
 		Ok(())
 	}
@@ -793,11 +856,7 @@ mod tests {
 
 		assert_eq!(relay_chain.name, RelayChain::BINARY);
 		assert!(relay_chain.version.starts_with("v"));
-		if DOWNLOAD {
-			assert!(matches!(relay_chain.source, Source::Url { .. }));
-		} else {
-			assert!(matches!(relay_chain.source, Source::Git { .. }));
-		}
+		assert!(matches!(relay_chain.source, Source::Archive { .. }));
 
 		Ok(())
 	}
@@ -826,7 +885,7 @@ mod tests {
 		let cache = PathBuf::from(temp_dir.path());
 
 		let system_chain =
-			Parachain::system_parachain(1000, &TESTING_POLKADOT_VERSION.to_string(), &cache, true)
+			Parachain::system_parachain(1000, &TESTING_POLKADOT_VERSION.to_string(), &cache)?
 				.binary;
 
 		assert_eq!(system_chain.name, Parachain::SYSTEM_CHAIN_BINARY);
@@ -1007,6 +1066,21 @@ mod tests {
 			"#
 		)?;
 		Ok(file_path)
+	}
+
+	#[test]
+	fn target_works() -> Result<()> {
+		use std::{process::Command, str};
+		let output = Command::new("rustc").arg("-vV").output()?;
+		let output = str::from_utf8(&output.stdout)?;
+		let target = output
+			.lines()
+			.find(|l| l.starts_with("host: "))
+			.map(|l| &l[6..])
+			.unwrap()
+			.to_string();
+		assert_eq!(super::target()?, target);
+		Ok(())
 	}
 
 	mod network_config {
@@ -1254,7 +1328,7 @@ node_spawn_timeout = 300
 
 	mod relay_chain {
 		use super::{
-			Binary, Error, GitHub, RelayChain, Source, POLKADOT_DEFAULT_VERSION, POLKADOT_SDK,
+			Binary, Error, GitHub, RelayChain, Source, POLKADOT, POLKADOT_DEFAULT_VERSION,
 		};
 		use std::iter::once;
 		use tempfile::tempdir;
@@ -1266,7 +1340,7 @@ node_spawn_timeout = 300
 			let cache = tempdir()?;
 			let binary = RelayChain::BINARY;
 			let source = Source::Git {
-				url: Url::parse(POLKADOT_SDK)?,
+				url: Url::parse(POLKADOT)?,
 				reference: Some(format!("release-polkadot-{version}")),
 				package: binary.into(),
 				artifacts: once((
@@ -1288,7 +1362,7 @@ node_spawn_timeout = 300
 			});
 
 			assert_eq!(
-				RelayChain::new(version, cache.path(), false),
+				RelayChain::new(version, cache.path())?,
 				RelayChain {
 					binary: Binary::new(
 						binary.to_string(),
@@ -1307,7 +1381,7 @@ node_spawn_timeout = 300
 			let version = POLKADOT_DEFAULT_VERSION;
 			let cache = tempdir()?;
 			let binary = RelayChain::BINARY;
-			let repo = Url::parse(POLKADOT_SDK)?;
+			let repo = Url::parse(POLKADOT)?;
 			let source =
 				Source::Url(GitHub::release(&repo, &format!("polkadot-{version}"), binary));
 			let workers = RelayChain::WORKERS.map(|worker| {
@@ -1320,7 +1394,7 @@ node_spawn_timeout = 300
 			});
 
 			assert_eq!(
-				RelayChain::new(version, cache.path(), true),
+				RelayChain::new(version, cache.path())?,
 				RelayChain {
 					binary: Binary::new(
 						binary,
@@ -1337,8 +1411,8 @@ node_spawn_timeout = 300
 
 	mod parachain {
 		use super::{
-			Binary, Error, GitHub, Parachain, Repository, Source, POLKADOT_DEFAULT_VERSION,
-			POLKADOT_SDK,
+			Binary, Error, GitHub, Parachain, Repository, Source, POLKADOT,
+			POLKADOT_DEFAULT_VERSION,
 		};
 		use std::path::PathBuf;
 		use tempfile::tempdir;
@@ -1401,9 +1475,9 @@ node_spawn_timeout = 300
 			let version = POLKADOT_DEFAULT_VERSION;
 			let cache = tempdir()?;
 			let binary = Parachain::SYSTEM_CHAIN_BINARY;
-			let repo = Url::parse(POLKADOT_SDK)?;
+			let repo = Url::parse(POLKADOT)?;
 			assert_eq!(
-				Parachain::system_parachain(1000, version, cache.path(), false),
+				Parachain::system_parachain(1000, version, cache.path())?,
 				Parachain {
 					id: 1000,
 					binary: Binary {
@@ -1430,9 +1504,9 @@ node_spawn_timeout = 300
 			let version = POLKADOT_DEFAULT_VERSION;
 			let cache = tempdir()?;
 			let binary = Parachain::SYSTEM_CHAIN_BINARY;
-			let repo = Url::parse(POLKADOT_SDK)?;
+			let repo = Url::parse(POLKADOT)?;
 			assert_eq!(
-				Parachain::system_parachain(1000, version, cache.path(), true),
+				Parachain::system_parachain(1000, version, cache.path())?,
 				Parachain {
 					id: 1000,
 					binary: Binary {
