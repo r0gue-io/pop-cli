@@ -193,10 +193,12 @@ fn generate_parachain_from_template(
 			.unwrap_or_default()
 	))?;
 
-	// warn about audit status and licensing
-	warning(format!("NOTE: the resulting parachain is not guaranteed to be audited or reviewed for security vulnerabilities.\n{}",
-		style(format!("Please consult the source repository at {} to assess production suitability and licensing restrictions.", template.repository_url()?))
-			.dim()))?;
+	if !template.is_audited() {
+		// warn about audit status and licensing
+		warning(format!("NOTE: the resulting parachain is not guaranteed to be audited or reviewed for security vulnerabilities.\n{}",
+						style(format!("Please consult the source repository at {} to assess production suitability and licensing restrictions.", template.repository_url()?))
+							.dim()))?;
+	}
 
 	// add next steps
 	let mut next_steps = vec![

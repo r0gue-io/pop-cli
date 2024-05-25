@@ -85,7 +85,7 @@ pub enum Template {
 		props(
 			Provider = "Pop",
 			Repository = "https://github.com/r0gue-io/base-parachain",
-			Network = "./network.toml",
+			Network = "./network.toml"
 		)
 	)]
 	Standard,
@@ -96,7 +96,7 @@ pub enum Template {
 		props(
 			Provider = "Pop",
 			Repository = "https://github.com/r0gue-io/assets-parachain",
-			Network = "./network.toml",
+			Network = "./network.toml"
 		)
 	)]
 	Assets,
@@ -107,7 +107,7 @@ pub enum Template {
 		props(
 			Provider = "Pop",
 			Repository = "https://github.com/r0gue-io/contracts-parachain",
-			Network = "./network.toml",
+			Network = "./network.toml"
 		)
 	)]
 	Contracts,
@@ -118,7 +118,7 @@ pub enum Template {
 		props(
 			Provider = "Pop",
 			Repository = "https://github.com/r0gue-io/evm-parachain",
-			Network = "./network.toml",
+			Network = "./network.toml"
 		)
 	)]
 	EVM,
@@ -130,7 +130,7 @@ pub enum Template {
 		props(
 			Provider = "Parity",
 			Repository = "https://github.com/paritytech/substrate-contracts-node",
-			Network = "./zombienet.toml",
+			Network = "./zombienet.toml"
 		)
 	)]
 	ParityContracts,
@@ -141,7 +141,7 @@ pub enum Template {
 		props(
 			Provider = "Parity",
 			Repository = "https://github.com/paritytech/frontier-parachain-template",
-			Network = "./zombienet-config.toml",
+			Network = "./zombienet-config.toml"
 		)
 	)]
 	ParityFPT,
@@ -156,7 +156,8 @@ pub enum Template {
 			Provider = "Test",
 			Repository = "",
 			Network = "",
-			SupportedVersions = "v1.0.0,v2.0.0"
+			SupportedVersions = "v1.0.0,v2.0.0",
+			IsAudited = "true"
 		)
 	)]
 	TestTemplate01,
@@ -203,6 +204,10 @@ impl Template {
 	pub fn is_supported_version(&self, version: &str) -> bool {
 		// if `SupportedVersion` is None, then all versions are supported. Otherwise, ensure version is present.
 		self.supported_versions().map_or(true, |versions| versions.contains(&version))
+	}
+
+	pub fn is_audited(&self) -> bool {
+		self.get_str("IsAudited").map_or(false, |s| s == "true")
 	}
 }
 
@@ -352,5 +357,14 @@ mod tests {
 		assert_eq!(template.supported_versions(), None);
 		// will be true because an empty SupportedVersions defaults to all
 		assert_eq!(template.is_supported_version("v1.0.0"), true);
+	}
+
+	#[test]
+	fn test_is_audited() {
+		let template = Template::TestTemplate01;
+		assert_eq!(template.is_audited(), true);
+
+		let template = Template::TestTemplate02;
+		assert_eq!(template.is_audited(), false);
 	}
 }
