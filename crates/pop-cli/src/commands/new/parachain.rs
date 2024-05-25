@@ -291,8 +291,13 @@ fn check_destination_path(name_template: &String) -> Result<&Path> {
 /// return: `Option<String>` - The release name selected by the user or None if no releases found.
 async fn choose_release(template: &Template) -> Result<Option<String>> {
 	let url = url::Url::parse(&template.repository_url()?).expect("valid repository url");
+	let repo = GitHub::parse(url.as_str())?;
+
+	let license = repo.get_repo_license().await?;
+	log::info(format!("Template {}: {}", style("License").bold(), license))?;
+
 	// Get only the latest 3 releases that are supported by the template (default is all)
-	let latest_3_releases: Vec<Release> = get_latest_3_releases(url)
+	let latest_3_releases: Vec<Release> = get_latest_3_releases(&repo)
 		.await?
 		.into_iter()
 		.filter(|r| template.is_supported_version(&r.tag_name))
@@ -315,8 +320,7 @@ async fn choose_release(template: &Template) -> Result<Option<String>> {
 	Ok(release_name)
 }
 
-async fn get_latest_3_releases(url: url::Url) -> Result<Vec<Release>> {
-	let repo = GitHub::parse(url.as_str())?;
+async fn get_latest_3_releases(repo: &GitHub) -> Result<Vec<Release>> {
 	let mut latest_3_releases: Vec<Release> = repo
 		.get_latest_releases()
 		.await?
@@ -324,6 +328,7 @@ async fn get_latest_3_releases(url: url::Url) -> Result<Vec<Release>> {
 		.filter(|r| !r.prerelease)
 		.take(3)
 		.collect();
+	repo.get_repo_license().await?;
 	// Get the commit sha for the releases
 	for release in latest_3_releases.iter_mut() {
 		let commit = repo.get_commit_sha_from_release(&release.tag_name).await?;
