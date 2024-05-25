@@ -499,7 +499,7 @@ impl Parachain {
 		let path = cache.join(format!("{name}-{version}"));
 		let archive = format!("{name}-{}.tar.gz", target()?);
 		let source = Source::Archive {
-			url: format!("{POLKADOT}/releases/download/{version}/{archive}"),
+			url: format!("{POP}/releases/download/{version}/{archive}"),
 			contents: vec![(name.to_string(), path.clone())],
 		};
 		Ok(Parachain { id, binary: Binary::new(name, version, path, source) })
