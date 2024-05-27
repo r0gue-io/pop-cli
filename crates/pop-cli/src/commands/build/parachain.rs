@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: GPL-3.0
-
 #[cfg(test)]
 use crate::mock::build_parachain;
 use crate::style::{style, Theme};
