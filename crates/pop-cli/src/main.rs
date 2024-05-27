@@ -5,6 +5,8 @@ compile_error!("feature \"contract\" or feature \"parachain\" must be enabled");
 
 #[cfg(any(feature = "parachain", feature = "contract"))]
 mod commands;
+#[cfg(test)]
+mod mock;
 mod style;
 
 use anyhow::anyhow;

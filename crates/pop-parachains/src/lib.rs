@@ -9,6 +9,9 @@ mod templates;
 mod up;
 mod utils;
 
+#[cfg(test)]
+mod mock;
+
 pub use build::build_parachain;
 pub use errors::Error;
 pub use new_pallet::{create_pallet_template, TemplatePalletConfig};
