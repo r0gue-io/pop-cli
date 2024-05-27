@@ -1,9 +1,10 @@
+// SPDX-License-Identifier: GPL-3.0
 use std::path::PathBuf;
 
 use contract_build::{
 	BuildResult, ExecuteArgs, MetadataArtifacts, OptimizationResult, OutputType, Verbosity,
 };
-// Mock the call to contract_build execute function that builds the contract
+// Mock the call to the `execute` function of the `contract_build' crate that builds the contract
 pub fn execute(_args: ExecuteArgs) -> anyhow::Result<BuildResult> {
 	Ok(BuildResult {
 		dest_wasm: Some(PathBuf::from("/path/to/contract.wasm")),
