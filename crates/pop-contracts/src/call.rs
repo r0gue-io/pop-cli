@@ -16,6 +16,8 @@ use crate::utils::{
 	helpers::{get_manifest_path, parse_account, parse_balance},
 	signer::create_signer,
 };
+
+/// Attributes for the `call` command.
 pub struct CallOpts {
 	/// Path to the contract build folder.
 	pub path: Option<PathBuf>,
@@ -39,6 +41,12 @@ pub struct CallOpts {
 	pub execute: bool,
 }
 
+/// Prepare the preprocessed data for a contract `call`.
+///
+/// # Arguments
+///
+/// * `call_opts` - attributes for the `call` command.
+///
 pub async fn set_up_call(
 	call_opts: CallOpts,
 ) -> anyhow::Result<CallExec<DefaultConfig, DefaultEnvironment, Keypair>> {
@@ -67,6 +75,12 @@ pub async fn set_up_call(
 	return Ok(call_exec);
 }
 
+/// Simulate a smart contract call without modifying the state of the blockchain.
+///
+/// # Arguments
+///
+/// * `call_exec` - struct with the call to be executed.
+///
 pub async fn dry_run_call(
 	call_exec: &CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
 ) -> anyhow::Result<String> {
@@ -93,6 +107,12 @@ pub async fn dry_run_call(
     }
 }
 
+/// Estimate the gas required for a contract call without modifying the state of the blockchain.
+///
+/// # Arguments
+///
+/// * `call_exec` - the preprocessed data to call a contract.
+///
 pub async fn dry_run_gas_estimate_call(
 	call_exec: &CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
 ) -> anyhow::Result<Weight> {
@@ -116,6 +136,14 @@ pub async fn dry_run_gas_estimate_call(
     }
 }
 
+/// Call a smart contract on the blockchain.
+///
+/// # Arguments
+///
+/// * `call_exec` - struct with the call to be executed.
+/// * `gas_limit` - maximum amount of gas to be used for this call.
+/// * `url` - endpoint of the node which to send the call to.
+///
 pub async fn call_smart_contract(
 	call_exec: CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
 	gas_limit: Weight,

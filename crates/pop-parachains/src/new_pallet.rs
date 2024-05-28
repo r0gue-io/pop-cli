@@ -10,12 +10,18 @@ use crate::{
 	utils::helpers::sanitize,
 };
 
+/// Metadata for the Template Pallet.
 pub struct TemplatePalletConfig {
 	pub name: String,
 	pub authors: String,
 	pub description: String,
 }
-
+/// Create a new pallet from a template.
+///
+/// # Arguments
+///
+/// * `path` - location where the pallet will be created.
+/// * `config` - customization values to include in the new pallet.
 pub fn create_pallet_template(
 	path: Option<String>,
 	config: TemplatePalletConfig,

@@ -10,6 +10,7 @@ use std::path::Path;
 use std::{env, fs};
 use url::Url;
 
+/// A helper for handling Git operations.
 pub struct Git;
 impl Git {
 	pub(crate) fn clone(url: &Url, working_dir: &Path, branch: Option<&str>) -> Result<()> {
@@ -43,7 +44,14 @@ impl Git {
 		}
 		Ok(())
 	}
-	/// Clone `url` into `target` and degit it
+
+	/// Clone a Git repository and degit it.
+	///
+	/// # Arguments
+	///
+	/// * `url` - the URL of the repository to clone.
+	/// * `target` - location where the repository will be cloned.
+	/// * `tag_version` - the specific tag or version of the repository to use
 	pub fn clone_and_degit(
 		url: &str,
 		target: &Path,
@@ -82,7 +90,7 @@ impl Git {
 		Ok(release)
 	}
 
-	/// For users that have ssh configuration for cloning repositories
+	/// For users that have ssh configuration for cloning repositories.
 	fn ssh_clone_and_degit(url: Url, target: &Path) -> Result<Repository> {
 		let ssh_url = GitHub::convert_to_ssh_url(&url);
 		// Prepare callback and fetch options.
@@ -123,7 +131,12 @@ impl Git {
 		None
 	}
 
-	/// Init a new git repo on creation of a parachain
+	/// Init a new git repository.
+	///
+	/// # Arguments
+	///
+	/// * `target` - location where the parachain will be created.
+	/// * `message` - message for first commit.
 	pub fn git_init(target: &Path, message: &str) -> Result<(), git2::Error> {
 		let repo = Repository::init(target)?;
 		let signature = repo.signature()?;
@@ -142,6 +155,7 @@ impl Git {
 	}
 }
 
+/// A helper for handling GitHub operations.
 pub struct GitHub {
 	pub org: String,
 	pub name: String,
@@ -151,6 +165,11 @@ pub struct GitHub {
 impl GitHub {
 	const GITHUB: &'static str = "github.com";
 
+	/// Parse URL of a github repository.
+	///
+	/// # Arguments
+	///
+	/// * `url` - the URL of the repository to clone.
 	pub fn parse(url: &str) -> Result<Self> {
 		let url = Url::parse(url)?;
 		Ok(Self {
@@ -167,6 +186,7 @@ impl GitHub {
 		self
 	}
 
+	/// Fetch the latest releases of the Github repository.
 	pub async fn get_latest_releases(&self) -> Result<Vec<Release>> {
 		static APP_USER_AGENT: &str =
 			concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
@@ -176,6 +196,7 @@ impl GitHub {
 		Ok(response.json::<Vec<Release>>().await?)
 	}
 
+	/// Retrieves the commit hash associated with a specified tag in a GitHub repository.
 	pub async fn get_commit_sha_from_release(&self, tag_name: &str) -> Result<String> {
 		static APP_USER_AGENT: &str =
 			concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
@@ -229,6 +250,7 @@ impl GitHub {
 	}
 }
 
+/// Represents the data of a GitHub release.
 #[derive(Debug, PartialEq, serde::Deserialize)]
 pub struct Release {
 	pub tag_name: String,

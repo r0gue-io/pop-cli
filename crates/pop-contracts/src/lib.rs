@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0
+#![doc = include_str!("../README.md")]
 mod build;
 mod call;
 mod errors;
 mod new;
 mod test;
 mod up;
-pub mod utils;
+mod utils;
 
 pub use build::build_smart_contract;
 pub use call::{
