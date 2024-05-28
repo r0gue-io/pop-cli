@@ -2,7 +2,7 @@
 
 use crate::style::{style, Theme};
 use clap::Args;
-use cliclack::{clear_screen, intro, outro, set_theme};
+use cliclack::{clear_screen, intro, log::warning, outro, set_theme};
 use pop_parachains::build_parachain;
 use std::path::PathBuf;
 
@@ -19,8 +19,10 @@ pub struct BuildParachainCommand {
 impl BuildParachainCommand {
 	pub(crate) fn execute(&self) -> anyhow::Result<()> {
 		clear_screen()?;
-		intro(format!("{}: Building a parachain", style(" Pop CLI ").black().on_magenta()))?;
+		intro(format!("{}: Building your parachain", style(" Pop CLI ").black().on_magenta()))?;
 		set_theme(Theme);
+
+		warning("NOTE: this may take some time...")?;
 		build_parachain(&self.path)?;
 
 		outro("Build Completed Successfully!")?;

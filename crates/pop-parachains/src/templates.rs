@@ -5,6 +5,7 @@ use strum::{
 use strum_macros::{AsRefStr, Display, EnumMessage, EnumProperty, EnumString, VariantArray};
 use thiserror::Error;
 
+/// Supported template providers.
 #[derive(
 	AsRefStr, Clone, Default, Debug, Display, EnumMessage, EnumString, Eq, PartialEq, VariantArray,
 )]
@@ -27,14 +28,17 @@ pub enum Provider {
 }
 
 impl Provider {
+	/// Get the list of providers supported.
 	pub fn providers() -> &'static [Provider] {
 		Provider::VARIANTS
 	}
 
+	/// Get provider's name.
 	pub fn name(&self) -> &str {
 		self.get_message().unwrap_or_default()
 	}
 
+	/// Get the default template of the provider.
 	pub fn default_template(&self) -> Template {
 		match &self {
 			Provider::Pop => Template::Standard,
@@ -42,10 +46,12 @@ impl Provider {
 		}
 	}
 
+	/// Get the providers detailed description message.
 	pub fn description(&self) -> &str {
 		self.get_detailed_message().unwrap_or_default()
 	}
 
+	/// Get the list of templates of the provider.
 	pub fn templates(&self) -> Vec<&Template> {
 		Template::VARIANTS
 			.iter()
@@ -54,6 +60,7 @@ impl Provider {
 	}
 }
 
+/// Configurable settings for parachain generation.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Config {
 	pub symbol: String,
@@ -61,6 +68,7 @@ pub struct Config {
 	pub initial_endowment: String,
 }
 
+/// Templates supported.
 #[derive(
 	AsRefStr,
 	Clone,
@@ -71,82 +79,116 @@ pub struct Config {
 	EnumProperty,
 	EnumString,
 	Eq,
+	Hash,
 	PartialEq,
 	VariantArray,
 )]
 pub enum Template {
-	// Pop
+	/// Minimalist parachain template.
 	#[default]
 	#[strum(
 		serialize = "standard",
 		message = "Standard",
 		detailed_message = "A standard parachain",
-		props(Provider = "Pop", Repository = "https://github.com/r0gue-io/base-parachain")
+		props(
+			Provider = "Pop",
+			Repository = "https://github.com/r0gue-io/base-parachain",
+			Network = "./network.toml"
+		)
 	)]
 	Standard,
+	/// Parachain configured with fungible and non-fungilble asset functionalities.
 	#[strum(
 		serialize = "assets",
 		message = "Assets",
 		detailed_message = "Parachain configured with fungible and non-fungilble asset functionalities.",
-		props(Provider = "Pop", Repository = "https://github.com/r0gue-io/assets-parachain")
+		props(
+			Provider = "Pop",
+			Repository = "https://github.com/r0gue-io/assets-parachain",
+			Network = "./network.toml"
+		)
 	)]
 	Assets,
+	/// Parachain configured to support WebAssembly smart contracts.
 	#[strum(
 		serialize = "contracts",
 		message = "Contracts",
 		detailed_message = "Parachain configured to support WebAssembly smart contracts.",
-		props(Provider = "Pop", Repository = "https://github.com/r0gue-io/contracts-parachain")
+		props(
+			Provider = "Pop",
+			Repository = "https://github.com/r0gue-io/contracts-parachain",
+			Network = "./network.toml"
+		)
 	)]
 	Contracts,
+	/// Parachain configured with Frontier, enabling compatibility with the Ethereum Virtual Machine (EVM).
 	#[strum(
 		serialize = "evm",
 		message = "EVM",
 		detailed_message = "Parachain configured with Frontier, enabling compatibility with the Ethereum Virtual Machine (EVM).",
-		props(Provider = "Pop", Repository = "https://github.com/r0gue-io/evm-parachain")
+		props(
+			Provider = "Pop",
+			Repository = "https://github.com/r0gue-io/evm-parachain",
+			Network = "./network.toml"
+		)
 	)]
 	EVM,
-	// Parity
+	/// Minimal Substrate node configured for smart contracts via pallet-contracts.
 	#[strum(
 		serialize = "cpt",
 		message = "Contracts",
 		detailed_message = "Minimal Substrate node configured for smart contracts via pallet-contracts.",
 		props(
 			Provider = "Parity",
-			Repository = "https://github.com/paritytech/substrate-contracts-node"
+			Repository = "https://github.com/paritytech/substrate-contracts-node",
+			Network = "./zombienet.toml"
 		)
 	)]
 	ParityContracts,
+	/// Template node for a Frontier (EVM) based parachain.
 	#[strum(
 		serialize = "fpt",
 		message = "EVM",
 		detailed_message = "Template node for a Frontier (EVM) based parachain.",
 		props(
 			Provider = "Parity",
-			Repository = "https://github.com/paritytech/frontier-parachain-template"
+			Repository = "https://github.com/paritytech/frontier-parachain-template",
+			Network = "./zombienet-config.toml"
 		)
 	)]
 	ParityFPT,
 }
 
 impl Template {
+	/// Get the template's name.
 	pub fn name(&self) -> &str {
 		self.get_message().unwrap_or_default()
 	}
+
+	/// Get the detailed message of the template.
 	pub fn description(&self) -> &str {
 		self.get_detailed_message().unwrap_or_default()
 	}
 
+	/// Check the template belongs to a `provider`.
 	pub fn matches(&self, provider: &Provider) -> bool {
 		// Match explicitly on provider name (message)
 		self.get_str("Provider") == Some(provider.name())
 	}
 
+	/// Get the template's repository url.
 	pub fn repository_url(&self) -> Result<&str, Error> {
 		self.get_str("Repository").ok_or(Error::RepositoryMissing)
 	}
 
+	/// Get the provider of the template.
 	pub fn provider(&self) -> Result<&str, Error> {
 		self.get_str("Provider").ok_or(Error::ProviderMissing)
+	}
+
+	/// Returns the relative path to the default network configuration file to be used, if defined.
+	pub fn network_config(&self) -> Option<&str> {
+		self.get_str("Network")
 	}
 }
 
@@ -173,6 +215,7 @@ mod tests {
 			("fpt".to_string(), Template::ParityFPT),
 		])
 	}
+
 	fn templates_urls() -> HashMap<String, &'static str> {
 		HashMap::from([
 			("standard".to_string(), "https://github.com/r0gue-io/base-parachain"),
@@ -182,6 +225,18 @@ mod tests {
 			("cpt".to_string(), "https://github.com/paritytech/substrate-contracts-node"),
 			("fpt".to_string(), "https://github.com/paritytech/frontier-parachain-template"),
 		])
+	}
+
+	fn template_network_configs() -> HashMap<Template, Option<&'static str>> {
+		[
+			(Template::Standard, Some("./network.toml")),
+			(Template::Assets, Some("./network.toml")),
+			(Template::Contracts, Some("./network.toml")),
+			(Template::EVM, Some("./network.toml")),
+			(Template::ParityContracts, Some("./zombienet.toml")),
+			(Template::ParityFPT, Some("./zombienet-config.toml")),
+		]
+		.into()
 	}
 
 	#[test]
@@ -223,6 +278,14 @@ mod tests {
 				&template.repository_url().unwrap(),
 				template_urls.get(&template.to_string()).unwrap()
 			);
+		}
+	}
+
+	#[test]
+	fn test_network_config() {
+		let network_configs = template_network_configs();
+		for template in Template::VARIANTS {
+			assert_eq!(template.network_config(), network_configs[template]);
 		}
 	}
 

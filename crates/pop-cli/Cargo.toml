@@ -54,6 +54,7 @@ contract = [
     "dep:pop-contracts",
     "dep:sp-core",
     "dep:sp-weights",
+    "dep:dirs",
 ]
 parachain = [
     "dep:pop-parachains",
