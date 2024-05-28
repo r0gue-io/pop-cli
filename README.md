@@ -8,8 +8,8 @@ An all-in-one tool for Polkadot development.
 
 * Build, run and enter Docker container
 ```
-docker build -f ./Dockerfile --tag pop-cli:v0.1.0 ./
-docker run -it -d --hostname pop-cli --name pop-cli --volume ./:/pop:rw pop-cli:v0.1.0
+docker build --platform linux/x86_64 -f ./Dockerfile --tag pop-cli:v0.1.0 ./
+docker run --platform linux/x86_64 -it -d --hostname pop-cli --name pop-cli --volume ./:/pop:rw pop-cli:v0.1.0
 docker exec -it pop-cli /bin/bash
 ```
 
