@@ -232,6 +232,8 @@ mod tests {
 			("evm".to_string(), Template::EVM),
 			("cpt".to_string(), Template::ParityContracts),
 			("fpt".to_string(), Template::ParityFPT),
+			("test_01".to_string(), Template::TestTemplate01),
+			("test_02".to_string(), Template::TestTemplate02),
 		])
 	}
 
@@ -243,6 +245,8 @@ mod tests {
 			("evm".to_string(), "https://github.com/r0gue-io/evm-parachain"),
 			("cpt".to_string(), "https://github.com/paritytech/substrate-contracts-node"),
 			("fpt".to_string(), "https://github.com/paritytech/frontier-parachain-template"),
+			("test_01".to_string(), ""),
+			("test_02".to_string(), ""),
 		])
 	}
 
@@ -254,6 +258,8 @@ mod tests {
 			(Template::EVM, Some("./network.toml")),
 			(Template::ParityContracts, Some("./zombienet.toml")),
 			(Template::ParityFPT, Some("./zombienet-config.toml")),
+			(Template::TestTemplate01, Some("")),
+			(Template::TestTemplate02, Some("")),
 		]
 		.into()
 	}
