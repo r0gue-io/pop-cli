@@ -130,14 +130,7 @@ async fn guide_user_to_generate_parachain() -> Result<NewParachainCommand> {
 	let provider = prompt.interact()?;
 	let template = display_select_options(provider)?;
 
-	let url = url::Url::parse(&template.repository_url()?).expect("valid repository url");
-	// Get only the latest 3 releases
-	let latest_3_releases: Vec<Release> = get_latest_3_releases(url).await?;
-
-	let mut release_name = None;
-	if latest_3_releases.len() > 0 {
-		release_name = Some(display_release_versions_to_user(latest_3_releases)?);
-	}
+	let release_name = choose_release(template).await?;
 
 	let name: String = input("Where should your project be created?")
 		.placeholder("./my-parachain")
@@ -200,10 +193,12 @@ fn generate_parachain_from_template(
 			.unwrap_or_default()
 	))?;
 
-	// warn about audit status and licensing
-	warning(format!("NOTE: the resulting parachain is not guaranteed to be audited or reviewed for security vulnerabilities.\n{}",
-		style(format!("Please consult the source repository at {} to assess production suitability and licensing restrictions.", template.repository_url()?))
-			.dim()))?;
+	if !template.is_audited() {
+		// warn about audit status and licensing
+		warning(format!("NOTE: the resulting parachain is not guaranteed to be audited or reviewed for security vulnerabilities.\n{}",
+						style(format!("Please consult the source repository at {} to assess production suitability and licensing restrictions.", template.repository_url()?))
+							.dim()))?;
+	}
 
 	// add next steps
 	let mut next_steps = vec![
@@ -290,8 +285,42 @@ fn check_destination_path(name_template: &String) -> Result<&Path> {
 	Ok(destination_path)
 }
 
-async fn get_latest_3_releases(url: url::Url) -> Result<Vec<Release>> {
+/// Gets the latest 3 releases. Prompts the user to choose if releases exist.
+/// Otherwise, the default release is used.
+///
+/// return: `Option<String>` - The release name selected by the user or None if no releases found.
+async fn choose_release(template: &Template) -> Result<Option<String>> {
+	let url = url::Url::parse(&template.repository_url()?).expect("valid repository url");
 	let repo = GitHub::parse(url.as_str())?;
+
+	let license = repo.get_repo_license().await?;
+	log::info(format!("Template {}: {}", style("License").bold(), license))?;
+
+	// Get only the latest 3 releases that are supported by the template (default is all)
+	let latest_3_releases: Vec<Release> = get_latest_3_releases(&repo)
+		.await?
+		.into_iter()
+		.filter(|r| template.is_supported_version(&r.tag_name))
+		.collect();
+
+	let mut release_name = None;
+	if latest_3_releases.len() > 0 {
+		release_name = Some(display_release_versions_to_user(latest_3_releases)?);
+	} else {
+		// If supported_versions exists and no other releases are found,
+		// then the default branch is not supported and an error is returned
+		let _ = template.supported_versions().is_some()
+			&& Err(anyhow::anyhow!(
+				"No supported versions found for this template. Please open an issue here: https://github.com/r0gue-io/pop-cli/issues "
+			))?;
+
+		warning("No releases found for this template. Will use the default branch")?;
+	}
+
+	Ok(release_name)
+}
+
+async fn get_latest_3_releases(repo: &GitHub) -> Result<Vec<Release>> {
 	let mut latest_3_releases: Vec<Release> = repo
 		.get_latest_releases()
 		.await?
@@ -299,6 +328,7 @@ async fn get_latest_3_releases(url: url::Url) -> Result<Vec<Release>> {
 		.filter(|r| !r.prerelease)
 		.take(3)
 		.collect();
+	repo.get_repo_license().await?;
 	// Get the commit sha for the releases
 	for release in latest_3_releases.iter_mut() {
 		let commit = repo.get_commit_sha_from_release(&release.tag_name).await?;
