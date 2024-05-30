@@ -157,6 +157,30 @@ pub enum Template {
 		)
 	)]
 	ParityFPT,
+
+	// templates for unit tests below
+	#[cfg(test)]
+	#[strum(
+		serialize = "test_01",
+		message = "Test_01",
+		detailed_message = "Test template only compiled in test mode.",
+		props(
+			Provider = "Test",
+			Repository = "",
+			Network = "",
+			SupportedVersions = "v1.0.0,v2.0.0",
+			IsAudited = "true"
+		)
+	)]
+	TestTemplate01,
+	#[cfg(test)]
+	#[strum(
+		serialize = "test_02",
+		message = "Test_02",
+		detailed_message = "Test template only compiled in test mode.",
+		props(Provider = "Test", Repository = "", Network = "",)
+	)]
+	TestTemplate02,
 }
 
 impl Template {
@@ -190,6 +214,19 @@ impl Template {
 	pub fn network_config(&self) -> Option<&str> {
 		self.get_str("Network")
 	}
+
+	pub fn supported_versions(&self) -> Option<Vec<&str>> {
+		self.get_str("SupportedVersions").map(|s| s.split(',').collect())
+	}
+
+	pub fn is_supported_version(&self, version: &str) -> bool {
+		// if `SupportedVersion` is None, then all versions are supported. Otherwise, ensure version is present.
+		self.supported_versions().map_or(true, |versions| versions.contains(&version))
+	}
+
+	pub fn is_audited(&self) -> bool {
+		self.get_str("IsAudited").map_or(false, |s| s == "true")
+	}
 }
 
 #[derive(Error, Debug)]
@@ -213,6 +250,8 @@ mod tests {
 			("evm".to_string(), Template::EVM),
 			("cpt".to_string(), Template::ParityContracts),
 			("fpt".to_string(), Template::ParityFPT),
+			("test_01".to_string(), Template::TestTemplate01),
+			("test_02".to_string(), Template::TestTemplate02),
 		])
 	}
 
@@ -224,6 +263,8 @@ mod tests {
 			("evm".to_string(), "https://github.com/r0gue-io/evm-parachain"),
 			("cpt".to_string(), "https://github.com/paritytech/substrate-contracts-node"),
 			("fpt".to_string(), "https://github.com/paritytech/frontier-parachain-template"),
+			("test_01".to_string(), ""),
+			("test_02".to_string(), ""),
 		])
 	}
 
@@ -235,6 +276,8 @@ mod tests {
 			(Template::EVM, Some("./network.toml")),
 			(Template::ParityContracts, Some("./zombienet.toml")),
 			(Template::ParityFPT, Some("./zombienet-config.toml")),
+			(Template::TestTemplate01, Some("")),
+			(Template::TestTemplate02, Some("")),
 		]
 		.into()
 	}
@@ -313,5 +356,39 @@ mod tests {
 		assert_eq!(Provider::from_str("Pop").unwrap(), Provider::Pop);
 		assert_eq!(Provider::from_str("").unwrap_or_default(), Provider::Pop);
 		assert_eq!(Provider::from_str("Parity").unwrap(), Provider::Parity);
+	}
+
+	#[test]
+	fn supported_versions_have_no_whitespace() {
+		for template in Template::VARIANTS {
+			if let Some(versions) = template.supported_versions() {
+				for version in versions {
+					assert!(!version.contains(' '));
+				}
+			}
+		}
+	}
+
+	#[test]
+	fn test_supported_versions_works() {
+		let template = Template::TestTemplate01;
+		assert_eq!(template.supported_versions(), Some(vec!["v1.0.0", "v2.0.0"]));
+		assert_eq!(template.is_supported_version("v1.0.0"), true);
+		assert_eq!(template.is_supported_version("v2.0.0"), true);
+		assert_eq!(template.is_supported_version("v3.0.0"), false);
+
+		let template = Template::TestTemplate02;
+		assert_eq!(template.supported_versions(), None);
+		// will be true because an empty SupportedVersions defaults to all
+		assert_eq!(template.is_supported_version("v1.0.0"), true);
+	}
+
+	#[test]
+	fn test_is_audited() {
+		let template = Template::TestTemplate01;
+		assert_eq!(template.is_audited(), true);
+
+		let template = Template::TestTemplate02;
+		assert_eq!(template.is_audited(), false);
 	}
 }

@@ -213,12 +213,32 @@ impl GitHub {
 		Ok(commit)
 	}
 
+	pub async fn get_repo_license(&self) -> Result<String> {
+		static APP_USER_AGENT: &str =
+			concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
+		let client = reqwest::ClientBuilder::new().user_agent(APP_USER_AGENT).build()?;
+		let url = self.api_license_url();
+		let response = client.get(url).send().await?;
+		let value = response.json::<serde_json::Value>().await?;
+		let license = value
+			.get("license")
+			.and_then(|v| v.get("spdx_id"))
+			.and_then(|v| v.as_str())
+			.map(|v| v.to_owned())
+			.ok_or(Error::Git("Unable to find license for GitHub repo".to_string()))?;
+		Ok(license)
+	}
+
 	fn api_releases_url(&self) -> String {
 		format!("{}/repos/{}/{}/releases", self.api, self.org, self.name)
 	}
 
 	fn api_tag_information(&self, tag_name: &str) -> String {
 		format!("{}/repos/{}/{}/git/ref/tags/{}", self.api, self.org, self.name, tag_name)
+	}
+
+	fn api_license_url(&self) -> String {
+		format!("{}/repos/{}/{}/license", self.api, self.org, self.name)
 	}
 
 	fn org(repo: &Url) -> Result<&str> {
@@ -287,6 +307,16 @@ mod tests {
 			.await
 	}
 
+	async fn license_mock(mock_server: &mut Server, repo: &GitHub, payload: &str) -> Mock {
+		mock_server
+			.mock("GET", format!("/repos/{}/{}/license", repo.org, repo.name).as_str())
+			.with_status(200)
+			.with_header("content-type", "application/json")
+			.with_body(payload)
+			.create_async()
+			.await
+	}
+
 	#[tokio::test]
 	async fn test_get_latest_releases() -> Result<(), Box<dyn std::error::Error>> {
 		let mut mock_server = Server::new_async().await;
@@ -334,6 +364,27 @@ mod tests {
 		Ok(())
 	}
 
+	#[tokio::test]
+	async fn get_repo_license() -> Result<(), Box<dyn std::error::Error>> {
+		let mut mock_server = Server::new_async().await;
+
+		let expected_payload = r#"{
+			"license": {
+			"key":"unlicense",
+			"name":"The Unlicense",
+			"spdx_id":"Unlicense",
+			"url":"https://api.github.com/licenses/unlicense",
+			"node_id":"MDc6TGljZW5zZTE1"
+			}
+		}"#;
+		let repo = GitHub::parse(BASE_PARACHAIN)?.with_api(&mock_server.url());
+		let mock = license_mock(&mut mock_server, &repo, expected_payload).await;
+		let license = repo.get_repo_license().await?;
+		assert_eq!(license, "Unlicense".to_string());
+		mock.assert_async().await;
+		Ok(())
+	}
+
 	#[test]
 	fn test_get_releases_api_url() -> Result<(), Box<dyn std::error::Error>> {
 		assert_eq!(
@@ -348,6 +399,15 @@ mod tests {
 		assert_eq!(
 			GitHub::parse(POLKADOT_SDK)?.api_tag_information("polkadot-v1.11.0"),
 			"https://api.github.com/repos/paritytech/polkadot-sdk/git/ref/tags/polkadot-v1.11.0"
+		);
+		Ok(())
+	}
+
+	#[test]
+	fn test_api_license_url() -> Result<(), Box<dyn std::error::Error>> {
+		assert_eq!(
+			GitHub::parse(POLKADOT_SDK)?.api_license_url(),
+			"https://api.github.com/repos/paritytech/polkadot-sdk/license"
 		);
 		Ok(())
 	}
