@@ -6,7 +6,7 @@ An all-in-one tool for Polkadot development.
 
 ## Demo
 
-* Build, run and enter Docker container
+* Build and run Docker container
 ```bash
 docker build --platform linux/x86_64 -f ./Dockerfile --tag pop-cli:v0.1.0 ./
 docker run --platform linux/x86_64 \
@@ -16,6 +16,9 @@ docker run --platform linux/x86_64 \
   -p 9944:9944 \
   -p 9615:9615 \
   -it -d --hostname pop-cli --name pop-cli --volume ./:/pop:rw pop-cli:v0.1.0
+
+* Enter Docker container
+```bash
 docker exec -it pop-cli /bin/bash
 ```
 Note: Alternatively, use `--publish-all`
@@ -27,13 +30,13 @@ cp -f ./target/release/pop /usr/bin
 ```
 
 * Configure Git (if necessary)
-```
+```bash
 git config --global user.name "Luke Schoen"
 git config --global user.email "ltfschoen@gmail.com"
 ```
 
 * Run Pop!
-```
+```bash
 ./target/release/pop new parachain clawbird-parachain --symbol CLAW --decimals 12 --endowment 1_000_000_000
 ```
 
@@ -56,14 +59,13 @@ git config --global user.email "ltfschoen@gmail.com"
   * VS Code > Docker > pop-cli:v0.1.0 (accfaf511f7d) > Attach VS Code > Open Folder > /pop
 
 * Build parachain
-```
+```bash
 cd /pop/clawbird-parachain
 pop build parachain --path ./
 ```
 
 * Launch parachain on local network using Zombienet SDK
-```
-# launch your parachain on a local network
+```bash 
 pop up parachain -f ../tests/zombienet.toml -p https://github.com/r0gue-io/pop-node
 ```
 
