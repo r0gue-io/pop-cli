@@ -6,6 +6,8 @@ An all-in-one tool for Polkadot development.
 
 ## Demo
 
+* Slides: https://hackmd.io/zcIyOfpZQfamVPivipp18Q
+
 * Build and run Docker container
 ```bash
 docker build --platform linux/x86_64 -f ./Dockerfile --tag pop-cli:v0.1.0 ./
@@ -67,7 +69,7 @@ pop build parachain --path ./
 
 * Launch parachain on local network using Zombienet SDK
 ```bash 
-pop up parachain -f ../tests/zombienet.toml -p https://github.com/r0gue-io/pop-node
+RUST_LOG=debug pop up parachain -f ../tests/zombienet.toml -p https://github.com/r0gue-io/pop-node
 ```
 
 ## Install
