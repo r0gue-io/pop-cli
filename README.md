@@ -16,6 +16,7 @@ docker run --platform linux/x86_64 \
   -p 9944:9944 \
   -p 9615:9615 \
   -it -d --hostname pop-cli --name pop-cli --volume ./:/pop:rw pop-cli:v0.1.0
+```
 
 * Enter Docker container
 ```bash
