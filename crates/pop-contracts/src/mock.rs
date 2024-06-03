@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
-use std::path::PathBuf;
-
 use contract_build::{
 	BuildResult, ExecuteArgs, MetadataArtifacts, OptimizationResult, OutputType, Verbosity,
 };
+use std::path::PathBuf;
+
 // Mock the call to the `execute` function of the `contract_build' crate that builds the contract
 pub fn execute(_args: ExecuteArgs) -> anyhow::Result<BuildResult> {
 	Ok(BuildResult {

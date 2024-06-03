@@ -3,14 +3,13 @@
 mod build;
 mod errors;
 mod generator;
+#[cfg(test)]
+mod mock;
 mod new_pallet;
 mod new_parachain;
 mod templates;
 mod up;
 mod utils;
-
-#[cfg(test)]
-mod mock;
 
 pub use build::build_parachain;
 pub use errors::Error;

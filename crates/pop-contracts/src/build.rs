@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0
 #[cfg(test)]
 use crate::mock::execute;
+use crate::utils::helpers::get_manifest_path;
 #[cfg(not(test))]
 use contract_build::execute;
 use std::path::PathBuf;
-
-use crate::utils::helpers::get_manifest_path;
 
 /// Build the smart contract located in the specified `path`.
 pub fn build_smart_contract(path: &Option<PathBuf>) -> anyhow::Result<String> {
