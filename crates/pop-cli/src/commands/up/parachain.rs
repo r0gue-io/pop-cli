@@ -7,9 +7,10 @@ use cliclack::{
 };
 use console::{Emoji, Style};
 use duct::cmd;
-use pop_parachains::{Error, NetworkNode, Source, Status, Zombienet};
+use pop_parachains::{build_parachain, Error, NetworkNode, Source, Status, Zombienet};
 use std::{fs::remove_dir_all, time::Duration};
 use tokio::time::sleep;
+use std::path::PathBuf;
 
 #[derive(Args)]
 pub(crate) struct ZombienetCommand {
@@ -160,6 +161,9 @@ impl ZombienetCommand {
 			// Check for any local binaries which need to be built manually
 			let local: Vec<_> = missing.iter().filter(|(_, _, local)| *local).collect();
 			if local.len() > 0 {
+				for (name, binary, _) in local.iter() {
+					let _ = build_parachain(&Some(PathBuf::from(binary.name.clone())));
+				}
 				outro_cancel(
 					"🚫 Please manually build the missing binaries at the paths specified and try again.",
 				)?;
