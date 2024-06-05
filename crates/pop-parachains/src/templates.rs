@@ -20,13 +20,6 @@ pub enum Provider {
 	Pop,
 	#[strum(
 		ascii_case_insensitive,
-		serialize = "openzeppelin",
-		message = "OpenZeppelin",
-		detailed_message = "The standard for secure blockchain applications."
-	)]
-	OpenZeppelin,
-	#[strum(
-		ascii_case_insensitive,
 		serialize = "parity",
 		message = "Parity",
 		detailed_message = "Solutions for a trust-free world."
@@ -49,7 +42,6 @@ impl Provider {
 	pub fn default_template(&self) -> Template {
 		match &self {
 			Provider::Pop => Template::Standard,
-			Provider::OpenZeppelin => Template::OpenZeppelinGeneric,
 			Provider::Parity => Template::ParityContracts,
 		}
 	}
@@ -141,20 +133,6 @@ pub enum Template {
 		)
 	)]
 	EVM,
-	// OpenZeppelin
-	#[strum(
-		serialize = "polkadot-generic-runtime-template",
-		message = "Generic Runtime Template",
-		detailed_message = "A generic template for Substrate Runtime",
-		props(
-			Provider = "OpenZeppelin",
-			Repository = "https://github.com/OpenZeppelin/polkadot-generic-runtime-template",
-			Network = "./zombienet-config/devnet.toml",
-			SupportedVersions = "v1.0.0",
-			IsAudited = "true"
-		)
-	)]
-	OpenZeppelinGeneric,
 	/// Minimal Substrate node configured for smart contracts via pallet-contracts.
 	#[strum(
 		serialize = "cpt",
@@ -270,8 +248,6 @@ mod tests {
 			("assets".to_string(), Template::Assets),
 			("contracts".to_string(), Template::Contracts),
 			("evm".to_string(), Template::EVM),
-			// openzeppelin
-			("polkadot-generic-runtime-template".to_string(), Template::OpenZeppelinGeneric),
 			("cpt".to_string(), Template::ParityContracts),
 			("fpt".to_string(), Template::ParityFPT),
 			("test_01".to_string(), Template::TestTemplate01),
@@ -285,11 +261,6 @@ mod tests {
 			("assets".to_string(), "https://github.com/r0gue-io/assets-parachain"),
 			("contracts".to_string(), "https://github.com/r0gue-io/contracts-parachain"),
 			("evm".to_string(), "https://github.com/r0gue-io/evm-parachain"),
-			// openzeppelin
-			(
-				"polkadot-generic-runtime-template".to_string(),
-				"https://github.com/OpenZeppelin/polkadot-generic-runtime-template",
-			),
 			("cpt".to_string(), "https://github.com/paritytech/substrate-contracts-node"),
 			("fpt".to_string(), "https://github.com/paritytech/frontier-parachain-template"),
 			("test_01".to_string(), ""),
@@ -303,7 +274,6 @@ mod tests {
 			(Template::Assets, Some("./network.toml")),
 			(Template::Contracts, Some("./network.toml")),
 			(Template::EVM, Some("./network.toml")),
-			(Template::OpenZeppelinGeneric, Some("./zombienet-config/devnet.toml")),
 			(Template::ParityContracts, Some("./zombienet.toml")),
 			(Template::ParityFPT, Some("./zombienet-config.toml")),
 			(Template::TestTemplate01, Some("")),
