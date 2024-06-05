@@ -20,3 +20,5 @@ pub use utils::helpers::is_initial_endowment_valid;
 pub use utils::pallet_helpers::resolve_pallet_path;
 /// Information about the Node. External export from Zombienet-SDK.
 pub use zombienet_sdk::NetworkNode;
+
+static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));

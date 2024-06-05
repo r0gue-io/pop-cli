@@ -2,18 +2,21 @@
 use crate::{
 	errors::Error,
 	utils::git::{Git, GitHub},
+	APP_USER_AGENT,
 };
 use duct::cmd;
+use flate2::read::GzDecoder;
 use indexmap::IndexMap;
 use std::{
 	fmt::Debug,
-	fs::{copy, create_dir_all, metadata, rename, write, File},
+	fs::{copy, create_dir_all, metadata, read_dir, rename, write, File},
 	io::{BufRead, Seek, SeekFrom, Write},
 	iter::once,
 	os::unix::fs::PermissionsExt,
 	path::{Path, PathBuf},
 };
 use symlink::{remove_symlink_file, symlink_file};
+use tar::Archive;
 use tempfile::{tempdir, tempfile, Builder, NamedTempFile};
 use toml_edit::{value, ArrayOfTables, DocumentMut, Formatted, Item, Table, Value};
 use url::Url;
@@ -196,20 +199,29 @@ impl Zombienet {
 			// Check if parachain binary source specified as an argument
 			if let Some(parachains) = parachains {
 				for parachain in parachains {
-					let repository = Repository::parse(parachain)?;
-					if command == repository.package {
-						paras.insert(
-							id,
-							Parachain::from_git(
-								id,
-								repository.url,
-								repository.reference,
-								repository.package,
-								&cache,
-							)?,
-						);
-						continue 'outer;
+					let repo = Repository::parse(parachain)?;
+					if command != repo.package {
+						continue;
 					}
+
+					// Check for GitHub repository to be able to download source as an archive
+					let github =
+						repo.url.host_str().is_some_and(|h| h.to_lowercase() == "github.com");
+					let para = if github {
+						let github = GitHub::parse(parachain)?;
+						Parachain::from_github_archive(
+							id,
+							github,
+							repo.reference,
+							repo.package,
+							&cache,
+						)?
+					} else {
+						Parachain::from_git(id, repo.url, repo.reference, repo.package, &cache)?
+					};
+
+					paras.insert(id, para);
+					continue 'outer;
 				}
 			}
 
@@ -467,10 +479,37 @@ impl Parachain {
 		package: String,
 		cache: &Path,
 	) -> Result<Parachain, Error> {
+		// Currently just uses the unversioned package name
 		let path = cache.join(&package);
 		let source = Source::Git {
 			url: repo.clone(),
 			reference: reference.clone(),
+			package: package.clone(),
+			artifacts: vec![(package.clone(), path.clone())],
+		};
+		Ok(Parachain { id, binary: Binary::new(package, String::default(), path, source) })
+	}
+
+	fn from_github_archive(
+		id: u32,
+		repo: GitHub,
+		reference: Option<String>,
+		package: String,
+		cache: &Path,
+	) -> Result<Parachain, Error> {
+		// Currently just uses the unversioned package name
+		let path = cache.join(&package);
+		let url = match reference {
+			None => format!("https://api.github.com/repos/{}/{}/tarball", repo.org, repo.name),
+			Some(reference) => {
+				format!(
+					"https://github.com/{}/{}/archive/refs/heads/{reference}.tar.gz",
+					repo.org, repo.name
+				)
+			},
+		};
+		let source = Source::SourceCodeArchive {
+			url,
 			package: package.clone(),
 			artifacts: vec![(package.clone(), path.clone())],
 		};
@@ -568,8 +607,8 @@ impl Binary {
 				file.seek(SeekFrom::Start(0))?;
 				// Extract contents
 				status.update("Extracting from archive...");
-				let tar = flate2::read::GzDecoder::new(file);
-				let mut archive = tar::Archive::new(tar);
+				let tar = GzDecoder::new(file);
+				let mut archive = Archive::new(tar);
 				let temp_dir = tempdir()?;
 				let working_dir = temp_dir.path();
 				archive.unpack(working_dir)?;
@@ -585,7 +624,40 @@ impl Binary {
 				status.update(&format!("Cloning {url}..."));
 				Git::clone(url, &working_dir, reference.as_deref())?;
 				// Build binaries
+				status.update("Building binaries...");
 				self.build(&working_dir, package, &artifacts, status, verbose).await?;
+			},
+			Source::SourceCodeArchive { url, package, artifacts } => {
+				// Download archive (user agent required when using GitHub API)
+				status.update(&format!("Downloading from {url}..."));
+				let client = reqwest::ClientBuilder::new().user_agent(APP_USER_AGENT).build()?;
+				let response = client.get(url).send().await?.error_for_status()?;
+				let mut file = tempfile()?;
+				file.write_all(&response.bytes().await?)?;
+				file.seek(SeekFrom::Start(0))?;
+				// Extract contents
+				status.update("Extracting from archive...");
+				let tar = GzDecoder::new(file);
+				let mut archive = Archive::new(tar);
+				let temp_dir = tempdir()?;
+				let mut working_dir = temp_dir.path().into();
+				archive.unpack(&working_dir)?;
+				// Prepare archive contents for build
+				let entries: Vec<_> =
+					read_dir(&working_dir)?.take(2).filter_map(|x| x.ok()).collect();
+				match entries.len() {
+					0 => {
+						return Err(Error::ArchiveError(
+							"The downloaded archive does not contain any entries.".into(),
+						))
+					},
+					1 => working_dir = entries[0].path(), // Automatically switch to top level directory
+					_ => {}, // Assume that downloaded archive does not have a top level directory
+				}
+				// Build binaries
+				status.update("Building binaries...");
+				self.build(&working_dir, package, &artifacts, status, verbose).await?;
+				status.update("Sourcing complete.");
 			},
 			Source::Url(url) => {
 				// Download required version of binaries
@@ -672,6 +744,15 @@ pub enum Source {
 	},
 	/// A local source.
 	Local(PathBuf),
+	/// A source code archive for download.
+	SourceCodeArchive {
+		/// The url of the source code archive.
+		url: String,
+		/// The name of the package to be built.
+		package: String,
+		/// Any additional artifacts which are required.
+		artifacts: Vec<(String, PathBuf)>,
+	},
 	/// A URL for download.
 	Url(String),
 }
@@ -757,7 +838,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn test_new_zombienet_success() -> Result<()> {
-		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
+		let temp_dir = tempdir().expect("Could not create temp dir");
 		let cache = PathBuf::from(temp_dir.path());
 
 		let zombienet = Zombienet::new(
@@ -797,7 +878,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn test_new_fails_wrong_config_no_para_id() -> Result<()> {
-		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
+		let temp_dir = tempdir().expect("Could not create temp dir");
 		let cache = PathBuf::from(temp_dir.path());
 
 		let toml_file = generate_wrong_config_no_para_id(&temp_dir)
@@ -826,7 +907,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn test_relay_chain() -> Result<()> {
-		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
+		let temp_dir = tempdir().expect("Could not create temp dir");
 		let cache = PathBuf::from(temp_dir.path());
 
 		let config = NetworkConfiguration::from(CONFIG_FILE_PATH)?;
@@ -846,7 +927,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn test_relay_chain_no_specifying_version() -> Result<()> {
-		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
+		let temp_dir = tempdir().expect("Could not create temp dir");
 		let cache = PathBuf::from(temp_dir.path());
 
 		let config = NetworkConfiguration::from(CONFIG_FILE_PATH)?;
@@ -863,7 +944,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn test_relay_chain_fails_wrong_config() -> Result<()> {
-		let temp_dir = tempfile::tempdir()?;
+		let temp_dir = tempdir()?;
 		let path = generate_wrong_config_no_relay(&temp_dir)?;
 		assert!(matches!(
 			NetworkConfiguration::from(path),
@@ -881,7 +962,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn test_system_parachain() -> Result<()> {
-		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
+		let temp_dir = tempdir().expect("Could not create temp dir");
 		let cache = PathBuf::from(temp_dir.path());
 
 		let system_chain =
@@ -898,7 +979,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn test_parachain() -> Result<()> {
-		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
+		let temp_dir = tempdir().expect("Could not create temp dir");
 		let cache = PathBuf::from(temp_dir.path());
 
 		let repo = Repository::parse("https://github.com/r0gue-io/pop-node")?;
@@ -915,7 +996,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn test_missing_binaries() -> Result<()> {
-		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
+		let temp_dir = tempdir().expect("Could not create temp dir");
 		let cache = PathBuf::from(temp_dir.path());
 
 		let zombienet = Zombienet::new(
@@ -935,7 +1016,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn test_missing_binaries_no_missing() -> Result<()> {
-		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
+		let temp_dir = tempdir().expect("Could not create temp dir");
 		let cache = PathBuf::from(temp_dir.path());
 
 		// Create "fake" binary files
@@ -963,7 +1044,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn test_configure_zombienet() -> Result<()> {
-		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
+		let temp_dir = tempdir().expect("Could not create temp dir");
 		let cache = PathBuf::from(temp_dir.path());
 
 		let mut zombienet = Zombienet::new(
@@ -987,7 +1068,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn test_spawn_error_no_binaries() -> Result<()> {
-		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
+		let temp_dir = tempdir().expect("Could not create temp dir");
 		let cache = PathBuf::from(temp_dir.path());
 
 		let mut zombienet = Zombienet::new(
@@ -1007,7 +1088,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn test_source_url() -> Result<()> {
-		let temp_dir = tempfile::tempdir()?;
+		let temp_dir = tempdir()?;
 		let cache = PathBuf::from(temp_dir.path());
 
 		let binary = Binary::new("polkadot", TESTING_POLKADOT_VERSION,
@@ -1015,7 +1096,7 @@ mod tests {
 				"https://github.com/paritytech/polkadot-sdk/releases/download/polkadot-v1.7.0/polkadot"
 					.to_string(),
 			));
-		let working_dir = tempfile::tempdir()?;
+		let working_dir = tempdir()?;
 		binary.source(&working_dir.path(), (), false).await?;
 		assert!(temp_dir.path().join(POLKADOT_BINARY).exists());
 
