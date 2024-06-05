@@ -5309,6 +5309,8 @@ dependencies = [
  "ink_env",
  "sp-core",
  "sp-weights",
+ "strum 0.26.2",
+ "strum_macros 0.26.2",
  "subxt",
  "subxt-signer",
  "tempfile",
