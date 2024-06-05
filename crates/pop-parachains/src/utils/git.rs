@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0
-use crate::errors::Error;
+use crate::{errors::Error, APP_USER_AGENT};
 use anyhow::Result;
 use git2::{
 	build::RepoBuilder, FetchOptions, IndexAddOption, RemoteCallbacks, Repository, ResetType,
 };
 use git2_credentials::CredentialHandler;
 use regex::Regex;
-use std::path::Path;
-use std::{env, fs};
+use std::{fs, path::Path};
 use url::Url;
 
 /// A helper for handling Git operations.
@@ -165,7 +164,7 @@ pub struct GitHub {
 impl GitHub {
 	const GITHUB: &'static str = "github.com";
 
-	/// Parse URL of a github repository.
+	/// Parse URL of a GitHub repository.
 	///
 	/// # Arguments
 	///
@@ -186,23 +185,22 @@ impl GitHub {
 		self
 	}
 
-	/// Fetch the latest releases of the Github repository.
+	/// Fetch the latest releases of the GitHub repository.
 	pub async fn get_latest_releases(&self) -> Result<Vec<Release>> {
-		static APP_USER_AGENT: &str =
-			concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 		let client = reqwest::ClientBuilder::new().user_agent(APP_USER_AGENT).build()?;
 		let url = self.api_releases_url();
-		let response = client.get(url).send().await?;
+		let response = client.get(url).send().await?.error_for_status()?;
 		Ok(response.json::<Vec<Release>>().await?)
 	}
 
 	/// Retrieves the commit hash associated with a specified tag in a GitHub repository.
 	pub async fn get_commit_sha_from_release(&self, tag_name: &str) -> Result<String> {
-		static APP_USER_AGENT: &str =
-			concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
-
 		let client = reqwest::ClientBuilder::new().user_agent(APP_USER_AGENT).build()?;
-		let response = client.get(self.api_tag_information(tag_name)).send().await?;
+		let response = client
+			.get(self.api_tag_information(tag_name))
+			.send()
+			.await?
+			.error_for_status()?;
 		let value = response.json::<serde_json::Value>().await?;
 		let commit = value
 			.get("object")
@@ -214,11 +212,9 @@ impl GitHub {
 	}
 
 	pub async fn get_repo_license(&self) -> Result<String> {
-		static APP_USER_AGENT: &str =
-			concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 		let client = reqwest::ClientBuilder::new().user_agent(APP_USER_AGENT).build()?;
 		let url = self.api_license_url();
-		let response = client.get(url).send().await?;
+		let response = client.get(url).send().await?.error_for_status()?;
 		let value = response.json::<serde_json::Value>().await?;
 		let license = value
 			.get("license")
