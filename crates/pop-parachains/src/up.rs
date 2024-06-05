@@ -831,7 +831,7 @@ mod tests {
 	use super::*;
 	use anyhow::Result;
 
-	const CONFIG_FILE_PATH: &str = "../../tests/zombienet.toml";
+	const CONFIG_FILE_PATH: &str = "../../tests/networks/pop.toml";
 	const TESTING_POLKADOT_VERSION: &str = "v1.7.0";
 	const POLKADOT_BINARY: &str = "polkadot-v1.7.0";
 	const POLKADOT_PARACHAIN_BINARY: &str = "polkadot-parachain-v1.7.0";

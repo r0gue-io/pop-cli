@@ -4,7 +4,7 @@ use pop_parachains::{Binary, Source, Zombienet};
 use std::path::PathBuf;
 use url::Url;
 
-const CONFIG_FILE_PATH: &str = "../../tests/zombienet.toml";
+const CONFIG_FILE_PATH: &str = "../../tests/networks/pop.toml";
 const TESTING_POLKADOT_VERSION: &str = "v1.7.0";
 const POLKADOT_BINARY: &str = "polkadot-v1.7.0";
 const POLKADOT_SDK: &str = "https://github.com/paritytech/polkadot-sdk";

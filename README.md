@@ -108,18 +108,18 @@ pop build parachain --release
 You can spawn a local network using [zombienet](https://github.com/paritytech/zombienet-sdk) as follows:
 
 ```shell
-pop up parachain -f ./tests/zombienet.toml -p https://github.com/r0gue-io/pop-node
+pop up parachain -f ./tests/networks/pop.toml
 ```
 
-> :information_source: Pop CLI will automatically source the necessary polkadot binaries. Currently, these will be built
-> if on a non-linux system.
+> :information_source: Pop CLI will automatically source the necessary polkadot binaries.
 
 ### Run a command after the network has been spun up
 
-The following will spin up the network locally according the the zombienet file and once the network is up, it will run the command specified in `--cmd`:
+The following will spin up the network locally according the the zombienet file and once the network is up, it will run
+the command specified in `--cmd`:
 
 ```shell
-pop up parachain -f ./tests/zombienet.toml -p https://github.com/r0gue-io/pop-node --cmd ./path/to/my/script
+pop up parachain -f ./tests/networks/pop.toml --cmd ./path/to/my/script
 ```
 
 ### Contracts
