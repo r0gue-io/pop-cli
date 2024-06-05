@@ -4,11 +4,12 @@ use crate::style::{style, Theme};
 use clap::Args;
 use cliclack::{
 	clear_screen, confirm, intro, log, multi_progress, outro, outro_cancel, set_theme, ProgressBar,
+	Theme as _, ThemeState,
 };
-use console::{Emoji, Style};
+use console::{Emoji, Style, Term};
 use duct::cmd;
-use pop_parachains::{Error, NetworkNode, Source, Status, Zombienet};
-use std::{fs::remove_dir_all, time::Duration};
+use pop_parachains::{Binary, Error, NetworkNode, Source, Status, Zombienet};
+use std::{fs::remove_dir_all, path::PathBuf, time::Duration};
 use tokio::time::sleep;
 
 #[derive(Args)]
@@ -69,107 +70,19 @@ impl ZombienetCommand {
 			.missing_binaries()
 			.into_iter()
 			.filter_map(|b| match &b.source {
-				Source::Local { .. } => Some((b.name.as_str(), b, true)),
-				Source::Archive { .. }
-				| Source::Git { .. }
-				| Source::SourceCodeArchive { .. }
-				| Source::Url(..) => Some((b.name.as_str(), b, false)),
 				Source::None | Source::Artifact => None,
+				_ => Some(b),
 			})
 			.collect();
-		if missing.len() > 0 {
+		if !missing.is_empty() {
 			let list = style(format!(
 				"> {}",
-				missing.iter().map(|(item, _, _)| *item).collect::<Vec<_>>().join(", ")
+				missing.iter().map(|b| b.name.clone()).collect::<Vec<_>>().join(", ")
 			))
 			.dim()
 			.to_string();
 			log::warning(format!("⚠️ The following binaries specified in the network configuration file cannot be found locally:\n   {list}"))?;
-
-			// Prompt for automatic sourcing of remote binaries
-			let remote: Vec<_> = missing.iter().filter(|(_, _, local)| !local).collect();
-			if remote.len() > 0 {
-				let list = style(format!(
-					"> {}",
-					remote
-						.iter()
-						.map(|(item, binary, _)| format!("{item} {}", binary.version()))
-						.collect::<Vec<_>>()
-						.join(", ")
-				))
-				.dim()
-				.to_string();
-				if !confirm(format!(
-					"📦 Would you like to source the following automatically now?. It may take some time...\n   {list}\n   {}",
-					format!(
-						"ℹ️ These binaries will be cached at {}",
-						&cache.to_str().expect("expected local cache is invalid")
-					)))
-				.initial_value(true)
-				.interact()?
-				{
-					outro_cancel(
-						"🚫 Cannot launch the specified network until all required binaries are available.",
-					)?;
-					return Ok(());
-				}
-
-				// Check for pre-existing working directory
-				let working_dir = cache.join(".src");
-				if working_dir.exists() && confirm(
-					"📦 A previous working directory has been detected. Would you like to remove it now?",
-				)
-					.initial_value(true)
-					.interact()? {
-					remove_dir_all(&working_dir)?;
-				}
-				console::Term::stderr().clear_last_lines(3)?;
-
-				// Source binaries
-				for (_name, binary, _local) in remote {
-					match self.verbose {
-						true => {
-							let log_reporter = LogReporter;
-							log::info(format!("📦 Sourcing {}...", binary.name))?;
-							if let Err(e) =
-								binary.source(&working_dir, log_reporter, self.verbose).await
-							{
-								outro_cancel(format!("🚫 Sourcing failed: {e}"))?;
-								return Ok(());
-							}
-							log::info(format!("✅ Sourcing {} complete.", binary.name))?;
-						},
-						false => {
-							let multi = multi_progress(format!("📦 Sourcing {}...", binary.name));
-							let progress = multi.add(cliclack::spinner());
-							let progress_reporter = ProgressReporter(&progress);
-							if let Err(e) =
-								binary.source(&working_dir, progress_reporter, self.verbose).await
-							{
-								progress.error(format!("🚫 Sourcing failed: {e}"));
-								multi.stop();
-								return Ok(());
-							}
-							progress.stop(format!("✅ Sourcing {} complete.", binary.name));
-							multi.stop();
-						},
-					}
-				}
-
-				// Remove working directory once completed successfully
-				if working_dir.exists() {
-					remove_dir_all(working_dir)?
-				}
-			}
-
-			// Check for any local binaries which need to be built manually
-			let local: Vec<_> = missing.iter().filter(|(_, _, local)| *local).collect();
-			if local.len() > 0 {
-				outro_cancel(
-					"🚫 Please manually build the missing binaries at the paths specified and try again.",
-				)?;
-				return Ok(());
-			}
+			Self::source_binaries(missing, &cache, self.verbose).await?;
 		}
 
 		// Finally spawn network and wait for signal to terminate
@@ -240,6 +153,109 @@ impl ZombienetCommand {
 
 		Ok(())
 	}
+
+	async fn source_binaries(
+		missing: Vec<&Binary>,
+		cache: &PathBuf,
+		verbose: bool,
+	) -> anyhow::Result<()> {
+		// Prompt for automatic sourcing of binaries
+		let list = style(format!(
+			"> {}",
+			missing
+				.iter()
+				.map(|binary| {
+					let version = binary.version();
+					if version != "" {
+						format!("{} {}", binary.name, binary.version())
+					} else {
+						binary.name.clone()
+					}
+				})
+				.collect::<Vec<_>>()
+				.join(", ")
+		))
+		.dim()
+		.to_string();
+		if !confirm(format!(
+			"📦 Would you like to source them automatically now? It may take some time...\n   {list}"))
+		.initial_value(true)
+		.interact()?
+		{
+			outro_cancel(
+				"🚫 Cannot launch the specified network until all required binaries are available.",
+			)?;
+			return Ok(());
+		}
+
+		log::info(format!(
+			"ℹ️ Binaries will be cached at {}",
+			&cache.to_str().expect("expected local cache is invalid")
+		))?;
+
+		// Check for pre-existing working directory
+		let working_dir = cache.join(".src");
+		if working_dir.exists() && confirm(
+			"📦 A previous working directory has been detected. Would you like to remove it now?",
+		)
+			.initial_value(true)
+			.interact()? {
+			remove_dir_all(&working_dir)?;
+		}
+
+		// Source binaries
+		match verbose {
+			true => {
+				let reporter = VerboseReporter;
+				for binary in missing {
+					log::info(format!("📦 Sourcing {}...", binary.name))?;
+					Term::stderr().clear_last_lines(1)?;
+					if let Err(e) = binary.source(&working_dir, reporter, verbose).await {
+						reporter.update(&format!("Sourcing failed: {e}"));
+						outro_cancel(
+							"🚫 Cannot launch the network until all required binaries are available.",
+						)?;
+						return Ok(());
+					}
+				}
+				reporter.update("");
+			},
+			false => {
+				let multi = multi_progress("📦 Sourcing binaries...".to_string());
+				let queue: Vec<_> = missing
+					.iter()
+					.map(|binary| {
+						let progress = multi.add(cliclack::spinner());
+						progress.start(format!("{}: waiting...", binary.name));
+						(binary, progress)
+					})
+					.collect();
+				let mut error = false;
+				for (binary, progress) in &queue {
+					let prefix = format!("{}: ", binary.name);
+					let progress_reporter = ProgressReporter(&prefix, &progress);
+					if let Err(e) = binary.source(&working_dir, progress_reporter, verbose).await {
+						progress.error(format!("🚫 {}: {e}", binary.name));
+						error = true;
+					}
+					progress.stop(format!("✅  {}", binary.name));
+				}
+				multi.stop();
+				if error {
+					outro_cancel(
+						"🚫 Cannot launch the network until all required binaries are available.",
+					)?;
+					return Ok(());
+				}
+			},
+		};
+
+		// Remove working directory once completed successfully
+		if working_dir.exists() {
+			remove_dir_all(working_dir)?
+		}
+		return Ok(());
+	}
 }
 
 pub(crate) async fn run_custom_command(
@@ -263,21 +279,28 @@ pub(crate) async fn run_custom_command(
 
 /// Reports any observed status updates to a progress bar.
 #[derive(Copy, Clone)]
-struct ProgressReporter<'a>(&'a ProgressBar);
+struct ProgressReporter<'a>(&'a str, &'a ProgressBar);
 
 impl Status for ProgressReporter<'_> {
 	fn update(&self, status: &str) {
-		self.0.start(status.replace("   Compiling", "Compiling"))
+		self.1
+			.start(&format!("{}{}", self.0, status.replace("   Compiling", "Compiling")))
 	}
 }
 
-/// Reports any observed status updates as info messages.
+/// Reports any observed status updates as indented messages.
 #[derive(Copy, Clone)]
-struct LogReporter;
+struct VerboseReporter;
 
-impl Status for LogReporter {
+impl Status for VerboseReporter {
 	fn update(&self, status: &str) {
-		if let Err(e) = log::info(status) {
+		const S_BAR: Emoji = Emoji("│", "|");
+		let message = format!(
+			"{bar}  {status}",
+			bar = Theme.bar_color(&ThemeState::Submit).apply_to(S_BAR),
+			status = style(status).dim()
+		);
+		if let Err(e) = Term::stderr().write_line(&message) {
 			println!("An error occurred logging the status message of '{status}': {e}")
 		}
 	}

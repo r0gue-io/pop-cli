@@ -522,14 +522,28 @@ impl Parachain {
 			.and_then(|f| f.to_str())
 			.ok_or(Error::Config(format!("unable to determine file name for {relative_path:?}")))?
 			.to_string();
+
+		// Check if package manifest can be found within relative path
+		let mut manifest = relative_path.parent();
+		while let Some(path) = manifest {
+			if path.join("Cargo.toml").exists() {
+				break;
+			}
+			manifest = path.parent();
+		}
+
+		// Define source accordingly
+		let source = match manifest {
+			Some(manifest) => Source::LocalPackage {
+				manifest: manifest.join("Cargo.toml").to_path_buf(),
+				name: name.clone(),
+			},
+			None => Source::Local,
+		};
+
 		Ok(Parachain {
 			id,
-			binary: Binary::new(
-				name,
-				String::default(),
-				working_dir.join(&relative_path),
-				Source::Local(relative_path),
-			),
+			binary: Binary::new(name, String::default(), working_dir.join(&relative_path), source),
 		})
 	}
 
@@ -624,8 +638,20 @@ impl Binary {
 				status.update(&format!("Cloning {url}..."));
 				Git::clone(url, &working_dir, reference.as_deref())?;
 				// Build binaries
-				status.update("Building binaries...");
+				status.update("Starting build of binary...");
 				self.build(&working_dir, package, &artifacts, status, verbose).await?;
+			},
+			Source::LocalPackage { manifest, name } => {
+				// Build binaries
+				status.update("Starting build of binary...");
+				self.build(
+					manifest.parent().expect("expected path to package manifest"),
+					name,
+					&[],
+					status,
+					verbose,
+				)
+				.await?;
 			},
 			Source::SourceCodeArchive { url, package, artifacts } => {
 				// Download archive (user agent required when using GitHub API)
@@ -655,7 +681,7 @@ impl Binary {
 					_ => {}, // Assume that downloaded archive does not have a top level directory
 				}
 				// Build binaries
-				status.update("Building binaries...");
+				status.update("Starting build of binary...");
 				self.build(&working_dir, package, &artifacts, status, verbose).await?;
 				status.update("Sourcing complete.");
 			},
@@ -664,7 +690,7 @@ impl Binary {
 				status.update(&format!("Downloading from {url}..."));
 				Self::download(&url, &self.path).await?;
 			},
-			Source::None | Source::Artifact | Source::Local(..) => {},
+			Source::None | Source::Artifact | Source::Local => {},
 		}
 		Ok(())
 	}
@@ -688,7 +714,6 @@ impl Binary {
 				}
 			},
 			true => {
-				status.update("");
 				command.run()?;
 			},
 		}
@@ -742,8 +767,15 @@ pub enum Source {
 		/// Any additional artifacts which are required.
 		artifacts: Vec<(String, PathBuf)>,
 	},
-	/// A local source.
-	Local(PathBuf),
+	/// A local binary.
+	Local,
+	/// A local package.
+	LocalPackage {
+		/// The path to the package manifest.
+		manifest: PathBuf,
+		/// The name of the package to be built.
+		name: String,
+	},
 	/// A source code archive for download.
 	SourceCodeArchive {
 		/// The url of the source code archive.
