@@ -38,7 +38,11 @@ mod tests {
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
 		let temp_contract_dir = temp_dir.path().join("test_contract");
 		fs::create_dir(&temp_contract_dir)?;
-		crate::create_smart_contract("test_contract", temp_contract_dir.as_path())?;
+		crate::create_smart_contract(
+			"test_contract",
+			temp_contract_dir.as_path(),
+			&crate::Template::Flipper,
+		)?;
 		Ok(temp_dir)
 	}
 

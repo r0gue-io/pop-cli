@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
-use crate::errors::Error;
+use crate::{errors::Error, Template};
+use anyhow::Result;
 use contract_build::new_contract_project;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// Create a new smart contract.
 ///
@@ -9,25 +10,30 @@ use std::path::Path;
 ///
 /// * `name` - name for the smart contract to be created.
 /// * `target` - location where the smart contract will be created.
-pub fn create_smart_contract(name: &str, target: &Path) -> Result<(), Error> {
-	// Canonicalize the target path to ensure consistency and resolve any symbolic links.
-	let canonicalized_path = target
-		.canonicalize()
-		// If an I/O error occurs during canonicalization, convert it into an Error enum variant.
-		.map_err(|e| Error::IO(e))?;
-
-	// Retrieve the parent directory of the canonicalized path.
+pub fn create_smart_contract(name: &str, target: &Path, template: &Template) -> Result<(), Error> {
+	let canonicalized_path = canonicalized_path(target)?;
 	let parent_path = canonicalized_path
 		.parent()
 		// If the parent directory cannot be retrieved (e.g., if the path has no parent),
 		// return a NewContract variant indicating the failure.
 		.ok_or(Error::NewContract("Failed to get parent directory".to_string()))?;
 
-	// Create a new contract project with the provided name in the parent directory.
-	new_contract_project(&name, Some(parent_path))
-		// If an error occurs during the creation of the contract project,
-		// convert it into a NewContract variant with a formatted error message.
-		.map_err(|e| Error::NewContract(format!("{}", e)))
+	// Create a new default contract project with the provided name in the parent directory.
+	if matches!(template, Template::Flipper) {
+		return new_contract_project(&name, Some(parent_path))
+			// If an error occurs during the creation of the contract project,
+			// convert it into a NewContract variant with a formatted error message.
+			.map_err(|e| Error::NewContract(format!("{}", e)));
+	}
+	Ok(())
+}
+
+fn canonicalized_path(target: &Path) -> Result<PathBuf, Error> {
+	// Canonicalize the target path to ensure consistency and resolve any symbolic links.
+	return target
+		.canonicalize()
+		// If an I/O error occurs during canonicalization, convert it into an Error enum variant.
+		.map_err(|e| Error::IO(e));
 }
 
 #[cfg(test)]
@@ -41,7 +47,11 @@ mod tests {
 		let temp_dir = tempfile::tempdir()?;
 		let temp_contract_dir = temp_dir.path().join("test_contract");
 		fs::create_dir(&temp_contract_dir)?;
-		create_smart_contract("test_contract", temp_contract_dir.as_path())?;
+		create_smart_contract(
+			"test_contract",
+			temp_contract_dir.as_path(),
+			&crate::Template::Flipper,
+		)?;
 		Ok(temp_dir)
 	}
 

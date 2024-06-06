@@ -44,7 +44,12 @@ impl NewContractCommand {
 			.clone()
 			.expect("name can not be none as fallback above is interactive input; qed");
 
-		generate_contract_from_template(name, contract_config.path)?;
+		let template = match &contract_config.template {
+			Some(template) => template.clone(),
+			None => Template::Flipper, // Default template
+		};
+
+		generate_contract_from_template(name, contract_config.path, &template)?;
 		Ok(())
 	}
 }
@@ -79,7 +84,11 @@ async fn guide_user_to_generate_contract() -> Result<NewContractCommand> {
 	})
 }
 
-fn generate_contract_from_template(name: &String, path: Option<PathBuf>) -> Result<()> {
+fn generate_contract_from_template(
+	name: &String,
+	path: Option<PathBuf>,
+	template: &Template,
+) -> Result<()> {
 	intro(format!(
 		"{}: Generating new contract \"{}\"!",
 		style(" Pop CLI ").black().on_magenta(),
@@ -105,6 +114,7 @@ fn generate_contract_from_template(name: &String, path: Option<PathBuf>) -> Resu
 	fs::create_dir_all(contract_path.as_path())?;
 	let spinner = cliclack::spinner();
 	spinner.start("Generating contract...");
+
 	create_smart_contract(&name, contract_path.as_path())?;
 
 	spinner.stop("Smart contract created!");
