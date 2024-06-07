@@ -1127,7 +1127,7 @@ mod tests {
 
 		let binary = Binary::new("polkadot", TESTING_POLKADOT_VERSION,
 			cache.join(POLKADOT_BINARY), Source::Url(
-				"https://github.com/paritytech/polkadot-sdk/releases/download/polkadot-v1.7.0/polkadot"
+				"https://github.com/paritytech/polkadot-sdk/releases/download/polkadot-v1.12.0/polkadot"
 					.to_string(),
 			));
 		let working_dir = tempdir()?;
