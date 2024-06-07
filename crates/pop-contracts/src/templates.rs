@@ -32,24 +32,24 @@ pub enum Template {
 	Flipper,
 	/// The implementation of the ERC-20 standard in Solidity using ink!
 	#[strum(
-		serialize = "erc-20",
-		message = "ERC-20",
+		serialize = "erc20",
+		message = "ERC20",
 		detailed_message = "The implementation of the ERC-20 standard in Solidity using ink!",
-		props(Repository = "https://github.com/paritytech/ink-examples/tree/main/erc20")
+		props(Repository = "https://github.com/paritytech/ink-examples")
 	)]
 	ERC20,
 	/// The implementation of the ERC-721 standard in Solidity using ink!
 	#[strum(
-		serialize = "erc-721",
-		message = "ERC-721",
+		serialize = "erc721",
+		message = "ERC721",
 		detailed_message = "The implementation of the ERC-721 standard in Solidity using ink!",
 		props(Repository = "https://github.com/paritytech/ink-examples/tree/main/erc721")
 	)]
 	ERC721,
 	/// The implementation of the ERC-1155 standard in Solidity using ink!
 	#[strum(
-		serialize = "erc-1155",
-		message = "ERC-1155",
+		serialize = "erc1155",
+		message = "ERC1155",
 		detailed_message = "The implementation of the ERC-1155 standard in Solidity using ink!",
 		props(Repository = "https://github.com/paritytech/ink-examples/tree/main/erc1155")
 	)]

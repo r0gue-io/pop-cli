@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
-use crate::{errors::Error, Template};
+use crate::{errors::Error, utils::git::Git, Template};
 use anyhow::Result;
 use contract_build::new_contract_project;
 use std::path::{Path, PathBuf};
@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 ///
 /// * `name` - name for the smart contract to be created.
 /// * `target` - location where the smart contract will be created.
-pub fn create_smart_contract(name: &str, target: &Path, template: &Template) -> Result<(), Error> {
+pub fn create_smart_contract(name: &str, target: &Path, template: &Template) -> Result<()> {
 	let canonicalized_path = canonicalized_path(target)?;
 	let parent_path = canonicalized_path
 		.parent()
@@ -20,11 +20,16 @@ pub fn create_smart_contract(name: &str, target: &Path, template: &Template) -> 
 
 	// Create a new default contract project with the provided name in the parent directory.
 	if matches!(template, Template::Flipper) {
-		return new_contract_project(&name, Some(parent_path))
+		new_contract_project(&name, Some(parent_path))
 			// If an error occurs during the creation of the contract project,
 			// convert it into a NewContract variant with a formatted error message.
-			.map_err(|e| Error::NewContract(format!("{}", e)));
+			.map_err(|e| Error::NewContract(format!("{}", e)))?;
+		return Ok(());
 	}
+	let temp_dir = ::tempfile::TempDir::new_in(std::env::temp_dir())?;
+	let source = temp_dir.path();
+	let template_repository = template.repository_url()?;
+	Git::clone_and_clean(template_repository, source)?;
 	Ok(())
 }
 

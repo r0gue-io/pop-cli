@@ -29,4 +29,10 @@ pub enum Error {
 
 	#[error("Failed to parse hex encoded bytes: {0}")]
 	HexParsing(String),
+
+	#[error("Configuration error: {0}")]
+	Config(String),
+
+	#[error("ParseError error: {0}")]
+	ParseError(#[from] url::ParseError),
 }

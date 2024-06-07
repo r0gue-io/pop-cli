@@ -5306,6 +5306,8 @@ dependencies = [
  "contract-build",
  "contract-extrinsics",
  "duct",
+ "git2",
+ "git2_credentials",
  "ink_env",
  "sp-core",
  "sp-weights",

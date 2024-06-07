@@ -115,7 +115,7 @@ fn generate_contract_from_template(
 	let spinner = cliclack::spinner();
 	spinner.start("Generating contract...");
 
-	create_smart_contract(&name, contract_path.as_path())?;
+	create_smart_contract(&name, contract_path.as_path(), template)?;
 
 	spinner.stop("Smart contract created!");
 	outro(format!("cd into \"{}\" and enjoy hacking! 🚀", contract_path.display()))?;

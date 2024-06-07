@@ -23,10 +23,12 @@ subxt-signer.workspace = true
 subxt.workspace = true
 strum.workspace = true
 strum_macros.workspace = true
+git2.workspace = true
+git2_credentials.workspace = true
+tempfile.workspace = true
 
 # cargo-contracts
 contract-build.workspace = true
 contract-extrinsics.workspace = true
 
-[dev-dependencies]
-tempfile.workspace = true
+
