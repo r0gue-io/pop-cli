@@ -225,9 +225,9 @@ impl Zombienet {
 				}
 			}
 
-			// Check if command references a local binary using a relative path
-			if command.starts_with("./") || command.starts_with("../") {
-				paras.insert(id, Parachain::from_local(id, &PathBuf::default(), command.into())?);
+			// Check if command references a local binary
+			if ["./", "../", "/"].iter().any(|p| command.starts_with(p)) {
+				paras.insert(id, Parachain::from_local(id, command.into())?);
 				continue;
 			}
 
@@ -516,15 +516,15 @@ impl Parachain {
 		Ok(Parachain { id, binary: Binary::new(package, String::default(), path, source) })
 	}
 
-	fn from_local(id: u32, working_dir: &Path, relative_path: PathBuf) -> Result<Parachain, Error> {
-		let name = relative_path
+	fn from_local(id: u32, path: PathBuf) -> Result<Parachain, Error> {
+		let name = path
 			.file_name()
 			.and_then(|f| f.to_str())
-			.ok_or(Error::Config(format!("unable to determine file name for {relative_path:?}")))?
+			.ok_or(Error::Config(format!("unable to determine file name for {path:?}")))?
 			.to_string();
 
-		// Check if package manifest can be found within relative path
-		let mut manifest = relative_path.parent();
+		// Check if package manifest can be found within path
+		let mut manifest = path.parent();
 		while let Some(path) = manifest {
 			if path.join("Cargo.toml").exists() {
 				break;
@@ -541,10 +541,7 @@ impl Parachain {
 			None => Source::Local,
 		};
 
-		Ok(Parachain {
-			id,
-			binary: Binary::new(name, String::default(), working_dir.join(&relative_path), source),
-		})
+		Ok(Parachain { id, binary: Binary::new(name, String::default(), path, source) })
 	}
 
 	fn pop(id: u32, version: &str, cache: &Path) -> Result<Self, Error> {
@@ -859,14 +856,13 @@ fn target() -> Result<&'static str, Error> {
 
 #[cfg(test)]
 mod tests {
-
-	use super::*;
+	use super::{super::Release, *};
 	use anyhow::Result;
 
 	const CONFIG_FILE_PATH: &str = "../../tests/networks/pop.toml";
-	const TESTING_POLKADOT_VERSION: &str = "v1.7.0";
-	const POLKADOT_BINARY: &str = "polkadot-v1.7.0";
-	const POLKADOT_PARACHAIN_BINARY: &str = "polkadot-parachain-v1.7.0";
+	const TESTING_POLKADOT_VERSION: &str = "v1.12.0";
+	const POLKADOT_BINARY: &str = "polkadot-v1.12.0";
+	const POLKADOT_PARACHAIN_BINARY: &str = "polkadot-parachain-v1.12.0";
 
 	#[tokio::test]
 	async fn test_new_zombienet_success() -> Result<()> {
@@ -878,7 +874,7 @@ mod tests {
 			CONFIG_FILE_PATH,
 			Some(&TESTING_POLKADOT_VERSION.to_string()),
 			Some(&TESTING_POLKADOT_VERSION.to_string()),
-			Some(&vec!["https://github.com/r0gue-io/pop-node".to_string()]),
+			None,
 		)
 		.await?;
 
@@ -900,10 +896,14 @@ mod tests {
 
 		// Check has the binary for Pop
 		let parachain = &zombienet.parachains[1];
+		let latest_release = latest_release(POP).await?.unwrap();
 		assert_eq!(parachain.binary.name, "pop-node");
-		assert_eq!(parachain.binary.path, temp_dir.path().join("pop-node"));
-		assert_eq!(parachain.binary.version, "");
-		assert!(matches!(parachain.binary.source, Source::Git { .. }));
+		assert_eq!(
+			parachain.binary.path,
+			temp_dir.path().join(format!("pop-node-{}", latest_release.tag_name))
+		);
+		assert_eq!(parachain.binary.version, latest_release.tag_name);
+		assert!(matches!(parachain.binary.source, Source::Archive { .. }));
 
 		Ok(())
 	}
@@ -923,7 +923,7 @@ mod tests {
 			toml_file_path,
 			Some(&TESTING_POLKADOT_VERSION.to_string()),
 			Some(&TESTING_POLKADOT_VERSION.to_string()),
-			Some(&vec!["https://github.com/r0gue-io/pop-node".to_string()]),
+			Some(&vec![POP.to_string()]),
 		)
 		.await;
 
@@ -1004,7 +1004,7 @@ mod tests {
 		assert_eq!(system_chain.name, Parachain::SYSTEM_CHAIN_BINARY);
 		assert_eq!(system_chain.path, temp_dir.path().join(POLKADOT_PARACHAIN_BINARY));
 		assert_eq!(system_chain.version, TESTING_POLKADOT_VERSION);
-		assert!(matches!(system_chain.source, Source::Url { .. }));
+		assert!(matches!(system_chain.source, Source::Archive { .. }));
 
 		Ok(())
 	}
@@ -1014,7 +1014,7 @@ mod tests {
 		let temp_dir = tempdir().expect("Could not create temp dir");
 		let cache = PathBuf::from(temp_dir.path());
 
-		let repo = Repository::parse("https://github.com/r0gue-io/pop-node")?;
+		let repo = Repository::parse(POP)?;
 		let parachain =
 			Parachain::from_git(2000, repo.url, repo.reference, repo.package, &cache)?.binary;
 
@@ -1036,7 +1036,7 @@ mod tests {
 			CONFIG_FILE_PATH,
 			Some(&TESTING_POLKADOT_VERSION.to_string()),
 			Some(&TESTING_POLKADOT_VERSION.to_string()),
-			Some(&vec!["https://github.com/r0gue-io/pop-node".to_string()]),
+			Some(&vec![POP.to_string()]),
 		)
 		.await?;
 
@@ -1056,7 +1056,8 @@ mod tests {
 		File::create(relay_chain_file_path)?;
 		let system_chain_file_path = temp_dir.path().join(POLKADOT_PARACHAIN_BINARY);
 		File::create(system_chain_file_path)?;
-		let pop_file_path = temp_dir.path().join("pop-node");
+		let latest_release = latest_release(POP).await?.unwrap();
+		let pop_file_path = temp_dir.path().join(format!("pop-node-{}", latest_release.tag_name));
 		File::create(pop_file_path)?;
 
 		let zombienet = Zombienet::new(
@@ -1064,7 +1065,7 @@ mod tests {
 			CONFIG_FILE_PATH,
 			Some(&TESTING_POLKADOT_VERSION.to_string()),
 			Some(&TESTING_POLKADOT_VERSION.to_string()),
-			Some(&vec!["https://github.com/r0gue-io/pop-node".to_string()]),
+			None,
 		)
 		.await?;
 
@@ -1084,7 +1085,7 @@ mod tests {
 			CONFIG_FILE_PATH,
 			Some(&TESTING_POLKADOT_VERSION.to_string()),
 			Some(&TESTING_POLKADOT_VERSION.to_string()),
-			Some(&vec!["https://github.com/r0gue-io/pop-node".to_string()]),
+			None,
 		)
 		.await?;
 
@@ -1092,7 +1093,8 @@ mod tests {
 		File::create(
 			cache.join(format!("{}-{TESTING_POLKADOT_VERSION}", Parachain::SYSTEM_CHAIN_BINARY)),
 		)?;
-		File::create(cache.join("pop-node"))?;
+		let latest_release = latest_release(POP).await?.unwrap();
+		File::create(cache.join(format!("pop-node-{}", latest_release.tag_name)))?;
 
 		zombienet.configure()?;
 		Ok(())
@@ -1108,7 +1110,7 @@ mod tests {
 			CONFIG_FILE_PATH,
 			Some(&TESTING_POLKADOT_VERSION.to_string()),
 			Some(&TESTING_POLKADOT_VERSION.to_string()),
-			Some(&vec!["https://github.com/r0gue-io/pop-node".to_string()]),
+			Some(&vec![POP.to_string()]),
 		)
 		.await?;
 
@@ -1157,6 +1159,7 @@ mod tests {
 		)?;
 		Ok(file_path)
 	}
+
 	fn generate_wrong_config_no_relay(temp_dir: &tempfile::TempDir) -> Result<PathBuf> {
 		let file_path = temp_dir.path().join("wrong_config_no_para_id.toml");
 		let mut file = File::create(file_path.clone())?;
@@ -1179,6 +1182,11 @@ mod tests {
 			"#
 		)?;
 		Ok(file_path)
+	}
+
+	async fn latest_release(url: &str) -> Result<Option<Release>> {
+		let releases = GitHub::parse(url)?.get_latest_releases().await?;
+		Ok(releases.into_iter().nth(0))
 	}
 
 	#[test]
@@ -1441,53 +1449,10 @@ node_spawn_timeout = 300
 
 	mod relay_chain {
 		use super::{
-			Binary, Error, GitHub, RelayChain, Source, POLKADOT, POLKADOT_DEFAULT_VERSION,
+			target, Binary, Error, GitHub, RelayChain, Source, POLKADOT, POLKADOT_DEFAULT_VERSION,
 		};
-		use std::iter::once;
 		use tempfile::tempdir;
 		use url::Url;
-
-		#[test]
-		fn initialises_for_build() -> Result<(), Error> {
-			let version = POLKADOT_DEFAULT_VERSION;
-			let cache = tempdir()?;
-			let binary = RelayChain::BINARY;
-			let source = Source::Git {
-				url: Url::parse(POLKADOT)?,
-				reference: Some(format!("release-polkadot-{version}")),
-				package: binary.into(),
-				artifacts: once((
-					binary.to_string(),
-					cache.path().join(format!("{binary}-{version}")),
-				))
-				.chain(RelayChain::WORKERS.iter().map(|worker| {
-					(worker.to_string(), cache.path().join(format!("{worker}-{version}")))
-				}))
-				.collect(),
-			};
-			let workers = RelayChain::WORKERS.map(|worker| {
-				Binary::new(
-					worker,
-					POLKADOT_DEFAULT_VERSION,
-					cache.path().join(format!("{worker}-{version}")),
-					Source::Artifact,
-				)
-			});
-
-			assert_eq!(
-				RelayChain::new(version, cache.path())?,
-				RelayChain {
-					binary: Binary::new(
-						binary.to_string(),
-						POLKADOT_DEFAULT_VERSION,
-						cache.path().join(format!("{binary}-{version}")),
-						source
-					),
-					workers
-				}
-			);
-			Ok(())
-		}
 
 		#[test]
 		fn initialises_for_download() -> Result<(), Error> {
@@ -1495,14 +1460,30 @@ node_spawn_timeout = 300
 			let cache = tempdir()?;
 			let binary = RelayChain::BINARY;
 			let repo = Url::parse(POLKADOT)?;
-			let source =
-				Source::Url(GitHub::release(&repo, &format!("polkadot-{version}"), binary));
+			let source = Source::Archive {
+				url: format!(
+					"{}-{}.tar.gz",
+					GitHub::release(&repo, &format!("polkadot-{version}"), binary),
+					target()?
+				),
+				contents: vec![
+					("polkadot".to_string(), cache.path().join(format!("polkadot-{version}"))),
+					(
+						"polkadot-execute-worker".to_string(),
+						cache.path().join(format!("polkadot-execute-worker-{version}")),
+					),
+					(
+						"polkadot-prepare-worker".to_string(),
+						cache.path().join(format!("polkadot-prepare-worker-{version}")),
+					),
+				],
+			};
 			let workers = RelayChain::WORKERS.map(|worker| {
 				Binary::new(
 					worker,
 					POLKADOT_DEFAULT_VERSION,
 					cache.path().join(format!("{worker}-{version}")),
-					Source::Url(GitHub::release(&repo, &format!("polkadot-{version}"), worker)),
+					Source::Artifact,
 				)
 			});
 
@@ -1524,16 +1505,16 @@ node_spawn_timeout = 300
 
 	mod parachain {
 		use super::{
-			Binary, Error, GitHub, Parachain, Repository, Source, POLKADOT,
-			POLKADOT_DEFAULT_VERSION,
+			target, Binary, Error, GitHub, Parachain, Repository, Source, POLKADOT,
+			POLKADOT_DEFAULT_VERSION, POP,
 		};
-		use std::path::PathBuf;
+		use std::{fs::File, path::PathBuf};
 		use tempfile::tempdir;
 		use url::Url;
 
 		#[test]
 		fn initialises_from_git() -> Result<(), Error> {
-			let repo = Repository::parse("https://github.com/r0gue-io/pop-node")?;
+			let repo = Repository::parse(POP)?;
 			let cache = tempdir()?;
 			assert_eq!(
 				Parachain::from_git(
@@ -1565,18 +1546,18 @@ node_spawn_timeout = 300
 		}
 
 		#[test]
-		fn initialises_from_local() -> Result<(), Error> {
+		fn initialises_from_local_binary() -> Result<(), Error> {
 			let working_dir = tempdir()?;
-			let command = PathBuf::from("./target/release/node");
+			let command = PathBuf::from("/target/release/node");
 			assert_eq!(
-				Parachain::from_local(2000, &working_dir.path(), command.clone())?,
+				Parachain::from_local(2000, command.clone())?,
 				Parachain {
 					id: 2000,
 					binary: Binary {
 						name: "node".into(),
 						version: String::default(),
 						path: working_dir.path().join(&command),
-						source: Source::Local(command),
+						source: Source::Local,
 					}
 				}
 			);
@@ -1584,28 +1565,20 @@ node_spawn_timeout = 300
 		}
 
 		#[test]
-		fn initialises_system_parachain_for_build() -> Result<(), Error> {
-			let version = POLKADOT_DEFAULT_VERSION;
-			let cache = tempdir()?;
-			let binary = Parachain::SYSTEM_CHAIN_BINARY;
-			let repo = Url::parse(POLKADOT)?;
+		fn initialises_from_local_package() -> Result<(), Error> {
+			let working_dir = tempdir()?;
+			let command = working_dir.path().join("./target/release/node");
+			let manifest = working_dir.path().join("Cargo.toml");
+			File::create(&manifest)?;
 			assert_eq!(
-				Parachain::system_parachain(1000, version, cache.path())?,
+				Parachain::from_local(2000, command.clone())?,
 				Parachain {
-					id: 1000,
+					id: 2000,
 					binary: Binary {
-						name: binary.into(),
-						version: version.into(),
-						path: cache.path().join(format!("{binary}-{version}")),
-						source: Source::Git {
-							url: repo,
-							reference: Some(format!("release-polkadot-{version}")),
-							package: "polkadot-parachain-bin".into(),
-							artifacts: vec![(
-								binary.into(),
-								cache.path().join(format!("{binary}-{version}"))
-							)],
-						},
+						name: "node".into(),
+						version: String::default(),
+						path: working_dir.path().join(&command),
+						source: Source::LocalPackage { manifest, name: "node".to_string() },
 					}
 				}
 			);
@@ -1626,11 +1599,17 @@ node_spawn_timeout = 300
 						name: binary.into(),
 						version: version.into(),
 						path: cache.path().join(format!("{binary}-{version}")),
-						source: Source::Url(GitHub::release(
-							&repo,
-							&format!("polkadot-{version}"),
-							binary,
-						),),
+						source: Source::Archive {
+							url: format!(
+								"{}-{}.tar.gz",
+								GitHub::release(&repo, &format!("polkadot-{version}"), binary),
+								target()?
+							),
+							contents: vec![(
+								"polkadot-parachain".to_string(),
+								cache.path().join(format!("{binary}-{version}"))
+							)]
+						},
 					}
 				}
 			);
