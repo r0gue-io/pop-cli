@@ -1,8 +1,10 @@
-use crate::utils::helpers::canonicalized_path;
+use crate::utils::helpers::{canonicalized_path, replace_in_file};
 // SPDX-License-Identifier: GPL-3.0
 use crate::{errors::Error, utils::git::Git, Template};
 use anyhow::Result;
 use contract_build::new_contract_project;
+use heck::ToUpperCamelCase;
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -19,7 +21,7 @@ pub fn create_smart_contract(name: &str, target: &Path, template: &Template) -> 
 	if matches!(template, Template::Flipper) {
 		return create_flipper_contract(name, canonicalized_path);
 	}
-	return create_template_contract(canonicalized_path, &template);
+	return create_template_contract(name, canonicalized_path, &template);
 }
 
 fn create_flipper_contract(name: &str, canonicalized_path: PathBuf) -> Result<()> {
@@ -34,14 +36,19 @@ fn create_flipper_contract(name: &str, canonicalized_path: PathBuf) -> Result<()
 		.map_err(|e| Error::NewContract(format!("{}", e)))?;
 	return Ok(());
 }
-fn create_template_contract(canonicalized_path: PathBuf, template: &Template) -> Result<()> {
+fn create_template_contract(
+	name: &str,
+	canonicalized_path: PathBuf,
+	template: &Template,
+) -> Result<()> {
 	let template_repository = template.repository_url()?;
 	// Clone the repository into the temporary directory.
 	let temp_dir = ::tempfile::TempDir::new_in(std::env::temp_dir())?;
 	Git::clone(&template_repository, temp_dir.path())?;
 	// Retrieve only the template contract files.
 	extract_contract_files(template.to_string(), temp_dir.path(), canonicalized_path.as_path())?;
-
+	// Replace name of the contract in the Cargo.toml file
+	rename_contract(name, canonicalized_path, template)?;
 	Ok(())
 }
 
@@ -59,6 +66,24 @@ fn extract_contract_files(
 			fs::copy(entry.path(), target_folder.join(entry.file_name()))?;
 		}
 	}
+	Ok(())
+}
+
+pub fn rename_contract(name: &str, path: PathBuf, template: &Template) -> Result<()> {
+	let template_name = template.to_string().to_lowercase();
+	// Replace name in Cargo.toml
+	let mut file_path = path.join("Cargo.toml");
+	let mut replacements_in_cargo = HashMap::new();
+	replacements_in_cargo.insert(template_name.as_str(), name);
+	replace_in_file(file_path, replacements_in_cargo)?;
+
+	// Replace entries in lib.rs
+	file_path = path.join("lib.rs");
+	let name_in_camel_case = name.to_upper_camel_case();
+	let mut replacements_in_contract = HashMap::new();
+	replacements_in_contract.insert(template_name.as_str(), name);
+	replacements_in_contract.insert(template.name(), &name_in_camel_case);
+	replace_in_file(file_path, replacements_in_contract)?;
 	Ok(())
 }
 

@@ -33,7 +33,7 @@ pub enum Template {
 	/// The implementation of the ERC-20 standard in Solidity using ink!
 	#[strum(
 		serialize = "erc20",
-		message = "ERC20",
+		message = "Erc20",
 		detailed_message = "The implementation of the ERC-20 standard in Solidity using ink!",
 		props(Repository = "https://github.com/paritytech/ink-examples")
 	)]
@@ -41,7 +41,7 @@ pub enum Template {
 	/// The implementation of the ERC-721 standard in Solidity using ink!
 	#[strum(
 		serialize = "erc721",
-		message = "ERC721",
+		message = "Erc721",
 		detailed_message = "The implementation of the ERC-721 standard in Solidity using ink!",
 		props(Repository = "https://github.com/paritytech/ink-examples/tree/main/erc721")
 	)]
@@ -49,7 +49,7 @@ pub enum Template {
 	/// The implementation of the ERC-1155 standard in Solidity using ink!
 	#[strum(
 		serialize = "erc1155",
-		message = "ERC1155",
+		message = "Erc1155",
 		detailed_message = "The implementation of the ERC-1155 standard in Solidity using ink!",
 		props(Repository = "https://github.com/paritytech/ink-examples/tree/main/erc1155")
 	)]

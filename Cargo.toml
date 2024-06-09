@@ -44,6 +44,7 @@ sp-core = "31"
 sp-weights = "30"
 contract-build = "4.1"
 contract-extrinsics = "4.1"
+heck = "0.5.0"
 
 # parachains
 askama = "0.12"

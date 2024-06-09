@@ -4,6 +4,9 @@ use contract_build::ManifestPath;
 use contract_extrinsics::BalanceVariant;
 use ink_env::{DefaultEnvironment, Environment};
 use std::{
+	collections::HashMap,
+	fs,
+	io::{Read, Write},
 	path::{Path, PathBuf},
 	str::FromStr,
 };
@@ -37,6 +40,21 @@ pub fn canonicalized_path(target: &Path) -> Result<PathBuf, Error> {
 		.canonicalize()
 		// If an I/O error occurs during canonicalization, convert it into an Error enum variant.
 		.map_err(|e| Error::IO(e));
+}
+
+pub fn replace_in_file(file_path: PathBuf, replacements: HashMap<&str, &str>) -> Result<(), Error> {
+	// Read the file content
+	let mut file_content = String::new();
+	fs::File::open(&file_path)?.read_to_string(&mut file_content)?;
+	// Perform the replacements
+	let mut modified_content = file_content;
+	for (target, replacement) in &replacements {
+		modified_content = modified_content.replace(target, replacement);
+	}
+	// Write the modified content back to the file
+	let mut file = fs::File::create(&file_path)?;
+	file.write_all(modified_content.as_bytes())?;
+	Ok(())
 }
 
 #[cfg(test)]

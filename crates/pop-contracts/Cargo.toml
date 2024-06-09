@@ -26,6 +26,7 @@ strum_macros.workspace = true
 git2.workspace = true
 git2_credentials.workspace = true
 tempfile.workspace = true
+heck.workspace = true
 
 # cargo-contracts
 contract-build.workspace = true

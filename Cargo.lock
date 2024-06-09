@@ -5308,6 +5308,7 @@ dependencies = [
  "duct",
  "git2",
  "git2_credentials",
+ "heck 0.5.0",
  "ink_env",
  "sp-core",
  "sp-weights",
