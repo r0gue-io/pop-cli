@@ -4,7 +4,7 @@ use clap::{
 	builder::{PossibleValue, PossibleValuesParser, TypedValueParser},
 	Args,
 };
-use cliclack::{clear_screen, confirm, input, intro, outro, outro_cancel, set_theme};
+use cliclack::{clear_screen, confirm, input, intro, log::success, outro, outro_cancel, set_theme};
 use console::style;
 use std::{env::current_dir, fs, path::PathBuf, str::FromStr};
 
@@ -46,7 +46,7 @@ impl NewContractCommand {
 
 		let template = match &contract_config.template {
 			Some(template) => template.clone(),
-			None => Template::Flipper, // Default template
+			None => Template::Standard, // Default template
 		};
 
 		generate_contract_from_template(name, contract_config.path, &template)?;
@@ -90,9 +90,10 @@ fn generate_contract_from_template(
 	template: &Template,
 ) -> Result<()> {
 	intro(format!(
-		"{}: Generating new contract \"{}\"!",
+		"{}: Generating \"{}\" using a {} template!",
 		style(" Pop CLI ").black().on_magenta(),
 		name,
+		template.name(),
 	))?;
 	let contract_path =
 		if let Some(ref path) = path { path.join(name) } else { current_dir()?.join(name) };
@@ -117,8 +118,28 @@ fn generate_contract_from_template(
 
 	create_smart_contract(&name, contract_path.as_path(), template)?;
 
-	spinner.stop("Smart contract created!");
-	outro(format!("cd into \"{}\" and enjoy hacking! 🚀", contract_path.display()))?;
+	spinner.clear();
+
+	// replace spinner with success
+	console::Term::stderr().clear_last_lines(2)?;
+	success("Generation complete")?;
+
+	// add next steps
+	let mut next_steps = vec![
+		format!("cd into {:?} and enjoy hacking! 🚀", contract_path.display()),
+		"Use `pop build contract` to build your contract.".into(),
+	];
+	next_steps.push(format!("Use `pop up contract` to deploy your contract on a live network."));
+	let next_steps: Vec<_> = next_steps
+		.iter()
+		.map(|s| style(format!("{} {s}", console::Emoji("●", ">"))).dim().to_string())
+		.collect();
+	success(format!("Next Steps:\n{}", next_steps.join("\n")))?;
+
+	outro(format!(
+		"Need help? Learn more at {}\n",
+		style("https://learn.onpop.io/v/cli").magenta().underlined()
+	))?;
 	Ok(())
 }
 

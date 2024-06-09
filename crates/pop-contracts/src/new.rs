@@ -19,8 +19,8 @@ pub fn create_smart_contract(name: &str, target: &Path, template: &Template) -> 
 	is_valid_contract_name(name)?;
 	let canonicalized_path = canonicalized_path(target)?;
 	// Create a new default contract project with the provided name in the parent directory.
-	if matches!(template, Template::Flipper) {
-		return create_flipper_contract(name, canonicalized_path);
+	if matches!(template, Template::Standard) {
+		return create_standard_contract(name, canonicalized_path);
 	}
 	return create_template_contract(name, canonicalized_path, &template);
 }
@@ -39,7 +39,7 @@ fn is_valid_contract_name(name: &str) -> Result<(), Error> {
 	Ok(())
 }
 
-fn create_flipper_contract(name: &str, canonicalized_path: PathBuf) -> Result<()> {
+fn create_standard_contract(name: &str, canonicalized_path: PathBuf) -> Result<()> {
 	let parent_path = canonicalized_path
 		.parent()
 		// If the parent directory cannot be retrieved (e.g., if the path has no parent),
@@ -116,7 +116,7 @@ mod tests {
 		create_smart_contract(
 			"test_contract",
 			temp_contract_dir.as_path(),
-			&crate::Template::Flipper,
+			&crate::Template::Standard,
 		)?;
 		Ok(temp_dir)
 	}

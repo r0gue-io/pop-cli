@@ -28,8 +28,8 @@ pub enum Error {
 pub enum Template {
 	/// A minimalist contract template.
 	#[default]
-	#[strum(serialize = "flipper", message = "Flipper", detailed_message = "Our 'Hello World")]
-	Flipper,
+	#[strum(serialize = "standard", message = "Standard", detailed_message = "Our 'Hello World")]
+	Standard,
 	/// The implementation of the ERC-20 standard in Solidity using ink!
 	#[strum(
 		serialize = "erc20",
