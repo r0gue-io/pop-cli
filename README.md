@@ -124,11 +124,29 @@ pop up parachain -f ./tests/zombienet.toml -p https://github.com/r0gue-io/pop-no
 
 ### Contracts
 
-Use `pop` to create a new Smart Contract project:
+Use `pop` to create a new Smart Contract project.
+To be guided through the entire parachain creation process, simply execute
+
+```sh
+pop new contract
+```
+
+If no guidance is needed, proceed with:
 
 ```sh
 # Create a minimal Smart Contract
 pop new contract my_contract
+```
+
+`pop-cli` supports diverse project templates, to use a specific one use the flag `--template`:
+
+```sh
+# Create an ERC-20 standard in Solidity using ink!
+pop new contract my_contract -t erc20
+# Create an ERC-721 standard in Solidity using ink!
+pop new contract my_contract -t erc721
+# Create an ERC-1155 standard in Solidity using ink!
+pop new contract my_contract -t erc1155
 ```
 
 Test the Smart Contract:
