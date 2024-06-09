@@ -10,7 +10,7 @@ use std::{env::current_dir, fs, path::PathBuf, str::FromStr};
 
 use crate::style::Theme;
 use anyhow::Result;
-use pop_contracts::{create_smart_contract, Template};
+use pop_contracts::{create_smart_contract, is_valid_contract_name, Template};
 use strum::VariantArray;
 
 #[derive(Args, Clone)]
@@ -43,6 +43,8 @@ impl NewContractCommand {
 			.name
 			.clone()
 			.expect("name can not be none as fallback above is interactive input; qed");
+
+		is_valid_contract_name(name)?;
 
 		let template = match &contract_config.template {
 			Some(template) => template.clone(),
@@ -95,23 +97,8 @@ fn generate_contract_from_template(
 		name,
 		template.name(),
 	))?;
-	let contract_path =
-		if let Some(ref path) = path { path.join(name) } else { current_dir()?.join(name) };
-	if contract_path.exists() {
-		if !confirm(format!(
-			"\"{}\" directory already exists. Would you like to remove it?",
-			contract_path.display()
-		))
-		.interact()?
-		{
-			outro_cancel(format!(
-				"Cannot generate contract until \"{}\" directory is removed.",
-				contract_path.display()
-			))?;
-			return Ok(());
-		}
-		fs::remove_dir_all(contract_path.as_path())?;
-	}
+	let contract_path = check_destination_path(path, name)?;
+
 	fs::create_dir_all(contract_path.as_path())?;
 	let spinner = cliclack::spinner();
 	spinner.start("Generating contract...");
@@ -143,6 +130,30 @@ fn generate_contract_from_template(
 	Ok(())
 }
 
+fn check_destination_path(path: Option<PathBuf>, name: &String) -> Result<PathBuf> {
+	let contract_path =
+		if let Some(ref path) = path { path.join(name) } else { current_dir()?.join(name) };
+	if contract_path.exists() {
+		if !confirm(format!(
+			"\"{}\" directory already exists. Would you like to remove it?",
+			contract_path.display()
+		))
+		.interact()?
+		{
+			outro_cancel(format!(
+				"Cannot generate contract until \"{}\" directory is removed.",
+				contract_path.display()
+			))?;
+			return Err(anyhow::anyhow!(format!(
+				"\"{}\" directory already exists.",
+				contract_path.display()
+			)));
+		}
+		fs::remove_dir_all(contract_path.as_path())?;
+	}
+	Ok(contract_path)
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -154,6 +165,7 @@ mod tests {
 		let command = NewContractCommand {
 			name: Some("test_contract".to_string()),
 			path: Some(PathBuf::from(temp_contract_dir.path())),
+			template: Some(Template::Standard),
 		};
 		command.execute().await?;
 		Ok(())

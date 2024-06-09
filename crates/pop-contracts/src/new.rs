@@ -1,6 +1,12 @@
-use crate::utils::helpers::{canonicalized_path, replace_in_file};
 // SPDX-License-Identifier: GPL-3.0
-use crate::{errors::Error, utils::git::Git, Template};
+use crate::{
+	errors::Error,
+	utils::{
+		git::Git,
+		helpers::{canonicalized_path, replace_in_file},
+	},
+	Template,
+};
 use anyhow::Result;
 use contract_build::new_contract_project;
 use heck::ToUpperCamelCase;
@@ -16,7 +22,6 @@ use std::path::{Path, PathBuf};
 /// * `target` - location where the smart contract will be created.
 /// * `template` - template to generate the contract from.
 pub fn create_smart_contract(name: &str, target: &Path, template: &Template) -> Result<()> {
-	is_valid_contract_name(name)?;
 	let canonicalized_path = canonicalized_path(target)?;
 	// Create a new default contract project with the provided name in the parent directory.
 	if matches!(template, Template::Standard) {
@@ -25,7 +30,7 @@ pub fn create_smart_contract(name: &str, target: &Path, template: &Template) -> 
 	return create_template_contract(name, canonicalized_path, &template);
 }
 
-fn is_valid_contract_name(name: &str) -> Result<(), Error> {
+pub fn is_valid_contract_name(name: &str) -> Result<(), Error> {
 	if !name.chars().all(|c| c.is_alphanumeric() || c == '_') {
 		return Err(Error::InvalidName(
 			"Contract names can only contain alphanumeric characters and underscores".to_owned(),
@@ -62,7 +67,7 @@ fn create_template_contract(
 	Git::clone(&template_repository, temp_dir.path())?;
 	// Retrieve only the template contract files.
 	extract_contract_files(template.to_string(), temp_dir.path(), canonicalized_path.as_path())?;
-	// Replace name of the contract in the Cargo.toml file
+	// Replace name of the contract.
 	rename_contract(name, canonicalized_path, template)?;
 	Ok(())
 }
@@ -75,7 +80,7 @@ fn extract_contract_files(
 	let contract_folder = repo_folder.join(contract_name);
 	for entry in fs::read_dir(&contract_folder)? {
 		let entry = entry?;
-		// The currently available templates contain only files. The `frontend` folder is ignored.
+		// The currently available templates contain only files: lib.rs and Carg.toml. The `frontend` folder is being ignored.
 		// If future templates include folders, functionality will need to be added to support copying directories as well.
 		if entry.path().is_file() {
 			fs::copy(entry.path(), target_folder.join(entry.file_name()))?;
@@ -86,13 +91,13 @@ fn extract_contract_files(
 
 pub fn rename_contract(name: &str, path: PathBuf, template: &Template) -> Result<()> {
 	let template_name = template.to_string().to_lowercase();
-	// Replace name in Cargo.toml
+	// Replace name in the Cargo.toml file.
 	let mut file_path = path.join("Cargo.toml");
 	let mut replacements_in_cargo = HashMap::new();
 	replacements_in_cargo.insert(template_name.as_str(), name);
 	replace_in_file(file_path, replacements_in_cargo)?;
 
-	// Replace entries in lib.rs
+	// Replace name in the lib.rs file.
 	file_path = path.join("lib.rs");
 	let name_in_camel_case = name.to_upper_camel_case();
 	let mut replacements_in_contract = HashMap::new();

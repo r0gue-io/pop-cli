@@ -2,7 +2,7 @@
 use anyhow::{Error, Result};
 use pop_contracts::{
 	build_smart_contract, create_smart_contract, dry_run_gas_estimate_instantiate,
-	set_up_deployment, UpOpts,
+	set_up_deployment, Template, UpOpts,
 };
 use std::fs;
 use tempfile::TempDir;
@@ -12,7 +12,7 @@ fn setup_test_environment() -> std::result::Result<tempfile::TempDir, Error> {
 	let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
 	let temp_contract_dir = temp_dir.path().join("test_contract");
 	fs::create_dir(&temp_contract_dir)?;
-	create_smart_contract("test_contract", temp_contract_dir.as_path())?;
+	create_smart_contract("test_contract", temp_contract_dir.as_path(), &Template::Standard)?;
 	Ok(temp_dir)
 }
 

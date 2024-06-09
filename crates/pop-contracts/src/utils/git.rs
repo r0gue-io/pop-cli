@@ -9,7 +9,7 @@ use url::Url;
 /// A helper for handling Git operations.
 pub struct Git;
 impl Git {
-	/// Clone a Git repository and degit it.
+	/// Clone a Git repository.
 	///
 	/// # Arguments
 	///

@@ -3,13 +3,8 @@ use strum::{
 	EnumMessage as EnumMessageT, EnumProperty as EnumPropertyT, VariantArray as VariantArrayT,
 };
 use strum_macros::{AsRefStr, Display, EnumMessage, EnumProperty, EnumString, VariantArray};
-use thiserror::Error;
 
-#[derive(Error, Debug)]
-pub enum Error {
-	#[error("The `Repository` property is missing from the template variant")]
-	RepositoryMissing,
-}
+use crate::errors::Error;
 
 #[derive(
 	AsRefStr,

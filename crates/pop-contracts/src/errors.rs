@@ -38,4 +38,7 @@ pub enum Error {
 
 	#[error("Invalid name: {0}")]
 	InvalidName(String),
+
+	#[error("The `Repository` property is missing from the template variant")]
+	RepositoryMissing,
 }
