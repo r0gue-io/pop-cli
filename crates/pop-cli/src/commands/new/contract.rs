@@ -156,17 +156,48 @@ fn check_destination_path(path: Option<PathBuf>, name: &String) -> Result<PathBu
 
 #[cfg(test)]
 mod tests {
-	use super::*;
+	use crate::{
+		commands::new::{NewArgs, NewCommands::Contract},
+		Cli,
+		Commands::New,
+	};
 	use anyhow::Result;
+	use clap::Parser;
+	use tempfile::tempdir;
 
 	#[tokio::test]
-	async fn test_new_contract_command_execute_success() -> Result<()> {
-		let temp_contract_dir = tempfile::tempdir().expect("Could not create temp dir");
-		let command = NewContractCommand {
-			name: Some("test_contract".to_string()),
-			path: Some(PathBuf::from(temp_contract_dir.path())),
-			template: Some(Template::Standard),
+	async fn test_new_contract_command_execute_with_defaults_executes() -> Result<()> {
+		let dir = tempdir()?;
+		let dir_path = dir.path().display().to_string();
+		let cli = Cli::parse_from(["pop", "new", "contract", "test_contract", "-p", &dir_path]);
+
+		let New(NewArgs { command: Contract(command) }) = cli.command else {
+			panic!("unable to parse command")
 		};
+		// Execute
+		command.execute().await?;
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn test_new_contract_template_command_execute() -> Result<()> {
+		let dir = tempdir()?;
+		let dir_path = dir.path().display().to_string();
+		let cli = Cli::parse_from([
+			"pop",
+			"new",
+			"contract",
+			"test_contract",
+			"-p",
+			&dir_path,
+			"-t",
+			"erc20",
+		]);
+
+		let New(NewArgs { command: Contract(command) }) = cli.command else {
+			panic!("unable to parse command")
+		};
+		// Execute
 		command.execute().await?;
 		Ok(())
 	}

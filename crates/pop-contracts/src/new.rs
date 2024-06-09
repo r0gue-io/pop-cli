@@ -111,24 +111,20 @@ pub fn rename_contract(name: &str, path: PathBuf, template: &Template) -> Result
 mod tests {
 	use super::*;
 	use anyhow::{Error, Result};
-	use std::fs;
-	use tempfile;
+	use std::{fs, io::Write};
+	use tempfile::{self};
 
-	fn setup_test_environment() -> Result<tempfile::TempDir, Error> {
+	fn setup_test_environment(template: Template) -> Result<tempfile::TempDir, Error> {
 		let temp_dir = tempfile::tempdir()?;
 		let temp_contract_dir = temp_dir.path().join("test_contract");
 		fs::create_dir(&temp_contract_dir)?;
-		create_smart_contract(
-			"test_contract",
-			temp_contract_dir.as_path(),
-			&crate::Template::Standard,
-		)?;
+		create_smart_contract("test_contract", temp_contract_dir.as_path(), &template)?;
 		Ok(temp_dir)
 	}
 
 	#[test]
-	fn test_create_smart_contract_success() -> Result<(), Error> {
-		let temp_dir = setup_test_environment()?;
+	fn test_create_standard_smart_contract_success() -> Result<(), Error> {
+		let temp_dir = setup_test_environment(Template::Standard)?;
 
 		// Verify that the generated smart contract contains the expected content
 		let generated_file_content =
@@ -137,10 +133,123 @@ mod tests {
 
 		assert!(generated_file_content.contains("#[ink::contract]"));
 		assert!(generated_file_content.contains("mod test_contract {"));
+		assert!(generated_file_content.contains("pub struct TestContract {"));
+		assert!(generated_file_content.contains("impl TestContract {"));
 
 		// Verify that the generated Cargo.toml file contains the expected content
-		fs::read_to_string(temp_dir.path().join("test_contract/Cargo.toml"))
+		let generated_cargo = fs::read_to_string(temp_dir.path().join("test_contract/Cargo.toml"))
 			.expect("Could not read file");
+		assert!(generated_cargo.contains("name = \"test_contract\""));
+
+		Ok(())
+	}
+
+	#[test]
+	fn test_create_template_smart_contract_success() -> Result<(), Error> {
+		let temp_dir = setup_test_environment(Template::ERC20)?;
+
+		// Verify that the generated smart contract contains the expected content
+		let generated_file_content =
+			fs::read_to_string(temp_dir.path().join("test_contract/lib.rs"))
+				.expect("Could not read file");
+
+		assert!(generated_file_content.contains("#[ink::contract]"));
+		assert!(generated_file_content.contains("mod test_contract {"));
+		assert!(generated_file_content.contains("pub struct TestContract {"));
+		assert!(generated_file_content.contains("impl TestContract {"));
+
+		// Verify that the generated Cargo.toml file contains the expected content
+		let generated_cargo = fs::read_to_string(temp_dir.path().join("test_contract/Cargo.toml"))
+			.expect("Could not read file");
+		assert!(generated_cargo.contains("name = \"test_contract\""));
+
+		Ok(())
+	}
+
+	#[test]
+	fn test_is_valid_contract_name() -> Result<(), Error> {
+		assert!(is_valid_contract_name("my_contract").is_ok());
+		assert!(is_valid_contract_name("normal").is_ok());
+		assert!(is_valid_contract_name("123").is_err());
+		assert!(is_valid_contract_name("my-contract").is_err());
+		assert!(is_valid_contract_name("contract**").is_err());
+		Ok(())
+	}
+
+	fn generate_testing_files_and_folders(template: Template) -> Result<tempfile::TempDir, Error> {
+		let temp_dir = tempfile::tempdir()?;
+		let contract_folder = temp_dir.path().join(template.to_string());
+		fs::create_dir(&contract_folder)?;
+		fs::File::create(&contract_folder.join("lib.rs"))?;
+		fs::File::create(&contract_folder.join("Cargo.toml"))?;
+		fs::create_dir(&temp_dir.path().join("noise_folder"))?;
+		Ok(temp_dir)
+	}
+
+	#[test]
+	fn test_extract_contract_files() -> Result<(), Error> {
+		// ERC-20
+		let mut temp_dir = generate_testing_files_and_folders(Template::ERC20)?;
+		let mut output_dir = tempfile::tempdir()?;
+		extract_contract_files(Template::ERC20.to_string(), temp_dir.path(), output_dir.path())?;
+		assert!(output_dir.path().join("lib.rs").exists());
+		assert!(output_dir.path().join("Cargo.toml").exists());
+		assert!(!output_dir.path().join("noise_folder").exists());
+		// ERC-721
+		temp_dir = generate_testing_files_and_folders(Template::ERC721)?;
+		output_dir = tempfile::tempdir()?;
+		extract_contract_files(Template::ERC721.to_string(), temp_dir.path(), output_dir.path())?;
+		assert!(output_dir.path().join("lib.rs").exists());
+		assert!(output_dir.path().join("Cargo.toml").exists());
+		assert!(!output_dir.path().join("noise_folder").exists());
+		// ERC-1155
+		temp_dir = generate_testing_files_and_folders(Template::ERC1155)?;
+		output_dir = tempfile::tempdir()?;
+		extract_contract_files(Template::ERC1155.to_string(), temp_dir.path(), output_dir.path())?;
+		assert!(output_dir.path().join("lib.rs").exists());
+		assert!(output_dir.path().join("Cargo.toml").exists());
+		assert!(!output_dir.path().join("noise_folder").exists());
+
+		Ok(())
+	}
+
+	fn generate_contract_folder() -> Result<tempfile::TempDir, Error> {
+		let temp_dir = tempfile::tempdir()?;
+		let config = temp_dir.path().join("Cargo.toml");
+		let mut config_file = fs::File::create(config.clone())?;
+		writeln!(
+			config_file,
+			r#"
+				[package]
+				name = "erc20"
+				version = "5.0.0"
+				authors = ["Parity Technologies <admin@parity.io>"]
+				edition = "2021"
+				publish = false
+			"#
+		)?;
+		let code = temp_dir.path().join("lib.rs");
+		let mut code_file = fs::File::create(code.clone())?;
+		writeln!(
+			code_file,
+			r#"
+				#[ink::contract]
+				mod erc20
+			"#
+		)?;
+		Ok(temp_dir)
+	}
+	#[test]
+	fn test_rename_contract() -> Result<(), Error> {
+		let temp_dir = generate_contract_folder()?;
+		rename_contract("my_contract", temp_dir.path().to_owned(), &Template::ERC20)?;
+		let generated_cargo =
+			fs::read_to_string(temp_dir.path().join("Cargo.toml")).expect("Could not read file");
+		assert!(generated_cargo.contains("name = \"my_contract\""));
+
+		let generated_code =
+			fs::read_to_string(temp_dir.path().join("lib.rs")).expect("Could not read file");
+		assert!(generated_code.contains("mod my_contract"));
 
 		Ok(())
 	}
