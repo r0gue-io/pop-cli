@@ -16,12 +16,27 @@ use std::path::{Path, PathBuf};
 /// * `target` - location where the smart contract will be created.
 /// * `template` - template to generate the contract from.
 pub fn create_smart_contract(name: &str, target: &Path, template: &Template) -> Result<()> {
+	is_valid_contract_name(name)?;
 	let canonicalized_path = canonicalized_path(target)?;
 	// Create a new default contract project with the provided name in the parent directory.
 	if matches!(template, Template::Flipper) {
 		return create_flipper_contract(name, canonicalized_path);
 	}
 	return create_template_contract(name, canonicalized_path, &template);
+}
+
+fn is_valid_contract_name(name: &str) -> Result<(), Error> {
+	if !name.chars().all(|c| c.is_alphanumeric() || c == '_') {
+		return Err(Error::InvalidName(
+			"Contract names can only contain alphanumeric characters and underscores".to_owned(),
+		));
+	}
+	if !name.chars().next().map(|c| c.is_alphabetic()).unwrap_or(false) {
+		return Err(Error::InvalidName(
+			"Contract names must begin with an alphabetic character".to_owned(),
+		));
+	}
+	Ok(())
 }
 
 fn create_flipper_contract(name: &str, canonicalized_path: PathBuf) -> Result<()> {

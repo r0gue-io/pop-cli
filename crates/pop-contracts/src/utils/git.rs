@@ -3,7 +3,6 @@ use crate::errors::Error;
 use anyhow::Result;
 use git2::{build::RepoBuilder, FetchOptions, RemoteCallbacks, Repository};
 use git2_credentials::CredentialHandler;
-use std::fs;
 use std::path::Path;
 use url::Url;
 

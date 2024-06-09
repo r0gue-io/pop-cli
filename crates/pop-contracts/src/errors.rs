@@ -35,4 +35,7 @@ pub enum Error {
 
 	#[error("ParseError error: {0}")]
 	ParseError(#[from] url::ParseError),
+
+	#[error("Invalid name: {0}")]
+	InvalidName(String),
 }
