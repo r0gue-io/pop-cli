@@ -16,25 +16,13 @@ impl Git {
 	///
 	/// * `url` - the URL of the repository to clone.
 	/// * `target` - location where the repository will be cloned.
-	pub fn clone_and_clean(url: &str, target: &Path) -> Result<()> {
-		let repo = match Repository::clone(url, target) {
+	pub fn clone(url: &str, target: &Path) -> Result<()> {
+		match Repository::clone(url, target) {
 			Ok(repo) => repo,
 			Err(_e) => {
 				Self::ssh_clone(url::Url::parse(url).map_err(|err| Error::from(err))?, target)?
 			},
 		};
-		let (object, reference) = repo.revparse_ext("main").expect("Object not found");
-		repo.checkout_tree(&object, None).expect("Failed to checkout");
-		match reference {
-			// gref is an actual reference like branches or tags
-			Some(gref) => repo.set_head(gref.name().unwrap()),
-			// this is a commit, not a reference
-			None => repo.set_head_detached(object.id()),
-		}
-		.expect("Failed to set HEAD");
-
-		let git_dir = repo.path();
-		fs::remove_dir_all(&git_dir)?;
 		Ok(())
 	}
 

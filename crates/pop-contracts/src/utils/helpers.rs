@@ -3,7 +3,10 @@ use crate::errors::Error;
 use contract_build::ManifestPath;
 use contract_extrinsics::BalanceVariant;
 use ink_env::{DefaultEnvironment, Environment};
-use std::{path::PathBuf, str::FromStr};
+use std::{
+	path::{Path, PathBuf},
+	str::FromStr,
+};
 use subxt::{Config, PolkadotConfig as DefaultConfig};
 
 pub fn get_manifest_path(path: &Option<PathBuf>) -> Result<ManifestPath, Error> {
@@ -26,6 +29,14 @@ pub fn parse_balance(
 pub fn parse_account(account: &str) -> Result<<DefaultConfig as Config>::AccountId, Error> {
 	<DefaultConfig as Config>::AccountId::from_str(account)
 		.map_err(|e| Error::AccountAddressParsing(format!("{}", e)))
+}
+
+pub fn canonicalized_path(target: &Path) -> Result<PathBuf, Error> {
+	// Canonicalize the target path to ensure consistency and resolve any symbolic links.
+	return target
+		.canonicalize()
+		// If an I/O error occurs during canonicalization, convert it into an Error enum variant.
+		.map_err(|e| Error::IO(e));
 }
 
 #[cfg(test)]
