@@ -148,7 +148,7 @@ pub enum Template {
 		detailed_message = "A generic template for Substrate Runtime",
 		props(
 			Provider = "OpenZeppelin",
-			Repository = "https://github.com/OpenZeppelin/polkadot-generic-runtime-template",
+			Repository = "https://github.com/OpenZeppelin/polkadot-runtime-templates",
 			Network = "./zombienet-config/devnet.toml",
 			SupportedVersions = "v1.0.0",
 			IsAudited = "true"
@@ -288,7 +288,7 @@ mod tests {
 			// openzeppelin
 			(
 				"polkadot-generic-runtime-template".to_string(),
-				"https://github.com/OpenZeppelin/polkadot-generic-runtime-template",
+				"https://github.com/OpenZeppelin/polkadot-runtime-templates",
 			),
 			("cpt".to_string(), "https://github.com/paritytech/substrate-contracts-node"),
 			("fpt".to_string(), "https://github.com/paritytech/frontier-parachain-template"),
