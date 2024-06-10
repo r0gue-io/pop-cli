@@ -12,7 +12,6 @@ pub fn build_smart_contract(path: &Option<PathBuf>, build_release: bool) -> anyh
 		true => BuildMode::Release,
 		false => BuildMode::Debug,
 	};
-	println!("build_mode: {:?}", build_mode);
 	// Default values
 	let args = ExecuteArgs { manifest_path, build_mode, ..Default::default() };
 

@@ -16,12 +16,7 @@ fn setup_test_environment() -> std::result::Result<tempfile::TempDir, Error> {
 	Ok(temp_dir)
 }
 
-#[test]
-fn test_contract_build() -> std::result::Result<(), Error> {
-	let temp_contract_dir = setup_test_environment()?;
-
-	build_smart_contract(&Some(temp_contract_dir.path().join("test_contract")), true)?;
-
+fn verify_build_files(temp_contract_dir: TempDir) -> Result<()> {
 	// Verify that the folder target has been created
 	assert!(temp_contract_dir.path().join("test_contract/target").exists());
 	// Verify that all the artifacts has been generated
@@ -37,6 +32,28 @@ fn test_contract_build() -> std::result::Result<(), Error> {
 		.path()
 		.join("test_contract/target/ink/test_contract.json")
 		.exists());
+	Ok(())
+}
+
+#[test]
+fn test_contract_build() -> std::result::Result<(), Error> {
+	// Test building in release mode
+	let temp_contract_dir = setup_test_environment()?;
+
+	let formatted_result =
+		build_smart_contract(&Some(temp_contract_dir.path().join("test_contract")), true)?;
+	assert!(formatted_result.contains("The contract was built in \u{1b}[1mRELEASE\u{1b}[0m mode"));
+
+	verify_build_files(temp_contract_dir)?;
+
+	let temp_debug_contract_dir = setup_test_environment()?;
+	// Test building in debug mode
+	let formatted_result_debug_mode =
+		build_smart_contract(&Some(temp_debug_contract_dir.path().join("test_contract")), false)?;
+	assert!(formatted_result_debug_mode
+		.contains("The contract was built in \u{1b}[1mDEBUG\u{1b}[0m mode"));
+
+	verify_build_files(temp_debug_contract_dir)?;
 
 	Ok(())
 }
