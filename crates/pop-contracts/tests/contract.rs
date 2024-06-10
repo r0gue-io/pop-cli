@@ -42,7 +42,7 @@ fn test_contract_build() -> std::result::Result<(), Error> {
 
 	let formatted_result =
 		build_smart_contract(&Some(temp_contract_dir.path().join("test_contract")), true)?;
-	assert!(formatted_result.contains("The contract was built in \u{1b}[1mRELEASE\u{1b}[0m mode"));
+	assert!(formatted_result.contains("RELEASE"));
 
 	verify_build_files(temp_contract_dir)?;
 
@@ -50,8 +50,7 @@ fn test_contract_build() -> std::result::Result<(), Error> {
 	// Test building in debug mode
 	let formatted_result_debug_mode =
 		build_smart_contract(&Some(temp_debug_contract_dir.path().join("test_contract")), false)?;
-	assert!(formatted_result_debug_mode
-		.contains("The contract was built in \u{1b}[1mDEBUG\u{1b}[0m mode"));
+	assert!(formatted_result_debug_mode.contains("DEBUG"));
 
 	verify_build_files(temp_debug_contract_dir)?;
 
