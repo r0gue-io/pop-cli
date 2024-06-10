@@ -56,21 +56,6 @@ pub struct NewParachainCommand {
 	pub(crate) initial_endowment: Option<String>,
 }
 
-#[macro_export]
-macro_rules! enum_variants {
-	($e: ty) => {{
-		PossibleValuesParser::new(
-			<$e>::VARIANTS
-				.iter()
-				.map(|p| PossibleValue::new(p.as_ref()))
-				.collect::<Vec<_>>(),
-		)
-		.try_map(|s| {
-			<$e>::from_str(&s).map_err(|e| format!("could not convert from {s} to provider"))
-		})
-	}};
-}
-
 impl NewParachainCommand {
 	pub(crate) async fn execute(&self) -> Result<Template> {
 		clear_screen()?;

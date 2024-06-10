@@ -28,21 +28,6 @@ pub struct NewContractCommand {
 	pub(crate) template: Option<Template>,
 }
 
-#[macro_export]
-macro_rules! enum_variants {
-	($e: ty) => {{
-		PossibleValuesParser::new(
-			<$e>::VARIANTS
-				.iter()
-				.map(|p| PossibleValue::new(p.as_ref()))
-				.collect::<Vec<_>>(),
-		)
-		.try_map(|s| {
-			<$e>::from_str(&s).map_err(|e| format!("could not convert from {s} to provider"))
-		})
-	}};
-}
-
 impl NewContractCommand {
 	pub(crate) async fn execute(&self) -> Result<()> {
 		clear_screen()?;
@@ -79,8 +64,8 @@ async fn guide_user_to_generate_contract() -> Result<NewContractCommand> {
 		.interact()?;
 
 	let path: String = input("Where should your project be created?")
-		.placeholder("../")
-		.default_input("../")
+		.placeholder("./")
+		.default_input("./")
 		.interact()?;
 
 	let mut prompt = cliclack::select("Select a template provider: ".to_string());
@@ -113,8 +98,8 @@ fn generate_contract_from_template(
 		template.name(),
 	))?;
 	let contract_path = check_destination_path(path, name)?;
-
 	fs::create_dir_all(contract_path.as_path())?;
+
 	let spinner = cliclack::spinner();
 	spinner.start("Generating contract...");
 
