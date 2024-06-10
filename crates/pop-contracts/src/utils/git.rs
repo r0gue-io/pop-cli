@@ -55,3 +55,32 @@ impl Git {
 		format!("git@{}:{}.git", url.host_str().unwrap_or(GITHUB), &url.path()[1..])
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	const BASE_PARACHAIN: &str = "https://github.com/r0gue-io/base-parachain";
+
+	#[test]
+	fn test_convert_to_ssh_url() {
+		assert_eq!(
+			Git::convert_to_ssh_url(&Url::parse(BASE_PARACHAIN).expect("valid repository url")),
+			"git@github.com:r0gue-io/base-parachain.git"
+		);
+		assert_eq!(
+			Git::convert_to_ssh_url(
+				&Url::parse("https://github.com/paritytech/substrate-contracts-node")
+					.expect("valid repository url")
+			),
+			"git@github.com:paritytech/substrate-contracts-node.git"
+		);
+		assert_eq!(
+			Git::convert_to_ssh_url(
+				&Url::parse("https://github.com/paritytech/frontier-parachain-template")
+					.expect("valid repository url")
+			),
+			"git@github.com:paritytech/frontier-parachain-template.git"
+		);
+	}
+}
