@@ -18,7 +18,8 @@ Build an existing Smart Contract:
 use pop_contracts::build_smart_contract;
 
 let contract_path = ...;
-build_smart_contract(&contract_path)?;
+let build_release = true; // True to build the contract in release mode, fasle in debug mode
+build_smart_contract(&contract_path, build_release)?;
 ```
 
 Test an existing Smart Contract:

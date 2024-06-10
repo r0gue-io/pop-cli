@@ -63,8 +63,8 @@ impl UpContractCommand {
 		if !build_path.as_path().exists() {
 			log::warning(format!("NOTE: contract has not yet been built."))?;
 			intro(format!("{}: Building a contract", style(" Pop CLI ").black().on_magenta()))?;
-			// Directory exists, proceed with the rest of the code
-			let result = build_smart_contract(&self.path)?;
+			// Build the contract in release mode
+			let result = build_smart_contract(&self.path, true)?;
 			log::success(result.to_string())?;
 		}
 
