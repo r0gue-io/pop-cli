@@ -12,6 +12,10 @@ repository.workspace = true
 [dependencies]
 anyhow.workspace = true
 duct.workspace = true
+flate2.workspace = true
+reqwest.workspace = true
+tar.workspace = true
+tempfile.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 url.workspace = true
@@ -26,5 +30,3 @@ subxt.workspace = true
 contract-build.workspace = true
 contract-extrinsics.workspace = true
 
-[dev-dependencies]
-tempfile.workspace = true
