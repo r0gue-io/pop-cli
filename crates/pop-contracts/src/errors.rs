@@ -32,4 +32,7 @@ pub enum Error {
 
 	#[error("Pre-submission dry-run failed: {0}")]
 	DryRunUploadContractError(String),
+
+	#[error("Pre-submission dry-run failed: {0}")]
+	DryRunCallContractError(String),
 }

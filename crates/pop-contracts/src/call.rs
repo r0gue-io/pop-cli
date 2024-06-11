@@ -12,9 +12,12 @@ use subxt::{Config, PolkadotConfig as DefaultConfig};
 use subxt_signer::sr25519::Keypair;
 use url::Url;
 
-use crate::utils::{
-	helpers::{get_manifest_path, parse_account, parse_balance},
-	signer::create_signer,
+use crate::{
+	errors::Error,
+	utils::{
+		helpers::{get_manifest_path, parse_account, parse_balance},
+		signer::create_signer,
+	},
 };
 
 /// Attributes for the `call` command.
@@ -83,28 +86,27 @@ pub async fn set_up_call(
 ///
 pub async fn dry_run_call(
 	call_exec: &CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
-) -> anyhow::Result<String> {
-	let call_result = call_exec.call_dry_run().await?;
+) -> anyhow::Result<String, Error> {
+	let call_result = call_exec
+		.call_dry_run()
+		.await
+		.map_err(|e| return Error::DryRunCallContractError(format!("{}", e)))?;
 	match call_result.result {
-        Ok(ref ret_val) => {
-            let value = call_exec
+		Ok(ref ret_val) => {
+			let value = call_exec
 				.transcoder()
-				.decode_message_return(
-					call_exec.message(),
-					&mut &ret_val.data[..],
-				)
-				.context(format!(
-					"Failed to decode return value {:?}",
-					&ret_val
-			))?;
+				.decode_message_return(call_exec.message(), &mut &ret_val.data[..])
+				.context(format!("Failed to decode return value {:?}", &ret_val))
+				.map_err(|e| return Error::DryRunCallContractError(format!("{}", e)))?;
 			Ok(value.to_string())
-        }
-        Err(ref _err) => {
-             Err(anyhow::anyhow!(
-                "Pre-submission dry-run failed. Add gas_limit and proof_size manually to skip this step."
-            ))
-        }
-    }
+		},
+		Err(ref err) => {
+			let error_variant =
+				ErrorVariant::from_dispatch_error(err, &call_exec.client().metadata())
+					.map_err(|e| return Error::DryRunCallContractError(format!("{}", e)))?;
+			Err(Error::DryRunCallContractError(format!("{error_variant}")))
+		},
+	}
 }
 
 /// Estimate the gas required for a contract call without modifying the state of the blockchain.
@@ -115,25 +117,27 @@ pub async fn dry_run_call(
 ///
 pub async fn dry_run_gas_estimate_call(
 	call_exec: &CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
-) -> anyhow::Result<Weight> {
-	let call_result = call_exec.call_dry_run().await?;
+) -> anyhow::Result<Weight, Error> {
+	let call_result = call_exec
+		.call_dry_run()
+		.await
+		.map_err(|e| return Error::DryRunCallContractError(format!("{}", e)))?;
 	match call_result.result {
-        Ok(_) => {
-            // use user specified values where provided, otherwise use the estimates
-            let ref_time = call_exec
-                .gas_limit()
-                .unwrap_or_else(|| call_result.gas_required.ref_time());
-            let proof_size = call_exec
-                .proof_size()
-                .unwrap_or_else(|| call_result.gas_required.proof_size());
-            Ok(Weight::from_parts(ref_time, proof_size))
-        }
-        Err(ref _err) => {
-             Err(anyhow::anyhow!(
-                "Pre-submission dry-run failed. Add gas_limit and proof_size manually to skip this step."
-            ))
-        }
-    }
+		Ok(_) => {
+			// use user specified values where provided, otherwise use the estimates
+			let ref_time =
+				call_exec.gas_limit().unwrap_or_else(|| call_result.gas_required.ref_time());
+			let proof_size =
+				call_exec.proof_size().unwrap_or_else(|| call_result.gas_required.proof_size());
+			Ok(Weight::from_parts(ref_time, proof_size))
+		},
+		Err(ref err) => {
+			let error_variant =
+				ErrorVariant::from_dispatch_error(err, &call_exec.client().metadata())
+					.map_err(|e| return Error::DryRunCallContractError(format!("{}", e)))?;
+			Err(Error::DryRunCallContractError(format!("{error_variant}")))
+		},
+	}
 }
 
 /// Call a smart contract on the blockchain.
