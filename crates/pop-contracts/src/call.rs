@@ -86,7 +86,7 @@ pub async fn set_up_call(
 ///
 pub async fn dry_run_call(
 	call_exec: &CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
-) -> anyhow::Result<String, Error> {
+) -> Result<String, Error> {
 	let call_result = call_exec
 		.call_dry_run()
 		.await
@@ -117,7 +117,7 @@ pub async fn dry_run_call(
 ///
 pub async fn dry_run_gas_estimate_call(
 	call_exec: &CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
-) -> anyhow::Result<Weight, Error> {
+) -> Result<Weight, Error> {
 	let call_result = call_exec
 		.call_dry_run()
 		.await

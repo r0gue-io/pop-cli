@@ -83,7 +83,7 @@ pub async fn set_up_deployment(
 ///
 pub async fn dry_run_gas_estimate_instantiate(
 	instantiate_exec: &InstantiateExec<DefaultConfig, DefaultEnvironment, Keypair>,
-) -> anyhow::Result<Weight, Error> {
+) -> Result<Weight, Error> {
 	let instantiate_result = instantiate_exec
 		.instantiate_dry_run()
 		.await
