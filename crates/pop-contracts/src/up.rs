@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0
-use crate::utils::{
-	helpers::{get_manifest_path, parse_balance},
-	signer::create_signer,
+use crate::{
+	errors::Error,
+	utils::{
+		helpers::{get_manifest_path, parse_balance},
+		signer::create_signer,
+	},
 };
 use contract_extrinsics::{
 	BalanceVariant, ErrorVariant, ExtrinsicOptsBuilder, InstantiateCommandBuilder, InstantiateExec,
@@ -80,8 +83,11 @@ pub async fn set_up_deployment(
 ///
 pub async fn dry_run_gas_estimate_instantiate(
 	instantiate_exec: &InstantiateExec<DefaultConfig, DefaultEnvironment, Keypair>,
-) -> anyhow::Result<Weight> {
-	let instantiate_result = instantiate_exec.instantiate_dry_run().await?;
+) -> anyhow::Result<Weight, Error> {
+	let instantiate_result = instantiate_exec
+		.instantiate_dry_run()
+		.await
+		.map_err(|e| return Error::DryRunUploadContractError(format!("{}", e)))?;
 	match instantiate_result.result {
 		Ok(_) => {
 			// use user specified values where provided, otherwise use the estimates
@@ -95,10 +101,11 @@ pub async fn dry_run_gas_estimate_instantiate(
 				.unwrap_or_else(|| instantiate_result.gas_required.proof_size());
 			Ok(Weight::from_parts(ref_time, proof_size))
 		},
-		Err(ref _err) => {
-			Err(anyhow::anyhow!(
-                "Pre-submission dry-run failed. Add gas_limit and proof_size manually to skip this step."
-            ))
+		Err(ref err) => {
+			let error_variant =
+				ErrorVariant::from_dispatch_error(err, &instantiate_exec.client().metadata())
+					.map_err(|e| return Error::DryRunUploadContractError(format!("{}", e)))?;
+			Err(Error::DryRunUploadContractError(format!("{error_variant}")))
 		},
 	}
 }

@@ -50,6 +50,9 @@ pub struct UpContractCommand {
 	/// - with a password "//Alice///SECRET_PASSWORD"
 	#[clap(name = "suri", long, short)]
 	suri: String,
+	/// Perform a dry-run via RPC to estimate the gas usage. This does not submit a transaction.
+	#[clap(long)]
+	dry_run: bool,
 }
 impl UpContractCommand {
 	pub(crate) async fn execute(&self) -> anyhow::Result<()> {
@@ -102,16 +105,18 @@ impl UpContractCommand {
 				},
 			};
 		}
-		let spinner = cliclack::spinner();
-		spinner.start("Uploading and instantiating the contract...");
-		let contract_address = instantiate_smart_contract(instantiate_exec, weight_limit)
-			.await
-			.map_err(|err| anyhow!("{} {}", "ERROR:", format!("{err:?}")))?;
-		spinner.stop(format!(
-			"Contract deployed and instantiated: The Contract Address is {:?}",
-			contract_address
-		));
-		outro("Deployment complete")?;
+		if !self.dry_run {
+			let spinner = cliclack::spinner();
+			spinner.start("Uploading and instantiating the contract...");
+			let contract_address = instantiate_smart_contract(instantiate_exec, weight_limit)
+				.await
+				.map_err(|err| anyhow!("{} {}", "ERROR:", format!("{err:?}")))?;
+			spinner.stop(format!(
+				"Contract deployed and instantiated: The Contract Address is {:?}",
+				contract_address
+			));
+			outro("Deployment complete")?;
+		}
 		Ok(())
 	}
 }

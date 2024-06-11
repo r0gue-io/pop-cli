@@ -29,4 +29,7 @@ pub enum Error {
 
 	#[error("Failed to parse hex encoded bytes: {0}")]
 	HexParsing(String),
+
+	#[error("Pre-submission dry-run failed: {0}")]
+	DryRunUploadContractError(String),
 }
