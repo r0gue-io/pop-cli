@@ -172,6 +172,7 @@ Some of the options available are:
 
 - You also can specify the url of your node with `--url ws://your-endpoint`, by default it is
   using `ws://localhost:9944`.
+- To perform a dry-run via RPC to estimate the gas usage without submitting a transaction use the `--dry-run` flag.
 
 For more information about the options,
 check [cargo-contract documentation](https://github.com/paritytech/cargo-contract/blob/master/crates/extrinsics/README.md#instantiate)
@@ -194,6 +195,7 @@ Example executing the `flip()` message:
 ```sh
 pop call contract -p ./my_contract --contract $INSTANTIATED_CONTRACT_ADDRESS --message flip --suri //Alice -x
 ```
+
 
 ## E2E testing
 
