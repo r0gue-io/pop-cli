@@ -51,6 +51,9 @@ pub struct CallContractCommand {
 	/// Submit an extrinsic for on-chain execution.
 	#[clap(short('x'), long)]
 	execute: bool,
+	/// Perform a dry-run via RPC to estimate the gas usage. This does not submit a transaction.
+	#[clap(long, conflicts_with = "execute")]
+	dry_run: bool,
 }
 
 impl CallContractCommand {
@@ -72,6 +75,23 @@ impl CallContractCommand {
 			execute: self.execute,
 		})
 		.await?;
+
+		if self.dry_run {
+			let spinner = cliclack::spinner();
+			spinner.start("Doing a dry run to estimate the gas...");
+			match dry_run_gas_estimate_call(&call_exec).await {
+				Ok(w) => {
+					log::info(format!("Gas limit {:?}", w))?;
+					log::warning("Your call has not been executed.")?;
+					return Ok(());
+				},
+				Err(e) => {
+					spinner.error(format!("{e}"));
+					outro_cancel("Call failed.")?;
+					return Ok(());
+				},
+			};
+		}
 
 		if !self.execute {
 			let spinner = cliclack::spinner();
@@ -98,7 +118,7 @@ impl CallContractCommand {
 					},
 					Err(e) => {
 						spinner.error(format!("{e}"));
-						outro_cancel("Deployment failed.")?;
+						outro_cancel("Call failed.")?;
 						return Ok(());
 					},
 				};
