@@ -87,23 +87,18 @@ pub async fn set_up_call(
 pub async fn dry_run_call(
 	call_exec: &CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
 ) -> Result<String, Error> {
-	let call_result = call_exec
-		.call_dry_run()
-		.await
-		.map_err(|e| return Error::DryRunCallContractError(format!("{}", e)))?;
+	let call_result = call_exec.call_dry_run().await?;
 	match call_result.result {
 		Ok(ref ret_val) => {
 			let value = call_exec
 				.transcoder()
 				.decode_message_return(call_exec.message(), &mut &ret_val.data[..])
-				.context(format!("Failed to decode return value {:?}", &ret_val))
-				.map_err(|e| return Error::DryRunCallContractError(format!("{}", e)))?;
+				.context(format!("Failed to decode return value {:?}", &ret_val))?;
 			Ok(value.to_string())
 		},
 		Err(ref err) => {
 			let error_variant =
-				ErrorVariant::from_dispatch_error(err, &call_exec.client().metadata())
-					.map_err(|e| return Error::DryRunCallContractError(format!("{}", e)))?;
+				ErrorVariant::from_dispatch_error(err, &call_exec.client().metadata())?;
 			Err(Error::DryRunCallContractError(format!("{error_variant}")))
 		},
 	}
@@ -118,10 +113,7 @@ pub async fn dry_run_call(
 pub async fn dry_run_gas_estimate_call(
 	call_exec: &CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
 ) -> Result<Weight, Error> {
-	let call_result = call_exec
-		.call_dry_run()
-		.await
-		.map_err(|e| return Error::DryRunCallContractError(format!("{}", e)))?;
+	let call_result = call_exec.call_dry_run().await?;
 	match call_result.result {
 		Ok(_) => {
 			// use user specified values where provided, otherwise use the estimates
@@ -133,8 +125,7 @@ pub async fn dry_run_gas_estimate_call(
 		},
 		Err(ref err) => {
 			let error_variant =
-				ErrorVariant::from_dispatch_error(err, &call_exec.client().metadata())
-					.map_err(|e| return Error::DryRunCallContractError(format!("{}", e)))?;
+				ErrorVariant::from_dispatch_error(err, &call_exec.client().metadata())?;
 			Err(Error::DryRunCallContractError(format!("{error_variant}")))
 		},
 	}

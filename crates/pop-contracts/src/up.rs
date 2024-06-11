@@ -84,10 +84,7 @@ pub async fn set_up_deployment(
 pub async fn dry_run_gas_estimate_instantiate(
 	instantiate_exec: &InstantiateExec<DefaultConfig, DefaultEnvironment, Keypair>,
 ) -> Result<Weight, Error> {
-	let instantiate_result = instantiate_exec
-		.instantiate_dry_run()
-		.await
-		.map_err(|e| return Error::DryRunUploadContractError(format!("{}", e)))?;
+	let instantiate_result = instantiate_exec.instantiate_dry_run().await?;
 	match instantiate_result.result {
 		Ok(_) => {
 			// use user specified values where provided, otherwise use the estimates
@@ -103,8 +100,7 @@ pub async fn dry_run_gas_estimate_instantiate(
 		},
 		Err(ref err) => {
 			let error_variant =
-				ErrorVariant::from_dispatch_error(err, &instantiate_exec.client().metadata())
-					.map_err(|e| return Error::DryRunUploadContractError(format!("{}", e)))?;
+				ErrorVariant::from_dispatch_error(err, &instantiate_exec.client().metadata())?;
 			Err(Error::DryRunUploadContractError(format!("{error_variant}")))
 		},
 	}

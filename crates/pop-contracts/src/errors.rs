@@ -35,4 +35,7 @@ pub enum Error {
 
 	#[error("Pre-submission dry-run failed: {0}")]
 	DryRunCallContractError(String),
+
+	#[error("Anyhow error: {0}")]
+	AnyhowError(#[from] anyhow::Error),
 }
