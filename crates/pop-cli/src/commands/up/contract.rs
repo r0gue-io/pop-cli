@@ -2,10 +2,10 @@
 
 use anyhow::anyhow;
 use clap::Args;
-use cliclack::{clear_screen, intro, log, outro, outro_cancel};
+use cliclack::{clear_screen, confirm, intro, log, outro, outro_cancel};
 use pop_contracts::{
 	build_smart_contract, dry_run_gas_estimate_instantiate, instantiate_smart_contract,
-	parse_hex_bytes, set_up_deployment, UpOpts,
+	is_chain_alive, parse_hex_bytes, run_contracts_node, set_up_deployment, UpOpts,
 };
 use sp_core::Bytes;
 use sp_weights::Weight;
@@ -66,6 +66,21 @@ impl UpContractCommand {
 			// Directory exists, proceed with the rest of the code
 			let result = build_smart_contract(&self.path)?;
 			log::success(result.to_string())?;
+		}
+
+		if !is_chain_alive(self.url.clone()).await? {
+			if !confirm(format!(
+				"\"{}\" is not live. Would you like pop-cli to start a local node in the background for testing?",
+				self.url.to_string()
+			))
+			.interact()?
+			{
+				outro_cancel("You need to specify a live chain to deploy the contract.")?;
+				return Ok(());
+			}
+			let process = run_contracts_node(crate::cache()?).await?;
+			log::success("Local node started successfully in the background.")?;
+			log::warning(format!("NOTE: The contracts node is running in the background with process ID {}. Please close it manually when done testing.", process.id()))?;
 		}
 
 		// if build exists then proceed

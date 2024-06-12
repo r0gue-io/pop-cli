@@ -1,15 +1,16 @@
+use crate::{errors::Error, utils::git::GitHub};
 use contract_extrinsics::{RawParams, RpcRequest};
-use duct::cmd;
 use flate2::read::GzDecoder;
 use std::{
 	env::consts::OS,
 	io::{Seek, SeekFrom, Write},
 	path::PathBuf,
+	process::{Child, Command},
+	time::Duration,
 };
 use tar::Archive;
 use tempfile::tempfile;
-
-use crate::{errors::Error, utils::git::GitHub};
+use tokio::time::sleep;
 
 const SUBSTRATE_CONTRACT_NODE: &str = "https://github.com/paritytech/substrate-contracts-node";
 const BIN_NAME: &str = "substrate-contracts-node";
@@ -30,7 +31,7 @@ pub async fn is_chain_alive(url: url::Url) -> Result<bool, Error> {
 	}
 }
 
-pub async fn run_contracts_node(cache: PathBuf) -> Result<(), Error> {
+pub async fn run_contracts_node(cache: PathBuf) -> Result<Child, Error> {
 	let cached_file = cache.join(release_folder_by_target()?).join(BIN_NAME);
 	if !cached_file.exists() {
 		let archive = archive_name_by_target()?;
@@ -48,10 +49,11 @@ pub async fn run_contracts_node(cache: PathBuf) -> Result<(), Error> {
 		let mut archive = Archive::new(tar);
 		archive.unpack(cache.clone())?;
 	}
-	cmd(cached_file.display().to_string().as_str(), Vec::<&str>::new())
-		.run()
-		.map_err(|_e| return Error::UpContractsNode(BIN_NAME.to_string()))?;
-	Ok(())
+	let process = Command::new(cached_file.display().to_string().as_str()).spawn()?;
+
+	// Wait 5 secs until the node is ready
+	sleep(Duration::from_millis(5000)).await;
+	Ok(process)
 }
 
 async fn latest_contract_node_release() -> Result<String, Error> {
@@ -130,6 +132,20 @@ mod tests {
 		assert!(!is_chain_alive(local_url).await?);
 		let polkadot_url = url::Url::parse("wss://polkadot-rpc.dwellir.com")?;
 		assert!(is_chain_alive(polkadot_url).await?);
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn run_contracts_node_works() -> Result<(), Error> {
+		let local_url = url::Url::parse("ws://localhost:9944")?;
+		assert!(!is_chain_alive(local_url.clone()).await?);
+		// Run the contracts node
+		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
+		let cache = temp_dir.path().join("cache");
+		let mut process = run_contracts_node(cache).await?;
+		// Check if the node is alive
+		assert!(is_chain_alive(local_url).await?);
+		process.kill()?;
 		Ok(())
 	}
 }
