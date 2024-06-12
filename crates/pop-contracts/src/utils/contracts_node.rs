@@ -1,3 +1,4 @@
+use contract_extrinsics::{RawParams, RpcRequest};
 use duct::cmd;
 use flate2::read::GzDecoder;
 use std::{
@@ -13,6 +14,21 @@ use crate::{errors::Error, utils::git::GitHub};
 const SUBSTRATE_CONTRACT_NODE: &str = "https://github.com/paritytech/substrate-contracts-node";
 const BIN_NAME: &str = "substrate-contracts-node";
 const STABLE_VERSION: &str = "v0.41.0";
+
+pub async fn is_chain_alive(url: url::Url) -> Result<bool, Error> {
+	let request = RpcRequest::new(&url).await;
+	match request {
+		Ok(request) => {
+			let params = RawParams::new(&[])?;
+			let result = request.raw_call("system_health", params).await;
+			match result {
+				Ok(_) => Ok(true),
+				Err(_) => Ok(false),
+			}
+		},
+		Err(_) => Ok(false),
+	}
+}
 
 pub async fn run_contracts_node(cache: PathBuf) -> Result<(), Error> {
 	let cached_file = cache.join(release_folder_by_target()?).join(BIN_NAME);
@@ -74,7 +90,7 @@ fn release_folder_by_target() -> Result<&'static str, Error> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use anyhow::Result;
+	use anyhow::{Error, Result};
 
 	#[tokio::test]
 	async fn test_latest_polkadot_release() -> Result<()> {
@@ -105,6 +121,15 @@ mod tests {
 		} else {
 			assert!(archive.is_err())
 		}
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn is_chain_alive_works() -> Result<(), Error> {
+		let local_url = url::Url::parse("ws://localhost:9944")?;
+		assert!(!is_chain_alive(local_url).await?);
+		let polkadot_url = url::Url::parse("wss://polkadot-rpc.dwellir.com")?;
+		assert!(is_chain_alive(polkadot_url).await?);
 		Ok(())
 	}
 }
