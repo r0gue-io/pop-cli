@@ -44,4 +44,7 @@ pub enum Error {
 
 	#[error("HTTP error: {0}")]
 	HttpError(#[from] reqwest::Error),
+
+	#[error("a git error occurred: {0}")]
+	Git(String),
 }

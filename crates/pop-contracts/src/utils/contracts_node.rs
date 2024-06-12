@@ -8,18 +8,20 @@ use std::{
 use tar::Archive;
 use tempfile::tempfile;
 
-use crate::errors::Error;
+use crate::{errors::Error, utils::git::GitHub};
 
 const SUBSTRATE_CONTRACT_NODE: &str = "https://github.com/paritytech/substrate-contracts-node";
 const BIN_NAME: &str = "substrate-contracts-node";
 const STABLE_VERSION: &str = "v0.41.0";
 
 pub async fn run_contracts_node(cache: PathBuf) -> Result<(), Error> {
-	let cached_file = cache.join(folder_name_by_target()?).join(BIN_NAME);
+	let cached_file = cache.join(release_folder_by_target()?).join(BIN_NAME);
 	if !cached_file.exists() {
 		let archive = archive_name_by_target()?;
+
+		let latest_version = latest_contract_node_release().await?;
 		let releases_url =
-			format!("{SUBSTRATE_CONTRACT_NODE}/releases/download/{STABLE_VERSION}/{archive}");
+			format!("{SUBSTRATE_CONTRACT_NODE}/releases/download/{latest_version}/{archive}");
 		// Download archive
 		let response = reqwest::get(releases_url.as_str()).await?.error_for_status()?;
 		let mut file = tempfile()?;
@@ -36,6 +38,24 @@ pub async fn run_contracts_node(cache: PathBuf) -> Result<(), Error> {
 	Ok(())
 }
 
+async fn latest_contract_node_release() -> Result<String, Error> {
+	let repo = GitHub::parse(SUBSTRATE_CONTRACT_NODE)?;
+	match repo.get_latest_releases().await {
+		Ok(releases) => {
+			// Fetching latest releases
+			for release in releases {
+				if !release.prerelease {
+					return Ok(release.tag_name);
+				}
+			}
+			// It should never reach this point, but in case we download a default version of polkadot
+			Ok(STABLE_VERSION.to_string())
+		},
+		// If an error with GitHub API return the STABLE_VERSION
+		Err(_) => Ok(STABLE_VERSION.to_string()),
+	}
+}
+
 fn archive_name_by_target() -> Result<String, Error> {
 	match OS {
 		"macos" => Ok(format!("{}-mac-universal.tar.gz", BIN_NAME)),
@@ -43,7 +63,7 @@ fn archive_name_by_target() -> Result<String, Error> {
 		_ => Err(Error::UnsupportedPlatform { os: OS }),
 	}
 }
-fn folder_name_by_target() -> Result<&'static str, Error> {
+fn release_folder_by_target() -> Result<&'static str, Error> {
 	match OS {
 		"macos" => Ok("artifacts/substrate-contracts-node-mac"),
 		"linux" => Ok("artifacts/substrate-contracts-node-linux"),
@@ -51,23 +71,40 @@ fn folder_name_by_target() -> Result<&'static str, Error> {
 	}
 }
 
-// #[cfg(test)]
-// mod tests {
-// 	use super::*;
-// 	use anyhow::{Error, Result};
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use anyhow::Result;
 
-// 	#[tokio::test]
-// 	async fn run_contracts_node_works() -> Result<(), Error> {
-// 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
-// 		let cache = temp_dir.path().join("cache");
-// 		let mut cmd = run_contracts_node(cache.clone()).await?;
-// 		// If after 10 secs is still running probably execution is ok, or waiting for user response
-// 		sleep(Duration::from_secs(10)).await;
-
-// 		assert!(cmd.try_wait().unwrap().is_none(), "the process should still be running");
-// 		// Stop the process
-// 		Command::new("kill").args(["-s", "TERM", &cmd.id().to_string()]).spawn()?;
-// 		assert!(cache.join(folder_name_by_target()?).join(BIN_NAME).exists());
-// 		Ok(())
-// 	}
-// }
+	#[tokio::test]
+	async fn test_latest_polkadot_release() -> Result<()> {
+		let version = latest_contract_node_release().await?;
+		// Result will change all the time to the current version, check at least starts with v
+		assert!(version.starts_with("v"));
+		Ok(())
+	}
+	#[tokio::test]
+	async fn release_folder_by_target_works() -> Result<()> {
+		let path = release_folder_by_target();
+		if cfg!(target_os = "macos") {
+			assert_eq!(path?, "artifacts/substrate-contracts-node-mac");
+		} else if cfg!(target_os = "linux") {
+			assert_eq!(path?, "artifacts/substrate-contracts-node-linux");
+		} else {
+			assert!(path.is_err())
+		}
+		Ok(())
+	}
+	#[tokio::test]
+	async fn folder_path_by_target() -> Result<()> {
+		let archive = archive_name_by_target();
+		if cfg!(target_os = "macos") {
+			assert_eq!(archive?, "substrate-contracts-node-mac-universal.tar.gz");
+		} else if cfg!(target_os = "linux") {
+			assert_eq!(archive?, "substrate-contracts-node-linux.tar.gz");
+		} else {
+			assert!(archive.is_err())
+		}
+		Ok(())
+	}
+}
