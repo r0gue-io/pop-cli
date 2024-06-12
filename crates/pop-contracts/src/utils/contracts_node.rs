@@ -16,6 +16,12 @@ const SUBSTRATE_CONTRACT_NODE: &str = "https://github.com/paritytech/substrate-c
 const BIN_NAME: &str = "substrate-contracts-node";
 const STABLE_VERSION: &str = "v0.41.0";
 
+/// Checks if the specified node is alive and responsive.
+///
+/// # Arguments
+///
+/// * `url` - Endpoint of the node.
+///
 pub async fn is_chain_alive(url: url::Url) -> Result<bool, Error> {
 	let request = RpcRequest::new(&url).await;
 	match request {
@@ -31,6 +37,12 @@ pub async fn is_chain_alive(url: url::Url) -> Result<bool, Error> {
 	}
 }
 
+/// Runs the latest version of the `substracte-contracts-node` in the background.
+///
+/// # Arguments
+///
+/// * `cache` - The path where the binary will be stored.
+///
 pub async fn run_contracts_node(cache: PathBuf) -> Result<Child, Error> {
 	let cached_file = cache.join(release_folder_by_target()?).join(BIN_NAME);
 	if !cached_file.exists() {
