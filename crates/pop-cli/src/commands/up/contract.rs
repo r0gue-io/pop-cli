@@ -70,7 +70,7 @@ impl UpContractCommand {
 
 		if !is_chain_alive(self.url.clone()).await? {
 			if !confirm(format!(
-				"\"{}\" is not live. Would you like pop-cli to start a local node in the background for testing?",
+				"The chain \"{}\" is not live. Would you like pop to start a local node in the background for testing?",
 				self.url.to_string()
 			))
 			.interact()?
