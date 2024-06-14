@@ -100,7 +100,7 @@ Finally, to build your Parachain:
 
 ```sh
 cd my-app
-pop build parachain --release
+pop build parachain
 ```
 
 ## Spawn Network using Zombienet
