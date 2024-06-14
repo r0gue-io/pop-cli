@@ -151,7 +151,7 @@ Deploy and instantiate the Smart Contract:
 pop up contract -p ./my_contract --constructor new --args "false" --suri //Alice
 ```
 
-> :information_source: If you don't specify a live chain, `pop` will automatically spawn a contract node for testing purposes.
+> :information_source: If you don't specify a live chain, `pop` will automatically spawn a local node for testing purposes.
 
 Some of the options available are:
 
