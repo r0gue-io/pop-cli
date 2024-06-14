@@ -50,6 +50,9 @@ pub struct UpContractCommand {
 	/// - with a password "//Alice///SECRET_PASSWORD"
 	#[clap(name = "suri", long, short, default_value = "//Alice")]
 	suri: String,
+	/// Before start a local node, do not ask the user for confirmation.
+	#[clap(short('y'), long)]
+	skip_confirm: bool,
 }
 impl UpContractCommand {
 	pub(crate) async fn execute(&self) -> anyhow::Result<()> {
@@ -69,7 +72,8 @@ impl UpContractCommand {
 		}
 
 		if !is_chain_alive(self.url.clone()).await? {
-			if !confirm(format!(
+			if !self.skip_confirm {
+				if !confirm(format!(
 				"The chain \"{}\" is not live. Would you like pop to start a local node in the background for testing?",
 				self.url.to_string()
 			))
@@ -77,6 +81,7 @@ impl UpContractCommand {
 			{
 				outro_cancel("You need to specify a live chain to deploy the contract.")?;
 				return Ok(());
+			}
 			}
 			let process = run_contracts_node(crate::cache()?).await?;
 			log::success("Local node started successfully in the background.")?;
