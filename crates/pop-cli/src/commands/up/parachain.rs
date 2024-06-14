@@ -84,6 +84,23 @@ impl ZombienetCommand {
 			.to_string();
 			log::warning(format!("⚠️ The following binaries specified in the network configuration file cannot be found locally:\n   {list}"))?;
 
+			// Check for any local binaries which need to be built manually
+			let local: Vec<_> = missing.iter().filter(|(_, _, local)| *local).collect();
+			if local.len() > 0 {
+
+				for (name, binary, _) in local.iter() {
+					intro(format!("{}: Building your parachain", style(" Pop CLI ")
+						.black()
+						.on_magenta()
+					))?;
+					let _ = build_parachain(&Some(PathBuf::from(name.clone())))?;
+				}
+				outro_cancel(
+					"🚫 Please manually build the missing binaries at the paths specified and retry node spinup.",
+				)?;
+				return Ok(());
+			}
+
 			// Prompt for automatic sourcing of remote binaries
 			let remote: Vec<_> = missing.iter().filter(|(_, _, local)| !local).collect();
 			if remote.len() > 0 {
@@ -156,18 +173,6 @@ impl ZombienetCommand {
 
 				// Remove working directory once completed successfully
 				remove_dir_all(working_dir)?
-			}
-
-			// Check for any local binaries which need to be built manually
-			let local: Vec<_> = missing.iter().filter(|(_, _, local)| *local).collect();
-			if local.len() > 0 {
-				for (name, binary, _) in local.iter() {
-					let _ = build_parachain(&Some(PathBuf::from(binary.name.clone())));
-				}
-				outro_cancel(
-					"🚫 Please manually build the missing binaries at the paths specified and try again.",
-				)?;
-				return Ok(());
 			}
 		}
 
