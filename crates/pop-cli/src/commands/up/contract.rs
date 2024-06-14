@@ -48,7 +48,7 @@ pub struct UpContractCommand {
 	/// e.g.
 	/// - for a dev account "//Alice"
 	/// - with a password "//Alice///SECRET_PASSWORD"
-	#[clap(name = "suri", long, short)]
+	#[clap(name = "suri", long, short, default_value = "//Alice")]
 	suri: String,
 }
 impl UpContractCommand {
@@ -85,6 +85,8 @@ impl UpContractCommand {
 
 		// if build exists then proceed
 		intro(format!("{}: Deploy a smart contract", style(" Pop CLI ").black().on_magenta()))?;
+
+		println!("{}: Deploying a smart contract", style(" Pop CLI ").black().on_magenta());
 
 		let instantiate_exec = set_up_deployment(UpOpts {
 			path: self.path.clone(),
