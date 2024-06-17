@@ -16,12 +16,7 @@ fn setup_test_environment() -> std::result::Result<tempfile::TempDir, Error> {
 	Ok(temp_dir)
 }
 
-#[test]
-fn test_contract_build() -> std::result::Result<(), Error> {
-	let temp_contract_dir = setup_test_environment()?;
-
-	build_smart_contract(&Some(temp_contract_dir.path().join("test_contract")))?;
-
+fn verify_build_files(temp_contract_dir: TempDir) -> Result<()> {
 	// Verify that the folder target has been created
 	assert!(temp_contract_dir.path().join("test_contract/target").exists());
 	// Verify that all the artifacts has been generated
@@ -37,6 +32,27 @@ fn test_contract_build() -> std::result::Result<(), Error> {
 		.path()
 		.join("test_contract/target/ink/test_contract.json")
 		.exists());
+	Ok(())
+}
+
+#[test]
+fn test_contract_build() -> std::result::Result<(), Error> {
+	// Test building in release mode
+	let temp_contract_dir = setup_test_environment()?;
+
+	let formatted_result =
+		build_smart_contract(&Some(temp_contract_dir.path().join("test_contract")), true)?;
+	assert!(formatted_result.contains("RELEASE"));
+
+	verify_build_files(temp_contract_dir)?;
+
+	let temp_debug_contract_dir = setup_test_environment()?;
+	// Test building in debug mode
+	let formatted_result_debug_mode =
+		build_smart_contract(&Some(temp_debug_contract_dir.path().join("test_contract")), false)?;
+	assert!(formatted_result_debug_mode.contains("DEBUG"));
+
+	verify_build_files(temp_debug_contract_dir)?;
 
 	Ok(())
 }
@@ -44,7 +60,7 @@ fn test_contract_build() -> std::result::Result<(), Error> {
 const CONTRACTS_NETWORK_URL: &str = "wss://rococo-contracts-rpc.polkadot.io";
 
 fn build_smart_contract_test_environment(temp_dir: &TempDir) -> Result<(), Error> {
-	build_smart_contract(&Some(temp_dir.path().join("test_contract")))?;
+	build_smart_contract(&Some(temp_dir.path().join("test_contract")), true)?;
 	Ok(())
 }
 
