@@ -106,7 +106,7 @@ impl Zombienet {
 		if let Some(command) =
 			NetworkConfiguration::default_command(relay_chain).and_then(|c| c.as_str())
 		{
-			if command.to_lowercase() != RelayChain::BINARY {
+			if !command.to_lowercase().ends_with(RelayChain::BINARY) {
 				return Err(Error::UnsupportedCommand(format!(
 					"the relay chain command is unsupported: {command}",
 				)));
@@ -116,7 +116,7 @@ impl Zombienet {
 			for node in nodes {
 				if let Some(command) = NetworkConfiguration::command(node).and_then(|c| c.as_str())
 				{
-					if command.to_lowercase() != RelayChain::BINARY {
+					if !command.to_lowercase().ends_with(RelayChain::BINARY) {
 						return Err(Error::UnsupportedCommand(format!(
 							"the relay chain command is unsupported: {command}",
 						)));
