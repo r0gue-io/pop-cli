@@ -14,6 +14,12 @@ pub(crate) struct TestContractCommand {
 	path: Option<PathBuf>,
 	#[arg(short = 'f', long = "features", help = "Features for the contract project")]
 	features: Option<String>,
+	#[arg(
+		short = 'n',
+		long = "contracts-node",
+		help = "Path to the contracts node to run the e2e tests [default: none]"
+	)]
+	contracts_node_path: Option<PathBuf>,
 }
 
 impl TestContractCommand {
@@ -26,7 +32,7 @@ impl TestContractCommand {
 				style(" Pop CLI ").black().on_magenta()
 			))?;
 
-			test_e2e_smart_contract(&self.path)?;
+			test_e2e_smart_contract(&self.path, &self.contracts_node_path)?;
 			outro("End-to-end testing complete")?;
 			Ok("e2e")
 		} else {

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 use crate::errors::Error;
 use duct::cmd;
-use std::path::PathBuf;
+use std::{env, path::PathBuf};
 
 /// Run unit tests of a smart contract.
 ///
@@ -22,7 +22,14 @@ pub fn test_smart_contract(path: &Option<PathBuf>) -> Result<(), Error> {
 /// # Arguments
 ///
 /// * `path` - location of the smart contract.
-pub fn test_e2e_smart_contract(path: &Option<PathBuf>) -> Result<(), Error> {
+pub fn test_e2e_smart_contract(
+	path: &Option<PathBuf>,
+	contracts_node_path: &Option<PathBuf>,
+) -> Result<(), Error> {
+	// Set the environment variable `CONTRACTS_NODE` to the path of the contracts node.
+	if let Some(contracts_node) = contracts_node_path {
+		env::set_var("CONTRACTS_NODE", contracts_node);
+	}
 	// Execute `cargo test --features=e2e-tests` command in the specified directory.
 	cmd("cargo", vec!["test", "--features=e2e-tests"])
 		.dir(path.clone().unwrap_or_else(|| PathBuf::from("./")))
