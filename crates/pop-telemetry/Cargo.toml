@@ -1,5 +1,6 @@
 [package]
 name = "pop-telemetry"
+description = "Library for collecting anonymous Usage Metrics Collection with Umami."
 version = "0.2.0"
 readme = "README.md"
 edition.workspace = true
