@@ -29,4 +29,22 @@ pub enum Error {
 
 	#[error("Failed to parse hex encoded bytes: {0}")]
 	HexParsing(String),
+
+	#[error("Failed to install {0}")]
+	InstallContractsNode(String),
+
+	#[error("Failed to run {0}")]
+	UpContractsNode(String),
+
+	#[error("Unsupported platform: {os}")]
+	UnsupportedPlatform { os: &'static str },
+
+	#[error("Anyhow error: {0}")]
+	AnyhowError(#[from] anyhow::Error),
+
+	#[error("HTTP error: {0}")]
+	HttpError(#[from] reqwest::Error),
+
+	#[error("a git error occurred: {0}")]
+	Git(String),
 }

@@ -1,14 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0
-use contract_build::{execute, ExecuteArgs};
+use contract_build::{execute, BuildMode, ExecuteArgs};
 use std::path::PathBuf;
 
 use crate::utils::helpers::get_manifest_path;
 
-/// Build the smart contract located in the specified `path`.
-pub fn build_smart_contract(path: &Option<PathBuf>) -> anyhow::Result<String> {
+/// Build the smart contract located at the specified `path` in `build_release` mode.
+pub fn build_smart_contract(path: &Option<PathBuf>, build_release: bool) -> anyhow::Result<String> {
 	let manifest_path = get_manifest_path(path)?;
+
+	let build_mode = match build_release {
+		true => BuildMode::Release,
+		false => BuildMode::Debug,
+	};
 	// Default values
-	let args = ExecuteArgs { manifest_path, ..Default::default() };
+	let args = ExecuteArgs { manifest_path, build_mode, ..Default::default() };
 
 	// Execute the build and log the output of the build
 	let result = execute(args)?;

@@ -5270,7 +5270,7 @@ dependencies = [
 
 [[package]]
 name = "pop-cli"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -5300,17 +5300,23 @@ dependencies = [
 
 [[package]]
 name = "pop-contracts"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "contract-build",
  "contract-extrinsics",
  "duct",
+ "flate2",
  "ink_env",
+ "mockito",
+ "reqwest 0.12.4",
+ "serde",
+ "serde_json",
  "sp-core",
  "sp-weights",
  "subxt",
  "subxt-signer",
+ "tar",
  "tempfile",
  "thiserror",
  "tokio",
@@ -5319,7 +5325,7 @@ dependencies = [
 
 [[package]]
 name = "pop-parachains"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "askama",
@@ -5347,7 +5353,7 @@ dependencies = [
 
 [[package]]
 name = "pop-telemetry"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "dirs",
  "env_logger",

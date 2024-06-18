@@ -144,20 +144,22 @@ Build the Smart Contract:
 # Build an existing Smart Contract
 pop build contract -p ./my_contract
 ```
+By default the contract is compiled with `debug` functionality included. 
 
-To deploy a Smart Contract you need a chain running. For testing purposes you can simply spawn a contract node:
+This enables the contract to output debug messages, but increases the contract size and the amount of gas used.
 
+For production builds, use the --release flag: `--release`:
 ```sh
-pop up contracts-node
+pop build contract -p ./my_contract --release
 ```
-
-> :information_source: We plan to automate this in the future.
 
 Deploy and instantiate the Smart Contract:
 
 ```sh
 pop up contract -p ./my_contract --constructor new --args "false" --suri //Alice
 ```
+
+> :information_source: If you don't specify a live chain, `pop` will automatically spawn a local node for testing purposes.
 
 Some of the options available are:
 

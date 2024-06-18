@@ -179,7 +179,7 @@ mod tests {
 		Ok(temp_dir)
 	}
 	fn build_smart_contract_test_environment(temp_dir: &TempDir) -> Result<(), Error> {
-		build_smart_contract(&Some(temp_dir.path().join("test_contract")))?;
+		build_smart_contract(&Some(temp_dir.path().join("test_contract")), true)?;
 		Ok(())
 	}
 
