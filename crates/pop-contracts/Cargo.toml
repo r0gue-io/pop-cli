@@ -1,8 +1,9 @@
 [package]
 name = "pop-contracts"
 description = "Library for generating, building, deploying, and calling ink! smart contracts."
-version = "0.1.0"
+version = "0.2.0"
 license = "Apache-2.0"
+documentation = "https://docs.rs/pop-contracts/latest/pop_contracts"
 edition.workspace = true
 readme = "README.md"
 repository.workspace = true
@@ -12,6 +13,12 @@ repository.workspace = true
 [dependencies]
 anyhow.workspace = true
 duct.workspace = true
+flate2.workspace = true
+reqwest.workspace = true
+serde_json.workspace = true
+serde.workspace = true
+tar.workspace = true
+tempfile.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 url.workspace = true
@@ -25,11 +32,12 @@ strum.workspace = true
 strum_macros.workspace = true
 git2.workspace = true
 git2_credentials.workspace = true
-tempfile.workspace = true
 heck.workspace = true
 
 # cargo-contracts
 contract-build.workspace = true
 contract-extrinsics.workspace = true
 
+[dev-dependencies]
+mockito.workspace = true
 

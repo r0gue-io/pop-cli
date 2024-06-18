@@ -98,8 +98,6 @@ async fn main() -> Result<()> {
 			up::UpCommands::Parachain(cmd) => cmd.execute().await.map(|_| Value::Null),
 			#[cfg(feature = "contract")]
 			up::UpCommands::Contract(cmd) => cmd.execute().await.map(|_| Value::Null),
-			#[cfg(feature = "contract")]
-			up::UpCommands::ContractsNode(cmd) => cmd.execute().await.map(|_| Value::Null),
 		},
 		#[cfg(feature = "contract")]
 		Commands::Test(args) => match &args.command {
