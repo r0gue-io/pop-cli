@@ -218,7 +218,7 @@ fn generate_parachain_from_template(
 
 	outro(format!(
 		"Need help? Learn more at {}\n",
-		style("https://learn.onpop.io/v/cli").magenta().underlined()
+		style("https://learn.onpop.io").magenta().underlined()
 	))?;
 	Ok(())
 }

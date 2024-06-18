@@ -13,7 +13,7 @@ cargo install --locked --git https://github.com/r0gue-io/pop-cli
 ```
 
 > :information_source: For detailed instructions on how to install Pop CLI, please refer to our
-> documentation: https://learn.onpop.io/v/pop-cli-for-smart-contracts/welcome/installing-pop-cli
+> documentation: https://learn.onpop.io/v/contracts/welcome/installing-pop-cli
 >
 > A [crates.io](https://crates.io/crates/pop-cli) version will be available soon!
 
@@ -144,20 +144,22 @@ Build the Smart Contract:
 # Build an existing Smart Contract
 pop build contract -p ./my_contract
 ```
+By default the contract is compiled with `debug` functionality included. 
 
-To deploy a Smart Contract you need a chain running. For testing purposes you can simply spawn a contract node:
+This enables the contract to output debug messages, but increases the contract size and the amount of gas used.
 
+For production builds, use the --release flag: `--release`:
 ```sh
-pop up contracts-node
+pop build contract -p ./my_contract --release
 ```
-
-> :information_source: We plan to automate this in the future.
 
 Deploy and instantiate the Smart Contract:
 
 ```sh
 pop up contract -p ./my_contract --constructor new --args "false" --suri //Alice
 ```
+
+> :information_source: If you don't specify a live chain, `pop` will automatically spawn a local node for testing purposes.
 
 Some of the options available are:
 
@@ -196,14 +198,14 @@ Example executing the `flip()` message:
 pop call contract -p ./my_contract --contract $INSTANTIATED_CONTRACT_ADDRESS --message flip --suri //Alice -x
 ```
 
-
 ## E2E testing
 
 For end-to-end testing you will need to have a Substrate node with `pallet contracts`.
-Pop provides the latest version out-of-the-box by running:
+You do not need to run it in the background since the node is started for each test independently.
+To install the latest version:
 
-```sh
-pop up contracts-node
+```
+cargo install contracts-node --git https://github.com/paritytech/substrate-contracts-node.git
 ```
 
 If you want to run any other node with `pallet-contracts` you need to change `CONTRACTS_NODE` environment variable:

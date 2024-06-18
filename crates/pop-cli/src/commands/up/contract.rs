@@ -2,10 +2,10 @@
 
 use anyhow::anyhow;
 use clap::Args;
-use cliclack::{clear_screen, intro, log, outro, outro_cancel};
+use cliclack::{clear_screen, confirm, intro, log, outro, outro_cancel};
 use pop_contracts::{
 	build_smart_contract, dry_run_gas_estimate_instantiate, instantiate_smart_contract,
-	parse_hex_bytes, set_up_deployment, UpOpts,
+	is_chain_alive, parse_hex_bytes, run_contracts_node, set_up_deployment, UpOpts,
 };
 use sp_core::Bytes;
 use sp_weights::Weight;
@@ -48,11 +48,14 @@ pub struct UpContractCommand {
 	/// e.g.
 	/// - for a dev account "//Alice"
 	/// - with a password "//Alice///SECRET_PASSWORD"
-	#[clap(name = "suri", long, short)]
+	#[clap(name = "suri", long, short, default_value = "//Alice")]
 	suri: String,
 	/// Perform a dry-run via RPC to estimate the gas usage. This does not submit a transaction.
 	#[clap(long)]
 	dry_run: bool,
+	/// Before start a local node, do not ask the user for confirmation.
+	#[clap(short('y'), long)]
+	skip_confirm: bool,
 }
 impl UpContractCommand {
 	pub(crate) async fn execute(&self) -> anyhow::Result<()> {
@@ -66,13 +69,32 @@ impl UpContractCommand {
 		if !build_path.as_path().exists() {
 			log::warning(format!("NOTE: contract has not yet been built."))?;
 			intro(format!("{}: Building a contract", style(" Pop CLI ").black().on_magenta()))?;
-			// Directory exists, proceed with the rest of the code
-			let result = build_smart_contract(&self.path)?;
+			// Build the contract in release mode
+			let result = build_smart_contract(&self.path, true)?;
 			log::success(result.to_string())?;
+		}
+
+		if !is_chain_alive(self.url.clone()).await? {
+			if !self.skip_confirm {
+				if !confirm(format!(
+				"The chain \"{}\" is not live. Would you like pop to start a local node in the background for testing?",
+				self.url.to_string()
+			))
+			.interact()?
+			{
+				outro_cancel("You need to specify a live chain to deploy the contract.")?;
+				return Ok(());
+			}
+			}
+			let process = run_contracts_node(crate::cache()?).await?;
+			log::success("Local node started successfully in the background.")?;
+			log::warning(format!("NOTE: The contracts node is running in the background with process ID {}. Please close it manually when done testing.", process.id()))?;
 		}
 
 		// if build exists then proceed
 		intro(format!("{}: Deploy a smart contract", style(" Pop CLI ").black().on_magenta()))?;
+
+		println!("{}: Deploying a smart contract", style(" Pop CLI ").black().on_magenta());
 
 		let instantiate_exec = set_up_deployment(UpOpts {
 			path: self.path.clone(),

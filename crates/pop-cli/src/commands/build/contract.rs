@@ -13,6 +13,10 @@ use pop_contracts::build_smart_contract;
 pub struct BuildContractCommand {
 	#[arg(short = 'p', long, help = "Path for the contract project, [default: current directory]")]
 	pub(crate) path: Option<PathBuf>,
+	/// The default compilation includes debug functionality, increasing contract size and gas usage.
+	/// For production, always build in release mode to exclude debug features.
+	#[clap(long = "release")]
+	build_release: bool,
 }
 
 impl BuildContractCommand {
@@ -21,7 +25,7 @@ impl BuildContractCommand {
 		intro(format!("{}: Building your contract", style(" Pop CLI ").black().on_magenta()))?;
 		set_theme(Theme);
 
-		let result_build = build_smart_contract(&self.path)?;
+		let result_build = build_smart_contract(&self.path, self.build_release)?;
 		outro("Build completed successfully!")?;
 		log::success(result_build.to_string())?;
 		Ok(())
