@@ -1,0 +1,49 @@
+# pop up parachain -f ./tests/networks/all.toml
+
+[relaychain]
+chain = "rococo-local"
+
+[[relaychain.nodes]]
+name = "alice"
+validator = true
+
+[[relaychain.nodes]]
+name = "bob"
+validator = true
+
+[[parachains]]
+id = 1000
+chain = "asset-hub-rococo-local"
+
+[[parachains.collators]]
+name = "asset-hub"
+
+[[parachains]]
+id = 2000
+default_command = "../my-parachain/target/release/parachain-template-node"
+
+[[parachains.collators]]
+name = "collator-01"
+
+[[parachains]]
+id = 4385
+default_command = "pop-node"
+
+[[parachains.collators]]
+name = "pop"
+args = ["-lruntime::contracts=debug"]
+
+[[parachains]]
+id = 2002
+default_command = "./bin/missing-binary"
+
+[[parachains.collators]]
+name = "collator-01"
+
+[[parachains]]
+id = 2001
+chain = "moonbase-local"
+default_command = "moonbeam"
+
+[[parachains.collators]]
+name = "alith"
