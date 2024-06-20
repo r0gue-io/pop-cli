@@ -56,6 +56,7 @@ mod tests {
 	fn test_contract_e2e_test_set_env_variable() -> Result<(), Error> {
 		let temp_dir = tempfile::tempdir()?;
 		cmd("cargo", ["new", "test_contract", "--bin"]).dir(temp_dir.path()).run()?;
+		// Ignore 2e2 testing in this scenario, will fail. Only test if the environment variable CONTRACTS_NODE is set.
 		let err = test_e2e_smart_contract(&Some(temp_dir.path().join("test_contract")), &None);
 		assert!(err.is_err());
 		// The environment variable `CONTRACTS_NODE` should not be set.
