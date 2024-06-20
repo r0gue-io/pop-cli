@@ -14,6 +14,7 @@ duct.workspace = true
 flate2.workspace = true
 git2.workspace = true
 git2_credentials.workspace = true
+glob.workspace = true
 strum.workspace = true
 strum_macros.workspace = true
 tar.workspace = true

@@ -12,36 +12,37 @@ use url::Url;
 /// A helper for handling Git operations.
 pub struct Git;
 impl Git {
-	pub(crate) fn clone(url: &Url, working_dir: &Path, branch: Option<&str>) -> Result<()> {
-		if !working_dir.exists() {
-			let mut fo = FetchOptions::new();
+	pub(crate) fn clone(url: &Url, working_dir: &Path, reference: Option<&str>) -> Result<()> {
+		let mut fo = FetchOptions::new();
+		if reference.is_none() {
 			fo.depth(1);
-			let mut repo = RepoBuilder::new();
-			repo.fetch_options(fo);
-			if let Some(branch) = branch {
-				repo.branch(branch);
-			}
-			if let Err(_e) = repo.clone(url.as_str(), working_dir) {
-				Self::ssh_clone(url, working_dir, branch)?;
-			}
+		}
+		let mut repo = RepoBuilder::new();
+		repo.fetch_options(fo);
+		let repo = match repo.clone(url.as_str(), working_dir) {
+			Ok(repository) => repository,
+			Err(e) => match Self::ssh_clone(url, working_dir) {
+				Ok(repository) => repository,
+				Err(_) => return Err(e.into()),
+			},
+		};
+
+		if let Some(reference) = reference {
+			let object = repo.revparse_single(&reference).expect("Object not found");
+			repo.checkout_tree(&object, None).expect("Failed to checkout");
 		}
 		Ok(())
 	}
-	pub(crate) fn ssh_clone(url: &Url, working_dir: &Path, branch: Option<&str>) -> Result<()> {
+
+	fn ssh_clone(url: &Url, working_dir: &Path) -> Result<Repository> {
 		let ssh_url = GitHub::convert_to_ssh_url(url);
-		if !working_dir.exists() {
-			// Prepare callback and fetch options.
-			let mut fo = FetchOptions::new();
-			Self::set_up_ssh_fetch_options(&mut fo)?;
-			// Prepare builder and clone.
-			let mut repo = RepoBuilder::new();
-			repo.fetch_options(fo);
-			if let Some(branch) = branch {
-				repo.branch(branch);
-			}
-			repo.clone(&ssh_url, working_dir)?;
-		}
-		Ok(())
+		// Prepare callback and fetch options.
+		let mut fo = FetchOptions::new();
+		Self::set_up_ssh_fetch_options(&mut fo)?;
+		// Prepare builder and clone.
+		let mut repo = RepoBuilder::new();
+		repo.fetch_options(fo);
+		Ok(repo.clone(&ssh_url, working_dir)?)
 	}
 
 	/// Clone a Git repository and degit it.
@@ -186,7 +187,7 @@ impl GitHub {
 	}
 
 	/// Fetch the latest releases of the GitHub repository.
-	pub async fn get_latest_releases(&self) -> Result<Vec<Release>> {
+	pub async fn releases(&self) -> Result<Vec<Release>> {
 		let client = reqwest::ClientBuilder::new().user_agent(APP_USER_AGENT).build()?;
 		let url = self.api_releases_url();
 		let response = client.get(url).send().await?.error_for_status()?;
@@ -257,6 +258,7 @@ impl GitHub {
 			.ok_or(Error::Git("the repository name is missing from the github url".to_string()))?)
 	}
 
+	#[cfg(test)]
 	pub(crate) fn release(repo: &Url, tag: &str, artifact: &str) -> String {
 		format!("{}/releases/download/{tag}/{artifact}", repo.as_str())
 	}
@@ -324,7 +326,7 @@ mod tests {
 		  }]"#;
 		let repo = GitHub::parse(BASE_PARACHAIN)?.with_api(&mock_server.url());
 		let mock = releases_mock(&mut mock_server, &repo, expected_payload).await;
-		let latest_release = repo.get_latest_releases().await?;
+		let latest_release = repo.releases().await?;
 		assert_eq!(
 			latest_release[0],
 			Release {
