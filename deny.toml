@@ -5,8 +5,7 @@ all-features = true
 [advisories]
 unmaintained = "warn"
 ignore = [
-    { id = "RUSTSEC-2024-0336", reason = "No upgrade available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/173" },
-    { id = "RUSTSEC-2023-0071", reason = "No upgrade available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/173" },
+    { id = "RUSTSEC-2024-0344", reason = "No upgrade available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/214" },
 ]
 
 [licenses]
