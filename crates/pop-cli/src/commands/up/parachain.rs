@@ -55,6 +55,10 @@ impl ZombienetCommand {
 			Ok(n) => n,
 			Err(e) => {
 				return match e {
+					Error::Config(message) => {
+						outro_cancel(format!("🚫 A configuration error occurred: `{message}`"))?;
+						Ok(())
+					},
 					Error::MissingBinary(name) => {
 						outro_cancel(format!("🚫 The `{name}` binary is specified in the network configuration file, but cannot be resolved to a source. Are you missing a `--parachain` argument?"))?;
 						Ok(())

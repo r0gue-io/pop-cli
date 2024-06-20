@@ -276,6 +276,10 @@ impl NetworkConfiguration {
 	/// # Arguments
 	/// * `file` - The network configuration file.
 	fn from(file: impl AsRef<Path>) -> Result<Self, Error> {
+		let file = file.as_ref();
+		if !file.exists() {
+			return Err(Error::Config(format!("The {file:?} configuration file was not found")));
+		}
 		let contents = std::fs::read_to_string(&file)?;
 		let config = contents.parse::<DocumentMut>().map_err(|err| Error::TomlError(err.into()))?;
 		let network_config = NetworkConfiguration(config);
