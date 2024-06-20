@@ -13,7 +13,7 @@ validator = true
 
 [[parachains]]
 id = 2000
-default_command = "../my-parachain/target/release/parachain-template-node"
+default_command = "./target/release/parachain-template-node"
 
 [[parachains.collators]]
 name = "collator-01"
