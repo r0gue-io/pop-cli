@@ -38,26 +38,38 @@ pub fn test_e2e_smart_contract(
 	Ok(())
 }
 
-#[cfg(feature = "unit_contract")]
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use std::fs;
 	use tempfile;
-
-	fn setup_test_environment() -> Result<tempfile::TempDir, Error> {
-		let temp_dir = tempfile::tempdir()?;
-		let temp_contract_dir = temp_dir.path().join("test_contract");
-		fs::create_dir(&temp_contract_dir)?;
-		crate::create_smart_contract("test_contract", temp_contract_dir.as_path())?;
-		Ok(temp_dir)
-	}
 
 	#[test]
 	fn test_contract_test() -> Result<(), Error> {
-		let temp_contract_dir = setup_test_environment()?;
+		let temp_dir = tempfile::tempdir()?;
+		cmd("cargo", ["new", "test_contract", "--bin"]).dir(temp_dir.path()).run()?;
 		// Run unit tests for the smart contract in the temporary contract directory.
-		test_smart_contract(&Some(temp_contract_dir.path().join("test_contract")))?;
+		test_smart_contract(&Some(temp_dir.path().join("test_contract")))?;
+		Ok(())
+	}
+
+	#[test]
+	fn test_contract_e2e_test_set_env_variable() -> Result<(), Error> {
+		let temp_dir = tempfile::tempdir()?;
+		cmd("cargo", ["new", "test_contract", "--bin"]).dir(temp_dir.path()).run()?;
+		let err = test_e2e_smart_contract(&Some(temp_dir.path().join("test_contract")), &None);
+		assert!(err.is_err());
+		// The environment variable `CONTRACTS_NODE` should not be set.
+		assert!(env::var("CONTRACTS_NODE").is_err());
+		let err = test_e2e_smart_contract(
+			&Some(temp_dir.path().join("test_contract")),
+			&Some(PathBuf::from("/path/to/contracts-node")),
+		);
+		assert!(err.is_err());
+		// The environment variable `CONTRACTS_NODE` should has been set.
+		assert_eq!(
+			env::var("CONTRACTS_NODE").unwrap(),
+			PathBuf::from("/path/to/contracts-node").display().to_string()
+		);
 		Ok(())
 	}
 }
