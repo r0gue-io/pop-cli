@@ -111,7 +111,9 @@ You can spawn a local network using [zombienet](https://github.com/paritytech/zo
 pop up parachain -f ./tests/networks/pop.toml -p https://github.com/r0gue-io/pop-node
 ```
 
-> :information_source: Pop CLI will automatically source the necessary polkadot binaries.
+> :information_source: Pop CLI will automatically source the necessary `polkadot` binaries.
+
+Various examples of network configuration files are available [here](./tests/networks).
 
 ### Run a command after the network has been spun up
 
