@@ -80,15 +80,16 @@ pub(super) async fn system(
 	if command != name {
 		return Ok(None);
 	}
-	let tag = match version {
-		Some(version) => Some(version.to_string()),
+	let (tag, latest) = match version {
+		Some(version) => (Some(version.to_string()), None),
 		None => {
 			// Default to same version as relay chain when not explicitly specified
 			let version = relay_chain.to_string();
-			Some(version)
+			// Only set latest when caller has not explicitly specified a version to use
+			(Some(version), para.releases().await?.into_iter().nth(0))
 		},
 	};
-	let source = TryInto::try_into(para, tag, para.releases().await?.into_iter().nth(0))?;
+	let source = TryInto::try_into(para, tag, latest)?;
 	let binary = Binary::Source { name: name.to_string(), source, cache: cache.to_path_buf() };
 	return Ok(Some(super::Parachain { id, binary }));
 }
@@ -109,9 +110,14 @@ pub(super) async fn from(
 	for para in Parachain::VARIANTS.iter().filter(|p| p.binary() == command) {
 		let releases = para.releases().await?;
 		let tag = Binary::resolve_version(command, version, &releases, cache);
+		// Only set latest when caller has not explicitly specified a version to use
+		let latest = version
+			.is_none()
+			.then(|| releases.iter().nth(0).map(|v| v.to_string()))
+			.flatten();
 		let binary = Binary::Source {
 			name: para.binary().to_string(),
-			source: TryInto::try_into(para, tag, releases.iter().nth(0).map(|v| v.to_string()))?,
+			source: TryInto::try_into(para, tag, latest)?,
 			cache: cache.to_path_buf(),
 		};
 		return Ok(Some(super::Parachain { id, binary }));
