@@ -108,7 +108,7 @@ pop build parachain --release
 You can spawn a local network using [zombienet](https://github.com/paritytech/zombienet-sdk) as follows:
 
 ```shell
-pop up parachain -f ./tests/networks/pop.toml
+pop up parachain -f ./tests/networks/pop.toml -p https://github.com/r0gue-io/pop-node
 ```
 
 > :information_source: Pop CLI will automatically source the necessary polkadot binaries.
@@ -144,11 +144,13 @@ Build the Smart Contract:
 # Build an existing Smart Contract
 pop build contract -p ./my_contract
 ```
-By default the contract is compiled with `debug` functionality included. 
+
+By default the contract is compiled with `debug` functionality included.
 
 This enables the contract to output debug messages, but increases the contract size and the amount of gas used.
 
 For production builds, use the --release flag: `--release`:
+
 ```sh
 pop build contract -p ./my_contract --release
 ```
@@ -159,7 +161,8 @@ Deploy and instantiate the Smart Contract:
 pop up contract -p ./my_contract --constructor new --args "false" --suri //Alice
 ```
 
-> :information_source: If you don't specify a live chain, `pop` will automatically spawn a local node for testing purposes.
+> :information_source: If you don't specify a live chain, `pop` will automatically spawn a local node for testing
+> purposes.
 
 Some of the options available are:
 
