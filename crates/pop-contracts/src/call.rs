@@ -158,14 +158,14 @@ pub async fn call_smart_contract(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::create_smart_contract;
-	use anyhow::{Error, Result};
+	use crate::{create_smart_contract, errors::Error};
+	use anyhow::Result;
 
 	use std::{env, fs};
 
 	const CONTRACTS_NETWORK_URL: &str = "wss://rococo-contracts-rpc.polkadot.io";
 
-	fn generate_smart_contract_test_environment() -> Result<tempfile::TempDir, Error> {
+	fn generate_smart_contract_test_environment() -> Result<tempfile::TempDir> {
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
 		let temp_contract_dir = temp_dir.path().join("testing");
 		fs::create_dir(&temp_contract_dir)?;
@@ -189,7 +189,7 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn test_set_up_call() -> Result<(), Error> {
+	async fn test_set_up_call() -> Result<()> {
 		let temp_dir = generate_smart_contract_test_environment()?;
 		mock_build_process(temp_dir.path().join("testing"))?;
 
@@ -211,7 +211,7 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn test_set_up_call_error_contract_not_build() -> Result<(), Error> {
+	async fn test_set_up_call_error_contract_not_build() -> Result<()> {
 		let temp_dir = generate_smart_contract_test_environment()?;
 		let call_opts = CallOpts {
 			path: Some(temp_dir.path().join("testing")),
@@ -233,7 +233,7 @@ mod tests {
 		Ok(())
 	}
 	#[tokio::test]
-	async fn test_set_up_call_fails_no_smart_contract_folder() -> Result<(), Error> {
+	async fn test_set_up_call_fails_no_smart_contract_folder() -> Result<()> {
 		let call_opts = CallOpts {
 			path: None,
 			contract: "5CLPm1CeUvJhZ8GCDZCR7nWZ2m3XXe4X5MtAQK69zEjut36A".to_string(),
@@ -251,6 +251,53 @@ mod tests {
 		let error = call.err().unwrap();
 		assert_eq!(error.root_cause().to_string(), "No 'ink' dependency found");
 
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn test_dry_run_call_error_contract_not_deployed() -> Result<()> {
+		let temp_dir = generate_smart_contract_test_environment()?;
+		mock_build_process(temp_dir.path().join("testing"))?;
+
+		let call_opts = CallOpts {
+			path: Some(temp_dir.path().join("testing")),
+			contract: "5CLPm1CeUvJhZ8GCDZCR7nWZ2m3XXe4X5MtAQK69zEjut36A".to_string(),
+			message: "get".to_string(),
+			args: [].to_vec(),
+			value: "1000".to_string(),
+			gas_limit: None,
+			proof_size: None,
+			url: Url::parse(CONTRACTS_NETWORK_URL)?,
+			suri: "//Alice".to_string(),
+			execute: false,
+		};
+		let call = set_up_call(call_opts).await?;
+		assert!(matches!(dry_run_call(&call).await, Err(Error::DryRunCallContractError(..))));
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn test_dry_run_estimate_call_error_contract_not_deployed() -> Result<()> {
+		let temp_dir = generate_smart_contract_test_environment()?;
+		mock_build_process(temp_dir.path().join("testing"))?;
+
+		let call_opts = CallOpts {
+			path: Some(temp_dir.path().join("testing")),
+			contract: "5CLPm1CeUvJhZ8GCDZCR7nWZ2m3XXe4X5MtAQK69zEjut36A".to_string(),
+			message: "get".to_string(),
+			args: [].to_vec(),
+			value: "1000".to_string(),
+			gas_limit: None,
+			proof_size: None,
+			url: Url::parse(CONTRACTS_NETWORK_URL)?,
+			suri: "//Alice".to_string(),
+			execute: false,
+		};
+		let call = set_up_call(call_opts).await?;
+		assert!(matches!(
+			dry_run_gas_estimate_call(&call).await,
+			Err(Error::DryRunCallContractError(..))
+		));
 		Ok(())
 	}
 }
