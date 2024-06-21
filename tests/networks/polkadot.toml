@@ -1,0 +1,12 @@
+# pop up parachain -f ./tests/networks/polkadot.toml
+
+[relaychain]
+chain = "polkadot-local"
+
+[[relaychain.nodes]]
+name = "alice"
+validator = true
+
+[[relaychain.nodes]]
+name = "bob"
+validator = true
