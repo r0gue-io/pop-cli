@@ -3,7 +3,8 @@ use anyhow::Result;
 use pop_parachains::Zombienet;
 
 const CONFIG_FILE_PATH: &str = "../../tests/networks/pop.toml";
-const TESTING_POLKADOT_VERSION: &str = "v1.12.0";
+const BINARY_VERSION: &str = "v1.13.0";
+const RUNTIME_VERSION: &str = "v1.2.7";
 
 #[tokio::test]
 async fn test_spawn_polkadot_and_two_parachains() -> Result<()> {
@@ -13,8 +14,10 @@ async fn test_spawn_polkadot_and_two_parachains() -> Result<()> {
 	let mut zombienet = Zombienet::new(
 		&cache,
 		CONFIG_FILE_PATH,
-		Some(&TESTING_POLKADOT_VERSION.to_string()),
-		Some(&TESTING_POLKADOT_VERSION.to_string()),
+		Some(BINARY_VERSION),
+		Some(RUNTIME_VERSION),
+		Some(BINARY_VERSION),
+		Some(RUNTIME_VERSION),
 		Some(&vec!["https://github.com/r0gue-io/pop-node".to_string()]),
 	)
 	.await?;
