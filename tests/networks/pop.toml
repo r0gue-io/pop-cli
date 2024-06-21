@@ -1,3 +1,5 @@
+# pop up parachain -f ./tests/networks/pop.toml
+
 [relaychain]
 chain = "rococo-local"
 

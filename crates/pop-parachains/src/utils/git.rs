@@ -1,48 +1,48 @@
 // SPDX-License-Identifier: GPL-3.0
-use crate::errors::Error;
+use crate::{errors::Error, APP_USER_AGENT};
 use anyhow::Result;
 use git2::{
 	build::RepoBuilder, FetchOptions, IndexAddOption, RemoteCallbacks, Repository, ResetType,
 };
 use git2_credentials::CredentialHandler;
 use regex::Regex;
-use std::path::Path;
-use std::{env, fs};
+use std::{fs, path::Path};
 use url::Url;
 
 /// A helper for handling Git operations.
 pub struct Git;
 impl Git {
-	pub(crate) fn clone(url: &Url, working_dir: &Path, branch: Option<&str>) -> Result<()> {
-		if !working_dir.exists() {
-			let mut fo = FetchOptions::new();
+	pub(crate) fn clone(url: &Url, working_dir: &Path, reference: Option<&str>) -> Result<()> {
+		let mut fo = FetchOptions::new();
+		if reference.is_none() {
 			fo.depth(1);
-			let mut repo = RepoBuilder::new();
-			repo.fetch_options(fo);
-			if let Some(branch) = branch {
-				repo.branch(branch);
-			}
-			if let Err(_e) = repo.clone(url.as_str(), working_dir) {
-				Self::ssh_clone(url, working_dir, branch)?;
-			}
+		}
+		let mut repo = RepoBuilder::new();
+		repo.fetch_options(fo);
+		let repo = match repo.clone(url.as_str(), working_dir) {
+			Ok(repository) => repository,
+			Err(e) => match Self::ssh_clone(url, working_dir) {
+				Ok(repository) => repository,
+				Err(_) => return Err(e.into()),
+			},
+		};
+
+		if let Some(reference) = reference {
+			let object = repo.revparse_single(&reference).expect("Object not found");
+			repo.checkout_tree(&object, None).expect("Failed to checkout");
 		}
 		Ok(())
 	}
-	pub(crate) fn ssh_clone(url: &Url, working_dir: &Path, branch: Option<&str>) -> Result<()> {
+
+	fn ssh_clone(url: &Url, working_dir: &Path) -> Result<Repository> {
 		let ssh_url = GitHub::convert_to_ssh_url(url);
-		if !working_dir.exists() {
-			// Prepare callback and fetch options.
-			let mut fo = FetchOptions::new();
-			Self::set_up_ssh_fetch_options(&mut fo)?;
-			// Prepare builder and clone.
-			let mut repo = RepoBuilder::new();
-			repo.fetch_options(fo);
-			if let Some(branch) = branch {
-				repo.branch(branch);
-			}
-			repo.clone(&ssh_url, working_dir)?;
-		}
-		Ok(())
+		// Prepare callback and fetch options.
+		let mut fo = FetchOptions::new();
+		Self::set_up_ssh_fetch_options(&mut fo)?;
+		// Prepare builder and clone.
+		let mut repo = RepoBuilder::new();
+		repo.fetch_options(fo);
+		Ok(repo.clone(&ssh_url, working_dir)?)
 	}
 
 	/// Clone a Git repository and degit it.
@@ -165,7 +165,7 @@ pub struct GitHub {
 impl GitHub {
 	const GITHUB: &'static str = "github.com";
 
-	/// Parse URL of a github repository.
+	/// Parse URL of a GitHub repository.
 	///
 	/// # Arguments
 	///
@@ -186,23 +186,22 @@ impl GitHub {
 		self
 	}
 
-	/// Fetch the latest releases of the Github repository.
-	pub async fn get_latest_releases(&self) -> Result<Vec<Release>> {
-		static APP_USER_AGENT: &str =
-			concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
+	/// Fetch the latest releases of the GitHub repository.
+	pub async fn releases(&self) -> Result<Vec<Release>> {
 		let client = reqwest::ClientBuilder::new().user_agent(APP_USER_AGENT).build()?;
 		let url = self.api_releases_url();
-		let response = client.get(url).send().await?;
+		let response = client.get(url).send().await?.error_for_status()?;
 		Ok(response.json::<Vec<Release>>().await?)
 	}
 
 	/// Retrieves the commit hash associated with a specified tag in a GitHub repository.
 	pub async fn get_commit_sha_from_release(&self, tag_name: &str) -> Result<String> {
-		static APP_USER_AGENT: &str =
-			concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
-
 		let client = reqwest::ClientBuilder::new().user_agent(APP_USER_AGENT).build()?;
-		let response = client.get(self.api_tag_information(tag_name)).send().await?;
+		let response = client
+			.get(self.api_tag_information(tag_name))
+			.send()
+			.await?
+			.error_for_status()?;
 		let value = response.json::<serde_json::Value>().await?;
 		let commit = value
 			.get("object")
@@ -214,11 +213,9 @@ impl GitHub {
 	}
 
 	pub async fn get_repo_license(&self) -> Result<String> {
-		static APP_USER_AGENT: &str =
-			concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 		let client = reqwest::ClientBuilder::new().user_agent(APP_USER_AGENT).build()?;
 		let url = self.api_license_url();
-		let response = client.get(url).send().await?;
+		let response = client.get(url).send().await?.error_for_status()?;
 		let value = response.json::<serde_json::Value>().await?;
 		let license = value
 			.get("license")
@@ -261,6 +258,7 @@ impl GitHub {
 			.ok_or(Error::Git("the repository name is missing from the github url".to_string()))?)
 	}
 
+	#[cfg(test)]
 	pub(crate) fn release(repo: &Url, tag: &str, artifact: &str) -> String {
 		format!("{}/releases/download/{tag}/{artifact}", repo.as_str())
 	}
@@ -328,7 +326,7 @@ mod tests {
 		  }]"#;
 		let repo = GitHub::parse(BASE_PARACHAIN)?.with_api(&mock_server.url());
 		let mock = releases_mock(&mut mock_server, &repo, expected_payload).await;
-		let latest_release = repo.get_latest_releases().await?;
+		let latest_release = repo.releases().await?;
 		assert_eq!(
 			latest_release[0],
 			Release {
