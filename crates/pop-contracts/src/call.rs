@@ -155,36 +155,46 @@ pub async fn call_smart_contract(
 	Ok(output)
 }
 
-#[cfg(feature = "unit_contract")]
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::{build_smart_contract, create_smart_contract};
+	use crate::create_smart_contract;
 	use anyhow::{Error, Result};
-	use std::fs;
-	use tempfile::TempDir;
+
+	use std::{env, fs};
 
 	const CONTRACTS_NETWORK_URL: &str = "wss://rococo-contracts-rpc.polkadot.io";
 
 	fn generate_smart_contract_test_environment() -> Result<tempfile::TempDir, Error> {
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
-		let temp_contract_dir = temp_dir.path().join("test_contract");
+		let temp_contract_dir = temp_dir.path().join("testing");
 		fs::create_dir(&temp_contract_dir)?;
-		create_smart_contract("test_contract", temp_contract_dir.as_path())?;
+		create_smart_contract("testing", temp_contract_dir.as_path())?;
 		Ok(temp_dir)
 	}
-	fn build_smart_contract_test_environment(temp_dir: &TempDir) -> Result<(), Error> {
-		build_smart_contract(&Some(temp_dir.path().join("test_contract")), true)?;
+	// Function that mocks the build process generating the contract artifacts.
+	fn mock_build_process(temp_contract_dir: PathBuf) -> Result<(), Error> {
+		// Create a target directory
+		let target_contract_dir = temp_contract_dir.join("target");
+		fs::create_dir(&target_contract_dir)?;
+		fs::create_dir(&target_contract_dir.join("ink"))?;
+
+		// Copy a mocked testing.contract file inside the target directory
+		let current_dir = env::current_dir().expect("Failed to get current directory");
+		//let contract = target_contract_dir.join("ink");
+
+		let contract_file = current_dir.join("tests/files/testing.contract");
+		fs::copy(contract_file, &target_contract_dir.join("ink/testing.contract"))?;
 		Ok(())
 	}
 
 	#[tokio::test]
 	async fn test_set_up_call() -> Result<(), Error> {
 		let temp_dir = generate_smart_contract_test_environment()?;
-		build_smart_contract_test_environment(&temp_dir)?;
+		mock_build_process(temp_dir.path().join("testing"))?;
 
 		let call_opts = CallOpts {
-			path: Some(temp_dir.path().join("test_contract")),
+			path: Some(temp_dir.path().join("testing")),
 			contract: "5CLPm1CeUvJhZ8GCDZCR7nWZ2m3XXe4X5MtAQK69zEjut36A".to_string(),
 			message: "get".to_string(),
 			args: [].to_vec(),
@@ -204,7 +214,7 @@ mod tests {
 	async fn test_set_up_call_error_contract_not_build() -> Result<(), Error> {
 		let temp_dir = generate_smart_contract_test_environment()?;
 		let call_opts = CallOpts {
-			path: Some(temp_dir.path().join("test_contract")),
+			path: Some(temp_dir.path().join("testing")),
 			contract: "5CLPm1CeUvJhZ8GCDZCR7nWZ2m3XXe4X5MtAQK69zEjut36A".to_string(),
 			message: "get".to_string(),
 			args: [].to_vec(),
