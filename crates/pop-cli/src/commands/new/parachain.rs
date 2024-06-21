@@ -321,13 +321,8 @@ async fn choose_release(template: &Template) -> Result<Option<String>> {
 }
 
 async fn get_latest_3_releases(repo: &GitHub) -> Result<Vec<Release>> {
-	let mut latest_3_releases: Vec<Release> = repo
-		.get_latest_releases()
-		.await?
-		.into_iter()
-		.filter(|r| !r.prerelease)
-		.take(3)
-		.collect();
+	let mut latest_3_releases: Vec<Release> =
+		repo.releases().await?.into_iter().filter(|r| !r.prerelease).take(3).collect();
 	repo.get_repo_license().await?;
 	// Get the commit sha for the releases
 	for release in latest_3_releases.iter_mut() {

@@ -2325,6 +2325,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "glob"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d2fabcfbdc87f4758337ca535fb41a6d701b65693ce38287d856d1674551ec9b"
+
+[[package]]
 name = "group"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4488,8 +4494,10 @@ dependencies = [
  "anyhow",
  "askama",
  "duct",
+ "flate2",
  "git2",
  "git2_credentials",
+ "glob",
  "indexmap 2.2.6",
  "mockito",
  "regex",
@@ -4499,6 +4507,7 @@ dependencies = [
  "strum 0.26.2",
  "strum_macros 0.26.4",
  "symlink",
+ "tar",
  "tempfile",
  "thiserror",
  "tokio",
