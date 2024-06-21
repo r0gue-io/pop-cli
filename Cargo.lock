@@ -4482,7 +4482,7 @@ dependencies = [
  "sp-core",
  "sp-weights",
  "strum 0.26.2",
- "strum_macros 0.26.2",
+ "strum_macros 0.26.4",
  "subxt",
  "subxt-signer",
  "tar",

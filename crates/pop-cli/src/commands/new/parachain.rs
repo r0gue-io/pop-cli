@@ -170,7 +170,7 @@ fn generate_parachain_from_template(
 	}
 	spinner.clear();
 
-	// replace spinner with success
+	// Replace spinner with success.
 	console::Term::stderr().clear_last_lines(2)?;
 	success(format!(
 		"Generation complete{}",

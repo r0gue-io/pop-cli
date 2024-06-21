@@ -34,7 +34,7 @@ impl NewContractCommand {
 		set_theme(Theme);
 
 		let contract_config = if self.name.is_none() {
-			// If user doesn't select the name guide them to generate a contract.
+			// If the user doesn't provide a name, guide them in generating a contract.
 			guide_user_to_generate_contract().await?
 		} else {
 			self.clone()
@@ -107,7 +107,7 @@ fn generate_contract_from_template(
 
 	spinner.clear();
 
-	// replace spinner with success
+	// Replace spinner with success.
 	console::Term::stderr().clear_last_lines(2)?;
 	success("Generation complete")?;
 

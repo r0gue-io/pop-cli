@@ -25,27 +25,27 @@ pub enum Template {
 	#[default]
 	#[strum(serialize = "standard", message = "Standard", detailed_message = "Our 'Hello World")]
 	Standard,
-	/// The implementation of the ERC-20 standard in Solidity using ink!
+	/// The implementation of the ERC-20 standard in ink!
 	#[strum(
 		serialize = "erc20",
 		message = "Erc20",
-		detailed_message = "The implementation of the ERC-20 standard in Solidity using ink!",
+		detailed_message = "The implementation of the ERC-20 standard in ink!",
 		props(Repository = "https://github.com/paritytech/ink-examples")
 	)]
 	ERC20,
-	/// The implementation of the ERC-721 standard in Solidity using ink!
+	/// The implementation of the ERC-721 standard in ink!
 	#[strum(
 		serialize = "erc721",
 		message = "Erc721",
-		detailed_message = "The implementation of the ERC-721 standard in Solidity using ink!",
+		detailed_message = "The implementation of the ERC-721 standard in ink!",
 		props(Repository = "https://github.com/paritytech/ink-examples")
 	)]
 	ERC721,
-	/// The implementation of the ERC-1155 standard in Solidity using ink!
+	/// The implementation of the ERC-1155 standard in ink!
 	#[strum(
 		serialize = "erc1155",
 		message = "Erc1155",
-		detailed_message = "The implementation of the ERC-1155 standard in Solidity using ink!",
+		detailed_message = "The implementation of the ERC-1155 standard in ink!",
 		props(Repository = "https://github.com/paritytech/ink-examples")
 	)]
 	ERC1155,
@@ -66,7 +66,7 @@ impl Template {
 	pub fn repository_url(&self) -> Result<&str, Error> {
 		self.get_str("Repository").ok_or(Error::RepositoryMissing)
 	}
-	/// Get the list of templates supported.
+	/// Get the list of supported templates.
 	pub fn templates() -> &'static [Template] {
 		Template::VARIANTS
 	}
@@ -97,12 +97,9 @@ mod tests {
 	fn templates_description() -> HashMap<Template, &'static str> {
 		HashMap::from([
 			(Template::Standard, "Our 'Hello World"),
-			(Template::ERC20, "The implementation of the ERC-20 standard in Solidity using ink!"),
-			(Template::ERC721, "The implementation of the ERC-721 standard in Solidity using ink!"),
-			(
-				Template::ERC1155,
-				"The implementation of the ERC-1155 standard in Solidity using ink!",
-			),
+			(Template::ERC20, "The implementation of the ERC-20 standard in ink!"),
+			(Template::ERC721, "The implementation of the ERC-721 standard in ink!"),
+			(Template::ERC1155, "The implementation of the ERC-1155 standard in ink!"),
 		])
 	}
 

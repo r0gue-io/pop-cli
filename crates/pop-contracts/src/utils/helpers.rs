@@ -36,10 +36,10 @@ pub fn parse_account(account: &str) -> Result<<DefaultConfig as Config>::Account
 
 pub fn canonicalized_path(target: &Path) -> Result<PathBuf, Error> {
 	// Canonicalize the target path to ensure consistency and resolve any symbolic links.
-	return target
+	target
 		.canonicalize()
 		// If an I/O error occurs during canonicalization, convert it into an Error enum variant.
-		.map_err(|e| Error::IO(e));
+		.map_err(|e| Error::IO(e))
 }
 
 pub fn replace_in_file(file_path: PathBuf, replacements: HashMap<&str, &str>) -> Result<(), Error> {

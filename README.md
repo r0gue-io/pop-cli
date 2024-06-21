@@ -127,7 +127,7 @@ pop up parachain -f ./tests/networks/pop.toml --cmd ./path/to/my/script
 ### Contracts
 
 Use `pop` to create a new Smart Contract project.
-To be guided through the entire parachain creation process, simply execute
+To be guided through the entire contract creation process, simply execute
 
 ```sh
 pop new contract
@@ -140,14 +140,14 @@ If no guidance is needed, proceed with:
 pop new contract my_contract
 ```
 
-`pop-cli` supports diverse project templates, to use a specific one use the flag `--template`:
+`pop-cli` supports different contract templates and can be used with`--template`:
 
 ```sh
-# Create an ERC-20 standard in Solidity using ink!
+# Create an ERC-20 standard in ink!
 pop new contract my_contract -t erc20
-# Create an ERC-721 standard in Solidity using ink!
+# Create an ERC-721 standard in ink!
 pop new contract my_contract -t erc721
-# Create an ERC-1155 standard in Solidity using ink!
+# Create an ERC-1155 standard in ink!
 pop new contract my_contract -t erc1155
 ```
 
