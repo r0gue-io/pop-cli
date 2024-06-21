@@ -311,6 +311,7 @@ async fn run_external_script(script_url: &str) -> anyhow::Result<()> {
 		.send()
 		.await
 		.context("Network Error: Failed to fetch script from Github")?
+		.error_for_status()?
 		.text()
 		.await?;
 	fs::write(scripts_path.as_path(), script).await?;

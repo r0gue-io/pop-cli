@@ -108,18 +108,20 @@ pop build parachain --release
 You can spawn a local network using [zombienet](https://github.com/paritytech/zombienet-sdk) as follows:
 
 ```shell
-pop up parachain -f ./tests/zombienet.toml -p https://github.com/r0gue-io/pop-node
+pop up parachain -f ./tests/networks/pop.toml -p https://github.com/r0gue-io/pop-node
 ```
 
-> :information_source: Pop CLI will automatically source the necessary polkadot binaries. Currently, these will be built
-> if on a non-linux system.
+> :information_source: Pop CLI will automatically source the necessary `polkadot` binaries.
+
+Various examples of network configuration files are available [here](./tests/networks).
 
 ### Run a command after the network has been spun up
 
-The following will spin up the network locally according the the zombienet file and once the network is up, it will run the command specified in `--cmd`:
+The following will spin up the network locally according the the zombienet file and once the network is up, it will run
+the command specified in `--cmd`:
 
 ```shell
-pop up parachain -f ./tests/zombienet.toml -p https://github.com/r0gue-io/pop-node --cmd ./path/to/my/script
+pop up parachain -f ./tests/networks/pop.toml --cmd ./path/to/my/script
 ```
 
 ### Contracts
@@ -162,11 +164,13 @@ Build the Smart Contract:
 # Build an existing Smart Contract
 pop build contract -p ./my_contract
 ```
-By default the contract is compiled with `debug` functionality included. 
+
+By default the contract is compiled with `debug` functionality included.
 
 This enables the contract to output debug messages, but increases the contract size and the amount of gas used.
 
 For production builds, use the --release flag: `--release`:
+
 ```sh
 pop build contract -p ./my_contract --release
 ```
@@ -177,7 +181,8 @@ Deploy and instantiate the Smart Contract:
 pop up contract -p ./my_contract --constructor new --args "false" --suri //Alice
 ```
 
-> :information_source: If you don't specify a live chain, `pop` will automatically spawn a local node for testing purposes.
+> :information_source: If you don't specify a live chain, `pop` will automatically spawn a local node for testing
+> purposes.
 
 Some of the options available are:
 
