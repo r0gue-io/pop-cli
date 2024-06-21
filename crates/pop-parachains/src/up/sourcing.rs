@@ -115,7 +115,8 @@ pub(crate) enum GitHub {
 		/// The name of the archive (asset) to download.
 		archive: String,
 		/// The archive contents required, including the binary name.
-		contents: Vec<&'static str>,
+		/// The second parameter can be used to specify another name for the binary once extracted.
+		contents: Vec<(&'static str, Option<String>)>,
 		/// If applicable, the latest release tag available.
 		latest: Option<String>,
 	},
@@ -169,9 +170,15 @@ impl GitHub {
 				};
 				let contents: Vec<_> = contents
 					.iter()
-					.map(|name| match tag.as_ref() {
-						Some(tag) => (*name, cache.join(&format!("{name}-{tag}"))),
-						None => (*name, cache.join(&name)),
+					.map(|(name, target)| match tag.as_ref() {
+						Some(tag) => (
+							*name,
+							cache.join(&format!(
+								"{}-{tag}",
+								target.as_ref().map_or(*name, |t| t.as_str())
+							)),
+						),
+						None => (*name, cache.join(target.as_ref().map_or(*name, |t| t.as_str()))),
 					})
 					.collect();
 				from_archive(&url, &contents, status).await
@@ -536,7 +543,7 @@ pub(super) mod tests {
 			tag: Some(tag.to_string()),
 			tag_format,
 			archive,
-			contents: contents.to_vec(),
+			contents: contents.map(|n| (n, None)).to_vec(),
 			latest: None,
 		})
 		.source(temp_dir.path(), true, &Output, true)
@@ -563,7 +570,7 @@ pub(super) mod tests {
 			tag: None,
 			tag_format,
 			archive,
-			contents: contents.to_vec(),
+			contents: contents.map(|n| (n, None)).to_vec(),
 			latest: None,
 		})
 		.source(temp_dir.path(), true, &Output, true)
