@@ -8,6 +8,7 @@ use std::{env, path::PathBuf};
 /// # Arguments
 ///
 /// * `path` - location of the smart contract.
+///
 pub fn test_smart_contract(path: &Option<PathBuf>) -> Result<(), Error> {
 	// Execute `cargo test` command in the specified directory.
 	cmd("cargo", vec!["test"])
@@ -17,11 +18,13 @@ pub fn test_smart_contract(path: &Option<PathBuf>) -> Result<(), Error> {
 	Ok(())
 }
 
-/// Run the e2e tests of a smart contract.
+/// Run e2e tests of a smart contract.
 ///
 /// # Arguments
 ///
 /// * `path` - location of the smart contract.
+/// * `contracts_node_path` - location of the contracts node binary.
+///
 pub fn test_e2e_smart_contract(
 	path: &Option<PathBuf>,
 	contracts_node_path: &Option<PathBuf>,

@@ -17,7 +17,7 @@ pub(crate) struct TestContractCommand {
 	#[arg(
 		short = 'n',
 		long = "contracts-node",
-		help = "Path to the contracts node to run the e2e tests [default: none]"
+		help = "Path to the contracts node to run e2e tests [default: none]"
 	)]
 	contracts_node_path: Option<PathBuf>,
 }
@@ -25,19 +25,16 @@ pub(crate) struct TestContractCommand {
 impl TestContractCommand {
 	pub(crate) fn execute(&self) -> anyhow::Result<&str> {
 		clear_screen()?;
-
 		if self.features.is_some() && self.features.clone().unwrap().contains("e2e-tests") {
 			intro(format!(
 				"{}: Starting end-to-end tests",
 				style(" Pop CLI ").black().on_magenta()
 			))?;
-
 			test_e2e_smart_contract(&self.path, &self.contracts_node_path)?;
 			outro("End-to-end testing complete")?;
 			Ok("e2e")
 		} else {
 			intro(format!("{}: Starting unit tests", style(" Pop CLI ").black().on_magenta()))?;
-
 			test_smart_contract(&self.path)?;
 			outro("Unit testing complete")?;
 			Ok("unit")
