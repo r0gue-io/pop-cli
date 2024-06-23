@@ -23,14 +23,18 @@ use strum_macros::{AsRefStr, Display, EnumMessage, EnumProperty, EnumString, Var
 pub enum Template {
 	/// A minimalist contract template.
 	#[default]
-	#[strum(serialize = "standard", message = "Standard", detailed_message = "Our 'Hello World")]
+	#[strum(
+		serialize = "standard",
+		message = "Standard",
+		detailed_message = "ink!'s 'Hello World': Flipper"
+	)]
 	Standard,
 	/// The implementation of the ERC-20 standard in ink!
 	#[strum(
 		serialize = "erc20",
 		message = "Erc20",
 		detailed_message = "The implementation of the ERC-20 standard in ink!",
-		props(Repository = "https://github.com/paritytech/ink-examples")
+		props(Repository = "https://github.com/use-ink/ink-exampless")
 	)]
 	ERC20,
 	/// The implementation of the ERC-721 standard in ink!
@@ -38,7 +42,7 @@ pub enum Template {
 		serialize = "erc721",
 		message = "Erc721",
 		detailed_message = "The implementation of the ERC-721 standard in ink!",
-		props(Repository = "https://github.com/paritytech/ink-examples")
+		props(Repository = "https://github.com/use-ink/ink-exampless")
 	)]
 	ERC721,
 	/// The implementation of the ERC-1155 standard in ink!
@@ -46,7 +50,7 @@ pub enum Template {
 		serialize = "erc1155",
 		message = "Erc1155",
 		detailed_message = "The implementation of the ERC-1155 standard in ink!",
-		props(Repository = "https://github.com/paritytech/ink-examples")
+		props(Repository = "https://github.com/use-ink/ink-exampless")
 	)]
 	ERC1155,
 }
@@ -88,15 +92,15 @@ mod tests {
 
 	fn templates_urls() -> HashMap<String, &'static str> {
 		HashMap::from([
-			("erc20".to_string(), "https://github.com/paritytech/ink-examples"),
-			("erc721".to_string(), "https://github.com/paritytech/ink-examples"),
-			("erc1155".to_string(), "https://github.com/paritytech/ink-examples"),
+			("erc20".to_string(), "https://github.com/use-ink/ink-exampless"),
+			("erc721".to_string(), "https://github.com/use-ink/ink-exampless"),
+			("erc1155".to_string(), "https://github.com/use-ink/ink-exampless"),
 		])
 	}
 
 	fn templates_description() -> HashMap<Template, &'static str> {
 		HashMap::from([
-			(Template::Standard, "Our 'Hello World"),
+			(Template::Standard, "ink!'s 'Hello World': Flipper"),
 			(Template::ERC20, "The implementation of the ERC-20 standard in ink!"),
 			(Template::ERC721, "The implementation of the ERC-721 standard in ink!"),
 			(Template::ERC1155, "The implementation of the ERC-1155 standard in ink!"),

@@ -80,7 +80,7 @@ fn extract_contract_files(
 	let contract_folder = repo_folder.join(contract_name);
 	for entry in fs::read_dir(&contract_folder)? {
 		let entry = entry?;
-		// The currently available templates contain only files: lib.rs and Carg.toml. The `frontend` folder is being ignored.
+		// The currently available templates contain only files: lib.rs and Cargo.toml. The `frontend` folder is being ignored.
 		// If future templates include folders, functionality will need to be added to support copying directories as well.
 		if entry.path().is_file() {
 			fs::copy(entry.path(), target_folder.join(entry.file_name()))?;
