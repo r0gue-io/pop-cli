@@ -1,0 +1,19 @@
+# pop up parachain -f ./tests/networks/rococo+coretime.toml
+
+[relaychain]
+chain = "rococo-local"
+
+[[relaychain.nodes]]
+name = "alice"
+validator = true
+
+[[relaychain.nodes]]
+name = "bob"
+validator = true
+
+[[parachains]]
+id = 1005
+chain = "coretime-rococo-local"
+
+[[parachains.collators]]
+name = "coretime-01"

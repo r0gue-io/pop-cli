@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use std::{env::current_dir, fs, path::PathBuf};
-
+use crate::style::Theme;
 use clap::Args;
 use cliclack::{clear_screen, confirm, intro, outro, outro_cancel, set_theme};
 use console::style;
-
-use crate::style::Theme;
 use pop_contracts::create_smart_contract;
+use std::{env::current_dir, fs, path::PathBuf};
 
 #[derive(Args)]
 pub struct NewContractCommand {
@@ -18,7 +16,8 @@ pub struct NewContractCommand {
 }
 
 impl NewContractCommand {
-	pub(crate) async fn execute(&self) -> anyhow::Result<()> {
+	/// Executes the command.
+	pub(crate) async fn execute(self) -> anyhow::Result<()> {
 		clear_screen()?;
 		intro(format!(
 			"{}: Generating new contract \"{}\"!",

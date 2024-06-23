@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
+
 use crate::style::{style, Theme};
 use anyhow::Result;
 use clap::{
@@ -72,7 +73,8 @@ macro_rules! enum_variants {
 }
 
 impl NewParachainCommand {
-	pub(crate) async fn execute(&self) -> Result<Template> {
+	/// Executes the command.
+	pub(crate) async fn execute(self) -> Result<Template> {
 		clear_screen()?;
 		set_theme(Theme);
 
@@ -158,6 +160,7 @@ async fn guide_user_to_generate_parachain() -> Result<NewParachainCommand> {
 		initial_endowment: Some(customizable_options.initial_endowment),
 	})
 }
+
 fn generate_parachain_from_template(
 	name_template: &String,
 	provider: &Provider,
@@ -321,13 +324,8 @@ async fn choose_release(template: &Template) -> Result<Option<String>> {
 }
 
 async fn get_latest_3_releases(repo: &GitHub) -> Result<Vec<Release>> {
-	let mut latest_3_releases: Vec<Release> = repo
-		.get_latest_releases()
-		.await?
-		.into_iter()
-		.filter(|r| !r.prerelease)
-		.take(3)
-		.collect();
+	let mut latest_3_releases: Vec<Release> =
+		repo.releases().await?.into_iter().filter(|r| !r.prerelease).take(3).collect();
 	repo.get_repo_license().await?;
 	// Get the commit sha for the releases
 	for release in latest_3_releases.iter_mut() {
@@ -393,9 +391,9 @@ mod tests {
 
 	use super::*;
 	use crate::{
-		commands::new::{NewArgs, NewCommands::Parachain},
+		commands::new::{Command::Parachain, NewArgs},
 		Cli,
-		Commands::New,
+		Command::New,
 	};
 	use clap::Parser;
 	use git2::Repository;
@@ -415,10 +413,10 @@ mod tests {
 			panic!("unable to parse command")
 		};
 		// Execute
-		let name = command.name.as_ref().unwrap();
+		let name = command.name.clone().unwrap();
 		command.execute().await?;
 		// check for git_init
-		let repo = Repository::open(Path::new(name))?;
+		let repo = Repository::open(Path::new(&name))?;
 		let reflog = repo.reflog("HEAD")?;
 		assert_eq!(reflog.len(), 1);
 		Ok(())
@@ -427,8 +425,9 @@ mod tests {
 	#[tokio::test]
 	async fn test_new_parachain_command_execute() -> Result<()> {
 		let dir = tempdir()?;
+		let name = dir.path().join("test_parachain").to_str().unwrap().to_string();
 		let command = NewParachainCommand {
-			name: Some(dir.path().join("test_parachain").to_str().unwrap().to_string()),
+			name: Some(name.clone()),
 			provider: Some(Provider::Pop),
 			template: Some(Template::Standard),
 			release_tag: None,
@@ -439,7 +438,7 @@ mod tests {
 		command.execute().await?;
 
 		// check for git_init
-		let repo = Repository::open(Path::new(&command.name.unwrap()))?;
+		let repo = Repository::open(Path::new(&name))?;
 		let reflog = repo.reflog("HEAD")?;
 		assert_eq!(reflog.len(), 1);
 
