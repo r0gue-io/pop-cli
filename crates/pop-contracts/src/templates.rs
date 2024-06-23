@@ -34,7 +34,7 @@ pub enum Template {
 		serialize = "erc20",
 		message = "Erc20",
 		detailed_message = "The implementation of the ERC-20 standard in ink!",
-		props(Repository = "https://github.com/use-ink/ink-exampless")
+		props(Repository = "https://github.com/use-ink/ink-examples")
 	)]
 	ERC20,
 	/// The implementation of the ERC-721 standard in ink!
@@ -42,7 +42,7 @@ pub enum Template {
 		serialize = "erc721",
 		message = "Erc721",
 		detailed_message = "The implementation of the ERC-721 standard in ink!",
-		props(Repository = "https://github.com/use-ink/ink-exampless")
+		props(Repository = "https://github.com/use-ink/ink-examples")
 	)]
 	ERC721,
 	/// The implementation of the ERC-1155 standard in ink!
@@ -50,7 +50,7 @@ pub enum Template {
 		serialize = "erc1155",
 		message = "Erc1155",
 		detailed_message = "The implementation of the ERC-1155 standard in ink!",
-		props(Repository = "https://github.com/use-ink/ink-exampless")
+		props(Repository = "https://github.com/use-ink/ink-examples")
 	)]
 	ERC1155,
 }
@@ -92,9 +92,9 @@ mod tests {
 
 	fn templates_urls() -> HashMap<String, &'static str> {
 		HashMap::from([
-			("erc20".to_string(), "https://github.com/use-ink/ink-exampless"),
-			("erc721".to_string(), "https://github.com/use-ink/ink-exampless"),
-			("erc1155".to_string(), "https://github.com/use-ink/ink-exampless"),
+			("erc20".to_string(), "https://github.com/use-ink/ink-examples"),
+			("erc721".to_string(), "https://github.com/use-ink/ink-examples"),
+			("erc1155".to_string(), "https://github.com/use-ink/ink-examples"),
 		])
 	}
 
