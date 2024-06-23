@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use std::path::PathBuf;
-
+use crate::style::Theme;
 use clap::Args;
 use cliclack::{clear_screen, intro, log, outro, set_theme};
 use console::style;
-
-use crate::style::Theme;
 use pop_contracts::build_smart_contract;
+use std::path::PathBuf;
 
 #[derive(Args)]
 pub struct BuildContractCommand {
@@ -20,7 +18,8 @@ pub struct BuildContractCommand {
 }
 
 impl BuildContractCommand {
-	pub(crate) fn execute(&self) -> anyhow::Result<()> {
+	/// Executes the command.
+	pub(crate) fn execute(self) -> anyhow::Result<()> {
 		clear_screen()?;
 		intro(format!("{}: Building your contract", style(" Pop CLI ").black().on_magenta()))?;
 		set_theme(Theme);
