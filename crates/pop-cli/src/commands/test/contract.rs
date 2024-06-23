@@ -10,7 +10,7 @@ use std::path::PathBuf;
 pub(crate) struct TestContractCommand {
 	#[arg(short = 'p', long, help = "Path for the contract project [default: current directory]")]
 	path: Option<PathBuf>,
-	#[arg(short = 'f', long = "features", help = "Features for the contract project")]
+	#[arg(short = 'f', long = "features", help = "Features for the contract project", value_parser=["e2e-tests"])]
 	features: Option<String>,
 	#[arg(
 		short = 'n',
