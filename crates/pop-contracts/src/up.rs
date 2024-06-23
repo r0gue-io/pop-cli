@@ -87,7 +87,7 @@ pub async fn dry_run_gas_estimate_instantiate(
 	let instantiate_result = instantiate_exec.instantiate_dry_run().await?;
 	match instantiate_result.result {
 		Ok(_) => {
-			// use user specified values where provided, otherwise use the estimates
+			// Use user specified values where provided, otherwise use the estimates.
 			let ref_time = instantiate_exec
 				.args()
 				.gas_limit()
@@ -126,9 +126,8 @@ mod tests {
 	use super::*;
 	use crate::{create_smart_contract, errors::Error};
 	use anyhow::Result;
-	use url::Url;
-
 	use std::{env, fs};
+	use url::Url;
 
 	const CONTRACTS_NETWORK_URL: &str = "wss://rococo-contracts-rpc.polkadot.io";
 
@@ -145,11 +144,8 @@ mod tests {
 		let target_contract_dir = temp_contract_dir.join("target");
 		fs::create_dir(&target_contract_dir)?;
 		fs::create_dir(&target_contract_dir.join("ink"))?;
-
 		// Copy a mocked testing.contract file inside the target directory
 		let current_dir = env::current_dir().expect("Failed to get current directory");
-		//let contract = target_contract_dir.join("ink");
-
 		let contract_file = current_dir.join("tests/files/testing.contract");
 		fs::copy(contract_file, &target_contract_dir.join("ink/testing.contract"))?;
 		Ok(())

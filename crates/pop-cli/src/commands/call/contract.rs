@@ -83,14 +83,13 @@ impl CallContractCommand {
 				Ok(w) => {
 					log::info(format!("Gas limit {:?}", w))?;
 					log::warning("Your call has not been executed.")?;
-					return Ok(());
 				},
 				Err(e) => {
 					spinner.error(format!("{e}"));
 					outro_cancel("Call failed.")?;
-					return Ok(());
 				},
 			};
+			return Ok(());
 		}
 
 		if !self.execute {

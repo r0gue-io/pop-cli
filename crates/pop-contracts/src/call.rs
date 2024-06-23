@@ -1,4 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0
+
+use crate::{
+	errors::Error,
+	utils::{
+		helpers::{get_manifest_path, parse_account, parse_balance},
+		signer::create_signer,
+	},
+};
 use anyhow::Context;
 use contract_build::Verbosity;
 use contract_extrinsics::{
@@ -11,14 +19,6 @@ use std::path::PathBuf;
 use subxt::{Config, PolkadotConfig as DefaultConfig};
 use subxt_signer::sr25519::Keypair;
 use url::Url;
-
-use crate::{
-	errors::Error,
-	utils::{
-		helpers::{get_manifest_path, parse_account, parse_balance},
-		signer::create_signer,
-	},
-};
 
 /// Attributes for the `call` command.
 pub struct CallOpts {
@@ -116,7 +116,7 @@ pub async fn dry_run_gas_estimate_call(
 	let call_result = call_exec.call_dry_run().await?;
 	match call_result.result {
 		Ok(_) => {
-			// use user specified values where provided, otherwise use the estimates
+			// Use user specified values where provided, otherwise use the estimates.
 			let ref_time =
 				call_exec.gas_limit().unwrap_or_else(|| call_result.gas_required.ref_time());
 			let proof_size =
@@ -160,7 +160,6 @@ mod tests {
 	use super::*;
 	use crate::{create_smart_contract, errors::Error};
 	use anyhow::Result;
-
 	use std::{env, fs};
 
 	const CONTRACTS_NETWORK_URL: &str = "wss://rococo-contracts-rpc.polkadot.io";
@@ -178,11 +177,8 @@ mod tests {
 		let target_contract_dir = temp_contract_dir.join("target");
 		fs::create_dir(&target_contract_dir)?;
 		fs::create_dir(&target_contract_dir.join("ink"))?;
-
 		// Copy a mocked testing.contract file inside the target directory
 		let current_dir = env::current_dir().expect("Failed to get current directory");
-		//let contract = target_contract_dir.join("ink");
-
 		let contract_file = current_dir.join("tests/files/testing.contract");
 		fs::copy(contract_file, &target_contract_dir.join("ink/testing.contract"))?;
 		Ok(())
