@@ -215,7 +215,7 @@ mod tests {
 				[package]
 				name = "erc20"
 				version = "5.0.0"
-				authors = ["Parity Technologies <admin@parity.io>"]
+				authors = ["R0gue"]
 				edition = "2021"
 				publish = false
 			"#

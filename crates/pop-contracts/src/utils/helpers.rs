@@ -35,6 +35,12 @@ pub fn parse_account(account: &str) -> Result<<DefaultConfig as Config>::Account
 		.map_err(|e| Error::AccountAddressParsing(format!("{}", e)))
 }
 
+/// Canonicalizes the given path to ensure consistency and resolve any symbolic links.
+///
+/// # Arguments
+///
+/// * `target` - A reference to the `Path` to be canonicalized.
+///
 pub fn canonicalized_path(target: &Path) -> Result<PathBuf, Error> {
 	// Canonicalize the target path to ensure consistency and resolve any symbolic links.
 	target
@@ -43,6 +49,14 @@ pub fn canonicalized_path(target: &Path) -> Result<PathBuf, Error> {
 		.map_err(|e| Error::IO(e))
 }
 
+/// Replaces occurrences of specified strings in a file with new values.
+///
+/// # Arguments
+///
+/// * `file_path` - A `PathBuf` specifying the path to the file to be modified.
+/// * `replacements` - A `HashMap` where each key-value pair represents
+///   a target string and its corresponding replacement string.
+///
 pub fn replace_in_file(file_path: PathBuf, replacements: HashMap<&str, &str>) -> Result<(), Error> {
 	// Read the file content
 	let mut file_content = String::new();
@@ -80,6 +94,32 @@ mod tests {
 	fn test_get_manifest_path() -> Result<(), Error> {
 		let temp_dir = setup_test_environment()?;
 		get_manifest_path(&Some(PathBuf::from(temp_dir.path().join("test_contract"))))?;
+		Ok(())
+	}
+
+	#[test]
+	fn test_canonicalized_path() -> Result<(), Error> {
+		let temp_dir = tempfile::tempdir()?;
+		// Error case
+		let error_folder = canonicalized_path(&temp_dir.path().join("my_folder"));
+		assert!(error_folder.is_err());
+		// Success case
+		canonicalized_path(temp_dir.path())?;
+		Ok(())
+	}
+
+	#[test]
+	fn test_replace_in_file() -> Result<(), Error> {
+		let temp_dir = tempfile::tempdir()?;
+		let file_path = temp_dir.path().join("file.toml");
+		let mut file = fs::File::create(temp_dir.path().join("file.toml"))?;
+		writeln!(file, "name = test, version = 5.0.0")?;
+		let mut replacements_in_cargo = HashMap::new();
+		replacements_in_cargo.insert("test", "changed_name");
+		replacements_in_cargo.insert("5.0.0", "5.0.1");
+		replace_in_file(file_path.clone(), replacements_in_cargo)?;
+		let content = fs::read_to_string(file_path).expect("Could not read file");
+		assert_eq!(content.trim(), "name = changed_name, version = 5.0.1");
 		Ok(())
 	}
 }
