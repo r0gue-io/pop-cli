@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
+
 use reqwest::Client;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::{json, Value};

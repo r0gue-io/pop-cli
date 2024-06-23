@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
+
 use crate::{errors::Error, APP_USER_AGENT};
 use anyhow::Result;
 use git2::{

@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
+
 use crate::errors::Error;
 use glob::glob;
 use indexmap::IndexMap;

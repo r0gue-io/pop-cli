@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
+
 use crate::{Error, Status, APP_USER_AGENT};
 use duct::cmd;
 use flate2::read::GzDecoder;

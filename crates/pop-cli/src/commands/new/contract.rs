@@ -31,7 +31,6 @@ impl NewContractCommand {
 	pub(crate) async fn execute(self) -> anyhow::Result<()> {
 		clear_screen()?;
 		set_theme(Theme);
-
 		let contract_config = if self.name.is_none() {
 			// If the user doesn't provide a name, guide them in generating a contract.
 			guide_user_to_generate_contract().await?
@@ -42,14 +41,11 @@ impl NewContractCommand {
 			.name
 			.clone()
 			.expect("name can not be none as fallback above is interactive input; qed");
-
 		is_valid_contract_name(name)?;
-
 		let template = match &contract_config.template {
 			Some(template) => template.clone(),
 			None => Template::Standard, // Default template
 		};
-
 		generate_contract_from_template(name, contract_config.path, &template)?;
 		Ok(())
 	}
@@ -61,12 +57,10 @@ async fn guide_user_to_generate_contract() -> anyhow::Result<NewContractCommand>
 		.placeholder("my_contract")
 		.default_input("my_contract")
 		.interact()?;
-
 	let path: String = input("Where should your project be created?")
 		.placeholder("./")
 		.default_input("./")
 		.interact()?;
-
 	let mut prompt = cliclack::select("Select a template provider: ".to_string());
 	for (i, template) in Template::templates().iter().enumerate() {
 		if i == 0 {
@@ -75,9 +69,7 @@ async fn guide_user_to_generate_contract() -> anyhow::Result<NewContractCommand>
 		prompt = prompt.item(template, template.name(), format!("{}", template.description(),));
 	}
 	let template = prompt.interact()?;
-
 	clear_screen()?;
-
 	Ok(NewContractCommand {
 		name: Some(name),
 		path: Some(PathBuf::from(path)),
@@ -98,18 +90,13 @@ fn generate_contract_from_template(
 	))?;
 	let contract_path = check_destination_path(path, name)?;
 	fs::create_dir_all(contract_path.as_path())?;
-
 	let spinner = cliclack::spinner();
 	spinner.start("Generating contract...");
-
 	create_smart_contract(&name, contract_path.as_path(), template)?;
-
 	spinner.clear();
-
 	// Replace spinner with success.
 	console::Term::stderr().clear_last_lines(2)?;
 	success("Generation complete")?;
-
 	// add next steps
 	let mut next_steps = vec![
 		format!("cd into {:?} and enjoy hacking! 🚀", contract_path.display()),

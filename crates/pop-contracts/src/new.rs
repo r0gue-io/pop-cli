@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
+
 use crate::{
 	errors::Error,
 	utils::helpers::{canonicalized_path, replace_in_file},
@@ -95,7 +96,6 @@ pub fn rename_contract(name: &str, path: PathBuf, template: &Template) -> Result
 	let mut replacements_in_cargo = HashMap::new();
 	replacements_in_cargo.insert(template_name.as_str(), name);
 	replace_in_file(file_path, replacements_in_cargo)?;
-
 	// Replace name in the lib.rs file.
 	file_path = path.join("lib.rs");
 	let name_in_camel_case = name.to_upper_camel_case();
@@ -124,17 +124,14 @@ mod tests {
 	#[test]
 	fn test_create_standard_smart_contract_success() -> Result<(), Error> {
 		let temp_dir = setup_test_environment(Template::Standard)?;
-
 		// Verify that the generated smart contract contains the expected content
 		let generated_file_content =
 			fs::read_to_string(temp_dir.path().join("test_contract/lib.rs"))
 				.expect("Could not read file");
-
 		assert!(generated_file_content.contains("#[ink::contract]"));
 		assert!(generated_file_content.contains("mod test_contract {"));
 		assert!(generated_file_content.contains("pub struct TestContract {"));
 		assert!(generated_file_content.contains("impl TestContract {"));
-
 		// Verify that the generated Cargo.toml file contains the expected content
 		let generated_cargo = fs::read_to_string(temp_dir.path().join("test_contract/Cargo.toml"))
 			.expect("Could not read file");
@@ -146,22 +143,18 @@ mod tests {
 	#[test]
 	fn test_create_template_smart_contract_success() -> Result<(), Error> {
 		let temp_dir = setup_test_environment(Template::ERC20)?;
-
 		// Verify that the generated smart contract contains the expected content
 		let generated_file_content =
 			fs::read_to_string(temp_dir.path().join("test_contract/lib.rs"))
 				.expect("Could not read file");
-
 		assert!(generated_file_content.contains("#[ink::contract]"));
 		assert!(generated_file_content.contains("mod test_contract {"));
 		assert!(generated_file_content.contains("pub struct TestContract {"));
 		assert!(generated_file_content.contains("impl TestContract {"));
-
 		// Verify that the generated Cargo.toml file contains the expected content
 		let generated_cargo = fs::read_to_string(temp_dir.path().join("test_contract/Cargo.toml"))
 			.expect("Could not read file");
 		assert!(generated_cargo.contains("name = \"test_contract\""));
-
 		Ok(())
 	}
 

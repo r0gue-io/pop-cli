@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
+
 use crate::errors::Error;
 use contract_build::util::decode_hex;
 use sp_core::Bytes;

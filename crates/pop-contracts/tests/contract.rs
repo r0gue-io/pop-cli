@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
+
 use anyhow::{Error, Result};
 use pop_contracts::{
 	build_smart_contract, create_smart_contract, dry_run_gas_estimate_instantiate,
