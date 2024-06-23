@@ -56,6 +56,16 @@ mod tests {
 	}
 
 	#[test]
+	fn test_contract_test_wrong_folder() -> Result<(), Error> {
+		let temp_dir = tempfile::tempdir()?;
+		assert!(matches!(
+			test_smart_contract(&Some(temp_dir.path().join(""))),
+			Err(Error::TestCommand(..))
+		));
+		Ok(())
+	}
+
+	#[test]
 	fn test_contract_e2e_test_set_env_variable() -> Result<(), Error> {
 		let temp_dir = tempfile::tempdir()?;
 		cmd("cargo", ["new", "test_contract", "--bin"]).dir(temp_dir.path()).run()?;
@@ -74,6 +84,17 @@ mod tests {
 			env::var("CONTRACTS_NODE").unwrap(),
 			PathBuf::from("/path/to/contracts-node").display().to_string()
 		);
+		Ok(())
+	}
+
+	#[test]
+	fn test_contract_e2e_test_no_e2e_tests() -> Result<(), Error> {
+		let temp_dir = tempfile::tempdir()?;
+		cmd("cargo", ["new", "test_contract", "--bin"]).dir(temp_dir.path()).run()?;
+		assert!(matches!(
+			test_e2e_smart_contract(&Some(temp_dir.path().join("test_contract")), &None),
+			Err(Error::TestCommand(..))
+		));
 		Ok(())
 	}
 }
