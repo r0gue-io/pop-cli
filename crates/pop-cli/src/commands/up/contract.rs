@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
+use crate::style::style;
 use anyhow::anyhow;
 use clap::Args;
 use cliclack::{clear_screen, confirm, intro, log, outro, outro_cancel};
@@ -10,8 +11,6 @@ use pop_contracts::{
 use sp_core::Bytes;
 use sp_weights::Weight;
 use std::path::PathBuf;
-
-use crate::style::style;
 
 #[derive(Args)]
 pub struct UpContractCommand {
@@ -54,8 +53,10 @@ pub struct UpContractCommand {
 	#[clap(short('y'), long)]
 	skip_confirm: bool,
 }
+
 impl UpContractCommand {
-	pub(crate) async fn execute(&self) -> anyhow::Result<()> {
+	/// Executes the command.
+	pub(crate) async fn execute(self) -> anyhow::Result<()> {
 		clear_screen()?;
 
 		// Check if build exists in the specified "Contract build folder"
@@ -64,7 +65,7 @@ impl UpContractCommand {
 		);
 
 		if !build_path.as_path().exists() {
-			log::warning(format!("NOTE: contract has not yet been built."))?;
+			log::warning("NOTE: contract has not yet been built.")?;
 			intro(format!("{}: Building a contract", style(" Pop CLI ").black().on_magenta()))?;
 			// Build the contract in release mode
 			let result = build_smart_contract(&self.path, true)?;

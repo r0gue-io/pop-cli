@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
+use crate::style::Theme;
 use anyhow::anyhow;
 use clap::Args;
 use cliclack::{clear_screen, intro, log, outro, outro_cancel, set_theme};
@@ -9,8 +10,6 @@ use pop_contracts::{
 };
 use sp_weights::Weight;
 use std::path::PathBuf;
-
-use crate::style::Theme;
 
 #[derive(Args)]
 pub struct CallContractCommand {
@@ -54,7 +53,8 @@ pub struct CallContractCommand {
 }
 
 impl CallContractCommand {
-	pub(crate) async fn execute(&self) -> anyhow::Result<()> {
+	/// Executes the command.
+	pub(crate) async fn execute(self) -> anyhow::Result<()> {
 		clear_screen()?;
 		intro(format!("{}: Calling a contract", style(" Pop CLI ").black().on_magenta()))?;
 		set_theme(Theme);

@@ -24,22 +24,24 @@ macro_rules! enum_variants {
 	}};
 }
 
+/// Arguments for generating a new project.
 #[derive(Args)]
 #[command(args_conflicts_with_subcommands = true)]
 pub struct NewArgs {
 	#[command(subcommand)]
-	pub command: NewCommands,
+	pub command: Command,
 }
 
+/// Generate a new parachain, pallet or smart contract.
 #[derive(Subcommand)]
-pub enum NewCommands {
+pub enum Command {
 	/// Generate a new parachain
 	#[cfg(feature = "parachain")]
 	#[clap(alias = "p")]
 	Parachain(parachain::NewParachainCommand),
 	/// Generate a new pallet
 	#[cfg(feature = "parachain")]
-	#[clap(alias = "m")] // (m)odule, as p used above
+	#[clap(alias = "P")]
 	Pallet(pallet::NewPalletCommand),
 	/// Generate a new smart contract
 	#[cfg(feature = "contract")]

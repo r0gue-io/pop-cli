@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
+
 use crate::style::{style, Theme};
 use clap::Args;
 use cliclack::{
@@ -35,8 +36,10 @@ pub(crate) struct ZombienetCommand {
 	#[arg(short, long, action)]
 	verbose: bool,
 }
+
 impl ZombienetCommand {
-	pub(crate) async fn execute(&self) -> anyhow::Result<()> {
+	/// Executes the command.
+	pub(crate) async fn execute(self) -> anyhow::Result<()> {
 		clear_screen()?;
 		intro(format!("{}: Launch a local network", style(" Pop CLI ").black().on_magenta()))?;
 		set_theme(Theme);
@@ -304,10 +307,7 @@ impl ZombienetCommand {
 	}
 }
 
-pub(crate) async fn run_custom_command(
-	spinner: &ProgressBar,
-	command: &str,
-) -> Result<(), anyhow::Error> {
+async fn run_custom_command(spinner: &ProgressBar, command: &str) -> Result<(), anyhow::Error> {
 	spinner.set_message(format!("Spinning up network & running command: {}", command.to_string()));
 	sleep(Duration::from_secs(15)).await;
 

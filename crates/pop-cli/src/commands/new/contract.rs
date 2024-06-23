@@ -1,16 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0
 
+use crate::style::Theme;
 use clap::{
 	builder::{PossibleValue, PossibleValuesParser, TypedValueParser},
 	Args,
 };
 use cliclack::{clear_screen, confirm, input, intro, log::success, outro, outro_cancel, set_theme};
 use console::style;
-use std::{env::current_dir, fs, path::PathBuf, str::FromStr};
-
-use crate::style::Theme;
-use anyhow::Result;
 use pop_contracts::{create_smart_contract, is_valid_contract_name, Template};
+use std::{env::current_dir, fs, path::PathBuf, str::FromStr};
 use strum::VariantArray;
 
 #[derive(Args, Clone)]
@@ -29,7 +27,8 @@ pub struct NewContractCommand {
 }
 
 impl NewContractCommand {
-	pub(crate) async fn execute(&self) -> Result<()> {
+	/// Executes the command.
+	pub(crate) async fn execute(self) -> anyhow::Result<()> {
 		clear_screen()?;
 		set_theme(Theme);
 
@@ -56,7 +55,7 @@ impl NewContractCommand {
 	}
 }
 
-async fn guide_user_to_generate_contract() -> Result<NewContractCommand> {
+async fn guide_user_to_generate_contract() -> anyhow::Result<NewContractCommand> {
 	intro(format!("{}: Generate a contract", style(" Pop CLI ").black().on_magenta()))?;
 	let name: String = input("Name of your contract?")
 		.placeholder("my_contract")
@@ -90,7 +89,7 @@ fn generate_contract_from_template(
 	name: &String,
 	path: Option<PathBuf>,
 	template: &Template,
-) -> Result<()> {
+) -> anyhow::Result<()> {
 	intro(format!(
 		"{}: Generating \"{}\" using a {} template!",
 		style(" Pop CLI ").black().on_magenta(),
@@ -130,7 +129,7 @@ fn generate_contract_from_template(
 	Ok(())
 }
 
-fn check_destination_path(path: Option<PathBuf>, name: &String) -> Result<PathBuf> {
+fn check_destination_path(path: Option<PathBuf>, name: &String) -> anyhow::Result<PathBuf> {
 	let contract_path =
 		if let Some(ref path) = path { path.join(name) } else { current_dir()?.join(name) };
 	if contract_path.exists() {
@@ -157,9 +156,9 @@ fn check_destination_path(path: Option<PathBuf>, name: &String) -> Result<PathBu
 #[cfg(test)]
 mod tests {
 	use crate::{
-		commands::new::{NewArgs, NewCommands::Contract},
+		commands::new::{Command::Contract, NewArgs},
 		Cli,
-		Commands::New,
+		Command::New,
 	};
 	use anyhow::Result;
 	use clap::Parser;

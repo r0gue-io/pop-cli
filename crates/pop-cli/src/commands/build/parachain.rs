@@ -17,7 +17,8 @@ pub struct BuildParachainCommand {
 }
 
 impl BuildParachainCommand {
-	pub(crate) fn execute(&self) -> anyhow::Result<()> {
+	/// Executes the command.
+	pub(crate) fn execute(self) -> anyhow::Result<()> {
 		clear_screen()?;
 		intro(format!("{}: Building your parachain", style(" Pop CLI ").black().on_magenta()))?;
 		set_theme(Theme);
