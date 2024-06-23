@@ -1,18 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0
 use crate::{
 	errors::Error,
-	utils::{
-		git::Git,
-		helpers::{canonicalized_path, replace_in_file},
-	},
+	utils::helpers::{canonicalized_path, replace_in_file},
 	Template,
 };
 use anyhow::Result;
 use contract_build::new_contract_project;
 use heck::ToUpperCamelCase;
+use pop_common::Git;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use url::Url;
 
 /// Create a new smart contract.
 ///
@@ -64,7 +63,7 @@ fn create_template_contract(
 	let template_repository = template.repository_url()?;
 	// Clone the repository into the temporary directory.
 	let temp_dir = ::tempfile::TempDir::new_in(std::env::temp_dir())?;
-	Git::clone(&template_repository, temp_dir.path())?;
+	Git::clone(&Url::parse(template_repository)?, temp_dir.path(), None)?;
 	// Retrieve only the template contract files.
 	extract_contract_files(template.to_string(), temp_dir.path(), canonicalized_path.as_path())?;
 	// Replace name of the contract.

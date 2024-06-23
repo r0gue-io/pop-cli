@@ -4449,6 +4449,7 @@ dependencies = [
  "env_logger",
  "git2",
  "os_info",
+ "pop-common",
  "pop-contracts",
  "pop-parachains",
  "pop-telemetry",
@@ -4459,6 +4460,23 @@ dependencies = [
  "sp-weights",
  "strum 0.26.2",
  "tempfile",
+ "tokio",
+ "url",
+]
+
+[[package]]
+name = "pop-common"
+version = "0.2.0"
+dependencies = [
+ "anyhow",
+ "git2",
+ "git2_credentials",
+ "mockito",
+ "regex",
+ "reqwest 0.12.5",
+ "serde",
+ "serde_json",
+ "thiserror",
  "tokio",
  "url",
 ]
@@ -4477,6 +4495,7 @@ dependencies = [
  "heck 0.5.0",
  "ink_env",
  "mockito",
+ "pop-common",
  "reqwest 0.12.5",
  "serde",
  "sp-core",
@@ -4500,12 +4519,10 @@ dependencies = [
  "askama",
  "duct",
  "flate2",
- "git2",
- "git2_credentials",
  "glob",
  "indexmap 2.2.6",
  "mockito",
- "regex",
+ "pop-common",
  "reqwest 0.12.5",
  "serde",
  "serde_json",

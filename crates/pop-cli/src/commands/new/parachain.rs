@@ -13,9 +13,9 @@ use cliclack::{
 	log::{self, success, warning},
 	outro, outro_cancel, set_theme,
 };
+use pop_common::{Git, GitHub, Release};
 use pop_parachains::{
-	instantiate_template_dir, is_initial_endowment_valid, Config, Git, GitHub, Provider, Release,
-	Template,
+	instantiate_template_dir, is_initial_endowment_valid, Config, Provider, Template,
 };
 use strum::VariantArray;
 

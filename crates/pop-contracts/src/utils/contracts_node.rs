@@ -1,6 +1,7 @@
-use crate::{errors::Error, utils::git::GitHub};
+use crate::errors::Error;
 use contract_extrinsics::{RawParams, RpcRequest};
 use flate2::read::GzDecoder;
+use pop_common::GitHub;
 use std::{
 	env::consts::OS,
 	io::{Seek, SeekFrom, Write},
@@ -70,7 +71,7 @@ pub async fn run_contracts_node(cache: PathBuf) -> Result<Child, Error> {
 
 async fn latest_contract_node_release() -> Result<String, Error> {
 	let repo = GitHub::parse(SUBSTRATE_CONTRACT_NODE)?;
-	match repo.get_latest_releases().await {
+	match repo.releases().await {
 		Ok(releases) => {
 			// Fetching latest releases
 			for release in releases {

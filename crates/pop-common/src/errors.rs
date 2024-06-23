@@ -1,0 +1,15 @@
+// SPDX-License-Identifier: GPL-3.0
+
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum Error {
+	#[error("Configuration error: {0}")]
+	Config(String),
+
+	#[error("a git error occurred: {0}")]
+	Git(String),
+
+	#[error("ParseError error: {0}")]
+	ParseError(#[from] url::ParseError),
+}
