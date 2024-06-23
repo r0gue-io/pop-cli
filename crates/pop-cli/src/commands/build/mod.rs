@@ -7,15 +7,17 @@ pub(crate) mod contract;
 #[cfg(feature = "parachain")]
 pub(crate) mod parachain;
 
+/// Arguments for building a project.
 #[derive(Args)]
 #[command(args_conflicts_with_subcommands = true)]
 pub(crate) struct BuildArgs {
 	#[command(subcommand)]
-	pub command: BuildCommands,
+	pub command: Command,
 }
 
+/// Build a parachain or smart contract.
 #[derive(Subcommand)]
-pub(crate) enum BuildCommands {
+pub(crate) enum Command {
 	/// Build a parachain
 	#[cfg(feature = "parachain")]
 	#[clap(alias = "p")]

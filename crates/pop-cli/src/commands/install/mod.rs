@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
+
 use crate::style::{style, Theme};
 use anyhow::Context;
 use clap::Args;
@@ -6,7 +7,7 @@ use cliclack::{clear_screen, confirm, intro, log, outro, set_theme};
 use duct::cmd;
 use os_info::Type;
 use strum::Display;
-use tokio::{fs, process::Command};
+use tokio::fs;
 use Dependencies::*;
 
 #[derive(Display)]
@@ -46,17 +47,22 @@ pub enum Dependencies {
 	#[strum(serialize = "rustup")]
 	Rustup,
 }
+
+/// Arguments for installing.
 #[derive(Args)]
 #[command(args_conflicts_with_subcommands = true)]
-/// Setup user environment for development
 pub(crate) struct InstallArgs {
 	/// Automatically install all dependencies required without prompting for confirmation.
 	#[clap(short('y'), long)]
 	skip_confirm: bool,
 }
 
-impl InstallArgs {
-	pub(crate) async fn execute(self) -> anyhow::Result<()> {
+/// Setup user environment for development
+pub(crate) struct Command;
+
+impl Command {
+	/// Executes the command.
+	pub(crate) async fn execute(self, args: InstallArgs) -> anyhow::Result<()> {
 		clear_screen()?;
 		set_theme(Theme);
 		intro(format!(
@@ -65,24 +71,24 @@ impl InstallArgs {
 		))?;
 		if cfg!(target_os = "macos") {
 			log::info("ℹ️ Mac OS (Darwin) detected.")?;
-			install_mac(self.skip_confirm).await?;
+			install_mac(args.skip_confirm).await?;
 		} else if cfg!(target_os = "linux") {
 			match os_info::get().os_type() {
 				Type::Arch => {
 					log::info("ℹ️ Arch Linux detected.")?;
-					install_arch(self.skip_confirm).await?;
+					install_arch(args.skip_confirm).await?;
 				},
 				Type::Debian => {
 					log::info("ℹ️ Debian Linux detected.")?;
-					install_debian(self.skip_confirm).await?;
+					install_debian(args.skip_confirm).await?;
 				},
 				Type::Redhat => {
 					log::info("ℹ️ Redhat Linux detected.")?;
-					install_redhat(self.skip_confirm).await?;
+					install_redhat(args.skip_confirm).await?;
 				},
 				Type::Ubuntu => {
 					log::info("ℹ️ Ubuntu detected.")?;
-					install_ubuntu(self.skip_confirm).await?;
+					install_ubuntu(args.skip_confirm).await?;
 				},
 				_ => return not_supported_message(),
 			}
@@ -140,6 +146,7 @@ async fn install_arch(skip_confirm: bool) -> anyhow::Result<()> {
 
 	Ok(())
 }
+
 async fn install_ubuntu(skip_confirm: bool) -> anyhow::Result<()> {
 	log::info("More information about the packages to be installed here: https://docs.substrate.io/install/linux/")?;
 	if !skip_confirm {
@@ -315,7 +322,7 @@ async fn run_external_script(script_url: &str) -> anyhow::Result<()> {
 		.text()
 		.await?;
 	fs::write(scripts_path.as_path(), script).await?;
-	Command::new("bash").arg(scripts_path).status().await?;
+	tokio::process::Command::new("bash").arg(scripts_path).status().await?;
 	temp.close()?;
 	Ok(())
 }
