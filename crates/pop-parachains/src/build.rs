@@ -2,7 +2,12 @@
 
 use crate::Error;
 use duct::cmd;
-use std::path::PathBuf;
+use std::{
+	collections::HashMap,
+	fs,
+	io::{Read, Write},
+	path::PathBuf,
+};
 use toml_edit::DocumentMut;
 
 /// Build the parachain located in the specified `path`.
@@ -14,6 +19,11 @@ pub fn build_parachain(path: &Option<PathBuf>) -> Result<(), Error> {
 	Ok(())
 }
 
+/// Get the path to the node release binary based on the project path.
+///
+/// # Arguments
+///
+/// * `path` - Location of the parachain project.
 pub fn node_release_path(path: &Option<PathBuf>) -> Result<String, Error> {
 	let node_name = parse_node_name(path)?;
 	let release_path = path.clone().unwrap_or("./".into()).join("target/release");
@@ -24,6 +34,37 @@ pub fn node_release_path(path: &Option<PathBuf>) -> Result<String, Error> {
 	Ok(release.display().to_string())
 }
 
+/// Generates a raw chain specification file for a parachain.
+///
+/// # Arguments
+///
+/// * `binary_path` - A `String` representing the path to the binary used to build the specification.
+/// * `path` - Location of the parachain project.
+/// * `para_id` - The parachain ID to be replaced in the specification.
+///
+pub fn generate_chain_spec(
+	binary_path: String,
+	path: &Option<PathBuf>,
+	para_id: u32,
+) -> Result<String, Error> {
+	let parachain_folder = path.clone().unwrap_or("./".into());
+	let plain_parachain_spec =
+		format!("{}/plain-parachain-chainspec.json", parachain_folder.display());
+	cmd(binary_path.clone(), vec!["build-spec", "--disable-default-bootnode"])
+		.stdout_path(plain_parachain_spec.clone())
+		.run()?;
+	replace_para_id(parachain_folder.join("plain-parachain-chainspec.json"), para_id)?;
+	let raw_chain_spec = format!("{}/raw-parachain-chainspec.json", parachain_folder.display());
+	cmd(
+		binary_path,
+		vec!["build-spec", "--chain", &plain_parachain_spec, "--disable-default-bootnode", "--raw"],
+	)
+	.stdout_path(raw_chain_spec.clone())
+	.run()?;
+	Ok(raw_chain_spec)
+}
+
+/// Parses the node name from the Cargo.toml file located in the project path.
 fn parse_node_name(path: &Option<PathBuf>) -> Result<String, Error> {
 	let cargo_toml = path.clone().unwrap_or("./".into()).join("node/Cargo.toml");
 	let contents = std::fs::read_to_string(&cargo_toml)?;
@@ -35,6 +76,33 @@ fn parse_node_name(path: &Option<PathBuf>) -> Result<String, Error> {
 		.and_then(|i| i.as_str())
 		.ok_or_else(|| Error::Config("expected `name`".into()))?;
 	Ok(name.to_string())
+}
+
+/// Replaces the generated parachain id in the chain specification file with the provided para_id.
+fn replace_para_id(parachain_folder: PathBuf, para_id: u32) -> Result<(), Error> {
+	let mut replacements_in_cargo: HashMap<&str, &str> = HashMap::new();
+	let new_para_id = format!("\"para_id\": {para_id}");
+	replacements_in_cargo.insert("\"para_id\": 1000", &new_para_id);
+	let new_parachain_id = format!("\"parachainId\": {para_id}");
+	replacements_in_cargo.insert("\"parachainId\": 1000", &new_parachain_id);
+	replace_in_file(parachain_folder, replacements_in_cargo)?;
+	Ok(())
+}
+
+// TODO: Use from common_crate in this PR: https://github.com/r0gue-io/pop-cli/pull/201/files when merged
+fn replace_in_file(file_path: PathBuf, replacements: HashMap<&str, &str>) -> Result<(), Error> {
+	// Read the file content
+	let mut file_content = String::new();
+	fs::File::open(&file_path)?.read_to_string(&mut file_content)?;
+	// Perform the replacements
+	let mut modified_content = file_content;
+	for (target, replacement) in &replacements {
+		modified_content = modified_content.replace(target, replacement);
+	}
+	// Write the modified content back to the file
+	let mut file = fs::File::create(&file_path)?;
+	file.write_all(modified_content.as_bytes())?;
+	Ok(())
 }
 
 #[cfg(test)]
@@ -138,6 +206,37 @@ mod tests {
 			parse_node_name(&Some(PathBuf::from(temp_dir.path()))),
 			Err(Error::Config(error)) if error == "expected `name`",
 		));
+		Ok(())
+	}
+
+	#[test]
+	fn replace_para_id_works() -> Result<()> {
+		let temp_dir = tempfile::tempdir()?;
+		let file_path = temp_dir.path().join("chain-spec.json");
+		let mut file = fs::File::create(temp_dir.path().join("chain-spec.json"))?;
+		writeln!(
+			file,
+			r#"
+				"name": "Local Testnet",
+				"para_id": 1000,
+				"parachainInfo": {{
+					"parachainId": 1000
+				}},
+			"#
+		)?;
+		replace_para_id(file_path.clone(), 2001)?;
+		let content = fs::read_to_string(file_path).expect("Could not read file");
+		assert_eq!(
+			content.trim(),
+			r#"
+				"name": "Local Testnet",
+				"para_id": 2001,
+				"parachainInfo": {
+					"parachainId": 2001
+				},
+			"#
+			.trim()
+		);
 		Ok(())
 	}
 }
