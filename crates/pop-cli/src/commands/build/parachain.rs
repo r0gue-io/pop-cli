@@ -2,8 +2,12 @@
 
 use crate::style::{style, Theme};
 use clap::Args;
-use cliclack::{clear_screen, intro, log::warning, outro, set_theme};
-use pop_parachains::build_parachain;
+use cliclack::{
+	clear_screen, intro,
+	log::{success, warning},
+	outro, set_theme,
+};
+use pop_parachains::{build_parachain, node_release_path};
 use std::path::PathBuf;
 
 #[derive(Args)]
@@ -26,7 +30,25 @@ impl BuildParachainCommand {
 		warning("NOTE: this may take some time...")?;
 		build_parachain(&self.path)?;
 
-		outro("Build Completed Successfully!")?;
+		success("Build Completed Successfully!")?;
+
+		let release_path = node_release_path(&self.path)?;
+		// add next steps
+		let mut next_steps = vec![format!("Binary generated in \"{release_path}\"")];
+		// if let Some(network_config) = template.network_config() {
+		// 	next_steps.push(format!(
+		// 	"Use `pop up parachain -f {network_config}` to launch your parachain on a local network."
+		// ))
+		// }
+		let next_steps: Vec<_> = next_steps
+			.iter()
+			.map(|s| style(format!("{} {s}", console::Emoji("●", ">"))).dim().to_string())
+			.collect();
+		success(format!("Next Steps:\n{}", next_steps.join("\n")))?;
+		outro(format!(
+			"Need help? Learn more at {}\n",
+			style("https://learn.onpop.io").magenta().underlined()
+		))?;
 		Ok(())
 	}
 }
