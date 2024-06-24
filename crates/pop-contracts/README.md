@@ -12,7 +12,7 @@ let template = Template::Standard;
 
 let name = '...';
 let contract_path = ...;
-create_smart_contract(name, &contract_path, template)?;
+create_smart_contract(name, &contract_path, &template)?;
 ```
 
 Build an existing Smart Contract:

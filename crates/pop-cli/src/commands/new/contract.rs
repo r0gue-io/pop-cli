@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::style::Theme;
+use anyhow::Result;
 use clap::{
 	builder::{PossibleValue, PossibleValuesParser, TypedValueParser},
 	Args,
 };
 use cliclack::{clear_screen, confirm, input, intro, log::success, outro, outro_cancel, set_theme};
 use console::style;
-use pop_contracts::{create_smart_contract, is_valid_contract_name, Template};
+use pop_contracts::{create_smart_contract, is_valid_contract_name, ContractType, Template};
 use std::{env::current_dir, fs, path::PathBuf, str::FromStr};
 use strum::VariantArray;
 
@@ -15,6 +16,12 @@ use strum::VariantArray;
 pub struct NewContractCommand {
 	#[arg(help = "Name of the contract")]
 	pub(crate) name: Option<String>,
+	#[arg(
+		help = "Contract type.",
+		default_value = ContractType::Examples.as_ref(),
+		value_parser = crate::enum_variants!(ContractType)
+	)]
+	pub(crate) contract_type: Option<ContractType>,
 	#[arg(short = 'p', long, help = "Path for the contract project, [default: current directory]")]
 	pub(crate) path: Option<PathBuf>,
 	#[arg(
@@ -42,13 +49,27 @@ impl NewContractCommand {
 			.clone()
 			.expect("name can not be none as fallback above is interactive input; qed");
 		is_valid_contract_name(name)?;
+		let contract_type = &contract_config.contract_type.clone().unwrap_or_default();
 		let template = match &contract_config.template {
 			Some(template) => template.clone(),
-			None => Template::Standard, // Default template
+			None => contract_type.default_type(), // Default contract type
 		};
-		generate_contract_from_template(name, contract_config.path, &template)?;
+
+		is_template_supported(contract_type, &template)?;
+
+		generate_contract_from_template(name, contract_config.path, &contract_type, &template)?;
 		Ok(())
 	}
+}
+
+fn is_template_supported(contract_type: &ContractType, template: &Template) -> Result<()> {
+	if !template.matches(contract_type) {
+		return Err(anyhow::anyhow!(format!(
+			"The contract type \"{:?}\" doesn't support the {:?} template.",
+			contract_type, template
+		)));
+	};
+	return Ok(());
 }
 
 async fn guide_user_to_generate_contract() -> anyhow::Result<NewContractCommand> {
@@ -61,25 +82,50 @@ async fn guide_user_to_generate_contract() -> anyhow::Result<NewContractCommand>
 		.placeholder("./")
 		.default_input("./")
 		.interact()?;
-	let mut prompt = cliclack::select("Select a template provider: ".to_string());
-	for (i, template) in Template::templates().iter().enumerate() {
+
+	let mut contract_type_prompt = cliclack::select("Select a contract type: ".to_string());
+	for (i, contract_type) in ContractType::types().iter().enumerate() {
 		if i == 0 {
-			prompt = prompt.initial_value(template);
+			contract_type_prompt = contract_type_prompt.initial_value(contract_type);
 		}
-		prompt = prompt.item(template, template.name(), format!("{}", template.description(),));
+		contract_type_prompt = contract_type_prompt.item(
+			contract_type,
+			contract_type.name(),
+			format!(
+				"{} {} available option(s)",
+				contract_type.description(),
+				contract_type.templates().len(),
+			),
+		);
 	}
-	let template = prompt.interact()?;
+	let contract_type = contract_type_prompt.interact()?;
+
+	let template = display_select_options(contract_type)?;
+
 	clear_screen()?;
 	Ok(NewContractCommand {
 		name: Some(name),
 		path: Some(PathBuf::from(path)),
+		contract_type: Some(contract_type.clone()),
 		template: Some(template.clone()),
 	})
+}
+
+fn display_select_options(contract_type: &ContractType) -> Result<&Template> {
+	let mut prompt = cliclack::select("Select the contract:".to_string());
+	for (i, template) in contract_type.templates().into_iter().enumerate() {
+		if i == 0 {
+			prompt = prompt.initial_value(template);
+		}
+		prompt = prompt.item(template, template.name(), template.description());
+	}
+	Ok(prompt.interact()?)
 }
 
 fn generate_contract_from_template(
 	name: &String,
 	path: Option<PathBuf>,
+	contract_type: &ContractType,
 	template: &Template,
 ) -> anyhow::Result<()> {
 	intro(format!(
