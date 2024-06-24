@@ -7,7 +7,10 @@ use cliclack::{
 	log::{success, warning},
 	outro, set_theme,
 };
-use pop_parachains::{build_parachain, generate_chain_spec, node_release_path};
+use pop_parachains::{
+	build_parachain, export_wasm_file, generate_chain_spec, generate_genesis_state_file,
+	node_release_path,
+};
 use std::path::PathBuf;
 
 #[derive(Args)]
@@ -40,9 +43,14 @@ impl BuildParachainCommand {
 		let mut generated_files = vec![format!("Binary generated at: \"{release_path}\"")];
 		// If a para_id is provided, generate the chain spec
 		if let Some(para_id) = self.para_id {
-			let chain_spec = generate_chain_spec(release_path, &self.path, para_id)?;
+			let chain_spec = generate_chain_spec(&release_path, &self.path, para_id)?;
 			generated_files
-				.push(format!("New raw chain specification file generated at: {chain_spec}"))
+				.push(format!("New raw chain specification file generated at: {chain_spec}"));
+			let wasm_file = export_wasm_file(&release_path, &chain_spec, &self.path, para_id)?;
+			generated_files.push(format!("WebAssembly runtime file exported at: {wasm_file}"));
+			let genesis_state_file =
+				generate_genesis_state_file(&release_path, &chain_spec, &self.path, para_id)?;
+			generated_files.push(format!("Genesis State exported at {genesis_state_file} file"));
 		}
 		let generated_files: Vec<_> = generated_files
 			.iter()

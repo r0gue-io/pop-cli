@@ -9,7 +9,10 @@ mod templates;
 mod up;
 mod utils;
 
-pub use build::{build_parachain, generate_chain_spec, node_release_path};
+pub use build::{
+	build_parachain, export_wasm_file, generate_chain_spec, generate_genesis_state_file,
+	node_release_path,
+};
 pub use errors::Error;
 pub use indexmap::IndexSet;
 pub use new_pallet::{create_pallet_template, TemplatePalletConfig};

@@ -43,7 +43,7 @@ pub fn node_release_path(path: &Option<PathBuf>) -> Result<String, Error> {
 /// * `para_id` - The parachain ID to be replaced in the specification.
 ///
 pub fn generate_chain_spec(
-	binary_path: String,
+	binary_path: &String,
 	path: &Option<PathBuf>,
 	para_id: u32,
 ) -> Result<String, Error> {
@@ -62,6 +62,50 @@ pub fn generate_chain_spec(
 	.stdout_path(raw_chain_spec.clone())
 	.run()?;
 	Ok(raw_chain_spec)
+}
+
+/// Export the WebAssembly runtime for the parachain.
+///
+/// # Arguments
+///
+/// * `binary_path` - A `String` representing the path to the binary used to build the specification.
+/// * `chain_spec` - A `String` representing the path to the raw chain specification file.
+/// * `path` - Location of the parachain project.
+/// * `para_id` - The parachain ID will be used to name the wasm file.
+///
+pub fn export_wasm_file(
+	binary_path: &String,
+	chain_spec: &String,
+	path: &Option<PathBuf>,
+	para_id: u32,
+) -> Result<String, Error> {
+	let parachain_folder = path.clone().unwrap_or("./".into());
+	let wasm_file = format!("{}/para-{}-wasm", parachain_folder.display(), para_id);
+	cmd(binary_path.clone(), vec!["export-genesis-wasm", "--chain", &chain_spec, &wasm_file])
+		.run()?;
+	Ok(wasm_file)
+}
+
+/// Generate the parachain genesis state.
+///
+/// # Arguments
+///
+/// * `binary_path` - A `String` representing the path to the binary used to build the specification.
+/// * `chain_spec` - A `String` representing the path to the raw chain specification file.
+/// * `path` - Location of the parachain project.
+/// * `para_id` - The parachain ID will be used to name the wasm file.
+///
+pub fn generate_genesis_state_file(
+	binary_path: &String,
+	chain_spec: &String,
+	path: &Option<PathBuf>,
+	para_id: u32,
+) -> Result<String, Error> {
+	let parachain_folder = path.clone().unwrap_or("./".into());
+	let wasm_file = format!("{}/para-{}-genesis-state", parachain_folder.display(), para_id);
+	cmd(binary_path.clone(), vec!["export-genesis-state", "--chain", &chain_spec, &wasm_file])
+		.run()?;
+	Ok(wasm_file)
 }
 
 /// Parses the node name from the Cargo.toml file located in the project path.
