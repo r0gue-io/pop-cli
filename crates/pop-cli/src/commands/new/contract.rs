@@ -17,11 +17,13 @@ pub struct NewContractCommand {
 	#[arg(help = "Name of the contract")]
 	pub(crate) name: Option<String>,
 	#[arg(
-		help = "Contract type.",
 		default_value = ContractType::Examples.as_ref(),
+		short = 'c',
+		long,
+		help = "Contract type.",
 		value_parser = crate::enum_variants!(ContractType)
 	)]
-	pub(crate) contract_type: Option<ContractType>,
+	pub(crate) c_type: Option<ContractType>,
 	#[arg(short = 'p', long, help = "Path for the contract project, [default: current directory]")]
 	pub(crate) path: Option<PathBuf>,
 	#[arg(
@@ -49,7 +51,7 @@ impl NewContractCommand {
 			.clone()
 			.expect("name can not be none as fallback above is interactive input; qed");
 		is_valid_contract_name(name)?;
-		let contract_type = &contract_config.contract_type.clone().unwrap_or_default();
+		let contract_type = &contract_config.c_type.clone().unwrap_or_default();
 		let template = match &contract_config.template {
 			Some(template) => template.clone(),
 			None => contract_type.default_type(), // Default contract type
@@ -57,7 +59,7 @@ impl NewContractCommand {
 
 		is_template_supported(contract_type, &template)?;
 
-		generate_contract_from_template(name, contract_config.path, &contract_type, &template)?;
+		generate_contract_from_template(name, contract_config.path, &template)?;
 		Ok(())
 	}
 }
@@ -106,7 +108,7 @@ async fn guide_user_to_generate_contract() -> anyhow::Result<NewContractCommand>
 	Ok(NewContractCommand {
 		name: Some(name),
 		path: Some(PathBuf::from(path)),
-		contract_type: Some(contract_type.clone()),
+		c_type: Some(contract_type.clone()),
 		template: Some(template.clone()),
 	})
 }
@@ -125,15 +127,15 @@ fn display_select_options(contract_type: &ContractType) -> Result<&Template> {
 fn generate_contract_from_template(
 	name: &String,
 	path: Option<PathBuf>,
-	contract_type: &ContractType,
 	template: &Template,
 ) -> anyhow::Result<()> {
 	intro(format!(
-		"{}: Generating \"{}\" using a {} template!",
+		"{}: Generating \"{}\" using {}!",
 		style(" Pop CLI ").black().on_magenta(),
 		name,
 		template.name(),
 	))?;
+
 	let contract_path = check_destination_path(path, name)?;
 	fs::create_dir_all(contract_path.as_path())?;
 	let spinner = cliclack::spinner();
@@ -220,6 +222,8 @@ mod tests {
 			"new",
 			"contract",
 			"test_contract",
+			"-c",
+			"erc",
 			"-p",
 			&dir_path,
 			"-t",
