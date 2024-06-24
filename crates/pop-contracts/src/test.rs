@@ -8,7 +8,6 @@ use std::{env, path::PathBuf};
 /// # Arguments
 ///
 /// * `path` - location of the smart contract.
-///
 pub fn test_smart_contract(path: &Option<PathBuf>) -> Result<(), Error> {
 	// Execute `cargo test` command in the specified directory.
 	cmd("cargo", vec!["test"])
@@ -23,15 +22,14 @@ pub fn test_smart_contract(path: &Option<PathBuf>) -> Result<(), Error> {
 /// # Arguments
 ///
 /// * `path` - location of the smart contract.
-/// * `contracts_node_path` - location of the contracts node binary.
-///
+/// * `node` - location of the contracts node binary.
 pub fn test_e2e_smart_contract(
 	path: &Option<PathBuf>,
-	contracts_node_path: &Option<PathBuf>,
+	node: &Option<PathBuf>,
 ) -> Result<(), Error> {
 	// Set the environment variable `CONTRACTS_NODE` to the path of the contracts node.
-	if let Some(contracts_node) = contracts_node_path {
-		env::set_var("CONTRACTS_NODE", contracts_node);
+	if let Some(node) = node {
+		env::set_var("CONTRACTS_NODE", node);
 	}
 	// Execute `cargo test --features=e2e-tests` command in the specified directory.
 	cmd("cargo", vec!["test", "--features=e2e-tests"])
@@ -47,7 +45,7 @@ mod tests {
 	use tempfile;
 
 	#[test]
-	fn test_contract_test() -> Result<(), Error> {
+	fn test_smart_contract_works() -> Result<(), Error> {
 		let temp_dir = tempfile::tempdir()?;
 		cmd("cargo", ["new", "test_contract", "--bin"]).dir(temp_dir.path()).run()?;
 		// Run unit tests for the smart contract in the temporary contract directory.
@@ -56,7 +54,7 @@ mod tests {
 	}
 
 	#[test]
-	fn test_contract_test_wrong_folder() -> Result<(), Error> {
+	fn test_smart_contract_wrong_folder() -> Result<(), Error> {
 		let temp_dir = tempfile::tempdir()?;
 		assert!(matches!(
 			test_smart_contract(&Some(temp_dir.path().join(""))),
@@ -66,7 +64,7 @@ mod tests {
 	}
 
 	#[test]
-	fn test_contract_e2e_test_set_env_variable() -> Result<(), Error> {
+	fn test_e2e_smart_contract_set_env_variable() -> Result<(), Error> {
 		let temp_dir = tempfile::tempdir()?;
 		cmd("cargo", ["new", "test_contract", "--bin"]).dir(temp_dir.path()).run()?;
 		// Ignore 2e2 testing in this scenario, will fail. Only test if the environment variable CONTRACTS_NODE is set.
@@ -88,7 +86,7 @@ mod tests {
 	}
 
 	#[test]
-	fn test_contract_e2e_test_no_e2e_tests() -> Result<(), Error> {
+	fn test_e2e_smart_contract_fails_no_e2e_tests() -> Result<(), Error> {
 		let temp_dir = tempfile::tempdir()?;
 		cmd("cargo", ["new", "test_contract", "--bin"]).dir(temp_dir.path()).run()?;
 		assert!(matches!(
