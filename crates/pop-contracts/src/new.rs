@@ -1,14 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{
-	errors::Error,
-	utils::helpers::{canonicalized_path, replace_in_file},
-	Template,
-};
+use crate::{errors::Error, utils::helpers::canonicalized_path, Template};
 use anyhow::Result;
 use contract_build::new_contract_project;
 use heck::ToUpperCamelCase;
-use pop_common::Git;
+use pop_common::{replace_in_file, Git};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -215,7 +211,7 @@ mod tests {
 				[package]
 				name = "erc20"
 				version = "5.0.0"
-				authors = ["R0gue"]
+				authors = ["R0GUE"]
 				edition = "2021"
 				publish = false
 			"#

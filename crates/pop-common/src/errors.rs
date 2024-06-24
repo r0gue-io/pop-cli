@@ -10,6 +10,9 @@ pub enum Error {
 	#[error("a git error occurred: {0}")]
 	Git(String),
 
+	#[error("IO error: {0}")]
+	IO(#[from] std::io::Error),
+
 	#[error("ParseError error: {0}")]
 	ParseError(#[from] url::ParseError),
 }
