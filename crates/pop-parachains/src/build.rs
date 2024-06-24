@@ -27,7 +27,7 @@ pub fn build_parachain(path: &Option<PathBuf>) -> Result<(), Error> {
 /// # Arguments
 ///
 /// * `path` - Location of the parachain project.
-pub fn node_release_path(path: &Option<PathBuf>) -> Result<String, Error> {
+pub fn binary_path(path: &Option<PathBuf>) -> Result<String, Error> {
 	let node_name = parse_node_name(path)?;
 	let release_path = path.clone().unwrap_or("./".into()).join("target/release");
 	let release = release_path.join(node_name.clone());
@@ -41,25 +41,20 @@ pub fn node_release_path(path: &Option<PathBuf>) -> Result<String, Error> {
 ///
 /// # Arguments
 ///
-/// * `binary_path` - A `String` representing the path to the binary used to build the specification.
 /// * `path` - Location of the parachain project.
 /// * `para_id` - The parachain ID to be replaced in the specification.
-///
-pub fn generate_chain_spec(
-	binary_path: &String,
-	path: &Option<PathBuf>,
-	para_id: u32,
-) -> Result<String, Error> {
+pub fn generate_chain_spec(path: &Option<PathBuf>, para_id: u32) -> Result<String, Error> {
 	let parachain_folder = path.clone().unwrap_or("./".into());
+	let binary_path = binary_path(path)?;
 	let plain_parachain_spec =
 		format!("{}/plain-parachain-chainspec.json", parachain_folder.display());
-	cmd(binary_path.clone(), vec!["build-spec", "--disable-default-bootnode"])
+	cmd(&binary_path, vec!["build-spec", "--disable-default-bootnode"])
 		.stdout_path(plain_parachain_spec.clone())
 		.run()?;
 	replace_para_id(parachain_folder.join("plain-parachain-chainspec.json"), para_id)?;
 	let raw_chain_spec = format!("{}/raw-parachain-chainspec.json", parachain_folder.display());
 	cmd(
-		binary_path,
+		&binary_path,
 		vec!["build-spec", "--chain", &plain_parachain_spec, "--disable-default-bootnode", "--raw"],
 	)
 	.stdout_path(raw_chain_spec.clone())
@@ -71,21 +66,18 @@ pub fn generate_chain_spec(
 ///
 /// # Arguments
 ///
-/// * `binary_path` - A `String` representing the path to the binary used to build the specification.
 /// * `chain_spec` - A `String` representing the path to the raw chain specification file.
 /// * `path` - Location of the parachain project.
 /// * `para_id` - The parachain ID will be used to name the wasm file.
-///
 pub fn export_wasm_file(
-	binary_path: &String,
 	chain_spec: &String,
 	path: &Option<PathBuf>,
 	para_id: u32,
 ) -> Result<String, Error> {
 	let parachain_folder = path.clone().unwrap_or("./".into());
+	let binary_path = binary_path(path)?;
 	let wasm_file = format!("{}/para-{}-wasm", parachain_folder.display(), para_id);
-	cmd(binary_path.clone(), vec!["export-genesis-wasm", "--chain", &chain_spec, &wasm_file])
-		.run()?;
+	cmd(binary_path, vec!["export-genesis-wasm", "--chain", &chain_spec, &wasm_file]).run()?;
 	Ok(wasm_file)
 }
 
@@ -93,18 +85,16 @@ pub fn export_wasm_file(
 ///
 /// # Arguments
 ///
-/// * `binary_path` - A `String` representing the path to the binary used to build the specification.
 /// * `chain_spec` - A `String` representing the path to the raw chain specification file.
 /// * `path` - Location of the parachain project.
 /// * `para_id` - The parachain ID will be used to name the wasm file.
-///
 pub fn generate_genesis_state_file(
-	binary_path: &String,
 	chain_spec: &String,
 	path: &Option<PathBuf>,
 	para_id: u32,
 ) -> Result<String, Error> {
 	let parachain_folder = path.clone().unwrap_or("./".into());
+	let binary_path = binary_path(path)?;
 	let wasm_file = format!("{}/para-{}-genesis-state", parachain_folder.display(), para_id);
 	cmd(binary_path.clone(), vec!["export-genesis-state", "--chain", &chain_spec, &wasm_file])
 		.run()?;
@@ -136,7 +126,7 @@ fn replace_para_id(parachain_folder: PathBuf, para_id: u32) -> Result<(), Error>
 	Ok(())
 }
 
-// TODO: Use from common_crate in this PR: https://github.com/r0gue-io/pop-cli/pull/201/files when merged
+// TODO: Use from common_crate in this PR: https://github.com/r0gue-io/pop-cli/pull/201/files when merged.
 fn replace_in_file(file_path: PathBuf, replacements: HashMap<&str, &str>) -> Result<(), Error> {
 	// Read the file content
 	let mut file_content = String::new();
@@ -196,11 +186,11 @@ mod tests {
 	}
 
 	#[test]
-	fn node_release_path_works() -> Result<()> {
+	fn binary_path_works() -> Result<()> {
 		let temp_dir =
 			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
 		mock_build_process(temp_dir.path())?;
-		let release_path = node_release_path(&Some(PathBuf::from(temp_dir.path())))?;
+		let release_path = binary_path(&Some(PathBuf::from(temp_dir.path())))?;
 		assert_eq!(
 			release_path,
 			format!("{}/target/release/parachain-template-node", temp_dir.path().display())
@@ -209,11 +199,11 @@ mod tests {
 	}
 
 	#[test]
-	fn node_release_path_fails_missing_binary() -> Result<()> {
+	fn binary_path_fails_missing_binary() -> Result<()> {
 		let temp_dir =
 			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
 		assert!(matches!(
-			node_release_path(&Some(PathBuf::from(temp_dir.path()))),
+			binary_path(&Some(PathBuf::from(temp_dir.path()))),
 			Err(Error::MissingBinary(error)) if error == "parachain-template-node"
 		));
 		Ok(())

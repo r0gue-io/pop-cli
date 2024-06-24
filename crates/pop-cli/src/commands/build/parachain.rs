@@ -8,8 +8,8 @@ use cliclack::{
 	outro, set_theme,
 };
 use pop_parachains::{
-	build_parachain, export_wasm_file, generate_chain_spec, generate_genesis_state_file,
-	node_release_path,
+	binary_path, build_parachain, export_wasm_file, generate_chain_spec,
+	generate_genesis_state_file,
 };
 use std::path::PathBuf;
 
@@ -35,22 +35,23 @@ impl BuildParachainCommand {
 		clear_screen()?;
 		intro(format!("{}: Building your parachain", style(" Pop CLI ").black().on_magenta()))?;
 		set_theme(Theme);
+
 		warning("NOTE: this may take some time...")?;
 		build_parachain(&self.path)?;
 
 		success("Build Completed Successfully!")?;
-		let release_path = node_release_path(&self.path)?;
-		let mut generated_files = vec![format!("Binary generated at: \"{release_path}\"")];
-		// If a para_id is provided, generate the chain spec
+		let binary = binary_path(&self.path)?;
+		let mut generated_files = vec![format!("Binary generated at: \"{binary}\"")];
+		// If para_id is provided, generate the chain spec
 		if let Some(para_id) = self.para_id {
-			let chain_spec = generate_chain_spec(&release_path, &self.path, para_id)?;
+			let chain_spec = generate_chain_spec(&self.path, para_id)?;
 			generated_files
 				.push(format!("New raw chain specification file generated at: {chain_spec}"));
-			let wasm_file = export_wasm_file(&release_path, &chain_spec, &self.path, para_id)?;
+			let wasm_file = export_wasm_file(&chain_spec, &self.path, para_id)?;
 			generated_files.push(format!("WebAssembly runtime file exported at: {wasm_file}"));
-			let genesis_state_file =
-				generate_genesis_state_file(&release_path, &chain_spec, &self.path, para_id)?;
+			let genesis_state_file = generate_genesis_state_file(&chain_spec, &self.path, para_id)?;
 			generated_files.push(format!("Genesis State exported at {genesis_state_file} file"));
+			console::Term::stderr().clear_last_lines(5)?;
 		}
 		let generated_files: Vec<_> = generated_files
 			.iter()

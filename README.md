@@ -96,11 +96,9 @@ cd my-app
 pop build parachain
 ```
 
-Finally, to build your Parachain:
-
+You can generate the chain specification file and export the WASM and genesis state files when building your parachain with the `--para_id` flag:
 ```sh
-cd my-app
-pop build parachain --release
+pop build parachain -p ./my-app --para_id 2000
 ```
 
 ## Spawn Network using Zombienet
