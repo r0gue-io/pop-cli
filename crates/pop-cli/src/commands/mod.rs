@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
+use crate::{cache, cli::Cli};
 use clap::Subcommand;
 use serde_json::{json, Value};
 
@@ -99,7 +100,12 @@ impl Command {
 			},
 			#[cfg(feature = "parachain")]
 			Self::Clean(args) => match args.command {
-				clean::Command::Cache(cmd) => cmd.execute().map(|_| Value::Null),
+				clean::Command::Cache => {
+					// Initialize command and execute
+					clean::CleanCacheCommand { cli: &mut Cli, cache: cache()? }
+						.execute()
+						.map(|_| Value::Null)
+				},
 			},
 		}
 	}
