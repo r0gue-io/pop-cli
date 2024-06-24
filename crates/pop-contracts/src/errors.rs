@@ -31,9 +31,6 @@ pub enum Error {
 	#[error("Failed to parse hex encoded bytes: {0}")]
 	HexParsing(String),
 
-	#[error("Configuration error: {0}")]
-	Config(String),
-
 	#[error("ParseError error: {0}")]
 	ParseError(#[from] url::ParseError),
 
@@ -43,12 +40,6 @@ pub enum Error {
 	#[error("The `Repository` property is missing from the template variant")]
 	RepositoryMissing,
 
-	#[error("Failed to install {0}")]
-	InstallContractsNode(String),
-
-	#[error("Failed to run {0}")]
-	UpContractsNode(String),
-
 	#[error("Unsupported platform: {os}")]
 	UnsupportedPlatform { os: &'static str },
 
@@ -57,7 +48,4 @@ pub enum Error {
 
 	#[error("HTTP error: {0}")]
 	HttpError(#[from] reqwest::Error),
-
-	#[error("a git error occurred: {0}")]
-	Git(String),
 }
