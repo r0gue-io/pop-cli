@@ -10,12 +10,15 @@ use std::{
 };
 use toml_edit::DocumentMut;
 
-/// Build the parachain located in the specified `path`.
+/// Build the parachain.
+///
+/// # Arguments
+///
+/// * `path` - Location of the parachain project.
 pub fn build_parachain(path: &Option<PathBuf>) -> Result<(), Error> {
 	cmd("cargo", vec!["build", "--release"])
 		.dir(path.clone().unwrap_or("./".into()))
 		.run()?;
-
 	Ok(())
 }
 
@@ -155,6 +158,7 @@ mod tests {
 	use crate::{new_parachain::instantiate_standard_template, Config, Template};
 	use anyhow::Result;
 	use std::{fs, io::Write, path::Path};
+	use tempfile::tempdir;
 
 	fn setup_template_and_instantiate() -> Result<tempfile::TempDir> {
 		let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
@@ -175,6 +179,19 @@ mod tests {
 		fs::create_dir(&target_dir.join("release"))?;
 		// Create a release file
 		fs::File::create(target_dir.join("release/parachain-template-node"))?;
+		Ok(())
+	}
+
+	#[test]
+	fn build_parachain_works() -> Result<()> {
+		let temp_dir = tempdir()?;
+		let name = "parachain_template_node";
+		cmd("cargo", ["new", name, "--bin"]).dir(temp_dir.path()).run()?;
+		build_parachain(&Some(PathBuf::from(temp_dir.path().join(name))))?;
+
+		let target_folder = temp_dir.path().join(name).join("target/release");
+		assert!(target_folder.exists());
+		assert!(target_folder.join("parachain_template_node").exists());
 		Ok(())
 	}
 
