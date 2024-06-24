@@ -10,8 +10,8 @@ mod up;
 mod utils;
 
 pub use build::{
-	build_parachain, export_wasm_file, generate_chain_spec, generate_genesis_state_file,
-	binary_path,
+	binary_path, build_parachain, export_wasm_file, generate_chain_spec,
+	generate_genesis_state_file,
 };
 pub use errors::Error;
 pub use indexmap::IndexSet;
