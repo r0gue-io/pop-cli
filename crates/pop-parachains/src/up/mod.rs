@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
+
 use crate::{errors::Error, utils::git::GitHub};
 use glob::glob;
 use indexmap::IndexMap;
@@ -409,8 +410,7 @@ impl NetworkConfiguration {
 		}
 		// Configure chain spec generator
 		if let Some(path) = relay_chain.chain_spec_generator.as_ref().map(|b| b.path()) {
-			let path = path.to_str().expect("expected path to be valid");
-			let command = format!("{} {}", path, "{{chainName}}");
+			let command = format!("{} {}", Self::resolve_path(&path)?, "{{chainName}}");
 			*relay_chain_config.entry("chain_spec_command").or_insert(value(&command)) =
 				value(&command);
 		}
@@ -432,8 +432,7 @@ impl NetworkConfiguration {
 
 				// Configure chain spec generator
 				if let Some(path) = para.chain_spec_generator.as_ref().map(|b| b.path()) {
-					let path = path.to_str().expect("expected path to be valid");
-					let command = format!("{} {}", path, "{{chainName}}");
+					let command = format!("{} {}", Self::resolve_path(&path)?, "{{chainName}}");
 					*table.entry("chain_spec_command").or_insert(value(&command)) = value(&command);
 				}
 
@@ -934,6 +933,48 @@ chain = "rococo-local"
 		}
 
 		#[tokio::test]
+		async fn new_with_relay_chain_spec_generator_works() -> Result<()> {
+			let temp_dir = tempdir()?;
+			let cache = PathBuf::from(temp_dir.path());
+			let config = Builder::new().suffix(".toml").tempfile()?;
+			writeln!(
+				config.as_file(),
+				r#"
+[relaychain]
+chain = "paseo-local"
+"#
+			)?;
+			let version = "v1.2.7";
+
+			let zombienet = Zombienet::new(
+				&cache,
+				config.path().to_str().unwrap(),
+				None,
+				Some(version),
+				None,
+				None,
+				None,
+			)
+			.await?;
+
+			assert_eq!(zombienet.relay_chain.chain, "paseo-local");
+			let chain_spec_generator = &zombienet.relay_chain.chain_spec_generator.unwrap();
+			assert_eq!(chain_spec_generator.name(), "paseo-chain-spec-generator");
+			assert_eq!(
+				chain_spec_generator.path(),
+				temp_dir.path().join(format!("paseo-chain-spec-generator-{version}"))
+			);
+			assert_eq!(chain_spec_generator.version().unwrap(), version);
+			assert!(matches!(
+				chain_spec_generator,
+				Binary::Source { source: Source::GitHub(ReleaseArchive { tag, .. }), .. }
+				if *tag == Some(version.to_string())
+			));
+			assert!(zombienet.parachains.is_empty());
+			Ok(())
+		}
+
+		#[tokio::test]
 		async fn new_with_default_command_works() -> Result<()> {
 			let temp_dir = tempdir()?;
 			let cache = PathBuf::from(temp_dir.path());
@@ -1114,6 +1155,53 @@ chain = "asset-hub-rococo-local"
 				system_parachain,
 				Binary::Source { source: Source::GitHub(ReleaseArchive { tag, .. }), .. }
 				if *tag == Some(system_parachain_version.to_string())
+			));
+			Ok(())
+		}
+
+		#[tokio::test]
+		async fn new_with_system_chain_spec_generator_works() -> Result<()> {
+			let temp_dir = tempdir()?;
+			let cache = PathBuf::from(temp_dir.path());
+			let config = Builder::new().suffix(".toml").tempfile()?;
+			writeln!(
+				config.as_file(),
+				r#"
+[relaychain]
+chain = "paseo-local"
+
+[[parachains]]
+id = 1000
+chain = "asset-hub-paseo-local"
+"#
+			)?;
+			let version = "v1.12.0";
+
+			let zombienet = Zombienet::new(
+				&cache,
+				config.path().to_str().unwrap(),
+				None,
+				None,
+				None,
+				Some(version),
+				None,
+			)
+			.await?;
+
+			assert_eq!(zombienet.parachains.len(), 1);
+			let system_parachain = &zombienet.parachains.get(&1000).unwrap();
+			assert_eq!(system_parachain.chain.as_ref().unwrap(), "asset-hub-paseo-local");
+			let chain_spec_generator = system_parachain.chain_spec_generator.as_ref().unwrap();
+			assert_eq!(chain_spec_generator.name(), "paseo-chain-spec-generator");
+			assert_eq!(
+				chain_spec_generator.path(),
+				temp_dir.path().join(format!("paseo-chain-spec-generator-{version}"))
+			);
+			assert_eq!(chain_spec_generator.version().unwrap(), version);
+			assert!(matches!(
+				chain_spec_generator,
+				Binary::Source { source: Source::GitHub(ReleaseArchive { tag, .. }), .. }
+				if *tag == Some(version.to_string())
 			));
 			Ok(())
 		}
@@ -1391,6 +1479,37 @@ default_command = "./target/release/parachain-template-node"
 [[parachains]]
 id = 4385
 default_command = "pop-node"
+"#
+			)?;
+
+			let mut zombienet = Zombienet::new(
+				&cache,
+				config.path().to_str().unwrap(),
+				None,
+				None,
+				None,
+				None,
+				None,
+			)
+			.await?;
+			assert_eq!(zombienet.binaries().count(), 4);
+			Ok(())
+		}
+
+		#[tokio::test]
+		async fn binaries_includes_chain_spec_generators() -> Result<()> {
+			let temp_dir = tempdir()?;
+			let cache = PathBuf::from(temp_dir.path());
+			let config = Builder::new().suffix(".toml").tempfile()?;
+			writeln!(
+				config.as_file(),
+				r#"
+[relaychain]
+chain = "paseo-local"
+
+[[parachains]]
+id = 1000
+chain = "asset-hub-paseo-local"
 "#
 			)?;
 
@@ -1793,6 +1912,122 @@ node_spawn_timeout = 300
 		}
 
 		#[test]
+		fn configure_with_chain_spec_generator_works() -> Result<(), Error> {
+			let config = Builder::new().suffix(".toml").tempfile()?;
+			writeln!(
+				config.as_file(),
+				r#"
+[relaychain]
+chain = "paseo-local"
+
+[[relaychain.nodes]]
+name = "alice"
+command = "polkadot"
+
+[[parachains]]
+id = 1000
+chain = "asset-hub-paseo-local"
+
+[[parachains.collators]]
+name = "asset-hub"
+command = "polkadot-parachain"
+
+"#
+			)?;
+			let mut network_config = NetworkConfiguration::from(config.path())?;
+
+			let relay_chain_binary = Builder::new().tempfile()?;
+			let relay_chain = relay_chain_binary.path();
+			File::create(&relay_chain)?;
+			let relay_chain_spec_generator = Builder::new().tempfile()?;
+			let relay_chain_spec_generator = relay_chain_spec_generator.path();
+			File::create(&relay_chain_spec_generator)?;
+			let system_chain_binary = Builder::new().tempfile()?;
+			let system_chain = system_chain_binary.path();
+			File::create(&system_chain)?;
+			let system_chain_spec_generator = Builder::new().tempfile()?;
+			let system_chain_spec_generator = system_chain_spec_generator.path();
+			File::create(&system_chain_spec_generator)?;
+
+			let mut configured = network_config.configure(
+				&RelayChain {
+					binary: Binary::Local {
+						name: "polkadot".to_string(),
+						path: relay_chain.to_path_buf(),
+						manifest: None,
+					},
+					workers: ["polkadot-execute-worker", ""],
+					chain: "paseo-local".to_string(),
+					chain_spec_generator: Some(Binary::Local {
+						name: "paseo-chain-spec-generator".to_string(),
+						path: relay_chain_spec_generator.to_path_buf(),
+						manifest: None,
+					}),
+				},
+				&[(
+					1000,
+					Parachain {
+						id: 1000,
+						binary: Binary::Local {
+							name: "polkadot-parachain".to_string(),
+							path: system_chain.to_path_buf(),
+							manifest: None,
+						},
+						chain: Some("asset-hub-paseo-local".to_string()),
+						chain_spec_generator: Some(Binary::Local {
+							name: "paseo-chain-spec-generator".to_string(),
+							path: system_chain_spec_generator.to_path_buf(),
+							manifest: None,
+						}),
+					},
+				)]
+				.into(),
+			)?;
+			assert_eq!("toml", configured.path().extension().unwrap());
+
+			let mut contents = String::new();
+			configured.read_to_string(&mut contents)?;
+			println!("{contents}");
+			assert_eq!(
+				contents,
+				format!(
+					r#"
+[relaychain]
+chain = "paseo-local"
+default_command = "{0}"
+chain_spec_command = "{1} {2}"
+
+[[relaychain.nodes]]
+name = "alice"
+command = "{0}"
+
+[[parachains]]
+id = 1000
+chain = "asset-hub-paseo-local"
+default_command = "{3}"
+chain_spec_command = "{4} {2}"
+
+[[parachains.collators]]
+name = "asset-hub"
+command = "{3}"
+
+[settings]
+timeout = 1000
+node_spawn_timeout = 300
+
+
+"#,
+					relay_chain.canonicalize()?.to_str().unwrap(),
+					relay_chain_spec_generator.canonicalize()?.to_str().unwrap(),
+					"{{chainName}}",
+					system_chain.canonicalize()?.to_str().unwrap(),
+					system_chain_spec_generator.canonicalize()?.to_str().unwrap(),
+				)
+			);
+			Ok(())
+		}
+
+		#[test]
 		fn resolves_path() -> Result<(), Error> {
 			let working_dir = tempdir()?;
 			let path = working_dir.path().join("./target/release/node");
@@ -1822,11 +2057,11 @@ node_spawn_timeout = 300
 			let name = "parachain-template-node";
 			let command = PathBuf::from("./target/release").join(&name);
 			assert_eq!(
-				Parachain::from_local(2000, command.clone(), None)?,
+				Parachain::from_local(2000, command.clone(), Some("dev"))?,
 				Parachain {
 					id: 2000,
 					binary: Binary::Local { name: name.to_string(), path: command, manifest: None },
-					chain: None,
+					chain: Some("dev".to_string()),
 					chain_spec_generator: None,
 				}
 			);
@@ -1838,7 +2073,7 @@ node_spawn_timeout = 300
 			let name = "pop-parachains";
 			let command = PathBuf::from("./target/release").join(&name);
 			assert_eq!(
-				Parachain::from_local(2000, command.clone(), None)?,
+				Parachain::from_local(2000, command.clone(), Some("dev"))?,
 				Parachain {
 					id: 2000,
 					binary: Binary::Local {
@@ -1846,7 +2081,7 @@ node_spawn_timeout = 300
 						path: command,
 						manifest: Some(PathBuf::from("./Cargo.toml"))
 					},
-					chain: None,
+					chain: Some("dev".to_string()),
 					chain_spec_generator: None,
 				}
 			);
@@ -1858,7 +2093,7 @@ node_spawn_timeout = 300
 			let repo = Repository::parse("https://git.com/r0gue-io/pop-node#v1.0")?;
 			let cache = tempdir()?;
 			assert_eq!(
-				Parachain::from_repository(2000, &repo, None, cache.path())?,
+				Parachain::from_repository(2000, &repo, Some("dev"), cache.path())?,
 				Parachain {
 					id: 2000,
 					binary: Binary::Source {
@@ -1872,7 +2107,7 @@ node_spawn_timeout = 300
 						},
 						cache: cache.path().to_path_buf(),
 					},
-					chain: None,
+					chain: Some("dev".to_string()),
 					chain_spec_generator: None,
 				}
 			);
@@ -1884,7 +2119,7 @@ node_spawn_timeout = 300
 			let repo = Repository::parse("https://github.com/r0gue-io/pop-node#v1.0")?;
 			let cache = tempdir()?;
 			assert_eq!(
-				Parachain::from_repository(2000, &repo, None, cache.path())?,
+				Parachain::from_repository(2000, &repo, Some("dev"), cache.path())?,
 				Parachain {
 					id: 2000,
 					binary: Binary::Source {
@@ -1899,7 +2134,7 @@ node_spawn_timeout = 300
 						}),
 						cache: cache.path().to_path_buf(),
 					},
-					chain: None,
+					chain: Some("dev".to_string()),
 					chain_spec_generator: None,
 				},
 			);

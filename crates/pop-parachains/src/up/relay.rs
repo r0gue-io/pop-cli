@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
+
 use super::{
 	chain_specs::chain_spec_generator,
 	sourcing::{
@@ -146,6 +147,28 @@ mod tests {
 				}) && cache == temp_dir.path()
 		));
 		assert_eq!(relay.workers, expected.workers());
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn default_with_chain_spec_generator_works() -> anyhow::Result<()> {
+		let runtime_version = "v1.2.7";
+		let temp_dir = tempdir()?;
+		let relay =
+			default(None, Some(runtime_version), Some("paseo-local"), temp_dir.path()).await?;
+		assert_eq!(relay.chain, "paseo-local");
+		let chain_spec_generator = relay.chain_spec_generator.unwrap();
+		assert!(matches!(chain_spec_generator, Binary::Source { name, source, cache }
+			if name == "paseo-chain-spec-generator" && source == Source::GitHub(ReleaseArchive {
+					owner: "r0gue-io".to_string(),
+					repository: "paseo-runtimes".to_string(),
+					tag: Some(runtime_version.to_string()),
+					tag_format: None,
+					archive: format!("chain-spec-generator-{}.tar.gz", target()?),
+					contents: [("chain-spec-generator", Some("paseo-chain-spec-generator".to_string()))].to_vec(),
+					latest: chain_spec_generator.latest().map(|l| l.to_string()),
+				}) && cache == temp_dir.path()
+		));
 		Ok(())
 	}
 

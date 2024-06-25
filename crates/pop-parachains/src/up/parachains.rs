@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
+
 use super::{
 	chain_specs::chain_spec_generator,
 	sourcing::{
@@ -214,6 +215,41 @@ mod tests {
 					archive: format!("{name}-{}.tar.gz", target()?),
 					contents: vec![(expected.binary(), None)],
 					latest: parachain.binary.latest().map(|l| l.to_string()),
+				}) && cache == temp_dir.path()
+		));
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn system_with_chain_spec_generator_works() -> anyhow::Result<()> {
+		let expected = Parachain::System;
+		let runtime_version = "v1.2.7";
+		let para_id = 1000;
+
+		let temp_dir = tempdir()?;
+		let parachain = system(
+			para_id,
+			expected.binary(),
+			None,
+			Some(runtime_version),
+			"v.13.0",
+			Some("asset-hub-paseo-local"),
+			temp_dir.path(),
+		)
+		.await?
+		.unwrap();
+		assert_eq!(parachain.id, para_id);
+		assert_eq!(parachain.chain.unwrap(), "asset-hub-paseo-local");
+		let chain_spec_generator = parachain.chain_spec_generator.unwrap();
+		assert!(matches!(chain_spec_generator, Binary::Source { name, source, cache }
+			if name == "paseo-chain-spec-generator" && source == Source::GitHub(ReleaseArchive {
+					owner: "r0gue-io".to_string(),
+					repository: "paseo-runtimes".to_string(),
+					tag: Some(runtime_version.to_string()),
+					tag_format: None,
+					archive: format!("chain-spec-generator-{}.tar.gz", target()?),
+					contents: [("chain-spec-generator", Some("paseo-chain-spec-generator".to_string()))].to_vec(),
+					latest: chain_spec_generator.latest().map(|l| l.to_string()),
 				}) && cache == temp_dir.path()
 		));
 		Ok(())
