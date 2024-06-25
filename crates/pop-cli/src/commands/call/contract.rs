@@ -81,7 +81,7 @@ impl CallContractCommand {
 			spinner.start("Doing a dry run to estimate the gas...");
 			match dry_run_gas_estimate_call(&call_exec).await {
 				Ok(w) => {
-					log::info(format!("Gas limit {:?}", w))?;
+					log::info(format!("Gas limit: {:?}", w))?;
 					log::warning("Your call has not been executed.")?;
 				},
 				Err(e) => {
@@ -112,7 +112,7 @@ impl CallContractCommand {
 				spinner.start("Doing a dry run to estimate the gas...");
 				weight_limit = match dry_run_gas_estimate_call(&call_exec).await {
 					Ok(w) => {
-						log::info(format!("Gas limit {:?}", w))?;
+						log::info(format!("Gas limit: {:?}", w))?;
 						w
 					},
 					Err(e) => {
