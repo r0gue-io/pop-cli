@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
+
 use crate::{Error, Git, Status, APP_USER_AGENT};
 use duct::cmd;
 use flate2::read::GzDecoder;
@@ -115,7 +116,8 @@ pub(crate) enum GitHub {
 		/// The name of the archive (asset) to download.
 		archive: String,
 		/// The archive contents required, including the binary name.
-		contents: Vec<&'static str>,
+		/// The second parameter can be used to specify another name for the binary once extracted.
+		contents: Vec<(&'static str, Option<String>)>,
 		/// If applicable, the latest release tag available.
 		latest: Option<String>,
 	},
@@ -169,9 +171,15 @@ impl GitHub {
 				};
 				let contents: Vec<_> = contents
 					.iter()
-					.map(|name| match tag.as_ref() {
-						Some(tag) => (*name, cache.join(&format!("{name}-{tag}"))),
-						None => (*name, cache.join(&name)),
+					.map(|(name, target)| match tag.as_ref() {
+						Some(tag) => (
+							*name,
+							cache.join(&format!(
+								"{}-{tag}",
+								target.as_ref().map_or(*name, |t| t.as_str())
+							)),
+						),
+						None => (*name, cache.join(target.as_ref().map_or(*name, |t| t.as_str()))),
 					})
 					.collect();
 				from_archive(&url, &contents, status).await
@@ -536,13 +544,42 @@ pub(super) mod tests {
 			tag: Some(tag.to_string()),
 			tag_format,
 			archive,
-			contents: contents.to_vec(),
+			contents: contents.map(|n| (n, None)).to_vec(),
 			latest: None,
 		})
 		.source(temp_dir.path(), true, &Output, true)
 		.await?;
 		for item in contents {
 			assert!(temp_dir.path().join(format!("{item}-{tag}")).exists());
+		}
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn sourcing_from_github_release_archive_maps_contents() -> anyhow::Result<()> {
+		let owner = "r0gue-io".to_string();
+		let repository = "polkadot".to_string();
+		let tag = "v1.12.0";
+		let tag_format = Some("polkadot-{tag}".to_string());
+		let name = "polkadot".to_string();
+		let archive = format!("{name}-{}.tar.gz", target()?);
+		let contents = ["polkadot", "polkadot-execute-worker", "polkadot-prepare-worker"];
+		let temp_dir = tempdir()?;
+		let prefix = "test";
+
+		Source::GitHub(ReleaseArchive {
+			owner,
+			repository,
+			tag: Some(tag.to_string()),
+			tag_format,
+			archive,
+			contents: contents.map(|n| (n, Some(format!("{prefix}-{n}")))).to_vec(),
+			latest: None,
+		})
+		.source(temp_dir.path(), true, &Output, true)
+		.await?;
+		for item in contents {
+			assert!(temp_dir.path().join(format!("{prefix}-{item}-{tag}")).exists());
 		}
 		Ok(())
 	}
@@ -563,7 +600,7 @@ pub(super) mod tests {
 			tag: None,
 			tag_format,
 			archive,
-			contents: contents.to_vec(),
+			contents: contents.map(|n| (n, None)).to_vec(),
 			latest: None,
 		})
 		.source(temp_dir.path(), true, &Output, true)
@@ -759,6 +796,7 @@ pub(crate) mod traits {
 	use crate::Error;
 	use strum::EnumProperty;
 
+	/// The source of a binary.
 	pub(crate) trait Source: EnumProperty {
 		/// The name of the binary.
 		fn binary(&self) -> &'static str {
