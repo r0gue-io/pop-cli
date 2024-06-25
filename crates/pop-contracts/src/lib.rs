@@ -5,8 +5,7 @@ mod build;
 mod call;
 mod errors;
 mod new;
-// TODO: undo pub once template crate is introduced
-pub mod templates;
+mod templates;
 mod test;
 mod up;
 mod utils;
