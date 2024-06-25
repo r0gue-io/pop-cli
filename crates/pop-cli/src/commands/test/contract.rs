@@ -29,12 +29,12 @@ impl TestContractCommand {
 				"{}: Starting end-to-end tests",
 				style(" Pop CLI ").black().on_magenta()
 			))?;
-			test_e2e_smart_contract(&self.path, &self.node)?;
+			test_e2e_smart_contract(self.path.as_deref(), self.node.as_deref())?;
 			outro("End-to-end testing complete")?;
 			Ok("e2e")
 		} else {
 			intro(format!("{}: Starting unit tests", style(" Pop CLI ").black().on_magenta()))?;
-			test_smart_contract(&self.path)?;
+			test_smart_contract(self.path.as_deref())?;
 			outro("Unit testing complete")?;
 			Ok("unit")
 		}
