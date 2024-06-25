@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0
 
+use crate::{cache, cli::Cli};
 use clap::Subcommand;
 use serde_json::{json, Value};
 
 pub(crate) mod build;
 pub(crate) mod call;
+pub(crate) mod clean;
 pub(crate) mod install;
 pub(crate) mod new;
 pub(crate) mod test;
@@ -13,6 +15,9 @@ pub(crate) mod up;
 #[derive(Subcommand)]
 #[command(subcommand_required = true)]
 pub(crate) enum Command {
+	/// Set up the environment for development by installing required packages.
+	#[clap(alias = "i")]
+	Install(install::InstallArgs),
 	/// Generate a new parachain, pallet or smart contract.
 	#[clap(alias = "n")]
 	#[cfg(any(feature = "parachain", feature = "contract"))]
@@ -33,15 +38,17 @@ pub(crate) enum Command {
 	#[clap(alias = "t")]
 	#[cfg(feature = "contract")]
 	Test(test::TestArgs),
-	/// Set up the environment for development by installing required packages.
-	#[clap(alias = "i")]
-	Install(install::InstallArgs),
+	/// Remove generated/cached artifacts.
+	#[clap(alias = "C")]
+	Clean(clean::CleanArgs),
 }
 
 impl Command {
 	/// Executes the command.
 	pub(crate) async fn execute(self) -> anyhow::Result<Value> {
 		match self {
+			#[cfg(any(feature = "parachain", feature = "contract"))]
+			Self::Install(args) => install::Command.execute(args).await.map(|_| Value::Null),
 			#[cfg(any(feature = "parachain", feature = "contract"))]
 			Self::New(args) => match args.command {
 				#[cfg(feature = "parachain")]
@@ -90,8 +97,14 @@ impl Command {
 					Err(e) => Err(e),
 				},
 			},
-			#[cfg(any(feature = "parachain", feature = "contract"))]
-			Self::Install(args) => install::Command.execute(args).await.map(|_| Value::Null),
+			Self::Clean(args) => match args.command {
+				clean::Command::Cache => {
+					// Initialize command and execute
+					clean::CleanCacheCommand { cli: &mut Cli, cache: cache()? }
+						.execute()
+						.map(|_| Value::Null)
+				},
+			},
 		}
 	}
 }
