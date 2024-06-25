@@ -23,7 +23,7 @@ pub struct NewContractCommand {
 		help = "Contract type.",
 		value_parser = crate::enum_variants!(ContractType)
 	)]
-	pub(crate) c_type: Option<ContractType>,
+	pub(crate) contract_type: Option<ContractType>,
 	#[arg(short = 'p', long, help = "Path for the contract project, [default: current directory]")]
 	pub(crate) path: Option<PathBuf>,
 	#[arg(
@@ -51,7 +51,7 @@ impl NewContractCommand {
 			.clone()
 			.expect("name can not be none as fallback above is interactive input; qed");
 		is_valid_contract_name(name)?;
-		let contract_type = &contract_config.c_type.clone().unwrap_or_default();
+		let contract_type = &contract_config.contract_type.clone().unwrap_or_default();
 		let template = match &contract_config.template {
 			Some(template) => template.clone(),
 			None => contract_type.default_type(), // Default contract type
@@ -108,7 +108,7 @@ async fn guide_user_to_generate_contract() -> anyhow::Result<NewContractCommand>
 	Ok(NewContractCommand {
 		name: Some(name),
 		path: Some(PathBuf::from(path)),
-		c_type: Some(contract_type.clone()),
+		contract_type: Some(contract_type.clone()),
 		template: Some(template.clone()),
 	})
 }
