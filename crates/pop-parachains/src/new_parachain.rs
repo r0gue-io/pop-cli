@@ -3,10 +3,13 @@
 use crate::{
 	generator::parachain::{ChainSpec, Network},
 	utils::helpers::{sanitize, write_to_file},
-	Config, Provider, Template,
+	Config, ParachainTemplate, Provider,
 };
 use anyhow::Result;
-use pop_common::git::Git;
+use pop_common::{
+	git::Git,
+	templates::{Template, TemplateType},
+};
 use std::{fs, path::Path};
 use walkdir::WalkDir;
 
@@ -19,14 +22,14 @@ use walkdir::WalkDir;
 /// * `tag_version` - version to use (`None` to use latest).
 /// * `config` - customization values to include in the new parachain.
 pub fn instantiate_template_dir(
-	template: &Template,
+	template: &ParachainTemplate,
 	target: &Path,
 	tag_version: Option<String>,
 	config: Config,
 ) -> Result<Option<String>> {
 	sanitize(target)?;
 
-	if template.matches(&Provider::Pop) {
+	if Provider::Pop.matches(&template) {
 		return instantiate_standard_template(template, target, config, tag_version);
 	}
 	let tag = Git::clone_and_degit(template.repository_url()?, target, tag_version)?;
@@ -34,7 +37,7 @@ pub fn instantiate_template_dir(
 }
 
 pub fn instantiate_standard_template(
-	template: &Template,
+	template: &ParachainTemplate,
 	target: &Path,
 	config: Config,
 	tag_version: Option<String>,
@@ -85,7 +88,7 @@ mod tests {
 			decimals: 18,
 			initial_endowment: "1000000".to_string(),
 		};
-		instantiate_standard_template(&Template::Standard, temp_dir.path(), config, None)?;
+		instantiate_standard_template(&ParachainTemplate::Standard, temp_dir.path(), config, None)?;
 		Ok(temp_dir)
 	}
 

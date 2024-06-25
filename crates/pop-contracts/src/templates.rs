@@ -29,7 +29,7 @@ pub enum ContractType {
 impl TemplateType<ContractTemplate> for ContractType {
 	const TYPE_ID: &'static str = "ContractType";
 
-	fn default_type(&self) -> ContractTemplate {
+	fn default_template(&self) -> ContractTemplate {
 		match &self {
 			ContractType::Examples => ContractTemplate::Standard,
 			ContractType::Erc => ContractTemplate::ERC20,
@@ -178,9 +178,9 @@ mod tests {
 	#[test]
 	fn test_default_template_of_type() {
 		let mut contract_type = ContractType::Examples;
-		assert_eq!(contract_type.default_type(), ContractTemplate::Standard);
+		assert_eq!(contract_type.default_template(), ContractTemplate::Standard);
 		contract_type = ContractType::Erc;
-		assert_eq!(contract_type.default_type(), ContractTemplate::ERC20);
+		assert_eq!(contract_type.default_template(), ContractTemplate::ERC20);
 	}
 
 	#[test]

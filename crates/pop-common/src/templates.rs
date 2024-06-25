@@ -40,7 +40,7 @@ pub trait TemplateType<T: Template>:
 	}
 
 	/// Get the default template of the provider.
-	fn default_type(&self) -> T;
+	fn default_template(&self) -> T;
 
 	/// Get the providers detailed description message.
 	fn description(&self) -> &str {

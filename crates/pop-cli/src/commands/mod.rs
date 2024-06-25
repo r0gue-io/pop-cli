@@ -2,6 +2,7 @@
 
 use crate::{cache, cli::Cli};
 use clap::Subcommand;
+use pop_common::templates::Template;
 use serde_json::{json, Value};
 
 pub(crate) mod build;
