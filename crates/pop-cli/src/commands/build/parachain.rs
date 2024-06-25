@@ -14,6 +14,9 @@ pub struct BuildParachainCommand {
 		help = "Directory path for your project, [default: current directory]"
 	)]
 	pub(crate) path: Option<PathBuf>,
+	/// For production, always build in release mode to exclude debug features.
+	#[clap(long = "release", short)]
+	pub(crate) release: bool,
 }
 
 impl BuildParachainCommand {

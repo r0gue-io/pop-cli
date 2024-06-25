@@ -54,7 +54,7 @@ pub async fn set_up_call(
 	call_opts: CallOpts,
 ) -> anyhow::Result<CallExec<DefaultConfig, DefaultEnvironment, Keypair>> {
 	let token_metadata = TokenMetadata::query::<DefaultConfig>(&call_opts.url).await?;
-	let manifest_path = get_manifest_path(&call_opts.path)?;
+	let manifest_path = get_manifest_path(call_opts.path.as_deref())?;
 	let signer = create_signer(&call_opts.suri)?;
 
 	let extrinsic_opts = ExtrinsicOptsBuilder::new(signer)
