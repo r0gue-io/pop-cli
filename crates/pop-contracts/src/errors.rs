@@ -30,6 +30,15 @@ pub enum Error {
 	#[error("Failed to parse hex encoded bytes: {0}")]
 	HexParsing(String),
 
+	#[error("Pre-submission dry-run failed: {0}")]
+	DryRunUploadContractError(String),
+
+	#[error("Pre-submission dry-run failed: {0}")]
+	DryRunCallContractError(String),
+
+	#[error("Anyhow error: {0}")]
+	AnyhowError(#[from] anyhow::Error),
+
 	#[error("Failed to install {0}")]
 	InstallContractsNode(String),
 
@@ -38,9 +47,6 @@ pub enum Error {
 
 	#[error("Unsupported platform: {os}")]
 	UnsupportedPlatform { os: &'static str },
-
-	#[error("Anyhow error: {0}")]
-	AnyhowError(#[from] anyhow::Error),
 
 	#[error("HTTP error: {0}")]
 	HttpError(#[from] reqwest::Error),
