@@ -34,7 +34,7 @@ pub fn is_valid_contract_name(name: &str) -> Result<(), Error> {
 	}
 	if !name.chars().next().map(|c| c.is_alphabetic()).unwrap_or(false) {
 		return Err(Error::InvalidName(
-			"Contract names must begin with an alphabetic character".to_owned(),
+			"Contract names must begin with an alphabetical character".to_owned(),
 		));
 	}
 	Ok(())
@@ -107,7 +107,6 @@ mod tests {
 	use super::*;
 	use anyhow::{Error, Result};
 	use std::{fs, io::Write};
-	use tempfile::{self};
 
 	fn setup_test_environment(template: Template) -> Result<tempfile::TempDir, Error> {
 		let temp_dir = tempfile::tempdir()?;

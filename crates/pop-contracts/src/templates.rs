@@ -76,7 +76,7 @@ impl ContractType {
 	VariantArray,
 )]
 pub enum Template {
-	/// A minimalist contract template.
+	/// A minimal contract template.
 	#[default]
 	#[strum(
 		serialize = "standard",
