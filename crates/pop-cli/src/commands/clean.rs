@@ -17,7 +17,6 @@ pub(crate) struct CleanArgs {
 /// Remove generated/cached artifacts.
 #[derive(Subcommand)]
 pub(crate) enum Command {
-	#[cfg(feature = "parachain")]
 	/// Remove cached artifacts.
 	#[clap(alias = "c")]
 	Cache,
