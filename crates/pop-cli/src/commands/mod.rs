@@ -57,7 +57,7 @@ impl Command {
 					Ok(template) => {
 						// telemetry should never cause a panic or early exit
 						Ok(
-							json!({template.provider().unwrap_or("provider-missing"): template.name()}),
+							json!({template.template_type().unwrap_or("provider-missing"): template.name()}),
 						)
 					},
 					Err(e) => Err(e),

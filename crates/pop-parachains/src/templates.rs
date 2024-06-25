@@ -3,7 +3,6 @@
 use pop_common::templates::{Template, TemplateType};
 use strum::EnumProperty as _;
 use strum_macros::{AsRefStr, Display, EnumMessage, EnumProperty, EnumString, VariantArray};
-use thiserror::Error;
 
 /// Supported template providers.
 #[derive(
@@ -35,8 +34,6 @@ pub enum Provider {
 }
 
 impl TemplateType<ParachainTemplate> for Provider {
-	const TYPE_ID: &'static str = "Provider";
-
 	fn default_template(&self) -> ParachainTemplate {
 		match &self {
 			Provider::Pop => ParachainTemplate::Standard,
@@ -77,7 +74,7 @@ pub enum ParachainTemplate {
 		message = "Standard",
 		detailed_message = "A standard parachain",
 		props(
-			Provider = "Pop",
+			TemplateType = "Pop",
 			Repository = "https://github.com/r0gue-io/base-parachain",
 			Network = "./network.toml"
 		)
@@ -89,7 +86,7 @@ pub enum ParachainTemplate {
 		message = "Assets",
 		detailed_message = "Parachain configured with fungible and non-fungilble asset functionalities.",
 		props(
-			Provider = "Pop",
+			TemplateType = "Pop",
 			Repository = "https://github.com/r0gue-io/assets-parachain",
 			Network = "./network.toml"
 		)
@@ -101,7 +98,7 @@ pub enum ParachainTemplate {
 		message = "Contracts",
 		detailed_message = "Parachain configured to support WebAssembly smart contracts.",
 		props(
-			Provider = "Pop",
+			TemplateType = "Pop",
 			Repository = "https://github.com/r0gue-io/contracts-parachain",
 			Network = "./network.toml"
 		)
@@ -113,7 +110,7 @@ pub enum ParachainTemplate {
 		message = "EVM",
 		detailed_message = "Parachain configured with Frontier, enabling compatibility with the Ethereum Virtual Machine (EVM).",
 		props(
-			Provider = "Pop",
+			TemplateType = "Pop",
 			Repository = "https://github.com/r0gue-io/evm-parachain",
 			Network = "./network.toml"
 		)
@@ -125,7 +122,7 @@ pub enum ParachainTemplate {
 		message = "Generic Runtime Template",
 		detailed_message = "A generic template for Substrate Runtime",
 		props(
-			Provider = "OpenZeppelin",
+			TemplateType = "OpenZeppelin",
 			Repository = "https://github.com/OpenZeppelin/polkadot-runtime-templates",
 			Network = "./zombienet-config/devnet.toml",
 			SupportedVersions = "v1.0.0",
@@ -139,7 +136,7 @@ pub enum ParachainTemplate {
 		message = "Contracts",
 		detailed_message = "Minimal Substrate node configured for smart contracts via pallet-contracts.",
 		props(
-			Provider = "Parity",
+			TemplateType = "Parity",
 			Repository = "https://github.com/paritytech/substrate-contracts-node",
 			Network = "./zombienet.toml"
 		)
@@ -151,7 +148,7 @@ pub enum ParachainTemplate {
 		message = "EVM",
 		detailed_message = "Template node for a Frontier (EVM) based parachain.",
 		props(
-			Provider = "Parity",
+			TemplateType = "Parity",
 			Repository = "https://github.com/paritytech/frontier-parachain-template",
 			Network = "./zombienet-config.toml"
 		)
@@ -165,7 +162,7 @@ pub enum ParachainTemplate {
 		message = "Test_01",
 		detailed_message = "Test template only compiled in test mode.",
 		props(
-			Provider = "Test",
+			TemplateType = "Test",
 			Repository = "",
 			Network = "",
 			SupportedVersions = "v1.0.0,v2.0.0",
@@ -178,7 +175,7 @@ pub enum ParachainTemplate {
 		serialize = "test_02",
 		message = "Test_02",
 		detailed_message = "Test template only compiled in test mode.",
-		props(Provider = "Test", Repository = "", Network = "",)
+		props(TemplateType = "Test", Repository = "", Network = "",)
 	)]
 	TestTemplate02,
 }
@@ -186,11 +183,6 @@ pub enum ParachainTemplate {
 impl Template for ParachainTemplate {}
 
 impl ParachainTemplate {
-	/// Get the provider of the template.
-	pub fn provider(&self) -> Result<&str, Error> {
-		self.get_str("Provider").ok_or(Error::ProviderMissing)
-	}
-
 	/// Returns the relative path to the default network configuration file to be used, if defined.
 	pub fn network_config(&self) -> Option<&str> {
 		self.get_str("Network")
@@ -208,14 +200,6 @@ impl ParachainTemplate {
 	pub fn is_audited(&self) -> bool {
 		self.get_str("IsAudited").map_or(false, |s| s == "true")
 	}
-}
-
-#[derive(Error, Debug)]
-pub enum Error {
-	#[error("The `Repository` property is missing from the template variant")]
-	RepositoryMissing,
-	#[error("The `Provider` property is missing from the template variant")]
-	ProviderMissing,
 }
 
 #[cfg(test)]

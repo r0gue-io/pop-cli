@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
 // pub to ease downstream imports
-pub use pop_common::templates::{Template, TemplateType};
+pub use pop_common::templates::{Template, TemplateType, TEMPLATE_TYPE_PROPERTY};
 use strum_macros::{AsRefStr, Display, EnumMessage, EnumProperty, EnumString, VariantArray};
 
 /// Supported template providers.
@@ -27,8 +27,6 @@ pub enum ContractType {
 }
 
 impl TemplateType<ContractTemplate> for ContractType {
-	const TYPE_ID: &'static str = "ContractType";
-
 	fn default_template(&self) -> ContractTemplate {
 		match &self {
 			ContractType::Examples => ContractTemplate::Standard,
@@ -58,7 +56,7 @@ pub enum ContractTemplate {
 		serialize = "standard",
 		message = "Standard",
 		detailed_message = "ink!'s 'Hello World': Flipper",
-		props(ContractType = "Examples")
+		props(TemplateType = "Examples")
 	)]
 	Standard,
 	/// The implementation of the ERC-20 standard in ink!
@@ -66,7 +64,7 @@ pub enum ContractTemplate {
 		serialize = "erc20",
 		message = "Erc20",
 		detailed_message = "The implementation of the ERC-20 standard in ink!",
-		props(ContractType = "ERC", Repository = "https://github.com/use-ink/ink-examples")
+		props(TemplateType = "ERC", Repository = "https://github.com/use-ink/ink-examples")
 	)]
 	ERC20,
 	/// The implementation of the ERC-721 standard in ink!
@@ -74,7 +72,7 @@ pub enum ContractTemplate {
 		serialize = "erc721",
 		message = "Erc721",
 		detailed_message = "The implementation of the ERC-721 standard in ink!",
-		props(ContractType = "ERC", Repository = "https://github.com/use-ink/ink-examples")
+		props(TemplateType = "ERC", Repository = "https://github.com/use-ink/ink-examples")
 	)]
 	ERC721,
 	/// The implementation of the ERC-1155 standard in ink!
@@ -82,7 +80,7 @@ pub enum ContractTemplate {
 		serialize = "erc1155",
 		message = "Erc1155",
 		detailed_message = "The implementation of the ERC-1155 standard in ink!",
-		props(ContractType = "ERC", Repository = "https://github.com/use-ink/ink-examples")
+		props(TemplateType = "ERC", Repository = "https://github.com/use-ink/ink-examples")
 	)]
 	ERC1155,
 }
