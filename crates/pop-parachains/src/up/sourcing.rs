@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{Error, Git, Status, APP_USER_AGENT};
+use crate::{Error, Status, APP_USER_AGENT};
 use duct::cmd;
 use flate2::read::GzDecoder;
+use pop_common::Git;
 use reqwest::StatusCode;
 use std::time::Duration;
 use std::{
@@ -794,6 +795,7 @@ pub(super) mod tests {
 
 pub(crate) mod traits {
 	use crate::Error;
+	use pop_common::GitHub;
 	use strum::EnumProperty;
 
 	/// The source of a binary.
@@ -817,7 +819,7 @@ pub(crate) mod traits {
 
 		/// Determine the available releases from the source.
 		async fn releases(&self) -> Result<Vec<String>, Error> {
-			let repo = crate::GitHub::parse(self.repository())?;
+			let repo = GitHub::parse(self.repository())?;
 			let releases = match repo.releases().await {
 				Ok(releases) => releases,
 				Err(_) => return Ok(vec![self.fallback().to_string()]),

@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
+
 use contract_build::{execute, BuildMode, ExecuteArgs};
 use std::path::PathBuf;
 

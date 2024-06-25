@@ -126,11 +126,29 @@ pop up parachain -f ./tests/networks/pop.toml --cmd ./path/to/my/script
 
 ### Contracts
 
-Use `pop` to create a new Smart Contract project:
+Use `pop` to create a new Smart Contract project.
+To be guided through the entire contract creation process, simply execute
+
+```sh
+pop new contract
+```
+
+If no guidance is needed, proceed with:
 
 ```sh
 # Create a minimal Smart Contract
 pop new contract my_contract
+```
+
+`pop-cli` supports different contract templates and can be used with`--template`:
+
+```sh
+# Create an ERC-20 standard in ink!
+pop new contract my_contract -t erc20
+# Create an ERC-721 standard in ink!
+pop new contract my_contract -t erc721
+# Create an ERC-1155 standard in ink!
+pop new contract my_contract -t erc1155
 ```
 
 Test the Smart Contract:
@@ -291,7 +309,7 @@ cargo test
 Pop CLI would not be possible without these awesome crates!
 
 - Local network deployment powered by [zombienet-sdk](https://github.com/paritytech/zombienet-sdk)
-- [cargo contract](https://github.com/paritytech/cargo-contract) a setup and deployment tool for developing Wasm based
+- [cargo contract](https://github.com/use-ink/cargo-contract) a setup and deployment tool for developing Wasm based
   Smart Contracts via ink!
 
 ## License

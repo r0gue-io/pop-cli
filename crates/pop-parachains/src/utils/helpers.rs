@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0
+
+use crate::errors::Error;
 use std::{
 	fs::{self, OpenOptions},
 	io::{self, stdin, stdout, Write},
 	path::Path,
 };
-
-use crate::errors::Error;
 
 pub(crate) fn sanitize(target: &Path) -> Result<(), Error> {
 	if target.exists() {

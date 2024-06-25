@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
+
 use std::{fs, path::PathBuf};
 
 use crate::errors::Error;

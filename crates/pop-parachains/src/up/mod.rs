@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{errors::Error, utils::git::GitHub};
+use crate::errors::Error;
 use glob::glob;
 use indexmap::IndexMap;
+use pop_common::git::GitHub;
 use sourcing::{GitHub::*, Source, Source::*};
 use std::{
 	fmt::Debug,

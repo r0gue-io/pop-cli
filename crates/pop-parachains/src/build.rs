@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
+
 use duct::cmd;
 use std::path::PathBuf;
 
