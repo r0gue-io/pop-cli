@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
+
 use crate::cli::traits::*;
 use anyhow::Result;
 use clap::{Args, Subcommand};
