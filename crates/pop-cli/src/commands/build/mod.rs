@@ -46,7 +46,8 @@ impl Command {
 	/// Executes the command.
 	pub(crate) fn execute(args: BuildArgs) -> anyhow::Result<()> {
 		// Check if both parachain and contract features enabled
-		if cfg!(all(feature = "parachain", feature = "contract")) {
+		#[cfg(all(feature = "parachain", feature = "contract"))]
+		{
 			// Detect if smart contract project, otherwise assume a parachain project
 			if pop_contracts::is_smart_contract(args.path.as_deref()) {
 				return BuildContractCommand { path: args.path, release: args.release }.execute();
@@ -54,13 +55,12 @@ impl Command {
 			return BuildParachainCommand { path: args.path, release: args.release }.execute();
 		}
 		// If only parachain feature enabled, build as parachain
-		if cfg!(feature = "parachain") {
+		#[cfg(all(feature = "parachain", not(feature = "contract")))]
+		{
 			return BuildParachainCommand { path: args.path, release: args.release }.execute();
 		}
 		// If only contract feature enabled, build as contract
-		if cfg!(feature = "contract") {
-			return BuildContractCommand { path: args.path, release: args.release }.execute();
-		}
-		Ok(())
+		#[cfg(all(feature = "contract", not(feature = "parachain")))]
+		return BuildContractCommand { path: args.path, release: args.release }.execute();
 	}
 }
