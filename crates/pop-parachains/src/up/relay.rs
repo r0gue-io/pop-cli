@@ -10,6 +10,7 @@ use super::{
 	},
 	target, Binary, Error,
 };
+use pop_common::GitHub;
 use std::{iter::once, path::Path};
 use strum::VariantArray as _;
 use strum_macros::{EnumProperty, VariantArray};
@@ -37,7 +38,7 @@ impl TryInto for &RelayChain {
 		Ok(match self {
 			RelayChain::Polkadot => {
 				// Source from GitHub release asset
-				let repo = crate::GitHub::parse(self.repository())?;
+				let repo = GitHub::parse(self.repository())?;
 				Source::GitHub(ReleaseArchive {
 					owner: repo.org,
 					repository: repo.name,

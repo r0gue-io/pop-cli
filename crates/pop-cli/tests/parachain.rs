@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
+
 use anyhow::{Error, Result};
 use assert_cmd::Command;
 
