@@ -1038,13 +1038,14 @@ checksum = "4b82cf0babdbd58558212896d1a4272303a57bdb245c2bf1147185fb45640e70"
 
 [[package]]
 name = "cliclack"
-version = "0.2.5"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4febf49beeedc40528e4956995631f1bbdb4d8804ef940b44351f393a996c739"
+checksum = "ac20862449f338d814085d6d025790896eb6ad8c7bb6f4e0633502796a16d49f"
 dependencies = [
  "console",
  "indicatif",
  "once_cell",
+ "strsim 0.11.1",
  "textwrap",
  "zeroize",
 ]
