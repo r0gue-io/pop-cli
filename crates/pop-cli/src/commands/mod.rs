@@ -40,7 +40,6 @@ pub(crate) enum Command {
 	Test(test::TestArgs),
 	/// Remove generated/cached artifacts.
 	#[clap(alias = "C")]
-	#[cfg(feature = "parachain")]
 	Clean(clean::CleanArgs),
 }
 
@@ -98,7 +97,6 @@ impl Command {
 					Err(e) => Err(e),
 				},
 			},
-			#[cfg(feature = "parachain")]
 			Self::Clean(args) => match args.command {
 				clean::Command::Cache => {
 					// Initialize command and execute
