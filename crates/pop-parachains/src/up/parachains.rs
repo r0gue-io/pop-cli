@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
+
 use super::{
-	sourcing,
+	chain_specs::chain_spec_generator,
 	sourcing::{
+		self,
 		traits::{Source as _, *},
 		GitHub::ReleaseArchive,
 		Source,
@@ -50,7 +52,7 @@ impl TryInto for Parachain {
 					tag,
 					tag_format: self.tag_format().map(|t| t.into()),
 					archive: format!("{}-{}.tar.gz", self.binary(), target()?),
-					contents: vec![self.binary()],
+					contents: vec![(self.binary(), None)],
 					latest,
 				})
 			},
@@ -66,13 +68,17 @@ impl sourcing::traits::Source for Parachain {}
 /// * `id` - The parachain identifier.
 /// * `command` - The command specified.
 /// * `version` - The version of the parachain binary to be used.
-/// * `version` - The version of the relay chain binary being used.
+/// * `runtime_version` - The version of the runtime to be used.
+/// * `relay_chain_version` - The version of the relay chain binary being used.
+/// * `chain` - The chain specified.
 /// * `cache` - The cache to be used.
 pub(super) async fn system(
 	id: u32,
 	command: &str,
 	version: Option<&str>,
-	relay_chain: &str,
+	runtime_version: Option<&str>,
+	relay_chain_version: &str,
+	chain: Option<&str>,
 	cache: &Path,
 ) -> Result<Option<super::Parachain>, Error> {
 	let para = &Parachain::System;
@@ -84,14 +90,22 @@ pub(super) async fn system(
 		Some(version) => (Some(version.to_string()), None),
 		None => {
 			// Default to same version as relay chain when not explicitly specified
-			let version = relay_chain.to_string();
 			// Only set latest when caller has not explicitly specified a version to use
-			(Some(version), para.releases().await?.into_iter().nth(0))
+			(Some(relay_chain_version.to_string()), para.releases().await?.into_iter().nth(0))
 		},
 	};
 	let source = TryInto::try_into(para, tag, latest)?;
 	let binary = Binary::Source { name: name.to_string(), source, cache: cache.to_path_buf() };
-	return Ok(Some(super::Parachain { id, binary }));
+	let chain_spec_generator = match chain {
+		Some(chain) => chain_spec_generator(chain, runtime_version, cache).await?,
+		None => None,
+	};
+	return Ok(Some(super::Parachain {
+		id,
+		binary,
+		chain: chain.map(|c| c.to_string()),
+		chain_spec_generator,
+	}));
 }
 
 /// Initialises the configuration required to launch a parachain.
@@ -100,11 +114,13 @@ pub(super) async fn system(
 /// * `id` - The parachain identifier.
 /// * `command` - The command specified.
 /// * `version` - The version of the parachain binary to be used.
+/// * `chain` - The chain specified.
 /// * `cache` - The cache to be used.
 pub(super) async fn from(
 	id: u32,
 	command: &str,
 	version: Option<&str>,
+	chain: Option<&str>,
 	cache: &Path,
 ) -> Result<Option<super::Parachain>, Error> {
 	for para in Parachain::VARIANTS.iter().filter(|p| p.binary() == command) {
@@ -120,7 +136,12 @@ pub(super) async fn from(
 			source: TryInto::try_into(para, tag, latest)?,
 			cache: cache.to_path_buf(),
 		};
-		return Ok(Some(super::Parachain { id, binary }));
+		return Ok(Some(super::Parachain {
+			id,
+			binary,
+			chain: chain.map(|c| c.to_string()),
+			chain_spec_generator: None,
+		}));
 	}
 	Ok(None)
 }
@@ -128,11 +149,22 @@ pub(super) async fn from(
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use std::path::PathBuf;
 	use tempfile::tempdir;
 
 	#[tokio::test]
 	async fn system_matches_command() -> anyhow::Result<()> {
-		assert!(system(1000, "polkadot", None, "v1.12.0", tempdir()?.path()).await?.is_none());
+		assert!(system(
+			1000,
+			"polkadot",
+			None,
+			None,
+			"v1.12.0",
+			Some("asset-hub-rococo-local"),
+			tempdir()?.path()
+		)
+		.await?
+		.is_none());
 		Ok(())
 	}
 
@@ -143,9 +175,10 @@ mod tests {
 		let para_id = 1000;
 
 		let temp_dir = tempdir()?;
-		let parachain = system(para_id, expected.binary(), None, version, temp_dir.path())
-			.await?
-			.unwrap();
+		let parachain =
+			system(para_id, expected.binary(), None, None, version, None, temp_dir.path())
+				.await?
+				.unwrap();
 		assert_eq!(para_id, parachain.id);
 		assert!(matches!(parachain.binary, Binary::Source { name, source, cache }
 			if name == expected.binary() && source == Source::GitHub(ReleaseArchive {
@@ -154,7 +187,7 @@ mod tests {
 					tag: Some(version.to_string()),
 					tag_format: Some("polkadot-{tag}".to_string()),
 					archive: format!("{name}-{}.tar.gz", target()?),
-					contents: vec![expected.binary()],
+					contents: vec![(expected.binary(), None)],
 					latest: parachain.binary.latest().map(|l| l.to_string()),
 				}) && cache == temp_dir.path()
 		));
@@ -168,9 +201,10 @@ mod tests {
 		let para_id = 1000;
 
 		let temp_dir = tempdir()?;
-		let parachain = system(para_id, expected.binary(), Some(version), version, temp_dir.path())
-			.await?
-			.unwrap();
+		let parachain =
+			system(para_id, expected.binary(), Some(version), None, version, None, temp_dir.path())
+				.await?
+				.unwrap();
 		assert_eq!(para_id, parachain.id);
 		assert!(matches!(parachain.binary, Binary::Source { name, source, cache }
 			if name == expected.binary() && source == Source::GitHub(ReleaseArchive {
@@ -179,8 +213,43 @@ mod tests {
 					tag: Some(version.to_string()),
 					tag_format: Some("polkadot-{tag}".to_string()),
 					archive: format!("{name}-{}.tar.gz", target()?),
-					contents: vec![expected.binary()],
+					contents: vec![(expected.binary(), None)],
 					latest: parachain.binary.latest().map(|l| l.to_string()),
+				}) && cache == temp_dir.path()
+		));
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn system_with_chain_spec_generator_works() -> anyhow::Result<()> {
+		let expected = Parachain::System;
+		let runtime_version = "v1.2.7";
+		let para_id = 1000;
+
+		let temp_dir = tempdir()?;
+		let parachain = system(
+			para_id,
+			expected.binary(),
+			None,
+			Some(runtime_version),
+			"v.13.0",
+			Some("asset-hub-paseo-local"),
+			temp_dir.path(),
+		)
+		.await?
+		.unwrap();
+		assert_eq!(parachain.id, para_id);
+		assert_eq!(parachain.chain.unwrap(), "asset-hub-paseo-local");
+		let chain_spec_generator = parachain.chain_spec_generator.unwrap();
+		assert!(matches!(chain_spec_generator, Binary::Source { name, source, cache }
+			if name == "paseo-chain-spec-generator" && source == Source::GitHub(ReleaseArchive {
+					owner: "r0gue-io".to_string(),
+					repository: "paseo-runtimes".to_string(),
+					tag: Some(runtime_version.to_string()),
+					tag_format: None,
+					archive: format!("chain-spec-generator-{}.tar.gz", target()?),
+					contents: [("chain-spec-generator", Some("paseo-chain-spec-generator".to_string()))].to_vec(),
+					latest: chain_spec_generator.latest().map(|l| l.to_string()),
 				}) && cache == temp_dir.path()
 		));
 		Ok(())
@@ -193,8 +262,9 @@ mod tests {
 		let para_id = 2000;
 
 		let temp_dir = tempdir()?;
-		let parachain =
-			from(para_id, expected.binary(), Some(version), temp_dir.path()).await?.unwrap();
+		let parachain = from(para_id, expected.binary(), Some(version), None, temp_dir.path())
+			.await?
+			.unwrap();
 		assert_eq!(para_id, parachain.id);
 		assert!(matches!(parachain.binary, Binary::Source { name, source, cache }
 			if name == expected.binary() && source == Source::GitHub(ReleaseArchive {
@@ -203,7 +273,7 @@ mod tests {
 					tag: Some(version.to_string()),
 					tag_format: None,
 					archive: format!("{name}-{}.tar.gz", target()?),
-					contents: vec![expected.binary()],
+					contents: vec![(expected.binary(), None)],
 					latest: parachain.binary.latest().map(|l| l.to_string()),
 				}) && cache == temp_dir.path()
 		));
@@ -212,7 +282,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn from_handles_unsupported_command() -> anyhow::Result<()> {
-		assert!(from(2000, "none", None, tempdir()?.path()).await?.is_none());
+		assert!(from(2000, "none", None, None, &PathBuf::default()).await?.is_none());
 		Ok(())
 	}
 }

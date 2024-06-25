@@ -1,0 +1,12 @@
+# pop up parachain -f ./tests/networks/kusama.toml
+
+[relaychain]
+chain = "kusama-local"
+
+[[relaychain.nodes]]
+name = "alice"
+validator = true
+
+[[relaychain.nodes]]
+name = "bob"
+validator = true
