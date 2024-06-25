@@ -5,7 +5,8 @@ mod build;
 mod call;
 mod errors;
 mod new;
-mod templates;
+// TODO: undo pub once template crate is introduced
+pub mod templates;
 mod test;
 mod up;
 mod utils;
@@ -15,7 +16,7 @@ pub use call::{
 	call_smart_contract, dry_run_call, dry_run_gas_estimate_call, set_up_call, CallOpts,
 };
 pub use new::{create_smart_contract, is_valid_contract_name};
-pub use templates::{ContractType, Template};
+pub use templates::{ContractTemplate, ContractType};
 pub use test::{test_e2e_smart_contract, test_smart_contract};
 pub use up::{
 	dry_run_gas_estimate_instantiate, instantiate_smart_contract, set_up_deployment, UpOpts,
