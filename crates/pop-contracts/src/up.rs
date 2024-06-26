@@ -8,7 +8,7 @@ use crate::{
 };
 use contract_extrinsics::{
 	BalanceVariant, ErrorVariant, ExtrinsicOptsBuilder, InstantiateCommandBuilder, InstantiateExec,
-	TokenMetadata,
+	TokenMetadata, UploadCommandBuilder, UploadExec,
 };
 use ink_env::{DefaultEnvironment, Environment};
 use sp_core::Bytes;
@@ -75,6 +75,28 @@ pub async fn set_up_deployment(
 	return Ok(instantiate_exec);
 }
 
+/// Prepare `UploadExec` data to upload a contract.
+///
+/// # Arguments
+///
+/// * `up_opts` - attributes for the `up` command.
+///
+pub async fn set_up_upload(
+	up_opts: UpOpts,
+) -> anyhow::Result<UploadExec<DefaultConfig, DefaultEnvironment, Keypair>> {
+	let manifest_path = get_manifest_path(&up_opts.path)?;
+
+	let signer = create_signer(&up_opts.suri)?;
+	let extrinsic_opts = ExtrinsicOptsBuilder::new(signer)
+		.manifest_path(Some(manifest_path))
+		.url(up_opts.url.clone())
+		.done();
+
+	let upload_exec: UploadExec<DefaultConfig, DefaultEnvironment, Keypair> =
+		UploadCommandBuilder::new(extrinsic_opts).done().await?;
+	return Ok(upload_exec);
+}
+
 /// Estimate the gas required for instantiating a contract without modifying the state of the blockchain.
 ///
 /// # Arguments
@@ -101,6 +123,37 @@ pub async fn dry_run_gas_estimate_instantiate(
 		Err(ref err) => {
 			let error_variant =
 				ErrorVariant::from_dispatch_error(err, &instantiate_exec.client().metadata())?;
+			println!("{:?}", error_variant);
+			Err(Error::DryRunUploadContractError(format!("{error_variant}")))
+		},
+	}
+}
+pub struct UploadDryRunResult {
+	pub result: String,
+	pub code_hash: String,
+	pub deposit: String,
+}
+/// Estimate the gas required for uploading a contract without modifying the state of the blockchain.
+///
+/// # Arguments
+///
+/// * `upload_exec` - the preprocessed data to upload a contract.
+///
+pub async fn dry_run_upload(
+	upload_exec: &UploadExec<DefaultConfig, DefaultEnvironment, Keypair>,
+) -> Result<UploadDryRunResult, Error> {
+	match upload_exec.upload_code_rpc().await? {
+		Ok(result) => {
+			let upload_result = UploadDryRunResult {
+				result: String::from("Success!"),
+				code_hash: format!("{:?}", result.code_hash),
+				deposit: result.deposit.to_string(),
+			};
+			Ok(upload_result)
+		},
+		Err(ref err) => {
+			let error_variant =
+				ErrorVariant::from_dispatch_error(err, &upload_exec.client().metadata())?;
 			Err(Error::DryRunUploadContractError(format!("{error_variant}")))
 		},
 	}
@@ -119,6 +172,30 @@ pub async fn instantiate_smart_contract(
 ) -> anyhow::Result<String, ErrorVariant> {
 	let instantiate_result = instantiate_exec.instantiate(Some(gas_limit)).await?;
 	Ok(instantiate_result.contract_address.to_string())
+}
+
+/// Instantiate a contract.
+///
+/// # Arguments
+///
+/// * `upload_exec` - the preprocessed data to upload a contract.
+///
+pub async fn upload_smart_contract(
+	upload_exec: &UploadExec<DefaultConfig, DefaultEnvironment, Keypair>,
+) -> anyhow::Result<String, Error> {
+	let upload_result = upload_exec
+		.upload_code()
+		.await
+		.map_err(|error_variant| Error::UploadContractError(format!("{:?}", error_variant)))?;
+	if let Some(code_stored) = upload_result.code_stored {
+		return Ok(format!("0x{:?}", code_stored.code_hash));
+	} else {
+		let code_hash: String =
+			upload_exec.code().code_hash().iter().map(|b| format!("{:02x}", b)).collect();
+		Err(Error::UploadContractError(format!(
+			"This contract has already been uploaded with code hash: 0x{code_hash}"
+		)))
+	}
 }
 
 #[cfg(test)]
@@ -152,7 +229,7 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn test_set_up_deployment() -> Result<()> {
+	async fn set_up_deployment_works() -> Result<()> {
 		let temp_dir = generate_smart_contract_test_environment()?;
 		mock_build_process(temp_dir.path().join("testing"))?;
 		let up_opts = UpOpts {
@@ -169,8 +246,28 @@ mod tests {
 		set_up_deployment(up_opts).await?;
 		Ok(())
 	}
+
 	#[tokio::test]
-	async fn test_dry_run_gas_estimate_instantiate_throw_custom_error() -> Result<()> {
+	async fn set_up_upload_works() -> Result<()> {
+		let temp_dir = generate_smart_contract_test_environment()?;
+		mock_build_process(temp_dir.path().join("testing"))?;
+		let up_opts = UpOpts {
+			path: Some(temp_dir.path().join("testing")),
+			constructor: "new".to_string(),
+			args: ["false".to_string()].to_vec(),
+			value: "1000".to_string(),
+			gas_limit: None,
+			proof_size: None,
+			salt: None,
+			url: Url::parse(CONTRACTS_NETWORK_URL)?,
+			suri: "//Alice".to_string(),
+		};
+		set_up_upload(up_opts).await?;
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn dry_run_gas_estimate_instantiate_throw_custom_error() -> Result<()> {
 		let temp_dir = generate_smart_contract_test_environment()?;
 		mock_build_process(temp_dir.path().join("testing"))?;
 		let up_opts = UpOpts {
@@ -189,6 +286,27 @@ mod tests {
 			dry_run_gas_estimate_instantiate(&instantiate_exec).await,
 			Err(Error::DryRunUploadContractError(..))
 		));
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn dry_run_upload_throw_custom_error() -> Result<()> {
+		let temp_dir = generate_smart_contract_test_environment()?;
+		mock_build_process(temp_dir.path().join("testing"))?;
+		let up_opts = UpOpts {
+			path: Some(temp_dir.path().join("testing")),
+			constructor: "new".to_string(),
+			args: ["false".to_string()].to_vec(),
+			value: "1000".to_string(),
+			gas_limit: None,
+			proof_size: None,
+			salt: None,
+			url: Url::parse(CONTRACTS_NETWORK_URL)?,
+			suri: "//Alice".to_string(),
+		};
+		let upload_exec = set_up_upload(up_opts).await?;
+		let upload_result = dry_run_upload(&upload_exec).await?;
+		assert_eq!(upload_result.result, "Success!");
 		Ok(())
 	}
 }

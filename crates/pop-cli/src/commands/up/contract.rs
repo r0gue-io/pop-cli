@@ -5,8 +5,9 @@ use anyhow::anyhow;
 use clap::Args;
 use cliclack::{clear_screen, confirm, intro, log, outro, outro_cancel};
 use pop_contracts::{
-	build_smart_contract, dry_run_gas_estimate_instantiate, instantiate_smart_contract,
-	is_chain_alive, parse_hex_bytes, run_contracts_node, set_up_deployment, UpOpts,
+	build_smart_contract, dry_run_gas_estimate_instantiate, dry_run_upload,
+	instantiate_smart_contract, is_chain_alive, parse_hex_bytes, run_contracts_node,
+	set_up_deployment, set_up_upload, upload_smart_contract, UpOpts,
 };
 use sp_core::Bytes;
 use sp_weights::Weight;
@@ -52,6 +53,9 @@ pub struct UpContractCommand {
 	/// Perform a dry-run via RPC to estimate the gas usage. This does not submit a transaction.
 	#[clap(long)]
 	dry_run: bool,
+	/// Indicate only uploading the contract, without instantiation.
+	#[clap(short('u'), long)]
+	upload_only: bool,
 	/// Before start a local node, do not ask the user for confirmation.
 	#[clap(short('y'), long)]
 	skip_confirm: bool,
@@ -94,6 +98,10 @@ impl UpContractCommand {
 
 		// if build exists then proceed
 		intro(format!("{}: Deploy a smart contract", style(" Pop CLI ").black().on_magenta()))?;
+
+		if self.upload_only {
+			return self.upload_contract().await;
+		}
 
 		let instantiate_exec = set_up_deployment(UpOpts {
 			path: self.path.clone(),
@@ -139,5 +147,44 @@ impl UpContractCommand {
 			outro("Deployment complete")?;
 		}
 		Ok(())
+	}
+
+	/// Only uploads the contract without instantiating it.
+	async fn upload_contract(self) -> anyhow::Result<()> {
+		let upload_exec = set_up_upload(UpOpts {
+			path: self.path.clone(),
+			constructor: self.constructor.clone(),
+			args: self.args.clone(),
+			value: self.value.clone(),
+			gas_limit: self.gas_limit,
+			proof_size: self.proof_size,
+			salt: self.salt.clone(),
+			url: self.url.clone(),
+			suri: self.suri.clone(),
+		})
+		.await?;
+		if self.dry_run {
+			match dry_run_upload(&upload_exec).await {
+				Ok(upload_result) => {
+					log::info(format!("Result: {:?}", upload_result.result))?;
+					log::info(format!("Code Hash: {:?}", upload_result.code_hash))?;
+					log::info(format!("Deposit: {:?}", upload_result.deposit))?;
+				},
+				Err(_) => {
+					outro_cancel("Deployment failed.")?;
+					return Ok(());
+				},
+			};
+		} else {
+			let spinner = cliclack::spinner();
+			spinner.start("Uploading the contract...");
+			let code_hash = upload_smart_contract(&upload_exec)
+				.await
+				.map_err(|err| anyhow!("{} {}", "ERROR:", format!("{err:?}")))?;
+			spinner.stop(format!("Contract uploaded: The Code Hash is {:?}", code_hash));
+			outro("Deployment complete")?;
+			log::warning("NOTE: The contract has not been instantiated.")?;
+		}
+		return Ok(());
 	}
 }

@@ -57,4 +57,7 @@ pub enum Error {
 
 	#[error("HTTP error: {0}")]
 	HttpError(#[from] reqwest::Error),
+
+	#[error("{0}")]
+	UploadContractError(String),
 }
