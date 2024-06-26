@@ -123,37 +123,6 @@ pub async fn dry_run_gas_estimate_instantiate(
 		Err(ref err) => {
 			let error_variant =
 				ErrorVariant::from_dispatch_error(err, &instantiate_exec.client().metadata())?;
-			println!("{:?}", error_variant);
-			Err(Error::DryRunUploadContractError(format!("{error_variant}")))
-		},
-	}
-}
-pub struct UploadDryRunResult {
-	pub result: String,
-	pub code_hash: String,
-	pub deposit: String,
-}
-/// Estimate the gas required for uploading a contract without modifying the state of the blockchain.
-///
-/// # Arguments
-///
-/// * `upload_exec` - the preprocessed data to upload a contract.
-///
-pub async fn dry_run_upload(
-	upload_exec: &UploadExec<DefaultConfig, DefaultEnvironment, Keypair>,
-) -> Result<UploadDryRunResult, Error> {
-	match upload_exec.upload_code_rpc().await? {
-		Ok(result) => {
-			let upload_result = UploadDryRunResult {
-				result: String::from("Success!"),
-				code_hash: format!("{:?}", result.code_hash),
-				deposit: result.deposit.to_string(),
-			};
-			Ok(upload_result)
-		},
-		Err(ref err) => {
-			let error_variant =
-				ErrorVariant::from_dispatch_error(err, &upload_exec.client().metadata())?;
 			Err(Error::DryRunUploadContractError(format!("{error_variant}")))
 		},
 	}
