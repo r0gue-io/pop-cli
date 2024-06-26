@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
+
 use std::path::PathBuf;
 
 use crate::utils::helpers::write_to_file;

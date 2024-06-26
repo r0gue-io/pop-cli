@@ -1038,13 +1038,14 @@ checksum = "4b82cf0babdbd58558212896d1a4272303a57bdb245c2bf1147185fb45640e70"
 
 [[package]]
 name = "cliclack"
-version = "0.2.5"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4febf49beeedc40528e4956995631f1bbdb4d8804ef940b44351f393a996c739"
+checksum = "ac20862449f338d814085d6d025790896eb6ad8c7bb6f4e0633502796a16d49f"
 dependencies = [
  "console",
  "indicatif",
  "once_cell",
+ "strsim 0.11.1",
  "textwrap",
  "zeroize",
 ]
@@ -4449,6 +4450,7 @@ dependencies = [
  "env_logger",
  "git2",
  "os_info",
+ "pop-common",
  "pop-contracts",
  "pop-parachains",
  "pop-telemetry",
@@ -4464,6 +4466,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "pop-common"
+version = "0.2.0"
+dependencies = [
+ "anyhow",
+ "git2",
+ "git2_credentials",
+ "mockito",
+ "regex",
+ "reqwest 0.12.5",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "url",
+]
+
+[[package]]
 name = "pop-contracts"
 version = "0.2.0"
 dependencies = [
@@ -4472,12 +4492,15 @@ dependencies = [
  "contract-extrinsics",
  "duct",
  "flate2",
+ "heck 0.5.0",
  "ink_env",
  "mockito",
+ "pop-common",
  "reqwest 0.12.5",
- "serde",
  "sp-core",
  "sp-weights",
+ "strum 0.26.2",
+ "strum_macros 0.26.4",
  "subxt",
  "subxt-signer",
  "tar",
@@ -4495,15 +4518,11 @@ dependencies = [
  "askama",
  "duct",
  "flate2",
- "git2",
- "git2_credentials",
  "glob",
  "indexmap 2.2.6",
  "mockito",
- "regex",
+ "pop-common",
  "reqwest 0.12.5",
- "serde",
- "serde_json",
  "strum 0.26.2",
  "strum_macros 0.26.4",
  "symlink",
