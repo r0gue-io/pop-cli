@@ -4523,6 +4523,7 @@ dependencies = [
  "mockito",
  "pop-common",
  "reqwest 0.12.5",
+ "serde_json",
  "strum 0.26.2",
  "strum_macros 0.26.4",
  "symlink",

@@ -4,8 +4,10 @@ use crate::Error;
 use anyhow::Result;
 use duct::cmd;
 use pop_common::replace_in_file;
+use serde_json::Value;
 use std::{
 	collections::HashMap,
+	fs,
 	path::{Path, PathBuf},
 };
 use toml_edit::DocumentMut;
@@ -51,7 +53,12 @@ pub fn generate_chain_spec(path: Option<&Path>, para_id: u32) -> Result<String, 
 	cmd(&binary_path, vec!["build-spec", "--disable-default-bootnode"])
 		.stdout_path(plain_parachain_spec.clone())
 		.run()?;
-	replace_para_id(parachain_folder.join("plain-parachain-chainspec.json"), para_id)?;
+	let generated_para_id = get_parachain_id(&plain_parachain_spec)?;
+	replace_para_id(
+		parachain_folder.join("plain-parachain-chainspec.json"),
+		para_id,
+		generated_para_id,
+	)?;
 	let raw_chain_spec = format!("{}/raw-parachain-chainspec.json", parachain_folder.display());
 	cmd(
 		&binary_path,
@@ -115,13 +122,22 @@ fn parse_node_name(path: Option<&Path>) -> Result<String, Error> {
 	Ok(name.to_string())
 }
 
+/// Get the current parachain id from the generated chain specification file.
+fn get_parachain_id(plain_parachain_spec: &String) -> Result<u32> {
+	let data = fs::read_to_string(plain_parachain_spec)?;
+	let value = serde_json::from_str::<Value>(&data)?;
+	Ok(value.get("para_id").and_then(Value::as_u64).unwrap_or(1000) as u32)
+}
+
 /// Replaces the generated parachain id in the chain specification file with the provided para_id.
-fn replace_para_id(parachain_folder: PathBuf, para_id: u32) -> Result<()> {
+fn replace_para_id(parachain_folder: PathBuf, para_id: u32, generated_para_id: u32) -> Result<()> {
 	let mut replacements_in_cargo: HashMap<&str, &str> = HashMap::new();
+	let old_para_id = format!("\"para_id\": {generated_para_id}");
 	let new_para_id = format!("\"para_id\": {para_id}");
-	replacements_in_cargo.insert("\"para_id\": 1000", &new_para_id);
+	replacements_in_cargo.insert(&old_para_id, &new_para_id);
+	let old_parachain_id = format!("\"parachainId\": {generated_para_id}");
 	let new_parachain_id = format!("\"parachainId\": {para_id}");
-	replacements_in_cargo.insert("\"parachainId\": 1000", &new_parachain_id);
+	replacements_in_cargo.insert(&old_parachain_id, &new_parachain_id);
 	replace_in_file(parachain_folder, replacements_in_cargo)?;
 	Ok(())
 }
@@ -129,10 +145,10 @@ fn replace_para_id(parachain_folder: PathBuf, para_id: u32) -> Result<()> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::{new_parachain::instantiate_standard_template, Config, Template};
+	use crate::{new_parachain::instantiate_standard_template, Config, Template, Zombienet};
 	use anyhow::Result;
-	use std::{fs, io::Write, path::Path};
-	use tempfile::tempdir;
+	use std::{fs, fs::metadata, io::Write, os::unix::fs::PermissionsExt, path::Path};
+	use tempfile::{tempdir, Builder};
 
 	fn setup_template_and_instantiate() -> Result<tempfile::TempDir> {
 		let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
@@ -153,6 +169,43 @@ mod tests {
 		fs::create_dir(&target_dir.join("release"))?;
 		// Create a release file
 		fs::File::create(target_dir.join("release/parachain-template-node"))?;
+		Ok(())
+	}
+
+	// Function that fetch a binary from pop network
+	async fn fetch_binary(cache: &Path) -> Result<String, Error> {
+		let config = Builder::new().suffix(".toml").tempfile()?;
+		writeln!(
+			config.as_file(),
+			r#"
+[relaychain]
+chain = "rococo-local"
+
+[[parachains]]
+id = 4385
+default_command = "pop-node"
+"#
+		)?;
+		let mut zombienet =
+			Zombienet::new(&cache, config.path().to_str().unwrap(), None, None, None, None, None)
+				.await?;
+		let mut binary_name: String = "".to_string();
+		for binary in zombienet.binaries().filter(|b| !b.exists() && b.name() == "pop-node") {
+			binary_name = format!("{}-{}", binary.name(), binary.latest().unwrap());
+			binary.source(true, &(), true).await?;
+		}
+		Ok(binary_name)
+	}
+
+	// Replace the binary fetched with the mocked binary
+	fn replace_mock_with_binary(temp_dir: &Path, binary_name: String) -> Result<(), Error> {
+		let content = fs::read(temp_dir.join(binary_name))?;
+		fs::write(temp_dir.join("target/release/parachain-template-node"), content)?;
+		// Make executable
+		let mut perms =
+			metadata(temp_dir.join("target/release/parachain-template-node"))?.permissions();
+		perms.set_mode(0o755);
+		std::fs::set_permissions(temp_dir.join("target/release/parachain-template-node"), perms)?;
 		Ok(())
 	}
 
@@ -190,6 +243,28 @@ mod tests {
 			binary_path(Some(Path::new(temp_dir.path()))),
 			Err(Error::MissingBinary(error)) if error == "parachain-template-node"
 		));
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn generate_files_works() -> anyhow::Result<()> {
+		let temp_dir =
+			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
+		mock_build_process(temp_dir.path())?;
+		let binary_name = fetch_binary(temp_dir.path()).await?;
+		replace_mock_with_binary(temp_dir.path(), binary_name)?;
+		// Test generate chain spec
+		let chain_spec = generate_chain_spec(Some(temp_dir.path()), 2001)?;
+		let chain_spec_path = Path::new(&chain_spec);
+		assert!(chain_spec_path.exists());
+		let content = fs::read_to_string(chain_spec_path).expect("Could not read file");
+		assert!(content.contains("\"para_id\": 2001"));
+		// Test export wasm file
+		let wasm_file = export_wasm_file(&chain_spec, Some(temp_dir.path()), 2001)?;
+		assert!(Path::new(&wasm_file).exists());
+		// Test generate parachain state file
+		let genesis_file = generate_genesis_state_file(&chain_spec, Some(temp_dir.path()), 2001)?;
+		assert!(Path::new(&genesis_file).exists());
 		Ok(())
 	}
 
@@ -242,6 +317,15 @@ mod tests {
 	}
 
 	#[test]
+	fn get_parachain_id_works() -> Result<()> {
+		let mut file = tempfile::NamedTempFile::new()?;
+		writeln!(file, r#"{{ "name": "Local Testnet", "para_id": 2002 }}"#)?;
+		let get_parachain_id = get_parachain_id(&file.path().display().to_string())?;
+		assert_eq!(get_parachain_id, 2002);
+		Ok(())
+	}
+
+	#[test]
 	fn replace_para_id_works() -> Result<()> {
 		let temp_dir = tempfile::tempdir()?;
 		let file_path = temp_dir.path().join("chain-spec.json");
@@ -256,7 +340,7 @@ mod tests {
 				}},
 			"#
 		)?;
-		replace_para_id(file_path.clone(), 2001)?;
+		replace_para_id(file_path.clone(), 2001, 1000)?;
 		let content = fs::read_to_string(file_path).expect("Could not read file");
 		assert_eq!(
 			content.trim(),
