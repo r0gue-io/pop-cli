@@ -13,9 +13,9 @@ use cliclack::{
 	log::{self, success, warning},
 	outro, outro_cancel, set_theme,
 };
+use pop_common::{Git, GitHub, Release};
 use pop_parachains::{
-	instantiate_template_dir, is_initial_endowment_valid, Config, Git, GitHub, Provider, Release,
-	Template,
+	instantiate_template_dir, is_initial_endowment_valid, Config, Provider, Template,
 };
 use strum::VariantArray;
 
@@ -55,21 +55,6 @@ pub struct NewParachainCommand {
 		default_value = DEFAULT_INITIAL_ENDOWMENT
 	)]
 	pub(crate) initial_endowment: Option<String>,
-}
-
-#[macro_export]
-macro_rules! enum_variants {
-	($e: ty) => {{
-		PossibleValuesParser::new(
-			<$e>::VARIANTS
-				.iter()
-				.map(|p| PossibleValue::new(p.as_ref()))
-				.collect::<Vec<_>>(),
-		)
-		.try_map(|s| {
-			<$e>::from_str(&s).map_err(|e| format!("could not convert from {s} to provider"))
-		})
-	}};
 }
 
 impl NewParachainCommand {
@@ -188,7 +173,7 @@ fn generate_parachain_from_template(
 	}
 	spinner.clear();
 
-	// replace spinner with success
+	// Replace spinner with success.
 	console::Term::stderr().clear_last_lines(2)?;
 	success(format!(
 		"Generation complete{}",

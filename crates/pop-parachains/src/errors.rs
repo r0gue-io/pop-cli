@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0
+
 use crate::templates;
 use thiserror::Error;
 use zombienet_sdk::OrchestratorError;
 
 #[derive(Error, Debug)]
 pub enum Error {
-	#[error("a git error occurred: {0}")]
-	Git(String),
-
 	#[error("Failed to access the current directory")]
 	CurrentDirAccess,
 

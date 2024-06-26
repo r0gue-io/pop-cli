@@ -12,6 +12,7 @@ use crate::{
 	},
 	Binary, Error,
 };
+use pop_common::GitHub;
 use std::path::Path;
 use strum::{EnumProperty as _, VariantArray as _};
 use strum_macros::{AsRefStr, EnumProperty, VariantArray};
@@ -55,7 +56,7 @@ impl TryInto for &Runtime {
 		Ok(match self {
 			_ => {
 				// Source from GitHub release asset
-				let repo = crate::GitHub::parse(self.repository())?;
+				let repo = GitHub::parse(self.repository())?;
 				let name = self.name().to_lowercase();
 				let binary = self.binary();
 				Source::GitHub(ReleaseArchive {
