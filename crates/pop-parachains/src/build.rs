@@ -1,13 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::Error;
+use anyhow::Result;
 use duct::cmd;
-use std::{
-	collections::HashMap,
-	fs,
-	io::{Read, Write},
-	path::PathBuf,
-};
+use pop_common::replace_in_file;
+use std::{collections::HashMap, path::PathBuf};
 use toml_edit::DocumentMut;
 
 /// Build the parachain.
@@ -116,29 +113,13 @@ fn parse_node_name(path: &Option<PathBuf>) -> Result<String, Error> {
 }
 
 /// Replaces the generated parachain id in the chain specification file with the provided para_id.
-fn replace_para_id(parachain_folder: PathBuf, para_id: u32) -> Result<(), Error> {
+fn replace_para_id(parachain_folder: PathBuf, para_id: u32) -> Result<()> {
 	let mut replacements_in_cargo: HashMap<&str, &str> = HashMap::new();
 	let new_para_id = format!("\"para_id\": {para_id}");
 	replacements_in_cargo.insert("\"para_id\": 1000", &new_para_id);
 	let new_parachain_id = format!("\"parachainId\": {para_id}");
 	replacements_in_cargo.insert("\"parachainId\": 1000", &new_parachain_id);
 	replace_in_file(parachain_folder, replacements_in_cargo)?;
-	Ok(())
-}
-
-// TODO: Use from common_crate in this PR: https://github.com/r0gue-io/pop-cli/pull/201/files when merged.
-fn replace_in_file(file_path: PathBuf, replacements: HashMap<&str, &str>) -> Result<(), Error> {
-	// Read the file content
-	let mut file_content = String::new();
-	fs::File::open(&file_path)?.read_to_string(&mut file_content)?;
-	// Perform the replacements
-	let mut modified_content = file_content;
-	for (target, replacement) in &replacements {
-		modified_content = modified_content.replace(target, replacement);
-	}
-	// Write the modified content back to the file
-	let mut file = fs::File::create(&file_path)?;
-	file.write_all(modified_content.as_bytes())?;
 	Ok(())
 }
 
