@@ -170,8 +170,11 @@ pub async fn dry_run_upload(
 pub async fn instantiate_smart_contract(
 	instantiate_exec: InstantiateExec<DefaultConfig, DefaultEnvironment, Keypair>,
 	gas_limit: Weight,
-) -> anyhow::Result<String, ErrorVariant> {
-	let instantiate_result = instantiate_exec.instantiate(Some(gas_limit)).await?;
+) -> anyhow::Result<String, Error> {
+	let instantiate_result = instantiate_exec
+		.instantiate(Some(gas_limit))
+		.await
+		.map_err(|error_variant| Error::InstantiateContractError(format!("{:?}", error_variant)))?;
 	Ok(instantiate_result.contract_address.to_string())
 }
 
@@ -202,7 +205,7 @@ pub async fn upload_smart_contract(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::{create_smart_contract, errors::Error, Template};
+	use crate::{create_smart_contract, errors::Error, run_contracts_node, Template};
 	use anyhow::Result;
 	use std::{env, fs};
 	use url::Url;
@@ -268,6 +271,28 @@ mod tests {
 	}
 
 	#[tokio::test]
+	async fn dry_run_gas_estimate_instantiate_works() -> Result<()> {
+		let temp_dir = generate_smart_contract_test_environment()?;
+		mock_build_process(temp_dir.path().join("testing"))?;
+		let up_opts = UpOpts {
+			path: Some(temp_dir.path().join("testing")),
+			constructor: "new".to_string(),
+			args: ["false".to_string()].to_vec(),
+			value: "0".to_string(),
+			gas_limit: None,
+			proof_size: None,
+			salt: None,
+			url: Url::parse(CONTRACTS_NETWORK_URL)?,
+			suri: "//Alice".to_string(),
+		};
+		let instantiate_exec = set_up_deployment(up_opts).await?;
+		let weight = dry_run_gas_estimate_instantiate(&instantiate_exec).await?;
+		assert!(weight.ref_time() > 0);
+		assert!(weight.proof_size() > 0);
+		Ok(())
+	}
+
+	#[tokio::test]
 	async fn dry_run_gas_estimate_instantiate_throw_custom_error() -> Result<()> {
 		let temp_dir = generate_smart_contract_test_environment()?;
 		mock_build_process(temp_dir.path().join("testing"))?;
@@ -275,7 +300,7 @@ mod tests {
 			path: Some(temp_dir.path().join("testing")),
 			constructor: "new".to_string(),
 			args: ["false".to_string()].to_vec(),
-			value: "1000".to_string(),
+			value: "10000".to_string(),
 			gas_limit: None,
 			proof_size: None,
 			salt: None,
@@ -308,6 +333,61 @@ mod tests {
 		let upload_exec = set_up_upload(up_opts).await?;
 		let upload_result = dry_run_upload(&upload_exec).await?;
 		assert_eq!(upload_result.result, "Success!");
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn instantiate_and_upload() -> Result<()> {
+		const LOCALHOST_URL: &str = "ws://127.0.0.1:9944";
+		let temp_dir = generate_smart_contract_test_environment()?;
+		mock_build_process(temp_dir.path().join("testing"))?;
+		// Run contracts-node
+		let cache = temp_dir.path().join("cache");
+		let mut process = run_contracts_node(cache).await?;
+
+		let upload_exec = set_up_upload(UpOpts {
+			path: Some(temp_dir.path().join("testing")),
+			constructor: "new".to_string(),
+			args: [].to_vec(),
+			value: "1000".to_string(),
+			gas_limit: None,
+			proof_size: None,
+			salt: None,
+			url: Url::parse(LOCALHOST_URL)?,
+			suri: "//Alice".to_string(),
+		})
+		.await?;
+
+		// Only upload a Smart Contract
+		let upload_result = upload_smart_contract(&upload_exec).await?;
+		assert!(upload_result.starts_with("0x"));
+		//Error when Smart Contract has been already uploaded
+		assert!(matches!(
+			upload_smart_contract(&upload_exec).await,
+			Err(Error::UploadContractError(..))
+		));
+
+		// Instantiate a Smart Contract
+		let instantiate_exec = set_up_deployment(UpOpts {
+			path: Some(temp_dir.path().join("testing")),
+			constructor: "new".to_string(),
+			args: ["false".to_string()].to_vec(),
+			value: "0".to_string(),
+			gas_limit: None,
+			proof_size: None,
+			salt: Some(Bytes::from(vec![0x00])),
+			url: Url::parse(LOCALHOST_URL)?,
+			suri: "//Alice".to_string(),
+		})
+		.await?;
+		// First gas estimation
+		let weight = dry_run_gas_estimate_instantiate(&instantiate_exec).await?;
+		assert!(weight.ref_time() > 0);
+		assert!(weight.proof_size() > 0);
+		// Instantiate smart contract
+		let address = instantiate_smart_contract(instantiate_exec, weight).await?;
+		assert!(address.starts_with("5"));
+		process.kill()?;
 		Ok(())
 	}
 }

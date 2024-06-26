@@ -60,4 +60,7 @@ pub enum Error {
 
 	#[error("{0}")]
 	UploadContractError(String),
+
+	#[error("{0}")]
+	InstantiateContractError(String),
 }

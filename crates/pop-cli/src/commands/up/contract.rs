@@ -137,9 +137,8 @@ impl UpContractCommand {
 		if !self.dry_run {
 			let spinner = cliclack::spinner();
 			spinner.start("Uploading and instantiating the contract...");
-			let contract_address = instantiate_smart_contract(instantiate_exec, weight_limit)
-				.await
-				.map_err(|err| anyhow!("{} {}", "ERROR:", format!("{err:?}")))?;
+			let contract_address =
+				instantiate_smart_contract(instantiate_exec, weight_limit).await?;
 			spinner.stop(format!(
 				"Contract deployed and instantiated: The Contract Address is {:?}",
 				contract_address
@@ -178,9 +177,7 @@ impl UpContractCommand {
 		} else {
 			let spinner = cliclack::spinner();
 			spinner.start("Uploading the contract...");
-			let code_hash = upload_smart_contract(&upload_exec)
-				.await
-				.map_err(|err| anyhow!("{} {}", "ERROR:", format!("{err:?}")))?;
+			let code_hash = upload_smart_contract(&upload_exec).await?;
 			spinner.stop(format!("Contract uploaded: The Code Hash is {:?}", code_hash));
 			outro("Deployment complete")?;
 			log::warning("NOTE: The contract has not been instantiated.")?;
