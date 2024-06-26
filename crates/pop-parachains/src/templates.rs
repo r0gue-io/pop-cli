@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
+
 use strum::{EnumMessage as _, EnumProperty as _, VariantArray as _};
 use strum_macros::{AsRefStr, Display, EnumMessage, EnumProperty, EnumString, VariantArray};
 use thiserror::Error;
@@ -209,7 +210,7 @@ impl Template {
 		self.get_message().unwrap_or_default()
 	}
 
-	/// Get the detailed message of the template.
+	/// Get the description of the template.
 	pub fn description(&self) -> &str {
 		self.get_detailed_message().unwrap_or_default()
 	}

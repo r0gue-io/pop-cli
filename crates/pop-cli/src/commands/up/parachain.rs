@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
+
 use crate::style::{style, Theme};
 use clap::Args;
 use cliclack::{
@@ -16,14 +17,23 @@ pub(crate) struct ZombienetCommand {
 	/// The Zombienet network configuration file to be used.
 	#[arg(short, long)]
 	file: String,
-	/// The version of Polkadot to be used for the relay chain, as per the release tag (e.g.
-	/// "v1.11.0").
+	/// The version of the binary to be used for the relay chain, as per the release tag (e.g. "v1.13.0").
+	/// See https://github.com/paritytech/polkadot-sdk/releases for more details.
 	#[arg(short, long)]
 	relay_chain: Option<String>,
-	/// The version of Polkadot to be used for a system parachain, as per the release tag (e.g.
-	/// "v1.11.0"). Defaults to the relay chain version if not specified.
+	/// The version of the runtime to be used for the relay chain, as per the release tag (e.g. "v1.2.7").
+	/// See https://github.com/polkadot-fellows/runtimes/releases for more details.
+	#[arg(short = 'R', long)]
+	relay_chain_runtime: Option<String>,
+	/// The version of the binary to be used for system parachains, as per the release tag (e.g. "v1.13.0").
+	/// Defaults to the relay chain version if not specified.
+	/// See https://github.com/paritytech/polkadot-sdk/releases for more details.
 	#[arg(short, long)]
 	system_parachain: Option<String>,
+	/// The version of the runtime to be used for system parachains, as per the release tag (e.g. "v1.2.7").
+	/// See https://github.com/polkadot-fellows/runtimes/releases for more details.
+	#[arg(short = 'S', long)]
+	system_parachain_runtime: Option<String>,
 	/// The url of the git repository of a parachain to be used, with branch/release tag/commit specified as #fragment (e.g. 'https://github.com/org/repository#ref').
 	/// A specific binary name can also be optionally specified via query string parameter (e.g. 'https://github.com/org/repository?binaryname#ref'), defaulting to the name of the repository when not specified.
 	#[arg(short, long)]
@@ -35,8 +45,10 @@ pub(crate) struct ZombienetCommand {
 	#[arg(short, long, action)]
 	verbose: bool,
 }
+
 impl ZombienetCommand {
-	pub(crate) async fn execute(&self) -> anyhow::Result<()> {
+	/// Executes the command.
+	pub(crate) async fn execute(self) -> anyhow::Result<()> {
 		clear_screen()?;
 		intro(format!("{}: Launch a local network", style(" Pop CLI ").black().on_magenta()))?;
 		set_theme(Theme);
@@ -46,8 +58,10 @@ impl ZombienetCommand {
 		let mut zombienet = match Zombienet::new(
 			&cache,
 			&self.file,
-			self.relay_chain.as_ref().map(|v| v.as_str()),
-			self.system_parachain.as_ref().map(|v| v.as_str()),
+			self.relay_chain.as_deref(),
+			self.relay_chain_runtime.as_deref(),
+			self.system_parachain.as_deref(),
+			self.system_parachain_runtime.as_deref(),
 			self.parachain.as_ref(),
 		)
 		.await
@@ -164,7 +178,7 @@ impl ZombienetCommand {
 			))
 			.dim()
 			.to_string();
-			log::warning(format!("⚠️ The following binaries specified in the network configuration file cannot be found locally:\n   {list}"))?;
+			log::warning(format!("⚠️ The following binaries required to launch the network cannot be found locally:\n   {list}"))?;
 
 			// Prompt for automatic sourcing of binaries
 			let list = style(format!(
@@ -304,10 +318,7 @@ impl ZombienetCommand {
 	}
 }
 
-pub(crate) async fn run_custom_command(
-	spinner: &ProgressBar,
-	command: &str,
-) -> Result<(), anyhow::Error> {
+async fn run_custom_command(spinner: &ProgressBar, command: &str) -> Result<(), anyhow::Error> {
 	spinner.set_message(format!("Spinning up network & running command: {}", command.to_string()));
 	sleep(Duration::from_secs(15)).await;
 

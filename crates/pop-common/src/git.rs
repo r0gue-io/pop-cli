@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
+
 use crate::{errors::Error, APP_USER_AGENT};
 use anyhow::Result;
 use git2::{
@@ -12,7 +13,7 @@ use url::Url;
 /// A helper for handling Git operations.
 pub struct Git;
 impl Git {
-	pub(crate) fn clone(url: &Url, working_dir: &Path, reference: Option<&str>) -> Result<()> {
+	pub fn clone(url: &Url, working_dir: &Path, reference: Option<&str>) -> Result<()> {
 		let mut fo = FetchOptions::new();
 		if reference.is_none() {
 			fo.depth(1);
@@ -248,7 +249,7 @@ impl GitHub {
 		))?)
 	}
 
-	pub(crate) fn name(repo: &Url) -> Result<&str> {
+	pub fn name(repo: &Url) -> Result<&str> {
 		let path_segments = repo
 			.path_segments()
 			.map(|c| c.collect::<Vec<_>>())

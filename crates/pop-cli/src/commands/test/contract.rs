@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use std::path::PathBuf;
-
+use crate::style::style;
 use clap::Args;
 use cliclack::{clear_screen, intro, outro};
 use pop_contracts::{test_e2e_smart_contract, test_smart_contract};
-
-use crate::style::style;
+use std::path::PathBuf;
 
 #[derive(Args)]
 pub(crate) struct TestContractCommand {
@@ -17,7 +15,8 @@ pub(crate) struct TestContractCommand {
 }
 
 impl TestContractCommand {
-	pub(crate) fn execute(&self) -> anyhow::Result<&str> {
+	/// Executes the command.
+	pub(crate) fn execute(self) -> anyhow::Result<&'static str> {
 		clear_screen()?;
 
 		if self.features.is_some() && self.features.clone().unwrap().contains("e2e-tests") {

@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
+
 use crate::errors::Error;
 use duct::cmd;
 use std::path::PathBuf;
@@ -42,7 +43,11 @@ mod tests {
 		let temp_dir = tempfile::tempdir()?;
 		let temp_contract_dir = temp_dir.path().join("test_contract");
 		fs::create_dir(&temp_contract_dir)?;
-		crate::create_smart_contract("test_contract", temp_contract_dir.as_path())?;
+		crate::create_smart_contract(
+			"test_contract",
+			temp_contract_dir.as_path(),
+			&crate::Template::Standard,
+		)?;
 		Ok(temp_dir)
 	}
 
