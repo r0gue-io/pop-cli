@@ -49,6 +49,9 @@ pub struct UpContractCommand {
 	/// - with a password "//Alice///SECRET_PASSWORD"
 	#[clap(name = "suri", long, short, default_value = "//Alice")]
 	suri: String,
+	/// Perform a dry-run via RPC to estimate the gas usage. This does not submit a transaction.
+	#[clap(long)]
+	dry_run: bool,
 	/// Before start a local node, do not ask the user for confirmation.
 	#[clap(short('y'), long)]
 	skip_confirm: bool,
@@ -92,8 +95,6 @@ impl UpContractCommand {
 		// if build exists then proceed
 		intro(format!("{}: Deploy a smart contract", style(" Pop CLI ").black().on_magenta()))?;
 
-		println!("{}: Deploying a smart contract", style(" Pop CLI ").black().on_magenta());
-
 		let instantiate_exec = set_up_deployment(UpOpts {
 			path: self.path.clone(),
 			constructor: self.constructor.clone(),
@@ -115,7 +116,7 @@ impl UpContractCommand {
 			spinner.start("Doing a dry run to estimate the gas...");
 			weight_limit = match dry_run_gas_estimate_instantiate(&instantiate_exec).await {
 				Ok(w) => {
-					log::info(format!("Gas limit {:?}", w))?;
+					log::info(format!("Gas limit: {:?}", w))?;
 					w
 				},
 				Err(e) => {
@@ -125,16 +126,18 @@ impl UpContractCommand {
 				},
 			};
 		}
-		let spinner = cliclack::spinner();
-		spinner.start("Uploading and instantiating the contract...");
-		let contract_address = instantiate_smart_contract(instantiate_exec, weight_limit)
-			.await
-			.map_err(|err| anyhow!("{} {}", "ERROR:", format!("{err:?}")))?;
-		spinner.stop(format!(
-			"Contract deployed and instantiated: The Contract Address is {:?}",
-			contract_address
-		));
-		outro("Deployment complete")?;
+		if !self.dry_run {
+			let spinner = cliclack::spinner();
+			spinner.start("Uploading and instantiating the contract...");
+			let contract_address = instantiate_smart_contract(instantiate_exec, weight_limit)
+				.await
+				.map_err(|err| anyhow!("{} {}", "ERROR:", format!("{err:?}")))?;
+			spinner.stop(format!(
+				"Contract deployed and instantiated: The Contract Address is {:?}",
+				contract_address
+			));
+			outro("Deployment complete")?;
+		}
 		Ok(())
 	}
 }
