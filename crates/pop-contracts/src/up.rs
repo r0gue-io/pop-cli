@@ -134,7 +134,7 @@ pub struct UploadDryRunResult {
 	pub deposit: String,
 }
 
-/// Estimate the gas required for uploading a contract without modifying the state of the blockchain.
+/// Performs a dry-run for uploading a contract without modifying the state of the blockchain.
 ///
 /// # Arguments
 ///
@@ -175,7 +175,7 @@ pub async fn instantiate_smart_contract(
 	Ok(instantiate_result.contract_address.to_string())
 }
 
-/// Instantiate a contract.
+/// Upload a contract.
 ///
 /// # Arguments
 ///

@@ -70,7 +70,7 @@ let contract_address = instantiate_smart_contract(instantiate_exec,  weight_limi
 			.map_err(|err| anyhow!("{} {}", "ERROR:", format!("{err:?}")))?;
 ```
 
-To only upload an Smart Contract:
+Only upload an Smart Contract:
 ```rust
 use pop_contracts::{ upload_smart_contract, set_up_upload, UpOpts};
 

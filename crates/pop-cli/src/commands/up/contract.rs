@@ -149,7 +149,7 @@ impl UpContractCommand {
 		Ok(())
 	}
 
-	/// Only uploads the contract without instantiating it.
+	/// Uploads only the contract without instantiating it.
 	async fn upload_contract(self) -> anyhow::Result<()> {
 		let upload_exec = set_up_upload(UpOpts {
 			path: self.path.clone(),
