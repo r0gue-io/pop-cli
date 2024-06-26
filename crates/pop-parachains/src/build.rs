@@ -4,7 +4,10 @@ use crate::Error;
 use anyhow::Result;
 use duct::cmd;
 use pop_common::replace_in_file;
-use std::{collections::HashMap, path::PathBuf};
+use std::{
+	collections::HashMap,
+	path::{Path, PathBuf},
+};
 use toml_edit::DocumentMut;
 
 /// Build the parachain.
@@ -24,9 +27,9 @@ pub fn build_parachain(path: &Option<PathBuf>) -> Result<(), Error> {
 /// # Arguments
 ///
 /// * `path` - Location of the parachain project.
-pub fn binary_path(path: &Option<PathBuf>) -> Result<String, Error> {
+pub fn binary_path(path: Option<&Path>) -> Result<String, Error> {
 	let node_name = parse_node_name(path)?;
-	let release_path = path.clone().unwrap_or("./".into()).join("target/release");
+	let release_path = path.unwrap_or(Path::new("./")).join("target/release");
 	let release = release_path.join(node_name.clone());
 	if !release.exists() {
 		return Err(Error::MissingBinary(node_name));
@@ -40,8 +43,8 @@ pub fn binary_path(path: &Option<PathBuf>) -> Result<String, Error> {
 ///
 /// * `path` - Location of the parachain project.
 /// * `para_id` - The parachain ID to be replaced in the specification.
-pub fn generate_chain_spec(path: &Option<PathBuf>, para_id: u32) -> Result<String, Error> {
-	let parachain_folder = path.clone().unwrap_or("./".into());
+pub fn generate_chain_spec(path: Option<&Path>, para_id: u32) -> Result<String, Error> {
+	let parachain_folder = path.unwrap_or(Path::new("./"));
 	let binary_path = binary_path(path)?;
 	let plain_parachain_spec =
 		format!("{}/plain-parachain-chainspec.json", parachain_folder.display());
@@ -68,10 +71,10 @@ pub fn generate_chain_spec(path: &Option<PathBuf>, para_id: u32) -> Result<Strin
 /// * `para_id` - The parachain ID will be used to name the wasm file.
 pub fn export_wasm_file(
 	chain_spec: &String,
-	path: &Option<PathBuf>,
+	path: Option<&Path>,
 	para_id: u32,
 ) -> Result<String, Error> {
-	let parachain_folder = path.clone().unwrap_or("./".into());
+	let parachain_folder = path.unwrap_or(Path::new("./"));
 	let binary_path = binary_path(path)?;
 	let wasm_file = format!("{}/para-{}-wasm", parachain_folder.display(), para_id);
 	cmd(binary_path, vec!["export-genesis-wasm", "--chain", &chain_spec, &wasm_file]).run()?;
@@ -87,10 +90,10 @@ pub fn export_wasm_file(
 /// * `para_id` - The parachain ID will be used to name the wasm file.
 pub fn generate_genesis_state_file(
 	chain_spec: &String,
-	path: &Option<PathBuf>,
+	path: Option<&Path>,
 	para_id: u32,
 ) -> Result<String, Error> {
-	let parachain_folder = path.clone().unwrap_or("./".into());
+	let parachain_folder = path.unwrap_or(Path::new("./"));
 	let binary_path = binary_path(path)?;
 	let wasm_file = format!("{}/para-{}-genesis-state", parachain_folder.display(), para_id);
 	cmd(binary_path.clone(), vec!["export-genesis-state", "--chain", &chain_spec, &wasm_file])
@@ -99,8 +102,8 @@ pub fn generate_genesis_state_file(
 }
 
 /// Parses the node name from the Cargo.toml file located in the project path.
-fn parse_node_name(path: &Option<PathBuf>) -> Result<String, Error> {
-	let cargo_toml = path.clone().unwrap_or("./".into()).join("node/Cargo.toml");
+fn parse_node_name(path: Option<&Path>) -> Result<String, Error> {
+	let cargo_toml = path.unwrap_or(Path::new("./")).join("node/Cargo.toml");
 	let contents = std::fs::read_to_string(&cargo_toml)?;
 	let config = contents.parse::<DocumentMut>().map_err(|err| Error::TomlError(err.into()))?;
 	let name = config
@@ -171,7 +174,7 @@ mod tests {
 		let temp_dir =
 			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
 		mock_build_process(temp_dir.path())?;
-		let release_path = binary_path(&Some(PathBuf::from(temp_dir.path())))?;
+		let release_path = binary_path(Some(Path::new(temp_dir.path())))?;
 		assert_eq!(
 			release_path,
 			format!("{}/target/release/parachain-template-node", temp_dir.path().display())
@@ -184,7 +187,7 @@ mod tests {
 		let temp_dir =
 			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
 		assert!(matches!(
-			binary_path(&Some(PathBuf::from(temp_dir.path()))),
+			binary_path(Some(Path::new(temp_dir.path()))),
 			Err(Error::MissingBinary(error)) if error == "parachain-template-node"
 		));
 		Ok(())
@@ -194,7 +197,7 @@ mod tests {
 	fn parse_node_name_works() -> Result<()> {
 		let temp_dir =
 			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
-		let name = parse_node_name(&Some(PathBuf::from(temp_dir.path())))?;
+		let name = parse_node_name(Some(Path::new(temp_dir.path())))?;
 		assert_eq!(name, "parachain-template-node");
 		Ok(())
 	}
@@ -202,10 +205,7 @@ mod tests {
 	#[test]
 	fn parse_node_name_node_cargo_no_exist() -> Result<()> {
 		let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
-		assert!(matches!(
-			parse_node_name(&Some(PathBuf::from(temp_dir.path()))),
-			Err(Error::IO(..))
-		));
+		assert!(matches!(parse_node_name(Some(Path::new(temp_dir.path()))), Err(Error::IO(..))));
 		Ok(())
 	}
 
@@ -216,7 +216,7 @@ mod tests {
 		let mut cargo_file = fs::File::create(temp_dir.path().join("node/Cargo.toml"))?;
 		writeln!(cargo_file, "[")?;
 		assert!(matches!(
-			parse_node_name(&Some(PathBuf::from(temp_dir.path()))),
+			parse_node_name(Some(Path::new(temp_dir.path()))),
 			Err(Error::TomlError(..))
 		));
 		Ok(())
@@ -235,7 +235,7 @@ mod tests {
 			"#
 		)?;
 		assert!(matches!(
-			parse_node_name(&Some(PathBuf::from(temp_dir.path()))),
+			parse_node_name(Some(Path::new(temp_dir.path()))),
 			Err(Error::Config(error)) if error == "expected `name`",
 		));
 		Ok(())

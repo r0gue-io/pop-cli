@@ -40,16 +40,17 @@ impl BuildParachainCommand {
 		build_parachain(&self.path)?;
 
 		success("Build Completed Successfully!")?;
-		let binary = binary_path(&self.path)?;
+		let binary = binary_path(self.path.as_deref())?;
 		let mut generated_files = vec![format!("Binary generated at: \"{binary}\"")];
 		// If para_id is provided, generate the chain spec
 		if let Some(para_id) = self.para_id {
-			let chain_spec = generate_chain_spec(&self.path, para_id)?;
+			let chain_spec = generate_chain_spec(self.path.as_deref(), para_id)?;
 			generated_files
 				.push(format!("New raw chain specification file generated at: {chain_spec}"));
-			let wasm_file = export_wasm_file(&chain_spec, &self.path, para_id)?;
+			let wasm_file = export_wasm_file(&chain_spec, self.path.as_deref(), para_id)?;
 			generated_files.push(format!("WebAssembly runtime file exported at: {wasm_file}"));
-			let genesis_state_file = generate_genesis_state_file(&chain_spec, &self.path, para_id)?;
+			let genesis_state_file =
+				generate_genesis_state_file(&chain_spec, self.path.as_deref(), para_id)?;
 			generated_files.push(format!("Genesis State exported at {genesis_state_file} file"));
 			console::Term::stderr().clear_last_lines(5)?;
 		}
