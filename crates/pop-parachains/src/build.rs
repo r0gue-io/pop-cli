@@ -37,16 +37,15 @@ pub fn binary_path(path: Option<&Path>) -> Result<String, Error> {
 	Ok(release.display().to_string())
 }
 
-/// Generates a raw chain specification file for a parachain.
+/// Generates the plain text chain specification for a parachain.
 ///
 /// # Arguments
 /// * `path` - Location of the parachain project.
 /// * `para_id` - The parachain ID to be replaced in the specification.
-pub fn generate_chain_spec(path: Option<&Path>, para_id: u32) -> Result<String, Error> {
+pub fn generate_chain_spec(path: Option<&Path>, para_id: u32) -> Result<PathBuf, Error> {
 	let parachain_folder = path.unwrap_or(Path::new("./"));
 	let binary_path = binary_path(path)?;
-	let plain_parachain_spec =
-		format!("{}/plain-parachain-chainspec.json", parachain_folder.display());
+	let plain_parachain_spec = parachain_folder.join("plain-parachain-chainspec.json");
 	cmd(&binary_path, vec!["build-spec", "--disable-default-bootnode"])
 		.stdout_path(plain_parachain_spec.clone())
 		.run()?;
@@ -56,10 +55,27 @@ pub fn generate_chain_spec(path: Option<&Path>, para_id: u32) -> Result<String, 
 		para_id,
 		generated_para_id,
 	)?;
-	let raw_chain_spec = format!("{}/raw-parachain-chainspec.json", parachain_folder.display());
+	Ok(plain_parachain_spec)
+}
+
+/// Generates a raw chain specification file for a parachain.
+///
+/// # Arguments
+/// * `path` - Location of the parachain project.
+pub fn generate_raw_chain_spec(path: Option<&Path>) -> Result<PathBuf, Error> {
+	let parachain_folder = path.unwrap_or(Path::new("./"));
+	let binary_path = binary_path(path)?;
+	let plain_parachain_spec = parachain_folder.join("plain-parachain-chainspec.json");
+	let raw_chain_spec = parachain_folder.join("raw-parachain-chainspec.json");
 	cmd(
 		&binary_path,
-		vec!["build-spec", "--chain", &plain_parachain_spec, "--disable-default-bootnode", "--raw"],
+		vec![
+			"build-spec",
+			"--chain",
+			&plain_parachain_spec.display().to_string(),
+			"--disable-default-bootnode",
+			"--raw",
+		],
 	)
 	.stdout_path(raw_chain_spec.clone())
 	.run()?;
@@ -69,38 +85,55 @@ pub fn generate_chain_spec(path: Option<&Path>, para_id: u32) -> Result<String, 
 /// Export the WebAssembly runtime for the parachain.
 ///
 /// # Arguments
-/// * `chain_spec` - A `String` representing the path to the raw chain specification file.
+/// * `chain_spec` - Location of the raw chain specification file.
 /// * `path` - Location of the parachain project.
 /// * `para_id` - The parachain ID will be used to name the wasm file.
 pub fn export_wasm_file(
-	chain_spec: &String,
+	chain_spec: &Path,
 	path: Option<&Path>,
 	para_id: u32,
-) -> Result<String, Error> {
+) -> Result<PathBuf, Error> {
 	let parachain_folder = path.unwrap_or(Path::new("./"));
 	let binary_path = binary_path(path)?;
-	let wasm_file = format!("{}/para-{}-wasm", parachain_folder.display(), para_id);
-	cmd(binary_path, vec!["export-genesis-wasm", "--chain", &chain_spec, &wasm_file]).run()?;
+	let wasm_file = parachain_folder.join(format!("para-{}-wasm", para_id));
+	cmd(
+		binary_path,
+		vec![
+			"export-genesis-wasm",
+			"--chain",
+			&chain_spec.display().to_string(),
+			&wasm_file.display().to_string(),
+		],
+	)
+	.run()?;
 	Ok(wasm_file)
 }
 
 /// Generate the parachain genesis state.
 ///
 /// # Arguments
-/// * `chain_spec` - A `String` representing the path to the raw chain specification file.
+/// * `chain_spec` - Location of the raw chain specification file.
 /// * `path` - Location of the parachain project.
 /// * `para_id` - The parachain ID will be used to name the wasm file.
 pub fn generate_genesis_state_file(
-	chain_spec: &String,
+	chain_spec: &Path,
 	path: Option<&Path>,
 	para_id: u32,
-) -> Result<String, Error> {
+) -> Result<PathBuf, Error> {
 	let parachain_folder = path.unwrap_or(Path::new("./"));
 	let binary_path = binary_path(path)?;
-	let wasm_file = format!("{}/para-{}-genesis-state", parachain_folder.display(), para_id);
-	cmd(binary_path.clone(), vec!["export-genesis-state", "--chain", &chain_spec, &wasm_file])
-		.run()?;
-	Ok(wasm_file)
+	let genesis_file = parachain_folder.join(format!("para-{}-genesis-state", para_id));
+	cmd(
+		binary_path.clone(),
+		vec![
+			"export-genesis-state",
+			"--chain",
+			&chain_spec.display().to_string(),
+			&genesis_file.display().to_string(),
+		],
+	)
+	.run()?;
+	Ok(genesis_file)
 }
 
 /// Parses the node name from the Cargo.toml file located in the project path.
@@ -118,7 +151,7 @@ fn parse_node_name(path: Option<&Path>) -> Result<String, Error> {
 }
 
 /// Get the current parachain id from the generated chain specification file.
-fn get_parachain_id(plain_parachain_spec: &String) -> Result<u32> {
+fn get_parachain_id(plain_parachain_spec: &Path) -> Result<u32> {
 	let data = fs::read_to_string(plain_parachain_spec)?;
 	let value = serde_json::from_str::<Value>(&data)?;
 	Ok(value.get("para_id").and_then(Value::as_u64).unwrap_or(1000) as u32)
@@ -250,16 +283,17 @@ default_command = "pop-node"
 		replace_mock_with_binary(temp_dir.path(), binary_name)?;
 		// Test generate chain spec
 		let chain_spec = generate_chain_spec(Some(temp_dir.path()), 2001)?;
-		let chain_spec_path = Path::new(&chain_spec);
-		assert!(chain_spec_path.exists());
-		let content = fs::read_to_string(chain_spec_path).expect("Could not read file");
+		assert!(chain_spec.exists());
+		let raw_chain_spec = generate_raw_chain_spec(Some(temp_dir.path()))?;
+		assert!(raw_chain_spec.exists());
+		let content = fs::read_to_string(raw_chain_spec).expect("Could not read file");
 		assert!(content.contains("\"para_id\": 2001"));
 		// Test export wasm file
 		let wasm_file = export_wasm_file(&chain_spec, Some(temp_dir.path()), 2001)?;
-		assert!(Path::new(&wasm_file).exists());
+		assert!(wasm_file.exists());
 		// Test generate parachain state file
 		let genesis_file = generate_genesis_state_file(&chain_spec, Some(temp_dir.path()), 2001)?;
-		assert!(Path::new(&genesis_file).exists());
+		assert!(genesis_file.exists());
 		Ok(())
 	}
 
@@ -315,7 +349,7 @@ default_command = "pop-node"
 	fn get_parachain_id_works() -> Result<()> {
 		let mut file = tempfile::NamedTempFile::new()?;
 		writeln!(file, r#"{{ "name": "Local Testnet", "para_id": 2002 }}"#)?;
-		let get_parachain_id = get_parachain_id(&file.path().display().to_string())?;
+		let get_parachain_id = get_parachain_id(&file.path())?;
 		assert_eq!(get_parachain_id, 2002);
 		Ok(())
 	}

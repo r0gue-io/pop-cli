@@ -9,7 +9,7 @@ use cliclack::{
 };
 use pop_parachains::{
 	binary_path, build_parachain, export_wasm_file, generate_chain_spec,
-	generate_genesis_state_file,
+	generate_genesis_state_file, generate_raw_chain_spec,
 };
 use std::path::PathBuf;
 
@@ -45,13 +45,26 @@ impl BuildParachainCommand {
 		// If para_id is provided, generate the chain spec
 		if let Some(para_id) = self.id {
 			let chain_spec = generate_chain_spec(self.path.as_deref(), para_id)?;
-			generated_files
-				.push(format!("New raw chain specification file generated at: {chain_spec}"));
-			let wasm_file = export_wasm_file(&chain_spec, self.path.as_deref(), para_id)?;
-			generated_files.push(format!("WebAssembly runtime file exported at: {wasm_file}"));
+			generated_files.push(format!(
+				"New raw chain specification file generated at: {}",
+				chain_spec.display()
+			));
+			let raw_chain_spec = generate_raw_chain_spec(self.path.as_deref())?;
+			generated_files.push(format!(
+				"New raw chain specification file generated at: {}",
+				chain_spec.display()
+			));
+			let wasm_file = export_wasm_file(&raw_chain_spec, self.path.as_deref(), para_id)?;
+			generated_files.push(format!(
+				"WebAssembly runtime file exported at: {}",
+				wasm_file.display().to_string()
+			));
 			let genesis_state_file =
-				generate_genesis_state_file(&chain_spec, self.path.as_deref(), para_id)?;
-			generated_files.push(format!("Genesis State exported at {genesis_state_file} file"));
+				generate_genesis_state_file(&raw_chain_spec, self.path.as_deref(), para_id)?;
+			generated_files.push(format!(
+				"Genesis State exported at {} file",
+				genesis_state_file.display().to_string()
+			));
 			console::Term::stderr().clear_last_lines(5)?;
 		}
 		let generated_files: Vec<_> = generated_files
