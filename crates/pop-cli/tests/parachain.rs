@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use std::{fs, path::Path};
-
 use anyhow::Result;
-use assert_cmd::Command;
+use assert_cmd::{cargo::cargo_bin, Command};
 use pop_parachains::Template;
+use std::{fs, path::Path, process::Command as Cmd};
 use strum::VariantArray;
+use tokio::time::{sleep, Duration};
 
 /// Test the parachain lifecycle: new, build, up
-#[test]
-fn parachain_lifecycle() -> Result<()> {
+#[tokio::test]
+async fn parachain_lifecycle() -> Result<()> {
 	let temp = tempfile::tempdir().unwrap();
 	let temp_dir = temp.path();
-	//let temp_dir = Path::new("./");
+	// let temp_dir = Path::new("./"); //For testing locally
 	// Test that all templates are generated correctly
 	generate_all_the_templates(&temp_dir)?;
 	// pop new parachain test_parachain (default)
@@ -54,6 +54,19 @@ fn parachain_lifecycle() -> Result<()> {
 	assert!(content.contains("\"para_id\": 2000"));
 	assert!(content.contains("\"tokenDecimals\": 6"));
 	assert!(content.contains("\"tokenSymbol\": \"POP\""));
+
+	// pop up contract -p "./test_parachain"
+	let mut cmd = Cmd::new(cargo_bin("pop"))
+		.current_dir(&temp_dir.join("test_parachain"))
+		.args(&["up", "parachain", "-f", "./network.toml", "--skip-confirm"])
+		.spawn()
+		.unwrap();
+	// If after 20 secs is still running probably execution is ok, or waiting for user response
+	sleep(Duration::from_secs(20)).await;
+
+	assert!(cmd.try_wait().unwrap().is_none(), "the process should still be running");
+	// Stop the process
+	Cmd::new("kill").args(["-s", "TERM", &cmd.id().to_string()]).spawn()?;
 
 	Ok(())
 }
