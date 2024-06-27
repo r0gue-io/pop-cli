@@ -36,7 +36,8 @@ pub trait Template:
 
 /// A trait for defining overarching types of specific template variants.
 /// A TemplateType has many Template variants.
-/// The method `default_template` must be implemented.
+/// The method `default_template` should be implemented unless
+/// no default templates are desired.
 pub trait TemplateType<T: Template>:
 	Clone + Default + EnumMessage + Eq + PartialEq + VariantArray
 {
@@ -51,7 +52,9 @@ pub trait TemplateType<T: Template>:
 	}
 
 	/// Get the default template of the type.
-	fn default_template(&self) -> T;
+	fn default_template(&self) -> Option<T> {
+		None
+	}
 
 	/// Get the type's description.
 	fn description(&self) -> &str {

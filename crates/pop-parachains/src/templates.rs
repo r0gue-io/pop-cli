@@ -34,11 +34,11 @@ pub enum Provider {
 }
 
 impl TemplateType<ParachainTemplate> for Provider {
-	fn default_template(&self) -> ParachainTemplate {
+	fn default_template(&self) -> Option<ParachainTemplate> {
 		match &self {
-			Provider::Pop => ParachainTemplate::Standard,
-			Provider::OpenZeppelin => ParachainTemplate::OpenZeppelinGeneric,
-			Provider::Parity => ParachainTemplate::ParityContracts,
+			Provider::Pop => Some(ParachainTemplate::Standard),
+			Provider::OpenZeppelin => Some(ParachainTemplate::OpenZeppelinGeneric),
+			Provider::Parity => Some(ParachainTemplate::ParityContracts),
 		}
 	}
 }
@@ -321,9 +321,9 @@ mod tests {
 	#[test]
 	fn test_default_template_of_provider() {
 		let mut provider = Provider::Pop;
-		assert_eq!(provider.default_template(), ParachainTemplate::Standard);
+		assert_eq!(provider.default_template(), Some(ParachainTemplate::Standard));
 		provider = Provider::Parity;
-		assert_eq!(provider.default_template(), ParachainTemplate::ParityContracts);
+		assert_eq!(provider.default_template(), Some(ParachainTemplate::ParityContracts));
 	}
 
 	#[test]

@@ -57,7 +57,7 @@ impl NewContractCommand {
 		let contract_type = &contract_config.contract_type.clone().unwrap_or_default();
 		let template = match &contract_config.template {
 			Some(template) => template.clone(),
-			None => contract_type.default_template(), // Default contract type
+			None => contract_type.default_template().expect("contract types have defaults; qed."), // Default contract type
 		};
 
 		is_template_supported(contract_type, &template)?;

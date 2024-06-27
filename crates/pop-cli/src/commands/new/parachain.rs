@@ -80,7 +80,7 @@ impl NewParachainCommand {
 		let provider = &parachain_config.provider.clone().unwrap_or_default();
 		let template = match &parachain_config.template {
 			Some(template) => template.clone(),
-			None => provider.default_template(), // Each provider has a template by default
+			None => provider.default_template().expect("parachain templates have defaults; qed."), // Each provider has a template by default
 		};
 
 		is_template_supported(provider, &template)?;
