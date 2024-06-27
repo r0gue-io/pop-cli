@@ -145,7 +145,10 @@ fn replace_para_id(parachain_folder: PathBuf, para_id: u32, generated_para_id: u
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::{new_parachain::instantiate_standard_template, Config, Template, Zombienet};
+	use crate::{
+		new_parachain::instantiate_standard_template, Config, ParachainTemplate as Template,
+		Zombienet,
+	};
 	use anyhow::Result;
 	use std::{fs, fs::metadata, io::Write, os::unix::fs::PermissionsExt, path::Path};
 	use tempfile::{tempdir, Builder};

@@ -158,7 +158,7 @@ pub async fn call_smart_contract(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::{create_smart_contract, errors::Error, Template};
+	use crate::{create_smart_contract, errors::Error, ContractTemplate as Template};
 	use anyhow::Result;
 	use std::{env, fs};
 

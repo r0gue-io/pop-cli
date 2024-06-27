@@ -18,7 +18,7 @@ pub use errors::Error;
 pub use indexmap::IndexSet;
 pub use new_pallet::{create_pallet_template, TemplatePalletConfig};
 pub use new_parachain::instantiate_template_dir;
-pub use templates::{Config, Provider, Template};
+pub use templates::{Config, ParachainTemplate, Provider};
 pub use up::{Binary, Status, Zombienet};
 pub use utils::helpers::is_initial_endowment_valid;
 pub use utils::pallet_helpers::resolve_pallet_path;

@@ -205,7 +205,9 @@ pub async fn upload_smart_contract(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::{create_smart_contract, errors::Error, run_contracts_node, Template};
+	use crate::{
+		create_smart_contract, errors::Error, run_contracts_node, ContractTemplate as Template,
+	};
 	use anyhow::Result;
 	use std::{env, fs};
 	use url::Url;
