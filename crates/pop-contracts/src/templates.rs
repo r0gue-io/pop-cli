@@ -4,7 +4,7 @@
 pub use pop_common::templates::{Template, TemplateType};
 use strum_macros::{AsRefStr, Display, EnumMessage, EnumProperty, EnumString, VariantArray};
 
-/// Supported template providers.
+/// Supported contract types.
 #[derive(
 	AsRefStr, Clone, Default, Debug, Display, EnumMessage, EnumString, Eq, PartialEq, VariantArray,
 )]
@@ -183,11 +183,11 @@ mod tests {
 
 	#[test]
 	fn test_templates_of_type() {
-		let mut provider = ContractType::Examples;
-		assert_eq!(provider.templates(), [&ContractTemplate::Standard]);
-		provider = ContractType::Erc;
+		let mut contract_type = ContractType::Examples;
+		assert_eq!(contract_type.templates(), [&ContractTemplate::Standard]);
+		contract_type = ContractType::Erc;
 		assert_eq!(
-			provider.templates(),
+			contract_type.templates(),
 			[&ContractTemplate::ERC20, &ContractTemplate::ERC721, &ContractTemplate::ERC1155]
 		);
 	}
