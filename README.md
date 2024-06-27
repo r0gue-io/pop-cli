@@ -236,7 +236,7 @@ Run e2e testing on the Smart Contract:
  pop test contract  -p ./my_contract --features e2e-tests
 ```
 
-If you want to run a different node with `pallet-contracts` you need to change `CONTRACTS_NODE` environment variable using the  `--contracts-node` flag:
+If you want to run a different node with `pallet-contracts` you need to change `CONTRACTS_NODE` environment variable using the  `--node` flag:
 ```sh
 # Run e2e tests for an existing smart contract
  pop test contract  -p ./my_contract --features e2e-tests --node YOUR_CONTRACTS_NODE_PATH
