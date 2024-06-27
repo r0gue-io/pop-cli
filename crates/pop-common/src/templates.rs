@@ -70,8 +70,8 @@ pub trait TemplateType<T: Template>:
 			.collect()
 	}
 
-	/// Check the template belongs to a type.
-	fn matches(&self, template: &T) -> bool {
+	/// Check the type provides the template.
+	fn provides(&self, template: &T) -> bool {
 		// Match explicitly on type name (message)
 		template.get_str(T::PROPERTY) == Some(self.name())
 	}

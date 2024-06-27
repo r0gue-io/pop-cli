@@ -68,7 +68,7 @@ impl NewContractCommand {
 }
 
 fn is_template_supported(contract_type: &ContractType, template: &ContractTemplate) -> Result<()> {
-	if !contract_type.matches(template) {
+	if !contract_type.provides(template) {
 		return Err(anyhow::anyhow!(format!(
 			"The contract type \"{:?}\" doesn't support the {:?} template.",
 			contract_type, template

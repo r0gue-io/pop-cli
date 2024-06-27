@@ -132,7 +132,7 @@ async fn guide_user_to_generate_parachain() -> Result<NewParachainCommand> {
 		decimals: 12,
 		initial_endowment: "1u64 << 60".to_string(),
 	};
-	if Provider::Pop.matches(&template) {
+	if Provider::Pop.provides(&template) {
 		customizable_options = prompt_customizable_options()?;
 	}
 
@@ -215,7 +215,7 @@ fn generate_parachain_from_template(
 }
 
 fn is_template_supported(provider: &Provider, template: &ParachainTemplate) -> Result<()> {
-	if !provider.matches(template) {
+	if !provider.provides(template) {
 		return Err(anyhow::anyhow!(format!(
 			"The provider \"{:?}\" doesn't support the {:?} template.",
 			provider, template

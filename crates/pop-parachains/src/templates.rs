@@ -271,13 +271,13 @@ mod tests {
 					| ParachainTemplate::Contracts
 					| ParachainTemplate::EVM
 			) {
-				assert_eq!(Provider::Pop.matches(&template), true);
-				assert_eq!(Provider::Parity.matches(&template), false);
+				assert_eq!(Provider::Pop.provides(&template), true);
+				assert_eq!(Provider::Parity.provides(&template), false);
 			}
 			if matches!(template, ParachainTemplate::ParityContracts | ParachainTemplate::ParityFPT)
 			{
-				assert_eq!(Provider::Pop.matches(&template), false);
-				assert_eq!(Provider::Parity.matches(&template), true)
+				assert_eq!(Provider::Pop.provides(&template), false);
+				assert_eq!(Provider::Parity.provides(&template), true)
 			}
 		}
 	}

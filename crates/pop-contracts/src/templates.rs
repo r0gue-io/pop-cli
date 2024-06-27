@@ -123,15 +123,15 @@ mod tests {
 	fn test_is_template_correct() {
 		for template in ContractTemplate::VARIANTS {
 			if matches!(template, ContractTemplate::Standard) {
-				assert_eq!(ContractType::Examples.matches(template), true);
-				assert_eq!(ContractType::Erc.matches(template), false);
+				assert_eq!(ContractType::Examples.provides(template), true);
+				assert_eq!(ContractType::Erc.provides(template), false);
 			}
 			if matches!(
 				template,
 				ContractTemplate::ERC20 | ContractTemplate::ERC721 | ContractTemplate::ERC1155
 			) {
-				assert_eq!(ContractType::Examples.matches(template), false);
-				assert_eq!(ContractType::Erc.matches(template), true);
+				assert_eq!(ContractType::Examples.provides(template), false);
+				assert_eq!(ContractType::Erc.provides(template), true);
 			}
 		}
 	}

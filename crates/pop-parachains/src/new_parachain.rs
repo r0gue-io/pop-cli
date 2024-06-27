@@ -29,7 +29,7 @@ pub fn instantiate_template_dir(
 ) -> Result<Option<String>> {
 	sanitize(target)?;
 
-	if Provider::Pop.matches(&template) {
+	if Provider::Pop.provides(&template) {
 		return instantiate_standard_template(template, target, config, tag_version);
 	}
 	let tag = Git::clone_and_degit(template.repository_url()?, target, tag_version)?;
