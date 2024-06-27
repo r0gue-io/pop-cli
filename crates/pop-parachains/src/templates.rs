@@ -332,16 +332,16 @@ mod tests {
 		assert_eq!(
 			provider.templates(),
 			[
-				&ParachainTemplate::Standard,
-				&ParachainTemplate::Assets,
-				&ParachainTemplate::Contracts,
-				&ParachainTemplate::EVM
+				ParachainTemplate::Standard,
+				ParachainTemplate::Assets,
+				ParachainTemplate::Contracts,
+				ParachainTemplate::EVM
 			]
 		);
 		provider = Provider::Parity;
 		assert_eq!(
 			provider.templates(),
-			[&ParachainTemplate::ParityContracts, &ParachainTemplate::ParityFPT]
+			[ParachainTemplate::ParityContracts, ParachainTemplate::ParityFPT]
 		);
 	}
 

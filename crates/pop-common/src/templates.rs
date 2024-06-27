@@ -62,10 +62,11 @@ pub trait TemplateType<T: Template>:
 	}
 
 	/// Get the list of templates of the type.
-	fn templates(&self) -> Vec<&T> {
+	fn templates(&self) -> Vec<T> {
 		T::VARIANTS
 			.iter()
 			.filter(|t| t.get_str(T::PROPERTY) == Some(self.name()))
+			.cloned()
 			.collect()
 	}
 

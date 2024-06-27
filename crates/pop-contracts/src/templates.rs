@@ -184,11 +184,11 @@ mod tests {
 	#[test]
 	fn test_templates_of_type() {
 		let mut contract_type = ContractType::Examples;
-		assert_eq!(contract_type.templates(), [&ContractTemplate::Standard]);
+		assert_eq!(contract_type.templates(), [ContractTemplate::Standard]);
 		contract_type = ContractType::Erc;
 		assert_eq!(
 			contract_type.templates(),
-			[&ContractTemplate::ERC20, &ContractTemplate::ERC721, &ContractTemplate::ERC1155]
+			[ContractTemplate::ERC20, ContractTemplate::ERC721, ContractTemplate::ERC1155]
 		);
 	}
 
