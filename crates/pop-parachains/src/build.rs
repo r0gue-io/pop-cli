@@ -15,7 +15,6 @@ use toml_edit::DocumentMut;
 /// Build the parachain.
 ///
 /// # Arguments
-///
 /// * `path` - Location of the parachain project.
 pub fn build_parachain(path: &Option<PathBuf>) -> Result<(), Error> {
 	cmd("cargo", vec!["build", "--release"])
@@ -27,7 +26,6 @@ pub fn build_parachain(path: &Option<PathBuf>) -> Result<(), Error> {
 /// Get the path to the node release binary based on the project path.
 ///
 /// # Arguments
-///
 /// * `path` - Location of the parachain project.
 pub fn binary_path(path: Option<&Path>) -> Result<String, Error> {
 	let node_name = parse_node_name(path)?;
@@ -42,7 +40,6 @@ pub fn binary_path(path: Option<&Path>) -> Result<String, Error> {
 /// Generates a raw chain specification file for a parachain.
 ///
 /// # Arguments
-///
 /// * `path` - Location of the parachain project.
 /// * `para_id` - The parachain ID to be replaced in the specification.
 pub fn generate_chain_spec(path: Option<&Path>, para_id: u32) -> Result<String, Error> {
@@ -72,7 +69,6 @@ pub fn generate_chain_spec(path: Option<&Path>, para_id: u32) -> Result<String, 
 /// Export the WebAssembly runtime for the parachain.
 ///
 /// # Arguments
-///
 /// * `chain_spec` - A `String` representing the path to the raw chain specification file.
 /// * `path` - Location of the parachain project.
 /// * `para_id` - The parachain ID will be used to name the wasm file.
@@ -91,7 +87,6 @@ pub fn export_wasm_file(
 /// Generate the parachain genesis state.
 ///
 /// # Arguments
-///
 /// * `chain_spec` - A `String` representing the path to the raw chain specification file.
 /// * `path` - Location of the parachain project.
 /// * `para_id` - The parachain ID will be used to name the wasm file.

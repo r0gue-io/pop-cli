@@ -23,10 +23,10 @@ pub struct BuildParachainCommand {
 	pub(crate) path: Option<PathBuf>,
 	#[arg(
 		short = 'i',
-		long = "para_id",
-		help = "Parachain id to be used when generating the chain spec files."
+		long = "id",
+		help = "Parachain ID to be used when generating the chain spec files."
 	)]
-	pub(crate) para_id: Option<u32>,
+	pub(crate) id: Option<u32>,
 }
 
 impl BuildParachainCommand {
@@ -43,7 +43,7 @@ impl BuildParachainCommand {
 		let binary = binary_path(self.path.as_deref())?;
 		let mut generated_files = vec![format!("Binary generated at: \"{binary}\"")];
 		// If para_id is provided, generate the chain spec
-		if let Some(para_id) = self.para_id {
+		if let Some(para_id) = self.id {
 			let chain_spec = generate_chain_spec(self.path.as_deref(), para_id)?;
 			generated_files
 				.push(format!("New raw chain specification file generated at: {chain_spec}"));

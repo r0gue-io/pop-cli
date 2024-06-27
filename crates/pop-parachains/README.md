@@ -34,8 +34,8 @@ use pop_parachains::generate_chain_spec;
 let path = ...;
 let para_id = 2000
 let chain_spec = generate_chain_spec(&path, para_id)?; // Generate a raw chain specification file of a parachain
-let wasm_file = export_wasm_file(&chain_spec, &path, para_id)?; //Export the WebAssembly runtime for the parachain.
-let genesis_state_file = generate_genesis_state_file(&chain_spec, &path, para_id)?; //Generate a parachain genesis state.
+let wasm_file = export_wasm_file(&chain_spec, &path, para_id)?; // Export the WebAssembly runtime for the parachain.
+let genesis_state_file = generate_genesis_state_file(&chain_spec, &path, para_id)?; // Generate the parachain genesis state.
 ```
 
 Run a Parachain:
