@@ -158,7 +158,8 @@ fn parse_node_name(path: Option<&Path>) -> Result<String, Error> {
 fn get_parachain_id(plain_parachain_spec: &Path) -> Result<u32> {
 	let data = fs::read_to_string(plain_parachain_spec)?;
 	let value = serde_json::from_str::<Value>(&data)?;
-	Ok(value.get("para_id").and_then(Value::as_u64).unwrap_or(1000) as u32)
+	// Default to 2000, as it is the first number allocated for non-system parachains.
+	Ok(value.get("para_id").and_then(Value::as_u64).unwrap_or(2000) as u32)
 }
 
 /// Replaces the generated parachain id in the chain specification file with the provided para_id.
