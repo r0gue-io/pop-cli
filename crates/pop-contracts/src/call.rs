@@ -24,7 +24,7 @@ use url::Url;
 pub struct CallOpts {
 	/// Path to the contract build folder.
 	pub path: Option<PathBuf>,
-	/// The address of the the contract to call.
+	/// The address of the contract to call.
 	pub contract: String,
 	/// The name of the contract message to call.
 	pub message: String,
@@ -37,7 +37,7 @@ pub struct CallOpts {
 	/// Maximum proof size for the instantiation.
 	pub proof_size: Option<u64>,
 	/// Websocket endpoint of a node.
-	pub url: url::Url,
+	pub url: Url,
 	/// Secret key URI for the account deploying the contract.
 	pub suri: String,
 	/// Submit an extrinsic for on-chain execution.
@@ -48,7 +48,7 @@ pub struct CallOpts {
 ///
 /// # Arguments
 ///
-/// * `call_opts` - attributes for the `call` command.
+/// * `call_opts` - options for the `call` command.
 ///
 pub async fn set_up_call(
 	call_opts: CallOpts,
