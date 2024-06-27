@@ -1,16 +1,15 @@
 use crate::errors::Error;
 use strum::{EnumMessage, EnumProperty, VariantArray};
 
-// property name for the template type.
-// Ensure property is set as `TemplateType` in the template variant.
-pub const TEMPLATE_TYPE_PROPERTY: &str = "TemplateType";
-
 /// A trait for templates. A template is a variant of a template type.
 /// For example, Pop has an `Assets` template and `Contracts` template.
 /// ERC type as `ERC20` and `ERC721` templates.
 pub trait Template:
 	Clone + Default + EnumMessage + EnumProperty + Eq + PartialEq + VariantArray
 {
+	// What is the type property (strum) identifier for this template?
+	const PROPERTY: &'static str = "Type";
+
 	/// Get the template's name.
 	fn name(&self) -> &str {
 		self.get_message().unwrap_or_default()
@@ -32,7 +31,7 @@ pub trait Template:
 
 	/// Get the TemplateType of the template.
 	fn template_type(&self) -> Result<&str, Error> {
-		self.get_str(TEMPLATE_TYPE_PROPERTY).ok_or(Error::TemplateTypeMissing)
+		self.get_str(Self::PROPERTY).ok_or(Error::TemplateTypeMissing)
 	}
 }
 
@@ -65,13 +64,13 @@ pub trait TemplateType<T: Template>:
 	fn templates(&self) -> Vec<&T> {
 		T::VARIANTS
 			.iter()
-			.filter(|t| t.get_str(TEMPLATE_TYPE_PROPERTY) == Some(self.name()))
+			.filter(|t| t.get_str(T::PROPERTY) == Some(self.name()))
 			.collect()
 	}
 
 	/// Check the template belongs to a template type.
 	fn matches(&self, template: &T) -> bool {
 		// Match explicitly on type name (message)
-		template.get_str(TEMPLATE_TYPE_PROPERTY) == Some(self.name())
+		template.get_str(T::PROPERTY) == Some(self.name())
 	}
 }

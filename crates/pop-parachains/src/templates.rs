@@ -74,7 +74,7 @@ pub enum ParachainTemplate {
 		message = "Standard",
 		detailed_message = "A standard parachain",
 		props(
-			TemplateType = "Pop",
+			Provider = "Pop",
 			Repository = "https://github.com/r0gue-io/base-parachain",
 			Network = "./network.toml"
 		)
@@ -86,7 +86,7 @@ pub enum ParachainTemplate {
 		message = "Assets",
 		detailed_message = "Parachain configured with fungible and non-fungilble asset functionalities.",
 		props(
-			TemplateType = "Pop",
+			Provider = "Pop",
 			Repository = "https://github.com/r0gue-io/assets-parachain",
 			Network = "./network.toml"
 		)
@@ -98,7 +98,7 @@ pub enum ParachainTemplate {
 		message = "Contracts",
 		detailed_message = "Parachain configured to support WebAssembly smart contracts.",
 		props(
-			TemplateType = "Pop",
+			Provider = "Pop",
 			Repository = "https://github.com/r0gue-io/contracts-parachain",
 			Network = "./network.toml"
 		)
@@ -110,7 +110,7 @@ pub enum ParachainTemplate {
 		message = "EVM",
 		detailed_message = "Parachain configured with Frontier, enabling compatibility with the Ethereum Virtual Machine (EVM).",
 		props(
-			TemplateType = "Pop",
+			Provider = "Pop",
 			Repository = "https://github.com/r0gue-io/evm-parachain",
 			Network = "./network.toml"
 		)
@@ -122,7 +122,7 @@ pub enum ParachainTemplate {
 		message = "Generic Runtime Template",
 		detailed_message = "A generic template for Substrate Runtime",
 		props(
-			TemplateType = "OpenZeppelin",
+			Provider = "OpenZeppelin",
 			Repository = "https://github.com/OpenZeppelin/polkadot-runtime-templates",
 			Network = "./zombienet-config/devnet.toml",
 			SupportedVersions = "v1.0.0",
@@ -136,7 +136,7 @@ pub enum ParachainTemplate {
 		message = "Contracts",
 		detailed_message = "Minimal Substrate node configured for smart contracts via pallet-contracts.",
 		props(
-			TemplateType = "Parity",
+			Provider = "Parity",
 			Repository = "https://github.com/paritytech/substrate-contracts-node",
 			Network = "./zombienet.toml"
 		)
@@ -148,7 +148,7 @@ pub enum ParachainTemplate {
 		message = "EVM",
 		detailed_message = "Template node for a Frontier (EVM) based parachain.",
 		props(
-			TemplateType = "Parity",
+			Provider = "Parity",
 			Repository = "https://github.com/paritytech/frontier-parachain-template",
 			Network = "./zombienet-config.toml"
 		)
@@ -162,7 +162,7 @@ pub enum ParachainTemplate {
 		message = "Test_01",
 		detailed_message = "Test template only compiled in test mode.",
 		props(
-			TemplateType = "Test",
+			Provider = "Test",
 			Repository = "",
 			Network = "",
 			SupportedVersions = "v1.0.0,v2.0.0",
@@ -175,12 +175,14 @@ pub enum ParachainTemplate {
 		serialize = "test_02",
 		message = "Test_02",
 		detailed_message = "Test template only compiled in test mode.",
-		props(TemplateType = "Test", Repository = "", Network = "",)
+		props(Provider = "Test", Repository = "", Network = "",)
 	)]
 	TestTemplate02,
 }
 
-impl Template for ParachainTemplate {}
+impl Template for ParachainTemplate {
+	const PROPERTY: &'static str = "Provider";
+}
 
 impl ParachainTemplate {
 	/// Returns the relative path to the default network configuration file to be used, if defined.
