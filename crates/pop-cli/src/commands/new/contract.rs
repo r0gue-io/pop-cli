@@ -8,10 +8,8 @@ use clap::{
 };
 use cliclack::{clear_screen, confirm, input, intro, log::success, outro, outro_cancel, set_theme};
 use console::style;
-use pop_common::templates::{Template, TemplateType};
-use pop_contracts::{
-	create_smart_contract, is_valid_contract_name, ContractTemplate, ContractType,
-};
+use pop_common::templates::{Template, Type};
+use pop_contracts::{create_smart_contract, is_valid_contract_name, Contract, ContractType};
 use std::{env::current_dir, fs, path::PathBuf, str::FromStr};
 use strum::VariantArray;
 
@@ -33,9 +31,9 @@ pub struct NewContractCommand {
 		short = 't',
 		long,
 		help = "Template to use.",
-		value_parser = crate::enum_variants!(ContractTemplate)
+		value_parser = crate::enum_variants!(Contract)
 	)]
-	pub(crate) template: Option<ContractTemplate>,
+	pub(crate) template: Option<Contract>,
 }
 
 impl NewContractCommand {
@@ -67,7 +65,7 @@ impl NewContractCommand {
 	}
 }
 
-fn is_template_supported(contract_type: &ContractType, template: &ContractTemplate) -> Result<()> {
+fn is_template_supported(contract_type: &ContractType, template: &Contract) -> Result<()> {
 	if !contract_type.provides(template) {
 		return Err(anyhow::anyhow!(format!(
 			"The contract type \"{:?}\" doesn't support the {:?} template.",
@@ -116,7 +114,7 @@ async fn guide_user_to_generate_contract() -> anyhow::Result<NewContractCommand>
 	})
 }
 
-fn display_select_options(contract_type: &ContractType) -> Result<&ContractTemplate> {
+fn display_select_options(contract_type: &ContractType) -> Result<Contract> {
 	let mut prompt = cliclack::select("Select the contract:".to_string());
 	for (i, template) in contract_type.templates().into_iter().enumerate() {
 		if i == 0 {
@@ -130,7 +128,7 @@ fn display_select_options(contract_type: &ContractType) -> Result<&ContractTempl
 fn generate_contract_from_template(
 	name: &String,
 	path: Option<PathBuf>,
-	template: &ContractTemplate,
+	template: &Contract,
 ) -> anyhow::Result<()> {
 	intro(format!(
 		"{}: Generating \"{}\" using {}!",

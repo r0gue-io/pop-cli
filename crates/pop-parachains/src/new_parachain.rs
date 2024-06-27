@@ -3,12 +3,12 @@
 use crate::{
 	generator::parachain::{ChainSpec, Network},
 	utils::helpers::{sanitize, write_to_file},
-	Config, ParachainTemplate, Provider,
+	Config, Parachain, Provider,
 };
 use anyhow::Result;
 use pop_common::{
 	git::Git,
-	templates::{Template, TemplateType},
+	templates::{Template, Type},
 };
 use std::{fs, path::Path};
 use walkdir::WalkDir;
@@ -22,7 +22,7 @@ use walkdir::WalkDir;
 /// * `tag_version` - version to use (`None` to use latest).
 /// * `config` - customization values to include in the new parachain.
 pub fn instantiate_template_dir(
-	template: &ParachainTemplate,
+	template: &Parachain,
 	target: &Path,
 	tag_version: Option<String>,
 	config: Config,
@@ -37,7 +37,7 @@ pub fn instantiate_template_dir(
 }
 
 pub fn instantiate_standard_template(
-	template: &ParachainTemplate,
+	template: &Parachain,
 	target: &Path,
 	config: Config,
 	tag_version: Option<String>,
@@ -88,7 +88,7 @@ mod tests {
 			decimals: 18,
 			initial_endowment: "1000000".to_string(),
 		};
-		instantiate_standard_template(&ParachainTemplate::Standard, temp_dir.path(), config, None)?;
+		instantiate_standard_template(&Parachain::Standard, temp_dir.path(), config, None)?;
 		Ok(temp_dir)
 	}
 

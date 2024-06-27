@@ -14,11 +14,11 @@ use cliclack::{
 	outro, outro_cancel, set_theme,
 };
 use pop_common::{
-	templates::{Template, TemplateType},
+	templates::{Template, Type},
 	Git, GitHub, Release,
 };
 use pop_parachains::{
-	instantiate_template_dir, is_initial_endowment_valid, Config, ParachainTemplate, Provider,
+	instantiate_template_dir, is_initial_endowment_valid, Config, Parachain, Provider,
 };
 use strum::VariantArray;
 
@@ -38,9 +38,9 @@ pub struct NewParachainCommand {
 		short = 't',
 		long,
 		help = "Template to use.",
-		value_parser = crate::enum_variants!(ParachainTemplate)
+		value_parser = crate::enum_variants!(Parachain)
 	)]
-	pub(crate) template: Option<ParachainTemplate>,
+	pub(crate) template: Option<Parachain>,
 	#[arg(
 		short = 'r',
 		long,
@@ -62,7 +62,7 @@ pub struct NewParachainCommand {
 
 impl NewParachainCommand {
 	/// Executes the command.
-	pub(crate) async fn execute(self) -> Result<ParachainTemplate> {
+	pub(crate) async fn execute(self) -> Result<Parachain> {
 		clear_screen()?;
 		set_theme(Theme);
 
@@ -152,7 +152,7 @@ async fn guide_user_to_generate_parachain() -> Result<NewParachainCommand> {
 fn generate_parachain_from_template(
 	name_template: &String,
 	provider: &Provider,
-	template: &ParachainTemplate,
+	template: &Parachain,
 	tag_version: Option<String>,
 	config: Config,
 ) -> Result<()> {
@@ -214,7 +214,7 @@ fn generate_parachain_from_template(
 	Ok(())
 }
 
-fn is_template_supported(provider: &Provider, template: &ParachainTemplate) -> Result<()> {
+fn is_template_supported(provider: &Provider, template: &Parachain) -> Result<()> {
 	if !provider.provides(template) {
 		return Err(anyhow::anyhow!(format!(
 			"The provider \"{:?}\" doesn't support the {:?} template.",
@@ -224,7 +224,7 @@ fn is_template_supported(provider: &Provider, template: &ParachainTemplate) -> R
 	return Ok(());
 }
 
-fn display_select_options(provider: &Provider) -> Result<&ParachainTemplate> {
+fn display_select_options(provider: &Provider) -> Result<&Parachain> {
 	let mut prompt = cliclack::select("Select the type of parachain:".to_string());
 	for (i, template) in provider.templates().into_iter().enumerate() {
 		if i == 0 {
@@ -236,12 +236,12 @@ fn display_select_options(provider: &Provider) -> Result<&ParachainTemplate> {
 }
 
 fn get_customization_value(
-	template: &ParachainTemplate,
+	template: &Parachain,
 	symbol: Option<String>,
 	decimals: Option<u8>,
 	initial_endowment: Option<String>,
 ) -> Result<Config> {
-	if !matches!(template, ParachainTemplate::Standard)
+	if !matches!(template, Parachain::Standard)
 		&& (symbol.is_some() || decimals.is_some() || initial_endowment.is_some())
 	{
 		log::warning("Customization options are not available for this template")?;
@@ -280,7 +280,7 @@ fn check_destination_path(name_template: &String) -> Result<&Path> {
 /// Otherwise, the default release is used.
 ///
 /// return: `Option<String>` - The release name selected by the user or None if no releases found.
-async fn choose_release(template: &ParachainTemplate) -> Result<Option<String>> {
+async fn choose_release(template: &Parachain) -> Result<Option<String>> {
 	let url = url::Url::parse(&template.repository_url()?).expect("valid repository url");
 	let repo = GitHub::parse(url.as_str())?;
 
@@ -417,7 +417,7 @@ mod tests {
 		let command = NewParachainCommand {
 			name: Some(name.clone()),
 			provider: Some(Provider::Pop),
-			template: Some(ParachainTemplate::Standard),
+			template: Some(Parachain::Standard),
 			release_tag: None,
 			symbol: Some("UNIT".to_string()),
 			decimals: Some(12),
@@ -435,19 +435,19 @@ mod tests {
 
 	#[test]
 	fn test_is_template_supported() -> Result<()> {
-		is_template_supported(&Provider::Pop, &ParachainTemplate::Standard)?;
-		assert!(is_template_supported(&Provider::Pop, &ParachainTemplate::ParityContracts).is_err());
-		assert!(is_template_supported(&Provider::Pop, &ParachainTemplate::ParityFPT).is_err());
+		is_template_supported(&Provider::Pop, &Parachain::Standard)?;
+		assert!(is_template_supported(&Provider::Pop, &Parachain::ParityContracts).is_err());
+		assert!(is_template_supported(&Provider::Pop, &Parachain::ParityFPT).is_err());
 
-		assert!(is_template_supported(&Provider::Parity, &ParachainTemplate::Standard).is_err());
-		is_template_supported(&Provider::Parity, &ParachainTemplate::ParityContracts)?;
-		is_template_supported(&Provider::Parity, &ParachainTemplate::ParityFPT)
+		assert!(is_template_supported(&Provider::Parity, &Parachain::Standard).is_err());
+		is_template_supported(&Provider::Parity, &Parachain::ParityContracts)?;
+		is_template_supported(&Provider::Parity, &Parachain::ParityFPT)
 	}
 
 	#[test]
 	fn test_get_customization_values() -> Result<()> {
 		let config = get_customization_value(
-			&ParachainTemplate::Standard,
+			&Parachain::Standard,
 			Some("DOT".to_string()),
 			Some(6),
 			Some("10000".to_string()),

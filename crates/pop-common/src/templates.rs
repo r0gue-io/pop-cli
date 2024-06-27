@@ -30,17 +30,15 @@ pub trait Template:
 
 	/// Get the type of the template.
 	fn template_type(&self) -> Result<&str, Error> {
-		self.get_str(Self::PROPERTY).ok_or(Error::TemplateTypeMissing)
+		self.get_str(Self::PROPERTY).ok_or(Error::TypeMissing)
 	}
 }
 
 /// A trait for defining overarching types of specific template variants.
-/// A TemplateType has many Template variants.
+/// A Type has many Template variants.
 /// The method `default_template` should be implemented unless
 /// no default templates are desired.
-pub trait TemplateType<T: Template>:
-	Clone + Default + EnumMessage + Eq + PartialEq + VariantArray
-{
+pub trait Type<T: Template>: Clone + Default + EnumMessage + Eq + PartialEq + VariantArray {
 	/// Get the list of types supported.
 	fn types() -> &'static [Self] {
 		Self::VARIANTS

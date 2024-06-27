@@ -19,6 +19,6 @@ pub enum Error {
 	#[error("The `Repository` property is missing from the template variant")]
 	RepositoryMissing,
 
-	#[error("The `TemplateType` property is missing from the template variant")]
-	TemplateTypeMissing,
+	#[error("The `TypeMissing` property is missing from the template variant")]
+	TypeMissing,
 }
