@@ -21,6 +21,10 @@ pub(crate) mod traits {
 		fn outro(&mut self, message: impl Display) -> Result<()>;
 		/// Prints a footer of the prompt sequence with a failure style.
 		fn outro_cancel(&mut self, message: impl Display) -> Result<()>;
+		/// Prints a success message.
+		fn success(&mut self, message: impl Display) -> Result<()>;
+		/// Prints a warning message.
+		fn warning(&mut self, message: impl Display) -> Result<()>;
 	}
 
 	/// A confirmation prompt.
@@ -74,6 +78,16 @@ impl traits::Cli for Cli {
 	fn outro_cancel(&mut self, message: impl Display) -> Result<()> {
 		cliclack::outro_cancel(message)
 	}
+
+	/// Prints a success message.
+	fn success(&mut self, message: impl Display) -> Result<()> {
+		cliclack::log::success(message)
+	}
+
+	/// Prints a warning message.
+	fn warning(&mut self, message: impl Display) -> Result<()> {
+		cliclack::log::warning(message)
+	}
 }
 
 /// A confirmation prompt using cliclack.
@@ -122,6 +136,8 @@ pub(crate) mod tests {
 		multiselect_expectation:
 			Option<(String, Option<bool>, bool, Option<Vec<(String, String)>>)>,
 		outro_cancel_expectation: Option<String>,
+		success_expectations: Vec<String>,
+		warning_expectations: Vec<String>,
 	}
 
 	impl MockCli {
@@ -134,8 +150,8 @@ pub(crate) mod tests {
 			self
 		}
 
-		pub(crate) fn expect_info(mut self, text: impl Display) -> Self {
-			self.info_expectations.push(text.to_string());
+		pub(crate) fn expect_info(mut self, message: impl Display) -> Self {
+			self.info_expectations.push(message.to_string());
 			self
 		}
 
@@ -165,6 +181,16 @@ pub(crate) mod tests {
 			self
 		}
 
+		pub(crate) fn expect_success(mut self, message: impl Display) -> Self {
+			self.success_expectations.push(message.to_string());
+			self
+		}
+
+		pub(crate) fn expect_warning(mut self, message: impl Display) -> Self {
+			self.warning_expectations.push(message.to_string());
+			self
+		}
+
 		pub(crate) fn verify(self) -> anyhow::Result<()> {
 			if let Some((expectation, _)) = self.confirm_expectation {
 				panic!("`{expectation}` confirm expectation not satisfied")
@@ -184,6 +210,18 @@ pub(crate) mod tests {
 			if let Some(expectation) = self.outro_cancel_expectation {
 				panic!("`{expectation}` outro cancel expectation not satisfied")
 			}
+			if !self.success_expectations.is_empty() {
+				panic!(
+					"`{}` success log expectations not satisfied",
+					self.success_expectations.join(",")
+				)
+			}
+			if !self.warning_expectations.is_empty() {
+				panic!(
+					"`{}` warning log expectations not satisfied",
+					self.warning_expectations.join(",")
+				)
+			}
 			Ok(())
 		}
 	}
@@ -198,9 +236,9 @@ pub(crate) mod tests {
 			MockConfirm::default()
 		}
 
-		fn info(&mut self, text: impl Display) -> Result<()> {
-			let text = text.to_string();
-			self.info_expectations.retain(|x| *x != text);
+		fn info(&mut self, message: impl Display) -> Result<()> {
+			let message = message.to_string();
+			self.info_expectations.retain(|x| *x != message);
 			Ok(())
 		}
 
@@ -247,6 +285,18 @@ pub(crate) mod tests {
 					"outro message does not satisfy expectation"
 				);
 			}
+			Ok(())
+		}
+
+		fn success(&mut self, message: impl Display) -> Result<()> {
+			let message = message.to_string();
+			self.success_expectations.retain(|x| *x != message);
+			Ok(())
+		}
+
+		fn warning(&mut self, message: impl Display) -> Result<()> {
+			let message = message.to_string();
+			self.warning_expectations.retain(|x| *x != message);
 			Ok(())
 		}
 	}

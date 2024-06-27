@@ -71,7 +71,7 @@ impl UpContractCommand {
 			log::warning("NOTE: contract has not yet been built.")?;
 			intro(format!("{}: Building a contract", style(" Pop CLI ").black().on_magenta()))?;
 			// Build the contract in release mode
-			let result = build_smart_contract(&self.path, true)?;
+			let result = build_smart_contract(self.path.as_deref(), true)?;
 			log::success(result.to_string())?;
 		}
 

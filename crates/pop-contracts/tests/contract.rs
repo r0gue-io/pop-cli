@@ -42,7 +42,7 @@ fn test_contract_build() -> std::result::Result<(), Error> {
 	let temp_contract_dir = setup_test_environment()?;
 
 	let formatted_result =
-		build_smart_contract(&Some(temp_contract_dir.path().join("test_contract")), true)?;
+		build_smart_contract(Some(&temp_contract_dir.path().join("test_contract")), true)?;
 	assert!(formatted_result.contains("RELEASE"));
 
 	verify_build_files(temp_contract_dir)?;
@@ -50,7 +50,7 @@ fn test_contract_build() -> std::result::Result<(), Error> {
 	let temp_debug_contract_dir = setup_test_environment()?;
 	// Test building in debug mode
 	let formatted_result_debug_mode =
-		build_smart_contract(&Some(temp_debug_contract_dir.path().join("test_contract")), false)?;
+		build_smart_contract(Some(&temp_debug_contract_dir.path().join("test_contract")), false)?;
 	assert!(formatted_result_debug_mode.contains("DEBUG"));
 
 	verify_build_files(temp_debug_contract_dir)?;
@@ -61,7 +61,7 @@ fn test_contract_build() -> std::result::Result<(), Error> {
 const CONTRACTS_NETWORK_URL: &str = "wss://rococo-contracts-rpc.polkadot.io";
 
 fn build_smart_contract_test_environment(temp_dir: &TempDir) -> Result<(), Error> {
-	build_smart_contract(&Some(temp_dir.path().join("test_contract")), true)?;
+	build_smart_contract(Some(&temp_dir.path().join("test_contract")), true)?;
 	Ok(())
 }
 

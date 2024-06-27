@@ -49,7 +49,7 @@ pub struct UpOpts {
 pub async fn set_up_deployment(
 	up_opts: UpOpts,
 ) -> anyhow::Result<InstantiateExec<DefaultConfig, DefaultEnvironment, Keypair>> {
-	let manifest_path = get_manifest_path(&up_opts.path)?;
+	let manifest_path = get_manifest_path(up_opts.path.as_deref())?;
 
 	let token_metadata = TokenMetadata::query::<DefaultConfig>(&up_opts.url).await?;
 

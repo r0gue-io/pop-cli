@@ -74,10 +74,13 @@ impl Command {
 			},
 			#[cfg(any(feature = "parachain", feature = "contract"))]
 			Self::Build(args) => match args.command {
-				#[cfg(feature = "parachain")]
-				build::Command::Parachain(cmd) => cmd.execute().map(|_| Value::Null),
-				#[cfg(feature = "contract")]
-				build::Command::Contract(cmd) => cmd.execute().map(|_| Value::Null),
+				None => build::Command::execute(args).map(|_| Value::Null),
+				Some(cmd) => match cmd {
+					#[cfg(feature = "parachain")]
+					build::Command::Parachain(cmd) => cmd.execute().map(|_| Value::Null),
+					#[cfg(feature = "contract")]
+					build::Command::Contract(cmd) => cmd.execute().map(|_| Value::Null),
+				},
 			},
 			#[cfg(feature = "contract")]
 			Self::Call(args) => match args.command {
