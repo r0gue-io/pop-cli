@@ -4,9 +4,10 @@ use std::path::Path;
 
 use anyhow::{Error, Result};
 use assert_cmd::Command;
+use pop_common::templates::Template;
 use pop_contracts::{
 	dry_run_gas_estimate_instantiate, instantiate_smart_contract, run_contracts_node,
-	set_up_deployment, Template, UpOpts,
+	set_up_deployment, ContractTemplate, UpOpts,
 };
 use predicates::prelude::*;
 use strum::VariantArray;
@@ -137,9 +138,9 @@ async fn contract_lifecycle() -> Result<()> {
 }
 
 fn generate_all_the_templates(temp_dir: &Path) -> Result<()> {
-	for template in Template::VARIANTS {
+	for template in ContractTemplate::VARIANTS {
 		let contract_name = format!("test_contract_{}", template);
-		let contract_type = template.contract_type()?.to_lowercase();
+		let contract_type = template.template_type()?.to_lowercase();
 		// pop new parachain test_parachain
 		Command::cargo_bin("pop")
 			.unwrap()

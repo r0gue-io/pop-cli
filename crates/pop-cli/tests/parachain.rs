@@ -2,7 +2,8 @@
 
 use anyhow::Result;
 use assert_cmd::{cargo::cargo_bin, Command};
-use pop_parachains::Template;
+use pop_common::templates::Template;
+use pop_parachains::ParachainTemplate;
 use std::{fs, path::Path, process::Command as Cmd};
 use strum::VariantArray;
 use tokio::time::{sleep, Duration};
@@ -72,9 +73,9 @@ async fn parachain_lifecycle() -> Result<()> {
 }
 
 fn generate_all_the_templates(temp_dir: &Path) -> Result<()> {
-	for template in Template::VARIANTS {
+	for template in ParachainTemplate::VARIANTS {
 		let parachain_name = format!("test_parachain_{}", template);
-		let provider = template.provider()?.to_lowercase();
+		let provider = template.template_type()?.to_lowercase();
 		// pop new parachain test_parachain
 		Command::cargo_bin("pop")
 			.unwrap()
