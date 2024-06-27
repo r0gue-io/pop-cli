@@ -27,14 +27,14 @@ pub fn build_parachain(path: &Option<PathBuf>) -> Result<(), Error> {
 ///
 /// # Arguments
 /// * `path` - Location of the parachain project.
-pub fn binary_path(path: Option<&Path>) -> Result<String, Error> {
+pub fn binary_path(path: Option<&Path>) -> Result<PathBuf, Error> {
 	let node_name = parse_node_name(path)?;
 	let release_path = path.unwrap_or(Path::new("./")).join("target/release");
 	let release = release_path.join(node_name.clone());
 	if !release.exists() {
 		return Err(Error::MissingBinary(node_name));
 	}
-	Ok(release.display().to_string())
+	Ok(release)
 }
 
 /// Generates the plain text chain specification for a parachain.
@@ -45,6 +45,7 @@ pub fn binary_path(path: Option<&Path>) -> Result<String, Error> {
 pub fn generate_chain_spec(path: Option<&Path>, para_id: u32) -> Result<PathBuf, Error> {
 	let parachain_folder = path.unwrap_or(Path::new("./"));
 	let binary_path = binary_path(path)?;
+	check_command_exists(&binary_path, "build-spec")?;
 	let plain_parachain_spec = parachain_folder.join("plain-parachain-chainspec.json");
 	cmd(&binary_path, vec!["build-spec", "--disable-default-bootnode"])
 		.stdout_path(plain_parachain_spec.clone())
@@ -65,6 +66,7 @@ pub fn generate_chain_spec(path: Option<&Path>, para_id: u32) -> Result<PathBuf,
 pub fn generate_raw_chain_spec(path: Option<&Path>) -> Result<PathBuf, Error> {
 	let parachain_folder = path.unwrap_or(Path::new("./"));
 	let binary_path = binary_path(path)?;
+	check_command_exists(&binary_path, "build-spec")?;
 	let plain_parachain_spec = parachain_folder.join("plain-parachain-chainspec.json");
 	let raw_chain_spec = parachain_folder.join("raw-parachain-chainspec.json");
 	cmd(
@@ -95,6 +97,7 @@ pub fn export_wasm_file(
 ) -> Result<PathBuf, Error> {
 	let parachain_folder = path.unwrap_or(Path::new("./"));
 	let binary_path = binary_path(path)?;
+	check_command_exists(&binary_path, "export-genesis-wasm")?;
 	let wasm_file = parachain_folder.join(format!("para-{}-wasm", para_id));
 	cmd(
 		binary_path,
@@ -122,6 +125,7 @@ pub fn generate_genesis_state_file(
 ) -> Result<PathBuf, Error> {
 	let parachain_folder = path.unwrap_or(Path::new("./"));
 	let binary_path = binary_path(path)?;
+	check_command_exists(&binary_path, "export-genesis-state")?;
 	let genesis_file = parachain_folder.join(format!("para-{}-genesis-state", para_id));
 	cmd(
 		binary_path.clone(),
@@ -167,6 +171,17 @@ fn replace_para_id(parachain_folder: PathBuf, para_id: u32, generated_para_id: u
 	let new_parachain_id = format!("\"parachainId\": {para_id}");
 	replacements_in_cargo.insert(&old_parachain_id, &new_parachain_id);
 	replace_in_file(parachain_folder, replacements_in_cargo)?;
+	Ok(())
+}
+
+/// Checks if a given command exists and can be executed by running it with the "--help" argument.
+fn check_command_exists(binary_path: &Path, command: &str) -> Result<(), Error> {
+	cmd(binary_path, vec![command, "--help"]).stdout_null().run().map_err(|_err| {
+		Error::MissingCommand {
+			command: command.to_string(),
+			binary: binary_path.display().to_string(),
+		}
+	})?;
 	Ok(())
 }
 
@@ -257,7 +272,7 @@ default_command = "pop-node"
 		mock_build_process(temp_dir.path())?;
 		let release_path = binary_path(Some(Path::new(temp_dir.path())))?;
 		assert_eq!(
-			release_path,
+			release_path.display().to_string(),
 			format!("{}/target/release/parachain-template-node", temp_dir.path().display())
 		);
 		Ok(())
@@ -382,6 +397,18 @@ default_command = "pop-node"
 			"#
 			.trim()
 		);
+		Ok(())
+	}
+
+	#[test]
+	fn check_command_exists_fails() -> Result<()> {
+		let binary_path = PathBuf::from("/bin");
+		let cmd = "nonexistent_command";
+		assert!(matches!(
+			check_command_exists(&binary_path, cmd),
+			Err(Error::MissingCommand {command, binary })
+			if command == cmd && binary == binary_path.display().to_string()
+		));
 		Ok(())
 	}
 }

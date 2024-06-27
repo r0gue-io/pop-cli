@@ -41,7 +41,7 @@ impl BuildParachainCommand {
 
 		success("Build Completed Successfully!")?;
 		let binary = binary_path(self.path.as_deref())?;
-		let mut generated_files = vec![format!("Binary generated at: \"{binary}\"")];
+		let mut generated_files = vec![format!("Binary generated at: \"{}\"", binary.display())];
 		// If para_id is provided, generate the chain spec
 		if let Some(para_id) = self.id {
 			let chain_spec = generate_chain_spec(self.path.as_deref(), para_id)?;

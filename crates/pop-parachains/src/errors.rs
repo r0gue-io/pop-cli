@@ -24,6 +24,9 @@ pub enum Error {
 	#[error("Missing binary: {0}")]
 	MissingBinary(String),
 
+	#[error("Command {command} doesn't exist in binary {binary}")]
+	MissingCommand { command: String, binary: String },
+
 	#[error("Configuration error: {0}")]
 	Config(String),
 
