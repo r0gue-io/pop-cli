@@ -2,80 +2,79 @@
 
 use anyhow::{Error, Result};
 use assert_cmd::Command;
+use pop_contracts::Template;
 use predicates::prelude::*;
+use strum::VariantArray;
+use tempfile::TempDir;
 
-fn setup_test_environment() -> Result<tempfile::TempDir, Error> {
-	let temp_contract_dir = tempfile::tempdir().unwrap();
-	// pop new contract test_contract
+/// Test the contract lifecycle: new, build, test, up, call
+#[test]
+fn contract_lifecycle() -> Result<()> {
+	let temp_dir = tempfile::tempdir().unwrap();
+	// Test that all templates are generated correctly
+	generate_all_the_templates(&temp_dir)?;
+	// pop new contract test_contract (default)
 	Command::cargo_bin("pop")
 		.unwrap()
-		.current_dir(&temp_contract_dir)
+		.current_dir(&temp_dir)
 		.args(&["new", "contract", "test_contract"])
 		.assert()
 		.success();
-
-	Ok(temp_contract_dir)
-}
-
-#[test]
-fn test_contract_build_success() -> Result<(), Error> {
-	let temp_contract_dir = setup_test_environment()?;
+	assert!(temp_dir.path().join("test_contract").exists());
 
 	// pop build contract
 	Command::cargo_bin("pop")
 		.unwrap()
-		.current_dir(&temp_contract_dir.path().join("test_contract"))
-		.args(&["build", "contract"])
+		.current_dir(&temp_dir.path())
+		.args(&["build", "contract", "--path", "./test_contract", "--release"])
+		.assert()
+		.success();
+	// Verify that the folder target has been created
+	assert!(temp_dir.path().join("test_contract/target").exists());
+	// Verify that all the artifacts has been generated
+	assert!(temp_dir.path().join("test_contract/target/ink/test_contract.contract").exists());
+	assert!(temp_dir.path().join("test_contract/target/ink/test_contract.wasm").exists());
+	assert!(temp_dir.path().join("test_contract/target/ink/test_contract.json").exists());
+
+	// pop test contract
+	Command::cargo_bin("pop")
+		.unwrap()
+		.current_dir(&temp_dir.path().join("test_contract"))
+		.args(&["test", "contract"])
 		.assert()
 		.success();
 
-	// Verify that the folder target has been created
-	assert!(temp_contract_dir.path().join("test_contract/target").exists());
-	// Verify that all the artifacts has been generated
-	assert!(temp_contract_dir
-		.path()
-		.join("test_contract/target/ink/test_contract.contract")
-		.exists());
-	assert!(temp_contract_dir
-		.path()
-		.join("test_contract/target/ink/test_contract.wasm")
-		.exists());
-	assert!(temp_contract_dir
-		.path()
-		.join("test_contract/target/ink/test_contract.json")
-		.exists());
-
+	// pop test contract --features e2e-tests --node path
+	// Command::cargo_bin("pop")
+	// 	.unwrap()
+	// 	.current_dir(&temp_dir.path().join("test_contract"))
+	// 	.args(&["test", "contract", "--features", "e2e-tests", "--node", "path" ])
+	// 	.assert()
+	// 	.success();
 	Ok(())
 }
 
-#[test]
-fn test_contract_build_specify_path() -> Result<(), Error> {
-	let temp_contract_dir = setup_test_environment()?;
-
-	// pop build contract --path ./test_contract
-	Command::cargo_bin("pop")
-		.unwrap()
-		.current_dir(&temp_contract_dir.path())
-		.args(&["build", "contract", "--path", "./test_contract"])
-		.assert()
-		.success();
-
-	// Verify that the folder target has been created
-	assert!(temp_contract_dir.path().join("test_contract/target").exists());
-	// Verify that all the artifacts has been generated
-	assert!(temp_contract_dir
-		.path()
-		.join("test_contract/target/ink/test_contract.contract")
-		.exists());
-	assert!(temp_contract_dir
-		.path()
-		.join("test_contract/target/ink/test_contract.wasm")
-		.exists());
-	assert!(temp_contract_dir
-		.path()
-		.join("test_contract/target/ink/test_contract.json")
-		.exists());
-
+fn generate_all_the_templates(temp_dir: &TempDir) -> Result<()> {
+	for template in Template::VARIANTS {
+		let contract_name = format!("test_contract_{}", template);
+		let contract_type = template.contract_type()?.to_lowercase();
+		// pop new parachain test_parachain
+		Command::cargo_bin("pop")
+			.unwrap()
+			.current_dir(&temp_dir)
+			.args(&[
+				"new",
+				"contract",
+				&contract_name,
+				"--contract-type",
+				&contract_type,
+				"--template",
+				&template.to_string(),
+			])
+			.assert()
+			.success();
+		assert!(temp_dir.path().join(contract_name).exists());
+	}
 	Ok(())
 }
 

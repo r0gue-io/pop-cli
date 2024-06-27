@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::style::style;
-use anyhow::anyhow;
 use clap::Args;
 use cliclack::{clear_screen, confirm, intro, log, outro, outro_cancel};
 use pop_contracts::{

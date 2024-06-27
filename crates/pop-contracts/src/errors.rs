@@ -63,4 +63,7 @@ pub enum Error {
 
 	#[error("{0}")]
 	InstantiateContractError(String),
+
+	#[error("The `ContractType` property is missing from the template variant")]
+	ContractTypeMissing,
 }

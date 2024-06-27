@@ -126,6 +126,12 @@ impl Template {
 	pub fn repository_url(&self) -> Result<&str, Error> {
 		self.get_str("Repository").ok_or(Error::RepositoryMissing)
 	}
+
+	/// Get the provider of the template.
+	pub fn contract_type(&self) -> Result<&str, Error> {
+		self.get_str("ContractType").ok_or(Error::ContractTypeMissing)
+	}
+
 	/// Get the list of supported templates.
 	pub fn templates() -> &'static [Template] {
 		Template::VARIANTS
