@@ -44,8 +44,7 @@ pub struct UpOpts {
 ///
 /// # Arguments
 ///
-/// * `up_opts` - attributes for the `up` command.
-///
+/// * `up_opts` - options for the `up` command.
 pub async fn set_up_deployment(
 	up_opts: UpOpts,
 ) -> anyhow::Result<InstantiateExec<DefaultConfig, DefaultEnvironment, Keypair>> {
@@ -79,8 +78,7 @@ pub async fn set_up_deployment(
 ///
 /// # Arguments
 ///
-/// * `up_opts` - attributes for the `up` command.
-///
+/// * `up_opts` - options for the `up` command.
 pub async fn set_up_upload(
 	up_opts: UpOpts,
 ) -> anyhow::Result<UploadExec<DefaultConfig, DefaultEnvironment, Keypair>> {
@@ -102,7 +100,6 @@ pub async fn set_up_upload(
 /// # Arguments
 ///
 /// * `instantiate_exec` - the preprocessed data to instantiate a contract.
-///
 pub async fn dry_run_gas_estimate_instantiate(
 	instantiate_exec: &InstantiateExec<DefaultConfig, DefaultEnvironment, Keypair>,
 ) -> Result<Weight, Error> {
@@ -128,8 +125,8 @@ pub async fn dry_run_gas_estimate_instantiate(
 	}
 }
 
+/// Result of a dry-run upload of a smart contract.
 pub struct UploadDryRunResult {
-	pub result: String,
 	pub code_hash: String,
 	pub deposit: String,
 }
@@ -139,14 +136,12 @@ pub struct UploadDryRunResult {
 /// # Arguments
 ///
 /// * `upload_exec` - the preprocessed data to upload a contract.
-///
 pub async fn dry_run_upload(
 	upload_exec: &UploadExec<DefaultConfig, DefaultEnvironment, Keypair>,
 ) -> Result<UploadDryRunResult, Error> {
 	match upload_exec.upload_code_rpc().await? {
 		Ok(result) => {
 			let upload_result = UploadDryRunResult {
-				result: String::from("Success!"),
 				code_hash: format!("{:?}", result.code_hash),
 				deposit: result.deposit.to_string(),
 			};
@@ -166,7 +161,6 @@ pub async fn dry_run_upload(
 ///
 /// * `instantiate_exec` - the preprocessed data to instantiate a contract.
 /// * `gas_limit` - maximum amount of gas to be used for this call.
-///
 pub async fn instantiate_smart_contract(
 	instantiate_exec: InstantiateExec<DefaultConfig, DefaultEnvironment, Keypair>,
 	gas_limit: Weight,
@@ -183,7 +177,6 @@ pub async fn instantiate_smart_contract(
 /// # Arguments
 ///
 /// * `upload_exec` - the preprocessed data to upload a contract.
-///
 pub async fn upload_smart_contract(
 	upload_exec: &UploadExec<DefaultConfig, DefaultEnvironment, Keypair>,
 ) -> anyhow::Result<String, Error> {
@@ -332,7 +325,7 @@ mod tests {
 		};
 		let upload_exec = set_up_upload(up_opts).await?;
 		let upload_result = dry_run_upload(&upload_exec).await?;
-		assert_eq!(upload_result.result, "Success!");
+		assert!(upload_result.code_hash.starts_with("0x"));
 		Ok(())
 	}
 

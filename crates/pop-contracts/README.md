@@ -41,17 +41,7 @@ Deploy and instantiate an existing Smart Contract:
 use pop_contracts::{ instantiate_smart_contract, set_up_deployment, UpOpts};
 
 // prepare extrinsic for deployment
-let up_opts = UpOpts {
-    path: ...,
-	constructor: ...,
-	args: ...,
-	value: ...,
-	gas_limit: ...,
-	proof_size: ...,
-	salt: ...,
-	url: ...,
-	suri: ...,
-}
+let up_opts = UpOpts {..}
 let instantiate_exec = set_up_deployment(up_opts);
 
 
@@ -70,22 +60,12 @@ let contract_address = instantiate_smart_contract(instantiate_exec,  weight_limi
 			.map_err(|err| anyhow!("{} {}", "ERROR:", format!("{err:?}")))?;
 ```
 
-Only upload an Smart Contract:
+Upload a Smart Contract only:
 ```rust
 use pop_contracts::{ upload_smart_contract, set_up_upload, UpOpts};
 
 // prepare extrinsic for deployment
-let up_opts = UpOpts {
-    path: ...,
-	constructor: ...,
-	args: ...,
-	value: ...,
-	gas_limit: ...,
-	proof_size: ...,
-	salt: ...,
-	url: ...,
-	suri: ...,
-}
+let up_opts = UpOpts {..}
 let upload_exec = set_up_upload(up_opts);
 
 // to perform only a dry-run
