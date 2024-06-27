@@ -18,6 +18,7 @@ use subxt::PolkadotConfig as DefaultConfig;
 use subxt_signer::sr25519::Keypair;
 
 /// Attributes for the `up` command
+#[derive(Debug, PartialEq)]
 pub struct UpOpts {
 	/// Path to the contract build folder.
 	pub path: Option<PathBuf>,

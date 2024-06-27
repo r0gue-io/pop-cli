@@ -12,7 +12,7 @@ use sp_core::Bytes;
 use sp_weights::Weight;
 use std::path::PathBuf;
 
-#[derive(Args)]
+#[derive(Args, Clone)]
 pub struct UpContractCommand {
 	/// Path to the contract build folder.
 	#[arg(short = 'p', long)]
@@ -149,18 +149,7 @@ impl UpContractCommand {
 
 	/// Uploads the contract without instantiating it.
 	async fn upload_contract(self) -> anyhow::Result<()> {
-		let upload_exec = set_up_upload(UpOpts {
-			path: self.path.clone(),
-			constructor: self.constructor.clone(),
-			args: self.args.clone(),
-			value: self.value.clone(),
-			gas_limit: self.gas_limit,
-			proof_size: self.proof_size,
-			salt: self.salt.clone(),
-			url: self.url.clone(),
-			suri: self.suri.clone(),
-		})
-		.await?;
+		let upload_exec = set_up_upload(self.clone().into()).await?;
 		if self.dry_run {
 			match dry_run_upload(&upload_exec).await {
 				Ok(upload_result) => {
@@ -188,5 +177,62 @@ impl UpContractCommand {
 			log::warning("NOTE: The contract has not been instantiated.")?;
 		}
 		return Ok(());
+	}
+}
+
+impl From<UpContractCommand> for UpOpts {
+	fn from(cmd: UpContractCommand) -> Self {
+		return UpOpts {
+			path: cmd.path,
+			constructor: cmd.constructor,
+			args: cmd.args,
+			value: cmd.value,
+			gas_limit: cmd.gas_limit,
+			proof_size: cmd.proof_size,
+			salt: cmd.salt,
+			url: cmd.url,
+			suri: cmd.suri,
+		};
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use url::Url;
+
+	use super::*;
+
+	#[test]
+	fn conversion_up_contract_command_to_up_opts_works() -> anyhow::Result<()> {
+		let command = UpContractCommand {
+			path: None,
+			constructor: "new".to_string(),
+			args: vec!["false".to_string()].to_vec(),
+			value: "0".to_string(),
+			gas_limit: None,
+			proof_size: None,
+			salt: None,
+			url: Url::parse("ws://localhost:9944")?,
+			suri: "//Alice".to_string(),
+			dry_run: false,
+			upload_only: false,
+			skip_confirm: false,
+		};
+		let opts: UpOpts = command.into();
+		assert_eq!(
+			opts,
+			UpOpts {
+				path: None,
+				constructor: "new".to_string(),
+				args: vec!["false".to_string()].to_vec(),
+				value: "0".to_string(),
+				gas_limit: None,
+				proof_size: None,
+				salt: None,
+				url: Url::parse("ws://localhost:9944")?,
+				suri: "//Alice".to_string(),
+			}
+		);
+		Ok(())
 	}
 }
