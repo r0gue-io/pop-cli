@@ -68,6 +68,9 @@ pub fn generate_raw_chain_spec(path: Option<&Path>) -> Result<PathBuf, Error> {
 	let binary_path = binary_path(path)?;
 	check_command_exists(&binary_path, "build-spec")?;
 	let plain_parachain_spec = parachain_folder.join("plain-parachain-chainspec.json");
+	if !plain_parachain_spec.exists() {
+		return Err(Error::MissingChainSpec(plain_parachain_spec.display().to_string()));
+	}
 	let raw_chain_spec = parachain_folder.join("raw-parachain-chainspec.json");
 	cmd(
 		&binary_path,

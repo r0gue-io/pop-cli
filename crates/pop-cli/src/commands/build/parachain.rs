@@ -46,7 +46,7 @@ impl BuildParachainCommand {
 		if let Some(para_id) = self.id {
 			let chain_spec = generate_chain_spec(self.path.as_deref(), para_id)?;
 			generated_files.push(format!(
-				"New raw chain specification file generated at: {}",
+				"Plain text chain specification file generated at: {}",
 				chain_spec.display()
 			));
 			let raw_chain_spec = generate_raw_chain_spec(self.path.as_deref())?;
