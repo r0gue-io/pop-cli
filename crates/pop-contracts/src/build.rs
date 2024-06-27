@@ -1,9 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use contract_build::{execute, BuildMode, ExecuteArgs};
-use std::path::Path;
-
 use crate::utils::helpers::get_manifest_path;
+use contract_build::{execute, BuildMode, ExecuteArgs};
+use std::path::{Path, PathBuf};
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum Error {
+	#[error("Failed to get manifest path: {0}")]
+	ManifestPath(String),
+	#[error("Manifest error: {0}")]
+	ManifestError(#[from] cargo_toml::Error),
+}
 
 /// Build the smart contract located at the specified `path` in `build_release` mode.
 pub fn build_smart_contract(path: Option<&Path>, build_release: bool) -> anyhow::Result<String> {
@@ -23,14 +31,20 @@ pub fn build_smart_contract(path: Option<&Path>, build_release: bool) -> anyhow:
 	Ok(formatted_result)
 }
 
-/// Determines whether the manifest at the supplied path relates is a smart contract project.
-pub fn is_smart_contract(path: Option<&Path>) -> bool {
-	let Ok(manifest) = get_manifest_path(path) else {
-		return false;
+/// Determines whether the manifest at the supplied path is a supported smart contract project.
+pub fn is_supported(path: Option<&Path>) -> Result<bool, Error> {
+	// Resolve manifest path
+	let path = match path {
+		Some(path) => match path.ends_with("Cargo.toml") {
+			true => path.to_path_buf(),
+			false => path.join("Cargo.toml"),
+		},
+		None => PathBuf::from("./Cargo.toml"),
 	};
-	// Very simply check for now, can be improved by reading the manifest toml and iterating over the dependencies
-	match std::fs::read_to_string(manifest) {
-		Ok(contents) => contents.contains("ink ="),
-		Err(_) => false,
+	if !path.exists() {
+		return Err(Error::ManifestPath(path.display().to_string()));
 	}
+	let manifest = cargo_toml::Manifest::from_path(path)?;
+	// Simply check for the `ink` dependency
+	Ok(manifest.dependencies.contains_key("ink"))
 }

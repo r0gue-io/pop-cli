@@ -32,11 +32,11 @@ pub(crate) struct BuildArgs {
 /// Build a parachain or smart contract.
 #[derive(Subcommand)]
 pub(crate) enum Command {
-	/// Build a parachain
+	/// [DEPRECATED] Build a parachain
 	#[cfg(feature = "parachain")]
 	#[clap(alias = "p")]
 	Parachain(BuildParachainCommand),
-	/// Build a contract, generate metadata, bundle together in a `<name>.contract` file
+	/// [DEPRECATED] Build a contract, generate metadata, bundle together in a `<name>.contract` file
 	#[cfg(feature = "contract")]
 	#[clap(alias = "c")]
 	Contract(BuildContractCommand),
@@ -45,22 +45,26 @@ pub(crate) enum Command {
 impl Command {
 	/// Executes the command.
 	pub(crate) fn execute(args: BuildArgs) -> anyhow::Result<()> {
+		// All commands originating from root command are valid
+		let valid = true;
 		// Check if both parachain and contract features enabled
 		#[cfg(all(feature = "parachain", feature = "contract"))]
 		{
-			// Detect if smart contract project, otherwise assume a parachain project
-			if pop_contracts::is_smart_contract(args.path.as_deref()) {
-				return BuildContractCommand { path: args.path, release: args.release }.execute();
+			// Detect if supported smart contract project, otherwise assume a parachain project
+			if pop_contracts::is_supported(args.path.as_deref())? {
+				return BuildContractCommand { path: args.path, release: args.release, valid }
+					.execute();
 			}
-			return BuildParachainCommand { path: args.path, release: args.release }.execute();
+			return BuildParachainCommand { path: args.path, release: args.release, valid }
+				.execute();
 		}
-		// If only parachain feature enabled, build as parachain
-		#[cfg(all(feature = "parachain", not(feature = "contract")))]
-		{
-			return BuildParachainCommand { path: args.path, release: args.release }.execute();
-		}
+
 		// If only contract feature enabled, build as contract
 		#[cfg(all(feature = "contract", not(feature = "parachain")))]
-		return BuildContractCommand { path: args.path, release: args.release }.execute();
+		return BuildContractCommand { path: args.path, release: args.release, valid }.execute();
+
+		// If only parachain feature enabled, build as parachain
+		#[cfg(all(feature = "parachain", not(feature = "contract")))]
+		return BuildParachainCommand { path: args.path, release: args.release, valid }.execute();
 	}
 }

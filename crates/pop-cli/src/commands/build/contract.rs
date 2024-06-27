@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::style::Theme;
+use crate::cli::{traits::Cli as _, Cli};
 use clap::Args;
-use cliclack::{clear_screen, intro, log, outro, set_theme};
-use console::style;
 use pop_contracts::build_smart_contract;
-use std::path::PathBuf;
+use std::{path::PathBuf, thread::sleep, time::Duration};
 
 #[derive(Args)]
 pub struct BuildContractCommand {
@@ -15,18 +13,26 @@ pub struct BuildContractCommand {
 	/// For production, always build in release mode to exclude debug features.
 	#[clap(long = "release", short)]
 	pub(crate) release: bool,
+	// Deprecation flag, used to specify whether the deprecation warning is shown.
+	#[clap(skip)]
+	pub(crate) valid: bool,
 }
 
 impl BuildContractCommand {
 	/// Executes the command.
 	pub(crate) fn execute(self) -> anyhow::Result<()> {
-		clear_screen()?;
-		intro(format!("{}: Building your contract", style(" Pop CLI ").black().on_magenta()))?;
-		set_theme(Theme);
+		Cli.intro("Building your contract")?;
 
-		let result_build = build_smart_contract(self.path.as_deref(), self.release)?;
-		outro("Build completed successfully!")?;
-		log::success(result_build.to_string())?;
+		// Show warning if specified as deprecated.
+		if !self.valid {
+			Cli.warning("NOTE: this command is deprecated. Please use `pop build` (or simply `pop b`) in future...")?;
+			sleep(Duration::from_secs(3));
+		}
+
+		// Build contract.
+		let build_result = build_smart_contract(self.path.as_deref(), self.release)?;
+		Cli.success(build_result)?;
+		Cli.outro("Build completed successfully!")?;
 		Ok(())
 	}
 }

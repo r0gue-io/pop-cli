@@ -940,6 +940,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "cargo_toml"
+version = "0.20.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4895c018bb228aa6b3ba1a0285543fcb4b704734c3fb1f72afaa75aa769500c1"
+dependencies = [
+ "serde",
+ "toml 0.8.14",
+]
+
+[[package]]
 name = "cc"
 version = "1.0.99"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4488,6 +4498,7 @@ name = "pop-contracts"
 version = "0.2.0"
 dependencies = [
  "anyhow",
+ "cargo_toml",
  "contract-build",
  "contract-extrinsics",
  "duct",
