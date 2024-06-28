@@ -92,13 +92,14 @@ mod tests {
 	use super::*;
 	use std::{collections::HashMap, str::FromStr};
 	use strum::VariantArray;
+	use Contract::*;
 
 	fn templates_names() -> HashMap<String, Contract> {
 		HashMap::from([
-			("standard".to_string(), Contract::Standard),
-			("erc20".to_string(), Contract::ERC20),
-			("erc721".to_string(), Contract::ERC721),
-			("erc1155".to_string(), Contract::ERC1155),
+			("standard".to_string(), Standard),
+			("erc20".to_string(), ERC20),
+			("erc721".to_string(), ERC721),
+			("erc1155".to_string(), ERC1155),
 		])
 	}
 
@@ -112,21 +113,21 @@ mod tests {
 
 	fn templates_description() -> HashMap<Contract, &'static str> {
 		HashMap::from([
-			(Contract::Standard, "ink!'s 'Hello World': Flipper"),
-			(Contract::ERC20, "The implementation of the ERC-20 standard in ink!"),
-			(Contract::ERC721, "The implementation of the ERC-721 standard in ink!"),
-			(Contract::ERC1155, "The implementation of the ERC-1155 standard in ink!"),
+			(Standard, "ink!'s 'Hello World': Flipper"),
+			(ERC20, "The implementation of the ERC-20 standard in ink!"),
+			(ERC721, "The implementation of the ERC-721 standard in ink!"),
+			(ERC1155, "The implementation of the ERC-1155 standard in ink!"),
 		])
 	}
 
 	#[test]
 	fn test_is_template_correct() {
 		for template in Contract::VARIANTS {
-			if matches!(template, Contract::Standard) {
+			if matches!(template, Standard) {
 				assert_eq!(ContractType::Examples.provides(template), true);
 				assert_eq!(ContractType::Erc.provides(template), false);
 			}
-			if matches!(template, Contract::ERC20 | Contract::ERC721 | Contract::ERC1155) {
+			if matches!(template, ERC20 | ERC721 | ERC1155) {
 				assert_eq!(ContractType::Examples.provides(template), false);
 				assert_eq!(ContractType::Erc.provides(template), true);
 			}
@@ -137,7 +138,7 @@ mod tests {
 	fn test_convert_string_to_template() {
 		let template_names = templates_names();
 		// Test the default
-		assert_eq!(Contract::from_str("").unwrap_or_default(), Contract::Standard);
+		assert_eq!(Contract::from_str("").unwrap_or_default(), Standard);
 		// Test the rest
 		for template in Contract::VARIANTS {
 			assert_eq!(
@@ -151,7 +152,7 @@ mod tests {
 	fn test_repository_url() {
 		let template_urls = templates_urls();
 		for template in Contract::VARIANTS {
-			if matches!(template, Contract::Standard) {
+			if matches!(template, Standard) {
 				assert!(&template.repository_url().is_err());
 			} else {
 				assert_eq!(
@@ -173,20 +174,17 @@ mod tests {
 	#[test]
 	fn test_default_template_of_type() {
 		let mut contract_type = ContractType::Examples;
-		assert_eq!(contract_type.default_template(), Some(Contract::Standard));
+		assert_eq!(contract_type.default_template(), Some(Standard));
 		contract_type = ContractType::Erc;
-		assert_eq!(contract_type.default_template(), Some(Contract::ERC20));
+		assert_eq!(contract_type.default_template(), Some(ERC20));
 	}
 
 	#[test]
 	fn test_templates_of_type() {
 		let mut contract_type = ContractType::Examples;
-		assert_eq!(contract_type.templates(), [&Contract::Standard]);
+		assert_eq!(contract_type.templates(), [&Standard]);
 		contract_type = ContractType::Erc;
-		assert_eq!(
-			contract_type.templates(),
-			[&Contract::ERC20, &Contract::ERC721, &Contract::ERC1155]
-		);
+		assert_eq!(contract_type.templates(), [&ERC20, &ERC721, &ERC1155]);
 	}
 
 	#[test]

@@ -209,19 +209,20 @@ mod tests {
 	use super::*;
 	use std::{collections::HashMap, str::FromStr};
 	use strum::VariantArray;
+	use Parachain::*;
 
 	fn templates_names() -> HashMap<String, Parachain> {
 		HashMap::from([
-			("standard".to_string(), Parachain::Standard),
-			("assets".to_string(), Parachain::Assets),
-			("contracts".to_string(), Parachain::Contracts),
-			("evm".to_string(), Parachain::EVM),
+			("standard".to_string(), Standard),
+			("assets".to_string(), Assets),
+			("contracts".to_string(), Contracts),
+			("evm".to_string(), EVM),
 			// openzeppelin
-			("polkadot-generic-runtime-template".to_string(), Parachain::OpenZeppelinGeneric),
-			("cpt".to_string(), Parachain::ParityContracts),
-			("fpt".to_string(), Parachain::ParityFPT),
-			("test_01".to_string(), Parachain::TestTemplate01),
-			("test_02".to_string(), Parachain::TestTemplate02),
+			("polkadot-generic-runtime-template".to_string(), OpenZeppelinGeneric),
+			("cpt".to_string(), ParityContracts),
+			("fpt".to_string(), ParityFPT),
+			("test_01".to_string(), TestTemplate01),
+			("test_02".to_string(), TestTemplate02),
 		])
 	}
 
@@ -245,15 +246,15 @@ mod tests {
 
 	fn template_network_configs() -> HashMap<Parachain, Option<&'static str>> {
 		[
-			(Parachain::Standard, Some("./network.toml")),
-			(Parachain::Assets, Some("./network.toml")),
-			(Parachain::Contracts, Some("./network.toml")),
-			(Parachain::EVM, Some("./network.toml")),
-			(Parachain::OpenZeppelinGeneric, Some("./zombienet-config/devnet.toml")),
-			(Parachain::ParityContracts, Some("./zombienet.toml")),
-			(Parachain::ParityFPT, Some("./zombienet-config.toml")),
-			(Parachain::TestTemplate01, Some("")),
-			(Parachain::TestTemplate02, Some("")),
+			(Standard, Some("./network.toml")),
+			(Assets, Some("./network.toml")),
+			(Contracts, Some("./network.toml")),
+			(EVM, Some("./network.toml")),
+			(OpenZeppelinGeneric, Some("./zombienet-config/devnet.toml")),
+			(ParityContracts, Some("./zombienet.toml")),
+			(ParityFPT, Some("./zombienet-config.toml")),
+			(TestTemplate01, Some("")),
+			(TestTemplate02, Some("")),
 		]
 		.into()
 	}
@@ -261,14 +262,11 @@ mod tests {
 	#[test]
 	fn test_is_template_correct() {
 		for template in Parachain::VARIANTS {
-			if matches!(
-				template,
-				Parachain::Standard | Parachain::Assets | Parachain::Contracts | Parachain::EVM
-			) {
+			if matches!(template, Standard | Assets | Contracts | EVM) {
 				assert_eq!(Provider::Pop.provides(&template), true);
 				assert_eq!(Provider::Parity.provides(&template), false);
 			}
-			if matches!(template, Parachain::ParityContracts | Parachain::ParityFPT) {
+			if matches!(template, ParityContracts | ParityFPT) {
 				assert_eq!(Provider::Pop.provides(&template), false);
 				assert_eq!(Provider::Parity.provides(&template), true)
 			}
@@ -279,7 +277,7 @@ mod tests {
 	fn test_convert_string_to_template() {
 		let template_names = templates_names();
 		// Test the default
-		assert_eq!(Parachain::from_str("").unwrap_or_default(), Parachain::Standard);
+		assert_eq!(Parachain::from_str("").unwrap_or_default(), Standard);
 		// Test the rest
 		for template in Parachain::VARIANTS {
 			assert_eq!(
@@ -311,20 +309,17 @@ mod tests {
 	#[test]
 	fn test_default_template_of_provider() {
 		let mut provider = Provider::Pop;
-		assert_eq!(provider.default_template(), Some(Parachain::Standard));
+		assert_eq!(provider.default_template(), Some(Standard));
 		provider = Provider::Parity;
-		assert_eq!(provider.default_template(), Some(Parachain::ParityContracts));
+		assert_eq!(provider.default_template(), Some(ParityContracts));
 	}
 
 	#[test]
 	fn test_templates_of_provider() {
 		let mut provider = Provider::Pop;
-		assert_eq!(
-			provider.templates(),
-			[&Parachain::Standard, &Parachain::Assets, &Parachain::Contracts, &Parachain::EVM]
-		);
+		assert_eq!(provider.templates(), [&Standard, &Assets, &Contracts, &EVM]);
 		provider = Provider::Parity;
-		assert_eq!(provider.templates(), [&Parachain::ParityContracts, &Parachain::ParityFPT]);
+		assert_eq!(provider.templates(), [&ParityContracts, &ParityFPT]);
 	}
 
 	#[test]
@@ -347,13 +342,13 @@ mod tests {
 
 	#[test]
 	fn test_supported_versions_works() {
-		let template = Parachain::TestTemplate01;
+		let template = TestTemplate01;
 		assert_eq!(template.supported_versions(), Some(vec!["v1.0.0", "v2.0.0"]));
 		assert_eq!(template.is_supported_version("v1.0.0"), true);
 		assert_eq!(template.is_supported_version("v2.0.0"), true);
 		assert_eq!(template.is_supported_version("v3.0.0"), false);
 
-		let template = Parachain::TestTemplate02;
+		let template = TestTemplate02;
 		assert_eq!(template.supported_versions(), None);
 		// will be true because an empty SupportedVersions defaults to all
 		assert_eq!(template.is_supported_version("v1.0.0"), true);
@@ -361,10 +356,10 @@ mod tests {
 
 	#[test]
 	fn test_is_audited() {
-		let template = Parachain::TestTemplate01;
+		let template = TestTemplate01;
 		assert_eq!(template.is_audited(), true);
 
-		let template = Parachain::TestTemplate02;
+		let template = TestTemplate02;
 		assert_eq!(template.is_audited(), false);
 	}
 }
