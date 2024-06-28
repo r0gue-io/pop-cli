@@ -24,6 +24,15 @@ pub(crate) fn sanitize(target: &Path) -> Result<(), Error> {
 	Ok(())
 }
 
+/// Check if the decimals input by the user is a valid numeric value.
+///
+/// # Arguments
+///
+/// * `decimals` - decimals input to be checked for validity.
+pub fn is_decimals_valid(decimals: &str) -> bool {
+	decimals.chars().all(char::is_numeric)
+}
+
 /// Check if the initial endowment input by the user is a valid balance.
 ///
 /// # Arguments
@@ -33,6 +42,7 @@ pub fn is_initial_endowment_valid(initial_endowment: &str) -> bool {
 	initial_endowment.parse::<u128>().is_ok()
 		|| is_valid_bitwise_left_shift(initial_endowment).is_ok()
 }
+
 // Auxiliar method to check if the endowment input with a shift left (1u64 << 60) format is valid.
 // Parse the self << rhs format and check the shift left operation is valid.
 fn is_valid_bitwise_left_shift(initial_endowment: &str) -> Result<u128, Error> {
@@ -85,32 +95,6 @@ pub(crate) fn write_to_file(path: &Path, contents: &str) -> Result<(), Error> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::generator::parachain::ChainSpec;
-	use askama::Template;
-	use tempfile::tempdir;
-
-	#[test]
-	fn test_write_to_file() -> Result<(), Box<dyn std::error::Error>> {
-		let temp_dir = tempdir()?;
-		let chainspec = ChainSpec {
-			token_symbol: "DOT".to_string(),
-			decimals: 6,
-			initial_endowment: "1000000".to_string(),
-		};
-		let file_path = temp_dir.path().join("file.rs");
-		let _ = fs::write(&file_path, "");
-		write_to_file(&file_path, chainspec.render().expect("infallible").as_ref())?;
-		let generated_file_content =
-			fs::read_to_string(temp_dir.path().join("file.rs")).expect("Failed to read file");
-
-		assert!(generated_file_content
-			.contains("properties.insert(\"tokenSymbol\".into(), \"DOT\".into());"));
-		assert!(generated_file_content
-			.contains("properties.insert(\"tokenDecimals\".into(), 6.into());"));
-		assert!(generated_file_content.contains("1000000"));
-
-		Ok(())
-	}
 
 	#[test]
 	fn test_is_initial_endowment_valid() {

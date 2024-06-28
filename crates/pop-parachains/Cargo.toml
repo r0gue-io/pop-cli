@@ -10,6 +10,7 @@ repository.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+cargo-generate.workspace = true
 duct.workspace = true
 flate2.workspace = true
 glob.workspace = true
