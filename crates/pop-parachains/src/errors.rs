@@ -48,7 +48,7 @@ pub enum Error {
 	RustfmtError(std::io::Error),
 
 	#[error("Template error: {0}")]
-	TemplateError(#[from] pop_common::Error),
+	TemplateError(#[from] pop_common::templates::Error),
 
 	#[error("Failed to parse the endowment value")]
 	EndowmentError,

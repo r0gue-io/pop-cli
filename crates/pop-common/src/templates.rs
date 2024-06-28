@@ -1,5 +1,16 @@
-use crate::errors::Error;
+// SPDX-License-Identifier: GPL-3.0
+
 use strum::{EnumMessage, EnumProperty, VariantArray};
+pub use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum Error {
+	#[error("The `Repository` property is missing from the template variant")]
+	RepositoryMissing,
+
+	#[error("The `TypeMissing` property is missing from the template variant")]
+	TypeMissing,
+}
 
 /// A trait for templates. A template is a variant of a template type.
 pub trait Template:
