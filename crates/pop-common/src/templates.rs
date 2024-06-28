@@ -60,11 +60,10 @@ pub trait Type<T: Template>: Clone + Default + EnumMessage + Eq + PartialEq + Va
 	}
 
 	/// Get the list of templates of the type.
-	fn templates(&self) -> Vec<T> {
+	fn templates(&self) -> Vec<&T> {
 		T::VARIANTS
 			.iter()
 			.filter(|t| t.get_str(T::PROPERTY) == Some(self.name()))
-			.cloned()
 			.collect()
 	}
 

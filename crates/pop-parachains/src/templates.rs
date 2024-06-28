@@ -321,10 +321,18 @@ mod tests {
 		let mut provider = Provider::Pop;
 		assert_eq!(
 			provider.templates(),
-			[Parachain::Standard, Parachain::Assets, Parachain::Contracts, Parachain::EVM]
+			[
+				&ParachainTemplate::Standard,
+				&ParachainTemplate::Assets,
+				&ParachainTemplate::Contracts,
+				&ParachainTemplate::EVM
+			]
 		);
 		provider = Provider::Parity;
-		assert_eq!(provider.templates(), [Parachain::ParityContracts, Parachain::ParityFPT]);
+		assert_eq!(
+			provider.templates(),
+			[&ParachainTemplate::ParityContracts, &ParachainTemplate::ParityFPT]
+		);
 	}
 
 	#[test]
