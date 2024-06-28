@@ -197,6 +197,7 @@ Some of the options available are:
 
 - You also can specify the url of your node with `--url ws://your-endpoint`, by default it is
   using `ws://localhost:9944`.
+- To perform a dry-run via RPC to estimate the gas usage without submitting a transaction use the `--dry-run` flag.
 
 For more information about the options,
 check [cargo-contract documentation](https://github.com/paritytech/cargo-contract/blob/master/crates/extrinsics/README.md#instantiate)
@@ -225,15 +226,8 @@ pop call contract -p ./my_contract --contract $INSTANTIATED_CONTRACT_ADDRESS --m
 For end-to-end testing you will need to have a Substrate node with `pallet contracts`.
 You do not need to run it in the background since the node is started for each test independently.
 To install the latest version:
-
 ```
 cargo install contracts-node --git https://github.com/paritytech/substrate-contracts-node.git
-```
-
-If you want to run any other node with `pallet-contracts` you need to change `CONTRACTS_NODE` environment variable:
-
-```sh
-export CONTRACTS_NODE="YOUR_CONTRACTS_NODE_PATH"
 ```
 
 Run e2e testing on the Smart Contract:
@@ -241,6 +235,12 @@ Run e2e testing on the Smart Contract:
 ```sh
 # Run e2e tests for an existing smart contract
  pop test contract  -p ./my_contract --features e2e-tests
+```
+
+If you want to run a different node with `pallet-contracts` you need to change `CONTRACTS_NODE` environment variable using the  `--node` flag:
+```sh
+# Run e2e tests for an existing smart contract
+ pop test contract  -p ./my_contract --features e2e-tests --node YOUR_CONTRACTS_NODE_PATH
 ```
 
 ### Pallets
