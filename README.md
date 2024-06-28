@@ -13,7 +13,7 @@ cargo install --locked --git https://github.com/r0gue-io/pop-cli
 ```
 
 > :information_source: For detailed instructions on how to install Pop CLI, please refer to our
-> documentation: https://learn.onpop.io/v/contracts/welcome/installing-pop-cli
+> documentation: https://learn.onpop.io/v/cli/installing-pop-cli
 >
 > A [crates.io](https://crates.io/crates/pop-cli) version is also available:
 > - https://crates.io/crates/pop-cli
