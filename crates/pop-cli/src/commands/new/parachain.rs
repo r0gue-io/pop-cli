@@ -380,7 +380,7 @@ mod tests {
 
 	use super::*;
 	use crate::{
-		commands::new::{Command::Parachain, NewArgs},
+		commands::new::{Command::Parachain as ParachainCommand, NewArgs},
 		Cli,
 		Command::New,
 	};
@@ -398,7 +398,7 @@ mod tests {
 			dir.path().join("test_parachain").to_str().unwrap(),
 		]);
 
-		let New(NewArgs { command: Parachain(command) }) = cli.command else {
+		let New(NewArgs { command: ParachainCommand(command) }) = cli.command else {
 			panic!("unable to parse command")
 		};
 		// Execute
