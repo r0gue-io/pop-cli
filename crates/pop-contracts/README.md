@@ -6,11 +6,13 @@ A crate for generating, building, deploying, and calling [`ink!`](https://github
 
 Generate a new Smart Contract:
 ```rust
-use pop_contracts::create_smart_contract;
+use pop_contracts::{create_smart_contract, Template};
+
+let template = Template::Standard;
 
 let name = '...';
 let contract_path = ...;
-create_smart_contract(name, &contract_path)?;
+create_smart_contract(name, &contract_path, &template)?;
 ```
 
 Build an existing Smart Contract:
@@ -27,11 +29,12 @@ Test an existing Smart Contract:
 use pop_contracts::{test_e2e_smart_contract, test_smart_contract};
 
 let contract_path = ...;
+let contracts_node_path = ...;
 
 //unit testing
 test_smart_contract(&contract_path)?;
 //e2e testing
-test_e2e_smart_contract(&contract_path)?;
+test_e2e_smart_contract(&contract_path, contracts_node_path)?;
 ```
 
 Deploy and instantiate an existing Smart Contract:

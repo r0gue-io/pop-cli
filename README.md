@@ -1,6 +1,6 @@
 # Pop CLI
 
-<img src="/.icons/logo.jpeg"></img>
+<img src="https://github.com/r0gue-io/pop-cli/blob/main/.icons/logo.jpeg"></img>
 
 An all-in-one tool for Polkadot development.
 
@@ -95,7 +95,7 @@ cargo test
 Pop CLI would not be possible without these awesome crates!
 
 - Local network deployment powered by [zombienet-sdk](https://github.com/paritytech/zombienet-sdk)
-- [cargo contract](https://github.com/paritytech/cargo-contract) a setup and deployment tool for developing Wasm based
+- [cargo contract](https://github.com/use-ink/cargo-contract) a setup and deployment tool for developing Wasm based
   Smart Contracts via ink!
 
 ## License

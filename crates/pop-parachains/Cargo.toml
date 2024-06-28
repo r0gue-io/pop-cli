@@ -12,8 +12,6 @@ repository.workspace = true
 anyhow.workspace = true
 duct.workspace = true
 flate2.workspace = true
-git2.workspace = true
-git2_credentials.workspace = true
 glob.workspace = true
 strum.workspace = true
 strum_macros.workspace = true
@@ -25,16 +23,16 @@ url.workspace = true
 
 askama.workspace = true
 indexmap.workspace = true
-regex.workspace = true
 reqwest.workspace = true
-serde_json.workspace = true
-serde.workspace = true
 symlink.workspace = true
 toml_edit.workspace = true
 walkdir.workspace = true
 # Zombienet
 zombienet-sdk.workspace = true
 zombienet-support.workspace = true
+
+# Pop
+pop-common = { path = "../pop-common", version = "0.2.0" }
 
 [dev-dependencies]
 mockito.workspace = true

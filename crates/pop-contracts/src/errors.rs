@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
+
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -30,21 +31,30 @@ pub enum Error {
 	#[error("Failed to parse hex encoded bytes: {0}")]
 	HexParsing(String),
 
-	#[error("Failed to install {0}")]
-	InstallContractsNode(String),
+	#[error("Pre-submission dry-run failed: {0}")]
+	DryRunUploadContractError(String),
 
-	#[error("Failed to run {0}")]
-	UpContractsNode(String),
-
-	#[error("Unsupported platform: {os}")]
-	UnsupportedPlatform { os: &'static str },
+	#[error("Pre-submission dry-run failed: {0}")]
+	DryRunCallContractError(String),
 
 	#[error("Anyhow error: {0}")]
 	AnyhowError(#[from] anyhow::Error),
 
+	#[error("Failed to install {0}")]
+	InstallContractsNode(String),
+
+	#[error("ParseError error: {0}")]
+	ParseError(#[from] url::ParseError),
+
+	#[error("Invalid name: {0}")]
+	InvalidName(String),
+
+	#[error("The `Repository` property is missing from the template variant")]
+	RepositoryMissing,
+
+	#[error("Unsupported platform: {os}")]
+	UnsupportedPlatform { os: &'static str },
+
 	#[error("HTTP error: {0}")]
 	HttpError(#[from] reqwest::Error),
-
-	#[error("a git error occurred: {0}")]
-	Git(String),
 }

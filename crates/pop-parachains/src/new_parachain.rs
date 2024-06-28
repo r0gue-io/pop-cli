@@ -2,13 +2,11 @@
 
 use crate::{
 	generator::parachain::{ChainSpec, Network},
-	utils::{
-		git::Git,
-		helpers::{sanitize, write_to_file},
-	},
+	utils::helpers::{sanitize, write_to_file},
 	Config, Provider, Template,
 };
 use anyhow::Result;
+use pop_common::git::Git;
 use std::{fs, path::Path};
 use walkdir::WalkDir;
 

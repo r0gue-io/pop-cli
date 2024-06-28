@@ -14,6 +14,7 @@ use {
 	std::env::args,
 };
 
+mod cli;
 #[cfg(any(feature = "parachain", feature = "contract"))]
 mod commands;
 mod style;
