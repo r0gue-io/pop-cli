@@ -1,14 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{
-	generator::parachain::{ChainSpec, Network},
-	utils::helpers::{sanitize, write_to_file},
-	Config, Provider, Template,
-};
+use crate::{utils::helpers::sanitize, Config, Provider, Template};
 use anyhow::Result;
+use cargo_generate::{GenerateArgs, TemplatePath};
 use pop_common::git::Git;
 use std::{fs, path::Path};
-use walkdir::WalkDir;
 
 /// Create a new parachain.
 ///
@@ -39,37 +35,50 @@ pub fn instantiate_standard_template(
 	config: Config,
 	tag_version: Option<String>,
 ) -> Result<Option<String>> {
-	let temp_dir = ::tempfile::TempDir::new_in(std::env::temp_dir())?;
-	let source = temp_dir.path();
+	// Template palceholder definitions
+	let mut token_symbol: String = "token-symbol=".to_string();
+	let mut token_decimals: String = "token-decimals=".to_string();
+	let mut initial_endowement: String = "initial-endowment=".to_string();
 
-	let tag = Git::clone_and_degit(template.repository_url()?, source, tag_version)?;
+	// Placeholder customization
+	token_symbol.push_str(&*config.symbol);
+	token_decimals.push_str(&*config.decimals);
+	initial_endowement.push_str(&*config.initial_endowment);
 
-	for entry in WalkDir::new(&source) {
-		let entry = entry?;
-
-		let source_path = entry.path();
-		let destination_path = target.join(source_path.strip_prefix(&source)?);
-
-		if entry.file_type().is_dir() {
-			fs::create_dir_all(&destination_path)?;
-		} else {
-			fs::copy(source_path, &destination_path)?;
-		}
-	}
-	let chainspec = ChainSpec {
-		token_symbol: config.symbol,
-		decimals: config.decimals,
-		initial_endowment: config.initial_endowment,
+	// Tempalte rendering arguments
+	let standard_template_path = TemplatePath {
+		git: Some(
+			template
+				.repository_url()
+				.map_or(String::from("https://github.com/r0gue.io/base-parachain"), |r| {
+					r.to_string()
+				}),
+		),
+		tag: tag_version.clone(),
+		..Default::default()
 	};
-	use askama::Template;
-	write_to_file(
-		&target.join("node/src/chain_spec.rs"),
-		chainspec.render().expect("infallible").as_ref(),
-	)?;
-	// Add network configuration
-	let network = Network { node: "parachain-template-node".into() };
-	write_to_file(&target.join("network.toml"), network.render().expect("infallible").as_ref())?;
-	Ok(tag)
+
+	let template_generation_args = GenerateArgs {
+		template_path: standard_template_path,
+		name: Some(target.file_name().unwrap().to_str().unwrap().to_string()),
+		destination: Some(target.parent().unwrap().to_path_buf()),
+		define: vec![token_symbol, token_decimals, initial_endowement],
+		..Default::default()
+	};
+
+	// Template rendering
+	let target_template_path = cargo_generate::generate(template_generation_args)
+		.expect("Couldn't render liquid tempalte");
+
+	// Degit
+	let target_dirs = vec![".git", ".github"];
+	let remove_target = Path::new(&target_template_path);
+	for dir in target_dirs {
+		let git_dir = Path::new(dir);
+		fs::remove_dir_all(&remove_target.join(git_dir))?;
+	}
+
+	Ok(tag_version)
 }
 
 #[cfg(test)]
@@ -80,12 +89,19 @@ mod tests {
 
 	fn setup_template_and_instantiate() -> Result<tempfile::TempDir> {
 		let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
+		println!("{:?}", temp_dir);
 		let config = Config {
 			symbol: "DOT".to_string(),
-			decimals: 18,
+			decimals: "18".to_string(),
 			initial_endowment: "1000000".to_string(),
 		};
-		instantiate_standard_template(&Template::Standard, temp_dir.path(), config, None)?;
+		let _ = sanitize(temp_dir.path());
+		instantiate_standard_template(
+			&Template::Standard,
+			temp_dir.path(),
+			config,
+			Some(String::from("liquid-template")),
+		)?;
 		Ok(temp_dir)
 	}
 
@@ -107,13 +123,10 @@ mod tests {
 		// Verify network.toml contains expected content
 		let generated_file_content =
 			fs::read_to_string(temp_dir.path().join("network.toml")).expect("Failed to read file");
-		let expected_file_content =
-			fs::read_to_string(current_dir()?.join("./templates/base/network.templ"))
-				.expect("Failed to read file");
-		assert_eq!(
-			generated_file_content,
-			expected_file_content.replace("^^node^^", "parachain-template-node")
-		);
+		let mut expected_file_content =
+			temp_dir.path().file_name().unwrap().to_str().unwrap().to_string().to_owned();
+		expected_file_content.push_str("-node");
+		assert!(generated_file_content.contains(&expected_file_content));
 
 		Ok(())
 	}

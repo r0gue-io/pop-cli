@@ -71,7 +71,7 @@ impl Provider {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Config {
 	pub symbol: String,
-	pub decimals: u8,
+	pub decimals: String,
 	pub initial_endowment: String,
 }
 
@@ -100,7 +100,8 @@ pub enum Template {
 		props(
 			Provider = "Pop",
 			Repository = "https://github.com/r0gue-io/base-parachain",
-			Network = "./network.toml"
+			Network = "./network.toml",
+			SupportedVersions = "liquid-template"
 		)
 	)]
 	Standard,
@@ -236,15 +237,18 @@ impl Template {
 		self.get_str("Network")
 	}
 
+	/// Get a list of the template' supported versions.
 	pub fn supported_versions(&self) -> Option<Vec<&str>> {
 		self.get_str("SupportedVersions").map(|s| s.split(',').collect())
 	}
 
+	/// Check if the provided version is supported.
 	pub fn is_supported_version(&self, version: &str) -> bool {
 		// if `SupportedVersion` is None, then all versions are supported. Otherwise, ensure version is present.
 		self.supported_versions().map_or(true, |versions| versions.contains(&version))
 	}
 
+	/// Check if the template has been audited.
 	pub fn is_audited(&self) -> bool {
 		self.get_str("IsAudited").map_or(false, |s| s == "true")
 	}

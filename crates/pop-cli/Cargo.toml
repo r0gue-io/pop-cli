@@ -51,14 +51,6 @@ predicates.workspace = true
 
 [features]
 default = ["contract", "parachain", "telemetry"]
-contract = [
-    "dep:pop-contracts",
-    "dep:sp-core",
-    "dep:sp-weights",
-    "dep:dirs",
-]
-parachain = [
-    "dep:pop-parachains",
-    "dep:dirs",
-]
+contract = ["dep:pop-contracts", "dep:sp-core", "dep:sp-weights", "dep:dirs"]
+parachain = ["dep:pop-parachains", "dep:dirs"]
 telemetry = ["dep:pop-telemetry"]

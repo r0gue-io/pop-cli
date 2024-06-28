@@ -15,10 +15,12 @@ use cliclack::{
 };
 use pop_common::{Git, GitHub, Release};
 use pop_parachains::{
-	instantiate_template_dir, is_initial_endowment_valid, Config, Provider, Template,
+	instantiate_template_dir, is_decimals_valid, is_initial_endowment_valid, Config, Provider,
+	Template,
 };
 use strum::VariantArray;
 
+const DEFAULT_DECIMALS: &str = "12";
 const DEFAULT_INITIAL_ENDOWMENT: &str = "1u64 << 60";
 
 #[derive(Args, Clone)]
@@ -46,8 +48,8 @@ pub struct NewParachainCommand {
 	pub(crate) release_tag: Option<String>,
 	#[arg(long, short, help = "Token Symbol", default_value = "UNIT")]
 	pub(crate) symbol: Option<String>,
-	#[arg(long, short, help = "Token Decimals", default_value = "12")]
-	pub(crate) decimals: Option<u8>,
+	#[arg(long, short, help = "Token Decimals", default_value = DEFAULT_DECIMALS)]
+	pub(crate) decimals: Option<String>,
 	#[arg(
 		long = "endowment",
 		short,
@@ -126,7 +128,7 @@ async fn guide_user_to_generate_parachain() -> Result<NewParachainCommand> {
 
 	let mut customizable_options = Config {
 		symbol: "UNIT".to_string(),
-		decimals: 12,
+		decimals: "12".to_string(),
 		initial_endowment: "1u64 << 60".to_string(),
 	};
 	if template.matches(&Provider::Pop) {
@@ -235,7 +237,7 @@ fn display_select_options(provider: &Provider) -> Result<&Template> {
 fn get_customization_value(
 	template: &Template,
 	symbol: Option<String>,
-	decimals: Option<u8>,
+	decimals: Option<String>,
 	initial_endowment: Option<String>,
 ) -> Result<Config> {
 	if !matches!(template, Template::Standard)
@@ -344,11 +346,22 @@ fn prompt_customizable_options() -> Result<Config> {
 		.default_input("UNIT")
 		.interact()?;
 
-	let decimals_input: String = input("How many token decimals?")
+	let mut decimals: String = input("How many token decimals?")
 		.placeholder("12")
 		.default_input("12")
 		.interact()?;
-	let decimals: u8 = decimals_input.parse::<u8>().expect("input has to be a number");
+	if !is_decimals_valid(&decimals) {
+		outro_cancel("⚠️ The specified decimals is not valid, input has to be numeric")?;
+		//Prompt the user if want to use the one by default
+		if !confirm(format!("📦 Would you like to use the default {}?", DEFAULT_DECIMALS))
+			.initial_value(true)
+			.interact()?
+		{
+			outro_cancel("🚫 Cannot create a parachain with an incorrect decimals value.")?;
+			return Err(anyhow::anyhow!("incorrect decimals value"));
+		}
+		decimals = DEFAULT_DECIMALS.to_string();
+	}
 
 	let mut initial_endowment: String = input("And the initial endowment for dev accounts?")
 		.placeholder("1u64 << 60")
@@ -417,7 +430,7 @@ mod tests {
 			template: Some(Template::Standard),
 			release_tag: None,
 			symbol: Some("UNIT".to_string()),
-			decimals: Some(12),
+			decimals: Some("12".to_string()),
 			initial_endowment: Some("1u64 << 60".to_string()),
 		};
 		command.execute().await?;
@@ -446,14 +459,14 @@ mod tests {
 		let config = get_customization_value(
 			&Template::Standard,
 			Some("DOT".to_string()),
-			Some(6),
+			Some("6".to_string()),
 			Some("10000".to_string()),
 		)?;
 		assert_eq!(
 			config,
 			Config {
 				symbol: "DOT".to_string(),
-				decimals: 6,
+				decimals: "6".to_string(),
 				initial_endowment: "10000".to_string()
 			}
 		);
