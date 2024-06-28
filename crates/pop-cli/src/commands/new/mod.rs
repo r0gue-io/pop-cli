@@ -18,9 +18,7 @@ macro_rules! enum_variants {
 				.map(|p| PossibleValue::new(p.as_ref()))
 				.collect::<Vec<_>>(),
 		)
-		.try_map(|s| {
-			<$e>::from_str(&s).map_err(|e| format!("could not convert from {s} to provider"))
-		})
+		.try_map(|s| <$e>::from_str(&s).map_err(|e| format!("could not convert from {s} to type")))
 	}};
 }
 

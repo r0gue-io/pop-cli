@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{errors::Error, utils::helpers::canonicalized_path, Template};
+use crate::{errors::Error, utils::helpers::canonicalized_path, Contract};
 use anyhow::Result;
 use contract_build::new_contract_project;
 use heck::ToUpperCamelCase;
-use pop_common::{replace_in_file, Git};
+use pop_common::{replace_in_file, templates::Template, Git};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -17,10 +17,10 @@ use url::Url;
 /// * `name` - name for the smart contract to be created.
 /// * `target` - location where the smart contract will be created.
 /// * `template` - template to generate the contract from.
-pub fn create_smart_contract(name: &str, target: &Path, template: &Template) -> Result<()> {
+pub fn create_smart_contract(name: &str, target: &Path, template: &Contract) -> Result<()> {
 	let canonicalized_path = canonicalized_path(target)?;
 	// Create a new default contract project with the provided name in the parent directory.
-	if matches!(template, Template::Standard) {
+	if matches!(template, Contract::Standard) {
 		return create_standard_contract(name, canonicalized_path);
 	}
 	return create_template_contract(name, canonicalized_path, &template);
@@ -55,7 +55,7 @@ fn create_standard_contract(name: &str, canonicalized_path: PathBuf) -> Result<(
 fn create_template_contract(
 	name: &str,
 	canonicalized_path: PathBuf,
-	template: &Template,
+	template: &Contract,
 ) -> Result<()> {
 	let template_repository = template.repository_url()?;
 	// Clone the repository into the temporary directory.
@@ -85,7 +85,7 @@ fn extract_contract_files(
 	Ok(())
 }
 
-pub fn rename_contract(name: &str, path: PathBuf, template: &Template) -> Result<()> {
+pub fn rename_contract(name: &str, path: PathBuf, template: &Contract) -> Result<()> {
 	let template_name = template.to_string().to_lowercase();
 	// Replace name in the Cargo.toml file.
 	let mut file_path = path.join("Cargo.toml");
@@ -108,7 +108,7 @@ mod tests {
 	use anyhow::{Error, Result};
 	use std::{fs, io::Write};
 
-	fn setup_test_environment(template: Template) -> Result<tempfile::TempDir, Error> {
+	fn setup_test_environment(template: Contract) -> Result<tempfile::TempDir, Error> {
 		let temp_dir = tempfile::tempdir()?;
 		let temp_contract_dir = temp_dir.path().join("test_contract");
 		fs::create_dir(&temp_contract_dir)?;
@@ -118,7 +118,7 @@ mod tests {
 
 	#[test]
 	fn test_create_standard_smart_contract_success() -> Result<(), Error> {
-		let temp_dir = setup_test_environment(Template::Standard)?;
+		let temp_dir = setup_test_environment(Contract::Standard)?;
 		// Verify that the generated smart contract contains the expected content
 		let generated_file_content =
 			fs::read_to_string(temp_dir.path().join("test_contract/lib.rs"))
@@ -137,7 +137,7 @@ mod tests {
 
 	#[test]
 	fn test_create_template_smart_contract_success() -> Result<(), Error> {
-		let temp_dir = setup_test_environment(Template::ERC20)?;
+		let temp_dir = setup_test_environment(Contract::ERC20)?;
 		// Verify that the generated smart contract contains the expected content
 		let generated_file_content =
 			fs::read_to_string(temp_dir.path().join("test_contract/lib.rs"))
@@ -163,7 +163,7 @@ mod tests {
 		Ok(())
 	}
 
-	fn generate_testing_files_and_folders(template: Template) -> Result<tempfile::TempDir, Error> {
+	fn generate_testing_files_and_folders(template: Contract) -> Result<tempfile::TempDir, Error> {
 		let temp_dir = tempfile::tempdir()?;
 		let contract_folder = temp_dir.path().join(template.to_string());
 		fs::create_dir(&contract_folder)?;
@@ -176,23 +176,23 @@ mod tests {
 	#[test]
 	fn test_extract_contract_files() -> Result<(), Error> {
 		// ERC-20
-		let mut temp_dir = generate_testing_files_and_folders(Template::ERC20)?;
+		let mut temp_dir = generate_testing_files_and_folders(Contract::ERC20)?;
 		let mut output_dir = tempfile::tempdir()?;
-		extract_contract_files(Template::ERC20.to_string(), temp_dir.path(), output_dir.path())?;
+		extract_contract_files(Contract::ERC20.to_string(), temp_dir.path(), output_dir.path())?;
 		assert!(output_dir.path().join("lib.rs").exists());
 		assert!(output_dir.path().join("Cargo.toml").exists());
 		assert!(!output_dir.path().join("noise_folder").exists());
 		// ERC-721
-		temp_dir = generate_testing_files_and_folders(Template::ERC721)?;
+		temp_dir = generate_testing_files_and_folders(Contract::ERC721)?;
 		output_dir = tempfile::tempdir()?;
-		extract_contract_files(Template::ERC721.to_string(), temp_dir.path(), output_dir.path())?;
+		extract_contract_files(Contract::ERC721.to_string(), temp_dir.path(), output_dir.path())?;
 		assert!(output_dir.path().join("lib.rs").exists());
 		assert!(output_dir.path().join("Cargo.toml").exists());
 		assert!(!output_dir.path().join("noise_folder").exists());
 		// ERC-1155
-		temp_dir = generate_testing_files_and_folders(Template::ERC1155)?;
+		temp_dir = generate_testing_files_and_folders(Contract::ERC1155)?;
 		output_dir = tempfile::tempdir()?;
-		extract_contract_files(Template::ERC1155.to_string(), temp_dir.path(), output_dir.path())?;
+		extract_contract_files(Contract::ERC1155.to_string(), temp_dir.path(), output_dir.path())?;
 		assert!(output_dir.path().join("lib.rs").exists());
 		assert!(output_dir.path().join("Cargo.toml").exists());
 		assert!(!output_dir.path().join("noise_folder").exists());
@@ -229,7 +229,7 @@ mod tests {
 	#[test]
 	fn test_rename_contract() -> Result<(), Error> {
 		let temp_dir = generate_contract_folder()?;
-		rename_contract("my_contract", temp_dir.path().to_owned(), &Template::ERC20)?;
+		rename_contract("my_contract", temp_dir.path().to_owned(), &Contract::ERC20)?;
 		let generated_cargo =
 			fs::read_to_string(temp_dir.path().join("Cargo.toml")).expect("Could not read file");
 		assert!(generated_cargo.contains("name = \"my_contract\""));

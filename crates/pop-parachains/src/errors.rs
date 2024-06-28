@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::templates;
 use thiserror::Error;
 use zombienet_sdk::OrchestratorError;
 
@@ -49,7 +48,7 @@ pub enum Error {
 	RustfmtError(std::io::Error),
 
 	#[error("Template error: {0}")]
-	TemplateError(#[from] templates::Error),
+	TemplateError(#[from] pop_common::templates::Error),
 
 	#[error("Failed to parse the endowment value")]
 	EndowmentError,
