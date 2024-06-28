@@ -1,6 +1,6 @@
 # Pop CLI
 
-<img src="/.icons/logo.jpeg"></img>
+<img src="https://github.com/r0gue-io/pop-cli/blob/main/.icons/logo.jpeg"></img>
 
 An all-in-one tool for Polkadot development.
 
