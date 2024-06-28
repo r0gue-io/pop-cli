@@ -73,3 +73,16 @@ pub trait Type<T: Template>: Clone + Default + EnumMessage + Eq + PartialEq + Va
 		template.get_str(T::PROPERTY) == Some(self.name())
 	}
 }
+
+#[macro_export]
+macro_rules! enum_variants {
+	($e: ty) => {{
+		PossibleValuesParser::new(
+			<$e>::VARIANTS
+				.iter()
+				.map(|p| PossibleValue::new(p.as_ref()))
+				.collect::<Vec<_>>(),
+		)
+		.try_map(|s| <$e>::from_str(&s).map_err(|e| format!("could not convert from {s} to type")))
+	}};
+}

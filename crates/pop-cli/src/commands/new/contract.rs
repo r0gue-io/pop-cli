@@ -8,7 +8,10 @@ use clap::{
 };
 use cliclack::{clear_screen, confirm, input, intro, log::success, outro, outro_cancel, set_theme};
 use console::style;
-use pop_common::templates::{Template, Type};
+use pop_common::{
+	enum_variants,
+	templates::{Template, Type},
+};
 use pop_contracts::{create_smart_contract, is_valid_contract_name, Contract, ContractType};
 use std::{env::current_dir, fs, path::PathBuf, str::FromStr};
 use strum::VariantArray;
@@ -22,7 +25,7 @@ pub struct NewContractCommand {
 		short = 'c',
 		long,
 		help = "Contract type.",
-		value_parser = crate::enum_variants!(ContractType)
+		value_parser = enum_variants!(ContractType)
 	)]
 	pub(crate) contract_type: Option<ContractType>,
 	#[arg(short = 'p', long, help = "Path for the contract project, [default: current directory]")]
@@ -31,7 +34,7 @@ pub struct NewContractCommand {
 		short = 't',
 		long,
 		help = "Template to use.",
-		value_parser = crate::enum_variants!(Contract)
+		value_parser = enum_variants!(Contract)
 	)]
 	pub(crate) template: Option<Contract>,
 }
@@ -114,7 +117,7 @@ async fn guide_user_to_generate_contract() -> anyhow::Result<NewContractCommand>
 	})
 }
 
-fn display_select_options(contract_type: &ContractType) -> Result<Contract> {
+fn display_select_options(contract_type: &ContractType) -> Result<&Contract> {
 	let mut prompt = cliclack::select("Select the contract:".to_string());
 	for (i, template) in contract_type.templates().into_iter().enumerate() {
 		if i == 0 {

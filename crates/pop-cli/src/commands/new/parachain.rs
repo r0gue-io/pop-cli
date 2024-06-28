@@ -14,6 +14,7 @@ use cliclack::{
 	outro, outro_cancel, set_theme,
 };
 use pop_common::{
+	enum_variants,
 	templates::{Template, Type},
 	Git, GitHub, Release,
 };
@@ -31,14 +32,14 @@ pub struct NewParachainCommand {
 	#[arg(
 		help = "Template provider.",
 		default_value = Provider::Pop.as_ref(),
-		value_parser = crate::enum_variants!(Provider)
+		value_parser = enum_variants!(Provider)
 	)]
 	pub(crate) provider: Option<Provider>,
 	#[arg(
 		short = 't',
 		long,
 		help = "Template to use.",
-		value_parser = crate::enum_variants!(Parachain)
+		value_parser = enum_variants!(Parachain)
 	)]
 	pub(crate) template: Option<Parachain>,
 	#[arg(
