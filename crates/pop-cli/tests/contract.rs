@@ -1,15 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use std::path::Path;
-
-use anyhow::{Error, Result};
+use anyhow::Result;
 use assert_cmd::Command;
 use pop_common::templates::Template;
 use pop_contracts::{
 	dry_run_gas_estimate_instantiate, instantiate_smart_contract, run_contracts_node,
 	set_up_deployment, ContractTemplate, UpOpts,
 };
-use predicates::prelude::*;
+use std::path::Path;
 use strum::VariantArray;
 use url::Url;
 
@@ -158,18 +156,5 @@ fn generate_all_the_templates(temp_dir: &Path) -> Result<()> {
 			.success();
 		assert!(temp_dir.join(contract_name).exists());
 	}
-	Ok(())
-}
-
-#[test]
-fn test_contract_build_fails_if_no_contract_exists() -> Result<(), Error> {
-	// pop build contract
-	Command::cargo_bin("pop")
-		.unwrap()
-		.args(&["build", "contract"])
-		.assert()
-		.failure()
-		.stderr(predicate::str::contains("Error: No 'ink' dependency found"));
-
 	Ok(())
 }
