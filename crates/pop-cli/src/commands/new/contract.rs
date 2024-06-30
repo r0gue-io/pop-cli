@@ -200,8 +200,8 @@ mod tests {
 	#[tokio::test]
 	async fn test_new_contract_command_execute_with_defaults_executes() -> Result<()> {
 		let dir = tempdir()?;
-		let dir_path = dir.path().display().to_string();
-		let cli = Cli::parse_from(["pop", "new", "contract", "test_contract", "-p", &dir_path]);
+		let dir_path = format!("{}/test_contract", dir.path().display().to_string());
+		let cli = Cli::parse_from(["pop", "new", "contract", &dir_path]);
 
 		let New(NewArgs { command: Contract(command) }) = cli.command else {
 			panic!("unable to parse command")
