@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::cli::traits::*;
+use crate::{style::style, cli::traits::*};
 use anyhow::Result;
 use clap::{Args, Subcommand};
 use std::{
 	fs::{read_dir, remove_file},
 	path::PathBuf,
 };
+use cliclack::{confirm, outro_cancel};
 
 #[derive(Args)]
 #[command(args_conflicts_with_subcommands = true)]
@@ -20,7 +21,13 @@ pub(crate) struct CleanArgs {
 pub(crate) enum Command {
 	/// Remove cached artifacts.
 	#[clap(alias = "c")]
-	Cache,
+	Cache(CleanCommandArgs),
+}
+
+#[derive(Args)]
+pub struct CleanCommandArgs {
+	#[arg(short = 'a', long)]
+	all: bool
 }
 
 /// Removes cached artifacts.
@@ -33,7 +40,7 @@ pub(crate) struct CleanCacheCommand<'a, CLI: Cli> {
 
 impl<'a, CLI: Cli> CleanCacheCommand<'a, CLI> {
 	/// Executes the command.
-	pub(crate) fn execute(self) -> Result<()> {
+	pub(crate) fn execute(self, args: CleanCommandArgs) -> Result<()> {
 		self.cli.intro("Remove cached artifacts")?;
 
 		// Get the cache contents
@@ -54,38 +61,69 @@ impl<'a, CLI: Cli> CleanCacheCommand<'a, CLI> {
 			self.cache.to_str().expect("expected local cache is invalid")
 		))?;
 
-		// Prompt for selection of artifacts to be removed
-		let selected = {
-			let mut prompt =
-				self.cli.multiselect("Select the artifacts you wish to remove:").required(false);
-			for (name, path, size) in &contents {
-				prompt = prompt.item(path, name, format!("{}MiB", size / 1_048_576))
+		// if args.all flag is present, then remove all artifacts
+		if args.all {
+			// Display all artifacts to be deleted and get confirmation
+			let list = style(format!(
+				"> {}",
+				&contents
+					.iter()
+					.map(|(name, _, size)| format!("{} : {}MiB", name, size / 1_048_576))
+					.collect::<Vec<_>>()
+					.join(", ")
+			))
+			.dim()
+			.to_string();
+
+			if !confirm(format!(
+				"Would you like to cleanup all cache artifacts...\n {list}"))
+			.initial_value(true)
+			.interact()? {
+				outro_cancel("Failed to clean cache")?;
+				return Ok(());
 			}
-			prompt.interact()?
-		};
-		if selected.is_empty() {
-			self.cli.outro("ℹ️ No artifacts removed")?;
-			return Ok(());
-		};
 
-		// Confirm removal
-		let prompt = match selected.len() {
-			1 => "Are you sure you want to remove the selected artifact?".into(),
-			_ => format!(
-				"Are you sure you want to remove the {} selected artifacts?",
-				selected.len()
-			),
-		};
-		if !self.cli.confirm(prompt).interact()? {
-			self.cli.outro("ℹ️ No artifacts removed")?;
-			return Ok(());
+			for (_, file, _) in &contents {
+				// confirm removal
+				remove_file(&file)?;
+				self.cli.outro(format!("ℹ️ {} artifacts removed", contents.len()))?;
+			}
+		} else {
+			// Prompt for selection of artifacts to be removed
+			let selected = {
+				let mut prompt =
+					self.cli.multiselect("Select the artifacts you wish to remove:").required(false);
+				for (name, path, size) in &contents {
+					prompt = prompt.item(path, name, format!("{}MiB", size / 1_048_576))
+				}
+				prompt.interact()?
+			};
+			if selected.is_empty() {
+				self.cli.outro("ℹ️ No artifacts removed")?;
+				return Ok(());
+			};
+
+			// Confirm removal
+			let prompt = match selected.len() {
+				1 => "Are you sure you want to remove the selected artifact?".into(),
+				_ => format!(
+					"Are you sure you want to remove the {} selected artifacts?",
+					selected.len()
+				),
+			};
+			if !self.cli.confirm(prompt).interact()? {
+				self.cli.outro("ℹ️ No artifacts removed")?;
+				return Ok(());
+			}
+
+			// Finally remove selected artifacts
+			for file in &selected {
+				remove_file(file)?
+			}
+
+			self.cli.outro(format!("ℹ️ {} artifacts removed", selected.len()))?;
 		}
 
-		// Finally remove selected artifacts
-		for file in &selected {
-			remove_file(file)?
-		}
-		self.cli.outro(format!("ℹ️ {} artifacts removed", selected.len()))?;
 		Ok(())
 	}
 }
@@ -118,8 +156,10 @@ mod tests {
 	fn clean_cache_has_intro() -> Result<()> {
 		let cache = PathBuf::new();
 		let mut cli = MockCli::new().expect_intro(&"Remove cached artifacts");
-
-		CleanCacheCommand { cli: &mut cli, cache }.execute()?;
+		let args = CleanCommandArgs {
+			all: false,
+		};
+		CleanCacheCommand { cli: &mut cli, cache }.execute(args)?;
 
 		cli.verify()
 	}
@@ -128,8 +168,10 @@ mod tests {
 	fn clean_cache_handles_missing_cache() -> Result<()> {
 		let cache = PathBuf::new();
 		let mut cli = MockCli::new().expect_outro_cancel(&"🚫 The cache does not exist.");
-
-		CleanCacheCommand { cli: &mut cli, cache }.execute()?;
+		let args = CleanCommandArgs {
+			all: false,
+		};
+		CleanCacheCommand { cli: &mut cli, cache }.execute(args)?;
 
 		cli.verify()
 	}
@@ -140,8 +182,10 @@ mod tests {
 		let cache = temp.path().to_path_buf();
 		let mut cli = MockCli::new()
 			.expect_outro(&format!("ℹ️ The cache at {} is empty.", cache.to_str().unwrap()));
-
-		CleanCacheCommand { cli: &mut cli, cache }.execute()?;
+		let args = CleanCommandArgs {
+			all: false,
+		};
+		CleanCacheCommand { cli: &mut cli, cache }.execute(args)?;
 
 		cli.verify()
 	}
@@ -155,8 +199,10 @@ mod tests {
 		}
 		let mut cli = MockCli::new()
 			.expect_info(format!("ℹ️ The cache is located at {}", cache.to_str().unwrap()));
-
-		CleanCacheCommand { cli: &mut cli, cache }.execute()?;
+		let args = CleanCommandArgs {
+			all: false,
+		};
+		CleanCacheCommand { cli: &mut cli, cache }.execute(args)?;
 
 		cli.verify()
 	}
@@ -176,8 +222,10 @@ mod tests {
 			true,
 			Some(items),
 		);
-
-		CleanCacheCommand { cli: &mut cli, cache }.execute()?;
+		let args = CleanCommandArgs {
+			all: false,
+		};
+		CleanCacheCommand { cli: &mut cli, cache }.execute(args)?;
 
 		cli.verify()
 	}
@@ -199,8 +247,10 @@ mod tests {
 				None,
 			)
 			.expect_outro("ℹ️ No artifacts removed");
-
-		CleanCacheCommand { cli: &mut cli, cache }.execute()?;
+		let args = CleanCommandArgs {
+			all: false,
+		};
+		CleanCacheCommand { cli: &mut cli, cache }.execute(args)?;
 
 		for artifact in artifacts {
 			assert!(artifact.exists())
@@ -225,8 +275,10 @@ mod tests {
 			)
 			.expect_confirm("Are you sure you want to remove the selected artifact?", false)
 			.expect_outro("ℹ️ No artifacts removed");
-
-		CleanCacheCommand { cli: &mut cli, cache }.execute()?;
+		let args = CleanCommandArgs {
+			all: false,
+		};
+		CleanCacheCommand { cli: &mut cli, cache }.execute(args)?;
 
 		cli.verify()
 	}
@@ -249,8 +301,10 @@ mod tests {
 			)
 			.expect_confirm("Are you sure you want to remove the 3 selected artifacts?", true)
 			.expect_outro("ℹ️ 3 artifacts removed");
-
-		CleanCacheCommand { cli: &mut cli, cache }.execute()?;
+		let args = CleanCommandArgs {
+			all: false,
+		};
+		CleanCacheCommand { cli: &mut cli, cache }.execute(args)?;
 
 		for artifact in artifacts {
 			assert!(!artifact.exists())

@@ -111,10 +111,10 @@ impl Command {
 				},
 			},
 			Self::Clean(args) => match args.command {
-				clean::Command::Cache => {
+				clean::Command::Cache(cmd_args) => {
 					// Initialize command and execute
 					clean::CleanCacheCommand { cli: &mut Cli, cache: cache()? }
-						.execute()
+						.execute(cmd_args)
 						.map(|_| Value::Null)
 				},
 			},
