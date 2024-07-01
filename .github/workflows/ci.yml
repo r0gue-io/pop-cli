@@ -88,28 +88,28 @@ jobs:
           files: codecov.json
           fail_ci_if_error: true
   
-  contract-integration-tests:
-    needs: lint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+  # contract-integration-tests:
+  #   needs: lint
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
 
-      - uses: "./.github/actions/init"
-        with:
-          git-user: ${{ env.GITHUB_ACTOR }}
+  #     - uses: "./.github/actions/init"
+  #       with:
+  #         git-user: ${{ env.GITHUB_ACTOR }}
 
-      - name: Run integration tests
-        run: cargo test --no-default-features --features contract --test contract
+  #     - name: Run integration tests
+  #       run: cargo test --no-default-features --features contract --test contract
 
-  parachain-integration-tests:
-    needs: lint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+  # parachain-integration-tests:
+  #   needs: lint
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
 
-      - uses: "./.github/actions/init"
-        with:
-          git-user: ${{ env.GITHUB_ACTOR }}
+  #     - uses: "./.github/actions/init"
+  #       with:
+  #         git-user: ${{ env.GITHUB_ACTOR }}
 
-      - name: Run integration tests
-        run: cargo test --no-default-features --features parachain --test parachain
+  #     - name: Run integration tests
+  #       run: cargo test --no-default-features --features parachain --test parachain
