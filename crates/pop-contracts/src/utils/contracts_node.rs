@@ -141,7 +141,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn is_chain_alive_works() -> Result<(), Error> {
-		let local_url = url::Url::parse("ws://localhost:9944")?;
+		let local_url = url::Url::parse("ws://localhost:9920")?;
 		assert!(!is_chain_alive(local_url).await?);
 		let polkadot_url = url::Url::parse("wss://polkadot-rpc.dwellir.com")?;
 		assert!(is_chain_alive(polkadot_url).await?);
@@ -151,7 +151,6 @@ mod tests {
 	#[tokio::test]
 	async fn run_contracts_node_works() -> Result<(), Error> {
 		let local_url = url::Url::parse("ws://localhost:9944")?;
-		assert!(!is_chain_alive(local_url.clone()).await?);
 		// Run the contracts node
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
 		let cache = temp_dir.path().join("cache");

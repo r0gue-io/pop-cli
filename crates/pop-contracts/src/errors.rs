@@ -57,4 +57,19 @@ pub enum Error {
 
 	#[error("HTTP error: {0}")]
 	HttpError(#[from] reqwest::Error),
+
+	#[error("{0}")]
+	UploadContractError(String),
+
+	#[error("{0}")]
+	CallContractError(String),
+
+	#[error("{0}")]
+	InstantiateContractError(String),
+
+	#[error("The `ContractType` property is missing from the template variant")]
+	ContractTypeMissing,
+
+	#[error("Failed to build the contract: {0}")]
+	BuildContractError(String),
 }

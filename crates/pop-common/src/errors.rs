@@ -15,4 +15,10 @@ pub enum Error {
 
 	#[error("ParseError error: {0}")]
 	ParseError(#[from] url::ParseError),
+
+	#[error("The `Repository` property is missing from the template variant")]
+	RepositoryMissing,
+
+	#[error("The `TemplateType` property is missing from the template variant")]
+	TemplateTypeMissing,
 }

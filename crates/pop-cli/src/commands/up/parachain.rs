@@ -44,6 +44,9 @@ pub(crate) struct ZombienetCommand {
 	/// Whether the output should be verbose.
 	#[arg(short, long, action)]
 	verbose: bool,
+	/// Automatically source all needed binaries required without prompting for confirmation.
+	#[clap(short('y'), long)]
+	skip_confirm: bool,
 }
 
 impl ZombienetCommand {
@@ -83,7 +86,7 @@ impl ZombienetCommand {
 		};
 
 		// Source any missing/stale binaries
-		if Self::source_binaries(&mut zombienet, &cache, self.verbose).await? {
+		if Self::source_binaries(&mut zombienet, &cache, self.verbose, self.skip_confirm).await? {
 			return Ok(());
 		}
 
@@ -159,6 +162,7 @@ impl ZombienetCommand {
 		zombienet: &mut Zombienet,
 		cache: &PathBuf,
 		verbose: bool,
+		skip_confirm: bool,
 	) -> anyhow::Result<bool> {
 		// Check for any missing or stale binaries
 		let binaries: Vec<_> = zombienet.binaries().filter(|b| !b.exists() || b.stale()).collect();
@@ -197,15 +201,17 @@ impl ZombienetCommand {
 			))
 			.dim()
 			.to_string();
-			if !confirm(format!(
+			if !skip_confirm {
+				if !confirm(format!(
 				"📦 Would you like to source them automatically now? It may take some time...\n   {list}"))
-			.initial_value(true)
-			.interact()?
-			{
-				outro_cancel(
+				.initial_value(true)
+				.interact()?
+				{
+					outro_cancel(
 					"🚫 Cannot launch the specified network until all required binaries are available.",
 				)?;
-				return Ok(true);
+					return Ok(true);
+				}
 			}
 		}
 
@@ -235,13 +241,16 @@ impl ZombienetCommand {
 			log::warning(format!(
 				"ℹ️ The following binaries have newer versions available:\n   {list}"
 			))?;
-
-			latest = confirm(
-				"📦 Would you like to source them automatically now? It may take some time..."
-					.to_string(),
-			)
-			.initial_value(true)
-			.interact()?;
+			if !skip_confirm {
+				latest = confirm(
+					"📦 Would you like to source them automatically now? It may take some time..."
+						.to_string(),
+				)
+				.initial_value(true)
+				.interact()?;
+			} else {
+				latest = true;
+			}
 		}
 
 		let binaries: Vec<_> = binaries

@@ -59,7 +59,7 @@ mod tests {
 		crate::create_smart_contract(
 			"test_contract",
 			temp_contract_dir.as_path(),
-			&crate::Template::Standard,
+			&crate::ContractTemplate::Standard,
 		)?;
 		Ok(temp_dir)
 	}

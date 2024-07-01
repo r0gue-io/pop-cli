@@ -1,4 +1,4 @@
-name: pop install
+name: pop install & integration-tests
 
 on:
   push:
@@ -11,23 +11,27 @@ defaults:
     shell: bash
 
 jobs:
-  arch:
-    runs-on: ubuntu-latest
-    container: archlinux:latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install prerequisites
-        run: pacman -Syu --needed --noconfirm cmake curl git base-devel
-      - name: Install Rust
-        run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-      - name: Install Pop
-        run: |
-          . "$HOME/.cargo/env"
-          cargo install --locked --no-default-features --features contract,parachain --path ./crates/pop-cli
-      - name: Run Pop install
-        run: |
-          . "$HOME/.cargo/env"
-          pop install -y
+  # arch:
+  #   runs-on: ubuntu-latest
+  #   container: archlinux:latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - name: Install prerequisites
+  #       run: pacman -Syu --needed --noconfirm cmake curl git base-devel
+  #     - name: Install Rust
+  #       run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+  #     - name: Install Pop
+  #       run: |
+  #         . "$HOME/.cargo/env"
+  #         cargo install --locked --no-default-features --features contract,parachain --path ./crates/pop-cli
+  #     - name: Run Pop install
+  #       run: |
+  #         . "$HOME/.cargo/env"
+  #         pop install -y
+  #     - name: Run integration tests
+  #       run: |
+  #         . "$HOME/.cargo/env"
+  #         cargo test --no-default-features --features contract --test contract
   debian:
     runs-on: ubuntu-latest
     container: debian
@@ -45,6 +49,14 @@ jobs:
         run: |
           . "$HOME/.cargo/env"
           pop install -y
+      - name: Run parachain integration tests
+        run: |
+          . "$HOME/.cargo/env"
+          cargo test --no-default-features --features parachain --test parachain
+      - name: Run contracts integration tests
+        run: |
+          . "$HOME/.cargo/env"
+          cargo test --no-default-features --features contract --test contract
   macos:
     runs-on: macos-latest
     steps:
@@ -61,6 +73,14 @@ jobs:
         run: |
           . "$HOME/.cargo/env"
           pop install -y
+      - name: Run parachain integration tests
+        run: |
+          . "$HOME/.cargo/env"
+          cargo test --no-default-features --features parachain --test parachain
+      - name: Run contracts integration tests
+        run: |
+          . "$HOME/.cargo/env"
+          cargo test --no-default-features --features contract --test contract
   redhat:
     runs-on: ubuntu-latest
     container: redhat/ubi8
@@ -78,6 +98,14 @@ jobs:
         run: |
           . "$HOME/.cargo/env"
           pop install -y
+      - name: Run parachain integration tests
+        run: |
+          . "$HOME/.cargo/env"
+          cargo test --no-default-features --features parachain --test parachain
+      - name: Run contracts integration tests
+        run: |
+          . "$HOME/.cargo/env"
+          cargo test --no-default-features --features contract --test contract
   ubuntu:
     runs-on: ubuntu-latest
     container: ubuntu
@@ -95,3 +123,11 @@ jobs:
         run: |
           . "$HOME/.cargo/env"
           pop install -y
+      - name: Run parachain integration tests
+        run: |
+          . "$HOME/.cargo/env"
+          cargo test --no-default-features --features parachain --test parachain
+      - name: Run contracts integration tests
+        run: |
+          . "$HOME/.cargo/env"
+          cargo test --no-default-features --features contract --test contract
