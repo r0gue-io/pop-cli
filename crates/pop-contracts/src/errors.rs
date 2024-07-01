@@ -57,4 +57,7 @@ pub enum Error {
 
 	#[error("HTTP error: {0}")]
 	HttpError(#[from] reqwest::Error),
+
+	#[error("Failed to build the contract: {0}")]
+	BuildContractError(String),
 }
