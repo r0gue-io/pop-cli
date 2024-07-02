@@ -2,6 +2,8 @@
 
 use thiserror::Error;
 
+use crate::templates;
+
 #[derive(Error, Debug)]
 pub enum Error {
 	#[error("Configuration error: {0}")]
@@ -15,4 +17,7 @@ pub enum Error {
 
 	#[error("ParseError error: {0}")]
 	ParseError(#[from] url::ParseError),
+
+	#[error("TemplateError error: {0}")]
+	TemplateError(#[from] templates::Error),
 }

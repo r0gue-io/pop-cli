@@ -1,5 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0
 
+use crate::{
+	errors::Error,
+	utils::{
+		helpers::{get_manifest_path, parse_account, parse_balance},
+		signer::create_signer,
+	},
+};
 use anyhow::Context;
 use contract_build::Verbosity;
 use contract_extrinsics::{
@@ -12,11 +19,6 @@ use std::path::PathBuf;
 use subxt::{Config, PolkadotConfig as DefaultConfig};
 use subxt_signer::sr25519::Keypair;
 use url::Url;
-
-use crate::utils::{
-	helpers::{get_manifest_path, parse_account, parse_balance},
-	signer::create_signer,
-};
 
 /// Attributes for the `call` command.
 pub struct CallOpts {
@@ -84,28 +86,22 @@ pub async fn set_up_call(
 ///
 pub async fn dry_run_call(
 	call_exec: &CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
-) -> anyhow::Result<String> {
+) -> Result<String, Error> {
 	let call_result = call_exec.call_dry_run().await?;
 	match call_result.result {
-        Ok(ref ret_val) => {
-            let value = call_exec
+		Ok(ref ret_val) => {
+			let value = call_exec
 				.transcoder()
-				.decode_message_return(
-					call_exec.message(),
-					&mut &ret_val.data[..],
-				)
-				.context(format!(
-					"Failed to decode return value {:?}",
-					&ret_val
-			))?;
+				.decode_message_return(call_exec.message(), &mut &ret_val.data[..])
+				.context(format!("Failed to decode return value {:?}", &ret_val))?;
 			Ok(value.to_string())
-        }
-        Err(ref _err) => {
-             Err(anyhow::anyhow!(
-                "Pre-submission dry-run failed. Add gas_limit and proof_size manually to skip this step."
-            ))
-        }
-    }
+		},
+		Err(ref err) => {
+			let error_variant =
+				ErrorVariant::from_dispatch_error(err, &call_exec.client().metadata())?;
+			Err(Error::DryRunCallContractError(format!("{error_variant}")))
+		},
+	}
 }
 
 /// Estimate the gas required for a contract call without modifying the state of the blockchain.
@@ -116,25 +112,23 @@ pub async fn dry_run_call(
 ///
 pub async fn dry_run_gas_estimate_call(
 	call_exec: &CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
-) -> anyhow::Result<Weight> {
+) -> Result<Weight, Error> {
 	let call_result = call_exec.call_dry_run().await?;
 	match call_result.result {
-        Ok(_) => {
-            // use user specified values where provided, otherwise use the estimates
-            let ref_time = call_exec
-                .gas_limit()
-                .unwrap_or_else(|| call_result.gas_required.ref_time());
-            let proof_size = call_exec
-                .proof_size()
-                .unwrap_or_else(|| call_result.gas_required.proof_size());
-            Ok(Weight::from_parts(ref_time, proof_size))
-        }
-        Err(ref _err) => {
-             Err(anyhow::anyhow!(
-                "Pre-submission dry-run failed. Add gas_limit and proof_size manually to skip this step."
-            ))
-        }
-    }
+		Ok(_) => {
+			// Use user specified values where provided, otherwise use the estimates.
+			let ref_time =
+				call_exec.gas_limit().unwrap_or_else(|| call_result.gas_required.ref_time());
+			let proof_size =
+				call_exec.proof_size().unwrap_or_else(|| call_result.gas_required.proof_size());
+			Ok(Weight::from_parts(ref_time, proof_size))
+		},
+		Err(ref err) => {
+			let error_variant =
+				ErrorVariant::from_dispatch_error(err, &call_exec.client().metadata())?;
+			Err(Error::DryRunCallContractError(format!("{error_variant}")))
+		},
+	}
 }
 
 /// Call a smart contract on the blockchain.
@@ -161,36 +155,42 @@ pub async fn call_smart_contract(
 	Ok(output)
 }
 
-#[cfg(feature = "unit_contract")]
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::{build_smart_contract, create_smart_contract};
-	use anyhow::{Error, Result};
-	use std::fs;
-	use tempfile::TempDir;
+	use crate::{create_smart_contract, errors::Error, templates::Contract};
+	use anyhow::Result;
+	use std::{env, fs};
 
 	const CONTRACTS_NETWORK_URL: &str = "wss://rococo-contracts-rpc.polkadot.io";
 
-	fn generate_smart_contract_test_environment() -> Result<tempfile::TempDir, Error> {
+	fn generate_smart_contract_test_environment() -> Result<tempfile::TempDir> {
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
-		let temp_contract_dir = temp_dir.path().join("test_contract");
+		let temp_contract_dir = temp_dir.path().join("testing");
 		fs::create_dir(&temp_contract_dir)?;
-		create_smart_contract("test_contract", temp_contract_dir.as_path())?;
+		create_smart_contract("testing", temp_contract_dir.as_path(), &Contract::Standard)?;
 		Ok(temp_dir)
 	}
-	fn build_smart_contract_test_environment(temp_dir: &TempDir) -> Result<(), Error> {
-		build_smart_contract(&Some(temp_dir.path().join("test_contract")), true)?;
+	// Function that mocks the build process generating the contract artifacts.
+	fn mock_build_process(temp_contract_dir: PathBuf) -> Result<(), Error> {
+		// Create a target directory
+		let target_contract_dir = temp_contract_dir.join("target");
+		fs::create_dir(&target_contract_dir)?;
+		fs::create_dir(&target_contract_dir.join("ink"))?;
+		// Copy a mocked testing.contract file inside the target directory
+		let current_dir = env::current_dir().expect("Failed to get current directory");
+		let contract_file = current_dir.join("tests/files/testing.contract");
+		fs::copy(contract_file, &target_contract_dir.join("ink/testing.contract"))?;
 		Ok(())
 	}
 
 	#[tokio::test]
-	async fn test_set_up_call() -> Result<(), Error> {
+	async fn test_set_up_call() -> Result<()> {
 		let temp_dir = generate_smart_contract_test_environment()?;
-		build_smart_contract_test_environment(&temp_dir)?;
+		mock_build_process(temp_dir.path().join("testing"))?;
 
 		let call_opts = CallOpts {
-			path: Some(temp_dir.path().join("test_contract")),
+			path: Some(temp_dir.path().join("testing")),
 			contract: "5CLPm1CeUvJhZ8GCDZCR7nWZ2m3XXe4X5MtAQK69zEjut36A".to_string(),
 			message: "get".to_string(),
 			args: [].to_vec(),
@@ -207,10 +207,10 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn test_set_up_call_error_contract_not_build() -> Result<(), Error> {
+	async fn test_set_up_call_error_contract_not_build() -> Result<()> {
 		let temp_dir = generate_smart_contract_test_environment()?;
 		let call_opts = CallOpts {
-			path: Some(temp_dir.path().join("test_contract")),
+			path: Some(temp_dir.path().join("testing")),
 			contract: "5CLPm1CeUvJhZ8GCDZCR7nWZ2m3XXe4X5MtAQK69zEjut36A".to_string(),
 			message: "get".to_string(),
 			args: [].to_vec(),
@@ -229,7 +229,7 @@ mod tests {
 		Ok(())
 	}
 	#[tokio::test]
-	async fn test_set_up_call_fails_no_smart_contract_folder() -> Result<(), Error> {
+	async fn test_set_up_call_fails_no_smart_contract_folder() -> Result<()> {
 		let call_opts = CallOpts {
 			path: None,
 			contract: "5CLPm1CeUvJhZ8GCDZCR7nWZ2m3XXe4X5MtAQK69zEjut36A".to_string(),
@@ -247,6 +247,53 @@ mod tests {
 		let error = call.err().unwrap();
 		assert_eq!(error.root_cause().to_string(), "No 'ink' dependency found");
 
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn test_dry_run_call_error_contract_not_deployed() -> Result<()> {
+		let temp_dir = generate_smart_contract_test_environment()?;
+		mock_build_process(temp_dir.path().join("testing"))?;
+
+		let call_opts = CallOpts {
+			path: Some(temp_dir.path().join("testing")),
+			contract: "5CLPm1CeUvJhZ8GCDZCR7nWZ2m3XXe4X5MtAQK69zEjut36A".to_string(),
+			message: "get".to_string(),
+			args: [].to_vec(),
+			value: "1000".to_string(),
+			gas_limit: None,
+			proof_size: None,
+			url: Url::parse(CONTRACTS_NETWORK_URL)?,
+			suri: "//Alice".to_string(),
+			execute: false,
+		};
+		let call = set_up_call(call_opts).await?;
+		assert!(matches!(dry_run_call(&call).await, Err(Error::DryRunCallContractError(..))));
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn test_dry_run_estimate_call_error_contract_not_deployed() -> Result<()> {
+		let temp_dir = generate_smart_contract_test_environment()?;
+		mock_build_process(temp_dir.path().join("testing"))?;
+
+		let call_opts = CallOpts {
+			path: Some(temp_dir.path().join("testing")),
+			contract: "5CLPm1CeUvJhZ8GCDZCR7nWZ2m3XXe4X5MtAQK69zEjut36A".to_string(),
+			message: "get".to_string(),
+			args: [].to_vec(),
+			value: "1000".to_string(),
+			gas_limit: None,
+			proof_size: None,
+			url: Url::parse(CONTRACTS_NETWORK_URL)?,
+			suri: "//Alice".to_string(),
+			execute: false,
+		};
+		let call = set_up_call(call_opts).await?;
+		assert!(matches!(
+			dry_run_gas_estimate_call(&call).await,
+			Err(Error::DryRunCallContractError(..))
+		));
 		Ok(())
 	}
 }
