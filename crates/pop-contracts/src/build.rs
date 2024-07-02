@@ -45,7 +45,10 @@ mod tests {
 		// Assert env variable has been set
 		assert_eq!(
 			env::var("CARGO_TARGET_DIR")?,
-			temp_dir.path().join("my_contract/target").display().to_string()
+			format!(
+				"/private{}", // manifest_path.absolute_directory() adds a /private prefix
+				PathBuf::from(temp_dir.path().join("my_contract/target")).display().to_string()
+			)
 		);
 		Ok(())
 	}
