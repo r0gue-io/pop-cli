@@ -41,6 +41,8 @@ pub fn binary_path(path: Option<&Path>) -> Result<PathBuf, Error> {
 ///
 /// # Arguments
 /// * `path` - Location of the parachain project.
+/// * `binary_path` - The path to the node binary executable that contains the `build-spec` command.
+/// * `chain_spec_file_name` - The name of the chain specification file to be generated.
 /// * `para_id` - The parachain ID to be replaced in the specification.
 pub fn generate_chain_spec(
 	path: Option<&Path>,
@@ -62,6 +64,9 @@ pub fn generate_chain_spec(
 ///
 /// # Arguments
 /// * `path` - Location of the parachain project.
+/// * `chain_spec` - Location of the plain chain specification file.
+/// * `binary_path` - The path to the node binary executable that contains the `build-spec` command.
+/// * `chain_spec_file_name` - The name of the chain specification file to be generated.
 pub fn generate_raw_chain_spec(
 	path: Option<&Path>,
 	plain_chain_spec: &Path,
@@ -91,9 +96,10 @@ pub fn generate_raw_chain_spec(
 /// Export the WebAssembly runtime for the parachain.
 ///
 /// # Arguments
-/// * `chain_spec` - Location of the raw chain specification file.
 /// * `path` - Location of the parachain project.
-/// * `para_id` - The parachain ID will be used to name the wasm file.
+/// * `chain_spec` - Location of the raw chain specification file.
+/// * `binary_path` - The path to the node binary executable that contains the `export-genesis-wasm` command.
+/// * `wasm_file_name` - The name of the wasm runtime file to be generated.
 pub fn export_wasm_file(
 	path: Option<&Path>,
 	chain_spec: &Path,
@@ -121,9 +127,10 @@ pub fn export_wasm_file(
 /// Generate the parachain genesis state.
 ///
 /// # Arguments
-/// * `chain_spec` - Location of the raw chain specification file.
 /// * `path` - Location of the parachain project.
-/// * `para_id` - The parachain ID will be used to name the wasm file.
+/// * `chain_spec` - Location of the raw chain specification file.
+/// * `binary_path` - The path to the node binary executable that contains the `export-genesis-state` command.
+/// * `genesis_file_name` - The name of the genesis state file to be generated.
 pub fn generate_genesis_state_file(
 	path: Option<&Path>,
 	chain_spec: &Path,
