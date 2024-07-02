@@ -24,7 +24,7 @@ pub enum Error {
 	#[error("Missing binary: {0}")]
 	MissingBinary(String),
 
-	#[error("Missing plain chain spec file at: {0}")]
+	#[error("Missing chain spec file at: {0}")]
 	MissingChainSpec(String),
 
 	#[error("Command {command} doesn't exist in binary {binary}")]

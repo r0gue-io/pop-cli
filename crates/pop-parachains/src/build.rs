@@ -100,6 +100,9 @@ pub fn export_wasm_file(
 	path: Option<&Path>,
 	para_id: u32,
 ) -> Result<PathBuf, Error> {
+	if !chain_spec.exists() {
+		return Err(Error::MissingChainSpec(chain_spec.display().to_string()));
+	}
 	let parachain_folder = path.unwrap_or(Path::new("./"));
 	let binary_path = binary_path(path)?;
 	check_command_exists(&binary_path, "export-genesis-wasm")?;
@@ -128,6 +131,9 @@ pub fn generate_genesis_state_file(
 	path: Option<&Path>,
 	para_id: u32,
 ) -> Result<PathBuf, Error> {
+	if !chain_spec.exists() {
+		return Err(Error::MissingChainSpec(chain_spec.display().to_string()));
+	}
 	let parachain_folder = path.unwrap_or(Path::new("./"));
 	let binary_path = binary_path(path)?;
 	check_command_exists(&binary_path, "export-genesis-state")?;
@@ -315,6 +321,46 @@ default_command = "pop-node"
 		// Test generate parachain state file
 		let genesis_file = generate_genesis_state_file(&chain_spec, Some(temp_dir.path()), 2001)?;
 		assert!(genesis_file.exists());
+		Ok(())
+	}
+
+	#[test]
+	fn raw_chain_spec_fails_wrong_chain_spec() -> Result<()> {
+		let temp_dir =
+			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
+		assert!(matches!(
+			generate_raw_chain_spec(
+				Path::new("./plain-parachain-chainspec.json"),
+				Some(temp_dir.path())
+			),
+			Err(Error::MissingChainSpec(..))
+		));
+		Ok(())
+	}
+
+	#[test]
+	fn export_wasm_file_fails_wrong_chain_spec() -> Result<()> {
+		let temp_dir =
+			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
+		assert!(matches!(
+			export_wasm_file(Path::new("./raw-parachain-chainspec"), Some(temp_dir.path()), 2001),
+			Err(Error::MissingChainSpec(..))
+		));
+		Ok(())
+	}
+
+	#[test]
+	fn generate_genesis_state_file_wrong_chain_spec() -> Result<()> {
+		let temp_dir =
+			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
+		assert!(matches!(
+			generate_genesis_state_file(
+				Path::new("./raw-parachain-chainspec"),
+				Some(temp_dir.path()),
+				2001
+			),
+			Err(Error::MissingChainSpec(..))
+		));
 		Ok(())
 	}
 
