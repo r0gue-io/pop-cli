@@ -13,6 +13,8 @@ use pop_parachains::{
 };
 use std::path::PathBuf;
 
+const PLAIN_CHAIN_SPEC_FILE_NAME: &str = "plain-parachain-chainspec.json";
+const RAW_CHAIN_SPEC_FILE_NAME: &str = "raw-parachain-chainspec.json";
 #[derive(Args)]
 pub struct BuildParachainCommand {
 	#[arg(
@@ -44,23 +46,40 @@ impl BuildParachainCommand {
 		let mut generated_files = vec![format!("Binary generated at: \"{}\"", binary.display())];
 		// If para_id is provided, generate the chain spec
 		if let Some(para_id) = self.id {
-			let chain_spec = generate_chain_spec(self.path.as_deref(), para_id)?;
+			let chain_spec = generate_chain_spec(
+				self.path.as_deref(),
+				&binary,
+				PLAIN_CHAIN_SPEC_FILE_NAME,
+				para_id,
+			)?;
 			generated_files.push(format!(
 				"Plain text chain specification file generated at: {}",
 				chain_spec.display()
 			));
-			let raw_chain_spec = generate_raw_chain_spec(&chain_spec, self.path.as_deref())?;
+			let raw_chain_spec = generate_raw_chain_spec(
+				self.path.as_deref(),
+				&chain_spec,
+				&binary,
+				RAW_CHAIN_SPEC_FILE_NAME,
+			)?;
 			generated_files.push(format!(
 				"New raw chain specification file generated at: {}",
 				chain_spec.display()
 			));
-			let wasm_file = export_wasm_file(&raw_chain_spec, self.path.as_deref(), para_id)?;
+			let wasm_file_name = format!("para-{}-wasm", para_id);
+			let wasm_file =
+				export_wasm_file(self.path.as_deref(), &raw_chain_spec, &binary, &wasm_file_name)?;
 			generated_files.push(format!(
 				"WebAssembly runtime file exported at: {}",
 				wasm_file.display().to_string()
 			));
-			let genesis_state_file =
-				generate_genesis_state_file(&raw_chain_spec, self.path.as_deref(), para_id)?;
+			let genesis_file_name = format!("para-{}-genesis-state", para_id);
+			let genesis_state_file = generate_genesis_state_file(
+				self.path.as_deref(),
+				&raw_chain_spec,
+				&binary,
+				&genesis_file_name,
+			)?;
 			generated_files.push(format!(
 				"Genesis State exported at {} file",
 				genesis_state_file.display().to_string()
