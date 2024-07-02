@@ -11,7 +11,7 @@ use pop_parachains::{
 	binary_path, build_parachain, export_wasm_file, generate_chain_spec,
 	generate_genesis_state_file, generate_raw_chain_spec,
 };
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 const PLAIN_CHAIN_SPEC_FILE_NAME: &str = "plain-parachain-chainspec.json";
 const RAW_CHAIN_SPEC_FILE_NAME: &str = "raw-parachain-chainspec.json";
@@ -43,7 +43,7 @@ impl BuildParachainCommand {
 
 		success("Build completed successfully!")?;
 		let project_path = self.path.clone().unwrap_or(PathBuf::from("./"));
-		// Assumes the target directory is always `target/release`. If an option is added in `build_parachain`, this function will need to be modified accordingly.
+		// Assumes the target directory is always `target/release`. If an option to build in debug mode is added in `build_parachain`, this will need to be modified accordingly.
 		let target_path = project_path.join("target/release");
 		// Assumes the node directory is always in `node`.
 		let node_path = project_path.join("node");
