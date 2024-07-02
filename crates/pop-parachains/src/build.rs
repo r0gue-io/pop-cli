@@ -204,7 +204,9 @@ fn check_command_exists(binary_path: &Path, command: &str) -> Result<(), Error> 
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::{new_parachain::instantiate_standard_template, Config, Template, Zombienet};
+	use crate::{
+		new_parachain::instantiate_standard_template, templates::Parachain, Config, Zombienet,
+	};
 	use anyhow::Result;
 	use std::{fs, fs::metadata, io::Write, os::unix::fs::PermissionsExt, path::Path};
 	use tempfile::{tempdir, Builder};
@@ -216,7 +218,7 @@ mod tests {
 			decimals: 18,
 			initial_endowment: "1000000".to_string(),
 		};
-		instantiate_standard_template(&Template::Standard, temp_dir.path(), config, None)?;
+		instantiate_standard_template(&Parachain::Standard, temp_dir.path(), config, None)?;
 		Ok(temp_dir)
 	}
 
