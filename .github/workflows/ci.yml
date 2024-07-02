@@ -88,28 +88,64 @@ jobs:
           files: codecov.json
           fail_ci_if_error: true
   
-  # contract-integration-tests:
-  #   needs: lint
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v4
+  contract-integration-tests:
+    needs: lint
+    strategy:
+      matrix:
+        os: ["ubuntu-latest", "macos-latest"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-  #     - uses: "./.github/actions/init"
-  #       with:
-  #         git-user: ${{ env.GITHUB_ACTOR }}
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          default: true
+          target: wasm32-unknown-unknown
+          components: rust-src, clippy
 
-  #     - name: Run integration tests
-  #       run: cargo test --no-default-features --features contract --test contract
+      - name: Cache
+        uses: Swatinem/rust-cache@v2
 
-  # parachain-integration-tests:
-  #   needs: lint
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v4
+      - name: Run integration tests
+        run: cargo test --no-default-features --features contract --test contract
 
-  #     - uses: "./.github/actions/init"
-  #       with:
-  #         git-user: ${{ env.GITHUB_ACTOR }}
+  parachain-integration-tests:
+    needs: lint
+    strategy:
+      matrix:
+        os: ["ubuntu-latest", "macos-latest"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-  #     - name: Run integration tests
-  #       run: cargo test --no-default-features --features parachain --test parachain
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          default: true
+          target: wasm32-unknown-unknown
+          components: rust-src, clippy
+
+      - name: Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install packages (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        uses: "./.github/actions/init"
+        with:
+          git-user: ${{ env.GITHUB_ACTOR }}
+
+      - name: Install packages (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          brew install protobuf
+          protoc --version
+
+      - name: Run integration tests
+        run: cargo test --no-default-features --features parachain --test parachain
