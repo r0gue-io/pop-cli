@@ -29,11 +29,12 @@ build_parachain(path)?;
 
 Generate a raw chain specification file and export the WASM and genesis state files:
 ```rust
-use pop_parachains::{generate_chain_spec, generate_raw_chain_spec, export_wasm_file, generate_genesis_state_file};
+use pop_parachains::{binary_path, generate_chain_spec, generate_raw_chain_spec, export_wasm_file, generate_genesis_state_file};
 
 let path = ...; // Location of the parachain project.
-let binary_path = ...; // The path to the node binary executable that contains the `build-spec` command.
 let para_id = 2000;
+// The path to the node binary executable that contains the `build-spec` command.
+let binary_path = binary_path(path.join("target/release"),path.join("node")) 
 // Generate a plain chain specification file of a parachain
 let plain_chain_spec = generate_chain_spec(&path, &binary_path, "plain-parachain-chainspec.json", para_id)?;
 // Generate a raw chain specification file of a parachain

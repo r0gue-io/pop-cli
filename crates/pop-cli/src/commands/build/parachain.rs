@@ -11,7 +11,7 @@ use pop_parachains::{
 	binary_path, build_parachain, export_wasm_file, generate_chain_spec,
 	generate_genesis_state_file, generate_raw_chain_spec,
 };
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 const PLAIN_CHAIN_SPEC_FILE_NAME: &str = "plain-parachain-chainspec.json";
 const RAW_CHAIN_SPEC_FILE_NAME: &str = "raw-parachain-chainspec.json";
@@ -42,9 +42,14 @@ impl BuildParachainCommand {
 		build_parachain(&self.path)?;
 
 		success("Build completed successfully!")?;
-		let binary = binary_path(self.path.as_deref())?;
+		let project_path = self.path.clone().unwrap_or(PathBuf::from("./"));
+		// Assumes the target directory is always `target/release`. If an option is added in `build_parachain`, this function will need to be modified accordingly.
+		let target_path = project_path.join("target/release");
+		// Assumes the node directory is always in `node`.
+		let node_path = project_path.join("node");
+		let binary = binary_path(&target_path, &node_path)?;
 		let mut generated_files = vec![format!("Binary generated at: \"{}\"", binary.display())];
-		// If para_id is provided, generate the chain spec
+		// If `para_id` is provided, generate the chain spec
 		if let Some(para_id) = self.id {
 			let chain_spec = generate_chain_spec(
 				self.path.as_deref(),

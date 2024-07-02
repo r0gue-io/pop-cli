@@ -23,14 +23,14 @@ pub fn build_parachain(path: &Option<PathBuf>) -> Result<(), Error> {
 	Ok(())
 }
 
-/// Get the path to the node release binary based on the project path.
+/// Constructs the node binary path based on the target path and the node folder path.
 ///
 /// # Arguments
-/// * `path` - Location of the parachain project.
-pub fn binary_path(path: Option<&Path>) -> Result<PathBuf, Error> {
-	let node_name = parse_node_name(path)?;
-	let release_path = path.unwrap_or(Path::new("./")).join("target/release");
-	let release = release_path.join(node_name.clone());
+/// * `target_path` - The path where the binaries are expected to be found.
+/// * `node_path` - The path to the node from which the node name will be parsed.
+pub fn binary_path(target_path: &Path, node_path: &Path) -> Result<PathBuf, Error> {
+	let node_name = parse_node_name(node_path)?;
+	let release = target_path.join(node_name.clone());
 	if !release.exists() {
 		return Err(Error::MissingBinary(node_name));
 	}
@@ -156,8 +156,8 @@ pub fn generate_genesis_state_file(
 }
 
 /// Parses the node name from the Cargo.toml file located in the project path.
-fn parse_node_name(path: Option<&Path>) -> Result<String, Error> {
-	let cargo_toml = path.unwrap_or(Path::new("./")).join("node/Cargo.toml");
+fn parse_node_name(node_path: &Path) -> Result<String, Error> {
+	let cargo_toml = node_path.join("Cargo.toml");
 	let contents = std::fs::read_to_string(&cargo_toml)?;
 	let config = contents.parse::<DocumentMut>().map_err(|err| Error::TomlError(err.into()))?;
 	let name = config
@@ -287,7 +287,8 @@ default_command = "pop-node"
 		let temp_dir =
 			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
 		mock_build_process(temp_dir.path())?;
-		let release_path = binary_path(Some(Path::new(temp_dir.path())))?;
+		let release_path =
+			binary_path(&temp_dir.path().join("target/release"), &temp_dir.path().join("node"))?;
 		assert_eq!(
 			release_path.display().to_string(),
 			format!("{}/target/release/parachain-template-node", temp_dir.path().display())
@@ -300,7 +301,7 @@ default_command = "pop-node"
 		let temp_dir =
 			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
 		assert!(matches!(
-			binary_path(Some(Path::new(temp_dir.path()))),
+			binary_path(&temp_dir.path().join("target/release"), &temp_dir.path().join("node")),
 			Err(Error::MissingBinary(error)) if error == "parachain-template-node"
 		));
 		Ok(())
@@ -397,7 +398,7 @@ default_command = "pop-node"
 	fn parse_node_name_works() -> Result<()> {
 		let temp_dir =
 			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
-		let name = parse_node_name(Some(Path::new(temp_dir.path())))?;
+		let name = parse_node_name(&temp_dir.path().join("node"))?;
 		assert_eq!(name, "parachain-template-node");
 		Ok(())
 	}
@@ -405,7 +406,7 @@ default_command = "pop-node"
 	#[test]
 	fn parse_node_name_node_cargo_no_exist() -> Result<()> {
 		let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
-		assert!(matches!(parse_node_name(Some(Path::new(temp_dir.path()))), Err(Error::IO(..))));
+		assert!(matches!(parse_node_name(&temp_dir.path().join("node")), Err(Error::IO(..))));
 		Ok(())
 	}
 
@@ -416,7 +417,7 @@ default_command = "pop-node"
 		let mut cargo_file = fs::File::create(temp_dir.path().join("node/Cargo.toml"))?;
 		writeln!(cargo_file, "[")?;
 		assert!(matches!(
-			parse_node_name(Some(Path::new(temp_dir.path()))),
+			parse_node_name(&temp_dir.path().join("node")),
 			Err(Error::TomlError(..))
 		));
 		Ok(())
@@ -435,7 +436,7 @@ default_command = "pop-node"
 			"#
 		)?;
 		assert!(matches!(
-			parse_node_name(Some(Path::new(temp_dir.path()))),
+			parse_node_name(&temp_dir.path().join("node")),
 			Err(Error::Config(error)) if error == "expected `name`",
 		));
 		Ok(())
