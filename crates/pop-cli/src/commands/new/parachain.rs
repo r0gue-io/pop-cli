@@ -1,22 +1,22 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::style::{style, Theme};
+use crate::cli::{traits::Cli as _, Cli};
+use crate::style::style;
 use anyhow::Result;
 use clap::{
 	builder::{PossibleValue, PossibleValuesParser, TypedValueParser},
 	Args,
 };
-use std::{fs, path::Path, str::FromStr};
-
 use cliclack::{
-	clear_screen, confirm, input, intro,
+	clear_screen, confirm, input,
 	log::{self, success, warning},
-	outro, outro_cancel, set_theme,
+	outro, outro_cancel,
 };
 use pop_common::{Git, GitHub, Release};
 use pop_parachains::{
 	instantiate_template_dir, is_initial_endowment_valid, Config, Provider, Template,
 };
+use std::{fs, path::Path, str::FromStr};
 use strum::VariantArray;
 
 const DEFAULT_INITIAL_ENDOWMENT: &str = "1u64 << 60";
@@ -60,9 +60,6 @@ pub struct NewParachainCommand {
 impl NewParachainCommand {
 	/// Executes the command.
 	pub(crate) async fn execute(self) -> Result<Template> {
-		clear_screen()?;
-		set_theme(Theme);
-
 		let parachain_config = if self.name.is_none() {
 			// If user doesn't select the name guide them to generate a parachain.
 			guide_user_to_generate_parachain().await?
@@ -96,7 +93,7 @@ impl NewParachainCommand {
 }
 
 async fn guide_user_to_generate_parachain() -> Result<NewParachainCommand> {
-	intro(format!("{}: Generate a parachain", style(" Pop CLI ").black().on_magenta()))?;
+	Cli.intro("Generate a parachain")?;
 
 	let mut prompt = cliclack::select("Select a template provider: ".to_string());
 	for (i, provider) in Provider::providers().iter().enumerate() {
@@ -153,10 +150,8 @@ fn generate_parachain_from_template(
 	tag_version: Option<String>,
 	config: Config,
 ) -> Result<()> {
-	intro(format!(
-		"{}: Generating \"{}\" using {} from {}!",
-		style(" Pop CLI ").black().on_magenta(),
-		name_template,
+	Cli.intro(format!(
+		"Generating \"{name_template}\" using {} from {}!",
 		template.name(),
 		provider.name()
 	))?;
@@ -356,7 +351,7 @@ fn prompt_customizable_options() -> Result<Config> {
 		.interact()?;
 	if !is_initial_endowment_valid(&initial_endowment) {
 		outro_cancel("⚠️ The specified initial endowment is not valid")?;
-		//Prompt the user if want to use the one by default
+		// Prompt the user if they want to use the one by default
 		if !confirm(format!("📦 Would you like to use the default {}?", DEFAULT_INITIAL_ENDOWMENT))
 			.initial_value(true)
 			.interact()?
