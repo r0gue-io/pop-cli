@@ -39,7 +39,7 @@ impl BuildParachainCommand {
 		warning("NOTE: this may take some time...")?;
 		build_parachain(&self.path)?;
 
-		success("Build Completed Successfully!")?;
+		success("Build completed successfully!")?;
 		let binary = binary_path(self.path.as_deref())?;
 		let mut generated_files = vec![format!("Binary generated at: \"{}\"", binary.display())];
 		// If para_id is provided, generate the chain spec
@@ -49,7 +49,7 @@ impl BuildParachainCommand {
 				"Plain text chain specification file generated at: {}",
 				chain_spec.display()
 			));
-			let raw_chain_spec = generate_raw_chain_spec(self.path.as_deref())?;
+			let raw_chain_spec = generate_raw_chain_spec(&chain_spec, self.path.as_deref())?;
 			generated_files.push(format!(
 				"New raw chain specification file generated at: {}",
 				chain_spec.display()

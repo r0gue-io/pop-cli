@@ -63,21 +63,23 @@ pub fn generate_chain_spec(path: Option<&Path>, para_id: u32) -> Result<PathBuf,
 ///
 /// # Arguments
 /// * `path` - Location of the parachain project.
-pub fn generate_raw_chain_spec(path: Option<&Path>) -> Result<PathBuf, Error> {
+pub fn generate_raw_chain_spec(
+	plain_chain_spec: &Path,
+	path: Option<&Path>,
+) -> Result<PathBuf, Error> {
+	if !plain_chain_spec.exists() {
+		return Err(Error::MissingChainSpec(plain_chain_spec.display().to_string()));
+	}
 	let parachain_folder = path.unwrap_or(Path::new("./"));
 	let binary_path = binary_path(path)?;
 	check_command_exists(&binary_path, "build-spec")?;
-	let plain_parachain_spec = parachain_folder.join("plain-parachain-chainspec.json");
-	if !plain_parachain_spec.exists() {
-		return Err(Error::MissingChainSpec(plain_parachain_spec.display().to_string()));
-	}
 	let raw_chain_spec = parachain_folder.join("raw-parachain-chainspec.json");
 	cmd(
 		&binary_path,
 		vec![
 			"build-spec",
 			"--chain",
-			&plain_parachain_spec.display().to_string(),
+			&plain_chain_spec.display().to_string(),
 			"--disable-default-bootnode",
 			"--raw",
 		],
@@ -303,7 +305,7 @@ default_command = "pop-node"
 		// Test generate chain spec
 		let chain_spec = generate_chain_spec(Some(temp_dir.path()), 2001)?;
 		assert!(chain_spec.exists());
-		let raw_chain_spec = generate_raw_chain_spec(Some(temp_dir.path()))?;
+		let raw_chain_spec = generate_raw_chain_spec(&chain_spec, Some(temp_dir.path()))?;
 		assert!(raw_chain_spec.exists());
 		let content = fs::read_to_string(raw_chain_spec).expect("Could not read file");
 		assert!(content.contains("\"para_id\": 2001"));
