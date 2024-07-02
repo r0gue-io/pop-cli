@@ -16,7 +16,7 @@ use pop_common::{Git, GitHub, Release};
 use pop_parachains::{
 	instantiate_template_dir, is_initial_endowment_valid, Config, Provider, Template,
 };
-use std::{fs, path::Path, str::FromStr};
+use std::{fs, path::Path, str::FromStr, thread::sleep, time::Duration};
 use strum::VariantArray;
 
 const DEFAULT_INITIAL_ENDOWMENT: &str = "1u64 << 60";
@@ -87,6 +87,7 @@ impl NewParachainCommand {
 
 		let tag_version = parachain_config.release_tag.clone();
 
+		clear_screen()?;
 		generate_parachain_from_template(name, provider, &template, tag_version, config)?;
 		Ok(template)
 	}
@@ -129,8 +130,6 @@ async fn guide_user_to_generate_parachain() -> Result<NewParachainCommand> {
 	if template.matches(&Provider::Pop) {
 		customizable_options = prompt_customizable_options()?;
 	}
-
-	clear_screen()?;
 
 	Ok(NewParachainCommand {
 		name: Some(name),
@@ -237,6 +236,7 @@ fn get_customization_value(
 		&& (symbol.is_some() || decimals.is_some() || initial_endowment.is_some())
 	{
 		log::warning("Customization options are not available for this template")?;
+		sleep(Duration::from_secs(3))
 	}
 	return Ok(Config {
 		symbol: symbol.clone().expect("default values"),
