@@ -2,6 +2,7 @@
 
 // pub to ease downstream imports
 pub use pop_common::templates::{Template, Type};
+use strum::EnumProperty as _;
 use strum_macros::{AsRefStr, Display, EnumMessage, EnumProperty, EnumString, VariantArray};
 
 /// Supported contract types.
@@ -66,7 +67,8 @@ pub enum Contract {
 		detailed_message = "The implementation of the ERC-20 standard in ink!",
 		props(
 			Type = "ERC",
-			Repository = "https://github.com/use-ink/ink-examples/archive/refs/heads/main.tar.gz"
+			Repository = "https://github.com/use-ink/ink-examples/archive/refs/heads/main.tar.gz",
+			Archive = "ink-examples-main"
 		)
 	)]
 	ERC20,
@@ -77,7 +79,8 @@ pub enum Contract {
 		detailed_message = "The implementation of the ERC-721 standard in ink!",
 		props(
 			Type = "ERC",
-			Repository = "https://github.com/use-ink/ink-examples/archive/refs/heads/main.tar.gz"
+			Repository = "https://github.com/use-ink/ink-examples/archive/refs/heads/main.tar.gz",
+			Archive = "ink-examples-main"
 		)
 	)]
 	ERC721,
@@ -88,13 +91,21 @@ pub enum Contract {
 		detailed_message = "The implementation of the ERC-1155 standard in ink!",
 		props(
 			Type = "ERC",
-			Repository = "https://github.com/use-ink/ink-examples/archive/refs/heads/main.tar.gz"
+			Repository = "https://github.com/use-ink/ink-examples/archive/refs/heads/main.tar.gz",
+			Archive = "ink-examples-main"
 		)
 	)]
 	ERC1155,
 }
 
 impl Template for Contract {}
+
+impl Contract {
+	/// Returns the archive name, if defined.
+	pub fn archive_name(&self) -> Option<&str> {
+		self.get_str("Archive")
+	}
+}
 
 #[cfg(test)]
 mod tests {
@@ -136,6 +147,16 @@ mod tests {
 			(ERC721, "The implementation of the ERC-721 standard in ink!"),
 			(ERC1155, "The implementation of the ERC-1155 standard in ink!"),
 		])
+	}
+
+	fn template_archive_names() -> HashMap<Contract, Option<&'static str>> {
+		[
+			(Contract::Standard, None),
+			(Contract::ERC20, Some("ink-examples-main")),
+			(Contract::ERC721, Some("ink-examples-main")),
+			(Contract::ERC1155, Some("ink-examples-main")),
+		]
+		.into()
 	}
 
 	#[test]
@@ -209,5 +230,13 @@ mod tests {
 	fn test_convert_string_to_type() {
 		assert_eq!(ContractType::from_str("Examples").unwrap(), ContractType::Examples);
 		assert_eq!(ContractType::from_str("Erc").unwrap_or_default(), ContractType::Erc);
+	}
+
+	#[test]
+	fn test_archive_name() {
+		let archive_names = template_archive_names();
+		for template in Contract::VARIANTS {
+			assert_eq!(template.archive_name(), archive_names[template]);
+		}
 	}
 }

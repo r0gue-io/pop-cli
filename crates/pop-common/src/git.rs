@@ -296,30 +296,23 @@ pub async fn from_archive(
 	contents: &[(&str, PathBuf)],
 	status: &impl Status,
 ) -> Result<(), Error> {
-	println!("Downloading from {url}...");
-	println!("{:?}", contents);
 	// Download archive
 	status.update(&format!("Downloading from {url}..."));
 	let response = reqwest::get(url).await?.error_for_status()?;
 	let mut file = tempfile()?;
 	file.write_all(&response.bytes().await?)?;
 	file.seek(SeekFrom::Start(0))?;
-	println!("Extracting.");
 	// Extract contents
 	status.update("Extracting from archive...");
 	let tar = GzDecoder::new(file);
-	println!("decoded.");
 	let mut archive = Archive::new(tar);
 	let temp_dir = tempdir()?;
 	let working_dir = temp_dir.path();
-	println!("to unpack.");
 	archive.unpack(working_dir)?;
 	for (name, dest) in contents {
-		println!("in: {:?} - {:?}", name, dest);
 		fs::rename(working_dir.join(name), dest)?;
 	}
 	status.update("Sourcing complete.");
-	println!("ok.");
 	Ok(())
 }
 

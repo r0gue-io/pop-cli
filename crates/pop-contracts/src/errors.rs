@@ -52,6 +52,9 @@ pub enum Error {
 	#[error("The `Repository` property is missing from the template variant")]
 	RepositoryMissing,
 
+	#[error("The `Archive` property is missing from the template variant")]
+	ArchiveMissing,
+
 	#[error("Unsupported platform: {os}")]
 	UnsupportedPlatform { os: &'static str },
 

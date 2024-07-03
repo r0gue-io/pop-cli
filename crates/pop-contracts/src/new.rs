@@ -4,11 +4,10 @@ use crate::{errors::Error, utils::helpers::canonicalized_path, Contract};
 use anyhow::Result;
 use contract_build::new_contract_project;
 use heck::ToUpperCamelCase;
-use pop_common::{from_archive, replace_in_file, templates::Template, Git};
+use pop_common::{from_archive, replace_in_file, templates::Template};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use url::Url;
 
 /// Create a new smart contract.
 ///
@@ -59,12 +58,11 @@ async fn create_template_contract(
 	template: &Contract,
 ) -> Result<()> {
 	let template_repository = template.repository_url()?;
+	let archive_name = template.archive_name().ok_or(Error::ArchiveMissing)?;
 	// Fetch the repository from archive into the temporary directory.
 	let temp_dir = ::tempfile::TempDir::new_in(std::env::temp_dir())?;
-	let contents: Vec<_> = ["ink-examples-main"]
-		.into_iter()
-		.map(|b| (b, temp_dir.path().to_path_buf()))
-		.collect();
+	let contents: Vec<_> =
+		[archive_name].into_iter().map(|b| (b, temp_dir.path().to_path_buf())).collect();
 	from_archive(template_repository, &contents, &{}).await?;
 	// Retrieve only the template contract files.
 	extract_contract_files(template.to_string(), temp_dir.path(), canonicalized_path.as_path())?;
