@@ -13,10 +13,10 @@ use std::{
 
 /// Enum representing the build profile for a parachain.
 pub enum Profile {
-	/// Release profile, optimized for performance.
-	Release,
 	/// Debug profile, optimized for debugging.
 	Debug,
+	/// Release profile, optimized without any debugging functionality.
+	Release,
 }
 
 impl Profile {
@@ -238,7 +238,7 @@ mod tests {
 		Ok(())
 	}
 
-	// Function that generates a valid Cargo.toml inside node folder.
+	// Function that generates a Cargo.toml inside node folder for testing.
 	fn generate_mock_node(temp_dir: &Path) -> Result<(), Error> {
 		// Create a node directory
 		let target_dir = temp_dir.join("node");

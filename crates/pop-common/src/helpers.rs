@@ -36,10 +36,8 @@ pub fn replace_in_file(file_path: PathBuf, replacements: HashMap<&str, &str>) ->
 ///
 /// # Arguments
 /// * `node_path` - The path to the node directory containing the `Cargo.toml` file.
-///
 pub fn parse_package_name(node_path: &Path) -> Result<String, Error> {
 	let manifest = node_path.join("Cargo.toml");
-	println!("{:?}", manifest.exists());
 	let contents = std::fs::read_to_string(&manifest)?;
 	let config = contents.parse::<DocumentMut>().map_err(|err| Error::TomlError(err.into()))?;
 	let name = config
@@ -56,9 +54,8 @@ mod tests {
 	use super::*;
 	use anyhow::Result;
 	use std::fs;
-	use tempfile::TempDir;
 
-	// Function that generates a valid Cargo.toml inside node folder.
+	// Function that generates a Cargo.toml inside node folder for testing.
 	fn generate_mock_node(temp_dir: &Path) -> Result<PathBuf, Error> {
 		// Create a node directory
 		let target_dir = temp_dir.join("node");
