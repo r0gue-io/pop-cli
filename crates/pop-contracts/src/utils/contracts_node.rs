@@ -4,6 +4,7 @@ use flate2::read::GzDecoder;
 use pop_common::GitHub;
 use std::{
 	env::consts::OS,
+	fs,
 	io::{Seek, SeekFrom, Write},
 	path::PathBuf,
 	process::{Child, Command},
@@ -45,7 +46,7 @@ pub async fn is_chain_alive(url: url::Url) -> Result<bool, Error> {
 /// * `cache` - The path where the binary will be stored.
 ///
 pub async fn run_contracts_node(cache: PathBuf) -> Result<Child, Error> {
-	let cached_file = cache.join(release_folder_by_target()?).join(BIN_NAME);
+	let cached_file = cache.join(BIN_NAME);
 	if !cached_file.exists() {
 		let archive = archive_name_by_target()?;
 
@@ -61,6 +62,11 @@ pub async fn run_contracts_node(cache: PathBuf) -> Result<Child, Error> {
 		let tar = GzDecoder::new(file);
 		let mut archive = Archive::new(tar);
 		archive.unpack(cache.clone())?;
+		// The binary is extracted in artifacts/substrate-contracts-node-mac/substrate-contracts-node. Copy the file into the cache folder and remove the folder artifacts
+		let extracted_dir = cache.join(release_folder_by_target()?);
+		fs::copy(&extracted_dir.join(BIN_NAME), &cached_file).expect("Could not copy binary");
+		fs::remove_dir_all(&extracted_dir.parent().unwrap_or(&cache.join("artifacts")))
+			.expect("Could not remove extracted dir");
 	}
 	let process = Command::new(cached_file.display().to_string().as_str()).spawn()?;
 
@@ -155,9 +161,11 @@ mod tests {
 		// Run the contracts node
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
 		let cache = temp_dir.path().join("cache");
-		let mut process = run_contracts_node(cache).await?;
+		let mut process = run_contracts_node(cache.clone()).await?;
 		// Check if the node is alive
 		assert!(is_chain_alive(local_url).await?);
+		assert!(cache.join("substrate-contracts-node").exists());
+		assert!(!cache.join("artifacts").exists());
 		process.kill()?;
 		Ok(())
 	}
