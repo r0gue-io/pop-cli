@@ -11,7 +11,7 @@ mod up;
 mod utils;
 
 pub use build::{
-	build_parachain, export_wasm_file, generate_chain_spec, generate_genesis_state_file,
+	build_parachain, export_wasm_file, generate_genesis_state_file, generate_plain_chain_spec,
 	generate_raw_chain_spec, Profile,
 };
 pub use errors::Error;

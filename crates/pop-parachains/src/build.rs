@@ -77,7 +77,7 @@ fn binary_path(target_path: &Path, node_path: &Path) -> Result<PathBuf, Error> {
 /// * `binary_path` - The path to the node binary executable that contains the `build-spec` command.
 /// * `chain_spec_file_name` - The name of the chain specification file to be generated.
 /// * `para_id` - The parachain ID to be replaced in the specification.
-pub fn generate_chain_spec(
+pub fn generate_plain_chain_spec(
 	path: Option<&Path>,
 	binary_path: &Path,
 	chain_spec_file_name: &str,
@@ -380,30 +380,34 @@ default_command = "pop-node"
 		let binary_name = fetch_binary(temp_dir.path()).await?;
 		let binary_path = replace_mock_with_binary(temp_dir.path(), binary_name)?;
 		// Test generate chain spec
-		let chain_spec = generate_chain_spec(
+		let plain_chain_spec = generate_plain_chain_spec(
 			Some(temp_dir.path()),
 			&binary_path,
 			"plain-parachain-chainspec.json",
 			2001,
 		)?;
-		assert!(chain_spec.exists());
+		assert!(plain_chain_spec.exists());
 		let raw_chain_spec = generate_raw_chain_spec(
 			Some(temp_dir.path()),
-			&chain_spec,
+			&plain_chain_spec,
 			&binary_path,
 			"raw-parachain-chainspec.json",
 		)?;
 		assert!(raw_chain_spec.exists());
-		let content = fs::read_to_string(raw_chain_spec).expect("Could not read file");
+		let content = fs::read_to_string(raw_chain_spec.clone()).expect("Could not read file");
 		assert!(content.contains("\"para_id\": 2001"));
 		// Test export wasm file
-		let wasm_file =
-			export_wasm_file(Some(temp_dir.path()), &chain_spec, &binary_path, "para-2001-wasm")?;
+		let wasm_file = export_wasm_file(
+			Some(temp_dir.path()),
+			&raw_chain_spec,
+			&binary_path,
+			"para-2001-wasm",
+		)?;
 		assert!(wasm_file.exists());
 		// Test generate parachain state file
 		let genesis_file = generate_genesis_state_file(
 			Some(temp_dir.path()),
-			&chain_spec,
+			&raw_chain_spec,
 			&binary_path,
 			"para-2001-genesis-state",
 		)?;

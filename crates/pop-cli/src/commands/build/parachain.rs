@@ -8,7 +8,7 @@ use cliclack::{
 	outro, set_theme,
 };
 use pop_parachains::{
-	build_parachain, export_wasm_file, generate_chain_spec, generate_genesis_state_file,
+	build_parachain, export_wasm_file, generate_genesis_state_file, generate_plain_chain_spec,
 	generate_raw_chain_spec, Profile,
 };
 use std::path::PathBuf;
@@ -44,9 +44,10 @@ impl BuildParachainCommand {
 
 		success("Build completed successfully!")?;
 		let mut generated_files = vec![format!("Binary generated at: \"{}\"", binary.display())];
+
 		// If `para_id` is provided, generate the chain spec
 		if let Some(para_id) = self.id {
-			let chain_spec = generate_chain_spec(
+			let plain_chain_spec = generate_plain_chain_spec(
 				self.path.as_deref(),
 				&binary,
 				PLAIN_CHAIN_SPEC_FILE_NAME,
@@ -54,17 +55,17 @@ impl BuildParachainCommand {
 			)?;
 			generated_files.push(format!(
 				"Plain text chain specification file generated at: {}",
-				chain_spec.display()
+				plain_chain_spec.display()
 			));
 			let raw_chain_spec = generate_raw_chain_spec(
 				self.path.as_deref(),
-				&chain_spec,
+				&plain_chain_spec,
 				&binary,
 				RAW_CHAIN_SPEC_FILE_NAME,
 			)?;
 			generated_files.push(format!(
 				"New raw chain specification file generated at: {}",
-				chain_spec.display()
+				raw_chain_spec.display()
 			));
 			let wasm_file_name = format!("para-{}-wasm", para_id);
 			let wasm_file =
