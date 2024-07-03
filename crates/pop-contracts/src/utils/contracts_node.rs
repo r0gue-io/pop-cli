@@ -62,11 +62,10 @@ pub async fn run_contracts_node(cache: PathBuf) -> Result<Child, Error> {
 		let tar = GzDecoder::new(file);
 		let mut archive = Archive::new(tar);
 		archive.unpack(cache.clone())?;
-		// The binary is extracted in artifacts/substrate-contracts-node-mac/substrate-contracts-node. Copy the file into the cache folder and remove the folder artifacts
+		// Copy the file into the cache folder and remove the folder artifacts
 		let extracted_dir = cache.join(release_folder_by_target()?);
-		fs::copy(&extracted_dir.join(BIN_NAME), &cached_file).expect("Could not copy binary");
-		fs::remove_dir_all(&extracted_dir.parent().unwrap_or(&cache.join("artifacts")))
-			.expect("Could not remove extracted dir");
+		fs::copy(&extracted_dir.join(BIN_NAME), &cached_file)?;
+		fs::remove_dir_all(&extracted_dir.parent().unwrap_or(&cache.join("artifacts")))?;
 	}
 	let process = Command::new(cached_file.display().to_string().as_str()).spawn()?;
 
