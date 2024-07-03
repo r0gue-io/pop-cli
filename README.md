@@ -6,7 +6,13 @@ An all-in-one tool for Polkadot development.
 
 ## Installation
 
-You can install Pop CLI as follows:
+You can install Pop CLI from [crates.io](https://crates.io/crates/pop-cli):
+
+```shell
+cargo install --force --locked cargo-contract
+```
+
+You can also install Pop CLI using the [Pop CLI GitHub repo](https://github.com/r0gue-io/pop-cli):
 
 ```shell
 cargo install --locked --git https://github.com/r0gue-io/pop-cli
@@ -14,9 +20,6 @@ cargo install --locked --git https://github.com/r0gue-io/pop-cli
 
 > :information_source: For detailed instructions on how to install Pop CLI, please refer to our
 > documentation: https://learn.onpop.io/v/cli/installing-pop-cli
->
-> A [crates.io](https://crates.io/crates/pop-cli) version is also available:
-> - https://crates.io/crates/pop-cli
 
 ### Telemetry
 
@@ -25,21 +28,10 @@ We do not collect any personal information. If you wish to disable telemetry
 or read more about our telemetry practices please see
 our [telemetry](crates/pop-telemetry/README.md) documentation.
 
-## Pop CLI commands
+## Documentation
 
-Pop CLI commands for **smart contracts**:
-- https://learn.onpop.io/v/contracts/pop-cli
-
-Pop CLI commands for **appchains**:
-- https://learn.onpop.io/v/appchains/pop-cli
-
-## Learn how to develop with Pop CLI
-
-Pop CLI guides for **smart contracts**:
-- https://learn.onpop.io/v/contracts
-
-Pop CLI guides for **appchains**:
-- https://learn.onpop.io/v/appchains
+On the [Pop Docs website](https://learn.onpop.io) you will find:
+- [Get Started with Pop CLI](https://learn.onpop.io/v/cli)
 
 ## Building Pop CLI locally
 
