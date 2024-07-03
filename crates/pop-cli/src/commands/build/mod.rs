@@ -18,11 +18,7 @@ pub(crate) mod parachain;
 pub(crate) struct BuildArgs {
 	#[command(subcommand)]
 	pub command: Option<Command>,
-	#[arg(
-		short = 'p',
-		long = "path",
-		help = "Directory path for your project, [default: current directory]"
-	)]
+	#[arg(long = "path", help = "Directory path for your project, [default: current directory]")]
 	pub(crate) path: Option<PathBuf>,
 	/// For production, always build in release mode to exclude debug features.
 	#[clap(long = "release", short)]

@@ -7,11 +7,7 @@ use std::{path::PathBuf, thread::sleep, time::Duration};
 
 #[derive(Args)]
 pub struct BuildParachainCommand {
-	#[arg(
-		short = 'p',
-		long = "path",
-		help = "Directory path for your project, [default: current directory]"
-	)]
+	#[arg(long = "path", help = "Directory path for your project, [default: current directory]")]
 	pub(crate) path: Option<PathBuf>,
 	/// For production, always build in release mode to exclude debug features.
 	#[clap(long = "release", short, default_value = "true")]

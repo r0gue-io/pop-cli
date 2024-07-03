@@ -7,7 +7,7 @@ use std::{path::PathBuf, thread::sleep, time::Duration};
 
 #[derive(Args)]
 pub struct BuildContractCommand {
-	#[arg(short = 'p', long, help = "Path for the contract project, [default: current directory]")]
+	#[arg(long, help = "Path for the contract project, [default: current directory]")]
 	pub(crate) path: Option<PathBuf>,
 	/// The default compilation includes debug functionality, increasing contract size and gas usage.
 	/// For production, always build in release mode to exclude debug features.
