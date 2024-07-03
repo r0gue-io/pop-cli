@@ -44,16 +44,12 @@ impl Profile {
 /// * `profile` - The build profile to use (release or debug).
 /// * `node_path` - An optional path to the node directory. Defaults to the `node` subdirectory of the project path if not provided.
 pub fn build_parachain(
-	path: Option<&Path>,
+	path: &Path,
 	profile: Profile,
 	node_path: Option<&Path>,
 ) -> Result<PathBuf, Error> {
-	let project_path = path.unwrap_or(Path::new("./"));
-	cmd("cargo", vec!["build", profile.flag()]).dir(project_path).run()?;
-	binary_path(
-		&profile.target_folder(project_path),
-		node_path.unwrap_or(&project_path.join("node")),
-	)
+	cmd("cargo", vec!["build", profile.flag()]).dir(path).run()?;
+	binary_path(&profile.target_folder(path), node_path.unwrap_or(&path.join("node")))
 }
 
 /// Constructs the node binary path based on the target path and the node folder path.
@@ -73,44 +69,40 @@ fn binary_path(target_path: &Path, node_path: &Path) -> Result<PathBuf, Error> {
 /// Generates the plain text chain specification for a parachain.
 ///
 /// # Arguments
-/// * `path` - Location of the parachain project.
 /// * `binary_path` - The path to the node binary executable that contains the `build-spec` command.
-/// * `chain_spec_file_name` - The name of the chain specification file to be generated.
+/// * `plain_chain_spec` - Location of the plain_parachain_spec file to be generated.
 /// * `para_id` - The parachain ID to be replaced in the specification.
 pub fn generate_plain_chain_spec(
-	path: Option<&Path>,
 	binary_path: &Path,
-	chain_spec_file_name: &str,
+	plain_chain_spec: &Path,
 	para_id: u32,
-) -> Result<PathBuf, Error> {
+) -> Result<(), Error> {
 	check_command_exists(&binary_path, "build-spec")?;
-	let plain_parachain_spec = path.unwrap_or(Path::new("./")).join(chain_spec_file_name);
 	cmd(binary_path, vec!["build-spec", "--disable-default-bootnode"])
-		.stdout_path(plain_parachain_spec.clone())
+		.stdout_path(plain_chain_spec)
 		.run()?;
-	let generated_para_id = get_parachain_id(&plain_parachain_spec)?;
-	replace_para_id(plain_parachain_spec.clone(), para_id, generated_para_id)?;
-	Ok(plain_parachain_spec)
+	let generated_para_id = get_parachain_id(plain_chain_spec)?;
+	replace_para_id(plain_chain_spec.to_path_buf(), para_id, generated_para_id)?;
+	Ok(())
 }
 
 /// Generates a raw chain specification file for a parachain.
 ///
 /// # Arguments
-/// * `path` - Location of the parachain project.
-/// * `chain_spec` - Location of the plain chain specification file.
 /// * `binary_path` - The path to the node binary executable that contains the `build-spec` command.
+/// * `plain_chain_spec` - Location of the plain chain specification file.
 /// * `chain_spec_file_name` - The name of the chain specification file to be generated.
 pub fn generate_raw_chain_spec(
-	path: Option<&Path>,
-	plain_chain_spec: &Path,
 	binary_path: &Path,
+	plain_chain_spec: &Path,
 	chain_spec_file_name: &str,
 ) -> Result<PathBuf, Error> {
 	if !plain_chain_spec.exists() {
 		return Err(Error::MissingChainSpec(plain_chain_spec.display().to_string()));
 	}
 	check_command_exists(&binary_path, "build-spec")?;
-	let raw_chain_spec = path.unwrap_or(Path::new("./")).join(chain_spec_file_name);
+	let raw_chain_spec =
+		plain_chain_spec.parent().unwrap_or(Path::new("./")).join(chain_spec_file_name);
 	cmd(
 		binary_path,
 		vec![
@@ -121,7 +113,7 @@ pub fn generate_raw_chain_spec(
 			"--raw",
 		],
 	)
-	.stdout_path(raw_chain_spec.clone())
+	.stdout_path(&raw_chain_spec)
 	.run()?;
 	Ok(raw_chain_spec)
 }
@@ -129,21 +121,19 @@ pub fn generate_raw_chain_spec(
 /// Export the WebAssembly runtime for the parachain.
 ///
 /// # Arguments
-/// * `path` - Location of the parachain project.
-/// * `chain_spec` - Location of the raw chain specification file.
 /// * `binary_path` - The path to the node binary executable that contains the `export-genesis-wasm` command.
+/// * `chain_spec` - Location of the raw chain specification file.
 /// * `wasm_file_name` - The name of the wasm runtime file to be generated.
 pub fn export_wasm_file(
-	path: Option<&Path>,
-	chain_spec: &Path,
 	binary_path: &Path,
+	chain_spec: &Path,
 	wasm_file_name: &str,
 ) -> Result<PathBuf, Error> {
 	if !chain_spec.exists() {
 		return Err(Error::MissingChainSpec(chain_spec.display().to_string()));
 	}
 	check_command_exists(&binary_path, "export-genesis-wasm")?;
-	let wasm_file = path.unwrap_or(Path::new("./")).join(wasm_file_name);
+	let wasm_file = chain_spec.parent().unwrap_or(Path::new("./")).join(wasm_file_name);
 	cmd(
 		binary_path,
 		vec![
@@ -160,21 +150,19 @@ pub fn export_wasm_file(
 /// Generate the parachain genesis state.
 ///
 /// # Arguments
-/// * `path` - Location of the parachain project.
-/// * `chain_spec` - Location of the raw chain specification file.
 /// * `binary_path` - The path to the node binary executable that contains the `export-genesis-state` command.
+/// * `chain_spec` - Location of the raw chain specification file.
 /// * `genesis_file_name` - The name of the genesis state file to be generated.
 pub fn generate_genesis_state_file(
-	path: Option<&Path>,
-	chain_spec: &Path,
 	binary_path: &Path,
+	chain_spec: &Path,
 	genesis_file_name: &str,
 ) -> Result<PathBuf, Error> {
 	if !chain_spec.exists() {
 		return Err(Error::MissingChainSpec(chain_spec.display().to_string()));
 	}
 	check_command_exists(&binary_path, "export-genesis-state")?;
-	let genesis_file = path.unwrap_or(Path::new("./")).join(genesis_file_name);
+	let genesis_file = chain_spec.parent().unwrap_or(Path::new("./")).join(genesis_file_name);
 	cmd(
 		binary_path,
 		vec![
@@ -336,7 +324,7 @@ default_command = "pop-node"
 		let name = "parachain_template_node";
 		cmd("cargo", ["new", name, "--bin"]).dir(temp_dir.path()).run()?;
 		generate_mock_node(&temp_dir.path().join(name))?;
-		let binary = build_parachain(Some(&temp_dir.path().join(name)), Profile::Release, None)?;
+		let binary = build_parachain(&temp_dir.path().join(name), Profile::Release, None)?;
 		let target_folder = temp_dir.path().join(name).join("target/release");
 		assert!(target_folder.exists());
 		assert!(target_folder.join("parachain_template_node").exists());
@@ -380,50 +368,37 @@ default_command = "pop-node"
 		let binary_name = fetch_binary(temp_dir.path()).await?;
 		let binary_path = replace_mock_with_binary(temp_dir.path(), binary_name)?;
 		// Test generate chain spec
-		let plain_chain_spec = generate_plain_chain_spec(
-			Some(temp_dir.path()),
+		let plain_chain_spec = &temp_dir.path().join("plain-parachain-chainspec.json");
+		generate_plain_chain_spec(
 			&binary_path,
-			"plain-parachain-chainspec.json",
+			&temp_dir.path().join("plain-parachain-chainspec.json"),
 			2001,
 		)?;
 		assert!(plain_chain_spec.exists());
 		let raw_chain_spec = generate_raw_chain_spec(
-			Some(temp_dir.path()),
-			&plain_chain_spec,
 			&binary_path,
+			&plain_chain_spec,
 			"raw-parachain-chainspec.json",
 		)?;
 		assert!(raw_chain_spec.exists());
 		let content = fs::read_to_string(raw_chain_spec.clone()).expect("Could not read file");
 		assert!(content.contains("\"para_id\": 2001"));
 		// Test export wasm file
-		let wasm_file = export_wasm_file(
-			Some(temp_dir.path()),
-			&raw_chain_spec,
-			&binary_path,
-			"para-2001-wasm",
-		)?;
+		let wasm_file = export_wasm_file(&binary_path, &raw_chain_spec, "para-2001-wasm")?;
 		assert!(wasm_file.exists());
 		// Test generate parachain state file
-		let genesis_file = generate_genesis_state_file(
-			Some(temp_dir.path()),
-			&raw_chain_spec,
-			&binary_path,
-			"para-2001-genesis-state",
-		)?;
+		let genesis_file =
+			generate_genesis_state_file(&binary_path, &raw_chain_spec, "para-2001-genesis-state")?;
 		assert!(genesis_file.exists());
 		Ok(())
 	}
 
 	#[test]
 	fn raw_chain_spec_fails_wrong_chain_spec() -> Result<()> {
-		let temp_dir =
-			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
 		assert!(matches!(
 			generate_raw_chain_spec(
-				Some(temp_dir.path()),
-				Path::new("./plain-parachain-chainspec.json"),
 				Path::new("./binary"),
+				Path::new("./plain-parachain-chainspec.json"),
 				"plain-parachain-chainspec.json"
 			),
 			Err(Error::MissingChainSpec(..))
@@ -433,13 +408,10 @@ default_command = "pop-node"
 
 	#[test]
 	fn export_wasm_file_fails_wrong_chain_spec() -> Result<()> {
-		let temp_dir =
-			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
 		assert!(matches!(
 			export_wasm_file(
-				Some(temp_dir.path()),
-				Path::new("./raw-parachain-chainspec"),
 				Path::new("./binary"),
+				Path::new("./raw-parachain-chainspec"),
 				"para-2001-wasm"
 			),
 			Err(Error::MissingChainSpec(..))
@@ -449,13 +421,10 @@ default_command = "pop-node"
 
 	#[test]
 	fn generate_genesis_state_file_wrong_chain_spec() -> Result<()> {
-		let temp_dir =
-			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
 		assert!(matches!(
 			generate_genesis_state_file(
-				Some(temp_dir.path()),
-				Path::new("./raw-parachain-chainspec"),
 				Path::new("./binary"),
+				Path::new("./raw-parachain-chainspec"),
 				"para-2001-genesis-state",
 			),
 			Err(Error::MissingChainSpec(..))

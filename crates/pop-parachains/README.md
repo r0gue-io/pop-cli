@@ -29,20 +29,21 @@ build_parachain(path, Profile::Release, None)?;
 
 Generate a raw chain specification file and export the WASM and genesis state files:
 ```rust
-use pop_parachains::{binary_path, generate_plain_chain_spec, generate_raw_chain_spec, export_wasm_file, generate_genesis_state_file};
+use pop_parachains::{generate_plain_chain_spec, generate_raw_chain_spec, export_wasm_file, generate_genesis_state_file};
 
 let path = ...; // Location of the parachain project.
 let para_id = 2000;
-// The path to the node binary executable that contains the `build-spec` command.
-let binary_path = binary_path(path.join("target/release"),path.join("node")) 
+// The path to the node binary executable.
+let binary_path = ..;
 // Generate a plain chain specification file of a parachain
-let plain_chain_spec = generate_plain_chain_spec(&path, &binary_path, "plain-parachain-chainspec.json", para_id)?;
+let plain_chain_spec_path = path.join("plain-parachain-chainspec.json");
+let plain_chain_spec = generate_plain_chain_spec(&binary_path, plain_chain_spec_path, para_id)?;
 // Generate a raw chain specification file of a parachain
-let chain_spec = generate_raw_chain_spec(&path, &plain_chain_spec, &binary_path, "raw-parachain-chainspec.json")?;
+let chain_spec = generate_raw_chain_spec(&binary_path, &plain_chain_spec, "raw-parachain-chainspec.json")?;
 // Export the WebAssembly runtime for the parachain. 
-let wasm_file = export_wasm_file(&path, &chain_spec, &binary_path, "para-2000-wasm")?; 
+let wasm_file = export_wasm_file(&binary_path, &chain_spec, "para-2000-wasm")?; 
 // Generate the parachain genesis state.
-let genesis_state_file = generate_genesis_state_file(&path, &chain_spec, &binary_path, "para-2000-genesis-state")?; 
+let genesis_state_file = generate_genesis_state_file(&binary_path, &chain_spec, "para-2000-genesis-state")?; 
 ```
 
 Run a Parachain:

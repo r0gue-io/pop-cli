@@ -40,47 +40,35 @@ impl BuildParachainCommand {
 		set_theme(Theme);
 
 		warning("NOTE: this may take some time...")?;
-		let binary = build_parachain(self.path.as_deref(), Profile::Release, None)?;
+		let project_path = self.path.unwrap_or("./".into());
+		let binary = build_parachain(&project_path, Profile::Release, None)?;
 
 		success("Build completed successfully!")?;
-		let mut generated_files = vec![format!("Binary generated at: \"{}\"", binary.display())];
+		let mut generated_files = vec![format!("Binary generated at: {}", binary.display())];
 
 		// If `para_id` is provided, generate the chain spec
 		if let Some(para_id) = self.id {
-			let plain_chain_spec = generate_plain_chain_spec(
-				self.path.as_deref(),
-				&binary,
-				PLAIN_CHAIN_SPEC_FILE_NAME,
-				para_id,
-			)?;
+			let plain_chain_spec = project_path.join(PLAIN_CHAIN_SPEC_FILE_NAME);
+			generate_plain_chain_spec(&binary, &plain_chain_spec, para_id)?;
 			generated_files.push(format!(
 				"Plain text chain specification file generated at: {}",
 				plain_chain_spec.display()
 			));
-			let raw_chain_spec = generate_raw_chain_spec(
-				self.path.as_deref(),
-				&plain_chain_spec,
-				&binary,
-				RAW_CHAIN_SPEC_FILE_NAME,
-			)?;
+			let raw_chain_spec =
+				generate_raw_chain_spec(&binary, &plain_chain_spec, RAW_CHAIN_SPEC_FILE_NAME)?;
 			generated_files.push(format!(
 				"New raw chain specification file generated at: {}",
 				raw_chain_spec.display()
 			));
 			let wasm_file_name = format!("para-{}-wasm", para_id);
-			let wasm_file =
-				export_wasm_file(self.path.as_deref(), &raw_chain_spec, &binary, &wasm_file_name)?;
+			let wasm_file = export_wasm_file(&binary, &raw_chain_spec, &wasm_file_name)?;
 			generated_files.push(format!(
 				"WebAssembly runtime file exported at: {}",
 				wasm_file.display().to_string()
 			));
 			let genesis_file_name = format!("para-{}-genesis-state", para_id);
-			let genesis_state_file = generate_genesis_state_file(
-				self.path.as_deref(),
-				&raw_chain_spec,
-				&binary,
-				&genesis_file_name,
-			)?;
+			let genesis_state_file =
+				generate_genesis_state_file(&binary, &raw_chain_spec, &genesis_file_name)?;
 			generated_files.push(format!(
 				"Genesis State exported at {} file",
 				genesis_state_file.display().to_string()
