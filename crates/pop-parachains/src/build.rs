@@ -3,14 +3,13 @@
 use crate::Error;
 use anyhow::Result;
 use duct::cmd;
-use pop_common::replace_in_file;
+use pop_common::{parse_package_name, replace_in_file};
 use serde_json::Value;
 use std::{
 	collections::HashMap,
 	fs,
 	path::{Path, PathBuf},
 };
-use toml_edit::DocumentMut;
 
 /// Enum representing the build profile for a parachain.
 pub enum Profile {
@@ -58,7 +57,7 @@ pub fn build_parachain(
 /// * `target_path` - The path where the binaries are expected to be found.
 /// * `node_path` - The path to the node from which the node name will be parsed.
 fn binary_path(target_path: &Path, node_path: &Path) -> Result<PathBuf, Error> {
-	let node_name = parse_node_name(node_path)?;
+	let node_name = parse_package_name(node_path)?;
 	let release = target_path.join(node_name.clone());
 	if !release.exists() {
 		return Err(Error::MissingBinary(node_name));
@@ -81,7 +80,7 @@ pub fn generate_plain_chain_spec(
 	cmd(binary_path, vec!["build-spec", "--disable-default-bootnode"])
 		.stdout_path(plain_chain_spec)
 		.run()?;
-	let generated_para_id = get_parachain_id(plain_chain_spec)?;
+	let generated_para_id = get_parachain_id(plain_chain_spec)?.unwrap_or(para_id.into()) as u32;
 	replace_para_id(plain_chain_spec.to_path_buf(), para_id, generated_para_id)?;
 	Ok(())
 }
@@ -176,30 +175,15 @@ pub fn generate_genesis_state_file(
 	Ok(genesis_file)
 }
 
-/// Parses the node name from the Cargo.toml file located in the project path.
-fn parse_node_name(node_path: &Path) -> Result<String, Error> {
-	let cargo_toml = node_path.join("Cargo.toml");
-	let contents = std::fs::read_to_string(&cargo_toml)?;
-	let config = contents.parse::<DocumentMut>().map_err(|err| Error::TomlError(err.into()))?;
-	let name = config
-		.get("package")
-		.and_then(|i| i.as_table())
-		.and_then(|t| t.get("name"))
-		.and_then(|i| i.as_str())
-		.ok_or_else(|| Error::Config("expected `name`".into()))?;
-	Ok(name.to_string())
-}
-
-/// Get the current parachain id from the generated chain specification file.
-fn get_parachain_id(plain_parachain_spec: &Path) -> Result<u32> {
-	let data = fs::read_to_string(plain_parachain_spec)?;
+/// Get the parachain id from the chain specification file.
+fn get_parachain_id(chain_spec: &Path) -> Result<Option<u64>> {
+	let data = fs::read_to_string(chain_spec)?;
 	let value = serde_json::from_str::<Value>(&data)?;
-	// Default to 2000, as it is the first number allocated for non-system parachains.
-	Ok(value.get("para_id").and_then(Value::as_u64).unwrap_or(2000) as u32)
+	Ok(value.get("para_id").and_then(Value::as_u64))
 }
 
 /// Replaces the generated parachain id in the chain specification file with the provided para_id.
-fn replace_para_id(parachain_folder: PathBuf, para_id: u32, generated_para_id: u32) -> Result<()> {
+fn replace_para_id(chain_spec: PathBuf, para_id: u32, generated_para_id: u32) -> Result<()> {
 	let mut replacements_in_cargo: HashMap<&str, &str> = HashMap::new();
 	let old_para_id = format!("\"para_id\": {generated_para_id}");
 	let new_para_id = format!("\"para_id\": {para_id}");
@@ -207,7 +191,7 @@ fn replace_para_id(parachain_folder: PathBuf, para_id: u32, generated_para_id: u
 	let old_parachain_id = format!("\"parachainId\": {generated_para_id}");
 	let new_parachain_id = format!("\"parachainId\": {para_id}");
 	replacements_in_cargo.insert(&old_parachain_id, &new_parachain_id);
-	replace_in_file(parachain_folder, replacements_in_cargo)?;
+	replace_in_file(chain_spec, replacements_in_cargo)?;
 	Ok(())
 }
 
@@ -433,59 +417,11 @@ default_command = "pop-node"
 	}
 
 	#[test]
-	fn parse_node_name_works() -> Result<()> {
-		let temp_dir =
-			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
-		let name = parse_node_name(&temp_dir.path().join("node"))?;
-		assert_eq!(name, "parachain-template-node");
-		Ok(())
-	}
-
-	#[test]
-	fn parse_node_name_node_cargo_no_exist() -> Result<()> {
-		let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
-		assert!(matches!(parse_node_name(&temp_dir.path().join("node")), Err(Error::IO(..))));
-		Ok(())
-	}
-
-	#[test]
-	fn parse_node_name_node_error_parsing_cargo() -> Result<()> {
-		let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
-		fs::create_dir(temp_dir.path().join("node"))?;
-		let mut cargo_file = fs::File::create(temp_dir.path().join("node/Cargo.toml"))?;
-		writeln!(cargo_file, "[")?;
-		assert!(matches!(
-			parse_node_name(&temp_dir.path().join("node")),
-			Err(Error::TomlError(..))
-		));
-		Ok(())
-	}
-
-	#[test]
-	fn parse_node_name_node_error_parsing_name() -> Result<()> {
-		let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
-		fs::create_dir(temp_dir.path().join("node"))?;
-		let mut cargo_file = fs::File::create(temp_dir.path().join("node/Cargo.toml"))?;
-		writeln!(
-			cargo_file,
-			r#"
-				[package]
-				version = "0.1.0"
-			"#
-		)?;
-		assert!(matches!(
-			parse_node_name(&temp_dir.path().join("node")),
-			Err(Error::Config(error)) if error == "expected `name`",
-		));
-		Ok(())
-	}
-
-	#[test]
 	fn get_parachain_id_works() -> Result<()> {
 		let mut file = tempfile::NamedTempFile::new()?;
 		writeln!(file, r#"{{ "name": "Local Testnet", "para_id": 2002 }}"#)?;
 		let get_parachain_id = get_parachain_id(&file.path())?;
-		assert_eq!(get_parachain_id, 2002);
+		assert_eq!(get_parachain_id, Some(2002));
 		Ok(())
 	}
 
