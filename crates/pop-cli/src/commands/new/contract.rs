@@ -55,7 +55,7 @@ impl NewContractCommand {
 			.expect("name can not be none as fallback above is interactive input; qed");
 		let path = Path::new(path_project);
 		let name = get_project_name_from_path(path, "my_contract");
-		is_valid_contract_name(&name)?;
+		is_valid_contract_name(name)?;
 		let contract_type = &contract_config.contract_type.clone().unwrap_or_default();
 		let template = match &contract_config.template {
 			Some(template) => template.clone(),
@@ -64,7 +64,7 @@ impl NewContractCommand {
 
 		is_template_supported(contract_type, &template)?;
 
-		generate_contract_from_template(&name, &path, &template)?;
+		generate_contract_from_template(name, &path, &template)?;
 		Ok(())
 	}
 }
@@ -100,7 +100,7 @@ async fn guide_user_to_generate_contract() -> anyhow::Result<NewContractCommand>
 
 	let template = display_select_options(contract_type)?;
 
-	let name: String = input("Name of your contract?")
+	let name: String = input("Where should your project be created?")
 		.placeholder("./my_contract")
 		.default_input("./my_contract")
 		.interact()?;
@@ -125,7 +125,7 @@ fn display_select_options(contract_type: &ContractType) -> Result<&Template> {
 }
 
 fn generate_contract_from_template(
-	name: &String,
+	name: &str,
 	path: &Path,
 	template: &Template,
 ) -> anyhow::Result<()> {
