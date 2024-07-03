@@ -8,13 +8,14 @@ use cliclack::{
 	outro, set_theme,
 };
 use pop_parachains::{
-	binary_path, build_parachain, export_wasm_file, generate_chain_spec,
-	generate_genesis_state_file, generate_raw_chain_spec,
+	build_parachain, export_wasm_file, generate_chain_spec, generate_genesis_state_file,
+	generate_raw_chain_spec, Profile,
 };
 use std::path::PathBuf;
 
 const PLAIN_CHAIN_SPEC_FILE_NAME: &str = "plain-parachain-chainspec.json";
 const RAW_CHAIN_SPEC_FILE_NAME: &str = "raw-parachain-chainspec.json";
+
 #[derive(Args)]
 pub struct BuildParachainCommand {
 	#[arg(
@@ -39,15 +40,9 @@ impl BuildParachainCommand {
 		set_theme(Theme);
 
 		warning("NOTE: this may take some time...")?;
-		build_parachain(&self.path)?;
+		let binary = build_parachain(self.path.as_deref(), Profile::Release, None)?;
 
 		success("Build completed successfully!")?;
-		let project_path = self.path.clone().unwrap_or(PathBuf::from("./"));
-		// Assumes the target directory is always `target/release`. If an option to build in debug mode is added in `build_parachain`, this will need to be modified accordingly.
-		let target_path = project_path.join("target/release");
-		// Assumes the node directory is always in `node`.
-		let node_path = project_path.join("node");
-		let binary = binary_path(&target_path, &node_path)?;
 		let mut generated_files = vec![format!("Binary generated at: \"{}\"", binary.display())];
 		// If `para_id` is provided, generate the chain spec
 		if let Some(para_id) = self.id {

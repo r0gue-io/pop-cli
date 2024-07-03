@@ -12,15 +12,48 @@ use std::{
 };
 use toml_edit::DocumentMut;
 
-/// Build the parachain.
+/// Enum representing the build profile for a parachain.
+pub enum Profile {
+	/// Release profile, optimized for performance.
+	Release,
+	/// Debug profile, optimized for debugging.
+	Debug,
+}
+
+impl Profile {
+	/// Returns the corresponding command-line flag argument for the build profile.
+	fn flag(&self) -> &str {
+		match self {
+			Profile::Release => "--release",
+			Profile::Debug => "--debug",
+		}
+	}
+	/// Returns the corresponding path to the target folder.
+	fn target_folder(&self, path: &Path) -> PathBuf {
+		match self {
+			Profile::Release => path.join("target/release"),
+			Profile::Debug => path.join("target/debug"),
+		}
+	}
+}
+
+/// Build the parachain and returns the path to the binary.
 ///
 /// # Arguments
 /// * `path` - Location of the parachain project.
-pub fn build_parachain(path: &Option<PathBuf>) -> Result<(), Error> {
-	cmd("cargo", vec!["build", "--release"])
-		.dir(path.clone().unwrap_or("./".into()))
-		.run()?;
-	Ok(())
+/// * `profile` - The build profile to use (release or debug).
+/// * `node_path` - An optional path to the node directory. Defaults to the `node` subdirectory of the project path if not provided.
+pub fn build_parachain(
+	path: Option<&Path>,
+	profile: Profile,
+	node_path: Option<&Path>,
+) -> Result<PathBuf, Error> {
+	let project_path = path.unwrap_or(Path::new("./"));
+	cmd("cargo", vec!["build", profile.flag()]).dir(project_path).run()?;
+	binary_path(
+		&profile.target_folder(project_path),
+		node_path.unwrap_or(&project_path.join("node")),
+	)
 }
 
 /// Constructs the node binary path based on the target path and the node folder path.
@@ -28,7 +61,7 @@ pub fn build_parachain(path: &Option<PathBuf>) -> Result<(), Error> {
 /// # Arguments
 /// * `target_path` - The path where the binaries are expected to be found.
 /// * `node_path` - The path to the node from which the node name will be parsed.
-pub fn binary_path(target_path: &Path, node_path: &Path) -> Result<PathBuf, Error> {
+fn binary_path(target_path: &Path, node_path: &Path) -> Result<PathBuf, Error> {
 	let node_name = parse_node_name(node_path)?;
 	let release = target_path.join(node_name.clone());
 	if !release.exists() {
@@ -233,6 +266,32 @@ mod tests {
 		Ok(())
 	}
 
+	// Function that generates a valid Cargo.toml inside node folder.
+	fn generate_mock_node(temp_dir: &Path) -> Result<(), Error> {
+		// Create a node directory
+		let target_dir = temp_dir.join("node");
+		fs::create_dir(&target_dir)?;
+		// Create a Cargo.toml file
+		let mut toml_file = fs::File::create(target_dir.join("Cargo.toml"))?;
+		writeln!(
+			toml_file,
+			r#"
+			[package]
+			name = "parachain_template_node"
+			version = "0.1.0"
+			authors.workspace = true
+			edition.workspace = true
+			homepage.workspace = true
+			license.workspace = true
+			repository.workspace = true
+
+			[dependencies]
+
+			"#
+		)?;
+		Ok(())
+	}
+
 	// Function that fetch a binary from pop network
 	async fn fetch_binary(cache: &Path) -> Result<String, Error> {
 		let config = Builder::new().suffix(".toml").tempfile()?;
@@ -276,11 +335,15 @@ default_command = "pop-node"
 		let temp_dir = tempdir()?;
 		let name = "parachain_template_node";
 		cmd("cargo", ["new", name, "--bin"]).dir(temp_dir.path()).run()?;
-		build_parachain(&Some(PathBuf::from(temp_dir.path().join(name))))?;
-
+		generate_mock_node(&temp_dir.path().join(name))?;
+		let binary = build_parachain(Some(&temp_dir.path().join(name)), Profile::Release, None)?;
 		let target_folder = temp_dir.path().join(name).join("target/release");
 		assert!(target_folder.exists());
 		assert!(target_folder.join("parachain_template_node").exists());
+		assert_eq!(
+			binary.display().to_string(),
+			target_folder.join("parachain_template_node").display().to_string()
+		);
 		Ok(())
 	}
 

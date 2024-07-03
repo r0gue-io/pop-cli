@@ -21,10 +21,10 @@ instantiate_template_dir(template,destination_path,config)?;
 
 Build a Parachain:
 ```rust
-use pop_parachains::build_parachain;
+use pop_parachains::{build_parachain, Profile};
 
 let path = ...;
-build_parachain(path)?;
+build_parachain(path, Profile::Release, None)?;
 ```
 
 Generate a raw chain specification file and export the WASM and genesis state files:
