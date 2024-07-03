@@ -4470,6 +4470,7 @@ name = "pop-common"
 version = "0.2.0"
 dependencies = [
  "anyhow",
+ "flate2",
  "git2",
  "git2_credentials",
  "mockito",
@@ -4478,6 +4479,7 @@ dependencies = [
  "serde",
  "serde_json",
  "strum 0.26.2",
+ "tar",
  "tempfile",
  "thiserror",
  "tokio",

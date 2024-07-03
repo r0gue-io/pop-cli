@@ -1,13 +1,20 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{errors::Error, APP_USER_AGENT};
+use crate::{errors::Error, Status, APP_USER_AGENT};
 use anyhow::Result;
+use flate2::read::GzDecoder;
 use git2::{
 	build::RepoBuilder, FetchOptions, IndexAddOption, RemoteCallbacks, Repository, ResetType,
 };
 use git2_credentials::CredentialHandler;
 use regex::Regex;
-use std::{fs, path::Path};
+use std::{
+	fs,
+	io::{Seek, SeekFrom, Write},
+	path::{Path, PathBuf},
+};
+use tar::Archive;
+use tempfile::{tempdir, tempfile};
 use url::Url;
 
 /// A helper for handling Git operations.
@@ -278,6 +285,37 @@ pub struct Release {
 	pub commit: Option<String>,
 }
 
+/// Source binary by downloading and extracting from an archive.
+///
+/// # Arguments
+/// * `url` - The url of the archive.
+/// * `contents` - The contents within the archive which are required.
+/// * `status` - Used to observe status updates.
+pub async fn from_archive(
+	url: &str,
+	contents: &[(&str, PathBuf)],
+	status: &impl Status,
+) -> Result<(), Error> {
+	// Download archive
+	status.update(&format!("Downloading from {url}..."));
+	let response = reqwest::get(url).await?.error_for_status()?;
+	let mut file = tempfile()?;
+	file.write_all(&response.bytes().await?)?;
+	file.seek(SeekFrom::Start(0))?;
+	// Extract contents
+	status.update("Extracting from archive...");
+	let tar = GzDecoder::new(file);
+	let mut archive = Archive::new(tar);
+	let temp_dir = tempdir()?;
+	let working_dir = temp_dir.path();
+	archive.unpack(working_dir)?;
+	for (name, dest) in contents {
+		fs::rename(working_dir.join(name), dest)?;
+	}
+	status.update("Sourcing complete.");
+	Ok(())
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -453,5 +491,28 @@ mod tests {
 			),
 			"git@github.com:paritytech/frontier-parachain-template.git"
 		);
+	}
+
+	#[tokio::test]
+	async fn from_archive_works() -> anyhow::Result<()> {
+		let temp_dir = tempdir()?;
+		let url = "https://github.com/r0gue-io/polkadot/releases/latest/download/polkadot-aarch64-apple-darwin.tar.gz";
+		let contents: Vec<_> = ["polkadot", "polkadot-execute-worker", "polkadot-prepare-worker"]
+			.into_iter()
+			.map(|b| (b, temp_dir.path().join(b)))
+			.collect();
+
+		from_archive(url, &contents, &Output).await?;
+		for (_, file) in contents {
+			assert!(file.exists());
+		}
+		Ok(())
+	}
+
+	pub(crate) struct Output;
+	impl Status for Output {
+		fn update(&self, status: &str) {
+			println!("{status}")
+		}
 	}
 }

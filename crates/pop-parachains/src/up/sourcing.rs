@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{Error, Status, APP_USER_AGENT};
+use crate::{Error, APP_USER_AGENT};
 use duct::cmd;
 use flate2::read::GzDecoder;
-use pop_common::Git;
+use pop_common::{from_archive, Git, Status};
 use reqwest::StatusCode;
 use std::time::Duration;
 use std::{
-	fs::{copy, metadata, read_dir, rename, File},
+	fs::{copy, metadata, read_dir, File},
 	io::{BufRead, Seek, SeekFrom, Write},
 	os::unix::fs::PermissionsExt,
 	path::{Path, PathBuf},
@@ -73,7 +73,7 @@ impl Source {
 			Archive { url, contents } => {
 				let contents: Vec<_> =
 					contents.iter().map(|name| (name.as_str(), cache.join(&name))).collect();
-				from_archive(&url, &contents, status).await
+				from_archive(&url, &contents, status).await.map_err(|err| Error::from(err))
 			},
 			Git { url, reference, manifest, package, artifacts } => {
 				let artifacts: Vec<_> = artifacts
@@ -183,7 +183,7 @@ impl GitHub {
 						None => (*name, cache.join(target.as_ref().map_or(*name, |t| t.as_str()))),
 					})
 					.collect();
-				from_archive(&url, &contents, status).await
+				from_archive(&url, &contents, status).await.map_err(|err| Error::from(err))
 			},
 			SourceCodeArchive { owner, repository, reference, manifest, package, artifacts } => {
 				let artifacts: Vec<_> = artifacts
@@ -210,37 +210,6 @@ impl GitHub {
 			},
 		}
 	}
-}
-
-/// Source binary by downloading and extracting from an archive.
-///
-/// # Arguments
-/// * `url` - The url of the archive.
-/// * `contents` - The contents within the archive which are required.
-/// * `status` - Used to observe status updates.
-async fn from_archive(
-	url: &str,
-	contents: &[(&str, PathBuf)],
-	status: &impl Status,
-) -> Result<(), Error> {
-	// Download archive
-	status.update(&format!("Downloading from {url}..."));
-	let response = reqwest::get(url).await?.error_for_status()?;
-	let mut file = tempfile()?;
-	file.write_all(&response.bytes().await?)?;
-	file.seek(SeekFrom::Start(0))?;
-	// Extract contents
-	status.update("Extracting from archive...");
-	let tar = GzDecoder::new(file);
-	let mut archive = Archive::new(tar);
-	let temp_dir = tempdir()?;
-	let working_dir = temp_dir.path();
-	archive.unpack(working_dir)?;
-	for (name, dest) in contents {
-		rename(working_dir.join(name), dest)?;
-	}
-	status.update("Sourcing complete.");
-	Ok(())
 }
 
 /// Source binary by cloning a git repository and then building.
@@ -668,22 +637,6 @@ pub(super) mod tests {
 			.source(temp_dir.path(), false, &Output, true)
 			.await?;
 		assert!(temp_dir.path().join(&name).exists());
-		Ok(())
-	}
-
-	#[tokio::test]
-	async fn from_archive_works() -> anyhow::Result<()> {
-		let temp_dir = tempdir()?;
-		let url = "https://github.com/r0gue-io/polkadot/releases/latest/download/polkadot-aarch64-apple-darwin.tar.gz";
-		let contents: Vec<_> = ["polkadot", "polkadot-execute-worker", "polkadot-prepare-worker"]
-			.into_iter()
-			.map(|b| (b, temp_dir.path().join(b)))
-			.collect();
-
-		from_archive(url, &contents, &Output).await?;
-		for (_, file) in contents {
-			assert!(file.exists());
-		}
 		Ok(())
 	}
 

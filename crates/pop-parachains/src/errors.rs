@@ -50,6 +50,9 @@ pub enum Error {
 	#[error("Template error: {0}")]
 	TemplateError(#[from] pop_common::templates::Error),
 
+	#[error("{0}")]
+	CommonError(#[from] pop_common::Error),
+
 	#[error("Failed to parse the endowment value")]
 	EndowmentError,
 

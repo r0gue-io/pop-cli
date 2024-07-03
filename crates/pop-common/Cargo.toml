@@ -11,15 +11,17 @@ repository.workspace = true
 anyhow.workspace = true
 git2.workspace = true
 git2_credentials.workspace = true
+flate2.workspace = true
 regex.workspace = true
 reqwest.workspace = true
 serde_json.workspace = true
 serde.workspace = true
 strum.workspace = true
+tar.workspace = true
+tempfile.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 url.workspace = true
 
 [dev-dependencies]
 mockito.workspace = true
-tempfile.workspace = true
