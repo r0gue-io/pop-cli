@@ -4480,6 +4480,7 @@ name = "pop-common"
 version = "0.2.0"
 dependencies = [
  "anyhow",
+ "cargo_toml",
  "git2",
  "git2_credentials",
  "mockito",
@@ -4499,7 +4500,6 @@ name = "pop-contracts"
 version = "0.2.0"
 dependencies = [
  "anyhow",
- "cargo_toml",
  "contract-build",
  "contract-extrinsics",
  "duct",

@@ -35,10 +35,10 @@ impl BuildParachainCommand {
 
 		// Build parachain.
 		Cli.warning("NOTE: this may take some time...")?;
-		build_parachain(&self.path)?;
+		build_parachain(self.path.as_deref(), self.release)?;
 		let mode = if self.release { "RELEASE" } else { "DEBUG" };
 		Cli.info(format!("The parachain was built in {mode} mode.",))?;
-		Cli.outro("Build Completed Successfully!")?;
+		Cli.outro("Build completed successfully!")?;
 		Ok(())
 	}
 }

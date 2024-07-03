@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0
 
+use crate::cli::{traits::Cli as _, Cli};
 use clap::{Args, Subcommand};
 #[cfg(feature = "contract")]
 use contract::BuildContractCommand;
+use duct::cmd;
 #[cfg(feature = "parachain")]
 use parachain::BuildParachainCommand;
 use std::path::PathBuf;
@@ -41,26 +43,34 @@ pub(crate) enum Command {
 impl Command {
 	/// Executes the command.
 	pub(crate) fn execute(args: BuildArgs) -> anyhow::Result<()> {
-		// All commands originating from root command are valid
-		let valid = true;
-		// Check if both parachain and contract features enabled
-		#[cfg(all(feature = "parachain", feature = "contract"))]
-		{
-			// Detect if supported smart contract project, otherwise assume a parachain project
-			if pop_contracts::is_supported(args.path.as_deref())? {
-				return BuildContractCommand { path: args.path, release: args.release, valid }
-					.execute();
-			}
-			return BuildParachainCommand { path: args.path, release: args.release, valid }
+		// If only contract feature enabled, build as contract
+		#[cfg(feature = "contract")]
+		if pop_contracts::is_supported(args.path.as_deref())? {
+			// All commands originating from root command are valid
+			return BuildContractCommand { path: args.path, release: args.release, valid: true }
 				.execute();
 		}
 
-		// If only contract feature enabled, build as contract
-		#[cfg(all(feature = "contract", not(feature = "parachain")))]
-		return BuildContractCommand { path: args.path, release: args.release, valid }.execute();
-
 		// If only parachain feature enabled, build as parachain
-		#[cfg(all(feature = "parachain", not(feature = "contract")))]
-		return BuildParachainCommand { path: args.path, release: args.release, valid }.execute();
+		#[cfg(feature = "parachain")]
+		if pop_parachains::is_supported(args.path.as_deref())? {
+			// All commands originating from root command are valid
+			return BuildParachainCommand { path: args.path, release: args.release, valid: true }
+				.execute();
+		}
+
+		// Otherwise build as a normal Rust project
+		Cli.intro("Building your project")?;
+
+		let mut _args = vec!["build"];
+		if args.release {
+			_args.push("--release");
+		}
+		cmd("cargo", _args).dir(args.path.unwrap_or("./".into())).run()?;
+
+		let mode = if args.release { "RELEASE" } else { "DEBUG" };
+		Cli.info(format!("The project was built in {mode} mode.",))?;
+		Cli.outro("Build completed successfully!")?;
+		Ok(())
 	}
 }
