@@ -24,7 +24,7 @@ fn test_parachain_build_after_instantiating_template() -> Result<()> {
 	Command::cargo_bin("pop")
 		.unwrap()
 		.current_dir(&temp_dir)
-		.args(&["build", "parachain", "-p", "./test_parachain"])
+		.args(&["build", "parachain", "--path", "./test_parachain"])
 		.assert()
 		.success();
 
