@@ -1,6 +1,7 @@
 pub mod errors;
 pub mod git;
 pub mod helpers;
+pub mod templates;
 
 pub use errors::Error;
 pub use git::{Git, GitHub, Release};

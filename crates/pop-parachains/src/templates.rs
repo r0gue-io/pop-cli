@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use strum::{EnumMessage as _, EnumProperty as _, VariantArray as _};
+use pop_common::templates::{Template, Type};
+use strum::EnumProperty as _;
 use strum_macros::{AsRefStr, Display, EnumMessage, EnumProperty, EnumString, VariantArray};
-use thiserror::Error;
 
 /// Supported template providers.
 #[derive(
@@ -33,37 +33,13 @@ pub enum Provider {
 	Parity,
 }
 
-impl Provider {
-	/// Get the list of providers supported.
-	pub fn providers() -> &'static [Provider] {
-		Provider::VARIANTS
-	}
-
-	/// Get provider's name.
-	pub fn name(&self) -> &str {
-		self.get_message().unwrap_or_default()
-	}
-
-	/// Get the default template of the provider.
-	pub fn default_template(&self) -> Template {
+impl Type<Parachain> for Provider {
+	fn default_template(&self) -> Option<Parachain> {
 		match &self {
-			Provider::Pop => Template::Standard,
-			Provider::OpenZeppelin => Template::OpenZeppelinGeneric,
-			Provider::Parity => Template::ParityContracts,
+			Provider::Pop => Some(Parachain::Standard),
+			Provider::OpenZeppelin => Some(Parachain::OpenZeppelinGeneric),
+			Provider::Parity => Some(Parachain::ParityContracts),
 		}
-	}
-
-	/// Get the providers detailed description message.
-	pub fn description(&self) -> &str {
-		self.get_detailed_message().unwrap_or_default()
-	}
-
-	/// Get the list of templates of the provider.
-	pub fn templates(&self) -> Vec<&Template> {
-		Template::VARIANTS
-			.iter()
-			.filter(|t| t.get_str("Provider") == Some(self.name()))
-			.collect()
 	}
 }
 
@@ -90,7 +66,7 @@ pub struct Config {
 	PartialEq,
 	VariantArray,
 )]
-pub enum Template {
+pub enum Parachain {
 	/// Minimalist parachain template.
 	#[default]
 	#[strum(
@@ -204,33 +180,11 @@ pub enum Template {
 	TestTemplate02,
 }
 
-impl Template {
-	/// Get the template's name.
-	pub fn name(&self) -> &str {
-		self.get_message().unwrap_or_default()
-	}
+impl Template for Parachain {
+	const PROPERTY: &'static str = "Provider";
+}
 
-	/// Get the description of the template.
-	pub fn description(&self) -> &str {
-		self.get_detailed_message().unwrap_or_default()
-	}
-
-	/// Check the template belongs to a `provider`.
-	pub fn matches(&self, provider: &Provider) -> bool {
-		// Match explicitly on provider name (message)
-		self.get_str("Provider") == Some(provider.name())
-	}
-
-	/// Get the template's repository url.
-	pub fn repository_url(&self) -> Result<&str, Error> {
-		self.get_str("Repository").ok_or(Error::RepositoryMissing)
-	}
-
-	/// Get the provider of the template.
-	pub fn provider(&self) -> Result<&str, Error> {
-		self.get_str("Provider").ok_or(Error::ProviderMissing)
-	}
-
+impl Parachain {
 	/// Returns the relative path to the default network configuration file to be used, if defined.
 	pub fn network_config(&self) -> Option<&str> {
 		self.get_str("Network")
@@ -250,31 +204,25 @@ impl Template {
 	}
 }
 
-#[derive(Error, Debug)]
-pub enum Error {
-	#[error("The `Repository` property is missing from the template variant")]
-	RepositoryMissing,
-	#[error("The `Provider` property is missing from the template variant")]
-	ProviderMissing,
-}
-
 #[cfg(test)]
 mod tests {
 	use super::*;
 	use std::{collections::HashMap, str::FromStr};
+	use strum::VariantArray;
+	use Parachain::*;
 
-	fn templates_names() -> HashMap<String, Template> {
+	fn templates_names() -> HashMap<String, Parachain> {
 		HashMap::from([
-			("standard".to_string(), Template::Standard),
-			("assets".to_string(), Template::Assets),
-			("contracts".to_string(), Template::Contracts),
-			("evm".to_string(), Template::EVM),
+			("standard".to_string(), Standard),
+			("assets".to_string(), Assets),
+			("contracts".to_string(), Contracts),
+			("evm".to_string(), EVM),
 			// openzeppelin
-			("polkadot-generic-runtime-template".to_string(), Template::OpenZeppelinGeneric),
-			("cpt".to_string(), Template::ParityContracts),
-			("fpt".to_string(), Template::ParityFPT),
-			("test_01".to_string(), Template::TestTemplate01),
-			("test_02".to_string(), Template::TestTemplate02),
+			("polkadot-generic-runtime-template".to_string(), OpenZeppelinGeneric),
+			("cpt".to_string(), ParityContracts),
+			("fpt".to_string(), ParityFPT),
+			("test_01".to_string(), TestTemplate01),
+			("test_02".to_string(), TestTemplate02),
 		])
 	}
 
@@ -296,34 +244,31 @@ mod tests {
 		])
 	}
 
-	fn template_network_configs() -> HashMap<Template, Option<&'static str>> {
+	fn template_network_configs() -> HashMap<Parachain, Option<&'static str>> {
 		[
-			(Template::Standard, Some("./network.toml")),
-			(Template::Assets, Some("./network.toml")),
-			(Template::Contracts, Some("./network.toml")),
-			(Template::EVM, Some("./network.toml")),
-			(Template::OpenZeppelinGeneric, Some("./zombienet-config/devnet.toml")),
-			(Template::ParityContracts, Some("./zombienet.toml")),
-			(Template::ParityFPT, Some("./zombienet-config.toml")),
-			(Template::TestTemplate01, Some("")),
-			(Template::TestTemplate02, Some("")),
+			(Standard, Some("./network.toml")),
+			(Assets, Some("./network.toml")),
+			(Contracts, Some("./network.toml")),
+			(EVM, Some("./network.toml")),
+			(OpenZeppelinGeneric, Some("./zombienet-config/devnet.toml")),
+			(ParityContracts, Some("./zombienet.toml")),
+			(ParityFPT, Some("./zombienet-config.toml")),
+			(TestTemplate01, Some("")),
+			(TestTemplate02, Some("")),
 		]
 		.into()
 	}
 
 	#[test]
 	fn test_is_template_correct() {
-		for template in Template::VARIANTS {
-			if matches!(
-				template,
-				Template::Standard | Template::Assets | Template::Contracts | Template::EVM
-			) {
-				assert_eq!(template.matches(&Provider::Pop), true);
-				assert_eq!(template.matches(&Provider::Parity), false);
+		for template in Parachain::VARIANTS {
+			if matches!(template, Standard | Assets | Contracts | EVM) {
+				assert_eq!(Provider::Pop.provides(&template), true);
+				assert_eq!(Provider::Parity.provides(&template), false);
 			}
-			if matches!(template, Template::ParityContracts | Template::ParityFPT) {
-				assert_eq!(template.matches(&Provider::Pop), false);
-				assert_eq!(template.matches(&Provider::Parity), true);
+			if matches!(template, ParityContracts | ParityFPT) {
+				assert_eq!(Provider::Pop.provides(&template), false);
+				assert_eq!(Provider::Parity.provides(&template), true)
 			}
 		}
 	}
@@ -332,11 +277,11 @@ mod tests {
 	fn test_convert_string_to_template() {
 		let template_names = templates_names();
 		// Test the default
-		assert_eq!(Template::from_str("").unwrap_or_default(), Template::Standard);
+		assert_eq!(Parachain::from_str("").unwrap_or_default(), Standard);
 		// Test the rest
-		for template in Template::VARIANTS {
+		for template in Parachain::VARIANTS {
 			assert_eq!(
-				&Template::from_str(&template.to_string()).unwrap(),
+				&Parachain::from_str(&template.to_string()).unwrap(),
 				template_names.get(&template.to_string()).unwrap()
 			);
 		}
@@ -345,7 +290,7 @@ mod tests {
 	#[test]
 	fn test_repository_url() {
 		let template_urls = templates_urls();
-		for template in Template::VARIANTS {
+		for template in Parachain::VARIANTS {
 			assert_eq!(
 				&template.repository_url().unwrap(),
 				template_urls.get(&template.to_string()).unwrap()
@@ -356,7 +301,7 @@ mod tests {
 	#[test]
 	fn test_network_config() {
 		let network_configs = template_network_configs();
-		for template in Template::VARIANTS {
+		for template in Parachain::VARIANTS {
 			assert_eq!(template.network_config(), network_configs[template]);
 		}
 	}
@@ -364,20 +309,17 @@ mod tests {
 	#[test]
 	fn test_default_template_of_provider() {
 		let mut provider = Provider::Pop;
-		assert_eq!(provider.default_template(), Template::Standard);
+		assert_eq!(provider.default_template(), Some(Standard));
 		provider = Provider::Parity;
-		assert_eq!(provider.default_template(), Template::ParityContracts);
+		assert_eq!(provider.default_template(), Some(ParityContracts));
 	}
 
 	#[test]
 	fn test_templates_of_provider() {
 		let mut provider = Provider::Pop;
-		assert_eq!(
-			provider.templates(),
-			[&Template::Standard, &Template::Assets, &Template::Contracts, &Template::EVM]
-		);
+		assert_eq!(provider.templates(), [&Standard, &Assets, &Contracts, &EVM]);
 		provider = Provider::Parity;
-		assert_eq!(provider.templates(), [&Template::ParityContracts, &Template::ParityFPT]);
+		assert_eq!(provider.templates(), [&ParityContracts, &ParityFPT]);
 	}
 
 	#[test]
@@ -389,7 +331,7 @@ mod tests {
 
 	#[test]
 	fn supported_versions_have_no_whitespace() {
-		for template in Template::VARIANTS {
+		for template in Parachain::VARIANTS {
 			if let Some(versions) = template.supported_versions() {
 				for version in versions {
 					assert!(!version.contains(' '));
@@ -400,13 +342,13 @@ mod tests {
 
 	#[test]
 	fn test_supported_versions_works() {
-		let template = Template::TestTemplate01;
+		let template = TestTemplate01;
 		assert_eq!(template.supported_versions(), Some(vec!["v1.0.0", "v2.0.0"]));
 		assert_eq!(template.is_supported_version("v1.0.0"), true);
 		assert_eq!(template.is_supported_version("v2.0.0"), true);
 		assert_eq!(template.is_supported_version("v3.0.0"), false);
 
-		let template = Template::TestTemplate02;
+		let template = TestTemplate02;
 		assert_eq!(template.supported_versions(), None);
 		// will be true because an empty SupportedVersions defaults to all
 		assert_eq!(template.is_supported_version("v1.0.0"), true);
@@ -414,10 +356,10 @@ mod tests {
 
 	#[test]
 	fn test_is_audited() {
-		let template = Template::TestTemplate01;
+		let template = TestTemplate01;
 		assert_eq!(template.is_audited(), true);
 
-		let template = Template::TestTemplate02;
+		let template = TestTemplate02;
 		assert_eq!(template.is_audited(), false);
 	}
 }
