@@ -20,10 +20,14 @@ pub(crate) mod parachain;
 pub(crate) struct BuildArgs {
 	#[command(subcommand)]
 	pub command: Option<Command>,
-	#[arg(long = "path", help = "Directory path for your project, [default: current directory]")]
+	/// Directory path for your project [default: current directory]
+	#[arg(long)]
 	pub(crate) path: Option<PathBuf>,
+	/// The package to be built.
+	#[arg(short = 'p', long)]
+	pub(crate) package: Option<String>,
 	/// For production, always build in release mode to exclude debug features.
-	#[clap(long = "release", short)]
+	#[clap(short, long)]
 	pub(crate) release: bool,
 }
 
@@ -55,21 +59,31 @@ impl Command {
 		#[cfg(feature = "parachain")]
 		if pop_parachains::is_supported(args.path.as_deref())? {
 			// All commands originating from root command are valid
-			return BuildParachainCommand { path: args.path, release: args.release, valid: true }
-				.execute();
+			return BuildParachainCommand {
+				path: args.path,
+				package: args.package,
+				release: args.release,
+				valid: true,
+			}
+			.execute();
 		}
 
 		// Otherwise build as a normal Rust project
-		Cli.intro("Building your project")?;
+		let project = if args.package.is_some() { "package" } else { "project" };
+		Cli.intro(format!("Building your {project}"))?;
 
 		let mut _args = vec!["build"];
+		if let Some(package) = args.package.as_deref() {
+			_args.push("--package");
+			_args.push(package)
+		}
 		if args.release {
 			_args.push("--release");
 		}
 		cmd("cargo", _args).dir(args.path.unwrap_or("./".into())).run()?;
 
 		let mode = if args.release { "RELEASE" } else { "DEBUG" };
-		Cli.info(format!("The project was built in {mode} mode.",))?;
+		Cli.info(format!("The {project} was built in {mode} mode.",))?;
 		Cli.outro("Build completed successfully!")?;
 		Ok(())
 	}

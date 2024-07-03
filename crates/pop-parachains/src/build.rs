@@ -8,9 +8,18 @@ use std::path::Path;
 ///
 /// # Arguments
 /// * `path` - The optional path to the parachain manifest, defaulting to the current directory if not specified.
+/// * `package` - The optional package to be built.
 /// * `release` - Whether the parachain should be built without any debugging functionality.
-pub fn build_parachain(path: Option<&Path>, release: bool) -> anyhow::Result<()> {
+pub fn build_parachain(
+	path: Option<&Path>,
+	package: Option<String>,
+	release: bool,
+) -> anyhow::Result<()> {
 	let mut args = vec!["build"];
+	if let Some(package) = package.as_deref() {
+		args.push("--package");
+		args.push(package)
+	}
 	if release {
 		args.push("--release");
 	}

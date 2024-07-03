@@ -7,10 +7,14 @@ use std::{path::PathBuf, thread::sleep, time::Duration};
 
 #[derive(Args)]
 pub struct BuildParachainCommand {
-	#[arg(long = "path", help = "Directory path for your project, [default: current directory]")]
+	/// Directory path for your project [default: current directory]
+	#[arg(long)]
 	pub(crate) path: Option<PathBuf>,
+	/// The package to be built.
+	#[arg(short = 'p', long)]
+	pub(crate) package: Option<String>,
 	/// For production, always build in release mode to exclude debug features.
-	#[clap(long = "release", short, default_value = "true")]
+	#[clap(short, long, default_value = "true")]
 	pub(crate) release: bool,
 	// Deprecation flag, used to specify whether the deprecation warning is shown.
 	#[clap(skip)]
@@ -20,7 +24,8 @@ pub struct BuildParachainCommand {
 impl BuildParachainCommand {
 	/// Executes the command.
 	pub(crate) fn execute(self) -> anyhow::Result<()> {
-		Cli.intro("Building your parachain")?;
+		let project = if self.package.is_some() { "package" } else { "parachain" };
+		Cli.intro(format!("Building your {project}"))?;
 
 		// Show warning if specified as deprecated.
 		if !self.valid {
@@ -35,9 +40,9 @@ impl BuildParachainCommand {
 
 		// Build parachain.
 		Cli.warning("NOTE: this may take some time...")?;
-		build_parachain(self.path.as_deref(), self.release)?;
+		build_parachain(self.path.as_deref(), self.package, self.release)?;
 		let mode = if self.release { "RELEASE" } else { "DEBUG" };
-		Cli.info(format!("The parachain was built in {mode} mode.",))?;
+		Cli.info(format!("The {project} was built in {mode} mode.",))?;
 		Cli.outro("Build completed successfully!")?;
 		Ok(())
 	}
