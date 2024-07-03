@@ -4,7 +4,7 @@ use crate::{errors::Error, utils::helpers::canonicalized_path, Contract};
 use anyhow::Result;
 use contract_build::new_contract_project;
 use heck::ToUpperCamelCase;
-use pop_common::{replace_in_file, templates::Template, Git};
+use pop_common::{from_archive, replace_in_file, templates::Template, Git};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -17,13 +17,13 @@ use url::Url;
 /// * `name` - name for the smart contract to be created.
 /// * `target` - location where the smart contract will be created.
 /// * `template` - template to generate the contract from.
-pub fn create_smart_contract(name: &str, target: &Path, template: &Contract) -> Result<()> {
+pub async fn create_smart_contract(name: &str, target: &Path, template: &Contract) -> Result<()> {
 	let canonicalized_path = canonicalized_path(target)?;
 	// Create a new default contract project with the provided name in the parent directory.
 	if matches!(template, Contract::Standard) {
 		return create_standard_contract(name, canonicalized_path);
 	}
-	return create_template_contract(name, canonicalized_path, &template);
+	return create_template_contract(name, canonicalized_path, &template).await;
 }
 
 pub fn is_valid_contract_name(name: &str) -> Result<(), Error> {
@@ -52,15 +52,20 @@ fn create_standard_contract(name: &str, canonicalized_path: PathBuf) -> Result<(
 		.map_err(|e| Error::NewContract(format!("{}", e)))?;
 	Ok(())
 }
-fn create_template_contract(
+
+async fn create_template_contract(
 	name: &str,
 	canonicalized_path: PathBuf,
 	template: &Contract,
 ) -> Result<()> {
 	let template_repository = template.repository_url()?;
-	// Clone the repository into the temporary directory.
+	// Fetch the repository from archive into the temporary directory.
 	let temp_dir = ::tempfile::TempDir::new_in(std::env::temp_dir())?;
-	Git::clone(&Url::parse(template_repository)?, temp_dir.path(), None)?;
+	let contents: Vec<_> = ["ink-examples-main"]
+		.into_iter()
+		.map(|b| (b, temp_dir.path().to_path_buf()))
+		.collect();
+	from_archive(template_repository, &contents, &{}).await?;
 	// Retrieve only the template contract files.
 	extract_contract_files(template.to_string(), temp_dir.path(), canonicalized_path.as_path())?;
 	// Replace name of the contract.
@@ -108,17 +113,17 @@ mod tests {
 	use anyhow::{Error, Result};
 	use std::{fs, io::Write};
 
-	fn setup_test_environment(template: Contract) -> Result<tempfile::TempDir, Error> {
+	async fn setup_test_environment(template: Contract) -> Result<tempfile::TempDir, Error> {
 		let temp_dir = tempfile::tempdir()?;
 		let temp_contract_dir = temp_dir.path().join("test_contract");
 		fs::create_dir(&temp_contract_dir)?;
-		create_smart_contract("test_contract", temp_contract_dir.as_path(), &template)?;
+		create_smart_contract("test_contract", temp_contract_dir.as_path(), &template).await?;
 		Ok(temp_dir)
 	}
 
-	#[test]
-	fn test_create_standard_smart_contract_success() -> Result<(), Error> {
-		let temp_dir = setup_test_environment(Contract::Standard)?;
+	#[tokio::test]
+	async fn test_create_standard_smart_contract_success() -> Result<(), Error> {
+		let temp_dir = setup_test_environment(Contract::Standard).await?;
 		// Verify that the generated smart contract contains the expected content
 		let generated_file_content =
 			fs::read_to_string(temp_dir.path().join("test_contract/lib.rs"))
@@ -135,9 +140,9 @@ mod tests {
 		Ok(())
 	}
 
-	#[test]
-	fn test_create_template_smart_contract_success() -> Result<(), Error> {
-		let temp_dir = setup_test_environment(Contract::ERC20)?;
+	#[tokio::test]
+	async fn test_create_template_smart_contract_success() -> Result<(), Error> {
+		let temp_dir = setup_test_environment(Contract::ERC20).await?;
 		// Verify that the generated smart contract contains the expected content
 		let generated_file_content =
 			fs::read_to_string(temp_dir.path().join("test_contract/lib.rs"))

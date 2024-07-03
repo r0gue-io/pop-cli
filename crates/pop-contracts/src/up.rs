@@ -131,11 +131,11 @@ mod tests {
 
 	const CONTRACTS_NETWORK_URL: &str = "wss://rococo-contracts-rpc.polkadot.io";
 
-	fn generate_smart_contract_test_environment() -> Result<tempfile::TempDir> {
+	async fn generate_smart_contract_test_environment() -> Result<tempfile::TempDir> {
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
 		let temp_contract_dir = temp_dir.path().join("testing");
 		fs::create_dir(&temp_contract_dir)?;
-		create_smart_contract("testing", temp_contract_dir.as_path(), &Contract::Standard)?;
+		create_smart_contract("testing", temp_contract_dir.as_path(), &Contract::Standard).await?;
 		Ok(temp_dir)
 	}
 	// Function that mocks the build process generating the contract artifacts.
@@ -153,7 +153,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn test_set_up_deployment() -> Result<()> {
-		let temp_dir = generate_smart_contract_test_environment()?;
+		let temp_dir = generate_smart_contract_test_environment().await?;
 		mock_build_process(temp_dir.path().join("testing"))?;
 		let up_opts = UpOpts {
 			path: Some(temp_dir.path().join("testing")),
@@ -171,7 +171,7 @@ mod tests {
 	}
 	#[tokio::test]
 	async fn test_dry_run_gas_estimate_instantiate_throw_custom_error() -> Result<()> {
-		let temp_dir = generate_smart_contract_test_environment()?;
+		let temp_dir = generate_smart_contract_test_environment().await?;
 		mock_build_process(temp_dir.path().join("testing"))?;
 		let up_opts = UpOpts {
 			path: Some(temp_dir.path().join("testing")),

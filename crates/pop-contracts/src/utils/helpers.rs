@@ -52,7 +52,7 @@ mod tests {
 	use anyhow::{Error, Result};
 	use std::fs;
 
-	fn setup_test_environment() -> Result<tempfile::TempDir, Error> {
+	async fn setup_test_environment() -> Result<tempfile::TempDir, Error> {
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
 		let temp_contract_dir = temp_dir.path().join("test_contract");
 		fs::create_dir(&temp_contract_dir)?;
@@ -60,13 +60,14 @@ mod tests {
 			"test_contract",
 			temp_contract_dir.as_path(),
 			&crate::Contract::Standard,
-		)?;
+		)
+		.await?;
 		Ok(temp_dir)
 	}
 
-	#[test]
-	fn test_get_manifest_path() -> Result<(), Error> {
-		let temp_dir = setup_test_environment()?;
+	#[tokio::test]
+	async fn test_get_manifest_path() -> Result<(), Error> {
+		let temp_dir = setup_test_environment().await?;
 		get_manifest_path(&Some(PathBuf::from(temp_dir.path().join("test_contract"))))?;
 		Ok(())
 	}

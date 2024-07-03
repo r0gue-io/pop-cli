@@ -164,11 +164,11 @@ mod tests {
 
 	const CONTRACTS_NETWORK_URL: &str = "wss://rococo-contracts-rpc.polkadot.io";
 
-	fn generate_smart_contract_test_environment() -> Result<tempfile::TempDir> {
+	async fn generate_smart_contract_test_environment() -> Result<tempfile::TempDir> {
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
 		let temp_contract_dir = temp_dir.path().join("testing");
 		fs::create_dir(&temp_contract_dir)?;
-		create_smart_contract("testing", temp_contract_dir.as_path(), &Contract::Standard)?;
+		create_smart_contract("testing", temp_contract_dir.as_path(), &Contract::Standard).await?;
 		Ok(temp_dir)
 	}
 	// Function that mocks the build process generating the contract artifacts.
@@ -186,7 +186,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn test_set_up_call() -> Result<()> {
-		let temp_dir = generate_smart_contract_test_environment()?;
+		let temp_dir = generate_smart_contract_test_environment().await?;
 		mock_build_process(temp_dir.path().join("testing"))?;
 
 		let call_opts = CallOpts {
@@ -208,7 +208,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn test_set_up_call_error_contract_not_build() -> Result<()> {
-		let temp_dir = generate_smart_contract_test_environment()?;
+		let temp_dir = generate_smart_contract_test_environment().await?;
 		let call_opts = CallOpts {
 			path: Some(temp_dir.path().join("testing")),
 			contract: "5CLPm1CeUvJhZ8GCDZCR7nWZ2m3XXe4X5MtAQK69zEjut36A".to_string(),
@@ -252,7 +252,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn test_dry_run_call_error_contract_not_deployed() -> Result<()> {
-		let temp_dir = generate_smart_contract_test_environment()?;
+		let temp_dir = generate_smart_contract_test_environment().await?;
 		mock_build_process(temp_dir.path().join("testing"))?;
 
 		let call_opts = CallOpts {
@@ -274,7 +274,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn test_dry_run_estimate_call_error_contract_not_deployed() -> Result<()> {
-		let temp_dir = generate_smart_contract_test_environment()?;
+		let temp_dir = generate_smart_contract_test_environment().await?;
 		mock_build_process(temp_dir.path().join("testing"))?;
 
 		let call_opts = CallOpts {

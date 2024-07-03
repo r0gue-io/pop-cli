@@ -63,7 +63,7 @@ impl NewContractCommand {
 
 		is_template_supported(contract_type, &template)?;
 
-		generate_contract_from_template(name, contract_config.path, &template)?;
+		generate_contract_from_template(name, contract_config.path, &template).await?;
 		Ok(())
 	}
 }
@@ -128,7 +128,7 @@ fn display_select_options(contract_type: &ContractType) -> Result<&Contract> {
 	Ok(prompt.interact()?)
 }
 
-fn generate_contract_from_template(
+async fn generate_contract_from_template(
 	name: &String,
 	path: Option<PathBuf>,
 	template: &Contract,
@@ -144,7 +144,7 @@ fn generate_contract_from_template(
 	fs::create_dir_all(contract_path.as_path())?;
 	let spinner = cliclack::spinner();
 	spinner.start("Generating contract...");
-	create_smart_contract(&name, contract_path.as_path(), template)?;
+	create_smart_contract(&name, contract_path.as_path(), template).await?;
 	spinner.clear();
 	// Replace spinner with success.
 	console::Term::stderr().clear_last_lines(2)?;

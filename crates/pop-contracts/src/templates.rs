@@ -64,7 +64,10 @@ pub enum Contract {
 		serialize = "erc20",
 		message = "Erc20",
 		detailed_message = "The implementation of the ERC-20 standard in ink!",
-		props(Type = "ERC", Repository = "https://github.com/use-ink/ink-examples")
+		props(
+			Type = "ERC",
+			Repository = "https://github.com/use-ink/ink-examples/archive/refs/heads/main.tar.gz"
+		)
 	)]
 	ERC20,
 	/// The implementation of the ERC-721 standard in ink!
@@ -72,7 +75,10 @@ pub enum Contract {
 		serialize = "erc721",
 		message = "Erc721",
 		detailed_message = "The implementation of the ERC-721 standard in ink!",
-		props(Type = "ERC", Repository = "https://github.com/use-ink/ink-examples")
+		props(
+			Type = "ERC",
+			Repository = "https://github.com/use-ink/ink-examples/archive/refs/heads/main.tar.gz"
+		)
 	)]
 	ERC721,
 	/// The implementation of the ERC-1155 standard in ink!
@@ -80,7 +86,10 @@ pub enum Contract {
 		serialize = "erc1155",
 		message = "Erc1155",
 		detailed_message = "The implementation of the ERC-1155 standard in ink!",
-		props(Type = "ERC", Repository = "https://github.com/use-ink/ink-examples")
+		props(
+			Type = "ERC",
+			Repository = "https://github.com/use-ink/ink-examples/archive/refs/heads/main.tar.gz"
+		)
 	)]
 	ERC1155,
 }
@@ -105,9 +114,18 @@ mod tests {
 
 	fn templates_urls() -> HashMap<String, &'static str> {
 		HashMap::from([
-			("erc20".to_string(), "https://github.com/use-ink/ink-examples"),
-			("erc721".to_string(), "https://github.com/use-ink/ink-examples"),
-			("erc1155".to_string(), "https://github.com/use-ink/ink-examples"),
+			(
+				"erc20".to_string(),
+				"https://github.com/use-ink/ink-examples/archive/refs/heads/main.tar.gz",
+			),
+			(
+				"erc721".to_string(),
+				"https://github.com/use-ink/ink-examples/archive/refs/heads/main.tar.gz",
+			),
+			(
+				"erc1155".to_string(),
+				"https://github.com/use-ink/ink-examples/archive/refs/heads/main.tar.gz",
+			),
 		])
 	}
 

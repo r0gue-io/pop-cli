@@ -9,11 +9,12 @@ use std::fs;
 use tempfile::TempDir;
 use url::Url;
 
-fn setup_test_environment() -> std::result::Result<tempfile::TempDir, Error> {
+async fn setup_test_environment() -> std::result::Result<tempfile::TempDir, Error> {
 	let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
 	let temp_contract_dir = temp_dir.path().join("test_contract");
 	fs::create_dir(&temp_contract_dir)?;
-	create_smart_contract("test_contract", temp_contract_dir.as_path(), &Contract::Standard)?;
+	create_smart_contract("test_contract", temp_contract_dir.as_path(), &Contract::Standard)
+		.await?;
 	Ok(temp_dir)
 }
 
@@ -36,10 +37,10 @@ fn verify_build_files(temp_contract_dir: TempDir) -> Result<()> {
 	Ok(())
 }
 
-#[test]
-fn test_contract_build() -> std::result::Result<(), Error> {
+#[tokio::test]
+async fn test_contract_build() -> std::result::Result<(), Error> {
 	// Test building in release mode
-	let temp_contract_dir = setup_test_environment()?;
+	let temp_contract_dir = setup_test_environment().await?;
 
 	let formatted_result =
 		build_smart_contract(&Some(temp_contract_dir.path().join("test_contract")), true)?;
@@ -47,7 +48,7 @@ fn test_contract_build() -> std::result::Result<(), Error> {
 
 	verify_build_files(temp_contract_dir)?;
 
-	let temp_debug_contract_dir = setup_test_environment()?;
+	let temp_debug_contract_dir = setup_test_environment().await?;
 	// Test building in debug mode
 	let formatted_result_debug_mode =
 		build_smart_contract(&Some(temp_debug_contract_dir.path().join("test_contract")), false)?;
@@ -67,7 +68,7 @@ fn build_smart_contract_test_environment(temp_dir: &TempDir) -> Result<(), Error
 
 #[tokio::test]
 async fn test_set_up_deployment() -> std::result::Result<(), Error> {
-	let temp_dir = setup_test_environment()?;
+	let temp_dir = setup_test_environment().await?;
 	build_smart_contract_test_environment(&temp_dir)?;
 
 	let call_opts = UpOpts {
@@ -88,7 +89,7 @@ async fn test_set_up_deployment() -> std::result::Result<(), Error> {
 
 #[tokio::test]
 async fn test_dry_run_gas_estimate_instantiate() -> std::result::Result<(), Error> {
-	let temp_dir = setup_test_environment()?;
+	let temp_dir = setup_test_environment().await?;
 	build_smart_contract_test_environment(&temp_dir)?;
 
 	let call_opts = UpOpts {
