@@ -56,13 +56,13 @@ mod tests {
 	use pop_contracts::{create_smart_contract, Contract::Standard};
 	use std::fs::create_dir_all;
 
-	#[test]
-	fn build_works() -> anyhow::Result<()> {
+	#[tokio::test]
+	async fn build_works() -> anyhow::Result<()> {
 		let name = "flipper";
 		let temp_dir = tempfile::tempdir()?;
 		let path = temp_dir.path();
 		create_dir_all(path.join(name))?;
-		create_smart_contract(name, &path.join(name), &Standard)?;
+		create_smart_contract(name, &path.join(name), &Standard).await?;
 
 		for release in [false, true] {
 			for valid in [false, true] {
