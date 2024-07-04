@@ -24,7 +24,8 @@ Build a Parachain:
 use pop_parachains::{build_parachain, Profile};
 
 let path = ...;
-build_parachain(path, Profile::Release, None)?;
+let package = None;  // The optional package to be built.
+build_parachain(&path, package, &Profile::Release, None)?;
 ```
 
 Generate a raw chain specification file and export the WASM and genesis state files:

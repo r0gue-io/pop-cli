@@ -15,7 +15,6 @@ pub enum Error {
 	ParseError(#[from] url::ParseError),
 	#[error("TemplateError error: {0}")]
 	TemplateError(#[from] templates::Error),
-
 	#[error("Toml error: {0}")]
 	TomlError(#[from] toml_edit::de::Error),
 }
