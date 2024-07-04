@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::cli::{traits::Cli as _, Cli};
+use crate::cli;
 use clap::Args;
 use pop_parachains::build_parachain;
-use std::{path::PathBuf, thread::sleep, time::Duration};
+use std::path::PathBuf;
+#[cfg(not(test))]
+use std::{thread::sleep, time::Duration};
 
 #[derive(Args)]
 pub struct BuildParachainCommand {
@@ -23,27 +25,85 @@ pub struct BuildParachainCommand {
 
 impl BuildParachainCommand {
 	/// Executes the command.
-	pub(crate) fn execute(self) -> anyhow::Result<()> {
+	pub(crate) fn execute(self) -> anyhow::Result<&'static str> {
+		self.build(&mut cli::Cli)
+	}
+
+	fn build(self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<&'static str> {
 		let project = if self.package.is_some() { "package" } else { "parachain" };
-		Cli.intro(format!("Building your {project}"))?;
+		cli.intro(format!("Building your {project}"))?;
 
 		// Show warning if specified as deprecated.
 		if !self.valid {
-			Cli.warning("NOTE: this command is deprecated. Please use `pop build` (or simply `pop b`) in future...")?;
+			cli.warning("NOTE: this command is deprecated. Please use `pop build` (or simply `pop b`) in future...")?;
+			#[cfg(not(test))]
 			sleep(Duration::from_secs(3))
 		} else {
 			if !self.release {
-				Cli.warning("NOTE: this command now defaults to DEBUG builds. Please use `--release` (or simply `-r`) for a release build...")?;
+				cli.warning("NOTE: this command now defaults to DEBUG builds. Please use `--release` (or simply `-r`) for a release build...")?;
+				#[cfg(not(test))]
 				sleep(Duration::from_secs(3))
 			}
 		}
 
 		// Build parachain.
-		Cli.warning("NOTE: this may take some time...")?;
+		cli.warning("NOTE: this may take some time...")?;
 		build_parachain(self.path.as_deref(), self.package, self.release)?;
 		let mode = if self.release { "RELEASE" } else { "DEBUG" };
-		Cli.info(format!("The {project} was built in {mode} mode.",))?;
-		Cli.outro("Build completed successfully!")?;
+		cli.info(format!("The {project} was built in {mode} mode.",))?;
+		cli.outro("Build completed successfully!")?;
+		Ok(project)
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use cli::MockCli;
+	use duct::cmd;
+
+	#[test]
+	fn build_works() -> anyhow::Result<()> {
+		let name = "hello_world";
+
+		for package in [None, Some(name.to_string())] {
+			for release in [false, true] {
+				for valid in [false, true] {
+					let temp_dir = tempfile::tempdir()?;
+					let path = temp_dir.path();
+					cmd("cargo", ["new", name, "--bin"]).dir(&path).run()?;
+					let project = if package.is_some() { "package" } else { "parachain" };
+					let mode = if release { "RELEASE" } else { "DEBUG" };
+					let mut cli = MockCli::new()
+						.expect_intro(format!("Building your {project}"))
+						.expect_warning("NOTE: this may take some time...")
+						.expect_info(format!("The {project} was built in {mode} mode."))
+						.expect_outro("Build completed successfully!");
+
+					if !valid {
+						cli = cli.expect_warning("NOTE: this command is deprecated. Please use `pop build` (or simply `pop b`) in future...");
+					} else {
+						if !release {
+							cli = cli.expect_warning("NOTE: this command now defaults to DEBUG builds. Please use `--release` (or simply `-r`) for a release build...");
+						}
+					}
+
+					assert_eq!(
+						BuildParachainCommand {
+							path: Some(path.join(name)),
+							package: package.clone(),
+							release,
+							valid,
+						}
+						.build(&mut cli)?,
+						project
+					);
+
+					cli.verify()?;
+				}
+			}
+		}
+
 		Ok(())
 	}
 }

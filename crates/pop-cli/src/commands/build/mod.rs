@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::cli::{traits::Cli as _, Cli};
+use crate::cli::{self, Cli};
 use clap::{Args, Subcommand};
 #[cfg(feature = "contract")]
 use contract::BuildContractCommand;
@@ -46,31 +46,43 @@ pub(crate) enum Command {
 
 impl Command {
 	/// Executes the command.
-	pub(crate) fn execute(args: BuildArgs) -> anyhow::Result<()> {
+	pub(crate) fn execute(args: BuildArgs) -> anyhow::Result<&'static str> {
 		// If only contract feature enabled, build as contract
 		#[cfg(feature = "contract")]
 		if pop_contracts::is_supported(args.path.as_deref())? {
 			// All commands originating from root command are valid
-			return BuildContractCommand { path: args.path, release: args.release, valid: true }
-				.execute();
+			BuildContractCommand { path: args.path, release: args.release, valid: true }
+				.execute()?;
+			return Ok("contract");
 		}
 
 		// If only parachain feature enabled, build as parachain
 		#[cfg(feature = "parachain")]
 		if pop_parachains::is_supported(args.path.as_deref())? {
 			// All commands originating from root command are valid
-			return BuildParachainCommand {
+			BuildParachainCommand {
 				path: args.path,
 				package: args.package,
 				release: args.release,
 				valid: true,
 			}
-			.execute();
+			.execute()?;
+			return Ok("parachain");
 		}
 
 		// Otherwise build as a normal Rust project
+		Self::build(args, &mut Cli)
+	}
+
+	/// Builds a Rust project.
+	///
+	/// # Arguments
+	/// * `path` - The path to the project.
+	/// * `package` - A specific package to be built.
+	/// * `release` - Whether the release profile is to be used.
+	fn build(args: BuildArgs, cli: &mut impl cli::traits::Cli) -> anyhow::Result<&'static str> {
 		let project = if args.package.is_some() { "package" } else { "project" };
-		Cli.intro(format!("Building your {project}"))?;
+		cli.intro(format!("Building your {project}"))?;
 
 		let mut _args = vec!["build"];
 		if let Some(package) = args.package.as_deref() {
@@ -80,11 +92,53 @@ impl Command {
 		if args.release {
 			_args.push("--release");
 		}
-		cmd("cargo", _args).dir(args.path.unwrap_or("./".into())).run()?;
+		cmd("cargo", _args).dir(args.path.unwrap_or_else(|| "./".into())).run()?;
 
 		let mode = if args.release { "RELEASE" } else { "DEBUG" };
-		Cli.info(format!("The {project} was built in {mode} mode.",))?;
-		Cli.outro("Build completed successfully!")?;
+		cli.info(format!("The {project} was built in {mode} mode."))?;
+		cli.outro("Build completed successfully!")?;
+		Ok(project)
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use cli::MockCli;
+
+	#[test]
+	fn build_works() -> anyhow::Result<()> {
+		let name = "hello_world";
+
+		for package in [None, Some(name.to_string())] {
+			for release in [false, true] {
+				let temp_dir = tempfile::tempdir()?;
+				let path = temp_dir.path();
+				cmd("cargo", ["new", name, "--bin"]).dir(&path).run()?;
+				let project = if package.is_some() { "package" } else { "project" };
+				let mode = if release { "RELEASE" } else { "DEBUG" };
+				let mut cli = MockCli::new()
+					.expect_intro(format!("Building your {project}"))
+					.expect_info(format!("The {project} was built in {mode} mode."))
+					.expect_outro("Build completed successfully!");
+
+				assert_eq!(
+					Command::build(
+						BuildArgs {
+							command: None,
+							path: Some(path.join(name)),
+							package: package.clone(),
+							release,
+						},
+						&mut cli,
+					)?,
+					project
+				);
+
+				cli.verify()?;
+			}
+		}
+
 		Ok(())
 	}
 }

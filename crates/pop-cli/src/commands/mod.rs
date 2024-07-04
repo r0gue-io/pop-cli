@@ -84,7 +84,7 @@ impl Command {
 			},
 			#[cfg(any(feature = "parachain", feature = "contract"))]
 			Self::Build(args) => match args.command {
-				None => build::Command::execute(args).map(|_| Value::Null),
+				None => build::Command::execute(args).map(|t| json!(t)),
 				Some(cmd) => match cmd {
 					#[cfg(feature = "parachain")]
 					build::Command::Parachain(cmd) => cmd.execute().map(|_| Value::Null),
