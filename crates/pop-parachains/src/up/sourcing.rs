@@ -239,9 +239,9 @@ async fn from_archive(
 	for (name, dest) in contents {
 		let src = working_dir.join(name);
 		if src.exists() {
-			if let Err(_e) = rename(&src, &dest) {
+			if let Err(_e) = rename(&src, dest) {
 				// If rename fails (e.g., due to cross-device linking), fallback to copy and remove
-				std::fs::copy(&src, &dest)?;
+				std::fs::copy(&src, dest)?;
 				std::fs::remove_file(&src)?;
 			}
 		} else {
