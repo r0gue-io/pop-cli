@@ -33,3 +33,27 @@ pub fn build_smart_contract(path: Option<&Path>, release: bool) -> anyhow::Resul
 pub fn is_supported(path: Option<&Path>) -> Result<bool, Error> {
 	Ok(pop_common::manifest::from_path(path)?.dependencies.contains_key("ink"))
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use contract_build::new_contract_project;
+	use duct::cmd;
+
+	#[test]
+	fn is_supported_works() -> anyhow::Result<()> {
+		let temp_dir = tempfile::tempdir()?;
+		let path = temp_dir.path();
+
+		// Standard rust project
+		let name = "hello_world";
+		cmd("cargo", ["new", name]).dir(&path).run()?;
+		assert!(!is_supported(Some(&path.join(name)))?);
+
+		// Contract
+		let name = "flipper";
+		new_contract_project(name, Some(&path))?;
+		assert!(is_supported(Some(&path.join(name)))?);
+		Ok(())
+	}
+}
