@@ -148,6 +148,7 @@ mod tests {
 							path: Some(path.join(name)),
 							package: package.clone(),
 							release,
+							id: None,
 							valid,
 						}
 						.build(&mut cli)?,

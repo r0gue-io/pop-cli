@@ -134,6 +134,7 @@ mod tests {
 							path: Some(path.join(name)),
 							package: package.clone(),
 							release,
+							id: None,
 						},
 						&mut cli,
 					)?,
