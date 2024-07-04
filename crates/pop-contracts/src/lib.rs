@@ -10,7 +10,7 @@ mod test;
 mod up;
 mod utils;
 
-pub use build::build_smart_contract;
+pub use build::{build_smart_contract, is_supported};
 pub use call::{
 	call_smart_contract, dry_run_call, dry_run_gas_estimate_call, set_up_call, CallOpts,
 };

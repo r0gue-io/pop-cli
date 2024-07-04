@@ -10,7 +10,7 @@ mod templates;
 mod up;
 mod utils;
 
-pub use build::build_parachain;
+pub use build::{build_parachain, is_supported};
 pub use errors::Error;
 pub use indexmap::IndexSet;
 pub use new_pallet::{create_pallet_template, TemplatePalletConfig};
