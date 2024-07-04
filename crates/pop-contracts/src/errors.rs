@@ -20,8 +20,8 @@ pub enum Error {
 	HttpError(#[from] reqwest::Error),
 	#[error("Failed to install {0}")]
 	InstallContractsNode(String),
-    #[error("{0}")]
-    InstantiateContractError(String),
+	#[error("{0}")]
+	InstantiateContractError(String),
 	#[error("Invalid name: {0}")]
 	InvalidName(String),
 	#[error("IO error: {0}")]
@@ -44,6 +44,6 @@ pub enum Error {
 	TestCommand(String),
 	#[error("Unsupported platform: {os}")]
 	UnsupportedPlatform { os: &'static str },
-    #[error("{0}")]
-    UploadContractError(String),
+	#[error("{0}")]
+	UploadContractError(String),
 }
