@@ -23,8 +23,7 @@ pub(crate) enum Command {
 	#[clap(alias = "n")]
 	#[cfg(any(feature = "parachain", feature = "contract"))]
 	New(new::NewArgs),
-	/// Build a parachain or smart contract.
-	#[clap(alias = "b")]
+	#[clap(alias = "b", about = about_build())]
 	#[cfg(any(feature = "parachain", feature = "contract"))]
 	Build(build::BuildArgs),
 	/// Call a smart contract.
@@ -42,6 +41,16 @@ pub(crate) enum Command {
 	/// Remove generated/cached artifacts.
 	#[clap(alias = "C")]
 	Clean(clean::CleanArgs),
+}
+
+/// Help message for the build command.
+fn about_build() -> &'static str {
+	#[cfg(all(feature = "parachain", feature = "contract"))]
+	return "Build a parachain, smart contract or Rust package.";
+	#[cfg(all(feature = "parachain", not(feature = "contract")))]
+	return "Build a parachain or Rust package.";
+	#[cfg(all(feature = "contract", not(feature = "parachain")))]
+	return "Build a smart contract or Rust package.";
 }
 
 impl Command {

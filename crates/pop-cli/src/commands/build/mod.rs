@@ -31,7 +31,7 @@ pub(crate) struct BuildArgs {
 	pub(crate) release: bool,
 }
 
-/// Build a parachain or smart contract.
+/// Build a parachain, smart contract or Rust package.
 #[derive(Subcommand)]
 pub(crate) enum Command {
 	/// [DEPRECATED] Build a parachain
