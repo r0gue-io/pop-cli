@@ -29,6 +29,10 @@ impl BuildParachainCommand {
 		self.build(&mut cli::Cli)
 	}
 
+	/// Builds a parachain.
+	///
+	/// # Arguments
+	/// * `cli` - The CLI implementation to be used.
 	fn build(self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<&'static str> {
 		let project = if self.package.is_some() { "package" } else { "parachain" };
 		cli.intro(format!("Building your {project}"))?;

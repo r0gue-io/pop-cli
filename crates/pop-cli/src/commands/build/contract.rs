@@ -27,6 +27,10 @@ impl BuildContractCommand {
 		self.build(&mut cli::Cli)
 	}
 
+	/// Builds a smart contract
+	///
+	/// # Arguments
+	/// * `cli` - The CLI implementation to be used.
 	fn build(self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<&'static str> {
 		cli.intro("Building your contract")?;
 
