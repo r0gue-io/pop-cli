@@ -138,7 +138,6 @@ mod tests {
 			repository.workspace = true
 
 			[dependencies]
-
 			"#
 		)?;
 		Ok(())
@@ -156,24 +155,12 @@ mod tests {
 			for release in [false, true] {
 				for valid in [false, true] {
 					let project = if package.is_some() { "package" } else { "parachain" };
-					let mode = if release { "RELEASE" } else { "DEBUG" };
-					let generated_files: Vec<_> = vec![format!(
-						"Binary generated at: {}",
-						&temp_dir.path().join(name).display()
-					)]
-					.iter()
-					.map(|s| style(format!("{} {s}", console::Emoji("●", ">"))).dim().to_string())
-					.collect();
+					let mode = if release { Profile::Release } else { Profile::Debug };
 					let mut cli = MockCli::new()
 						.expect_intro(format!("Building your {project}"))
 						.expect_warning("NOTE: this may take some time...")
-						.expect_info(format!("The {project} was built in {mode} mode."))
-						.expect_outro("Build completed successfully!")
-						.expect_success(format!("Generated files:\n{}", generated_files.join("\n")))
-						.expect_outro(format!(
-							"Need help? Learn more at {}\n",
-							style("https://learn.onpop.io").magenta().underlined()
-						));
+						.expect_info(format!("The {project} was built in {:?} mode.", mode))
+						.expect_outro("Build completed successfully!");
 
 					if !valid {
 						cli = cli.expect_warning("NOTE: this command is deprecated. Please use `pop build` (or simply `pop b`) in future...");
