@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-pub use cargo_toml::Manifest;
+pub use cargo_toml::{Dependency, Manifest};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 

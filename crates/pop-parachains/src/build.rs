@@ -242,7 +242,14 @@ mod tests {
 		new_parachain::instantiate_standard_template, templates::Parachain, Config, Zombienet,
 	};
 	use anyhow::Result;
-	use std::{fs, fs::metadata, io::Write, os::unix::fs::PermissionsExt, path::Path};
+	use pop_common::manifest::{self, Dependency};
+	use std::{
+		fs,
+		fs::{metadata, write},
+		io::Write,
+		os::unix::fs::PermissionsExt,
+		path::Path,
+	};
 	use tempfile::{tempdir, Builder};
 
 	fn setup_template_and_instantiate() -> Result<tempfile::TempDir> {
@@ -494,6 +501,27 @@ default_command = "pop-node"
 			Err(Error::MissingCommand {command, binary })
 			if command == cmd && binary == binary_path.display().to_string()
 		));
+		Ok(())
+	}
+
+	#[test]
+	fn is_supported_works() -> anyhow::Result<()> {
+		let temp_dir = tempfile::tempdir()?;
+		let path = temp_dir.path();
+
+		// Standard rust project
+		let name = "hello_world";
+		cmd("cargo", ["new", name]).dir(&path).run()?;
+		assert!(!is_supported(Some(&path.join(name)))?);
+
+		// Parachain
+		let mut manifest = manifest::from_path(Some(&path.join(name)))?;
+		manifest
+			.dependencies
+			.insert("cumulus-client-collator".into(), Dependency::Simple("^0.14.0".into()));
+		let manifest = toml_edit::ser::to_string_pretty(&manifest)?;
+		write(path.join(name).join("Cargo.toml"), manifest)?;
+		assert!(is_supported(Some(&path.join(name)))?);
 		Ok(())
 	}
 }

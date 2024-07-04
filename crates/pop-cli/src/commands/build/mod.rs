@@ -114,12 +114,12 @@ mod tests {
 	#[test]
 	fn build_works() -> anyhow::Result<()> {
 		let name = "hello_world";
+		let temp_dir = tempfile::tempdir()?;
+		let path = temp_dir.path();
+		cmd("cargo", ["new", name, "--bin"]).dir(&path).run()?;
 
 		for package in [None, Some(name.to_string())] {
 			for release in [false, true] {
-				let temp_dir = tempfile::tempdir()?;
-				let path = temp_dir.path();
-				cmd("cargo", ["new", name, "--bin"]).dir(&path).run()?;
 				let project = if package.is_some() { "package" } else { "project" };
 				let mode = if release { "RELEASE" } else { "DEBUG" };
 				let mut cli = MockCli::new()
