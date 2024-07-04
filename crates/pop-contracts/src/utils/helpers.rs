@@ -10,7 +10,7 @@ use std::{
 };
 use subxt::{Config, PolkadotConfig as DefaultConfig};
 
-pub fn get_manifest_path(path: &Option<PathBuf>) -> Result<ManifestPath, Error> {
+pub fn get_manifest_path(path: Option<&Path>) -> Result<ManifestPath, Error> {
 	if let Some(path) = path {
 		let full_path = PathBuf::from(path.to_string_lossy().to_string() + "/Cargo.toml");
 		return ManifestPath::try_from(Some(full_path))
@@ -65,10 +65,10 @@ mod tests {
 		Ok(temp_dir)
 	}
 
-	#[tokio::test]
-	async fn test_get_manifest_path() -> Result<(), Error> {
-		let temp_dir = setup_test_environment().await?;
-		get_manifest_path(&Some(PathBuf::from(temp_dir.path().join("test_contract"))))?;
+	#[test]
+	fn test_get_manifest_path() -> Result<(), Error> {
+		let temp_dir = setup_test_environment()?;
+		get_manifest_path(Some(&PathBuf::from(temp_dir.path().join("test_contract"))))?;
 		Ok(())
 	}
 

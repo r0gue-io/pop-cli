@@ -1,6 +1,7 @@
 pub mod errors;
 pub mod git;
 pub mod helpers;
+pub mod manifest;
 pub mod status;
 pub mod templates;
 
