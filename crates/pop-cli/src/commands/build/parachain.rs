@@ -116,6 +116,33 @@ mod tests {
 	use super::*;
 	use cli::MockCli;
 	use duct::cmd;
+	use std::{fs, io::Write, path::Path};
+
+	// Function that generates a Cargo.toml inside node folder for testing.
+	fn generate_mock_node(temp_dir: &Path) -> anyhow::Result<()> {
+		// Create a node directory
+		let target_dir = temp_dir.join("node");
+		fs::create_dir(&target_dir)?;
+		// Create a Cargo.toml file
+		let mut toml_file = fs::File::create(target_dir.join("Cargo.toml"))?;
+		writeln!(
+			toml_file,
+			r#"
+			[package]
+			name = "hello_world"
+			version = "0.1.0"
+			authors.workspace = true
+			edition.workspace = true
+			homepage.workspace = true
+			license.workspace = true
+			repository.workspace = true
+
+			[dependencies]
+
+			"#
+		)?;
+		Ok(())
+	}
 
 	#[test]
 	fn build_works() -> anyhow::Result<()> {
@@ -123,17 +150,30 @@ mod tests {
 		let temp_dir = tempfile::tempdir()?;
 		let path = temp_dir.path();
 		cmd("cargo", ["new", name, "--bin"]).dir(&path).run()?;
+		generate_mock_node(&temp_dir.path().join(name))?;
 
 		for package in [None, Some(name.to_string())] {
 			for release in [false, true] {
 				for valid in [false, true] {
 					let project = if package.is_some() { "package" } else { "parachain" };
 					let mode = if release { "RELEASE" } else { "DEBUG" };
+					let generated_files: Vec<_> = vec![format!(
+						"Binary generated at: {}",
+						&temp_dir.path().join(name).display()
+					)]
+					.iter()
+					.map(|s| style(format!("{} {s}", console::Emoji("●", ">"))).dim().to_string())
+					.collect();
 					let mut cli = MockCli::new()
 						.expect_intro(format!("Building your {project}"))
 						.expect_warning("NOTE: this may take some time...")
 						.expect_info(format!("The {project} was built in {mode} mode."))
-						.expect_outro("Build completed successfully!");
+						.expect_outro("Build completed successfully!")
+						.expect_success(format!("Generated files:\n{}", generated_files.join("\n")))
+						.expect_outro(format!(
+							"Need help? Learn more at {}\n",
+							style("https://learn.onpop.io").magenta().underlined()
+						));
 
 					if !valid {
 						cli = cli.expect_warning("NOTE: this command is deprecated. Please use `pop build` (or simply `pop b`) in future...");
