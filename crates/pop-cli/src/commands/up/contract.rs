@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::style::style;
-use anyhow::anyhow;
 use clap::Args;
-use cliclack::{clear_screen, confirm, intro, log, outro, outro_cancel};
+use cliclack::{clear_screen, confirm, intro, log, log::success, outro, outro_cancel};
 use pop_contracts::{
-	build_smart_contract, dry_run_gas_estimate_instantiate, instantiate_smart_contract,
-	is_chain_alive, parse_hex_bytes, run_contracts_node, set_up_deployment, UpOpts,
+	build_smart_contract, dry_run_gas_estimate_instantiate, dry_run_upload,
+	instantiate_smart_contract, is_chain_alive, parse_hex_bytes, run_contracts_node,
+	set_up_deployment, set_up_upload, upload_smart_contract, UpOpts,
 };
 use sp_core::Bytes;
 use sp_weights::Weight;
 use std::path::PathBuf;
 
-#[derive(Args)]
+#[derive(Args, Clone)]
 pub struct UpContractCommand {
 	/// Path to the contract build folder.
 	#[arg(short = 'p', long)]
@@ -52,6 +52,9 @@ pub struct UpContractCommand {
 	/// Perform a dry-run via RPC to estimate the gas usage. This does not submit a transaction.
 	#[clap(long)]
 	dry_run: bool,
+	/// Uploads the contract only, without instantiation.
+	#[clap(short('u'), long)]
+	upload_only: bool,
 	/// Before start a local node, do not ask the user for confirmation.
 	#[clap(short('y'), long)]
 	skip_confirm: bool,
@@ -71,7 +74,7 @@ impl UpContractCommand {
 			log::warning("NOTE: contract has not yet been built.")?;
 			intro(format!("{}: Building a contract", style(" Pop CLI ").black().on_magenta()))?;
 			// Build the contract in release mode
-			let result = build_smart_contract(&self.path, true)?;
+			let result = build_smart_contract(self.path.as_deref(), true)?;
 			log::success(result.to_string())?;
 		}
 
@@ -94,6 +97,10 @@ impl UpContractCommand {
 
 		// if build exists then proceed
 		intro(format!("{}: Deploy a smart contract", style(" Pop CLI ").black().on_magenta()))?;
+
+		if self.upload_only {
+			return self.upload_contract().await;
+		}
 
 		let instantiate_exec = set_up_deployment(UpOpts {
 			path: self.path.clone(),
@@ -129,15 +136,103 @@ impl UpContractCommand {
 		if !self.dry_run {
 			let spinner = cliclack::spinner();
 			spinner.start("Uploading and instantiating the contract...");
-			let contract_address = instantiate_smart_contract(instantiate_exec, weight_limit)
-				.await
-				.map_err(|err| anyhow!("{} {}", "ERROR:", format!("{err:?}")))?;
+			let contract_address =
+				instantiate_smart_contract(instantiate_exec, weight_limit).await?;
 			spinner.stop(format!(
 				"Contract deployed and instantiated: The Contract Address is {:?}",
 				contract_address
 			));
 			outro("Deployment complete")?;
 		}
+		Ok(())
+	}
+
+	/// Uploads the contract without instantiating it.
+	async fn upload_contract(self) -> anyhow::Result<()> {
+		let upload_exec = set_up_upload(self.clone().into()).await?;
+		if self.dry_run {
+			match dry_run_upload(&upload_exec).await {
+				Ok(upload_result) => {
+					let mut result = vec![format!("Code Hash: {:?}", upload_result.code_hash)];
+					result.push(format!("Deposit: {:?}", upload_result.deposit));
+					let result: Vec<_> = result
+						.iter()
+						.map(|s| {
+							style(format!("{} {s}", console::Emoji("●", ">"))).dim().to_string()
+						})
+						.collect();
+					success(format!("Dry run successful!\n{}", result.join("\n")))?;
+				},
+				Err(_) => {
+					outro_cancel("Deployment failed.")?;
+					return Ok(());
+				},
+			};
+		} else {
+			let spinner = cliclack::spinner();
+			spinner.start("Uploading the contract...");
+			let code_hash = upload_smart_contract(&upload_exec).await?;
+			spinner.stop(format!("Contract uploaded: The code hash is {:?}", code_hash));
+			outro("Deployment complete")?;
+			log::warning("NOTE: The contract has not been instantiated.")?;
+		}
+		return Ok(());
+	}
+}
+
+impl From<UpContractCommand> for UpOpts {
+	fn from(cmd: UpContractCommand) -> Self {
+		return UpOpts {
+			path: cmd.path,
+			constructor: cmd.constructor,
+			args: cmd.args,
+			value: cmd.value,
+			gas_limit: cmd.gas_limit,
+			proof_size: cmd.proof_size,
+			salt: cmd.salt,
+			url: cmd.url,
+			suri: cmd.suri,
+		};
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use url::Url;
+
+	use super::*;
+
+	#[test]
+	fn conversion_up_contract_command_to_up_opts_works() -> anyhow::Result<()> {
+		let command = UpContractCommand {
+			path: None,
+			constructor: "new".to_string(),
+			args: vec!["false".to_string()].to_vec(),
+			value: "0".to_string(),
+			gas_limit: None,
+			proof_size: None,
+			salt: None,
+			url: Url::parse("ws://localhost:9944")?,
+			suri: "//Alice".to_string(),
+			dry_run: false,
+			upload_only: false,
+			skip_confirm: false,
+		};
+		let opts: UpOpts = command.into();
+		assert_eq!(
+			opts,
+			UpOpts {
+				path: None,
+				constructor: "new".to_string(),
+				args: vec!["false".to_string()].to_vec(),
+				value: "0".to_string(),
+				gas_limit: None,
+				proof_size: None,
+				salt: None,
+				url: Url::parse("ws://localhost:9944")?,
+				suri: "//Alice".to_string(),
+			}
+		);
 		Ok(())
 	}
 }

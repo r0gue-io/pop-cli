@@ -482,6 +482,7 @@ struct RelayChain {
 	/// The additional workers required by the relay chain node.
 	workers: [&'static str; 2],
 	/// The name of the chain.
+	#[allow(dead_code)]
 	chain: String,
 	/// If applicable, the binary used to generate a chain specification.
 	chain_spec_generator: Option<Binary>,

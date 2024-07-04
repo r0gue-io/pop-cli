@@ -12,7 +12,7 @@ mod utils;
 
 pub use build::{
 	build_parachain, export_wasm_file, generate_genesis_state_file, generate_plain_chain_spec,
-	generate_raw_chain_spec, Profile,
+	generate_raw_chain_spec, is_supported, Profile,
 };
 pub use errors::Error;
 pub use indexmap::IndexSet;

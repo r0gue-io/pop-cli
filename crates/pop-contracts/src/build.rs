@@ -1,15 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0
 
+use crate::{errors::Error, utils::helpers::get_manifest_path};
 use contract_build::{execute, BuildMode, ExecuteArgs};
-use std::path::PathBuf;
-
-use crate::utils::helpers::get_manifest_path;
+use std::path::Path;
 
 /// Build the smart contract located at the specified `path` in `build_release` mode.
-pub fn build_smart_contract(path: &Option<PathBuf>, build_release: bool) -> anyhow::Result<String> {
+///
+/// # Arguments
+/// * `path` - The optional path to the smart contract manifest, defaulting to the current directory if not specified.
+/// * `release` - Whether the smart contract should be built without any debugging functionality.
+pub fn build_smart_contract(path: Option<&Path>, release: bool) -> anyhow::Result<String> {
 	let manifest_path = get_manifest_path(path)?;
 
-	let build_mode = match build_release {
+	let build_mode = match release {
 		true => BuildMode::Release,
 		false => BuildMode::Debug,
 	};
@@ -21,4 +24,12 @@ pub fn build_smart_contract(path: &Option<PathBuf>, build_release: bool) -> anyh
 	let formatted_result = result.display();
 
 	Ok(formatted_result)
+}
+
+/// Determines whether the manifest at the supplied path is a supported smart contract project.
+///
+/// # Arguments
+/// * `path` - The optional path to the manifest, defaulting to the current directory if not specified.
+pub fn is_supported(path: Option<&Path>) -> Result<bool, Error> {
+	Ok(pop_common::manifest::from_path(path)?.dependencies.contains_key("ink"))
 }

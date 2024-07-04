@@ -12,6 +12,7 @@ use std::{
 };
 
 /// Enum representing the build profile for a parachain.
+#[derive(Debug, PartialEq)]
 pub enum Profile {
 	/// Debug profile, optimized for debugging.
 	Debug,
@@ -20,13 +21,6 @@ pub enum Profile {
 }
 
 impl Profile {
-	/// Returns the corresponding command-line flag argument for the build profile.
-	fn flag(&self) -> &str {
-		match self {
-			Profile::Release => "--release",
-			Profile::Debug => "--debug",
-		}
-	}
 	/// Returns the corresponding path to the target folder.
 	fn target_folder(&self, path: &Path) -> PathBuf {
 		match self {
@@ -36,19 +30,54 @@ impl Profile {
 	}
 }
 
+impl From<bool> for Profile {
+	fn from(release: bool) -> Self {
+		if release {
+			Profile::Release
+		} else {
+			Profile::Debug
+		}
+	}
+}
+
 /// Build the parachain and returns the path to the binary.
 ///
 /// # Arguments
-/// * `path` - Location of the parachain project.
-/// * `profile` - The build profile to use (release or debug).
+/// * `path` - The optional path to the parachain manifest, defaulting to the current directory if not specified.
+/// * `package` - The optional package to be built.
+/// * `release` - Whether the parachain should be built without any debugging functionality.
 /// * `node_path` - An optional path to the node directory. Defaults to the `node` subdirectory of the project path if not provided.
 pub fn build_parachain(
 	path: &Path,
-	profile: Profile,
+	package: Option<String>,
+	profile: &Profile,
 	node_path: Option<&Path>,
 ) -> Result<PathBuf, Error> {
-	cmd("cargo", vec!["build", profile.flag()]).dir(path).run()?;
+	let mut args = vec!["build"];
+	if let Some(package) = package.as_deref() {
+		args.push("--package");
+		args.push(package)
+	}
+	if matches!(profile, &Profile::Release) {
+		args.push("--release");
+	}
+	cmd("cargo", args).dir(path).run()?;
 	binary_path(&profile.target_folder(path), node_path.unwrap_or(&path.join("node")))
+}
+
+/// Determines whether the manifest at the supplied path is a supported parachain project.
+///
+/// # Arguments
+/// * `path` - The optional path to the manifest, defaulting to the current directory if not specified.
+pub fn is_supported(path: Option<&Path>) -> Result<bool, Error> {
+	let manifest = pop_common::manifest::from_path(path)?;
+	// Simply check for a parachain dependency
+	const DEPENDENCIES: [&str; 4] =
+		["cumulus-client-collator", "cumulus-primitives-core", "parachains-common", "polkadot-sdk"];
+	Ok(DEPENDENCIES.into_iter().any(|d| {
+		manifest.dependencies.contains_key(d)
+			|| manifest.workspace.as_ref().map_or(false, |w| w.dependencies.contains_key(d))
+	}))
 }
 
 /// Constructs the node binary path based on the target path and the node folder path.
@@ -308,7 +337,7 @@ default_command = "pop-node"
 		let name = "parachain_template_node";
 		cmd("cargo", ["new", name, "--bin"]).dir(temp_dir.path()).run()?;
 		generate_mock_node(&temp_dir.path().join(name))?;
-		let binary = build_parachain(&temp_dir.path().join(name), Profile::Release, None)?;
+		let binary = build_parachain(&temp_dir.path().join(name), None, &Profile::Release, None)?;
 		let target_folder = temp_dir.path().join(name).join("target/release");
 		assert!(target_folder.exists());
 		assert!(target_folder.join("parachain_template_node").exists());

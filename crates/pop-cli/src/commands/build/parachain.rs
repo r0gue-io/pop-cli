@@ -1,49 +1,67 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::style::{style, Theme};
+use crate::{cli, style::style};
 use clap::Args;
-use cliclack::{
-	clear_screen, intro,
-	log::{success, warning},
-	outro, set_theme,
-};
 use pop_parachains::{
 	build_parachain, export_wasm_file, generate_genesis_state_file, generate_plain_chain_spec,
 	generate_raw_chain_spec, Profile,
 };
 use std::path::PathBuf;
+#[cfg(not(test))]
+use std::{thread::sleep, time::Duration};
 
 const PLAIN_CHAIN_SPEC_FILE_NAME: &str = "plain-parachain-chainspec.json";
 const RAW_CHAIN_SPEC_FILE_NAME: &str = "raw-parachain-chainspec.json";
 
 #[derive(Args)]
 pub struct BuildParachainCommand {
-	#[arg(
-		short = 'p',
-		long = "path",
-		help = "Directory path for your project, [default: current directory]"
-	)]
+	/// Directory path for your project [default: current directory].
+	#[arg(long)]
 	pub(crate) path: Option<PathBuf>,
-	#[arg(
-		short = 'i',
-		long = "id",
-		help = "Parachain ID to be used when generating the chain spec files."
-	)]
+	/// The package to be built.
+	#[arg(short = 'p', long)]
+	pub(crate) package: Option<String>,
+	/// For production, always build in release mode to exclude debug features.
+	#[clap(short, long, default_value = "true")]
+	pub(crate) release: bool,
+	/// Parachain ID to be used when generating the chain spec files.
+	#[arg(short = 'i', long = "id")]
 	pub(crate) id: Option<u32>,
+	// Deprecation flag, used to specify whether the deprecation warning is shown.
+	#[clap(skip)]
+	pub(crate) valid: bool,
 }
 
 impl BuildParachainCommand {
 	/// Executes the command.
-	pub(crate) fn execute(self) -> anyhow::Result<()> {
-		clear_screen()?;
-		intro(format!("{}: Building your parachain", style(" Pop CLI ").black().on_magenta()))?;
-		set_theme(Theme);
+	pub(crate) fn execute(self) -> anyhow::Result<&'static str> {
+		self.build(&mut cli::Cli)
+	}
 
-		warning("NOTE: this may take some time...")?;
-		let project_path = self.path.unwrap_or("./".into());
-		let binary = build_parachain(&project_path, Profile::Release, None)?;
+	fn build(self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<&'static str> {
+		let project = if self.package.is_some() { "package" } else { "parachain" };
+		cli.intro(format!("Building your {project}"))?;
 
-		success("Build completed successfully!")?;
+		// Show warning if specified as deprecated.
+		if !self.valid {
+			cli.warning("NOTE: this command is deprecated. Please use `pop build` (or simply `pop b`) in future...")?;
+			#[cfg(not(test))]
+			sleep(Duration::from_secs(3))
+		} else {
+			if !self.release {
+				cli.warning("NOTE: this command now defaults to DEBUG builds. Please use `--release` (or simply `-r`) for a release build...")?;
+				#[cfg(not(test))]
+				sleep(Duration::from_secs(3))
+			}
+		}
+
+		// Build parachain.
+		cli.warning("NOTE: this may take some time...")?;
+		let project_path = self.path.unwrap_or_else(|| PathBuf::from("./"));
+		let mode: Profile = self.release.into();
+		let binary = build_parachain(&project_path, self.package, &mode, None)?;
+		cli.info(format!("The {project} was built in {:?} mode.", mode))?;
+		cli.outro("Build completed successfully!")?;
 		let mut generated_files = vec![format!("Binary generated at: {}", binary.display())];
 
 		// If `para_id` is provided, generate the chain spec
@@ -79,11 +97,64 @@ impl BuildParachainCommand {
 			.iter()
 			.map(|s| style(format!("{} {s}", console::Emoji("●", ">"))).dim().to_string())
 			.collect();
-		success(format!("Generated files:\n{}", generated_files.join("\n")))?;
-		outro(format!(
+		cli.success(format!("Generated files:\n{}", generated_files.join("\n")))?;
+		cli.outro(format!(
 			"Need help? Learn more at {}\n",
 			style("https://learn.onpop.io").magenta().underlined()
 		))?;
+
+		Ok(project)
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use cli::MockCli;
+	use duct::cmd;
+
+	#[test]
+	fn build_works() -> anyhow::Result<()> {
+		let name = "hello_world";
+
+		for package in [None, Some(name.to_string())] {
+			for release in [false, true] {
+				for valid in [false, true] {
+					let temp_dir = tempfile::tempdir()?;
+					let path = temp_dir.path();
+					cmd("cargo", ["new", name, "--bin"]).dir(&path).run()?;
+					let project = if package.is_some() { "package" } else { "parachain" };
+					let mode = if release { "RELEASE" } else { "DEBUG" };
+					let mut cli = MockCli::new()
+						.expect_intro(format!("Building your {project}"))
+						.expect_warning("NOTE: this may take some time...")
+						.expect_info(format!("The {project} was built in {mode} mode."))
+						.expect_outro("Build completed successfully!");
+
+					if !valid {
+						cli = cli.expect_warning("NOTE: this command is deprecated. Please use `pop build` (or simply `pop b`) in future...");
+					} else {
+						if !release {
+							cli = cli.expect_warning("NOTE: this command now defaults to DEBUG builds. Please use `--release` (or simply `-r`) for a release build...");
+						}
+					}
+
+					assert_eq!(
+						BuildParachainCommand {
+							path: Some(path.join(name)),
+							package: package.clone(),
+							release,
+							valid,
+						}
+						.build(&mut cli)?,
+						project
+					);
+
+					cli.verify()?;
+				}
+			}
+		}
+
 		Ok(())
 	}
 }
