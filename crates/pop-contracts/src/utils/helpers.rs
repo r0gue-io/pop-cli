@@ -65,9 +65,9 @@ mod tests {
 		Ok(temp_dir)
 	}
 
-	#[test]
-	fn test_get_manifest_path() -> Result<(), Error> {
-		let temp_dir = setup_test_environment()?;
+	#[tokio::test]
+	async fn test_get_manifest_path() -> Result<(), Error> {
+		let temp_dir = setup_test_environment().await?;
 		get_manifest_path(Some(&PathBuf::from(temp_dir.path().join("test_contract"))))?;
 		Ok(())
 	}

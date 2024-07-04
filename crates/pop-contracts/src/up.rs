@@ -228,7 +228,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn set_up_deployment_works() -> Result<()> {
-		let temp_dir = generate_smart_contract_test_environment()?;
+		let temp_dir = generate_smart_contract_test_environment().await?;
 		mock_build_process(temp_dir.path().join("testing"))?;
 		let up_opts = UpOpts {
 			path: Some(temp_dir.path().join("testing")),
@@ -247,7 +247,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn set_up_upload_works() -> Result<()> {
-		let temp_dir = generate_smart_contract_test_environment()?;
+		let temp_dir = generate_smart_contract_test_environment().await?;
 		mock_build_process(temp_dir.path().join("testing"))?;
 		let up_opts = UpOpts {
 			path: Some(temp_dir.path().join("testing")),
@@ -266,7 +266,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn dry_run_gas_estimate_instantiate_works() -> Result<()> {
-		let temp_dir = generate_smart_contract_test_environment()?;
+		let temp_dir = generate_smart_contract_test_environment().await?;
 		mock_build_process(temp_dir.path().join("testing"))?;
 		let up_opts = UpOpts {
 			path: Some(temp_dir.path().join("testing")),
@@ -288,7 +288,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn dry_run_gas_estimate_instantiate_throw_custom_error() -> Result<()> {
-		let temp_dir = generate_smart_contract_test_environment()?;
+		let temp_dir = generate_smart_contract_test_environment().await?;
 		mock_build_process(temp_dir.path().join("testing"))?;
 		let up_opts = UpOpts {
 			path: Some(temp_dir.path().join("testing")),
@@ -311,7 +311,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn dry_run_upload_throw_custom_error() -> Result<()> {
-		let temp_dir = generate_smart_contract_test_environment()?;
+		let temp_dir = generate_smart_contract_test_environment().await?;
 		mock_build_process(temp_dir.path().join("testing"))?;
 		let up_opts = UpOpts {
 			path: Some(temp_dir.path().join("testing")),
@@ -333,7 +333,7 @@ mod tests {
 	#[tokio::test]
 	async fn instantiate_and_upload() -> Result<()> {
 		const LOCALHOST_URL: &str = "ws://127.0.0.1:9944";
-		let temp_dir = generate_smart_contract_test_environment()?;
+		let temp_dir = generate_smart_contract_test_environment().await?;
 		mock_build_process(temp_dir.path().join("testing"))?;
 		// Run contracts-node
 		let cache = temp_dir.path().join("cache");
