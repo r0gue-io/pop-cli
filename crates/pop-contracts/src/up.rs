@@ -83,7 +83,7 @@ pub async fn set_up_deployment(
 pub async fn set_up_upload(
 	up_opts: UpOpts,
 ) -> anyhow::Result<UploadExec<DefaultConfig, DefaultEnvironment, Keypair>> {
-	let manifest_path = get_manifest_path(&up_opts.path)?;
+	let manifest_path = get_manifest_path(up_opts.path.as_deref())?;
 
 	let signer = create_signer(&up_opts.suri)?;
 	let extrinsic_opts = ExtrinsicOptsBuilder::new(signer)
