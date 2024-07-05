@@ -37,3 +37,4 @@ pop-common = { path = "../pop-common", version = "0.2.0" }
 
 [dev-dependencies]
 mockito.workspace = true
+tokio-test.workspace = true
