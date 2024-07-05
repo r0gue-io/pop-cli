@@ -88,6 +88,19 @@ jobs:
           files: codecov.json
           fail_ci_if_error: true
   
+  documentation-tests:
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: "./.github/actions/init"
+        with:
+          git-user: ${{ env.GITHUB_ACTOR }}
+
+      - name: Run doc tests
+        run: cargo test --docs
+
   contract-integration-tests:
     needs: lint
     runs-on: ubuntu-latest
