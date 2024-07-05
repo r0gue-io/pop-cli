@@ -35,8 +35,8 @@ impl From<bool> for Profile {
 impl fmt::Display for Profile {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
-			Self::Debug => write!(f, "Debug"),
-			Self::Release => write!(f, "Release"),
+			Self::Debug => write!(f, "DEBUG"),
+			Self::Release => write!(f, "RELEASE"),
 		}
 	}
 }

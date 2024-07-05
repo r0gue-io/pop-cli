@@ -65,7 +65,7 @@ impl BuildParachainCommand {
 		let project_path = self.path.unwrap_or_else(|| PathBuf::from("./"));
 		let mode: Profile = self.release.into();
 		let binary = build_parachain(&project_path, self.package, &mode, None)?;
-		cli.info(format!("The {project} was built in {:?} mode.", mode))?;
+		cli.info(format!("The {project} was built in {mode} mode."))?;
 		cli.outro("Build completed successfully!")?;
 		let mut generated_files = vec![format!("Binary generated at: {}", binary.display())];
 
