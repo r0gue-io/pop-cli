@@ -141,7 +141,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn is_chain_alive_works() -> Result<(), Error> {
-		let local_url = url::Url::parse("ws://localhost:9944")?;
+		let local_url = url::Url::parse("ws://localhost")?;
 		assert!(!is_chain_alive(local_url).await?);
 		let polkadot_url = url::Url::parse("wss://polkadot-rpc.dwellir.com")?;
 		assert!(is_chain_alive(polkadot_url).await?);
