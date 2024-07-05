@@ -7,7 +7,7 @@ use pop_contracts::{
 	dry_run_gas_estimate_instantiate, instantiate_smart_contract, run_contracts_node,
 	set_up_deployment, Contract, UpOpts,
 };
-use std::path::Path;
+use std::{path::Path, process::Command as Cmd};
 use strum::VariantArray;
 use url::Url;
 
@@ -44,7 +44,7 @@ async fn contract_lifecycle() -> Result<()> {
 
 	// Run the contracts node
 	let cache = temp_dir.join("cache");
-	let mut process = run_contracts_node(cache).await?;
+	let process = run_contracts_node(cache).await?;
 	// Only upload the contract
 	// pop up contract --upload-only
 	Command::cargo_bin("pop")
@@ -122,8 +122,8 @@ async fn contract_lifecycle() -> Result<()> {
 		.assert()
 		.success();
 
-	// Kill the contracts node
-	process.kill()?;
+	// Stop the process contracts-node
+	Cmd::new("kill").args(["-s", "TERM", &process.id().to_string()]).spawn()?;
 
 	Ok(())
 }

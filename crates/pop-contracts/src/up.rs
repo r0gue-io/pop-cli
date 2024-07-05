@@ -201,7 +201,7 @@ mod tests {
 	use super::*;
 	use crate::{create_smart_contract, errors::Error, run_contracts_node, templates::Contract};
 	use anyhow::Result;
-	use std::{env, fs};
+	use std::{env, fs, process::Command};
 	use url::Url;
 
 	const CONTRACTS_NETWORK_URL: &str = "wss://rococo-contracts-rpc.polkadot.io";
@@ -337,7 +337,7 @@ mod tests {
 		mock_build_process(temp_dir.path().join("testing"))?;
 		// Run contracts-node
 		let cache = temp_dir.path().join("cache");
-		let mut process = run_contracts_node(cache).await?;
+		let process = run_contracts_node(cache).await?;
 
 		let upload_exec = set_up_upload(UpOpts {
 			path: Some(temp_dir.path().join("testing")),
@@ -381,7 +381,8 @@ mod tests {
 		// Instantiate smart contract
 		let address = instantiate_smart_contract(instantiate_exec, weight).await?;
 		assert!(address.starts_with("5"));
-		process.kill()?;
+		// Stop the process contracts-node
+		Command::new("kill").args(["-s", "TERM", &process.id().to_string()]).spawn()?;
 		Ok(())
 	}
 }
