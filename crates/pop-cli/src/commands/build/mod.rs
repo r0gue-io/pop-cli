@@ -29,6 +29,10 @@ pub(crate) struct BuildArgs {
 	/// For production, always build in release mode to exclude debug features.
 	#[clap(short, long)]
 	pub(crate) release: bool,
+	/// Parachain ID to be used when generating the chain spec files.
+	#[arg(short = 'i', long = "id")]
+	#[cfg(feature = "parachain")]
+	pub(crate) id: Option<u32>,
 }
 
 /// Build a parachain, smart contract or Rust package.
@@ -64,6 +68,7 @@ impl Command {
 				path: args.path,
 				package: args.package,
 				release: args.release,
+				id: args.id,
 				valid: true,
 			}
 			.execute()?;
@@ -129,6 +134,7 @@ mod tests {
 							path: Some(path.join(name)),
 							package: package.clone(),
 							release,
+							id: None,
 						},
 						&mut cli,
 					)?,

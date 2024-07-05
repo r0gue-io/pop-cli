@@ -34,7 +34,7 @@ pub fn replace_in_file(file_path: PathBuf, replacements: HashMap<&str, &str>) ->
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use anyhow::{Error, Result};
+	use anyhow::Result;
 	use std::fs;
 
 	#[test]
