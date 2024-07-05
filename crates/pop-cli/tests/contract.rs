@@ -123,7 +123,10 @@ async fn contract_lifecycle() -> Result<()> {
 		.success();
 
 	// Stop the process contracts-node
-	Cmd::new("kill").args(["-s", "TERM", &process.id().to_string()]).spawn()?;
+	Cmd::new("kill")
+		.args(["-s", "TERM", &process.id().to_string()])
+		.spawn()?
+		.wait()?;
 
 	Ok(())
 }
