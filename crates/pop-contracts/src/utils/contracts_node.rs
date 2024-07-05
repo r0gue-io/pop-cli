@@ -159,7 +159,10 @@ mod tests {
 		// Check if the node is alive
 		assert!(is_chain_alive(local_url).await?);
 		// Stop the process contracts-node
-		Command::new("kill").args(["-s", "TERM", &process.id().to_string()]).spawn()?;
+		Command::new("kill")
+			.args(["-s", "TERM", &process.id().to_string()])
+			.spawn()?
+			.wait()?;
 		Ok(())
 	}
 }
