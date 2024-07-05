@@ -99,7 +99,7 @@ jobs:
           git-user: ${{ env.GITHUB_ACTOR }}
 
       - name: Run doc tests
-        run: cargo test --docs
+        run: cargo test --doc
 
   contract-integration-tests:
     needs: lint
