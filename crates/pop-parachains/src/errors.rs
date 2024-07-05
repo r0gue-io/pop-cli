@@ -21,8 +21,6 @@ pub enum Error {
 	HttpError(#[from] reqwest::Error),
 	#[error("IO error: {0}")]
 	IO(#[from] std::io::Error),
-	#[error("Manifest error: {0}")]
-	ManifestError(#[from] pop_common::manifest::Error),
 	#[error("Missing binary: {0}")]
 	MissingBinary(String),
 	#[error("Missing chain spec file at: {0}")]

@@ -287,11 +287,6 @@ mod tests {
 			[package]
 			name = "parachain_template_node"
 			version = "0.1.0"
-			authors.workspace = true
-			edition.workspace = true
-			homepage.workspace = true
-			license.workspace = true
-			repository.workspace = true
 
 			[dependencies]
 

@@ -11,10 +11,12 @@ pub enum Error {
 	Git(String),
 	#[error("IO error: {0}")]
 	IO(#[from] std::io::Error),
+	#[error("Failed to get manifest path: {0}")]
+	ManifestPath(String),
+	#[error("Manifest error: {0}")]
+	ManifestError(#[from] cargo_toml::Error),
 	#[error("ParseError error: {0}")]
 	ParseError(#[from] url::ParseError),
 	#[error("TemplateError error: {0}")]
 	TemplateError(#[from] templates::Error),
-	#[error("Toml error: {0}")]
-	TomlError(#[from] toml_edit::de::Error),
 }

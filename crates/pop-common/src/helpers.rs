@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::Error;
+use crate::{manifest::from_path, Error};
 use std::{
 	collections::HashMap,
 	fs,
 	io::{Read, Write},
 	path::{Path, PathBuf},
 };
-use toml_edit::DocumentMut;
 
 /// Replaces occurrences of specified strings in a file with new values.
 ///
@@ -38,15 +37,8 @@ pub fn replace_in_file(file_path: PathBuf, replacements: HashMap<&str, &str>) ->
 /// * `node_path` - The path to the node directory containing the `Cargo.toml` file.
 pub fn parse_package_name(node_path: &Path) -> Result<String, Error> {
 	let manifest = node_path.join("Cargo.toml");
-	let contents = std::fs::read_to_string(&manifest)?;
-	let config = contents.parse::<DocumentMut>().map_err(|err| Error::TomlError(err.into()))?;
-	let name = config
-		.get("package")
-		.and_then(|i| i.as_table())
-		.and_then(|t| t.get("name"))
-		.and_then(|i| i.as_str())
-		.ok_or_else(|| Error::Config("expected `name`".into()))?;
-	Ok(name.to_string())
+	let config = from_path(Some(&manifest))?;
+	Ok(config.package().name().to_string())
 }
 
 #[cfg(test)]
@@ -69,11 +61,6 @@ mod tests {
 			[package]
 			name = "parachain-template-node"
 			version = "0.1.0"
-			authors.workspace = true
-			edition.workspace = true
-			homepage.workspace = true
-			license.workspace = true
-			repository.workspace = true
 
 			[dependencies]
 
@@ -110,7 +97,10 @@ mod tests {
 	#[test]
 	fn parse_package_name_node_cargo_no_exist() -> Result<()> {
 		let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
-		assert!(matches!(parse_package_name(&temp_dir.path().join("node")), Err(Error::IO(..))));
+		assert!(matches!(
+			parse_package_name(&temp_dir.path().join("node")),
+			Err(Error::ManifestPath(..))
+		));
 		Ok(())
 	}
 
@@ -122,7 +112,7 @@ mod tests {
 		writeln!(cargo_file, "[")?;
 		assert!(matches!(
 			parse_package_name(&temp_dir.path().join("node")),
-			Err(Error::TomlError(..))
+			Err(Error::ManifestError(..))
 		));
 		Ok(())
 	}
@@ -141,7 +131,7 @@ mod tests {
 		)?;
 		assert!(matches!(
 			parse_package_name(&temp_dir.path().join("node")),
-			Err(Error::Config(error)) if error == "expected `name`",
+			Err(Error::ManifestError(..))
 		));
 		Ok(())
 	}
