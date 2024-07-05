@@ -82,7 +82,7 @@ impl BuildParachainCommand {
 				"New raw chain specification file generated at: {}",
 				raw_chain_spec.display()
 			));
-			let wasm_file_name = format!("para-{}-wasm", para_id);
+			let wasm_file_name = format!("para-{}-wasm.wasm", para_id);
 			let wasm_file = export_wasm_file(&binary, &raw_chain_spec, &wasm_file_name)?;
 			generated_files.push(format!(
 				"WebAssembly runtime file exported at: {}",

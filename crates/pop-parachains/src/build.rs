@@ -3,7 +3,7 @@
 use crate::Error;
 use anyhow::Result;
 use duct::cmd;
-use pop_common::{parse_package_name, replace_in_file};
+use pop_common::{manifest::from_path, replace_in_file};
 use serde_json::Value;
 use std::{
 	collections::HashMap,
@@ -11,7 +11,7 @@ use std::{
 	path::{Path, PathBuf},
 };
 
-/// Enum representing the build profile for a parachain.
+/// Enum representing a build profile.
 #[derive(Debug, PartialEq)]
 pub enum Profile {
 	/// Debug profile, optimized for debugging.
@@ -86,10 +86,11 @@ pub fn is_supported(path: Option<&Path>) -> Result<bool, Error> {
 /// * `target_path` - The path where the binaries are expected to be found.
 /// * `node_path` - The path to the node from which the node name will be parsed.
 fn binary_path(target_path: &Path, node_path: &Path) -> Result<PathBuf, Error> {
-	let node_name = parse_package_name(node_path)?;
-	let release = target_path.join(node_name.clone());
+	let manifest = from_path(Some(node_path))?;
+	let node_name = manifest.package().name();
+	let release = target_path.join(node_name);
 	if !release.exists() {
-		return Err(Error::MissingBinary(node_name));
+		return Err(Error::MissingBinary(node_name.to_string()));
 	}
 	Ok(release)
 }

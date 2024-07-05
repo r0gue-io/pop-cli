@@ -11,6 +11,8 @@ pub enum Error {
 	AnyhowError(#[from] anyhow::Error),
 	#[error("Archive error: {0}")]
 	ArchiveError(String),
+	#[error("{0}")]
+	CommonError(#[from] pop_common::Error),
 	#[error("Configuration error: {0}")]
 	Config(String),
 	#[error("Failed to access the current directory")]
@@ -33,8 +35,6 @@ pub enum Error {
 	PalletDirCreation,
 	#[error("ParseError error: {0}")]
 	ParseError(#[from] url::ParseError),
-	#[error("{0}")]
-	PopCommonError(#[from] pop_common::Error),
 	#[error("Failed to execute rustfmt")]
 	RustfmtError(std::io::Error),
 	#[error("Template error: {0}")]
