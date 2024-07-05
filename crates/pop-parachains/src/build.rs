@@ -3,42 +3,13 @@
 use crate::Error;
 use anyhow::Result;
 use duct::cmd;
-use pop_common::{manifest::from_path, replace_in_file};
+use pop_common::{manifest::from_path, replace_in_file, Profile};
 use serde_json::Value;
 use std::{
 	collections::HashMap,
 	fs,
 	path::{Path, PathBuf},
 };
-
-/// Enum representing a build profile.
-#[derive(Debug, PartialEq)]
-pub enum Profile {
-	/// Debug profile, optimized for debugging.
-	Debug,
-	/// Release profile, optimized without any debugging functionality.
-	Release,
-}
-
-impl Profile {
-	/// Returns the corresponding path to the target folder.
-	fn target_folder(&self, path: &Path) -> PathBuf {
-		match self {
-			Profile::Release => path.join("target/release"),
-			Profile::Debug => path.join("target/debug"),
-		}
-	}
-}
-
-impl From<bool> for Profile {
-	fn from(release: bool) -> Self {
-		if release {
-			Profile::Release
-		} else {
-			Profile::Debug
-		}
-	}
-}
 
 /// Build the parachain and returns the path to the binary.
 ///

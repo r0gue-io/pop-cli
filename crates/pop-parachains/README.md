@@ -21,7 +21,8 @@ instantiate_template_dir(template,destination_path,config)?;
 
 Build a Parachain:
 ```rust
-use pop_parachains::{build_parachain, Profile};
+use pop_common::Profile;
+use pop_parachains::build_parachain;
 
 let path = ...;
 let package = None;  // The optional package to be built.

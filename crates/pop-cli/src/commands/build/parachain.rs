@@ -2,9 +2,10 @@
 
 use crate::{cli, style::style};
 use clap::Args;
+use pop_common::Profile;
 use pop_parachains::{
 	build_parachain, export_wasm_file, generate_genesis_state_file, generate_plain_chain_spec,
-	generate_raw_chain_spec, Profile,
+	generate_raw_chain_spec,
 };
 use std::path::PathBuf;
 #[cfg(not(test))]
@@ -131,11 +132,6 @@ mod tests {
 			[package]
 			name = "hello_world"
 			version = "0.1.0"
-			authors.workspace = true
-			edition.workspace = true
-			homepage.workspace = true
-			license.workspace = true
-			repository.workspace = true
 
 			[dependencies]
 			"#
@@ -159,7 +155,7 @@ mod tests {
 					let mut cli = MockCli::new()
 						.expect_intro(format!("Building your {project}"))
 						.expect_warning("NOTE: this may take some time...")
-						.expect_info(format!("The {project} was built in {:?} mode.", mode))
+						.expect_info(format!("The {project} was built in {mode} mode."))
 						.expect_outro("Build completed successfully!");
 
 					if !valid {
