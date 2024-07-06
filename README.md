@@ -9,7 +9,7 @@ An all-in-one tool for Polkadot development.
 You can install Pop CLI from [crates.io](https://crates.io/crates/pop-cli):
 
 ```shell
-cargo install --force --locked cargo-contract
+cargo install --force --locked pop-cli
 ```
 
 You can also install Pop CLI using the [Pop CLI GitHub repo](https://github.com/r0gue-io/pop-cli):
@@ -44,13 +44,13 @@ cargo build --all-features
 Build the tool only for Parachain functionality:
 
 ```sh
-cargo build --features parachain
+cargo build --no-default-features --features parachain
 ```
 
 Build the tool only for Smart Contracts functionality:
 
 ```sh
-cargo build --features contract
+cargo build --no-default-features --features contract
 ```
 
 ## Testing Pop CLI
