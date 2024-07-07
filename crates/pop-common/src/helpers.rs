@@ -43,7 +43,7 @@ pub fn get_project_name_from_path<'a>(path: &'a Path, default: &'a str) -> &'a s
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use anyhow::{Error, Result};
+	use anyhow::Result;
 	use std::fs;
 
 	#[test]

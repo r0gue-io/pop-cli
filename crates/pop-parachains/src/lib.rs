@@ -10,7 +10,10 @@ mod templates;
 mod up;
 mod utils;
 
-pub use build::{build_parachain, is_supported};
+pub use build::{
+	build_parachain, export_wasm_file, generate_genesis_state_file, generate_plain_chain_spec,
+	generate_raw_chain_spec, is_supported,
+};
 pub use errors::Error;
 pub use indexmap::IndexSet;
 pub use new_pallet::{create_pallet_template, TemplatePalletConfig};

@@ -11,6 +11,8 @@ pub enum Error {
 	AnyhowError(#[from] anyhow::Error),
 	#[error("Archive error: {0}")]
 	ArchiveError(String),
+	#[error("{0}")]
+	CommonError(#[from] pop_common::Error),
 	#[error("Configuration error: {0}")]
 	Config(String),
 	#[error("Failed to access the current directory")]
@@ -21,10 +23,12 @@ pub enum Error {
 	HttpError(#[from] reqwest::Error),
 	#[error("IO error: {0}")]
 	IO(#[from] std::io::Error),
-	#[error("Manifest error: {0}")]
-	ManifestError(#[from] pop_common::manifest::Error),
 	#[error("Missing binary: {0}")]
 	MissingBinary(String),
+	#[error("Missing chain spec file at: {0}")]
+	MissingChainSpec(String),
+	#[error("Command {command} doesn't exist in binary {binary}")]
+	MissingCommand { command: String, binary: String },
 	#[error("Orchestrator error: {0}")]
 	OrchestratorError(#[from] OrchestratorError),
 	#[error("Failed to create pallet directory")]

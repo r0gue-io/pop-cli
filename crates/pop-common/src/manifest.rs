@@ -1,19 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 
+use crate::Error;
 pub use cargo_toml::{Dependency, Manifest};
 use std::path::{Path, PathBuf};
-use thiserror::Error;
-
-/// An error specific to reading a manifest.
-#[derive(Error, Debug)]
-pub enum Error {
-	#[error("IO error: {0}")]
-	IO(#[from] std::io::Error),
-	#[error("Failed to get manifest path: {0}")]
-	ManifestPath(String),
-	#[error("Manifest error: {0}")]
-	ManifestError(#[from] cargo_toml::Error),
-}
 
 /// Parses the contents of a `Cargo.toml` manifest.
 ///

@@ -10,6 +10,8 @@ pub enum Error {
 	AccountAddressParsing(String),
 	#[error("Failed to parse balance: {0}")]
 	BalanceParsing(String),
+	#[error("{0}")]
+	CommonError(#[from] pop_common::Error),
 	#[error("Pre-submission dry-run failed: {0}")]
 	DryRunUploadContractError(String),
 	#[error("Pre-submission dry-run failed: {0}")]
@@ -28,8 +30,6 @@ pub enum Error {
 	IO(#[from] std::io::Error),
 	#[error("Failed to create keypair from URI: {0}")]
 	KeyPairCreation(String),
-	#[error("Manifest error: {0}")]
-	ManifestError(#[from] pop_common::manifest::Error),
 	#[error("Failed to get manifest path: {0}")]
 	ManifestPath(String),
 	#[error("Failed to create new contract project: {0}")]
