@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use anyhow::{Error, Result};
+use contract_build::{BuildMode, Verbosity};
 use pop_contracts::{
 	build_smart_contract, create_smart_contract, dry_run_gas_estimate_instantiate,
 	set_up_deployment, Contract, UpOpts,
@@ -9,7 +10,7 @@ use std::fs;
 use tempfile::TempDir;
 use url::Url;
 
-fn setup_test_environment() -> std::result::Result<tempfile::TempDir, Error> {
+fn setup_test_environment() -> std::result::Result<TempDir, Error> {
 	let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
 	let temp_contract_dir = temp_dir.path().join("test_contract");
 	fs::create_dir(&temp_contract_dir)?;
@@ -41,17 +42,23 @@ fn test_contract_build() -> std::result::Result<(), Error> {
 	// Test building in release mode
 	let temp_contract_dir = setup_test_environment()?;
 
-	let formatted_result =
-		build_smart_contract(Some(&temp_contract_dir.path().join("test_contract")), true)?;
-	assert!(formatted_result.contains("RELEASE"));
+	let build_result = build_smart_contract(
+		Some(&temp_contract_dir.path().join("test_contract")),
+		true,
+		Verbosity::Default,
+	)?;
+	assert_eq!(build_result.build_mode, BuildMode::Release);
 
 	verify_build_files(temp_contract_dir)?;
 
 	let temp_debug_contract_dir = setup_test_environment()?;
 	// Test building in debug mode
-	let formatted_result_debug_mode =
-		build_smart_contract(Some(&temp_debug_contract_dir.path().join("test_contract")), false)?;
-	assert!(formatted_result_debug_mode.contains("DEBUG"));
+	let build_result = build_smart_contract(
+		Some(&temp_debug_contract_dir.path().join("test_contract")),
+		false,
+		Verbosity::Default,
+	)?;
+	assert_eq!(build_result.build_mode, BuildMode::Debug);
 
 	verify_build_files(temp_debug_contract_dir)?;
 
@@ -61,7 +68,7 @@ fn test_contract_build() -> std::result::Result<(), Error> {
 const CONTRACTS_NETWORK_URL: &str = "wss://rococo-contracts-rpc.polkadot.io";
 
 fn build_smart_contract_test_environment(temp_dir: &TempDir) -> Result<(), Error> {
-	build_smart_contract(Some(&temp_dir.path().join("test_contract")), true)?;
+	build_smart_contract(Some(&temp_dir.path().join("test_contract")), true, Verbosity::Default)?;
 	Ok(())
 }
 
