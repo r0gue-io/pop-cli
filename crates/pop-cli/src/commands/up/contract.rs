@@ -17,6 +17,7 @@ use sp_weights::Weight;
 use std::path::PathBuf;
 use std::process::Child;
 use tempfile::NamedTempFile;
+use url::Url;
 
 const COMPLETE: &str = "🚀 Deployment complete";
 const DEFAULT_URL: &str = "ws://localhost:9944/";
@@ -49,7 +50,7 @@ pub struct UpContractCommand {
 	/// instances of the same contract code from the same account.
 	#[clap(long, value_parser = parse_hex_bytes)]
 	salt: Option<Bytes>,
-	/// Websocket endpoint of a node.
+	/// Websocket endpoint of a chain.
 	#[clap(name = "url", long, value_parser, default_value = DEFAULT_URL)]
 	url: url::Url,
 	/// Secret key URI for the account deploying the contract.
@@ -65,14 +66,14 @@ pub struct UpContractCommand {
 	/// Uploads the contract only, without instantiation.
 	#[clap(short('u'), long)]
 	upload_only: bool,
-	/// Before start a local node, do not ask the user for confirmation.
+	/// Before starting a local node, do not ask the user for confirmation.
 	#[clap(short('y'), long)]
 	skip_confirm: bool,
 }
 
 impl UpContractCommand {
 	/// Executes the command.
-	pub(crate) async fn execute(self) -> anyhow::Result<()> {
+	pub(crate) async fn execute(mut self) -> anyhow::Result<()> {
 		Cli.intro("Deploy a smart contract")?;
 
 		// Check if build exists in the specified "Contract build folder"
@@ -99,13 +100,11 @@ impl UpContractCommand {
 
 		// Check if specified chain is accessible
 		let process = if !is_chain_alive(self.url.clone()).await? {
-			let url = self.url.as_str();
-
 			if !self.skip_confirm {
 				let chain = if self.url.as_str() == DEFAULT_URL {
 					"No endpoint was specified.".into()
 				} else {
-					format!("The endpoint at \"{url}\" is not accessible.")
+					format!("The specified endpoint of {} is inaccessible.", self.url)
 				};
 
 				if !confirm(format!(
@@ -121,6 +120,9 @@ impl UpContractCommand {
 				}
 			}
 
+			// Update url to that of the launched node
+			self.url = Url::parse(DEFAULT_URL).expect("default url is valid");
+
 			let spinner = spinner();
 			spinner.start("Starting local node...");
 			let log = tempfile::NamedTempFile::new()?;
@@ -132,8 +134,11 @@ impl UpContractCommand {
 					"
 {bar}  {}
 {bar}  {}",
-					style(format!("portal: https://polkadot.js.org/apps/?rpc={url}#/explorer"))
-						.dim(),
+					style(format!(
+						"portal: https://polkadot.js.org/apps/?rpc={}#/explorer",
+						self.url
+					))
+					.dim(),
 					style(format!("logs: tail -f {}", log.path().display())).dim(),
 				))
 				.dim()
@@ -255,13 +260,12 @@ impl UpContractCommand {
 		return Ok(());
 	}
 
-	/// Handles the optional termination of local running node.
+	/// Handles the optional termination of a local running node.
 	fn terminate_node(process: Option<(Child, NamedTempFile)>) -> anyhow::Result<()> {
 		// Prompt to close any launched node
 		let Some((mut process, log)) = process else {
 			return Ok(());
 		};
-
 		if confirm("Would you like to terminate the local node?")
 			.initial_value(true)
 			.interact()?
@@ -269,7 +273,7 @@ impl UpContractCommand {
 			process.kill()?
 		} else {
 			log.keep()?;
-			log::warning(format!("NOTE: The contracts node is running in the background with process ID {}. Please close it manually when done testing.", process.id()))?;
+			log::warning(format!("NOTE: The node is running in the background with process ID {}. Please terminate it manually when done.", process.id()))?;
 		}
 
 		Ok(())
