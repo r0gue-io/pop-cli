@@ -1,16 +1,26 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::style::style;
+use crate::{
+	cli::{traits::Cli as _, Cli},
+	style::style,
+};
 use clap::Args;
-use cliclack::{clear_screen, confirm, intro, log, log::success, outro, outro_cancel};
+use cliclack::{confirm, log, log::error, spinner};
+use console::{Emoji, Style};
 use pop_contracts::{
 	build_smart_contract, dry_run_gas_estimate_instantiate, dry_run_upload,
 	instantiate_smart_contract, is_chain_alive, parse_hex_bytes, run_contracts_node,
-	set_up_deployment, set_up_upload, upload_smart_contract, UpOpts,
+	set_up_deployment, set_up_upload, upload_smart_contract, UpOpts, Verbosity,
 };
 use sp_core::Bytes;
 use sp_weights::Weight;
 use std::path::PathBuf;
+use std::process::Child;
+use tempfile::NamedTempFile;
+
+const COMPLETE: &str = "🚀 Deployment complete";
+const DEFAULT_URL: &str = "ws://localhost:9944/";
+const FAILED: &str = "🚫 Deployment failed.";
 
 #[derive(Args, Clone)]
 pub struct UpContractCommand {
@@ -40,7 +50,7 @@ pub struct UpContractCommand {
 	#[clap(long, value_parser = parse_hex_bytes)]
 	salt: Option<Bytes>,
 	/// Websocket endpoint of a node.
-	#[clap(name = "url", long, value_parser, default_value = "ws://localhost:9944")]
+	#[clap(name = "url", long, value_parser, default_value = DEFAULT_URL)]
 	url: url::Url,
 	/// Secret key URI for the account deploying the contract.
 	///
@@ -63,46 +73,93 @@ pub struct UpContractCommand {
 impl UpContractCommand {
 	/// Executes the command.
 	pub(crate) async fn execute(self) -> anyhow::Result<()> {
-		clear_screen()?;
+		Cli.intro("Deploy a smart contract")?;
 
 		// Check if build exists in the specified "Contract build folder"
 		let build_path = PathBuf::from(
 			self.path.clone().unwrap_or("/.".into()).to_string_lossy().to_string() + "/target/ink",
 		);
-
 		if !build_path.as_path().exists() {
-			log::warning("NOTE: contract has not yet been built.")?;
-			intro(format!("{}: Building a contract", style(" Pop CLI ").black().on_magenta()))?;
 			// Build the contract in release mode
-			let result = build_smart_contract(self.path.as_deref(), true)?;
-			log::success(result.to_string())?;
+			Cli.warning("NOTE: contract has not yet been built.")?;
+			let spinner = spinner();
+			spinner.start("Building contract in RELEASE mode...");
+			let result = match build_smart_contract(self.path.as_deref(), true, Verbosity::Quiet) {
+				Ok(result) => result,
+				Err(e) => {
+					Cli.outro_cancel(format!("🚫 An error occurred building your contract: {e}\nUse `pop build` to retry with build output."))?;
+					return Ok(());
+				},
+			};
+			spinner.stop(format!(
+				"Your contract artifacts are ready. You can find them in: {}",
+				result.target_directory.display()
+			));
 		}
 
-		if !is_chain_alive(self.url.clone()).await? {
+		// Check if specified chain is accessible
+		let process = if !is_chain_alive(self.url.clone()).await? {
+			let url = self.url.as_str();
+
 			if !self.skip_confirm {
+				let chain = if self.url.as_str() == DEFAULT_URL {
+					"No endpoint was specified.".into()
+				} else {
+					format!("The endpoint at \"{url}\" is not accessible.")
+				};
+
 				if !confirm(format!(
-				"The chain \"{}\" is not live. Would you like pop to start a local node in the background for testing?",
-				self.url.to_string()
-			))
-			.interact()?
-			{
-				outro_cancel("You need to specify a live chain to deploy the contract.")?;
-				return Ok(());
+					"{chain} Would you like to start a local node in the background for testing?",
+				))
+				.initial_value(true)
+				.interact()?
+				{
+					Cli.outro_cancel(
+						"🚫 You need to specify an accessible endpoint to deploy the contract.",
+					)?;
+					return Ok(());
+				}
 			}
-			}
-			let process = run_contracts_node(crate::cache()?).await?;
-			log::success("Local node started successfully in the background.")?;
-			log::warning(format!("NOTE: The contracts node is running in the background with process ID {}. Please close it manually when done testing.", process.id()))?;
-		}
 
-		// if build exists then proceed
-		intro(format!("{}: Deploy a smart contract", style(" Pop CLI ").black().on_magenta()))?;
+			let spinner = spinner();
+			spinner.start("Starting local node...");
+			let log = tempfile::NamedTempFile::new()?;
+			let process = run_contracts_node(crate::cache()?, Some(log.as_file())).await?;
+			let bar = Style::new().magenta().dim().apply_to(Emoji("│", "|"));
+			spinner.stop(format!(
+				"Local node started successfully:{}",
+				style(format!(
+					"
+{bar}  {}
+{bar}  {}",
+					style(format!("portal: https://polkadot.js.org/apps/?rpc={url}#/explorer"))
+						.dim(),
+					style(format!("logs: tail -f {}", log.path().display())).dim(),
+				))
+				.dim()
+			));
+			Some((process, log))
+		} else {
+			None
+		};
 
+		// Check for upload only.
 		if self.upload_only {
-			return self.upload_contract().await;
+			let result = self.upload_contract().await;
+			Self::terminate_node(process)?;
+			match result {
+				Ok(_) => {
+					Cli.outro(COMPLETE)?;
+				},
+				Err(_) => {
+					Cli.outro_cancel(FAILED)?;
+				},
+			}
+			return Ok(());
 		}
 
-		let instantiate_exec = set_up_deployment(UpOpts {
+		// Otherwise instantiate.
+		let instantiate_exec = match set_up_deployment(UpOpts {
 			path: self.path.clone(),
 			constructor: self.constructor.clone(),
 			args: self.args.clone(),
@@ -113,28 +170,40 @@ impl UpContractCommand {
 			url: self.url.clone(),
 			suri: self.suri.clone(),
 		})
-		.await?;
+		.await
+		{
+			Ok(i) => i,
+			Err(e) => {
+				error(format!("An error occurred instantiating the contract: {e}"))?;
+				Self::terminate_node(process)?;
+				Cli.outro_cancel(FAILED)?;
+				return Ok(());
+			},
+		};
 
 		let weight_limit;
 		if self.gas_limit.is_some() && self.proof_size.is_some() {
 			weight_limit = Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap());
 		} else {
-			let spinner = cliclack::spinner();
+			let spinner = spinner();
 			spinner.start("Doing a dry run to estimate the gas...");
 			weight_limit = match dry_run_gas_estimate_instantiate(&instantiate_exec).await {
 				Ok(w) => {
-					log::info(format!("Gas limit: {:?}", w))?;
+					spinner.stop(format!("Gas limit estimate: {:?}", w));
 					w
 				},
 				Err(e) => {
 					spinner.error(format!("{e}"));
-					outro_cancel("Deployment failed.")?;
+					Self::terminate_node(process)?;
+					Cli.outro_cancel(FAILED)?;
 					return Ok(());
 				},
 			};
 		}
+
+		// Finally upload and instantiate.
 		if !self.dry_run {
-			let spinner = cliclack::spinner();
+			let spinner = spinner();
 			spinner.start("Uploading and instantiating the contract...");
 			let contract_address =
 				instantiate_smart_contract(instantiate_exec, weight_limit).await?;
@@ -142,8 +211,10 @@ impl UpContractCommand {
 				"Contract deployed and instantiated: The Contract Address is {:?}",
 				contract_address
 			));
-			outro("Deployment complete")?;
+			Self::terminate_node(process)?;
+			Cli.outro(COMPLETE)?;
 		}
+
 		Ok(())
 	}
 
@@ -161,22 +232,47 @@ impl UpContractCommand {
 							style(format!("{} {s}", console::Emoji("●", ">"))).dim().to_string()
 						})
 						.collect();
-					success(format!("Dry run successful!\n{}", result.join("\n")))?;
+					Cli.success(format!("Dry run successful!\n{}", result.join("\n")))?;
 				},
 				Err(_) => {
-					outro_cancel("Deployment failed.")?;
+					Cli.outro_cancel(FAILED)?;
 					return Ok(());
 				},
 			};
 		} else {
-			let spinner = cliclack::spinner();
-			spinner.start("Uploading the contract...");
-			let code_hash = upload_smart_contract(&upload_exec).await?;
+			let spinner = spinner();
+			spinner.start("Uploading your contract...");
+			let code_hash = match upload_smart_contract(&upload_exec).await {
+				Ok(r) => r,
+				Err(e) => {
+					spinner.error(format!("An error occurred uploading your contract: {e}"));
+					return Err(e.into());
+				},
+			};
 			spinner.stop(format!("Contract uploaded: The code hash is {:?}", code_hash));
-			outro("Deployment complete")?;
 			log::warning("NOTE: The contract has not been instantiated.")?;
 		}
 		return Ok(());
+	}
+
+	/// Handles the optional termination of local running node.
+	fn terminate_node(process: Option<(Child, NamedTempFile)>) -> anyhow::Result<()> {
+		// Prompt to close any launched node
+		let Some((mut process, log)) = process else {
+			return Ok(());
+		};
+
+		if confirm("Would you like to terminate the local node?")
+			.initial_value(true)
+			.interact()?
+		{
+			process.kill()?
+		} else {
+			log.keep()?;
+			log::warning(format!("NOTE: The contracts node is running in the background with process ID {}. Please close it manually when done testing.", process.id()))?;
+		}
+
+		Ok(())
 	}
 }
 
