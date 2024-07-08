@@ -9,11 +9,15 @@ use clap::{
 use cliclack::{clear_screen, confirm, input, intro, log::success, outro, outro_cancel, set_theme};
 use console::style;
 use pop_common::{
-	enum_variants,
+	enum_variants, get_project_name_from_path,
 	templates::{Template, Type},
 };
 use pop_contracts::{create_smart_contract, is_valid_contract_name, Contract, ContractType};
-use std::{env::current_dir, fs, path::PathBuf, str::FromStr};
+use std::{
+	fs,
+	path::{Path, PathBuf},
+	str::FromStr,
+};
 use strum::VariantArray;
 
 #[derive(Args, Clone)]
@@ -28,8 +32,6 @@ pub struct NewContractCommand {
 		value_parser = enum_variants!(ContractType)
 	)]
 	pub(crate) contract_type: Option<ContractType>,
-	#[arg(short = 'p', long, help = "Path for the contract project, [default: current directory]")]
-	pub(crate) path: Option<PathBuf>,
 	#[arg(
 		short = 't',
 		long,
@@ -50,10 +52,12 @@ impl NewContractCommand {
 		} else {
 			self.clone()
 		};
-		let name = &contract_config
+		let path_project = &contract_config
 			.name
 			.clone()
 			.expect("name can not be none as fallback above is interactive input; qed");
+		let path = Path::new(path_project);
+		let name = get_project_name_from_path(path, "my_contract");
 		is_valid_contract_name(name)?;
 		let contract_type = &contract_config.contract_type.clone().unwrap_or_default();
 		let template = match &contract_config.template {
@@ -63,7 +67,7 @@ impl NewContractCommand {
 
 		is_template_supported(contract_type, &template)?;
 
-		generate_contract_from_template(name, contract_config.path, &template)?;
+		generate_contract_from_template(name, &path, &template)?;
 		Ok(())
 	}
 }
@@ -80,15 +84,6 @@ fn is_template_supported(contract_type: &ContractType, template: &Contract) -> R
 
 async fn guide_user_to_generate_contract() -> anyhow::Result<NewContractCommand> {
 	intro(format!("{}: Generate a contract", style(" Pop CLI ").black().on_magenta()))?;
-	let name: String = input("Name of your contract?")
-		.placeholder("my_contract")
-		.default_input("my_contract")
-		.interact()?;
-	let path: String = input("Where should your project be created?")
-		.placeholder("./")
-		.default_input("./")
-		.interact()?;
-
 	let mut contract_type_prompt = cliclack::select("Select a contract type: ".to_string());
 	for (i, contract_type) in ContractType::types().iter().enumerate() {
 		if i == 0 {
@@ -108,10 +103,14 @@ async fn guide_user_to_generate_contract() -> anyhow::Result<NewContractCommand>
 
 	let template = display_select_options(contract_type)?;
 
+	let name: String = input("Where should your project be created?")
+		.placeholder("./my_contract")
+		.default_input("./my_contract")
+		.interact()?;
+
 	clear_screen()?;
 	Ok(NewContractCommand {
 		name: Some(name),
-		path: Some(PathBuf::from(path)),
 		contract_type: Some(contract_type.clone()),
 		template: Some(template.clone()),
 	})
@@ -129,8 +128,8 @@ fn display_select_options(contract_type: &ContractType) -> Result<&Contract> {
 }
 
 fn generate_contract_from_template(
-	name: &String,
-	path: Option<PathBuf>,
+	name: &str,
+	path: &Path,
 	template: &Contract,
 ) -> anyhow::Result<()> {
 	intro(format!(
@@ -140,7 +139,7 @@ fn generate_contract_from_template(
 		template.name(),
 	))?;
 
-	let contract_path = check_destination_path(path, name)?;
+	let contract_path = check_destination_path(path)?;
 	fs::create_dir_all(contract_path.as_path())?;
 	let spinner = cliclack::spinner();
 	spinner.start("Generating contract...");
@@ -168,9 +167,7 @@ fn generate_contract_from_template(
 	Ok(())
 }
 
-fn check_destination_path(path: Option<PathBuf>, name: &String) -> anyhow::Result<PathBuf> {
-	let contract_path =
-		if let Some(ref path) = path { path.join(name) } else { current_dir()?.join(name) };
+fn check_destination_path(contract_path: &Path) -> anyhow::Result<PathBuf> {
 	if contract_path.exists() {
 		if !confirm(format!(
 			"\"{}\" directory already exists. Would you like to remove it?",
@@ -187,9 +184,9 @@ fn check_destination_path(path: Option<PathBuf>, name: &String) -> anyhow::Resul
 				contract_path.display()
 			)));
 		}
-		fs::remove_dir_all(contract_path.as_path())?;
+		fs::remove_dir_all(contract_path)?;
 	}
-	Ok(contract_path)
+	Ok(contract_path.to_path_buf())
 }
 
 #[cfg(test)]
@@ -206,8 +203,8 @@ mod tests {
 	#[tokio::test]
 	async fn test_new_contract_command_execute_with_defaults_executes() -> Result<()> {
 		let dir = tempdir()?;
-		let dir_path = dir.path().display().to_string();
-		let cli = Cli::parse_from(["pop", "new", "contract", "test_contract", "-p", &dir_path]);
+		let dir_path = format!("{}/test_contract", dir.path().display().to_string());
+		let cli = Cli::parse_from(["pop", "new", "contract", &dir_path]);
 
 		let New(NewArgs { command: Contract(command) }) = cli.command else {
 			panic!("unable to parse command")
@@ -220,19 +217,9 @@ mod tests {
 	#[tokio::test]
 	async fn test_new_contract_template_command_execute() -> Result<()> {
 		let dir = tempdir()?;
-		let dir_path = dir.path().display().to_string();
-		let cli = Cli::parse_from([
-			"pop",
-			"new",
-			"contract",
-			"test_contract",
-			"-c",
-			"erc",
-			"-p",
-			&dir_path,
-			"-t",
-			"erc20",
-		]);
+		let dir_path = format!("{}/test_contract", dir.path().display().to_string());
+		let cli =
+			Cli::parse_from(["pop", "new", "contract", &dir_path, "-c", "erc", "-t", "erc20"]);
 
 		let New(NewArgs { command: Contract(command) }) = cli.command else {
 			panic!("unable to parse command")

@@ -5,7 +5,7 @@ use std::{
 	collections::HashMap,
 	fs,
 	io::{Read, Write},
-	path::PathBuf,
+	path::{Path, PathBuf},
 };
 
 /// Replaces occurrences of specified strings in a file with new values.
@@ -31,6 +31,15 @@ pub fn replace_in_file(file_path: PathBuf, replacements: HashMap<&str, &str>) ->
 	Ok(())
 }
 
+/// Gets the last component (name of a project) of a path or returns a default value if the path has no valid last component.
+///
+/// # Arguments
+/// * `path` - Location path of the project.
+/// * `default` - The default string to return if the path has no valid last component.
+pub fn get_project_name_from_path<'a>(path: &'a Path, default: &'a str) -> &'a str {
+	path.file_name().and_then(|name| name.to_str()).unwrap_or(default)
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -49,6 +58,20 @@ mod tests {
 		replace_in_file(file_path.clone(), replacements_in_cargo)?;
 		let content = fs::read_to_string(file_path).expect("Could not read file");
 		assert_eq!(content.trim(), "name = changed_name, version = 5.0.1");
+		Ok(())
+	}
+
+	#[test]
+	fn get_project_name_from_path_works() -> Result<(), Error> {
+		let path = Path::new("./path/to/project/my-parachain");
+		assert_eq!(get_project_name_from_path(path, "default_name"), "my-parachain");
+		Ok(())
+	}
+
+	#[test]
+	fn get_project_name_from_path_default_value() -> Result<(), Error> {
+		let path = Path::new("./");
+		assert_eq!(get_project_name_from_path(path, "my-contract"), "my-contract");
 		Ok(())
 	}
 }
