@@ -10,7 +10,7 @@ use pop_contracts::{
 };
 use sp_core::Bytes;
 use sp_weights::Weight;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[derive(Args, Clone)]
 pub struct UpContractCommand {
@@ -66,11 +66,7 @@ impl UpContractCommand {
 		clear_screen()?;
 
 		// Check if build exists in the specified "Contract build folder"
-		let build_path = PathBuf::from(
-			self.path.clone().unwrap_or("/.".into()).to_string_lossy().to_string() + "/target/ink",
-		);
-
-		if !build_path.as_path().exists() {
+		if !has_contract_been_built(self.path.as_deref()) {
 			log::warning("NOTE: contract has not yet been built.")?;
 			intro(format!("{}: Building a contract", style(" Pop CLI ").black().on_magenta()))?;
 			// Build the contract in release mode
@@ -196,11 +192,20 @@ impl From<UpContractCommand> for UpOpts {
 	}
 }
 
+/// Checks if a contract has been built by verifying the existence of the build directory.
+///
+/// # Arguments
+/// * `path` - An optional path to the project directory. If no path is provided, the current directory is used.
+pub fn has_contract_been_built(path: Option<&Path>) -> bool {
+	path.unwrap_or_else(|| Path::new(".")).join("target/ink").exists()
+}
+
 #[cfg(test)]
 mod tests {
-	use url::Url;
-
 	use super::*;
+	use duct::cmd;
+	use std::fs;
+	use url::Url;
 
 	#[test]
 	fn conversion_up_contract_command_to_up_opts_works() -> anyhow::Result<()> {
@@ -233,6 +238,24 @@ mod tests {
 				suri: "//Alice".to_string(),
 			}
 		);
+		Ok(())
+	}
+
+	#[test]
+	fn has_contract_been_built_works() -> anyhow::Result<()> {
+		let temp_dir = tempfile::tempdir()?;
+		let path = temp_dir.path();
+
+		// Standard rust project
+		let name = "hello_world";
+		cmd("cargo", ["new", name]).dir(&path).run()?;
+		let contract_path = path.join(name);
+		assert!(!has_contract_been_built(Some(&contract_path)));
+
+		cmd("cargo", ["build"]).dir(&contract_path).run()?;
+		// Mock build directory
+		fs::create_dir(&contract_path.join("target/ink"))?;
+		assert!(has_contract_been_built(Some(&path.join(name))));
 		Ok(())
 	}
 }
