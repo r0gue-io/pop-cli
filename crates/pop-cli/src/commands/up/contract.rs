@@ -3,6 +3,7 @@
 use crate::style::style;
 use clap::Args;
 use cliclack::{clear_screen, confirm, intro, log, log::success, outro, outro_cancel};
+use pop_common::manifest::from_path;
 use pop_contracts::{
 	build_smart_contract, dry_run_gas_estimate_instantiate, dry_run_upload,
 	instantiate_smart_contract, is_chain_alive, parse_hex_bytes, run_contracts_node,
@@ -197,14 +198,21 @@ impl From<UpContractCommand> for UpOpts {
 /// # Arguments
 /// * `path` - An optional path to the project directory. If no path is provided, the current directory is used.
 pub fn has_contract_been_built(path: Option<&Path>) -> bool {
-	path.unwrap_or_else(|| Path::new(".")).join("target/ink").exists()
+	let project_path = path.unwrap_or_else(|| Path::new("./"));
+	let manifest = match from_path(Some(project_path)) {
+		Ok(manifest) => manifest,
+		Err(_) => return false,
+	};
+	let contract_name = manifest.package().name();
+	project_path.join("target/ink").exists()
+		&& project_path.join(format!("target/ink/{}.contract", contract_name)).exists()
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
 	use duct::cmd;
-	use std::fs;
+	use std::fs::{self, File};
 	use url::Url;
 
 	#[test]
@@ -255,6 +263,9 @@ mod tests {
 		cmd("cargo", ["build"]).dir(&contract_path).run()?;
 		// Mock build directory
 		fs::create_dir(&contract_path.join("target/ink"))?;
+		assert!(!has_contract_been_built(Some(&path.join(name))));
+		// Create a mocked .contract file inside the target directory
+		File::create(contract_path.join(format!("target/ink/{}.contract", name)))?;
 		assert!(has_contract_been_built(Some(&path.join(name))));
 		Ok(())
 	}
