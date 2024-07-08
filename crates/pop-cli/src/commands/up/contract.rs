@@ -193,7 +193,7 @@ impl From<UpContractCommand> for UpOpts {
 	}
 }
 
-/// Checks if a contract has been built by verifying the existence of the build directory.
+/// Checks if a contract has been built by verifying the existence of the build directory and the <name>.contract file.
 ///
 /// # Arguments
 /// * `path` - An optional path to the project directory. If no path is provided, the current directory is used.
