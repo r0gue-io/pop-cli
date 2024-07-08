@@ -2,7 +2,7 @@
 
 use crate::cli;
 use clap::Args;
-use pop_contracts::build_smart_contract;
+use pop_contracts::{build_smart_contract, Verbosity};
 use std::path::PathBuf;
 #[cfg(not(test))]
 use std::{thread::sleep, time::Duration};
@@ -42,8 +42,9 @@ impl BuildContractCommand {
 		}
 
 		// Build contract.
-		let build_result = build_smart_contract(self.path.as_deref(), self.release)?;
-		cli.success(build_result)?;
+		let build_result =
+			build_smart_contract(self.path.as_deref(), self.release, Verbosity::Default)?;
+		cli.success(build_result.display())?;
 		cli.outro("Build completed successfully!")?;
 		Ok("contract")
 	}

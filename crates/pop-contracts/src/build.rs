@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{errors::Error, utils::helpers::get_manifest_path};
-use contract_build::{execute, BuildMode, ExecuteArgs};
+pub use contract_build::Verbosity;
+use contract_build::{execute, BuildMode, BuildResult, ExecuteArgs};
 use std::path::Path;
 
 /// Build the smart contract located at the specified `path` in `build_release` mode.
@@ -9,21 +10,24 @@ use std::path::Path;
 /// # Arguments
 /// * `path` - The optional path to the smart contract manifest, defaulting to the current directory if not specified.
 /// * `release` - Whether the smart contract should be built without any debugging functionality.
-pub fn build_smart_contract(path: Option<&Path>, release: bool) -> anyhow::Result<String> {
+/// * `verbosity` - The build output verbosity.
+pub fn build_smart_contract(
+	path: Option<&Path>,
+	release: bool,
+	verbosity: Verbosity,
+) -> anyhow::Result<BuildResult> {
 	let manifest_path = get_manifest_path(path)?;
 
 	let build_mode = match release {
 		true => BuildMode::Release,
 		false => BuildMode::Debug,
 	};
+
 	// Default values
-	let args = ExecuteArgs { manifest_path, build_mode, ..Default::default() };
+	let args = ExecuteArgs { manifest_path, build_mode, verbosity, ..Default::default() };
 
 	// Execute the build and log the output of the build
-	let result = execute(args)?;
-	let formatted_result = result.display();
-
-	Ok(formatted_result)
+	Ok(execute(args)?)
 }
 
 /// Determines whether the manifest at the supplied path is a supported smart contract project.
