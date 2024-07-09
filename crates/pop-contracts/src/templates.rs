@@ -4,7 +4,7 @@
 pub use pop_common::templates::{Template, Type};
 use strum_macros::{AsRefStr, Display, EnumMessage, EnumProperty, EnumString, VariantArray};
 
-/// Supported contract tempalte providers.
+/// Supported contract template providers.
 #[derive(
 	AsRefStr, Clone, Default, Debug, Display, EnumMessage, EnumString, Eq, PartialEq, VariantArray,
 )]

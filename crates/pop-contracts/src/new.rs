@@ -66,7 +66,7 @@ fn create_template_contract(
 	Git::clone(&Url::parse(template_repository)?, temp_dir.path(), None)?;
 	// Retrieve only the template contract files.
 	if template == &Contract::PSP22 || template == &Contract::PSP34 {
-		// Different tempalte structure requires extracting different path
+		// Different template structure requires extracting different path
 		extract_contract_files(String::from(""), temp_dir.path(), canonicalized_path.as_path())?;
 	} else {
 		extract_contract_files(

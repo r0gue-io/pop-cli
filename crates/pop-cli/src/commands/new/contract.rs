@@ -89,7 +89,7 @@ async fn guide_user_to_generate_contract() -> anyhow::Result<NewContractCommand>
 		.default_input("./")
 		.interact()?;
 
-	let mut contract_type_prompt = cliclack::select("Select a tempalte provider: ".to_string());
+	let mut contract_type_prompt = cliclack::select("Select a template provider: ".to_string());
 	for (i, contract_type) in ContractProvider::types().iter().enumerate() {
 		if i == 0 {
 			contract_type_prompt = contract_type_prompt.initial_value(contract_type);
