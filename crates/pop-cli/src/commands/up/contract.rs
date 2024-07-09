@@ -53,7 +53,7 @@ pub struct UpContractCommand {
 	salt: Option<Bytes>,
 	/// Websocket endpoint of a chain.
 	#[clap(name = "url", long, value_parser, default_value = DEFAULT_URL)]
-	url: url::Url,
+	url: Url,
 	/// Secret key URI for the account deploying the contract.
 	///
 	/// e.g.
@@ -123,7 +123,7 @@ impl UpContractCommand {
 
 			let spinner = spinner();
 			spinner.start("Starting local node...");
-			let log = tempfile::NamedTempFile::new()?;
+			let log = NamedTempFile::new()?;
 			let process = run_contracts_node(crate::cache()?, Some(log.as_file())).await?;
 			let bar = Style::new().magenta().dim().apply_to(Emoji("│", "|"));
 			spinner.stop(format!(
@@ -231,9 +231,7 @@ impl UpContractCommand {
 					result.push(format!("Deposit: {:?}", upload_result.deposit));
 					let result: Vec<_> = result
 						.iter()
-						.map(|s| {
-							style(format!("{} {s}", console::Emoji("●", ">"))).dim().to_string()
-						})
+						.map(|s| style(format!("{} {s}", Emoji("●", ">"))).dim().to_string())
 						.collect();
 					Cli.success(format!("Dry run successful!\n{}", result.join("\n")))?;
 				},
