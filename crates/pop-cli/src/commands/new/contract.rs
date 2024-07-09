@@ -12,7 +12,7 @@ use pop_common::{
 	enum_variants,
 	templates::{Template, Type},
 };
-use pop_contracts::{create_smart_contract, is_valid_contract_name, Contract, ContractType};
+use pop_contracts::{create_smart_contract, is_valid_contract_name, Contract, ContractProvider};
 use std::{env::current_dir, fs, path::PathBuf, str::FromStr};
 use strum::VariantArray;
 
@@ -21,13 +21,13 @@ pub struct NewContractCommand {
 	#[arg(help = "Name of the contract")]
 	pub(crate) name: Option<String>,
 	#[arg(
-		default_value = ContractType::Examples.as_ref(),
+		default_value = ContractProvider::UseInk.as_ref(),
 		short = 'c',
 		long,
 		help = "Contract type.",
-		value_parser = enum_variants!(ContractType)
+		value_parser = enum_variants!(ContractProvider)
 	)]
-	pub(crate) contract_type: Option<ContractType>,
+	pub(crate) contract_type: Option<ContractProvider>,
 	#[arg(short = 'p', long, help = "Path for the contract project, [default: current directory]")]
 	pub(crate) path: Option<PathBuf>,
 	#[arg(
@@ -68,7 +68,7 @@ impl NewContractCommand {
 	}
 }
 
-fn is_template_supported(contract_type: &ContractType, template: &Contract) -> Result<()> {
+fn is_template_supported(contract_type: &ContractProvider, template: &Contract) -> Result<()> {
 	if !contract_type.provides(template) {
 		return Err(anyhow::anyhow!(format!(
 			"The contract type \"{:?}\" doesn't support the {:?} template.",
@@ -89,8 +89,8 @@ async fn guide_user_to_generate_contract() -> anyhow::Result<NewContractCommand>
 		.default_input("./")
 		.interact()?;
 
-	let mut contract_type_prompt = cliclack::select("Select a contract type: ".to_string());
-	for (i, contract_type) in ContractType::types().iter().enumerate() {
+	let mut contract_type_prompt = cliclack::select("Select a tempalte provider: ".to_string());
+	for (i, contract_type) in ContractProvider::types().iter().enumerate() {
 		if i == 0 {
 			contract_type_prompt = contract_type_prompt.initial_value(contract_type);
 		}
@@ -117,7 +117,7 @@ async fn guide_user_to_generate_contract() -> anyhow::Result<NewContractCommand>
 	})
 }
 
-fn display_select_options(contract_type: &ContractType) -> Result<&Contract> {
+fn display_select_options(contract_type: &ContractProvider) -> Result<&Contract> {
 	let mut prompt = cliclack::select("Select the contract:".to_string());
 	for (i, template) in contract_type.templates().into_iter().enumerate() {
 		if i == 0 {
