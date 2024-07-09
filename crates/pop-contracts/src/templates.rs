@@ -119,6 +119,42 @@ pub enum Contract {
 		)
 	)]
 	PSP34,
+	/// Domain name service example implemented in ink!
+	#[strum(
+		serialize = "dns",
+		message = "DNS",
+		detailed_message = "Domain name service example implemented in ink!",
+		props(
+			Provider = "UseInk",
+			Type = "Examples",
+			Repository = "https://github.com/use-ink/ink-examples"
+		)
+	)]
+	DNS,
+	/// Cross-contract call example implemented in ink!
+	#[strum(
+		serialize = "cross-contract-calls",
+		message = "Cross Contract Calls",
+		detailed_message = "Cross-contract call example implemented in ink!",
+		props(
+			Provider = "UseInk",
+			Type = "Examples",
+			Repository = "https://github.com/use-ink/ink-examples"
+		)
+	)]
+	CrossContract,
+	/// Multisig contract example implemented in ink!
+	#[strum(
+		serialize = "multisig",
+		message = "Multisig Contract",
+		detailed_message = "Multisig contract example implemented in ink!",
+		props(
+			Provider = "UseInk",
+			Type = "Examples",
+			Repository = "https://github.com/use-ink/ink-examples"
+		)
+	)]
+	Multisig,
 }
 
 impl Template for Contract {
@@ -140,6 +176,9 @@ mod tests {
 			("erc1155".to_string(), ERC1155),
 			("PSP22".to_string(), PSP22),
 			("PSP34".to_string(), PSP34),
+			("dns".to_string(), DNS),
+			("cross-contract-calls".to_string(), CrossContract),
+			("multisig".to_string(), Multisig),
 		])
 	}
 
@@ -150,6 +189,9 @@ mod tests {
 			("erc1155".to_string(), "https://github.com/use-ink/ink-examples"),
 			("PSP22".to_string(), "https://github.com/Cardinal-Cryptography/PSP22"),
 			("PSP34".to_string(), "https://github.com/Cardinal-Cryptography/PSP34"),
+			("dns".to_string(), "https://github.com/use-ink/ink-examples"),
+			("cross-contract-calls".to_string(), "https://github.com/use-ink/ink-examples"),
+			("multisig".to_string(), "https://github.com/use-ink/ink-examples"),
 		])
 	}
 
@@ -161,13 +203,19 @@ mod tests {
 			(ERC1155, "The implementation of the ERC-1155 standard in ink!"),
 			(PSP22, "The implementation of the PSP22 standard in ink!"),
 			(PSP34, "The implementation of the PSP34 standard in ink!"),
+			(DNS, "Domain name service example implemented in ink!"),
+			(CrossContract, "Cross-contract call example implemented in ink!"),
+			(Multisig, "Multisig contract example implemented in ink!"),
 		])
 	}
 
 	#[test]
 	fn test_is_template_correct() {
 		for template in Contract::VARIANTS {
-			if matches!(template, Standard | ERC20 | ERC721 | ERC1155) {
+			if matches!(
+				template,
+				Standard | ERC20 | ERC721 | ERC1155 | DNS | CrossContract | Multisig
+			) {
 				assert_eq!(ContractProvider::UseInk.provides(template), true);
 				assert_eq!(ContractProvider::CardinalCryptography.provides(template), false);
 			}
@@ -226,7 +274,10 @@ mod tests {
 	#[test]
 	fn test_templates_of_type() {
 		let mut contract_provider = ContractProvider::UseInk;
-		assert_eq!(contract_provider.templates(), [&Standard, &ERC20, &ERC721, &ERC1155]);
+		assert_eq!(
+			contract_provider.templates(),
+			[&Standard, &ERC20, &ERC721, &ERC1155, &DNS, &CrossContract, &Multisig]
+		);
 		contract_provider = ContractProvider::CardinalCryptography;
 		assert_eq!(contract_provider.templates(), [&PSP22, &PSP34]);
 	}
