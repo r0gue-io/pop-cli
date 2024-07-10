@@ -23,7 +23,7 @@ pub(crate) enum Command {
 	#[clap(alias = "p")]
 	Parachain(parachain::ZombienetCommand),
 	#[cfg(feature = "contract")]
-	/// Deploy a smart contract to a node.
+	/// Deploy a smart contract.
 	#[clap(alias = "c")]
 	Contract(contract::UpContractCommand),
 }

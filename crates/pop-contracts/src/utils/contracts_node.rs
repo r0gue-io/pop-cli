@@ -4,9 +4,10 @@ use flate2::read::GzDecoder;
 use pop_common::GitHub;
 use std::{
 	env::consts::OS,
+	fs::{self, File},
 	io::{Seek, SeekFrom, Write},
 	path::PathBuf,
-	process::{Child, Command},
+	process::{Child, Command, Stdio},
 	time::Duration,
 };
 use tar::Archive;
@@ -38,14 +39,15 @@ pub async fn is_chain_alive(url: url::Url) -> Result<bool, Error> {
 	}
 }
 
-/// Runs the latest version of the `substracte-contracts-node` in the background.
+/// Runs the latest version of the `substrate-contracts-node` in the background.
 ///
 /// # Arguments
 ///
 /// * `cache` - The path where the binary will be stored.
+/// * `output` - The optional log file for node output.
 ///
-pub async fn run_contracts_node(cache: PathBuf) -> Result<Child, Error> {
-	let cached_file = cache.join(release_folder_by_target()?).join(BIN_NAME);
+pub async fn run_contracts_node(cache: PathBuf, output: Option<&File>) -> Result<Child, Error> {
+	let cached_file = cache.join(BIN_NAME);
 	if !cached_file.exists() {
 		let archive = archive_name_by_target()?;
 
@@ -61,8 +63,18 @@ pub async fn run_contracts_node(cache: PathBuf) -> Result<Child, Error> {
 		let tar = GzDecoder::new(file);
 		let mut archive = Archive::new(tar);
 		archive.unpack(cache.clone())?;
+		// Copy the file into the cache folder and remove the folder artifacts
+		let extracted_dir = cache.join(release_folder_by_target()?);
+		fs::copy(&extracted_dir.join(BIN_NAME), &cached_file)?;
+		fs::remove_dir_all(&extracted_dir.parent().unwrap_or(&cache.join("artifacts")))?;
 	}
-	let process = Command::new(cached_file.display().to_string().as_str()).spawn()?;
+	let mut command = Command::new(cached_file.display().to_string().as_str());
+	if let Some(output) = output {
+		command.stdout(Stdio::from(output.try_clone()?));
+		command.stderr(Stdio::from(output.try_clone()?));
+	}
+
+	let process = command.spawn()?;
 
 	// Wait 5 secs until the node is ready
 	sleep(Duration::from_millis(5000)).await;
@@ -155,9 +167,11 @@ mod tests {
 		// Run the contracts node
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
 		let cache = temp_dir.path().join("cache");
-		let process = run_contracts_node(cache).await?;
+		let process = run_contracts_node(cache.clone(), None).await?;
 		// Check if the node is alive
 		assert!(is_chain_alive(local_url).await?);
+		assert!(cache.join("substrate-contracts-node").exists());
+		assert!(!cache.join("artifacts").exists());
 		// Stop the process contracts-node
 		Command::new("kill")
 			.args(["-s", "TERM", &process.id().to_string()])

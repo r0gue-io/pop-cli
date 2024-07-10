@@ -45,7 +45,7 @@ pub struct CallContractCommand {
 	/// e.g.
 	/// - for a dev account "//Alice"
 	/// - with a password "//Alice///SECRET_PASSWORD"
-	#[clap(name = "suri", long, short)]
+	#[clap(name = "suri", long, short, default_value = "//Alice")]
 	suri: String,
 	/// Submit an extrinsic for on-chain execution.
 	#[clap(short('x'), long)]
