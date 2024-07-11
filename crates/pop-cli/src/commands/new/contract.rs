@@ -1,39 +1,44 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::style::Theme;
+use crate::cli::{
+	traits::{Cli as _, Confirm as _},
+	Cli,
+};
 use anyhow::Result;
 use clap::{
 	builder::{PossibleValue, PossibleValuesParser, TypedValueParser},
 	Args,
 };
-use cliclack::{clear_screen, confirm, input, intro, log::success, outro, outro_cancel, set_theme};
+use cliclack::input;
 use console::style;
 use pop_common::{
-	enum_variants,
+	enum_variants, get_project_name_from_path,
 	templates::{Template, Type},
 };
 use pop_contracts::{create_smart_contract, is_valid_contract_name, Contract, ContractType};
-use std::{env::current_dir, fs, path::PathBuf, str::FromStr};
+use std::{
+	fs,
+	path::{Path, PathBuf},
+	str::FromStr,
+};
 use strum::VariantArray;
 
 #[derive(Args, Clone)]
 pub struct NewContractCommand {
-	#[arg(help = "Name of the contract")]
+	/// The name of the contract.
 	pub(crate) name: Option<String>,
+	/// The type of contract.
 	#[arg(
 		default_value = ContractType::Examples.as_ref(),
 		short = 'c',
 		long,
-		help = "Contract type.",
 		value_parser = enum_variants!(ContractType)
 	)]
 	pub(crate) contract_type: Option<ContractType>,
-	#[arg(short = 'p', long, help = "Path for the contract project, [default: current directory]")]
-	pub(crate) path: Option<PathBuf>,
+	/// The template to use.
 	#[arg(
 		short = 't',
 		long,
-		help = "Template to use.",
 		value_parser = enum_variants!(Contract)
 	)]
 	pub(crate) template: Option<Contract>,
@@ -41,20 +46,27 @@ pub struct NewContractCommand {
 
 impl NewContractCommand {
 	/// Executes the command.
-	pub(crate) async fn execute(self) -> anyhow::Result<()> {
-		clear_screen()?;
-		set_theme(Theme);
+	pub(crate) async fn execute(self) -> Result<()> {
+		// If the user doesn't provide a name, guide them in generating a contract.
 		let contract_config = if self.name.is_none() {
-			// If the user doesn't provide a name, guide them in generating a contract.
 			guide_user_to_generate_contract().await?
 		} else {
 			self.clone()
 		};
-		let name = &contract_config
+
+		let path_project = &contract_config
 			.name
 			.clone()
 			.expect("name can not be none as fallback above is interactive input; qed");
-		is_valid_contract_name(name)?;
+		let path = Path::new(path_project);
+		let name = get_project_name_from_path(path, "my_contract");
+
+		// Validate contract name.
+		if let Err(e) = is_valid_contract_name(name) {
+			Cli.outro_cancel(e)?;
+			return Ok(());
+		}
+
 		let contract_type = &contract_config.contract_type.clone().unwrap_or_default();
 		let template = match &contract_config.template {
 			Some(template) => template.clone(),
@@ -62,12 +74,12 @@ impl NewContractCommand {
 		};
 
 		is_template_supported(contract_type, &template)?;
-
-		generate_contract_from_template(name, contract_config.path, &template)?;
+		generate_contract_from_template(name, &path, &template)?;
 		Ok(())
 	}
 }
 
+/// Determines whether the specified template is supported by the type.
 fn is_template_supported(contract_type: &ContractType, template: &Contract) -> Result<()> {
 	if !contract_type.provides(template) {
 		return Err(anyhow::anyhow!(format!(
@@ -78,16 +90,9 @@ fn is_template_supported(contract_type: &ContractType, template: &Contract) -> R
 	return Ok(());
 }
 
-async fn guide_user_to_generate_contract() -> anyhow::Result<NewContractCommand> {
-	intro(format!("{}: Generate a contract", style(" Pop CLI ").black().on_magenta()))?;
-	let name: String = input("Name of your contract?")
-		.placeholder("my_contract")
-		.default_input("my_contract")
-		.interact()?;
-	let path: String = input("Where should your project be created?")
-		.placeholder("./")
-		.default_input("./")
-		.interact()?;
+/// Guide the user to generate a contract from available templates.
+async fn guide_user_to_generate_contract() -> Result<NewContractCommand> {
+	Cli.intro("Generate a contract")?;
 
 	let mut contract_type_prompt = cliclack::select("Select a template type: ".to_string());
 	for (i, contract_type) in ContractType::types().iter().enumerate() {
@@ -105,13 +110,16 @@ async fn guide_user_to_generate_contract() -> anyhow::Result<NewContractCommand>
 		);
 	}
 	let contract_type = contract_type_prompt.interact()?;
-
 	let template = display_select_options(contract_type)?;
 
-	clear_screen()?;
+	// Prompt for location.
+	let name: String = input("Where should your project be created?")
+		.placeholder("./my_contract")
+		.default_input("./my_contract")
+		.interact()?;
+
 	Ok(NewContractCommand {
 		name: Some(name),
-		path: Some(PathBuf::from(path)),
 		contract_type: Some(contract_type.clone()),
 		template: Some(template.clone()),
 	})
@@ -129,18 +137,13 @@ fn display_select_options(contract_type: &ContractType) -> Result<&Contract> {
 }
 
 fn generate_contract_from_template(
-	name: &String,
-	path: Option<PathBuf>,
+	name: &str,
+	path: &Path,
 	template: &Contract,
 ) -> anyhow::Result<()> {
-	intro(format!(
-		"{}: Generating \"{}\" using {}!",
-		style(" Pop CLI ").black().on_magenta(),
-		name,
-		template.name(),
-	))?;
+	Cli.intro(format!("Generating \"{}\" using {}!", name, template.name(),))?;
 
-	let contract_path = check_destination_path(path, name)?;
+	let contract_path = check_destination_path(path)?;
 	fs::create_dir_all(contract_path.as_path())?;
 	let spinner = cliclack::spinner();
 	spinner.start("Generating contract...");
@@ -148,37 +151,44 @@ fn generate_contract_from_template(
 	spinner.clear();
 	// Replace spinner with success.
 	console::Term::stderr().clear_last_lines(2)?;
-	success("Generation complete")?;
+	Cli.success("Generation complete")?;
+
+	// warn about audit status and licensing
+	let repository = template.repository_url().ok().map(|url|
+		style(format!("\nPlease consult the source repository at {url} to assess production suitability and licensing restrictions.")).dim()
+	);
+	Cli.warning(format!("NOTE: the resulting contract is not guaranteed to be audited or reviewed for security vulnerabilities.{}",
+					repository.unwrap_or_else(|| style("".to_string()))))?;
+
 	// add next steps
 	let mut next_steps = vec![
 		format!("cd into {:?} and enjoy hacking! 🚀", contract_path.display()),
-		"Use `pop build contract` to build your contract.".into(),
+		"Use `pop build` to build your contract.".into(),
 	];
-	next_steps.push(format!("Use `pop up contract` to deploy your contract on a live network."));
+	next_steps.push(format!("Use `pop up contract` to deploy your contract to a live network."));
 	let next_steps: Vec<_> = next_steps
 		.iter()
 		.map(|s| style(format!("{} {s}", console::Emoji("●", ">"))).dim().to_string())
 		.collect();
-	success(format!("Next Steps:\n{}", next_steps.join("\n")))?;
+	Cli.success(format!("Next Steps:\n{}", next_steps.join("\n")))?;
 
-	outro(format!(
+	Cli.outro(format!(
 		"Need help? Learn more at {}\n",
-		style("https://learn.onpop.io/v/cli").magenta().underlined()
+		style("https://learn.onpop.io").magenta().underlined()
 	))?;
 	Ok(())
 }
 
-fn check_destination_path(path: Option<PathBuf>, name: &String) -> anyhow::Result<PathBuf> {
-	let contract_path =
-		if let Some(ref path) = path { path.join(name) } else { current_dir()?.join(name) };
+fn check_destination_path(contract_path: &Path) -> anyhow::Result<PathBuf> {
 	if contract_path.exists() {
-		if !confirm(format!(
-			"\"{}\" directory already exists. Would you like to remove it?",
-			contract_path.display()
-		))
-		.interact()?
+		if !Cli
+			.confirm(format!(
+				"\"{}\" directory already exists. Would you like to remove it?",
+				contract_path.display()
+			))
+			.interact()?
 		{
-			outro_cancel(format!(
+			Cli.outro_cancel(format!(
 				"Cannot generate contract until \"{}\" directory is removed.",
 				contract_path.display()
 			))?;
@@ -187,9 +197,9 @@ fn check_destination_path(path: Option<PathBuf>, name: &String) -> anyhow::Resul
 				contract_path.display()
 			)));
 		}
-		fs::remove_dir_all(contract_path.as_path())?;
+		fs::remove_dir_all(contract_path)?;
 	}
-	Ok(contract_path)
+	Ok(contract_path.to_path_buf())
 }
 
 #[cfg(test)]
@@ -206,8 +216,8 @@ mod tests {
 	#[tokio::test]
 	async fn test_new_contract_command_execute_with_defaults_executes() -> Result<()> {
 		let dir = tempdir()?;
-		let dir_path = dir.path().display().to_string();
-		let cli = Cli::parse_from(["pop", "new", "contract", "test_contract", "-p", &dir_path]);
+		let dir_path = format!("{}/test_contract", dir.path().display().to_string());
+		let cli = Cli::parse_from(["pop", "new", "contract", &dir_path]);
 
 		let New(NewArgs { command: Contract(command) }) = cli.command else {
 			panic!("unable to parse command")
@@ -220,19 +230,9 @@ mod tests {
 	#[tokio::test]
 	async fn test_new_contract_template_command_execute() -> Result<()> {
 		let dir = tempdir()?;
-		let dir_path = dir.path().display().to_string();
-		let cli = Cli::parse_from([
-			"pop",
-			"new",
-			"contract",
-			"test_contract",
-			"-c",
-			"erc",
-			"-p",
-			&dir_path,
-			"-t",
-			"erc20",
-		]);
+		let dir_path = format!("{}/test_contract", dir.path().display().to_string());
+		let cli =
+			Cli::parse_from(["pop", "new", "contract", &dir_path, "-c", "erc", "-t", "erc20"]);
 
 		let New(NewArgs { command: Contract(command) }) = cli.command else {
 			panic!("unable to parse command")

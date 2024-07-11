@@ -237,7 +237,19 @@ async fn from_archive(
 	let working_dir = temp_dir.path();
 	archive.unpack(working_dir)?;
 	for (name, dest) in contents {
-		rename(working_dir.join(name), dest)?;
+		let src = working_dir.join(name);
+		if src.exists() {
+			if let Err(_e) = rename(&src, dest) {
+				// If rename fails (e.g., due to cross-device linking), fallback to copy and remove
+				std::fs::copy(&src, dest)?;
+				std::fs::remove_file(&src)?;
+			}
+		} else {
+			return Err(Error::ArchiveError(format!(
+				"Expected file '{}' in archive, but it was not found.",
+				name
+			)));
+		}
 	}
 	status.update("Sourcing complete.");
 	Ok(())

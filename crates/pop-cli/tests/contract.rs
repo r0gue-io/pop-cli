@@ -44,7 +44,7 @@ async fn contract_lifecycle() -> Result<()> {
 
 	// Run the contracts node
 	let cache = temp_dir.join("cache");
-	let process = run_contracts_node(cache).await?;
+	let process = run_contracts_node(cache, None).await?;
 	// Only upload the contract
 	// pop up contract --upload-only
 	Command::cargo_bin("pop")

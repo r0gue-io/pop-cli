@@ -337,7 +337,7 @@ mod tests {
 		mock_build_process(temp_dir.path().join("testing"))?;
 		// Run contracts-node
 		let cache = temp_dir.path().join("cache");
-		let process = run_contracts_node(cache).await?;
+		let process = run_contracts_node(cache, None).await?;
 
 		let upload_exec = set_up_upload(UpOpts {
 			path: Some(temp_dir.path().join("testing")),

@@ -17,10 +17,11 @@ Build an existing Smart Contract:
 ```rust,no_run
 use pop_contracts::build_smart_contract;
 use std::path::Path;
+pub use contract_build::Verbosity;
 
 let contract_path = Path::new("./");
 let build_release = true; // `true` for release mode, `false` for debug mode.
-let result = build_smart_contract(Some(&contract_path), build_release);
+let result = build_smart_contract(Some(&contract_path), build_release, Verbosity::Default);
 ```
 
 Test an existing Smart Contract:

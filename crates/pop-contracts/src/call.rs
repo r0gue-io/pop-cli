@@ -311,7 +311,7 @@ mod tests {
 		mock_build_process(temp_dir.path().join("testing"))?;
 		// Run the contracts-node.
 		let cache = temp_dir.path().join("cache");
-		let process = run_contracts_node(cache).await?;
+		let process = run_contracts_node(cache, None).await?;
 		// Instantiate a Smart Contract.
 		let instantiate_exec = set_up_deployment(UpOpts {
 			path: Some(temp_dir.path().join("testing")),
