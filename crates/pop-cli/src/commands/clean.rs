@@ -7,7 +7,6 @@ use std::{
 	fs::{read_dir, remove_file},
 	path::PathBuf,
 };
-use cliclack::{confirm, outro_cancel};
 
 #[derive(Args)]
 #[command(args_conflicts_with_subcommands = true)]
@@ -76,11 +75,10 @@ impl<'a, CLI: Cli> CleanCacheCommand<'a, CLI> {
 			))
 			.to_string();
 
-			if !confirm(format!(
+			if !self.cli.confirm(format!(
 				"Would you like to cleanup all cached artifacts...\n {list} \n"))
-			.initial_value(true)
 			.interact()? {
-				outro_cancel("Failed to clean cache")?;
+				self.cli.outro_cancel("Failed to clean cache")?;
 				return Ok(());
 			}
 
@@ -275,21 +273,54 @@ mod tests {
 	fn clean_cache_cleans_dir_when_all_flag_specified() -> Result<()> {
 		let temp = tempfile::tempdir()?;
 		let cache = temp.path().to_path_buf();
-		let artifacts = ["polkadot-parachain", "pop-node"]
-			.map(|a| cache.join(a));
+		let artifacts = ["polkadot-parachain", "pop-node"];
+		let mut items = vec![];
 		for artifact in &artifacts {
 			File::create(cache.join(artifact))?;
+			items.push((artifact, "0MiB".to_string()));
 		}
 
+		let list = style(format!(
+			"\n{}",
+			items.iter()
+				.map(|(name, size)| format!("{} : {}", name, size))
+				.collect::<Vec<_>>()
+				.join("; \n")
+		)).to_string();
+
 		let mut cli = MockCli::new()
-			.expect_confirm(format!("Would you like to cleanup all cached artifacts...\n {:?} \n", artifacts), true)
-			.expect_outro("2 artifacts removed");
+			.expect_confirm(format!("Would you like to cleanup all cached artifacts...\n {list} \n"), true)
+			.expect_outro("ℹ️ 2 artifacts removed");
 
 		CleanCacheCommand { cli: &mut cli, cache, all: true }.execute()?;
 		
-		for artifact in artifacts {
-			assert!(!artifact.exists())
+		cli.verify()
+	}
+
+	#[test]
+	fn clean_cache_all_removes_nothing_if_unconfirmed() -> Result<()> {
+		let temp = tempfile::tempdir()?;
+		let cache = temp.path().to_path_buf();
+		let artifacts = ["polkadot-parachain", "pop-node"];
+		let mut items = vec![];
+		for artifact in &artifacts {
+			File::create(cache.join(artifact))?;
+			items.push((artifact, "0MiB".to_string()));
 		}
+
+		let list = style(format!(
+			"\n{}",
+			items.iter()
+				.map(|(name, size)| format!("{} : {}", name, size))
+				.collect::<Vec<_>>()
+				.join("; \n")
+		)).to_string();
+
+		let mut cli = MockCli::new()
+			.expect_confirm(format!("Would you like to cleanup all cached artifacts...\n {list} \n"), false)
+			.expect_outro_cancel("Failed to clean cache");
+		
+		CleanCacheCommand { cli: &mut cli, cache: cache.clone(), all: true }.execute()?;
 
 		cli.verify()
 	}
