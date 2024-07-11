@@ -11,6 +11,8 @@ pub enum Error {
 	#[error("Failed to parse balance: {0}")]
 	BalanceParsing(String),
 	#[error("{0}")]
+	CallContractError(String),
+	#[error("{0}")]
 	CommonError(#[from] pop_common::Error),
 	#[error("Pre-submission dry-run failed: {0}")]
 	DryRunUploadContractError(String),

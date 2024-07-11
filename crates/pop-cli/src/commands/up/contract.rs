@@ -15,8 +15,11 @@ use pop_contracts::{
 };
 use sp_core::Bytes;
 use sp_weights::Weight;
-use std::path::{Path, PathBuf};
 use std::process::Child;
+use std::{
+	path::{Path, PathBuf},
+	process::Command,
+};
 use tempfile::NamedTempFile;
 use url::Url;
 
@@ -259,14 +262,18 @@ impl UpContractCommand {
 	/// Handles the optional termination of a local running node.
 	fn terminate_node(process: Option<(Child, NamedTempFile)>) -> anyhow::Result<()> {
 		// Prompt to close any launched node
-		let Some((mut process, log)) = process else {
+		let Some((process, log)) = process else {
 			return Ok(());
 		};
 		if confirm("Would you like to terminate the local node?")
 			.initial_value(true)
 			.interact()?
 		{
-			process.kill()?
+			// Stop the process contracts-node
+			Command::new("kill")
+				.args(["-s", "TERM", &process.id().to_string()])
+				.spawn()?
+				.wait()?;
 		} else {
 			log.keep()?;
 			log::warning(format!("NOTE: The node is running in the background with process ID {}. Please terminate it manually when done.", process.id()))?;

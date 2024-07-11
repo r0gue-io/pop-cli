@@ -143,10 +143,13 @@ pub async fn call_smart_contract(
 	call_exec: CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
 	gas_limit: Weight,
 	url: &Url,
-) -> anyhow::Result<String, ErrorVariant> {
+) -> anyhow::Result<String, Error> {
 	let token_metadata = TokenMetadata::query::<DefaultConfig>(url).await?;
 	let metadata = call_exec.client().metadata();
-	let events = call_exec.call(Some(gas_limit)).await?;
+	let events = call_exec
+		.call(Some(gas_limit))
+		.await
+		.map_err(|error_variant| Error::CallContractError(format!("{:?}", error_variant)))?;
 	let display_events =
 		DisplayEvents::from_events::<DefaultConfig, DefaultEnvironment>(&events, None, &metadata)?;
 
@@ -158,11 +161,15 @@ pub async fn call_smart_contract(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::{create_smart_contract, errors::Error, templates::Contract};
+	use crate::{
+		create_smart_contract, dry_run_gas_estimate_instantiate, errors::Error,
+		instantiate_smart_contract, run_contracts_node, set_up_deployment, Contract, UpOpts,
+	};
 	use anyhow::Result;
-	use std::{env, fs};
+	use sp_core::Bytes;
+	use std::{env, fs, process::Command};
 
-	const CONTRACTS_NETWORK_URL: &str = "wss://rococo-contracts-rpc.polkadot.io";
+	const CONTRACTS_NETWORK_URL: &str = "wss://rpc2.paseo.popnetwork.xyz";
 
 	fn generate_smart_contract_test_environment() -> Result<tempfile::TempDir> {
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
@@ -294,6 +301,74 @@ mod tests {
 			dry_run_gas_estimate_call(&call).await,
 			Err(Error::DryRunCallContractError(..))
 		));
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn call_works() -> Result<()> {
+		const LOCALHOST_URL: &str = "ws://127.0.0.1:9944";
+		let temp_dir = generate_smart_contract_test_environment()?;
+		mock_build_process(temp_dir.path().join("testing"))?;
+		// Run the contracts-node.
+		let cache = temp_dir.path().join("cache");
+		let process = run_contracts_node(cache, None).await?;
+		// Instantiate a Smart Contract.
+		let instantiate_exec = set_up_deployment(UpOpts {
+			path: Some(temp_dir.path().join("testing")),
+			constructor: "new".to_string(),
+			args: ["false".to_string()].to_vec(),
+			value: "0".to_string(),
+			gas_limit: None,
+			proof_size: None,
+			salt: Some(Bytes::from(vec![0x00])),
+			url: Url::parse(LOCALHOST_URL)?,
+			suri: "//Alice".to_string(),
+		})
+		.await?;
+		let weight = dry_run_gas_estimate_instantiate(&instantiate_exec).await?;
+		let address = instantiate_smart_contract(instantiate_exec, weight).await?;
+		// Test querying a value.
+		let query_exec = set_up_call(CallOpts {
+			path: Some(temp_dir.path().join("testing")),
+			contract: address.clone(),
+			message: "get".to_string(),
+			args: [].to_vec(),
+			value: "0".to_string(),
+			gas_limit: None,
+			proof_size: None,
+			url: Url::parse(LOCALHOST_URL)?,
+			suri: "//Alice".to_string(),
+			execute: false,
+		})
+		.await?;
+		let mut query = dry_run_call(&query_exec).await?;
+		assert_eq!(query, "Ok(false)");
+		// Test extrinsic execution by flipping the value.
+		let call_exec = set_up_call(CallOpts {
+			path: Some(temp_dir.path().join("testing")),
+			contract: address,
+			message: "flip".to_string(),
+			args: [].to_vec(),
+			value: "0".to_string(),
+			gas_limit: None,
+			proof_size: None,
+			url: Url::parse(LOCALHOST_URL)?,
+			suri: "//Alice".to_string(),
+			execute: false,
+		})
+		.await?;
+		let weight = dry_run_gas_estimate_call(&call_exec).await?;
+		assert!(weight.ref_time() > 0);
+		assert!(weight.proof_size() > 0);
+		call_smart_contract(call_exec, weight, &Url::parse(LOCALHOST_URL)?).await?;
+		// Assert that the value has been flipped.
+		query = dry_run_call(&query_exec).await?;
+		assert_eq!(query, "Ok(true)");
+		// Stop the process contracts-node
+		Command::new("kill")
+			.args(["-s", "TERM", &process.id().to_string()])
+			.spawn()?
+			.wait()?;
 		Ok(())
 	}
 }

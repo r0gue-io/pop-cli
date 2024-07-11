@@ -118,6 +118,7 @@ fn release_folder_by_target() -> Result<&'static str, Error> {
 mod tests {
 	use super::*;
 	use anyhow::{Error, Result};
+	use std::process::Command;
 
 	#[tokio::test]
 	async fn test_latest_polkadot_release() -> Result<()> {
@@ -153,7 +154,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn is_chain_alive_works() -> Result<(), Error> {
-		let local_url = url::Url::parse("ws://localhost:9944")?;
+		let local_url = url::Url::parse("ws://wrong")?;
 		assert!(!is_chain_alive(local_url).await?);
 		let polkadot_url = url::Url::parse("wss://polkadot-rpc.dwellir.com")?;
 		assert!(is_chain_alive(polkadot_url).await?);
@@ -163,16 +164,19 @@ mod tests {
 	#[tokio::test]
 	async fn run_contracts_node_works() -> Result<(), Error> {
 		let local_url = url::Url::parse("ws://localhost:9944")?;
-		assert!(!is_chain_alive(local_url.clone()).await?);
 		// Run the contracts node
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
 		let cache = temp_dir.path().join("cache");
-		let mut process = run_contracts_node(cache.clone(), None).await?;
+		let process = run_contracts_node(cache.clone(), None).await?;
 		// Check if the node is alive
 		assert!(is_chain_alive(local_url).await?);
 		assert!(cache.join("substrate-contracts-node").exists());
 		assert!(!cache.join("artifacts").exists());
-		process.kill()?;
+		// Stop the process contracts-node
+		Command::new("kill")
+			.args(["-s", "TERM", &process.id().to_string()])
+			.spawn()?
+			.wait()?;
 		Ok(())
 	}
 }

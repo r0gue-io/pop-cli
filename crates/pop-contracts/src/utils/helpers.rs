@@ -81,4 +81,33 @@ mod tests {
 		canonicalized_path(temp_dir.path())?;
 		Ok(())
 	}
+
+	#[test]
+	fn parse_balance_works() -> Result<(), Error> {
+		let balance = parse_balance("100000")?;
+		assert_eq!(balance, BalanceVariant::Default(100000));
+		Ok(())
+	}
+
+	#[test]
+	fn parse_balance_fails_wrong_balance() -> Result<(), Error> {
+		assert!(matches!(parse_balance("wrongbalance"), Err(super::Error::BalanceParsing(..))));
+		Ok(())
+	}
+
+	#[test]
+	fn parse_account_works() -> Result<(), Error> {
+		let account = parse_account("5CLPm1CeUvJhZ8GCDZCR7nWZ2m3XXe4X5MtAQK69zEjut36A")?;
+		assert_eq!(account.to_string(), "5CLPm1CeUvJhZ8GCDZCR7nWZ2m3XXe4X5MtAQK69zEjut36A");
+		Ok(())
+	}
+
+	#[test]
+	fn parse_account_fails_wrong_value() -> Result<(), Error> {
+		assert!(matches!(
+			parse_account("wrongaccount"),
+			Err(super::Error::AccountAddressParsing(..))
+		));
+		Ok(())
+	}
 }
