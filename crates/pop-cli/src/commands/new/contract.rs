@@ -94,8 +94,7 @@ fn is_template_supported(contract_type: &ContractType, template: &Contract) -> R
 async fn guide_user_to_generate_contract() -> Result<NewContractCommand> {
 	Cli.intro("Generate a contract")?;
 
-	// Prompt for template selection.
-	let mut contract_type_prompt = cliclack::select("Select a contract type:".to_string());
+	let mut contract_type_prompt = cliclack::select("Select a template type: ".to_string());
 	for (i, contract_type) in ContractType::types().iter().enumerate() {
 		if i == 0 {
 			contract_type_prompt = contract_type_prompt.initial_value(contract_type);

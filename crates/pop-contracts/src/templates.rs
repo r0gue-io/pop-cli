@@ -4,7 +4,7 @@
 pub use pop_common::templates::{Template, Type};
 use strum_macros::{AsRefStr, Display, EnumMessage, EnumProperty, EnumString, VariantArray};
 
-/// Supported contract types.
+/// Supported contract template providers.
 #[derive(
 	AsRefStr, Clone, Default, Debug, Display, EnumMessage, EnumString, Eq, PartialEq, VariantArray,
 )]
@@ -24,6 +24,13 @@ pub enum ContractType {
 		detailed_message = "ERC-based contracts in ink!."
 	)]
 	Erc,
+	#[strum(
+		ascii_case_insensitive,
+		serialize = "psp",
+		message = "PSP",
+		detailed_message = "PSP-based contracts in ink!."
+	)]
+	Psp,
 }
 
 impl Type<Contract> for ContractType {
@@ -31,6 +38,7 @@ impl Type<Contract> for ContractType {
 		match &self {
 			ContractType::Examples => Some(Contract::Standard),
 			ContractType::Erc => Some(Contract::ERC20),
+			ContractType::Psp => Some(Contract::PSP22),
 		}
 	}
 }
@@ -83,6 +91,46 @@ pub enum Contract {
 		props(Type = "ERC", Repository = "https://github.com/use-ink/ink-examples")
 	)]
 	ERC1155,
+	/// The implementation of the PSP22 standard in ink!
+	#[strum(
+		serialize = "PSP22",
+		message = "Psp22",
+		detailed_message = "The implementation of the PSP22 standard in ink!",
+		props(Type = "PSP", Repository = "https://github.com/Cardinal-Cryptography/PSP22")
+	)]
+	PSP22,
+	/// The implementation of the PSP22 standard in ink!
+	#[strum(
+		serialize = "PSP34",
+		message = "Psp34",
+		detailed_message = "The implementation of the PSP34 standard in ink!",
+		props(Type = "PSP", Repository = "https://github.com/Cardinal-Cryptography/PSP34")
+	)]
+	PSP34,
+	/// Domain name service example implemented in ink!
+	#[strum(
+		serialize = "dns",
+		message = "DNS",
+		detailed_message = "Domain name service example implemented in ink!",
+		props(Type = "Examples", Repository = "https://github.com/use-ink/ink-examples")
+	)]
+	DNS,
+	/// Cross-contract call example implemented in ink!
+	#[strum(
+		serialize = "cross-contract-calls",
+		message = "Cross Contract Calls",
+		detailed_message = "Cross-contract call example implemented in ink!",
+		props(Type = "Examples", Repository = "https://github.com/use-ink/ink-examples")
+	)]
+	CrossContract,
+	/// Multisig contract example implemented in ink!
+	#[strum(
+		serialize = "multisig",
+		message = "Multisig Contract",
+		detailed_message = "Multisig contract example implemented in ink!",
+		props(Type = "Examples", Repository = "https://github.com/use-ink/ink-examples")
+	)]
+	Multisig,
 }
 
 impl Template for Contract {}
@@ -100,6 +148,11 @@ mod tests {
 			("erc20".to_string(), ERC20),
 			("erc721".to_string(), ERC721),
 			("erc1155".to_string(), ERC1155),
+			("PSP22".to_string(), PSP22),
+			("PSP34".to_string(), PSP34),
+			("dns".to_string(), DNS),
+			("cross-contract-calls".to_string(), CrossContract),
+			("multisig".to_string(), Multisig),
 		])
 	}
 
@@ -108,6 +161,11 @@ mod tests {
 			("erc20".to_string(), "https://github.com/use-ink/ink-examples"),
 			("erc721".to_string(), "https://github.com/use-ink/ink-examples"),
 			("erc1155".to_string(), "https://github.com/use-ink/ink-examples"),
+			("PSP22".to_string(), "https://github.com/Cardinal-Cryptography/PSP22"),
+			("PSP34".to_string(), "https://github.com/Cardinal-Cryptography/PSP34"),
+			("dns".to_string(), "https://github.com/use-ink/ink-examples"),
+			("cross-contract-calls".to_string(), "https://github.com/use-ink/ink-examples"),
+			("multisig".to_string(), "https://github.com/use-ink/ink-examples"),
 		])
 	}
 
@@ -117,19 +175,31 @@ mod tests {
 			(ERC20, "The implementation of the ERC-20 standard in ink!"),
 			(ERC721, "The implementation of the ERC-721 standard in ink!"),
 			(ERC1155, "The implementation of the ERC-1155 standard in ink!"),
+			(PSP22, "The implementation of the PSP22 standard in ink!"),
+			(PSP34, "The implementation of the PSP34 standard in ink!"),
+			(DNS, "Domain name service example implemented in ink!"),
+			(CrossContract, "Cross-contract call example implemented in ink!"),
+			(Multisig, "Multisig contract example implemented in ink!"),
 		])
 	}
 
 	#[test]
 	fn test_is_template_correct() {
 		for template in Contract::VARIANTS {
-			if matches!(template, Standard) {
+			if matches!(template, Standard | DNS | CrossContract | Multisig) {
 				assert_eq!(ContractType::Examples.provides(template), true);
 				assert_eq!(ContractType::Erc.provides(template), false);
+				assert_eq!(ContractType::Psp.provides(template), false);
 			}
 			if matches!(template, ERC20 | ERC721 | ERC1155) {
 				assert_eq!(ContractType::Examples.provides(template), false);
 				assert_eq!(ContractType::Erc.provides(template), true);
+				assert_eq!(ContractType::Psp.provides(template), false);
+			}
+			if matches!(template, PSP22 | PSP34) {
+				assert_eq!(ContractType::Examples.provides(template), false);
+				assert_eq!(ContractType::Erc.provides(template), false);
+				assert_eq!(ContractType::Psp.provides(template), true);
 			}
 		}
 	}
@@ -177,19 +247,24 @@ mod tests {
 		assert_eq!(contract_type.default_template(), Some(Standard));
 		contract_type = ContractType::Erc;
 		assert_eq!(contract_type.default_template(), Some(ERC20));
+		contract_type = ContractType::Psp;
+		assert_eq!(contract_type.default_template(), Some(PSP22));
 	}
 
 	#[test]
 	fn test_templates_of_type() {
 		let mut contract_type = ContractType::Examples;
-		assert_eq!(contract_type.templates(), [&Standard]);
+		assert_eq!(contract_type.templates(), [&Standard, &DNS, &CrossContract, &Multisig]);
 		contract_type = ContractType::Erc;
 		assert_eq!(contract_type.templates(), [&ERC20, &ERC721, &ERC1155]);
+		contract_type = ContractType::Psp;
+		assert_eq!(contract_type.templates(), [&PSP22, &PSP34]);
 	}
 
 	#[test]
 	fn test_convert_string_to_type() {
-		assert_eq!(ContractType::from_str("Examples").unwrap(), ContractType::Examples);
-		assert_eq!(ContractType::from_str("Erc").unwrap_or_default(), ContractType::Erc);
+		assert_eq!(ContractType::from_str("examples").unwrap(), ContractType::Examples);
+		assert_eq!(ContractType::from_str("erc").unwrap_or_default(), ContractType::Erc);
+		assert_eq!(ContractType::from_str("psp").unwrap_or_default(), ContractType::Psp);
 	}
 }
