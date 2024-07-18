@@ -8,13 +8,17 @@ use pop_contracts::{
 	test_smart_contract,
 };
 use std::path::PathBuf;
+use std::{thread::sleep, time::Duration};
 
 #[derive(Args)]
 pub(crate) struct TestContractCommand {
 	#[arg(short = 'p', long, help = "Path for the contract project [default: current directory]")]
 	path: Option<PathBuf>,
-	#[arg(short = 'f', long = "features", help = "Features for the contract project", value_parser=["e2e-tests"])]
+	/// [DEPRECATED] Run e2e tests
+	#[arg(short = 'f', long = "features", value_parser=["e2e-tests"])]
 	features: Option<String>,
+	#[arg(short = 'e', long = "e2e")]
+	e2e: bool,
 	#[arg(
 		short = 'n',
 		long = "node",
@@ -28,6 +32,13 @@ impl TestContractCommand {
 	pub(crate) async fn execute(mut self) -> anyhow::Result<&'static str> {
 		clear_screen()?;
 		if self.features.is_some() && self.features.clone().unwrap().contains("e2e-tests") {
+			warning("--features e2e-tests is deprecated. Use --e2e instead.")?;
+			self.e2e = true;
+			#[cfg(not(test))]
+			sleep(Duration::from_secs(3));
+		}
+
+		if self.e2e {
 			intro(format!(
 				"{}: Starting end-to-end tests",
 				style(" Pop CLI ").black().on_magenta()
