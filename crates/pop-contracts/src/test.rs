@@ -39,10 +39,7 @@ const STABLE_VERSION: &str = "v0.41.0";
 ///
 /// * `path` - location of the smart contract.
 /// * `node` - location of the contracts node binary.
-pub async fn test_e2e_smart_contract(
-	path: Option<&Path>,
-	node: Option<&Path>,
-) -> Result<(), Error> {
+pub fn test_e2e_smart_contract(path: Option<&Path>, node: Option<&Path>) -> Result<(), Error> {
 	// Set the environment variable `CONTRACTS_NODE` to the path of the contracts node.
 	if let Some(node) = node {
 		env::set_var("CONTRACTS_NODE", node);

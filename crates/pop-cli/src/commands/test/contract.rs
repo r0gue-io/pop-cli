@@ -75,7 +75,7 @@ impl TestContractCommand {
 				}
 			}
 
-			test_e2e_smart_contract(self.path.as_deref(), self.node.as_deref()).await?;
+			test_e2e_smart_contract(self.path.as_deref(), self.node.as_deref())?;
 			outro("End-to-end testing complete")?;
 			Ok("e2e")
 		} else {
