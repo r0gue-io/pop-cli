@@ -2,7 +2,18 @@
 
 use crate::errors::Error;
 use duct::cmd;
-use std::{env, path::Path};
+use flate2::read::GzDecoder;
+use pop_common::GitHub;
+use std::{
+	env,
+	env::consts::OS,
+	fs::{self},
+	io::{Seek, SeekFrom, Write},
+	path::Path,
+	path::PathBuf,
+};
+use tar::Archive;
+use tempfile::tempfile;
 
 /// Run unit tests of a smart contract.
 ///
@@ -18,13 +29,20 @@ pub fn test_smart_contract(path: Option<&Path>) -> Result<(), Error> {
 	Ok(())
 }
 
+const SUBSTRATE_CONTRACT_NODE: &str = "https://github.com/paritytech/substrate-contracts-node";
+const BIN_NAME: &str = "substrate-contracts-node";
+const STABLE_VERSION: &str = "v0.41.0";
+
 /// Run e2e tests of a smart contract.
 ///
 /// # Arguments
 ///
 /// * `path` - location of the smart contract.
 /// * `node` - location of the contracts node binary.
-pub fn test_e2e_smart_contract(path: Option<&Path>, node: Option<&Path>) -> Result<(), Error> {
+pub async fn test_e2e_smart_contract(
+	path: Option<&Path>,
+	node: Option<&Path>,
+) -> Result<(), Error> {
 	// Set the environment variable `CONTRACTS_NODE` to the path of the contracts node.
 	if let Some(node) = node {
 		env::set_var("CONTRACTS_NODE", node);
@@ -35,6 +53,84 @@ pub fn test_e2e_smart_contract(path: Option<&Path>, node: Option<&Path>) -> Resu
 		.run()
 		.map_err(|e| Error::TestCommand(format!("Cargo test command failed: {}", e)))?;
 	Ok(())
+}
+
+/// Checks if the `substrate-contracts-node` binary exists
+/// or if the binary exists in pop's cache.
+/// returns:
+/// - Some("") if the standalone binary exists
+/// - Some(binary_cache_location) if the binary exists in pop's cache
+/// - None if the binary does not exist
+pub fn does_contracts_node_exist(cache: PathBuf) -> Option<PathBuf> {
+	let cached_location = cache.join(BIN_NAME);
+	if cmd(BIN_NAME, vec!["--version"]).run().map_or(false, |_| true) {
+		Some(PathBuf::new())
+	} else if cached_location.exists() {
+		Some(cached_location)
+	} else {
+		None
+	}
+}
+
+/// Downloads the latest contracts node binary
+pub async fn download_contracts_node(cache: PathBuf) -> Result<PathBuf, Error> {
+	let cached_file = cache.join(BIN_NAME);
+	if !cached_file.exists() {
+		let archive = archive_name_by_target()?;
+
+		let latest_version = latest_contract_node_release().await?;
+		let releases_url =
+			format!("{SUBSTRATE_CONTRACT_NODE}/releases/download/{latest_version}/{archive}");
+		// Download archive
+		let response = reqwest::get(releases_url.as_str()).await?.error_for_status()?;
+		let mut file = tempfile()?;
+		file.write_all(&response.bytes().await?)?;
+		file.seek(SeekFrom::Start(0))?;
+		// Extract contents
+		let tar = GzDecoder::new(file);
+		let mut archive = Archive::new(tar);
+		archive.unpack(cache.clone())?;
+		// Copy the file into the cache folder and remove the folder artifacts
+		let extracted_dir = cache.join(release_folder_by_target()?);
+		fs::copy(&extracted_dir.join(BIN_NAME), &cached_file)?;
+		fs::remove_dir_all(&extracted_dir.parent().unwrap_or(&cache.join("artifacts")))?;
+	}
+
+	Ok(cached_file)
+}
+
+fn release_folder_by_target() -> Result<&'static str, Error> {
+	match OS {
+		"macos" => Ok("artifacts/substrate-contracts-node-mac"),
+		"linux" => Ok("artifacts/substrate-contracts-node-linux"),
+		_ => Err(Error::UnsupportedPlatform { os: OS }),
+	}
+}
+
+async fn latest_contract_node_release() -> Result<String, Error> {
+	let repo = GitHub::parse(SUBSTRATE_CONTRACT_NODE)?;
+	match repo.releases().await {
+		Ok(releases) => {
+			// Fetching latest releases
+			for release in releases {
+				if !release.prerelease {
+					return Ok(release.tag_name);
+				}
+			}
+			// It should never reach this point, but in case we download a default version of polkadot
+			Ok(STABLE_VERSION.to_string())
+		},
+		// If an error with GitHub API return the STABLE_VERSION
+		Err(_) => Ok(STABLE_VERSION.to_string()),
+	}
+}
+
+fn archive_name_by_target() -> Result<String, Error> {
+	match OS {
+		"macos" => Ok(format!("{}-mac-universal.tar.gz", BIN_NAME)),
+		"linux" => Ok(format!("{}-linux.tar.gz", BIN_NAME)),
+		_ => Err(Error::UnsupportedPlatform { os: OS }),
+	}
 }
 
 #[cfg(test)]

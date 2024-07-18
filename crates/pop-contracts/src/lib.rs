@@ -16,7 +16,10 @@ pub use call::{
 };
 pub use new::{create_smart_contract, is_valid_contract_name};
 pub use templates::{Contract, ContractType};
-pub use test::{test_e2e_smart_contract, test_smart_contract};
+pub use test::{
+	does_contracts_node_exist, download_contracts_node, test_e2e_smart_contract,
+	test_smart_contract,
+};
 pub use up::{
 	dry_run_gas_estimate_instantiate, dry_run_upload, instantiate_smart_contract,
 	set_up_deployment, set_up_upload, upload_smart_contract, UpOpts,

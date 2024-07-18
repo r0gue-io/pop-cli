@@ -105,7 +105,7 @@ impl Command {
 			},
 			#[cfg(feature = "contract")]
 			Self::Test(args) => match args.command {
-				test::Command::Contract(cmd) => match cmd.execute() {
+				test::Command::Contract(cmd) => match cmd.execute().await {
 					Ok(feature) => Ok(json!(feature)),
 					Err(e) => Err(e),
 				},
