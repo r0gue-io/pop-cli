@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::templates;
+use crate::{sourcing, templates};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -17,6 +17,8 @@ pub enum Error {
 	ManifestError(#[from] cargo_toml::Error),
 	#[error("ParseError error: {0}")]
 	ParseError(#[from] url::ParseError),
+	#[error("SourceError error: {0}")]
+	SourceError(#[from] sourcing::errors::Error),
 	#[error("TemplateError error: {0}")]
 	TemplateError(#[from] templates::Error),
 }

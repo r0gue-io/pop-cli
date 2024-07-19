@@ -1,18 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{
-	up::{
+pub use pop_common::{
+	git::GitHub,
+	sourcing::{
+		binary::{target, Binary},
+		errors::Error,
 		sourcing::{
-			self,
 			traits::{Source as _, *},
 			GitHub::*,
 			Source,
 		},
-		target,
 	},
-	Binary, Error,
 };
-use pop_common::GitHub;
 use std::path::Path;
 use strum::{EnumProperty as _, VariantArray as _};
 use strum_macros::{AsRefStr, EnumProperty, VariantArray};
@@ -85,7 +84,7 @@ impl Runtime {
 	}
 }
 
-impl sourcing::traits::Source for Runtime {}
+impl pop_common::sourcing::sourcing::traits::Source for Runtime {}
 
 pub(super) async fn chain_spec_generator(
 	chain: &str,

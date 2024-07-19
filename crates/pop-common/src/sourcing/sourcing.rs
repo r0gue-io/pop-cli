@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{Error, Status, APP_USER_AGENT};
+use crate::{
+	sourcing::{binary::Status, errors::Error},
+	Git, APP_USER_AGENT,
+};
 use duct::cmd;
 use flate2::read::GzDecoder;
-use pop_common::Git;
 use reqwest::StatusCode;
 use std::time::Duration;
 use std::{
@@ -805,13 +807,12 @@ pub(super) mod tests {
 	}
 }
 
-pub(crate) mod traits {
-	use crate::Error;
-	use pop_common::GitHub;
+pub mod traits {
+	use crate::{sourcing::errors::Error, GitHub};
 	use strum::EnumProperty;
 
 	/// The source of a binary.
-	pub(crate) trait Source: EnumProperty {
+	pub trait Source: EnumProperty {
 		/// The name of the binary.
 		fn binary(&self) -> &'static str {
 			self.get_str("Binary").expect("expected specification of `Binary` name")
@@ -830,6 +831,7 @@ pub(crate) mod traits {
 		}
 
 		/// Determine the available releases from the source.
+		#[allow(async_fn_in_trait)]
 		async fn releases(&self) -> Result<Vec<String>, Error> {
 			let repo = GitHub::parse(self.repository())?;
 			let releases = match repo.releases().await {
@@ -868,7 +870,7 @@ pub(crate) mod traits {
 	}
 
 	/// An attempted conversion into a Source.
-	pub(crate) trait TryInto {
+	pub trait TryInto {
 		/// Attempt the conversion.
 		///
 		/// # Arguments
