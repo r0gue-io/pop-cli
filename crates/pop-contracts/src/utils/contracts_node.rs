@@ -2,8 +2,7 @@ use crate::errors::Error;
 use contract_extrinsics::{RawParams, RpcRequest};
 use duct::cmd;
 use pop_common::sourcing::{
-	binary::Binary,
-	sourcing::{GitHub as GitHubSource, Source},
+	Binary, {GitHub as GitHubSource, Source},
 };
 use std::{
 	env::consts::OS,

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use pop_common::sourcing::errors::Error as SourcingError;
+use pop_common::sourcing::Error as SourcingError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]

@@ -3,13 +3,11 @@
 pub use pop_common::{
 	git::GitHub,
 	sourcing::{
-		binary::{target, Binary},
-		errors::Error,
-		sourcing::{
-			traits::{Source as _, *},
-			GitHub::*,
-			Source,
-		},
+		target,
+		traits::{Source as _, *},
+		Binary, Error,
+		GitHub::*,
+		Source,
 	},
 };
 use std::path::Path;
@@ -84,7 +82,7 @@ impl Runtime {
 	}
 }
 
-impl pop_common::sourcing::sourcing::traits::Source for Runtime {}
+impl pop_common::sourcing::traits::Source for Runtime {}
 
 pub(super) async fn chain_spec_generator(
 	chain: &str,

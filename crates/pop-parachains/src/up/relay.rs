@@ -4,13 +4,11 @@ use super::chain_specs::chain_spec_generator;
 pub use pop_common::{
 	git::GitHub,
 	sourcing::{
-		binary::{target, Binary},
-		errors::Error,
-		sourcing::{
-			traits::{Source as _, *},
-			GitHub::*,
-			Source,
-		},
+		target,
+		traits::{Source as _, *},
+		Binary, Error,
+		GitHub::*,
+		Source,
 	},
 };
 use std::{iter::once, path::Path};
@@ -65,7 +63,7 @@ impl RelayChain {
 	}
 }
 
-impl pop_common::sourcing::sourcing::traits::Source for RelayChain {}
+impl pop_common::sourcing::traits::Source for RelayChain {}
 
 /// Initialises the configuration required to launch the relay chain.
 ///

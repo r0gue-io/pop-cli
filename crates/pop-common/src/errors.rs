@@ -18,7 +18,7 @@ pub enum Error {
 	#[error("ParseError error: {0}")]
 	ParseError(#[from] url::ParseError),
 	#[error("SourceError error: {0}")]
-	SourceError(#[from] sourcing::errors::Error),
+	SourceError(#[from] sourcing::Error),
 	#[error("TemplateError error: {0}")]
 	TemplateError(#[from] templates::Error),
 }

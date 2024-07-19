@@ -32,7 +32,7 @@ pub enum Error {
 	#[error("Failed to execute rustfmt")]
 	RustfmtError(std::io::Error),
 	#[error("Template error: {0}")]
-	SourcingError(#[from] pop_common::sourcing::errors::Error),
+	SourcingError(#[from] pop_common::sourcing::Error),
 	#[error("Toml error: {0}")]
 	TomlError(#[from] toml_edit::de::Error),
 	#[error("Unsupported command: {0}")]

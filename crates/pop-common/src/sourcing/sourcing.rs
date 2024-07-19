@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{
-	sourcing::{binary::Status, errors::Error},
+	sourcing::{Error, Status},
 	Git, APP_USER_AGENT,
 };
 use duct::cmd;
@@ -808,7 +808,7 @@ pub(super) mod tests {
 }
 
 pub mod traits {
-	use crate::{sourcing::errors::Error, GitHub};
+	use crate::{sourcing::Error, GitHub};
 	use strum::EnumProperty;
 
 	/// The source of a binary.

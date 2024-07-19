@@ -5,10 +5,7 @@ use glob::glob;
 use indexmap::IndexMap;
 pub use pop_common::{
 	git::GitHub,
-	sourcing::{
-		binary::{Binary, Repository},
-		sourcing::{GitHub::*, Source, Source::*},
-	},
+	sourcing::{Binary, GitHub::*, Repository, Source, Source::*},
 };
 use std::{
 	fmt::Debug,
@@ -653,7 +650,7 @@ mod tests {
 
 	mod zombienet {
 		use super::*;
-		use pop_common::sourcing::binary::Status;
+		use pop_common::sourcing::Status;
 
 		pub(crate) struct Output;
 		impl Status for Output {
@@ -1817,7 +1814,7 @@ node_spawn_timeout = 300
 
 	mod parachain {
 		use super::*;
-		use pop_common::sourcing::sourcing::GitHub::SourceCodeArchive;
+		use pop_common::sourcing::GitHub::SourceCodeArchive;
 		use std::path::PathBuf;
 
 		#[test]

@@ -3,13 +3,11 @@
 use super::{chain_specs::chain_spec_generator, Binary};
 use pop_common::{
 	sourcing::{
-		binary::target,
-		errors::Error,
-		sourcing::{
-			traits::{Source as _, *},
-			GitHub::ReleaseArchive,
-			Source,
-		},
+		target,
+		traits::{Source as _, *},
+		Error,
+		GitHub::ReleaseArchive,
+		Source,
 	},
 	GitHub,
 };
@@ -63,7 +61,7 @@ impl TryInto for Parachain {
 	}
 }
 
-impl pop_common::sourcing::sourcing::traits::Source for Parachain {}
+impl pop_common::sourcing::traits::Source for Parachain {}
 
 /// Initialises the configuration required to launch a system parachain.
 ///

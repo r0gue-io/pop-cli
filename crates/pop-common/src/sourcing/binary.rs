@@ -1,9 +1,6 @@
 use crate::sourcing::{
-	errors::Error,
-	sourcing::{
-		from_local_package, GitHub::ReleaseArchive, GitHub::SourceCodeArchive, Source,
-		Source::Archive, Source::Git, Source::GitHub,
-	},
+	errors::Error, from_local_package, GitHub::ReleaseArchive, GitHub::SourceCodeArchive, Source,
+	Source::Archive, Source::Git, Source::GitHub,
 };
 use std::path::{Path, PathBuf};
 use url::Url;
@@ -262,7 +259,7 @@ mod tests {
 
 	mod binary {
 		use super::*;
-		use crate::sourcing::sourcing::tests::Output;
+		use crate::sourcing::tests::Output;
 		use duct::cmd;
 		use std::fs::create_dir_all;
 
