@@ -1,5 +1,6 @@
 use crate::errors::Error;
 use contract_extrinsics::{RawParams, RpcRequest};
+use duct::cmd;
 use pop_parachains::{Binary, GitHubSource, Source};
 use std::{
 	env::consts::OS,
@@ -30,6 +31,23 @@ pub async fn is_chain_alive(url: url::Url) -> Result<bool, Error> {
 			}
 		},
 		Err(_) => Ok(false),
+	}
+}
+
+/// Checks if the `substrate-contracts-node` binary exists
+/// or if the binary exists in pop's cache.
+/// returns:
+/// - Some("") if the standalone binary exists
+/// - Some(binary_cache_location) if the binary exists in pop's cache
+/// - None if the binary does not exist
+pub fn does_contracts_node_exist(cache: PathBuf) -> Option<PathBuf> {
+	let cached_location = cache.join(BIN_NAME);
+	if cmd(BIN_NAME, vec!["--version"]).run().map_or(false, |_| true) {
+		Some(PathBuf::new())
+	} else if cached_location.exists() {
+		Some(cached_location)
+	} else {
+		None
 	}
 }
 

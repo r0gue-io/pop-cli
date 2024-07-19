@@ -2,7 +2,7 @@
 
 use crate::errors::Error;
 use duct::cmd;
-use std::{env, path::Path, path::PathBuf};
+use std::{env, path::Path};
 
 /// Run unit tests of a smart contract.
 ///
@@ -17,8 +17,6 @@ pub fn test_smart_contract(path: Option<&Path>) -> Result<(), Error> {
 		.map_err(|e| Error::TestCommand(format!("Cargo test command failed: {}", e)))?;
 	Ok(())
 }
-
-const BIN_NAME: &str = "substrate-contracts-node";
 
 /// Run e2e tests of a smart contract.
 ///
@@ -37,23 +35,6 @@ pub fn test_e2e_smart_contract(path: Option<&Path>, node: Option<&Path>) -> Resu
 		.run()
 		.map_err(|e| Error::TestCommand(format!("Cargo test command failed: {}", e)))?;
 	Ok(())
-}
-
-/// Checks if the `substrate-contracts-node` binary exists
-/// or if the binary exists in pop's cache.
-/// returns:
-/// - Some("") if the standalone binary exists
-/// - Some(binary_cache_location) if the binary exists in pop's cache
-/// - None if the binary does not exist
-pub fn does_contracts_node_exist(cache: PathBuf) -> Option<PathBuf> {
-	let cached_location = cache.join(BIN_NAME);
-	if cmd(BIN_NAME, vec!["--version"]).run().map_or(false, |_| true) {
-		Some(PathBuf::new())
-	} else if cached_location.exists() {
-		Some(cached_location)
-	} else {
-		None
-	}
 }
 
 #[cfg(test)]
