@@ -3,8 +3,9 @@
 use crate::errors::Error;
 use glob::glob;
 use indexmap::IndexMap;
-use pop_common::git::GitHub;
-use sourcing::{GitHub::*, Source, Source::*};
+pub use pop_common::git::GitHub;
+use sourcing::GitHub::*;
+pub use sourcing::{GitHub as GitHubSource, Source, Source::*};
 use std::{
 	fmt::Debug,
 	fs::write,
@@ -14,7 +15,7 @@ use std::{
 use symlink::{remove_symlink_file, symlink_file};
 use tempfile::{Builder, NamedTempFile};
 use toml_edit::{value, ArrayOfTables, DocumentMut, Formatted, Item, Table, Value};
-use url::Url;
+pub use url::Url;
 use zombienet_sdk::{Network, NetworkConfig, NetworkConfigExt};
 use zombienet_support::fs::local::LocalFileSystem;
 
