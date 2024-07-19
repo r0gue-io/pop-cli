@@ -4530,6 +4530,7 @@ dependencies = [
  "ink_env",
  "mockito",
  "pop-common",
+ "pop-parachains",
  "reqwest 0.12.5",
  "sp-core",
  "sp-weights",

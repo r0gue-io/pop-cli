@@ -18,7 +18,7 @@ use url::Url;
 
 /// The source of a binary.
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) enum Source {
+pub enum Source {
 	/// An archive for download.
 	#[allow(dead_code)]
 	Archive {
@@ -103,7 +103,7 @@ impl Source {
 
 /// A binary sourced from GitHub.
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) enum GitHub {
+pub enum GitHub {
 	/// An archive for download from a GitHub release.
 	ReleaseArchive {
 		/// The owner of the repository - i.e. https://github.com/{owner}/repository.
