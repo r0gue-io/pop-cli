@@ -33,15 +33,9 @@ pub async fn is_chain_alive(url: url::Url) -> Result<bool, Error> {
 	}
 }
 
-/// Runs the latest version of the `substrate-contracts-node` in the background.
-///
-/// # Arguments
-///
-/// * `cache` - The path where the binary will be stored.
-/// * `output` - The optional log file for node output.
-///
-pub async fn run_contracts_node(cache: PathBuf, output: Option<&File>) -> Result<Child, Error> {
+pub async fn download_contracts_node(cache: PathBuf) -> Result<Binary, Error> {
 	let archive = archive_name_by_target()?;
+	let archive_bin_path = release_folder_by_target()?;
 
 	let source = Source::GitHub(GitHubSource::ReleaseArchive {
 		owner: "paritytech".into(),
@@ -49,7 +43,7 @@ pub async fn run_contracts_node(cache: PathBuf, output: Option<&File>) -> Result
 		tag: None,
 		tag_format: None,
 		archive,
-		contents: vec![(BIN_NAME, None)],
+		contents: vec![(archive_bin_path, Some(BIN_NAME.to_string()))],
 		latest: None,
 	});
 
@@ -58,10 +52,22 @@ pub async fn run_contracts_node(cache: PathBuf, output: Option<&File>) -> Result
 
 	// source the substrate-contracts-node binary
 	contracts_node
-		.source(false, &(), false)
+		.source(false, &(), true)
 		.await
 		.map_err(|err| Error::SourcingError(err))?;
 
+	Ok(contracts_node)
+}
+
+/// Runs the latest version of the `substrate-contracts-node` in the background.
+///
+/// # Arguments
+///
+/// * `cache` - The path where the binary will be stored.
+/// * `output` - The optional log file for node output.
+///
+pub async fn run_contracts_node(cache: PathBuf, output: Option<&File>) -> Result<Child, Error> {
+	let contracts_node = download_contracts_node(cache).await?;
 	let mut command = Command::new(contracts_node.path().join(contracts_node.name()));
 
 	if let Some(output) = output {
@@ -80,6 +86,14 @@ fn archive_name_by_target() -> Result<String, Error> {
 	match OS {
 		"macos" => Ok(format!("{}-mac-universal.tar.gz", BIN_NAME)),
 		"linux" => Ok(format!("{}-linux.tar.gz", BIN_NAME)),
+		_ => Err(Error::UnsupportedPlatform { os: OS }),
+	}
+}
+
+fn release_folder_by_target() -> Result<&'static str, Error> {
+	match OS {
+		"macos" => Ok("artifacts/substrate-contracts-node-mac/substrate-contracts-node"),
+		"linux" => Ok("artifacts/substrate-contracts-node-linux"),
 		_ => Err(Error::UnsupportedPlatform { os: OS }),
 	}
 }

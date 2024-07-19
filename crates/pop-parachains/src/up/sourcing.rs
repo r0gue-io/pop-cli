@@ -225,6 +225,7 @@ async fn from_archive(
 ) -> Result<(), Error> {
 	// Download archive
 	status.update(&format!("Downloading from {url}..."));
+	println!("{:?}", url);
 	let response = reqwest::get(url).await?.error_for_status()?;
 	let mut file = tempfile()?;
 	file.write_all(&response.bytes().await?)?;
@@ -239,6 +240,7 @@ async fn from_archive(
 	for (name, dest) in contents {
 		let src = working_dir.join(name);
 		if src.exists() {
+			println!("HERE {:?} dest {:?}", src, dest);
 			if let Err(_e) = rename(&src, dest) {
 				// If rename fails (e.g., due to cross-device linking), fallback to copy and remove
 				std::fs::copy(&src, dest)?;
