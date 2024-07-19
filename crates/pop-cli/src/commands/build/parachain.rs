@@ -3,16 +3,10 @@
 use crate::{cli, style::style};
 use clap::Args;
 use pop_common::Profile;
-use pop_parachains::{
-	build_parachain, export_wasm_file, generate_genesis_state_file, generate_plain_chain_spec,
-	generate_raw_chain_spec,
-};
+use pop_parachains::build_parachain;
 use std::path::PathBuf;
 #[cfg(not(test))]
 use std::{thread::sleep, time::Duration};
-
-const PLAIN_CHAIN_SPEC_FILE_NAME: &str = "plain-parachain-chainspec.json";
-const RAW_CHAIN_SPEC_FILE_NAME: &str = "raw-parachain-chainspec.json";
 
 #[derive(Args)]
 pub struct BuildParachainCommand {
@@ -67,37 +61,7 @@ impl BuildParachainCommand {
 		let binary = build_parachain(&project_path, self.package, &mode, None)?;
 		cli.info(format!("The {project} was built in {mode} mode."))?;
 		cli.outro("Build completed successfully!")?;
-		let mut generated_files = vec![format!("Binary generated at: {}", binary.display())];
-
-		// If `para_id` is provided, generate the chain spec
-		if let Some(para_id) = self.id {
-			let plain_chain_spec = project_path.join(PLAIN_CHAIN_SPEC_FILE_NAME);
-			generate_plain_chain_spec(&binary, &plain_chain_spec, para_id)?;
-			generated_files.push(format!(
-				"Plain text chain specification file generated at: {}",
-				plain_chain_spec.display()
-			));
-			let raw_chain_spec =
-				generate_raw_chain_spec(&binary, &plain_chain_spec, RAW_CHAIN_SPEC_FILE_NAME)?;
-			generated_files.push(format!(
-				"New raw chain specification file generated at: {}",
-				raw_chain_spec.display()
-			));
-			let wasm_file_name = format!("para-{}-wasm.wasm", para_id);
-			let wasm_file = export_wasm_file(&binary, &raw_chain_spec, &wasm_file_name)?;
-			generated_files.push(format!(
-				"WebAssembly runtime file exported at: {}",
-				wasm_file.display().to_string()
-			));
-			let genesis_file_name = format!("para-{}-genesis-state", para_id);
-			let genesis_state_file =
-				generate_genesis_state_file(&binary, &raw_chain_spec, &genesis_file_name)?;
-			generated_files.push(format!(
-				"Genesis State exported at {} file",
-				genesis_state_file.display().to_string()
-			));
-			console::Term::stderr().clear_last_lines(5)?;
-		}
+		let generated_files = vec![format!("Binary generated at: {}", binary.display())];
 		let generated_files: Vec<_> = generated_files
 			.iter()
 			.map(|s| style(format!("{} {s}", console::Emoji("●", ">"))).dim().to_string())

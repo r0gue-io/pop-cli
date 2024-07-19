@@ -72,15 +72,19 @@ fn binary_path(target_path: &Path, node_path: &Path) -> Result<PathBuf, Error> {
 /// * `binary_path` - The path to the node binary executable that contains the `build-spec` command.
 /// * `plain_chain_spec` - Location of the plain_parachain_spec file to be generated.
 /// * `para_id` - The parachain ID to be replaced in the specification.
+/// * `default_bootnode` - Whether to include localhost as a bootnode.
 pub fn generate_plain_chain_spec(
 	binary_path: &Path,
 	plain_chain_spec: &Path,
 	para_id: u32,
+	default_bootnode: bool,
 ) -> Result<(), Error> {
 	check_command_exists(&binary_path, "build-spec")?;
-	cmd(binary_path, vec!["build-spec", "--disable-default-bootnode"])
-		.stdout_path(plain_chain_spec)
-		.run()?;
+	let mut args = vec!["build-spec"];
+	if default_bootnode {
+		args.push("--disable-default-bootnode");
+	}
+	cmd(binary_path, args).stdout_path(plain_chain_spec).run()?;
 	let generated_para_id = get_parachain_id(plain_chain_spec)?.unwrap_or(para_id.into()) as u32;
 	replace_para_id(plain_chain_spec.to_path_buf(), para_id, generated_para_id)?;
 	Ok(())
@@ -193,6 +197,36 @@ fn replace_para_id(chain_spec: PathBuf, para_id: u32, generated_para_id: u32) ->
 	let new_parachain_id = format!("\"parachainId\": {para_id}");
 	replacements_in_cargo.insert(&old_parachain_id, &new_parachain_id);
 	replace_in_file(chain_spec, replacements_in_cargo)?;
+	Ok(())
+}
+
+/// Replaces the generated relay spec name with the given one in an existing chain spec.
+pub fn replace_relay_spec(
+	chain_spec: &PathBuf,
+	relay_name: &str,
+	generated_relay_name: &str,
+) -> Result<()> {
+	let mut replacements: HashMap<&str, &str> = HashMap::new();
+	let old_relay_name = format!("\"relay_chain\": \"{generated_relay_name}\"");
+	let new_relay_name = format!("\"relay_chain\": \"{relay_name}\"");
+	replacements.insert(&old_relay_name, &new_relay_name);
+	let chain_spec_path = PathBuf::from(chain_spec);
+	replace_in_file(chain_spec_path, replacements)?;
+	Ok(())
+}
+
+/// Replaces the generated chain type with the given one in an existing chain spec.
+pub fn replace_chain_type(
+	chain_spec: &PathBuf,
+	chain_type: &str,
+	generated_chain_type: &str,
+) -> Result<()> {
+	let mut replacements: HashMap<&str, &str> = HashMap::new();
+	let old_chain_type = format!("\"chainType\": \"{generated_chain_type}\"");
+	let new_chain_type = format!("\"chainType\": \"{chain_type}\"");
+	replacements.insert(&old_chain_type, &new_chain_type);
+	let chain_spec_path = PathBuf::from(chain_spec);
+	replace_in_file(chain_spec_path, replacements)?;
 	Ok(())
 }
 
