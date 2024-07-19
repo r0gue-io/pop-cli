@@ -33,6 +33,8 @@ pub async fn is_chain_alive(url: url::Url) -> Result<bool, Error> {
 	}
 }
 
+/// Downloads the latest version of the `substrate-contracts-node` binary
+/// into the specified cache location.
 pub async fn download_contracts_node(cache: PathBuf) -> Result<Binary, Error> {
 	let archive = archive_name_by_target()?;
 	let archive_bin_path = release_folder_by_target()?;
@@ -93,7 +95,7 @@ fn archive_name_by_target() -> Result<String, Error> {
 fn release_folder_by_target() -> Result<&'static str, Error> {
 	match OS {
 		"macos" => Ok("artifacts/substrate-contracts-node-mac/substrate-contracts-node"),
-		"linux" => Ok("artifacts/substrate-contracts-node-linux"),
+		"linux" => Ok("artifacts/substrate-contracts-node-linux/substrate-contracts-node"),
 		_ => Err(Error::UnsupportedPlatform { os: OS }),
 	}
 }
