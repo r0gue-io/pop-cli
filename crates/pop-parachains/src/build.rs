@@ -394,6 +394,7 @@ default_command = "pop-node"
 			&binary_path,
 			&temp_dir.path().join("plain-parachain-chainspec.json"),
 			2001,
+			true,
 		)?;
 		assert!(plain_chain_spec.exists());
 		let raw_chain_spec = generate_raw_chain_spec(
