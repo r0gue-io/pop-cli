@@ -1,11 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::style::Theme;
+use crate::{cli::{
+	traits::Cli as _,
+	Cli,
+}, utils::helpers::collect_loop_cliclack_inputs};
+
+use crate::unit_enum_named_selector;
 use clap::Args;
-use cliclack::{clear_screen, confirm, intro, outro, outro_cancel, set_theme};
-use console::style;
-use pop_parachains::{create_pallet_template, resolve_pallet_path, TemplatePalletConfig};
+use cliclack::{outro, outro_cancel, confirm};
+use pop_parachains::{
+	create_pallet_template, resolve_pallet_path, TemplatePalletConfig, TemplatePalletConfigTypesMetadata, TemplatePalletStorageTypes
+};
 use std::fs;
+use cliclack::{input, select};
+use strum::{EnumMessage, IntoEnumIterator};
 
 #[derive(Args)]
 pub struct NewPalletCommand {
@@ -22,13 +30,38 @@ pub struct NewPalletCommand {
 impl NewPalletCommand {
 	/// Executes the command.
 	pub(crate) async fn execute(self) -> anyhow::Result<()> {
-		clear_screen()?;
-		intro(format!(
-			"{}: Generating new pallet \"{}\"!",
-			style(" Pop CLI ").black().on_magenta(),
-			&self.name,
-		))?;
-		set_theme(Theme);
+		Cli.intro("Let's create a new pallet!")?;
+
+		Cli.info("First, we're defining the pallet's config trait.")?;
+
+		let pallet_emit_events = confirm("Is your pallet emitting events? (This will add the RuntimeEvent type to your config trait)").initial_value(true).interact()?;
+
+		Cli.info("Time to specify the types shaping your config trait. Keep adding them until you're done!")?;
+
+		let mut pallet_config_types = Vec::new();
+
+        unit_enum_named_selector!(TemplatePalletConfigTypesMetadata, pallet_config_types, "Should the next type be included into the metadata?");
+
+		Cli.info("Now, let's work on your pallet's storage.")?;
+
+        let mut pallet_storage = Vec::new();
+        unit_enum_named_selector!(TemplatePalletStorageTypes, pallet_storage, "Select a storage type to create an instance of it:");
+
+        let mut pallet_events = Vec::new();
+        if pallet_emit_events{
+            Cli.info("Let's add some events now.")?;
+            pallet_events = collect_loop_cliclack_inputs("Give a name to your event in order to add it to the template!");
+        }
+
+        Cli.info("And some errors.")?;
+        let pallet_errors = collect_loop_cliclack_inputs("Give a name to your error in order to add it to the template!")
+
+        let pallet_default_config = confirm("Would you like to add a derivable default config for your pallet's config trait?").initial_value(true).interact()?;
+
+        let pallet_genesis = confirm("Would you like to add a genesis state for your pallet?").initial_value(true).interact()?;
+
+        let helper_functions = confirm("Would you like to add some helper functions? This is code you may find useful when you develop your pallet's logic").initial_value(true).interact()?;
+
 		let target = resolve_pallet_path(self.path.clone())?;
 		let pallet_name = self.name.clone();
 		let pallet_path = target.join(pallet_name.clone());
@@ -55,11 +88,19 @@ impl NewPalletCommand {
 				name: self.name.clone(),
 				authors: self.authors.clone().expect("default values"),
 				description: self.description.clone().expect("default values"),
+				pallet_emit_events,
+				pallet_config_types,
+                pallet_storage,
+                pallet_events,
+                pallet_errors,
+                pallet_default_config,
+                pallet_genesis, 
+                helper_functions
 			},
 		)?;
 
 		spinner.stop("Generation complete");
-		outro(format!("cd into \"{}\" and enjoy hacking! 🚀", &self.name))?;
+		outro(format!("cd into \"{}\" and enjoy hacking! 🚀 Don't forget to complete the todo's! 🙈", &self.name))?;
 		Ok(())
 	}
 }
