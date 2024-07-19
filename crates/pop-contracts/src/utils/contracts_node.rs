@@ -68,7 +68,7 @@ pub async fn download_contracts_node(cache: PathBuf) -> Result<Binary, Error> {
 ///
 pub async fn run_contracts_node(cache: PathBuf, output: Option<&File>) -> Result<Child, Error> {
 	let contracts_node = download_contracts_node(cache).await?;
-	let mut command = Command::new(contracts_node.path().join(contracts_node.name()));
+	let mut command = Command::new(contracts_node.path());
 
 	if let Some(output) = output {
 		command.stdout(Stdio::from(output.try_clone()?));

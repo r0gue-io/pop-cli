@@ -58,14 +58,15 @@ impl TestContractCommand {
 				} else {
 					let spinner = spinner();
 					spinner.start("Sourcing substrate-contracts-node...");
+
 					let cache_path = crate::cache()?;
 					let binary = download_contracts_node(cache_path.clone()).await?;
-					let binary_path = binary.path().join(binary.name());
+
 					spinner.stop(format!(
 						"substrate-contracts-node successfully sourced. Cached at: {}",
-						binary_path.to_str().unwrap()
+						binary.path().to_str().unwrap()
 					));
-					self.node = Some(binary_path);
+					self.node = Some(binary.path());
 				}
 			} else {
 				if let Some(node_path) = maybe_contract_node_path {

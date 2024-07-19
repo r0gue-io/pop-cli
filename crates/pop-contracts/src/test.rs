@@ -1,19 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{download_contracts_node, errors::Error};
+use crate::errors::Error;
 use duct::cmd;
-use flate2::read::GzDecoder;
-use pop_common::GitHub;
-use std::{
-	env,
-	env::consts::OS,
-	fs::{self},
-	io::{Seek, SeekFrom, Write},
-	path::Path,
-	path::PathBuf,
-};
-use tar::Archive;
-use tempfile::tempfile;
+use std::{env, path::Path, path::PathBuf};
 
 /// Run unit tests of a smart contract.
 ///
@@ -29,9 +18,7 @@ pub fn test_smart_contract(path: Option<&Path>) -> Result<(), Error> {
 	Ok(())
 }
 
-const SUBSTRATE_CONTRACT_NODE: &str = "https://github.com/paritytech/substrate-contracts-node";
 const BIN_NAME: &str = "substrate-contracts-node";
-const STABLE_VERSION: &str = "v0.41.0";
 
 /// Run e2e tests of a smart contract.
 ///
@@ -60,7 +47,6 @@ pub fn test_e2e_smart_contract(path: Option<&Path>, node: Option<&Path>) -> Resu
 /// - None if the binary does not exist
 pub fn does_contracts_node_exist(cache: PathBuf) -> Option<PathBuf> {
 	let cached_location = cache.join(BIN_NAME);
-	println!("{:?}", cached_location);
 	if cmd(BIN_NAME, vec!["--version"]).run().map_or(false, |_| true) {
 		Some(PathBuf::new())
 	} else if cached_location.exists() {
@@ -69,33 +55,6 @@ pub fn does_contracts_node_exist(cache: PathBuf) -> Option<PathBuf> {
 		None
 	}
 }
-
-// /// Downloads the latest contracts node binary
-// pub async fn download_contracts_node(cache: PathBuf) -> Result<PathBuf, Error> {
-// 	let cached_file = cache.join(BIN_NAME);
-// 	if !cached_file.exists() {
-// 		let archive = archive_name_by_target()?;
-
-// 		let latest_version = latest_contract_node_release().await?;
-// 		let releases_url =
-// 			format!("{SUBSTRATE_CONTRACT_NODE}/releases/download/{latest_version}/{archive}");
-// 		// Download archive
-// 		let response = reqwest::get(releases_url.as_str()).await?.error_for_status()?;
-// 		let mut file = tempfile()?;
-// 		file.write_all(&response.bytes().await?)?;
-// 		file.seek(SeekFrom::Start(0))?;
-// 		// Extract contents
-// 		let tar = GzDecoder::new(file);
-// 		let mut archive = Archive::new(tar);
-// 		archive.unpack(cache.clone())?;
-// 		// Copy the file into the cache folder and remove the folder artifacts
-// 		let extracted_dir = cache.join(release_folder_by_target()?);
-// 		fs::copy(&extracted_dir.join(BIN_NAME), &cached_file)?;
-// 		fs::remove_dir_all(&extracted_dir.parent().unwrap_or(&cache.join("artifacts")))?;
-// 	}
-
-// 	Ok(cached_file)
-// }
 
 #[cfg(test)]
 mod tests {
