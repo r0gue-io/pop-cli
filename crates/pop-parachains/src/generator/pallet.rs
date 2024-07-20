@@ -17,7 +17,9 @@ pub(crate) struct PalletCargoToml {
 pub(crate) struct PalletBenchmarking {}
 #[derive(Template)]
 #[template(path = "pallet/src/lib.rs.templ", escape = "none")]
-pub(crate) struct PalletLib {}
+pub(crate) struct PalletLib {
+    pub(crate) pallet_emit_events: bool
+}
 #[derive(Template)]
 #[template(path = "pallet/src/mock.rs.templ", escape = "none")]
 pub(crate) struct PalletMock {

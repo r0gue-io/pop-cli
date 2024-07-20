@@ -5,7 +5,7 @@ use crate::{cli::{
 	Cli,
 }, utils::helpers::collect_loop_cliclack_inputs};
 
-use crate::unit_enum_named_selector;
+use crate::pick_options_and_give_name;
 use clap::Args;
 use cliclack::{outro, outro_cancel, confirm};
 use pop_parachains::{
@@ -40,27 +40,25 @@ impl NewPalletCommand {
 
 		let mut pallet_config_types = Vec::new();
 
-        unit_enum_named_selector!(TemplatePalletConfigTypesMetadata, pallet_config_types, "Should the next type be included into the metadata?");
+        pick_options_and_give_name!(pallet_config_types, (TemplatePalletConfigTypesMetadata ,"Should the next type be included into the metadata?"));
 
 		Cli.info("Now, let's work on your pallet's storage.")?;
 
         let mut pallet_storage = Vec::new();
-        unit_enum_named_selector!(TemplatePalletStorageTypes, pallet_storage, "Select a storage type to create an instance of it:");
+        pick_options_and_give_name!(pallet_storage, (TemplatePalletStorageTypes,"Select a storage type to create an instance of it:"));
 
         let mut pallet_events = Vec::new();
         if pallet_emit_events{
             Cli.info("Let's add some events now.")?;
-            pallet_events = collect_loop_cliclack_inputs("Give a name to your event in order to add it to the template!");
+            pallet_events = collect_loop_cliclack_inputs("Give a name to your event in order to add it to the template!")?;
         }
 
-        Cli.info("And some errors.")?;
-        let pallet_errors = collect_loop_cliclack_inputs("Give a name to your error in order to add it to the template!")
+        Cli.info(if pallet_emit_events {"And some errors."} else {"Let's add some errors now."})?;
+        let pallet_errors = collect_loop_cliclack_inputs("Give a name to your error in order to add it to the template!")?;
 
         let pallet_default_config = confirm("Would you like to add a derivable default config for your pallet's config trait?").initial_value(true).interact()?;
 
         let pallet_genesis = confirm("Would you like to add a genesis state for your pallet?").initial_value(true).interact()?;
-
-        let helper_functions = confirm("Would you like to add some helper functions? This is code you may find useful when you develop your pallet's logic").initial_value(true).interact()?;
 
 		let target = resolve_pallet_path(self.path.clone())?;
 		let pallet_name = self.name.clone();
@@ -94,8 +92,7 @@ impl NewPalletCommand {
                 pallet_events,
                 pallet_errors,
                 pallet_default_config,
-                pallet_genesis, 
-                helper_functions
+                pallet_genesis
 			},
 		)?;
 

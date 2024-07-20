@@ -1,22 +1,24 @@
 use cliclack::input;
 
-/// A macro to facilitate the selection of an option among some pre-selected ones (represented as variants from a fieldless enum) and the naming of that selection. This process is repetead until the user stops it and then the result is stored in a `Vec` of tuples, containing the options and the given names. This is useful in processes such as designing a pallet's storage to generate a pallet template: we need the user to pick among the different storage types (StorageValue, StorageMap, StorageDoubleMap,...) and give names to those storages.
+/// A macro to facilitate the selection of an options among some pre-selected ones (represented as variants from a fieldless enums) and the naming of that selection. This process is repetead until the user stops it and then the result is stored in a `Vec` of tuples, containing the options and the given names. This is useful in processes such as designing a pallet's storage to generate a pallet template: we need the user to pick among the different storage types (StorageValue, StorageMap, StorageDoubleMap,...) and give names to those storages.
 /// This macro utilizes the `cliclack` crate for the selection
 /// and input prompts, and it requires the `strum` crate for enum iteration and messages.
 ///
 /// # Parameters
 ///
-/// - `$enum`: The enum type to be iterated over for selection. This enum must implement
-///   `IntoEnumIterator` and `EnumMessage` traits from the `strum` crate. Each variant is responsible of its own messages.
-/// - `$vec`: The vector to store the `(enum variant, String)` tuples.
-/// - `$prompt_message`: The message displayed to the user at the very beginning of each iteration. Must implement the `Dispay` trait.
+/// - `$vec`: The vector to store the tuples.
+/// - `$enum`: The enums types to be iterated over for selection. This enums must implement
+///   `IntoEnumIterator` and `EnumMessage` traits from the `strum` crate. Each variant is responsible of its own messages. At least one enum type has to be passed in, but several can be used if for non-conflicting choices may be selected by the user for the same thing
+/// - `$prompt_message`: The messages displayed to the user at the very beginning of each iteration. Must implement the `Dispay` trait. Each enum must have associated a prompt message
 /// # Note
-/// This macro only works with a 1-byte sized enum, this is, a fieldless enum with at most 255 elements. This is because we're just interested in letting the user to pick among a pre-defined set of options and then naming the selection. Instead of using a `Vec` of tuples we may have used enums whose variants contain a `String`, but this is worse for several reasons: 
-/// 1. The size of the enum would take at least 32 bytes, instead of the single byte used here.
-/// 2. This macro will be likely used to determine the option chosen by the user and to write a template according to that selection. To pass that information together with the name to the `rs.templ` file, we would need to parse it before, so using a `Vec` of tuples it's already parsed for us!
+/// This macro only works with a 1-byte sized enums, this is, fieldless enums with at most 255 elements each. This is because we're just interested in letting the user to pick among a pre-defined set of options and then naming that selection, compounding that selection into a tuple. Hence we have a tuple of all the selected items + the given name.
+///
+/// The decision of using fieldless enums leading to a `Vec` of tuples instead of using composite enums and just using a `Vec` of them is based in the following points:
+/// 1. The size of composite enums would be considerably greater than the ones used, which are just 1-byte each!
+/// 2. This macro will be likely used to determine the options chosen by the user and to write a template according to that selection. To pass that information together with the name to the `rs.templ` file, we would need to parse it before, so using a `Vec` of tuples bypass this step :)
 /// 3. Using fieldless enums, identify each variant with bytes is straightforward, so we can play with `u8` all the time and just recover the variant at the end. This allows us to add the option of quitting the loop as a number, instead of adding it to all the enums using this macro.
 ///
-/// The decision of using 1-byte enum instead of fieldless enums is for simplicity: we won't probably offer a user to pick from > 256 options. If this macro is used with enums containing fields, the conversion to `u8` will simply be detected at compile time and the compilation will fail. If this macro is used with fieldless enums greater than 1-byte (really weird but possible), the conversion to u8 may lead to unexpected behavior, so we panic at runtime if that happens for completeness.
+/// The decision of using 1-byte enums instead of just fieldless enums is for simplicity: we won't probably offer a user to pick from > 256 options. If this macro is used with enums containing fields, the conversion to `u8` will simply be detected at compile time and the compilation will fail. If this macro is used with fieldless enums greater than 1-byte (really weird but possible), the conversion to u8 will overflow and lead to unexpected behavior, so we panic at runtime if that happens for completeness.
 ///
 /// # Example
 ///
@@ -35,9 +37,19 @@ use cliclack::input;
 ///     Type3,
 /// }
 ///
+/// #[derive(Debug, EnumIter, EnumMessage, Copy, Clone)]
+/// enum FieldlessEnum2 {
+///     #[strum(message = "Type 4", detailed_message = "Detailed message for Type 4")]
+///     Type4,
+/// }
+///
 /// let mut my_vec = Vec::new();
 ///
-/// enum_named_selector!(FieldlessEnum, my_vec, "Hello world!");
+/// enum_named_selector!(my_vec, (FieldlessEnum, "Hello world!"));
+///
+/// let mut my_vec_2 = Vec::new();
+///
+/// enum_named_selector!(my_vec, (FieldlessEnum, "Hello world!"), (FieldlessEnum2, "I'm a macro!"));
 /// ```
 ///
 /// # Requirements
@@ -51,38 +63,66 @@ use cliclack::input;
 ///
 /// Additionally, this macro handle results, so it must be used inside a function doing so. Otherwise the compilation will fail.
 #[macro_export]
-macro_rules! unit_enum_named_selector{
-    ($enum: ty, $vec: ident, $prompt_message: expr) => {
-        // Ensure the enum is 1-byte long. This is needed cause fieldless enums with >=257 elements will lead to unexpected behavior as the conversion to u8 for them isn't detected as wrong at compile time. Weird but possible
-        assert!(std::mem::size_of::<$enum>() == 1);
-        let enum_len = <$enum>::iter().collect::<Vec<_>>().len();
+macro_rules! pick_options_and_give_name{
+    ($vec: ident, $(($enum: ty, $prompt_message: expr)),+) => {
+        // Ensure the enums are 1-byte long. This is needed cause fieldless enums with >=257 elements will lead to unexpected behavior as the conversion to u8 for them isn't detected as wrong at compile time. Weird but possible
+        $(
+            assert!(std::mem::size_of::<$enum>() == 1);
+        )+
+        let mut enum_lens = Vec::new();
+        $(
+            enum_lens.push(<$enum>::iter().count());
+        )+
         // Ensure that there's at least a free spot for quitting the loop. Weird but possible.
-        assert!(enum_len != 255);
-        // Now it can be happily converted to u8.
-        let enum_len = enum_len as u8;
+        enum_lens.iter().for_each(|len| assert!(*len < 255));
+
+        let mut selected_options = Vec::new();
+
         loop{
-            let mut prompt = select($prompt_message).initial_value(0u8);
-            for variant in <$enum>::iter(){
+            let mut index = 0;
+            $(
+                let mut prompt = select($prompt_message).initial_value(0u8);
+                for variant in <$enum>::iter(){
+                    prompt = prompt.item(
+                        variant as u8,
+                        variant.get_message().unwrap_or_default(),
+                        variant.get_detailed_message().unwrap_or_default(),
+                    );
+                };
+    
                 prompt = prompt.item(
-                    variant as u8,
-                    variant.get_message().unwrap_or_default(),
-                    variant.get_detailed_message().unwrap_or_default(),
+                    // This conversion is safe as we've ensured the lengths are smaller than 255. qed;
+                    enum_lens[index] as u8,
+                    "Quit",
+                    "",
                 );
-            };
 
-            prompt = prompt.item(
-                enum_len,
-                "Quit",
-                "",
-            );
+                let selected_option = prompt.interact()?;
+                if selected_option == enum_lens[index] as u8 { break; }
+                selected_options.push(selected_option);
+                index += 1;
+            )+
 
-            let selected_option = prompt.interact()?;
-            if selected_option == enum_len { break; }
+            // Use index to avoid warnings in compilation
+            let _ = index;
 
             let selected_name = input("").placeholder("Give it a name!").interact()?;
+            index = 0;
             
-            // This is safe because `selected_option` is one among the discriminants of the enum variants, which are just 1-byte. qed;
-            $vec.push((unsafe{std::mem::transmute(selected_option)}, selected_name));
+            $vec.push(
+                ($({
+                    // To expand the code we need at least one of the variables used in the repetition, otherwise the compilation fails.
+                    $prompt_message;
+                    // This is safe because `selected_option` is one among the discriminants of the enum variants, which are just 1-byte. qed;
+                    let variant = unsafe{std::mem::transmute(selected_options[index])};
+                    index += 1;
+                    variant
+                }),+,
+                selected_name)
+            );
+
+            // Use index to avoid warnings in compilation
+            let _ = index;
         }
     }
 }
@@ -91,12 +131,12 @@ macro_rules! unit_enum_named_selector{
 /// # Parameters
 ///
 /// - `prompt_message: &str`: The message shown to the user in each interaction.
-pub fn collect_loop_cliclack_inputs(prompt_message: &str) -> Vec<String>{
+pub fn collect_loop_cliclack_inputs(prompt_message: &str) -> anyhow::Result<Vec<String>>{
     let mut output = Vec::new();
     loop{
-        let input = input(prompt_message).placeholder("If you're done, type 'Quit'").interact()?;
-        if input=="Quit"{break;}
-        output.push(input.to_string());
+        let input: String = input(prompt_message).placeholder("If you're done, type 'quit'").interact()?;
+        if input=="quit"{break;}
+        output.push(input);
     }
-    output
+    Ok(output)
 }

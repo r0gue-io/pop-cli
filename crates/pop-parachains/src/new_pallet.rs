@@ -48,7 +48,6 @@ pub struct TemplatePalletConfig {
     pub pallet_errors: Vec<String>,
     pub pallet_default_config: bool,
     pub pallet_genesis: bool,
-    pub helper_functions: bool
 }
 /// Create a new pallet from a template.
 ///
@@ -98,7 +97,7 @@ fn render_pallet(
 			authors: config.authors,
 			description: config.description,
 		}),
-		Box::new(PalletLib {}),
+		Box::new(PalletLib {pallet_emit_events: config.pallet_emit_events }),
 		Box::new(PalletBenchmarking {}),
 		Box::new(PalletMock { module: pallet_name.clone() }),
 		Box::new(PalletTests { module: pallet_name }),
