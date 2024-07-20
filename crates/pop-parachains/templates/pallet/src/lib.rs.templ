@@ -22,10 +22,8 @@ pub mod pallet {
 	/// Configure the pallet by specifying the parameters and types on which it depends.
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
-        {{ if pallet_emit_events }}
 		/// The aggregated event type of the runtime.
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
-        {{ endif }}
 	}
 
 	#[pallet::pallet]
