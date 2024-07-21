@@ -2,6 +2,7 @@
 
 use crate::{
 	cli::{traits::Cli as _, Cli},
+	common::contracts::check_contracts_node_and_prompt,
 	style::style,
 };
 use clap::Args;
@@ -124,10 +125,28 @@ impl UpContractCommand {
 			// Update url to that of the launched node
 			self.url = Url::parse(DEFAULT_URL).expect("default url is valid");
 
+			let log = NamedTempFile::new()?;
+
+			// default to standalone binary, if it exists.
+			let mut binary_path = PathBuf::from("substrate-contracts-node");
+
+			// uses the cache location
+			let maybe_node_path = check_contracts_node_and_prompt().await?;
+			if let Some(node_path) = maybe_node_path {
+				if node_path != PathBuf::new() {
+					binary_path = node_path;
+				}
+			} else {
+				Cli.outro_cancel(
+					"🚫 You need to specify an accessible endpoint to deploy the contract.",
+				)?;
+				return Ok(());
+			}
+
 			let spinner = spinner();
 			spinner.start("Starting local node...");
-			let log = NamedTempFile::new()?;
-			let process = run_contracts_node(crate::cache()?, Some(log.as_file())).await?;
+
+			let process = run_contracts_node(binary_path, Some(log.as_file())).await?;
 			let bar = Style::new().magenta().dim().apply_to(Emoji("│", "|"));
 			spinner.stop(format!(
 				"Local node started successfully:{}",

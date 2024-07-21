@@ -85,12 +85,14 @@ pub async fn download_contracts_node(cache: PathBuf) -> Result<Binary, Error> {
 ///
 /// # Arguments
 ///
-/// * `cache` - The path where the binary will be stored.
+/// * `binary_path` - The path where the binary is stored. Can be the binary name itself if in PATH.
 /// * `output` - The optional log file for node output.
 ///
-pub async fn run_contracts_node(cache: PathBuf, output: Option<&File>) -> Result<Child, Error> {
-	let contracts_node = download_contracts_node(cache).await?;
-	let mut command = Command::new(contracts_node.path());
+pub async fn run_contracts_node(
+	binary_path: PathBuf,
+	output: Option<&File>,
+) -> Result<Child, Error> {
+	let mut command = Command::new(binary_path);
 
 	if let Some(output) = output {
 		command.stdout(Stdio::from(output.try_clone()?));
