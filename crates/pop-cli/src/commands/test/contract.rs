@@ -17,6 +17,7 @@ pub(crate) struct TestContractCommand {
 	/// [DEPRECATED] Run e2e tests
 	#[arg(short = 'f', long = "features", value_parser=["e2e-tests"])]
 	features: Option<String>,
+	/// Run end-to-end tests
 	#[arg(short = 'e', long = "e2e")]
 	e2e: bool,
 	#[arg(
@@ -48,13 +49,11 @@ impl TestContractCommand {
 			let maybe_contract_node_path = does_contracts_node_exist(crate::cache()?);
 			if maybe_contract_node_path == None {
 				warning("The substrate-contracts-node binary is not found. This is needed to run end-to-end tests.")?;
-				if !confirm(format!(
-					"Would you like to source the substrate-contracts-node binary?",
-				))
-				.initial_value(true)
-				.interact()?
+				if !confirm("Would you like to source the substrate-contracts-node binary?")
+					.initial_value(true)
+					.interact()?
 				{
-					warning("🚫 substrate-contracts-node is necessary to run e2e tests. Will try anyway...")?;
+					warning("🚫 substrate-contracts-node is necessary to run e2e tests. Will try to run tests anyway...")?;
 				} else {
 					let spinner = spinner();
 					spinner.start("Sourcing substrate-contracts-node...");
@@ -71,8 +70,8 @@ impl TestContractCommand {
 			} else {
 				if let Some(node_path) = maybe_contract_node_path {
 					// if the node_path is not empty (cached binary). Otherwise the standalone binary will be used by cargo-contract
-					if node_path != PathBuf::new() {
-						self.node = Some(node_path);
+					if node_path.0 != PathBuf::new() {
+						self.node = Some(node_path.0);
 					}
 				}
 			}

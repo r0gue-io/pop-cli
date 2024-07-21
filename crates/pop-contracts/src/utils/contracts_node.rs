@@ -37,15 +37,17 @@ pub async fn is_chain_alive(url: url::Url) -> Result<bool, Error> {
 /// Checks if the `substrate-contracts-node` binary exists
 /// or if the binary exists in pop's cache.
 /// returns:
-/// - Some("") if the standalone binary exists
-/// - Some(binary_cache_location) if the binary exists in pop's cache
+/// - Some("", <version-output>) if the standalone binary exists
+/// - Some(binary_cache_location, "") if the binary exists in pop's cache
 /// - None if the binary does not exist
-pub fn does_contracts_node_exist(cache: PathBuf) -> Option<PathBuf> {
+pub fn does_contracts_node_exist(cache: PathBuf) -> Option<(PathBuf, String)> {
 	let cached_location = cache.join(BIN_NAME);
-	if cmd(BIN_NAME, vec!["--version"]).run().map_or(false, |_| true) {
-		Some(PathBuf::new())
+	let standalone_output = cmd(BIN_NAME, vec!["--version"]).read();
+
+	if standalone_output.is_ok() {
+		Some((PathBuf::new(), standalone_output.unwrap()))
 	} else if cached_location.exists() {
-		Some(cached_location)
+		Some((cached_location, "".to_string()))
 	} else {
 		None
 	}
