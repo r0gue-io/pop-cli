@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 
-use crate::{utils::helpers::write_to_file, TemplatePalletConfigCommonTypes};
+use crate::{utils::helpers::write_to_file, TemplatePalletConfigCommonTypes, TemplatePalletConfigTypesMetadata, TemplatePalletConfigTypesDefault, TemplatePalletStorageTypes};
 use askama::Template;
 
 #[derive(Template)]
@@ -11,6 +11,7 @@ pub(crate) struct PalletCargoToml {
 	pub(crate) name: String,
 	pub(crate) authors: String,
 	pub(crate) description: String,
+    // Some common types are used to couple our pallet with a well known one, then adding this type here is useful to design Cargo.toml. This pallets should be added as dev-dependencies to construct the mock runtime
     pub(crate) pallet_common_types: Vec<TemplatePalletConfigCommonTypes>
 }
 #[derive(Template)]
@@ -19,7 +20,13 @@ pub(crate) struct PalletBenchmarking {}
 #[derive(Template)]
 #[template(path = "pallet/src/lib.rs.templ", escape = "none")]
 pub(crate) struct PalletLib {
-    // pub(crate) pallet_common_types: Vec<TemplatePalletConfigCommonTypes>
+    pub(crate) name: String,
+    pub(crate) pallet_default_config: bool,
+	pub(crate) pallet_common_types: Vec<TemplatePalletConfigCommonTypes>,
+	pub(crate) pallet_config_types: Vec<(TemplatePalletConfigTypesMetadata, TemplatePalletConfigTypesDefault, String)>,
+	pub(crate) pallet_storage: Vec<(TemplatePalletStorageTypes, String)>,
+    pub(crate) pallet_genesis: bool,
+    pub(crate) pallet_custom_internal_origin_variants: Vec<String>
 }
 #[derive(Template)]
 #[template(path = "pallet/src/mock.rs.templ", escape = "none")]

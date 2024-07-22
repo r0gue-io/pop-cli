@@ -71,10 +71,9 @@ macro_rules! pick_options_and_give_name{
             // Ensure that there's at least a free spot for quitting the loop. Weird but possible.
             enum_lens.iter().for_each(|len| assert!(*len < 255));
 
-            let mut selected_options = Vec::new();
-
             loop{
                 let mut index = 0;
+                let mut selected_options = Vec::new();
                 $(
                     index += 1;
                     let mut prompt = select($prompt_message).initial_value(0u8);

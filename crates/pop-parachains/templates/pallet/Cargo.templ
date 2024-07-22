@@ -25,13 +25,14 @@ sp-runtime = { version = "37.0.0", default-features = false }
 sp-std = { version = "14.0.0", default-features = false }
 
 {{ for common_type in pallet_common_types }}
-{{ match common_type }}
-{{ when Currency}}
+{{- match common_type -}}
+{{- when TemplatePalletConfigCommonTypes::Currency-}}
 [dev-dependencies]
 pallet-balances = { version = "35.0.0" }
-{{ else }}
-{{ endmatch }}
-{{ endfor }}
+
+{{ else -}}
+{{- endmatch -}}
+{{- endfor -}}
 
 [features]
 default = ["std"]

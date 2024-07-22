@@ -34,7 +34,7 @@ pub struct TemplatePalletConfig {
     /// A `bool` indicating if the template should include a genesis config
     pub pallet_genesis: bool,
     /// A `Vec` containing the variants of the pallet's custom internal origin, if one's being used
-    pub pallet_custom_internal_origin: Vec<String>
+    pub pallet_custom_internal_origin_variants: Vec<String>
 }
 /// Create a new pallet from a template.
 ///
@@ -83,9 +83,16 @@ fn render_pallet(
 			name: pallet_name.clone(),
 			authors: config.authors,
 			description: config.description,
-            pallet_common_types: config.pallet_common_types
+            pallet_common_types: config.pallet_common_types.clone()
 		}),
 		Box::new(PalletLib {
+            name: pallet_name.clone(),
+            pallet_default_config: config.pallet_default_config,
+            pallet_common_types: config.pallet_common_types,
+            pallet_config_types: config.pallet_config_types,
+            pallet_storage: config.pallet_storage,
+            pallet_genesis: config.pallet_genesis,
+            pallet_custom_internal_origin_variants: config.pallet_custom_internal_origin_variants
         }),
 		Box::new(PalletBenchmarking {}),
 		Box::new(PalletMock { module: pallet_name.clone() }),

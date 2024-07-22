@@ -42,7 +42,7 @@ impl NewPalletCommand {
 
         let pallet_config_types;
         // Depending on the user's selection, the cli should offer to choose wheter the type is included in the default config or not.
-        if pallet_common_types.contains(&TemplatePalletConfigCommonTypes::RuntimeEvent){
+        if pallet_default_config{
             pallet_config_types = pick_options_and_give_name!(
                 (TemplatePalletConfigTypesMetadata ,"Your adding a new type to your pallet's Config trait! Should it be included into the metadata?"), 
                 (TemplatePalletConfigTypesDefault, "Should it be included in the default configuration?")
@@ -50,24 +50,24 @@ impl NewPalletCommand {
         }
         else{
             pallet_config_types = pick_options_and_give_name!(
-                (TemplatePalletConfigTypesMetadata ,"Your adding a new type to your pallet's Config trait! Should it be included into the metadata?")
+                (TemplatePalletConfigTypesMetadata ,"You're adding a new type to your pallet's Config trait! Should it be included into the metadata?")
             )
                 .into_iter()
-                .map(|(to_metadata, config_type)| (to_metadata, TemplatePalletConfigTypesDefault::Default, config_type))
+                .map(|(to_metadata, config_type)| (to_metadata, TemplatePalletConfigTypesDefault::NoDefault, config_type))
                 .collect::<Vec<(TemplatePalletConfigTypesMetadata, TemplatePalletConfigTypesDefault, String)>>();
         }
 
 		Cli.info("Now, let's work on your pallet's storage.")?;
 
         let pallet_storage = pick_options_and_give_name!(
-            (TemplatePalletStorageTypes,"Select a storage type to create an instance of it:")
+            (TemplatePalletStorageTypes,"You're adding a new storage item to your pallet! Select a storage type to create an instance of it:")
         );
 
         let pallet_genesis = confirm("Would you like to add a genesis state for your pallet?").initial_value(true).interact()?;
 
-        let mut pallet_custom_internal_origin = Vec::new();
+        let mut pallet_custom_internal_origin_variants = Vec::new();
         if pallet_common_types.contains(&TemplatePalletConfigCommonTypes::RuntimeOrigin) && confirm("Would you like to add a custom internal origin? If yes, you'll be asked to add the variants of the Origin enum.").initial_value(true).interact()?{
-            pallet_custom_internal_origin = collect_loop_cliclack_inputs("Add a variant name.")?;
+            pallet_custom_internal_origin_variants = collect_loop_cliclack_inputs("Add a variant name.")?;
         }
 
 		let target = resolve_pallet_path(self.path.clone())?;
@@ -101,7 +101,7 @@ impl NewPalletCommand {
 				pallet_config_types,
                 pallet_storage,
                 pallet_genesis,
-                pallet_custom_internal_origin
+                pallet_custom_internal_origin_variants
 			},
 		)?;
 

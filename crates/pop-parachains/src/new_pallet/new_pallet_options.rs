@@ -5,9 +5,9 @@ use strum_macros::{EnumIter, EnumMessage};
 pub enum TemplatePalletConfigCommonTypes{
     #[strum(message="RuntimeEvent", detailed_message="This type will enable your pallet to emit events.")]
     RuntimeEvent, 
-    #[strum(message="RuntimeOrigin", detailed_message="This type will be helful if your pallet needs custom origins. If you add it, later on you'll be able to add a custom internal origin to the template.")]
+    #[strum(message="RuntimeOrigin", detailed_message="This type will be helful if your pallet needs to deal with the outer RuntimeOrigin enum, or if your pallet needs to use custom origins. If you add it, later on you'll be able to add a custom internal origin to the template.")]
     RuntimeOrigin,
-    #[strum(message="Currency", detailed_message="This type will loosely couple your pallet with the Balance pallet")]
+    #[strum(message="Currency", detailed_message="This type will allow your pallet to interact with the native currency of the blockchain.")]
     Currency
 }
 
