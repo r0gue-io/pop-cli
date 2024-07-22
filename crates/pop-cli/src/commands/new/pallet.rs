@@ -40,7 +40,7 @@ impl NewPalletCommand {
 
 		Cli.info("If you want to add some other config types, this is the moment. Keep adding them until you're done!")?;
 
-        let mut pallet_config_types = Vec::new();
+        let pallet_config_types;
         // Depending on the user's selection, the cli should offer to choose wheter the type is included in the default config or not.
         if pallet_common_types.contains(&TemplatePalletConfigCommonTypes::RuntimeEvent){
             pallet_config_types = pick_options_and_give_name!(

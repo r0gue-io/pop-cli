@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 
-use crate::utils::helpers::write_to_file;
+use crate::{utils::helpers::write_to_file, TemplatePalletConfigCommonTypes};
 use askama::Template;
 
 #[derive(Template)]
@@ -11,13 +11,16 @@ pub(crate) struct PalletCargoToml {
 	pub(crate) name: String,
 	pub(crate) authors: String,
 	pub(crate) description: String,
+    pub(crate) pallet_common_types: Vec<TemplatePalletConfigCommonTypes>
 }
 #[derive(Template)]
 #[template(path = "pallet/src/benchmarking.rs.templ", escape = "none")]
 pub(crate) struct PalletBenchmarking {}
 #[derive(Template)]
 #[template(path = "pallet/src/lib.rs.templ", escape = "none")]
-pub(crate) struct PalletLib {}
+pub(crate) struct PalletLib {
+    // pub(crate) pallet_common_types: Vec<TemplatePalletConfigCommonTypes>
+}
 #[derive(Template)]
 #[template(path = "pallet/src/mock.rs.templ", escape = "none")]
 pub(crate) struct PalletMock {

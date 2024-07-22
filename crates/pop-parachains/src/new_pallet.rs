@@ -83,8 +83,10 @@ fn render_pallet(
 			name: pallet_name.clone(),
 			authors: config.authors,
 			description: config.description,
+            pallet_common_types: config.pallet_common_types
 		}),
-		Box::new(PalletLib {}),
+		Box::new(PalletLib {
+        }),
 		Box::new(PalletBenchmarking {}),
 		Box::new(PalletMock { module: pallet_name.clone() }),
 		Box::new(PalletTests { module: pallet_name }),
