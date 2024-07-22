@@ -17,16 +17,24 @@ use crate::{
 
 /// Metadata for the Template Pallet.
 pub struct TemplatePalletConfig {
+    /// The name of the pallet
 	pub name: String,
+    /// The authors of the pallet
 	pub authors: String,
+    /// The pallet description
 	pub description: String,
+    /// A `bool` indicating if the template must include a default config for the pallet.
     pub pallet_default_config: bool,
+    /// A `Vec` indicating which of the types defined in `TemplatePalletConfigCommonTypes` should be included in the template.
 	pub pallet_common_types: Vec<TemplatePalletConfigCommonTypes>,
+    /// A `Vec` containing the names of the config types entered by the user, plus whether they should be included in the metadata and in the default pallet config (if one is used).
 	pub pallet_config_types: Vec<(TemplatePalletConfigTypesMetadata, TemplatePalletConfigTypesDefault, String)>,
+    /// A `Vec` containing which type of storages are used and their names.
 	pub pallet_storage: Vec<(TemplatePalletStorageTypes, String)>,
+    /// A `bool` indicating if the template should include a genesis config
     pub pallet_genesis: bool,
-    pub pallet_events: Vec<String>,
-    pub pallet_errors: Vec<String>,
+    /// A `Vec` containing the variants of the pallet's custom internal origin, if one's being used
+    pub pallet_custom_internal_origin: Vec<String>
 }
 /// Create a new pallet from a template.
 ///

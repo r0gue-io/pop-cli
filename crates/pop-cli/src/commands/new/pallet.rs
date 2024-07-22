@@ -40,9 +40,22 @@ impl NewPalletCommand {
 
 		Cli.info("If you want to add some other config types, this is the moment. Keep adding them until you're done!")?;
 
-        let pallet_config_types = pick_options_and_give_name!(
-            (TemplatePalletConfigTypesMetadata ,"Should the next type be included into the metadata?"), (TemplatePalletConfigTypesDefault, "Should the next type be included in the default configuration?")
-        );
+        let mut pallet_config_types = Vec::new();
+        // Depending on the user's selection, the cli should offer to choose wheter the type is included in the default config or not.
+        if pallet_common_types.contains(&TemplatePalletConfigCommonTypes::RuntimeEvent){
+            pallet_config_types = pick_options_and_give_name!(
+                (TemplatePalletConfigTypesMetadata ,"Your adding a new type to your pallet's Config trait! Should it be included into the metadata?"), 
+                (TemplatePalletConfigTypesDefault, "Should it be included in the default configuration?")
+            );
+        }
+        else{
+            pallet_config_types = pick_options_and_give_name!(
+                (TemplatePalletConfigTypesMetadata ,"Your adding a new type to your pallet's Config trait! Should it be included into the metadata?")
+            )
+                .into_iter()
+                .map(|(to_metadata, config_type)| (to_metadata, TemplatePalletConfigTypesDefault::Default, config_type))
+                .collect::<Vec<(TemplatePalletConfigTypesMetadata, TemplatePalletConfigTypesDefault, String)>>();
+        }
 
 		Cli.info("Now, let's work on your pallet's storage.")?;
 
@@ -52,15 +65,10 @@ impl NewPalletCommand {
 
         let pallet_genesis = confirm("Would you like to add a genesis state for your pallet?").initial_value(true).interact()?;
 
-        let mut pallet_events = Vec::new();
-        // Only add events if the pallet is emitting events
-        if pallet_common_types.contains(&TemplatePalletConfigCommonTypes::RuntimeEvent){
-            Cli.info("Let's add some events now.")?;
-            pallet_events = collect_loop_cliclack_inputs("Give a name to your event in order to add it to the template!")?;
+        let mut pallet_custom_internal_origin = Vec::new();
+        if pallet_common_types.contains(&TemplatePalletConfigCommonTypes::RuntimeOrigin) && confirm("Would you like to add a custom internal origin? If yes, you'll be asked to add the variants of the Origin enum.").initial_value(true).interact()?{
+            pallet_custom_internal_origin = collect_loop_cliclack_inputs("Add a variant name.")?;
         }
-
-        Cli.info(if pallet_common_types.contains(&TemplatePalletConfigCommonTypes::RuntimeEvent) {"And some errors."} else {"Let's add some errors now."})?;
-        let pallet_errors = collect_loop_cliclack_inputs("Give a name to your error in order to add it to the template!")?;
 
 		let target = resolve_pallet_path(self.path.clone())?;
 		let pallet_name = self.name.clone();
@@ -93,8 +101,7 @@ impl NewPalletCommand {
 				pallet_config_types,
                 pallet_storage,
                 pallet_genesis,
-                pallet_events,
-                pallet_errors
+                pallet_custom_internal_origin
 			},
 		)?;
 
