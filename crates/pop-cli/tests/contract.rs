@@ -9,6 +9,7 @@ use pop_contracts::{
 };
 use std::{path::Path, process::Command as Cmd};
 use strum::VariantArray;
+use tokio::fs::remove_dir;
 use url::Url;
 
 /// Test the contract lifecycle: new, build, up, call
@@ -43,8 +44,11 @@ async fn contract_lifecycle() -> Result<()> {
 	assert!(temp_dir.join("test_contract/target/ink/test_contract.json").exists());
 
 	// Run the contracts node
-	let cache = temp_dir.join("cache");
-	let process = run_contracts_node(cache, None).await?;
+	// temp_dir gets dropped prematurely, so manually create a tmp directory.
+	let cache = dirs::cache_dir().expect("cache_dir failed").join("pop_tmp");
+	std::fs::create_dir_all(&cache)?;
+	let process = run_contracts_node(cache.clone(), None).await?;
+
 	// Only upload the contract
 	// pop up contract --upload-only
 	Command::cargo_bin("pop")
@@ -127,6 +131,8 @@ async fn contract_lifecycle() -> Result<()> {
 		.args(["-s", "TERM", &process.id().to_string()])
 		.spawn()?
 		.wait()?;
+
+	std::fs::remove_dir_all(cache)?;
 
 	Ok(())
 }

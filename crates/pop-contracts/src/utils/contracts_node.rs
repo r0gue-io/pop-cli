@@ -1,7 +1,9 @@
 use crate::errors::Error;
 use contract_extrinsics::{RawParams, RpcRequest};
 use duct::cmd;
-use pop_parachains::{Binary, GitHubSource, Source};
+use pop_common::sourcing::{
+	Binary, {GitHub as GitHubSource, Source},
+};
 use std::{
 	env::consts::OS,
 	fs::File,
