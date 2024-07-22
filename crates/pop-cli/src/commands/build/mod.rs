@@ -5,11 +5,9 @@ use clap::{Args, Subcommand};
 #[cfg(feature = "contract")]
 use contract::BuildContractCommand;
 use duct::cmd;
-#[cfg(feature = "parachain")]
-use parachain::BuildParachainCommand;
-#[cfg(feature = "parachain")]
-use spec::BuildSpecCommand;
 use std::path::PathBuf;
+#[cfg(feature = "parachain")]
+use {parachain::BuildParachainCommand, spec::BuildSpecCommand};
 
 #[cfg(feature = "contract")]
 pub(crate) mod contract;

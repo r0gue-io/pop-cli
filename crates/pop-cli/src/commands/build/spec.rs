@@ -8,64 +8,110 @@ use pop_parachains::{
 	build_parachain, export_wasm_file, generate_genesis_state_file, generate_plain_chain_spec,
 	generate_raw_chain_spec, replace_chain_type, replace_relay_spec,
 };
-use std::fs::create_dir_all;
-use std::path::PathBuf;
+use std::{fs::create_dir_all, path::PathBuf};
 #[cfg(not(test))]
 use std::{thread::sleep, time::Duration};
-use strum::VariantArray;
+use strum::{EnumMessage, VariantArray};
+use strum_macros::{AsRefStr, Display, EnumString};
 
 const PLAIN_CHAIN_SPEC_FILE_NAME: &str = "plain-parachain-chainspec.json";
 const RAW_CHAIN_SPEC_FILE_NAME: &str = "raw-parachain-chainspec.json";
 
-#[derive(Clone, ValueEnum, Default, VariantArray, Eq, PartialEq)]
+#[derive(
+	AsRefStr,
+	Clone,
+	Default,
+	Debug,
+	Display,
+	EnumString,
+	EnumMessage,
+	ValueEnum,
+	VariantArray,
+	Eq,
+	PartialEq,
+)]
 /// Supported chain types for the resulting chain spec.
 pub(crate) enum ChainType {
 	// A development chain that runs mainly on one node.
 	#[default]
+	#[strum(
+		serialize = "development",
+		message = "Development",
+		detailed_message = "Meant for a development chain that runs mainly on one node."
+	)]
 	Development,
 	// A local chain that runs locally on multiple nodes for testing purposes.
+	#[strum(
+		serialize = "local",
+		message = "Local",
+		detailed_message = "Meant for a local chain that runs locally on multiple nodes for testing purposes."
+	)]
 	Local,
 	// A live chain.
+	#[strum(serialize = "live", message = "Live", detailed_message = "Meant for a live chain.")]
 	Live,
 }
 
-impl ChainType {
-	fn into_str(self) -> &'static str {
-		match self {
-			ChainType::Development => "Development",
-			ChainType::Local => "Local",
-			ChainType::Live => "Live",
-		}
-	}
-}
-
-#[derive(Clone, ValueEnum, Default, VariantArray, Eq, PartialEq)]
+#[derive(
+	AsRefStr,
+	Clone,
+	Default,
+	Debug,
+	Display,
+	EnumString,
+	EnumMessage,
+	ValueEnum,
+	VariantArray,
+	Eq,
+	PartialEq,
+)]
 /// Supported relay chains that can be included in the resulting chain spec.
 pub(crate) enum RelayChain {
+	#[strum(
+		serialize = "kusama",
+		message = "Kusama",
+		detailed_message = "Polkadot's canary network."
+	)]
 	Kusama,
+	#[strum(
+		serialize = "kusama-local",
+		message = "Kusama Local",
+		detailed_message = "Local configuration for Kusama network."
+	)]
 	KusamaLocal,
+	#[strum(serialize = "rococo", message = "Rococo", detailed_message = "Parity's test network.")]
 	Rococo,
+	#[strum(
+		serialize = "rococo-local",
+		message = "Rococo Local",
+		detailed_message = "Local configuration for Rococo network."
+	)]
 	RococoLocal,
+	#[strum(
+		serialize = "paseo",
+		message = "Paseo",
+		detailed_message = "Polkadot's community testnet."
+	)]
 	Paseo,
 	#[default]
+	#[strum(
+		serialize = "paseo-local",
+		message = "Paseo Local",
+		detailed_message = "Local configuration for Paseo network."
+	)]
 	PaseoLocal,
+	#[strum(
+		serialize = "polkadot",
+		message = "Polkadot",
+		detailed_message = "Polkadot live network."
+	)]
 	Polkadot,
+	#[strum(
+		serialize = "polkadot-local",
+		message = "Polkadot Local",
+		detailed_message = "Local configuration for Polkadot network."
+	)]
 	PolkadotLocal,
-}
-
-impl RelayChain {
-	fn into_str(self) -> &'static str {
-		match self {
-			RelayChain::Kusama => "kusama",
-			RelayChain::KusamaLocal => "kusama-local",
-			RelayChain::Rococo => "rococo",
-			RelayChain::RococoLocal => "rococo-local",
-			RelayChain::Paseo => "paseo",
-			RelayChain::PaseoLocal => "paseo-local",
-			RelayChain::Polkadot => "polkadot",
-			RelayChain::PolkadotLocal => "polkadot-local",
-		}
-	}
 }
 
 #[derive(Args)]
@@ -88,9 +134,6 @@ pub struct BuildSpecCommand {
 	/// Relay chain this parachain will connect to [default: PaseoLocal].
 	#[arg(long, value_enum)]
 	pub(crate) relay: Option<RelayChain>,
-	// Deprecation flag, used to specify whether the deprecation warning is shown.
-	#[clap(skip)]
-	pub(crate) valid: bool,
 }
 
 impl BuildSpecCommand {
@@ -117,19 +160,11 @@ impl BuildSpecCommand {
 
 		// Either a para id was already provided or user has been guided to provide one.
 		let para_id = self.id.unwrap_or(2000);
-
-		// Show warning if specified as deprecated.
-		if !self.valid {
-			cli.warning("NOTE: this command is deprecated. Please use `pop build spec` (or simply `pop b s`) in future...")?;
+		// Notify user in case we need to build the parachain project.
+		if !self.release {
+			cli.warning("NOTE: this command now defaults to DEBUG builds.")?;
 			#[cfg(not(test))]
 			sleep(Duration::from_secs(3))
-		} else {
-			// Notify user in case we need to build the parachain project.
-			if !self.release {
-				cli.warning("NOTE: this command now defaults to DEBUG builds.")?;
-				#[cfg(not(test))]
-				sleep(Duration::from_secs(3))
-			}
 		}
 
 		// Locate binary, if it doesn't exist trigger build.
@@ -165,10 +200,10 @@ impl BuildSpecCommand {
 		));
 
 		// Customize spec based on input.
-		let relay = self.relay.unwrap_or(RelayChain::PaseoLocal).into_str();
-		let _ = replace_relay_spec(&plain_chain_spec, relay, "rococo-local");
-		let chain_type = self.chain_type.unwrap_or(ChainType::Development).into_str();
-		let _ = replace_chain_type(&plain_chain_spec, chain_type, "Local");
+		let relay = self.relay.unwrap_or(RelayChain::PaseoLocal).to_string();
+		let _ = replace_relay_spec(&plain_chain_spec, &relay, "rococo-local");
+		let chain_type = self.chain_type.unwrap_or(ChainType::Development).to_string();
+		let _ = replace_chain_type(&plain_chain_spec, &chain_type, "Local");
 
 		let raw_chain_spec =
 			generate_raw_chain_spec(&binary_path, &plain_chain_spec, RAW_CHAIN_SPEC_FILE_NAME)?;
@@ -228,7 +263,11 @@ async fn guide_user_to_generate_spec() -> anyhow::Result<BuildSpecCommand> {
 		if i == 0 {
 			prompt = prompt.initial_value(relay);
 		}
-		prompt = prompt.item(relay, relay.clone().into_str(), "");
+		prompt = prompt.item(
+			relay,
+			relay.get_message().unwrap_or(relay.as_ref()),
+			relay.get_detailed_message().unwrap_or_default(),
+		);
 	}
 	let rc = prompt.interact()?;
 	let relay_chain = rc.clone();
@@ -239,7 +278,11 @@ async fn guide_user_to_generate_spec() -> anyhow::Result<BuildSpecCommand> {
 		if i == 0 {
 			prompt = prompt.initial_value(chain_type);
 		}
-		prompt = prompt.item(chain_type, chain_type.clone().into_str(), "");
+		prompt = prompt.item(
+			chain_type,
+			chain_type.get_message().unwrap_or(chain_type.as_ref()),
+			chain_type.get_detailed_message().unwrap_or_default(),
+		);
 	}
 	let ct = prompt.interact()?;
 	let chain_type = ct.clone();
@@ -258,7 +301,6 @@ async fn guide_user_to_generate_spec() -> anyhow::Result<BuildSpecCommand> {
 		default_bootnode,
 		chain_type: Some(chain_type),
 		relay: Some(relay_chain),
-		valid: true,
 	})
 }
 
