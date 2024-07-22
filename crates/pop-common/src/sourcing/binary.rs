@@ -1,9 +1,13 @@
-use crate::sourcing::{
-	errors::Error, from_local_package, GitHub::ReleaseArchive, GitHub::SourceCodeArchive, Source,
-	Source::Archive, Source::Git, Source::GitHub,
+// SPDX-License-Identifier: GPL-3.0
+
+use crate::{
+	sourcing::{
+		from_local_package, Error, GitHub::ReleaseArchive, GitHub::SourceCodeArchive, Source,
+		Source::Archive, Source::Git, Source::GitHub,
+	},
+	Status,
 };
 use std::path::{Path, PathBuf};
-use url::Url;
 
 /// A binary used to launch a node.
 #[derive(Debug, PartialEq)]
@@ -175,78 +179,6 @@ impl Binary {
 		}
 		.map(|r| r.as_str())
 	}
-}
-
-/// A descriptor of a remote repository.
-#[derive(Debug, PartialEq)]
-pub struct Repository {
-	/// The url of the repository.
-	pub url: Url,
-	/// If applicable, the branch or tag to be used.
-	pub reference: Option<String>,
-	/// The name of a package within the repository. Defaults to the repository name.
-	pub package: String,
-}
-
-impl Repository {
-	/// Parses a url in the form of https://github.com/org/repository?package#tag into its component parts.
-	///
-	/// # Arguments
-	/// * `url` - The url to be parsed.
-	pub fn parse(url: &str) -> Result<Self, Error> {
-		let url = Url::parse(url)?;
-		let package = url.query();
-		let reference = url.fragment().map(|f| f.to_string());
-
-		let mut url = url.clone();
-		url.set_query(None);
-		url.set_fragment(None);
-
-		let package = match package {
-			Some(b) => b,
-			None => crate::GitHub::name(&url)?,
-		}
-		.to_string();
-
-		Ok(Self { url, reference, package })
-	}
-}
-
-/// Trait for observing status updates.
-pub trait Status {
-	/// Update the observer with the provided `status`.
-	fn update(&self, status: &str);
-}
-
-impl Status for () {
-	// no-op: status updates are ignored
-	fn update(&self, _: &str) {}
-}
-
-/// Determines the target triple based on the current platform.
-pub fn target() -> Result<&'static str, Error> {
-	use std::env::consts::*;
-
-	if OS == "windows" {
-		return Err(Error::UnsupportedPlatform { arch: ARCH, os: OS });
-	}
-
-	match ARCH {
-		"aarch64" => {
-			return match OS {
-				"macos" => Ok("aarch64-apple-darwin"),
-				_ => Ok("aarch64-unknown-linux-gnu"),
-			}
-		},
-		"x86_64" | "x86" => {
-			return match OS {
-				"macos" => Ok("x86_64-apple-darwin"),
-				_ => Ok("x86_64-unknown-linux-gnu"),
-			}
-		},
-		&_ => {},
-	}
-	Err(Error::UnsupportedPlatform { arch: ARCH, os: OS })
 }
 
 #[cfg(test)]

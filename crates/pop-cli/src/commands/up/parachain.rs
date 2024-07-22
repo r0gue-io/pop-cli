@@ -8,7 +8,7 @@ use cliclack::{
 };
 use console::{Emoji, Style, Term};
 use duct::cmd;
-use pop_common::sourcing::Status;
+use pop_common::Status;
 use pop_parachains::{Error, IndexSet, NetworkNode, Zombienet};
 use std::{path::PathBuf, time::Duration};
 use tokio::time::sleep;

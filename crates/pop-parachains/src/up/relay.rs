@@ -3,13 +3,14 @@
 use super::chain_specs::chain_spec_generator;
 pub use pop_common::{
 	git::GitHub,
+	helpers::target,
 	sourcing::{
-		target,
 		traits::{Source as _, *},
-		Binary, Error,
+		Binary,
 		GitHub::*,
 		Source,
 	},
+	Error,
 };
 use std::{iter::once, path::Path};
 use strum::VariantArray as _;

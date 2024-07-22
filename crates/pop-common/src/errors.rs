@@ -5,6 +5,8 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum Error {
+	#[error("Anyhow error: {0}")]
+	AnyhowError(#[from] anyhow::Error),
 	#[error("Configuration error: {0}")]
 	Config(String),
 	#[error("a git error occurred: {0}")]
@@ -21,4 +23,8 @@ pub enum Error {
 	SourceError(#[from] sourcing::Error),
 	#[error("TemplateError error: {0}")]
 	TemplateError(#[from] templates::Error),
+	#[error("Unsupported command: {0}")]
+	UnsupportedCommand(String),
+	#[error("Unsupported platform: {arch} {os}")]
+	UnsupportedPlatform { arch: &'static str, os: &'static str },
 }

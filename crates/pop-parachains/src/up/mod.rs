@@ -4,8 +4,8 @@ use crate::errors::Error;
 use glob::glob;
 use indexmap::IndexMap;
 pub use pop_common::{
-	git::GitHub,
-	sourcing::{Binary, GitHub::*, Repository, Source, Source::*},
+	git::{GitHub, Repository},
+	sourcing::{Binary, GitHub::*, Source, Source::*},
 };
 use std::{
 	fmt::Debug,
