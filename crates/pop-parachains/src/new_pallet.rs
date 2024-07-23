@@ -151,6 +151,12 @@ mod tests {
 			name: pallet_name.to_string(),
 			authors: "Alice".to_string(),
 			description: "A sample pallet".to_string(),
+            pallet_default_config: true,
+            pallet_common_types: Vec::new(),
+            pallet_config_types: Vec::new(),
+            pallet_storage: Vec::new(),
+            pallet_genesis: false,
+            pallet_custom_internal_origin_variants: vec![String::from("Single variant")]
 		};
 
 		// Call the function being tested
@@ -160,6 +166,11 @@ mod tests {
 		let pallet_path = temp_dir.path().join(pallet_name);
 		assert!(pallet_path.exists(), "Pallet folder should be created");
 		assert!(pallet_path.join("src").exists(), "src folder should be created");
+		assert!(pallet_path.join("src").join("pallet_logic").exists(), "pallet_logic folder should be created");
+		assert!(pallet_path.join("src").join("pallet_logic").join("try_state.rs").exists(), "try_state.rs should be created");
+		assert!(pallet_path.join("src").join("pallet_logic").join("origin.rs").exists(), "origin.rs should be created");
+		assert!(pallet_path.join("src").join("tests").exists(), "tests folder should be created");
+		assert!(pallet_path.join("src").join("tests").join("utils.rs").exists(), "utils.rs folder should be created");
 		assert!(pallet_path.join("Cargo.toml").exists(), "Cargo.toml should be created");
 		assert!(pallet_path.join("src").join("lib.rs").exists(), "lib.rs should be created");
 		assert!(
@@ -168,10 +179,105 @@ mod tests {
 		);
 		assert!(pallet_path.join("src").join("tests.rs").exists(), "tests.rs should be created");
 		assert!(pallet_path.join("src").join("mock.rs").exists(), "mock.rs should be created");
+		assert!(pallet_path.join("src").join("pallet_logic.rs").exists(), "pallet_logic.rs should be created");
+		assert!(pallet_path.join("src").join("config_preludes.rs").exists(), "config_preludes.rs should be created");
 
 		let lib_rs_content = fs::read_to_string(pallet_path.join("src").join("lib.rs"))
 			.expect("Failed to read lib.rs");
 		assert!(lib_rs_content.contains("pub mod pallet"), "lib.rs should contain pub mod pallet");
+		assert!(lib_rs_content.contains("pub mod config_preludes"), "lib.rs should contain pub mod config_preludes");
+		Ok(())
+	}
+
+    #[test]
+	fn test_pallet_create_template_no_default_config() -> Result<(), Error> {
+		let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
+		let pallet_name = "MyPallet";
+		let config = TemplatePalletConfig {
+			name: pallet_name.to_string(),
+			authors: "Alice".to_string(),
+			description: "A sample pallet".to_string(),
+            pallet_default_config: false,
+            pallet_common_types: Vec::new(),
+            pallet_config_types: Vec::new(),
+            pallet_storage: Vec::new(),
+            pallet_genesis: false,
+            pallet_custom_internal_origin_variants: vec![String::from("Single variant")]
+		};
+
+		// Call the function being tested
+		create_pallet_template(Some(temp_dir.path().to_str().unwrap().to_string()), config)?;
+
+		// Assert that the pallet structure is generated
+		let pallet_path = temp_dir.path().join(pallet_name);
+		assert!(pallet_path.exists(), "Pallet folder should be created");
+		assert!(pallet_path.join("src").exists(), "src folder should be created");
+		assert!(pallet_path.join("src").join("pallet_logic").exists(), "pallet_logic folder should be created");
+		assert!(pallet_path.join("src").join("pallet_logic").join("try_state.rs").exists(), "try_state.rs should be created");
+		assert!(pallet_path.join("src").join("pallet_logic").join("origin.rs").exists(), "origin.rs should be created");
+		assert!(pallet_path.join("src").join("tests").exists(), "tests folder should be created");
+		assert!(pallet_path.join("src").join("tests").join("utils.rs").exists(), "utils.rs folder should be created");
+		assert!(pallet_path.join("Cargo.toml").exists(), "Cargo.toml should be created");
+		assert!(pallet_path.join("src").join("lib.rs").exists(), "lib.rs should be created");
+		assert!(
+			pallet_path.join("src").join("benchmarking.rs").exists(),
+			"benchmarking.rs should be created"
+		);
+		assert!(pallet_path.join("src").join("tests.rs").exists(), "tests.rs should be created");
+		assert!(pallet_path.join("src").join("mock.rs").exists(), "mock.rs should be created");
+		assert!(pallet_path.join("src").join("pallet_logic.rs").exists(), "pallet_logic.rs should be created");
+		assert!(!pallet_path.join("src").join("config_preludes.rs").exists(), "config_preludes.rs should be created");
+
+		let lib_rs_content = fs::read_to_string(pallet_path.join("src").join("lib.rs"))
+			.expect("Failed to read lib.rs");
+		assert!(lib_rs_content.contains("pub mod pallet"), "lib.rs should contain pub mod pallet");
+		assert!(!lib_rs_content.contains("pub mod config_preludes"), "lib.rs should contain pub mod config_preludes");
+		Ok(())
+	}
+
+    #[test]
+	fn test_pallet_create_template_no_custom_origin() -> Result<(), Error> {
+		let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
+		let pallet_name = "MyPallet";
+		let config = TemplatePalletConfig {
+			name: pallet_name.to_string(),
+			authors: "Alice".to_string(),
+			description: "A sample pallet".to_string(),
+            pallet_default_config: true,
+            pallet_common_types: Vec::new(),
+            pallet_config_types: Vec::new(),
+            pallet_storage: Vec::new(),
+            pallet_genesis: false,
+            pallet_custom_internal_origin_variants: Vec::new()
+		};
+
+		// Call the function being tested
+		create_pallet_template(Some(temp_dir.path().to_str().unwrap().to_string()), config)?;
+
+		// Assert that the pallet structure is generated
+		let pallet_path = temp_dir.path().join(pallet_name);
+		assert!(pallet_path.exists(), "Pallet folder should be created");
+		assert!(pallet_path.join("src").exists(), "src folder should be created");
+		assert!(pallet_path.join("src").join("pallet_logic").exists(), "pallet_logic folder should be created");
+		assert!(pallet_path.join("src").join("pallet_logic").join("try_state.rs").exists(), "try_state.rs should be created");
+		assert!(!pallet_path.join("src").join("pallet_logic").join("origin.rs").exists(), "origin.rs should be created");
+		assert!(pallet_path.join("src").join("tests").exists(), "tests folder should be created");
+		assert!(pallet_path.join("src").join("tests").join("utils.rs").exists(), "utils.rs folder should be created");
+		assert!(pallet_path.join("Cargo.toml").exists(), "Cargo.toml should be created");
+		assert!(pallet_path.join("src").join("lib.rs").exists(), "lib.rs should be created");
+		assert!(
+			pallet_path.join("src").join("benchmarking.rs").exists(),
+			"benchmarking.rs should be created"
+		);
+		assert!(pallet_path.join("src").join("tests.rs").exists(), "tests.rs should be created");
+		assert!(pallet_path.join("src").join("mock.rs").exists(), "mock.rs should be created");
+		assert!(pallet_path.join("src").join("pallet_logic.rs").exists(), "pallet_logic.rs should be created");
+		assert!(pallet_path.join("src").join("config_preludes.rs").exists(), "config_preludes.rs should be created");
+
+		let lib_rs_content = fs::read_to_string(pallet_path.join("src").join("lib.rs"))
+			.expect("Failed to read lib.rs");
+		assert!(lib_rs_content.contains("pub mod pallet"), "lib.rs should contain pub mod pallet");
+		assert!(lib_rs_content.contains("pub mod config_preludes"), "lib.rs should contain pub mod config_preludes");
 		Ok(())
 	}
 
@@ -183,6 +289,12 @@ mod tests {
 			name: pallet_name.to_string(),
 			authors: "Alice".to_string(),
 			description: "A sample pallet".to_string(),
+            pallet_default_config: false,
+            pallet_common_types: Vec::new(),
+            pallet_config_types: Vec::new(),
+            pallet_storage: Vec::new(),
+            pallet_genesis: false,
+            pallet_custom_internal_origin_variants: Vec::new()
 		};
 
 		// Call the function being tested with an invalid path
