@@ -162,8 +162,12 @@ impl BuildSpecCommand {
 				},
 			};
 			return Ok("spec");
+		} else {
+			cli::Cli.outro_cancel(
+				"🚫 Can't build a specification for target. Maybe not a chain project ?",
+			)?;
+			Ok("spec")
 		}
-		Ok("spec")
 	}
 
 	/// Builds a parachain spec.
