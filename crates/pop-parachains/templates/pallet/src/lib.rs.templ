@@ -3,7 +3,7 @@
 {{- let using_currency = pallet_common_types|contains(TemplatePalletConfigCommonTypes::Currency) -}}
 //! # ^^name^^ pallet
 //! Please, document your pallet properly
-//! Learn more about everything related to Polkadot SDK development at https://paritytech.github.io/polkadot-sdk/master/polkadot_sdk_docs/index.html
+//! Learn more about everything related to Polkadot SDK development at <https://paritytech.github.io/polkadot-sdk/master/polkadot_sdk_docs/index.html>. Everythin's there!
 //! - [`Config]
 //! - [`Call`]
 #![cfg_attr(not(feature = "std"), no_std)]
@@ -32,6 +32,14 @@ mod tests;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
+// Some useful links:
+// FRAME: <https://paritytech.github.io/polkadot-sdk/master/polkadot_sdk_docs/polkadot_sdk/frame_runtime/index.html>
+{{ if using_runtime_event || using_runtime_origin }}
+// About FRAME runtime types: <https://paritytech.github.io/polkadot-sdk/master/polkadot_sdk_docs/reference_docs/frame_runtime_types/index.html>
+{{- endif }}
+// First pallet tutorial: <https://paritytech.github.io/polkadot-sdk/master/polkadot_sdk_docs/guides/your_first_pallet/index.html>
+
+// More about pallet macros: <https://paritytech.github.io/polkadot-sdk/master/frame_support/pallet_macros/index.html>
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
@@ -62,6 +70,7 @@ pub mod pallet {
 		#[codec(compact)]
 		pub number: u32,
 	}
+
 
     #[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -188,6 +197,7 @@ pub mod pallet {
     }
 
     {{ if pallet_genesis }}
+    // About genesis config: <https://paritytech.github.io/polkadot-sdk/master/polkadot_sdk_docs/reference_docs/chain_spec_genesis/index.html>
     #[pallet::genesis_config]
     pub struct GenesisConfig<T: Config> {
         /// This is just an example of genesis configuration, don't neeed to use a bool
@@ -206,6 +216,7 @@ pub mod pallet {
     {{ endif -}}
 
     {{- if !pallet_custom_internal_origin_variants.is_empty() }}
+    // About custom origins: <https://paritytech.github.io/polkadot-sdk/master/polkadot_sdk_docs/reference_docs/frame_origin/index.html>
     #[pallet::origin]
     #[derive(PartialEq, Eq, Clone, RuntimeDebug, Encode, Decode, TypeInfo, MaxEncodedLen)]
     pub enum Origin<T:Config> {
