@@ -490,4 +490,43 @@ mod tests {
 			"git@github.com:paritytech/frontier-parachain-template.git"
 		);
 	}
+
+	mod repository {
+		use super::Error;
+		use crate::git::Repository;
+		use url::Url;
+
+		#[test]
+		fn parsing_full_url_works() {
+			assert_eq!(
+				Repository::parse("https://github.com/org/repository?package#tag").unwrap(),
+				Repository {
+					url: Url::parse("https://github.com/org/repository").unwrap(),
+					reference: Some("tag".into()),
+					package: "package".into(),
+				}
+			);
+		}
+
+		#[test]
+		fn parsing_simple_url_works() {
+			let url = "https://github.com/org/repository";
+			assert_eq!(
+				Repository::parse(url).unwrap(),
+				Repository {
+					url: Url::parse(url).unwrap(),
+					reference: None,
+					package: "repository".into(),
+				}
+			);
+		}
+
+		#[test]
+		fn parsing_invalid_url_returns_error() {
+			assert!(matches!(
+				Repository::parse("github.com/org/repository"),
+				Err(Error::ParseError(..))
+			));
+		}
+	}
 }

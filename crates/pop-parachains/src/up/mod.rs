@@ -650,7 +650,7 @@ mod tests {
 
 	mod zombienet {
 		use super::*;
-		use pop_common::sourcing::Status;
+		use pop_common::Status;
 
 		pub(crate) struct Output;
 		impl Status for Output {

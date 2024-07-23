@@ -9,7 +9,6 @@ use pop_contracts::{
 };
 use std::{path::Path, process::Command as Cmd};
 use strum::VariantArray;
-use tokio::fs::remove_dir;
 use url::Url;
 
 /// Test the contract lifecycle: new, build, up, call

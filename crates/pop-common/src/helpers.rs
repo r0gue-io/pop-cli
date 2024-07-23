@@ -100,4 +100,19 @@ mod tests {
 		assert_eq!(get_project_name_from_path(path, "my-contract"), "my-contract");
 		Ok(())
 	}
+
+	#[test]
+	fn target_works() -> Result<()> {
+		use std::{process::Command, str};
+		let output = Command::new("rustc").arg("-vV").output()?;
+		let output = str::from_utf8(&output.stdout)?;
+		let target = output
+			.lines()
+			.find(|l| l.starts_with("host: "))
+			.map(|l| &l[6..])
+			.unwrap()
+			.to_string();
+		assert_eq!(crate::helpers::target()?, target);
+		Ok(())
+	}
 }

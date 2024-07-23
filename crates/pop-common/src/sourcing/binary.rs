@@ -184,10 +184,11 @@ impl Binary {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::helpers::target;
 	use anyhow::Result;
-	use std::env::current_dir;
-	use std::{fs::File, io::Write};
+	use std::fs::File;
 	use tempfile::tempdir;
+	use url::Url;
 
 	mod binary {
 		use super::*;
@@ -488,58 +489,5 @@ mod tests {
 			assert!(path.exists());
 			Ok(())
 		}
-	}
-
-	mod repository {
-		use super::{Error, Repository};
-		use url::Url;
-
-		#[test]
-		fn parsing_full_url_works() {
-			assert_eq!(
-				Repository::parse("https://github.com/org/repository?package#tag").unwrap(),
-				Repository {
-					url: Url::parse("https://github.com/org/repository").unwrap(),
-					reference: Some("tag".into()),
-					package: "package".into(),
-				}
-			);
-		}
-
-		#[test]
-		fn parsing_simple_url_works() {
-			let url = "https://github.com/org/repository";
-			assert_eq!(
-				Repository::parse(url).unwrap(),
-				Repository {
-					url: Url::parse(url).unwrap(),
-					reference: None,
-					package: "repository".into(),
-				}
-			);
-		}
-
-		#[test]
-		fn parsing_invalid_url_returns_error() {
-			assert!(matches!(
-				Repository::parse("github.com/org/repository"),
-				Err(Error::ParseError(..))
-			));
-		}
-	}
-
-	#[test]
-	fn target_works() -> Result<()> {
-		use std::{process::Command, str};
-		let output = Command::new("rustc").arg("-vV").output()?;
-		let output = str::from_utf8(&output.stdout)?;
-		let target = output
-			.lines()
-			.find(|l| l.starts_with("host: "))
-			.map(|l| &l[6..])
-			.unwrap()
-			.to_string();
-		assert_eq!(super::target()?, target);
-		Ok(())
 	}
 }

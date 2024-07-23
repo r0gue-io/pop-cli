@@ -5,6 +5,7 @@ use clap::Args;
 use cliclack::{clear_screen, intro, log::warning, outro};
 use pop_contracts::{test_e2e_smart_contract, test_smart_contract};
 use std::path::PathBuf;
+#[cfg(not(test))]
 use std::{thread::sleep, time::Duration};
 
 #[derive(Args)]
