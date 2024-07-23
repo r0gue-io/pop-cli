@@ -15,6 +15,10 @@ use frame::traits::{fungible::{Inspect, Mutate, InspectHold, MutateHold, Inspect
 {{ else -}}
 {{- endmatch -}}
 {{- endfor -}}
+{{ if pallet_default_config }}
+pub mod config_preludes;
+
+{{ endif -}}
 
 use pallet::*;
 
@@ -56,156 +60,18 @@ pub mod pallet {
     {{- endmatch -}}
     {{- endfor -}}
 
+    /// A helful struct. You can use this kind of struct as a value in the pallet's storage. It helps storing related information together. It's possible to store a SCALE compact number using this kind of struct as well :)
+    #[derive(TypeInfo, Encode, Decode, MaxEncodedLen, PartialEq, RuntimeDebugNoBound)]
+	#[scale_info(skip_type_params(T))]
+	pub struct SomeHelpfulStruct<T: Config> {
+		pub account_id: T::AccountId,
+		#[codec(compact)]
+		pub number: u32,
+	}
+
     #[pallet::pallet]
 	pub struct Pallet<T>(_);
     {{ if pallet_default_config }}
-    pub mod config_preludes {
-        use super::*;
-        use frame::runtime::prelude::derive_impl;
-
-        /// Provides a viable default config that can be used with
-		/// [`derive_impl`] to derive a testing pallet config
-		/// based on this one.
-        pub struct TestDefaultConfig;
-    
-        #[derive_impl(frame_system::config_preludes::TestDefaultConfig, no_aggregated_types)]
-        impl frame::deps::frame_system::DefaultConfig for TestDefaultConfig {}
-    
-        #[register_default_impl(TestDefaultConfig)]
-        impl DefaultConfig for TestDefaultConfig {
-            {{- for common_type in pallet_common_types -}}
-            {{- match common_type -}}
-            {{- when TemplatePalletConfigCommonTypes::RuntimeEvent }}
-            #[inject_runtime_type]
-			type RuntimeEvent = ();
-            {{- when TemplatePalletConfigCommonTypes::RuntimeOrigin }}
-            #[inject_runtime_type]
-			type RuntimeOrigin = ();
-            {{- when TemplatePalletConfigCommonTypes::Currency }}
-			#[inject_runtime_type]
-			type RuntimeHoldReason = ();
-			#[inject_runtime_type]
-			type RuntimeFreezeReason = ();
-            {{- else -}}
-            {{- endmatch -}}
-            {{- endfor -}}
-            {{- for config_type in pallet_config_types -}}
-            {{- match config_type.1 -}}
-            {{- when TemplatePalletConfigTypesDefault::Default }}
-            type ^^config_type.2^^ = todo!();
-            {{- when TemplatePalletConfigTypesDefault::NoDefaultBounds }}
-            type ^^config_type.2^^ = todo!();
-            {{- else -}}
-            {{- endmatch -}}
-            {{- endfor }}
-        }
-
-		/// Default configurations of this pallet in a solochain environment.
-		pub struct SolochainDefaultConfig;
-
-        #[derive_impl(frame_system::config_preludes::SolochainDefaultConfig, no_aggregated_types)]
-        impl frame::deps::frame_system::DefaultConfig for SolochainDefaultConfig {}
-    
-        #[register_default_impl(SolochainDefaultConfig)]
-        impl DefaultConfig for SolochainDefaultConfig {
-            {{- for common_type in pallet_common_types -}}
-            {{- match common_type -}}
-            {{- when TemplatePalletConfigCommonTypes::RuntimeEvent }}
-            #[inject_runtime_type]
-			type RuntimeEvent = ();
-            {{- when TemplatePalletConfigCommonTypes::RuntimeOrigin }}
-            #[inject_runtime_type]
-			type RuntimeOrigin = ();
-            {{- when TemplatePalletConfigCommonTypes::Currency }}
-			#[inject_runtime_type]
-			type RuntimeHoldReason = ();
-			#[inject_runtime_type]
-			type RuntimeFreezeReason = ();
-            {{- else -}}
-            {{- endmatch -}}
-            {{- endfor -}}
-            {{- for config_type in pallet_config_types -}}
-            {{- match config_type.1 -}}
-            {{- when TemplatePalletConfigTypesDefault::Default }}
-            type ^^config_type.2^^ = todo!();
-            {{- when TemplatePalletConfigTypesDefault::NoDefaultBounds }}
-            type ^^config_type.2^^ = todo!();
-            {{- else -}}
-            {{- endmatch -}}
-            {{- endfor }}
-        }
-
-		/// Default configurations of this pallet in a solochain environment.
-		pub struct RelayChainDefaultConfig;
-
-        #[derive_impl(frame_system::config_preludes::RelayChainDefaultConfig, no_aggregated_types)]
-        impl frame::deps::frame_system::DefaultConfig for RelayChainDefaultConfig {}
-    
-        #[register_default_impl(RelayChainDefaultConfig)]
-        impl DefaultConfig for RelayChainDefaultConfig {
-            {{- for common_type in pallet_common_types -}}
-            {{- match common_type -}}
-            {{- when TemplatePalletConfigCommonTypes::RuntimeEvent }}
-            #[inject_runtime_type]
-			type RuntimeEvent = ();
-            {{- when TemplatePalletConfigCommonTypes::RuntimeOrigin }}
-            #[inject_runtime_type]
-			type RuntimeOrigin = ();
-            {{- when TemplatePalletConfigCommonTypes::Currency }}
-			#[inject_runtime_type]
-			type RuntimeHoldReason = ();
-			#[inject_runtime_type]
-			type RuntimeFreezeReason = ();
-            {{- else -}}
-            {{- endmatch -}}
-            {{- endfor -}}
-            {{- for config_type in pallet_config_types -}}
-            {{- match config_type.1 -}}
-            {{- when TemplatePalletConfigTypesDefault::Default }}
-            type ^^config_type.2^^ = todo!();
-            {{- when TemplatePalletConfigTypesDefault::NoDefaultBounds }}
-            type ^^config_type.2^^ = todo!();
-            {{- else -}}
-            {{- endmatch -}}
-            {{- endfor }}
-        } 
-
-		/// Default configurations of this pallet in a solochain environment.
-		pub struct ParaChainDefaultConfig;
-
-        #[derive_impl(frame_system::config_preludes::ParaChainDefaultConfig, no_aggregated_types)]
-        impl frame::deps::frame_system::DefaultConfig for ParaChainDefaultConfig {}
-    
-        #[register_default_impl(ParaChainDefaultConfig)]
-        impl DefaultConfig for ParaChainDefaultConfig{
-            {{- for common_type in pallet_common_types -}}
-            {{- match common_type -}}
-            {{- when TemplatePalletConfigCommonTypes::RuntimeEvent }}
-            #[inject_runtime_type]
-			type RuntimeEvent = ();
-            {{- when TemplatePalletConfigCommonTypes::RuntimeOrigin }}
-            #[inject_runtime_type]
-			type RuntimeOrigin = ();
-            {{- when TemplatePalletConfigCommonTypes::Currency }}
-			#[inject_runtime_type]
-			type RuntimeHoldReason = ();
-			#[inject_runtime_type]
-			type RuntimeFreezeReason = ();
-            {{- else -}}
-            {{- endmatch -}}
-            {{- endfor -}}
-            {{- for config_type in pallet_config_types -}}
-            {{- match config_type.1 -}}
-            {{- when TemplatePalletConfigTypesDefault::Default }}
-            type ^^config_type.2^^ = todo!();
-            {{- when TemplatePalletConfigTypesDefault::NoDefaultBounds }}
-            type ^^config_type.2^^ = todo!();
-            {{- else -}}
-            {{- endmatch -}}
-            {{- endfor }}
-        }
-    }
-
     #[pallet::config(with_default)]
     {{- else }}
     #[pallet::config]
@@ -215,31 +81,47 @@ pub mod pallet {
         {{- match common_type -}}
         {{- when TemplatePalletConfigCommonTypes::RuntimeEvent }}
         /// The aggregated event type of the runtime.
+        {{- if pallet_default_config }}
         #[pallet::no_default_bounds]
+        {{- endif }}
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
-        {{ when TemplatePalletConfigCommonTypes::RuntimeOrigin }}
+
+        {{ when TemplatePalletConfigCommonTypes::RuntimeOrigin -}}
         /// The aggregated origin type of the runtime.
+        {{- if pallet_default_config }}
         #[pallet::no_default_bounds]
-        {{- if pallet_custom_internal_origin_variants.len() != 0 }}
+        {{- endif }}
+        {{- if !pallet_custom_internal_origin_variants.is_empty() }}
         type RuntimeOrigin: From<OriginFor<Self>> + From<Origin<Self>> + Into<Result<Origin<Self>,RuntimeLocalOrigin<Self>>>;
+
         {{ else }}
         type RuntimeOrigin: From<OriginFor<Self>>;
+
         {{ endif -}}
         {{- when TemplatePalletConfigCommonTypes::Currency }}
+        /// A reason for placing a hold on funds
+        {{- if pallet_default_config }}
         #[pallet::no_default_bounds]
+        {{- endif }}
 		type RuntimeHoldReason: From<HoldReason>;
 
+        /// A reason for placing a freeze on funds
+        {{- if pallet_default_config }}
         #[pallet::no_default_bounds]
+        {{- endif }}
 		type RuntimeFreezeReason: VariantCount;
         
         /// Type to access the native currency of the blockchain
-        #[pallet::no_default]
+        {{- if pallet_default_config }}
+        #[pallet::no_default_bounds]
+        {{- endif }}
 		type Currency: fungible::Inspect<Self::AccountId>
 			+ fungible::Mutate<Self::AccountId>
 			+ fungible::hold::Inspect<Self::AccountId>
 			+ fungible::hold::Mutate<Self::AccountId, Reason = Self::RuntimeHoldReason>
 			+ fungible::freeze::Inspect<Self::AccountId>
 			+ fungible::freeze::Mutate<Self::AccountId>;
+            
         {{ else -}}
         {{- endmatch -}}
         {{- endfor -}}
@@ -258,7 +140,8 @@ pub mod pallet {
         {{- else -}}
         {{- endmatch }}
         type ^^config_type.2^^ = todo!();
-        {{ endfor -}}
+
+        {{ endfor }}
     }
 
     {{ for storage in pallet_storage }}
@@ -267,12 +150,16 @@ pub mod pallet {
     {{- match storage.0 -}}
     {{- when TemplatePalletStorageTypes::StorageValue }}
     pub type ^^storage.1^^ = StorageValue<Value = todo!()>;
+
     {{ when TemplatePalletStorageTypes::StorageMap }}
     pub type ^^storage.1^^ = StorageMap<todo!(), Key = todo!(), Value = todo!()>;
+
     {{ when TemplatePalletStorageTypes::CountedStorageMap }}
     pub type ^^storage.1^^ = CountedStorageMap<Hasher = todo!(), Key = todo!(), Value = todo!()>;
+
     {{ when TemplatePalletStorageTypes::StorageDoubleMap }}
     pub type ^^storage.1^^ = StorageDoubleMap<Hasher1 = todo!(), Key1 = todo!(), Hasher2 = todo!(), Key2 = todo!(), Value = todo!()>;
+
     {{ when TemplatePalletStorageTypes::StorageNMap }}
     pub type ^^storage.1^^= StorageNMap<
         Key = (
@@ -282,6 +169,7 @@ pub mod pallet {
         ),
         Value = todo!()
     >;
+
     {{ when TemplatePalletStorageTypes::CountedStorageNMap }}
     pub type ^^storage.1^^ = CountedStorageNMap<
         Key = (
@@ -291,20 +179,28 @@ pub mod pallet {
         ),
         Value = todo!()
     >;
+    
     {{ endmatch -}}
     {{- endfor -}}
 
-    {{- if pallet_genesis }}
+	#[pallet::event]
+	#[pallet::generate_deposit(pub(super) fn deposit_event)]
+	pub enum Event<T: Config> {
+        /// Someone did something
+        SomeoneDidSomething { who: T::AccountId}
+    }
+
+    #[pallet::error]
+	pub enum Error<T> {
+		/// SomethingWentWrong
+		SomethingWentWrong,
+    }
+
+    {{ if pallet_genesis }}
     #[pallet::genesis_config]
     pub struct GenesisConfig<T: Config> {
         /// This is just an example of genesis configuration, don't neeed to use a bool
         pub some_genesis_config: bool
-    }
-
-    impl<T: Config> Default for GenesisConfig<T> {
-        fn default() -> Self {
-            Self { some_genesis_config: false }
-        }
     }
 
     #[pallet::genesis_build]
@@ -318,7 +214,7 @@ pub mod pallet {
 
     {{ endif -}}
 
-    {{- if pallet_custom_internal_origin_variants.len() != 0 }}
+    {{- if !pallet_custom_internal_origin_variants.is_empty() }}
     #[pallet::origin]
     #[derive(PartialEq, Eq, Clone, RuntimeDebug, Encode, Decode, TypeInfo, MaxEncodedLen)]
     pub enum Origin<T:Config> {

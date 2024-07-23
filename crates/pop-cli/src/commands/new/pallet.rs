@@ -49,11 +49,12 @@ impl NewPalletCommand {
             );
         }
         else{
+            // As the vec must contain as well info related to the default config, we map everything to have the Default variant. The type annotations happen when the type's no default, so this variant ensures there's no type annotation related to default, even though there's no default config and then the types cannot be default
             pallet_config_types = pick_options_and_give_name!(
                 (TemplatePalletConfigTypesMetadata ,"You're adding a new type to your pallet's Config trait! Should it be included into the metadata?")
             )
                 .into_iter()
-                .map(|(to_metadata, config_type)| (to_metadata, TemplatePalletConfigTypesDefault::NoDefault, config_type))
+                .map(|(to_metadata, config_type)| (to_metadata, TemplatePalletConfigTypesDefault::Default, config_type))
                 .collect::<Vec<(TemplatePalletConfigTypesMetadata, TemplatePalletConfigTypesDefault, String)>>();
         }
 

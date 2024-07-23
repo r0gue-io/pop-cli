@@ -7,7 +7,7 @@ pub mod new_pallet_options;
 use crate::errors::Error;
 use crate::{
 	generator::pallet::{
-		PalletBenchmarking, PalletCargoToml, PalletItem, PalletLib, PalletMock, PalletTests,
+		PalletBenchmarking, PalletCargoToml, PalletItem, PalletLib, PalletLogic, PalletConfigPreludes, PalletTryState, PalletOrigin, PalletMock, PalletTests,
 	},
 	resolve_pallet_path,
 	utils::helpers::sanitize,
@@ -51,23 +51,32 @@ pub fn create_pallet_template(
 	let pallet_path = target.join(pallet_name.clone());
 
 	sanitize(&pallet_path)?;
-	generate_pallet_structure(&target, &pallet_name)?;
+	generate_pallet_structure(&target, &pallet_name, &config)?;
 
 	render_pallet(pallet_name, config, &pallet_path)?;
 	Ok(())
 }
 
 /// Generate a pallet folder and file structure
-fn generate_pallet_structure(target: &PathBuf, pallet_name: &str) -> Result<(), Error> {
+fn generate_pallet_structure(target: &PathBuf, pallet_name: &str, config: &TemplatePalletConfig) -> Result<(), Error> {
 	use fs::{create_dir, File};
-	let (pallet, src) = (target.join(pallet_name), target.join(pallet_name.to_string() + "/src"));
+	let (pallet, src, pallet_logic) = (target.join(pallet_name), target.join(pallet_name.to_string() + "/src"), target.join(pallet_name.to_string() + "/src/pallet_logic"));
 	create_dir(&pallet)?;
 	create_dir(&src)?;
+	create_dir(&pallet_logic)?;
 	File::create(format!("{}/Cargo.toml", pallet.display()))?;
 	File::create(format!("{}/lib.rs", src.display()))?;
+	File::create(format!("{}/pallet_logic.rs", src.display()))?;
+	File::create(format!("{}/pallet_logic/try_state.rs", src.display()))?;
 	File::create(format!("{}/benchmarking.rs", src.display()))?;
 	File::create(format!("{}/tests.rs", src.display()))?;
 	File::create(format!("{}/mock.rs", src.display()))?;
+    if config.pallet_default_config{
+        File::create(format!("{}/config_preludes.rs", src.display()))?;
+    }
+    if !config.pallet_custom_internal_origin_variants.is_empty() {
+        File::create(format!("{}/pallet_logic/origin.rs", src.display()))?;
+    }
 	Ok(())
 }
 
@@ -78,7 +87,7 @@ fn render_pallet(
 ) -> Result<(), Error> {
 	let pallet_name = pallet_name.replace('-', "_");
 	// Todo `module` must be of the form Template if pallet_name : `pallet_template`
-	let pallet: Vec<Box<dyn PalletItem>> = vec![
+	let mut pallet: Vec<Box<dyn PalletItem>> = vec![
 		Box::new(PalletCargoToml {
 			name: pallet_name.clone(),
 			authors: config.authors,
@@ -88,16 +97,34 @@ fn render_pallet(
 		Box::new(PalletLib {
             name: pallet_name.clone(),
             pallet_default_config: config.pallet_default_config,
-            pallet_common_types: config.pallet_common_types,
-            pallet_config_types: config.pallet_config_types,
+            pallet_common_types: config.pallet_common_types.clone(),
+            pallet_config_types: config.pallet_config_types.clone(),
             pallet_storage: config.pallet_storage,
             pallet_genesis: config.pallet_genesis,
-            pallet_custom_internal_origin_variants: config.pallet_custom_internal_origin_variants
+            pallet_custom_internal_origin_variants: config.pallet_custom_internal_origin_variants.clone()
         }),
+        Box::new(PalletLogic{
+            pallet_custom_internal_origin_variants: config.pallet_custom_internal_origin_variants.clone()
+        }),
+        Box::new(PalletTryState{}), 
 		Box::new(PalletBenchmarking {}),
 		Box::new(PalletMock { module: pallet_name.clone() }),
 		Box::new(PalletTests { module: pallet_name }),
 	];
+
+    if config.pallet_default_config{
+        pallet.push(Box::new(PalletConfigPreludes{
+            pallet_common_types: config.pallet_common_types,
+            pallet_config_types: config.pallet_config_types
+        }));
+    }
+
+    if !config.pallet_custom_internal_origin_variants.is_empty() {
+        pallet.push(Box::new(PalletOrigin{
+            pallet_custom_internal_origin_variants: config.pallet_custom_internal_origin_variants
+        }));
+    }
+
 	for item in pallet {
 		item.execute(pallet_path)?;
 	}
