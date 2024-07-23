@@ -6,7 +6,8 @@ use cliclack::{confirm, input};
 use pop_common::{manifest::from_path, Profile};
 use pop_parachains::{
 	build_parachain, export_wasm_file, generate_genesis_state_file, generate_plain_chain_spec,
-	generate_raw_chain_spec, replace_chain_type, replace_protocol_id, replace_relay_spec,
+	generate_raw_chain_spec, is_supported, replace_chain_type, replace_protocol_id,
+	replace_relay_spec,
 };
 use std::{env::current_dir, fs::create_dir_all, path::PathBuf};
 #[cfg(not(test))]
@@ -149,16 +150,20 @@ pub struct BuildSpecCommand {
 impl BuildSpecCommand {
 	/// Executes the command.
 	pub(crate) async fn execute(self) -> anyhow::Result<&'static str> {
-		// If para id has been provided we can build the spec
-		// otherwise, we need to guide the user.
-		let _ = match self.id {
-			Some(_) => self.build(&mut cli::Cli),
-			None => {
-				let config = guide_user_to_generate_spec().await?;
-				config.build(&mut cli::Cli)
-			},
-		};
-		return Ok("spec");
+		// Checks for appchain project in `./`.
+		if is_supported(None)? {
+			// If para id has been provided we can build the spec
+			// otherwise, we need to guide the user.
+			let _ = match self.id {
+				Some(_) => self.build(&mut cli::Cli),
+				None => {
+					let config = guide_user_to_generate_spec().await?;
+					config.build(&mut cli::Cli)
+				},
+			};
+			return Ok("spec");
+		}
+		Ok("spec")
 	}
 
 	/// Builds a parachain spec.
