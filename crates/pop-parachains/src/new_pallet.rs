@@ -108,7 +108,7 @@ fn render_pallet(
         }),
         Box::new(PalletTryState{}), 
 		Box::new(PalletBenchmarking {}),
-		Box::new(PalletMock { module: pallet_name.clone() }),
+		Box::new(PalletMock { module: pallet_name.clone(), pallet_common_types: config.pallet_common_types.clone() }),
 		Box::new(PalletTests { module: pallet_name }),
 	];
 

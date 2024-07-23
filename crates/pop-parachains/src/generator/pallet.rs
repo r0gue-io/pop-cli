@@ -51,6 +51,7 @@ pub(crate) struct PalletOrigin{
 #[template(path = "pallet/src/mock.rs.templ", escape = "none")]
 pub(crate) struct PalletMock {
 	pub(crate) module: String,
+    pub(crate) pallet_common_types: Vec<TemplatePalletConfigCommonTypes>
 }
 #[derive(Template)]
 #[template(path = "pallet/src/tests.rs.templ", escape = "none")]
