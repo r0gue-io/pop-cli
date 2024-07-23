@@ -1,11 +1,19 @@
-use crate::errors::Error;
 use contract_extrinsics::{RawParams, RpcRequest};
 use duct::cmd;
-use pop_common::sourcing::{
-	Binary, {GitHub as GitHubSource, Source},
+use pop_common::{
+	helpers::target,
+	sourcing::{
+		traits::{Source as _, *},
+		Binary,
+		GitHub::ReleaseArchive,
+		Source,
+	},
+	Error, GitHub,
 };
+use strum::{EnumProperty, VariantArray};
+
 use std::{
-	env::consts::OS,
+	env::consts::{ARCH, OS},
 	fs::File,
 	path::PathBuf,
 	process::{Child, Command, Stdio},
@@ -36,50 +44,78 @@ pub async fn is_chain_alive(url: url::Url) -> Result<bool, Error> {
 	}
 }
 
+/// A supported chain.
+#[derive(Debug, EnumProperty, PartialEq, VariantArray)]
+pub(super) enum SoloChain {
+	/// Parachain containing core Polkadot protocol features.
+	#[strum(props(
+		Repository = "https://github.com/paritytech/substrate-contracts-node",
+		Binary = "substrate-contracts-node",
+		TagFormat = "{tag}",
+		Fallback = "v0.41.0"
+	))]
+	ContractNode,
+}
+
+impl TryInto for SoloChain {
+	/// Attempt the conversion.
+	///
+	/// # Arguments
+	/// * `tag` - If applicable, a tag used to determine a specific release.
+	/// * `latest` - If applicable, some specifier used to determine the latest source.
+	fn try_into(&self, tag: Option<String>, latest: Option<String>) -> Result<Source, Error> {
+		let archive = archive_name_by_target()?;
+		let archive_bin_path = release_folder_by_target()?;
+		Ok(match self {
+			&SoloChain::ContractNode => {
+				// Source from GitHub release asset
+				let repo = GitHub::parse(self.repository())?;
+				Source::GitHub(ReleaseArchive {
+					owner: repo.org,
+					repository: repo.name,
+					tag,
+					tag_format: self.tag_format().map(|t| t.into()),
+					archive,
+					contents: vec![(archive_bin_path, Some(self.binary().to_string()))],
+					latest,
+				})
+			},
+		})
+	}
+}
+
+impl pop_common::sourcing::traits::Source for SoloChain {}
+
 /// Checks if the `substrate-contracts-node` binary exists
-/// or if the binary exists in pop's cache.
 /// returns:
 /// - Some("", <version-output>) if the standalone binary exists
-/// - Some(binary_cache_location, "") if the binary exists in pop's cache
 /// - None if the binary does not exist
-pub fn does_contracts_node_exist(cache: PathBuf) -> Option<(PathBuf, String)> {
-	let cached_location = cache.join(BIN_NAME);
+pub fn standalone_binary_exists() -> Option<(PathBuf, String)> {
 	let standalone_output = cmd(BIN_NAME, vec!["--version"]).read();
-
 	if standalone_output.is_ok() {
 		Some((PathBuf::new(), standalone_output.unwrap()))
-	} else if cached_location.exists() {
-		Some((cached_location, "".to_string()))
 	} else {
 		None
 	}
 }
 
-/// Downloads the latest version of the `substrate-contracts-node` binary
-/// into the specified cache location.
-pub async fn download_contracts_node(cache: PathBuf) -> Result<Binary, Error> {
-	let archive = archive_name_by_target()?;
-	let archive_bin_path = release_folder_by_target()?;
-
-	let source = Source::GitHub(GitHubSource::ReleaseArchive {
-		owner: "paritytech".into(),
-		repository: "substrate-contracts-node".into(),
-		tag: None,
-		tag_format: None,
-		archive,
-		contents: vec![(archive_bin_path, Some(BIN_NAME.to_string()))],
-		latest: None,
-	});
-
-	let contracts_node =
-		Binary::Source { name: "substrate-contracts-node".into(), source, cache: cache.clone() };
-
-	// source the substrate-contracts-node binary
-	contracts_node
-		.source(false, &(), true)
-		.await
-		.map_err(|err| Error::SourcingError(err))?;
-
+/// Retrieves the latest release of the contracts node binary, resolves its version, and constructs a `Binary::Source`
+/// with the specified cache path.
+///
+/// # Arguments
+/// * `cache` -  The cache directory path.
+///
+pub async fn contracts_node_generator(cache: PathBuf) -> Result<Binary, Error> {
+	let chain = &SoloChain::ContractNode;
+	let name = chain.binary();
+	let releases = chain.releases().await?;
+	let tag = Binary::resolve_version(name, None, &releases, &cache);
+	let latest = releases.iter().nth(0).map(|v| v.to_string());
+	let contracts_node = Binary::Source {
+		name: name.to_string(),
+		source: TryInto::try_into(chain, tag.clone(), latest)?,
+		cache: cache.to_path_buf(),
+	};
 	Ok(contracts_node)
 }
 
@@ -112,7 +148,7 @@ fn archive_name_by_target() -> Result<String, Error> {
 	match OS {
 		"macos" => Ok(format!("{}-mac-universal.tar.gz", BIN_NAME)),
 		"linux" => Ok(format!("{}-linux.tar.gz", BIN_NAME)),
-		_ => Err(Error::UnsupportedPlatform { os: OS }),
+		_ => Err(Error::UnsupportedPlatform { arch: ARCH, os: OS }),
 	}
 }
 
@@ -120,7 +156,7 @@ fn release_folder_by_target() -> Result<&'static str, Error> {
 	match OS {
 		"macos" => Ok("artifacts/substrate-contracts-node-mac/substrate-contracts-node"),
 		"linux" => Ok("artifacts/substrate-contracts-node-linux/substrate-contracts-node"),
-		_ => Err(Error::UnsupportedPlatform { os: OS }),
+		_ => Err(Error::UnsupportedPlatform { arch: ARCH, os: OS }),
 	}
 }
 

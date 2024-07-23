@@ -23,7 +23,7 @@ pub use up::{
 };
 pub use utils::{
 	contracts_node::{
-		does_contracts_node_exist, download_contracts_node, is_chain_alive, run_contracts_node,
+		contracts_node_generator, is_chain_alive, run_contracts_node, standalone_binary_exists,
 	},
 	signer::parse_hex_bytes,
 };

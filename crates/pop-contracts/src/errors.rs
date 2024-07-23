@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use pop_common::sourcing::Error as SourcingError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -49,6 +48,4 @@ pub enum Error {
 	UnsupportedPlatform { os: &'static str },
 	#[error("{0}")]
 	UploadContractError(String),
-	#[error("Sourcing error {0}")]
-	SourcingError(SourcingError),
 }

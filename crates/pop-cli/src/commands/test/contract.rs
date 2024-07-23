@@ -43,7 +43,7 @@ impl TestContractCommand {
 				style(" Pop CLI ").black().on_magenta()
 			))?;
 
-			let maybe_node_path = check_contracts_node_and_prompt().await?;
+			let maybe_node_path = check_contracts_node_and_prompt(false).await?;
 			if let Some(node_path) = maybe_node_path {
 				if node_path != PathBuf::new() {
 					self.node = Some(node_path);

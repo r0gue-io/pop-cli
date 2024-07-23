@@ -131,7 +131,7 @@ impl UpContractCommand {
 			let mut binary_path = PathBuf::from("substrate-contracts-node");
 
 			// uses the cache location
-			let maybe_node_path = check_contracts_node_and_prompt().await?;
+			let maybe_node_path = check_contracts_node_and_prompt(self.skip_confirm).await?;
 			if let Some(node_path) = maybe_node_path {
 				if node_path != PathBuf::new() {
 					binary_path = node_path;
