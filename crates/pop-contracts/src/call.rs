@@ -312,7 +312,7 @@ mod tests {
 		mock_build_process(temp_dir.path().join("testing"))?;
 
 		// temp_dir gets dropped prematurely, so manually create a tmp directory.
-		let cache = dirs::cache_dir().expect("cache_dir failed").join("pop_tmp");
+		let cache = dirs::cache_dir().expect("cache_dir failed").join("pop_tmp_call_works");
 		std::fs::create_dir_all(&cache)?;
 
 		let node_path = download_contracts_node(cache.clone()).await?;

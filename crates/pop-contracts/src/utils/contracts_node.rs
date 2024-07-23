@@ -157,7 +157,9 @@ mod tests {
 		let local_url = url::Url::parse("ws://localhost:9944")?;
 
 		// temp_dir gets dropped prematurely, so manually create a tmp directory.
-		let cache = dirs::cache_dir().expect("cache_dir failed").join("pop_tmp");
+		let cache = dirs::cache_dir()
+			.expect("cache_dir failed")
+			.join("pop_tmp_contracts_node_works");
 		std::fs::create_dir_all(&cache)?;
 
 		let node_path = download_contracts_node(cache.clone()).await?;
