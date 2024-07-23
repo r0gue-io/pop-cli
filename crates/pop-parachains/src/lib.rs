@@ -12,7 +12,8 @@ mod utils;
 
 pub use build::{
 	build_parachain, export_wasm_file, generate_genesis_state_file, generate_plain_chain_spec,
-	generate_raw_chain_spec, is_supported, replace_chain_type, replace_relay_spec,
+	generate_raw_chain_spec, is_supported, replace_chain_type, replace_protocol_id,
+	replace_relay_spec,
 };
 pub use errors::Error;
 pub use indexmap::IndexSet;

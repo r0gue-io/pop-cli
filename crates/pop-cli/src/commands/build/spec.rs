@@ -6,16 +6,15 @@ use cliclack::{confirm, input};
 use pop_common::{manifest::from_path, Profile};
 use pop_parachains::{
 	build_parachain, export_wasm_file, generate_genesis_state_file, generate_plain_chain_spec,
-	generate_raw_chain_spec, replace_chain_type, replace_relay_spec,
+	generate_raw_chain_spec, replace_chain_type, replace_protocol_id, replace_relay_spec,
 };
-use std::{fs::create_dir_all, path::PathBuf};
+use std::{env::current_dir, fs::create_dir_all, path::PathBuf};
 #[cfg(not(test))]
 use std::{thread::sleep, time::Duration};
 use strum::{EnumMessage, VariantArray};
 use strum_macros::{AsRefStr, Display, EnumString};
 
-const PLAIN_CHAIN_SPEC_FILE_NAME: &str = "plain-parachain-chainspec.json";
-const RAW_CHAIN_SPEC_FILE_NAME: &str = "raw-parachain-chainspec.json";
+const DEFAULT_SPEC_NAME: &str = "template-chain-spec.json";
 
 #[derive(
 	AsRefStr,
@@ -35,20 +34,20 @@ pub(crate) enum ChainType {
 	// A development chain that runs mainly on one node.
 	#[default]
 	#[strum(
-		serialize = "development",
+		serialize = "Development",
 		message = "Development",
 		detailed_message = "Meant for a development chain that runs mainly on one node."
 	)]
 	Development,
 	// A local chain that runs locally on multiple nodes for testing purposes.
 	#[strum(
-		serialize = "local",
+		serialize = "Local",
 		message = "Local",
 		detailed_message = "Meant for a local chain that runs locally on multiple nodes for testing purposes."
 	)]
 	Local,
 	// A live chain.
-	#[strum(serialize = "live", message = "Live", detailed_message = "Meant for a live chain.")]
+	#[strum(serialize = "Live", message = "Live", detailed_message = "Meant for a live chain.")]
 	Live,
 }
 
@@ -116,11 +115,13 @@ pub(crate) enum RelayChain {
 
 #[derive(Args)]
 pub struct BuildSpecCommand {
-	/// Directory path for your project [default: current directory].
-	#[arg(long)]
-	pub(crate) path: Option<PathBuf>,
+	/// File name for the resulting spec. If a path is given,
+	/// the necessary directories will be created
+	/// [default: ./template-chain-spec.json].
+	#[arg(short = 'o', long = "output")]
+	pub(crate) output_file: Option<PathBuf>,
 	/// For production, always build in release mode to exclude debug features.
-	#[clap(short, long, default_value = "true")]
+	#[clap(short = 'r', long, default_value = "true")]
 	pub(crate) release: bool,
 	/// Parachain ID to be used when generating the chain spec files.
 	#[arg(short = 'i', long = "id")]
@@ -134,6 +135,15 @@ pub struct BuildSpecCommand {
 	/// Relay chain this parachain will connect to [default: PaseoLocal].
 	#[arg(long, value_enum)]
 	pub(crate) relay: Option<RelayChain>,
+	/// Procotol-id to use in the specification.
+	#[arg(long = "protocol-id")]
+	pub(crate) protocol_id: Option<String>,
+	/// Whether the genesis state file should be generated [default: true].
+	#[clap(long = "genesis-state", default_value = "true")]
+	pub(crate) genesis_state: bool,
+	/// Whether the genesis code file should be generated [default: true].
+	#[clap(long = "genesis-code", default_value = "true")]
+	pub(crate) genesis_code: bool,
 }
 
 impl BuildSpecCommand {
@@ -148,7 +158,7 @@ impl BuildSpecCommand {
 				config.build(&mut cli::Cli)
 			},
 		};
-		Ok("spec")
+		return Ok("spec");
 	}
 
 	/// Builds a parachain spec.
@@ -167,32 +177,39 @@ impl BuildSpecCommand {
 			sleep(Duration::from_secs(3))
 		}
 
+		// Create output path if needed
+		let mut output_path = self.output_file.unwrap_or_else(|| PathBuf::from("./"));
+		let mut plain_chain_spec;
+		if output_path.is_dir() {
+			if !output_path.exists() {
+				// Generate the output path if needed
+				create_dir_all(&output_path)?;
+			}
+			plain_chain_spec = output_path.join(DEFAULT_SPEC_NAME);
+		} else {
+			plain_chain_spec = output_path.clone();
+			output_path.pop();
+			if !output_path.exists() {
+				// Generate the output path if needed
+				create_dir_all(&output_path)?;
+			}
+		}
+		plain_chain_spec.set_extension("json");
+
 		// Locate binary, if it doesn't exist trigger build.
-		let project_path = self.path.unwrap_or_else(|| PathBuf::from("./"));
 		let mode: Profile = self.release.into();
-		cli.info(format!("Locating the project binary..."))?;
-		let binary_path = match maybe_node_binary_path(&project_path, &mode) {
-			Some(binary_path) => {
-				cli.info(format!("Using {} to build the chain spec.", binary_path.display()))?;
-				binary_path
-			},
+		let binary_path = match maybe_node_binary_path(&mode) {
+			Some(binary_path) => binary_path,
 			None => {
-				cli.info(format!("The binary was not found. The project will be built locally."))?;
+				cli.info(format!("No node was not found. The project will be built locally."))?;
 				cli.warning("NOTE: this may take some time...")?;
-				build_parachain(&project_path, None, &mode, None).unwrap()
+				build_parachain(&output_path, None, &mode, None)?
 			},
 		};
 
-		// Create output dir.
-		let mut output_path = project_path.clone();
-		output_path.push("target/pop");
-		create_dir_all(&output_path)?;
-
-		// Generate spec and artifacts
+		// Generate plain spec.
 		let mut generated_files =
 			vec![format!("Specification and artifacts generated at: {}", &output_path.display())];
-
-		let plain_chain_spec = output_path.join(PLAIN_CHAIN_SPEC_FILE_NAME);
 		generate_plain_chain_spec(&binary_path, &plain_chain_spec, para_id, self.default_bootnode)?;
 		generated_files.push(format!(
 			"Plain text chain specification file generated at: {}",
@@ -204,26 +221,42 @@ impl BuildSpecCommand {
 		let _ = replace_relay_spec(&plain_chain_spec, &relay, "rococo-local");
 		let chain_type = self.chain_type.unwrap_or(ChainType::Development).to_string();
 		let _ = replace_chain_type(&plain_chain_spec, &chain_type, "Local");
+		if self.protocol_id.is_some() {
+			let protocol_id = self.protocol_id.unwrap_or("template-local".to_string());
+			let _ = replace_protocol_id(&plain_chain_spec, &protocol_id, "template-local");
+		}
 
+		// Generate raw spec.
+		let raw_spec_name = plain_chain_spec
+			.file_name()
+			.and_then(|s| s.to_str())
+			.unwrap_or(DEFAULT_SPEC_NAME);
 		let raw_chain_spec =
-			generate_raw_chain_spec(&binary_path, &plain_chain_spec, RAW_CHAIN_SPEC_FILE_NAME)?;
+			generate_raw_chain_spec(&binary_path, &plain_chain_spec, &raw_spec_name)?;
 		generated_files.push(format!(
 			"Raw chain specification file generated at: {}",
 			raw_chain_spec.display()
 		));
-		let wasm_file_name = format!("para-{}-wasm.wasm", para_id);
-		let wasm_file = export_wasm_file(&binary_path, &raw_chain_spec, &wasm_file_name)?;
-		generated_files.push(format!(
-			"WebAssembly runtime file exported at: {}",
-			wasm_file.display().to_string()
-		));
-		let genesis_file_name = format!("para-{}-genesis-state", para_id);
-		let genesis_state_file =
-			generate_genesis_state_file(&binary_path, &raw_chain_spec, &genesis_file_name)?;
-		generated_files.push(format!(
-			"Genesis State exported at {} file",
-			genesis_state_file.display().to_string()
-		));
+
+		// Generate genesis artifacts.
+		if self.genesis_code {
+			let wasm_file_name = format!("para-{}.wasm", para_id);
+			let wasm_file = export_wasm_file(&binary_path, &raw_chain_spec, &wasm_file_name)?;
+			generated_files.push(format!(
+				"WebAssembly runtime file exported at: {}",
+				wasm_file.display().to_string()
+			));
+		}
+
+		if self.genesis_state {
+			let genesis_file_name = format!("para-{}-genesis-state", para_id);
+			let genesis_state_file =
+				generate_genesis_state_file(&binary_path, &raw_chain_spec, &genesis_file_name)?;
+			generated_files.push(format!(
+				"Genesis State exported at {} file",
+				genesis_state_file.display().to_string()
+			));
+		}
 
 		console::Term::stderr().clear_last_lines(5)?;
 		let generated_files: Vec<_> = generated_files
@@ -240,14 +273,14 @@ impl BuildSpecCommand {
 	}
 }
 
-/// Guide the user to generate thier chain specification.
+/// Guide the user to generate their chain specification.
 async fn guide_user_to_generate_spec() -> anyhow::Result<BuildSpecCommand> {
 	Cli.intro("Generate your chain spec")?;
 
-	// Confirm project path
-	let target_path: String = input("Where is the project located?")
-		.placeholder("./")
-		.default_input("./")
+	// Confirm output path
+	let output_file: String = input("Name of the chain spec file. If a path is given, the necessary directories will be created:")
+		.placeholder("./template-chain-spec.json")
+		.default_input("./template-chain-spec.json")
 		.interact()?;
 
 	// Prompt for chain id.
@@ -273,26 +306,51 @@ async fn guide_user_to_generate_spec() -> anyhow::Result<BuildSpecCommand> {
 	let relay_chain = rc.clone();
 
 	// Prompt for chain type.
-	let mut prompt = cliclack::select("Choose the chain type: ".to_string());
-	for (i, chain_type) in ChainType::VARIANTS.iter().enumerate() {
-		if i == 0 {
-			prompt = prompt.initial_value(chain_type);
+	// If relay is Kusama or Polkadot, then Live type is used and user is not prompted.
+	let chain_type: ChainType;
+	if relay_chain == RelayChain::Polkadot || relay_chain == RelayChain::Kusama {
+		chain_type = ChainType::Live;
+	} else {
+		let mut prompt = cliclack::select("Choose the chain type: ".to_string());
+		for (i, chain_type) in ChainType::VARIANTS.iter().enumerate() {
+			if i == 0 {
+				prompt = prompt.initial_value(chain_type);
+			}
+			prompt = prompt.item(
+				chain_type,
+				chain_type.get_message().unwrap_or(chain_type.as_ref()),
+				chain_type.get_detailed_message().unwrap_or_default(),
+			);
 		}
-		prompt = prompt.item(
-			chain_type,
-			chain_type.get_message().unwrap_or(chain_type.as_ref()),
-			chain_type.get_detailed_message().unwrap_or_default(),
-		);
+		let ct = prompt.interact()?;
+		chain_type = ct.clone();
 	}
-	let ct = prompt.interact()?;
-	let chain_type = ct.clone();
 
-	// Prompt for default bootnode
-	let default_bootnode =
-		confirm(format!("Would you like to use local host as a bootnode ?")).interact()?;
+	// Prompt for default bootnode if chian type is Local or Live.
+	let default_bootnode = match chain_type {
+		ChainType::Development => true,
+		_ => confirm(format!("Would you like to use local host as a bootnode ?")).interact()?,
+	};
+
+	// Prompt for protocol-id.
+	let protocol_id: String =
+		input("Choose the protocol-id that will identify your network on the networking layer: ")
+			.placeholder("template-local")
+			.default_input("template-local")
+			.interact()?;
+
+	// Prompt for genesis state
+	let genesis_state = confirm(format!("Should the genesis state file be generated ?"))
+		.initial_value(true)
+		.interact()?;
+
+	// Prompt for genesis code
+	let genesis_code = confirm(format!("Should the genesis code file be generated ?"))
+		.initial_value(true)
+		.interact()?;
 
 	Ok(BuildSpecCommand {
-		path: Some(PathBuf::from(target_path)),
+		output_file: Some(PathBuf::from(output_file)),
 		release: match chain_type {
 			ChainType::Development => false,
 			_ => true,
@@ -301,20 +359,24 @@ async fn guide_user_to_generate_spec() -> anyhow::Result<BuildSpecCommand> {
 		default_bootnode,
 		chain_type: Some(chain_type),
 		relay: Some(relay_chain),
+		protocol_id: Some(protocol_id),
+		genesis_state,
+		genesis_code,
 	})
 }
 
 // Checks if the binary exists in the target directory of the given path
-fn maybe_node_binary_path(path: &PathBuf, profile: &Profile) -> Option<PathBuf> {
-	// Figure out the name of the binary
-	let mut node_path = path.clone();
-	node_path.push("node");
-	let manifest = match from_path(Some(&node_path)) {
+fn maybe_node_binary_path(profile: &Profile) -> Option<PathBuf> {
+	// Try to figure out the name of the binary.
+	// Assumes being run on the project root.
+	let mut cwd = current_dir().unwrap_or(PathBuf::from("./"));
+	cwd.push("node");
+	let manifest = match from_path(Some(&cwd)) {
 		Ok(manifest) => manifest,
 		Err(_) => return None,
 	};
-	let binary_name = manifest.package().name();
-	let binary_path_by_profile = profile.target_folder(&path).join(binary_name);
+	cwd.pop();
+	let binary_path_by_profile = profile.target_folder(&cwd).join(manifest.package().name());
 	if binary_path_by_profile.exists() {
 		return Some(binary_path_by_profile);
 	} else {

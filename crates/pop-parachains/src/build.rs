@@ -84,7 +84,7 @@ pub fn generate_plain_chain_spec(
 	if default_bootnode {
 		args.push("--disable-default-bootnode");
 	}
-	cmd(binary_path, args).stdout_path(plain_chain_spec).run()?;
+	cmd(binary_path, args).stdout_path(plain_chain_spec).stderr_null().run()?;
 	let generated_para_id = get_parachain_id(plain_chain_spec)?.unwrap_or(para_id.into()) as u32;
 	replace_para_id(plain_chain_spec.to_path_buf(), para_id, generated_para_id)?;
 	Ok(())
@@ -105,8 +105,10 @@ pub fn generate_raw_chain_spec(
 		return Err(Error::MissingChainSpec(plain_chain_spec.display().to_string()));
 	}
 	check_command_exists(&binary_path, "build-spec")?;
-	let raw_chain_spec =
-		plain_chain_spec.parent().unwrap_or(Path::new("./")).join(chain_spec_file_name);
+	let raw_chain_spec = plain_chain_spec
+		.parent()
+		.unwrap_or(Path::new("./"))
+		.join(format!("raw-{}", chain_spec_file_name));
 	cmd(
 		binary_path,
 		vec![
@@ -117,6 +119,7 @@ pub fn generate_raw_chain_spec(
 			"--raw",
 		],
 	)
+	.stderr_null()
 	.stdout_path(&raw_chain_spec)
 	.run()?;
 	Ok(raw_chain_spec)
@@ -147,6 +150,8 @@ pub fn export_wasm_file(
 			&wasm_file.display().to_string(),
 		],
 	)
+	.stdout_null()
+	.stderr_null()
 	.run()?;
 	Ok(wasm_file)
 }
@@ -176,6 +181,8 @@ pub fn generate_genesis_state_file(
 			&genesis_file.display().to_string(),
 		],
 	)
+	.stdout_null()
+	.stderr_null()
 	.run()?;
 	Ok(genesis_file)
 }
@@ -188,6 +195,10 @@ fn get_parachain_id(chain_spec: &Path) -> Result<Option<u64>> {
 }
 
 /// Replaces the generated parachain id in the chain specification file with the provided para_id.
+/// # Arguments
+/// * `chain_spec` - The path to the specification to be modified.
+/// * `para_id` - The new value for the para_id.
+/// * `generated_para_id` - The para_id the specification currently has.
 fn replace_para_id(chain_spec: PathBuf, para_id: u32, generated_para_id: u32) -> Result<()> {
 	let mut replacements_in_cargo: HashMap<&str, &str> = HashMap::new();
 	let old_para_id = format!("\"para_id\": {generated_para_id}");
@@ -201,6 +212,10 @@ fn replace_para_id(chain_spec: PathBuf, para_id: u32, generated_para_id: u32) ->
 }
 
 /// Replaces the generated relay spec name with the given one in an existing chain spec.
+/// # Arguments
+/// * `chain_spec` - The path to the specification to be modified.
+/// * `relay_name` - The new value for the relay chian field in the specification.
+/// * `generated_relay_name` - The relay chain value the specification currently has.
 pub fn replace_relay_spec(
 	chain_spec: &PathBuf,
 	relay_name: &str,
@@ -216,6 +231,10 @@ pub fn replace_relay_spec(
 }
 
 /// Replaces the generated chain type with the given one in an existing chain spec.
+/// # Arguments
+/// * `chain_spec` - The path to the specification to be modified.
+/// * `chain_type` - The new value for the chain type.
+/// * `generated_chain_type` - The chain_type the specification currently has.
 pub fn replace_chain_type(
 	chain_spec: &PathBuf,
 	chain_type: &str,
@@ -225,6 +244,25 @@ pub fn replace_chain_type(
 	let old_chain_type = format!("\"chainType\": \"{generated_chain_type}\"");
 	let new_chain_type = format!("\"chainType\": \"{chain_type}\"");
 	replacements.insert(&old_chain_type, &new_chain_type);
+	let chain_spec_path = PathBuf::from(chain_spec);
+	replace_in_file(chain_spec_path, replacements)?;
+	Ok(())
+}
+
+/// Replaces the generated protocolId with the given one in an existing chain spec.
+/// # Arguments
+/// * `chain_spec` - The path to the specification to be modified.
+/// * `protocol_id` - The new value for the protocolId of the given specification.
+/// * `generated_protocol_id` - The protocolId the specification currently has.
+pub fn replace_protocol_id(
+	chain_spec: &PathBuf,
+	protocol_id: &str,
+	generated_protocol_id: &str,
+) -> Result<()> {
+	let mut replacements: HashMap<&str, &str> = HashMap::new();
+	let old_protocol_id = format!("\"protocolId\": \"{generated_protocol_id}\"");
+	let new_protocol_id = format!("\"protocolId\": \"{protocol_id}\"");
+	replacements.insert(&old_protocol_id, &new_protocol_id);
 	let chain_spec_path = PathBuf::from(chain_spec);
 	replace_in_file(chain_spec_path, replacements)?;
 	Ok(())
