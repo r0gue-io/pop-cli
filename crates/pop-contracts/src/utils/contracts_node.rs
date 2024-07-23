@@ -158,7 +158,8 @@ mod tests {
 		// Run the contracts node
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
 		let cache = temp_dir.path().join("cache");
-		let process = run_contracts_node(cache.clone(), None).await?;
+		let node_path = download_contracts_node(cache.clone()).await?;
+		let process = run_contracts_node(node_path.path(), None).await?;
 		// Check if the node is alive
 		assert!(is_chain_alive(local_url).await?);
 		assert!(cache.join("substrate-contracts-node").exists());

@@ -162,8 +162,9 @@ pub async fn call_smart_contract(
 mod tests {
 	use super::*;
 	use crate::{
-		create_smart_contract, dry_run_gas_estimate_instantiate, errors::Error,
-		instantiate_smart_contract, run_contracts_node, set_up_deployment, Contract, UpOpts,
+		create_smart_contract, download_contracts_node, dry_run_gas_estimate_instantiate,
+		errors::Error, instantiate_smart_contract, run_contracts_node, set_up_deployment, Contract,
+		UpOpts,
 	};
 	use anyhow::Result;
 	use sp_core::Bytes;
@@ -311,7 +312,8 @@ mod tests {
 		mock_build_process(temp_dir.path().join("testing"))?;
 		// Run the contracts-node.
 		let cache = temp_dir.path().join("cache");
-		let process = run_contracts_node(cache, None).await?;
+		let node_path = download_contracts_node(cache.clone()).await?;
+		let process = run_contracts_node(node_path.path(), None).await?;
 		// Instantiate a Smart Contract.
 		let instantiate_exec = set_up_deployment(UpOpts {
 			path: Some(temp_dir.path().join("testing")),
