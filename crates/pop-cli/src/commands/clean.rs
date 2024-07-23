@@ -80,7 +80,7 @@ impl<'a, CLI: Cli> CleanCacheCommand<'a, CLI> {
 				.confirm(format!("Would you like to cleanup all cached artifacts...\n {list} \n"))
 				.interact()?
 			{
-				self.cli.outro_cancel("Failed to clean cache")?;
+				self.cli.outro_cancel("ℹ️ No artifacts removed")?;
 				return Ok(());
 			}
 
@@ -332,7 +332,7 @@ mod tests {
 				format!("Would you like to cleanup all cached artifacts...\n {list} \n"),
 				false,
 			)
-			.expect_outro_cancel("Failed to clean cache");
+			.expect_outro_cancel("ℹ️ No artifacts removed");
 
 		CleanCacheCommand { cli: &mut cli, cache: cache.clone(), all: true }.execute()?;
 
