@@ -338,8 +338,11 @@ mod tests {
 		const LOCALHOST_URL: &str = "ws://127.0.0.1:9944";
 		let temp_dir = generate_smart_contract_test_environment()?;
 		mock_build_process(temp_dir.path().join("testing"))?;
-		// Run contracts-node
-		let cache = temp_dir.path().join("cache");
+
+		// temp_dir gets dropped prematurely, so manually create a tmp directory.
+		let cache = dirs::cache_dir().expect("cache_dir failed").join("pop_tmp");
+		std::fs::create_dir_all(&cache)?;
+
 		let node_path = download_contracts_node(cache.clone()).await?;
 		let process = run_contracts_node(node_path.path(), None).await?;
 
@@ -390,6 +393,10 @@ mod tests {
 			.args(["-s", "TERM", &process.id().to_string()])
 			.spawn()?
 			.wait()?;
+
+		// cleanup
+		std::fs::remove_dir_all(cache)?;
+
 		Ok(())
 	}
 }

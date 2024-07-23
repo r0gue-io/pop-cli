@@ -4528,6 +4528,7 @@ dependencies = [
  "anyhow",
  "contract-build",
  "contract-extrinsics",
+ "dirs",
  "duct",
  "flate2",
  "heck 0.5.0",
