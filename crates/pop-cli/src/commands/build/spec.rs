@@ -130,10 +130,10 @@ pub struct BuildSpecCommand {
 	/// Whether to keep localhost as a bootnode.
 	#[clap(long, default_value = "true")]
 	pub(crate) default_bootnode: bool,
-	/// Type of the chain [default: Development].
+	/// Type of the chain [default: development].
 	#[arg(short = 't', long = "type", value_enum)]
 	pub(crate) chain_type: Option<ChainType>,
-	/// Relay chain this parachain will connect to [default: PaseoLocal].
+	/// Relay chain this parachain will connect to [default: paseo-local].
 	#[arg(long, value_enum)]
 	pub(crate) relay: Option<RelayChain>,
 	/// Procotol-id to use in the specification.
@@ -177,10 +177,13 @@ impl BuildSpecCommand {
 		let para_id = self.id.unwrap_or(2000);
 		// Notify user in case we need to build the parachain project.
 		if !self.release {
-			cli.warning("NOTE: this command now defaults to DEBUG builds.")?;
+			cli.warning("NOTE: this command defaults to DEBUG builds for development chain types. Please use `--release` (or simply `-r` for a release build...")?;
 			#[cfg(not(test))]
 			sleep(Duration::from_secs(3))
 		}
+
+		let spinner = cliclack::spinner();
+		spinner.start("Generating chain specification...");
 
 		// Create output path if needed
 		let mut output_path = self.output_file.unwrap_or_else(|| PathBuf::from("./"));
@@ -213,6 +216,7 @@ impl BuildSpecCommand {
 		};
 
 		// Generate plain spec.
+		spinner.set_message("Generating plain chain specification...");
 		let mut generated_files =
 			vec![format!("Specification and artifacts generated at: {}", &output_path.display())];
 		generate_plain_chain_spec(&binary_path, &plain_chain_spec, para_id, self.default_bootnode)?;
@@ -232,6 +236,7 @@ impl BuildSpecCommand {
 		}
 
 		// Generate raw spec.
+		spinner.set_message("Generating raw chain specification...");
 		let raw_spec_name = plain_chain_spec
 			.file_name()
 			.and_then(|s| s.to_str())
@@ -245,6 +250,7 @@ impl BuildSpecCommand {
 
 		// Generate genesis artifacts.
 		if self.genesis_code {
+			spinner.set_message("Generating genesis code...");
 			let wasm_file_name = format!("para-{}.wasm", para_id);
 			let wasm_file = export_wasm_file(&binary_path, &raw_chain_spec, &wasm_file_name)?;
 			generated_files.push(format!(
@@ -254,6 +260,7 @@ impl BuildSpecCommand {
 		}
 
 		if self.genesis_state {
+			spinner.set_message("Generating genesis state...");
 			let genesis_file_name = format!("para-{}-genesis-state", para_id);
 			let genesis_state_file =
 				generate_genesis_state_file(&binary_path, &raw_chain_spec, &genesis_file_name)?;
@@ -263,7 +270,7 @@ impl BuildSpecCommand {
 			));
 		}
 
-		console::Term::stderr().clear_last_lines(5)?;
+		console::Term::stderr().clear_last_lines(1)?;
 		let generated_files: Vec<_> = generated_files
 			.iter()
 			.map(|s| style(format!("{} {s}", console::Emoji("●", ">"))).dim().to_string())
