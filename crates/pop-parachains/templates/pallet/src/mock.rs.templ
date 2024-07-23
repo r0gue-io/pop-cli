@@ -64,16 +64,18 @@ impl pallet_balances::Config for Test {
 #[derive_impl(^^name^^::config_preludes::TestDefaultConfig)]
 {{- endif }}
 impl ^^name^^::Config for Test {
-    {{- if using_runtime_event && pallet_default_config -}}
+    {{- if using_runtime_event && !pallet_default_config -}}
     type RuntimeEvent = RuntimeEvent;
     {{- endif -}}
-    {{- if using_runtime_origin && pallet_default_config -}}
+    {{- if using_runtime_origin && !pallet_default_config -}}
     type RuntimeOrigin = RuntimeOrigin;
     {{- endif -}}
-    {{- if using_currency && pallet_default_config -}}
+    {{- if using_currency -}}
     type Currency = Balances;
+    {{- if !pallet_default_config }}
     type RuntimeHoldReason = RuntimeHoldReason;
     type RuntimeFreezeReason = RuntimeFreezeReason;
+    {{- endif -}}
     {{- endif -}}
     {{- for config_type in pallet_config_types -}}
     {{- match config_type.1 -}}
