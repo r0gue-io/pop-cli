@@ -302,8 +302,7 @@ async fn guide_user_to_generate_spec() -> anyhow::Result<BuildSpecCommand> {
 			relay.get_detailed_message().unwrap_or_default(),
 		);
 	}
-	let rc = prompt.interact()?;
-	let relay_chain = rc.clone();
+	let relay_chain = prompt.interact()?.clone();
 
 	// Prompt for chain type.
 	// If relay is Kusama or Polkadot, then Live type is used and user is not prompted.
@@ -322,8 +321,7 @@ async fn guide_user_to_generate_spec() -> anyhow::Result<BuildSpecCommand> {
 				chain_type.get_detailed_message().unwrap_or_default(),
 			);
 		}
-		let ct = prompt.interact()?;
-		chain_type = ct.clone();
+		chain_type = prompt.interact()?.clone();
 	}
 
 	// Prompt for default bootnode if chian type is Local or Live.
