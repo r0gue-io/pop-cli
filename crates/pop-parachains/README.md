@@ -44,13 +44,13 @@ let para_id = 2000;
 let binary_path = build_parachain(&path, package, &Profile::Release, None).unwrap();;
 // Generate a plain chain specification file of a parachain
 let plain_chain_spec_path = path.join("plain-parachain-chainspec.json");
-generate_plain_chain_spec(&binary_path, &plain_chain_spec_path, para_id);
+generate_plain_chain_spec(&binary_path, &plain_chain_spec_path, para_id, true);
 // Generate a raw chain specification file of a parachain
 let chain_spec = generate_raw_chain_spec(&binary_path, &plain_chain_spec_path, "raw-parachain-chainspec.json").unwrap();
-// Export the WebAssembly runtime for the parachain. 
-let wasm_file = export_wasm_file(&binary_path, &chain_spec, "para-2000-wasm").unwrap(); 
+// Export the WebAssembly runtime for the parachain.
+let wasm_file = export_wasm_file(&binary_path, &chain_spec, "para-2000-wasm").unwrap();
 // Generate the parachain genesis state.
-let genesis_state_file = generate_genesis_state_file(&binary_path, &chain_spec, "para-2000-genesis-state").unwrap(); 
+let genesis_state_file = generate_genesis_state_file(&binary_path, &chain_spec, "para-2000-genesis-state").unwrap();
 ```
 
 Run a Parachain:
@@ -86,7 +86,7 @@ tokio_test::block_on(async {
     let verbose = false; // Whether verbose output is required
     let missing = zombienet.binaries();
     for binary in missing {
-        binary.source(release, &status, verbose).await; 
+        binary.source(release, &status, verbose).await;
     }
 })
 ```
