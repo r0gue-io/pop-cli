@@ -14,10 +14,12 @@ use std::{
 /// Build the parachain and returns the path to the binary.
 ///
 /// # Arguments
-/// * `path` - The optional path to the parachain manifest, defaulting to the current directory if not specified.
+/// * `path` - The optional path to the parachain manifest, defaulting to the current directory if
+///   not specified.
 /// * `package` - The optional package to be built.
 /// * `release` - Whether the parachain should be built without any debugging functionality.
-/// * `node_path` - An optional path to the node directory. Defaults to the `node` subdirectory of the project path if not provided.
+/// * `node_path` - An optional path to the node directory. Defaults to the `node` subdirectory of
+///   the project path if not provided.
 pub fn build_parachain(
 	path: &Path,
 	package: Option<String>,
@@ -39,15 +41,16 @@ pub fn build_parachain(
 /// Determines whether the manifest at the supplied path is a supported parachain project.
 ///
 /// # Arguments
-/// * `path` - The optional path to the manifest, defaulting to the current directory if not specified.
+/// * `path` - The optional path to the manifest, defaulting to the current directory if not
+///   specified.
 pub fn is_supported(path: Option<&Path>) -> Result<bool, Error> {
 	let manifest = pop_common::manifest::from_path(path)?;
 	// Simply check for a parachain dependency
 	const DEPENDENCIES: [&str; 4] =
 		["cumulus-client-collator", "cumulus-primitives-core", "parachains-common", "polkadot-sdk"];
 	Ok(DEPENDENCIES.into_iter().any(|d| {
-		manifest.dependencies.contains_key(d)
-			|| manifest.workspace.as_ref().map_or(false, |w| w.dependencies.contains_key(d))
+		manifest.dependencies.contains_key(d) ||
+			manifest.workspace.as_ref().map_or(false, |w| w.dependencies.contains_key(d))
 	}))
 }
 
@@ -121,7 +124,8 @@ pub fn generate_raw_chain_spec(
 /// Export the WebAssembly runtime for the parachain.
 ///
 /// # Arguments
-/// * `binary_path` - The path to the node binary executable that contains the `export-genesis-wasm` command.
+/// * `binary_path` - The path to the node binary executable that contains the `export-genesis-wasm`
+///   command.
 /// * `chain_spec` - Location of the raw chain specification file.
 /// * `wasm_file_name` - The name of the wasm runtime file to be generated.
 pub fn export_wasm_file(
@@ -150,7 +154,8 @@ pub fn export_wasm_file(
 /// Generate the parachain genesis state.
 ///
 /// # Arguments
-/// * `binary_path` - The path to the node binary executable that contains the `export-genesis-state` command.
+/// * `binary_path` - The path to the node binary executable that contains the
+///   `export-genesis-state` command.
 /// * `chain_spec` - Location of the raw chain specification file.
 /// * `genesis_file_name` - The name of the genesis state file to be generated.
 pub fn generate_genesis_state_file(

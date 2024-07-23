@@ -13,9 +13,8 @@ use std::{
 /// # Arguments
 ///
 /// * `file_path` - A `PathBuf` specifying the path to the file to be modified.
-/// * `replacements` - A `HashMap` where each key-value pair represents
-///   a target string and its corresponding replacement string.
-///
+/// * `replacements` - A `HashMap` where each key-value pair represents a target string and its
+///   corresponding replacement string.
 pub fn replace_in_file(file_path: PathBuf, replacements: HashMap<&str, &str>) -> Result<(), Error> {
 	// Read the file content
 	let mut file_content = String::new();
@@ -31,7 +30,8 @@ pub fn replace_in_file(file_path: PathBuf, replacements: HashMap<&str, &str>) ->
 	Ok(())
 }
 
-/// Gets the last component (name of a project) of a path or returns a default value if the path has no valid last component.
+/// Gets the last component (name of a project) of a path or returns a default value if the path has
+/// no valid last component.
 ///
 /// # Arguments
 /// * `path` - Location path of the project.

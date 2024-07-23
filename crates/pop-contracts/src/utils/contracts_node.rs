@@ -23,7 +23,6 @@ const STABLE_VERSION: &str = "v0.41.0";
 /// # Arguments
 ///
 /// * `url` - Endpoint of the node.
-///
 pub async fn is_chain_alive(url: url::Url) -> Result<bool, Error> {
 	let request = RpcRequest::new(&url).await;
 	match request {
@@ -45,7 +44,6 @@ pub async fn is_chain_alive(url: url::Url) -> Result<bool, Error> {
 ///
 /// * `cache` - The path where the binary will be stored.
 /// * `output` - The optional log file for node output.
-///
 pub async fn run_contracts_node(cache: PathBuf, output: Option<&File>) -> Result<Child, Error> {
 	let cached_file = cache.join(BIN_NAME);
 	if !cached_file.exists() {
@@ -91,7 +89,8 @@ async fn latest_contract_node_release() -> Result<String, Error> {
 					return Ok(release.tag_name);
 				}
 			}
-			// It should never reach this point, but in case we download a default version of polkadot
+			// It should never reach this point, but in case we download a default version of
+			// polkadot
 			Ok(STABLE_VERSION.to_string())
 		},
 		// If an error with GitHub API return the STABLE_VERSION

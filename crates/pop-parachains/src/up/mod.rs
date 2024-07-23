@@ -39,10 +39,14 @@ impl Zombienet {
 	/// # Arguments
 	/// * `cache` - The location used for caching binaries.
 	/// * `network_config` - The configuration file to be used to launch a network.
-	/// * `relay_chain_version` - The specific binary version used for the relay chain (`None` will use the latest available version).
-	/// * `relay_chain_runtime_version` - The specific runtime version used for the relay chain runtime (`None` will use the latest available version).
-	/// * `system_parachain_version` - The specific binary version used for system parachains (`None` will use the latest available version).
-	/// * `system_parachain_runtime_version` - The specific runtime version used for system parachains (`None` will use the latest available version).
+	/// * `relay_chain_version` - The specific binary version used for the relay chain (`None` will
+	///   use the latest available version).
+	/// * `relay_chain_runtime_version` - The specific runtime version used for the relay chain
+	///   runtime (`None` will use the latest available version).
+	/// * `system_parachain_version` - The specific binary version used for system parachains
+	///   (`None` will use the latest available version).
+	/// * `system_parachain_runtime_version` - The specific runtime version used for system
+	///   parachains (`None` will use the latest available version).
 	/// * `parachains` - The parachain(s) specified.
 	pub async fn new(
 		cache: &Path,
@@ -100,8 +104,10 @@ impl Zombienet {
 	///
 	/// # Arguments
 	/// * `relay_chain` - The configuration required to launch the relay chain.
-	/// * `system_parachain_version` - The specific binary version used for system parachains (`None` will use the latest available version).
-	/// * `system_parachain_runtime_version` - The specific runtime version used for system parachains (`None` will use the latest available version).
+	/// * `system_parachain_version` - The specific binary version used for system parachains
+	///   (`None` will use the latest available version).
+	/// * `system_parachain_runtime_version` - The specific runtime version used for system
+	///   parachains (`None` will use the latest available version).
 	/// * `parachains` - The parachain repositories specified.
 	/// * `network_config` - The network configuration to be used to launch a network.
 	/// * `cache` - The location used for caching binaries.
@@ -203,8 +209,10 @@ impl Zombienet {
 	/// Determines relay chain configuration based on specified version and network configuration.
 	///
 	/// # Arguments
-	/// * `version` - The specific binary version used for the relay chain (`None` will use the latest available version).
-	/// * `runtime_version` - The specific runtime version used for the relay chain runtime (`None` will use the latest available version).
+	/// * `version` - The specific binary version used for the relay chain (`None` will use the
+	///   latest available version).
+	/// * `runtime_version` - The specific runtime version used for the relay chain runtime (`None`
+	///   will use the latest available version).
 	/// * `network_config` - The network configuration to be used to launch a network.
 	/// * `cache` - The location used for caching binaries.
 	async fn relay_chain(
@@ -244,13 +252,12 @@ impl Zombienet {
 				if let Some(command) = NetworkConfiguration::command(node).and_then(|c| c.as_str())
 				{
 					match &relay {
-						Some(relay) => {
+						Some(relay) =>
 							if command.to_lowercase() != relay.binary.name() {
 								return Err(Error::UnsupportedCommand(format!(
 									"the relay chain command is unsupported: {command}",
 								)));
-							}
-						},
+							},
 						None => {
 							relay = Some(
 								relay::from(command, version, runtime_version, chain, cache)
@@ -524,7 +531,8 @@ impl Parachain {
 		})
 	}
 
-	/// Initializes the configuration required to launch a parachain using a binary sourced from the specified repository.
+	/// Initializes the configuration required to launch a parachain using a binary sourced from the
+	/// specified repository.
 	///
 	/// # Arguments
 	/// * `id` - The parachain identifier on the local network.
@@ -613,13 +621,12 @@ impl Binary {
 	pub fn latest(&self) -> Option<&str> {
 		match self {
 			Self::Local { .. } => None,
-			Self::Source { source, .. } => {
+			Self::Source { source, .. } =>
 				if let GitHub(ReleaseArchive { latest, .. }) = source {
 					latest.as_deref()
 				} else {
 					None
-				}
-			},
+				},
 		}
 	}
 
@@ -655,13 +662,14 @@ impl Binary {
 		}
 	}
 
-	/// Attempts to resolve a version of a binary based on whether one is specified, an existing version
-	/// can be found cached locally, or uses the latest version.
+	/// Attempts to resolve a version of a binary based on whether one is specified, an existing
+	/// version can be found cached locally, or uses the latest version.
 	///
 	/// # Arguments
 	/// * `name` - The name of the binary.
 	/// * `specified` - If available, a version explicitly specified.
-	/// * `available` - The available versions, used to check for those cached locally or the latest otherwise.
+	/// * `available` - The available versions, used to check for those cached locally or the latest
+	///   otherwise.
 	/// * `cache` - The location used for caching binaries.
 	fn resolve_version(
 		name: &str,
@@ -690,7 +698,8 @@ impl Binary {
 	/// Sources the binary.
 	///
 	/// # Arguments
-	/// * `release` - Whether any binaries needing to be built should be done so using the release profile.
+	/// * `release` - Whether any binaries needing to be built should be done so using the release
+	///   profile.
 	/// * `status` - Used to observe status updates.
 	/// * `verbose` - Whether verbose output is required.
 	pub async fn source(
@@ -701,18 +710,15 @@ impl Binary {
 	) -> Result<(), Error> {
 		match self {
 			Self::Local { name, path, manifest, .. } => match manifest {
-				None => {
+				None =>
 					return Err(Error::MissingBinary(format!(
 						"The {path:?} binary cannot be sourced automatically."
-					)))
-				},
-				Some(manifest) => {
-					sourcing::from_local_package(manifest, name, release, status, verbose).await
-				},
+					))),
+				Some(manifest) =>
+					sourcing::from_local_package(manifest, name, release, status, verbose).await,
 			},
-			Self::Source { source, cache, .. } => {
-				source.source(cache, release, status, verbose).await
-			},
+			Self::Source { source, cache, .. } =>
+				source.source(cache, release, status, verbose).await,
 		}
 	}
 
@@ -867,18 +873,16 @@ fn target() -> Result<&'static str, Error> {
 	}
 
 	match ARCH {
-		"aarch64" => {
+		"aarch64" =>
 			return match OS {
 				"macos" => Ok("aarch64-apple-darwin"),
 				_ => Ok("aarch64-unknown-linux-gnu"),
-			}
-		},
-		"x86_64" | "x86" => {
+			},
+		"x86_64" | "x86" =>
 			return match OS {
 				"macos" => Ok("x86_64-apple-darwin"),
 				_ => Ok("x86_64-unknown-linux-gnu"),
-			}
-		},
+			},
 		&_ => {},
 	}
 	Err(Error::UnsupportedPlatform { arch: ARCH, os: OS })
@@ -888,8 +892,7 @@ fn target() -> Result<&'static str, Error> {
 mod tests {
 	use super::*;
 	use anyhow::Result;
-	use std::env::current_dir;
-	use std::{fs::File, io::Write};
+	use std::{env::current_dir, fs::File, io::Write};
 	use tempfile::tempdir;
 
 	mod zombienet {
@@ -1671,10 +1674,9 @@ validator = true
 
 	mod network_config {
 		use super::*;
-		use std::io::Read;
 		use std::{
 			fs::{create_dir_all, File},
-			io::Write,
+			io::{Read, Write},
 			path::PathBuf,
 		};
 		use tempfile::{tempdir, Builder};

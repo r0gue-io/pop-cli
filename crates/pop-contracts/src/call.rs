@@ -49,7 +49,6 @@ pub struct CallOpts {
 /// # Arguments
 ///
 /// * `call_opts` - options for the `call` command.
-///
 pub async fn set_up_call(
 	call_opts: CallOpts,
 ) -> anyhow::Result<CallExec<DefaultConfig, DefaultEnvironment, Keypair>> {
@@ -83,7 +82,6 @@ pub async fn set_up_call(
 /// # Arguments
 ///
 /// * `call_exec` - struct with the call to be executed.
-///
 pub async fn dry_run_call(
 	call_exec: &CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
 ) -> Result<String, Error> {
@@ -109,7 +107,6 @@ pub async fn dry_run_call(
 /// # Arguments
 ///
 /// * `call_exec` - the preprocessed data to call a contract.
-///
 pub async fn dry_run_gas_estimate_call(
 	call_exec: &CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
 ) -> Result<Weight, Error> {
@@ -138,7 +135,6 @@ pub async fn dry_run_gas_estimate_call(
 /// * `call_exec` - struct with the call to be executed.
 /// * `gas_limit` - maximum amount of gas to be used for this call.
 /// * `url` - endpoint of the node which to send the call to.
-///
 pub async fn call_smart_contract(
 	call_exec: CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
 	gas_limit: Weight,

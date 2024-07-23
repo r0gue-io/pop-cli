@@ -70,7 +70,8 @@ async fn contract_lifecycle() -> Result<()> {
 		])
 		.assert()
 		.success();
-	// Using methods from the pop_contracts crate to instantiate it to get the Contract Address for the call
+	// Using methods from the pop_contracts crate to instantiate it to get the Contract Address for
+	// the call
 	let instantiate_exec = set_up_deployment(UpOpts {
 		path: Some(temp_dir.join("test_contract")),
 		constructor: "new".to_string(),

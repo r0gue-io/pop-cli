@@ -74,12 +74,14 @@ impl Command {
 				},
 				#[cfg(feature = "parachain")]
 				new::Command::Pallet(cmd) => {
-					// When more contract selections are added the tel data will likely need to go deeper in the stack
+					// When more contract selections are added the tel data will likely need to go
+					// deeper in the stack
 					cmd.execute().await.map(|_| json!("template"))
 				},
 				#[cfg(feature = "contract")]
 				new::Command::Contract(cmd) => {
-					// When more contract selections are added, the tel data will likely need to go deeper in the stack
+					// When more contract selections are added, the tel data will likely need to go
+					// deeper in the stack
 					cmd.execute().await.map(|_| json!("default"))
 				},
 			},

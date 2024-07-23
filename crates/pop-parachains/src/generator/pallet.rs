@@ -2,14 +2,18 @@
 
 use std::path::PathBuf;
 
-use crate::{utils::helpers::write_to_file, TemplatePalletConfigCommonTypes, TemplatePalletConfigTypesMetadata, TemplatePalletConfigTypesDefault, TemplatePalletStorageTypes};
+use crate::{
+	utils::helpers::write_to_file, TemplatePalletConfigCommonTypes,
+	TemplatePalletConfigTypesDefault, TemplatePalletConfigTypesMetadata,
+	TemplatePalletStorageTypes,
+};
 use askama::Template;
 
-mod filters{
-    /// This filter is used to determine if a element is present in a `Vec`
-    pub fn contains<T: PartialEq>(vec: &Vec<T>, element: T) -> ::askama::Result<bool> {
-        Ok(vec.contains(&element))
-    }
+mod filters {
+	/// This filter is used to determine if a element is present in a `Vec`
+	pub fn contains<T: PartialEq>(vec: &Vec<T>, element: T) -> ::askama::Result<bool> {
+		Ok(vec.contains(&element))
+	}
 }
 
 #[derive(Template)]
@@ -18,8 +22,10 @@ pub(crate) struct PalletCargoToml {
 	pub(crate) name: String,
 	pub(crate) authors: String,
 	pub(crate) description: String,
-    // Some common types are used to couple our pallet with a well known one, then adding this type here is useful to design Cargo.toml. This pallets should be added as dev-dependencies to construct the mock runtime
-    pub(crate) pallet_common_types: Vec<TemplatePalletConfigCommonTypes>
+	// Some common types are used to couple our pallet with a well known one, then adding this type
+	// here is useful to design Cargo.toml. This pallets should be added as dev-dependencies to
+	// construct the mock runtime
+	pub(crate) pallet_common_types: Vec<TemplatePalletConfigCommonTypes>,
 }
 #[derive(Template)]
 #[template(path = "pallet/src/benchmarking.rs.templ", escape = "none")]
@@ -27,40 +33,43 @@ pub(crate) struct PalletBenchmarking {}
 #[derive(Template)]
 #[template(path = "pallet/src/lib.rs.templ", escape = "none")]
 pub(crate) struct PalletLib {
-    pub(crate) name: String,
-    pub(crate) pallet_default_config: bool,
+	pub(crate) name: String,
+	pub(crate) pallet_default_config: bool,
 	pub(crate) pallet_common_types: Vec<TemplatePalletConfigCommonTypes>,
-	pub(crate) pallet_config_types: Vec<(TemplatePalletConfigTypesMetadata, TemplatePalletConfigTypesDefault, String)>,
+	pub(crate) pallet_config_types:
+		Vec<(TemplatePalletConfigTypesMetadata, TemplatePalletConfigTypesDefault, String)>,
 	pub(crate) pallet_storage: Vec<(TemplatePalletStorageTypes, String)>,
-    pub(crate) pallet_genesis: bool,
-    pub(crate) pallet_custom_internal_origin_variants: Vec<String>
+	pub(crate) pallet_genesis: bool,
+	pub(crate) pallet_custom_internal_origin_variants: Vec<String>,
 }
 #[derive(Template)]
-#[template(path = "pallet/src/pallet_logic.rs.templ", escape="none")]
-pub(crate) struct PalletLogic{
-    pub(crate) pallet_custom_internal_origin_variants: Vec<String>
+#[template(path = "pallet/src/pallet_logic.rs.templ", escape = "none")]
+pub(crate) struct PalletLogic {
+	pub(crate) pallet_custom_internal_origin_variants: Vec<String>,
 }
 #[derive(Template)]
-#[template(path = "pallet/src/config_preludes.rs.templ", escape="none")]
-pub(crate) struct PalletConfigPreludes{
+#[template(path = "pallet/src/config_preludes.rs.templ", escape = "none")]
+pub(crate) struct PalletConfigPreludes {
 	pub(crate) pallet_common_types: Vec<TemplatePalletConfigCommonTypes>,
-	pub(crate) pallet_config_types: Vec<(TemplatePalletConfigTypesMetadata, TemplatePalletConfigTypesDefault, String)>
+	pub(crate) pallet_config_types:
+		Vec<(TemplatePalletConfigTypesMetadata, TemplatePalletConfigTypesDefault, String)>,
 }
 #[derive(Template)]
-#[template(path = "pallet/src/pallet_logic/try_state.rs.templ", escape="none")]
-pub(crate) struct PalletTryState{}
+#[template(path = "pallet/src/pallet_logic/try_state.rs.templ", escape = "none")]
+pub(crate) struct PalletTryState {}
 #[derive(Template)]
-#[template(path = "pallet/src/pallet_logic/origin.rs.templ", escape="none")]
-pub(crate) struct PalletOrigin{
-    pub(crate) pallet_custom_internal_origin_variants: Vec<String>
+#[template(path = "pallet/src/pallet_logic/origin.rs.templ", escape = "none")]
+pub(crate) struct PalletOrigin {
+	pub(crate) pallet_custom_internal_origin_variants: Vec<String>,
 }
 #[derive(Template)]
 #[template(path = "pallet/src/mock.rs.templ", escape = "none")]
 pub(crate) struct PalletMock {
 	pub(crate) name: String,
-    pub(crate) pallet_default_config: bool,
-    pub(crate) pallet_common_types: Vec<TemplatePalletConfigCommonTypes>,
-    pub(crate) pallet_config_types: Vec<(TemplatePalletConfigTypesMetadata, TemplatePalletConfigTypesDefault, String)>
+	pub(crate) pallet_default_config: bool,
+	pub(crate) pallet_common_types: Vec<TemplatePalletConfigCommonTypes>,
+	pub(crate) pallet_config_types:
+		Vec<(TemplatePalletConfigTypesMetadata, TemplatePalletConfigTypesDefault, String)>,
 }
 #[derive(Template)]
 #[template(path = "pallet/src/tests.rs.templ", escape = "none")]

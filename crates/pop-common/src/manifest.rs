@@ -7,7 +7,8 @@ use std::path::{Path, PathBuf};
 /// Parses the contents of a `Cargo.toml` manifest.
 ///
 /// # Arguments
-/// * `path` - The optional path to the manifest, defaulting to the current directory if not specified.
+/// * `path` - The optional path to the manifest, defaulting to the current directory if not
+///   specified.
 pub fn from_path(path: Option<&Path>) -> Result<Manifest, Error> {
 	// Resolve manifest path
 	let path = match path {

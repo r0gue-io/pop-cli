@@ -299,12 +299,11 @@ async fn install_rustup() -> anyhow::Result<()> {
 async fn install_homebrew() -> anyhow::Result<()> {
 	match cmd("which", vec!["brew"]).read() {
 		Ok(output) => log::info(format!("ℹ️ Homebrew installed already at {}.", output))?,
-		Err(_) => {
+		Err(_) =>
 			run_external_script(
 				"https://raw.githubusercontent.com/Homebrew/install/master/install.sh",
 			)
-			.await?
-		},
+			.await?,
 	}
 	Ok(())
 }

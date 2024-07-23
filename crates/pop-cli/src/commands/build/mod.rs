@@ -42,7 +42,8 @@ pub(crate) enum Command {
 	#[cfg(feature = "parachain")]
 	#[clap(alias = "p")]
 	Parachain(BuildParachainCommand),
-	/// [DEPRECATED] Build a contract, generate metadata, bundle together in a `<name>.contract` file
+	/// [DEPRECATED] Build a contract, generate metadata, bundle together in a `<name>.contract`
+	/// file
 	#[cfg(feature = "contract")]
 	#[clap(alias = "c")]
 	Contract(BuildContractCommand),

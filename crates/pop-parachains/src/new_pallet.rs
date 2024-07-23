@@ -4,37 +4,41 @@ use std::{fs, path::PathBuf};
 
 pub mod new_pallet_options;
 
-use crate::errors::Error;
 use crate::{
+	errors::Error,
 	generator::pallet::{
-		PalletBenchmarking, PalletCargoToml, PalletItem, PalletLib, PalletLogic, PalletConfigPreludes, PalletTryState, PalletOrigin, PalletMock, PalletTests, PalletTestsUtils
+		PalletBenchmarking, PalletCargoToml, PalletConfigPreludes, PalletItem, PalletLib,
+		PalletLogic, PalletMock, PalletOrigin, PalletTests, PalletTestsUtils, PalletTryState,
 	},
 	resolve_pallet_path,
 	utils::helpers::sanitize,
-    TemplatePalletConfigCommonTypes, TemplatePalletConfigTypesMetadata, TemplatePalletConfigTypesDefault, TemplatePalletStorageTypes
+	TemplatePalletConfigCommonTypes, TemplatePalletConfigTypesDefault,
+	TemplatePalletConfigTypesMetadata, TemplatePalletStorageTypes,
 };
-
 
 /// Metadata for the Template Pallet.
 pub struct TemplatePalletConfig {
-    /// The name of the pallet
+	/// The name of the pallet
 	pub name: String,
-    /// The authors of the pallet
+	/// The authors of the pallet
 	pub authors: String,
-    /// The pallet description
+	/// The pallet description
 	pub description: String,
-    /// A `bool` indicating if the template must include a default config for the pallet.
-    pub pallet_default_config: bool,
-    /// A `Vec` indicating which of the types defined in `TemplatePalletConfigCommonTypes` should be included in the template.
+	/// A `bool` indicating if the template must include a default config for the pallet.
+	pub pallet_default_config: bool,
+	/// A `Vec` indicating which of the types defined in `TemplatePalletConfigCommonTypes` should
+	/// be included in the template.
 	pub pallet_common_types: Vec<TemplatePalletConfigCommonTypes>,
-    /// A `Vec` containing the names of the config types entered by the user, plus whether they should be included in the metadata and in the default pallet config (if one is used).
-	pub pallet_config_types: Vec<(TemplatePalletConfigTypesMetadata, TemplatePalletConfigTypesDefault, String)>,
-    /// A `Vec` containing which type of storages are used and their names.
+	/// A `Vec` containing the names of the config types entered by the user, plus whether they
+	/// should be included in the metadata and in the default pallet config (if one is used).
+	pub pallet_config_types:
+		Vec<(TemplatePalletConfigTypesMetadata, TemplatePalletConfigTypesDefault, String)>,
+	/// A `Vec` containing which type of storages are used and their names.
 	pub pallet_storage: Vec<(TemplatePalletStorageTypes, String)>,
-    /// A `bool` indicating if the template should include a genesis config
-    pub pallet_genesis: bool,
-    /// A `Vec` containing the variants of the pallet's custom internal origin, if one's being used
-    pub pallet_custom_internal_origin_variants: Vec<String>
+	/// A `bool` indicating if the template should include a genesis config
+	pub pallet_genesis: bool,
+	/// A `Vec` containing the variants of the pallet's custom internal origin, if one's being used
+	pub pallet_custom_internal_origin_variants: Vec<String>,
 }
 /// Create a new pallet from a template.
 ///
@@ -58,9 +62,18 @@ pub fn create_pallet_template(
 }
 
 /// Generate a pallet folder and file structure
-fn generate_pallet_structure(target: &PathBuf, pallet_name: &str, config: &TemplatePalletConfig) -> Result<(), Error> {
+fn generate_pallet_structure(
+	target: &PathBuf,
+	pallet_name: &str,
+	config: &TemplatePalletConfig,
+) -> Result<(), Error> {
 	use fs::{create_dir, File};
-	let (pallet, src, pallet_logic, tests) = (target.join(pallet_name), target.join(pallet_name.to_string() + "/src"), target.join(pallet_name.to_string() + "/src/pallet_logic"),target.join(pallet_name.to_string() + "/src/tests"));
+	let (pallet, src, pallet_logic, tests) = (
+		target.join(pallet_name),
+		target.join(pallet_name.to_string() + "/src"),
+		target.join(pallet_name.to_string() + "/src/pallet_logic"),
+		target.join(pallet_name.to_string() + "/src/tests"),
+	);
 	create_dir(&pallet)?;
 	create_dir(&src)?;
 	create_dir(&pallet_logic)?;
@@ -73,12 +86,12 @@ fn generate_pallet_structure(target: &PathBuf, pallet_name: &str, config: &Templ
 	File::create(format!("{}/tests.rs", src.display()))?;
 	File::create(format!("{}/tests/utils.rs", src.display()))?;
 	File::create(format!("{}/mock.rs", src.display()))?;
-    if config.pallet_default_config{
-        File::create(format!("{}/config_preludes.rs", src.display()))?;
-    }
-    if !config.pallet_custom_internal_origin_variants.is_empty() {
-        File::create(format!("{}/pallet_logic/origin.rs", src.display()))?;
-    }
+	if config.pallet_default_config {
+		File::create(format!("{}/config_preludes.rs", src.display()))?;
+	}
+	if !config.pallet_custom_internal_origin_variants.is_empty() {
+		File::create(format!("{}/pallet_logic/origin.rs", src.display()))?;
+	}
 	Ok(())
 }
 
@@ -94,44 +107,48 @@ fn render_pallet(
 			name: pallet_name.clone(),
 			authors: config.authors,
 			description: config.description,
-            pallet_common_types: config.pallet_common_types.clone()
+			pallet_common_types: config.pallet_common_types.clone(),
 		}),
 		Box::new(PalletLib {
-            name: pallet_name.clone(),
-            pallet_default_config: config.pallet_default_config,
-            pallet_common_types: config.pallet_common_types.clone(),
-            pallet_config_types: config.pallet_config_types.clone(),
-            pallet_storage: config.pallet_storage,
-            pallet_genesis: config.pallet_genesis,
-            pallet_custom_internal_origin_variants: config.pallet_custom_internal_origin_variants.clone()
-        }),
-        Box::new(PalletLogic{
-            pallet_custom_internal_origin_variants: config.pallet_custom_internal_origin_variants.clone()
-        }),
-        Box::new(PalletTryState{}), 
+			name: pallet_name.clone(),
+			pallet_default_config: config.pallet_default_config,
+			pallet_common_types: config.pallet_common_types.clone(),
+			pallet_config_types: config.pallet_config_types.clone(),
+			pallet_storage: config.pallet_storage,
+			pallet_genesis: config.pallet_genesis,
+			pallet_custom_internal_origin_variants: config
+				.pallet_custom_internal_origin_variants
+				.clone(),
+		}),
+		Box::new(PalletLogic {
+			pallet_custom_internal_origin_variants: config
+				.pallet_custom_internal_origin_variants
+				.clone(),
+		}),
+		Box::new(PalletTryState {}),
 		Box::new(PalletBenchmarking {}),
-		Box::new(PalletMock { 
-            name: pallet_name.clone(), 
-            pallet_default_config: config.pallet_default_config,
-            pallet_common_types: config.pallet_common_types.clone(),
-            pallet_config_types: config.pallet_config_types.clone()
-         }),
+		Box::new(PalletMock {
+			name: pallet_name.clone(),
+			pallet_default_config: config.pallet_default_config,
+			pallet_common_types: config.pallet_common_types.clone(),
+			pallet_config_types: config.pallet_config_types.clone(),
+		}),
 		Box::new(PalletTests {}),
 		Box::new(PalletTestsUtils { name: pallet_name }),
 	];
 
-    if config.pallet_default_config{
-        pallet.push(Box::new(PalletConfigPreludes{
-            pallet_common_types: config.pallet_common_types,
-            pallet_config_types: config.pallet_config_types
-        }));
-    }
+	if config.pallet_default_config {
+		pallet.push(Box::new(PalletConfigPreludes {
+			pallet_common_types: config.pallet_common_types,
+			pallet_config_types: config.pallet_config_types,
+		}));
+	}
 
-    if !config.pallet_custom_internal_origin_variants.is_empty() {
-        pallet.push(Box::new(PalletOrigin{
-            pallet_custom_internal_origin_variants: config.pallet_custom_internal_origin_variants
-        }));
-    }
+	if !config.pallet_custom_internal_origin_variants.is_empty() {
+		pallet.push(Box::new(PalletOrigin {
+			pallet_custom_internal_origin_variants: config.pallet_custom_internal_origin_variants,
+		}));
+	}
 
 	for item in pallet {
 		item.execute(pallet_path)?;
@@ -151,12 +168,12 @@ mod tests {
 			name: pallet_name.to_string(),
 			authors: "Alice".to_string(),
 			description: "A sample pallet".to_string(),
-            pallet_default_config: true,
-            pallet_common_types: Vec::new(),
-            pallet_config_types: Vec::new(),
-            pallet_storage: Vec::new(),
-            pallet_genesis: false,
-            pallet_custom_internal_origin_variants: vec![String::from("Single variant")]
+			pallet_default_config: true,
+			pallet_common_types: Vec::new(),
+			pallet_config_types: Vec::new(),
+			pallet_storage: Vec::new(),
+			pallet_genesis: false,
+			pallet_custom_internal_origin_variants: vec![String::from("Single variant")],
 		};
 
 		// Call the function being tested
@@ -166,11 +183,23 @@ mod tests {
 		let pallet_path = temp_dir.path().join(pallet_name);
 		assert!(pallet_path.exists(), "Pallet folder should be created");
 		assert!(pallet_path.join("src").exists(), "src folder should be created");
-		assert!(pallet_path.join("src").join("pallet_logic").exists(), "pallet_logic folder should be created");
-		assert!(pallet_path.join("src").join("pallet_logic").join("try_state.rs").exists(), "try_state.rs should be created");
-		assert!(pallet_path.join("src").join("pallet_logic").join("origin.rs").exists(), "origin.rs should be created");
+		assert!(
+			pallet_path.join("src").join("pallet_logic").exists(),
+			"pallet_logic folder should be created"
+		);
+		assert!(
+			pallet_path.join("src").join("pallet_logic").join("try_state.rs").exists(),
+			"try_state.rs should be created"
+		);
+		assert!(
+			pallet_path.join("src").join("pallet_logic").join("origin.rs").exists(),
+			"origin.rs should be created"
+		);
 		assert!(pallet_path.join("src").join("tests").exists(), "tests folder should be created");
-		assert!(pallet_path.join("src").join("tests").join("utils.rs").exists(), "utils.rs folder should be created");
+		assert!(
+			pallet_path.join("src").join("tests").join("utils.rs").exists(),
+			"utils.rs folder should be created"
+		);
 		assert!(pallet_path.join("Cargo.toml").exists(), "Cargo.toml should be created");
 		assert!(pallet_path.join("src").join("lib.rs").exists(), "lib.rs should be created");
 		assert!(
@@ -179,17 +208,26 @@ mod tests {
 		);
 		assert!(pallet_path.join("src").join("tests.rs").exists(), "tests.rs should be created");
 		assert!(pallet_path.join("src").join("mock.rs").exists(), "mock.rs should be created");
-		assert!(pallet_path.join("src").join("pallet_logic.rs").exists(), "pallet_logic.rs should be created");
-		assert!(pallet_path.join("src").join("config_preludes.rs").exists(), "config_preludes.rs should be created");
+		assert!(
+			pallet_path.join("src").join("pallet_logic.rs").exists(),
+			"pallet_logic.rs should be created"
+		);
+		assert!(
+			pallet_path.join("src").join("config_preludes.rs").exists(),
+			"config_preludes.rs should be created"
+		);
 
 		let lib_rs_content = fs::read_to_string(pallet_path.join("src").join("lib.rs"))
 			.expect("Failed to read lib.rs");
 		assert!(lib_rs_content.contains("pub mod pallet"), "lib.rs should contain pub mod pallet");
-		assert!(lib_rs_content.contains("pub mod config_preludes"), "lib.rs should contain pub mod config_preludes");
+		assert!(
+			lib_rs_content.contains("pub mod config_preludes"),
+			"lib.rs should contain pub mod config_preludes"
+		);
 		Ok(())
 	}
 
-    #[test]
+	#[test]
 	fn test_pallet_create_template_no_default_config() -> Result<(), Error> {
 		let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
 		let pallet_name = "MyPallet";
@@ -197,12 +235,12 @@ mod tests {
 			name: pallet_name.to_string(),
 			authors: "Alice".to_string(),
 			description: "A sample pallet".to_string(),
-            pallet_default_config: false,
-            pallet_common_types: Vec::new(),
-            pallet_config_types: Vec::new(),
-            pallet_storage: Vec::new(),
-            pallet_genesis: false,
-            pallet_custom_internal_origin_variants: vec![String::from("Single variant")]
+			pallet_default_config: false,
+			pallet_common_types: Vec::new(),
+			pallet_config_types: Vec::new(),
+			pallet_storage: Vec::new(),
+			pallet_genesis: false,
+			pallet_custom_internal_origin_variants: vec![String::from("Single variant")],
 		};
 
 		// Call the function being tested
@@ -212,11 +250,23 @@ mod tests {
 		let pallet_path = temp_dir.path().join(pallet_name);
 		assert!(pallet_path.exists(), "Pallet folder should be created");
 		assert!(pallet_path.join("src").exists(), "src folder should be created");
-		assert!(pallet_path.join("src").join("pallet_logic").exists(), "pallet_logic folder should be created");
-		assert!(pallet_path.join("src").join("pallet_logic").join("try_state.rs").exists(), "try_state.rs should be created");
-		assert!(pallet_path.join("src").join("pallet_logic").join("origin.rs").exists(), "origin.rs should be created");
+		assert!(
+			pallet_path.join("src").join("pallet_logic").exists(),
+			"pallet_logic folder should be created"
+		);
+		assert!(
+			pallet_path.join("src").join("pallet_logic").join("try_state.rs").exists(),
+			"try_state.rs should be created"
+		);
+		assert!(
+			pallet_path.join("src").join("pallet_logic").join("origin.rs").exists(),
+			"origin.rs should be created"
+		);
 		assert!(pallet_path.join("src").join("tests").exists(), "tests folder should be created");
-		assert!(pallet_path.join("src").join("tests").join("utils.rs").exists(), "utils.rs folder should be created");
+		assert!(
+			pallet_path.join("src").join("tests").join("utils.rs").exists(),
+			"utils.rs folder should be created"
+		);
 		assert!(pallet_path.join("Cargo.toml").exists(), "Cargo.toml should be created");
 		assert!(pallet_path.join("src").join("lib.rs").exists(), "lib.rs should be created");
 		assert!(
@@ -225,17 +275,26 @@ mod tests {
 		);
 		assert!(pallet_path.join("src").join("tests.rs").exists(), "tests.rs should be created");
 		assert!(pallet_path.join("src").join("mock.rs").exists(), "mock.rs should be created");
-		assert!(pallet_path.join("src").join("pallet_logic.rs").exists(), "pallet_logic.rs should be created");
-		assert!(!pallet_path.join("src").join("config_preludes.rs").exists(), "config_preludes.rs should be created");
+		assert!(
+			pallet_path.join("src").join("pallet_logic.rs").exists(),
+			"pallet_logic.rs should be created"
+		);
+		assert!(
+			!pallet_path.join("src").join("config_preludes.rs").exists(),
+			"config_preludes.rs should be created"
+		);
 
 		let lib_rs_content = fs::read_to_string(pallet_path.join("src").join("lib.rs"))
 			.expect("Failed to read lib.rs");
 		assert!(lib_rs_content.contains("pub mod pallet"), "lib.rs should contain pub mod pallet");
-		assert!(!lib_rs_content.contains("pub mod config_preludes"), "lib.rs should contain pub mod config_preludes");
+		assert!(
+			!lib_rs_content.contains("pub mod config_preludes"),
+			"lib.rs should contain pub mod config_preludes"
+		);
 		Ok(())
 	}
 
-    #[test]
+	#[test]
 	fn test_pallet_create_template_no_custom_origin() -> Result<(), Error> {
 		let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
 		let pallet_name = "MyPallet";
@@ -243,12 +302,12 @@ mod tests {
 			name: pallet_name.to_string(),
 			authors: "Alice".to_string(),
 			description: "A sample pallet".to_string(),
-            pallet_default_config: true,
-            pallet_common_types: Vec::new(),
-            pallet_config_types: Vec::new(),
-            pallet_storage: Vec::new(),
-            pallet_genesis: false,
-            pallet_custom_internal_origin_variants: Vec::new()
+			pallet_default_config: true,
+			pallet_common_types: Vec::new(),
+			pallet_config_types: Vec::new(),
+			pallet_storage: Vec::new(),
+			pallet_genesis: false,
+			pallet_custom_internal_origin_variants: Vec::new(),
 		};
 
 		// Call the function being tested
@@ -258,11 +317,23 @@ mod tests {
 		let pallet_path = temp_dir.path().join(pallet_name);
 		assert!(pallet_path.exists(), "Pallet folder should be created");
 		assert!(pallet_path.join("src").exists(), "src folder should be created");
-		assert!(pallet_path.join("src").join("pallet_logic").exists(), "pallet_logic folder should be created");
-		assert!(pallet_path.join("src").join("pallet_logic").join("try_state.rs").exists(), "try_state.rs should be created");
-		assert!(!pallet_path.join("src").join("pallet_logic").join("origin.rs").exists(), "origin.rs should be created");
+		assert!(
+			pallet_path.join("src").join("pallet_logic").exists(),
+			"pallet_logic folder should be created"
+		);
+		assert!(
+			pallet_path.join("src").join("pallet_logic").join("try_state.rs").exists(),
+			"try_state.rs should be created"
+		);
+		assert!(
+			!pallet_path.join("src").join("pallet_logic").join("origin.rs").exists(),
+			"origin.rs should be created"
+		);
 		assert!(pallet_path.join("src").join("tests").exists(), "tests folder should be created");
-		assert!(pallet_path.join("src").join("tests").join("utils.rs").exists(), "utils.rs folder should be created");
+		assert!(
+			pallet_path.join("src").join("tests").join("utils.rs").exists(),
+			"utils.rs folder should be created"
+		);
 		assert!(pallet_path.join("Cargo.toml").exists(), "Cargo.toml should be created");
 		assert!(pallet_path.join("src").join("lib.rs").exists(), "lib.rs should be created");
 		assert!(
@@ -271,13 +342,22 @@ mod tests {
 		);
 		assert!(pallet_path.join("src").join("tests.rs").exists(), "tests.rs should be created");
 		assert!(pallet_path.join("src").join("mock.rs").exists(), "mock.rs should be created");
-		assert!(pallet_path.join("src").join("pallet_logic.rs").exists(), "pallet_logic.rs should be created");
-		assert!(pallet_path.join("src").join("config_preludes.rs").exists(), "config_preludes.rs should be created");
+		assert!(
+			pallet_path.join("src").join("pallet_logic.rs").exists(),
+			"pallet_logic.rs should be created"
+		);
+		assert!(
+			pallet_path.join("src").join("config_preludes.rs").exists(),
+			"config_preludes.rs should be created"
+		);
 
 		let lib_rs_content = fs::read_to_string(pallet_path.join("src").join("lib.rs"))
 			.expect("Failed to read lib.rs");
 		assert!(lib_rs_content.contains("pub mod pallet"), "lib.rs should contain pub mod pallet");
-		assert!(lib_rs_content.contains("pub mod config_preludes"), "lib.rs should contain pub mod config_preludes");
+		assert!(
+			lib_rs_content.contains("pub mod config_preludes"),
+			"lib.rs should contain pub mod config_preludes"
+		);
 		Ok(())
 	}
 
@@ -289,12 +369,12 @@ mod tests {
 			name: pallet_name.to_string(),
 			authors: "Alice".to_string(),
 			description: "A sample pallet".to_string(),
-            pallet_default_config: false,
-            pallet_common_types: Vec::new(),
-            pallet_config_types: Vec::new(),
-            pallet_storage: Vec::new(),
-            pallet_genesis: false,
-            pallet_custom_internal_origin_variants: Vec::new()
+			pallet_default_config: false,
+			pallet_common_types: Vec::new(),
+			pallet_config_types: Vec::new(),
+			pallet_storage: Vec::new(),
+			pallet_genesis: false,
+			pallet_custom_internal_origin_variants: Vec::new(),
 		};
 
 		// Call the function being tested with an invalid path
