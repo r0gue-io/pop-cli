@@ -1,3 +1,4 @@
+{{- let using_currency = pallet_common_types|contains(TemplatePalletConfigCommonTypes::Currency) -}}
 [package]
 name = "^^name^^"
 authors = ["^^authors^^"]
@@ -24,15 +25,10 @@ sp-io = { version = "36.0.0", default-features = false }
 sp-runtime = { version = "37.0.0", default-features = false }
 sp-std = { version = "14.0.0", default-features = false }
 
-{{ for common_type in pallet_common_types }}
-{{- match common_type -}}
-{{- when TemplatePalletConfigCommonTypes::Currency-}}
+{{ if using_currency }}
 [dev-dependencies]
 pallet-balances = { version = "35.0.0" }
-
-{{ else -}}
-{{- endmatch -}}
-{{- endfor -}}
+{{- endif }}
 
 [features]
 default = ["std"]

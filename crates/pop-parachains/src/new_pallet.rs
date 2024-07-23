@@ -7,7 +7,7 @@ pub mod new_pallet_options;
 use crate::errors::Error;
 use crate::{
 	generator::pallet::{
-		PalletBenchmarking, PalletCargoToml, PalletItem, PalletLib, PalletLogic, PalletConfigPreludes, PalletTryState, PalletOrigin, PalletMock, PalletTests,
+		PalletBenchmarking, PalletCargoToml, PalletItem, PalletLib, PalletLogic, PalletConfigPreludes, PalletTryState, PalletOrigin, PalletMock, PalletTests, PalletTestsUtils
 	},
 	resolve_pallet_path,
 	utils::helpers::sanitize,
@@ -60,16 +60,18 @@ pub fn create_pallet_template(
 /// Generate a pallet folder and file structure
 fn generate_pallet_structure(target: &PathBuf, pallet_name: &str, config: &TemplatePalletConfig) -> Result<(), Error> {
 	use fs::{create_dir, File};
-	let (pallet, src, pallet_logic) = (target.join(pallet_name), target.join(pallet_name.to_string() + "/src"), target.join(pallet_name.to_string() + "/src/pallet_logic"));
+	let (pallet, src, pallet_logic, tests) = (target.join(pallet_name), target.join(pallet_name.to_string() + "/src"), target.join(pallet_name.to_string() + "/src/pallet_logic"),target.join(pallet_name.to_string() + "/src/tests"));
 	create_dir(&pallet)?;
 	create_dir(&src)?;
 	create_dir(&pallet_logic)?;
+	create_dir(&tests)?;
 	File::create(format!("{}/Cargo.toml", pallet.display()))?;
 	File::create(format!("{}/lib.rs", src.display()))?;
 	File::create(format!("{}/pallet_logic.rs", src.display()))?;
 	File::create(format!("{}/pallet_logic/try_state.rs", src.display()))?;
 	File::create(format!("{}/benchmarking.rs", src.display()))?;
 	File::create(format!("{}/tests.rs", src.display()))?;
+	File::create(format!("{}/tests/utils.rs", src.display()))?;
 	File::create(format!("{}/mock.rs", src.display()))?;
     if config.pallet_default_config{
         File::create(format!("{}/config_preludes.rs", src.display()))?;
@@ -108,8 +110,14 @@ fn render_pallet(
         }),
         Box::new(PalletTryState{}), 
 		Box::new(PalletBenchmarking {}),
-		Box::new(PalletMock { module: pallet_name.clone(), pallet_common_types: config.pallet_common_types.clone() }),
-		Box::new(PalletTests { module: pallet_name }),
+		Box::new(PalletMock { 
+            name: pallet_name.clone(), 
+            pallet_default_config: config.pallet_default_config,
+            pallet_common_types: config.pallet_common_types.clone(),
+            pallet_config_types: config.pallet_config_types.clone()
+         }),
+		Box::new(PalletTests {}),
+		Box::new(PalletTestsUtils { name: pallet_name }),
 	];
 
     if config.pallet_default_config{

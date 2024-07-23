@@ -1,3 +1,6 @@
+{{- let using_runtime_event = pallet_common_types|contains(TemplatePalletConfigCommonTypes::RuntimeEvent) -}}
+{{- let using_runtime_origin = pallet_common_types|contains(TemplatePalletConfigCommonTypes::RuntimeOrigin) -}}
+{{- let using_currency = pallet_common_types|contains(TemplatePalletConfigCommonTypes::Currency) -}}
 //! # ^^name^^ pallet
 //! Please, document your pallet properly
 //! Learn more about everything related to Polkadot SDK development at https://paritytech.github.io/polkadot-sdk/master/polkadot_sdk_docs/index.html
@@ -7,18 +10,13 @@
 
 use frame::prelude::*;
 
-{{ for common_type in pallet_common_types }}
-{{- match common_type -}}
-{{- when TemplatePalletConfigCommonTypes::Currency -}}
+{{ if using_currency }}
 use frame::traits::{fungible::{Inspect, Mutate, InspectHold, MutateHold, InspectFreeze, MutateFreeze}, VariantCount};
+{{- endif }}
 
-{{ else -}}
-{{- endmatch -}}
-{{- endfor -}}
 {{ if pallet_default_config }}
 pub mod config_preludes;
-
-{{ endif -}}
+{{- endif }}
 
 use pallet::*;
 
@@ -38,13 +36,12 @@ mod benchmarking;
 pub mod pallet {
 	use super::*;
 
-    {{ for common_type in pallet_common_types }}
-    {{- match common_type -}}
-    {{- when TemplatePalletConfigCommonTypes::RuntimeOrigin -}}
+    {{ if using_runtime_origin }}
     /// An alias referencing the RuntimeOrigin config type.
     pub type RuntimeLocalOrigin<T> = <T as Config>::RuntimeOrigin;
+    {{- endif }}
 
-    {{ when TemplatePalletConfigCommonTypes::Currency -}}
+    {{ if using_currency }}
     /// An alias referencing the native currency's balance of an account.
     pub type BalanceOf<T> = <<T as Config>::Currency as fungible::Inspect<<T as frame_system::Config>::AccountId>>::Balance;
 
@@ -55,10 +52,7 @@ pub mod pallet {
 		#[codec(index = 0)]
 		SomeHoldReason,
 	}
-
-    {{ else -}}
-    {{- endmatch -}}
-    {{- endfor -}}
+    {{- endif }}
 
     /// A helful struct. You can use this kind of struct as a value in the pallet's storage. It helps storing related information together. It's possible to store a SCALE compact number using this kind of struct as well :)
     #[derive(TypeInfo, Encode, Decode, MaxEncodedLen, PartialEq, RuntimeDebugNoBound)]
@@ -77,28 +71,27 @@ pub mod pallet {
     #[pallet::config]
     {{- endif }}
     pub trait Config: frame_system::Config{
-        {{- for common_type in pallet_common_types -}}
-        {{- match common_type -}}
-        {{- when TemplatePalletConfigCommonTypes::RuntimeEvent }}
+        {{ if using_runtime_event }}
         /// The aggregated event type of the runtime.
         {{- if pallet_default_config }}
         #[pallet::no_default_bounds]
         {{- endif }}
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+        {{- endif }}
 
-        {{ when TemplatePalletConfigCommonTypes::RuntimeOrigin -}}
+        {{ if using_runtime_origin }}
         /// The aggregated origin type of the runtime.
         {{- if pallet_default_config }}
         #[pallet::no_default_bounds]
-        {{- endif }}
+        {{- endif -}}
         {{- if !pallet_custom_internal_origin_variants.is_empty() }}
         type RuntimeOrigin: From<OriginFor<Self>> + From<Origin<Self>> + Into<Result<Origin<Self>,RuntimeLocalOrigin<Self>>>;
-
-        {{ else }}
+        {{- else }}
         type RuntimeOrigin: From<OriginFor<Self>>;
+        {{- endif -}}
+        {{- endif }}
 
-        {{ endif -}}
-        {{- when TemplatePalletConfigCommonTypes::Currency }}
+        {{ if using_currency }}
         /// A reason for placing a hold on funds
         {{- if pallet_default_config }}
         #[pallet::no_default_bounds]
@@ -113,7 +106,7 @@ pub mod pallet {
         
         /// Type to access the native currency of the blockchain
         {{- if pallet_default_config }}
-        #[pallet::no_default_bounds]
+        #[pallet::no_default]
         {{- endif }}
 		type Currency: fungible::Inspect<Self::AccountId>
 			+ fungible::Mutate<Self::AccountId>
@@ -121,11 +114,9 @@ pub mod pallet {
 			+ fungible::hold::Mutate<Self::AccountId, Reason = Self::RuntimeHoldReason>
 			+ fungible::freeze::Inspect<Self::AccountId>
 			+ fungible::freeze::Mutate<Self::AccountId>;
-            
-        {{ else -}}
-        {{- endmatch -}}
-        {{- endfor -}}
-        {{- for config_type in pallet_config_types-}}
+        {{- endif }}
+
+        {{ for config_type in pallet_config_types -}}
         /// Some docs for this type
         {{- match config_type.0 -}}
         {{- when TemplatePalletConfigTypesMetadata::Constant }}
@@ -140,7 +131,7 @@ pub mod pallet {
         {{- else -}}
         {{- endmatch }}
         type ^^config_type.2^^ = todo!();
-
+        
         {{ endfor }}
     }
 

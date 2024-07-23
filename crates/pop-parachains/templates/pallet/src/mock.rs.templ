@@ -1,60 +1,153 @@
-use frame_support::{parameter_types, traits::Everything};
-use frame_system as system;
-use sp_core::H256;
-use sp_runtime::{
-	traits::{BlakeTwo256, IdentityLookup},
-	BuildStorage,
+{{- let using_runtime_event = pallet_common_types|contains(TemplatePalletConfigCommonTypes::RuntimeEvent) -}}
+{{- let using_runtime_origin = pallet_common_types|contains(TemplatePalletConfigCommonTypes::RuntimeOrigin) -}}
+{{- let using_currency = pallet_common_types|contains(TemplatePalletConfigCommonTypes::Currency) -}}
+use crate::{self as ^^name^^, frame_system::mocking::Mock};
+
+use frame::{
+	deps::frame_support::{
+		derive_impl, parameter_types, runtime,
+	},
+	runtime::prelude::*,
+	testing_prelude::*,
 };
 
-type Block = frame_system::mocking::MockBlock<Test>;
+type Block = MockBlock<Test>;
 
-// Configure a mock runtime to test the pallet.
-frame_support::construct_runtime!(
-	pub enum Test
-	{
-		System: frame_system::{Pallet, Call, Config<T>, Storage, Event<T>},
-		^^module^^: crate::{Pallet, Call, Storage, Event<T>},
-	}
-);
+{{ if using_currency }}
+type Balance = u64;
+{{- endif }}
 
-parameter_types! {
-	pub const BlockHashCount: u64 = 250;
-	pub const SS58Prefix: u8 = 42;
+#[runtime]
+mod runtime{
+    #[runtime::runtime]
+    #[runtime::derive(
+		RuntimeCall,
+		RuntimeEvent,
+		RuntimeError,
+		RuntimeOrigin,
+		RuntimeFreezeReason,
+		RuntimeHoldReason,
+		RuntimeSlashReason,
+		RuntimeLockId,
+		RuntimeTask
+    )]
+    pub struct Test;
+
+    #[runtime::pallet_index(0)]
+    pub type System = frame_system;
+
+    {{ if using_currency }}
+    #[runtime::pallet_index(1)]
+    pub type Balances = pallet_balances;
+    {{- endif }}
+
+    #[runtime::pallet_index(2)]
+	pub type ^^name^^ = ^^name^^;
 }
 
 #[derive_impl(frame_system::config_preludes::TestDefaultConfig)]
-impl system::Config for Test {
-	type BaseCallFilter = Everything;
-	type BlockWeights = ();
-	type BlockLength = ();
-	type DbWeight = ();
-	type RuntimeOrigin = RuntimeOrigin;
-	type RuntimeCall = RuntimeCall;
-	type Nonce = u64;
-	type Hash = H256;
-	type Hashing = BlakeTwo256;
-	type AccountId = u64;
-	type Lookup = IdentityLookup<Self::AccountId>;
+impl crate::frame_system::Config for Test {
 	type Block = Block;
-	type RuntimeEvent = RuntimeEvent;
-	type BlockHashCount = BlockHashCount;
-	type Version = ();
-	type PalletInfo = PalletInfo;
-	type AccountData = ();
-	type OnNewAccount = ();
-	type OnKilledAccount = ();
-	type SystemWeightInfo = ();
-	type SS58Prefix = SS58Prefix;
-	type OnSetCode = ();
-	type MaxConsumers = frame_support::traits::ConstU32<16>;
+    {{- if using_currency -}}
+	type AccountData = pallet_balances::AccountData<Balance>;
+    {{- endif -}}
 }
 
-impl crate::Config for Test {
-	type RuntimeEvent = RuntimeEvent;
-	type WeightInfo = ();
+{{ if using_currency -}}
+#[derive_impl(pallet_balances::config_preludes::TestDefaultConfig)]
+impl pallet_balances::Config for Test {
+	type AccountStore = System;
+}
+{{- endif }}
+
+{{- if pallet_default_config }}
+#[derive_impl(^^name^^::config_preludes::TestDefaultConfig)]
+{{- endif }}
+impl ^^name^^::Config for Test {
+    {{- if using_runtime_event && pallet_default_config -}}
+    type RuntimeEvent = RuntimeEvent;
+    {{- endif -}}
+    {{- if using_runtime_origin && pallet_default_config -}}
+    type RuntimeOrigin = RuntimeOrigin;
+    {{- endif -}}
+    {{- if using_currency && pallet_default_config -}}
+    type Currency = Balances;
+    type RuntimeHoldReason = RuntimeHoldReason;
+    type RuntimeFreezeReason = RuntimeFreezeReason;
+    {{- endif -}}
+    {{- for config_type in pallet_config_types -}}
+    {{- match config_type.1 -}}
+    {{- when TemplatePalletConfigTypesDefault::Default -}}
+    {{- if !pallet_default_config }}
+    type ^^config_type.2^^ = todo!();
+    {{- endif -}}
+    {{- when TemplatePalletConfigTypesDefault::NoDefaultBounds }}
+    {{- if !pallet_default_config }}
+    type ^^config_type.2^^ = todo!();
+    {{- endif -}}
+    {{- else }}
+    type ^^config_type.2^^ = todo!();
+    {{- endmatch -}}
+    {{- endfor -}}
 }
 
-// Build genesis storage according to the mock runtime.
+pub(crate) struct StateBuilder{
+    {{- if using_currency -}}
+    balances: Vec<(<Runtime as frame_system::Config>::AccountId, Balance)>
+    {{- endif -}}
+}
+
+impl Default for StateBuilder{
+    fn default() -> Self {
+		Self { 
+            {{-if using_currency -}}
+            balances: vec![]
+            {{- endif -}}
+        }
+	}
+}
+
+impl StateBuilder {
+    {{- if using_currency -}}
+    /// This function helps to construct a initial state where some accounts have balances
+	fn add_balance(
+		mut self,
+		who: <Runtime as frame_system::Config>::AccountId,
+		amount: Balance,
+	) -> Self {
+		self.balances.push((who, amount));
+		self
+	}
+    {{- endif }}
+
+    pub(crate) fn build_and_execute(self, test: impl FnOnce() -> ()) {
+        let mut ext = crate::frame_system::GenesisConfig::<Test>::default()
+                    .build_storage()
+                    .unwrap()
+                    .into();
+
+        // Test setup
+        ext.execute_with(|| {
+            System::set_block_number(1);
+            {{- if using_currency -}}
+            self.balances.iter().for_each(|(who, amount)| {
+                <Currency<Test>>::set_balance(who, amount);
+            })
+            {{- endif }}
+        });
+
+        ext.execute_with(test);
+
+        // Test assertions
+        ext.execute_with(|| {
+
+        });
+    }
+}
+
 pub fn new_test_ext() -> sp_io::TestExternalities {
-	system::GenesisConfig::<Test>::default().build_storage().unwrap().into()
+	crate::frame_system::GenesisConfig::<Test>::default()
+		.build_storage()
+		.unwrap()
+		.into()
 }

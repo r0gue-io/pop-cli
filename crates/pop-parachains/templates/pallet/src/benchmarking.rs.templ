@@ -1,22 +1,16 @@
-//! Benchmarking setup for pallet-parachain-template
-
-// https://docs.substrate.io/test/benchmark/
-
 use super::*;
 
 #[allow(unused)]
-use crate::Pallet as Template;
-use frame_benchmarking::{benchmarks, impl_benchmark_test_suite, whitelisted_caller};
-use frame_system::RawOrigin;
+use crate::{frame_system::RawOrigin, Pallet, mock::{new_test_ext, Test}};
+use frame::deps::frame_benchmarking::v2::*;
 
-benchmarks! {
-	do_something {
-		let s in 0 .. 100;
-		let caller: T::AccountId = whitelisted_caller();
-	}: _(RawOrigin::Signed(caller), s)
-	verify {
-		assert_eq!(Something::<T>::get(), Some(s));
-	}
+#[benchmarks]
+mod benchmarks {
+	use super::*;
+
+    #[benchmark]
+    fn some_benchmark(){}
+
+    impl_benchmark_test_suite!(Pallet, new_test_ext(), Test)
 }
 
-impl_benchmark_test_suite!(Template, crate::mock::new_test_ext(), crate::mock::Test,);

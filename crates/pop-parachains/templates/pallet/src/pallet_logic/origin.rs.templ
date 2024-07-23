@@ -10,7 +10,7 @@ impl<T: Config> Pallet<T> {
         Ok(<RuntimeLocalOrigin<T>>::from(<Origin<T>>::^^variant^^))
     }
 
-    {{ endfor -}}
+    {{ endfor }}
 }
 
 impl<T:Config, OuterOrigin: Into<Result<Origin<T>, OuterOrigin>> + From<Origin<T>>> EnsureOrigin<OuterOrigin> for Origin<T>

@@ -5,6 +5,13 @@ use std::path::PathBuf;
 use crate::{utils::helpers::write_to_file, TemplatePalletConfigCommonTypes, TemplatePalletConfigTypesMetadata, TemplatePalletConfigTypesDefault, TemplatePalletStorageTypes};
 use askama::Template;
 
+mod filters{
+    /// This filter is used to determine if a element is present in a `Vec`
+    pub fn contains<T: PartialEq>(vec: &Vec<T>, element: T) -> ::askama::Result<bool> {
+        Ok(vec.contains(&element))
+    }
+}
+
 #[derive(Template)]
 #[template(path = "pallet/Cargo.templ", escape = "none")]
 pub(crate) struct PalletCargoToml {
@@ -50,13 +57,18 @@ pub(crate) struct PalletOrigin{
 #[derive(Template)]
 #[template(path = "pallet/src/mock.rs.templ", escape = "none")]
 pub(crate) struct PalletMock {
-	pub(crate) module: String,
-    pub(crate) pallet_common_types: Vec<TemplatePalletConfigCommonTypes>
+	pub(crate) name: String,
+    pub(crate) pallet_default_config: bool,
+    pub(crate) pallet_common_types: Vec<TemplatePalletConfigCommonTypes>,
+    pub(crate) pallet_config_types: Vec<(TemplatePalletConfigTypesMetadata, TemplatePalletConfigTypesDefault, String)>
 }
 #[derive(Template)]
 #[template(path = "pallet/src/tests.rs.templ", escape = "none")]
-pub(crate) struct PalletTests {
-	pub(crate) module: String,
+pub(crate) struct PalletTests {}
+#[derive(Template)]
+#[template(path = "pallet/src/tests/utils.rs.templ", escape = "none")]
+pub(crate) struct PalletTestsUtils {
+	pub(crate) name: String,
 }
 
 pub trait PalletItem {
@@ -77,6 +89,7 @@ macro_rules! generate_pallet_item {
 }
 
 generate_pallet_item!(PalletTests, "src/tests.rs");
+generate_pallet_item!(PalletTestsUtils, "src/tests/utils.rs");
 generate_pallet_item!(PalletMock, "src/mock.rs");
 generate_pallet_item!(PalletLib, "src/lib.rs");
 generate_pallet_item!(PalletLogic, "src/pallet_logic.rs");

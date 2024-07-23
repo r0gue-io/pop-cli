@@ -1,7 +1,7 @@
 use strum_macros::{EnumIter, EnumMessage};
 
 /// This enum is used to register from the CLI which types that are kind of usual in config traits are included in the pallet
-#[derive(Debug, Copy, Clone, PartialEq ,EnumIter, EnumMessage)]
+#[derive(Debug, Copy, Clone, PartialEq, EnumIter, EnumMessage)]
 pub enum TemplatePalletConfigCommonTypes{
     #[strum(message="RuntimeEvent", detailed_message="This type will enable your pallet to emit events.")]
     RuntimeEvent, 

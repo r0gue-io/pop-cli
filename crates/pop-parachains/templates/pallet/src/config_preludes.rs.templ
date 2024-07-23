@@ -1,3 +1,6 @@
+{{- let using_runtime_event = pallet_common_types|contains(TemplatePalletConfigCommonTypes::RuntimeEvent) -}}
+{{- let using_runtime_origin = pallet_common_types|contains(TemplatePalletConfigCommonTypes::RuntimeOrigin) -}}
+{{- let using_currency = pallet_common_types|contains(TemplatePalletConfigCommonTypes::Currency) -}}
 use super::*;
 use frame::runtime::prelude::derive_impl;
 
@@ -11,22 +14,20 @@ impl frame::deps::frame_system::DefaultConfig for TestDefaultConfig {}
 
 #[register_default_impl(TestDefaultConfig)]
 impl DefaultConfig for TestDefaultConfig {
-    {{- for common_type in pallet_common_types -}}
-    {{- match common_type -}}
-    {{- when TemplatePalletConfigCommonTypes::RuntimeEvent }}
+    {{- if using_runtime_event -}}
     #[inject_runtime_type]
     type RuntimeEvent = ();
-    {{- when TemplatePalletConfigCommonTypes::RuntimeOrigin }}
+    {{- endif -}}
+    {{- if using_runtime_origin -}}
     #[inject_runtime_type]
     type RuntimeOrigin = ();
-    {{- when TemplatePalletConfigCommonTypes::Currency }}
+    {{- endif -}}
+    {{- if using_currency -}}
     #[inject_runtime_type]
     type RuntimeHoldReason = ();
     #[inject_runtime_type]
     type RuntimeFreezeReason = ();
-    {{- else -}}
-    {{- endmatch -}}
-    {{- endfor -}}
+    {{- endif -}}
     {{- for config_type in pallet_config_types -}}
     {{- match config_type.1 -}}
     {{- when TemplatePalletConfigTypesDefault::Default }}
@@ -46,22 +47,20 @@ impl frame::deps::frame_system::DefaultConfig for SolochainDefaultConfig {}
 
 #[register_default_impl(SolochainDefaultConfig)]
 impl DefaultConfig for SolochainDefaultConfig {
-    {{- for common_type in pallet_common_types -}}
-    {{- match common_type -}}
-    {{- when TemplatePalletConfigCommonTypes::RuntimeEvent }}
+    {{- if using_runtime_event -}}
     #[inject_runtime_type]
     type RuntimeEvent = ();
-    {{- when TemplatePalletConfigCommonTypes::RuntimeOrigin }}
+    {{- endif -}}
+    {{- if using_runtime_origin -}}
     #[inject_runtime_type]
     type RuntimeOrigin = ();
-    {{- when TemplatePalletConfigCommonTypes::Currency }}
+    {{- endif -}}
+    {{- if using_currency -}}
     #[inject_runtime_type]
     type RuntimeHoldReason = ();
     #[inject_runtime_type]
     type RuntimeFreezeReason = ();
-    {{- else -}}
-    {{- endmatch -}}
-    {{- endfor -}}
+    {{- endif -}}
     {{- for config_type in pallet_config_types -}}
     {{- match config_type.1 -}}
     {{- when TemplatePalletConfigTypesDefault::Default }}
@@ -81,22 +80,20 @@ impl frame::deps::frame_system::DefaultConfig for RelayChainDefaultConfig {}
 
 #[register_default_impl(RelayChainDefaultConfig)]
 impl DefaultConfig for RelayChainDefaultConfig {
-    {{- for common_type in pallet_common_types -}}
-    {{- match common_type -}}
-    {{- when TemplatePalletConfigCommonTypes::RuntimeEvent }}
+    {{- if using_runtime_event -}}
     #[inject_runtime_type]
     type RuntimeEvent = ();
-    {{- when TemplatePalletConfigCommonTypes::RuntimeOrigin }}
+    {{- endif -}}
+    {{- if using_runtime_origin -}}
     #[inject_runtime_type]
     type RuntimeOrigin = ();
-    {{- when TemplatePalletConfigCommonTypes::Currency }}
+    {{- endif -}}
+    {{- if using_currency -}}
     #[inject_runtime_type]
     type RuntimeHoldReason = ();
     #[inject_runtime_type]
     type RuntimeFreezeReason = ();
-    {{- else -}}
-    {{- endmatch -}}
-    {{- endfor -}}
+    {{- endif -}}
     {{- for config_type in pallet_config_types -}}
     {{- match config_type.1 -}}
     {{- when TemplatePalletConfigTypesDefault::Default }}
@@ -116,22 +113,20 @@ impl frame::deps::frame_system::DefaultConfig for ParaChainDefaultConfig {}
 
 #[register_default_impl(ParaChainDefaultConfig)]
 impl DefaultConfig for ParaChainDefaultConfig{
-    {{- for common_type in pallet_common_types -}}
-    {{- match common_type -}}
-    {{- when TemplatePalletConfigCommonTypes::RuntimeEvent }}
+    {{- if using_runtime_event -}}
     #[inject_runtime_type]
     type RuntimeEvent = ();
-    {{- when TemplatePalletConfigCommonTypes::RuntimeOrigin }}
+    {{- endif -}}
+    {{- if using_runtime_origin -}}
     #[inject_runtime_type]
     type RuntimeOrigin = ();
-    {{- when TemplatePalletConfigCommonTypes::Currency }}
+    {{- endif -}}
+    {{- if using_currency -}}
     #[inject_runtime_type]
     type RuntimeHoldReason = ();
     #[inject_runtime_type]
     type RuntimeFreezeReason = ();
-    {{- else -}}
-    {{- endmatch -}}
-    {{- endfor -}}
+    {{- endif -}}
     {{- for config_type in pallet_config_types -}}
     {{- match config_type.1 -}}
     {{- when TemplatePalletConfigTypesDefault::Default }}
