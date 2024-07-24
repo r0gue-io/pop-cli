@@ -13,10 +13,10 @@ use tokio::time::{sleep, Duration};
 async fn parachain_lifecycle() -> Result<()> {
 	let temp = tempfile::tempdir().unwrap();
 	let temp_dir = temp.path();
-	// let temp_dir = Path::new("./"); //For testing locally
+	//let temp_dir = Path::new("./.test"); //For testing locally
 	// Test that all templates are generated correctly
 	generate_all_the_templates(&temp_dir)?;
-	// pop new parachain test_parachain (default)
+	//pop new parachain test_parachain (default)
 	Command::cargo_bin("pop")
 		.unwrap()
 		.current_dir(&temp_dir)
@@ -39,22 +39,50 @@ async fn parachain_lifecycle() -> Result<()> {
 	Command::cargo_bin("pop")
 		.unwrap()
 		.current_dir(&temp_dir)
-		.args(&["build", "--path", "./test_parachain", "--id", "2000"])
+		.args(&["build", "--path", "./test_parachain"])
 		.assert()
 		.success();
 
 	assert!(temp_dir.join("test_parachain/target").exists());
-	// Assert build files has been generated
-	assert!(temp_dir.join("test_parachain/raw-parachain-chainspec.json").exists());
-	assert!(temp_dir.join("test_parachain/para-2000-wasm.wasm").exists());
-	assert!(temp_dir.join("test_parachain/para-2000-genesis-state").exists());
 
-	let content = fs::read_to_string(temp_dir.join("test_parachain/raw-parachain-chainspec.json"))
+	// pop build spec --output ./target/pop/test-spec.json --id 2222 --type development --relay paseo-local --protocol-id pop-protocol"
+	Command::cargo_bin("pop")
+		.unwrap()
+		.current_dir(&temp_dir.join("test_parachain"))
+		.args(&[
+			"build",
+			"spec",
+			"--output",
+			"./target/pop/test-spec.json",
+			"--id",
+			"2222",
+			"--type",
+			"development",
+			"--relay",
+			"paseo-local",
+			"--genesis-state",
+			"--genesis-code",
+			"--protocol-id",
+			"pop-protocol",
+		])
+		.assert()
+		.success();
+
+	// Assert build files has been generated
+	assert!(temp_dir.join("test_parachain/target").exists());
+	assert!(temp_dir.join("test_parachain/target/pop/test-spec.json").exists());
+	assert!(temp_dir.join("test_parachain/target/pop/raw-test-spec.json").exists());
+	assert!(temp_dir.join("test_parachain/target/pop/para-2222.wasm").exists());
+	assert!(temp_dir.join("test_parachain/target/pop/para-2222-genesis-state").exists());
+
+	let content = fs::read_to_string(temp_dir.join("test_parachain/target/pop/raw-test-spec.json"))
 		.expect("Could not read file");
 	// Assert custom values has been set propertly
-	assert!(content.contains("\"para_id\": 2000"));
+	assert!(content.contains("\"para_id\": 2222"));
 	assert!(content.contains("\"tokenDecimals\": 6"));
 	assert!(content.contains("\"tokenSymbol\": \"POP\""));
+	assert!(content.contains("\"relay_chain\": \"paseo-local\""));
+	assert!(content.contains("\"protocolId\": \"pop-protocol\""));
 
 	// pop up contract -p "./test_parachain"
 	let mut cmd = Cmd::new(cargo_bin("pop"))

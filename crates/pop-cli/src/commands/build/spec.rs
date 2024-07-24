@@ -269,7 +269,7 @@ impl BuildSpecCommand {
 			let genesis_state_file =
 				generate_genesis_state_file(&binary_path, &raw_chain_spec, &genesis_file_name)?;
 			generated_files.push(format!(
-				"Genesis State exported at {} file",
+				"Genesis State file exported at: {}",
 				genesis_state_file.display().to_string()
 			));
 		}
