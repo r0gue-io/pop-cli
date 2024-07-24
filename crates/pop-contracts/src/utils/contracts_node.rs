@@ -102,12 +102,18 @@ pub fn standalone_binary_exists() -> Option<String> {
 /// # Arguments
 /// * `cache` -  The cache directory path.
 ///
-pub async fn contracts_node_generator(cache: PathBuf) -> Result<Binary, Error> {
+pub async fn contracts_node_generator(
+	cache: PathBuf,
+	version: Option<&str>,
+) -> Result<Binary, Error> {
 	let chain = &SoloChain::ContractNode;
 	let name = chain.binary();
 	let releases = chain.releases().await?;
-	let tag = Binary::resolve_version(name, None, &releases, &cache);
-	let latest = releases.iter().nth(0).map(|v| v.to_string());
+	let tag = Binary::resolve_version(name, version, &releases, &cache);
+	let latest = version
+		.is_none()
+		.then(|| releases.iter().nth(0).map(|v| v.to_string()))
+		.flatten();
 	let contracts_node = Binary::Source {
 		name: name.to_string(),
 		source: TryInto::try_into(chain, tag.clone(), latest)?,
@@ -182,6 +188,32 @@ mod tests {
 		assert!(!is_chain_alive(local_url).await?);
 		let polkadot_url = url::Url::parse("wss://polkadot-rpc.dwellir.com")?;
 		assert!(is_chain_alive(polkadot_url).await?);
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn contracts_node_generator_works() -> anyhow::Result<()> {
+		let expected = SoloChain::ContractNode;
+		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
+		let cache = temp_dir.path().join("cache");
+		let version = "v0.40.0";
+		let binary = contracts_node_generator(cache.clone(), Some(version)).await?;
+		let archive = archive_name_by_target()?;
+		let archive_bin_path = release_folder_by_target()?;
+		assert!(matches!(binary, Binary::Source { name, source, cache}
+			if name == expected.binary()  &&
+				source == Source::GitHub(ReleaseArchive {
+					owner: "paritytech".to_string(),
+					repository: "substrate-contracts-node".to_string(),
+					tag: Some(version.to_string()),
+					tag_format: expected.tag_format().map(|t| t.into()),
+					archive: archive,
+					contents: vec![(archive_bin_path, Some(binary.name().to_string()))],
+					latest: None,
+				})
+				&&
+			cache == cache
+		));
 		Ok(())
 	}
 

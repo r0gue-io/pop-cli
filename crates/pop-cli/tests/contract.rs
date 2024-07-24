@@ -46,7 +46,7 @@ async fn contract_lifecycle() -> Result<()> {
 	// temp_dir gets dropped prematurely, so manually create a tmp directory.
 	let cache = dirs::cache_dir().expect("cache_dir failed").join("pop_tmp");
 	std::fs::create_dir_all(&cache)?;
-	let binary = contracts_node_generator(cache.clone()).await?;
+	let binary = contracts_node_generator(cache.clone(), None).await?;
 	binary.source(false, &(), true).await?;
 	let process = run_contracts_node(binary.path(), None).await?;
 

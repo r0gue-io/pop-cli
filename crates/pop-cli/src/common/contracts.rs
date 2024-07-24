@@ -19,7 +19,7 @@ pub async fn check_contracts_node_and_prompt(skip_confirm: bool) -> anyhow::Resu
 	// if the contracts node binary does not exist, prompt the user to download it
 	if standalone_binary == None {
 		let cache_path: PathBuf = crate::cache()?;
-		let mut binary = contracts_node_generator(cache_path).await?;
+		let mut binary = contracts_node_generator(cache_path, None).await?;
 		let mut latest = false;
 		if !binary.exists() {
 			warning("The substrate-contracts-node binary is not found.")?;
