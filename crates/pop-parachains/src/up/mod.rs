@@ -252,12 +252,13 @@ impl Zombienet {
 				if let Some(command) = NetworkConfiguration::command(node).and_then(|c| c.as_str())
 				{
 					match &relay {
-						Some(relay) =>
+						Some(relay) => {
 							if command.to_lowercase() != relay.binary.name() {
 								return Err(Error::UnsupportedCommand(format!(
 									"the relay chain command is unsupported: {command}",
 								)));
-							},
+							}
+						},
 						None => {
 							relay = Some(
 								relay::from(command, version, runtime_version, chain, cache)
@@ -621,12 +622,13 @@ impl Binary {
 	pub fn latest(&self) -> Option<&str> {
 		match self {
 			Self::Local { .. } => None,
-			Self::Source { source, .. } =>
+			Self::Source { source, .. } => {
 				if let GitHub(ReleaseArchive { latest, .. }) = source {
 					latest.as_deref()
 				} else {
 					None
-				},
+				}
+			},
 		}
 	}
 
@@ -710,15 +712,18 @@ impl Binary {
 	) -> Result<(), Error> {
 		match self {
 			Self::Local { name, path, manifest, .. } => match manifest {
-				None =>
+				None => {
 					return Err(Error::MissingBinary(format!(
 						"The {path:?} binary cannot be sourced automatically."
-					))),
-				Some(manifest) =>
-					sourcing::from_local_package(manifest, name, release, status, verbose).await,
+					)))
+				},
+				Some(manifest) => {
+					sourcing::from_local_package(manifest, name, release, status, verbose).await
+				},
 			},
-			Self::Source { source, cache, .. } =>
-				source.source(cache, release, status, verbose).await,
+			Self::Source { source, cache, .. } => {
+				source.source(cache, release, status, verbose).await
+			},
 		}
 	}
 
@@ -873,16 +878,18 @@ fn target() -> Result<&'static str, Error> {
 	}
 
 	match ARCH {
-		"aarch64" =>
+		"aarch64" => {
 			return match OS {
 				"macos" => Ok("aarch64-apple-darwin"),
 				_ => Ok("aarch64-unknown-linux-gnu"),
-			},
-		"x86_64" | "x86" =>
+			}
+		},
+		"x86_64" | "x86" => {
 			return match OS {
 				"macos" => Ok("x86_64-apple-darwin"),
 				_ => Ok("x86_64-unknown-linux-gnu"),
-			},
+			}
+		},
 		&_ => {},
 	}
 	Err(Error::UnsupportedPlatform { arch: ARCH, os: OS })

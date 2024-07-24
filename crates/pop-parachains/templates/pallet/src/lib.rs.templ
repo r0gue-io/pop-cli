@@ -114,6 +114,7 @@ pub mod pallet {
 		type RuntimeFreezeReason: VariantCount;
         
         /// Type to access the native currency of the blockchain
+        /// About the fungible traits <https://paritytech.github.io/polkadot-sdk/master/frame_support/traits/tokens/fungible/index.html>
         {{- if pallet_default_config }}
         #[pallet::no_default]
         {{- endif }}
@@ -183,12 +184,14 @@ pub mod pallet {
     {{ endmatch -}}
     {{- endfor -}}
 
+    {{ if using_runtime_event }}
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
         /// Someone did something
         SomeoneDidSomething { who: T::AccountId}
     }
+    {{- endif }}
 
     #[pallet::error]
 	pub enum Error<T> {
