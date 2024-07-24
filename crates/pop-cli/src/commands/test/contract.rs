@@ -24,6 +24,9 @@ pub(crate) struct TestContractCommand {
 		help = "Path to the contracts node to run e2e tests [default: none]"
 	)]
 	node: Option<PathBuf>,
+	/// Before starting a local node, do not ask the user for confirmation.
+	#[clap(short('y'), long)]
+	skip_confirm: bool,
 }
 
 impl TestContractCommand {
@@ -43,14 +46,13 @@ impl TestContractCommand {
 				style(" Pop CLI ").black().on_magenta()
 			))?;
 
-			let maybe_node_path = check_contracts_node_and_prompt(false).await?;
-			if let Some(node_path) = maybe_node_path {
-				if node_path != PathBuf::new() {
-					self.node = Some(node_path);
-				}
-			} else {
-				warning("🚫 substrate-contracts-node is necessary to run e2e tests. Will try to run tests anyway...")?;
-			}
+			self.node = match check_contracts_node_and_prompt(self.skip_confirm).await {
+				Ok(binary_path) => Some(binary_path),
+				Err(_) => {
+					warning("🚫 substrate-contracts-node is necessary to run e2e tests. Will try to run tests anyway...")?;
+					Some(PathBuf::new())
+				},
+			};
 
 			test_e2e_smart_contract(self.path.as_deref(), self.node.as_deref())?;
 			outro("End-to-end testing complete")?;

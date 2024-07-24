@@ -11,10 +11,9 @@ use std::path::PathBuf;
 /// - Some("") if the standalone binary exists
 /// - Some(binary_cache_location) if the binary exists in pop's cache
 /// - None if the binary does not exist
-pub async fn check_contracts_node_and_prompt(
-	skip_confirm: bool,
-) -> anyhow::Result<Option<PathBuf>> {
-	let mut node_path = None;
+pub async fn check_contracts_node_and_prompt(skip_confirm: bool) -> anyhow::Result<PathBuf> {
+	// default to standalone binary, if it exists.
+	let mut node_path = PathBuf::from("substrate-contracts-node");
 
 	let standalone_binary = standalone_binary_exists();
 	// if the contracts node binary does not exist, prompt the user to download it
@@ -37,7 +36,7 @@ pub async fn check_contracts_node_and_prompt(
 					"substrate-contracts-node successfully sourced. Cached at: {}",
 					binary.path().to_str().unwrap()
 				));
-				node_path = Some(binary.path());
+				node_path = binary.path();
 			}
 		}
 		if binary.stale() {
@@ -49,7 +48,7 @@ pub async fn check_contracts_node_and_prompt(
 			))?;
 			if !skip_confirm {
 				latest = confirm(
-					"📦 Would you like to source them automatically now? It may take some time..."
+					"📦 Would you like to source it automatically now? It may take some time..."
 						.to_string(),
 				)
 				.initial_value(true)
@@ -68,13 +67,8 @@ pub async fn check_contracts_node_and_prompt(
 					"substrate-contracts-node successfully sourced. Cached at: {}",
 					binary.path().to_str().unwrap()
 				));
-				node_path = Some(binary.path());
+				node_path = binary.path();
 			}
-		}
-	} else {
-		if let Some(contract_node_path) = standalone_binary {
-			// The standalone binary will be used by cargo-contract
-			node_path = Some(contract_node_path.0);
 		}
 	}
 

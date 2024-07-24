@@ -86,14 +86,11 @@ impl TryInto for SoloChain {
 
 impl pop_common::sourcing::traits::Source for SoloChain {}
 
-/// Checks if the `substrate-contracts-node` binary exists
-/// returns:
-/// - Some("", <version-output>) if the standalone binary exists
-/// - None if the binary does not exist
-pub fn standalone_binary_exists() -> Option<(PathBuf, String)> {
+/// Checks if the `substrate-contracts-node` binary exists, returning the version if it does.
+pub fn standalone_binary_exists() -> Option<String> {
 	let standalone_output = cmd(BIN_NAME, vec!["--version"]).read();
 	if standalone_output.is_ok() {
-		Some((PathBuf::new(), standalone_output.unwrap()))
+		Some(standalone_output.unwrap())
 	} else {
 		None
 	}
