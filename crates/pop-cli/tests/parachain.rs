@@ -68,7 +68,7 @@ async fn parachain_lifecycle() -> Result<()> {
 		.assert()
 		.success();
 
-	// Assert build files has been generated
+	// Assert build files have been generated
 	assert!(temp_dir.join("test_parachain/target").exists());
 	assert!(temp_dir.join("test_parachain/target/pop/test-spec.json").exists());
 	assert!(temp_dir.join("test_parachain/target/pop/raw-test-spec.json").exists());

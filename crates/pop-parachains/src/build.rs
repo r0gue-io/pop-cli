@@ -533,6 +533,105 @@ default_command = "pop-node"
 	}
 
 	#[test]
+	fn replace_relay_spec_works() -> Result<()> {
+		let temp_dir = tempfile::tempdir()?;
+		let file_path = temp_dir.path().join("chain-spec.json");
+		let mut file = fs::File::create(temp_dir.path().join("chain-spec.json"))?;
+		writeln!(
+			file,
+			r#"
+				"name": "Local Testnet",
+				"para_id": 1000,
+				"parachainInfo": {{
+					"parachainId": 1000
+				}},
+				"relay_chain": "old-relay",
+			"#
+		)?;
+		replace_relay_spec(&file_path.clone(), "new-relay", "old-relay")?;
+		let content = fs::read_to_string(file_path).expect("Could not read file");
+		assert_eq!(
+			content.trim(),
+			r#"
+				"name": "Local Testnet",
+				"para_id": 1000,
+				"parachainInfo": {
+					"parachainId": 1000
+				},
+				"relay_chain": "new-relay",
+			"#
+			.trim()
+		);
+		Ok(())
+	}
+
+	#[test]
+	fn replace_chain_type_works() -> Result<()> {
+		let temp_dir = tempfile::tempdir()?;
+		let file_path = temp_dir.path().join("chain-spec.json");
+		let mut file = fs::File::create(temp_dir.path().join("chain-spec.json"))?;
+		writeln!(
+			file,
+			r#"
+				"name": "Local Testnet",
+				"para_id": 1000,
+				"parachainInfo": {{
+					"parachainId": 1000
+				}},
+				"chainType": "old-chainType",
+			"#
+		)?;
+		replace_chain_type(&file_path.clone(), "new-chainType", "old-chainType")?;
+		let content = fs::read_to_string(file_path).expect("Could not read file");
+		assert_eq!(
+			content.trim(),
+			r#"
+				"name": "Local Testnet",
+				"para_id": 1000,
+				"parachainInfo": {
+					"parachainId": 1000
+				},
+				"chainType": "new-chainType",
+			"#
+			.trim()
+		);
+		Ok(())
+	}
+
+	#[test]
+	fn replace_protocol_id_works() -> Result<()> {
+		let temp_dir = tempfile::tempdir()?;
+		let file_path = temp_dir.path().join("chain-spec.json");
+		let mut file = fs::File::create(temp_dir.path().join("chain-spec.json"))?;
+		writeln!(
+			file,
+			r#"
+				"name": "Local Testnet",
+				"para_id": 1000,
+				"parachainInfo": {{
+					"parachainId": 1000
+				}},
+				"protocolId": "old-protocolId",
+			"#
+		)?;
+		replace_protocol_id(&file_path.clone(), "new-protocolId", "old-protocolId")?;
+		let content = fs::read_to_string(file_path).expect("Could not read file");
+		assert_eq!(
+			content.trim(),
+			r#"
+				"name": "Local Testnet",
+				"para_id": 1000,
+				"parachainInfo": {
+					"parachainId": 1000
+				},
+				"protocolId": "new-protocolId",
+			"#
+			.trim()
+		);
+		Ok(())
+	}
+
+	#[test]
 	fn check_command_exists_fails() -> Result<()> {
 		let binary_path = PathBuf::from("/bin");
 		let cmd = "nonexistent_command";
