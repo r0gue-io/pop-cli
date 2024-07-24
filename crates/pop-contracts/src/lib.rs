@@ -22,8 +22,6 @@ pub use up::{
 	set_up_deployment, set_up_upload, upload_smart_contract, UpOpts,
 };
 pub use utils::{
-	contracts_node::{
-		contracts_node_generator, is_chain_alive, run_contracts_node, standalone_binary_exists,
-	},
+	contracts_node::{contracts_node_generator, is_chain_alive, run_contracts_node},
 	signer::parse_hex_bytes,
 };
