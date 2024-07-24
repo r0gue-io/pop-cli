@@ -10,7 +10,6 @@ use std::path::PathBuf;
 /// returns:
 /// - Some("") if the standalone binary exists
 /// - Some(binary_cache_location) if the binary exists in pop's cache
-/// - None if the binary does not exist
 pub async fn check_contracts_node_and_prompt(skip_confirm: bool) -> anyhow::Result<PathBuf> {
 	// default to standalone binary, if it exists.
 	let mut node_path = PathBuf::from("substrate-contracts-node");
