@@ -4,10 +4,10 @@ use anyhow::Result;
 use assert_cmd::Command;
 use pop_common::templates::Template;
 use pop_contracts::{
-	dry_run_gas_estimate_instantiate, instantiate_smart_contract, run_contracts_node,
-	set_up_deployment, Contract, UpOpts,
+	download_contracts_node, dry_run_gas_estimate_instantiate, instantiate_smart_contract,
+	run_contracts_node, set_up_deployment, Contract, UpOpts,
 };
-use std::{path::Path, process::Command as Cmd};
+use std::{env::temp_dir, path::Path, process::Command as Cmd};
 use strum::VariantArray;
 use url::Url;
 
@@ -43,8 +43,9 @@ async fn contract_lifecycle() -> Result<()> {
 	assert!(temp_dir.join("test_contract/target/ink/test_contract.json").exists());
 
 	// Run the contracts node
-	let cache = temp_dir.join("cache");
-	let process = run_contracts_node(cache, None).await?;
+	let node_path = download_contracts_node(temp_dir.to_path_buf().clone()).await?;
+	let process = run_contracts_node(node_path.path(), None).await?;
+
 	// Only upload the contract
 	// pop up contract --upload-only
 	Command::cargo_bin("pop")

@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use super::{
-	chain_specs::chain_spec_generator,
+use super::chain_specs::chain_spec_generator;
+pub use pop_common::{
+	git::GitHub,
 	sourcing::{
-		self,
 		traits::{Source as _, *},
-		GitHub::ReleaseArchive,
+		Binary,
+		GitHub::*,
 		Source,
 	},
-	target, Binary, Error,
+	target, Error,
 };
-use pop_common::GitHub;
 use std::{iter::once, path::Path};
 use strum::VariantArray as _;
 use strum_macros::{EnumProperty, VariantArray};
@@ -63,7 +63,7 @@ impl RelayChain {
 	}
 }
 
-impl sourcing::traits::Source for RelayChain {}
+impl pop_common::sourcing::traits::Source for RelayChain {}
 
 /// Initialises the configuration required to launch the relay chain.
 ///

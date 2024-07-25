@@ -1,22 +1,19 @@
 use crate::errors::Error;
 use contract_extrinsics::{RawParams, RpcRequest};
-use flate2::read::GzDecoder;
-use pop_common::GitHub;
+use duct::cmd;
+use pop_common::sourcing::{
+	Binary, {GitHub as GitHubSource, Source},
+};
 use std::{
 	env::consts::OS,
-	fs::{self, File},
-	io::{Seek, SeekFrom, Write},
+	fs::File,
 	path::PathBuf,
 	process::{Child, Command, Stdio},
 	time::Duration,
 };
-use tar::Archive;
-use tempfile::tempfile;
 use tokio::time::sleep;
 
-const SUBSTRATE_CONTRACT_NODE: &str = "https://github.com/paritytech/substrate-contracts-node";
 const BIN_NAME: &str = "substrate-contracts-node";
-const STABLE_VERSION: &str = "v0.41.0";
 
 /// Checks if the specified node is alive and responsive.
 ///
@@ -39,36 +36,66 @@ pub async fn is_chain_alive(url: url::Url) -> Result<bool, Error> {
 	}
 }
 
+/// Checks if the `substrate-contracts-node` binary exists
+/// or if the binary exists in pop's cache.
+/// returns:
+/// - Some("", <version-output>) if the standalone binary exists
+/// - Some(binary_cache_location, "") if the binary exists in pop's cache
+/// - None if the binary does not exist
+pub fn does_contracts_node_exist(cache: PathBuf) -> Option<(PathBuf, String)> {
+	let cached_location = cache.join(BIN_NAME);
+	let standalone_output = cmd(BIN_NAME, vec!["--version"]).read();
+
+	if standalone_output.is_ok() {
+		Some((PathBuf::new(), standalone_output.unwrap()))
+	} else if cached_location.exists() {
+		Some((cached_location, "".to_string()))
+	} else {
+		None
+	}
+}
+
+/// Downloads the latest version of the `substrate-contracts-node` binary
+/// into the specified cache location.
+pub async fn download_contracts_node(cache: PathBuf) -> Result<Binary, Error> {
+	let archive = archive_name_by_target()?;
+	let archive_bin_path = release_folder_by_target()?;
+
+	let source = Source::GitHub(GitHubSource::ReleaseArchive {
+		owner: "paritytech".into(),
+		repository: "substrate-contracts-node".into(),
+		tag: None,
+		tag_format: None,
+		archive,
+		contents: vec![(archive_bin_path, Some(BIN_NAME.to_string()))],
+		latest: None,
+	});
+
+	let contracts_node =
+		Binary::Source { name: "substrate-contracts-node".into(), source, cache: cache.clone() };
+
+	// source the substrate-contracts-node binary
+	contracts_node
+		.source(false, &(), true)
+		.await
+		.map_err(|err| Error::SourcingError(err))?;
+
+	Ok(contracts_node)
+}
+
 /// Runs the latest version of the `substrate-contracts-node` in the background.
 ///
 /// # Arguments
 ///
-/// * `cache` - The path where the binary will be stored.
+/// * `binary_path` - The path where the binary is stored. Can be the binary name itself if in PATH.
 /// * `output` - The optional log file for node output.
 ///
-pub async fn run_contracts_node(cache: PathBuf, output: Option<&File>) -> Result<Child, Error> {
-	let cached_file = cache.join(BIN_NAME);
-	if !cached_file.exists() {
-		let archive = archive_name_by_target()?;
+pub async fn run_contracts_node(
+	binary_path: PathBuf,
+	output: Option<&File>,
+) -> Result<Child, Error> {
+	let mut command = Command::new(binary_path);
 
-		let latest_version = latest_contract_node_release().await?;
-		let releases_url =
-			format!("{SUBSTRATE_CONTRACT_NODE}/releases/download/{latest_version}/{archive}");
-		// Download archive
-		let response = reqwest::get(releases_url.as_str()).await?.error_for_status()?;
-		let mut file = tempfile()?;
-		file.write_all(&response.bytes().await?)?;
-		file.seek(SeekFrom::Start(0))?;
-		// Extract contents
-		let tar = GzDecoder::new(file);
-		let mut archive = Archive::new(tar);
-		archive.unpack(cache.clone())?;
-		// Copy the file into the cache folder and remove the folder artifacts
-		let extracted_dir = cache.join(release_folder_by_target()?);
-		fs::copy(&extracted_dir.join(BIN_NAME), &cached_file)?;
-		fs::remove_dir_all(&extracted_dir.parent().unwrap_or(&cache.join("artifacts")))?;
-	}
-	let mut command = Command::new(cached_file.display().to_string().as_str());
 	if let Some(output) = output {
 		command.stdout(Stdio::from(output.try_clone()?));
 		command.stderr(Stdio::from(output.try_clone()?));
@@ -81,24 +108,6 @@ pub async fn run_contracts_node(cache: PathBuf, output: Option<&File>) -> Result
 	Ok(process)
 }
 
-async fn latest_contract_node_release() -> Result<String, Error> {
-	let repo = GitHub::parse(SUBSTRATE_CONTRACT_NODE)?;
-	match repo.releases().await {
-		Ok(releases) => {
-			// Fetching latest releases
-			for release in releases {
-				if !release.prerelease {
-					return Ok(release.tag_name);
-				}
-			}
-			// It should never reach this point, but in case we download a default version of polkadot
-			Ok(STABLE_VERSION.to_string())
-		},
-		// If an error with GitHub API return the STABLE_VERSION
-		Err(_) => Ok(STABLE_VERSION.to_string()),
-	}
-}
-
 fn archive_name_by_target() -> Result<String, Error> {
 	match OS {
 		"macos" => Ok(format!("{}-mac-universal.tar.gz", BIN_NAME)),
@@ -106,10 +115,11 @@ fn archive_name_by_target() -> Result<String, Error> {
 		_ => Err(Error::UnsupportedPlatform { os: OS }),
 	}
 }
+
 fn release_folder_by_target() -> Result<&'static str, Error> {
 	match OS {
-		"macos" => Ok("artifacts/substrate-contracts-node-mac"),
-		"linux" => Ok("artifacts/substrate-contracts-node-linux"),
+		"macos" => Ok("artifacts/substrate-contracts-node-mac/substrate-contracts-node"),
+		"linux" => Ok("artifacts/substrate-contracts-node-linux/substrate-contracts-node"),
 		_ => Err(Error::UnsupportedPlatform { os: OS }),
 	}
 }
@@ -120,25 +130,6 @@ mod tests {
 	use anyhow::{Error, Result};
 	use std::process::Command;
 
-	#[tokio::test]
-	async fn test_latest_polkadot_release() -> Result<()> {
-		let version = latest_contract_node_release().await?;
-		// Result will change all the time to the current version, check at least starts with v
-		assert!(version.starts_with("v"));
-		Ok(())
-	}
-	#[tokio::test]
-	async fn release_folder_by_target_works() -> Result<()> {
-		let path = release_folder_by_target();
-		if cfg!(target_os = "macos") {
-			assert_eq!(path?, "artifacts/substrate-contracts-node-mac");
-		} else if cfg!(target_os = "linux") {
-			assert_eq!(path?, "artifacts/substrate-contracts-node-linux");
-		} else {
-			assert!(path.is_err())
-		}
-		Ok(())
-	}
 	#[tokio::test]
 	async fn folder_path_by_target() -> Result<()> {
 		let archive = archive_name_by_target();
@@ -164,10 +155,13 @@ mod tests {
 	#[tokio::test]
 	async fn run_contracts_node_works() -> Result<(), Error> {
 		let local_url = url::Url::parse("ws://localhost:9944")?;
-		// Run the contracts node
+
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
-		let cache = temp_dir.path().join("cache");
-		let process = run_contracts_node(cache.clone(), None).await?;
+		let cache = temp_dir.path().join("");
+
+		let node_path = download_contracts_node(cache.clone()).await?;
+		let process = run_contracts_node(node_path.path(), None).await?;
+
 		// Check if the node is alive
 		assert!(is_chain_alive(local_url).await?);
 		assert!(cache.join("substrate-contracts-node").exists());
@@ -177,6 +171,7 @@ mod tests {
 			.args(["-s", "TERM", &process.id().to_string()])
 			.spawn()?
 			.wait()?;
+
 		Ok(())
 	}
 }
