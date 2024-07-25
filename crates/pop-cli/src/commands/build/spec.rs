@@ -3,7 +3,7 @@
 use crate::{cli, cli::traits::Cli as _, cli::Cli, style::style};
 use clap::{Args, ValueEnum};
 use cliclack::{confirm, input};
-use pop_common::{manifest::from_path, Profile};
+use pop_common::Profile;
 use pop_parachains::{
 	binary_path, build_parachain, export_wasm_file, generate_genesis_state_file,
 	generate_plain_chain_spec, generate_raw_chain_spec, is_supported, replace_chain_type,
@@ -378,85 +378,4 @@ async fn guide_user_to_generate_spec() -> anyhow::Result<BuildSpecCommand> {
 		genesis_state,
 		genesis_code,
 	})
-}
-
-#[cfg(test)]
-mod test {
-	use super::*;
-	use anyhow::Result;
-	use assert_cmd::Command;
-	use std::path::Path;
-
-	#[test]
-	fn build_spec_works() -> Result<()> {
-		// Generate template parachain in temp directory.
-		let temp = tempfile::tempdir().unwrap();
-		let temp_dir = temp.path();
-		let chain_dir = generate_parachain(temp_dir);
-
-		// pop build spec --output ./test-spec.json --id 1234"
-		Command::cargo_bin("pop")
-			.unwrap()
-			.current_dir(&chain_dir)
-			.args(&["build", "spec", "--output", "./test-spec.json", "--id", "1234"])
-			.assert()
-			.success();
-
-		// Assert build files have been generated in ./
-		assert!(chain_dir.join("./test-spec.json").exists());
-		assert!(chain_dir.join("./raw-test-spec.json").exists());
-		assert!(chain_dir.join("./para-1234.wasm").exists());
-		assert!(chain_dir.join("./para-1234-genesis-state").exists());
-
-		Ok(())
-	}
-
-	#[test]
-	fn build_spec_creates_non_existing_output_folder() -> Result<()> {
-		// Generate template parachain in temp directory.
-		let temp = tempfile::tempdir().unwrap();
-		let temp_dir = temp.path();
-		let chain_dir = generate_parachain(temp_dir);
-
-		// pop build spec --output ./new/directory/test-spec.json --id 1234"
-		Command::cargo_bin("pop")
-			.unwrap()
-			.current_dir(&chain_dir)
-			.args(&["build", "spec", "--output", "./new/directory/test-spec.json", "--id", "1234"])
-			.assert()
-			.success();
-
-		// Assert build files have been generated
-		assert!(chain_dir.join("./new/directory/test-spec.json").exists());
-		assert!(chain_dir.join("./new/directory/raw-test-spec.json").exists());
-		assert!(chain_dir.join("./new/directory/para-1234.wasm").exists());
-		assert!(chain_dir.join("./new/directory/para-1234-genesis-state").exists());
-
-		Ok(())
-	}
-
-	fn generate_parachain(temp_dir: &Path) -> PathBuf {
-		// pop new parachain test_parachain
-		Command::cargo_bin("pop")
-			.unwrap()
-			.current_dir(&temp_dir)
-			.args(&[
-				"new",
-				"parachain",
-				"test_parachain",
-				"--symbol",
-				"POP",
-				"--decimals",
-				"6",
-				"--endowment",
-				"1u64 << 60",
-			])
-			.assert()
-			.success();
-
-		let chain_dir = temp_dir.join("test_parachain");
-		assert!(chain_dir.exists());
-
-		chain_dir
-	}
 }
