@@ -42,11 +42,7 @@ async fn contract_lifecycle() -> Result<()> {
 	assert!(temp_dir.join("test_contract/target/ink/test_contract.wasm").exists());
 	assert!(temp_dir.join("test_contract/target/ink/test_contract.json").exists());
 
-	// Run the contracts node
-	// temp_dir gets dropped prematurely, so manually create a tmp directory.
-	let cache = dirs::cache_dir().expect("cache_dir failed").join("pop_tmp");
-	std::fs::create_dir_all(&cache)?;
-	let binary = contracts_node_generator(cache.clone(), None).await?;
+	let binary = contracts_node_generator(temp_dir.to_path_buf().clone(), None).await?;
 	binary.source(false, &(), true).await?;
 	let process = run_contracts_node(binary.path(), None).await?;
 
@@ -132,8 +128,6 @@ async fn contract_lifecycle() -> Result<()> {
 		.args(["-s", "TERM", &process.id().to_string()])
 		.spawn()?
 		.wait()?;
-
-	std::fs::remove_dir_all(cache)?;
 
 	Ok(())
 }
