@@ -156,11 +156,8 @@ mod tests {
 	async fn run_contracts_node_works() -> Result<(), Error> {
 		let local_url = url::Url::parse("ws://localhost:9944")?;
 
-		// temp_dir gets dropped prematurely, so manually create a tmp directory.
-		let cache = dirs::cache_dir()
-			.expect("cache_dir failed")
-			.join("pop_tmp_contracts_node_works");
-		std::fs::create_dir_all(&cache)?;
+		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
+		let cache = temp_dir.path().join("");
 
 		let node_path = download_contracts_node(cache.clone()).await?;
 		let process = run_contracts_node(node_path.path(), None).await?;
@@ -174,9 +171,6 @@ mod tests {
 			.args(["-s", "TERM", &process.id().to_string()])
 			.spawn()?
 			.wait()?;
-
-		// cleanup
-		std::fs::remove_dir_all(cache)?;
 
 		Ok(())
 	}

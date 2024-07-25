@@ -7,7 +7,7 @@ use pop_contracts::{
 	download_contracts_node, dry_run_gas_estimate_instantiate, instantiate_smart_contract,
 	run_contracts_node, set_up_deployment, Contract, UpOpts,
 };
-use std::{path::Path, process::Command as Cmd};
+use std::{env::temp_dir, path::Path, process::Command as Cmd};
 use strum::VariantArray;
 use url::Url;
 
@@ -43,10 +43,7 @@ async fn contract_lifecycle() -> Result<()> {
 	assert!(temp_dir.join("test_contract/target/ink/test_contract.json").exists());
 
 	// Run the contracts node
-	// temp_dir gets dropped prematurely, so manually create a tmp directory.
-	let cache = dirs::cache_dir().expect("cache_dir failed").join("pop_tmp_contract_lifecycle");
-	std::fs::create_dir_all(&cache)?;
-	let node_path = download_contracts_node(cache.clone()).await?;
+	let node_path = download_contracts_node(temp_dir.to_path_buf().clone()).await?;
 	let process = run_contracts_node(node_path.path(), None).await?;
 
 	// Only upload the contract
@@ -131,8 +128,6 @@ async fn contract_lifecycle() -> Result<()> {
 		.args(["-s", "TERM", &process.id().to_string()])
 		.spawn()?
 		.wait()?;
-
-	std::fs::remove_dir_all(cache)?;
 
 	Ok(())
 }

@@ -311,9 +311,7 @@ mod tests {
 		let temp_dir = generate_smart_contract_test_environment()?;
 		mock_build_process(temp_dir.path().join("testing"))?;
 
-		// temp_dir gets dropped prematurely, so manually create a tmp directory.
-		let cache = dirs::cache_dir().expect("cache_dir failed").join("pop_tmp_call_works");
-		std::fs::create_dir_all(&cache)?;
+		let cache = temp_dir.path().join("");
 
 		let node_path = download_contracts_node(cache.clone()).await?;
 		let process = run_contracts_node(node_path.path(), None).await?;
@@ -374,9 +372,6 @@ mod tests {
 			.args(["-s", "TERM", &process.id().to_string()])
 			.spawn()?
 			.wait()?;
-
-		// cleanup
-		std::fs::remove_dir_all(cache)?;
 
 		Ok(())
 	}
