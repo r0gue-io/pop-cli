@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.3.0] - 2024-07-08
+## [0.3.0] - 2024-07-25
 
 ### 🚀 Features
 
@@ -13,11 +13,16 @@ All notable changes to this project will be documented in this file.
 - `dry-run` flag to estimate gas (#203)
 - Enable building without project type specification (#222)
 - *(build parachain)* Generate specification, wasm and genesis state files (#219)
+- *(contracts)* New contract templates (#249)
+- Add `all` flag to `pop clean`  (#233)
+- *(contract-e2e)* Auto-source substrate-contracts-node with e2e tests (#254)
 
 ### 🐛 Fixes
 
 - Handle IO error if rename fails (#241)
 - Readme commands (#243)
+- Remove unused folders after download contracts node binary (#240)
+- Check if contracts needs to be build before deploy (#246)
 
 ### 🚜 Refactor
 
@@ -25,18 +30,29 @@ All notable changes to this project will be documented in this file.
 - *(templates)* Make templates and providers generic (#226)
 - Improve ux (#235)
 - Upload + instantiate contract (#228)
+- Ensure the UX for new contracts is consistent with the parachains. (#232)
+- Improve new consistency (#245)
+- Improve up ux (#248)
+- Default suri (#250)
 
 ### 📚 Documentation
 
 - Consolidate README into Docs (#223)
 
+### 🧪 Testing
+
+- Integration tests, doc tests and improve coverage (#242)
+
 ### ⚙️ Miscellaneous Tasks
 
 - Set `CONTRACTS_NODE_PATH` env variable for e2e tests (#209)
+- Release 0.3.0
+- Merge main
 
 ### Build
 
 - *(deps)* Remove unused dependencies and fix cargo deny (#215)
+- *(deps)* Bump openssl from 0.10.64 to 0.10.66 (#259)
 
 ## [0.2.0] - 2024-06-17
 
