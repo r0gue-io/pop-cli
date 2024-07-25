@@ -1,7 +1,5 @@
 use contract_extrinsics::{RawParams, RpcRequest};
-use duct::cmd;
 use pop_common::{
-	helpers::target,
 	sourcing::{
 		traits::{Source as _, *},
 		Binary,
@@ -210,10 +208,14 @@ mod tests {
 	#[tokio::test]
 	async fn run_contracts_node_works() -> Result<(), Error> {
 		let local_url = url::Url::parse("ws://localhost:9944")?;
-		// Run the contracts node
+
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
-		let cache = temp_dir.path().join("cache");
-		let process = run_contracts_node(cache.clone(), None).await?;
+		let cache = temp_dir.path().join("");
+
+		let binary = contracts_node_generator(cache.clone(), None).await?;
+		binary.source(false, &(), true).await?;
+		let process = run_contracts_node(binary.path(), None).await?;
+
 		// Check if the node is alive
 		assert!(is_chain_alive(local_url).await?);
 		assert!(cache.join("substrate-contracts-node").exists());
@@ -223,6 +225,7 @@ mod tests {
 			.args(["-s", "TERM", &process.id().to_string()])
 			.spawn()?
 			.wait()?;
+
 		Ok(())
 	}
 }

@@ -184,310 +184,303 @@ impl Binary {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::helpers::target;
+	use crate::{sourcing::tests::Output, target};
 	use anyhow::Result;
-	use std::fs::File;
+	use duct::cmd;
+	use std::fs::{create_dir_all, File};
 	use tempfile::tempdir;
 	use url::Url;
 
-	mod binary {
-		use super::*;
-		use crate::sourcing::tests::Output;
-		use duct::cmd;
-		use std::fs::create_dir_all;
+	#[test]
+	fn local_binary_works() -> Result<()> {
+		let name = "polkadot";
+		let temp_dir = tempdir()?;
+		let path = temp_dir.path().join(name);
+		File::create(&path)?;
 
-		#[test]
-		fn local_binary_works() -> Result<()> {
-			let name = "polkadot";
-			let temp_dir = tempdir()?;
-			let path = temp_dir.path().join(name);
-			File::create(&path)?;
+		let binary = Binary::Local { name: name.to_string(), path: path.clone(), manifest: None };
 
-			let binary =
-				Binary::Local { name: name.to_string(), path: path.clone(), manifest: None };
+		assert!(binary.exists());
+		assert_eq!(binary.latest(), None);
+		assert!(binary.local());
+		assert_eq!(binary.name(), name);
+		assert_eq!(binary.path(), path);
+		assert!(!binary.stale());
+		assert_eq!(binary.version(), None);
+		Ok(())
+	}
 
-			assert!(binary.exists());
-			assert_eq!(binary.latest(), None);
-			assert!(binary.local());
-			assert_eq!(binary.name(), name);
-			assert_eq!(binary.path(), path);
-			assert!(!binary.stale());
-			assert_eq!(binary.version(), None);
-			Ok(())
-		}
+	#[test]
+	fn local_package_works() -> Result<()> {
+		let name = "polkadot";
+		let temp_dir = tempdir()?;
+		let path = temp_dir.path().join("target/release").join(name);
+		create_dir_all(&path.parent().unwrap())?;
+		File::create(&path)?;
+		let manifest = Some(temp_dir.path().join("Cargo.toml"));
 
-		#[test]
-		fn local_package_works() -> Result<()> {
-			let name = "polkadot";
-			let temp_dir = tempdir()?;
-			let path = temp_dir.path().join("target/release").join(name);
-			create_dir_all(&path.parent().unwrap())?;
-			File::create(&path)?;
-			let manifest = Some(temp_dir.path().join("Cargo.toml"));
+		let binary = Binary::Local { name: name.to_string(), path: path.clone(), manifest };
 
-			let binary = Binary::Local { name: name.to_string(), path: path.clone(), manifest };
+		assert!(binary.exists());
+		assert_eq!(binary.latest(), None);
+		assert!(binary.local());
+		assert_eq!(binary.name(), name);
+		assert_eq!(binary.path(), path);
+		assert!(!binary.stale());
+		assert_eq!(binary.version(), None);
+		Ok(())
+	}
 
-			assert!(binary.exists());
-			assert_eq!(binary.latest(), None);
-			assert!(binary.local());
-			assert_eq!(binary.name(), name);
-			assert_eq!(binary.path(), path);
-			assert!(!binary.stale());
-			assert_eq!(binary.version(), None);
-			Ok(())
-		}
+	#[test]
+	fn resolve_version_works() -> Result<()> {
+		let name = "polkadot";
+		let temp_dir = tempdir()?;
 
-		#[test]
-		fn resolve_version_works() -> Result<()> {
-			let name = "polkadot";
-			let temp_dir = tempdir()?;
+		let available = vec!["v1.13.0", "v1.12.0", "v1.11.0"];
 
-			let available = vec!["v1.13.0", "v1.12.0", "v1.11.0"];
+		// Specified
+		let specified = Some("v1.12.0");
+		assert_eq!(
+			Binary::resolve_version(name, specified, &available, temp_dir.path()).unwrap(),
+			specified.unwrap()
+		);
+		// Latest
+		assert_eq!(
+			Binary::resolve_version(name, None, &available, temp_dir.path()).unwrap(),
+			available[0]
+		);
+		// Cached
+		File::create(temp_dir.path().join(format!("{name}-{}", available[1])))?;
+		assert_eq!(
+			Binary::resolve_version(name, None, &available, temp_dir.path()).unwrap(),
+			available[1]
+		);
+		Ok(())
+	}
 
-			// Specified
-			let specified = Some("v1.12.0");
-			assert_eq!(
-				Binary::resolve_version(name, specified, &available, temp_dir.path()).unwrap(),
-				specified.unwrap()
+	#[test]
+	fn sourced_from_archive_works() -> Result<()> {
+		let name = "polkadot";
+		let url = "https://github.com/r0gue-io/polkadot/releases/latest/download/polkadot-aarch64-apple-darwin.tar.gz".to_string();
+		let contents = vec![
+			name.to_string(),
+			"polkadot-execute-worker".into(),
+			"polkadot-prepare-worker".into(),
+		];
+		let temp_dir = tempdir()?;
+		let path = temp_dir.path().join(name);
+		File::create(&path)?;
+
+		let mut binary = Binary::Source {
+			name: name.to_string(),
+			source: Archive { url: url.to_string(), contents },
+			cache: temp_dir.path().to_path_buf(),
+		};
+
+		assert!(binary.exists());
+		assert_eq!(binary.latest(), None);
+		assert!(!binary.local());
+		assert_eq!(binary.name(), name);
+		assert_eq!(binary.path(), path);
+		assert!(!binary.stale());
+		assert_eq!(binary.version(), None);
+		binary.use_latest();
+		assert_eq!(binary.version(), None);
+		Ok(())
+	}
+
+	#[test]
+	fn sourced_from_git_works() -> Result<()> {
+		let package = "hello_world";
+		let url = Url::parse("https://github.com/hpaluch/rust-hello-world")?;
+		let temp_dir = tempdir()?;
+		for reference in [None, Some("436b7dbffdfaaf7ad90bf44ae8fdcb17eeee65a3".to_string())] {
+			let path = temp_dir.path().join(
+				reference
+					.as_ref()
+					.map_or(package.into(), |reference| format!("{package}-{reference}")),
 			);
-			// Latest
-			assert_eq!(
-				Binary::resolve_version(name, None, &available, temp_dir.path()).unwrap(),
-				available[0]
-			);
-			// Cached
-			File::create(temp_dir.path().join(format!("{name}-{}", available[1])))?;
-			assert_eq!(
-				Binary::resolve_version(name, None, &available, temp_dir.path()).unwrap(),
-				available[1]
-			);
-			Ok(())
-		}
-
-		#[test]
-		fn sourced_from_archive_works() -> Result<()> {
-			let name = "polkadot";
-			let url = "https://github.com/r0gue-io/polkadot/releases/latest/download/polkadot-aarch64-apple-darwin.tar.gz".to_string();
-			let contents = vec![
-				name.to_string(),
-				"polkadot-execute-worker".into(),
-				"polkadot-prepare-worker".into(),
-			];
-			let temp_dir = tempdir()?;
-			let path = temp_dir.path().join(name);
 			File::create(&path)?;
 
 			let mut binary = Binary::Source {
-				name: name.to_string(),
-				source: Archive { url: url.to_string(), contents },
+				name: package.to_string(),
+				source: Git {
+					url: url.clone(),
+					reference: reference.clone(),
+					manifest: None,
+					package: package.to_string(),
+					artifacts: vec![package.to_string()],
+				},
 				cache: temp_dir.path().to_path_buf(),
 			};
 
 			assert!(binary.exists());
 			assert_eq!(binary.latest(), None);
 			assert!(!binary.local());
-			assert_eq!(binary.name(), name);
+			assert_eq!(binary.name(), package);
 			assert_eq!(binary.path(), path);
 			assert!(!binary.stale());
-			assert_eq!(binary.version(), None);
+			assert_eq!(binary.version(), reference.as_ref().map(|r| r.as_str()));
 			binary.use_latest();
-			assert_eq!(binary.version(), None);
-			Ok(())
+			assert_eq!(binary.version(), reference.as_ref().map(|r| r.as_str()));
 		}
 
-		#[test]
-		fn sourced_from_git_works() -> Result<()> {
-			let package = "hello_world";
-			let url = Url::parse("https://github.com/hpaluch/rust-hello-world")?;
-			let temp_dir = tempdir()?;
-			for reference in [None, Some("436b7dbffdfaaf7ad90bf44ae8fdcb17eeee65a3".to_string())] {
-				let path = temp_dir.path().join(
-					reference
-						.as_ref()
-						.map_or(package.into(), |reference| format!("{package}-{reference}")),
-				);
-				File::create(&path)?;
+		Ok(())
+	}
 
+	#[test]
+	fn sourced_from_github_release_archive_works() -> Result<()> {
+		let owner = "r0gue-io";
+		let repository = "polkadot";
+		let tag_format = "polkadot-{tag}";
+		let name = "polkadot";
+		let archive = format!("{name}-{}.tar.gz", target()?);
+		let contents = ["polkadot", "polkadot-execute-worker", "polkadot-prepare-worker"];
+		let temp_dir = tempdir()?;
+		for tag in [None, Some("v1.12.0".to_string())] {
+			let path = temp_dir
+				.path()
+				.join(tag.as_ref().map_or(name.to_string(), |t| format!("{name}-{t}")));
+			File::create(&path)?;
+			for latest in [None, Some("v2.0.0".to_string())] {
 				let mut binary = Binary::Source {
-					name: package.to_string(),
-					source: Git {
-						url: url.clone(),
-						reference: reference.clone(),
-						manifest: None,
-						package: package.to_string(),
-						artifacts: vec![package.to_string()],
-					},
-					cache: temp_dir.path().to_path_buf(),
-				};
-
-				assert!(binary.exists());
-				assert_eq!(binary.latest(), None);
-				assert!(!binary.local());
-				assert_eq!(binary.name(), package);
-				assert_eq!(binary.path(), path);
-				assert!(!binary.stale());
-				assert_eq!(binary.version(), reference.as_ref().map(|r| r.as_str()));
-				binary.use_latest();
-				assert_eq!(binary.version(), reference.as_ref().map(|r| r.as_str()));
-			}
-
-			Ok(())
-		}
-
-		#[test]
-		fn sourced_from_github_release_archive_works() -> Result<()> {
-			let owner = "r0gue-io";
-			let repository = "polkadot";
-			let tag_format = "polkadot-{tag}";
-			let name = "polkadot";
-			let archive = format!("{name}-{}.tar.gz", target()?);
-			let contents = ["polkadot", "polkadot-execute-worker", "polkadot-prepare-worker"];
-			let temp_dir = tempdir()?;
-			for tag in [None, Some("v1.12.0".to_string())] {
-				let path = temp_dir
-					.path()
-					.join(tag.as_ref().map_or(name.to_string(), |t| format!("{name}-{t}")));
-				File::create(&path)?;
-				for latest in [None, Some("v2.0.0".to_string())] {
-					let mut binary = Binary::Source {
-						name: name.to_string(),
-						source: GitHub(ReleaseArchive {
-							owner: owner.into(),
-							repository: repository.into(),
-							tag: tag.clone(),
-							tag_format: Some(tag_format.to_string()),
-							archive: archive.clone(),
-							contents: contents.into_iter().map(|b| (b, None)).collect(),
-							latest: latest.clone(),
-						}),
-						cache: temp_dir.path().to_path_buf(),
-					};
-
-					assert!(binary.exists());
-					assert_eq!(binary.latest(), latest.as_ref().map(|l| l.as_str()));
-					assert!(!binary.local());
-					assert_eq!(binary.name(), name);
-					assert_eq!(binary.path(), path);
-					assert_eq!(binary.stale(), latest.is_some());
-					assert_eq!(binary.version(), tag.as_ref().map(|t| t.as_str()));
-					binary.use_latest();
-					if latest.is_some() {
-						assert_eq!(binary.version(), latest.as_ref().map(|l| l.as_str()));
-					}
-				}
-			}
-			Ok(())
-		}
-
-		#[test]
-		fn sourced_from_github_source_code_archive_works() -> Result<()> {
-			let owner = "paritytech";
-			let repository = "polkadot-sdk";
-			let package = "polkadot";
-			let manifest = "substrate/Cargo.toml";
-			let temp_dir = tempdir()?;
-			for reference in [None, Some("72dba98250a6267c61772cd55f8caf193141050f".to_string())] {
-				let path = temp_dir.path().join(
-					reference.as_ref().map_or(package.to_string(), |t| format!("{package}-{t}")),
-				);
-				File::create(&path)?;
-				let mut binary = Binary::Source {
-					name: package.to_string(),
-					source: GitHub(SourceCodeArchive {
-						owner: owner.to_string(),
-						repository: repository.to_string(),
-						reference: reference.clone(),
-						manifest: Some(PathBuf::from(manifest)),
-						package: package.to_string(),
-						artifacts: vec![package.to_string()],
+					name: name.to_string(),
+					source: GitHub(ReleaseArchive {
+						owner: owner.into(),
+						repository: repository.into(),
+						tag: tag.clone(),
+						tag_format: Some(tag_format.to_string()),
+						archive: archive.clone(),
+						contents: contents.into_iter().map(|b| (b, None)).collect(),
+						latest: latest.clone(),
 					}),
 					cache: temp_dir.path().to_path_buf(),
 				};
 
 				assert!(binary.exists());
-				assert_eq!(binary.latest(), None);
+				assert_eq!(binary.latest(), latest.as_ref().map(|l| l.as_str()));
 				assert!(!binary.local());
-				assert_eq!(binary.name(), package);
+				assert_eq!(binary.name(), name);
 				assert_eq!(binary.path(), path);
-				assert_eq!(binary.stale(), false);
-				assert_eq!(binary.version(), reference.as_ref().map(|r| r.as_str()));
+				assert_eq!(binary.stale(), latest.is_some());
+				assert_eq!(binary.version(), tag.as_ref().map(|t| t.as_str()));
 				binary.use_latest();
-				assert_eq!(binary.version(), reference.as_ref().map(|l| l.as_str()));
+				if latest.is_some() {
+					assert_eq!(binary.version(), latest.as_ref().map(|l| l.as_str()));
+				}
 			}
-			Ok(())
 		}
+		Ok(())
+	}
 
-		#[test]
-		fn sourced_from_url_works() -> Result<()> {
-			let name = "polkadot";
-			let url =
-				"https://github.com/paritytech/polkadot-sdk/releases/latest/download/polkadot.asc";
-			let temp_dir = tempdir()?;
-			let path = temp_dir.path().join(name);
+	#[test]
+	fn sourced_from_github_source_code_archive_works() -> Result<()> {
+		let owner = "paritytech";
+		let repository = "polkadot-sdk";
+		let package = "polkadot";
+		let manifest = "substrate/Cargo.toml";
+		let temp_dir = tempdir()?;
+		for reference in [None, Some("72dba98250a6267c61772cd55f8caf193141050f".to_string())] {
+			let path = temp_dir
+				.path()
+				.join(reference.as_ref().map_or(package.to_string(), |t| format!("{package}-{t}")));
 			File::create(&path)?;
-
 			let mut binary = Binary::Source {
-				name: name.to_string(),
-				source: Source::Url { url: url.to_string(), name: name.to_string() },
+				name: package.to_string(),
+				source: GitHub(SourceCodeArchive {
+					owner: owner.to_string(),
+					repository: repository.to_string(),
+					reference: reference.clone(),
+					manifest: Some(PathBuf::from(manifest)),
+					package: package.to_string(),
+					artifacts: vec![package.to_string()],
+				}),
 				cache: temp_dir.path().to_path_buf(),
 			};
 
 			assert!(binary.exists());
 			assert_eq!(binary.latest(), None);
 			assert!(!binary.local());
-			assert_eq!(binary.name(), name);
+			assert_eq!(binary.name(), package);
 			assert_eq!(binary.path(), path);
-			assert!(!binary.stale());
-			assert_eq!(binary.version(), None);
+			assert_eq!(binary.stale(), false);
+			assert_eq!(binary.version(), reference.as_ref().map(|r| r.as_str()));
 			binary.use_latest();
-			assert_eq!(binary.version(), None);
-			Ok(())
+			assert_eq!(binary.version(), reference.as_ref().map(|l| l.as_str()));
 		}
+		Ok(())
+	}
 
-		#[tokio::test]
-		async fn sourcing_from_local_binary_not_supported() -> Result<()> {
-			let name = "polkadot".to_string();
-			let temp_dir = tempdir()?;
-			let path = temp_dir.path().join(&name);
-			assert!(matches!(
-				Binary::Local { name, path: path.clone(), manifest: None }.source(true, &Output, true).await,
-				Err(Error::MissingBinary(error)) if error == format!("The {path:?} binary cannot be sourced automatically.")
-			));
-			Ok(())
-		}
+	#[test]
+	fn sourced_from_url_works() -> Result<()> {
+		let name = "polkadot";
+		let url =
+			"https://github.com/paritytech/polkadot-sdk/releases/latest/download/polkadot.asc";
+		let temp_dir = tempdir()?;
+		let path = temp_dir.path().join(name);
+		File::create(&path)?;
 
-		#[tokio::test]
-		async fn sourcing_from_local_package_works() -> Result<()> {
-			let temp_dir = tempdir()?;
-			let name = "hello_world";
-			cmd("cargo", ["new", name, "--bin"]).dir(temp_dir.path()).run()?;
-			let path = temp_dir.path().join(name);
-			let manifest = Some(path.join("Cargo.toml"));
-			let path = path.join("target/release").join(name);
-			Binary::Local { name: name.to_string(), path: path.clone(), manifest }
-				.source(true, &Output, true)
-				.await?;
-			assert!(path.exists());
-			Ok(())
-		}
+		let mut binary = Binary::Source {
+			name: name.to_string(),
+			source: Source::Url { url: url.to_string(), name: name.to_string() },
+			cache: temp_dir.path().to_path_buf(),
+		};
 
-		#[tokio::test]
-		async fn sourcing_from_url_works() -> Result<()> {
-			let name = "polkadot";
-			let url =
-				"https://github.com/paritytech/polkadot-sdk/releases/latest/download/polkadot.asc";
-			let temp_dir = tempdir()?;
-			let path = temp_dir.path().join(name);
+		assert!(binary.exists());
+		assert_eq!(binary.latest(), None);
+		assert!(!binary.local());
+		assert_eq!(binary.name(), name);
+		assert_eq!(binary.path(), path);
+		assert!(!binary.stale());
+		assert_eq!(binary.version(), None);
+		binary.use_latest();
+		assert_eq!(binary.version(), None);
+		Ok(())
+	}
 
-			Binary::Source {
-				name: name.to_string(),
-				source: Source::Url { url: url.to_string(), name: name.to_string() },
-				cache: temp_dir.path().to_path_buf(),
-			}
+	#[tokio::test]
+	async fn sourcing_from_local_binary_not_supported() -> Result<()> {
+		let name = "polkadot".to_string();
+		let temp_dir = tempdir()?;
+		let path = temp_dir.path().join(&name);
+		assert!(matches!(
+			Binary::Local { name, path: path.clone(), manifest: None }.source(true, &Output, true).await,
+			Err(Error::MissingBinary(error)) if error == format!("The {path:?} binary cannot be sourced automatically.")
+		));
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn sourcing_from_local_package_works() -> Result<()> {
+		let temp_dir = tempdir()?;
+		let name = "hello_world";
+		cmd("cargo", ["new", name, "--bin"]).dir(temp_dir.path()).run()?;
+		let path = temp_dir.path().join(name);
+		let manifest = Some(path.join("Cargo.toml"));
+		let path = path.join("target/release").join(name);
+		Binary::Local { name: name.to_string(), path: path.clone(), manifest }
 			.source(true, &Output, true)
 			.await?;
-			assert!(path.exists());
-			Ok(())
+		assert!(path.exists());
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn sourcing_from_url_works() -> Result<()> {
+		let name = "polkadot";
+		let url =
+			"https://github.com/paritytech/polkadot-sdk/releases/latest/download/polkadot.asc";
+		let temp_dir = tempdir()?;
+		let path = temp_dir.path().join(name);
+
+		Binary::Source {
+			name: name.to_string(),
+			source: Source::Url { url: url.to_string(), name: name.to_string() },
+			cache: temp_dir.path().to_path_buf(),
 		}
+		.source(true, &Output, true)
+		.await?;
+		assert!(path.exists());
+		Ok(())
 	}
 }

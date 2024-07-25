@@ -2,14 +2,13 @@
 
 pub use pop_common::{
 	git::GitHub,
-	helpers::target,
 	sourcing::{
 		traits::{Source as _, *},
 		Binary,
 		GitHub::*,
 		Source,
 	},
-	Error,
+	target, Error,
 };
 use std::path::Path;
 use strum::{EnumProperty as _, VariantArray as _};

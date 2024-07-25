@@ -2,13 +2,12 @@
 
 use super::{chain_specs::chain_spec_generator, Binary};
 use pop_common::{
-	helpers::target,
 	sourcing::{
 		traits::{Source as _, *},
 		GitHub::ReleaseArchive,
 		Source,
 	},
-	Error, GitHub,
+	target, Error, GitHub,
 };
 use std::path::Path;
 use strum::VariantArray as _;

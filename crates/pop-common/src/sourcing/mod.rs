@@ -501,7 +501,7 @@ async fn download(url: &str, dest: &Path) -> Result<(), Error> {
 #[cfg(test)]
 pub(super) mod tests {
 	use super::{GitHub::*, Status, *};
-	use crate::helpers::target;
+	use crate::target;
 	use tempfile::tempdir;
 
 	#[tokio::test]
