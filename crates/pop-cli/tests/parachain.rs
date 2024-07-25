@@ -13,7 +13,7 @@ use tokio::time::{sleep, Duration};
 async fn parachain_lifecycle() -> Result<()> {
 	let temp = tempfile::tempdir().unwrap();
 	let temp_dir = temp.path();
-	//let temp_dir = Path::new("./.test"); //For testing locally
+	//let temp_dir = Path::new("./"); //For testing locally
 	// Test that all templates are generated correctly
 	generate_all_the_templates(&temp_dir)?;
 	//pop new parachain test_parachain (default)
@@ -45,10 +45,11 @@ async fn parachain_lifecycle() -> Result<()> {
 
 	assert!(temp_dir.join("test_parachain/target").exists());
 
+	let temp_parachain_dir = temp_dir.join("test_parachain");
 	// pop build spec --output ./target/pop/test-spec.json --id 2222 --type development --relay paseo-local --protocol-id pop-protocol"
 	Command::cargo_bin("pop")
 		.unwrap()
-		.current_dir(&temp_dir.join("test_parachain"))
+		.current_dir(&temp_parachain_dir)
 		.args(&[
 			"build",
 			"spec",
@@ -69,13 +70,13 @@ async fn parachain_lifecycle() -> Result<()> {
 		.success();
 
 	// Assert build files have been generated
-	assert!(temp_dir.join("test_parachain/target").exists());
-	assert!(temp_dir.join("test_parachain/target/pop/test-spec.json").exists());
-	assert!(temp_dir.join("test_parachain/target/pop/raw-test-spec.json").exists());
-	assert!(temp_dir.join("test_parachain/target/pop/para-2222.wasm").exists());
-	assert!(temp_dir.join("test_parachain/target/pop/para-2222-genesis-state").exists());
+	assert!(temp_parachain_dir.join("target").exists());
+	assert!(temp_parachain_dir.join("target/pop/test-spec.json").exists());
+	assert!(temp_parachain_dir.join("target/pop/raw-test-spec.json").exists());
+	assert!(temp_parachain_dir.join("target/pop/para-2222.wasm").exists());
+	assert!(temp_parachain_dir.join("target/pop/para-2222-genesis-state").exists());
 
-	let content = fs::read_to_string(temp_dir.join("test_parachain/target/pop/raw-test-spec.json"))
+	let content = fs::read_to_string(temp_parachain_dir.join("target/pop/raw-test-spec.json"))
 		.expect("Could not read file");
 	// Assert custom values has been set propertly
 	assert!(content.contains("\"para_id\": 2222"));
@@ -86,7 +87,7 @@ async fn parachain_lifecycle() -> Result<()> {
 
 	// pop up contract -p "./test_parachain"
 	let mut cmd = Cmd::new(cargo_bin("pop"))
-		.current_dir(&temp_dir.join("test_parachain"))
+		.current_dir(&temp_parachain_dir)
 		.args(&["up", "parachain", "-f", "./network.toml", "--skip-confirm"])
 		.spawn()
 		.unwrap();

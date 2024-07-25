@@ -56,7 +56,7 @@ pub fn is_supported(path: Option<&Path>) -> Result<bool, Error> {
 /// # Arguments
 /// * `target_path` - The path where the binaries are expected to be found.
 /// * `node_path` - The path to the node from which the node name will be parsed.
-fn binary_path(target_path: &Path, node_path: &Path) -> Result<PathBuf, Error> {
+pub fn binary_path(target_path: &Path, node_path: &Path) -> Result<PathBuf, Error> {
 	let manifest = from_path(Some(node_path))?;
 	let node_name = manifest.package().name();
 	let release = target_path.join(node_name);
@@ -81,7 +81,7 @@ pub fn generate_plain_chain_spec(
 ) -> Result<(), Error> {
 	check_command_exists(&binary_path, "build-spec")?;
 	let mut args = vec!["build-spec"];
-	if default_bootnode {
+	if !default_bootnode {
 		args.push("--disable-default-bootnode");
 	}
 	cmd(binary_path, args).stdout_path(plain_chain_spec).stderr_null().run()?;

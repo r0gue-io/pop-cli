@@ -5,9 +5,9 @@ use clap::{Args, ValueEnum};
 use cliclack::{confirm, input};
 use pop_common::{manifest::from_path, Profile};
 use pop_parachains::{
-	build_parachain, export_wasm_file, generate_genesis_state_file, generate_plain_chain_spec,
-	generate_raw_chain_spec, is_supported, replace_chain_type, replace_protocol_id,
-	replace_relay_spec,
+	binary_path, build_parachain, export_wasm_file, generate_genesis_state_file,
+	generate_plain_chain_spec, generate_raw_chain_spec, is_supported, replace_chain_type,
+	replace_protocol_id, replace_relay_spec,
 };
 use std::{env::current_dir, fs::create_dir_all, path::PathBuf};
 #[cfg(not(test))]
@@ -210,16 +210,15 @@ impl BuildSpecCommand {
 
 		// Locate binary, if it doesn't exist trigger build.
 		let mode: Profile = self.release.into();
-		let binary_path = match maybe_node_binary_path(&mode) {
-			Some(binary_path) => binary_path,
-			None => {
+		let cwd = current_dir().unwrap_or(PathBuf::from("./"));
+		let binary_path = match binary_path(&mode.target_folder(&cwd), &cwd.join("node")) {
+			Ok(binary_path) => binary_path,
+			_ => {
 				cli.info(format!("No node was not found. The project will be built locally."))?;
 				cli.warning("NOTE: this may take some time...")?;
-				build_parachain(&output_path, None, &mode, None)?
+				build_parachain(&cwd, None, &mode, None)?
 			},
 		};
-
-		println!("{}", &binary_path.display());
 
 		// Generate plain spec.
 		spinner.set_message("Generating plain chain specification...");
@@ -381,36 +380,19 @@ async fn guide_user_to_generate_spec() -> anyhow::Result<BuildSpecCommand> {
 	})
 }
 
-// Checks if the binary exists in the target directory of the given path
-fn maybe_node_binary_path(profile: &Profile) -> Option<PathBuf> {
-	// Try to figure out the name of the binary.
-	// Assumes being run on the project root.
-	let mut cwd = current_dir().unwrap_or(PathBuf::from("./"));
-	cwd.push("node");
-	let manifest = match from_path(Some(&cwd)) {
-		Ok(manifest) => manifest,
-		Err(_) => return None,
-	};
-	cwd.pop();
-	let binary_path_by_profile = profile.target_folder(&cwd).join(manifest.package().name());
-	if binary_path_by_profile.exists() {
-		return Some(binary_path_by_profile);
-	} else {
-		return None;
-	}
-}
-
 #[cfg(test)]
 mod test {
 	use super::*;
 	use anyhow::Result;
 	use assert_cmd::Command;
-	use std::{ops::Deref, path::Path};
+	use std::path::Path;
 
 	#[test]
 	fn build_spec_works() -> Result<()> {
 		// Generate template parachain in temp directory.
-		let chain_dir = generate_parachain();
+		let temp = tempfile::tempdir().unwrap();
+		let temp_dir = temp.path();
+		let chain_dir = generate_parachain(temp_dir);
 
 		// pop build spec --output ./test-spec.json --id 1234"
 		Command::cargo_bin("pop")
@@ -432,8 +414,9 @@ mod test {
 	#[test]
 	fn build_spec_creates_non_existing_output_folder() -> Result<()> {
 		// Generate template parachain in temp directory.
-		let chain_dir = generate_parachain();
-		println!("{}", chain_dir.display());
+		let temp = tempfile::tempdir().unwrap();
+		let temp_dir = temp.path();
+		let chain_dir = generate_parachain(temp_dir);
 
 		// pop build spec --output ./new/directory/test-spec.json --id 1234"
 		Command::cargo_bin("pop")
@@ -443,7 +426,7 @@ mod test {
 			.assert()
 			.success();
 
-		// Assert build files have been generated in ./
+		// Assert build files have been generated
 		assert!(chain_dir.join("./new/directory/test-spec.json").exists());
 		assert!(chain_dir.join("./new/directory/raw-test-spec.json").exists());
 		assert!(chain_dir.join("./new/directory/para-1234.wasm").exists());
@@ -452,12 +435,7 @@ mod test {
 		Ok(())
 	}
 
-	fn generate_parachain() -> PathBuf {
-		//let temp = tempfile::tempdir().unwrap();
-		//let temp_dir = temp.path();
-		let temp_dir = Path::new("./.test");
-		let _ = create_dir_all(temp_dir);
-
+	fn generate_parachain(temp_dir: &Path) -> PathBuf {
 		// pop new parachain test_parachain
 		Command::cargo_bin("pop")
 			.unwrap()
