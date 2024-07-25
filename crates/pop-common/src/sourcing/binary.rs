@@ -184,7 +184,7 @@ impl Binary {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::{helpers::target, sourcing::tests::Output};
+	use crate::{sourcing::tests::Output, target};
 	use anyhow::Result;
 	use duct::cmd;
 	use std::fs::{create_dir_all, File};

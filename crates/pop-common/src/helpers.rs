@@ -40,32 +40,6 @@ pub fn get_project_name_from_path<'a>(path: &'a Path, default: &'a str) -> &'a s
 	path.file_name().and_then(|name| name.to_str()).unwrap_or(default)
 }
 
-/// Determines the target triple based on the current platform.
-pub fn target() -> Result<&'static str, Error> {
-	use std::env::consts::*;
-
-	if OS == "windows" {
-		return Err(Error::UnsupportedPlatform { arch: ARCH, os: OS });
-	}
-
-	match ARCH {
-		"aarch64" => {
-			return match OS {
-				"macos" => Ok("aarch64-apple-darwin"),
-				_ => Ok("aarch64-unknown-linux-gnu"),
-			}
-		},
-		"x86_64" | "x86" => {
-			return match OS {
-				"macos" => Ok("x86_64-apple-darwin"),
-				_ => Ok("x86_64-unknown-linux-gnu"),
-			}
-		},
-		&_ => {},
-	}
-	Err(Error::UnsupportedPlatform { arch: ARCH, os: OS })
-}
-
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -98,21 +72,6 @@ mod tests {
 	fn get_project_name_from_path_default_value() -> Result<(), Error> {
 		let path = Path::new("./");
 		assert_eq!(get_project_name_from_path(path, "my-contract"), "my-contract");
-		Ok(())
-	}
-
-	#[test]
-	fn target_works() -> Result<()> {
-		use std::{process::Command, str};
-		let output = Command::new("rustc").arg("-vV").output()?;
-		let output = str::from_utf8(&output.stdout)?;
-		let target = output
-			.lines()
-			.find(|l| l.starts_with("host: "))
-			.map(|l| &l[6..])
-			.unwrap()
-			.to_string();
-		assert_eq!(crate::helpers::target()?, target);
 		Ok(())
 	}
 }

@@ -30,8 +30,10 @@ impl TestContractCommand {
 	/// Executes the command.
 	pub(crate) async fn execute(mut self) -> anyhow::Result<&'static str> {
 		clear_screen()?;
+
+		let mut show_deprecated = false;
 		if self.features.is_some() && self.features.clone().unwrap().contains("e2e-tests") {
-			warning("NOTE: --features e2e-tests is deprecated. Use --e2e instead.")?;
+			show_deprecated = true;
 			self.e2e = true;
 			#[cfg(not(test))]
 			sleep(Duration::from_secs(3)).await;
@@ -42,6 +44,10 @@ impl TestContractCommand {
 				"{}: Starting end-to-end tests",
 				style(" Pop CLI ").black().on_magenta()
 			))?;
+
+			if show_deprecated {
+				warning("NOTE: --features e2e-tests is deprecated. Use --e2e instead.")?;
+			}
 
 			let maybe_node_path = check_contracts_node_and_prompt().await?;
 			if let Some(node_path) = maybe_node_path {
