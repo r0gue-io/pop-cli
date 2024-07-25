@@ -13,26 +13,26 @@ pub async fn check_contracts_node_and_prompt() -> anyhow::Result<Option<PathBuf>
 	// if the contracts node binary does not exist, prompt the user to download it
 	let maybe_contract_node_path = does_contracts_node_exist(crate::cache()?);
 	if maybe_contract_node_path == None {
-		warning("The substrate-contracts-node binary is not found.")?;
-		if confirm("Would you like to source the substrate-contracts-node binary?")
+		warning("⚠️ The substrate-contracts-node binary is not found.")?;
+		if confirm("📦 Would you like to source it automatically now?")
 			.initial_value(true)
 			.interact()?
 		{
 			let spinner = spinner();
-			spinner.start("Sourcing substrate-contracts-node...");
+			spinner.start("📦 Sourcing substrate-contracts-node...");
 
 			let cache_path = crate::cache()?;
 			let binary = download_contracts_node(cache_path.clone()).await?;
 
 			spinner.stop(format!(
-				"substrate-contracts-node successfully sourced. Cached at: {}",
+				"✅  substrate-contracts-node successfully sourced. Cached at: {}",
 				binary.path().to_str().unwrap()
 			));
 			node_path = Some(binary.path());
 		}
 	} else {
 		if let Some(contract_node_path) = maybe_contract_node_path {
-			// if the node_path is not empty (cached binary). Otherwise the standalone binary will be used by cargo-contract
+			// If the node_path is not empty (cached binary). Otherwise, the standalone binary will be used by cargo-contract.
 			node_path = Some(contract_node_path.0);
 		}
 	}
