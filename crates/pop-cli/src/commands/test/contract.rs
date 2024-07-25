@@ -6,7 +6,7 @@ use cliclack::{clear_screen, intro, log::warning, outro};
 use pop_contracts::{test_e2e_smart_contract, test_smart_contract};
 use std::path::PathBuf;
 #[cfg(not(test))]
-use std::{thread::sleep, time::Duration};
+use {std::time::Duration, tokio::time::sleep};
 
 #[derive(Args)]
 pub(crate) struct TestContractCommand {
@@ -31,10 +31,10 @@ impl TestContractCommand {
 	pub(crate) async fn execute(mut self) -> anyhow::Result<&'static str> {
 		clear_screen()?;
 		if self.features.is_some() && self.features.clone().unwrap().contains("e2e-tests") {
-			warning("--features e2e-tests is deprecated. Use --e2e instead.")?;
+			warning("NOTE: --features e2e-tests is deprecated. Use --e2e instead.")?;
 			self.e2e = true;
 			#[cfg(not(test))]
-			sleep(Duration::from_secs(3));
+			sleep(Duration::from_secs(3)).await;
 		}
 
 		if self.e2e {
