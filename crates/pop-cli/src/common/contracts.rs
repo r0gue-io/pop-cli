@@ -10,7 +10,6 @@ use std::path::PathBuf;
 ///
 /// # Arguments
 /// * `skip_confirm`: A boolean indicating whether to skip confirmation prompts.
-///
 pub async fn check_contracts_node_and_prompt(skip_confirm: bool) -> anyhow::Result<PathBuf> {
 	let cache_path: PathBuf = crate::cache()?;
 	let mut binary = contracts_node_generator(cache_path, None).await?;

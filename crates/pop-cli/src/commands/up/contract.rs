@@ -71,7 +71,7 @@ pub struct UpContractCommand {
 	/// Uploads the contract only, without instantiation.
 	#[clap(short('u'), long)]
 	upload_only: bool,
-	/// Before starting a local node, do not ask the user for confirmation.
+	/// Automatically source or update the needed binary required without prompting for confirmation.
 	#[clap(short('y'), long)]
 	skip_confirm: bool,
 }

@@ -7,7 +7,7 @@ use pop_contracts::{
 	contracts_node_generator, dry_run_gas_estimate_instantiate, instantiate_smart_contract,
 	run_contracts_node, set_up_deployment, Contract, UpOpts,
 };
-use std::{env::temp_dir, path::Path, process::Command as Cmd};
+use std::{path::Path, process::Command as Cmd};
 use strum::VariantArray;
 use url::Url;
 

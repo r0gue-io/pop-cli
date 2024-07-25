@@ -89,7 +89,7 @@ impl pop_common::sourcing::traits::Source for SoloChain {}
 ///
 /// # Arguments
 /// * `cache` -  The cache directory path.
-///
+/// * `version` - The specific version used for the substrate-contracts-node (`None` will use the latest available version).
 pub async fn contracts_node_generator(
 	cache: PathBuf,
 	version: Option<&str>,
@@ -97,6 +97,7 @@ pub async fn contracts_node_generator(
 	let chain = &SoloChain::ContractNode;
 	let name = chain.binary();
 	let releases = chain.releases().await?;
+	println!("Releases: {:?}", releases);
 	let tag = Binary::resolve_version(name, version, &releases, &cache);
 	let latest = version
 		.is_none()
