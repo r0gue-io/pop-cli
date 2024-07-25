@@ -97,7 +97,6 @@ pub async fn contracts_node_generator(
 	let chain = &SoloChain::ContractNode;
 	let name = chain.binary();
 	let releases = chain.releases().await?;
-	println!("Releases: {:?}", releases);
 	let tag = Binary::resolve_version(name, version, &releases, &cache);
 	let latest = version
 		.is_none()
@@ -213,13 +212,14 @@ mod tests {
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
 		let cache = temp_dir.path().join("");
 
-		let binary = contracts_node_generator(cache.clone(), None).await?;
+		let version = "v0.40.0";
+		let binary = contracts_node_generator(cache.clone(), Some(version)).await?;
 		binary.source(false, &(), true).await?;
 		let process = run_contracts_node(binary.path(), None).await?;
 
 		// Check if the node is alive
 		assert!(is_chain_alive(local_url).await?);
-		assert!(cache.join("substrate-contracts-node").exists());
+		assert!(cache.join("substrate-contracts-node-v0.40.0").exists());
 		assert!(!cache.join("artifacts").exists());
 		// Stop the process contracts-node
 		Command::new("kill")
