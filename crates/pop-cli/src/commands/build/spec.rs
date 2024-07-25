@@ -219,6 +219,8 @@ impl BuildSpecCommand {
 			},
 		};
 
+		println!("{}", &binary_path.display());
+
 		// Generate plain spec.
 		spinner.set_message("Generating plain chain specification...");
 		let mut generated_files =
@@ -231,12 +233,12 @@ impl BuildSpecCommand {
 
 		// Customize spec based on input.
 		let relay = self.relay.unwrap_or(RelayChain::PaseoLocal).to_string();
-		let _ = replace_relay_spec(&plain_chain_spec, &relay, "rococo-local");
+		replace_relay_spec(&plain_chain_spec, &relay, "rococo-local")?;
 		let chain_type = self.chain_type.unwrap_or(ChainType::Development).to_string();
-		let _ = replace_chain_type(&plain_chain_spec, &chain_type, "Local");
+		replace_chain_type(&plain_chain_spec, &chain_type, "Local")?;
 		if self.protocol_id.is_some() {
 			let protocol_id = self.protocol_id.unwrap_or("template-local".to_string());
-			let _ = replace_protocol_id(&plain_chain_spec, &protocol_id, "template-local");
+			replace_protocol_id(&plain_chain_spec, &protocol_id, "template-local")?;
 		}
 
 		// Generate raw spec.
@@ -395,5 +397,88 @@ fn maybe_node_binary_path(profile: &Profile) -> Option<PathBuf> {
 		return Some(binary_path_by_profile);
 	} else {
 		return None;
+	}
+}
+
+#[cfg(test)]
+mod test {
+	use super::*;
+	use anyhow::Result;
+	use assert_cmd::Command;
+	use std::{ops::Deref, path::Path};
+
+	#[test]
+	fn build_spec_works() -> Result<()> {
+		// Generate template parachain in temp directory.
+		let chain_dir = generate_parachain();
+
+		// pop build spec --output ./test-spec.json --id 1234"
+		Command::cargo_bin("pop")
+			.unwrap()
+			.current_dir(&chain_dir)
+			.args(&["build", "spec", "--output", "./test-spec.json", "--id", "1234"])
+			.assert()
+			.success();
+
+		// Assert build files have been generated in ./
+		assert!(chain_dir.join("./test-spec.json").exists());
+		assert!(chain_dir.join("./raw-test-spec.json").exists());
+		assert!(chain_dir.join("./para-1234.wasm").exists());
+		assert!(chain_dir.join("./para-1234-genesis-state").exists());
+
+		Ok(())
+	}
+
+	#[test]
+	fn build_spec_creates_non_existing_output_folder() -> Result<()> {
+		// Generate template parachain in temp directory.
+		let chain_dir = generate_parachain();
+		println!("{}", chain_dir.display());
+
+		// pop build spec --output ./new/directory/test-spec.json --id 1234"
+		Command::cargo_bin("pop")
+			.unwrap()
+			.current_dir(&chain_dir)
+			.args(&["build", "spec", "--output", "./new/directory/test-spec.json", "--id", "1234"])
+			.assert()
+			.success();
+
+		// Assert build files have been generated in ./
+		assert!(chain_dir.join("./new/directory/test-spec.json").exists());
+		assert!(chain_dir.join("./new/directory/raw-test-spec.json").exists());
+		assert!(chain_dir.join("./new/directory/para-1234.wasm").exists());
+		assert!(chain_dir.join("./new/directory/para-1234-genesis-state").exists());
+
+		Ok(())
+	}
+
+	fn generate_parachain() -> PathBuf {
+		//let temp = tempfile::tempdir().unwrap();
+		//let temp_dir = temp.path();
+		let temp_dir = Path::new("./.test");
+		let _ = create_dir_all(temp_dir);
+
+		// pop new parachain test_parachain
+		Command::cargo_bin("pop")
+			.unwrap()
+			.current_dir(&temp_dir)
+			.args(&[
+				"new",
+				"parachain",
+				"test_parachain",
+				"--symbol",
+				"POP",
+				"--decimals",
+				"6",
+				"--endowment",
+				"1u64 << 60",
+			])
+			.assert()
+			.success();
+
+		let chain_dir = temp_dir.join("test_parachain");
+		assert!(chain_dir.exists());
+
+		chain_dir
 	}
 }
