@@ -105,15 +105,15 @@ impl Command {
 			},
 			#[cfg(feature = "contract")]
 			Self::Test(args) => match args.command {
-				test::Command::Contract(cmd) => match cmd.execute() {
+				test::Command::Contract(cmd) => match cmd.execute().await {
 					Ok(feature) => Ok(json!(feature)),
 					Err(e) => Err(e),
 				},
 			},
 			Self::Clean(args) => match args.command {
-				clean::Command::Cache => {
+				clean::Command::Cache(cmd_args) => {
 					// Initialize command and execute
-					clean::CleanCacheCommand { cli: &mut Cli, cache: cache()? }
+					clean::CleanCacheCommand { cli: &mut Cli, cache: cache()?, all: cmd_args.all }
 						.execute()
 						.map(|_| Value::Null)
 				},

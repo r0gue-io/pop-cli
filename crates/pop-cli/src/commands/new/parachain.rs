@@ -8,7 +8,7 @@ use clap::{
 	Args,
 };
 use cliclack::{
-	clear_screen, confirm, input,
+	confirm, input,
 	log::{self, success, warning},
 	outro, outro_cancel,
 };
@@ -64,8 +64,8 @@ pub struct NewParachainCommand {
 impl NewParachainCommand {
 	/// Executes the command.
 	pub(crate) async fn execute(self) -> Result<Parachain> {
+		// If user doesn't select the name guide them to generate a parachain.
 		let parachain_config = if self.name.is_none() {
-			// If user doesn't select the name guide them to generate a parachain.
 			guide_user_to_generate_parachain().await?
 		} else {
 			self.clone()
@@ -91,15 +91,16 @@ impl NewParachainCommand {
 
 		let tag_version = parachain_config.release_tag.clone();
 
-		clear_screen()?;
 		generate_parachain_from_template(name, provider, &template, tag_version, config)?;
 		Ok(template)
 	}
 }
 
+/// Guide the user to generate a parachain from available templates.
 async fn guide_user_to_generate_parachain() -> Result<NewParachainCommand> {
 	Cli.intro("Generate a parachain")?;
 
+	// Prompt for template selection.
 	let mut prompt = cliclack::select("Select a template provider: ".to_string());
 	for (i, provider) in Provider::types().iter().enumerate() {
 		if i == 0 {
@@ -118,14 +119,15 @@ async fn guide_user_to_generate_parachain() -> Result<NewParachainCommand> {
 	}
 	let provider = prompt.interact()?;
 	let template = display_select_options(provider)?;
-
 	let release_name = choose_release(template).await?;
 
+	// Prompt for location.
 	let name: String = input("Where should your project be created?")
 		.placeholder("./my-parachain")
 		.default_input("./my-parachain")
 		.interact()?;
 
+	// Prompt for additional customization options.
 	let mut customizable_options = Config {
 		symbol: "UNIT".to_string(),
 		decimals: 12,
@@ -189,7 +191,7 @@ fn generate_parachain_from_template(
 	// add next steps
 	let mut next_steps = vec![
 		format!("cd into \"{name_template}\" and enjoy hacking! 🚀"),
-		"Use `pop build parachain` to build your parachain.".into(),
+		"Use `pop build` to build your parachain.".into(),
 	];
 	if let Some(network_config) = template.network_config() {
 		next_steps.push(format!(
@@ -209,6 +211,7 @@ fn generate_parachain_from_template(
 	Ok(())
 }
 
+/// Determines whether the specified template is supported by the provider.
 fn is_template_supported(provider: &Provider, template: &Parachain) -> Result<()> {
 	if !provider.provides(template) {
 		return Err(anyhow::anyhow!(format!(

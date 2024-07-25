@@ -5,6 +5,7 @@ use contract_build::ManifestPath;
 use contract_extrinsics::BalanceVariant;
 use ink_env::{DefaultEnvironment, Environment};
 use std::{
+	fs, io,
 	path::{Path, PathBuf},
 	str::FromStr,
 };
@@ -45,6 +46,29 @@ pub fn canonicalized_path(target: &Path) -> Result<PathBuf, Error> {
 		// If an I/O error occurs during canonicalization, convert it into an Error enum variant.
 		.map_err(|e| Error::IO(e))
 }
+/// Recursively copy a directory and its files.
+///
+/// # Arguments
+///
+/// * `src`: - Path to copy from
+/// * `dst`: - Path to copy to
+///
+pub fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> {
+	fs::create_dir_all(&dst)?;
+	for entry in fs::read_dir(src)? {
+		let entry = entry?;
+		let ty = entry.file_type()?;
+		// Ignore frontend folder in templates
+		if ty.is_dir() && entry.file_name() == "frontend" {
+			continue;
+		} else if ty.is_dir() {
+			copy_dir_all(entry.path(), dst.as_ref().join(entry.file_name()))?;
+		} else {
+			fs::copy(entry.path(), dst.as_ref().join(entry.file_name()))?;
+		}
+	}
+	Ok(())
+}
 
 #[cfg(test)]
 mod tests {
@@ -79,6 +103,35 @@ mod tests {
 		assert!(error_folder.is_err());
 		// Success case
 		canonicalized_path(temp_dir.path())?;
+		Ok(())
+	}
+
+	#[test]
+	fn parse_balance_works() -> Result<(), Error> {
+		let balance = parse_balance("100000")?;
+		assert_eq!(balance, BalanceVariant::Default(100000));
+		Ok(())
+	}
+
+	#[test]
+	fn parse_balance_fails_wrong_balance() -> Result<(), Error> {
+		assert!(matches!(parse_balance("wrongbalance"), Err(super::Error::BalanceParsing(..))));
+		Ok(())
+	}
+
+	#[test]
+	fn parse_account_works() -> Result<(), Error> {
+		let account = parse_account("5CLPm1CeUvJhZ8GCDZCR7nWZ2m3XXe4X5MtAQK69zEjut36A")?;
+		assert_eq!(account.to_string(), "5CLPm1CeUvJhZ8GCDZCR7nWZ2m3XXe4X5MtAQK69zEjut36A");
+		Ok(())
+	}
+
+	#[test]
+	fn parse_account_fails_wrong_value() -> Result<(), Error> {
+		assert!(matches!(
+			parse_account("wrongaccount"),
+			Err(super::Error::AccountAddressParsing(..))
+		));
 		Ok(())
 	}
 }
