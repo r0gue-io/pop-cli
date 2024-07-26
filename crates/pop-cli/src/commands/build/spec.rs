@@ -251,7 +251,7 @@ impl BuildSpecCommand {
 
 		// Customize spec based on input.
 		let mut chain_spec = ChainSpec::from(&plain_chain_spec)?;
-		chain_spec.replace_para_id(para_id);
+		chain_spec.replace_para_id(para_id)?;
 		let relay = self.relay.unwrap_or(RelayChain::PaseoLocal).to_string();
 		chain_spec.replace_relay_chain(&relay);
 		let chain_type = self.chain_type.unwrap_or(ChainType::Development).to_string();

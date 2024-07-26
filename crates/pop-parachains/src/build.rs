@@ -226,25 +226,29 @@ impl ChainSpec {
 	///
 	/// # Arguments
 	/// * `para_id` - The new value for the para_id.
-	pub fn replace_para_id(&mut self, para_id: u32) {
+	pub fn replace_para_id(&mut self, para_id: u32) -> Result<(), Error> {
 		// Replace para_id
-		let replace = self.0.get_mut("para_id").expect("expected `para_id`");
+		let replace = self
+			.0
+			.get_mut("para_id")
+			.ok_or_else(|| Error::Config("expected `para_id`".into()))?;
 		*replace = json!(para_id);
 
 		// Replace genesis.runtimeGenesis.patch.parachainInfo.parachainId
 		let replace = self
 			.0
 			.get_mut("genesis")
-			.expect("expected `genesis`")
+			.ok_or_else(|| Error::Config("expected `genesis`".into()))?
 			.get_mut("runtimeGenesis")
-			.expect("expected `runtimeGenesis`")
+			.ok_or_else(|| Error::Config("expected `runtimeGenesis`".into()))?
 			.get_mut("patch")
-			.expect("expected `patch`")
+			.ok_or_else(|| Error::Config("expected `patch`".into()))?
 			.get_mut("parachainInfo")
-			.expect("expected `parachainInfo`")
+			.ok_or_else(|| Error::Config("expected `parachainInfo`".into()))?
 			.get_mut("parachainId")
-			.expect("expected `parachainInfo.parachainId`");
+			.ok_or_else(|| Error::Config("expected `parachainInfo.parachainId`".into()))?;
 		*replace = json!(para_id);
+		Ok(())
 	}
 
 	/// Replaces the relay chain name with the given one.
@@ -296,7 +300,8 @@ impl ChainSpec {
 mod tests {
 	use super::*;
 	use crate::{
-		new_parachain::instantiate_standard_template, templates::Parachain, Config, Zombienet,
+		new_parachain::instantiate_standard_template, templates::Parachain, Config, Error,
+		Zombienet,
 	};
 	use anyhow::Result;
 	use pop_common::manifest::Dependency;
@@ -449,7 +454,7 @@ default_command = "pop-node"
 		assert!(plain_chain_spec.exists());
 		{
 			let mut chain_spec = ChainSpec::from(&plain_chain_spec)?;
-			chain_spec.replace_para_id(2001);
+			chain_spec.replace_para_id(2001)?;
 			chain_spec.to_file(&plain_chain_spec)?;
 		}
 		let raw_chain_spec = generate_raw_chain_spec(
@@ -559,7 +564,7 @@ default_command = "pop-node"
 				}
 			},
 		}));
-		chain_spec.replace_para_id(2001);
+		chain_spec.replace_para_id(2001)?;
 		assert_eq!(
 			chain_spec.0,
 			json!({
@@ -574,6 +579,99 @@ default_command = "pop-node"
 					}
 				},
 			})
+		);
+		Ok(())
+	}
+
+	#[test]
+	fn replace_para_id_fails() -> Result<()> {
+		let mut chain_spec = ChainSpec(json!({
+			"genesis": {
+				"runtimeGenesis": {
+					"patch": {
+						"parachainInfo": {
+							"parachainId": 1000
+						}
+					}
+				}
+			},
+		}));
+		assert!(
+			matches!(chain_spec.replace_para_id(2001), Err(Error::Config(error)) if error == "expected `para_id`")
+		);
+		chain_spec = ChainSpec(json!({
+			"para_id": 2001,
+			"": {
+				"runtimeGenesis": {
+					"patch": {
+						"parachainInfo": {
+							"parachainId": 1000
+						}
+					}
+				}
+			},
+		}));
+		assert!(
+			matches!(chain_spec.replace_para_id(2001), Err(Error::Config(error)) if error == "expected `genesis`")
+		);
+		chain_spec = ChainSpec(json!({
+			"para_id": 2001,
+			"genesis": {
+				"": {
+					"patch": {
+						"parachainInfo": {
+							"parachainId": 1000
+						}
+					}
+				}
+			},
+		}));
+		assert!(
+			matches!(chain_spec.replace_para_id(2001), Err(Error::Config(error)) if error == "expected `runtimeGenesis`")
+		);
+		chain_spec = ChainSpec(json!({
+			"para_id": 2001,
+			"genesis": {
+				"runtimeGenesis": {
+					"": {
+						"parachainInfo": {
+							"parachainId": 1000
+						}
+					}
+				}
+			},
+		}));
+		assert!(
+			matches!(chain_spec.replace_para_id(2001), Err(Error::Config(error)) if error == "expected `patch`")
+		);
+		chain_spec = ChainSpec(json!({
+			"para_id": 2001,
+			"genesis": {
+				"runtimeGenesis": {
+					"patch": {
+						"": {
+							"parachainId": 1000
+						}
+					}
+				}
+			},
+		}));
+		assert!(
+			matches!(chain_spec.replace_para_id(2001), Err(Error::Config(error)) if error == "expected `parachainInfo`")
+		);
+		chain_spec = ChainSpec(json!({
+			"para_id": 2001,
+			"genesis": {
+				"runtimeGenesis": {
+					"patch": {
+						"parachainInfo": {
+						}
+					}
+				}
+			},
+		}));
+		assert!(
+			matches!(chain_spec.replace_para_id(2001), Err(Error::Config(error)) if error == "expected `parachainInfo.parachainId`")
 		);
 		Ok(())
 	}
