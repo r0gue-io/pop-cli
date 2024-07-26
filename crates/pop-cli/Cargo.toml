@@ -28,6 +28,7 @@ clap.workspace = true
 cliclack.workspace = true
 console.workspace = true
 strum.workspace = true
+strum_macros.workspace = true
 
 # contracts
 pop-contracts = { path = "../pop-contracts", version = "0.3.0", optional = true }
@@ -51,14 +52,6 @@ predicates.workspace = true
 
 [features]
 default = ["contract", "parachain", "telemetry"]
-contract = [
-    "dep:pop-contracts",
-    "dep:sp-core",
-    "dep:sp-weights",
-    "dep:dirs",
-]
-parachain = [
-    "dep:pop-parachains",
-    "dep:dirs",
-]
+contract = ["dep:pop-contracts", "dep:sp-core", "dep:sp-weights", "dep:dirs"]
+parachain = ["dep:pop-parachains", "dep:dirs"]
 telemetry = ["dep:pop-telemetry"]

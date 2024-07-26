@@ -11,8 +11,8 @@ mod up;
 mod utils;
 
 pub use build::{
-	build_parachain, export_wasm_file, generate_genesis_state_file, generate_plain_chain_spec,
-	generate_raw_chain_spec, is_supported,
+	binary_path, build_parachain, export_wasm_file, generate_genesis_state_file,
+	generate_plain_chain_spec, generate_raw_chain_spec, is_supported, ChainSpec,
 };
 pub use errors::Error;
 pub use indexmap::IndexSet;
