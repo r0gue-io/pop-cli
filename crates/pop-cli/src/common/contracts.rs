@@ -37,7 +37,7 @@ pub async fn check_contracts_node_and_prompt(skip_confirm: bool) -> anyhow::Resu
 			binary.version().unwrap_or("None"),
 			binary.latest().unwrap_or("None")
 		))?;
-		let mut latest = false;
+		let latest;
 		if !skip_confirm {
 			latest = confirm(
 				"📦 Would you like to source it automatically now? It may take some time..."
