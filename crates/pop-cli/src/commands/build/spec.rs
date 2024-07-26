@@ -172,15 +172,16 @@ impl BuildSpecCommand {
 			// If para id has been provided we can build the spec
 			// otherwise, we need to guide the user.
 			let _ = match self.id {
-				Some(_) => self.build(&mut cli::Cli),
+				Some(_) => self.build(&mut Cli),
 				None => {
 					let config = guide_user_to_generate_spec().await?;
-					config.build(&mut cli::Cli)
+					config.build(&mut Cli)
 				},
 			};
 			return Ok("spec");
 		} else {
-			cli::Cli.outro_cancel(
+			Cli.intro("Building your chain spec")?;
+			Cli.outro_cancel(
 				"🚫 Can't build a specification for target. Maybe not a chain project ?",
 			)?;
 			Ok("spec")
