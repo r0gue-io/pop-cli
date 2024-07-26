@@ -6,6 +6,7 @@ A crate for generating, building and running parachains and pallets. Used by
 ## Usage
 
 Generate a new parachain:
+
 ```rust,no_run
 use pop_parachains::{instantiate_template_dir, Config, Parachain};
 use std::path::Path;
@@ -21,6 +22,7 @@ let tag = instantiate_template_dir(&Parachain::Standard, &destination_path, tag_
 ```
 
 Build a Parachain:
+
 ```rust,no_run
 use pop_common::Profile;
 use pop_parachains::build_parachain;
@@ -32,6 +34,7 @@ let binary_path = build_parachain(&path, package, &Profile::Release, None).unwra
 ```
 
 Generate a raw chain specification file and export the WASM and genesis state files:
+
 ```rust,no_run
 use pop_common::Profile;
 use pop_parachains::{build_parachain, export_wasm_file, generate_plain_chain_spec, generate_raw_chain_spec, generate_genesis_state_file};
@@ -39,12 +42,11 @@ use std::path::Path;
 
 let path = Path::new("./"); // Location of the parachain project.
 let package = None;  // The optional package to be built.
-let para_id = 2000;
 // The path to the node binary executable.
 let binary_path = build_parachain(&path, package, &Profile::Release, None).unwrap();;
 // Generate a plain chain specification file of a parachain
 let plain_chain_spec_path = path.join("plain-parachain-chainspec.json");
-generate_plain_chain_spec(&binary_path, &plain_chain_spec_path, para_id, true);
+generate_plain_chain_spec(&binary_path, &plain_chain_spec_path, true);
 // Generate a raw chain specification file of a parachain
 let chain_spec = generate_raw_chain_spec(&binary_path, &plain_chain_spec_path, "raw-parachain-chainspec.json").unwrap();
 // Export the WebAssembly runtime for the parachain.
@@ -54,6 +56,7 @@ let genesis_state_file = generate_genesis_state_file(&binary_path, &chain_spec, 
 ```
 
 Run a Parachain:
+
 ```rust,no_run
 use pop_parachains::Zombienet;
 use std::path::Path;
@@ -92,6 +95,7 @@ tokio_test::block_on(async {
 ```
 
 Generate a new Pallet:
+
 ```rust,no_run
 use pop_parachains::{create_pallet_template, TemplatePalletConfig};
 
@@ -106,4 +110,6 @@ create_pallet_template(Some(path),pallet_config);
 ```
 
 ## Acknowledgements
-`pop-parachains` would not be possible without the awesome crate: [zombienet-sdk](https://github.com/paritytech/zombienet-sdk).
+
+`pop-parachains` would not be possible without the awesome
+crate: [zombienet-sdk](https://github.com/paritytech/zombienet-sdk).
