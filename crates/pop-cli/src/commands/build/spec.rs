@@ -150,7 +150,7 @@ pub struct BuildSpecCommand {
 	/// Relay chain this parachain will connect to [default: paseo-local].
 	#[arg(long, value_enum)]
 	pub(crate) relay: Option<RelayChain>,
-	/// Procotol-id to use in the specification.
+	/// Protocol-id to use in the specification.
 	#[arg(long = "protocol-id")]
 	pub(crate) protocol_id: Option<String>,
 	/// Whether the genesis state file should be generated [default: true].
@@ -228,7 +228,7 @@ impl BuildSpecCommand {
 		let binary_path = match binary_path(&mode.target_folder(&cwd), &cwd.join("node")) {
 			Ok(binary_path) => binary_path,
 			_ => {
-				cli.info(format!("Node was not found. The project will be built locally."))?;
+				cli.info("Node was not found. The project will be built locally.".to_string())?;
 				cli.warning("NOTE: this may take some time...")?;
 				build_parachain(&cwd, None, &mode, None)?
 			},
@@ -294,7 +294,7 @@ impl BuildSpecCommand {
 			));
 		}
 
-		cli.intro(format!("Building your chain spec"))?;
+		cli.intro("Building your chain spec".to_string())?;
 		let generated_files: Vec<_> = generated_files
 			.iter()
 			.map(|s| style(format!("{} {s}", console::Emoji("●", ">"))).dim().to_string())
@@ -389,7 +389,7 @@ async fn guide_user_to_generate_spec() -> anyhow::Result<BuildSpecCommand> {
 	// Prompt for default bootnode if chain type is Local or Live.
 	let default_bootnode = match chain_type {
 		ChainType::Development => true,
-		_ => confirm(format!("Would you like to use local host as a bootnode ?")).interact()?,
+		_ => confirm("Would you like to use local host as a bootnode ?".to_string()).interact()?,
 	};
 
 	// Prompt for protocol-id.
@@ -399,12 +399,12 @@ async fn guide_user_to_generate_spec() -> anyhow::Result<BuildSpecCommand> {
 		.interact()?;
 
 	// Prompt for genesis state
-	let genesis_state = confirm(format!("Should the genesis state file be generated ?"))
+	let genesis_state = confirm("Should the genesis state file be generated ?".to_string())
 		.initial_value(true)
 		.interact()?;
 
 	// Prompt for genesis code
-	let genesis_code = confirm(format!("Should the genesis code file be generated ?"))
+	let genesis_code = confirm("Should the genesis code file be generated ?".to_string())
 		.initial_value(true)
 		.interact()?;
 
