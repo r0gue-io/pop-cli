@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.3.0] - 2024-07-25
+## [0.3.0] - 2024-07-26
 
 ### 🚀 Features
 
@@ -16,6 +16,8 @@ All notable changes to this project will be documented in this file.
 - *(contracts)* New contract templates (#249)
 - Add `all` flag to `pop clean`  (#233)
 - *(contract-e2e)* Auto-source substrate-contracts-node with e2e tests (#254)
+- Consistency with `pop up parachains` to handle versioning for  `contracts-node` (#262)
+- Pop build spec (#257)
 
 ### 🐛 Fixes
 
@@ -48,6 +50,7 @@ All notable changes to this project will be documented in this file.
 - Set `CONTRACTS_NODE_PATH` env variable for e2e tests (#209)
 - Release 0.3.0
 - Merge main
+- Update changelog
 
 ### Build
 
