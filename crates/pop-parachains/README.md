@@ -33,6 +33,30 @@ let package = None;  // The optional package to be built.
 let binary_path = build_parachain(&path, package, &Profile::Release, None).unwrap();
 ```
 
+Generate a plain chain specification file and customize it with your specific parachain values:
+
+```rust,no_run
+use pop_common::Profile;
+use pop_parachains::{build_parachain, export_wasm_file, generate_plain_chain_spec, generate_raw_chain_spec, generate_genesis_state_file, ChainSpec};
+use std::path::Path;
+
+let path = Path::new("./"); // Location of the parachain project.
+let package = None;  // The optional package to be built.
+// The path to the node binary executable.
+let binary_path = build_parachain(&path, package, &Profile::Release, None).unwrap();;
+// Generate a plain chain specification file of a parachain
+let plain_chain_spec_path = path.join("plain-parachain-chainspec.json");
+generate_plain_chain_spec(&binary_path, &plain_chain_spec_path, true);
+// Customize your chain specification
+let mut chain_spec = ChainSpec::from(&plain_chain_spec_path).unwrap();
+chain_spec.replace_para_id(2002);
+chain_spec.replace_relay_chain("paseo-local");
+chain_spec.replace_chain_type("Development");
+chain_spec.replace_protocol_id("my-protocol");
+// Writes the chain specification to a file
+chain_spec.to_file(&plain_chain_spec_path).unwrap();
+```
+
 Generate a raw chain specification file and export the WASM and genesis state files:
 
 ```rust,no_run
