@@ -202,9 +202,24 @@ impl ChainSpec {
 		Ok(ChainSpec(Value::from_str(&std::fs::read_to_string(path)?)?))
 	}
 
-	/// Get the parachain id from the chain specification file.
-	fn get_parachain_id(&self) -> Option<u64> {
+	/// Get the chain type from the chain specification.
+	pub fn get_chain_type(&self) -> Option<&str> {
+		self.0.get("chainType").and_then(|v| v.as_str())
+	}
+
+	/// Get the parachain ID from the chain specification.
+	pub fn get_parachain_id(&self) -> Option<u64> {
 		self.0.get("para_id").and_then(|v| v.as_u64())
+	}
+
+	/// Get the protocol ID from the chain specification.
+	pub fn get_protocol_id(&self) -> Option<&str> {
+		self.0.get("protocolId").and_then(|v| v.as_str())
+	}
+
+	/// Get the relay chain from the chain specification.
+	pub fn get_relay_chain(&self) -> Option<&str> {
+		self.0.get("relay_chain").and_then(|v| v.as_str())
 	}
 
 	/// Replaces the parachain id with the provided `para_id`.
@@ -495,11 +510,38 @@ default_command = "pop-node"
 	}
 
 	#[test]
+	fn get_chain_type_works() -> Result<()> {
+		let chain_spec = ChainSpec(json!({
+			"chainType": "test",
+		}));
+		assert_eq!(chain_spec.get_chain_type(), Some("test"));
+		Ok(())
+	}
+
+	#[test]
 	fn get_parachain_id_works() -> Result<()> {
 		let chain_spec = ChainSpec(json!({
 			"para_id": 2002,
 		}));
 		assert_eq!(chain_spec.get_parachain_id(), Some(2002));
+		Ok(())
+	}
+
+	#[test]
+	fn get_protocol_id_works() -> Result<()> {
+		let chain_spec = ChainSpec(json!({
+			"protocolId": "test",
+		}));
+		assert_eq!(chain_spec.get_protocol_id(), Some("test"));
+		Ok(())
+	}
+
+	#[test]
+	fn get_relay_chain_works() -> Result<()> {
+		let chain_spec = ChainSpec(json!({
+			"relay_chain": "test",
+		}));
+		assert_eq!(chain_spec.get_relay_chain(), Some("test"));
 		Ok(())
 	}
 

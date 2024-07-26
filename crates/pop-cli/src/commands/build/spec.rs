@@ -8,7 +8,7 @@ use pop_parachains::{
 	binary_path, build_parachain, export_wasm_file, generate_genesis_state_file,
 	generate_plain_chain_spec, generate_raw_chain_spec, is_supported, ChainSpec,
 };
-use std::{env::current_dir, fs::create_dir_all, path::PathBuf};
+use std::{env::current_dir, fs::create_dir_all, path::{Path, PathBuf}};
 #[cfg(not(test))]
 use std::{thread::sleep, time::Duration};
 use strum::{EnumMessage, EnumProperty, VariantArray};
@@ -320,18 +320,35 @@ async fn guide_user_to_generate_spec() -> anyhow::Result<BuildSpecCommand> {
 		.default_input(&default_output)
 		.interact()?;
 
+	// Check if specified chain spec already exists, allowing us to default values for prompts
+	let path = Path::new(&output_file);
+	let chain_spec =
+		(path.is_file() && path.exists()).then(|| ChainSpec::from(path).ok()).flatten();
+
 	// Prompt for chain id.
+	let default = chain_spec
+		.as_ref()
+		.and_then(|cs| cs.get_parachain_id())
+		.unwrap_or(DEFAUTL_PARA_ID_VALUE as u64)
+		.to_string();
 	let para_id: u32 = input("What parachain ID should the build use?")
-		.placeholder(DEFAULT_PARA_ID_PROMPT)
-		.default_input(DEFAULT_PARA_ID_PROMPT)
+		.placeholder(&default)
+		.default_input(&default)
 		.interact()?;
 
 	// Prompt for chain type.
 	// If relay is Kusama or Polkadot, then Live type is used and user is not prompted.
 	let chain_type: ChainType;
 	let mut prompt = cliclack::select("Choose the chain type: ".to_string());
+    let default = chain_spec
+        .as_ref()
+        .and_then(|cs| cs.get_chain_type())
+        .and_then(|r| ChainType::from_str(r, true).ok());
+    if let Some(chain_type) = default.as_ref() {
+        prompt = prompt.initial_value(chain_type);
+    }
 	for (i, chain_type) in ChainType::VARIANTS.iter().enumerate() {
-		if i == 0 {
+        if default.is_none() && i == 0 {
 			prompt = prompt.initial_value(chain_type);
 		}
 		prompt = prompt.item(
@@ -347,7 +364,13 @@ async fn guide_user_to_generate_spec() -> anyhow::Result<BuildSpecCommand> {
 	// Prompt for relay chain.
 	let mut prompt =
 		cliclack::select("Choose the relay chain your chain will be connecting to: ".to_string());
-
+    let default = chain_spec
+        .as_ref()
+        .and_then(|cs| cs.get_relay_chain())
+        .and_then(|r| RelayChain::from_str(r, true).ok());
+    if let Some(relay) = default.as_ref() {
+        prompt = prompt.initial_value(relay);
+    }
 	// Prompt relays chains based on the chain type
 	match chain_type {
 		ChainType::Live => {
@@ -355,7 +378,7 @@ async fn guide_user_to_generate_spec() -> anyhow::Result<BuildSpecCommand> {
 				if !relay.get_str("Type").map_or(false, |s| s == "Live") {
 					continue;
 				} else {
-					if i == 0 {
+                    if default.is_none() && i == 0 {
 						prompt = prompt.initial_value(relay);
 					}
 					prompt = prompt.item(
@@ -371,7 +394,7 @@ async fn guide_user_to_generate_spec() -> anyhow::Result<BuildSpecCommand> {
 				if relay.get_str("Type").map_or(false, |s| s == "Live") {
 					continue;
 				} else {
-					if i == 0 {
+                    if default.is_none() &&i == 0 {
 						prompt = prompt.initial_value(relay);
 					}
 					prompt = prompt.item(
@@ -393,9 +416,14 @@ async fn guide_user_to_generate_spec() -> anyhow::Result<BuildSpecCommand> {
 	};
 
 	// Prompt for protocol-id.
-	let protocol_id: String = input("Choose the protocol-id that will identify your network: ")
-		.placeholder("template-local")
-		.default_input("template-local")
+	let default = chain_spec
+		.as_ref()
+		.and_then(|cs| cs.get_protocol_id())
+		.unwrap_or("template-local")
+		.to_string();
+	let protocol_id: String = input("Choose the protocol-id that will identify your network:")
+		.placeholder(&default)
+		.default_input(&default)
 		.interact()?;
 
 	// Prompt for genesis state
