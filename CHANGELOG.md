@@ -2,7 +2,60 @@
 
 All notable changes to this project will be documented in this file.
 
-## [unreleased]
+## [0.3.0] - 2024-07-26
+
+### 🚀 Features
+
+- *(up parachain)* Faster binary sourcing (#199)
+- Clean cache (#216)
+- Add paseo support (#182)
+- Guide user for contract creation and add 4 contract templates (#201)
+- `dry-run` flag to estimate gas (#203)
+- Enable building without project type specification (#222)
+- *(build parachain)* Generate specification, wasm and genesis state files (#219)
+- *(contracts)* New contract templates (#249)
+- Add `all` flag to `pop clean`  (#233)
+- *(contract-e2e)* Auto-source substrate-contracts-node with e2e tests (#254)
+- Consistency with `pop up parachains` to handle versioning for  `contracts-node` (#262)
+- Pop build spec (#257)
+
+### 🐛 Fixes
+
+- Handle IO error if rename fails (#241)
+- Readme commands (#243)
+- Remove unused folders after download contracts node binary (#240)
+- Check if contracts needs to be build before deploy (#246)
+
+### 🚜 Refactor
+
+- Standardise commands (#217)
+- *(templates)* Make templates and providers generic (#226)
+- Improve ux (#235)
+- Upload + instantiate contract (#228)
+- Ensure the UX for new contracts is consistent with the parachains. (#232)
+- Improve new consistency (#245)
+- Improve up ux (#248)
+- Default suri (#250)
+
+### 📚 Documentation
+
+- Consolidate README into Docs (#223)
+
+### 🧪 Testing
+
+- Integration tests, doc tests and improve coverage (#242)
+
+### ⚙️ Miscellaneous Tasks
+
+- Set `CONTRACTS_NODE_PATH` env variable for e2e tests (#209)
+- Release 0.3.0
+- Merge main
+- Update changelog
+
+### Build
+
+- *(deps)* Remove unused dependencies and fix cargo deny (#215)
+- *(deps)* Bump openssl from 0.10.64 to 0.10.66 (#259)
 
 ## [0.2.0] - 2024-06-17
 
@@ -14,17 +67,19 @@ All notable changes to this project will be documented in this file.
 - Add ability to run a script once network is initialized (#180)
 - *(new)* Ux improvements (#191)
 - Add OpenZeppelin template (#197)
+- Allow user to choose build mode: debug (default) or release (#202)
 
 ### 🐛 Fixes
 
 - Invalid .expect when parsing args with intro of pop install command (#187)
 - Container ux (#186)
 - Readme link to the documentation (#193)
-- Correct tf link (#211)
+- Improve relay command check (#212)
 
 ### 🚜 Refactor
 
 - Use the new link for OZ templates after repo name changed (#200)
+- Run substrate-contracts-node in `pop up contract` if it does not exist (#206)
 
 ### 📚 Documentation
 
@@ -40,8 +95,7 @@ All notable changes to this project will be documented in this file.
 - Revert workspace dependencies
 - Remove unused files
 - Update links (#205)
-- Update to version 0.2.0
-- Changelog
+- Release 0.2.0 (#210)
 
 ## [0.1.0] - 2024-05-15
 
