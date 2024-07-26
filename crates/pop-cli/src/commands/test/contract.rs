@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{common::contracts::check_contracts_node_and_prompt, style::style};
+use crate::{
+	cli::{traits::Cli as _, Cli},
+	common::contracts::check_contracts_node_and_prompt,
+};
 use clap::Args;
-use cliclack::{clear_screen, intro, log::warning, outro};
+use cliclack::{clear_screen, log::warning, outro};
 use pop_contracts::{test_e2e_smart_contract, test_smart_contract};
 use std::path::PathBuf;
 #[cfg(not(test))]
@@ -38,18 +41,15 @@ impl TestContractCommand {
 		if self.features.is_some() && self.features.clone().unwrap().contains("e2e-tests") {
 			show_deprecated = true;
 			self.e2e = true;
-			#[cfg(not(test))]
-			sleep(Duration::from_secs(3)).await;
 		}
 
 		if self.e2e {
-			intro(format!(
-				"{}: Starting end-to-end tests",
-				style(" Pop CLI ").black().on_magenta()
-			))?;
+			Cli.intro("Starting end-to-end tests")?;
 
 			if show_deprecated {
 				warning("NOTE: --features e2e-tests is deprecated. Use --e2e instead.")?;
+				#[cfg(not(test))]
+				sleep(Duration::from_secs(3)).await;
 			}
 
 			self.node = match check_contracts_node_and_prompt(self.skip_confirm).await {
@@ -64,7 +64,7 @@ impl TestContractCommand {
 			outro("End-to-end testing complete")?;
 			Ok("e2e")
 		} else {
-			intro(format!("{}: Starting unit tests", style(" Pop CLI ").black().on_magenta()))?;
+			Cli.intro("Starting unit tests")?;
 			test_smart_contract(self.path.as_deref())?;
 			outro("Unit testing complete")?;
 			Ok("unit")
