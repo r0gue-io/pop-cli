@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0
+
 use cliclack::{
 	confirm,
 	log::{self, warning},
