@@ -320,8 +320,8 @@ async fn guide_user_to_generate_spec() -> anyhow::Result<BuildSpecCommand> {
 
 	// Prompt for chain id.
 	let para_id: u32 = input("What parachain ID should the build use?")
-		.placeholder(DEFAULT_PARA_ID)
-		.default_input(DEFAULT_PARA_ID)
+		.placeholder(DEFAULT_PARA_ID_PROMPT)
+		.default_input(DEFAULT_PARA_ID_PROMPT)
 		.interact()?;
 
 	// Prompt for chain type.
