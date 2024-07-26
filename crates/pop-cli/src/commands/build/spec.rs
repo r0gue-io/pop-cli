@@ -15,7 +15,7 @@ use std::{
 };
 #[cfg(not(test))]
 use std::{thread::sleep, time::Duration};
-use strum::{EnumMessage, EnumProperty, VariantArray};
+use strum::{EnumMessage, VariantArray};
 use strum_macros::{AsRefStr, Display, EnumString};
 
 const DEFAULT_PARA_ID: u32 = 2000;
@@ -65,7 +65,6 @@ pub(crate) enum ChainType {
 	Display,
 	EnumString,
 	EnumMessage,
-	EnumProperty,
 	ValueEnum,
 	VariantArray,
 	Eq,
@@ -76,58 +75,50 @@ pub(crate) enum RelayChain {
 	#[strum(
 		serialize = "paseo",
 		message = "Paseo",
-		detailed_message = "Polkadot's community testnet.",
-		props(Type = "Live",)
+		detailed_message = "Polkadot's community testnet."
 	)]
 	Paseo,
 	#[default]
 	#[strum(
 		serialize = "paseo-local",
 		message = "Paseo Local",
-		detailed_message = "Local configuration for Paseo network.",
-		props(Type = "Local",)
+		detailed_message = "Local configuration for Paseo network."
 	)]
 	PaseoLocal,
 	#[strum(
 		serialize = "westend",
 		message = "Westend",
-		detailed_message = "Parity's test network for protocol testing.",
-		props(Type = "Live",)
+		detailed_message = "Parity's test network for protocol testing."
 	)]
 	Westend,
 	#[strum(
 		serialize = "westend-local",
 		message = "Westend Local",
-		detailed_message = "Local configuration for Westend network.",
-		props(Type = "Local",)
+		detailed_message = "Local configuration for Westend network."
 	)]
 	WestendLocal,
 	#[strum(
 		serialize = "kusama",
 		message = "Kusama",
-		detailed_message = "Polkadot's canary network.",
-		props(Type = "Live",)
+		detailed_message = "Polkadot's canary network."
 	)]
 	Kusama,
 	#[strum(
 		serialize = "kusama-local",
 		message = "Kusama Local",
-		detailed_message = "Local configuration for Kusama network.",
-		props(Type = "Local",)
+		detailed_message = "Local configuration for Kusama network."
 	)]
 	KusamaLocal,
 	#[strum(
 		serialize = "polkadot",
 		message = "Polkadot",
-		detailed_message = "Polkadot live network.",
-		props(Type = "Live",)
+		detailed_message = "Polkadot live network."
 	)]
 	Polkadot,
 	#[strum(
 		serialize = "polkadot-local",
 		message = "Polkadot Local",
-		detailed_message = "Local configuration for Polkadot network.",
-		props(Type = "Local",)
+		detailed_message = "Local configuration for Polkadot network."
 	)]
 	PolkadotLocal,
 }
@@ -175,7 +166,7 @@ impl BuildSpecCommand {
 			let _ = match self.id {
 				Some(_) => self.build(&mut Cli),
 				None => {
-					let config = guide_user_to_generate_spec().await?;
+					let config = guide_user_to_generate_spec(self).await?;
 					config.build(&mut Cli)
 				},
 			};
@@ -241,8 +232,7 @@ impl BuildSpecCommand {
 
 		// Generate plain spec.
 		spinner.set_message("Generating plain chain specification...");
-		let mut generated_files =
-			vec![format!("Specification and artifacts generated at: {}", &output_path.display())];
+		let mut generated_files = vec![];
 		generate_plain_chain_spec(&binary_path, &plain_chain_spec, self.default_bootnode)?;
 		generated_files.push(format!(
 			"Plain text chain specification file generated at: {}",
@@ -315,7 +305,7 @@ impl BuildSpecCommand {
 }
 
 /// Guide the user to generate their chain specification.
-async fn guide_user_to_generate_spec() -> anyhow::Result<BuildSpecCommand> {
+async fn guide_user_to_generate_spec(args: BuildSpecCommand) -> anyhow::Result<BuildSpecCommand> {
 	Cli.intro("Generate your chain spec")?;
 
 	// Confirm output path
@@ -377,13 +367,15 @@ async fn guide_user_to_generate_spec() -> anyhow::Result<BuildSpecCommand> {
 	// Prompt relays chains based on the chain type
 	match chain_type {
 		ChainType::Live => {
-			for (i, relay) in RelayChain::VARIANTS.iter().enumerate() {
-				if !relay.get_str("Type").map_or(false, |s| s == "Live") {
+			for relay in RelayChain::VARIANTS {
+				if !matches!(
+					relay,
+					RelayChain::Westend
+						| RelayChain::Paseo | RelayChain::Kusama
+						| RelayChain::Polkadot
+				) {
 					continue;
 				} else {
-					if default.is_none() && i == 0 {
-						prompt = prompt.initial_value(relay);
-					}
 					prompt = prompt.item(
 						relay,
 						relay.get_message().unwrap_or(relay.as_ref()),
@@ -393,13 +385,15 @@ async fn guide_user_to_generate_spec() -> anyhow::Result<BuildSpecCommand> {
 			}
 		},
 		_ => {
-			for (i, relay) in RelayChain::VARIANTS.iter().enumerate() {
-				if relay.get_str("Type").map_or(false, |s| s == "Live") {
+			for relay in RelayChain::VARIANTS {
+				if matches!(
+					relay,
+					RelayChain::Westend
+						| RelayChain::Paseo | RelayChain::Kusama
+						| RelayChain::Polkadot
+				) {
 					continue;
 				} else {
-					if default.is_none() && i == 0 {
-						prompt = prompt.initial_value(relay);
-					}
 					prompt = prompt.item(
 						relay,
 						relay.get_message().unwrap_or(relay.as_ref()),
@@ -439,12 +433,19 @@ async fn guide_user_to_generate_spec() -> anyhow::Result<BuildSpecCommand> {
 		.initial_value(true)
 		.interact()?;
 
+	// Only check user to check their profile selection if a live spec is being built on debug mode.
+	let profile =
+		if !args.release && matches!(chain_type, ChainType::Live) {
+			confirm("Using Debug profile to build a Live specification. Should Release be used instead ?")
+    		.initial_value(true)
+    		.interact()?
+		} else {
+			args.release
+		};
+
 	Ok(BuildSpecCommand {
 		output_file: Some(PathBuf::from(output_file)),
-		release: match chain_type {
-			ChainType::Development => false,
-			_ => true,
-		},
+		release: profile,
 		id: Some(para_id),
 		default_bootnode,
 		chain_type: Some(chain_type),
