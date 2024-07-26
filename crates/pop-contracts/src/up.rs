@@ -200,7 +200,7 @@ pub async fn upload_smart_contract(
 mod tests {
 	use super::*;
 	use crate::{
-		create_smart_contract, download_contracts_node, errors::Error, run_contracts_node,
+		contracts_node_generator, create_smart_contract, errors::Error, run_contracts_node,
 		templates::Contract,
 	};
 	use anyhow::Result;
@@ -341,8 +341,9 @@ mod tests {
 
 		let cache = temp_dir.path().join("");
 
-		let node_path = download_contracts_node(cache.clone()).await?;
-		let process = run_contracts_node(node_path.path(), None).await?;
+		let binary = contracts_node_generator(cache.clone(), None).await?;
+		binary.source(false, &(), true).await?;
+		let process = run_contracts_node(binary.path(), None).await?;
 
 		let upload_exec = set_up_upload(UpOpts {
 			path: Some(temp_dir.path().join("testing")),
