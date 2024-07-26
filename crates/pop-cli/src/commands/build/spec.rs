@@ -218,7 +218,7 @@ impl BuildSpecCommand {
 		let binary_path = match binary_path(&mode.target_folder(&cwd), &cwd.join("node")) {
 			Ok(binary_path) => binary_path,
 			_ => {
-				cli.info(format!("No node was not found. The project will be built locally."))?;
+				cli.info(format!("Node was not found. The project will be built locally."))?;
 				cli.warning("NOTE: this may take some time...")?;
 				build_parachain(&cwd, None, &mode, None)?
 			},
