@@ -62,7 +62,7 @@ pub mod pallet {
 	}
     {{- endif }}
 
-    /// A helful struct. You can use this kind of struct as a value in the pallet's storage. It helps storing related information together. It's possible to store a SCALE compact number using this kind of struct as well :)
+    /// A helpful struct. You can use this struct as a value in the pallet's storage. It helps store related information together. It's possible to store a SCALE compact number using this kind of struct as well :)
     #[derive(TypeInfo, Encode, Decode, MaxEncodedLen, PartialEq, RuntimeDebugNoBound)]
 	#[scale_info(skip_type_params(T))]
 	pub struct SomeHelpfulStruct<T: Config> {

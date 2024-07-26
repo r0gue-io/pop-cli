@@ -1,7 +1,7 @@
 use cliclack::input;
 
 /// A macro to facilitate the selection of an options among some pre-selected ones (represented as
-/// variants from a fieldless enums) and the naming of that selection. This process is repetead
+/// variants from fieldless enums) and the naming of that selection. This process is repeated
 /// until the user stops it and then the result is stored in a `Vec` of tuples, containing the
 /// options and the given names, which is returned at the end of the macro expansion. This is useful
 /// in processes such as designing a pallet's storage to generate a pallet template: we need the
@@ -15,7 +15,7 @@ use cliclack::input;
 ///   responsible of its own messages. At least one enum type has to be passed in, but several can
 ///   be used if for non-conflicting choices may be selected by the user for the same thing.
 /// - `$prompt_message`: The messages displayed to the user at the very beginning of each iteration.
-///   They must implement the `Dispay` trait. Each enum must have associated a prompt message.
+///   They must implement the `Display` trait. Each enum must have an associated prompt message.
 /// # Note
 /// This macro only works with a 1-byte sized enums, this is, fieldless enums with at most 255
 /// elements each. This is because we're just interested in letting the user to pick among a
@@ -144,11 +144,11 @@ macro_rules! pick_options_and_give_name{
     }
 }
 
-/// A macro to facilitate the select multiple variant of an enum and store them inside a Vec.
+/// A macro to facilitate the select multiple variant of an enum and store them inside a `Vec`.
 /// - `$enum`: The enum type to be iterated over for the selection. This enum must implement
 ///   `IntoEnumIterator` and `EnumMessage` traits from the `strum` crate. Each variant is
 ///   responsible of its own messages.
-/// - `$prompt_message`: The message displayed to the user. It must implement the `Dispay` trait.
+/// - `$prompt_message`: The message displayed to the user. It must implement the `Display` trait.
 /// # Note
 /// This macro only works with a 1-byte sized enums, this is, fieldless enums with at most 255
 /// elements each. This is because we're just interested in letting the user to pick some options
@@ -228,7 +228,9 @@ macro_rules! multiselect_pick {
 }
 
 /// This function performs a loop allowing the user to input as many things as wanted and collecting
-/// them into a `Vec`. In order to stop the loop, the user may enter Quit. # Parameters
+/// them into a `Vec`. In order to stop the loop, the user may enter Quit.
+///
+/// # Parameters
 ///
 /// - `prompt_message: &str`: The message shown to the user in each interaction.
 pub(crate) fn collect_loop_cliclack_inputs(prompt_message: &str) -> anyhow::Result<Vec<String>> {

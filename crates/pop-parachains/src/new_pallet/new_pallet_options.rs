@@ -11,7 +11,7 @@ pub enum TemplatePalletConfigCommonTypes {
 	RuntimeEvent,
 	#[strum(
 		message = "RuntimeOrigin",
-		detailed_message = "This type will be helful if your pallet needs to deal with the outer RuntimeOrigin enum, or if your pallet needs to use custom origins. If you add it, later on you'll be able to add a custom internal origin to the template."
+		detailed_message = "This type will be helpful if your pallet needs to deal with the outer RuntimeOrigin enum, or if your pallet needs to use custom origins. If you add it, you'll be able to add a custom internal origin to the template later."
 	)]
 	RuntimeOrigin,
 	#[strum(

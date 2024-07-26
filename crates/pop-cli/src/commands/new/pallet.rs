@@ -33,7 +33,7 @@ impl NewPalletCommand {
 	pub(crate) async fn execute(self) -> anyhow::Result<()> {
 		Cli.intro("Let's create a new pallet!")?;
 
-		Cli.info("First, we're defining the pallet's config trait.")?;
+		Cli.info("First, let's define the pallet's config trait.")?;
 
 		let pallet_default_config = confirm("Would you like to add a derivable default configuration for your pallet's config trait?").initial_value(true).interact()?;
 
@@ -46,7 +46,7 @@ impl NewPalletCommand {
 		// included in the default config or not.
 		if pallet_default_config {
 			pallet_config_types = pick_options_and_give_name!(
-                (TemplatePalletConfigTypesMetadata ,"Your adding a new type to your pallet's Config trait! Should it be included into the metadata?"), 
+                (TemplatePalletConfigTypesMetadata ,"You're adding a new type to your pallet's Config trait! Should it be included in the metadata?"), 
                 (TemplatePalletConfigTypesDefault, "Should it be included in the default configuration?")
             );
 		} else {
