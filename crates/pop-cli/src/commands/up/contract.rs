@@ -71,7 +71,7 @@ pub struct UpContractCommand {
 	/// Uploads the contract only, without instantiation.
 	#[clap(short('u'), long)]
 	upload_only: bool,
-	/// Before starting a local node, do not ask the user for confirmation.
+	/// Automatically source or update the needed binary required without prompting for confirmation.
 	#[clap(short('y'), long)]
 	skip_confirm: bool,
 }
@@ -127,21 +127,16 @@ impl UpContractCommand {
 
 			let log = NamedTempFile::new()?;
 
-			// default to standalone binary, if it exists.
-			let mut binary_path = PathBuf::from("substrate-contracts-node");
-
 			// uses the cache location
-			let maybe_node_path = check_contracts_node_and_prompt().await?;
-			if let Some(node_path) = maybe_node_path {
-				if node_path != PathBuf::new() {
-					binary_path = node_path;
-				}
-			} else {
-				Cli.outro_cancel(
-					"🚫 You need to specify an accessible endpoint to deploy the contract.",
-				)?;
-				return Ok(());
-			}
+			let binary_path = match check_contracts_node_and_prompt(self.skip_confirm).await {
+				Ok(binary_path) => binary_path,
+				Err(_) => {
+					Cli.outro_cancel(
+						"🚫 You need to specify an accessible endpoint to deploy the contract.",
+					)?;
+					return Ok(());
+				},
+			};
 
 			let spinner = spinner();
 			spinner.start("Starting local node...");

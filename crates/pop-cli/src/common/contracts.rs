@@ -1,18 +1,18 @@
+// SPDX-License-Identifier: GPL-3.0
+
 use cliclack::{confirm, log::warning, spinner};
-use pop_contracts::{does_contracts_node_exist, download_contracts_node};
+use pop_contracts::contracts_node_generator;
 use std::path::PathBuf;
 
-/// Helper function to check if the contracts node binary exists, and if not download it.
-/// returns:
-/// - Some("") if the standalone binary exists
-/// - Some(binary_cache_location) if the binary exists in pop's cache
-/// - None if the binary does not exist
-pub async fn check_contracts_node_and_prompt() -> anyhow::Result<Option<PathBuf>> {
-	let mut node_path = None;
-
-	// if the contracts node binary does not exist, prompt the user to download it
-	let maybe_contract_node_path = does_contracts_node_exist(crate::cache()?);
-	if maybe_contract_node_path == None {
+///  Checks the status of the `substrate-contracts-node` binary, sources it if necessary, and prompts the user to update it if the existing binary is not the latest version.
+///
+/// # Arguments
+/// * `skip_confirm`: A boolean indicating whether to skip confirmation prompts.
+pub async fn check_contracts_node_and_prompt(skip_confirm: bool) -> anyhow::Result<PathBuf> {
+	let cache_path: PathBuf = crate::cache()?;
+	let mut binary = contracts_node_generator(cache_path, None).await?;
+	let mut node_path = binary.path();
+	if !binary.exists() {
 		warning("⚠️ The substrate-contracts-node binary is not found.")?;
 		if confirm("📦 Would you like to source it automatically now?")
 			.initial_value(true)
@@ -21,19 +21,45 @@ pub async fn check_contracts_node_and_prompt() -> anyhow::Result<Option<PathBuf>
 			let spinner = spinner();
 			spinner.start("📦 Sourcing substrate-contracts-node...");
 
-			let cache_path = crate::cache()?;
-			let binary = download_contracts_node(cache_path.clone()).await?;
+			binary.source(false, &(), true).await?;
 
 			spinner.stop(format!(
-				"✅  substrate-contracts-node successfully sourced. Cached at: {}",
+				"✅ substrate-contracts-node successfully sourced. Cached at: {}",
 				binary.path().to_str().unwrap()
 			));
-			node_path = Some(binary.path());
+			node_path = binary.path();
 		}
-	} else {
-		if let Some(contract_node_path) = maybe_contract_node_path {
-			// If the node_path is not empty (cached binary). Otherwise, the standalone binary will be used by cargo-contract.
-			node_path = Some(contract_node_path.0);
+	}
+	if binary.stale() {
+		warning(format!(
+			"ℹ️ There is a newer version of {} available:\n {} -> {}",
+			binary.name(),
+			binary.version().unwrap_or("None"),
+			binary.latest().unwrap_or("None")
+		))?;
+		let latest;
+		if !skip_confirm {
+			latest = confirm(
+				"📦 Would you like to source it automatically now? It may take some time..."
+					.to_string(),
+			)
+			.initial_value(true)
+			.interact()?;
+		} else {
+			latest = true;
+		}
+		if latest {
+			let spinner = spinner();
+			spinner.start("📦 Sourcing substrate-contracts-node...");
+
+			binary.use_latest();
+			binary.source(false, &(), true).await?;
+
+			spinner.stop(format!(
+				"✅ substrate-contracts-node successfully sourced. Cached at: {}",
+				binary.path().to_str().unwrap()
+			));
+			node_path = binary.path();
 		}
 	}
 

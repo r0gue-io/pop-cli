@@ -16,9 +16,7 @@ pub use call::{
 	call_smart_contract, dry_run_call, dry_run_gas_estimate_call, set_up_call, CallOpts,
 };
 pub use new::{create_smart_contract, is_valid_contract_name};
-pub use node::{
-	does_contracts_node_exist, download_contracts_node, is_chain_alive, run_contracts_node,
-};
+pub use node::{contracts_node_generator, is_chain_alive, run_contracts_node};
 pub use templates::{Contract, ContractType};
 pub use test::{test_e2e_smart_contract, test_smart_contract};
 pub use up::{
