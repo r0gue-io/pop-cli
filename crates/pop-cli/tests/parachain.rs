@@ -72,11 +72,11 @@ async fn parachain_lifecycle() -> Result<()> {
 	// Assert build files have been generated
 	assert!(temp_parachain_dir.join("target").exists());
 	assert!(temp_parachain_dir.join("target/pop/test-spec.json").exists());
-	assert!(temp_parachain_dir.join("target/pop/raw-test-spec.json").exists());
+	assert!(temp_parachain_dir.join("target/pop/test-spec-raw.json").exists());
 	assert!(temp_parachain_dir.join("target/pop/para-2222.wasm").exists());
 	assert!(temp_parachain_dir.join("target/pop/para-2222-genesis-state").exists());
 
-	let content = fs::read_to_string(temp_parachain_dir.join("target/pop/raw-test-spec.json"))
+	let content = fs::read_to_string(temp_parachain_dir.join("target/pop/test-spec-raw.json"))
 		.expect("Could not read file");
 	// Assert custom values has been set propertly
 	assert!(content.contains("\"para_id\": 2222"));
