@@ -253,12 +253,12 @@ impl BuildSpecCommand {
 		let mut chain_spec = ChainSpec::from(&plain_chain_spec)?;
 		chain_spec.replace_para_id(para_id)?;
 		let relay = self.relay.unwrap_or(RelayChain::PaseoLocal).to_string();
-		chain_spec.replace_relay_chain(&relay);
+		chain_spec.replace_relay_chain(&relay)?;
 		let chain_type = self.chain_type.unwrap_or(ChainType::Development).to_string();
-		chain_spec.replace_chain_type(&chain_type);
+		chain_spec.replace_chain_type(&chain_type)?;
 		if self.protocol_id.is_some() {
 			let protocol_id = self.protocol_id.unwrap_or(DEFAULT_PROTOCOL_ID.to_string());
-			chain_spec.replace_protocol_id(&protocol_id);
+			chain_spec.replace_protocol_id(&protocol_id)?;
 		}
 		chain_spec.to_file(&plain_chain_spec)?;
 

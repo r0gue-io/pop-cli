@@ -49,7 +49,7 @@ let plain_chain_spec_path = path.join("plain-parachain-chainspec.json");
 generate_plain_chain_spec(&binary_path, &plain_chain_spec_path, true);
 // Customize your chain specification
 let mut chain_spec = ChainSpec::from(&plain_chain_spec_path).unwrap();
-chain_spec.replace_para_id(2002).unwrap();
+chain_spec.replace_para_id(2002);
 chain_spec.replace_relay_chain("paseo-local");
 chain_spec.replace_chain_type("Development");
 chain_spec.replace_protocol_id("my-protocol");

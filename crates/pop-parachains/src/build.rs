@@ -255,30 +255,42 @@ impl ChainSpec {
 	///
 	/// # Arguments
 	/// * `relay_name` - The new value for the relay chain field in the specification.
-	pub fn replace_relay_chain(&mut self, relay_name: &str) {
+	pub fn replace_relay_chain(&mut self, relay_name: &str) -> Result<(), Error> {
 		// Replace relay_chain
-		let replace = self.0.get_mut("relay_chain").expect("expected `relay_chain`");
+		let replace = self
+			.0
+			.get_mut("relay_chain")
+			.ok_or_else(|| Error::Config("expected `relay_chain`".into()))?;
 		*replace = json!(relay_name);
+		Ok(())
 	}
 
 	/// Replaces the chain type with the given one.
 	///
 	/// # Arguments
 	/// * `chain_type` - The new value for the chain type.
-	pub fn replace_chain_type(&mut self, chain_type: &str) {
+	pub fn replace_chain_type(&mut self, chain_type: &str) -> Result<(), Error> {
 		// Replace chainType
-		let replace = self.0.get_mut("chainType").expect("expected `chainType`");
+		let replace = self
+			.0
+			.get_mut("chainType")
+			.ok_or_else(|| Error::Config("expected `chainType`".into()))?;
 		*replace = json!(chain_type);
+		Ok(())
 	}
 
 	/// Replaces the protocol ID with the given one.
 	///
 	/// # Arguments
 	/// * `protocol_id` - The new value for the protocolId of the given specification.
-	pub fn replace_protocol_id(&mut self, protocol_id: &str) {
+	pub fn replace_protocol_id(&mut self, protocol_id: &str) -> Result<(), Error> {
 		// Replace protocolId
-		let replace = self.0.get_mut("protocolId").expect("expected `protocolId`");
+		let replace = self
+			.0
+			.get_mut("protocolId")
+			.ok_or_else(|| Error::Config("expected `protocolId`".into()))?;
 		*replace = json!(protocol_id);
+		Ok(())
 	}
 
 	/// Converts the chain specification to a string.
@@ -679,24 +691,51 @@ default_command = "pop-node"
 	#[test]
 	fn replace_relay_chain_works() -> Result<()> {
 		let mut chain_spec = ChainSpec(json!({"relay_chain": "old-relay"}));
-		chain_spec.replace_relay_chain("new-relay");
+		chain_spec.replace_relay_chain("new-relay")?;
 		assert_eq!(chain_spec.0, json!({"relay_chain": "new-relay"}));
+		Ok(())
+	}
+
+	#[test]
+	fn replace_relay_chain_fails() -> Result<()> {
+		let mut chain_spec = ChainSpec(json!({"": "old-relay"}));
+		assert!(
+			matches!(chain_spec.replace_relay_chain("new-relay"), Err(Error::Config(error)) if error == "expected `relay_chain`")
+		);
 		Ok(())
 	}
 
 	#[test]
 	fn replace_chain_type_works() -> Result<()> {
 		let mut chain_spec = ChainSpec(json!({"chainType": "old-chainType"}));
-		chain_spec.replace_chain_type("new-chainType");
+		chain_spec.replace_chain_type("new-chainType")?;
 		assert_eq!(chain_spec.0, json!({"chainType": "new-chainType"}));
+		Ok(())
+	}
+
+	#[test]
+	fn replace_chain_type_fails() -> Result<()> {
+		let mut chain_spec = ChainSpec(json!({"": "old-chainType"}));
+		assert!(
+			matches!(chain_spec.replace_chain_type("new-chainType"), Err(Error::Config(error)) if error == "expected `chainType`")
+		);
 		Ok(())
 	}
 
 	#[test]
 	fn replace_protocol_id_works() -> Result<()> {
 		let mut chain_spec = ChainSpec(json!({"protocolId": "old-protocolId"}));
-		chain_spec.replace_protocol_id("new-protocolId");
+		chain_spec.replace_protocol_id("new-protocolId")?;
 		assert_eq!(chain_spec.0, json!({"protocolId": "new-protocolId"}));
+		Ok(())
+	}
+
+	#[test]
+	fn replace_protocol_id_fails() -> Result<()> {
+		let mut chain_spec = ChainSpec(json!({"": "old-protocolId"}));
+		assert!(
+			matches!(chain_spec.replace_protocol_id("new-protocolId"), Err(Error::Config(error)) if error == "expected `protocolId`")
+		);
 		Ok(())
 	}
 
