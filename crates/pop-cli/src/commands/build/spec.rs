@@ -18,8 +18,9 @@ use std::{thread::sleep, time::Duration};
 use strum::{EnumMessage, EnumProperty, VariantArray};
 use strum_macros::{AsRefStr, Display, EnumString};
 
-const DEFAULT_SPEC_NAME: &str = "chain-spec.json";
 const DEFAULT_PARA_ID: u32 = 2000;
+const DEFAULT_PROTOCOL_ID: &str = "my-protocol";
+const DEFAULT_SPEC_NAME: &str = "chain-spec.json";
 
 #[derive(
 	AsRefStr,
@@ -135,7 +136,7 @@ pub(crate) enum RelayChain {
 pub struct BuildSpecCommand {
 	/// File name for the resulting spec. If a path is given,
 	/// the necessary directories will be created
-	/// [default: ./template-chain-spec.json].
+	/// [default: ./chain-spec.json].
 	#[arg(short = 'o', long = "output")]
 	pub(crate) output_file: Option<PathBuf>,
 	/// For production, always build in release mode to exclude debug features.
@@ -256,7 +257,7 @@ impl BuildSpecCommand {
 		let chain_type = self.chain_type.unwrap_or(ChainType::Development).to_string();
 		chain_spec.replace_chain_type(&chain_type);
 		if self.protocol_id.is_some() {
-			let protocol_id = self.protocol_id.unwrap_or("template-local".to_string());
+			let protocol_id = self.protocol_id.unwrap_or(DEFAULT_PROTOCOL_ID.to_string());
 			chain_spec.replace_protocol_id(&protocol_id);
 		}
 		chain_spec.to_file(&plain_chain_spec)?;
@@ -335,7 +336,7 @@ async fn guide_user_to_generate_spec() -> anyhow::Result<BuildSpecCommand> {
 		.and_then(|cs| cs.get_parachain_id())
 		.unwrap_or(DEFAULT_PARA_ID as u64)
 		.to_string();
-	let para_id: u32 = input("What parachain ID should the build use?")
+	let para_id: u32 = input("What parachain ID should be used?")
 		.placeholder(&default)
 		.default_input(&default)
 		.interact()?;
@@ -421,9 +422,9 @@ async fn guide_user_to_generate_spec() -> anyhow::Result<BuildSpecCommand> {
 	let default = chain_spec
 		.as_ref()
 		.and_then(|cs| cs.get_protocol_id())
-		.unwrap_or("template-local")
+		.unwrap_or(DEFAULT_PROTOCOL_ID)
 		.to_string();
-	let protocol_id: String = input("Choose the protocol-id that will identify your network:")
+	let protocol_id: String = input("Enter the protocol ID that will identify your network:")
 		.placeholder(&default)
 		.default_input(&default)
 		.interact()?;
