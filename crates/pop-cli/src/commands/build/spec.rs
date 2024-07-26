@@ -12,10 +12,11 @@ use pop_parachains::{
 use std::{env::current_dir, fs::create_dir_all, path::PathBuf};
 #[cfg(not(test))]
 use std::{thread::sleep, time::Duration};
-use strum::{EnumMessage, VariantArray};
+use strum::{EnumMessage, EnumProperty, VariantArray};
 use strum_macros::{AsRefStr, Display, EnumString};
 
 const DEFAULT_SPEC_NAME: &str = "template-chain-spec.json";
+const DEFAULT_PARA_ID: &str = "2000";
 
 #[derive(
 	AsRefStr,
@@ -60,6 +61,7 @@ pub(crate) enum ChainType {
 	Display,
 	EnumString,
 	EnumMessage,
+	EnumProperty,
 	ValueEnum,
 	VariantArray,
 	Eq,
@@ -70,50 +72,58 @@ pub(crate) enum RelayChain {
 	#[strum(
 		serialize = "paseo",
 		message = "Paseo",
-		detailed_message = "Polkadot's community testnet."
+		detailed_message = "Polkadot's community testnet.",
+		props(Type = "Live",)
 	)]
 	Paseo,
 	#[default]
 	#[strum(
 		serialize = "paseo-local",
 		message = "Paseo Local",
-		detailed_message = "Local configuration for Paseo network."
+		detailed_message = "Local configuration for Paseo network.",
+		props(Type = "Local",)
 	)]
 	PaseoLocal,
 	#[strum(
 		serialize = "westend",
 		message = "Westend",
-		detailed_message = "Parity's test network for protocol testing."
+		detailed_message = "Parity's test network for protocol testing.",
+		props(Type = "Live",)
 	)]
 	Westend,
 	#[strum(
 		serialize = "westend-local",
 		message = "Westend Local",
-		detailed_message = "Local configuration for Westend network."
+		detailed_message = "Local configuration for Westend network.",
+		props(Type = "Local",)
 	)]
 	WestendLocal,
 	#[strum(
 		serialize = "kusama",
 		message = "Kusama",
-		detailed_message = "Polkadot's canary network."
+		detailed_message = "Polkadot's canary network.",
+		props(Type = "Live",)
 	)]
 	Kusama,
 	#[strum(
 		serialize = "kusama-local",
 		message = "Kusama Local",
-		detailed_message = "Local configuration for Kusama network."
+		detailed_message = "Local configuration for Kusama network.",
+		props(Type = "Local",)
 	)]
 	KusamaLocal,
 	#[strum(
 		serialize = "polkadot",
 		message = "Polkadot",
-		detailed_message = "Polkadot live network."
+		detailed_message = "Polkadot live network.",
+		props(Type = "Live",)
 	)]
 	Polkadot,
 	#[strum(
 		serialize = "polkadot-local",
 		message = "Polkadot Local",
-		detailed_message = "Local configuration for Polkadot network."
+		detailed_message = "Local configuration for Polkadot network.",
+		props(Type = "Local",)
 	)]
 	PolkadotLocal,
 }
@@ -301,51 +311,77 @@ async fn guide_user_to_generate_spec() -> anyhow::Result<BuildSpecCommand> {
 	Cli.intro("Generate your chain spec")?;
 
 	// Confirm output path
+	let default_output = format!("./{DEFAULT_SPEC_NAME}");
 	let output_file: String = input("Name of the plain chain spec file. If a path is given, the necessary directories will be created:")
-		.placeholder("./template-chain-spec.json")
-		.default_input("./template-chain-spec.json")
+		.placeholder(&default_output)
+		.default_input(&default_output)
 		.interact()?;
 
 	// Prompt for chain id.
 	let para_id: u32 = input("What parachain ID should the build use?")
-		.placeholder("2000")
-		.default_input("2000")
+		.placeholder(DEFAULT_PARA_ID)
+		.default_input(DEFAULT_PARA_ID)
 		.interact()?;
-
-	// Prompt for relay chain.
-	let mut prompt =
-		cliclack::select("Choose the relay chain your chain will be connecting to: ".to_string());
-	for (i, relay) in RelayChain::VARIANTS.iter().enumerate() {
-		if i == 0 {
-			prompt = prompt.initial_value(relay);
-		}
-		prompt = prompt.item(
-			relay,
-			relay.get_message().unwrap_or(relay.as_ref()),
-			relay.get_detailed_message().unwrap_or_default(),
-		);
-	}
-	let relay_chain = prompt.interact()?.clone();
 
 	// Prompt for chain type.
 	// If relay is Kusama or Polkadot, then Live type is used and user is not prompted.
 	let chain_type: ChainType;
-	if relay_chain == RelayChain::Polkadot || relay_chain == RelayChain::Kusama {
-		chain_type = ChainType::Live;
-	} else {
-		let mut prompt = cliclack::select("Choose the chain type: ".to_string());
-		for (i, chain_type) in ChainType::VARIANTS.iter().enumerate() {
-			if i == 0 {
-				prompt = prompt.initial_value(chain_type);
-			}
-			prompt = prompt.item(
-				chain_type,
-				chain_type.get_message().unwrap_or(chain_type.as_ref()),
-				chain_type.get_detailed_message().unwrap_or_default(),
-			);
+	let mut prompt = cliclack::select("Choose the chain type: ".to_string());
+	for (i, chain_type) in ChainType::VARIANTS.iter().enumerate() {
+		if i == 0 {
+			prompt = prompt.initial_value(chain_type);
 		}
-		chain_type = prompt.interact()?.clone();
+		prompt = prompt.item(
+			chain_type,
+			chain_type.get_message().unwrap_or(chain_type.as_ref()),
+			chain_type.get_detailed_message().unwrap_or_default(),
+		);
 	}
+	chain_type = prompt.interact()?.clone();
+
+	Cli.info(format!("Relay chain selection adjusted based the chain type: {chain_type}."))?;
+
+	// Prompt for relay chain.
+	let mut prompt =
+		cliclack::select("Choose the relay chain your chain will be connecting to: ".to_string());
+
+	// Prompt relays chains based on the chain type
+	match chain_type {
+		ChainType::Live => {
+			for (i, relay) in RelayChain::VARIANTS.iter().enumerate() {
+				if !relay.get_str("Type").map_or(false, |s| s == "Live") {
+					continue;
+				} else {
+					if i == 0 {
+						prompt = prompt.initial_value(relay);
+					}
+					prompt = prompt.item(
+						relay,
+						relay.get_message().unwrap_or(relay.as_ref()),
+						relay.get_detailed_message().unwrap_or_default(),
+					);
+				}
+			}
+		},
+		_ => {
+			for (i, relay) in RelayChain::VARIANTS.iter().enumerate() {
+				if relay.get_str("Type").map_or(false, |s| s == "Live") {
+					continue;
+				} else {
+					if i == 0 {
+						prompt = prompt.initial_value(relay);
+					}
+					prompt = prompt.item(
+						relay,
+						relay.get_message().unwrap_or(relay.as_ref()),
+						relay.get_detailed_message().unwrap_or_default(),
+					);
+				}
+			}
+		},
+	}
+
+	let relay_chain = prompt.interact()?.clone();
 
 	// Prompt for default bootnode if chian type is Local or Live.
 	let default_bootnode = match chain_type {
