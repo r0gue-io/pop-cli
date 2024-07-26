@@ -6,7 +6,7 @@ license = "Apache-2.0"
 name = "pop-contracts"
 readme = "README.md"
 repository.workspace = true
-version = "0.2.0"
+version = "0.3.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
