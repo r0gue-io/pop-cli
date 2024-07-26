@@ -16,7 +16,8 @@ use strum::{EnumMessage, EnumProperty, VariantArray};
 use strum_macros::{AsRefStr, Display, EnumString};
 
 const DEFAULT_SPEC_NAME: &str = "chain-spec.json";
-const DEFAULT_PARA_ID: &str = "2000";
+const DEFAULT_PARA_ID_PROMPT: &str = "2000";
+const DEFAUTL_PARA_ID_VALUE: u32 = 2000;
 
 #[derive(
 	AsRefStr,
@@ -192,7 +193,7 @@ impl BuildSpecCommand {
 		cli.intro(format!("Building your chain spec"))?;
 
 		// Either a para id was already provided or user has been guided to provide one.
-		let para_id = self.id.unwrap_or(2000);
+		let para_id = self.id.unwrap_or(DEFAUTL_PARA_ID_VALUE);
 		// Notify user in case we need to build the parachain project.
 		if !self.release {
 			cli.warning("NOTE: this command defaults to DEBUG builds for development chain types. Please use `--release` (or simply `-r` for a release build...)")?;
