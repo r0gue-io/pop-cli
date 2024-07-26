@@ -354,11 +354,10 @@ async fn guide_user_to_generate_spec() -> anyhow::Result<BuildSpecCommand> {
 	};
 
 	// Prompt for protocol-id.
-	let protocol_id: String =
-		input("Choose the protocol-id that will identify your network on the networking layer: ")
-			.placeholder("template-local")
-			.default_input("template-local")
-			.interact()?;
+	let protocol_id: String = input("Choose the protocol-id that will identify your network: ")
+		.placeholder("template-local")
+		.default_input("template-local")
+		.interact()?;
 
 	// Prompt for genesis state
 	let genesis_state = confirm(format!("Should the genesis state file be generated ?"))
