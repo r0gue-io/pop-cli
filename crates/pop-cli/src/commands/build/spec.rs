@@ -363,8 +363,6 @@ async fn guide_user_to_generate_spec() -> anyhow::Result<BuildSpecCommand> {
 	}
 	chain_type = prompt.interact()?.clone();
 
-	Cli.info(format!("Relay chain selection adjusted based the chain type: {chain_type}."))?;
-
 	// Prompt for relay chain.
 	let mut prompt =
 		cliclack::select("Choose the relay chain your chain will be connecting to: ".to_string());
