@@ -13,10 +13,10 @@ use tokio::time::{sleep, Duration};
 async fn parachain_lifecycle() -> Result<()> {
 	let temp = tempfile::tempdir().unwrap();
 	let temp_dir = temp.path();
-	//let temp_dir = Path::new("./"); //For testing locally
+	// let temp_dir = Path::new("./"); //For testing locally
 	// Test that all templates are generated correctly
 	generate_all_the_templates(&temp_dir)?;
-	//pop new parachain test_parachain (default)
+	// pop new parachain test_parachain (default)
 	Command::cargo_bin("pop")
 		.unwrap()
 		.current_dir(&temp_dir)
