@@ -44,18 +44,18 @@ pub async fn is_chain_alive(url: url::Url) -> Result<bool, Error> {
 
 /// A supported chain.
 #[derive(Debug, EnumProperty, PartialEq, VariantArray)]
-pub(super) enum SoloChain {
-	/// Parachain containing core Polkadot protocol features.
+pub(super) enum Chain {
+	/// Minimal Substrate node configured for smart contracts via pallet-contracts.
 	#[strum(props(
 		Repository = "https://github.com/paritytech/substrate-contracts-node",
 		Binary = "substrate-contracts-node",
 		TagFormat = "{tag}",
 		Fallback = "v0.41.0"
 	))]
-	ContractNode,
+	ContractsNode,
 }
 
-impl TryInto for SoloChain {
+impl TryInto for Chain {
 	/// Attempt the conversion.
 	///
 	/// # Arguments
@@ -65,7 +65,7 @@ impl TryInto for SoloChain {
 		let archive = archive_name_by_target()?;
 		let archive_bin_path = release_folder_by_target()?;
 		Ok(match self {
-			&SoloChain::ContractNode => {
+			&Chain::ContractsNode => {
 				// Source from GitHub release asset
 				let repo = GitHub::parse(self.repository())?;
 				Source::GitHub(ReleaseArchive {
@@ -82,7 +82,7 @@ impl TryInto for SoloChain {
 	}
 }
 
-impl pop_common::sourcing::traits::Source for SoloChain {}
+impl pop_common::sourcing::traits::Source for Chain {}
 
 /// Retrieves the latest release of the contracts node binary, resolves its version, and constructs a `Binary::Source`
 /// with the specified cache path.
@@ -94,7 +94,7 @@ pub async fn contracts_node_generator(
 	cache: PathBuf,
 	version: Option<&str>,
 ) -> Result<Binary, Error> {
-	let chain = &SoloChain::ContractNode;
+	let chain = &Chain::ContractsNode;
 	let name = chain.binary();
 	let releases = chain.releases().await?;
 	let tag = Binary::resolve_version(name, version, &releases, &cache);
@@ -181,7 +181,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn contracts_node_generator_works() -> anyhow::Result<()> {
-		let expected = SoloChain::ContractNode;
+		let expected = Chain::ContractsNode;
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
 		let cache = temp_dir.path().join("cache");
 		let version = "v0.40.0";

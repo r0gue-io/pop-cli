@@ -15,18 +15,18 @@ pub async fn check_contracts_node_and_prompt(skip_confirm: bool) -> anyhow::Resu
 	let mut binary = contracts_node_generator(cache_path, None).await?;
 	let mut node_path = binary.path();
 	if !binary.exists() {
-		warning("The substrate-contracts-node binary is not found.")?;
-		if confirm("Would you like to source the substrate-contracts-node binary?")
+		warning("⚠️ The substrate-contracts-node binary is not found.")?;
+		if confirm("📦 Would you like to source it automatically now?")
 			.initial_value(true)
 			.interact()?
 		{
 			let spinner = spinner();
-			spinner.start("Sourcing substrate-contracts-node...");
+			spinner.start("📦 Sourcing substrate-contracts-node...");
 
 			binary.source(false, &(), true).await?;
 
 			spinner.stop(format!(
-				"substrate-contracts-node successfully sourced. Cached at: {}",
+				"✅ substrate-contracts-node successfully sourced. Cached at: {}",
 				binary.path().to_str().unwrap()
 			));
 			node_path = binary.path();
@@ -34,7 +34,7 @@ pub async fn check_contracts_node_and_prompt(skip_confirm: bool) -> anyhow::Resu
 	}
 	if binary.stale() {
 		log::warning(format!(
-			"ℹ️ There is a newer version available:\n   {} {} -> {}",
+			"ℹ️ There is a newer version of {} available:\n {} -> {}",
 			binary.name(),
 			binary.version().unwrap_or("None"),
 			binary.latest().unwrap_or("None")
@@ -52,13 +52,13 @@ pub async fn check_contracts_node_and_prompt(skip_confirm: bool) -> anyhow::Resu
 		}
 		if latest {
 			let spinner = spinner();
-			spinner.start("Sourcing substrate-contracts-node...");
+			spinner.start("📦 Sourcing substrate-contracts-node...");
 
 			binary.use_latest();
 			binary.source(false, &(), true).await?;
 
 			spinner.stop(format!(
-				"substrate-contracts-node successfully sourced. Cached at: {}",
+				"✅ substrate-contracts-node successfully sourced. Cached at: {}",
 				binary.path().to_str().unwrap()
 			));
 			node_path = binary.path();
