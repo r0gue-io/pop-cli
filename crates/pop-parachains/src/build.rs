@@ -211,7 +211,7 @@ fn replace_para_id(chain_spec: PathBuf, para_id: u32, generated_para_id: u32) ->
 /// Replaces the generated relay spec name with the given one in an existing chain spec.
 /// # Arguments
 /// * `chain_spec` - The path to the specification to be modified.
-/// * `relay_name` - The new value for the relay chian field in the specification.
+/// * `relay_name` - The new value for the relay chain field in the specification.
 /// * `generated_relay_name` - The relay chain value the specification currently has.
 pub fn replace_relay_spec(
 	chain_spec: &PathBuf,
