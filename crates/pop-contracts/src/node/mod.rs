@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0
+
 use contract_extrinsics::{RawParams, RpcRequest};
 use pop_common::{
 	sourcing::{
