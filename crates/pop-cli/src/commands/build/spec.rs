@@ -6,8 +6,7 @@ use cliclack::{confirm, input};
 use pop_common::Profile;
 use pop_parachains::{
 	binary_path, build_parachain, export_wasm_file, generate_genesis_state_file,
-	generate_plain_chain_spec, generate_raw_chain_spec, is_supported, replace_chain_type,
-	replace_protocol_id, replace_relay_spec,
+	generate_plain_chain_spec, generate_raw_chain_spec, is_supported, ChainSpec,
 };
 use std::{env::current_dir, fs::create_dir_all, path::PathBuf};
 #[cfg(not(test))]
@@ -190,7 +189,7 @@ impl BuildSpecCommand {
 	/// # Arguments
 	/// * `cli` - The CLI implementation to be used.
 	fn build(self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<&'static str> {
-		cli.intro(format!("Building your chain spec"))?;
+		cli.intro("Building your chain spec")?;
 
 		// Either a para id was already provided or user has been guided to provide one.
 		let para_id = self.id.unwrap_or(DEFAUTL_PARA_ID_VALUE);
@@ -239,21 +238,24 @@ impl BuildSpecCommand {
 		spinner.set_message("Generating plain chain specification...");
 		let mut generated_files =
 			vec![format!("Specification and artifacts generated at: {}", &output_path.display())];
-		generate_plain_chain_spec(&binary_path, &plain_chain_spec, para_id, self.default_bootnode)?;
+		generate_plain_chain_spec(&binary_path, &plain_chain_spec, self.default_bootnode)?;
 		generated_files.push(format!(
 			"Plain text chain specification file generated at: {}",
 			plain_chain_spec.display()
 		));
 
 		// Customize spec based on input.
+		let mut chain_spec = ChainSpec::from(&plain_chain_spec)?;
+		chain_spec.replace_para_id(para_id);
 		let relay = self.relay.unwrap_or(RelayChain::PaseoLocal).to_string();
-		replace_relay_spec(&plain_chain_spec, &relay, "rococo-local")?;
+		chain_spec.replace_relay_chain(&relay);
 		let chain_type = self.chain_type.unwrap_or(ChainType::Development).to_string();
-		replace_chain_type(&plain_chain_spec, &chain_type, "Local")?;
+		chain_spec.replace_chain_type(&chain_type);
 		if self.protocol_id.is_some() {
 			let protocol_id = self.protocol_id.unwrap_or("template-local".to_string());
-			replace_protocol_id(&plain_chain_spec, &protocol_id, "template-local")?;
+			chain_spec.replace_protocol_id(&protocol_id);
 		}
+		chain_spec.to_file(&plain_chain_spec)?;
 
 		// Generate raw spec.
 		spinner.set_message("Generating raw chain specification...");

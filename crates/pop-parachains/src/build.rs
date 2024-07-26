@@ -3,12 +3,12 @@
 use crate::Error;
 use anyhow::Result;
 use duct::cmd;
-use pop_common::{manifest::from_path, replace_in_file, Profile};
-use serde_json::Value;
+use pop_common::{manifest::from_path, Profile};
+use serde_json::{json, Value};
 use std::{
-	collections::HashMap,
 	fs,
 	path::{Path, PathBuf},
+	str::FromStr,
 };
 
 /// Build the parachain and returns the path to the binary.
@@ -41,7 +41,7 @@ pub fn build_parachain(
 /// # Arguments
 /// * `path` - The optional path to the manifest, defaulting to the current directory if not specified.
 pub fn is_supported(path: Option<&Path>) -> Result<bool, Error> {
-	let manifest = pop_common::manifest::from_path(path)?;
+	let manifest = from_path(path)?;
 	// Simply check for a parachain dependency
 	const DEPENDENCIES: [&str; 4] =
 		["cumulus-client-collator", "cumulus-primitives-core", "parachains-common", "polkadot-sdk"];
@@ -71,12 +71,10 @@ pub fn binary_path(target_path: &Path, node_path: &Path) -> Result<PathBuf, Erro
 /// # Arguments
 /// * `binary_path` - The path to the node binary executable that contains the `build-spec` command.
 /// * `plain_chain_spec` - Location of the plain_parachain_spec file to be generated.
-/// * `para_id` - The parachain ID to be replaced in the specification.
 /// * `default_bootnode` - Whether to include localhost as a bootnode.
 pub fn generate_plain_chain_spec(
 	binary_path: &Path,
 	plain_chain_spec: &Path,
-	para_id: u32,
 	default_bootnode: bool,
 ) -> Result<(), Error> {
 	check_command_exists(&binary_path, "build-spec")?;
@@ -85,8 +83,6 @@ pub fn generate_plain_chain_spec(
 		args.push("--disable-default-bootnode");
 	}
 	cmd(binary_path, args).stdout_path(plain_chain_spec).stderr_null().run()?;
-	let generated_para_id = get_parachain_id(plain_chain_spec)?.unwrap_or(para_id.into()) as u32;
-	replace_para_id(plain_chain_spec.to_path_buf(), para_id, generated_para_id)?;
 	Ok(())
 }
 
@@ -184,87 +180,6 @@ pub fn generate_genesis_state_file(
 	Ok(genesis_file)
 }
 
-/// Get the parachain id from the chain specification file.
-fn get_parachain_id(chain_spec: &Path) -> Result<Option<u64>> {
-	let data = fs::read_to_string(chain_spec)?;
-	let value = serde_json::from_str::<Value>(&data)?;
-	Ok(value.get("para_id").and_then(Value::as_u64))
-}
-
-/// Replaces the generated parachain id in the chain specification file with the provided para_id.
-/// # Arguments
-/// * `chain_spec` - The path to the specification to be modified.
-/// * `para_id` - The new value for the para_id.
-/// * `generated_para_id` - The para_id the specification currently has.
-fn replace_para_id(chain_spec: PathBuf, para_id: u32, generated_para_id: u32) -> Result<()> {
-	let mut replacements_in_cargo: HashMap<&str, &str> = HashMap::new();
-	let old_para_id = format!("\"para_id\": {generated_para_id}");
-	let new_para_id = format!("\"para_id\": {para_id}");
-	replacements_in_cargo.insert(&old_para_id, &new_para_id);
-	let old_parachain_id = format!("\"parachainId\": {generated_para_id}");
-	let new_parachain_id = format!("\"parachainId\": {para_id}");
-	replacements_in_cargo.insert(&old_parachain_id, &new_parachain_id);
-	replace_in_file(chain_spec, replacements_in_cargo)?;
-	Ok(())
-}
-
-/// Replaces the generated relay spec name with the given one in an existing chain spec.
-/// # Arguments
-/// * `chain_spec` - The path to the specification to be modified.
-/// * `relay_name` - The new value for the relay chain field in the specification.
-/// * `generated_relay_name` - The relay chain value the specification currently has.
-pub fn replace_relay_spec(
-	chain_spec: &PathBuf,
-	relay_name: &str,
-	generated_relay_name: &str,
-) -> Result<()> {
-	let mut replacements: HashMap<&str, &str> = HashMap::new();
-	let old_relay_name = format!("\"relay_chain\": \"{generated_relay_name}\"");
-	let new_relay_name = format!("\"relay_chain\": \"{relay_name}\"");
-	replacements.insert(&old_relay_name, &new_relay_name);
-	let chain_spec_path = PathBuf::from(chain_spec);
-	replace_in_file(chain_spec_path, replacements)?;
-	Ok(())
-}
-
-/// Replaces the generated chain type with the given one in an existing chain spec.
-/// # Arguments
-/// * `chain_spec` - The path to the specification to be modified.
-/// * `chain_type` - The new value for the chain type.
-/// * `generated_chain_type` - The chain_type the specification currently has.
-pub fn replace_chain_type(
-	chain_spec: &PathBuf,
-	chain_type: &str,
-	generated_chain_type: &str,
-) -> Result<()> {
-	let mut replacements: HashMap<&str, &str> = HashMap::new();
-	let old_chain_type = format!("\"chainType\": \"{generated_chain_type}\"");
-	let new_chain_type = format!("\"chainType\": \"{chain_type}\"");
-	replacements.insert(&old_chain_type, &new_chain_type);
-	let chain_spec_path = PathBuf::from(chain_spec);
-	replace_in_file(chain_spec_path, replacements)?;
-	Ok(())
-}
-
-/// Replaces the generated protocolId with the given one in an existing chain spec.
-/// # Arguments
-/// * `chain_spec` - The path to the specification to be modified.
-/// * `protocol_id` - The new value for the protocolId of the given specification.
-/// * `generated_protocol_id` - The protocolId the specification currently has.
-pub fn replace_protocol_id(
-	chain_spec: &PathBuf,
-	protocol_id: &str,
-	generated_protocol_id: &str,
-) -> Result<()> {
-	let mut replacements: HashMap<&str, &str> = HashMap::new();
-	let old_protocol_id = format!("\"protocolId\": \"{generated_protocol_id}\"");
-	let new_protocol_id = format!("\"protocolId\": \"{protocol_id}\"");
-	replacements.insert(&old_protocol_id, &new_protocol_id);
-	let chain_spec_path = PathBuf::from(chain_spec);
-	replace_in_file(chain_spec_path, replacements)?;
-	Ok(())
-}
-
 /// Checks if a given command exists and can be executed by running it with the "--help" argument.
 fn check_command_exists(binary_path: &Path, command: &str) -> Result<(), Error> {
 	cmd(binary_path, vec![command, "--help"]).stdout_null().run().map_err(|_err| {
@@ -276,6 +191,92 @@ fn check_command_exists(binary_path: &Path, command: &str) -> Result<(), Error> 
 	Ok(())
 }
 
+/// A chain specification.
+pub struct ChainSpec(Value);
+impl ChainSpec {
+	/// Parses a chain specification from a path.
+	///
+	/// # Arguments
+	/// * `path` - The path to a chain specification file.
+	pub fn from(path: &Path) -> Result<ChainSpec> {
+		Ok(ChainSpec(Value::from_str(&std::fs::read_to_string(path)?)?))
+	}
+
+	/// Get the parachain id from the chain specification file.
+	fn get_parachain_id(&self) -> Option<u64> {
+		self.0.get("para_id").and_then(|v| v.as_u64())
+	}
+
+	/// Replaces the parachain id with the provided `para_id`.
+	///
+	/// # Arguments
+	/// * `para_id` - The new value for the para_id.
+	pub fn replace_para_id(&mut self, para_id: u32) {
+		// Replace para_id
+		let replace = self.0.get_mut("para_id").expect("expected `para_id`");
+		*replace = json!(para_id);
+
+		// Replace genesis.runtimeGenesis.patch.parachainInfo.parachainId
+		let replace = self
+			.0
+			.get_mut("genesis")
+			.expect("expected `genesis`")
+			.get_mut("runtimeGenesis")
+			.expect("expected `runtimeGenesis`")
+			.get_mut("patch")
+			.expect("expected `patch`")
+			.get_mut("parachainInfo")
+			.expect("expected `parachainInfo`")
+			.get_mut("parachainId")
+			.expect("expected `parachainInfo.parachainId`");
+		*replace = json!(para_id);
+	}
+
+	/// Replaces the relay chain name with the given one.
+	///
+	/// # Arguments
+	/// * `relay_name` - The new value for the relay chain field in the specification.
+	pub fn replace_relay_chain(&mut self, relay_name: &str) {
+		// Replace relay_chain
+		let replace = self.0.get_mut("relay_chain").expect("expected `relay_chain`");
+		*replace = json!(relay_name);
+	}
+
+	/// Replaces the chain type with the given one.
+	///
+	/// # Arguments
+	/// * `chain_type` - The new value for the chain type.
+	pub fn replace_chain_type(&mut self, chain_type: &str) {
+		// Replace chainType
+		let replace = self.0.get_mut("chainType").expect("expected `chainType`");
+		*replace = json!(chain_type);
+	}
+
+	/// Replaces the protocol ID with the given one.
+	///
+	/// # Arguments
+	/// * `protocol_id` - The new value for the protocolId of the given specification.
+	pub fn replace_protocol_id(&mut self, protocol_id: &str) {
+		// Replace protocolId
+		let replace = self.0.get_mut("protocolId").expect("expected `protocolId`");
+		*replace = json!(protocol_id);
+	}
+
+	/// Converts the chain specification to a string.
+	pub fn to_string(&self) -> Result<String> {
+		Ok(serde_json::to_string_pretty(&self.0)?)
+	}
+
+	/// Writes the chain specification to a file.
+	///
+	/// # Arguments
+	/// * `path` - The path to the chain specification file.
+	pub fn to_file(&self, path: &Path) -> Result<()> {
+		fs::write(path, self.to_string()?)?;
+		Ok(())
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -283,7 +284,7 @@ mod tests {
 		new_parachain::instantiate_standard_template, templates::Parachain, Config, Zombienet,
 	};
 	use anyhow::Result;
-	use pop_common::manifest::{self, Dependency};
+	use pop_common::manifest::Dependency;
 	use std::{
 		fs,
 		fs::{metadata, write},
@@ -294,7 +295,7 @@ mod tests {
 	use tempfile::{tempdir, Builder};
 
 	fn setup_template_and_instantiate() -> Result<tempfile::TempDir> {
-		let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
+		let temp_dir = tempdir().expect("Failed to create temp dir");
 		let config = Config {
 			symbol: "DOT".to_string(),
 			decimals: 18,
@@ -365,12 +366,12 @@ default_command = "pop-node"
 	fn replace_mock_with_binary(temp_dir: &Path, binary_name: String) -> Result<PathBuf, Error> {
 		let binary_path = temp_dir.join(binary_name);
 		let content = fs::read(&binary_path)?;
-		fs::write(temp_dir.join("target/release/parachain-template-node"), content)?;
+		write(temp_dir.join("target/release/parachain-template-node"), content)?;
 		// Make executable
 		let mut perms =
 			metadata(temp_dir.join("target/release/parachain-template-node"))?.permissions();
 		perms.set_mode(0o755);
-		std::fs::set_permissions(temp_dir.join("target/release/parachain-template-node"), perms)?;
+		fs::set_permissions(temp_dir.join("target/release/parachain-template-node"), perms)?;
 		Ok(binary_path)
 	}
 
@@ -417,7 +418,7 @@ default_command = "pop-node"
 	}
 
 	#[tokio::test]
-	async fn generate_files_works() -> anyhow::Result<()> {
+	async fn generate_files_works() -> Result<()> {
 		let temp_dir =
 			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
 		mock_build_process(temp_dir.path())?;
@@ -428,10 +429,14 @@ default_command = "pop-node"
 		generate_plain_chain_spec(
 			&binary_path,
 			&temp_dir.path().join("plain-parachain-chainspec.json"),
-			2001,
 			true,
 		)?;
 		assert!(plain_chain_spec.exists());
+		{
+			let mut chain_spec = ChainSpec::from(&plain_chain_spec)?;
+			chain_spec.replace_para_id(2001);
+			chain_spec.to_file(&plain_chain_spec)?;
+		}
 		let raw_chain_spec = generate_raw_chain_spec(
 			&binary_path,
 			&plain_chain_spec,
@@ -491,140 +496,67 @@ default_command = "pop-node"
 
 	#[test]
 	fn get_parachain_id_works() -> Result<()> {
-		let mut file = tempfile::NamedTempFile::new()?;
-		writeln!(file, r#"{{ "name": "Local Testnet", "para_id": 2002 }}"#)?;
-		let get_parachain_id = get_parachain_id(&file.path())?;
-		assert_eq!(get_parachain_id, Some(2002));
+		let chain_spec = ChainSpec(json!({
+			"para_id": 2002,
+		}));
+		assert_eq!(chain_spec.get_parachain_id(), Some(2002));
 		Ok(())
 	}
 
 	#[test]
 	fn replace_para_id_works() -> Result<()> {
-		let temp_dir = tempfile::tempdir()?;
-		let file_path = temp_dir.path().join("chain-spec.json");
-		let mut file = fs::File::create(temp_dir.path().join("chain-spec.json"))?;
-		writeln!(
-			file,
-			r#"
-				"name": "Local Testnet",
-				"para_id": 1000,
-				"parachainInfo": {{
-					"parachainId": 1000
-				}},
-			"#
-		)?;
-		replace_para_id(file_path.clone(), 2001, 1000)?;
-		let content = fs::read_to_string(file_path).expect("Could not read file");
+		let mut chain_spec = ChainSpec(json!({
+			"para_id": 1000,
+			"genesis": {
+				"runtimeGenesis": {
+					"patch": {
+						"parachainInfo": {
+							"parachainId": 1000
+						}
+					}
+				}
+			},
+		}));
+		chain_spec.replace_para_id(2001);
 		assert_eq!(
-			content.trim(),
-			r#"
-				"name": "Local Testnet",
+			chain_spec.0,
+			json!({
 				"para_id": 2001,
-				"parachainInfo": {
-					"parachainId": 2001
+				"genesis": {
+					"runtimeGenesis": {
+						"patch": {
+							"parachainInfo": {
+								"parachainId": 2001
+							}
+						}
+					}
 				},
-			"#
-			.trim()
+			})
 		);
 		Ok(())
 	}
 
 	#[test]
-	fn replace_relay_spec_works() -> Result<()> {
-		let temp_dir = tempfile::tempdir()?;
-		let file_path = temp_dir.path().join("chain-spec.json");
-		let mut file = fs::File::create(temp_dir.path().join("chain-spec.json"))?;
-		writeln!(
-			file,
-			r#"
-				"name": "Local Testnet",
-				"para_id": 1000,
-				"parachainInfo": {{
-					"parachainId": 1000
-				}},
-				"relay_chain": "old-relay",
-			"#
-		)?;
-		replace_relay_spec(&file_path.clone(), "new-relay", "old-relay")?;
-		let content = fs::read_to_string(file_path).expect("Could not read file");
-		assert_eq!(
-			content.trim(),
-			r#"
-				"name": "Local Testnet",
-				"para_id": 1000,
-				"parachainInfo": {
-					"parachainId": 1000
-				},
-				"relay_chain": "new-relay",
-			"#
-			.trim()
-		);
+	fn replace_relay_chain_works() -> Result<()> {
+		let mut chain_spec = ChainSpec(json!({"relay_chain": "old-relay"}));
+		chain_spec.replace_relay_chain("new-relay");
+		assert_eq!(chain_spec.0, json!({"relay_chain": "new-relay"}));
 		Ok(())
 	}
 
 	#[test]
 	fn replace_chain_type_works() -> Result<()> {
-		let temp_dir = tempfile::tempdir()?;
-		let file_path = temp_dir.path().join("chain-spec.json");
-		let mut file = fs::File::create(temp_dir.path().join("chain-spec.json"))?;
-		writeln!(
-			file,
-			r#"
-				"name": "Local Testnet",
-				"para_id": 1000,
-				"parachainInfo": {{
-					"parachainId": 1000
-				}},
-				"chainType": "old-chainType",
-			"#
-		)?;
-		replace_chain_type(&file_path.clone(), "new-chainType", "old-chainType")?;
-		let content = fs::read_to_string(file_path).expect("Could not read file");
-		assert_eq!(
-			content.trim(),
-			r#"
-				"name": "Local Testnet",
-				"para_id": 1000,
-				"parachainInfo": {
-					"parachainId": 1000
-				},
-				"chainType": "new-chainType",
-			"#
-			.trim()
-		);
+		let mut chain_spec = ChainSpec(json!({"chainType": "old-chainType"}));
+		chain_spec.replace_chain_type("new-chainType");
+		assert_eq!(chain_spec.0, json!({"chainType": "new-chainType"}));
 		Ok(())
 	}
 
 	#[test]
 	fn replace_protocol_id_works() -> Result<()> {
-		let temp_dir = tempfile::tempdir()?;
-		let file_path = temp_dir.path().join("chain-spec.json");
-		let mut file = fs::File::create(temp_dir.path().join("chain-spec.json"))?;
-		writeln!(
-			file,
-			r#"
-				"name": "Local Testnet",
-				"para_id": 1000,
-				"parachainInfo": {{
-					"parachainId": 1000
-				}},
-				"protocolId": "old-protocolId",
-			"#
-		)?;
-		replace_protocol_id(&file_path.clone(), "new-protocolId", "old-protocolId")?;
-		let content = fs::read_to_string(file_path).expect("Could not read file");
-		assert_eq!(
-			content.trim(),
-			r#"
-				"name": "Local Testnet",
-				"para_id": 1000,
-				"parachainInfo": {
-					"parachainId": 1000
-				},
-				"protocolId": "new-protocolId",
-			"#
-			.trim()
-		);
+		let mut chain_spec = ChainSpec(json!({"protocolId": "old-protocolId"}));
+		chain_spec.replace_protocol_id("new-protocolId");
+		assert_eq!(chain_spec.0, json!({"protocolId": "new-protocolId"}));
 		Ok(())
 	}
 
@@ -641,8 +573,8 @@ default_command = "pop-node"
 	}
 
 	#[test]
-	fn is_supported_works() -> anyhow::Result<()> {
-		let temp_dir = tempfile::tempdir()?;
+	fn is_supported_works() -> Result<()> {
+		let temp_dir = tempdir()?;
 		let path = temp_dir.path();
 
 		// Standard rust project
@@ -651,7 +583,7 @@ default_command = "pop-node"
 		assert!(!is_supported(Some(&path.join(name)))?);
 
 		// Parachain
-		let mut manifest = manifest::from_path(Some(&path.join(name)))?;
+		let mut manifest = from_path(Some(&path.join(name)))?;
 		manifest
 			.dependencies
 			.insert("cumulus-client-collator".into(), Dependency::Simple("^0.14.0".into()));
