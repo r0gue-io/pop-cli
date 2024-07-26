@@ -68,18 +68,6 @@ pub(crate) enum ChainType {
 /// Supported relay chains that can be included in the resulting chain spec.
 pub(crate) enum RelayChain {
 	#[strum(
-		serialize = "westend",
-		message = "Westend",
-		detailed_message = "Parity's test network for protocol testing."
-	)]
-	Westend,
-	#[strum(
-		serialize = "westend-local",
-		message = "Westend Local",
-		detailed_message = "Local configuration for Westend network."
-	)]
-	WestendLocal,
-	#[strum(
 		serialize = "paseo",
 		message = "Paseo",
 		detailed_message = "Polkadot's community testnet."
@@ -92,6 +80,18 @@ pub(crate) enum RelayChain {
 		detailed_message = "Local configuration for Paseo network."
 	)]
 	PaseoLocal,
+	#[strum(
+		serialize = "westend",
+		message = "Westend",
+		detailed_message = "Parity's test network for protocol testing."
+	)]
+	Westend,
+	#[strum(
+		serialize = "westend-local",
+		message = "Westend Local",
+		detailed_message = "Local configuration for Westend network."
+	)]
+	WestendLocal,
 	#[strum(
 		serialize = "kusama",
 		message = "Kusama",
@@ -281,6 +281,7 @@ impl BuildSpecCommand {
 			));
 		}
 
+		cli.intro(format!("Building your chain spec"))?;
 		let generated_files: Vec<_> = generated_files
 			.iter()
 			.map(|s| style(format!("{} {s}", console::Emoji("●", ">"))).dim().to_string())
