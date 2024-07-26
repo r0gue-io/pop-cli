@@ -384,7 +384,7 @@ async fn guide_user_to_generate_spec() -> anyhow::Result<BuildSpecCommand> {
 
 	let relay_chain = prompt.interact()?.clone();
 
-	// Prompt for default bootnode if chian type is Local or Live.
+	// Prompt for default bootnode if chain type is Local or Live.
 	let default_bootnode = match chain_type {
 		ChainType::Development => true,
 		_ => confirm(format!("Would you like to use local host as a bootnode ?")).interact()?,
