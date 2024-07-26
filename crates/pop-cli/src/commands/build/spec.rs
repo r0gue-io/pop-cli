@@ -15,7 +15,7 @@ use std::{thread::sleep, time::Duration};
 use strum::{EnumMessage, EnumProperty, VariantArray};
 use strum_macros::{AsRefStr, Display, EnumString};
 
-const DEFAULT_SPEC_NAME: &str = "template-chain-spec.json";
+const DEFAULT_SPEC_NAME: &str = "chain-spec.json";
 const DEFAULT_PARA_ID: &str = "2000";
 
 #[derive(
