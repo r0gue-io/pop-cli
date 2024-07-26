@@ -48,7 +48,7 @@ pub(crate) enum Command {
 	#[cfg(feature = "contract")]
 	#[clap(alias = "c")]
 	Contract(BuildContractCommand),
-	/// Build a chain' specification and its genesis artifacts.
+	/// Build a chain specification and its genesis artifacts.
 	#[cfg(feature = "parachain")]
 	#[clap(alias = "s")]
 	Spec(BuildSpecCommand),
