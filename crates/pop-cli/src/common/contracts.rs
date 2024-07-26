@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use cliclack::{
-	confirm,
-	log::{self, warning},
-	spinner,
-};
+use cliclack::{confirm, log::warning, spinner};
 use pop_contracts::contracts_node_generator;
 use std::path::PathBuf;
 
@@ -35,7 +31,7 @@ pub async fn check_contracts_node_and_prompt(skip_confirm: bool) -> anyhow::Resu
 		}
 	}
 	if binary.stale() {
-		log::warning(format!(
+		warning(format!(
 			"ℹ️ There is a newer version of {} available:\n {} -> {}",
 			binary.name(),
 			binary.version().unwrap_or("None"),
