@@ -68,25 +68,17 @@ pub(crate) enum ChainType {
 /// Supported relay chains that can be included in the resulting chain spec.
 pub(crate) enum RelayChain {
 	#[strum(
-		serialize = "kusama",
-		message = "Kusama",
-		detailed_message = "Polkadot's canary network."
+		serialize = "westend",
+		message = "Westend",
+		detailed_message = "Parity's test network for protocol testing."
 	)]
-	Kusama,
+	Westend,
 	#[strum(
-		serialize = "kusama-local",
-		message = "Kusama Local",
-		detailed_message = "Local configuration for Kusama network."
+		serialize = "westend-local",
+		message = "Westend Local",
+		detailed_message = "Local configuration for Westend network."
 	)]
-	KusamaLocal,
-	#[strum(serialize = "rococo", message = "Rococo", detailed_message = "Parity's test network.")]
-	Rococo,
-	#[strum(
-		serialize = "rococo-local",
-		message = "Rococo Local",
-		detailed_message = "Local configuration for Rococo network."
-	)]
-	RococoLocal,
+	WestendLocal,
 	#[strum(
 		serialize = "paseo",
 		message = "Paseo",
@@ -100,6 +92,18 @@ pub(crate) enum RelayChain {
 		detailed_message = "Local configuration for Paseo network."
 	)]
 	PaseoLocal,
+	#[strum(
+		serialize = "kusama",
+		message = "Kusama",
+		detailed_message = "Polkadot's canary network."
+	)]
+	Kusama,
+	#[strum(
+		serialize = "kusama-local",
+		message = "Kusama Local",
+		detailed_message = "Local configuration for Kusama network."
+	)]
+	KusamaLocal,
 	#[strum(
 		serialize = "polkadot",
 		message = "Polkadot",
@@ -181,7 +185,7 @@ impl BuildSpecCommand {
 		let para_id = self.id.unwrap_or(2000);
 		// Notify user in case we need to build the parachain project.
 		if !self.release {
-			cli.warning("NOTE: this command defaults to DEBUG builds for development chain types. Please use `--release` (or simply `-r` for a release build...")?;
+			cli.warning("NOTE: this command defaults to DEBUG builds for development chain types. Please use `--release` (or simply `-r` for a release build...)")?;
 			#[cfg(not(test))]
 			sleep(Duration::from_secs(3))
 		}
@@ -242,10 +246,12 @@ impl BuildSpecCommand {
 
 		// Generate raw spec.
 		spinner.set_message("Generating raw chain specification...");
-		let raw_spec_name = plain_chain_spec
+		let spec_name = plain_chain_spec
 			.file_name()
 			.and_then(|s| s.to_str())
-			.unwrap_or(DEFAULT_SPEC_NAME);
+			.unwrap_or(DEFAULT_SPEC_NAME)
+			.trim_end_matches(".json");
+		let raw_spec_name = format!("{spec_name}-raw.json");
 		let raw_chain_spec =
 			generate_raw_chain_spec(&binary_path, &plain_chain_spec, &raw_spec_name)?;
 		generated_files.push(format!(
@@ -275,7 +281,6 @@ impl BuildSpecCommand {
 			));
 		}
 
-		console::Term::stderr().clear_last_lines(1)?;
 		let generated_files: Vec<_> = generated_files
 			.iter()
 			.map(|s| style(format!("{} {s}", console::Emoji("●", ">"))).dim().to_string())
@@ -295,7 +300,7 @@ async fn guide_user_to_generate_spec() -> anyhow::Result<BuildSpecCommand> {
 	Cli.intro("Generate your chain spec")?;
 
 	// Confirm output path
-	let output_file: String = input("Name of the chain spec file. If a path is given, the necessary directories will be created:")
+	let output_file: String = input("Name of the plain chain spec file. If a path is given, the necessary directories will be created:")
 		.placeholder("./template-chain-spec.json")
 		.default_input("./template-chain-spec.json")
 		.interact()?;

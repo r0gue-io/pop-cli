@@ -105,10 +105,7 @@ pub fn generate_raw_chain_spec(
 		return Err(Error::MissingChainSpec(plain_chain_spec.display().to_string()));
 	}
 	check_command_exists(&binary_path, "build-spec")?;
-	let raw_chain_spec = plain_chain_spec
-		.parent()
-		.unwrap_or(Path::new("./"))
-		.join(format!("raw-{}", chain_spec_file_name));
+	let raw_chain_spec = plain_chain_spec.with_file_name(chain_spec_file_name);
 	cmd(
 		binary_path,
 		vec![
