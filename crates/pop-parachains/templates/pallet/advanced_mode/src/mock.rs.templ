@@ -1,7 +1,7 @@
 {{- let using_runtime_event = pallet_common_types|contains(TemplatePalletConfigCommonTypes::RuntimeEvent) -}}
 {{- let using_runtime_origin = pallet_common_types|contains(TemplatePalletConfigCommonTypes::RuntimeOrigin) -}}
 {{- let using_currency = pallet_common_types|contains(TemplatePalletConfigCommonTypes::Currency) -}}
-use crate::{self as ^^name^^, frame_system::mocking::Mock};
+use crate::{self as ^^name^^, frame_system::{mocking::MockBlock, GenesisConfig}};
 
 use frame::{
 	deps::frame_support::{
@@ -148,7 +148,7 @@ impl StateBuilder {
 }
 
 pub fn new_test_ext() -> sp_io::TestExternalities {
-	crate::frame_system::GenesisConfig::<Test>::default()
+	GenesisConfig::<Test>::default()
 		.build_storage()
 		.unwrap()
 		.into()

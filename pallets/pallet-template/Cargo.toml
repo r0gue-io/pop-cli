@@ -1,8 +1,7 @@
-{{- let using_currency = pallet_common_types|contains(TemplatePalletConfigCommonTypes::Currency) -}}
 [package]
-name = "pallet-^^name^^"
-authors = ["^^authors^^"]
-description = "^^description^^"
+name = "pallet-pallet_template"
+authors = ["Anonymous"]
+description = "Frame Pallet"
 version = "0.1.0"
 license = "Unlicense"
 edition = "2021"
@@ -25,10 +24,7 @@ sp-io = { version = "36.0.0", default-features = false }
 sp-runtime = { version = "37.0.0", default-features = false }
 sp-std = { version = "14.0.0", default-features = false }
 
-{{ if using_currency }}
-[dev-dependencies]
-pallet-balances = { version = "35.0.0" }
-{{- endif }}
+
 
 [features]
 default = ["std"]

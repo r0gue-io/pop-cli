@@ -4,7 +4,7 @@
 //! # ^^name^^ pallet
 //! Please, document your pallet properly
 //! Learn more about everything related to Polkadot SDK development at <https://paritytech.github.io/polkadot-sdk/master/polkadot_sdk_docs/index.html>. Everythin's there!
-//! - [`Config]
+//! - [`Config`]
 //! - [`Call`]
 #![cfg_attr(not(feature = "std"), no_std)]
 
@@ -32,15 +32,7 @@ mod tests;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
-// Some useful links:
-// FRAME: <https://paritytech.github.io/polkadot-sdk/master/polkadot_sdk_docs/polkadot_sdk/frame_runtime/index.html>
-{{- if using_runtime_event || using_runtime_origin }}
-// About FRAME runtime types: <https://paritytech.github.io/polkadot-sdk/master/polkadot_sdk_docs/reference_docs/frame_runtime_types/index.html>
-{{- endif }}
-// First pallet tutorial: <https://paritytech.github.io/polkadot-sdk/master/polkadot_sdk_docs/guides/your_first_pallet/index.html>
-
-// More about pallet macros: <https://paritytech.github.io/polkadot-sdk/master/frame_support/pallet_macros/index.html>
-#[frame_support::pallet]
+#[frame::pallet]
 pub mod pallet {
 	use super::*;
 
@@ -62,16 +54,6 @@ pub mod pallet {
 	}
     {{- endif }}
 
-    /// A helpful struct. You can use this struct as a value in the pallet's storage. It helps store related information together. It's possible to store a SCALE compact number using this kind of struct as well :)
-    #[derive(TypeInfo, Encode, Decode, MaxEncodedLen, PartialEq, RuntimeDebugNoBound)]
-	#[scale_info(skip_type_params(T))]
-	pub struct SomeHelpfulStruct<T: Config> {
-		pub account_id: T::AccountId,
-		#[codec(compact)]
-		pub number: u32,
-	}
-
-
     #[pallet::pallet]
 	pub struct Pallet<T>(_);
     {{ if pallet_default_config }}
@@ -88,12 +70,12 @@ pub mod pallet {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
         {{- endif }}
 
-        {{ if using_runtime_origin }}
+        {{ if using_runtime_origin || pallet_custom_origin }}
         /// The aggregated origin type of the runtime.
         {{- if pallet_default_config }}
         #[pallet::no_default_bounds]
         {{- endif -}}
-        {{- if !pallet_custom_internal_origin_variants.is_empty() }}
+        {{- if pallet_custom_origin }}
         type RuntimeOrigin: From<OriginFor<Self>> + From<Origin<Self>> + Into<Result<Origin<Self>,RuntimeLocalOrigin<Self>>>;
         {{- else }}
         type RuntimeOrigin: From<OriginFor<Self>>;
@@ -114,7 +96,6 @@ pub mod pallet {
 		type RuntimeFreezeReason: VariantCount;
         
         /// Type to access the native currency of the blockchain
-        /// About the fungible traits <https://paritytech.github.io/polkadot-sdk/master/frame_support/traits/tokens/fungible/index.html>
         {{- if pallet_default_config }}
         #[pallet::no_default]
         {{- endif }}
@@ -150,19 +131,19 @@ pub mod pallet {
     #[pallet::storage]
     {{- match storage.0 -}}
     {{- when TemplatePalletStorageTypes::StorageValue }}
-    pub type ^^storage.1^^ = StorageValue<Value = todo!()>;
+    pub type ^^storage.1^^<T: Config> = StorageValue<Value = todo!()>;
 
     {{ when TemplatePalletStorageTypes::StorageMap }}
-    pub type ^^storage.1^^ = StorageMap<todo!(), Key = todo!(), Value = todo!()>;
+    pub type ^^storage.1^^<T: Config> = StorageMap<Hasher = todo!(), Key = todo!(), Value = todo!()>;
 
     {{ when TemplatePalletStorageTypes::CountedStorageMap }}
-    pub type ^^storage.1^^ = CountedStorageMap<Hasher = todo!(), Key = todo!(), Value = todo!()>;
+    pub type ^^storage.1^^<T: Config> = CountedStorageMap<Hasher = todo!(), Key = todo!(), Value = todo!()>;
 
     {{ when TemplatePalletStorageTypes::StorageDoubleMap }}
-    pub type ^^storage.1^^ = StorageDoubleMap<Hasher1 = todo!(), Key1 = todo!(), Hasher2 = todo!(), Key2 = todo!(), Value = todo!()>;
+    pub type ^^storage.1^^<T: Config> = StorageDoubleMap<Hasher1 = todo!(), Key1 = todo!(), Hasher2 = todo!(), Key2 = todo!(), Value = todo!()>;
 
     {{ when TemplatePalletStorageTypes::StorageNMap }}
-    pub type ^^storage.1^^= StorageNMap<
+    pub type ^^storage.1^^<T: Config>= StorageNMap<
         Key = (
             NMapKey<todo!(), todo!()>,
             NMapKey<todo!(), todo!()>,
@@ -172,7 +153,7 @@ pub mod pallet {
     >;
 
     {{ when TemplatePalletStorageTypes::CountedStorageNMap }}
-    pub type ^^storage.1^^ = CountedStorageNMap<
+    pub type ^^storage.1^^<T: Config> = CountedStorageNMap<
         Key = (
             NMapKey<todo!(), todo!()>,
             NMapKey<todo!(), todo!()>,
@@ -200,7 +181,6 @@ pub mod pallet {
     }
 
     {{ if pallet_genesis }}
-    // About genesis config: <https://paritytech.github.io/polkadot-sdk/master/polkadot_sdk_docs/reference_docs/chain_spec_genesis/index.html>
     #[pallet::genesis_config]
     pub struct GenesisConfig<T: Config> {
         /// This is just an example of genesis configuration, don't neeed to use a bool
@@ -218,12 +198,11 @@ pub mod pallet {
 
     {{ endif -}}
 
-    {{- if !pallet_custom_internal_origin_variants.is_empty() }}
-    // About custom origins: <https://paritytech.github.io/polkadot-sdk/master/polkadot_sdk_docs/reference_docs/frame_origin/index.html>
+    {{- if pallet_custom_origin }}
     #[pallet::origin]
     #[derive(PartialEq, Eq, Clone, RuntimeDebug, Encode, Decode, TypeInfo, MaxEncodedLen)]
     pub enum Origin<T:Config> {
-        {{- for variant in pallet_custom_internal_origin_variants }}
+        {{- for variant in pallet_custom_origin_variants }}
             ^^variant^^,
         {{- endfor -}}
     }

@@ -27,12 +27,34 @@ pub(crate) struct PalletCargoToml {
 	// construct the mock runtime
 	pub(crate) pallet_common_types: Vec<TemplatePalletConfigCommonTypes>,
 }
+
+// Templates for simple mode
 #[derive(Template)]
-#[template(path = "pallet/src/benchmarking.rs.templ", escape = "none")]
-pub(crate) struct PalletBenchmarking {}
+#[template(path = "pallet/simple_mode/src/lib.rs.templ", escape = "none")]
+pub(crate) struct PalletSimpleLib {
+	pub(crate) name: String,
+}
+
 #[derive(Template)]
-#[template(path = "pallet/src/lib.rs.templ", escape = "none")]
-pub(crate) struct PalletLib {
+#[template(path = "pallet/simple_mode/src/tests.rs.templ", escape = "none")]
+pub(crate) struct PalletSimpleTests {}
+
+#[derive(Template)]
+#[template(path = "pallet/simple_mode/src/mock.rs.templ", escape = "none")]
+pub(crate) struct PalletSimpleMock {}
+
+#[derive(Template)]
+#[template(path = "pallet/simple_mode/src/benchmarking.rs.templ", escape = "none")]
+pub(crate) struct PalletSimpleBenchmarking {}
+
+#[derive(Template)]
+#[template(path = "pallet/simple_mode/src/weights.rs.templ", escape = "none")]
+pub(crate) struct PalletWeights {}
+
+// Templates for advanced mode
+#[derive(Template)]
+#[template(path = "pallet/advanced_mode/src/lib.rs.templ", escape = "none")]
+pub(crate) struct PalletAdvancedLib {
 	pub(crate) name: String,
 	pub(crate) pallet_default_config: bool,
 	pub(crate) pallet_common_types: Vec<TemplatePalletConfigCommonTypes>,
@@ -40,42 +62,54 @@ pub(crate) struct PalletLib {
 		Vec<(TemplatePalletConfigTypesMetadata, TemplatePalletConfigTypesDefault, String)>,
 	pub(crate) pallet_storage: Vec<(TemplatePalletStorageTypes, String)>,
 	pub(crate) pallet_genesis: bool,
-	pub(crate) pallet_custom_internal_origin_variants: Vec<String>,
+    pub(crate) pallet_custom_origin: bool,
+	pub(crate) pallet_custom_origin_variants: Vec<String>,
 }
+
 #[derive(Template)]
-#[template(path = "pallet/src/pallet_logic.rs.templ", escape = "none")]
-pub(crate) struct PalletLogic {
-	pub(crate) pallet_custom_internal_origin_variants: Vec<String>,
-}
+#[template(path = "pallet/advanced_mode/src/tests.rs.templ", escape = "none")]
+pub(crate) struct PalletAdvancedTests {}
+
 #[derive(Template)]
-#[template(path = "pallet/src/config_preludes.rs.templ", escape = "none")]
-pub(crate) struct PalletConfigPreludes {
-	pub(crate) pallet_common_types: Vec<TemplatePalletConfigCommonTypes>,
-	pub(crate) pallet_config_types:
-		Vec<(TemplatePalletConfigTypesMetadata, TemplatePalletConfigTypesDefault, String)>,
-}
-#[derive(Template)]
-#[template(path = "pallet/src/pallet_logic/try_state.rs.templ", escape = "none")]
-pub(crate) struct PalletTryState {}
-#[derive(Template)]
-#[template(path = "pallet/src/pallet_logic/origin.rs.templ", escape = "none")]
-pub(crate) struct PalletOrigin {
-	pub(crate) pallet_custom_internal_origin_variants: Vec<String>,
-}
-#[derive(Template)]
-#[template(path = "pallet/src/mock.rs.templ", escape = "none")]
-pub(crate) struct PalletMock {
+#[template(path = "pallet/advanced_mode/src/mock.rs.templ", escape = "none")]
+pub(crate) struct PalletAdvancedMock {
 	pub(crate) name: String,
 	pub(crate) pallet_default_config: bool,
 	pub(crate) pallet_common_types: Vec<TemplatePalletConfigCommonTypes>,
 	pub(crate) pallet_config_types:
 		Vec<(TemplatePalletConfigTypesMetadata, TemplatePalletConfigTypesDefault, String)>,
 }
+
 #[derive(Template)]
-#[template(path = "pallet/src/tests.rs.templ", escape = "none")]
-pub(crate) struct PalletTests {}
+#[template(path = "pallet/advanced_mode/src/benchmarking.rs.templ", escape = "none")]
+pub(crate) struct PalletAdvancedBenchmarking {}
+
 #[derive(Template)]
-#[template(path = "pallet/src/tests/utils.rs.templ", escape = "none")]
+#[template(path = "pallet/advanced_mode/src/pallet_logic.rs.templ", escape = "none")]
+pub(crate) struct PalletLogic {
+	pub(crate) pallet_custom_origin: bool,
+}
+
+#[derive(Template)]
+#[template(path = "pallet/advanced_mode/src/config_preludes.rs.templ", escape = "none")]
+pub(crate) struct PalletConfigPreludes {
+	pub(crate) pallet_common_types: Vec<TemplatePalletConfigCommonTypes>,
+	pub(crate) pallet_config_types:
+		Vec<(TemplatePalletConfigTypesMetadata, TemplatePalletConfigTypesDefault, String)>,
+}
+
+#[derive(Template)]
+#[template(path = "pallet/advanced_mode/src/pallet_logic/try_state.rs.templ", escape = "none")]
+pub(crate) struct PalletTryState {}
+
+#[derive(Template)]
+#[template(path = "pallet/advanced_mode/src/pallet_logic/origin.rs.templ", escape = "none")]
+pub(crate) struct PalletOrigin {
+	pub(crate) pallet_custom_origin_variants: Vec<String>,
+}
+
+#[derive(Template)]
+#[template(path = "pallet/advanced_mode/src/tests/utils.rs.templ", escape = "none")]
 pub(crate) struct PalletTestsUtils {
 	pub(crate) name: String,
 }
@@ -97,13 +131,18 @@ macro_rules! generate_pallet_item {
 	};
 }
 
-generate_pallet_item!(PalletTests, "src/tests.rs");
-generate_pallet_item!(PalletTestsUtils, "src/tests/utils.rs");
-generate_pallet_item!(PalletMock, "src/mock.rs");
-generate_pallet_item!(PalletLib, "src/lib.rs");
+generate_pallet_item!(PalletCargoToml, "Cargo.toml");
+generate_pallet_item!(PalletSimpleLib, "src/lib.rs");
+generate_pallet_item!(PalletSimpleTests, "src/tests.rs");
+generate_pallet_item!(PalletSimpleMock, "src/mock.rs");
+generate_pallet_item!(PalletSimpleBenchmarking, "src/benchmarking.rs");
+generate_pallet_item!(PalletWeights, "src/weights.rs");
+generate_pallet_item!(PalletAdvancedLib, "src/lib.rs");
+generate_pallet_item!(PalletAdvancedTests, "src/tests.rs");
+generate_pallet_item!(PalletAdvancedMock, "src/mock.rs");
+generate_pallet_item!(PalletAdvancedBenchmarking, "src/benchmarking.rs");
 generate_pallet_item!(PalletLogic, "src/pallet_logic.rs");
 generate_pallet_item!(PalletConfigPreludes, "src/config_preludes.rs");
 generate_pallet_item!(PalletTryState, "src/pallet_logic/try_state.rs");
 generate_pallet_item!(PalletOrigin, "src/pallet_logic/origin.rs");
-generate_pallet_item!(PalletBenchmarking, "src/benchmarking.rs");
-generate_pallet_item!(PalletCargoToml, "Cargo.toml");
+generate_pallet_item!(PalletTestsUtils, "src/tests/utils.rs");

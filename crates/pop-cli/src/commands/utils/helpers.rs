@@ -1,4 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0
 use cliclack::input;
+use regex::RegexBuilder;
 
 /// A macro to facilitate the selection of an options among some pre-selected ones (represented as
 /// variants from fieldless enums) and the naming of that selection. This process is repeated
@@ -45,6 +47,7 @@ use cliclack::input;
 /// # Example
 ///
 /// ```rust
+/// use crate::utils::helpers::valid_ident;
 /// use strum_macros::{EnumIter, EnumMessage};
 /// use strum::{IntoEnumIterator, EnumMessage};
 /// use cliclack::{input, select};
@@ -75,6 +78,7 @@ use cliclack::input;
 /// This macro requires the following imports to function correctly:
 ///
 /// ```rust
+/// use crate::utils::helpers::valid_ident;
 /// use cliclack::{input, select};
 /// use strum::{EnumMessage, IntoEnumIterator};
 /// ```
@@ -124,7 +128,8 @@ macro_rules! pick_options_and_give_name{
                 )+
 
 
-                let selected_name = input("").placeholder("Give it a name!").interact()?;
+                let mut selected_name: String = input("").placeholder("Give it a name!").interact()?;
+                selected_name = valid_ident(&selected_name)?;
                 index = 0;
 
                 output.push(
@@ -236,12 +241,69 @@ macro_rules! multiselect_pick {
 pub(crate) fn collect_loop_cliclack_inputs(prompt_message: &str) -> anyhow::Result<Vec<String>> {
 	let mut output = Vec::new();
 	loop {
-		let input: String =
+		let mut input: String =
 			input(prompt_message).placeholder("If you're done, type 'quit'").interact()?;
 		if input == "quit" {
 			break;
 		}
+        input = valid_ident(&input)?;
 		output.push(input);
 	}
 	Ok(output)
+}
+
+/// This function validates that the input is a valid identifier, and return it capitalized
+pub(crate) fn valid_ident(candidate: &str) -> anyhow::Result<String>{
+    // The identifier cannot be a keyword
+    let reserved_keywords = [
+        "as", "break", "const", "continue", "crate", "else", "enum", "extern", "false",
+        "fn", "for", "if", "impl", "in", "let", "loop", "match", "mod", "move", "mut",
+        "pub", "ref", "return", "self", "Self", "static", "struct", "super", "trait",
+        "true", "type", "unsafe", "use", "where", "while",
+    ];
+
+    if reserved_keywords.contains(&candidate){
+        return Err(anyhow::anyhow!("A keyword cannot be used as identifier."));
+    }
+
+    let reg = RegexBuilder::new(r"^[a-z_][a-z0-9_]*$").case_insensitive(true).build()?;
+    if reg.is_match(candidate){
+        Ok(
+            candidate.chars().enumerate().map(|(index, letter)|{
+                if index==0{
+                    letter.to_uppercase().next().unwrap()
+                }
+                else{
+                    letter
+                }
+            }).collect::<String>()
+        )
+    } else{
+        Err(anyhow::anyhow!("Invalid identifier: {}.", candidate))
+    }
+}
+
+
+#[cfg(test)]
+mod tests{
+    use super::*;
+
+    #[test]
+    fn valid_ident_works_well(){
+        let input = "hello";
+        assert!(valid_ident(input).is_ok());
+        assert_eq!(valid_ident(input).unwrap(), "Hello");
+    }
+
+    #[test]
+    fn valid_ident_fails_with_keyword(){
+        let input = "where";
+        assert!(valid_ident(input).is_err());
+    }
+
+    #[test]
+    fn valid_ident_fails_with_bad_input(){
+        let input = "2hello";
+        assert!(valid_ident(input).is_err());
+    }
 }
