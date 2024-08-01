@@ -1,16 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use super::{
-	chain_specs::chain_spec_generator,
+use super::{chain_specs::chain_spec_generator, Binary};
+use pop_common::{
 	sourcing::{
-		self,
 		traits::{Source as _, *},
 		GitHub::ReleaseArchive,
 		Source,
 	},
-	target, Binary, Error,
+	target, Error, GitHub,
 };
-use pop_common::GitHub;
 use std::path::Path;
 use strum::VariantArray as _;
 use strum_macros::{EnumProperty, VariantArray};
@@ -61,7 +59,7 @@ impl TryInto for Parachain {
 	}
 }
 
-impl sourcing::traits::Source for Parachain {}
+impl pop_common::sourcing::traits::Source for Parachain {}
 
 /// Initialises the configuration required to launch a system parachain.
 ///

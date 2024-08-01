@@ -6,6 +6,7 @@ A crate for generating, building and running parachains and pallets. Used by
 ## Usage
 
 Generate a new parachain:
+
 ```rust,no_run
 use pop_parachains::{instantiate_template_dir, Config, Parachain};
 use std::path::Path;
@@ -21,6 +22,7 @@ let tag = instantiate_template_dir(&Parachain::Standard, &destination_path, tag_
 ```
 
 Build a Parachain:
+
 ```rust,no_run
 use pop_common::Profile;
 use pop_parachains::build_parachain;
@@ -31,7 +33,32 @@ let package = None;  // The optional package to be built.
 let binary_path = build_parachain(&path, package, &Profile::Release, None).unwrap();
 ```
 
+Generate a plain chain specification file and customize it with your specific parachain values:
+
+```rust,no_run
+use pop_common::Profile;
+use pop_parachains::{build_parachain, export_wasm_file, generate_plain_chain_spec, generate_raw_chain_spec, generate_genesis_state_file, ChainSpec};
+use std::path::Path;
+
+let path = Path::new("./"); // Location of the parachain project.
+let package = None;  // The optional package to be built.
+// The path to the node binary executable.
+let binary_path = build_parachain(&path, package, &Profile::Release, None).unwrap();;
+// Generate a plain chain specification file of a parachain
+let plain_chain_spec_path = path.join("plain-parachain-chainspec.json");
+generate_plain_chain_spec(&binary_path, &plain_chain_spec_path, true);
+// Customize your chain specification
+let mut chain_spec = ChainSpec::from(&plain_chain_spec_path).unwrap();
+chain_spec.replace_para_id(2002);
+chain_spec.replace_relay_chain("paseo-local");
+chain_spec.replace_chain_type("Development");
+chain_spec.replace_protocol_id("my-protocol");
+// Writes the chain specification to a file
+chain_spec.to_file(&plain_chain_spec_path).unwrap();
+```
+
 Generate a raw chain specification file and export the WASM and genesis state files:
+
 ```rust,no_run
 use pop_common::Profile;
 use pop_parachains::{build_parachain, export_wasm_file, generate_plain_chain_spec, generate_raw_chain_spec, generate_genesis_state_file};
@@ -39,21 +66,21 @@ use std::path::Path;
 
 let path = Path::new("./"); // Location of the parachain project.
 let package = None;  // The optional package to be built.
-let para_id = 2000;
 // The path to the node binary executable.
 let binary_path = build_parachain(&path, package, &Profile::Release, None).unwrap();;
 // Generate a plain chain specification file of a parachain
 let plain_chain_spec_path = path.join("plain-parachain-chainspec.json");
-generate_plain_chain_spec(&binary_path, &plain_chain_spec_path, para_id);
+generate_plain_chain_spec(&binary_path, &plain_chain_spec_path, true);
 // Generate a raw chain specification file of a parachain
 let chain_spec = generate_raw_chain_spec(&binary_path, &plain_chain_spec_path, "raw-parachain-chainspec.json").unwrap();
-// Export the WebAssembly runtime for the parachain. 
-let wasm_file = export_wasm_file(&binary_path, &chain_spec, "para-2000-wasm").unwrap(); 
+// Export the WebAssembly runtime for the parachain.
+let wasm_file = export_wasm_file(&binary_path, &chain_spec, "para-2000-wasm").unwrap();
 // Generate the parachain genesis state.
-let genesis_state_file = generate_genesis_state_file(&binary_path, &chain_spec, "para-2000-genesis-state").unwrap(); 
+let genesis_state_file = generate_genesis_state_file(&binary_path, &chain_spec, "para-2000-genesis-state").unwrap();
 ```
 
 Run a Parachain:
+
 ```rust,no_run
 use pop_parachains::Zombienet;
 use std::path::Path;
@@ -86,12 +113,13 @@ tokio_test::block_on(async {
     let verbose = false; // Whether verbose output is required
     let missing = zombienet.binaries();
     for binary in missing {
-        binary.source(release, &status, verbose).await; 
+        binary.source(release, &status, verbose).await;
     }
 })
 ```
 
 Generate a new Pallet:
+
 ```rust,no_run
 use pop_parachains::{create_pallet_template, TemplatePalletConfig};
 
@@ -113,4 +141,6 @@ create_pallet_template(Some(path),pallet_config);
 ```
 
 ## Acknowledgements
-`pop-parachains` would not be possible without the awesome crate: [zombienet-sdk](https://github.com/paritytech/zombienet-sdk).
+
+`pop-parachains` would not be possible without the awesome
+crate: [zombienet-sdk](https://github.com/paritytech/zombienet-sdk).

@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{Error, Status, APP_USER_AGENT};
+mod binary;
+pub use binary::*;
+
+use crate::{Git, Status, APP_USER_AGENT};
 use duct::cmd;
 use flate2::read::GzDecoder;
-use pop_common::Git;
 use reqwest::StatusCode;
 use std::{
 	fs::{copy, metadata, read_dir, rename, File},
@@ -14,11 +16,28 @@ use std::{
 };
 use tar::Archive;
 use tempfile::{tempdir, tempfile};
+use thiserror::Error;
 use url::Url;
+
+#[derive(Error, Debug)]
+pub enum Error {
+	#[error("Anyhow error: {0}")]
+	AnyhowError(#[from] anyhow::Error),
+	#[error("Archive error: {0}")]
+	ArchiveError(String),
+	#[error("HTTP error: {0}")]
+	HttpError(#[from] reqwest::Error),
+	#[error("IO error: {0}")]
+	IO(#[from] std::io::Error),
+	#[error("Missing binary: {0}")]
+	MissingBinary(String),
+	#[error("ParseError error: {0}")]
+	ParseError(#[from] url::ParseError),
+}
 
 /// The source of a binary.
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) enum Source {
+pub enum Source {
 	/// An archive for download.
 	#[allow(dead_code)]
 	Archive {
@@ -104,7 +123,7 @@ impl Source {
 
 /// A binary sourced from GitHub.
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) enum GitHub {
+pub enum GitHub {
 	/// An archive for download from a GitHub release.
 	ReleaseArchive {
 		/// The owner of the repository - i.e. https://github.com/{owner}/repository.
@@ -484,7 +503,8 @@ async fn download(url: &str, dest: &Path) -> Result<(), Error> {
 
 #[cfg(test)]
 pub(super) mod tests {
-	use super::{super::target, GitHub::*, *};
+	use super::{GitHub::*, Status, *};
+	use crate::target;
 	use tempfile::tempdir;
 
 	#[tokio::test]
@@ -808,13 +828,12 @@ pub(super) mod tests {
 	}
 }
 
-pub(crate) mod traits {
-	use crate::Error;
-	use pop_common::GitHub;
+pub mod traits {
+	use crate::{sourcing::Error, GitHub};
 	use strum::EnumProperty;
 
 	/// The source of a binary.
-	pub(crate) trait Source: EnumProperty {
+	pub trait Source: EnumProperty {
 		/// The name of the binary.
 		fn binary(&self) -> &'static str {
 			self.get_str("Binary").expect("expected specification of `Binary` name")
@@ -833,6 +852,7 @@ pub(crate) mod traits {
 		}
 
 		/// Determine the available releases from the source.
+		#[allow(async_fn_in_trait)]
 		async fn releases(&self) -> Result<Vec<String>, Error> {
 			let repo = GitHub::parse(self.repository())?;
 			let releases = match repo.releases().await {
@@ -871,7 +891,7 @@ pub(crate) mod traits {
 	}
 
 	/// An attempted conversion into a Source.
-	pub(crate) trait TryInto {
+	pub trait TryInto {
 		/// Attempt the conversion.
 		///
 		/// # Arguments
@@ -881,7 +901,7 @@ pub(crate) mod traits {
 			&self,
 			specifier: Option<String>,
 			latest: Option<String>,
-		) -> Result<super::Source, Error>;
+		) -> Result<super::Source, crate::Error>;
 	}
 
 	#[cfg(test)]

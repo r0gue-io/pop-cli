@@ -1,7 +1,7 @@
 [package]
 name = "pop-common"
 description = "Library that provides a collection of essential utilities and shared functionality for pop."
-version = "0.2.0"
+version = "0.3.0"
 readme = "README.md"
 edition.workspace = true
 license.workspace = true
@@ -10,6 +10,8 @@ repository.workspace = true
 [dependencies]
 anyhow.workspace = true
 cargo_toml.workspace = true
+duct.workspace = true
+flate2.workspace = true
 git2.workspace = true
 git2_credentials.workspace = true
 regex.workspace = true
@@ -17,10 +19,13 @@ reqwest.workspace = true
 serde_json.workspace = true
 serde.workspace = true
 strum.workspace = true
+tar.workspace = true
+tempfile.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 url.workspace = true
 
 [dev-dependencies]
 mockito.workspace = true
+strum_macros.workspace = true
 tempfile.workspace = true

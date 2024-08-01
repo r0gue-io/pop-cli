@@ -158,8 +158,9 @@ pub async fn call_smart_contract(
 mod tests {
 	use super::*;
 	use crate::{
-		create_smart_contract, dry_run_gas_estimate_instantiate, errors::Error,
-		instantiate_smart_contract, run_contracts_node, set_up_deployment, Contract, UpOpts,
+		contracts_node_generator, create_smart_contract, dry_run_gas_estimate_instantiate,
+		errors::Error, instantiate_smart_contract, run_contracts_node, set_up_deployment, Contract,
+		UpOpts,
 	};
 	use anyhow::Result;
 	use sp_core::Bytes;
@@ -305,9 +306,12 @@ mod tests {
 		const LOCALHOST_URL: &str = "ws://127.0.0.1:9944";
 		let temp_dir = generate_smart_contract_test_environment()?;
 		mock_build_process(temp_dir.path().join("testing"))?;
-		// Run the contracts-node.
-		let cache = temp_dir.path().join("cache");
-		let process = run_contracts_node(cache, None).await?;
+
+		let cache = temp_dir.path().join("");
+
+		let binary = contracts_node_generator(cache.clone(), None).await?;
+		binary.source(false, &(), true).await?;
+		let process = run_contracts_node(binary.path(), None).await?;
 		// Instantiate a Smart Contract.
 		let instantiate_exec = set_up_deployment(UpOpts {
 			path: Some(temp_dir.path().join("testing")),
@@ -365,6 +369,7 @@ mod tests {
 			.args(["-s", "TERM", &process.id().to_string()])
 			.spawn()?
 			.wait()?;
+
 		Ok(())
 	}
 }

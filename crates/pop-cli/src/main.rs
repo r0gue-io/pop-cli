@@ -17,6 +17,7 @@ use {
 mod cli;
 #[cfg(any(feature = "parachain", feature = "contract"))]
 mod commands;
+mod common;
 mod style;
 
 #[tokio::main]

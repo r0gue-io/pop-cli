@@ -4470,7 +4470,7 @@ dependencies = [
 
 [[package]]
 name = "pop-cli"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -4493,6 +4493,7 @@ dependencies = [
  "sp-core",
  "sp-weights",
  "strum 0.26.2",
+ "strum_macros 0.26.4",
  "tempfile",
  "tokio",
  "url",
@@ -4500,10 +4501,12 @@ dependencies = [
 
 [[package]]
 name = "pop-common"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "cargo_toml",
+ "duct",
+ "flate2",
  "git2",
  "git2_credentials",
  "mockito",
@@ -4512,6 +4515,8 @@ dependencies = [
  "serde",
  "serde_json",
  "strum 0.26.2",
+ "strum_macros 0.26.4",
+ "tar",
  "tempfile",
  "thiserror",
  "tokio",
@@ -4520,11 +4525,12 @@ dependencies = [
 
 [[package]]
 name = "pop-contracts"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "contract-build",
  "contract-extrinsics",
+ "dirs",
  "duct",
  "flate2",
  "heck 0.5.0",
@@ -4548,7 +4554,7 @@ dependencies = [
 
 [[package]]
 name = "pop-parachains"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "askama",
@@ -4577,7 +4583,7 @@ dependencies = [
 
 [[package]]
 name = "pop-telemetry"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "dirs",
  "env_logger",
@@ -5694,6 +5700,7 @@ version = "1.0.117"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "455182ea6142b14f93f4bc5320a2b31c1f266b66a4a5c858b013302a5d8cbfc3"
 dependencies = [
+ "indexmap 2.2.6",
  "itoa",
  "ryu",
  "serde",
@@ -6515,9 +6522,9 @@ dependencies = [
 
 [[package]]
 name = "subtle"
-version = "2.6.0"
+version = "2.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0d0208408ba0c3df17ed26eb06992cb1a1268d41b2c0e12e65203fbe3972cee5"
+checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
 name = "subxt"

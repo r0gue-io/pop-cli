@@ -93,6 +93,8 @@ impl Command {
 					build::Command::Parachain(cmd) => cmd.execute().map(|_| Value::Null),
 					#[cfg(feature = "contract")]
 					build::Command::Contract(cmd) => cmd.execute().map(|_| Value::Null),
+					#[cfg(feature = "parachain")]
+					build::Command::Spec(cmd) => cmd.execute().await.map(|_| Value::Null),
 				},
 			},
 			#[cfg(feature = "contract")]
@@ -108,15 +110,15 @@ impl Command {
 			},
 			#[cfg(feature = "contract")]
 			Self::Test(args) => match args.command {
-				test::Command::Contract(cmd) => match cmd.execute() {
+				test::Command::Contract(cmd) => match cmd.execute().await {
 					Ok(feature) => Ok(json!(feature)),
 					Err(e) => Err(e),
 				},
 			},
 			Self::Clean(args) => match args.command {
-				clean::Command::Cache => {
+				clean::Command::Cache(cmd_args) => {
 					// Initialize command and execute
-					clean::CleanCacheCommand { cli: &mut Cli, cache: cache()? }
+					clean::CleanCacheCommand { cli: &mut Cli, cache: cache()?, all: cmd_args.all }
 						.execute()
 						.map(|_| Value::Null)
 				},

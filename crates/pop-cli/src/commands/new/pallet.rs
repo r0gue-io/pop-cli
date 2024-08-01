@@ -2,7 +2,7 @@
 
 use crate::{
 	cli::{traits::Cli as _, Cli},
-	utils::helpers::{collect_loop_cliclack_inputs, valid_ident},
+	common::helpers::{collect_loop_cliclack_inputs, valid_ident},
 };
 
 use crate::{multiselect_pick, pick_options_and_give_name};
