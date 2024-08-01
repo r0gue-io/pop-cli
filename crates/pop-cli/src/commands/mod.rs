@@ -12,7 +12,6 @@ pub(crate) mod install;
 pub(crate) mod new;
 pub(crate) mod test;
 pub(crate) mod up;
-pub(crate) mod utils;
 
 #[derive(Subcommand)]
 #[command(subcommand_required = true)]

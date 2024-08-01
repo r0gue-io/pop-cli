@@ -26,7 +26,7 @@ pub use new_pallet::{
 };
 pub use new_parachain::instantiate_template_dir;
 pub use templates::{Config, Parachain, Provider};
-pub use up::{Binary, Status, Zombienet};
+pub use up::Zombienet;
 pub use utils::helpers::is_initial_endowment_valid;
 pub use utils::pallet_helpers::resolve_pallet_path;
 /// Information about the Node. External export from Zombienet-SDK.
