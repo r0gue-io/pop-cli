@@ -5,7 +5,8 @@ use std::{fs, path::PathBuf};
 use crate::errors::Error;
 use crate::{
 	generator::pallet::{
-		PalletBenchmarking, PalletCargoToml, PalletItem, PalletLib, PalletMock, PalletTests, PalletWeights
+		PalletBenchmarking, PalletCargoToml, PalletItem, PalletLib, PalletMock, PalletTests,
+		PalletWeights,
 	},
 	resolve_pallet_path,
 	utils::helpers::sanitize,
@@ -69,7 +70,7 @@ fn render_pallet(
 		Box::new(PalletBenchmarking {}),
 		Box::new(PalletMock { name: pallet_name.clone() }),
 		Box::new(PalletTests { name: pallet_name }),
-		Box::new(PalletWeights { }),
+		Box::new(PalletWeights {}),
 	];
 	for item in pallet {
 		item.execute(pallet_path)?;

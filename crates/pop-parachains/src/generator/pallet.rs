@@ -18,7 +18,7 @@ pub(crate) struct PalletBenchmarking {}
 #[derive(Template)]
 #[template(path = "pallet/src/lib.rs.templ", escape = "none")]
 pub(crate) struct PalletLib {
-    pub(crate) name: String,
+	pub(crate) name: String,
 }
 #[derive(Template)]
 #[template(path = "pallet/src/mock.rs.templ", escape = "none")]
