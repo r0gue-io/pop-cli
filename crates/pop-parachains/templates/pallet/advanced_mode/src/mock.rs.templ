@@ -5,9 +5,8 @@ use crate::{self as pallet_^^name|lower^^, *};
 use pop_dev::{PlaceholderType, pop_todo};
 
 use frame::{
-	deps::frame_support::{
-		derive_impl, parameter_types, runtime,
-	},
+	deps::frame_support::runtime,
+    prelude::*,
 	runtime::prelude::*,
 	testing_prelude::*,
     {{- if using_currency }}
@@ -71,7 +70,7 @@ impl pallet_^^name|lower^^::Config for Test {
     {{- if using_runtime_event && !pallet_default_config -}}
     type RuntimeEvent = RuntimeEvent;
     {{- endif -}}
-    {{- if using_runtime_origin && !pallet_default_config -}}
+    {{- if (using_runtime_origin || pallet_custom_origin) && !pallet_default_config -}}
     type RuntimeOrigin = RuntimeOrigin;
     {{- endif -}}
     {{- if using_currency -}}

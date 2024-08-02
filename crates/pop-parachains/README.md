@@ -134,6 +134,7 @@ let pallet_config = TemplatePalletConfig {
     pallet_config_types: Vec::new(),
     pallet_storage: Vec::new(),
     pallet_genesis: false,
+    pallet_custom_origin: false,
     pallet_custom_origin_variants: vec![]
 };
 

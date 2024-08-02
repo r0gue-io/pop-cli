@@ -19,7 +19,7 @@ impl DefaultConfig for TestDefaultConfig {
     #[inject_runtime_type]
     type RuntimeEvent = ();
     {{- endif -}}
-    {{- if using_runtime_origin -}}
+    {{- if using_runtime_origin || pallet_custom_origin -}}
     #[inject_runtime_type]
     type RuntimeOrigin = ();
     {{- endif -}}
@@ -62,7 +62,7 @@ impl DefaultConfig for SolochainDefaultConfig {
     #[inject_runtime_type]
     type RuntimeEvent = ();
     {{- endif -}}
-    {{- if using_runtime_origin -}}
+    {{- if using_runtime_origin || pallet_custom_origin -}}
     #[inject_runtime_type]
     type RuntimeOrigin = ();
     {{- endif -}}
@@ -105,7 +105,7 @@ impl DefaultConfig for RelayChainDefaultConfig {
     #[inject_runtime_type]
     type RuntimeEvent = ();
     {{- endif -}}
-    {{- if using_runtime_origin -}}
+    {{- if using_runtime_origin || pallet_custom_origin -}}
     #[inject_runtime_type]
     type RuntimeOrigin = ();
     {{- endif -}}
@@ -148,7 +148,7 @@ impl DefaultConfig for ParaChainDefaultConfig{
     #[inject_runtime_type]
     type RuntimeEvent = ();
     {{- endif -}}
-    {{- if using_runtime_origin -}}
+    {{- if using_runtime_origin || pallet_custom_origin -}}
     #[inject_runtime_type]
     type RuntimeOrigin = ();
     {{- endif -}}

@@ -82,6 +82,7 @@ pub(crate) struct PalletAdvancedMock {
 	pub(crate) pallet_common_types: Vec<TemplatePalletConfigCommonTypes>,
 	pub(crate) pallet_config_types:
 		Vec<(TemplatePalletConfigTypesMetadata, TemplatePalletConfigTypesDefault, String)>,
+	pub(crate) pallet_custom_origin: bool,
 }
 
 #[derive(Template)]
@@ -100,6 +101,7 @@ pub(crate) struct PalletConfigPreludes {
 	pub(crate) pallet_common_types: Vec<TemplatePalletConfigCommonTypes>,
 	pub(crate) pallet_config_types:
 		Vec<(TemplatePalletConfigTypesMetadata, TemplatePalletConfigTypesDefault, String)>,
+	pub(crate) pallet_custom_origin: bool,
 }
 
 #[derive(Template)]

@@ -38,7 +38,7 @@ mod benchmarking;
 pub mod pallet {
 	use super::*;
 
-    {{ if using_runtime_origin }}
+    {{ if using_runtime_origin || pallet_custom_origin }}
     /// An alias referencing the RuntimeOrigin config type.
     pub type RuntimeLocalOrigin<T> = <T as Config>::RuntimeOrigin;
     {{- endif }}

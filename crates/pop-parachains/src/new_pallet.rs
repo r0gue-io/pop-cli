@@ -137,6 +137,7 @@ fn render_pallet(
 				pallet_default_config: config.pallet_default_config,
 				pallet_common_types: config.pallet_common_types.clone(),
 				pallet_config_types: config.pallet_config_types.clone(),
+				pallet_custom_origin: config.pallet_custom_origin,
 			}),
 			Box::new(PalletAdvancedBenchmarking {}),
 			Box::new(PalletLogic { pallet_custom_origin: config.pallet_custom_origin }),
@@ -147,6 +148,7 @@ fn render_pallet(
 			pallet_contents.push(Box::new(PalletConfigPreludes {
 				pallet_common_types: config.pallet_common_types,
 				pallet_config_types: config.pallet_config_types,
+				pallet_custom_origin: config.pallet_custom_origin,
 			}));
 		}
 
