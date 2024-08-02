@@ -17,17 +17,23 @@ pub(crate) struct PalletCargoToml {
 pub(crate) struct PalletBenchmarking {}
 #[derive(Template)]
 #[template(path = "pallet/src/lib.rs.templ", escape = "none")]
-pub(crate) struct PalletLib {}
+pub(crate) struct PalletLib {
+	pub(crate) name: String,
+}
 #[derive(Template)]
 #[template(path = "pallet/src/mock.rs.templ", escape = "none")]
 pub(crate) struct PalletMock {
-	pub(crate) module: String,
+	pub(crate) name: String,
 }
 #[derive(Template)]
 #[template(path = "pallet/src/tests.rs.templ", escape = "none")]
 pub(crate) struct PalletTests {
-	pub(crate) module: String,
+	pub(crate) name: String,
 }
+
+#[derive(Template)]
+#[template(path = "pallet/src/weights.rs.templ", escape = "none")]
+pub(crate) struct PalletWeights {}
 
 pub trait PalletItem {
 	/// Render and Write to file, root is the path to the pallet
@@ -51,3 +57,4 @@ generate_pallet_item!(PalletMock, "src/mock.rs");
 generate_pallet_item!(PalletLib, "src/lib.rs");
 generate_pallet_item!(PalletBenchmarking, "src/benchmarking.rs");
 generate_pallet_item!(PalletCargoToml, "Cargo.toml");
+generate_pallet_item!(PalletWeights, "src/weights.rs");
