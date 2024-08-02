@@ -246,54 +246,53 @@ pub(crate) fn collect_loop_cliclack_inputs(prompt_message: &str) -> anyhow::Resu
 		if input == "quit" {
 			break;
 		}
-        valid_ident(&input)?;
+		valid_ident(&input)?;
 		output.push(input);
 	}
 	Ok(output)
 }
 
 /// This function validates that the input is a valid identifier.
-pub(crate) fn valid_ident(candidate: &str) -> anyhow::Result<()>{
-    // The identifier cannot be a keyword
-    let reserved_keywords = [
-        "as", "break", "const", "continue", "crate", "else", "enum", "extern", "false",
-        "fn", "for", "if", "impl", "in", "let", "loop", "match", "mod", "move", "mut",
-        "pub", "ref", "return", "self", "Self", "static", "struct", "super", "trait",
-        "true", "type", "unsafe", "use", "where", "while",
-    ];
+pub(crate) fn valid_ident(candidate: &str) -> anyhow::Result<()> {
+	// The identifier cannot be a keyword
+	let reserved_keywords = [
+		"as", "break", "const", "continue", "crate", "else", "enum", "extern", "false", "fn",
+		"for", "if", "impl", "in", "let", "loop", "match", "mod", "move", "mut", "pub", "ref",
+		"return", "self", "Self", "static", "struct", "super", "trait", "true", "type", "unsafe",
+		"use", "where", "while",
+	];
 
-    if reserved_keywords.contains(&candidate){
-        return Err(anyhow::anyhow!("A keyword cannot be used as identifier."));
-    }
+	if reserved_keywords.contains(&candidate) {
+		return Err(anyhow::anyhow!("A keyword cannot be used as identifier."));
+	}
 
-    let reg = RegexBuilder::new(r"^[a-z_][a-z0-9_]*$").case_insensitive(true).build()?;
-    if reg.is_match(candidate){
-        Ok(())
-    } else{
-        Err(anyhow::anyhow!("Invalid identifier: {}.", candidate))
-    }
+	let reg = RegexBuilder::new(r"^[a-z_][a-z0-9_]*$").case_insensitive(true).build()?;
+	if reg.is_match(candidate) {
+		Ok(())
+	} else {
+		Err(anyhow::anyhow!("Invalid identifier: {}.", candidate))
+	}
 }
 
-
 #[cfg(test)]
-mod tests{
-    use super::*;
+mod tests {
+	use super::*;
 
-    #[test]
-    fn valid_ident_works_well(){
-        let input = "hello";
-        assert!(valid_ident(input).is_ok());
-    }
+	#[test]
+	fn valid_ident_works_well() {
+		let input = "hello";
+		assert!(valid_ident(input).is_ok());
+	}
 
-    #[test]
-    fn valid_ident_fails_with_keyword(){
-        let input = "where";
-        assert!(valid_ident(input).is_err());
-    }
+	#[test]
+	fn valid_ident_fails_with_keyword() {
+		let input = "where";
+		assert!(valid_ident(input).is_err());
+	}
 
-    #[test]
-    fn valid_ident_fails_with_bad_input(){
-        let input = "2hello";
-        assert!(valid_ident(input).is_err());
-    }
+	#[test]
+	fn valid_ident_fails_with_bad_input() {
+		let input = "2hello";
+		assert!(valid_ident(input).is_err());
+	}
 }

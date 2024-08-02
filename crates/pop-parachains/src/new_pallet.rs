@@ -42,8 +42,8 @@ pub struct TemplatePalletConfig {
 	pub pallet_storage: Vec<(TemplatePalletStorageTypes, String)>,
 	/// A `bool` indicating if the template should include a genesis config
 	pub pallet_genesis: bool,
-    /// A `bool` indicating if the template should include a custom origin
-    pub pallet_custom_origin: bool,
+	/// A `bool` indicating if the template should include a custom origin
+	pub pallet_custom_origin: bool,
 	/// A `Vec` containing the variants of the pallet's custom internal origin, if one's being used
 	pub pallet_custom_origin_variants: Vec<String>,
 }
@@ -97,7 +97,7 @@ fn generate_pallet_structure(
 		if config.pallet_default_config {
 			File::create(format!("{}/config_preludes.rs", src.display()))?;
 		}
-		if config.pallet_custom_origin{
+		if config.pallet_custom_origin {
 			File::create(format!("{}/origin.rs", pallet_logic.display()))?;
 		}
 	} else {
@@ -112,7 +112,6 @@ fn render_pallet(
 	pallet_path: &PathBuf,
 ) -> Result<(), Error> {
 	let pallet_name = pallet_name.replace('-', "_");
-	// Todo `module` must be of the form Template if pallet_name : `pallet_template`
 	let mut pallet: Vec<Box<dyn PalletItem>> = vec![Box::new(PalletCargoToml {
 		name: pallet_name.clone(),
 		authors: config.authors,
@@ -129,10 +128,8 @@ fn render_pallet(
 				pallet_config_types: config.pallet_config_types.clone(),
 				pallet_storage: config.pallet_storage,
 				pallet_genesis: config.pallet_genesis,
-                pallet_custom_origin: config.pallet_custom_origin,
-				pallet_custom_origin_variants: config
-					.pallet_custom_origin_variants
-					.clone(),
+				pallet_custom_origin: config.pallet_custom_origin,
+				pallet_custom_origin_variants: config.pallet_custom_origin_variants.clone(),
 			}),
 			Box::new(PalletAdvancedTests {}),
 			Box::new(PalletAdvancedMock {
@@ -142,9 +139,7 @@ fn render_pallet(
 				pallet_config_types: config.pallet_config_types.clone(),
 			}),
 			Box::new(PalletAdvancedBenchmarking {}),
-			Box::new(PalletLogic {
-				pallet_custom_origin: config.pallet_custom_origin
-			}),
+			Box::new(PalletLogic { pallet_custom_origin: config.pallet_custom_origin }),
 			Box::new(PalletTryState {}),
 			Box::new(PalletTestsUtils { name: pallet_name }),
 		];
@@ -163,7 +158,7 @@ fn render_pallet(
 	} else {
 		pallet_contents = vec![
 			Box::new(PalletSimpleLib { name: pallet_name.clone() }),
-			Box::new(PalletSimpleTests { name: pallet_name.clone()}),
+			Box::new(PalletSimpleTests { name: pallet_name.clone() }),
 			Box::new(PalletSimpleMock { name: pallet_name.clone() }),
 			Box::new(PalletSimpleBenchmarking {}),
 			Box::new(PalletWeights {}),
@@ -196,7 +191,7 @@ mod tests {
 			pallet_config_types: Vec::new(),
 			pallet_storage: Vec::new(),
 			pallet_genesis: false,
-            pallet_custom_origin: true,
+			pallet_custom_origin: true,
 			pallet_custom_origin_variants: vec![],
 		};
 
@@ -231,7 +226,10 @@ mod tests {
 			"benchmarking.rs should be created"
 		);
 		assert!(pallet_path.join("src").join("tests.rs").exists(), "tests.rs should be created");
-		assert!(!pallet_path.join("src").join("weights.rs").exists(), "weights.rs shouldn't be created");
+		assert!(
+			!pallet_path.join("src").join("weights.rs").exists(),
+			"weights.rs shouldn't be created"
+		);
 		assert!(pallet_path.join("src").join("mock.rs").exists(), "mock.rs should be created");
 		assert!(
 			pallet_path.join("src").join("pallet_logic.rs").exists(),
@@ -266,7 +264,7 @@ mod tests {
 			pallet_config_types: Vec::new(),
 			pallet_storage: Vec::new(),
 			pallet_genesis: false,
-            pallet_custom_origin: true,
+			pallet_custom_origin: true,
 			pallet_custom_origin_variants: vec![],
 		};
 
@@ -300,7 +298,10 @@ mod tests {
 			pallet_path.join("src").join("benchmarking.rs").exists(),
 			"benchmarking.rs should be created"
 		);
-        assert!(!pallet_path.join("src").join("weights.rs").exists(), "weights.rs shouldn't be created");
+		assert!(
+			!pallet_path.join("src").join("weights.rs").exists(),
+			"weights.rs shouldn't be created"
+		);
 		assert!(pallet_path.join("src").join("tests.rs").exists(), "tests.rs should be created");
 		assert!(pallet_path.join("src").join("mock.rs").exists(), "mock.rs should be created");
 		assert!(
@@ -336,7 +337,7 @@ mod tests {
 			pallet_config_types: Vec::new(),
 			pallet_storage: Vec::new(),
 			pallet_genesis: false,
-            pallet_custom_origin: false,
+			pallet_custom_origin: false,
 			pallet_custom_origin_variants: Vec::new(),
 		};
 
@@ -370,7 +371,10 @@ mod tests {
 			pallet_path.join("src").join("benchmarking.rs").exists(),
 			"benchmarking.rs should be created"
 		);
-        assert!(!pallet_path.join("src").join("weights.rs").exists(), "weights.rs shouldn't be created");
+		assert!(
+			!pallet_path.join("src").join("weights.rs").exists(),
+			"weights.rs shouldn't be created"
+		);
 		assert!(pallet_path.join("src").join("tests.rs").exists(), "tests.rs should be created");
 		assert!(pallet_path.join("src").join("mock.rs").exists(), "mock.rs should be created");
 		assert!(
@@ -392,8 +396,8 @@ mod tests {
 		Ok(())
 	}
 
-    #[test]
-    fn test_pallet_create_simple_template() -> Result<(), Error> {
+	#[test]
+	fn test_pallet_create_simple_template() -> Result<(), Error> {
 		let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
 		let pallet_name = "MyPallet";
 		let config = TemplatePalletConfig {
@@ -406,7 +410,7 @@ mod tests {
 			pallet_config_types: Vec::new(),
 			pallet_storage: Vec::new(),
 			pallet_genesis: false,
-            pallet_custom_origin: false,
+			pallet_custom_origin: false,
 			pallet_custom_origin_variants: Vec::new(),
 		};
 
@@ -440,7 +444,10 @@ mod tests {
 			pallet_path.join("src").join("benchmarking.rs").exists(),
 			"benchmarking.rs should be created"
 		);
-        assert!(pallet_path.join("src").join("weights.rs").exists(), "weights.rs should be created");
+		assert!(
+			pallet_path.join("src").join("weights.rs").exists(),
+			"weights.rs should be created"
+		);
 		assert!(pallet_path.join("src").join("tests.rs").exists(), "tests.rs should be created");
 		assert!(pallet_path.join("src").join("mock.rs").exists(), "mock.rs should be created");
 		assert!(
@@ -459,7 +466,7 @@ mod tests {
 			!lib_rs_content.contains("pub mod config_preludes"),
 			"lib.rs shouldn't contain pub mod config_preludes"
 		);
-        Ok(())
+		Ok(())
 	}
 
 	#[test]
@@ -476,7 +483,7 @@ mod tests {
 			pallet_config_types: Vec::new(),
 			pallet_storage: Vec::new(),
 			pallet_genesis: false,
-            pallet_custom_origin: false,
+			pallet_custom_origin: false,
 			pallet_custom_origin_variants: Vec::new(),
 		};
 

@@ -38,13 +38,13 @@ pub(crate) struct PalletSimpleLib {
 #[derive(Template)]
 #[template(path = "pallet/simple_mode/src/tests.rs.templ", escape = "none")]
 pub(crate) struct PalletSimpleTests {
-    pub(crate) name: String
+	pub(crate) name: String,
 }
 
 #[derive(Template)]
 #[template(path = "pallet/simple_mode/src/mock.rs.templ", escape = "none")]
 pub(crate) struct PalletSimpleMock {
-    pub(crate) name: String
+	pub(crate) name: String,
 }
 
 #[derive(Template)]
@@ -66,7 +66,7 @@ pub(crate) struct PalletAdvancedLib {
 		Vec<(TemplatePalletConfigTypesMetadata, TemplatePalletConfigTypesDefault, String)>,
 	pub(crate) pallet_storage: Vec<(TemplatePalletStorageTypes, String)>,
 	pub(crate) pallet_genesis: bool,
-    pub(crate) pallet_custom_origin: bool,
+	pub(crate) pallet_custom_origin: bool,
 	pub(crate) pallet_custom_origin_variants: Vec<String>,
 }
 
@@ -117,6 +117,10 @@ pub(crate) struct PalletOrigin {
 pub(crate) struct PalletTestsUtils {
 	pub(crate) name: String,
 }
+
+#[derive(Template)]
+#[template(path = "pallet/src/weights.rs.templ", escape = "none")]
+pub(crate) struct PalletWeights {}
 
 pub trait PalletItem {
 	/// Render and Write to file, root is the path to the pallet

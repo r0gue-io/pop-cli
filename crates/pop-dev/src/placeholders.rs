@@ -2,7 +2,7 @@ pub trait PlaceholderTraitBound: Sized {}
 
 pub struct PlaceholderType;
 
-impl PlaceholderTraitBound for PlaceholderType{}
+impl PlaceholderTraitBound for PlaceholderType {}
 
 #[macro_export]
 macro_rules! pop_todo{

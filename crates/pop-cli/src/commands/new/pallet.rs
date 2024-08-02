@@ -60,13 +60,13 @@ impl NewPalletCommand {
 		let mut pallet_config_types = Vec::new();
 		let mut pallet_storage = Vec::new();
 		let mut pallet_genesis = false;
-        let mut pallet_custom_origin = false;
+		let mut pallet_custom_origin = false;
 		let mut pallet_custom_origin_variants = Vec::new();
 
 		if let Some(Mode::Advanced(advanced_mode_args)) = &self.mode {
 			pallet_default_config = advanced_mode_args.default_config;
 			pallet_genesis = advanced_mode_args.genesis_config;
-            pallet_custom_origin = advanced_mode_args.custom_origin;
+			pallet_custom_origin = advanced_mode_args.custom_origin;
 
 			if advanced_mode_args.config_trait {
 				Cli.info("Generate the pallet's config trait.")?;
@@ -144,7 +144,7 @@ impl NewPalletCommand {
 				pallet_config_types,
 				pallet_storage,
 				pallet_genesis,
-                pallet_custom_origin,
+				pallet_custom_origin,
 				pallet_custom_origin_variants,
 			},
 		)?;
