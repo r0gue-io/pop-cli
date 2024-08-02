@@ -3,6 +3,7 @@
 {{- let using_currency = pallet_common_types|contains(TemplatePalletConfigCommonTypes::Currency) -}}
 use super::*;
 use frame::runtime::prelude::derive_impl;
+use pop_dev::{PlaceholderType, pop_todo};
 
 /// Provides a viable default config that can be used with
 /// [`derive_impl`] to derive a testing pallet config
@@ -31,9 +32,19 @@ impl DefaultConfig for TestDefaultConfig {
     {{- for config_type in pallet_config_types -}}
     {{- match config_type.1 -}}
     {{- when TemplatePalletConfigTypesDefault::Default }}
-    type ^^config_type.2^^ = todo!();
+    {{- match config_type.0 -}}
+    {{- when TemplatePalletConfigTypesMetadata::Constant }}
+    type ^^config_type.2|capitalize^^ = pop_todo!(constant_default_type);
+    {{- else }}
+    type ^^config_type.2|capitalize^^ = PlaceholderType;
+    {{- endmatch -}}
     {{- when TemplatePalletConfigTypesDefault::NoDefaultBounds }}
-    type ^^config_type.2^^ = todo!();
+    {{- match config_type.0 -}}
+    {{- when TemplatePalletConfigTypesMetadata::Constant }}
+    type ^^config_type.2|capitalize^^ = pop_todo!(constant_default_type);
+    {{- else }}
+    type ^^config_type.2|capitalize^^ = PlaceholderType;
+    {{- endmatch -}}
     {{- else -}}
     {{- endmatch -}}
     {{- endfor }}
@@ -64,9 +75,19 @@ impl DefaultConfig for SolochainDefaultConfig {
     {{- for config_type in pallet_config_types -}}
     {{- match config_type.1 -}}
     {{- when TemplatePalletConfigTypesDefault::Default }}
-    type ^^config_type.2^^ = todo!();
+    {{- match config_type.0 -}}
+    {{- when TemplatePalletConfigTypesMetadata::Constant }}
+    type ^^config_type.2|capitalize^^ = pop_todo!(constant_default_type);
+    {{- else }}
+    type ^^config_type.2|capitalize^^ = PlaceholderType;
+    {{- endmatch -}}
     {{- when TemplatePalletConfigTypesDefault::NoDefaultBounds }}
-    type ^^config_type.2^^ = todo!();
+    {{- match config_type.0 -}}
+    {{- when TemplatePalletConfigTypesMetadata::Constant }}
+    type ^^config_type.2|capitalize^^ = pop_todo!(constant_default_type);
+    {{- else }}
+    type ^^config_type.2|capitalize^^ = PlaceholderType;
+    {{- endmatch -}}
     {{- else -}}
     {{- endmatch -}}
     {{- endfor }}
@@ -97,9 +118,19 @@ impl DefaultConfig for RelayChainDefaultConfig {
     {{- for config_type in pallet_config_types -}}
     {{- match config_type.1 -}}
     {{- when TemplatePalletConfigTypesDefault::Default }}
-    type ^^config_type.2^^ = todo!();
+    {{- match config_type.0 -}}
+    {{- when TemplatePalletConfigTypesMetadata::Constant }}
+    type ^^config_type.2|capitalize^^ = pop_todo!(constant_default_type);
+    {{- else }}
+    type ^^config_type.2|capitalize^^ = PlaceholderType;
+    {{- endmatch -}}
     {{- when TemplatePalletConfigTypesDefault::NoDefaultBounds }}
-    type ^^config_type.2^^ = todo!();
+    {{- match config_type.0 -}}
+    {{- when TemplatePalletConfigTypesMetadata::Constant }}
+    type ^^config_type.2|capitalize^^ = pop_todo!(constant_default_type);
+    {{- else }}
+    type ^^config_type.2|capitalize^^ = PlaceholderType;
+    {{- endmatch -}}
     {{- else -}}
     {{- endmatch -}}
     {{- endfor }}
@@ -130,9 +161,19 @@ impl DefaultConfig for ParaChainDefaultConfig{
     {{- for config_type in pallet_config_types -}}
     {{- match config_type.1 -}}
     {{- when TemplatePalletConfigTypesDefault::Default }}
-    type ^^config_type.2^^ = todo!();
+    {{- match config_type.0 -}}
+    {{- when TemplatePalletConfigTypesMetadata::Constant }}
+    type ^^config_type.2|capitalize^^ = pop_todo!(constant_default_type);
+    {{- else }}
+    type ^^config_type.2|capitalize^^ = PlaceholderType;
+    {{- endmatch -}}
     {{- when TemplatePalletConfigTypesDefault::NoDefaultBounds }}
-    type ^^config_type.2^^ = todo!();
+    {{- match config_type.0 -}}
+    {{- when TemplatePalletConfigTypesMetadata::Constant }}
+    type ^^config_type.2|capitalize^^ = pop_todo!(constant_default_type);
+    {{- else }}
+    type ^^config_type.2|capitalize^^ = PlaceholderType;
+    {{- endmatch -}}
     {{- else -}}
     {{- endmatch -}}
     {{- endfor }}

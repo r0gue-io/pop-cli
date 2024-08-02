@@ -1,38 +1,37 @@
 use crate::pallet::*;
 use frame::prelude::*;
+use pop_dev::pop_todo;
 
 impl<T: Config> Pallet<T> {
     {{- for variant in pallet_custom_origin_variants }}
-    /// A helpful function your pallet may use to convert a external origin to the ^^variant^^ variant of your custom origin.
-    pub(crate) fn origin_to_^^variant^^(origin: OriginFor<T>) -> Result<RuntimeLocalOrigin<T>, DispatchError>{
-        // You can use the line below if your variant contains a signed AccountId :)
-        // let who = ensure_signed(origin)?;
-        Ok(<RuntimeLocalOrigin<T>>::from(<Origin<T>>::^^variant^^))
+    /// A helpful function this pallet may use to convert a external origin to the ^^variant|capitalize^^ variant of the custom origin.
+    pub(crate) fn origin_to_^^variant|lower^^(origin: OriginFor<T>) -> Result<RuntimeLocalOrigin<T>, DispatchError>{
+        Ok(<RuntimeLocalOrigin<T>>::from(Origin::^^variant|capitalize^^))
     }
 
     {{ endfor }}
 }
 
-impl<T:Config, OuterOrigin: Into<Result<Origin<T>, OuterOrigin>> + From<Origin<T>>> EnsureOrigin<OuterOrigin> for Origin<T>
+impl<OuterOrigin: Into<Result<Origin, OuterOrigin>> + From<Origin>> EnsureOrigin<OuterOrigin> for Origin
 {
-    type Success = todo!();
+    type Success = pop_todo!(origin_success_type);
 
     // This is a good place to define conditions making your origin valid!
     fn try_origin(outer_origin: OuterOrigin) -> Result<Self::Success, OuterOrigin>{
         outer_origin.into().and_then(|origin|match origin{
             {{- for variant in pallet_custom_origin_variants }}
-            ^^variant^^ => todo!(),
+            Origin::^^variant|capitalize^^ => pop_todo!(origin_match_type),
             {{- endfor -}}
-            other => Err(OuterOrigin::from(other))
         })
     }
 
     #[cfg(feature= "runtime-benchmarks")]
     fn try_successful_origin() -> Result<OuterOrigin, ()>{
+        // TODO
         {{- if !pallet_custom_origin_variants.is_empty() }}
-        Ok(OuterOrigin::from(Origin::^^pallet_custom_origin_variants[0]^^))
+        Ok(OuterOrigin::from(Origin::^^pallet_custom_origin_variants[0]|capitalize^^))
         {{- else }}
-        todo!()
+        Err(())
         {{- endif }}
     }
 }

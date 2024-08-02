@@ -128,8 +128,8 @@ macro_rules! pick_options_and_give_name{
                 )+
 
 
-                let mut selected_name: String = input("").placeholder("Give it a name!").interact()?;
-                selected_name = valid_ident(&selected_name)?;
+                let selected_name: String = input("").placeholder("Give it a name!").interact()?;
+                valid_ident(&selected_name)?;
                 index = 0;
 
                 output.push(
@@ -241,19 +241,19 @@ macro_rules! multiselect_pick {
 pub(crate) fn collect_loop_cliclack_inputs(prompt_message: &str) -> anyhow::Result<Vec<String>> {
 	let mut output = Vec::new();
 	loop {
-		let mut input: String =
+		let input: String =
 			input(prompt_message).placeholder("If you're done, type 'quit'").interact()?;
 		if input == "quit" {
 			break;
 		}
-        input = valid_ident(&input)?;
+        valid_ident(&input)?;
 		output.push(input);
 	}
 	Ok(output)
 }
 
-/// This function validates that the input is a valid identifier, and return it capitalized
-pub(crate) fn valid_ident(candidate: &str) -> anyhow::Result<String>{
+/// This function validates that the input is a valid identifier.
+pub(crate) fn valid_ident(candidate: &str) -> anyhow::Result<()>{
     // The identifier cannot be a keyword
     let reserved_keywords = [
         "as", "break", "const", "continue", "crate", "else", "enum", "extern", "false",
@@ -268,16 +268,7 @@ pub(crate) fn valid_ident(candidate: &str) -> anyhow::Result<String>{
 
     let reg = RegexBuilder::new(r"^[a-z_][a-z0-9_]*$").case_insensitive(true).build()?;
     if reg.is_match(candidate){
-        Ok(
-            candidate.chars().enumerate().map(|(index, letter)|{
-                if index==0{
-                    letter.to_uppercase().next().unwrap()
-                }
-                else{
-                    letter
-                }
-            }).collect::<String>()
-        )
+        Ok(())
     } else{
         Err(anyhow::anyhow!("Invalid identifier: {}.", candidate))
     }
@@ -292,7 +283,6 @@ mod tests{
     fn valid_ident_works_well(){
         let input = "hello";
         assert!(valid_ident(input).is_ok());
-        assert_eq!(valid_ident(input).unwrap(), "Hello");
     }
 
     #[test]

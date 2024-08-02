@@ -163,8 +163,8 @@ fn render_pallet(
 	} else {
 		pallet_contents = vec![
 			Box::new(PalletSimpleLib { name: pallet_name.clone() }),
-			Box::new(PalletSimpleTests {}),
-			Box::new(PalletSimpleMock {}),
+			Box::new(PalletSimpleTests { name: pallet_name.clone()}),
+			Box::new(PalletSimpleMock { name: pallet_name.clone() }),
 			Box::new(PalletSimpleBenchmarking {}),
 			Box::new(PalletWeights {}),
 		];

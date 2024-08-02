@@ -4553,6 +4553,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "pop-dev"
+version = "0.3.0"
+
+[[package]]
 name = "pop-parachains"
 version = "0.3.0"
 dependencies = [

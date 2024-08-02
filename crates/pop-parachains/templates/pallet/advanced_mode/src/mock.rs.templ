@@ -1,7 +1,8 @@
 {{- let using_runtime_event = pallet_common_types|contains(TemplatePalletConfigCommonTypes::RuntimeEvent) -}}
 {{- let using_runtime_origin = pallet_common_types|contains(TemplatePalletConfigCommonTypes::RuntimeOrigin) -}}
 {{- let using_currency = pallet_common_types|contains(TemplatePalletConfigCommonTypes::Currency) -}}
-use crate::{self as ^^name^^, frame_system::{mocking::MockBlock, GenesisConfig}};
+use crate::{self as pallet_^^name|lower^^, *};
+use pop_dev::{PlaceholderType, pop_todo};
 
 use frame::{
 	deps::frame_support::{
@@ -9,6 +10,9 @@ use frame::{
 	},
 	runtime::prelude::*,
 	testing_prelude::*,
+    {{- if using_currency }}
+    traits::fungible::Mutate
+    {{- endif }}
 };
 
 type Block = MockBlock<Test>;
@@ -42,11 +46,11 @@ mod runtime{
     {{- endif }}
 
     #[runtime::pallet_index(2)]
-	pub type ^^name^^ = ^^name^^;
+	pub type ^^name|capitalize^^ = pallet_^^name|lower^^;
 }
 
 #[derive_impl(frame_system::config_preludes::TestDefaultConfig)]
-impl crate::frame_system::Config for Test {
+impl frame_system::Config for Test {
 	type Block = Block;
     {{- if using_currency -}}
 	type AccountData = pallet_balances::AccountData<Balance>;
@@ -61,9 +65,9 @@ impl pallet_balances::Config for Test {
 {{- endif }}
 
 {{- if pallet_default_config }}
-#[derive_impl(^^name^^::config_preludes::TestDefaultConfig)]
+#[derive_impl(pallet_^^name|lower^^::config_preludes::TestDefaultConfig)]
 {{- endif }}
-impl ^^name^^::Config for Test {
+impl pallet_^^name|lower^^::Config for Test {
     {{- if using_runtime_event && !pallet_default_config -}}
     type RuntimeEvent = RuntimeEvent;
     {{- endif -}}
@@ -80,22 +84,37 @@ impl ^^name^^::Config for Test {
     {{- for config_type in pallet_config_types -}}
     {{- match config_type.1 -}}
     {{- when TemplatePalletConfigTypesDefault::Default -}}
-    {{- if !pallet_default_config }}
-    type ^^config_type.2^^ = todo!();
+    {{- if !pallet_default_config -}}
+    {{- match config_type.0 -}}
+    {{- when TemplatePalletConfigTypesMetadata::Constant }}
+    type ^^config_type.2|capitalize^^ = pop_todo!(constant_default_type);
+    {{- else }}
+    type ^^config_type.2|capitalize^^ = PlaceholderType;
+    {{- endmatch -}}
     {{- endif -}}
     {{- when TemplatePalletConfigTypesDefault::NoDefaultBounds }}
     {{- if !pallet_default_config }}
-    type ^^config_type.2^^ = todo!();
+    {{- match config_type.0 -}}
+    {{- when TemplatePalletConfigTypesMetadata::Constant }}
+    type ^^config_type.2|capitalize^^ = pop_todo!(constant_default_type);
+    {{- else }}
+    type ^^config_type.2|capitalize^^ = PlaceholderType;
+    {{- endmatch -}}
     {{- endif -}}
     {{- else }}
-    type ^^config_type.2^^ = todo!();
+    {{- match config_type.0 -}}
+    {{- when TemplatePalletConfigTypesMetadata::Constant }}
+    type ^^config_type.2|capitalize^^ = pop_todo!(constant_default_type);
+    {{- else }}
+    type ^^config_type.2|capitalize^^ = PlaceholderType;
+    {{- endmatch -}}
     {{- endmatch -}}
     {{- endfor -}}
 }
 
 pub(crate) struct StateBuilder{
     {{- if using_currency -}}
-    balances: Vec<(<Runtime as frame_system::Config>::AccountId, Balance)>
+    balances: Vec<(<Test as frame_system::Config>::AccountId, Balance)>
     {{- endif -}}
 }
 
@@ -114,7 +133,7 @@ impl StateBuilder {
     /// This function helps to construct a initial state where some accounts have balances
 	fn add_balance(
 		mut self,
-		who: <Runtime as frame_system::Config>::AccountId,
+		who: <Test as frame_system::Config>::AccountId,
 		amount: Balance,
 	) -> Self {
 		self.balances.push((who, amount));
@@ -123,7 +142,7 @@ impl StateBuilder {
     {{- endif }}
 
     pub(crate) fn build_and_execute(self, test: impl FnOnce() -> ()) {
-        let mut ext = crate::frame_system::GenesisConfig::<Test>::default()
+        let mut ext: sp_io::TestExternalities = frame_system::GenesisConfig::<Test>::default()
                     .build_storage()
                     .unwrap()
                     .into();
@@ -133,7 +152,7 @@ impl StateBuilder {
             System::set_block_number(1);
             {{- if using_currency -}}
             self.balances.iter().for_each(|(who, amount)| {
-                <Currency<Test>>::set_balance(who, amount);
+                <Test as Config>::Currency::set_balance(who, *amount);
             })
             {{- endif }}
         });
@@ -148,7 +167,7 @@ impl StateBuilder {
 }
 
 pub fn new_test_ext() -> sp_io::TestExternalities {
-	GenesisConfig::<Test>::default()
+	frame_system::GenesisConfig::<Test>::default()
 		.build_storage()
 		.unwrap()
 		.into()

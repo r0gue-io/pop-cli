@@ -1,7 +1,7 @@
 {{- let using_runtime_event = pallet_common_types|contains(TemplatePalletConfigCommonTypes::RuntimeEvent) -}}
 {{- let using_runtime_origin = pallet_common_types|contains(TemplatePalletConfigCommonTypes::RuntimeOrigin) -}}
 {{- let using_currency = pallet_common_types|contains(TemplatePalletConfigCommonTypes::Currency) -}}
-//! # ^^name^^ pallet
+//! # ^^name|capitalize^^ pallet
 //! Please, document your pallet properly
 //! Learn more about everything related to Polkadot SDK development at <https://paritytech.github.io/polkadot-sdk/master/polkadot_sdk_docs/index.html>. Everythin's there!
 //! - [`Config`]
@@ -10,8 +10,10 @@
 
 use frame::prelude::*;
 
+use pop_dev::{PlaceholderTraitBound, pop_todo};
+
 {{ if using_currency }}
-use frame::traits::{fungible::{Inspect, Mutate, InspectHold, MutateHold, InspectFreeze, MutateFreeze}, VariantCount};
+use frame::traits::{fungible, VariantCount};
 {{- endif }}
 
 {{ if pallet_default_config }}
@@ -76,7 +78,7 @@ pub mod pallet {
         #[pallet::no_default_bounds]
         {{- endif -}}
         {{- if pallet_custom_origin }}
-        type RuntimeOrigin: From<OriginFor<Self>> + From<Origin<Self>> + Into<Result<Origin<Self>,RuntimeLocalOrigin<Self>>>;
+        type RuntimeOrigin: From<OriginFor<Self>> + From<Origin> + Into<Result<Origin,RuntimeLocalOrigin<Self>>>;
         {{- else }}
         type RuntimeOrigin: From<OriginFor<Self>>;
         {{- endif -}}
@@ -109,11 +111,6 @@ pub mod pallet {
 
         {{ for config_type in pallet_config_types -}}
         /// Some docs for this type
-        {{- match config_type.0 -}}
-        {{- when TemplatePalletConfigTypesMetadata::Constant }}
-        #[pallet::constant]
-        {{- else -}}
-        {{- endmatch -}}
         {{- match config_type.1 -}}
         {{- when TemplatePalletConfigTypesDefault::NoDefaultBounds }}
         #[pallet::no_default_bounds]
@@ -121,8 +118,15 @@ pub mod pallet {
         #[pallet::no_default]
         {{- else -}}
         {{- endmatch }}
-        type ^^config_type.2^^ = todo!();
-        
+        {{- match config_type.0 -}}
+        {{- when TemplatePalletConfigTypesMetadata::Constant }}
+        #[pallet::constant]
+        type ^^config_type.2|capitalize^^: Get<u32>;
+
+        {{ else }}
+        type ^^config_type.2|capitalize^^: PlaceholderTraitBound;
+
+        {{ endmatch -}}
         {{ endfor }}
     }
 
@@ -131,35 +135,35 @@ pub mod pallet {
     #[pallet::storage]
     {{- match storage.0 -}}
     {{- when TemplatePalletStorageTypes::StorageValue }}
-    pub type ^^storage.1^^<T: Config> = StorageValue<Value = todo!()>;
+    pub type ^^storage.1|capitalize^^<T: Config> = StorageValue<Value = pop_todo!(storage_value)>;
 
     {{ when TemplatePalletStorageTypes::StorageMap }}
-    pub type ^^storage.1^^<T: Config> = StorageMap<Hasher = todo!(), Key = todo!(), Value = todo!()>;
+    pub type ^^storage.1|capitalize^^<T: Config> = StorageMap<Hasher = pop_todo!(storage_hasher), Key = pop_todo!(storage_key), Value = pop_todo!(storage_value)>;
 
     {{ when TemplatePalletStorageTypes::CountedStorageMap }}
-    pub type ^^storage.1^^<T: Config> = CountedStorageMap<Hasher = todo!(), Key = todo!(), Value = todo!()>;
+    pub type ^^storage.1|capitalize^^<T: Config> = CountedStorageMap<Hasher = pop_todo!(storage_hasher), Key = pop_todo!(storage_key), Value = pop_todo!(storage_value)>;
 
     {{ when TemplatePalletStorageTypes::StorageDoubleMap }}
-    pub type ^^storage.1^^<T: Config> = StorageDoubleMap<Hasher1 = todo!(), Key1 = todo!(), Hasher2 = todo!(), Key2 = todo!(), Value = todo!()>;
+    pub type ^^storage.1|capitalize^^<T: Config> = StorageDoubleMap<Hasher1 = pop_todo!(storage_hasher), Key1 = pop_todo!(storage_key), Hasher2 = pop_todo!(storage_hasher), Key2 = pop_todo!(storage_key), Value = pop_todo!(storage_value)>;
 
     {{ when TemplatePalletStorageTypes::StorageNMap }}
-    pub type ^^storage.1^^<T: Config>= StorageNMap<
+    pub type ^^storage.1|capitalize^^<T: Config>= StorageNMap<
         Key = (
-            NMapKey<todo!(), todo!()>,
-            NMapKey<todo!(), todo!()>,
-            NMapKey<todo!(), todo!()>,
+            NMapKey<pop_todo!(storage_hasher), pop_todo!(storage_key)>,
+            NMapKey<pop_todo!(storage_hasher), pop_todo!(storage_key)>,
+            NMapKey<pop_todo!(storage_hasher), pop_todo!(storage_key)>
         ),
-        Value = todo!()
+        Value = pop_todo!(storage_value)
     >;
 
     {{ when TemplatePalletStorageTypes::CountedStorageNMap }}
-    pub type ^^storage.1^^<T: Config> = CountedStorageNMap<
+    pub type ^^storage.1|capitalize^^<T: Config> = CountedStorageNMap<
         Key = (
-            NMapKey<todo!(), todo!()>,
-            NMapKey<todo!(), todo!()>,
-            NMapKey<todo!(), todo!()>,
+            NMapKey<pop_todo!(storage_hasher), pop_todo!(storage_key)>,
+            NMapKey<pop_todo!(storage_hasher), pop_todo!(storage_key)>,
+            NMapKey<pop_todo!(storage_hasher), pop_todo!(storage_key)>
         ),
-        Value = todo!()
+        Value = pop_todo!(storage_value)
     >;
     
     {{ endmatch -}}
@@ -183,16 +187,20 @@ pub mod pallet {
     {{ if pallet_genesis }}
     #[pallet::genesis_config]
     pub struct GenesisConfig<T: Config> {
-        /// This is just an example of genesis configuration, don't neeed to use a bool
-        pub some_genesis_config: bool
+        /// This is just an example of genesis configuration
+        pub some_genesis_config: BlockNumberFor<T>
+    }
+
+    impl<T: Config> Default for GenesisConfig<T> {
+        fn default() -> Self {
+            Self { some_genesis_config: 1u32.into() }
+        }
     }
 
     #[pallet::genesis_build]
     impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
         fn build(&self) {
-            if self.some_genesis_config{
-                todo!("This is just an example, maybe you wanna initialize some storage");
-            }
+            // TODO: This is just an example, maybe you wanna initialize some storage
         }
     }
 
@@ -201,9 +209,9 @@ pub mod pallet {
     {{- if pallet_custom_origin }}
     #[pallet::origin]
     #[derive(PartialEq, Eq, Clone, RuntimeDebug, Encode, Decode, TypeInfo, MaxEncodedLen)]
-    pub enum Origin<T:Config> {
+    pub enum Origin {
         {{- for variant in pallet_custom_origin_variants }}
-            ^^variant^^,
+            ^^variant|capitalize^^,
         {{- endfor -}}
     }
 
@@ -212,7 +220,7 @@ pub mod pallet {
     #[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
         fn integrity_test(){
-            todo!("Maybe ensure something about your config types...");
+            // TODO: Maybe ensure something about your config types...
         }
 
 		#[cfg(feature = "try-runtime")]

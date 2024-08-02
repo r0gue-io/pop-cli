@@ -37,11 +37,15 @@ pub(crate) struct PalletSimpleLib {
 
 #[derive(Template)]
 #[template(path = "pallet/simple_mode/src/tests.rs.templ", escape = "none")]
-pub(crate) struct PalletSimpleTests {}
+pub(crate) struct PalletSimpleTests {
+    pub(crate) name: String
+}
 
 #[derive(Template)]
 #[template(path = "pallet/simple_mode/src/mock.rs.templ", escape = "none")]
-pub(crate) struct PalletSimpleMock {}
+pub(crate) struct PalletSimpleMock {
+    pub(crate) name: String
+}
 
 #[derive(Template)]
 #[template(path = "pallet/simple_mode/src/benchmarking.rs.templ", escape = "none")]
