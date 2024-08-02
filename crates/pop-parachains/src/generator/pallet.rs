@@ -118,10 +118,6 @@ pub(crate) struct PalletTestsUtils {
 	pub(crate) name: String,
 }
 
-#[derive(Template)]
-#[template(path = "pallet/src/weights.rs.templ", escape = "none")]
-pub(crate) struct PalletWeights {}
-
 pub trait PalletItem {
 	/// Render and Write to file, root is the path to the pallet
 	fn execute(&self, root: &PathBuf) -> anyhow::Result<()>;
