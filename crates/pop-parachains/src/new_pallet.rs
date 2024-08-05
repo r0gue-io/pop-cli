@@ -172,6 +172,13 @@ fn render_pallet(
 	for item in pallet {
 		item.execute(pallet_path)?;
 	}
+
+    // Format the repo. If this fails we do nothing, it's not a major failure
+    let _ = Command::new("cargo")
+        .arg("fmt")
+        .current_dir(pallet_path)
+        .output();
+
 	Ok(())
 }
 
