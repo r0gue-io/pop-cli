@@ -4640,6 +4640,7 @@ dependencies = [
  "strum_macros 0.26.4",
  "tempfile",
  "tokio",
+ "toml_edit 0.22.14",
  "url",
 ]
 

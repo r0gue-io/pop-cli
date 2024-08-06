@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::cli::{
-	traits::{Cli as _, Confirm as _},
-	Cli,
+use crate::{
+	cli::{
+		traits::{Cli as _, Confirm as _},
+		Cli,
+	},
+	common::helpers::{add_crate_to_workspace, find_workspace_toml},
 };
 use anyhow::Result;
 use clap::{
@@ -75,6 +78,12 @@ impl NewContractCommand {
 
 		is_template_supported(contract_type, &template)?;
 		generate_contract_from_template(name, &path, &template)?;
+
+		// If the contract is part of a workspace, add it to that workspace
+		if let Some(workspace_toml) = find_workspace_toml(&path) {
+			add_crate_to_workspace(&workspace_toml, &path)?;
+		}
+
 		Ok(())
 	}
 }
