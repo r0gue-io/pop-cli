@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::Error;
-pub use cargo_toml::{Dependency, Manifest};
 use anyhow;
+pub use cargo_toml::{Dependency, Manifest};
 use std::{
 	fs::{read_to_string, write},
 	path::{Path, PathBuf},
@@ -29,7 +29,7 @@ pub fn from_path(path: Option<&Path>) -> Result<Manifest, Error> {
 }
 
 /// This function is used to determine if a Path is contained inside a workspace, and returns a PathBuf to the workspace Cargo.toml if found
-/// 
+///
 /// # Arguments
 /// * `target_dir` - A directory that may be contained inside a workspace
 /// # Output
@@ -58,10 +58,7 @@ pub fn find_workspace_toml(target_dir: &Path) -> Option<PathBuf> {
 /// - `crate_path` isn't inside a workspace directory
 /// - The section `members` inside the workspace `Cargo.toml` isn't an array
 /// - The section `workspace` isn't present in the workspace `Cargo.toml`
-pub fn add_crate_to_workspace(
-	workspace_toml: &Path,
-	crate_path: &Path,
-) -> anyhow::Result<()> {
+pub fn add_crate_to_workspace(workspace_toml: &Path, crate_path: &Path) -> anyhow::Result<()> {
 	let toml_contents = read_to_string(workspace_toml)?;
 	let mut doc = toml_contents.parse::<DocumentMut>()?;
 
@@ -100,7 +97,7 @@ pub fn add_crate_to_workspace(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+	use super::*;
 	use std::fs::{write, File};
 	use tempfile::TempDir;
 

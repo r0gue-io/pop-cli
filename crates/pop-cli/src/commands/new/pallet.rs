@@ -4,8 +4,8 @@ use crate::style::Theme;
 use clap::Args;
 use cliclack::{clear_screen, confirm, intro, outro, outro_cancel, set_theme};
 use console::style;
-use pop_parachains::{create_pallet_template, resolve_pallet_path, TemplatePalletConfig};
 use pop_common::manifest::{add_crate_to_workspace, find_workspace_toml};
+use pop_parachains::{create_pallet_template, resolve_pallet_path, TemplatePalletConfig};
 use std::fs;
 
 #[derive(Args)]
