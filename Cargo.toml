@@ -61,8 +61,8 @@ toml_edit = { version = "0.22", features = ["serde"] }
 symlink = "0.1"
 serde_json = { version = "1.0", features = ["preserve_order"] }
 serde = { version = "1.0", features = ["derive"] }
-zombienet-sdk = "0.2.7"
-zombienet-support = "0.2.7"
+zombienet-sdk = { version = "0.2.7", git = "https://github.com/r0gue-io/zombienet-sdk", branch = "hrmp" }
+zombienet-support = { version = "0.2.7", git = "https://github.com/r0gue-io/zombienet-sdk", branch = "hrmp" }
 git2_credentials = "0.13.0"
 
 # pop-cli
