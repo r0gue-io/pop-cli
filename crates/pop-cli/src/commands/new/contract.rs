@@ -1,12 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{
-	cli::{
-		traits::{Cli as _, Confirm as _},
-		Cli,
-	},
-	common::helpers::{add_crate_to_workspace, find_workspace_toml},
-};
+use crate::cli::{traits::{Cli as _, Confirm as _},Cli};
+use pop_common::manifest::{add_crate_to_workspace, find_workspace_toml};
+
 use anyhow::Result;
 use clap::{
 	builder::{PossibleValue, PossibleValuesParser, TypedValueParser},
