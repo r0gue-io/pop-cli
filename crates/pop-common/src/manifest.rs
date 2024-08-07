@@ -32,8 +32,6 @@ pub fn from_path(path: Option<&Path>) -> Result<Manifest, Error> {
 ///
 /// # Arguments
 /// * `target_dir` - A directory that may be contained inside a workspace
-/// # Output
-/// * `Option<PathBuf>` - `Some(pathbuf)` if the input is contained in a workspace, where `pathbuf` points to the workspace `Cargo.toml`. Otherwise, `None`
 pub fn find_workspace_toml(target_dir: &Path) -> Option<PathBuf> {
 	let mut dir = target_dir;
 	while let Some(parent) = dir.parent() {
@@ -54,10 +52,6 @@ pub fn find_workspace_toml(target_dir: &Path) -> Option<PathBuf> {
 /// # Arguments
 /// * `workspace_toml` - The path to the workspace `Cargo.toml`
 /// * `crate_path`: The path to the crate that should be added to the workspace
-/// # Errors
-/// - `crate_path` isn't inside a workspace directory
-/// - The section `members` inside the workspace `Cargo.toml` isn't an array
-/// - The section `workspace` isn't present in the workspace `Cargo.toml`
 pub fn add_crate_to_workspace(workspace_toml: &Path, crate_path: &Path) -> anyhow::Result<()> {
 	let toml_contents = read_to_string(workspace_toml)?;
 	let mut doc = toml_contents.parse::<DocumentMut>()?;
