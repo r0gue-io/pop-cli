@@ -8571,8 +8571,7 @@ dependencies = [
 [[package]]
 name = "zombienet-configuration"
 version = "0.2.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a5ee069fa52f2057eaae7f27f0c638d4a5f630e42159f66665398681cdd82d4f"
+source = "git+https://github.com/r0gue-io/zombienet-sdk?branch=hrmp#49d6c4e2bc7b42c578cde9710171a245cb009dc2"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -8589,8 +8588,7 @@ dependencies = [
 [[package]]
 name = "zombienet-orchestrator"
 version = "0.2.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cdbffc9d2fd1c8f727718a197f7fc65ad7b7a2397855f87a6deb738a26d499f8"
+source = "git+https://github.com/r0gue-io/zombienet-sdk?branch=hrmp#49d6c4e2bc7b42c578cde9710171a245cb009dc2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8621,8 +8619,7 @@ dependencies = [
 [[package]]
 name = "zombienet-prom-metrics-parser"
 version = "0.2.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af494234607b9bbfee8b6ab93a0b85c5f9238c6ffdb9c46f1db3e811b1940e0e"
+source = "git+https://github.com/r0gue-io/zombienet-sdk?branch=hrmp#49d6c4e2bc7b42c578cde9710171a245cb009dc2"
 dependencies = [
  "pest",
  "pest_derive",
@@ -8632,8 +8629,7 @@ dependencies = [
 [[package]]
 name = "zombienet-provider"
 version = "0.2.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c900c3a42098db63bbf4ac1b3ce37157d66a1e6627ac4c806bf7a346253a9093"
+source = "git+https://github.com/r0gue-io/zombienet-sdk?branch=hrmp#49d6c4e2bc7b42c578cde9710171a245cb009dc2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8663,8 +8659,7 @@ dependencies = [
 [[package]]
 name = "zombienet-sdk"
 version = "0.2.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "27224e17fd674c21c1ac16280bc85d2333ee71520fa02a1c6de6aa6f642aa1b5"
+source = "git+https://github.com/r0gue-io/zombienet-sdk?branch=hrmp#49d6c4e2bc7b42c578cde9710171a245cb009dc2"
 dependencies = [
  "async-trait",
  "futures",
@@ -8680,8 +8675,7 @@ dependencies = [
 [[package]]
 name = "zombienet-support"
 version = "0.2.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9f4ec8f69b9c4b6407ae721911da25df0c99a1d70da1e4b9d7ee11bcbea0594a"
+source = "git+https://github.com/r0gue-io/zombienet-sdk?branch=hrmp#49d6c4e2bc7b42c578cde9710171a245cb009dc2"
 dependencies = [
  "anyhow",
  "async-trait",
