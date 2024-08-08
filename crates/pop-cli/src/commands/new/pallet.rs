@@ -4,14 +4,14 @@ use crate::{
 	cli::{traits::Cli as _, Cli},
 };
 
-use pop_common::multiselect_pick;
 use clap::{Args, Subcommand};
 use cliclack::{confirm, multiselect, outro, outro_cancel};
 use pop_parachains::{
 	create_pallet_template, resolve_pallet_path, TemplatePalletConfig,
 	TemplatePalletConfigCommonTypes, TemplatePalletStorageTypes
 };
-use std::fs;
+use pop_common::{manifest::{add_crate_to_workspace, find_workspace_toml}, multiselect_pick};
+use std::{fs, process::Command};
 use strum::{EnumMessage, IntoEnumIterator};
 
 #[derive(Args)]
@@ -80,6 +80,10 @@ impl NewPalletCommand {
 		};
 
 		let target = resolve_pallet_path(self.path.clone())?;
+
+		// Determine if the pallet is being created inside a workspace
+		let workspace_toml = find_workspace_toml(&target);
+
 		let pallet_name = self.name.clone();
 		let pallet_path = target.join(pallet_name.clone());
 		if pallet_path.exists() {
@@ -95,7 +99,7 @@ impl NewPalletCommand {
 				))?;
 				return Ok(());
 			}
-			fs::remove_dir_all(pallet_path)?;
+			fs::remove_dir_all(pallet_path.clone())?;
 		}
 		let spinner = cliclack::spinner();
 		spinner.start("Generating pallet...");
@@ -105,15 +109,26 @@ impl NewPalletCommand {
 				name: self.name.clone(),
 				authors: self.authors.clone().expect("default values"),
 				description: self.description.clone().expect("default values"),
+                pallet_in_workspace: workspace_toml.is_some(),
 				pallet_advanced_mode: self.mode.is_some(),
 				pallet_default_config,
 				pallet_common_types,
 				pallet_storage,
 				pallet_genesis,
 				pallet_custom_origin,
-
 			},
 		)?;
+
+		// If the pallet has been created inside a workspace, add it to that workspace
+		if let Some(workspace_toml) = workspace_toml {
+			add_crate_to_workspace(&workspace_toml, &pallet_path)?;
+		}
+
+        // Format the dir. If this fails we do nothing, it's not a major failure
+        let _ = Command::new("cargo")
+            .arg("fmt")
+            .current_dir(pallet_path)
+            .output();
 
 		spinner.stop("Generation complete");
 		outro(format!("cd into \"{}\" and enjoy hacking! 🚀", &self.name))?;

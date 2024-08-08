@@ -20,6 +20,8 @@ pub(crate) struct PalletCargoToml {
 	pub(crate) name: String,
 	pub(crate) authors: String,
 	pub(crate) description: String,
+    // A bool indicating if the pallet has been generated inside a workspace
+	pub(crate) pallet_in_workspace: bool,
 	// Some common types are used to couple our pallet with a well known one, then adding this type
 	// here is useful to design Cargo.toml. This pallets should be added as dev-dependencies to
 	// construct the mock runtime

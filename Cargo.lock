@@ -4664,6 +4664,7 @@ dependencies = [
  "tempfile",
  "thiserror",
  "tokio",
+ "toml_edit 0.22.14",
  "url",
 ]
 

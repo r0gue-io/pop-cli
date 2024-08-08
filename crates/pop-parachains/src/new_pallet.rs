@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use std::{fs, path::PathBuf, process::Command};
+use std::{fs, path::PathBuf};
 
 pub mod new_pallet_options;
 
@@ -26,6 +26,8 @@ pub struct TemplatePalletConfig {
 	pub authors: String,
 	/// The pallet description
 	pub description: String,
+    /// A `bool` indicating if the pallet is contained in a workspace
+	pub pallet_in_workspace: bool,
 	/// A `bool` indicating if the user wanna use the advanced mode
 	pub pallet_advanced_mode: bool,
 	/// A `bool` indicating if the template must include a default config for the pallet.
@@ -109,6 +111,7 @@ fn render_pallet(
 		name: pallet_name.clone(),
 		authors: config.authors,
 		description: config.description,
+			pallet_in_workspace: config.pallet_in_workspace,
 		pallet_common_types: config.pallet_common_types.clone(),
 	})];
 	let mut pallet_contents: Vec<Box<dyn PalletItem>>;
@@ -160,12 +163,6 @@ fn render_pallet(
 		item.execute(pallet_path)?;
 	}
 
-    // Format the repo. If this fails we do nothing, it's not a major failure
-    let _ = Command::new("cargo")
-        .arg("fmt")
-        .current_dir(pallet_path)
-        .output();
-
 	Ok(())
 }
 
@@ -181,6 +178,7 @@ mod tests {
 			name: pallet_name.to_string(),
 			authors: "Alice".to_string(),
 			description: "A sample pallet".to_string(),
+			pallet_in_workspace: false,
 			pallet_advanced_mode: true,
 			pallet_default_config: true,
 			pallet_common_types: Vec::new(),
@@ -473,6 +471,7 @@ mod tests {
 			name: pallet_name.to_string(),
 			authors: "Alice".to_string(),
 			description: "A sample pallet".to_string(),
+			pallet_in_workspace: false,
 			pallet_advanced_mode: true,
 			pallet_default_config: false,
 			pallet_common_types: Vec::new(),
