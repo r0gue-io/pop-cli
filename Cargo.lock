@@ -4632,7 +4632,6 @@ dependencies = [
  "pop-parachains",
  "pop-telemetry",
  "predicates",
- "regex",
  "reqwest 0.12.5",
  "serde_json",
  "sp-core",
@@ -4696,10 +4695,6 @@ dependencies = [
  "tokio-test",
  "url",
 ]
-
-[[package]]
-name = "pop-dev"
-version = "0.3.0"
 
 [[package]]
 name = "pop-parachains"

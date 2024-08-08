@@ -21,38 +21,8 @@ pub enum TemplatePalletConfigCommonTypes {
 	Currency,
 }
 
-/// This enum is used to determine if a pallet config type is included in the metadata (annotated
-/// with #[pallet::constant]) or not.
-#[derive(Debug, Copy, Clone, EnumIter, EnumMessage)]
-pub enum TemplatePalletConfigTypesMetadata {
-	#[strum(message = "Not included into the metadata", detailed_message = "")]
-	NonConstant,
-	#[strum(message = "Included into the metadata", detailed_message = "")]
-	Constant,
-}
-
-/// This enum is used to specify the default config options of a pallet's config type if needed
-#[derive(Debug, Copy, Clone, EnumIter, EnumMessage)]
-pub enum TemplatePalletConfigTypesDefault {
-	#[strum(
-		message = "Yes",
-		detailed_message = "This trait item may be used as a default with the #[derive_impl(..)] macro"
-	)]
-	Default,
-	#[strum(
-		message = "Yes, without trait bounds",
-		detailed_message = "Ensures the generated DefaultConfig will not have any bounds for this trait item."
-	)]
-	NoDefaultBounds,
-	#[strum(
-		message = "No",
-		detailed_message = "Ensure this trait item will not be used as a default with the #[derive_impl(..)] macro"
-	)]
-	NoDefault,
-}
-
 /// This enum is used to determine which storage shape has a storage item in the pallet
-#[derive(Debug, Copy, Clone, EnumIter, EnumMessage)]
+#[derive(Debug, Copy, Clone, PartialEq, EnumIter, EnumMessage)]
 pub enum TemplatePalletStorageTypes {
 	#[strum(
 		message = "StorageValue",

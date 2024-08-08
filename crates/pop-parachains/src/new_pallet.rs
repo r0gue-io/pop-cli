@@ -14,8 +14,7 @@ use crate::{
 	},
 	resolve_pallet_path,
 	utils::helpers::sanitize,
-	TemplatePalletConfigCommonTypes, TemplatePalletConfigTypesDefault,
-	TemplatePalletConfigTypesMetadata, TemplatePalletStorageTypes,
+	TemplatePalletConfigCommonTypes,TemplatePalletStorageTypes
 };
 
 /// Metadata for the Template Pallet.
@@ -34,18 +33,12 @@ pub struct TemplatePalletConfig {
 	/// A `Vec` indicating which of the types defined in `TemplatePalletConfigCommonTypes` should
 	/// be included in the template.
 	pub pallet_common_types: Vec<TemplatePalletConfigCommonTypes>,
-	/// A `Vec` containing the names of the config types entered by the user, plus whether they
-	/// should be included in the metadata and in the default pallet config (if one is used).
-	pub pallet_config_types:
-		Vec<(TemplatePalletConfigTypesMetadata, TemplatePalletConfigTypesDefault, String)>,
 	/// A `Vec` containing which type of storages are used and their names.
-	pub pallet_storage: Vec<(TemplatePalletStorageTypes, String)>,
+	pub pallet_storage: Vec<TemplatePalletStorageTypes>,
 	/// A `bool` indicating if the template should include a genesis config
 	pub pallet_genesis: bool,
 	/// A `bool` indicating if the template should include a custom origin
 	pub pallet_custom_origin: bool,
-	/// A `Vec` containing the variants of the pallet's custom internal origin, if one's being used
-	pub pallet_custom_origin_variants: Vec<String>,
 }
 /// Create a new pallet from a template.
 ///
@@ -125,18 +118,15 @@ fn render_pallet(
 				name: pallet_name.clone(),
 				pallet_default_config: config.pallet_default_config,
 				pallet_common_types: config.pallet_common_types.clone(),
-				pallet_config_types: config.pallet_config_types.clone(),
 				pallet_storage: config.pallet_storage,
 				pallet_genesis: config.pallet_genesis,
-				pallet_custom_origin: config.pallet_custom_origin,
-				pallet_custom_origin_variants: config.pallet_custom_origin_variants.clone(),
+				pallet_custom_origin: config.pallet_custom_origin
 			}),
 			Box::new(PalletAdvancedTests {}),
 			Box::new(PalletAdvancedMock {
 				name: pallet_name.clone(),
 				pallet_default_config: config.pallet_default_config,
 				pallet_common_types: config.pallet_common_types.clone(),
-				pallet_config_types: config.pallet_config_types.clone(),
 				pallet_custom_origin: config.pallet_custom_origin,
 			}),
 			Box::new(PalletAdvancedBenchmarking {}),
@@ -147,15 +137,12 @@ fn render_pallet(
 		if config.pallet_default_config {
 			pallet_contents.push(Box::new(PalletConfigPreludes {
 				pallet_common_types: config.pallet_common_types,
-				pallet_config_types: config.pallet_config_types,
 				pallet_custom_origin: config.pallet_custom_origin,
 			}));
 		}
 
 		if config.pallet_custom_origin {
-			pallet_contents.push(Box::new(PalletOrigin {
-				pallet_custom_origin_variants: config.pallet_custom_origin_variants,
-			}));
+			pallet_contents.push(Box::new(PalletOrigin {}));
 		}
 	} else {
 		pallet_contents = vec![

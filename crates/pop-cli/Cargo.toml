@@ -22,7 +22,6 @@ serde_json.workspace = true
 tempfile.workspace = true
 tokio.workspace = true
 url.workspace = true
-regex.workspace = true
 
 # pop-cli
 clap.workspace = true

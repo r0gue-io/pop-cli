@@ -2,5 +2,3 @@
 
 #[cfg(feature = "contract")]
 pub mod contracts;
-
-pub mod helpers;

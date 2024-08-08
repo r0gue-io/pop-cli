@@ -1,8 +1,0 @@
-[package]
-name = "pop-dev"
-description = "Library for helping with POP development"
-version = "0.3.0"
-license = "Apache-2.0"
-edition.workspace = true
-readme = "README.md"
-repository.workspace = true

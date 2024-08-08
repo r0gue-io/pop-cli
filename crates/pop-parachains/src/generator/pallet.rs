@@ -3,9 +3,7 @@
 use std::path::PathBuf;
 
 use crate::{
-	utils::helpers::write_to_file, TemplatePalletConfigCommonTypes,
-	TemplatePalletConfigTypesDefault, TemplatePalletConfigTypesMetadata,
-	TemplatePalletStorageTypes,
+	utils::helpers::write_to_file, TemplatePalletConfigCommonTypes,TemplatePalletStorageTypes,
 };
 use askama::Template;
 
@@ -62,12 +60,9 @@ pub(crate) struct PalletAdvancedLib {
 	pub(crate) name: String,
 	pub(crate) pallet_default_config: bool,
 	pub(crate) pallet_common_types: Vec<TemplatePalletConfigCommonTypes>,
-	pub(crate) pallet_config_types:
-		Vec<(TemplatePalletConfigTypesMetadata, TemplatePalletConfigTypesDefault, String)>,
-	pub(crate) pallet_storage: Vec<(TemplatePalletStorageTypes, String)>,
+	pub(crate) pallet_storage: Vec<TemplatePalletStorageTypes>,
 	pub(crate) pallet_genesis: bool,
 	pub(crate) pallet_custom_origin: bool,
-	pub(crate) pallet_custom_origin_variants: Vec<String>,
 }
 
 #[derive(Template)]
@@ -80,8 +75,6 @@ pub(crate) struct PalletAdvancedMock {
 	pub(crate) name: String,
 	pub(crate) pallet_default_config: bool,
 	pub(crate) pallet_common_types: Vec<TemplatePalletConfigCommonTypes>,
-	pub(crate) pallet_config_types:
-		Vec<(TemplatePalletConfigTypesMetadata, TemplatePalletConfigTypesDefault, String)>,
 	pub(crate) pallet_custom_origin: bool,
 }
 
@@ -99,8 +92,6 @@ pub(crate) struct PalletLogic {
 #[template(path = "pallet/advanced_mode/src/config_preludes.rs.templ", escape = "none")]
 pub(crate) struct PalletConfigPreludes {
 	pub(crate) pallet_common_types: Vec<TemplatePalletConfigCommonTypes>,
-	pub(crate) pallet_config_types:
-		Vec<(TemplatePalletConfigTypesMetadata, TemplatePalletConfigTypesDefault, String)>,
 	pub(crate) pallet_custom_origin: bool,
 }
 
@@ -110,9 +101,7 @@ pub(crate) struct PalletTryState {}
 
 #[derive(Template)]
 #[template(path = "pallet/advanced_mode/src/pallet_logic/origin.rs.templ", escape = "none")]
-pub(crate) struct PalletOrigin {
-	pub(crate) pallet_custom_origin_variants: Vec<String>,
-}
+pub(crate) struct PalletOrigin {}
 
 #[derive(Template)]
 #[template(path = "pallet/advanced_mode/src/tests/utils.rs.templ", escape = "none")]
