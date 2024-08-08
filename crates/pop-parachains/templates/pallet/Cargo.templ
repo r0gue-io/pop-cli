@@ -4,7 +4,12 @@ authors = ["^^authors^^"]
 description = "^^description^^"
 version = "0.1.0"
 license = "Unlicense"
+{{- if pallet_in_workspace }}
+edition.workspace = true
+repository.workspace = true
+{{- else }}
 edition = "2021"
+{{- endif }}
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]

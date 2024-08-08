@@ -4,6 +4,7 @@ use crate::style::Theme;
 use clap::Args;
 use cliclack::{clear_screen, confirm, intro, outro, outro_cancel, set_theme};
 use console::style;
+use pop_common::manifest::{add_crate_to_workspace, find_workspace_toml};
 use pop_parachains::{create_pallet_template, resolve_pallet_path, TemplatePalletConfig};
 use std::fs;
 
@@ -30,6 +31,10 @@ impl NewPalletCommand {
 		))?;
 		set_theme(Theme);
 		let target = resolve_pallet_path(self.path.clone())?;
+
+		// Determine if the pallet is being created inside a workspace
+		let workspace_toml = find_workspace_toml(&target);
+
 		let pallet_name = self.name.clone();
 		let pallet_path = target.join(pallet_name.clone());
 		if pallet_path.exists() {
@@ -45,7 +50,7 @@ impl NewPalletCommand {
 				))?;
 				return Ok(());
 			}
-			fs::remove_dir_all(pallet_path)?;
+			fs::remove_dir_all(pallet_path.clone())?;
 		}
 		let spinner = cliclack::spinner();
 		spinner.start("Generating pallet...");
@@ -55,8 +60,14 @@ impl NewPalletCommand {
 				name: self.name.clone(),
 				authors: self.authors.clone().expect("default values"),
 				description: self.description.clone().expect("default values"),
+				pallet_in_workspace: workspace_toml.is_some(),
 			},
 		)?;
+
+		// If the pallet has been created inside a workspace, add it to that workspace
+		if let Some(workspace_toml) = workspace_toml {
+			add_crate_to_workspace(&workspace_toml, &pallet_path)?;
+		}
 
 		spinner.stop("Generation complete");
 		outro(format!("cd into \"{}\" and enjoy hacking! 🚀", &self.name))?;

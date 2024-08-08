@@ -127,7 +127,8 @@ let path = "./".to_string();
 let pallet_config = TemplatePalletConfig {
     name: "MyPallet".to_string(),
     authors: "R0GUE".to_string(),
-    description: "Template pallet".to_string()
+    description: "Template pallet".to_string(),
+    pallet_in_workspace: false
 };
 
 create_pallet_template(Some(path),pallet_config);

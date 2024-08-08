@@ -17,6 +17,7 @@ pub struct TemplatePalletConfig {
 	pub name: String,
 	pub authors: String,
 	pub description: String,
+	pub pallet_in_workspace: bool,
 }
 /// Create a new pallet from a template.
 ///
@@ -65,6 +66,7 @@ fn render_pallet(
 			name: pallet_name.clone(),
 			authors: config.authors,
 			description: config.description,
+			pallet_in_workspace: config.pallet_in_workspace,
 		}),
 		Box::new(PalletLib { name: pallet_name.clone() }),
 		Box::new(PalletBenchmarking {}),
@@ -90,6 +92,7 @@ mod tests {
 			name: pallet_name.to_string(),
 			authors: "Alice".to_string(),
 			description: "A sample pallet".to_string(),
+			pallet_in_workspace: false,
 		};
 
 		// Call the function being tested
@@ -122,6 +125,7 @@ mod tests {
 			name: pallet_name.to_string(),
 			authors: "Alice".to_string(),
 			description: "A sample pallet".to_string(),
+			pallet_in_workspace: false,
 		};
 
 		// Call the function being tested with an invalid path

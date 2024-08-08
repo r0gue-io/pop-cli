@@ -11,6 +11,7 @@ pub(crate) struct PalletCargoToml {
 	pub(crate) name: String,
 	pub(crate) authors: String,
 	pub(crate) description: String,
+	pub(crate) pallet_in_workspace: bool,
 }
 #[derive(Template)]
 #[template(path = "pallet/src/benchmarking.rs.templ", escape = "none")]
