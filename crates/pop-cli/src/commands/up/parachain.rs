@@ -9,7 +9,7 @@ use cliclack::{
 use console::{Emoji, Style, Term};
 use duct::cmd;
 use pop_common::Status;
-use pop_parachains::{Error, IndexSet, NetworkNode, Zombienet};
+use pop_parachains::{clear_dmpq, export_node_endpoint, Error, IndexSet, NetworkNode, Zombienet};
 use std::{path::PathBuf, time::Duration};
 use tokio::time::sleep;
 
@@ -48,6 +48,9 @@ pub(crate) struct ZombienetCommand {
 	/// Automatically source all needed binaries required without prompting for confirmation.
 	#[clap(short('y'), long)]
 	skip_confirm: bool,
+	/// Kills dmpq genesis state from the relay.
+	#[clap(long)]
+	clear_dmpq: bool,
 }
 
 impl ZombienetCommand {
@@ -124,6 +127,12 @@ impl ZombienetCommand {
 				result.push_str(&format!("\n{bar}  ⛓️ {}", network.relaychain().chain()));
 				for node in validators {
 					result.push_str(&output(node));
+
+					let _endpoit_export_result = export_node_endpoint(
+						network.relaychain().chain(),
+						node.name(),
+						node.ws_uri(),
+					);
 				}
 				// Add parachain info
 				let mut parachains = network.parachains();
@@ -140,7 +149,19 @@ impl ZombienetCommand {
 					collators.sort_by_key(|n| n.name());
 					for node in collators {
 						result.push_str(&output(node));
+
+						let _endpoit_export_result = export_node_endpoint(
+							parachain
+								.chain_id()
+								.unwrap_or(parachain.para_id().to_string().as_str()),
+							node.name(),
+							node.ws_uri(),
+						);
 					}
+				}
+
+				if self.clear_dmpq {
+					let _ = clear_dmpq(network).await;
 				}
 
 				if let Some(command) = &self.command {

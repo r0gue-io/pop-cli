@@ -53,6 +53,7 @@ heck = "0.5.0"
 
 # parachains
 askama = "0.12"
+globalenv = "0.4.2"
 regex = "1.10"
 walkdir = "2.5"
 indexmap = "2.2"
