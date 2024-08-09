@@ -9,7 +9,7 @@ use cliclack::{
 use console::{Emoji, Style, Term};
 use duct::cmd;
 use pop_common::Status;
-use pop_parachains::{Error, IndexSet, NetworkNode, Zombienet};
+use pop_parachains::{clear_dmpq, Error, IndexSet, NetworkNode, Zombienet};
 use std::{path::PathBuf, time::Duration};
 use tokio::time::sleep;
 
@@ -148,6 +148,28 @@ impl ZombienetCommand {
 				}
 
 				spinner.stop(result);
+
+				// Check for any HRMP specified channels
+				if zombienet.hrmp_channels() {
+					let spinner = cliclack::spinner();
+					spinner.start("Readying channels...");
+					// Allow relay node time to start
+					tokio::time::sleep(Duration::from_secs(10)).await;
+					let relay_endpoint = network.relaychain().nodes()[0].client().await?;
+					let para_ids: Vec<_> =
+						network.parachains().iter().map(|p| p.para_id()).collect();
+					tokio::spawn(async move {
+						if let Err(e) = clear_dmpq(relay_endpoint, &para_ids).await {
+							spinner.stop("");
+							outro_cancel(format!("{e}"))?;
+						}
+						spinner.stop("Channels ready for initialization.");
+						tokio::time::sleep(Duration::from_secs(2)).await;
+						Term::stderr().clear_last_lines(2)?;
+						Ok::<(), Error>(())
+					});
+				}
+
 				tokio::signal::ctrl_c().await?;
 				outro("Done")?;
 			},

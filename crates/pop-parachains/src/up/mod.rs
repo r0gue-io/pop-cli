@@ -31,6 +31,8 @@ pub struct Zombienet {
 	relay_chain: RelayChain,
 	/// The configuration required to launch parachains.
 	parachains: IndexMap<u32, Parachain>,
+	/// Whether any HRMP channels are to be pre-opened.
+	hrmp_channels: bool,
 }
 
 impl Zombienet {
@@ -81,7 +83,7 @@ impl Zombienet {
 			cache,
 		)
 		.await?;
-		Ok(Self { network_config, relay_chain, parachains })
+		Ok(Self { network_config, relay_chain, parachains, hrmp_channels: false })
 	}
 
 	/// The binaries required to launch the network.
@@ -268,6 +270,11 @@ impl Zombienet {
 		return Ok(relay::default(version, runtime_version, chain, cache).await?);
 	}
 
+	/// Whether any HRMP channels are to be pre-opened.
+	pub fn hrmp_channels(&self) -> bool {
+		self.hrmp_channels
+	}
+
 	/// Launches the local network.
 	pub async fn spawn(&mut self) -> Result<Network<LocalFileSystem>, Error> {
 		// Symlink polkadot workers
@@ -296,6 +303,7 @@ impl Zombienet {
 		let config = self.network_config.configure(&self.relay_chain, &self.parachains)?;
 		let path = config.path().to_str().expect("temp config file should have a path").into();
 		let network_config = NetworkConfig::load_from_toml(path)?;
+		self.hrmp_channels = !network_config.hrmp_channels().is_empty();
 		Ok(network_config.spawn_native().await?)
 	}
 }

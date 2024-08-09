@@ -16,6 +16,9 @@ glob.workspace = true
 serde_json.workspace = true
 strum.workspace = true
 strum_macros.workspace = true
+# Subxt dependenices need to be at least 0.37 because of the new SignedExtension
+subxt-signer = { version = "0.37", features = ["subxt", "sr25519"] }
+subxt = "0.37"
 tar.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
