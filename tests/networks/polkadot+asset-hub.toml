@@ -1,0 +1,19 @@
+# pop up parachain -f ./tests/networks/polkadot+asset-hub.toml
+
+[relaychain]
+chain = "polkadot-local"
+
+[[relaychain.nodes]]
+name = "alice"
+validator = true
+
+[[relaychain.nodes]]
+name = "bob"
+validator = true
+
+[[parachains]]
+id = 1000
+chain = "asset-hub-polkadot-local"
+
+[[parachains.collators]]
+name = "asset-hub"
