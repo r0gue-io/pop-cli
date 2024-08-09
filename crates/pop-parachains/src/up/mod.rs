@@ -39,10 +39,14 @@ impl Zombienet {
 	/// # Arguments
 	/// * `cache` - The location used for caching binaries.
 	/// * `network_config` - The configuration file to be used to launch a network.
-	/// * `relay_chain_version` - The specific binary version used for the relay chain (`None` will use the latest available version).
-	/// * `relay_chain_runtime_version` - The specific runtime version used for the relay chain runtime (`None` will use the latest available version).
-	/// * `system_parachain_version` - The specific binary version used for system parachains (`None` will use the latest available version).
-	/// * `system_parachain_runtime_version` - The specific runtime version used for system parachains (`None` will use the latest available version).
+	/// * `relay_chain_version` - The specific binary version used for the relay chain (`None` will
+	///   use the latest available version).
+	/// * `relay_chain_runtime_version` - The specific runtime version used for the relay chain
+	///   runtime (`None` will use the latest available version).
+	/// * `system_parachain_version` - The specific binary version used for system parachains
+	///   (`None` will use the latest available version).
+	/// * `system_parachain_runtime_version` - The specific runtime version used for system
+	///   parachains (`None` will use the latest available version).
 	/// * `parachains` - The parachain(s) specified.
 	pub async fn new(
 		cache: &Path,
@@ -100,8 +104,10 @@ impl Zombienet {
 	///
 	/// # Arguments
 	/// * `relay_chain` - The configuration required to launch the relay chain.
-	/// * `system_parachain_version` - The specific binary version used for system parachains (`None` will use the latest available version).
-	/// * `system_parachain_runtime_version` - The specific runtime version used for system parachains (`None` will use the latest available version).
+	/// * `system_parachain_version` - The specific binary version used for system parachains
+	///   (`None` will use the latest available version).
+	/// * `system_parachain_runtime_version` - The specific runtime version used for system
+	///   parachains (`None` will use the latest available version).
 	/// * `parachains` - The parachain repositories specified.
 	/// * `network_config` - The network configuration to be used to launch a network.
 	/// * `cache` - The location used for caching binaries.
@@ -203,8 +209,10 @@ impl Zombienet {
 	/// Determines relay chain configuration based on specified version and network configuration.
 	///
 	/// # Arguments
-	/// * `version` - The specific binary version used for the relay chain (`None` will use the latest available version).
-	/// * `runtime_version` - The specific runtime version used for the relay chain runtime (`None` will use the latest available version).
+	/// * `version` - The specific binary version used for the relay chain (`None` will use the
+	///   latest available version).
+	/// * `runtime_version` - The specific runtime version used for the relay chain runtime (`None`
+	///   will use the latest available version).
 	/// * `network_config` - The network configuration to be used to launch a network.
 	/// * `cache` - The location used for caching binaries.
 	async fn relay_chain(
@@ -524,7 +532,8 @@ impl Parachain {
 		})
 	}
 
-	/// Initializes the configuration required to launch a parachain using a binary sourced from the specified repository.
+	/// Initializes the configuration required to launch a parachain using a binary sourced from the
+	/// specified repository.
 	///
 	/// # Arguments
 	/// * `id` - The parachain identifier on the local network.
@@ -644,8 +653,7 @@ fn resolve_manifest(package: &str, path: &Path) -> Result<Option<PathBuf>, Error
 mod tests {
 	use super::*;
 	use anyhow::Result;
-	use std::env::current_dir;
-	use std::{fs::File, io::Write};
+	use std::{env::current_dir, fs::File, io::Write};
 	use tempfile::tempdir;
 
 	mod zombienet {
@@ -1434,10 +1442,9 @@ validator = true
 
 	mod network_config {
 		use super::*;
-		use std::io::Read;
 		use std::{
 			fs::{create_dir_all, File},
-			io::Write,
+			io::{Read, Write},
 			path::PathBuf,
 		};
 		use tempfile::{tempdir, Builder};

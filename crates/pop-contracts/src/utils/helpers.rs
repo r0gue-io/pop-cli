@@ -38,7 +38,6 @@ pub fn parse_account(account: &str) -> Result<<DefaultConfig as Config>::Account
 /// # Arguments
 ///
 /// * `target` - A reference to the `Path` to be canonicalized.
-///
 pub fn canonicalized_path(target: &Path) -> Result<PathBuf, Error> {
 	// Canonicalize the target path to ensure consistency and resolve any symbolic links.
 	target
@@ -52,7 +51,6 @@ pub fn canonicalized_path(target: &Path) -> Result<PathBuf, Error> {
 ///
 /// * `src`: - Path to copy from
 /// * `dst`: - Path to copy to
-///
 pub fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> {
 	fs::create_dir_all(&dst)?;
 	for entry in fs::read_dir(src)? {

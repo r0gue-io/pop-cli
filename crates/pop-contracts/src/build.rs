@@ -8,7 +8,8 @@ use std::path::Path;
 /// Build the smart contract located at the specified `path` in `build_release` mode.
 ///
 /// # Arguments
-/// * `path` - The optional path to the smart contract manifest, defaulting to the current directory if not specified.
+/// * `path` - The optional path to the smart contract manifest, defaulting to the current directory
+///   if not specified.
 /// * `release` - Whether the smart contract should be built without any debugging functionality.
 /// * `verbosity` - The build output verbosity.
 pub fn build_smart_contract(
@@ -33,7 +34,8 @@ pub fn build_smart_contract(
 /// Determines whether the manifest at the supplied path is a supported smart contract project.
 ///
 /// # Arguments
-/// * `path` - The optional path to the manifest, defaulting to the current directory if not specified.
+/// * `path` - The optional path to the manifest, defaulting to the current directory if not
+///   specified.
 pub fn is_supported(path: Option<&Path>) -> Result<bool, Error> {
 	Ok(pop_common::manifest::from_path(path)?.dependencies.contains_key("ink"))
 }

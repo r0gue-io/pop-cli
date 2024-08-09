@@ -16,10 +16,9 @@ use pop_contracts::{
 };
 use sp_core::Bytes;
 use sp_weights::Weight;
-use std::process::Child;
 use std::{
 	path::{Path, PathBuf},
-	process::Command,
+	process::{Child, Command},
 };
 use tempfile::NamedTempFile;
 use url::Url;
@@ -313,10 +312,12 @@ impl From<UpContractCommand> for UpOpts {
 	}
 }
 
-/// Checks if a contract has been built by verifying the existence of the build directory and the <name>.contract file.
+/// Checks if a contract has been built by verifying the existence of the build directory and the
+/// <name>.contract file.
 ///
 /// # Arguments
-/// * `path` - An optional path to the project directory. If no path is provided, the current directory is used.
+/// * `path` - An optional path to the project directory. If no path is provided, the current
+///   directory is used.
 pub fn has_contract_been_built(path: Option<&Path>) -> bool {
 	let project_path = path.unwrap_or_else(|| Path::new("./"));
 	let manifest = match from_path(Some(project_path)) {

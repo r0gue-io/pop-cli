@@ -12,8 +12,8 @@ pub struct BuildContractCommand {
 	/// Path for the contract project [default: current directory]
 	#[arg(long)]
 	pub(crate) path: Option<PathBuf>,
-	/// The default compilation includes debug functionality, increasing contract size and gas usage.
-	/// For production, always build in release mode to exclude debug features.
+	/// The default compilation includes debug functionality, increasing contract size and gas
+	/// usage. For production, always build in release mode to exclude debug features.
 	#[clap(short, long)]
 	pub(crate) release: bool,
 	// Deprecation flag, used to specify whether the deprecation warning is shown.

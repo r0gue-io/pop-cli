@@ -104,7 +104,8 @@ pub enum Parachain {
 		)
 	)]
 	Contracts,
-	/// Parachain configured with Frontier, enabling compatibility with the Ethereum Virtual Machine (EVM).
+	/// Parachain configured with Frontier, enabling compatibility with the Ethereum Virtual
+	/// Machine (EVM).
 	#[strum(
 		serialize = "evm",
 		message = "EVM",
@@ -195,7 +196,8 @@ impl Parachain {
 	}
 
 	pub fn is_supported_version(&self, version: &str) -> bool {
-		// if `SupportedVersion` is None, then all versions are supported. Otherwise, ensure version is present.
+		// if `SupportedVersion` is None, then all versions are supported. Otherwise, ensure version
+		// is present.
 		self.supported_versions().map_or(true, |versions| versions.contains(&version))
 	}
 

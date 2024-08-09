@@ -1,15 +1,23 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::style::Theme;
-use clap::Args;
-use cliclack::{clear_screen, confirm, intro, outro, outro_cancel, set_theme};
-use console::style;
-use pop_common::manifest::{add_crate_to_workspace, find_workspace_toml};
-use pop_parachains::{create_pallet_template, resolve_pallet_path, TemplatePalletConfig};
-use std::fs;
+use crate::{
+	cli::{traits::Cli as _, Cli},
+};
+
+use clap::{Args, Subcommand};
+use cliclack::{confirm, multiselect, outro, outro_cancel};
+use pop_parachains::{
+	create_pallet_template, resolve_pallet_path, TemplatePalletConfig,
+	TemplatePalletConfigCommonTypes, TemplatePalletStorageTypes
+};
+use pop_common::{manifest::{add_crate_to_workspace, find_workspace_toml}, multiselect_pick};
+use std::{fs, process::Command};
+use strum::{EnumMessage, IntoEnumIterator};
 
 #[derive(Args)]
 pub struct NewPalletCommand {
+	#[command(subcommand)]
+	pub(crate) mode: Option<Mode>,
 	#[arg(help = "Name of the pallet", default_value = "pallet-template")]
 	pub(crate) name: String,
 	#[arg(short, long, help = "Name of authors", default_value = "Anonymous")]
@@ -20,16 +28,57 @@ pub struct NewPalletCommand {
 	pub(crate) path: Option<String>,
 }
 
+#[derive(Subcommand)]
+pub enum Mode {
+	/// Using the advanced mode will unlock all the POP CLI potential. You'll be able to fully customize your pallet template!. Don't use this mode unless you exactly know what you want for your pallet
+	Advanced(AdvancedMode),
+}
+
+#[derive(Args)]
+pub struct AdvancedMode {
+	#[arg(short, long, help = "Add types to your config trait from the CLI.")]
+	pub(crate) config_trait: bool,
+	#[arg(short, long, help = "Use a default configuration for your config trait.")]
+	pub(crate) default_config: bool,
+	#[arg(short, long, help = "Add storage items to your pallet from the CLI.")]
+	pub(crate) storage: bool,
+	#[arg(short, long, help = "Add a genesis config to your pallet.")]
+	pub(crate) genesis_config: bool,
+	#[arg(short = 'o', long, help = "Add a custom origin to your pallet.")]
+	pub(crate) custom_origin: bool,
+}
+
 impl NewPalletCommand {
 	/// Executes the command.
 	pub(crate) async fn execute(self) -> anyhow::Result<()> {
-		clear_screen()?;
-		intro(format!(
-			"{}: Generating new pallet \"{}\"!",
-			style(" Pop CLI ").black().on_magenta(),
-			&self.name,
-		))?;
-		set_theme(Theme);
+		Cli.intro("Generate a pallet")?;
+
+		let mut pallet_default_config = false;
+		let mut pallet_common_types = Vec::new();
+		let mut pallet_storage = Vec::new();
+		let mut pallet_genesis = false;
+		let mut pallet_custom_origin = false;
+
+		if let Some(Mode::Advanced(advanced_mode_args)) = &self.mode {
+			pallet_default_config = advanced_mode_args.default_config;
+			pallet_genesis = advanced_mode_args.genesis_config;
+			pallet_custom_origin = advanced_mode_args.custom_origin;
+
+			if advanced_mode_args.config_trait {
+				Cli.info("Generate the pallet's config trait.")?;
+
+				pallet_common_types = multiselect_pick!(TemplatePalletConfigCommonTypes, "Are you interested in adding one of these types and their usual configuration to your pallet?");
+
+			}
+
+			if advanced_mode_args.storage {
+				Cli.info("Generate the pallet's storage.")?;
+
+				pallet_storage = multiselect_pick!(TemplatePalletStorageTypes,"Are you interested in adding some of those storage items to your pallet?");
+			}
+
+		};
+
 		let target = resolve_pallet_path(self.path.clone())?;
 
 		// Determine if the pallet is being created inside a workspace
@@ -60,7 +109,13 @@ impl NewPalletCommand {
 				name: self.name.clone(),
 				authors: self.authors.clone().expect("default values"),
 				description: self.description.clone().expect("default values"),
-				pallet_in_workspace: workspace_toml.is_some(),
+                pallet_in_workspace: workspace_toml.is_some(),
+				pallet_advanced_mode: self.mode.is_some(),
+				pallet_default_config,
+				pallet_common_types,
+				pallet_storage,
+				pallet_genesis,
+				pallet_custom_origin,
 			},
 		)?;
 
@@ -68,6 +123,12 @@ impl NewPalletCommand {
 		if let Some(workspace_toml) = workspace_toml {
 			add_crate_to_workspace(&workspace_toml, &pallet_path)?;
 		}
+
+        // Format the dir. If this fails we do nothing, it's not a major failure
+        let _ = Command::new("cargo")
+            .arg("fmt")
+            .current_dir(pallet_path)
+            .output();
 
 		spinner.stop("Generation complete");
 		outro(format!("cd into \"{}\" and enjoy hacking! 🚀", &self.name))?;

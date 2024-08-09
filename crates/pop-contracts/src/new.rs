@@ -9,8 +9,10 @@ use anyhow::Result;
 use contract_build::new_contract_project;
 use heck::ToUpperCamelCase;
 use pop_common::{replace_in_file, templates::Template, Git};
-use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::{
+	collections::HashMap,
+	path::{Path, PathBuf},
+};
 use url::Url;
 
 /// Create a new smart contract.

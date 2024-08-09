@@ -1,0 +1,24 @@
+use crate::pallet::*;
+use frame::prelude::*;
+
+
+impl<T: Config> Pallet<T> {
+
+}
+
+impl<OuterOrigin: Into<Result<Origin, OuterOrigin>> + From<Origin>> EnsureOrigin<OuterOrigin> for Origin
+{
+    type Success = pop_todo!(origin_success_type);
+
+    // This is a good place to define conditions making your origin valid!
+    fn try_origin(outer_origin: OuterOrigin) -> Result<Self::Success, OuterOrigin>{
+        outer_origin.into().and_then(|origin|match origin{
+
+        })
+    }
+
+    #[cfg(feature= "runtime-benchmarks")]
+    fn try_successful_origin() -> Result<OuterOrigin, ()>{
+
+    }
+}
