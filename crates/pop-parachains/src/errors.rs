@@ -41,6 +41,4 @@ pub enum Error {
 	UnsupportedCommand(String),
 	#[error("Failed to locate the workspace")]
 	WorkspaceLocate,
-	#[error("Can't set environment variable")]
-	EnvVarSetError,
 }

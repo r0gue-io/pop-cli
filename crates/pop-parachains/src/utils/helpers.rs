@@ -25,6 +25,13 @@ pub(crate) fn sanitize(target: &Path) -> Result<(), Error> {
 	Ok(())
 }
 
+/// Clears the DMPQ state for the given chains.
+/// Assumes pallet-sudo is present in the runtime.
+///
+/// # Arguments
+///
+/// * `client` - Client for the network which state is to be modified.
+/// * `para_ids` - List of ids to build the keys that will be mutated.
 pub async fn clear_dmpq(
 	client: OnlineClient<PolkadotConfig>,
 	para_ids: &[u32],
