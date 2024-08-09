@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::errors::Error;
-use globalenv::set_var;
 use std::{
 	fs::{self, OpenOptions},
 	io::{self, stdin, stdout, Write},
 	path::Path,
 };
-use zombienet_sdk::{LocalFileSystem, Network};
+use subxt::{ext::sp_core, OnlineClient, PolkadotConfig};
 
 pub(crate) fn sanitize(target: &Path) -> Result<(), Error> {
 	if target.exists() {
@@ -26,57 +25,44 @@ pub(crate) fn sanitize(target: &Path) -> Result<(), Error> {
 	Ok(())
 }
 
-/// Export an environment variable with a node's ws endpoint as its value.
-///
-/// # Arguments
-///
-/// * `network` - Name of the network the node is part of.
-/// * `name` - Identifier of the node.
-/// * `uri` - Endpoint to expose as the variable value.
-pub fn export_node_endpoint(network: &str, name: &str, uri: &str) -> Result<String, Error> {
-	// Sanity checks for key and value.
-	// https://doc.rust-lang.org/std/env/fn.set_var.html#panics
-	// Note that this function uses `globalenv` instead of `std::env`
-	// though it keep the same safety assumptions.
-	if network.contains('=') || network.contains('\0') || uri.contains('\0') {
-		return Err(Error::EnvVarSetError);
-	}
-	let key =
-		format!("{}_{}_ENDPOINT", network.to_uppercase(), name.to_uppercase()).replace("-", "_");
-
-	match set_var(&key, uri) {
-		Ok(_) => Ok(key),
-		Err(_) => Err(Error::EnvVarSetError),
-	}
-}
-
 pub async fn clear_dmpq(
-	network: Network<LocalFileSystem>,
+	client: OnlineClient<PolkadotConfig>,
+	para_ids: &[u32],
 ) -> Result<(), Box<dyn std::error::Error>> {
-	use subxt::{OnlineClient, PolkadotConfig};
 	use subxt_signer::sr25519::dev;
-
-	let relay_endpoint = network.relaychain().nodes()[0].ws_uri();
-	//let para_ids: Vec<_> = network.parachains().iter().map(|p| p.para_id()).collect();
 
 	#[subxt::subxt(runtime_metadata_path = "./src/utils/artifacts/paseo-local.scale")]
 	mod paseo_local {}
 	type RuntimeCall = paseo_local::runtime_types::paseo_runtime::RuntimeCall;
 
-	let api = OnlineClient::<PolkadotConfig>::from_url(relay_endpoint).await?;
 	let sudo = dev::alice();
 
 	// Wait for blocks to be produced.
-	let mut sub = api.blocks().subscribe_finalized().await.unwrap();
+	let mut sub = client.blocks().subscribe_finalized().await.unwrap();
 	for _ in 0..2 {
 		sub.next().await;
 	}
 
+	let dmp = sp_core::twox_128("Dmp".as_bytes());
+	let dmp_queues = sp_core::twox_128("DownwardMessageQueues".as_bytes());
+	let dmp_queue_heads = sp_core::twox_128("DownwardMessageQueueHeads".as_bytes());
+
 	let mut clear_dmq_keys = Vec::<Vec<u8>>::new();
-	clear_dmq_keys.push("0x63f78c98723ddc9073523ef3beefda0c4d7fefc408aac59dbfe80a72ac8e3ce5b6ff6f7d467b87a9e8030000".as_bytes().to_vec());
-	clear_dmq_keys.push("0x63f78c98723ddc9073523ef3beefda0c4d7fefc408aac59dbfe80a72ac8e3ce563f5a4efb16ffa83d0070000".as_bytes().to_vec());
-	clear_dmq_keys.push("0x63f78c98723ddc9073523ef3beefda0ca95dac46c07a40d91506e7637ec4ba57b6ff6f7d467b87a9e8030000".as_bytes().to_vec());
-	clear_dmq_keys.push("0x63f78c98723ddc9073523ef3beefda0ca95dac46c07a40d91506e7637ec4ba5763f5a4efb16ffa83d0070000".as_bytes().to_vec());
+	for id in para_ids {
+		let id = id.to_le_bytes();
+		// DMP Queue Head
+		let mut key = dmp.to_vec();
+		key.extend(&dmp_queue_heads);
+		key.extend(sp_core::twox_64(&id));
+		key.extend(id);
+		clear_dmq_keys.push(key);
+		// DMP Queue
+		let mut key = dmp.to_vec();
+		key.extend(&dmp_queues);
+		key.extend(sp_core::twox_64(&id));
+		key.extend(id);
+		clear_dmq_keys.push(key);
+	}
 
 	// Craft calls to dispatch
 	let kill_storage =
@@ -84,7 +70,7 @@ pub async fn clear_dmpq(
 	let sudo_call = paseo_local::tx().sudo().sudo(kill_storage);
 
 	// Dispatch and watch tx
-	let _sudo_call_events = api
+	let _sudo_call_events = client
 		.tx()
 		.sign_and_submit_then_watch_default(&sudo_call, &sudo)
 		.await?
@@ -196,27 +182,6 @@ mod tests {
 		// Values from https://stackoverflow.com/questions/56392875/how-can-i-initialize-a-users-balance-in-a-substrate-blockchain
 		assert_eq!(is_valid_bitwise_left_shift("1 << 60").unwrap(), 1152921504606846976);
 		let result = is_valid_bitwise_left_shift("wrong");
-		assert!(result.is_err());
-	}
-
-	#[test]
-	fn export_node_endpoint_works() {
-		let network = "popchain";
-		let node_name = "my-node";
-		let node_uri = "ws://127.0.0.1:9944";
-		let result = export_node_endpoint(&network, &node_name, &node_uri);
-		assert!(result.is_ok());
-		assert_eq!(var("POPCHAIN_MY_NODE_ENDPOINT").unwrap(), "ws://127.0.0.1:9944");
-	}
-
-	#[test]
-	fn export_node_endpoint_errs_if_values_are_not_safe() {
-		// Safe values based on:
-		// https://doc.rust-lang.org/std/env/fn.set_var.html#panics
-		let network = "popchain=";
-		let node_name = "n\0de";
-		let node_uri = "ws://127.0.0.1:9944\0";
-		let result = export_node_endpoint(&network, &node_name, &node_uri);
 		assert!(result.is_err());
 	}
 }
