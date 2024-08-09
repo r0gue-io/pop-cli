@@ -70,12 +70,8 @@ pub async fn clear_dmpq(
 	let sudo_call = paseo_local::tx().sudo().sudo(kill_storage);
 
 	// Dispatch and watch tx
-	let _sudo_call_events = client
-		.tx()
-		.sign_and_submit_then_watch_default(&sudo_call, &sudo)
-		.await?
-		.wait_for_finalized_success()
-		.await?;
+	let _sudo_call_events =
+		client.tx().sign_and_submit_then_watch_default(&sudo_call, &sudo).await?;
 
 	Ok(())
 }

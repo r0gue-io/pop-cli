@@ -13,7 +13,6 @@ anyhow.workspace = true
 duct.workspace = true
 flate2.workspace = true
 glob.workspace = true
-globalenv.workspace = true
 serde_json.workspace = true
 strum.workspace = true
 strum_macros.workspace = true
