@@ -4766,6 +4766,8 @@ dependencies = [
  "serde_json",
  "strum 0.26.3",
  "strum_macros 0.26.4",
+ "subxt 0.37.0",
+ "subxt-signer 0.37.0",
  "symlink",
  "tar",
  "tempfile",
