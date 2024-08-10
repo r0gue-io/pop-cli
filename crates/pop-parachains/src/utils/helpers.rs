@@ -6,6 +6,7 @@ use std::{
 	io::{self, stdin, stdout, Write},
 	path::Path,
 };
+use subxt::{ext::sp_core, OnlineClient, PolkadotConfig};
 
 pub(crate) fn sanitize(target: &Path) -> Result<(), Error> {
 	if target.exists() {
@@ -21,6 +22,64 @@ pub(crate) fn sanitize(target: &Path) -> Result<(), Error> {
 			return Err(Error::Aborted);
 		}
 	}
+	Ok(())
+}
+
+/// Clears the DMPQ state for the given chains.
+/// Assumes pallet-sudo is present in the runtime.
+///
+/// # Arguments
+///
+/// * `client` - Client for the network which state is to be modified.
+/// * `para_ids` - List of ids to build the keys that will be mutated.
+pub async fn clear_dmpq(
+	client: OnlineClient<PolkadotConfig>,
+	para_ids: &[u32],
+) -> Result<(), Box<dyn std::error::Error>> {
+	use subxt_signer::sr25519::dev;
+
+	#[subxt::subxt(runtime_metadata_path = "./src/utils/artifacts/paseo-local.scale")]
+	mod paseo_local {}
+	type RuntimeCall = paseo_local::runtime_types::paseo_runtime::RuntimeCall;
+
+	let sudo = dev::alice();
+
+	// Wait for blocks to be produced.
+	let mut sub = client.blocks().subscribe_finalized().await.unwrap();
+	for _ in 0..2 {
+		sub.next().await;
+	}
+
+	let dmp = sp_core::twox_128("Dmp".as_bytes());
+	let dmp_queues = sp_core::twox_128("DownwardMessageQueues".as_bytes());
+	let dmp_queue_heads = sp_core::twox_128("DownwardMessageQueueHeads".as_bytes());
+
+	let mut clear_dmq_keys = Vec::<Vec<u8>>::new();
+	for id in para_ids {
+		let id = id.to_le_bytes();
+		// DMP Queue Head
+		let mut key = dmp.to_vec();
+		key.extend(&dmp_queue_heads);
+		key.extend(sp_core::twox_64(&id));
+		key.extend(id);
+		clear_dmq_keys.push(key);
+		// DMP Queue
+		let mut key = dmp.to_vec();
+		key.extend(&dmp_queues);
+		key.extend(sp_core::twox_64(&id));
+		key.extend(id);
+		clear_dmq_keys.push(key);
+	}
+
+	// Craft calls to dispatch
+	let kill_storage =
+		RuntimeCall::System(paseo_local::system::Call::kill_storage { keys: clear_dmq_keys });
+	let sudo_call = paseo_local::tx().sudo().sudo(kill_storage);
+
+	// Dispatch and watch tx
+	let _sudo_call_events =
+		client.tx().sign_and_submit_then_watch_default(&sudo_call, &sudo).await?;
+
 	Ok(())
 }
 
@@ -87,6 +146,7 @@ mod tests {
 	use super::*;
 	use crate::generator::parachain::ChainSpec;
 	use askama::Template;
+	use std::env::var;
 	use tempfile::tempdir;
 
 	#[test]
