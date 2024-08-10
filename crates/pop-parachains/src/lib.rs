@@ -37,6 +37,6 @@ pub use subxt::{
 };
 pub use templates::{Config, Parachain, Provider};
 pub use up::Zombienet;
-pub use utils::helpers::is_initial_endowment_valid;
+pub use utils::helpers::{clear_dmpq, is_initial_endowment_valid};
 /// Information about the Node. External export from Zombienet-SDK.
 pub use zombienet_sdk::NetworkNode;
