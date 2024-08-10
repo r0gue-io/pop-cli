@@ -62,6 +62,8 @@ pub enum Error {
 	RustfmtError(std::io::Error),
 	#[error("Template error: {0}")]
 	SourcingError(#[from] pop_common::sourcing::Error),
+	#[error("Subxt error: {0}")]
+	SubXtError(#[from] subxt::Error),
 	#[error("Toml error: {0}")]
 	TomlError(#[from] toml_edit::de::Error),
 	#[error("Unsupported command: {0}")]

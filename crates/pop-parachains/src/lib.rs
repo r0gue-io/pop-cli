@@ -8,6 +8,7 @@ mod errors;
 mod generator;
 mod new_pallet;
 mod new_parachain;
+mod relay;
 mod templates;
 mod up;
 mod utils;
@@ -30,6 +31,7 @@ pub use errors::Error;
 pub use indexmap::IndexSet;
 pub use new_pallet::{create_pallet_template, new_pallet_options::*, TemplatePalletConfig};
 pub use new_parachain::instantiate_template_dir;
+pub use relay::{clear_dmpq, RelayChain};
 // External export from subxt.
 pub use subxt::{
 	tx::{DynamicPayload, Payload},
