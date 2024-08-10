@@ -62,7 +62,7 @@ impl Zombienet {
 		// Parse network config
 		let network_config = NetworkConfiguration::from(network_config)?;
 		// Determine relay and parachain requirements based on arguments and config
-		let relay_chain = Self::relay_chain(
+		let relay_chain = Self::_relay_chain(
 			relay_chain_version,
 			relay_chain_runtime_version,
 			&network_config,
@@ -219,7 +219,7 @@ impl Zombienet {
 	///   will use the latest available version).
 	/// * `network_config` - The network configuration to be used to launch a network.
 	/// * `cache` - The location used for caching binaries.
-	async fn relay_chain(
+	async fn _relay_chain(
 		version: Option<&str>,
 		runtime_version: Option<&str>,
 		network_config: &NetworkConfiguration,
@@ -278,6 +278,11 @@ impl Zombienet {
 		// Otherwise use default
 		Ok(relay::default(version, runtime_version, chain, cache).await?)
 	}
+
+    /// The name of the relay chain.
+    pub fn relay_chain(&self) -> &str {
+        &self.relay_chain.chain
+    }
 
 	/// Whether any HRMP channels are to be pre-opened.
 	pub fn hrmp_channels(&self) -> bool {
