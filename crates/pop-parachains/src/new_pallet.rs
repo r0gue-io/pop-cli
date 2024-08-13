@@ -182,11 +182,9 @@ mod tests {
 			pallet_advanced_mode: true,
 			pallet_default_config: true,
 			pallet_common_types: Vec::new(),
-			pallet_config_types: Vec::new(),
 			pallet_storage: Vec::new(),
 			pallet_genesis: false,
 			pallet_custom_origin: true,
-			pallet_custom_origin_variants: vec![],
 		};
 
 		// Call the function being tested
@@ -252,14 +250,13 @@ mod tests {
 			name: pallet_name.to_string(),
 			authors: "Alice".to_string(),
 			description: "A sample pallet".to_string(),
+            pallet_in_workspace: false,
 			pallet_advanced_mode: true,
 			pallet_default_config: false,
 			pallet_common_types: Vec::new(),
-			pallet_config_types: Vec::new(),
 			pallet_storage: Vec::new(),
 			pallet_genesis: false,
 			pallet_custom_origin: true,
-			pallet_custom_origin_variants: vec![],
 		};
 
 		// Call the function being tested
@@ -325,14 +322,13 @@ mod tests {
 			name: pallet_name.to_string(),
 			authors: "Alice".to_string(),
 			description: "A sample pallet".to_string(),
+            pallet_in_workspace: true,
 			pallet_advanced_mode: true,
 			pallet_default_config: true,
 			pallet_common_types: Vec::new(),
-			pallet_config_types: Vec::new(),
 			pallet_storage: Vec::new(),
 			pallet_genesis: false,
 			pallet_custom_origin: false,
-			pallet_custom_origin_variants: Vec::new(),
 		};
 
 		// Call the function being tested
@@ -398,14 +394,13 @@ mod tests {
 			name: pallet_name.to_string(),
 			authors: "Alice".to_string(),
 			description: "A sample pallet".to_string(),
+            pallet_in_workspace: false,
 			pallet_advanced_mode: false,
 			pallet_default_config: false,
 			pallet_common_types: Vec::new(),
-			pallet_config_types: Vec::new(),
 			pallet_storage: Vec::new(),
 			pallet_genesis: false,
 			pallet_custom_origin: false,
-			pallet_custom_origin_variants: Vec::new(),
 		};
 
 		// Call the function being tested
@@ -475,11 +470,9 @@ mod tests {
 			pallet_advanced_mode: true,
 			pallet_default_config: false,
 			pallet_common_types: Vec::new(),
-			pallet_config_types: Vec::new(),
 			pallet_storage: Vec::new(),
 			pallet_genesis: false,
 			pallet_custom_origin: false,
-			pallet_custom_origin_variants: Vec::new(),
 		};
 
 		// Call the function being tested with an invalid path

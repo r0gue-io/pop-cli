@@ -7,7 +7,7 @@ use std::{
 	fs::{read_to_string, write},
 	path::{Path, PathBuf},
 };
-use toml_edit::{value, DocumentMut, Item, Value};
+use toml_edit::{value, DocumentMut, Item, Value, Array};
 
 /// Parses the contents of a `Cargo.toml` manifest.
 ///
@@ -62,26 +62,22 @@ pub fn add_crate_to_workspace(workspace_toml: &Path, crate_path: &Path) -> anyho
 	// Find the relative path to the crate from the workspace root
 	let crate_relative_path = crate_path.strip_prefix(workspace_dir)?;
 
-	if let Some(workspace) = doc.get_mut("workspace") {
-		if let Item::Table(workspace_table) = workspace {
-			if let Some(members) = workspace_table.get_mut("members") {
-				if let Item::Value(members_array) = members {
-					if let Value::Array(array) = members_array {
-						array.push(
-							crate_relative_path
-								.to_str()
-								.expect("target's always a valid string; qed"),
-						);
-					} else {
-						return Err(anyhow::anyhow!("Corrupted workspace"));
-					}
-				}
-			} else {
-				workspace_table["members"] = value(
-					crate_relative_path.to_str().expect("target's always a valid string; qed"),
-				);
-			}
-		}
+	if let Some(Item::Table(workspace_table)) = doc.get_mut("workspace") {
+        if let Some(Item::Value(members_array)) = workspace_table.get_mut("members") {
+            if let Value::Array(array) = members_array {
+                array.push(
+                    crate_relative_path
+                        .to_str()
+                        .expect("target's always a valid string; qed"),
+                );
+            } else {
+                return Err(anyhow::anyhow!("Corrupted workspace"));
+            }
+        } else {
+            let mut toml_array = Array::new();
+            toml_array.push(crate_relative_path.to_str().expect("target's always a valid string; qed"));
+            workspace_table["members"] = value(toml_array);
+        }
 	} else {
 		return Err(anyhow::anyhow!("Corrupted workspace"));
 	}
@@ -131,7 +127,7 @@ mod tests {
 			}
 		}
 
-		fn add_workspace_cargo_toml(self) -> Self {
+		fn add_workspace_cargo_toml(self, cargo_toml_content: &str) -> Self {
 			let workspace_cargo_toml = self
 				.workspace
 				.as_ref()
@@ -141,43 +137,9 @@ mod tests {
 			File::create(&workspace_cargo_toml).expect("Failed to create Cargo.toml");
 			write(
 				&workspace_cargo_toml,
-				r#"[workspace]
-                resolver = "2"
-                members = ["member1"]
-                "#,
+				cargo_toml_content
 			)
 			.expect("Failed to write Cargo.toml");
-			Self { workspace_cargo_toml: Some(workspace_cargo_toml.to_path_buf()), ..self }
-		}
-
-		fn add_workspace_cargo_toml_member_not_array(self) -> Self {
-			let workspace_cargo_toml = self
-				.workspace
-				.as_ref()
-				.expect("add_workspace_cargo_toml is only callable if workspace has been created")
-				.path()
-				.join("Cargo.toml");
-			File::create(&workspace_cargo_toml).expect("Failed to create Cargo.toml");
-			write(
-				&workspace_cargo_toml,
-				r#"[workspace]
-                resolver = "2"
-                members = "member1"
-                "#,
-			)
-			.expect("Failed to write Cargo.toml");
-			Self { workspace_cargo_toml: Some(workspace_cargo_toml.to_path_buf()), ..self }
-		}
-
-		fn add_workspace_cargo_toml_not_defining_workspace(self) -> Self {
-			let workspace_cargo_toml = self
-				.workspace
-				.as_ref()
-				.expect("add_workspace_cargo_toml is only callable if workspace has been created")
-				.path()
-				.join("Cargo.toml");
-			File::create(&workspace_cargo_toml).expect("Failed to create Cargo.toml");
-			write(&workspace_cargo_toml, r#""#).expect("Failed to write Cargo.toml");
 			Self { workspace_cargo_toml: Some(workspace_cargo_toml.to_path_buf()), ..self }
 		}
 
@@ -215,7 +177,12 @@ mod tests {
 		let test_builder = TestBuilder::default()
 			.add_workspace()
 			.add_inside_workspace_dir()
-			.add_workspace_cargo_toml()
+			.add_workspace_cargo_toml(
+                r#"[workspace]
+                resolver = "2"
+                members = ["member1"]
+                "#
+            )
 			.add_outside_workspace_dir();
 		assert!(find_workspace_toml(
 			test_builder
@@ -247,10 +214,15 @@ mod tests {
 	}
 
 	#[test]
-	fn add_crate_to_workspace_works_well() {
+	fn add_crate_to_workspace_works_well_if_members_exists() {
 		let test_builder = TestBuilder::default()
 			.add_workspace()
-			.add_workspace_cargo_toml()
+			.add_workspace_cargo_toml(
+                r#"[workspace]
+                resolver = "2"
+                members = ["member1"]
+                "#
+            )
 			.add_inside_workspace_dir();
 		let add_crate = add_crate_to_workspace(
 			test_builder.workspace_cargo_toml.as_ref().expect("Workspace should exist"),
@@ -278,23 +250,78 @@ mod tests {
 							.to_str()
 							.expect("Dir should be mapped to a str")
 							.contains(item.value())
-					} else {
-						false
 					}
+                    else{
+                        false
+                    }
 				}));
 			} else {
-				panic!("add_crate_to_workspace fails and should work");
-			}
+                panic!("This shouldn't be reached");
+            }
 		} else {
-			panic!("add_crate_to_workspace fails and should work");
-		}
+            panic!("This shouldn't be reached");
+        }
+	}
+
+	#[test]
+	fn add_crate_to_workspace_works_well_if_members_doesnt_exist() {
+		let test_builder = TestBuilder::default()
+			.add_workspace()
+			.add_workspace_cargo_toml(
+                r#"[workspace]
+                resolver = "2"
+                "#
+            )
+			.add_inside_workspace_dir();
+		let add_crate = add_crate_to_workspace(
+			test_builder.workspace_cargo_toml.as_ref().expect("Workspace should exist"),
+			test_builder
+				.inside_workspace_dir
+				.as_ref()
+				.expect("Inside workspace dir should exist")
+				.path(),
+		);
+		assert!(add_crate.is_ok());
+		let content = read_to_string(
+			test_builder.workspace_cargo_toml.as_ref().expect("Workspace should exist"),
+		)
+		.expect("Cargo.toml should be readable");
+		let doc = content.parse::<DocumentMut>().expect("This should work");
+		if let Some(Item::Table(workspace_table)) = doc.get("workspace") {
+			if let Some(Item::Value(Value::Array(array))) = workspace_table.get("members") {
+				assert!(array.iter().any(|item| {
+					if let Value::String(item) = item {
+						test_builder
+							.inside_workspace_dir
+							.as_ref()
+							.expect("Inside workspace should exist")
+							.path()
+							.to_str()
+							.expect("Dir should be mapped to a str")
+							.contains(item.value())
+					}
+                    else{
+                        false
+                    }
+				}));
+			} else {
+                panic!("This shouldn't be reached");
+            }
+		} else {
+            panic!("This shouldn't be reached");
+        }
 	}
 
 	#[test]
 	fn add_crate_to_workspace_fails_if_crate_path_not_inside_workspace() {
 		let test_builder = TestBuilder::default()
 			.add_workspace()
-			.add_workspace_cargo_toml()
+			.add_workspace_cargo_toml(
+                r#"[workspace]
+                resolver = "2"
+                members = ["member1"]
+                "#
+            )
 			.add_outside_workspace_dir();
 		let add_crate = add_crate_to_workspace(
 			test_builder.workspace_cargo_toml.as_ref().expect("Workspace should exist"),
@@ -310,7 +337,12 @@ mod tests {
 	fn add_crate_to_workspace_fails_if_members_not_an_array() {
 		let test_builder = TestBuilder::default()
 			.add_workspace()
-			.add_workspace_cargo_toml_member_not_array()
+			.add_workspace_cargo_toml(
+                r#"[workspace]
+                resolver = "2"
+                members = "member1"
+                "#
+            )
 			.add_inside_workspace_dir();
 		let add_crate = add_crate_to_workspace(
 			test_builder.workspace_cargo_toml.as_ref().expect("Workspace should exist"),
@@ -326,7 +358,7 @@ mod tests {
 	fn add_crate_to_workspace_fails_if_workspace_isnt_workspace() {
 		let test_builder = TestBuilder::default()
 			.add_workspace()
-			.add_workspace_cargo_toml_not_defining_workspace()
+			.add_workspace_cargo_toml(r#""#)
 			.add_inside_workspace_dir();
 		let add_crate = add_crate_to_workspace(
 			test_builder.workspace_cargo_toml.as_ref().expect("Workspace should exist"),
