@@ -10,7 +10,7 @@ use console::{Emoji, Style, Term};
 use duct::cmd;
 use pop_common::Status;
 use pop_parachains::{Error, IndexSet, NetworkNode, Zombienet};
-use std::{path::PathBuf, time::Duration};
+use std::{path::Path, time::Duration};
 use tokio::time::sleep;
 
 #[derive(Args)]
@@ -160,7 +160,7 @@ impl ZombienetCommand {
 
 	async fn source_binaries(
 		zombienet: &mut Zombienet,
-		cache: &PathBuf,
+		cache: &Path,
 		verbose: bool,
 		skip_confirm: bool,
 	) -> anyhow::Result<bool> {
@@ -201,17 +201,16 @@ impl ZombienetCommand {
 			))
 			.dim()
 			.to_string();
-			if !skip_confirm {
-				if !confirm(format!(
+			if !skip_confirm &&
+				!confirm(format!(
 				"📦 Would you like to source them automatically now? It may take some time...\n   {list}"))
 				.initial_value(true)
 				.interact()?
-				{
-					outro_cancel(
+			{
+				outro_cancel(
 					"🚫 Cannot launch the specified network until all required binaries are available.",
 				)?;
-					return Ok(true);
-				}
+				return Ok(true);
 			}
 		}
 
@@ -323,12 +322,12 @@ impl ZombienetCommand {
 			},
 		};
 
-		return Ok(false);
+		Ok(false)
 	}
 }
 
 async fn run_custom_command(spinner: &ProgressBar, command: &str) -> Result<(), anyhow::Error> {
-	spinner.set_message(format!("Spinning up network & running command: {}", command.to_string()));
+	spinner.set_message(format!("Spinning up network & running command: {}", command));
 	sleep(Duration::from_secs(15)).await;
 
 	// Split the command into the base command and arguments
@@ -349,7 +348,7 @@ struct ProgressReporter(String, ProgressBar);
 impl Status for ProgressReporter {
 	fn update(&self, status: &str) {
 		self.1
-			.start(&format!("{}{}", self.0, status.replace("   Compiling", "Compiling")))
+			.start(format!("{}{}", self.0, status.replace("   Compiling", "Compiling")))
 	}
 }
 

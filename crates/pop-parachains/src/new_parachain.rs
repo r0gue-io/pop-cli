@@ -29,7 +29,7 @@ pub fn instantiate_template_dir(
 ) -> Result<Option<String>> {
 	sanitize(target)?;
 
-	if Provider::Pop.provides(&template) {
+	if Provider::Pop.provides(template) {
 		return instantiate_standard_template(template, target, config, tag_version);
 	}
 	let tag = Git::clone_and_degit(template.repository_url()?, target, tag_version)?;
@@ -47,11 +47,11 @@ pub fn instantiate_standard_template(
 
 	let tag = Git::clone_and_degit(template.repository_url()?, source, tag_version)?;
 
-	for entry in WalkDir::new(&source) {
+	for entry in WalkDir::new(source) {
 		let entry = entry?;
 
 		let source_path = entry.path();
-		let destination_path = target.join(source_path.strip_prefix(&source)?);
+		let destination_path = target.join(source_path.strip_prefix(source)?);
 
 		if entry.file_type().is_dir() {
 			fs::create_dir_all(&destination_path)?;
