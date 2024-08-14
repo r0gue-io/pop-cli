@@ -36,12 +36,12 @@ pub enum Mode {
 
 #[derive(Args)]
 pub struct AdvancedMode {
-	#[arg(short, long, help = "Add types to your config trait from the CLI.")]
-	pub(crate) config_trait: bool,
+	#[arg(short, long, value_enum, help = "Add common types to your config trait from the CLI.")]
+	pub(crate) config_common_types: Option<Vec<TemplatePalletConfigCommonTypes>>,
 	#[arg(short, long, help = "Use a default configuration for your config trait.")]
 	pub(crate) default_config: bool,
-	#[arg(short, long, help = "Add storage items to your pallet from the CLI.")]
-	pub(crate) storage: bool,
+	#[arg(short, long, value_enum, help = "Add storage items to your pallet from the CLI.")]
+	pub(crate) storage: Option<Vec<TemplatePalletStorageTypes>>,
 	#[arg(short, long, help = "Add a genesis config to your pallet.")]
 	pub(crate) genesis_config: bool,
 	#[arg(short = 'o', long, help = "Add a custom origin to your pallet.")]
@@ -64,17 +64,22 @@ impl NewPalletCommand {
 			pallet_genesis = advanced_mode_args.genesis_config;
 			pallet_custom_origin = advanced_mode_args.custom_origin;
 
-			if advanced_mode_args.config_trait {
-				Cli.info("Generate the pallet's config trait.")?;
+			match &advanced_mode_args.config_common_types {
+                Some(selected_options) => { pallet_common_types = selected_options.clone() },
+                None => {
+                    Cli.info("Generate the pallet's config trait.")?;
 
-				pallet_common_types = multiselect_pick!(TemplatePalletConfigCommonTypes, "Are you interested in adding one of these types and their usual configuration to your pallet?");
-
+                    pallet_common_types = multiselect_pick!(TemplatePalletConfigCommonTypes, "Are you interested in adding one of these types and their usual configuration to your pallet?");
+                }
 			}
 
-			if advanced_mode_args.storage {
-				Cli.info("Generate the pallet's storage.")?;
+            match &advanced_mode_args.storage {
+                Some(selected_options) => { pallet_storage = selected_options.clone() },
+                None => {
+                    Cli.info("Generate the pallet's storage.")?;
 
-				pallet_storage = multiselect_pick!(TemplatePalletStorageTypes,"Are you interested in adding some of those storage items to your pallet?");
+                    pallet_storage = multiselect_pick!(TemplatePalletStorageTypes,"Are you interested in adding some of those storage items to your pallet?");
+                }
 			}
 
 		};

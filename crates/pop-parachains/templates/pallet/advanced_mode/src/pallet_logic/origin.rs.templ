@@ -3,22 +3,36 @@ use frame::prelude::*;
 
 
 impl<T: Config> Pallet<T> {
+    /// A helpful function your pallet may use to convert a external origin to the custom AllOrigins
+    pub(crate) fn origin_to_all_origins(origin: OriginFor<T>) -> Result<RuntimeLocalOrigin<T>, DispatchError>{
+        Ok(<RuntimeLocalOrigin<T>>::from(<Origin<T>>::AllOrigins))
+    }
 
+    /// A helpful function your pallet may use to convert a external origin to the custom OnlyAuthenticatedAccounts
+    pub(crate) fn origin_to_only_authenticated_accounts(origin: OriginFor<T>) -> Result<RuntimeLocalOrigin<T>, DispatchError>{
+        let who = ensure_signed(origin)?;
+        Ok(<RuntimeLocalOrigin<T>>::from(<Origin<T>>::OnlyAuthenticatedAccounts(who)))
+    }
 }
 
-impl<OuterOrigin: Into<Result<Origin, OuterOrigin>> + From<Origin>> EnsureOrigin<OuterOrigin> for Origin
-{
-    type Success = pop_todo!(origin_success_type);
+trait CustomOriginSuccess{}
+impl<T:Config> CustomOriginSuccess for T::AccountId{}
+impl CustomOriginSuccess for ()
 
-    // This is a good place to define conditions making your origin valid!
+impl<T:Config, OuterOrigin: Into<Result<Origin<T>, OuterOrigin>> + From<Origin<T>>> EnsureOrigin<OuterOrigin> for Origin<T>
+{
+    type Success = impl CustomOriginSuccess;
+
     fn try_origin(outer_origin: OuterOrigin) -> Result<Self::Success, OuterOrigin>{
         outer_origin.into().and_then(|origin|match origin{
-
+            Origin::AllOrigins if AllOriginsAllowed<T>::exists() => Ok(()),
+            Origin::OnlyAuthenticatedAccounts(account) if AuthenticatedAccounts<T>::contains_key(&account) => Ok(account),
+            other => Err(OuterOrigin::from(other))
         })
     }
 
     #[cfg(feature= "runtime-benchmarks")]
     fn try_successful_origin() -> Result<OuterOrigin, ()>{
-
+        Ok(OuterOrigin::from(Origin<T>::AllOrigins))
     }
 }

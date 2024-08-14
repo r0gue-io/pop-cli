@@ -1,8 +1,9 @@
 use strum_macros::{EnumIter, EnumMessage};
+use clap::ValueEnum;
 
 /// This enum is used to register from the CLI which types that are kind of usual in config traits
 /// are included in the pallet
-#[derive(Debug, Copy, Clone, PartialEq, EnumIter, EnumMessage)]
+#[derive(Debug, Copy, Clone, PartialEq, EnumIter, EnumMessage, ValueEnum)]
 pub enum TemplatePalletConfigCommonTypes {
 	#[strum(
 		message = "RuntimeEvent",
@@ -22,7 +23,7 @@ pub enum TemplatePalletConfigCommonTypes {
 }
 
 /// This enum is used to determine which storage shape has a storage item in the pallet
-#[derive(Debug, Copy, Clone, PartialEq, EnumIter, EnumMessage)]
+#[derive(Debug, Copy, Clone, PartialEq, EnumIter, EnumMessage, ValueEnum)]
 pub enum TemplatePalletStorageTypes {
 	#[strum(
 		message = "StorageValue",

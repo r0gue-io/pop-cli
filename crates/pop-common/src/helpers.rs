@@ -64,11 +64,12 @@ pub fn get_project_name_from_path<'a>(path: &'a Path, default: &'a str) -> &'a s
 /// # Example
 ///
 /// ```rust
-/// use strum_macros::{EnumIter, EnumMessage};
 /// use strum::{IntoEnumIterator, EnumMessage};
+/// use strum_macros::{EnumIter, EnumMessage as EnumMessageDerive};
 /// use cliclack::{multiselect};
+/// use pop_common::multiselect_pick;
 ///
-/// #[derive(Debug, EnumIter, EnumMessage, Copy, Clone)]
+/// #[derive(Debug, EnumIter, EnumMessageDerive, Copy, Clone)]
 /// enum FieldlessEnum {
 ///     #[strum(message = "Type 1", detailed_message = "Detailed message for Type 1")]
 ///     Type1,
@@ -78,7 +79,10 @@ pub fn get_project_name_from_path<'a>(path: &'a Path, default: &'a str) -> &'a s
 ///     Type3,
 /// }
 ///
-/// let vec = multiselect_pick!(FieldlessEnum, "Hello, world!");
+/// fn test_function() -> Result<(),std::io::Error>{
+///     let vec = multiselect_pick!(FieldlessEnum, "Hello, world!");
+///     Ok(())
+/// }
 /// ```
 ///
 /// # Requirements
