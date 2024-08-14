@@ -65,11 +65,18 @@ pub fn add_crate_to_workspace(workspace_toml: &Path, crate_path: &Path) -> anyho
 	if let Some(Item::Table(workspace_table)) = doc.get_mut("workspace") {
         if let Some(Item::Value(members_array)) = workspace_table.get_mut("members") {
             if let Value::Array(array) = members_array {
-                array.push(
-                    crate_relative_path
-                        .to_str()
-                        .expect("target's always a valid string; qed"),
-                );
+                let crate_relative_path = crate_relative_path
+                    .to_str()
+                    .expect("target's always a valid string; qed");
+                let already_in_array = array.iter().any(|member|{
+                    match member.as_str() {
+                        Some(s) if s == crate_relative_path => true,
+                        _ => false,
+                    }
+                });
+                if !already_in_array{
+                    array.push(crate_relative_path);
+                }
             } else {
                 return Err(anyhow::anyhow!("Corrupted workspace"));
             }
@@ -242,6 +249,7 @@ mod tests {
 			if let Some(Item::Value(Value::Array(array))) = workspace_table.get("members") {
 				assert!(array.iter().any(|item| {
 					if let Value::String(item) = item {
+                        // item is only the relative path from the Cargo.toml manifest, while test_buildder.insider_workspace_dir is the absolute path, so we can only test with contains
 						test_builder
 							.inside_workspace_dir
 							.as_ref()
@@ -255,6 +263,41 @@ mod tests {
                         false
                     }
 				}));
+			} else {
+                panic!("This shouldn't be reached");
+            }
+		} else {
+            panic!("This shouldn't be reached");
+        }
+
+        // Calling with a crate that's already in the workspace doesn't include it twice
+		let add_crate = add_crate_to_workspace(
+			test_builder.workspace_cargo_toml.as_ref().expect("Workspace should exist"),
+			test_builder
+				.inside_workspace_dir
+				.as_ref()
+				.expect("Inside workspace dir should exist")
+				.path(),
+		);
+        assert!(add_crate.is_ok());
+		let doc = content.parse::<DocumentMut>().expect("This should work");
+		if let Some(Item::Table(workspace_table)) = doc.get("workspace") {
+			if let Some(Item::Value(Value::Array(array))) = workspace_table.get("members") {
+				assert_eq!(array.iter().filter(|item| {
+					if let Value::String(item) = item {
+						test_builder
+							.inside_workspace_dir
+							.as_ref()
+							.expect("Inside workspace should exist")
+							.path()
+							.to_str()
+							.expect("Dir should be mapped to a str")
+							.contains(item.value())
+					}
+                    else{
+                        false
+                    }
+				}).count(), 1);
 			} else {
                 panic!("This shouldn't be reached");
             }
