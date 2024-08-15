@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 
 use crate::{
-	utils::helpers::write_to_file, TemplatePalletConfigCommonTypes,TemplatePalletStorageTypes,
+	utils::helpers::write_to_file, TemplatePalletConfigCommonTypes, TemplatePalletStorageTypes,
 };
 use askama::Template;
 
@@ -20,7 +20,7 @@ pub(crate) struct PalletCargoToml {
 	pub(crate) name: String,
 	pub(crate) authors: String,
 	pub(crate) description: String,
-    // A bool indicating if the pallet has been generated inside a workspace
+	// A bool indicating if the pallet has been generated inside a workspace
 	pub(crate) pallet_in_workspace: bool,
 	// Some common types are used to couple our pallet with a well known one, then adding this type
 	// here is useful to design Cargo.toml. This pallets should be added as dev-dependencies to
@@ -111,6 +111,14 @@ pub(crate) struct PalletTestsUtils {
 	pub(crate) name: String,
 }
 
+#[derive(Template)]
+#[template(path = "pallet/advanced_mode/src/types.rs.templ", escape = "none")]
+pub(crate) struct PalletTypes {
+	pub(crate) pallet_common_types: Vec<TemplatePalletConfigCommonTypes>,
+	pub(crate) pallet_storage: Vec<TemplatePalletStorageTypes>,
+	pub(crate) pallet_custom_origin: bool,
+}
+
 pub trait PalletItem {
 	/// Render and Write to file, root is the path to the pallet
 	fn execute(&self, root: &PathBuf) -> anyhow::Result<()>;
@@ -143,3 +151,4 @@ generate_pallet_item!(PalletConfigPreludes, "src/config_preludes.rs");
 generate_pallet_item!(PalletTryState, "src/pallet_logic/try_state.rs");
 generate_pallet_item!(PalletOrigin, "src/pallet_logic/origin.rs");
 generate_pallet_item!(PalletTestsUtils, "src/tests/utils.rs");
+generate_pallet_item!(PalletTypes, "src/types.rs");

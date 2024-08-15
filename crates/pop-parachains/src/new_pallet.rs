@@ -10,11 +10,10 @@ use crate::{
 		PalletAdvancedBenchmarking, PalletAdvancedLib, PalletAdvancedMock, PalletAdvancedTests,
 		PalletCargoToml, PalletConfigPreludes, PalletItem, PalletLogic, PalletOrigin,
 		PalletSimpleBenchmarking, PalletSimpleLib, PalletSimpleMock, PalletSimpleTests,
-		PalletTestsUtils, PalletTryState, PalletWeights,
+		PalletTestsUtils, PalletTryState, PalletTypes, PalletWeights,
 	},
-	resolve_pallet_path,
 	utils::helpers::sanitize,
-	TemplatePalletConfigCommonTypes,TemplatePalletStorageTypes
+	TemplatePalletConfigCommonTypes, TemplatePalletStorageTypes,
 };
 
 /// Metadata for the Template Pallet.
@@ -26,7 +25,7 @@ pub struct TemplatePalletConfig {
 	pub authors: String,
 	/// The pallet description
 	pub description: String,
-    /// A `bool` indicating if the pallet is contained in a workspace
+	/// A `bool` indicating if the pallet is contained in a workspace
 	pub pallet_in_workspace: bool,
 	/// A `bool` indicating if the user wanna use the advanced mode
 	pub pallet_advanced_mode: bool,
@@ -48,11 +47,7 @@ pub struct TemplatePalletConfig {
 ///
 /// * `path` - location where the pallet will be created.
 /// * `config` - customization values to include in the new pallet.
-pub fn create_pallet_template(
-	path: Option<String>,
-	config: TemplatePalletConfig,
-) -> Result<(), Error> {
-	let target = resolve_pallet_path(path)?;
+pub fn create_pallet_template(target: PathBuf, config: TemplatePalletConfig) -> Result<(), Error> {
 	let pallet_name = config.name.clone();
 	let pallet_path = target.join(pallet_name.clone());
 
@@ -88,6 +83,7 @@ fn generate_pallet_structure(
 		create_dir(&tests)?;
 		File::create(format!("{}/pallet_logic.rs", src.display()))?;
 		File::create(format!("{}/try_state.rs", pallet_logic.display()))?;
+		File::create(format!("{}/types.rs", src.display()))?;
 		File::create(format!("{}/utils.rs", tests.display()))?;
 		if config.pallet_default_config {
 			File::create(format!("{}/config_preludes.rs", src.display()))?;
@@ -111,7 +107,7 @@ fn render_pallet(
 		name: pallet_name.clone(),
 		authors: config.authors,
 		description: config.description,
-			pallet_in_workspace: config.pallet_in_workspace,
+		pallet_in_workspace: config.pallet_in_workspace,
 		pallet_common_types: config.pallet_common_types.clone(),
 	})];
 	let mut pallet_contents: Vec<Box<dyn PalletItem>>;
@@ -121,9 +117,9 @@ fn render_pallet(
 				name: pallet_name.clone(),
 				pallet_default_config: config.pallet_default_config,
 				pallet_common_types: config.pallet_common_types.clone(),
-				pallet_storage: config.pallet_storage,
+				pallet_storage: config.pallet_storage.clone(),
 				pallet_genesis: config.pallet_genesis,
-				pallet_custom_origin: config.pallet_custom_origin
+				pallet_custom_origin: config.pallet_custom_origin,
 			}),
 			Box::new(PalletAdvancedTests {}),
 			Box::new(PalletAdvancedMock {
@@ -136,6 +132,11 @@ fn render_pallet(
 			Box::new(PalletLogic { pallet_custom_origin: config.pallet_custom_origin }),
 			Box::new(PalletTryState {}),
 			Box::new(PalletTestsUtils { name: pallet_name }),
+			Box::new(PalletTypes {
+				pallet_common_types: config.pallet_common_types.clone(),
+				pallet_storage: config.pallet_storage,
+				pallet_custom_origin: config.pallet_custom_origin,
+			}),
 		];
 		if config.pallet_default_config {
 			pallet_contents.push(Box::new(PalletConfigPreludes {
@@ -250,7 +251,7 @@ mod tests {
 			name: pallet_name.to_string(),
 			authors: "Alice".to_string(),
 			description: "A sample pallet".to_string(),
-            pallet_in_workspace: false,
+			pallet_in_workspace: false,
 			pallet_advanced_mode: true,
 			pallet_default_config: false,
 			pallet_common_types: Vec::new(),
@@ -322,7 +323,7 @@ mod tests {
 			name: pallet_name.to_string(),
 			authors: "Alice".to_string(),
 			description: "A sample pallet".to_string(),
-            pallet_in_workspace: true,
+			pallet_in_workspace: true,
 			pallet_advanced_mode: true,
 			pallet_default_config: true,
 			pallet_common_types: Vec::new(),
@@ -394,7 +395,7 @@ mod tests {
 			name: pallet_name.to_string(),
 			authors: "Alice".to_string(),
 			description: "A sample pallet".to_string(),
-            pallet_in_workspace: false,
+			pallet_in_workspace: false,
 			pallet_advanced_mode: false,
 			pallet_default_config: false,
 			pallet_common_types: Vec::new(),

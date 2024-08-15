@@ -1,5 +1,5 @@
-use strum_macros::{EnumIter, EnumMessage};
 use clap::ValueEnum;
+use strum_macros::{EnumIter, EnumMessage};
 
 /// This enum is used to register from the CLI which types that are kind of usual in config traits
 /// are included in the pallet

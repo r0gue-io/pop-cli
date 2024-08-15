@@ -24,12 +24,6 @@ scale-info = { version = "2.11.1", default-features = false, features = [
 ] }
 frame = { version = "0.3.0", package = "polkadot-sdk-frame", default-features = false, features = ["experimental", "runtime"] }
 
-
-sp-core = { version = "33.0.1", default-features = false }
-sp-io = { version = "36.0.0", default-features = false }
-sp-runtime = { version = "37.0.0", default-features = false }
-sp-std = { version = "14.0.0", default-features = false }
-
 {{ if using_currency }}
 [dev-dependencies]
 pallet-balances = { version = "35.0.0" }
@@ -41,10 +35,6 @@ std = [
 	"codec/std",
 	"frame/std",
 	"scale-info/std",
-	"sp-runtime/std",
-	"sp-io/std",
-	"sp-core/std",
-	"sp-std/std",
 ]
 runtime-benchmarks = ["frame/runtime-benchmarks"]
 try-runtime = ["frame/try-runtime"]

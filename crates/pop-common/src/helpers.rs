@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::Error;
+use regex::RegexBuilder;
 use std::{
 	collections::HashMap,
 	fs,
 	io::{Read, Write},
 	path::{Path, PathBuf},
 };
-use regex::RegexBuilder;
 
 /// Replaces occurrences of specified strings in a file with new values.
 ///

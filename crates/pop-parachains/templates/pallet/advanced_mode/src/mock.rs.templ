@@ -3,9 +3,8 @@
 {{- let using_currency = pallet_common_types|contains(TemplatePalletConfigCommonTypes::Currency) -}}
 use crate::{self as pallet_^^name|lower^^, *};
 
-use frame::{
-	deps::frame_support::runtime,
-    prelude::*,
+pub use frame::{
+	deps::{frame_support::runtime, sp_io::TestExternalities},
 	runtime::prelude::*,
 	testing_prelude::*,
     {{- if using_currency }}
@@ -111,7 +110,7 @@ impl StateBuilder {
     {{- endif }}
 
     pub(crate) fn build_and_execute(self, test: impl FnOnce() -> ()) {
-        let mut ext: sp_io::TestExternalities = frame_system::GenesisConfig::<Test>::default()
+        let mut ext: TestExternalities = frame_system::GenesisConfig::<Test>::default()
                     .build_storage()
                     .unwrap()
                     .into();
@@ -135,7 +134,7 @@ impl StateBuilder {
     }
 }
 
-pub fn new_test_ext() -> sp_io::TestExternalities {
+pub fn new_test_ext() -> TestExternalities {
 	frame_system::GenesisConfig::<Test>::default()
 		.build_storage()
 		.unwrap()
