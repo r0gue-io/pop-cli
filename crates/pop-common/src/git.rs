@@ -120,17 +120,25 @@ impl Git {
 
 	/// Fetch the latest release from a repository
 	fn fetch_latest_tag(repo: &GitRepository) -> Option<String> {
-		let version_reg = Regex::new(r"v\d+\.\d+\.\d+").expect("Valid regex");
 		let tags = repo.tag_names(None).ok()?;
-		// Start from latest tags
-		for tag in tags.iter().rev() {
-			if let Some(tag) = tag {
-				if version_reg.is_match(tag) {
-					return Some(tag.to_string());
-				}
-			}
-		}
-		None
+		Self::parse_latest_tag(tags.iter().flatten().collect::<Vec<_>>())
+	}
+
+	/// Parse a list of versions to get the latest.
+	fn parse_latest_tag(tags: Vec<&str>) -> Option<String> {
+		let version_reg =
+			Regex::new(r"v(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)").expect("Valid regex");
+		tags.into_iter()
+			.filter_map(|tag| {
+				version_reg.captures(tag).and_then(|v| {
+					let major = v.name("major")?.as_str().parse::<u32>().ok()?;
+					let minor = v.name("minor")?.as_str().parse::<u32>().ok()?;
+					let patch = v.name("patch")?.as_str().parse::<u32>().ok()?;
+					Some((tag, (major, minor, patch)))
+				})
+			})
+			.max_by_key(|&(_, version)| version)
+			.map(|(tag_str, _)| tag_str.to_string())
 	}
 
 	/// Init a new git repository.
@@ -489,6 +497,24 @@ mod tests {
 			),
 			"git@github.com:paritytech/frontier-parachain-template.git"
 		);
+	}
+
+	#[test]
+	fn parse_latest_tag_works() {
+		let mut tags = vec![];
+		assert_eq!(Git::parse_latest_tag(tags), None);
+		tags = vec![
+			"liquid-template",
+			"polkadot-v1.10.0",
+			"polkadot-v1.11.0",
+			"polkadot-v1.12.0",
+			"polkadot-v1.7.0",
+			"polkadot-v1.8.0",
+			"polkadot-v1.9.0",
+		];
+		assert_eq!(Git::parse_latest_tag(tags), Some("polkadot-v1.12.0".to_string()));
+		tags = vec!["v1.0.0", "v2.0.0", "v3.0.0"];
+		assert_eq!(Git::parse_latest_tag(tags), Some("v3.0.0".to_string()));
 	}
 
 	mod repository {
