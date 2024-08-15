@@ -189,7 +189,7 @@ mod tests {
 		};
 
 		// Call the function being tested
-		create_pallet_template(Some(temp_dir.path().to_str().unwrap().to_string()), config)?;
+		create_pallet_template(temp_dir.path().to_path_buf(), config)?;
 
 		// Assert that the pallet structure is generated
 		let pallet_path = temp_dir.path().join(pallet_name);
@@ -261,7 +261,7 @@ mod tests {
 		};
 
 		// Call the function being tested
-		create_pallet_template(Some(temp_dir.path().to_str().unwrap().to_string()), config)?;
+		create_pallet_template(temp_dir.path().to_path_buf(), config)?;
 
 		// Assert that the pallet structure is generated
 		let pallet_path = temp_dir.path().join(pallet_name);
@@ -333,7 +333,7 @@ mod tests {
 		};
 
 		// Call the function being tested
-		create_pallet_template(Some(temp_dir.path().to_str().unwrap().to_string()), config)?;
+		create_pallet_template(temp_dir.path().to_path_buf(), config)?;
 
 		// Assert that the pallet structure is generated
 		let pallet_path = temp_dir.path().join(pallet_name);
@@ -405,7 +405,7 @@ mod tests {
 		};
 
 		// Call the function being tested
-		create_pallet_template(Some(temp_dir.path().to_str().unwrap().to_string()), config)?;
+		create_pallet_template(temp_dir.path().to_path_buf(), config)?;
 
 		// Assert that the pallet structure is generated
 		let pallet_path = temp_dir.path().join(pallet_name);
@@ -477,7 +477,7 @@ mod tests {
 		};
 
 		// Call the function being tested with an invalid path
-		let result = create_pallet_template(Some(invalid_path.to_string()), config);
+		let result = create_pallet_template(PathBuf::from(invalid_path), config);
 
 		// Assert that the result is an error
 		assert!(result.is_err(), "Result should be an error");

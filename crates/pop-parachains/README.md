@@ -122,8 +122,9 @@ Generate a new Pallet:
 
 ```rust,no_run
 use pop_parachains::{create_pallet_template, TemplatePalletConfig};
+use std::path::PathBuf;
 
-let path = "./".to_string();
+let path = "./";
 let pallet_config = TemplatePalletConfig {
     name: "MyPallet".to_string(),
     authors: "R0GUE".to_string(),
@@ -137,7 +138,7 @@ let pallet_config = TemplatePalletConfig {
     pallet_custom_origin: false,
 };
 
-create_pallet_template(Some(path),pallet_config);
+create_pallet_template(PathBuf::from(path),pallet_config);
 ```
 
 ## Acknowledgements
