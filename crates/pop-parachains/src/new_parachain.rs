@@ -8,7 +8,7 @@ use crate::{
 use anyhow::Result;
 use pop_common::{
 	git::Git,
-	templates::{Template, Type},
+	templates::{extractor::extract_template_files, Template, Type},
 };
 use std::{fs, path::Path};
 use walkdir::WalkDir;
@@ -31,6 +31,9 @@ pub fn instantiate_template_dir(
 
 	if Provider::Pop.provides(&template) {
 		return instantiate_standard_template(template, target, config, tag_version);
+	}
+	if Provider::OpenZeppelin.provides(&template) {
+		return instantiate_openzeppelin_template(template, target, tag_version);
 	}
 	let tag = Git::clone_and_degit(template.repository_url()?, target, tag_version)?;
 	Ok(tag)
@@ -72,6 +75,20 @@ pub fn instantiate_standard_template(
 	// Add network configuration
 	let network = Network { node: "parachain-template-node".into() };
 	write_to_file(&target.join("network.toml"), network.render().expect("infallible").as_ref())?;
+	Ok(tag)
+}
+
+pub fn instantiate_openzeppelin_template(
+	template: &Parachain,
+	target: &Path,
+	tag_version: Option<String>,
+) -> Result<Option<String>> {
+	let temp_dir = ::tempfile::TempDir::new_in(std::env::temp_dir())?;
+	let source = temp_dir.path();
+
+	let tag = Git::clone_and_degit(template.repository_url()?, source, tag_version)?;
+
+	extract_template_files(template.to_string(), temp_dir.path(), target)?;
 	Ok(tag)
 }
 
