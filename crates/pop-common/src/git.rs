@@ -504,7 +504,6 @@ mod tests {
 		let mut tags = vec![];
 		assert_eq!(Git::parse_latest_tag(tags), None);
 		tags = vec![
-			"liquid-template",
 			"polkadot-v1.10.0",
 			"polkadot-v1.11.0",
 			"polkadot-v1.12.0",
