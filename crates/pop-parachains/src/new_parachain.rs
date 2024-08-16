@@ -80,7 +80,7 @@ pub fn instantiate_standard_template(
 	Ok(tag)
 }
 
-/// Create a new tanssi compatible container chain.
+/// Create a new Tanssi compatible container chain.
 ///
 /// # Arguments
 ///
