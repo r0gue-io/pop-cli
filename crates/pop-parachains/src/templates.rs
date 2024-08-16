@@ -118,7 +118,7 @@ pub enum Parachain {
 	EVM,
 	// OpenZeppelin
 	#[strum(
-		serialize = "polkadot-generic-runtime-template",
+		serialize = "generic-template",
 		message = "Generic Runtime Template",
 		detailed_message = "A generic template for Substrate Runtime.",
 		props(
@@ -231,7 +231,7 @@ mod tests {
 			("contracts".to_string(), Contracts),
 			("evm".to_string(), EVM),
 			// openzeppelin
-			("polkadot-generic-runtime-template".to_string(), OpenZeppelinGeneric),
+			("generic-template".to_string(), OpenZeppelinGeneric),
 			("evm-template".to_string(), OpenZeppelinEVM),
 			("cpt".to_string(), ParityContracts),
 			("fpt".to_string(), ParityFPT),
@@ -248,7 +248,12 @@ mod tests {
 			("evm".to_string(), "https://github.com/r0gue-io/evm-parachain"),
 			// openzeppelin
 			(
-				"polkadot-generic-runtime-template".to_string(),
+				"generic-template".to_string(),
+				"https://github.com/OpenZeppelin/polkadot-runtime-templates",
+			),
+			// openzeppelin
+			(
+				"evm-template".to_string(),
 				"https://github.com/OpenZeppelin/polkadot-runtime-templates",
 			),
 			("cpt".to_string(), "https://github.com/paritytech/substrate-contracts-node"),
