@@ -191,7 +191,7 @@ fn generate_parachain_from_template(
 	// add next steps
 	let mut next_steps = vec![
 		format!("cd into \"{name_template}\" and enjoy hacking! 🚀"),
-		"Use `pop build` to build your parachain.".into(),
+		"Use `pop build --release` to build your parachain.".into(),
 	];
 	if let Some(network_config) = template.network_config() {
 		next_steps.push(format!(
