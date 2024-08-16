@@ -31,6 +31,13 @@ pub enum Provider {
 		detailed_message = "Solutions for a trust-free world."
 	)]
 	Parity,
+	#[strum(
+		ascii_case_insensitive,
+		serialize = "tanssi",
+		message = "Tanssi",
+		detailed_message = "Swift and effortless deployment of application-specific blockchains."
+	)]
+	Tanssi,
 }
 
 impl Type<Parachain> for Provider {
@@ -39,6 +46,7 @@ impl Type<Parachain> for Provider {
 			Provider::Pop => Some(Parachain::Standard),
 			Provider::OpenZeppelin => Some(Parachain::OpenZeppelinGeneric),
 			Provider::Parity => Some(Parachain::ParityContracts),
+			Provider::Tanssi => Some(Parachain::TanssiSimple),
 		}
 	}
 }
@@ -84,7 +92,8 @@ pub enum Parachain {
 	#[strum(
 		serialize = "assets",
 		message = "Assets",
-		detailed_message = "Parachain configured with fungible and non-fungilble asset functionalities.",
+		detailed_message = "Parachain configured with fungible and non-fungilble asset \
+		                    functionalities.",
 		props(
 			Provider = "Pop",
 			Repository = "https://github.com/r0gue-io/assets-parachain",
@@ -104,11 +113,13 @@ pub enum Parachain {
 		)
 	)]
 	Contracts,
-	/// Parachain configured with Frontier, enabling compatibility with the Ethereum Virtual Machine (EVM).
+	/// Parachain configured with Frontier, enabling compatibility with the Ethereum Virtual
+	/// Machine (EVM).
 	#[strum(
 		serialize = "evm",
 		message = "EVM",
-		detailed_message = "Parachain configured with Frontier, enabling compatibility with the Ethereum Virtual Machine (EVM).",
+		detailed_message = "Parachain configured with Frontier, enabling compatibility with the \
+		                    Ethereum Virtual Machine (EVM).",
 		props(
 			Provider = "Pop",
 			Repository = "https://github.com/r0gue-io/evm-parachain",
@@ -116,7 +127,7 @@ pub enum Parachain {
 		)
 	)]
 	EVM,
-	// OpenZeppelin
+	/// OpenZeppelin generic template.
 	#[strum(
 		serialize = "polkadot-generic-runtime-template",
 		message = "Generic Runtime Template",
@@ -134,7 +145,8 @@ pub enum Parachain {
 	#[strum(
 		serialize = "cpt",
 		message = "Contracts",
-		detailed_message = "Minimal Substrate node configured for smart contracts via pallet-contracts.",
+		detailed_message = "Minimal Substrate node configured for smart contracts via \
+		                    pallet-contracts.",
 		props(
 			Provider = "Parity",
 			Repository = "https://github.com/paritytech/substrate-contracts-node",
@@ -154,6 +166,30 @@ pub enum Parachain {
 		)
 	)]
 	ParityFPT,
+	/// Tanssi generic container chain template.
+	#[strum(
+		serialize = "simple",
+		message = "Simple",
+		detailed_message = "Generic container chain template.",
+		props(
+			Provider = "Tanssi",
+			Repository = "https://github.com/moondance-labs/tanssi",
+			Network = "./network.toml"
+		)
+	)]
+	TanssiSimple,
+	/// Tanssi EVM enabled container chain template.
+	#[strum(
+		serialize = "frontier",
+		message = "EVM",
+		detailed_message = "EVM enabled container chain template.",
+		props(
+			Provider = "Tanssi",
+			Repository = "https://github.com/moondance-labs/tanssi",
+			Network = "./network.toml"
+		)
+	)]
+	TanssiFrontier,
 
 	// templates for unit tests below
 	#[cfg(test)]
@@ -195,7 +231,8 @@ impl Parachain {
 	}
 
 	pub fn is_supported_version(&self, version: &str) -> bool {
-		// if `SupportedVersion` is None, then all versions are supported. Otherwise, ensure version is present.
+		// if `SupportedVersion` is None, then all versions are supported. Otherwise, ensure version
+		// is present.
 		self.supported_versions().map_or(true, |versions| versions.contains(&version))
 	}
 
@@ -206,21 +243,29 @@ impl Parachain {
 
 #[cfg(test)]
 mod tests {
-	use super::*;
 	use std::{collections::HashMap, str::FromStr};
+
 	use strum::VariantArray;
 	use Parachain::*;
 
+	use super::*;
+
 	fn templates_names() -> HashMap<String, Parachain> {
 		HashMap::from([
+			// Pop.
 			("standard".to_string(), Standard),
 			("assets".to_string(), Assets),
 			("contracts".to_string(), Contracts),
 			("evm".to_string(), EVM),
-			// openzeppelin
+			// OpenZeppelin.
 			("polkadot-generic-runtime-template".to_string(), OpenZeppelinGeneric),
+			// Parity.
 			("cpt".to_string(), ParityContracts),
 			("fpt".to_string(), ParityFPT),
+			// Tanssi.
+			("simple".to_string(), TanssiSimple),
+			("frontier".to_string(), TanssiFrontier),
+			// Test.
 			("test_01".to_string(), TestTemplate01),
 			("test_02".to_string(), TestTemplate02),
 		])
@@ -228,17 +273,23 @@ mod tests {
 
 	fn templates_urls() -> HashMap<String, &'static str> {
 		HashMap::from([
+			// Pop.
 			("standard".to_string(), "https://github.com/r0gue-io/base-parachain"),
 			("assets".to_string(), "https://github.com/r0gue-io/assets-parachain"),
 			("contracts".to_string(), "https://github.com/r0gue-io/contracts-parachain"),
 			("evm".to_string(), "https://github.com/r0gue-io/evm-parachain"),
-			// openzeppelin
+			// OpenZeppelin.
 			(
 				"polkadot-generic-runtime-template".to_string(),
 				"https://github.com/OpenZeppelin/polkadot-runtime-templates",
 			),
+			// Parity.
 			("cpt".to_string(), "https://github.com/paritytech/substrate-contracts-node"),
 			("fpt".to_string(), "https://github.com/paritytech/frontier-parachain-template"),
+			// Tanssi.
+			("simple".to_string(), "https://github.com/moondance-labs/tanssi"),
+			("frontier".to_string(), "https://github.com/moondance-labs/tanssi"),
+			// Test.
 			("test_01".to_string(), ""),
 			("test_02".to_string(), ""),
 		])
@@ -246,13 +297,20 @@ mod tests {
 
 	fn template_network_configs() -> HashMap<Parachain, Option<&'static str>> {
 		[
+			// Pop.
 			(Standard, Some("./network.toml")),
 			(Assets, Some("./network.toml")),
 			(Contracts, Some("./network.toml")),
 			(EVM, Some("./network.toml")),
+			// OpenZeppelin.
 			(OpenZeppelinGeneric, Some("./zombienet-config/devnet.toml")),
+			// Parity.
 			(ParityContracts, Some("./zombienet.toml")),
 			(ParityFPT, Some("./zombienet-config.toml")),
+			// Tanssi.
+			(TanssiSimple, Some("./network.toml")),
+			(TanssiFrontier, Some("./network.toml")),
+			// Test.
 			(TestTemplate01, Some("")),
 			(TestTemplate02, Some("")),
 		]
@@ -265,10 +323,26 @@ mod tests {
 			if matches!(template, Standard | Assets | Contracts | EVM) {
 				assert_eq!(Provider::Pop.provides(&template), true);
 				assert_eq!(Provider::Parity.provides(&template), false);
+				assert_eq!(Provider::OpenZeppelin.provides(&template), false);
+				assert_eq!(Provider::Tanssi.provides(&template), false);
 			}
 			if matches!(template, ParityContracts | ParityFPT) {
 				assert_eq!(Provider::Pop.provides(&template), false);
-				assert_eq!(Provider::Parity.provides(&template), true)
+				assert_eq!(Provider::Parity.provides(&template), true);
+				assert_eq!(Provider::OpenZeppelin.provides(&template), false);
+				assert_eq!(Provider::Tanssi.provides(&template), false);
+			}
+			if matches!(template, OpenZeppelinGeneric) {
+				assert_eq!(Provider::Pop.provides(&template), false);
+				assert_eq!(Provider::Parity.provides(&template), false);
+				assert_eq!(Provider::OpenZeppelin.provides(&template), true);
+				assert_eq!(Provider::Tanssi.provides(&template), false);
+			}
+			if matches!(template, TanssiSimple | TanssiFrontier) {
+				assert_eq!(Provider::Pop.provides(&template), false);
+				assert_eq!(Provider::Parity.provides(&template), false);
+				assert_eq!(Provider::OpenZeppelin.provides(&template), false);
+				assert_eq!(Provider::Tanssi.provides(&template), true);
 			}
 		}
 	}
@@ -327,6 +401,8 @@ mod tests {
 		assert_eq!(Provider::from_str("Pop").unwrap(), Provider::Pop);
 		assert_eq!(Provider::from_str("").unwrap_or_default(), Provider::Pop);
 		assert_eq!(Provider::from_str("Parity").unwrap(), Provider::Parity);
+		assert_eq!(Provider::from_str("OpenZeppelin").unwrap_or_default(), Provider::OpenZeppelin);
+		assert_eq!(Provider::from_str("Tanssi").unwrap_or_default(), Provider::Tanssi);
 	}
 
 	#[test]
