@@ -63,12 +63,13 @@ fn create_template_contract(
 	// Retrieve only the template contract files.
 	if template == &Contract::PSP22 || template == &Contract::PSP34 {
 		// Different template structure requires extracting different path
-		extract_template_files(String::from(""), temp_dir.path(), canonicalized_path.as_path())?;
+		extract_template_files(String::from(""), temp_dir.path(), canonicalized_path.as_path(), None)?;
 	} else {
 		extract_template_files(
 			template.to_string(),
 			temp_dir.path(),
 			canonicalized_path.as_path(),
+			Some(vec!["frontend".to_string()])
 		)?;
 	}
 
