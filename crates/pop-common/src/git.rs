@@ -550,14 +550,14 @@ mod tests {
 		let mut tags = vec![];
 		assert_eq!(Git::parse_latest_tag(tags), None);
 		tags = vec![
+			"polkadot-stable2407",
+			"polkadot-stable2407-1",
 			"polkadot-v1.10.0",
 			"polkadot-v1.11.0",
 			"polkadot-v1.12.0",
 			"polkadot-v1.7.0",
 			"polkadot-v1.8.0",
 			"polkadot-v1.9.0",
-			"polkadot-stable2407",
-			"polkadot-stable2407-1",
 			"v1.15.1-rc2",
 		];
 		assert_eq!(Git::parse_latest_tag(tags), Some("polkadot-stable2407-1".to_string()));
