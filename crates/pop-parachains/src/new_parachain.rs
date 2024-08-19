@@ -15,6 +15,9 @@ use crate::{
 	Config, Parachain, Provider,
 };
 
+// Type alias for tanssi specific parachain.
+type ContainerChain = Parachain;
+
 /// Create a new parachain.
 ///
 /// # Arguments
@@ -88,7 +91,7 @@ pub fn instantiate_standard_template(
 /// * `target` - location where the parachain will be created.
 /// * `tag_version` - version to use (`None` to use latest).
 fn instantiate_tanssi_template(
-	template: &Parachain,
+	template: &ContainerChain,
 	target: &Path,
 	tag_version: Option<String>,
 ) -> Result<Option<String>> {
