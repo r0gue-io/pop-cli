@@ -71,12 +71,6 @@ async fn parachain_lifecycle() -> Result<()> {
 
 	// Assert build files have been generated
 	assert!(temp_parachain_dir.join("target").exists());
-	// To debug, print the content of the target folder
-	let pop_folder = temp_parachain_dir.join("target/pop");
-	let paths = fs::read_dir(pop_folder).unwrap();
-	for path in paths {
-		println!("Name: {}", path.unwrap().path().display());
-	}
 	assert!(temp_parachain_dir.join("target/pop/test-spec.json").exists());
 	assert!(temp_parachain_dir.join("target/pop/test-spec-raw.json").exists());
 	assert!(temp_parachain_dir.join("target/pop/para-2222.wasm").exists());
