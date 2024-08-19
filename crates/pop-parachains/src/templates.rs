@@ -174,7 +174,10 @@ pub enum Parachain {
 		props(
 			Provider = "Tanssi",
 			Repository = "https://github.com/moondance-labs/tanssi",
-			Network = "./network.toml"
+			Network = "./network.toml",
+			NodeDirectory = "container-chains/nodes",
+		    RuntimeDirectory = "container-chains/runtime-templates",
+			ExtractableFiles = ".rustfmt.toml,Cargo.toml,Cargo.lock,LICENSE,README.md,rust-toolchain",
 		)
 	)]
 	TanssiSimple,
@@ -186,12 +189,15 @@ pub enum Parachain {
 		props(
 			Provider = "Tanssi",
 			Repository = "https://github.com/moondance-labs/tanssi",
-			Network = "./network.toml"
+			Network = "./network.toml",
+			NodeDirectory = "container-chains/nodes",
+		    RuntimeDirectory = "container-chains/runtime-templates",
+			ExtractableFiles = ".rustfmt.toml,Cargo.toml,Cargo.lock,LICENSE,README.md,rust-toolchain",
 		)
 	)]
 	TanssiFrontier,
 
-	// templates for unit tests below
+	// Templates for unit tests below.
 	#[cfg(test)]
 	#[strum(
 		serialize = "test_01",
@@ -202,7 +208,10 @@ pub enum Parachain {
 			Repository = "",
 			Network = "",
 			SupportedVersions = "v1.0.0,v2.0.0",
-			IsAudited = "true"
+			IsAudited = "true",
+			NodeDirectory = "node/dir",
+		    RuntimeDirectory = "runtime/dir",
+			ExtractableFiles = "list,of,files",
 		)
 	)]
 	TestTemplate01,
@@ -226,18 +235,36 @@ impl Parachain {
 		self.get_str("Network")
 	}
 
+	/// Returns a list supported versions for a concrete tempalte, if defined.
 	pub fn supported_versions(&self) -> Option<Vec<&str>> {
 		self.get_str("SupportedVersions").map(|s| s.split(',').collect())
 	}
 
+	/// Whether a certain version is supported for the template.
 	pub fn is_supported_version(&self, version: &str) -> bool {
 		// if `SupportedVersion` is None, then all versions are supported. Otherwise, ensure version
 		// is present.
 		self.supported_versions().map_or(true, |versions| versions.contains(&version))
 	}
 
+	/// Whether a concrete template is audited of not.
 	pub fn is_audited(&self) -> bool {
 		self.get_str("IsAudited").map_or(false, |s| s == "true")
+	}
+
+	/// Returns where to pull the tempalte node directory from in its source repo, if defined.
+	pub fn node_directory(&self) -> Option<&str> {
+	    self.get_str("NodeDirectory")
+	}
+
+	/// Returns where to pull the tempalte runtime directory from in its source repo, if defined.
+	pub fn runtime_directory(&self) -> Option<&str> {
+	    self.get_str("RuntimeDirectory")
+	}
+
+	/// Returns a list of relevant files to extract from the source repo, if defined.
+	pub fn extractable_files(&self) -> Option<Vec<&str>> {
+	    self.get_str("ExtractableFiles").map(|s| s.split(',').collect())
 	}
 }
 
@@ -437,5 +464,29 @@ mod tests {
 
 		let template = TestTemplate02;
 		assert_eq!(template.is_audited(), false);
+	}
+
+	#[test]
+	fn retrieves_node_directory_from_template() {
+	    let template = TestTemplate01;
+		assert_eq!(template.node_directory().unwrap(), "node/dir");
+		let template = TestTemplate02;
+		assert_eq!(template.node_directory(), None);
+	}
+
+	#[test]
+	fn retrieves_runtime_directory_from_template() {
+	    let template = TestTemplate01;
+		assert_eq!(template.runtime_directory().unwrap(), "runtime/dir");
+		let template = TestTemplate02;
+		assert_eq!(template.runtime_directory(), None);
+	}
+
+	#[test]
+	fn extractable_files_from_template_wprk() {
+		let template = TestTemplate01;
+		assert_eq!(template.extractable_files(), Some(vec!["list", "of", "files"]));
+		let template = TestTemplate02;
+		assert_eq!(template.supported_versions(), None);
 	}
 }

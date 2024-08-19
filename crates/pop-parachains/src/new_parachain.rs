@@ -100,8 +100,7 @@ fn instantiate_tanssi_template(
 	let tag = Git::clone_and_degit(template.repository_url()?, &source, tag_version)?;
 
 	// Relevant files to extract.
-	let files =
-		[".rustfmt.toml", "Cargo.toml", "Cargo.lock", "LICENSE", "README.md", "rust-toolchain"];
+	let files = template.extractable_files().unwrap();
 	for file in files {
 		extract_template_files(file.to_string(), temp_dir.path(), target, None)?;
 	}
@@ -117,7 +116,7 @@ fn instantiate_tanssi_template(
 	// │  └ <tempalte runtime directories>
 
 	// Step 1: extract template node.
-	let template_path = format!("container-chains/nodes/{}", template.to_string());
+	let template_path = format!("{}/{}", template.node_directory().unwrap(), template.to_string());
 	extract_template_files(
 		template_path,
 		temp_dir.path(),
@@ -125,7 +124,7 @@ fn instantiate_tanssi_template(
 		None,
 	)?;
 	// Step 2: extract template runtime.
-	let template_path = format!("container-chains/runtime-templates/{}", template.to_string());
+	let template_path = format!("{}/{}", template.runtime_directory().unwrap(), template.to_string());
 	extract_template_files(
 		template_path,
 		temp_dir.path(),
