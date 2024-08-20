@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use std::{fs, path::PathBuf};
+use std::{
+	fs::{create_dir, create_dir_all, File},
+	path::PathBuf,
+};
 
 pub mod new_pallet_options;
 
@@ -19,26 +22,23 @@ use crate::{
 /// Metadata for the Template Pallet.
 #[derive(Debug)]
 pub struct TemplatePalletConfig {
-	/// The name of the pallet
-	pub name: String,
 	/// The authors of the pallet
 	pub authors: String,
 	/// The pallet description
 	pub description: String,
-	/// A `bool` indicating if the pallet is contained in a workspace
+	/// Indicate if the pallet is contained in a workspace
 	pub pallet_in_workspace: bool,
-	/// A `bool` indicating if the user wanna use the advanced mode
+	/// Indicate if the user wanna use the advanced mode
 	pub pallet_advanced_mode: bool,
-	/// A `bool` indicating if the template must include a default config for the pallet.
+	/// Indicate if the template must include a default config for the pallet.
 	pub pallet_default_config: bool,
-	/// A `Vec` indicating which of the types defined in `TemplatePalletConfigCommonTypes` should
-	/// be included in the template.
+	/// Types defined in `TemplatePalletConfigCommonTypes` that should be included in the template.
 	pub pallet_common_types: Vec<TemplatePalletConfigCommonTypes>,
-	/// A `Vec` containing which type of storages are used and their names.
+	/// Types defined in `TemplatePalletStorageTypes` that should be included in the template.
 	pub pallet_storage: Vec<TemplatePalletStorageTypes>,
-	/// A `bool` indicating if the template should include a genesis config
+	/// Indicate if the template should include a genesis config
 	pub pallet_genesis: bool,
-	/// A `bool` indicating if the template should include a custom origin
+	/// Indicate if the template should include a custom origin
 	pub pallet_custom_origin: bool,
 }
 /// Create a new pallet from a template.
@@ -47,33 +47,20 @@ pub struct TemplatePalletConfig {
 ///
 /// * `path` - location where the pallet will be created.
 /// * `config` - customization values to include in the new pallet.
-pub fn create_pallet_template(target: PathBuf, config: TemplatePalletConfig) -> Result<(), Error> {
-	let pallet_name = config.name.clone();
-	let pallet_path = target.join(pallet_name.clone());
-
-	sanitize(&pallet_path)?;
-	generate_pallet_structure(&target, &pallet_name, &config)?;
-
-	render_pallet(pallet_name, config, &pallet_path)?;
+pub fn create_pallet_template(path: PathBuf, config: TemplatePalletConfig) -> Result<(), Error> {
+	sanitize(&path)?;
+	generate_pallet_structure(&path, &config)?;
+	render_pallet(config, &path)?;
 	Ok(())
 }
 
 /// Generate a pallet folder and file structure
-fn generate_pallet_structure(
-	target: &PathBuf,
-	pallet_name: &str,
-	config: &TemplatePalletConfig,
-) -> Result<(), Error> {
-	use fs::{create_dir, File};
-	let (pallet, src, pallet_logic, tests) = (
-		target.join(pallet_name),
-		target.join(pallet_name.to_string() + "/src"),
-		target.join(pallet_name.to_string() + "/src/pallet_logic"),
-		target.join(pallet_name.to_string() + "/src/tests"),
-	);
-	create_dir(&pallet)?;
+fn generate_pallet_structure(path: &PathBuf, config: &TemplatePalletConfig) -> Result<(), Error> {
+	create_dir_all(&path)?;
+	let (src, pallet_logic, tests) =
+		(path.join("src"), path.join("src/pallet_logic"), path.join("src/tests"));
 	create_dir(&src)?;
-	File::create(format!("{}/Cargo.toml", pallet.display()))?;
+	File::create(format!("{}/Cargo.toml", path.display()))?;
 	File::create(format!("{}/lib.rs", src.display()))?;
 	File::create(format!("{}/benchmarking.rs", src.display()))?;
 	File::create(format!("{}/tests.rs", src.display()))?;
@@ -97,12 +84,13 @@ fn generate_pallet_structure(
 	Ok(())
 }
 
-fn render_pallet(
-	pallet_name: String,
-	config: TemplatePalletConfig,
-	pallet_path: &PathBuf,
-) -> Result<(), Error> {
-	let pallet_name = pallet_name.replace('-', "_");
+fn render_pallet(config: TemplatePalletConfig, pallet_path: &PathBuf) -> Result<(), Error> {
+	// Extract the pallet name from the path.
+	let pallet_name = pallet_path
+		.file_name()
+		.and_then(|name| name.to_str())
+		.ok_or(Error::PathError)?
+		.replace('-', "_");
 	let mut pallet: Vec<Box<dyn PalletItem>> = vec![Box::new(PalletCargoToml {
 		name: pallet_name.clone(),
 		authors: config.authors,
@@ -131,7 +119,7 @@ fn render_pallet(
 			Box::new(PalletAdvancedBenchmarking {}),
 			Box::new(PalletLogic { pallet_custom_origin: config.pallet_custom_origin }),
 			Box::new(PalletTryState {}),
-			Box::new(PalletTestsUtils { name: pallet_name }),
+			Box::new(PalletTestsUtils { name: pallet_name.clone() }),
 			Box::new(PalletTypes {
 				pallet_common_types: config.pallet_common_types.clone(),
 				pallet_storage: config.pallet_storage,
@@ -170,13 +158,14 @@ fn render_pallet(
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use std::fs::read_to_string;
 
 	#[test]
 	fn test_pallet_create_advanced_template() -> Result<(), Error> {
 		let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
 		let pallet_name = "MyPallet";
+		let pallet_path = temp_dir.path().join(pallet_name);
 		let config = TemplatePalletConfig {
-			name: pallet_name.to_string(),
 			authors: "Alice".to_string(),
 			description: "A sample pallet".to_string(),
 			pallet_in_workspace: false,
@@ -189,10 +178,9 @@ mod tests {
 		};
 
 		// Call the function being tested
-		create_pallet_template(temp_dir.path().to_path_buf(), config)?;
+		create_pallet_template(pallet_path.clone(), config)?;
 
 		// Assert that the pallet structure is generated
-		let pallet_path = temp_dir.path().join(pallet_name);
 		assert!(pallet_path.exists(), "Pallet folder should be created");
 		assert!(pallet_path.join("src").exists(), "src folder should be created");
 		assert!(
@@ -233,8 +221,8 @@ mod tests {
 			"config_preludes.rs should be created"
 		);
 
-		let lib_rs_content = fs::read_to_string(pallet_path.join("src").join("lib.rs"))
-			.expect("Failed to read lib.rs");
+		let lib_rs_content =
+			read_to_string(pallet_path.join("src").join("lib.rs")).expect("Failed to read lib.rs");
 		assert!(lib_rs_content.contains("pub mod pallet"), "lib.rs should contain pub mod pallet");
 		assert!(
 			lib_rs_content.contains("pub mod config_preludes"),
@@ -247,8 +235,8 @@ mod tests {
 	fn test_pallet_create_advanced_template_no_default_config() -> Result<(), Error> {
 		let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
 		let pallet_name = "MyPallet";
+		let pallet_path = temp_dir.path().join(pallet_name);
 		let config = TemplatePalletConfig {
-			name: pallet_name.to_string(),
 			authors: "Alice".to_string(),
 			description: "A sample pallet".to_string(),
 			pallet_in_workspace: false,
@@ -261,10 +249,9 @@ mod tests {
 		};
 
 		// Call the function being tested
-		create_pallet_template(temp_dir.path().to_path_buf(), config)?;
+		create_pallet_template(pallet_path.clone(), config)?;
 
 		// Assert that the pallet structure is generated
-		let pallet_path = temp_dir.path().join(pallet_name);
 		assert!(pallet_path.exists(), "Pallet folder should be created");
 		assert!(pallet_path.join("src").exists(), "src folder should be created");
 		assert!(
@@ -305,8 +292,8 @@ mod tests {
 			"config_preludes.rs should be created"
 		);
 
-		let lib_rs_content = fs::read_to_string(pallet_path.join("src").join("lib.rs"))
-			.expect("Failed to read lib.rs");
+		let lib_rs_content =
+			read_to_string(pallet_path.join("src").join("lib.rs")).expect("Failed to read lib.rs");
 		assert!(lib_rs_content.contains("pub mod pallet"), "lib.rs should contain pub mod pallet");
 		assert!(
 			!lib_rs_content.contains("pub mod config_preludes"),
@@ -319,8 +306,8 @@ mod tests {
 	fn test_pallet_create_advanced_template_no_custom_origin() -> Result<(), Error> {
 		let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
 		let pallet_name = "MyPallet";
+		let pallet_path = temp_dir.path().join(pallet_name);
 		let config = TemplatePalletConfig {
-			name: pallet_name.to_string(),
 			authors: "Alice".to_string(),
 			description: "A sample pallet".to_string(),
 			pallet_in_workspace: true,
@@ -333,10 +320,9 @@ mod tests {
 		};
 
 		// Call the function being tested
-		create_pallet_template(temp_dir.path().to_path_buf(), config)?;
+		create_pallet_template(pallet_path.clone(), config)?;
 
 		// Assert that the pallet structure is generated
-		let pallet_path = temp_dir.path().join(pallet_name);
 		assert!(pallet_path.exists(), "Pallet folder should be created");
 		assert!(pallet_path.join("src").exists(), "src folder should be created");
 		assert!(
@@ -377,8 +363,8 @@ mod tests {
 			"config_preludes.rs should be created"
 		);
 
-		let lib_rs_content = fs::read_to_string(pallet_path.join("src").join("lib.rs"))
-			.expect("Failed to read lib.rs");
+		let lib_rs_content =
+			read_to_string(pallet_path.join("src").join("lib.rs")).expect("Failed to read lib.rs");
 		assert!(lib_rs_content.contains("pub mod pallet"), "lib.rs should contain pub mod pallet");
 		assert!(
 			lib_rs_content.contains("pub mod config_preludes"),
@@ -391,8 +377,8 @@ mod tests {
 	fn test_pallet_create_simple_template() -> Result<(), Error> {
 		let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
 		let pallet_name = "MyPallet";
+		let pallet_path = temp_dir.path().join(pallet_name);
 		let config = TemplatePalletConfig {
-			name: pallet_name.to_string(),
 			authors: "Alice".to_string(),
 			description: "A sample pallet".to_string(),
 			pallet_in_workspace: false,
@@ -405,7 +391,7 @@ mod tests {
 		};
 
 		// Call the function being tested
-		create_pallet_template(temp_dir.path().to_path_buf(), config)?;
+		create_pallet_template(pallet_path.clone(), config)?;
 
 		// Assert that the pallet structure is generated
 		let pallet_path = temp_dir.path().join(pallet_name);
@@ -449,8 +435,8 @@ mod tests {
 			"config_preludes.rs shouldn't be created"
 		);
 
-		let lib_rs_content = fs::read_to_string(pallet_path.join("src").join("lib.rs"))
-			.expect("Failed to read lib.rs");
+		let lib_rs_content =
+			read_to_string(pallet_path.join("src").join("lib.rs")).expect("Failed to read lib.rs");
 		assert!(lib_rs_content.contains("pub mod pallet"), "lib.rs should contain pub mod pallet");
 		assert!(
 			!lib_rs_content.contains("pub mod config_preludes"),
@@ -462,9 +448,7 @@ mod tests {
 	#[test]
 	fn test_pallet_create_template_invalid_path() {
 		let invalid_path = "/invalid/path/that/does/not/exist";
-		let pallet_name = "MyPallet";
 		let config = TemplatePalletConfig {
-			name: pallet_name.to_string(),
 			authors: "Alice".to_string(),
 			description: "A sample pallet".to_string(),
 			pallet_in_workspace: false,

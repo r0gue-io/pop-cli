@@ -4649,7 +4649,6 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "cargo_toml",
- "cliclack",
  "duct",
  "flate2",
  "git2",

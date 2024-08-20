@@ -17,11 +17,11 @@ pub enum TemplatePalletConfigCommonTypes {
 		detailed_message = "This type will be helpful if your pallet needs to deal with the outer RuntimeOrigin enum, or if your pallet needs to use custom origins. Note: If you have run the command using -o, this type will be added anyway."
 	)]
 	RuntimeOrigin,
+	/// This type will allow your pallet to interact with the native currency of the blockchain.
 	#[strum(
 		message = "Currency",
 		detailed_message = "This type will allow your pallet to interact with the native currency of the blockchain."
 	)]
-	/// This type will allow your pallet to interact with the native currency of the blockchain.
 	Currency,
 }
 
@@ -64,4 +64,18 @@ pub enum TemplatePalletStorageTypes {
 		detailed_message = "A wrapper around a StorageNMap and a StorageValue (with the value being u32) to keep track of how many items are in a map."
 	)]
 	CountedStorageNMap,
+}
+
+/// This enum is used to register from the CLI which options are selected by the user to be included in the pallet.
+#[derive(Debug, Copy, Clone, PartialEq, EnumIter, EnumMessage)]
+pub enum TemplatePalletOptions {
+	#[strum(
+		message = "DefaultConfig",
+		detailed_message = "Use a default configuration for your config trait."
+	)]
+	DefaultConfig,
+	#[strum(message = "GenesisConfig", detailed_message = "Add a genesis config to your pallet.")]
+	GenesisConfig,
+	#[strum(message = "Custom Origin", detailed_message = "Add a custom origin to your pallet.")]
+	CustomOrigin,
 }
