@@ -9,8 +9,8 @@ use std::{fs, io, path::Path};
 /// * `template_name` - The name of the template to extract.
 /// * `repo_directory` - The path to the repository directory containing the template.
 /// * `target_directory` - The destination path where the template files should be copied.
-/// * `ignore_directories` - A vector of directory names to ignore during the extraction. If empty, no directories are ignored.
-///
+/// * `ignore_directories` - A vector of directory names to ignore during the extraction. If empty,
+///   no directories are ignored.
 pub fn extract_template_files(
 	template_name: String,
 	repo_directory: &Path,
@@ -19,7 +19,11 @@ pub fn extract_template_files(
 ) -> Result<()> {
 	let template_directory = repo_directory.join(template_name);
 	// Recursively copy all directories and files within. Ignores the specified ones.
-	copy_dir_all(&template_directory, target_directory, &ignore_directories.unwrap_or_else(|| vec![]))?;
+	copy_dir_all(
+		&template_directory,
+		target_directory,
+		&ignore_directories.unwrap_or_else(|| vec![]),
+	)?;
 	Ok(())
 }
 
@@ -29,7 +33,6 @@ pub fn extract_template_files(
 /// * `src`: - The source path of the directory to be copied.
 /// * `dst`: - The destination path where the directory and its contents will be copied.
 /// * `ignore_directories` - directories to ignore during the copy process.
-///
 fn copy_dir_all(
 	src: impl AsRef<Path>,
 	dst: impl AsRef<Path>,
@@ -39,7 +42,8 @@ fn copy_dir_all(
 	for entry in fs::read_dir(src)? {
 		let entry = entry?;
 		let ty = entry.file_type()?;
-		if ty.is_dir() && ignore_directories.contains(&entry.file_name().to_string_lossy().to_string())
+		if ty.is_dir() &&
+			ignore_directories.contains(&entry.file_name().to_string_lossy().to_string())
 		{
 			continue;
 		} else if ty.is_dir() {

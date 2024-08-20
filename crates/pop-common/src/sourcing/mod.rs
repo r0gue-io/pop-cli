@@ -7,12 +7,12 @@ use crate::{Git, Status, APP_USER_AGENT};
 use duct::cmd;
 use flate2::read::GzDecoder;
 use reqwest::StatusCode;
-use std::time::Duration;
 use std::{
 	fs::{copy, metadata, read_dir, rename, File},
 	io::{BufRead, Seek, SeekFrom, Write},
 	os::unix::fs::PermissionsExt,
 	path::{Path, PathBuf},
+	time::Duration,
 };
 use tar::Archive;
 use tempfile::{tempdir, tempfile};
@@ -77,7 +77,8 @@ impl Source {
 	/// # Arguments
 	///
 	/// * `cache` - the cache to be used.
-	/// * `release` - whether any binaries needing to be built should be done so using the release profile.
+	/// * `release` - whether any binaries needing to be built should be done so using the release
+	///   profile.
 	/// * `status` - used to observe status updates.
 	/// * `verbose` - whether verbose output is required.
 	pub(super) async fn source(
@@ -164,7 +165,8 @@ impl GitHub {
 	/// # Arguments
 	///
 	/// * `cache` - the cache to be used.
-	/// * `release` - whether any binaries needing to be built should be done so using the release profile.
+	/// * `release` - whether any binaries needing to be built should be done so using the release
+	///   profile.
 	/// * `status` - used to observe status updates.
 	/// * `verbose` - whether verbose output is required.
 	async fn source(
@@ -208,9 +210,8 @@ impl GitHub {
 				let artifacts: Vec<_> = artifacts
 					.iter()
 					.map(|name| match reference {
-						Some(reference) => {
-							(name.as_str(), cache.join(&format!("{name}-{reference}")))
-						},
+						Some(reference) =>
+							(name.as_str(), cache.join(&format!("{name}-{reference}"))),
 						None => (name.as_str(), cache.join(&name)),
 					})
 					.collect();
@@ -377,13 +378,13 @@ async fn from_github_archive(
 	// Prepare archive contents for build
 	let entries: Vec<_> = read_dir(&working_dir)?.take(2).filter_map(|x| x.ok()).collect();
 	match entries.len() {
-		0 => {
+		0 =>
 			return Err(Error::ArchiveError(
 				"The downloaded archive does not contain any entries.".into(),
-			))
-		},
+			)),
 		1 => working_dir = entries[0].path(), // Automatically switch to top level directory
-		_ => {}, // Assume that downloaded archive does not have a top level directory
+		_ => {},                              /* Assume that downloaded archive does not have a
+		                                        * top level directory */
 	}
 	// Build binaries
 	status.update("Starting build of binary...");

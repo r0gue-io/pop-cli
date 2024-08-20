@@ -12,7 +12,8 @@ use toml_edit::{value, DocumentMut, Item, Value};
 /// Parses the contents of a `Cargo.toml` manifest.
 ///
 /// # Arguments
-/// * `path` - The optional path to the manifest, defaulting to the current directory if not specified.
+/// * `path` - The optional path to the manifest, defaulting to the current directory if not
+///   specified.
 pub fn from_path(path: Option<&Path>) -> Result<Manifest, Error> {
 	// Resolve manifest path
 	let path = match path {
@@ -28,7 +29,8 @@ pub fn from_path(path: Option<&Path>) -> Result<Manifest, Error> {
 	Ok(Manifest::from_path(path.canonicalize()?)?)
 }
 
-/// This function is used to determine if a Path is contained inside a workspace, and returns a PathBuf to the workspace Cargo.toml if found
+/// This function is used to determine if a Path is contained inside a workspace, and returns a
+/// PathBuf to the workspace Cargo.toml if found
 ///
 /// # Arguments
 /// * `target_dir` - A directory that may be contained inside a workspace

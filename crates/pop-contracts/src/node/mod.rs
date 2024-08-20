@@ -28,7 +28,6 @@ const BIN_NAME: &str = "substrate-contracts-node";
 /// # Arguments
 ///
 /// * `url` - Endpoint of the node.
-///
 pub async fn is_chain_alive(url: url::Url) -> Result<bool, Error> {
 	let request = RpcRequest::new(&url).await;
 	match request {
@@ -86,12 +85,13 @@ impl TryInto for Chain {
 
 impl pop_common::sourcing::traits::Source for Chain {}
 
-/// Retrieves the latest release of the contracts node binary, resolves its version, and constructs a `Binary::Source`
-/// with the specified cache path.
+/// Retrieves the latest release of the contracts node binary, resolves its version, and constructs
+/// a `Binary::Source` with the specified cache path.
 ///
 /// # Arguments
 /// * `cache` -  The cache directory path.
-/// * `version` - The specific version used for the substrate-contracts-node (`None` will use the latest available version).
+/// * `version` - The specific version used for the substrate-contracts-node (`None` will use the
+///   latest available version).
 pub async fn contracts_node_generator(
 	cache: PathBuf,
 	version: Option<&str>,
@@ -118,7 +118,6 @@ pub async fn contracts_node_generator(
 ///
 /// * `binary_path` - The path where the binary is stored. Can be the binary name itself if in PATH.
 /// * `output` - The optional log file for node output.
-///
 pub async fn run_contracts_node(
 	binary_path: PathBuf,
 	output: Option<&File>,

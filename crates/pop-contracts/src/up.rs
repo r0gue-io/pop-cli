@@ -96,7 +96,8 @@ pub async fn set_up_upload(
 	return Ok(upload_exec);
 }
 
-/// Estimate the gas required for instantiating a contract without modifying the state of the blockchain.
+/// Estimate the gas required for instantiating a contract without modifying the state of the
+/// blockchain.
 ///
 /// # Arguments
 ///

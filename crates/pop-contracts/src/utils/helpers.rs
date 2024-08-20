@@ -37,7 +37,6 @@ pub fn parse_account(account: &str) -> Result<<DefaultConfig as Config>::Account
 /// # Arguments
 ///
 /// * `target` - A reference to the `Path` to be canonicalized.
-///
 pub fn canonicalized_path(target: &Path) -> Result<PathBuf, Error> {
 	// Canonicalize the target path to ensure consistency and resolve any symbolic links.
 	target
