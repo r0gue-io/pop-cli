@@ -2,8 +2,8 @@
 
 use std::{fs, path::PathBuf};
 
-use crate::errors::Error;
 use crate::{
+	errors::Error,
 	generator::pallet::{
 		PalletBenchmarking, PalletCargoToml, PalletItem, PalletLib, PalletMock, PalletTests,
 		PalletWeights,

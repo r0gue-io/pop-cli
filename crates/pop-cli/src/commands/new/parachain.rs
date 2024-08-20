@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::cli::{traits::Cli as _, Cli};
-use crate::style::style;
+use crate::{
+	cli::{traits::Cli as _, Cli},
+	style::style,
+};
 use anyhow::Result;
 use clap::{
 	builder::{PossibleValue, PossibleValuesParser, TypedValueParser},
@@ -78,7 +80,7 @@ impl NewParachainCommand {
 		let provider = &parachain_config.provider.clone().unwrap_or_default();
 		let template = match &parachain_config.template {
 			Some(template) => template.clone(),
-			None => provider.default_template().expect("parachain templates have defaults; qed."), // Each provider has a template by default
+			None => provider.default_template().expect("parachain templates have defaults; qed."), /* Each provider has a template by default */
 		};
 
 		is_template_supported(provider, &template)?;
@@ -239,8 +241,8 @@ fn get_customization_value(
 	decimals: Option<u8>,
 	initial_endowment: Option<String>,
 ) -> Result<Config> {
-	if !matches!(template, Parachain::Standard)
-		&& (symbol.is_some() || decimals.is_some() || initial_endowment.is_some())
+	if !matches!(template, Parachain::Standard) &&
+		(symbol.is_some() || decimals.is_some() || initial_endowment.is_some())
 	{
 		log::warning("Customization options are not available for this template")?;
 		sleep(Duration::from_secs(3))
