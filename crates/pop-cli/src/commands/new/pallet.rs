@@ -32,12 +32,9 @@ fn after_help_advanced() -> &'static str {
 	r#"
         Examples:
             pop new pallet my-pallet advanced
-                -> Interactive advanced mode.
+                -> Launch interactive advanced mode. [OPTIONS] cannot be specified from the command line.
             pop new pallet my-pallet advanced --config-common-types runtime-origin currency --storage storage-value storage-map -d
-                -> Non-interactive advanced mode. Specify options manually.
-        Notes: 
-            1. Adding a single option will discard the interactive mode completely.
-            2. If there's not any common type added, default config isn't available, even if specified via the flag -d.
+                -> Using some [OPTIONS] launch the non-interactive advanced mode. [OPTIONS] are specified from the command line.
     "#
 }
 
@@ -124,10 +121,13 @@ impl NewPalletCommand {
 					boolean_options.contains(&TemplatePalletOptions::CustomOrigin);
 			} else {
 				pallet_common_types = advanced_mode_args.config_common_types.clone();
+				pallet_default_config = advanced_mode_args.default_config;
+				if pallet_common_types.is_empty() && pallet_default_config {
+					return Err(anyhow::anyhow!(
+						"Specify at least a config common type to use default config."
+					));
+				}
 				pallet_storage = advanced_mode_args.storage.clone();
-				// If there's no common types, default_config is excluded from the selection
-				pallet_default_config =
-					advanced_mode_args.default_config && !pallet_common_types.is_empty();
 				pallet_genesis = advanced_mode_args.genesis_config;
 				pallet_custom_origin = advanced_mode_args.custom_origin;
 			}
