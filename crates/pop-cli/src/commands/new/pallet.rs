@@ -32,9 +32,9 @@ fn after_help_advanced() -> &'static str {
 	r#"
         Examples:
             pop new pallet my-pallet advanced
-                -> Launch interactive advanced mode. [OPTIONS] cannot be specified from the command line.
+                -> If [OPTIONS] are not specified, the interactive advanced mode is launched.
             pop new pallet my-pallet advanced --config-common-types runtime-origin currency --storage storage-value storage-map -d
-                -> Using some [OPTIONS] launch the non-interactive advanced mode. [OPTIONS] are specified from the command line.
+                -> Using some [OPTIONS] launches the non-interactive advanced mode.
     "#
 }
 
