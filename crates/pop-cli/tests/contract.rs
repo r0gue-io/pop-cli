@@ -35,7 +35,7 @@ async fn contract_lifecycle() -> Result<()> {
 		.args(&["build", "--path", "./test_contract", "--release"])
 		.assert()
 		.success();
-	// Verify that the folder target has been created
+	// Verify that the directory target has been created
 	assert!(temp_dir.join("test_contract/target").exists());
 	// Verify that all the artifacts has been generated
 	assert!(temp_dir.join("test_contract/target/ink/test_contract.contract").exists());

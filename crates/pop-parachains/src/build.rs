@@ -33,7 +33,7 @@ pub fn build_parachain(
 		args.push("--release");
 	}
 	cmd("cargo", args).dir(path).run()?;
-	binary_path(&profile.target_folder(path), node_path.unwrap_or(&path.join("node")))
+	binary_path(&profile.target_directory(path), node_path.unwrap_or(&path.join("node")))
 }
 
 /// Determines whether the manifest at the supplied path is a supported parachain project.
@@ -51,7 +51,7 @@ pub fn is_supported(path: Option<&Path>) -> Result<bool, Error> {
 	}))
 }
 
-/// Constructs the node binary path based on the target path and the node folder path.
+/// Constructs the node binary path based on the target path and the node directory path.
 ///
 /// # Arguments
 /// * `target_path` - The path where the binaries are expected to be found.
@@ -348,7 +348,7 @@ mod tests {
 		Ok(())
 	}
 
-	// Function that generates a Cargo.toml inside node folder for testing.
+	// Function that generates a Cargo.toml inside node directory for testing.
 	fn generate_mock_node(temp_dir: &Path) -> Result<(), Error> {
 		// Create a node directory
 		let target_dir = temp_dir.join("node");
@@ -414,12 +414,12 @@ default_command = "pop-node"
 		cmd("cargo", ["new", name, "--bin"]).dir(temp_dir.path()).run()?;
 		generate_mock_node(&temp_dir.path().join(name))?;
 		let binary = build_parachain(&temp_dir.path().join(name), None, &Profile::Release, None)?;
-		let target_folder = temp_dir.path().join(name).join("target/release");
-		assert!(target_folder.exists());
-		assert!(target_folder.join("parachain_template_node").exists());
+		let target_directory = temp_dir.path().join(name).join("target/release");
+		assert!(target_directory.exists());
+		assert!(target_directory.join("parachain_template_node").exists());
 		assert_eq!(
 			binary.display().to_string(),
-			target_folder.join("parachain_template_node").display().to_string()
+			target_directory.join("parachain_template_node").display().to_string()
 		);
 		Ok(())
 	}

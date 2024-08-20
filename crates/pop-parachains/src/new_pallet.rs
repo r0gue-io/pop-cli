@@ -39,7 +39,7 @@ pub fn create_pallet_template(
 	Ok(())
 }
 
-/// Generate a pallet folder and file structure
+/// Generate a pallet directory and file structure
 fn generate_pallet_structure(target: &PathBuf, pallet_name: &str) -> Result<(), Error> {
 	use fs::{create_dir, File};
 	let (pallet, src) = (target.join(pallet_name), target.join(pallet_name.to_string() + "/src"));
@@ -100,8 +100,8 @@ mod tests {
 
 		// Assert that the pallet structure is generated
 		let pallet_path = temp_dir.path().join(pallet_name);
-		assert!(pallet_path.exists(), "Pallet folder should be created");
-		assert!(pallet_path.join("src").exists(), "src folder should be created");
+		assert!(pallet_path.exists(), "Pallet directory should be created");
+		assert!(pallet_path.join("src").exists(), "src directory should be created");
 		assert!(pallet_path.join("Cargo.toml").exists(), "Cargo.toml should be created");
 		assert!(pallet_path.join("src").join("lib.rs").exists(), "lib.rs should be created");
 		assert!(

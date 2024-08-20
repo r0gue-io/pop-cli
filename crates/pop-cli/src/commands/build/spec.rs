@@ -221,7 +221,7 @@ impl BuildSpecCommand {
 		// Locate binary, if it doesn't exist trigger build.
 		let mode: Profile = self.release.into();
 		let cwd = current_dir().unwrap_or(PathBuf::from("./"));
-		let binary_path = match binary_path(&mode.target_folder(&cwd), &cwd.join("node")) {
+		let binary_path = match binary_path(&mode.target_directory(&cwd), &cwd.join("node")) {
 			Ok(binary_path) => binary_path,
 			_ => {
 				cli.info("Node was not found. The project will be built locally.".to_string())?;

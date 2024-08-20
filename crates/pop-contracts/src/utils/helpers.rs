@@ -75,8 +75,8 @@ mod tests {
 	fn test_canonicalized_path() -> Result<(), Error> {
 		let temp_dir = tempfile::tempdir()?;
 		// Error case
-		let error_folder = canonicalized_path(&temp_dir.path().join("my_folder"));
-		assert!(error_folder.is_err());
+		let error_directory = canonicalized_path(&temp_dir.path().join("my_directory"));
+		assert!(error_directory.is_err());
 		// Success case
 		canonicalized_path(temp_dir.path())?;
 		Ok(())

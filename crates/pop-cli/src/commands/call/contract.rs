@@ -13,7 +13,7 @@ use std::path::PathBuf;
 
 #[derive(Args)]
 pub struct CallContractCommand {
-	/// Path to the contract build folder.
+	/// Path to the contract build directory.
 	#[arg(short = 'p', long)]
 	path: Option<PathBuf>,
 	/// The address of the contract to call.
