@@ -210,8 +210,9 @@ impl GitHub {
 				let artifacts: Vec<_> = artifacts
 					.iter()
 					.map(|name| match reference {
-						Some(reference) =>
-							(name.as_str(), cache.join(&format!("{name}-{reference}"))),
+						Some(reference) => {
+							(name.as_str(), cache.join(&format!("{name}-{reference}")))
+						},
 						None => (name.as_str(), cache.join(&name)),
 					})
 					.collect();
@@ -378,10 +379,11 @@ async fn from_github_archive(
 	// Prepare archive contents for build
 	let entries: Vec<_> = read_dir(&working_dir)?.take(2).filter_map(|x| x.ok()).collect();
 	match entries.len() {
-		0 =>
+		0 => {
 			return Err(Error::ArchiveError(
 				"The downloaded archive does not contain any entries.".into(),
-			)),
+			))
+		},
 		1 => working_dir = entries[0].path(), // Automatically switch to top level directory
 		_ => {},                              /* Assume that downloaded archive does not have a
 		                                        * top level directory */

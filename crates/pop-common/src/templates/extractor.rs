@@ -42,8 +42,8 @@ fn copy_dir_all(
 	for entry in fs::read_dir(src)? {
 		let entry = entry?;
 		let ty = entry.file_type()?;
-		if ty.is_dir() &&
-			ignore_directories.contains(&entry.file_name().to_string_lossy().to_string())
+		if ty.is_dir()
+			&& ignore_directories.contains(&entry.file_name().to_string_lossy().to_string())
 		{
 			continue;
 		} else if ty.is_dir() {

@@ -252,12 +252,13 @@ impl Zombienet {
 				if let Some(command) = NetworkConfiguration::command(node).and_then(|c| c.as_str())
 				{
 					match &relay {
-						Some(relay) =>
+						Some(relay) => {
 							if command.to_lowercase() != relay.binary.name() {
 								return Err(Error::UnsupportedCommand(format!(
 									"the relay chain command is unsupported: {command}",
 								)));
-							},
+							}
+						},
 						None => {
 							relay = Some(
 								relay::from(command, version, runtime_version, chain, cache)

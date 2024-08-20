@@ -71,7 +71,7 @@ impl ZombienetCommand {
 		.await
 		{
 			Ok(n) => n,
-			Err(e) =>
+			Err(e) => {
 				return match e {
 					Error::Config(message) => {
 						outro_cancel(format!("🚫 A configuration error occurred: `{message}`"))?;
@@ -82,7 +82,8 @@ impl ZombienetCommand {
 						Ok(())
 					},
 					_ => Err(e.into()),
-				},
+				}
+			},
 		};
 
 		// Source any missing/stale binaries
