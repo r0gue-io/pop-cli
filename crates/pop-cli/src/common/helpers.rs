@@ -6,6 +6,9 @@
 ///   `IntoEnumIterator` and `EnumMessage` traits from the `strum` crate. Each variant is
 ///   responsible of its own messages.
 /// * `$prompt_message`: The message displayed to the user. It must implement the `Display` trait.
+/// * `$excluded_variants`: If the enum contain variants that shouldn't be included in the
+///   multiselect pick, they're specified here. This is useful if a enum is used in a few places and
+///   not all of them need all the variants but share some of them. It has to be a `Vec`;
 /// # Note
 /// This macro only works with a 1-byte sized enums, this is, fieldless enums with at most 255
 /// elements each. This is because we're just interested in letting the user to pick some options
@@ -57,12 +60,12 @@
 /// Otherwise the compilation will fail.
 #[macro_export]
 macro_rules! multiselect_pick {
-	($enum: ty, $prompt_message: expr) => {{
-		// Ensure the enum is 1-byte long. This is needed cause fieldless enums with > 256 elements
+	($enum: ty, $prompt_message: expr $(, $excluded_variants: expr)?) => {{
+        // Ensure the enum is 1-byte long. This is needed cause fieldless enums with > 256 elements
 		// will lead to unexpected behavior as the conversion to u8 for them isn't detected as wrong
 		// at compile time. Enums containing variants with fields will be catched at compile time.
 		// Weird but possible.
-		assert!(std::mem::size_of::<$enum>() == 1);
+		assert_eq!(std::mem::size_of::<$enum>(), 1);
 		let mut prompt = multiselect(format!(
 			"{} {}",
 			$prompt_message,
@@ -71,6 +74,7 @@ macro_rules! multiselect_pick {
 		.required(false);
 
 		for variant in <$enum>::iter() {
+            $(if $excluded_variants.contains(&variant){continue; })?
 			prompt = prompt.item(
 				variant as u8,
 				variant.get_message().unwrap_or_default(),

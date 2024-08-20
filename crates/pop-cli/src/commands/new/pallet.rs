@@ -35,8 +35,9 @@ fn after_help_advanced() -> &'static str {
                 -> Interactive advanced mode.
             pop new pallet my-pallet advanced --config-common-types runtime-origin currency --storage storage-value storage-map -d
                 -> Non-interactive advanced mode. Specify options manually.
-        Note: 
-        Adding a single option will discard the interactive mode completely.
+        Notes: 
+            1. Adding a single option will discard the interactive mode completely.
+            2. If there's not any common type added, default config isn't available, even if specified via the flag -d.
     "#
 }
 
@@ -102,10 +103,19 @@ impl NewPalletCommand {
 					"Are you interested in adding some of those storage items to your pallet?"
 				);
 
-				let boolean_options = multiselect_pick!(
-					TemplatePalletOptions,
-					"Are you interested in adding one of these types and their usual configuration to your pallet?"
-				);
+				// If there's no common types, default_config is excluded from the multiselect
+				let boolean_options = if pallet_common_types.is_empty() {
+					multiselect_pick!(
+                        TemplatePalletOptions,
+                        "Are you interested in adding one of these types and their usual configuration to your pallet?",
+                        vec![TemplatePalletOptions::DefaultConfig]
+				    )
+				} else {
+					multiselect_pick!(
+                        TemplatePalletOptions,
+                        "Are you interested in adding one of these types and their usual configuration to your pallet?"
+                    )
+				};
 
 				pallet_default_config =
 					boolean_options.contains(&TemplatePalletOptions::DefaultConfig);
@@ -115,7 +125,9 @@ impl NewPalletCommand {
 			} else {
 				pallet_common_types = advanced_mode_args.config_common_types.clone();
 				pallet_storage = advanced_mode_args.storage.clone();
-				pallet_default_config = advanced_mode_args.default_config;
+				// If there's no common types, default_config is excluded from the selection
+				pallet_default_config =
+					advanced_mode_args.default_config && !pallet_common_types.is_empty();
 				pallet_genesis = advanced_mode_args.genesis_config;
 				pallet_custom_origin = advanced_mode_args.custom_origin;
 			}
@@ -131,7 +143,9 @@ impl NewPalletCommand {
 			PathBuf::from(path)
 		};
 
-		// If the user has introduced something like pallets/my_pallet, probably it refers to ./pallets/my_pallet. We need to transform this path, as otherwise the Cargo.toml won't be detected and the pallet won't be added to the workspace.
+		// If the user has introduced something like pallets/my_pallet, probably it refers to
+		// ./pallets/my_pallet. We need to transform this path, as otherwise the Cargo.toml won't be
+		// detected and the pallet won't be added to the workspace.
 		let pallet_path = prefix_with_current_dir_if_needed(pallet_path);
 
 		// Determine if the pallet is being created inside a workspace

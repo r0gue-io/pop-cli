@@ -11,7 +11,9 @@ pub enum TemplatePalletConfigCommonTypes {
 		detailed_message = "This type will enable your pallet to emit events."
 	)]
 	RuntimeEvent,
-	/// This type will be helpful if your pallet needs to deal with the outer RuntimeOrigin enum, or if your pallet needs to use custom origins. Note: If you have run the command using -o, this type will be added anyway.
+	/// This type will be helpful if your pallet needs to deal with the outer RuntimeOrigin enum,
+	/// or if your pallet needs to use custom origins. Note: If you have run the command using -o,
+	/// this type will be added anyway.
 	#[strum(
 		message = "RuntimeOrigin",
 		detailed_message = "This type will be helpful if your pallet needs to deal with the outer RuntimeOrigin enum, or if your pallet needs to use custom origins. Note: If you have run the command using -o, this type will be added anyway."
@@ -40,7 +42,8 @@ pub enum TemplatePalletStorageTypes {
 		detailed_message = "A storage map is a mapping of keys to values of a given type stored on-chain."
 	)]
 	StorageMap,
-	/// A wrapper around a StorageMap and a StorageValue (with the value being u32) to keep track of how many items are in a map.
+	/// A wrapper around a StorageMap and a StorageValue (with the value being u32) to keep track
+	/// of how many items are in a map.
 	#[strum(
 		message = "CountedStorageMap",
 		detailed_message = "A wrapper around a StorageMap and a StorageValue (with the value being u32) to keep track of how many items are in a map."
@@ -52,13 +55,15 @@ pub enum TemplatePalletStorageTypes {
 		detailed_message = "This structure associates a pair of keys with a value of a specified type stored on-chain."
 	)]
 	StorageDoubleMap,
-	/// This structure associates an arbitrary number of keys with a value of a specified type stored on-chain.
+	/// This structure associates an arbitrary number of keys with a value of a specified type
+	/// stored on-chain.
 	#[strum(
 		message = "StorageNMap",
 		detailed_message = "This structure associates an arbitrary number of keys with a value of a specified type stored on-chain."
 	)]
 	StorageNMap,
-	/// A wrapper around a StorageNMap and a StorageValue (with the value being u32) to keep track of how many items are in a map.
+	/// A wrapper around a StorageNMap and a StorageValue (with the value being u32) to keep track
+	/// of how many items are in a map.
 	#[strum(
 		message = "CountedStorageNMap",
 		detailed_message = "A wrapper around a StorageNMap and a StorageValue (with the value being u32) to keep track of how many items are in a map."
@@ -66,7 +71,8 @@ pub enum TemplatePalletStorageTypes {
 	CountedStorageNMap,
 }
 
-/// This enum is used to register from the CLI which options are selected by the user to be included in the pallet.
+/// This enum is used to register from the CLI which options are selected by the user to be included
+/// in the pallet.
 #[derive(Debug, Copy, Clone, PartialEq, EnumIter, EnumMessage)]
 pub enum TemplatePalletOptions {
 	#[strum(
