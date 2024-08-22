@@ -206,4 +206,30 @@ mod tests {
 		));
 		Ok(())
 	}
+
+	#[ignore = "Works fine locally but is causing issues when running tests in parallel in the CI environment."]
+	#[tokio::test]
+	async fn run_contracts_node_works() -> Result<(), Error> {
+		let local_url = url::Url::parse("ws://localhost:9944")?;
+
+		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
+		let cache = temp_dir.path().join("");
+
+		let version = "v0.40.0";
+		let binary = contracts_node_generator(cache.clone(), Some(version)).await?;
+		binary.source(false, &(), true).await?;
+		let process = run_contracts_node(binary.path(), None).await?;
+
+		// Check if the node is alive
+		assert!(is_chain_alive(local_url).await?);
+		assert!(cache.join("substrate-contracts-node-v0.40.0").exists());
+		assert!(!cache.join("artifacts").exists());
+		// Stop the process contracts-node
+		Command::new("kill")
+			.args(["-s", "TERM", &process.id().to_string()])
+			.spawn()?
+			.wait()?;
+
+		Ok(())
+	}
 }
