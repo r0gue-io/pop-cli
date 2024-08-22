@@ -33,6 +33,12 @@ our [telemetry](crates/pop-telemetry/README.md) documentation.
 On the [Pop Docs website](https://learn.onpop.io) you will find:
 - [Get Started with Pop CLI](https://learn.onpop.io/v/cli)
 
+## Community
+
+Be part of our passionate community of Web3 engineers. 
+
+[Join our Telegram](https://t.me/onpopio)!
+
 ## Building Pop CLI locally
 
 Build the tool locally with all the features:
