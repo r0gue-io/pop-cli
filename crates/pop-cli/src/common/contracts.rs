@@ -4,7 +4,8 @@ use cliclack::{confirm, log::warning, spinner};
 use pop_contracts::contracts_node_generator;
 use std::path::PathBuf;
 
-///  Checks the status of the `substrate-contracts-node` binary, sources it if necessary, and prompts the user to update it if the existing binary is not the latest version.
+///  Checks the status of the `substrate-contracts-node` binary, sources it if necessary, and
+/// prompts the user to update it if the existing binary is not the latest version.
 ///
 /// # Arguments
 /// * `skip_confirm`: A boolean indicating whether to skip confirmation prompts.

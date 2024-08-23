@@ -5,8 +5,10 @@ use anyhow::Result;
 use contract_build::new_contract_project;
 use heck::ToUpperCamelCase;
 use pop_common::{extract_template_files, replace_in_file, templates::Template, Git};
-use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::{
+	collections::HashMap,
+	path::{Path, PathBuf},
+};
 use url::Url;
 
 /// Create a new smart contract.
@@ -161,7 +163,7 @@ mod tests {
 		Ok(())
 	}
 
-	fn generate_contract_folder() -> Result<tempfile::TempDir, Error> {
+	fn generate_contract_directory() -> Result<tempfile::TempDir, Error> {
 		let temp_dir = tempfile::tempdir()?;
 		let config = temp_dir.path().join("Cargo.toml");
 		let mut config_file = fs::File::create(config.clone())?;
@@ -189,7 +191,7 @@ mod tests {
 	}
 	#[test]
 	fn test_rename_contract() -> Result<(), Error> {
-		let temp_dir = generate_contract_folder()?;
+		let temp_dir = generate_contract_directory()?;
 		rename_contract("my_contract", temp_dir.path().to_owned(), &Contract::ERC20)?;
 		let generated_cargo =
 			fs::read_to_string(temp_dir.path().join("Cargo.toml")).expect("Could not read file");

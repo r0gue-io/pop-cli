@@ -83,7 +83,7 @@ mod tests {
 	use duct::cmd;
 	use std::{fs, io::Write, path::Path};
 
-	// Function that generates a Cargo.toml inside node folder for testing.
+	// Function that generates a Cargo.toml inside node directory for testing.
 	fn generate_mock_node(temp_dir: &Path) -> anyhow::Result<()> {
 		// Create a node directory
 		let target_dir = temp_dir.join("node");

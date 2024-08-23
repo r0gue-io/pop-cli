@@ -18,21 +18,21 @@ pub(crate) struct ZombienetCommand {
 	/// The Zombienet network configuration file to be used.
 	#[arg(short, long)]
 	file: String,
-	/// The version of the binary to be used for the relay chain, as per the release tag (e.g. "v1.13.0").
-	/// See https://github.com/paritytech/polkadot-sdk/releases for more details.
+	/// The version of the binary to be used for the relay chain, as per the release tag (e.g.
+	/// "v1.13.0"). See https://github.com/paritytech/polkadot-sdk/releases for more details.
 	#[arg(short, long)]
 	relay_chain: Option<String>,
-	/// The version of the runtime to be used for the relay chain, as per the release tag (e.g. "v1.2.7").
-	/// See https://github.com/polkadot-fellows/runtimes/releases for more details.
+	/// The version of the runtime to be used for the relay chain, as per the release tag (e.g.
+	/// "v1.2.7"). See https://github.com/polkadot-fellows/runtimes/releases for more details.
 	#[arg(short = 'R', long)]
 	relay_chain_runtime: Option<String>,
-	/// The version of the binary to be used for system parachains, as per the release tag (e.g. "v1.13.0").
-	/// Defaults to the relay chain version if not specified.
+	/// The version of the binary to be used for system parachains, as per the release tag (e.g.
+	/// "v1.13.0"). Defaults to the relay chain version if not specified.
 	/// See https://github.com/paritytech/polkadot-sdk/releases for more details.
 	#[arg(short, long)]
 	system_parachain: Option<String>,
-	/// The version of the runtime to be used for system parachains, as per the release tag (e.g. "v1.2.7").
-	/// See https://github.com/polkadot-fellows/runtimes/releases for more details.
+	/// The version of the runtime to be used for system parachains, as per the release tag (e.g.
+	/// "v1.2.7"). See https://github.com/polkadot-fellows/runtimes/releases for more details.
 	#[arg(short = 'S', long)]
 	system_parachain_runtime: Option<String>,
 	/// The url of the git repository of a parachain to be used, with branch/release tag/commit specified as #fragment (e.g. 'https://github.com/org/repository#ref').

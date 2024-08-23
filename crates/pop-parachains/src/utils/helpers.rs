@@ -9,7 +9,7 @@ use std::{
 
 pub(crate) fn sanitize(target: &Path) -> Result<(), Error> {
 	if target.exists() {
-		print!("\"{}\" folder exists. Do you want to clean it? [y/n]: ", target.display());
+		print!("\"{}\" directory exists. Do you want to clean it? [y/n]: ", target.display());
 		stdout().flush()?;
 
 		let mut input = String::new();
