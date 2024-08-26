@@ -10,7 +10,10 @@ use pop_common::{
 use walkdir::WalkDir;
 
 use crate::{
-	generator::parachain::{ChainSpec, Network},
+	generator::{
+		container::Network as ContainerNetwork,
+		parachain::{ChainSpec, Network},
+	},
 	utils::helpers::{sanitize, write_to_file},
 	Config, Parachain, Provider,
 };
@@ -135,7 +138,8 @@ fn instantiate_tanssi_template(
 
 	// Add network configuration.
 	use askama::Template;
-	let network = Network { node: format!("container-chain-{}-node", template.to_string()) };
+	let network =
+		ContainerNetwork { node: format!("container-chain-{}-node", template.to_string()) };
 	write_to_file(&target.join("network.toml"), network.render().expect("infallible").as_ref())?;
 
 	Ok(tag)

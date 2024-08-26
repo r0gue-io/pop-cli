@@ -1,0 +1,45 @@
+[relaychain]
+chain = "rococo-local"
+
+[[relaychain.nodes]]
+name = "alice"
+validator = true
+
+[[relaychain.nodes]]
+name = "bob"
+validator = true
+
+[[relaychain.nodes]]
+name = "charlie"
+validator = true
+
+[[relaychain.nodes]]
+name = "dave"
+validator = true
+
+[[parachains]]
+id = 1000
+chain = "dancebox-local"
+default_command = "./tanssi-node"
+
+[[parachains.collators]]
+name = "collator-01"
+
+[[parachains.collators]]
+name = "collator-02"
+
+[[parachains.collators]]
+name = "collator-03"
+
+[[parachains.collators]]
+name = "collator-04"
+
+[[parachains]]
+id = 2000
+default_command = "./target/release/^^node^^"
+
+[[parachains.collators]]
+name = "full-node-01"
+
+[[parachains.collators]]
+name = "full-node-02"
