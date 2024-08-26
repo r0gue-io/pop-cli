@@ -35,11 +35,11 @@ async fn parachain_lifecycle() -> Result<()> {
 		.success();
 	assert!(temp_dir.join("test_parachain").exists());
 
-	// pop build --path "./test_parachain"
+	// pop build --release --path "./test_parachain"
 	Command::cargo_bin("pop")
 		.unwrap()
 		.current_dir(&temp_dir)
-		.args(&["build", "--path", "./test_parachain"])
+		.args(&["build", "--release", "--path", "./test_parachain"])
 		.assert()
 		.success();
 
@@ -85,7 +85,7 @@ async fn parachain_lifecycle() -> Result<()> {
 	assert!(content.contains("\"relay_chain\": \"paseo-local\""));
 	assert!(content.contains("\"protocolId\": \"pop-protocol\""));
 
-	// pop up contract -p "./test_parachain"
+	// pop up parachain -p "./test_parachain"
 	let mut cmd = Cmd::new(cargo_bin("pop"))
 		.current_dir(&temp_parachain_dir)
 		.args(&["up", "parachain", "-f", "./network.toml", "--skip-confirm"])
