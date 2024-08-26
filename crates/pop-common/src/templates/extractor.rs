@@ -25,7 +25,11 @@ pub fn extract_template_files(
 		return Ok(());
 	} else {
 		// If not a dir, just copy the file.
-		fs::copy(template_folder, target_folder.join(&template_file))?;
+		let dst = target_folder.join(&template_file);
+		// In case the first file being pulled is not a directory,
+		// Make sure the target directory exists.
+		fs::create_dir_all(&target_folder)?;
+		fs::copy(template_folder, &dst)?;
 		Ok(())
 	}
 }

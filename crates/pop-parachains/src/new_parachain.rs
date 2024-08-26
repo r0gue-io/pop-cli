@@ -124,7 +124,8 @@ fn instantiate_tanssi_template(
 		None,
 	)?;
 	// Step 2: extract template runtime.
-	let template_path = format!("{}/{}", template.runtime_directory().unwrap(), template.to_string());
+	let template_path =
+		format!("{}/{}", template.runtime_directory().unwrap(), template.to_string());
 	extract_template_files(
 		template_path,
 		temp_dir.path(),
