@@ -5,7 +5,7 @@ use zombienet_sdk::OrchestratorError;
 
 #[derive(Error, Debug)]
 pub enum Error {
-	#[error("User aborted due to existing target folder.")]
+	#[error("User aborted due to existing target directory.")]
 	Aborted,
 	#[error("Anyhow error: {0}")]
 	AnyhowError(#[from] anyhow::Error),

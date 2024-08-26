@@ -37,7 +37,6 @@ pub fn parse_account(account: &str) -> Result<<DefaultConfig as Config>::Account
 /// # Arguments
 ///
 /// * `target` - A reference to the `Path` to be canonicalized.
-///
 pub fn canonicalized_path(target: &Path) -> Result<PathBuf, Error> {
 	// Canonicalize the target path to ensure consistency and resolve any symbolic links.
 	target
@@ -75,8 +74,8 @@ mod tests {
 	fn test_canonicalized_path() -> Result<(), Error> {
 		let temp_dir = tempfile::tempdir()?;
 		// Error case
-		let error_folder = canonicalized_path(&temp_dir.path().join("my_folder"));
-		assert!(error_folder.is_err());
+		let error_directory = canonicalized_path(&temp_dir.path().join("my_directory"));
+		assert!(error_directory.is_err());
 		// Success case
 		canonicalized_path(temp_dir.path())?;
 		Ok(())

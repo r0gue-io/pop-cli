@@ -23,7 +23,7 @@ All notable changes to this project will be documented in this file.
 
 - Handle IO error if rename fails (#241)
 - Readme commands (#243)
-- Remove unused folders after download contracts node binary (#240)
+- Remove unused directories after download contracts node binary (#240)
 - Check if contracts needs to be build before deploy (#246)
 
 ### 🚜 Refactor
@@ -163,7 +163,7 @@ All notable changes to this project will be documented in this file.
 - Structure for call command
 - Call a smart contract
 - Execute call flag
-- *(pop-cli)* Pallets folder for new ones
+- *(pop-cli)* Pallets directory for new ones
 - *(up-parachain)* Improve ux
 - Init git repo (#65)
 - *(up-parachain)* Enable optional verbose output (#79)
