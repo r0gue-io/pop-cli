@@ -20,7 +20,7 @@ use subxt_signer::sr25519::Keypair;
 /// Attributes for the `up` command
 #[derive(Debug, PartialEq)]
 pub struct UpOpts {
-	/// Path to the contract build folder.
+	/// Path to the contract build directory.
 	pub path: Option<PathBuf>,
 	/// The name of the contract constructor to call.
 	pub constructor: String,
@@ -96,7 +96,8 @@ pub async fn set_up_upload(
 	return Ok(upload_exec);
 }
 
-/// Estimate the gas required for instantiating a contract without modifying the state of the blockchain.
+/// Estimate the gas required for instantiating a contract without modifying the state of the
+/// blockchain.
 ///
 /// # Arguments
 ///

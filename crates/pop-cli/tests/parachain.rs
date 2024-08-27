@@ -46,7 +46,8 @@ async fn parachain_lifecycle() -> Result<()> {
 	assert!(temp_dir.join("test_parachain/target").exists());
 
 	let temp_parachain_dir = temp_dir.join("test_parachain");
-	// pop build spec --output ./target/pop/test-spec.json --id 2222 --type development --relay paseo-local --protocol-id pop-protocol"
+	// pop build spec --output ./target/pop/test-spec.json --id 2222 --type development --relay
+	// paseo-local --protocol-id pop-protocol"
 	Command::cargo_bin("pop")
 		.unwrap()
 		.current_dir(&temp_parachain_dir)

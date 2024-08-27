@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::cli::{traits::Cli as _, Cli};
-use crate::style::style;
+use crate::{
+	cli::{traits::Cli as _, Cli},
+	style::style,
+};
 use anyhow::Result;
 use clap::{
 	builder::{PossibleValue, PossibleValuesParser, TypedValueParser},
@@ -78,7 +80,7 @@ impl NewParachainCommand {
 		let provider = &parachain_config.provider.clone().unwrap_or_default();
 		let template = match &parachain_config.template {
 			Some(template) => template.clone(),
-			None => provider.default_template().expect("parachain templates have defaults; qed."), // Each provider has a template by default
+			None => provider.default_template().expect("parachain templates have defaults; qed."), /* Each provider has a template by default */
 		};
 
 		is_template_supported(provider, &template)?;
@@ -313,7 +315,6 @@ async fn choose_release(template: &Parachain) -> Result<Option<String>> {
 async fn get_latest_3_releases(repo: &GitHub) -> Result<Vec<Release>> {
 	let mut latest_3_releases: Vec<Release> =
 		repo.releases().await?.into_iter().filter(|r| !r.prerelease).take(3).collect();
-	repo.get_repo_license().await?;
 	// Get the commit sha for the releases
 	for release in latest_3_releases.iter_mut() {
 		let commit = repo.get_commit_sha_from_release(&release.tag_name).await?;

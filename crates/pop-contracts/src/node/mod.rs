@@ -28,7 +28,6 @@ const BIN_NAME: &str = "substrate-contracts-node";
 /// # Arguments
 ///
 /// * `url` - Endpoint of the node.
-///
 pub async fn is_chain_alive(url: url::Url) -> Result<bool, Error> {
 	let request = RpcRequest::new(&url).await;
 	match request {
@@ -65,7 +64,7 @@ impl TryInto for Chain {
 	/// * `latest` - If applicable, some specifier used to determine the latest source.
 	fn try_into(&self, tag: Option<String>, latest: Option<String>) -> Result<Source, Error> {
 		let archive = archive_name_by_target()?;
-		let archive_bin_path = release_folder_by_target()?;
+		let archive_bin_path = release_directory_by_target()?;
 		Ok(match self {
 			&Chain::ContractsNode => {
 				// Source from GitHub release asset
@@ -86,12 +85,13 @@ impl TryInto for Chain {
 
 impl pop_common::sourcing::traits::Source for Chain {}
 
-/// Retrieves the latest release of the contracts node binary, resolves its version, and constructs a `Binary::Source`
-/// with the specified cache path.
+/// Retrieves the latest release of the contracts node binary, resolves its version, and constructs
+/// a `Binary::Source` with the specified cache path.
 ///
 /// # Arguments
 /// * `cache` -  The cache directory path.
-/// * `version` - The specific version used for the substrate-contracts-node (`None` will use the latest available version).
+/// * `version` - The specific version used for the substrate-contracts-node (`None` will use the
+///   latest available version).
 pub async fn contracts_node_generator(
 	cache: PathBuf,
 	version: Option<&str>,
@@ -118,7 +118,6 @@ pub async fn contracts_node_generator(
 ///
 /// * `binary_path` - The path where the binary is stored. Can be the binary name itself if in PATH.
 /// * `output` - The optional log file for node output.
-///
 pub async fn run_contracts_node(
 	binary_path: PathBuf,
 	output: Option<&File>,
@@ -145,7 +144,7 @@ fn archive_name_by_target() -> Result<String, Error> {
 	}
 }
 
-fn release_folder_by_target() -> Result<&'static str, Error> {
+fn release_directory_by_target() -> Result<&'static str, Error> {
 	match OS {
 		"macos" => Ok("artifacts/substrate-contracts-node-mac/substrate-contracts-node"),
 		"linux" => Ok("artifacts/substrate-contracts-node-linux/substrate-contracts-node"),
@@ -160,7 +159,7 @@ mod tests {
 	use std::process::Command;
 
 	#[tokio::test]
-	async fn folder_path_by_target() -> Result<()> {
+	async fn directory_path_by_target() -> Result<()> {
 		let archive = archive_name_by_target();
 		if cfg!(target_os = "macos") {
 			assert_eq!(archive?, "substrate-contracts-node-mac-universal.tar.gz");
@@ -189,7 +188,7 @@ mod tests {
 		let version = "v0.40.0";
 		let binary = contracts_node_generator(cache.clone(), Some(version)).await?;
 		let archive = archive_name_by_target()?;
-		let archive_bin_path = release_folder_by_target()?;
+		let archive_bin_path = release_directory_by_target()?;
 		assert!(matches!(binary, Binary::Source { name, source, cache}
 			if name == expected.binary()  &&
 				source == Source::GitHub(ReleaseArchive {
