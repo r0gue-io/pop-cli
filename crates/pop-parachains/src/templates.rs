@@ -38,7 +38,7 @@ impl Type<Parachain> for Provider {
 		match &self {
 			Provider::Pop => Some(Parachain::Standard),
 			Provider::OpenZeppelin => Some(Parachain::OpenZeppelinGeneric),
-			Provider::Parity => Some(Parachain::ParityContracts),
+			Provider::Parity => Some(Parachain::ParityGeneric),
 		}
 	}
 }
@@ -131,6 +131,18 @@ pub enum Parachain {
 		)
 	)]
 	OpenZeppelinGeneric,
+	/// The Parachain-Ready Template From Polkadot SDK.
+	#[strum(
+		serialize = "polkadot-sdk-parachain-template",
+		message = "Polkadot SDK's Parachain Template",
+		detailed_message = "The Parachain-Ready Template From Polkadot SDK.",
+		props(
+			Provider = "Parity",
+			Repository = "https://github.com/paritytech/polkadot-sdk-parachain-template",
+			Network = "./zombienet.toml"
+		)
+	)]
+	ParityGeneric,
 	/// Minimal Substrate node configured for smart contracts via pallet-contracts.
 	#[strum(
 		serialize = "cpt",
@@ -143,19 +155,6 @@ pub enum Parachain {
 		)
 	)]
 	ParityContracts,
-	/// Template node for a Frontier (EVM) based parachain.
-	#[strum(
-		serialize = "fpt",
-		message = "EVM",
-		detailed_message = "Template node for a Frontier (EVM) based parachain.",
-		props(
-			Provider = "Parity",
-			Repository = "https://github.com/paritytech/frontier-parachain-template",
-			Network = "./zombienet-config.toml"
-		)
-	)]
-	ParityFPT,
-
 	// templates for unit tests below
 	#[cfg(test)]
 	#[strum(
@@ -221,8 +220,8 @@ mod tests {
 			("evm".to_string(), EVM),
 			// openzeppelin
 			("polkadot-generic-runtime-template".to_string(), OpenZeppelinGeneric),
+			("polkadot-sdk-parachain-template".to_string(), ParityGeneric),
 			("cpt".to_string(), ParityContracts),
-			("fpt".to_string(), ParityFPT),
 			("test_01".to_string(), TestTemplate01),
 			("test_02".to_string(), TestTemplate02),
 		])
@@ -239,8 +238,11 @@ mod tests {
 				"polkadot-generic-runtime-template".to_string(),
 				"https://github.com/OpenZeppelin/polkadot-runtime-templates",
 			),
+			(
+				"polkadot-sdk-parachain-template".to_string(),
+				"https://github.com/paritytech/polkadot-sdk-parachain-template",
+			),
 			("cpt".to_string(), "https://github.com/paritytech/substrate-contracts-node"),
-			("fpt".to_string(), "https://github.com/paritytech/frontier-parachain-template"),
 			("test_01".to_string(), ""),
 			("test_02".to_string(), ""),
 		])
@@ -253,8 +255,8 @@ mod tests {
 			(Contracts, Some("./network.toml")),
 			(EVM, Some("./network.toml")),
 			(OpenZeppelinGeneric, Some("./zombienet-config/devnet.toml")),
+			(ParityGeneric, Some("./zombienet.toml")),
 			(ParityContracts, Some("./zombienet.toml")),
-			(ParityFPT, Some("./zombienet-config.toml")),
 			(TestTemplate01, Some("")),
 			(TestTemplate02, Some("")),
 		]
@@ -268,7 +270,7 @@ mod tests {
 				assert_eq!(Provider::Pop.provides(&template), true);
 				assert_eq!(Provider::Parity.provides(&template), false);
 			}
-			if matches!(template, ParityContracts | ParityFPT) {
+			if matches!(template, ParityContracts | ParityGeneric) {
 				assert_eq!(Provider::Pop.provides(&template), false);
 				assert_eq!(Provider::Parity.provides(&template), true)
 			}
@@ -313,7 +315,7 @@ mod tests {
 		let mut provider = Provider::Pop;
 		assert_eq!(provider.default_template(), Some(Standard));
 		provider = Provider::Parity;
-		assert_eq!(provider.default_template(), Some(ParityContracts));
+		assert_eq!(provider.default_template(), Some(ParityGeneric));
 	}
 
 	#[test]
@@ -321,7 +323,7 @@ mod tests {
 		let mut provider = Provider::Pop;
 		assert_eq!(provider.templates(), [&Standard, &Assets, &Contracts, &EVM]);
 		provider = Provider::Parity;
-		assert_eq!(provider.templates(), [&ParityContracts, &ParityFPT]);
+		assert_eq!(provider.templates(), [&ParityContracts, &ParityGeneric]);
 	}
 
 	#[test]

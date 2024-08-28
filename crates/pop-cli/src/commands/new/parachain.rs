@@ -112,10 +112,9 @@ async fn guide_user_to_generate_parachain() -> Result<NewParachainCommand> {
 			provider,
 			provider.name(),
 			format!(
-				"{} {} available option(s) {}",
+				"{} {} available option(s)",
 				provider.description(),
-				provider.templates().len(),
-				if provider.name() == "Parity" { "[deprecated]" } else { "" }
+				provider.templates().len()
 			),
 		);
 	}
