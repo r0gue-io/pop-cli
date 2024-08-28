@@ -32,6 +32,13 @@ pub(super) enum Parachain {
 		Fallback = "v0.1.0-alpha2"
 	))]
 	Pop,
+	/// Swift and effortless deployment of application-specific blockchains.
+	#[strum(props(
+		Repository = "https://github.com/r0gue-io/tanssi",
+		Binary = "tanssi-node",
+		Fallback = "v0.8.1"
+	))]
+	Tanssi,
 }
 
 impl TryInto for Parachain {
@@ -42,7 +49,7 @@ impl TryInto for Parachain {
 	/// * `latest` - If applicable, some specifier used to determine the latest source.
 	fn try_into(&self, tag: Option<String>, latest: Option<String>) -> Result<Source, Error> {
 		Ok(match self {
-			Parachain::System | Parachain::Pop => {
+			Parachain::System | Parachain::Pop | Parachain::Tanssi => {
 				// Source from GitHub release asset
 				let repo = GitHub::parse(self.repository())?;
 				Source::GitHub(ReleaseArchive {
@@ -135,6 +142,7 @@ pub(super) async fn from(
 			source: TryInto::try_into(para, tag, latest)?,
 			cache: cache.to_path_buf(),
 		};
+		println!("{:?}", &chain.unwrap());
 		return Ok(Some(super::Parachain {
 			id,
 			binary,
