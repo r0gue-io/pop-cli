@@ -22,7 +22,7 @@ use url::Url;
 
 /// Attributes for the `call` command.
 pub struct CallOpts {
-	/// Path to the contract build folder.
+	/// Path to the contract build directory.
 	pub path: Option<PathBuf>,
 	/// The address of the contract to call.
 	pub contract: String,
@@ -233,7 +233,7 @@ mod tests {
 		Ok(())
 	}
 	#[tokio::test]
-	async fn test_set_up_call_fails_no_smart_contract_folder() -> Result<()> {
+	async fn test_set_up_call_fails_no_smart_contract_directory() -> Result<()> {
 		let call_opts = CallOpts {
 			path: None,
 			contract: "5CLPm1CeUvJhZ8GCDZCR7nWZ2m3XXe4X5MtAQK69zEjut36A".to_string(),

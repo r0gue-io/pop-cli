@@ -29,7 +29,7 @@ const FAILED: &str = "🚫 Deployment failed.";
 
 #[derive(Args, Clone)]
 pub struct UpContractCommand {
-	/// Path to the contract build folder.
+	/// Path to the contract build directory.
 	#[arg(short = 'p', long)]
 	path: Option<PathBuf>,
 	/// The name of the contract constructor to call.
@@ -70,7 +70,8 @@ pub struct UpContractCommand {
 	/// Uploads the contract only, without instantiation.
 	#[clap(short('u'), long)]
 	upload_only: bool,
-	/// Automatically source or update the needed binary required without prompting for confirmation.
+	/// Automatically source or update the needed binary required without prompting for
+	/// confirmation.
 	#[clap(short('y'), long)]
 	skip_confirm: bool,
 }
@@ -80,7 +81,7 @@ impl UpContractCommand {
 	pub(crate) async fn execute(mut self) -> anyhow::Result<()> {
 		Cli.intro("Deploy a smart contract")?;
 
-		// Check if build exists in the specified "Contract build folder"
+		// Check if build exists in the specified "Contract build directory"
 		if !has_contract_been_built(self.path.as_deref()) {
 			// Build the contract in release mode
 			Cli.warning("NOTE: contract has not yet been built.")?;

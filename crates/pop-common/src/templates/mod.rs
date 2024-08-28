@@ -3,6 +3,8 @@
 use strum::{EnumMessage, EnumProperty, VariantArray};
 pub use thiserror::Error;
 
+pub mod extractor;
+
 #[derive(Error, Debug)]
 pub enum Error {
 	#[error("The `Repository` property is missing from the template variant")]
