@@ -7,3 +7,14 @@ use askama::Template;
 pub(crate) struct Network {
 	pub(crate) node: String,
 }
+
+#[derive(Template)]
+#[template(path = "container/Cargo.templ", escape = "none")]
+pub(crate) struct Cargo {
+	pub(crate) template: String,
+	pub(crate) template_tag: String,
+	pub(crate) dancekit_branch: String,
+	pub(crate) moonkit_branch: String,
+	pub(crate) sdk_branch: String,
+	pub(crate) frontier_branch: String,
+}
