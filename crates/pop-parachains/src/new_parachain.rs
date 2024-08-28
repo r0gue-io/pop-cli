@@ -7,11 +7,12 @@ use pop_common::{
 	git::Git,
 	templates::{extractor::extract_template_files, Template, Type},
 };
+use toml_edit::ImDocument;
 use walkdir::WalkDir;
 
 use crate::{
 	generator::{
-		container::Network as ContainerNetwork,
+		container::{Cargo as ContainerCargo, Network as ContainerNetwork},
 		parachain::{ChainSpec, Network},
 	},
 	utils::helpers::{sanitize, write_to_file},
@@ -141,6 +142,47 @@ fn instantiate_tanssi_template(
 	let network =
 		ContainerNetwork { node: format!("container-chain-{}-node", template.to_string()) };
 	write_to_file(&target.join("network.toml"), network.render().expect("infallible").as_ref())?;
+
+	// Ready project manifest.
+	let template_tag = tag.clone().unwrap();
+	// Retrieve dependency versions from source.
+	let source_toml = fs::read_to_string(source.join("Cargo.toml"))?;
+	let source_manifest = ImDocument::parse(source_toml)?;
+	let workspace_dependencies =
+		source_manifest.get("workspace").unwrap().get("dependencies").unwrap();
+	let dancekit_branch = workspace_dependencies
+		.get("dp-core")
+		.unwrap()
+		.get("branch")
+		.unwrap()
+		.to_string();
+	let moonkit_branch = workspace_dependencies
+		.get("nimbus-consensus")
+		.unwrap()
+		.get("branch")
+		.unwrap()
+		.to_string();
+	let sdk_branch = workspace_dependencies
+		.get("frame-system")
+		.unwrap()
+		.get("branch")
+		.unwrap()
+		.to_string();
+	let frontier_branch =
+		workspace_dependencies.get("fp-evm").unwrap().get("branch").unwrap().to_string();
+
+	let target_manifest = ContainerCargo {
+		template: template.to_string(),
+		template_tag,
+		dancekit_branch,
+		moonkit_branch,
+		sdk_branch,
+		frontier_branch,
+	};
+	write_to_file(
+		&target.join("Cargo.toml"),
+		target_manifest.render().expect("infallible").as_ref(),
+	)?;
 
 	Ok(tag)
 }
