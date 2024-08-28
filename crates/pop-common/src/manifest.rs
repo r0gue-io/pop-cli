@@ -29,14 +29,14 @@ pub fn from_path(path: Option<&Path>) -> Result<Manifest, Error> {
 	Ok(Manifest::from_path(path.canonicalize()?)?)
 }
 
-/// This function is used to determine if a Path is contained inside a workspace, and returns a PathBuf to the workspace Cargo.toml if found
+/// This function is used to determine if a Path is contained inside a workspace, and returns a PathBuf to the workspace Cargo.toml if found.
 ///
 /// # Arguments
 /// * `target_dir` - A directory that may be contained inside a workspace
 pub fn find_workspace_toml(target_dir: &Path) -> Option<PathBuf> {
 	let mut dir = target_dir;
 	while let Some(parent) = dir.parent() {
-		// This condition is necessary cause if this is called from a workspace using the path ".." to refer the parent of the workspace which isn't a workspace, the loop will be called again and return Some(""), so cargo_toml will be Cargo.toml which is the manifest of the workspace where this function has been run, that will be returned by the function, then leading to an unexpected behaviour as the expected output is None in this case
+		// This condition is necessary to avoid that calling the function from a workspace using a path which isn't contained in a workspace returns `Some(Cargo.toml)` refering the workspace from where the function has been called instead of the expected `None`.
 		if parent.to_str() == Some("") {
 			return None;
 		}
