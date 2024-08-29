@@ -362,7 +362,7 @@ mod tests {
 
 		// Only upload a Smart Contract
 		let upload_result = upload_smart_contract(&upload_exec).await?;
-		assert!(upload_result.starts_with("!0x0x"));
+		assert!(!upload_result.starts_with("0x0x"));
 		assert!(upload_result.starts_with("0x"));
 		//Error when Smart Contract has been already uploaded
 		assert!(matches!(
