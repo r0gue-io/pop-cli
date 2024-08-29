@@ -16,7 +16,7 @@ async fn parachain_lifecycle() -> Result<()> {
 	// let temp_dir = Path::new("./"); //For testing locally
 	// Test that all templates are generated correctly
 	generate_all_the_templates(&temp_dir)?;
-	// pop new parachain test_parachain (default)
+	// pop new parachain test_parachain --verify (default)
 	Command::cargo_bin("pop")
 		.unwrap()
 		.current_dir(&temp_dir)
@@ -30,6 +30,7 @@ async fn parachain_lifecycle() -> Result<()> {
 			"6",
 			"--endowment",
 			"1u64 << 60",
+			"--verify",
 		])
 		.assert()
 		.success();
@@ -106,7 +107,7 @@ fn generate_all_the_templates(temp_dir: &Path) -> Result<()> {
 	for template in Parachain::VARIANTS {
 		let parachain_name = format!("test_parachain_{}", template);
 		let provider = template.template_type()?.to_lowercase();
-		// pop new parachain test_parachain
+		// pop new parachain test_parachain --verify
 		Command::cargo_bin("pop")
 			.unwrap()
 			.current_dir(&temp_dir)
@@ -117,6 +118,7 @@ fn generate_all_the_templates(temp_dir: &Path) -> Result<()> {
 				&provider,
 				"--template",
 				&template.to_string(),
+				"--verify",
 			])
 			.assert()
 			.success();
