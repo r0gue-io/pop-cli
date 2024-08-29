@@ -436,11 +436,11 @@ mod tests {
 	fn test_is_template_supported() -> Result<()> {
 		is_template_supported(&Provider::Pop, &Parachain::Standard)?;
 		assert!(is_template_supported(&Provider::Pop, &Parachain::ParityContracts).is_err());
-		assert!(is_template_supported(&Provider::Pop, &Parachain::ParityFPT).is_err());
+		assert!(is_template_supported(&Provider::Pop, &Parachain::ParityGeneric).is_err());
 
 		assert!(is_template_supported(&Provider::Parity, &Parachain::Standard).is_err());
 		is_template_supported(&Provider::Parity, &Parachain::ParityContracts)?;
-		is_template_supported(&Provider::Parity, &Parachain::ParityFPT)
+		is_template_supported(&Provider::Parity, &Parachain::ParityGeneric)
 	}
 
 	#[test]
