@@ -61,6 +61,12 @@ pub struct NewParachainCommand {
 		default_value = DEFAULT_INITIAL_ENDOWMENT
 	)]
 	pub(crate) initial_endowment: Option<String>,
+	#[arg(
+		short = 'v',
+		long,
+		help = "Fetches the latest license, release, and commit SHA data from GitHub."
+	)]
+	pub(crate) verify: bool,
 }
 
 impl NewParachainCommand {
@@ -68,7 +74,7 @@ impl NewParachainCommand {
 	pub(crate) async fn execute(self) -> Result<Parachain> {
 		// If user doesn't select the name guide them to generate a parachain.
 		let parachain_config = if self.name.is_none() {
-			guide_user_to_generate_parachain().await?
+			guide_user_to_generate_parachain(self.verify).await?
 		} else {
 			self.clone()
 		};
@@ -99,7 +105,7 @@ impl NewParachainCommand {
 }
 
 /// Guide the user to generate a parachain from available templates.
-async fn guide_user_to_generate_parachain() -> Result<NewParachainCommand> {
+async fn guide_user_to_generate_parachain(verify: bool) -> Result<NewParachainCommand> {
 	Cli.intro("Generate a parachain")?;
 
 	// Prompt for template selection.
@@ -121,7 +127,7 @@ async fn guide_user_to_generate_parachain() -> Result<NewParachainCommand> {
 	}
 	let provider = prompt.interact()?;
 	let template = display_select_options(provider)?;
-	let release_name = choose_release(template).await?;
+	let release_name = choose_release(template, verify).await?;
 
 	// Prompt for location.
 	let name: String = input("Where should your project be created?")
@@ -147,6 +153,7 @@ async fn guide_user_to_generate_parachain() -> Result<NewParachainCommand> {
 		symbol: Some(customizable_options.symbol),
 		decimals: Some(customizable_options.decimals),
 		initial_endowment: Some(customizable_options.initial_endowment),
+		verify,
 	})
 }
 
@@ -281,15 +288,19 @@ fn check_destination_path(name_template: &String) -> Result<&Path> {
 /// Otherwise, the default release is used.
 ///
 /// return: `Option<String>` - The release name selected by the user or None if no releases found.
-async fn choose_release(template: &Parachain) -> Result<Option<String>> {
+async fn choose_release(template: &Parachain, verify: bool) -> Result<Option<String>> {
 	let url = url::Url::parse(&template.repository_url()?).expect("valid repository url");
 	let repo = GitHub::parse(url.as_str())?;
 
-	let license = repo.get_repo_license().await?;
+	let license = if verify || template.license().is_none() {
+		repo.get_repo_license().await?
+	} else {
+		template.license().unwrap().to_string() // unwrap is safe as it is checked above
+	};
 	log::info(format!("Template {}: {}", style("License").bold(), license))?;
 
 	// Get only the latest 3 releases that are supported by the template (default is all)
-	let latest_3_releases: Vec<Release> = get_latest_3_releases(&repo)
+	let latest_3_releases: Vec<Release> = get_latest_3_releases(&repo, verify)
 		.await?
 		.into_iter()
 		.filter(|r| template.is_supported_version(&r.tag_name))
@@ -312,13 +323,15 @@ async fn choose_release(template: &Parachain) -> Result<Option<String>> {
 	Ok(release_name)
 }
 
-async fn get_latest_3_releases(repo: &GitHub) -> Result<Vec<Release>> {
+async fn get_latest_3_releases(repo: &GitHub, verify: bool) -> Result<Vec<Release>> {
 	let mut latest_3_releases: Vec<Release> =
 		repo.releases().await?.into_iter().filter(|r| !r.prerelease).take(3).collect();
-	// Get the commit sha for the releases
-	for release in latest_3_releases.iter_mut() {
-		let commit = repo.get_commit_sha_from_release(&release.tag_name).await?;
-		release.commit = Some(commit);
+	if verify {
+		// Get the commit sha for the releases
+		for release in latest_3_releases.iter_mut() {
+			let commit = repo.get_commit_sha_from_release(&release.tag_name).await?;
+			release.commit = Some(commit);
+		}
 	}
 	Ok(latest_3_releases)
 }
@@ -422,6 +435,7 @@ mod tests {
 			symbol: Some("UNIT".to_string()),
 			decimals: Some(12),
 			initial_endowment: Some("1u64 << 60".to_string()),
+			verify: false,
 		};
 		command.execute().await?;
 
