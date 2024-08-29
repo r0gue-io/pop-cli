@@ -323,7 +323,7 @@ mod tests {
 		let mut provider = Provider::Pop;
 		assert_eq!(provider.templates(), [&Standard, &Assets, &Contracts, &EVM]);
 		provider = Provider::Parity;
-		assert_eq!(provider.templates(), [&ParityContracts, &ParityGeneric]);
+		assert_eq!(provider.templates(), [&ParityGeneric, &ParityContracts]);
 	}
 
 	#[test]
