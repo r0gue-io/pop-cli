@@ -192,7 +192,7 @@ pub async fn upload_smart_contract(
 		let code_hash: String =
 			upload_exec.code().code_hash().iter().map(|b| format!("{:02x}", b)).collect();
 		Err(Error::UploadContractError(format!(
-			"This contract has already been uploaded with code hash: {code_hash}"
+			"This contract has already been uploaded with code hash: 0x{code_hash}"
 		)))
 	}
 }
