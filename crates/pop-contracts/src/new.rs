@@ -1,14 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{
-	errors::Error,
-	utils::helpers::{canonicalized_path, copy_dir_all},
-	Contract,
-};
+use crate::{errors::Error, utils::helpers::canonicalized_path, Contract};
 use anyhow::Result;
 use contract_build::new_contract_project;
 use heck::ToUpperCamelCase;
-use pop_common::{replace_in_file, templates::Template, Git};
+use pop_common::{extract_template_files, replace_in_file, templates::Template, Git};
 use std::{
 	collections::HashMap,
 	path::{Path, PathBuf},
@@ -69,28 +65,23 @@ fn create_template_contract(
 	// Retrieve only the template contract files.
 	if template == &Contract::PSP22 || template == &Contract::PSP34 {
 		// Different template structure requires extracting different path
-		extract_contract_files(String::from(""), temp_dir.path(), canonicalized_path.as_path())?;
+		extract_template_files(
+			String::from(""),
+			temp_dir.path(),
+			canonicalized_path.as_path(),
+			None,
+		)?;
 	} else {
-		extract_contract_files(
+		extract_template_files(
 			template.to_string(),
 			temp_dir.path(),
 			canonicalized_path.as_path(),
+			Some(vec!["frontend".to_string()]),
 		)?;
 	}
 
 	// Replace name of the contract.
 	rename_contract(name, canonicalized_path, template)?;
-	Ok(())
-}
-
-fn extract_contract_files(
-	contract_name: String,
-	repo_folder: &Path,
-	target_folder: &Path,
-) -> Result<()> {
-	let contract_folder = repo_folder.join(contract_name);
-	// Recursively copy all folders and files within. Ignores frontend folders.
-	copy_dir_all(&contract_folder, target_folder)?;
 	Ok(())
 }
 
@@ -172,86 +163,7 @@ mod tests {
 		Ok(())
 	}
 
-	fn generate_testing_files_and_folders(template: Contract) -> Result<tempfile::TempDir, Error> {
-		let temp_dir = tempfile::tempdir()?;
-		let contract_folder = temp_dir.path().join(template.to_string());
-		fs::create_dir(&contract_folder)?;
-		fs::File::create(&contract_folder.join("lib.rs"))?;
-		fs::File::create(&contract_folder.join("Cargo.toml"))?;
-		fs::create_dir(&temp_dir.path().join("noise_folder"))?;
-		Ok(temp_dir)
-	}
-
-	#[test]
-	fn test_extract_contract_files() -> Result<(), Error> {
-		// ERC-20
-		let mut temp_dir = generate_testing_files_and_folders(Contract::ERC20)?;
-		let mut output_dir = tempfile::tempdir()?;
-		extract_contract_files(Contract::ERC20.to_string(), temp_dir.path(), output_dir.path())?;
-		assert!(output_dir.path().join("lib.rs").exists());
-		assert!(output_dir.path().join("Cargo.toml").exists());
-		assert!(!output_dir.path().join("noise_folder").exists());
-		assert!(!output_dir.path().join("frontend").exists());
-		// ERC-721
-		temp_dir = generate_testing_files_and_folders(Contract::ERC721)?;
-		output_dir = tempfile::tempdir()?;
-		extract_contract_files(Contract::ERC721.to_string(), temp_dir.path(), output_dir.path())?;
-		assert!(output_dir.path().join("lib.rs").exists());
-		assert!(output_dir.path().join("Cargo.toml").exists());
-		assert!(!output_dir.path().join("noise_folder").exists());
-		assert!(!output_dir.path().join("frontend").exists());
-		// ERC-1155
-		temp_dir = generate_testing_files_and_folders(Contract::ERC1155)?;
-		output_dir = tempfile::tempdir()?;
-		extract_contract_files(Contract::ERC1155.to_string(), temp_dir.path(), output_dir.path())?;
-		assert!(output_dir.path().join("lib.rs").exists());
-		assert!(output_dir.path().join("Cargo.toml").exists());
-		assert!(!output_dir.path().join("noise_folder").exists());
-		assert!(!output_dir.path().join("frontend").exists());
-		// PSP22
-		temp_dir = generate_testing_files_and_folders(Contract::PSP22)?;
-		output_dir = tempfile::tempdir()?;
-		extract_contract_files(Contract::PSP22.to_string(), temp_dir.path(), output_dir.path())?;
-		assert!(output_dir.path().join("lib.rs").exists());
-		assert!(output_dir.path().join("Cargo.toml").exists());
-		assert!(!output_dir.path().join("noise_folder").exists());
-		// PSP34
-		temp_dir = generate_testing_files_and_folders(Contract::PSP34)?;
-		output_dir = tempfile::tempdir()?;
-		extract_contract_files(Contract::PSP34.to_string(), temp_dir.path(), output_dir.path())?;
-		assert!(output_dir.path().join("lib.rs").exists());
-		assert!(output_dir.path().join("Cargo.toml").exists());
-		assert!(!output_dir.path().join("noise_folder").exists());
-		// DNS
-		temp_dir = generate_testing_files_and_folders(Contract::DNS)?;
-		output_dir = tempfile::tempdir()?;
-		extract_contract_files(Contract::DNS.to_string(), temp_dir.path(), output_dir.path())?;
-		assert!(output_dir.path().join("lib.rs").exists());
-		assert!(output_dir.path().join("Cargo.toml").exists());
-		assert!(!output_dir.path().join("noise_folder").exists());
-		// CrossContract
-		temp_dir = generate_testing_files_and_folders(Contract::CrossContract)?;
-		output_dir = tempfile::tempdir()?;
-		extract_contract_files(
-			Contract::CrossContract.to_string(),
-			temp_dir.path(),
-			output_dir.path(),
-		)?;
-		assert!(output_dir.path().join("lib.rs").exists());
-		assert!(output_dir.path().join("Cargo.toml").exists());
-		assert!(!output_dir.path().join("noise_folder").exists());
-		// Multisig
-		temp_dir = generate_testing_files_and_folders(Contract::Multisig)?;
-		output_dir = tempfile::tempdir()?;
-		extract_contract_files(Contract::Multisig.to_string(), temp_dir.path(), output_dir.path())?;
-		assert!(output_dir.path().join("lib.rs").exists());
-		assert!(output_dir.path().join("Cargo.toml").exists());
-		assert!(!output_dir.path().join("noise_folder").exists());
-
-		Ok(())
-	}
-
-	fn generate_contract_folder() -> Result<tempfile::TempDir, Error> {
+	fn generate_contract_directory() -> Result<tempfile::TempDir, Error> {
 		let temp_dir = tempfile::tempdir()?;
 		let config = temp_dir.path().join("Cargo.toml");
 		let mut config_file = fs::File::create(config.clone())?;
@@ -279,7 +191,7 @@ mod tests {
 	}
 	#[test]
 	fn test_rename_contract() -> Result<(), Error> {
-		let temp_dir = generate_contract_folder()?;
+		let temp_dir = generate_contract_directory()?;
 		rename_contract("my_contract", temp_dir.path().to_owned(), &Contract::ERC20)?;
 		let generated_cargo =
 			fs::read_to_string(temp_dir.path().join("Cargo.toml")).expect("Could not read file");

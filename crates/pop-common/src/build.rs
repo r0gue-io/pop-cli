@@ -13,8 +13,8 @@ pub enum Profile {
 }
 
 impl Profile {
-	/// Returns the corresponding path to the target folder.
-	pub fn target_folder(&self, path: &Path) -> PathBuf {
+	/// Returns the corresponding path to the target directory.
+	pub fn target_directory(&self, path: &Path) -> PathBuf {
 		match self {
 			Profile::Release => path.join("target/release"),
 			Profile::Debug => path.join("target/debug"),

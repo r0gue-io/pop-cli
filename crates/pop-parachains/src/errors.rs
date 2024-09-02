@@ -5,7 +5,7 @@ use zombienet_sdk::OrchestratorError;
 
 #[derive(Error, Debug)]
 pub enum Error {
-	#[error("User aborted due to existing target folder.")]
+	#[error("User aborted due to existing target directory.")]
 	Aborted,
 	#[error("Anyhow error: {0}")]
 	AnyhowError(#[from] anyhow::Error),
@@ -31,6 +31,8 @@ pub enum Error {
 	OrchestratorError(#[from] OrchestratorError),
 	#[error("Failed to create pallet directory")]
 	PalletDirCreation,
+	#[error("Invalid path")]
+	PathError,
 	#[error("Failed to execute rustfmt")]
 	RustfmtError(std::io::Error),
 	#[error("Template error: {0}")]

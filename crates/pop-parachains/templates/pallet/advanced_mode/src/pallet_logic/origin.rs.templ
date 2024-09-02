@@ -1,0 +1,31 @@
+use crate::*;
+
+impl<T: Config> Pallet<T> {
+    /// A helpful function your pallet may use to convert a external origin to the custom AllOrigins
+    pub(crate) fn origin_to_all_origins(_origin: OriginFor<T>) -> Result<RuntimeLocalOrigin<T>, DispatchError>{
+        Ok(<RuntimeLocalOrigin<T>>::from(<Origin<T>>::AllOrigins))
+    }
+
+    /// A helpful function your pallet may use to convert a external origin to the custom OnlyAuthenticatedAccounts
+    pub(crate) fn origin_to_only_authenticated_accounts(origin: OriginFor<T>) -> Result<RuntimeLocalOrigin<T>, DispatchError>{
+        Ok(<RuntimeLocalOrigin<T>>::from(<Origin<T>>::OnlyAuthenticatedAccounts(ensure_signed(origin)?)))
+    }
+}
+
+impl<T:Config, OuterOrigin: Into<Result<Origin<T>, OuterOrigin>> + From<Origin<T>>> EnsureOrigin<OuterOrigin> for Origin<T>
+{
+    type Success = CustomOriginSuccess<T>;
+
+    fn try_origin(outer_origin: OuterOrigin) -> Result<Self::Success, OuterOrigin>{
+        outer_origin.into().and_then(|origin|match origin{
+            Origin::AllOrigins if <AllOriginsAllowed<T>>::exists() => Ok(Self::Success::Unit),
+            Origin::OnlyAuthenticatedAccounts(account) if <AuthenticatedAccounts<T>>::contains_key(&account) => Ok(Self::Success::AccountId(account)),
+            other => Err(OuterOrigin::from(other))
+        })
+    }
+
+    #[cfg(feature= "runtime-benchmarks")]
+    fn try_successful_origin() -> Result<OuterOrigin, ()>{
+        Ok(OuterOrigin::from(<Origin<T>>::AllOrigins))
+    }
+}

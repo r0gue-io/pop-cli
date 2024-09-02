@@ -52,7 +52,7 @@ mod tests {
 	}
 
 	#[test]
-	fn test_smart_contract_wrong_folder() -> Result<(), Error> {
+	fn test_smart_contract_wrong_directory() -> Result<(), Error> {
 		let temp_dir = tempfile::tempdir()?;
 		assert!(matches!(
 			test_smart_contract(Some(&temp_dir.path().join(""))),
