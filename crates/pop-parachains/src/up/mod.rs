@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::errors::Error;
+use crate::{
+	build::{generate_raw_chain_spec_container_chain, generate_raw_chain_spec_tanssi},
+	errors::Error,
+};
 use glob::glob;
 use indexmap::IndexMap;
 pub use pop_common::{
@@ -100,6 +103,44 @@ impl Zombienet {
 			.filter_map(|b| b)
 	}
 
+	/// Build the needed specs before spawn the network.
+	pub fn build_specs(&mut self) -> Result<(), Error> {
+		// This order is important, first container chains that can be more than one, then tanssi-node
+		let mut container_chains: Vec<String> = Vec::new();
+		self.parachains.iter().filter(|(&id, _)| id > 1000).try_for_each(
+			|(id, parachain)| -> Result<(), Error> {
+				container_chains.push(
+					generate_raw_chain_spec_container_chain(
+						parachain.binary.path().as_path(),
+						parachain
+							.chain_spec_path
+							.as_deref()
+							.unwrap_or(Path::new("./chain-spec.json")),
+						&id.to_string(),
+					)?
+					.display()
+					.to_string(),
+				);
+				Ok(())
+			},
+		)?;
+		let tanssi_node = self.parachains.get(&1000).ok_or(Error::ChainNotFound("1000".into()))?;
+		generate_raw_chain_spec_tanssi(
+			tanssi_node.binary.path().as_path(),
+			tanssi_node.chain.as_deref(),
+			tanssi_node.chain_spec_path.as_deref().unwrap_or(Path::new("./chain-spec.json")),
+			container_chains.iter().map(|s| s.as_str()).collect(),
+			tanssi_node
+				.collators_names
+				.iter()
+				.filter(|s| s.starts_with("Collator"))
+				.map(|s| s.as_str())
+				.collect(),
+			&1000.to_string(),
+		)?;
+		Ok(())
+	}
+
 	/// Determine parachain configuration based on specified version and network configuration.
 	///
 	/// # Arguments
@@ -132,7 +173,7 @@ impl Zombienet {
 				as u32;
 
 			let chain = table.get("chain").and_then(|i| i.as_str());
-
+			let chain_spec_path = table.get("chain_spec_path").and_then(|i| i.as_str());
 			let command = NetworkConfiguration::default_command(table)
 				.cloned()
 				.or_else(|| {
@@ -175,6 +216,18 @@ impl Zombienet {
 				continue;
 			}
 
+			let mut collators_names: Vec<&str> = Vec::new();
+			if let Some(collators) = table.get("collators").and_then(|p| p.as_array_of_tables()) {
+				for collator in collators.iter() {
+					if let Some(name) =
+						NetworkConfiguration::name(collator).and_then(|i| i.as_str())
+					{
+						//let n = Some(Item::Value(Value::String(Formatted::new(name.into()))));
+						collators_names.push(name);
+					}
+				}
+			}
+
 			// Check if known parachain
 			let version = parachains.as_ref().and_then(|r| {
 				r.iter()
@@ -182,7 +235,17 @@ impl Zombienet {
 					.nth(0)
 					.map(|v| v.as_str())
 			});
-			if let Some(parachain) = parachains::from(id, &command, version, chain, cache).await? {
+			if let Some(parachain) = parachains::from(
+				id,
+				&command,
+				version,
+				chain,
+				cache,
+				chain_spec_path,
+				collators_names.clone(),
+			)
+			.await?
+			{
 				paras.insert(id, parachain);
 				continue;
 			}
@@ -190,14 +253,33 @@ impl Zombienet {
 			// Check if parachain binary source specified as an argument
 			if let Some(parachains) = parachains.as_ref() {
 				for repo in parachains.iter().filter(|r| command == r.package) {
-					paras.insert(id, Parachain::from_repository(id, repo, chain, cache)?);
+					paras.insert(
+						id,
+						Parachain::from_repository(
+							id,
+							repo,
+							chain,
+							cache,
+							chain_spec_path,
+							collators_names,
+						)?,
+					);
 					continue 'outer;
 				}
 			}
 
 			// Check if command references a local binary
 			if ["./", "../", "/"].iter().any(|p| command.starts_with(p)) {
-				paras.insert(id, Parachain::from_local(id, command.into(), chain)?);
+				paras.insert(
+					id,
+					Parachain::from_local(
+						id,
+						command.into(),
+						chain,
+						chain_spec_path,
+						collators_names,
+					)?,
+				);
 				continue;
 			}
 
@@ -369,6 +451,11 @@ impl NetworkConfiguration {
 		config.get("default_command")
 	}
 
+	/// Returns the `name` configuration.
+	fn name(config: &Table) -> Option<&Item> {
+		config.get("name")
+	}
+
 	/// Returns the `nodes` configuration.
 	fn nodes(relay_chain: &Table) -> Option<&ArrayOfTables> {
 		relay_chain.get("nodes").and_then(|i| i.as_array_of_tables())
@@ -507,6 +594,10 @@ struct Parachain {
 	chain: Option<String>,
 	/// If applicable, the binary used to generate a chain specification.
 	chain_spec_generator: Option<Binary>,
+	/// If applicable, the path to the chain specification.
+	chain_spec_path: Option<PathBuf>,
+	/// List of collators names.
+	collators_names: Vec<String>,
 }
 
 impl Parachain {
@@ -516,7 +607,13 @@ impl Parachain {
 	/// * `id` - The parachain identifier on the local network.
 	/// * `path` - The path to the local binary.
 	/// * `chain` - The chain specified.
-	fn from_local(id: u32, path: PathBuf, chain: Option<&str>) -> Result<Parachain, Error> {
+	fn from_local(
+		id: u32,
+		path: PathBuf,
+		chain: Option<&str>,
+		chain_spec_path: Option<&str>,
+		collators_names: Vec<&str>,
+	) -> Result<Parachain, Error> {
 		let name = path
 			.file_name()
 			.and_then(|f| f.to_str())
@@ -529,6 +626,8 @@ impl Parachain {
 			binary: Binary::Local { name, path, manifest },
 			chain: chain.map(|c| c.to_string()),
 			chain_spec_generator: None,
+			chain_spec_path: chain_spec_path.map(PathBuf::from),
+			collators_names: collators_names.iter().map(|&s| s.to_string()).collect(),
 		})
 	}
 
@@ -545,6 +644,8 @@ impl Parachain {
 		repo: &Repository,
 		chain: Option<&str>,
 		cache: &Path,
+		chain_spec_path: Option<&str>,
+		collators_names: Vec<&str>,
 	) -> Result<Parachain, Error> {
 		// Check for GitHub repository to be able to download source as an archive
 		if repo.url.host_str().is_some_and(|h| h.to_lowercase() == "github.com") {
@@ -566,6 +667,8 @@ impl Parachain {
 				},
 				chain: chain.map(|c| c.to_string()),
 				chain_spec_generator: None,
+				chain_spec_path: chain_spec_path.map(PathBuf::from),
+				collators_names: collators_names.iter().map(|&s| s.to_string()).collect(),
 			})
 		} else {
 			Ok(Parachain {
@@ -583,6 +686,8 @@ impl Parachain {
 				},
 				chain: chain.map(|c| c.to_string()),
 				chain_spec_generator: None,
+				chain_spec_path: chain_spec_path.map(PathBuf::from),
+				collators_names: collators_names.iter().map(|&s| s.to_string()).collect(),
 			})
 		}
 	}
