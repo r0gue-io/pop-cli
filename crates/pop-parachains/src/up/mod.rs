@@ -1562,6 +1562,7 @@ validator = true
 			fs::{create_dir_all, File},
 			io::{Read, Write},
 			path::PathBuf,
+			vec,
 		};
 		use tempfile::{tempdir, Builder};
 
@@ -1712,6 +1713,8 @@ command = "./target/release/parachain-template-node"
 							},
 							chain: None,
 							chain_spec_generator: None,
+							chain_spec_path: None,
+							collators_names: vec!["asset-hub".to_string()],
 						},
 					),
 					(
@@ -1725,6 +1728,8 @@ command = "./target/release/parachain-template-node"
 							},
 							chain: None,
 							chain_spec_generator: None,
+							chain_spec_path: None,
+							collators_names: vec!["pop".to_string()],
 						},
 					),
 					(
@@ -1738,6 +1743,8 @@ command = "./target/release/parachain-template-node"
 							},
 							chain: None,
 							chain_spec_generator: None,
+							chain_spec_path: None,
+							collators_names: vec!["collator".to_string()],
 						},
 					),
 				]
@@ -1867,6 +1874,8 @@ command = "polkadot-parachain"
 							path: system_chain_spec_generator.to_path_buf(),
 							manifest: None,
 						}),
+						chain_spec_path: None,
+						collators_names: vec!["asset-hub".to_string()],
 					},
 				)]
 				.into(),
@@ -1945,12 +1954,20 @@ node_spawn_timeout = 300
 			let name = "parachain-template-node";
 			let command = PathBuf::from("./target/release").join(&name);
 			assert_eq!(
-				Parachain::from_local(2000, command.clone(), Some("dev"))?,
+				Parachain::from_local(
+					2000,
+					command.clone(),
+					Some("dev"),
+					Some("/path"),
+					vec![name]
+				)?,
 				Parachain {
 					id: 2000,
 					binary: Binary::Local { name: name.to_string(), path: command, manifest: None },
 					chain: Some("dev".to_string()),
 					chain_spec_generator: None,
+					chain_spec_path: Some(PathBuf::from("/path")),
+					collators_names: vec![name.to_string()],
 				}
 			);
 			Ok(())
@@ -1961,7 +1978,13 @@ node_spawn_timeout = 300
 			let name = "pop-parachains";
 			let command = PathBuf::from("./target/release").join(&name);
 			assert_eq!(
-				Parachain::from_local(2000, command.clone(), Some("dev"))?,
+				Parachain::from_local(
+					2000,
+					command.clone(),
+					Some("dev"),
+					Some("/path"),
+					vec![name]
+				)?,
 				Parachain {
 					id: 2000,
 					binary: Binary::Local {
@@ -1971,6 +1994,8 @@ node_spawn_timeout = 300
 					},
 					chain: Some("dev".to_string()),
 					chain_spec_generator: None,
+					chain_spec_path: Some(PathBuf::from("/path")),
+					collators_names: vec![name.to_string()],
 				}
 			);
 			Ok(())
@@ -1981,7 +2006,14 @@ node_spawn_timeout = 300
 			let repo = Repository::parse("https://git.com/r0gue-io/pop-node#v1.0")?;
 			let cache = tempdir()?;
 			assert_eq!(
-				Parachain::from_repository(2000, &repo, Some("dev"), cache.path())?,
+				Parachain::from_repository(
+					2000,
+					&repo,
+					Some("dev"),
+					cache.path(),
+					Some("/path"),
+					vec!["pop-node"]
+				)?,
 				Parachain {
 					id: 2000,
 					binary: Binary::Source {
@@ -1997,6 +2029,8 @@ node_spawn_timeout = 300
 					},
 					chain: Some("dev".to_string()),
 					chain_spec_generator: None,
+					chain_spec_path: Some(PathBuf::from("/path")),
+					collators_names: vec!["pop-node".to_string()],
 				}
 			);
 			Ok(())
@@ -2007,7 +2041,14 @@ node_spawn_timeout = 300
 			let repo = Repository::parse("https://github.com/r0gue-io/pop-node#v1.0")?;
 			let cache = tempdir()?;
 			assert_eq!(
-				Parachain::from_repository(2000, &repo, Some("dev"), cache.path())?,
+				Parachain::from_repository(
+					2000,
+					&repo,
+					Some("dev"),
+					cache.path(),
+					Some("/path"),
+					vec!["pop-node"]
+				)?,
 				Parachain {
 					id: 2000,
 					binary: Binary::Source {
@@ -2024,6 +2065,8 @@ node_spawn_timeout = 300
 					},
 					chain: Some("dev".to_string()),
 					chain_spec_generator: None,
+					chain_spec_path: Some(PathBuf::from("/path")),
+					collators_names: vec!["pop-node".to_string()],
 				},
 			);
 			Ok(())
