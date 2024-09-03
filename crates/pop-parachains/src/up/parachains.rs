@@ -274,9 +274,17 @@ mod tests {
 		let para_id = 2000;
 
 		let temp_dir = tempdir()?;
-		let parachain = from(para_id, expected.binary(), Some(version), None, temp_dir.path())
-			.await?
-			.unwrap();
+		let parachain = from(
+			para_id,
+			expected.binary(),
+			Some(version),
+			None,
+			temp_dir.path(),
+			Some("/path"),
+			vec!["pop-node"],
+		)
+		.await?
+		.unwrap();
 		assert_eq!(para_id, parachain.id);
 		assert!(matches!(parachain.binary, Binary::Source { name, source, cache }
 			if name == expected.binary() && source == Source::GitHub(ReleaseArchive {
@@ -294,7 +302,9 @@ mod tests {
 
 	#[tokio::test]
 	async fn from_handles_unsupported_command() -> anyhow::Result<()> {
-		assert!(from(2000, "none", None, None, &PathBuf::default()).await?.is_none());
+		assert!(from(2000, "none", None, None, &PathBuf::default(), None, vec!["pop-node"])
+			.await?
+			.is_none());
 		Ok(())
 	}
 }
