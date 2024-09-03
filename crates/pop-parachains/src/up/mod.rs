@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{
-	build::{generate_raw_chain_spec_container_chain, generate_raw_chain_spec_tanssi},
-	errors::Error,
-};
+use crate::{build::generate_raw_chain_spec_container_chain, errors::Error};
 use glob::glob;
 use indexmap::IndexMap;
 pub use pop_common::{
@@ -103,20 +100,29 @@ impl Zombienet {
 			.filter_map(|b| b)
 	}
 
-	/// Build the needed specs before spawn the network.
-	pub fn build_specs(&mut self) -> Result<(), Error> {
-		// This order is important, first container chains that can be more than one, then tanssi-node
+	/// Build the needed specs before spawn the network containing the container chains.
+	pub fn build_container_chain_specs(&mut self, parachain_name: &str) -> Result<(), Error> {
+		let parachain_id = self
+			.parachains
+			.iter()
+			.find(|(_, parachain)| parachain.binary.name() == parachain_name)
+			.ok_or(Error::ChainNotFound(format!("with name: {parachain_name}")))?
+			.0;
+		// This order is important, first container chains that can be more than one, then the parachain
 		let mut container_chains: Vec<String> = Vec::new();
-		self.parachains.iter().filter(|(&id, _)| id > 1000).try_for_each(
+		self.parachains.iter().filter(|(&id, _)| &id > parachain_id).try_for_each(
 			|(id, parachain)| -> Result<(), Error> {
 				container_chains.push(
 					generate_raw_chain_spec_container_chain(
 						parachain.binary.path().as_path(),
+						None,
+						None,
+						&id.to_string(),
+						None,
 						parachain
 							.chain_spec_path
 							.as_deref()
 							.unwrap_or(Path::new("./chain-spec.json")),
-						&id.to_string(),
 					)?
 					.display()
 					.to_string(),
@@ -124,19 +130,24 @@ impl Zombienet {
 				Ok(())
 			},
 		)?;
-		let tanssi_node = self.parachains.get(&1000).ok_or(Error::ChainNotFound("1000".into()))?;
-		generate_raw_chain_spec_tanssi(
+		let tanssi_node = self
+			.parachains
+			.get(parachain_id)
+			.ok_or(Error::ChainNotFound(format!("with id: {parachain_id}")))?;
+		generate_raw_chain_spec_container_chain(
 			tanssi_node.binary.path().as_path(),
 			tanssi_node.chain.as_deref(),
+			Some(container_chains.iter().map(|s| s.as_str()).collect()),
+			&parachain_id.to_string(),
+			Some(
+				tanssi_node
+					.collators_names
+					.iter()
+					.filter(|s| s.starts_with("Collator"))
+					.map(|s| s.as_str())
+					.collect(),
+			),
 			tanssi_node.chain_spec_path.as_deref().unwrap_or(Path::new("./chain-spec.json")),
-			container_chains.iter().map(|s| s.as_str()).collect(),
-			tanssi_node
-				.collators_names
-				.iter()
-				.filter(|s| s.starts_with("Collator"))
-				.map(|s| s.as_str())
-				.collect(),
-			&1000.to_string(),
 		)?;
 		Ok(())
 	}
