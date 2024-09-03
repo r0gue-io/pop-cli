@@ -121,57 +121,42 @@ pub fn generate_raw_chain_spec(
 	Ok(raw_chain_spec)
 }
 
-/// Generates a raw chain specification file for a parachain.
+/// Generates a raw chain specification file for container chain.
 ///
 /// # Arguments
 /// * `binary_path` - The path to the node binary executable that contains the `build-spec` command.
-/// * `plain_chain_spec` - Location of the plain chain specification file.
-/// * `chain_spec_file_name` - The name of the chain specification file to be generated.
-pub fn generate_raw_chain_spec_tanssi(
-	binary_path: &Path,
-	chain: Option<&str>,
-	raw_chain_spec: &Path,
-	container_chains: Vec<&str>,
-	invulnerables: Vec<&str>,
-	parachain_id: &str,
-) -> Result<PathBuf, Error> {
-	check_command_exists(&binary_path, "build-spec")?;
-	let mut args = vec!["build-spec", "--parachain-id", parachain_id];
-	if let Some(chain) = chain {
-		args.push("--chain");
-		args.push(chain);
-	}
-	for container_chain in container_chains {
-		args.push("--add-container-chain");
-		args.push(container_chain);
-	}
-	for invulnerable in invulnerables {
-		args.push("--invulnerable");
-		args.push(invulnerable);
-	}
-	cmd(binary_path, args).stdout_path(raw_chain_spec).stderr_null().run()?;
-	Ok(raw_chain_spec.to_path_buf())
-}
-
-/// Generates a raw chain specification file for a parachain.
-///
-/// # Arguments
-/// * `binary_path` - The path to the node binary executable that contains the `build-spec` command.
-/// * `plain_chain_spec` - Location of the plain chain specification file.
-/// * `chain_spec_file_name` - The name of the chain specification file to be generated.
+/// * `chain` - An optional chain to be used. This should be provided if generating a spec for a parachain.
+/// * `container_chains` - An optional vector of container chain specification files. These should be provided if generating a spec for a parachain.
+/// * `id` - The parachain id for which the chain specification is being generated.
+/// * `invulnerables` - An optional vector of invulnerable nodes. These should be provided if generating a spec for a parachain.
+/// * `raw_chain_spec` - The path where the generated raw chain specification file will be generated.
 pub fn generate_raw_chain_spec_container_chain(
 	binary_path: &Path,
+	chain: Option<&str>,
+	container_chains: Option<Vec<&str>>,
+	id: &str,
+	invulnerables: Option<Vec<&str>>,
 	raw_chain_spec: &Path,
-	parachain_id: &str,
 ) -> Result<PathBuf, Error> {
 	check_command_exists(&binary_path, "build-spec")?;
-	cmd(
-		binary_path,
-		vec!["build-spec", "--disable-default-bootnode", "--parachain-id", parachain_id, "--raw"],
-	)
-	.stderr_null()
-	.stdout_path(&raw_chain_spec)
-	.run()?;
+	let mut args = vec!["build-spec", "--parachain-id", id];
+	// Parachain
+	if let (Some(chain), Some(invulnerables), Some(container_chains)) =
+		(chain, invulnerables, container_chains)
+	{
+		args.extend(&["--chain", chain]);
+		for container_chain in container_chains {
+			args.extend(&["--add-container-chain", container_chain]);
+		}
+		for invulnerable in invulnerables {
+			args.extend(&["--invulnerable", invulnerable]);
+		}
+	}
+	// Container Chain
+	else {
+		args.extend(["--disable-default-bootnode", "--raw"]);
+	}
+	cmd(binary_path, args).stdout_path(raw_chain_spec).stderr_null().run()?;
 	Ok(raw_chain_spec.to_path_buf())
 }
 
