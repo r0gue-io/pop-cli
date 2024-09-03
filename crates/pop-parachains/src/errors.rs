@@ -9,6 +9,8 @@ pub enum Error {
 	Aborted,
 	#[error("Anyhow error: {0}")]
 	AnyhowError(#[from] anyhow::Error),
+	#[error("Missing chain with id: {0}")]
+	ChainNotFound(String),
 	#[error("{0}")]
 	CommonError(#[from] pop_common::Error),
 	#[error("Configuration error: {0}")]

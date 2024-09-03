@@ -89,6 +89,9 @@ impl ZombienetCommand {
 		if Self::source_binaries(&mut zombienet, &cache, self.verbose, self.skip_confirm).await? {
 			return Ok(());
 		}
+		if zombienet.binaries().any(|b| b.name() == "tanssi-node") {
+			zombienet.build_specs()?;
+		}
 
 		// Finally spawn network and wait for signal to terminate
 		let spinner = cliclack::spinner();

@@ -9,7 +9,7 @@ use pop_common::{
 	},
 	target, Error, GitHub,
 };
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use strum::VariantArray as _;
 use strum_macros::{EnumProperty, VariantArray};
 
@@ -111,6 +111,8 @@ pub(super) async fn system(
 		binary,
 		chain: chain.map(|c| c.to_string()),
 		chain_spec_generator,
+		chain_spec_path: None,
+		collators_names: Vec::new(),
 	}));
 }
 
@@ -128,6 +130,8 @@ pub(super) async fn from(
 	version: Option<&str>,
 	chain: Option<&str>,
 	cache: &Path,
+	chain_spec_path: Option<&str>,
+	collators_names: Vec<&str>,
 ) -> Result<Option<super::Parachain>, Error> {
 	for para in Parachain::VARIANTS.iter().filter(|p| p.binary() == command) {
 		let releases = para.releases().await?;
@@ -142,12 +146,13 @@ pub(super) async fn from(
 			source: TryInto::try_into(para, tag, latest)?,
 			cache: cache.to_path_buf(),
 		};
-		println!("{:?}", &chain.unwrap());
 		return Ok(Some(super::Parachain {
 			id,
 			binary,
 			chain: chain.map(|c| c.to_string()),
 			chain_spec_generator: None,
+			chain_spec_path: chain_spec_path.map(PathBuf::from),
+			collators_names: collators_names.iter().map(|&s| s.to_string()).collect(),
 		}));
 	}
 	Ok(None)
