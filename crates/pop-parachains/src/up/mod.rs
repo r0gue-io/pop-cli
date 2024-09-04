@@ -101,7 +101,7 @@ impl Zombienet {
 	}
 
 	/// Build the needed specs before spawn the network containing the container chains.
-	pub fn build_container_chain_specs(&mut self, parachain_name: &str) -> Result<(), Error> {
+	pub fn build_container_chain_specs(&mut self, parachain_name: &str) -> Result<PathBuf, Error> {
 		let parachain_id = self
 			.parachains
 			.iter()
@@ -134,7 +134,7 @@ impl Zombienet {
 			.parachains
 			.get(parachain_id)
 			.ok_or(Error::ChainNotFound(format!("with id: {parachain_id}")))?;
-		generate_raw_chain_spec_container_chain(
+		let raw_spec_path = generate_raw_chain_spec_container_chain(
 			tanssi_node.binary.path().as_path(),
 			tanssi_node.chain.as_deref(),
 			Some(container_chains.iter().map(|s| s.as_str()).collect()),
@@ -149,7 +149,7 @@ impl Zombienet {
 			),
 			tanssi_node.chain_spec_path.as_deref().unwrap_or(Path::new("./chain-spec.json")),
 		)?;
-		Ok(())
+		Ok(raw_spec_path)
 	}
 
 	/// Determine parachain configuration based on specified version and network configuration.
@@ -768,11 +768,16 @@ fn resolve_manifest(package: &str, path: &Path) -> Result<Option<PathBuf>, Error
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::{
+		new_parachain::instantiate_tanssi_template, templates::Parachain as Template, Error,
+	};
 	use anyhow::Result;
 	use std::{env::current_dir, fs::File, io::Write};
 	use tempfile::tempdir;
 
 	mod zombienet {
+		use std::fs;
+
 		use super::*;
 		use pop_common::Status;
 
@@ -1413,6 +1418,89 @@ chain = "asset-hub-paseo-local"
 			)
 			.await?;
 			assert_eq!(zombienet.binaries().count(), 4);
+			Ok(())
+		}
+
+		#[tokio::test]
+		async fn build_container_chain_specs_works() -> Result<()> {
+			let temp_dir = tempdir().expect("Failed to create temp dir");
+			instantiate_tanssi_template(&Template::TanssiSimple, temp_dir.path(), None)?;
+			let config = Builder::new().suffix(".toml").tempfile()?;
+			// Get Zombienet config and fet binary for generate specs
+			writeln!(
+				config.as_file(),
+				"{}",
+				format!(
+					r#"
+[relaychain]
+chain = "paseo-local"
+
+[[parachains]]
+id = 1000
+chain_spec_path = "{}"
+chain = "dancebox-local"
+default_command = "tanssi-node"
+
+[[parachains.collators]]
+name = "FullNode-1000"
+
+[[parachains.collators]]
+name = "Collator1000-01"
+
+[[parachains.collators]]
+name = "Collator1000-02"
+
+[[parachains.collators]]
+name = "Collator2000-01"
+
+[[parachains.collators]]
+name = "Collator2000-02"
+"#,
+					&temp_dir.path().join("tanssi-1000.json").display().to_string()
+				)
+			)?;
+			let mut zombienet = Zombienet::new(
+				&temp_dir.path(),
+				config.path().to_str().unwrap(),
+				None,
+				None,
+				None,
+				None,
+				None,
+			)
+			.await?;
+			// Fetch the tanssi-node binary
+			for binary in zombienet.binaries().filter(|b| !b.exists() && b.name() == "tanssi-node")
+			{
+				binary.source(true, &(), true).await?;
+			}
+			let raw_chain_spec = zombienet.build_container_chain_specs("tanssi-node")?;
+			assert!(raw_chain_spec.exists());
+			let content = fs::read_to_string(raw_chain_spec.clone()).expect("Could not read file");
+			assert!(content.contains("\"para_id\": 1000"));
+			assert!(content.contains("\"id\": \"dancebox_local\""));
+			Ok(())
+		}
+
+		#[tokio::test]
+		async fn build_container_chain_specs_fails_chain_not_found() -> Result<()> {
+			let temp_dir = tempdir().expect("Failed to create temp dir");
+			instantiate_tanssi_template(&Template::TanssiSimple, temp_dir.path(), None)?;
+			let mut zombienet = Zombienet::new(
+				&temp_dir.path(),
+				&temp_dir.path().join("network.toml").display().to_string(),
+				None,
+				None,
+				None,
+				None,
+				None,
+			)
+			.await?;
+			assert!(matches!(
+				zombienet.build_container_chain_specs("bad-name"),
+				Err(Error::ChainNotFound(error))
+				if error == "with name: bad-name"
+			));
 			Ok(())
 		}
 
