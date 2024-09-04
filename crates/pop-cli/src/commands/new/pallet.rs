@@ -84,11 +84,11 @@ impl NewPalletCommand {
 		let mut pallet_custom_origin = false;
 
 		if let Some(Mode::Advanced(advanced_mode_args)) = &self.mode {
-			if advanced_mode_args.config_common_types.is_empty()
-				&& advanced_mode_args.storage.is_empty()
-				&& !(advanced_mode_args.genesis_config
-					|| advanced_mode_args.default_config
-					|| advanced_mode_args.custom_origin)
+			if advanced_mode_args.config_common_types.is_empty() &&
+				advanced_mode_args.storage.is_empty() &&
+				!(advanced_mode_args.genesis_config ||
+					advanced_mode_args.default_config ||
+					advanced_mode_args.custom_origin)
 			{
 				Cli.info("Generate the pallet's config trait.")?;
 

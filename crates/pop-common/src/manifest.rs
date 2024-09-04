@@ -29,14 +29,17 @@ pub fn from_path(path: Option<&Path>) -> Result<Manifest, Error> {
 	Ok(Manifest::from_path(path.canonicalize()?)?)
 }
 
-/// This function is used to determine if a Path is contained inside a workspace, and returns a PathBuf to the workspace Cargo.toml if found.
+/// This function is used to determine if a Path is contained inside a workspace, and returns a
+/// PathBuf to the workspace Cargo.toml if found.
 ///
 /// # Arguments
 /// * `target_dir` - A directory that may be contained inside a workspace
 pub fn find_workspace_toml(target_dir: &Path) -> Option<PathBuf> {
 	let mut dir = target_dir;
 	while let Some(parent) = dir.parent() {
-		// This condition is necessary to avoid that calling the function from a workspace using a path which isn't contained in a workspace returns `Some(Cargo.toml)` refering the workspace from where the function has been called instead of the expected `None`.
+		// This condition is necessary to avoid that calling the function from a workspace using a
+		// path which isn't contained in a workspace returns `Some(Cargo.toml)` refering the
+		// workspace from where the function has been called instead of the expected `None`.
 		if parent.to_str() == Some("") {
 			return None;
 		}
@@ -249,7 +252,9 @@ mod tests {
 			if let Some(Item::Value(Value::Array(array))) = workspace_table.get("members") {
 				assert!(array.iter().any(|item| {
 					if let Value::String(item) = item {
-						// item is only the relative path from the Cargo.toml manifest, while test_buildder.insider_workspace_dir is the absolute path, so we can only test with contains
+						// item is only the relative path from the Cargo.toml manifest, while
+						// test_buildder.insider_workspace_dir is the absolute path, so we can only
+						// test with contains
 						test_builder
 							.inside_workspace_dir
 							.as_ref()
