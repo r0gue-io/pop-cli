@@ -64,7 +64,7 @@ pub struct NewParachainCommand {
 	#[arg(
 		short = 'v',
 		long,
-		help = "Fetches the latest license, release, and commit SHA data from GitHub."
+		help = "Verifies the commit SHA when fetching the latest license and release from GitHub."
 	)]
 	pub(crate) verify: bool,
 }
@@ -99,7 +99,15 @@ impl NewParachainCommand {
 
 		let tag_version = parachain_config.release_tag.clone();
 
-		generate_parachain_from_template(name, provider, &template, tag_version, config)?;
+		generate_parachain_from_template(
+			name,
+			provider,
+			&template,
+			tag_version,
+			config,
+			self.verify,
+		)
+		.await?;
 		Ok(template)
 	}
 }
@@ -157,12 +165,13 @@ async fn guide_user_to_generate_parachain(verify: bool) -> Result<NewParachainCo
 	})
 }
 
-fn generate_parachain_from_template(
+async fn generate_parachain_from_template(
 	name_template: &String,
 	provider: &Provider,
 	template: &Parachain,
 	tag_version: Option<String>,
 	config: Config,
+	verify: bool,
 ) -> Result<()> {
 	Cli.intro(format!(
 		"Generating \"{name_template}\" using {} from {}!",
@@ -184,9 +193,16 @@ fn generate_parachain_from_template(
 
 	// Replace spinner with success.
 	console::Term::stderr().clear_last_lines(2)?;
+	let mut verify_note = "".to_string();
+	if verify && tag.is_some() {
+		let url = url::Url::parse(&template.repository_url()?).expect("valid repository url");
+		let repo = GitHub::parse(url.as_str())?;
+		let commit = repo.get_commit_sha_from_release(&tag.clone().unwrap()).await?;
+		verify_note = format!(" ✅ Fetched the latest release of the template along with its license based on the commit SHA for the release ({}).", commit);
+	}
 	success(format!(
 		"Generation complete{}",
-		tag.map(|t| format!("\n{}", style(format!("Version: {t}")).dim()))
+		tag.map(|t| format!("\n{}", style(format!("Version: {t} {}", verify_note)).dim()))
 			.unwrap_or_default()
 	))?;
 
