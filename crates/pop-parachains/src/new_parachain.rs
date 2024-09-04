@@ -10,7 +10,7 @@ use pop_common::{
 	git::Git,
 	templates::{Template, Type},
 };
-use std::{fs, path::Path};
+use std::{env, fs, path::Path};
 use walkdir::WalkDir;
 
 /// Create a new parachain.
@@ -31,6 +31,10 @@ pub fn instantiate_template_dir(
 
 	if Provider::Pop.provides(&template) {
 		return instantiate_standard_template(template, target, config, tag_version);
+	}
+	if Provider::Parity.provides(&template) {
+		// export PATH="./target/release/:$PATH"
+		env::set_var("PATH", format!("./target/release/:{}", env::var("PATH")?));
 	}
 	let tag = Git::clone_and_degit(template.repository_url()?, target, tag_version)?;
 	Ok(tag)
