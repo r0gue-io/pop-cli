@@ -197,8 +197,8 @@ async fn generate_parachain_from_template(
 	if verify && tag.is_some() {
 		let url = url::Url::parse(&template.repository_url()?).expect("valid repository url");
 		let repo = GitHub::parse(url.as_str())?;
-		let commit = repo.get_commit_sha_from_release(&tag.clone().unwrap()).await?;
-		verify_note = format!(" ✅ Fetched the latest release of the template along with its license based on the commit SHA for the release ({}).", commit);
+		let commit = repo.get_commit_sha_from_release(&tag.clone().unwrap()).await;
+		verify_note = format!(" ✅ Fetched the latest release of the template along with its license based on the commit SHA for the release ({}).", commit.unwrap_or_default());
 	}
 	success(format!(
 		"Generation complete{}",
