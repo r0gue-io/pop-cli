@@ -66,30 +66,36 @@ impl Git {
 				target,
 			)?,
 		};
-
+		// Checkout the specific tag if provided
 		if let Some(tag_version) = tag_version {
-			let (object, reference) = repo.revparse_ext(&tag_version).expect("Object not found");
-			repo.checkout_tree(&object, None).expect("Failed to checkout");
-			match reference {
-				// gref is an actual reference like branches or tags
-				Some(gref) => repo.set_head(gref.name().unwrap()),
-				// this is a commit, not a reference
-				None => repo.set_head_detached(object.id()),
-			}
-			.expect("Failed to set HEAD");
-
-			let git_dir = repo.path();
-			fs::remove_dir_all(&git_dir)?;
-			return Ok(Some(tag_version));
+			return Self::git_checkout(&repo, tag_version);
 		}
-
-		// fetch tags from remote
+		// If not to the latest release
 		let release = Self::fetch_latest_tag(&repo);
+		if let Some(tag_version) = release {
+			return Self::git_checkout(&repo, tag_version);
+		}
+		// If no tags, take it from main branch
+		let git_dir = repo.path();
+		fs::remove_dir_all(&git_dir)?;
+		Ok(release)
+	}
+
+	// Checkout to a specific tag or commit from a Git repository.
+	fn git_checkout(repo: &GitRepository, tag_version: String) -> Result<Option<String>> {
+		let (object, reference) = repo.revparse_ext(&tag_version).expect("Object not found");
+		repo.checkout_tree(&object, None).expect("Failed to checkout");
+		match reference {
+			// gref is an actual reference like branches or tags
+			Some(gref) => repo.set_head(gref.name().unwrap()),
+			// this is a commit, not a reference
+			None => repo.set_head_detached(object.id()),
+		}
+		.expect("Failed to set HEAD");
 
 		let git_dir = repo.path();
 		fs::remove_dir_all(&git_dir)?;
-		// Or by default the last one
-		Ok(release)
+		Ok(Some(tag_version))
 	}
 
 	/// For users that have ssh configuration for cloning repositories.
