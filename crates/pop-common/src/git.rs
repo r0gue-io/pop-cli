@@ -66,19 +66,21 @@ impl Git {
 				target,
 			)?,
 		};
-		// Checkout the specific tag if provided
-		if let Some(tag_version) = tag_version {
-			return Self::git_checkout(&repo, tag_version);
+
+		match tag_version {
+			Some(tag) => Self::git_checkout(&repo, tag),
+			None => {
+				// Fetch latest release.
+				let release = Self::fetch_latest_tag(&repo);
+				if let Some(r) = release {
+					return Self::git_checkout(&repo, r);
+				}
+				// If there are no releases, use main.
+				let git_dir = repo.path();
+				fs::remove_dir_all(&git_dir)?;
+				Ok(release)
+			},
 		}
-		// If not to the latest release
-		let release = Self::fetch_latest_tag(&repo);
-		if let Some(tag_version) = release {
-			return Self::git_checkout(&repo, tag_version);
-		}
-		// If no tags, take it from main branch
-		let git_dir = repo.path();
-		fs::remove_dir_all(&git_dir)?;
-		Ok(release)
 	}
 
 	// Checkout to a specific tag or commit from a Git repository.
