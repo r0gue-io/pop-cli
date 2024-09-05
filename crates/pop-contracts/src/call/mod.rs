@@ -20,6 +20,8 @@ use subxt::{Config, PolkadotConfig as DefaultConfig};
 use subxt_signer::sr25519::Keypair;
 use url::Url;
 
+pub mod metadata;
+
 /// Attributes for the `call` command.
 pub struct CallOpts {
 	/// Path to the contract build directory.

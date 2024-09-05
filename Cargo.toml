@@ -48,6 +48,8 @@ subxt = "0.37.0"
 ink_env = "5.0.0"
 sp-core = "31"
 sp-weights = "30"
+contract-transcode = "4.1"
+scale-info = { version = "2.11.3", default-features = false, features = ["derive"] }
 contract-build = "5.0.0-alpha"
 contract-extrinsics = "5.0.0-alpha"
 heck = "0.5.0"
