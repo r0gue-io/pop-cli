@@ -39,7 +39,7 @@ pub fn get_messages(path: &Path) -> Result<Vec<Message>, Error> {
 			mutates: message.mutates(),
 			payable: message.payable(),
 			args: process_args(message.args()),
-			docs: message.docs().join("."),
+			docs: message.docs().join(" "),
 			default: *message.default(),
 		});
 	}

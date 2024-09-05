@@ -25,4 +25,4 @@ pub use up::{
 	dry_run_gas_estimate_instantiate, dry_run_upload, instantiate_smart_contract,
 	set_up_deployment, set_up_upload, upload_smart_contract, UpOpts,
 };
-pub use utils::signer::parse_hex_bytes;
+pub use utils::{helpers::parse_account, signer::parse_hex_bytes};
