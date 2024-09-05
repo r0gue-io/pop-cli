@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::errors::Error;
-use contract_transcode::{ink_metadata::MessageParamSpec, ContractMessageTranscoder};
+use contract_extrinsics::ContractArtifacts;
+use contract_transcode::ink_metadata::MessageParamSpec;
 use scale_info::form::PortableForm;
-use std::path::PathBuf;
+use std::path::Path;
 
 #[derive(Clone, PartialEq, Eq)]
 // TODO: We are ignoring selector, return type for now.
@@ -23,8 +24,14 @@ pub struct Message {
 	pub default: bool,
 }
 
-pub fn get_messages(metadata_path: PathBuf) -> Result<Vec<Message>, Error> {
-	let transcoder = ContractMessageTranscoder::load(metadata_path)?;
+pub fn get_messages(path: &Path) -> Result<Vec<Message>, Error> {
+	let cargo_toml_path = match path.ends_with("Cargo.toml") {
+		true => path.to_path_buf(),
+		false => path.join("Cargo.toml"),
+	};
+	let contract_artifacts =
+		ContractArtifacts::from_manifest_or_file(Some(&cargo_toml_path), None)?;
+	let transcoder = contract_artifacts.contract_transcoder()?;
 	let mut messages: Vec<Message> = Vec::new();
 	for message in transcoder.metadata().spec().messages() {
 		messages.push(Message {

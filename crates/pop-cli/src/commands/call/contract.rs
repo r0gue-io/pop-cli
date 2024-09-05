@@ -13,7 +13,7 @@ use pop_contracts::{
 	CallOpts, Message,
 };
 use sp_weights::Weight;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[derive(Args, Clone)]
 pub struct CallContractCommand {
@@ -158,11 +158,11 @@ async fn guide_user_to_call_contract() -> anyhow::Result<CallContractCommand> {
 	Cli.intro("Calling a contract")?;
 
 	// Prompt for location of your contract.
-	let path: String = input("Path to your contract")
+	let input_path: String = input("Path to your contract")
 		.placeholder("./my_contract")
 		.default_input("./")
 		.interact()?;
-	let contract_path = PathBuf::from(&path);
+	let contract_path = Path::new(&input_path);
 
 	// Prompt for contract address.
 	let contract_address: String = input("Paste the on-chain contract address:")
@@ -170,9 +170,7 @@ async fn guide_user_to_call_contract() -> anyhow::Result<CallContractCommand> {
 		.default_input("5DYs7UGBm2LuX4ryvyqfksozNAW5V47tPbGiVgnjYWCZ29bt")
 		.interact()?;
 
-	// TODO: Guess the metadata path from the contract path.
-	let metadata_path = contract_path.join("target/ink/metadata.json");
-	let messages = get_messages(metadata_path)?;
+	let messages = get_messages(contract_path)?;
 	let message = display_select_options(&messages)?;
 	let mut contract_args = Vec::new();
 	for arg in &message.args {
@@ -219,7 +217,7 @@ async fn guide_user_to_call_contract() -> anyhow::Result<CallContractCommand> {
 			.interact()?;
 
 	Ok(CallContractCommand {
-		path: Some(contract_path),
+		path: Some(contract_path.to_path_buf()),
 		contract: Some(contract_address),
 		message: Some(message.label.clone()),
 		args: contract_args,
