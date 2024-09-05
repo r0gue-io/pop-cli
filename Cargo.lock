@@ -4727,6 +4727,7 @@ dependencies = [
  "anyhow",
  "contract-build",
  "contract-extrinsics",
+ "contract-transcode",
  "dirs",
  "duct",
  "flate2",
