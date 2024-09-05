@@ -9,8 +9,8 @@ use clap::Args;
 use cliclack::{clear_screen, confirm, input, intro, log, outro, outro_cancel, set_theme};
 use console::style;
 use pop_contracts::{
-	call_smart_contract, dry_run_call, dry_run_gas_estimate_call, get_messages, set_up_call,
-	CallOpts, Message,
+	call_smart_contract, dry_run_call, dry_run_gas_estimate_call, get_messages, parse_account,
+	set_up_call, CallOpts, Message,
 };
 use sp_weights::Weight;
 use std::path::{Path, PathBuf};
@@ -155,11 +155,11 @@ impl CallContractCommand {
 
 /// Guide the user to call the contract.
 async fn guide_user_to_call_contract() -> anyhow::Result<CallContractCommand> {
-	Cli.intro("Calling a contract")?;
+	Cli.intro("Call a contract")?;
 
 	// Prompt for location of your contract.
-	let input_path: String = input("Path to your contract")
-		.placeholder("./my_contract")
+	let input_path: String = input("Where is your project located?")
+		.placeholder("./")
 		.default_input("./")
 		.interact()?;
 	let contract_path = Path::new(&input_path);
@@ -167,6 +167,10 @@ async fn guide_user_to_call_contract() -> anyhow::Result<CallContractCommand> {
 	// Prompt for contract address.
 	let contract_address: String = input("Paste the on-chain contract address:")
 		.placeholder("5DYs7UGBm2LuX4ryvyqfksozNAW5V47tPbGiVgnjYWCZ29bt")
+		.validate(|input: &String| match parse_account(input) {
+			Ok(_) => Ok(()),
+			Err(_) => Err("Invalid address."),
+		})
 		.default_input("5DYs7UGBm2LuX4ryvyqfksozNAW5V47tPbGiVgnjYWCZ29bt")
 		.interact()?;
 
@@ -178,35 +182,33 @@ async fn guide_user_to_call_contract() -> anyhow::Result<CallContractCommand> {
 	}
 	let mut value = "0".to_string();
 	if message.payable {
-		value = input("Value to transfer to the contract: ")
+		value = input("Value to transfer to the call:")
 			.placeholder("0")
 			.default_input("0")
 			.interact()?;
 	}
-	// Prompt for gas limit of the call.
-	let gas_limit_input: u64 = input("Gas Limit:")
+	// Prompt for gas limit and proof_size of the call.
+	let gas_limit_input: String = input("Enter the gas limit:")
 		.required(false)
-		.placeholder("By default it will use an Estimation")
-		.default_input("0")
+		.default_input("")
+		.placeholder("if left blank, an estimation will be used")
 		.interact()?;
-	let gas_limit: Option<u64> = (gas_limit_input != 0).then_some(gas_limit_input);
-
-	// Prompt for proof_size of your contract.
-	let proof_size_input: u64 = input("Proof size:")
+	let gas_limit: Option<u64> = gas_limit_input.parse::<u64>().ok(); // If blank or bad input, estimate it.
+	let proof_size_input: String = input("Enter the proof size limit:")
 		.required(false)
-		.placeholder("By default it will use an Estimation")
-		.default_input("0")
+		.placeholder("if left blank, an estimation will be used")
+		.default_input("")
 		.interact()?;
-	let proof_size: Option<u64> = (proof_size_input != 0).then_some(proof_size_input);
+	let proof_size: Option<u64> = proof_size_input.parse::<u64>().ok(); // If blank or bad input, estimate it.
 
 	// Prompt for contract location.
-	let url: String = input("Where is your contract?")
+	let url: String = input("Where is your contract deployed?")
 		.placeholder("ws://localhost:9944")
 		.default_input("ws://localhost:9944")
 		.interact()?;
 
 	// Who is calling the contract.
-	let suri: String = input("Secret key URI for the account calling the contract:")
+	let suri: String = input("Signer calling the contract:")
 		.placeholder("//Alice")
 		.default_input("//Alice")
 		.interact()?;
@@ -227,12 +229,12 @@ async fn guide_user_to_call_contract() -> anyhow::Result<CallContractCommand> {
 		url: url::Url::parse(&url)?,
 		suri,
 		execute: message.mutates,
-		dry_run: is_call_confirmed,
+		dry_run: !is_call_confirmed,
 	})
 }
 
 fn display_select_options(messages: &Vec<Message>) -> Result<&Message> {
-	let mut prompt = cliclack::select("Select the call:".to_string());
+	let mut prompt = cliclack::select("Select the message to call:");
 	for message in messages {
 		prompt = prompt.item(message, &message.label, &message.docs);
 	}
