@@ -174,17 +174,18 @@ pub fn process_function_args<P>(
 where
 	P: AsRef<Path>,
 {
+	let parsed_args = args.into_iter().map(|arg| arg.replace(",", "")).collect::<Vec<String>>();
 	let function = match function_type {
 		FunctionType::Message => get_message(path, label)?,
 		FunctionType::Constructor => get_constructor(path, label)?,
 	};
-	if args.len() != function.args.len() {
+	if parsed_args.len() != function.args.len() {
 		return Err(Error::IncorrectArguments {
 			expected: function.args.len(),
-			provided: args.len(),
+			provided: parsed_args.len(),
 		});
 	}
-	Ok(args
+	Ok(parsed_args
 		.into_iter()
 		.zip(&function.args)
 		.map(|(arg, param)| match (param.type_name.starts_with("Option<"), arg.is_empty()) {

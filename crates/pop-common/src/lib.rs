@@ -2,6 +2,8 @@
 
 use std::net::TcpListener;
 
+use std::net::TcpListener;
+
 pub use build::Profile;
 pub use errors::Error;
 pub use git::{Git, GitHub, Release};
@@ -71,6 +73,15 @@ pub fn find_free_port() -> u16 {
 		.local_addr()
 		.expect("Failed to retrieve local address")
 		.port()
+}
+
+/// Provides functionality for making calls to parachains or smart contracts.
+pub mod call {
+	// Note: parsing events after calling a chain is done using cargo contract logic. This could be
+	// refactored in the future.
+	pub use contract_build::Verbosity;
+	pub use contract_extrinsics::{DisplayEvents, TokenMetadata};
+	pub use ink_env::DefaultEnvironment;
 }
 
 #[cfg(test)]

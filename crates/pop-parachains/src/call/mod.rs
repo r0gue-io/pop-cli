@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{errors::Error, Function};
-use pop_common::create_signer;
+use pop_common::{
+	call::{DefaultEnvironment, DisplayEvents, TokenMetadata, Verbosity},
+	create_signer,
+};
 use subxt::{
 	dynamic::Value,
 	tx::{DynamicPayload, Payload},
@@ -42,15 +45,26 @@ pub fn construct_sudo_extrinsic(xt: DynamicPayload) -> Result<DynamicPayload, Er
 	Ok(subxt::dynamic::tx("Sudo", "sudo", [xt.into_value()].to_vec()))
 }
 
+/// Constructs a Sudo extrinsic.
+///
+/// # Arguments
+/// * `tx`: The transaction payload representing the function call to be dispatched with `Root`
+///   privileges.
+pub async fn construct_sudo_extrinsic(tx: DynamicPayload) -> Result<DynamicPayload, Error> {
+	Ok(subxt::dynamic::tx("Sudo", "sudo", [tx.into_value()].to_vec()))
+}
+
 /// Signs and submits a given extrinsic.
 ///
 /// # Arguments
 /// * `client` - The client used to interact with the chain.
-/// * `xt` - The extrinsic to be signed and submitted.
+/// * `url` - Endpoint of the node.
+/// * `xt` - The (encoded) extrinsic to be signed and submitted.
 /// * `suri` - The secret URI (e.g., mnemonic or private key) for signing the extrinsic.
-pub async fn sign_and_submit_extrinsic(
+pub async fn sign_and_submit_extrinsic<Xt: Payload>(
 	client: &OnlineClient<SubstrateConfig>,
-	xt: DynamicPayload,
+	url: &url::Url,
+	xt: Xt,
 	suri: &str,
 ) -> Result<String, Error> {
 	let signer = create_signer(suri)?;
@@ -62,7 +76,19 @@ pub async fn sign_and_submit_extrinsic(
 		.wait_for_finalized_success()
 		.await
 		.map_err(|e| Error::ExtrinsicSubmissionError(format!("{:?}", e)))?;
-	Ok(format!("{:?}", result.extrinsic_hash()))
+
+	// Obtain required metadata and parse events. The following is using existing logic from
+	// `cargo-contract`, also used in calling contracts, due to simplicity and can be refactored in
+	// the future.
+	let metadata = client.metadata();
+	let token_metadata = TokenMetadata::query::<SubstrateConfig>(url).await?;
+	let events = DisplayEvents::from_events::<SubstrateConfig, DefaultEnvironment>(
+		&result, None, &metadata,
+	)?;
+	let events =
+		events.display_events::<DefaultEnvironment>(Verbosity::Default, &token_metadata)?;
+
+	Ok(format!("Extrinsic Submitted with hash: {:?}\n\n{}", result.extrinsic_hash(), events))
 }
 
 /// Encodes the call data for a given extrinsic into a hexadecimal string.
@@ -89,9 +115,16 @@ pub fn decode_call_data(call_data: &str) -> Result<Vec<u8>, Error> {
 		.map_err(|e| Error::CallDataDecodingError(e.to_string()))
 }
 
-// This struct implements the [`Payload`] trait and is used to submit
-// pre-encoded SCALE call data directly, without the dynamic construction of transactions.
-struct CallData(Vec<u8>);
+/// This struct implements the [`Payload`] trait and is used to submit
+/// pre-encoded SCALE call data directly, without the dynamic construction of transactions.
+pub struct CallData(Vec<u8>);
+
+impl CallData {
+	/// Create a new instance of `CallData`.
+	pub fn new(data: Vec<u8>) -> CallData {
+		CallData(data)
+	}
+}
 
 impl Payload for CallData {
 	fn encode_call_data_to(
@@ -104,35 +137,12 @@ impl Payload for CallData {
 	}
 }
 
-/// Signs and submits a given extrinsic.
-///
-/// # Arguments
-/// * `client` - Reference to an `OnlineClient` connected to the chain.
-/// * `call_data` - SCALE encoded bytes representing the extrinsic's call data.
-/// * `suri` - The secret URI (e.g., mnemonic or private key) for signing the extrinsic.
-pub async fn sign_and_submit_extrinsic_with_call_data(
-	client: &OnlineClient<SubstrateConfig>,
-	call_data: Vec<u8>,
-	suri: &str,
-) -> Result<String, Error> {
-	let signer = create_signer(suri)?;
-	let payload = CallData(call_data);
-	let result = client
-		.tx()
-		.sign_and_submit_then_watch_default(&payload, &signer)
-		.await
-		.map_err(|e| Error::ExtrinsicSubmissionError(format!("{:?}", e)))?
-		.wait_for_finalized_success()
-		.await
-		.map_err(|e| Error::ExtrinsicSubmissionError(format!("{:?}", e)))?;
-	Ok(format!("{:?}", result.extrinsic_hash()))
-}
-
 #[cfg(test)]
 mod tests {
 	use super::*;
 	use crate::{find_dispatchable_by_name, parse_chain_metadata, set_up_client};
 	use anyhow::Result;
+	use url::Url;
 
 	const ALICE_SURI: &str = "//Alice";
 	pub(crate) const POP_NETWORK_TESTNET_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";
@@ -214,7 +224,7 @@ mod tests {
 		};
 		let xt = construct_extrinsic(&function, vec!["0x11".to_string()])?;
 		assert!(matches!(
-			sign_and_submit_extrinsic(&client, xt, ALICE_SURI).await,
+			sign_and_submit_extrinsic(&client, &Url::parse(POP_NETWORK_TESTNET_URL)?, xt, ALICE_SURI).await,
 			Err(Error::ExtrinsicSubmissionError(message)) if message.contains("PalletNameNotFound(\"WrongPallet\"))")
 		));
 		Ok(())
@@ -236,6 +246,39 @@ mod tests {
 		let xt = construct_sudo_extrinsic(xt)?;
 		assert_eq!(xt.call_name(), "sudo");
 		assert_eq!(xt.pallet_name(), "Sudo");
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn sign_and_submit_wrong_extrinsic_fails() -> Result<()> {
+		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
+		let tx =
+			construct_extrinsic("WrongPallet", "wrongExtrinsic", vec!["0x11".to_string()]).await?;
+		assert!(matches!(
+			sign_and_submit_extrinsic(client, tx, "//Alice").await,
+			Err(Error::ExtrinsicSubmissionError(message)) if message.contains("PalletNameNotFound(\"WrongPallet\"))")
+		));
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn construct_sudo_extrinsic_works() -> Result<()> {
+		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
+		let pallets = parse_chain_metadata(&client).await?;
+		let force_transfer = find_extrinsic_by_name(&pallets, "Balances", "force_transfer").await?;
+		let extrinsic = construct_extrinsic(
+			"Balances",
+			&force_transfer,
+			vec![
+				"Id(5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty)".to_string(),
+				"Id(5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy)".to_string(),
+				"100".to_string(),
+			],
+		)
+		.await?;
+		let sudo_extrinsic = construct_sudo_extrinsic(extrinsic).await?;
+		assert_eq!(sudo_extrinsic.call_name(), "sudo");
+		assert_eq!(sudo_extrinsic.pallet_name(), "Sudo");
 		Ok(())
 	}
 }
