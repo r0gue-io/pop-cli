@@ -4723,6 +4723,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "askama",
+ "clap",
  "duct",
  "flate2",
  "glob",

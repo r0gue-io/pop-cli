@@ -187,7 +187,7 @@ pub async fn upload_smart_contract(
 		.await
 		.map_err(|error_variant| Error::UploadContractError(format!("{:?}", error_variant)))?;
 	if let Some(code_stored) = upload_result.code_stored {
-		return Ok(format!("0x{:?}", code_stored.code_hash));
+		return Ok(format!("{:?}", code_stored.code_hash));
 	} else {
 		let code_hash: String =
 			upload_exec.code().code_hash().iter().map(|b| format!("{:02x}", b)).collect();
@@ -330,6 +330,7 @@ mod tests {
 		};
 		let upload_exec = set_up_upload(up_opts).await?;
 		let upload_result = dry_run_upload(&upload_exec).await?;
+		assert!(!upload_result.code_hash.starts_with("0x0x"));
 		assert!(upload_result.code_hash.starts_with("0x"));
 		Ok(())
 	}
@@ -361,6 +362,7 @@ mod tests {
 
 		// Only upload a Smart Contract
 		let upload_result = upload_smart_contract(&upload_exec).await?;
+		assert!(!upload_result.starts_with("0x0x"));
 		assert!(upload_result.starts_with("0x"));
 		//Error when Smart Contract has been already uploaded
 		assert!(matches!(

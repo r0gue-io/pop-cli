@@ -1,0 +1,142 @@
+{{- let using_runtime_event = pallet_common_types|contains(TemplatePalletConfigCommonTypes::RuntimeEvent) -}}
+{{- let using_runtime_origin = pallet_common_types|contains(TemplatePalletConfigCommonTypes::RuntimeOrigin) -}}
+{{- let using_currency = pallet_common_types|contains(TemplatePalletConfigCommonTypes::Currency) -}}
+use crate::{self as pallet_^^name|lower^^, *};
+
+pub use frame::{
+	deps::{frame_support::runtime, sp_io::TestExternalities},
+	runtime::prelude::*,
+	testing_prelude::*,
+    {{- if using_currency }}
+    traits::fungible::Mutate
+    {{- endif }}
+};
+
+type Block = MockBlock<Test>;
+
+{{ if using_currency }}
+type Balance = u64;
+{{- endif }}
+
+#[runtime]
+mod runtime{
+    #[runtime::runtime]
+    #[runtime::derive(
+		RuntimeCall,
+		RuntimeEvent,
+		RuntimeError,
+		RuntimeOrigin,
+		RuntimeFreezeReason,
+		RuntimeHoldReason,
+		RuntimeSlashReason,
+		RuntimeLockId,
+		RuntimeTask
+    )]
+    pub struct Test;
+
+    #[runtime::pallet_index(0)]
+    pub type System = frame_system;
+
+    {{ if using_currency }}
+    #[runtime::pallet_index(1)]
+    pub type Balances = pallet_balances;
+    {{- endif }}
+
+    #[runtime::pallet_index(2)]
+	pub type ^^name|capitalize^^ = pallet_^^name|lower^^;
+}
+
+#[derive_impl(frame_system::config_preludes::TestDefaultConfig)]
+impl frame_system::Config for Test {
+	type Block = Block;
+    {{- if using_currency -}}
+	type AccountData = pallet_balances::AccountData<Balance>;
+    {{- endif -}}
+}
+
+{{ if using_currency -}}
+#[derive_impl(pallet_balances::config_preludes::TestDefaultConfig)]
+impl pallet_balances::Config for Test {
+	type AccountStore = System;
+}
+{{- endif }}
+
+{{- if pallet_default_config }}
+#[derive_impl(pallet_^^name|lower^^::config_preludes::TestDefaultConfig)]
+{{- endif }}
+impl pallet_^^name|lower^^::Config for Test {
+    {{- if using_runtime_event && !pallet_default_config -}}
+    type RuntimeEvent = RuntimeEvent;
+    {{- endif -}}
+    {{- if (using_runtime_origin || pallet_custom_origin) && !pallet_default_config -}}
+    type RuntimeOrigin = RuntimeOrigin;
+    {{- endif -}}
+    {{- if using_currency -}}
+    type Currency = Balances;
+    {{- if !pallet_default_config }}
+    type RuntimeHoldReason = RuntimeHoldReason;
+    type RuntimeFreezeReason = RuntimeFreezeReason;
+    {{- endif -}}
+    {{- endif -}}
+}
+
+pub(crate) struct StateBuilder{
+    {{- if using_currency -}}
+    balances: Vec<(<Test as frame_system::Config>::AccountId, Balance)>
+    {{- endif -}}
+}
+
+impl Default for StateBuilder{
+    fn default() -> Self {
+		Self { 
+            {{-if using_currency -}}
+            balances: vec![]
+            {{- endif -}}
+        }
+	}
+}
+
+impl StateBuilder {
+    {{- if using_currency -}}
+    /// This function helps to construct a initial state where some accounts have balances
+	fn add_balance(
+		mut self,
+		who: <Test as frame_system::Config>::AccountId,
+		amount: Balance,
+	) -> Self {
+		self.balances.push((who, amount));
+		self
+	}
+    {{- endif }}
+
+    pub(crate) fn build_and_execute(self, test: impl FnOnce() -> ()) {
+        let mut ext: TestExternalities = frame_system::GenesisConfig::<Test>::default()
+                    .build_storage()
+                    .unwrap()
+                    .into();
+
+        // Test setup
+        ext.execute_with(|| {
+            System::set_block_number(1);
+            {{- if using_currency -}}
+            self.balances.iter().for_each(|(who, amount)| {
+                <Test as Config>::Currency::set_balance(who, *amount);
+            })
+            {{- endif }}
+        });
+
+        ext.execute_with(test);
+
+        // Test assertions
+        ext.execute_with(|| {
+
+        });
+    }
+}
+
+pub fn new_test_ext() -> TestExternalities {
+	frame_system::GenesisConfig::<Test>::default()
+		.build_storage()
+		.unwrap()
+		.into()
+}
