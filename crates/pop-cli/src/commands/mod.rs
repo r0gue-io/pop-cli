@@ -98,7 +98,7 @@ impl Command {
 			},
 			#[cfg(feature = "contract")]
 			Self::Call(args) => match args.command {
-				call::Command::Contract(cmd) => cmd.execute().await.map(|_| Value::Null),
+				call::Command::Contract(cmd) => Box::new(cmd).execute().await.map(|_| Value::Null),
 			},
 			#[cfg(any(feature = "parachain", feature = "contract"))]
 			Self::Up(args) => match args.command {

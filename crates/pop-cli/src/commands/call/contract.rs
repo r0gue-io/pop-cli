@@ -61,7 +61,7 @@ pub struct CallContractCommand {
 
 impl CallContractCommand {
 	/// Executes the command.
-	pub(crate) async fn execute(self) -> Result<()> {
+	pub(crate) async fn execute(self: Box<Self>) -> Result<()> {
 		clear_screen()?;
 		intro(format!("{}: Calling a contract", style(" Pop CLI ").black().on_magenta()))?;
 		set_theme(Theme);
@@ -69,7 +69,7 @@ impl CallContractCommand {
 		let call_config = if self.contract.is_none() {
 			guide_user_to_call_contract().await?
 		} else {
-			self.clone()
+			*self.clone()
 		};
 		let contract = call_config
 			.contract
@@ -114,10 +114,6 @@ impl CallContractCommand {
 			let call_dry_run_result = dry_run_call(&call_exec).await?;
 			log::info(format!("Result: {}", call_dry_run_result))?;
 			log::warning("Your call has not been executed.")?;
-			log::warning(format!(
-		            "To submit the transaction and execute the call on chain, add {} flag to the command.",
-		            "-x/--execute"
-		    ))?;
 		} else {
 			let weight_limit = if self.gas_limit.is_some() && self.proof_size.is_some() {
 				Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap())
@@ -144,6 +140,13 @@ impl CallContractCommand {
 				.map_err(|err| anyhow!("{} {}", "ERROR:", format!("{err:?}")))?;
 
 			log::info(call_result)?;
+		}
+		if self.contract.is_none() {
+			let another_call: bool =
+				confirm("Do you want to do another call?").initial_value(false).interact()?;
+			if another_call {
+				Box::pin(self.execute()).await?;
+			}
 		}
 
 		outro("Call completed successfully!")?;
@@ -191,19 +194,23 @@ async fn guide_user_to_call_contract() -> anyhow::Result<CallContractCommand> {
 			.default_input("0")
 			.interact()?;
 	}
-	// Prompt for gas limit and proof_size of the call.
-	let gas_limit_input: String = input("Enter the gas limit:")
-		.required(false)
-		.default_input("")
-		.placeholder("If left blank, an estimation will be used")
-		.interact()?;
-	let gas_limit: Option<u64> = gas_limit_input.parse::<u64>().ok(); // If blank or bad input, estimate it.
-	let proof_size_input: String = input("Enter the proof size limit:")
-		.required(false)
-		.placeholder("If left blank, an estimation will be used")
-		.default_input("")
-		.interact()?;
-	let proof_size: Option<u64> = proof_size_input.parse::<u64>().ok(); // If blank or bad input, estimate it.
+	let mut gas_limit: Option<u64> = None;
+	let mut proof_size: Option<u64> = None;
+	if message.mutates {
+		// Prompt for gas limit and proof_size of the call.
+		let gas_limit_input: String = input("Enter the gas limit:")
+			.required(false)
+			.default_input("")
+			.placeholder("If left blank, an estimation will be used")
+			.interact()?;
+		gas_limit = gas_limit_input.parse::<u64>().ok(); // If blank or bad input, estimate it.
+		let proof_size_input: String = input("Enter the proof size limit:")
+			.required(false)
+			.placeholder("If left blank, an estimation will be used")
+			.default_input("")
+			.interact()?;
+		proof_size = proof_size_input.parse::<u64>().ok(); // If blank or bad input, estimate it.
+	}
 
 	// Prompt for contract location.
 	let url: String = input("Where is your contract deployed?")
@@ -217,10 +224,13 @@ async fn guide_user_to_call_contract() -> anyhow::Result<CallContractCommand> {
 		.default_input("//Alice")
 		.interact()?;
 
-	let is_call_confirmed: bool =
-		confirm("Do you want to execute the call? (Selecting 'No' will perform a dry run)")
-			.initial_value(true)
-			.interact()?;
+	let mut is_call_confirmed: bool = true;
+	if message.mutates {
+		is_call_confirmed =
+			confirm("Do you want to execute the call? (Selecting 'No' will perform a dry run)")
+				.initial_value(true)
+				.interact()?;
+	}
 
 	Ok(CallContractCommand {
 		path: Some(contract_path.to_path_buf()),
