@@ -166,7 +166,7 @@ async fn guide_user_to_call_contract() -> anyhow::Result<CallContractCommand> {
 
 	// Prompt for contract address.
 	let contract_address: String = input("Paste the on-chain contract address:")
-		.placeholder("5DYs7UGBm2LuX4ryvyqfksozNAW5V47tPbGiVgnjYWCZ29bt")
+		.placeholder("e.g. 5DYs7UGBm2LuX4ryvyqfksozNAW5V47tPbGiVgnjYWCZ29bt")
 		.validate(|input: &String| match parse_account(input) {
 			Ok(_) => Ok(()),
 			Err(_) => Err("Invalid address."),
@@ -174,7 +174,13 @@ async fn guide_user_to_call_contract() -> anyhow::Result<CallContractCommand> {
 		.default_input("5DYs7UGBm2LuX4ryvyqfksozNAW5V47tPbGiVgnjYWCZ29bt")
 		.interact()?;
 
-	let messages = get_messages(contract_path)?;
+	let messages = match get_messages(contract_path) {
+		Ok(messages) => messages,
+		Err(e) => {
+			outro_cancel("Unable to fetch contract metadata.")?;
+			return Err(anyhow!(format!("{}", e.to_string())));
+		},
+	};
 	let message = display_select_options(&messages)?;
 	let mut contract_args = Vec::new();
 	for arg in &message.args {
@@ -191,12 +197,12 @@ async fn guide_user_to_call_contract() -> anyhow::Result<CallContractCommand> {
 	let gas_limit_input: String = input("Enter the gas limit:")
 		.required(false)
 		.default_input("")
-		.placeholder("if left blank, an estimation will be used")
+		.placeholder("If left blank, an estimation will be used")
 		.interact()?;
 	let gas_limit: Option<u64> = gas_limit_input.parse::<u64>().ok(); // If blank or bad input, estimate it.
 	let proof_size_input: String = input("Enter the proof size limit:")
 		.required(false)
-		.placeholder("if left blank, an estimation will be used")
+		.placeholder("If left blank, an estimation will be used")
 		.default_input("")
 		.interact()?;
 	let proof_size: Option<u64> = proof_size_input.parse::<u64>().ok(); // If blank or bad input, estimate it.
