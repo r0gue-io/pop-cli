@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{
-	cli::{traits::Cli as _, Cli},
-	style::Theme,
+use crate::cli::{
+	traits::{Cli as _, Confirm, Input, Select},
+	Cli,
 };
 use anyhow::{anyhow, Result};
 use clap::Args;
-use cliclack::{clear_screen, confirm, input, intro, log, outro, outro_cancel, set_theme};
-use console::style;
 use pop_contracts::{
 	call_smart_contract, dry_run_call, dry_run_gas_estimate_call, get_messages, parse_account,
 	set_up_call, CallOpts, Message,
@@ -62,9 +60,7 @@ pub struct CallContractCommand {
 impl CallContractCommand {
 	/// Executes the command.
 	pub(crate) async fn execute(self: Box<Self>) -> Result<()> {
-		clear_screen()?;
-		intro(format!("{}: Calling a contract", style(" Pop CLI ").black().on_magenta()))?;
-		set_theme(Theme);
+		Cli.intro("Calling a contract")?;
 
 		let call_config = if self.contract.is_none() {
 			guide_user_to_call_contract().await?
@@ -97,12 +93,12 @@ impl CallContractCommand {
 			spinner.start("Doing a dry run to estimate the gas...");
 			match dry_run_gas_estimate_call(&call_exec).await {
 				Ok(w) => {
-					log::info(format!("Gas limit: {:?}", w))?;
-					log::warning("Your call has not been executed.")?;
+					Cli.info(format!("Gas limit: {:?}", w))?;
+					Cli.warning("Your call has not been executed.")?;
 				},
 				Err(e) => {
 					spinner.error(format!("{e}"));
-					outro_cancel("Call failed.")?;
+					Cli.outro_cancel("Call failed.")?;
 				},
 			};
 			return Ok(());
@@ -112,8 +108,8 @@ impl CallContractCommand {
 			let spinner = cliclack::spinner();
 			spinner.start("Calling the contract...");
 			let call_dry_run_result = dry_run_call(&call_exec).await?;
-			log::info(format!("Result: {}", call_dry_run_result))?;
-			log::warning("Your call has not been executed.")?;
+			Cli.info(format!("Result: {}", call_dry_run_result))?;
+			Cli.warning("Your call has not been executed.")?;
 		} else {
 			let weight_limit = if self.gas_limit.is_some() && self.proof_size.is_some() {
 				Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap())
@@ -122,12 +118,12 @@ impl CallContractCommand {
 				spinner.start("Doing a dry run to estimate the gas...");
 				match dry_run_gas_estimate_call(&call_exec).await {
 					Ok(w) => {
-						log::info(format!("Gas limit: {:?}", w))?;
+						Cli.info(format!("Gas limit: {:?}", w))?;
 						w
 					},
 					Err(e) => {
 						spinner.error(format!("{e}"));
-						outro_cancel("Call failed.")?;
+						Cli.outro_cancel("Call failed.")?;
 						return Ok(());
 					},
 				}
@@ -139,17 +135,17 @@ impl CallContractCommand {
 				.await
 				.map_err(|err| anyhow!("{} {}", "ERROR:", format!("{err:?}")))?;
 
-			log::info(call_result)?;
+			Cli.info(call_result)?;
 		}
 		if self.contract.is_none() {
 			let another_call: bool =
-				confirm("Do you want to do another call?").initial_value(false).interact()?;
+				Cli.confirm("Do you want to do another call?").initial_value(false).interact()?;
 			if another_call {
 				Box::pin(self.execute()).await?;
 			}
 		}
 
-		outro("Call completed successfully!")?;
+		Cli.outro("Call completed successfully!")?;
 		Ok(())
 	}
 }
@@ -159,14 +155,16 @@ async fn guide_user_to_call_contract() -> anyhow::Result<CallContractCommand> {
 	Cli.intro("Call a contract")?;
 
 	// Prompt for location of your contract.
-	let input_path: String = input("Where is your project located?")
+	let input_path: String = Cli
+		.input("Where is your project located?")
 		.placeholder("./")
 		.default_input("./")
 		.interact()?;
 	let contract_path = Path::new(&input_path);
 
 	// Prompt for contract address.
-	let contract_address: String = input("Paste the on-chain contract address:")
+	let contract_address: String = Cli
+		.input("Paste the on-chain contract address:")
 		.placeholder("e.g. 5DYs7UGBm2LuX4ryvyqfksozNAW5V47tPbGiVgnjYWCZ29bt")
 		.validate(|input: &String| match parse_account(input) {
 			Ok(_) => Ok(()),
@@ -178,18 +176,19 @@ async fn guide_user_to_call_contract() -> anyhow::Result<CallContractCommand> {
 	let messages = match get_messages(contract_path) {
 		Ok(messages) => messages,
 		Err(e) => {
-			outro_cancel("Unable to fetch contract metadata.")?;
+			Cli.outro_cancel("Unable to fetch contract metadata.")?;
 			return Err(anyhow!(format!("{}", e.to_string())));
 		},
 	};
 	let message = display_select_options(&messages)?;
 	let mut contract_args = Vec::new();
 	for arg in &message.args {
-		contract_args.push(input(arg).placeholder(arg).interact()?);
+		contract_args.push(Cli.input(arg).placeholder(arg).interact()?);
 	}
 	let mut value = "0".to_string();
 	if message.payable {
-		value = input("Value to transfer to the call:")
+		value = Cli
+			.input("Value to transfer to the call:")
 			.placeholder("0")
 			.default_input("0")
 			.interact()?;
@@ -198,13 +197,15 @@ async fn guide_user_to_call_contract() -> anyhow::Result<CallContractCommand> {
 	let mut proof_size: Option<u64> = None;
 	if message.mutates {
 		// Prompt for gas limit and proof_size of the call.
-		let gas_limit_input: String = input("Enter the gas limit:")
+		let gas_limit_input: String = Cli
+			.input("Enter the gas limit:")
 			.required(false)
 			.default_input("")
 			.placeholder("If left blank, an estimation will be used")
 			.interact()?;
 		gas_limit = gas_limit_input.parse::<u64>().ok(); // If blank or bad input, estimate it.
-		let proof_size_input: String = input("Enter the proof size limit:")
+		let proof_size_input: String = Cli
+			.input("Enter the proof size limit:")
 			.required(false)
 			.placeholder("If left blank, an estimation will be used")
 			.default_input("")
@@ -213,23 +214,25 @@ async fn guide_user_to_call_contract() -> anyhow::Result<CallContractCommand> {
 	}
 
 	// Prompt for contract location.
-	let url: String = input("Where is your contract deployed?")
+	let url: String = Cli
+		.input("Where is your contract deployed?")
 		.placeholder("ws://localhost:9944")
 		.default_input("ws://localhost:9944")
 		.interact()?;
 
 	// Who is calling the contract.
-	let suri: String = input("Signer calling the contract:")
+	let suri: String = Cli
+		.input("Signer calling the contract:")
 		.placeholder("//Alice")
 		.default_input("//Alice")
 		.interact()?;
 
 	let mut is_call_confirmed: bool = true;
 	if message.mutates {
-		is_call_confirmed =
-			confirm("Do you want to execute the call? (Selecting 'No' will perform a dry run)")
-				.initial_value(true)
-				.interact()?;
+		is_call_confirmed = Cli
+			.confirm("Do you want to execute the call? (Selecting 'No' will perform a dry run)")
+			.initial_value(true)
+			.interact()?;
 	}
 
 	Ok(CallContractCommand {
@@ -248,9 +251,11 @@ async fn guide_user_to_call_contract() -> anyhow::Result<CallContractCommand> {
 }
 
 fn display_select_options(messages: &Vec<Message>) -> Result<&Message> {
-	let mut prompt = cliclack::select("Select the message to call:");
+	let mut cli = Cli;
+	let mut prompt = cli.select("Select the message to call:");
 	for message in messages {
 		prompt = prompt.item(message, &message.label, &message.docs);
 	}
-	Ok(prompt.interact()?)
+	let selected_message = prompt.interact()?;
+	Ok(selected_message)
 }

@@ -13,6 +13,8 @@ pub(crate) mod traits {
 		fn confirm(&mut self, prompt: impl Display) -> impl Confirm;
 		/// Prints an info message.
 		fn info(&mut self, text: impl Display) -> Result<()>;
+		/// Constructs a new [`Input`] prompt.
+		fn input(&mut self, prompt: impl Display) -> impl Input;
 		/// Prints a header of the prompt sequence.
 		fn intro(&mut self, title: impl Display) -> Result<()>;
 		/// Constructs a new [`MultiSelect`] prompt.
@@ -21,6 +23,8 @@ pub(crate) mod traits {
 		fn outro(&mut self, message: impl Display) -> Result<()>;
 		/// Prints a footer of the prompt sequence with a failure style.
 		fn outro_cancel(&mut self, message: impl Display) -> Result<()>;
+		/// Constructs a new [`Select`] prompt.
+		fn select<T: Clone + Eq>(&mut self, prompt: impl Display) -> impl Select<T>;
 		/// Prints a success message.
 		fn success(&mut self, message: impl Display) -> Result<()>;
 		/// Prints a warning message.
@@ -29,8 +33,27 @@ pub(crate) mod traits {
 
 	/// A confirmation prompt.
 	pub trait Confirm {
+		/// Sets the initially selected value.
+		fn initial_value(self, initial_value: bool) -> Self;
 		/// Starts the prompt interaction.
 		fn interact(&mut self) -> Result<bool>;
+	}
+
+	/// A text input prompt.
+	pub trait Input {
+		/// Sets the default value for the input.
+		fn default_input(self, value: &str) -> Self;
+		/// Starts the prompt interaction.
+		fn interact(&mut self) -> Result<String>;
+		/// Sets the placeholder (hint) text for the input.
+		fn placeholder(self, value: &str) -> Self;
+		/// Sets whether the input is required.
+		fn required(self, required: bool) -> Self;
+		/// Sets a validation callback for the input that is called when the user submits.
+		fn validate(
+			self,
+			validator: impl Fn(&String) -> std::result::Result<(), &'static str> + 'static,
+		) -> Self;
 	}
 
 	/// A multi-select prompt.
@@ -41,6 +64,14 @@ pub(crate) mod traits {
 		fn item(self, value: T, label: impl Display, hint: impl Display) -> Self;
 		/// Sets whether the input is required.
 		fn required(self, required: bool) -> Self;
+	}
+
+	/// A select prompt.
+	pub trait Select<T> {
+		/// Starts the prompt interaction.
+		fn interact(&mut self) -> Result<T>;
+		/// Adds an item to the selection prompt.
+		fn item(self, value: T, label: impl Display, hint: impl Display) -> Self;
 	}
 }
 
@@ -55,6 +86,11 @@ impl traits::Cli for Cli {
 	/// Prints an info message.
 	fn info(&mut self, text: impl Display) -> Result<()> {
 		cliclack::log::info(text)
+	}
+
+	/// Constructs a new [`Input`] prompt.
+	fn input(&mut self, prompt: impl Display) -> impl traits::Input {
+		Input(cliclack::input(prompt))
 	}
 
 	/// Prints a header of the prompt sequence.
@@ -79,6 +115,11 @@ impl traits::Cli for Cli {
 		cliclack::outro_cancel(message)
 	}
 
+	/// Constructs a new [`Select`] prompt.
+	fn select<T: Clone + Eq>(&mut self, prompt: impl Display) -> impl traits::Select<T> {
+		Select::<T>(cliclack::select(prompt))
+	}
+
 	/// Prints a success message.
 	fn success(&mut self, message: impl Display) -> Result<()> {
 		cliclack::log::success(message)
@@ -96,6 +137,43 @@ impl traits::Confirm for Confirm {
 	/// Starts the prompt interaction.
 	fn interact(&mut self) -> Result<bool> {
 		self.0.interact()
+	}
+	/// Sets the initially selected value.
+	fn initial_value(mut self, initial_value: bool) -> Self {
+		self.0 = self.0.initial_value(initial_value);
+		self
+	}
+}
+
+/// A input prompt using cliclack.
+struct Input(cliclack::Input);
+impl traits::Input for Input {
+	/// Sets the default value for the input.
+	fn default_input(mut self, value: &str) -> Self {
+		self.0 = self.0.default_input(value);
+		self
+	}
+	/// Starts the prompt interaction.
+	fn interact(&mut self) -> Result<String> {
+		self.0.interact()
+	}
+	/// Sets the placeholder (hint) text for the input.
+	fn placeholder(mut self, placeholder: &str) -> Self {
+		self.0 = self.0.placeholder(placeholder);
+		self
+	}
+	/// Sets whether the input is required.
+	fn required(mut self, required: bool) -> Self {
+		self.0 = self.0.required(required);
+		self
+	}
+	/// Sets a validation callback for the input that is called when the user submits.
+	fn validate(
+		mut self,
+		validator: impl Fn(&String) -> std::result::Result<(), &'static str> + 'static,
+	) -> Self {
+		self.0 = self.0.validate(validator);
+		self
 	}
 }
 
@@ -117,6 +195,22 @@ impl<T: Clone + Eq> traits::MultiSelect<T> for MultiSelect<T> {
 	/// Sets whether the input is required.
 	fn required(mut self, required: bool) -> Self {
 		self.0 = self.0.required(required);
+		self
+	}
+}
+
+/// A select prompt using cliclack.
+struct Select<T: Clone + Eq>(cliclack::Select<T>);
+
+impl<T: Clone + Eq> traits::Select<T> for Select<T> {
+	/// Starts the prompt interaction.
+	fn interact(&mut self) -> Result<T> {
+		self.0.interact()
+	}
+
+	/// Adds an item to the selection prompt.
+	fn item(mut self, value: T, label: impl Display, hint: impl Display) -> Self {
+		self.0 = self.0.item(value, label, hint);
 		self
 	}
 }
