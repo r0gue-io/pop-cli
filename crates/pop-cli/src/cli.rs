@@ -218,18 +218,21 @@ impl<T: Clone + Eq> traits::Select<T> for Select<T> {
 #[cfg(test)]
 pub(crate) mod tests {
 	use super::traits::*;
-	use std::{fmt::Display, io::Result};
+	use std::{fmt::Display, io::Result, usize};
 
 	/// Mock Cli with optional expectations
 	#[derive(Default)]
 	pub(crate) struct MockCli {
 		confirm_expectation: Option<(String, bool)>,
 		info_expectations: Vec<String>,
+		input_expectations: Vec<(String, String)>,
 		intro_expectation: Option<String>,
 		outro_expectation: Option<String>,
 		multiselect_expectation:
 			Option<(String, Option<bool>, bool, Option<Vec<(String, String)>>)>,
 		outro_cancel_expectation: Option<String>,
+		select_expectation:
+			Option<(String, Option<bool>, bool, Option<Vec<(String, String)>>, usize)>,
 		success_expectations: Vec<String>,
 		warning_expectations: Vec<String>,
 	}
@@ -241,6 +244,11 @@ pub(crate) mod tests {
 
 		pub(crate) fn expect_confirm(mut self, prompt: impl Display, confirm: bool) -> Self {
 			self.confirm_expectation = Some((prompt.to_string(), confirm));
+			self
+		}
+
+		pub(crate) fn expect_input(mut self, prompt: impl Display, input: String) -> Self {
+			self.input_expectations.push((prompt.to_string(), input));
 			self
 		}
 
@@ -275,6 +283,18 @@ pub(crate) mod tests {
 			self
 		}
 
+		pub(crate) fn expect_select<T>(
+			mut self,
+			prompt: impl Display,
+			required: Option<bool>,
+			collect: bool,
+			items: Option<Vec<(String, String)>>,
+			item: usize,
+		) -> Self {
+			self.select_expectation = Some((prompt.to_string(), required, collect, items, item));
+			self
+		}
+
 		pub(crate) fn expect_success(mut self, message: impl Display) -> Self {
 			self.success_expectations.push(message.to_string());
 			self
@@ -292,6 +312,9 @@ pub(crate) mod tests {
 			if !self.info_expectations.is_empty() {
 				panic!("`{}` info log expectations not satisfied", self.info_expectations.join(","))
 			}
+			if !self.input_expectations.is_empty() {
+				panic!("`{:?}` input expectation not satisfied", self.input_expectations)
+			}
 			if let Some(expectation) = self.intro_expectation {
 				panic!("`{expectation}` intro expectation not satisfied")
 			}
@@ -303,6 +326,9 @@ pub(crate) mod tests {
 			}
 			if let Some(expectation) = self.outro_cancel_expectation {
 				panic!("`{expectation}` outro cancel expectation not satisfied")
+			}
+			if let Some((prompt, _, _, _, _)) = self.select_expectation {
+				panic!("`{prompt}` select prompt expectation not satisfied")
 			}
 			if !self.success_expectations.is_empty() {
 				panic!(
@@ -334,6 +360,20 @@ pub(crate) mod tests {
 			let message = message.to_string();
 			self.info_expectations.retain(|x| *x != message);
 			Ok(())
+		}
+
+		fn input(&mut self, prompt: impl Display) -> impl Input {
+			let prompt = prompt.to_string();
+			if let Some((expectation, input)) = self.input_expectations.pop() {
+				assert_eq!(expectation, prompt, "prompt does not satisfy expectation");
+				return MockInput {
+					prompt: input.clone(),
+					input,
+					placeholder: "".to_string(),
+					required: false,
+				};
+			}
+			MockInput::default()
 		}
 
 		fn intro(&mut self, title: impl Display) -> Result<()> {
@@ -382,6 +422,21 @@ pub(crate) mod tests {
 			Ok(())
 		}
 
+		fn select<T: Clone + Eq>(&mut self, prompt: impl Display) -> impl Select<T> {
+			let prompt = prompt.to_string();
+			println!("prompt: {}", prompt);
+			if let Some((expectation, _, collect, items_expectation, item)) =
+				self.select_expectation.take()
+			{
+				println!("expectation: {}", expectation);
+				println!("items_expectation: {:?}", items_expectation);
+				assert_eq!(expectation, prompt, "prompt does not satisfy expectation");
+				return MockSelect { items_expectation, collect, items: vec![], item };
+			}
+
+			MockSelect::default()
+		}
+
 		fn success(&mut self, message: impl Display) -> Result<()> {
 			let message = message.to_string();
 			self.success_expectations.retain(|x| *x != message);
@@ -404,6 +459,46 @@ pub(crate) mod tests {
 	impl Confirm for MockConfirm {
 		fn interact(&mut self) -> Result<bool> {
 			Ok(self.confirm)
+		}
+		fn initial_value(mut self, initial_value: bool) -> Self {
+			self.confirm = initial_value;
+			self
+		}
+	}
+
+	/// Mock input prompt
+	#[derive(Default)]
+	struct MockInput {
+		prompt: String,
+		input: String,
+		placeholder: String,
+		required: bool,
+	}
+
+	impl Input for MockInput {
+		fn interact(&mut self) -> Result<String> {
+			Ok(self.prompt.clone())
+		}
+		fn default_input(mut self, value: &str) -> Self {
+			self.input = value.to_string();
+			self
+		}
+
+		fn placeholder(mut self, value: &str) -> Self {
+			self.placeholder = value.to_string();
+			self
+		}
+
+		fn required(mut self, value: bool) -> Self {
+			self.required = value;
+			self
+		}
+
+		fn validate(
+			self,
+			_validator: impl Fn(&String) -> std::result::Result<(), &'static str> + 'static,
+		) -> Self {
+			self
 		}
 	}
 
@@ -450,6 +545,40 @@ pub(crate) mod tests {
 			if let Some(expectation) = self.required_expectation.as_ref() {
 				assert_eq!(*expectation, required, "required does not satisfy expectation");
 				self.required_expectation = None;
+			}
+			self
+		}
+	}
+
+	/// Mock select prompt
+	pub(crate) struct MockSelect<T> {
+		items_expectation: Option<Vec<(String, String)>>,
+		collect: bool,
+		items: Vec<T>,
+		item: usize,
+	}
+
+	impl<T> MockSelect<T> {
+		pub(crate) fn default() -> Self {
+			Self { items_expectation: None, collect: false, items: vec![], item: 0 }
+		}
+	}
+
+	impl<T: Clone + Eq> Select<T> for MockSelect<T> {
+		fn interact(&mut self) -> Result<T> {
+			Ok(self.items[self.item].clone())
+		}
+
+		fn item(mut self, value: T, label: impl Display, hint: impl Display) -> Self {
+			// Check expectations
+			if let Some(items) = self.items_expectation.as_mut() {
+				let item = (label.to_string(), hint.to_string());
+				assert!(items.contains(&item), "`{item:?}` item does not satisfy any expectations");
+				items.retain(|x| *x != item);
+			}
+			// Collect if specified
+			if self.collect {
+				self.items.push(value);
 			}
 			self
 		}
