@@ -239,7 +239,7 @@ mod tests {
 		fs::create_dir(&target_contract_dir.join("ink"))?;
 		// Copy a mocked testing.contract file inside the target directory
 		let current_dir = env::current_dir().expect("Failed to get current directory");
-		let contract_file = current_dir.join("tests/files/testing.contract");
+		let contract_file = current_dir.join("../../tests/files/testing.contract");
 		fs::copy(contract_file, &target_contract_dir.join("ink/testing.contract"))?;
 		Ok(())
 	}
