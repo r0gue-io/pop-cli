@@ -346,7 +346,8 @@ mod tests {
 		cli.verify()
 	}
 
-	// This test only covers the interactive portion of the call contract command, without actually calling the contract.
+	// This test only covers the interactive portion of the call contract command, without actually
+	// calling the contract.
 	#[tokio::test]
 	async fn guide_user_to_query_contract_works() -> Result<()> {
 		let temp_dir = generate_smart_contract_test_environment()?;
@@ -414,7 +415,8 @@ mod tests {
 		cli.verify()
 	}
 
-	// This test only covers the interactive portion of the call contract command, without actually calling the contract.
+	// This test only covers the interactive portion of the call contract command, without actually
+	// calling the contract.
 	#[tokio::test]
 	async fn guide_user_to_call_contract_works() -> Result<()> {
 		let temp_dir = generate_smart_contract_test_environment()?;
