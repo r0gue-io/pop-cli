@@ -53,3 +53,43 @@ fn process_args(message_params: &[MessageParamSpec<PortableForm>]) -> Vec<String
 	}
 	args
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::{create_smart_contract, errors::Error, Contract};
+	use anyhow::Result;
+	use std::{env, fs, path::PathBuf};
+
+	fn generate_smart_contract_test_environment() -> Result<tempfile::TempDir> {
+		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
+		let temp_contract_dir = temp_dir.path().join("testing");
+		fs::create_dir(&temp_contract_dir)?;
+		create_smart_contract("testing", temp_contract_dir.as_path(), &Contract::Standard)?;
+		Ok(temp_dir)
+	}
+	// Function that mocks the build process generating the contract artifacts.
+	fn mock_build_process(temp_contract_dir: PathBuf) -> Result<(), Error> {
+		// Create a target directory
+		let target_contract_dir = temp_contract_dir.join("target");
+		fs::create_dir(&target_contract_dir)?;
+		fs::create_dir(&target_contract_dir.join("ink"))?;
+		// Copy a mocked testing.contract file inside the target directory
+		let current_dir = env::current_dir().expect("Failed to get current directory");
+		let contract_file = current_dir.join("../../tests/files/testing.contract");
+		fs::copy(contract_file, &target_contract_dir.join("ink/testing.contract"))?;
+		Ok(())
+	}
+	#[test]
+	fn get_messages_work() -> Result<()> {
+		let temp_dir = generate_smart_contract_test_environment()?;
+		mock_build_process(temp_dir.path().join("testing"))?;
+		let message = get_messages(&temp_dir.path().join("testing"))?;
+		assert_eq!(message.len(), 2);
+		assert_eq!(message[0].label, "flip");
+		assert_eq!(message[0].docs, " A message that can be called on instantiated contracts.  This one flips the value of the stored `bool` from `true`  to `false` and vice versa.");
+		assert_eq!(message[1].label, "get");
+		assert_eq!(message[1].docs, " Simply returns the current value of our `bool`.");
+		Ok(())
+	}
+}
