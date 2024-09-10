@@ -74,10 +74,13 @@ impl<'a, CLI: Cli> CallContract<'a, CLI> {
 		let contract = call_config
 			.contract
 			.expect("contract can not be none as fallback above is interactive input; qed");
-		// TODO: Can be nill pop call contract --contract <contract>
-		let message = call_config
-			.message
-			.expect("message can not be none as fallback above is interactive input; qed");
+		let message = match call_config.message {
+			Some(m) => m,
+			None => {
+				self.cli.outro_cancel("Please specify the message to call.")?;
+				return Ok(());
+			},
+		};
 
 		let call_exec = set_up_call(CallOpts {
 			path: call_config.path,
@@ -481,6 +484,44 @@ mod tests {
 		assert_eq!(call_config.suri, "//Alice");
 		assert!(call_config.execute);
 		assert!(!call_config.dry_run);
+
+		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn call_contract_messages_fails_no_message() -> Result<()> {
+		let temp_dir = generate_smart_contract_test_environment()?;
+		let mut current_dir = env::current_dir().expect("Failed to get current directory");
+		current_dir.pop();
+		mock_build_process(
+			temp_dir.path().join("testing"),
+			current_dir.join("pop-contracts/tests/files/testing.contract"),
+			current_dir.join("pop-contracts/tests/files/testing.json"),
+		)?;
+
+		let mut cli = MockCli::new()
+			.expect_intro(&"Call a contract")
+			.expect_outro_cancel("Please specify the message to call.");
+
+		// Contract deployed on Pop Network testnet, test get
+		Box::new(CallContract {
+			cli: &mut cli,
+			args: CallContractCommand {
+				path: Some(temp_dir.path().join("testing")),
+				contract: Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string()),
+				message: None,
+				args: vec![].to_vec(),
+				value: "0".to_string(),
+				gas_limit: None,
+				proof_size: None,
+				url: Url::parse("wss://rpc1.paseo.popnetwork.xyz")?,
+				suri: "//Alice".to_string(),
+				dry_run: false,
+				execute: false,
+			},
+		})
+		.execute()
+		.await?;
 
 		cli.verify()
 	}
