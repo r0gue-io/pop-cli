@@ -344,6 +344,7 @@ mod tests {
 		let items = vec![
 			("flip".into(), " A message that can be called on instantiated contracts.  This one flips the value of the stored `bool` from `true`  to `false` and vice versa.".into()),
 			("get".into(), " Simply returns the current value of our `bool`.".into()),
+			("specific_flip".into(), " A message for testing, flips the value of the stored `bool` with `new_value`  and is payable".into())
 		];
 		// The inputs are processed in reverse order.
 		let mut cli = MockCli::new()
