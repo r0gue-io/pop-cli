@@ -424,12 +424,9 @@ pub(crate) mod tests {
 
 		fn select<T: Clone + Eq>(&mut self, prompt: impl Display) -> impl Select<T> {
 			let prompt = prompt.to_string();
-			println!("prompt: {}", prompt);
 			if let Some((expectation, _, collect, items_expectation, item)) =
 				self.select_expectation.take()
 			{
-				println!("expectation: {}", expectation);
-				println!("items_expectation: {:?}", items_expectation);
 				assert_eq!(expectation, prompt, "prompt does not satisfy expectation");
 				return MockSelect { items_expectation, collect, items: vec![], item };
 			}

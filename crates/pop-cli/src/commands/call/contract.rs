@@ -174,7 +174,6 @@ async fn guide_user_to_call_contract<'a, CLI: Cli>(
 		.default_input("./")
 		.interact()?;
 	let contract_path = Path::new(&input_path);
-	println!("path: {:?}", contract_path);
 
 	// Prompt for contract address.
 	let contract_address: String = command
@@ -283,36 +282,20 @@ async fn guide_user_to_call_contract<'a, CLI: Cli>(
 mod tests {
 	use super::*;
 	use crate::cli::MockCli;
-	use pop_contracts::{create_smart_contract, Contract};
-	use std::{env, fs};
+	use pop_contracts::{generate_smart_contract_test_environment, mock_build_process};
+	use std::env;
 	use url::Url;
-
-	fn generate_smart_contract_test_environment() -> Result<tempfile::TempDir> {
-		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
-		let temp_contract_dir = temp_dir.path().join("testing");
-		fs::create_dir(&temp_contract_dir)?;
-		create_smart_contract("testing", temp_contract_dir.as_path(), &Contract::Standard)?;
-		Ok(temp_dir)
-	}
-	// Function that mocks the build process generating the contract artifacts.
-	fn mock_build_process(temp_contract_dir: PathBuf) -> Result<()> {
-		// Create a target directory
-		let target_contract_dir = temp_contract_dir.join("target");
-		fs::create_dir(&target_contract_dir)?;
-		fs::create_dir(&target_contract_dir.join("ink"))?;
-		// Copy a mocked testing.contract and testing.json files inside the target directory
-		let current_dir = env::current_dir().expect("Failed to get current directory");
-		let contract_file = current_dir.join("../../tests/files/testing.contract");
-		fs::copy(contract_file, &target_contract_dir.join("ink/testing.contract"))?;
-		let metadata_file = current_dir.join("../../tests/files/testing.json");
-		fs::copy(metadata_file, &target_contract_dir.join("ink/testing.json"))?;
-		Ok(())
-	}
 
 	#[tokio::test]
 	async fn call_contract_messages_are_ok() -> Result<()> {
 		let temp_dir = generate_smart_contract_test_environment()?;
-		mock_build_process(temp_dir.path().join("testing"))?;
+		let mut current_dir = env::current_dir().expect("Failed to get current directory");
+		current_dir.pop();
+		mock_build_process(
+			temp_dir.path().join("testing"),
+			current_dir.join("pop-contracts/tests/files/testing.contract"),
+			current_dir.join("pop-contracts/tests/files/testing.json"),
+		)?;
 
 		let mut cli = MockCli::new()
 			.expect_intro(&"Call a contract")
@@ -324,7 +307,7 @@ mod tests {
 			cli: &mut cli,
 			args: CallContractCommand {
 				path: Some(temp_dir.path().join("testing")),
-				contract: Some("14BfwaXddoarT9Z6LcfXBmunutk6Ssmy1kBdWX6sy9KRskJz".to_string()),
+				contract: Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string()),
 				message: Some("get".to_string()),
 				args: vec![].to_vec(),
 				value: "0".to_string(),
@@ -347,7 +330,13 @@ mod tests {
 	#[tokio::test]
 	async fn guide_user_to_query_contract_works() -> Result<()> {
 		let temp_dir = generate_smart_contract_test_environment()?;
-		mock_build_process(temp_dir.path().join("testing"))?;
+		let mut current_dir = env::current_dir().expect("Failed to get current directory");
+		current_dir.pop();
+		mock_build_process(
+			temp_dir.path().join("testing"),
+			current_dir.join("pop-contracts/tests/files/testing.contract"),
+			current_dir.join("pop-contracts/tests/files/testing.json"),
+		)?;
 
 		let items = vec![
 			("flip".into(), " A message that can be called on instantiated contracts.  This one flips the value of the stored `bool` from `true`  to `false` and vice versa.".into()),
@@ -370,7 +359,7 @@ mod tests {
 			)
 			.expect_input(
 				"Paste the on-chain contract address:",
-				"14BfwaXddoarT9Z6LcfXBmunutk6Ssmy1kBdWX6sy9KRskJz".into(),
+				"15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".into(),
 			)
 			.expect_input(
 				"Where is your project located?",
@@ -396,7 +385,7 @@ mod tests {
 		.await?;
 		assert_eq!(
 			call_config.contract,
-			Some("14BfwaXddoarT9Z6LcfXBmunutk6Ssmy1kBdWX6sy9KRskJz".to_string())
+			Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string())
 		);
 		assert_eq!(call_config.message, Some("get".to_string()));
 		assert_eq!(call_config.args.len(), 0);
@@ -416,11 +405,18 @@ mod tests {
 	#[tokio::test]
 	async fn guide_user_to_call_contract_works() -> Result<()> {
 		let temp_dir = generate_smart_contract_test_environment()?;
-		mock_build_process(temp_dir.path().join("testing"))?;
+		let mut current_dir = env::current_dir().expect("Failed to get current directory");
+		current_dir.pop();
+		mock_build_process(
+			temp_dir.path().join("testing"),
+			current_dir.join("pop-contracts/tests/files/testing.contract"),
+			current_dir.join("pop-contracts/tests/files/testing.json"),
+		)?;
 
 		let items = vec![
 			("flip".into(), " A message that can be called on instantiated contracts.  This one flips the value of the stored `bool` from `true`  to `false` and vice versa.".into()),
 			("get".into(), " Simply returns the current value of our `bool`.".into()),
+			("specific_flip".into(), " A message for testing, flips the value of the stored `bool` with `new_value`  and is payable".into())
 		];
 		// The inputs are processed in reverse order.
 		let mut cli = MockCli::new()
@@ -430,18 +426,20 @@ mod tests {
 				"Where is your contract deployed?",
 				"wss://rpc1.paseo.popnetwork.xyz".into(),
 			)
+			.expect_input("Enter the proof size limit:", "".into()) // Only if call
+			.expect_input("Enter the gas limit:", "".into()) // Only if call
+			.expect_input("Value to transfer to the call:", "50".into()) // Only if payable
+			.expect_input("new_value", "true".into()) // Args for specific_flip
 			.expect_select::<PathBuf>(
 				"Select the message to call:",
 				Some(false),
 				true,
 				Some(items),
-				0, // "flip" message
+				2, // "specific_flip" message
 			)
-			.expect_input("Enter the proof size limit:", "".into())
-			.expect_input("Enter the gas limit:", "".into())
 			.expect_input(
 				"Paste the on-chain contract address:",
-				"14BfwaXddoarT9Z6LcfXBmunutk6Ssmy1kBdWX6sy9KRskJz".into(),
+				"15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".into(),
 			)
 			.expect_input(
 				"Where is your project located?",
@@ -467,11 +465,12 @@ mod tests {
 		.await?;
 		assert_eq!(
 			call_config.contract,
-			Some("14BfwaXddoarT9Z6LcfXBmunutk6Ssmy1kBdWX6sy9KRskJz".to_string())
+			Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string())
 		);
-		assert_eq!(call_config.message, Some("flip".to_string()));
-		assert_eq!(call_config.args.len(), 0);
-		assert_eq!(call_config.value, "0".to_string());
+		assert_eq!(call_config.message, Some("specific_flip".to_string()));
+		assert_eq!(call_config.args.len(), 1);
+		assert_eq!(call_config.args[0], "true".to_string());
+		assert_eq!(call_config.value, "50".to_string());
 		assert_eq!(call_config.gas_limit, None);
 		assert_eq!(call_config.proof_size, None);
 		assert_eq!(call_config.url.to_string(), "wss://rpc1.paseo.popnetwork.xyz/");
