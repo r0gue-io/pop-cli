@@ -23,6 +23,10 @@ pub struct Message {
 	pub default: bool,
 }
 
+/// Extracts a list of smart contract messages parsing the metadata file.
+///
+/// # Arguments
+/// * `path` -  Location path of the project.
 pub fn get_messages(path: &Path) -> Result<Vec<Message>, Error> {
 	let cargo_toml_path = match path.ends_with("Cargo.toml") {
 		true => path.to_path_buf(),
@@ -44,7 +48,7 @@ pub fn get_messages(path: &Path) -> Result<Vec<Message>, Error> {
 	}
 	Ok(messages)
 }
-//TODO: We are ignoring the type of the argument.
+// Parse the message parameters into a vector of argument labels.
 fn process_args(message_params: &[MessageParamSpec<PortableForm>]) -> Vec<String> {
 	let mut args: Vec<String> = Vec::new();
 	for arg in message_params {
