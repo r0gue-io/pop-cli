@@ -4,6 +4,7 @@
 mod build;
 mod call;
 mod errors;
+mod init_tests;
 mod new;
 mod node;
 mod templates;
@@ -17,6 +18,7 @@ pub use call::{
 	metadata::{get_messages, Message},
 	set_up_call, CallOpts,
 };
+pub use init_tests::{generate_smart_contract_test_environment, mock_build_process};
 pub use new::{create_smart_contract, is_valid_contract_name};
 pub use node::{contracts_node_generator, is_chain_alive, run_contracts_node};
 pub use templates::{Contract, ContractType};
