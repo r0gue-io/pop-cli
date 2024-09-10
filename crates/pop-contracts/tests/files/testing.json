@@ -1,11 +1,11 @@
 {
   "source": {
-    "hash": "0x29972a7ea06ca802e5d857dfb7cb6455220679f4e9314a533840b9865ccbb799",
+    "hash": "0x80776e58b218850d7d86447b2edea78d827ed0ed2499ff3a92b7ea10e4f95eb5",
     "language": "ink! 5.0.0",
     "compiler": "rustc 1.78.0",
     "build_info": {
       "rust_toolchain": "stable-aarch64-apple-darwin",
-      "cargo_contract_version": "4.1.1",
+      "cargo_contract_version": "5.0.0-alpha",
       "build_mode": "Release",
       "wasm_opt_settings": {
         "optimization_passes": "Z",
@@ -367,6 +367,35 @@
         },
         "docs": [
           " Simply returns the current value of our `bool`."
+        ],
+        "default": false
+      },
+      {
+        "label": "specific_flip",
+        "selector": "0x6c0f1df7",
+        "mutates": true,
+        "payable": true,
+        "args": [
+          {
+            "label": "new_value",
+            "type": {
+              "type": 0,
+              "displayName": [
+                "bool"
+              ]
+            }
+          }
+        ],
+        "returnType": {
+          "type": 2,
+          "displayName": [
+            "ink",
+            "MessageResult"
+          ]
+        },
+        "docs": [
+          " A message for testing, flips the value of the stored `bool` with `new_value`",
+          " and is payable"
         ],
         "default": false
       }

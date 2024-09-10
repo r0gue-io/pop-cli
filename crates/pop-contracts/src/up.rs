@@ -215,39 +215,24 @@ pub async fn upload_smart_contract(
 mod tests {
 	use super::*;
 	use crate::{
-		contracts_node_generator, create_smart_contract, errors::Error, run_contracts_node,
-		templates::Contract,
+		contracts_node_generator, errors::Error, generate_smart_contract_test_environment,
+		mock_build_process, run_contracts_node,
 	};
 	use anyhow::Result;
-	use std::{env, fs, process::Command};
+	use std::{env, process::Command};
 	use url::Url;
 
 	const CONTRACTS_NETWORK_URL: &str = "wss://rpc2.paseo.popnetwork.xyz";
 
-	fn generate_smart_contract_test_environment() -> Result<tempfile::TempDir> {
-		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
-		let temp_contract_dir = temp_dir.path().join("testing");
-		fs::create_dir(&temp_contract_dir)?;
-		create_smart_contract("testing", temp_contract_dir.as_path(), &Contract::Standard)?;
-		Ok(temp_dir)
-	}
-	// Function that mocks the build process generating the contract artifacts.
-	fn mock_build_process(temp_contract_dir: PathBuf) -> Result<(), Error> {
-		// Create a target directory
-		let target_contract_dir = temp_contract_dir.join("target");
-		fs::create_dir(&target_contract_dir)?;
-		fs::create_dir(&target_contract_dir.join("ink"))?;
-		// Copy a mocked testing.contract file inside the target directory
-		let current_dir = env::current_dir().expect("Failed to get current directory");
-		let contract_file = current_dir.join("../../tests/files/testing.contract");
-		fs::copy(contract_file, &target_contract_dir.join("ink/testing.contract"))?;
-		Ok(())
-	}
-
 	#[tokio::test]
 	async fn set_up_deployment_works() -> Result<()> {
 		let temp_dir = generate_smart_contract_test_environment()?;
-		mock_build_process(temp_dir.path().join("testing"))?;
+		let current_dir = env::current_dir().expect("Failed to get current directory");
+		mock_build_process(
+			temp_dir.path().join("testing"),
+			current_dir.join("./tests/files/testing.contract"),
+			current_dir.join("./tests/files/testing.json"),
+		)?;
 		let up_opts = UpOpts {
 			path: Some(temp_dir.path().join("testing")),
 			constructor: "new".to_string(),
@@ -266,7 +251,12 @@ mod tests {
 	#[tokio::test]
 	async fn set_up_upload_works() -> Result<()> {
 		let temp_dir = generate_smart_contract_test_environment()?;
-		mock_build_process(temp_dir.path().join("testing"))?;
+		let current_dir = env::current_dir().expect("Failed to get current directory");
+		mock_build_process(
+			temp_dir.path().join("testing"),
+			current_dir.join("./tests/files/testing.contract"),
+			current_dir.join("./tests/files/testing.json"),
+		)?;
 		let up_opts = UpOpts {
 			path: Some(temp_dir.path().join("testing")),
 			constructor: "new".to_string(),
@@ -285,7 +275,12 @@ mod tests {
 	#[tokio::test]
 	async fn dry_run_gas_estimate_instantiate_works() -> Result<()> {
 		let temp_dir = generate_smart_contract_test_environment()?;
-		mock_build_process(temp_dir.path().join("testing"))?;
+		let current_dir = env::current_dir().expect("Failed to get current directory");
+		mock_build_process(
+			temp_dir.path().join("testing"),
+			current_dir.join("./tests/files/testing.contract"),
+			current_dir.join("./tests/files/testing.json"),
+		)?;
 		let up_opts = UpOpts {
 			path: Some(temp_dir.path().join("testing")),
 			constructor: "new".to_string(),
@@ -307,7 +302,12 @@ mod tests {
 	#[tokio::test]
 	async fn dry_run_gas_estimate_instantiate_throw_custom_error() -> Result<()> {
 		let temp_dir = generate_smart_contract_test_environment()?;
-		mock_build_process(temp_dir.path().join("testing"))?;
+		let current_dir = env::current_dir().expect("Failed to get current directory");
+		mock_build_process(
+			temp_dir.path().join("testing"),
+			current_dir.join("./tests/files/testing.contract"),
+			current_dir.join("./tests/files/testing.json"),
+		)?;
 		let up_opts = UpOpts {
 			path: Some(temp_dir.path().join("testing")),
 			constructor: "new".to_string(),
@@ -330,7 +330,12 @@ mod tests {
 	#[tokio::test]
 	async fn dry_run_upload_throw_custom_error() -> Result<()> {
 		let temp_dir = generate_smart_contract_test_environment()?;
-		mock_build_process(temp_dir.path().join("testing"))?;
+		let current_dir = env::current_dir().expect("Failed to get current directory");
+		mock_build_process(
+			temp_dir.path().join("testing"),
+			current_dir.join("./tests/files/testing.contract"),
+			current_dir.join("./tests/files/testing.json"),
+		)?;
 		let up_opts = UpOpts {
 			path: Some(temp_dir.path().join("testing")),
 			constructor: "new".to_string(),
@@ -353,7 +358,12 @@ mod tests {
 	async fn instantiate_and_upload() -> Result<()> {
 		const LOCALHOST_URL: &str = "ws://127.0.0.1:9944";
 		let temp_dir = generate_smart_contract_test_environment()?;
-		mock_build_process(temp_dir.path().join("testing"))?;
+		let current_dir = env::current_dir().expect("Failed to get current directory");
+		mock_build_process(
+			temp_dir.path().join("testing"),
+			current_dir.join("./tests/files/testing.contract"),
+			current_dir.join("./tests/files/testing.json"),
+		)?;
 
 		let cache = temp_dir.path().join("");
 
