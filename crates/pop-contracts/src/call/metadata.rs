@@ -8,6 +8,14 @@ use std::path::Path;
 
 #[derive(Clone, PartialEq, Eq)]
 /// Describes a contract message.
+pub struct Param {
+	/// The label of the parameter.
+	pub label: String,
+	/// The type name of the parameter.
+	pub type_name: String,
+}
+#[derive(Clone, PartialEq, Eq)]
+/// Describes a contract message.
 pub struct Message {
 	/// The label of the message.
 	pub label: String,
@@ -16,7 +24,7 @@ pub struct Message {
 	/// If the message accepts any `value` from the caller.
 	pub payable: bool,
 	/// The parameters of the deployment handler.
-	pub args: Vec<String>,
+	pub args: Vec<Param>,
 	/// The message documentation.
 	pub docs: String,
 	/// If the message is the default for off-chain consumers (e.g UIs).
@@ -49,10 +57,13 @@ pub fn get_messages(path: &Path) -> Result<Vec<Message>, Error> {
 	Ok(messages)
 }
 // Parse the message parameters into a vector of argument labels.
-fn process_args(message_params: &[MessageParamSpec<PortableForm>]) -> Vec<String> {
-	let mut args: Vec<String> = Vec::new();
+fn process_args(message_params: &[MessageParamSpec<PortableForm>]) -> Vec<Param> {
+	let mut args: Vec<Param> = Vec::new();
 	for arg in message_params {
-		args.push(arg.label().to_string());
+		args.push(Param {
+			label: arg.label().to_string(),
+			type_name: arg.ty().display_name().to_string(),
+		});
 	}
 	args
 }
@@ -83,7 +94,9 @@ mod tests {
 		assert_eq!(message[2].label, "specific_flip");
 		assert_eq!(message[2].docs, " A message for testing, flips the value of the stored `bool` with `new_value`  and is payable");
 		// assert parsed arguments
-		assert_eq!(message[2].args, vec!["new_value".to_string()]);
+		assert_eq!(message[2].args.len(), 1);
+		assert_eq!(message[2].args[0].label, "new_value".to_string());
+		assert_eq!(message[2].args[0].type_name, "bool".to_string());
 		Ok(())
 	}
 }
