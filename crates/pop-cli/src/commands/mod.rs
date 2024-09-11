@@ -96,13 +96,21 @@ impl Command {
 					build::Command::Spec(cmd) => cmd.execute().await.map(|_| Value::Null),
 				},
 			},
-			#[cfg(feature = "contract")]
 			Self::Call(args) => match args.command {
-				call::Command::Contract(cmd) =>
+				#[cfg(feature = "parachain")]
+				call::Command::Parachain(cmd) => {
+					Box::new(call::parachain::CallParachain { cli: &mut Cli, args: cmd })
+						.execute()
+						.await
+						.map(|_| Value::Null)
+				},
+				#[cfg(feature = "contract")]
+				call::Command::Contract(cmd) => {
 					Box::new(call::contract::CallContract { cli: &mut Cli, args: cmd })
 						.execute()
 						.await
-						.map(|_| Value::Null),
+						.map(|_| Value::Null)
+				},
 			},
 			#[cfg(any(feature = "parachain", feature = "contract"))]
 			Self::Up(args) => match args.command {
