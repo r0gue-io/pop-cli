@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{cli, cli::traits::Cli as _, cli::Cli, style::style};
+use crate::{
+	cli,
+	cli::{traits::Cli as _, Cli},
+	style::style,
+};
 use clap::{Args, ValueEnum};
 use cliclack::{confirm, input};
 use pop_common::Profile;
@@ -221,7 +225,7 @@ impl BuildSpecCommand {
 		// Locate binary, if it doesn't exist trigger build.
 		let mode: Profile = self.release.into();
 		let cwd = current_dir().unwrap_or(PathBuf::from("./"));
-		let binary_path = match binary_path(&mode.target_folder(&cwd), &cwd.join("node")) {
+		let binary_path = match binary_path(&mode.target_directory(&cwd), &cwd.join("node")) {
 			Ok(binary_path) => binary_path,
 			_ => {
 				cli.info("Node was not found. The project will be built locally.".to_string())?;
@@ -366,13 +370,13 @@ async fn guide_user_to_generate_spec(args: BuildSpecCommand) -> anyhow::Result<B
 	}
 	// Prompt relays chains based on the chain type
 	match chain_type {
-		ChainType::Live => {
+		ChainType::Live =>
 			for relay in RelayChain::VARIANTS {
 				if !matches!(
 					relay,
-					RelayChain::Westend
-						| RelayChain::Paseo | RelayChain::Kusama
-						| RelayChain::Polkadot
+					RelayChain::Westend |
+						RelayChain::Paseo | RelayChain::Kusama |
+						RelayChain::Polkadot
 				) {
 					continue;
 				} else {
@@ -382,15 +386,14 @@ async fn guide_user_to_generate_spec(args: BuildSpecCommand) -> anyhow::Result<B
 						relay.get_detailed_message().unwrap_or_default(),
 					);
 				}
-			}
-		},
-		_ => {
+			},
+		_ =>
 			for relay in RelayChain::VARIANTS {
 				if matches!(
 					relay,
-					RelayChain::Westend
-						| RelayChain::Paseo | RelayChain::Kusama
-						| RelayChain::Polkadot
+					RelayChain::Westend |
+						RelayChain::Paseo | RelayChain::Kusama |
+						RelayChain::Polkadot
 				) {
 					continue;
 				} else {
@@ -400,8 +403,7 @@ async fn guide_user_to_generate_spec(args: BuildSpecCommand) -> anyhow::Result<B
 						relay.get_detailed_message().unwrap_or_default(),
 					);
 				}
-			}
-		},
+			},
 	}
 
 	let relay_chain = prompt.interact()?.clone();

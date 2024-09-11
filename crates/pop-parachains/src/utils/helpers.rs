@@ -9,7 +9,7 @@ use std::{
 
 pub(crate) fn sanitize(target: &Path) -> Result<(), Error> {
 	if target.exists() {
-		print!("\"{}\" folder exists. Do you want to clean it? [y/n]: ", target.display());
+		print!("\"{}\" directory exists. Do you want to clean it? [y/n]: ", target.display());
 		stdout().flush()?;
 
 		let mut input = String::new();
@@ -30,8 +30,8 @@ pub(crate) fn sanitize(target: &Path) -> Result<(), Error> {
 ///
 /// * `initial_endowment` - initial endowment amount to be checked for validity.
 pub fn is_initial_endowment_valid(initial_endowment: &str) -> bool {
-	initial_endowment.parse::<u128>().is_ok()
-		|| is_valid_bitwise_left_shift(initial_endowment).is_ok()
+	initial_endowment.parse::<u128>().is_ok() ||
+		is_valid_bitwise_left_shift(initial_endowment).is_ok()
 }
 // Auxiliar method to check if the endowment input with a shift left (1u64 << 60) format is valid.
 // Parse the self << rhs format and check the shift left operation is valid.

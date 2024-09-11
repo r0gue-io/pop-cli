@@ -2,8 +2,10 @@
 
 use crate::{
 	sourcing::{
-		from_local_package, Error, GitHub::ReleaseArchive, GitHub::SourceCodeArchive, Source,
-		Source::Archive, Source::Git, Source::GitHub,
+		from_local_package, Error,
+		GitHub::{ReleaseArchive, SourceCodeArchive},
+		Source,
+		Source::{Archive, Git, GitHub},
 	},
 	Status,
 };
@@ -43,13 +45,12 @@ impl Binary {
 	pub fn latest(&self) -> Option<&str> {
 		match self {
 			Self::Local { .. } => None,
-			Self::Source { source, .. } => {
+			Self::Source { source, .. } =>
 				if let GitHub(ReleaseArchive { latest, .. }) = source {
 					latest.as_deref()
 				} else {
 					None
-				}
-			},
+				},
 		}
 	}
 
@@ -85,13 +86,14 @@ impl Binary {
 		}
 	}
 
-	/// Attempts to resolve a version of a binary based on whether one is specified, an existing version
-	/// can be found cached locally, or uses the latest version.
+	/// Attempts to resolve a version of a binary based on whether one is specified, an existing
+	/// version can be found cached locally, or uses the latest version.
 	///
 	/// # Arguments
 	/// * `name` - The name of the binary.
 	/// * `specified` - If available, a version explicitly specified.
-	/// * `available` - The available versions, used to check for those cached locally or the latest otherwise.
+	/// * `available` - The available versions, used to check for those cached locally or the latest
+	///   otherwise.
 	/// * `cache` - The location used for caching binaries.
 	pub fn resolve_version(
 		name: &str,
@@ -120,7 +122,8 @@ impl Binary {
 	/// Sources the binary.
 	///
 	/// # Arguments
-	/// * `release` - Whether any binaries needing to be built should be done so using the release profile.
+	/// * `release` - Whether any binaries needing to be built should be done so using the release
+	///   profile.
 	/// * `status` - Used to observe status updates.
 	/// * `verbose` - Whether verbose output is required.
 	pub async fn source(
@@ -131,18 +134,15 @@ impl Binary {
 	) -> Result<(), Error> {
 		match self {
 			Self::Local { name, path, manifest, .. } => match manifest {
-				None => {
+				None =>
 					return Err(Error::MissingBinary(format!(
 						"The {path:?} binary cannot be sourced automatically."
-					)))
-				},
-				Some(manifest) => {
-					from_local_package(manifest, name, release, status, verbose).await
-				},
+					))),
+				Some(manifest) =>
+					from_local_package(manifest, name, release, status, verbose).await,
 			},
-			Self::Source { source, cache, .. } => {
-				source.source(cache, release, status, verbose).await
-			},
+			Self::Source { source, cache, .. } =>
+				source.source(cache, release, status, verbose).await,
 		}
 	}
 

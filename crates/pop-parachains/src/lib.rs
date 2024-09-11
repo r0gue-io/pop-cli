@@ -16,11 +16,10 @@ pub use build::{
 };
 pub use errors::Error;
 pub use indexmap::IndexSet;
-pub use new_pallet::{create_pallet_template, TemplatePalletConfig};
+pub use new_pallet::{create_pallet_template, new_pallet_options::*, TemplatePalletConfig};
 pub use new_parachain::instantiate_template_dir;
 pub use templates::{Config, Parachain, Provider};
 pub use up::Zombienet;
 pub use utils::helpers::is_initial_endowment_valid;
-pub use utils::pallet_helpers::resolve_pallet_path;
 /// Information about the Node. External export from Zombienet-SDK.
 pub use zombienet_sdk::NetworkNode;
