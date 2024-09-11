@@ -73,6 +73,13 @@ async fn guide_user_to_call_chain<'a, CLI: Cli>(
 	metadata: Metadata,
 ) -> anyhow::Result<CallParachainCommand> {
 	command.cli.intro("Call a contract")?;
+	// Prompt for contract location.
+	let url: String = command
+		.cli
+		.input("Which chain would you like to interact with?")
+		.placeholder("wss://rpc1.paseo.popnetwork.xyz")
+		.default_input("wss://rpc1.paseo.popnetwork.xyz")
+		.interact()?;
 
 	let pallets = match parse_chain_metadata(metadata.clone()).await {
 		Ok(pallets) => pallets,
@@ -107,6 +114,18 @@ async fn guide_user_to_call_chain<'a, CLI: Cli>(
 			}
 			prompt_extrinsic.interact()?
 		};
+		let mut args = Vec::new();
+		for argument in extrinsic.fields {
+			let value = command
+				.cli
+				.input(&format!(
+					"Enter the value for the argument '{}':",
+					argument.name.unwrap_or_default()
+				))
+				.interact()?;
+			args.push(value);
+		}
+		println!("Extrinsic to submit: {:?} with args {:?}", extrinsic.name, args);
 	} else {
 		let storage = {
 			let mut prompt_storage = command.cli.select("Select the storage to query:");
