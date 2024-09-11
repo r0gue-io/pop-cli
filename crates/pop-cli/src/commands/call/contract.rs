@@ -212,7 +212,13 @@ async fn guide_user_to_call_contract<'a, CLI: Cli>(
 
 	let mut contract_args = Vec::new();
 	for arg in &message.args {
-		contract_args.push(command.cli.input(arg).placeholder(arg).interact()?);
+		contract_args.push(
+			command
+				.cli
+				.input(format!("Enter the value for the parameter: {}", arg.label))
+				.placeholder(&format!("Type required: {}", &arg.type_name))
+				.interact()?,
+		);
 	}
 	let mut value = "0".to_string();
 	if message.payable {
@@ -437,7 +443,7 @@ mod tests {
 			.expect_input("Enter the proof size limit:", "".into()) // Only if call
 			.expect_input("Enter the gas limit:", "".into()) // Only if call
 			.expect_input("Value to transfer to the call:", "50".into()) // Only if payable
-			.expect_input("new_value", "true".into()) // Args for specific_flip
+			.expect_input("Enter the value for the parameter: new_value", "true".into()) // Args for specific_flip
 			.expect_select::<PathBuf>(
 				"Select the message to call:",
 				Some(false),
