@@ -21,6 +21,8 @@ pub enum Error {
 	IO(#[from] std::io::Error),
 	#[error("JSON error: {0}")]
 	JsonError(#[from] serde_json::Error),
+	#[error("Metadata error: {0}")]
+	MetadataError(#[from] subxt::error::MetadataError),
 	#[error("Missing binary: {0}")]
 	MissingBinary(String),
 	#[error("Missing chain spec file at: {0}")]
@@ -31,12 +33,18 @@ pub enum Error {
 	OrchestratorError(#[from] OrchestratorError),
 	#[error("Failed to create pallet directory")]
 	PalletDirCreation,
+	#[error("Failed to find the pallet {0}")]
+	PalletNotFound(String),
+	#[error("Failed to parse the response")]
+	ParsingResponseError,
 	#[error("Invalid path")]
 	PathError,
 	#[error("Failed to execute rustfmt")]
 	RustfmtError(std::io::Error),
 	#[error("Template error: {0}")]
 	SourcingError(#[from] pop_common::sourcing::Error),
+	#[error("{0}")]
+	SubxtError(#[from] subxt::Error),
 	#[error("Toml error: {0}")]
 	TomlError(#[from] toml_edit::de::Error),
 	#[error("Unsupported command: {0}")]
