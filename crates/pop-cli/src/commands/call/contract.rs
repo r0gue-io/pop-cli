@@ -53,6 +53,40 @@ pub struct CallContractCommand {
 	#[clap(long, conflicts_with = "execute")]
 	dry_run: bool,
 }
+impl CallContractCommand {
+	fn display(&self) -> String {
+		let mut full_message = format!("pop call contract");
+		if let Some(path) = &self.path {
+			full_message.push_str(&format!(" --path {}", path.display().to_string()));
+		}
+		if let Some(contract) = &self.contract {
+			full_message.push_str(&format!(" --contract {}", contract));
+		}
+		if let Some(message) = &self.message {
+			full_message.push_str(&format!(" --message {}", message));
+		}
+		if !self.args.is_empty() {
+			full_message.push_str(&format!(" --args {}", self.args.join(" ")));
+		}
+		if self.value != "0" {
+			full_message.push_str(&format!(" --value {}", self.value));
+		}
+		if let Some(gas_limit) = self.gas_limit {
+			full_message.push_str(&format!(" --gas {}", gas_limit));
+		}
+		if let Some(proof_size) = self.proof_size {
+			full_message.push_str(&format!(" --proof_size {}", proof_size));
+		}
+		full_message.push_str(&format!(" --url {} --suri {}", self.url, self.suri));
+		if self.execute {
+			full_message.push_str(" --execute");
+		}
+		if self.dry_run {
+			full_message.push_str(" --dry_run");
+		}
+		full_message
+	}
+}
 
 pub(crate) struct CallContract<'a, CLI: Cli> {
 	/// The cli to be used.
@@ -65,7 +99,6 @@ impl<'a, CLI: Cli> CallContract<'a, CLI> {
 	/// Executes the command.
 	pub(crate) async fn execute(mut self: Box<Self>) -> Result<()> {
 		self.cli.intro("Call a contract")?;
-
 		let call_config = if self.args.contract.is_none() {
 			match guide_user_to_call_contract(&mut self).await {
 				Ok(config) => config,
@@ -195,6 +228,24 @@ async fn guide_user_to_call_contract<'a, CLI: Cli>(
 		.interact()?;
 	let contract_path = Path::new(&input_path);
 
+	let messages = match get_messages(contract_path) {
+		Ok(messages) => messages,
+		Err(e) => {
+			return Err(anyhow!(format!(
+				"Unable to fetch contract metadata: {}",
+				e.to_string().replace("Anyhow error: ", "")
+			)));
+		},
+	};
+
+	// Prompt for contract location.
+	let url: String = command
+		.cli
+		.input("Where is your contract deployed?")
+		.placeholder("ws://localhost:9944")
+		.default_input("ws://localhost:9944")
+		.interact()?;
+
 	// Prompt for contract address.
 	let contract_address: String = command
 		.cli
@@ -207,15 +258,6 @@ async fn guide_user_to_call_contract<'a, CLI: Cli>(
 		.default_input("5DYs7UGBm2LuX4ryvyqfksozNAW5V47tPbGiVgnjYWCZ29bt")
 		.interact()?;
 
-	let messages = match get_messages(contract_path) {
-		Ok(messages) => messages,
-		Err(e) => {
-			return Err(anyhow!(format!(
-				"Unable to fetch contract metadata: {}",
-				e.to_string().replace("Anyhow error: ", "")
-			)));
-		},
-	};
 	let message = {
 		let mut prompt = command.cli.select("Select the message to call:");
 		for select_message in messages {
@@ -270,14 +312,6 @@ async fn guide_user_to_call_contract<'a, CLI: Cli>(
 		proof_size = proof_size_input.parse::<u64>().ok(); // If blank or bad input, estimate it.
 	}
 
-	// Prompt for contract location.
-	let url: String = command
-		.cli
-		.input("Where is your contract deployed?")
-		.placeholder("ws://localhost:9944")
-		.default_input("ws://localhost:9944")
-		.interact()?;
-
 	// Who is calling the contract.
 	let suri: String = command
 		.cli
@@ -294,8 +328,7 @@ async fn guide_user_to_call_contract<'a, CLI: Cli>(
 			.initial_value(true)
 			.interact()?;
 	}
-
-	Ok(CallContractCommand {
+	let call_command = CallContractCommand {
 		path: Some(contract_path.to_path_buf()),
 		contract: Some(contract_address),
 		message: Some(message.label.clone()),
@@ -307,7 +340,9 @@ async fn guide_user_to_call_contract<'a, CLI: Cli>(
 		suri,
 		execute: message.mutates,
 		dry_run: !is_call_confirmed,
-	})
+	};
+	command.cli.info(call_command.display())?;
+	Ok(call_command)
 }
 
 #[cfg(test)]
@@ -379,10 +414,6 @@ mod tests {
 		let mut cli = MockCli::new()
 			.expect_intro(&"Call a contract")
 			.expect_input("Signer calling the contract:", "//Alice".into())
-			.expect_input(
-				"Where is your contract deployed?",
-				"wss://rpc1.paseo.popnetwork.xyz".into(),
-			)
 			.expect_select::<PathBuf>(
 				"Select the message to call:",
 				Some(false),
@@ -395,9 +426,16 @@ mod tests {
 				"15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".into(),
 			)
 			.expect_input(
+				"Where is your contract deployed?",
+				"wss://rpc1.paseo.popnetwork.xyz".into(),
+			)
+			.expect_input(
 				"Where is your project located?",
 				temp_dir.path().join("testing").display().to_string(),
-			);
+			).expect_info(format!(
+                "pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message get --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice",
+                temp_dir.path().join("testing").display().to_string(),
+            ));
 
 		let call_config = guide_user_to_call_contract(&mut CallContract {
 			cli: &mut cli,
@@ -429,6 +467,10 @@ mod tests {
 		assert_eq!(call_config.suri, "//Alice");
 		assert!(!call_config.execute);
 		assert!(!call_config.dry_run);
+		assert_eq!(call_config.display(), format!(
+			"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message get --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice",
+			temp_dir.path().join("testing").display().to_string(),
+		));
 
 		cli.verify()
 	}
@@ -455,10 +497,6 @@ mod tests {
 		let mut cli = MockCli::new()
 			.expect_intro(&"Call a contract")
 			.expect_input("Signer calling the contract:", "//Alice".into())
-			.expect_input(
-				"Where is your contract deployed?",
-				"wss://rpc1.paseo.popnetwork.xyz".into(),
-			)
 			.expect_input("Enter the proof size limit:", "".into()) // Only if call
 			.expect_input("Enter the gas limit:", "".into()) // Only if call
 			.expect_input("Value to transfer to the call:", "50".into()) // Only if payable
@@ -475,9 +513,16 @@ mod tests {
 				"15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".into(),
 			)
 			.expect_input(
+				"Where is your contract deployed?",
+				"wss://rpc1.paseo.popnetwork.xyz".into(),
+			)
+			.expect_input(
 				"Where is your project located?",
 				temp_dir.path().join("testing").display().to_string(),
-			);
+			).expect_info(format!(
+				"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message specific_flip --args true --value 50 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --execute",
+				temp_dir.path().join("testing").display().to_string(),
+			));
 
 		let call_config = guide_user_to_call_contract(&mut CallContract {
 			cli: &mut cli,
@@ -510,6 +555,10 @@ mod tests {
 		assert_eq!(call_config.suri, "//Alice");
 		assert!(call_config.execute);
 		assert!(!call_config.dry_run);
+		assert_eq!(call_config.display(), format!(
+			"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message specific_flip --args true --value 50 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --execute",
+			temp_dir.path().join("testing").display().to_string(),
+		));
 
 		cli.verify()
 	}
@@ -529,7 +578,6 @@ mod tests {
 			.expect_intro(&"Call a contract")
 			.expect_outro_cancel("Please specify the message to call.");
 
-		// Contract deployed on Pop Network testnet, test get
 		Box::new(CallContract {
 			cli: &mut cli,
 			args: CallContractCommand {
@@ -541,6 +589,43 @@ mod tests {
 				gas_limit: None,
 				proof_size: None,
 				url: Url::parse("wss://rpc1.paseo.popnetwork.xyz")?,
+				suri: "//Alice".to_string(),
+				dry_run: false,
+				execute: false,
+			},
+		})
+		.execute()
+		.await?;
+
+		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn call_contract_messages_fails_parse_metadata() -> Result<()> {
+		let temp_dir = generate_smart_contract_test_environment()?;
+		let mut current_dir = env::current_dir().expect("Failed to get current directory");
+		current_dir.pop();
+		mock_build_process(
+			temp_dir.path().join("testing"),
+			current_dir.join("pop-contracts/tests/files/testing.contract"),
+			current_dir.join("pop-contracts/tests/files/testing.json"),
+		)?;
+
+		let mut cli = MockCli::new()
+			.expect_intro(&"Call a contract")
+			.expect_outro_cancel("Unable to fetch contract metadata: No 'ink' dependency found");
+
+		Box::new(CallContract {
+			cli: &mut cli,
+			args: CallContractCommand {
+				path: Some(temp_dir.path().join("wrong-testing")),
+				contract: None,
+				message: None,
+				args: vec![].to_vec(),
+				value: "0".to_string(),
+				gas_limit: None,
+				proof_size: None,
+				url: Url::parse("ws://localhost:9944")?,
 				suri: "//Alice".to_string(),
 				dry_run: false,
 				execute: false,
