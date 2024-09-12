@@ -215,7 +215,7 @@ async fn generate_parachain_from_template(
 	// add next steps
 	let mut next_steps = vec![
 		format!("cd into \"{name_template}\" and enjoy hacking! 🚀"),
-		"Use `pop build` to build your parachain.".into(),
+		"Use `pop build --release` to build your parachain.".into(),
 	];
 	if let Some(network_config) = template.network_config() {
 		next_steps.push(format!(
@@ -252,7 +252,15 @@ fn display_select_options(provider: &Provider) -> Result<&Parachain> {
 		if i == 0 {
 			prompt = prompt.initial_value(template);
 		}
-		prompt = prompt.item(template, template.name(), template.description());
+		prompt = prompt.item(
+			template,
+			template.name(),
+			format!(
+				"{} {}",
+				template.description(),
+				if matches!(template, Parachain::ParityContracts) { "[deprecated]" } else { "" }
+			),
+		);
 	}
 	Ok(prompt.interact()?)
 }
@@ -263,8 +271,8 @@ fn get_customization_value(
 	decimals: Option<u8>,
 	initial_endowment: Option<String>,
 ) -> Result<Config> {
-	if !matches!(template, Parachain::Standard) &&
-		(symbol.is_some() || decimals.is_some() || initial_endowment.is_some())
+	if !matches!(template, Parachain::Standard)
+		&& (symbol.is_some() || decimals.is_some() || initial_endowment.is_some())
 	{
 		log::warning("Customization options are not available for this template")?;
 		sleep(Duration::from_secs(3))

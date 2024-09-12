@@ -162,20 +162,6 @@ pub enum Parachain {
 		)
 	)]
 	ParityContracts,
-	/// Template node for a Frontier (EVM) based parachain.
-	#[strum(
-		serialize = "fpt",
-		message = "EVM",
-		detailed_message = "Template node for a Frontier (EVM) based parachain.",
-		props(
-			Provider = "Parity",
-			Repository = "https://github.com/paritytech/frontier-parachain-template",
-			Network = "./zombienet-config.toml",
-			License = "Unlicense"
-		)
-	)]
-	ParityFPT,
-
 	// templates for unit tests below
 	#[cfg(test)]
 	#[strum(
@@ -296,8 +282,8 @@ mod tests {
 			(Contracts, Some("Unlicense")),
 			(EVM, Some("Unlicense")),
 			(OpenZeppelinGeneric, Some("GPL-3.0")),
+			(ParityGeneric, Some("Unlicense")),
 			(ParityContracts, Some("Unlicense")),
-			(ParityFPT, Some("Unlicense")),
 			(TestTemplate01, Some("Unlicense")),
 			(TestTemplate02, Some("GPL-3.0")),
 		]
