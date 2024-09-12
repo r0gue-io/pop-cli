@@ -16,8 +16,7 @@ use std::{
 use symlink::{remove_symlink_file, symlink_file};
 use tempfile::{Builder, NamedTempFile};
 use toml_edit::{value, ArrayOfTables, DocumentMut, Formatted, Item, Table, Value};
-use zombienet_sdk::{Network, NetworkConfig, NetworkConfigExt};
-use zombienet_support::fs::local::LocalFileSystem;
+use zombienet_sdk::{LocalFileSystem, Network, NetworkConfig, NetworkConfigExt};
 
 mod chain_specs;
 mod parachains;
