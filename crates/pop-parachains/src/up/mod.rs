@@ -149,6 +149,14 @@ impl Zombienet {
 							}
 						}
 					}
+					// Check if collator has defined command
+					if let Some(collator) = table.get("collator").and_then(|i| i.as_table()) {
+						if let Some(command) =
+							NetworkConfiguration::command(collator).and_then(|i| i.as_str())
+						{
+							return Some(Item::Value(Value::String(Formatted::new(command.into()))));
+						}
+					}
 
 					// Otherwise default to polkadot-parachain
 					Some(Item::Value(Value::String(Formatted::new("polkadot-parachain".into()))))
@@ -200,6 +208,18 @@ impl Zombienet {
 				continue;
 			}
 
+			// Check if command references to a template local binary without path
+			if command == "parachain-template-node" {
+				paras.insert(
+					id,
+					Parachain::from_local(
+						id,
+						PathBuf::from("./target/release/parachain-template-node"),
+						chain,
+					)?,
+				);
+				continue;
+			}
 			return Err(Error::MissingBinary(command));
 		}
 		Ok(paras)
@@ -451,6 +471,12 @@ impl NetworkConfiguration {
 						if let Some(command) = NetworkConfiguration::command_mut(collator) {
 							*command = value(&path)
 						}
+					}
+				}
+				// Resolve individual collator command to binary
+				if let Some(collator) = table.get_mut("collator").and_then(|p| p.as_table_mut()) {
+					if let Some(command) = NetworkConfiguration::command_mut(collator) {
+						*command = value(&path)
 					}
 				}
 			}
