@@ -67,7 +67,13 @@ impl<'a, CLI: Cli> CallContract<'a, CLI> {
 		self.cli.intro("Call a contract")?;
 
 		let call_config = if self.args.contract.is_none() {
-			guide_user_to_call_contract(&mut self).await?
+			match guide_user_to_call_contract(&mut self).await {
+				Ok(config) => config,
+				Err(e) => {
+					self.cli.outro_cancel(format!("{}", e.to_string()))?;
+					return Ok(());
+				},
+			}
 		} else {
 			self.args.clone()
 		};
@@ -82,7 +88,7 @@ impl<'a, CLI: Cli> CallContract<'a, CLI> {
 			},
 		};
 
-		let call_exec = set_up_call(CallOpts {
+		let call_exec = match set_up_call(CallOpts {
 			path: call_config.path,
 			contract,
 			message,
@@ -94,7 +100,14 @@ impl<'a, CLI: Cli> CallContract<'a, CLI> {
 			suri: call_config.suri,
 			execute: call_config.execute,
 		})
-		.await?;
+		.await
+		{
+			Ok(call_exec) => call_exec,
+			Err(e) => {
+				self.cli.outro_cancel(format!("{}", e.root_cause().to_string()))?;
+				return Ok(());
+			},
+		};
 
 		if call_config.dry_run {
 			let spinner = cliclack::spinner();
@@ -193,8 +206,10 @@ async fn guide_user_to_call_contract<'a, CLI: Cli>(
 	let messages = match get_messages(contract_path) {
 		Ok(messages) => messages,
 		Err(e) => {
-			command.cli.outro_cancel("Unable to fetch contract metadata.")?;
-			return Err(anyhow!(format!("{}", e.to_string())));
+			return Err(anyhow!(format!(
+				"Unable to fetch contract metadata: {}",
+				e.to_string().replace("Anyhow error: ", "")
+			)));
 		},
 	};
 	let message = {
@@ -223,6 +238,10 @@ async fn guide_user_to_call_contract<'a, CLI: Cli>(
 			.input("Value to transfer to the call:")
 			.placeholder("0")
 			.default_input("0")
+			.validate(|input: &String| match input.parse::<u64>() {
+				Ok(_) => Ok(()),
+				Err(_) => Err("Invalid value."),
+			})
 			.interact()?;
 	}
 	let mut gas_limit: Option<u64> = None;
