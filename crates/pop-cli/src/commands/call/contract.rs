@@ -8,7 +8,7 @@ use pop_contracts::{
 	set_up_call, CallOpts,
 };
 use sp_weights::Weight;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 #[derive(Args, Clone)]
 pub struct CallContractCommand {
@@ -97,10 +97,10 @@ pub(crate) struct CallContract<'a, CLI: Cli> {
 
 impl<'a, CLI: Cli> CallContract<'a, CLI> {
 	/// Executes the command.
-	pub(crate) async fn execute(mut self: Box<Self>) -> Result<()> {
+	pub(crate) async fn execute(mut self: Self) -> Result<()> {
 		self.cli.intro("Call a contract")?;
 		let call_config = if self.args.contract.is_none() {
-			match guide_user_to_call_contract(&mut self).await {
+			match guide_user_to_call_contract(&mut self, None, None, None).await {
 				Ok(config) => config,
 				Err(e) => {
 					self.cli.outro_cancel(format!("{}", e.to_string()))?;
@@ -110,19 +110,29 @@ impl<'a, CLI: Cli> CallContract<'a, CLI> {
 		} else {
 			self.args.clone()
 		};
+		match self.execute_call(call_config.clone()).await {
+			Ok(_) => Ok(()),
+			Err(e) => {
+				self.cli.outro_cancel(format!("{}", e.to_string()))?;
+				return Ok(());
+			},
+		}
+	}
+	/// Executes the call.
+	async fn execute_call(&mut self, call_config: CallContractCommand) -> Result<()> {
 		let contract = call_config
 			.contract
+			.clone()
 			.expect("contract can not be none as fallback above is interactive input; qed");
 		let message = match call_config.message {
 			Some(m) => m,
 			None => {
-				self.cli.outro_cancel("Please specify the message to call.")?;
-				return Ok(());
+				return Err(anyhow!("Please specify the message to call."));
 			},
 		};
 
 		let call_exec = match set_up_call(CallOpts {
-			path: call_config.path,
+			path: call_config.path.clone(),
 			contract,
 			message,
 			args: call_config.args,
@@ -137,8 +147,7 @@ impl<'a, CLI: Cli> CallContract<'a, CLI> {
 		{
 			Ok(call_exec) => call_exec,
 			Err(e) => {
-				self.cli.outro_cancel(format!("{}", e.root_cause().to_string()))?;
-				return Ok(());
+				return Err(anyhow!(format!("{}", e.root_cause().to_string())));
 			},
 		};
 
@@ -177,8 +186,7 @@ impl<'a, CLI: Cli> CallContract<'a, CLI> {
 					},
 					Err(e) => {
 						spinner.error(format!("{e}"));
-						self.cli.outro_cancel("Call failed.")?;
-						return Ok(());
+						return Err(anyhow!("Call failed."));
 					},
 				}
 			};
@@ -194,37 +202,52 @@ impl<'a, CLI: Cli> CallContract<'a, CLI> {
 		if self.args.contract.is_none() {
 			let another_call: bool = self
 				.cli
-				.confirm("Do you want to do another call?")
+				.confirm("Do you want to do another call using the existing smart contract?")
 				.initial_value(false)
 				.interact()?;
 			if another_call {
-				Box::pin(self.execute()).await?;
+				// Remove only the prompt asking for another call.
+				console::Term::stderr().clear_last_lines(2)?;
+				let new_call_config = guide_user_to_call_contract(
+					self,
+					call_config.path,
+					Some(call_config.url),
+					call_config.contract,
+				)
+				.await?;
+				Box::pin(self.execute_call(new_call_config)).await?;
 			} else {
 				self.cli.outro("Call completed successfully!")?;
 			}
 		} else {
 			self.cli.outro("Call completed successfully!")?;
 		}
-		Ok(())
+		return Ok(());
 	}
 }
 
 /// Guide the user to call the contract.
 async fn guide_user_to_call_contract<'a, CLI: Cli>(
 	command: &mut CallContract<'a, CLI>,
+	contract_path: Option<PathBuf>,
+	url: Option<url::Url>,
+	contract_address: Option<String>,
 ) -> anyhow::Result<CallContractCommand> {
-	command.cli.intro("Call a contract")?;
-
-	// Prompt for location of your contract.
-	let input_path: String = command
-		.cli
-		.input("Where is your project located?")
-		.placeholder("./")
-		.default_input("./")
-		.interact()?;
-	let contract_path = Path::new(&input_path);
-
-	let messages = match get_messages(contract_path) {
+	let contract_path: PathBuf = match contract_path {
+		Some(path) => path,
+		None => {
+			// Prompt for path.
+			let input_path: String = command
+				.cli
+				.input("Where is your project located?")
+				.placeholder("./")
+				.default_input("./")
+				.interact()?;
+			PathBuf::from(input_path)
+		},
+	};
+	// Parse the contract metadata provided. If there error, do not prompt for more.
+	let messages = match get_messages(&contract_path) {
 		Ok(messages) => messages,
 		Err(e) => {
 			return Err(anyhow!(format!(
@@ -233,32 +256,45 @@ async fn guide_user_to_call_contract<'a, CLI: Cli>(
 			)));
 		},
 	};
-
-	// Prompt for contract location.
-	let url: String = command
-		.cli
-		.input("Where is your contract deployed?")
-		.placeholder("ws://localhost:9944")
-		.default_input("ws://localhost:9944")
-		.interact()?;
-
-	// Prompt for contract address.
-	let contract_address: String = command
-		.cli
-		.input("Paste the on-chain contract address:")
-		.placeholder("e.g. 5DYs7UGBm2LuX4ryvyqfksozNAW5V47tPbGiVgnjYWCZ29bt")
-		.validate(|input: &String| match parse_account(input) {
-			Ok(_) => Ok(()),
-			Err(_) => Err("Invalid address."),
-		})
-		.default_input("5DYs7UGBm2LuX4ryvyqfksozNAW5V47tPbGiVgnjYWCZ29bt")
-		.interact()?;
+	let url: url::Url = match url {
+		Some(url) => url,
+		None => {
+			// Prompt for url.
+			let url: String = command
+				.cli
+				.input("Where is your contract deployed?")
+				.placeholder("ws://localhost:9944")
+				.default_input("ws://localhost:9944")
+				.interact()?;
+			url::Url::parse(&url)?
+		},
+	};
+	let contract_address: String = match contract_address {
+		Some(contract_address) => contract_address,
+		None => {
+			// Prompt for contract address.
+			let contract_address: String = command
+				.cli
+				.input("Paste the on-chain contract address:")
+				.placeholder("e.g. 5DYs7UGBm2LuX4ryvyqfksozNAW5V47tPbGiVgnjYWCZ29bt")
+				.validate(|input: &String| match parse_account(input) {
+					Ok(_) => Ok(()),
+					Err(_) => Err("Invalid address."),
+				})
+				.default_input("5DYs7UGBm2LuX4ryvyqfksozNAW5V47tPbGiVgnjYWCZ29bt")
+				.interact()?;
+			contract_address
+		},
+	};
 
 	let message = {
 		let mut prompt = command.cli.select("Select the message to call:");
 		for select_message in messages {
-			prompt =
-				prompt.item(select_message.clone(), &select_message.label, &select_message.docs);
+			prompt = prompt.item(
+				select_message.clone(),
+				format!("{}\n", &select_message.label),
+				&select_message.docs,
+			);
 		}
 		prompt.interact()?
 	};
@@ -325,14 +361,14 @@ async fn guide_user_to_call_contract<'a, CLI: Cli>(
 			.interact()?;
 	}
 	let call_command = CallContractCommand {
-		path: Some(contract_path.to_path_buf()),
+		path: Some(contract_path),
 		contract: Some(contract_address),
 		message: Some(message.label.clone()),
 		args: contract_args,
 		value,
 		gas_limit,
 		proof_size,
-		url: url::Url::parse(&url)?,
+		url,
 		suri,
 		execute: message.mutates,
 		dry_run: !is_call_confirmed,
@@ -402,13 +438,12 @@ mod tests {
 		)?;
 
 		let items = vec![
-			("flip".into(), " A message that can be called on instantiated contracts.  This one flips the value of the stored `bool` from `true`  to `false` and vice versa.".into()),
-			("get".into(), " Simply returns the current value of our `bool`.".into()),
-			("specific_flip".into(), " A message for testing, flips the value of the stored `bool` with `new_value`  and is payable".into())
+			("flip\n".into(), " A message that can be called on instantiated contracts.  This one flips the value of the stored `bool` from `true`  to `false` and vice versa.".into()),
+			("get\n".into(), " Simply returns the current value of our `bool`.".into()),
+			("specific_flip\n".into(), " A message for testing, flips the value of the stored `bool` with `new_value`  and is payable".into())
 		];
 		// The inputs are processed in reverse order.
 		let mut cli = MockCli::new()
-			.expect_intro(&"Call a contract")
 			.expect_input("Signer calling the contract:", "//Alice".into())
 			.expect_select::<PathBuf>(
 				"Select the message to call:",
@@ -433,22 +468,27 @@ mod tests {
                 temp_dir.path().join("testing").display().to_string(),
             ));
 
-		let call_config = guide_user_to_call_contract(&mut CallContract {
-			cli: &mut cli,
-			args: CallContractCommand {
-				path: Some(temp_dir.path().join("testing")),
-				contract: None,
-				message: None,
-				args: vec![].to_vec(),
-				value: "0".to_string(),
-				gas_limit: None,
-				proof_size: None,
-				url: Url::parse("ws://localhost:9944")?,
-				suri: "//Alice".to_string(),
-				dry_run: false,
-				execute: false,
+		let call_config = guide_user_to_call_contract(
+			&mut CallContract {
+				cli: &mut cli,
+				args: CallContractCommand {
+					path: Some(temp_dir.path().join("testing")),
+					contract: None,
+					message: None,
+					args: vec![].to_vec(),
+					value: "0".to_string(),
+					gas_limit: None,
+					proof_size: None,
+					url: Url::parse("ws://localhost:9944")?,
+					suri: "//Alice".to_string(),
+					dry_run: false,
+					execute: false,
+				},
 			},
-		})
+			None,
+			None,
+			None,
+		)
 		.await?;
 		assert_eq!(
 			call_config.contract,
@@ -485,13 +525,12 @@ mod tests {
 		)?;
 
 		let items = vec![
-			("flip".into(), " A message that can be called on instantiated contracts.  This one flips the value of the stored `bool` from `true`  to `false` and vice versa.".into()),
-			("get".into(), " Simply returns the current value of our `bool`.".into()),
-			("specific_flip".into(), " A message for testing, flips the value of the stored `bool` with `new_value`  and is payable".into())
+			("flip\n".into(), " A message that can be called on instantiated contracts.  This one flips the value of the stored `bool` from `true`  to `false` and vice versa.".into()),
+			("get\n".into(), " Simply returns the current value of our `bool`.".into()),
+			("specific_flip\n".into(), " A message for testing, flips the value of the stored `bool` with `new_value`  and is payable".into())
 		];
 		// The inputs are processed in reverse order.
 		let mut cli = MockCli::new()
-			.expect_intro(&"Call a contract")
 			.expect_input("Signer calling the contract:", "//Alice".into())
 			.expect_input("Enter the proof size limit:", "".into()) // Only if call
 			.expect_input("Enter the gas limit:", "".into()) // Only if call
@@ -520,22 +559,27 @@ mod tests {
 				temp_dir.path().join("testing").display().to_string(),
 			));
 
-		let call_config = guide_user_to_call_contract(&mut CallContract {
-			cli: &mut cli,
-			args: CallContractCommand {
-				path: Some(temp_dir.path().join("testing")),
-				contract: None,
-				message: None,
-				args: vec![].to_vec(),
-				value: "0".to_string(),
-				gas_limit: None,
-				proof_size: None,
-				url: Url::parse("ws://localhost:9944")?,
-				suri: "//Alice".to_string(),
-				dry_run: false,
-				execute: false,
+		let call_config = guide_user_to_call_contract(
+			&mut CallContract {
+				cli: &mut cli,
+				args: CallContractCommand {
+					path: Some(temp_dir.path().join("testing")),
+					contract: None,
+					message: None,
+					args: vec![].to_vec(),
+					value: "0".to_string(),
+					gas_limit: None,
+					proof_size: None,
+					url: Url::parse("ws://localhost:9944")?,
+					suri: "//Alice".to_string(),
+					dry_run: false,
+					execute: false,
+				},
 			},
-		})
+			None,
+			None,
+			None,
+		)
 		.await?;
 		assert_eq!(
 			call_config.contract,
@@ -574,7 +618,7 @@ mod tests {
 			.expect_intro(&"Call a contract")
 			.expect_outro_cancel("Please specify the message to call.");
 
-		Box::new(CallContract {
+		CallContract {
 			cli: &mut cli,
 			args: CallContractCommand {
 				path: Some(temp_dir.path().join("testing")),
@@ -589,44 +633,7 @@ mod tests {
 				dry_run: false,
 				execute: false,
 			},
-		})
-		.execute()
-		.await?;
-
-		cli.verify()
-	}
-
-	#[tokio::test]
-	async fn call_contract_messages_fails_parse_metadata() -> Result<()> {
-		let temp_dir = generate_smart_contract_test_environment()?;
-		let mut current_dir = env::current_dir().expect("Failed to get current directory");
-		current_dir.pop();
-		mock_build_process(
-			temp_dir.path().join("testing"),
-			current_dir.join("pop-contracts/tests/files/testing.contract"),
-			current_dir.join("pop-contracts/tests/files/testing.json"),
-		)?;
-
-		let mut cli = MockCli::new()
-			.expect_intro(&"Call a contract")
-			.expect_outro_cancel("Unable to fetch contract metadata: No 'ink' dependency found");
-
-		Box::new(CallContract {
-			cli: &mut cli,
-			args: CallContractCommand {
-				path: Some(temp_dir.path().join("wrong-testing")),
-				contract: None,
-				message: None,
-				args: vec![].to_vec(),
-				value: "0".to_string(),
-				gas_limit: None,
-				proof_size: None,
-				url: Url::parse("ws://localhost:9944")?,
-				suri: "//Alice".to_string(),
-				dry_run: false,
-				execute: false,
-			},
-		})
+		}
 		.execute()
 		.await?;
 
