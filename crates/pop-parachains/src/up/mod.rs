@@ -208,16 +208,14 @@ impl Zombienet {
 				continue;
 			}
 
-			// Check if command references to a template local binary without path
+			// Check if command references a parachain template binary without a specified path
+			// (e.g. Polkadot SDK parachain template)
 			if command == "parachain-template-node" {
-				paras.insert(
-					id,
-					Parachain::from_local(
-						id,
-						PathBuf::from("./target/release/parachain-template-node"),
-						chain,
-					)?,
-				);
+				let binary_path = PathBuf::from("./target/release").join("parachain-template-node");
+				if !binary_path.exists() {
+					return Err(Error::MissingBinary(command));
+				}
+				paras.insert(id, Parachain::from_local(id, binary_path, chain)?);
 				continue;
 			}
 			return Err(Error::MissingBinary(command));
@@ -677,7 +675,11 @@ fn resolve_manifest(package: &str, path: &Path) -> Result<Option<PathBuf>, Error
 mod tests {
 	use super::*;
 	use anyhow::Result;
-	use std::{env::current_dir, fs::File, io::Write};
+	use std::{
+		env::current_dir,
+		fs::{create_dir_all, remove_dir, remove_file, File},
+		io::Write,
+	};
 	use tempfile::tempdir;
 
 	mod zombienet {
@@ -1121,6 +1123,58 @@ default_command = "./target/release/parachain-template-node"
 			assert_eq!(pop.path(), Path::new("./target/release/parachain-template-node"));
 			assert_eq!(pop.version(), None);
 			assert!(matches!(pop, Binary::Local { .. }));
+			Ok(())
+		}
+
+		#[tokio::test]
+		async fn new_with_local_parachain_without_path_works() -> Result<()> {
+			let temp_dir = tempdir()?;
+			let cache = PathBuf::from(temp_dir.path());
+			let config = Builder::new().suffix(".toml").tempfile()?;
+			writeln!(
+				config.as_file(),
+				r#"
+[relaychain]
+chain = "rococo-local"
+
+[[parachains]]
+id = 1000
+
+[parachains.collator]
+name = "collator"
+command = "parachain-template-node"
+"#
+			)?;
+			assert!(matches!(
+				Zombienet::new(&cache, config.path().to_str().unwrap(), None, None, None, None, None).await,
+				Err(Error::MissingBinary(command))
+				if command == "parachain-template-node"
+			));
+			// Create the binary in the hardcoded path
+			let parachain_template = PathBuf::from("target/release/parachain-template-node");
+			create_dir_all(parachain_template.parent().unwrap())?;
+			File::create(&parachain_template)?;
+
+			let zombienet = Zombienet::new(
+				&cache,
+				config.path().to_str().unwrap(),
+				None,
+				None,
+				None,
+				None,
+				None,
+			)
+			.await?;
+			// Remove the binary hardcoded path
+			remove_file(&parachain_template)?;
+			remove_dir(parachain_template.parent().unwrap())?;
+
+			assert_eq!(zombienet.parachains.len(), 1);
+			let parachain = &zombienet.parachains.get(&1000).unwrap().binary;
+			assert_eq!(parachain.name(), "parachain-template-node");
+			assert_eq!(parachain.path(), Path::new("./target/release/parachain-template-node"));
+			assert_eq!(parachain.version(), None);
+			assert!(matches!(parachain, Binary::Local { .. }));
 			Ok(())
 		}
 
