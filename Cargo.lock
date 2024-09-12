@@ -8549,8 +8549,7 @@ dependencies = [
 [[package]]
 name = "zombienet-configuration"
 version = "0.2.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5eff597aad815b5978a110c5ae96007395ba3227088cf85d0e1d1f6280fd0e73"
+source = "git+https://github.com/paritytech/zombienet-sdk?branch=fix-stash-gen-key#64d68884c83168d5c82d115333387184f255f4d7"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -8567,8 +8566,7 @@ dependencies = [
 [[package]]
 name = "zombienet-orchestrator"
 version = "0.2.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e67d87e2c2ab3644e38a3140d94ba55d27a2d1726095f97f30f0f1b0b1a77e20"
+source = "git+https://github.com/paritytech/zombienet-sdk?branch=fix-stash-gen-key#64d68884c83168d5c82d115333387184f255f4d7"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8576,6 +8574,7 @@ dependencies = [
  "glob-match",
  "hex",
  "libp2p",
+ "libsecp256k1",
  "multiaddr",
  "rand",
  "regex",
@@ -8599,8 +8598,7 @@ dependencies = [
 [[package]]
 name = "zombienet-prom-metrics-parser"
 version = "0.2.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9a6f4923a71aa7290ece0a1abe8b5e4b9242ef669bea717a76ba15bcedf705f4"
+source = "git+https://github.com/paritytech/zombienet-sdk?branch=fix-stash-gen-key#64d68884c83168d5c82d115333387184f255f4d7"
 dependencies = [
  "pest",
  "pest_derive",
@@ -8610,8 +8608,7 @@ dependencies = [
 [[package]]
 name = "zombienet-provider"
 version = "0.2.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "da181e16812afc675f1563f6c1853ce0a3afe81f0fcc762acc766c08ca8c16a0"
+source = "git+https://github.com/paritytech/zombienet-sdk?branch=fix-stash-gen-key#64d68884c83168d5c82d115333387184f255f4d7"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8641,8 +8638,7 @@ dependencies = [
 [[package]]
 name = "zombienet-sdk"
 version = "0.2.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1f64c5d7db3d6c80cde872abf2bd4161c01da4dacf988f4a28c5847653693eaf"
+source = "git+https://github.com/paritytech/zombienet-sdk?branch=fix-stash-gen-key#64d68884c83168d5c82d115333387184f255f4d7"
 dependencies = [
  "async-trait",
  "futures",
@@ -8658,8 +8654,7 @@ dependencies = [
 [[package]]
 name = "zombienet-support"
 version = "0.2.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2cd2a2ab982cd205ffd18ad733d5a64a7e170e9adca9028a82025a626460fd9a"
+source = "git+https://github.com/paritytech/zombienet-sdk?branch=fix-stash-gen-key#64d68884c83168d5c82d115333387184f255f4d7"
 dependencies = [
  "anyhow",
  "async-trait",

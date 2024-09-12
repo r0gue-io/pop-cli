@@ -443,6 +443,11 @@ impl NetworkConfiguration {
 					let command = format!("{} {}", Self::resolve_path(&path)?, "{{chainName}}");
 					*table.entry("chain_spec_command").or_insert(value(&command)) = value(&command);
 				}
+				// Check if EVM based parachain and insert evm_based for zombienet-sdk
+				let force_decorator = table.get("force_decorator").and_then(|i| i.as_str());
+				if force_decorator.is_some() && force_decorator.unwrap() == "generic-evm" {
+					table.insert("evm_based", value(true));
+				}
 
 				// Resolve individual collator command to binary
 				if let Some(collators) =
