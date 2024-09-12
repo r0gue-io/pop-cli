@@ -16,8 +16,7 @@ use std::{
 use symlink::{remove_symlink_file, symlink_file};
 use tempfile::{Builder, NamedTempFile};
 use toml_edit::{value, ArrayOfTables, DocumentMut, Formatted, Item, Table, Value};
-use zombienet_sdk::{Network, NetworkConfig, NetworkConfigExt};
-use zombienet_support::fs::local::LocalFileSystem;
+use zombienet_sdk::{LocalFileSystem, Network, NetworkConfig, NetworkConfigExt};
 
 mod chain_specs;
 mod parachains;
@@ -252,12 +251,13 @@ impl Zombienet {
 				if let Some(command) = NetworkConfiguration::command(node).and_then(|c| c.as_str())
 				{
 					match &relay {
-						Some(relay) =>
+						Some(relay) => {
 							if command.to_lowercase() != relay.binary.name() {
 								return Err(Error::UnsupportedCommand(format!(
 									"the relay chain command is unsupported: {command}",
 								)));
-							},
+							}
+						},
 						None => {
 							relay = Some(
 								relay::from(command, version, runtime_version, chain, cache)

@@ -31,7 +31,6 @@ toml_edit.workspace = true
 walkdir.workspace = true
 # Zombienet
 zombienet-sdk.workspace = true
-zombienet-support.workspace = true
 
 # Pop
 pop-common = { path = "../pop-common", version = "0.3.0" }
