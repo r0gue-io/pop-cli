@@ -98,12 +98,11 @@ impl Command {
 			},
 			#[cfg(feature = "contract")]
 			Self::Call(args) => match args.command {
-				call::Command::Contract(cmd) => {
+				call::Command::Contract(cmd) =>
 					call::contract::CallContract { cli: &mut Cli, args: cmd }
 						.execute()
 						.await
-						.map(|_| Value::Null)
-				},
+						.map(|_| Value::Null),
 			},
 			#[cfg(any(feature = "parachain", feature = "contract"))]
 			Self::Up(args) => match args.command {
