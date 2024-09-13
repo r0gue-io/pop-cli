@@ -24,12 +24,12 @@ pub struct CallContractCommand {
 	/// The constructor arguments, encoded as strings.
 	#[clap(long, num_args = 0..)]
 	args: Vec<String>,
-	/// Transfers an initial balance to the contract.
+	/// The value to be transferred as part of the call.
 	#[clap(name = "value", long, default_value = "0")]
 	value: String,
 	/// Maximum amount of gas to be used for this command.
 	/// If not specified it will perform a dry-run to estimate the gas consumed for the
-	/// instantiation.
+	/// call.
 	#[clap(name = "gas", long)]
 	gas_limit: Option<u64>,
 	/// Maximum proof size for this command.
@@ -370,7 +370,7 @@ async fn guide_user_to_call_contract<'a, CLI: Cli>(
 		proof_size,
 		url,
 		suri,
-		execute: message.mutates,
+		execute: if is_call_confirmed { message.mutates } else { false },
 		dry_run: !is_call_confirmed,
 	};
 	command.cli.info(call_command.display())?;
@@ -402,7 +402,7 @@ mod tests {
 			.expect_outro("Call completed successfully!");
 
 		// Contract deployed on Pop Network testnet, test get
-		Box::new(CallContract {
+		CallContract {
 			cli: &mut cli,
 			args: CallContractCommand {
 				path: Some(temp_dir.path().join("testing")),
@@ -417,9 +417,48 @@ mod tests {
 				dry_run: false,
 				execute: false,
 			},
-		})
+		}
 		.execute()
 		.await?;
+
+		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn call_contract_dry_run_works() -> Result<()> {
+		let temp_dir = generate_smart_contract_test_environment()?;
+		let mut current_dir = env::current_dir().expect("Failed to get current directory");
+		current_dir.pop();
+		mock_build_process(
+			temp_dir.path().join("testing"),
+			current_dir.join("pop-contracts/tests/files/testing.contract"),
+			current_dir.join("pop-contracts/tests/files/testing.json"),
+		)?;
+
+		let mut cli = MockCli::new()
+			.expect_intro(&"Call a contract")
+			.expect_warning("Your call has not been executed.")
+			.expect_info("Gas limit: Weight { ref_time: 100, proof_size: 10 }");
+
+		let call_config = CallContractCommand {
+			path: Some(temp_dir.path().join("testing")),
+			contract: Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string()),
+			message: Some("flip".to_string()),
+			args: vec![].to_vec(),
+			value: "0".to_string(),
+			gas_limit: Some(100),
+			proof_size: Some(10),
+			url: Url::parse("wss://rpc1.paseo.popnetwork.xyz")?,
+			suri: "//Alice".to_string(),
+			dry_run: true,
+			execute: false,
+		};
+		assert_eq!(call_config.display(), format!(
+			"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message flip --gas 100 --proof_size 10 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --dry_run",
+			temp_dir.path().join("testing").display().to_string(),
+		));
+		// Contract deployed on Pop Network testnet, test dry-run
+		CallContract { cli: &mut cli, args: call_config }.execute().await?;
 
 		cli.verify()
 	}
