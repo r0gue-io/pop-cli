@@ -1,4 +1,4 @@
-	// SPDX-License-Identifier: GPL-3.0
+// SPDX-License-Identifier: GPL-3.0
 
 use std::{fs, io, path::Path};
 
@@ -10,8 +10,8 @@ use anyhow::Result;
 /// * `template_file` - The name of the template to extract.
 /// * `repo_directory` - The path to the repository directory containing the template.
 /// * `target_directory` - The destination path where the template files should be copied.
-/// * `ignore_directories` - A vector of directory names to ignore during the extraction. If empty, no
-///   directories are ignored.
+/// * `ignore_directories` - A vector of directory names to ignore during the extraction. If empty,
+///   no directories are ignored.
 pub fn extract_template_files(
 	template_file: String,
 	repo_directory: &Path,
@@ -21,7 +21,11 @@ pub fn extract_template_files(
 	let template_directory = repo_directory.join(&template_file);
 	if template_directory.is_dir() {
 		// Recursively copy all directories and files within. Ignores the specified ones.
-		copy_dir_all(&template_directory, target_directory, &ignore_directories.unwrap_or_else(|| vec![]))?;
+		copy_dir_all(
+			&template_directory,
+			target_directory,
+			&ignore_directories.unwrap_or_else(|| vec![]),
+		)?;
 		return Ok(());
 	} else {
 		// If not a dir, just copy the file.
@@ -49,8 +53,8 @@ fn copy_dir_all(
 	for entry in fs::read_dir(src)? {
 		let entry = entry?;
 		let ty = entry.file_type()?;
-		if ty.is_dir()
-			&& ignore_directories.contains(&entry.file_name().to_string_lossy().to_string())
+		if ty.is_dir() &&
+			ignore_directories.contains(&entry.file_name().to_string_lossy().to_string())
 		{
 			continue;
 		} else if ty.is_dir() {

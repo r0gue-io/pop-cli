@@ -176,7 +176,7 @@ pub enum Parachain {
 			Repository = "https://github.com/moondance-labs/tanssi",
 			Network = "./network.toml",
 			NodeDirectory = "container-chains/nodes",
-		    RuntimeDirectory = "container-chains/runtime-templates",
+			RuntimeDirectory = "container-chains/runtime-templates",
 			ExtractableFiles = ".rustfmt.toml,Cargo.toml,Cargo.lock,LICENSE,README.md,rust-toolchain",
 		)
 	)]
@@ -191,7 +191,7 @@ pub enum Parachain {
 			Repository = "https://github.com/moondance-labs/tanssi",
 			Network = "./network.toml",
 			NodeDirectory = "container-chains/nodes",
-		    RuntimeDirectory = "container-chains/runtime-templates",
+			RuntimeDirectory = "container-chains/runtime-templates",
 			ExtractableFiles = ".rustfmt.toml,Cargo.toml,Cargo.lock,LICENSE,README.md,rust-toolchain",
 		)
 	)]
@@ -210,7 +210,7 @@ pub enum Parachain {
 			SupportedVersions = "v1.0.0,v2.0.0",
 			IsAudited = "true",
 			NodeDirectory = "node/dir",
-		    RuntimeDirectory = "runtime/dir",
+			RuntimeDirectory = "runtime/dir",
 			ExtractableFiles = "list,of,files",
 		)
 	)]
@@ -254,17 +254,17 @@ impl Parachain {
 
 	/// Returns where to pull the tempalte node directory from in its source repo, if defined.
 	pub fn node_directory(&self) -> Option<&str> {
-	    self.get_str("NodeDirectory")
+		self.get_str("NodeDirectory")
 	}
 
 	/// Returns where to pull the tempalte runtime directory from in its source repo, if defined.
 	pub fn runtime_directory(&self) -> Option<&str> {
-	    self.get_str("RuntimeDirectory")
+		self.get_str("RuntimeDirectory")
 	}
 
 	/// Returns a list of relevant files to extract from the source repo, if defined.
 	pub fn extractable_files(&self) -> Option<Vec<&str>> {
-	    self.get_str("ExtractableFiles").map(|s| s.split(',').collect())
+		self.get_str("ExtractableFiles").map(|s| s.split(',').collect())
 	}
 }
 
@@ -468,7 +468,7 @@ mod tests {
 
 	#[test]
 	fn retrieves_node_directory_from_template() {
-	    let template = TestTemplate01;
+		let template = TestTemplate01;
 		assert_eq!(template.node_directory().unwrap(), "node/dir");
 		let template = TestTemplate02;
 		assert_eq!(template.node_directory(), None);
@@ -476,7 +476,7 @@ mod tests {
 
 	#[test]
 	fn retrieves_runtime_directory_from_template() {
-	    let template = TestTemplate01;
+		let template = TestTemplate01;
 		assert_eq!(template.runtime_directory().unwrap(), "runtime/dir");
 		let template = TestTemplate02;
 		assert_eq!(template.runtime_directory(), None);

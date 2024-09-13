@@ -124,7 +124,8 @@ impl Git {
 		Self::parse_latest_tag(tags.iter().flatten().collect::<Vec<_>>())
 	}
 
-	/// Parses a list of tags to identify the latest one, prioritizing tags in the stable format first.
+	/// Parses a list of tags to identify the latest one, prioritizing tags in the stable format
+	/// first.
 	fn parse_latest_tag(tags: Vec<&str>) -> Option<String> {
 		match Self::parse_stable_format(tags.clone()) {
 			Some(last_stable_tag) => Some(last_stable_tag),

@@ -370,13 +370,13 @@ async fn guide_user_to_generate_spec(args: BuildSpecCommand) -> anyhow::Result<B
 	}
 	// Prompt relays chains based on the chain type
 	match chain_type {
-		ChainType::Live => {
+		ChainType::Live =>
 			for relay in RelayChain::VARIANTS {
 				if !matches!(
 					relay,
-					RelayChain::Westend
-						| RelayChain::Paseo | RelayChain::Kusama
-						| RelayChain::Polkadot
+					RelayChain::Westend |
+						RelayChain::Paseo | RelayChain::Kusama |
+						RelayChain::Polkadot
 				) {
 					continue;
 				} else {
@@ -386,15 +386,14 @@ async fn guide_user_to_generate_spec(args: BuildSpecCommand) -> anyhow::Result<B
 						relay.get_detailed_message().unwrap_or_default(),
 					);
 				}
-			}
-		},
-		_ => {
+			},
+		_ =>
 			for relay in RelayChain::VARIANTS {
 				if matches!(
 					relay,
-					RelayChain::Westend
-						| RelayChain::Paseo | RelayChain::Kusama
-						| RelayChain::Polkadot
+					RelayChain::Westend |
+						RelayChain::Paseo | RelayChain::Kusama |
+						RelayChain::Polkadot
 				) {
 					continue;
 				} else {
@@ -404,8 +403,7 @@ async fn guide_user_to_generate_spec(args: BuildSpecCommand) -> anyhow::Result<B
 						relay.get_detailed_message().unwrap_or_default(),
 					);
 				}
-			}
-		},
+			},
 	}
 
 	let relay_chain = prompt.interact()?.clone();

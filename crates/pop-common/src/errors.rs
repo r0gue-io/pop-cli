@@ -27,4 +27,6 @@ pub enum Error {
 	UnsupportedCommand(String),
 	#[error("Unsupported platform: {arch} {os}")]
 	UnsupportedPlatform { arch: &'static str, os: &'static str },
+	#[error("Toml error: {0}")]
+	TomlError(#[from] toml_edit::TomlError),
 }

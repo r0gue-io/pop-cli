@@ -4,6 +4,7 @@ use crate::Error;
 use anyhow;
 pub use cargo_toml::{Dependency, Manifest};
 use std::{
+	collections::HashSet,
 	fs::{read_to_string, write},
 	path::{Path, PathBuf},
 };
@@ -89,6 +90,21 @@ pub fn add_crate_to_workspace(workspace_toml: &Path, crate_path: &Path) -> anyho
 
 	write(workspace_toml, doc.to_string())?;
 	Ok(())
+}
+
+/// Collects the dependencies of the given `Cargo.toml` manifests in a HashMap.
+///
+/// # Arguments
+/// * `manifests`: Paths of the manifests to collect dependencies from.
+pub fn collect_manifest_dependencies(manifests: Vec<&Path>) -> anyhow::Result<HashSet<String>> {
+	let mut dependencies = HashSet::new();
+	for m in manifests {
+		let cargo = &std::fs::read_to_string(m)?.parse::<DocumentMut>()?;
+		for d in cargo["dependencies"].as_table().unwrap().into_iter() {
+			dependencies.insert(d.0.into());
+		}
+	}
+	Ok(dependencies)
 }
 
 #[cfg(test)]

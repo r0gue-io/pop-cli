@@ -5,9 +5,9 @@ use std::{fs, path::Path};
 use anyhow::Result;
 use pop_common::{
 	git::Git,
+	manifest::{collect_manifest_dependencies, from_path},
 	templates::{extractor::extract_template_files, Template, Type},
 };
-use toml_edit::ImDocument;
 use walkdir::WalkDir;
 
 use crate::{
@@ -117,7 +117,7 @@ fn instantiate_tanssi_template(
 	// │├┬ nodes
 	// ││└ <template node directories>
 	// │└┬ runtime-templates
-	// │  └ <tempalte runtime directories>
+	// │  └ <template runtime directories>
 
 	// Step 1: extract template node.
 	let template_path = format!("{}/{}", template.node_directory().unwrap(), template.to_string());
@@ -145,44 +145,58 @@ fn instantiate_tanssi_template(
 
 	// Ready project manifest.
 	let template_tag = tag.clone().unwrap();
-	// Retrieve dependency versions from source.
-	let source_toml = fs::read_to_string(source.join("Cargo.toml"))?;
-	let source_manifest = ImDocument::parse(source_toml)?;
-	let workspace_dependencies =
-		source_manifest.get("workspace").unwrap().get("dependencies").unwrap();
-	let dancekit_branch = workspace_dependencies
-		.get("dp-core")
-		.unwrap()
-		.get("branch")
-		.unwrap()
-		.to_string();
-	let moonkit_branch = workspace_dependencies
-		.get("nimbus-consensus")
-		.unwrap()
-		.get("branch")
-		.unwrap()
-		.to_string();
-	let sdk_branch = workspace_dependencies
-		.get("frame-system")
-		.unwrap()
-		.get("branch")
-		.unwrap()
-		.to_string();
-	let frontier_branch =
-		workspace_dependencies.get("fp-evm").unwrap().get("branch").unwrap().to_string();
-
-	let target_manifest = ContainerCargo {
-		template: template.to_string(),
-		template_tag,
-		dancekit_branch,
-		moonkit_branch,
-		sdk_branch,
-		frontier_branch,
-	};
+	let target_manifest = ContainerCargo { template: template.to_string() };
 	write_to_file(
 		&target.join("Cargo.toml"),
 		target_manifest.render().expect("infallible").as_ref(),
 	)?;
+	let source_manifest = from_path(Some(source))?;
+	let mut source_manifest_workspace = source_manifest.workspace.clone().unwrap();
+	let mut target_manifest = from_path(Some(&target))?;
+	let mut target_manifest_workspace = target_manifest.workspace.clone().unwrap();
+
+	// Collect required dependencies.
+	let node_manifest_path = &target.join("node").join("Cargo.toml");
+	let runtime_manifest_path = &target.join("runtime").join("Cargo.toml");
+	let target_dependencies = collect_manifest_dependencies(Vec::from([
+		node_manifest_path.as_ref(),
+		runtime_manifest_path.as_ref(),
+	]))?;
+
+	target_manifest_workspace
+		.dependencies
+		.extend(target_dependencies.into_iter().map(|k| {
+			let v = source_manifest_workspace.dependencies.get_mut(&k).expect("Infallible");
+			let dependency = v.detail_mut();
+			if dependency.path.is_some() {
+				// Template runtime dependency should remain local.
+				dependency.path = None;
+				dependency.git = Some("https://github.com/moondance-labs/tanssi".to_string());
+				dependency.tag = Some(template_tag.clone());
+				return (k, v.clone());
+			} else {
+				return (k, v.clone());
+			}
+		}));
+	let local_runtime = target_manifest_workspace
+		.dependencies
+		.get_mut(&format!("container-chain-template-{}-runtime", template.to_string()))
+		.unwrap()
+		.detail_mut();
+	local_runtime.git = None;
+	local_runtime.tag = None;
+	local_runtime.path = Some("runtime".to_string());
+
+	target_manifest.workspace = Some(target_manifest_workspace);
+
+	// target_manifest
+	// 	.dependencies
+	// 	.extend(source_manifest.dependencies.into_iter().filter(|d| {
+	// 		node_manifest["dependencies"].as_table().unwrap().contains_key(&d.0)
+	// 			|| runtime_manifest["dependencies"].as_table().unwrap().contains_key(&d.0)
+	// 	}));
+	let target_manifest = toml_edit::ser::to_string_pretty(&target_manifest)?;
+	fs::write(&target.join("Cargo.toml"), target_manifest)?;
 
 	Ok(tag)
 }
