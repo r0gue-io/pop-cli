@@ -16,28 +16,32 @@ pub struct CallParachainCommand {
 	/// The constructor arguments, encoded as strings.
 	#[clap(long, num_args = 0..)]
 	args: Vec<String>,
-	/// Transfers an initial balance to the contract.
-	#[clap(name = "value", long, default_value = "0")]
-	value: String,
-	/// Maximum amount of gas to be used for this command.
-	/// If not specified it will perform a dry-run to estimate the gas consumed for the
-	/// instantiation.
-	#[clap(name = "gas", long)]
-	gas_limit: Option<u64>,
-	/// Maximum proof size for this command.
-	/// If not specified it will perform a dry-run to estimate the proof size required.
-	#[clap(long)]
-	proof_size: Option<u64>,
 	/// Websocket endpoint of a node.
 	#[clap(name = "url", long, value_parser, default_value = "ws://localhost:9944")]
 	url: String,
-	/// Secret key URI for the account calling the contract.
+	/// Secret key URI for the account signing the extrinsic.
 	///
 	/// e.g.
 	/// - for a dev account "//Alice"
 	/// - with a password "//Alice///SECRET_PASSWORD"
 	#[clap(name = "suri", long, short, default_value = "//Alice")]
 	suri: String,
+}
+impl CallParachainCommand {
+	fn display(&self) -> String {
+		let mut full_message = format!("pop call parachain");
+		if let Some(pallet) = &self.pallet {
+			full_message.push_str(&format!(" --pallet {}", pallet));
+		}
+		if let Some(extrinsic) = &self.extrinsic {
+			full_message.push_str(&format!(" --extrinsic {}", extrinsic));
+		}
+		if !self.args.is_empty() {
+			full_message.push_str(&format!(" --args {}", self.args.join(" ")));
+		}
+		full_message.push_str(&format!(" --url {} --suri {}", self.url, self.suri));
+		full_message
+	}
 }
 
 pub(crate) struct CallParachain<'a, CLI: Cli> {
@@ -49,7 +53,7 @@ pub(crate) struct CallParachain<'a, CLI: Cli> {
 
 impl<'a, CLI: Cli> CallParachain<'a, CLI> {
 	/// Executes the command.
-	pub(crate) async fn execute(mut self: Box<Self>) -> Result<()> {
+	pub(crate) async fn execute(mut self: Self) -> Result<()> {
 		self.cli.intro("Call a parachain")?;
 		let metadata = fetch_metadata("wss://rpc1.paseo.popnetwork.xyz").await?;
 		let call_config = if self.args.pallet.is_none() && self.args.extrinsic.is_none() {
@@ -57,6 +61,27 @@ impl<'a, CLI: Cli> CallParachain<'a, CLI> {
 		} else {
 			self.args.clone()
 		};
+		match self.execute_extrinsic(call_config.clone()).await {
+			Ok(_) => Ok(()),
+			Err(e) => {
+				self.cli.outro_cancel(format!("{}", e.to_string()))?;
+				return Ok(());
+			},
+		}
+	}
+	/// Executes the extrinsic or query.
+	async fn execute_extrinsic(&mut self, call_config: CallParachainCommand) -> Result<()> {
+		let pallet = call_config
+			.pallet
+			.clone()
+			.expect("pallet can not be none as fallback above is interactive input; qed");
+		let extrinsic = call_config
+			.extrinsic
+			.clone()
+			.expect("extrinsic can not be none as fallback above is interactive input; qed");
+		// TODO: Check if exists?
+		// println!("Extrinsic to submit: {:?} with args {:?}", extrinsic.name, args);
+		// query(&pallet.label, &storage.name, vec![], "wss://rpc1.paseo.popnetwork.xyz").await?;
 		Ok(())
 	}
 }
@@ -102,8 +127,10 @@ async fn guide_user_to_call_chain<'a, CLI: Cli>(
 		.item(Action::Query, "Query storage", "hint")
 		.interact()?;
 
+	let mut extrinsic;
+	let mut args = Vec::new();
 	if action == Action::Extrinsic {
-		let extrinsic = {
+		extrinsic = {
 			let mut prompt_extrinsic = command.cli.select("Select the extrinsic to call:");
 			for extrinsic in pallet.extrinsics {
 				prompt_extrinsic = prompt_extrinsic.item(
@@ -114,7 +141,6 @@ async fn guide_user_to_call_chain<'a, CLI: Cli>(
 			}
 			prompt_extrinsic.interact()?
 		};
-		let mut args = Vec::new();
 		for argument in extrinsic.fields {
 			let value = command
 				.cli
@@ -125,7 +151,6 @@ async fn guide_user_to_call_chain<'a, CLI: Cli>(
 				.interact()?;
 			args.push(value);
 		}
-		println!("Extrinsic to submit: {:?} with args {:?}", extrinsic.name, args);
 	} else {
 		let storage = {
 			let mut prompt_storage = command.cli.select("Select the storage to query:");
@@ -135,18 +160,13 @@ async fn guide_user_to_call_chain<'a, CLI: Cli>(
 			prompt_storage.interact()?
 		};
 		let a = storage_info(&pallet.label, &storage.name, &metadata)?;
-		query(&pallet.label, &storage.name, vec![], "wss://rpc1.paseo.popnetwork.xyz").await?;
+		println!("STORAGE {:?}", a);
 	}
-	// println!("Selected pallet: {:?}", pallet.label);
-	// println!("ext: {:?}", pallet.extrinsics);
 
 	Ok(CallParachainCommand {
-		pallet: Some("pallet".to_string()),
+		pallet: Some(pallet.label),
 		extrinsic: Some("extrinsic".to_string()),
 		args: vec!["".to_string()],
-		value: "0".to_string(),
-		gas_limit: None,
-		proof_size: None,
 		url: "wss://rpc2.paseo.popnetwork.xyz".to_string(),
 		suri: "//Alice".to_string(),
 	})
