@@ -137,4 +137,31 @@ mod tests {
 
 		Ok(())
 	}
+
+	#[test]
+	fn test_parachain_instantiate_openzeppelin_template() -> Result<()> {
+		let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
+		instantiate_openzeppelin_template(&Parachain::OpenZeppelinEVM, temp_dir.path(), None)?;
+
+		// Verify that the generated chain_spec.rs file contains the expected content
+		let generated_file_content =
+			fs::read_to_string(temp_dir.path().join("node/src/chain_spec.rs"))
+				.expect("Failed to read file");
+		assert!(generated_file_content
+			.contains("properties.insert(\"tokenSymbol\".into(), \"UNIT\".into());"));
+		assert!(generated_file_content
+			.contains("properties.insert(\"tokenDecimals\".into(), 12.into());"));
+
+		let node_manifest =
+			pop_common::manifest::from_path(Some(&temp_dir.path().join("node/Cargo.toml")))
+				.expect("Failed to read file");
+		assert_eq!("evm-template-node", node_manifest.package().name());
+
+		let runtime_manifest =
+			pop_common::manifest::from_path(Some(&temp_dir.path().join("runtime/Cargo.toml")))
+				.expect("Failed to read file");
+		assert_eq!("evm-runtime-template", runtime_manifest.package().name());
+
+		Ok(())
+	}
 }
