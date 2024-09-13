@@ -192,6 +192,7 @@ pub enum Parachain {
 			Network = "./network.toml",
 			NodeDirectory = "container-chains/nodes",
 			RuntimeDirectory = "container-chains/runtime-templates",
+			SupportedVersions = "master",
 			ExtractableFiles = ".rustfmt.toml,Cargo.toml,Cargo.lock,LICENSE,README.md,rust-toolchain",
 		)
 	)]

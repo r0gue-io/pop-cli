@@ -103,8 +103,76 @@ pub fn collect_manifest_dependencies(manifests: Vec<&Path>) -> anyhow::Result<Ha
 		for d in cargo["dependencies"].as_table().unwrap().into_iter() {
 			dependencies.insert(d.0.into());
 		}
+		for d in cargo["build-dependencies"].as_table().unwrap().into_iter() {
+			dependencies.insert(d.0.into());
+		}
 	}
 	Ok(dependencies)
+}
+
+/// Extends `target` cargo manifest with `dependencies` using versions from `source`.
+///
+/// It is useful when the list of dependencies is compiled from some external crates,
+/// but there is interest on using a separate manifest as the source of truth for their versions.
+///
+/// # Arguments
+/// * `target`: Manifest to be modified.
+/// * `source`: Manifest used as reference for the dependency versions.
+/// * `template`: The name of the template for the target manifest.
+/// * `tag`: Version to use when transforming local dependencies from `source`.
+/// * `dependencies`: List to extend `target` with.
+pub fn extend_dependencies_with_version_source<I>(
+	target: &mut Manifest,
+	source: Manifest,
+	template: String,
+	tag: Option<String>,
+	dependencies: I,
+) where
+	I: IntoIterator<Item = String>,
+{
+	let mut target_manifest_workspace = target.workspace.clone().unwrap();
+	let source_manifest_workspace = source.workspace.clone().unwrap();
+
+	let updated_dependencies: Vec<_> = dependencies
+		.into_iter()
+		.filter_map(|k| {
+			if let Some(dependency) = source_manifest_workspace.dependencies.get(&k) {
+				if let Some(d) = dependency.detail() {
+					let mut detail = d.clone();
+					if d.path.is_some() {
+						detail.path = None;
+						detail.git = Some("https://github.com/moondance-labs/tanssi".to_string());
+						if let Some(tag) = &tag {
+							match tag.as_str() {
+								"master" => detail.branch = Some("master".to_string()),
+								_ => detail.tag = Some(tag.to_string()),
+							}
+						};
+					}
+					Some((k, Dependency::Detailed(Box::from(detail))))
+				} else {
+					Some((k, dependency.clone()))
+				}
+			} else {
+				None
+			}
+		})
+		.collect();
+
+	target_manifest_workspace.dependencies.extend(updated_dependencies);
+
+	// Update the local runtime dependency.
+	let local_runtime = target_manifest_workspace
+		.dependencies
+		.get_mut(&format!("container-chain-template-{}-runtime", template))
+		.unwrap()
+		.detail_mut();
+	local_runtime.git = None;
+	local_runtime.tag = None;
+	local_runtime.branch = None;
+	local_runtime.path = Some("runtime".to_string());
+
+	target.workspace = Some(target_manifest_workspace);
 }
 
 #[cfg(test)]
