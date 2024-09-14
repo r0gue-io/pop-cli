@@ -10,6 +10,4 @@ pub(crate) struct Network {
 
 #[derive(Template)]
 #[template(path = "container/Cargo.templ", escape = "none")]
-pub(crate) struct Cargo {
-	pub(crate) template: String,
-}
+pub(crate) struct Cargo {}

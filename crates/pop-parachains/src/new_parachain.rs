@@ -144,7 +144,7 @@ fn instantiate_tanssi_template(
 	write_to_file(&target.join("network.toml"), network.render().expect("infallible").as_ref())?;
 
 	// Ready project manifest.
-	let target_manifest = ContainerCargo { template: template.to_string() };
+	let target_manifest = ContainerCargo {};
 	write_to_file(
 		&target.join("Cargo.toml"),
 		target_manifest.render().expect("infallible").as_ref(),
@@ -156,6 +156,11 @@ fn instantiate_tanssi_template(
 		node_manifest_path.as_ref(),
 		runtime_manifest_path.as_ref(),
 	]))?;
+	// Dependencies that should remain with local references.
+	let local_dependencies: Vec<(String, String)> = vec![(
+		format!("container-chain-template-{}-runtime", template.to_string()),
+		"runtime".to_string(),
+	)];
 
 	if new_dependencies.len() > 0 {
 		// Update versions to follow source.
@@ -164,9 +169,9 @@ fn instantiate_tanssi_template(
 		extend_dependencies_with_version_source(
 			&mut target_manifest,
 			source_manifest,
-			template.to_string(),
 			tag.clone(),
 			new_dependencies,
+			Some(local_dependencies),
 		);
 
 		let target_manifest = toml_edit::ser::to_string_pretty(&target_manifest)?;

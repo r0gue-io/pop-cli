@@ -118,15 +118,15 @@ pub fn collect_manifest_dependencies(manifests: Vec<&Path>) -> anyhow::Result<Ha
 /// # Arguments
 /// * `target`: Manifest to be modified.
 /// * `source`: Manifest used as reference for the dependency versions.
-/// * `template`: The name of the template for the target manifest.
 /// * `tag`: Version to use when transforming local dependencies from `source`.
 /// * `dependencies`: List to extend `target` with.
+/// * `local_exceptions`: List of dependencies that need to be reference a local path.
 pub fn extend_dependencies_with_version_source<I>(
 	target: &mut Manifest,
 	source: Manifest,
-	template: String,
 	tag: Option<String>,
 	dependencies: I,
+	local_exceptions: Option<Vec<(String, String)>>,
 ) where
 	I: IntoIterator<Item = String>,
 {
@@ -141,7 +141,7 @@ pub fn extend_dependencies_with_version_source<I>(
 					let mut detail = d.clone();
 					if d.path.is_some() {
 						detail.path = None;
-						detail.git = Some("https://github.com/moondance-labs/tanssi".to_string());
+						detail.git = source_manifest_workspace.package.clone().unwrap().repository;
 						if let Some(tag) = &tag {
 							match tag.as_str() {
 								"master" => detail.branch = Some("master".to_string()),
@@ -161,17 +161,20 @@ pub fn extend_dependencies_with_version_source<I>(
 
 	target_manifest_workspace.dependencies.extend(updated_dependencies);
 
-	// Update the local runtime dependency.
-	let local_runtime = target_manifest_workspace
-		.dependencies
-		.get_mut(&format!("container-chain-template-{}-runtime", template))
-		.unwrap()
-		.detail_mut();
-	local_runtime.git = None;
-	local_runtime.tag = None;
-	local_runtime.branch = None;
-	local_runtime.path = Some("runtime".to_string());
-
+	// Address local exceptions.
+	if let Some(local_exceptions) = local_exceptions {
+		for (dependency, path) in local_exceptions {
+			let d = target_manifest_workspace
+				.dependencies
+				.get_mut(&dependency)
+				.unwrap()
+				.detail_mut();
+			d.git = None;
+			d.tag = None;
+			d.branch = None;
+			d.path = Some(path);
+		}
+	}
 	target.workspace = Some(target_manifest_workspace);
 }
 
