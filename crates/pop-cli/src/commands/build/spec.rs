@@ -494,7 +494,7 @@ mod tests {
 	#[tokio::test]
 	async fn guide_user_to_generate_spec_works() -> anyhow::Result<()> {
 		let mut cli = MockCli::new()
-			.expect_intro(format!("Generate your chain spec"))
+			.expect_intro("Generate your chain spec")
 			.expect_confirm("Should the genesis code file be generated ?", true)
 			.expect_confirm("Should the genesis state file be generated ?", true)
 			.expect_input(

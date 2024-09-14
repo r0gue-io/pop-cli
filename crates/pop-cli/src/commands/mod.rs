@@ -58,7 +58,9 @@ impl Command {
 	pub(crate) async fn execute(self) -> anyhow::Result<Value> {
 		match self {
 			#[cfg(any(feature = "parachain", feature = "contract"))]
-			Self::Install(args) => install::Command.execute(args).await.map(|_| Value::Null),
+			Self::Install(args) => {
+				install::Command { cli: &mut Cli, args }.execute().await.map(|_| Value::Null)
+			},
 			#[cfg(any(feature = "parachain", feature = "contract"))]
 			Self::New(args) => match args.command {
 				#[cfg(feature = "parachain")]
