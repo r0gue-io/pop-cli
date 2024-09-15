@@ -311,12 +311,11 @@ async fn install_rustup<'a, CLI: Cli>(cli: &'a mut CLI) -> anyhow::Result<()> {
 async fn install_homebrew<'a, CLI: Cli>(cli: &'a mut CLI) -> anyhow::Result<()> {
 	match cmd("which", vec!["brew"]).read() {
 		Ok(output) => cli.info(format!("ℹ️ Homebrew installed already at {}.", output))?,
-		Err(_) => {
+		Err(_) =>
 			run_external_script(
 				"https://raw.githubusercontent.com/Homebrew/install/master/install.sh",
 			)
-			.await?
-		},
+			.await?,
 	}
 	Ok(())
 }

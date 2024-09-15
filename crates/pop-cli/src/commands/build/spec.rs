@@ -388,13 +388,13 @@ async fn guide_user_to_generate_spec(
 		}
 		// Prompt relays chains based on the chain type
 		match chain_type {
-			ChainType::Live => {
+			ChainType::Live =>
 				for relay in RelayChain::VARIANTS {
 					if !matches!(
 						relay,
-						RelayChain::Westend
-							| RelayChain::Paseo | RelayChain::Kusama
-							| RelayChain::Polkadot
+						RelayChain::Westend |
+							RelayChain::Paseo | RelayChain::Kusama |
+							RelayChain::Polkadot
 					) {
 						continue;
 					} else {
@@ -404,15 +404,14 @@ async fn guide_user_to_generate_spec(
 							relay.get_detailed_message().unwrap_or_default(),
 						);
 					}
-				}
-			},
-			_ => {
+				},
+			_ =>
 				for relay in RelayChain::VARIANTS {
 					if matches!(
 						relay,
-						RelayChain::Westend
-							| RelayChain::Paseo | RelayChain::Kusama
-							| RelayChain::Polkadot
+						RelayChain::Westend |
+							RelayChain::Paseo | RelayChain::Kusama |
+							RelayChain::Polkadot
 					) {
 						continue;
 					} else {
@@ -422,8 +421,7 @@ async fn guide_user_to_generate_spec(
 							relay.get_detailed_message().unwrap_or_default(),
 						);
 					}
-				}
-			},
+				},
 		}
 
 		prompt.interact()?
@@ -462,14 +460,15 @@ async fn guide_user_to_generate_spec(
 		.interact()?;
 
 	// Only check user to check their profile selection if a live spec is being built on debug mode.
-	let profile =
-		if !args.release && matches!(chain_type, ChainType::Live) {
-			cli.confirm("Using Debug profile to build a Live specification. Should Release be used instead ?")
-    		.initial_value(true)
-    		.interact()?
-		} else {
-			args.release
-		};
+	let profile = if !args.release && matches!(chain_type, ChainType::Live) {
+		cli.confirm(
+			"Using Debug profile to build a Live specification. Should Release be used instead ?",
+		)
+		.initial_value(true)
+		.interact()?
+	} else {
+		args.release
+	};
 
 	Ok(BuildSpecCommand {
 		output_file: Some(PathBuf::from(output_file)),
