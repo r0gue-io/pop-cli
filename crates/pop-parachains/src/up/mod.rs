@@ -108,7 +108,8 @@ impl Zombienet {
 			.find(|(_, parachain)| parachain.binary.name() == parachain_name)
 			.ok_or(Error::ChainNotFound(format!("with name: {parachain_name}")))?
 			.0;
-		// This order is important, first container chains that can be more than one, then the parachain
+		// This order is important, first container chains that can be more than one, then the
+		// parachain
 		let mut container_chains: Vec<String> = Vec::new();
 		self.parachains.iter().filter(|(&id, _)| &id > parachain_id).try_for_each(
 			|(id, parachain)| -> Result<(), Error> {

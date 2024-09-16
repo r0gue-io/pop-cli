@@ -125,11 +125,15 @@ pub fn generate_raw_chain_spec(
 ///
 /// # Arguments
 /// * `binary_path` - The path to the node binary executable that contains the `build-spec` command.
-/// * `chain` - An optional chain to be used. This should be provided if generating a spec for a parachain.
-/// * `container_chains` - An optional vector of container chain specification files. These should be provided if generating a spec for a parachain.
+/// * `chain` - An optional chain to be used. This should be provided if generating a spec for a
+///   parachain.
+/// * `container_chains` - An optional vector of container chain specification files. These should
+///   be provided if generating a spec for a parachain.
 /// * `id` - The parachain id for which the chain specification is being generated.
-/// * `invulnerables` - An optional vector of invulnerable nodes. These should be provided if generating a spec for a parachain.
-/// * `raw_chain_spec` - The path where the generated raw chain specification file will be generated.
+/// * `invulnerables` - An optional vector of invulnerable nodes. These should be provided if
+///   generating a spec for a parachain.
+/// * `raw_chain_spec` - The path where the generated raw chain specification file will be
+///   generated.
 pub fn generate_raw_chain_spec_container_chain(
 	binary_path: &Path,
 	chain: Option<&str>,

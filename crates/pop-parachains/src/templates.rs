@@ -372,7 +372,7 @@ mod tests {
 				assert_eq!(Provider::OpenZeppelin.provides(&template), true);
 				assert_eq!(Provider::Tanssi.provides(&template), false);
 			}
-			if matches!(template, TanssiSimple 						) {
+			if matches!(template, TanssiSimple) {
 				assert_eq!(Provider::Pop.provides(&template), false);
 				assert_eq!(Provider::Parity.provides(&template), false);
 				assert_eq!(Provider::OpenZeppelin.provides(&template), false);

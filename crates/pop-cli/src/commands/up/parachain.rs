@@ -90,7 +90,8 @@ impl ZombienetCommand {
 			return Ok(());
 		}
 		// For container chains, build the specs before spawn the network
-		// TODO: Is there a better way to identifiy it than to check if there is a hardcoded tanssi-node
+		// TODO: Is there a better way to identifiy it than to check if there is a hardcoded
+		// tanssi-node
 		if zombienet.binaries().any(|b| b.name() == "tanssi-node") {
 			zombienet.build_container_chain_specs("tanssi-node")?;
 		}
