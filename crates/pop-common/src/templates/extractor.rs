@@ -1,41 +1,30 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use std::{fs, io, path::Path};
-
 use anyhow::Result;
+use std::{fs, io, path::Path};
 
 /// Extracts the specified template files from the repository directory to the target directory.
 ///
 /// # Arguments
-/// * `template_file` - The name of the template to extract.
+/// * `template_name` - The name of the template to extract.
 /// * `repo_directory` - The path to the repository directory containing the template.
 /// * `target_directory` - The destination path where the template files should be copied.
 /// * `ignore_directories` - A vector of directory names to ignore during the extraction. If empty,
 ///   no directories are ignored.
 pub fn extract_template_files(
-	template_file: String,
+	template_name: String,
 	repo_directory: &Path,
 	target_directory: &Path,
 	ignore_directories: Option<Vec<String>>,
 ) -> Result<()> {
-	let template_directory = repo_directory.join(&template_file);
-	if template_directory.is_dir() {
-		// Recursively copy all directories and files within. Ignores the specified ones.
-		copy_dir_all(
-			&template_directory,
-			target_directory,
-			&ignore_directories.unwrap_or_else(|| vec![]),
-		)?;
-		return Ok(());
-	} else {
-		// If not a dir, just copy the file.
-		let dst = target_directory.join(&template_file);
-		// In case the first file being pulled is not a directory,
-		// Make sure the target directory exists.
-		fs::create_dir_all(&target_directory)?;
-		fs::copy(template_directory, &dst)?;
-		Ok(())
-	}
+	let template_directory = repo_directory.join(template_name);
+	// Recursively copy all directories and files within. Ignores the specified ones.
+	copy_dir_all(
+		&template_directory,
+		target_directory,
+		&ignore_directories.unwrap_or_else(|| vec![]),
+	)?;
+	Ok(())
 }
 
 /// Recursively copy a directory and its files.
@@ -68,11 +57,9 @@ fn copy_dir_all(
 
 #[cfg(test)]
 mod tests {
-	use std::fs;
-
-	use anyhow::{Error, Result};
-
 	use super::*;
+	use anyhow::{Error, Result};
+	use std::fs;
 
 	fn generate_testing_contract(template: &str) -> Result<tempfile::TempDir, Error> {
 		let temp_dir = tempfile::tempdir()?;

@@ -2,7 +2,20 @@
 
 <img src="https://github.com/r0gue-io/pop-cli/blob/main/.icons/logo.jpeg"></img>
 
-An all-in-one tool for Polkadot development.
+<div align="center">
+  
+[![Twitter URL](https://img.shields.io/twitter/follow/Pop?style=social)](https://x.com/onpopio/)
+[![Twitter URL](https://img.shields.io/twitter/follow/R0GUE?style=social)](https://twitter.com/gor0gue)
+[![Telegram](https://img.shields.io/badge/Telegram-gray?logo=telegram)](https://t.me/onpopio)
+
+
+
+> An all-in-one tool for Polkadot development.
+
+</div>
+
+
+
 
 ## Installation
 
@@ -31,7 +44,7 @@ our [telemetry](crates/pop-telemetry/README.md) documentation.
 ## Documentation
 
 On the [Pop Docs website](https://learn.onpop.io) you will find:
-- [Get Started with Pop CLI](https://learn.onpop.io/v/cli)
+* 👉 [Get Started with Pop CLI](https://learn.onpop.io/v/cli)
 
 ## Building Pop CLI locally
 

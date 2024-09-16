@@ -84,7 +84,8 @@ pub enum Parachain {
 		props(
 			Provider = "Pop",
 			Repository = "https://github.com/r0gue-io/base-parachain",
-			Network = "./network.toml"
+			Network = "./network.toml",
+			License = "Unlicense"
 		)
 	)]
 	Standard,
@@ -97,7 +98,8 @@ pub enum Parachain {
 		props(
 			Provider = "Pop",
 			Repository = "https://github.com/r0gue-io/assets-parachain",
-			Network = "./network.toml"
+			Network = "./network.toml",
+			License = "Unlicense"
 		)
 	)]
 	Assets,
@@ -109,7 +111,8 @@ pub enum Parachain {
 		props(
 			Provider = "Pop",
 			Repository = "https://github.com/r0gue-io/contracts-parachain",
-			Network = "./network.toml"
+			Network = "./network.toml",
+			License = "Unlicense"
 		)
 	)]
 	Contracts,
@@ -123,7 +126,8 @@ pub enum Parachain {
 		props(
 			Provider = "Pop",
 			Repository = "https://github.com/r0gue-io/evm-parachain",
-			Network = "./network.toml"
+			Network = "./network.toml",
+			License = "Unlicense"
 		)
 	)]
 	EVM,
@@ -137,7 +141,8 @@ pub enum Parachain {
 			Repository = "https://github.com/OpenZeppelin/polkadot-runtime-templates",
 			Network = "./zombienet-config/devnet.toml",
 			SupportedVersions = "v1.0.0",
-			IsAudited = "true"
+			IsAudited = "true",
+			License = "GPL-3.0"
 		)
 	)]
 	OpenZeppelinGeneric,
@@ -150,7 +155,8 @@ pub enum Parachain {
 		props(
 			Provider = "Parity",
 			Repository = "https://github.com/paritytech/substrate-contracts-node",
-			Network = "./zombienet.toml"
+			Network = "./zombienet.toml",
+			License = "Unlicense"
 		)
 	)]
 	ParityContracts,
@@ -162,7 +168,8 @@ pub enum Parachain {
 		props(
 			Provider = "Parity",
 			Repository = "https://github.com/paritytech/frontier-parachain-template",
-			Network = "./zombienet-config.toml"
+			Network = "./zombienet-config.toml",
+			License = "Unlicense"
 		)
 	)]
 	ParityFPT,
@@ -221,7 +228,7 @@ pub enum Parachain {
 		serialize = "test_02",
 		message = "Test_02",
 		detailed_message = "Test template only compiled in test mode.",
-		props(Provider = "Test", Repository = "", Network = "",)
+		props(Provider = "Test", Repository = "", Network = "", License = "GPL-3.0")
 	)]
 	TestTemplate02,
 }
@@ -251,6 +258,10 @@ impl Parachain {
 	/// Whether a concrete template is audited of not.
 	pub fn is_audited(&self) -> bool {
 		self.get_str("IsAudited").map_or(false, |s| s == "true")
+	}
+
+	pub fn license(&self) -> Option<&str> {
+		self.get_str("License")
 	}
 
 	/// Returns where to pull the tempalte node directory from in its source repo, if defined.
@@ -345,6 +356,21 @@ mod tests {
 		.into()
 	}
 
+	fn template_license() -> HashMap<Parachain, Option<&'static str>> {
+		[
+			(Standard, Some("Unlicense")),
+			(Assets, Some("Unlicense")),
+			(Contracts, Some("Unlicense")),
+			(EVM, Some("Unlicense")),
+			(OpenZeppelinGeneric, Some("GPL-3.0")),
+			(ParityContracts, Some("Unlicense")),
+			(ParityFPT, Some("Unlicense")),
+			(TestTemplate01, Some("Unlicense")),
+			(TestTemplate02, Some("GPL-3.0")),
+		]
+		.into()
+	}
+
 	#[test]
 	fn test_is_template_correct() {
 		for template in Parachain::VARIANTS {
@@ -405,6 +431,14 @@ mod tests {
 		let network_configs = template_network_configs();
 		for template in Parachain::VARIANTS {
 			assert_eq!(template.network_config(), network_configs[template]);
+		}
+	}
+
+	#[test]
+	fn test_license() {
+		let licenses = template_license();
+		for template in Parachain::VARIANTS {
+			assert_eq!(template.license(), licenses[template]);
 		}
 	}
 
