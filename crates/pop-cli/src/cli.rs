@@ -241,7 +241,7 @@ pub(crate) mod tests {
 		info_expectations: Vec<String>,
 		input_expectations: Vec<(String, String)>,
 		intro_expectation: Option<String>,
-		outro_expectation: Option<String>,
+		outro_expectation: Vec<String>,
 		multiselect_expectation:
 			Option<(String, Option<bool>, bool, Option<Vec<(String, String)>>)>,
 		outro_cancel_expectation: Option<String>,
@@ -292,7 +292,7 @@ pub(crate) mod tests {
 		}
 
 		pub(crate) fn expect_outro(mut self, message: impl Display) -> Self {
-			self.outro_expectation = Some(message.to_string());
+			self.outro_expectation.push(message.to_string());
 			self
 		}
 
@@ -346,8 +346,8 @@ pub(crate) mod tests {
 			if let Some((prompt, _, _, _)) = self.multiselect_expectation {
 				panic!("`{prompt}` multiselect prompt expectation not satisfied")
 			}
-			if let Some(expectation) = self.outro_expectation {
-				panic!("`{expectation}` outro expectation not satisfied")
+			if !self.outro_expectation.is_empty() {
+				panic!("`{:?}` input expectation not satisfied", self.outro_expectation)
 			}
 			if let Some(expectation) = self.outro_cancel_expectation {
 				panic!("`{expectation}` outro cancel expectation not satisfied")
@@ -432,7 +432,7 @@ pub(crate) mod tests {
 		}
 
 		fn outro(&mut self, message: impl Display) -> Result<()> {
-			if let Some(expectation) = self.outro_expectation.take() {
+			if let Some(expectation) = self.outro_expectation.pop() {
 				assert_eq!(
 					expectation,
 					message.to_string(),

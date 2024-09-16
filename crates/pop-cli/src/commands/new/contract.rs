@@ -239,12 +239,13 @@ mod tests {
 	use console::style;
 	use pop_common::templates::{Template, Type};
 	use pop_contracts::{Contract as ContractTemplate, ContractType};
+	use strum::VariantArray;
 	use tempfile::tempdir;
 
 	use super::{check_destination_path, generate_contract_from_template};
 
 	#[tokio::test]
-	async fn test_new_contract_command_execute_with_defaults_executes() -> Result<()> {
+	async fn new_contract_command_execute_with_defaults_works() -> Result<()> {
 		let dir = tempdir()?;
 		let dir_path = format!("{}/test_contract", dir.path().display().to_string());
 		let cli = Cli::parse_from(["pop", "new", "contract", &dir_path]);
@@ -258,7 +259,7 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn test_new_contract_template_command_execute() -> Result<()> {
+	async fn new_contract_template_command_works() -> Result<()> {
 		let dir = tempdir()?;
 		let dir_path = format!("{}/test_contract", dir.path().display().to_string());
 		let cli =
@@ -274,6 +275,24 @@ mod tests {
 
 	#[tokio::test]
 	async fn guide_user_to_generate_contract_works() -> anyhow::Result<()> {
+		let mut items_select_contract_type: Vec<(String, String)> = Vec::new();
+		for contract_type in ContractType::VARIANTS {
+			items_select_contract_type.push((
+				contract_type.name().to_string(),
+				format!(
+					"{} {} available option(s)",
+					contract_type.description(),
+					contract_type.templates().len(),
+				),
+			));
+		}
+		let mut items_select_contract: Vec<(String, String)> = Vec::new();
+		for contract_template in ContractType::Erc.templates() {
+			items_select_contract.push((
+				contract_template.name().to_string(),
+				contract_template.description().to_string(),
+			));
+		}
 		let mut cli = MockCli::new()
 			.expect_intro("Generate a contract")
 			.expect_input("Where should your project be created?", "./erc20".into())
@@ -281,52 +300,14 @@ mod tests {
 				"Select the contract:",
 				Some(false),
 				true,
-				Some(vec![
-					(
-						ContractTemplate::ERC20.name().to_string(),
-						ContractTemplate::ERC20.description().to_string(),
-					),
-					(
-						ContractTemplate::ERC721.name().to_string(),
-						ContractTemplate::ERC721.description().to_string(),
-					),
-					(
-						ContractTemplate::ERC1155.name().to_string(),
-						ContractTemplate::ERC1155.description().to_string(),
-					),
-				]),
+				Some(items_select_contract),
 				1, // "ERC20"
 			)
 			.expect_select::<ContractType>(
 				"Select a template type:",
 				Some(false),
 				true,
-				Some(vec![
-					(
-						ContractType::Examples.name().to_string(),
-						format!(
-							"{} {} available option(s)",
-							ContractType::Examples.description(),
-							ContractType::Examples.templates().len(),
-						),
-					),
-					(
-						ContractType::Erc.name().to_string(),
-						format!(
-							"{} {} available option(s)",
-							ContractType::Erc.description(),
-							ContractType::Erc.templates().len(),
-						),
-					),
-					(
-						ContractType::Psp.name().to_string(),
-						format!(
-							"{} {} available option(s)",
-							ContractType::Psp.description(),
-							ContractType::Psp.templates().len(),
-						),
-					),
-				]),
+				Some(items_select_contract_type),
 				2, // "ERC"
 			);
 
