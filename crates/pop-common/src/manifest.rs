@@ -4,6 +4,7 @@ use crate::Error;
 use anyhow;
 pub use cargo_toml::{Dependency, Manifest};
 use std::{
+	collections::HashSet,
 	fs::{read_to_string, write},
 	path::{Path, PathBuf},
 };
@@ -89,6 +90,92 @@ pub fn add_crate_to_workspace(workspace_toml: &Path, crate_path: &Path) -> anyho
 
 	write(workspace_toml, doc.to_string())?;
 	Ok(())
+}
+
+/// Collects the dependencies of the given `Cargo.toml` manifests in a HashMap.
+///
+/// # Arguments
+/// * `manifests`: Paths of the manifests to collect dependencies from.
+pub fn collect_manifest_dependencies(manifests: Vec<&Path>) -> anyhow::Result<HashSet<String>> {
+	let mut dependencies = HashSet::new();
+	for m in manifests {
+		let cargo = &std::fs::read_to_string(m)?.parse::<DocumentMut>()?;
+		for d in cargo["dependencies"].as_table().unwrap().into_iter() {
+			dependencies.insert(d.0.into());
+		}
+		for d in cargo["build-dependencies"].as_table().unwrap().into_iter() {
+			dependencies.insert(d.0.into());
+		}
+	}
+	Ok(dependencies)
+}
+
+/// Extends `target` cargo manifest with `dependencies` using versions from `source`.
+///
+/// It is useful when the list of dependencies is compiled from some external crates,
+/// but there is interest on using a separate manifest as the source of truth for their versions.
+///
+/// # Arguments
+/// * `target`: Manifest to be modified.
+/// * `source`: Manifest used as reference for the dependency versions.
+/// * `tag`: Version to use when transforming local dependencies from `source`.
+/// * `dependencies`: List to extend `target` with.
+/// * `local_exceptions`: List of dependencies that need to be reference a local path.
+pub fn extend_dependencies_with_version_source<I>(
+	target: &mut Manifest,
+	source: Manifest,
+	tag: Option<String>,
+	dependencies: I,
+	local_exceptions: Option<Vec<(String, String)>>,
+) where
+	I: IntoIterator<Item = String>,
+{
+	let mut target_manifest_workspace = target.workspace.clone().unwrap();
+	let source_manifest_workspace = source.workspace.clone().unwrap();
+
+	let updated_dependencies: Vec<_> = dependencies
+		.into_iter()
+		.filter_map(|k| {
+			if let Some(dependency) = source_manifest_workspace.dependencies.get(&k) {
+				if let Some(d) = dependency.detail() {
+					let mut detail = d.clone();
+					if d.path.is_some() {
+						detail.path = None;
+						detail.git = source_manifest_workspace.package.clone().unwrap().repository;
+						if let Some(tag) = &tag {
+							match tag.as_str() {
+								"master" => detail.branch = Some("master".to_string()),
+								_ => detail.tag = Some(tag.to_string()),
+							}
+						};
+					}
+					Some((k, Dependency::Detailed(Box::from(detail))))
+				} else {
+					Some((k, dependency.clone()))
+				}
+			} else {
+				None
+			}
+		})
+		.collect();
+
+	target_manifest_workspace.dependencies.extend(updated_dependencies);
+
+	// Address local exceptions.
+	if let Some(local_exceptions) = local_exceptions {
+		for (dependency, path) in local_exceptions {
+			let d = target_manifest_workspace
+				.dependencies
+				.get_mut(&dependency)
+				.unwrap()
+				.detail_mut();
+			d.git = None;
+			d.tag = None;
+			d.branch = None;
+			d.path = Some(path);
+		}
+	}
+	target.workspace = Some(target_manifest_workspace);
 }
 
 #[cfg(test)]
