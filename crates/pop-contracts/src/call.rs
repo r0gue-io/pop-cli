@@ -309,7 +309,7 @@ mod tests {
 
 		let cache = temp_dir.path().join("");
 
-		let binary = contracts_node_generator(cache.clone(), None).await?;
+		let binary = contracts_node_generator(&cache, None).await?;
 		binary.source(false, &(), true).await?;
 		let process = run_contracts_node(binary.path(), None).await?;
 		// Instantiate a Smart Contract.

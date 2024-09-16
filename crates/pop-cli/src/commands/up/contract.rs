@@ -128,7 +128,13 @@ impl UpContractCommand {
 			let log = NamedTempFile::new()?;
 
 			// uses the cache location
-			let binary_path = match check_contracts_node_and_prompt(self.skip_confirm).await {
+			let binary_path = match check_contracts_node_and_prompt(
+				&mut Cli,
+				&crate::cache()?,
+				self.skip_confirm,
+			)
+			.await
+			{
 				Ok(binary_path) => binary_path,
 				Err(_) => {
 					Cli.outro_cancel(

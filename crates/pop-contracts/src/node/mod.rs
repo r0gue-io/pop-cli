@@ -15,7 +15,7 @@ use strum::{EnumProperty, VariantArray};
 use std::{
 	env::consts::{ARCH, OS},
 	fs::File,
-	path::PathBuf,
+	path::{Path, PathBuf},
 	process::{Child, Command, Stdio},
 	time::Duration,
 };
@@ -93,13 +93,13 @@ impl pop_common::sourcing::traits::Source for Chain {}
 /// * `version` - The specific version used for the substrate-contracts-node (`None` will use the
 ///   latest available version).
 pub async fn contracts_node_generator(
-	cache: PathBuf,
+	cache: &Path,
 	version: Option<&str>,
 ) -> Result<Binary, Error> {
 	let chain = &Chain::ContractsNode;
 	let name = chain.binary();
 	let releases = chain.releases().await?;
-	let tag = Binary::resolve_version(name, version, &releases, &cache);
+	let tag = Binary::resolve_version(name, version, &releases, cache);
 	let latest = version
 		.is_none()
 		.then(|| releases.iter().nth(0).map(|v| v.to_string()))
@@ -186,7 +186,7 @@ mod tests {
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
 		let cache = temp_dir.path().join("cache");
 		let version = "v0.40.0";
-		let binary = contracts_node_generator(cache.clone(), Some(version)).await?;
+		let binary = contracts_node_generator(&cache, Some(version)).await?;
 		let archive = archive_name_by_target()?;
 		let archive_bin_path = release_directory_by_target()?;
 		assert!(matches!(binary, Binary::Source { name, source, cache}
@@ -215,7 +215,7 @@ mod tests {
 		let cache = temp_dir.path().join("");
 
 		let version = "v0.40.0";
-		let binary = contracts_node_generator(cache.clone(), Some(version)).await?;
+		let binary = contracts_node_generator(&cache, Some(version)).await?;
 		binary.source(false, &(), true).await?;
 		let process = run_contracts_node(binary.path(), None).await?;
 

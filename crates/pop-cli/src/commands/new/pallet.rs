@@ -91,16 +91,13 @@ impl NewPalletCommand {
 		let mut pallet_genesis = false;
 		let mut pallet_custom_origin = false;
 
-		println!("iffff");
 		if let Some(Mode::Advanced(advanced_mode_args)) = &self.mode {
-			println!("in");
 			if advanced_mode_args.config_common_types.is_empty()
 				&& advanced_mode_args.storage.is_empty()
 				&& !(advanced_mode_args.genesis_config
 					|| advanced_mode_args.default_config
 					|| advanced_mode_args.custom_origin)
 			{
-				println!("in 2");
 				cli.info("Generate the pallet's config trait.")?;
 
 				pallet_common_types = multiselect_pick!(TemplatePalletConfigCommonTypes, "Are you interested in adding one of these types and their usual configuration to your pallet?");
@@ -131,11 +128,8 @@ impl NewPalletCommand {
 				pallet_custom_origin =
 					boolean_options.contains(&TemplatePalletOptions::CustomOrigin);
 			} else {
-				println!("else 2");
 				pallet_common_types = advanced_mode_args.config_common_types.clone();
 				pallet_default_config = advanced_mode_args.default_config;
-				println!("pallet_common_types: {:?}", pallet_common_types);
-				println!("pallet_default_config: {:?}", pallet_default_config);
 				if pallet_common_types.is_empty() && pallet_default_config {
 					return Err(anyhow::anyhow!(
 						"Specify at least a config common type to use default config."

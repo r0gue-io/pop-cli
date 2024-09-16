@@ -270,8 +270,8 @@ fn get_customization_value(
 	initial_endowment: Option<String>,
 	cli: &mut impl cli::traits::Cli,
 ) -> Result<Config> {
-	if Provider::Pop.provides(&template)
-		&& (symbol.is_some() || decimals.is_some() || initial_endowment.is_some())
+	if Provider::Pop.provides(&template) &&
+		(symbol.is_some() || decimals.is_some() || initial_endowment.is_some())
 	{
 		cli.warning("Customization options are not available for this template")?;
 		sleep(Duration::from_secs(3))
