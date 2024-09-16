@@ -173,7 +173,8 @@ fn generate_contract_from_template(
 	let repository = template.repository_url().ok().map(|url|
 		style(format!("\nPlease consult the source repository at {url} to assess production suitability and licensing restrictions.")).dim()
 	);
-	//println!(format!("NOTE: the resulting contract is not guaranteed to be audited or reviewed for security vulnerabilities.{}",repository.unwrap()));
+	//println!(format!("NOTE: the resulting contract is not guaranteed to be audited or reviewed
+	// for security vulnerabilities.{}",repository.unwrap()));
 	cli.warning(format!("NOTE: the resulting contract is not guaranteed to be audited or reviewed for security vulnerabilities.{}",
 					repository.unwrap_or_else(|| style("".to_string()))))?;
 
@@ -378,6 +379,18 @@ mod tests {
 		// directory doesn't exist
 		let output_path = check_destination_path(&contract_path, &mut cli)?;
 		assert_eq!(output_path, contract_path);
+		// directory already exists and user confirms to remove it
+		fs::create_dir(contract_path.as_path())?;
+		let mut cli = MockCli::new().expect_confirm(
+			format!(
+				"\"{}\" directory already exists. Would you like to remove it?",
+				contract_path.display().to_string()
+			),
+			true,
+		);
+		let output_path = check_destination_path(&contract_path, &mut cli)?;
+		assert_eq!(output_path, contract_path);
+		assert!(!contract_path.exists());
 		// directory already exists and user confirms to not remove it
 		fs::create_dir(contract_path.as_path())?;
 		let mut cli = MockCli::new()
