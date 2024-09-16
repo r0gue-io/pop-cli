@@ -42,13 +42,13 @@ tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
 url = "2.5"
 
 # contracts
-subxt-signer = { version = "0.35", features = ["subxt", "sr25519"] }
-subxt = "0.35"
+subxt-signer = { version = "0.37.0", features = ["subxt", "sr25519"] }
+subxt = "0.37.0"
 ink_env = "5.0.0"
 sp-core = "31"
 sp-weights = "30"
-contract-build = "4.1"
-contract-extrinsics = "4.1"
+contract-build = "5.0.0-alpha"
+contract-extrinsics = "5.0.0-alpha"
 heck = "0.5.0"
 
 # parachains

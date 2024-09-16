@@ -33,6 +33,8 @@ pub enum Error {
 	OrchestratorError(#[from] OrchestratorError),
 	#[error("Failed to create pallet directory")]
 	PalletDirCreation,
+	#[error("Invalid path")]
+	PathError,
 	#[error("Failed to execute rustfmt")]
 	RustfmtError(std::io::Error),
 	#[error("Template error: {0}")]
