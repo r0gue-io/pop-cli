@@ -1,18 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{
-	cli::{traits::Cli as _, Cli},
+	cli::{self, traits::Cli as _, Cli},
+	common::helpers::check_destination_path,
 	multiselect_pick,
 };
 
 use clap::{Args, Subcommand};
-use cliclack::{confirm, input, multiselect, outro, outro_cancel};
+use cliclack::{input, multiselect, outro};
 use pop_common::{add_crate_to_workspace, find_workspace_toml, prefix_with_current_dir_if_needed};
 use pop_parachains::{
 	create_pallet_template, TemplatePalletConfig, TemplatePalletConfigCommonTypes,
 	TemplatePalletOptions, TemplatePalletStorageTypes,
 };
-use std::{fs, path::PathBuf, process::Command};
+use std::{path::PathBuf, process::Command};
 use strum::{EnumMessage, IntoEnumIterator};
 
 fn after_help_simple() -> &'static str {
@@ -75,6 +76,13 @@ pub struct AdvancedMode {
 impl NewPalletCommand {
 	/// Executes the command.
 	pub(crate) async fn execute(self) -> anyhow::Result<()> {
+		self.generate_pallet(&mut cli::Cli).await
+	}
+	/// Generates a pallet
+	///
+	/// # Arguments
+	/// * `cli` - The CLI implementation to be used.
+	async fn generate_pallet(self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		Cli.intro("Generate a pallet")?;
 
 		let mut pallet_default_config = false;
@@ -84,11 +92,11 @@ impl NewPalletCommand {
 		let mut pallet_custom_origin = false;
 
 		if let Some(Mode::Advanced(advanced_mode_args)) = &self.mode {
-			if advanced_mode_args.config_common_types.is_empty() &&
-				advanced_mode_args.storage.is_empty() &&
-				!(advanced_mode_args.genesis_config ||
-					advanced_mode_args.default_config ||
-					advanced_mode_args.custom_origin)
+			if advanced_mode_args.config_common_types.is_empty()
+				&& advanced_mode_args.storage.is_empty()
+				&& !(advanced_mode_args.genesis_config
+					|| advanced_mode_args.default_config
+					|| advanced_mode_args.custom_origin)
 			{
 				Cli.info("Generate the pallet's config trait.")?;
 
@@ -151,21 +159,7 @@ impl NewPalletCommand {
 		// Determine if the pallet is being created inside a workspace
 		let workspace_toml = find_workspace_toml(&pallet_path);
 
-		if pallet_path.exists() {
-			if !confirm(format!(
-				"\"{}\" directory already exists. Would you like to remove it?",
-				pallet_path.display()
-			))
-			.interact()?
-			{
-				outro_cancel(format!(
-					"Cannot generate pallet until \"{}\" directory is removed.",
-					pallet_path.display()
-				))?;
-				return Ok(());
-			}
-			fs::remove_dir_all(pallet_path.clone())?;
-		}
+		check_destination_path(&pallet_path, cli)?;
 		let spinner = cliclack::spinner();
 		spinner.start("Generating pallet...");
 		create_pallet_template(

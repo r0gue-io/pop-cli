@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::cli::{self, traits::*};
+use crate::{
+	cli::{self, traits::*},
+	common::helpers::check_destination_path,
+};
 use anyhow::Result;
 use clap::{
 	builder::{PossibleValue, PossibleValuesParser, TypedValueParser},
@@ -8,20 +11,14 @@ use clap::{
 };
 use console::style;
 use pop_common::{
-	enum_variants,
+	enum_variants, get_project_name_from_path,
 	templates::{Template, Type},
 	Git, GitHub, Release,
 };
 use pop_parachains::{
 	instantiate_template_dir, is_initial_endowment_valid, Config, Parachain, Provider,
 };
-use std::{
-	fs,
-	path::{Path, PathBuf},
-	str::FromStr,
-	thread::sleep,
-	time::Duration,
-};
+use std::{path::Path, str::FromStr, thread::sleep, time::Duration};
 use strum::VariantArray;
 
 const DEFAULT_INITIAL_ENDOWMENT: &str = "1u64 << 60";
@@ -184,7 +181,7 @@ async fn guide_user_to_generate_parachain(
 }
 
 async fn generate_parachain_from_template(
-	name_template: &String,
+	path_template: &String,
 	provider: &Provider,
 	template: &Parachain,
 	tag_version: Option<String>,
@@ -192,13 +189,13 @@ async fn generate_parachain_from_template(
 	verify: bool,
 	cli: &mut impl cli::traits::Cli,
 ) -> Result<()> {
+	let destination_path = check_destination_path(&Path::new(path_template), cli)?;
+	let name_template = get_project_name_from_path(&destination_path, "my-parachain");
 	cli.intro(format!(
 		"Generating \"{name_template}\" using {} from {}!",
 		template.name(),
 		provider.name()
 	))?;
-
-	let destination_path = check_destination_path(name_template, cli)?;
 
 	let spinner = cliclack::spinner();
 	spinner.start("Generating parachain...");
@@ -287,34 +284,6 @@ fn get_customization_value(
 			.unwrap_or_else(|| DEFAULT_INITIAL_ENDOWMENT.to_string()),
 	});
 }
-
-fn check_destination_path(
-	name_template: &String,
-	cli: &mut impl cli::traits::Cli,
-) -> Result<PathBuf> {
-	let destination_path = Path::new(name_template);
-	if destination_path.exists() {
-		if !cli
-			.confirm(format!(
-				"\"{}\" directory already exists. Would you like to remove it?",
-				destination_path.display()
-			))
-			.interact()?
-		{
-			cli.outro_cancel(format!(
-				"Cannot generate parachain until \"{}\" directory is removed.",
-				destination_path.display()
-			))?;
-			return Err(anyhow::anyhow!(format!(
-				"\"{}\" directory already exists.",
-				destination_path.display()
-			)));
-		}
-		fs::remove_dir_all(destination_path)?;
-	}
-	Ok(destination_path.to_path_buf())
-}
-
 /// Gets the latest 3 releases. Prompts the user to choose if releases exist.
 /// Otherwise, the default release is used.
 ///
@@ -623,54 +592,6 @@ mod tests {
 				}
 			);
 		}
-		Ok(())
-	}
-
-	#[test]
-	fn check_destination_path_works() -> anyhow::Result<()> {
-		let dir = tempdir()?;
-		let name_template = format!("{}/test-parachain", dir.path().display());
-		let parachain_path = dir.path().join(&name_template);
-		let mut cli = MockCli::new();
-		// directory doesn't exist
-		let output_path = check_destination_path(&name_template, &mut cli)?;
-		assert_eq!(output_path, parachain_path);
-		// directory already exists and user confirms to remove it
-		fs::create_dir(parachain_path.as_path())?;
-		let mut cli = MockCli::new().expect_confirm(
-			format!(
-				"\"{}\" directory already exists. Would you like to remove it?",
-				parachain_path.display().to_string()
-			),
-			true,
-		);
-		let output_path = check_destination_path(&name_template, &mut cli)?;
-		assert_eq!(output_path, parachain_path);
-		assert!(!parachain_path.exists());
-		// directory already exists and user confirms to not remove it
-		fs::create_dir(parachain_path.as_path())?;
-		let mut cli = MockCli::new()
-			.expect_confirm(
-				format!(
-					"\"{}\" directory already exists. Would you like to remove it?",
-					parachain_path.display().to_string()
-				),
-				false,
-			)
-			.expect_outro_cancel(format!(
-				"Cannot generate parachain until \"{}\" directory is removed.",
-				parachain_path.display()
-			));
-
-		assert!(matches!(
-			check_destination_path(&name_template, &mut cli),
-			anyhow::Result::Err(message) if message.to_string() == format!(
-				"\"{}\" directory already exists.",
-				parachain_path.display().to_string()
-			)
-		));
-
-		cli.verify()?;
 		Ok(())
 	}
 

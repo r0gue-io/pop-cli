@@ -1,5 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0
 
+use crate::cli::{self, traits::*};
+use anyhow::Result;
+use std::{
+	fs,
+	path::{Path, PathBuf},
+};
+
 /// A macro to facilitate the select multiple variant of an enum and store them inside a `Vec`.
 /// # Arguments
 /// * `$enum`: The enum type to be iterated over for the selection. This enum must implement
@@ -90,4 +97,85 @@ macro_rules! multiselect_pick {
 			.map(|byte| unsafe { std::mem::transmute(*byte) })
 			.collect::<Vec<$enum>>()
 	}};
+}
+
+pub fn check_destination_path(
+	destination_path: &Path,
+	cli: &mut impl cli::traits::Cli,
+) -> Result<PathBuf> {
+	if destination_path.exists() {
+		if !cli
+			.confirm(format!(
+				"\"{}\" directory already exists. Would you like to remove it?",
+				destination_path.display()
+			))
+			.interact()?
+		{
+			cli.outro_cancel(format!(
+				"Cannot generate the project until \"{}\" directory is removed.",
+				destination_path.display()
+			))?;
+			return Err(anyhow::anyhow!(format!(
+				"\"{}\" directory already exists.",
+				destination_path.display()
+			)));
+		}
+		fs::remove_dir_all(destination_path)?;
+	}
+	Ok(destination_path.to_path_buf())
+}
+
+#[cfg(test)]
+mod tests {
+
+	use super::*;
+	use cli::MockCli;
+	use tempfile::tempdir;
+	#[test]
+	fn check_destination_path_works() -> anyhow::Result<()> {
+		let dir = tempdir()?;
+		let name_template = format!("{}/test-parachain", dir.path().display());
+		let parachain_path = dir.path().join(&name_template);
+		let mut cli = MockCli::new();
+		// directory doesn't exist
+		let output_path = check_destination_path(&parachain_path, &mut cli)?;
+		assert_eq!(output_path, parachain_path);
+		// directory already exists and user confirms to remove it
+		fs::create_dir(parachain_path.as_path())?;
+		let mut cli = MockCli::new().expect_confirm(
+			format!(
+				"\"{}\" directory already exists. Would you like to remove it?",
+				parachain_path.display().to_string()
+			),
+			true,
+		);
+		let output_path = check_destination_path(&parachain_path, &mut cli)?;
+		assert_eq!(output_path, parachain_path);
+		assert!(!parachain_path.exists());
+		// directory already exists and user confirms to not remove it
+		fs::create_dir(parachain_path.as_path())?;
+		let mut cli = MockCli::new()
+			.expect_confirm(
+				format!(
+					"\"{}\" directory already exists. Would you like to remove it?",
+					parachain_path.display().to_string()
+				),
+				false,
+			)
+			.expect_outro_cancel(format!(
+				"Cannot generate the project until \"{}\" directory is removed.",
+				parachain_path.display()
+			));
+
+		assert!(matches!(
+			check_destination_path(&parachain_path, &mut cli),
+			anyhow::Result::Err(message) if message.to_string() == format!(
+				"\"{}\" directory already exists.",
+				parachain_path.display().to_string()
+			)
+		));
+
+		cli.verify()?;
+		Ok(())
+	}
 }

@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::cli::{self, traits::*};
+use crate::{
+	cli::{self, traits::*},
+	common::helpers::check_destination_path,
+};
 use pop_common::manifest::{add_crate_to_workspace, find_workspace_toml};
 
 use anyhow::Result;
@@ -14,11 +17,7 @@ use pop_common::{
 	templates::{Template, Type},
 };
 use pop_contracts::{create_smart_contract, is_valid_contract_name, Contract, ContractType};
-use std::{
-	fs,
-	path::{Path, PathBuf},
-	str::FromStr,
-};
+use std::{fs, path::Path, str::FromStr};
 use strum::VariantArray;
 
 #[derive(Args, Clone)]
@@ -197,36 +196,11 @@ fn generate_contract_from_template(
 	Ok(())
 }
 
-fn check_destination_path(
-	contract_path: &Path,
-	cli: &mut impl cli::traits::Cli,
-) -> anyhow::Result<PathBuf> {
-	if contract_path.exists() {
-		if !cli
-			.confirm(format!(
-				"\"{}\" directory already exists. Would you like to remove it?",
-				contract_path.display()
-			))
-			.interact()?
-		{
-			cli.outro_cancel(format!(
-				"Cannot generate contract until \"{}\" directory is removed.",
-				contract_path.display()
-			))?;
-			return Err(anyhow::anyhow!(format!(
-				"\"{}\" directory already exists.",
-				contract_path.display()
-			)));
-		}
-		fs::remove_dir_all(contract_path)?;
-	}
-	Ok(contract_path.to_path_buf())
-}
-
 #[cfg(test)]
 mod tests {
 	use std::fs;
 
+	use super::*;
 	use crate::{
 		cli::MockCli,
 		commands::new::{Command::Contract, NewArgs},
@@ -241,8 +215,6 @@ mod tests {
 	use pop_contracts::{Contract as ContractTemplate, ContractType};
 	use strum::VariantArray;
 	use tempfile::tempdir;
-
-	use super::{check_destination_path, generate_contract_from_template};
 
 	#[tokio::test]
 	async fn new_contract_command_execute_with_defaults_works() -> Result<()> {
@@ -348,53 +320,6 @@ mod tests {
 			&ContractTemplate::ERC20,
 			&mut cli,
 		)?;
-		cli.verify()?;
-		Ok(())
-	}
-
-	#[test]
-	fn check_destination_path_works() -> anyhow::Result<()> {
-		let dir = tempdir()?;
-		let contract_path = dir.path().join("test_contract");
-		let mut cli = MockCli::new();
-		// directory doesn't exist
-		let output_path = check_destination_path(&contract_path, &mut cli)?;
-		assert_eq!(output_path, contract_path);
-		// directory already exists and user confirms to remove it
-		fs::create_dir(contract_path.as_path())?;
-		let mut cli = MockCli::new().expect_confirm(
-			format!(
-				"\"{}\" directory already exists. Would you like to remove it?",
-				contract_path.display().to_string()
-			),
-			true,
-		);
-		let output_path = check_destination_path(&contract_path, &mut cli)?;
-		assert_eq!(output_path, contract_path);
-		assert!(!contract_path.exists());
-		// directory already exists and user confirms to not remove it
-		fs::create_dir(contract_path.as_path())?;
-		let mut cli = MockCli::new()
-			.expect_confirm(
-				format!(
-					"\"{}\" directory already exists. Would you like to remove it?",
-					contract_path.display().to_string()
-				),
-				false,
-			)
-			.expect_outro_cancel(format!(
-				"Cannot generate contract until \"{}\" directory is removed.",
-				contract_path.display()
-			));
-
-		assert!(matches!(
-			check_destination_path(&contract_path, &mut cli),
-			anyhow::Result::Err(message) if message.to_string() == format!(
-				"\"{}\" directory already exists.",
-				contract_path.display().to_string()
-			)
-		));
-
 		cli.verify()?;
 		Ok(())
 	}
