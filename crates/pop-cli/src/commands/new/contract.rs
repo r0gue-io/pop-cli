@@ -198,8 +198,6 @@ fn generate_contract_from_template(
 
 #[cfg(test)]
 mod tests {
-	use std::fs;
-
 	use super::*;
 	use crate::{
 		cli::MockCli,

@@ -1,9 +1,9 @@
 use clap::ValueEnum;
-use strum_macros::{EnumIter, EnumMessage};
+use strum_macros::{EnumIter, EnumMessage, VariantArray};
 
 /// This enum is used to register from the CLI which types that are kind of usual in config traits
 /// are included in the pallet
-#[derive(Debug, Copy, Clone, PartialEq, EnumIter, EnumMessage, ValueEnum)]
+#[derive(Debug, Copy, Clone, PartialEq, EnumIter, EnumMessage, ValueEnum, VariantArray)]
 pub enum TemplatePalletConfigCommonTypes {
 	/// This type will enable your pallet to emit events.
 	#[strum(
