@@ -123,7 +123,7 @@ pub enum Parachain {
 	EVM,
 	// OpenZeppelin
 	#[strum(
-		serialize = "polkadot-generic-runtime-template",
+		serialize = "openzeppelin/polkadot-generic-runtime-template",
 		message = "Generic Runtime Template",
 		detailed_message = "A generic template for Substrate Runtime",
 		props(
@@ -138,7 +138,7 @@ pub enum Parachain {
 	OpenZeppelinGeneric,
 	/// The Parachain-Ready Template From Polkadot SDK.
 	#[strum(
-		serialize = "polkadot-sdk-parachain-template",
+		serialize = "parity/polkadot-sdk-parachain-template",
 		message = "Polkadot SDK's Parachain Template",
 		detailed_message = "The Parachain-Ready Template From Polkadot SDK.",
 		props(
@@ -151,7 +151,7 @@ pub enum Parachain {
 	ParityGeneric,
 	/// Minimal Substrate node configured for smart contracts via pallet-contracts.
 	#[strum(
-		serialize = "cpt",
+		serialize = "parity/contracts",
 		message = "Contracts",
 		detailed_message = "Minimal Substrate node configured for smart contracts via pallet-contracts.",
 		props(
@@ -231,9 +231,9 @@ mod tests {
 			("contracts".to_string(), Contracts),
 			("evm".to_string(), EVM),
 			// openzeppelin
-			("polkadot-generic-runtime-template".to_string(), OpenZeppelinGeneric),
-			("polkadot-sdk-parachain-template".to_string(), ParityGeneric),
-			("cpt".to_string(), ParityContracts),
+			("openzeppelin/polkadot-generic-runtime-template".to_string(), OpenZeppelinGeneric),
+			("parity/polkadot-sdk-parachain-template".to_string(), ParityGeneric),
+			("parity/contracts".to_string(), ParityContracts),
 			("test_01".to_string(), TestTemplate01),
 			("test_02".to_string(), TestTemplate02),
 		])
@@ -247,14 +247,17 @@ mod tests {
 			("evm".to_string(), "https://github.com/r0gue-io/evm-parachain"),
 			// openzeppelin
 			(
-				"polkadot-generic-runtime-template".to_string(),
+				"openzeppelin/polkadot-generic-runtime-template".to_string(),
 				"https://github.com/OpenZeppelin/polkadot-runtime-templates",
 			),
 			(
-				"polkadot-sdk-parachain-template".to_string(),
+				"parity/polkadot-sdk-parachain-template".to_string(),
 				"https://github.com/paritytech/polkadot-sdk-parachain-template",
 			),
-			("cpt".to_string(), "https://github.com/paritytech/substrate-contracts-node"),
+			(
+				"parity/contracts".to_string(),
+				"https://github.com/paritytech/substrate-contracts-node",
+			),
 			("test_01".to_string(), ""),
 			("test_02".to_string(), ""),
 		])
