@@ -46,12 +46,12 @@ pub trait Template:
 		self.get_str(Self::PROPERTY).ok_or(Error::TypeMissing)
 	}
 
-	/// Get if the template is deprecated
+	/// Get whether the template is deprecated.
 	fn is_deprecated(&self) -> bool {
 		self.get_str("IsDeprecated").map_or(false, |s| s == "true")
 	}
 
-	/// Get the deprecated message if the template is deprecated
+	/// Get the deprecation message for the template
 	fn deprecated_message(&self) -> &str {
 		self.get_str("DeprecatedMessage").unwrap_or_default()
 	}

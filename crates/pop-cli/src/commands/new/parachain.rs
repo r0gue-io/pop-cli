@@ -42,7 +42,7 @@ pub struct NewParachainCommand {
 		long,
 		help = format!("Template to use. [possible values: {}]", enum_variants_for_help!(Parachain)),
 		value_parser = enum_variants!(Parachain),
-		hide_possible_values = true // To hide the deprecated templates
+		hide_possible_values = true // Hide the deprecated templates
 	)]
 	pub(crate) template: Option<Parachain>,
 	#[arg(
