@@ -123,7 +123,7 @@ pub enum Parachain {
 	EVM,
 	// OpenZeppelin
 	#[strum(
-		serialize = "generic-template",
+		serialize = "openzeppelin/generic-template",
 		message = "Generic Runtime Template",
 		detailed_message = "A generic template for Substrate Runtime.",
 		props(
@@ -138,7 +138,7 @@ pub enum Parachain {
 	OpenZeppelinGeneric,
 	// OpenZeppelin EVM
 	#[strum(
-		serialize = "evm-template",
+		serialize = "openzeppelin/evm-template",
 		message = "EVM Template",
 		detailed_message = "Parachain with EVM compatibility out of the box.",
 		props(
@@ -177,7 +177,23 @@ pub enum Parachain {
 		)
 	)]
 	ParityFPT,
-
+	// OpenZeppelin
+	#[strum(
+		serialize = "polkadot-generic-runtime-template",
+		message = "Generic Runtime Template",
+		detailed_message = "A generic template for Substrate Runtime.",
+		props(
+			Provider = "OpenZeppelin",
+			Repository = "https://github.com/OpenZeppelin/polkadot-runtime-templates",
+			Network = "./zombienet-config/devnet.toml",
+			SupportedVersions = "v1.0.0,v2.0.1",
+			IsAudited = "true",
+			License = "GPL-3.0",
+			IsDeprecated = "true",
+			DeprecatedMessage = "This template is deprecated. Please use openzeppelin/generic-template in the future.",
+		)
+	)]
+	DeprecatedOpenZeppelinGeneric,
 	// templates for unit tests below
 	#[cfg(test)]
 	#[strum(
@@ -247,8 +263,9 @@ mod tests {
 			("contracts".to_string(), Contracts),
 			("evm".to_string(), EVM),
 			// openzeppelin
-			("generic-template".to_string(), OpenZeppelinGeneric),
-			("evm-template".to_string(), OpenZeppelinEVM),
+			("openzeppelin/generic-template".to_string(), OpenZeppelinGeneric),
+			("openzeppelin/evm-template".to_string(), OpenZeppelinEVM),
+			("polkadot-generic-runtime-template".to_string(), DeprecatedOpenZeppelinGeneric),
 			("cpt".to_string(), ParityContracts),
 			("fpt".to_string(), ParityFPT),
 			("test_01".to_string(), TestTemplate01),
@@ -264,11 +281,15 @@ mod tests {
 			("evm".to_string(), "https://github.com/r0gue-io/evm-parachain"),
 			// openzeppelin
 			(
-				"generic-template".to_string(),
+				"openzeppelin/generic-template".to_string(),
 				"https://github.com/OpenZeppelin/polkadot-runtime-templates",
 			),
 			(
-				"evm-template".to_string(),
+				"openzeppelin/evm-template".to_string(),
+				"https://github.com/OpenZeppelin/polkadot-runtime-templates",
+			),
+			(
+				"polkadot-generic-runtime-template".to_string(),
 				"https://github.com/OpenZeppelin/polkadot-runtime-templates",
 			),
 			("cpt".to_string(), "https://github.com/paritytech/substrate-contracts-node"),
@@ -286,6 +307,7 @@ mod tests {
 			(EVM, Some("./network.toml")),
 			(OpenZeppelinGeneric, Some("./zombienet-config/devnet.toml")),
 			(OpenZeppelinEVM, Some("./zombienet-config/devnet.toml")),
+			(DeprecatedOpenZeppelinGeneric, Some("./zombienet-config/devnet.toml")),
 			(ParityContracts, Some("./zombienet.toml")),
 			(ParityFPT, Some("./zombienet-config.toml")),
 			(TestTemplate01, Some("")),
@@ -302,6 +324,7 @@ mod tests {
 			(EVM, Some("Unlicense")),
 			(OpenZeppelinGeneric, Some("GPL-3.0")),
 			(OpenZeppelinEVM, Some("GPL-3.0")),
+			(DeprecatedOpenZeppelinGeneric, Some("GPL-3.0")),
 			(ParityContracts, Some("Unlicense")),
 			(ParityFPT, Some("Unlicense")),
 			(TestTemplate01, Some("Unlicense")),
