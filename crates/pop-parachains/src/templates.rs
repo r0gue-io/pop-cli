@@ -188,22 +188,6 @@ pub enum Parachain {
 		)
 	)]
 	TanssiSimple,
-	/// Tanssi EVM enabled container chain template.
-	#[strum(
-		serialize = "frontier",
-		message = "EVM",
-		detailed_message = "EVM enabled container chain template.",
-		props(
-			Provider = "Tanssi",
-			Repository = "https://github.com/moondance-labs/tanssi",
-			Network = "./network.toml",
-			NodeDirectory = "container-chains/nodes",
-			RuntimeDirectory = "container-chains/runtime-templates",
-			SupportedVersions = "master",
-			ExtractableFiles = ".rustfmt.toml,Cargo.toml,Cargo.lock,LICENSE,README.md,rust-toolchain",
-		)
-	)]
-	TanssiFrontier,
 
 	// Templates for unit tests below.
 	#[cfg(test)]
@@ -303,7 +287,6 @@ mod tests {
 			("fpt".to_string(), ParityFPT),
 			// Tanssi.
 			("simple".to_string(), TanssiSimple),
-			("frontier".to_string(), TanssiFrontier),
 			// Test.
 			("test_01".to_string(), TestTemplate01),
 			("test_02".to_string(), TestTemplate02),
@@ -327,7 +310,6 @@ mod tests {
 			("fpt".to_string(), "https://github.com/paritytech/frontier-parachain-template"),
 			// Tanssi.
 			("simple".to_string(), "https://github.com/moondance-labs/tanssi"),
-			("frontier".to_string(), "https://github.com/moondance-labs/tanssi"),
 			// Test.
 			("test_01".to_string(), ""),
 			("test_02".to_string(), ""),
@@ -348,7 +330,6 @@ mod tests {
 			(ParityFPT, Some("./zombienet-config.toml")),
 			// Tanssi.
 			(TanssiSimple, Some("./network.toml")),
-			(TanssiFrontier, Some("./network.toml")),
 			// Test.
 			(TestTemplate01, Some("")),
 			(TestTemplate02, Some("")),
@@ -392,7 +373,7 @@ mod tests {
 				assert_eq!(Provider::OpenZeppelin.provides(&template), true);
 				assert_eq!(Provider::Tanssi.provides(&template), false);
 			}
-			if matches!(template, TanssiSimple | TanssiFrontier) {
+			if matches!(template, TanssiFrontier) {
 				assert_eq!(Provider::Pop.provides(&template), false);
 				assert_eq!(Provider::Parity.provides(&template), false);
 				assert_eq!(Provider::OpenZeppelin.provides(&template), false);
