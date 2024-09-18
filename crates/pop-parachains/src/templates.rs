@@ -243,7 +243,7 @@ impl Parachain {
 		self.get_str("Network")
 	}
 
-	/// Returns a list supported versions for a concrete tempalte, if defined.
+	/// Returns a list supported versions for a concrete template, if defined.
 	pub fn supported_versions(&self) -> Option<Vec<&str>> {
 		self.get_str("SupportedVersions").map(|s| s.split(',').collect())
 	}
@@ -264,12 +264,12 @@ impl Parachain {
 		self.get_str("License")
 	}
 
-	/// Returns where to pull the tempalte node directory from in its source repo, if defined.
+	/// Returns where to pull the template node directory from in its source repo, if defined.
 	pub fn node_directory(&self) -> Option<&str> {
 		self.get_str("NodeDirectory")
 	}
 
-	/// Returns where to pull the tempalte runtime directory from in its source repo, if defined.
+	/// Returns where to pull the template runtime directory from in its source repo, if defined.
 	pub fn runtime_directory(&self) -> Option<&str> {
 		self.get_str("RuntimeDirectory")
 	}
