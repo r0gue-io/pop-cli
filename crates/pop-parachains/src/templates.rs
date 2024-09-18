@@ -163,7 +163,7 @@ pub enum Parachain {
 			IsDeprecated = "true"
 		)
 	)]
-	ParityFPT,
+	ParityCPT,
 	/// Minimal Substrate node configured for smart contracts via pallet-contracts.
 	#[strum(
 		serialize = "paritytech/substrate-contracts-node",
@@ -250,6 +250,7 @@ mod tests {
 			("polkadot-generic-runtime-template".to_string(), OpenZeppelinGeneric),
 			("paritytech/polkadot-sdk-parachain-template".to_string(), ParityGeneric),
 			("paritytech/substrate-contracts-node".to_string(), ParityContracts),
+			("cpt".to_string(), ParityCPT),
 			("test_01".to_string(), TestTemplate01),
 			("test_02".to_string(), TestTemplate02),
 		])
@@ -274,6 +275,7 @@ mod tests {
 				"paritytech/substrate-contracts-node".to_string(),
 				"https://github.com/paritytech/substrate-contracts-node",
 			),
+			("cpt".to_string(), "https://github.com/paritytech/substrate-contracts-node"),
 			("test_01".to_string(), ""),
 			("test_02".to_string(), ""),
 		])
@@ -288,6 +290,7 @@ mod tests {
 			(OpenZeppelinGeneric, Some("./zombienet-config/devnet.toml")),
 			(ParityGeneric, Some("./zombienet.toml")),
 			(ParityContracts, Some("./zombienet.toml")),
+			(ParityCPT, Some("./zombienet.toml")),
 			(TestTemplate01, Some("")),
 			(TestTemplate02, Some("")),
 		]
@@ -303,6 +306,7 @@ mod tests {
 			(OpenZeppelinGeneric, Some("GPL-3.0")),
 			(ParityGeneric, Some("Unlicense")),
 			(ParityContracts, Some("Unlicense")),
+			(ParityCPT, Some("Unlicense")),
 			(TestTemplate01, Some("Unlicense")),
 			(TestTemplate02, Some("GPL-3.0")),
 		]
