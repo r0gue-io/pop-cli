@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::cli::traits::{Cli, Confirm as _};
+use crate::cli::traits::*;
 use anyhow::Context;
 use clap::Args;
 use duct::cmd;
@@ -60,7 +60,7 @@ pub(crate) struct InstallArgs {
 pub(crate) struct Command<'a, CLI: Cli> {
 	/// The cli to be used.
 	pub(crate) cli: &'a mut CLI,
-	/// The args to call.
+	/// The args for the installation process.
 	pub(crate) args: InstallArgs,
 }
 

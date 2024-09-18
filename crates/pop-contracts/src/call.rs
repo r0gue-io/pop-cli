@@ -158,40 +158,25 @@ pub async fn call_smart_contract(
 mod tests {
 	use super::*;
 	use crate::{
-		contracts_node_generator, create_smart_contract, dry_run_gas_estimate_instantiate,
-		errors::Error, instantiate_smart_contract, run_contracts_node, set_up_deployment, Contract,
-		UpOpts,
+		contracts_node_generator, dry_run_gas_estimate_instantiate, errors::Error,
+		generate_smart_contract_test_environment, instantiate_smart_contract, mock_build_process,
+		run_contracts_node, set_up_deployment, UpOpts,
 	};
 	use anyhow::Result;
 	use sp_core::Bytes;
-	use std::{env, fs, process::Command};
+	use std::{env, process::Command};
 
 	const CONTRACTS_NETWORK_URL: &str = "wss://rpc2.paseo.popnetwork.xyz";
-
-	fn generate_smart_contract_test_environment() -> Result<tempfile::TempDir> {
-		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
-		let temp_contract_dir = temp_dir.path().join("testing");
-		fs::create_dir(&temp_contract_dir)?;
-		create_smart_contract("testing", temp_contract_dir.as_path(), &Contract::Standard)?;
-		Ok(temp_dir)
-	}
-	// Function that mocks the build process generating the contract artifacts.
-	fn mock_build_process(temp_contract_dir: PathBuf) -> Result<(), Error> {
-		// Create a target directory
-		let target_contract_dir = temp_contract_dir.join("target");
-		fs::create_dir(&target_contract_dir)?;
-		fs::create_dir(&target_contract_dir.join("ink"))?;
-		// Copy a mocked testing.contract file inside the target directory
-		let current_dir = env::current_dir().expect("Failed to get current directory");
-		let contract_file = current_dir.join("tests/files/testing.contract");
-		fs::copy(contract_file, &target_contract_dir.join("ink/testing.contract"))?;
-		Ok(())
-	}
 
 	#[tokio::test]
 	async fn test_set_up_call() -> Result<()> {
 		let temp_dir = generate_smart_contract_test_environment()?;
-		mock_build_process(temp_dir.path().join("testing"))?;
+		let current_dir = env::current_dir().expect("Failed to get current directory");
+		mock_build_process(
+			temp_dir.path().join("testing"),
+			current_dir.join("./tests/files/testing.contract"),
+			current_dir.join("./tests/files/testing.json"),
+		)?;
 
 		let call_opts = CallOpts {
 			path: Some(temp_dir.path().join("testing")),
@@ -257,7 +242,12 @@ mod tests {
 	#[tokio::test]
 	async fn test_dry_run_call_error_contract_not_deployed() -> Result<()> {
 		let temp_dir = generate_smart_contract_test_environment()?;
-		mock_build_process(temp_dir.path().join("testing"))?;
+		let current_dir = env::current_dir().expect("Failed to get current directory");
+		mock_build_process(
+			temp_dir.path().join("testing"),
+			current_dir.join("./tests/files/testing.contract"),
+			current_dir.join("./tests/files/testing.json"),
+		)?;
 
 		let call_opts = CallOpts {
 			path: Some(temp_dir.path().join("testing")),
@@ -279,7 +269,12 @@ mod tests {
 	#[tokio::test]
 	async fn test_dry_run_estimate_call_error_contract_not_deployed() -> Result<()> {
 		let temp_dir = generate_smart_contract_test_environment()?;
-		mock_build_process(temp_dir.path().join("testing"))?;
+		let current_dir = env::current_dir().expect("Failed to get current directory");
+		mock_build_process(
+			temp_dir.path().join("testing"),
+			current_dir.join("./tests/files/testing.contract"),
+			current_dir.join("./tests/files/testing.json"),
+		)?;
 
 		let call_opts = CallOpts {
 			path: Some(temp_dir.path().join("testing")),
@@ -305,7 +300,12 @@ mod tests {
 	async fn call_works() -> Result<()> {
 		const LOCALHOST_URL: &str = "ws://127.0.0.1:9944";
 		let temp_dir = generate_smart_contract_test_environment()?;
-		mock_build_process(temp_dir.path().join("testing"))?;
+		let current_dir = env::current_dir().expect("Failed to get current directory");
+		mock_build_process(
+			temp_dir.path().join("testing"),
+			current_dir.join("./tests/files/testing.contract"),
+			current_dir.join("./tests/files/testing.json"),
+		)?;
 
 		let cache = temp_dir.path().join("");
 
