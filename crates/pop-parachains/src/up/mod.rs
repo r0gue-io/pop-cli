@@ -1633,6 +1633,14 @@ default_command = "./target/release/parachain-template-node"
 [[parachains.collators]]
 name = "collator"
 command = "./target/release/parachain-template-node"
+
+[[parachains]]
+id = 2002
+default_command = "./target/release/parachain-template-node"
+
+[parachains.collator]
+name = "collator"
+command = "./target/release/parachain-template-node"
 "#
 			)?;
 			let mut network_config = NetworkConfiguration::from(config.path())?;
@@ -1702,6 +1710,19 @@ command = "./target/release/parachain-template-node"
 							chain_spec_generator: None,
 						},
 					),
+					(
+						2002,
+						Parachain {
+							id: 2002,
+							binary: Binary::Local {
+								name: "parachain-template-node".to_string(),
+								path: parachain_template.to_path_buf(),
+								manifest: None,
+							},
+							chain: None,
+							chain_spec_generator: None,
+						},
+					),
 				]
 				.into(),
 			)?;
@@ -1744,6 +1765,14 @@ id = 2001
 default_command = "{3}"
 
 [[parachains.collators]]
+name = "collator"
+command = "{3}"
+
+[[parachains]]
+id = 2002
+default_command = "{3}"
+
+[parachains.collator]
 name = "collator"
 command = "{3}"
 
