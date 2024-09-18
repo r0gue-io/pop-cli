@@ -123,14 +123,14 @@ pub fn collect_manifest_dependencies(manifests: Vec<&Path>) -> anyhow::Result<Ha
 /// but there is interest on using a separate manifest as the source of truth for their versions.
 ///
 /// # Arguments
-/// * `target`: Manifest to be modified.
 /// * `source`: Manifest used as reference for the dependency versions.
+/// * `target`: Manifest to be modified.
 /// * `tag`: Version to use when transforming local dependencies from `source`.
 /// * `dependencies`: List to extend `target` with.
 /// * `local_exceptions`: List of dependencies that need to be reference a local path.
 pub fn extend_dependencies_with_version_source<I>(
-	target: &mut Manifest,
 	source: Manifest,
+	target: &mut Manifest,
 	tag: Option<String>,
 	dependencies: I,
 	local_exceptions: Option<Vec<(String, String)>>,
