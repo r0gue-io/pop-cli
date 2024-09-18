@@ -184,7 +184,7 @@ pub enum Parachain {
 			Network = "./network.toml",
 			NodeDirectory = "container-chains/nodes",
 			RuntimeDirectory = "container-chains/runtime-templates",
-			ExtractableFiles = ".rustfmt.toml,Cargo.toml,Cargo.lock,LICENSE,README.md,rust-toolchain",
+			ExtractableFiles = ".gitignore,.rustfmt.toml,Cargo.toml,Cargo.lock,LICENSE,README.md,rust-toolchain",
 		)
 	)]
 	TanssiSimple,
