@@ -1,17 +1,26 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{
-	generator::parachain::{ChainSpec, Network},
-	utils::helpers::{sanitize, write_to_file},
-	Config, Parachain, Provider,
-};
+use std::{fs, path::Path};
+
 use anyhow::Result;
 use pop_common::{
 	git::Git,
-	templates::{Template, Type},
+	manifest::{collect_manifest_dependencies, extend_dependencies_with_version_source, from_path},
+	templates::{extractor::extract_template_files, Template, Type},
 };
-use std::{fs, path::Path};
 use walkdir::WalkDir;
+
+use crate::{
+	generator::{
+		container::{Cargo as ContainerCargo, Network as ContainerNetwork},
+		parachain::{ChainSpec, Network},
+	},
+	utils::helpers::{sanitize, write_to_file},
+	Config, Parachain, Provider,
+};
+
+// Type alias for tanssi specific parachain.
+type ContainerChain = Parachain;
 
 /// Create a new parachain.
 ///
@@ -31,6 +40,9 @@ pub fn instantiate_template_dir(
 
 	if Provider::Pop.provides(&template) {
 		return instantiate_standard_template(template, target, config, tag_version);
+	}
+	if Provider::Tanssi.provides(&template) {
+		return instantiate_tanssi_template(template, target, tag_version);
 	}
 	let tag = Git::clone_and_degit(template.repository_url()?, target, tag_version)?;
 	Ok(tag)
@@ -75,11 +87,107 @@ pub fn instantiate_standard_template(
 	Ok(tag)
 }
 
+/// Create a new Tanssi compatible container chain.
+///
+/// # Arguments
+///
+/// * `template` - template to generate the container-chain from.
+/// * `target` - location where the parachain will be created.
+/// * `tag_version` - version to use (`None` to use latest).
+fn instantiate_tanssi_template(
+	template: &ContainerChain,
+	target: &Path,
+	tag_version: Option<String>,
+) -> Result<Option<String>> {
+	let temp_dir = ::tempfile::TempDir::new_in(std::env::temp_dir())?;
+	let source = temp_dir.path();
+	let tag = Git::clone_and_degit(template.repository_url()?, &source, tag_version)?;
+
+	// Relevant files to extract.
+	let files = template.extractable_files().unwrap();
+	for file in files {
+		extract_template_files(file.to_string(), temp_dir.path(), target, None)?;
+	}
+
+	let owned_target = target.to_owned().to_path_buf();
+
+	// Templates are located in Tanssi's repo as follows:
+	// │
+	// ├┐ container-chains
+	// │├┬ nodes
+	// ││└ <template node directories>
+	// │└┬ runtime-templates
+	// │  └ <template runtime directories>
+
+	// Step 1: extract template node.
+	let template_path = format!("{}/{}", template.node_directory().unwrap(), template.to_string());
+	extract_template_files(
+		template_path,
+		temp_dir.path(),
+		&owned_target.join("node").as_path(),
+		None,
+	)?;
+	// Step 2: extract template runtime.
+	let template_path =
+		format!("{}/{}", template.runtime_directory().unwrap(), template.to_string());
+	extract_template_files(
+		template_path,
+		temp_dir.path(),
+		&owned_target.join("runtime").as_path(),
+		None,
+	)?;
+
+	// Add network configuration.
+	use askama::Template;
+	let network =
+		ContainerNetwork { node: format!("container-chain-{}-node", template.to_string()) };
+	write_to_file(&target.join("network.toml"), network.render().expect("infallible").as_ref())?;
+
+	// Ready project manifest.
+	let target_manifest = ContainerCargo {};
+	write_to_file(
+		&target.join("Cargo.toml"),
+		target_manifest.render().expect("infallible").as_ref(),
+	)?;
+	// Collect required dependencies.
+	let node_manifest_path = &target.join("node").join("Cargo.toml");
+	let runtime_manifest_path = &target.join("runtime").join("Cargo.toml");
+	let new_dependencies = collect_manifest_dependencies(Vec::from([
+		node_manifest_path.as_ref(),
+		runtime_manifest_path.as_ref(),
+	]))?;
+	// Dependencies that should remain with local references.
+	let local_dependencies: Vec<(String, String)> = vec![(
+		format!("container-chain-template-{}-runtime", template.to_string()),
+		"runtime".to_string(),
+	)];
+
+	if new_dependencies.len() > 0 {
+		// Update versions to follow source.
+		let source_manifest = from_path(Some(source))?;
+		let mut target_manifest = from_path(Some(&target))?;
+		extend_dependencies_with_version_source(
+			&mut target_manifest,
+			source_manifest,
+			tag.clone(),
+			new_dependencies,
+			Some(local_dependencies),
+		);
+
+		let target_manifest = toml_edit::ser::to_string_pretty(&target_manifest)?;
+		fs::write(&target.join("Cargo.toml"), target_manifest)?;
+	}
+
+	Ok(tag)
+}
+
 #[cfg(test)]
 mod tests {
-	use super::*;
-	use anyhow::Result;
 	use std::{env::current_dir, fs};
+
+	use anyhow::Result;
+
+	use super::*;
 
 	fn setup_template_and_instantiate() -> Result<tempfile::TempDir> {
 		let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
@@ -92,8 +200,14 @@ mod tests {
 		Ok(temp_dir)
 	}
 
+	fn setup_tanssi_template() -> Result<tempfile::TempDir> {
+		let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
+		instantiate_tanssi_template(&Parachain::TanssiSimple, temp_dir.path(), None)?;
+		Ok(temp_dir)
+	}
+
 	#[test]
-	fn test_parachain_instantiate_standard_template() -> Result<()> {
+	fn parachain_instantiate_standard_template_works() -> Result<()> {
 		let temp_dir =
 			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
 
@@ -117,6 +231,22 @@ mod tests {
 			generated_file_content,
 			expected_file_content.replace("^^node^^", "parachain-template-node")
 		);
+
+		Ok(())
+	}
+
+	#[test]
+	fn instantiate_tanssi_template_works() -> Result<()> {
+		let temp_dir = setup_tanssi_template().expect("Failed to instantiate container chain");
+		let node_manifest =
+			pop_common::manifest::from_path(Some(&temp_dir.path().join("node/Cargo.toml")))
+				.expect("Failed to read file");
+		assert_eq!("container-chain-simple-node", node_manifest.package().name());
+
+		let node_manifest =
+			pop_common::manifest::from_path(Some(&temp_dir.path().join("runtime/Cargo.toml")))
+				.expect("Failed to read file");
+		assert_eq!("container-chain-template-simple-runtime", node_manifest.package().name());
 
 		Ok(())
 	}

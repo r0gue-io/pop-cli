@@ -17,14 +17,24 @@ pub fn extract_template_files(
 	target_directory: &Path,
 	ignore_directories: Option<Vec<String>>,
 ) -> Result<()> {
-	let template_directory = repo_directory.join(template_name);
-	// Recursively copy all directories and files within. Ignores the specified ones.
-	copy_dir_all(
-		&template_directory,
-		target_directory,
-		&ignore_directories.unwrap_or_else(|| vec![]),
-	)?;
-	Ok(())
+	let template_directory = repo_directory.join(&template_name);
+	if template_directory.is_dir() {
+		// Recursively copy all directories and files within. Ignores the specified ones.
+		copy_dir_all(
+			&template_directory,
+			target_directory,
+			&ignore_directories.unwrap_or_else(|| vec![]),
+		)?;
+		return Ok(());
+	} else {
+		// If not a dir, just copy the file.
+		let dst = target_directory.join(&template_name);
+		// In case the first file being pulled is not a directory,
+		// Make sure the target directory exists.
+		fs::create_dir_all(&target_directory)?;
+		fs::copy(template_directory, &dst)?;
+		Ok(())
+	}
 }
 
 /// Recursively copy a directory and its files.
@@ -42,8 +52,8 @@ fn copy_dir_all(
 	for entry in fs::read_dir(src)? {
 		let entry = entry?;
 		let ty = entry.file_type()?;
-		if ty.is_dir() &&
-			ignore_directories.contains(&entry.file_name().to_string_lossy().to_string())
+		if ty.is_dir()
+			&& ignore_directories.contains(&entry.file_name().to_string_lossy().to_string())
 		{
 			continue;
 		} else if ty.is_dir() {
