@@ -45,6 +45,11 @@ pub trait Template:
 	fn template_type(&self) -> Result<&str, Error> {
 		self.get_str(Self::PROPERTY).ok_or(Error::TypeMissing)
 	}
+
+	/// Get if the template is deprecated
+	fn is_deprecated(&self) -> bool {
+		self.get_str("IsDeprecated").map_or(false, |s| s == "true")
+	}
 }
 
 /// A trait for defining overarching types of specific template variants.
@@ -74,9 +79,10 @@ pub trait Type<T: Template>: Clone + Default + EnumMessage + Eq + PartialEq + Va
 
 	/// Get the list of templates of the type.
 	fn templates(&self) -> Vec<&T> {
+		#[allow(deprecated)]
 		T::VARIANTS
 			.iter()
-			.filter(|t| t.get_str(T::PROPERTY) == Some(self.name()))
+			.filter(|t| t.get_str(T::PROPERTY) == Some(self.name()) && !t.is_deprecated())
 			.collect()
 	}
 
@@ -84,6 +90,12 @@ pub trait Type<T: Template>: Clone + Default + EnumMessage + Eq + PartialEq + Va
 	fn provides(&self, template: &T) -> bool {
 		// Match explicitly on type name (message)
 		template.get_str(T::PROPERTY) == Some(self.name())
+	}
+
+	/// Get if the type is deprecated. Currently, this function always returns `false` as there are
+	/// no deprecated variants.
+	fn is_deprecated(&self) -> bool {
+		false
 	}
 }
 
@@ -93,7 +105,13 @@ macro_rules! enum_variants {
 		PossibleValuesParser::new(
 			<$e>::VARIANTS
 				.iter()
-				.map(|p| PossibleValue::new(p.as_ref()))
+				.filter_map(|p| {
+					if !p.is_deprecated() {
+						Some(PossibleValue::new(p.as_ref()))
+					} else {
+						None
+					}
+				})
 				.collect::<Vec<_>>(),
 		)
 		.try_map(|s| <$e>::from_str(&s).map_err(|e| format!("could not convert from {s} to type")))
