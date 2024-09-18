@@ -167,8 +167,8 @@ fn instantiate_tanssi_template(
 		let source_manifest = from_path(Some(source))?;
 		let mut target_manifest = from_path(Some(&target))?;
 		extend_dependencies_with_version_source(
-			&mut target_manifest,
 			source_manifest,
+			&mut target_manifest,
 			tag.clone(),
 			new_dependencies,
 			Some(local_dependencies),
