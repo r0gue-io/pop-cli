@@ -374,7 +374,6 @@ mod tests {
 	use std::{
 		env,
 		fs::{self, File},
-		os::unix::process,
 	};
 	use url::Url;
 
@@ -441,7 +440,8 @@ mod tests {
 		.set_up_environment(&mut cli)
 		.await?
 		.is_none());
-		Ok(())
+
+		cli.verify()
 	}
 
 	#[tokio::test]
@@ -477,7 +477,7 @@ mod tests {
 			command.set_up_environment(&mut cli).await,
 			anyhow::Result::Err(message) if message.to_string() == "🚫 An error occurred building your contract: No 'ink' dependency found\nUse `pop build` to retry with build output."
 		));
-		Ok(())
+		cli.verify()
 	}
 
 	#[tokio::test]
@@ -514,7 +514,7 @@ mod tests {
 			command.set_up_environment(&mut cli).await,
 			anyhow::Result::Err(message) if message.to_string() == "🚫 You need to specify an accessible endpoint to deploy the contract."
 		));
-		Ok(())
+		cli.verify()
 	}
 
 	#[tokio::test]
@@ -556,7 +556,7 @@ mod tests {
 			.args(["-s", "TERM", &process_id.to_string()])
 			.spawn()?
 			.wait()?;
-		Ok(())
+		cli.verify()
 	}
 
 	#[test]

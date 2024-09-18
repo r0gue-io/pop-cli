@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::style::{style, Theme};
+use crate::{
+	cli::{self, traits::Confirm as _},
+	style::{style, Theme},
+};
 use clap::Args;
 use cliclack::{
 	clear_screen, confirm, intro, log, multi_progress, outro, outro_cancel, set_theme, ProgressBar,
@@ -52,41 +55,25 @@ pub(crate) struct ZombienetCommand {
 
 impl ZombienetCommand {
 	/// Executes the command.
-	pub(crate) async fn execute(self) -> anyhow::Result<()> {
-		clear_screen()?;
-		intro(format!("{}: Launch a local network", style(" Pop CLI ").black().on_magenta()))?;
-		set_theme(Theme);
-
-		// Parse arguments
+	pub(crate) async fn execute(mut self) -> anyhow::Result<()> {
 		let cache = crate::cache()?;
-		let mut zombienet = match Zombienet::new(
-			&cache,
-			&self.file,
-			self.relay_chain.as_deref(),
-			self.relay_chain_runtime.as_deref(),
-			self.system_parachain.as_deref(),
-			self.system_parachain_runtime.as_deref(),
-			self.parachain.as_ref(),
-		)
-		.await
-		{
-			Ok(n) => n,
-			Err(e) =>
-				return match e {
-					Error::Config(message) => {
-						outro_cancel(format!("🚫 A configuration error occurred: `{message}`"))?;
-						Ok(())
-					},
-					Error::MissingBinary(name) => {
-						outro_cancel(format!("🚫 The `{name}` binary is specified in the network configuration file, but cannot be resolved to a source. Are you missing a `--parachain` argument?"))?;
-						Ok(())
-					},
-					_ => Err(e.into()),
-				},
+		let mut zombienet = match self.set_up_zombienet(&cache, &mut cli::Cli).await {
+			Ok(p) => p,
+			Err(_) => {
+				return Ok(());
+			},
 		};
 
 		// Source any missing/stale binaries
-		if Self::source_binaries(&mut zombienet, &cache, self.verbose, self.skip_confirm).await? {
+		if Self::source_binaries(
+			&mut zombienet,
+			&cache,
+			self.verbose,
+			self.skip_confirm,
+			&mut cli::Cli,
+		)
+		.await?
+		{
 			return Ok(());
 		}
 
@@ -158,11 +145,54 @@ impl ZombienetCommand {
 		Ok(())
 	}
 
+	async fn set_up_zombienet(
+		&mut self,
+		cache: &PathBuf,
+		cli: &mut impl cli::traits::Cli,
+	) -> anyhow::Result<Zombienet> {
+		cli.intro("Launch a local network")?;
+
+		// Parse arguments
+		let zombienet = match Zombienet::new(
+			&cache,
+			&self.file,
+			self.relay_chain.as_deref(),
+			self.relay_chain_runtime.as_deref(),
+			self.system_parachain.as_deref(),
+			self.system_parachain_runtime.as_deref(),
+			self.parachain.as_ref(),
+		)
+		.await
+		{
+			Ok(n) => n,
+			Err(e) =>
+				return match e {
+					Error::Config(message) => {
+						cli.outro_cancel(format!(
+							"🚫 A configuration error occurred: `{message}`"
+						))?;
+						return Err(anyhow::anyhow!(format!(
+							"🚫 A configuration error occurred: `{message}`"
+						)));
+					},
+					Error::MissingBinary(name) => {
+						cli.outro_cancel(format!("🚫 The `{name}` binary is specified in the network configuration file, but cannot be resolved to a source. Are you missing a `--parachain` argument?"))?;
+						return Err(anyhow::anyhow!(
+							format!("🚫 The `{name}` binary is specified in the network configuration file, but cannot be resolved to a source. Are you missing a `--parachain` argument?")
+						));
+					},
+					_ => Err(e.into()),
+				},
+		};
+		Ok(zombienet)
+	}
+
 	async fn source_binaries(
 		zombienet: &mut Zombienet,
 		cache: &PathBuf,
 		verbose: bool,
 		skip_confirm: bool,
+		cli: &mut impl cli::traits::Cli,
 	) -> anyhow::Result<bool> {
 		// Check for any missing or stale binaries
 		let binaries: Vec<_> = zombienet.binaries().filter(|b| !b.exists() || b.stale()).collect();
@@ -182,7 +212,7 @@ impl ZombienetCommand {
 			))
 			.dim()
 			.to_string();
-			log::warning(format!("⚠️ The following binaries required to launch the network cannot be found locally:\n   {list}"))?;
+			cli.warning(format!("⚠️ The following binaries required to launch the network cannot be found locally:\n   {list}"))?;
 
 			// Prompt for automatic sourcing of binaries
 			let list = style(format!(
@@ -202,12 +232,13 @@ impl ZombienetCommand {
 			.dim()
 			.to_string();
 			if !skip_confirm {
-				if !confirm(format!(
+				if !cli
+					.confirm(format!(
 				"📦 Would you like to source them automatically now? It may take some time...\n   {list}"))
-				.initial_value(true)
-				.interact()?
+					.initial_value(true)
+					.interact()?
 				{
-					outro_cancel(
+					cli.outro_cancel(
 					"🚫 Cannot launch the specified network until all required binaries are available.",
 				)?;
 					return Ok(true);
@@ -238,11 +269,11 @@ impl ZombienetCommand {
 			))
 			.dim()
 			.to_string();
-			log::warning(format!(
+			cli.warning(format!(
 				"ℹ️ The following binaries have newer versions available:\n   {list}"
 			))?;
 			if !skip_confirm {
-				latest = confirm(
+				latest = cli.confirm(
 					"📦 Would you like to source them automatically now? It may take some time..."
 						.to_string(),
 				)
@@ -269,7 +300,7 @@ impl ZombienetCommand {
 		}
 
 		if binaries.iter().any(|b| !b.local()) {
-			log::info(format!(
+			cli.info(format!(
 				"ℹ️ Binaries will be cached at {}",
 				&cache.to_str().expect("expected local cache is invalid")
 			))?;
@@ -281,11 +312,11 @@ impl ZombienetCommand {
 			true => {
 				let reporter = VerboseReporter;
 				for binary in binaries {
-					log::info(format!("📦 Sourcing {}...", binary.name()))?;
+					cli.info(format!("📦 Sourcing {}...", binary.name()))?;
 					Term::stderr().clear_last_lines(1)?;
 					if let Err(e) = binary.source(release, &reporter, verbose).await {
 						reporter.update(&format!("Sourcing failed: {e}"));
-						outro_cancel(
+						cli.outro_cancel(
 							"🚫 Cannot launch the network until all required binaries are available.",
 						)?;
 						return Ok(true);
@@ -315,7 +346,7 @@ impl ZombienetCommand {
 				}
 				multi.stop();
 				if error {
-					outro_cancel(
+					cli.outro_cancel(
 						"🚫 Cannot launch the network until all required binaries are available.",
 					)?;
 					return Ok(true);
@@ -374,10 +405,152 @@ impl Status for VerboseReporter {
 // Write a test for run_custom_command
 #[cfg(test)]
 mod tests {
+	use cli::MockCli;
+	use std::io::Write;
+	use tempfile::Builder;
+
 	use super::*;
 
 	#[tokio::test]
-	async fn test_run_custom_command() -> Result<(), anyhow::Error> {
+	async fn set_up_zombienet_works() -> Result<(), anyhow::Error> {
+		let temp_dir = tempfile::tempdir()?;
+		let cache = PathBuf::from(temp_dir.path());
+		let config = Builder::new().prefix("zombienet").suffix(".toml").tempfile()?;
+		writeln!(
+			config.as_file(),
+			r#"
+[relaychain]
+chain = "rococo-local"
+
+[[parachains]]
+id = 4385
+default_command = "pop-node"
+"#
+		)?;
+		let mut cli = MockCli::new().expect_intro("Launch a local network");
+		let mut zombienet = ZombienetCommand {
+			file: config.path().display().to_string(),
+			relay_chain: None,
+			relay_chain_runtime: None,
+			system_parachain: None,
+			system_parachain_runtime: None,
+			parachain: Some(vec![format!("https://github.com/r0gue-io/pop-node#v1.0")]),
+			command: None,
+			verbose: true,
+			skip_confirm: false,
+		}
+		.set_up_zombienet(&cache.to_path_buf(), &mut cli)
+		.await?;
+		assert_eq!(zombienet.binaries().count(), 2);
+		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn set_up_zombienet_fails_file_no_exist() -> Result<(), anyhow::Error> {
+		let temp_dir = tempfile::tempdir()?;
+		let cache = temp_dir.path();
+		let mut cli = MockCli::new().expect_intro("Launch a local network").expect_outro_cancel("🚫 A configuration error occurred: `The \"zombienet.toml\" configuration file was not found`");
+		assert!(matches!(ZombienetCommand {
+			file: "zombienet.toml".to_string(),
+			relay_chain: Some("v1.13.0".to_string()),
+			relay_chain_runtime: Some("v1.2.7".to_string()),
+			system_parachain: Some("v1.13.0".to_string()),
+			system_parachain_runtime: Some("v1.2.7".to_string()),
+			parachain: None,
+			command: None,
+			verbose: true,
+			skip_confirm: false,
+		}
+		.set_up_zombienet(&cache.to_path_buf(), &mut cli)
+		.await, anyhow::Result::Err(message) if message.to_string() == "🚫 A configuration error occurred: `The \"zombienet.toml\" configuration file was not found`"));
+		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn source_binaries_works() -> Result<(), anyhow::Error> {
+		let temp_dir = tempfile::tempdir()?;
+		let cache = PathBuf::from(temp_dir.path());
+		let config = Builder::new().prefix("zombienet").suffix(".toml").tempfile()?;
+		writeln!(
+			config.as_file(),
+			r#"
+	[relaychain]
+	chain = "rococo-local"
+	"#
+		)?;
+		let mut cli = MockCli::new().expect_intro("Launch a local network")
+		.expect_warning(format!("⚠️ The following binaries required to launch the network cannot be found locally:\n   {}", style(format!("> polkadot")).dim().to_string()))
+		.expect_confirm(format!(
+			"📦 Would you like to source them automatically now? It may take some time...\n   {}", style(format!("> polkadot v1.11.0")).dim().to_string()), true)
+		.expect_info(format!(
+			"ℹ️ Binaries will be cached at {}",
+			&cache.display().to_string()
+		))
+		.expect_info("📦 Sourcing polkadot...");
+		let mut zombienet = ZombienetCommand {
+			file: config.path().display().to_string(),
+			relay_chain: Some("v1.11.0".to_string()),
+			relay_chain_runtime: None,
+			system_parachain: None,
+			system_parachain_runtime: None,
+			parachain: None,
+			command: None,
+			verbose: true,
+			skip_confirm: false,
+		}
+		.set_up_zombienet(&cache.to_path_buf(), &mut cli)
+		.await?;
+		// Test source_binaries
+		assert!(
+			!ZombienetCommand::source_binaries(&mut zombienet, &cache, true, false, &mut cli)
+				.await?
+		);
+		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn user_cancels_source_binaries() -> Result<(), anyhow::Error> {
+		let temp_dir = tempfile::tempdir()?;
+		let cache = PathBuf::from(temp_dir.path());
+		let config = Builder::new().prefix("zombienet").suffix(".toml").tempfile()?;
+		writeln!(
+			config.as_file(),
+			r#"
+	[relaychain]
+	chain = "rococo-local"
+
+	[[parachains]]
+	id = 4385
+	default_command = "pop-node"
+	"#
+		)?;
+		let mut cli = MockCli::new().expect_intro("Launch a local network")
+		.expect_warning(format!("⚠️ The following binaries required to launch the network cannot be found locally:\n   {}", style(format!("> polkadot, pop-node")).dim().to_string()))
+		.expect_confirm(format!(
+			"📦 Would you like to source them automatically now? It may take some time...\n   {}", style(format!("> polkadot v1.11.0, pop-node v1.0")).dim().to_string()), false)
+		.expect_outro_cancel("🚫 Cannot launch the specified network until all required binaries are available.");
+		let mut zombienet = ZombienetCommand {
+			file: config.path().display().to_string(),
+			relay_chain: Some("v1.11.0".to_string()),
+			relay_chain_runtime: None,
+			system_parachain: None,
+			system_parachain_runtime: None,
+			parachain: Some(vec![format!("https://github.com/r0gue-io/pop-node#v1.0")]),
+			command: None,
+			verbose: true,
+			skip_confirm: false,
+		}
+		.set_up_zombienet(&cache.to_path_buf(), &mut cli)
+		.await?;
+		assert!(
+			ZombienetCommand::source_binaries(&mut zombienet, &cache, true, false, &mut cli)
+				.await?
+		);
+		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn run_custom_command_works() -> Result<(), anyhow::Error> {
 		let spinner = ProgressBar::new(1);
 
 		// Define the command to be executed
