@@ -96,24 +96,21 @@ pub(super) async fn from(
 	chain: Option<&str>,
 	cache: &Path,
 ) -> Result<super::RelayChain, Error> {
-	for relay in RelayChain::VARIANTS
+	if let Some(relay) = RelayChain::VARIANTS
 		.iter()
-		.filter(|r| command.to_lowercase().ends_with(r.binary()))
+		.find(|r| command.to_lowercase().ends_with(r.binary()))
 	{
 		let name = relay.binary();
 		let releases = relay.releases().await?;
 		let tag = Binary::resolve_version(name, version, &releases, cache);
 		// Only set latest when caller has not explicitly specified a version to use
-		let latest = version
-			.is_none()
-			.then(|| releases.iter().nth(0).map(|v| v.to_string()))
-			.flatten();
+		let latest = version.is_none().then(|| releases.first().map(|v| v.to_string())).flatten();
 		let binary = Binary::Source {
 			name: name.to_string(),
 			source: TryInto::try_into(&relay, tag, latest)?,
 			cache: cache.to_path_buf(),
 		};
-		let chain = chain.unwrap_or_else(|| "rococo-local");
+		let chain = chain.unwrap_or("rococo-local");
 		return Ok(super::RelayChain {
 			binary,
 			workers: relay.workers(),

@@ -86,7 +86,7 @@ impl<'a, CLI: Cli> CleanCacheCommand<'a, CLI> {
 
 			for (_, file, _) in &contents {
 				// confirm removal
-				remove_file(&file)?;
+				remove_file(file)?;
 			}
 
 			self.cli.outro(format!("ℹ️ {} artifacts removed", contents.len()))?;
@@ -134,7 +134,7 @@ impl<'a, CLI: Cli> CleanCacheCommand<'a, CLI> {
 
 /// Returns the contents of the specified path.
 fn contents(path: &PathBuf) -> Result<Vec<(String, PathBuf, u64)>> {
-	let mut contents: Vec<_> = read_dir(&path)?
+	let mut contents: Vec<_> = read_dir(path)?
 		.filter_map(|e| {
 			e.ok().and_then(|e| {
 				e.file_name()
@@ -144,7 +144,7 @@ fn contents(path: &PathBuf) -> Result<Vec<(String, PathBuf, u64)>> {
 					.map(|f| (f.0 .0, f.0 .1, f.1.len()))
 			})
 		})
-		.filter(|(name, _, _)| !name.starts_with("."))
+		.filter(|(name, _, _)| !name.starts_with('.'))
 		.collect();
 	contents.sort_by(|(a, _, _), (b, _, _)| a.cmp(b));
 	Ok(contents)

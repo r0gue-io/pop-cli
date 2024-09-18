@@ -50,23 +50,19 @@ impl TryInto for &Runtime {
 	/// * `tag` - If applicable, a tag used to determine a specific release.
 	/// * `latest` - If applicable, some specifier used to determine the latest source.
 	fn try_into(&self, tag: Option<String>, latest: Option<String>) -> Result<Source, Error> {
-		Ok(match self {
-			_ => {
-				// Source from GitHub release asset
-				let repo = GitHub::parse(self.repository())?;
-				let name = self.name().to_lowercase();
-				let binary = self.binary();
-				Source::GitHub(ReleaseArchive {
-					owner: repo.org,
-					repository: repo.name,
-					tag,
-					tag_format: self.tag_format().map(|t| t.into()),
-					archive: format!("{binary}-{}.tar.gz", target()?),
-					contents: vec![(binary, Some(format!("{name}-{binary}")))],
-					latest,
-				})
-			},
-		})
+		// Source from GitHub release asset
+		let repo = GitHub::parse(self.repository())?;
+		let name = self.name().to_lowercase();
+		let binary = self.binary();
+		Ok(Source::GitHub(ReleaseArchive {
+			owner: repo.org,
+			repository: repo.name,
+			tag,
+			tag_format: self.tag_format().map(|t| t.into()),
+			archive: format!("{binary}-{}.tar.gz", target()?),
+			contents: vec![(binary, Some(format!("{name}-{binary}")))],
+			latest,
+		}))
 	}
 }
 
@@ -89,15 +85,14 @@ pub(super) async fn chain_spec_generator(
 	version: Option<&str>,
 	cache: &Path,
 ) -> Result<Option<Binary>, Error> {
-	for runtime in Runtime::VARIANTS.iter().filter(|r| chain.to_lowercase().ends_with(r.chain())) {
+	if let Some(runtime) =
+		Runtime::VARIANTS.iter().find(|r| chain.to_lowercase().ends_with(r.chain()))
+	{
 		let name = format!("{}-{}", runtime.name().to_lowercase(), runtime.binary());
 		let releases = runtime.releases().await?;
 		let tag = Binary::resolve_version(&name, version, &releases, cache);
 		// Only set latest when caller has not explicitly specified a version to use
-		let latest = version
-			.is_none()
-			.then(|| releases.iter().nth(0).map(|v| v.to_string()))
-			.flatten();
+		let latest = version.is_none().then(|| releases.first().map(|v| v.to_string())).flatten();
 		let binary = Binary::Source {
 			name: name.to_string(),
 			source: TryInto::try_into(&runtime, tag, latest)?,

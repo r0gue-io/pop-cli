@@ -19,11 +19,7 @@ pub fn extract_template_files(
 ) -> Result<()> {
 	let template_directory = repo_directory.join(template_name);
 	// Recursively copy all directories and files within. Ignores the specified ones.
-	copy_dir_all(
-		&template_directory,
-		target_directory,
-		&ignore_directories.unwrap_or_else(|| vec![]),
-	)?;
+	copy_dir_all(template_directory, target_directory, &ignore_directories.unwrap_or_default())?;
 	Ok(())
 }
 

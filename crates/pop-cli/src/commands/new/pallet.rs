@@ -105,7 +105,7 @@ impl NewPalletCommand {
 					multiselect_pick!(
                         TemplatePalletOptions,
                         "Are you interested in adding one of these types and their usual configuration to your pallet?",
-                        vec![TemplatePalletOptions::DefaultConfig]
+                        [TemplatePalletOptions::DefaultConfig]
 				    )
 				} else {
 					multiselect_pick!(
@@ -120,14 +120,14 @@ impl NewPalletCommand {
 				pallet_custom_origin =
 					boolean_options.contains(&TemplatePalletOptions::CustomOrigin);
 			} else {
-				pallet_common_types = advanced_mode_args.config_common_types.clone();
+				pallet_common_types.clone_from(&advanced_mode_args.config_common_types);
 				pallet_default_config = advanced_mode_args.default_config;
 				if pallet_common_types.is_empty() && pallet_default_config {
 					return Err(anyhow::anyhow!(
 						"Specify at least a config common type to use default config."
 					));
 				}
-				pallet_storage = advanced_mode_args.storage.clone();
+				pallet_storage.clone_from(&advanced_mode_args.storage);
 				pallet_genesis = advanced_mode_args.genesis_config;
 				pallet_custom_origin = advanced_mode_args.custom_origin;
 			}

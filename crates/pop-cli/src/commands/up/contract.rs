@@ -201,13 +201,12 @@ impl UpContractCommand {
 			},
 		};
 
-		let weight_limit;
-		if self.gas_limit.is_some() && self.proof_size.is_some() {
-			weight_limit = Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap());
+		let weight_limit = if self.gas_limit.is_some() && self.proof_size.is_some() {
+			Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap())
 		} else {
 			let spinner = spinner();
 			spinner.start("Doing a dry run to estimate the gas...");
-			weight_limit = match dry_run_gas_estimate_instantiate(&instantiate_exec).await {
+			match dry_run_gas_estimate_instantiate(&instantiate_exec).await {
 				Ok(w) => {
 					spinner.stop(format!("Gas limit estimate: {:?}", w));
 					w
@@ -218,8 +217,8 @@ impl UpContractCommand {
 					Cli.outro_cancel(FAILED)?;
 					return Ok(());
 				},
-			};
-		}
+			}
+		};
 
 		// Finally upload and instantiate.
 		if !self.dry_run {
@@ -270,7 +269,7 @@ impl UpContractCommand {
 			spinner.stop(format!("Contract uploaded: The code hash is {:?}", code_hash));
 			log::warning("NOTE: The contract has not been instantiated.")?;
 		}
-		return Ok(());
+		Ok(())
 	}
 
 	/// Handles the optional termination of a local running node.
@@ -299,7 +298,7 @@ impl UpContractCommand {
 
 impl From<UpContractCommand> for UpOpts {
 	fn from(cmd: UpContractCommand) -> Self {
-		return UpOpts {
+		UpOpts {
 			path: cmd.path,
 			constructor: cmd.constructor,
 			args: cmd.args,
@@ -309,7 +308,7 @@ impl From<UpContractCommand> for UpOpts {
 			salt: cmd.salt,
 			url: cmd.url,
 			suri: cmd.suri,
-		};
+		}
 	}
 }
 

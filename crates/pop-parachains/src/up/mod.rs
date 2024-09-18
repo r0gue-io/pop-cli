@@ -97,7 +97,7 @@ impl Zombienet {
 					.map(|p| [Some(&mut p.binary), p.chain_spec_generator.as_mut()]),
 			)
 			.flatten()
-			.filter_map(|b| b)
+			.flatten()
 	}
 
 	/// Determine parachain configuration based on specified version and network configuration.
@@ -165,7 +165,7 @@ impl Zombienet {
 				&command,
 				system_parachain_version,
 				system_parachain_runtime_version,
-				&relay_chain.binary.version().expect("expected relay chain to have version"),
+				relay_chain.binary.version().expect("expected relay chain to have version"),
 				chain,
 				cache,
 			)
@@ -178,7 +178,9 @@ impl Zombienet {
 			// Check if known parachain
 			let version = parachains.as_ref().and_then(|r| {
 				r.iter()
-					.filter_map(|r| (r.package == command).then(|| r.reference.as_ref()).flatten())
+					.filter_map(|r| {
+						(r.package == command).then_some(r.reference.as_ref()).flatten()
+					})
 					.nth(0)
 					.map(|v| v.as_str())
 			});
@@ -189,7 +191,7 @@ impl Zombienet {
 
 			// Check if parachain binary source specified as an argument
 			if let Some(parachains) = parachains.as_ref() {
-				for repo in parachains.iter().filter(|r| command == r.package) {
+				if let Some(repo) = parachains.iter().find(|r| command == r.package) {
 					paras.insert(id, Parachain::from_repository(id, repo, chain, cache)?);
 					continue 'outer;
 				}
@@ -272,7 +274,7 @@ impl Zombienet {
 			}
 		}
 		// Otherwise use default
-		return Ok(relay::default(version, runtime_version, chain, cache).await?);
+		Ok(relay::default(version, runtime_version, chain, cache).await?)
 	}
 
 	/// Launches the local network.
@@ -301,7 +303,7 @@ impl Zombienet {
 
 		// Load from config and spawn network
 		let config = self.network_config.configure(&self.relay_chain, &self.parachains)?;
-		let path = config.path().to_str().expect("temp config file should have a path").into();
+		let path = config.path().to_str().expect("temp config file should have a path");
 		let network_config = NetworkConfig::load_from_toml(path)?;
 		Ok(network_config.spawn_native().await?)
 	}
@@ -320,7 +322,7 @@ impl NetworkConfiguration {
 		if !file.exists() {
 			return Err(Error::Config(format!("The {file:?} configuration file was not found")));
 		}
-		let contents = std::fs::read_to_string(&file)?;
+		let contents = std::fs::read_to_string(file)?;
 		let config = contents.parse::<DocumentMut>().map_err(|err| Error::TomlError(err.into()))?;
 		let network_config = NetworkConfiguration(config);
 		network_config.relay_chain()?;
@@ -472,13 +474,12 @@ impl NetworkConfiguration {
 	/// # Arguments
 	/// * `path` - The path to be resolved.
 	fn resolve_path(path: &Path) -> Result<String, Error> {
-		Ok(path
-			.canonicalize()
+		path.canonicalize()
 			.map_err(|_| {
 				Error::Config(format!("the canonical path of {:?} could not be resolved", path))
 			})
 			.map(|p| p.to_str().map(|p| p.to_string()))?
-			.ok_or_else(|| Error::Config("the path is invalid".into()))?)
+			.ok_or_else(|| Error::Config("the path is invalid".into()))
 	}
 }
 
