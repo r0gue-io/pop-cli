@@ -15,7 +15,7 @@ use cliclack::{
 	outro, outro_cancel,
 };
 use pop_common::{
-	enum_variants,
+	enum_variants, enum_variants_for_help,
 	templates::{Template, Type},
 	Git, GitHub, Release,
 };
@@ -40,8 +40,9 @@ pub struct NewParachainCommand {
 	#[arg(
 		short = 't',
 		long,
-		help = "Template to use.",
-		value_parser = enum_variants!(Parachain)
+		help = format!("Template to use. [possible values: {}]", enum_variants_for_help!(Parachain)),
+		value_parser = enum_variants!(Parachain),
+		hide_possible_values = true // To hide the deprecated templates
 	)]
 	pub(crate) template: Option<Parachain>,
 	#[arg(
@@ -243,6 +244,9 @@ fn is_template_supported(provider: &Provider, template: &Parachain) -> Result<()
 			provider, template
 		)));
 	};
+	if template.is_deprecated() {
+		warning(format!("NOTE: this template is deprecated.{}", template.deprecated_message()))?;
+	}
 	return Ok(());
 }
 

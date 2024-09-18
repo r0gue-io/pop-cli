@@ -149,21 +149,6 @@ pub enum Parachain {
 		)
 	)]
 	ParityGeneric,
-	/// [Deprecated] This command is deprecated, please use 'paritytech/substrate-contracts-node'
-	/// instead.
-	#[strum(
-		serialize = "cpt",
-		message = "Contracts",
-		detailed_message = "Minimal Substrate node configured for smart contracts via pallet-contracts.",
-		props(
-			Provider = "Parity",
-			Repository = "https://github.com/paritytech/substrate-contracts-node",
-			Network = "./zombienet.toml",
-			License = "Unlicense",
-			IsDeprecated = "true"
-		)
-	)]
-	ParityCPT,
 	/// Minimal Substrate node configured for smart contracts via pallet-contracts.
 	#[strum(
 		serialize = "paritytech/substrate-contracts-node",
@@ -177,6 +162,22 @@ pub enum Parachain {
 		)
 	)]
 	ParityContracts,
+	/// [Deprecated] This command is deprecated, please use 'paritytech/substrate-contracts-node'
+	/// instead.
+	#[strum(
+		serialize = "cpt",
+		message = "Contracts",
+		detailed_message = "Minimal Substrate node configured for smart contracts via pallet-contracts.",
+		props(
+			Provider = "Parity",
+			Repository = "https://github.com/paritytech/substrate-contracts-node",
+			Network = "./zombienet.toml",
+			License = "Unlicense",
+			IsDeprecated = "true",
+			DeprecatedMessage = "This template is deprecated. Please use paritytech/substrate-contracts-node in the future.",
+		)
+	)]
+	DeprecatedParityContracts,
 	// templates for unit tests below
 	#[cfg(test)]
 	#[strum(
@@ -190,6 +191,7 @@ pub enum Parachain {
 			SupportedVersions = "v1.0.0,v2.0.0",
 			IsAudited = "true",
 			IsDeprecated = "true",
+			DeprecatedMessage = "This template is deprecated. Please use test_02 in the future.",
 			License = "Unlicense",
 		)
 	)]
@@ -250,7 +252,7 @@ mod tests {
 			("polkadot-generic-runtime-template".to_string(), OpenZeppelinGeneric),
 			("paritytech/polkadot-sdk-parachain-template".to_string(), ParityGeneric),
 			("paritytech/substrate-contracts-node".to_string(), ParityContracts),
-			("cpt".to_string(), ParityCPT),
+			("cpt".to_string(), DeprecatedParityContracts),
 			("test_01".to_string(), TestTemplate01),
 			("test_02".to_string(), TestTemplate02),
 		])
@@ -290,7 +292,7 @@ mod tests {
 			(OpenZeppelinGeneric, Some("./zombienet-config/devnet.toml")),
 			(ParityGeneric, Some("./zombienet.toml")),
 			(ParityContracts, Some("./zombienet.toml")),
-			(ParityCPT, Some("./zombienet.toml")),
+			(DeprecatedParityContracts, Some("./zombienet.toml")),
 			(TestTemplate01, Some("")),
 			(TestTemplate02, Some("")),
 		]
@@ -306,7 +308,7 @@ mod tests {
 			(OpenZeppelinGeneric, Some("GPL-3.0")),
 			(ParityGeneric, Some("Unlicense")),
 			(ParityContracts, Some("Unlicense")),
-			(ParityCPT, Some("Unlicense")),
+			(DeprecatedParityContracts, Some("Unlicense")),
 			(TestTemplate01, Some("Unlicense")),
 			(TestTemplate02, Some("GPL-3.0")),
 		]
@@ -432,5 +434,17 @@ mod tests {
 
 		let template = TestTemplate02;
 		assert_eq!(template.is_deprecated(), false);
+	}
+
+	#[test]
+	fn test_deprecated_message() {
+		let template = TestTemplate01;
+		assert_eq!(
+			template.deprecated_message(),
+			"This template is deprecated. Please use test_02 in the future."
+		);
+
+		let template = TestTemplate02;
+		assert_eq!(template.deprecated_message(), "");
 	}
 }
