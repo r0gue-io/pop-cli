@@ -100,10 +100,7 @@ pub async fn contracts_node_generator(
 	let name = chain.binary();
 	let releases = chain.releases().await?;
 	let tag = Binary::resolve_version(name, version, &releases, &cache);
-	let latest = version
-		.is_none()
-		.then(|| releases.iter().nth(0).map(|v| v.to_string()))
-		.flatten();
+	let latest = version.is_none().then(|| releases.first().map(|v| v.to_string())).flatten();
 	let contracts_node = Binary::Source {
 		name: name.to_string(),
 		source: TryInto::try_into(chain, tag.clone(), latest)?,

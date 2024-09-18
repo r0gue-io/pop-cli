@@ -38,17 +38,16 @@ pub async fn check_contracts_node_and_prompt(skip_confirm: bool) -> anyhow::Resu
 			binary.version().unwrap_or("None"),
 			binary.latest().unwrap_or("None")
 		))?;
-		let latest;
-		if !skip_confirm {
-			latest = confirm(
+		let latest = if !skip_confirm {
+			confirm(
 				"📦 Would you like to source it automatically now? It may take some time..."
 					.to_string(),
 			)
 			.initial_value(true)
-			.interact()?;
+			.interact()?
 		} else {
-			latest = true;
-		}
+			true
+		};
 		if latest {
 			let spinner = spinner();
 			spinner.start("📦 Sourcing substrate-contracts-node...");

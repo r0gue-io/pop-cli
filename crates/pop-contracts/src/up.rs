@@ -13,7 +13,7 @@ use contract_extrinsics::{
 use ink_env::{DefaultEnvironment, Environment};
 use sp_core::Bytes;
 use sp_weights::Weight;
-use std::path::PathBuf;
+use std::{fmt::Write, path::PathBuf};
 use subxt::PolkadotConfig as DefaultConfig;
 use subxt_signer::sr25519::Keypair;
 
@@ -72,7 +72,7 @@ pub async fn set_up_deployment(
 			.salt(up_opts.salt.clone())
 			.done()
 			.await?;
-	return Ok(instantiate_exec);
+	Ok(instantiate_exec)
 }
 
 /// Prepare `UploadExec` data to upload a contract.
@@ -93,7 +93,7 @@ pub async fn set_up_upload(
 
 	let upload_exec: UploadExec<DefaultConfig, DefaultEnvironment, Keypair> =
 		UploadCommandBuilder::new(extrinsic_opts).done().await?;
-	return Ok(upload_exec);
+	Ok(upload_exec)
 }
 
 /// Estimate the gas required for instantiating a contract without modifying the state of the
@@ -187,10 +187,13 @@ pub async fn upload_smart_contract(
 		.await
 		.map_err(|error_variant| Error::UploadContractError(format!("{:?}", error_variant)))?;
 	if let Some(code_stored) = upload_result.code_stored {
-		return Ok(format!("{:?}", code_stored.code_hash));
+		Ok(format!("{:?}", code_stored.code_hash))
 	} else {
 		let code_hash: String =
-			upload_exec.code().code_hash().iter().map(|b| format!("{:02x}", b)).collect();
+			upload_exec.code().code_hash().iter().fold(String::new(), |mut output, b| {
+				write!(output, "{:02x}", b).expect("expected to write to string");
+				output
+			});
 		Err(Error::UploadContractError(format!(
 			"This contract has already been uploaded with code hash: 0x{code_hash}"
 		)))

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use std::path::PathBuf;
+use std::path::Path;
 
 use crate::{
 	utils::helpers::write_to_file, TemplatePalletConfigCommonTypes, TemplatePalletStorageTypes,
@@ -9,7 +9,7 @@ use askama::Template;
 
 mod filters {
 	/// This filter is used to determine if a element is present in a `Vec`
-	pub fn contains<T: PartialEq>(vec: &Vec<T>, element: T) -> ::askama::Result<bool> {
+	pub fn contains<T: PartialEq>(vec: &[T], element: T) -> ::askama::Result<bool> {
 		Ok(vec.contains(&element))
 	}
 }
@@ -121,13 +121,13 @@ pub(crate) struct PalletTypes {
 
 pub trait PalletItem {
 	/// Render and Write to file, root is the path to the pallet
-	fn execute(&self, root: &PathBuf) -> anyhow::Result<()>;
+	fn execute(&self, root: &Path) -> anyhow::Result<()>;
 }
 
 macro_rules! generate_pallet_item {
 	($item:ty, $filename:expr) => {
 		impl PalletItem for $item {
-			fn execute(&self, root: &PathBuf) -> anyhow::Result<()> {
+			fn execute(&self, root: &Path) -> anyhow::Result<()> {
 				let rendered = self.render()?;
 				let _ = write_to_file(&root.join($filename), &rendered);
 				Ok(())

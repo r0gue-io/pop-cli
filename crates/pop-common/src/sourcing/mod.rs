@@ -92,15 +92,15 @@ impl Source {
 		match self {
 			Archive { url, contents } => {
 				let contents: Vec<_> =
-					contents.iter().map(|name| (name.as_str(), cache.join(&name))).collect();
-				from_archive(&url, &contents, status).await
+					contents.iter().map(|name| (name.as_str(), cache.join(name))).collect();
+				from_archive(url, &contents, status).await
 			},
 			Git { url, reference, manifest, package, artifacts } => {
 				let artifacts: Vec<_> = artifacts
 					.iter()
 					.map(|name| match reference {
-						Some(version) => (name.as_str(), cache.join(&format!("{name}-{version}"))),
-						None => (name.as_str(), cache.join(&name)),
+						Some(version) => (name.as_str(), cache.join(format!("{name}-{version}"))),
+						None => (name.as_str(), cache.join(name)),
 					})
 					.collect();
 				from_git(
@@ -196,7 +196,7 @@ impl GitHub {
 					.map(|(name, target)| match tag.as_ref() {
 						Some(tag) => (
 							*name,
-							cache.join(&format!(
+							cache.join(format!(
 								"{}-{tag}",
 								target.as_ref().map_or(*name, |t| t.as_str())
 							)),
@@ -211,8 +211,8 @@ impl GitHub {
 					.iter()
 					.map(|name| match reference {
 						Some(reference) =>
-							(name.as_str(), cache.join(&format!("{name}-{reference}"))),
-						None => (name.as_str(), cache.join(&name)),
+							(name.as_str(), cache.join(format!("{name}-{reference}"))),
+						None => (name.as_str(), cache.join(name)),
 					})
 					.collect();
 				from_github_archive(
@@ -286,6 +286,7 @@ async fn from_archive(
 /// * `release` - Whether to build optimized artifacts using the release profile.
 /// * `status` - Used to observe status updates.
 /// * `verbose` - Whether verbose output is required.
+#[allow(clippy::too_many_arguments)]
 async fn from_git(
 	url: &str,
 	reference: Option<&str>,
@@ -300,7 +301,7 @@ async fn from_git(
 	let temp_dir = tempdir()?;
 	let working_dir = temp_dir.path();
 	status.update(&format!("Cloning {url}..."));
-	Git::clone(&Url::parse(url)?, &working_dir, reference.as_deref())?;
+	Git::clone(&Url::parse(url)?, working_dir, reference)?;
 	// Build binaries
 	status.update("Starting build of binary...");
 	let manifest = manifest
@@ -323,6 +324,7 @@ async fn from_git(
 /// * `release` - Whether to build optimized artifacts using the release profile.
 /// * `status` - Used to observe status updates.
 /// * `verbose` - Whether verbose output is required.
+#[allow(clippy::too_many_arguments)]
 async fn from_github_archive(
 	owner: &str,
 	repository: &str,
@@ -461,8 +463,8 @@ async fn build(
 	match verbose {
 		false => {
 			let reader = command.stderr_to_stdout().reader()?;
-			let mut output = std::io::BufReader::new(reader).lines();
-			while let Some(line) = output.next() {
+			let output = std::io::BufReader::new(reader).lines();
+			for line in output {
 				status.update(&line?);
 			}
 		},
@@ -477,7 +479,7 @@ async fn build(
 		.expect("")
 		.join(format!("target/{}", if release { "release" } else { "debug" }));
 	for (name, dest) in artifacts {
-		copy(target.join(&name), dest)?;
+		copy(target.join(name), dest)?;
 	}
 	Ok(())
 }
@@ -490,7 +492,7 @@ async fn build(
 async fn download(url: &str, dest: &Path) -> Result<(), Error> {
 	// Download to destination path
 	let response = reqwest::get(url).await?.error_for_status()?;
-	let mut file = File::create(&dest)?;
+	let mut file = File::create(dest)?;
 	file.write_all(&response.bytes().await?)?;
 	// Make executable
 	let mut perms = metadata(dest)?.permissions();

@@ -28,7 +28,7 @@ pub fn build_smart_contract(
 	let args = ExecuteArgs { manifest_path, build_mode, verbosity, ..Default::default() };
 
 	// Execute the build and log the output of the build
-	Ok(execute(args)?)
+	execute(args)
 }
 
 /// Determines whether the manifest at the supplied path is a supported smart contract project.

@@ -80,7 +80,7 @@ pub fn generate_plain_chain_spec(
 	plain_chain_spec: &Path,
 	default_bootnode: bool,
 ) -> Result<(), Error> {
-	check_command_exists(&binary_path, "build-spec")?;
+	check_command_exists(binary_path, "build-spec")?;
 	let mut args = vec!["build-spec"];
 	if !default_bootnode {
 		args.push("--disable-default-bootnode");
@@ -103,7 +103,7 @@ pub fn generate_raw_chain_spec(
 	if !plain_chain_spec.exists() {
 		return Err(Error::MissingChainSpec(plain_chain_spec.display().to_string()));
 	}
-	check_command_exists(&binary_path, "build-spec")?;
+	check_command_exists(binary_path, "build-spec")?;
 	let raw_chain_spec = plain_chain_spec.with_file_name(chain_spec_file_name);
 	cmd(
 		binary_path,
@@ -136,7 +136,7 @@ pub fn export_wasm_file(
 	if !chain_spec.exists() {
 		return Err(Error::MissingChainSpec(chain_spec.display().to_string()));
 	}
-	check_command_exists(&binary_path, "export-genesis-wasm")?;
+	check_command_exists(binary_path, "export-genesis-wasm")?;
 	let wasm_file = chain_spec.parent().unwrap_or(Path::new("./")).join(wasm_file_name);
 	cmd(
 		binary_path,
@@ -168,7 +168,7 @@ pub fn generate_genesis_state_file(
 	if !chain_spec.exists() {
 		return Err(Error::MissingChainSpec(chain_spec.display().to_string()));
 	}
-	check_command_exists(&binary_path, "export-genesis-state")?;
+	check_command_exists(binary_path, "export-genesis-state")?;
 	let genesis_file = chain_spec.parent().unwrap_or(Path::new("./")).join(genesis_file_name);
 	cmd(
 		binary_path,
