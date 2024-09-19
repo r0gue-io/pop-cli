@@ -534,28 +534,16 @@ mod tests {
 			gas_limit: None,
 			proof_size: None,
 			salt: None,
-			url: Url::parse("ws://localhost:9944")?,
+			url: Url::parse("wss://rpc2.paseo.popnetwork.xyz")?,
 			suri: "//Alice".to_string(),
 			dry_run: true,
 			upload_only: true,
 			skip_confirm: false,
 		};
-		let mut cli = MockCli::new()
-			.expect_intro("Deploy a smart contract")
-			.expect_warning("⚠️ The substrate-contracts-node binary is not found.")
-			.expect_confirm("📦 Would you like to source it automatically now?", true)
-			.expect_confirm("No endpoint was specified. Would you like to start a local node in the background for testing?", true);
+		let mut cli = MockCli::new().expect_intro("Deploy a smart contract").expect_outro(COMPLETE);
 		let process = command.set_up_environment(&mut cli).await?;
-		// Test terminate_node
-		let process_id = process.as_ref().unwrap().0.id();
-		let mut cli_finish_process = MockCli::new().expect_confirm("Would you like to terminate the local node?", false).expect_warning(format!("NOTE: The node is running in the background with process ID {}. Please terminate it manually when done.", process_id))
-			.expect_outro(COMPLETE);
-		UpContractCommand::finish_process(process, true, None, &mut cli_finish_process)?;
-		// Stop the process contracts-node
-		Command::new("kill")
-			.args(["-s", "TERM", &process_id.to_string()])
-			.spawn()?
-			.wait()?;
+		UpContractCommand::finish_process(process, true, None, &mut cli)?;
+
 		cli.verify()
 	}
 
