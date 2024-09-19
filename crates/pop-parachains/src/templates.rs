@@ -206,7 +206,9 @@ pub enum Parachain {
 			Network = "",
 			SupportedVersions = "v1.0.0,v2.0.0",
 			IsAudited = "true",
-			License = "Unlicense"
+			IsDeprecated = "true",
+			DeprecatedMessage = "This template is deprecated. Please use test_02 in the future.",
+			License = "Unlicense",
 		)
 	)]
 	TestTemplate01,
@@ -443,5 +445,26 @@ mod tests {
 
 		let template = TestTemplate02;
 		assert_eq!(template.is_audited(), false);
+	}
+
+	#[test]
+	fn test_is_deprecated() {
+		let template = TestTemplate01;
+		assert_eq!(template.is_deprecated(), true);
+
+		let template = TestTemplate02;
+		assert_eq!(template.is_deprecated(), false);
+	}
+
+	#[test]
+	fn test_deprecated_message() {
+		let template = TestTemplate01;
+		assert_eq!(
+			template.deprecated_message(),
+			"This template is deprecated. Please use test_02 in the future."
+		);
+
+		let template = TestTemplate02;
+		assert_eq!(template.deprecated_message(), "");
 	}
 }

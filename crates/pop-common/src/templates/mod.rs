@@ -45,6 +45,16 @@ pub trait Template:
 	fn template_type(&self) -> Result<&str, Error> {
 		self.get_str(Self::PROPERTY).ok_or(Error::TypeMissing)
 	}
+
+	/// Get whether the template is deprecated.
+	fn is_deprecated(&self) -> bool {
+		self.get_str("IsDeprecated").map_or(false, |s| s == "true")
+	}
+
+	/// Get the deprecation message for the template
+	fn deprecated_message(&self) -> &str {
+		self.get_str("DeprecatedMessage").unwrap_or_default()
+	}
 }
 
 /// A trait for defining overarching types of specific template variants.
@@ -76,7 +86,7 @@ pub trait Type<T: Template>: Clone + Default + EnumMessage + Eq + PartialEq + Va
 	fn templates(&self) -> Vec<&T> {
 		T::VARIANTS
 			.iter()
-			.filter(|t| t.get_str(T::PROPERTY) == Some(self.name()))
+			.filter(|t| t.get_str(T::PROPERTY) == Some(self.name()) && !t.is_deprecated())
 			.collect()
 	}
 
@@ -97,5 +107,17 @@ macro_rules! enum_variants {
 				.collect::<Vec<_>>(),
 		)
 		.try_map(|s| <$e>::from_str(&s).map_err(|e| format!("could not convert from {s} to type")))
+	}};
+}
+
+#[macro_export]
+macro_rules! enum_variants_for_help {
+	($e:ty) => {{
+		<$e>::VARIANTS
+			.iter()
+			.filter(|variant| !variant.is_deprecated()) // Exclude deprecated variants for --help
+			.map(|v| v.as_ref())
+			.collect::<Vec<_>>()
+			.join(", ")
 	}};
 }
