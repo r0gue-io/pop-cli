@@ -491,7 +491,6 @@ mod tests {
 		)?;
 		let mut cli = MockCli::new()
 			.expect_intro("Deploy a smart contract")
-			.expect_warning("NOTE: contract has not yet been built.")
 			.expect_confirm("The specified endpoint of ws://wrong-node/ is inaccessible. Would you like to start a local node in the background for testing?", false)
 			.expect_outro_cancel("🚫 You need to specify an accessible endpoint to deploy the contract.");
 
@@ -543,6 +542,8 @@ mod tests {
 		};
 		let mut cli = MockCli::new()
 			.expect_intro("Deploy a smart contract")
+			.expect_warning("⚠️ The substrate-contracts-node binary is not found.")
+			.expect_confirm("📦 Would you like to source it automatically now?", true)
 			.expect_confirm("No endpoint was specified. Would you like to start a local node in the background for testing?", true);
 		let process = command.set_up_environment(&mut cli).await?;
 		// Test terminate_node

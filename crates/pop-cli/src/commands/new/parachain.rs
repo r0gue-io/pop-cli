@@ -231,7 +231,7 @@ async fn generate_parachain_from_template(
 
 	// add next steps
 	let mut next_steps = vec![
-		format!("cd into \"{name_template}\" and enjoy hacking! 🚀"),
+		format!("cd into \"{path_template}\" and enjoy hacking! 🚀"),
 		"Use `pop build` to build your parachain.".into(),
 	];
 	if let Some(network_config) = template.network_config() {
@@ -309,9 +309,8 @@ async fn choose_release(
 		.into_iter()
 		.filter(|r| template.is_supported_version(&r.tag_name))
 		.collect();
-
 	let mut release_name = None;
-	if latest_3_releases.is_empty() {
+	if !latest_3_releases.is_empty() {
 		release_name = Some(display_release_versions_to_user(latest_3_releases, cli)?);
 	} else {
 		// If supported_versions exists and no other releases are found,
@@ -513,10 +512,7 @@ mod tests {
 		.map(|s| style(format!("{} {s}", console::Emoji("●", ">"))).dim().to_string())
 		.collect();
 		let mut cli = MockCli::new()
-			.expect_intro(format!(
-				"Generating \"{}\" using Assets from Pop!",
-				parachain_path.display().to_string()
-			))
+			.expect_intro("Generating \"my-parachain\" using Assets from Pop!")
 			.expect_success(format!(
 				"Generation complete{}",
 				format!("\n{}", style(format!("Version: polkadot-v1.11.0 ")).dim())
