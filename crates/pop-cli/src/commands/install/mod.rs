@@ -66,7 +66,7 @@ pub(crate) struct Command<'a, CLI: Cli> {
 
 impl<'a, CLI: Cli> Command<'a, CLI> {
 	/// Executes the command.
-	pub(crate) async fn execute(mut self: Self) -> anyhow::Result<()> {
+	pub(crate) async fn execute(mut self) -> anyhow::Result<()> {
 		self.cli.intro("Install dependencies for development")?;
 		if cfg!(target_os = "macos") {
 			self.cli.info("ℹ️ Mac OS (Darwin) detected.")?;
@@ -250,7 +250,7 @@ async fn install_redhat<'a, CLI: Cli>(command: &mut Command<'a, CLI>) -> anyhow:
 	Ok(())
 }
 
-fn prompt_for_confirmation<'a, CLI: Cli>(cli: &'a mut CLI, message: &str) -> anyhow::Result<()> {
+fn prompt_for_confirmation<CLI: Cli>(cli: &mut CLI, message: &str) -> anyhow::Result<()> {
 	if !cli
 		.confirm(format!(
 			"📦 Do you want to proceed with the installation of the following packages: {} ?",
@@ -264,13 +264,13 @@ fn prompt_for_confirmation<'a, CLI: Cli>(cli: &'a mut CLI, message: &str) -> any
 	Ok(())
 }
 
-fn not_supported_message<'a, CLI: Cli>(cli: &'a mut CLI) -> anyhow::Result<()> {
+fn not_supported_message<CLI: Cli>(cli: &mut CLI) -> anyhow::Result<()> {
 	cli.error("This OS is not supported at present")?;
 	cli.warning("⚠️ Please refer to https://docs.substrate.io/install/ for setup information.")?;
 	Ok(())
 }
 
-async fn install_rustup<'a, CLI: Cli>(cli: &'a mut CLI) -> anyhow::Result<()> {
+async fn install_rustup<CLI: Cli>(cli: &mut CLI) -> anyhow::Result<()> {
 	match cmd("which", vec!["rustup"]).read() {
 		Ok(output) => {
 			cli.info(format!("ℹ️ rustup installed already at {}.", output))?;
@@ -308,7 +308,7 @@ async fn install_rustup<'a, CLI: Cli>(cli: &'a mut CLI) -> anyhow::Result<()> {
 	Ok(())
 }
 
-async fn install_homebrew<'a, CLI: Cli>(cli: &'a mut CLI) -> anyhow::Result<()> {
+async fn install_homebrew<CLI: Cli>(cli: &mut CLI) -> anyhow::Result<()> {
 	match cmd("which", vec!["brew"]).read() {
 		Ok(output) => cli.info(format!("ℹ️ Homebrew installed already at {}.", output))?,
 		Err(_) =>

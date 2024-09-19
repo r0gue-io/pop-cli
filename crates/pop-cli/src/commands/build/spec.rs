@@ -1,11 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{
-	cli::{
-		self,
-		traits::{Cli as _, Confirm as _, Input as _, Select as _},
-		Cli,
-	},
+	cli::{self, traits::*, Cli},
 	style::style,
 };
 use clap::{Args, ValueEnum};
@@ -176,7 +172,7 @@ impl BuildSpecCommand {
 					config.build(&mut Cli)
 				},
 			};
-			return Ok("spec");
+			Ok("spec")
 		} else {
 			self.build_spec_not_supported(&mut Cli)
 		}
@@ -274,10 +270,8 @@ impl BuildSpecCommand {
 			spinner.set_message("Generating genesis code...");
 			let wasm_file_name = format!("para-{}.wasm", para_id);
 			let wasm_file = export_wasm_file(&binary_path, &raw_chain_spec, &wasm_file_name)?;
-			generated_files.push(format!(
-				"WebAssembly runtime file exported at: {}",
-				wasm_file.display().to_string()
-			));
+			generated_files
+				.push(format!("WebAssembly runtime file exported at: {}", wasm_file.display()));
 		}
 
 		if self.genesis_state {
@@ -285,10 +279,8 @@ impl BuildSpecCommand {
 			let genesis_file_name = format!("para-{}-genesis-state", para_id);
 			let genesis_state_file =
 				generate_genesis_state_file(&binary_path, &raw_chain_spec, &genesis_file_name)?;
-			generated_files.push(format!(
-				"Genesis State file exported at: {}",
-				genesis_state_file.display().to_string()
-			));
+			generated_files
+				.push(format!("Genesis State file exported at: {}", genesis_state_file.display()));
 		}
 
 		cli.intro("Building your chain spec".to_string())?;
@@ -349,7 +341,7 @@ async fn guide_user_to_generate_spec(
 		.default_input(&default)
 		.interact()?
 		.parse::<u32>()
-		.unwrap_or_else(|_| DEFAULT_PARA_ID);
+		.unwrap_or(DEFAULT_PARA_ID);
 
 	// Prompt for chain type.
 	// If relay is Kusama or Polkadot, then Live type is used and user is not prompted.

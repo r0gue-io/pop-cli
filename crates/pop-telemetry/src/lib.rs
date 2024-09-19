@@ -56,9 +56,9 @@ impl Telemetry {
 	/// Can be used in tests to provide mock endpoints.
 	/// parameters:
 	/// `endpoint`: the API endpoint that telemetry will call
-	///	`config_path`: the path to the configuration file (used for opt-out checks)
+	/// `config_path`: the path to the configuration file (used for opt-out checks)
 	fn init(endpoint: String, config_path: &PathBuf) -> Self {
-		let opt_out = Self::is_opt_out(&config_path);
+		let opt_out = Self::is_opt_out(config_path);
 
 		Telemetry { endpoint, opt_out, client: Client::new() }
 	}
@@ -157,7 +157,7 @@ pub struct Config {
 pub fn config_file_path() -> Result<PathBuf> {
 	let config_path = dirs::config_dir().ok_or(TelemetryError::ConfigFileNotFound)?.join("pop");
 	// Creates pop dir if needed
-	create_dir_all(config_path.as_path()).map_err(|err| TelemetryError::IO(err))?;
+	create_dir_all(config_path.as_path()).map_err(TelemetryError::IO)?;
 	Ok(config_path.join("config.json"))
 }
 
@@ -173,8 +173,8 @@ pub fn write_config_opt_out(config_path: &PathBuf) -> Result<()> {
 		.map_err(|err| TelemetryError::SerializeFailed(err.to_string()))?;
 
 	// overwrites file if it exists
-	let mut file = File::create(&config_path).map_err(|err| TelemetryError::IO(err))?;
-	file.write_all(config_json.as_bytes()).map_err(|err| TelemetryError::IO(err))?;
+	let mut file = File::create(config_path).map_err(TelemetryError::IO)?;
+	file.write_all(config_json.as_bytes()).map_err(TelemetryError::IO)?;
 
 	Ok(())
 }

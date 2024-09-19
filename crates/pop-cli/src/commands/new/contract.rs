@@ -70,11 +70,11 @@ impl NewContractCommand {
 		};
 
 		is_template_supported(contract_type, &template)?;
-		generate_contract_from_template(name, &path, &template, &mut cli::Cli)?;
+		generate_contract_from_template(name, path, &template, &mut cli::Cli)?;
 
 		// If the contract is part of a workspace, add it to that workspace
-		if let Some(workspace_toml) = find_workspace_toml(&path) {
-			add_crate_to_workspace(&workspace_toml, &path)?;
+		if let Some(workspace_toml) = find_workspace_toml(path) {
+			add_crate_to_workspace(&workspace_toml, path)?;
 		}
 
 		Ok(())
@@ -89,7 +89,7 @@ fn is_template_supported(contract_type: &ContractType, template: &Contract) -> R
 			contract_type, template
 		)));
 	};
-	return Ok(());
+	Ok(())
 }
 
 /// Determines whether the specified name is a valid contract name.
@@ -98,7 +98,7 @@ fn is_valid_name(name: &str, cli: &mut impl cli::traits::Cli) -> Result<bool> {
 		cli.outro_cancel(e)?;
 		return Ok(false);
 	}
-	return Ok(true);
+	Ok(true)
 }
 
 /// Guide the user to generate a contract from available templates.
@@ -162,7 +162,7 @@ fn generate_contract_from_template(
 	fs::create_dir_all(contract_path.as_path())?;
 	let spinner = cliclack::spinner();
 	spinner.start("Generating contract...");
-	create_smart_contract(&name, contract_path.as_path(), template)?;
+	create_smart_contract(name, contract_path.as_path(), template)?;
 	spinner.clear();
 	// Replace spinner with success.
 	console::Term::stderr().clear_last_lines(2)?;
@@ -182,7 +182,7 @@ fn generate_contract_from_template(
 		format!("cd into {:?} and enjoy hacking! 🚀", contract_path.display()),
 		"Use `pop build` to build your contract.".into(),
 	];
-	next_steps.push(format!("Use `pop up contract` to deploy your contract to a live network."));
+	next_steps.push("Use `pop up contract` to deploy your contract to a live network.".to_string());
 	let next_steps: Vec<_> = next_steps
 		.iter()
 		.map(|s| style(format!("{} {s}", console::Emoji("●", ">"))).dim().to_string())

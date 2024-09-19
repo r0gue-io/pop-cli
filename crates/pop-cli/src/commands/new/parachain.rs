@@ -164,7 +164,7 @@ async fn guide_user_to_generate_parachain(
 		decimals: 12,
 		initial_endowment: "1u64 << 60".to_string(),
 	};
-	if Provider::Pop.provides(&template) {
+	if Provider::Pop.provides(template) {
 		customizable_options = prompt_customizable_options(cli)?;
 	}
 
@@ -189,7 +189,7 @@ async fn generate_parachain_from_template(
 	verify: bool,
 	cli: &mut impl cli::traits::Cli,
 ) -> Result<()> {
-	let destination_path = check_destination_path(&Path::new(path_template), cli)?;
+	let destination_path = check_destination_path(Path::new(path_template), cli)?;
 	let name_template = get_project_name_from_path(&destination_path, "my-parachain");
 	cli.intro(format!(
 		"Generating \"{name_template}\" using {} from {}!",
@@ -211,7 +211,7 @@ async fn generate_parachain_from_template(
 	console::Term::stderr().clear_last_lines(2)?;
 	let mut verify_note = "".to_string();
 	if verify && tag.is_some() {
-		let url = url::Url::parse(&template.repository_url()?).expect("valid repository url");
+		let url = url::Url::parse(template.repository_url()?).expect("valid repository url");
 		let repo = GitHub::parse(url.as_str())?;
 		let commit = repo.get_commit_sha_from_release(&tag.clone().unwrap()).await;
 		verify_note = format!(" ✅ Fetched the latest release of the template along with its license based on the commit SHA for the release ({}).", commit.unwrap_or_default());
@@ -260,7 +260,7 @@ fn is_template_supported(provider: &Provider, template: &Parachain) -> Result<()
 			provider, template
 		)));
 	};
-	return Ok(());
+	Ok(())
 }
 
 fn get_customization_value(
@@ -270,19 +270,19 @@ fn get_customization_value(
 	initial_endowment: Option<String>,
 	cli: &mut impl cli::traits::Cli,
 ) -> Result<Config> {
-	if Provider::Pop.provides(&template) &&
+	if Provider::Pop.provides(template) &&
 		(symbol.is_some() || decimals.is_some() || initial_endowment.is_some())
 	{
 		cli.warning("Customization options are not available for this template")?;
 		sleep(Duration::from_secs(3))
 	}
-	return Ok(Config {
+	Ok(Config {
 		symbol: symbol.unwrap_or_else(|| DEFAULT_TOKEN_SYMBOL.to_string()),
 		decimals: decimals
 			.unwrap_or_else(|| DEFAULT_TOKEN_DECIMALS.parse::<u8>().expect("default values")),
 		initial_endowment: initial_endowment
 			.unwrap_or_else(|| DEFAULT_INITIAL_ENDOWMENT.to_string()),
-	});
+	})
 }
 /// Gets the latest 3 releases. Prompts the user to choose if releases exist.
 /// Otherwise, the default release is used.
@@ -293,7 +293,7 @@ async fn choose_release(
 	verify: bool,
 	cli: &mut impl cli::traits::Cli,
 ) -> Result<Option<String>> {
-	let url = url::Url::parse(&template.repository_url()?).expect("valid repository url");
+	let url = url::Url::parse(template.repository_url()?).expect("valid repository url");
 	let repo = GitHub::parse(url.as_str())?;
 
 	let license = if verify || template.license().is_none() {
@@ -311,7 +311,7 @@ async fn choose_release(
 		.collect();
 
 	let mut release_name = None;
-	if latest_3_releases.len() > 0 {
+	if latest_3_releases.is_empty() {
 		release_name = Some(display_release_versions_to_user(latest_3_releases, cli)?);
 	} else {
 		// If supported_versions exists and no other releases are found,

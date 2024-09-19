@@ -24,7 +24,7 @@ pub fn create_smart_contract(name: &str, target: &Path, template: &Contract) -> 
 	if matches!(template, Contract::Standard) {
 		return create_standard_contract(name, canonicalized_path);
 	}
-	return create_template_contract(name, canonicalized_path, &template);
+	create_template_contract(name, canonicalized_path, template)
 }
 
 pub fn is_valid_contract_name(name: &str) -> Result<(), Error> {
@@ -47,7 +47,7 @@ fn create_standard_contract(name: &str, canonicalized_path: PathBuf) -> Result<(
 		// If the parent directory cannot be retrieved (e.g. if the path has no parent),
 		// return a NewContract variant indicating the failure.
 		.ok_or(Error::NewContract("Failed to get parent directory".to_string()))?;
-	new_contract_project(&name, Some(parent_path))
+	new_contract_project(name, Some(parent_path))
 		// If an error occurs during the creation of the contract project,
 		// convert it into a NewContract variant with a formatted error message.
 		.map_err(|e| Error::NewContract(format!("{}", e)))?;

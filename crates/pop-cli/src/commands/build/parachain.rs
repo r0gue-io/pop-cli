@@ -46,12 +46,10 @@ impl BuildParachainCommand {
 			cli.warning("NOTE: this command is deprecated. Please use `pop build` (or simply `pop b`) in future...")?;
 			#[cfg(not(test))]
 			sleep(Duration::from_secs(3))
-		} else {
-			if !self.release {
-				cli.warning("NOTE: this command now defaults to DEBUG builds. Please use `--release` (or simply `-r`) for a release build...")?;
-				#[cfg(not(test))]
-				sleep(Duration::from_secs(3))
-			}
+		} else if !self.release {
+			cli.warning("NOTE: this command now defaults to DEBUG builds. Please use `--release` (or simply `-r`) for a release build...")?;
+			#[cfg(not(test))]
+			sleep(Duration::from_secs(3))
 		}
 
 		// Build parachain.
@@ -61,7 +59,7 @@ impl BuildParachainCommand {
 		let binary = build_parachain(&project_path, self.package, &mode, None)?;
 		cli.info(format!("The {project} was built in {mode} mode."))?;
 		cli.outro("Build completed successfully!")?;
-		let generated_files = vec![format!("Binary generated at: {}", binary.display())];
+		let generated_files = [format!("Binary generated at: {}", binary.display())];
 		let generated_files: Vec<_> = generated_files
 			.iter()
 			.map(|s| style(format!("{} {s}", console::Emoji("●", ">"))).dim().to_string())

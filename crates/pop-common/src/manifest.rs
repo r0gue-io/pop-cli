@@ -74,10 +74,9 @@ pub fn add_crate_to_workspace(workspace_toml: &Path, crate_path: &Path) -> anyho
 			if let Value::Array(array) = members_array {
 				let crate_relative_path =
 					crate_relative_path.to_str().expect("target's always a valid string; qed");
-				let already_in_array = array.iter().any(|member| match member.as_str() {
-					Some(s) if s == crate_relative_path => true,
-					_ => false,
-				});
+				let already_in_array = array
+					.iter()
+					.any(|member| matches!(member.as_str(), Some(s) if s == crate_relative_path));
 				if !already_in_array {
 					array.push(crate_relative_path);
 				}

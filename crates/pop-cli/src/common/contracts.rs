@@ -43,18 +43,16 @@ pub async fn check_contracts_node_and_prompt(
 			binary.version().unwrap_or("None"),
 			binary.latest().unwrap_or("None")
 		))?;
-		let latest;
-		if !skip_confirm {
-			latest = cli
-				.confirm(
-					"📦 Would you like to source it automatically now? It may take some time..."
-						.to_string(),
-				)
-				.initial_value(true)
-				.interact()?;
+		let latest = if skip_confirm {
+			cli.confirm(
+				"📦 Would you like to source it automatically now? It may take some time..."
+					.to_string(),
+			)
+			.initial_value(true)
+			.interact()?
 		} else {
-			latest = true;
-		}
+			true
+		};
 		if latest {
 			let spinner = spinner();
 			spinner.start("📦 Sourcing substrate-contracts-node...");
