@@ -174,7 +174,7 @@ impl BuildSpecCommand {
 					config.build(&mut Cli)
 				},
 			};
-			return Ok("spec");
+			Ok("spec")
 		} else {
 			Cli.intro("Building your chain spec")?;
 			Cli.outro_cancel(
@@ -276,10 +276,8 @@ impl BuildSpecCommand {
 			spinner.set_message("Generating genesis code...");
 			let wasm_file_name = format!("para-{}.wasm", para_id);
 			let wasm_file = export_wasm_file(&binary_path, &raw_chain_spec, &wasm_file_name)?;
-			generated_files.push(format!(
-				"WebAssembly runtime file exported at: {}",
-				wasm_file.display().to_string()
-			));
+			generated_files
+				.push(format!("WebAssembly runtime file exported at: {}", wasm_file.display()));
 		}
 
 		if self.genesis_state {
@@ -287,10 +285,8 @@ impl BuildSpecCommand {
 			let genesis_file_name = format!("para-{}-genesis-state", para_id);
 			let genesis_state_file =
 				generate_genesis_state_file(&binary_path, &raw_chain_spec, &genesis_file_name)?;
-			generated_files.push(format!(
-				"Genesis State file exported at: {}",
-				genesis_state_file.display().to_string()
-			));
+			generated_files
+				.push(format!("Genesis State file exported at: {}", genesis_state_file.display()));
 		}
 
 		cli.intro("Building your chain spec".to_string())?;
@@ -337,7 +333,6 @@ async fn guide_user_to_generate_spec(args: BuildSpecCommand) -> anyhow::Result<B
 
 	// Prompt for chain type.
 	// If relay is Kusama or Polkadot, then Live type is used and user is not prompted.
-	let chain_type: ChainType;
 	let mut prompt = cliclack::select("Choose the chain type: ".to_string());
 	let default = chain_spec
 		.as_ref()
@@ -356,7 +351,7 @@ async fn guide_user_to_generate_spec(args: BuildSpecCommand) -> anyhow::Result<B
 			chain_type.get_detailed_message().unwrap_or_default(),
 		);
 	}
-	chain_type = prompt.interact()?.clone();
+	let chain_type: ChainType = prompt.interact()?.clone();
 
 	// Prompt for relay chain.
 	let mut prompt =

@@ -103,14 +103,12 @@ impl CallContractCommand {
                     "-x/--execute"
             ))?;
 		} else {
-			let weight_limit;
-			if self.gas_limit.is_some() && self.proof_size.is_some() {
-				weight_limit =
-					Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap());
+			let weight_limit = if self.gas_limit.is_some() && self.proof_size.is_some() {
+				Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap())
 			} else {
 				let spinner = cliclack::spinner();
 				spinner.start("Doing a dry run to estimate the gas...");
-				weight_limit = match dry_run_gas_estimate_call(&call_exec).await {
+				match dry_run_gas_estimate_call(&call_exec).await {
 					Ok(w) => {
 						log::info(format!("Gas limit: {:?}", w))?;
 						w
@@ -120,8 +118,8 @@ impl CallContractCommand {
 						outro_cancel("Call failed.")?;
 						return Ok(());
 					},
-				};
-			}
+				}
+			};
 			let spinner = cliclack::spinner();
 			spinner.start("Calling the contract...");
 
