@@ -16,8 +16,7 @@ use std::{
 use symlink::{remove_symlink_file, symlink_file};
 use tempfile::{Builder, NamedTempFile};
 use toml_edit::{value, ArrayOfTables, DocumentMut, Formatted, Item, Table, Value};
-use zombienet_sdk::{Network, NetworkConfig, NetworkConfigExt};
-use zombienet_support::fs::local::LocalFileSystem;
+use zombienet_sdk::{LocalFileSystem, Network, NetworkConfig, NetworkConfigExt};
 
 mod chain_specs;
 mod parachains;
@@ -444,6 +443,11 @@ impl NetworkConfiguration {
 				if let Some(path) = para.chain_spec_generator.as_ref().map(|b| b.path()) {
 					let command = format!("{} {}", Self::resolve_path(&path)?, "{{chainName}}");
 					*table.entry("chain_spec_command").or_insert(value(&command)) = value(&command);
+				}
+				// Check if EVM based parachain and insert evm_based for zombienet-sdk
+				let force_decorator = table.get("force_decorator").and_then(|i| i.as_str());
+				if force_decorator.is_some() && force_decorator.unwrap() == "generic-evm" {
+					table.insert("evm_based", value(true));
 				}
 
 				// Resolve individual collator command to binary
