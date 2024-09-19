@@ -149,7 +149,7 @@ async fn guide_user_to_generate_parachain(verify: bool) -> Result<NewParachainCo
 		decimals: 12,
 		initial_endowment: "1u64 << 60".to_string(),
 	};
-	if Provider::Pop.provides(&template) {
+	if Provider::Pop.provides(template) {
 		customizable_options = prompt_customizable_options()?;
 	}
 
@@ -195,7 +195,7 @@ async fn generate_parachain_from_template(
 	console::Term::stderr().clear_last_lines(2)?;
 	let mut verify_note = "".to_string();
 	if verify && tag.is_some() {
-		let url = url::Url::parse(&template.repository_url()?).expect("valid repository url");
+		let url = url::Url::parse(template.repository_url()?).expect("valid repository url");
 		let repo = GitHub::parse(url.as_str())?;
 		let commit = repo.get_commit_sha_from_release(&tag.clone().unwrap()).await;
 		verify_note = format!(" ✅ Fetched the latest release of the template along with its license based on the commit SHA for the release ({}).", commit.unwrap_or_default());
@@ -244,7 +244,7 @@ fn is_template_supported(provider: &Provider, template: &Parachain) -> Result<()
 			provider, template
 		)));
 	};
-	return Ok(());
+	Ok(())
 }
 
 fn display_select_options(provider: &Provider) -> Result<&Parachain> {
@@ -270,11 +270,11 @@ fn get_customization_value(
 		log::warning("Customization options are not available for this template")?;
 		sleep(Duration::from_secs(3))
 	}
-	return Ok(Config {
+	Ok(Config {
 		symbol: symbol.clone().expect("default values"),
-		decimals: decimals.clone().expect("default values"),
+		decimals: decimals.expect("default values"),
 		initial_endowment: initial_endowment.clone().expect("default values"),
-	});
+	})
 }
 
 fn check_destination_path(name_template: &String) -> Result<&Path> {
@@ -305,7 +305,7 @@ fn check_destination_path(name_template: &String) -> Result<&Path> {
 ///
 /// return: `Option<String>` - The release name selected by the user or None if no releases found.
 async fn choose_release(template: &Parachain, verify: bool) -> Result<Option<String>> {
-	let url = url::Url::parse(&template.repository_url()?).expect("valid repository url");
+	let url = url::Url::parse(template.repository_url()?).expect("valid repository url");
 	let repo = GitHub::parse(url.as_str())?;
 
 	let license = if verify || template.license().is_none() {
@@ -323,7 +323,7 @@ async fn choose_release(template: &Parachain, verify: bool) -> Result<Option<Str
 		.collect();
 
 	let mut release_name = None;
-	if latest_3_releases.len() > 0 {
+	if !latest_3_releases.is_empty() {
 		release_name = Some(display_release_versions_to_user(latest_3_releases)?);
 	} else {
 		// If supported_versions exists and no other releases are found,

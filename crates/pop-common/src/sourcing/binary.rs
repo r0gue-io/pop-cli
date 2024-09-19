@@ -114,7 +114,7 @@ impl Binary {
 				.nth(0)
 				.unwrap_or(
 					// Default to latest version
-					available.get(0).and_then(|version| Some(version.as_ref().to_string())),
+					available.first().map(|version| version.as_ref().to_string()),
 				),
 		}
 	}
@@ -134,10 +134,9 @@ impl Binary {
 	) -> Result<(), Error> {
 		match self {
 			Self::Local { name, path, manifest, .. } => match manifest {
-				None =>
-					return Err(Error::MissingBinary(format!(
-						"The {path:?} binary cannot be sourced automatically."
-					))),
+				None => Err(Error::MissingBinary(format!(
+					"The {path:?} binary cannot be sourced automatically."
+				))),
 				Some(manifest) =>
 					from_local_package(manifest, name, release, status, verbose).await,
 			},
@@ -157,10 +156,12 @@ impl Binary {
 
 	/// Specifies that the latest available versions are to be used (where possible).
 	pub fn use_latest(&mut self) {
-		if let Self::Source { source: GitHub(ReleaseArchive { tag, latest, .. }), .. } = self {
-			if let Some(latest) = latest {
-				*tag = Some(latest.clone())
-			}
+		if let Self::Source {
+			source: GitHub(ReleaseArchive { tag, latest: Some(latest), .. }),
+			..
+		} = self
+		{
+			*tag = Some(latest.clone())
 		};
 	}
 

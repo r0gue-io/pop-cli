@@ -76,7 +76,7 @@ pub async fn set_up_call(
 			.proof_size(call_opts.proof_size)
 			.done()
 			.await?;
-	return Ok(call_exec);
+	Ok(call_exec)
 }
 
 /// Simulate a smart contract call without modifying the state of the blockchain.

@@ -41,17 +41,17 @@ fn is_valid_bitwise_left_shift(initial_endowment: &str) -> Result<u128, Error> {
 		return Err(Error::EndowmentError);
 	}
 	let left = v[0]
-		.split("u") // parse 1u64 characters
+		.split('u') // parse 1u64 characters
 		.take(1)
 		.collect::<String>()
 		.parse::<u128>()
-		.or_else(|_e| Err(Error::EndowmentError))?;
+		.map_err(|_e| Error::EndowmentError)?;
 	let right = v[1]
 		.chars()
 		.filter(|c| c.is_numeric()) // parse 1u64 characters
 		.collect::<String>()
 		.parse::<u32>()
-		.or_else(|_e| Err(Error::EndowmentError))?;
+		.map_err(|_e| Error::EndowmentError)?;
 	left.checked_shl(right).ok_or(Error::EndowmentError)
 }
 
@@ -61,15 +61,15 @@ pub(crate) fn write_to_file(path: &Path, contents: &str) -> Result<(), Error> {
 		.truncate(true)
 		.create(true)
 		.open(path)
-		.map_err(|err| Error::RustfmtError(err))?;
+		.map_err(Error::RustfmtError)?;
 
-	file.write_all(contents.as_bytes()).map_err(|err| Error::RustfmtError(err))?;
+	file.write_all(contents.as_bytes()).map_err(Error::RustfmtError)?;
 
 	if path.extension().map_or(false, |ext| ext == "rs") {
 		let output = std::process::Command::new("rustfmt")
 			.arg(path.to_str().unwrap())
 			.output()
-			.map_err(|err| Error::RustfmtError(err))?;
+			.map_err(Error::RustfmtError)?;
 
 		if !output.status.success() {
 			return Err(Error::RustfmtError(io::Error::new(

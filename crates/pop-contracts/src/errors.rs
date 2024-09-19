@@ -4,6 +4,7 @@ use pop_common::sourcing::Error as SourcingError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
+#[allow(clippy::enum_variant_names)]
 pub enum Error {
 	#[error("Anyhow error: {0}")]
 	AnyhowError(#[from] anyhow::Error),

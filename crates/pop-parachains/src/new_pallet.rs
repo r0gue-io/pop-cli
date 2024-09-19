@@ -2,7 +2,7 @@
 
 use std::{
 	fs::{create_dir, create_dir_all, File},
-	path::PathBuf,
+	path::{Path, PathBuf},
 };
 
 pub mod new_pallet_options;
@@ -56,7 +56,7 @@ pub fn create_pallet_template(path: PathBuf, config: TemplatePalletConfig) -> Re
 
 /// Generate a pallet folder and file structure
 fn generate_pallet_structure(path: &PathBuf, config: &TemplatePalletConfig) -> Result<(), Error> {
-	create_dir_all(&path)?;
+	create_dir_all(path)?;
 	let (src, pallet_logic, tests) =
 		(path.join("src"), path.join("src/pallet_logic"), path.join("src/tests"));
 	create_dir(&src)?;
@@ -84,7 +84,7 @@ fn generate_pallet_structure(path: &PathBuf, config: &TemplatePalletConfig) -> R
 	Ok(())
 }
 
-fn render_pallet(config: TemplatePalletConfig, pallet_path: &PathBuf) -> Result<(), Error> {
+fn render_pallet(config: TemplatePalletConfig, pallet_path: &Path) -> Result<(), Error> {
 	// Extract the pallet name from the path.
 	let pallet_name = pallet_path
 		.file_name()
