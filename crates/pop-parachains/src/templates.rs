@@ -249,6 +249,12 @@ impl Parachain {
 	pub fn license(&self) -> Option<&str> {
 		self.get_str("License")
 	}
+
+	/// Gets the template name, removing the provider if present.
+	pub fn template_name_without_provider(&self) -> &str {
+		let name = self.as_ref();
+		name.split_once('/').map_or(name, |(_, template)| template)
+	}
 }
 
 #[cfg(test)]
@@ -272,6 +278,22 @@ mod tests {
 			("fpt".to_string(), ParityFPT),
 			("test_01".to_string(), TestTemplate01),
 			("test_02".to_string(), TestTemplate02),
+		])
+	}
+
+	fn templates_names_without_providers() -> HashMap<Parachain, String> {
+		HashMap::from([
+			(Standard, "standard".to_string()),
+			(Assets, "assets".to_string()),
+			(Contracts, "contracts".to_string()),
+			(EVM, "evm".to_string()),
+			(OpenZeppelinGeneric, "generic-template".to_string()),
+			(OpenZeppelinEVM, "evm-template".to_string()),
+			(DeprecatedOpenZeppelinGeneric, "polkadot-generic-runtime-template".to_string()),
+			(ParityContracts, "cpt".to_string()),
+			(ParityFPT, "fpt".to_string()),
+			(TestTemplate01, "test_01".to_string()),
+			(TestTemplate02, "test_02".to_string()),
 		])
 	}
 
@@ -378,6 +400,7 @@ mod tests {
 	fn test_network_config() {
 		let network_configs = template_network_configs();
 		for template in Parachain::VARIANTS {
+			println!("{:?}", template.name());
 			assert_eq!(template.network_config(), network_configs[template]);
 		}
 	}
@@ -448,7 +471,7 @@ mod tests {
 	}
 
 	#[test]
-	fn test_is_deprecated() {
+	fn is_deprecated_works() {
 		let template = TestTemplate01;
 		assert_eq!(template.is_deprecated(), true);
 
@@ -457,7 +480,7 @@ mod tests {
 	}
 
 	#[test]
-	fn test_deprecated_message() {
+	fn deprecated_message_works() {
 		let template = TestTemplate01;
 		assert_eq!(
 			template.deprecated_message(),
@@ -466,5 +489,16 @@ mod tests {
 
 		let template = TestTemplate02;
 		assert_eq!(template.deprecated_message(), "");
+	}
+
+	#[test]
+	fn template_name_without_provider() {
+		let template_names = templates_names_without_providers();
+		for template in Parachain::VARIANTS {
+			assert_eq!(
+				template.template_name_without_provider(),
+				template_names.get(template).unwrap()
+			);
+		}
 	}
 }

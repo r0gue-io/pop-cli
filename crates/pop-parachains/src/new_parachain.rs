@@ -88,7 +88,12 @@ pub fn instantiate_openzeppelin_template(
 
 	let tag = Git::clone_and_degit(template.repository_url()?, source, tag_version)?;
 
-	extract_template_files(template.to_string(), temp_dir.path(), target, None)?;
+	extract_template_files(
+		template.template_name_without_provider(),
+		temp_dir.path(),
+		target,
+		None,
+	)?;
 	Ok(tag)
 }
 
