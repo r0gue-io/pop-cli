@@ -612,6 +612,7 @@ mod tests {
 		];
 		// The inputs are processed in reverse order.
 		let mut cli = MockCli::new()
+			.expect_confirm("Do you want to execute the call? (Selecting 'No' will perform a dry run)", true)
 			.expect_input("Signer calling the contract:", "//Alice".into())
 			.expect_input("Enter the proof size limit:", "".into()) // Only if call
 			.expect_input("Enter the gas limit:", "".into()) // Only if call
