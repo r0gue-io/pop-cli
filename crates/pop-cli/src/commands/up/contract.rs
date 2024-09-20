@@ -376,6 +376,36 @@ mod tests {
 	};
 	use url::Url;
 
+	#[tokio::test]
+	async fn up_contract_dry_run_works() -> anyhow::Result<()> {
+		let temp_dir = generate_smart_contract_test_environment()?;
+		let mut current_dir = env::current_dir().expect("Failed to get current directory");
+		current_dir.pop();
+		mock_build_process(
+			temp_dir.path().join("testing"),
+			current_dir.join("pop-contracts/tests/files/testing.contract"),
+			current_dir.join("pop-contracts/tests/files/testing.json"),
+		)?;
+		// Upload only
+		UpContractCommand {
+			path: Some(temp_dir.path().join("testing")),
+			constructor: "new".to_string(),
+			args: vec!["false".to_string()].to_vec(),
+			value: "0".to_string(),
+			gas_limit: None,
+			proof_size: None,
+			salt: None,
+			url: Url::parse("wss://rpc2.paseo.popnetwork.xyz")?,
+			suri: "//Alice".to_string(),
+			dry_run: true,
+			upload_only: true,
+			skip_confirm: false,
+		}
+		.execute()
+		.await?;
+		Ok(())
+	}
+
 	#[test]
 	fn conversion_up_contract_command_to_up_opts_works() -> anyhow::Result<()> {
 		let command = UpContractCommand {
@@ -512,38 +542,6 @@ mod tests {
 			command.set_up_environment(&mut cli).await,
 			anyhow::Result::Err(message) if message.to_string() == "🚫 You need to specify an accessible endpoint to deploy the contract."
 		));
-		cli.verify()
-	}
-
-	#[tokio::test]
-	async fn up_contract_dry_run_works() -> anyhow::Result<()> {
-		let temp_dir = generate_smart_contract_test_environment()?;
-		let mut current_dir = env::current_dir().expect("Failed to get current directory");
-		current_dir.pop();
-		mock_build_process(
-			temp_dir.path().join("testing"),
-			current_dir.join("pop-contracts/tests/files/testing.contract"),
-			current_dir.join("pop-contracts/tests/files/testing.json"),
-		)?;
-		// Upload only
-		let mut command = UpContractCommand {
-			path: Some(temp_dir.path().join("testing")),
-			constructor: "new".to_string(),
-			args: vec!["false".to_string()].to_vec(),
-			value: "0".to_string(),
-			gas_limit: None,
-			proof_size: None,
-			salt: None,
-			url: Url::parse("wss://rpc2.paseo.popnetwork.xyz")?,
-			suri: "//Alice".to_string(),
-			dry_run: true,
-			upload_only: true,
-			skip_confirm: false,
-		};
-		let mut cli = MockCli::new().expect_intro("Deploy a smart contract").expect_outro(COMPLETE);
-		let process = command.set_up_environment(&mut cli).await?;
-		UpContractCommand::finish_process(process, true, None, &mut cli)?;
-
 		cli.verify()
 	}
 

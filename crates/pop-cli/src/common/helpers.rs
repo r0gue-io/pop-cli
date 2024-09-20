@@ -175,7 +175,6 @@ mod tests {
 			)
 		));
 
-		cli.verify()?;
-		Ok(())
+		cli.verify()
 	}
 }

@@ -228,8 +228,7 @@ mod tests {
 		}
 		.generate_pallet(&mut cli)
 		.await?;
-		cli.verify()?;
-		Ok(())
+		cli.verify()
 	}
 	#[tokio::test]
 	async fn generate_advanced_pallet_works() -> anyhow::Result<()> {
@@ -257,8 +256,7 @@ mod tests {
 		}
 		.generate_pallet(&mut cli)
 		.await?;
-		cli.verify()?;
-		Ok(())
+		cli.verify()
 	}
 
 	#[tokio::test]
@@ -278,7 +276,6 @@ mod tests {
 		}
 		.generate_pallet(&mut cli)
 		.await, anyhow::Result::Err(message) if message.to_string() == "Specify at least a config common type to use default config."));
-		cli.verify()?;
-		Ok(())
+		cli.verify()
 	}
 }

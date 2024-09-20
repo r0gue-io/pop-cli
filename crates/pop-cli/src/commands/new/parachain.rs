@@ -499,8 +499,7 @@ mod tests {
 		assert_eq!(user_input.decimals, Some(6));
 		assert_eq!(user_input.initial_endowment, Some(DEFAULT_INITIAL_ENDOWMENT.into()));
 
-		cli.verify()?;
-		Ok(())
+		cli.verify()
 	}
 
 	#[tokio::test]
@@ -545,8 +544,7 @@ mod tests {
 			&mut cli,
 		)
 		.await?;
-		cli.verify()?;
-		Ok(())
+		cli.verify()
 	}
 
 	#[test]

@@ -406,7 +406,7 @@ impl Status for VerboseReporter {
 #[cfg(test)]
 mod tests {
 	use cli::MockCli;
-	use std::io::Write;
+	use std::{io::Write, path::PathBuf};
 	use tempfile::Builder;
 
 	use super::*;

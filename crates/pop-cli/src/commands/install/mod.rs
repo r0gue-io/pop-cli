@@ -342,89 +342,65 @@ async fn run_external_script(script_url: &str) -> anyhow::Result<()> {
 mod tests {
 	use super::*;
 	use crate::cli::MockCli;
-	use anyhow::Ok;
 
 	#[tokio::test]
 	async fn intro_works() -> anyhow::Result<()> {
 		let mut cli = MockCli::new().expect_intro("Install dependencies for development");
-
 		assert!(matches!(Command { cli: &mut cli, args: InstallArgs { skip_confirm: false } }
 			.execute()
 			.await,anyhow::Result::Err(message) if message.to_string() == "🚫 You have cancelled the installation process."
 		));
-
-		cli.verify()?;
-		Ok(())
+		cli.verify()
 	}
-
 	#[tokio::test]
 	async fn install_mac_works() -> anyhow::Result<()> {
 		let mut cli = MockCli::new().expect_info("More information about the packages to be installed here: https://docs.substrate.io/install/macos/").expect_confirm("📦 Do you want to proceed with the installation of the following packages: homebrew, protobuf, openssl, rustup and cmake ?", false);
-
 		assert!(matches!(
 			install_mac(&mut Command { cli: &mut cli, args: InstallArgs { skip_confirm: false } })
 				.await,
 			anyhow::Result::Err(message) if message.to_string() == "🚫 You have cancelled the installation process."
 		));
-
-		cli.verify()?;
-		Ok(())
+		cli.verify()
 	}
-
 	#[tokio::test]
 	async fn install_arch_works() -> anyhow::Result<()> {
 		let mut cli = MockCli::new().expect_info("More information about the packages to be installed here: https://docs.substrate.io/install/linux/").expect_confirm("📦 Do you want to proceed with the installation of the following packages: curl, git, clang, make, openssl and rustup ?", false);
-
 		assert!(matches!(
 			install_arch(&mut Command { cli: &mut cli, args: InstallArgs { skip_confirm: false } })
 				.await,
 			anyhow::Result::Err(message) if message.to_string() == "🚫 You have cancelled the installation process."
 		));
-
-		cli.verify()?;
-		Ok(())
+		cli.verify()
 	}
-
 	#[tokio::test]
 	async fn install_ubuntu_works() -> anyhow::Result<()> {
 		let mut cli = MockCli::new().expect_info("More information about the packages to be installed here: https://docs.substrate.io/install/linux/").expect_confirm("📦 Do you want to proceed with the installation of the following packages: git, clang, curl, libssl-dev, protobuf-compiler and rustup ?", false);
-
 		assert!(matches!(
 			install_ubuntu(&mut Command { cli: &mut cli, args: InstallArgs { skip_confirm: false } })
 				.await,
 			anyhow::Result::Err(message) if message.to_string() == "🚫 You have cancelled the installation process."
 		));
-
-		cli.verify()?;
-		Ok(())
+		cli.verify()
 	}
-
 	#[tokio::test]
 	async fn install_debian_works() -> anyhow::Result<()> {
 		let mut cli = MockCli::new().expect_info("More information about the packages to be installed here: https://docs.substrate.io/install/linux/").expect_confirm("📦 Do you want to proceed with the installation of the following packages: cmake, pkg-config, libssl-dev, git, gcc, build-essential, protobuf-compiler, clang, libclang-dev and rustup ?", false);
-
 		assert!(matches!(
 			install_debian(&mut Command { cli: &mut cli, args: InstallArgs { skip_confirm: false } })
 				.await,
 			anyhow::Result::Err(message) if message.to_string() == "🚫 You have cancelled the installation process."
 		));
-
-		cli.verify()?;
-		Ok(())
+		cli.verify()
 	}
-
 	#[tokio::test]
 	async fn install_redhat_works() -> anyhow::Result<()> {
 		let mut cli = MockCli::new().expect_info("More information about the packages to be installed here: https://docs.substrate.io/install/linux/").expect_confirm("📦 Do you want to proceed with the installation of the following packages: cmake, openssl-devel, git, protobuf, protobuf-compiler, clang, clang-devel and rustup ?", false);
-
 		assert!(matches!(
 			install_redhat(&mut Command { cli: &mut cli, args: InstallArgs { skip_confirm: false } })
 				.await,
 			anyhow::Result::Err(message) if message.to_string() == "🚫 You have cancelled the installation process."
 		));
-
-		cli.verify()?;
-		Ok(())
+		cli.verify()
 	}
 	#[tokio::test]
 	async fn not_supported_message_works() -> anyhow::Result<()> {
@@ -433,10 +409,7 @@ mod tests {
 			.expect_warning(
 				"⚠️ Please refer to https://docs.substrate.io/install/ for setup information.",
 			);
-
 		not_supported_message(&mut cli)?;
-
-		cli.verify()?;
-		Ok(())
+		cli.verify()
 	}
 }

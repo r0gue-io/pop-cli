@@ -286,8 +286,7 @@ mod tests {
 		assert_eq!(user_input.contract_type, Some(ContractType::Erc));
 		assert_eq!(user_input.template, Some(ContractTemplate::ERC20));
 
-		cli.verify()?;
-		Ok(())
+		cli.verify()
 	}
 
 	#[test]
@@ -318,8 +317,7 @@ mod tests {
 			&ContractTemplate::ERC20,
 			&mut cli,
 		)?;
-		cli.verify()?;
-		Ok(())
+		cli.verify()
 	}
 
 	#[test]

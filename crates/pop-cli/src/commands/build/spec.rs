@@ -423,7 +423,7 @@ async fn guide_user_to_generate_spec(
 	let default_bootnode = match chain_type {
 		ChainType::Development => true,
 		_ => cli
-			.confirm("Would you like to use local host as a bootnode ?".to_string())
+			.confirm("Would you like to use local host as a bootnode?".to_string())
 			.interact()?,
 	};
 
@@ -441,20 +441,20 @@ async fn guide_user_to_generate_spec(
 
 	// Prompt for genesis state
 	let genesis_state = cli
-		.confirm("Should the genesis state file be generated ?".to_string())
+		.confirm("Should the genesis state file be generated?".to_string())
 		.initial_value(true)
 		.interact()?;
 
 	// Prompt for genesis code
 	let genesis_code = cli
-		.confirm("Should the genesis code file be generated ?".to_string())
+		.confirm("Should the genesis code file be generated?".to_string())
 		.initial_value(true)
 		.interact()?;
 
 	// Only check user to check their profile selection if a live spec is being built on debug mode.
 	let profile = if !args.release && matches!(chain_type, ChainType::Live) {
 		cli.confirm(
-			"Using Debug profile to build a Live specification. Should Release be used instead ?",
+			"Using Debug profile to build a Live specification. Should Release be used instead?",
 		)
 		.initial_value(true)
 		.interact()?
@@ -483,11 +483,11 @@ mod tests {
 	use std::path::PathBuf;
 
 	#[tokio::test]
-	async fn guide_user_to_generate_spec_works() -> anyhow::Result<()> {
+	async fn guide_user_to_generate_spec_development_works() -> anyhow::Result<()> {
 		let mut cli = MockCli::new()
 			.expect_intro("Generate your chain spec")
-			.expect_confirm("Should the genesis code file be generated ?", true)
-			.expect_confirm("Should the genesis state file be generated ?", true)
+			.expect_confirm("Should the genesis code file be generated?", true)
+			.expect_confirm("Should the genesis state file be generated?", true)
 			.expect_input(
 				"Enter the protocol ID that will identify your network:",
 				"protocol".into(),
@@ -565,8 +565,121 @@ mod tests {
 		assert!(user_prompt.genesis_state);
 		assert!(user_prompt.genesis_code);
 
-		cli.verify()?;
-		Ok(())
+		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn guide_user_to_generate_spec_live_works() -> anyhow::Result<()> {
+		let mut cli = MockCli::new()
+			.expect_intro("Generate your chain spec")
+			.expect_confirm("Using Debug profile to build a Live specification. Should Release be used instead?", true) // Because args.release is false
+			.expect_confirm("Should the genesis code file be generated?", true)
+			.expect_confirm("Should the genesis state file be generated?", true)
+			.expect_input(
+				"Enter the protocol ID that will identify your network:",
+				"protocol".into(),
+			)
+			.expect_select::<RelayChain>(
+				"Choose the relay chain your chain will be connecting to: ",
+				Some(false),
+				true,
+				Some(vec![
+					(
+						RelayChain::Paseo.get_message().unwrap().into(),
+						RelayChain::Paseo.get_detailed_message().unwrap().into(),
+					),
+					(
+						RelayChain::Westend.get_message().unwrap().into(),
+						RelayChain::Westend.get_detailed_message().unwrap().into(),
+					),
+					(
+						RelayChain::Kusama.get_message().unwrap().into(),
+						RelayChain::Kusama.get_detailed_message().unwrap().into(),
+					),
+					(
+						RelayChain::Polkadot.get_message().unwrap().into(),
+						RelayChain::Polkadot.get_detailed_message().unwrap().into(),
+					),
+
+				]),
+				3, // "Polkadot Local"
+			)
+			.expect_select::<ChainType>(
+				"Choose the chain type: ",
+				Some(false),
+				true,
+				Some(vec![
+					(
+						ChainType::Development.get_message().unwrap().into(),
+						ChainType::Development.get_detailed_message().unwrap().into(),
+					),
+					(ChainType::Local.get_message().unwrap().into(), ChainType::Local.get_detailed_message().unwrap().into()),
+					(ChainType::Live.get_message().unwrap().into(), ChainType::Live.get_detailed_message().unwrap().into()),
+				]),
+				3, // "Live"
+			)
+			.expect_confirm("Would you like to use local host as a bootnode?", false)
+			.expect_input(
+				"What parachain ID should be used?",
+				"2002".into(),
+			)
+			.expect_input(
+				"Name of the plain chain spec file. If a path is given, the necessary directories will be created:",
+				"./my-chain-spec.json".into(),
+			);
+
+		let user_prompt = guide_user_to_generate_spec(
+			BuildSpecCommand {
+				output_file: None,
+				release: false,
+				id: None,
+				default_bootnode: true,
+				chain_type: None,
+				relay: None,
+				protocol_id: None,
+				genesis_state: true,
+				genesis_code: true,
+			},
+			&mut cli,
+		)
+		.await?;
+		assert_eq!(user_prompt.output_file, Some(PathBuf::from("./my-chain-spec.json")));
+		assert_eq!(user_prompt.id, Some(2002));
+		assert!(user_prompt.release);
+		assert!(!user_prompt.default_bootnode);
+		assert_eq!(user_prompt.chain_type, Some(ChainType::Live));
+		assert_eq!(user_prompt.relay, Some(RelayChain::Polkadot));
+		assert_eq!(user_prompt.protocol_id, Some("protocol".into()));
+		assert!(user_prompt.genesis_state);
+		assert!(user_prompt.genesis_code);
+
+		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn build_fails_no_parachain() -> anyhow::Result<()> {
+		let mut cli = MockCli::new()
+			.expect_intro(format!("Building your chain spec"))
+			.expect_warning(
+				"NOTE: this command defaults to DEBUG builds for development chain types. Please use `--release` (or simply `-r` for a release build...)",
+			);
+		assert!(matches!(
+			BuildSpecCommand {
+				output_file: None,
+				release: false,
+				id: Some(2002),
+				default_bootnode: true,
+				chain_type: None,
+				relay: None,
+				protocol_id: None,
+				genesis_state: true,
+				genesis_code: true
+			}
+			.build(&mut cli),
+			anyhow::Result::Err(message) if message.to_string().contains("Failed to get manifest path:"),
+		));
+
+		cli.verify()
 	}
 
 	#[tokio::test]
@@ -592,7 +705,6 @@ mod tests {
 			"spec"
 		);
 
-		cli.verify()?;
-		Ok(())
+		cli.verify()
 	}
 }
