@@ -59,23 +59,23 @@ impl CallContractCommand {
 		let call_config: CallContractCommand = match self.set_up_call_config(&mut cli::Cli).await {
 			Ok(call_config) => call_config,
 			Err(e) => {
-				display_message(&format!("{}", e.to_string()), false, &mut cli::Cli)?;
+				display_message(&e.to_string(), false, &mut cli::Cli)?;
 				return Ok(());
 			},
 		};
 		match execute_call(call_config, self.contract.is_none(), &mut cli::Cli).await {
 			Ok(_) => Ok(()),
 			Err(e) => {
-				display_message(&format!("{}", e.to_string()), false, &mut cli::Cli)?;
+				display_message(&e.to_string(), false, &mut cli::Cli)?;
 				Ok(())
 			},
 		}
 	}
 
 	fn display(&self) -> String {
-		let mut full_message = format!("pop call contract");
+		let mut full_message = "pop call contract".to_string();
 		if let Some(path) = &self.path {
-			full_message.push_str(&format!(" --path {}", path.display().to_string()));
+			full_message.push_str(&format!(" --path {}", path.display()));
 		}
 		if let Some(contract) = &self.contract {
 			full_message.push_str(&format!(" --contract {}", contract));
@@ -438,14 +438,12 @@ async fn execute_call(
 		cli.info(format!("Result: {}", call_dry_run_result))?;
 		cli.warning("Your call has not been executed.")?;
 	} else {
-		let weight_limit;
-		if call_config.gas_limit.is_some() && call_config.proof_size.is_some() {
-			weight_limit =
-				Weight::from_parts(call_config.gas_limit.unwrap(), call_config.proof_size.unwrap());
+		let weight_limit = if call_config.gas_limit.is_some() && call_config.proof_size.is_some() {
+			Weight::from_parts(call_config.gas_limit.unwrap(), call_config.proof_size.unwrap())
 		} else {
 			let spinner = cliclack::spinner();
 			spinner.start("Doing a dry run to estimate the gas...");
-			weight_limit = match dry_run_gas_estimate_call(&call_exec).await {
+			match dry_run_gas_estimate_call(&call_exec).await {
 				Ok(w) => {
 					cli.info(format!("Gas limit: {:?}", w))?;
 					w
@@ -454,8 +452,8 @@ async fn execute_call(
 					spinner.error(format!("{e}"));
 					return Err(anyhow!("Call failed."));
 				},
-			};
-		}
+			}
+		};
 		let spinner = cliclack::spinner();
 		spinner.start("Calling the contract...");
 
@@ -487,7 +485,7 @@ async fn execute_call(
 	} else {
 		display_message("Call completed successfully!", true, cli)?;
 	}
-	return Ok(());
+	Ok(())
 }
 
 fn display_message(message: &str, success: bool, cli: &mut impl cli::traits::Cli) -> Result<()> {
@@ -508,7 +506,7 @@ mod tests {
 	use url::Url;
 
 	#[tokio::test]
-	async fn call_contract_query_works() -> Result<()> {
+	async fn execute_query_works() -> Result<()> {
 		let temp_dir = generate_smart_contract_test_environment()?;
 		let mut current_dir = env::current_dir().expect("Failed to get current directory");
 		current_dir.pop();
@@ -517,18 +515,8 @@ mod tests {
 			current_dir.join("pop-contracts/tests/files/testing.contract"),
 			current_dir.join("pop-contracts/tests/files/testing.json"),
 		)?;
-
-		let mut cli = MockCli::new()
-			.expect_intro(&"Call a contract")
-			.expect_warning("Your call has not been executed.")
-			.expect_confirm(
-				"Do you want to do another call using the existing smart contract?",
-				false,
-			)
-			.expect_outro("Call completed successfully!");
-
 		// Contract deployed on Pop Network testnet, test get
-		let config_call = CallContractCommand {
+		CallContractCommand {
 			path: Some(temp_dir.path().join("testing")),
 			contract: Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string()),
 			message: Some("get".to_string()),
@@ -541,12 +529,9 @@ mod tests {
 			dry_run: false,
 			execute: false,
 		}
-		.set_up_call_config(&mut cli)
+		.execute()
 		.await?;
-		// Test the query. With true, it will prompt for another call.
-		execute_call(config_call, true, &mut cli).await?;
-
-		cli.verify()
+		Ok(())
 	}
 
 	#[tokio::test]
@@ -586,6 +571,69 @@ mod tests {
 		));
 		// Contract deployed on Pop Network testnet, test dry-run
 		execute_call(call_config, false, &mut cli).await?;
+
+		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn call_contract_query_duplicate_call_works() -> Result<()> {
+		let temp_dir = generate_smart_contract_test_environment()?;
+		let mut current_dir = env::current_dir().expect("Failed to get current directory");
+		current_dir.pop();
+		mock_build_process(
+			temp_dir.path().join("testing"),
+			current_dir.join("pop-contracts/tests/files/testing.contract"),
+			current_dir.join("pop-contracts/tests/files/testing.json"),
+		)?;
+		let items = vec![
+			("flip\n".into(), " A message that can be called on instantiated contracts.  This one flips the value of the stored `bool` from `true`  to `false` and vice versa.".into()),
+			("get\n".into(), " Simply returns the current value of our `bool`.".into()),
+			("specific_flip\n".into(), " A message for testing, flips the value of the stored `bool` with `new_value`  and is payable".into())
+		];
+		let mut cli = MockCli::new()
+			.expect_intro(&"Call a contract")
+			.expect_warning("Your call has not been executed.")
+			.expect_confirm(
+				"Do you want to do another call using the existing smart contract?",
+				false,
+			)
+			.expect_confirm(
+				"Do you want to do another call using the existing smart contract?",
+				true,
+			)
+			.expect_select::<PathBuf>(
+				"Select the message to call:",
+				Some(false),
+				true,
+				Some(items),
+				1, // "get" message
+			)
+			.expect_input("Signer calling the contract:", "//Alice".into())
+			.expect_info(format!(
+			    "pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message get --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice",
+			    temp_dir.path().join("testing").display().to_string(),
+			))
+			.expect_warning("Your call has not been executed.")
+			.expect_outro("Call completed successfully!");
+
+		// Contract deployed on Pop Network testnet, test get
+		let config_call = CallContractCommand {
+			path: Some(temp_dir.path().join("testing")),
+			contract: Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string()),
+			message: Some("get".to_string()),
+			args: vec![].to_vec(),
+			value: "0".to_string(),
+			gas_limit: None,
+			proof_size: None,
+			url: Url::parse("wss://rpc1.paseo.popnetwork.xyz")?,
+			suri: "//Alice".to_string(),
+			dry_run: false,
+			execute: false,
+		}
+		.set_up_call_config(&mut cli)
+		.await?;
+		// Test the query. With true, it will prompt for another call.
+		execute_call(config_call, true, &mut cli).await?;
 
 		cli.verify()
 	}
@@ -728,7 +776,17 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn call_contract_messages_fails_no_message() -> Result<()> {
+	async fn guide_user_to_call_contract_fails_not_build() -> Result<()> {
+		let temp_dir = generate_smart_contract_test_environment()?;
+		let mut cli = MockCli::new();
+		assert!(
+			matches!(guide_user_to_call_contract(Some(temp_dir.path().join("testing")), None, None, &mut cli).await, anyhow::Result::Err(message) if message.to_string().contains("Unable to fetch contract metadata: Failed to find any contract artifacts in target directory."))
+		);
+		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn call_contract_fails_no_message() -> Result<()> {
 		let temp_dir = generate_smart_contract_test_environment()?;
 		let mut current_dir = env::current_dir().expect("Failed to get current directory");
 		current_dir.pop();
@@ -764,7 +822,7 @@ mod tests {
 	}
 
 	#[test]
-	fn test_display_message() -> Result<()> {
+	fn display_message_works() -> Result<()> {
 		let mut cli = MockCli::new().expect_outro(&"Call completed successfully!");
 		display_message("Call completed successfully!", true, &mut cli)?;
 		cli.verify()?;

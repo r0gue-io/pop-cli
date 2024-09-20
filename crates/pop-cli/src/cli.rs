@@ -223,7 +223,7 @@ pub(crate) mod tests {
 	/// Mock Cli with optional expectations
 	#[derive(Default)]
 	pub(crate) struct MockCli {
-		confirm_expectation: Option<(String, bool)>,
+		confirm_expectation: Vec<(String, bool)>,
 		info_expectations: Vec<String>,
 		input_expectations: Vec<(String, String)>,
 		intro_expectation: Option<String>,
@@ -243,7 +243,7 @@ pub(crate) mod tests {
 		}
 
 		pub(crate) fn expect_confirm(mut self, prompt: impl Display, confirm: bool) -> Self {
-			self.confirm_expectation = Some((prompt.to_string(), confirm));
+			self.confirm_expectation.push((prompt.to_string(), confirm));
 			self
 		}
 
@@ -306,8 +306,8 @@ pub(crate) mod tests {
 		}
 
 		pub(crate) fn verify(self) -> anyhow::Result<()> {
-			if let Some((expectation, _)) = self.confirm_expectation {
-				panic!("`{expectation}` confirm expectation not satisfied")
+			if !self.confirm_expectation.is_empty() {
+				panic!("`{:?}` confirm expectations not satisfied", self.confirm_expectation)
 			}
 			if !self.info_expectations.is_empty() {
 				panic!("`{}` info log expectations not satisfied", self.info_expectations.join(","))
@@ -349,7 +349,7 @@ pub(crate) mod tests {
 	impl Cli for MockCli {
 		fn confirm(&mut self, prompt: impl Display) -> impl Confirm {
 			let prompt = prompt.to_string();
-			if let Some((expectation, confirm)) = self.confirm_expectation.take() {
+			if let Some((expectation, confirm)) = self.confirm_expectation.pop() {
 				assert_eq!(expectation, prompt, "prompt does not satisfy expectation");
 				return MockConfirm { confirm };
 			}
@@ -454,12 +454,12 @@ pub(crate) mod tests {
 	}
 
 	impl Confirm for MockConfirm {
+		fn initial_value(mut self, _initial_value: bool) -> Self {
+			self.confirm = self.confirm; // Ignore initial value and always return mock value
+			self
+		}
 		fn interact(&mut self) -> Result<bool> {
 			Ok(self.confirm)
-		}
-		fn initial_value(mut self, initial_value: bool) -> Self {
-			self.confirm = initial_value;
-			self
 		}
 	}
 
