@@ -344,15 +344,6 @@ mod tests {
 	use crate::cli::MockCli;
 
 	#[tokio::test]
-	async fn intro_works() -> anyhow::Result<()> {
-		let mut cli = MockCli::new().expect_intro("Install dependencies for development");
-		assert!(matches!(Command { cli: &mut cli, args: InstallArgs { skip_confirm: false } }
-			.execute()
-			.await,anyhow::Result::Err(message) if message.to_string() == "🚫 You have cancelled the installation process."
-		));
-		cli.verify()
-	}
-	#[tokio::test]
 	async fn install_mac_works() -> anyhow::Result<()> {
 		let mut cli = MockCli::new().expect_info("More information about the packages to be installed here: https://docs.substrate.io/install/macos/").expect_confirm("📦 Do you want to proceed with the installation of the following packages: homebrew, protobuf, openssl, rustup and cmake ?", false);
 		assert!(matches!(
@@ -399,6 +390,15 @@ mod tests {
 			install_redhat(&mut Command { cli: &mut cli, args: InstallArgs { skip_confirm: false } })
 				.await,
 			anyhow::Result::Err(message) if message.to_string() == "🚫 You have cancelled the installation process."
+		));
+		cli.verify()
+	}
+	#[tokio::test]
+	async fn install_fails_no_confirmation() -> anyhow::Result<()> {
+		let mut cli = MockCli::new().expect_intro("Install dependencies for development");
+		assert!(matches!(Command { cli: &mut cli, args: InstallArgs { skip_confirm: false } }
+			.execute()
+			.await,anyhow::Result::Err(message) if message.to_string() == "🚫 You have cancelled the installation process."
 		));
 		cli.verify()
 	}

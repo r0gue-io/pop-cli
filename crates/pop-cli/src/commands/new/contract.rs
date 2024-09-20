@@ -172,8 +172,6 @@ fn generate_contract_from_template(
 	let repository = template.repository_url().ok().map(|url|
 		style(format!("\nPlease consult the source repository at {url} to assess production suitability and licensing restrictions.")).dim()
 	);
-	//println!(format!("NOTE: the resulting contract is not guaranteed to be audited or reviewed
-	// for security vulnerabilities.{}",repository.unwrap()));
 	cli.warning(format!("NOTE: the resulting contract is not guaranteed to be audited or reviewed for security vulnerabilities.{}",
 					repository.unwrap_or_else(|| style("".to_string()))))?;
 

@@ -175,7 +175,6 @@ mod tests {
 		mock_build_process(
 			temp_dir.path().join("testing"),
 			current_dir.join("./tests/files/testing.contract"),
-			current_dir.join("./tests/files/testing.json"),
 		)?;
 
 		let call_opts = CallOpts {
@@ -246,7 +245,6 @@ mod tests {
 		mock_build_process(
 			temp_dir.path().join("testing"),
 			current_dir.join("./tests/files/testing.contract"),
-			current_dir.join("./tests/files/testing.json"),
 		)?;
 
 		let call_opts = CallOpts {
@@ -273,7 +271,6 @@ mod tests {
 		mock_build_process(
 			temp_dir.path().join("testing"),
 			current_dir.join("./tests/files/testing.contract"),
-			current_dir.join("./tests/files/testing.json"),
 		)?;
 
 		let call_opts = CallOpts {
@@ -304,7 +301,6 @@ mod tests {
 		mock_build_process(
 			temp_dir.path().join("testing"),
 			current_dir.join("./tests/files/testing.contract"),
-			current_dir.join("./tests/files/testing.json"),
 		)?;
 
 		let cache = temp_dir.path().join("");

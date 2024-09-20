@@ -205,7 +205,6 @@ impl NewPalletCommand {
 mod tests {
 	use super::*;
 	use crate::cli::MockCli;
-	use anyhow::Ok;
 	use tempfile::tempdir;
 
 	#[tokio::test]

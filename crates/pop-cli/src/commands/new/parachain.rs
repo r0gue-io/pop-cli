@@ -399,7 +399,6 @@ fn prompt_customizable_options(cli: &mut impl cli::traits::Cli) -> Result<Config
 
 #[cfg(test)]
 mod tests {
-
 	use super::*;
 	use crate::{
 		commands::new::{Command::Parachain as ParachainCommand, NewArgs},

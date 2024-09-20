@@ -384,7 +384,6 @@ mod tests {
 		mock_build_process(
 			temp_dir.path().join("testing"),
 			current_dir.join("pop-contracts/tests/files/testing.contract"),
-			current_dir.join("pop-contracts/tests/files/testing.json"),
 		)?;
 		// Upload only
 		UpContractCommand {
@@ -448,7 +447,6 @@ mod tests {
 		mock_build_process(
 			temp_dir.path().join("testing"),
 			current_dir.join("pop-contracts/tests/files/testing.contract"),
-			current_dir.join("pop-contracts/tests/files/testing.json"),
 		)?;
 		let mut cli = MockCli::new().expect_intro("Deploy a smart contract");
 
@@ -517,7 +515,6 @@ mod tests {
 		mock_build_process(
 			temp_dir.path().join("testing"),
 			current_dir.join("pop-contracts/tests/files/testing.contract"),
-			current_dir.join("pop-contracts/tests/files/testing.json"),
 		)?;
 		let mut cli = MockCli::new()
 			.expect_intro("Deploy a smart contract")

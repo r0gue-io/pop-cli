@@ -405,11 +405,10 @@ impl Status for VerboseReporter {
 // Write a test for run_custom_command
 #[cfg(test)]
 mod tests {
+	use super::*;
 	use cli::MockCli;
 	use std::{io::Write, path::PathBuf};
 	use tempfile::Builder;
-
-	use super::*;
 
 	#[tokio::test]
 	async fn set_up_zombienet_works() -> Result<(), anyhow::Error> {

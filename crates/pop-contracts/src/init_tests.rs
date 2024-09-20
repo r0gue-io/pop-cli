@@ -13,17 +13,12 @@ pub fn generate_smart_contract_test_environment() -> Result<tempfile::TempDir> {
 }
 
 // Function that mocks the build process generating the contract artifacts.
-pub fn mock_build_process(
-	temp_contract_dir: PathBuf,
-	contract_file: PathBuf,
-	metadata_file: PathBuf,
-) -> Result<()> {
+pub fn mock_build_process(temp_contract_dir: PathBuf, contract_file: PathBuf) -> Result<()> {
 	// Create a target directory
 	let target_contract_dir = temp_contract_dir.join("target");
 	fs::create_dir(&target_contract_dir)?;
 	fs::create_dir(target_contract_dir.join("ink"))?;
-	// Copy a mocked testing.contract and testing.json files inside the target directory
+	// Copy a mocked testing.contract file inside the target directory
 	fs::copy(contract_file, target_contract_dir.join("ink/testing.contract"))?;
-	fs::copy(metadata_file, target_contract_dir.join("ink/testing.json"))?;
 	Ok(())
 }

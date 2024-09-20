@@ -479,7 +479,6 @@ async fn guide_user_to_generate_spec(
 mod tests {
 	use super::*;
 	use crate::cli::MockCli;
-	use anyhow::Ok;
 	use std::path::PathBuf;
 
 	#[tokio::test]

@@ -127,10 +127,10 @@ pub fn check_destination_path(
 
 #[cfg(test)]
 mod tests {
-
 	use super::*;
 	use cli::MockCli;
 	use tempfile::tempdir;
+
 	#[test]
 	fn check_destination_path_works() -> anyhow::Result<()> {
 		let dir = tempdir()?;
