@@ -485,7 +485,7 @@ pub(crate) mod tests {
 	}
 
 	impl Confirm for MockConfirm {
-		fn initial_value(mut self, initial_value: bool) -> Self {
+		fn initial_value(mut self, _initial_value: bool) -> Self {
 			self.confirm = self.confirm; // Ignore initial value and always return mock value
 			self
 		}
@@ -607,11 +607,15 @@ pub(crate) mod tests {
 
 		fn item(mut self, value: T, label: impl Display, hint: impl Display) -> Self {
 			// Check expectations
-			// if let Some(items) = self.items_expectation.as_mut() {
-			// 	let item = (label.to_string(), hint.to_string());
-			// 	assert!(items.contains(&item), "`{item:?}` item does not satisfy any expectations");
-			// 	items.retain(|x| *x != item);
-			// }
+			if let Some(items) = self.items_expectation.as_mut() {
+				let item = (label.to_string(), hint.to_string());
+				// Only compare if containes, not equal. Because of version releases lists
+				assert!(
+					items.iter().any(|(l, h)| item.0.contains(l) && item.1.contains(h)),
+					"`{item:?}` item does not satisfy any expectations"
+				);
+				items.retain(|x| *x != item);
+			}
 			// Collect if specified
 			if self.collect {
 				self.items.push(value);

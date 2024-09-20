@@ -459,7 +459,13 @@ mod tests {
 				"Select a specific release:",
 				Some(false),
 				true,
-				None, // We don't care about the values here (release list change each time)
+				vec![
+					("Polkadot v".to_string(), "polkadot-v".to_string()),
+					("Polkadot v".to_string(), "polkadot-v".to_string()),
+					("Polkadot v".to_string(), "polkadot-v".to_string()),
+				]
+				.into(), /* We don't care about the exact values here (release list change each
+				          * time) */
 				1,
 			)
 			.expect_select::<Parachain>(

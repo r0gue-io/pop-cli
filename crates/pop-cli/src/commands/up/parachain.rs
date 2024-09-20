@@ -10,10 +10,7 @@ use console::{Emoji, Style, Term};
 use duct::cmd;
 use pop_common::Status;
 use pop_parachains::{Error, IndexSet, NetworkNode, Zombienet};
-use std::{
-	path::{Path, PathBuf},
-	time::Duration,
-};
+use std::{path::Path, time::Duration};
 use tokio::time::sleep;
 
 #[derive(Args)]
@@ -362,7 +359,7 @@ impl ZombienetCommand {
 }
 
 async fn run_custom_command(spinner: &ProgressBar, command: &str) -> Result<(), anyhow::Error> {
-	spinner.set_message(format!("Spinning up network & running command: {}", command.to_string()));
+	spinner.set_message(format!("Spinning up network & running command: {}", command));
 	sleep(Duration::from_secs(15)).await;
 
 	// Split the command into the base command and arguments

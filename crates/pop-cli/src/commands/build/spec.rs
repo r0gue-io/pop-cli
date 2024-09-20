@@ -498,19 +498,19 @@ mod tests {
 				true,
 				Some(vec![
 					(
-						RelayChain::PaseoLocal.to_string(),
+						RelayChain::PaseoLocal.get_message().unwrap().into(),
 						RelayChain::PaseoLocal.get_detailed_message().unwrap().into(),
 					),
 					(
-						RelayChain::WestendLocal.to_string(),
+						RelayChain::WestendLocal.get_message().unwrap().into(),
 						RelayChain::WestendLocal.get_detailed_message().unwrap().into(),
 					),
 					(
-						RelayChain::KusamaLocal.to_string(),
+						RelayChain::KusamaLocal.get_message().unwrap().into(),
 						RelayChain::KusamaLocal.get_detailed_message().unwrap().into(),
 					),
 					(
-						RelayChain::PolkadotLocal.to_string(),
+						RelayChain::PolkadotLocal.get_message().unwrap().into(),
 						RelayChain::PolkadotLocal.get_detailed_message().unwrap().into(),
 					),
 
@@ -523,11 +523,11 @@ mod tests {
 				true,
 				Some(vec![
 					(
-						ChainType::Development.to_string(),
+						ChainType::Development.get_message().unwrap().into(),
 						ChainType::Development.get_detailed_message().unwrap().into(),
 					),
-					(ChainType::Local.to_string(), ChainType::Local.get_detailed_message().unwrap().into()),
-					(ChainType::Live.to_string(), ChainType::Live.get_detailed_message().unwrap().into()),
+					(ChainType::Local.get_message().unwrap().into(), ChainType::Local.get_detailed_message().unwrap().into()),
+					(ChainType::Live.get_message().unwrap().into(), ChainType::Live.get_detailed_message().unwrap().into()),
 				]),
 				0, // "Development"
 			)
