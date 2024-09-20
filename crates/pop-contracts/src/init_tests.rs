@@ -21,9 +21,9 @@ pub fn mock_build_process(
 	// Create a target directory
 	let target_contract_dir = temp_contract_dir.join("target");
 	fs::create_dir(&target_contract_dir)?;
-	fs::create_dir(&target_contract_dir.join("ink"))?;
+	fs::create_dir(target_contract_dir.join("ink"))?;
 	// Copy a mocked testing.contract and testing.json files inside the target directory
-	fs::copy(contract_file, &target_contract_dir.join("ink/testing.contract"))?;
-	fs::copy(metadata_file, &target_contract_dir.join("ink/testing.json"))?;
+	fs::copy(contract_file, target_contract_dir.join("ink/testing.contract"))?;
+	fs::copy(metadata_file, target_contract_dir.join("ink/testing.json"))?;
 	Ok(())
 }
