@@ -20,26 +20,31 @@ validator = true
 [[parachains]]
 id = 1000
 chain = "dancebox-local"
+chain_spec_path = "tanssi-1000.json"
 default_command = "tanssi-node"
 
 [[parachains.collators]]
-name = "collator-01"
+name = "FullNode-1000"
 
 [[parachains.collators]]
-name = "collator-02"
+name = "Collator1000-01"
 
 [[parachains.collators]]
-name = "collator-03"
+name = "Collator1000-02"
 
 [[parachains.collators]]
-name = "collator-04"
+name = "Collator2000-01"
+
+[[parachains.collators]]
+name = "Collator2000-02"
 
 [[parachains]]
 id = 2000
+chain_spec_path = "template-container-2000.json"
 default_command = "./target/release/^^node^^"
 
 [[parachains.collators]]
-name = "full-node-01"
+name = "FullNode-2000"
 
 [[parachains.collators]]
-name = "full-node-02"
+name = "FullNode-2000-2"

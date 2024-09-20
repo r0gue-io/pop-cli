@@ -121,6 +121,49 @@ pub fn generate_raw_chain_spec(
 	Ok(raw_chain_spec)
 }
 
+/// Generates a raw chain specification file for container chain.
+///
+/// # Arguments
+/// * `binary_path` - The path to the node binary executable that contains the `build-spec` command.
+/// * `chain` - An optional chain to be used. This should be provided if generating a spec for a
+///   parachain.
+/// * `container_chains` - An optional vector of container chain specification files. These should
+///   be provided if generating a spec for a parachain.
+/// * `id` - The parachain id for which the chain specification is being generated.
+/// * `invulnerables` - An optional vector of invulnerable nodes. These should be provided if
+///   generating a spec for a parachain.
+/// * `raw_chain_spec` - The path where the generated raw chain specification file will be
+///   generated.
+pub fn generate_raw_chain_spec_container_chain(
+	binary_path: &Path,
+	chain: Option<&str>,
+	container_chains: Option<Vec<&str>>,
+	id: &str,
+	invulnerables: Option<Vec<&str>>,
+	raw_chain_spec: &Path,
+) -> Result<PathBuf, Error> {
+	check_command_exists(&binary_path, "build-spec")?;
+	let mut args = vec!["build-spec", "--parachain-id", id];
+	// Parachain
+	if let (Some(chain), Some(invulnerables), Some(container_chains)) =
+		(chain, invulnerables, container_chains)
+	{
+		args.extend(&["--chain", chain]);
+		for container_chain in container_chains {
+			args.extend(&["--add-container-chain", container_chain]);
+		}
+		for invulnerable in invulnerables {
+			args.extend(&["--invulnerable", invulnerable]);
+		}
+	}
+	// Container Chain
+	else {
+		args.extend(["--disable-default-bootnode", "--raw"]);
+	}
+	cmd(binary_path, args).stdout_path(raw_chain_spec).stderr_null().run()?;
+	Ok(raw_chain_spec.to_path_buf())
+}
+
 /// Export the WebAssembly runtime for the parachain.
 ///
 /// # Arguments
@@ -317,8 +360,9 @@ impl ChainSpec {
 mod tests {
 	use super::*;
 	use crate::{
-		new_parachain::instantiate_standard_template, templates::Parachain, Config, Error,
-		Zombienet,
+		new_parachain::{instantiate_standard_template, instantiate_tanssi_template},
+		templates::Parachain,
+		Config, Error, Zombienet,
 	};
 	use anyhow::Result;
 	use pop_common::manifest::Dependency;
@@ -489,6 +533,89 @@ default_command = "pop-node"
 		let genesis_file =
 			generate_genesis_state_file(&binary_path, &raw_chain_spec, "para-2001-genesis-state")?;
 		assert!(genesis_file.exists());
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn generate_raw_chain_spec_container_chain_works() -> Result<()> {
+		let temp_dir = tempdir().expect("Failed to create temp dir");
+		instantiate_tanssi_template(&Parachain::TanssiSimple, temp_dir.path(), None)?;
+		let config = Builder::new().suffix(".toml").tempfile()?;
+		// Get Zombienet config and fet binary for generate specs
+		writeln!(
+			config.as_file(),
+			"{}",
+			format!(
+				r#"
+[relaychain]
+chain = "paseo-local"
+
+[[parachains]]
+id = 1000
+chain_spec_path = "{}"
+chain = "dancebox-local"
+default_command = "tanssi-node"
+
+[[parachains.collators]]
+name = "FullNode-1000"
+
+[[parachains.collators]]
+name = "Collator1000-01"
+
+[[parachains.collators]]
+name = "Collator1000-02"
+
+[[parachains.collators]]
+name = "Collator2000-01"
+
+[[parachains.collators]]
+name = "Collator2000-02"
+"#,
+				&temp_dir.path().join("tanssi-1000.json").display().to_string()
+			)
+		)?;
+		let mut zombienet = Zombienet::new(
+			&temp_dir.path(),
+			config.path().to_str().unwrap(),
+			None,
+			None,
+			None,
+			None,
+			None,
+		)
+		.await?;
+		// Fetch the tanssi-node binary
+		let mut binary_name: String = "".to_string();
+		for binary in zombienet.binaries().filter(|b| !b.exists() && b.name() == "tanssi-node") {
+			binary_name = format!("{}-{}", binary.name(), binary.latest().unwrap());
+			binary.source(true, &(), true).await?;
+		}
+
+		let raw_chain_spec_container_chain = generate_raw_chain_spec_container_chain(
+			&temp_dir.path().join(binary_name.clone()),
+			None,
+			None,
+			&"2000",
+			None,
+			&temp_dir.path().join("raw-container-chain-chainspec.json"),
+		)?;
+		assert!(raw_chain_spec_container_chain.exists());
+
+		let raw_chain_spec = generate_raw_chain_spec_container_chain(
+			&temp_dir.path().join(binary_name),
+			Some("dancebox-local"),
+			Some(vec![&temp_dir
+				.path()
+				.join("raw-container-chain-chainspec.json")
+				.display()
+				.to_string()]),
+			&"1000",
+			Some(vec!["Collator1000-01", "Collator1000-02", "Collator2000-01", "Collator2000-02"]),
+			&temp_dir.path().join("raw-parachain-chainspec.json"),
+		)?;
+		assert!(raw_chain_spec.exists());
+		let content = fs::read_to_string(raw_chain_spec.clone()).expect("Could not read file");
+		assert!(content.contains("\"para_id\": 2000"));
 		Ok(())
 	}
 

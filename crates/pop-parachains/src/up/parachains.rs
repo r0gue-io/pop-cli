@@ -9,7 +9,7 @@ use pop_common::{
 	},
 	target, Error, GitHub,
 };
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use strum::VariantArray as _;
 use strum_macros::{EnumProperty, VariantArray};
 
@@ -32,6 +32,13 @@ pub(super) enum Parachain {
 		Fallback = "v0.1.0-alpha2"
 	))]
 	Pop,
+	/// Swift and effortless deployment of application-specific blockchains.
+	#[strum(props(
+		Repository = "https://github.com/r0gue-io/tanssi",
+		Binary = "tanssi-node",
+		Fallback = "v0.8.1"
+	))]
+	Tanssi,
 }
 
 impl TryInto for Parachain {
@@ -42,7 +49,7 @@ impl TryInto for Parachain {
 	/// * `latest` - If applicable, some specifier used to determine the latest source.
 	fn try_into(&self, tag: Option<String>, latest: Option<String>) -> Result<Source, Error> {
 		Ok(match self {
-			Parachain::System | Parachain::Pop => {
+			Parachain::System | Parachain::Pop | Parachain::Tanssi => {
 				// Source from GitHub release asset
 				let repo = GitHub::parse(self.repository())?;
 				Source::GitHub(ReleaseArchive {
@@ -104,6 +111,8 @@ pub(super) async fn system(
 		binary,
 		chain: chain.map(|c| c.to_string()),
 		chain_spec_generator,
+		chain_spec_path: None,
+		collators_names: Vec::new(),
 	}));
 }
 
@@ -121,6 +130,8 @@ pub(super) async fn from(
 	version: Option<&str>,
 	chain: Option<&str>,
 	cache: &Path,
+	chain_spec_path: Option<&str>,
+	collators_names: Vec<&str>,
 ) -> Result<Option<super::Parachain>, Error> {
 	for para in Parachain::VARIANTS.iter().filter(|p| p.binary() == command) {
 		let releases = para.releases().await?;
@@ -140,6 +151,8 @@ pub(super) async fn from(
 			binary,
 			chain: chain.map(|c| c.to_string()),
 			chain_spec_generator: None,
+			chain_spec_path: chain_spec_path.map(PathBuf::from),
+			collators_names: collators_names.iter().map(|&s| s.to_string()).collect(),
 		}));
 	}
 	Ok(None)
@@ -261,9 +274,17 @@ mod tests {
 		let para_id = 2000;
 
 		let temp_dir = tempdir()?;
-		let parachain = from(para_id, expected.binary(), Some(version), None, temp_dir.path())
-			.await?
-			.unwrap();
+		let parachain = from(
+			para_id,
+			expected.binary(),
+			Some(version),
+			None,
+			temp_dir.path(),
+			Some("/path"),
+			vec!["pop-node"],
+		)
+		.await?
+		.unwrap();
 		assert_eq!(para_id, parachain.id);
 		assert!(matches!(parachain.binary, Binary::Source { name, source, cache }
 			if name == expected.binary() && source == Source::GitHub(ReleaseArchive {
@@ -281,7 +302,9 @@ mod tests {
 
 	#[tokio::test]
 	async fn from_handles_unsupported_command() -> anyhow::Result<()> {
-		assert!(from(2000, "none", None, None, &PathBuf::default()).await?.is_none());
+		assert!(from(2000, "none", None, None, &PathBuf::default(), None, vec!["pop-node"])
+			.await?
+			.is_none());
 		Ok(())
 	}
 }

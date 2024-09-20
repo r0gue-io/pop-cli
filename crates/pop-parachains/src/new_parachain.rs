@@ -94,7 +94,7 @@ pub fn instantiate_standard_template(
 /// * `template` - template to generate the container-chain from.
 /// * `target` - location where the parachain will be created.
 /// * `tag_version` - version to use (`None` to use latest).
-fn instantiate_tanssi_template(
+pub fn instantiate_tanssi_template(
 	template: &ContainerChain,
 	target: &Path,
 	tag_version: Option<String>,

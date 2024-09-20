@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::errors::Error;
+use crate::{build::generate_raw_chain_spec_container_chain, errors::Error};
 use glob::glob;
 use indexmap::IndexMap;
 pub use pop_common::{
@@ -100,6 +100,59 @@ impl Zombienet {
 			.filter_map(|b| b)
 	}
 
+	/// Build the needed specs before spawn the network containing the container chains.
+	pub fn build_container_chain_specs(&mut self, parachain_name: &str) -> Result<PathBuf, Error> {
+		let parachain_id = self
+			.parachains
+			.iter()
+			.find(|(_, parachain)| parachain.binary.name() == parachain_name)
+			.ok_or(Error::ChainNotFound(format!("with name: {parachain_name}")))?
+			.0;
+		// This order is important, first container chains that can be more than one, then the
+		// parachain
+		let mut container_chains: Vec<String> = Vec::new();
+		self.parachains.iter().filter(|(&id, _)| &id > parachain_id).try_for_each(
+			|(id, parachain)| -> Result<(), Error> {
+				container_chains.push(
+					generate_raw_chain_spec_container_chain(
+						parachain.binary.path().as_path(),
+						None,
+						None,
+						&id.to_string(),
+						None,
+						parachain
+							.chain_spec_path
+							.as_deref()
+							.unwrap_or(Path::new("./chain-spec.json")),
+					)?
+					.display()
+					.to_string(),
+				);
+				Ok(())
+			},
+		)?;
+		let tanssi_node = self
+			.parachains
+			.get(parachain_id)
+			.ok_or(Error::ChainNotFound(format!("with id: {parachain_id}")))?;
+		let raw_spec_path = generate_raw_chain_spec_container_chain(
+			tanssi_node.binary.path().as_path(),
+			tanssi_node.chain.as_deref(),
+			Some(container_chains.iter().map(|s| s.as_str()).collect()),
+			&parachain_id.to_string(),
+			Some(
+				tanssi_node
+					.collators_names
+					.iter()
+					.filter(|s| s.starts_with("Collator"))
+					.map(|s| s.as_str())
+					.collect(),
+			),
+			tanssi_node.chain_spec_path.as_deref().unwrap_or(Path::new("./chain-spec.json")),
+		)?;
+		Ok(raw_spec_path)
+	}
+
 	/// Determine parachain configuration based on specified version and network configuration.
 	///
 	/// # Arguments
@@ -132,7 +185,7 @@ impl Zombienet {
 				as u32;
 
 			let chain = table.get("chain").and_then(|i| i.as_str());
-
+			let chain_spec_path = table.get("chain_spec_path").and_then(|i| i.as_str());
 			let command = NetworkConfiguration::default_command(table)
 				.cloned()
 				.or_else(|| {
@@ -175,6 +228,18 @@ impl Zombienet {
 				continue;
 			}
 
+			let mut collators_names: Vec<&str> = Vec::new();
+			if let Some(collators) = table.get("collators").and_then(|p| p.as_array_of_tables()) {
+				for collator in collators.iter() {
+					if let Some(name) =
+						NetworkConfiguration::name(collator).and_then(|i| i.as_str())
+					{
+						//let n = Some(Item::Value(Value::String(Formatted::new(name.into()))));
+						collators_names.push(name);
+					}
+				}
+			}
+
 			// Check if known parachain
 			let version = parachains.as_ref().and_then(|r| {
 				r.iter()
@@ -182,7 +247,17 @@ impl Zombienet {
 					.nth(0)
 					.map(|v| v.as_str())
 			});
-			if let Some(parachain) = parachains::from(id, &command, version, chain, cache).await? {
+			if let Some(parachain) = parachains::from(
+				id,
+				&command,
+				version,
+				chain,
+				cache,
+				chain_spec_path,
+				collators_names.clone(),
+			)
+			.await?
+			{
 				paras.insert(id, parachain);
 				continue;
 			}
@@ -190,14 +265,33 @@ impl Zombienet {
 			// Check if parachain binary source specified as an argument
 			if let Some(parachains) = parachains.as_ref() {
 				for repo in parachains.iter().filter(|r| command == r.package) {
-					paras.insert(id, Parachain::from_repository(id, repo, chain, cache)?);
+					paras.insert(
+						id,
+						Parachain::from_repository(
+							id,
+							repo,
+							chain,
+							cache,
+							chain_spec_path,
+							collators_names,
+						)?,
+					);
 					continue 'outer;
 				}
 			}
 
 			// Check if command references a local binary
 			if ["./", "../", "/"].iter().any(|p| command.starts_with(p)) {
-				paras.insert(id, Parachain::from_local(id, command.into(), chain)?);
+				paras.insert(
+					id,
+					Parachain::from_local(
+						id,
+						command.into(),
+						chain,
+						chain_spec_path,
+						collators_names,
+					)?,
+				);
 				continue;
 			}
 
@@ -368,6 +462,11 @@ impl NetworkConfiguration {
 		config.get("default_command")
 	}
 
+	/// Returns the `name` configuration.
+	fn name(config: &Table) -> Option<&Item> {
+		config.get("name")
+	}
+
 	/// Returns the `nodes` configuration.
 	fn nodes(relay_chain: &Table) -> Option<&ArrayOfTables> {
 		relay_chain.get("nodes").and_then(|i| i.as_array_of_tables())
@@ -506,6 +605,10 @@ struct Parachain {
 	chain: Option<String>,
 	/// If applicable, the binary used to generate a chain specification.
 	chain_spec_generator: Option<Binary>,
+	/// If applicable, the path to the chain specification.
+	chain_spec_path: Option<PathBuf>,
+	/// List of collators names.
+	collators_names: Vec<String>,
 }
 
 impl Parachain {
@@ -515,7 +618,13 @@ impl Parachain {
 	/// * `id` - The parachain identifier on the local network.
 	/// * `path` - The path to the local binary.
 	/// * `chain` - The chain specified.
-	fn from_local(id: u32, path: PathBuf, chain: Option<&str>) -> Result<Parachain, Error> {
+	fn from_local(
+		id: u32,
+		path: PathBuf,
+		chain: Option<&str>,
+		chain_spec_path: Option<&str>,
+		collators_names: Vec<&str>,
+	) -> Result<Parachain, Error> {
 		let name = path
 			.file_name()
 			.and_then(|f| f.to_str())
@@ -528,6 +637,8 @@ impl Parachain {
 			binary: Binary::Local { name, path, manifest },
 			chain: chain.map(|c| c.to_string()),
 			chain_spec_generator: None,
+			chain_spec_path: chain_spec_path.map(PathBuf::from),
+			collators_names: collators_names.iter().map(|&s| s.to_string()).collect(),
 		})
 	}
 
@@ -544,6 +655,8 @@ impl Parachain {
 		repo: &Repository,
 		chain: Option<&str>,
 		cache: &Path,
+		chain_spec_path: Option<&str>,
+		collators_names: Vec<&str>,
 	) -> Result<Parachain, Error> {
 		// Check for GitHub repository to be able to download source as an archive
 		if repo.url.host_str().is_some_and(|h| h.to_lowercase() == "github.com") {
@@ -565,6 +678,8 @@ impl Parachain {
 				},
 				chain: chain.map(|c| c.to_string()),
 				chain_spec_generator: None,
+				chain_spec_path: chain_spec_path.map(PathBuf::from),
+				collators_names: collators_names.iter().map(|&s| s.to_string()).collect(),
 			})
 		} else {
 			Ok(Parachain {
@@ -582,6 +697,8 @@ impl Parachain {
 				},
 				chain: chain.map(|c| c.to_string()),
 				chain_spec_generator: None,
+				chain_spec_path: chain_spec_path.map(PathBuf::from),
+				collators_names: collators_names.iter().map(|&s| s.to_string()).collect(),
 			})
 		}
 	}
@@ -651,11 +768,16 @@ fn resolve_manifest(package: &str, path: &Path) -> Result<Option<PathBuf>, Error
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::{
+		new_parachain::instantiate_tanssi_template, templates::Parachain as Template, Error,
+	};
 	use anyhow::Result;
 	use std::{env::current_dir, fs::File, io::Write};
 	use tempfile::tempdir;
 
 	mod zombienet {
+		use std::fs;
+
 		use super::*;
 		use pop_common::Status;
 
@@ -1300,6 +1422,89 @@ chain = "asset-hub-paseo-local"
 		}
 
 		#[tokio::test]
+		async fn build_container_chain_specs_works() -> Result<()> {
+			let temp_dir = tempdir().expect("Failed to create temp dir");
+			instantiate_tanssi_template(&Template::TanssiSimple, temp_dir.path(), None)?;
+			let config = Builder::new().suffix(".toml").tempfile()?;
+			// Get Zombienet config and fet binary for generate specs
+			writeln!(
+				config.as_file(),
+				"{}",
+				format!(
+					r#"
+[relaychain]
+chain = "paseo-local"
+
+[[parachains]]
+id = 1000
+chain_spec_path = "{}"
+chain = "dancebox-local"
+default_command = "tanssi-node"
+
+[[parachains.collators]]
+name = "FullNode-1000"
+
+[[parachains.collators]]
+name = "Collator1000-01"
+
+[[parachains.collators]]
+name = "Collator1000-02"
+
+[[parachains.collators]]
+name = "Collator2000-01"
+
+[[parachains.collators]]
+name = "Collator2000-02"
+"#,
+					&temp_dir.path().join("tanssi-1000.json").display().to_string()
+				)
+			)?;
+			let mut zombienet = Zombienet::new(
+				&temp_dir.path(),
+				config.path().to_str().unwrap(),
+				None,
+				None,
+				None,
+				None,
+				None,
+			)
+			.await?;
+			// Fetch the tanssi-node binary
+			for binary in zombienet.binaries().filter(|b| !b.exists() && b.name() == "tanssi-node")
+			{
+				binary.source(true, &(), true).await?;
+			}
+			let raw_chain_spec = zombienet.build_container_chain_specs("tanssi-node")?;
+			assert!(raw_chain_spec.exists());
+			let content = fs::read_to_string(raw_chain_spec.clone()).expect("Could not read file");
+			assert!(content.contains("\"para_id\": 1000"));
+			assert!(content.contains("\"id\": \"dancebox_local\""));
+			Ok(())
+		}
+
+		#[tokio::test]
+		async fn build_container_chain_specs_fails_chain_not_found() -> Result<()> {
+			let temp_dir = tempdir().expect("Failed to create temp dir");
+			instantiate_tanssi_template(&Template::TanssiSimple, temp_dir.path(), None)?;
+			let mut zombienet = Zombienet::new(
+				&temp_dir.path(),
+				&temp_dir.path().join("network.toml").display().to_string(),
+				None,
+				None,
+				None,
+				None,
+				None,
+			)
+			.await?;
+			assert!(matches!(
+				zombienet.build_container_chain_specs("bad-name"),
+				Err(Error::ChainNotFound(error))
+				if error == "with name: bad-name"
+			));
+			Ok(())
+		}
+
+		#[tokio::test]
 		async fn spawn_ensures_relay_chain_binary_exists() -> Result<()> {
 			let temp_dir = tempdir()?;
 			let cache = PathBuf::from(temp_dir.path());
@@ -1445,6 +1650,7 @@ validator = true
 			fs::{create_dir_all, File},
 			io::{Read, Write},
 			path::PathBuf,
+			vec,
 		};
 		use tempfile::{tempdir, Builder};
 
@@ -1595,6 +1801,8 @@ command = "./target/release/parachain-template-node"
 							},
 							chain: None,
 							chain_spec_generator: None,
+							chain_spec_path: None,
+							collators_names: vec!["asset-hub".to_string()],
 						},
 					),
 					(
@@ -1608,6 +1816,8 @@ command = "./target/release/parachain-template-node"
 							},
 							chain: None,
 							chain_spec_generator: None,
+							chain_spec_path: None,
+							collators_names: vec!["pop".to_string()],
 						},
 					),
 					(
@@ -1621,6 +1831,8 @@ command = "./target/release/parachain-template-node"
 							},
 							chain: None,
 							chain_spec_generator: None,
+							chain_spec_path: None,
+							collators_names: vec!["collator".to_string()],
 						},
 					),
 				]
@@ -1750,6 +1962,8 @@ command = "polkadot-parachain"
 							path: system_chain_spec_generator.to_path_buf(),
 							manifest: None,
 						}),
+						chain_spec_path: None,
+						collators_names: vec!["asset-hub".to_string()],
 					},
 				)]
 				.into(),
@@ -1828,12 +2042,20 @@ node_spawn_timeout = 300
 			let name = "parachain-template-node";
 			let command = PathBuf::from("./target/release").join(&name);
 			assert_eq!(
-				Parachain::from_local(2000, command.clone(), Some("dev"))?,
+				Parachain::from_local(
+					2000,
+					command.clone(),
+					Some("dev"),
+					Some("/path"),
+					vec![name]
+				)?,
 				Parachain {
 					id: 2000,
 					binary: Binary::Local { name: name.to_string(), path: command, manifest: None },
 					chain: Some("dev".to_string()),
 					chain_spec_generator: None,
+					chain_spec_path: Some(PathBuf::from("/path")),
+					collators_names: vec![name.to_string()],
 				}
 			);
 			Ok(())
@@ -1844,7 +2066,13 @@ node_spawn_timeout = 300
 			let name = "pop-parachains";
 			let command = PathBuf::from("./target/release").join(&name);
 			assert_eq!(
-				Parachain::from_local(2000, command.clone(), Some("dev"))?,
+				Parachain::from_local(
+					2000,
+					command.clone(),
+					Some("dev"),
+					Some("/path"),
+					vec![name]
+				)?,
 				Parachain {
 					id: 2000,
 					binary: Binary::Local {
@@ -1854,6 +2082,8 @@ node_spawn_timeout = 300
 					},
 					chain: Some("dev".to_string()),
 					chain_spec_generator: None,
+					chain_spec_path: Some(PathBuf::from("/path")),
+					collators_names: vec![name.to_string()],
 				}
 			);
 			Ok(())
@@ -1864,7 +2094,14 @@ node_spawn_timeout = 300
 			let repo = Repository::parse("https://git.com/r0gue-io/pop-node#v1.0")?;
 			let cache = tempdir()?;
 			assert_eq!(
-				Parachain::from_repository(2000, &repo, Some("dev"), cache.path())?,
+				Parachain::from_repository(
+					2000,
+					&repo,
+					Some("dev"),
+					cache.path(),
+					Some("/path"),
+					vec!["pop-node"]
+				)?,
 				Parachain {
 					id: 2000,
 					binary: Binary::Source {
@@ -1880,6 +2117,8 @@ node_spawn_timeout = 300
 					},
 					chain: Some("dev".to_string()),
 					chain_spec_generator: None,
+					chain_spec_path: Some(PathBuf::from("/path")),
+					collators_names: vec!["pop-node".to_string()],
 				}
 			);
 			Ok(())
@@ -1890,7 +2129,14 @@ node_spawn_timeout = 300
 			let repo = Repository::parse("https://github.com/r0gue-io/pop-node#v1.0")?;
 			let cache = tempdir()?;
 			assert_eq!(
-				Parachain::from_repository(2000, &repo, Some("dev"), cache.path())?,
+				Parachain::from_repository(
+					2000,
+					&repo,
+					Some("dev"),
+					cache.path(),
+					Some("/path"),
+					vec!["pop-node"]
+				)?,
 				Parachain {
 					id: 2000,
 					binary: Binary::Source {
@@ -1907,6 +2153,8 @@ node_spawn_timeout = 300
 					},
 					chain: Some("dev".to_string()),
 					chain_spec_generator: None,
+					chain_spec_path: Some(PathBuf::from("/path")),
+					collators_names: vec!["pop-node".to_string()],
 				},
 			);
 			Ok(())
