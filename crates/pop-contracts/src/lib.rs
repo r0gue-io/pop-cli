@@ -26,7 +26,6 @@ pub use up::{
 	set_up_deployment, set_up_upload, upload_smart_contract, UpOpts,
 };
 pub use utils::{
-	helpers::parse_account,
 	metadata::{get_messages, ContractFunction},
-	signer::parse_hex_bytes,
+	parse_account, parse_hex_bytes,
 };

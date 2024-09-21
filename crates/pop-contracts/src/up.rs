@@ -2,9 +2,9 @@
 use crate::{
 	errors::Error,
 	utils::{
-		helpers::{get_manifest_path, parse_balance},
+		get_manifest_path,
 		metadata::{process_function_args, FunctionType},
-		signer::create_signer,
+		parse_balance,
 	},
 };
 use contract_extrinsics::{
@@ -12,11 +12,10 @@ use contract_extrinsics::{
 	TokenMetadata, UploadCommandBuilder, UploadExec,
 };
 use ink_env::{DefaultEnvironment, Environment};
+use pop_common::{create_signer, DefaultConfig, Keypair};
 use sp_core::Bytes;
 use sp_weights::Weight;
 use std::{fmt::Write, path::PathBuf};
-use subxt::PolkadotConfig as DefaultConfig;
-use subxt_signer::sr25519::Keypair;
 
 /// Attributes for the `up` command
 #[derive(Debug, PartialEq)]

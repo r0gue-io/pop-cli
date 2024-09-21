@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
+use subxt::ext::scale_decode;
 use thiserror::Error;
 use zombienet_sdk::OrchestratorError;
 
@@ -36,7 +37,7 @@ pub enum Error {
 	#[error("Failed to find the pallet {0}")]
 	PalletNotFound(String),
 	#[error("Failed to parse the response")]
-	ParsingResponseError,
+	ParsingResponseError(#[from] scale_decode::Error),
 	#[error("Invalid path")]
 	PathError,
 	#[error("Failed to execute rustfmt")]

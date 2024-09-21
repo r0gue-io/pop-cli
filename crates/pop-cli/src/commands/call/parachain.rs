@@ -3,7 +3,9 @@
 use crate::cli::{self, traits::*};
 use anyhow::{anyhow, Result};
 use clap::Args;
-use pop_parachains::{fetch_metadata, get_type_description, parse_chain_metadata, Metadata};
+use pop_parachains::{
+	fetch_metadata, get_type_description, parse_chain_metadata, query, submit_extrinsic, Metadata,
+};
 
 #[derive(Args, Clone)]
 pub struct CallParachainCommand {
@@ -64,7 +66,7 @@ impl CallParachainCommand {
 	}
 
 	fn display(&self) -> String {
-		let mut full_message = format!("pop call parachain");
+		let mut full_message = "pop call parachain".to_string();
 		if let Some(pallet) = &self.pallet {
 			full_message.push_str(&format!(" --pallet {}", pallet));
 		}
@@ -120,8 +122,8 @@ async fn guide_user_to_call_chain(
 			for extrinsic in pallet.extrinsics {
 				prompt_extrinsic = prompt_extrinsic.item(
 					extrinsic.clone(),
-					&extrinsic.name,
-					&extrinsic.docs.concat(),
+					format!("{}\n", &extrinsic.name),
+					extrinsic.docs.concat(),
 				);
 			}
 			prompt_extrinsic.interact()?
@@ -132,6 +134,12 @@ async fn guide_user_to_call_chain(
 					"Enter the value for the argument '{}':",
 					argument.name.unwrap_or_default()
 				))
+				.placeholder(&format!(
+					"{} - {}",
+					argument.docs.join(","),
+					argument.type_name.unwrap_or_default()
+				))
+				.required(false)
 				.interact()?;
 			args.push(value);
 		}
@@ -173,11 +181,29 @@ async fn execute_extrinsic(
 	cli: &mut impl cli::traits::Cli,
 ) -> Result<()> {
 	cli.info(call_config.display())?;
+	let pallet = call_config
+		.pallet
+		.expect("pallet can not be none as fallback above is interactive input; qed");
 	// TODO: Check if exists?
 	if call_config.extrinsic.is_some() {
-		//self.execute_extrinsic(call_config.clone(), &mut cli::Cli).await?;
+		let extrinsic = call_config
+			.extrinsic
+			.expect("storage can not be none as fallback above is interactive input; qed");
+		let result = submit_extrinsic(
+			&pallet,
+			&extrinsic,
+			call_config.args,
+			&call_config.url,
+			&call_config.suri,
+		)
+		.await?;
+		cli.outro(format!("Extrinsic submitted successfully with hash: {}", result))?;
 	} else {
-		//self.execute_query(call_config.clone(), &mut cli::Cli).await?;
+		let storage = call_config
+			.query
+			.expect("storage can not be none as fallback above is interactive input; qed");
+		let result = query(&pallet, &storage, call_config.args, &call_config.url).await?;
+		cli.outro(result)?;
 	}
 	Ok(())
 }

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::errors::Error;
+use pop_common::create_signer;
 use scale_info::{form::PortableForm, Variant};
 use scale_typegen_description::type_description;
-use subxt::{
-	dynamic::Value, metadata::types::StorageEntryType, Metadata, OnlineClient, SubstrateConfig,
-};
+use scale_value::{stringify, Value};
+use subxt::{metadata::types::StorageEntryType, Metadata, OnlineClient, SubstrateConfig};
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct Storage {
@@ -35,20 +35,45 @@ pub async fn fetch_metadata(url: &str) -> Result<Metadata, Error> {
 pub async fn query(
 	pallet_name: &str,
 	entry_name: &str,
-	args: Vec<Value>,
+	args: Vec<String>,
 	url: &str,
-) -> Result<(), Error> {
+) -> Result<String, Error> {
+	let args_value: Vec<Value> =
+		args.into_iter().map(|v| stringify::from_str(&v).0.unwrap()).collect();
 	let api = OnlineClient::<SubstrateConfig>::from_url(url).await?;
-	println!("here");
-	let storage_query = subxt::dynamic::storage(pallet_name, entry_name, args);
-	println!("here");
-	let mut results = api.storage().at_latest().await?.iter(storage_query).await?;
-	println!("{:?}", results);
-	while let Some(Ok(kv)) = results.next().await {
-		println!("Keys decoded: {:?}", kv.keys);
-		println!("Value: {:?}", kv.value.to_value().map_err(|_| Error::ParsingResponseError)?);
+	let storage_query = subxt::dynamic::storage(pallet_name, entry_name, args_value);
+	let result = api.storage().at_latest().await?.fetch(&storage_query).await?;
+	if result.is_none() {
+		Ok("".to_string())
+	} else {
+		Ok(result.unwrap().to_value()?.to_string())
 	}
-	Ok(())
+}
+
+pub async fn submit_extrinsic(
+	pallet_name: &str,
+	entry_name: &str,
+	args: Vec<String>,
+	url: &str,
+	suri: &str,
+) -> Result<String, Error> {
+	let args_value: Vec<Value> = args
+		.into_iter()
+		.filter_map(|v| match stringify::from_str(&v).0 {
+			Ok(value) => Some(value),
+			Err(_) => None,
+		})
+		.collect();
+	let api = OnlineClient::<SubstrateConfig>::from_url(url).await?;
+	let tx = subxt::dynamic::tx(pallet_name, entry_name, args_value);
+	let signer = create_signer(suri)?;
+	let result = api
+		.tx()
+		.sign_and_submit_then_watch_default(&tx, &signer)
+		.await?
+		.wait_for_finalized_success()
+		.await?;
+	Ok(result.extrinsic_hash().to_string())
 }
 
 pub async fn parse_chain_metadata(metadata: Metadata) -> Result<Vec<Pallet>, Error> {
@@ -112,11 +137,28 @@ mod tests {
 	use anyhow::Result;
 
 	#[tokio::test]
-	async fn storage_info_works() -> Result<()> {
-		let metadata = fetch_metadata("wss://rpc2.paseo.popnetwork.xyz").await?;
-		explore("Nfts", "Account", &metadata)?;
-		explore("Nfts", "Collection", &metadata)?;
-		explore("Nfts", "NextCollectionId", &metadata)?;
+	async fn query_works() -> Result<()> {
+		let result =
+			query("Assets", "Asset", vec!["50".into()], "wss://rpc2.paseo.popnetwork.xyz").await?;
+		println!("{:?}", result);
+		// query("Nfts", "Collection", &metadata)?;
+		// query("Nfts", "NextCollectionId", &metadata)?;
+
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn extrinsic_works() -> Result<()> {
+		let result = query(
+			"Balances",
+			"TransferAllowDeath",
+			vec!["167Y1SbQrwQVNfkNUXtRkocfzVbaAHYjnZPkZRScWPQ46XDb".into(), "1".into()],
+			"wss://rpc2.paseo.popnetwork.xyz",
+		)
+		.await?;
+		println!("{:?}", result);
+		// query("Nfts", "Collection", &metadata)?;
+		// query("Nfts", "NextCollectionId", &metadata)?;
 
 		Ok(())
 	}
