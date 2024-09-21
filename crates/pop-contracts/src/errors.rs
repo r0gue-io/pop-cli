@@ -36,8 +36,6 @@ pub enum Error {
 	InvalidName(String),
 	#[error("IO error: {0}")]
 	IO(#[from] std::io::Error),
-	#[error("Failed to create keypair from URI: {0}")]
-	KeyPairCreation(String),
 	#[error("Failed to get manifest path: {0}")]
 	ManifestPath(String),
 	#[error("Argument {0} is required")]
@@ -46,8 +44,6 @@ pub enum Error {
 	NewContract(String),
 	#[error("ParseError error: {0}")]
 	ParseError(#[from] url::ParseError),
-	#[error("Failed to parse secret URI: {0}")]
-	ParseSecretURI(String),
 	#[error("The `Repository` property is missing from the template variant")]
 	RepositoryMissing,
 	#[error("Sourcing error {0}")]

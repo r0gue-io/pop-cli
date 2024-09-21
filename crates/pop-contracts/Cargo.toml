@@ -27,8 +27,6 @@ sp-core.workspace = true
 sp-weights.workspace = true
 strum.workspace = true
 strum_macros.workspace = true
-subxt-signer.workspace = true
-subxt.workspace = true
 
 # cargo-contracts
 contract-build.workspace = true

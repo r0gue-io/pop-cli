@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{errors::Error, utils::helpers::canonicalized_path, Contract};
+use crate::{errors::Error, utils::canonicalized_path, Contract};
 use anyhow::Result;
 use contract_build::new_contract_project;
 use heck::ToUpperCamelCase;
