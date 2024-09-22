@@ -111,8 +111,8 @@ async fn guide_user_to_call_chain(
 	};
 	let action = cli
 		.select("What do you want to do?")
-		.item(Action::Extrinsic, "Submit an extrinsic", "hint")
-		.item(Action::Query, "Query storage", "hint")
+		.item(Action::Extrinsic, "Submit an extrinsic", "")
+		.item(Action::Query, "Query storage", "")
 		.interact()?;
 
 	let mut args = Vec::new();
@@ -134,11 +134,7 @@ async fn guide_user_to_call_chain(
 					"Enter the value for the argument '{}':",
 					argument.name.unwrap_or_default()
 				))
-				.placeholder(&format!(
-					"{} - {}",
-					argument.docs.join(","),
-					argument.type_name.unwrap_or_default()
-				))
+				.placeholder(&argument.type_name.unwrap_or_default())
 				.required(false)
 				.interact()?;
 			args.push(value);
