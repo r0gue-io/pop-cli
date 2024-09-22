@@ -153,7 +153,7 @@ pub enum Parachain {
 	#[strum(
 		serialize = "paritytech/substrate-contracts-node",
 		message = "Contracts",
-		detailed_message = "Minimal Substrate node configured for smart contracts via pallet-contracts.",
+		detailed_message = "Minimal Substrate node configured for smart contracts via pallet-contracts. [deprecated]. Suggested to use Pop > Contracts template instead.",
 		props(
 			Provider = "Parity",
 			Repository = "https://github.com/paritytech/substrate-contracts-node",

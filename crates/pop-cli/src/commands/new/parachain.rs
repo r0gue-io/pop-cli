@@ -256,15 +256,7 @@ fn display_select_options(provider: &Provider) -> Result<&Parachain> {
 		if i == 0 {
 			prompt = prompt.initial_value(template);
 		}
-		prompt = prompt.item(
-			template,
-			template.name(),
-			format!(
-				"{} {}",
-				template.description(),
-				if matches!(template, Parachain::ParityContracts) { "[deprecated]" } else { "" }
-			),
-		);
+		prompt = prompt.item(template, template.name(), template.description().trim());
 	}
 	Ok(prompt.interact()?)
 }
@@ -275,8 +267,8 @@ fn get_customization_value(
 	decimals: Option<u8>,
 	initial_endowment: Option<String>,
 ) -> Result<Config> {
-	if !matches!(template, Parachain::Standard) &&
-		(symbol.is_some() || decimals.is_some() || initial_endowment.is_some())
+	if !matches!(template, Parachain::Standard)
+		&& (symbol.is_some() || decimals.is_some() || initial_endowment.is_some())
 	{
 		log::warning("Customization options are not available for this template")?;
 		sleep(Duration::from_secs(3))
