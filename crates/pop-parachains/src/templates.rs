@@ -175,7 +175,7 @@ pub enum Parachain {
 	ParityFPT,
 	/// Tanssi generic container chain template.
 	#[strum(
-		serialize = "simple",
+		serialize = "tanssi/simple",
 		message = "Simple",
 		detailed_message = "Generic container chain template.",
 		props(
@@ -248,6 +248,12 @@ impl Parachain {
 		self.get_str("License")
 	}
 
+	/// Gets the template name, removing the provider if present.
+	pub fn template_name_without_provider(&self) -> &str {
+		let name = self.as_ref();
+		name.split_once('/').map_or(name, |(_, template)| template)
+	}
+
 	/// Returns where to pull the template node directory from in its source repo, if defined.
 	pub fn node_directory(&self) -> Option<&str> {
 		self.get_str("NodeDirectory")
@@ -286,10 +292,25 @@ mod tests {
 			("cpt".to_string(), ParityContracts),
 			("fpt".to_string(), ParityFPT),
 			// Tanssi.
-			("simple".to_string(), TanssiSimple),
+			("tanssi/simple".to_string(), TanssiSimple),
 			// Test.
 			("test_01".to_string(), TestTemplate01),
 			("test_02".to_string(), TestTemplate02),
+		])
+	}
+
+	fn templates_names_without_providers() -> HashMap<Parachain, String> {
+		HashMap::from([
+			(Standard, "standard".to_string()),
+			(Assets, "assets".to_string()),
+			(Contracts, "contracts".to_string()),
+			(EVM, "evm".to_string()),
+			(OpenZeppelinGeneric, "polkadot-generic-runtime-template".to_string()),
+			(TanssiSimple, "simple".to_string()),
+			(ParityContracts, "cpt".to_string()),
+			(ParityFPT, "fpt".to_string()),
+			(TestTemplate01, "test_01".to_string()),
+			(TestTemplate02, "test_02".to_string()),
 		])
 	}
 
@@ -309,7 +330,7 @@ mod tests {
 			("cpt".to_string(), "https://github.com/paritytech/substrate-contracts-node"),
 			("fpt".to_string(), "https://github.com/paritytech/frontier-parachain-template"),
 			// Tanssi.
-			("simple".to_string(), "https://github.com/moondance-labs/tanssi"),
+			("tanssi/simple".to_string(), "https://github.com/moondance-labs/tanssi"),
 			// Test.
 			("test_01".to_string(), ""),
 			("test_02".to_string(), ""),
@@ -373,7 +394,7 @@ mod tests {
 				assert_eq!(Provider::OpenZeppelin.provides(&template), true);
 				assert_eq!(Provider::Tanssi.provides(&template), false);
 			}
-			if matches!(template, TanssiFrontier) {
+			if matches!(template, TanssiSimple) {
 				assert_eq!(Provider::Pop.provides(&template), false);
 				assert_eq!(Provider::Parity.provides(&template), false);
 				assert_eq!(Provider::OpenZeppelin.provides(&template), false);
@@ -504,5 +525,16 @@ mod tests {
 		assert_eq!(template.extractable_files(), Some(vec!["list", "of", "files"]));
 		let template = TestTemplate02;
 		assert_eq!(template.supported_versions(), None);
+	}
+
+	#[test]
+	fn template_name_without_provider() {
+		let template_names = templates_names_without_providers();
+		for template in Parachain::VARIANTS {
+			assert_eq!(
+				template.template_name_without_provider(),
+				template_names.get(template).unwrap()
+			);
+		}
 	}
 }

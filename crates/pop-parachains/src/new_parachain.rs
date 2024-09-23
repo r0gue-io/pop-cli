@@ -120,7 +120,7 @@ fn instantiate_tanssi_template(
 	// │  └ <template runtime directories>
 
 	// Step 1: extract template node.
-	let template_path = format!("{}/{}", template.node_directory().unwrap(), template.to_string());
+	let template_path = format!("{}/{}", template.node_directory().unwrap(), template.template_name_without_provider());
 	extract_template_files(
 		template_path,
 		temp_dir.path(),
@@ -129,7 +129,7 @@ fn instantiate_tanssi_template(
 	)?;
 	// Step 2: extract template runtime.
 	let template_path =
-		format!("{}/{}", template.runtime_directory().unwrap(), template.to_string());
+		format!("{}/{}", template.runtime_directory().unwrap(), template.template_name_without_provider());
 	extract_template_files(
 		template_path,
 		temp_dir.path(),
@@ -140,7 +140,7 @@ fn instantiate_tanssi_template(
 	// Add network configuration.
 	use askama::Template;
 	let network =
-		ContainerNetwork { node: format!("container-chain-{}-node", template.to_string()) };
+		ContainerNetwork { node: format!("container-chain-{}-node", template.template_name_without_provider()) };
 	write_to_file(&target.join("network.toml"), network.render().expect("infallible").as_ref())?;
 
 	// Ready project manifest.
@@ -158,7 +158,7 @@ fn instantiate_tanssi_template(
 	]))?;
 	// Dependencies that should remain with local references.
 	let local_dependencies: Vec<(String, String)> = vec![(
-		format!("container-chain-template-{}-runtime", template.to_string()),
+		format!("container-chain-template-{}-runtime", template.template_name_without_provider()),
 		"runtime".to_string(),
 	)];
 
