@@ -5,7 +5,7 @@ use std::{fs, path::Path};
 use anyhow::Result;
 use pop_common::{
 	git::Git,
-	manifest::{collect_manifest_dependencies, extend_dependencies_with_version_source, from_path},
+	manifest::{extend_dependencies_from_manifests_with_version_source, from_path},
 	templates::{extractor::extract_template_files, Template, Type},
 };
 use walkdir::WalkDir;
@@ -117,7 +117,7 @@ fn instantiate_tanssi_template(
 	// │├┬ nodes
 	// ││└ <template node directories>
 	// │└┬ runtime-templates
-	// │  └ <template runtime directories>
+	// │ └ <template runtime directories>
 
 	// Step 1: extract template node.
 	let template_path = format!(
@@ -157,29 +157,38 @@ fn instantiate_tanssi_template(
 		&target.join("Cargo.toml"),
 		target_manifest.render().expect("infallible").as_ref(),
 	)?;
-	// Collect required dependencies.
-	let node_manifest_path = &target.join("node").join("Cargo.toml");
-	let runtime_manifest_path = &target.join("runtime").join("Cargo.toml");
-	let new_dependencies = collect_manifest_dependencies(Vec::from([
-		node_manifest_path.as_ref(),
-		runtime_manifest_path.as_ref(),
-	]))?;
+
 	// Dependencies that should remain with local references.
-	let local_dependencies: Vec<(String, String)> = vec![(
+	let local_dependencies = [(
 		format!("container-chain-template-{}-runtime", template.template_name_without_provider()),
 		"runtime".to_string(),
 	)];
 
-	if new_dependencies.len() > 0 {
+	let node_manifest = from_path(Some(
+		&source
+			.join(&format!("container-chains/nodes/{}", template.template_name_without_provider()))
+			.join("Cargo.toml"),
+	))?;
+	let runtime_manifest = from_path(Some(
+		&source
+			.join(&format!(
+				"container-chains/runtime-templates/{}",
+				template.template_name_without_provider()
+			))
+			.join("Cargo.toml"),
+	))?;
+	let dependencies_from = [&node_manifest, &runtime_manifest];
+
+	if dependencies_from.len() > 0 {
 		// Update versions to follow source.
 		let source_manifest = from_path(Some(source))?;
 		let mut target_manifest = from_path(Some(&target))?;
-		extend_dependencies_with_version_source(
+		extend_dependencies_from_manifests_with_version_source(
 			source_manifest,
 			&mut target_manifest,
 			tag.clone(),
-			new_dependencies,
-			Some(local_dependencies),
+			&dependencies_from,
+			Some(&local_dependencies),
 		);
 
 		let target_manifest = toml_edit::ser::to_string_pretty(&target_manifest)?;

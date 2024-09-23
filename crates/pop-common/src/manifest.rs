@@ -10,6 +10,23 @@ use std::{
 };
 use toml_edit::{value, Array, DocumentMut, Item, Value};
 
+/// Collects the dependencies of the given manifests in a HashMap.
+///
+/// # Arguments
+/// * `manifests`: List of manifests to collect dependencies from.
+fn collect_manifest_dependencies(manifests: &[&Manifest]) -> anyhow::Result<HashSet<String>> {
+	let mut dependencies = HashSet::new();
+	for m in manifests {
+		for d in &m.dependencies {
+			dependencies.insert(d.0.into());
+		}
+		for d in &m.build_dependencies {
+			dependencies.insert(d.0.into());
+		}
+	}
+	Ok(dependencies)
+}
+
 /// Parses the contents of a `Cargo.toml` manifest.
 ///
 /// # Arguments
@@ -99,25 +116,8 @@ pub fn add_crate_to_workspace(workspace_toml: &Path, crate_path: &Path) -> anyho
 	Ok(())
 }
 
-/// Collects the dependencies of the given `Cargo.toml` manifests in a HashMap.
-///
-/// # Arguments
-/// * `manifests`: Paths of the manifests to collect dependencies from.
-pub fn collect_manifest_dependencies(manifests: Vec<&Path>) -> anyhow::Result<HashSet<String>> {
-	let mut dependencies = HashSet::new();
-	for m in manifests {
-		let cargo = &std::fs::read_to_string(m)?.parse::<DocumentMut>()?;
-		for d in cargo["dependencies"].as_table().unwrap().into_iter() {
-			dependencies.insert(d.0.into());
-		}
-		for d in cargo["build-dependencies"].as_table().unwrap().into_iter() {
-			dependencies.insert(d.0.into());
-		}
-	}
-	Ok(dependencies)
-}
-
-/// Extends `target` cargo manifest with `dependencies` using versions from `source`.
+/// Extends `target` cargo manifest with dependencies from `dependencies_from`
+/// using versions from `source`.
 ///
 /// It is useful when the list of dependencies is compiled from some external crates,
 /// but there is interest on using a separate manifest as the source of truth for their versions.
@@ -126,20 +126,23 @@ pub fn collect_manifest_dependencies(manifests: Vec<&Path>) -> anyhow::Result<Ha
 /// * `source`: Manifest used as reference for the dependency versions.
 /// * `target`: Manifest to be modified.
 /// * `tag`: Version to use when transforming local dependencies from `source`.
-/// * `dependencies`: List to extend `target` with.
+/// * `dependencies_from`: List of `Manifest`s used to extend `target`.
 /// * `local_exceptions`: List of dependencies that need to be reference a local path.
-pub fn extend_dependencies_with_version_source<I>(
+pub fn extend_dependencies_from_manifests_with_version_source(
 	source: Manifest,
 	target: &mut Manifest,
 	tag: Option<String>,
-	dependencies: I,
-	local_exceptions: Option<Vec<(String, String)>>,
-) where
-	I: IntoIterator<Item = String>,
-{
+	dependencies_from: &[&Manifest],
+	local_exceptions: Option<&[(String, String)]>,
+) {
 	let mut target_manifest_workspace = target.workspace.clone().unwrap();
 	let source_manifest_workspace = source.workspace.clone().unwrap();
 
+	// Collect dependencies.
+	let dependencies = collect_manifest_dependencies(dependencies_from)
+		.expect("Manifests do include dependencies.");
+
+	// Update dependencies.
 	let updated_dependencies: Vec<_> = dependencies
 		.into_iter()
 		.filter_map(|k| {
@@ -171,15 +174,12 @@ pub fn extend_dependencies_with_version_source<I>(
 	// Address local exceptions.
 	if let Some(local_exceptions) = local_exceptions {
 		for (dependency, path) in local_exceptions {
-			let d = target_manifest_workspace
-				.dependencies
-				.get_mut(&dependency)
-				.unwrap()
-				.detail_mut();
+			let d =
+				target_manifest_workspace.dependencies.get_mut(dependency).unwrap().detail_mut();
 			d.git = None;
 			d.tag = None;
 			d.branch = None;
-			d.path = Some(path);
+			d.path = Some(path.to_owned());
 		}
 	}
 	target.workspace = Some(target_manifest_workspace);
