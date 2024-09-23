@@ -120,7 +120,11 @@ fn instantiate_tanssi_template(
 	// │  └ <template runtime directories>
 
 	// Step 1: extract template node.
-	let template_path = format!("{}/{}", template.node_directory().unwrap(), template.template_name_without_provider());
+	let template_path = format!(
+		"{}/{}",
+		template.node_directory().unwrap(),
+		template.template_name_without_provider()
+	);
 	extract_template_files(
 		template_path,
 		temp_dir.path(),
@@ -128,8 +132,11 @@ fn instantiate_tanssi_template(
 		None,
 	)?;
 	// Step 2: extract template runtime.
-	let template_path =
-		format!("{}/{}", template.runtime_directory().unwrap(), template.template_name_without_provider());
+	let template_path = format!(
+		"{}/{}",
+		template.runtime_directory().unwrap(),
+		template.template_name_without_provider()
+	);
 	extract_template_files(
 		template_path,
 		temp_dir.path(),
@@ -139,8 +146,9 @@ fn instantiate_tanssi_template(
 
 	// Add network configuration.
 	use askama::Template;
-	let network =
-		ContainerNetwork { node: format!("container-chain-{}-node", template.template_name_without_provider()) };
+	let network = ContainerNetwork {
+		node: format!("container-chain-{}-node", template.template_name_without_provider()),
+	};
 	write_to_file(&target.join("network.toml"), network.render().expect("infallible").as_ref())?;
 
 	// Ready project manifest.
