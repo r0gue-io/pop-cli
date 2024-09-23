@@ -22,6 +22,7 @@ tempfile.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 url.workspace = true
+hex.workspace = true 
 
 askama.workspace = true
 indexmap.workspace = true

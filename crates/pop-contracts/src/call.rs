@@ -4,8 +4,8 @@ use crate::{
 	errors::Error,
 	utils::{
 		get_manifest_path,
-		metadata::{process_function_args, FunctionType},
-		parse_account, parse_balance,
+		metadata::{get_messages, ContractFunction},
+		parse_balance,
 	},
 };
 use anyhow::Context;
@@ -15,7 +15,7 @@ use contract_extrinsics::{
 	ExtrinsicOptsBuilder, TokenMetadata,
 };
 use ink_env::{DefaultEnvironment, Environment};
-use pop_common::{create_signer, Config, DefaultConfig, Keypair};
+use pop_common::{create_signer, parse_account, Config, DefaultConfig, Keypair};
 use sp_weights::Weight;
 use std::path::PathBuf;
 use url::Url;

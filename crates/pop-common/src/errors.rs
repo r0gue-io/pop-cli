@@ -7,6 +7,8 @@ use thiserror::Error;
 pub enum Error {
 	#[error("Anyhow error: {0}")]
 	AnyhowError(#[from] anyhow::Error),
+	#[error("Failed to parse account address: {0}")]
+	AccountAddressParsing(String),
 	#[error("Configuration error: {0}")]
 	Config(String),
 	#[error("a git error occurred: {0}")]

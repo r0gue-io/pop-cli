@@ -4767,6 +4767,7 @@ dependencies = [
  "duct",
  "flate2",
  "glob",
+ "hex",
  "indexmap 2.4.0",
  "mockito",
  "pop-common",

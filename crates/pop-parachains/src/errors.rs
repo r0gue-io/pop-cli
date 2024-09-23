@@ -10,6 +10,8 @@ pub enum Error {
 	Aborted,
 	#[error("Anyhow error: {0}")]
 	AnyhowError(#[from] anyhow::Error),
+	#[error("The `Call` property is missing from the call variant")]
+	CallMissing,
 	#[error("{0}")]
 	CommonError(#[from] pop_common::Error),
 	#[error("Configuration error: {0}")]
@@ -18,6 +20,8 @@ pub enum Error {
 	CurrentDirAccess,
 	#[error("Failed to parse the endowment value")]
 	EndowmentError,
+	#[error("Failed decode a value")]
+	FromHexError(#[from] hex::FromHexError),
 	#[error("IO error: {0}")]
 	IO(#[from] std::io::Error),
 	#[error("JSON error: {0}")]
@@ -34,10 +38,14 @@ pub enum Error {
 	OrchestratorError(#[from] OrchestratorError),
 	#[error("Failed to create pallet directory")]
 	PalletDirCreation,
+	#[error("The `Pallet` property is missing from the call variant")]
+	PalletMissing,
 	#[error("Failed to find the pallet {0}")]
 	PalletNotFound(String),
 	#[error("Failed to parse the response")]
 	ParsingResponseError(#[from] scale_decode::Error),
+	#[error("Failed to parse the argument {0}")]
+	ParsingValueError(String),
 	#[error("Invalid path")]
 	PathError,
 	#[error("Failed to execute rustfmt")]

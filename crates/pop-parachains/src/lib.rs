@@ -16,14 +16,15 @@ pub use build::{
 	generate_plain_chain_spec, generate_raw_chain_spec, is_supported, ChainSpec,
 };
 pub use call::{
-	fetch_metadata, get_type_description, parse_chain_metadata, query, submit_extrinsic,
+	parse_string_into_scale_value, prepare_extrinsic, set_up_api, submit_extrinsic, Extrinsic,
+	Pallet,
 };
 pub use errors::Error;
 pub use indexmap::IndexSet;
 pub use new_pallet::{create_pallet_template, new_pallet_options::*, TemplatePalletConfig};
 pub use new_parachain::instantiate_template_dir;
 // External export from subxt.
-pub use subxt::{dynamic::Value, Metadata};
+pub use subxt::{dynamic::Value, Metadata, OnlineClient, SubstrateConfig};
 pub use templates::{Config, Parachain, Provider};
 pub use up::Zombienet;
 pub use utils::helpers::is_initial_endowment_valid;

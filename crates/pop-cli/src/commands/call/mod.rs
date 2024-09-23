@@ -6,6 +6,8 @@ use clap::{Args, Subcommand};
 pub(crate) mod contract;
 #[cfg(feature = "parachain")]
 pub(crate) mod parachain;
+#[cfg(feature = "parachain")]
+pub(crate) mod use_cases;
 
 /// Arguments for calling a smart contract.
 #[derive(Args)]
