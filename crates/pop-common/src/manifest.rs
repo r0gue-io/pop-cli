@@ -8,7 +8,6 @@ use std::{
 	fs::{read_to_string, write},
 	path::{Path, PathBuf},
 };
-use cargo_toml::Workspace;
 use toml_edit::{value, Array, DocumentMut, Item, Value};
 
 /// Collects the dependencies of the given manifests in a HashMap.
