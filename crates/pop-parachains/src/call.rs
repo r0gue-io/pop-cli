@@ -1,39 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::errors::Error;
-use clap::builder::Str;
 use pop_common::create_signer;
-use scale_info::form::PortableForm;
 use strum::{EnumMessage as _, EnumProperty as _, VariantArray as _};
 use strum_macros::{AsRefStr, Display, EnumMessage, EnumProperty, EnumString, VariantArray};
 use subxt::{
-	config::DefaultExtrinsicParamsBuilder,
-	dynamic::Value,
-	tx::{Payload, SubmittableExtrinsic},
-	OnlineClient, SubstrateConfig,
+	config::DefaultExtrinsicParamsBuilder, dynamic::Value, tx::SubmittableExtrinsic, OnlineClient,
+	SubstrateConfig,
 };
-/// A supported pallet.
-#[derive(AsRefStr, Clone, Debug, Display, EnumMessage, EnumString, Eq, PartialEq, VariantArray)]
-pub enum Pallet {
-	//Assets.
-	#[strum(serialize = "Assets")]
-	Assets,
-	//Balances.
-	#[strum(serialize = "Balances")]
-	Balances,
-	/// NFT.
-	#[strum(serialize = "Nfts")]
-	Nfts,
-}
-impl Pallet {
-	/// Get the list of extrinsics available.
-	pub fn extrinsics(&self) -> Vec<&Extrinsic> {
-		Extrinsic::VARIANTS
-			.iter()
-			.filter(|t| t.get_str("Pallet") == Some(self.as_ref()))
-			.collect()
-	}
-}
 
 #[derive(
 	AsRefStr,
@@ -99,13 +73,12 @@ impl Extrinsic {
 		self.get_str("Pallet").unwrap_or_default()
 	}
 }
-
-// pub fn parse_string_into_scale_value(str: &str) -> Result<Value, Error> {
-// 	let value = stringify::from_str(str)
-// 		.0
-// 		.map_err(|_| Error::ParsingValueError(str.to_string()))?;
-// 	Ok(value)
-// }
+pub fn supported_extrinsics(api: &OnlineClient<SubstrateConfig>) -> Vec<&Extrinsic> {
+	Extrinsic::VARIANTS
+		.iter()
+		.filter(|t| extrinsic_is_supported(api, t.pallet(), t.extrinsic_name()))
+		.collect()
+}
 
 pub async fn set_up_api(url: &str) -> Result<OnlineClient<SubstrateConfig>, Error> {
 	let api = OnlineClient::<SubstrateConfig>::from_url(url).await?;
@@ -147,57 +120,42 @@ fn decode_extrinsic(encoded_call_data: String) -> Result<Vec<u8>, Error> {
 	Ok(hex::decode(hex_data)?)
 }
 
-pub fn fetch_types(
+fn extrinsic_is_supported(
 	api: &OnlineClient<SubstrateConfig>,
 	pallet_name: &str,
 	extrinsic: &str,
-) -> Result<String, Error> {
+) -> bool {
 	let metadata = api.metadata();
-	let pallet_metadata = metadata
-		.pallet_by_name(pallet_name)
-		.ok_or(Error::PalletNotFound(pallet_name.to_string()))?;
-	let extrinsic_metadata = pallet_metadata
-		.call_variant_by_name(extrinsic)
-		.ok_or(Error::PalletNotFound(pallet_name.to_string()))?;
-	//println!("{:?}", extrinsic_metadata.fields);
-	Ok("".to_string())
+	// Try to get the pallet metadata by name
+	let pallet_metadata = match metadata.pallet_by_name(pallet_name) {
+		Some(pallet) => pallet,
+		None => return false, // Return false if pallet is not found
+	};
+	// Try to get the extrinsic metadata by name from the pallet
+	match pallet_metadata.call_variant_by_name(extrinsic) {
+		Some(_) => true, // Return true if extrinsic is found
+		None => false,   // Return false if extrinsic is not found
+	}
 }
 
 #[cfg(test)]
 mod tests {
-	use std::vec;
-
 	use super::*;
 	use anyhow::Result;
 	use pop_common::parse_account;
-	use subxt::ext::{
-		scale_encode::EncodeAsType,
-		scale_value::{self, value, Composite, Variant},
-	};
+	use std::vec;
 
 	#[tokio::test]
-	async fn fetch_works() -> Result<()> {
-		let api = set_up_api("ws://127.0.0.1:53677").await?;
-		let a = fetch_types(&api, "Nfts", "mint")?;
-		let me = api.metadata();
-		let ty = me.types().resolve(279);
-		println!("TYPE {:?}", ty);
+	async fn extrinsic_is_supported_works() -> Result<()> {
+		let api = set_up_api("wss://rpc1.paseo.popnetwork.xyz").await?;
+		assert!(extrinsic_is_supported(&api, "Nfts", "mint"));
+		assert!(!extrinsic_is_supported(&api, "Nfts", "mint_no_exist"));
 		Ok(())
 	}
 
-	// #[tokio::test]
-	// async fn query_works() -> Result<()> {
-	// 	let api = set_up_api("wss://rpc2.paseo.popnetwork.xyz").await?;
-	// 	let result = prepare_query(&api, "Assets", "Asset", vec!["50".into()]).await?;
-	// 	println!("{:?}", result);
-	// 	// query("Nfts", "Collection", &metadata)?;
-	// 	// query("Nfts", "NextCollectionId", &metadata)?;
-
-	// 	Ok(())
-	// }
 	#[tokio::test]
 	async fn extrinsic_works() -> Result<()> {
-		let api = set_up_api("ws://127.0.0.1:53677").await?;
+		let api = set_up_api("wss://rpc1.paseo.popnetwork.xyz").await?;
 		let bob = parse_account("5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty")?;
 		let alice = parse_account("5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY")?;
 		let owned_item = Value::unnamed_variant("Some".to_string(), vec![Value::u128(1)]);
@@ -210,19 +168,19 @@ mod tests {
 			"None",
 			vec![], // No fields for `None`
 		);
-		// let result = prepare_extrinsic(
-		// 	&api,
-		// 	"Nfts",
-		// 	"mint",
-		// 	vec![
-		// 		Value::u128(1),
-		// 		Value::u128(1),
-		// 		Value::unnamed_variant("Id", vec![Value::from_bytes(bob)]),
-		// 		ni,
-		// 	],
-		// 	"//Alice",
-		// )
-		// .await?;
+		let result = prepare_extrinsic(
+			&api,
+			"Nfts",
+			"mint",
+			vec![
+				Value::u128(1),
+				Value::u128(1),
+				Value::unnamed_variant("Id", vec![Value::from_bytes(bob)]),
+				ni,
+			],
+			"//Alice",
+		)
+		.await?;
 
 		let max_supply = Value::unnamed_variant("Some".to_string(), vec![Value::u128(1)]);
 		let mint_type = Value::unnamed_variant("Issuer".to_string(), vec![]);
