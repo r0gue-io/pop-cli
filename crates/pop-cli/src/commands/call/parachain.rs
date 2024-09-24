@@ -103,9 +103,8 @@ async fn guide_user_to_call_chain(
 
 	match prepare_extrinsic(api, extrinsic.pallet(), extrinsic.extrinsic_name(), args, &suri).await
 	{
-		Ok(encoded_call_data) => {
-			Ok(CallParachainCommand { extrinsic: Some(encoded_call_data), url, suri })
-		},
+		Ok(encoded_call_data) =>
+			Ok(CallParachainCommand { extrinsic: Some(encoded_call_data), url, suri }),
 		Err(e) => Err(anyhow!(format!("{}", e.to_string()))),
 	}
 }
@@ -127,9 +126,9 @@ async fn execute_extrinsic(
 	}
 	let spinner = cliclack::spinner();
 	spinner.start("Submitting the extrinsic...");
-	// TODO: Handle error
 	match submit_extrinsic(api.clone(), extrinsic).await {
 		Ok(result) => {
+			console::Term::stderr().clear_last_lines(1)?;
 			display_message(
 				&format!("Extrinsic submitted successfully with hash: {:?}", result),
 				true,
@@ -137,6 +136,7 @@ async fn execute_extrinsic(
 			)?;
 		},
 		Err(e) => {
+			console::Term::stderr().clear_last_lines(1)?;
 			display_message(&format!("{}", e), false, cli)?;
 		},
 	}
@@ -172,7 +172,7 @@ fn prompt_arguments(extrinsic: &Extrinsic, cli: &mut impl cli::traits::Cli) -> R
 			args.push(prompt_for_numeric_value("Enter the Asset ID", cli)?);
 			args.push(prompt_for_account("Enter the Admin Address", cli)?);
 			args.push(prompt_for_numeric_value("Enter the Minimum Balance", cli)?);
-			// TODO: ADD METEDATA
+			// TODO: ADD METADATA
 		},
 		Extrinsic::MintAsset => {
 			args.push(prompt_for_numeric_value("Enter the Asset ID", cli)?);
@@ -228,13 +228,12 @@ fn prompt_for_numeric_optional_value(
 		.placeholder("0 or (empty for None)")
 		.validate(|input: &String| match input.parse::<u128>() {
 			Ok(_) => Ok(()),
-			Err(_) => {
+			Err(_) =>
 				if input.is_empty() || input == "None" {
 					Ok(())
 				} else {
 					Err("Invalid value.")
-				}
-			},
+				},
 		})
 		.required(false)
 		.interact()?;

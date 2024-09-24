@@ -109,7 +109,7 @@ pub async fn submit_extrinsic(
 	let signed_extrinsic: SubmittableExtrinsic<SubstrateConfig, OnlineClient<SubstrateConfig>> =
 		SubmittableExtrinsic::from_bytes(api, extrinsic);
 	let result = signed_extrinsic.submit_and_watch().await?;
-	Ok(result.extrinsic_hash().to_string())
+	Ok(format!("{:?}", result.extrinsic_hash()))
 }
 
 fn encode_extrinsic(encoded_call_data: Vec<u8>) -> String {
@@ -132,18 +132,16 @@ fn extrinsic_is_supported(
 		None => return false, // Return false if pallet is not found
 	};
 	// Try to get the extrinsic metadata by name from the pallet
-	match pallet_metadata.call_variant_by_name(extrinsic) {
-		Some(_) => true, // Return true if extrinsic is found
-		None => false,   // Return false if extrinsic is not found
+	if pallet_metadata.call_variant_by_name(extrinsic).is_some() {
+		return true;
 	}
+	false
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
 	use anyhow::Result;
-	use pop_common::parse_account;
-	use std::vec;
 
 	#[tokio::test]
 	async fn extrinsic_is_supported_works() -> Result<()> {
