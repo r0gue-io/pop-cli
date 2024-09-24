@@ -4774,7 +4774,6 @@ dependencies = [
  "reqwest 0.12.5",
  "scale-info",
  "scale-typegen-description",
- "scale-value",
  "serde_json",
  "strum 0.26.3",
  "strum_macros 0.26.4",
