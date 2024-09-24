@@ -8,6 +8,7 @@ use std::{
 	fs::{read_to_string, write},
 	path::{Path, PathBuf},
 };
+use cargo_toml::Workspace;
 use toml_edit::{value, Array, DocumentMut, Item, Value};
 
 /// Collects the dependencies of the given manifests in a HashMap.
@@ -134,13 +135,22 @@ pub fn extend_dependencies_from_manifests_with_version_source(
 	tag: Option<String>,
 	dependencies_from: &[&Manifest],
 	local_exceptions: Option<&[(String, String)]>,
-) {
-	let mut target_manifest_workspace = target.workspace.clone().unwrap();
-	let source_manifest_workspace = source.workspace.clone().unwrap();
+) -> Result<(), Error> {
+
+	let mut target_manifest_workspace = target.workspace.clone().ok_or_else(|| {
+		Error::ManifestError(cargo_toml::Error::WorkspaceIntegrity(
+			"Could not parse manifest's workspace.".into()
+		))
+	})?;
+
+	let source_manifest_workspace = source.workspace.clone().ok_or_else(|| {
+		Error::ManifestError(cargo_toml::Error::WorkspaceIntegrity(
+			"Could not parse manifest's workspace.".into()
+		))
+	})?;
 
 	// Collect dependencies.
-	let dependencies = collect_manifest_dependencies(dependencies_from)
-		.expect("Manifests do include dependencies.");
+	let dependencies = collect_manifest_dependencies(dependencies_from)?;
 
 	// Update dependencies.
 	let updated_dependencies: Vec<_> = dependencies
@@ -151,7 +161,8 @@ pub fn extend_dependencies_from_manifests_with_version_source(
 					let mut detail = d.clone();
 					if d.path.is_some() {
 						detail.path = None;
-						detail.git = source_manifest_workspace.package.clone().unwrap().repository;
+						detail.git = source_manifest_workspace.package.clone()
+							.expect("Dependencies exist in source manifest.").repository;
 						if let Some(tag) = &tag {
 							match tag.as_str() {
 								"master" => detail.branch = Some("master".to_string()),
@@ -183,6 +194,7 @@ pub fn extend_dependencies_from_manifests_with_version_source(
 		}
 	}
 	target.workspace = Some(target_manifest_workspace);
+	Ok(())
 }
 
 #[cfg(test)]
