@@ -53,7 +53,7 @@ pub enum Extrinsic {
 	#[strum(
 		serialize = "transfer",
 		message = "transfer_allow_death",
-		detailed_message = "Transfer",
+		detailed_message = "Transfer Balance",
 		props(Pallet = "Balances")
 	)]
 	Transfer,
