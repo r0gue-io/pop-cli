@@ -28,7 +28,6 @@ askama.workspace = true
 indexmap.workspace = true
 reqwest.workspace = true
 scale-info.workspace = true
-scale-typegen-description.workspace = true
 subxt.workspace = true
 symlink.workspace = true
 toml_edit.workspace = true
