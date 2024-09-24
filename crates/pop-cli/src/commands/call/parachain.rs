@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::cli::{self, traits::*};
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use clap::Args;
 use pop_common::parse_account;
 use pop_parachains::{
-	prepare_extrinsic, set_up_api, submit_extrinsic, Extrinsic, OnlineClient, Pallet,
+	prepare_extrinsic, set_up_api, submit_extrinsic, supported_extrinsics, Extrinsic, OnlineClient,
 	SubstrateConfig, Value,
 };
-use strum::VariantArray;
 
 #[derive(Args, Clone)]
 pub struct CallParachainCommand {
@@ -16,7 +15,7 @@ pub struct CallParachainCommand {
 	#[clap(long, short)]
 	extrinsic: Option<String>,
 	/// Websocket endpoint of a node.
-	#[clap(name = "url", long, value_parser, default_value = "ws://localhost:9944")]
+	#[clap(name = "url", long, value_parser, default_value = "ws://127.0.0.1:9944")]
 	url: String,
 	/// Secret key URI for the account signing the extrinsic.
 	///
@@ -25,9 +24,6 @@ pub struct CallParachainCommand {
 	/// - with a password "//Alice///SECRET_PASSWORD"
 	#[clap(name = "suri", long, short, default_value = "//Alice")]
 	suri: String,
-	// pallet: Option<String>,
-	// ext: Option<String>,
-	// args: Option<Vec<Value>>,
 }
 
 impl CallParachainCommand {
@@ -35,7 +31,13 @@ impl CallParachainCommand {
 	pub(crate) async fn execute(mut self) -> Result<()> {
 		let (api, url) = self.set_up_api(&mut cli::Cli).await?;
 		let call_config = if self.extrinsic.is_none() {
-			guide_user_to_call_chain(&api, url, &mut cli::Cli).await?
+			match guide_user_to_call_chain(&api, url, &mut cli::Cli).await {
+				Ok(call_config) => call_config,
+				Err(e) => {
+					display_message(&format!("{}", e), false, &mut cli::Cli)?;
+					return Ok(());
+				},
+			}
 		} else {
 			self.clone()
 		};
@@ -51,8 +53,8 @@ impl CallParachainCommand {
 		let url: String = if self.extrinsic.is_none() {
 			// Prompt for contract location.
 			cli.input("Which chain would you like to interact with?")
-				.placeholder("ws://127.0.0.1:53677")
-				.default_input("ws://127.0.0.1:53677")
+				.placeholder("wss://rpc1.paseo.popnetwork.xyz")
+				.default_input("wss://rpc1.paseo.popnetwork.xyz")
 				.interact()?
 		} else {
 			self.url.clone()
@@ -80,19 +82,10 @@ async fn guide_user_to_call_chain(
 	url: String,
 	cli: &mut impl cli::traits::Cli,
 ) -> anyhow::Result<CallParachainCommand> {
-	// let pallets = Pallet::VARIANTS;
-	// let pallet = {
-	// 	let mut prompt = cli.select("Select the pallet to call:");
-	// 	for pallet_item in pallets {
-	// 		prompt = prompt.item(pallet_item.clone(), pallet_item.as_ref(), "");
-	// 	}
-	// 	prompt.interact()?
-	// };
-
 	let extrinsic = {
 		let mut prompt_extrinsic = cli.select("Select the extrinsic to call:");
 		//for extrinsic in pallet.extrinsics() {
-		for extrinsic in Extrinsic::VARIANTS {
+		for extrinsic in supported_extrinsics(api) {
 			prompt_extrinsic = prompt_extrinsic.item(
 				extrinsic.clone(),
 				extrinsic.description(),
@@ -107,10 +100,14 @@ async fn guide_user_to_call_chain(
 		.placeholder("//Alice")
 		.default_input("//Alice")
 		.interact()?;
-	// TODO: Handle error
-	let encoded_call_data =
-		prepare_extrinsic(api, extrinsic.pallet(), extrinsic.extrinsic_name(), args, &suri).await?;
-	Ok(CallParachainCommand { extrinsic: Some(encoded_call_data), url, suri })
+
+	match prepare_extrinsic(api, extrinsic.pallet(), extrinsic.extrinsic_name(), args, &suri).await
+	{
+		Ok(encoded_call_data) => {
+			Ok(CallParachainCommand { extrinsic: Some(encoded_call_data), url, suri })
+		},
+		Err(e) => Err(anyhow!(format!("{}", e.to_string()))),
+	}
 }
 
 /// Executes the extrinsic or query.
@@ -140,10 +137,9 @@ async fn execute_extrinsic(
 			)?;
 		},
 		Err(e) => {
-			display_message(&format!("Error submitting extrinsic: {}", e), false, cli)?;
+			display_message(&format!("{}", e), false, cli)?;
 		},
 	}
-	spinner.stop("message");
 	// Repeat call.
 	if prompt_to_repeat_call {
 		let another_call: bool = cli
