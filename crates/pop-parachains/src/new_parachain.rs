@@ -189,7 +189,7 @@ fn instantiate_tanssi_template(
 			tag.clone(),
 			&dependencies_from,
 			Some(&local_dependencies),
-		);
+		)?;
 
 		let target_manifest = toml_edit::ser::to_string_pretty(&target_manifest)?;
 		fs::write(&target.join("Cargo.toml"), target_manifest)?;

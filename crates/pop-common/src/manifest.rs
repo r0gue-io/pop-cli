@@ -135,16 +135,15 @@ pub fn extend_dependencies_from_manifests_with_version_source(
 	dependencies_from: &[&Manifest],
 	local_exceptions: Option<&[(String, String)]>,
 ) -> Result<(), Error> {
-
 	let mut target_manifest_workspace = target.workspace.clone().ok_or_else(|| {
 		Error::ManifestError(cargo_toml::Error::WorkspaceIntegrity(
-			"Could not parse manifest's workspace.".into()
+			"Could not parse manifest's workspace.".into(),
 		))
 	})?;
 
 	let source_manifest_workspace = source.workspace.clone().ok_or_else(|| {
 		Error::ManifestError(cargo_toml::Error::WorkspaceIntegrity(
-			"Could not parse manifest's workspace.".into()
+			"Could not parse manifest's workspace.".into(),
 		))
 	})?;
 
@@ -160,8 +159,11 @@ pub fn extend_dependencies_from_manifests_with_version_source(
 					let mut detail = d.clone();
 					if d.path.is_some() {
 						detail.path = None;
-						detail.git = source_manifest_workspace.package.clone()
-							.expect("Dependencies exist in source manifest.").repository;
+						detail.git = source_manifest_workspace
+							.package
+							.clone()
+							.expect("Dependencies exist in source manifest.")
+							.repository;
 						if let Some(tag) = &tag {
 							match tag.as_str() {
 								"master" => detail.branch = Some("master".to_string()),
