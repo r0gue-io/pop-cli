@@ -15,10 +15,7 @@ pub use build::{
 	binary_path, build_parachain, export_wasm_file, generate_genesis_state_file,
 	generate_plain_chain_spec, generate_raw_chain_spec, is_supported, ChainSpec,
 };
-pub use call::{
-	parse_string_into_scale_value, prepare_extrinsic, set_up_api, submit_extrinsic, Extrinsic,
-	Pallet,
-};
+pub use call::{prepare_extrinsic, set_up_api, submit_extrinsic, Extrinsic, Pallet};
 pub use errors::Error;
 pub use indexmap::IndexSet;
 pub use new_pallet::{create_pallet_template, new_pallet_options::*, TemplatePalletConfig};
