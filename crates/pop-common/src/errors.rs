@@ -7,18 +7,24 @@ use thiserror::Error;
 pub enum Error {
 	#[error("Anyhow error: {0}")]
 	AnyhowError(#[from] anyhow::Error),
+	#[error("Failed to parse account address: {0}")]
+	AccountAddressParsing(String),
 	#[error("Configuration error: {0}")]
 	Config(String),
 	#[error("a git error occurred: {0}")]
 	Git(String),
 	#[error("IO error: {0}")]
 	IO(#[from] std::io::Error),
+	#[error("Failed to create keypair from URI: {0}")]
+	KeyPairCreation(String),
 	#[error("Failed to get manifest path: {0}")]
 	ManifestPath(String),
 	#[error("Manifest error: {0}")]
 	ManifestError(#[from] cargo_toml::Error),
 	#[error("ParseError error: {0}")]
 	ParseError(#[from] url::ParseError),
+	#[error("Failed to parse secret URI: {0}")]
+	ParseSecretURI(String),
 	#[error("SourceError error: {0}")]
 	SourceError(#[from] sourcing::Error),
 	#[error("TemplateError error: {0}")]

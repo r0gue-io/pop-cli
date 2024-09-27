@@ -1,22 +1,20 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::errors::Error;
-use contract_build::util::decode_hex;
-use sp_core::Bytes;
+use crate::{errors::Error, Config, DefaultConfig};
+use std::str::FromStr;
 use subxt_signer::{sr25519::Keypair, SecretUri};
 
+pub fn parse_account(account: &str) -> Result<<DefaultConfig as Config>::AccountId, Error> {
+	<DefaultConfig as Config>::AccountId::from_str(account)
+		.map_err(|e| Error::AccountAddressParsing(format!("{}", e)))
+}
+
 /// Create a Signer from a secret URI.
-pub(crate) fn create_signer(suri: &str) -> Result<Keypair, Error> {
+pub fn create_signer(suri: &str) -> Result<Keypair, Error> {
 	let uri = <SecretUri as std::str::FromStr>::from_str(suri)
 		.map_err(|e| Error::ParseSecretURI(format!("{}", e)))?;
 	let keypair = Keypair::from_uri(&uri).map_err(|e| Error::KeyPairCreation(format!("{}", e)))?;
 	Ok(keypair)
-}
-
-/// Parse hex encoded bytes.
-pub fn parse_hex_bytes(input: &str) -> Result<Bytes, Error> {
-	let bytes = decode_hex(input).map_err(|e| Error::HexParsing(format!("{}", e)))?;
-	Ok(bytes.into())
 }
 
 #[cfg(test)]
@@ -41,16 +39,18 @@ mod tests {
 	}
 
 	#[test]
-	fn parse_hex_bytes_works() -> Result<(), Error> {
-		let input_in_hex = "48656c6c6f";
-		let result = parse_hex_bytes(input_in_hex)?;
-		assert_eq!(result, Bytes(vec![72, 101, 108, 108, 111]));
+	fn parse_account_works() -> Result<(), Error> {
+		let account = parse_account("5CLPm1CeUvJhZ8GCDZCR7nWZ2m3XXe4X5MtAQK69zEjut36A")?;
+		assert_eq!(account.to_string(), "5CLPm1CeUvJhZ8GCDZCR7nWZ2m3XXe4X5MtAQK69zEjut36A");
 		Ok(())
 	}
 
 	#[test]
-	fn parse_hex_bytes_fails_wrong_input() -> Result<(), Error> {
-		assert!(matches!(parse_hex_bytes("wronghexvalue"), Err(Error::HexParsing(..))));
+	fn parse_account_fails_wrong_value() -> Result<(), Error> {
+		assert!(matches!(
+			parse_account("wrongaccount"),
+			Err(super::Error::AccountAddressParsing(..))
+		));
 		Ok(())
 	}
 }

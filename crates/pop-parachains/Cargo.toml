@@ -22,10 +22,13 @@ tempfile.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 url.workspace = true
+hex.workspace = true 
 
 askama.workspace = true
 indexmap.workspace = true
 reqwest.workspace = true
+scale-info.workspace = true
+subxt.workspace = true
 symlink.workspace = true
 toml_edit.workspace = true
 walkdir.workspace = true

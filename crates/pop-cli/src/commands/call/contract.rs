@@ -3,9 +3,10 @@
 use crate::cli::{self, traits::*};
 use anyhow::{anyhow, Result};
 use clap::Args;
+use pop_common::parse_account;
 use pop_contracts::{
-	call_smart_contract, dry_run_call, dry_run_gas_estimate_call, get_messages, parse_account,
-	set_up_call, CallOpts,
+	call_smart_contract, dry_run_call, dry_run_gas_estimate_call, get_messages, set_up_call,
+	CallOpts,
 };
 use sp_weights::Weight;
 use std::path::PathBuf;
