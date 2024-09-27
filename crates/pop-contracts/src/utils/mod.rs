@@ -51,7 +51,7 @@ pub fn canonicalized_path(target: &Path) -> Result<PathBuf, Error> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use anyhow::{Error, Result};
+	use anyhow::Result;
 	use std::fs;
 
 	fn setup_test_environment() -> Result<tempfile::TempDir, Error> {
@@ -106,7 +106,7 @@ mod tests {
 	}
 
 	#[test]
-	fn parse_hex_bytes_fails_wrong_input() -> Result<(), Error> {
+	fn parse_hex_bytes_fails_wrong_input() -> Result<()> {
 		assert!(matches!(parse_hex_bytes("wronghexvalue"), Err(Error::HexParsing(..))));
 		Ok(())
 	}
