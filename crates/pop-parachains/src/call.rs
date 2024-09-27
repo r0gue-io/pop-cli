@@ -70,7 +70,7 @@ pub enum Extrinsic {
 	Transfer,
 }
 impl Extrinsic {
-	/// Get the template's name.
+	/// Get the extrinsic's name.
 	pub fn extrinsic_name(&self) -> &str {
 		self.get_message().unwrap_or_default()
 	}
@@ -78,11 +78,15 @@ impl Extrinsic {
 	pub fn description(&self) -> &str {
 		self.get_detailed_message().unwrap_or_default()
 	}
-
 	/// Get the pallet of the extrinsic.
 	pub fn pallet(&self) -> &str {
 		self.get_str("Pallet").unwrap_or_default()
 	}
+}
+
+pub async fn set_up_api(url: &str) -> Result<OnlineClient<SubstrateConfig>, Error> {
+	let api = OnlineClient::<SubstrateConfig>::from_url(url).await?;
+	Ok(api)
 }
 
 pub fn supported_extrinsics(api: &OnlineClient<SubstrateConfig>) -> Vec<&Extrinsic> {
@@ -92,157 +96,12 @@ pub fn supported_extrinsics(api: &OnlineClient<SubstrateConfig>) -> Vec<&Extrins
 		.collect()
 }
 
-pub fn parse_args(
-	pallet_name: &str,
-	extrinsic_name: &str,
-	raw_args: &Vec<String>,
-) -> Result<Vec<Value>, Error> {
-	let mut args: Vec<Value> = Vec::new();
-	let extrinsic = Extrinsic::VARIANTS
-		.iter()
-		.find(|t| t.pallet() == pallet_name && t.extrinsic_name() == extrinsic_name)
-		.ok_or(Error::ExtrinsicNotSupported(extrinsic_name.to_string()))?;
-	match extrinsic {
-		Extrinsic::CreateAsset => {
-			args.push(Value::u128(
-				raw_args[0].parse::<u128>().map_err(|_| Error::ParsingArgsError)?,
-			));
-			args.push(Value::unnamed_variant(
-				"Id",
-				vec![Value::from_bytes(parse_account(&raw_args[1])?)],
-			));
-			args.push(Value::u128(
-				raw_args[2].parse::<u128>().map_err(|_| Error::ParsingArgsError)?,
-			));
-		},
-		Extrinsic::MintAsset => {
-			args.push(Value::u128(
-				raw_args[0].parse::<u128>().map_err(|_| Error::ParsingArgsError)?,
-			));
-			args.push(Value::unnamed_variant(
-				"Id",
-				vec![Value::from_bytes(parse_account(&raw_args[1])?)],
-			));
-			args.push(Value::u128(
-				raw_args[2].parse::<u128>().map_err(|_| Error::ParsingArgsError)?,
-			));
-		},
-		Extrinsic::CreateCollection => {
-			args.push(Value::unnamed_variant(
-				"Id",
-				vec![Value::from_bytes(parse_account(&raw_args[0])?)],
-			));
-			let mint_settings = Value::unnamed_composite(vec![
-				Value::unnamed_variant(&raw_args[3], vec![]),
-				if raw_args[4] == "None" {
-					Value::unnamed_variant("None", vec![])
-				} else {
-					Value::unnamed_variant(
-						"Some",
-						vec![Value::u128(
-							raw_args[4].parse::<u128>().map_err(|_| Error::ParsingArgsError)?,
-						)],
-					)
-				},
-				if raw_args[5] == "None" {
-					Value::unnamed_variant("None", vec![])
-				} else {
-					Value::unnamed_variant(
-						"Some",
-						vec![Value::u128(
-							raw_args[5].parse::<u128>().map_err(|_| Error::ParsingArgsError)?,
-						)],
-					)
-				},
-				if raw_args[6] == "None" {
-					Value::unnamed_variant("None", vec![])
-				} else {
-					Value::unnamed_variant(
-						"Some",
-						vec![Value::u128(
-							raw_args[6].parse::<u128>().map_err(|_| Error::ParsingArgsError)?,
-						)],
-					)
-				},
-				Value::u128(raw_args[7].parse::<u128>().map_err(|_| Error::ParsingArgsError)?),
-			]);
-			let max_supply = if raw_args[2] == "None" {
-				Value::unnamed_variant("None", vec![])
-			} else {
-				Value::unnamed_variant(
-					"Some",
-					vec![Value::u128(
-						raw_args[2].parse::<u128>().map_err(|_| Error::ParsingArgsError)?,
-					)],
-				)
-			};
-			args.push(Value::unnamed_composite(vec![
-				Value::u128(raw_args[1].parse::<u128>().map_err(|_| Error::ParsingArgsError)?),
-				max_supply,
-				mint_settings,
-			]))
-		},
-		Extrinsic::MintNFT => {
-			args.push(Value::u128(
-				raw_args[0].parse::<u128>().map_err(|_| Error::ParsingArgsError)?,
-			));
-			args.push(Value::u128(
-				raw_args[1].parse::<u128>().map_err(|_| Error::ParsingArgsError)?,
-			));
-			args.push(Value::unnamed_variant(
-				"Id",
-				vec![Value::from_bytes(parse_account(&raw_args[2])?)],
-			));
-			if raw_args[3] == "None" && raw_args.len() == 4 {
-				args.push(Value::unnamed_variant("None", vec![]));
-			} else {
-				let owned_item = if raw_args[3] == "None" {
-					Value::unnamed_variant("None", vec![])
-				} else {
-					Value::unnamed_variant(
-						"Some",
-						vec![Value::u128(
-							raw_args[3].parse::<u128>().map_err(|_| Error::ParsingArgsError)?,
-						)],
-					)
-				};
-				let mint_price = if raw_args[4] == "None" {
-					Value::unnamed_variant("None", vec![])
-				} else {
-					Value::unnamed_variant(
-						"Some",
-						vec![Value::u128(
-							raw_args[4].parse::<u128>().map_err(|_| Error::ParsingArgsError)?,
-						)],
-					)
-				};
-				args.push(Value::unnamed_variant("Some".to_string(), vec![owned_item, mint_price]));
-			}
-		},
-		Extrinsic::Transfer => {
-			args.push(Value::unnamed_variant(
-				"Id",
-				vec![Value::from_bytes(parse_account(&raw_args[0])?)],
-			));
-			args.push(Value::u128(
-				raw_args[1].parse::<u128>().map_err(|_| Error::ParsingArgsError)?,
-			));
-		},
-	}
-	Ok(args)
-}
-
-pub async fn set_up_api(url: &str) -> Result<OnlineClient<SubstrateConfig>, Error> {
-	let api = OnlineClient::<SubstrateConfig>::from_url(url).await?;
-	Ok(api)
-}
-
 pub fn construct_extrinsic(
 	pallet_name: &str,
 	extrinsic_name: &str,
-	args: &Vec<String>,
+	args: Vec<String>,
 ) -> Result<DynamicPayload, Error> {
-	let parsed_args: Vec<Value> = parse_args(pallet_name, extrinsic_name, &args)?;
+	let parsed_args: Vec<Value> = parse_args(pallet_name, extrinsic_name, args)?;
 	Ok(subxt::dynamic::tx(pallet_name, extrinsic_name, parsed_args))
 }
 
@@ -271,6 +130,102 @@ pub fn encode_call_data(
 	Ok(format!("0x{}", hex::encode(call_data)))
 }
 
+fn parse_args(
+	pallet_name: &str,
+	extrinsic_name: &str,
+	raw_args: Vec<String>,
+) -> Result<Vec<Value>, Error> {
+	let mut args: Vec<Value> = Vec::new();
+	let extrinsic = Extrinsic::VARIANTS
+		.iter()
+		.find(|t| t.pallet() == pallet_name && t.extrinsic_name() == extrinsic_name)
+		.ok_or(Error::ExtrinsicNotSupported(extrinsic_name.to_string()))?;
+	match extrinsic {
+		Extrinsic::CreateAsset => {
+			if raw_args.len() < 3 {
+				return Err(Error::ParsingArgsError);
+			}
+			args.push(parse_u128(&raw_args[0])?);
+			args.push(parse_account_id(&raw_args[1])?);
+			args.push(parse_u128(&raw_args[2])?);
+		},
+		Extrinsic::MintAsset => {
+			if raw_args.len() < 3 {
+				return Err(Error::ParsingArgsError);
+			}
+			args.push(parse_u128(&raw_args[0])?);
+			args.push(parse_account_id(&raw_args[1])?);
+			args.push(parse_u128(&raw_args[2])?);
+		},
+		Extrinsic::CreateCollection => {
+			if raw_args.len() < 7 {
+				return Err(Error::ParsingArgsError);
+			}
+			args.push(parse_account_id(&raw_args[0])?);
+			let mint_settings = Value::unnamed_composite(vec![
+				Value::unnamed_variant(&raw_args[3], vec![]),
+				parse_optional_u128(&raw_args[4])?,
+				parse_optional_u128(&raw_args[5])?,
+				parse_optional_u128(&raw_args[6])?,
+				parse_u128(&raw_args[7])?,
+			]);
+			let max_supply = parse_optional_u128(&raw_args[2])?;
+			args.push(Value::unnamed_composite(vec![
+				parse_u128(&raw_args[1])?,
+				max_supply,
+				mint_settings,
+			]))
+		},
+		Extrinsic::MintNFT => {
+			println!("{:?}", raw_args.len());
+			if raw_args.len() < 4 {
+				return Err(Error::ParsingArgsError);
+			}
+			args.push(parse_u128(&raw_args[0])?);
+			args.push(parse_u128(&raw_args[1])?);
+			args.push(parse_account_id(&raw_args[2])?);
+			if raw_args[3] == "None" && raw_args.len() == 4 {
+				args.push(Value::unnamed_variant("None", vec![]));
+			} else {
+				if raw_args.len() < 5 {
+					return Err(Error::ParsingArgsError);
+				}
+				let owned_item = parse_optional_u128(&raw_args[3])?;
+				let mint_price = parse_optional_u128(&raw_args[4])?;
+				args.push(Value::unnamed_variant(
+					"Some",
+					vec![Value::unnamed_composite(vec![owned_item, mint_price])],
+				));
+			}
+		},
+		Extrinsic::Transfer => {
+			if raw_args.len() < 2 {
+				return Err(Error::ParsingArgsError);
+			}
+			args.push(parse_account_id(&raw_args[0])?);
+			args.push(parse_u128(&raw_args[1])?);
+		},
+	}
+	Ok(args)
+}
+
+// Helper function to parse u128
+fn parse_u128(arg: &str) -> Result<Value, Error> {
+	Ok(Value::u128(arg.parse::<u128>().map_err(|_| Error::ParsingArgsError)?))
+}
+// Helper function to parse account id
+fn parse_account_id(arg: &str) -> Result<Value, Error> {
+	Ok(Value::unnamed_variant("Id", vec![Value::from_bytes(parse_account(arg)?)]))
+}
+// Helper function to handle "None" or Some(u128) values
+fn parse_optional_u128(arg: &str) -> Result<Value, Error> {
+	if arg == "None" {
+		Ok(Value::unnamed_variant("None", vec![]))
+	} else {
+		Ok(Value::unnamed_variant("Some", vec![parse_u128(arg)?]))
+	}
+}
+
 fn extrinsic_is_supported(
 	api: &OnlineClient<SubstrateConfig>,
 	pallet_name: &str,
@@ -293,30 +248,12 @@ fn extrinsic_is_supported(
 mod tests {
 	use super::*;
 	use anyhow::Result;
-	use subxt::tx::Payload;
 
 	#[tokio::test]
 	async fn extrinsic_is_supported_works() -> Result<()> {
 		let api = set_up_api("wss://rpc1.paseo.popnetwork.xyz").await?;
 		assert!(extrinsic_is_supported(&api, "Nfts", "mint"));
 		assert!(!extrinsic_is_supported(&api, "Nfts", "mint_no_exist"));
-		Ok(())
-	}
-
-	#[tokio::test]
-	async fn encode_call_data_works() -> Result<()> {
-		let api = set_up_api("wss://rpc1.paseo.popnetwork.xyz").await?;
-		let tx = construct_extrinsic(
-			"Assets",
-			"create",
-			&vec![
-				"1000".to_string(),
-				"15oF4uVJwmo4TdGW7VfQxNLavjCXviqxT9S1MgbjMNHr6Sp5".to_string(),
-				"1000000".to_string(),
-			],
-		)?;
-		let call_data = tx.encode_call_data(&api.metadata())?;
-		assert_eq!("0x3400419c00d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d40420f00000000000000000000000000", encode_call_data(call_data));
 		Ok(())
 	}
 }

@@ -35,7 +35,6 @@ impl CallParachainCommand {
 	/// Executes the command.
 	pub(crate) async fn execute(mut self) -> Result<()> {
 		let (api, url) = self.set_up_api(&mut cli::Cli).await?;
-		// TODO: Option to send call_data, sign it and send it.
 		let mut call_config = if self.pallet.is_none() && self.extrinsic.is_none() {
 			match guide_user_to_call_chain(&api, "", &url, &mut cli::Cli).await {
 				Ok(call_config) => call_config,
@@ -83,7 +82,7 @@ impl CallParachainCommand {
 		if let Some(extrinsic) = &self.extrinsic {
 			full_message.push_str(&format!(" --extrinsic {}", extrinsic));
 		}
-		if self.args.len() > 0 {
+		if !self.args.is_empty() {
 			full_message.push_str(&format!(" --args {}", self.args.join(" ")));
 		}
 		full_message.push_str(&format!(" --url {}", self.url));
@@ -102,7 +101,7 @@ async fn guide_user_to_call_chain(
 	cli: &mut impl cli::traits::Cli,
 ) -> anyhow::Result<CallParachainCommand> {
 	let extrinsic = {
-		let mut prompt_extrinsic = cli.select("What would you like to do on Polkadot?");
+		let mut prompt_extrinsic = cli.select("What would you like to do?");
 		//for extrinsic in pallet.extrinsics() {
 		for extrinsic in supported_extrinsics(api) {
 			prompt_extrinsic = prompt_extrinsic.item(
@@ -141,18 +140,14 @@ async fn prepare_and_submit_extrinsic(
 			return Err(anyhow!("Please specify the pallet to call."));
 		},
 	};
-	let tx = match construct_extrinsic(&pallet, &extrinsic, &call_config.args) {
+	let tx = match construct_extrinsic(&pallet, &extrinsic, call_config.args.clone()) {
 		Ok(tx) => tx,
 		Err(e) => {
-			display_message(
-				&format!("Error parsing the arguments: {}", e.to_string()),
-				false,
-				&mut cli::Cli,
-			)?;
+			display_message(&format!("Error parsing the arguments: {}", e), false, &mut cli::Cli)?;
 			return Ok(());
 		},
 	};
-	cli.info(format!("Call data {}", encode_call_data(&api, &tx)?))?;
+	cli.info(format!("Encoded call data: {}", encode_call_data(&api, &tx)?))?;
 	if call_config.suri.is_empty() {
 		call_config.suri = cli::Cli
 			.input("Who is going to sign the extrinsic:")
@@ -163,7 +158,7 @@ async fn prepare_and_submit_extrinsic(
 	cli.info(call_config.display())?;
 	if !cli.confirm("Do you want to submit the call?").initial_value(true).interact()? {
 		display_message(
-			&format!("Extrinsic: {} not submitted, user cancel the operation", extrinsic),
+			&format!("Extrinsic {} was not submitted. Operation canceled by the user.", extrinsic),
 			false,
 			cli,
 		)?;
@@ -273,8 +268,6 @@ fn prompt_for_account(message: &str, cli: &mut impl cli::traits::Cli) -> Result<
 		.placeholder("e.g. 5DYs7UGBm2LuX4ryvyqfksozNAW5V47tPbGiVgnjYWCZ29bt")
 		.required(true)
 		.interact()?;
-	//let account_id = parse_account(&account)?;
-	// TODO: Support other Adresses? Let the user pick Id, Address, or Index
 	Ok(account)
 }
 fn prompt_for_numeric_optional_value(
@@ -286,22 +279,19 @@ fn prompt_for_numeric_optional_value(
 		.placeholder("0 or (empty for None)")
 		.validate(|input: &String| match input.parse::<u128>() {
 			Ok(_) => Ok(()),
-			Err(_) => {
+			Err(_) =>
 				if input.is_empty() || input == "None" {
 					Ok(())
 				} else {
 					Err("Invalid value.")
-				}
-			},
+				},
 		})
 		.required(false)
 		.interact()?;
 	if value.is_empty() || value == "None" {
 		Ok("None".to_string())
-	//Ok(Value::unnamed_variant("None", vec![]))
 	} else {
 		Ok(value)
-		//Ok(Value::unnamed_variant("Some", vec![Value::u128(value.parse::<u128>()?)]))
 	}
 }
 fn prompt_for_variant_value(
