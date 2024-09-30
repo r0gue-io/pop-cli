@@ -58,7 +58,7 @@ pub(crate) fn expand_pallet_config_trait(
 
 pub(crate) fn expand_pallet_config_preludes(ast: &mut File, type_name: &str, default_value: &str) {
 	let type_name = Ident::new(&capitalize_str(type_name), Span::call_site());
-	let default_value: Type = parse_quote! {#default_value};
+	let default_value = Ident::new(default_value, Span::call_site());
 
 	for item in &mut ast.items {
 		match item {
@@ -204,7 +204,7 @@ pub(crate) fn expand_runtime_add_impl_block(
 		.collect();
 	let parameter_idents: Vec<Ident> = parameter_types
 		.iter()
-		.map(|item| Ident::new(&item.ident, Span::call_site()))
+		.map(|item| Ident::new(&capitalize_str(&item.ident), Span::call_site()))
 		.collect();
 	let parameter_types_types: Vec<&Type> =
 		parameter_types.iter().map(|item| &item.type_).collect();
@@ -252,7 +252,7 @@ pub(crate) fn expand_runtime_add_type_to_impl_block(
 	pallet_name: &str,
 ) {
 	let type_name = Ident::new(&capitalize_str(type_name), Span::call_site());
-	let runtime_value = Ident::new(&capitalize_str(runtime_value), Span::call_site());
+	let runtime_value = Ident::new(runtime_value, Span::call_site());
 	for item in &mut ast.items {
 		match item {
 			Item::Impl(ItemImpl {
