@@ -5,6 +5,7 @@ use clap::Subcommand;
 use pop_common::templates::Template;
 use serde_json::{json, Value};
 
+pub(crate) mod add;
 pub(crate) mod build;
 pub(crate) mod call;
 pub(crate) mod clean;
@@ -41,6 +42,9 @@ pub(crate) enum Command {
 	/// Remove generated/cached artifacts.
 	#[clap(alias = "C")]
 	Clean(clean::CleanArgs),
+	/// Add a feature to existing Rust code
+	#[clap(alias = "a")]
+	Add(add::AddArgs),
 }
 
 /// Help message for the build command.
@@ -121,6 +125,10 @@ impl Command {
 						.execute()
 						.map(|_| Value::Null)
 				},
+			},
+			Self::Add(args) => match args.command {
+				add::Command::ConfigType(cmd) => cmd.execute().await.map(|_| json!("default")),
+				add::Command::RuntimePallet(cmd) => cmd.execute().await.map(|_| json!("default")),
 			},
 		}
 	}

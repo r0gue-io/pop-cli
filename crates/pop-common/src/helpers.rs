@@ -6,6 +6,7 @@ use std::{
 	fs,
 	io::{Read, Write},
 	path::{Component, Path, PathBuf},
+	process::{Command, Output},
 };
 
 /// Replaces occurrences of specified strings in a file with new values.
@@ -53,6 +54,16 @@ pub fn prefix_with_current_dir_if_needed(path: PathBuf) -> PathBuf {
 		}
 	}
 	path
+}
+
+pub fn format_dir(path: &Path) -> Result<Output, std::io::Error> {
+	Command::new("cargo")
+		.arg("+nightly")
+		.arg("fmt")
+		.arg("--all")
+		.current_dir(path)
+		.output()
+		.or(Command::new("cargo").arg("fmt").arg("--all").current_dir(path).output())
 }
 
 #[cfg(test)]

@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0
 
+pub mod types;
 use crate::Error;
 use anyhow;
 pub use cargo_toml::{Dependency, Manifest};
+use pathdiff::diff_paths;
 use std::{
 	fs::{read_to_string, write},
 	path::{Path, PathBuf},
 };
-use toml_edit::{value, Array, DocumentMut, Item, Value};
+use toml_edit::{value, Array, DocumentMut, InlineTable, Item, Table, Value};
 
 /// Parses the contents of a `Cargo.toml` manifest.
 ///
@@ -56,6 +58,18 @@ pub fn find_workspace_toml(target_dir: &Path) -> Option<PathBuf> {
 	None
 }
 
+pub fn find_crate_manifest(target_dir: &Path) -> Option<PathBuf> {
+	let mut dir = target_dir;
+	while let Some(parent) = dir.parent() {
+		let cargo_toml = parent.join("Cargo.toml");
+		if cargo_toml.exists() {
+			return Some(cargo_toml);
+		}
+		dir = parent;
+	}
+	None
+}
+
 /// This function is used to add a crate to a workspace.
 /// # Arguments
 /// * `workspace_toml` - The path to the workspace `Cargo.toml`
@@ -95,6 +109,142 @@ pub fn add_crate_to_workspace(workspace_toml: &Path, crate_path: &Path) -> anyho
 
 	write(workspace_toml, doc.to_string())?;
 	Ok(())
+}
+
+pub fn add_crate_to_dependencies(
+	manifest_path: &Path,
+	crate_name: &str,
+	dependencie_format: types::CrateDependencie,
+) -> Result<(), Error> {
+	fn do_add_crate_to_dependencies(
+		manifest_path: &Path,
+		dependencies: &mut Table,
+		crate_name: &str,
+		dependencie_format: types::CrateDependencie,
+	) -> Result<(), Error> {
+		match dependencie_format {
+			types::CrateDependencie::Workspace => {
+				let mut crate_declaration = Table::new();
+				crate_declaration.set_dotted(true);
+				crate_declaration.insert("workspace", value(true));
+				dependencies.insert(crate_name, Item::Table(crate_declaration));
+			},
+			types::CrateDependencie::External { version } => {
+				let mut crate_declaration = InlineTable::new();
+				crate_declaration.insert(
+					"version",
+					value(version)
+						.as_value()
+						.expect("version is String, so value(version) is Value::String; qed;")
+						.clone(),
+				);
+				crate_declaration.insert(
+					"default-features",
+					value(false)
+						.as_value()
+						.expect("false is bool so value(false) is Value::Boolean; qed;")
+						.clone(),
+				);
+				dependencies.insert(crate_name, value(crate_declaration));
+			},
+			types::CrateDependencie::Local { local_crate_path } => {
+				let mut crate_declaration = InlineTable::new();
+				let relative_path = if let Some(path) = diff_paths(
+					&local_crate_path,
+					manifest_path.parent().expect("A file's always contained in a directory;qed;"),
+				)
+				.and_then(|path| path.to_str().map(|path| path.to_string()))
+				{
+					path
+				} else {
+					return Err(Error::Config("Calling add_crate_to_dependencies with a internal crate whose path isn't valid.".to_string()))
+				};
+
+				crate_declaration.insert(
+					"path",
+					value(&relative_path)
+						.as_value()
+						.expect("version is String, so value(version) is Value::String; qed;")
+						.clone(),
+				);
+				crate_declaration.insert(
+					"default-features",
+					value(false)
+						.as_value()
+						.expect("false is bool so value(false) is Value::Boolean; qed;")
+						.clone(),
+				);
+				dependencies.insert(crate_name, value(crate_declaration));
+			},
+		}
+		Ok(())
+	}
+	let content = read_to_string(manifest_path)?;
+	let mut doc = content.parse::<DocumentMut>()?;
+	if let Some(Item::Table(dependencies)) = doc.get_mut("dependencies") {
+		do_add_crate_to_dependencies(manifest_path, dependencies, crate_name, dependencie_format)?;
+	} else {
+		let mut dependencies = Table::new();
+		do_add_crate_to_dependencies(
+			manifest_path,
+			&mut dependencies,
+			crate_name,
+			dependencie_format,
+		)?;
+		doc.insert("dependencies", Item::Table(dependencies));
+	}
+
+	write(manifest_path, doc.to_string())?;
+	Ok(())
+}
+
+pub fn find_crate_name(manifest_path: &Path) -> Result<String, Error> {
+	Ok(Manifest::from_path(manifest_path)?
+		.package
+		.ok_or(cargo_toml::Error::Other("Package not found in Cargo.toml"))
+		.map(|package| package.name)?)
+}
+
+pub fn find_pallet_runtime_lib_path(pallet_path: &Path) -> Option<PathBuf> {
+	if let Some(mut workspace_toml) = find_workspace_toml(pallet_path) {
+		match Manifest::from_path(&workspace_toml)
+			.ok()
+			.map(|manifest| manifest.workspace.map(|workspace| workspace.members))
+		{
+			Some(Some(members)) if members.contains(&"runtime".to_string()) => {
+				workspace_toml.pop();
+				Some(workspace_toml.join("runtime").join("src").join("lib.rs"))
+			},
+			_ => None,
+		}
+	} else {
+		None
+	}
+}
+
+pub fn find_pallet_runtime_impl_path(path: &Path) -> Option<PathBuf> {
+	if let Some(mut workspace_toml) = find_workspace_toml(path) {
+		match Manifest::from_path(&workspace_toml)
+			.ok()
+			.map(|manifest| manifest.workspace.map(|workspace| workspace.members))
+		{
+			Some(Some(members)) if members.contains(&"runtime".to_string()) => {
+				// Support for both cases: impl inside runtime lib.rs or defined inside
+				// configs/mod.rs
+				workspace_toml.pop();
+				let runtime_src_path = workspace_toml.join("runtime").join("src");
+				let config_mod_path = runtime_src_path.join("configs").join("mod.rs");
+				if config_mod_path.is_file() {
+					Some(config_mod_path)
+				} else {
+					Some(runtime_src_path.join("lib.rs"))
+				}
+			},
+			_ => None,
+		}
+	} else {
+		None
+	}
 }
 
 #[cfg(test)]

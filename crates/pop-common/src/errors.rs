@@ -21,10 +21,16 @@ pub enum Error {
 	ParseError(#[from] url::ParseError),
 	#[error("SourceError error: {0}")]
 	SourceError(#[from] sourcing::Error),
+	#[error("Syn parse error: {0}. To preserve your not-docs comments and blank lines, Pop-CLi temporarily transform them to comments followed by a marker type associated to that doc. This error is likely originated cause one of your files has a not-doc comment/blank line in a place where that marker type cannot be placed. Example:\nmatch option{{\n\t//This is the painful comment\n\tSome(some)=>(),\n\tNone=>()\n}}")]
+	SynError(#[from] syn::Error),
 	#[error("TemplateError error: {0}")]
 	TemplateError(#[from] templates::Error),
+	#[error("TomlError: {0}")]
+	TomlError(#[from] toml_edit::TomlError),
 	#[error("Unsupported command: {0}")]
 	UnsupportedCommand(String),
 	#[error("Unsupported platform: {arch} {os}")]
 	UnsupportedPlatform { arch: &'static str, os: &'static str },
+	#[error("Unable to write to the introduced path. {0}")]
+	WriteError(String),
 }

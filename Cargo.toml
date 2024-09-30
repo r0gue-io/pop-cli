@@ -30,11 +30,15 @@ git2 = { version = "0.18", features = ["vendored-openssl"] }
 glob = "0.3.1"
 log = "0.4.20"
 mockito = "1.4.0"
+pathdiff = "0.2.1"
 predicates = "3.1.0"
+prettyplease = "0.2.22"
+proc-macro2 = "1.0.86"
 tar = "0.4.40"
 tempfile = "3.10"
 thiserror = "1.0.58"
 tokio-test = "0.4.4"
+syn = { version = "2.0.77", features = ["full", "extra-traits"]}
 
 # networking
 reqwest = { version = "0.12", features = ["json"] }
