@@ -1,6 +1,41 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.3.1] - 2024-10-01
+
+### 🚀 Features
+
+- Adding new packages to workspace Cargo.toml automatically (#277)
+- Improve pallet template generation (#261)
+
+### 🐛 Fixes
+
+- Update chain spec and fix fetch_latest_tag (#282)
+- Remove extra 0x in outputted text when pop up (#298)
+- Limit API calls when generating parachain (#299)
+- Bump version to 0.3.1
+
+### 🚜 Refactor
+
+- Update new pallet template (default) (#272)
+- Move extract_template_files into common crate (#283)
+
+### 📚 Documentation
+
+- Add community section to README (#289)
+
+### 🎨 Styling
+
+- Format in ci.yml (#287)
+
+### ⚙️ Miscellaneous Tasks
+
+- Bump cargo-contract and subxt versions (#307)
+- Add clippy checks (#281)
+
+### Build
+
+- *(deps)* Bump zombienet-sdk (#273)
 
 ## [0.3.0] - 2024-07-26
 
