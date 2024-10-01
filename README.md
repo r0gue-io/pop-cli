@@ -1,6 +1,6 @@
 # Pop CLI
 
-<img src="assets/logo.jpeg"></img>
+<img src="./assets/logo.jpeg"></img>
 
 <div align="center">
   
