@@ -21,7 +21,7 @@ pub enum Error {
 	ParseError(#[from] url::ParseError),
 	#[error("SourceError error: {0}")]
 	SourceError(#[from] sourcing::Error),
-	#[error("Syn parse error: {0}. To preserve your not-docs comments and blank lines, Pop-CLi temporarily transform them to comments followed by a marker type associated to that doc. This error is likely originated cause one of your files has a not-doc comment/blank line in a place where that marker type cannot be placed. Example:\nmatch option{{\n\t//This is the painful comment\n\tSome(some)=>(),\n\tNone=>()\n}}")]
+	#[error("Syn parse error: {0}. To preserve your not-docs comments, blank lines and declarative macro invocations, Pop-CLi temporarily transform them to comments followed by a marker type associated to that doc. This error is likely originated cause one of your files has such an element in a place where that marker type cannot be placed. Example: the type marker cannot be defined inside a match block\nmatch option{{\n\t//This is the painful comment\n\tSome(some)=>(),\n\tNone=>()\n}}")]
 	SynError(#[from] syn::Error),
 	#[error("TemplateError error: {0}")]
 	TemplateError(#[from] templates::Error),

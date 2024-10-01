@@ -22,7 +22,7 @@ pub fn update_config_trait(
 	trait_bounds: Vec<&str>,
 	default_config: types::DefaultConfigType,
 ) -> Result<(), Error> {
-	let mut ast = helpers::preserve_and_parse(fs::read_to_string(file_path)?)?;
+	let mut ast = helpers::preserve_and_parse(fs::read_to_string(file_path)?, vec![])?;
 
 	// Expand the config trait
 	expand::expand_pallet_config_trait(&mut ast, default_config, type_name, trait_bounds);
@@ -48,7 +48,7 @@ pub fn add_type_to_runtimes(
 		type_name: &str,
 		runtime_value: &str,
 	) -> Result<(), Error> {
-		let mut ast = helpers::preserve_and_parse(file_content.to_string())?;
+		let mut ast = helpers::preserve_and_parse(file_content.to_string(), vec![])?;
 
 		let pallet_name = find_crate_name(pallet_manifest_path)?.replace("-", "_");
 
@@ -106,7 +106,7 @@ pub fn add_type_to_config_preludes(
 	type_name: &str,
 	default_value: &str,
 ) -> Result<(), Error> {
-	let mut ast = helpers::preserve_and_parse(fs::read_to_string(file_path)?)?;
+	let mut ast = helpers::preserve_and_parse(fs::read_to_string(file_path)?, vec![])?;
 
 	// Expand the config_preludes
 	expand::expand_pallet_config_preludes(&mut ast, type_name, default_value);
@@ -137,7 +137,12 @@ pub fn add_pallet_to_runtime_module(
 			.replace("-", ""),
 	);
 
-	let mut ast = helpers::preserve_and_parse(fs::read_to_string(runtime_lib_path)?)?;
+	// As the runtime may be constructed with construc_runtime!, we have to avoid preserving that
+	// macro with comments
+	let mut ast = helpers::preserve_and_parse(
+		fs::read_to_string(runtime_lib_path)?,
+		vec!["construct_runtime"],
+	)?;
 
 	// Parse the runtime to find which of the runtime macros is being used and the highest
 	// pallet index used (if needed).
@@ -178,7 +183,7 @@ pub fn add_pallet_impl_block_to_runtime(
 	values: Vec<Type>,
 	default_config: bool,
 ) -> Result<(), Error> {
-	let mut ast = helpers::preserve_and_parse(fs::read_to_string(runtime_impl_path)?)?;
+	let mut ast = helpers::preserve_and_parse(fs::read_to_string(runtime_impl_path)?, vec![])?;
 
 	// Expand the runtime to add the impl_block
 	expand::expand_runtime_add_impl_block(
