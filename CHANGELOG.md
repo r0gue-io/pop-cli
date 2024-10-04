@@ -1,7 +1,7 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## [0.3.1] - 2024-10-01
+## [0.4.0] - 2024-10-04
 
 ### 🚀 Features
 
@@ -13,7 +13,6 @@ All notable changes to this project will be documented in this file.
 - Update chain spec and fix fetch_latest_tag (#282)
 - Remove extra 0x in outputted text when pop up (#298)
 - Limit API calls when generating parachain (#299)
-- Bump version to 0.3.1
 
 ### 🚜 Refactor
 

@@ -17,7 +17,7 @@ edition = "2021"
 documentation = "https://learn.onpop.io/"
 license = "GPL-3.0"
 repository = "https://github.com/r0gue-io/pop-cli"
-version = "0.3.1"
+version = "0.4.0"
 
 [workspace.dependencies]
 anyhow = "1.0"
