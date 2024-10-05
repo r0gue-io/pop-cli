@@ -4,10 +4,12 @@ use crate::cli::{traits::Cli as _, Cli};
 use clap::{error::ErrorKind, Args, Command};
 use cliclack;
 use pop_common::{
-	find_workspace_toml, format_dir,
+	capitalize_str, find_workspace_toml, format_dir,
 	rust_writer::{self, types::*},
 };
+use proc_macro2::Span;
 use std::{fs, path::PathBuf};
+use syn::{parse_str, Ident, Type};
 
 #[cfg(test)]
 mod tests;
@@ -134,12 +136,12 @@ impl AddConfigTypeCommand {
 
 		let spinner = cliclack::spinner();
 		spinner.start("Updating pallet's config trait...");
-
+		let type_name_ident = Ident::new(&capitalize_str(&self.name), Span::call_site());
 		// Update the config trait in lib.rs
 		rust_writer::update_config_trait(
 			&lib_path,
-			&self.name,
-			self.bounds.iter().map(|bound| bound.as_str()).collect(),
+			type_name_ident.clone(),
+			self.bounds.iter().map(|bound| Ident::new(&bound, Span::call_site())).collect(),
 			match &self.default_config {
 				DefaultConfigTypeOptions { no_default: true, .. } => DefaultConfigType::NoDefault,
 				DefaultConfigTypeOptions { no_default_bounds: true, .. } =>
@@ -155,8 +157,8 @@ impl AddConfigTypeCommand {
 				// Add the new type to the mock runtime
 				rust_writer::add_type_to_runtimes(
                     &self.path,
-                    &self.name,
-                    self.runtime_value.as_ref().expect("validate options stops the execution from clap if runtime_value is none in this scenario; qed;"),
+                    type_name_ident.clone(),
+                    parse_str::<Type>(&self.runtime_value.expect("validate options stops the execution from clap if runtime_value is none in this scenario; qed;"))?,
                     self.runtime_impl_path.as_deref()
                 )?;
 			},
@@ -168,8 +170,8 @@ impl AddConfigTypeCommand {
 					// Add the new type to the mock runtime
 					rust_writer::add_type_to_runtimes(
 						&self.path,
-						&self.name,
-						runtime_value,
+						type_name_ident.clone(),
+						parse_str::<Type>(&runtime_value)?,
 						self.runtime_impl_path.as_deref(),
 					)?;
 				}
@@ -186,7 +188,11 @@ impl AddConfigTypeCommand {
 						&lib_path
 					};
 
-					rust_writer::add_type_to_config_preludes(file_path, &self.name, default_value)?;
+					rust_writer::add_type_to_config_preludes(
+						file_path,
+						type_name_ident,
+						parse_str::<Type>(&default_value)?,
+					)?;
 				}
 			},
 		};

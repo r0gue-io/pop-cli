@@ -16,9 +16,10 @@ use pop_parachains::{
 	create_pallet_template, TemplatePalletConfig, TemplatePalletConfigCommonTypes,
 	TemplatePalletOptions, TemplatePalletStorageTypes,
 };
+use proc_macro2::Span;
 use std::{fs, path::PathBuf};
 use strum::{EnumMessage, IntoEnumIterator};
-use syn::Type;
+use syn::{Ident, Type};
 
 fn after_help_simple() -> &'static str {
 	r#"Examples:
@@ -212,15 +213,18 @@ impl NewPalletCommand {
 			let (types, values) = if pallet_default_config {
 				(Vec::new(), Vec::new())
 			} else {
-				let types: Vec<String> = pallet_common_types
+				let types: Vec<Ident> = pallet_common_types
 					.clone()
 					.iter()
-					.map(|type_| type_.get_message().unwrap_or_default().to_string())
+					.map(|type_| {
+						Ident::new(type_.get_message().unwrap_or_default(), Span::call_site())
+					})
 					.collect();
 				let values: Vec<Type> =
 					pallet_common_types.iter().map(|type_| type_.common_value()).collect();
 				(types, values)
 			};
+
 			rust_writer::add_pallet_impl_block_to_runtime(
 				&pallet_name,
 				&runtime_impl_path,

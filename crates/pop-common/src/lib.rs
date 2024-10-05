@@ -11,7 +11,8 @@ pub use build::Profile;
 pub use errors::Error;
 pub use git::{Git, GitHub, Release};
 pub use helpers::{
-	format_dir, get_project_name_from_path, prefix_with_current_dir_if_needed, replace_in_file,
+	capitalize_str, format_dir, get_project_name_from_path, prefix_with_current_dir_if_needed,
+	replace_in_file,
 };
 pub use manifest::*;
 pub use templates::extractor::extract_template_files;

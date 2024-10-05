@@ -4690,6 +4690,7 @@ dependencies = [
  "pop-parachains",
  "pop-telemetry",
  "predicates",
+ "proc-macro2",
  "reqwest 0.12.5",
  "serde_json",
  "sp-core",

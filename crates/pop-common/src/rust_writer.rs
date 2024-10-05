@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{
+	capitalize_str,
 	manifest::{
 		add_crate_to_dependencies, find_crate_manifest, find_crate_name,
 		find_pallet_runtime_impl_path, types::CrateDependencie,
@@ -8,8 +9,9 @@ use crate::{
 	Error,
 };
 use prettyplease::unparse;
+use proc_macro2::Span;
 use std::{fs, path::Path};
-use syn::Type;
+use syn::{parse_str, Ident, Type};
 
 mod expand;
 mod helpers;
@@ -18,8 +20,8 @@ pub mod types;
 
 pub fn update_config_trait(
 	file_path: &Path,
-	type_name: &str,
-	trait_bounds: Vec<&str>,
+	type_name: Ident,
+	trait_bounds: Vec<Ident>,
 	default_config: types::DefaultConfigType,
 ) -> Result<(), Error> {
 	let mut ast = helpers::preserve_and_parse(fs::read_to_string(file_path)?, vec![])?;
@@ -37,16 +39,16 @@ pub fn update_config_trait(
 
 pub fn add_type_to_runtimes(
 	pallet_path: &Path,
-	type_name: &str,
-	runtime_value: &str,
+	type_name: Ident,
+	runtime_value: Type,
 	runtime_impl_path: Option<&Path>,
 ) -> Result<(), Error> {
 	fn do_add_type_to_runtime(
 		file_content: &str,
 		file_path: &Path,
 		pallet_manifest_path: &Path,
-		type_name: &str,
-		runtime_value: &str,
+		type_name: Ident,
+		runtime_value: Type,
 	) -> Result<(), Error> {
 		let mut ast = helpers::preserve_and_parse(file_content.to_string(), vec![])?;
 
@@ -80,8 +82,8 @@ pub fn add_type_to_runtimes(
 		&mock_content,
 		&mock_path,
 		&pallet_manifest_path,
-		type_name,
-		runtime_value,
+		type_name.clone(),
+		runtime_value.clone(),
 	)?;
 
 	// If the pallet is contained inside a runtime add the type to that runtime as well
@@ -103,8 +105,8 @@ pub fn add_type_to_runtimes(
 
 pub fn add_type_to_config_preludes(
 	file_path: &Path,
-	type_name: &str,
-	default_value: &str,
+	type_name: Ident,
+	default_value: Type,
 ) -> Result<(), Error> {
 	let mut ast = helpers::preserve_and_parse(fs::read_to_string(file_path)?, vec![])?;
 
@@ -125,18 +127,6 @@ pub fn add_pallet_to_runtime_module(
 	runtime_lib_path: &Path,
 	pallet_dependencie_type: CrateDependencie,
 ) -> Result<(), Error> {
-	// Find the pallet name and the pallet item to be added to the runtime. If the pallet_name is
-	// behind the form pallet-some-thing, pallet_item becomes Something.
-	let pallet_item = helpers::capitalize_str(
-		&pallet_name
-			.split("pallet-")
-			.last()
-			.ok_or(Error::Config(
-				"Pallet crates are supposed to be called pallet-something.".to_string(),
-			))?
-			.replace("-", ""),
-	);
-
 	// As the runtime may be constructed with construc_runtime!, we have to avoid preserving that
 	// macro with comments
 	let mut ast = helpers::preserve_and_parse(
@@ -148,13 +138,30 @@ pub fn add_pallet_to_runtime_module(
 	// pallet index used (if needed).
 	let (highest_index, used_macro) =
 		parse::find_highest_pallet_index_and_runtime_macro_version(&ast);
+
+	// Find the pallet name and the pallet item to be added to the runtime. If the pallet_name is
+	// behind the form pallet-some-thing, pallet_item becomes Something.
+	let pallet_item = Ident::new(
+		&capitalize_str(
+			&pallet_name
+				.split("pallet-")
+				.last()
+				.ok_or(Error::Config(
+					"Pallet crates are supposed to be called pallet-something.".to_string(),
+				))?
+				.replace("-", ""),
+		),
+		Span::call_site(),
+	);
+	let pallet_name_type = parse_str::<Type>(&pallet_name.replace("-", "_"))?;
+
 	// Expand the ast with the new pallet. pallet-some-thing becomes pallet_some_thing in the code
 	expand::expand_runtime_add_pallet(
 		&mut ast,
 		highest_index,
 		used_macro,
-		&pallet_name.replace("-", "_"),
-		&pallet_item,
+		pallet_name_type,
+		pallet_item,
 	);
 
 	let generated_code = helpers::resolve_preserved(unparse(&ast));
@@ -179,21 +186,28 @@ pub fn add_pallet_impl_block_to_runtime(
 	pallet_name: &str,
 	runtime_impl_path: &Path,
 	parameter_types: Vec<types::ParameterTypes>,
-	types: Vec<String>,
+	types: Vec<Ident>,
 	values: Vec<Type>,
 	default_config: bool,
 ) -> Result<(), Error> {
 	let mut ast = helpers::preserve_and_parse(fs::read_to_string(runtime_impl_path)?, vec![])?;
-
+	let pallet_name_ident = Ident::new(&pallet_name.replace("-", "_"), Span::call_site());
 	// Expand the runtime to add the impl_block
 	expand::expand_runtime_add_impl_block(
 		&mut ast,
-		&pallet_name.replace("-", "_"),
+		pallet_name_ident,
 		parameter_types,
-		types,
-		values,
 		default_config,
 	);
+	// Expand the block to add the types
+	types.into_iter().zip(values.into_iter()).for_each(|(type_, value)| {
+		expand::expand_runtime_add_type_to_impl_block(
+			&mut ast,
+			type_,
+			value,
+			&pallet_name.replace("-", "_"),
+		)
+	});
 
 	let generated_code = helpers::resolve_preserved(unparse(&ast));
 

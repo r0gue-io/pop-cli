@@ -58,33 +58,22 @@ pub(crate) fn resolve_preserved(code: String) -> String {
 
 		match trimmed_line {
 			comment if trimmed_line.strip_prefix("///TEMP_DOC").is_some() => output.push_str(
-                comment
-                    .strip_prefix("///TEMP_DOC")
-                    .expect("The match guard guarantees this is always some; qed;"),
+				comment
+					.strip_prefix("///TEMP_DOC")
+					.expect("The match guard guarantees this is always some; qed;"),
 			),
-			comment if trimmed_line.strip_prefix("///TEMP_MACRO").is_some() => output.push_str(
-                &format!(
-                    "{}\n",
-                    comment
-					    .strip_prefix("///TEMP_MACRO")
-					    .expect("The match guard guarantees this is always some; qed;"),
-                )
-			),
+			comment if trimmed_line.strip_prefix("///TEMP_MACRO").is_some() =>
+				output.push_str(&format!(
+					"{}\n",
+					comment
+						.strip_prefix("///TEMP_MACRO")
+						.expect("The match guard guarantees this is always some; qed;"),
+				)),
 			_ if trimmed_line.strip_prefix("///EMPTY_LINE").is_some() => output.push('\n'),
 			_ => output.push_str(&format!("{}\n", line)),
 		}
 	});
 	output
-}
-
-pub(crate) fn capitalize_str(input: &str) -> String {
-	if input.is_empty() {
-		return String::new();
-	}
-
-	let first_char = input.chars().next().expect("The introduced str isn't empty").to_uppercase();
-	let rest = &input[1..];
-	format!("{}{}", first_char, rest)
 }
 
 fn preserve_macro_invocations(code: String, exempt_macros: Vec<&str>) -> String {
@@ -94,14 +83,7 @@ fn preserve_macro_invocations(code: String, exempt_macros: Vec<&str>) -> String 
 
 	let mut macro_block = String::new();
 
-	let mut delimiter_counts = vec![
-		('{', 0),
-		('}', 0),
-		('(', 0),
-		(')', 0),
-		('[', 0),
-		(']', 0),
-	];
+	let mut delimiter_counts = vec![('{', 0), ('}', 0), ('(', 0), (')', 0), ('[', 0), (']', 0)];
 
 	for line in code.lines() {
 		match re.find(line) {
@@ -141,6 +123,6 @@ fn preserve_macro_invocations(code: String, exempt_macros: Vec<&str>) -> String 
 			result.push_str("type temp_marker = ();\n");
 			macro_block = String::new();
 		}
-	};
+	}
 	result
 }

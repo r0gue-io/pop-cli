@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::rust_writer::{helpers::capitalize_str, types::*};
+use crate::{capitalize_str, rust_writer::types::*};
 use proc_macro2::{Group, Literal, Span, TokenStream, TokenTree};
 use syn::{
 	parse_quote, Expr, File, Ident, ImplItem, Item, ItemImpl, ItemMacro, ItemMod, ItemTrait, Macro,
@@ -10,14 +10,9 @@ use syn::{
 pub(crate) fn expand_pallet_config_trait(
 	ast: &mut File,
 	default_config: DefaultConfigType,
-	type_name: &str,
-	trait_bounds: Vec<&str>,
+	type_name: Ident,
+	trait_bounds: Vec<Ident>,
 ) {
-	let type_name = Ident::new(&capitalize_str(type_name), Span::call_site());
-	let trait_bounds = trait_bounds
-		.iter()
-		.map(|bound| Ident::new(&capitalize_str(bound), Span::call_site()))
-		.collect::<Vec<Ident>>();
 	for item in &mut ast.items {
 		match item {
 			Item::Mod(ItemMod { ident, content, .. })
@@ -56,10 +51,7 @@ pub(crate) fn expand_pallet_config_trait(
 	}
 }
 
-pub(crate) fn expand_pallet_config_preludes(ast: &mut File, type_name: &str, default_value: &str) {
-	let type_name = Ident::new(&capitalize_str(type_name), Span::call_site());
-	let default_value = Ident::new(default_value, Span::call_site());
-
+pub(crate) fn expand_pallet_config_preludes(ast: &mut File, type_name: Ident, default_value: Type) {
 	for item in &mut ast.items {
 		match item {
 			// In case file_path points to lib.rs, config_preludes is contained inside pallet mod in
@@ -129,12 +121,9 @@ pub(crate) fn expand_runtime_add_pallet(
 	ast: &mut File,
 	highest_index: u8,
 	used_macro: RuntimeUsedMacro,
-	pallet_name: &str,
-	pallet_item: &str,
+	pallet_name: Type,
+	pallet_item: Ident,
 ) {
-	let pallet_item = Ident::new(pallet_item, Span::call_site());
-	let pallet_name = Ident::new(pallet_name, Span::call_site());
-
 	match used_macro {
 		RuntimeUsedMacro::Runtime => {
 			// Convert the highest_index in Ident
@@ -191,17 +180,10 @@ pub(crate) fn expand_runtime_add_pallet(
 
 pub(crate) fn expand_runtime_add_impl_block(
 	ast: &mut File,
-	pallet_name: &str,
+	pallet_name: Ident,
 	parameter_types: Vec<ParameterTypes>,
-	types: Vec<String>,
-	values: Vec<Type>,
 	default_config: bool,
 ) {
-	let pallet_name = Ident::new(pallet_name, Span::call_site());
-	let types: Vec<Ident> = types
-		.iter()
-		.map(|type_| Ident::new(&capitalize_str(type_), Span::call_site()))
-		.collect();
 	let parameter_idents: Vec<Ident> = parameter_types
 		.iter()
 		.map(|item| Ident::new(&capitalize_str(&item.ident), Span::call_site()))
@@ -227,32 +209,22 @@ pub(crate) fn expand_runtime_add_impl_block(
 		items.push(Item::Impl(parse_quote! {
 			///EMPTY_LINE
 			#[derive_impl(#pallet_name::config_preludes::TestDefaultConfig)]
-			impl #pallet_name::Config for Runtime{
-				#(
-					type #types = #values;
-				)*
-			}
+			impl #pallet_name::Config for Runtime{}
 		}));
 	} else {
 		items.push(Item::Impl(parse_quote! {
 			///EMPTY_LINE
-			impl #pallet_name::Config for Runtime{
-				#(
-					type #types = #values;
-				)*
-			}
+			impl #pallet_name::Config for Runtime{}
 		}));
 	}
 }
 
 pub(crate) fn expand_runtime_add_type_to_impl_block(
 	ast: &mut File,
-	type_name: &str,
-	runtime_value: &str,
+	type_name: Ident,
+	runtime_value: Type,
 	pallet_name: &str,
 ) {
-	let type_name = Ident::new(&capitalize_str(type_name), Span::call_site());
-	let runtime_value = Ident::new(runtime_value, Span::call_site());
 	for item in &mut ast.items {
 		match item {
 			Item::Impl(ItemImpl {

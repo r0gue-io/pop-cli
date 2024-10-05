@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 use clap::ValueEnum;
 use pop_common::rust_writer::types::ParameterTypes;
+use proc_macro2::Span;
 use strum_macros::{EnumIter, EnumMessage};
-use syn::{parse_quote, Type};
+use syn::{parse_quote, Ident, Type};
 
 #[derive(Debug, Copy, Clone, PartialEq, EnumIter, EnumMessage, ValueEnum)]
 pub enum CommonPallets {
@@ -40,11 +41,14 @@ impl CommonPallets {
 		}
 	}
 
-	pub fn get_config_types(&self) -> Vec<String> {
+	pub fn get_config_types(&self) -> Vec<Ident> {
 		match self {
-			CommonPallets::Balances => vec!["AccountStore".to_string()],
-			CommonPallets::Contracts =>
-				vec!["Currency".to_string(), "Schedule".to_string(), "CallStack".to_string()],
+			CommonPallets::Balances => vec![Ident::new("AccountStore", Span::call_site())],
+			CommonPallets::Contracts => vec![
+				Ident::new("Currency", Span::call_site()),
+				Ident::new("Schedule", Span::call_site()),
+				Ident::new("CallStack", Span::call_site()),
+			],
 		}
 	}
 

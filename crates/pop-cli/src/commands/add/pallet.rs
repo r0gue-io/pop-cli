@@ -10,7 +10,7 @@ use pop_common::{
 	find_pallet_runtime_impl_path, find_workspace_toml, format_dir,
 	manifest::types::CrateDependencie, rust_writer,
 };
-use std::{path::PathBuf, env::current_dir};
+use std::{env::current_dir, path::PathBuf};
 use strum::{EnumMessage, IntoEnumIterator};
 
 mod common_pallets;
@@ -34,17 +34,18 @@ pub struct AddPalletCommand {
 impl AddPalletCommand {
 	pub(crate) async fn execute(self) -> anyhow::Result<()> {
 		Cli.intro("Add a new pallet to your runtime")?;
-        let path = if let Some(path) = &self.runtime_path{
-            path
-        } else {
-            let working_dir = current_dir().expect("Cannot modify your working directory");
-            // Give the chance to use the command either from a workspace containing a runtime or from a runtime crate if path not specified
-            if working_dir.join("runtime").exists(){
-                &working_dir.join("runtime")
-            } else {
-                &working_dir.clone()
-            }
-        };
+		let path = if let Some(path) = &self.runtime_path {
+			path
+		} else {
+			let working_dir = current_dir().expect("Cannot modify your working directory");
+			// Give the chance to use the command either from a workspace containing a runtime or
+			// from a runtime crate if path not specified
+			if working_dir.join("runtime").exists() {
+				&working_dir.join("runtime")
+			} else {
+				&working_dir.clone()
+			}
+		};
 		let mut cmd = Command::new("");
 		let src = path.join("src");
 		let lib_path = src.join("lib.rs");
