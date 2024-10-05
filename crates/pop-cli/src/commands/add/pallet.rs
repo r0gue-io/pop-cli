@@ -20,8 +20,8 @@ mod tests;
 
 #[derive(Args, Debug, Clone)]
 pub struct AddPalletCommand {
-	#[arg(short = 'r', long, help = "Specify the path to the runtime crate.")]
-	pub(crate) path: Option<PathBuf>,
+	#[arg(short, long, help = "Specify the path to the runtime crate.")]
+	pub(crate) runtime_path: Option<PathBuf>,
 	#[arg(short, long, value_enum, num_args(1..), required = false, help = "The pallets you want to include to your runtime.")]
 	pub(crate) pallets: Vec<common_pallets::CommonPallets>,
 	#[arg(
@@ -34,7 +34,7 @@ pub struct AddPalletCommand {
 impl AddPalletCommand {
 	pub(crate) async fn execute(self) -> anyhow::Result<()> {
 		Cli.intro("Add a new pallet to your runtime")?;
-        let path = if let Some(path) = &self.path{
+        let path = if let Some(path) = &self.runtime_path{
             path
         } else {
             let working_dir = current_dir().expect("Cannot modify your working directory");
