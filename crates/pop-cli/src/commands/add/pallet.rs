@@ -51,7 +51,7 @@ impl AddPalletCommand {
 		if !lib_path.is_file() {
 			cmd.error(
 				ErrorKind::InvalidValue,
-				"Make sure that the used path correspond to a runtime crate.",
+				"Make sure to run this command either in a workspace containing a runtime crate/a runtime crate or to specify the path to the runtime crate using -r.",
 			)
 			.exit();
 		}
