@@ -3,7 +3,7 @@
 use clap::{Args, Subcommand};
 
 pub mod config_type;
-pub mod runtime_pallet;
+pub mod pallet;
 
 /// Arguments for adding a new feature to existing code
 #[derive(Args)]
@@ -21,5 +21,5 @@ pub enum Command {
 	ConfigType(config_type::AddConfigTypeCommand),
 	/// Add a new pallet to an existing runtime
 	#[clap(alias = "P")]
-	RuntimePallet(runtime_pallet::AddRuntimePalletCommand),
+	Pallet(pallet::AddPalletCommand),
 }

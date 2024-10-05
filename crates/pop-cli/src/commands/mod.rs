@@ -128,7 +128,7 @@ impl Command {
 			},
 			Self::Add(args) => match args.command {
 				add::Command::ConfigType(cmd) => cmd.execute().await.map(|_| json!("default")),
-				add::Command::RuntimePallet(cmd) => cmd.execute().await.map(|_| json!("default")),
+				add::Command::Pallet(cmd) => cmd.execute().await.map(|_| json!("default")),
 			},
 		}
 	}
