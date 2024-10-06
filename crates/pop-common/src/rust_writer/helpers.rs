@@ -83,7 +83,7 @@ fn preserve_macro_invocations(code: String, exempt_macros: Vec<&str>) -> String 
 
 	let mut macro_block = String::new();
 
-	let mut delimiter_counts = vec![('{', 0), ('}', 0), ('(', 0), (')', 0), ('[', 0), (']', 0)];
+	let mut delimiter_counts = [('{', 0), ('}', 0), ('(', 0), (')', 0), ('[', 0), (']', 0)];
 
 	for line in code.lines() {
 		match re.find(line) {

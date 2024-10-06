@@ -8,7 +8,7 @@ use clap::{error::ErrorKind, Args, Command};
 use cliclack::multiselect;
 use pop_common::{
 	find_pallet_runtime_impl_path, find_workspace_toml, format_dir,
-	manifest::types::CrateDependencie, rust_writer,prefix_with_current_dir_if_needed
+	manifest::types::CrateDependencie, prefix_with_current_dir_if_needed, rust_writer,
 };
 use std::{env::current_dir, path::PathBuf};
 use strum::{EnumMessage, IntoEnumIterator};

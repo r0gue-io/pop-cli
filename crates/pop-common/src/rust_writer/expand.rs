@@ -3,8 +3,8 @@
 use crate::{capitalize_str, rust_writer::types::*};
 use proc_macro2::{Group, Literal, Span, TokenStream, TokenTree};
 use syn::{
-	parse_quote, Expr, File, Ident, ImplItem, Item, ItemImpl, ItemMacro, ItemMod, ItemTrait, Macro,
-	Meta, MetaList, TraitItem, Type, TraitBound, ItemUse, ItemEnum, ItemStruct
+	parse_quote, Expr, File, Ident, ImplItem, Item, ItemEnum, ItemImpl, ItemMacro, ItemMod,
+	ItemStruct, ItemTrait, ItemUse, Macro, Meta, MetaList, TraitBound, TraitItem, Type,
 };
 
 pub(crate) fn expand_pallet_config_trait(
@@ -24,16 +24,17 @@ pub(crate) fn expand_pallet_config_trait(
 					match item {
 						Item::Trait(ItemTrait { ident, items, .. }) if *ident == "Config" => {
 							items.push(match default_config {
-								DefaultConfigType::Default{..} => TraitItem::Type(parse_quote! {
-									///EMPTY_LINE
-									type #type_name: #(#trait_bounds +)*;
-								}),
+								DefaultConfigType::Default { .. } =>
+									TraitItem::Type(parse_quote! {
+										///EMPTY_LINE
+										type #type_name: #(#trait_bounds +)*;
+									}),
 								DefaultConfigType::NoDefault => TraitItem::Type(parse_quote! {
 									///EMPTY_LINE
 									#[pallet::no_default]
 									type #type_name: #(#trait_bounds +)*;
 								}),
-								DefaultConfigType::NoDefaultBounds{..} => {
+								DefaultConfigType::NoDefaultBounds { .. } => {
 									TraitItem::Type(parse_quote! {
 										///EMPTY_LINE
 										#[pallet::no_default_bounds]
@@ -236,33 +237,33 @@ pub(crate) fn expand_runtime_add_type_to_impl_block(
 	}
 }
 
-pub(crate) fn expand_add_use_statement(ast: &mut File, use_statement: ItemUse){
-    let items = &mut ast.items;
-    // Find the first use statement
-    let position = items.iter().position(|item| matches!(item, Item::Use(_)))
-        .unwrap_or(0);
-    // Insert the use statement where needed
-    items.insert(position, Item::Use(use_statement));
+pub(crate) fn expand_add_use_statement(ast: &mut File, use_statement: ItemUse) {
+	let items = &mut ast.items;
+	// Find the first use statement
+	let position = items.iter().position(|item| matches!(item, Item::Use(_))).unwrap_or(0);
+	// Insert the use statement where needed
+	items.insert(position, Item::Use(use_statement));
 }
 
-pub(crate) fn expand_add_composite_enum(ast: &mut File, composite_enum: ItemEnum){
-    for item in &mut ast.items{
-        match item{
+pub(crate) fn expand_add_composite_enum(ast: &mut File, composite_enum: ItemEnum) {
+	for item in &mut ast.items {
+		match item {
 			Item::Mod(ItemMod { ident, content, .. })
 				if *ident == "pallet" && content.is_some() =>
 			{
 				let (_, items) =
 					content.as_mut().expect("content is always Some thanks to the match guard");
-                // Find the Pallet struct position
-                let position = items.iter().position(|item| match item{
-                    Item::Struct(ItemStruct{ident, ..}) if *ident=="Pallet" => true,
-                    _ => false
-                })
-                .unwrap_or(0);
-                // Insert the composite_enum just before the Pallet struct
-                items.insert(position.saturating_sub(1), Item::Enum(composite_enum.clone()));
-            },
-            _ => continue
-        }
-    }
+				// Find the Pallet struct position
+				let position = items
+					.iter()
+					.position(
+						|item| matches!(item, Item::Struct(ItemStruct { ident, .. }) if *ident == "Pallet"),
+					)
+					.unwrap_or(0);
+				// Insert the composite_enum just before the Pallet struct
+				items.insert(position.saturating_sub(1), Item::Enum(composite_enum.clone()));
+			},
+			_ => continue,
+		}
+	}
 }

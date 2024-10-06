@@ -4,17 +4,20 @@ mod common_types;
 #[cfg(test)]
 mod tests;
 
-use crate::{cli::{traits::Cli as _, Cli}, multiselect_pick};
+use crate::{
+	cli::{traits::Cli as _, Cli},
+	multiselect_pick,
+};
 use clap::{error::ErrorKind, Args, Command};
 use cliclack::multiselect;
 use pop_common::{
-	capitalize_str, find_workspace_toml, format_dir,
-	rust_writer::{self, types::*}, prefix_with_current_dir_if_needed
+	capitalize_str, find_workspace_toml, format_dir, prefix_with_current_dir_if_needed,
+	rust_writer::{self, types::*},
 };
 use proc_macro2::Span;
 use std::{fs, path::PathBuf};
-use syn::{parse_quote, Ident};
 use strum::{EnumMessage, IntoEnumIterator};
+use syn::{parse_quote, Ident};
 
 #[derive(Args, Debug, Clone)]
 pub struct AddConfigTypeCommand {
@@ -29,12 +32,11 @@ pub struct AddConfigTypeCommand {
 	pub(crate) runtime_impl_path: Option<PathBuf>,
 }
 
-
 impl AddConfigTypeCommand {
 	pub(crate) async fn execute(self) -> anyhow::Result<()> {
 		Cli.intro("Add a new type to your pallet")?;
 		let mut cmd = Command::new("");
-        let pallet_path = prefix_with_current_dir_if_needed(self.pallet_path);
+		let pallet_path = prefix_with_current_dir_if_needed(self.pallet_path);
 		let src = pallet_path.join("src");
 		// Check that the path correspond to a pallet using that the file lib.rs always contains the
 		// line #[pallet::pallet].
@@ -55,7 +57,7 @@ impl AddConfigTypeCommand {
 			.exit();
 		}
 
-        let mut types = if self.types.is_empty() {
+		let mut types = if self.types.is_empty() {
 			multiselect_pick!(
 				common_types::CommonTypes,
 				"Select the types you want to include in your pallet"
@@ -64,71 +66,68 @@ impl AddConfigTypeCommand {
 			self.types
 		};
 
-        types = common_types::complete_dependencies(types);
+		types = common_types::complete_dependencies(types);
 
-        let using_default_config = lib_content.contains("pub mod config_preludes");
+		let using_default_config = lib_content.contains("pub mod config_preludes");
 
 		let spinner = cliclack::spinner();
 		spinner.start("Updating pallet's config trait...");
 
-        for type_ in types{
-            rust_writer::add_use_statements(
-                &lib_path,
-                type_.get_needed_use_statements()
-            )?;
+		for type_ in types {
+			rust_writer::add_use_statements(&lib_path, type_.get_needed_use_statements())?;
 
-            rust_writer::add_composite_enums(
-                &lib_path,
-                type_.get_needed_composite_enums()
-            )?;
+			rust_writer::add_composite_enums(&lib_path, type_.get_needed_composite_enums())?;
 
-            let type_name_ident = Ident::new(&capitalize_str(type_.get_message().unwrap_or_default()), Span::call_site());
-            let default_config = if using_default_config{
-                type_.get_default_config()
-            } else {
-                // Here the inner element's irrelevant, so we place a simple type definition
-                DefaultConfigType::Default{type_default_impl: parse_quote!{type A = ();}}
-            };
-            // Update the config trait in lib.rs
-		    rust_writer::update_config_trait(
-                &lib_path,
-                type_name_ident.clone(),
-                type_.get_common_trait_bounds(),
-                &default_config
-		    )?;
+			let type_name_ident = Ident::new(
+				&capitalize_str(type_.get_message().unwrap_or_default()),
+				Span::call_site(),
+			);
+			let default_config = if using_default_config {
+				type_.get_default_config()
+			} else {
+				// Here the inner element's irrelevant, so we place a simple type definition
+				DefaultConfigType::Default { type_default_impl: parse_quote! {type A = ();} }
+			};
+			// Update the config trait in lib.rs
+			rust_writer::update_config_trait(
+				&lib_path,
+				type_name_ident.clone(),
+				type_.get_common_trait_bounds(),
+				&default_config,
+			)?;
 
-            match default_config {
-                // Need to update default config
-                DefaultConfigType::Default{ type_default_impl } | DefaultConfigType::NoDefaultBounds{type_default_impl} if using_default_config => {
-                    spinner.set_message(
-                        "Adding your type's default value to the pallet's config preludes...",
-                    );
-                    // If config_preludes is defined in its own file, we pass it to
-                    // 'add_type_to_config_preludes", otherwise we pass lib.rs
-                    let config_preludes_path = src.join("config_preludes.rs");
-                    let file_path = if config_preludes_path.is_file() {
-                        &config_preludes_path
-                    } else {
-                        &lib_path
-                    };
-    
-                    rust_writer::add_type_to_config_preludes(
-                        file_path,
-                        type_default_impl
-                    )?;
-                },
-                // Need to update runtimes
-                _ => {
-                    spinner.set_message("Adding your type to pallet's related runtimes...");
-                    rust_writer::add_type_to_runtimes(
-                        &pallet_path,
-                        type_name_ident,
-                        type_.get_common_runtime_value(),
-                        self.runtime_impl_path.as_deref()
-                    )?;
-                } 
-            }
-        }
+			match default_config {
+				// Need to update default config
+				DefaultConfigType::Default { type_default_impl } |
+				DefaultConfigType::NoDefaultBounds { type_default_impl }
+					if using_default_config =>
+				{
+					spinner.set_message(
+						"Adding your type's default value to the pallet's config preludes...",
+					);
+					// If config_preludes is defined in its own file, we pass it to
+					// 'add_type_to_config_preludes", otherwise we pass lib.rs
+					let config_preludes_path = src.join("config_preludes.rs");
+					let file_path = if config_preludes_path.is_file() {
+						&config_preludes_path
+					} else {
+						&lib_path
+					};
+
+					rust_writer::add_type_to_config_preludes(file_path, type_default_impl)?;
+				},
+				// Need to update runtimes
+				_ => {
+					spinner.set_message("Adding your type to pallet's related runtimes...");
+					rust_writer::add_type_to_runtimes(
+						&pallet_path,
+						type_name_ident,
+						type_.get_common_runtime_value(),
+						self.runtime_impl_path.as_deref(),
+					)?;
+				},
+			}
+		}
 
 		if let Some(mut workspace_toml) = find_workspace_toml(&pallet_path) {
 			workspace_toml.pop();
