@@ -8,7 +8,7 @@ use clap::{error::ErrorKind, Args, Command};
 use cliclack::multiselect;
 use pop_common::{
 	find_pallet_runtime_impl_path, find_workspace_toml, format_dir,
-	manifest::types::CrateDependencie, rust_writer,
+	manifest::types::CrateDependencie, rust_writer,prefix_with_current_dir_if_needed
 };
 use std::{env::current_dir, path::PathBuf};
 use strum::{EnumMessage, IntoEnumIterator};
@@ -34,20 +34,20 @@ pub struct AddPalletCommand {
 impl AddPalletCommand {
 	pub(crate) async fn execute(self) -> anyhow::Result<()> {
 		Cli.intro("Add a new pallet to your runtime")?;
-		let path = if let Some(path) = &self.runtime_path {
-			path
+		let runtime_path = if let Some(path) = &self.runtime_path {
+			prefix_with_current_dir_if_needed(path.to_path_buf())
 		} else {
 			let working_dir = current_dir().expect("Cannot modify your working directory");
 			// Give the chance to use the command either from a workspace containing a runtime or
 			// from a runtime crate if path not specified
 			if working_dir.join("runtime").exists() {
-				&working_dir.join("runtime")
+				prefix_with_current_dir_if_needed(working_dir.join("runtime"))
 			} else {
-				&working_dir.clone()
+				prefix_with_current_dir_if_needed(working_dir)
 			}
 		};
 		let mut cmd = Command::new("");
-		let src = path.join("src");
+		let src = runtime_path.join("src");
 		let lib_path = src.join("lib.rs");
 		if !lib_path.is_file() {
 			cmd.error(
@@ -98,11 +98,11 @@ impl AddPalletCommand {
 			)?;
 		}
 
-		if let Some(mut workspace_toml) = find_workspace_toml(path) {
+		if let Some(mut workspace_toml) = find_workspace_toml(&runtime_path) {
 			workspace_toml.pop();
 			format_dir(&workspace_toml)?;
 		} else {
-			format_dir(path)?;
+			format_dir(&runtime_path)?;
 		}
 		spinner.stop("Your runtime has been updated and it's ready to use 🚀");
 		Ok(())

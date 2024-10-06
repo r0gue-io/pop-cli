@@ -11,7 +11,7 @@ use crate::{
 use prettyplease::unparse;
 use proc_macro2::Span;
 use std::{fs, path::Path};
-use syn::{parse_str, Ident, Type};
+use syn::{parse_str, Ident, Type, TraitBound, ImplItem, ItemUse, ItemEnum};
 
 mod expand;
 mod helpers;
@@ -21,11 +21,11 @@ pub mod types;
 pub fn update_config_trait(
 	file_path: &Path,
 	type_name: Ident,
-	trait_bounds: Vec<Ident>,
-	default_config: types::DefaultConfigType,
+	trait_bounds: Vec<TraitBound>,
+	default_config: &types::DefaultConfigType,
 ) -> Result<(), Error> {
 	let mut ast = helpers::preserve_and_parse(fs::read_to_string(file_path)?, vec![])?;
-
+    
 	// Expand the config trait
 	expand::expand_pallet_config_trait(&mut ast, default_config, type_name, trait_bounds);
 	let generated_code = helpers::resolve_preserved(unparse(&ast));
@@ -105,13 +105,12 @@ pub fn add_type_to_runtimes(
 
 pub fn add_type_to_config_preludes(
 	file_path: &Path,
-	type_name: Ident,
-	default_value: Type,
+	type_default_impl: ImplItem,
 ) -> Result<(), Error> {
 	let mut ast = helpers::preserve_and_parse(fs::read_to_string(file_path)?, vec![])?;
 
 	// Expand the config_preludes
-	expand::expand_pallet_config_preludes(&mut ast, type_name, default_value);
+	expand::expand_pallet_config_preludes(&mut ast, type_default_impl);
 
 	let generated_code = helpers::resolve_preserved(unparse(&ast));
 
@@ -218,4 +217,46 @@ pub fn add_pallet_impl_block_to_runtime(
 		))
 	})?;
 	Ok(())
+}
+
+pub fn add_use_statements(
+    file_path: &Path,
+    use_statements: Vec<ItemUse>
+) -> Result<(), Error>{
+    let mut ast = helpers::preserve_and_parse(fs::read_to_string(file_path)?, vec![])?;
+
+    use_statements.into_iter().for_each(|use_statement|{
+        if !parse::find_use_statement(&ast, &use_statement){
+            expand::expand_add_use_statement(&mut ast, use_statement)
+        }
+    });
+
+    let generated_code = helpers::resolve_preserved(unparse(&ast));
+
+	fs::write(file_path, &generated_code).map_err(|_| {
+		Error::WriteError(format!("Path :{}", file_path.to_str().unwrap_or("Invalid UTF-8 path")))
+	})?;
+
+    Ok(())
+}
+
+pub fn add_composite_enums(
+    file_path: &Path,
+    composite_enums: Vec<ItemEnum>
+) -> Result<(), Error>{
+    let mut ast = helpers::preserve_and_parse(fs::read_to_string(file_path)?, vec![])?;
+
+    composite_enums.into_iter().for_each(|composite_enum|{
+        if !parse::find_composite_enum(&ast, &composite_enum){
+            expand::expand_add_composite_enum(&mut ast, composite_enum);
+        }
+    });
+
+    let generated_code = helpers::resolve_preserved(unparse(&ast));
+
+	fs::write(file_path, &generated_code).map_err(|_| {
+		Error::WriteError(format!("Path :{}", file_path.to_str().unwrap_or("Invalid UTF-8 path")))
+	})?;
+
+    Ok(())
 }

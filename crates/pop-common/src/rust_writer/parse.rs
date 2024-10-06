@@ -2,7 +2,7 @@
 
 use crate::rust_writer::types::RuntimeUsedMacro;
 use std::cmp;
-use syn::{File, Item, ItemMacro, ItemMod, ItemType, Macro, Meta, MetaList};
+use syn::{File, Item, ItemMacro, ItemMod, ItemType, Macro, Meta, MetaList, ItemUse, ItemEnum};
 
 /// Find the highest implemented pallet index in the outer enum if using the macro
 /// #[runtime]. We suppose it's a u8, it's not likely that a runtime implements more than 256
@@ -63,4 +63,35 @@ pub(crate) fn find_highest_pallet_index_and_runtime_macro_version(
 		}
 	}
 	(highest_index, used_macro)
+}
+
+pub(crate) fn find_use_statement(ast: &File, use_statement: &ItemUse) -> bool{
+    for item in &ast.items{
+        match item{
+            Item::Use(item_use) if item_use == use_statement => return true,
+            _ => continue
+        }
+    }
+    false
+}
+
+pub(crate) fn find_composite_enum(ast: &File, composite_enum: &ItemEnum) -> bool{
+    for item in &ast.items{
+        match item{
+			Item::Mod(ItemMod { ident, content, .. })
+				if *ident == "pallet" && content.is_some() =>
+			{
+				let (_, items) =
+					content.as_ref().expect("content is always Some thanks to the match guard");
+				for item in items {
+                    match item{
+                        Item::Enum(ItemEnum{ident,..}) if *ident == composite_enum.ident => return true,
+                        _ => continue
+                    }
+                }
+            },
+            _ => continue
+        }
+    }
+    false
 }
