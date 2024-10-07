@@ -4701,7 +4701,7 @@ dependencies = [
 
 [[package]]
 name = "pop-cli"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -4731,7 +4731,7 @@ dependencies = [
 
 [[package]]
 name = "pop-common"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "cargo_toml",
@@ -4756,7 +4756,7 @@ dependencies = [
 
 [[package]]
 name = "pop-contracts"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "contract-build",
@@ -4787,7 +4787,7 @@ dependencies = [
 
 [[package]]
 name = "pop-parachains"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "askama",
@@ -4817,7 +4817,7 @@ dependencies = [
 
 [[package]]
 name = "pop-telemetry"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "dirs",
  "env_logger",
