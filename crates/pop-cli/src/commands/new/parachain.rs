@@ -15,7 +15,7 @@ use cliclack::{
 	outro, outro_cancel,
 };
 use pop_common::{
-	enum_variants,
+	enum_variants, enum_variants_for_help,
 	templates::{Template, Type},
 	Git, GitHub, Release,
 };
@@ -40,8 +40,9 @@ pub struct NewParachainCommand {
 	#[arg(
 		short = 't',
 		long,
-		help = "Template to use.",
-		value_parser = enum_variants!(Parachain)
+		help = format!("Template to use. [possible values: {}]", enum_variants_for_help!(Parachain)),
+		value_parser = enum_variants!(Parachain),
+		hide_possible_values = true // Hide the deprecated templates
 	)]
 	pub(crate) template: Option<Parachain>,
 	#[arg(
@@ -126,10 +127,9 @@ async fn guide_user_to_generate_parachain(verify: bool) -> Result<NewParachainCo
 			provider,
 			provider.name(),
 			format!(
-				"{} {} available option(s) {}",
+				"{} {} available option(s)",
 				provider.description(),
-				provider.templates().len(),
-				if provider.name() == "Parity" { "[deprecated]" } else { "" }
+				provider.templates().len()
 			),
 		);
 	}
@@ -216,7 +216,7 @@ async fn generate_parachain_from_template(
 	// add next steps
 	let mut next_steps = vec![
 		format!("cd into \"{name_template}\" and enjoy hacking! 🚀"),
-		"Use `pop build` to build your parachain.".into(),
+		"Use `pop build --release` to build your parachain.".into(),
 	];
 	if let Some(network_config) = template.network_config() {
 		next_steps.push(format!(
@@ -244,6 +244,9 @@ fn is_template_supported(provider: &Provider, template: &Parachain) -> Result<()
 			provider, template
 		)));
 	};
+	if template.is_deprecated() {
+		warning(format!("NOTE: this template is deprecated.{}", template.deprecated_message()))?;
+	}
 	Ok(())
 }
 
@@ -253,7 +256,7 @@ fn display_select_options(provider: &Provider) -> Result<&Parachain> {
 		if i == 0 {
 			prompt = prompt.initial_value(template);
 		}
-		prompt = prompt.item(template, template.name(), template.description());
+		prompt = prompt.item(template, template.name(), template.description().trim());
 	}
 	Ok(prompt.interact()?)
 }
@@ -467,11 +470,11 @@ mod tests {
 	fn test_is_template_supported() -> Result<()> {
 		is_template_supported(&Provider::Pop, &Parachain::Standard)?;
 		assert!(is_template_supported(&Provider::Pop, &Parachain::ParityContracts).is_err());
-		assert!(is_template_supported(&Provider::Pop, &Parachain::ParityFPT).is_err());
+		assert!(is_template_supported(&Provider::Pop, &Parachain::ParityGeneric).is_err());
 
 		assert!(is_template_supported(&Provider::Parity, &Parachain::Standard).is_err());
 		is_template_supported(&Provider::Parity, &Parachain::ParityContracts)?;
-		is_template_supported(&Provider::Parity, &Parachain::ParityFPT)
+		is_template_supported(&Provider::Parity, &Parachain::ParityGeneric)
 	}
 
 	#[test]
