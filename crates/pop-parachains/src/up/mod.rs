@@ -278,10 +278,10 @@ impl Zombienet {
 		Ok(relay::default(version, runtime_version, chain, cache).await?)
 	}
 
-    /// The name of the relay chain.
-    pub fn relay_chain(&self) -> &str {
-        &self.relay_chain.chain
-    }
+	/// The name of the relay chain.
+	pub fn relay_chain(&self) -> &str {
+		&self.relay_chain.chain
+	}
 
 	/// Whether any HRMP channels are to be pre-opened.
 	pub fn hrmp_channels(&self) -> bool {
