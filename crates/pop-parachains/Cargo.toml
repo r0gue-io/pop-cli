@@ -17,9 +17,8 @@ glob.workspace = true
 serde_json.workspace = true
 strum.workspace = true
 strum_macros.workspace = true
-# Subxt dependenices need to be at least 0.37 because of the new SignedExtension
-subxt-signer = { version = "0.37", features = ["subxt", "sr25519"] }
-subxt = "0.37"
+subxt-signer.workspace = true
+subxt.workspace = true
 tar.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
@@ -34,7 +33,6 @@ toml_edit.workspace = true
 walkdir.workspace = true
 # Zombienet
 zombienet-sdk.workspace = true
-zombienet-support.workspace = true
 
 # Pop
 pop-common = { path = "../pop-common", version = "0.4.0" }
