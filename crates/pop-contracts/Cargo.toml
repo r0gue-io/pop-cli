@@ -33,7 +33,7 @@ subxt.workspace = true
 # cargo-contracts
 contract-build.workspace = true
 contract-extrinsics.workspace = true
-contract-transcode.workspace = true 
+contract-transcode.workspace = true
 scale-info.workspace = true
 #  pop
 pop-common = { path = "../pop-common", version = "0.3.0" }

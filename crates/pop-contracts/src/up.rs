@@ -11,7 +11,7 @@ use contract_extrinsics::{
 	TokenMetadata, UploadCommandBuilder, UploadExec,
 };
 use ink_env::{DefaultEnvironment, Environment};
-use sp_core::Bytes;
+use sp_core::{Bytes, H160};
 use sp_weights::Weight;
 use std::{fmt::Write, path::PathBuf};
 use subxt::PolkadotConfig as DefaultConfig;
@@ -166,12 +166,12 @@ pub async fn dry_run_upload(
 pub async fn instantiate_smart_contract(
 	instantiate_exec: InstantiateExec<DefaultConfig, DefaultEnvironment, Keypair>,
 	gas_limit: Weight,
-) -> anyhow::Result<String, Error> {
+) -> anyhow::Result<H160, Error> {
 	let instantiate_result = instantiate_exec
 		.instantiate(Some(gas_limit))
 		.await
 		.map_err(|error_variant| Error::InstantiateContractError(format!("{:?}", error_variant)))?;
-	Ok(instantiate_result.contract_address.to_string())
+	Ok(instantiate_result.contract_address)
 }
 
 /// Upload a contract.

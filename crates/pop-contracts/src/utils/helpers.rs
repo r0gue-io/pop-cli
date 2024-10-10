@@ -8,6 +8,7 @@ use std::{
 	path::{Path, PathBuf},
 	str::FromStr,
 };
+use subxt::utils::H160;
 use subxt::{Config, PolkadotConfig as DefaultConfig};
 
 pub fn get_manifest_path(path: Option<&Path>) -> Result<ManifestPath, Error> {
@@ -27,9 +28,8 @@ pub fn parse_balance(
 	BalanceVariant::from_str(balance).map_err(|e| Error::BalanceParsing(format!("{}", e)))
 }
 
-pub fn parse_account(account: &str) -> Result<<DefaultConfig as Config>::AccountId, Error> {
-	<DefaultConfig as Config>::AccountId::from_str(account)
-		.map_err(|e| Error::AccountAddressParsing(format!("{}", e)))
+pub fn parse_account(account: &str) -> Result<sp_core::H160, Error> {
+	H160::from_str(account).map_err(|e| Error::AccountAddressParsing(format!("{}", e)))
 }
 
 /// Canonicalizes the given path to ensure consistency and resolve any symbolic links.

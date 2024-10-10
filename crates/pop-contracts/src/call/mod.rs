@@ -14,6 +14,7 @@ use contract_extrinsics::{
 	ExtrinsicOptsBuilder, TokenMetadata,
 };
 use ink_env::{DefaultEnvironment, Environment};
+use sp_core::H160;
 use sp_weights::Weight;
 use std::path::PathBuf;
 use subxt::{Config, PolkadotConfig as DefaultConfig};
@@ -66,7 +67,7 @@ pub async fn set_up_call(
 	let value: BalanceVariant<<DefaultEnvironment as Environment>::Balance> =
 		parse_balance(&call_opts.value)?;
 
-	let contract: <DefaultConfig as Config>::AccountId = parse_account(&call_opts.contract)?;
+	let contract: H160 = parse_account(&call_opts.contract)?;
 
 	let call_exec: CallExec<DefaultConfig, DefaultEnvironment, Keypair> =
 		CallCommandBuilder::new(contract.clone(), &call_opts.message, extrinsic_opts)
