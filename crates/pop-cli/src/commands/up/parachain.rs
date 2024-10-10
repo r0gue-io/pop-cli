@@ -9,7 +9,7 @@ use cliclack::{
 use console::{Emoji, Style, Term};
 use duct::cmd;
 use pop_common::Status;
-use pop_parachains::{Error, IndexSet, NetworkNode, Zombienet};
+use pop_parachains::{clear_dmpq, Error, IndexSet, NetworkNode, RelayChain, Zombienet};
 use std::{path::Path, time::Duration};
 use tokio::time::sleep;
 
@@ -147,6 +147,39 @@ impl ZombienetCommand {
 				}
 
 				spinner.stop(result);
+
+				// Check for any specified channels
+				if zombienet.hrmp_channels() {
+					let relay_chain = zombienet.relay_chain();
+					match RelayChain::from(relay_chain) {
+						None => {
+							log::error(format!("🚫 Using `{relay_chain}` with HRMP channels is currently unsupported. Please use `paseo-local` or `rococo-local`."))?;
+						},
+						Some(relay_chain) => {
+							use tokio::time::sleep;
+							let spinner = cliclack::spinner();
+							spinner.start("Connecting to relay chain to prepare channels...");
+							// Allow relay node time to start
+							sleep(Duration::from_secs(10)).await;
+							spinner.start("Preparing channels...");
+							let relay_endpoint = network.relaychain().nodes()[0].client().await?;
+							let para_ids: Vec<_> =
+								network.parachains().iter().map(|p| p.para_id()).collect();
+							tokio::spawn(async move {
+								if let Err(e) =
+									clear_dmpq(relay_chain, relay_endpoint, &para_ids).await
+								{
+									spinner.stop("");
+									log::error(format!("🚫 Could not prepare channels: {e}"))?;
+									return Ok::<(), Error>(());
+								}
+								spinner.stop("Channels successfully prepared for initialization.");
+								Ok::<(), Error>(())
+							});
+						},
+					}
+				}
+
 				tokio::signal::ctrl_c().await?;
 				outro("Done")?;
 			},
