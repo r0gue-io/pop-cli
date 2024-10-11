@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{
-	cli,
-	cli::{traits::Cli as _, Cli},
+	cli::{self, traits::*, Cli},
 	style::style,
 };
 use clap::{Args, ValueEnum};
-use cliclack::{confirm, input};
 use pop_common::Profile;
 use pop_parachains::{
 	binary_path, build_parachain, export_wasm_file, generate_genesis_state_file,
@@ -170,17 +168,13 @@ impl BuildSpecCommand {
 			let _ = match self.id {
 				Some(_) => self.build(&mut Cli),
 				None => {
-					let config = guide_user_to_generate_spec(self).await?;
+					let config = guide_user_to_generate_spec(self, &mut Cli).await?;
 					config.build(&mut Cli)
 				},
 			};
 			Ok("spec")
 		} else {
-			Cli.intro("Building your chain spec")?;
-			Cli.outro_cancel(
-				"🚫 Can't build a specification for target. Maybe not a chain project ?",
-			)?;
-			Ok("spec")
+			self.build_spec_not_supported(&mut Cli)
 		}
 	}
 
@@ -302,15 +296,30 @@ impl BuildSpecCommand {
 
 		Ok("spec")
 	}
+	/// Display error when build spec is not supported.
+	///
+	/// # Arguments
+	/// * `cli` - The CLI implementation to be used.
+	fn build_spec_not_supported(
+		self,
+		cli: &mut impl cli::traits::Cli,
+	) -> anyhow::Result<&'static str> {
+		cli.intro("Building your chain spec")?;
+		cli.outro_cancel("🚫 Can't build a specification for target. Maybe not a chain project ?")?;
+		Ok("spec")
+	}
 }
 
 /// Guide the user to generate their chain specification.
-async fn guide_user_to_generate_spec(args: BuildSpecCommand) -> anyhow::Result<BuildSpecCommand> {
-	Cli.intro("Generate your chain spec")?;
+async fn guide_user_to_generate_spec(
+	args: BuildSpecCommand,
+	cli: &mut impl cli::traits::Cli,
+) -> anyhow::Result<BuildSpecCommand> {
+	cli.intro("Generate your chain spec")?;
 
 	// Confirm output path
 	let default_output = format!("./{DEFAULT_SPEC_NAME}");
-	let output_file: String = input("Name of the plain chain spec file. If a path is given, the necessary directories will be created:")
+	let output_file: String = cli.input("Name of the plain chain spec file. If a path is given, the necessary directories will be created:")
 		.placeholder(&default_output)
 		.default_input(&default_output)
 		.interact()?;
@@ -326,87 +335,96 @@ async fn guide_user_to_generate_spec(args: BuildSpecCommand) -> anyhow::Result<B
 		.and_then(|cs| cs.get_parachain_id())
 		.unwrap_or(DEFAULT_PARA_ID as u64)
 		.to_string();
-	let para_id: u32 = input("What parachain ID should be used?")
+	let para_id: u32 = cli
+		.input("What parachain ID should be used?")
 		.placeholder(&default)
 		.default_input(&default)
-		.interact()?;
+		.interact()?
+		.parse::<u32>()
+		.unwrap_or(DEFAULT_PARA_ID);
 
 	// Prompt for chain type.
 	// If relay is Kusama or Polkadot, then Live type is used and user is not prompted.
-	let mut prompt = cliclack::select("Choose the chain type: ".to_string());
-	let default = chain_spec
-		.as_ref()
-		.and_then(|cs| cs.get_chain_type())
-		.and_then(|r| ChainType::from_str(r, true).ok());
-	if let Some(chain_type) = default.as_ref() {
-		prompt = prompt.initial_value(chain_type);
-	}
-	for (i, chain_type) in ChainType::VARIANTS.iter().enumerate() {
-		if default.is_none() && i == 0 {
+	let chain_type = {
+		let mut prompt = cli.select("Choose the chain type: ".to_string());
+		let default = chain_spec
+			.as_ref()
+			.and_then(|cs| cs.get_chain_type())
+			.and_then(|r| ChainType::from_str(r, true).ok());
+		if let Some(chain_type) = default.clone() {
 			prompt = prompt.initial_value(chain_type);
 		}
-		prompt = prompt.item(
-			chain_type,
-			chain_type.get_message().unwrap_or(chain_type.as_ref()),
-			chain_type.get_detailed_message().unwrap_or_default(),
-		);
-	}
-	let chain_type: ChainType = prompt.interact()?.clone();
+		for (i, chain_type) in ChainType::VARIANTS.iter().enumerate() {
+			if default.is_none() && i == 0 {
+				prompt = prompt.initial_value(chain_type.clone());
+			}
+			prompt = prompt.item(
+				chain_type.clone(),
+				chain_type.get_message().unwrap_or(chain_type.as_ref()),
+				chain_type.get_detailed_message().unwrap_or_default(),
+			);
+		}
+		prompt.interact()?
+	};
 
 	// Prompt for relay chain.
-	let mut prompt =
-		cliclack::select("Choose the relay chain your chain will be connecting to: ".to_string());
-	let default = chain_spec
-		.as_ref()
-		.and_then(|cs| cs.get_relay_chain())
-		.and_then(|r| RelayChain::from_str(r, true).ok());
-	if let Some(relay) = default.as_ref() {
-		prompt = prompt.initial_value(relay);
-	}
-	// Prompt relays chains based on the chain type
-	match chain_type {
-		ChainType::Live =>
-			for relay in RelayChain::VARIANTS {
-				if !matches!(
-					relay,
-					RelayChain::Westend |
-						RelayChain::Paseo | RelayChain::Kusama |
-						RelayChain::Polkadot
-				) {
-					continue;
-				} else {
-					prompt = prompt.item(
+	let relay_chain = {
+		let mut prompt =
+			cli.select("Choose the relay chain your chain will be connecting to: ".to_string());
+		let default = chain_spec
+			.as_ref()
+			.and_then(|cs| cs.get_relay_chain())
+			.and_then(|r| RelayChain::from_str(r, true).ok());
+		if let Some(relay) = default.clone() {
+			prompt = prompt.initial_value(relay);
+		}
+		// Prompt relays chains based on the chain type
+		match chain_type {
+			ChainType::Live =>
+				for relay in RelayChain::VARIANTS {
+					if !matches!(
 						relay,
-						relay.get_message().unwrap_or(relay.as_ref()),
-						relay.get_detailed_message().unwrap_or_default(),
-					);
-				}
-			},
-		_ =>
-			for relay in RelayChain::VARIANTS {
-				if matches!(
-					relay,
-					RelayChain::Westend |
-						RelayChain::Paseo | RelayChain::Kusama |
-						RelayChain::Polkadot
-				) {
-					continue;
-				} else {
-					prompt = prompt.item(
+						RelayChain::Westend |
+							RelayChain::Paseo | RelayChain::Kusama |
+							RelayChain::Polkadot
+					) {
+						continue;
+					} else {
+						prompt = prompt.item(
+							relay.clone(),
+							relay.get_message().unwrap_or(relay.as_ref()),
+							relay.get_detailed_message().unwrap_or_default(),
+						);
+					}
+				},
+			_ =>
+				for relay in RelayChain::VARIANTS {
+					if matches!(
 						relay,
-						relay.get_message().unwrap_or(relay.as_ref()),
-						relay.get_detailed_message().unwrap_or_default(),
-					);
-				}
-			},
-	}
+						RelayChain::Westend |
+							RelayChain::Paseo | RelayChain::Kusama |
+							RelayChain::Polkadot
+					) {
+						continue;
+					} else {
+						prompt = prompt.item(
+							relay.clone(),
+							relay.get_message().unwrap_or(relay.as_ref()),
+							relay.get_detailed_message().unwrap_or_default(),
+						);
+					}
+				},
+		}
 
-	let relay_chain = prompt.interact()?.clone();
+		prompt.interact()?
+	};
 
 	// Prompt for default bootnode if chain type is Local or Live.
 	let default_bootnode = match chain_type {
 		ChainType::Development => true,
-		_ => confirm("Would you like to use local host as a bootnode ?".to_string()).interact()?,
+		_ => cli
+			.confirm("Would you like to use local host as a bootnode?".to_string())
+			.interact()?,
 	};
 
 	// Prompt for protocol-id.
@@ -415,30 +433,34 @@ async fn guide_user_to_generate_spec(args: BuildSpecCommand) -> anyhow::Result<B
 		.and_then(|cs| cs.get_protocol_id())
 		.unwrap_or(DEFAULT_PROTOCOL_ID)
 		.to_string();
-	let protocol_id: String = input("Enter the protocol ID that will identify your network:")
+	let protocol_id: String = cli
+		.input("Enter the protocol ID that will identify your network:")
 		.placeholder(&default)
 		.default_input(&default)
 		.interact()?;
 
 	// Prompt for genesis state
-	let genesis_state = confirm("Should the genesis state file be generated ?".to_string())
+	let genesis_state = cli
+		.confirm("Should the genesis state file be generated?".to_string())
 		.initial_value(true)
 		.interact()?;
 
 	// Prompt for genesis code
-	let genesis_code = confirm("Should the genesis code file be generated ?".to_string())
+	let genesis_code = cli
+		.confirm("Should the genesis code file be generated?".to_string())
 		.initial_value(true)
 		.interact()?;
 
 	// Only check user to check their profile selection if a live spec is being built on debug mode.
-	let profile =
-		if !args.release && matches!(chain_type, ChainType::Live) {
-			confirm("Using Debug profile to build a Live specification. Should Release be used instead ?")
-    		.initial_value(true)
-    		.interact()?
-		} else {
-			args.release
-		};
+	let profile = if !args.release && matches!(chain_type, ChainType::Live) {
+		cli.confirm(
+			"Using Debug profile to build a Live specification. Should Release be used instead?",
+		)
+		.initial_value(true)
+		.interact()?
+	} else {
+		args.release
+	};
 
 	Ok(BuildSpecCommand {
 		output_file: Some(PathBuf::from(output_file)),
@@ -451,4 +473,237 @@ async fn guide_user_to_generate_spec(args: BuildSpecCommand) -> anyhow::Result<B
 		genesis_state,
 		genesis_code,
 	})
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::cli::MockCli;
+	use std::path::PathBuf;
+
+	#[tokio::test]
+	async fn guide_user_to_generate_spec_development_works() -> anyhow::Result<()> {
+		let mut cli = MockCli::new()
+			.expect_intro("Generate your chain spec")
+			.expect_confirm("Should the genesis code file be generated?", true)
+			.expect_confirm("Should the genesis state file be generated?", true)
+			.expect_input(
+				"Enter the protocol ID that will identify your network:",
+				"protocol".into(),
+			)
+			.expect_select::<RelayChain>(
+				"Choose the relay chain your chain will be connecting to: ",
+				Some(false),
+				true,
+				Some(vec![
+					(
+						RelayChain::PaseoLocal.get_message().unwrap().into(),
+						RelayChain::PaseoLocal.get_detailed_message().unwrap().into(),
+					),
+					(
+						RelayChain::WestendLocal.get_message().unwrap().into(),
+						RelayChain::WestendLocal.get_detailed_message().unwrap().into(),
+					),
+					(
+						RelayChain::KusamaLocal.get_message().unwrap().into(),
+						RelayChain::KusamaLocal.get_detailed_message().unwrap().into(),
+					),
+					(
+						RelayChain::PolkadotLocal.get_message().unwrap().into(),
+						RelayChain::PolkadotLocal.get_detailed_message().unwrap().into(),
+					),
+
+				]),
+				0, // "Paseo Local"
+			)
+			.expect_select::<ChainType>(
+				"Choose the chain type: ",
+				Some(false),
+				true,
+				Some(vec![
+					(
+						ChainType::Development.get_message().unwrap().into(),
+						ChainType::Development.get_detailed_message().unwrap().into(),
+					),
+					(ChainType::Local.get_message().unwrap().into(), ChainType::Local.get_detailed_message().unwrap().into()),
+					(ChainType::Live.get_message().unwrap().into(), ChainType::Live.get_detailed_message().unwrap().into()),
+				]),
+				0, // "Development"
+			)
+			.expect_input(
+				"What parachain ID should be used?",
+				"2002".into(),
+			)
+			.expect_input(
+				"Name of the plain chain spec file. If a path is given, the necessary directories will be created:",
+				"./my-chain-spec.json".into(),
+			);
+
+		let user_prompt = guide_user_to_generate_spec(
+			BuildSpecCommand {
+				output_file: None,
+				release: true,
+				id: None,
+				default_bootnode: true,
+				chain_type: None,
+				relay: None,
+				protocol_id: None,
+				genesis_state: true,
+				genesis_code: true,
+			},
+			&mut cli,
+		)
+		.await?;
+		assert_eq!(user_prompt.output_file, Some(PathBuf::from("./my-chain-spec.json")));
+		assert_eq!(user_prompt.id, Some(2002));
+		assert!(user_prompt.release);
+		assert!(user_prompt.default_bootnode);
+		assert_eq!(user_prompt.chain_type, Some(ChainType::Development));
+		assert_eq!(user_prompt.relay, Some(RelayChain::PaseoLocal));
+		assert_eq!(user_prompt.protocol_id, Some("protocol".into()));
+		assert!(user_prompt.genesis_state);
+		assert!(user_prompt.genesis_code);
+
+		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn guide_user_to_generate_spec_live_works() -> anyhow::Result<()> {
+		let mut cli = MockCli::new()
+			.expect_intro("Generate your chain spec")
+			.expect_confirm("Using Debug profile to build a Live specification. Should Release be used instead?", true) // Because args.release is false
+			.expect_confirm("Should the genesis code file be generated?", true)
+			.expect_confirm("Should the genesis state file be generated?", true)
+			.expect_input(
+				"Enter the protocol ID that will identify your network:",
+				"protocol".into(),
+			)
+			.expect_select::<RelayChain>(
+				"Choose the relay chain your chain will be connecting to: ",
+				Some(false),
+				true,
+				Some(vec![
+					(
+						RelayChain::Paseo.get_message().unwrap().into(),
+						RelayChain::Paseo.get_detailed_message().unwrap().into(),
+					),
+					(
+						RelayChain::Westend.get_message().unwrap().into(),
+						RelayChain::Westend.get_detailed_message().unwrap().into(),
+					),
+					(
+						RelayChain::Kusama.get_message().unwrap().into(),
+						RelayChain::Kusama.get_detailed_message().unwrap().into(),
+					),
+					(
+						RelayChain::Polkadot.get_message().unwrap().into(),
+						RelayChain::Polkadot.get_detailed_message().unwrap().into(),
+					),
+
+				]),
+				3, // "Polkadot Local"
+			)
+			.expect_select::<ChainType>(
+				"Choose the chain type: ",
+				Some(false),
+				true,
+				Some(vec![
+					(
+						ChainType::Development.get_message().unwrap().into(),
+						ChainType::Development.get_detailed_message().unwrap().into(),
+					),
+					(ChainType::Local.get_message().unwrap().into(), ChainType::Local.get_detailed_message().unwrap().into()),
+					(ChainType::Live.get_message().unwrap().into(), ChainType::Live.get_detailed_message().unwrap().into()),
+				]),
+				3, // "Live"
+			)
+			.expect_confirm("Would you like to use local host as a bootnode?", false)
+			.expect_input(
+				"What parachain ID should be used?",
+				"2002".into(),
+			)
+			.expect_input(
+				"Name of the plain chain spec file. If a path is given, the necessary directories will be created:",
+				"./my-chain-spec.json".into(),
+			);
+
+		let user_prompt = guide_user_to_generate_spec(
+			BuildSpecCommand {
+				output_file: None,
+				release: false,
+				id: None,
+				default_bootnode: true,
+				chain_type: None,
+				relay: None,
+				protocol_id: None,
+				genesis_state: true,
+				genesis_code: true,
+			},
+			&mut cli,
+		)
+		.await?;
+		assert_eq!(user_prompt.output_file, Some(PathBuf::from("./my-chain-spec.json")));
+		assert_eq!(user_prompt.id, Some(2002));
+		assert!(user_prompt.release);
+		assert!(!user_prompt.default_bootnode);
+		assert_eq!(user_prompt.chain_type, Some(ChainType::Live));
+		assert_eq!(user_prompt.relay, Some(RelayChain::Polkadot));
+		assert_eq!(user_prompt.protocol_id, Some("protocol".into()));
+		assert!(user_prompt.genesis_state);
+		assert!(user_prompt.genesis_code);
+
+		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn build_fails_no_parachain() -> anyhow::Result<()> {
+		let mut cli = MockCli::new()
+			.expect_intro(format!("Building your chain spec"))
+			.expect_warning(
+				"NOTE: this command defaults to DEBUG builds for development chain types. Please use `--release` (or simply `-r` for a release build...)",
+			);
+		assert!(matches!(
+			BuildSpecCommand {
+				output_file: None,
+				release: false,
+				id: Some(2002),
+				default_bootnode: true,
+				chain_type: None,
+				relay: None,
+				protocol_id: None,
+				genesis_state: true,
+				genesis_code: true
+			}
+			.build(&mut cli),
+			anyhow::Result::Err(message) if message.to_string().contains("Failed to get manifest path:"),
+		));
+
+		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn build_spec_not_supported_works() -> anyhow::Result<()> {
+		let mut cli = MockCli::new()
+			.expect_intro(format!("Building your chain spec"))
+			.expect_outro_cancel(
+				"🚫 Can't build a specification for target. Maybe not a chain project ?",
+			);
+		assert_eq!(
+			BuildSpecCommand {
+				output_file: None,
+				release: true,
+				id: None,
+				default_bootnode: true,
+				chain_type: None,
+				relay: None,
+				protocol_id: None,
+				genesis_state: true,
+				genesis_code: true
+			}
+			.build_spec_not_supported(&mut cli)?,
+			"spec"
+		);
+
+		cli.verify()
+	}
 }

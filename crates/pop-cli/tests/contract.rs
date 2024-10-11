@@ -42,7 +42,7 @@ async fn contract_lifecycle() -> Result<()> {
 	assert!(temp_dir.join("test_contract/target/ink/test_contract.wasm").exists());
 	assert!(temp_dir.join("test_contract/target/ink/test_contract.json").exists());
 
-	let binary = contracts_node_generator(temp_dir.to_path_buf().clone(), None).await?;
+	let binary = contracts_node_generator(temp_dir, None).await?;
 	binary.source(false, &(), true).await?;
 	let process = run_contracts_node(binary.path(), None).await?;
 
