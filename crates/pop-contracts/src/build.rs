@@ -2,7 +2,7 @@
 
 use crate::{errors::Error, utils::helpers::get_manifest_path};
 pub use contract_build::Verbosity;
-use contract_build::{execute, BuildMode, BuildResult, ExecuteArgs};
+use contract_build::{execute, BuildMode, BuildResult, ExecuteArgs, Target};
 use std::path::Path;
 
 /// Build the smart contract located at the specified `path` in `build_release` mode.
@@ -25,7 +25,13 @@ pub fn build_smart_contract(
 	};
 
 	// Default values
-	let args = ExecuteArgs { manifest_path, build_mode, verbosity, ..Default::default() };
+	let args = ExecuteArgs {
+		manifest_path,
+		build_mode,
+		verbosity,
+		target: Target::RiscV,
+		..Default::default()
+	};
 
 	// Execute the build and log the output of the build
 	execute(args)
