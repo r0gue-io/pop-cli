@@ -35,7 +35,7 @@ walkdir.workspace = true
 zombienet-sdk.workspace = true
 
 # Pop
-pop-common = { path = "../pop-common", version = "0.6.0" }
+pop-common = { path = "../pop-common", version = "0.6.0-interpop" }
 
 [dev-dependencies]
 # Used in doc tests.
