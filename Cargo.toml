@@ -64,6 +64,10 @@ serde = { version = "1.0", features = ["derive"] }
 zombienet-sdk = "0.2.13"
 git2_credentials = "0.13.0"
 
+# ismp
+ismp = { git = "https://github.com/r0gue-io/ismp", branch = "polkadot-v1.14.0" }
+substrate-state-machine = { git = "https://github.com/r0gue-io/ismp", branch = "polkadot-v1.14.0" }
+
 # pop-cli
 clap = { version = "4.5", features = ["derive"] }
 cliclack = "0.3.1"

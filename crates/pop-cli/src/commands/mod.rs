@@ -10,6 +10,8 @@ pub(crate) mod call;
 pub(crate) mod clean;
 pub(crate) mod install;
 pub(crate) mod new;
+#[cfg(feature = "ismp")]
+mod relay;
 pub(crate) mod test;
 pub(crate) mod up;
 
@@ -41,6 +43,10 @@ pub(crate) enum Command {
 	/// Remove generated/cached artifacts.
 	#[clap(alias = "C")]
 	Clean(clean::CleanArgs),
+	/// Relay ISMP messages.
+	#[clap(alias = "r")]
+	#[cfg(feature = "ismp")]
+	Relay(relay::RelayArgs),
 }
 
 /// Help message for the build command.
@@ -122,6 +128,8 @@ impl Command {
 						.map(|_| Value::Null)
 				},
 			},
+			#[cfg(feature = "ismp")]
+			Self::Relay(args) => args.command.execute().await.map(|_| Value::Null),
 		}
 	}
 }

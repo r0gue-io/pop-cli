@@ -46,6 +46,12 @@ pop-telemetry = { path = "../pop-telemetry", version = "0.4.0", optional = true 
 # common
 pop-common = { path = "../pop-common", version = "0.4.0" }
 
+# ismp
+ismp = { workspace = true, optional = true }
+serde = { workspace = true, optional = true, features = ["derive"] }
+substrate-state-machine = { workspace = true, optional = true }
+subxt = { workspace = true, optional = true }
+
 [dev-dependencies]
 assert_cmd.workspace = true
 predicates.workspace = true
@@ -53,5 +59,6 @@ predicates.workspace = true
 [features]
 default = ["contract", "parachain", "telemetry"]
 contract = ["dep:pop-contracts", "dep:sp-core", "dep:sp-weights", "dep:dirs"]
+ismp = ["dep:ismp", "dep:serde", "dep:substrate-state-machine", "dep:subxt"]
 parachain = ["dep:pop-parachains", "dep:dirs"]
 telemetry = ["dep:pop-telemetry"]
