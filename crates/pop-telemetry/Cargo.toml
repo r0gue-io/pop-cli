@@ -1,11 +1,11 @@
 [package]
 name = "pop-telemetry"
 description = "Library for collecting anonymous Usage Metrics Collection with Umami."
-version = "0.3.0"
 readme = "README.md"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+version.workspace = true
 
 [dependencies]
 dirs = { workspace = true }

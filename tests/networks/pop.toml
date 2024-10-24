@@ -1,7 +1,7 @@
 # pop up parachain -f ./tests/networks/pop.toml
 
 [relaychain]
-chain = "rococo-local"
+chain = "paseo-local"
 
 [[relaychain.nodes]]
 name = "alice"
@@ -13,7 +13,7 @@ validator = true
 
 [[parachains]]
 id = 1000
-chain = "asset-hub-rococo-local"
+chain = "asset-hub-paseo-local"
 
 [[parachains.collators]]
 name = "asset-hub"
@@ -25,3 +25,15 @@ default_command = "pop-node"
 [[parachains.collators]]
 name = "pop"
 args = ["-lruntime::contracts=debug"]
+
+[[hrmp_channels]]
+sender = 1000
+recipient = 4385
+max_capacity = 1000
+max_message_size = 5000
+
+[[hrmp_channels]]
+sender = 4385
+recipient = 1000
+max_capacity = 1000
+max_message_size = 8000

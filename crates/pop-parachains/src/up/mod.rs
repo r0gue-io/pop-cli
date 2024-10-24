@@ -16,8 +16,7 @@ use std::{
 use symlink::{remove_symlink_file, symlink_file};
 use tempfile::{Builder, NamedTempFile};
 use toml_edit::{value, ArrayOfTables, DocumentMut, Formatted, Item, Table, Value};
-use zombienet_sdk::{Network, NetworkConfig, NetworkConfigExt};
-use zombienet_support::fs::local::LocalFileSystem;
+use zombienet_sdk::{LocalFileSystem, Network, NetworkConfig, NetworkConfigExt};
 
 mod chain_specs;
 mod parachains;
@@ -31,6 +30,8 @@ pub struct Zombienet {
 	relay_chain: RelayChain,
 	/// The configuration required to launch parachains.
 	parachains: IndexMap<u32, Parachain>,
+	/// Whether any HRMP channels are to be pre-opened.
+	hrmp_channels: bool,
 }
 
 impl Zombienet {
@@ -60,7 +61,7 @@ impl Zombienet {
 		// Parse network config
 		let network_config = NetworkConfiguration::from(network_config)?;
 		// Determine relay and parachain requirements based on arguments and config
-		let relay_chain = Self::relay_chain(
+		let relay_chain = Self::_relay_chain(
 			relay_chain_version,
 			relay_chain_runtime_version,
 			&network_config,
@@ -85,7 +86,7 @@ impl Zombienet {
 			cache,
 		)
 		.await?;
-		Ok(Self { network_config, relay_chain, parachains })
+		Ok(Self { network_config, relay_chain, parachains, hrmp_channels: false })
 	}
 
 	/// The binaries required to launch the network.
@@ -217,7 +218,7 @@ impl Zombienet {
 	///   will use the latest available version).
 	/// * `network_config` - The network configuration to be used to launch a network.
 	/// * `cache` - The location used for caching binaries.
-	async fn relay_chain(
+	async fn _relay_chain(
 		version: Option<&str>,
 		runtime_version: Option<&str>,
 		network_config: &NetworkConfiguration,
@@ -277,6 +278,16 @@ impl Zombienet {
 		Ok(relay::default(version, runtime_version, chain, cache).await?)
 	}
 
+	/// The name of the relay chain.
+	pub fn relay_chain(&self) -> &str {
+		&self.relay_chain.chain
+	}
+
+	/// Whether any HRMP channels are to be pre-opened.
+	pub fn hrmp_channels(&self) -> bool {
+		self.hrmp_channels
+	}
+
 	/// Launches the local network.
 	pub async fn spawn(&mut self) -> Result<Network<LocalFileSystem>, Error> {
 		// Symlink polkadot workers
@@ -305,6 +316,7 @@ impl Zombienet {
 		let config = self.network_config.configure(&self.relay_chain, &self.parachains)?;
 		let path = config.path().to_str().expect("temp config file should have a path");
 		let network_config = NetworkConfig::load_from_toml(path)?;
+		self.hrmp_channels = !network_config.hrmp_channels().is_empty();
 		Ok(network_config.spawn_native().await?)
 	}
 }
