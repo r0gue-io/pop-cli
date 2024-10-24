@@ -17,7 +17,7 @@ use ink_env::{DefaultEnvironment, Environment};
 use sp_core::H160;
 use sp_weights::Weight;
 use std::path::PathBuf;
-use subxt::{Config, PolkadotConfig as DefaultConfig};
+use subxt::PolkadotConfig as DefaultConfig;
 use subxt_signer::sr25519::Keypair;
 use url::Url;
 

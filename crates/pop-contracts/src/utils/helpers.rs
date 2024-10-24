@@ -9,7 +9,6 @@ use std::{
 	str::FromStr,
 };
 use subxt::utils::H160;
-use subxt::{Config, PolkadotConfig as DefaultConfig};
 
 pub fn get_manifest_path(path: Option<&Path>) -> Result<ManifestPath, Error> {
 	if let Some(path) = path {
