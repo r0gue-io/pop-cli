@@ -62,8 +62,7 @@ impl Command {
 		#[cfg(feature = "contract")]
 		if pop_contracts::is_supported(args.path.as_deref())? {
 			// All commands originating from root command are valid
-			BuildContractCommand { path: args.path, release: args.release, valid: true }
-				.execute()?;
+			BuildContractCommand { path: args.path, release: true, valid: true }.execute()?;
 			return Ok("contract");
 		}
 
