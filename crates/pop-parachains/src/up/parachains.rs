@@ -2,6 +2,7 @@
 
 use super::{chain_specs::chain_spec_generator, Binary};
 use pop_common::{
+	helpers::parse_latest_tag,
 	sourcing::{
 		traits::{Source as _, *},
 		GitHub::ReleaseArchive,
@@ -126,7 +127,10 @@ pub(super) async fn from(
 		let releases = para.releases().await?;
 		let tag = Binary::resolve_version(command, version, &releases, cache);
 		// Only set latest when caller has not explicitly specified a version to use
-		let latest = version.is_none().then(|| releases.first().map(|v| v.to_string())).flatten();
+		let latest = version
+			.is_none()
+			.then(|| parse_latest_tag(releases.iter().map(|s| s.as_str()).collect()))
+			.flatten();
 		let binary = Binary::Source {
 			name: para.binary().to_string(),
 			source: TryInto::try_into(para, tag, latest)?,

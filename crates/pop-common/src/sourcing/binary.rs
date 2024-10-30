@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{
+	helpers::parse_latest_tag,
 	sourcing::{
 		from_local_package, Error,
 		GitHub::{ReleaseArchive, SourceCodeArchive},
-		Source,
-		Source::{Archive, Git, GitHub},
+		Source::{self, Archive, Git, GitHub},
 	},
 	Status,
 };
@@ -112,10 +112,12 @@ impl Binary {
 					path.exists().then_some(Some(version.to_string()))
 				})
 				.nth(0)
-				.unwrap_or(
+				.unwrap_or_else(|| {
 					// Default to latest version
-					available.first().map(|version| version.as_ref().to_string()),
-				),
+					let versions = available.iter().map(|v| v.as_ref()).collect::<Vec<&str>>();
+					let latest = parse_latest_tag(versions);
+					latest
+				}),
 		}
 	}
 
@@ -237,7 +239,7 @@ mod tests {
 		let name = "polkadot";
 		let temp_dir = tempdir()?;
 
-		let available = vec!["v1.13.0", "v1.12.0", "v1.11.0"];
+		let available = vec!["v1.13.0", "v1.12.0", "v1.11.0", "stable2409"];
 
 		// Specified
 		let specified = Some("v1.12.0");
@@ -248,7 +250,7 @@ mod tests {
 		// Latest
 		assert_eq!(
 			Binary::resolve_version(name, None, &available, temp_dir.path()).unwrap(),
-			available[0]
+			"stable2409"
 		);
 		// Cached
 		File::create(temp_dir.path().join(format!("{name}-{}", available[1])))?;
