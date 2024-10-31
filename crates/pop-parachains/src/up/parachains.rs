@@ -29,7 +29,7 @@ pub(super) enum Parachain {
 	#[strum(props(
 		Repository = "https://github.com/r0gue-io/pop-node",
 		Binary = "pop-node",
-		Prerelease = "true",
+		Prerelease = "false",
 		Fallback = "testnet-v0.4.1"
 	))]
 	Pop,
@@ -130,10 +130,7 @@ pub(super) async fn from(
 		let releases = para.releases().await?;
 		let tag = Binary::resolve_version(command, version, &releases, cache);
 		// Only set latest when caller has not explicitly specified a version to use
-		let latest = version
-			.is_none()
-			.then(|| parse_latest_tag(releases.iter().map(|s| s.as_str()).collect()))
-			.flatten();
+		let latest = version.is_none().then(|| releases.first().map(|v| v.to_string())).flatten();
 		let binary = Binary::Source {
 			name: para.binary().to_string(),
 			source: TryInto::try_into(para, tag, latest)?,
