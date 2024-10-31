@@ -30,7 +30,7 @@ pub(super) enum Parachain {
 		Repository = "https://github.com/r0gue-io/pop-node",
 		Binary = "pop-node",
 		Prerelease = "true",
-		Fallback = "v0.1.0-alpha2"
+		Fallback = "v0.1.0-mainnet"
 	))]
 	Pop,
 }
