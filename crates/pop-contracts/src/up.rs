@@ -157,6 +157,11 @@ pub async fn dry_run_upload(
 	}
 }
 
+pub struct ContractInfo {
+	pub address: String,
+	pub code_hash: Option<String>,
+}
+
 /// Instantiate a contract.
 ///
 /// # Arguments
@@ -166,12 +171,18 @@ pub async fn dry_run_upload(
 pub async fn instantiate_smart_contract(
 	instantiate_exec: InstantiateExec<DefaultConfig, DefaultEnvironment, Keypair>,
 	gas_limit: Weight,
-) -> anyhow::Result<String, Error> {
+) -> anyhow::Result<ContractInfo, Error> {
 	let instantiate_result = instantiate_exec
 		.instantiate(Some(gas_limit))
 		.await
 		.map_err(|error_variant| Error::InstantiateContractError(format!("{:?}", error_variant)))?;
-	Ok(instantiate_result.contract_address.to_string())
+	// If is upload + instantiate, return the code hash.
+	let hash = if let Some(code_hash) = instantiate_result.code_hash {
+		Some(format!("{:?}", code_hash))
+	} else {
+		None
+	};
+	Ok(ContractInfo { address: instantiate_result.contract_address.to_string(), code_hash: hash })
 }
 
 /// Upload a contract.
@@ -391,8 +402,9 @@ mod tests {
 		assert!(weight.ref_time() > 0);
 		assert!(weight.proof_size() > 0);
 		// Instantiate smart contract
-		let address = instantiate_smart_contract(instantiate_exec, weight).await?;
-		assert!(address.starts_with("5"));
+		let contract_info = instantiate_smart_contract(instantiate_exec, weight).await?;
+		assert!(contract_info.address.starts_with("5"));
+		assert!(contract_info.code_hash.is_none());
 		// Stop the process contracts-node
 		Command::new("kill")
 			.args(["-s", "TERM", &process.id().to_string()])
