@@ -120,7 +120,7 @@ pub async fn run_contracts_node(
 	output: Option<&File>,
 ) -> Result<Child, Error> {
 	let mut command = Command::new(binary_path);
-
+	command.arg("-lerror,runtime::contracts=debug");
 	if let Some(output) = output {
 		command.stdout(Stdio::from(output.try_clone()?));
 		command.stderr(Stdio::from(output.try_clone()?));
