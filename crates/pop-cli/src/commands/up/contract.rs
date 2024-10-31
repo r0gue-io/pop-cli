@@ -249,11 +249,6 @@ impl UpContractCommand {
 				))
 				.dim()
 			));
-			// spinner.stop(format!(
-			// 	"Contract deployed and instantiated:\nThe Contract Address is {:?}\nThe Contract
-			// Code Hash is {:?}", 	contract_info.address,
-			// 	contract_info.code_hash
-			// ));
 			Self::terminate_node(process)?;
 			Cli.outro(COMPLETE)?;
 		}
@@ -349,8 +344,8 @@ pub fn has_contract_been_built(path: Option<&Path>) -> bool {
 		Err(_) => return false,
 	};
 	let contract_name = manifest.package().name();
-	project_path.join("target/ink").exists() &&
-		project_path.join(format!("target/ink/{}.contract", contract_name)).exists()
+	project_path.join("target/ink").exists()
+		&& project_path.join(format!("target/ink/{}.contract", contract_name)).exists()
 }
 
 #[cfg(test)]
