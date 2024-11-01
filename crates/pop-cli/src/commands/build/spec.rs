@@ -146,6 +146,10 @@ pub struct BuildSpecCommand {
 	/// Type of the chain [default: development].
 	#[arg(short = 't', long = "type", value_enum)]
 	pub(crate) chain_type: Option<ChainType>,
+	/// Specify the chain specification. It can be one of the predefined ones (dev, local) or a
+	/// custom one.
+	#[arg(short = 'c', long = "chain", default_value = "dev")]
+	pub(crate) chain: Option<String>,
 	/// Relay chain this parachain will connect to [default: paseo-local].
 	#[arg(long, value_enum)]
 	pub(crate) relay: Option<RelayChain>,
@@ -237,7 +241,12 @@ impl BuildSpecCommand {
 		// Generate plain spec.
 		spinner.set_message("Generating plain chain specification...");
 		let mut generated_files = vec![];
-		generate_plain_chain_spec(&binary_path, &plain_chain_spec, self.default_bootnode)?;
+		generate_plain_chain_spec(
+			&binary_path,
+			&plain_chain_spec,
+			self.default_bootnode,
+			self.chain.as_deref(),
+		)?;
 		generated_files.push(format!(
 			"Plain text chain specification file generated at: {}",
 			plain_chain_spec.display()
@@ -352,6 +361,11 @@ async fn guide_user_to_generate_spec(args: BuildSpecCommand) -> anyhow::Result<B
 		);
 	}
 	let chain_type: ChainType = prompt.interact()?.clone();
+	// Prompt for chain
+	let chain: String = input(" Specify the chain specification. It can be one of the predefined ones (dev, local) or a custom one.")
+		.placeholder("dev")
+		.default_input("dev")
+		.interact()?;
 
 	// Prompt for relay chain.
 	let mut prompt =
@@ -446,6 +460,7 @@ async fn guide_user_to_generate_spec(args: BuildSpecCommand) -> anyhow::Result<B
 		id: Some(para_id),
 		default_bootnode,
 		chain_type: Some(chain_type),
+		chain: Some(chain),
 		relay: Some(relay_chain),
 		protocol_id: Some(protocol_id),
 		genesis_state,

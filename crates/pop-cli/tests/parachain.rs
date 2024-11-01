@@ -48,7 +48,7 @@ async fn parachain_lifecycle() -> Result<()> {
 
 	let temp_parachain_dir = temp_dir.join("test_parachain");
 	// pop build spec --output ./target/pop/test-spec.json --id 2222 --type development --relay
-	// paseo-local --protocol-id pop-protocol"
+	// paseo-local --protocol-id pop-protocol" --chain local
 	Command::cargo_bin("pop")
 		.unwrap()
 		.current_dir(&temp_parachain_dir)
@@ -61,6 +61,8 @@ async fn parachain_lifecycle() -> Result<()> {
 			"2222",
 			"--type",
 			"development",
+			"--chain",
+			"local",
 			"--relay",
 			"paseo-local",
 			"--genesis-state",
@@ -86,6 +88,7 @@ async fn parachain_lifecycle() -> Result<()> {
 	assert!(content.contains("\"tokenSymbol\": \"POP\""));
 	assert!(content.contains("\"relay_chain\": \"paseo-local\""));
 	assert!(content.contains("\"protocolId\": \"pop-protocol\""));
+	assert!(content.contains("\"id\": \"local_testnet\""));
 
 	// pop up parachain -p "./test_parachain"
 	let mut cmd = Cmd::new(cargo_bin("pop"))
