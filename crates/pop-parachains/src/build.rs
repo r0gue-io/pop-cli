@@ -79,9 +79,14 @@ pub fn generate_plain_chain_spec(
 	binary_path: &Path,
 	plain_chain_spec: &Path,
 	default_bootnode: bool,
+	chain: Option<&str>,
 ) -> Result<(), Error> {
 	check_command_exists(binary_path, "build-spec")?;
 	let mut args = vec!["build-spec"];
+	if let Some(chain_spec_id) = chain {
+		args.push("--chain");
+		args.push(chain_spec_id);
+	}
 	if !default_bootnode {
 		args.push("--disable-default-bootnode");
 	}
@@ -458,6 +463,7 @@ default_command = "pop-node"
 			&binary_path,
 			&temp_dir.path().join("plain-parachain-chainspec.json"),
 			true,
+			Some("local"),
 		)?;
 		assert!(plain_chain_spec.exists());
 		{
