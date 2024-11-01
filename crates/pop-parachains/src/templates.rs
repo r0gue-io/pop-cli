@@ -130,7 +130,7 @@ pub enum Parachain {
 			Provider = "OpenZeppelin",
 			Repository = "https://github.com/OpenZeppelin/polkadot-runtime-templates",
 			Network = "./zombienet-config/devnet.toml",
-			SupportedVersions = "v1.0.0,v2.0.1",
+			SupportedVersions = "v1.0.0,v2.0.1,v2.0.3",
 			IsAudited = "true",
 			License = "GPL-3.0"
 		)
@@ -145,7 +145,7 @@ pub enum Parachain {
 			Provider = "OpenZeppelin",
 			Repository = "https://github.com/OpenZeppelin/polkadot-runtime-templates",
 			Network = "./zombienet-config/devnet.toml",
-			SupportedVersions = "v2.0.1",
+			SupportedVersions = "v2.0.3",
 			IsAudited = "true",
 			License = "GPL-3.0"
 		)
