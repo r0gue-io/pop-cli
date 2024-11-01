@@ -141,7 +141,7 @@ pub struct BuildSpecCommand {
 	#[arg(short = 'i', long = "id")]
 	pub(crate) id: Option<u32>,
 	/// Whether to keep localhost as a bootnode.
-	#[clap(long, default_value = "true")]
+	#[clap(long, default_value = "false")]
 	pub(crate) default_bootnode: bool,
 	/// Type of the chain [default: development].
 	#[arg(short = 't', long = "type", value_enum)]
@@ -379,13 +379,13 @@ async fn guide_user_to_generate_spec(args: BuildSpecCommand) -> anyhow::Result<B
 	}
 	// Prompt relays chains based on the chain type
 	match chain_type {
-		ChainType::Live =>
+		ChainType::Live => {
 			for relay in RelayChain::VARIANTS {
 				if !matches!(
 					relay,
-					RelayChain::Westend |
-						RelayChain::Paseo | RelayChain::Kusama |
-						RelayChain::Polkadot
+					RelayChain::Westend
+						| RelayChain::Paseo | RelayChain::Kusama
+						| RelayChain::Polkadot
 				) {
 					continue;
 				} else {
@@ -395,14 +395,15 @@ async fn guide_user_to_generate_spec(args: BuildSpecCommand) -> anyhow::Result<B
 						relay.get_detailed_message().unwrap_or_default(),
 					);
 				}
-			},
-		_ =>
+			}
+		},
+		_ => {
 			for relay in RelayChain::VARIANTS {
 				if matches!(
 					relay,
-					RelayChain::Westend |
-						RelayChain::Paseo | RelayChain::Kusama |
-						RelayChain::Polkadot
+					RelayChain::Westend
+						| RelayChain::Paseo | RelayChain::Kusama
+						| RelayChain::Polkadot
 				) {
 					continue;
 				} else {
@@ -412,7 +413,8 @@ async fn guide_user_to_generate_spec(args: BuildSpecCommand) -> anyhow::Result<B
 						relay.get_detailed_message().unwrap_or_default(),
 					);
 				}
-			},
+			}
+		},
 	}
 
 	let relay_chain = prompt.interact()?.clone();
