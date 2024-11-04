@@ -38,6 +38,8 @@ pub enum Error {
 	KeyPairCreation(String),
 	#[error("Failed to get manifest path: {0}")]
 	ManifestPath(String),
+	#[error("Argument {0} is required")]
+	MissingArgument(String),
 	#[error("Failed to create new contract project: {0}")]
 	NewContract(String),
 	#[error("ParseError error: {0}")]
@@ -46,12 +48,14 @@ pub enum Error {
 	ParseSecretURI(String),
 	#[error("The `Repository` property is missing from the template variant")]
 	RepositoryMissing,
+	#[error("Sourcing error {0}")]
+	SourcingError(SourcingError),
 	#[error("Failed to execute test command: {0}")]
 	TestCommand(String),
 	#[error("Unsupported platform: {os}")]
 	UnsupportedPlatform { os: &'static str },
 	#[error("{0}")]
 	UploadContractError(String),
-	#[error("Sourcing error {0}")]
-	SourcingError(SourcingError),
+	#[error("Wrong number of arguments provided. Expecting {expected}, {provided} provided")]
+	WrongNumberArguments { expected: usize, provided: usize },
 }
