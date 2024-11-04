@@ -56,6 +56,19 @@ pub fn get_messages(path: &Path) -> Result<Vec<Message>, Error> {
 	}
 	Ok(messages)
 }
+
+/// Extracts the information of a smart contract message parsing the metadata file.
+///
+/// # Arguments
+/// * `path` -  Location path of the project.
+/// * `message` - The label of the contract message.
+pub fn get_message(path: &Path, message: &str) -> Result<Message, Error> {
+	get_messages(path)?
+		.into_iter()
+		.find(|msg| msg.label == message)
+		.ok_or_else(|| Error::InvalidMessageName(message.to_string()))
+}
+
 // Parse the message parameters into a vector of argument labels.
 fn process_args(message_params: &[MessageParamSpec<PortableForm>]) -> Vec<Param> {
 	let mut args: Vec<Param> = Vec::new();
@@ -97,6 +110,28 @@ mod tests {
 		assert_eq!(message[2].args.len(), 1);
 		assert_eq!(message[2].args[0].label, "new_value".to_string());
 		assert_eq!(message[2].args[0].type_name, "bool".to_string());
+		Ok(())
+	}
+
+	#[test]
+	fn get_message_work() -> Result<()> {
+		let temp_dir = generate_smart_contract_test_environment()?;
+		let current_dir = env::current_dir().expect("Failed to get current directory");
+		mock_build_process(
+			temp_dir.path().join("testing"),
+			current_dir.join("./tests/files/testing.contract"),
+			current_dir.join("./tests/files/testing.json"),
+		)?;
+		assert!(matches!(
+			get_message(&temp_dir.path().join("testing"), "wrong_flip"),
+			Err(Error::InvalidMessageName(name)) if name == "wrong_flip".to_string()));
+		let message = get_message(&temp_dir.path().join("testing"), "specific_flip")?;
+		assert_eq!(message.label, "specific_flip");
+		assert_eq!(message.docs, " A message for testing, flips the value of the stored `bool` with `new_value`  and is payable");
+		// assert parsed arguments
+		assert_eq!(message.args.len(), 1);
+		assert_eq!(message.args[0].label, "new_value".to_string());
+		assert_eq!(message.args[0].type_name, "bool".to_string());
 		Ok(())
 	}
 }
