@@ -30,7 +30,7 @@ pub struct CallContractCommand {
 	#[clap(long, short)]
 	message: Option<String>,
 	/// The constructor arguments, encoded as strings.
-	#[clap(long, num_args = 0..)]
+	#[clap(long, num_args = 0.., value_delimiter = ',')]
 	args: Vec<String>,
 	/// The value to be transferred as part of the call.
 	#[clap(name = "value", short = 'v', long, default_value = DEFAULT_PAYABLE_VALUE)]
@@ -96,7 +96,7 @@ impl CallContractCommand {
 			full_message.push_str(&format!(" --message {}", message));
 		}
 		if !self.args.is_empty() {
-			full_message.push_str(&format!(" --args {}", self.args.join(" ")));
+			full_message.push_str(&format!(" --args {}", self.args.join(",")));
 		}
 		if self.value != DEFAULT_PAYABLE_VALUE {
 			full_message.push_str(&format!(" --value {}", self.value));

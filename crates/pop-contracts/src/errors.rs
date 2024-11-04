@@ -28,6 +28,8 @@ pub enum Error {
 	InstallContractsNode(String),
 	#[error("{0}")]
 	InstantiateContractError(String),
+	#[error("Invalid message name: {0}")]
+	InvalidMessageName(String),
 	#[error("Invalid name: {0}")]
 	InvalidName(String),
 	#[error("IO error: {0}")]
