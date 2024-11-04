@@ -15,7 +15,7 @@ mod utils;
 pub use build::{build_smart_contract, is_supported, Verbosity};
 pub use call::{
 	call_smart_contract, dry_run_call, dry_run_gas_estimate_call,
-	metadata::{get_message, get_messages, Message},
+	metadata::{get_messages, Message},
 	set_up_call, CallOpts,
 };
 pub use init_tests::{generate_smart_contract_test_environment, mock_build_process};

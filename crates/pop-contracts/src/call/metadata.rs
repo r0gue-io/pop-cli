@@ -62,7 +62,7 @@ pub fn get_messages(path: &Path) -> Result<Vec<Message>, Error> {
 /// # Arguments
 /// * `path` -  Location path of the project.
 /// * `message` - The label of the contract message.
-pub fn get_message(path: &Path, message: &str) -> Result<Message, Error> {
+fn get_message(path: &Path, message: &str) -> Result<Message, Error> {
 	get_messages(path)?
 		.into_iter()
 		.find(|msg| msg.label == message)
@@ -79,6 +79,41 @@ fn process_args(message_params: &[MessageParamSpec<PortableForm>]) -> Vec<Param>
 		});
 	}
 	args
+}
+
+/// Generates a list of processed argument values for a specified contract message,
+/// wrapping each value in `Some(...)` or replacing it with `None` if the argument is optional
+///
+/// # Arguments
+/// * `path` -  Location path of the project.
+/// * `message_label` - Label of the contract message to retrieve.
+/// * `args` - Argument values provided by the user.
+pub fn generate_message_args(
+	path: Option<&Path>,
+	message_label: &str,
+	args: Vec<String>,
+) -> Result<Vec<String>, Error> {
+	let contract_path = path.unwrap_or_else(|| Path::new("./"));
+	let message = get_message(&contract_path, message_label)?;
+	if args.len() != message.args.len() {
+		return Err(Error::WrongNumberArguments {
+			expected: message.args.len(),
+			provided: args.len(),
+		});
+	}
+	Ok(args
+		.into_iter()
+		.zip(&message.args)
+		.map(|(arg, param)| {
+			if param.type_name == "Option" && arg.is_empty() {
+				"None".to_string()
+			} else if param.type_name == "Option" {
+				format!("Some({})", arg)
+			} else {
+				arg
+			}
+		})
+		.collect::<Vec<String>>())
 }
 
 #[cfg(test)]
@@ -107,9 +142,11 @@ mod tests {
 		assert_eq!(message[2].label, "specific_flip");
 		assert_eq!(message[2].docs, " A message for testing, flips the value of the stored `bool` with `new_value`  and is payable");
 		// assert parsed arguments
-		assert_eq!(message[2].args.len(), 1);
+		assert_eq!(message[2].args.len(), 2);
 		assert_eq!(message[2].args[0].label, "new_value".to_string());
 		assert_eq!(message[2].args[0].type_name, "bool".to_string());
+		assert_eq!(message[2].args[1].label, "number".to_string());
+		assert_eq!(message[2].args[1].type_name, "Option".to_string());
 		Ok(())
 	}
 
@@ -129,9 +166,50 @@ mod tests {
 		assert_eq!(message.label, "specific_flip");
 		assert_eq!(message.docs, " A message for testing, flips the value of the stored `bool` with `new_value`  and is payable");
 		// assert parsed arguments
-		assert_eq!(message.args.len(), 1);
+		assert_eq!(message.args.len(), 2);
 		assert_eq!(message.args[0].label, "new_value".to_string());
 		assert_eq!(message.args[0].type_name, "bool".to_string());
+		assert_eq!(message.args[1].label, "number".to_string());
+		assert_eq!(message.args[1].type_name, "Option".to_string());
+		Ok(())
+	}
+
+	#[test]
+	fn generate_message_args_work() -> Result<()> {
+		let temp_dir = generate_smart_contract_test_environment()?;
+		let current_dir = env::current_dir().expect("Failed to get current directory");
+		mock_build_process(
+			temp_dir.path().join("testing"),
+			current_dir.join("./tests/files/testing.contract"),
+			current_dir.join("./tests/files/testing.json"),
+		)?;
+		assert!(matches!(
+			generate_message_args(Some(&temp_dir.path().join("testing")),"wrong_flip", Vec::new()),
+			Err(Error::InvalidMessageName(error)) if error == "wrong_flip".to_string()));
+		assert!(matches!(
+			generate_message_args(
+				Some(&temp_dir.path().join("testing")),
+				"specific_flip",
+				Vec::new()
+			),
+			Err(Error::WrongNumberArguments {expected, provided }) if expected == 2 && provided == 0
+		));
+		assert_eq!(
+			generate_message_args(
+				Some(&temp_dir.path().join("testing")),
+				"specific_flip",
+				["true".to_string(), "2".to_string()].to_vec()
+			)?,
+			["true".to_string(), "Some(2)".to_string()]
+		);
+		assert_eq!(
+			generate_message_args(
+				Some(&temp_dir.path().join("testing")),
+				"specific_flip",
+				["true".to_string(), "".to_string()].to_vec()
+			)?,
+			["true".to_string(), "None".to_string()]
+		);
 		Ok(())
 	}
 }

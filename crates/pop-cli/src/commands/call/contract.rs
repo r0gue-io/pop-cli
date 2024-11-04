@@ -4,8 +4,8 @@ use crate::cli::{self, traits::*};
 use anyhow::{anyhow, Result};
 use clap::Args;
 use pop_contracts::{
-	call_smart_contract, dry_run_call, dry_run_gas_estimate_call, get_message, get_messages,
-	parse_account, set_up_call, CallOpts,
+	call_smart_contract, dry_run_call, dry_run_gas_estimate_call, get_messages, parse_account,
+	set_up_call, CallOpts,
 };
 use sp_weights::Weight;
 use std::path::PathBuf;
@@ -56,15 +56,13 @@ pub struct CallContractCommand {
 impl CallContractCommand {
 	/// Executes the command.
 	pub(crate) async fn execute(self) -> Result<()> {
-		let mut call_config: CallContractCommand =
-			match self.set_up_call_config(&mut cli::Cli).await {
-				Ok(call_config) => call_config,
-				Err(e) => {
-					display_message(&e.to_string(), false, &mut cli::Cli)?;
-					return Ok(());
-				},
-			};
-		call_config.parse_message_args()?;
+		let call_config: CallContractCommand = match self.set_up_call_config(&mut cli::Cli).await {
+			Ok(call_config) => call_config,
+			Err(e) => {
+				display_message(&e.to_string(), false, &mut cli::Cli)?;
+				return Ok(());
+			},
+		};
 		match execute_call(call_config, self.contract.is_none(), &mut cli::Cli).await {
 			Ok(_) => Ok(()),
 			Err(e) => {
@@ -124,46 +122,6 @@ impl CallContractCommand {
 			self.clone()
 		};
 		Ok(call_config)
-	}
-
-	fn parse_message_args(&mut self) -> Result<()> {
-		if let Some(message_label) = &self.message {
-			let contract_path = self.path.clone().unwrap_or_else(|| PathBuf::from("./"));
-			match get_message(&contract_path, message_label) {
-				Ok(message) => {
-					if self.args.len() != message.args.len() {
-						return Err(anyhow!(format!(
-							"Wrong number of arguments provided. Expecting {}, {} provided",
-							message.args.len(),
-							self.args.len()
-						)));
-					}
-					for (arg_value, param) in self.args.iter_mut().zip(&message.args) {
-						if param.type_name == "Option" {
-							if arg_value.is_empty() {
-								*arg_value = "None".to_string();
-							} else {
-								*arg_value = format!("Some({})", arg_value);
-							}
-						} else {
-							if arg_value.is_empty() {
-								return Err(anyhow!(format!(
-									"Argument {} is required",
-									param.label
-								)));
-							}
-						}
-					}
-				},
-				Err(e) => {
-					return Err(anyhow!(format!(
-						"Unable to fetch contract metadata: {}",
-						e.to_string().replace("Anyhow error: ", "")
-					)));
-				},
-			}
-		};
-		Ok(())
 	}
 }
 
@@ -350,7 +308,7 @@ async fn execute_call(
 	{
 		Ok(call_exec) => call_exec,
 		Err(e) => {
-			return Err(anyhow!(format!("{}", e.root_cause().to_string())));
+			return Err(anyhow!(format!("{}", e.to_string().replace("Anyhow error: ", ""))));
 		},
 	};
 
@@ -668,6 +626,7 @@ mod tests {
 			.expect_input("Enter the proof size limit:", "".into()) // Only if call
 			.expect_input("Enter the gas limit:", "".into()) // Only if call
 			.expect_input("Value to transfer to the call:", "50".into()) // Only if payable
+			.expect_input("Enter the value for the parameter: number", "2".into()) // Args for specific_flip
 			.expect_input("Enter the value for the parameter: new_value", "true".into()) // Args for specific_flip
 			.expect_select::<PathBuf>(
 				"Select the message to call:",
@@ -688,7 +647,7 @@ mod tests {
 				"Where is your project located?",
 				temp_dir.path().join("testing").display().to_string(),
 			).expect_info(format!(
-				"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message specific_flip --args true --value 50 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --execute",
+				"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message specific_flip --args true,2 --value 50 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --execute",
 				temp_dir.path().join("testing").display().to_string(),
 			));
 
@@ -698,8 +657,9 @@ mod tests {
 			Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string())
 		);
 		assert_eq!(call_config.message, Some("specific_flip".to_string()));
-		assert_eq!(call_config.args.len(), 1);
+		assert_eq!(call_config.args.len(), 2);
 		assert_eq!(call_config.args[0], "true".to_string());
+		assert_eq!(call_config.args[1], "2".to_string());
 		assert_eq!(call_config.value, "50".to_string());
 		assert_eq!(call_config.gas_limit, None);
 		assert_eq!(call_config.proof_size, None);
@@ -708,7 +668,7 @@ mod tests {
 		assert!(call_config.execute);
 		assert!(!call_config.dry_run);
 		assert_eq!(call_config.display(), format!(
-			"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message specific_flip --args true --value 50 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --execute",
+			"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message specific_flip --args true,2 --value 50 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --execute",
 			temp_dir.path().join("testing").display().to_string(),
 		));
 
