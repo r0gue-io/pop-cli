@@ -4,8 +4,8 @@ use crate::cli::{self, traits::*};
 use anyhow::{anyhow, Result};
 use clap::Args;
 use pop_contracts::{
-	call_smart_contract, dry_run_call, dry_run_gas_estimate_call, get_messages, parse_account,
-	set_up_call, CallOpts,
+	call_smart_contract, dry_run_call, dry_run_gas_estimate_call, get_message, get_messages,
+	parse_account, set_up_call, CallOpts,
 };
 use sp_weights::Weight;
 use std::path::PathBuf;
@@ -22,7 +22,7 @@ pub struct CallContractCommand {
 	#[clap(long, short)]
 	message: Option<String>,
 	/// The constructor arguments, encoded as strings.
-	#[clap(long, num_args = 0..)]
+	#[clap(long, num_args = 0.., value_delimiter = ',')]
 	args: Vec<String>,
 	/// The value to be transferred as part of the call.
 	#[clap(name = "value", long, default_value = "0")]
@@ -56,13 +56,15 @@ pub struct CallContractCommand {
 impl CallContractCommand {
 	/// Executes the command.
 	pub(crate) async fn execute(self) -> Result<()> {
-		let call_config: CallContractCommand = match self.set_up_call_config(&mut cli::Cli).await {
-			Ok(call_config) => call_config,
-			Err(e) => {
-				display_message(&e.to_string(), false, &mut cli::Cli)?;
-				return Ok(());
-			},
-		};
+		let mut call_config: CallContractCommand =
+			match self.set_up_call_config(&mut cli::Cli).await {
+				Ok(call_config) => call_config,
+				Err(e) => {
+					display_message(&e.to_string(), false, &mut cli::Cli)?;
+					return Ok(());
+				},
+			};
+		call_config.parse_message_args()?;
 		match execute_call(call_config, self.contract.is_none(), &mut cli::Cli).await {
 			Ok(_) => Ok(()),
 			Err(e) => {
@@ -84,7 +86,7 @@ impl CallContractCommand {
 			full_message.push_str(&format!(" --message {}", message));
 		}
 		if !self.args.is_empty() {
-			full_message.push_str(&format!(" --args {}", self.args.join(" ")));
+			full_message.push_str(&format!(" --args {}", self.args.join(",")));
 		}
 		if self.value != "0" {
 			full_message.push_str(&format!(" --value {}", self.value));
@@ -122,6 +124,46 @@ impl CallContractCommand {
 			self.clone()
 		};
 		Ok(call_config)
+	}
+
+	fn parse_message_args(&mut self) -> Result<()> {
+		if let Some(message_label) = &self.message {
+			let contract_path = self.path.clone().unwrap_or_else(|| PathBuf::from("./"));
+			match get_message(&contract_path, message_label) {
+				Ok(message) => {
+					if self.args.len() != message.args.len() {
+						return Err(anyhow!(format!(
+							"Wrong number of arguments provided. Expecting {}, {} provided",
+							message.args.len(),
+							self.args.len()
+						)));
+					}
+					for (arg_value, param) in self.args.iter_mut().zip(&message.args) {
+						if param.type_name == "Option" {
+							if arg_value.is_empty() {
+								*arg_value = "None".to_string();
+							} else {
+								*arg_value = format!("Some({})", arg_value);
+							}
+						} else {
+							if arg_value.is_empty() {
+								return Err(anyhow!(format!(
+									"Argument {} is required",
+									param.label
+								)));
+							}
+						}
+					}
+				},
+				Err(e) => {
+					return Err(anyhow!(format!(
+						"Unable to fetch contract metadata: {}",
+						e.to_string().replace("Anyhow error: ", "")
+					)));
+				},
+			}
+		};
+		Ok(())
 	}
 }
 
@@ -197,11 +239,20 @@ async fn guide_user_to_call_contract(
 
 	let mut contract_args = Vec::new();
 	for arg in &message.args {
-		contract_args.push(
-			cli.input(format!("Enter the value for the parameter: {}", arg.label))
-				.placeholder(&format!("Type required: {}", &arg.type_name))
-				.interact()?,
-		);
+		if arg.type_name == "Option" {
+			contract_args.push(
+				cli.input(format!("Enter the value for the parameter: {}", arg.label))
+					.placeholder(&format!("Type required: {}", &arg.type_name))
+					.default_input("")
+					.interact()?,
+			);
+		} else {
+			contract_args.push(
+				cli.input(format!("Enter the value for the parameter: {}", arg.label))
+					.placeholder(&format!("Type required: {}", &arg.type_name))
+					.interact()?,
+			);
+		}
 	}
 	let mut value = "0".to_string();
 	if message.payable {
