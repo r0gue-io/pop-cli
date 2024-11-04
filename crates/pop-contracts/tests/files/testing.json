@@ -1,6 +1,6 @@
 {
   "source": {
-    "hash": "0x80776e58b218850d7d86447b2edea78d827ed0ed2499ff3a92b7ea10e4f95eb5",
+    "hash": "0xd35166baa65bf10eb07c3d30c052d0fe752d6b98a864b61062e189be1a1ed550",
     "language": "ink! 5.0.0",
     "compiler": "rustc 1.78.0",
     "build_info": {
@@ -34,6 +34,14 @@
     {
       "id": 1,
       "type": {
+        "def": {
+          "primitive": "u32"
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": {
         "path": [
           "testing",
           "testing",
@@ -46,6 +54,11 @@
                 "name": "value",
                 "type": 0,
                 "typeName": "<bool as::ink::storage::traits::AutoStorableHint<::ink::storage\n::traits::ManualKey<2310945317u32, ()>,>>::Type"
+              },
+              {
+                "name": "number",
+                "type": 1,
+                "typeName": "<u32 as::ink::storage::traits::AutoStorableHint<::ink::storage\n::traits::ManualKey<712936688u32, ()>,>>::Type"
               }
             ]
           }
@@ -53,7 +66,7 @@
       }
     },
     {
-      "id": 2,
+      "id": 3,
       "type": {
         "path": [
           "Result"
@@ -61,11 +74,11 @@
         "params": [
           {
             "name": "T",
-            "type": 3
+            "type": 4
           },
           {
             "name": "E",
-            "type": 4
+            "type": 5
           }
         ],
         "def": {
@@ -75,7 +88,7 @@
                 "name": "Ok",
                 "fields": [
                   {
-                    "type": 3
+                    "type": 4
                   }
                 ],
                 "index": 0
@@ -84,7 +97,7 @@
                 "name": "Err",
                 "fields": [
                   {
-                    "type": 4
+                    "type": 5
                   }
                 ],
                 "index": 1
@@ -95,7 +108,7 @@
       }
     },
     {
-      "id": 3,
+      "id": 4,
       "type": {
         "def": {
           "tuple": []
@@ -103,7 +116,7 @@
       }
     },
     {
-      "id": 4,
+      "id": 5,
       "type": {
         "path": [
           "ink_primitives",
@@ -122,7 +135,7 @@
       }
     },
     {
-      "id": 5,
+      "id": 6,
       "type": {
         "path": [
           "Result"
@@ -134,7 +147,7 @@
           },
           {
             "name": "E",
-            "type": 4
+            "type": 5
           }
         ],
         "def": {
@@ -153,7 +166,7 @@
                 "name": "Err",
                 "fields": [
                   {
-                    "type": 4
+                    "type": 5
                   }
                 ],
                 "index": 1
@@ -164,7 +177,40 @@
       }
     },
     {
-      "id": 6,
+      "id": 7,
+      "type": {
+        "path": [
+          "Option"
+        ],
+        "params": [
+          {
+            "name": "T",
+            "type": 1
+          }
+        ],
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "name": "None",
+                "index": 0
+              },
+              {
+                "name": "Some",
+                "fields": [
+                  {
+                    "type": 1
+                  }
+                ],
+                "index": 1
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 8,
       "type": {
         "path": [
           "ink_primitives",
@@ -175,7 +221,7 @@
           "composite": {
             "fields": [
               {
-                "type": 7,
+                "type": 9,
                 "typeName": "[u8; 32]"
               }
             ]
@@ -184,18 +230,18 @@
       }
     },
     {
-      "id": 7,
+      "id": 9,
       "type": {
         "def": {
           "array": {
             "len": 32,
-            "type": 8
+            "type": 10
           }
         }
       }
     },
     {
-      "id": 8,
+      "id": 10,
       "type": {
         "def": {
           "primitive": "u8"
@@ -203,7 +249,7 @@
       }
     },
     {
-      "id": 9,
+      "id": 11,
       "type": {
         "def": {
           "primitive": "u128"
@@ -211,7 +257,7 @@
       }
     },
     {
-      "id": 10,
+      "id": 12,
       "type": {
         "path": [
           "ink_primitives",
@@ -222,7 +268,7 @@
           "composite": {
             "fields": [
               {
-                "type": 7,
+                "type": 9,
                 "typeName": "[u8; 32]"
               }
             ]
@@ -231,7 +277,7 @@
       }
     },
     {
-      "id": 11,
+      "id": 13,
       "type": {
         "def": {
           "primitive": "u64"
@@ -239,15 +285,7 @@
       }
     },
     {
-      "id": 12,
-      "type": {
-        "def": {
-          "primitive": "u32"
-        }
-      }
-    },
-    {
-      "id": 13,
+      "id": 14,
       "type": {
         "path": [
           "ink_env",
@@ -275,11 +313,20 @@
                   "ty": 0
                 }
               }
+            },
+            {
+              "name": "number",
+              "layout": {
+                "leaf": {
+                  "key": "0x00000000",
+                  "ty": 1
+                }
+              }
             }
           ]
         }
       },
-      "ty": 1
+      "ty": 2
     }
   },
   "spec": {
@@ -300,7 +347,7 @@
           }
         ],
         "returnType": {
-          "type": 2,
+          "type": 3,
           "displayName": [
             "ink_primitives",
             "ConstructorResult"
@@ -317,7 +364,7 @@
         "payable": false,
         "args": [],
         "returnType": {
-          "type": 2,
+          "type": 3,
           "displayName": [
             "ink_primitives",
             "ConstructorResult"
@@ -339,7 +386,7 @@
         "payable": false,
         "args": [],
         "returnType": {
-          "type": 2,
+          "type": 3,
           "displayName": [
             "ink",
             "MessageResult"
@@ -359,7 +406,7 @@
         "payable": false,
         "args": [],
         "returnType": {
-          "type": 5,
+          "type": 6,
           "displayName": [
             "ink",
             "MessageResult"
@@ -384,10 +431,19 @@
                 "bool"
               ]
             }
+          },
+          {
+            "label": "number",
+            "type": {
+              "type": 7,
+              "displayName": [
+                "Option"
+              ]
+            }
           }
         ],
         "returnType": {
-          "type": 2,
+          "type": 3,
           "displayName": [
             "ink",
             "MessageResult"
@@ -403,7 +459,7 @@
     "events": [],
     "docs": [],
     "lang_error": {
-      "type": 4,
+      "type": 5,
       "displayName": [
         "ink",
         "LangError"
@@ -411,37 +467,37 @@
     },
     "environment": {
       "accountId": {
-        "type": 6,
+        "type": 8,
         "displayName": [
           "AccountId"
         ]
       },
       "balance": {
-        "type": 9,
+        "type": 11,
         "displayName": [
           "Balance"
         ]
       },
       "hash": {
-        "type": 10,
+        "type": 12,
         "displayName": [
           "Hash"
         ]
       },
       "timestamp": {
-        "type": 11,
+        "type": 13,
         "displayName": [
           "Timestamp"
         ]
       },
       "blockNumber": {
-        "type": 12,
+        "type": 1,
         "displayName": [
           "BlockNumber"
         ]
       },
       "chainExtension": {
-        "type": 13,
+        "type": 14,
         "displayName": [
           "ChainExtension"
         ]
