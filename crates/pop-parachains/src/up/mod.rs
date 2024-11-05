@@ -676,7 +676,7 @@ mod tests {
 				config.as_file(),
 				r#"
 [relaychain]
-chain = "rococo-local"
+chain = "paseo-local"
 "#
 			)?;
 			let version = "v1.12.0";
@@ -756,7 +756,7 @@ chain = "paseo-local"
 				config.as_file(),
 				r#"
 [relaychain]
-chain = "rococo-local"
+chain = "paseo-local"
 default_command = "./bin-v1.6.0/polkadot"
 "#
 			)?;
@@ -795,7 +795,7 @@ default_command = "./bin-v1.6.0/polkadot"
 				config.as_file(),
 				r#"
 [relaychain]
-chain = "rococo-local"
+chain = "paseo-local"
 
 [[relaychain.nodes]]
 name = "alice"
@@ -838,7 +838,7 @@ command = "polkadot"
 				config.as_file(),
 				r#"
 [relaychain]
-chain = "rococo-local"
+chain = "paseo-local"
 
 [[relaychain.nodes]]
 name = "alice"
@@ -869,7 +869,7 @@ command = "polkadot-v1.12.0"
 				config.as_file(),
 				r#"
 [relaychain]
-chain = "rococo-local"
+chain = "paseo-local"
 default_command = "polkadot"
 
 [[relaychain.nodes]]
@@ -896,11 +896,11 @@ command = "polkadot-v1.12.0"
 				config.as_file(),
 				r#"
 [relaychain]
-chain = "rococo-local"
+chain = "paseo-local"
 
 [[parachains]]
 id = 1000
-chain = "asset-hub-rococo-local"
+chain = "asset-hub-paseo-local"
 "#
 			)?;
 			let system_parachain_version = "v1.12.0";
@@ -988,7 +988,7 @@ chain = "asset-hub-paseo-local"
 				config.as_file(),
 				r#"
 [relaychain]
-chain = "rococo-local"
+chain = "paseo-local"
 
 [[parachains]]
 id = 4385
@@ -1030,7 +1030,7 @@ default_command = "pop-node"
 				config.as_file(),
 				r#"
 [relaychain]
-chain = "rococo-local"
+chain = "paseo-local"
 
 [[parachains]]
 id = 4385
@@ -1072,7 +1072,7 @@ default_command = "pop-node"
 				config.as_file(),
 				r#"
 [relaychain]
-chain = "rococo-local"
+chain = "paseo-local"
 
 [[parachains]]
 id = 2000
@@ -1109,7 +1109,7 @@ default_command = "./target/release/parachain-template-node"
 				config.as_file(),
 				r#"
 [relaychain]
-chain = "rococo-local"
+chain = "paseo-local"
 
 [[parachains]]
 id = 2000
@@ -1149,7 +1149,7 @@ command = "./target/release/parachain-template-node"
 				config.as_file(),
 				r#"
 [relaychain]
-chain = "rococo-local"
+chain = "paseo-local"
 
 [[parachains]]
 id = 2000
@@ -1191,7 +1191,7 @@ default_command = "moonbeam"
 				config.as_file(),
 				r#"
 [relaychain]
-chain = "rococo-local"
+chain = "paseo-local"
 
 [[parachains]]
 "#
@@ -1214,7 +1214,7 @@ chain = "rococo-local"
 				config.as_file(),
 				r#"
 [relaychain]
-chain = "rococo-local"
+chain = "paseo-local"
 
 [[parachains]]
 id = 404
@@ -1239,11 +1239,11 @@ default_command = "missing-binary"
 				config.as_file(),
 				r#"
 [relaychain]
-chain = "rococo-local"
+chain = "paseo-local"
 
 [[parachains]]
 id = 1000
-chain = "asset-hub-rococo-local"
+chain = "asset-hub-paseo-local"
 
 [[parachains]]
 id = 2000
@@ -1309,7 +1309,7 @@ chain = "asset-hub-paseo-local"
 				config.as_file(),
 				r#"
 [relaychain]
-chain = "rococo-local"
+chain = "paseo-local"
 "#
 			)?;
 
@@ -1340,7 +1340,7 @@ chain = "rococo-local"
 				config.as_file(),
 				r#"
 [relaychain]
-chain = "rococo-local"
+chain = "paseo-local"
 "#
 			)?;
 			File::create(cache.join("polkadot"))?;
@@ -1377,7 +1377,7 @@ chain = "rococo-local"
 				config.as_file(),
 				r#"
 [relaychain]
-chain = "rococo-local"
+chain = "paseo-local"
 "#
 			)?;
 			let version = "v1.12.0";
@@ -1413,7 +1413,7 @@ chain = "rococo-local"
 				config.as_file(),
 				r#"
 [relaychain]
-chain = "rococo-local"
+chain = "paseo-local"
 
 [[relaychain.nodes]]
 name = "alice"
@@ -1476,7 +1476,7 @@ validator = true
 				config.as_file(),
 				r#"
 				[relaychain]
-				chain = "rococo-local"
+				chain = "paseo-local"
 				default_command = "polkadot"
 				[[relaychain.nodes]]
 				name = "alice"
@@ -1484,7 +1484,7 @@ validator = true
 			)?;
 			let network_config = NetworkConfiguration::from(config.path())?;
 			let relay_chain = network_config.relay_chain()?;
-			assert_eq!("rococo-local", relay_chain["chain"].as_str().unwrap());
+			assert_eq!("paseo-local", relay_chain["chain"].as_str().unwrap());
 			assert_eq!(
 				"polkadot",
 				NetworkConfiguration::default_command(relay_chain).unwrap().as_str().unwrap()
@@ -1502,7 +1502,7 @@ validator = true
 				config.as_file(),
 				r#"
 				[relaychain]
-				chain = "rococo-local"
+				chain = "paseo-local"
 				[[parachains]]
 				id = 2000
 				default_command = "node"
@@ -1526,7 +1526,7 @@ validator = true
 				config.as_file(),
 				r#"
 [relaychain]
-chain = "rococo-local"
+chain = "paseo-local"
 
 [[relaychain.nodes]]
 name = "alice"
@@ -1534,7 +1534,7 @@ command = "polkadot"
 
 [[parachains]]
 id = 1000
-chain = "asset-hub-rococo-local"
+chain = "asset-hub-paseo-local"
 
 [[parachains.collators]]
 name = "asset-hub"
@@ -1581,7 +1581,7 @@ command = "./target/release/parachain-template-node"
 						manifest: None,
 					},
 					workers: ["polkadot-execute-worker", ""],
-					chain: "rococo-local".to_string(),
+					chain: "paseo-local".to_string(),
 					chain_spec_generator: None,
 				},
 				&[
@@ -1637,7 +1637,7 @@ command = "./target/release/parachain-template-node"
 				format!(
 					r#"
 [relaychain]
-chain = "rococo-local"
+chain = "paseo-local"
 default_command = "{0}"
 
 [[relaychain.nodes]]
@@ -1646,7 +1646,7 @@ command = "{0}"
 
 [[parachains]]
 id = 1000
-chain = "asset-hub-rococo-local"
+chain = "asset-hub-paseo-local"
 default_command = "{1}"
 
 [[parachains.collators]]
