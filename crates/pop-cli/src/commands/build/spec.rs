@@ -134,7 +134,8 @@ pub struct BuildSpecCommand {
 	/// [default: ./chain-spec.json].
 	#[arg(short = 'o', long = "output")]
 	pub(crate) output_file: Option<PathBuf>,
-	/// [DEPRECATED] For production, always build in release mode to exclude debug features.
+	/// This command builds the node if it has not been built already.
+	/// For production, always build in release mode to exclude debug features.
 	#[clap(short = 'r', long, default_value = "true")]
 	pub(crate) release: bool,
 	/// Parachain ID to be used when generating the chain spec files.
@@ -200,7 +201,7 @@ impl BuildSpecCommand {
 		// Notify user in case we need to build the parachain project.
 		if !self.release {
 			cli.warning(
-				"NOTE: this flag is deprecated, this command defaults to a release build builds.",
+				"NOTE: this command defaults to DEBUG builds for development chain types. Please use `--release` (or simply `-r` for a release build...)",
 			)?;
 			#[cfg(not(test))]
 			sleep(Duration::from_secs(3))
@@ -228,7 +229,7 @@ impl BuildSpecCommand {
 		plain_chain_spec.set_extension("json");
 
 		// Locate binary, if it doesn't exist trigger build.
-		let mode: Profile = Profile::Release;
+		let mode: Profile = self.release.into();
 		let cwd = current_dir().unwrap_or(PathBuf::from("./"));
 		let binary_path = match binary_path(&mode.target_directory(&cwd), &cwd.join("node")) {
 			Ok(binary_path) => binary_path,
@@ -380,13 +381,13 @@ async fn guide_user_to_generate_spec(args: BuildSpecCommand) -> anyhow::Result<B
 	}
 	// Prompt relays chains based on the chain type
 	match chain_type {
-		ChainType::Live =>
+		ChainType::Live => {
 			for relay in RelayChain::VARIANTS {
 				if !matches!(
 					relay,
-					RelayChain::Westend |
-						RelayChain::Paseo | RelayChain::Kusama |
-						RelayChain::Polkadot
+					RelayChain::Westend
+						| RelayChain::Paseo | RelayChain::Kusama
+						| RelayChain::Polkadot
 				) {
 					continue;
 				} else {
@@ -396,14 +397,15 @@ async fn guide_user_to_generate_spec(args: BuildSpecCommand) -> anyhow::Result<B
 						relay.get_detailed_message().unwrap_or_default(),
 					);
 				}
-			},
-		_ =>
+			}
+		},
+		_ => {
 			for relay in RelayChain::VARIANTS {
 				if matches!(
 					relay,
-					RelayChain::Westend |
-						RelayChain::Paseo | RelayChain::Kusama |
-						RelayChain::Polkadot
+					RelayChain::Westend
+						| RelayChain::Paseo | RelayChain::Kusama
+						| RelayChain::Polkadot
 				) {
 					continue;
 				} else {
@@ -413,7 +415,8 @@ async fn guide_user_to_generate_spec(args: BuildSpecCommand) -> anyhow::Result<B
 						relay.get_detailed_message().unwrap_or_default(),
 					);
 				}
-			},
+			}
+		},
 	}
 
 	let relay_chain = prompt.interact()?.clone();
@@ -445,9 +448,19 @@ async fn guide_user_to_generate_spec(args: BuildSpecCommand) -> anyhow::Result<B
 		.initial_value(true)
 		.interact()?;
 
+	// Only check user to check their profile selection if a live spec is being built on debug mode.
+	let profile =
+		if !args.release && matches!(chain_type, ChainType::Live) {
+			confirm("Using Debug profile to build a Live specification. Should Release be used instead ?")
+    		.initial_value(true)
+    		.interact()?
+		} else {
+			args.release
+		};
+
 	Ok(BuildSpecCommand {
 		output_file: Some(PathBuf::from(output_file)),
-		release: true, // In production mode.
+		release: profile,
 		id: Some(para_id),
 		default_bootnode,
 		chain_type: Some(chain_type),
