@@ -95,18 +95,18 @@ pub fn rename_contract(name: &str, path: PathBuf, template: &Contract) -> Result
 	// Replace name in the lib.rs file.
 	file_path = path.join("lib.rs");
 	let name_in_camel_case = name.to_upper_camel_case();
-	let mut replacements_in_contract = HashMap::new();
-	replacements_in_contract.insert(template_name.as_str(), name);
-	replacements_in_contract.insert(template.name(), &name_in_camel_case);
-	replace_in_file(file_path, replacements_in_contract)?;
+	replace_in_file(
+		file_path,
+		HashMap::from([(template_name.as_str(), name), (template.name(), &name_in_camel_case)]),
+	)?;
 	// Replace name in the e2e_tests.rs file if exists.
-	if path.join("e2e_tests.rs").exists() {
-		file_path = path.join("e2e_tests.rs");
-		let name_in_camel_case = name.to_upper_camel_case();
-		let mut replacements_in_contract = HashMap::new();
-		replacements_in_contract.insert(template_name.as_str(), name);
-		replacements_in_contract.insert(template.name(), &name_in_camel_case);
-		replace_in_file(file_path, replacements_in_contract)?;
+	let e2e_tests = path.join("e2e_tests.rs");
+	if e2e_tests.exists() {
+		let name_in_camel_case = format!("\"{}\"", name.to_upper_camel_case());
+		replace_in_file(
+			e2e_tests,
+			HashMap::from([(template_name.as_str(), name), (template.name(), &name_in_camel_case)]),
+		)?;
 	}
 	Ok(())
 }
