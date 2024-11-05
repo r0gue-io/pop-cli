@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use super::chain_specs::chain_spec_generator;
-use pop_common::helpers::parse_latest_tag;
 pub use pop_common::{
 	git::GitHub,
+	polkadot_sdk::parse_latest_tag,
 	sourcing::{
 		traits::{Source as _, *},
 		Binary,

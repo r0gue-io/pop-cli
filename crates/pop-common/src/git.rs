@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{errors::Error, helpers::parse_latest_tag, APP_USER_AGENT};
+use crate::{errors::Error, polkadot_sdk::parse_latest_tag, APP_USER_AGENT};
 use anyhow::Result;
 use git2::{
 	build::RepoBuilder, FetchOptions, IndexAddOption, RemoteCallbacks, Repository as GitRepository,
@@ -60,8 +60,9 @@ impl Git {
 	) -> Result<Option<String>> {
 		let repo = match GitRepository::clone(url, target) {
 			Ok(repo) => repo,
-			Err(_e) =>
-				Self::ssh_clone_and_degit(url::Url::parse(url).map_err(Error::from)?, target)?,
+			Err(_e) => {
+				Self::ssh_clone_and_degit(url::Url::parse(url).map_err(Error::from)?, target)?
+			},
 		};
 
 		if let Some(tag_version) = tag_version {

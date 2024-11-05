@@ -2,7 +2,7 @@
 
 use super::{chain_specs::chain_spec_generator, Binary};
 use pop_common::{
-	helpers::parse_latest_tag,
+	polkadot_sdk::parse_latest_tag,
 	sourcing::{
 		traits::{Source as _, *},
 		GitHub::ReleaseArchive,

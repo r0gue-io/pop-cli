@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{
-	helpers::parse_latest_tag,
+	polkadot_sdk::parse_latest_tag,
 	sourcing::{
 		from_local_package, Error,
 		GitHub::{ReleaseArchive, SourceCodeArchive},
@@ -45,12 +45,13 @@ impl Binary {
 	pub fn latest(&self) -> Option<&str> {
 		match self {
 			Self::Local { .. } => None,
-			Self::Source { source, .. } =>
+			Self::Source { source, .. } => {
 				if let GitHub(ReleaseArchive { latest, .. }) = source {
 					latest.as_deref()
 				} else {
 					None
-				},
+				}
+			},
 		}
 	}
 
@@ -115,8 +116,7 @@ impl Binary {
 				.unwrap_or_else(|| {
 					// Default to latest version
 					let versions = available.iter().map(|v| v.as_ref()).collect::<Vec<&str>>();
-					let latest = parse_latest_tag(versions);
-					latest
+					parse_latest_tag(versions)
 				}),
 		}
 	}
@@ -139,11 +139,13 @@ impl Binary {
 				None => Err(Error::MissingBinary(format!(
 					"The {path:?} binary cannot be sourced automatically."
 				))),
-				Some(manifest) =>
-					from_local_package(manifest, name, release, status, verbose).await,
+				Some(manifest) => {
+					from_local_package(manifest, name, release, status, verbose).await
+				},
 			},
-			Self::Source { source, cache, .. } =>
-				source.source(cache, release, status, verbose).await,
+			Self::Source { source, cache, .. } => {
+				source.source(cache, release, status, verbose).await
+			},
 		}
 	}
 
