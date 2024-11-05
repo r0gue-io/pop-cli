@@ -94,7 +94,7 @@ pub fn generate_message_args(
 	args: Vec<String>,
 ) -> Result<Vec<String>, Error> {
 	let contract_path = path.unwrap_or_else(|| Path::new("./"));
-	let message = get_message(&contract_path, message_label)?;
+	let message = get_message(contract_path, message_label)?;
 	if args.len() != message.args.len() {
 		return Err(Error::WrongNumberArguments {
 			expected: message.args.len(),
@@ -104,14 +104,12 @@ pub fn generate_message_args(
 	Ok(args
 		.into_iter()
 		.zip(&message.args)
-		.map(|(arg, param)| {
-			if param.type_name == "Option" && arg.is_empty() {
-				"None".to_string()
-			} else if param.type_name == "Option" {
-				format!("Some({})", arg)
-			} else {
-				arg
-			}
+		.map(|(arg, param)| match (param.type_name.as_str(), arg.is_empty()) {
+			("Option", true) => "None".to_string(), /* If the argument is Option and empty,
+			                                          * replace it with `None` */
+			("Option", false) => format!("Some({})", arg), /* If the argument is Option and not
+			                                                 * empty, wrap it in `Some(...)` */
+			_ => arg, // If the argument is not Option, return it as is
 		})
 		.collect::<Vec<String>>())
 }
