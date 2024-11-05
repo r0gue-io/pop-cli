@@ -124,12 +124,12 @@ mod tests {
 	use std::env;
 
 	use super::*;
-	use crate::{generate_smart_contract_test_environment, mock_build_process};
+	use crate::{mock_build_process, new_environment};
 	use anyhow::Result;
 
 	#[test]
 	fn get_messages_work() -> Result<()> {
-		let temp_dir = generate_smart_contract_test_environment()?;
+		let temp_dir = new_environment("testing")?;
 		let current_dir = env::current_dir().expect("Failed to get current directory");
 		mock_build_process(
 			temp_dir.path().join("testing"),
@@ -155,7 +155,7 @@ mod tests {
 
 	#[test]
 	fn get_message_work() -> Result<()> {
-		let temp_dir = generate_smart_contract_test_environment()?;
+		let temp_dir = new_environment("testing")?;
 		let current_dir = env::current_dir().expect("Failed to get current directory");
 		mock_build_process(
 			temp_dir.path().join("testing"),
@@ -179,7 +179,7 @@ mod tests {
 
 	#[test]
 	fn process_message_args_work() -> Result<()> {
-		let temp_dir = generate_smart_contract_test_environment()?;
+		let temp_dir = new_environment("testing")?;
 		let current_dir = env::current_dir().expect("Failed to get current directory");
 		mock_build_process(
 			temp_dir.path().join("testing"),

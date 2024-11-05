@@ -167,8 +167,8 @@ mod tests {
 	use super::*;
 	use crate::{
 		contracts_node_generator, dry_run_gas_estimate_instantiate, errors::Error,
-		generate_smart_contract_test_environment, instantiate_smart_contract, mock_build_process,
-		run_contracts_node, set_up_deployment, UpOpts,
+		instantiate_smart_contract, mock_build_process, new_environment, run_contracts_node,
+		set_up_deployment, UpOpts,
 	};
 	use anyhow::Result;
 	use sp_core::Bytes;
@@ -178,7 +178,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn test_set_up_call() -> Result<()> {
-		let temp_dir = generate_smart_contract_test_environment()?;
+		let temp_dir = new_environment("testing")?;
 		let current_dir = env::current_dir().expect("Failed to get current directory");
 		mock_build_process(
 			temp_dir.path().join("testing"),
@@ -205,7 +205,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn test_set_up_call_error_contract_not_build() -> Result<()> {
-		let temp_dir = generate_smart_contract_test_environment()?;
+		let temp_dir = new_environment("testing")?;
 		let call_opts = CallOpts {
 			path: Some(temp_dir.path().join("testing")),
 			contract: "5CLPm1CeUvJhZ8GCDZCR7nWZ2m3XXe4X5MtAQK69zEjut36A".to_string(),
@@ -245,7 +245,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn test_dry_run_call_error_contract_not_deployed() -> Result<()> {
-		let temp_dir = generate_smart_contract_test_environment()?;
+		let temp_dir = new_environment("testing")?;
 		let current_dir = env::current_dir().expect("Failed to get current directory");
 		mock_build_process(
 			temp_dir.path().join("testing"),
@@ -272,7 +272,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn test_dry_run_estimate_call_error_contract_not_deployed() -> Result<()> {
-		let temp_dir = generate_smart_contract_test_environment()?;
+		let temp_dir = new_environment("testing")?;
 		let current_dir = env::current_dir().expect("Failed to get current directory");
 		mock_build_process(
 			temp_dir.path().join("testing"),
@@ -303,7 +303,7 @@ mod tests {
 	#[tokio::test]
 	async fn call_works() -> Result<()> {
 		const LOCALHOST_URL: &str = "ws://127.0.0.1:9944";
-		let temp_dir = generate_smart_contract_test_environment()?;
+		let temp_dir = new_environment("testing")?;
 		let current_dir = env::current_dir().expect("Failed to get current directory");
 		mock_build_process(
 			temp_dir.path().join("testing"),
