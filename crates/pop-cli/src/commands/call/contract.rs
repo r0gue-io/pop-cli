@@ -10,7 +10,7 @@ use pop_contracts::{
 use sp_weights::Weight;
 use std::path::PathBuf;
 
-const DEFAULT_URL: &str = "ws://localhost:9944";
+const DEFAULT_URL: &str = "ws://localhost:9944/";
 const DEFAULT_URI: &str = "//Alice";
 const DEFAULT_PAYABLE_VALUE: &str = "0";
 
@@ -94,7 +94,7 @@ impl CallContractCommand {
 		if !self.args.is_empty() {
 			full_message.push_str(&format!(" --args {}", self.args.join(" ")));
 		}
-		if self.value != "0" {
+		if self.value != DEFAULT_PAYABLE_VALUE {
 			full_message.push_str(&format!(" --value {}", self.value));
 		}
 		if let Some(gas_limit) = self.gas_limit {
@@ -119,13 +119,8 @@ impl CallContractCommand {
 		cli: &mut impl cli::traits::Cli,
 	) -> anyhow::Result<CallContractCommand> {
 		cli.intro("Call a contract")?;
-		let call_config = if self.message.is_none() {
-			match self.guide_user_to_call_contract(cli).await {
-				Ok(config) => config,
-				Err(e) => {
-					return Err(anyhow!(format!("{}", e.to_string())));
-				},
-			}
+		if self.message.is_none() {
+			self.guide_user_to_call_contract(cli).await
 		} else {
 			self.clone()
 		};
@@ -250,7 +245,7 @@ impl CallContractCommand {
 		cli: &mut impl cli::traits::Cli,
 	) -> anyhow::Result<CallContractCommand> {
 		let contract_path: PathBuf = match &self.path {
-			Some(path) => path.to_path_buf(),
+			Some(path) => path.clone(),
 			None => {
 				// Prompt for path.
 				let input_path: String = cli
@@ -283,7 +278,7 @@ impl CallContractCommand {
 			self.url.clone()
 		};
 		let contract_address: String = match &self.contract {
-			Some(contract_address) => contract_address.to_string(),
+			Some(contract_address) => contract_address.clone(),
 			None => {
 				// Prompt for contract address.
 				let contract_address: String = cli
@@ -301,9 +296,9 @@ impl CallContractCommand {
 
 		let message = {
 			let mut prompt = cli.select("Select the message to call:");
-			for select_message in messages {
+			for select_message in &messages {
 				prompt = prompt.item(
-					select_message.clone(),
+					select_message,
 					format!("{}\n", &select_message.label),
 					&select_message.docs,
 				);
@@ -362,13 +357,14 @@ impl CallContractCommand {
 			self.suri.clone()
 		};
 
-		let mut is_call_confirmed: bool = true;
-		if message.mutates && !self.dev_mode {
-			is_call_confirmed = cli
-				.confirm("Do you want to execute the call? (Selecting 'No' will perform a dry run)")
+		let is_call_confirmed = if message.mutates && !self.dev_mode {
+			cli.confirm("Do you want to execute the call? (Selecting 'No' will perform a dry run)")
 				.initial_value(true)
-				.interact()?;
-		}
+				.interact()?
+		} else {
+			true
+		};
+
 		let call_command = CallContractCommand {
 			path: Some(contract_path),
 			contract: Some(contract_address),
@@ -393,10 +389,12 @@ impl CallContractCommand {
 		prompt_to_repeat_call: bool,
 		cli: &mut impl cli::traits::Cli,
 	) -> anyhow::Result<()> {
-		let message = self
-			.message
-			.clone()
-			.expect("message can not be none as fallback above is interactive input; qed");
+		let message = match &self.message {
+			Some(message) => message.to_string(),
+			None => {
+				return Err(anyhow!("Please specify the message to call."));
+			},
+		};
 		let contract = match &self.contract {
 			Some(contract) => contract.to_string(),
 			None => {
@@ -472,11 +470,11 @@ impl CallContractCommand {
 			cli.info(call_result)?;
 		}
 		if prompt_to_repeat_call {
-			let another_call: bool = cli
+			if cli
 				.confirm("Do you want to do another call using the existing smart contract?")
 				.initial_value(false)
-				.interact()?;
-			if another_call {
+				.interact()?
+			{
 				// Remove only the prompt asking for another call.
 				console::Term::stderr().clear_last_lines(2)?;
 				let new_call_config = self.guide_user_to_call_contract(cli).await?;
@@ -575,7 +573,7 @@ mod tests {
 			temp_dir.path().join("testing").display().to_string(),
 		));
 		// Contract deployed on Pop Network testnet, test dry-run
-		execute_call(call_config, false, &mut cli).await?;
+		call_config.execute_call(false, &mut cli).await?;
 
 		cli.verify()
 	}
@@ -622,7 +620,7 @@ mod tests {
 			.expect_outro("Call completed successfully!");
 
 		// Contract deployed on Pop Network testnet, test get
-		let config_call = CallContractCommand {
+		let call_config = CallContractCommand {
 			path: Some(temp_dir.path().join("testing")),
 			contract: Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string()),
 			message: Some("get".to_string()),
@@ -639,7 +637,7 @@ mod tests {
 		.set_up_call_config(&mut cli)
 		.await?;
 		// Test the query. With true, it will prompt for another call.
-		execute_call(config_call, true, &mut cli).await?;
+		call_config.execute_call(true, &mut cli).await?;
 
 		cli.verify()
 	}
@@ -688,7 +686,22 @@ mod tests {
 	            temp_dir.path().join("testing").display().to_string(),
 	        ));
 
-		let call_config = guide_user_to_call_contract(None, None, None, false, &mut cli).await?;
+		let call_config = CallContractCommand {
+			path: None,
+			contract: None,
+			message: None,
+			args: vec![].to_vec(),
+			value: DEFAULT_PAYABLE_VALUE.to_string(),
+			gas_limit: None,
+			proof_size: None,
+			url: Url::parse(DEFAULT_URL)?,
+			suri: DEFAULT_URI.to_string(),
+			dry_run: false,
+			execute: false,
+			dev_mode: false,
+		}
+		.guide_user_to_call_contract(&mut cli)
+		.await?;
 		assert_eq!(
 			call_config.contract,
 			Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string())
@@ -759,7 +772,22 @@ mod tests {
 				temp_dir.path().join("testing").display().to_string(),
 			));
 
-		let call_config = guide_user_to_call_contract(None, None, None, false, &mut cli).await?;
+		let call_config = CallContractCommand {
+			path: None,
+			contract: None,
+			message: None,
+			args: vec![].to_vec(),
+			value: DEFAULT_PAYABLE_VALUE.to_string(),
+			gas_limit: None,
+			proof_size: None,
+			url: Url::parse(DEFAULT_URL)?,
+			suri: DEFAULT_URI.to_string(),
+			dry_run: false,
+			execute: false,
+			dev_mode: false,
+		}
+		.guide_user_to_call_contract(&mut cli)
+		.await?;
 		assert_eq!(
 			call_config.contract,
 			Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string())
@@ -828,7 +856,22 @@ mod tests {
 				temp_dir.path().join("testing").display().to_string(),
 			));
 
-		let call_config = guide_user_to_call_contract(None, None, None, true, &mut cli).await?;
+		let call_config = CallContractCommand {
+			path: None,
+			contract: None,
+			message: None,
+			args: vec![].to_vec(),
+			value: DEFAULT_PAYABLE_VALUE.to_string(),
+			gas_limit: None,
+			proof_size: None,
+			url: Url::parse(DEFAULT_URL)?,
+			suri: DEFAULT_URI.to_string(),
+			dry_run: false,
+			execute: false,
+			dev_mode: true,
+		}
+		.guide_user_to_call_contract(&mut cli)
+		.await?;
 		assert_eq!(
 			call_config.contract,
 			Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string())
@@ -856,14 +899,25 @@ mod tests {
 	async fn guide_user_to_call_contract_fails_not_build() -> Result<()> {
 		let temp_dir = new_environment("testing")?;
 		let mut cli = MockCli::new();
-		assert!(
-			matches!(guide_user_to_call_contract(Some(temp_dir.path().join("testing")), None, None, false, &mut cli).await, anyhow::Result::Err(message) if message.to_string().contains("Unable to fetch contract metadata: Failed to find any contract artifacts in target directory."))
-		);
+		assert!(matches!(CallContractCommand {
+				path: Some(temp_dir.path().join("testing")),
+				contract: None,
+				message: None,
+				args: vec![].to_vec(),
+				value: "0".to_string(),
+				gas_limit: None,
+				proof_size: None,
+				url: Url::parse("wss://rpc1.paseo.popnetwork.xyz")?,
+				suri: "//Alice".to_string(),
+				dry_run: false,
+				execute: false,
+				dev_mode: false,
+			}.guide_user_to_call_contract(&mut cli).await, anyhow::Result::Err(message) if message.to_string().contains("Unable to fetch contract metadata: Failed to find any contract artifacts in target directory.")));
 		cli.verify()
 	}
 
 	#[tokio::test]
-	async fn call_contract_fails_no_message() -> Result<()> {
+	async fn execute_contract_fails_no_message_or_contract() -> Result<()> {
 		let temp_dir = new_environment("testing")?;
 		let mut current_dir = env::current_dir().expect("Failed to get current directory");
 		current_dir.pop();
@@ -873,27 +927,41 @@ mod tests {
 			current_dir.join("pop-contracts/tests/files/testing.json"),
 		)?;
 
-		let mut cli = MockCli::new().expect_intro(&"Call a contract");
-
-		let call_config = CallContractCommand {
-			path: Some(temp_dir.path().join("testing")),
-			contract: Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string()),
-			message: None,
-			args: vec![].to_vec(),
-			value: "0".to_string(),
-			gas_limit: None,
-			proof_size: None,
-			url: Url::parse("wss://rpc1.paseo.popnetwork.xyz")?,
-			suri: "//Alice".to_string(),
-			dry_run: false,
-			execute: false,
-			dev_mode: false,
-		}
-		.set_up_call_config(&mut cli)
-		.await?;
+		let mut cli = MockCli::new();
 		assert!(matches!(
-			execute_call(call_config, false, &mut cli).await,
+			CallContractCommand {
+				path: Some(temp_dir.path().join("testing")),
+				contract: Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string()),
+				message: None,
+				args: vec![].to_vec(),
+				value: "0".to_string(),
+				gas_limit: None,
+				proof_size: None,
+				url: Url::parse("wss://rpc1.paseo.popnetwork.xyz")?,
+				suri: "//Alice".to_string(),
+				dry_run: false,
+				execute: false,
+				dev_mode: false,
+			}.execute_call(false, &mut cli).await,
 			anyhow::Result::Err(message) if message.to_string() == "Please specify the message to call."
+		));
+
+		assert!(matches!(
+			CallContractCommand {
+				path: Some(temp_dir.path().join("testing")),
+				contract: None,
+				message: Some("get".to_string()),
+				args: vec![].to_vec(),
+				value: "0".to_string(),
+				gas_limit: None,
+				proof_size: None,
+				url: Url::parse("wss://rpc1.paseo.popnetwork.xyz")?,
+				suri: "//Alice".to_string(),
+				dry_run: false,
+				execute: false,
+				dev_mode: false,
+			}.execute_call(false, &mut cli).await,
+			anyhow::Result::Err(message) if message.to_string() == "Please specify the contract address."
 		));
 
 		cli.verify()
