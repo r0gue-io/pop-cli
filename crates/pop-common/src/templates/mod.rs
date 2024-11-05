@@ -111,7 +111,7 @@ macro_rules! enum_variants {
 }
 
 #[macro_export]
-macro_rules! enum_variants_for_help {
+macro_rules! enum_variants_without_deprecated {
 	($e:ty) => {{
 		<$e>::VARIANTS
 			.iter()

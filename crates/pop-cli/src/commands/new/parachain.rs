@@ -15,7 +15,7 @@ use cliclack::{
 	outro, outro_cancel,
 };
 use pop_common::{
-	enum_variants, enum_variants_for_help,
+	enum_variants, enum_variants_without_deprecated,
 	templates::{Template, Type},
 	Git, GitHub, Release,
 };
@@ -40,7 +40,7 @@ pub struct NewParachainCommand {
 	#[arg(
 		short = 't',
 		long,
-		help = format!("Template to use. [possible values: {}]", enum_variants_for_help!(Parachain)),
+		help = format!("Template to use. [possible values: {}]", enum_variants_without_deprecated!(Parachain)),
 		value_parser = enum_variants!(Parachain),
 		hide_possible_values = true // Hide the deprecated templates
 	)]
@@ -268,8 +268,8 @@ fn get_customization_value(
 	decimals: Option<u8>,
 	initial_endowment: Option<String>,
 ) -> Result<Config> {
-	if !matches!(template, Parachain::Standard) &&
-		(symbol.is_some() || decimals.is_some() || initial_endowment.is_some())
+	if !matches!(template, Parachain::Standard)
+		&& (symbol.is_some() || decimals.is_some() || initial_endowment.is_some())
 	{
 		log::warning("Customization options are not available for this template")?;
 		sleep(Duration::from_secs(3))
