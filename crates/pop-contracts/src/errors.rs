@@ -56,6 +56,6 @@ pub enum Error {
 	UnsupportedPlatform { os: &'static str },
 	#[error("{0}")]
 	UploadContractError(String),
-	#[error("Wrong number of arguments provided. Expecting {expected}, {provided} provided")]
-	WrongNumberArguments { expected: usize, provided: usize },
+	#[error("Incorrect number of arguments provided. Expecting {expected}, {provided} provided")]
+	IncorrectArguments { expected: usize, provided: usize },
 }
