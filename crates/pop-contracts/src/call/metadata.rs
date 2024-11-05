@@ -62,8 +62,11 @@ pub fn get_messages(path: &Path) -> Result<Vec<Message>, Error> {
 /// # Arguments
 /// * `path` -  Location path of the project.
 /// * `message` - The label of the contract message.
-fn get_message(path: &Path, message: &str) -> Result<Message, Error> {
-	get_messages(path)?
+fn get_message<P>(path: P, message: &str) -> Result<Message, Error>
+where
+	P: AsRef<Path>,
+{
+	get_messages(path.as_ref())?
 		.into_iter()
 		.find(|msg| msg.label == message)
 		.ok_or_else(|| Error::InvalidMessageName(message.to_string()))
@@ -81,22 +84,24 @@ fn process_args(message_params: &[MessageParamSpec<PortableForm>]) -> Vec<Param>
 	args
 }
 
-/// Generates a list of processed argument values for a specified contract message,
+/// Processes a list of argument values for a specified contract message,
 /// wrapping each value in `Some(...)` or replacing it with `None` if the argument is optional
 ///
 /// # Arguments
 /// * `path` -  Location path of the project.
 /// * `message_label` - Label of the contract message to retrieve.
 /// * `args` - Argument values provided by the user.
-pub fn generate_message_args(
-	path: Option<&Path>,
-	message_label: &str,
+pub fn process_message_args<P>(
+	path: P,
+	message: &str,
 	args: Vec<String>,
-) -> Result<Vec<String>, Error> {
-	let contract_path = path.unwrap_or_else(|| Path::new("./"));
-	let message = get_message(contract_path, message_label)?;
+) -> Result<Vec<String>, Error>
+where
+	P: AsRef<Path>,
+{
+	let message = get_message(path, message)?;
 	if args.len() != message.args.len() {
-		return Err(Error::WrongNumberArguments {
+		return Err(Error::IncorrectArguments {
 			expected: message.args.len(),
 			provided: args.len(),
 		});
@@ -105,10 +110,10 @@ pub fn generate_message_args(
 		.into_iter()
 		.zip(&message.args)
 		.map(|(arg, param)| match (param.type_name.as_str(), arg.is_empty()) {
-			("Option", true) => "None".to_string(), /* If the argument is Option and empty,
-			                                          * replace it with `None` */
-			("Option", false) => format!("Some({})", arg), /* If the argument is Option and not
-			                                                 * empty, wrap it in `Some(...)` */
+			("Option", true) => "None".to_string(), /* If the argument is Option and empty, */
+			// replace it with `None`
+			("Option", false) => format!("Some({})", arg), /* If the argument is Option and not */
+			// empty, wrap it in `Some(...)`
 			_ => arg, // If the argument is not Option, return it as is
 		})
 		.collect::<Vec<String>>())
@@ -173,7 +178,7 @@ mod tests {
 	}
 
 	#[test]
-	fn generate_message_args_work() -> Result<()> {
+	fn process_message_args_work() -> Result<()> {
 		let temp_dir = generate_smart_contract_test_environment()?;
 		let current_dir = env::current_dir().expect("Failed to get current directory");
 		mock_build_process(
@@ -182,27 +187,27 @@ mod tests {
 			current_dir.join("./tests/files/testing.json"),
 		)?;
 		assert!(matches!(
-			generate_message_args(Some(&temp_dir.path().join("testing")),"wrong_flip", Vec::new()),
+			process_message_args(temp_dir.path().join("testing"),"wrong_flip", Vec::new()),
 			Err(Error::InvalidMessageName(error)) if error == "wrong_flip".to_string()));
 		assert!(matches!(
-			generate_message_args(
-				Some(&temp_dir.path().join("testing")),
+			process_message_args(
+				temp_dir.path().join("testing"),
 				"specific_flip",
 				Vec::new()
 			),
-			Err(Error::WrongNumberArguments {expected, provided }) if expected == 2 && provided == 0
+			Err(Error::IncorrectArguments {expected, provided }) if expected == 2 && provided == 0
 		));
 		assert_eq!(
-			generate_message_args(
-				Some(&temp_dir.path().join("testing")),
+			process_message_args(
+				temp_dir.path().join("testing"),
 				"specific_flip",
 				["true".to_string(), "2".to_string()].to_vec()
 			)?,
 			["true".to_string(), "Some(2)".to_string()]
 		);
 		assert_eq!(
-			generate_message_args(
-				Some(&temp_dir.path().join("testing")),
+			process_message_args(
+				temp_dir.path().join("testing"),
 				"specific_flip",
 				["true".to_string(), "".to_string()].to_vec()
 			)?,

@@ -67,9 +67,9 @@ pub async fn set_up_call(
 		parse_balance(&call_opts.value)?;
 
 	let contract: <DefaultConfig as Config>::AccountId = parse_account(&call_opts.contract)?;
-	// Parse the argument values input by the user.
-	let args = metadata::generate_message_args(
-		call_opts.path.as_deref(),
+	// Process the argument values input by the user.
+	let args = metadata::process_message_args(
+		call_opts.path.unwrap_or_else(|| PathBuf::from("./")),
 		&call_opts.message,
 		call_opts.args,
 	)?;
