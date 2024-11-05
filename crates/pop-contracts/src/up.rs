@@ -157,8 +157,11 @@ pub async fn dry_run_upload(
 	}
 }
 
+///Type to represent information about a deployed smart contract.
 pub struct ContractInfo {
+	/// The on-chain address of the deployed contract.
 	pub address: String,
+	/// The hash of the contract's code
 	pub code_hash: Option<String>,
 }
 
@@ -177,11 +180,8 @@ pub async fn instantiate_smart_contract(
 		.await
 		.map_err(|error_variant| Error::InstantiateContractError(format!("{:?}", error_variant)))?;
 	// If is upload + instantiate, return the code hash.
-	let hash = if let Some(code_hash) = instantiate_result.code_hash {
-		Some(format!("{:?}", code_hash))
-	} else {
-		None
-	};
+	let hash = instantiate_result.code_hash.map(|code_hash| format!("{:?}", code_hash));
+
 	Ok(ContractInfo { address: instantiate_result.contract_address.to_string(), code_hash: hash })
 }
 

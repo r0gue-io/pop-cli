@@ -230,16 +230,15 @@ impl UpContractCommand {
 				style(format!(
 					"{}\n{}",
 					style(format!(
-						"{} The Contract Address is {:?}",
+						"{} The contract address is {:?}",
 						console::Emoji("●", ">"),
 						contract_info.address
 					))
-					.dim()
-					.to_string(),
+					.dim(),
 					contract_info
 						.code_hash
 						.map(|hash| style(format!(
-							"{} The Contract Code Hash is {:?}",
+							"{} The contract code hash is {:?}",
 							console::Emoji("●", ">"),
 							hash
 						))
