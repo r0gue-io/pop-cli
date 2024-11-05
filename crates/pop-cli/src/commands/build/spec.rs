@@ -206,8 +206,7 @@ impl BuildSpecCommand {
 			sleep(Duration::from_secs(3))
 		}
 
-		let spinner = cliclack::spinner();
-		spinner.start("Generating chain specification...");
+		cli.info("Generating chain specification...")?;
 
 		// Create output path if needed
 		let mut output_path = self.output_file.unwrap_or_else(|| PathBuf::from("./"));
@@ -241,7 +240,7 @@ impl BuildSpecCommand {
 		};
 
 		// Generate plain spec.
-		spinner.set_message("Generating plain chain specification...");
+		cli.info("Generating plain chain specification...")?;
 		let mut generated_files = vec![];
 		generate_plain_chain_spec(
 			&binary_path,
@@ -268,7 +267,7 @@ impl BuildSpecCommand {
 		chain_spec.to_file(&plain_chain_spec)?;
 
 		// Generate raw spec.
-		spinner.set_message("Generating raw chain specification...");
+		cli.info("Generating raw chain specification...")?;
 		let spec_name = plain_chain_spec
 			.file_name()
 			.and_then(|s| s.to_str())
@@ -284,7 +283,7 @@ impl BuildSpecCommand {
 
 		// Generate genesis artifacts.
 		if self.genesis_code {
-			spinner.set_message("Generating genesis code...");
+			cli.info("Generating genesis code...")?;
 			let wasm_file_name = format!("para-{}.wasm", para_id);
 			let wasm_file = export_wasm_file(&binary_path, &raw_chain_spec, &wasm_file_name)?;
 			generated_files
@@ -292,7 +291,7 @@ impl BuildSpecCommand {
 		}
 
 		if self.genesis_state {
-			spinner.set_message("Generating genesis state...");
+			cli.info("Generating genesis state...")?;
 			let genesis_file_name = format!("para-{}-genesis-state", para_id);
 			let genesis_state_file =
 				generate_genesis_state_file(&binary_path, &raw_chain_spec, &genesis_file_name)?;
