@@ -471,7 +471,7 @@ default_command = "pop-node"
 		generate_plain_chain_spec(
 			&binary_path,
 			&temp_dir.path().join("plain-parachain-chainspec.json"),
-			true,
+			false,
 			Some("local"),
 		)?;
 		assert!(plain_chain_spec.exists());
@@ -488,6 +488,8 @@ default_command = "pop-node"
 		assert!(raw_chain_spec.exists());
 		let content = fs::read_to_string(raw_chain_spec.clone()).expect("Could not read file");
 		assert!(content.contains("\"para_id\": 2001"));
+		assert!(content.contains("\"id\": \"pop-devnet\""));
+		assert!(content.contains("\"bootNodes\": []"));
 		// Test export wasm file
 		let wasm_file = export_wasm_file(&binary_path, &raw_chain_spec, "para-2001-wasm")?;
 		assert!(wasm_file.exists());
