@@ -204,8 +204,8 @@ pub async fn upload_smart_contract(
 mod tests {
 	use super::*;
 	use crate::{
-		contracts_node_generator, errors::Error, generate_smart_contract_test_environment,
-		mock_build_process, run_contracts_node,
+		contracts_node_generator, errors::Error, mock_build_process, new_environment,
+		run_contracts_node,
 	};
 	use anyhow::Result;
 	use std::{env, process::Command};
@@ -215,7 +215,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn set_up_deployment_works() -> Result<()> {
-		let temp_dir = generate_smart_contract_test_environment()?;
+		let temp_dir = new_environment("testing")?;
 		let current_dir = env::current_dir().expect("Failed to get current directory");
 		mock_build_process(
 			temp_dir.path().join("testing"),
@@ -239,7 +239,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn set_up_upload_works() -> Result<()> {
-		let temp_dir = generate_smart_contract_test_environment()?;
+		let temp_dir = new_environment("testing")?;
 		let current_dir = env::current_dir().expect("Failed to get current directory");
 		mock_build_process(
 			temp_dir.path().join("testing"),
@@ -263,7 +263,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn dry_run_gas_estimate_instantiate_works() -> Result<()> {
-		let temp_dir = generate_smart_contract_test_environment()?;
+		let temp_dir = new_environment("testing")?;
 		let current_dir = env::current_dir().expect("Failed to get current directory");
 		mock_build_process(
 			temp_dir.path().join("testing"),
@@ -290,7 +290,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn dry_run_gas_estimate_instantiate_throw_custom_error() -> Result<()> {
-		let temp_dir = generate_smart_contract_test_environment()?;
+		let temp_dir = new_environment("testing")?;
 		let current_dir = env::current_dir().expect("Failed to get current directory");
 		mock_build_process(
 			temp_dir.path().join("testing"),
@@ -318,7 +318,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn dry_run_upload_throw_custom_error() -> Result<()> {
-		let temp_dir = generate_smart_contract_test_environment()?;
+		let temp_dir = new_environment("testing")?;
 		let current_dir = env::current_dir().expect("Failed to get current directory");
 		mock_build_process(
 			temp_dir.path().join("testing"),
@@ -346,7 +346,7 @@ mod tests {
 	#[tokio::test]
 	async fn instantiate_and_upload() -> Result<()> {
 		const LOCALHOST_URL: &str = "ws://127.0.0.1:9944";
-		let temp_dir = generate_smart_contract_test_environment()?;
+		let temp_dir = new_environment("testing")?;
 		let current_dir = env::current_dir().expect("Failed to get current directory");
 		mock_build_process(
 			temp_dir.path().join("testing"),

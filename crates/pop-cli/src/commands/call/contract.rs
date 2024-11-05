@@ -396,13 +396,13 @@ fn display_message(message: &str, success: bool, cli: &mut impl cli::traits::Cli
 mod tests {
 	use super::*;
 	use crate::cli::MockCli;
-	use pop_contracts::{generate_smart_contract_test_environment, mock_build_process};
+	use pop_contracts::{mock_build_process, new_environment};
 	use std::env;
 	use url::Url;
 
 	#[tokio::test]
 	async fn execute_query_works() -> Result<()> {
-		let temp_dir = generate_smart_contract_test_environment()?;
+		let temp_dir = new_environment("testing")?;
 		let mut current_dir = env::current_dir().expect("Failed to get current directory");
 		current_dir.pop();
 		mock_build_process(
@@ -432,7 +432,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn call_contract_dry_run_works() -> Result<()> {
-		let temp_dir = generate_smart_contract_test_environment()?;
+		let temp_dir = new_environment("testing")?;
 		let mut current_dir = env::current_dir().expect("Failed to get current directory");
 		current_dir.pop();
 		mock_build_process(
@@ -474,7 +474,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn call_contract_query_duplicate_call_works() -> Result<()> {
-		let temp_dir = generate_smart_contract_test_environment()?;
+		let temp_dir = new_environment("testing")?;
 		let mut current_dir = env::current_dir().expect("Failed to get current directory");
 		current_dir.pop();
 		mock_build_process(
@@ -540,7 +540,7 @@ mod tests {
 	// calling the contract.
 	#[tokio::test]
 	async fn guide_user_to_query_contract_works() -> Result<()> {
-		let temp_dir = generate_smart_contract_test_environment()?;
+		let temp_dir = new_environment("testing")?;
 		let mut current_dir = env::current_dir().expect("Failed to get current directory");
 		current_dir.pop();
 		mock_build_process(
@@ -606,7 +606,7 @@ mod tests {
 	// calling the contract.
 	#[tokio::test]
 	async fn guide_user_to_call_contract_works() -> Result<()> {
-		let temp_dir = generate_smart_contract_test_environment()?;
+		let temp_dir = new_environment("testing")?;
 		let mut current_dir = env::current_dir().expect("Failed to get current directory");
 		current_dir.pop();
 		mock_build_process(
@@ -678,7 +678,7 @@ mod tests {
 	// calling the contract.
 	#[tokio::test]
 	async fn guide_user_to_call_contract_in_dev_mode_works() -> Result<()> {
-		let temp_dir = generate_smart_contract_test_environment()?;
+		let temp_dir = new_environment("testing")?;
 		let mut current_dir = env::current_dir().expect("Failed to get current directory");
 		current_dir.pop();
 		mock_build_process(
@@ -746,7 +746,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn guide_user_to_call_contract_fails_not_build() -> Result<()> {
-		let temp_dir = generate_smart_contract_test_environment()?;
+		let temp_dir = new_environment("testing")?;
 		let mut cli = MockCli::new();
 		assert!(
 			matches!(guide_user_to_call_contract(Some(temp_dir.path().join("testing")), None, None, false, &mut cli).await, anyhow::Result::Err(message) if message.to_string().contains("Unable to fetch contract metadata: Failed to find any contract artifacts in target directory."))
@@ -756,7 +756,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn call_contract_fails_no_message() -> Result<()> {
-		let temp_dir = generate_smart_contract_test_environment()?;
+		let temp_dir = new_environment("testing")?;
 		let mut current_dir = env::current_dir().expect("Failed to get current directory");
 		current_dir.pop();
 		mock_build_process(
