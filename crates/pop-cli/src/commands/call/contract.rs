@@ -52,6 +52,10 @@ pub struct CallContractCommand {
 	/// Perform a dry-run via RPC to estimate the gas usage. This does not submit a transaction.
 	#[clap(long, conflicts_with = "execute")]
 	dry_run: bool,
+	/// Enables developer mode, bypassing certain user prompts for faster testing.
+	/// Recommended for testing and local development only.
+	#[clap(name = "dev", long, short, default_value = "false")]
+	dev_mode: bool,
 }
 impl CallContractCommand {
 	/// Executes the command.
@@ -112,7 +116,7 @@ impl CallContractCommand {
 	) -> anyhow::Result<CallContractCommand> {
 		cli.intro("Call a contract")?;
 		let call_config = if self.contract.is_none() {
-			match guide_user_to_call_contract(None, None, None, cli).await {
+			match guide_user_to_call_contract(None, None, None, self.dev_mode, cli).await {
 				Ok(config) => config,
 				Err(e) => {
 					return Err(anyhow!(format!("{}", e.to_string())));
@@ -242,6 +246,7 @@ async fn guide_user_to_call_contract(
 	contract_path: Option<PathBuf>,
 	url: Option<url::Url>,
 	contract_address: Option<String>,
+	dev_mode: bool,
 	cli: &mut impl cli::traits::Cli,
 ) -> anyhow::Result<CallContractCommand> {
 	let contract_path: PathBuf = match contract_path {
@@ -329,7 +334,7 @@ async fn guide_user_to_call_contract(
 	}
 	let mut gas_limit: Option<u64> = None;
 	let mut proof_size: Option<u64> = None;
-	if message.mutates {
+	if message.mutates && !dev_mode {
 		// Prompt for gas limit and proof_size of the call.
 		let gas_limit_input: String = cli
 			.input("Enter the gas limit:")
@@ -355,7 +360,7 @@ async fn guide_user_to_call_contract(
 		.interact()?;
 
 	let mut is_call_confirmed: bool = true;
-	if message.mutates {
+	if message.mutates && !dev_mode {
 		is_call_confirmed = cli
 			.confirm("Do you want to execute the call? (Selecting 'No' will perform a dry run)")
 			.initial_value(true)
@@ -373,6 +378,7 @@ async fn guide_user_to_call_contract(
 		suri,
 		execute: if is_call_confirmed { message.mutates } else { false },
 		dry_run: !is_call_confirmed,
+		dev_mode,
 	};
 	cli.info(call_command.display())?;
 	Ok(call_command)
@@ -475,6 +481,7 @@ async fn execute_call(
 				call_config.path,
 				Some(call_config.url),
 				call_config.contract,
+				call_config.dev_mode,
 				cli,
 			)
 			.await?;
@@ -528,6 +535,7 @@ mod tests {
 			suri: "//Alice".to_string(),
 			dry_run: false,
 			execute: false,
+			dev_mode: false,
 		}
 		.execute()
 		.await?;
@@ -562,6 +570,7 @@ mod tests {
 			suri: "//Alice".to_string(),
 			dry_run: true,
 			execute: false,
+			dev_mode: false,
 		}
 		.set_up_call_config(&mut cli)
 		.await?;
@@ -629,6 +638,7 @@ mod tests {
 			suri: "//Alice".to_string(),
 			dry_run: false,
 			execute: false,
+			dev_mode: false,
 		}
 		.set_up_call_config(&mut cli)
 		.await?;
@@ -682,7 +692,7 @@ mod tests {
 	            temp_dir.path().join("testing").display().to_string(),
 	        ));
 
-		let call_config = guide_user_to_call_contract(None, None, None, &mut cli).await?;
+		let call_config = guide_user_to_call_contract(None, None, None, false, &mut cli).await?;
 		assert_eq!(
 			call_config.contract,
 			Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string())
@@ -753,7 +763,7 @@ mod tests {
 				temp_dir.path().join("testing").display().to_string(),
 			));
 
-		let call_config = guide_user_to_call_contract(None, None, None, &mut cli).await?;
+		let call_config = guide_user_to_call_contract(None, None, None, false, &mut cli).await?;
 		assert_eq!(
 			call_config.contract,
 			Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string())
@@ -776,12 +786,82 @@ mod tests {
 		cli.verify()
 	}
 
+	// This test only covers the interactive portion of the call contract command, without actually
+	// calling the contract.
+	#[tokio::test]
+	async fn guide_user_to_call_contract_in_dev_mode_works() -> Result<()> {
+		let temp_dir = generate_smart_contract_test_environment()?;
+		let mut current_dir = env::current_dir().expect("Failed to get current directory");
+		current_dir.pop();
+		mock_build_process(
+			temp_dir.path().join("testing"),
+			current_dir.join("pop-contracts/tests/files/testing.contract"),
+			current_dir.join("pop-contracts/tests/files/testing.json"),
+		)?;
+
+		let items = vec![
+			("flip\n".into(), " A message that can be called on instantiated contracts.  This one flips the value of the stored `bool` from `true`  to `false` and vice versa.".into()),
+			("get\n".into(), " Simply returns the current value of our `bool`.".into()),
+			("specific_flip\n".into(), " A message for testing, flips the value of the stored `bool` with `new_value`  and is payable".into())
+		];
+		// The inputs are processed in reverse order.
+		let mut cli = MockCli::new()
+			.expect_input("Signer calling the contract:", "//Alice".into())
+			.expect_input("Value to transfer to the call:", "50".into()) // Only if payable
+			.expect_input("Enter the value for the parameter: new_value", "true".into()) // Args for specific_flip
+			.expect_select::<PathBuf>(
+				"Select the message to call:",
+				Some(false),
+				true,
+				Some(items),
+				2, // "specific_flip" message
+			)
+			.expect_input(
+				"Paste the on-chain contract address:",
+				"15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".into(),
+			)
+			.expect_input(
+				"Where is your contract deployed?",
+				"wss://rpc1.paseo.popnetwork.xyz".into(),
+			)
+			.expect_input(
+				"Where is your project located?",
+				temp_dir.path().join("testing").display().to_string(),
+			).expect_info(format!(
+				"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message specific_flip --args true --value 50 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --execute",
+				temp_dir.path().join("testing").display().to_string(),
+			));
+
+		let call_config = guide_user_to_call_contract(None, None, None, true, &mut cli).await?;
+		assert_eq!(
+			call_config.contract,
+			Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string())
+		);
+		assert_eq!(call_config.message, Some("specific_flip".to_string()));
+		assert_eq!(call_config.args.len(), 1);
+		assert_eq!(call_config.args[0], "true".to_string());
+		assert_eq!(call_config.value, "50".to_string());
+		assert_eq!(call_config.gas_limit, None);
+		assert_eq!(call_config.proof_size, None);
+		assert_eq!(call_config.url.to_string(), "wss://rpc1.paseo.popnetwork.xyz/");
+		assert_eq!(call_config.suri, "//Alice");
+		assert!(call_config.execute);
+		assert!(!call_config.dry_run);
+		assert!(call_config.dev_mode);
+		assert_eq!(call_config.display(), format!(
+			"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message specific_flip --args true --value 50 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --execute",
+			temp_dir.path().join("testing").display().to_string(),
+		));
+
+		cli.verify()
+	}
+
 	#[tokio::test]
 	async fn guide_user_to_call_contract_fails_not_build() -> Result<()> {
 		let temp_dir = generate_smart_contract_test_environment()?;
 		let mut cli = MockCli::new();
 		assert!(
-			matches!(guide_user_to_call_contract(Some(temp_dir.path().join("testing")), None, None, &mut cli).await, anyhow::Result::Err(message) if message.to_string().contains("Unable to fetch contract metadata: Failed to find any contract artifacts in target directory."))
+			matches!(guide_user_to_call_contract(Some(temp_dir.path().join("testing")), None, None, false, &mut cli).await, anyhow::Result::Err(message) if message.to_string().contains("Unable to fetch contract metadata: Failed to find any contract artifacts in target directory."))
 		);
 		cli.verify()
 	}
@@ -811,6 +891,7 @@ mod tests {
 			suri: "//Alice".to_string(),
 			dry_run: false,
 			execute: false,
+			dev_mode: false,
 		}
 		.set_up_call_config(&mut cli)
 		.await?;
