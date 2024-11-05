@@ -22,7 +22,7 @@ fn parse_latest_stable(tags: &[&str]) -> Option<String> {
 		r"(polkadot-(parachain-)?)?stable(?P<year>\d{2})(?P<month>\d{2})(-(?P<patch>\d+))?(-rc\d+)?",
 	)
 	.expect("Valid regex");
-	tags.into_iter()
+	tags.iter()
 		.filter_map(|tag| {
 			// Skip the pre-release label
 			if tag.contains("-rc") {
@@ -53,7 +53,7 @@ fn parse_version_format(tags: &[&str]) -> Option<String> {
 	// Regex for polkadot-vmajor.minor.patch format
 	let version_reg = Regex::new(r"v(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)(-rc\d+)?")
 		.expect("Valid regex");
-	tags.into_iter()
+	tags.iter()
 		.filter_map(|tag| {
 			// Skip the pre-release label
 			if tag.contains("-rc") {

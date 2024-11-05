@@ -60,9 +60,8 @@ impl Git {
 	) -> Result<Option<String>> {
 		let repo = match GitRepository::clone(url, target) {
 			Ok(repo) => repo,
-			Err(_e) => {
-				Self::ssh_clone_and_degit(url::Url::parse(url).map_err(Error::from)?, target)?
-			},
+			Err(_e) =>
+				Self::ssh_clone_and_degit(url::Url::parse(url).map_err(Error::from)?, target)?,
 		};
 
 		if let Some(tag_version) = tag_version {

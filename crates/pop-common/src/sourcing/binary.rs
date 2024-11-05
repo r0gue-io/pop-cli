@@ -45,13 +45,12 @@ impl Binary {
 	pub fn latest(&self) -> Option<&str> {
 		match self {
 			Self::Local { .. } => None,
-			Self::Source { source, .. } => {
+			Self::Source { source, .. } =>
 				if let GitHub(ReleaseArchive { latest, .. }) = source {
 					latest.as_deref()
 				} else {
 					None
-				}
-			},
+				},
 		}
 	}
 
@@ -139,13 +138,11 @@ impl Binary {
 				None => Err(Error::MissingBinary(format!(
 					"The {path:?} binary cannot be sourced automatically."
 				))),
-				Some(manifest) => {
-					from_local_package(manifest, name, release, status, verbose).await
-				},
+				Some(manifest) =>
+					from_local_package(manifest, name, release, status, verbose).await,
 			},
-			Self::Source { source, cache, .. } => {
-				source.source(cache, release, status, verbose).await
-			},
+			Self::Source { source, cache, .. } =>
+				source.source(cache, release, status, verbose).await,
 		}
 	}
 
