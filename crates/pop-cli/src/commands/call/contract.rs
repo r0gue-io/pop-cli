@@ -230,11 +230,15 @@ impl CallContractCommand {
 		// Resolve message arguments.
 		let mut contract_args = Vec::new();
 		for arg in &message.args {
-			contract_args.push(
-				cli.input(format!("Enter the value for the parameter: {}", arg.label))
-					.placeholder(&format!("Type required: {}", &arg.type_name))
-					.interact()?,
-			);
+			let mut input = cli
+				.input(format!("Enter the value for the parameter: {}", arg.label))
+				.placeholder(&format!("Type required: {}", arg.type_name));
+
+			// Set default input only if the parameter type is `Option` (Not mandatory)
+			if arg.type_name == "Option" {
+				input = input.default_input("");
+			}
+			contract_args.push(input.interact()?);
 		}
 		self.args = contract_args;
 
