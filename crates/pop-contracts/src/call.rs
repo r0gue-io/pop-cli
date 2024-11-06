@@ -4,6 +4,7 @@ use crate::{
 	errors::Error,
 	utils::{
 		helpers::{get_manifest_path, parse_account, parse_balance},
+		metadata,
 		signer::create_signer,
 	},
 };
@@ -19,8 +20,6 @@ use std::path::PathBuf;
 use subxt::{Config, PolkadotConfig as DefaultConfig};
 use subxt_signer::sr25519::Keypair;
 use url::Url;
-
-pub mod metadata;
 
 /// Attributes for the `call` command.
 pub struct CallOpts {

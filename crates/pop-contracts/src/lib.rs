@@ -14,9 +14,7 @@ mod utils;
 
 pub use build::{build_smart_contract, is_supported, Verbosity};
 pub use call::{
-	call_smart_contract, dry_run_call, dry_run_gas_estimate_call,
-	metadata::{get_messages, Message},
-	set_up_call, CallOpts,
+	call_smart_contract, dry_run_call, dry_run_gas_estimate_call, set_up_call, CallOpts,
 };
 pub use new::{create_smart_contract, is_valid_contract_name};
 pub use node::{contracts_node_generator, is_chain_alive, run_contracts_node};
@@ -27,4 +25,8 @@ pub use up::{
 	dry_run_gas_estimate_instantiate, dry_run_upload, instantiate_smart_contract,
 	set_up_deployment, set_up_upload, upload_smart_contract, UpOpts,
 };
-pub use utils::{helpers::parse_account, signer::parse_hex_bytes};
+pub use utils::{
+	helpers::parse_account,
+	metadata::{get_messages, Message},
+	signer::parse_hex_bytes,
+};

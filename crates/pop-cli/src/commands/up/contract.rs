@@ -35,7 +35,7 @@ pub struct UpContractCommand {
 	#[clap(name = "constructor", long, default_value = "new")]
 	constructor: String,
 	/// The constructor arguments, encoded as strings.
-	#[clap(long, num_args = 0..)]
+	#[clap(long, num_args = 0.., value_delimiter = ',')]
 	args: Vec<String>,
 	/// Transfers an initial balance to the instantiated contract.
 	#[clap(name = "value", long, default_value = "0")]
