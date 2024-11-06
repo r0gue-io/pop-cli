@@ -27,6 +27,6 @@ pub use up::{
 };
 pub use utils::{
 	helpers::parse_account,
-	metadata::{get_messages, Message},
+	metadata::{get_messages, ContractFunction},
 	signer::parse_hex_bytes,
 };
