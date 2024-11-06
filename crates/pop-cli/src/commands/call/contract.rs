@@ -64,13 +64,14 @@ pub struct CallContractCommand {
 impl CallContractCommand {
 	/// Executes the command.
 	pub(crate) async fn execute(self) -> Result<()> {
-		let call_config: CallContractCommand = match self.set_up_call_config(&mut cli::Cli).await {
-			Ok(call_config) => call_config,
-			Err(e) => {
-				display_message(&e.to_string(), false, &mut cli::Cli)?;
-				return Ok(());
-			},
-		};
+		let mut call_config: CallContractCommand =
+			match self.set_up_call_config(&mut cli::Cli).await {
+				Ok(call_config) => call_config,
+				Err(e) => {
+					display_message(&e.to_string(), false, &mut cli::Cli)?;
+					return Ok(());
+				},
+			};
 		match call_config.execute_call(self.message.is_none(), &mut cli::Cli).await {
 			Ok(_) => Ok(()),
 			Err(e) => {
@@ -201,8 +202,8 @@ impl CallContractCommand {
 					.interact()?,
 			);
 		}
-		let mut value = "0".to_string();
-		if message.payable {
+		let mut value = self.value.clone();
+		if message.payable && value == DEFAULT_PAYABLE_VALUE {
 			value = cli
 				.input("Value to transfer to the call:")
 				.placeholder("0")
@@ -213,9 +214,9 @@ impl CallContractCommand {
 				})
 				.interact()?;
 		}
-		let mut gas_limit: Option<u64> = None;
-		let mut proof_size: Option<u64> = None;
-		if message.mutates && !self.dev_mode {
+		let mut gas_limit: Option<u64> = self.gas_limit;
+		let mut proof_size: Option<u64> = self.proof_size;
+		if message.mutates && !self.dev_mode && gas_limit.is_none() {
 			// Prompt for gas limit and proof_size of the call.
 			let gas_limit_input: String = cli
 				.input("Enter the gas limit:")
@@ -224,6 +225,9 @@ impl CallContractCommand {
 				.placeholder("If left blank, an estimation will be used")
 				.interact()?;
 			gas_limit = gas_limit_input.parse::<u64>().ok(); // If blank or bad input, estimate it.
+		}
+
+		if message.mutates && !self.dev_mode && proof_size.is_none() {
 			let proof_size_input: String = cli
 				.input("Enter the proof size limit:")
 				.required(false)
@@ -272,7 +276,7 @@ impl CallContractCommand {
 
 	/// Executes the call.
 	async fn execute_call(
-		&self,
+		&mut self,
 		prompt_to_repeat_call: bool,
 		cli: &mut impl cli::traits::Cli,
 	) -> anyhow::Result<()> {
@@ -304,7 +308,7 @@ impl CallContractCommand {
 		{
 			Ok(call_exec) => call_exec,
 			Err(e) => {
-				return Err(anyhow!(format!("{}", e.root_cause().to_string())));
+				return Err(anyhow!(format!("{}", e.to_string())));
 			},
 		};
 
@@ -364,7 +368,8 @@ impl CallContractCommand {
 			{
 				// Remove only the prompt asking for another call.
 				console::Term::stderr().clear_last_lines(2)?;
-				let new_call_config = self.guide_user_to_call_contract(cli).await?;
+				self.reset_for_new_call();
+				let mut new_call_config = self.guide_user_to_call_contract(cli).await?;
 				Box::pin(new_call_config.execute_call(prompt_to_repeat_call, cli)).await?;
 			} else {
 				display_message("Call completed successfully!", true, cli)?;
@@ -373,6 +378,13 @@ impl CallContractCommand {
 			display_message("Call completed successfully!", true, cli)?;
 		}
 		Ok(())
+	}
+
+	/// Resets message specific fields to default values for a new call.
+	fn reset_for_new_call(&mut self) {
+		self.value = DEFAULT_PAYABLE_VALUE.to_string();
+		self.gas_limit = None;
+		self.proof_size = None;
 	}
 }
 
@@ -439,7 +451,7 @@ mod tests {
 			.expect_warning("Your call has not been executed.")
 			.expect_info("Gas limit: Weight { ref_time: 100, proof_size: 10 }");
 
-		let call_config = CallContractCommand {
+		let mut call_config = CallContractCommand {
 			path: Some(temp_dir.path().join("testing")),
 			contract: Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string()),
 			message: Some("flip".to_string()),
@@ -507,7 +519,7 @@ mod tests {
 			.expect_outro("Call completed successfully!");
 
 		// Contract deployed on Pop Network testnet, test get
-		let call_config = CallContractCommand {
+		let mut call_config = CallContractCommand {
 			path: Some(temp_dir.path().join("testing")),
 			contract: Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string()),
 			message: Some("get".to_string()),
