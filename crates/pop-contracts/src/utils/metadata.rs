@@ -209,7 +209,7 @@ mod tests {
 
 	#[test]
 	fn get_message_work() -> Result<()> {
-		let temp_dir = generate_smart_contract_test_environment()?;
+		let temp_dir = new_environment("testing")?;
 		let current_dir = env::current_dir().expect("Failed to get current directory");
 		mock_build_process(
 			temp_dir.path().join("testing"),
