@@ -1,11 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::cli::{self, traits::*};
+use crate::{
+	cli::{self, traits::*},
+	common::build::has_contract_been_built,
+};
 use anyhow::{anyhow, Result};
 use clap::Args;
+use cliclack::spinner;
 use pop_contracts::{
-	call_smart_contract, dry_run_call, dry_run_gas_estimate_call, get_messages, parse_account,
-	set_up_call, CallOpts,
+	build_smart_contract, call_smart_contract, dry_run_call, dry_run_gas_estimate_call,
+	get_messages, parse_account, set_up_call, CallOpts, Verbosity,
 };
 use sp_weights::Weight;
 use std::path::PathBuf;
@@ -64,6 +68,7 @@ pub struct CallContractCommand {
 impl CallContractCommand {
 	/// Executes the command.
 	pub(crate) async fn execute(self) -> Result<()> {
+		self.ensure_contract_built(&mut cli::Cli).await?;
 		let mut call_config: CallContractCommand =
 			match self.set_up_call_config(&mut cli::Cli).await {
 				Ok(call_config) => call_config,
@@ -112,6 +117,31 @@ impl CallContractCommand {
 			full_message.push_str(" --dry_run");
 		}
 		full_message
+	}
+
+	/// Checks if the contract has been built; if not, builds it.
+	async fn ensure_contract_built(&self, cli: &mut impl cli::traits::Cli) -> Result<()> {
+		// Check if build exists in the specified "Contract build directory"
+		if !has_contract_been_built(self.path.as_deref()) {
+			// Build the contract in release mode
+			cli.warning("NOTE: contract has not yet been built.")?;
+			let spinner = spinner();
+			spinner.start("Building contract in RELEASE mode...");
+			let result = match build_smart_contract(self.path.as_deref(), true, Verbosity::Quiet) {
+				Ok(result) => result,
+				Err(e) => {
+					return Err(anyhow!(format!(
+						"🚫 An error occurred building your contract: {}\nUse `pop build` to retry with build output.",
+						e.to_string()
+					)));
+				},
+			};
+			spinner.stop(format!(
+				"Your contract artifacts are ready. You can find them in: {}",
+				result.target_directory.display()
+			));
+		}
+		Ok(())
 	}
 
 	/// Set up the config call.
