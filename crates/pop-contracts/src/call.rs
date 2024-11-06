@@ -4,7 +4,7 @@ use crate::{
 	errors::Error,
 	utils::{
 		helpers::{get_manifest_path, parse_account, parse_balance},
-		metadata,
+		metadata::{process_function_args, FunctionType},
 		signer::create_signer,
 	},
 };
@@ -67,10 +67,11 @@ pub async fn set_up_call(
 
 	let contract: <DefaultConfig as Config>::AccountId = parse_account(&call_opts.contract)?;
 	// Process the argument values input by the user.
-	let args = metadata::process_message_args(
+	let args = process_function_args(
 		call_opts.path.unwrap_or_else(|| PathBuf::from("./")),
 		&call_opts.message,
 		call_opts.args,
+		FunctionType::Message,
 	)?;
 
 	let call_exec: CallExec<DefaultConfig, DefaultEnvironment, Keypair> =
