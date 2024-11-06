@@ -721,6 +721,7 @@ mod tests {
 		let mut cli = MockCli::new()
 			.expect_input("Signer calling the contract:", "//Alice".into())
 			.expect_input("Value to transfer to the call:", "50".into()) // Only if payable
+			.expect_input("Enter the value for the parameter: number", "2".into()) // Args for specific_flip
 			.expect_input("Enter the value for the parameter: new_value", "true".into()) // Args for specific_flip
 			.expect_select::<PathBuf>(
 				"Select the message to call:",
@@ -741,7 +742,7 @@ mod tests {
 				"Where is your project located?",
 				temp_dir.path().join("testing").display().to_string(),
 			).expect_info(format!(
-				"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message specific_flip --args true --value 50 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --execute",
+				"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message specific_flip --args true,2 --value 50 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --execute",
 				temp_dir.path().join("testing").display().to_string(),
 			));
 
@@ -766,8 +767,9 @@ mod tests {
 			Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string())
 		);
 		assert_eq!(call_config.message, Some("specific_flip".to_string()));
-		assert_eq!(call_config.args.len(), 1);
+		assert_eq!(call_config.args.len(), 2);
 		assert_eq!(call_config.args[0], "true".to_string());
+		assert_eq!(call_config.args[1], "2".to_string());
 		assert_eq!(call_config.value, "50".to_string());
 		assert_eq!(call_config.gas_limit, None);
 		assert_eq!(call_config.proof_size, None);
@@ -777,7 +779,7 @@ mod tests {
 		assert!(!call_config.dry_run);
 		assert!(call_config.dev_mode);
 		assert_eq!(call_config.display(), format!(
-			"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message specific_flip --args true --value 50 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --execute",
+			"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message specific_flip --args true,2 --value 50 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --execute",
 			temp_dir.path().join("testing").display().to_string(),
 		));
 
