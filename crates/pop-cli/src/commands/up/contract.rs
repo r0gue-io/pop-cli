@@ -321,7 +321,7 @@ mod tests {
 		let command = UpContractCommand {
 			path: None,
 			constructor: "new".to_string(),
-			args: vec!["false".to_string()].to_vec(),
+			args: vec![],
 			value: "0".to_string(),
 			gas_limit: None,
 			proof_size: None,

@@ -252,11 +252,14 @@ mod tests {
 			"Constructor that initializes the `bool` value to `false`.  Constructors can delegate to other constructors."
 		);
 		// assert parsed arguments
-		assert_eq!(constructor[0].args.len(), 2);
+		assert_eq!(constructor[0].args.len(), 1);
 		assert_eq!(constructor[0].args[0].label, "init_value".to_string());
 		assert_eq!(constructor[0].args[0].type_name, "bool".to_string());
-		assert_eq!(constructor[0].args[1].label, "number".to_string());
-		assert_eq!(constructor[0].args[1].type_name, "Option".to_string());
+		assert_eq!(constructor[1].args.len(), 2);
+		assert_eq!(constructor[1].args[0].label, "init_value".to_string());
+		assert_eq!(constructor[1].args[0].type_name, "bool".to_string());
+		assert_eq!(constructor[1].args[1].label, "number".to_string());
+		assert_eq!(constructor[1].args[1].type_name, "Option".to_string());
 		Ok(())
 	}
 
@@ -272,11 +275,11 @@ mod tests {
 		assert!(matches!(
 			get_constructor(&temp_dir.path().join("testing"), "wrong_constructor"),
 			Err(Error::InvalidConstructorName(name)) if name == "wrong_constructor".to_string()));
-		let constructor = get_constructor(&temp_dir.path().join("testing"), "new")?;
-		assert_eq!(constructor.label, "new");
+		let constructor = get_constructor(&temp_dir.path().join("testing"), "default")?;
+		assert_eq!(constructor.label, "default");
 		assert_eq!(
 			constructor.docs,
-			"Constructor that initializes the `bool` value to the given `init_value`."
+			"Constructor that initializes the `bool` value to `false`.  Constructors can delegate to other constructors."
 		);
 		// assert parsed arguments
 		assert_eq!(constructor.args.len(), 2);
@@ -334,7 +337,7 @@ mod tests {
 		assert!(matches!(
 			process_function_args(
 				temp_dir.path().join("testing"),
-				"new",
+				"default",
 				Vec::new(),
 				FunctionType::Constructor
 			),
@@ -343,7 +346,7 @@ mod tests {
 		assert_eq!(
 			process_function_args(
 				temp_dir.path().join("testing"),
-				"new",
+				"default",
 				["true".to_string(), "2".to_string()].to_vec(),
 				FunctionType::Constructor
 			)?,
@@ -352,7 +355,7 @@ mod tests {
 		assert_eq!(
 			process_function_args(
 				temp_dir.path().join("testing"),
-				"new",
+				"default",
 				["true".to_string(), "".to_string()].to_vec(),
 				FunctionType::Constructor
 			)?,
