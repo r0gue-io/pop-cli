@@ -30,7 +30,7 @@ pub struct CallContractCommand {
 	#[clap(long, short)]
 	message: Option<String>,
 	/// The constructor arguments, encoded as strings.
-	#[clap(long, num_args = 0.., value_delimiter = ',')]
+	#[clap(long, num_args = 0..,)]
 	args: Vec<String>,
 	/// The value to be transferred as part of the call.
 	#[clap(name = "value", short = 'v', long, default_value = DEFAULT_PAYABLE_VALUE)]
@@ -482,7 +482,7 @@ mod tests {
 			.expect_warning("Your call has not been executed.")
 			.expect_info("Gas limit: Weight { ref_time: 100, proof_size: 10 }");
 
-		let mut call_config = CallContractCommand {
+		let call_config = CallContractCommand {
 			path: Some(temp_dir.path().join("testing")),
 			contract: Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string()),
 			message: Some("flip".to_string()),
@@ -549,7 +549,7 @@ mod tests {
 			.expect_outro("Contract calling complete.");
 
 		// Contract deployed on Pop Network testnet, test get
-		let mut call_config = CallContractCommand {
+		let call_config = CallContractCommand {
 			path: Some(temp_dir.path().join("testing")),
 			contract: Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string()),
 			message: Some("get".to_string()),
@@ -760,7 +760,6 @@ mod tests {
 		let mut cli = MockCli::new()
 			.expect_input("Signer calling the contract:", "//Alice".into())
 			.expect_input("Value to transfer to the call:", "50".into()) // Only if payable
-			.expect_input("Enter the value for the parameter: number", "2".into()) // Args for specific_flip
 			.expect_input("Enter the value for the parameter: new_value", "true".into()) // Args for specific_flip
 			.expect_select::<PathBuf>(
 				"Select the message to call:",
@@ -781,7 +780,7 @@ mod tests {
 				"Where is your project located?",
 				temp_dir.path().join("testing").display().to_string(),
 			).expect_info(format!(
-				"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message specific_flip --args true,2 --value 50 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --execute",
+				"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message specific_flip --args true --value 50 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --execute",
 				temp_dir.path().join("testing").display().to_string(),
 			));
 
@@ -805,9 +804,8 @@ mod tests {
 			Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string())
 		);
 		assert_eq!(call_config.message, Some("specific_flip".to_string()));
-		assert_eq!(call_config.args.len(), 2);
+		assert_eq!(call_config.args.len(), 1);
 		assert_eq!(call_config.args[0], "true".to_string());
-		assert_eq!(call_config.args[1], "2".to_string());
 		assert_eq!(call_config.value, "50".to_string());
 		assert_eq!(call_config.gas_limit, None);
 		assert_eq!(call_config.proof_size, None);
@@ -817,7 +815,7 @@ mod tests {
 		assert!(!call_config.dry_run);
 		assert!(call_config.dev_mode);
 		assert_eq!(call_config.display(), format!(
-			"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message specific_flip --args true,2 --value 50 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --execute",
+			"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message specific_flip --args true --value 50 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --execute",
 			temp_dir.path().join("testing").display().to_string(),
 		));
 
