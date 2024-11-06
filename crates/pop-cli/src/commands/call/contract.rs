@@ -304,7 +304,7 @@ impl CallContractCommand {
 		{
 			Ok(call_exec) => call_exec,
 			Err(e) => {
-				return Err(anyhow!(format!("{}", e.root_cause().to_string())));
+				return Err(anyhow!(format!("{}", e.to_string())));
 			},
 		};
 
