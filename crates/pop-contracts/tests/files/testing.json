@@ -1,6 +1,6 @@
 {
   "source": {
-    "hash": "0xea3a2d4428c3717ab229f1822014375d42a0497a0b86eb8fbb405ec6733899e9",
+    "hash": "0xf4f0cafd08d8e362141b3c64e3c651ad6a38225dbf0b66f691c15bb0ea00eac3",
     "language": "ink! 5.0.0",
     "compiler": "rustc 1.78.0",
     "build_info": {
@@ -69,6 +69,75 @@
       "id": 3,
       "type": {
         "path": [
+          "Result"
+        ],
+        "params": [
+          {
+            "name": "T",
+            "type": 4
+          },
+          {
+            "name": "E",
+            "type": 5
+          }
+        ],
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "name": "Ok",
+                "fields": [
+                  {
+                    "type": 4
+                  }
+                ],
+                "index": 0
+              },
+              {
+                "name": "Err",
+                "fields": [
+                  {
+                    "type": 5
+                  }
+                ],
+                "index": 1
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": {
+        "def": {
+          "tuple": []
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": {
+        "path": [
+          "ink_primitives",
+          "LangError"
+        ],
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "name": "CouldNotReadInput",
+                "index": 1
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": {
+        "path": [
           "Option"
         ],
         "params": [
@@ -99,75 +168,6 @@
       }
     },
     {
-      "id": 4,
-      "type": {
-        "path": [
-          "Result"
-        ],
-        "params": [
-          {
-            "name": "T",
-            "type": 5
-          },
-          {
-            "name": "E",
-            "type": 6
-          }
-        ],
-        "def": {
-          "variant": {
-            "variants": [
-              {
-                "name": "Ok",
-                "fields": [
-                  {
-                    "type": 5
-                  }
-                ],
-                "index": 0
-              },
-              {
-                "name": "Err",
-                "fields": [
-                  {
-                    "type": 6
-                  }
-                ],
-                "index": 1
-              }
-            ]
-          }
-        }
-      }
-    },
-    {
-      "id": 5,
-      "type": {
-        "def": {
-          "tuple": []
-        }
-      }
-    },
-    {
-      "id": 6,
-      "type": {
-        "path": [
-          "ink_primitives",
-          "LangError"
-        ],
-        "def": {
-          "variant": {
-            "variants": [
-              {
-                "name": "CouldNotReadInput",
-                "index": 1
-              }
-            ]
-          }
-        }
-      }
-    },
-    {
       "id": 7,
       "type": {
         "path": [
@@ -180,7 +180,7 @@
           },
           {
             "name": "E",
-            "type": 6
+            "type": 5
           }
         ],
         "def": {
@@ -199,7 +199,7 @@
                 "name": "Err",
                 "fields": [
                   {
-                    "type": 6
+                    "type": 5
                   }
                 ],
                 "index": 1
@@ -344,19 +344,10 @@
                 "bool"
               ]
             }
-          },
-          {
-            "label": "number",
-            "type": {
-              "type": 3,
-              "displayName": [
-                "Option"
-              ]
-            }
           }
         ],
         "returnType": {
-          "type": 4,
+          "type": 3,
           "displayName": [
             "ink_primitives",
             "ConstructorResult"
@@ -371,9 +362,28 @@
         "label": "default",
         "selector": "0xed4b9d1b",
         "payable": false,
-        "args": [],
+        "args": [
+          {
+            "label": "init_value",
+            "type": {
+              "type": 0,
+              "displayName": [
+                "bool"
+              ]
+            }
+          },
+          {
+            "label": "number",
+            "type": {
+              "type": 6,
+              "displayName": [
+                "Option"
+              ]
+            }
+          }
+        ],
         "returnType": {
-          "type": 4,
+          "type": 3,
           "displayName": [
             "ink_primitives",
             "ConstructorResult"
@@ -395,7 +405,7 @@
         "payable": false,
         "args": [],
         "returnType": {
-          "type": 4,
+          "type": 3,
           "displayName": [
             "ink",
             "MessageResult"
@@ -444,7 +454,7 @@
           {
             "label": "number",
             "type": {
-              "type": 3,
+              "type": 6,
               "displayName": [
                 "Option"
               ]
@@ -452,7 +462,7 @@
           }
         ],
         "returnType": {
-          "type": 4,
+          "type": 3,
           "displayName": [
             "ink",
             "MessageResult"
@@ -468,7 +478,7 @@
     "events": [],
     "docs": [],
     "lang_error": {
-      "type": 6,
+      "type": 5,
       "displayName": [
         "ink",
         "LangError"
