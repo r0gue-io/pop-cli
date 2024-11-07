@@ -157,7 +157,7 @@ pub async fn dry_run_upload(
 	}
 }
 
-///Type to represent information about a deployed smart contract.
+/// Type to represent information about a deployed smart contract.
 pub struct ContractInfo {
 	/// The on-chain address of the deployed contract.
 	pub address: String,
