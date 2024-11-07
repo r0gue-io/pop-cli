@@ -68,7 +68,7 @@ fn create_template_contract(
 		extract_template_files("", temp_dir.path(), canonicalized_path.as_path(), None)?;
 	} else {
 		extract_template_files(
-			&template.to_string(),
+			template.as_ref(),
 			temp_dir.path(),
 			canonicalized_path.as_path(),
 			Some(vec!["frontend".to_string()]),

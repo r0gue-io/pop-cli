@@ -32,7 +32,7 @@ pub fn instantiate_template_dir(
 	if Provider::Pop.provides(template) {
 		return instantiate_standard_template(template, target, config, tag_version);
 	}
-	if Provider::OpenZeppelin.provides(&template) {
+	if Provider::OpenZeppelin.provides(template) {
 		return instantiate_openzeppelin_template(template, target, tag_version);
 	}
 	let tag = Git::clone_and_degit(template.repository_url()?, target, tag_version)?;
