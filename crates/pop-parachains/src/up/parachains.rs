@@ -2,6 +2,7 @@
 
 use super::{chain_specs::chain_spec_generator, Binary};
 use pop_common::{
+	polkadot_sdk::parse_latest_tag,
 	sourcing::{
 		traits::{Source as _, *},
 		GitHub::ReleaseArchive,
@@ -28,8 +29,8 @@ pub(super) enum Parachain {
 	#[strum(props(
 		Repository = "https://github.com/r0gue-io/pop-node",
 		Binary = "pop-node",
-		Prerelease = "true",
-		Fallback = "v0.1.0-alpha2"
+		Prerelease = "false",
+		Fallback = "testnet-v0.4.1"
 	))]
 	Pop,
 }
@@ -90,7 +91,10 @@ pub(super) async fn system(
 		None => {
 			// Default to same version as relay chain when not explicitly specified
 			// Only set latest when caller has not explicitly specified a version to use
-			(Some(relay_chain_version.to_string()), para.releases().await?.into_iter().next())
+			(
+				Some(relay_chain_version.to_string()),
+				parse_latest_tag(para.releases().await?.iter().map(|s| s.as_str()).collect()),
+			)
 		},
 	};
 	let source = TryInto::try_into(para, tag, latest)?;

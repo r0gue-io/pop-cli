@@ -30,7 +30,7 @@ pub(super) enum Runtime {
 		Repository = "https://github.com/r0gue-io/paseo-runtimes",
 		Binary = "chain-spec-generator",
 		Chain = "paseo-local",
-		Fallback = "v1.2.4"
+		Fallback = "v1.2.6"
 	))]
 	Paseo,
 	/// Polkadot.
