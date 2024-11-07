@@ -176,7 +176,7 @@ impl CallContractCommand {
 		};
 
 		// Parse the contract metadata provided. If there is an error, do not prompt for more.
-		let messages = match get_messages(&contract_path) {
+		let messages = match get_messages(contract_path) {
 			Ok(messages) => messages,
 			Err(e) => {
 				return Err(anyhow!(format!(

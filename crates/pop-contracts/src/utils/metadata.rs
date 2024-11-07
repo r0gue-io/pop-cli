@@ -6,8 +6,8 @@ use contract_transcode::ink_metadata::MessageParamSpec;
 use scale_info::form::PortableForm;
 use std::path::Path;
 
+/// Describes a parameter.
 #[derive(Clone, PartialEq, Eq)]
-/// Describes a contract message.
 pub struct Param {
 	/// The label of the parameter.
 	pub label: String,
@@ -15,25 +15,25 @@ pub struct Param {
 	pub type_name: String,
 }
 
-#[derive(Clone, PartialEq, Eq)]
 /// Describes a contract function.
+#[derive(Clone, PartialEq, Eq)]
 pub struct ContractFunction {
-	/// The label of the constructor.
+	/// The label of the function.
 	pub label: String,
-	/// If the message accepts any `value` from the caller.
+	/// If the function accepts any `value` from the caller.
 	pub payable: bool,
 	/// The parameters of the deployment handler.
 	pub args: Vec<Param>,
-	/// The constructor documentation.
+	/// The function documentation.
 	pub docs: String,
-	/// If the constructor is the default for off-chain consumers (e.g UIs).
+	/// If the message/constructor is the default for off-chain consumers (e.g UIs).
 	pub default: bool,
 	/// If the message is allowed to mutate the contract state. true for constructors.
 	pub mutates: bool,
 }
 
-#[derive(Clone, PartialEq, Eq)]
 /// Specifies the type of contract funtion, either a constructor or a message.
+#[derive(Clone, PartialEq, Eq)]
 pub enum FunctionType {
 	Constructor,
 	Message,
@@ -51,18 +51,20 @@ pub fn get_messages(path: &Path) -> Result<Vec<ContractFunction>, Error> {
 	let contract_artifacts =
 		ContractArtifacts::from_manifest_or_file(Some(&cargo_toml_path), None)?;
 	let transcoder = contract_artifacts.contract_transcoder()?;
-	let mut messages: Vec<ContractFunction> = Vec::new();
-	for message in transcoder.metadata().spec().messages() {
-		messages.push(ContractFunction {
+	Ok(transcoder
+		.metadata()
+		.spec()
+		.messages()
+		.iter()
+		.map(|message| ContractFunction {
 			label: message.label().to_string(),
 			mutates: message.mutates(),
 			payable: message.payable(),
 			args: process_args(message.args()),
 			docs: message.docs().join(" "),
 			default: *message.default(),
-		});
-	}
-	Ok(messages)
+		})
+		.collect())
 }
 
 /// Extracts the information of a smart contract message parsing the metadata file.
@@ -92,18 +94,20 @@ pub fn get_constructors(path: &Path) -> Result<Vec<ContractFunction>, Error> {
 	let contract_artifacts =
 		ContractArtifacts::from_manifest_or_file(Some(&cargo_toml_path), None)?;
 	let transcoder = contract_artifacts.contract_transcoder()?;
-	let mut constructors: Vec<ContractFunction> = Vec::new();
-	for constructor in transcoder.metadata().spec().constructors() {
-		constructors.push(ContractFunction {
+	Ok(transcoder
+		.metadata()
+		.spec()
+		.constructors()
+		.iter()
+		.map(|constructor| ContractFunction {
 			label: constructor.label().to_string(),
 			payable: *constructor.payable(),
 			args: process_args(constructor.args()),
 			docs: constructor.docs().join(" "),
 			default: *constructor.default(),
 			mutates: true,
-		});
-	}
-	Ok(constructors)
+		})
+		.collect())
 }
 
 /// Extracts the information of a smart contract constructor parsing the metadata file.
@@ -149,7 +153,7 @@ pub fn process_function_args<P>(
 where
 	P: AsRef<Path>,
 {
-	let parsed_args = args.into_iter().map(|arg| arg.replace(",", "")).collect::<Vec<String>>();
+	let parsed_args = args.into_iter().map(|arg| arg.replace(",", "")).collect::<Vec<_>>();
 	let function = match function_type {
 		FunctionType::Message => get_message(path, label)?,
 		FunctionType::Constructor => get_constructor(path, label)?,
