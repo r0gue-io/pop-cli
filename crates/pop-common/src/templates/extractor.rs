@@ -12,7 +12,7 @@ use std::{fs, io, path::Path};
 /// * `ignore_directories` - A vector of directory names to ignore during the extraction. If empty,
 ///   no directories are ignored.
 pub fn extract_template_files(
-	template_name: String,
+	template_name: &str,
 	repo_directory: &Path,
 	target_directory: &Path,
 	ignore_directories: Option<Vec<String>>,
@@ -72,7 +72,7 @@ mod tests {
 		// Contract
 		let mut temp_dir = generate_testing_contract("erc20")?;
 		let mut output_dir = tempfile::tempdir()?;
-		extract_template_files("erc20".to_string(), temp_dir.path(), output_dir.path(), None)?;
+		extract_template_files("erc20", temp_dir.path(), output_dir.path(), None)?;
 		assert!(output_dir.path().join("lib.rs").exists());
 		assert!(output_dir.path().join("Cargo.toml").exists());
 		assert!(output_dir.path().join("frontend").exists());
@@ -81,7 +81,7 @@ mod tests {
 		temp_dir = generate_testing_contract("erc721")?;
 		output_dir = tempfile::tempdir()?;
 		extract_template_files(
-			"erc721".to_string(),
+			"erc721",
 			temp_dir.path(),
 			output_dir.path(),
 			Some(vec!["frontend".to_string()]),
