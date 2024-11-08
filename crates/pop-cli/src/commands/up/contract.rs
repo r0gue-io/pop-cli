@@ -224,11 +224,29 @@ impl UpContractCommand {
 		if !self.dry_run {
 			let spinner = spinner();
 			spinner.start("Uploading and instantiating the contract...");
-			let contract_address =
-				instantiate_smart_contract(instantiate_exec, weight_limit).await?;
+			let contract_info = instantiate_smart_contract(instantiate_exec, weight_limit).await?;
 			spinner.stop(format!(
-				"Contract deployed and instantiated: The Contract Address is {:?}",
-				contract_address
+				"Contract deployed and instantiated:\n{}",
+				style(format!(
+					"{}\n{}",
+					style(format!(
+						"{} The contract address is {:?}",
+						console::Emoji("●", ">"),
+						contract_info.address
+					))
+					.dim(),
+					contract_info
+						.code_hash
+						.map(|hash| style(format!(
+							"{} The contract code hash is {:?}",
+							console::Emoji("●", ">"),
+							hash
+						))
+						.dim()
+						.to_string())
+						.unwrap_or_default(),
+				))
+				.dim()
 			));
 			Self::terminate_node(process)?;
 			Cli.outro(COMPLETE)?;
