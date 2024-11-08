@@ -364,7 +364,7 @@ async fn guide_user_to_generate_spec(args: BuildSpecCommand) -> anyhow::Result<B
 	}
 	let chain_type: ChainType = prompt.interact()?.clone();
 	// Prompt for chain
-	let chain: String = input(" Specify the chain specification. It can be one of the predefined ones (dev, local) or a custom one.")
+	let chain: String = input("Specify the chain specification. It can be one of the predefined ones (dev, local) or a custom one.")
 		.placeholder("dev")
 		.default_input("dev")
 		.interact()?;
