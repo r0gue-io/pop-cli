@@ -6,7 +6,7 @@ use crate::{
 	style::style,
 };
 use clap::{Args, ValueEnum};
-use cliclack::{confirm, input};
+use cliclack::{confirm, input, multi_progress, spinner};
 use pop_common::Profile;
 use pop_parachains::{
 	binary_path, build_parachain, export_wasm_file, generate_genesis_state_file,
@@ -206,8 +206,7 @@ impl BuildSpecCommand {
 			#[cfg(not(test))]
 			sleep(Duration::from_secs(3))
 		}
-
-		cli.info("Generating chain specification...")?;
+		let multi = multi_progress("Generating chain specification...");
 
 		// Create output path if needed
 		let mut output_path = self.output_file.unwrap_or_else(|| PathBuf::from("./"));
@@ -234,6 +233,7 @@ impl BuildSpecCommand {
 		let binary_path = match binary_path(&mode.target_directory(&cwd), &cwd.join("node")) {
 			Ok(binary_path) => binary_path,
 			_ => {
+				multi.stop();
 				cli.info("Node was not found. The project will be built locally.".to_string())?;
 				cli.warning("NOTE: this may take some time...")?;
 				build_parachain(&cwd, None, &mode, None)?
@@ -241,7 +241,8 @@ impl BuildSpecCommand {
 		};
 
 		// Generate plain spec.
-		cli.info("Generating plain chain specification...")?;
+		let spinner = multi.add(spinner());
+		spinner.start("Generating plain chain specification...");
 		let mut generated_files = vec![];
 		generate_plain_chain_spec(
 			&binary_path,
@@ -268,7 +269,7 @@ impl BuildSpecCommand {
 		chain_spec.to_file(&plain_chain_spec)?;
 
 		// Generate raw spec.
-		cli.info("Generating raw chain specification...")?;
+		spinner.set_message("Generating raw chain specification...");
 		let spec_name = plain_chain_spec
 			.file_name()
 			.and_then(|s| s.to_str())
@@ -284,7 +285,7 @@ impl BuildSpecCommand {
 
 		// Generate genesis artifacts.
 		if self.genesis_code {
-			cli.info("Generating genesis code...")?;
+			spinner.set_message("Generating genesis code...");
 			let wasm_file_name = format!("para-{}.wasm", para_id);
 			let wasm_file = export_wasm_file(&binary_path, &raw_chain_spec, &wasm_file_name)?;
 			generated_files
@@ -292,7 +293,7 @@ impl BuildSpecCommand {
 		}
 
 		if self.genesis_state {
-			cli.info("Generating genesis state...")?;
+			spinner.set_message("Generating genesis state...");
 			let genesis_file_name = format!("para-{}-genesis-state", para_id);
 			let genesis_state_file =
 				generate_genesis_state_file(&binary_path, &raw_chain_spec, &genesis_file_name)?;
@@ -300,7 +301,9 @@ impl BuildSpecCommand {
 				.push(format!("Genesis State file exported at: {}", genesis_state_file.display()));
 		}
 
-		cli.intro("Building your chain spec".to_string())?;
+		spinner.stop("Done.");
+		multi.stop();
+
 		let generated_files: Vec<_> = generated_files
 			.iter()
 			.map(|s| style(format!("{} {s}", console::Emoji("●", ">"))).dim().to_string())
