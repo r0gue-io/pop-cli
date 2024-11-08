@@ -3,11 +3,11 @@
 use crate::errors::Error;
 use contract_extrinsics::ContractArtifacts;
 use contract_transcode::ink_metadata::MessageParamSpec;
-use scale_info::form::PortableForm;
+use scale_info::{form::PortableForm, PortableRegistry, Type, TypeDef, TypeDefPrimitive};
 use std::path::Path;
 
 /// Describes a parameter.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Param {
 	/// The label of the parameter.
 	pub label: String,
@@ -51,8 +51,8 @@ pub fn get_messages(path: &Path) -> Result<Vec<ContractFunction>, Error> {
 	let contract_artifacts =
 		ContractArtifacts::from_manifest_or_file(Some(&cargo_toml_path), None)?;
 	let transcoder = contract_artifacts.contract_transcoder()?;
-	Ok(transcoder
-		.metadata()
+	let metadata = transcoder.metadata();
+	Ok(metadata
 		.spec()
 		.messages()
 		.iter()
@@ -60,7 +60,7 @@ pub fn get_messages(path: &Path) -> Result<Vec<ContractFunction>, Error> {
 			label: message.label().to_string(),
 			mutates: message.mutates(),
 			payable: message.payable(),
-			args: process_args(message.args()),
+			args: process_args(message.args(), metadata.registry()),
 			docs: message.docs().join(" "),
 			default: *message.default(),
 		})
@@ -94,15 +94,15 @@ pub fn get_constructors(path: &Path) -> Result<Vec<ContractFunction>, Error> {
 	let contract_artifacts =
 		ContractArtifacts::from_manifest_or_file(Some(&cargo_toml_path), None)?;
 	let transcoder = contract_artifacts.contract_transcoder()?;
-	Ok(transcoder
-		.metadata()
+	let metadata = transcoder.metadata();
+	Ok(metadata
 		.spec()
 		.constructors()
 		.iter()
 		.map(|constructor| ContractFunction {
 			label: constructor.label().to_string(),
 			payable: *constructor.payable(),
-			args: process_args(constructor.args()),
+			args: process_args(constructor.args(), metadata.registry()),
 			docs: constructor.docs().join(" "),
 			default: *constructor.default(),
 			mutates: true,
@@ -126,15 +126,162 @@ where
 }
 
 // Parse the parameters into a vector of argument labels.
-fn process_args(params: &[MessageParamSpec<PortableForm>]) -> Vec<Param> {
+fn process_args(
+	params: &[MessageParamSpec<PortableForm>],
+	registry: &PortableRegistry,
+) -> Vec<Param> {
 	let mut args: Vec<Param> = Vec::new();
 	for arg in params {
-		args.push(Param {
-			label: arg.label().to_string(),
-			type_name: arg.ty().display_name().to_string(),
-		});
+		// Resolve type from registry to provide full type representation.
+		let type_name =
+			format_type(registry.resolve(arg.ty().ty().id).expect("type not found"), registry);
+		args.push(Param { label: arg.label().to_string(), type_name });
 	}
 	args
+}
+
+// Formats a specified type, using the registry to output its full type representation.
+fn format_type(ty: &Type<PortableForm>, registry: &PortableRegistry) -> String {
+	let mut name = ty
+		.path
+		.segments
+		.last()
+		.map(|s| s.to_owned())
+		.unwrap_or_else(|| ty.path.to_string());
+
+	if !ty.type_params.is_empty() {
+		let params: Vec<_> = ty
+			.type_params
+			.iter()
+			.filter_map(|p| registry.resolve(p.ty.unwrap().id))
+			.map(|t| format_type(t, registry))
+			.collect();
+		name = format!("{name}<{}>", params.join(","));
+	}
+
+	name = format!(
+		"{name}{}",
+		match &ty.type_def {
+			TypeDef::Composite(composite) => {
+				if composite.fields.is_empty() {
+					return "".to_string();
+				}
+
+				let mut named = false;
+				let fields: Vec<_> = composite
+					.fields
+					.iter()
+					.filter_map(|f| match f.name.as_ref() {
+						None => registry.resolve(f.ty.id).map(|t| format_type(t, registry)),
+						Some(field) => {
+							named = true;
+							f.type_name.as_ref().map(|t| format!("{field}: {t}"))
+						},
+					})
+					.collect();
+				match named {
+					true => format!(" {{ {} }}", fields.join(", ")),
+					false => format!(" ({})", fields.join(", ")),
+				}
+			},
+			TypeDef::Variant(variant) => {
+				let variants: Vec<_> = variant
+					.variants
+					.iter()
+					.map(|v| {
+						if v.fields.is_empty() {
+							return v.name.clone();
+						}
+
+						let name = v.name.as_str();
+						let mut named = false;
+						let fields: Vec<_> = v
+							.fields
+							.iter()
+							.filter_map(|f| match f.name.as_ref() {
+								None => registry.resolve(f.ty.id).map(|t| format_type(t, registry)),
+								Some(field) => {
+									named = true;
+									f.type_name.as_ref().map(|t| format!("{field}: {t}"))
+								},
+							})
+							.collect();
+						format!(
+							"{name}{}",
+							match named {
+								true => format!("{{ {} }}", fields.join(", ")),
+								false => format!("({})", fields.join(", ")),
+							}
+						)
+					})
+					.collect();
+				format!(": {}", variants.join(", "))
+			},
+			TypeDef::Sequence(sequence) => {
+				format!(
+					"[{}]",
+					format_type(
+						registry.resolve(sequence.type_param.id).expect("sequence type not found"),
+						registry
+					)
+				)
+			},
+			TypeDef::Array(array) => {
+				format!(
+					"[{};{}]",
+					format_type(
+						registry.resolve(array.type_param.id).expect("array type not found"),
+						registry
+					),
+					array.len
+				)
+			},
+			TypeDef::Tuple(tuple) => {
+				let fields: Vec<_> = tuple
+					.fields
+					.iter()
+					.filter_map(|p| registry.resolve(p.id))
+					.map(|t| format_type(t, registry))
+					.collect();
+				format!("({})", fields.join(","))
+			},
+			TypeDef::Primitive(primitive) => {
+				use TypeDefPrimitive::*;
+				match primitive {
+					Bool => "bool",
+					Char => "char",
+					Str => "str",
+					U8 => "u8",
+					U16 => "u16",
+					U32 => "u32",
+					U64 => "u64",
+					U128 => "u128",
+					U256 => "u256",
+					I8 => "i8",
+					I16 => "i16",
+					I32 => "i32",
+					I64 => "i64",
+					I128 => "i128",
+					I256 => "i256",
+				}
+				.to_string()
+			},
+			TypeDef::Compact(compact) => {
+				format!(
+					"Compact<{}>",
+					format_type(
+						registry.resolve(compact.type_param.id).expect("compact type not found"),
+						registry
+					)
+				)
+			},
+			TypeDef::BitSequence(_) => {
+				unimplemented!("bit sequence not currently supported")
+			},
+		}
+	);
+
+	name
 }
 
 /// Processes a list of argument values for a specified contract function,
@@ -153,26 +300,26 @@ pub fn process_function_args<P>(
 where
 	P: AsRef<Path>,
 {
-	let parsed_args = args.into_iter().map(|arg| arg.replace(",", "")).collect::<Vec<_>>();
 	let function = match function_type {
 		FunctionType::Message => get_message(path, label)?,
 		FunctionType::Constructor => get_constructor(path, label)?,
 	};
-	if parsed_args.len() != function.args.len() {
+	if args.len() != function.args.len() {
 		return Err(Error::IncorrectArguments {
 			expected: function.args.len(),
-			provided: parsed_args.len(),
+			provided: args.len(),
 		});
 	}
-	Ok(parsed_args
+	Ok(args
 		.into_iter()
 		.zip(&function.args)
-		.map(|(arg, param)| match (param.type_name.as_str(), arg.is_empty()) {
-			("Option", true) => "None".to_string(), /* If the argument is Option and empty, */
-			// replace it with `None`
-			("Option", false) => format!("Some({})", arg), /* If the argument is Option and not */
-			// empty, wrap it in `Some(...)`
-			_ => arg, // If the argument is not Option, return it as is
+		.map(|(arg, param)| match (param.type_name.starts_with("Option<"), arg.is_empty()) {
+			// If the argument is Option and empty, replace it with `None`
+			(true, true) => "None".to_string(),
+			// If the argument is Option and not empty, wrap it in `Some(...)`
+			(true, false) => format!("Some({})", arg),
+			// If the argument is not Option, return it as is
+			_ => arg,
 		})
 		.collect::<Vec<String>>())
 }
@@ -207,7 +354,7 @@ mod tests {
 		assert_eq!(message[2].args[0].label, "new_value".to_string());
 		assert_eq!(message[2].args[0].type_name, "bool".to_string());
 		assert_eq!(message[2].args[1].label, "number".to_string());
-		assert_eq!(message[2].args[1].type_name, "Option".to_string());
+		assert_eq!(message[2].args[1].type_name, "Option<u32>: None, Some(u32)".to_string());
 		Ok(())
 	}
 
@@ -231,7 +378,7 @@ mod tests {
 		assert_eq!(message.args[0].label, "new_value".to_string());
 		assert_eq!(message.args[0].type_name, "bool".to_string());
 		assert_eq!(message.args[1].label, "number".to_string());
-		assert_eq!(message.args[1].type_name, "Option".to_string());
+		assert_eq!(message.args[1].type_name, "Option<u32>: None, Some(u32)".to_string());
 		Ok(())
 	}
 
@@ -264,7 +411,7 @@ mod tests {
 		assert_eq!(constructor[1].args[0].label, "init_value".to_string());
 		assert_eq!(constructor[1].args[0].type_name, "bool".to_string());
 		assert_eq!(constructor[1].args[1].label, "number".to_string());
-		assert_eq!(constructor[1].args[1].type_name, "Option".to_string());
+		assert_eq!(constructor[1].args[1].type_name, "Option<u32>: None, Some(u32)".to_string());
 		Ok(())
 	}
 
@@ -291,7 +438,7 @@ mod tests {
 		assert_eq!(constructor.args[0].label, "init_value".to_string());
 		assert_eq!(constructor.args[0].type_name, "bool".to_string());
 		assert_eq!(constructor.args[1].label, "number".to_string());
-		assert_eq!(constructor.args[1].type_name, "Option".to_string());
+		assert_eq!(constructor.args[1].type_name, "Option<u32>: None, Some(u32)".to_string());
 		Ok(())
 	}
 
