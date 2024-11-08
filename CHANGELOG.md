@@ -1,7 +1,44 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## [0.4.0] - 2024-10-04
+
+## [0.5.0] - 2024-11-08
+
+### 🚀 Features
+
+- Include OpenZeppelinEVM template
+- Instantiate_openzeppelin_template
+
+### 🐛 Fixes
+
+- Fetch stable version (#328)
+- Templates errors (#329)
+- Improve contract experience (#330)
+- Unnnecesary API query
+- Bump zombienet and insert evm_based
+- Include support for v2.0.1 in generic template
+- Deprecate template instantiation
+- Clippy
+
+### 🚜 Refactor
+
+- Move extract_template_files into common crate
+- Rename enum_variants_for_help macro
+
+### ⚙️ Miscellaneous Tasks
+
+- Merge main
+- Bump zombienet-sdk version
+- Bump supported version for template and add a test
+- Deprecate command for change of name
+- Deprecation logic
+- Template_name_without_provider
+- Merge main
+- Upgrade zombienet-sdk
+- Update evm supported version
+- Fmt
+
+## [0.4.0] - 2024-10-07
 
 ### 🚀 Features
 
@@ -31,6 +68,7 @@ All notable changes to this project will be documented in this file.
 
 - Bump cargo-contract and subxt versions (#307)
 - Add clippy checks (#281)
+- Release 0.4.0 (#318)
 
 ### Build
 
@@ -57,7 +95,7 @@ All notable changes to this project will be documented in this file.
 
 - Handle IO error if rename fails (#241)
 - Readme commands (#243)
-- Remove unused directories after download contracts node binary (#240)
+- Remove unused folders after download contracts node binary (#240)
 - Check if contracts needs to be build before deploy (#246)
 
 ### 🚜 Refactor
@@ -82,9 +120,7 @@ All notable changes to this project will be documented in this file.
 ### ⚙️ Miscellaneous Tasks
 
 - Set `CONTRACTS_NODE_PATH` env variable for e2e tests (#209)
-- Release 0.3.0
-- Merge main
-- Update changelog
+- Release 0.3.0 (#244)
 
 ### Build
 
@@ -197,7 +233,7 @@ All notable changes to this project will be documented in this file.
 - Structure for call command
 - Call a smart contract
 - Execute call flag
-- *(pop-cli)* Pallets directory for new ones
+- *(pop-cli)* Pallets folder for new ones
 - *(up-parachain)* Improve ux
 - Init git repo (#65)
 - *(up-parachain)* Enable optional verbose output (#79)
