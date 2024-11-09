@@ -21,35 +21,30 @@ impl Default for TestBuilder {
 	}
 }
 
+macro_rules! add_ast_to_builder{
+    ($([$name: ident, $file: literal $(, $macro_excluded: literal)?]),*) => {
+        $(
+            fn $name(&mut self){
+            self.ast = helpers::preserve_and_parse(
+                fs::read_to_string(self.test_files.join($file))
+                    .expect(concat!{"Error reading file in ", stringify!($name)}),
+                vec![$($macro_excluded)?])
+                .expect(concat!{"Error parsing file in ", stringify!($name)});
+            }
+        )*
+    };
+}
+
 impl TestBuilder {
-	fn add_basic_pallet_ast(&mut self) {
-		self.ast = helpers::preserve_and_parse(
-			fs::read_to_string(self.test_files.join("basic_pallet.rs"))
-				.expect("Error reading pallet file in add_basic_pallet_ast"),
-			vec![],
-		)
-		.expect("Error parsing pallet file in add_basic_pallet_ast");
+	add_ast_to_builder! {
+		[add_basic_pallet_ast, "basic_pallet.rs"],
+		[add_basic_pallet_with_config_preludes_ast, "basic_pallet_with_config_preludes.rs"],
+		[add_outer_config_preludes_ast, "outer_config_preludes.rs"],
+		[add_runtime_using_runtime_macro_ast, "runtime_using_runtime_macro.rs"],
+		[add_runtime_using_construct_runtime_macro_ast, "runtime_using_construct_runtime_macro.rs", "construct_runtime"]
 	}
 
-	fn add_basic_pallet_with_config_preludes_ast(&mut self) {
-		self.ast = helpers::preserve_and_parse(
-			fs::read_to_string(self.test_files.join("basic_pallet_with_config_preludes.rs"))
-				.expect("Error reading pallet file in add_basic_pallet_with_config_preludes_ast"),
-			vec![],
-		)
-		.expect("Error parsing pallet file in add_basic_pallet_with_config_preludes_ast");
-	}
-
-	fn add_outer_config_preludes_ast(&mut self) {
-		self.ast = helpers::preserve_and_parse(
-			fs::read_to_string(self.test_files.join("outer_config_preludes.rs"))
-				.expect("Error reading pallet file in add_outer_config_preludes_ast"),
-			vec![],
-		)
-		.expect("Error parsing pallet file in add_outer_config_preludes_ast");
-	}
-
-	fn assert_in_config_items(&self, contains: bool, checked_item: TraitItem) {
+	fn assert_item_in_config_trait(&self, contains: bool, checked_item: TraitItem) {
 		let mut assert_happened = false;
 		for item in &self.ast.items {
 			match item {
@@ -166,7 +161,7 @@ fn expand_pallet_config_trait_works_well_test() {
 		DefaultConfigType::Default { type_default_impl: parse_quote! {type whatever = ();} };
 
 	//Check that the config trait doesn't include ```MyDefaultType```.
-	test_builder.assert_in_config_items(
+	test_builder.assert_item_in_config_trait(
 		false,
 		TraitItem::Type(parse_quote! {
 			///EMPTY_LINE
@@ -183,7 +178,7 @@ fn expand_pallet_config_trait_works_well_test() {
 	);
 
 	//Now ```MyDefaultType``` is part of the ast.
-	test_builder.assert_in_config_items(
+	test_builder.assert_item_in_config_trait(
 		true,
 		TraitItem::Type(parse_quote! {
 			///EMPTY_LINE
@@ -191,7 +186,7 @@ fn expand_pallet_config_trait_works_well_test() {
 		}),
 	);
 
-	test_builder.assert_in_config_items(
+	test_builder.assert_item_in_config_trait(
 		false,
 		TraitItem::Type(parse_quote! {
 			///EMPTY_LINE
@@ -208,7 +203,7 @@ fn expand_pallet_config_trait_works_well_test() {
 		vec![parse_quote! {Bound1}, parse_quote! {From<Trait2>}],
 	);
 
-	test_builder.assert_in_config_items(
+	test_builder.assert_item_in_config_trait(
 		true,
 		TraitItem::Type(parse_quote! {
 			///EMPTY_LINE
@@ -217,7 +212,7 @@ fn expand_pallet_config_trait_works_well_test() {
 		}),
 	);
 
-	test_builder.assert_in_config_items(
+	test_builder.assert_item_in_config_trait(
 		false,
 		TraitItem::Type(parse_quote! {
 			///EMPTY_LINE
@@ -236,7 +231,7 @@ fn expand_pallet_config_trait_works_well_test() {
 		vec![parse_quote! {Bound1}, parse_quote! {From<Trait2>}],
 	);
 
-	test_builder.assert_in_config_items(
+	test_builder.assert_item_in_config_trait(
 		true,
 		TraitItem::Type(parse_quote! {
 			///EMPTY_LINE
