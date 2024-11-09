@@ -9,6 +9,8 @@ pub enum Error {
 	AnyhowError(#[from] anyhow::Error),
 	#[error("Configuration error: {0}")]
 	Config(String),
+	#[error("{0}")]
+	Descriptive(String),
 	#[error("a git error occurred: {0}")]
 	Git(String),
 	#[error("IO error: {0}")]

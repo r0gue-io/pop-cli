@@ -138,6 +138,12 @@ pub fn add_pallet_to_runtime_module(
 	let (highest_index, used_macro) =
 		parse::find_highest_pallet_index_and_runtime_macro_version(&ast);
 
+	if let types::RuntimeUsedMacro::NotFound = used_macro {
+		return Err(Error::Descriptive(
+			format! {"Unable to find a runtime declaration in {:?}", runtime_lib_path},
+		));
+	}
+
 	// Find the pallet name and the pallet item to be added to the runtime. If the pallet_name is
 	// behind the form pallet-some-thing, pallet_item becomes Something.
 	let pallet_item = Ident::new(
