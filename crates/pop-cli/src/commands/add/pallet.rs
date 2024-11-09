@@ -15,9 +15,6 @@ use strum::{EnumMessage, IntoEnumIterator};
 
 mod common_pallets;
 
-#[cfg(test)]
-mod tests;
-
 #[derive(Args, Debug, Clone)]
 pub struct AddPalletCommand {
 	#[arg(short, long, help = "Specify the path to the runtime crate.")]

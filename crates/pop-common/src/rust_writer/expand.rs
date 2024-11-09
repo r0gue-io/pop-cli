@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 
+#[cfg(test)]
+mod tests;
+
 use crate::{capitalize_str, rust_writer::types::*};
 use proc_macro2::{Group, Literal, Span, TokenStream, TokenTree};
 use syn::{
@@ -55,7 +58,7 @@ pub(crate) fn expand_pallet_config_trait(
 pub(crate) fn expand_pallet_config_preludes(ast: &mut File, type_default_impl: ImplItem) {
 	for item in &mut ast.items {
 		match item {
-			// In case file_path points to lib.rs, config_preludes is contained inside pallet mod in
+			// In case ast points to lib.rs, config_preludes is contained inside pallet mod in
 			// lib.rs so we have to look for that module and the impl blocks for structs defined
 			// inside it, equivalently impl blocks using the register_default_impl macro
 			Item::Mod(ItemMod { ident, content, .. })
@@ -96,7 +99,7 @@ pub(crate) fn expand_pallet_config_preludes(ast: &mut File, type_default_impl: I
 					}
 				}
 			},
-			// In case file_path points to config_preludes.rs, we have to look for the impl blocks
+			// In case ast points to config_preludes.rs, we have to look for the impl blocks
 			// for structs defined inside the file.
 			Item::Impl(ItemImpl { attrs, items, .. })
 				if attrs.iter().any(|attribute| {

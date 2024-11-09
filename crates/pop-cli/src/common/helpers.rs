@@ -61,7 +61,7 @@
 #[macro_export]
 macro_rules! multiselect_pick {
 	($enum: ty, $prompt_message: expr $(, $excluded_variants: expr)?) => {{
-        // Ensure the enum is 1-byte long. This is needed cause fieldless enums with > 256 elements
+    // Ensure the enum is 1-byte long. This is needed cause fieldless enums with > 256 elements
 		// will lead to unexpected behavior as the conversion to u8 for them isn't detected as wrong
 		// at compile time. Enums containing variants with fields will be catched at compile time.
 		// Weird but possible.
