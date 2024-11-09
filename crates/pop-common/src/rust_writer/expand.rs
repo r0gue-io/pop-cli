@@ -174,7 +174,7 @@ pub(crate) fn expand_runtime_add_pallet(
 				}
 			}
 		},
-		RuntimeUsedMacro::NotFound => (),
+		_ => (),
 	}
 }
 

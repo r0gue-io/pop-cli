@@ -248,7 +248,7 @@ construct_runtime! {
         Timestamp: pallet_timestamp,
         ParachainInfo:parachain_info,
         Balances: pallet_balances,
-        TransactionPayment: pallet_transaction_payment
+        TransactionPayment: pallet_transaction_payment,
     }
 }
 

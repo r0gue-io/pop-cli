@@ -3,6 +3,7 @@
 use super::*;
 use crate::rust_writer::helpers;
 use std::{fs, path::PathBuf};
+use syn::parse_str;
 
 struct TestBuilder {
 	test_files: PathBuf,
@@ -56,11 +57,7 @@ impl TestBuilder {
 					for item in items {
 						match item {
 							Item::Trait(ItemTrait { ident, items, .. }) if *ident == "Config" => {
-								if contains {
-									assert!(items.contains(&checked_item));
-								} else {
-									assert!(!items.contains(&checked_item));
-								}
+								assert_eq!(items.contains(&checked_item), contains);
 								assert_happened = true;
 							},
 							_ => continue,
@@ -108,11 +105,7 @@ impl TestBuilder {
 												}
 											}) =>
 										{
-											if contains {
-												assert!(items.contains(&type_));
-											} else {
-												assert!(!items.contains(&type_));
-											}
+											assert_eq!(items.contains(&type_), contains);
 											assert_happened = true;
 										},
 										_ => continue,
@@ -135,15 +128,79 @@ impl TestBuilder {
 						}
 					}) =>
 				{
-					if contains {
-						assert!(items.contains(&type_));
-					} else {
-						assert!(!items.contains(&type_));
-					}
+					assert_eq!(items.contains(&type_), contains);
 					assert_happened = true;
 				},
 				_ => continue,
 			}
+		}
+		assert!(assert_happened);
+	}
+
+	fn assert_pallet_in_runtime(
+		&self,
+		contains: bool,
+		expected_index: Literal,
+		used_macro: RuntimeUsedMacro,
+		pallet_name: Type,
+		pallet_item: Ident,
+	) {
+		let mut assert_happened = false;
+		match used_macro {
+			RuntimeUsedMacro::Runtime =>
+				for item in &self.ast.items {
+					match item {
+						Item::Mod(ItemMod { ident, content, .. })
+							if *ident == "runtime" && content.is_some() =>
+						{
+							let (_, items) = content
+								.as_ref()
+								.expect("content is always Some thanks to the match guard");
+
+							assert_eq!(
+								items.contains(&Item::Type(parse_quote! {
+									#[runtime::pallet_index(#expected_index)]
+									pub type #pallet_item = #pallet_name;
+								})),
+								contains
+							);
+							assert_happened = true;
+						},
+						_ => continue,
+					}
+				},
+			RuntimeUsedMacro::ConstructRuntime =>
+				for item in &self.ast.items {
+					match item {
+						Item::Macro(ItemMacro {
+							mac: Macro { path: syn::Path { segments, .. }, tokens, .. },
+							..
+						}) if segments
+							.iter()
+							.any(|segment| segment.ident == "construct_runtime") =>
+						{
+							let mut token_tree: Vec<TokenTree> =
+								tokens.clone().into_iter().collect();
+							for token in token_tree.iter_mut() {
+								if let TokenTree::Group(group) = token {
+									let new_pallet_token_stream: TokenStream = parse_quote! {
+										#pallet_item:#pallet_name,
+									};
+									assert_eq!(
+										group
+											.stream()
+											.to_string()
+											.contains(&new_pallet_token_stream.to_string()),
+										contains
+									);
+									assert_happened = true;
+								}
+							}
+						},
+						_ => continue,
+					}
+				},
+			_ => (),
 		}
 		assert!(assert_happened);
 	}
@@ -281,4 +338,83 @@ fn expand_pallet_config_preludes_outer_file_works_well_test() {
 
 	//Check that the config type's included.
 	test_builder.assert_type_added_to_config_preludes(true, my_type.clone());
+}
+
+#[test]
+fn add_pallet_to_runtime_using_runtime_macro_works_well_test() {
+	let mut test_builder = TestBuilder::default();
+	test_builder.add_runtime_using_runtime_macro_ast();
+
+	// Arbitrary highest index to pass to expand_runtime_add_pallet
+	let highest_index = 11u8;
+	// Expected index as syn::literal
+	let expected_index = Literal::u8_unsuffixed(highest_index.saturating_add(1));
+
+	let pallet_item = Ident::new("Test", Span::call_site());
+	let pallet_name: Type = parse_str("pallet_test").expect(
+		"Error parsing pallet_test in add_pallet_to_runtime_using_runtime_macro_works_well_test",
+	);
+
+	test_builder.assert_pallet_in_runtime(
+		false,
+		expected_index.clone(),
+		RuntimeUsedMacro::Runtime,
+		pallet_name.clone(),
+		pallet_item.clone(),
+	);
+
+	expand_runtime_add_pallet(
+		&mut test_builder.ast,
+		highest_index,
+		RuntimeUsedMacro::Runtime,
+		pallet_name.clone(),
+		pallet_item.clone(),
+	);
+
+	test_builder.assert_pallet_in_runtime(
+		true,
+		expected_index,
+		RuntimeUsedMacro::Runtime,
+		pallet_name,
+		pallet_item,
+	);
+}
+
+#[test]
+fn add_pallet_to_runtime_using_construct_runtime_macro_works_well_test() {
+	let mut test_builder = TestBuilder::default();
+	test_builder.add_runtime_using_construct_runtime_macro_ast();
+
+	// Expected index as syn::literal, needed for assert_pallet_in_runtime but not relevant in this
+	// case
+	let expected_index = Literal::u8_unsuffixed(0u8);
+
+	let pallet_item = Ident::new("Test", Span::call_site());
+	let pallet_name: Type = parse_str("pallet_test").expect(
+		"Error parsing pallet_test in add_pallet_to_runtime_using_runtime_macro_works_well_test",
+	);
+
+	test_builder.assert_pallet_in_runtime(
+		false,
+		expected_index.clone(),
+		RuntimeUsedMacro::ConstructRuntime,
+		pallet_name.clone(),
+		pallet_item.clone(),
+	);
+
+	expand_runtime_add_pallet(
+		&mut test_builder.ast,
+		0u8,
+		RuntimeUsedMacro::ConstructRuntime,
+		pallet_name.clone(),
+		pallet_item.clone(),
+	);
+
+	test_builder.assert_pallet_in_runtime(
+		true,
+		expected_index,
+		RuntimeUsedMacro::ConstructRuntime,
+		pallet_name,
+		pallet_item,
+	);
 }
