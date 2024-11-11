@@ -4,7 +4,7 @@ use crate::{
 	errors::Error,
 	utils::{
 		get_manifest_path,
-		metadata::{get_messages, ContractFunction},
+		metadata::{process_function_args, FunctionType},
 		parse_balance,
 	},
 };
