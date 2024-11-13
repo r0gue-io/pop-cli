@@ -252,6 +252,35 @@ impl TestBuilder {
 			);
 		}
 	}
+
+	fn assert_type_in_impl_block(
+		&self,
+		contains: bool,
+		type_name: Ident,
+		runtime_value: Type,
+		pallet_name: &str,
+	) {
+		let mut assert_happened = false;
+		for item in &self.ast.items {
+			match item {
+				Item::Impl(ItemImpl {
+					trait_: Some((_, syn::Path { segments, .. }, _)),
+					items,
+					..
+				}) if segments.iter().any(|segment| segment.ident == pallet_name) => {
+					assert_eq!(
+						items.contains(&ImplItem::Type(parse_quote! {
+							type #type_name = #runtime_value;
+						})),
+						contains
+					);
+					assert_happened = true;
+				},
+				_ => continue,
+			}
+		}
+		assert!(assert_happened);
+	}
 }
 
 #[test]
@@ -482,6 +511,7 @@ fn expand_runtime_add_impl_block_works_well_test() {
 		parameter_types.clone(),
 		false,
 	);
+	// Add them
 	expand_runtime_add_impl_block(
 		&mut test_builder.ast,
 		pallet_name.clone(),
@@ -504,6 +534,7 @@ fn expand_runtime_add_impl_block_works_well_test() {
 		parameter_types.clone(),
 		true,
 	);
+	// Add them
 	expand_runtime_add_impl_block(
 		&mut test_builder.ast,
 		pallet_name.clone(),
@@ -537,6 +568,7 @@ fn expand_runtime_add_impl_block_works_well_test() {
 		parameter_types.clone(),
 		true,
 	);
+	// Add them
 	expand_runtime_add_impl_block(
 		&mut test_builder.ast,
 		pallet_name.clone(),
@@ -549,5 +581,47 @@ fn expand_runtime_add_impl_block_works_well_test() {
 		pallet_name.clone(),
 		parameter_types.clone(),
 		true,
+	);
+}
+
+#[test]
+fn expand_runtime_add_type_to_impl_block_works_well_test() {
+	let mut test_builder = TestBuilder::default();
+	test_builder.add_runtime_using_runtime_macro_ast();
+
+	let pallet_name = "Test";
+	let type_name = Ident::new("MyType", Span::call_site());
+	let runtime_value: Type = parse_quote! {Type};
+	let parameter_types = Vec::new();
+
+	expand_runtime_add_impl_block(
+		&mut test_builder.ast,
+		Ident::new(pallet_name, Span::call_site()),
+		parameter_types,
+		false,
+	);
+
+	// The pallet impl block doesn't include the type
+	test_builder.assert_type_in_impl_block(
+		false,
+		type_name.clone(),
+		runtime_value.clone(),
+		pallet_name,
+	);
+
+	// Add it
+	expand_runtime_add_type_to_impl_block(
+		&mut test_builder.ast,
+		type_name.clone(),
+		runtime_value.clone(),
+		pallet_name,
+	);
+
+	// Now it's included in the ast
+	test_builder.assert_type_in_impl_block(
+		true,
+		type_name.clone(),
+		runtime_value.clone(),
+		pallet_name,
 	);
 }
