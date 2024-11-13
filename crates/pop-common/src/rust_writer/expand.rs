@@ -3,7 +3,7 @@
 #[cfg(test)]
 mod tests;
 
-use crate::{capitalize_str, rust_writer::types::*};
+use crate::rust_writer::types::*;
 use proc_macro2::{Group, Literal, Span, TokenStream, TokenTree};
 use syn::{
 	parse_quote, Expr, File, Ident, ImplItem, Item, ItemEnum, ItemImpl, ItemMacro, ItemMod,
@@ -184,18 +184,15 @@ pub(crate) fn expand_runtime_add_impl_block(
 	parameter_types: Vec<ParameterTypes>,
 	default_config: bool,
 ) {
-	let parameter_idents: Vec<&Ident> = parameter_types
-		.iter()
-		.map(|item| &item.ident)
-		.collect();
-	let parameter_types_types: Vec<&Type> =
-		parameter_types.iter().map(|item| &item.type_).collect();
-	let parameter_values: Vec<&Expr> = parameter_types.iter().map(|item| &item.value).collect();
 	let items = &mut ast.items;
 
-	// It's enough checking that parameter_idents isn't empty, by construction all the 3 Vec have
-	// the same lenght
-	if !parameter_idents.is_empty() {
+	if !parameter_types.is_empty() {
+		let parameter_idents: Vec<&Ident> =
+			parameter_types.iter().map(|item| &item.ident).collect();
+		let parameter_types_types: Vec<&Type> =
+			parameter_types.iter().map(|item| &item.type_).collect();
+		let parameter_values: Vec<&Expr> = parameter_types.iter().map(|item| &item.value).collect();
+
 		items.push(Item::Macro(parse_quote! {
 			///EMPTY_LINE
 			parameter_types!{
@@ -205,6 +202,7 @@ pub(crate) fn expand_runtime_add_impl_block(
 			}
 		}));
 	}
+
 	if default_config {
 		items.push(Item::Impl(parse_quote! {
 			///EMPTY_LINE

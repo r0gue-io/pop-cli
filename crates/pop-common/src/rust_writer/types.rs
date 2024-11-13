@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use syn::{Expr, ImplItem, Type, Ident};
+use syn::{Expr, Ident, ImplItem, Type};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum DefaultConfigType {

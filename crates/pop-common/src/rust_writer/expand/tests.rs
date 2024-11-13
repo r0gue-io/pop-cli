@@ -204,6 +204,54 @@ impl TestBuilder {
 		}
 		assert!(assert_happened);
 	}
+
+	fn assert_impl_block_contained(
+		&self,
+		contains: bool,
+		pallet_name: Ident,
+		parameter_types: Vec<ParameterTypes>,
+		using_default_config: bool,
+	) {
+		if !parameter_types.is_empty() {
+			let parameter_idents: Vec<&Ident> =
+				parameter_types.iter().map(|item| &item.ident).collect();
+			let parameter_types_types: Vec<&Type> =
+				parameter_types.iter().map(|item| &item.type_).collect();
+			let parameter_values: Vec<&Expr> =
+				parameter_types.iter().map(|item| &item.value).collect();
+
+			assert_eq!(
+				self.ast.items.contains(&Item::Macro(parse_quote! {
+					///EMPTY_LINE
+					parameter_types!{
+						#(
+							pub #parameter_idents: #parameter_types_types = #parameter_values;
+						)*
+					}
+				})),
+				contains
+			);
+		}
+
+		if using_default_config {
+			assert_eq!(
+				self.ast.items.contains(&Item::Impl(parse_quote! {
+					///EMPTY_LINE
+					#[derive_impl(#pallet_name::config_preludes::TestDefaultConfig)]
+					impl #pallet_name::Config for Runtime{}
+				})),
+				contains
+			);
+		} else {
+			assert_eq!(
+				self.ast.items.contains(&Item::Impl(parse_quote! {
+					///EMPTY_LINE
+					impl #pallet_name::Config for Runtime{}
+				})),
+				contains
+			);
+		}
+	}
 }
 
 #[test]
@@ -341,7 +389,7 @@ fn expand_pallet_config_preludes_outer_file_works_well_test() {
 }
 
 #[test]
-fn add_pallet_to_runtime_using_runtime_macro_works_well_test() {
+fn expand_runtime_add_pallet_using_runtime_macro_works_well_test() {
 	let mut test_builder = TestBuilder::default();
 	test_builder.add_runtime_using_runtime_macro_ast();
 
@@ -381,7 +429,7 @@ fn add_pallet_to_runtime_using_runtime_macro_works_well_test() {
 }
 
 #[test]
-fn add_pallet_to_runtime_using_construct_runtime_macro_works_well_test() {
+fn expand_runtime_add_pallet_using_construct_runtime_macro_works_well_test() {
 	let mut test_builder = TestBuilder::default();
 	test_builder.add_runtime_using_construct_runtime_macro_ast();
 
@@ -416,5 +464,90 @@ fn add_pallet_to_runtime_using_construct_runtime_macro_works_well_test() {
 		RuntimeUsedMacro::ConstructRuntime,
 		pallet_name,
 		pallet_item,
+	);
+}
+
+#[test]
+fn expand_runtime_add_impl_block_works_well_test() {
+	let mut test_builder = TestBuilder::default();
+	test_builder.add_runtime_using_runtime_macro_ast();
+
+	let mut parameter_types = Vec::new();
+	let pallet_name = Ident::new("Test", Span::call_site());
+
+	// Impl pallet without defautl config not added
+	test_builder.assert_impl_block_contained(
+		false,
+		pallet_name.clone(),
+		parameter_types.clone(),
+		false,
+	);
+	expand_runtime_add_impl_block(
+		&mut test_builder.ast,
+		pallet_name.clone(),
+		parameter_types.clone(),
+		false,
+	);
+	// Impl pallet without default config added.
+	test_builder.assert_impl_block_contained(
+		true,
+		pallet_name.clone(),
+		parameter_types.clone(),
+		false,
+	);
+
+	let pallet_name = Ident::new("Test2", Span::call_site());
+	// Impl pallet with default config not added
+	test_builder.assert_impl_block_contained(
+		false,
+		pallet_name.clone(),
+		parameter_types.clone(),
+		true,
+	);
+	expand_runtime_add_impl_block(
+		&mut test_builder.ast,
+		pallet_name.clone(),
+		parameter_types.clone(),
+		true,
+	);
+	//Impl pallet with default config added
+	test_builder.assert_impl_block_contained(
+		true,
+		pallet_name.clone(),
+		parameter_types.clone(),
+		true,
+	);
+
+	let pallet_name = Ident::new("Test3", Span::call_site());
+	parameter_types.push(ParameterTypes {
+		ident: Ident::new("MyType1", Span::call_site()),
+		type_: parse_quote! {Type},
+		value: parse_quote! {Default::default()},
+	});
+	parameter_types.push(ParameterTypes {
+		ident: Ident::new("MyType2", Span::call_site()),
+		type_: parse_quote! {Type},
+		value: parse_quote! {Default::default()},
+	});
+
+	// Impl pallet block + parameter_types block not added
+	test_builder.assert_impl_block_contained(
+		false,
+		pallet_name.clone(),
+		parameter_types.clone(),
+		true,
+	);
+	expand_runtime_add_impl_block(
+		&mut test_builder.ast,
+		pallet_name.clone(),
+		parameter_types.clone(),
+		true,
+	);
+	//Impl pallet block + parameter_types block not added
+	test_builder.assert_impl_block_contained(
+		true,
+		pallet_name.clone(),
+		parameter_types.clone(),
+		true,
 	);
 }
