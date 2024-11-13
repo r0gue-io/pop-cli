@@ -184,9 +184,9 @@ pub(crate) fn expand_runtime_add_impl_block(
 	parameter_types: Vec<ParameterTypes>,
 	default_config: bool,
 ) {
-	let parameter_idents: Vec<Ident> = parameter_types
+	let parameter_idents: Vec<&Ident> = parameter_types
 		.iter()
-		.map(|item| Ident::new(&capitalize_str(&item.ident), Span::call_site()))
+		.map(|item| &item.ident)
 		.collect();
 	let parameter_types_types: Vec<&Type> =
 		parameter_types.iter().map(|item| &item.type_).collect();

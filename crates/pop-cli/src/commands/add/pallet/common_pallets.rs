@@ -34,7 +34,7 @@ impl CommonPallets {
 		match self {
 			CommonPallets::Balances => Vec::new(),
 			CommonPallets::Contracts => vec![ParameterTypes {
-				ident: "Schedule".to_string(),
+				ident: Ident::new("Schedule", Span::call_site()),
 				type_: parse_quote! {pallet_contracts::Schedule<Runtime>},
 				value: parse_quote! {Default::default()},
 			}],

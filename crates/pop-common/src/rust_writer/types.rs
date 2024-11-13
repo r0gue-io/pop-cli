@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use syn::{Expr, ImplItem, Type};
+use syn::{Expr, ImplItem, Type, Ident};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum DefaultConfigType {
@@ -18,7 +18,7 @@ pub enum RuntimeUsedMacro {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParameterTypes {
-	pub ident: String,
+	pub ident: Ident,
 	pub type_: Type,
 	pub value: Expr,
 }
