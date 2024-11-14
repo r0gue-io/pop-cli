@@ -497,11 +497,11 @@ fn expand_runtime_add_pallet_using_construct_runtime_macro_works_well_test() {
 }
 
 #[test]
-fn expand_runtime_add_impl_block_works_well_test() {
+fn expand_runtime_add_impl_block_without_default_config_works_well_test() {
 	let mut test_builder = TestBuilder::default();
 	test_builder.add_runtime_using_runtime_macro_ast();
 
-	let mut parameter_types = Vec::new();
+	let parameter_types = Vec::new();
 	let pallet_name = Ident::new("Test", Span::call_site());
 
 	// Impl pallet without defautl config not added
@@ -511,13 +511,15 @@ fn expand_runtime_add_impl_block_works_well_test() {
 		parameter_types.clone(),
 		false,
 	);
-	// Add them
+
+	// Add it
 	expand_runtime_add_impl_block(
 		&mut test_builder.ast,
 		pallet_name.clone(),
 		parameter_types.clone(),
 		false,
 	);
+
 	// Impl pallet without default config added.
 	test_builder.assert_impl_block_contained(
 		true,
@@ -525,8 +527,16 @@ fn expand_runtime_add_impl_block_works_well_test() {
 		parameter_types.clone(),
 		false,
 	);
+}
 
-	let pallet_name = Ident::new("Test2", Span::call_site());
+#[test]
+fn expand_runtime_add_impl_block_with_default_config_works_well_test() {
+	let mut test_builder = TestBuilder::default();
+	test_builder.add_runtime_using_runtime_macro_ast();
+
+	let pallet_name = Ident::new("Test", Span::call_site());
+	let parameter_types = Vec::new();
+
 	// Impl pallet with default config not added
 	test_builder.assert_impl_block_contained(
 		false,
@@ -534,13 +544,15 @@ fn expand_runtime_add_impl_block_works_well_test() {
 		parameter_types.clone(),
 		true,
 	);
-	// Add them
+
+	// Add it
 	expand_runtime_add_impl_block(
 		&mut test_builder.ast,
 		pallet_name.clone(),
 		parameter_types.clone(),
 		true,
 	);
+
 	//Impl pallet with default config added
 	test_builder.assert_impl_block_contained(
 		true,
@@ -548,18 +560,26 @@ fn expand_runtime_add_impl_block_works_well_test() {
 		parameter_types.clone(),
 		true,
 	);
+}
 
-	let pallet_name = Ident::new("Test3", Span::call_site());
-	parameter_types.push(ParameterTypes {
-		ident: Ident::new("MyType1", Span::call_site()),
-		type_: parse_quote! {Type},
-		value: parse_quote! {Default::default()},
-	});
-	parameter_types.push(ParameterTypes {
-		ident: Ident::new("MyType2", Span::call_site()),
-		type_: parse_quote! {Type},
-		value: parse_quote! {Default::default()},
-	});
+#[test]
+fn expand_runtime_add_impl_block_using_parameter_types_works_well_test() {
+	let mut test_builder = TestBuilder::default();
+	test_builder.add_runtime_using_runtime_macro_ast();
+
+	let pallet_name = Ident::new("Test", Span::call_site());
+	let parameter_types = vec![
+		ParameterTypes {
+			ident: Ident::new("MyType1", Span::call_site()),
+			type_: parse_quote! {Type},
+			value: parse_quote! {Default::default()},
+		},
+		ParameterTypes {
+			ident: Ident::new("MyType2", Span::call_site()),
+			type_: parse_quote! {Type},
+			value: parse_quote! {Default::default()},
+		},
+	];
 
 	// Impl pallet block + parameter_types block not added
 	test_builder.assert_impl_block_contained(
@@ -568,6 +588,7 @@ fn expand_runtime_add_impl_block_works_well_test() {
 		parameter_types.clone(),
 		true,
 	);
+
 	// Add them
 	expand_runtime_add_impl_block(
 		&mut test_builder.ast,
@@ -575,6 +596,7 @@ fn expand_runtime_add_impl_block_works_well_test() {
 		parameter_types.clone(),
 		true,
 	);
+
 	//Impl pallet block + parameter_types block not added
 	test_builder.assert_impl_block_contained(
 		true,
