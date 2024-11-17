@@ -281,6 +281,10 @@ impl TestBuilder {
 		}
 		assert!(assert_happened);
 	}
+
+	fn assert_use_statement_included(&self, contains: bool, use_statement: ItemUse) {
+		assert_eq!(self.ast.items.contains(&Item::Use(use_statement)), contains);
+	}
 }
 
 #[test]
@@ -646,4 +650,20 @@ fn expand_runtime_add_type_to_impl_block_works_well_test() {
 		runtime_value.clone(),
 		pallet_name,
 	);
+}
+
+#[test]
+fn expand_add_use_statement_works_well_test() {
+	let mut test_builder = TestBuilder::default();
+	test_builder.add_basic_pallet_ast();
+
+	let use_statement: ItemUse = parse_quote! {
+		use some_crate::some_module::some_function;
+	};
+
+	test_builder.assert_use_statement_included(false, use_statement.clone());
+
+	expand_add_use_statement(&mut test_builder.ast, use_statement.clone());
+
+	test_builder.assert_use_statement_included(true, use_statement);
 }
