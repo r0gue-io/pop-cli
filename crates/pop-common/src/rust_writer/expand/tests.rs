@@ -283,7 +283,46 @@ impl TestBuilder {
 	}
 
 	fn assert_use_statement_included(&self, contains: bool, use_statement: ItemUse) {
-		assert_eq!(self.ast.items.contains(&Item::Use(use_statement)), contains);
+		// Find the first use statement
+		let position =
+			self.ast.items.iter().position(|item| matches!(item, Item::Use(_))).unwrap_or(0);
+		// The use statement has been added together with other use statements
+		if let Some(item) = self.ast.items.get(position) {
+			assert_eq!(item == &Item::Use(use_statement), contains);
+		} else {
+			assert!(false);
+		}
+	}
+
+	fn assert_composite_enum_in_pallet(&self, contains: bool, composite_enum: ItemEnum) {
+		let mut assert_happened = false;
+		for item in &self.ast.items {
+			match item {
+				Item::Mod(ItemMod { ident, content, .. })
+					if *ident == "pallet" && content.is_some() =>
+				{
+					let (_, items) =
+						content.as_ref().expect("content is always Some thanks to the match guard");
+					// Find the Pallet struct position
+					let position = items
+						.iter()
+						.position(
+							|item| matches!(item, Item::Struct(ItemStruct { ident, .. }) if *ident == "Pallet"),
+						)
+						.unwrap_or(0);
+					// The composite enum has been added just before the Pallet struct (if prior
+					// insertion pallet is in position n, now it's in position n+1, as the item
+					// is included in position n-1, we have to check in n+1 - (n-1) = 2
+					// positions before the actual position of pallet)
+					if let Some(item) = items.get(position.saturating_sub(2)) {
+						assert_eq!(item == &Item::Enum(composite_enum.clone()), contains);
+						assert_happened = true;
+					}
+				},
+				_ => continue,
+			}
+		}
+		assert!(assert_happened);
 	}
 }
 
@@ -666,4 +705,24 @@ fn expand_add_use_statement_works_well_test() {
 	expand_add_use_statement(&mut test_builder.ast, use_statement.clone());
 
 	test_builder.assert_use_statement_included(true, use_statement);
+}
+
+#[test]
+fn expand_pallet_add_composite_enum_works_well_test() {
+	let mut test_builder = TestBuilder::default();
+	test_builder.add_basic_pallet_ast();
+
+	let composite_enum: ItemEnum = parse_quote! {
+		#[pallet::composite_enum]
+		pub enum Enum {
+			#[codec(index = 0)]
+				SomeVariant,
+			#[codec(index=1)]
+			  OtherVariant
+		}
+	};
+
+	test_builder.assert_composite_enum_in_pallet(false, composite_enum.clone());
+	expand_pallet_add_composite_enum(&mut test_builder.ast, composite_enum.clone());
+	test_builder.assert_composite_enum_in_pallet(true, composite_enum);
 }

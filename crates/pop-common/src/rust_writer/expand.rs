@@ -246,7 +246,7 @@ pub(crate) fn expand_add_use_statement(ast: &mut File, use_statement: ItemUse) {
 	items.insert(position, Item::Use(use_statement));
 }
 
-pub(crate) fn expand_add_composite_enum(ast: &mut File, composite_enum: ItemEnum) {
+pub(crate) fn expand_pallet_add_composite_enum(ast: &mut File, composite_enum: ItemEnum) {
 	for item in &mut ast.items {
 		match item {
 			Item::Mod(ItemMod { ident, content, .. })

@@ -248,7 +248,7 @@ pub fn add_composite_enums(file_path: &Path, composite_enums: Vec<ItemEnum>) -> 
 
 	composite_enums.into_iter().for_each(|composite_enum| {
 		if !parse::find_composite_enum(&ast, &composite_enum) {
-			expand::expand_add_composite_enum(&mut ast, composite_enum);
+			expand::expand_pallet_add_composite_enum(&mut ast, composite_enum);
 		}
 	});
 
