@@ -183,7 +183,7 @@ mod tests {
 	#[tokio::test]
 	async fn chain_spec_generator_returns_none_when_no_match() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
-		assert_eq!(chain_spec_generator("paseo-local", None, temp_dir.path()).await?, None);
+		assert_eq!(chain_spec_generator("rococo-local", None, temp_dir.path()).await?, None);
 		Ok(())
 	}
 }

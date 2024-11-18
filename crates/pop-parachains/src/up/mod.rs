@@ -1265,7 +1265,7 @@ default_command = "pop-node"
 				None,
 			)
 			.await?;
-			assert_eq!(zombienet.binaries().count(), 4);
+			assert_eq!(zombienet.binaries().count(), 6);
 			Ok(())
 		}
 
