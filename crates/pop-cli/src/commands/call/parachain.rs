@@ -108,8 +108,8 @@ impl CallParachainCommand {
 			// Specific predefined actions first.
 			let picked_action: Option<Action> = prompt_predefined_actions(&api, cli).await?;
 			if let Some(action) = picked_action {
-				self.extrinsic = Some(action.action_name().to_string());
-				find_pallet_by_name(&api, action.pallet()).await?
+				self.extrinsic = Some(action.extrinsic_name().to_string());
+				find_pallet_by_name(&api, action.pallet_name()).await?
 			} else {
 				let mut prompt = cli.select("Select the pallet to call:");
 				for pallet_item in pallets {
@@ -269,8 +269,11 @@ async fn prompt_predefined_actions(
 ) -> Result<Option<Action>> {
 	let mut predefined_action = cli.select("What would you like to do?");
 	for action in supported_actions(&api).await {
-		predefined_action =
-			predefined_action.item(Some(action.clone()), action.description(), action.pallet());
+		predefined_action = predefined_action.item(
+			Some(action.clone()),
+			action.description(),
+			action.pallet_name(),
+		);
 	}
 	predefined_action = predefined_action.item(None, "All", "Explore all pallets and extrinsics");
 	Ok(predefined_action.interact()?)
