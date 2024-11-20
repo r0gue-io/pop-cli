@@ -6,6 +6,7 @@ use scale_info::{form::PortableForm, Field, PortableRegistry, TypeDef, Variant};
 use subxt::{dynamic::Value, Metadata, OnlineClient, SubstrateConfig};
 use type_parser::process_argument;
 
+pub mod action;
 mod type_parser;
 
 #[derive(Clone, PartialEq, Eq)]
@@ -229,7 +230,7 @@ pub async fn process_extrinsic_args(
 /// * `api`: Reference to an `OnlineClient` connected to the chain.
 /// * `pallet_name`: The name of the pallet to find.
 /// * `extrinsic_name`: Name of the extrinsic to locate.
-async fn find_extrinsic_by_name(
+pub async fn find_extrinsic_by_name(
 	api: &OnlineClient<SubstrateConfig>,
 	pallet_name: &str,
 	extrinsic_name: &str,

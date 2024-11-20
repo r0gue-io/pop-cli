@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{errors::Error, utils::metadata::process_extrinsic_args};
+use crate::errors::Error;
 use pop_common::create_signer;
 use subxt::{
 	dynamic::Value,
 	tx::{DynamicPayload, Payload},
 	OnlineClient, SubstrateConfig,
 };
+
+pub mod metadata;
 
 pub async fn set_up_api(url: &str) -> Result<OnlineClient<SubstrateConfig>, Error> {
 	let api = OnlineClient::<SubstrateConfig>::from_url(url).await?;
@@ -20,7 +22,7 @@ pub async fn construct_extrinsic(
 	args: Vec<String>,
 ) -> Result<DynamicPayload, Error> {
 	let parsed_args: Vec<Value> =
-		process_extrinsic_args(api, pallet_name, extrinsic_name, args).await?;
+		metadata::process_extrinsic_args(api, pallet_name, extrinsic_name, args).await?;
 	Ok(subxt::dynamic::tx(pallet_name, extrinsic_name, parsed_args))
 }
 
