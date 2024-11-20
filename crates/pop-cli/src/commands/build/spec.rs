@@ -6,7 +6,7 @@ use crate::{
 	style::style,
 };
 use clap::{Args, ValueEnum};
-use cliclack::{confirm, input, multi_progress, spinner};
+use cliclack::{confirm, input, spinner};
 use pop_common::Profile;
 use pop_parachains::{
 	binary_path, build_parachain, export_wasm_file, generate_genesis_state_file,
@@ -206,7 +206,8 @@ impl BuildSpecCommand {
 			#[cfg(not(test))]
 			sleep(Duration::from_secs(3))
 		}
-		let multi = multi_progress("Generating chain specification...");
+		let spinner = spinner();
+		spinner.start("Generating chain specification...");
 
 		// Create output path if needed
 		let mut output_path = self.output_file.unwrap_or_else(|| PathBuf::from("./"));
@@ -233,7 +234,7 @@ impl BuildSpecCommand {
 		let binary_path = match binary_path(&mode.target_directory(&cwd), &cwd.join("node")) {
 			Ok(binary_path) => binary_path,
 			_ => {
-				multi.stop();
+				spinner.clear();
 				cli.info("Node was not found. The project will be built locally.".to_string())?;
 				cli.warning("NOTE: this may take some time...")?;
 				build_parachain(&cwd, None, &mode, None)?
@@ -241,8 +242,7 @@ impl BuildSpecCommand {
 		};
 
 		// Generate plain spec.
-		let spinner = multi.add(spinner());
-		spinner.start("Generating plain chain specification...");
+		spinner.set_message("Generating plain chain specification...");
 		let mut generated_files = vec![];
 		generate_plain_chain_spec(
 			&binary_path,
@@ -301,8 +301,7 @@ impl BuildSpecCommand {
 				.push(format!("Genesis State file exported at: {}", genesis_state_file.display()));
 		}
 
-		spinner.stop("Done.");
-		multi.stop();
+		spinner.stop("Chain specification built successfully.");
 
 		let generated_files: Vec<_> = generated_files
 			.iter()
