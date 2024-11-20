@@ -3,6 +3,7 @@ pub mod errors;
 pub mod git;
 pub mod helpers;
 pub mod manifest;
+pub mod metadata;
 pub mod polkadot_sdk;
 pub mod signer;
 pub mod sourcing;
@@ -13,6 +14,7 @@ pub use errors::Error;
 pub use git::{Git, GitHub, Release};
 pub use helpers::{get_project_name_from_path, prefix_with_current_dir_if_needed, replace_in_file};
 pub use manifest::{add_crate_to_workspace, find_workspace_toml};
+pub use metadata::format_type;
 pub use signer::{create_signer, parse_account};
 pub use templates::extractor::extract_template_files;
 // External exports
@@ -41,16 +43,18 @@ pub fn target() -> Result<&'static str, Error> {
 	}
 
 	match ARCH {
-		"aarch64" =>
+		"aarch64" => {
 			return match OS {
 				"macos" => Ok("aarch64-apple-darwin"),
 				_ => Ok("aarch64-unknown-linux-gnu"),
-			},
-		"x86_64" | "x86" =>
+			}
+		},
+		"x86_64" | "x86" => {
 			return match OS {
 				"macos" => Ok("x86_64-apple-darwin"),
 				_ => Ok("x86_64-unknown-linux-gnu"),
-			},
+			}
+		},
 		&_ => {},
 	}
 	Err(Error::UnsupportedPlatform { arch: ARCH, os: OS })

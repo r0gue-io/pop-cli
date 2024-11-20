@@ -4,9 +4,9 @@ use crate::cli::{self, traits::*};
 use anyhow::{anyhow, Result};
 use clap::Args;
 use pop_parachains::{
-	construct_extrinsic, encode_call_data, find_pallet_by_name, parse_chain_metadata,
-	process_prompt_arguments, set_up_api, sign_and_submit_extrinsic, Arg, DynamicPayload,
-	OnlineClient, SubstrateConfig,
+	construct_extrinsic, encode_call_data, field_to_param, find_pallet_by_name,
+	parse_chain_metadata, set_up_api, sign_and_submit_extrinsic, DynamicPayload, OnlineClient,
+	Param, SubstrateConfig,
 };
 
 const DEFAULT_URL: &str = "ws://localhost:9944/";
@@ -92,7 +92,7 @@ impl CallParachainCommand {
 		};
 		// Parse metadata from url chain.
 		let api = set_up_api(self.url.as_str()).await?;
-		let pallets = match parse_chain_metadata(api.clone()).await {
+		let pallets = match parse_chain_metadata(&api).await {
 			Ok(pallets) => pallets,
 			Err(e) => {
 				return Err(anyhow!(format!(
@@ -128,9 +128,9 @@ impl CallParachainCommand {
 		self.extrinsic = Some(extrinsic.name);
 		// Resolve message arguments.
 		let mut contract_args = Vec::new();
-		for arg in extrinsic.fields {
-			let arg_metadata = process_prompt_arguments(&api, &arg)?;
-			let input = prompt_argument(&api, &arg_metadata, cli)?;
+		for field in extrinsic.fields {
+			let param = field_to_param(&api, &field)?;
+			let input = prompt_for_param(&api, cli, &param)?;
 			contract_args.push(input);
 		}
 		self.args = contract_args;
@@ -253,70 +253,70 @@ fn display_message(message: &str, success: bool, cli: &mut impl cli::traits::Cli
 	Ok(())
 }
 
-// Prompt the user for the proper arguments.
-fn prompt_argument(
+// Prompts the user for the value of a parameter.
+fn prompt_for_param(
 	api: &OnlineClient<SubstrateConfig>,
-	arg: &Arg,
 	cli: &mut impl cli::traits::Cli,
+	param: &Param,
 ) -> Result<String> {
-	Ok(if arg.optional {
-		// The argument is optional; prompt the user to decide whether to provide a value.
+	if param.is_optional {
+		// Prompt user for optional parameter decision.
 		if !cli
 			.confirm(format!(
 				"Do you want to provide a value for the optional parameter: {}?",
-				arg.name
+				param.name
 			))
 			.interact()?
 		{
 			return Ok("None".to_string());
 		}
-		let value = prompt_argument_value(api, arg, cli)?;
-		format!("Some({})", value)
+		let value = get_param_value(api, cli, param)?;
+		Ok(format!("Some({})", value))
 	} else {
-		// Non-optional argument.
-		prompt_argument_value(api, arg, cli)?
-	})
-}
-
-fn prompt_argument_value(
-	api: &OnlineClient<SubstrateConfig>,
-	arg: &Arg,
-	cli: &mut impl cli::traits::Cli,
-) -> Result<String> {
-	if arg.options.is_empty() {
-		prompt_for_primitive(arg, cli)
-	} else if arg.variant {
-		prompt_for_variant(api, arg, cli)
-	} else {
-		prompt_for_composite(api, arg, cli)
+		// Handle non-optional parameters.
+		get_param_value(api, cli, param)
 	}
 }
 
-fn prompt_for_primitive(arg: &Arg, cli: &mut impl cli::traits::Cli) -> Result<String> {
-	let user_input = cli
-		.input(format!("Enter the value for the parameter: {}", arg.name))
-		.placeholder(&format!("Type required: {}", arg.type_input))
-		.interact()?;
-	Ok(user_input)
+// Resolves the value of a parameter based on its type.
+fn get_param_value(
+	api: &OnlineClient<SubstrateConfig>,
+	cli: &mut impl cli::traits::Cli,
+	param: &Param,
+) -> Result<String> {
+	if param.sub_params.is_empty() {
+		prompt_for_primitive_param(cli, param)
+	} else if param.is_variant {
+		prompt_for_variant_param(api, cli, param)
+	} else {
+		prompt_for_composite_param(api, cli, param)
+	}
 }
 
-fn prompt_for_variant(
+fn prompt_for_primitive_param(cli: &mut impl cli::traits::Cli, param: &Param) -> Result<String> {
+	Ok(cli
+		.input(format!("Enter the value for the parameter: {}", param.name))
+		.placeholder(&format!("Type required: {}", param.type_name))
+		.interact()?)
+}
+
+fn prompt_for_variant_param(
 	api: &OnlineClient<SubstrateConfig>,
-	arg: &Arg,
 	cli: &mut impl cli::traits::Cli,
+	param: &Param,
 ) -> Result<String> {
 	let selected_variant = {
-		let mut select = cli.select(format!("Select the value for the parameter: {}", arg.name));
-		for option in &arg.options {
-			select = select.item(option, &option.name, &option.type_input);
+		let mut select = cli.select(format!("Select the value for the parameter: {}", param.name));
+		for option in &param.sub_params {
+			select = select.item(option, &option.name, &option.type_name);
 		}
 		select.interact()?
 	};
 
-	if !selected_variant.options.is_empty() {
+	if !selected_variant.sub_params.is_empty() {
 		let mut field_values = Vec::new();
-		for field_arg in &selected_variant.options {
-			let field_value = prompt_argument(api, field_arg, cli)?;
+		for field_arg in &selected_variant.sub_params {
+			let field_value = prompt_for_param(api, cli, field_arg)?;
 			field_values.push(field_value);
 		}
 		Ok(format!("{}({})", selected_variant.name, field_values.join(", ")))
@@ -325,14 +325,14 @@ fn prompt_for_variant(
 	}
 }
 
-fn prompt_for_composite(
+fn prompt_for_composite_param(
 	api: &OnlineClient<SubstrateConfig>,
-	arg: &Arg,
 	cli: &mut impl cli::traits::Cli,
+	param: &Param,
 ) -> Result<String> {
 	let mut field_values = Vec::new();
-	for field_arg in &arg.options {
-		let field_value = prompt_argument(api, field_arg, cli)?;
+	for field_arg in &param.sub_params {
+		let field_value = prompt_for_param(api, cli, field_arg)?;
 		field_values.push(field_value);
 	}
 	Ok(field_values.join(", "))
