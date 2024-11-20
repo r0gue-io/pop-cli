@@ -3,6 +3,7 @@ pub mod errors;
 pub mod git;
 pub mod helpers;
 pub mod manifest;
+pub mod metadata;
 pub mod signer;
 pub mod sourcing;
 pub mod templates;
@@ -12,6 +13,7 @@ pub use errors::Error;
 pub use git::{Git, GitHub, Release};
 pub use helpers::{get_project_name_from_path, prefix_with_current_dir_if_needed, replace_in_file};
 pub use manifest::{add_crate_to_workspace, find_workspace_toml};
+pub use metadata::format_type;
 pub use signer::{create_signer, parse_account};
 pub use templates::extractor::extract_template_files;
 // External exports

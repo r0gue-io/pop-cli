@@ -26,7 +26,7 @@ pub use templates::{Config, Parachain, Provider};
 pub use up::Zombienet;
 pub use utils::{
 	helpers::is_initial_endowment_valid,
-	metadata::{find_pallet_by_name, parse_chain_metadata, process_prompt_arguments, Arg},
+	metadata::{field_to_param, find_pallet_by_name, parse_chain_metadata, Param},
 };
 /// Information about the Node. External export from Zombienet-SDK.
 pub use zombienet_sdk::NetworkNode;

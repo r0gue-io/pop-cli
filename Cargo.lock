@@ -4708,6 +4708,7 @@ dependencies = [
  "mockito",
  "regex",
  "reqwest 0.12.5",
+ "scale-info",
  "serde",
  "serde_json",
  "strum 0.26.3",
