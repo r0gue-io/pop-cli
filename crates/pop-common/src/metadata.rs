@@ -19,7 +19,13 @@ pub fn format_type(ty: &Type<PortableForm>, registry: &PortableRegistry) -> Stri
 		let params: Vec<_> = ty
 			.type_params
 			.iter()
-			.filter_map(|p| registry.resolve(p.ty.unwrap().id))
+			.filter_map(|p| {
+				if let Some(ty) = p.ty {
+					registry.resolve(ty.id)
+				} else {
+					None // Ignore if p.ty is None
+				}
+			})
 			.map(|t| format_type(t, registry))
 			.collect();
 		name = format!("{name}<{}>", params.join(","));
