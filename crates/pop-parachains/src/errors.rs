@@ -28,6 +28,8 @@ pub enum Error {
 	JsonError(#[from] serde_json::Error),
 	#[error("Metadata error: {0}")]
 	MetadataError(#[from] subxt::error::MetadataError),
+	#[error("Error parsing metadata for parameter {0} conversion")]
+	MetadataParsingError(String),
 	#[error("Missing binary: {0}")]
 	MissingBinary(String),
 	#[error("Missing chain spec file at: {0}")]
@@ -42,8 +44,8 @@ pub enum Error {
 	PalletMissing,
 	#[error("Failed to find the pallet {0}")]
 	PalletNotFound(String),
-	#[error("Failed to parse the arguments")]
-	ParsingArgsError,
+	#[error("Failed to process the arguments provided by the user.")]
+	ParamProcessingError,
 	#[error("Failed to parse the response")]
 	ParsingResponseError(#[from] scale_decode::Error),
 	#[error("Invalid path")]

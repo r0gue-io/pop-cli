@@ -21,7 +21,7 @@ pub struct CallParachainCommand {
 	#[clap(long, short)]
 	extrinsic: Option<String>,
 	/// The constructor arguments, encoded as strings.
-	#[clap(long, num_args = 0..)]
+	#[clap(long, num_args = 0..,)]
 	args: Vec<String>,
 	/// Websocket endpoint of a node.
 	#[clap(name = "url", short = 'u', long, value_parser, default_value = DEFAULT_URL)]
@@ -108,6 +108,7 @@ impl CallParachainCommand {
 			// Specific predefined actions first.
 			let picked_action: Option<Action> = prompt_predefined_actions(&api, cli).await?;
 			if let Some(action) = picked_action {
+				self.pallet = Some(action.pallet_name().to_string());
 				self.extrinsic = Some(action.extrinsic_name().to_string());
 				find_pallet_by_name(&api, action.pallet_name()).await?
 			} else {
@@ -137,13 +138,15 @@ impl CallParachainCommand {
 			extrinsic_prompted
 		};
 		// Resolve message arguments.
-		let mut contract_args = Vec::new();
-		for field in extrinsic.fields {
-			let param = field_to_param(&api, &field)?;
-			let input = prompt_for_param(&api, cli, &param)?;
-			contract_args.push(input);
+		if self.args.is_empty() {
+			let mut contract_args = Vec::new();
+			for field in extrinsic.fields {
+				let param = field_to_param(&api, &extrinsic.name, &field)?;
+				let input = prompt_for_param(&api, cli, &param)?;
+				contract_args.push(input);
+			}
+			self.args = contract_args;
 		}
-		self.args = contract_args;
 
 		cli.info(self.display())?;
 		Ok(api)
@@ -200,7 +203,7 @@ impl CallParachainCommand {
 		prompt_to_repeat_call: bool,
 		cli: &mut impl cli::traits::Cli,
 	) -> Result<()> {
-		if self.suri.is_empty() {
+		if self.suri == DEFAULT_URI {
 			self.suri = cli::Cli
 				.input("Who is going to sign the extrinsic:")
 				.placeholder("//Alice")
@@ -225,7 +228,7 @@ impl CallParachainCommand {
 			.await
 			.map_err(|err| anyhow!("{} {}", "ERROR:", format!("{err:?}")))?;
 
-		display_message(&format!("Extrinsic submitted with hash: {:?}", result), true, cli)?;
+		spinner.stop(&format!("Extrinsic submitted with hash: {:?}", result));
 
 		// Prompt for any additional calls.
 		if !prompt_to_repeat_call {
