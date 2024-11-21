@@ -113,6 +113,11 @@ fn type_to_param(
 			return Err(Error::ExtrinsicNotSupported(extrinsic_name.to_string()));
 		}
 	}
+	for param in &type_info.type_params {
+		if param.name == "RuntimeCall" {
+			return Err(Error::ExtrinsicNotSupported(extrinsic_name.to_string()));
+		}
+	}
 	if type_info.path.segments == ["Option"] {
 		if let Some(sub_type_id) = type_info.type_params.get(0).and_then(|param| param.ty) {
 			// Recursive for the sub parameters

@@ -136,7 +136,8 @@ impl TypeParser for TypeDefVariant<PortableForm> {
 }
 
 impl TypeParser for TypeDefComposite<PortableForm> {
-	// Example: {"a": true, "b": "hello", "c": { "d": 42, e: "world" }}
+	// Example: A composite type is input by the user [true, hello, 42, world], convert into proper
+	// composite type: {"a": true, "b": "hello", "c": { "d": 42, e: "world" }}
 	fn parse(&self, arg: &str, registry: &PortableRegistry) -> Result<Value, Error> {
 		let mut values: Vec<&str> = arg.split(',').map(str::trim).collect();
 
@@ -155,16 +156,15 @@ impl TypeParser for TypeDefComposite<PortableForm> {
 			let value = match &field_type.type_def {
 				TypeDef::Composite(nested_composite) => {
 					if nested_composite.fields.is_empty() {
-						// Unnamed composite resolving to a primitive type
+						// Recursive for the sub parameters of nested composite type.
 						let raw_value = values.remove(0);
 						process_argument(raw_value, field_type, registry)?
 					} else {
-						// Named or unnamed nested composite
+						// Parse nested composite type.
 						let nested_args_count = nested_composite.fields.len();
 						if values.len() < nested_args_count {
 							return Err(Error::ParamProcessingError);
 						}
-
 						let nested_args: Vec<String> =
 							values.drain(..nested_args_count).map(String::from).collect();
 						let nested_arg_str = nested_args.join(",");
@@ -172,7 +172,7 @@ impl TypeParser for TypeDefComposite<PortableForm> {
 					}
 				},
 				_ => {
-					// Parse a single argument for non-composite fields
+					// Recursive for the sub parameters of the composite type.
 					let raw_value = values.remove(0);
 					process_argument(raw_value, field_type, registry)?
 				},
@@ -223,12 +223,12 @@ impl TypeParser for TypeDefTuple<PortableForm> {
 }
 
 impl TypeParser for TypeDefCompact<PortableForm> {
-	fn parse(&self, input: &str, registry: &PortableRegistry) -> Result<Value, Error> {
+	fn parse(&self, arg: &str, registry: &PortableRegistry) -> Result<Value, Error> {
 		// Parse compact types as their sub type (e.g., `Compact<T>`).
 		let sub_ty = registry
 			.resolve(self.type_param.id)
 			.ok_or_else(|| Error::ParamProcessingError)?;
 		// Recursive for the inner value.
-		process_argument(input, sub_ty, registry)
+		process_argument(arg, sub_ty, registry)
 	}
 }
