@@ -4,9 +4,9 @@ use crate::cli::{self, traits::*};
 use anyhow::{anyhow, Result};
 use clap::Args;
 use pop_parachains::{
-	construct_extrinsic, encode_call_data, field_to_param, find_extrinsic_by_name,
-	find_pallet_by_name, parse_chain_metadata, set_up_api, sign_and_submit_extrinsic,
-	supported_actions, Action, DynamicPayload, OnlineClient, Param, SubstrateConfig,
+	construct_extrinsic, encode_call_data, find_extrinsic_by_name, find_pallet_by_name,
+	parse_chain_metadata, set_up_api, sign_and_submit_extrinsic, supported_actions, Action,
+	DynamicPayload, OnlineClient, Pallet, Param, SubstrateConfig,
 };
 
 const DEFAULT_URL: &str = "ws://localhost:9944/";
@@ -103,17 +103,17 @@ impl CallParachainCommand {
 		};
 		// Resolve pallet.
 		let pallet = if let Some(ref pallet_name) = self.pallet {
-			find_pallet_by_name(&api, pallet_name).await?
+			find_pallet_by_name(&pallets, pallet_name).await?
 		} else {
 			// Specific predefined actions first.
-			let picked_action: Option<Action> = prompt_predefined_actions(&api, cli).await?;
+			let picked_action: Option<Action> = prompt_predefined_actions(&pallets, cli).await?;
 			if let Some(action) = picked_action {
 				self.pallet = Some(action.pallet_name().to_string());
 				self.extrinsic = Some(action.extrinsic_name().to_string());
-				find_pallet_by_name(&api, action.pallet_name()).await?
+				find_pallet_by_name(&pallets, action.pallet_name()).await?
 			} else {
 				let mut prompt = cli.select("Select the pallet to call:");
-				for pallet_item in pallets {
+				for pallet_item in &pallets {
 					prompt = prompt.item(pallet_item.clone(), &pallet_item.name, &pallet_item.docs);
 				}
 				let pallet_prompted = prompt.interact()?;
@@ -123,25 +123,31 @@ impl CallParachainCommand {
 		};
 		// Resolve extrinsic.
 		let extrinsic = if let Some(ref extrinsic_name) = self.extrinsic {
-			find_extrinsic_by_name(&api, &pallet.name, extrinsic_name).await?
+			find_extrinsic_by_name(&pallets, &pallet.name, extrinsic_name).await?
 		} else {
 			let mut prompt_extrinsic = cli.select("Select the extrinsic to call:");
 			for extrinsic in pallet.extrinsics {
-				prompt_extrinsic = prompt_extrinsic.item(
-					extrinsic.clone(),
-					&extrinsic.name,
-					&extrinsic.docs.concat(),
-				);
+				prompt_extrinsic =
+					prompt_extrinsic.item(extrinsic.clone(), &extrinsic.name, &extrinsic.docs);
 			}
 			let extrinsic_prompted = prompt_extrinsic.interact()?;
 			self.extrinsic = Some(extrinsic_prompted.name.clone());
 			extrinsic_prompted
 		};
+		if !extrinsic.is_supported {
+			cli.outro_cancel(
+				"The selected extrinsic is not supported. Please choose another one.",
+			)?;
+			// Reset specific items from the last call and repeat.
+			self.reset_for_new_call();
+			Box::pin(self.configure(cli, true)).await?;
+		}
+
 		// Resolve message arguments.
 		if self.args.is_empty() {
 			let mut contract_args = Vec::new();
-			for field in extrinsic.fields {
-				let param = field_to_param(&api, &extrinsic.name, &field)?;
+			for param in extrinsic.params {
+				//let param = field_to_param(&api, &extrinsic.name, &field)?;
 				let input = prompt_for_param(&api, cli, &param)?;
 				contract_args.push(input);
 			}
@@ -267,11 +273,11 @@ fn display_message(message: &str, success: bool, cli: &mut impl cli::traits::Cli
 }
 
 async fn prompt_predefined_actions(
-	api: &OnlineClient<SubstrateConfig>,
+	pallets: &[Pallet],
 	cli: &mut impl cli::traits::Cli,
 ) -> Result<Option<Action>> {
 	let mut predefined_action = cli.select("What would you like to do?");
-	for action in supported_actions(&api).await {
+	for action in supported_actions(&pallets).await {
 		predefined_action = predefined_action.item(
 			Some(action.clone()),
 			action.description(),
