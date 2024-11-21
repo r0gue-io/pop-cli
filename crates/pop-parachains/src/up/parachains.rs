@@ -160,7 +160,7 @@ mod tests {
 			None,
 			None,
 			"v1.12.0",
-			Some("asset-hub-rococo-local"),
+			Some("asset-hub-paseo-local"),
 			tempdir()?.path()
 		)
 		.await?

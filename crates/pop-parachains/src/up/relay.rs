@@ -114,7 +114,7 @@ pub(super) async fn from(
 			source: TryInto::try_into(&relay, tag, latest)?,
 			cache: cache.to_path_buf(),
 		};
-		let chain = chain.unwrap_or("rococo-local");
+		let chain = chain.unwrap_or("paseo-local");
 		return Ok(super::RelayChain {
 			binary,
 			workers: relay.workers(),
