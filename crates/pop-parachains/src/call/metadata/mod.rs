@@ -17,7 +17,20 @@ pub struct Pallet {
 	/// The documentation of the pallet.
 	pub docs: String,
 	// The extrinsics of the pallet.
-	pub extrinsics: Vec<Variant<PortableForm>>,
+	pub extrinsics: Vec<Extrinsic>,
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+/// Represents an extrinsic in a pallet.
+pub struct Extrinsic {
+	/// The name of the extrinsic.
+	pub name: String,
+	/// The documentation of the extrinsic.
+	pub docs: String,
+	/// The parameters of the extrinsic.
+	pub params: Vec<Param>,
+	/// Whether this extrinsic is supported (no recursive or unsupported types like `RuntimeCall`).
+	pub is_supported: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -43,14 +56,60 @@ pub async fn parse_chain_metadata(
 	api: &OnlineClient<SubstrateConfig>,
 ) -> Result<Vec<Pallet>, Error> {
 	let metadata: Metadata = api.metadata();
-	Ok(metadata
+	let registry = metadata.types();
+
+	let pallets = metadata
 		.pallets()
 		.map(|pallet| {
-			let extrinsics =
-				pallet.call_variants().map(|variants| variants.to_vec()).unwrap_or_default();
-			Pallet { name: pallet.name().to_string(), extrinsics, docs: pallet.docs().join(" ") }
+			let extrinsics = pallet
+				.call_variants()
+				.map(|variants| {
+					variants
+						.iter()
+						.map(|variant| {
+							let mut is_supported = true;
+
+							// Parse parameters for the extrinsic
+							let params = {
+								let mut parsed_params = Vec::new();
+								for field in &variant.fields {
+									match field_to_param(api, &variant.name, field) {
+										Ok(param) => parsed_params.push(param),
+										Err(Error::ExtrinsicNotSupported(_)) => {
+											is_supported = false;
+											parsed_params.clear(); // Discard any already-parsed params
+											break; // Stop processing further fields
+										},
+										Err(e) => return Err(e), // Propagate other errors
+									}
+								}
+								parsed_params
+							};
+
+							Ok(Extrinsic {
+								name: variant.name.clone(),
+								docs: if is_supported {
+									variant.docs.concat()
+								} else {
+									"Extrinsic Not Supported".to_string()
+								},
+								params,
+								is_supported,
+							})
+						})
+						.collect::<Result<Vec<Extrinsic>, Error>>()
+				})
+				.unwrap_or_else(|| Ok(vec![]))?;
+
+			Ok(Pallet {
+				name: pallet.name().to_string(),
+				docs: pallet.docs().join(" "),
+				extrinsics,
+			})
 		})
-		.collect())
+		.collect::<Result<Vec<Pallet>, Error>>()?;
+
+	Ok(pallets)
 }
 
 /// Finds a specific pallet by name and retrieves its details from metadata.
@@ -58,23 +117,32 @@ pub async fn parse_chain_metadata(
 /// # Arguments
 /// * `api`: Reference to an `OnlineClient` connected to the chain.
 /// * `pallet_name`: The name of the pallet to find.
-pub async fn find_pallet_by_name(
-	api: &OnlineClient<SubstrateConfig>,
-	pallet_name: &str,
-) -> Result<Pallet, Error> {
-	let metadata: Metadata = api.metadata();
-	for pallet in metadata.pallets() {
-		if pallet.name() == pallet_name {
-			let extrinsics =
-				pallet.call_variants().map(|variants| variants.to_vec()).unwrap_or_default();
-			return Ok(Pallet {
-				name: pallet.name().to_string(),
-				extrinsics,
-				docs: pallet.docs().join(" "),
-			});
-		}
+pub async fn find_pallet_by_name(pallets: &[Pallet], pallet_name: &str) -> Result<Pallet, Error> {
+	if let Some(pallet) = pallets.iter().find(|p| p.name == pallet_name) {
+		Ok(pallet.clone())
+	} else {
+		Err(Error::PalletNotFound(pallet_name.to_string()))
 	}
-	Err(Error::PalletNotFound(pallet_name.to_string()))
+}
+
+/// Finds a specific extrinsic by name and retrieves its details from metadata.
+///
+/// # Arguments
+/// * `api`: Reference to an `OnlineClient` connected to the chain.
+/// * `pallet_name`: The name of the pallet to find.
+/// * `extrinsic_name`: Name of the extrinsic to locate.
+pub async fn find_extrinsic_by_name(
+	pallets: &[Pallet],
+	pallet_name: &str,
+	extrinsic_name: &str,
+) -> Result<Extrinsic, Error> {
+	let pallet = find_pallet_by_name(pallets, pallet_name).await?;
+	// Check if the specified extrinsic exists within this pallet
+	if let Some(extrinsic) = pallet.extrinsics.iter().find(|&e| e.name == extrinsic_name) {
+		return Ok(extrinsic.clone());
+	} else {
+		return Err(Error::ExtrinsicNotSupported(extrinsic_name.to_string()));
+	}
 }
 
 /// Transforms a metadata field into its `Param` representation.
@@ -82,7 +150,7 @@ pub async fn find_pallet_by_name(
 /// # Arguments
 /// * `api`: Reference to an `OnlineClient` connected to the blockchain.
 /// * `field`: A reference to a metadata field of the extrinsic.
-pub fn field_to_param(
+fn field_to_param(
 	api: &OnlineClient<SubstrateConfig>,
 	extrinsic_name: &str,
 	field: &Field<PortableForm>,
@@ -114,7 +182,10 @@ fn type_to_param(
 		}
 	}
 	for param in &type_info.type_params {
-		if param.name == "RuntimeCall" {
+		if param.name == "RuntimeCall" ||
+			param.name == "Vec<RuntimeCall>" ||
+			param.name == "Vec<<T as Config>::RuntimeCall>"
+		{
 			return Err(Error::ExtrinsicNotSupported(extrinsic_name.to_string()));
 		}
 	}
@@ -227,7 +298,7 @@ pub async fn process_extrinsic_args(
 ) -> Result<Vec<Value>, Error> {
 	let metadata: Metadata = api.metadata();
 	let registry = metadata.types();
-	let extrinsic = find_extrinsic_by_name(&api, pallet_name, extrinsic_name).await?;
+	let extrinsic = parse_extrinsic_by_name(&api, pallet_name, extrinsic_name).await?;
 	let mut processed_parameters: Vec<Value> = Vec::new();
 	for (index, field) in extrinsic.fields.iter().enumerate() {
 		let raw_parameter = raw_params.get(index).ok_or(Error::ParamProcessingError)?;
@@ -244,68 +315,64 @@ pub async fn process_extrinsic_args(
 /// * `api`: Reference to an `OnlineClient` connected to the chain.
 /// * `pallet_name`: The name of the pallet to find.
 /// * `extrinsic_name`: Name of the extrinsic to locate.
-pub async fn find_extrinsic_by_name(
+async fn parse_extrinsic_by_name(
 	api: &OnlineClient<SubstrateConfig>,
 	pallet_name: &str,
 	extrinsic_name: &str,
 ) -> Result<Variant<PortableForm>, Error> {
-	let pallet = find_pallet_by_name(api, pallet_name).await?;
-	// Check if the specified extrinsic exists within this pallet
-	if let Some(extrinsic) = pallet.extrinsics.iter().find(|&e| e.name == extrinsic_name) {
-		return Ok(extrinsic.clone());
-	} else {
-		return Err(Error::ExtrinsicNotSupported(extrinsic_name.to_string()));
-	}
+	let metadata: Metadata = api.metadata();
+	let pallet = metadata
+		.pallets()
+		.into_iter()
+		.find(|p| p.name() == pallet_name)
+		.ok_or_else(|| Error::PalletNotFound(pallet_name.to_string()))?;
+	// Retrieve and check for the extrinsic within the pallet
+	let extrinsic = pallet
+		.call_variants()
+		.map(|variants| variants.iter().find(|e| e.name == extrinsic_name))
+		.flatten()
+		.ok_or_else(|| Error::ExtrinsicNotSupported(extrinsic_name.to_string()))?;
+
+	Ok(extrinsic.clone())
 }
 
-// #[cfg(test)]
-// mod tests {
-// 	use crate::set_up_api;
+#[cfg(test)]
+mod tests {
+	use crate::set_up_api;
 
-// 	use super::*;
-// 	use anyhow::Result;
+	use super::*;
+	use anyhow::Result;
 
-// 	#[tokio::test]
-// 	async fn process_prompt_arguments_works() -> Result<()> {
-// 		let api = set_up_api("ws://127.0.0.1:9944").await?;
-// 		// let ex = find_extrinsic_by_name(&api, "Balances", "transfer_allow_death").await?;
-// 		let ex = find_extrinsic_by_name(&api, "Nfts", "mint").await?;
-// 		let prompt_args1 = process_prompt_arguments(&api, &ex.fields()[2])?;
+	// #[tokio::test]
+	// async fn process_prompt_arguments_works() -> Result<()> {
+	// 	let api = set_up_api("ws://127.0.0.1:9944").await?;
+	// 	// let ex = find_extrinsic_by_name(&api, "Balances", "transfer_allow_death").await?;
+	// 	let ex = find_extrinsic_by_name(&api, "Nfts", "mint").await?;
+	// 	let prompt_args1 = process_prompt_arguments(&api, &ex.fields()[2])?;
 
-// 		Ok(())
-// 	}
+	// 	Ok(())
+	// }
 
-// 	#[tokio::test]
-// 	async fn process_extrinsic_args_works() -> Result<()> {
-// 		let api = set_up_api("ws://127.0.0.1:9944").await?;
-// 		// let ex = find_extrinsic_by_name(&api, "Balances", "transfer_allow_death").await?;
-// 		let ex = find_extrinsic_by_name(&api, "Nfts", "mint").await?;
-// 		let args_parsed = process_extrinsic_args(
-// 			&api,
-// 			"Nfts",
-// 			"mint",
-// 			vec![
-// 				"1".to_string(),
-// 				"1".to_string(),
-// 				"Id(5FLSigC9HGRKVhB9FiEo4Y3koPsNmBmLJbpXg2mp1hXcS59Y)".to_string(),
-// 				"Some(Some(1), Some(1))".to_string(),
-// 			],
-// 		)
-// 		.await?;
-// 		println!(" ARGS PARSER {:?}", args_parsed);
+	#[tokio::test]
+	async fn process_extrinsic_args_works() -> Result<()> {
+		let api = set_up_api("ws://127.0.0.1:9944").await?;
+		// let ex = find_extrinsic_by_name(&api, "Balances", "transfer_allow_death").await?;
+		let ex = parse_extrinsic_by_name(&api, "Utility", "batch").await?;
+		println!("EXTRINSIC {:?}", ex);
+		println!(" ARGS PARSER {:?}", ex.fields);
 
-// 		Ok(())
-// 	}
+		Ok(())
+	}
 
-// 	#[tokio::test]
-// 	async fn process_extrinsic_args2_works() -> Result<()> {
-// 		let api = set_up_api("ws://127.0.0.1:9944").await?;
-// 		// let ex = find_extrinsic_by_name(&api, "Balances", "transfer_allow_death").await?;
-// 		let ex = find_extrinsic_by_name(&api, "Nfts", "mint").await?;
-// 		let args_parsed =
-// 			process_extrinsic_args(&api, "System", "remark", vec!["0x11".to_string()]).await?;
-// 		println!(" ARGS PARSER {:?}", args_parsed);
+	// #[tokio::test]
+	// async fn process_extrinsic_args2_works() -> Result<()> {
+	// 	let api = set_up_api("ws://127.0.0.1:9944").await?;
+	// 	// let ex = find_extrinsic_by_name(&api, "Balances", "transfer_allow_death").await?;
+	// 	let ex = find_extrinsic_by_name(&api, "Nfts", "mint").await?;
+	// 	let args_parsed =
+	// 		process_extrinsic_args(&api, "System", "remark", vec!["0x11".to_string()]).await?;
+	// 	println!(" ARGS PARSER {:?}", args_parsed);
 
-// 		Ok(())
-// 	}
-// }
+	// 	Ok(())
+	// }
+}

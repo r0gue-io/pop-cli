@@ -19,7 +19,7 @@ pub use call::{
 	construct_extrinsic, encode_call_data,
 	metadata::{
 		action::{supported_actions, Action},
-		field_to_param, find_extrinsic_by_name, find_pallet_by_name, parse_chain_metadata, Param,
+		find_extrinsic_by_name, find_pallet_by_name, parse_chain_metadata, Pallet, Param,
 	},
 	set_up_api, sign_and_submit_extrinsic,
 };

@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use super::find_extrinsic_by_name;
+use super::{find_extrinsic_by_name, Pallet};
 use strum::{EnumMessage as _, EnumProperty as _, VariantArray as _};
 use strum_macros::{AsRefStr, Display, EnumMessage, EnumProperty, EnumString, VariantArray};
-use subxt::{OnlineClient, SubstrateConfig};
 
 /// Enum representing predefined actions.
 #[derive(
@@ -73,10 +72,10 @@ impl Action {
 	}
 }
 
-pub async fn supported_actions(api: &OnlineClient<SubstrateConfig>) -> Vec<Action> {
+pub async fn supported_actions(pallets: &[Pallet]) -> Vec<Action> {
 	let mut actions = Vec::new();
 	for action in Action::VARIANTS.iter() {
-		if find_extrinsic_by_name(api, action.pallet_name(), action.extrinsic_name())
+		if find_extrinsic_by_name(pallets, action.pallet_name(), action.extrinsic_name())
 			.await
 			.is_ok()
 		{
