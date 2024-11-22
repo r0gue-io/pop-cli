@@ -20,7 +20,7 @@ const DEFAULT_PAYABLE_VALUE: &str = "0";
 
 #[derive(Args, Clone)]
 pub struct CallContractCommand {
-	/// Path to the contract build directory.
+	/// Path to the contract build directory or a contract metadata file.
 	#[arg(short = 'p', long)]
 	path: Option<PathBuf>,
 	/// The address of the contract to call.
@@ -119,26 +119,36 @@ impl CallContractCommand {
 	}
 
 	/// Checks if the contract has been built; if not, builds it.
+	/// If the path is a metadata file, skips the build process
 	async fn ensure_contract_built(&self, cli: &mut impl Cli) -> Result<()> {
-		// Check if build exists in the specified "Contract build directory"
-		if !has_contract_been_built(self.path.as_deref()) {
-			// Build the contract in release mode
-			cli.warning("NOTE: contract has not yet been built.")?;
-			let spinner = spinner();
-			spinner.start("Building contract in RELEASE mode...");
-			let result = match build_smart_contract(self.path.as_deref(), true, Verbosity::Quiet) {
-				Ok(result) => result,
-				Err(e) => {
-					return Err(anyhow!(format!(
+		if let Some(path) = self.path.as_deref() {
+			// Check if is a directory, if is a file, skip the build process
+			if path.is_dir() {
+				// Check if build exists in the specified "Contract build directory"
+				if !has_contract_been_built(self.path.as_deref()) {
+					// Build the contract in release mode
+					cli.warning("NOTE: contract has not yet been built.")?;
+					let spinner = spinner();
+					spinner.start("Building contract in RELEASE mode...");
+					let result = match build_smart_contract(
+						self.path.as_deref(),
+						true,
+						Verbosity::Quiet,
+					) {
+						Ok(result) => result,
+						Err(e) => {
+							return Err(anyhow!(format!(
 						"🚫 An error occurred building your contract: {}\nUse `pop build` to retry with build output.",
 						e.to_string()
 					)));
-				},
-			};
-			spinner.stop(format!(
-				"Your contract artifacts are ready. You can find them in: {}",
-				result.target_directory.display()
-			));
+						},
+					};
+					spinner.stop(format!(
+						"Your contract artifacts are ready. You can find them in: {}",
+						result.target_directory.display()
+					));
+				}
+			}
 		}
 		Ok(())
 	}
@@ -156,25 +166,15 @@ impl CallContractCommand {
 		}
 
 		// Resolve path.
-		let contract_path = match self.path.as_ref() {
-			None => {
-				let path = Some(PathBuf::from("./"));
-				if has_contract_been_built(path.as_deref()) {
-					self.path = path;
-				} else {
-					// Prompt for path.
-					let input_path: String = cli
-						.input("Where is your project located?")
-						.placeholder("./")
-						.default_input("./")
-						.interact()?;
-					self.path = Some(PathBuf::from(input_path));
-				}
-
-				self.path.as_ref().unwrap()
-			},
-			Some(p) => p,
-		};
+		let contract_path = self.path.get_or_insert_with(|| {
+			let input_path: String = cli
+				.input("Where is your project or metadata file located?")
+				.placeholder("./")
+				.default_input("./")
+				.interact()
+				.unwrap();
+			PathBuf::from(input_path)
+		});
 
 		// Parse the contract metadata provided. If there is an error, do not prompt for more.
 		let messages = match get_messages(contract_path) {

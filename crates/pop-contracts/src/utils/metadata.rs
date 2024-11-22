@@ -44,12 +44,13 @@ pub enum FunctionType {
 /// # Arguments
 /// * `path` -  Location path of the project.
 pub fn get_messages(path: &Path) -> Result<Vec<ContractFunction>, Error> {
-	let cargo_toml_path = match path.ends_with("Cargo.toml") {
-		true => path.to_path_buf(),
-		false => path.join("Cargo.toml"),
+	let contract_artifacts = if path.is_dir() || path.ends_with("Cargo.toml") {
+		let cargo_toml_path =
+			if path.ends_with("Cargo.toml") { path.to_path_buf() } else { path.join("Cargo.toml") };
+		ContractArtifacts::from_manifest_or_file(Some(&cargo_toml_path), None)?
+	} else {
+		ContractArtifacts::from_manifest_or_file(None, Some(&path.to_path_buf()))?
 	};
-	let contract_artifacts =
-		ContractArtifacts::from_manifest_or_file(Some(&cargo_toml_path), None)?;
 	let transcoder = contract_artifacts.contract_transcoder()?;
 	let metadata = transcoder.metadata();
 	Ok(metadata
