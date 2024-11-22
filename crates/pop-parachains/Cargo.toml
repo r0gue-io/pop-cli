@@ -1,12 +1,12 @@
 [package]
 name = "pop-parachains"
 description = "Library for generating, building and running parachains."
-version = "0.3.0"
 license = "Apache-2.0"
 documentation = "https://docs.rs/pop-parachains/latest/pop_parachains"
 edition.workspace = true
 readme = "README.md"
 repository.workspace = true
+version.workspace = true
 
 [dependencies]
 anyhow.workspace = true
@@ -31,10 +31,9 @@ toml_edit.workspace = true
 walkdir.workspace = true
 # Zombienet
 zombienet-sdk.workspace = true
-zombienet-support.workspace = true
 
 # Pop
-pop-common = { path = "../pop-common", version = "0.3.0" }
+pop-common = { path = "../pop-common", version = "0.5.0" }
 
 [dev-dependencies]
 mockito.workspace = true

@@ -3,6 +3,7 @@
 use super::chain_specs::chain_spec_generator;
 pub use pop_common::{
 	git::GitHub,
+	polkadot_sdk::parse_latest_tag,
 	sourcing::{
 		traits::{Source as _, *},
 		Binary,
@@ -104,13 +105,16 @@ pub(super) async fn from(
 		let releases = relay.releases().await?;
 		let tag = Binary::resolve_version(name, version, &releases, cache);
 		// Only set latest when caller has not explicitly specified a version to use
-		let latest = version.is_none().then(|| releases.first().map(|v| v.to_string())).flatten();
+		let latest = version
+			.is_none()
+			.then(|| parse_latest_tag(releases.iter().map(|s| s.as_str()).collect()))
+			.flatten();
 		let binary = Binary::Source {
 			name: name.to_string(),
 			source: TryInto::try_into(&relay, tag, latest)?,
 			cache: cache.to_path_buf(),
 		};
-		let chain = chain.unwrap_or("rococo-local");
+		let chain = chain.unwrap_or("paseo-local");
 		return Ok(super::RelayChain {
 			binary,
 			workers: relay.workers(),
