@@ -608,7 +608,7 @@ mod tests {
 				"wss://rpc1.paseo.popnetwork.xyz".into(),
 			)
 			.expect_input(
-				"Where is your project located?",
+				"Where is your project or metadata file located?",
 				temp_dir.path().join("testing").display().to_string(),
 			).expect_info(format!(
 	            "pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message get --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice",
@@ -694,7 +694,7 @@ mod tests {
 				"wss://rpc1.paseo.popnetwork.xyz".into(),
 			)
 			.expect_input(
-				"Where is your project located?",
+				"Where is your project or metadata file located?",
 				temp_dir.path().join("testing").display().to_string(),
 			).expect_info(format!(
 				"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message specific_flip --args \"true\", \"2\" --value 50 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --execute",
@@ -779,7 +779,7 @@ mod tests {
 				"wss://rpc1.paseo.popnetwork.xyz".into(),
 			)
 			.expect_input(
-				"Where is your project located?",
+				"Where is your project or metadata file located?",
 				temp_dir.path().join("testing").display().to_string(),
 			).expect_info(format!(
 				"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message specific_flip --args \"true\", \"2\" --value 50 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --execute",

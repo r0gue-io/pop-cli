@@ -337,25 +337,39 @@ mod tests {
 	fn get_messages_work() -> Result<()> {
 		let temp_dir = new_environment("testing")?;
 		let current_dir = env::current_dir().expect("Failed to get current directory");
+
+		// Helper function to assert messages and their arguments
+		fn assert_contract_metadata_parsed(message: Vec<ContractFunction>) -> Result<()> {
+			assert_eq!(message.len(), 3);
+			assert_eq!(message[0].label, "flip");
+			assert_eq!(message[0].docs, " A message that can be called on instantiated contracts.  This one flips the value of the stored `bool` from `true`  to `false` and vice versa.");
+			assert_eq!(message[1].label, "get");
+			assert_eq!(message[1].docs, " Simply returns the current value of our `bool`.");
+			assert_eq!(message[2].label, "specific_flip");
+			assert_eq!(message[2].docs, " A message for testing, flips the value of the stored `bool` with `new_value`  and is payable");
+			// assert parsed arguments
+			assert_eq!(message[2].args.len(), 2);
+			assert_eq!(message[2].args[0].label, "new_value".to_string());
+			assert_eq!(message[2].args[0].type_name, "bool".to_string());
+			assert_eq!(message[2].args[1].label, "number".to_string());
+			assert_eq!(message[2].args[1].type_name, "Option<u32>: None, Some(u32)".to_string());
+			Ok(())
+		}
+
 		mock_build_process(
 			temp_dir.path().join("testing"),
 			current_dir.join("./tests/files/testing.contract"),
 			current_dir.join("./tests/files/testing.json"),
 		)?;
+
+		// Test with a directory path
 		let message = get_messages(&temp_dir.path().join("testing"))?;
-		assert_eq!(message.len(), 3);
-		assert_eq!(message[0].label, "flip");
-		assert_eq!(message[0].docs, " A message that can be called on instantiated contracts.  This one flips the value of the stored `bool` from `true`  to `false` and vice versa.");
-		assert_eq!(message[1].label, "get");
-		assert_eq!(message[1].docs, " Simply returns the current value of our `bool`.");
-		assert_eq!(message[2].label, "specific_flip");
-		assert_eq!(message[2].docs, " A message for testing, flips the value of the stored `bool` with `new_value`  and is payable");
-		// assert parsed arguments
-		assert_eq!(message[2].args.len(), 2);
-		assert_eq!(message[2].args[0].label, "new_value".to_string());
-		assert_eq!(message[2].args[0].type_name, "bool".to_string());
-		assert_eq!(message[2].args[1].label, "number".to_string());
-		assert_eq!(message[2].args[1].type_name, "Option<u32>: None, Some(u32)".to_string());
+		assert_contract_metadata_parsed(message)?;
+
+		// Test with a metadata file path
+		let message = get_messages(&current_dir.join("./tests/files/testing.contract"))?;
+		assert_contract_metadata_parsed(message)?;
+
 		Ok(())
 	}
 
