@@ -148,7 +148,7 @@ pub fn format_type(ty: &Type<PortableForm>, registry: &PortableRegistry) -> Stri
 				)
 			},
 			TypeDef::BitSequence(_) => {
-				unimplemented!("bit sequence not currently supported")
+				"BitSequence".to_string()
 			},
 		}
 	);
