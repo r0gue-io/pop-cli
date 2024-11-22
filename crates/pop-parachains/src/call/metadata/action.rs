@@ -4,7 +4,7 @@ use super::{find_extrinsic_by_name, Pallet};
 use strum::{EnumMessage as _, EnumProperty as _, VariantArray as _};
 use strum_macros::{AsRefStr, Display, EnumMessage, EnumProperty, EnumString, VariantArray};
 
-/// Enum representing predefined actions.
+/// Enum representing various predefined actions supported.
 #[derive(
 	AsRefStr,
 	Clone,
@@ -61,17 +61,22 @@ impl Action {
 		self.get_detailed_message().unwrap_or_default()
 	}
 
-	/// Get the the extrinsic name of the action.
+	/// Get the extrinsic name corresponding to the action.
 	pub fn extrinsic_name(&self) -> &str {
 		self.get_message().unwrap_or_default()
 	}
 
-	/// Get the pallet name of the action.
+	/// Get the associated pallet name for the action.
 	pub fn pallet_name(&self) -> &str {
 		self.get_str("Pallet").unwrap_or_default()
 	}
 }
 
+/// Fetch the list of supported actions based on available pallets.
+///
+/// # Arguments
+///
+/// * `pallets`: List of pallets availables in the chain.
 pub async fn supported_actions(pallets: &[Pallet]) -> Vec<Action> {
 	let mut actions = Vec::new();
 	for action in Action::VARIANTS.iter() {

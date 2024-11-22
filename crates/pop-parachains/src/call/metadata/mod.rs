@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::errors::Error;
-use pop_common::format_type;
-use scale_info::{form::PortableForm, Field, PortableRegistry, TypeDef, Variant};
+use scale_info::{form::PortableForm, Variant};
 use subxt::{dynamic::Value, Metadata, OnlineClient, SubstrateConfig};
 use type_parser::process_argument;
 
 pub mod action;
+mod params;
 mod type_parser;
 
 #[derive(Clone, PartialEq, Eq)]
@@ -48,7 +48,8 @@ pub struct Param {
 	pub is_variant: bool,
 }
 
-/// Parses the chain metadata to extract information about pallets and their extrinsics.
+/// Parses the chain metadata to extract information about pallets and their extrinsics with its
+/// parameters.
 ///
 /// # Arguments
 /// * `api`: Reference to an `OnlineClient` connected to the chain.
@@ -56,7 +57,6 @@ pub async fn parse_chain_metadata(
 	api: &OnlineClient<SubstrateConfig>,
 ) -> Result<Vec<Pallet>, Error> {
 	let metadata: Metadata = api.metadata();
-	let registry = metadata.types();
 
 	let pallets = metadata
 		.pallets()
@@ -73,14 +73,15 @@ pub async fn parse_chain_metadata(
 							let params = {
 								let mut parsed_params = Vec::new();
 								for field in &variant.fields {
-									match field_to_param(api, &variant.name, field) {
+									match params::field_to_param(api, &variant.name, field) {
 										Ok(param) => parsed_params.push(param),
 										Err(Error::ExtrinsicNotSupported(_)) => {
+											// Unsupported extrinsic due to complex types
 											is_supported = false;
-											parsed_params.clear(); // Discard any already-parsed params
-											break; // Stop processing further fields
+											parsed_params.clear();
+											break;
 										},
-										Err(e) => return Err(e), // Propagate other errors
+										Err(e) => return Err(e),
 									}
 								}
 								parsed_params
@@ -91,6 +92,7 @@ pub async fn parse_chain_metadata(
 								docs: if is_supported {
 									variant.docs.concat()
 								} else {
+									// To display the message in the UI
 									"Extrinsic Not Supported".to_string()
 								},
 								params,
@@ -115,7 +117,7 @@ pub async fn parse_chain_metadata(
 /// Finds a specific pallet by name and retrieves its details from metadata.
 ///
 /// # Arguments
-/// * `api`: Reference to an `OnlineClient` connected to the chain.
+/// * `pallets`: List of pallets availables in the chain.
 /// * `pallet_name`: The name of the pallet to find.
 pub async fn find_pallet_by_name(pallets: &[Pallet], pallet_name: &str) -> Result<Pallet, Error> {
 	if let Some(pallet) = pallets.iter().find(|p| p.name == pallet_name) {
@@ -128,7 +130,7 @@ pub async fn find_pallet_by_name(pallets: &[Pallet], pallet_name: &str) -> Resul
 /// Finds a specific extrinsic by name and retrieves its details from metadata.
 ///
 /// # Arguments
-/// * `api`: Reference to an `OnlineClient` connected to the chain.
+/// * `pallets`: List of pallets availables in the chain.
 /// * `pallet_name`: The name of the pallet to find.
 /// * `extrinsic_name`: Name of the extrinsic to locate.
 pub async fn find_extrinsic_by_name(
@@ -137,149 +139,10 @@ pub async fn find_extrinsic_by_name(
 	extrinsic_name: &str,
 ) -> Result<Extrinsic, Error> {
 	let pallet = find_pallet_by_name(pallets, pallet_name).await?;
-	// Check if the specified extrinsic exists within this pallet
 	if let Some(extrinsic) = pallet.extrinsics.iter().find(|&e| e.name == extrinsic_name) {
 		return Ok(extrinsic.clone());
 	} else {
 		return Err(Error::ExtrinsicNotSupported(extrinsic_name.to_string()));
-	}
-}
-
-/// Transforms a metadata field into its `Param` representation.
-///
-/// # Arguments
-/// * `api`: Reference to an `OnlineClient` connected to the blockchain.
-/// * `field`: A reference to a metadata field of the extrinsic.
-fn field_to_param(
-	api: &OnlineClient<SubstrateConfig>,
-	extrinsic_name: &str,
-	field: &Field<PortableForm>,
-) -> Result<Param, Error> {
-	let metadata: Metadata = api.metadata();
-	let registry = metadata.types();
-	let name = field.name.clone().unwrap_or("Unnamed".to_string()); //It can be unnamed field
-	type_to_param(extrinsic_name, name, registry, field.ty.id, &field.type_name)
-}
-
-/// Converts a type's metadata into a `Param` representation.
-///
-/// # Arguments
-/// * `name`: The name of the parameter.
-/// * `registry`: A reference to the `PortableRegistry` to resolve type dependencies.
-/// * `type_id`: The ID of the type to be converted.
-/// * `type_name`: An optional descriptive name for the type.
-fn type_to_param(
-	extrinsic_name: &str,
-	name: String,
-	registry: &PortableRegistry,
-	type_id: u32,
-	type_name: &Option<String>,
-) -> Result<Param, Error> {
-	let type_info = registry.resolve(type_id).ok_or(Error::MetadataParsingError(name.clone()))?;
-	if let Some(last_segment) = type_info.path.segments.last() {
-		if last_segment == "RuntimeCall" {
-			return Err(Error::ExtrinsicNotSupported(extrinsic_name.to_string()));
-		}
-	}
-	for param in &type_info.type_params {
-		if param.name == "RuntimeCall" ||
-			param.name == "Vec<RuntimeCall>" ||
-			param.name == "Vec<<T as Config>::RuntimeCall>"
-		{
-			return Err(Error::ExtrinsicNotSupported(extrinsic_name.to_string()));
-		}
-	}
-	if type_info.path.segments == ["Option"] {
-		if let Some(sub_type_id) = type_info.type_params.get(0).and_then(|param| param.ty) {
-			// Recursive for the sub parameters
-			let sub_param =
-				type_to_param(extrinsic_name, name.clone(), registry, sub_type_id.id, type_name)?;
-			return Ok(Param {
-				name,
-				type_name: sub_param.type_name,
-				is_optional: true,
-				sub_params: sub_param.sub_params,
-				is_variant: false,
-			});
-		} else {
-			Err(Error::MetadataParsingError(name))
-		}
-	} else {
-		// Determine the formatted type name.
-		let type_name = format_type(type_info, registry);
-		match &type_info.type_def {
-			TypeDef::Primitive(_) => Ok(Param {
-				name,
-				type_name,
-				is_optional: false,
-				sub_params: Vec::new(),
-				is_variant: false,
-			}),
-			TypeDef::Composite(composite) => {
-				let sub_params = composite
-					.fields
-					.iter()
-					.map(|field| {
-						// Recursive for the sub parameters of composite type.
-						type_to_param(
-							extrinsic_name,
-							field.name.clone().unwrap_or(name.clone()),
-							registry,
-							field.ty.id,
-							&field.type_name,
-						)
-					})
-					.collect::<Result<Vec<Param>, Error>>()?;
-
-				Ok(Param { name, type_name, is_optional: false, sub_params, is_variant: false })
-			},
-			TypeDef::Variant(variant) => {
-				let variant_params = variant
-					.variants
-					.iter()
-					.map(|variant_param| {
-						let variant_sub_params = variant_param
-							.fields
-							.iter()
-							.map(|field| {
-								// Recursive for the sub parameters of variant type.
-								type_to_param(
-									extrinsic_name,
-									field.name.clone().unwrap_or(variant_param.name.clone()),
-									registry,
-									field.ty.id,
-									&field.type_name,
-								)
-							})
-							.collect::<Result<Vec<Param>, Error>>()?;
-						Ok(Param {
-							name: variant_param.name.clone(),
-							type_name: "".to_string(),
-							is_optional: false,
-							sub_params: variant_sub_params,
-							is_variant: true,
-						})
-					})
-					.collect::<Result<Vec<Param>, Error>>()?;
-
-				Ok(Param {
-					name,
-					type_name,
-					is_optional: false,
-					sub_params: variant_params,
-					is_variant: true,
-				})
-			},
-			TypeDef::Array(_) | TypeDef::Sequence(_) | TypeDef::Tuple(_) | TypeDef::Compact(_) =>
-				Ok(Param {
-					name,
-					type_name,
-					is_optional: false,
-					sub_params: Vec::new(),
-					is_variant: false,
-				}),
-			_ => Err(Error::MetadataParsingError(name)),
-		}
 	}
 }
 
@@ -353,16 +216,16 @@ mod tests {
 	// 	Ok(())
 	// }
 
-	#[tokio::test]
-	async fn process_extrinsic_args_works() -> Result<()> {
-		let api = set_up_api("ws://127.0.0.1:9944").await?;
-		// let ex = find_extrinsic_by_name(&api, "Balances", "transfer_allow_death").await?;
-		let ex = parse_extrinsic_by_name(&api, "Utility", "batch").await?;
-		println!("EXTRINSIC {:?}", ex);
-		println!(" ARGS PARSER {:?}", ex.fields);
+	// #[tokio::test]
+	// async fn process_extrinsic_args_works() -> Result<()> {
+	// 	let api = set_up_api("ws://127.0.0.1:9944").await?;
+	// 	// let ex = find_extrinsic_by_name(&api, "Balances", "transfer_allow_death").await?;
+	// 	let ex = parse_extrinsic_by_name(&api, "Utility", "batch").await?;
+	// 	println!("EXTRINSIC {:?}", ex);
+	// 	println!(" ARGS PARSER {:?}", ex.fields);
 
-		Ok(())
-	}
+	// 	Ok(())
+	// }
 
 	// #[tokio::test]
 	// async fn process_extrinsic_args2_works() -> Result<()> {
