@@ -356,7 +356,7 @@ mod tests {
 			UpOpts {
 				path: None,
 				constructor: "new".to_string(),
-				args: vec!["false".to_string()].to_vec(),
+				args: vec![].to_vec(),
 				value: "0".to_string(),
 				gas_limit: None,
 				proof_size: None,
