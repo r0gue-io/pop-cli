@@ -3,6 +3,7 @@ use crate::{
 	errors::Error,
 	utils::{
 		helpers::{get_manifest_path, parse_balance},
+		metadata::{process_function_args, FunctionType},
 		signer::create_signer,
 	},
 };
@@ -62,10 +63,17 @@ pub async fn set_up_deployment(
 	let value: BalanceVariant<<DefaultEnvironment as Environment>::Balance> =
 		parse_balance(&up_opts.value)?;
 
+	// Process the argument values input by the user.
+	let args = process_function_args(
+		up_opts.path.unwrap_or_else(|| PathBuf::from("./")),
+		&up_opts.constructor,
+		up_opts.args,
+		FunctionType::Constructor,
+	)?;
 	let instantiate_exec: InstantiateExec<DefaultConfig, DefaultEnvironment, Keypair> =
 		InstantiateCommandBuilder::new(extrinsic_opts)
 			.constructor(up_opts.constructor.clone())
-			.args(up_opts.args.clone())
+			.args(args)
 			.value(value.denominate_balance(&token_metadata)?)
 			.gas_limit(up_opts.gas_limit)
 			.proof_size(up_opts.proof_size)

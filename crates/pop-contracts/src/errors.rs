@@ -28,6 +28,10 @@ pub enum Error {
 	InstallContractsNode(String),
 	#[error("{0}")]
 	InstantiateContractError(String),
+	#[error("Invalid constructor name: {0}")]
+	InvalidConstructorName(String),
+	#[error("Invalid message name: {0}")]
+	InvalidMessageName(String),
 	#[error("Invalid name: {0}")]
 	InvalidName(String),
 	#[error("IO error: {0}")]
@@ -36,6 +40,8 @@ pub enum Error {
 	KeyPairCreation(String),
 	#[error("Failed to get manifest path: {0}")]
 	ManifestPath(String),
+	#[error("Argument {0} is required")]
+	MissingArgument(String),
 	#[error("Failed to create new contract project: {0}")]
 	NewContract(String),
 	#[error("ParseError error: {0}")]
@@ -44,12 +50,14 @@ pub enum Error {
 	ParseSecretURI(String),
 	#[error("The `Repository` property is missing from the template variant")]
 	RepositoryMissing,
+	#[error("Sourcing error {0}")]
+	SourcingError(SourcingError),
 	#[error("Failed to execute test command: {0}")]
 	TestCommand(String),
 	#[error("Unsupported platform: {os}")]
 	UnsupportedPlatform { os: &'static str },
 	#[error("{0}")]
 	UploadContractError(String),
-	#[error("Sourcing error {0}")]
-	SourcingError(SourcingError),
+	#[error("Incorrect number of arguments provided. Expecting {expected}, {provided} provided")]
+	IncorrectArguments { expected: usize, provided: usize },
 }

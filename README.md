@@ -1,6 +1,6 @@
 # Pop CLI
 
-<img src="https://github.com/r0gue-io/pop-cli/blob/main/.icons/logo.jpeg"></img>
+<img src=".icons/logo.jpeg"></img>
 
 <div align="center">
   

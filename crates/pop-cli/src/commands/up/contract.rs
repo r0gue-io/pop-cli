@@ -35,7 +35,7 @@ pub struct UpContractCommand {
 	#[clap(name = "constructor", long, default_value = "new")]
 	constructor: String,
 	/// The constructor arguments, encoded as strings.
-	#[clap(long, num_args = 0..)]
+	#[clap(long, num_args = 0..,)]
 	args: Vec<String>,
 	/// Transfers an initial balance to the instantiated contract.
 	#[clap(name = "value", long, default_value = "0")]
@@ -321,7 +321,7 @@ mod tests {
 		let command = UpContractCommand {
 			path: None,
 			constructor: "new".to_string(),
-			args: vec!["false".to_string()].to_vec(),
+			args: vec![],
 			value: "0".to_string(),
 			gas_limit: None,
 			proof_size: None,

@@ -4,6 +4,7 @@ use crate::{
 	errors::Error,
 	utils::{
 		helpers::{get_manifest_path, parse_account, parse_balance},
+		metadata::{process_function_args, FunctionType},
 		signer::create_signer,
 	},
 };
@@ -19,8 +20,6 @@ use std::path::PathBuf;
 use subxt::{Config, PolkadotConfig as DefaultConfig};
 use subxt_signer::sr25519::Keypair;
 use url::Url;
-
-pub mod metadata;
 
 /// Attributes for the `call` command.
 pub struct CallOpts {
@@ -53,7 +52,7 @@ pub struct CallOpts {
 /// * `call_opts` - options for the `call` command.
 pub async fn set_up_call(
 	call_opts: CallOpts,
-) -> anyhow::Result<CallExec<DefaultConfig, DefaultEnvironment, Keypair>> {
+) -> Result<CallExec<DefaultConfig, DefaultEnvironment, Keypair>, Error> {
 	let token_metadata = TokenMetadata::query::<DefaultConfig>(&call_opts.url).await?;
 	let manifest_path = get_manifest_path(call_opts.path.as_deref())?;
 	let signer = create_signer(&call_opts.suri)?;
@@ -67,10 +66,17 @@ pub async fn set_up_call(
 		parse_balance(&call_opts.value)?;
 
 	let contract: <DefaultConfig as Config>::AccountId = parse_account(&call_opts.contract)?;
+	// Process the argument values input by the user.
+	let args = process_function_args(
+		call_opts.path.unwrap_or_else(|| PathBuf::from("./")),
+		&call_opts.message,
+		call_opts.args,
+		FunctionType::Message,
+	)?;
 
 	let call_exec: CallExec<DefaultConfig, DefaultEnvironment, Keypair> =
 		CallCommandBuilder::new(contract.clone(), &call_opts.message, extrinsic_opts)
-			.args(call_opts.args.clone())
+			.args(args)
 			.value(value.denominate_balance(&token_metadata)?)
 			.gas_limit(call_opts.gas_limit)
 			.proof_size(call_opts.proof_size)
@@ -212,11 +218,9 @@ mod tests {
 			suri: "//Alice".to_string(),
 			execute: false,
 		};
-		let call = set_up_call(call_opts).await;
-		assert!(call.is_err());
-		let error = call.err().unwrap();
-		assert_eq!(error.root_cause().to_string(), "Failed to find any contract artifacts in target directory. \nRun `cargo contract build --release` to generate the artifacts.");
-
+		assert!(
+			matches!(set_up_call(call_opts).await, Err(Error::AnyhowError(message)) if message.root_cause().to_string() == "Failed to find any contract artifacts in target directory. \nRun `cargo contract build --release` to generate the artifacts.")
+		);
 		Ok(())
 	}
 	#[tokio::test]
@@ -233,11 +237,9 @@ mod tests {
 			suri: "//Alice".to_string(),
 			execute: false,
 		};
-		let call = set_up_call(call_opts).await;
-		assert!(call.is_err());
-		let error = call.err().unwrap();
-		assert_eq!(error.root_cause().to_string(), "No 'ink' dependency found");
-
+		assert!(
+			matches!(set_up_call(call_opts).await, Err(Error::AnyhowError(message)) if message.root_cause().to_string() == "No 'ink' dependency found")
+		);
 		Ok(())
 	}
 
