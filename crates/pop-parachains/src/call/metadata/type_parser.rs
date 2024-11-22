@@ -22,7 +22,8 @@ pub fn process_argument(
 	let type_path = ty.path.segments.join("::");
 	match type_path.as_str() {
 		"Option" => handle_option_type(arg, ty, registry),
-		"sp_core::crypto::AccountId32" => Ok(Value::from_bytes(parse_account(arg)?)), /* Specifically parse AccountId */
+		// TODO: Handle other account types.
+		"sp_core::crypto::AccountId32" => Ok(Value::from_bytes(parse_account(arg)?)),
 		_ => match &ty.type_def {
 			TypeDef::Primitive(primitive) => primitive.parse(arg, registry),
 			TypeDef::Composite(composite) => composite.parse(arg, registry),
