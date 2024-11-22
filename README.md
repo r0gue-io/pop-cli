@@ -1,6 +1,6 @@
 # Pop CLI
 
-<img src=".icons/logo.jpeg"></img>
+<img src="https://learn.onpop.io/~gitbook/image?url=https%3A%2F%2F574321477-files.gitbook.io%2F%7E%2Ffiles%2Fv0%2Fb%2Fgitbook-x-prod.appspot.com%2Fo%2Fspaces%252FUqTUVzYjmRwzCWTsfd1O%252Fuploads%252FxALe5uzVAiXnQFZOjxmw%252Fplay-on-polkadot.png%3Falt%3Dmedia%26token%3Dd8ce69f9-39fc-4568-9404-381032d923d4&width=400&dpr=2&quality=100&sign=19e161&sv=1"></img>
 
 <div align="center">
   

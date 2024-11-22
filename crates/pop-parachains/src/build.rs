@@ -381,7 +381,7 @@ mod tests {
 			config.as_file(),
 			r#"
 [relaychain]
-chain = "rococo-local"
+chain = "paseo-local"
 
 [[parachains]]
 id = 4385

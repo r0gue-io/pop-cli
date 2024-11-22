@@ -8,7 +8,7 @@ use crate::{
 use anyhow::Result;
 use pop_common::{
 	git::Git,
-	templates::{Template, Type},
+	templates::{extractor::extract_template_files, Template, Type},
 };
 use std::{fs, path::Path};
 use walkdir::WalkDir;
@@ -31,6 +31,9 @@ pub fn instantiate_template_dir(
 
 	if Provider::Pop.provides(template) {
 		return instantiate_standard_template(template, target, config, tag_version);
+	}
+	if Provider::OpenZeppelin.provides(template) {
+		return instantiate_openzeppelin_template(template, target, tag_version);
 	}
 	let tag = Git::clone_and_degit(template.repository_url()?, target, tag_version)?;
 	Ok(tag)
@@ -72,6 +75,25 @@ pub fn instantiate_standard_template(
 	// Add network configuration
 	let network = Network { node: "parachain-template-node".into() };
 	write_to_file(&target.join("network.toml"), network.render().expect("infallible").as_ref())?;
+	Ok(tag)
+}
+
+pub fn instantiate_openzeppelin_template(
+	template: &Parachain,
+	target: &Path,
+	tag_version: Option<String>,
+) -> Result<Option<String>> {
+	let temp_dir = ::tempfile::TempDir::new_in(std::env::temp_dir())?;
+	let source = temp_dir.path();
+
+	let tag = Git::clone_and_degit(template.repository_url()?, source, tag_version)?;
+	let mut template_name = template.template_name_without_provider();
+	// Handle deprecated OpenZeppelin template
+	if matches!(template, Parachain::DeprecatedOpenZeppelinGeneric) {
+		template_name = Parachain::OpenZeppelinGeneric.template_name_without_provider();
+	}
+
+	extract_template_files(template_name, temp_dir.path(), target, None)?;
 	Ok(tag)
 }
 
@@ -117,6 +139,24 @@ mod tests {
 			generated_file_content,
 			expected_file_content.replace("^^node^^", "parachain-template-node")
 		);
+
+		Ok(())
+	}
+
+	#[test]
+	fn test_parachain_instantiate_openzeppelin_template() -> Result<()> {
+		let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
+		instantiate_openzeppelin_template(&Parachain::OpenZeppelinEVM, temp_dir.path(), None)?;
+
+		let node_manifest =
+			pop_common::manifest::from_path(Some(&temp_dir.path().join("node/Cargo.toml")))
+				.expect("Failed to read file");
+		assert_eq!("evm-template-node", node_manifest.package().name());
+
+		let runtime_manifest =
+			pop_common::manifest::from_path(Some(&temp_dir.path().join("runtime/Cargo.toml")))
+				.expect("Failed to read file");
+		assert_eq!("evm-runtime-template", runtime_manifest.package().name());
 
 		Ok(())
 	}

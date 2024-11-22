@@ -17,6 +17,7 @@ edition = "2021"
 documentation = "https://learn.onpop.io/"
 license = "GPL-3.0"
 repository = "https://github.com/r0gue-io/pop-cli"
+version = "0.5.0"
 
 [workspace.dependencies]
 anyhow = "1.0"
@@ -62,8 +63,7 @@ toml_edit = { version = "0.22", features = ["serde"] }
 symlink = "0.1"
 serde_json = { version = "1.0", features = ["preserve_order"] }
 serde = { version = "1.0", features = ["derive"] }
-zombienet-sdk = "0.2.7"
-zombienet-support = "0.2.7"
+zombienet-sdk = "0.2.14"
 git2_credentials = "0.13.0"
 
 # pop-cli
