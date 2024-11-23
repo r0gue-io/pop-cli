@@ -329,11 +329,11 @@ mod tests {
 		})
 		.await?;
 		let weight = dry_run_gas_estimate_instantiate(&instantiate_exec).await?;
-		let address = instantiate_smart_contract(instantiate_exec, weight).await?;
+		let contract_info = instantiate_smart_contract(instantiate_exec, weight).await?;
 		// Test querying a value.
 		let query_exec = set_up_call(CallOpts {
 			path: Some(temp_dir.path().join("testing")),
-			contract: address.clone(),
+			contract: contract_info.address.clone(),
 			message: "get".to_string(),
 			args: [].to_vec(),
 			value: "0".to_string(),
@@ -349,7 +349,7 @@ mod tests {
 		// Test extrinsic execution by flipping the value.
 		let call_exec = set_up_call(CallOpts {
 			path: Some(temp_dir.path().join("testing")),
-			contract: address,
+			contract: contract_info.address,
 			message: "flip".to_string(),
 			args: [].to_vec(),
 			value: "0".to_string(),

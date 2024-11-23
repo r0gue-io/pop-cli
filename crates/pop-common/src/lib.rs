@@ -4,6 +4,7 @@ pub mod git;
 pub mod helpers;
 pub mod manifest;
 pub mod metadata;
+pub mod polkadot_sdk;
 pub mod signer;
 pub mod sourcing;
 pub mod templates;
@@ -42,16 +43,18 @@ pub fn target() -> Result<&'static str, Error> {
 	}
 
 	match ARCH {
-		"aarch64" =>
+		"aarch64" => {
 			return match OS {
 				"macos" => Ok("aarch64-apple-darwin"),
 				_ => Ok("aarch64-unknown-linux-gnu"),
-			},
-		"x86_64" | "x86" =>
+			}
+		},
+		"x86_64" | "x86" => {
 			return match OS {
 				"macos" => Ok("x86_64-apple-darwin"),
 				_ => Ok("x86_64-unknown-linux-gnu"),
-			},
+			}
+		},
 		&_ => {},
 	}
 	Err(Error::UnsupportedPlatform { arch: ARCH, os: OS })

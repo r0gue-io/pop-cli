@@ -86,7 +86,7 @@ async fn contract_lifecycle() -> Result<()> {
 	})
 	.await?;
 	let weight_limit = dry_run_gas_estimate_instantiate(&instantiate_exec).await?;
-	let contract_address = instantiate_smart_contract(instantiate_exec, weight_limit).await?;
+	let contract_info = instantiate_smart_contract(instantiate_exec, weight_limit).await?;
 	// Call contract (only query)
 	// pop call contract --contract $INSTANTIATED_CONTRACT_ADDRESS --message get --suri //Alice
 	Command::cargo_bin("pop")
@@ -96,7 +96,7 @@ async fn contract_lifecycle() -> Result<()> {
 			"call",
 			"contract",
 			"--contract",
-			&contract_address,
+			&contract_info.address,
 			"--message",
 			"get",
 			"--suri",
@@ -114,7 +114,7 @@ async fn contract_lifecycle() -> Result<()> {
 			"call",
 			"contract",
 			"--contract",
-			&contract_address,
+			&contract_info.address,
 			"--message",
 			"flip",
 			"--suri",

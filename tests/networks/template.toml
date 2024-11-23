@@ -1,7 +1,7 @@
 # pop up parachain -f ./tests/networks/template.toml
 
 [relaychain]
-chain = "rococo-local"
+chain = "paseo-local"
 
 [[relaychain.nodes]]
 name = "alice"
