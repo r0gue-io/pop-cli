@@ -4,7 +4,7 @@ use crate::errors::Error;
 use contract_extrinsics::ContractArtifacts;
 use contract_transcode::ink_metadata::MessageParamSpec;
 use pop_common::format_type;
-use scale_info::{form::PortableForm, PortableRegistry, Type, TypeDef, TypeDefPrimitive};
+use scale_info::{form::PortableForm, PortableRegistry};
 use std::path::Path;
 
 /// Describes a parameter.

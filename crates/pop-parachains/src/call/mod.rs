@@ -16,13 +16,11 @@ pub async fn set_up_api(url: &str) -> Result<OnlineClient<SubstrateConfig>, Erro
 }
 
 pub async fn construct_extrinsic(
-	api: &OnlineClient<SubstrateConfig>,
 	pallet_name: &str,
 	extrinsic_name: &str,
 	args: Vec<String>,
 ) -> Result<DynamicPayload, Error> {
-	let parsed_args: Vec<Value> =
-		metadata::process_extrinsic_args(api, pallet_name, extrinsic_name, args).await?;
+	let parsed_args: Vec<Value> = metadata::parse_extrinsic_arguments(args).await?;
 	Ok(subxt::dynamic::tx(pallet_name, extrinsic_name, parsed_args))
 }
 
