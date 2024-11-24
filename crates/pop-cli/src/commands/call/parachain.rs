@@ -189,7 +189,7 @@ impl CallParachainCommand {
 				return Err(anyhow!("Please specify the pallet."));
 			},
 		};
-		let tx = match construct_extrinsic(api, &pallet, &extrinsic, self.args.clone()).await {
+		let tx = match construct_extrinsic(&pallet, &extrinsic, self.args.clone()).await {
 			Ok(tx) => tx,
 			Err(e) => {
 				return Err(anyhow!("Error: {}", e));
@@ -305,7 +305,7 @@ fn prompt_for_param(
 			))
 			.interact()?
 		{
-			return Ok("None".to_string());
+			return Ok("None()".to_string());
 		}
 		let value = get_param_value(api, cli, param)?;
 		Ok(format!("Some({})", value))
@@ -324,6 +324,8 @@ fn get_param_value(
 		prompt_for_primitive_param(cli, param)
 	} else if param.is_variant {
 		prompt_for_variant_param(api, cli, param)
+	} else if param.is_tuple {
+		prompt_for_tuple_param(api, cli, param)
 	} else {
 		prompt_for_composite_param(api, cli, param)
 	}
@@ -360,7 +362,7 @@ fn prompt_for_variant_param(
 		}
 		Ok(format!("{}({})", selected_variant.name, field_values.join(", ")))
 	} else {
-		Ok(selected_variant.name.clone())
+		Ok(format!("{}()", selected_variant.name.clone()))
 	}
 }
 
@@ -373,7 +375,32 @@ fn prompt_for_composite_param(
 	let mut field_values = Vec::new();
 	for field_arg in &param.sub_params {
 		let field_value = prompt_for_param(api, cli, field_arg)?;
-		field_values.push(field_value);
+		// Example: Param { name: "Id", type_name: "AccountId32 ([u8;32])", is_optional: false,
+		// sub_params: [Param { name: "Id", type_name: "[u8;32]", is_optional: false, sub_params:
+		// [], is_variant: false }], is_variant: false }
+		if param.sub_params.len() == 1 && param.name == param.sub_params[0].name {
+			field_values.push(format!("{}", field_value));
+		} else {
+			field_values.push(format!("{}: {}", field_arg.name, field_value));
+		}
 	}
-	Ok(field_values.join(", "))
+	if param.sub_params.len() == 1 && param.name == param.sub_params[0].name {
+		Ok(format!("{}", field_values.join(", ")))
+	} else {
+		Ok(format!("{{{}}}", field_values.join(", ")))
+	}
+}
+
+// Recursively prompt the user for the tuple values.
+fn prompt_for_tuple_param(
+	api: &OnlineClient<SubstrateConfig>,
+	cli: &mut impl cli::traits::Cli,
+	param: &Param,
+) -> Result<String> {
+	let mut tuple_values = Vec::new();
+	for (_index, tuple_param) in param.sub_params.iter().enumerate() {
+		let tuple_value = prompt_for_param(api, cli, tuple_param)?;
+		tuple_values.push(tuple_value);
+	}
+	Ok(format!("({})", tuple_values.join(", ")))
 }

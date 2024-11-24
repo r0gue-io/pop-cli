@@ -1,9 +1,26 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{errors::Error, Param};
+use crate::errors::Error;
 use pop_common::format_type;
 use scale_info::{form::PortableForm, Field, PortableRegistry, TypeDef};
 use subxt::{Metadata, OnlineClient, SubstrateConfig};
+
+/// Describes a parameter of an extrinsic.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Param {
+	/// The name of the parameter.
+	pub name: String,
+	/// The type of the parameter.
+	pub type_name: String,
+	/// Nested parameters for composite, variants types or tuples.
+	pub sub_params: Vec<Param>,
+	/// Indicates if the parameter is optional (`Option<T>`).
+	pub is_optional: bool,
+	/// Indicates if the parameter is a Tuple.
+	pub is_tuple: bool,
+	/// Indicates if the parameter is a Variant.
+	pub is_variant: bool,
+}
 
 /// Transforms a metadata field into its `Param` representation.
 ///
@@ -57,8 +74,9 @@ fn type_to_param(
 			return Ok(Param {
 				name,
 				type_name: sub_param.type_name,
-				is_optional: true,
 				sub_params: sub_param.sub_params,
+				is_optional: true,
+				is_tuple: false,
 				is_variant: false,
 			});
 		} else {
@@ -68,11 +86,15 @@ fn type_to_param(
 		// Determine the formatted type name.
 		let type_name = format_type(type_info, registry);
 		match &type_info.type_def {
-			TypeDef::Primitive(_) => Ok(Param {
+			TypeDef::Primitive(_) |
+			TypeDef::Array(_) |
+			TypeDef::Sequence(_) |
+			TypeDef::Compact(_) => Ok(Param {
 				name,
 				type_name,
-				is_optional: false,
 				sub_params: Vec::new(),
+				is_optional: false,
+				is_tuple: false,
 				is_variant: false,
 			}),
 			TypeDef::Composite(composite) => {
@@ -91,7 +113,14 @@ fn type_to_param(
 					})
 					.collect::<Result<Vec<Param>, Error>>()?;
 
-				Ok(Param { name, type_name, is_optional: false, sub_params, is_variant: false })
+				Ok(Param {
+					name,
+					type_name,
+					sub_params,
+					is_optional: false,
+					is_tuple: false,
+					is_variant: false,
+				})
 			},
 			TypeDef::Variant(variant) => {
 				let variant_params = variant
@@ -115,8 +144,9 @@ fn type_to_param(
 						Ok(Param {
 							name: variant_param.name.clone(),
 							type_name: "".to_string(),
-							is_optional: false,
 							sub_params: variant_sub_params,
+							is_optional: false,
+							is_tuple: false,
 							is_variant: true,
 						})
 					})
@@ -125,19 +155,37 @@ fn type_to_param(
 				Ok(Param {
 					name,
 					type_name,
-					is_optional: false,
 					sub_params: variant_params,
+					is_optional: false,
+					is_tuple: false,
 					is_variant: true,
 				})
 			},
-			TypeDef::Array(_) | TypeDef::Sequence(_) | TypeDef::Tuple(_) | TypeDef::Compact(_) =>
+			TypeDef::Tuple(tuple) => {
+				let sub_params = tuple
+					.fields
+					.iter()
+					.enumerate()
+					.map(|(index, field_id)| {
+						type_to_param(
+							extrinsic_name,
+							format!("Index {} of the tuple {}", index.to_string(), name),
+							registry,
+							field_id.id,
+							&None,
+						)
+					})
+					.collect::<Result<Vec<Param>, Error>>()?;
+
 				Ok(Param {
 					name,
 					type_name,
+					sub_params,
 					is_optional: false,
-					sub_params: Vec::new(),
+					is_tuple: true,
 					is_variant: false,
-				}),
+				})
+			},
 			_ => Err(Error::MetadataParsingError(name)),
 		}
 	}

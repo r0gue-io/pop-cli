@@ -52,6 +52,7 @@ contract-build = "5.0.0-alpha"
 contract-extrinsics = "5.0.0-alpha"
 contract-transcode = "5.0.0-alpha"
 scale-info = { version = "2.11.3", default-features = false, features = ["derive"] }
+scale-value = { version = "0.16.2", default-features = false, features = ["from-string", "parser-ss58"] }
 heck = "0.5.0"
 hex = { version = "0.4.3", default-features = false }
 
