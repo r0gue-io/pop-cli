@@ -47,6 +47,13 @@ pub enum Action {
 	)]
 	MintNFT,
 	#[strum(
+		serialize = "place_order_allow_death",
+		message = "place_order_allow_death",
+		detailed_message = "Purchase on-demand coretime",
+		props(Pallet = "OnDemand")
+	)]
+	PurchaseOnDemandCoretime,
+	#[strum(
 		serialize = "transfer",
 		message = "transfer_allow_death",
 		detailed_message = "Transfer Balance",
