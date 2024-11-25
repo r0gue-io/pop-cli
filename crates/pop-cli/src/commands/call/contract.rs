@@ -12,7 +12,7 @@ use pop_contracts::{
 	get_messages, parse_account, set_up_call, CallOpts, Verbosity,
 };
 use sp_weights::Weight;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 const DEFAULT_URL: &str = "ws://localhost:9944/";
 const DEFAULT_URI: &str = "//Alice";
@@ -68,8 +68,6 @@ pub struct CallContractCommand {
 impl CallContractCommand {
 	/// Executes the command.
 	pub(crate) async fn execute(mut self) -> Result<()> {
-		// Ensure contract is built.
-		self.ensure_contract_built(&mut cli::Cli).await?;
 		// Check if message specified via command line argument.
 		let prompt_to_repeat_call = self.message.is_none();
 		// Configure the call based on command line arguments/call UI.
@@ -118,41 +116,6 @@ impl CallContractCommand {
 		full_message
 	}
 
-	/// Checks if the contract has been built; if not, builds it.
-	/// If the path is a metadata file, skips the build process
-	async fn ensure_contract_built(&self, cli: &mut impl Cli) -> Result<()> {
-		if let Some(path) = self.path.as_deref() {
-			// Check if is a directory, if is a file, skip the build process
-			if path.is_dir() {
-				// Check if build exists in the specified "Contract build directory"
-				if !has_contract_been_built(self.path.as_deref()) {
-					// Build the contract in release mode
-					cli.warning("NOTE: contract has not yet been built.")?;
-					let spinner = spinner();
-					spinner.start("Building contract in RELEASE mode...");
-					let result = match build_smart_contract(
-						self.path.as_deref(),
-						true,
-						Verbosity::Quiet,
-					) {
-						Ok(result) => result,
-						Err(e) => {
-							return Err(anyhow!(format!(
-						"🚫 An error occurred building your contract: {}\nUse `pop build` to retry with build output.",
-						e.to_string()
-					)));
-						},
-					};
-					spinner.stop(format!(
-						"Your contract artifacts are ready. You can find them in: {}",
-						result.target_directory.display()
-					));
-				}
-			}
-		}
-		Ok(())
-	}
-
 	/// Configure the call based on command line arguments/call UI.
 	async fn configure(&mut self, cli: &mut impl Cli, repeat: bool) -> Result<()> {
 		// Show intro on first run.
@@ -166,15 +129,21 @@ impl CallContractCommand {
 		}
 
 		// Resolve path.
-		let contract_path = self.path.get_or_insert_with(|| {
+		if self.path.is_none() {
 			let input_path: String = cli
 				.input("Where is your project or metadata file located?")
 				.placeholder("./")
 				.default_input("./")
-				.interact()
-				.unwrap();
-			PathBuf::from(input_path)
-		});
+				.interact()?;
+			self.path = Some(PathBuf::from(input_path));
+		}
+		let contract_path = self
+			.path
+			.as_ref()
+			.expect("path is guaranteed to be set as input is prompted when None; qed");
+
+		// Ensure contract is built.
+		ensure_contract_built(contract_path, &mut cli::Cli).expect("eerror here");
 
 		// Parse the contract metadata provided. If there is an error, do not prompt for more.
 		let messages = match get_messages(contract_path) {
@@ -338,7 +307,7 @@ impl CallContractCommand {
 		{
 			Ok(call_exec) => call_exec,
 			Err(e) => {
-				return Err(anyhow!(format!("{}", e.to_string())));
+				return Err(anyhow!(format!("ADJNAFJAFI{}", e.to_string())));
 			},
 		};
 
@@ -420,6 +389,33 @@ impl CallContractCommand {
 	}
 }
 
+/// Checks if the contract has been built; if not, builds it.
+/// If the path is a metadata file, skips the build process
+fn ensure_contract_built(path: &Path, cli: &mut impl Cli) -> Result<()> {
+	// Check if is a directory, if is a file, skip the build process
+	if !path.is_dir() || has_contract_been_built(Some(path)) {
+		return Ok(());
+	}
+	// Build the contract in release mode
+	cli.warning("NOTE: contract has not yet been built.")?;
+	let spinner = spinner();
+	spinner.start("Building contract in RELEASE mode...");
+	let result = match build_smart_contract(Some(path), true, Verbosity::Quiet) {
+		Ok(result) => result,
+		Err(e) => {
+			return Err(anyhow!(format!(
+						"🚫 An error occurred building your contract: {}\nUse `pop build` to retry with build output.",
+						e.to_string()
+					)));
+		},
+	};
+	spinner.stop(format!(
+		"Your contract artifacts are ready. You can find them in: {}",
+		result.target_directory.display()
+	));
+	Ok(())
+}
+
 fn display_message(message: &str, success: bool, cli: &mut impl Cli) -> Result<()> {
 	if success {
 		cli.outro(message)?;
@@ -435,6 +431,7 @@ mod tests {
 	use crate::cli::MockCli;
 	use pop_contracts::{mock_build_process, new_environment};
 	use std::env;
+	use std::fs::write;
 	use url::Url;
 
 	#[tokio::test]
@@ -828,6 +825,18 @@ mod tests {
 	#[tokio::test]
 	async fn guide_user_to_call_contract_fails_not_build() -> Result<()> {
 		let temp_dir = new_environment("testing")?;
+		let mut current_dir = env::current_dir().expect("Failed to get current directory");
+		current_dir.pop();
+		// Create invalid `.json` and `.contract` files in the mock build directory and avoid building the contract.
+		let invalid_contract_path = temp_dir.path().join("testing.contract");
+		let invalid_json_path = temp_dir.path().join("testing.json");
+		write(&invalid_contract_path, b"This is an invalid contract file")?;
+		write(&invalid_json_path, b"This is an invalid JSON file")?;
+		mock_build_process(
+			temp_dir.path().join("testing"),
+			invalid_contract_path.clone(),
+			invalid_json_path.clone(),
+		)?;
 		let mut cli = MockCli::new();
 		assert!(matches!(CallContractCommand {
 			path: Some(temp_dir.path().join("testing")),
@@ -842,7 +851,7 @@ mod tests {
 			dry_run: false,
 			execute: false,
 			dev_mode: false,
-		}.configure(&mut cli, false).await, Err(message) if message.to_string().contains("Unable to fetch contract metadata: Failed to find any contract artifacts in target directory.")));
+		}.configure(&mut cli, false).await, Err(message) if message.to_string().contains("Unable to fetch contract metadata")));
 		cli.verify()
 	}
 
