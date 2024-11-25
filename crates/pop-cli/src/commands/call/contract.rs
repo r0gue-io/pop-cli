@@ -12,7 +12,7 @@ use pop_contracts::{
 	get_messages, parse_account, set_up_call, CallOpts, Verbosity,
 };
 use sp_weights::Weight;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 const DEFAULT_URL: &str = "ws://localhost:9944/";
 const DEFAULT_URI: &str = "//Alice";
@@ -116,6 +116,31 @@ impl CallContractCommand {
 		full_message
 	}
 
+	/// Checks if the contract has been built; if not, builds it.
+	async fn ensure_contract_built(&self, cli: &mut impl Cli) -> Result<()> {
+		// Check if build exists in the specified "Contract build directory"
+		if !has_contract_been_built(self.path.as_deref()) {
+			// Build the contract in release mode
+			cli.warning("NOTE: contract has not yet been built.")?;
+			let spinner = spinner();
+			spinner.start("Building contract in RELEASE mode...");
+			let result = match build_smart_contract(self.path.as_deref(), true, Verbosity::Quiet) {
+				Ok(result) => result,
+				Err(e) => {
+					return Err(anyhow!(format!(
+						"🚫 An error occurred building your contract: {}\nUse `pop build` to retry with build output.",
+						e.to_string()
+					)));
+				},
+			};
+			spinner.stop(format!(
+				"Your contract artifacts are ready. You can find them in: {}",
+				result.target_directory.display()
+			));
+		}
+		Ok(())
+	}
+
 	/// Configure the call based on command line arguments/call UI.
 	async fn configure(&mut self, cli: &mut impl Cli, repeat: bool) -> Result<()> {
 		// Show intro on first run.
@@ -143,7 +168,7 @@ impl CallContractCommand {
 			.expect("path is guaranteed to be set as input is prompted when None; qed");
 
 		// Ensure contract is built.
-		ensure_contract_built(contract_path, &mut cli::Cli)?;
+		self.ensure_contract_built(&mut cli::Cli).await?;
 
 		// Parse the contract metadata provided. If there is an error, do not prompt for more.
 		let messages = match get_messages(contract_path) {
@@ -386,33 +411,6 @@ impl CallContractCommand {
 		self.gas_limit = None;
 		self.proof_size = None;
 	}
-}
-
-/// Checks if the contract has been built; if not, builds it.
-/// If the path is an artifact file, skips the build process
-fn ensure_contract_built(path: &Path, cli: &mut impl Cli) -> Result<()> {
-	// Check if is a directory, if is a file, skip the build process
-	if !path.is_dir() || has_contract_been_built(Some(path)) {
-		return Ok(());
-	}
-	// Build the contract in release mode
-	cli.warning("NOTE: contract has not yet been built.")?;
-	let spinner = spinner();
-	spinner.start("Building contract in RELEASE mode...");
-	let result = match build_smart_contract(Some(path), true, Verbosity::Quiet) {
-		Ok(result) => result,
-		Err(e) => {
-			return Err(anyhow!(format!(
-						"🚫 An error occurred building your contract: {}\nUse `pop build` to retry with build output.",
-						e.to_string()
-					)));
-		},
-	};
-	spinner.stop(format!(
-		"Your contract artifacts are ready. You can find them in: {}",
-		result.target_directory.display()
-	));
-	Ok(())
 }
 
 fn display_message(message: &str, success: bool, cli: &mut impl Cli) -> Result<()> {
