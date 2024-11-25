@@ -34,6 +34,14 @@ pub async fn construct_extrinsic(
 	Ok(subxt::dynamic::tx(pallet_name, extrinsic_name, parsed_args))
 }
 
+/// Constructs a Sudo extrinsic.
+///
+/// # Arguments
+/// * `tx`: The transaction to be executed with sudo privileges.
+pub async fn construct_sudo_extrinsic(tx: DynamicPayload) -> Result<DynamicPayload, Error> {
+	Ok(subxt::dynamic::tx("Sudo", "sudo", [tx.into_value()].to_vec()))
+}
+
 /// Signs and submits a given extrinsic to the blockchain.
 ///
 /// # Arguments

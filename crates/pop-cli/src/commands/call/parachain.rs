@@ -4,8 +4,8 @@ use crate::cli::{self, traits::*};
 use anyhow::{anyhow, Result};
 use clap::Args;
 use pop_parachains::{
-	construct_extrinsic, encode_call_data, find_extrinsic_by_name, find_pallet_by_name,
-	parse_chain_metadata, set_up_api, sign_and_submit_extrinsic,
+	construct_extrinsic, construct_sudo_extrinsic, encode_call_data, find_extrinsic_by_name,
+	find_pallet_by_name, parse_chain_metadata, set_up_api, sign_and_submit_extrinsic,
 	sign_and_submit_extrinsic_with_call_data, supported_actions, Action, DynamicPayload,
 	OnlineClient, Pallet, Param, SubstrateConfig,
 };
@@ -34,6 +34,9 @@ pub struct CallParachainCommand {
 	/// - with a password "//Alice///SECRET_PASSWORD"
 	#[clap(name = "suri", long, short, default_value = DEFAULT_URI)]
 	suri: String,
+	/// Authenticates the sudo key and dispatches a function call with `Root` origin.
+	#[arg(name = "sudo", long, short = 'S')]
+	sudo: bool,
 	/// SCALE encoded bytes representing the call data of the transaction.
 	#[arg(name = "call", short = 'c', long, conflicts_with_all = ["pallet", "extrinsic", "args"])]
 	call_data: Option<String>,
@@ -97,6 +100,9 @@ impl CallParachainCommand {
 			full_message.push_str(&format!(" --args {}", args.join(" ")));
 		}
 		full_message.push_str(&format!(" --url {} --suri {}", self.url, self.suri));
+		if self.sudo {
+			full_message.push_str(" --sudo");
+		}
 		full_message
 	}
 
@@ -195,6 +201,13 @@ impl CallParachainCommand {
 			}
 			self.args = contract_args;
 		}
+		// Prompt the user to confirm if they want to execute the call with sudo privileges.
+		if !self.sudo {
+			self.sudo = cli
+				.confirm("Would you like to execute this operation with sudo privileges?")
+				.initial_value(false)
+				.interact()?;
+		}
 
 		// Resolve who is sigining the extrinsic.
 		if self.suri == DEFAULT_URI {
@@ -233,6 +246,8 @@ impl CallParachainCommand {
 				return Err(anyhow!("Error: {}", e));
 			},
 		};
+		// If sudo is enabled, wrap the call in a sudo call.
+		let tx = if self.sudo { construct_sudo_extrinsic(tx).await? } else { tx };
 		cli.info(format!("Encoded call data: {}", encode_call_data(api, &tx)?))?;
 		Ok(tx)
 	}
@@ -331,6 +346,7 @@ impl CallParachainCommand {
 		self.pallet = None;
 		self.extrinsic = None;
 		self.args.clear();
+		self.sudo = false;
 	}
 }
 
