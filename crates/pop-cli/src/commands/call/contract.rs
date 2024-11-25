@@ -20,7 +20,7 @@ const DEFAULT_PAYABLE_VALUE: &str = "0";
 
 #[derive(Args, Clone)]
 pub struct CallContractCommand {
-	/// Path to the contract build directory or a contract metadata file.
+	/// Path to the contract build directory or a contract artifact.
 	#[arg(short = 'p', long)]
 	path: Option<PathBuf>,
 	/// The address of the contract to call.
@@ -131,7 +131,7 @@ impl CallContractCommand {
 		// Resolve path.
 		if self.path.is_none() {
 			let input_path: String = cli
-				.input("Where is your project or metadata file located?")
+				.input("Where is your project or contract artifact located?")
 				.placeholder("./")
 				.default_input("./")
 				.interact()?;
@@ -306,7 +306,7 @@ impl CallContractCommand {
 		{
 			Ok(call_exec) => call_exec,
 			Err(e) => {
-				return Err(anyhow!(format!("ADJNAFJAFI{}", e.to_string())));
+				return Err(anyhow!(format!("{}", e.to_string())));
 			},
 		};
 
@@ -389,7 +389,7 @@ impl CallContractCommand {
 }
 
 /// Checks if the contract has been built; if not, builds it.
-/// If the path is a metadata file, skips the build process
+/// If the path is an artifact file, skips the build process
 fn ensure_contract_built(path: &Path, cli: &mut impl Cli) -> Result<()> {
 	// Check if is a directory, if is a file, skip the build process
 	if !path.is_dir() || has_contract_been_built(Some(path)) {
@@ -504,7 +504,7 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn call_contract_dry_run_with_metadata_file_works() -> Result<()> {
+	async fn call_contract_dry_run_with_artifact_file_works() -> Result<()> {
 		let mut current_dir = env::current_dir().expect("Failed to get current directory");
 		current_dir.pop();
 
@@ -649,7 +649,7 @@ mod tests {
 				"wss://rpc1.paseo.popnetwork.xyz".into(),
 			)
 			.expect_input(
-				"Where is your project or metadata file located?",
+				"Where is your project or contract artifact located?",
 				temp_dir.path().join("testing").display().to_string(),
 			).expect_info(format!(
 	            "pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message get --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice",
@@ -735,7 +735,7 @@ mod tests {
 				"wss://rpc1.paseo.popnetwork.xyz".into(),
 			)
 			.expect_input(
-				"Where is your project or metadata file located?",
+				"Where is your project or contract artifact located?",
 				temp_dir.path().join("testing").display().to_string(),
 			).expect_info(format!(
 				"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message specific_flip --args \"true\", \"2\" --value 50 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --execute",
@@ -820,7 +820,7 @@ mod tests {
 				"wss://rpc1.paseo.popnetwork.xyz".into(),
 			)
 			.expect_input(
-				"Where is your project or metadata file located?",
+				"Where is your project or contract artifact located?",
 				temp_dir.path().join("testing").display().to_string(),
 			).expect_info(format!(
 				"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message specific_flip --args \"true\", \"2\" --value 50 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --execute",
