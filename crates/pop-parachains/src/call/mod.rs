@@ -70,6 +70,38 @@ pub fn encode_call_data(
 	Ok(format!("0x{}", hex::encode(call_data)))
 }
 
+struct RawCall(Vec<u8>);
+
+impl Payload for RawCall {
+	fn encode_call_data_to(
+		&self,
+		_: &subxt::Metadata,
+		out: &mut Vec<u8>,
+	) -> Result<(), subxt::ext::subxt_core::Error> {
+		out.extend_from_slice(&self.0);
+		Ok(())
+	}
+}
+
+pub async fn sign_and_submit_extrinsic_with_call_data(
+	api: OnlineClient<SubstrateConfig>,
+	call_data: &str,
+	suri: &str,
+) -> Result<String, Error> {
+	let signer = create_signer(suri)?;
+	let call_data_bytes = hex::decode(call_data.trim_start_matches("0x"))?;
+	let payload = RawCall(call_data_bytes);
+	let result = api
+		.tx()
+		.sign_and_submit_then_watch_default(&payload, &signer)
+		.await?
+		.wait_for_finalized()
+		.await?
+		.wait_for_success()
+		.await?;
+	Ok(format!("{:?}", result.extrinsic_hash()))
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;

@@ -5,8 +5,9 @@ use anyhow::{anyhow, Result};
 use clap::Args;
 use pop_parachains::{
 	construct_extrinsic, encode_call_data, find_extrinsic_by_name, find_pallet_by_name,
-	parse_chain_metadata, set_up_api, sign_and_submit_extrinsic, supported_actions, Action,
-	DynamicPayload, OnlineClient, Pallet, Param, SubstrateConfig,
+	parse_chain_metadata, set_up_api, sign_and_submit_extrinsic,
+	sign_and_submit_extrinsic_with_call_data, supported_actions, Action, DynamicPayload,
+	OnlineClient, Pallet, Param, SubstrateConfig,
 };
 
 const DEFAULT_URL: &str = "ws://localhost:9944/";
@@ -36,32 +37,49 @@ pub struct CallParachainCommand {
 	/// Automatically signs and submits the extrinsic without asking for confirmation.
 	#[clap(short('y'), long)]
 	skip_confirm: bool,
+	/// SCALE encoded bytes representing the call data of the transaction.
+	#[arg(name = "call", short = 'c', long, conflicts_with_all = ["pallet", "extrinsic", "args"])]
+	call_data: Option<String>,
 }
 
 impl CallParachainCommand {
 	/// Executes the command.
 	pub(crate) async fn execute(mut self) -> Result<()> {
-		// Check if message specified via command line argument.
-		let prompt_to_repeat_call = self.extrinsic.is_none();
-		// Configure the call based on command line arguments/call UI.
-		let api = match self.configure(&mut cli::Cli, false).await {
+		let api = match self.initialize_api_client(&mut cli::Cli).await {
 			Ok(api) => api,
 			Err(e) => {
 				display_message(&e.to_string(), false, &mut cli::Cli)?;
 				return Ok(());
 			},
 		};
-		// Prepare Extrinsic.
-		let tx = match self.prepare_extrinsic(&api, &mut cli::Cli).await {
-			Ok(api) => api,
-			Err(e) => {
+		if let Some(call_data) = self.call_data.as_ref().cloned() {
+			// Execute the call.
+			if let Err(e) =
+				self.send_extrinsic_from_call_data(&api, &call_data, &mut cli::Cli).await
+			{
+				display_message(&e.to_string(), false, &mut cli::Cli)?;
+			}
+		} else {
+			// Check if message specified via command line argument.
+			let prompt_to_repeat_call = self.extrinsic.is_none();
+			// Configure the call based on command line arguments/call UI.
+			if let Err(e) = self.configure(&api, &mut cli::Cli).await {
 				display_message(&e.to_string(), false, &mut cli::Cli)?;
 				return Ok(());
-			},
-		};
-		// Finally execute the call.
-		if let Err(e) = self.send_extrinsic(api, tx, prompt_to_repeat_call, &mut cli::Cli).await {
-			display_message(&e.to_string(), false, &mut cli::Cli)?;
+			}
+			// Prepare Extrinsic.
+			let tx = match self.prepare_extrinsic(&api, &mut cli::Cli).await {
+				Ok(api) => api,
+				Err(e) => {
+					display_message(&e.to_string(), false, &mut cli::Cli)?;
+					return Ok(());
+				},
+			};
+			// Execute the call.
+			if let Err(e) = self.send_extrinsic(api, tx, prompt_to_repeat_call, &mut cli::Cli).await
+			{
+				display_message(&e.to_string(), false, &mut cli::Cli)?;
+			}
 		}
 		Ok(())
 	}
@@ -82,16 +100,13 @@ impl CallParachainCommand {
 		full_message
 	}
 
-	/// Configure the call based on command line arguments/call UI.
-	async fn configure(
+	/// Initializes the API client by configuring the chain URL.
+	async fn initialize_api_client(
 		&mut self,
 		cli: &mut impl cli::traits::Cli,
-		repeat: bool,
 	) -> Result<OnlineClient<SubstrateConfig>> {
 		// Show intro on first run.
-		if !repeat {
-			cli.intro("Call a parachain")?;
-		}
+		cli.intro("Call a parachain")?;
 
 		// If extrinsic has been specified via command line arguments, return early.
 		if self.extrinsic.is_some() {
@@ -99,7 +114,7 @@ impl CallParachainCommand {
 		}
 
 		// Resolve url.
-		if !repeat && self.url.as_str() == DEFAULT_URL {
+		if self.url.as_str() == DEFAULT_URL {
 			// Prompt for url.
 			let url: String = cli
 				.input("Which chain would you like to interact with?")
@@ -108,10 +123,17 @@ impl CallParachainCommand {
 				.interact()?;
 			self.url = url::Url::parse(&url)?
 		};
-
-		// Parse metadata from url chain.
 		let api = set_up_api(self.url.as_str()).await?;
-		let pallets = match parse_chain_metadata(&api).await {
+		Ok(api)
+	}
+
+	/// Configure the call based on command line arguments/call UI.
+	async fn configure(
+		&mut self,
+		api: &OnlineClient<SubstrateConfig>,
+		cli: &mut impl cli::traits::Cli,
+	) -> Result<()> {
+		let pallets = match parse_chain_metadata(api).await {
 			Ok(pallets) => pallets,
 			Err(e) => {
 				return Err(anyhow!(format!(
@@ -120,11 +142,15 @@ impl CallParachainCommand {
 				)));
 			},
 		};
+		println!("here");
+		println!("{:?}", self.pallet);
 		// Resolve pallet.
 		let pallet = if let Some(ref pallet_name) = self.pallet {
+			println!("in");
 			// Specified by the user.
 			find_pallet_by_name(&pallets, pallet_name).await?
 		} else {
+			println!("no");
 			// Specific predefined actions first.
 			let action: Option<Action> = prompt_predefined_actions(&pallets, cli).await?;
 			if let Some(action) = action {
@@ -132,6 +158,7 @@ impl CallParachainCommand {
 				self.extrinsic = Some(action.extrinsic_name().to_string());
 				find_pallet_by_name(&pallets, action.pallet_name()).await?
 			} else {
+				println!("2 select");
 				let mut prompt = cli.select("Select the pallet to call:");
 				for pallet_item in &pallets {
 					prompt = prompt.item(pallet_item.clone(), &pallet_item.name, &pallet_item.docs);
@@ -145,6 +172,7 @@ impl CallParachainCommand {
 		let extrinsic = if let Some(ref extrinsic_name) = self.extrinsic {
 			find_extrinsic_by_name(&pallets, &pallet.name, extrinsic_name).await?
 		} else {
+			println!("3 select");
 			let mut prompt_extrinsic = cli.select("Select the extrinsic to call:");
 			for extrinsic in pallet.extrinsics {
 				prompt_extrinsic =
@@ -161,14 +189,16 @@ impl CallParachainCommand {
 			)?;
 			// Reset specific items from the last call and repeat.
 			self.reset_for_new_call();
-			Box::pin(self.configure(cli, true)).await?;
+			Box::pin(self.configure(api, cli)).await?;
 		}
 
 		// Resolve message arguments.
 		if self.args.is_empty() {
+			println!("args");
 			let mut contract_args = Vec::new();
+			println!("{:?}", extrinsic.params);
 			for param in extrinsic.params {
-				let input = prompt_for_param(&api, cli, &param)?;
+				let input = prompt_for_param(api, cli, &param)?;
 				contract_args.push(input);
 			}
 			self.args = contract_args;
@@ -184,7 +214,7 @@ impl CallParachainCommand {
 		}
 
 		cli.info(self.display())?;
-		Ok(api)
+		Ok(())
 	}
 
 	/// Prepares the extrinsic or query.
@@ -223,8 +253,9 @@ impl CallParachainCommand {
 		prompt_to_repeat_call: bool,
 		cli: &mut impl cli::traits::Cli,
 	) -> Result<()> {
-		if !self.skip_confirm &&
-			!cli.confirm("Do you want to submit the extrinsic?")
+		if !self.skip_confirm
+			&& !cli
+				.confirm("Do you want to submit the extrinsic?")
 				.initial_value(true)
 				.interact()?
 		{
@@ -237,6 +268,7 @@ impl CallParachainCommand {
 		}
 		let spinner = cliclack::spinner();
 		spinner.start("Signing and submitting the extrinsic, please wait...");
+		// TODO: IF HERE
 		let result = sign_and_submit_extrinsic(api.clone(), tx, &self.suri)
 			.await
 			.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
@@ -255,13 +287,53 @@ impl CallParachainCommand {
 		{
 			// Reset specific items from the last call and repeat.
 			self.reset_for_new_call();
-			self.configure(cli, true).await?;
+			self.configure(&api, cli).await?;
 			let tx = self.prepare_extrinsic(&api, &mut cli::Cli).await?;
 			Box::pin(self.send_extrinsic(api, tx, prompt_to_repeat_call, cli)).await
 		} else {
 			display_message("Parachain calling complete.", true, cli)?;
 			Ok(())
 		}
+	}
+	// Sends an extrinsic to the chain using the call data.
+	async fn send_extrinsic_from_call_data(
+		&mut self,
+		api: &OnlineClient<SubstrateConfig>,
+		call_data: &str,
+		cli: &mut impl cli::traits::Cli,
+	) -> Result<()> {
+		if self.suri == DEFAULT_URI {
+			self.suri = cli
+				.input("Signer of the extrinsic:")
+				.placeholder("//Alice")
+				.default_input("//Alice")
+				.interact()?;
+		}
+		cli.info(format!("Encoded call data: {}", call_data))?;
+		if !cli
+			.confirm("Do you want to submit the extrinsic?")
+			.initial_value(true)
+			.interact()?
+		{
+			display_message(
+				&format!(
+					"Extrinsic {:?} was not submitted. Operation canceled by the user.",
+					self.extrinsic
+				),
+				false,
+				cli,
+			)?;
+			return Ok(());
+		}
+		let spinner = cliclack::spinner();
+		spinner.start("Signing and submitting the extrinsic, please wait...");
+		let result = sign_and_submit_extrinsic_with_call_data(api.clone(), call_data, &self.suri)
+			.await
+			.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
+
+		spinner.stop(&format!("Extrinsic submitted successfully with hash: {:?}", result));
+		display_message("Parachain calling complete.", true, cli)?;
+		Ok(())
 	}
 	/// Resets specific fields to default values for a new call.
 	fn reset_for_new_call(&mut self) {
@@ -285,6 +357,7 @@ async fn prompt_predefined_actions(
 	pallets: &[Pallet],
 	cli: &mut impl cli::traits::Cli,
 ) -> Result<Option<Action>> {
+	println!("1 select");
 	let mut predefined_action = cli.select("What would you like to do?");
 	for action in supported_actions(&pallets).await {
 		predefined_action = predefined_action.item(
@@ -422,7 +495,6 @@ mod tests {
 	#[tokio::test]
 	async fn guide_user_to_call_parachain_works() -> Result<()> {
 		let mut cli = MockCli::new().expect_intro("Call a parachain");
-
 		let mut call_config = CallParachainCommand {
 			pallet: None,
 			extrinsic: Some("Test".to_string()),
@@ -430,9 +502,11 @@ mod tests {
 			url: Url::parse("wss://rpc1.paseo.popnetwork.xyz")?,
 			suri: DEFAULT_URI.to_string(),
 			skip_confirm: false,
+			call_data: None,
 		};
+		let api = set_up_api("wss://rpc1.paseo.popnetwork.xyz").await?;
 		// If the extrinsic has been specified via command line arguments, return early.
-		call_config.configure(&mut cli, false).await?;
+		call_config.configure(&api, &mut cli).await?;
 		cli.verify()?;
 
 		// Test all process specifying pallet, and see the prompted extrinsics.
@@ -468,7 +542,7 @@ mod tests {
 				0, // "remark" extrinsic
 			).expect_info("pop call parachain --pallet System --extrinsic remark --args \"0x11\" --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Bob");
 
-		call_config.configure(&mut cli, false).await?;
+		call_config.configure(&api, &mut cli).await?;
 
 		assert_eq!(call_config.pallet, Some("System".to_string()));
 		assert_eq!(call_config.extrinsic, Some("remark".to_string()));
@@ -490,6 +564,7 @@ mod tests {
 			url: Url::parse(DEFAULT_URL)?,
 			suri: DEFAULT_URI.to_string(),
 			skip_confirm: false,
+			call_data: None,
 		};
 
 		let mut cli = MockCli::new()
@@ -513,7 +588,8 @@ mod tests {
 				0, // "Purchase on-demand coretime" action
 			).expect_info("pop call parachain --pallet OnDemand --extrinsic place_order_allow_death --args \"10000\" \"2000\" --url wss://polkadot-rpc.publicnode.com/ --suri //Bob");
 
-		call_config.configure(&mut cli, false).await?;
+		let api = call_config.initialize_api_client(&mut cli).await?;
+		call_config.configure(&api, &mut cli).await?;
 
 		assert_eq!(call_config.pallet, Some("OnDemand".to_string()));
 		assert_eq!(call_config.extrinsic, Some("place_order_allow_death".to_string()));
@@ -534,6 +610,7 @@ mod tests {
 			url: Url::parse("wss://rpc1.paseo.popnetwork.xyz")?,
 			suri: DEFAULT_URI.to_string(),
 			skip_confirm: false,
+			call_data: None,
 		};
 		let mut cli = MockCli::new();
 		// Error, no extrinsic specified.
@@ -568,6 +645,7 @@ mod tests {
 			url: Url::parse("wss://rpc1.paseo.popnetwork.xyz")?,
 			suri: DEFAULT_URI.to_string(),
 			skip_confirm: false,
+			call_data: None,
 		};
 		let mut cli = MockCli::new()
 			.expect_confirm("Do you want to submit the extrinsic?", false)
@@ -588,6 +666,7 @@ mod tests {
 			url: Url::parse("wss://rpc1.paseo.popnetwork.xyz")?,
 			suri: DEFAULT_URI.to_string(),
 			skip_confirm: false,
+			call_data: None,
 		};
 		call_config.reset_for_new_call();
 		assert_eq!(call_config.pallet, None);
