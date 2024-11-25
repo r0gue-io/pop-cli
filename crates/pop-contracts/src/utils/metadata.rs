@@ -42,7 +42,7 @@ pub enum FunctionType {
 /// Extracts a list of smart contract messages parsing the metadata file.
 ///
 /// # Arguments
-/// * `path` -  Location path of the project.
+/// * `path` -  Location path of the project or contract metadata file.
 pub fn get_messages(path: &Path) -> Result<Vec<ContractFunction>, Error> {
 	let contract_artifacts = if path.is_dir() || path.ends_with("Cargo.toml") {
 		let cargo_toml_path =
@@ -338,7 +338,7 @@ mod tests {
 		let temp_dir = new_environment("testing")?;
 		let current_dir = env::current_dir().expect("Failed to get current directory");
 
-		// Helper function to assert messages and their arguments
+		// Helper function to avoid duplicated code
 		fn assert_contract_metadata_parsed(message: Vec<ContractFunction>) -> Result<()> {
 			assert_eq!(message.len(), 3);
 			assert_eq!(message[0].label, "flip");
