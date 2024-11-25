@@ -6,10 +6,10 @@ use crate::cli::{self, traits::*};
 use anyhow::{anyhow, Result};
 use clap::Args;
 use pop_parachains::{
-	construct_extrinsic, decode_call_data, encode_call_data, find_extrinsic_by_name,
-	find_pallet_by_name, parse_chain_metadata, set_up_client, sign_and_submit_extrinsic,
-	sign_and_submit_extrinsic_with_call_data, supported_actions, Action, DynamicPayload, Extrinsic,
-	OnlineClient, Pallet, Param, SubstrateConfig,
+	construct_extrinsic, construct_sudo_extrinsic, decode_call_data, encode_call_data,
+	find_extrinsic_by_name, find_pallet_by_name, parse_chain_metadata, set_up_client,
+	sign_and_submit_extrinsic, sign_and_submit_extrinsic_with_call_data, supported_actions, Action,
+	DynamicPayload, Extrinsic, OnlineClient, Pallet, Param, SubstrateConfig,
 };
 use url::Url;
 
@@ -42,6 +42,9 @@ pub struct CallParachainCommand {
 	/// SCALE encoded bytes representing the call data of the extrinsic.
 	#[arg(name = "call", long, conflicts_with_all = ["pallet", "extrinsic", "args"])]
 	call_data: Option<String>,
+	/// Authenticates the sudo key and dispatches a function call with `Root` origin.
+	#[arg(name = "sudo", long, short = 'S')]
+	sudo: bool,
 	/// Automatically signs and submits the extrinsic without prompting for confirmation.
 	#[arg(short('y'), long)]
 	skip_confirm: bool,
@@ -192,6 +195,14 @@ impl CallParachainCommand {
 				self.expand_file_arguments()?
 			};
 
+			// Prompt the user to confirm if they want to execute the call with sudo privileges.
+			if !self.sudo {
+				self.sudo = cli
+					.confirm("Would you like to execute this operation with sudo privileges?")
+					.initial_value(false)
+					.interact()?;
+			}
+
 			// Resolve who is signing the extrinsic.
 			let suri = match self.suri.as_ref() {
 				Some(suri) => suri.clone(),
@@ -206,6 +217,7 @@ impl CallParachainCommand {
 				args,
 				suri,
 				skip_confirm: self.skip_confirm,
+				sudo: self.sudo,
 			});
 		}
 	}
@@ -255,6 +267,7 @@ impl CallParachainCommand {
 		self.pallet = None;
 		self.extrinsic = None;
 		self.args.clear();
+		self.sudo = false;
 	}
 
 	// Function to check if all required fields are specified.
@@ -310,6 +323,8 @@ struct CallParachain {
 	suri: String,
 	/// Whether to automatically sign and submit the extrinsic without prompting for confirmation.
 	skip_confirm: bool,
+	/// Whether to dispatch the function call with `Root` origin.
+	sudo: bool,
 }
 
 impl CallParachain {
@@ -331,6 +346,8 @@ impl CallParachain {
 				return Err(anyhow!("Error: {}", e));
 			},
 		};
+		// If sudo is enabled, wrap the call in a sudo call.
+		let tx = if self.sudo { construct_sudo_extrinsic(tx).await? } else { tx };
 		let encoded_data = encode_call_data(client, &tx)?;
 		// If the encoded call data is too long, don't display it all.
 		if encoded_data.len() < ENCODED_CALL_DATA_MAX_LEN {
@@ -388,6 +405,9 @@ impl CallParachain {
 			full_message.push_str(&format!(" --args {}", args.join(" ")));
 		}
 		full_message.push_str(&format!(" --url {} --suri {}", chain.url, self.suri));
+		if self.sudo {
+			full_message.push_str(" --sudo");
+		}
 		full_message
 	}
 }
@@ -686,6 +706,7 @@ mod tests {
 			args: vec!["0x11".to_string()].to_vec(),
 			suri: DEFAULT_URI.to_string(),
 			skip_confirm: false,
+			sudo: false,
 		};
 		let mut cli = MockCli::new();
 		// Error, wrong name of the pallet.
@@ -718,6 +739,7 @@ mod tests {
 			args: vec!["0x11".to_string()].to_vec(),
 			suri: DEFAULT_URI.to_string(),
 			skip_confirm: false,
+			sudo: false,
 		};
 		let mut cli = MockCli::new()
 			.expect_confirm("Do you want to submit the extrinsic?", false)
@@ -739,6 +761,7 @@ mod tests {
 			suri: None,
 			skip_confirm: false,
 			call_data: Some("0x00000411".to_string()),
+			sudo: false,
 		};
 		let mut cli = MockCli::new()
 			.expect_input("Signer of the extrinsic:", "//Bob".into())
@@ -761,6 +784,7 @@ mod tests {
 			suri: Some(DEFAULT_URI.to_string()),
 			skip_confirm: false,
 			call_data: None,
+			sudo: true,
 		};
 		call_config.reset_for_new_call();
 		assert_eq!(call_config.pallet, None);
@@ -779,6 +803,7 @@ mod tests {
 			suri: Some(DEFAULT_URI.to_string()),
 			skip_confirm: false,
 			call_data: None,
+			sudo: false,
 		};
 		assert!(!call_config.requires_user_input());
 		call_config.pallet = None;
@@ -796,6 +821,7 @@ mod tests {
 			suri: Some(DEFAULT_URI.to_string()),
 			skip_confirm: false,
 			call_data: None,
+			sudo: false,
 		};
 		assert_eq!(
 			call_config.expand_file_arguments()?,
