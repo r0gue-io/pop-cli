@@ -143,7 +143,7 @@ impl CallContractCommand {
 			.expect("path is guaranteed to be set as input is prompted when None; qed");
 
 		// Ensure contract is built.
-		ensure_contract_built(contract_path, &mut cli::Cli).expect("eerror here");
+		ensure_contract_built(contract_path, &mut cli::Cli)?;
 
 		// Parse the contract metadata provided. If there is an error, do not prompt for more.
 		let messages = match get_messages(contract_path) {
