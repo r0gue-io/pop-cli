@@ -506,6 +506,52 @@ mod tests {
 	}
 
 	#[tokio::test]
+	async fn call_contract_dry_run_with_metadata_file_works() -> Result<()> {
+		let mut current_dir = env::current_dir().expect("Failed to get current directory");
+		current_dir.pop();
+
+		let mut cli = MockCli::new()
+			.expect_intro(&"Call a contract")
+			.expect_warning("Your call has not been executed.")
+			.expect_info("Gas limit: Weight { ref_time: 100, proof_size: 10 }");
+
+		// From .contract file
+		let mut call_config = CallContractCommand {
+			path: Some(current_dir.join("pop-contracts/tests/files/testing.contract")),
+			contract: Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string()),
+			message: Some("flip".to_string()),
+			args: vec![].to_vec(),
+			value: "0".to_string(),
+			gas_limit: Some(100),
+			proof_size: Some(10),
+			url: Url::parse("wss://rpc1.paseo.popnetwork.xyz")?,
+			suri: "//Alice".to_string(),
+			dry_run: true,
+			execute: false,
+			dev_mode: false,
+		};
+		call_config.configure(&mut cli, false).await?;
+		assert_eq!(call_config.display(), format!(
+			"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message flip --gas 100 --proof_size 10 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --dry_run",
+			current_dir.join("pop-contracts/tests/files/testing.contract").display().to_string(),
+		));
+		// Contract deployed on Pop Network testnet, test dry-run
+		call_config.execute_call(&mut cli, false).await?;
+
+		// From .json file
+		call_config.path = Some(current_dir.join("pop-contracts/tests/files/testing.json"));
+		call_config.configure(&mut cli, false).await?;
+		assert_eq!(call_config.display(), format!(
+			"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message flip --gas 100 --proof_size 10 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --dry_run",
+			current_dir.join("pop-contracts/tests/files/testing.json").display().to_string(),
+		));
+		// Contract deployed on Pop Network testnet, test dry-run
+		call_config.execute_call(&mut cli, false).await?;
+
+		cli.verify()
+	}
+
+	#[tokio::test]
 	async fn call_contract_query_duplicate_call_works() -> Result<()> {
 		let temp_dir = new_environment("testing")?;
 		let mut current_dir = env::current_dir().expect("Failed to get current directory");
