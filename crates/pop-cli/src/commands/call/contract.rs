@@ -117,8 +117,15 @@ impl CallContractCommand {
 	}
 
 	/// Checks if the contract has been built; if not, builds it.
+	/// If the path is a metadata file, skips the build process
 	async fn ensure_contract_built(&self, cli: &mut impl Cli) -> Result<()> {
-		// Check if build exists in the specified "Contract build directory"
+		// The path should not be None, but if it is, return early without building the contract.
+		let Some(path) = self.path.as_deref() else { return Ok(()) };
+		// Check if the path is a file or the build exists in the specified "Contract build
+		// directory"
+		if !path.is_dir() || has_contract_been_built(self.path.as_deref()) {
+			return Ok(());
+		}
 		if !has_contract_been_built(self.path.as_deref()) {
 			// Build the contract in release mode
 			cli.warning("NOTE: contract has not yet been built.")?;
