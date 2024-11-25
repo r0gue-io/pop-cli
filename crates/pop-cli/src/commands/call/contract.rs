@@ -177,7 +177,6 @@ impl CallContractCommand {
 					Ok(_) => Ok(()),
 					Err(_) => Err("Invalid address."),
 				})
-				.default_input("5DYs7UGBm2LuX4ryvyqfksozNAW5V47tPbGiVgnjYWCZ29bt")
 				.interact()?;
 			self.contract = Some(contract_address);
 		};
@@ -430,8 +429,7 @@ mod tests {
 	use super::*;
 	use crate::cli::MockCli;
 	use pop_contracts::{mock_build_process, new_environment};
-	use std::env;
-	use std::fs::write;
+	use std::{env, fs::write};
 	use url::Url;
 
 	#[tokio::test]
@@ -873,7 +871,8 @@ mod tests {
 		let temp_dir = new_environment("testing")?;
 		let mut current_dir = env::current_dir().expect("Failed to get current directory");
 		current_dir.pop();
-		// Create invalid `.json` and `.contract` files in the mock build directory and avoid building the contract.
+		// Create invalid `.json` and `.contract` files in the mock build directory and avoid
+		// building the contract.
 		let invalid_contract_path = temp_dir.path().join("testing.contract");
 		let invalid_json_path = temp_dir.path().join("testing.json");
 		write(&invalid_contract_path, b"This is an invalid contract file")?;
