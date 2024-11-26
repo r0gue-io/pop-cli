@@ -33,6 +33,9 @@ pub struct CallParachainCommand {
 	/// - with a password "//Alice///SECRET_PASSWORD"
 	#[clap(name = "suri", long, short, default_value = DEFAULT_URI)]
 	suri: String,
+	/// Automatically signs and submits the extrinsic without asking for confirmation.
+	#[clap(short('y'), long)]
+	skip_confirm: bool,
 }
 
 impl CallParachainCommand {
@@ -89,6 +92,11 @@ impl CallParachainCommand {
 		// Show intro on first run.
 		if !repeat {
 			cli.intro("Call a parachain")?;
+		}
+
+		// If extrinsic has been specified via command line arguments, return early.
+		if self.extrinsic.is_some() {
+			return Ok(set_up_api(self.url.as_str()).await?);
 		}
 
 		// Resolve url.
@@ -167,6 +175,15 @@ impl CallParachainCommand {
 			self.args = contract_args;
 		}
 
+		// Resolve who is sigining the extrinsic.
+		if self.suri == DEFAULT_URI {
+			self.suri = cli
+				.input("Signer of the extrinsic:")
+				.placeholder("//Alice")
+				.default_input("//Alice")
+				.interact()?;
+		}
+
 		cli.info(self.display())?;
 		Ok(api)
 	}
@@ -199,6 +216,7 @@ impl CallParachainCommand {
 		Ok(tx)
 	}
 
+	/// Sign an submit an extrinsic.
 	async fn send_extrinsic(
 		&mut self,
 		api: OnlineClient<SubstrateConfig>,
@@ -206,18 +224,10 @@ impl CallParachainCommand {
 		prompt_to_repeat_call: bool,
 		cli: &mut impl cli::traits::Cli,
 	) -> Result<()> {
-		if self.suri == DEFAULT_URI {
-			self.suri = cli
-				.input("Signer of the extrinsic:")
-				.placeholder("//Alice")
-				.default_input("//Alice")
-				.interact()?;
-		}
-		cli.info(self.display())?;
-		if !cli
-			.confirm("Do you want to submit the extrinsic?")
-			.initial_value(true)
-			.interact()?
+		if !self.skip_confirm &&
+			!cli.confirm("Do you want to submit the extrinsic?")
+				.initial_value(true)
+				.interact()?
 		{
 			display_message(
 				&format!(
