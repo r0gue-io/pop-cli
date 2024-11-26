@@ -8,6 +8,7 @@ use duct::cmd;
 use std::path::PathBuf;
 #[cfg(feature = "parachain")]
 use {parachain::BuildParachainCommand, spec::BuildSpecCommand};
+use pop_common::Profile;
 
 #[cfg(feature = "contract")]
 pub(crate) mod contract;
@@ -28,9 +29,9 @@ pub(crate) struct BuildArgs {
 	/// The package to be built.
 	#[arg(short = 'p', long)]
 	pub(crate) package: Option<String>,
-	/// For production, always build in release mode to exclude debug features.
-	#[clap(short, long)]
-	pub(crate) release: bool,
+	/// Build profile [default: debug].
+	#[clap(long, value_enum)]
+	pub(crate) profile: Option<Profile>,
 	/// Parachain ID to be used when generating the chain spec files.
 	#[arg(short = 'i', long = "id")]
 	#[cfg(feature = "parachain")]
@@ -62,7 +63,11 @@ impl Command {
 		#[cfg(feature = "contract")]
 		if pop_contracts::is_supported(args.path.as_deref())? {
 			// All commands originating from root command are valid
-			BuildContractCommand { path: args.path, release: args.release, valid: true }
+			let release = match args.profile.unwrap_or(Profile::Debug) {
+				Profile::Debug => false,
+				_ => true,
+			};
+			BuildContractCommand { path: args.path, release, valid: true }
 				.execute()?;
 			return Ok("contract");
 		}
@@ -74,7 +79,7 @@ impl Command {
 			BuildParachainCommand {
 				path: args.path,
 				package: args.package,
-				release: args.release,
+				profile: args.profile,
 				id: args.id,
 				valid: true,
 			}
@@ -101,13 +106,15 @@ impl Command {
 			_args.push("--package");
 			_args.push(package)
 		}
-		if args.release {
+		let profile = args.profile.unwrap_or(Profile::Debug);
+		if profile == Profile::Release {
 			_args.push("--release");
+		} else if profile == Profile::Production {
+			_args.push("--profile=production");
 		}
 		cmd("cargo", _args).dir(args.path.unwrap_or_else(|| "./".into())).run()?;
 
-		let mode = if args.release { "RELEASE" } else { "DEBUG" };
-		cli.info(format!("The {project} was built in {mode} mode."))?;
+		cli.info(format!("The {project} was built in {} mode.", profile))?;
 		cli.outro("Build completed successfully!")?;
 		Ok(project)
 	}
@@ -115,32 +122,53 @@ impl Command {
 
 #[cfg(test)]
 mod tests {
+	use std::fs;
+	use std::fs::write;
+	use std::path::Path;
 	use super::*;
 	use cli::MockCli;
+	use strum::VariantArray;
+
+	fn add_production_profile(project: &Path) -> anyhow::Result<()> {
+		let root_toml_path = project.join("Cargo.toml");
+		let mut root_toml_content = fs::read_to_string(&root_toml_path)?;
+		root_toml_content.push_str(
+			r#"
+			[profile.production]
+			codegen-units = 1
+			inherits = "release"
+			lto = true
+			"#,
+		);
+		// Write the updated content back to the file
+		write(&root_toml_path, root_toml_content)?;
+		Ok(())
+	}
 
 	#[test]
 	fn build_works() -> anyhow::Result<()> {
 		let name = "hello_world";
 		let temp_dir = tempfile::tempdir()?;
 		let path = temp_dir.path();
+		let project_path = path.join(name);
 		cmd("cargo", ["new", name, "--bin"]).dir(&path).run()?;
+		add_production_profile(&project_path)?;
 
 		for package in [None, Some(name.to_string())] {
-			for release in [false, true] {
+			for profile in Profile::VARIANTS {
 				let project = if package.is_some() { "package" } else { "project" };
-				let mode = if release { "RELEASE" } else { "DEBUG" };
 				let mut cli = MockCli::new()
 					.expect_intro(format!("Building your {project}"))
-					.expect_info(format!("The {project} was built in {mode} mode."))
+					.expect_info(format!("The {project} was built in {profile} mode."))
 					.expect_outro("Build completed successfully!");
 
 				assert_eq!(
 					Command::build(
 						BuildArgs {
 							command: None,
-							path: Some(path.join(name)),
+							path: Some(project_path.clone()),
 							package: package.clone(),
-							release,
+							profile: Some(profile.clone()),
 							id: None,
 						},
 						&mut cli,

@@ -16,9 +16,9 @@ pub struct BuildParachainCommand {
 	/// The package to be built.
 	#[arg(short = 'p', long)]
 	pub(crate) package: Option<String>,
-	/// For production, always build in release mode to exclude debug features.
-	#[clap(short, long, default_value = "true")]
-	pub(crate) release: bool,
+	/// Build profile [default: debug].
+	#[clap(long, value_enum)]
+	pub(crate) profile: Option<Profile>,
 	/// Parachain ID to be used when generating the chain spec files.
 	#[arg(short = 'i', long = "id")]
 	pub(crate) id: Option<u32>,
@@ -41,12 +41,13 @@ impl BuildParachainCommand {
 		let project = if self.package.is_some() { "package" } else { "parachain" };
 		cli.intro(format!("Building your {project}"))?;
 
+		let profile = self.profile.unwrap_or(Profile::Debug);
 		// Show warning if specified as deprecated.
 		if !self.valid {
 			cli.warning("NOTE: this command is deprecated. Please use `pop build` (or simply `pop b`) in future...")?;
 			#[cfg(not(test))]
 			sleep(Duration::from_secs(3))
-		} else if !self.release {
+		} else if profile == Profile::Debug {
 			cli.warning("NOTE: this command now defaults to DEBUG builds. Please use `--release` (or simply `-r`) for a release build...")?;
 			#[cfg(not(test))]
 			sleep(Duration::from_secs(3))
@@ -55,9 +56,8 @@ impl BuildParachainCommand {
 		// Build parachain.
 		cli.warning("NOTE: this may take some time...")?;
 		let project_path = self.path.unwrap_or_else(|| PathBuf::from("./"));
-		let mode: Profile = self.release.into();
-		let binary = build_parachain(&project_path, self.package, &mode, None)?;
-		cli.info(format!("The {project} was built in {mode} mode."))?;
+		let binary = build_parachain(&project_path, self.package, &profile, None)?;
+		cli.info(format!("The {project} was built in {} mode.", profile))?;
 		cli.outro("Build completed successfully!")?;
 		let generated_files = [format!("Binary generated at: {}", binary.display())];
 		let generated_files: Vec<_> = generated_files
@@ -80,6 +80,8 @@ mod tests {
 	use cli::MockCli;
 	use duct::cmd;
 	use std::{fs, io::Write, path::Path};
+	use std::fs::write;
+	use strum::VariantArray;
 
 	// Function that generates a Cargo.toml inside node directory for testing.
 	fn generate_mock_node(temp_dir: &Path) -> anyhow::Result<()> {
@@ -101,38 +103,55 @@ mod tests {
 		Ok(())
 	}
 
+	fn add_production_profile(project: &Path) -> anyhow::Result<()> {
+		let root_toml_path = project.join("Cargo.toml");
+		let mut root_toml_content = fs::read_to_string(&root_toml_path)?;
+		root_toml_content.push_str(
+			r#"
+			[profile.production]
+			codegen-units = 1
+			inherits = "release"
+			lto = true
+			"#,
+		);
+		// Write the updated content back to the file
+		write(&root_toml_path, root_toml_content)?;
+		Ok(())
+	}
+
 	#[test]
 	fn build_works() -> anyhow::Result<()> {
 		let name = "hello_world";
 		let temp_dir = tempfile::tempdir()?;
 		let path = temp_dir.path();
+		let project_path = path.join(name);
 		cmd("cargo", ["new", name, "--bin"]).dir(&path).run()?;
-		generate_mock_node(&temp_dir.path().join(name))?;
+		add_production_profile(&project_path)?;
+		generate_mock_node(&project_path)?;
 
 		for package in [None, Some(name.to_string())] {
-			for release in [false, true] {
+			for profile in Profile::VARIANTS {
 				for valid in [false, true] {
 					let project = if package.is_some() { "package" } else { "parachain" };
-					let mode = if release { Profile::Release } else { Profile::Debug };
 					let mut cli = MockCli::new()
 						.expect_intro(format!("Building your {project}"))
 						.expect_warning("NOTE: this may take some time...")
-						.expect_info(format!("The {project} was built in {mode} mode."))
+						.expect_info(format!("The {project} was built in {profile} mode."))
 						.expect_outro("Build completed successfully!");
 
 					if !valid {
 						cli = cli.expect_warning("NOTE: this command is deprecated. Please use `pop build` (or simply `pop b`) in future...");
 					} else {
-						if !release {
+						if profile == &Profile::Debug {
 							cli = cli.expect_warning("NOTE: this command now defaults to DEBUG builds. Please use `--release` (or simply `-r`) for a release build...");
 						}
 					}
 
 					assert_eq!(
 						BuildParachainCommand {
-							path: Some(path.join(name)),
+							path: Some(project_path.clone()),
 							package: package.clone(),
-							release,
+							profile: Some(profile.clone()),
 							id: None,
 							valid,
 						}

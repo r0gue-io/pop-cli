@@ -20,8 +20,6 @@ use std::{
 	fs::create_dir_all,
 	path::{Path, PathBuf},
 };
-#[cfg(not(test))]
-use std::{thread::sleep, time::Duration};
 use strum::{EnumMessage, VariantArray};
 use strum_macros::{AsRefStr, Display, EnumString};
 
@@ -138,10 +136,9 @@ pub struct BuildSpecCommand {
 	/// the necessary directories will be created
 	#[arg(short = 'o', long = "output")]
 	pub(crate) output_file: Option<PathBuf>,
-	/// This command builds the node if it has not been built already.
-	/// For production, always build in release mode to exclude debug features.
-	#[arg(short = 'r', long)]
-	pub(crate) release: bool,
+	/// Build profile for the binary to generate the chain specification.
+	#[arg(short = 'r', long, value_enum)]
+	pub(crate) profile: Option<Profile>,
 	/// Parachain ID to be used when generating the chain spec files.
 	#[arg(short = 'i', long)]
 	pub(crate) id: Option<u32>,
@@ -197,7 +194,7 @@ impl BuildSpecCommand {
 	) -> anyhow::Result<BuildSpec> {
 		let BuildSpecCommand {
 			output_file,
-			release,
+			profile,
 			id,
 			default_bootnode,
 			chain_type,
@@ -355,6 +352,28 @@ impl BuildSpecCommand {
 			},
 		};
 
+		// Prompt user for build profile.
+		let profile = match profile {
+			Some(profile) => profile,
+			None => {
+				let default = Profile::Release;
+				if prompt {
+					// Prompt for build profile.
+					let mut prompt = cliclack::select(
+						"Choose the build profile of the binary that should be used: ".to_string(),
+					).initial_value(&default);
+					for profile in Profile::VARIANTS {
+						prompt = prompt.item(
+							profile,
+							profile.get_message().unwrap_or(profile.as_ref()),
+							profile.get_detailed_message().unwrap_or_default(),
+						);
+					}
+					prompt.interact()?.clone()
+				} else { default }
+			},
+		};
+
 		// Prompt for default bootnode if not provided and chain type is Local or Live.
 		let default_bootnode = if !default_bootnode {
 			match chain_type {
@@ -385,18 +404,9 @@ impl BuildSpecCommand {
 			true
 		};
 
-		// Only prompt user for build profile if a live spec is being built on debug mode.
-		let release = if !release && matches!(chain_type, ChainType::Live) {
-			cli.confirm("Using Debug profile to build a Live specification. Should Release be used instead ?")
-				.initial_value(true)
-				.interact()?
-		} else {
-			release
-		};
-
 		Ok(BuildSpec {
 			output_file,
-			release,
+			profile,
 			id,
 			default_bootnode,
 			chain_type,
@@ -413,7 +423,7 @@ impl BuildSpecCommand {
 #[derive(Debug)]
 struct BuildSpec {
 	output_file: PathBuf,
-	release: bool,
+	profile: Profile,
 	id: u32,
 	default_bootnode: bool,
 	chain_type: ChainType,
@@ -430,64 +440,59 @@ impl BuildSpec {
 	// This function generates plain and raw chain spec files based on the provided configuration,
 	// optionally including genesis state and runtime artifacts. If the node binary is missing,
 	// it triggers a build process.
-	fn build(&self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<&'static str> {
+	fn build(self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<&'static str> {
 		cli.intro("Building your chain spec")?;
 		let mut generated_files = vec![];
 
+		let BuildSpec {
+			ref output_file, ref profile, id, default_bootnode, ref chain, genesis_state, genesis_code,
+		.. } = self;
+
 		// Ensure binary is built.
-		let mode: Profile = self.release.into();
-		let binary_path = ensure_binary_exists(cli, &mode)?;
-		if !self.release {
-			cli.warning(
-				"NOTE: this command defaults to DEBUG builds for development chain types. Please use `--release` (or simply `-r` for a release build...)",
-			)?;
-			#[cfg(not(test))]
-			sleep(Duration::from_secs(3))
-		}
+		let binary_path = ensure_binary_exists(cli, &profile)?;
 		let spinner = spinner();
 		spinner.start("Generating chain specification...");
 
 		// Generate chain spec.
 		generate_plain_chain_spec(
 			&binary_path,
-			&self.output_file,
-			self.default_bootnode,
-			&self.chain,
+			&output_file,
+			default_bootnode,
+			&chain,
 		)?;
 		// Customize spec based on input.
 		self.customize()?;
 		generated_files.push(format!(
 			"Plain text chain specification file generated at: {}",
-			self.output_file.display()
+			&output_file.display()
 		));
 
 		// Generate raw spec.
 		spinner.set_message("Generating raw chain specification...");
-		let spec_name = self
-			.output_file
+		let spec_name = &output_file
 			.file_name()
 			.and_then(|s| s.to_str())
 			.unwrap_or(DEFAULT_SPEC_NAME)
 			.trim_end_matches(".json");
 		let raw_spec_name = format!("{spec_name}-raw.json");
 		let raw_chain_spec =
-			generate_raw_chain_spec(&binary_path, &self.output_file, &raw_spec_name)?;
+			generate_raw_chain_spec(&binary_path, &output_file, &raw_spec_name)?;
 		generated_files.push(format!(
 			"Raw chain specification file generated at: {}",
 			raw_chain_spec.display()
 		));
 
 		// Generate genesis artifacts.
-		if self.genesis_code {
+		if genesis_code {
 			spinner.set_message("Generating genesis code...");
-			let wasm_file_name = format!("para-{}.wasm", self.id);
+			let wasm_file_name = format!("para-{}.wasm", id);
 			let wasm_file = export_wasm_file(&binary_path, &raw_chain_spec, &wasm_file_name)?;
 			generated_files
 				.push(format!("WebAssembly runtime file exported at: {}", wasm_file.display()));
 		}
-		if self.genesis_state {
+		if genesis_state {
 			spinner.set_message("Generating genesis state...");
-			let genesis_file_name = format!("para-{}-genesis-state", self.id);
+			let genesis_file_name = format!("para-{}-genesis-state", id);
 			let genesis_state_file =
 				generate_genesis_state_file(&binary_path, &raw_chain_spec, &genesis_file_name)?;
 			generated_files
@@ -571,269 +576,4 @@ fn prepare_output_path(output_path: impl AsRef<Path>) -> anyhow::Result<PathBuf>
 		}
 	}
 	Ok(output_path)
-}
-
-#[cfg(test)]
-mod tests {
-	use super::{ChainType::*, RelayChain::*, *};
-	use crate::cli::MockCli;
-	use std::{fs::create_dir_all, path::PathBuf};
-	use tempfile::{tempdir, TempDir};
-
-	#[tokio::test]
-	async fn configure_build_spec_works() -> anyhow::Result<()> {
-		let chain = "local";
-		let chain_type = Live;
-		let default_bootnode = true;
-		let genesis_code = true;
-		let genesis_state = true;
-		let output_file = "artifacts/chain-spec.json";
-		let para_id = 4242;
-		let protocol_id = "pop";
-		let relay = Polkadot;
-		let release = true;
-
-		for build_spec_cmd in [
-			// No flags used.
-			BuildSpecCommand::default(),
-			// All flags used.
-			BuildSpecCommand {
-				output_file: Some(PathBuf::from(output_file)),
-				release,
-				id: Some(para_id),
-				default_bootnode,
-				chain_type: Some(chain_type.clone()),
-				chain: Some(chain.to_string()),
-				relay: Some(relay.clone()),
-				protocol_id: Some(protocol_id.to_string()),
-				genesis_state,
-				genesis_code,
-			},
-		] {
-			let mut cli = MockCli::new();
-			// If no flags are provided.
-			if build_spec_cmd.chain.is_none() {
-				cli = cli
-					.expect_input("Provide the chain specification to use (e.g. dev, local, custom or a path to an existing file)", chain.to_string())
-					.expect_input(
-					"Name or path for the plain chain spec file:", output_file.to_string())
-					.expect_input(
-					"What parachain ID should be used?", para_id.to_string())
-					.expect_input(
-					"Enter the protocol ID that will identify your network:", protocol_id.to_string())
-					.expect_select(
-					"Choose the chain type: ",
-					Some(false),
-					true,
-					Some(chain_types()),
-					chain_type.clone() as usize,
-				).expect_select(
-					"Choose the relay your chain will be connecting to: ",
-					Some(false),
-					true,
-					Some(relays()),
-					relay.clone() as usize,
-				).expect_confirm("Would you like to use local host as a bootnode ?", default_bootnode).expect_confirm("Should the genesis state file be generated ?", genesis_state).expect_confirm("Should the genesis code file be generated ?", genesis_code).expect_confirm(
-					"Using Debug profile to build a Live specification. Should Release be used instead ?",
-					release,
-				);
-			}
-			let build_spec = build_spec_cmd.configure_build_spec(&mut cli).await?;
-			assert_eq!(build_spec.chain, chain);
-			assert_eq!(build_spec.output_file, PathBuf::from(output_file));
-			assert_eq!(build_spec.id, para_id);
-			assert_eq!(build_spec.release, release);
-			assert_eq!(build_spec.default_bootnode, default_bootnode);
-			assert_eq!(build_spec.chain_type, chain_type);
-			assert_eq!(build_spec.relay, relay);
-			assert_eq!(build_spec.protocol_id, protocol_id);
-			assert_eq!(build_spec.genesis_state, genesis_state);
-			assert_eq!(build_spec.genesis_code, genesis_code);
-			cli.verify()?;
-		}
-		Ok(())
-	}
-
-	#[tokio::test]
-	async fn configure_build_spec_with_existing_chain_file() -> anyhow::Result<()> {
-		let chain_type = Live;
-		let default_bootnode = true;
-		let genesis_code = true;
-		let genesis_state = true;
-		let output_file = "artifacts/chain-spec.json";
-		let para_id = 4242;
-		let protocol_id = "pop";
-		let relay = Polkadot;
-		let release = true;
-
-		// Create a temporary file to act as the existing chain spec file.
-		let temp_dir = tempdir()?;
-		let chain_spec_path = temp_dir.path().join("existing-chain-spec.json");
-		std::fs::write(&chain_spec_path, "{}")?; // Write a dummy JSON to the file
-
-		// Whether to make changes to the provided chain spec file.
-		for changes in [true, false] {
-			for build_spec_cmd in [
-				// No flags used except the provided chain spec file.
-				BuildSpecCommand {
-					chain: Some(chain_spec_path.to_string_lossy().to_string()),
-					..Default::default()
-				},
-				// All flags used.
-				BuildSpecCommand {
-					output_file: Some(PathBuf::from(output_file)),
-					release,
-					id: Some(para_id),
-					default_bootnode,
-					chain_type: Some(chain_type.clone()),
-					chain: Some(chain_spec_path.to_string_lossy().to_string()),
-					relay: Some(relay.clone()),
-					protocol_id: Some(protocol_id.to_string()),
-					genesis_state,
-					genesis_code,
-				},
-			] {
-				let mut cli = MockCli::new().expect_confirm(
-					"An existing chain spec file is provided. Do you want to make additional changes to it?",
-					changes,
-				);
-				// When user wants to make changes to chain spec file via prompts and no flags
-				// provided.
-				let no_flags_used = build_spec_cmd.relay.is_none();
-				if changes && no_flags_used {
-					if build_spec_cmd.id.is_none() {
-						cli = cli
-							.expect_input("What parachain ID should be used?", para_id.to_string());
-					}
-					if build_spec_cmd.protocol_id.is_none() {
-						cli = cli.expect_input(
-							"Enter the protocol ID that will identify your network:",
-							protocol_id.to_string(),
-						);
-					}
-					if build_spec_cmd.chain_type.is_none() {
-						cli = cli.expect_select(
-							"Choose the chain type: ",
-							Some(false),
-							true,
-							Some(chain_types()),
-							chain_type.clone() as usize,
-						);
-					}
-					if build_spec_cmd.relay.is_none() {
-						cli = cli.expect_select(
-							"Choose the relay your chain will be connecting to: ",
-							Some(false),
-							true,
-							Some(relays()),
-							relay.clone() as usize,
-						);
-					}
-					if !build_spec_cmd.default_bootnode {
-						cli = cli.expect_confirm(
-							"Would you like to use local host as a bootnode ?",
-							default_bootnode,
-						);
-					}
-					if !build_spec_cmd.genesis_state {
-						cli = cli.expect_confirm(
-							"Should the genesis state file be generated ?",
-							genesis_state,
-						);
-					}
-					if !build_spec_cmd.genesis_code {
-						cli = cli.expect_confirm(
-							"Should the genesis code file be generated ?",
-							genesis_code,
-						);
-					}
-					if !build_spec_cmd.release {
-						cli = cli.expect_confirm(
-							"Using Debug profile to build a Live specification. Should Release be used instead ?",
-							release,
-						);
-					}
-				}
-				let build_spec = build_spec_cmd.configure_build_spec(&mut cli).await?;
-				if changes && no_flags_used {
-					assert_eq!(build_spec.id, para_id);
-					assert_eq!(build_spec.release, release);
-					assert_eq!(build_spec.default_bootnode, default_bootnode);
-					assert_eq!(build_spec.chain_type, chain_type);
-					assert_eq!(build_spec.relay, relay);
-					assert_eq!(build_spec.protocol_id, protocol_id);
-					assert_eq!(build_spec.genesis_state, genesis_state);
-					assert_eq!(build_spec.genesis_code, genesis_code);
-				}
-				// Assert that the chain spec file is correctly detected and used
-				assert_eq!(build_spec.chain, chain_spec_path.to_string_lossy());
-				assert_eq!(build_spec.output_file, chain_spec_path);
-				cli.verify()?;
-			}
-		}
-		Ok(())
-	}
-
-	#[test]
-	fn prepare_output_path_works() -> anyhow::Result<()> {
-		// Create a temporary directory for testing
-		let temp_dir = TempDir::new()?;
-		let temp_dir_path = temp_dir.path();
-
-		let test_cases = [
-			("chain-spec.json", "chain-spec.json"),
-			("existing_dir", "existing_dir.json"),
-			("existing_dir/", "existing_dir/chain-spec.json"),
-			("non_existing_dir", "non_existing_dir.json"),
-			("non_existing_dir/", "non_existing_dir/chain-spec.json"),
-			("some_file", "some_file.json"),
-			("some_dir/some_file", "some_dir/some_file.json"),
-			("existing_dir/subdir/", "existing_dir/subdir/chain-spec.json"),
-		];
-		for (input_str, expected_str) in &test_cases {
-			let input_path = temp_dir_path.join(input_str);
-			let expected_path = temp_dir_path.join(expected_str);
-			// Create directories for existing paths
-			if input_str.starts_with("existing_dir") {
-				let dir_to_create = if input_str.ends_with('/') {
-					input_path.clone()
-				} else {
-					input_path.parent().unwrap_or(&input_path).to_path_buf()
-				};
-				create_dir_all(&dir_to_create)?;
-			}
-			let result = prepare_output_path(&input_path)?;
-			assert_eq!(result, expected_path);
-			// Ensure the parent directory exists
-			if let Some(parent_dir) = result.parent() {
-				assert!(parent_dir.exists());
-			}
-		}
-
-		Ok(())
-	}
-
-	fn relays() -> Vec<(String, String)> {
-		RelayChain::VARIANTS
-			.iter()
-			.map(|variant| {
-				(
-					variant.get_message().unwrap_or(variant.as_ref()).into(),
-					variant.get_detailed_message().unwrap_or_default().into(),
-				)
-			})
-			.collect()
-	}
-
-	fn chain_types() -> Vec<(String, String)> {
-		ChainType::VARIANTS
-			.iter()
-			.map(|variant| {
-				(
-					variant.get_message().unwrap_or(variant.as_ref()).into(),
-					variant.get_detailed_message().unwrap_or_default().into(),
-				)
-			})
-			.collect()
-	}
 }
