@@ -124,7 +124,7 @@ pub(crate) enum RelayChain {
 }
 
 /// Command for generating a chain specification.
-#[derive(Args, Clone)]
+#[derive(Args)]
 pub struct BuildSpecCommand {
 	/// File name for the resulting spec. If a path is given,
 	/// the necessary directories will be created
