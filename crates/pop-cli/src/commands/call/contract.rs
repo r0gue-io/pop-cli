@@ -119,32 +119,31 @@ impl CallContractCommand {
 	/// Checks if the contract has been built; if not, builds it.
 	/// If the path is a contract artifact file, skips the build process
 	async fn ensure_contract_built(&self, cli: &mut impl Cli) -> Result<()> {
-		// The path is expected to be set. If it is not, exit early without attempting to build the contract.
+		// The path is expected to be set. If it is not, exit early without attempting to build the
+		// contract.
 		let Some(path) = self.path.as_deref() else { return Ok(()) };
 		// Check if the path is a file or the build exists in the specified "Contract build
 		// directory"
-		if !path.is_dir() || has_contract_been_built(self.path.as_deref()) {
+		if path.is_file() || has_contract_been_built(self.path.as_deref()) {
 			return Ok(());
 		}
-		if !has_contract_been_built(self.path.as_deref()) {
-			// Build the contract in release mode
-			cli.warning("NOTE: contract has not yet been built.")?;
-			let spinner = spinner();
-			spinner.start("Building contract in RELEASE mode...");
-			let result = match build_smart_contract(self.path.as_deref(), true, Verbosity::Quiet) {
-				Ok(result) => result,
-				Err(e) => {
-					return Err(anyhow!(format!(
+		// Build the contract in release mode
+		cli.warning("NOTE: contract has not yet been built.")?;
+		let spinner = spinner();
+		spinner.start("Building contract in RELEASE mode...");
+		let result = match build_smart_contract(self.path.as_deref(), true, Verbosity::Quiet) {
+			Ok(result) => result,
+			Err(e) => {
+				return Err(anyhow!(format!(
 						"🚫 An error occurred building your contract: {}\nUse `pop build` to retry with build output.",
 						e.to_string()
 					)));
-				},
-			};
-			spinner.stop(format!(
-				"Your contract artifacts are ready. You can find them in: {}",
-				result.target_directory.display()
-			));
-		}
+			},
+		};
+		spinner.stop(format!(
+			"Your contract artifacts are ready. You can find them in: {}",
+			result.target_directory.display()
+		));
 		Ok(())
 	}
 
@@ -548,6 +547,14 @@ mod tests {
 			"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message flip --gas 100 --proof_size 10 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --dry_run",
 			current_dir.join("pop-contracts/tests/files/testing.json").display().to_string(),
 		));
+
+		// From .wasm file
+		call_config.path = Some(current_dir.join("pop-contracts/tests/files/testing.wasm"));
+		call_config.configure(&mut cli, false).await?;
+		assert_eq!(call_config.display(), format!(
+			"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message flip --gas 100 --proof_size 10 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --dry_run",
+			current_dir.join("pop-contracts/tests/files/testing.wasm").display().to_string(),
+		));
 		// Contract deployed on Pop Network testnet, test dry-run
 		call_config.execute_call(&mut cli, false).await?;
 
@@ -876,19 +883,21 @@ mod tests {
 		let temp_dir = new_environment("testing")?;
 		let mut current_dir = env::current_dir().expect("Failed to get current directory");
 		current_dir.pop();
-		// Create invalid `.json` and `.contract` files in the mock build directory and avoid
-		// building the contract.
+		// Create invalid `.json`, `.contract` and `.wasm` files for testing
 		let invalid_contract_path = temp_dir.path().join("testing.contract");
 		let invalid_json_path = temp_dir.path().join("testing.json");
+		let invalid_wasm_path = temp_dir.path().join("testing.wasm");
 		write(&invalid_contract_path, b"This is an invalid contract file")?;
 		write(&invalid_json_path, b"This is an invalid JSON file")?;
+		write(&invalid_wasm_path, b"This is an invalid WASM file")?;
+		// Mock the build process to simulate a scenario where the contract is not properly built.
 		mock_build_process(
 			temp_dir.path().join("testing"),
 			invalid_contract_path.clone(),
-			invalid_json_path.clone(),
+			invalid_contract_path.clone(),
 		)?;
-		let mut cli = MockCli::new();
-		assert!(matches!(CallContractCommand {
+		// Test the path is a folder with an invalid build.
+		let mut command = CallContractCommand {
 			path: Some(temp_dir.path().join("testing")),
 			contract: None,
 			message: None,
@@ -901,7 +910,26 @@ mod tests {
 			dry_run: false,
 			execute: false,
 			dev_mode: false,
-		}.configure(&mut cli, false).await, Err(message) if message.to_string().contains("Unable to fetch contract metadata")));
+		};
+		let mut cli = MockCli::new();
+		assert!(
+			matches!(command.configure(&mut cli, false).await, Err(message) if message.to_string().contains("Unable to fetch contract metadata"))
+		);
+		// Test the path is a file with invalid `.contract` file.
+		command.path = Some(invalid_contract_path);
+		assert!(
+			matches!(command.configure(&mut cli, false).await, Err(message) if message.to_string().contains("Unable to fetch contract metadata"))
+		);
+		// Test the path is a file with invalid `.json` file.
+		command.path = Some(invalid_json_path);
+		assert!(
+			matches!(command.configure(&mut cli, false).await, Err(message) if message.to_string().contains("Unable to fetch contract metadata"))
+		);
+		// Test the path is a file with invalid `.wasm` file.
+		command.path = Some(invalid_wasm_path);
+		assert!(
+			matches!(command.configure(&mut cli, false).await, Err(message) if message.to_string().contains("Unable to fetch contract metadata"))
+		);
 		cli.verify()
 	}
 
