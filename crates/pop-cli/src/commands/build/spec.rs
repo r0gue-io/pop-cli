@@ -199,10 +199,11 @@ impl BuildSpecCommand {
 			genesis_code,
 		} = self;
 
-		// Prompt for chain specification.
+		// Chain.
 		let chain = match chain {
 			Some(chain) => chain,
 			_ => {
+				// Prompt for chain if not provided.
 				input("Specify the chain specification. It can be one of the predefined ones (e.g. dev, local or a custom one) or the path to an existing chain spec.")
 					.placeholder("dev")
 					.default_input("dev")
@@ -210,14 +211,18 @@ impl BuildSpecCommand {
 			},
 		};
 
-		// Check if the provided chain specification is a file.
+		// Output file.
 		let maybe_chain_spec_file = PathBuf::from(&chain);
-		let output_file = if maybe_chain_spec_file.exists() && maybe_chain_spec_file.is_file() {
+		// Check if the provided chain specification is a file.
+		let (output_file, prompt) = if maybe_chain_spec_file.exists() && maybe_chain_spec_file.is_file() {
 			if output_file.is_some() {
 				cli.warning("NOTE: If an existing chain spec file is provided it will be used for the output path.")?;
 			}
-			// Set the provided chain specification file as output file.
-			maybe_chain_spec_file
+			let prompt = confirm("An existing chain spec file is provided. Do you want to make changes to it?".to_string())
+				.initial_value(false)
+				.interact()?;
+			// Set the provided chain specification file as output file and whether to prompt the user for additional changes to the spec.
+			(maybe_chain_spec_file, prompt)
 		} else {
 			let output_file = match output_file {
 				Some(output) => output,
@@ -230,43 +235,43 @@ impl BuildSpecCommand {
 						.interact()?
 				},
 			};
-			prepare_output_path(output_file)?
+			(prepare_output_path(output_file)?, true)
 		};
 		// If chain specification file already exists, obtain values for defaults when prompting.
 		let chain_spec = ChainSpec::from(&output_file).ok();
 
-		// Prompt for para id if not provided.
-		let id = match id {
-			Some(id) => id,
-			None => {
-				let default_id = chain_spec
-					.as_ref()
-					.and_then(|cs| cs.get_parachain_id())
-					.unwrap_or(DEFAULT_PARA_ID as u64)
-					.to_string();
+		// Para id.
+		let id = match id.or_else(|| {
+			chain_spec
+				.as_ref()
+				.and_then(|cs| cs.get_parachain_id().map(|id| id as u32))
+		}) {
+			Some(id) if !prompt => id,
+			// No para id provided or user wants to make changes.
+			_ => {
+				let default = id.unwrap_or(DEFAULT_PARA_ID).to_string();
 				input("What parachain ID should be used?")
-					.placeholder(&default_id)
-					.default_input(&default_id)
+					.placeholder(&default)
+					.default_input(&default)
 					.interact()?
-			},
+			}
 		};
 
-		// Prompt for chain type if not provided.
-		let chain_type = match chain_type {
-			Some(chain_type) => chain_type,
-			None => {
-				let mut prompt = cliclack::select("Choose the chain type: ".to_string());
-				let default = chain_spec
-					.as_ref()
-					.and_then(|cs| cs.get_chain_type())
-					.and_then(|r| ChainType::from_str(r, true).ok());
-				if let Some(chain_type) = default.as_ref() {
-					prompt = prompt.initial_value(chain_type);
-				}
-				for (i, chain_type) in ChainType::VARIANTS.iter().enumerate() {
-					if default.is_none() && i == 0 {
-						prompt = prompt.initial_value(chain_type);
-					}
+		// Chain type.
+		let chain_type = match chain_type.clone().or_else(|| {
+			chain_spec
+				.as_ref()
+				.and_then(|cs| cs.get_chain_type())
+				.and_then(|r| ChainType::from_str(r, true).ok())
+		}) {
+			Some(chain_type) if !prompt => chain_type,
+			// No chain type provided or user wants to make changes.
+			_ => {
+				// Prompt for chain type.
+				let default = chain_type.unwrap_or_default();
+				let mut prompt = cliclack::select("Choose the chain type: ".to_string())
+					.initial_value(&default);
+				for chain_type in ChainType::VARIANTS {
 					prompt = prompt.item(
 						chain_type,
 						chain_type.get_message().unwrap_or(chain_type.as_ref()),
@@ -277,20 +282,20 @@ impl BuildSpecCommand {
 			},
 		};
 
-		// Prompt for relay chain if not provided.
-		let relay = match relay {
-			Some(relay) => relay,
-			None => {
-				let mut prompt = cliclack::select(
-					"Choose the relay chain your chain will be connecting to: ".to_string(),
-				);
-				let default = chain_spec
-					.as_ref()
-					.and_then(|cs| cs.get_relay_chain())
-					.and_then(|r| RelayChain::from_str(r, true).ok());
-				if let Some(relay) = default.as_ref() {
-					prompt = prompt.initial_value(relay);
-				}
+		// Relay.
+		let relay = match relay.clone().or_else(|| {
+			chain_spec
+				.as_ref()
+				.and_then(|cs| cs.get_relay_chain())
+				.and_then(|r| RelayChain::from_str(r, true).ok())
+		}) {
+			Some(relay) if !prompt => relay,
+			// No relay provided or user wants to make changes.
+			_ => {
+				// Prompt for relay chain if not provided.
+				let default = relay.unwrap_or_default();
+				let mut prompt = cliclack::select("Choose the relay chain your chain will be connecting to: ".to_string())
+					.initial_value(&default);
 				for relay in RelayChain::VARIANTS {
 					prompt = prompt.item(
 						relay,
@@ -299,6 +304,24 @@ impl BuildSpecCommand {
 					);
 				}
 				prompt.interact()?.clone()
+			},
+		};
+
+		// Protocol ID.
+		let protocol_id = match protocol_id.clone().or_else(|| {
+			chain_spec
+				.as_ref()
+				.and_then(|cs| cs.get_protocol_id().map(String::from))
+		}) {
+			Some(protocol_id) if !prompt => protocol_id,
+			// No protocol id provided or user wants to make changes.
+			_ => {
+				// Prompt for protocol-id if not provided.
+				let default = protocol_id.unwrap_or(DEFAULT_PROTOCOL_ID.to_string());
+				input("Enter the protocol ID that will identify your network:")
+					.placeholder(&default)
+					.default_input(&default)
+					.interact()?
 			},
 		};
 
@@ -311,22 +334,6 @@ impl BuildSpecCommand {
 			}
 		} else {
 			true
-		};
-
-		// Prompt for protocol-id if not provided.
-		let protocol_id = match protocol_id {
-			Some(protocol_id) => protocol_id,
-			None => {
-				let default = chain_spec
-					.as_ref()
-					.and_then(|cs| cs.get_protocol_id())
-					.unwrap_or(DEFAULT_PROTOCOL_ID)
-					.to_string();
-				input("Enter the protocol ID that will identify your network:")
-					.placeholder(&default)
-					.default_input(&default)
-					.interact()?
-			},
 		};
 
 		// Prompt for genesis state if not provided.
