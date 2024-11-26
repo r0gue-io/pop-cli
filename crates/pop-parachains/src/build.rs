@@ -342,9 +342,10 @@ mod tests {
 		os::unix::fs::PermissionsExt,
 		path::Path,
 	};
-	use tempfile::{tempdir, Builder};
+	use tempfile::{tempdir, Builder, TempDir};
+	use strum::VariantArray;
 
-	fn setup_template_and_instantiate() -> Result<tempfile::TempDir> {
+	fn setup_template_and_instantiate() -> Result<TempDir> {
 		let temp_dir = tempdir().expect("Failed to create temp dir");
 		let config = Config {
 			symbol: "DOT".to_string(),
@@ -367,9 +368,9 @@ mod tests {
 	}
 
 	// Function that generates a Cargo.toml inside node directory for testing.
-	fn generate_mock_node(temp_dir: &Path) -> Result<(), Error> {
+	fn generate_mock_node(temp_dir: &Path, name: Option<&str>) -> Result<PathBuf, Error> {
 		// Create a node directory
-		let target_dir = temp_dir.join("node");
+		let target_dir = temp_dir.join(name.unwrap_or("node"));
 		fs::create_dir(&target_dir)?;
 		// Create a Cargo.toml file
 		let mut toml_file = fs::File::create(target_dir.join("Cargo.toml"))?;
@@ -384,7 +385,7 @@ mod tests {
 
 			"#
 		)?;
-		Ok(())
+		Ok(target_dir)
 	}
 
 	// Function that fetch a binary from pop network
@@ -393,13 +394,13 @@ mod tests {
 		writeln!(
 			config.as_file(),
 			r#"
-[relaychain]
-chain = "rococo-local"
+			[relaychain]
+			chain = "rococo-local"
 
-[[parachains]]
-id = 4385
-default_command = "pop-node"
-"#
+			[[parachains]]
+			id = 4385
+			default_command = "pop-node"
+			"#
 		)?;
 		let mut zombienet =
 			Zombienet::new(&cache, config.path().to_str().unwrap(), None, None, None, None, None)
@@ -425,20 +426,45 @@ default_command = "pop-node"
 		Ok(binary_path)
 	}
 
+	fn add_production_profile(project: &Path) -> Result<()> {
+		let root_toml_path = project.join("Cargo.toml");
+		let mut root_toml_content = fs::read_to_string(&root_toml_path)?;
+		root_toml_content.push_str(
+			r#"
+			[profile.production]
+			codegen-units = 1
+			inherits = "release"
+			lto = true
+			"#,
+		);
+		// Write the updated content back to the file
+		write(&root_toml_path, root_toml_content)?;
+		Ok(())
+	}
+
 	#[test]
 	fn build_parachain_works() -> Result<()> {
-		let temp_dir = tempdir()?;
 		let name = "parachain_template_node";
+		let temp_dir = tempdir()?;
 		cmd("cargo", ["new", name, "--bin"]).dir(temp_dir.path()).run()?;
-		generate_mock_node(&temp_dir.path().join(name))?;
-		let binary = build_parachain(&temp_dir.path().join(name), None, &Profile::Release, None)?;
-		let target_directory = temp_dir.path().join(name).join("target/release");
-		assert!(target_directory.exists());
-		assert!(target_directory.join("parachain_template_node").exists());
-		assert_eq!(
-			binary.display().to_string(),
-			target_directory.join("parachain_template_node").display().to_string()
-		);
+		let project = temp_dir.path().join(name);
+		add_production_profile(&project)?;
+		for node in vec![None, Some("custom_node")] {
+			let node_path = generate_mock_node(&project, node)?;
+			for package in vec![None, Some(String::from("parachain_template_node"))] {
+				for profile in Profile::VARIANTS {
+					let node_path = node.map(|_| node_path.as_path());
+					let binary = build_parachain(&project, package.clone(), &profile, node_path)?;
+					let target_directory = profile.target_directory(&project);
+					assert!(target_directory.exists());
+					assert!(target_directory.join("parachain_template_node").exists());
+					assert_eq!(
+						binary.display().to_string(),
+						target_directory.join("parachain_template_node").display().to_string()
+					);
+				}
+			}
+		}
 		Ok(())
 	}
 
