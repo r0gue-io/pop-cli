@@ -178,8 +178,8 @@ impl BuildSpecCommand {
 		}
 	}
 
-	/// Completes chain specification requirements by prompting for missing inputs, validating
-	/// provided values, and preparing a BuildSpec for generating chain spec files.
+	/// Complete chain specification requirements by prompting for missing inputs, validating
+	/// provided values, and preparing a BuildSpec to generate file(s).
 	async fn complete_build_spec(
 		self,
 		cli: &mut impl cli::traits::Cli,
@@ -214,14 +214,19 @@ impl BuildSpecCommand {
 		// Output file.
 		let maybe_chain_spec_file = PathBuf::from(&chain);
 		// Check if the provided chain specification is a file.
-		let (output_file, prompt) = if maybe_chain_spec_file.exists() && maybe_chain_spec_file.is_file() {
+		let (output_file, prompt) = if maybe_chain_spec_file.exists() &&
+			maybe_chain_spec_file.is_file()
+		{
 			if output_file.is_some() {
 				cli.warning("NOTE: If an existing chain spec file is provided it will be used for the output path.")?;
 			}
-			let prompt = confirm("An existing chain spec file is provided. Do you want to make changes to it?".to_string())
+			// Prompt whether the user wants to make additional changes to the provided chain spec
+			// file.
+			let prompt = confirm("An existing chain spec file is provided. Do you want to make additional changes to it?".to_string())
 				.initial_value(false)
 				.interact()?;
-			// Set the provided chain specification file as output file and whether to prompt the user for additional changes to the spec.
+			// Set the provided chain specification file as output file and whether to prompt the
+			// user for additional changes to the provided spec.
 			(maybe_chain_spec_file, prompt)
 		} else {
 			let output_file = match output_file {
@@ -242,9 +247,7 @@ impl BuildSpecCommand {
 
 		// Para id.
 		let id = match id.or_else(|| {
-			chain_spec
-				.as_ref()
-				.and_then(|cs| cs.get_parachain_id().map(|id| id as u32))
+			chain_spec.as_ref().and_then(|cs| cs.get_parachain_id().map(|id| id as u32))
 		}) {
 			Some(id) if !prompt => id,
 			// No para id provided or user wants to make changes.
@@ -254,7 +257,7 @@ impl BuildSpecCommand {
 					.placeholder(&default)
 					.default_input(&default)
 					.interact()?
-			}
+			},
 		};
 
 		// Chain type.
@@ -269,8 +272,8 @@ impl BuildSpecCommand {
 			_ => {
 				// Prompt for chain type.
 				let default = chain_type.unwrap_or_default();
-				let mut prompt = cliclack::select("Choose the chain type: ".to_string())
-					.initial_value(&default);
+				let mut prompt =
+					cliclack::select("Choose the chain type: ".to_string()).initial_value(&default);
 				for chain_type in ChainType::VARIANTS {
 					prompt = prompt.item(
 						chain_type,
@@ -292,10 +295,12 @@ impl BuildSpecCommand {
 			Some(relay) if !prompt => relay,
 			// No relay provided or user wants to make changes.
 			_ => {
-				// Prompt for relay chain if not provided.
+				// Prompt for relay if not provided.
 				let default = relay.unwrap_or_default();
-				let mut prompt = cliclack::select("Choose the relay chain your chain will be connecting to: ".to_string())
-					.initial_value(&default);
+				let mut prompt = cliclack::select(
+					"Choose the relay chain your chain will be connecting to: ".to_string(),
+				)
+				.initial_value(&default);
 				for relay in RelayChain::VARIANTS {
 					prompt = prompt.item(
 						relay,
@@ -307,16 +312,15 @@ impl BuildSpecCommand {
 			},
 		};
 
-		// Protocol ID.
-		let protocol_id = match protocol_id.clone().or_else(|| {
-			chain_spec
-				.as_ref()
-				.and_then(|cs| cs.get_protocol_id().map(String::from))
-		}) {
+		// Protocol id.
+		let protocol_id = match protocol_id
+			.clone()
+			.or_else(|| chain_spec.as_ref().and_then(|cs| cs.get_protocol_id().map(String::from)))
+		{
 			Some(protocol_id) if !prompt => protocol_id,
 			// No protocol id provided or user wants to make changes.
 			_ => {
-				// Prompt for protocol-id if not provided.
+				// Prompt for protocol id if not provided.
 				let default = protocol_id.unwrap_or(DEFAULT_PROTOCOL_ID.to_string());
 				input("Enter the protocol ID that will identify your network:")
 					.placeholder(&default)
