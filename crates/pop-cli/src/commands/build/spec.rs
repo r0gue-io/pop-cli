@@ -246,86 +246,85 @@ impl BuildSpecCommand {
 		let chain_spec = ChainSpec::from(&output_file).ok();
 
 		// Para id.
-		let id = match id.or_else(|| {
-			chain_spec.as_ref().and_then(|cs| cs.get_parachain_id().map(|id| id as u32))
-		}) {
-			Some(id) if !prompt => id,
-			// No para id provided or user wants to make changes.
-			_ => {
-				let default = id.unwrap_or(DEFAULT_PARA_ID).to_string();
-				input("What parachain ID should be used?")
-					.placeholder(&default)
-					.default_input(&default)
-					.interact()?
+		let id = match id {
+			Some(id) => id,
+			None => {
+				let default =
+					chain_spec.as_ref().and_then(|cs| cs.get_parachain_id().map(|id| id as u32)).unwrap_or(DEFAULT_PARA_ID);
+				if prompt {
+					// Prompt for para id.
+					input("What parachain ID should be used?")
+						.default_input(&default.to_string())
+						.interact()?
+				} else { default }
 			},
 		};
 
 		// Chain type.
-		let chain_type = match chain_type.clone().or_else(|| {
-			chain_spec
-				.as_ref()
-				.and_then(|cs| cs.get_chain_type())
-				.and_then(|r| ChainType::from_str(r, true).ok())
-		}) {
-			Some(chain_type) if !prompt => chain_type,
-			// No chain type provided or user wants to make changes.
-			_ => {
-				// Prompt for chain type.
-				let default = chain_type.unwrap_or_default();
-				let mut prompt =
-					cliclack::select("Choose the chain type: ".to_string()).initial_value(&default);
-				for chain_type in ChainType::VARIANTS {
-					prompt = prompt.item(
-						chain_type,
-						chain_type.get_message().unwrap_or(chain_type.as_ref()),
-						chain_type.get_detailed_message().unwrap_or_default(),
-					);
-				}
-				prompt.interact()?.clone()
+		let chain_type = match chain_type {
+			Some(chain_type) => chain_type,
+			None => {
+				let default =
+					chain_spec
+						.as_ref()
+						.and_then(|cs| cs.get_chain_type())
+						.and_then(|r| ChainType::from_str(r, true).ok()).unwrap_or_default();
+				if prompt {
+					// Prompt for chain type.
+					let mut prompt =
+						cliclack::select("Choose the chain type: ".to_string()).initial_value(&default);
+					for chain_type in ChainType::VARIANTS {
+						prompt = prompt.item(
+							chain_type,
+							chain_type.get_message().unwrap_or(chain_type.as_ref()),
+							chain_type.get_detailed_message().unwrap_or_default(),
+						);
+					}
+					prompt.interact()?.clone()
+				} else { default }
 			},
 		};
 
 		// Relay.
-		let relay = match relay.clone().or_else(|| {
-			chain_spec
-				.as_ref()
-				.and_then(|cs| cs.get_relay_chain())
-				.and_then(|r| RelayChain::from_str(r, true).ok())
-		}) {
-			Some(relay) if !prompt => relay,
-			// No relay provided or user wants to make changes.
-			_ => {
-				// Prompt for relay if not provided.
-				let default = relay.unwrap_or_default();
-				let mut prompt = cliclack::select(
-					"Choose the relay chain your chain will be connecting to: ".to_string(),
-				)
-				.initial_value(&default);
-				for relay in RelayChain::VARIANTS {
-					prompt = prompt.item(
-						relay,
-						relay.get_message().unwrap_or(relay.as_ref()),
-						relay.get_detailed_message().unwrap_or_default(),
-					);
-				}
-				prompt.interact()?.clone()
+		let relay = match relay {
+			Some(relay) => relay,
+			None => {
+				let default =
+					chain_spec
+						.as_ref()
+						.and_then(|cs| cs.get_relay_chain())
+						.and_then(|r| RelayChain::from_str(r, true).ok()).unwrap_or_default();
+				if prompt {
+					// Prompt for relay.
+					let mut prompt = cliclack::select(
+						"Choose the relay chain your chain will be connecting to: ".to_string(),
+					)
+						.initial_value(&default);
+					for relay in RelayChain::VARIANTS {
+						prompt = prompt.item(
+							relay,
+							relay.get_message().unwrap_or(relay.as_ref()),
+							relay.get_detailed_message().unwrap_or_default(),
+						);
+					}
+					prompt.interact()?.clone()
+				} else { default }
 			},
 		};
 
 		// Protocol id.
 		let protocol_id = match protocol_id
-			.clone()
-			.or_else(|| chain_spec.as_ref().and_then(|cs| cs.get_protocol_id().map(String::from)))
 		{
 			Some(protocol_id) if !prompt => protocol_id,
-			// No protocol id provided or user wants to make changes.
 			_ => {
-				// Prompt for protocol id if not provided.
-				let default = protocol_id.unwrap_or(DEFAULT_PROTOCOL_ID.to_string());
-				input("Enter the protocol ID that will identify your network:")
-					.placeholder(&default)
-					.default_input(&default)
-					.interact()?
+				let default =
+					chain_spec.as_ref().and_then(|cs| cs.get_protocol_id()).unwrap_or(DEFAULT_PROTOCOL_ID).to_string();
+				if prompt {
+					// Prompt for protocol id.
+					input("Enter the protocol ID that will identify your network:")
+						.default_input(&default)
+						.interact()?
+				} else { default }
 			},
 		};
 
