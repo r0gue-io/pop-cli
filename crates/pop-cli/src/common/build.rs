@@ -14,9 +14,10 @@ pub fn has_contract_been_built(path: Option<&Path>) -> bool {
 		Ok(manifest) => manifest,
 		Err(_) => return false,
 	};
-	let contract_name = manifest.package().name();
-	project_path.join("target/ink").exists() &&
-		project_path.join(format!("target/ink/{}.contract", contract_name)).exists()
+	manifest
+		.package
+		.map(|p| project_path.join(format!("target/ink/{}.contract", p.name())).exists())
+		.unwrap_or_default()
 }
 
 #[cfg(test)]
