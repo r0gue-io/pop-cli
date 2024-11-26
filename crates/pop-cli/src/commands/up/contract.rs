@@ -19,6 +19,7 @@ use sp_weights::Weight;
 use std::{
 	path::{Path, PathBuf},
 	process::{Child, Command},
+	sync::Mutex,
 };
 use tempfile::NamedTempFile;
 use url::Url;
@@ -74,6 +75,8 @@ pub struct UpContractCommand {
 	/// confirmation.
 	#[clap(short('y'), long)]
 	skip_confirm: bool,
+	#[clap(name = "secure-signing", long, default_value = "")]
+	secure_signing: String,
 }
 
 impl UpContractCommand {
@@ -162,6 +165,87 @@ impl UpContractCommand {
 		} else {
 			None
 		};
+
+		/* START PoC for secure signing */
+
+		fn terminate_frontend(
+			server_running_mutex: std::sync::Arc<Mutex<bool>>,
+		) -> anyhow::Result<()> {
+			if confirm("Would you like to terminate the local frontend?")
+				.initial_value(true)
+				.interact()?
+			{
+				// Stop the process contracts-node
+				*server_running_mutex.lock().unwrap() = false;
+			}
+
+			Ok(())
+		}
+
+		fn launch_frontend() -> std::sync::Arc<Mutex<bool>> {
+			use std::{
+				fs,
+				io::{self, Write},
+				path::Path,
+				sync::{Arc, Mutex},
+				thread,
+			};
+			use tiny_http::{Response, Server};
+
+			// Shared flag to indicate whether the server should keep running
+			let server_running = Arc::new(Mutex::new(true));
+
+			// Clone the flag to pass to the server thread
+			let server_flag = Arc::clone(&server_running);
+
+			thread::spawn(move || {
+				// Set up the server to listen on localhost:8080
+				let server = Server::http("0.0.0.0:8080").unwrap();
+				println!("Server running on http://localhost:8080");
+
+				// Serve requests as long as the flag is true
+				for request in server.incoming_requests() {
+					// Default to serving index.html if no path is provided
+					let file_path = "/Users/peter/dev/r0gue/react-teleport-example/dist/index.html";
+
+					if Path::new(&file_path).exists() {
+						// If the file exists, serve it
+						let content = fs::read(file_path).unwrap();
+						let response = Response::from_data(content);
+						request.respond(response).unwrap();
+					} else {
+						// If file doesn't exist, return 404
+						let response = Response::from_string("404 Not Found").with_status_code(404);
+						request.respond(response).unwrap();
+					}
+
+					// If server_running flag is false, break the loop
+					if !*server_flag.lock().unwrap() {
+						break;
+					}
+				}
+
+				println!("Server has been stopped.");
+			});
+			server_running
+		}
+
+		let call_data = "0x1234";
+
+		{
+			let spinner = spinner();
+
+			spinner.start("Starting local signing portal...");
+			let server_running = launch_frontend();
+
+			spinner.stop(format!(
+				"Local signing portal started successfully:{}",
+				style(format!("http://localhost:8080?call_data={call_data}")).dim(),
+			));
+			terminate_frontend(server_running)?;
+		}
+
+		/* PoC for secure signing END */
 
 		// Check for upload only.
 		if self.upload_only {
