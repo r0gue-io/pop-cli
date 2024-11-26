@@ -87,12 +87,61 @@ async fn parachain_lifecycle() -> Result<()> {
 	assert!(content.contains("\"relay_chain\": \"paseo-local\""));
 	assert!(content.contains("\"protocolId\": \"pop-protocol\""));
 
+	// Custom network to manually set the port
+	let network_toml_path = temp_parachain_dir.join("network.toml");
+	fs::create_dir_all(&temp_parachain_dir)?;
+	fs::write(
+		&network_toml_path,
+		r#"[relaychain]
+chain = "paseo-local"
+
+[[relaychain.nodes]]
+name = "alice"
+rpc_port = 8833
+validator = true
+
+[[relaychain.nodes]]
+name = "bob"
+validator = true
+
+[[parachains]]
+id = 2000
+default_command = "./target/release/parachain-template-node"
+
+[[parachains.collators]]
+name = "collator-01"
+"#,
+	)?;
+
 	// pop up parachain -p "./test_parachain"
 	let mut cmd = Cmd::new(cargo_bin("pop"))
 		.current_dir(&temp_parachain_dir)
 		.args(&["up", "parachain", "-f", "./network.toml", "--skip-confirm"])
 		.spawn()
 		.unwrap();
+
+	// pop call parachain --pallet System --extrinsic remark --args "0x11" --url
+	// ws://127.0.0.1:8833/ --suri //Alice --skip-confirm
+	Command::cargo_bin("pop")
+		.unwrap()
+		.args(&[
+			"call",
+			"parachain",
+			"--pallet",
+			"System",
+			"--extrinsic",
+			"remark",
+			"--args",
+			"0x11",
+			"--url",
+			"ws://127.0.0.1:8833/",
+			"--suri",
+			"//Alice",
+			"--skip-confirm",
+		])
+		.assert()
+		.success();
+
 	// If after 20 secs is still running probably execution is ok, or waiting for user response
 	sleep(Duration::from_secs(20)).await;
 
