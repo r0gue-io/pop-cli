@@ -46,20 +46,20 @@ pub(crate) enum ChainType {
 	// A development chain that runs mainly on one node.
 	#[default]
 	#[strum(
-		serialize = "Development",
+		serialize = "development",
 		message = "Development",
 		detailed_message = "Meant for a development chain that runs mainly on one node."
 	)]
 	Development,
 	// A local chain that runs locally on multiple nodes for testing purposes.
 	#[strum(
-		serialize = "Local",
+		serialize = "local",
 		message = "Local",
 		detailed_message = "Meant for a local chain that runs locally on multiple nodes for testing purposes."
 	)]
 	Local,
 	// A live chain.
-	#[strum(serialize = "Live", message = "Live", detailed_message = "Meant for a live chain.")]
+	#[strum(serialize = "live", message = "Live", detailed_message = "Meant for a live chain.")]
 	Live,
 }
 
@@ -137,7 +137,7 @@ pub struct BuildSpecCommand {
 	#[arg(short = 'o', long = "output")]
 	pub(crate) output_file: Option<PathBuf>,
 	/// Build profile for the binary to generate the chain specification.
-	#[arg(short = 'r', long, value_enum)]
+	#[arg(long, value_enum)]
 	pub(crate) profile: Option<Profile>,
 	/// Parachain ID to be used when generating the chain spec files.
 	#[arg(short = 'i', long)]
@@ -346,9 +346,7 @@ impl BuildSpecCommand {
 						.placeholder(&default)
 						.default_input(&default)
 						.interact()?
-				} else {
-					default
-				}
+				} else { default }
 			},
 		};
 
@@ -442,16 +440,15 @@ impl BuildSpec {
 	// it triggers a build process.
 	fn build(self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<&'static str> {
 		cli.intro("Building your chain spec")?;
-		let mut generated_files = vec![];
-
 		let BuildSpec {
 			ref output_file, ref profile, id, default_bootnode, ref chain, genesis_state, genesis_code,
 		.. } = self;
-
 		// Ensure binary is built.
 		let binary_path = ensure_binary_exists(cli, &profile)?;
+
 		let spinner = spinner();
 		spinner.start("Generating chain specification...");
+		let mut generated_files = vec![];
 
 		// Generate chain spec.
 		generate_plain_chain_spec(

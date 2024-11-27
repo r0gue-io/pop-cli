@@ -16,7 +16,7 @@ use strum_macros::{VariantArray, AsRefStr, EnumMessage, EnumString};
 pub enum Profile {
 	/// Debug profile, optimized for debugging.
 	#[strum(
-		serialize = "Debug",
+		serialize = "debug",
 		message = "Debug",
 		detailed_message = "Optimized for debugging."
 	)]
@@ -24,14 +24,14 @@ pub enum Profile {
 	/// Release profile, optimized without any debugging functionality.
 	#[default]
 	#[strum(
-		serialize = "Release",
+		serialize = "release",
 		message = "Release",
 		detailed_message = "Optimized without any debugging functionality."
 	)]
 	Release,
 	/// Production profile, optimized for ultimate performance.
 	#[strum(
-		serialize = "Production",
+		serialize = "production",
 		message = "Production",
 		detailed_message = "Optimized for ultimate performance."
 	)]
@@ -52,9 +52,9 @@ impl Profile {
 impl fmt::Display for Profile {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
-			Self::Debug => write!(f, "DEBUG"),
-			Self::Release => write!(f, "RELEASE"),
-			Self::Production => write!(f, "PRODUCTION"),
+			Self::Debug => write!(f, "debug"),
+			Self::Release => write!(f, "release"),
+			Self::Production => write!(f, "production"),
 		}
 	}
 }
