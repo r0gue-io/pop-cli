@@ -72,7 +72,18 @@ impl CallContractCommand {
 		let prompt_to_repeat_call = self.message.is_none();
 		// Configure the call based on command line arguments/call UI.
 		if let Err(e) = self.configure(&mut cli::Cli, false).await {
-			display_message(&e.to_string(), false, &mut cli::Cli)?;
+			match e.to_string().as_str() {
+				"Contract not deployed." => {
+					display_message(
+						"Use `pop up contract` to deploy your contract.",
+						true, // Not an error, just a message.
+						&mut cli::Cli,
+					)?;
+				},
+				_ => {
+					display_message(&e.to_string(), false, &mut cli::Cli)?;
+				},
+			}
 			return Ok(());
 		};
 		// Finally execute the call.
@@ -116,9 +127,10 @@ impl CallContractCommand {
 		full_message
 	}
 
-	/// Checks if the contract has been built; if not, builds it.
-	/// If the path is a contract artifact file, skips the build process
-	async fn ensure_contract_built(&self, cli: &mut impl Cli) -> Result<()> {
+	/// Ensures the contract is ready by checking if it has been built. If not built, it builds the
+	/// contract. After building, prompts the user to confirm if the contract has already been
+	/// deployed.
+	async fn ensure_contract_ready(&self, cli: &mut impl Cli) -> Result<()> {
 		// The path is expected to be set. If it is not, exit early without attempting to build the
 		// contract.
 		let Some(path) = self.path.as_deref() else { return Ok(()) };
@@ -135,15 +147,22 @@ impl CallContractCommand {
 			Ok(result) => result,
 			Err(e) => {
 				return Err(anyhow!(format!(
-						"🚫 An error occurred building your contract: {}\nUse `pop build` to retry with build output.",
-						e.to_string()
-					)));
+                        "🚫 An error occurred building your contract: {}\nUse `pop build` to retry with build output.",
+                        e.to_string()
+                    )));
 			},
 		};
 		spinner.stop(format!(
 			"Your contract artifacts are ready. You can find them in: {}",
 			result.target_directory.display()
 		));
+		let is_contract_deployed = cli
+			.confirm("Is the contract already deployed?")
+			.initial_value(false)
+			.interact()?;
+		if !is_contract_deployed {
+			return Err(anyhow!("Contract not deployed."));
+		}
 		Ok(())
 	}
 
@@ -173,8 +192,8 @@ impl CallContractCommand {
 			.as_ref()
 			.expect("path is guaranteed to be set as input is prompted when None; qed");
 
-		// Ensure contract is built.
-		self.ensure_contract_built(&mut cli::Cli).await?;
+		// Ensure contract is built and check if deployed.
+		self.ensure_contract_ready(&mut cli::Cli).await?;
 
 		// Parse the contract metadata provided. If there is an error, do not prompt for more.
 		let messages = match get_messages(contract_path) {
