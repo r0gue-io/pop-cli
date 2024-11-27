@@ -155,7 +155,7 @@ impl ZombienetCommand {
 						None => {
 							log::error(format!("🚫 Using `{relay_chain}` with HRMP channels is currently unsupported. Please use `paseo-local` or `rococo-local`."))?;
 						},
-						Some(relay_chain) => {
+						Some(_) => {
 							use tokio::time::sleep;
 							let spinner = cliclack::spinner();
 							spinner.start("Connecting to relay chain to prepare channels...");
@@ -166,9 +166,7 @@ impl ZombienetCommand {
 							let para_ids: Vec<_> =
 								network.parachains().iter().map(|p| p.para_id()).collect();
 							tokio::spawn(async move {
-								if let Err(e) =
-									clear_dmpq(relay_chain, relay_endpoint, &para_ids).await
-								{
+								if let Err(e) = clear_dmpq(relay_endpoint, &para_ids).await {
 									spinner.stop("");
 									log::error(format!("🚫 Could not prepare channels: {e}"))?;
 									return Ok::<(), Error>(());
