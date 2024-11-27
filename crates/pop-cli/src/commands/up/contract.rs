@@ -190,13 +190,34 @@ impl UpContractCommand {
 				sync::{Arc, Mutex},
 				thread,
 			};
-			use tiny_http::{Response, Server};
+			use tiny_http::{Header, Response, Server};
 
 			// Shared flag to indicate whether the server should keep running
 			let server_running = Arc::new(Mutex::new(true));
 
 			// Clone the flag to pass to the server thread
 			let server_flag = Arc::clone(&server_running);
+
+			// Determine the MIME type based on the file extension
+			fn get_mime_type(path: &str) -> &str {
+				if path.ends_with(".js") {
+					"application/javascript"
+				} else if path.ends_with(".html") {
+					"text/html"
+				} else if path.ends_with(".css") {
+					"text/css"
+				} else if path.ends_with(".json") {
+					"application/json"
+				} else if path.ends_with(".png") {
+					"image/png"
+				} else if path.ends_with(".jpg") || path.ends_with(".jpeg") {
+					"image/jpeg"
+				} else if path.ends_with(".svg") {
+					"image/svg+xml"
+				} else {
+					"application/octet-stream"
+				}
+			}
 
 			thread::spawn(move || {
 				// Set up the server to listen on localhost:8080
@@ -205,17 +226,46 @@ impl UpContractCommand {
 
 				// Serve requests as long as the flag is true
 				for request in server.incoming_requests() {
-					// Default to serving index.html if no path is provided
-					let file_path = "/Users/peter/dev/r0gue/react-teleport-example/dist/index.html";
+					// Parse the requested URL
+					let url = request.url();
+					let (path, query) = match url.split_once('?') {
+						Some((path, query)) => (path, Some(query)),
+						None => (url, None),
+					};
+
+					// Default to serving index.html if no specific file is requested
+					let file_path = if path.is_empty() || path == "/" {
+						"/Users/peter/dev/r0gue/react-teleport-example/dist/index.html".to_string()
+					} else {
+						format!("/Users/peter/dev/r0gue/react-teleport-example/dist/{}", path)
+					};
 
 					if Path::new(&file_path).exists() {
 						// If the file exists, serve it
-						let content = fs::read(file_path).unwrap();
-						let response = Response::from_data(content);
+						let mut content = fs::read(&file_path).unwrap();
+
+						// Inject query parameter if serving index.html
+						if file_path.ends_with("index.html") {
+							if let Some(query) = query {
+								let query_string =
+									format!(r#"<script>window.call_data = "{}";</script>"#, query);
+								let mut html_content = String::from_utf8(content).unwrap();
+								html_content = html_content
+									.replace("</head>", &format!("{}\n</head>", query_string));
+								content = html_content.into_bytes();
+							}
+						}
+
+						let mime_type = get_mime_type(&file_path);
+
+						let response = Response::from_data(content)
+							.with_header(Header::from_bytes("Content-Type", mime_type).unwrap());
 						request.respond(response).unwrap();
 					} else {
-						// If file doesn't exist, return 404
-						let response = Response::from_string("404 Not Found").with_status_code(404);
+						// If the file doesn't exist, return a 404
+						let response = Response::from_string("404 Not Found")
+							.with_status_code(404)
+							.with_header(Header::from_bytes("Content-Type", "text/plain").unwrap());
 						request.respond(response).unwrap();
 					}
 
@@ -227,11 +277,11 @@ impl UpContractCommand {
 
 				println!("Server has been stopped.");
 			});
+
 			server_running
 		}
 
-		let call_data = "0x1234";
-
+		let call_data = self.secure_signing.clone();
 		{
 			let spinner = spinner();
 
