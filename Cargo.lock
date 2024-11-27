@@ -9469,6 +9469,7 @@ dependencies = [
  "strum 0.26.3",
  "strum_macros 0.26.4",
  "subxt",
+ "subxt-signer",
  "symlink",
  "tar",
  "tempfile",
