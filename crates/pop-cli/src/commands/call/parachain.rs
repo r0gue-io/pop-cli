@@ -68,9 +68,7 @@ impl CallParachainCommand {
 			};
 			// TODO: If call_data, go directly here (?).
 			// Send the extrinsic.
-			if let Err(e) =
-				call.send_extrinsic(&chain.api, tx, &mut cli).await
-			{
+			if let Err(e) = call.send_extrinsic(&chain.api, tx, &mut cli).await {
 				display_message(&e.to_string(), false, &mut cli)?;
 			}
 			if !cli
@@ -108,11 +106,7 @@ impl CallParachainCommand {
 	}
 
 	/// Configure the call based on command line arguments/call UI.
-	async fn configure_call(
-		&mut self,
-		chain: &Chain,
-		cli: &mut impl Cli,
-	) -> Result<CallParachain> {
+	async fn configure_call(&mut self, chain: &Chain, cli: &mut impl Cli) -> Result<CallParachain> {
 		loop {
 			// Resolve pallet.
 			let pallet = match self.pallet {
@@ -125,8 +119,11 @@ impl CallParachainCommand {
 					} else {
 						let mut prompt = cli.select("Select the pallet to call:");
 						for pallet_item in &chain.pallets {
-							prompt =
-								prompt.item(pallet_item.clone(), &pallet_item.name, &pallet_item.docs);
+							prompt = prompt.item(
+								pallet_item.clone(),
+								&pallet_item.name,
+								&pallet_item.docs,
+							);
 						}
 						prompt.interact()?
 					}
@@ -140,8 +137,11 @@ impl CallParachainCommand {
 				None => {
 					let mut prompt_extrinsic = cli.select("Select the extrinsic to call:");
 					for extrinsic in &pallet.extrinsics {
-						prompt_extrinsic =
-							prompt_extrinsic.item(extrinsic.clone(), &extrinsic.name, &extrinsic.docs);
+						prompt_extrinsic = prompt_extrinsic.item(
+							extrinsic.clone(),
+							&extrinsic.name,
+							&extrinsic.docs,
+						);
 					}
 					prompt_extrinsic.interact()?
 				},
@@ -169,10 +169,17 @@ impl CallParachainCommand {
 			// Resolve who is signing the extrinsic.
 			let suri = match self.clone().suri {
 				Some(suri) => suri,
-				None => cli.input("Signer of the extrinsic:").default_input(DEFAULT_URI).interact()?,
+				None =>
+					cli.input("Signer of the extrinsic:").default_input(DEFAULT_URI).interact()?,
 			};
 
-			return Ok(CallParachain { pallet, extrinsic, args, suri, skip_confirm: self.skip_confirm });
+			return Ok(CallParachain {
+				pallet,
+				extrinsic,
+				args,
+				suri,
+				skip_confirm: self.skip_confirm,
+			});
 		}
 	}
 }
