@@ -19,6 +19,13 @@ use strum_macros::{AsRefStr, Display, EnumMessage, EnumProperty, EnumString, Var
 )]
 pub enum Action {
 	#[strum(
+		serialize = "transfer",
+		message = "transfer_allow_death",
+		detailed_message = "Transfer Balance",
+		props(Pallet = "Balances")
+	)]
+	Transfer,
+	#[strum(
 		serialize = "create",
 		message = "create",
 		detailed_message = "Create an Asset",
@@ -54,12 +61,19 @@ pub enum Action {
 	)]
 	PurchaseOnDemandCoretime,
 	#[strum(
-		serialize = "transfer",
-		message = "transfer_allow_death",
-		detailed_message = "Transfer Balance",
-		props(Pallet = "Balances")
+		serialize = "reserve",
+		message = "reserve",
+		detailed_message = "Reserve para id",
+		props(Pallet = "Registrar")
 	)]
-	Transfer,
+	Reserve,
+	#[strum(
+		serialize = "register",
+		message = "register",
+		detailed_message = "Register para id with genesis state and code",
+		props(Pallet = "Registrar")
+	)]
+	Register,
 }
 
 impl Action {

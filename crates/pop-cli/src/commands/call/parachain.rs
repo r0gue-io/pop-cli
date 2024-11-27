@@ -6,8 +6,9 @@ use clap::Args;
 use pop_parachains::{
 	construct_extrinsic, encode_call_data, find_extrinsic_by_name, find_pallet_by_name,
 	parse_chain_metadata, set_up_api, sign_and_submit_extrinsic, supported_actions, Action,
-	DynamicPayload, OnlineClient, Pallet, Param, SubstrateConfig,
+	DynamicPayload, Extrinsic, OnlineClient, Pallet, Param, SubstrateConfig,
 };
+use url::Url;
 
 const DEFAULT_URL: &str = "ws://localhost:9944/";
 const DEFAULT_URI: &str = "//Alice";
@@ -15,198 +16,205 @@ const DEFAULT_URI: &str = "//Alice";
 #[derive(Args, Clone)]
 pub struct CallParachainCommand {
 	/// The pallet containing the extrinsic to execute.
-	#[clap(long, short)]
+	#[arg(long)]
 	pallet: Option<String>,
 	/// The extrinsic to execute within the chosen pallet.
-	#[clap(long, short)]
+	#[arg(long)]
 	extrinsic: Option<String>,
 	/// The extrinsic arguments, encoded as strings.
-	#[clap(long, num_args = 0..,)]
+	#[arg(long, num_args = 0..,)]
 	args: Vec<String>,
 	/// Websocket endpoint of a node.
-	#[clap(name = "url", short = 'u', long, value_parser, default_value = DEFAULT_URL)]
-	url: url::Url,
+	#[arg(short = 'u', long, value_parser)]
+	url: Option<Url>,
 	/// Secret key URI for the account signing the extrinsic.
 	///
 	/// e.g.
 	/// - for a dev account "//Alice"
 	/// - with a password "//Alice///SECRET_PASSWORD"
-	#[clap(name = "suri", long, short, default_value = DEFAULT_URI)]
-	suri: String,
+	#[arg(long)]
+	suri: Option<String>,
 	/// Automatically signs and submits the extrinsic without asking for confirmation.
-	#[clap(short('y'), long)]
+	#[arg(short('y'), long)]
 	skip_confirm: bool,
 }
 
 impl CallParachainCommand {
 	/// Executes the command.
 	pub(crate) async fn execute(mut self) -> Result<()> {
-		// Check if message specified via command line argument.
-		let prompt_to_repeat_call = self.extrinsic.is_none();
-		// Configure the call based on command line arguments/call UI.
-		let api = match self.configure(&mut cli::Cli, false).await {
-			Ok(api) => api,
-			Err(e) => {
-				display_message(&e.to_string(), false, &mut cli::Cli)?;
-				return Ok(());
-			},
-		};
-		// Prepare Extrinsic.
-		let tx = match self.prepare_extrinsic(&api, &mut cli::Cli).await {
-			Ok(api) => api,
-			Err(e) => {
-				display_message(&e.to_string(), false, &mut cli::Cli)?;
-				return Ok(());
-			},
-		};
-		// TODO: If call_data, go directly here.
-		// Finally execute the call.
-		if let Err(e) = self.send_extrinsic(api, tx, prompt_to_repeat_call, &mut cli::Cli).await {
-			display_message(&e.to_string(), false, &mut cli::Cli)?;
+		let mut cli = cli::Cli;
+		cli.intro("Call a parachain")?;
+
+		// Configure the chain.
+		let chain = self.configure_chain(&mut cli).await?;
+		loop {
+			// Configure the call based on command line arguments/call UI.
+			let mut call = match self.configure_call(&chain, &mut cli).await {
+				Ok(call) => call,
+				Err(e) => {
+					display_message(&e.to_string(), false, &mut cli)?;
+					break
+				},
+			};
+			// Display the configured call.
+			cli.info(call.display(&chain))?;
+			// Prepare the extrinsic.
+			let tx = match call.prepare_extrinsic(&chain.api, &mut cli).await {
+				Ok(api) => api,
+				Err(e) => {
+					display_message(&e.to_string(), false, &mut cli)?;
+					break
+				},
+			};
+			// TODO: If call_data, go directly here (?).
+			// Send the extrinsic.
+			if let Err(e) =
+				call.send_extrinsic(&chain.api, tx, &mut cli).await
+			{
+				display_message(&e.to_string(), false, &mut cli)?;
+			}
+			if !cli
+				.confirm("Do you want to perform another call?")
+				.initial_value(false)
+				.interact()?
+			{
+				display_message("Parachain calling complete.", true, &mut cli)?;
+				break
+			}
 		}
 		Ok(())
 	}
 
-	fn display(&self) -> String {
-		let mut full_message = "pop call parachain".to_string();
-		if let Some(pallet) = &self.pallet {
-			full_message.push_str(&format!(" --pallet {}", pallet));
-		}
-		if let Some(extrinsic) = &self.extrinsic {
-			full_message.push_str(&format!(" --extrinsic {}", extrinsic));
-		}
-		if !self.args.is_empty() {
-			let args: Vec<_> = self.args.iter().map(|a| format!("\"{a}\"")).collect();
-			full_message.push_str(&format!(" --args {}", args.join(" ")));
-		}
-		full_message.push_str(&format!(" --url {} --suri {}", self.url, self.suri));
-		full_message
+	async fn configure_chain(&self, cli: &mut impl Cli) -> Result<Chain> {
+		// Resolve url.
+		let url = match self.clone().url {
+			Some(url) => url,
+			None => {
+				// Prompt for url.
+				let url: String = cli
+					.input("Which chain would you like to interact with?")
+					.default_input(DEFAULT_URL)
+					.interact()?;
+				Url::parse(&url)?
+			},
+		};
+
+		// Parse metadata from chain url.
+		let api = set_up_api(&url.as_str()).await?;
+		let pallets = parse_chain_metadata(&api).await.map_err(|e| {
+			anyhow!(format!("Unable to fetch the chain metadata: {}", e.to_string()))
+		})?;
+		Ok(Chain { url, api, pallets })
 	}
 
 	/// Configure the call based on command line arguments/call UI.
-	async fn configure(
+	async fn configure_call(
 		&mut self,
-		cli: &mut impl cli::traits::Cli,
-		repeat: bool,
-	) -> Result<OnlineClient<SubstrateConfig>> {
-		// Show intro on first run.
-		if !repeat {
-			cli.intro("Call a parachain")?;
-		}
+		chain: &Chain,
+		cli: &mut impl Cli,
+	) -> Result<CallParachain> {
+		loop {
+			// Resolve pallet.
+			let pallet = match self.pallet {
+				Some(ref pallet_name) => find_pallet_by_name(&chain.pallets, pallet_name).await?,
+				None => {
+					// Specific predefined actions first.
+					if let Some(action) = prompt_predefined_actions(&chain.pallets, cli).await? {
+						self.extrinsic = Some(action.extrinsic_name().to_string());
+						find_pallet_by_name(&chain.pallets, action.pallet_name()).await?
+					} else {
+						let mut prompt = cli.select("Select the pallet to call:");
+						for pallet_item in &chain.pallets {
+							prompt =
+								prompt.item(pallet_item.clone(), &pallet_item.name, &pallet_item.docs);
+						}
+						prompt.interact()?
+					}
+				},
+			};
 
-		// If extrinsic has been specified via command line arguments, return early.
-		if self.extrinsic.is_some() {
-			return Ok(set_up_api(self.url.as_str()).await?);
-		}
+			// Resolve extrinsic.
+			let extrinsic = match self.extrinsic {
+				Some(ref extrinsic_name) =>
+					find_extrinsic_by_name(&chain.pallets, &pallet.name, extrinsic_name).await?,
+				None => {
+					let mut prompt_extrinsic = cli.select("Select the extrinsic to call:");
+					for extrinsic in &pallet.extrinsics {
+						prompt_extrinsic =
+							prompt_extrinsic.item(extrinsic.clone(), &extrinsic.name, &extrinsic.docs);
+					}
+					prompt_extrinsic.interact()?
+				},
+			};
+			// Certain extrinsics are not supported yet due to complexity.
+			if !extrinsic.is_supported {
+				cli.outro_cancel(
+					"The selected extrinsic is not supported yet. Please choose another one.",
+				)?;
+				continue
+			}
 
-		// Resolve url.
-		if !repeat && self.url.as_str() == DEFAULT_URL {
-			// Prompt for url.
-			let url: String = cli
-				.input("Which chain would you like to interact with?")
-				.placeholder("wss://rpc1.paseo.popnetwork.xyz")
-				.default_input("wss://rpc1.paseo.popnetwork.xyz")
-				.interact()?;
-			self.url = url::Url::parse(&url)?
-		};
-
-		// Parse metadata from url chain.
-		let api = set_up_api(self.url.as_str()).await?;
-		let pallets = match parse_chain_metadata(&api).await {
-			Ok(pallets) => pallets,
-			Err(e) => {
-				return Err(anyhow!(format!(
-					"Unable to fetch the chain metadata: {}",
-					e.to_string()
-				)));
-			},
-		};
-		// Resolve pallet.
-		let pallet = if let Some(ref pallet_name) = self.pallet {
-			// Specified by the user.
-			find_pallet_by_name(&pallets, pallet_name).await?
-		} else {
-			// Specific predefined actions first.
-			let action: Option<Action> = prompt_predefined_actions(&pallets, cli).await?;
-			if let Some(action) = action {
-				self.pallet = Some(action.pallet_name().to_string());
-				self.extrinsic = Some(action.extrinsic_name().to_string());
-				find_pallet_by_name(&pallets, action.pallet_name()).await?
-			} else {
-				let mut prompt = cli.select("Select the pallet to call:");
-				for pallet_item in &pallets {
-					prompt = prompt.item(pallet_item.clone(), &pallet_item.name, &pallet_item.docs);
+			// Resolve message arguments.
+			let args = if self.clone().args.is_empty() {
+				let mut args = Vec::new();
+				for param in &extrinsic.params {
+					let input = prompt_for_param(&chain.api, cli, &param)?;
+					args.push(input);
 				}
-				let pallet_prompted = prompt.interact()?;
-				self.pallet = Some(pallet_prompted.name.clone());
-				pallet_prompted
-			}
-		};
-		// Resolve extrinsic.
-		let extrinsic = if let Some(ref extrinsic_name) = self.extrinsic {
-			find_extrinsic_by_name(&pallets, &pallet.name, extrinsic_name).await?
-		} else {
-			let mut prompt_extrinsic = cli.select("Select the extrinsic to call:");
-			for extrinsic in pallet.extrinsics {
-				prompt_extrinsic =
-					prompt_extrinsic.item(extrinsic.clone(), &extrinsic.name, &extrinsic.docs);
-			}
-			let extrinsic_prompted = prompt_extrinsic.interact()?;
-			self.extrinsic = Some(extrinsic_prompted.name.clone());
-			extrinsic_prompted
-		};
-		// Certain extrinsics are not supported yet due to complexity.
-		if !extrinsic.is_supported {
-			cli.outro_cancel(
-				"The selected extrinsic is not supported yet. Please choose another one.",
-			)?;
-			// Reset specific items from the last call and repeat.
-			self.reset_for_new_call();
-			Box::pin(self.configure(cli, true)).await?;
-		}
+				args
+			} else {
+				self.clone().args
+			};
 
-		// Resolve message arguments.
-		if self.args.is_empty() {
-			let mut contract_args = Vec::new();
-			for param in extrinsic.params {
-				let input = prompt_for_param(&api, cli, &param)?;
-				contract_args.push(input);
-			}
-			self.args = contract_args;
-		}
+			// Resolve who is signing the extrinsic.
+			let suri = match self.clone().suri {
+				Some(suri) => suri,
+				None => cli.input("Signer of the extrinsic:").default_input(DEFAULT_URI).interact()?,
+			};
 
-		// Resolve who is sigining the extrinsic.
-		if self.suri == DEFAULT_URI {
-			self.suri = cli
-				.input("Signer of the extrinsic:")
-				.placeholder("//Alice")
-				.default_input("//Alice")
-				.interact()?;
+			return Ok(CallParachain { pallet, extrinsic, args, suri, skip_confirm: self.skip_confirm });
 		}
-
-		cli.info(self.display())?;
-		Ok(api)
 	}
+}
 
-	/// Prepares the extrinsic or query.
+struct Chain {
+	url: Url,
+	api: OnlineClient<SubstrateConfig>,
+	pallets: Vec<Pallet>,
+}
+
+#[derive(Clone)]
+struct CallParachain {
+	/// The pallet of the extrinsic.
+	pallet: Pallet,
+	/// The extrinsic to execute.
+	extrinsic: Extrinsic,
+	/// The extrinsic arguments, encoded as strings.
+	args: Vec<String>,
+	/// Secret key URI for the account signing the extrinsic.
+	///
+	/// e.g.
+	/// - for a dev account "//Alice"
+	/// - with a password "//Alice///SECRET_PASSWORD"
+	suri: String,
+	/// Whether to automatically sign and submit the extrinsic without asking for confirmation.
+	skip_confirm: bool,
+}
+
+impl CallParachain {
+	// Prepares the extrinsic or query.
 	async fn prepare_extrinsic(
 		&self,
 		api: &OnlineClient<SubstrateConfig>,
-		cli: &mut impl cli::traits::Cli,
+		cli: &mut impl Cli,
 	) -> Result<DynamicPayload> {
-		let extrinsic = match &self.extrinsic {
-			Some(extrinsic) => extrinsic.to_string(),
-			None => {
-				return Err(anyhow!("Please specify the extrinsic."));
-			},
-		};
-		let pallet = match &self.pallet {
-			Some(pallet) => pallet.to_string(),
-			None => {
-				return Err(anyhow!("Please specify the pallet."));
-			},
-		};
-		let tx = match construct_extrinsic(&pallet, &extrinsic, self.args.clone()).await {
+		let tx = match construct_extrinsic(
+			&self.pallet.name.as_str(),
+			&self.extrinsic.name.as_str(),
+			self.args.clone(),
+		)
+		.await
+		{
 			Ok(tx) => tx,
 			Err(e) => {
 				return Err(anyhow!("Error: {}", e));
@@ -216,13 +224,12 @@ impl CallParachainCommand {
 		Ok(tx)
 	}
 
-	/// Sign an submit an extrinsic.
+	// Sign and submit an extrinsic.
 	async fn send_extrinsic(
 		&mut self,
-		api: OnlineClient<SubstrateConfig>,
+		api: &OnlineClient<SubstrateConfig>,
 		tx: DynamicPayload,
-		prompt_to_repeat_call: bool,
-		cli: &mut impl cli::traits::Cli,
+		cli: &mut impl Cli,
 	) -> Result<()> {
 		if !self.skip_confirm &&
 			!cli.confirm("Do you want to submit the extrinsic?")
@@ -246,36 +253,22 @@ impl CallParachainCommand {
 			.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
 
 		spinner.stop(&format!("Extrinsic submitted with hash: {:?}", result));
-
-		// Prompt for any additional calls.
-		if !prompt_to_repeat_call {
-			display_message("Extrinsic submitted successfully!", true, cli)?;
-			return Ok(());
-		}
-		if cli
-			.confirm("Do you want to perform another call to the same chain?")
-			.initial_value(false)
-			.interact()?
-		{
-			// Reset specific items from the last call and repeat.
-			self.reset_for_new_call();
-			self.configure(cli, true).await?;
-			let tx = self.prepare_extrinsic(&api, &mut cli::Cli).await?;
-			Box::pin(self.send_extrinsic(api, tx, prompt_to_repeat_call, cli)).await
-		} else {
-			display_message("Parachain calling complete.", true, cli)?;
-			Ok(())
-		}
+		Ok(())
 	}
-	/// Resets specific fields to default values for a new call.
-	fn reset_for_new_call(&mut self) {
-		self.pallet = None;
-		self.extrinsic = None;
-		self.args.clear();
+	fn display(&self, chain: &Chain) -> String {
+		let mut full_message = "pop call parachain".to_string();
+		full_message.push_str(&format!(" --pallet {}", self.pallet));
+		full_message.push_str(&format!(" --extrinsic {}", self.extrinsic));
+		if !self.args.is_empty() {
+			let args: Vec<_> = self.args.iter().map(|a| format!("\"{a}\"")).collect();
+			full_message.push_str(&format!(" --args {}", args.join(" ")));
+		}
+		full_message.push_str(&format!(" --url {} --suri {}", chain.url, self.suri));
+		full_message
 	}
 }
 
-fn display_message(message: &str, success: bool, cli: &mut impl cli::traits::Cli) -> Result<()> {
+fn display_message(message: &str, success: bool, cli: &mut impl Cli) -> Result<()> {
 	if success {
 		cli.outro(message)?;
 	} else {
@@ -287,7 +280,7 @@ fn display_message(message: &str, success: bool, cli: &mut impl cli::traits::Cli
 // Prompts the user for some predefined actions.
 async fn prompt_predefined_actions(
 	pallets: &[Pallet],
-	cli: &mut impl cli::traits::Cli,
+	cli: &mut impl Cli,
 ) -> Result<Option<Action>> {
 	let mut predefined_action = cli.select("What would you like to do?");
 	for action in supported_actions(&pallets).await {
@@ -304,7 +297,7 @@ async fn prompt_predefined_actions(
 // Prompts the user for the value of a parameter.
 fn prompt_for_param(
 	api: &OnlineClient<SubstrateConfig>,
-	cli: &mut impl cli::traits::Cli,
+	cli: &mut impl Cli,
 	param: &Param,
 ) -> Result<String> {
 	if param.is_optional {
@@ -327,7 +320,7 @@ fn prompt_for_param(
 // Resolves the value of a parameter based on its type.
 fn get_param_value(
 	api: &OnlineClient<SubstrateConfig>,
-	cli: &mut impl cli::traits::Cli,
+	cli: &mut impl Cli,
 	param: &Param,
 ) -> Result<String> {
 	if param.sub_params.is_empty() {
@@ -342,7 +335,7 @@ fn get_param_value(
 }
 
 // Prompt for the value when is a primitive.
-fn prompt_for_primitive_param(cli: &mut impl cli::traits::Cli, param: &Param) -> Result<String> {
+fn prompt_for_primitive_param(cli: &mut impl Cli, param: &Param) -> Result<String> {
 	Ok(cli
 		.input(format!("Enter the value for the parameter: {}", param.name))
 		.placeholder(&format!("Type required: {}", param.type_name))
@@ -353,7 +346,7 @@ fn prompt_for_primitive_param(cli: &mut impl cli::traits::Cli, param: &Param) ->
 // fields. Output example: Id(5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY) for the Id variant.
 fn prompt_for_variant_param(
 	api: &OnlineClient<SubstrateConfig>,
-	cli: &mut impl cli::traits::Cli,
+	cli: &mut impl Cli,
 	param: &Param,
 ) -> Result<String> {
 	let selected_variant = {
@@ -379,7 +372,7 @@ fn prompt_for_variant_param(
 // Recursively prompt the user for all the nested fields in a Composite type.
 fn prompt_for_composite_param(
 	api: &OnlineClient<SubstrateConfig>,
-	cli: &mut impl cli::traits::Cli,
+	cli: &mut impl Cli,
 	param: &Param,
 ) -> Result<String> {
 	let mut field_values = Vec::new();
@@ -404,7 +397,7 @@ fn prompt_for_composite_param(
 // Recursively prompt the user for the tuple values.
 fn prompt_for_tuple_param(
 	api: &OnlineClient<SubstrateConfig>,
-	cli: &mut impl cli::traits::Cli,
+	cli: &mut impl Cli,
 	param: &Param,
 ) -> Result<String> {
 	let mut tuple_values = Vec::new();

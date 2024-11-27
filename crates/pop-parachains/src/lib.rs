@@ -21,7 +21,7 @@ pub use call::{
 		action::{supported_actions, Action},
 		find_extrinsic_by_name, find_pallet_by_name,
 		params::Param,
-		parse_chain_metadata, Pallet,
+		parse_chain_metadata, Extrinsic, Pallet,
 	},
 	set_up_api, sign_and_submit_extrinsic,
 };
