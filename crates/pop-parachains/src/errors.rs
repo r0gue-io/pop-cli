@@ -62,6 +62,7 @@ pub enum Error {
 	RustfmtError(std::io::Error),
 	#[error("Template error: {0}")]
 	SourcingError(#[from] pop_common::sourcing::Error),
+	/// An error occurred whilst interacting with a chain using `subxt`.
 	#[error("Subxt error: {0}")]
 	SubXtError(#[from] subxt::Error),
 	#[error("Toml error: {0}")]
