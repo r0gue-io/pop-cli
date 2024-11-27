@@ -51,7 +51,7 @@ pub async fn clear_dmpq(
 	let kill_storage = dynamic::tx(
 		"System",
 		"kill_storage",
-		vec![Value::unnamed_composite(clear_dmq_keys.into_iter().map(|k| Value::from_bytes(k)))],
+		vec![Value::unnamed_composite(clear_dmq_keys.into_iter().map(Value::from_bytes))],
 	);
 	let sudo_call = dynamic::tx("Sudo", "sudo", vec![kill_storage.into_value()]);
 	Ok(client.tx().sign_and_submit_default(&sudo_call, &sudo).await?)
