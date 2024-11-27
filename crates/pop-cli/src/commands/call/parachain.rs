@@ -59,7 +59,6 @@ impl CallParachainCommand {
 				return Ok(());
 			},
 		};
-		// TODO: If call_data, go directly here.
 		// Finally execute the call.
 		if let Err(e) = self.send_extrinsic(api, tx, prompt_to_repeat_call, &mut cli::Cli).await {
 			display_message(&e.to_string(), false, &mut cli::Cli)?;
@@ -224,8 +223,9 @@ impl CallParachainCommand {
 		prompt_to_repeat_call: bool,
 		cli: &mut impl cli::traits::Cli,
 	) -> Result<()> {
-		if !self.skip_confirm &&
-			!cli.confirm("Do you want to submit the extrinsic?")
+		if !self.skip_confirm
+			&& !cli
+				.confirm("Do you want to submit the extrinsic?")
 				.initial_value(true)
 				.interact()?
 		{
@@ -413,4 +413,73 @@ fn prompt_for_tuple_param(
 		tuple_values.push(tuple_value);
 	}
 	Ok(format!("({})", tuple_values.join(", ")))
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::cli::MockCli;
+	use url::Url;
+
+	// This test only covers the interactive portion of the call parachain command, without actually
+	// submitting any extrinsic.
+	#[tokio::test]
+	async fn guide_user_to_call_parachain_works() -> Result<()> {
+		let mut cli = MockCli::new().expect_intro("Call a parachain");
+
+		let mut call_config = CallParachainCommand {
+			pallet: None,
+			extrinsic: Some("Test".to_string()),
+			args: vec![].to_vec(),
+			url: Url::parse("wss://rpc1.paseo.popnetwork.xyz")?,
+			suri: DEFAULT_URI.to_string(),
+			skip_confirm: false,
+		};
+		// If the extrinsic has been specified via command line arguments, return early.
+		call_config.configure(&mut cli, false).await?;
+		cli.verify()?;
+
+		// Test all process specifying pallet, and see the prompted extrinsics.
+		call_config.extrinsic = None;
+		call_config.pallet = Some("System".to_string());
+		call_config.url = Url::parse(DEFAULT_URL)?;
+
+		cli = MockCli::new()
+			.expect_intro("Call a parachain")
+			.expect_input("Signer of the extrinsic:", "//Bob".into())
+			.expect_input("Enter the value for the parameter: remark", "0x11".into())
+			.expect_input("Which chain would you like to interact with?", "wss://rpc1.paseo.popnetwork.xyz".into())
+			.expect_select::<Pallet>(
+				"Select the extrinsic to call:",
+				Some(true),
+				true,
+				Some(
+					[
+						("remark".to_string(), "Make some on-chain remark.Can be executed by every `origin`.".to_string()),
+						("set_heap_pages".to_string(), "Set the number of pages in the WebAssembly environment's heap.".to_string()),
+						("set_code".to_string(), "Set the new runtime code.".to_string()),
+						("set_code_without_checks".to_string(), "Set the new runtime code without doing any checks of the given `code`.Note that runtime upgrades will not run if this is called with a not-increasing specversion!".to_string()),
+						("set_storage".to_string(), "Set some items of storage.".to_string()),
+						("kill_storage".to_string(), "Kill some items from storage.".to_string()),
+						("kill_prefix".to_string(), "Kill all storage items with a key that starts with the given prefix.**NOTE:** We rely on the Root origin to provide us the number of subkeys underthe prefix we are removing to accurately calculate the weight of this function.".to_string()),
+						("remark_with_event".to_string(), "Make some on-chain remark and emit event.".to_string()),
+						("authorize_upgrade".to_string(), "Authorize an upgrade to a given `code_hash` for the runtime. The runtime can be suppliedlater.This call requires Root origin.".to_string()),
+						("authorize_upgrade_without_checks".to_string(), "Authorize an upgrade to a given `code_hash` for the runtime. The runtime can be suppliedlater.WARNING: This authorizes an upgrade that will take place without any safety checks, forexample that the spec name remains the same and that the version number increases. Notrecommended for normal use. Use `authorize_upgrade` instead.This call requires Root origin.".to_string()),
+						("apply_authorized_upgrade".to_string(), "Provide the preimage (runtime binary) `code` for an upgrade that has been authorized.If the authorization required a version check, this call will ensure the spec nameremains unchanged and that the spec version has increased.Depending on the runtime's `OnSetCode` configuration, this function may directly applythe new `code` in the same block or attempt to schedule the upgrade.All origins are allowed.".to_string()),
+					]
+					.to_vec(),
+				),
+				0, // "remark" extrinsic
+			).expect_info("pop call parachain --pallet System --extrinsic remark --args \"0x11\" --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Bob");
+
+		call_config.configure(&mut cli, false).await?;
+
+		assert_eq!(call_config.pallet, Some("System".to_string()));
+		assert_eq!(call_config.extrinsic, Some("remark".to_string()));
+		assert_eq!(call_config.args, ["0x11".to_string()].to_vec());
+		assert_eq!(call_config.url, Url::parse("wss://rpc1.paseo.popnetwork.xyz")?);
+		assert_eq!(call_config.suri, "//Bob".to_string());
+		assert_eq!(call_config.display(), "pop call parachain --pallet System --extrinsic remark --args \"0x11\" --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Bob");
+		cli.verify()
+	}
 }
