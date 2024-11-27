@@ -2,7 +2,12 @@
 
 use crate::Error;
 use sp_core::twox_128;
-use subxt::{config::BlockHash, ext::sp_core, OnlineClient, PolkadotConfig};
+use subxt::{
+	config::BlockHash,
+	dynamic::{self, Value},
+	ext::sp_core,
+	OnlineClient, PolkadotConfig,
+};
 
 /// Clears the DMPQ state for the given parachain IDs.
 ///
@@ -11,7 +16,6 @@ use subxt::{config::BlockHash, ext::sp_core, OnlineClient, PolkadotConfig};
 /// * `client` - Client for the network which state is to be modified.
 /// * `para_ids` - List of ids to build the keys that will be mutated.
 pub async fn clear_dmpq(
-	relay_chain: RelayChain,
 	client: OnlineClient<PolkadotConfig>,
 	para_ids: &[u32],
 ) -> Result<impl BlockHash, Error> {
@@ -44,22 +48,13 @@ pub async fn clear_dmpq(
 
 	// Submit calls to remove specified keys
 	let sudo = subxt_signer::sr25519::dev::alice();
-	match relay_chain {
-		RelayChain::PaseoLocal => {
-			use paseo_local::{
-				runtime_types::paseo_runtime::RuntimeCall::System, system::Call, tx,
-			};
-			let sudo_call = tx().sudo().sudo(System(Call::kill_storage { keys: clear_dmq_keys }));
-			Ok(client.tx().sign_and_submit_default(&sudo_call, &sudo).await?)
-		},
-		RelayChain::RococoLocal => {
-			use rococo_local::{
-				runtime_types::rococo_runtime::RuntimeCall::System, system::Call, tx,
-			};
-			let sudo_call = tx().sudo().sudo(System(Call::kill_storage { keys: clear_dmq_keys }));
-			Ok(client.tx().sign_and_submit_default(&sudo_call, &sudo).await?)
-		},
-	}
+	let kill_storage = dynamic::tx(
+		"System",
+		"kill_storage",
+		vec![Value::unnamed_composite(clear_dmq_keys.into_iter().map(|k| Value::from_bytes(k)))],
+	);
+	let sudo_call = dynamic::tx("Sudo", "sudo", vec![kill_storage.into_value()]);
+	Ok(client.tx().sign_and_submit_default(&sudo_call, &sudo).await?)
 }
 
 /// A supported relay chain.
@@ -83,11 +78,3 @@ impl RelayChain {
 		}
 	}
 }
-
-// subxt metadata --url ws://127.0.0.1:58774 --pallets System,Sudo > paseo-local.scale
-#[subxt::subxt(runtime_metadata_path = "./src/utils/artifacts/paseo-local.scale")]
-mod paseo_local {}
-
-// subxt metadata --url ws://127.0.0.1:58774 --pallets System,Sudo > rococo-local.scale
-#[subxt::subxt(runtime_metadata_path = "./src/utils/artifacts/rococo-local.scale")]
-mod rococo_local {}
