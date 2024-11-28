@@ -57,15 +57,15 @@ pub async fn parse_chain_metadata(
 							let params = {
 								let mut parsed_params = Vec::new();
 								for field in &variant.fields {
-									match params::field_to_param(api, &variant.name, field) {
+									match params::field_to_param(api, field) {
 										Ok(param) => parsed_params.push(param),
-										Err(Error::ExtrinsicNotSupported(_)) => {
-											// Unsupported extrinsic due to complex types
+										Err(_) => {
+											// If an error occurs while parsing the values, mark the
+											// extrinsic as unsupported rather than error.
 											is_supported = false;
 											parsed_params.clear();
 											break;
 										},
-										Err(e) => return Err(e),
 									}
 								}
 								parsed_params
@@ -126,7 +126,7 @@ pub async fn find_extrinsic_by_name(
 	if let Some(extrinsic) = pallet.extrinsics.iter().find(|&e| e.name == extrinsic_name) {
 		return Ok(extrinsic.clone());
 	} else {
-		return Err(Error::ExtrinsicNotSupported(extrinsic_name.to_string()));
+		return Err(Error::ExtrinsicNotSupported);
 	}
 }
 
@@ -202,8 +202,9 @@ mod tests {
 			find_extrinsic_by_name(&pallets, "WrongName", "wrong_extrinsic").await,
 			Err(Error::PalletNotFound(pallet)) if pallet == "WrongName".to_string()));
 		assert!(matches!(
-				find_extrinsic_by_name(&pallets, "Balances", "wrong_extrinsic").await,
-				Err(Error::ExtrinsicNotSupported(extrinsic)) if extrinsic == "wrong_extrinsic".to_string()));
+			find_extrinsic_by_name(&pallets, "Balances", "wrong_extrinsic").await,
+			Err(Error::ExtrinsicNotSupported)
+		));
 		let extrinsic = find_extrinsic_by_name(&pallets, "Balances", "force_transfer").await?;
 		assert_eq!(extrinsic.name, "force_transfer");
 		assert_eq!(extrinsic.docs, "Exactly as `transfer_allow_death`, except the origin must be root and the source accountmay be specified.");
