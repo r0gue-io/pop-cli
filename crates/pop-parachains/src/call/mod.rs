@@ -83,6 +83,12 @@ impl Payload for RawCall {
 	}
 }
 
+/// Signs and submits a given extrinsic to the blockchain.
+///
+/// # Arguments
+/// * `api` - Reference to an `OnlineClient` connected to the chain.
+/// * `call_data` -SCALE encoded bytes representing the call data of the transaction.
+/// * `suri` - The secret URI (e.g., mnemonic or private key) for signing the extrinsic.
 pub async fn sign_and_submit_extrinsic_with_call_data(
 	api: OnlineClient<SubstrateConfig>,
 	call_data: &str,

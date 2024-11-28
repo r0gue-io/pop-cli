@@ -34,12 +34,12 @@ pub struct CallParachainCommand {
 	/// - with a password "//Alice///SECRET_PASSWORD"
 	#[clap(name = "suri", long, short, default_value = DEFAULT_URI)]
 	suri: String,
-	/// Automatically signs and submits the extrinsic without asking for confirmation.
-	#[clap(short('y'), long)]
-	skip_confirm: bool,
 	/// SCALE encoded bytes representing the call data of the transaction.
 	#[arg(name = "call", short = 'c', long, conflicts_with_all = ["pallet", "extrinsic", "args"])]
 	call_data: Option<String>,
+	/// Automatically signs and submits the extrinsic without asking for confirmation.
+	#[clap(short('y'), long)]
+	skip_confirm: bool,
 }
 
 impl CallParachainCommand {
@@ -245,9 +245,8 @@ impl CallParachainCommand {
 		prompt_to_repeat_call: bool,
 		cli: &mut impl cli::traits::Cli,
 	) -> Result<()> {
-		if !self.skip_confirm
-			&& !cli
-				.confirm("Do you want to submit the extrinsic?")
+		if !self.skip_confirm &&
+			!cli.confirm("Do you want to submit the extrinsic?")
 				.initial_value(true)
 				.interact()?
 		{
@@ -308,8 +307,7 @@ impl CallParachainCommand {
 		{
 			display_message(
 				&format!(
-					"Extrinsic {:?} was not submitted. Operation canceled by the user.",
-					self.extrinsic
+					"Extrinsic with call data {call_data} was not submitted. Operation canceled by the user."
 				),
 				false,
 				cli,
@@ -497,7 +495,7 @@ mod tests {
 		cli.verify()?;
 		// Test prompt for the chain
 		call_config.extrinsic = None;
-		call_config.url = Url::parse(DEFAULT)?;
+		call_config.url = Url::parse(DEFAULT_URL)?;
 		cli = MockCli::new().expect_intro("Call a parachain").expect_input(
 			"Which chain would you like to interact with?",
 			"wss://rpc1.paseo.popnetwork.xyz".into(),
@@ -506,7 +504,7 @@ mod tests {
 
 		cli.verify()
 	}
-	
+
 	// This test only covers the interactive portion of the call parachain command, without actually
 	// submitting any extrinsic.
 	#[tokio::test]
@@ -657,6 +655,28 @@ mod tests {
 		let tx = call_config.prepare_extrinsic(&api, &mut cli).await?;
 		call_config.send_extrinsic(api, tx, false, &mut cli).await?;
 		call_config.extrinsic = Some("remark".to_string());
+
+		cli.verify()
+	}
+
+	// Test the function send_extrinsic_from_call_data by canceling the extrinsic submission.
+	#[tokio::test]
+	async fn send_extrinsic_from_call_data_works() -> Result<()> {
+		let api = set_up_api("wss://rpc1.paseo.popnetwork.xyz").await?;
+		let mut call_config = CallParachainCommand {
+			pallet: None,
+			extrinsic: None,
+			args: vec![].to_vec(),
+			url: Url::parse("wss://rpc1.paseo.popnetwork.xyz")?,
+			suri: DEFAULT_URI.to_string(),
+			skip_confirm: false,
+			call_data: Some("0x00000411".to_string()),
+		};
+		let mut cli = MockCli::new()
+			.expect_input("Signer of the extrinsic:", "//Bob".into())
+			.expect_confirm("Do you want to submit the extrinsic?", false)
+			.expect_outro_cancel("Extrinsic with call data 0x00000411 was not submitted. Operation canceled by the user.");
+		call_config.send_extrinsic_from_call_data(&api, "0x00000411", &mut cli).await?;
 
 		cli.verify()
 	}
