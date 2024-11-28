@@ -12,7 +12,7 @@ use pop_parachains::{
 	binary_path, build_parachain, export_wasm_file, generate_genesis_state_file,
 	generate_plain_chain_spec, generate_raw_chain_spec, is_supported, ChainSpec,
 };
-use std::{env::current_dir, fs::create_dir_all, path::PathBuf};
+use std::{env::current_dir, fs::create_dir_all, path::{PathBuf, Path}};
 #[cfg(not(test))]
 use std::{thread::sleep, time::Duration};
 use strum::{EnumMessage, VariantArray};
@@ -240,7 +240,7 @@ impl BuildSpecCommand {
 						.interact()?
 				},
 			};
-			(prepare_output_path(output_file)?, true)
+			(prepare_output_path(&output_file)?, true)
 		};
 		// If chain specification file already exists, obtain values for defaults when prompting.
 		let chain_spec = ChainSpec::from(&output_file).ok();
@@ -507,19 +507,65 @@ fn ensure_binary_exists(
 }
 
 // Prepare the output path provided.
-fn prepare_output_path(mut output_path: PathBuf) -> anyhow::Result<PathBuf> {
-	if output_path.is_dir() {
+fn prepare_output_path(output_path: impl AsRef<Path>) -> anyhow::Result<PathBuf> {
+	let mut output_path = output_path.as_ref().to_path_buf();
+	// Check if the path ends with '.json'
+	let is_json_file = output_path
+		.extension()
+		.and_then(|ext| ext.to_str())
+		.map(|ext| ext.eq_ignore_ascii_case("json"))
+		.unwrap_or(false);
+
+	if !is_json_file {
+		// Treat as directory.
 		if !output_path.exists() {
 			create_dir_all(&output_path)?;
 		}
 		output_path.push(DEFAULT_SPEC_NAME);
 	} else {
+		// Treat as file.
 		if let Some(parent_dir) = output_path.parent() {
 			if !parent_dir.exists() {
-				create_dir_all(&output_path)?;
+				create_dir_all(parent_dir)?;
 			}
 		}
 	}
-	output_path.set_extension("json");
 	Ok(output_path)
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use std::fs::{create_dir_all};
+	use tempfile::TempDir;
+
+	#[test]
+	fn prepare_output_path_works() -> anyhow::Result<()> {
+		// Create a temporary directory for testing
+		let temp_dir = TempDir::new()?;
+		let temp_dir_path = temp_dir.path();
+
+		// Existing Directory Path.
+		for dir in ["existing_dir", "existing_dir/", "existing_dir_json"] {
+			let existing_dir = temp_dir_path.join(dir);
+			create_dir_all(&existing_dir)?;
+			let result = prepare_output_path(&existing_dir)?;
+			// Expected path: existing_dir/chain-spec.json
+			let expected_path = existing_dir.join(DEFAULT_SPEC_NAME);
+			assert_eq!(result, expected_path);
+		}
+
+		// Non-Existing Directory Path.
+		for dir in ["non_existing_dir", "non_existing_dir/", "non_existing_dir_json"] {
+			let non_existing_dir = temp_dir_path.join(dir);
+			let result = prepare_output_path(&non_existing_dir)?;
+			// Expected path: non_existing_dir/chain-spec.json
+			let expected_path = non_existing_dir.join(DEFAULT_SPEC_NAME);
+			assert_eq!(result, expected_path);
+			// The directory should now exist.
+			assert!(result.parent().unwrap().exists());
+		}
+
+		Ok(())
+	}
 }
