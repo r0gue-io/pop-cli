@@ -18,8 +18,8 @@ pub enum Error {
 	CurrentDirAccess,
 	#[error("Failed to parse the endowment value")]
 	EndowmentError,
-	#[error("The extrinsic {0} is not supported")]
-	ExtrinsicNotSupported(String),
+	#[error("The extrinsic is not supported")]
+	ExtrinsicNotSupported,
 	#[error("Failed decode a value")]
 	FromHexError(#[from] hex::FromHexError),
 	#[error("IO error: {0}")]
