@@ -315,8 +315,8 @@ impl BuildSpecCommand {
 		// Protocol id.
 		let protocol_id = match protocol_id
 		{
-			Some(protocol_id) if !prompt => protocol_id,
-			_ => {
+			Some(protocol_id) => protocol_id,
+			None => {
 				let default =
 					chain_spec.as_ref().and_then(|cs| cs.get_protocol_id()).unwrap_or(DEFAULT_PROTOCOL_ID).to_string();
 				if prompt {
