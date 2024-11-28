@@ -158,7 +158,6 @@ pub fn format_type(ty: &Type<PortableForm>, registry: &PortableRegistry) -> Stri
 #[cfg(test)]
 mod tests {
 	use super::*;
-
 	use anyhow::Result;
 	use subxt::{OnlineClient, SubstrateConfig};
 
