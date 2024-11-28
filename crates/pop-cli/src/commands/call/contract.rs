@@ -127,18 +127,8 @@ impl CallContractCommand {
 		full_message
 	}
 
-	/// Ensures the contract is ready by checking if it has been built. If not built, it builds the
-	/// contract. After building, prompts the user to confirm if the contract has already been
-	/// deployed.
-	async fn ensure_contract_ready(&self, cli: &mut impl Cli) -> Result<()> {
-		// The path is expected to be set. If it is not, exit early without attempting to build the
-		// contract.
-		let Some(path) = self.path.as_deref() else { return Ok(()) };
-		// Check if the path is a file or the build exists in the specified "Contract build
-		// directory"
-		if path.is_file() || has_contract_been_built(self.path.as_deref()) {
-			return Ok(());
-		}
+	/// If the contract has not been built, build it in release mode.
+	async fn ensure_contract_built(&self, cli: &mut impl Cli) -> Result<()> {
 		// Build the contract in release mode
 		cli.warning("NOTE: contract has not yet been built.")?;
 		let spinner = spinner();
@@ -156,6 +146,11 @@ impl CallContractCommand {
 			"Your contract artifacts are ready. You can find them in: {}",
 			result.target_directory.display()
 		));
+		Ok(())
+	}
+
+	/// Prompts the user to confirm if the contract has already been deployed.
+	fn confirm_contract_deployment(&self, cli: &mut impl Cli) -> Result<()> {
 		let is_contract_deployed = cli
 			.confirm("Is the contract already deployed?")
 			.initial_value(false)
@@ -164,6 +159,14 @@ impl CallContractCommand {
 			return Err(anyhow!("Contract not deployed."));
 		}
 		Ok(())
+	}
+
+	/// Checks whether building the contract is required
+	fn is_contract_build_required(&self) -> bool {
+		self.path
+			.clone()
+			.map(|p| p.is_dir() && !has_contract_been_built(Some(&p)))
+			.unwrap_or_default()
 	}
 
 	/// Configure the call based on command line arguments/call UI.
@@ -193,7 +196,10 @@ impl CallContractCommand {
 			.expect("path is guaranteed to be set as input is prompted when None; qed");
 
 		// Ensure contract is built and check if deployed.
-		self.ensure_contract_ready(&mut cli::Cli).await?;
+		if self.is_contract_build_required() {
+			self.ensure_contract_built(&mut cli::Cli).await?;
+			self.confirm_contract_deployment(&mut cli::Cli)?;
+		}
 
 		// Parse the contract metadata provided. If there is an error, do not prompt for more.
 		let messages = match get_messages(contract_path) {
@@ -1001,6 +1007,66 @@ mod tests {
 		));
 
 		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn confirm_contract_deployment_works() -> Result<()> {
+		let temp_dir = new_environment("testing")?;
+		let call_config = CallContractCommand {
+			path: Some(temp_dir.path().join("testing")),
+			contract: Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string()),
+			message: None,
+			args: vec![].to_vec(),
+			value: "0".to_string(),
+			gas_limit: None,
+			proof_size: None,
+			url: Url::parse("wss://rpc1.paseo.popnetwork.xyz")?,
+			suri: "//Alice".to_string(),
+			dry_run: false,
+			execute: false,
+			dev_mode: false,
+		};
+		// Contract is not deployed.
+		let mut cli = MockCli::new().expect_confirm("Is the contract already deployed?", false);
+		assert!(
+			matches!(call_config.confirm_contract_deployment(&mut cli), anyhow::Result::Err(message) if message.to_string() == "Contract not deployed.")
+		);
+		cli.verify()?;
+		// Contract is deployed.
+		cli = MockCli::new().expect_confirm("Is the contract already deployed?", true);
+		call_config.confirm_contract_deployment(&mut cli)?;
+		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn is_contract_build_required_works() -> Result<()> {
+		let temp_dir = new_environment("testing")?;
+		let call_config = CallContractCommand {
+			path: Some(temp_dir.path().join("testing")),
+			contract: Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string()),
+			message: None,
+			args: vec![].to_vec(),
+			value: "0".to_string(),
+			gas_limit: None,
+			proof_size: None,
+			url: Url::parse("wss://rpc1.paseo.popnetwork.xyz")?,
+			suri: "//Alice".to_string(),
+			dry_run: false,
+			execute: false,
+			dev_mode: false,
+		};
+		// Contract not build. Build is required.
+		assert!(call_config.is_contract_build_required());
+		// Mock build process. Build is not required.
+		let mut current_dir = env::current_dir().expect("Failed to get current directory");
+		current_dir.pop();
+		mock_build_process(
+			temp_dir.path().join("testing"),
+			current_dir.join("pop-contracts/tests/files/testing.contract"),
+			current_dir.join("pop-contracts/tests/files/testing.json"),
+		)?;
+		assert!(!call_config.is_contract_build_required());
+		Ok(())
 	}
 
 	#[test]
