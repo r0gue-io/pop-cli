@@ -14,6 +14,7 @@ use strum_macros::{AsRefStr, Display, EnumMessage, EnumProperty, EnumString, Var
 	EnumString,
 	EnumProperty,
 	Eq,
+	Hash,
 	PartialEq,
 	VariantArray,
 )]
@@ -95,4 +96,80 @@ pub async fn supported_actions(pallets: &[Pallet]) -> Vec<Action> {
 		}
 	}
 	actions
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::{parse_chain_metadata, set_up_api};
+	use anyhow::Result;
+	use std::collections::HashMap;
+
+	#[test]
+	fn action_descriptions_are_correct() {
+		let descriptions = HashMap::from([
+			(Action::CreateAsset, "Create an Asset"),
+			(Action::MintAsset, "Mint an Asset"),
+			(Action::CreateCollection, "Create an NFT Collection"),
+			(Action::MintNFT, "Mint an NFT"),
+			(Action::PurchaseOnDemandCoretime, "Purchase on-demand coretime"),
+			(Action::Transfer, "Transfer Balance"),
+		]);
+
+		for action in Action::VARIANTS.iter() {
+			assert_eq!(&action.description(), descriptions.get(action).unwrap());
+		}
+	}
+
+	#[test]
+	fn pallet_names_are_correct() {
+		let pallets = HashMap::from([
+			(Action::CreateAsset, "Assets"),
+			(Action::MintAsset, "Assets"),
+			(Action::CreateCollection, "Nfts"),
+			(Action::MintNFT, "Nfts"),
+			(Action::PurchaseOnDemandCoretime, "OnDemand"),
+			(Action::Transfer, "Balances"),
+		]);
+
+		for action in Action::VARIANTS.iter() {
+			assert_eq!(&action.pallet_name(), pallets.get(action).unwrap(),);
+		}
+	}
+
+	#[test]
+	fn extrinsic_names_are_correct() {
+		let pallets = HashMap::from([
+			(Action::CreateAsset, "create"),
+			(Action::MintAsset, "mint"),
+			(Action::CreateCollection, "create"),
+			(Action::MintNFT, "mint"),
+			(Action::PurchaseOnDemandCoretime, "place_order_allow_death"),
+			(Action::Transfer, "transfer_allow_death"),
+		]);
+
+		for action in Action::VARIANTS.iter() {
+			assert_eq!(&action.extrinsic_name(), pallets.get(action).unwrap(),);
+		}
+	}
+
+	#[tokio::test]
+	async fn supported_actions_works() -> Result<()> {
+		// Test Pop Parachain.
+		let mut api = set_up_api("wss://rpc1.paseo.popnetwork.xyz").await?;
+		let mut actions = supported_actions(&parse_chain_metadata(&api).await?).await;
+		assert_eq!(actions.len(), 5);
+		assert_eq!(actions[0], Action::CreateAsset);
+		assert_eq!(actions[1], Action::MintAsset);
+		assert_eq!(actions[2], Action::CreateCollection);
+		assert_eq!(actions[3], Action::MintNFT);
+		assert_eq!(actions[4], Action::Transfer);
+		// Test Polkadot Relay Chain.
+		api = set_up_api("wss://polkadot-rpc.publicnode.com").await?;
+		actions = supported_actions(&parse_chain_metadata(&api).await?).await;
+		assert_eq!(actions.len(), 2);
+		assert_eq!(actions[0], Action::PurchaseOnDemandCoretime);
+		assert_eq!(actions[1], Action::Transfer);
+		Ok(())
+	}
 }
