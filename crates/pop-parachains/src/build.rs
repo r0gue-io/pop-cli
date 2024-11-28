@@ -93,10 +93,12 @@ pub fn generate_plain_chain_spec(
 	// Run the command and redirect output to the temporary file.
 	cmd(binary_path, args).stdout_path(temp_file.path()).stderr_null().run()?;
 	// Atomically replace the chain spec file with the temporary file.
-	temp_file
-		.persist(plain_chain_spec)
-		.map_err(|e| AnyhowError(anyhow!("Failed to replace the chain spec file with the temporary file: {}",
-			e.to_string())))?;
+	temp_file.persist(plain_chain_spec).map_err(|e| {
+		AnyhowError(anyhow!(
+			"Failed to replace the chain spec file with the temporary file: {}",
+			e.to_string()
+		))
+	})?;
 	Ok(())
 }
 
