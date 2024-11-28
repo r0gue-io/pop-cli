@@ -46,7 +46,7 @@ let package = None;  // The optional package to be built.
 let binary_path = build_parachain(&path, package, &Profile::Release, None).unwrap();;
 // Generate a plain chain specification file of a parachain
 let plain_chain_spec_path = path.join("plain-parachain-chainspec.json");
-generate_plain_chain_spec(&binary_path, &plain_chain_spec_path, true, Some("dev"));
+generate_plain_chain_spec(&binary_path, &plain_chain_spec_path, true, "dev");
 // Customize your chain specification
 let mut chain_spec = ChainSpec::from(&plain_chain_spec_path).unwrap();
 chain_spec.replace_para_id(2002);
@@ -70,7 +70,7 @@ let package = None;  // The optional package to be built.
 let binary_path = build_parachain(&path, package, &Profile::Release, None).unwrap();;
 // Generate a plain chain specification file of a parachain
 let plain_chain_spec_path = path.join("plain-parachain-chainspec.json");
-generate_plain_chain_spec(&binary_path, &plain_chain_spec_path, true, Some("dev"));
+generate_plain_chain_spec(&binary_path, &plain_chain_spec_path, true, "dev");
 // Generate a raw chain specification file of a parachain
 let chain_spec = generate_raw_chain_spec(&binary_path, &plain_chain_spec_path, "raw-parachain-chainspec.json").unwrap();
 // Export the WebAssembly runtime for the parachain.
