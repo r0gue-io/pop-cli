@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::Error;
-use anyhow::Result;
+use crate::Error::{self, *};
+use anyhow::{anyhow, Result};
 use duct::cmd;
 use pop_common::{manifest::from_path, Profile};
 use serde_json::{json, Value};
@@ -84,9 +84,7 @@ pub fn generate_plain_chain_spec(
 	chain: &str,
 ) -> Result<(), Error> {
 	check_command_exists(binary_path, "build-spec")?;
-	let mut args = vec!["build-spec"];
-	args.push("--chain");
-	args.push(chain);
+	let mut args = vec!["build-spec", "--chain", chain];
 	if !default_bootnode {
 		args.push("--disable-default-bootnode");
 	}
@@ -95,9 +93,10 @@ pub fn generate_plain_chain_spec(
 	// Run the command and redirect output to the temporary file.
 	cmd(binary_path, args).stdout_path(temp_file.path()).stderr_null().run()?;
 	// Atomically replace the chain spec file with the temporary file.
-	let _ = temp_file
+	temp_file
 		.persist(plain_chain_spec)
-		.map_err(|_| Error::AnyhowError(anyhow::anyhow!("error")));
+		.map_err(|e| AnyhowError(anyhow!("Failed to replace the chain spec file with the temporary file: {}",
+			e.to_string())))?;
 	Ok(())
 }
 

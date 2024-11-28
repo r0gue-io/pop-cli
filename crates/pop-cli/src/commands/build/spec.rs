@@ -143,8 +143,7 @@ pub struct BuildSpecCommand {
 	/// Type of the chain.
 	#[arg(short = 't', long = "type", value_enum)]
 	pub(crate) chain_type: Option<ChainType>,
-	/// Specify the chain specification. It can be one of the predefined ones (e.g. dev, local or a
-	/// custom one) or the path to an existing chain spec.
+	/// Provide the chain specification to use (e.g. dev , local, custom or a path to an existing file).
 	#[arg(short = 'c', long = "chain")]
 	pub(crate) chain: Option<String>,
 	/// Relay chain this parachain will connect to.
@@ -180,6 +179,9 @@ impl BuildSpecCommand {
 
 	/// Complete chain specification requirements by prompting for missing inputs, validating
 	/// provided values, and preparing a BuildSpec to generate file(s).
+	///
+	/// # Arguments
+	/// * `cli` - The cli.
 	async fn complete_build_spec(
 		self,
 		cli: &mut impl cli::traits::Cli,
@@ -204,8 +206,7 @@ impl BuildSpecCommand {
 			Some(chain) => chain,
 			_ => {
 				// Prompt for chain if not provided.
-				input("Specify the chain specification. It can be one of the predefined ones (e.g. dev, local or a custom one) or the path to an existing chain spec.")
-					.placeholder("dev")
+				input("Provide the chain specification to use (e.g. dev , local, custom or a path to an existing file)")
 					.default_input("dev")
 					.interact()?
 			},
@@ -235,7 +236,6 @@ impl BuildSpecCommand {
 					// Prompt for output file if not provided.
 					let default_output = format!("./{DEFAULT_SPEC_NAME}");
 					input("Name of the plain chain spec file. If a path is given, the necessary directories will be created:")
-						.placeholder(&default_output)
 						.default_input(&default_output)
 						.interact()?
 				},
