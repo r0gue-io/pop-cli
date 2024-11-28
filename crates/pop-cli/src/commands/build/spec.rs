@@ -143,7 +143,7 @@ pub struct BuildSpecCommand {
 	/// Type of the chain.
 	#[arg(short = 't', long = "type", value_enum)]
 	pub(crate) chain_type: Option<ChainType>,
-	/// Provide the chain specification to use (e.g. dev , local, custom or a path to an existing file).
+	/// Provide the chain specification to use (e.g. dev, local, custom or a path to an existing file).
 	#[arg(short = 'c', long = "chain")]
 	pub(crate) chain: Option<String>,
 	/// Relay chain this parachain will connect to.
@@ -206,7 +206,7 @@ impl BuildSpecCommand {
 			Some(chain) => chain,
 			_ => {
 				// Prompt for chain if not provided.
-				input("Provide the chain specification to use (e.g. dev , local, custom or a path to an existing file)")
+				input("Provide the chain specification to use (e.g. dev, local, custom or a path to an existing file)")
 					.default_input("dev")
 					.interact()?
 			},
@@ -403,8 +403,6 @@ impl BuildSpec {
 	// it triggers a build process.
 	fn build(&self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<&'static str> {
 		cli.intro("Building your chain spec")?;
-		let spinner = spinner();
-		spinner.start("Generating chain specification...");
 		let mut generated_files = vec![];
 
 		// Ensure binary is built.
@@ -417,6 +415,8 @@ impl BuildSpec {
 			#[cfg(not(test))]
 			sleep(Duration::from_secs(3))
 		}
+		let spinner = spinner();
+		spinner.start("Generating chain specification...");
 
 		// Generate chain spec.
 		generate_plain_chain_spec(
