@@ -407,7 +407,6 @@ async fn prompt_predefined_actions(
 	pallets: &[Pallet],
 	cli: &mut impl Cli,
 ) -> Result<Option<Action>> {
-	println!("1 select");
 	let mut predefined_action = cli.select("What would you like to do?");
 	for action in supported_actions(pallets).await {
 		predefined_action = predefined_action.item(
