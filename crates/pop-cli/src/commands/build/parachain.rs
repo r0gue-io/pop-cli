@@ -79,8 +79,8 @@ mod tests {
 	use super::*;
 	use cli::MockCli;
 	use duct::cmd;
+	use pop_common::manifest::add_production_profile;
 	use std::{fs, io::Write, path::Path};
-	use std::fs::write;
 	use strum::VariantArray;
 
 	// Function that generates a Cargo.toml inside node directory for testing.
@@ -100,22 +100,6 @@ mod tests {
 			[dependencies]
 			"#
 		)?;
-		Ok(())
-	}
-
-	fn add_production_profile(project: &Path) -> anyhow::Result<()> {
-		let root_toml_path = project.join("Cargo.toml");
-		let mut root_toml_content = fs::read_to_string(&root_toml_path)?;
-		root_toml_content.push_str(
-			r#"
-			[profile.production]
-			codegen-units = 1
-			inherits = "release"
-			lto = true
-			"#,
-		);
-		// Write the updated content back to the file
-		write(&root_toml_path, root_toml_content)?;
 		Ok(())
 	}
 

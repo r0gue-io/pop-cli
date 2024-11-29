@@ -5,10 +5,10 @@ use clap::{Args, Subcommand};
 #[cfg(feature = "contract")]
 use contract::BuildContractCommand;
 use duct::cmd;
+use pop_common::Profile;
 use std::path::PathBuf;
 #[cfg(feature = "parachain")]
 use {parachain::BuildParachainCommand, spec::BuildSpecCommand};
-use pop_common::Profile;
 
 #[cfg(feature = "contract")]
 pub(crate) mod contract;
@@ -29,6 +29,9 @@ pub(crate) struct BuildArgs {
 	/// The package to be built.
 	#[arg(short = 'p', long)]
 	pub(crate) package: Option<String>,
+	/// For production, always build in release mode to exclude debug features.
+	#[clap(short = 'r', long, conflicts_with = "profile")]
+	pub(crate) release: bool,
 	/// Build profile [default: debug].
 	#[clap(long, value_enum)]
 	pub(crate) profile: Option<Profile>,
@@ -63,23 +66,26 @@ impl Command {
 		#[cfg(feature = "contract")]
 		if pop_contracts::is_supported(args.path.as_deref())? {
 			// All commands originating from root command are valid
-			let release = match args.profile.unwrap_or(Profile::Debug) {
-				Profile::Debug => false,
-				_ => true,
+			let release = match args.profile {
+				Some(profile) => profile.into(),
+				None => args.release,
 			};
-			BuildContractCommand { path: args.path, release, valid: true }
-				.execute()?;
+			BuildContractCommand { path: args.path, release, valid: true }.execute()?;
 			return Ok("contract");
 		}
 
 		// If only parachain feature enabled, build as parachain
 		#[cfg(feature = "parachain")]
 		if pop_parachains::is_supported(args.path.as_deref())? {
+			let profile = match args.profile {
+				Some(profile) => profile,
+				None => args.release.into(),
+			};
 			// All commands originating from root command are valid
 			BuildParachainCommand {
 				path: args.path,
 				package: args.package,
-				profile: args.profile,
+				profile: Some(profile),
 				id: args.id,
 				valid: true,
 			}
@@ -122,28 +128,10 @@ impl Command {
 
 #[cfg(test)]
 mod tests {
-	use std::fs;
-	use std::fs::write;
-	use std::path::Path;
 	use super::*;
 	use cli::MockCli;
+	use pop_common::manifest::add_production_profile;
 	use strum::VariantArray;
-
-	fn add_production_profile(project: &Path) -> anyhow::Result<()> {
-		let root_toml_path = project.join("Cargo.toml");
-		let mut root_toml_content = fs::read_to_string(&root_toml_path)?;
-		root_toml_content.push_str(
-			r#"
-			[profile.production]
-			codegen-units = 1
-			inherits = "release"
-			lto = true
-			"#,
-		);
-		// Write the updated content back to the file
-		write(&root_toml_path, root_toml_content)?;
-		Ok(())
-	}
 
 	#[test]
 	fn build_works() -> anyhow::Result<()> {
@@ -155,31 +143,33 @@ mod tests {
 		add_production_profile(&project_path)?;
 
 		for package in [None, Some(name.to_string())] {
-			for profile in Profile::VARIANTS {
-				let project = if package.is_some() { "package" } else { "project" };
-				let mut cli = MockCli::new()
-					.expect_intro(format!("Building your {project}"))
-					.expect_info(format!("The {project} was built in {profile} mode."))
-					.expect_outro("Build completed successfully!");
+			for release in [true, false] {
+				for profile in Profile::VARIANTS {
+					let profile = if release { Profile::Release } else { Profile::Debug };
+					let project = if package.is_some() { "package" } else { "project" };
+					let mut cli = MockCli::new()
+						.expect_intro(format!("Building your {project}"))
+						.expect_info(format!("The {project} was built in {profile} mode."))
+						.expect_outro("Build completed successfully!");
 
-				assert_eq!(
-					Command::build(
-						BuildArgs {
-							command: None,
-							path: Some(project_path.clone()),
-							package: package.clone(),
-							profile: Some(profile.clone()),
-							id: None,
-						},
-						&mut cli,
-					)?,
-					project
-				);
-
-				cli.verify()?;
+					assert_eq!(
+						Command::build(
+							BuildArgs {
+								command: None,
+								path: Some(project_path.clone()),
+								package: package.clone(),
+								release,
+								profile: Some(profile.clone()),
+								id: None,
+							},
+							&mut cli,
+						)?,
+						project
+					);
+					cli.verify()?;
+				}
 			}
 		}
-
 		Ok(())
 	}
 }

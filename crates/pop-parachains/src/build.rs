@@ -31,8 +31,10 @@ pub fn build_parachain(
 		args.push("--package");
 		args.push(package)
 	}
-	if matches!(profile, &Profile::Release) {
+	if profile == &Profile::Release {
 		args.push("--release");
+	} else if profile == &Profile::Production {
+		args.push("--profile=production");
 	}
 	cmd("cargo", args).dir(path).run()?;
 	binary_path(&profile.target_directory(path), node_path.unwrap_or(&path.join("node")))
@@ -342,8 +344,8 @@ mod tests {
 		os::unix::fs::PermissionsExt,
 		path::Path,
 	};
-	use tempfile::{tempdir, Builder, TempDir};
 	use strum::VariantArray;
+	use tempfile::{tempdir, Builder, TempDir};
 
 	fn setup_template_and_instantiate() -> Result<TempDir> {
 		let temp_dir = tempdir().expect("Failed to create temp dir");
