@@ -9,7 +9,7 @@ use crate::{
 	style::style,
 };
 use clap::{Args, ValueEnum};
-use cliclack::{spinner};
+use cliclack::spinner;
 use pop_common::Profile;
 use pop_parachains::{
 	binary_path, build_parachain, export_wasm_file, generate_genesis_state_file,
@@ -536,7 +536,6 @@ fn ensure_binary_exists(
 }
 
 // Prepare the output path provided.
-
 fn prepare_output_path(output_path: impl AsRef<Path>) -> anyhow::Result<PathBuf> {
 	let mut output_path = output_path.as_ref().to_path_buf();
 	// Convert to string to check for trailing slash.
@@ -573,8 +572,6 @@ fn prepare_output_path(output_path: impl AsRef<Path>) -> anyhow::Result<PathBuf>
 	}
 	Ok(output_path)
 }
-
-
 
 #[cfg(test)]
 mod tests {
@@ -789,8 +786,9 @@ mod tests {
 			("existing_dir/", "existing_dir/chain-spec.json"),
 			("non_existing_dir", "non_existing_dir.json"),
 			("non_existing_dir/", "non_existing_dir/chain-spec.json"),
-			("some_file	", "some_file.json"),
+			("some_file", "some_file.json"),
 			("some_dir/some_file", "some_dir/some_file.json"),
+			("existing_dir/subdir/", "existing_dir/subdir/chain-spec.json"),
 		];
 		for (input_str, expected_str) in &test_cases {
 			let input_path = temp_dir_path.join(input_str);
