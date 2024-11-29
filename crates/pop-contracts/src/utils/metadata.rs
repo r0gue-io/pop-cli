@@ -43,7 +43,34 @@ pub enum FunctionType {
 ///
 /// # Arguments
 /// * `path` -  Location path of the project or contract artifact.
-pub fn get_messages(path: &Path) -> Result<Vec<ContractFunction>, Error> {
+pub fn get_messages<P>(path: P) -> Result<Vec<ContractFunction>, Error>
+where
+	P: AsRef<Path>,
+{
+	get_contract_functions(path.as_ref(), FunctionType::Message)
+}
+
+/// Extracts a list of smart contract contructors parsing the contract artifact.
+///
+/// # Arguments
+/// * `path` -  Location path of the project or contract artifact.
+pub fn get_constructors<P>(path: P) -> Result<Vec<ContractFunction>, Error>
+where
+	P: AsRef<Path>,
+{
+	get_contract_functions(path.as_ref(), FunctionType::Constructor)
+}
+
+/// Extracts a list of smart contract functions (messages or constructors) parsing the contract
+/// artifact.
+///
+/// # Arguments
+/// * `path` - Location path of the project or contract artifact.
+/// * `function_type` - Specifies whether to extract messages or constructors.
+fn get_contract_functions(
+	path: &Path,
+	function_type: FunctionType,
+) -> Result<Vec<ContractFunction>, Error> {
 	let contract_artifacts = if path.is_dir() || path.ends_with("Cargo.toml") {
 		let cargo_toml_path =
 			if path.ends_with("Cargo.toml") { path.to_path_buf() } else { path.join("Cargo.toml") };
@@ -53,19 +80,35 @@ pub fn get_messages(path: &Path) -> Result<Vec<ContractFunction>, Error> {
 	};
 	let transcoder = contract_artifacts.contract_transcoder()?;
 	let metadata = transcoder.metadata();
-	Ok(metadata
-		.spec()
-		.messages()
-		.iter()
-		.map(|message| ContractFunction {
-			label: message.label().to_string(),
-			mutates: message.mutates(),
-			payable: message.payable(),
-			args: process_args(message.args(), metadata.registry()),
-			docs: message.docs().join(" "),
-			default: *message.default(),
-		})
-		.collect())
+
+	Ok(match function_type {
+		FunctionType::Message => metadata
+			.spec()
+			.messages()
+			.iter()
+			.map(|message| ContractFunction {
+				label: message.label().to_string(),
+				mutates: message.mutates(),
+				payable: message.payable(),
+				args: process_args(message.args(), metadata.registry()),
+				docs: message.docs().join(" "),
+				default: *message.default(),
+			})
+			.collect(),
+		FunctionType::Constructor => metadata
+			.spec()
+			.constructors()
+			.iter()
+			.map(|constructor| ContractFunction {
+				label: constructor.label().to_string(),
+				payable: *constructor.payable(),
+				args: process_args(constructor.args(), metadata.registry()),
+				docs: constructor.docs().join(" "),
+				default: *constructor.default(),
+				mutates: true,
+			})
+			.collect(),
+	})
 }
 
 /// Extracts the information of a smart contract message parsing the contract artifact.
@@ -81,34 +124,6 @@ where
 		.into_iter()
 		.find(|msg| msg.label == message)
 		.ok_or_else(|| Error::InvalidMessageName(message.to_string()))
-}
-
-/// Extracts a list of smart contract contructors parsing the contract artifact.
-///
-/// # Arguments
-/// * `path` -  Location path of the project or contract artifact.
-pub fn get_constructors(path: &Path) -> Result<Vec<ContractFunction>, Error> {
-	let cargo_toml_path = match path.ends_with("Cargo.toml") {
-		true => path.to_path_buf(),
-		false => path.join("Cargo.toml"),
-	};
-	let contract_artifacts =
-		ContractArtifacts::from_manifest_or_file(Some(&cargo_toml_path), None)?;
-	let transcoder = contract_artifacts.contract_transcoder()?;
-	let metadata = transcoder.metadata();
-	Ok(metadata
-		.spec()
-		.constructors()
-		.iter()
-		.map(|constructor| ContractFunction {
-			label: constructor.label().to_string(),
-			payable: *constructor.payable(),
-			args: process_args(constructor.args(), metadata.registry()),
-			docs: constructor.docs().join(" "),
-			default: *constructor.default(),
-			mutates: true,
-		})
-		.collect())
 }
 
 /// Extracts the information of a smart contract constructor parsing the contract artifact.
@@ -292,6 +307,7 @@ fn format_type(ty: &Type<PortableForm>, registry: &PortableRegistry) -> String {
 /// * `path` -  Location path of the project or contract artifact.
 /// * `label` - Label of the contract message to retrieve.
 /// * `args` - Argument values provided by the user.
+/// * `function_type` - Specifies whether to process arguments of messages or constructors.
 pub fn process_function_args<P>(
 	path: P,
 	label: &str,
