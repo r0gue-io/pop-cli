@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::Error;
-use anyhow::Result;
+use crate::Error::{self, *};
+use anyhow::{anyhow, Result};
 use duct::cmd;
 use pop_common::{manifest::from_path, Profile};
 use serde_json::{json, Value};
@@ -75,22 +75,30 @@ pub fn binary_path(target_path: &Path, node_path: &Path) -> Result<PathBuf, Erro
 /// * `binary_path` - The path to the node binary executable that contains the `build-spec` command.
 /// * `plain_chain_spec` - Location of the plain_parachain_spec file to be generated.
 /// * `default_bootnode` - Whether to include localhost as a bootnode.
+/// * `chain` - The chain specification. It can be one of the predefined ones (e.g. dev, local or a
+/// 	custom one) or the path to an existing chain spec.
 pub fn generate_plain_chain_spec(
 	binary_path: &Path,
 	plain_chain_spec: &Path,
 	default_bootnode: bool,
-	chain: Option<&str>,
+	chain: &str,
 ) -> Result<(), Error> {
 	check_command_exists(binary_path, "build-spec")?;
-	let mut args = vec!["build-spec"];
-	if let Some(chain_spec_id) = chain {
-		args.push("--chain");
-		args.push(chain_spec_id);
-	}
+	let mut args = vec!["build-spec", "--chain", chain];
 	if !default_bootnode {
 		args.push("--disable-default-bootnode");
 	}
-	cmd(binary_path, args).stdout_path(plain_chain_spec).stderr_null().run()?;
+	// Create a temporary file.
+	let temp_file = tempfile::NamedTempFile::new_in(std::env::temp_dir())?;
+	// Run the command and redirect output to the temporary file.
+	cmd(binary_path, args).stdout_path(temp_file.path()).stderr_null().run()?;
+	// Atomically replace the chain spec file with the temporary file.
+	temp_file.persist(plain_chain_spec).map_err(|e| {
+		AnyhowError(anyhow!(
+			"Failed to replace the chain spec file with the temporary file: {}",
+			e.to_string()
+		))
+	})?;
 	Ok(())
 }
 
@@ -472,7 +480,7 @@ default_command = "pop-node"
 			&binary_path,
 			&temp_dir.path().join("plain-parachain-chainspec.json"),
 			false,
-			Some("local"),
+			"local",
 		)?;
 		assert!(plain_chain_spec.exists());
 		{
