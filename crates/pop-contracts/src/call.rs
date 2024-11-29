@@ -29,7 +29,7 @@ pub struct CallOpts {
 	pub contract: String,
 	/// The name of the contract message to call.
 	pub message: String,
-	/// The constructor arguments, encoded as strings.
+	/// The message arguments, encoded as strings.
 	pub args: Vec<String>,
 	/// Transfers an initial balance to the instantiated contract.
 	pub value: String,
@@ -78,7 +78,7 @@ pub async fn set_up_call(
 		parse_balance(&call_opts.value)?;
 
 	let contract: <DefaultConfig as Config>::AccountId = parse_account(&call_opts.contract)?;
-	// Process the argument values input by the user.
+	// Process the provided argument values.
 	let args = process_function_args(
 		call_opts.path.unwrap_or_else(|| PathBuf::from("./")),
 		&call_opts.message,

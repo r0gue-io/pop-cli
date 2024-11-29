@@ -24,6 +24,8 @@ pub enum Error {
 	HexParsing(String),
 	#[error("HTTP error: {0}")]
 	HttpError(#[from] reqwest::Error),
+	#[error("Incorrect number of arguments provided. Expecting {expected}, {provided} provided")]
+	IncorrectArguments { expected: usize, provided: usize },
 	#[error("Failed to install {0}")]
 	InstallContractsNode(String),
 	#[error("{0}")]
@@ -58,6 +60,4 @@ pub enum Error {
 	UnsupportedPlatform { os: &'static str },
 	#[error("{0}")]
 	UploadContractError(String),
-	#[error("Incorrect number of arguments provided. Expecting {expected}, {provided} provided")]
-	IncorrectArguments { expected: usize, provided: usize },
 }

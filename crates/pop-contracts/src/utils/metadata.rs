@@ -39,10 +39,10 @@ pub enum FunctionType {
 	Message,
 }
 
-/// Extracts a list of smart contract messages parsing the metadata file.
+/// Extracts a list of smart contract messages parsing the contract artifact.
 ///
 /// # Arguments
-/// * `path` -  Location path of the project or contract metadata file.
+/// * `path` -  Location path of the project or contract artifact.
 pub fn get_messages(path: &Path) -> Result<Vec<ContractFunction>, Error> {
 	let contract_artifacts = if path.is_dir() || path.ends_with("Cargo.toml") {
 		let cargo_toml_path =
@@ -68,10 +68,10 @@ pub fn get_messages(path: &Path) -> Result<Vec<ContractFunction>, Error> {
 		.collect())
 }
 
-/// Extracts the information of a smart contract message parsing the metadata file.
+/// Extracts the information of a smart contract message parsing the contract artifact.
 ///
 /// # Arguments
-/// * `path` -  Location path of the project.
+/// * `path` -  Location path of the project or contract artifact.
 /// * `message` - The label of the contract message.
 fn get_message<P>(path: P, message: &str) -> Result<ContractFunction, Error>
 where
@@ -83,10 +83,10 @@ where
 		.ok_or_else(|| Error::InvalidMessageName(message.to_string()))
 }
 
-/// Extracts a list of smart contract contructors parsing the metadata file.
+/// Extracts a list of smart contract contructors parsing the contract artifact.
 ///
 /// # Arguments
-/// * `path` -  Location path of the project.
+/// * `path` -  Location path of the project or contract artifact.
 pub fn get_constructors(path: &Path) -> Result<Vec<ContractFunction>, Error> {
 	let cargo_toml_path = match path.ends_with("Cargo.toml") {
 		true => path.to_path_buf(),
@@ -111,10 +111,10 @@ pub fn get_constructors(path: &Path) -> Result<Vec<ContractFunction>, Error> {
 		.collect())
 }
 
-/// Extracts the information of a smart contract constructor parsing the metadata file.
+/// Extracts the information of a smart contract constructor parsing the contract artifact.
 ///
 /// # Arguments
-/// * `path` -  Location path of the project.
+/// * `path` -  Location path of the project or contract artifact.
 /// * `constructor` - The label of the constructor.
 fn get_constructor<P>(path: P, constructor: &str) -> Result<ContractFunction, Error>
 where
@@ -286,10 +286,10 @@ fn format_type(ty: &Type<PortableForm>, registry: &PortableRegistry) -> String {
 }
 
 /// Processes a list of argument values for a specified contract function,
-/// wrapping each value in `Some(...)` or replacing it with `None` if the argument is optional
+/// wrapping each value in `Some(...)` or replacing it with `None` if the argument is optional.
 ///
 /// # Arguments
-/// * `path` -  Location path of the project.
+/// * `path` -  Location path of the project or contract artifact.
 /// * `label` - Label of the contract message to retrieve.
 /// * `args` - Argument values provided by the user.
 pub fn process_function_args<P>(

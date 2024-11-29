@@ -21,48 +21,48 @@ const DEFAULT_PAYABLE_VALUE: &str = "0";
 #[derive(Args, Clone)]
 pub struct CallContractCommand {
 	/// Path to the contract build directory or a contract artifact.
-	#[arg(short = 'p', long)]
+	#[arg(short, long)]
 	path: Option<PathBuf>,
 	/// The address of the contract to call.
-	#[clap(name = "contract", short = 'c', long, env = "CONTRACT")]
+	#[arg(name = "contract", short, long, env = "CONTRACT")]
 	contract: Option<String>,
 	/// The name of the contract message to call.
-	#[clap(long, short)]
+	#[arg(long, short)]
 	message: Option<String>,
-	/// The constructor arguments, encoded as strings.
-	#[clap(long, num_args = 0..,)]
+	/// The message arguments, encoded as strings.
+	#[arg(short, long, num_args = 0..,)]
 	args: Vec<String>,
 	/// The value to be transferred as part of the call.
-	#[clap(name = "value", short = 'v', long, default_value = DEFAULT_PAYABLE_VALUE)]
+	#[arg(name = "value", short, long, default_value = DEFAULT_PAYABLE_VALUE)]
 	value: String,
 	/// Maximum amount of gas to be used for this command.
 	/// If not specified it will perform a dry-run to estimate the gas consumed for the
 	/// call.
-	#[clap(name = "gas", short = 'g', long)]
+	#[arg(name = "gas", short, long)]
 	gas_limit: Option<u64>,
 	/// Maximum proof size for this command.
 	/// If not specified it will perform a dry-run to estimate the proof size required.
-	#[clap(short = 'P', long)]
+	#[arg(short = 'P', long)]
 	proof_size: Option<u64>,
 	/// Websocket endpoint of a node.
-	#[clap(name = "url", short = 'u', long, value_parser, default_value = DEFAULT_URL)]
+	#[arg(name = "url", short, long, value_parser, default_value = DEFAULT_URL)]
 	url: url::Url,
 	/// Secret key URI for the account calling the contract.
 	///
 	/// e.g.
 	/// - for a dev account "//Alice"
 	/// - with a password "//Alice///SECRET_PASSWORD"
-	#[clap(name = "suri", long, short, default_value = DEFAULT_URI)]
+	#[arg(name = "suri", long, short, default_value = DEFAULT_URI)]
 	suri: String,
 	/// Submit an extrinsic for on-chain execution.
-	#[clap(short('x'), long)]
+	#[arg(short('x'), long)]
 	execute: bool,
 	/// Perform a dry-run via RPC to estimate the gas usage. This does not submit a transaction.
-	#[clap(short = 'D', long, conflicts_with = "execute")]
+	#[arg(short = 'D', long, conflicts_with = "execute")]
 	dry_run: bool,
 	/// Enables developer mode, bypassing certain user prompts for faster testing.
 	/// Recommended for testing and local development only.
-	#[clap(name = "dev", long, short, default_value = "false")]
+	#[arg(name = "dev", long, short, default_value = "false")]
 	dev_mode: bool,
 }
 impl CallContractCommand {
@@ -152,7 +152,7 @@ impl CallContractCommand {
 	/// Prompts the user to confirm if the contract has already been deployed.
 	fn confirm_contract_deployment(&self, cli: &mut impl Cli) -> Result<()> {
 		let is_contract_deployed = cli
-			.confirm("Is the contract already deployed?")
+			.confirm("Has the contract already been deployed?")
 			.initial_value(false)
 			.interact()?;
 		if !is_contract_deployed {
@@ -164,7 +164,7 @@ impl CallContractCommand {
 	/// Checks whether building the contract is required
 	fn is_contract_build_required(&self) -> bool {
 		self.path
-			.clone()
+			.as_ref()
 			.map(|p| p.is_dir() && !has_contract_been_built(Some(&p)))
 			.unwrap_or_default()
 	}
@@ -193,7 +193,7 @@ impl CallContractCommand {
 		let contract_path = self
 			.path
 			.as_ref()
-			.expect("path is guaranteed to be set as input is prompted when None; qed");
+			.expect("path is guaranteed to be set as input as prompted when None; qed");
 
 		// Ensure contract is built and check if deployed.
 		if self.is_contract_build_required() {
@@ -227,7 +227,7 @@ impl CallContractCommand {
 		if self.contract.is_none() {
 			// Prompt for contract address.
 			let contract_address: String = cli
-				.input("Paste the on-chain contract address:")
+				.input("Provide the on-chain contract address:")
 				.placeholder("e.g. 5DYs7UGBm2LuX4ryvyqfksozNAW5V47tPbGiVgnjYWCZ29bt")
 				.validate(|input: &String| match parse_account(input) {
 					Ok(_) => Ok(()),

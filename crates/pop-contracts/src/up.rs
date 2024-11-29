@@ -63,7 +63,7 @@ pub async fn set_up_deployment(
 	let value: BalanceVariant<<DefaultEnvironment as Environment>::Balance> =
 		parse_balance(&up_opts.value)?;
 
-	// Process the argument values input by the user.
+	// Process the provided argument values.
 	let args = process_function_args(
 		up_opts.path.unwrap_or_else(|| PathBuf::from("./")),
 		&up_opts.constructor,
