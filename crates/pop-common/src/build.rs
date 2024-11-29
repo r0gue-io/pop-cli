@@ -67,3 +67,71 @@ impl fmt::Display for Profile {
 		}
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use std::path::Path;
+	use strum::{EnumMessage};
+
+	#[test]
+	fn profile_from_string() {
+		assert_eq!("debug".parse::<Profile>().unwrap(), Profile::Debug);
+		assert_eq!("release".parse::<Profile>().unwrap(), Profile::Release);
+		assert_eq!("production".parse::<Profile>().unwrap(), Profile::Production);
+	}
+
+	#[test]
+	fn profile_detailed_message() {
+		assert_eq!(
+			Profile::Debug.get_detailed_message(),
+			Some("Optimized for debugging.")
+		);
+		assert_eq!(
+			Profile::Release.get_detailed_message(),
+			Some("Optimized without any debugging functionality.")
+		);
+		assert_eq!(
+			Profile::Production.get_detailed_message(),
+			Some("Optimized for ultimate performance.")
+		);
+	}
+
+	#[test]
+	fn profile_target_directory() {
+		let base_path = Path::new("/example/path");
+
+		assert_eq!(
+			Profile::Debug.target_directory(base_path),
+			Path::new("/example/path/target/debug")
+		);
+		assert_eq!(
+			Profile::Release.target_directory(base_path),
+			Path::new("/example/path/target/release")
+		);
+		assert_eq!(
+			Profile::Production.target_directory(base_path),
+			Path::new("/example/path/target/production")
+		);
+	}
+
+	#[test]
+	fn profile_default() {
+		let default_profile = Profile::default();
+		assert_eq!(default_profile, Profile::Release);
+	}
+
+	#[test]
+	fn profile_from_bool() {
+		assert_eq!(Profile::from(true), Profile::Release);
+		assert_eq!(Profile::from(false), Profile::Debug);
+	}
+
+	#[test]
+	fn profile_into_bool() {
+		assert_eq!(bool::from(Profile::Debug), false);
+		assert_eq!(bool::from(Profile::Release), true);
+		assert_eq!(bool::from(Profile::Production), true);
+	}
+}
+
