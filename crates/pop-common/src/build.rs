@@ -1,25 +1,14 @@
-use std::{fmt, path::{Path, PathBuf}};
-use strum_macros::{VariantArray, AsRefStr, EnumMessage, EnumString};
+use std::{
+	fmt,
+	path::{Path, PathBuf},
+};
+use strum_macros::{AsRefStr, EnumMessage, EnumString, VariantArray};
 
 /// Enum representing a build profile.
-#[derive(
-	AsRefStr,
-	Clone,
-	Default,
-	Debug,
-	EnumString,
-	EnumMessage,
-	VariantArray,
-	Eq,
-	PartialEq,
-)]
+#[derive(AsRefStr, Clone, Default, Debug, EnumString, EnumMessage, VariantArray, Eq, PartialEq)]
 pub enum Profile {
 	/// Debug profile, optimized for debugging.
-	#[strum(
-		serialize = "debug",
-		message = "Debug",
-		detailed_message = "Optimized for debugging."
-	)]
+	#[strum(serialize = "debug", message = "Debug", detailed_message = "Optimized for debugging.")]
 	Debug,
 	/// Release profile, optimized without any debugging functionality.
 	#[default]
@@ -49,6 +38,26 @@ impl Profile {
 	}
 }
 
+impl From<Profile> for bool {
+	fn from(value: Profile) -> Self {
+		if value == Profile::Debug {
+			false
+		} else {
+			true
+		}
+	}
+}
+
+impl From<bool> for Profile {
+	fn from(value: bool) -> Self {
+		if value {
+			Profile::Release
+		} else {
+			Profile::Debug
+		}
+	}
+}
+
 impl fmt::Display for Profile {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
@@ -58,4 +67,3 @@ impl fmt::Display for Profile {
 		}
 	}
 }
-

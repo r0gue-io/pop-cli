@@ -19,6 +19,8 @@ use std::{
 	env::current_dir,
 	fs::create_dir_all,
 	path::{Path, PathBuf},
+	thread::sleep,
+	time::Duration,
 };
 use strum::{EnumMessage, VariantArray};
 use strum_macros::{AsRefStr, Display, EnumString};
@@ -46,20 +48,20 @@ pub(crate) enum ChainType {
 	// A development chain that runs mainly on one node.
 	#[default]
 	#[strum(
-		serialize = "development",
+		serialize = "Development",
 		message = "Development",
 		detailed_message = "Meant for a development chain that runs mainly on one node."
 	)]
 	Development,
 	// A local chain that runs locally on multiple nodes for testing purposes.
 	#[strum(
-		serialize = "local",
+		serialize = "Local",
 		message = "Local",
 		detailed_message = "Meant for a local chain that runs locally on multiple nodes for testing purposes."
 	)]
 	Local,
 	// A live chain.
-	#[strum(serialize = "live", message = "Live", detailed_message = "Meant for a live chain.")]
+	#[strum(serialize = "Live", message = "Live", detailed_message = "Meant for a live chain.")]
 	Live,
 }
 
@@ -136,6 +138,10 @@ pub struct BuildSpecCommand {
 	/// the necessary directories will be created
 	#[arg(short = 'o', long = "output")]
 	pub(crate) output_file: Option<PathBuf>,
+	// TODO: remove at release ...
+	/// [DEPRECATED] use `profile`.
+	#[arg(short = 'r', long, conflicts_with = "profile")]
+	pub(crate) release: bool,
 	/// Build profile for the binary to generate the chain specification.
 	#[arg(long, value_enum)]
 	pub(crate) profile: Option<Profile>,
@@ -195,6 +201,7 @@ impl BuildSpecCommand {
 		let BuildSpecCommand {
 			output_file,
 			profile,
+			release,
 			id,
 			default_bootnode,
 			chain_type,
@@ -331,6 +338,33 @@ impl BuildSpecCommand {
 			},
 		};
 
+		// Prompt user for build profile.
+		let mut profile = match profile {
+			Some(profile) => profile,
+			None => {
+				let default = Profile::Release;
+				if prompt && !release {
+					// Prompt for build profile.
+					let mut prompt = cli
+						.select(
+							"Choose the build profile of the binary that should be used: "
+								.to_string(),
+						)
+						.initial_value(&default);
+					for profile in Profile::VARIANTS {
+						prompt = prompt.item(
+							profile,
+							profile.get_message().unwrap_or(profile.as_ref()),
+							profile.get_detailed_message().unwrap_or_default(),
+						);
+					}
+					prompt.interact()?.clone()
+				} else {
+					default
+				}
+			},
+		};
+
 		// Protocol id.
 		let protocol_id = match protocol_id {
 			Some(protocol_id) => protocol_id,
@@ -346,29 +380,9 @@ impl BuildSpecCommand {
 						.placeholder(&default)
 						.default_input(&default)
 						.interact()?
-				} else { default }
-			},
-		};
-
-		// Prompt user for build profile.
-		let profile = match profile {
-			Some(profile) => profile,
-			None => {
-				let default = Profile::Release;
-				if prompt {
-					// Prompt for build profile.
-					let mut prompt = cliclack::select(
-						"Choose the build profile of the binary that should be used: ".to_string(),
-					).initial_value(&default);
-					for profile in Profile::VARIANTS {
-						prompt = prompt.item(
-							profile,
-							profile.get_message().unwrap_or(profile.as_ref()),
-							profile.get_detailed_message().unwrap_or_default(),
-						);
-					}
-					prompt.interact()?.clone()
-				} else { default }
+				} else {
+					default
+				}
 			},
 		};
 
@@ -401,6 +415,13 @@ impl BuildSpecCommand {
 		} else {
 			true
 		};
+
+		if release {
+			cli.warning("NOTE: release flag is deprecated. Use `--profile` instead.")?;
+			#[cfg(not(test))]
+			sleep(Duration::from_secs(3));
+			profile = Profile::Release;
+		}
 
 		Ok(BuildSpec {
 			output_file,
@@ -440,23 +461,24 @@ impl BuildSpec {
 	// it triggers a build process.
 	fn build(self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<&'static str> {
 		cli.intro("Building your chain spec")?;
+		let mut generated_files = vec![];
 		let BuildSpec {
-			ref output_file, ref profile, id, default_bootnode, ref chain, genesis_state, genesis_code,
-		.. } = self;
+			ref output_file,
+			ref profile,
+			id,
+			default_bootnode,
+			ref chain,
+			genesis_state,
+			genesis_code,
+			..
+		} = self;
 		// Ensure binary is built.
 		let binary_path = ensure_binary_exists(cli, &profile)?;
-
 		let spinner = spinner();
 		spinner.start("Generating chain specification...");
-		let mut generated_files = vec![];
 
 		// Generate chain spec.
-		generate_plain_chain_spec(
-			&binary_path,
-			&output_file,
-			default_bootnode,
-			&chain,
-		)?;
+		generate_plain_chain_spec(&binary_path, &output_file, default_bootnode, &chain)?;
 		// Customize spec based on input.
 		self.customize()?;
 		generated_files.push(format!(
@@ -472,8 +494,7 @@ impl BuildSpec {
 			.unwrap_or(DEFAULT_SPEC_NAME)
 			.trim_end_matches(".json");
 		let raw_spec_name = format!("{spec_name}-raw.json");
-		let raw_chain_spec =
-			generate_raw_chain_spec(&binary_path, &output_file, &raw_spec_name)?;
+		let raw_chain_spec = generate_raw_chain_spec(&binary_path, &output_file, &raw_spec_name)?;
 		generated_files.push(format!(
 			"Raw chain specification file generated at: {}",
 			raw_chain_spec.display()
@@ -540,37 +561,335 @@ fn ensure_binary_exists(
 // Prepare the output path provided.
 fn prepare_output_path(output_path: impl AsRef<Path>) -> anyhow::Result<PathBuf> {
 	let mut output_path = output_path.as_ref().to_path_buf();
-	// Convert to string to check for trailing slash.
-	let output_path_str = output_path.to_string_lossy();
-	let ends_with_slash = output_path_str.ends_with(std::path::MAIN_SEPARATOR);
-	// Check if the path has an extension.
-	let has_extension = output_path.extension().is_some();
 	// Check if the path ends with '.json'
 	let is_json_file = output_path
 		.extension()
 		.and_then(|ext| ext.to_str())
 		.map(|ext| ext.eq_ignore_ascii_case("json"))
 		.unwrap_or(false);
-	if ends_with_slash {
+
+	if !is_json_file {
 		// Treat as directory.
 		if !output_path.exists() {
 			create_dir_all(&output_path)?;
 		}
 		output_path.push(DEFAULT_SPEC_NAME);
-	} else if !has_extension {
-		// No extension, treat as file, set extension to '.json'.
-		output_path.set_extension("json");
-	} else if !is_json_file {
-		// Has an extension but not '.json', change extension to '.json'.
-		output_path.set_extension("json");
-	}
-	// Else: Ends with '.json', treat as file (no changes needed).
-
-	// After modifications, create the parent directory if it doesn't exist.
-	if let Some(parent_dir) = output_path.parent() {
-		if !parent_dir.exists() {
-			create_dir_all(parent_dir)?;
+	} else {
+		// Treat as file.
+		if let Some(parent_dir) = output_path.parent() {
+			if !parent_dir.exists() {
+				create_dir_all(parent_dir)?;
+			}
 		}
 	}
 	Ok(output_path)
+}
+
+#[cfg(test)]
+mod tests {
+	use super::{ChainType::*, RelayChain::*, *};
+	use crate::cli::MockCli;
+	use std::{fs::create_dir_all, path::PathBuf};
+	use tempfile::{tempdir, TempDir};
+
+	#[tokio::test]
+	async fn configure_build_spec_works() -> anyhow::Result<()> {
+		let chain = "local";
+		let chain_type = Live;
+		let default_bootnode = true;
+		let genesis_code = true;
+		let genesis_state = true;
+		let output_file = "artifacts/chain-spec.json";
+		let para_id = 4242;
+		let protocol_id = "pop";
+		let relay = Polkadot;
+		let release = false;
+		let profile = Profile::Production;
+
+		for build_spec_cmd in [
+			// No flags used.
+			BuildSpecCommand::default(),
+			// All flags used.
+			BuildSpecCommand {
+				output_file: Some(PathBuf::from(output_file)),
+				profile: Some(profile.clone()),
+				release,
+				id: Some(para_id),
+				default_bootnode,
+				chain_type: Some(chain_type.clone()),
+				chain: Some(chain.to_string()),
+				relay: Some(relay.clone()),
+				protocol_id: Some(protocol_id.to_string()),
+				genesis_state,
+				genesis_code,
+			},
+		] {
+			let mut cli = MockCli::new();
+			// If no flags are provided.
+			if build_spec_cmd.chain.is_none() {
+				cli = cli
+					.expect_input("Provide the chain specification to use (e.g. dev, local, custom or a path to an existing file)", chain.to_string())
+					.expect_input(
+						"Name or path for the plain chain spec file:", output_file.to_string())
+					.expect_input(
+						"What parachain ID should be used?", para_id.to_string())
+					.expect_input(
+						"Enter the protocol ID that will identify your network:", protocol_id.to_string())
+					.expect_select(
+						"Choose the chain type: ",
+						Some(false),
+						true,
+						Some(chain_types()),
+						chain_type.clone() as usize,
+					).expect_select(
+					"Choose the relay your chain will be connecting to: ",
+					Some(false),
+					true,
+					Some(relays()),
+					relay.clone() as usize,
+				).expect_select(
+					"Choose the build profile of the binary that should be used: ",
+					Some(false),
+					true,
+					Some(profiles()),
+					profile.clone() as usize
+				).expect_confirm("Would you like to use local host as a bootnode ?", default_bootnode
+				).expect_confirm("Should the genesis state file be generated ?", genesis_state
+				).expect_confirm("Should the genesis code file be generated ?", genesis_code);
+			}
+			let build_spec = build_spec_cmd.configure_build_spec(&mut cli).await?;
+			assert_eq!(build_spec.chain, chain);
+			assert_eq!(build_spec.output_file, PathBuf::from(output_file));
+			assert_eq!(build_spec.id, para_id);
+			assert_eq!(build_spec.profile, profile);
+			assert_eq!(build_spec.default_bootnode, default_bootnode);
+			assert_eq!(build_spec.chain_type, chain_type);
+			assert_eq!(build_spec.relay, relay);
+			assert_eq!(build_spec.protocol_id, protocol_id);
+			assert_eq!(build_spec.genesis_state, genesis_state);
+			assert_eq!(build_spec.genesis_code, genesis_code);
+			cli.verify()?;
+		}
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn configure_build_spec_with_existing_chain_file() -> anyhow::Result<()> {
+		let chain_type = Live;
+		let default_bootnode = true;
+		let genesis_code = true;
+		let genesis_state = true;
+		let output_file = "artifacts/chain-spec.json";
+		let para_id = 4242;
+		let protocol_id = "pop";
+		let relay = Polkadot;
+		let release = false;
+		let profile = Profile::Production;
+
+		// Create a temporary file to act as the existing chain spec file.
+		let temp_dir = tempdir()?;
+		let chain_spec_path = temp_dir.path().join("existing-chain-spec.json");
+		std::fs::write(&chain_spec_path, "{}")?; // Write a dummy JSON to the file.
+
+		// Whether to make changes to the provided chain spec file.
+		for changes in [true, false] {
+			for build_spec_cmd in [
+				// No flags used except the provided chain spec file.
+				BuildSpecCommand {
+					chain: Some(chain_spec_path.to_string_lossy().to_string()),
+					..Default::default()
+				},
+				// All flags used.
+				BuildSpecCommand {
+					output_file: Some(PathBuf::from(output_file)),
+					profile: Some(profile.clone()),
+					release,
+					id: Some(para_id),
+					default_bootnode,
+					chain_type: Some(chain_type.clone()),
+					chain: Some(chain_spec_path.to_string_lossy().to_string()),
+					relay: Some(relay.clone()),
+					protocol_id: Some(protocol_id.to_string()),
+					genesis_state,
+					genesis_code,
+				},
+			] {
+				let mut cli = MockCli::new().expect_confirm(
+					"An existing chain spec file is provided. Do you want to make additional changes to it?",
+					changes,
+				);
+				// When user wants to make changes to chain spec file via prompts and no flags
+				// provided.
+				let no_flags_used = build_spec_cmd.relay.is_none();
+				if changes && no_flags_used {
+					if build_spec_cmd.id.is_none() {
+						cli = cli
+							.expect_input("What parachain ID should be used?", para_id.to_string());
+					}
+					if build_spec_cmd.protocol_id.is_none() {
+						cli = cli.expect_input(
+							"Enter the protocol ID that will identify your network:",
+							protocol_id.to_string(),
+						);
+					}
+					if build_spec_cmd.chain_type.is_none() {
+						cli = cli.expect_select(
+							"Choose the chain type: ",
+							Some(false),
+							true,
+							Some(chain_types()),
+							chain_type.clone() as usize,
+						);
+					}
+					if build_spec_cmd.relay.is_none() {
+						cli = cli.expect_select(
+							"Choose the relay your chain will be connecting to: ",
+							Some(false),
+							true,
+							Some(relays()),
+							relay.clone() as usize,
+						);
+					}
+					if build_spec_cmd.profile.is_none() {
+						cli = cli.expect_select(
+							"Choose the build profile of the binary that should be used: ",
+							Some(false),
+							true,
+							Some(profiles()),
+							profile.clone() as usize,
+						);
+					}
+					if !build_spec_cmd.default_bootnode {
+						cli = cli.expect_confirm(
+							"Would you like to use local host as a bootnode ?",
+							default_bootnode,
+						);
+					}
+					if !build_spec_cmd.genesis_state {
+						cli = cli.expect_confirm(
+							"Should the genesis state file be generated ?",
+							genesis_state,
+						);
+					}
+					if !build_spec_cmd.genesis_code {
+						cli = cli.expect_confirm(
+							"Should the genesis code file be generated ?",
+							genesis_code,
+						);
+					}
+				}
+				let build_spec = build_spec_cmd.configure_build_spec(&mut cli).await?;
+				if changes && no_flags_used {
+					assert_eq!(build_spec.id, para_id);
+					assert_eq!(build_spec.profile, profile);
+					assert_eq!(build_spec.default_bootnode, default_bootnode);
+					assert_eq!(build_spec.chain_type, chain_type);
+					assert_eq!(build_spec.relay, relay);
+					assert_eq!(build_spec.protocol_id, protocol_id);
+					assert_eq!(build_spec.genesis_state, genesis_state);
+					assert_eq!(build_spec.genesis_code, genesis_code);
+				}
+				// Assert that the chain spec file is correctly detected and used.
+				assert_eq!(build_spec.chain, chain_spec_path.to_string_lossy());
+				assert_eq!(build_spec.output_file, chain_spec_path);
+				cli.verify()?;
+			}
+		}
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn configure_build_spec_release_deprecated_works() -> anyhow::Result<()> {
+		// Create a temporary file to act as the existing chain spec file.
+		let temp_dir = tempdir()?;
+		let chain_spec_path = temp_dir.path().join("existing-chain-spec.json");
+		std::fs::write(&chain_spec_path, "{}")?; // Write a dummy JSON to the file.
+										   // Use the deprcrated release flag.
+		let release = true;
+		let build_spec_cmd = BuildSpecCommand {
+			release,
+			chain: Some(chain_spec_path.to_string_lossy().to_string()),
+			..Default::default()
+		};
+		let mut cli =
+			MockCli::new().expect_confirm(
+				"An existing chain spec file is provided. Do you want to make additional changes to it?",
+				false,
+			).expect_warning("NOTE: release flag is deprecated. Use `--profile` instead.");
+		let build_spec = build_spec_cmd.configure_build_spec(&mut cli).await?;
+		cli.verify()?;
+		Ok(())
+	}
+
+	#[test]
+	fn prepare_output_path_works() -> anyhow::Result<()> {
+		// Create a temporary directory for testing.
+		let temp_dir = TempDir::new()?;
+		let temp_dir_path = temp_dir.path();
+
+		// No directory path.
+		let file = temp_dir_path.join("chain-spec.json");
+		let result = prepare_output_path(&file)?;
+		// Expected path: chain-spec.json
+		assert_eq!(result, file);
+
+		// Existing directory Path.
+		for dir in ["existing_dir", "existing_dir/", "existing_dir_json"] {
+			let existing_dir = temp_dir_path.join(dir);
+			create_dir_all(&existing_dir)?;
+			let result = prepare_output_path(&existing_dir)?;
+			// Expected path: existing_dir/chain-spec.json
+			let expected_path = existing_dir.join(DEFAULT_SPEC_NAME);
+			assert_eq!(result, expected_path);
+		}
+
+		// Non-existing directory Path.
+		for dir in ["non_existing_dir", "non_existing_dir/", "non_existing_dir_json"] {
+			let non_existing_dir = temp_dir_path.join(dir);
+			let result = prepare_output_path(&non_existing_dir)?;
+			// Expected path: non_existing_dir/chain-spec.json
+			let expected_path = non_existing_dir.join(DEFAULT_SPEC_NAME);
+			assert_eq!(result, expected_path);
+			// The directory should now exist.
+			assert!(result.parent().unwrap().exists());
+		}
+
+		Ok(())
+	}
+
+	fn relays() -> Vec<(String, String)> {
+		RelayChain::VARIANTS
+			.iter()
+			.map(|variant| {
+				(
+					variant.get_message().unwrap_or(variant.as_ref()).into(),
+					variant.get_detailed_message().unwrap_or_default().into(),
+				)
+			})
+			.collect()
+	}
+
+	fn chain_types() -> Vec<(String, String)> {
+		ChainType::VARIANTS
+			.iter()
+			.map(|variant| {
+				(
+					variant.get_message().unwrap_or(variant.as_ref()).into(),
+					variant.get_detailed_message().unwrap_or_default().into(),
+				)
+			})
+			.collect()
+	}
+
+	fn profiles() -> Vec<(String, String)> {
+		Profile::VARIANTS
+			.iter()
+			.map(|variant| {
+				(
+					variant.get_message().unwrap_or(variant.as_ref()).into(),
+					variant.get_detailed_message().unwrap_or_default().into(),
+				)
+			})
+			.collect()
+	}
 }
