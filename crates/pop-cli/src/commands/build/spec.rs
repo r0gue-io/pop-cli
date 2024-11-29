@@ -9,7 +9,7 @@ use crate::{
 	style::style,
 };
 use clap::{Args, ValueEnum};
-use cliclack::{spinner};
+use cliclack::spinner;
 use pop_common::Profile;
 use pop_parachains::{
 	binary_path, build_parachain, export_wasm_file, generate_genesis_state_file,
@@ -538,25 +538,36 @@ fn ensure_binary_exists(
 // Prepare the output path provided.
 fn prepare_output_path(output_path: impl AsRef<Path>) -> anyhow::Result<PathBuf> {
 	let mut output_path = output_path.as_ref().to_path_buf();
+	// Convert to string to check for trailing slash.
+	let output_path_str = output_path.to_string_lossy();
+	let ends_with_slash = output_path_str.ends_with(std::path::MAIN_SEPARATOR);
+	// Check if the path has an extension.
+	let has_extension = output_path.extension().is_some();
 	// Check if the path ends with '.json'
 	let is_json_file = output_path
 		.extension()
 		.and_then(|ext| ext.to_str())
 		.map(|ext| ext.eq_ignore_ascii_case("json"))
 		.unwrap_or(false);
-
-	if !is_json_file {
+	if ends_with_slash {
 		// Treat as directory.
 		if !output_path.exists() {
 			create_dir_all(&output_path)?;
 		}
 		output_path.push(DEFAULT_SPEC_NAME);
-	} else {
-		// Treat as file.
-		if let Some(parent_dir) = output_path.parent() {
-			if !parent_dir.exists() {
-				create_dir_all(parent_dir)?;
-			}
+	} else if !has_extension {
+		// No extension, treat as file, set extension to '.json'.
+		output_path.set_extension("json");
+	} else if !is_json_file {
+		// Has an extension but not '.json', change extension to '.json'.
+		output_path.set_extension("json");
+	}
+	// Else: Ends with '.json', treat as file (no changes needed).
+
+	// After modifications, create the parent directory if it doesn't exist.
+	if let Some(parent_dir) = output_path.parent() {
+		if !parent_dir.exists() {
+			create_dir_all(parent_dir)?;
 		}
 	}
 	Ok(output_path)
@@ -769,31 +780,34 @@ mod tests {
 		let temp_dir = TempDir::new()?;
 		let temp_dir_path = temp_dir.path();
 
-		// No directory path.
-		let file = temp_dir_path.join("chain-spec.json");
-		let result = prepare_output_path(&file)?;
-		// Expected path: chain-spec.json
-		assert_eq!(result, file);
-
-		// Existing directory Path.
-		for dir in ["existing_dir", "existing_dir/", "existing_dir_json"] {
-			let existing_dir = temp_dir_path.join(dir);
-			create_dir_all(&existing_dir)?;
-			let result = prepare_output_path(&existing_dir)?;
-			// Expected path: existing_dir/chain-spec.json
-			let expected_path = existing_dir.join(DEFAULT_SPEC_NAME);
+		let test_cases = [
+			("chain-spec.json", "chain-spec.json"),
+			("existing_dir", "existing_dir.json"),
+			("existing_dir/", "existing_dir/chain-spec.json"),
+			("non_existing_dir", "non_existing_dir.json"),
+			("non_existing_dir/", "non_existing_dir/chain-spec.json"),
+			("some_file", "some_file.json"),
+			("some_dir/some_file", "some_dir/some_file.json"),
+			("existing_dir/subdir/", "existing_dir/subdir/chain-spec.json"),
+		];
+		for (input_str, expected_str) in &test_cases {
+			let input_path = temp_dir_path.join(input_str);
+			let expected_path = temp_dir_path.join(expected_str);
+			// Create directories for existing paths
+			if input_str.starts_with("existing_dir") {
+				let dir_to_create = if input_str.ends_with('/') {
+					input_path.clone()
+				} else {
+					input_path.parent().unwrap_or(&input_path).to_path_buf()
+				};
+				create_dir_all(&dir_to_create)?;
+			}
+			let result = prepare_output_path(&input_path)?;
 			assert_eq!(result, expected_path);
-		}
-
-		// Non-existing directory Path.
-		for dir in ["non_existing_dir", "non_existing_dir/", "non_existing_dir_json"] {
-			let non_existing_dir = temp_dir_path.join(dir);
-			let result = prepare_output_path(&non_existing_dir)?;
-			// Expected path: non_existing_dir/chain-spec.json
-			let expected_path = non_existing_dir.join(DEFAULT_SPEC_NAME);
-			assert_eq!(result, expected_path);
-			// The directory should now exist.
-			assert!(result.parent().unwrap().exists());
+			// Ensure the parent directory exists
+			if let Some(parent_dir) = result.parent() {
+				assert!(parent_dir.exists());
+			}
 		}
 
 		Ok(())
