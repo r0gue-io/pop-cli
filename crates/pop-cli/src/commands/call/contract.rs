@@ -678,7 +678,7 @@ mod tests {
 				1, // "get" message
 			)
 			.expect_input(
-				"Paste the on-chain contract address:",
+				"Provide the on-chain contract address:",
 				"15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".into(),
 			)
 			.expect_input(
@@ -764,7 +764,7 @@ mod tests {
 				2, // "specific_flip" message
 			)
 			.expect_input(
-				"Paste the on-chain contract address:",
+				"Provide the on-chain contract address:",
 				"15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".into(),
 			)
 			.expect_input(
@@ -849,7 +849,7 @@ mod tests {
 				2, // "specific_flip" message
 			)
 			.expect_input(
-				"Paste the on-chain contract address:",
+				"Provide the on-chain contract address:",
 				"15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".into(),
 			)
 			.expect_input(
@@ -1027,13 +1027,14 @@ mod tests {
 			dev_mode: false,
 		};
 		// Contract is not deployed.
-		let mut cli = MockCli::new().expect_confirm("Is the contract already deployed?", false);
+		let mut cli =
+			MockCli::new().expect_confirm("Has the contract already been deployed?", false);
 		assert!(
 			matches!(call_config.confirm_contract_deployment(&mut cli), anyhow::Result::Err(message) if message.to_string() == "Contract not deployed.")
 		);
 		cli.verify()?;
 		// Contract is deployed.
-		cli = MockCli::new().expect_confirm("Is the contract already deployed?", true);
+		cli = MockCli::new().expect_confirm("Has the contract already been deployed?", true);
 		call_config.confirm_contract_deployment(&mut cli)?;
 		cli.verify()
 	}
