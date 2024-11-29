@@ -8,6 +8,7 @@ mod new;
 mod node;
 mod templates;
 mod test;
+mod testing;
 mod up;
 mod utils;
 
@@ -19,10 +20,15 @@ pub use new::{create_smart_contract, is_valid_contract_name};
 pub use node::{contracts_node_generator, is_chain_alive, run_contracts_node};
 pub use templates::{Contract, ContractType};
 pub use test::{test_e2e_smart_contract, test_smart_contract};
+pub use testing::{mock_build_process, new_environment};
 pub use up::{
 	dry_run_gas_estimate_instantiate, dry_run_upload, get_code_hash_from_event, get_contract_code,
 	get_instantiate_payload, get_upload_payload, instantiate_contract_signed,
 	instantiate_smart_contract, set_up_deployment, set_up_upload, submit_signed_payload,
 	upload_contract_signed, upload_smart_contract, ContractInfo, UpOpts,
 };
-pub use utils::signer::parse_hex_bytes;
+pub use utils::{
+	helpers::parse_account,
+	metadata::{get_messages, ContractFunction},
+	signer::parse_hex_bytes,
+};

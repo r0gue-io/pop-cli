@@ -53,6 +53,8 @@ sp-weights = "30"
 contract-build = { git = "https://github.com/use-ink/cargo-contract", branch = "peter/chore-make-types-pub" }
 #contract-extrinsics = "5.0.0-alpha"
 contract-extrinsics = { git = "https://github.com/use-ink/cargo-contract", branch = "peter/chore-make-types-pub" }
+#contractcontract-transcode = "5.0.0-alpha"
+contract-transcode = { git = "https://github.com/use-ink/cargo-contract", branch = "peter/chore-make-types-pub" }
 heck = "0.5.0"
 
 # parachains
@@ -62,6 +64,7 @@ walkdir = "2.5"
 indexmap = "2.2"
 toml_edit = { version = "0.22", features = ["serde"] }
 symlink = "0.1"
+scale-info = { version = "2.11.3", default-features = false, features = ["derive"] }
 serde_json = { version = "1.0", features = ["preserve_order"] }
 serde = { version = "1.0", features = ["derive"] }
 zombienet-sdk = "0.2.14"

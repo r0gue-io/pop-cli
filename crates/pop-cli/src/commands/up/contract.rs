@@ -2,14 +2,13 @@
 
 use crate::{
 	cli::{traits::Cli as _, Cli},
-	common::contracts::check_contracts_node_and_prompt,
+	common::contracts::{check_contracts_node_and_prompt, has_contract_been_built},
 	style::style,
 	wallet_integration::{FrontendFromDir, TransactionData, WalletIntegrationManager},
 };
 use clap::Args;
 use cliclack::{confirm, log, log::error, spinner, ProgressBar};
 use console::{Emoji, Style};
-use pop_common::manifest::from_path;
 use pop_contracts::{
 	build_smart_contract, dry_run_gas_estimate_instantiate, dry_run_upload,
 	get_code_hash_from_event, get_contract_code, get_instantiate_payload, get_upload_payload,
@@ -20,7 +19,7 @@ use pop_contracts::{
 use sp_core::Bytes;
 use sp_weights::Weight;
 use std::{
-	path::{Path, PathBuf},
+	path::PathBuf,
 	process::{Child, Command},
 };
 use tempfile::NamedTempFile;
@@ -39,7 +38,7 @@ pub struct UpContractCommand {
 	#[clap(name = "constructor", long, default_value = "new")]
 	constructor: String,
 	/// The constructor arguments, encoded as strings.
-	#[clap(long, num_args = 0..)]
+	#[clap(long, num_args = 0..,)]
 	args: Vec<String>,
 	/// Transfers an initial balance to the instantiated contract.
 	#[clap(name = "value", long, default_value = "0")]
@@ -234,7 +233,7 @@ impl UpContractCommand {
 
 			Self::terminate_node(process)?;
 			Cli.outro(COMPLETE)?;
-			return Ok(())
+			return Ok(());
 		}
 
 		// Check for upload only.
@@ -426,23 +425,6 @@ impl From<UpContractCommand> for UpOpts {
 	}
 }
 
-/// Checks if a contract has been built by verifying the existence of the build directory and the
-/// <name>.contract file.
-///
-/// # Arguments
-/// * `path` - An optional path to the project directory. If no path is provided, the current
-///   directory is used.
-pub fn has_contract_been_built(path: Option<&Path>) -> bool {
-	let project_path = path.unwrap_or_else(|| Path::new("./"));
-	let manifest = match from_path(Some(project_path)) {
-		Ok(manifest) => manifest,
-		Err(_) => return false,
-	};
-	let contract_name = manifest.package().name();
-	project_path.join("target/ink").exists() &&
-		project_path.join(format!("target/ink/{}.contract", contract_name)).exists()
-}
-
 fn display_contract_info(spinner: &ProgressBar, address: String, code_hash: Option<String>) {
 	spinner.stop(format!(
 		"Contract deployed and instantiated:\n{}",
@@ -476,7 +458,7 @@ mod tests {
 		UpContractCommand {
 			path: None,
 			constructor: "new".to_string(),
-			args: vec!["false".to_string()].to_vec(),
+			args: vec![],
 			value: "0".to_string(),
 			gas_limit: None,
 			proof_size: None,
@@ -499,7 +481,7 @@ mod tests {
 			UpOpts {
 				path: None,
 				constructor: "new".to_string(),
-				args: vec!["false".to_string()].to_vec(),
+				args: vec![].to_vec(),
 				value: "0".to_string(),
 				gas_limit: None,
 				proof_size: None,
