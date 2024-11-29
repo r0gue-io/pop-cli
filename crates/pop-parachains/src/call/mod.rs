@@ -223,4 +223,21 @@ mod tests {
 		));
 		Ok(())
 	}
+
+	#[tokio::test]
+	async fn construct_sudo_extrinsic_works() -> Result<()> {
+		let extrinsic = construct_extrinsic(
+			"Balances",
+			"transfer_allow_death",
+			vec![
+				"Id(5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty)".to_string(),
+				"100".to_string(),
+			],
+		)
+		.await?;
+		let sudo_extrinsic = construct_sudo_extrinsic(extrinsic).await?;
+		assert_eq!(sudo_extrinsic.call_name(), "sudo");
+		assert_eq!(sudo_extrinsic.pallet_name(), "Sudo");
+		Ok(())
+	}
 }

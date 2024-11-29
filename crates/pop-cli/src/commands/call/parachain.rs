@@ -43,7 +43,7 @@ pub struct CallParachainCommand {
 	#[arg(name = "call", long, conflicts_with_all = ["pallet", "extrinsic", "args"])]
 	call_data: Option<String>,
 	/// Authenticates the sudo key and dispatches a function call with `Root` origin.
-	#[arg(name = "sudo", long, short = 'S')]
+	#[arg(name = "sudo", short = 'S', long)]
 	sudo: bool,
 	/// Automatically signs and submits the extrinsic without prompting for confirmation.
 	#[arg(short('y'), long)]
@@ -637,7 +637,8 @@ mod tests {
 			0, // "remark" extrinsic
 		)
 		.expect_input("The value for `remark` might be too large to enter. You may enter the path to a file instead.", "0x11".into())
-		.expect_input("Signer of the extrinsic:", BOB_SURI.into());
+		.expect_confirm("Would you like to execute this operation with sudo privileges?", true)
+		.expect_input("Signer of the extrinsic:", "//Bob".into());
 
 		let chain = call_config.configure_chain(&mut cli).await?;
 		assert_eq!(chain.url, Url::parse(POP_NETWORK_TESTNET_URL)?);
@@ -646,8 +647,9 @@ mod tests {
 		assert_eq!(call_parachain.pallet.name, "System");
 		assert_eq!(call_parachain.extrinsic.name, "remark");
 		assert_eq!(call_parachain.args, ["0x11".to_string()].to_vec());
-		assert_eq!(call_parachain.suri, BOB_SURI);
-		assert_eq!(call_parachain.display(&chain), format!("pop call parachain --pallet System --extrinsic remark --args \"0x11\" --url {}/ --suri {}", POP_NETWORK_TESTNET_URL, BOB_SURI));
+		assert_eq!(call_parachain.suri, "//Bob");
+		assert!(call_parachain.sudo);
+		assert_eq!(call_parachain.display(&chain), "pop call parachain --pallet System --extrinsic remark --args \"0x11\" --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Bob --sudo");
 		cli.verify()
 	}
 
@@ -692,8 +694,9 @@ mod tests {
 		assert_eq!(call_parachain.pallet.name, "OnDemand");
 		assert_eq!(call_parachain.extrinsic.name, "place_order_allow_death");
 		assert_eq!(call_parachain.args, ["10000".to_string(), "2000".to_string()].to_vec());
-		assert_eq!(call_parachain.suri, BOB_SURI);
-		assert_eq!(call_parachain.display(&chain), format!("pop call parachain --pallet OnDemand --extrinsic place_order_allow_death --args \"10000\" \"2000\" --url {}/ --suri {}", POLKADOT_NETWORK_URL, BOB_SURI));
+		assert_eq!(call_parachain.suri, "//Bob");
+		assert!(!call_config.sudo);
+		assert_eq!(call_parachain.display(&chain), "pop call parachain --pallet OnDemand --extrinsic place_order_allow_death --args \"10000\" \"2000\" --url wss://polkadot-rpc.publicnode.com/ --suri //Bob");
 		cli.verify()
 	}
 
@@ -725,6 +728,11 @@ mod tests {
 		let tx = call_config.prepare_extrinsic(&client, &mut cli).await?;
 		assert_eq!(tx.call_name(), "remark");
 		assert_eq!(tx.pallet_name(), "System");
+
+		// Prepare extrinsic wrapped in sudo works.
+		cli = MockCli::new().expect_info("Encoded call data: 0x0f0000000411");
+		call_config.sudo = true;
+		call_config.prepare_extrinsic(&client, &mut cli).await?;
 
 		cli.verify()
 	}
@@ -790,6 +798,7 @@ mod tests {
 		assert_eq!(call_config.pallet, None);
 		assert_eq!(call_config.extrinsic, None);
 		assert_eq!(call_config.args.len(), 0);
+		assert!(!call_config.sudo);
 		Ok(())
 	}
 
