@@ -53,7 +53,7 @@ impl CallParachainCommand {
 				Ok(call) => call,
 				Err(e) => {
 					display_message(&e.to_string(), false, &mut cli)?;
-					break
+					break;
 				},
 			};
 			// Display the configured call.
@@ -63,7 +63,7 @@ impl CallParachainCommand {
 				Ok(api) => api,
 				Err(e) => {
 					display_message(&e.to_string(), false, &mut cli)?;
-					break
+					break;
 				},
 			};
 			// TODO: If call_data, go directly here (?).
@@ -77,7 +77,7 @@ impl CallParachainCommand {
 				.interact()?
 			{
 				display_message("Parachain calling complete.", true, &mut cli)?;
-				break
+				break;
 			}
 		}
 		Ok(())
@@ -132,8 +132,9 @@ impl CallParachainCommand {
 
 			// Resolve extrinsic.
 			let extrinsic = match self.extrinsic {
-				Some(ref extrinsic_name) =>
-					find_extrinsic_by_name(&chain.pallets, &pallet.name, extrinsic_name).await?,
+				Some(ref extrinsic_name) => {
+					find_extrinsic_by_name(&chain.pallets, &pallet.name, extrinsic_name).await?
+				},
 				None => {
 					let mut prompt_extrinsic = cli.select("Select the extrinsic to call:");
 					for extrinsic in &pallet.extrinsics {
@@ -151,7 +152,7 @@ impl CallParachainCommand {
 				cli.outro_cancel(
 					"The selected extrinsic is not supported yet. Please choose another one.",
 				)?;
-				continue
+				continue;
 			}
 
 			// Resolve message arguments.
@@ -169,8 +170,9 @@ impl CallParachainCommand {
 			// Resolve who is signing the extrinsic.
 			let suri = match self.clone().suri {
 				Some(suri) => suri,
-				None =>
-					cli.input("Signer of the extrinsic:").default_input(DEFAULT_URI).interact()?,
+				None => {
+					cli.input("Signer of the extrinsic:").default_input(DEFAULT_URI).interact()?
+				},
 			};
 
 			return Ok(CallParachain {
@@ -238,16 +240,14 @@ impl CallParachain {
 		tx: DynamicPayload,
 		cli: &mut impl Cli,
 	) -> Result<()> {
-		if !self.skip_confirm &&
-			!cli.confirm("Do you want to submit the extrinsic?")
+		if !self.skip_confirm
+			&& !cli
+				.confirm("Do you want to submit the extrinsic?")
 				.initial_value(true)
 				.interact()?
 		{
 			display_message(
-				&format!(
-					"Extrinsic {:?} was not submitted. Operation canceled by the user.",
-					self.extrinsic
-				),
+				"Extrinsic not submitted. Operation canceled by the user.",
 				false,
 				cli,
 			)?;
@@ -290,7 +290,7 @@ async fn prompt_predefined_actions(
 	cli: &mut impl Cli,
 ) -> Result<Option<Action>> {
 	let mut predefined_action = cli.select("What would you like to do?");
-	for action in supported_actions(&pallets).await {
+	for action in supported_actions(pallets).await {
 		predefined_action = predefined_action.item(
 			Some(action.clone()),
 			action.description(),
@@ -389,13 +389,13 @@ fn prompt_for_composite_param(
 		// sub_params: [Param { name: "Id", type_name: "[u8;32]", is_optional: false, sub_params:
 		// [], is_variant: false }], is_variant: false }
 		if param.sub_params.len() == 1 && param.name == param.sub_params[0].name {
-			field_values.push(format!("{}", field_value));
+			field_values.push(field_value);
 		} else {
 			field_values.push(format!("{}: {}", field_arg.name, field_value));
 		}
 	}
 	if param.sub_params.len() == 1 && param.name == param.sub_params[0].name {
-		Ok(format!("{}", field_values.join(", ")))
+		Ok(field_values.join(", ").to_string())
 	} else {
 		Ok(format!("{{{}}}", field_values.join(", ")))
 	}
@@ -408,9 +408,311 @@ fn prompt_for_tuple_param(
 	param: &Param,
 ) -> Result<String> {
 	let mut tuple_values = Vec::new();
-	for (_index, tuple_param) in param.sub_params.iter().enumerate() {
+	for tuple_param in param.sub_params.iter() {
 		let tuple_value = prompt_for_param(api, cli, tuple_param)?;
 		tuple_values.push(tuple_value);
 	}
 	Ok(format!("({})", tuple_values.join(", ")))
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::cli::MockCli;
+	use url::Url;
+
+	// This test only covers the interactive portion of the call parachain command, without actually
+	// submitting any extrinsic.
+	#[tokio::test]
+	async fn guide_user_to_call_parachain_works() -> Result<()> {
+		let mut cli = MockCli::new().expect_intro("Call a parachain");
+
+		let mut call_config = CallParachainCommand {
+			pallet: None,
+			extrinsic: Some("Test".to_string()),
+			args: vec![].to_vec(),
+			url: Url::parse("wss://rpc1.paseo.popnetwork.xyz")?,
+			suri: DEFAULT_URI.to_string(),
+			skip_confirm: false,
+		};
+		// If the extrinsic has been specified via command line arguments, return early.
+		call_config.configure(&mut cli, false).await?;
+		cli.verify()?;
+
+		// Test all process specifying pallet, and see the prompted extrinsics.
+		call_config.extrinsic = None;
+		call_config.pallet = Some("System".to_string());
+		call_config.url = Url::parse(DEFAULT_URL)?;
+
+		cli = MockCli::new()
+			.expect_intro("Call a parachain")
+			.expect_input("Signer of the extrinsic:", "//Bob".into())
+			.expect_input("Enter the value for the parameter: remark", "0x11".into())
+			.expect_input("Which chain would you like to interact with?", "wss://rpc1.paseo.popnetwork.xyz".into())
+			.expect_select::<Pallet>(
+				"Select the extrinsic to call:",
+				Some(true),
+				true,
+				Some(
+					[
+						("remark".to_string(), "Make some on-chain remark.Can be executed by every `origin`.".to_string()),
+						("set_heap_pages".to_string(), "Set the number of pages in the WebAssembly environment's heap.".to_string()),
+						("set_code".to_string(), "Set the new runtime code.".to_string()),
+						("set_code_without_checks".to_string(), "Set the new runtime code without doing any checks of the given `code`.Note that runtime upgrades will not run if this is called with a not-increasing specversion!".to_string()),
+						("set_storage".to_string(), "Set some items of storage.".to_string()),
+						("kill_storage".to_string(), "Kill some items from storage.".to_string()),
+						("kill_prefix".to_string(), "Kill all storage items with a key that starts with the given prefix.**NOTE:** We rely on the Root origin to provide us the number of subkeys underthe prefix we are removing to accurately calculate the weight of this function.".to_string()),
+						("remark_with_event".to_string(), "Make some on-chain remark and emit event.".to_string()),
+						("authorize_upgrade".to_string(), "Authorize an upgrade to a given `code_hash` for the runtime. The runtime can be suppliedlater.This call requires Root origin.".to_string()),
+						("authorize_upgrade_without_checks".to_string(), "Authorize an upgrade to a given `code_hash` for the runtime. The runtime can be suppliedlater.WARNING: This authorizes an upgrade that will take place without any safety checks, forexample that the spec name remains the same and that the version number increases. Notrecommended for normal use. Use `authorize_upgrade` instead.This call requires Root origin.".to_string()),
+						("apply_authorized_upgrade".to_string(), "Provide the preimage (runtime binary) `code` for an upgrade that has been authorized.If the authorization required a version check, this call will ensure the spec nameremains unchanged and that the spec version has increased.Depending on the runtime's `OnSetCode` configuration, this function may directly applythe new `code` in the same block or attempt to schedule the upgrade.All origins are allowed.".to_string()),
+					]
+					.to_vec(),
+				),
+				0, // "remark" extrinsic
+			).expect_info("pop call parachain --pallet System --extrinsic remark --args \"0x11\" --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Bob");
+
+		call_config.configure(&mut cli, false).await?;
+
+		assert_eq!(call_config.pallet, Some("System".to_string()));
+		assert_eq!(call_config.extrinsic, Some("remark".to_string()));
+		assert_eq!(call_config.args, ["0x11".to_string()].to_vec());
+		assert_eq!(call_config.url, Url::parse("wss://rpc1.paseo.popnetwork.xyz")?);
+		assert_eq!(call_config.suri, "//Bob".to_string());
+		assert_eq!(call_config.display(), "pop call parachain --pallet System --extrinsic remark --args \"0x11\" --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Bob");
+		cli.verify()
+	}
+
+	// This test only covers the interactive portion of the call parachain command selecting one of
+	// the predefined actions, without actually submitting any extrinsic.
+	#[tokio::test]
+	async fn guide_user_to_configure_predefined_action_works() -> Result<()> {
+		let mut call_config = CallParachainCommand {
+			pallet: None,
+			extrinsic: None,
+			args: vec![].to_vec(),
+			url: Url::parse(DEFAULT_URL)?,
+			suri: DEFAULT_URI.to_string(),
+			skip_confirm: false,
+		};
+
+		let mut cli = MockCli::new()
+			.expect_intro("Call a parachain")
+			.expect_input("Signer of the extrinsic:", "//Bob".into())
+			.expect_input("Enter the value for the parameter: para_id", "2000".into())
+			.expect_input("Enter the value for the parameter: max_amount", "10000".into())
+			.expect_input("Which chain would you like to interact with?", "wss://polkadot-rpc.publicnode.com".into())
+			.expect_select::<Pallet>(
+				"What would you like to do?",
+				Some(true),
+				true,
+				Some(
+					[
+						("Purchase on-demand coretime".to_string(), "OnDemand".to_string()),
+                        ("Transfer Balance".to_string(), "Balances".to_string()),
+                        ("All".to_string(), "Explore all pallets and extrinsics".to_string()),
+					]
+					.to_vec(),
+				),
+				0, // "Purchase on-demand coretime" action
+			).expect_info("pop call parachain --pallet OnDemand --extrinsic place_order_allow_death --args \"10000\" \"2000\" --url wss://polkadot-rpc.publicnode.com/ --suri //Bob");
+
+		call_config.configure(&mut cli, false).await?;
+
+		assert_eq!(call_config.pallet, Some("OnDemand".to_string()));
+		assert_eq!(call_config.extrinsic, Some("place_order_allow_death".to_string()));
+		assert_eq!(call_config.args, ["10000".to_string(), "2000".to_string()].to_vec());
+		assert_eq!(call_config.url, Url::parse("wss://polkadot-rpc.publicnode.com")?);
+		assert_eq!(call_config.suri, "//Bob".to_string());
+		assert_eq!(call_config.display(), "pop call parachain --pallet OnDemand --extrinsic place_order_allow_death --args \"10000\" \"2000\" --url wss://polkadot-rpc.publicnode.com/ --suri //Bob");
+		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn prepare_extrinsic_works() -> Result<()> {
+		let api = set_up_api("wss://rpc1.paseo.popnetwork.xyz").await?;
+		let mut call_config = CallParachainCommand {
+			pallet: None,
+			extrinsic: None,
+			args: vec!["0x11".to_string()].to_vec(),
+			url: Url::parse("wss://rpc1.paseo.popnetwork.xyz")?,
+			suri: DEFAULT_URI.to_string(),
+			skip_confirm: false,
+		};
+		let mut cli = MockCli::new();
+		// Error, no extrinsic specified.
+		assert!(
+			matches!(call_config.prepare_extrinsic(&api, &mut cli).await, Err(message) if message.to_string().contains("Please specify the extrinsic."))
+		);
+		call_config.extrinsic = Some("remark".to_string());
+		// Error, no pallet specified.
+		assert!(
+			matches!(call_config.prepare_extrinsic(&api, &mut cli).await, Err(message) if message.to_string().contains("Please specify the pallet."))
+		);
+		call_config.pallet = Some("WrongName".to_string());
+		// Error, no extrinsic specified.
+		assert!(
+			matches!(call_config.prepare_extrinsic(&api, &mut cli).await, Err(message) if message.to_string().contains("Metadata Error: Pallet with name WrongName not found"))
+		);
+		// Success, extrinsic and pallet specified.
+		cli = MockCli::new().expect_info("Encoded call data: 0x00000411");
+		call_config.pallet = Some("System".to_string());
+		call_config.prepare_extrinsic(&api, &mut cli).await?;
+
+		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn user_cancel_send_extrinsic_works() -> Result<()> {
+		let api = set_up_api("wss://rpc1.paseo.popnetwork.xyz").await?;
+		let mut call_config = CallParachainCommand {
+			pallet: Some("System".to_string()),
+			extrinsic: Some("remark".to_string()),
+			args: vec!["0x11".to_string()].to_vec(),
+			url: Url::parse("wss://rpc1.paseo.popnetwork.xyz")?,
+			suri: DEFAULT_URI.to_string(),
+			skip_confirm: false,
+		};
+		let mut cli = MockCli::new()
+			.expect_confirm("Do you want to submit the extrinsic?", false)
+			.expect_outro_cancel("Extrinsic not submitted. Operation canceled by the user.");
+		let tx = call_config.prepare_extrinsic(&api, &mut cli).await?;
+		call_config.send_extrinsic(api, tx, false, &mut cli).await?;
+		call_config.extrinsic = Some("remark".to_string());
+
+		cli.verify()
+	}
+
+	#[test]
+	fn reset_for_new_call_works() -> Result<()> {
+		let mut call_config = CallParachainCommand {
+			pallet: Some("System".to_string()),
+			extrinsic: Some("remark".to_string()),
+			args: vec!["0x11".to_string()].to_vec(),
+			url: Url::parse("wss://rpc1.paseo.popnetwork.xyz")?,
+			suri: DEFAULT_URI.to_string(),
+			skip_confirm: false,
+		};
+		call_config.reset_for_new_call();
+		assert_eq!(call_config.pallet, None);
+		assert_eq!(call_config.extrinsic, None);
+		assert_eq!(call_config.args.len(), 0);
+		Ok(())
+	}
+
+	#[test]
+	fn display_message_works() -> Result<()> {
+		let mut cli = MockCli::new().expect_outro(&"Call completed successfully!");
+		display_message("Call completed successfully!", true, &mut cli)?;
+		cli.verify()?;
+		let mut cli = MockCli::new().expect_outro_cancel("Call failed.");
+		display_message("Call failed.", false, &mut cli)?;
+		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn prompt_predefined_actions_works() -> Result<()> {
+		let api = set_up_api("wss://rpc1.paseo.popnetwork.xyz").await?;
+		let pallets = parse_chain_metadata(&api).await?;
+		let mut cli = MockCli::new().expect_select::<Pallet>(
+			"What would you like to do?",
+			Some(true),
+			true,
+			Some(
+				[
+					("Create an Asset".to_string(), "Assets".to_string()),
+					("Mint an Asset".to_string(), "Assets".to_string()),
+					("Create an NFT Collection".to_string(), "Nfts".to_string()),
+					("Mint an NFT".to_string(), "Nfts".to_string()),
+					("Transfer Balance".to_string(), "Balances".to_string()),
+					("All".to_string(), "Explore all pallets and extrinsics".to_string()),
+				]
+				.to_vec(),
+			),
+			1, // "Mint an Asset" action
+		);
+		let action = prompt_predefined_actions(&pallets, &mut cli).await?;
+		assert_eq!(action, Some(Action::MintAsset));
+		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn prompt_for_param_works() -> Result<()> {
+		let api = set_up_api("wss://rpc1.paseo.popnetwork.xyz").await?;
+		let pallets = parse_chain_metadata(&api).await?;
+		// Using NFT mint extrinsic to test the majority of subfunctions
+		let extrinsic = find_extrinsic_by_name(&pallets, "Nfts", "mint").await?;
+		let mut cli = MockCli::new()
+			.expect_input("Enter the value for the parameter: mint_price", "1000".into())
+			.expect_input(
+				"Enter the value for the parameter: Id",
+				"5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty".into(),
+			)
+			.expect_input("Enter the value for the parameter: item", "0".into())
+			.expect_input("Enter the value for the parameter: collection", "0".into())
+			.expect_select::<Pallet>(
+				"Select the value for the parameter: mint_to",
+				Some(true),
+				true,
+				Some(
+					[
+						("Id".to_string(), "".to_string()),
+						("Index".to_string(), "".to_string()),
+						("Raw".to_string(), "".to_string()),
+						("Address32".to_string(), "".to_string()),
+						("Address20".to_string(), "".to_string()),
+					]
+					.to_vec(),
+				),
+				0, // "Id" action
+			)
+			.expect_confirm(
+				"Do you want to provide a value for the optional parameter: mint_price?",
+				true,
+			)
+			.expect_confirm(
+				"Do you want to provide a value for the optional parameter: owned_item?",
+				false,
+			)
+			.expect_confirm(
+				"Do you want to provide a value for the optional parameter: witness_data?",
+				true,
+			);
+		// Test all the extrinsic params
+		let mut params: Vec<String> = Vec::new();
+		for param in extrinsic.params {
+			params.push(prompt_for_param(&api, &mut cli, &param)?);
+		}
+		assert_eq!(params.len(), 4);
+		assert_eq!(params[0], "0".to_string()); // collection: test primitive
+		assert_eq!(params[1], "0".to_string()); // item: test primitive
+		assert_eq!(params[2], "Id(5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty)".to_string()); // mint_to: test variant
+		assert_eq!(params[3], "Some({owned_item: None(), mint_price: Some(1000)})".to_string()); // witness_data: test composite
+		cli.verify()?;
+
+		// Using Scheduler set_retry extrinsic to test the tuple params
+		let extrinsic = find_extrinsic_by_name(&pallets, "Scheduler", "set_retry").await?;
+		let mut cli = MockCli::new()
+			.expect_input("Enter the value for the parameter: period", "0".into())
+			.expect_input("Enter the value for the parameter: retries", "0".into())
+			.expect_input(
+				"Enter the value for the parameter: Index 1 of the tuple task",
+				"0".into(),
+			)
+			.expect_input(
+				"Enter the value for the parameter: Index 0 of the tuple task",
+				"0".into(),
+			);
+
+		// Test all the extrinsic params
+		let mut params: Vec<String> = Vec::new();
+		for param in extrinsic.params {
+			params.push(prompt_for_param(&api, &mut cli, &param)?);
+		}
+		assert_eq!(params.len(), 3);
+		assert_eq!(params[0], "(0, 0)".to_string()); // task: test tuples
+		assert_eq!(params[1], "0".to_string()); // retries: test primitive
+		assert_eq!(params[2], "0".to_string()); // period: test primitive
+		cli.verify()
+	}
 }
