@@ -124,9 +124,9 @@ pub async fn find_extrinsic_by_name(
 ) -> Result<Extrinsic, Error> {
 	let pallet = find_pallet_by_name(pallets, pallet_name).await?;
 	if let Some(extrinsic) = pallet.extrinsics.iter().find(|&e| e.name == extrinsic_name) {
-		return Ok(extrinsic.clone());
+		Ok(extrinsic.clone())
 	} else {
-		return Err(Error::ExtrinsicNotSupported);
+		Err(Error::ExtrinsicNotSupported)
 	}
 }
 

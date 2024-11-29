@@ -223,13 +223,14 @@ impl CallParachainCommand {
 		prompt_to_repeat_call: bool,
 		cli: &mut impl cli::traits::Cli,
 	) -> Result<()> {
-		if !self.skip_confirm &&
-			!cli.confirm("Do you want to submit the extrinsic?")
+		if !self.skip_confirm
+			&& !cli
+				.confirm("Do you want to submit the extrinsic?")
 				.initial_value(true)
 				.interact()?
 		{
 			display_message(
-				&format!("Extrinsic not submitted. Operation canceled by the user."),
+				"Extrinsic not submitted. Operation canceled by the user.",
 				false,
 				cli,
 			)?;
@@ -241,7 +242,7 @@ impl CallParachainCommand {
 			.await
 			.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
 
-		spinner.stop(&format!("Extrinsic submitted with hash: {:?}", result));
+		spinner.stop(format!("Extrinsic submitted with hash: {:?}", result));
 
 		// Prompt for any additional calls.
 		if !prompt_to_repeat_call {
@@ -286,7 +287,7 @@ async fn prompt_predefined_actions(
 	cli: &mut impl cli::traits::Cli,
 ) -> Result<Option<Action>> {
 	let mut predefined_action = cli.select("What would you like to do?");
-	for action in supported_actions(&pallets).await {
+	for action in supported_actions(pallets).await {
 		predefined_action = predefined_action.item(
 			Some(action.clone()),
 			action.description(),
@@ -385,13 +386,13 @@ fn prompt_for_composite_param(
 		// sub_params: [Param { name: "Id", type_name: "[u8;32]", is_optional: false, sub_params:
 		// [], is_variant: false }], is_variant: false }
 		if param.sub_params.len() == 1 && param.name == param.sub_params[0].name {
-			field_values.push(format!("{}", field_value));
+			field_values.push(field_value);
 		} else {
 			field_values.push(format!("{}: {}", field_arg.name, field_value));
 		}
 	}
 	if param.sub_params.len() == 1 && param.name == param.sub_params[0].name {
-		Ok(format!("{}", field_values.join(", ")))
+		Ok(field_values.join(", ").to_string())
 	} else {
 		Ok(format!("{{{}}}", field_values.join(", ")))
 	}
@@ -404,7 +405,7 @@ fn prompt_for_tuple_param(
 	param: &Param,
 ) -> Result<String> {
 	let mut tuple_values = Vec::new();
-	for (_index, tuple_param) in param.sub_params.iter().enumerate() {
+	for tuple_param in param.sub_params.iter() {
 		let tuple_value = prompt_for_param(api, cli, tuple_param)?;
 		tuple_values.push(tuple_value);
 	}
