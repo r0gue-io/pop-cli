@@ -200,7 +200,7 @@ impl CallContractCommand {
 		};
 
 		// Resolve contract address.
-		if let None = self.contract {
+		if self.contract.is_none() {
 			// Prompt for contract address.
 			let contract_address: String = cli
 				.input("Paste the on-chain contract address:")
