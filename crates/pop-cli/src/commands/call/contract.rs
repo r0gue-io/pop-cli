@@ -2,7 +2,7 @@
 
 use crate::{
 	cli::{self, traits::*},
-	common::build::has_contract_been_built,
+	common::contracts::has_contract_been_built,
 };
 use anyhow::{anyhow, Result};
 use clap::Args;

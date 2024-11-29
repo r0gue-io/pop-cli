@@ -2,7 +2,7 @@
 
 use crate::{
 	cli::{traits::Cli as _, Cli},
-	common::{build::has_contract_been_built, contracts::check_contracts_node_and_prompt},
+	common::contracts::{check_contracts_node_and_prompt, has_contract_been_built},
 	style::style,
 };
 use clap::Args;
