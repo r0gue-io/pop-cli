@@ -130,8 +130,9 @@ impl CallParachainCommand {
 
 			// Resolve extrinsic.
 			let extrinsic = match self.extrinsic {
-				Some(ref extrinsic_name) =>
-					find_extrinsic_by_name(&chain.pallets, &pallet.name, extrinsic_name).await?,
+				Some(ref extrinsic_name) => {
+					find_extrinsic_by_name(&chain.pallets, &pallet.name, extrinsic_name).await?
+				},
 				None => {
 					let mut prompt_extrinsic = cli.select("Select the extrinsic to call:");
 					for extrinsic in &pallet.extrinsics {
@@ -167,8 +168,9 @@ impl CallParachainCommand {
 			// Resolve who is signing the extrinsic.
 			let suri = match self.clone().suri {
 				Some(suri) => suri,
-				None =>
-					cli.input("Signer of the extrinsic:").default_input(DEFAULT_URI).interact()?,
+				None => {
+					cli.input("Signer of the extrinsic:").default_input(DEFAULT_URI).interact()?
+				},
 			};
 
 			return Ok(CallParachain {
@@ -236,13 +238,17 @@ impl CallParachain {
 		tx: DynamicPayload,
 		cli: &mut impl Cli,
 	) -> Result<()> {
-		if !self.skip_confirm &&
-			!cli.confirm("Do you want to submit the extrinsic?")
+		if !self.skip_confirm
+			&& !cli
+				.confirm("Do you want to submit the extrinsic?")
 				.initial_value(true)
 				.interact()?
 		{
 			display_message(
-				"Extrinsic not submitted. Operation canceled by the user.",
+				&format!(
+					"Extrinsic {} was not submitted. Operation canceled by the user.",
+					self.extrinsic.name
+				),
 				false,
 				cli,
 			)?;
@@ -597,29 +603,14 @@ mod tests {
 		};
 		let mut cli = MockCli::new()
 			.expect_confirm("Do you want to submit the extrinsic?", false)
-			.expect_outro_cancel("Extrinsic not submitted. Operation canceled by the user.");
+			.expect_outro_cancel(
+				"Extrinsic remark was not submitted. Operation canceled by the user.",
+			);
 		let tx = call_config.prepare_extrinsic(&api, &mut cli).await?;
 		call_config.send_extrinsic(&api, tx, &mut cli).await?;
 
 		cli.verify()
 	}
-
-	// #[test]
-	// fn reset_for_new_call_works() -> Result<()> {
-	// 	let mut call_config = CallParachainCommand {
-	// 		pallet: Some("System".to_string()),
-	// 		extrinsic: Some("remark".to_string()),
-	// 		args: vec!["0x11".to_string()].to_vec(),
-	// 		url: Url::parse("wss://rpc1.paseo.popnetwork.xyz")?,
-	// 		suri: DEFAULT_URI.to_string(),
-	// 		skip_confirm: false,
-	// 	};
-	// 	call_config.reset_for_new_call();
-	// 	assert_eq!(call_config.pallet, None);
-	// 	assert_eq!(call_config.extrinsic, None);
-	// 	assert_eq!(call_config.args.len(), 0);
-	// 	Ok(())
-	// }
 
 	#[test]
 	fn display_message_works() -> Result<()> {
