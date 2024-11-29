@@ -52,9 +52,9 @@ fn type_to_param(name: String, registry: &PortableRegistry, type_id: u32) -> Res
 		}
 	}
 	for param in &type_info.type_params {
-		if param.name == "RuntimeCall"
-			|| param.name == "Vec<RuntimeCall>"
-			|| param.name == "Vec<<T as Config>::RuntimeCall>"
+		if param.name == "RuntimeCall" ||
+			param.name == "Vec<RuntimeCall>" ||
+			param.name == "Vec<<T as Config>::RuntimeCall>"
 		{
 			return Err(Error::ExtrinsicNotSupported);
 		}
@@ -78,10 +78,10 @@ fn type_to_param(name: String, registry: &PortableRegistry, type_id: u32) -> Res
 		// Determine the formatted type name.
 		let type_name = format_type(type_info, registry);
 		match &type_info.type_def {
-			TypeDef::Primitive(_)
-			| TypeDef::Array(_)
-			| TypeDef::Sequence(_)
-			| TypeDef::Compact(_) => Ok(Param {
+			TypeDef::Primitive(_) |
+			TypeDef::Array(_) |
+			TypeDef::Sequence(_) |
+			TypeDef::Compact(_) => Ok(Param {
 				name,
 				type_name,
 				sub_params: Vec::new(),

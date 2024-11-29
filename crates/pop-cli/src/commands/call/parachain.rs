@@ -223,9 +223,8 @@ impl CallParachainCommand {
 		prompt_to_repeat_call: bool,
 		cli: &mut impl cli::traits::Cli,
 	) -> Result<()> {
-		if !self.skip_confirm
-			&& !cli
-				.confirm("Do you want to submit the extrinsic?")
+		if !self.skip_confirm &&
+			!cli.confirm("Do you want to submit the extrinsic?")
 				.initial_value(true)
 				.interact()?
 		{
