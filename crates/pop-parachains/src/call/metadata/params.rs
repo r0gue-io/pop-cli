@@ -29,13 +29,12 @@ pub struct Param {
 /// * `field`: A reference to a metadata field of the extrinsic.
 pub fn field_to_param(
 	api: &OnlineClient<SubstrateConfig>,
-	extrinsic_name: &str,
 	field: &Field<PortableForm>,
 ) -> Result<Param, Error> {
 	let metadata: Metadata = api.metadata();
 	let registry = metadata.types();
 	let name = field.name.clone().unwrap_or("Unnamed".to_string()); //It can be unnamed field
-	type_to_param(extrinsic_name, name, registry, field.ty.id, &field.type_name)
+	type_to_param(name, registry, field.ty.id)
 }
 
 /// Converts a type's metadata into a `Param` representation.
@@ -45,17 +44,11 @@ pub fn field_to_param(
 /// * `registry`: A reference to the `PortableRegistry` to resolve type dependencies.
 /// * `type_id`: The ID of the type to be converted.
 /// * `type_name`: An optional descriptive name for the type.
-fn type_to_param(
-	extrinsic_name: &str,
-	name: String,
-	registry: &PortableRegistry,
-	type_id: u32,
-	type_name: &Option<String>,
-) -> Result<Param, Error> {
+fn type_to_param(name: String, registry: &PortableRegistry, type_id: u32) -> Result<Param, Error> {
 	let type_info = registry.resolve(type_id).ok_or(Error::MetadataParsingError(name.clone()))?;
 	if let Some(last_segment) = type_info.path.segments.last() {
 		if last_segment == "RuntimeCall" {
-			return Err(Error::ExtrinsicNotSupported(extrinsic_name.to_string()));
+			return Err(Error::ExtrinsicNotSupported);
 		}
 	}
 	for param in &type_info.type_params {
@@ -63,22 +56,21 @@ fn type_to_param(
 			param.name == "Vec<RuntimeCall>" ||
 			param.name == "Vec<<T as Config>::RuntimeCall>"
 		{
-			return Err(Error::ExtrinsicNotSupported(extrinsic_name.to_string()));
+			return Err(Error::ExtrinsicNotSupported);
 		}
 	}
 	if type_info.path.segments == ["Option"] {
-		if let Some(sub_type_id) = type_info.type_params.get(0).and_then(|param| param.ty) {
+		if let Some(sub_type_id) = type_info.type_params.first().and_then(|param| param.ty) {
 			// Recursive for the sub parameters
-			let sub_param =
-				type_to_param(extrinsic_name, name.clone(), registry, sub_type_id.id, type_name)?;
-			return Ok(Param {
+			let sub_param = type_to_param(name.clone(), registry, sub_type_id.id)?;
+			Ok(Param {
 				name,
 				type_name: sub_param.type_name,
 				sub_params: sub_param.sub_params,
 				is_optional: true,
 				is_tuple: false,
 				is_variant: false,
-			});
+			})
 		} else {
 			Err(Error::MetadataParsingError(name))
 		}
@@ -104,11 +96,9 @@ fn type_to_param(
 					.map(|field| {
 						// Recursive for the sub parameters of composite type.
 						type_to_param(
-							extrinsic_name,
 							field.name.clone().unwrap_or(name.clone()),
 							registry,
 							field.ty.id,
-							&field.type_name,
 						)
 					})
 					.collect::<Result<Vec<Param>, Error>>()?;
@@ -133,11 +123,9 @@ fn type_to_param(
 							.map(|field| {
 								// Recursive for the sub parameters of variant type.
 								type_to_param(
-									extrinsic_name,
 									field.name.clone().unwrap_or(variant_param.name.clone()),
 									registry,
 									field.ty.id,
-									&field.type_name,
 								)
 							})
 							.collect::<Result<Vec<Param>, Error>>()?;
@@ -168,11 +156,9 @@ fn type_to_param(
 					.enumerate()
 					.map(|(index, field_id)| {
 						type_to_param(
-							extrinsic_name,
-							format!("Index {} of the tuple {}", index.to_string(), name),
+							format!("Index {index} of the tuple {name}"),
 							registry,
 							field_id.id,
-							&None,
 						)
 					})
 					.collect::<Result<Vec<Param>, Error>>()?;
@@ -188,5 +174,68 @@ fn type_to_param(
 			},
 			_ => Err(Error::MetadataParsingError(name)),
 		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::set_up_api;
+	use anyhow::Result;
+
+	#[tokio::test]
+	async fn field_to_param_works() -> Result<()> {
+		let api = set_up_api("wss://rpc1.paseo.popnetwork.xyz").await?;
+		let metadata = api.metadata();
+		// Test a supported extrinsic
+		let extrinsic = metadata
+			.pallet_by_name("Balances")
+			.unwrap()
+			.call_variant_by_name("force_transfer")
+			.unwrap();
+		let mut params = Vec::new();
+		for field in &extrinsic.fields {
+			params.push(field_to_param(&api, field)?)
+		}
+		assert_eq!(params.len(), 3);
+		assert_eq!(params.first().unwrap().name, "source");
+		assert_eq!(params.first().unwrap().type_name, "MultiAddress<AccountId32 ([u8;32]),()>: Id(AccountId32 ([u8;32])), Index(Compact<()>), Raw([u8]), Address32([u8;32]), Address20([u8;20])");
+		assert_eq!(params.first().unwrap().sub_params.len(), 5);
+		assert_eq!(params.first().unwrap().sub_params.first().unwrap().name, "Id");
+		assert_eq!(params.first().unwrap().sub_params.first().unwrap().type_name, "");
+		assert_eq!(
+			params
+				.first()
+				.unwrap()
+				.sub_params
+				.first()
+				.unwrap()
+				.sub_params
+				.first()
+				.unwrap()
+				.name,
+			"Id"
+		);
+		assert_eq!(
+			params
+				.first()
+				.unwrap()
+				.sub_params
+				.first()
+				.unwrap()
+				.sub_params
+				.first()
+				.unwrap()
+				.type_name,
+			"AccountId32 ([u8;32])"
+		);
+		// Test a extrinsic not supported
+		let extrinsic =
+			metadata.pallet_by_name("Sudo").unwrap().call_variant_by_name("sudo").unwrap();
+		assert!(matches!(
+			field_to_param(&api, &extrinsic.fields.first().unwrap()),
+			Err(Error::ExtrinsicNotSupported)
+		));
+		Ok(())
 	}
 }
