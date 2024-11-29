@@ -35,7 +35,7 @@ pub struct CallParachainCommand {
 	#[clap(name = "suri", long, short, default_value = DEFAULT_URI)]
 	suri: String,
 	/// Authenticates the sudo key and dispatches a function call with `Root` origin.
-	#[arg(name = "sudo", long, short = 'S')]
+	#[arg(name = "sudo", short = 'S', long)]
 	sudo: bool,
 	/// SCALE encoded bytes representing the call data of the transaction.
 	#[arg(name = "call", short = 'c', long, conflicts_with_all = ["pallet", "extrinsic", "args"])]
@@ -260,9 +260,8 @@ impl CallParachainCommand {
 		prompt_to_repeat_call: bool,
 		cli: &mut impl cli::traits::Cli,
 	) -> Result<()> {
-		if !self.skip_confirm
-			&& !cli
-				.confirm("Do you want to submit the extrinsic?")
+		if !self.skip_confirm &&
+			!cli.confirm("Do you want to submit the extrinsic?")
 				.initial_value(true)
 				.interact()?
 		{
@@ -275,7 +274,7 @@ impl CallParachainCommand {
 		}
 		let spinner = cliclack::spinner();
 		spinner.start("Signing and submitting the extrinsic, please wait...");
-		// TODO: IF HERE
+
 		let result = sign_and_submit_extrinsic(api.clone(), tx, &self.suri)
 			.await
 			.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
@@ -507,6 +506,7 @@ mod tests {
 			suri: DEFAULT_URI.to_string(),
 			skip_confirm: false,
 			call_data: None,
+			sudo: false,
 		};
 		// Test exit early extrinsic specified via command line arguments.
 		call_config.initialize_api_client(&mut cli).await?;
@@ -529,6 +529,7 @@ mod tests {
 	async fn guide_user_to_call_parachain_works() -> Result<()> {
 		let mut cli = MockCli::new()
 		.expect_input("Signer of the extrinsic:", "//Bob".into())
+		.expect_confirm("Would you like to execute this operation with sudo privileges?", true)
 		.expect_input("Enter the value for the parameter: remark", "0x11".into())
 		.expect_select::<Pallet>(
 			"Select the extrinsic to call:",
@@ -551,7 +552,7 @@ mod tests {
 				.to_vec(),
 			),
 			0, // "remark" extrinsic
-		).expect_info("pop call parachain --pallet System --extrinsic remark --args \"0x11\" --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Bob");
+		).expect_info("pop call parachain --pallet System --extrinsic remark --args \"0x11\" --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Bob --sudo");
 		let mut call_config = CallParachainCommand {
 			pallet: Some("System".to_string()),
 			extrinsic: None,
@@ -560,6 +561,7 @@ mod tests {
 			suri: DEFAULT_URI.to_string(),
 			skip_confirm: false,
 			call_data: None,
+			sudo: false,
 		};
 		let api = call_config.initialize_api_client(&mut cli).await?;
 		call_config.configure(&api, &mut cli).await?;
@@ -569,7 +571,8 @@ mod tests {
 		assert_eq!(call_config.args, ["0x11".to_string()].to_vec());
 		assert_eq!(call_config.url, Url::parse("wss://rpc1.paseo.popnetwork.xyz")?);
 		assert_eq!(call_config.suri, "//Bob".to_string());
-		assert_eq!(call_config.display(), "pop call parachain --pallet System --extrinsic remark --args \"0x11\" --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Bob");
+		assert!(call_config.sudo);
+		assert_eq!(call_config.display(), "pop call parachain --pallet System --extrinsic remark --args \"0x11\" --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Bob --sudo");
 		cli.verify()
 	}
 
@@ -585,6 +588,7 @@ mod tests {
 			suri: DEFAULT_URI.to_string(),
 			skip_confirm: false,
 			call_data: None,
+			sudo: false,
 		};
 
 		let mut cli = MockCli::new()
@@ -616,6 +620,7 @@ mod tests {
 		assert_eq!(call_config.args, ["10000".to_string(), "2000".to_string()].to_vec());
 		assert_eq!(call_config.url, Url::parse("wss://polkadot-rpc.publicnode.com")?);
 		assert_eq!(call_config.suri, "//Bob".to_string());
+		assert!(!call_config.sudo);
 		assert_eq!(call_config.display(), "pop call parachain --pallet OnDemand --extrinsic place_order_allow_death --args \"10000\" \"2000\" --url wss://polkadot-rpc.publicnode.com/ --suri //Bob");
 		cli.verify()
 	}
@@ -631,6 +636,7 @@ mod tests {
 			suri: DEFAULT_URI.to_string(),
 			skip_confirm: false,
 			call_data: None,
+			sudo: false,
 		};
 		let mut cli = MockCli::new();
 		// Error, no extrinsic specified.
@@ -652,6 +658,11 @@ mod tests {
 		call_config.pallet = Some("System".to_string());
 		call_config.prepare_extrinsic(&api, &mut cli).await?;
 
+		// Prepare extrinsic wrapped in sudo works.
+		cli = MockCli::new().expect_info("Encoded call data: 0x0f0000000411");
+		call_config.sudo = true;
+		call_config.prepare_extrinsic(&api, &mut cli).await?;
+
 		cli.verify()
 	}
 
@@ -666,6 +677,7 @@ mod tests {
 			suri: DEFAULT_URI.to_string(),
 			skip_confirm: false,
 			call_data: None,
+			sudo: false,
 		};
 		let mut cli = MockCli::new()
 			.expect_confirm("Do you want to submit the extrinsic?", false)
@@ -689,6 +701,7 @@ mod tests {
 			suri: DEFAULT_URI.to_string(),
 			skip_confirm: false,
 			call_data: Some("0x00000411".to_string()),
+			sudo: false,
 		};
 		let mut cli = MockCli::new()
 			.expect_input("Signer of the extrinsic:", "//Bob".into())
@@ -709,11 +722,13 @@ mod tests {
 			suri: DEFAULT_URI.to_string(),
 			skip_confirm: false,
 			call_data: None,
+			sudo: true,
 		};
 		call_config.reset_for_new_call();
 		assert_eq!(call_config.pallet, None);
 		assert_eq!(call_config.extrinsic, None);
 		assert_eq!(call_config.args.len(), 0);
+		assert!(!call_config.sudo);
 		Ok(())
 	}
 
