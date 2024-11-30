@@ -3,6 +3,7 @@
 use crate::errors::Error;
 use params::Param;
 use scale_value::stringify::custom_parsers;
+use std::fmt::{Display, Formatter};
 use subxt::{dynamic::Value, Metadata, OnlineClient, SubstrateConfig};
 
 pub mod action;
@@ -15,8 +16,14 @@ pub struct Pallet {
 	pub name: String,
 	/// The documentation of the pallet.
 	pub docs: String,
-	// The extrinsics of the pallet.
+	/// The extrinsics of the pallet.
 	pub extrinsics: Vec<Extrinsic>,
+}
+
+impl Display for Pallet {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{}", self.name)
+	}
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -30,6 +37,12 @@ pub struct Extrinsic {
 	pub params: Vec<Param>,
 	/// Whether this extrinsic is supported (no recursive or unsupported types like `RuntimeCall`).
 	pub is_supported: bool,
+}
+
+impl Display for Extrinsic {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{}", self.name)
+	}
 }
 
 /// Parses the chain metadata to extract information about pallets and their extrinsics with its

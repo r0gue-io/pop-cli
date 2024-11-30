@@ -50,9 +50,7 @@ pub async fn sign_and_submit_extrinsic(
 		.tx()
 		.sign_and_submit_then_watch_default(&tx, &signer)
 		.await?
-		.wait_for_finalized()
-		.await?
-		.wait_for_success()
+		.wait_for_finalized_success()
 		.await?;
 	Ok(format!("{:?}", result.extrinsic_hash()))
 }

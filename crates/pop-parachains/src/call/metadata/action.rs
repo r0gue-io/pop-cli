@@ -20,6 +20,13 @@ use strum_macros::{AsRefStr, Display, EnumMessage, EnumProperty, EnumString, Var
 )]
 pub enum Action {
 	#[strum(
+		serialize = "transfer",
+		message = "transfer_allow_death",
+		detailed_message = "Transfer Balance",
+		props(Pallet = "Balances")
+	)]
+	Transfer,
+	#[strum(
 		serialize = "create",
 		message = "create",
 		detailed_message = "Create an Asset",
@@ -55,12 +62,19 @@ pub enum Action {
 	)]
 	PurchaseOnDemandCoretime,
 	#[strum(
-		serialize = "transfer",
-		message = "transfer_allow_death",
-		detailed_message = "Transfer Balance",
-		props(Pallet = "Balances")
+		serialize = "reserve",
+		message = "reserve",
+		detailed_message = "Reserve para id",
+		props(Pallet = "Registrar")
 	)]
-	Transfer,
+	Reserve,
+	#[strum(
+		serialize = "register",
+		message = "register",
+		detailed_message = "Register para id with genesis state and code",
+		props(Pallet = "Registrar")
+	)]
+	Register,
 }
 
 impl Action {
@@ -114,6 +128,8 @@ mod tests {
 			(Action::MintNFT, "Mint an NFT"),
 			(Action::PurchaseOnDemandCoretime, "Purchase on-demand coretime"),
 			(Action::Transfer, "Transfer Balance"),
+			(Action::Register, "Register para id with genesis state and code"),
+			(Action::Reserve, "Reserve para id"),
 		]);
 
 		for action in Action::VARIANTS.iter() {
@@ -130,6 +146,8 @@ mod tests {
 			(Action::MintNFT, "Nfts"),
 			(Action::PurchaseOnDemandCoretime, "OnDemand"),
 			(Action::Transfer, "Balances"),
+			(Action::Register, "Registrar"),
+			(Action::Reserve, "Registrar"),
 		]);
 
 		for action in Action::VARIANTS.iter() {
@@ -146,6 +164,8 @@ mod tests {
 			(Action::MintNFT, "mint"),
 			(Action::PurchaseOnDemandCoretime, "place_order_allow_death"),
 			(Action::Transfer, "transfer_allow_death"),
+			(Action::Register, "register"),
+			(Action::Reserve, "reserve"),
 		]);
 
 		for action in Action::VARIANTS.iter() {
@@ -159,17 +179,21 @@ mod tests {
 		let mut api = set_up_api("wss://rpc1.paseo.popnetwork.xyz").await?;
 		let mut actions = supported_actions(&parse_chain_metadata(&api).await?).await;
 		assert_eq!(actions.len(), 5);
-		assert_eq!(actions[0], Action::CreateAsset);
-		assert_eq!(actions[1], Action::MintAsset);
-		assert_eq!(actions[2], Action::CreateCollection);
-		assert_eq!(actions[3], Action::MintNFT);
-		assert_eq!(actions[4], Action::Transfer);
+		assert_eq!(actions[0], Action::Transfer);
+		assert_eq!(actions[1], Action::CreateAsset);
+		assert_eq!(actions[2], Action::MintAsset);
+		assert_eq!(actions[3], Action::CreateCollection);
+		assert_eq!(actions[4], Action::MintNFT);
+
 		// Test Polkadot Relay Chain.
 		api = set_up_api("wss://polkadot-rpc.publicnode.com").await?;
 		actions = supported_actions(&parse_chain_metadata(&api).await?).await;
-		assert_eq!(actions.len(), 2);
-		assert_eq!(actions[0], Action::PurchaseOnDemandCoretime);
-		assert_eq!(actions[1], Action::Transfer);
+		assert_eq!(actions.len(), 4);
+		assert_eq!(actions[0], Action::Transfer);
+		assert_eq!(actions[1], Action::PurchaseOnDemandCoretime);
+		assert_eq!(actions[2], Action::Reserve);
+		assert_eq!(actions[3], Action::Register);
+
 		Ok(())
 	}
 }
