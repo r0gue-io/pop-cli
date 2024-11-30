@@ -2,7 +2,7 @@
 
 use crate::{
 	cli::{self, traits::*},
-	common::build::has_contract_been_built,
+	common::contracts::has_contract_been_built,
 };
 use anyhow::{anyhow, Result};
 use clap::Args;
@@ -21,61 +21,70 @@ const DEFAULT_PAYABLE_VALUE: &str = "0";
 
 #[derive(Args, Clone)]
 pub struct CallContractCommand {
-	/// Path to the contract build directory.
-	#[arg(short = 'p', long)]
+	/// Path to the contract build directory or a contract artifact.
+	#[arg(short, long)]
 	path: Option<PathBuf>,
 	/// The address of the contract to call.
-	#[clap(name = "contract", short = 'c', long, env = "CONTRACT")]
+	#[arg(name = "contract", short, long, env = "CONTRACT")]
 	contract: Option<String>,
 	/// The name of the contract message to call.
-	#[clap(long, short)]
+	#[arg(long, short)]
 	message: Option<String>,
-	/// The constructor arguments, encoded as strings.
-	#[clap(long, num_args = 0..,)]
+	/// The message arguments, encoded as strings.
+	#[arg(short, long, num_args = 0..,)]
 	args: Vec<String>,
 	/// The value to be transferred as part of the call.
-	#[clap(name = "value", short = 'v', long, default_value = DEFAULT_PAYABLE_VALUE)]
+	#[arg(name = "value", short, long, default_value = DEFAULT_PAYABLE_VALUE)]
 	value: String,
 	/// Maximum amount of gas to be used for this command.
 	/// If not specified it will perform a dry-run to estimate the gas consumed for the
 	/// call.
-	#[clap(name = "gas", short = 'g', long)]
+	#[arg(name = "gas", short, long)]
 	gas_limit: Option<u64>,
 	/// Maximum proof size for this command.
 	/// If not specified it will perform a dry-run to estimate the proof size required.
-	#[clap(short = 'P', long)]
+	#[arg(short = 'P', long)]
 	proof_size: Option<u64>,
 	/// Websocket endpoint of a node.
-	#[clap(name = "url", short = 'u', long, value_parser, default_value = DEFAULT_URL)]
+	#[arg(name = "url", short, long, value_parser, default_value = DEFAULT_URL)]
 	url: url::Url,
 	/// Secret key URI for the account calling the contract.
 	///
 	/// e.g.
 	/// - for a dev account "//Alice"
 	/// - with a password "//Alice///SECRET_PASSWORD"
-	#[clap(name = "suri", long, short, default_value = DEFAULT_URI)]
+	#[arg(name = "suri", long, short, default_value = DEFAULT_URI)]
 	suri: String,
 	/// Submit an extrinsic for on-chain execution.
-	#[clap(short('x'), long)]
+	#[arg(short('x'), long)]
 	execute: bool,
 	/// Perform a dry-run via RPC to estimate the gas usage. This does not submit a transaction.
-	#[clap(short = 'D', long, conflicts_with = "execute")]
+	#[arg(short = 'D', long, conflicts_with = "execute")]
 	dry_run: bool,
 	/// Enables developer mode, bypassing certain user prompts for faster testing.
 	/// Recommended for testing and local development only.
-	#[clap(name = "dev", long, short, default_value = "false")]
+	#[arg(name = "dev", long, short, default_value = "false")]
 	dev_mode: bool,
 }
 impl CallContractCommand {
 	/// Executes the command.
 	pub(crate) async fn execute(mut self) -> Result<()> {
-		// Ensure contract is built.
-		self.ensure_contract_built(&mut cli::Cli).await?;
 		// Check if message specified via command line argument.
 		let prompt_to_repeat_call = self.message.is_none();
 		// Configure the call based on command line arguments/call UI.
 		if let Err(e) = self.configure(&mut cli::Cli, false).await {
-			display_message(&e.to_string(), false, &mut cli::Cli)?;
+			match e.to_string().as_str() {
+				"Contract not deployed." => {
+					display_message(
+						"Use `pop up contract` to deploy your contract.",
+						true, // Not an error, just a message.
+						&mut cli::Cli,
+					)?;
+				},
+				_ => {
+					display_message(&e.to_string(), false, &mut cli::Cli)?;
+				},
+			}
 			return Ok(());
 		};
 		// Finally execute the call.
@@ -119,29 +128,46 @@ impl CallContractCommand {
 		full_message
 	}
 
-	/// Checks if the contract has been built; if not, builds it.
+	/// If the contract has not been built, build it in release mode.
 	async fn ensure_contract_built(&self, cli: &mut impl Cli) -> Result<()> {
-		// Check if build exists in the specified "Contract build directory"
-		if !has_contract_been_built(self.path.as_deref()) {
-			// Build the contract in release mode
-			cli.warning("NOTE: contract has not yet been built.")?;
-			let spinner = spinner();
-			spinner.start("Building contract in RELEASE mode...");
-			let result = match build_smart_contract(self.path.as_deref(), true, Verbosity::Quiet) {
-				Ok(result) => result,
-				Err(e) => {
-					return Err(anyhow!(format!(
-						"🚫 An error occurred building your contract: {}\nUse `pop build` to retry with build output.",
-						e.to_string()
-					)));
-				},
-			};
-			spinner.stop(format!(
-				"Your contract artifacts are ready. You can find them in: {}",
-				result.target_directory.display()
-			));
+		// Build the contract in release mode
+		cli.warning("NOTE: contract has not yet been built.")?;
+		let spinner = spinner();
+		spinner.start("Building contract in RELEASE mode...");
+		let result = match build_smart_contract(self.path.as_deref(), true, Verbosity::Quiet) {
+			Ok(result) => result,
+			Err(e) => {
+				return Err(anyhow!(format!(
+                        "🚫 An error occurred building your contract: {}\nUse `pop build` to retry with build output.",
+                        e.to_string()
+                    )));
+			},
+		};
+		spinner.stop(format!(
+			"Your contract artifacts are ready. You can find them in: {}",
+			result.target_directory.display()
+		));
+		Ok(())
+	}
+
+	/// Prompts the user to confirm if the contract has already been deployed.
+	fn confirm_contract_deployment(&self, cli: &mut impl Cli) -> Result<()> {
+		let is_contract_deployed = cli
+			.confirm("Has the contract already been deployed?")
+			.initial_value(false)
+			.interact()?;
+		if !is_contract_deployed {
+			return Err(anyhow!("Contract not deployed."));
 		}
 		Ok(())
+	}
+
+	/// Checks whether building the contract is required
+	fn is_contract_build_required(&self) -> bool {
+		self.path
+			.as_ref()
+			.map(|p| p.is_dir() && !has_contract_been_built(Some(&p)))
+			.unwrap_or_default()
 	}
 
 	/// Configure the call based on command line arguments/call UI.
@@ -157,25 +183,24 @@ impl CallContractCommand {
 		}
 
 		// Resolve path.
-		let contract_path = match self.path.as_ref() {
-			None => {
-				let path = Some(PathBuf::from("./"));
-				if has_contract_been_built(path.as_deref()) {
-					self.path = path;
-				} else {
-					// Prompt for path.
-					let input_path: String = cli
-						.input("Where is your project located?")
-						.placeholder("./")
-						.default_input("./")
-						.interact()?;
-					self.path = Some(PathBuf::from(input_path));
-				}
+		if self.path.is_none() {
+			let input_path: String = cli
+				.input("Where is your project or contract artifact located?")
+				.placeholder("./")
+				.default_input("./")
+				.interact()?;
+			self.path = Some(PathBuf::from(input_path));
+		}
+		let contract_path = self
+			.path
+			.as_ref()
+			.expect("path is guaranteed to be set as input as prompted when None; qed");
 
-				self.path.as_ref().unwrap()
-			},
-			Some(p) => p,
-		};
+		// Ensure contract is built and check if deployed.
+		if self.is_contract_build_required() {
+			self.ensure_contract_built(&mut cli::Cli).await?;
+			self.confirm_contract_deployment(&mut cli::Cli)?;
+		}
 
 		// Parse the contract metadata provided. If there is an error, do not prompt for more.
 		let messages = match get_messages(contract_path) {
@@ -203,13 +228,12 @@ impl CallContractCommand {
 		if self.contract.is_none() {
 			// Prompt for contract address.
 			let contract_address: String = cli
-				.input("Paste the on-chain contract address:")
+				.input("Provide the on-chain contract address:")
 				.placeholder("e.g. 5DYs7UGBm2LuX4ryvyqfksozNAW5V47tPbGiVgnjYWCZ29bt")
 				.validate(|input: &String| match parse_account(input) {
 					Ok(_) => Ok(()),
 					Err(_) => Err("Invalid address."),
 				})
-				.default_input("5DYs7UGBm2LuX4ryvyqfksozNAW5V47tPbGiVgnjYWCZ29bt")
 				.interact()?;
 			self.contract = Some(contract_address);
 		};
@@ -435,7 +459,7 @@ mod tests {
 	use super::*;
 	use crate::cli::MockCli;
 	use pop_contracts::{mock_build_process, new_environment};
-	use std::env;
+	use std::{env, fs::write};
 	use url::Url;
 
 	#[tokio::test]
@@ -502,6 +526,60 @@ mod tests {
 		assert_eq!(call_config.display(), format!(
 			"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message flip --gas 100 --proof_size 10 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --dry_run",
 			temp_dir.path().join("testing").display().to_string(),
+		));
+		// Contract deployed on Pop Network testnet, test dry-run
+		call_config.execute_call(&mut cli, false).await?;
+
+		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn call_contract_dry_run_with_artifact_file_works() -> Result<()> {
+		let mut current_dir = env::current_dir().expect("Failed to get current directory");
+		current_dir.pop();
+
+		let mut cli = MockCli::new()
+			.expect_intro(&"Call a contract")
+			.expect_warning("Your call has not been executed.")
+			.expect_info("Gas limit: Weight { ref_time: 100, proof_size: 10 }");
+
+		// From .contract file
+		let mut call_config = CallContractCommand {
+			path: Some(current_dir.join("pop-contracts/tests/files/testing.contract")),
+			contract: Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string()),
+			message: Some("flip".to_string()),
+			args: vec![].to_vec(),
+			value: "0".to_string(),
+			gas_limit: Some(100),
+			proof_size: Some(10),
+			url: Url::parse("wss://rpc1.paseo.popnetwork.xyz")?,
+			suri: "//Alice".to_string(),
+			dry_run: true,
+			execute: false,
+			dev_mode: false,
+		};
+		call_config.configure(&mut cli, false).await?;
+		assert_eq!(call_config.display(), format!(
+			"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message flip --gas 100 --proof_size 10 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --dry_run",
+			current_dir.join("pop-contracts/tests/files/testing.contract").display().to_string(),
+		));
+		// Contract deployed on Pop Network testnet, test dry-run
+		call_config.execute_call(&mut cli, false).await?;
+
+		// From .json file
+		call_config.path = Some(current_dir.join("pop-contracts/tests/files/testing.json"));
+		call_config.configure(&mut cli, false).await?;
+		assert_eq!(call_config.display(), format!(
+			"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message flip --gas 100 --proof_size 10 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --dry_run",
+			current_dir.join("pop-contracts/tests/files/testing.json").display().to_string(),
+		));
+
+		// From .wasm file
+		call_config.path = Some(current_dir.join("pop-contracts/tests/files/testing.wasm"));
+		call_config.configure(&mut cli, false).await?;
+		assert_eq!(call_config.display(), format!(
+			"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message flip --gas 100 --proof_size 10 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --dry_run",
+			current_dir.join("pop-contracts/tests/files/testing.wasm").display().to_string(),
 		));
 		// Contract deployed on Pop Network testnet, test dry-run
 		call_config.execute_call(&mut cli, false).await?;
@@ -601,7 +679,7 @@ mod tests {
 				1, // "get" message
 			)
 			.expect_input(
-				"Paste the on-chain contract address:",
+				"Provide the on-chain contract address:",
 				"15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".into(),
 			)
 			.expect_input(
@@ -609,7 +687,7 @@ mod tests {
 				"wss://rpc1.paseo.popnetwork.xyz".into(),
 			)
 			.expect_input(
-				"Where is your project located?",
+				"Where is your project or contract artifact located?",
 				temp_dir.path().join("testing").display().to_string(),
 			).expect_info(format!(
 	            "pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message get --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice",
@@ -687,7 +765,7 @@ mod tests {
 				2, // "specific_flip" message
 			)
 			.expect_input(
-				"Paste the on-chain contract address:",
+				"Provide the on-chain contract address:",
 				"15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".into(),
 			)
 			.expect_input(
@@ -695,7 +773,7 @@ mod tests {
 				"wss://rpc1.paseo.popnetwork.xyz".into(),
 			)
 			.expect_input(
-				"Where is your project located?",
+				"Where is your project or contract artifact located?",
 				temp_dir.path().join("testing").display().to_string(),
 			).expect_info(format!(
 				"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message specific_flip --args \"true\", \"2\" --value 50 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --execute",
@@ -772,7 +850,7 @@ mod tests {
 				2, // "specific_flip" message
 			)
 			.expect_input(
-				"Paste the on-chain contract address:",
+				"Provide the on-chain contract address:",
 				"15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".into(),
 			)
 			.expect_input(
@@ -780,7 +858,7 @@ mod tests {
 				"wss://rpc1.paseo.popnetwork.xyz".into(),
 			)
 			.expect_input(
-				"Where is your project located?",
+				"Where is your project or contract artifact located?",
 				temp_dir.path().join("testing").display().to_string(),
 			).expect_info(format!(
 				"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message specific_flip --args \"true\", \"2\" --value 50 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --execute",
@@ -829,8 +907,23 @@ mod tests {
 	#[tokio::test]
 	async fn guide_user_to_call_contract_fails_not_build() -> Result<()> {
 		let temp_dir = new_environment("testing")?;
-		let mut cli = MockCli::new();
-		assert!(matches!(CallContractCommand {
+		let mut current_dir = env::current_dir().expect("Failed to get current directory");
+		current_dir.pop();
+		// Create invalid `.json`, `.contract` and `.wasm` files for testing
+		let invalid_contract_path = temp_dir.path().join("testing.contract");
+		let invalid_json_path = temp_dir.path().join("testing.json");
+		let invalid_wasm_path = temp_dir.path().join("testing.wasm");
+		write(&invalid_contract_path, b"This is an invalid contract file")?;
+		write(&invalid_json_path, b"This is an invalid JSON file")?;
+		write(&invalid_wasm_path, b"This is an invalid WASM file")?;
+		// Mock the build process to simulate a scenario where the contract is not properly built.
+		mock_build_process(
+			temp_dir.path().join("testing"),
+			invalid_contract_path.clone(),
+			invalid_contract_path.clone(),
+		)?;
+		// Test the path is a folder with an invalid build.
+		let mut command = CallContractCommand {
 			path: Some(temp_dir.path().join("testing")),
 			contract: None,
 			message: None,
@@ -843,7 +936,26 @@ mod tests {
 			dry_run: false,
 			execute: false,
 			dev_mode: false,
-		}.configure(&mut cli, false).await, Err(message) if message.to_string().contains("Unable to fetch contract metadata: Failed to find any contract artifacts in target directory.")));
+		};
+		let mut cli = MockCli::new();
+		assert!(
+			matches!(command.configure(&mut cli, false).await, Err(message) if message.to_string().contains("Unable to fetch contract metadata"))
+		);
+		// Test the path is a file with invalid `.contract` file.
+		command.path = Some(invalid_contract_path);
+		assert!(
+			matches!(command.configure(&mut cli, false).await, Err(message) if message.to_string().contains("Unable to fetch contract metadata"))
+		);
+		// Test the path is a file with invalid `.json` file.
+		command.path = Some(invalid_json_path);
+		assert!(
+			matches!(command.configure(&mut cli, false).await, Err(message) if message.to_string().contains("Unable to fetch contract metadata"))
+		);
+		// Test the path is a file with invalid `.wasm` file.
+		command.path = Some(invalid_wasm_path);
+		assert!(
+			matches!(command.configure(&mut cli, false).await, Err(message) if message.to_string().contains("Unable to fetch contract metadata"))
+		);
 		cli.verify()
 	}
 
@@ -896,6 +1008,67 @@ mod tests {
 		));
 
 		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn confirm_contract_deployment_works() -> Result<()> {
+		let temp_dir = new_environment("testing")?;
+		let call_config = CallContractCommand {
+			path: Some(temp_dir.path().join("testing")),
+			contract: Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string()),
+			message: None,
+			args: vec![].to_vec(),
+			value: "0".to_string(),
+			gas_limit: None,
+			proof_size: None,
+			url: Url::parse("wss://rpc1.paseo.popnetwork.xyz")?,
+			suri: "//Alice".to_string(),
+			dry_run: false,
+			execute: false,
+			dev_mode: false,
+		};
+		// Contract is not deployed.
+		let mut cli =
+			MockCli::new().expect_confirm("Has the contract already been deployed?", false);
+		assert!(
+			matches!(call_config.confirm_contract_deployment(&mut cli), anyhow::Result::Err(message) if message.to_string() == "Contract not deployed.")
+		);
+		cli.verify()?;
+		// Contract is deployed.
+		cli = MockCli::new().expect_confirm("Has the contract already been deployed?", true);
+		call_config.confirm_contract_deployment(&mut cli)?;
+		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn is_contract_build_required_works() -> Result<()> {
+		let temp_dir = new_environment("testing")?;
+		let call_config = CallContractCommand {
+			path: Some(temp_dir.path().join("testing")),
+			contract: Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string()),
+			message: None,
+			args: vec![].to_vec(),
+			value: "0".to_string(),
+			gas_limit: None,
+			proof_size: None,
+			url: Url::parse("wss://rpc1.paseo.popnetwork.xyz")?,
+			suri: "//Alice".to_string(),
+			dry_run: false,
+			execute: false,
+			dev_mode: false,
+		};
+		// Contract not build. Build is required.
+		assert!(call_config.is_contract_build_required());
+		// Mock build process. Build is not required.
+		let mut current_dir = env::current_dir().expect("Failed to get current directory");
+		current_dir.pop();
+		mock_build_process(
+			temp_dir.path().join("testing"),
+			current_dir.join("pop-contracts/tests/files/testing.contract"),
+			current_dir.join("pop-contracts/tests/files/testing.json"),
+		)?;
+		assert!(!call_config.is_contract_build_required());
+		Ok(())
 	}
 
 	#[test]
