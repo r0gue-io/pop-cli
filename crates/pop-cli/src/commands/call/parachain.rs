@@ -43,6 +43,8 @@ impl CallParachainCommand {
 	/// Executes the command.
 	pub(crate) async fn execute(mut self) -> Result<()> {
 		let mut cli = cli::Cli;
+		// Check if all fields are specified via command line argument.
+		let prompt_to_repeat_call = self.requires_user_input();
 		// Configure the chain.
 		let chain = self.configure_chain(&mut cli).await?;
 		loop {
@@ -64,18 +66,23 @@ impl CallParachainCommand {
 					break;
 				},
 			};
+
 			// Send the extrinsic.
 			if let Err(e) = call.send_extrinsic(&chain.api, tx, &mut cli).await {
 				display_message(&e.to_string(), false, &mut cli)?;
+				break;
 			}
-			if !cli
-				.confirm("Do you want to perform another call?")
-				.initial_value(false)
-				.interact()?
+
+			if !prompt_to_repeat_call
+				|| !cli
+					.confirm("Do you want to perform another call?")
+					.initial_value(false)
+					.interact()?
 			{
 				display_message("Parachain calling complete.", true, &mut cli)?;
 				break;
 			}
+			self.reset_for_new_call();
 		}
 		Ok(())
 	}
@@ -181,6 +188,22 @@ impl CallParachainCommand {
 				skip_confirm: self.skip_confirm,
 			});
 		}
+	}
+
+	/// Resets specific fields to default values for a new call.
+	fn reset_for_new_call(&mut self) {
+		self.pallet = None;
+		self.extrinsic = None;
+		self.args.clear();
+	}
+
+	// Function to check if all required fields are specified
+	fn requires_user_input(&self) -> bool {
+		self.pallet.is_none()
+			|| self.extrinsic.is_none()
+			|| self.args.is_empty()
+			|| self.url.is_none()
+			|| self.suri.is_none()
 	}
 }
 
@@ -610,6 +633,39 @@ mod tests {
 		call_config.send_extrinsic(&api, tx, &mut cli).await?;
 
 		cli.verify()
+	}
+
+	#[test]
+	fn reset_for_new_call_works() -> Result<()> {
+		let mut call_config = CallParachainCommand {
+			pallet: Some("System".to_string()),
+			extrinsic: Some("remark".to_string()),
+			args: vec!["0x11".to_string()].to_vec(),
+			url: Some(Url::parse("wss://rpc1.paseo.popnetwork.xyz")?),
+			suri: Some(DEFAULT_URI.to_string()),
+			skip_confirm: false,
+		};
+		call_config.reset_for_new_call();
+		assert_eq!(call_config.pallet, None);
+		assert_eq!(call_config.extrinsic, None);
+		assert_eq!(call_config.args.len(), 0);
+		Ok(())
+	}
+
+	#[test]
+	fn requires_user_input_works() -> Result<()> {
+		let mut call_config = CallParachainCommand {
+			pallet: Some("System".to_string()),
+			extrinsic: Some("remark".to_string()),
+			args: vec!["0x11".to_string()].to_vec(),
+			url: Some(Url::parse("wss://rpc1.paseo.popnetwork.xyz")?),
+			suri: Some(DEFAULT_URI.to_string()),
+			skip_confirm: false,
+		};
+		assert!(!call_config.requires_user_input());
+		call_config.pallet = None;
+		assert!(call_config.requires_user_input());
+		Ok(())
 	}
 
 	#[test]
