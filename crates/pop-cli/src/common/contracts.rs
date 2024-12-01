@@ -3,7 +3,11 @@
 use cliclack::{confirm, log::warning, spinner};
 use pop_common::manifest::from_path;
 use pop_contracts::contracts_node_generator;
-use std::path::{Path, PathBuf};
+use std::{
+	fs::{self, metadata},
+	os::unix::fs::PermissionsExt,
+	path::{Path, PathBuf},
+};
 
 ///  Checks the status of the `substrate-contracts-node` binary, sources it if necessary, and
 /// prompts the user to update it if the existing binary is not the latest version.
@@ -53,8 +57,11 @@ pub async fn check_contracts_node_and_prompt(skip_confirm: bool) -> anyhow::Resu
 			let spinner = spinner();
 			spinner.start("📦 Sourcing substrate-contracts-node...");
 
-			binary.use_latest();
+			binary = contracts_node_generator(crate::cache()?, binary.latest()).await?;
 			binary.source(false, &(), true).await?;
+			let mut perms = metadata(binary.path())?.permissions();
+			perms.set_mode(0o755);
+			fs::set_permissions(binary.path(), perms)?;
 
 			spinner.stop(format!(
 				"✅ substrate-contracts-node successfully sourced. Cached at: {}",
