@@ -64,7 +64,7 @@ impl TryInto for Chain {
 	/// * `latest` - If applicable, some specifier used to determine the latest source.
 	fn try_into(&self, tag: Option<String>, latest: Option<String>) -> Result<Source, Error> {
 		let archive = archive_name_by_target()?;
-		let archive_bin_path = release_directory_by_target()?;
+		let archive_bin_path = release_directory_by_target(tag.as_deref())?;
 		Ok(match self {
 			&Chain::ContractsNode => {
 				// Source from GitHub release asset
@@ -141,10 +141,27 @@ fn archive_name_by_target() -> Result<String, Error> {
 	}
 }
 
-fn release_directory_by_target() -> Result<&'static str, Error> {
+fn release_directory_by_target(tag: Option<&str>) -> Result<&'static str, Error> {
+	// The structure of the binary changed in v0.42.0
+	let is_old_structure = match tag {
+		Some(tag) if tag < "v0.42.0" => true,
+		_ => false,
+	};
 	match OS {
-		"macos" => Ok("artifacts/substrate-contracts-node-mac/substrate-contracts-node"),
-		"linux" => Ok("artifacts/substrate-contracts-node-linux/substrate-contracts-node"),
+		"macos" => {
+			if is_old_structure {
+				Ok("artifacts/substrate-contracts-node-mac/substrate-contracts-node")
+			} else {
+				Ok("substrate-contracts-node-mac/substrate-contracts-node")
+			}
+		},
+		"linux" => {
+			if is_old_structure {
+				Ok("artifacts/substrate-contracts-node-linux/substrate-contracts-node")
+			} else {
+				Ok("substrate-contracts-node-linux/substrate-contracts-node")
+			}
+		},
 		_ => Err(Error::UnsupportedPlatform { arch: ARCH, os: OS }),
 	}
 }
@@ -185,7 +202,7 @@ mod tests {
 		let version = "v0.40.0";
 		let binary = contracts_node_generator(cache.clone(), Some(version)).await?;
 		let archive = archive_name_by_target()?;
-		let archive_bin_path = release_directory_by_target()?;
+		let archive_bin_path = release_directory_by_target(Some(version))?;
 		assert!(matches!(binary, Binary::Source { name, source, cache}
 			if name == expected.binary()  &&
 				source == Source::GitHub(ReleaseArchive {
