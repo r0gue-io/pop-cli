@@ -16,25 +16,25 @@ const DEFAULT_URI: &str = "//Alice";
 #[derive(Args, Clone)]
 pub struct CallParachainCommand {
 	/// The pallet containing the extrinsic to execute.
-	#[arg(long)]
+	#[arg(short, long)]
 	pallet: Option<String>,
 	/// The extrinsic to execute within the chosen pallet.
-	#[arg(long)]
+	#[arg(short, long)]
 	extrinsic: Option<String>,
 	/// The extrinsic arguments, encoded as strings.
-	#[arg(long, num_args = 0..,)]
+	#[arg(short, long, num_args = 0..,)]
 	args: Vec<String>,
 	/// Websocket endpoint of a node.
-	#[arg(short = 'u', long, value_parser)]
+	#[arg(short, long, value_parser)]
 	url: Option<Url>,
 	/// Secret key URI for the account signing the extrinsic.
 	///
 	/// e.g.
 	/// - for a dev account "//Alice"
 	/// - with a password "//Alice///SECRET_PASSWORD"
-	#[arg(long)]
+	#[arg(short, long)]
 	suri: Option<String>,
-	/// Automatically signs and submits the extrinsic without asking for confirmation.
+	/// Automatically signs and submits the extrinsic without prompting for confirmation.
 	#[arg(short('y'), long)]
 	skip_confirm: bool,
 }
@@ -73,9 +73,8 @@ impl CallParachainCommand {
 				break;
 			}
 
-			if !prompt_to_repeat_call
-				|| !cli
-					.confirm("Do you want to perform another call?")
+			if !prompt_to_repeat_call ||
+				!cli.confirm("Do you want to perform another call?")
 					.initial_value(false)
 					.interact()?
 			{
@@ -137,9 +136,8 @@ impl CallParachainCommand {
 
 			// Resolve extrinsic.
 			let extrinsic = match self.extrinsic {
-				Some(ref extrinsic_name) => {
-					find_extrinsic_by_name(&chain.pallets, &pallet.name, extrinsic_name).await?
-				},
+				Some(ref extrinsic_name) =>
+					find_extrinsic_by_name(&chain.pallets, &pallet.name, extrinsic_name).await?,
 				None => {
 					let mut prompt_extrinsic = cli.select("Select the extrinsic to call:");
 					for extrinsic in &pallet.extrinsics {
@@ -175,9 +173,8 @@ impl CallParachainCommand {
 			// Resolve who is signing the extrinsic.
 			let suri = match self.clone().suri {
 				Some(suri) => suri,
-				None => {
-					cli.input("Signer of the extrinsic:").default_input(DEFAULT_URI).interact()?
-				},
+				None =>
+					cli.input("Signer of the extrinsic:").default_input(DEFAULT_URI).interact()?,
 			};
 
 			return Ok(CallParachain {
@@ -199,11 +196,11 @@ impl CallParachainCommand {
 
 	// Function to check if all required fields are specified
 	fn requires_user_input(&self) -> bool {
-		self.pallet.is_none()
-			|| self.extrinsic.is_none()
-			|| self.args.is_empty()
-			|| self.url.is_none()
-			|| self.suri.is_none()
+		self.pallet.is_none() ||
+			self.extrinsic.is_none() ||
+			self.args.is_empty() ||
+			self.url.is_none() ||
+			self.suri.is_none()
 	}
 }
 
@@ -227,7 +224,7 @@ struct CallParachain {
 	/// - for a dev account "//Alice"
 	/// - with a password "//Alice///SECRET_PASSWORD"
 	suri: String,
-	/// Whether to automatically sign and submit the extrinsic without asking for confirmation.
+	/// Whether to automatically sign and submit the extrinsic without prompting for confirmation.
 	skip_confirm: bool,
 }
 
@@ -261,9 +258,8 @@ impl CallParachain {
 		tx: DynamicPayload,
 		cli: &mut impl Cli,
 	) -> Result<()> {
-		if !self.skip_confirm
-			&& !cli
-				.confirm("Do you want to submit the extrinsic?")
+		if !self.skip_confirm &&
+			!cli.confirm("Do you want to submit the extrinsic?")
 				.initial_value(true)
 				.interact()?
 		{

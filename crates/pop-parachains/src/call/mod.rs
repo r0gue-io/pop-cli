@@ -49,9 +49,11 @@ pub async fn sign_and_submit_extrinsic(
 	let result = api
 		.tx()
 		.sign_and_submit_then_watch_default(&tx, &signer)
-		.await?
+		.await
+		.map_err(|e| Error::ExtrinsicSubmissionError(format!("{:?}", e)))?
 		.wait_for_finalized_success()
-		.await?;
+		.await
+		.map_err(|e| Error::ExtrinsicSubmissionError(format!("{:?}", e)))?;
 	Ok(format!("{:?}", result.extrinsic_hash()))
 }
 

@@ -17,10 +17,10 @@ pub enum Error {
 	IO(#[from] std::io::Error),
 	#[error("Failed to create keypair from URI: {0}")]
 	KeyPairCreation(String),
-	#[error("Failed to get manifest path: {0}")]
-	ManifestPath(String),
 	#[error("Manifest error: {0}")]
 	ManifestError(#[from] cargo_toml::Error),
+	#[error("Failed to get manifest path: {0}")]
+	ManifestPath(String),
 	#[error("ParseError error: {0}")]
 	ParseError(#[from] url::ParseError),
 	#[error("Failed to parse secret URI: {0}")]
