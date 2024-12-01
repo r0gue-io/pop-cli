@@ -148,20 +148,18 @@ fn release_directory_by_target(tag: Option<&str>) -> Result<&'static str, Error>
 		_ => false,
 	};
 	match OS {
-		"macos" => {
+		"macos" =>
 			if is_old_structure {
 				Ok("artifacts/substrate-contracts-node-mac/substrate-contracts-node")
 			} else {
 				Ok("substrate-contracts-node-mac/substrate-contracts-node")
-			}
-		},
-		"linux" => {
+			},
+		"linux" =>
 			if is_old_structure {
 				Ok("artifacts/substrate-contracts-node-linux/substrate-contracts-node")
 			} else {
 				Ok("substrate-contracts-node-linux/substrate-contracts-node")
-			}
-		},
+			},
 		_ => Err(Error::UnsupportedPlatform { arch: ARCH, os: OS }),
 	}
 }

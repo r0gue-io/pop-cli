@@ -112,7 +112,7 @@ async fn launch_paseo_and_system_parachain() -> Result<()> {
 		Some(BINARY_VERSION),
 		None,
 		Some(BINARY_VERSION),
-		None,
+		Some("v1.3.3"), // 1.3.3 is where coretime-paseo-local was introduced.
 		None,
 	)
 	.await?;
