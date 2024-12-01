@@ -103,7 +103,7 @@ impl CallParachainCommand {
 		};
 
 		// Parse metadata from chain url.
-		let api = set_up_api(&url.as_str()).await?;
+		let api = set_up_api(url.as_str()).await?;
 		let pallets = parse_chain_metadata(&api).await.map_err(|e| {
 			anyhow!(format!("Unable to fetch the chain metadata: {}", e.to_string()))
 		})?;
@@ -164,7 +164,7 @@ impl CallParachainCommand {
 			let args = if self.clone().args.is_empty() {
 				let mut args = Vec::new();
 				for param in &extrinsic.params {
-					let input = prompt_for_param(&chain.api, cli, &param)?;
+					let input = prompt_for_param(&chain.api, cli, param)?;
 					args.push(input);
 				}
 				args
@@ -239,8 +239,8 @@ impl CallParachain {
 		cli: &mut impl Cli,
 	) -> Result<DynamicPayload> {
 		let tx = match construct_extrinsic(
-			&self.pallet.name.as_str(),
-			&self.extrinsic.name.as_str(),
+			self.pallet.name.as_str(),
+			self.extrinsic.name.as_str(),
 			self.args.clone(),
 		)
 		.await
@@ -283,7 +283,7 @@ impl CallParachain {
 			.await
 			.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
 
-		spinner.stop(&format!("Extrinsic submitted with hash: {:?}", result));
+		spinner.stop(format!("Extrinsic submitted with hash: {:?}", result));
 		Ok(())
 	}
 	fn display(&self, chain: &Chain) -> String {

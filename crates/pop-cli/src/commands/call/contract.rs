@@ -166,7 +166,7 @@ impl CallContractCommand {
 	fn is_contract_build_required(&self) -> bool {
 		self.path
 			.as_ref()
-			.map(|p| p.is_dir() && !has_contract_been_built(Some(&p)))
+			.map(|p| p.is_dir() && !has_contract_been_built(Some(p)))
 			.unwrap_or_default()
 	}
 
