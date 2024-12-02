@@ -228,10 +228,11 @@ impl CallParachainCommand {
 			None => cli.input("Signer of the extrinsic:").default_input(DEFAULT_URI).interact()?,
 		};
 		cli.info(format!("Encoded call data: {}", call_data))?;
-		if !cli
-			.confirm("Do you want to submit the extrinsic?")
-			.initial_value(true)
-			.interact()?
+		if !self.skip_confirm
+			&& !cli
+				.confirm("Do you want to submit the extrinsic?")
+				.initial_value(true)
+				.interact()?
 		{
 			display_message(
 				&format!(
@@ -248,7 +249,7 @@ impl CallParachainCommand {
 			.await
 			.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
 
-		spinner.stop(&format!("Extrinsic submitted successfully with hash: {:?}", result));
+		spinner.stop(format!("Extrinsic submitted successfully with hash: {:?}", result));
 		display_message("Parachain calling complete.", true, cli)?;
 		Ok(())
 	}
