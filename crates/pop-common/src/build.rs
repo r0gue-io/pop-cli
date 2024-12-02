@@ -72,7 +72,7 @@ impl fmt::Display for Profile {
 mod tests {
 	use super::*;
 	use std::path::Path;
-	use strum::{EnumMessage};
+	use strum::EnumMessage;
 
 	#[test]
 	fn profile_from_string() {
@@ -83,10 +83,7 @@ mod tests {
 
 	#[test]
 	fn profile_detailed_message() {
-		assert_eq!(
-			Profile::Debug.get_detailed_message(),
-			Some("Optimized for debugging.")
-		);
+		assert_eq!(Profile::Debug.get_detailed_message(), Some("Optimized for debugging."));
 		assert_eq!(
 			Profile::Release.get_detailed_message(),
 			Some("Optimized without any debugging functionality.")
@@ -134,4 +131,3 @@ mod tests {
 		assert_eq!(bool::from(Profile::Production), true);
 	}
 }
-
