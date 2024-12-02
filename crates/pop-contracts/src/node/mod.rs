@@ -166,6 +166,8 @@ fn release_directory_by_target(tag: Option<&str>) -> Result<&'static str, Error>
 
 #[cfg(test)]
 mod tests {
+	use crate::testing::find_free_port;
+
 	use super::*;
 	use anyhow::{Error, Result};
 	use std::process::Command;
@@ -221,7 +223,9 @@ mod tests {
 	#[ignore = "Works fine locally but is causing issues when running tests in parallel in the CI environment."]
 	#[tokio::test]
 	async fn run_contracts_node_works() -> Result<(), Error> {
-		let local_url = url::Url::parse("ws://localhost:9947")?;
+		let random_port = find_free_port();
+		let localhost_url = format!("ws://127.0.0.1:{}", random_port);
+		let local_url = url::Url::parse(&localhost_url)?;
 
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
 		let cache = temp_dir.path().join("");

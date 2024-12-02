@@ -14,6 +14,7 @@ use url::Url;
 /// Test the contract lifecycle: new, build, up, call
 #[tokio::test]
 async fn contract_lifecycle() -> Result<()> {
+	const DEFAULT_PORT: u16 = 9944;
 	let temp = tempfile::tempdir().unwrap();
 	let temp_dir = temp.path();
 	//let temp_dir = Path::new("./"); //For testing locally
@@ -45,7 +46,7 @@ async fn contract_lifecycle() -> Result<()> {
 	let binary = contracts_node_generator(temp_dir.to_path_buf().clone(), None).await?;
 	binary.source(false, &(), true).await?;
 	set_executable_permission(binary.path())?;
-	let process = run_contracts_node(binary.path(), None, 9944).await?;
+	let process = run_contracts_node(binary.path(), None, DEFAULT_PORT).await?;
 
 	// Only upload the contract
 	// pop up contract --upload-only
