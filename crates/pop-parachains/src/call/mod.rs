@@ -15,7 +15,9 @@ pub mod metadata;
 /// # Arguments
 /// * `url` - Endpoint of the node.
 pub async fn set_up_api(url: &str) -> Result<OnlineClient<SubstrateConfig>, Error> {
-	let api = OnlineClient::<SubstrateConfig>::from_url(url).await?;
+	let api = OnlineClient::<SubstrateConfig>::from_url(url)
+		.await
+		.map_err(|e| Error::ApiConnectionFailure(e.to_string()))?;
 	Ok(api)
 }
 
@@ -66,7 +68,8 @@ pub fn encode_call_data(
 	api: &OnlineClient<SubstrateConfig>,
 	tx: &DynamicPayload,
 ) -> Result<String, Error> {
-	let call_data = tx.encode_call_data(&api.metadata())?;
+	let call_data =
+		tx.encode_call_data(&api.metadata()).map_err(|_| Error::CallDataEncodingError)?;
 	Ok(format!("0x{}", hex::encode(call_data)))
 }
 

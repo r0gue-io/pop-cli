@@ -43,7 +43,6 @@ pub fn field_to_param(
 /// * `name`: The name of the parameter.
 /// * `registry`: A reference to the `PortableRegistry` to resolve type dependencies.
 /// * `type_id`: The ID of the type to be converted.
-/// * `type_name`: An optional descriptive name for the type.
 fn type_to_param(name: String, registry: &PortableRegistry, type_id: u32) -> Result<Param, Error> {
 	let type_info = registry.resolve(type_id).ok_or(Error::MetadataParsingError(name.clone()))?;
 	if let Some(last_segment) = type_info.path.segments.last() {

@@ -9,8 +9,8 @@ use subxt::{dynamic::Value, Metadata, OnlineClient, SubstrateConfig};
 pub mod action;
 pub mod params;
 
-#[derive(Clone, PartialEq, Eq)]
 /// Represents a pallet in the blockchain, including its extrinsics.
+#[derive(Clone, PartialEq, Eq)]
 pub struct Pallet {
 	/// The name of the pallet.
 	pub name: String,
@@ -26,8 +26,8 @@ impl Display for Pallet {
 	}
 }
 
-#[derive(Clone, PartialEq, Eq, Debug)]
 /// Represents an extrinsic in a pallet.
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Extrinsic {
 	/// The name of the extrinsic.
 	pub name: String,

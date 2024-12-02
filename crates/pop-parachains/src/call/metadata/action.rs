@@ -19,34 +19,39 @@ use strum_macros::{AsRefStr, Display, EnumMessage, EnumProperty, EnumString, Var
 	VariantArray,
 )]
 pub enum Action {
+	/// Transfer balance.
 	#[strum(
 		serialize = "transfer",
 		message = "transfer_allow_death",
-		detailed_message = "Transfer Balance",
+		detailed_message = "Transfer balance",
 		props(Pallet = "Balances")
 	)]
 	Transfer,
+	/// Create an asset.
 	#[strum(
 		serialize = "create",
 		message = "create",
-		detailed_message = "Create an Asset",
+		detailed_message = "Create an asset",
 		props(Pallet = "Assets")
 	)]
 	CreateAsset,
+	/// Mint an asset.
 	#[strum(
 		serialize = "mint",
 		message = "mint",
-		detailed_message = "Mint an Asset",
+		detailed_message = "Mint an asset",
 		props(Pallet = "Assets")
 	)]
 	MintAsset,
+	/// Create an NFT collection.
 	#[strum(
 		serialize = "create_nft",
 		message = "create",
-		detailed_message = "Create an NFT Collection",
+		detailed_message = "Create an NFT collection",
 		props(Pallet = "Nfts")
 	)]
 	CreateCollection,
+	/// Mint an NFT.
 	#[strum(
 		serialize = "mint_nft",
 		message = "mint",
@@ -54,6 +59,7 @@ pub enum Action {
 		props(Pallet = "Nfts")
 	)]
 	MintNFT,
+	/// Purchase on-demand coretime.
 	#[strum(
 		serialize = "place_order_allow_death",
 		message = "place_order_allow_death",
@@ -61,17 +67,19 @@ pub enum Action {
 		props(Pallet = "OnDemand")
 	)]
 	PurchaseOnDemandCoretime,
+	/// Reserve a parachain ID.
 	#[strum(
 		serialize = "reserve",
 		message = "reserve",
-		detailed_message = "Reserve para id",
+		detailed_message = "Reserve a parachain ID",
 		props(Pallet = "Registrar")
 	)]
 	Reserve,
+	/// Register a parachain ID with genesis state and code.
 	#[strum(
 		serialize = "register",
 		message = "register",
-		detailed_message = "Register para id with genesis state and code",
+		detailed_message = "Register a parachain ID with genesis state and code",
 		props(Pallet = "Registrar")
 	)]
 	Register,
@@ -122,14 +130,14 @@ mod tests {
 	#[test]
 	fn action_descriptions_are_correct() {
 		let descriptions = HashMap::from([
-			(Action::CreateAsset, "Create an Asset"),
-			(Action::MintAsset, "Mint an Asset"),
-			(Action::CreateCollection, "Create an NFT Collection"),
+			(Action::CreateAsset, "Create an asset"),
+			(Action::MintAsset, "Mint an asset"),
+			(Action::CreateCollection, "Create an NFT collection"),
 			(Action::MintNFT, "Mint an NFT"),
 			(Action::PurchaseOnDemandCoretime, "Purchase on-demand coretime"),
-			(Action::Transfer, "Transfer Balance"),
-			(Action::Register, "Register para id with genesis state and code"),
-			(Action::Reserve, "Reserve para id"),
+			(Action::Transfer, "Transfer balance"),
+			(Action::Register, "Register a parachain ID with genesis state and code"),
+			(Action::Reserve, "Reserve a parachain ID"),
 		]);
 
 		for action in Action::VARIANTS.iter() {

@@ -9,6 +9,10 @@ pub enum Error {
 	Aborted,
 	#[error("Anyhow error: {0}")]
 	AnyhowError(#[from] anyhow::Error),
+	#[error("Failed to establish a connection to the API: {0}")]
+	ApiConnectionFailure(String),
+	#[error("Failed to encode call data for the extrinsic.")]
+	CallDataEncodingError,
 	#[error("{0}")]
 	CommonError(#[from] pop_common::Error),
 	#[error("Configuration error: {0}")]
@@ -47,10 +51,6 @@ pub enum Error {
 	RustfmtError(std::io::Error),
 	#[error("Template error: {0}")]
 	SourcingError(#[from] pop_common::sourcing::Error),
-	#[error("{0}")]
-	SubxtError(#[from] subxt::Error),
-	#[error("{0}")]
-	SubxtExternalError(#[from] subxt::ext::subxt_core::Error),
 	#[error("Toml error: {0}")]
 	TomlError(#[from] toml_edit::de::Error),
 	#[error("Unsupported command: {0}")]
