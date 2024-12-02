@@ -556,11 +556,11 @@ mod tests {
 				true,
 				Some(
 					[
-						("Transfer Balance".to_string(), "Balances".to_string()),
+						("Transfer balance".to_string(), "Balances".to_string()),
 						("Purchase on-demand coretime".to_string(), "OnDemand".to_string()),
-						("Reserve para id".to_string(), "Registrar".to_string()),
+						("Reserve a parachain ID".to_string(), "Registrar".to_string()),
 						(
-							"Register para id with genesis state and code".to_string(),
+							"Register a parachain ID with genesis state and code".to_string(),
 							"Registrar".to_string(),
 						),
 						("All".to_string(), "Explore all pallets and extrinsics".to_string()),
@@ -605,13 +605,13 @@ mod tests {
 		let mut cli = MockCli::new();
 		// Error, wrong name of the pallet.
 		assert!(
-			matches!(call_config.prepare_extrinsic(&api, &mut cli).await, Err(message) if message.to_string().contains("Metadata Error: Pallet with name WrongName not found"))
+			matches!(call_config.prepare_extrinsic(&api, &mut cli).await, Err(message) if message.to_string().contains("Failed to encode call data. Metadata Error: Pallet with name WrongName not found"))
 		);
 		let pallets = parse_chain_metadata(&api).await?;
 		call_config.pallet = find_pallet_by_name(&pallets, "System").await?;
 		// Error, wrong name of the extrinsic.
 		assert!(
-			matches!(call_config.prepare_extrinsic(&api, &mut cli).await, Err(message) if message.to_string().contains("Metadata Error: Call with name WrongName not found"))
+			matches!(call_config.prepare_extrinsic(&api, &mut cli).await, Err(message) if message.to_string().contains("Failed to encode call data. Metadata Error: Call with name WrongName not found"))
 		);
 		// Success, extrinsic and pallet specified.
 		cli = MockCli::new().expect_info("Encoded call data: 0x00000411");
@@ -698,10 +698,10 @@ mod tests {
 			true,
 			Some(
 				[
-					("Transfer Balance".to_string(), "Balances".to_string()),
-					("Create an Asset".to_string(), "Assets".to_string()),
-					("Mint an Asset".to_string(), "Assets".to_string()),
-					("Create an NFT Collection".to_string(), "Nfts".to_string()),
+					("Transfer balance".to_string(), "Balances".to_string()),
+					("Create an asset".to_string(), "Assets".to_string()),
+					("Mint an asset".to_string(), "Assets".to_string()),
+					("Create an NFT collection".to_string(), "Nfts".to_string()),
 					("Mint an NFT".to_string(), "Nfts".to_string()),
 					("All".to_string(), "Explore all pallets and extrinsics".to_string()),
 				]

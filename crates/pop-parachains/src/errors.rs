@@ -11,8 +11,8 @@ pub enum Error {
 	AnyhowError(#[from] anyhow::Error),
 	#[error("Failed to establish a connection to the API: {0}")]
 	ApiConnectionFailure(String),
-	#[error("Failed to encode call data for the extrinsic.")]
-	CallDataEncodingError,
+	#[error("Failed to encode call data. {0}")]
+	CallDataEncodingError(String),
 	#[error("{0}")]
 	CommonError(#[from] pop_common::Error),
 	#[error("Configuration error: {0}")]

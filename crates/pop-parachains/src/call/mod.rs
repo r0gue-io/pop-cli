@@ -68,8 +68,9 @@ pub fn encode_call_data(
 	api: &OnlineClient<SubstrateConfig>,
 	tx: &DynamicPayload,
 ) -> Result<String, Error> {
-	let call_data =
-		tx.encode_call_data(&api.metadata()).map_err(|_| Error::CallDataEncodingError)?;
+	let call_data = tx
+		.encode_call_data(&api.metadata())
+		.map_err(|e| Error::CallDataEncodingError(e.to_string()))?;
 	Ok(format!("0x{}", hex::encode(call_data)))
 }
 
@@ -82,7 +83,10 @@ mod tests {
 
 	#[tokio::test]
 	async fn set_up_api_works() -> Result<()> {
-		assert!(matches!(set_up_api("wss://wronguri.xyz").await, Err(Error::SubxtError(_))));
+		assert!(matches!(
+			set_up_api("wss://wronguri.xyz").await,
+			Err(Error::ApiConnectionFailure(_))
+		));
 		set_up_api("wss://rpc1.paseo.popnetwork.xyz").await?;
 		Ok(())
 	}
