@@ -143,10 +143,7 @@ fn archive_name_by_target() -> Result<String, Error> {
 
 fn release_directory_by_target(tag: Option<&str>) -> Result<&'static str, Error> {
 	// The structure of the binary changed in v0.42.0
-	let is_old_structure = match tag {
-		Some(tag) if tag < "v0.42.0" => true,
-		_ => false,
-	};
+	let is_old_structure = matches!(tag, Some(tag) if tag < "v0.42.0");
 	match OS {
 		"macos" =>
 			if is_old_structure {
