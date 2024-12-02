@@ -85,8 +85,9 @@ impl CallParachainCommand {
 					break;
 				}
 
-				if !prompt_to_repeat_call ||
-					!cli.confirm("Do you want to perform another call?")
+				if !prompt_to_repeat_call
+					|| !cli
+						.confirm("Do you want to perform another call?")
 						.initial_value(false)
 						.interact()?
 				{
@@ -149,8 +150,9 @@ impl CallParachainCommand {
 
 			// Resolve extrinsic.
 			let extrinsic = match self.extrinsic {
-				Some(ref extrinsic_name) =>
-					find_extrinsic_by_name(&chain.pallets, &pallet.name, extrinsic_name).await?,
+				Some(ref extrinsic_name) => {
+					find_extrinsic_by_name(&chain.pallets, &pallet.name, extrinsic_name).await?
+				},
 				None => {
 					let mut prompt_extrinsic = cli.select("Select the extrinsic to call:");
 					for extrinsic in &pallet.extrinsics {
@@ -186,8 +188,9 @@ impl CallParachainCommand {
 			// Resolve who is signing the extrinsic.
 			let suri = match self.clone().suri {
 				Some(suri) => suri,
-				None =>
-					cli.input("Signer of the extrinsic:").default_input(DEFAULT_URI).interact()?,
+				None => {
+					cli.input("Signer of the extrinsic:").default_input(DEFAULT_URI).interact()?
+				},
 			};
 
 			return Ok(CallParachain {
@@ -213,8 +216,9 @@ impl CallParachainCommand {
 			None => cli.input("Signer of the extrinsic:").default_input(DEFAULT_URI).interact()?,
 		};
 		cli.info(format!("Encoded call data: {}", call_data))?;
-		if !self.skip_confirm &&
-			!cli.confirm("Do you want to submit the extrinsic?")
+		if !self.skip_confirm
+			&& !cli
+				.confirm("Do you want to submit the extrinsic?")
 				.initial_value(true)
 				.interact()?
 		{
@@ -233,7 +237,7 @@ impl CallParachainCommand {
 			.await
 			.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
 
-		spinner.stop(&format!("Extrinsic submitted successfully with hash: {:?}", result));
+		spinner.stop(format!("Extrinsic submitted successfully with hash: {:?}", result));
 		display_message("Parachain calling complete.", true, cli)?;
 		Ok(())
 	}
@@ -247,11 +251,11 @@ impl CallParachainCommand {
 
 	// Function to check if all required fields are specified
 	fn requires_user_input(&self) -> bool {
-		self.pallet.is_none() ||
-			self.extrinsic.is_none() ||
-			self.args.is_empty() ||
-			self.url.is_none() ||
-			self.suri.is_none()
+		self.pallet.is_none()
+			|| self.extrinsic.is_none()
+			|| self.args.is_empty()
+			|| self.url.is_none()
+			|| self.suri.is_none()
 	}
 }
 
@@ -309,8 +313,9 @@ impl CallParachain {
 		tx: DynamicPayload,
 		cli: &mut impl Cli,
 	) -> Result<()> {
-		if !self.skip_confirm &&
-			!cli.confirm("Do you want to submit the extrinsic?")
+		if !self.skip_confirm
+			&& !cli
+				.confirm("Do you want to submit the extrinsic?")
 				.initial_value(true)
 				.interact()?
 		{
