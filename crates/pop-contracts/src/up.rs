@@ -227,6 +227,7 @@ mod tests {
 		run_contracts_node,
 	};
 	use anyhow::Result;
+	use pop_common::set_executable_permission;
 	use std::{env, process::Command};
 	use url::Url;
 
@@ -377,6 +378,7 @@ mod tests {
 
 		let binary = contracts_node_generator(cache.clone(), None).await?;
 		binary.source(false, &(), true).await?;
+		set_executable_permission(binary.path())?;
 		let process = run_contracts_node(binary.path(), None).await?;
 
 		let upload_exec = set_up_upload(UpOpts {

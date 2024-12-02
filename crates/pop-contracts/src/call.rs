@@ -183,6 +183,7 @@ mod tests {
 		set_up_deployment, UpOpts,
 	};
 	use anyhow::Result;
+	use pop_common::set_executable_permission;
 	use sp_core::Bytes;
 	use std::{env, process::Command};
 
@@ -347,6 +348,7 @@ mod tests {
 
 		let binary = contracts_node_generator(cache.clone(), None).await?;
 		binary.source(false, &(), true).await?;
+		set_executable_permission(binary.path())?;
 		let process = run_contracts_node(binary.path(), None).await?;
 		// Instantiate a Smart Contract.
 		let instantiate_exec = set_up_deployment(UpOpts {

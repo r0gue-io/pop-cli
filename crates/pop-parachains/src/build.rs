@@ -321,14 +321,8 @@ mod tests {
 		Zombienet,
 	};
 	use anyhow::Result;
-	use pop_common::manifest::Dependency;
-	use std::{
-		fs,
-		fs::{metadata, write},
-		io::Write,
-		os::unix::fs::PermissionsExt,
-		path::Path,
-	};
+	use pop_common::{manifest::Dependency, set_executable_permission};
+	use std::{fs, fs::write, io::Write, path::Path};
 	use tempfile::{tempdir, Builder};
 
 	fn setup_template_and_instantiate() -> Result<tempfile::TempDir> {
@@ -405,10 +399,7 @@ default_command = "pop-node"
 		let content = fs::read(&binary_path)?;
 		write(temp_dir.join("target/release/parachain-template-node"), content)?;
 		// Make executable
-		let mut perms =
-			metadata(temp_dir.join("target/release/parachain-template-node"))?.permissions();
-		perms.set_mode(0o755);
-		fs::set_permissions(temp_dir.join("target/release/parachain-template-node"), perms)?;
+		set_executable_permission(temp_dir.join("target/release/parachain-template-node"))?;
 		Ok(binary_path)
 	}
 

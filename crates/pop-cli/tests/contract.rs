@@ -2,7 +2,7 @@
 
 use anyhow::Result;
 use assert_cmd::Command;
-use pop_common::templates::Template;
+use pop_common::{set_executable_permission, templates::Template};
 use pop_contracts::{
 	contracts_node_generator, dry_run_gas_estimate_instantiate, instantiate_smart_contract,
 	run_contracts_node, set_up_deployment, Contract, UpOpts,
@@ -44,6 +44,7 @@ async fn contract_lifecycle() -> Result<()> {
 
 	let binary = contracts_node_generator(temp_dir.to_path_buf().clone(), None).await?;
 	binary.source(false, &(), true).await?;
+	set_executable_permission(binary.path())?;
 	let process = run_contracts_node(binary.path(), None).await?;
 
 	// Only upload the contract
