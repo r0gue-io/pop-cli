@@ -103,7 +103,7 @@ pub async fn sign_and_submit_extrinsic_with_call_data(
 	let signer = create_signer(suri)?;
 	let call_data_bytes = hex::decode(call_data.trim_start_matches("0x"))
 		.map_err(|e| Error::CallDataDecodingError(e.to_string()))?;
-	let payload = RawCall(call_data_bytes);
+	let payload = CallData(call_data_bytes);
 	let result = api
 		.tx()
 		.sign_and_submit_then_watch_default(&payload, &signer)
