@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use cliclack::{confirm, log::warning, spinner};
+use pop_common::manifest::from_path;
 use pop_contracts::contracts_node_generator;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 ///  Checks the status of the `substrate-contracts-node` binary, sources it if necessary, and
 /// prompts the user to update it if the existing binary is not the latest version.
@@ -64,4 +65,49 @@ pub async fn check_contracts_node_and_prompt(skip_confirm: bool) -> anyhow::Resu
 	}
 
 	Ok(node_path)
+}
+
+/// Checks if a contract has been built by verifying the existence of the build directory and the
+/// <name>.contract file.
+///
+/// # Arguments
+/// * `path` - An optional path to the project directory. If no path is provided, the current
+///   directory is used.
+pub fn has_contract_been_built(path: Option<&Path>) -> bool {
+	let project_path = path.unwrap_or_else(|| Path::new("./"));
+	let Ok(manifest) = from_path(Some(project_path)) else {
+		return false;
+	};
+	manifest
+		.package
+		.map(|p| project_path.join(format!("target/ink/{}.contract", p.name())).exists())
+		.unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use duct::cmd;
+	use std::fs::{self, File};
+
+	#[test]
+	fn has_contract_been_built_works() -> anyhow::Result<()> {
+		let temp_dir = tempfile::tempdir()?;
+		let path = temp_dir.path();
+
+		// Standard rust project
+		let name = "hello_world";
+		cmd("cargo", ["new", name]).dir(&path).run()?;
+		let contract_path = path.join(name);
+		assert!(!has_contract_been_built(Some(&contract_path)));
+
+		cmd("cargo", ["build"]).dir(&contract_path).run()?;
+		// Mock build directory
+		fs::create_dir(&contract_path.join("target/ink"))?;
+		assert!(!has_contract_been_built(Some(&path.join(name))));
+		// Create a mocked .contract file inside the target directory
+		File::create(contract_path.join(format!("target/ink/{}.contract", name)))?;
+		assert!(has_contract_been_built(Some(&path.join(name))));
+		Ok(())
+	}
 }

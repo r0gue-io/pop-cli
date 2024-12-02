@@ -5,17 +5,17 @@ use crate::{
 	utils::{
 		get_manifest_path,
 		metadata::{process_function_args, FunctionType},
-		parse_balance,
+		parse_account, parse_balance,
 	},
 };
 use anyhow::Context;
 use contract_build::Verbosity;
 use contract_extrinsics::{
-	BalanceVariant, CallCommandBuilder, CallExec, DisplayEvents, ErrorVariant,
+	BalanceVariant, CallCommandBuilder, CallExec, ContractArtifacts, DisplayEvents, ErrorVariant,
 	ExtrinsicOptsBuilder, TokenMetadata,
 };
 use ink_env::{DefaultEnvironment, Environment};
-use pop_common::{create_signer, parse_account, Config, DefaultConfig, Keypair};
+use pop_common::{create_signer, Config, DefaultConfig, Keypair};
 use sp_weights::Weight;
 use std::path::PathBuf;
 use url::Url;
@@ -28,7 +28,7 @@ pub struct CallOpts {
 	pub contract: String,
 	/// The name of the contract message to call.
 	pub message: String,
-	/// The constructor arguments, encoded as strings.
+	/// The message arguments, encoded as strings.
 	pub args: Vec<String>,
 	/// Transfers an initial balance to the instantiated contract.
 	pub value: String,
@@ -53,19 +53,31 @@ pub async fn set_up_call(
 	call_opts: CallOpts,
 ) -> Result<CallExec<DefaultConfig, DefaultEnvironment, Keypair>, Error> {
 	let token_metadata = TokenMetadata::query::<DefaultConfig>(&call_opts.url).await?;
-	let manifest_path = get_manifest_path(call_opts.path.as_deref())?;
 	let signer = create_signer(&call_opts.suri)?;
 
-	let extrinsic_opts = ExtrinsicOptsBuilder::new(signer)
-		.manifest_path(Some(manifest_path))
-		.url(call_opts.url.clone())
-		.done();
+	let extrinsic_opts = match &call_opts.path {
+		// If path is a file construct the ExtrinsicOptsBuilder from the file.
+		Some(path) if path.is_file() => {
+			let artifacts = ContractArtifacts::from_manifest_or_file(None, Some(path))?;
+			ExtrinsicOptsBuilder::new(signer)
+				.file(Some(artifacts.artifact_path()))
+				.url(call_opts.url.clone())
+				.done()
+		},
+		_ => {
+			let manifest_path = get_manifest_path(call_opts.path.as_deref())?;
+			ExtrinsicOptsBuilder::new(signer)
+				.manifest_path(Some(manifest_path))
+				.url(call_opts.url.clone())
+				.done()
+		},
+	};
 
 	let value: BalanceVariant<<DefaultEnvironment as Environment>::Balance> =
 		parse_balance(&call_opts.value)?;
 
 	let contract: <DefaultConfig as Config>::AccountId = parse_account(&call_opts.contract)?;
-	// Process the argument values input by the user.
+	// Process the provided argument values.
 	let args = process_function_args(
 		call_opts.path.unwrap_or_else(|| PathBuf::from("./")),
 		&call_opts.message,
@@ -187,6 +199,26 @@ mod tests {
 
 		let call_opts = CallOpts {
 			path: Some(temp_dir.path().join("testing")),
+			contract: "5CLPm1CeUvJhZ8GCDZCR7nWZ2m3XXe4X5MtAQK69zEjut36A".to_string(),
+			message: "get".to_string(),
+			args: [].to_vec(),
+			value: "1000".to_string(),
+			gas_limit: None,
+			proof_size: None,
+			url: Url::parse(CONTRACTS_NETWORK_URL)?,
+			suri: "//Alice".to_string(),
+			execute: false,
+		};
+		let call = set_up_call(call_opts).await?;
+		assert_eq!(call.message(), "get");
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn test_set_up_call_from_artifact_file() -> Result<()> {
+		let current_dir = env::current_dir().expect("Failed to get current directory");
+		let call_opts = CallOpts {
+			path: Some(current_dir.join("./tests/files/testing.json")),
 			contract: "5CLPm1CeUvJhZ8GCDZCR7nWZ2m3XXe4X5MtAQK69zEjut36A".to_string(),
 			message: "get".to_string(),
 			args: [].to_vec(),
