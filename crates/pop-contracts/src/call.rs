@@ -185,7 +185,8 @@ mod tests {
 	use anyhow::Result;
 	use pop_common::set_executable_permission;
 	use sp_core::Bytes;
-	use std::{env, process::Command};
+	use std::{env, process::Command, time::Duration};
+	use tokio::time::sleep;
 
 	const CONTRACTS_NETWORK_URL: &str = "wss://rpc2.paseo.popnetwork.xyz";
 
@@ -335,7 +336,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn call_works() -> Result<()> {
-		const LOCALHOST_URL: &str = "ws://127.0.0.1:9944";
+		const LOCALHOST_URL: &str = "ws://127.0.0.1:9945";
 		let temp_dir = new_environment("testing")?;
 		let current_dir = env::current_dir().expect("Failed to get current directory");
 		mock_build_process(
@@ -349,7 +350,9 @@ mod tests {
 		let binary = contracts_node_generator(cache.clone(), None).await?;
 		binary.source(false, &(), true).await?;
 		set_executable_permission(binary.path())?;
-		let process = run_contracts_node(binary.path(), None).await?;
+		let process = run_contracts_node(binary.path(), None, 9945).await?;
+		// Wait 5 secs more to give time for the node to be ready
+		sleep(Duration::from_millis(5000)).await;
 		// Instantiate a Smart Contract.
 		let instantiate_exec = set_up_deployment(UpOpts {
 			path: Some(temp_dir.path().join("testing")),

@@ -115,12 +115,15 @@ pub async fn contracts_node_generator(
 ///
 /// * `binary_path` - The path where the binary is stored. Can be the binary name itself if in PATH.
 /// * `output` - The optional log file for node output.
+/// * `port` - The WebSocket port on which the node will listen for connections.
 pub async fn run_contracts_node(
 	binary_path: PathBuf,
 	output: Option<&File>,
+	port: u16,
 ) -> Result<Child, Error> {
 	let mut command = Command::new(binary_path);
 	command.arg("-linfo,runtime::contracts=debug");
+	command.arg(format!("--rpc-port={}", port));
 	if let Some(output) = output {
 		command.stdout(Stdio::from(output.try_clone()?));
 		command.stderr(Stdio::from(output.try_clone()?));
@@ -218,7 +221,7 @@ mod tests {
 	#[ignore = "Works fine locally but is causing issues when running tests in parallel in the CI environment."]
 	#[tokio::test]
 	async fn run_contracts_node_works() -> Result<(), Error> {
-		let local_url = url::Url::parse("ws://localhost:9944")?;
+		let local_url = url::Url::parse("ws://localhost:9947")?;
 
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
 		let cache = temp_dir.path().join("");
@@ -226,7 +229,7 @@ mod tests {
 		let version = "v0.40.0";
 		let binary = contracts_node_generator(cache.clone(), Some(version)).await?;
 		binary.source(false, &(), true).await?;
-		let process = run_contracts_node(binary.path(), None).await?;
+		let process = run_contracts_node(binary.path(), None, 9947).await?;
 
 		// Check if the node is alive
 		assert!(is_chain_alive(local_url).await?);

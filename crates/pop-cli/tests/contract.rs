@@ -45,7 +45,7 @@ async fn contract_lifecycle() -> Result<()> {
 	let binary = contracts_node_generator(temp_dir.to_path_buf().clone(), None).await?;
 	binary.source(false, &(), true).await?;
 	set_executable_permission(binary.path())?;
-	let process = run_contracts_node(binary.path(), None).await?;
+	let process = run_contracts_node(binary.path(), None, 9944).await?;
 
 	// Only upload the contract
 	// pop up contract --upload-only
