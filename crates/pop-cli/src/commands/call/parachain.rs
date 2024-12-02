@@ -213,10 +213,10 @@ impl CallParachainCommand {
 			None => cli.input("Signer of the extrinsic:").default_input(DEFAULT_URI).interact()?,
 		};
 		cli.info(format!("Encoded call data: {}", call_data))?;
-		if !cli
-			.confirm("Do you want to submit the extrinsic?")
-			.initial_value(true)
-			.interact()?
+		if !self.skip_confirm &&
+			!cli.confirm("Do you want to submit the extrinsic?")
+				.initial_value(true)
+				.interact()?
 		{
 			display_message(
 				&format!(
