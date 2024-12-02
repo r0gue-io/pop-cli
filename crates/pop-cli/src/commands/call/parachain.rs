@@ -16,10 +16,10 @@ const DEFAULT_URI: &str = "//Alice";
 #[derive(Args, Clone)]
 pub struct CallParachainCommand {
 	/// The pallet containing the extrinsic to execute.
-	#[arg(short, long)]
+	#[arg(short, long, value_parser = parse_pallet_name)]
 	pallet: Option<String>,
 	/// The extrinsic to execute within the chosen pallet.
-	#[arg(short, long)]
+	#[arg(short, long, value_parser = parse_extrinsic_name)]
 	extrinsic: Option<String>,
 	/// The extrinsic arguments, encoded as strings.
 	#[arg(short, long, num_args = 0..,)]
@@ -435,6 +435,20 @@ fn prompt_for_tuple_param(
 	Ok(format!("({})", tuple_values.join(", ")))
 }
 
+/// Parser to capitalize the first letter of the pallet name.
+fn parse_pallet_name(name: &str) -> Result<String, String> {
+	let mut chars = name.chars();
+	match chars.next() {
+		Some(c) => Ok(c.to_ascii_uppercase().to_string() + chars.as_str()),
+		None => Err("Pallet cannot be empty".to_string()),
+	}
+}
+
+/// Parser to convert the extrinsic name to lowercase.
+fn parse_extrinsic_name(name: &str) -> Result<String, String> {
+	Ok(name.to_ascii_lowercase())
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -778,5 +792,21 @@ mod tests {
 		assert_eq!(params[1], "0".to_string()); // retries: test primitive
 		assert_eq!(params[2], "0".to_string()); // period: test primitive
 		cli.verify()
+	}
+
+	#[test]
+	fn parse_pallet_name_works() -> Result<()> {
+		assert_eq!(parse_pallet_name("system").unwrap(), "System");
+		assert_eq!(parse_pallet_name("balances").unwrap(), "Balances");
+		assert_eq!(parse_pallet_name("nfts").unwrap(), "Nfts");
+		Ok(())
+	}
+
+	#[test]
+	fn parse_extrinsic_name_works() -> Result<()> {
+		assert_eq!(parse_extrinsic_name("Remark").unwrap(), "remark");
+		assert_eq!(parse_extrinsic_name("Force_transfer").unwrap(), "force_transfer");
+		assert_eq!(parse_extrinsic_name("MINT").unwrap(), "mint");
+		Ok(())
 	}
 }
