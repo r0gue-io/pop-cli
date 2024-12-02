@@ -7,10 +7,9 @@ use crate::{
 use anyhow::{anyhow, Result};
 use clap::Args;
 use cliclack::spinner;
-use pop_common::parse_account;
 use pop_contracts::{
 	build_smart_contract, call_smart_contract, dry_run_call, dry_run_gas_estimate_call,
-	get_messages, set_up_call, CallOpts, Verbosity,
+	get_messages, parse_account, set_up_call, CallOpts, Verbosity,
 };
 use sp_weights::Weight;
 use std::path::PathBuf;

@@ -6,6 +6,8 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
+	#[error("Failed to parse account address: {0}")]
+	AccountAddressParsing(String),
 	#[error("Anyhow error: {0}")]
 	AnyhowError(#[from] anyhow::Error),
 	#[error("Failed to parse balance: {0}")]
