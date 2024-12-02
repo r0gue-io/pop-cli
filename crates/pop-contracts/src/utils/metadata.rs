@@ -40,38 +40,82 @@ pub enum FunctionType {
 	Message,
 }
 
-/// Extracts a list of smart contract messages parsing the metadata file.
+/// Extracts a list of smart contract messages parsing the contract artifact.
 ///
 /// # Arguments
-/// * `path` -  Location path of the project.
-pub fn get_messages(path: &Path) -> Result<Vec<ContractFunction>, Error> {
-	let cargo_toml_path = match path.ends_with("Cargo.toml") {
-		true => path.to_path_buf(),
-		false => path.join("Cargo.toml"),
-	};
-	let contract_artifacts =
-		ContractArtifacts::from_manifest_or_file(Some(&cargo_toml_path), None)?;
-	let transcoder = contract_artifacts.contract_transcoder()?;
-	let metadata = transcoder.metadata();
-	Ok(metadata
-		.spec()
-		.messages()
-		.iter()
-		.map(|message| ContractFunction {
-			label: message.label().to_string(),
-			mutates: message.mutates(),
-			payable: message.payable(),
-			args: process_args(message.args(), metadata.registry()),
-			docs: message.docs().join(" "),
-			default: *message.default(),
-		})
-		.collect())
+/// * `path` -  Location path of the project or contract artifact.
+pub fn get_messages<P>(path: P) -> Result<Vec<ContractFunction>, Error>
+where
+	P: AsRef<Path>,
+{
+	get_contract_functions(path.as_ref(), FunctionType::Message)
 }
 
-/// Extracts the information of a smart contract message parsing the metadata file.
+/// Extracts a list of smart contract contructors parsing the contract artifact.
 ///
 /// # Arguments
-/// * `path` -  Location path of the project.
+/// * `path` -  Location path of the project or contract artifact.
+pub fn get_constructors<P>(path: P) -> Result<Vec<ContractFunction>, Error>
+where
+	P: AsRef<Path>,
+{
+	get_contract_functions(path.as_ref(), FunctionType::Constructor)
+}
+
+/// Extracts a list of smart contract functions (messages or constructors) parsing the contract
+/// artifact.
+///
+/// # Arguments
+/// * `path` - Location path of the project or contract artifact.
+/// * `function_type` - Specifies whether to extract messages or constructors.
+fn get_contract_functions(
+	path: &Path,
+	function_type: FunctionType,
+) -> Result<Vec<ContractFunction>, Error> {
+	let contract_artifacts = if path.is_dir() || path.ends_with("Cargo.toml") {
+		let cargo_toml_path =
+			if path.ends_with("Cargo.toml") { path.to_path_buf() } else { path.join("Cargo.toml") };
+		ContractArtifacts::from_manifest_or_file(Some(&cargo_toml_path), None)?
+	} else {
+		ContractArtifacts::from_manifest_or_file(None, Some(&path.to_path_buf()))?
+	};
+	let transcoder = contract_artifacts.contract_transcoder()?;
+	let metadata = transcoder.metadata();
+
+	Ok(match function_type {
+		FunctionType::Message => metadata
+			.spec()
+			.messages()
+			.iter()
+			.map(|message| ContractFunction {
+				label: message.label().to_string(),
+				mutates: message.mutates(),
+				payable: message.payable(),
+				args: process_args(message.args(), metadata.registry()),
+				docs: message.docs().join(" "),
+				default: *message.default(),
+			})
+			.collect(),
+		FunctionType::Constructor => metadata
+			.spec()
+			.constructors()
+			.iter()
+			.map(|constructor| ContractFunction {
+				label: constructor.label().to_string(),
+				payable: *constructor.payable(),
+				args: process_args(constructor.args(), metadata.registry()),
+				docs: constructor.docs().join(" "),
+				default: *constructor.default(),
+				mutates: true,
+			})
+			.collect(),
+	})
+}
+
+/// Extracts the information of a smart contract message parsing the contract artifact.
+///
+/// # Arguments
+/// * `path` -  Location path of the project or contract artifact.
 /// * `message` - The label of the contract message.
 fn get_message<P>(path: P, message: &str) -> Result<ContractFunction, Error>
 where
@@ -83,38 +127,10 @@ where
 		.ok_or_else(|| Error::InvalidMessageName(message.to_string()))
 }
 
-/// Extracts a list of smart contract contructors parsing the metadata file.
+/// Extracts the information of a smart contract constructor parsing the contract artifact.
 ///
 /// # Arguments
-/// * `path` -  Location path of the project.
-pub fn get_constructors(path: &Path) -> Result<Vec<ContractFunction>, Error> {
-	let cargo_toml_path = match path.ends_with("Cargo.toml") {
-		true => path.to_path_buf(),
-		false => path.join("Cargo.toml"),
-	};
-	let contract_artifacts =
-		ContractArtifacts::from_manifest_or_file(Some(&cargo_toml_path), None)?;
-	let transcoder = contract_artifacts.contract_transcoder()?;
-	let metadata = transcoder.metadata();
-	Ok(metadata
-		.spec()
-		.constructors()
-		.iter()
-		.map(|constructor| ContractFunction {
-			label: constructor.label().to_string(),
-			payable: *constructor.payable(),
-			args: process_args(constructor.args(), metadata.registry()),
-			docs: constructor.docs().join(" "),
-			default: *constructor.default(),
-			mutates: true,
-		})
-		.collect())
-}
-
-/// Extracts the information of a smart contract constructor parsing the metadata file.
-///
-/// # Arguments
-/// * `path` -  Location path of the project.
+/// * `path` -  Location path of the project or contract artifact.
 /// * `constructor` - The label of the constructor.
 fn get_constructor<P>(path: P, constructor: &str) -> Result<ContractFunction, Error>
 where
@@ -142,12 +158,13 @@ fn process_args(
 }
 
 /// Processes a list of argument values for a specified contract function,
-/// wrapping each value in `Some(...)` or replacing it with `None` if the argument is optional
+/// wrapping each value in `Some(...)` or replacing it with `None` if the argument is optional.
 ///
 /// # Arguments
-/// * `path` -  Location path of the project.
+/// * `path` -  Location path of the project or contract artifact.
 /// * `label` - Label of the contract message to retrieve.
 /// * `args` - Argument values provided by the user.
+/// * `function_type` - Specifies whether to process arguments of messages or constructors
 pub fn process_function_args<P>(
 	path: P,
 	label: &str,
@@ -193,25 +210,39 @@ mod tests {
 	fn get_messages_work() -> Result<()> {
 		let temp_dir = new_environment("testing")?;
 		let current_dir = env::current_dir().expect("Failed to get current directory");
+
+		// Helper function to avoid duplicated code
+		fn assert_contract_metadata_parsed(message: Vec<ContractFunction>) -> Result<()> {
+			assert_eq!(message.len(), 3);
+			assert_eq!(message[0].label, "flip");
+			assert_eq!(message[0].docs, " A message that can be called on instantiated contracts.  This one flips the value of the stored `bool` from `true`  to `false` and vice versa.");
+			assert_eq!(message[1].label, "get");
+			assert_eq!(message[1].docs, " Simply returns the current value of our `bool`.");
+			assert_eq!(message[2].label, "specific_flip");
+			assert_eq!(message[2].docs, " A message for testing, flips the value of the stored `bool` with `new_value`  and is payable");
+			// assert parsed arguments
+			assert_eq!(message[2].args.len(), 2);
+			assert_eq!(message[2].args[0].label, "new_value".to_string());
+			assert_eq!(message[2].args[0].type_name, "bool".to_string());
+			assert_eq!(message[2].args[1].label, "number".to_string());
+			assert_eq!(message[2].args[1].type_name, "Option<u32>: None, Some(u32)".to_string());
+			Ok(())
+		}
+
 		mock_build_process(
 			temp_dir.path().join("testing"),
 			current_dir.join("./tests/files/testing.contract"),
 			current_dir.join("./tests/files/testing.json"),
 		)?;
+
+		// Test with a directory path
 		let message = get_messages(&temp_dir.path().join("testing"))?;
-		assert_eq!(message.len(), 3);
-		assert_eq!(message[0].label, "flip");
-		assert_eq!(message[0].docs, " A message that can be called on instantiated contracts.  This one flips the value of the stored `bool` from `true`  to `false` and vice versa.");
-		assert_eq!(message[1].label, "get");
-		assert_eq!(message[1].docs, " Simply returns the current value of our `bool`.");
-		assert_eq!(message[2].label, "specific_flip");
-		assert_eq!(message[2].docs, " A message for testing, flips the value of the stored `bool` with `new_value`  and is payable");
-		// assert parsed arguments
-		assert_eq!(message[2].args.len(), 2);
-		assert_eq!(message[2].args[0].label, "new_value".to_string());
-		assert_eq!(message[2].args[0].type_name, "bool".to_string());
-		assert_eq!(message[2].args[1].label, "number".to_string());
-		assert_eq!(message[2].args[1].type_name, "Option<u32>: None, Some(u32)".to_string());
+		assert_contract_metadata_parsed(message)?;
+
+		// Test with a metadata file path
+		let message = get_messages(&current_dir.join("./tests/files/testing.contract"))?;
+		assert_contract_metadata_parsed(message)?;
+
 		Ok(())
 	}
 

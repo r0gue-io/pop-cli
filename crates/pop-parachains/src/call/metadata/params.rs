@@ -34,7 +34,7 @@ pub fn field_to_param(
 	let metadata: Metadata = api.metadata();
 	let registry = metadata.types();
 	let name = field.name.clone().unwrap_or("Unnamed".to_string()); //It can be unnamed field
-	type_to_param(name, registry, field.ty.id, &field.type_name)
+	type_to_param(name, registry, field.ty.id)
 }
 
 /// Converts a type's metadata into a `Param` representation.
@@ -43,13 +43,7 @@ pub fn field_to_param(
 /// * `name`: The name of the parameter.
 /// * `registry`: A reference to the `PortableRegistry` to resolve type dependencies.
 /// * `type_id`: The ID of the type to be converted.
-/// * `type_name`: An optional descriptive name for the type.
-fn type_to_param(
-	name: String,
-	registry: &PortableRegistry,
-	type_id: u32,
-	type_name: &Option<String>,
-) -> Result<Param, Error> {
+fn type_to_param(name: String, registry: &PortableRegistry, type_id: u32) -> Result<Param, Error> {
 	let type_info = registry.resolve(type_id).ok_or(Error::MetadataParsingError(name.clone()))?;
 	if let Some(last_segment) = type_info.path.segments.last() {
 		if last_segment == "RuntimeCall" {
@@ -65,17 +59,17 @@ fn type_to_param(
 		}
 	}
 	if type_info.path.segments == ["Option"] {
-		if let Some(sub_type_id) = type_info.type_params.get(0).and_then(|param| param.ty) {
+		if let Some(sub_type_id) = type_info.type_params.first().and_then(|param| param.ty) {
 			// Recursive for the sub parameters
-			let sub_param = type_to_param(name.clone(), registry, sub_type_id.id, type_name)?;
-			return Ok(Param {
+			let sub_param = type_to_param(name.clone(), registry, sub_type_id.id)?;
+			Ok(Param {
 				name,
 				type_name: sub_param.type_name,
 				sub_params: sub_param.sub_params,
 				is_optional: true,
 				is_tuple: false,
 				is_variant: false,
-			});
+			})
 		} else {
 			Err(Error::MetadataParsingError(name))
 		}
@@ -104,7 +98,6 @@ fn type_to_param(
 							field.name.clone().unwrap_or(name.clone()),
 							registry,
 							field.ty.id,
-							&field.type_name,
 						)
 					})
 					.collect::<Result<Vec<Param>, Error>>()?;
@@ -132,7 +125,6 @@ fn type_to_param(
 									field.name.clone().unwrap_or(variant_param.name.clone()),
 									registry,
 									field.ty.id,
-									&field.type_name,
 								)
 							})
 							.collect::<Result<Vec<Param>, Error>>()?;
@@ -163,10 +155,9 @@ fn type_to_param(
 					.enumerate()
 					.map(|(index, field_id)| {
 						type_to_param(
-							format!("Index {} of the tuple {}", index.to_string(), name),
+							format!("Index {index} of the tuple {name}"),
 							registry,
 							field_id.id,
-							&None,
 						)
 					})
 					.collect::<Result<Vec<Param>, Error>>()?;

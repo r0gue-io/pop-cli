@@ -19,27 +19,39 @@ use strum_macros::{AsRefStr, Display, EnumMessage, EnumProperty, EnumString, Var
 	VariantArray,
 )]
 pub enum Action {
+	/// Transfer balance.
+	#[strum(
+		serialize = "transfer",
+		message = "transfer_allow_death",
+		detailed_message = "Transfer balance",
+		props(Pallet = "Balances")
+	)]
+	Transfer,
+	/// Create an asset.
 	#[strum(
 		serialize = "create",
 		message = "create",
-		detailed_message = "Create an Asset",
+		detailed_message = "Create an asset",
 		props(Pallet = "Assets")
 	)]
 	CreateAsset,
+	/// Mint an asset.
 	#[strum(
 		serialize = "mint",
 		message = "mint",
-		detailed_message = "Mint an Asset",
+		detailed_message = "Mint an asset",
 		props(Pallet = "Assets")
 	)]
 	MintAsset,
+	/// Create an NFT collection.
 	#[strum(
 		serialize = "create_nft",
 		message = "create",
-		detailed_message = "Create an NFT Collection",
+		detailed_message = "Create an NFT collection",
 		props(Pallet = "Nfts")
 	)]
 	CreateCollection,
+	/// Mint an NFT.
 	#[strum(
 		serialize = "mint_nft",
 		message = "mint",
@@ -47,6 +59,7 @@ pub enum Action {
 		props(Pallet = "Nfts")
 	)]
 	MintNFT,
+	/// Purchase on-demand coretime.
 	#[strum(
 		serialize = "place_order_allow_death",
 		message = "place_order_allow_death",
@@ -54,13 +67,22 @@ pub enum Action {
 		props(Pallet = "OnDemand")
 	)]
 	PurchaseOnDemandCoretime,
+	/// Reserve a parachain ID.
 	#[strum(
-		serialize = "transfer",
-		message = "transfer_allow_death",
-		detailed_message = "Transfer Balance",
-		props(Pallet = "Balances")
+		serialize = "reserve",
+		message = "reserve",
+		detailed_message = "Reserve a parachain ID",
+		props(Pallet = "Registrar")
 	)]
-	Transfer,
+	Reserve,
+	/// Register a parachain ID with genesis state and code.
+	#[strum(
+		serialize = "register",
+		message = "register",
+		detailed_message = "Register a parachain ID with genesis state and code",
+		props(Pallet = "Registrar")
+	)]
+	Register,
 }
 
 impl Action {
@@ -108,12 +130,14 @@ mod tests {
 	#[test]
 	fn action_descriptions_are_correct() {
 		let descriptions = HashMap::from([
-			(Action::CreateAsset, "Create an Asset"),
-			(Action::MintAsset, "Mint an Asset"),
-			(Action::CreateCollection, "Create an NFT Collection"),
+			(Action::CreateAsset, "Create an asset"),
+			(Action::MintAsset, "Mint an asset"),
+			(Action::CreateCollection, "Create an NFT collection"),
 			(Action::MintNFT, "Mint an NFT"),
 			(Action::PurchaseOnDemandCoretime, "Purchase on-demand coretime"),
-			(Action::Transfer, "Transfer Balance"),
+			(Action::Transfer, "Transfer balance"),
+			(Action::Register, "Register a parachain ID with genesis state and code"),
+			(Action::Reserve, "Reserve a parachain ID"),
 		]);
 
 		for action in Action::VARIANTS.iter() {
@@ -130,6 +154,8 @@ mod tests {
 			(Action::MintNFT, "Nfts"),
 			(Action::PurchaseOnDemandCoretime, "OnDemand"),
 			(Action::Transfer, "Balances"),
+			(Action::Register, "Registrar"),
+			(Action::Reserve, "Registrar"),
 		]);
 
 		for action in Action::VARIANTS.iter() {
@@ -146,6 +172,8 @@ mod tests {
 			(Action::MintNFT, "mint"),
 			(Action::PurchaseOnDemandCoretime, "place_order_allow_death"),
 			(Action::Transfer, "transfer_allow_death"),
+			(Action::Register, "register"),
+			(Action::Reserve, "reserve"),
 		]);
 
 		for action in Action::VARIANTS.iter() {
@@ -159,17 +187,21 @@ mod tests {
 		let mut api = set_up_api("wss://rpc1.paseo.popnetwork.xyz").await?;
 		let mut actions = supported_actions(&parse_chain_metadata(&api).await?).await;
 		assert_eq!(actions.len(), 5);
-		assert_eq!(actions[0], Action::CreateAsset);
-		assert_eq!(actions[1], Action::MintAsset);
-		assert_eq!(actions[2], Action::CreateCollection);
-		assert_eq!(actions[3], Action::MintNFT);
-		assert_eq!(actions[4], Action::Transfer);
+		assert_eq!(actions[0], Action::Transfer);
+		assert_eq!(actions[1], Action::CreateAsset);
+		assert_eq!(actions[2], Action::MintAsset);
+		assert_eq!(actions[3], Action::CreateCollection);
+		assert_eq!(actions[4], Action::MintNFT);
+
 		// Test Polkadot Relay Chain.
 		api = set_up_api("wss://polkadot-rpc.publicnode.com").await?;
 		actions = supported_actions(&parse_chain_metadata(&api).await?).await;
-		assert_eq!(actions.len(), 2);
-		assert_eq!(actions[0], Action::PurchaseOnDemandCoretime);
-		assert_eq!(actions[1], Action::Transfer);
+		assert_eq!(actions.len(), 4);
+		assert_eq!(actions[0], Action::Transfer);
+		assert_eq!(actions[1], Action::PurchaseOnDemandCoretime);
+		assert_eq!(actions[2], Action::Reserve);
+		assert_eq!(actions[3], Action::Register);
+
 		Ok(())
 	}
 }

@@ -87,7 +87,7 @@ async fn parachain_lifecycle() -> Result<()> {
 	assert!(content.contains("\"relay_chain\": \"paseo-local\""));
 	assert!(content.contains("\"protocolId\": \"pop-protocol\""));
 
-	// Custom network to manually set the port
+	// Overwrite the config file to manually set the port to test pop call parachain.
 	let network_toml_path = temp_parachain_dir.join("network.toml");
 	fs::create_dir_all(&temp_parachain_dir)?;
 	fs::write(

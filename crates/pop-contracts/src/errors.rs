@@ -6,6 +6,8 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
+	#[error("Failed to parse account address: {0}")]
+	AccountAddressParsing(String),
 	#[error("Anyhow error: {0}")]
 	AnyhowError(#[from] anyhow::Error),
 	#[error("Failed to parse balance: {0}")]
@@ -22,6 +24,8 @@ pub enum Error {
 	HexParsing(String),
 	#[error("HTTP error: {0}")]
 	HttpError(#[from] reqwest::Error),
+	#[error("Incorrect number of arguments provided. Expecting {expected}, {provided} provided")]
+	IncorrectArguments { expected: usize, provided: usize },
 	#[error("Failed to install {0}")]
 	InstallContractsNode(String),
 	#[error("{0}")]
@@ -52,6 +56,4 @@ pub enum Error {
 	UnsupportedPlatform { os: &'static str },
 	#[error("{0}")]
 	UploadContractError(String),
-	#[error("Incorrect number of arguments provided. Expecting {expected}, {provided} provided")]
-	IncorrectArguments { expected: usize, provided: usize },
 }

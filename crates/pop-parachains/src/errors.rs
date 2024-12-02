@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use subxt::ext::scale_decode;
 use thiserror::Error;
 use zombienet_sdk::OrchestratorError;
 
@@ -10,6 +9,12 @@ pub enum Error {
 	Aborted,
 	#[error("Anyhow error: {0}")]
 	AnyhowError(#[from] anyhow::Error),
+	#[error("Failed to establish a connection to the API: {0}")]
+	ApiConnectionFailure(String),
+	#[error("Failed to decode call data. {0}")]
+	CallDataDecodingError(String),
+	#[error("Failed to encode call data. {0}")]
+	CallDataEncodingError(String),
 	#[error("{0}")]
 	CommonError(#[from] pop_common::Error),
 	#[error("Configuration error: {0}")]
@@ -20,14 +25,12 @@ pub enum Error {
 	EndowmentError,
 	#[error("The extrinsic is not supported")]
 	ExtrinsicNotSupported,
-	#[error("Failed decode a value")]
-	FromHexError(#[from] hex::FromHexError),
+	#[error("Extrinsic submission error: {0}")]
+	ExtrinsicSubmissionError(String),
 	#[error("IO error: {0}")]
 	IO(#[from] std::io::Error),
 	#[error("JSON error: {0}")]
 	JsonError(#[from] serde_json::Error),
-	#[error("Metadata error: {0}")]
-	MetadataError(#[from] subxt::error::MetadataError),
 	#[error("Error parsing metadata for parameter {0} conversion")]
 	MetadataParsingError(String),
 	#[error("Missing binary: {0}")]
@@ -40,24 +43,16 @@ pub enum Error {
 	OrchestratorError(#[from] OrchestratorError),
 	#[error("Failed to create pallet directory")]
 	PalletDirCreation,
-	#[error("The `Pallet` property is missing from the call variant")]
-	PalletMissing,
 	#[error("Failed to find the pallet {0}")]
 	PalletNotFound(String),
 	#[error("Failed to process the arguments provided by the user.")]
 	ParamProcessingError,
-	#[error("Failed to parse the response")]
-	ParsingResponseError(#[from] scale_decode::Error),
 	#[error("Invalid path")]
 	PathError,
 	#[error("Failed to execute rustfmt")]
 	RustfmtError(std::io::Error),
 	#[error("Template error: {0}")]
 	SourcingError(#[from] pop_common::sourcing::Error),
-	#[error("{0}")]
-	SubxtError(#[from] subxt::Error),
-	#[error("{0}")]
-	SubxtExternalError(#[from] subxt::ext::subxt_core::Error),
 	#[error("Toml error: {0}")]
 	TomlError(#[from] toml_edit::de::Error),
 	#[error("Unsupported command: {0}")]

@@ -15,7 +15,9 @@ pub mod metadata;
 /// # Arguments
 /// * `url` - Endpoint of the node.
 pub async fn set_up_api(url: &str) -> Result<OnlineClient<SubstrateConfig>, Error> {
-	let api = OnlineClient::<SubstrateConfig>::from_url(url).await?;
+	let api = OnlineClient::<SubstrateConfig>::from_url(url)
+		.await
+		.map_err(|e| Error::ApiConnectionFailure(e.to_string()))?;
 	Ok(api)
 }
 
@@ -49,11 +51,11 @@ pub async fn sign_and_submit_extrinsic(
 	let result = api
 		.tx()
 		.sign_and_submit_then_watch_default(&tx, &signer)
-		.await?
-		.wait_for_finalized()
-		.await?
-		.wait_for_success()
-		.await?;
+		.await
+		.map_err(|e| Error::ExtrinsicSubmissionError(format!("{:?}", e)))?
+		.wait_for_finalized_success()
+		.await
+		.map_err(|e| Error::ExtrinsicSubmissionError(format!("{:?}", e)))?;
 	Ok(format!("{:?}", result.extrinsic_hash()))
 }
 
@@ -66,13 +68,17 @@ pub fn encode_call_data(
 	api: &OnlineClient<SubstrateConfig>,
 	tx: &DynamicPayload,
 ) -> Result<String, Error> {
-	let call_data = tx.encode_call_data(&api.metadata())?;
+	let call_data = tx
+		.encode_call_data(&api.metadata())
+		.map_err(|e| Error::CallDataEncodingError(e.to_string()))?;
 	Ok(format!("0x{}", hex::encode(call_data)))
 }
 
-struct RawCall(Vec<u8>);
+/// This struct implements the [`Payload`] trait and is used to submit
+/// pre-encoded SCALE call data directly, without the dynamic construction of transactions.
+struct CallData(Vec<u8>);
 
-impl Payload for RawCall {
+impl Payload for CallData {
 	fn encode_call_data_to(
 		&self,
 		_: &subxt::Metadata,
@@ -95,16 +101,17 @@ pub async fn sign_and_submit_extrinsic_with_call_data(
 	suri: &str,
 ) -> Result<String, Error> {
 	let signer = create_signer(suri)?;
-	let call_data_bytes = hex::decode(call_data.trim_start_matches("0x"))?;
+	let call_data_bytes = hex::decode(call_data.trim_start_matches("0x"))
+		.map_err(|e| Error::CallDataDecodingError(e.to_string()))?;
 	let payload = RawCall(call_data_bytes);
 	let result = api
 		.tx()
 		.sign_and_submit_then_watch_default(&payload, &signer)
-		.await?
-		.wait_for_finalized()
-		.await?
-		.wait_for_success()
-		.await?;
+		.await
+		.map_err(|e| Error::ExtrinsicSubmissionError(format!("{:?}", e)))?
+		.wait_for_finalized_success()
+		.await
+		.map_err(|e| Error::ExtrinsicSubmissionError(format!("{:?}", e)))?;
 	Ok(format!("{:?}", result.extrinsic_hash()))
 }
 
@@ -117,7 +124,10 @@ mod tests {
 
 	#[tokio::test]
 	async fn set_up_api_works() -> Result<()> {
-		assert!(matches!(set_up_api("wss://wronguri.xyz").await, Err(Error::SubxtError(_))));
+		assert!(matches!(
+			set_up_api("wss://wronguri.xyz").await,
+			Err(Error::ApiConnectionFailure(_))
+		));
 		set_up_api("wss://rpc1.paseo.popnetwork.xyz").await?;
 		Ok(())
 	}

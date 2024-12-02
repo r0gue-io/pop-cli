@@ -4,6 +4,7 @@ use crate::errors::Error;
 use contract_build::{util::decode_hex, ManifestPath};
 use contract_extrinsics::BalanceVariant;
 use ink_env::{DefaultEnvironment, Environment};
+use pop_common::{Config, DefaultConfig};
 use sp_core::Bytes;
 use std::{
 	path::{Path, PathBuf},
@@ -12,6 +13,10 @@ use std::{
 
 pub mod metadata;
 
+/// Retrieves the manifest path for a contract project.
+///
+/// # Arguments
+/// * `path` - An optional path to the project directory.
 pub fn get_manifest_path(path: Option<&Path>) -> Result<ManifestPath, Error> {
 	if let Some(path) = path {
 		let full_path = PathBuf::from(path.to_string_lossy().to_string() + "/Cargo.toml");
@@ -23,13 +28,29 @@ pub fn get_manifest_path(path: Option<&Path>) -> Result<ManifestPath, Error> {
 	}
 }
 
+/// Parses a balance value from a string representation.
+///
+/// # Arguments
+/// * `balance` - A string representing the balance value to parse.
 pub fn parse_balance(
 	balance: &str,
 ) -> Result<BalanceVariant<<DefaultEnvironment as Environment>::Balance>, Error> {
 	BalanceVariant::from_str(balance).map_err(|e| Error::BalanceParsing(format!("{}", e)))
 }
 
+/// Parses an account ID from its string representation.
+///
+/// # Arguments
+/// * `account` - A string representing the account ID to parse.
+pub fn parse_account(account: &str) -> Result<<DefaultConfig as Config>::AccountId, Error> {
+	<DefaultConfig as Config>::AccountId::from_str(account)
+		.map_err(|e| Error::AccountAddressParsing(format!("{}", e)))
+}
+
 /// Parse hex encoded bytes.
+///
+/// # Arguments
+/// * `input` - A string containing hex-encoded bytes.
 pub fn parse_hex_bytes(input: &str) -> Result<Bytes, Error> {
 	let bytes = decode_hex(input).map_err(|e| Error::HexParsing(format!("{}", e)))?;
 	Ok(bytes.into())
@@ -38,7 +59,6 @@ pub fn parse_hex_bytes(input: &str) -> Result<Bytes, Error> {
 /// Canonicalizes the given path to ensure consistency and resolve any symbolic links.
 ///
 /// # Arguments
-///
 /// * `target` - A reference to the `Path` to be canonicalized.
 pub fn canonicalized_path(target: &Path) -> Result<PathBuf, Error> {
 	// Canonicalize the target path to ensure consistency and resolve any symbolic links.
@@ -94,6 +114,22 @@ mod tests {
 	#[test]
 	fn parse_balance_fails_wrong_balance() -> Result<(), Error> {
 		assert!(matches!(parse_balance("wrongbalance"), Err(super::Error::BalanceParsing(..))));
+		Ok(())
+	}
+
+	#[test]
+	fn parse_account_works() -> Result<(), Error> {
+		let account = parse_account("5CLPm1CeUvJhZ8GCDZCR7nWZ2m3XXe4X5MtAQK69zEjut36A")?;
+		assert_eq!(account.to_string(), "5CLPm1CeUvJhZ8GCDZCR7nWZ2m3XXe4X5MtAQK69zEjut36A");
+		Ok(())
+	}
+
+	#[test]
+	fn parse_account_fails_wrong_value() -> Result<(), Error> {
+		assert!(matches!(
+			parse_account("wrongaccount"),
+			Err(super::Error::AccountAddressParsing(..))
+		));
 		Ok(())
 	}
 
