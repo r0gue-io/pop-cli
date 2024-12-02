@@ -65,6 +65,8 @@ async fn parachain_lifecycle() -> Result<()> {
 			"local",
 			"--relay",
 			"paseo-local",
+			"--profile",
+			"release",
 			"--genesis-state",
 			"--genesis-code",
 			"--protocol-id",
