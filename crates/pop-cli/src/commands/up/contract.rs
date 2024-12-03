@@ -24,6 +24,7 @@ use url::Url;
 
 const COMPLETE: &str = "🚀 Deployment complete";
 const DEFAULT_URL: &str = "ws://localhost:9944/";
+const DEFAULT_PORT: u16 = 9944;
 const FAILED: &str = "🚫 Deployment failed.";
 
 #[derive(Args, Clone)]
@@ -140,7 +141,8 @@ impl UpContractCommand {
 			let spinner = spinner();
 			spinner.start("Starting local node...");
 
-			let process = run_contracts_node(binary_path, Some(log.as_file())).await?;
+			let process =
+				run_contracts_node(binary_path, Some(log.as_file()), DEFAULT_PORT).await?;
 			let bar = Style::new().magenta().dim().apply_to(Emoji("│", "|"));
 			spinner.stop(format!(
 				"Local node started successfully:{}",

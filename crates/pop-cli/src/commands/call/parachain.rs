@@ -170,6 +170,7 @@ impl CallParachainCommand {
 				cli.outro_cancel(
 					"The selected extrinsic is not supported yet. Please choose another one.",
 				)?;
+				self.reset_for_new_call();
 				continue;
 			}
 
