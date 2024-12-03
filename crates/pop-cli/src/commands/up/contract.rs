@@ -29,7 +29,7 @@ const FAILED: &str = "🚫 Deployment failed.";
 #[derive(Args, Clone)]
 pub struct UpContractCommand {
 	/// Path to the contract build directory.
-	#[arg(short = 'p', long)]
+	#[arg(short = 'p', long, default_value = None)]
 	path: Option<PathBuf>,
 	/// The name of the contract constructor to call.
 	#[clap(name = "constructor", long, default_value = "new")]

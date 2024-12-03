@@ -14,7 +14,7 @@ pub struct BuildParachainCommand {
 	#[arg(long)]
 	pub(crate) path: Option<PathBuf>,
 	/// The package to be built.
-	#[arg(short = 'p', long)]
+	#[arg(short = 'p', long, default_value = None)]
 	pub(crate) package: Option<String>,
 	/// For production, always build in release mode to exclude debug features.
 	#[clap(short, long, default_value = "true")]

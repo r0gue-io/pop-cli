@@ -42,7 +42,7 @@ pub struct CallContractCommand {
 	gas_limit: Option<u64>,
 	/// Maximum proof size for this command.
 	/// If not specified it will perform a dry-run to estimate the proof size required.
-	#[arg(short = 'P', long)]
+	#[arg(short = 'P', long, default_value = None)]
 	proof_size: Option<u64>,
 	/// Websocket endpoint of a node.
 	#[arg(name = "url", short, long, value_parser, default_value = DEFAULT_URL)]
