@@ -224,10 +224,12 @@ mod tests {
 	use super::*;
 	use crate::{
 		contracts_node_generator, errors::Error, mock_build_process, new_environment,
-		run_contracts_node,
+		run_contracts_node, testing::find_free_port,
 	};
 	use anyhow::Result;
-	use std::{env, process::Command};
+	use pop_common::set_executable_permission;
+	use std::{env, process::Command, time::Duration};
+	use tokio::time::sleep;
 	use url::Url;
 
 	const CONTRACTS_NETWORK_URL: &str = "wss://rpc2.paseo.popnetwork.xyz";
@@ -364,7 +366,8 @@ mod tests {
 
 	#[tokio::test]
 	async fn instantiate_and_upload() -> Result<()> {
-		const LOCALHOST_URL: &str = "ws://127.0.0.1:9944";
+		let random_port = find_free_port();
+		let localhost_url = format!("ws://127.0.0.1:{}", random_port);
 		let temp_dir = new_environment("testing")?;
 		let current_dir = env::current_dir().expect("Failed to get current directory");
 		mock_build_process(
@@ -377,8 +380,10 @@ mod tests {
 
 		let binary = contracts_node_generator(cache.clone(), None).await?;
 		binary.source(false, &(), true).await?;
-		let process = run_contracts_node(binary.path(), None).await?;
-
+		set_executable_permission(binary.path())?;
+		let process = run_contracts_node(binary.path(), None, random_port).await?;
+		// Wait 5 secs more to give time for the node to be ready
+		sleep(Duration::from_millis(5000)).await;
 		let upload_exec = set_up_upload(UpOpts {
 			path: Some(temp_dir.path().join("testing")),
 			constructor: "new".to_string(),
@@ -387,7 +392,7 @@ mod tests {
 			gas_limit: None,
 			proof_size: None,
 			salt: None,
-			url: Url::parse(LOCALHOST_URL)?,
+			url: Url::parse(&localhost_url)?,
 			suri: "//Alice".to_string(),
 		})
 		.await?;
@@ -411,7 +416,7 @@ mod tests {
 			gas_limit: None,
 			proof_size: None,
 			salt: Some(Bytes::from(vec![0x00])),
-			url: Url::parse(LOCALHOST_URL)?,
+			url: Url::parse(&localhost_url)?,
 			suri: "//Alice".to_string(),
 		})
 		.await?;
