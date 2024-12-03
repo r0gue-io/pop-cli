@@ -9,6 +9,8 @@ pub mod signer;
 pub mod sourcing;
 pub mod templates;
 
+use std::net::TcpListener;
+
 pub use build::Profile;
 pub use errors::Error;
 pub use git::{Git, GitHub, Release};
@@ -57,6 +59,15 @@ pub fn target() -> Result<&'static str, Error> {
 		&_ => {},
 	}
 	Err(Error::UnsupportedPlatform { arch: ARCH, os: OS })
+}
+
+/// Finds an available port by binding to port 0 and retrieving the assigned port.
+pub fn find_free_port() -> u16 {
+	TcpListener::bind("127.0.0.1:0")
+		.expect("Failed to bind to an available port")
+		.local_addr()
+		.expect("Failed to retrieve local address")
+		.port()
 }
 
 #[cfg(test)]

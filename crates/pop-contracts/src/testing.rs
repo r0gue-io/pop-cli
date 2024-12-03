@@ -4,7 +4,6 @@ use crate::{create_smart_contract, Contract};
 use anyhow::Result;
 use std::{
 	fs::{copy, create_dir},
-	net::TcpListener,
 	path::Path,
 };
 
@@ -37,13 +36,4 @@ where
 	copy(contract_file, target_contract_dir.join("ink/testing.contract"))?;
 	copy(metadata_file, target_contract_dir.join("ink/testing.json"))?;
 	Ok(())
-}
-
-/// Finds an available port by binding to port 0 and retrieving the assigned port.
-pub fn find_free_port() -> u16 {
-	TcpListener::bind("127.0.0.1:0")
-		.expect("Failed to bind to an available port")
-		.local_addr()
-		.expect("Failed to retrieve local address")
-		.port()
 }
