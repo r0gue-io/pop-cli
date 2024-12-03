@@ -164,7 +164,7 @@ fn process_args(
 /// * `path` -  Location path of the project or contract artifact.
 /// * `label` - Label of the contract message to retrieve.
 /// * `args` - Argument values provided by the user.
-/// * `function_type` - Specifies whether to process arguments of messages or constructors
+/// * `function_type` - Specifies whether to process arguments of messages or constructors.
 pub fn process_function_args<P>(
 	path: P,
 	label: &str,
