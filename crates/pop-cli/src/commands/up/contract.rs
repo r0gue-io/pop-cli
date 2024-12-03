@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{
-	cli::{traits::Cli as _, Cli},
+	cli::{traits::Cli as _, Cli}, 
 	common::contracts::{check_contracts_node_and_prompt, has_contract_been_built},
 	style::style,
 };
@@ -29,8 +29,10 @@ const FAILED: &str = "🚫 Deployment failed.";
 #[derive(Args, Clone)]
 pub struct UpContractCommand {
 	/// Path to the contract build directory.
-	#[arg(short = 'p', long, default_value = None)]
-	path: Option<PathBuf>,
+	#[arg(long,required = false)]
+	pub(crate) path: Option<PathBuf>,
+	#[arg(value_name = "PATH",required = false)]
+	pub(crate) path1: Option<PathBuf>,
 	/// The name of the contract constructor to call.
 	#[clap(name = "constructor", long, default_value = "new")]
 	constructor: String,
@@ -79,14 +81,21 @@ impl UpContractCommand {
 	/// Executes the command.
 	pub(crate) async fn execute(mut self) -> anyhow::Result<()> {
 		Cli.intro("Deploy a smart contract")?;
-
+		let path0 = self.path.clone();
+		let path1 = self.path1.clone();
+		let contract_path = match path0 {
+			Some(ref path) if path.to_str().unwrap().contains("./") => Some(path.to_owned()),
+			_ => {
+				path1
+			}
+		};
 		// Check if build exists in the specified "Contract build directory"
-		if !has_contract_been_built(self.path.as_deref()) {
+		if !has_contract_been_built(contract_path.clone().as_deref()) {
 			// Build the contract in release mode
 			Cli.warning("NOTE: contract has not yet been built.")?;
 			let spinner = spinner();
 			spinner.start("Building contract in RELEASE mode...");
-			let result = match build_smart_contract(self.path.as_deref(), true, Verbosity::Quiet) {
+			let result = match build_smart_contract(contract_path.clone().as_deref(), true, Verbosity::Quiet) {
 				Ok(result) => result,
 				Err(e) => {
 					Cli.outro_cancel(format!("🚫 An error occurred building your contract: {e}\nUse `pop build` to retry with build output."))?;
@@ -179,7 +188,7 @@ impl UpContractCommand {
 
 		// Otherwise instantiate.
 		let instantiate_exec = match set_up_deployment(UpOpts {
-			path: self.path.clone(),
+			path: contract_path.clone(),
 			constructor: self.constructor.clone(),
 			args: self.args.clone(),
 			value: self.value.clone(),
@@ -338,6 +347,7 @@ mod tests {
 	fn conversion_up_contract_command_to_up_opts_works() -> anyhow::Result<()> {
 		let command = UpContractCommand {
 			path: None,
+			path1: None,
 			constructor: "new".to_string(),
 			args: vec![],
 			value: "0".to_string(),
