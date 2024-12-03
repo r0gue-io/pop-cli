@@ -120,6 +120,11 @@ name = "collator-01"
 		.spawn()
 		.unwrap();
 
+	// If after 20 secs is still running probably execution is ok, or waiting for user response
+	sleep(Duration::from_secs(20)).await;
+
+	assert!(cmd.try_wait().unwrap().is_none(), "the process should still be running");
+
 	// pop call parachain --pallet System --extrinsic remark --args "0x11" --url
 	// ws://127.0.0.1:8833/ --suri //Alice --skip-confirm
 	Command::cargo_bin("pop")
@@ -142,10 +147,6 @@ name = "collator-01"
 		.assert()
 		.success();
 
-	// If after 20 secs is still running probably execution is ok, or waiting for user response
-	sleep(Duration::from_secs(20)).await;
-
-	assert!(cmd.try_wait().unwrap().is_none(), "the process should still be running");
 	// Stop the process
 	Cmd::new("kill").args(["-s", "TERM", &cmd.id().to_string()]).spawn()?;
 
