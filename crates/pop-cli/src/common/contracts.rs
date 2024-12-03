@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use cliclack::{confirm, log::warning, spinner};
-use pop_common::manifest::from_path;
+use pop_common::{manifest::from_path, sourcing::set_executable_permission};
 use pop_contracts::contracts_node_generator;
 use std::path::{Path, PathBuf};
 
@@ -53,8 +53,9 @@ pub async fn check_contracts_node_and_prompt(skip_confirm: bool) -> anyhow::Resu
 			let spinner = spinner();
 			spinner.start("📦 Sourcing substrate-contracts-node...");
 
-			binary.use_latest();
+			binary = contracts_node_generator(crate::cache()?, binary.latest()).await?;
 			binary.source(false, &(), true).await?;
+			set_executable_permission(binary.path())?;
 
 			spinner.stop(format!(
 				"✅ substrate-contracts-node successfully sourced. Cached at: {}",

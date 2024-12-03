@@ -179,11 +179,13 @@ mod tests {
 	use crate::{
 		contracts_node_generator, dry_run_gas_estimate_instantiate, errors::Error,
 		instantiate_smart_contract, mock_build_process, new_environment, run_contracts_node,
-		set_up_deployment, UpOpts,
+		set_up_deployment, testing::find_free_port, UpOpts,
 	};
 	use anyhow::Result;
+	use pop_common::set_executable_permission;
 	use sp_core::Bytes;
-	use std::{env, process::Command};
+	use std::{env, process::Command, time::Duration};
+	use tokio::time::sleep;
 
 	const CONTRACTS_NETWORK_URL: &str = "wss://rpc2.paseo.popnetwork.xyz";
 
@@ -333,7 +335,8 @@ mod tests {
 
 	#[tokio::test]
 	async fn call_works() -> Result<()> {
-		const LOCALHOST_URL: &str = "ws://127.0.0.1:9944";
+		let random_port = find_free_port();
+		let localhost_url = format!("ws://127.0.0.1:{}", random_port);
 		let temp_dir = new_environment("testing")?;
 		let current_dir = env::current_dir().expect("Failed to get current directory");
 		mock_build_process(
@@ -346,7 +349,10 @@ mod tests {
 
 		let binary = contracts_node_generator(cache.clone(), None).await?;
 		binary.source(false, &(), true).await?;
-		let process = run_contracts_node(binary.path(), None).await?;
+		set_executable_permission(binary.path())?;
+		let process = run_contracts_node(binary.path(), None, random_port).await?;
+		// Wait 5 secs more to give time for the node to be ready
+		sleep(Duration::from_millis(5000)).await;
 		// Instantiate a Smart Contract.
 		let instantiate_exec = set_up_deployment(UpOpts {
 			path: Some(temp_dir.path().join("testing")),
@@ -356,7 +362,7 @@ mod tests {
 			gas_limit: None,
 			proof_size: None,
 			salt: Some(Bytes::from(vec![0x00])),
-			url: Url::parse(LOCALHOST_URL)?,
+			url: Url::parse(&localhost_url)?,
 			suri: "//Alice".to_string(),
 		})
 		.await?;
@@ -371,7 +377,7 @@ mod tests {
 			value: "0".to_string(),
 			gas_limit: None,
 			proof_size: None,
-			url: Url::parse(LOCALHOST_URL)?,
+			url: Url::parse(&localhost_url)?,
 			suri: "//Alice".to_string(),
 			execute: false,
 		})
@@ -387,7 +393,7 @@ mod tests {
 			value: "0".to_string(),
 			gas_limit: None,
 			proof_size: None,
-			url: Url::parse(LOCALHOST_URL)?,
+			url: Url::parse(&localhost_url)?,
 			suri: "//Alice".to_string(),
 			execute: false,
 		})
@@ -395,7 +401,7 @@ mod tests {
 		let weight = dry_run_gas_estimate_call(&call_exec).await?;
 		assert!(weight.ref_time() > 0);
 		assert!(weight.proof_size() > 0);
-		call_smart_contract(call_exec, weight, &Url::parse(LOCALHOST_URL)?).await?;
+		call_smart_contract(call_exec, weight, &Url::parse(&localhost_url)?).await?;
 		// Assert that the value has been flipped.
 		query = dry_run_call(&query_exec).await?;
 		assert_eq!(query, "Ok(true)");
