@@ -2,13 +2,13 @@
 
 use anyhow::Result;
 use assert_cmd::{cargo::cargo_bin, Command};
-use pop_common::templates::Template;
+use pop_common::{find_free_port, templates::Template};
 use pop_parachains::Parachain;
 use std::{fs, path::Path, process::Command as Cmd};
 use strum::VariantArray;
 use tokio::time::{sleep, Duration};
 
-/// Test the parachain lifecycle: new, build, up
+/// Test the parachain lifecycle: new, build, up, call
 #[tokio::test]
 async fn parachain_lifecycle() -> Result<()> {
 	let temp = tempfile::tempdir().unwrap();
@@ -90,14 +90,17 @@ async fn parachain_lifecycle() -> Result<()> {
 	// Overwrite the config file to manually set the port to test pop call parachain.
 	let network_toml_path = temp_parachain_dir.join("network.toml");
 	fs::create_dir_all(&temp_parachain_dir)?;
+	let random_port = find_free_port();
+	let localhost_url = format!("ws://127.0.0.1:{}", random_port);
 	fs::write(
 		&network_toml_path,
-		r#"[relaychain]
+		format!(
+			r#"[relaychain]
 chain = "paseo-local"
 
 [[relaychain.nodes]]
 name = "alice"
-rpc_port = 8833
+rpc_port = {}
 validator = true
 
 [[relaychain.nodes]]
@@ -111,6 +114,8 @@ default_command = "./target/release/parachain-template-node"
 [[parachains.collators]]
 name = "collator-01"
 "#,
+			random_port
+		),
 	)?;
 
 	// pop up parachain -p "./test_parachain"
@@ -126,7 +131,7 @@ name = "collator-01"
 	assert!(cmd.try_wait().unwrap().is_none(), "the process should still be running");
 
 	// pop call parachain --pallet System --extrinsic remark --args "0x11" --url
-	// ws://127.0.0.1:8833/ --suri //Alice --skip-confirm
+	// ws://127.0.0.1:random_port --suri //Alice --skip-confirm
 	Command::cargo_bin("pop")
 		.unwrap()
 		.args(&[
@@ -139,7 +144,24 @@ name = "collator-01"
 			"--args",
 			"0x11",
 			"--url",
-			"ws://127.0.0.1:8833/",
+			&localhost_url,
+			"--suri",
+			"//Alice",
+			"--skip-confirm",
+		])
+		.assert()
+		.success();
+
+	// pop call parachain --call 0x00000411 --url ws://127.0.0.1:8833 --suri //Alice --skip-confirm
+	Command::cargo_bin("pop")
+		.unwrap()
+		.args(&[
+			"call",
+			"parachain",
+			"--call",
+			"0x00000411",
+			"--url",
+			"ws://127.0.0.1:8833",
 			"--suri",
 			"//Alice",
 			"--skip-confirm",

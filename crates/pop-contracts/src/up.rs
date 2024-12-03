@@ -223,10 +223,10 @@ mod tests {
 	use super::*;
 	use crate::{
 		contracts_node_generator, errors::Error, mock_build_process, new_environment,
-		run_contracts_node, testing::find_free_port,
+		run_contracts_node,
 	};
 	use anyhow::Result;
-	use pop_common::set_executable_permission;
+	use pop_common::{find_free_port, set_executable_permission};
 	use std::{env, process::Command, time::Duration};
 	use tokio::time::sleep;
 	use url::Url;
