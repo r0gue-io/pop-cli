@@ -179,10 +179,10 @@ mod tests {
 	use crate::{
 		contracts_node_generator, dry_run_gas_estimate_instantiate, errors::Error,
 		instantiate_smart_contract, mock_build_process, new_environment, run_contracts_node,
-		set_up_deployment, testing::find_free_port, UpOpts,
+		set_up_deployment, UpOpts,
 	};
 	use anyhow::Result;
-	use pop_common::set_executable_permission;
+	use pop_common::{find_free_port, set_executable_permission};
 	use sp_core::Bytes;
 	use std::{env, process::Command, time::Duration};
 	use tokio::time::sleep;
