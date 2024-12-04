@@ -135,6 +135,7 @@ impl traits::Cli for Cli {
 
 /// A confirmation prompt using cliclack.
 struct Confirm(cliclack::Confirm);
+
 impl traits::Confirm for Confirm {
 	/// Sets the initially selected value.
 	fn initial_value(mut self, initial_value: bool) -> Self {
@@ -145,47 +146,11 @@ impl traits::Confirm for Confirm {
 	fn interact(&mut self) -> Result<bool> {
 		self.0.interact()
 	}
-	/// Sets the initially selected value.
-	fn initial_value(mut self, initial_value: bool) -> Self {
-		self.0 = self.0.initial_value(initial_value);
-		self
-	}
 }
 
 /// A input prompt using cliclack.
 struct Input(cliclack::Input);
-impl traits::Input for Input {
-	/// Sets the default value for the input.
-	fn default_input(mut self, value: &str) -> Self {
-		self.0 = self.0.default_input(value);
-		self
-	}
-	/// Starts the prompt interaction.
-	fn interact(&mut self) -> Result<String> {
-		self.0.interact()
-	}
-	/// Sets the placeholder (hint) text for the input.
-	fn placeholder(mut self, placeholder: &str) -> Self {
-		self.0 = self.0.placeholder(placeholder);
-		self
-	}
-	/// Sets whether the input is required.
-	fn required(mut self, required: bool) -> Self {
-		self.0 = self.0.required(required);
-		self
-	}
-	/// Sets a validation callback for the input that is called when the user submits.
-	fn validate(
-		mut self,
-		validator: impl Fn(&String) -> std::result::Result<(), &'static str> + 'static,
-	) -> Self {
-		self.0 = self.0.validate(validator);
-		self
-	}
-}
 
-/// A input prompt using cliclack.
-struct Input(cliclack::Input);
 impl traits::Input for Input {
 	/// Sets the default value for the input.
 	fn default_input(mut self, value: &str) -> Self {
@@ -242,22 +207,7 @@ impl<T: Clone + Eq> traits::MultiSelect<T> for MultiSelect<T> {
 struct Select<T: Clone + Eq>(cliclack::Select<T>);
 
 impl<T: Clone + Eq> traits::Select<T> for Select<T> {
-	/// Starts the prompt interaction.
-	fn interact(&mut self) -> Result<T> {
-		self.0.interact()
-	}
-
-	/// Adds an item to the selection prompt.
-	fn item(mut self, value: T, label: impl Display, hint: impl Display) -> Self {
-		self.0 = self.0.item(value, label, hint);
-		self
-	}
-}
-
-/// A select prompt using cliclack.
-struct Select<T: Clone + Eq>(cliclack::Select<T>);
-
-impl<T: Clone + Eq> traits::Select<T> for Select<T> {
+	/// Sets the initially selected value.
 	fn initial_value(mut self, initial_value: T) -> Self {
 		self.0 = self.0.initial_value(initial_value);
 		self
@@ -352,18 +302,6 @@ pub(crate) mod tests {
 		) -> Self {
 			self.select_expectation
 				.insert(0, (prompt.to_string(), required, collect, items, item));
-			self
-		}
-
-		pub(crate) fn expect_select<T>(
-			mut self,
-			prompt: impl Display,
-			required: Option<bool>,
-			collect: bool,
-			items: Option<Vec<(String, String)>>,
-			item: usize,
-		) -> Self {
-			self.select_expectation = Some((prompt.to_string(), required, collect, items, item));
 			self
 		}
 

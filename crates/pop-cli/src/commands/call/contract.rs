@@ -612,7 +612,7 @@ mod tests {
 				"Do you want to perform another call using the existing smart contract?",
 				true,
 			)
-			.expect_select::<PathBuf>(
+			.expect_select(
 				"Select the message to call:",
 				Some(false),
 				true,
@@ -669,8 +669,7 @@ mod tests {
 		];
 		// The inputs are processed in reverse order.
 		let mut cli = MockCli::new()
-			.expect_input("Signer calling the contract:", "//Alice".into())
-			.expect_select::<PathBuf>(
+			.expect_select(
 				"Select the message to call:",
 				Some(false),
 				true,
@@ -678,17 +677,19 @@ mod tests {
 				1, // "get" message
 			)
 			.expect_input(
-				"Provide the on-chain contract address:",
-				"15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".into(),
+				"Where is your project or contract artifact located?",
+				temp_dir.path().join("testing").display().to_string(),
 			)
 			.expect_input(
 				"Where is your contract deployed?",
 				"wss://rpc1.paseo.popnetwork.xyz".into(),
 			)
 			.expect_input(
-				"Where is your project or contract artifact located?",
-				temp_dir.path().join("testing").display().to_string(),
-			).expect_info(format!(
+				"Provide the on-chain contract address:",
+				"15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".into(),
+			)
+			.expect_input("Signer calling the contract:", "//Alice".into())
+			.expect_info(format!(
 	            "pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message get --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice",
 	            temp_dir.path().join("testing").display().to_string(),
 	        ));
@@ -750,13 +751,7 @@ mod tests {
 		// The inputs are processed in reverse order.
 		let mut cli = MockCli::new()
 			.expect_confirm("Do you want to execute the call? (Selecting 'No' will perform a dry run)", true)
-			.expect_input("Signer calling the contract:", "//Alice".into())
-			.expect_input("Enter the proof size limit:", "".into()) // Only if call
-			.expect_input("Enter the gas limit:", "".into()) // Only if call
-			.expect_input("Value to transfer to the call:", "50".into()) // Only if payable
-			.expect_input("Enter the value for the parameter: number", "2".into()) // Args for specific_flip
-			.expect_input("Enter the value for the parameter: new_value", "true".into()) // Args for specific_flip
-			.expect_select::<PathBuf>(
+			.expect_select(
 				"Select the message to call:",
 				Some(false),
 				true,
@@ -764,17 +759,24 @@ mod tests {
 				2, // "specific_flip" message
 			)
 			.expect_input(
-				"Provide the on-chain contract address:",
-				"15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".into(),
+				"Where is your project or contract artifact located?",
+				temp_dir.path().join("testing").display().to_string(),
 			)
 			.expect_input(
 				"Where is your contract deployed?",
 				"wss://rpc1.paseo.popnetwork.xyz".into(),
 			)
 			.expect_input(
-				"Where is your project or contract artifact located?",
-				temp_dir.path().join("testing").display().to_string(),
-			).expect_info(format!(
+				"Provide the on-chain contract address:",
+				"15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".into(),
+			)
+			.expect_input("Enter the value for the parameter: new_value", "true".into()) // Args for specific_flip
+			.expect_input("Enter the value for the parameter: number", "2".into()) // Args for specific_flip
+			.expect_input("Value to transfer to the call:", "50".into()) // Only if payable
+			.expect_input("Enter the gas limit:", "".into()) // Only if call
+			.expect_input("Enter the proof size limit:", "".into()) // Only if call
+			.expect_input("Signer calling the contract:", "//Alice".into())
+			.expect_info(format!(
 				"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message specific_flip --args \"true\", \"2\" --value 50 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --execute",
 				temp_dir.path().join("testing").display().to_string(),
 			));
@@ -837,11 +839,7 @@ mod tests {
 		];
 		// The inputs are processed in reverse order.
 		let mut cli = MockCli::new()
-			.expect_input("Signer calling the contract:", "//Alice".into())
-			.expect_input("Value to transfer to the call:", "50".into()) // Only if payable
-			.expect_input("Enter the value for the parameter: number", "2".into()) // Args for specific_flip
-			.expect_input("Enter the value for the parameter: new_value", "true".into()) // Args for specific_flip
-			.expect_select::<PathBuf>(
+			.expect_select(
 				"Select the message to call:",
 				Some(false),
 				true,
@@ -849,17 +847,22 @@ mod tests {
 				2, // "specific_flip" message
 			)
 			.expect_input(
-				"Provide the on-chain contract address:",
-				"15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".into(),
+				"Where is your project or contract artifact located?",
+				temp_dir.path().join("testing").display().to_string(),
 			)
 			.expect_input(
 				"Where is your contract deployed?",
 				"wss://rpc1.paseo.popnetwork.xyz".into(),
 			)
 			.expect_input(
-				"Where is your project or contract artifact located?",
-				temp_dir.path().join("testing").display().to_string(),
-			).expect_info(format!(
+				"Provide the on-chain contract address:",
+				"15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".into(),
+			)
+			.expect_input("Enter the value for the parameter: new_value", "true".into()) // Args for specific_flip
+			.expect_input("Enter the value for the parameter: number", "2".into()) // Args for specific_flip
+			.expect_input("Value to transfer to the call:", "50".into()) // Only if payable
+			.expect_input("Signer calling the contract:", "//Alice".into())
+			.expect_info(format!(
 				"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message specific_flip --args \"true\", \"2\" --value 50 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --execute",
 				temp_dir.path().join("testing").display().to_string(),
 			));

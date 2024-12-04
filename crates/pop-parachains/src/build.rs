@@ -78,7 +78,7 @@ pub fn binary_path(target_path: &Path, node_path: &Path) -> Result<PathBuf, Erro
 /// * `plain_chain_spec` - Location of the plain_parachain_spec file to be generated.
 /// * `default_bootnode` - Whether to include localhost as a bootnode.
 /// * `chain` - The chain specification. It can be one of the predefined ones (e.g. dev, local or a
-///		custom one) or the path to an existing chain spec.
+///   custom one) or the path to an existing chain spec.
 pub fn generate_plain_chain_spec(
 	binary_path: &Path,
 	plain_chain_spec: &Path,
