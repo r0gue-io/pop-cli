@@ -98,8 +98,6 @@ pub fn add_crate_to_workspace(workspace_toml: &Path, crate_path: &Path) -> anyho
 	Ok(())
 }
 
-use std::fs;
-
 /// Adds a "production" profile to the Cargo.toml manifest if it doesn't already exist.
 ///
 /// # Arguments
@@ -108,7 +106,7 @@ pub fn add_production_profile(project: &Path) -> anyhow::Result<()> {
 	let root_toml_path = project.join("Cargo.toml");
 	let mut manifest = Manifest::from_path(&root_toml_path)?;
 	// Check if the `production` profile already exists.
-	if manifest.profile.custom.get("production").is_some() {
+	if manifest.profile.custom.contains_key("production") {
 		return Ok(());
 	}
 	// Create the production profile with required fields.
@@ -475,7 +473,6 @@ mod tests {
 
 		// Call the function to add the production profile
 		let result = add_production_profile(project_path);
-		println!("{:?}", result);
 		assert!(result.is_ok());
 
 		// Verify the production profile is added

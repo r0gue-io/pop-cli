@@ -30,7 +30,7 @@ pub(crate) struct BuildArgs {
 	#[arg(short = 'p', long)]
 	pub(crate) package: Option<String>,
 	/// For production, always build in release mode to exclude debug features.
-	#[clap(short = 'r', long, conflicts_with = "profile")]
+	#[clap(short, long, conflicts_with = "profile")]
 	pub(crate) release: bool,
 	/// Build profile [default: debug].
 	#[clap(long, value_enum)]
@@ -145,7 +145,7 @@ mod tests {
 		for package in [None, Some(name.to_string())] {
 			for release in [true, false] {
 				for profile in Profile::VARIANTS {
-					let profile = if release { Profile::Release } else { Profile::Debug };
+					let profile = if release { Profile::Release } else { profile.clone() };
 					let project = if package.is_some() { "package" } else { "project" };
 					let mut cli = MockCli::new()
 						.expect_intro(format!("Building your {project}"))

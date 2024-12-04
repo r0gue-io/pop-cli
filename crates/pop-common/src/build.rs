@@ -40,11 +40,7 @@ impl Profile {
 
 impl From<Profile> for bool {
 	fn from(value: Profile) -> Self {
-		if value == Profile::Debug {
-			false
-		} else {
-			true
-		}
+		value != Profile::Debug
 	}
 }
 
