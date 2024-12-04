@@ -19,9 +19,9 @@ use std::{
 	env::current_dir,
 	fs::create_dir_all,
 	path::{Path, PathBuf},
-	thread::sleep,
-	time::Duration,
 };
+#[cfg(not(test))]
+use std::{thread::sleep, time::Duration};
 use strum::{EnumMessage, VariantArray};
 use strum_macros::{AsRefStr, Display, EnumString};
 
@@ -473,12 +473,12 @@ impl BuildSpec {
 			..
 		} = self;
 		// Ensure binary is built.
-		let binary_path = ensure_binary_exists(cli, &profile)?;
+		let binary_path = ensure_binary_exists(cli, profile)?;
 		let spinner = spinner();
 		spinner.start("Generating chain specification...");
 
 		// Generate chain spec.
-		generate_plain_chain_spec(&binary_path, &output_file, default_bootnode, &chain)?;
+		generate_plain_chain_spec(&binary_path, output_file, default_bootnode, chain)?;
 		// Customize spec based on input.
 		self.customize()?;
 		generated_files.push(format!(
@@ -494,7 +494,7 @@ impl BuildSpec {
 			.unwrap_or(DEFAULT_SPEC_NAME)
 			.trim_end_matches(".json");
 		let raw_spec_name = format!("{spec_name}-raw.json");
-		let raw_chain_spec = generate_raw_chain_spec(&binary_path, &output_file, &raw_spec_name)?;
+		let raw_chain_spec = generate_raw_chain_spec(&binary_path, output_file, &raw_spec_name)?;
 		generated_files.push(format!(
 			"Raw chain specification file generated at: {}",
 			raw_chain_spec.display()
@@ -534,7 +534,7 @@ impl BuildSpec {
 	fn customize(&self) -> anyhow::Result<()> {
 		let mut chain_spec = ChainSpec::from(&self.output_file)?;
 		chain_spec.replace_para_id(self.id)?;
-		chain_spec.replace_relay_chain(&self.relay.to_string())?;
+		chain_spec.replace_relay_chain(&self.relay.as_ref())?;
 		chain_spec.replace_chain_type(&self.chain_type.to_string())?;
 		chain_spec.replace_protocol_id(&self.protocol_id)?;
 		chain_spec.to_file(&self.output_file)?;
@@ -803,8 +803,8 @@ mod tests {
 		// Create a temporary file to act as the existing chain spec file.
 		let temp_dir = tempdir()?;
 		let chain_spec_path = temp_dir.path().join("existing-chain-spec.json");
-		std::fs::write(&chain_spec_path, "{}")?; // Write a dummy JSON to the file.
-										   // Use the deprcrated release flag.
+		std::fs::write(&chain_spec_path, "{}")?;
+		// Use the deprcrated release flag.
 		let release = true;
 		let build_spec_cmd = BuildSpecCommand {
 			release,
@@ -817,6 +817,7 @@ mod tests {
 				false,
 			).expect_warning("NOTE: release flag is deprecated. Use `--profile` instead.");
 		let build_spec = build_spec_cmd.configure_build_spec(&mut cli).await?;
+		assert_eq!(build_spec.profile, release.into());
 		cli.verify()?;
 		Ok(())
 	}
