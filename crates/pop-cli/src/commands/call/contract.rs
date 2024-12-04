@@ -606,11 +606,11 @@ mod tests {
 			.expect_warning("Your call has not been executed.")
 			.expect_confirm(
 				"Do you want to perform another call using the existing smart contract?",
-				false,
+				true,
 			)
 			.expect_confirm(
 				"Do you want to perform another call using the existing smart contract?",
-				true,
+				false,
 			)
 			.expect_select(
 				"Select the message to call:",
