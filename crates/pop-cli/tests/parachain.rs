@@ -118,17 +118,15 @@ name = "collator-01"
 		),
 	)?;
 
-	// pop up parachain -p "./test_parachain"
+	// pop up parachain -f ./network.toml --skip-confirm
 	let mut cmd = Cmd::new(cargo_bin("pop"))
 		.current_dir(&temp_parachain_dir)
 		.args(&["up", "parachain", "-f", "./network.toml", "--skip-confirm"])
 		.spawn()
 		.unwrap();
 
-	// If after 20 secs is still running probably execution is ok, or waiting for user response
-	sleep(Duration::from_secs(20)).await;
-
-	assert!(cmd.try_wait().unwrap().is_none(), "the process should still be running");
+	// Wait for the networks to initialize. Increased timeout to accommodate CI environment delays.
+	sleep(Duration::from_secs(50)).await;
 
 	// pop call parachain --pallet System --extrinsic remark --args "0x11" --url
 	// ws://127.0.0.1:random_port --suri //Alice --skip-confirm
@@ -152,7 +150,8 @@ name = "collator-01"
 		.assert()
 		.success();
 
-	// pop call parachain --call 0x00000411 --url ws://127.0.0.1:8833 --suri //Alice --skip-confirm
+	// pop call parachain --call 0x00000411 --url ws://127.0.0.1:random_port --suri //Alice
+	// --skip-confirm
 	Command::cargo_bin("pop")
 		.unwrap()
 		.args(&[
@@ -161,7 +160,7 @@ name = "collator-01"
 			"--call",
 			"0x00000411",
 			"--url",
-			"ws://127.0.0.1:8833",
+			&localhost_url,
 			"--suri",
 			"//Alice",
 			"--skip-confirm",
@@ -169,6 +168,7 @@ name = "collator-01"
 		.assert()
 		.success();
 
+	assert!(cmd.try_wait().unwrap().is_none(), "the process should still be running");
 	// Stop the process
 	Cmd::new("kill").args(["-s", "TERM", &cmd.id().to_string()]).spawn()?;
 
