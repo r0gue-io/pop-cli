@@ -5,7 +5,7 @@ use anyhow::{anyhow, Result};
 use clap::Args;
 use pop_parachains::{
 	construct_extrinsic, encode_call_data, find_extrinsic_by_name, find_pallet_by_name,
-	parse_chain_metadata, set_up_api, sign_and_submit_extrinsic,
+	parse_chain_metadata, set_up_client, sign_and_submit_extrinsic,
 	sign_and_submit_extrinsic_with_call_data, supported_actions, Action, DynamicPayload, Extrinsic,
 	OnlineClient, Pallet, Param, SubstrateConfig,
 };
@@ -53,8 +53,9 @@ impl CallParachainCommand {
 		let chain = self.configure_chain(&mut cli).await?;
 		// Execute the call if call_data is provided.
 		if let Some(call_data) = self.call_data.as_ref().cloned() {
-			if let Err(e) =
-				self.send_extrinsic_from_call_data(&chain.api, &call_data, &mut cli::Cli).await
+			if let Err(e) = self
+				.send_extrinsic_from_call_data(&chain.client, &call_data, &mut cli::Cli)
+				.await
 			{
 				display_message(&e.to_string(), false, &mut cli::Cli)?;
 			}
@@ -71,8 +72,8 @@ impl CallParachainCommand {
 				// Display the configured call.
 				cli.info(call.display(&chain))?;
 				// Prepare the extrinsic.
-				let tx = match call.prepare_extrinsic(&chain.api, &mut cli).await {
-					Ok(api) => api,
+				let tx = match call.prepare_extrinsic(&chain.client, &mut cli).await {
+					Ok(payload) => payload,
 					Err(e) => {
 						display_message(&e.to_string(), false, &mut cli)?;
 						break;
@@ -80,7 +81,7 @@ impl CallParachainCommand {
 				};
 
 				// Send the extrinsic.
-				if let Err(e) = call.send_extrinsic(&chain.api, tx, &mut cli).await {
+				if let Err(e) = call.submit_extrinsic(&chain.client, tx, &mut cli).await {
 					display_message(&e.to_string(), false, &mut cli)?;
 					break;
 				}
@@ -115,11 +116,11 @@ impl CallParachainCommand {
 		};
 
 		// Parse metadata from chain url.
-		let api = set_up_api(url.as_str()).await?;
-		let pallets = parse_chain_metadata(&api).await.map_err(|e| {
+		let client = set_up_client(url.as_str()).await?;
+		let pallets = parse_chain_metadata(&client).await.map_err(|e| {
 			anyhow!(format!("Unable to fetch the chain metadata: {}", e.to_string()))
 		})?;
-		Ok(Chain { url, api, pallets })
+		Ok(Chain { url, client, pallets })
 	}
 
 	/// Configure the call based on command line arguments/call UI.
@@ -176,7 +177,7 @@ impl CallParachainCommand {
 			let args = if self.clone().args.is_empty() {
 				let mut args = Vec::new();
 				for param in &extrinsic.params {
-					let input = prompt_for_param(&chain.api, cli, param)?;
+					let input = prompt_for_param(&chain.client, cli, param)?;
 					args.push(input);
 				}
 				args
@@ -204,7 +205,7 @@ impl CallParachainCommand {
 	// Sends an extrinsic to the chain using the call data.
 	async fn send_extrinsic_from_call_data(
 		&mut self,
-		api: &OnlineClient<SubstrateConfig>,
+		client: &OnlineClient<SubstrateConfig>,
 		call_data: &str,
 		cli: &mut impl cli::traits::Cli,
 	) -> Result<()> {
@@ -230,7 +231,7 @@ impl CallParachainCommand {
 		}
 		let spinner = cliclack::spinner();
 		spinner.start("Signing and submitting the extrinsic, please wait...");
-		let result = sign_and_submit_extrinsic_with_call_data(api.clone(), call_data, &suri)
+		let result = sign_and_submit_extrinsic_with_call_data(client.clone(), call_data, &suri)
 			.await
 			.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
 
@@ -258,7 +259,7 @@ impl CallParachainCommand {
 
 struct Chain {
 	url: Url,
-	api: OnlineClient<SubstrateConfig>,
+	client: OnlineClient<SubstrateConfig>,
 	pallets: Vec<Pallet>,
 }
 
@@ -284,7 +285,7 @@ impl CallParachain {
 	// Prepares the extrinsic or query.
 	async fn prepare_extrinsic(
 		&self,
-		api: &OnlineClient<SubstrateConfig>,
+		client: &OnlineClient<SubstrateConfig>,
 		cli: &mut impl Cli,
 	) -> Result<DynamicPayload> {
 		let tx = match construct_extrinsic(
@@ -299,14 +300,14 @@ impl CallParachain {
 				return Err(anyhow!("Error: {}", e));
 			},
 		};
-		cli.info(format!("Encoded call data: {}", encode_call_data(api, &tx)?))?;
+		cli.info(format!("Encoded call data: {}", encode_call_data(client, &tx)?))?;
 		Ok(tx)
 	}
 
 	// Sign and submit an extrinsic.
-	async fn send_extrinsic(
+	async fn submit_extrinsic(
 		&mut self,
-		api: &OnlineClient<SubstrateConfig>,
+		client: &OnlineClient<SubstrateConfig>,
 		tx: DynamicPayload,
 		cli: &mut impl Cli,
 	) -> Result<()> {
@@ -327,7 +328,7 @@ impl CallParachain {
 		}
 		let spinner = cliclack::spinner();
 		spinner.start("Signing and submitting the extrinsic, please wait...");
-		let result = sign_and_submit_extrinsic(api.clone(), tx, &self.suri)
+		let result = sign_and_submit_extrinsic(client.clone(), tx, &self.suri)
 			.await
 			.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
 
@@ -375,7 +376,7 @@ async fn prompt_predefined_actions(
 
 // Prompts the user for the value of a parameter.
 fn prompt_for_param(
-	api: &OnlineClient<SubstrateConfig>,
+	client: &OnlineClient<SubstrateConfig>,
 	cli: &mut impl Cli,
 	param: &Param,
 ) -> Result<String> {
@@ -389,27 +390,27 @@ fn prompt_for_param(
 		{
 			return Ok("None()".to_string());
 		}
-		let value = get_param_value(api, cli, param)?;
+		let value = get_param_value(client, cli, param)?;
 		Ok(format!("Some({})", value))
 	} else {
-		get_param_value(api, cli, param)
+		get_param_value(client, cli, param)
 	}
 }
 
 // Resolves the value of a parameter based on its type.
 fn get_param_value(
-	api: &OnlineClient<SubstrateConfig>,
+	client: &OnlineClient<SubstrateConfig>,
 	cli: &mut impl Cli,
 	param: &Param,
 ) -> Result<String> {
 	if param.sub_params.is_empty() {
 		prompt_for_primitive_param(cli, param)
 	} else if param.is_variant {
-		prompt_for_variant_param(api, cli, param)
+		prompt_for_variant_param(client, cli, param)
 	} else if param.is_tuple {
-		prompt_for_tuple_param(api, cli, param)
+		prompt_for_tuple_param(client, cli, param)
 	} else {
-		prompt_for_composite_param(api, cli, param)
+		prompt_for_composite_param(client, cli, param)
 	}
 }
 
@@ -424,7 +425,7 @@ fn prompt_for_primitive_param(cli: &mut impl Cli, param: &Param) -> Result<Strin
 // Prompt the user to select the value of the Variant parameter and recursively prompt for nested
 // fields. Output example: Id(5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY) for the Id variant.
 fn prompt_for_variant_param(
-	api: &OnlineClient<SubstrateConfig>,
+	client: &OnlineClient<SubstrateConfig>,
 	cli: &mut impl Cli,
 	param: &Param,
 ) -> Result<String> {
@@ -439,7 +440,7 @@ fn prompt_for_variant_param(
 	if !selected_variant.sub_params.is_empty() {
 		let mut field_values = Vec::new();
 		for field_arg in &selected_variant.sub_params {
-			let field_value = prompt_for_param(api, cli, field_arg)?;
+			let field_value = prompt_for_param(client, cli, field_arg)?;
 			field_values.push(field_value);
 		}
 		Ok(format!("{}({})", selected_variant.name, field_values.join(", ")))
@@ -450,13 +451,13 @@ fn prompt_for_variant_param(
 
 // Recursively prompt the user for all the nested fields in a Composite type.
 fn prompt_for_composite_param(
-	api: &OnlineClient<SubstrateConfig>,
+	client: &OnlineClient<SubstrateConfig>,
 	cli: &mut impl Cli,
 	param: &Param,
 ) -> Result<String> {
 	let mut field_values = Vec::new();
 	for field_arg in &param.sub_params {
-		let field_value = prompt_for_param(api, cli, field_arg)?;
+		let field_value = prompt_for_param(client, cli, field_arg)?;
 		// Example: Param { name: "Id", type_name: "AccountId32 ([u8;32])", is_optional: false,
 		// sub_params: [Param { name: "Id", type_name: "[u8;32]", is_optional: false, sub_params:
 		// [], is_variant: false }], is_variant: false }
@@ -475,13 +476,13 @@ fn prompt_for_composite_param(
 
 // Recursively prompt the user for the tuple values.
 fn prompt_for_tuple_param(
-	api: &OnlineClient<SubstrateConfig>,
+	client: &OnlineClient<SubstrateConfig>,
 	cli: &mut impl Cli,
 	param: &Param,
 ) -> Result<String> {
 	let mut tuple_values = Vec::new();
 	for tuple_param in param.sub_params.iter() {
-		let tuple_value = prompt_for_param(api, cli, tuple_param)?;
+		let tuple_value = prompt_for_param(client, cli, tuple_param)?;
 		tuple_values.push(tuple_value);
 	}
 	Ok(format!("({})", tuple_values.join(", ")))
@@ -640,7 +641,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn prepare_extrinsic_works() -> Result<()> {
-		let api = set_up_api("wss://rpc1.paseo.popnetwork.xyz").await?;
+		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
 		let mut call_config = CallParachain {
 			pallet: Pallet {
 				name: "WrongName".to_string(),
@@ -660,18 +661,18 @@ mod tests {
 		let mut cli = MockCli::new();
 		// Error, wrong name of the pallet.
 		assert!(
-			matches!(call_config.prepare_extrinsic(&api, &mut cli).await, Err(message) if message.to_string().contains("Failed to encode call data. Metadata Error: Pallet with name WrongName not found"))
+			matches!(call_config.prepare_extrinsic(&client, &mut cli).await, Err(message) if message.to_string().contains("Failed to encode call data. Metadata Error: Pallet with name WrongName not found"))
 		);
-		let pallets = parse_chain_metadata(&api).await?;
+		let pallets = parse_chain_metadata(&client).await?;
 		call_config.pallet = find_pallet_by_name(&pallets, "System").await?;
 		// Error, wrong name of the extrinsic.
 		assert!(
-			matches!(call_config.prepare_extrinsic(&api, &mut cli).await, Err(message) if message.to_string().contains("Failed to encode call data. Metadata Error: Call with name WrongName not found"))
+			matches!(call_config.prepare_extrinsic(&client, &mut cli).await, Err(message) if message.to_string().contains("Failed to encode call data. Metadata Error: Call with name WrongName not found"))
 		);
 		// Success, extrinsic and pallet specified.
 		cli = MockCli::new().expect_info("Encoded call data: 0x00000411");
 		call_config.extrinsic = find_extrinsic_by_name(&pallets, "System", "remark").await?;
-		let tx = call_config.prepare_extrinsic(&api, &mut cli).await?;
+		let tx = call_config.prepare_extrinsic(&client, &mut cli).await?;
 		assert_eq!(tx.call_name(), "remark");
 		assert_eq!(tx.pallet_name(), "System");
 
@@ -679,9 +680,9 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn user_cancel_send_extrinsic_works() -> Result<()> {
-		let api = set_up_api("wss://rpc1.paseo.popnetwork.xyz").await?;
-		let pallets = parse_chain_metadata(&api).await?;
+	async fn user_cancel_submit_extrinsic_works() -> Result<()> {
+		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
+		let pallets = parse_chain_metadata(&client).await?;
 		let mut call_config = CallParachain {
 			pallet: find_pallet_by_name(&pallets, "System").await?,
 			extrinsic: find_extrinsic_by_name(&pallets, "System", "remark").await?,
@@ -694,15 +695,15 @@ mod tests {
 			.expect_outro_cancel(
 				"Extrinsic remark was not submitted. Operation canceled by the user.",
 			);
-		let tx = call_config.prepare_extrinsic(&api, &mut cli).await?;
-		call_config.send_extrinsic(&api, tx, &mut cli).await?;
+		let tx = call_config.prepare_extrinsic(&client, &mut cli).await?;
+		call_config.submit_extrinsic(&client, tx, &mut cli).await?;
 
 		cli.verify()
 	}
 
 	#[tokio::test]
 	async fn user_cancel_send_extrinsic_from_call_data_works() -> Result<()> {
-		let api = set_up_api("wss://rpc1.paseo.popnetwork.xyz").await?;
+		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
 		let mut call_config = CallParachainCommand {
 			pallet: None,
 			extrinsic: None,
@@ -716,7 +717,9 @@ mod tests {
 			.expect_input("Signer of the extrinsic:", "//Bob".into())
 			.expect_confirm("Do you want to submit the extrinsic?", false)
 			.expect_outro_cancel("Extrinsic with call data 0x00000411 was not submitted. Operation canceled by the user.");
-		call_config.send_extrinsic_from_call_data(&api, "0x00000411", &mut cli).await?;
+		call_config
+			.send_extrinsic_from_call_data(&client, "0x00000411", &mut cli)
+			.await?;
 
 		cli.verify()
 	}
@@ -768,8 +771,8 @@ mod tests {
 
 	#[tokio::test]
 	async fn prompt_predefined_actions_works() -> Result<()> {
-		let api = set_up_api("wss://rpc1.paseo.popnetwork.xyz").await?;
-		let pallets = parse_chain_metadata(&api).await?;
+		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
+		let pallets = parse_chain_metadata(&client).await?;
 		let mut cli = MockCli::new().expect_select::<Pallet>(
 			"What would you like to do?",
 			Some(true),
@@ -794,8 +797,8 @@ mod tests {
 
 	#[tokio::test]
 	async fn prompt_for_param_works() -> Result<()> {
-		let api = set_up_api("wss://rpc1.paseo.popnetwork.xyz").await?;
-		let pallets = parse_chain_metadata(&api).await?;
+		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
+		let pallets = parse_chain_metadata(&client).await?;
 		// Using NFT mint extrinsic to test the majority of subfunctions
 		let extrinsic = find_extrinsic_by_name(&pallets, "Nfts", "mint").await?;
 		let mut cli = MockCli::new()
@@ -837,7 +840,7 @@ mod tests {
 		// Test all the extrinsic params
 		let mut params: Vec<String> = Vec::new();
 		for param in extrinsic.params {
-			params.push(prompt_for_param(&api, &mut cli, &param)?);
+			params.push(prompt_for_param(&client, &mut cli, &param)?);
 		}
 		assert_eq!(params.len(), 4);
 		assert_eq!(params[0], "0".to_string()); // collection: test primitive
@@ -863,7 +866,7 @@ mod tests {
 		// Test all the extrinsic params
 		let mut params: Vec<String> = Vec::new();
 		for param in extrinsic.params {
-			params.push(prompt_for_param(&api, &mut cli, &param)?);
+			params.push(prompt_for_param(&client, &mut cli, &param)?);
 		}
 		assert_eq!(params.len(), 3);
 		assert_eq!(params[0], "(0, 0)".to_string()); // task: test tuples

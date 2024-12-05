@@ -14,11 +14,10 @@ pub mod metadata;
 ///
 /// # Arguments
 /// * `url` - Endpoint of the node.
-pub async fn set_up_api(url: &str) -> Result<OnlineClient<SubstrateConfig>, Error> {
-	let api = OnlineClient::<SubstrateConfig>::from_url(url)
+pub async fn set_up_client(url: &str) -> Result<OnlineClient<SubstrateConfig>, Error> {
+	OnlineClient::<SubstrateConfig>::from_url(url)
 		.await
-		.map_err(|e| Error::ApiConnectionFailure(e.to_string()))?;
-	Ok(api)
+		.map_err(|e| Error::ConnectionFailure(e.to_string()))
 }
 
 /// Constructs a dynamic extrinsic payload for a specified pallet and extrinsic.
@@ -39,16 +38,16 @@ pub async fn construct_extrinsic(
 /// Signs and submits a given extrinsic to the blockchain.
 ///
 /// # Arguments
-/// * `api` - Reference to an `OnlineClient` connected to the chain.
+/// * `client` - Reference to an `OnlineClient` connected to the chain.
 /// * `tx` - The transaction to be signed and submitted.
 /// * `suri` - The secret URI (e.g., mnemonic or private key) for signing the extrinsic.
 pub async fn sign_and_submit_extrinsic(
-	api: OnlineClient<SubstrateConfig>,
+	client: OnlineClient<SubstrateConfig>,
 	tx: DynamicPayload,
 	suri: &str,
 ) -> Result<String, Error> {
 	let signer = create_signer(suri)?;
-	let result = api
+	let result = client
 		.tx()
 		.sign_and_submit_then_watch_default(&tx, &signer)
 		.await
@@ -62,14 +61,14 @@ pub async fn sign_and_submit_extrinsic(
 /// Encodes the call data for a given extrinsic into a hexadecimal string.
 ///
 /// # Arguments
-/// * `api` - Reference to an `OnlineClient` connected to the chain.
+/// * `client` - Reference to an `OnlineClient` connected to the chain.
 /// * `tx` - The transaction whose call data will be encoded and returned.
 pub fn encode_call_data(
-	api: &OnlineClient<SubstrateConfig>,
+	client: &OnlineClient<SubstrateConfig>,
 	tx: &DynamicPayload,
 ) -> Result<String, Error> {
 	let call_data = tx
-		.encode_call_data(&api.metadata())
+		.encode_call_data(&client.metadata())
 		.map_err(|e| Error::CallDataEncodingError(e.to_string()))?;
 	Ok(format!("0x{}", hex::encode(call_data)))
 }
@@ -92,11 +91,11 @@ impl Payload for CallData {
 /// Signs and submits a given extrinsic to the blockchain.
 ///
 /// # Arguments
-/// * `api` - Reference to an `OnlineClient` connected to the chain.
+/// * `client` - Reference to an `OnlineClient` connected to the chain.
 /// * `call_data` -SCALE encoded bytes representing the call data of the transaction.
 /// * `suri` - The secret URI (e.g., mnemonic or private key) for signing the extrinsic.
 pub async fn sign_and_submit_extrinsic_with_call_data(
-	api: OnlineClient<SubstrateConfig>,
+	client: OnlineClient<SubstrateConfig>,
 	call_data: &str,
 	suri: &str,
 ) -> Result<String, Error> {
@@ -104,7 +103,7 @@ pub async fn sign_and_submit_extrinsic_with_call_data(
 	let call_data_bytes = hex::decode(call_data.trim_start_matches("0x"))
 		.map_err(|e| Error::CallDataDecodingError(e.to_string()))?;
 	let payload = CallData(call_data_bytes);
-	let result = api
+	let result = client
 		.tx()
 		.sign_and_submit_then_watch_default(&payload, &signer)
 		.await
@@ -119,16 +118,16 @@ pub async fn sign_and_submit_extrinsic_with_call_data(
 mod tests {
 	use super::*;
 
-	use crate::set_up_api;
+	use crate::set_up_client;
 	use anyhow::Result;
 
 	#[tokio::test]
-	async fn set_up_api_works() -> Result<()> {
+	async fn set_up_client_works() -> Result<()> {
 		assert!(matches!(
-			set_up_api("wss://wronguri.xyz").await,
-			Err(Error::ApiConnectionFailure(_))
+			set_up_client("wss://wronguri.xyz").await,
+			Err(Error::ConnectionFailure(_))
 		));
-		set_up_api("wss://rpc1.paseo.popnetwork.xyz").await?;
+		set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
 		Ok(())
 	}
 
@@ -161,9 +160,9 @@ mod tests {
 
 	#[tokio::test]
 	async fn encode_call_data_works() -> Result<()> {
-		let api = set_up_api("wss://rpc1.paseo.popnetwork.xyz").await?;
+		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
 		let extrinsic = construct_extrinsic("System", "remark", vec!["0x11".to_string()]).await?;
-		assert_eq!(encode_call_data(&api, &extrinsic)?, "0x00000411");
+		assert_eq!(encode_call_data(&client, &extrinsic)?, "0x00000411");
 		Ok(())
 	}
 }

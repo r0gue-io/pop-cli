@@ -25,13 +25,13 @@ pub struct Param {
 /// Transforms a metadata field into its `Param` representation.
 ///
 /// # Arguments
-/// * `api`: Reference to an `OnlineClient` connected to the blockchain.
+/// * `client`: Reference to an `OnlineClient` connected to the blockchain.
 /// * `field`: A reference to a metadata field of the extrinsic.
 pub fn field_to_param(
-	api: &OnlineClient<SubstrateConfig>,
+	client: &OnlineClient<SubstrateConfig>,
 	field: &Field<PortableForm>,
 ) -> Result<Param, Error> {
-	let metadata: Metadata = api.metadata();
+	let metadata: Metadata = client.metadata();
 	let registry = metadata.types();
 	let name = field.name.clone().unwrap_or("Unnamed".to_string()); //It can be unnamed field
 	type_to_param(name, registry, field.ty.id)
@@ -179,13 +179,13 @@ fn type_to_param(name: String, registry: &PortableRegistry, type_id: u32) -> Res
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::set_up_api;
+	use crate::set_up_client;
 	use anyhow::Result;
 
 	#[tokio::test]
 	async fn field_to_param_works() -> Result<()> {
-		let api = set_up_api("wss://rpc1.paseo.popnetwork.xyz").await?;
-		let metadata = api.metadata();
+		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
+		let metadata = client.metadata();
 		// Test a supported extrinsic
 		let extrinsic = metadata
 			.pallet_by_name("Balances")
@@ -194,7 +194,7 @@ mod tests {
 			.unwrap();
 		let mut params = Vec::new();
 		for field in &extrinsic.fields {
-			params.push(field_to_param(&api, field)?)
+			params.push(field_to_param(&client, field)?)
 		}
 		assert_eq!(params.len(), 3);
 		assert_eq!(params.first().unwrap().name, "source");
@@ -232,7 +232,7 @@ mod tests {
 		let extrinsic =
 			metadata.pallet_by_name("Sudo").unwrap().call_variant_by_name("sudo").unwrap();
 		assert!(matches!(
-			field_to_param(&api, &extrinsic.fields.first().unwrap()),
+			field_to_param(&client, &extrinsic.fields.first().unwrap()),
 			Err(Error::ExtrinsicNotSupported)
 		));
 		Ok(())

@@ -9,29 +9,35 @@ pub enum Error {
 	Aborted,
 	#[error("Anyhow error: {0}")]
 	AnyhowError(#[from] anyhow::Error),
-	#[error("Failed to establish a connection to the API: {0}")]
-	ApiConnectionFailure(String),
+	/// An error occurred while decoding the call data.
 	#[error("Failed to decode call data. {0}")]
 	CallDataDecodingError(String),
+	/// An error occurred while encoding the call data.
 	#[error("Failed to encode call data. {0}")]
 	CallDataEncodingError(String),
 	#[error("{0}")]
 	CommonError(#[from] pop_common::Error),
+	/// An error occurred while attempting to establish a connection to the endpoint.
+	#[error("Failed to establish a connection to: {0}")]
+	ConnectionFailure(String),
 	#[error("Configuration error: {0}")]
 	Config(String),
 	#[error("Failed to access the current directory")]
 	CurrentDirAccess,
 	#[error("Failed to parse the endowment value")]
 	EndowmentError,
+	/// The extrinsic is not supported.
 	#[error("The extrinsic is not supported")]
 	ExtrinsicNotSupported,
+	/// An error occurred during the submission of an extrinsic.
 	#[error("Extrinsic submission error: {0}")]
 	ExtrinsicSubmissionError(String),
 	#[error("IO error: {0}")]
 	IO(#[from] std::io::Error),
 	#[error("JSON error: {0}")]
 	JsonError(#[from] serde_json::Error),
-	#[error("Error parsing metadata for parameter {0} conversion")]
+	/// An error occurred while parsing metadata of a parameter.
+	#[error("Error parsing metadata for parameter {0}")]
 	MetadataParsingError(String),
 	#[error("Missing binary: {0}")]
 	MissingBinary(String),
@@ -43,8 +49,10 @@ pub enum Error {
 	OrchestratorError(#[from] OrchestratorError),
 	#[error("Failed to create pallet directory")]
 	PalletDirCreation,
+	/// The specified pallet could not be found.
 	#[error("Failed to find the pallet {0}")]
 	PalletNotFound(String),
+	/// An error occurred while processing the arguments provided by the user.
 	#[error("Failed to process the arguments provided by the user.")]
 	ParamProcessingError,
 	#[error("Invalid path")]
