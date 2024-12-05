@@ -195,13 +195,9 @@ impl CallParachainCommand {
 					cli.input("Signer of the extrinsic:").default_input(DEFAULT_URI).interact()?,
 			};
 
-			// Prompt the user to confirm if they want to execute the call via sudo.
-			if !self.sudo {
-				self.sudo = cli
-					.confirm("Would you like to dispatch this function call with `Root` origin?")
-					.initial_value(false)
-					.interact()?;
-			}
+			// If chain has sudo prompt the user to confirm if they want to execute the call via
+			// sudo.
+			self.configure_sudo(chain, cli).await?;
 
 			return Ok(CallParachain {
 				pallet,
@@ -247,6 +243,28 @@ impl CallParachainCommand {
 
 		spinner.stop(format!("Extrinsic submitted successfully with hash: {:?}", result));
 		display_message("Call complete.", true, cli)?;
+		Ok(())
+	}
+
+	/// Checks if the chain has the Sudo pallet and prompt the user to confirm if they want to
+	/// execute the call via sudo.
+	async fn configure_sudo(&mut self, chain: &Chain, cli: &mut impl Cli) -> Result<()> {
+		match find_extrinsic_by_name(&chain.pallets, "Sudo", "sudo").await {
+			Ok(_) =>
+				if !self.sudo {
+					self.sudo = cli
+						.confirm(
+							"Would you like to dispatch this function call with `Root` origin?",
+						)
+						.initial_value(false)
+						.interact()?;
+				},
+			Err(_) =>
+				if self.sudo {
+					cli.warning("NOTE: sudo extrinsic is not supported by the chain. Ignoring `--sudo` flag.")?;
+					self.sudo = false;
+				},
+		}
 		Ok(())
 	}
 
@@ -754,6 +772,39 @@ mod tests {
 			.submit_extrinsic_from_call_data(&client, "0x00000411", &mut cli)
 			.await?;
 
+		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn configure_sudo_works() -> Result<()> {
+		// Test when sudo pallet doesn't exist.
+		let mut call_config = CallParachainCommand {
+			pallet: None,
+			extrinsic: None,
+			args: vec![].to_vec(),
+			url: Some(Url::parse("wss://polkadot-rpc.publicnode.com")?),
+			suri: Some("//Alice".to_string()),
+			skip_confirm: false,
+			call_data: Some("0x00000411".to_string()),
+			sudo: true,
+		};
+		let mut cli = MockCli::new().expect_intro("Call a parachain").expect_warning(
+			"NOTE: sudo extrinsic is not supported by the chain. Ignoring `--sudo` flag.",
+		);
+		let chain = call_config.configure_chain(&mut cli).await?;
+		call_config.configure_sudo(&chain, &mut cli).await?;
+		assert!(!call_config.sudo);
+		cli.verify()?;
+
+		// Test when sudo pallet exist.
+		cli = MockCli::new().expect_intro("Call a parachain").expect_confirm(
+			"Would you like to dispatch this function call with `Root` origin?",
+			true,
+		);
+		call_config.url = Some(Url::parse("wss://rpc1.paseo.popnetwork.xyz")?);
+		let chain = call_config.configure_chain(&mut cli).await?;
+		call_config.configure_sudo(&chain, &mut cli).await?;
+		assert!(call_config.sudo);
 		cli.verify()
 	}
 
