@@ -46,9 +46,9 @@ pub(crate) enum Command {
 /// Help message for the build command.
 fn about_build() -> &'static str {
 	#[cfg(all(feature = "parachain", feature = "contract"))]
-	return "Build a parachain, smart contract or Rust package.";
+	return "Build a parachain, chain specification, smart contract or Rust package.";
 	#[cfg(all(feature = "parachain", not(feature = "contract")))]
-	return "Build a parachain or Rust package.";
+	return "Build a parachain, chain specification or Rust package.";
 	#[cfg(all(feature = "contract", not(feature = "parachain")))]
 	return "Build a smart contract or Rust package.";
 }
