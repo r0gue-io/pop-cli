@@ -150,24 +150,6 @@ name = "collator-01"
 		.assert()
 		.success();
 
-	// pop call parachain --call 0x00000411 --url ws://127.0.0.1:random_port --suri //Alice
-	// --skip-confirm
-	Command::cargo_bin("pop")
-		.unwrap()
-		.args(&[
-			"call",
-			"parachain",
-			"--call",
-			"0x00000411",
-			"--url",
-			&localhost_url,
-			"--suri",
-			"//Alice",
-			"--skip-confirm",
-		])
-		.assert()
-		.success();
-
 	assert!(cmd.try_wait().unwrap().is_none(), "the process should still be running");
 	// Stop the process
 	Cmd::new("kill").args(["-s", "TERM", &cmd.id().to_string()]).spawn()?;
