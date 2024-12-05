@@ -68,7 +68,7 @@ impl CallParachainCommand {
 			};
 
 			// Send the extrinsic.
-			if let Err(e) = call.send_extrinsic(&chain.client, tx, &mut cli).await {
+			if let Err(e) = call.submit_extrinsic(&chain.client, tx, &mut cli).await {
 				display_message(&e.to_string(), false, &mut cli)?;
 				break;
 			}
@@ -253,7 +253,7 @@ impl CallParachain {
 	}
 
 	// Sign and submit an extrinsic.
-	async fn send_extrinsic(
+	async fn submit_extrinsic(
 		&mut self,
 		client: &OnlineClient<SubstrateConfig>,
 		tx: DynamicPayload,
@@ -625,7 +625,7 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn user_cancel_send_extrinsic_works() -> Result<()> {
+	async fn user_cancel_submit_extrinsic_works() -> Result<()> {
 		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
 		let pallets = parse_chain_metadata(&client).await?;
 		let mut call_config = CallParachain {
@@ -641,7 +641,7 @@ mod tests {
 				"Extrinsic remark was not submitted. Operation canceled by the user.",
 			);
 		let tx = call_config.prepare_extrinsic(&client, &mut cli).await?;
-		call_config.send_extrinsic(&client, tx, &mut cli).await?;
+		call_config.submit_extrinsic(&client, tx, &mut cli).await?;
 
 		cli.verify()
 	}

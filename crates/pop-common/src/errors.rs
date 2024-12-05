@@ -13,14 +13,17 @@ pub enum Error {
 	Git(String),
 	#[error("IO error: {0}")]
 	IO(#[from] std::io::Error),
+	/// An error occurred while attempting to create a keypair from the provided URI.
 	#[error("Failed to create keypair from URI: {0}")]
 	KeyPairCreation(String),
 	#[error("Manifest error: {0}")]
 	ManifestError(#[from] cargo_toml::Error),
+	/// An error occurred while attempting to retrieve the manifest path.
 	#[error("Failed to get manifest path: {0}")]
 	ManifestPath(String),
 	#[error("ParseError error: {0}")]
 	ParseError(#[from] url::ParseError),
+	/// An error occurred while parsing the provided secret URI.
 	#[error("Failed to parse secret URI: {0}")]
 	ParseSecretURI(String),
 	#[error("SourceError error: {0}")]
