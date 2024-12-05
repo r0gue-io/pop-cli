@@ -12,6 +12,7 @@ use url::Url;
 
 const DEFAULT_URL: &str = "ws://localhost:9944/";
 const DEFAULT_URI: &str = "//Alice";
+const ENCODED_CALL_DATA_MAX_LEN: usize = 1000; // Maximum length of encoded call data to display.
 
 /// Command to execute extrinsics with configurable pallets, arguments, and signing options.
 #[derive(Args, Clone)]
@@ -74,8 +75,9 @@ impl CallParachainCommand {
 				break;
 			}
 
-			if !prompt_to_repeat_call ||
-				!cli.confirm("Do you want to perform another call?")
+			if !prompt_to_repeat_call
+				|| !cli
+					.confirm("Do you want to perform another call?")
 					.initial_value(false)
 					.interact()?
 			{
@@ -138,8 +140,9 @@ impl CallParachainCommand {
 
 			// Resolve extrinsic.
 			let extrinsic = match self.extrinsic {
-				Some(ref extrinsic_name) =>
-					find_extrinsic_by_name(&chain.pallets, &pallet.name, extrinsic_name).await?,
+				Some(ref extrinsic_name) => {
+					find_extrinsic_by_name(&chain.pallets, &pallet.name, extrinsic_name).await?
+				},
 				None => {
 					let mut prompt_extrinsic = cli.select("Select the extrinsic to call:");
 					for extrinsic in &pallet.extrinsics {
@@ -176,8 +179,9 @@ impl CallParachainCommand {
 			// Resolve who is signing the extrinsic.
 			let suri = match self.suri.as_ref() {
 				Some(suri) => suri.clone(),
-				None =>
-					cli.input("Signer of the extrinsic:").default_input(DEFAULT_URI).interact()?,
+				None => {
+					cli.input("Signer of the extrinsic:").default_input(DEFAULT_URI).interact()?
+				},
 			};
 
 			return Ok(CallParachain {
@@ -199,11 +203,11 @@ impl CallParachainCommand {
 
 	// Function to check if all required fields are specified.
 	fn requires_user_input(&self) -> bool {
-		self.pallet.is_none() ||
-			self.extrinsic.is_none() ||
-			self.args.is_empty() ||
-			self.url.is_none() ||
-			self.suri.is_none()
+		self.pallet.is_none()
+			|| self.extrinsic.is_none()
+			|| self.args.is_empty()
+			|| self.url.is_none()
+			|| self.suri.is_none()
 	}
 }
 
@@ -256,7 +260,11 @@ impl CallParachain {
 				return Err(anyhow!("Error: {}", e));
 			},
 		};
-		cli.info(format!("Encoded call data: {}", encode_call_data(client, &tx)?))?;
+		let encoded_data = encode_call_data(client, &tx)?;
+		// If the encoded call data is too long, don't display it all.
+		if encoded_data.len() < ENCODED_CALL_DATA_MAX_LEN {
+			cli.info(format!("Encoded call data: {}", encode_call_data(client, &tx)?))?;
+		}
 		Ok(tx)
 	}
 
@@ -267,8 +275,9 @@ impl CallParachain {
 		tx: DynamicPayload,
 		cli: &mut impl Cli,
 	) -> Result<()> {
-		if !self.skip_confirm &&
-			!cli.confirm("Do you want to submit the extrinsic?")
+		if !self.skip_confirm
+			&& !cli
+				.confirm("Do you want to submit the extrinsic?")
 				.initial_value(true)
 				.interact()?
 		{
@@ -293,7 +302,18 @@ impl CallParachain {
 		full_message.push_str(&format!(" --pallet {}", self.pallet));
 		full_message.push_str(&format!(" --extrinsic {}", self.extrinsic));
 		if !self.args.is_empty() {
-			let args: Vec<_> = self.args.iter().map(|a| format!("\"{a}\"")).collect();
+			let args: Vec<_> = self
+				.args
+				.iter()
+				.map(|a| {
+					// If the argument is too long, don't show it all, truncate it.
+					if a.len() > ENCODED_CALL_DATA_MAX_LEN {
+						format!("\"{}...{}\"", &a[..20], &a[a.len() - 20..])
+					} else {
+						format!("\"{a}\"")
+					}
+				})
+				.collect();
 			full_message.push_str(&format!(" --args {}", args.join(" ")));
 		}
 		full_message.push_str(&format!(" --url {} --suri {}", chain.url, self.suri));
@@ -349,7 +369,9 @@ fn prompt_for_param(cli: &mut impl Cli, param: &Param) -> Result<String> {
 
 // Resolves the value of a parameter based on its type.
 fn get_param_value(cli: &mut impl Cli, param: &Param) -> Result<String> {
-	if param.sub_params.is_empty() {
+	if param.is_sequence {
+		prompt_for_sequence_param(cli, param)
+	} else if param.sub_params.is_empty() {
 		prompt_for_primitive_param(cli, param)
 	} else if param.is_variant {
 		prompt_for_variant_param(cli, param)
@@ -357,6 +379,30 @@ fn get_param_value(cli: &mut impl Cli, param: &Param) -> Result<String> {
 		prompt_for_tuple_param(cli, param)
 	} else {
 		prompt_for_composite_param(cli, param)
+	}
+}
+
+// Prompt for the value when it is a sequence.
+fn prompt_for_sequence_param(cli: &mut impl Cli, param: &Param) -> Result<String> {
+	if cli
+		.confirm(format!(
+			"The value for `{}` might be too large to enter. Provide a file instead?",
+			param.name
+		))
+		.initial_value(true)
+		.interact()?
+	{
+		let file_path = cli
+			.input(format!("Enter the file path for the parameter `{}`:", param.name))
+			.placeholder("e.g., /path/to/your/file.json")
+			.interact()?;
+
+		let content = std::fs::read_to_string(&file_path)
+			.map_err(|err| anyhow!("Failed to read file {}", err.to_string()))?;
+
+		return Ok(content);
+	} else {
+		prompt_for_primitive_param(cli, param)
 	}
 }
 

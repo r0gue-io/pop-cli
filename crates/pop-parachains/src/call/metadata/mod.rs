@@ -191,6 +191,7 @@ mod tests {
 		assert!(!first_extrinsic.params.first().unwrap().is_optional);
 		assert!(!first_extrinsic.params.first().unwrap().is_tuple);
 		assert!(!first_extrinsic.params.first().unwrap().is_variant);
+		assert!(first_extrinsic.params.first().unwrap().is_sequence);
 		Ok(())
 	}
 
