@@ -9,6 +9,9 @@ pub enum Error {
 	Aborted,
 	#[error("Anyhow error: {0}")]
 	AnyhowError(#[from] anyhow::Error),
+	/// An error occurred while decoding the call data.
+	#[error("Failed to decode call data. {0}")]
+	CallDataDecodingError(String),
 	/// An error occurred while encoding the call data.
 	#[error("Failed to encode call data. {0}")]
 	CallDataEncodingError(String),

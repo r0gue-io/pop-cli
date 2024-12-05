@@ -73,6 +73,47 @@ pub fn encode_call_data(
 	Ok(format!("0x{}", hex::encode(call_data)))
 }
 
+// This struct implements the [`Payload`] trait and is used to submit
+// pre-encoded SCALE call data directly, without the dynamic construction of transactions.
+struct CallData(Vec<u8>);
+
+impl Payload for CallData {
+	fn encode_call_data_to(
+		&self,
+		_: &subxt::Metadata,
+		out: &mut Vec<u8>,
+	) -> Result<(), subxt::ext::subxt_core::Error> {
+		out.extend_from_slice(&self.0);
+		Ok(())
+	}
+}
+
+/// Signs and submits a given extrinsic.
+///
+/// # Arguments
+/// * `client` - Reference to an `OnlineClient` connected to the chain.
+/// * `call_data` - SCALE encoded bytes representing the call data of the transaction.
+/// * `suri` - The secret URI (e.g., mnemonic or private key) for signing the extrinsic.
+pub async fn sign_and_submit_extrinsic_with_call_data(
+	client: OnlineClient<SubstrateConfig>,
+	call_data: &str,
+	suri: &str,
+) -> Result<String, Error> {
+	let signer = create_signer(suri)?;
+	let call_data_bytes = hex::decode(call_data.trim_start_matches("0x"))
+		.map_err(|e| Error::CallDataDecodingError(e.to_string()))?;
+	let payload = CallData(call_data_bytes);
+	let result = client
+		.tx()
+		.sign_and_submit_then_watch_default(&payload, &signer)
+		.await
+		.map_err(|e| Error::ExtrinsicSubmissionError(format!("{:?}", e)))?
+		.wait_for_finalized_success()
+		.await
+		.map_err(|e| Error::ExtrinsicSubmissionError(format!("{:?}", e)))?;
+	Ok(format!("{:?}", result.extrinsic_hash()))
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
