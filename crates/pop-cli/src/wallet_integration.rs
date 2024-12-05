@@ -62,7 +62,7 @@ impl<F: Frontend> WalletIntegrationManager<F> {
 
 	/// Serves the wallet-integration frontend and an API for the wallet to get
 	/// the necessary data and submit the signed payload.
-	pub async fn run(&mut self) {
+	pub async fn run(&mut self) -> anyhow::Result<()> {
 		// used to signal shutdown.
 		let (tx, rx) = oneshot::channel();
 
@@ -86,13 +86,18 @@ impl<F: Frontend> WalletIntegrationManager<F> {
 			.merge(frontend.serve_content()) // Custom route for serving frontend.
 			.layer(cors);
 
-		let listener = tokio::net::TcpListener::bind("127.0.0.1:3000").await.unwrap();
+		let addr = "127.0.0.1:9090";
+		let listener = tokio::net::TcpListener::bind(addr)
+			.await
+			.map_err(|e| anyhow::anyhow!("Failed to bind to {}: {}", addr, e))?;
+
 		axum::serve(listener, app)
 			.with_graceful_shutdown(async move {
 				let _ = rx.await.ok();
 			})
 			.await
-			.unwrap();
+			.map_err(|e| anyhow::anyhow!("Server encountered an error: {}", e))?;
+		Ok(())
 	}
 
 	pub async fn terminate(&mut self) {
@@ -105,14 +110,40 @@ impl<F: Frontend> WalletIntegrationManager<F> {
 
 mod routes {
 	use super::{Arc, Mutex, StateHandler, TransactionData};
-	use axum::{extract::State, Json};
+	use anyhow::Error;
+	use axum::{
+		extract::State,
+		http::StatusCode,
+		response::{IntoResponse, Response},
+		Json,
+	};
 	use serde_json::json;
+
+	pub struct ApiError(Error);
+
+	impl From<Error> for ApiError {
+		fn from(err: Error) -> Self {
+			ApiError(err)
+		}
+	}
+
+	// Implementing IntoResponse for ApiError allows us to return it directly from a route handler.
+	impl IntoResponse for ApiError {
+		fn into_response(self) -> Response {
+			let body = json!({
+				"error": self.0.to_string(),
+			});
+			(StatusCode::INTERNAL_SERVER_ERROR, Json(body)).into_response()
+		}
+	}
 
 	/// Responds with the serialized JSON data for signing.
 	pub(super) async fn get_payload_handler(
 		State(payload): State<Arc<TransactionData>>,
-	) -> Json<serde_json::Value> {
-		Json(serde_json::to_value(&*payload).unwrap())
+	) -> Result<Json<serde_json::Value>, ApiError> {
+		let json_payload = serde_json::to_value(&*payload)
+			.map_err(|e| anyhow::anyhow!("Failed to serialize payload: {}", e))?;
+		Ok(Json(json_payload))
 	}
 
 	/// Receives the signed payload from the wallet.
