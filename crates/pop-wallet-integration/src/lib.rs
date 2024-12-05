@@ -1,4 +1,5 @@
 use axum::{
+	response::Html,
 	routing::{get, post},
 	Router,
 };
@@ -7,6 +8,13 @@ use std::{path::PathBuf, sync::Arc};
 use tokio::sync::{oneshot, Mutex};
 use tower_http::services::ServeDir;
 
+/// Make frontend sourcing more flexible by allowing a custom route
+/// to be defined. For example, sourcing frontend from a cached directory,
+/// or simply an HTML string built-in to the binary.
+pub trait Frontend {
+	fn serve_content(&self) -> Router;
+}
+
 /// Transaction payload to be sent to frontend for signing.
 #[derive(Serialize, Debug)]
 pub struct TransactionData {
@@ -14,24 +22,28 @@ pub struct TransactionData {
 	call_data: Vec<u8>,
 }
 
+// Shared state between routes. Serves two purposes:
+// - Maintains a channel to signal shutdown to the main app.
+// - Stores the signed payload received from the wallet.
 struct StateHandler {
 	shutdown_tx: Option<oneshot::Sender<()>>,
 	signed_payload: Option<String>,
 }
 
 /// Manages the wallet integration for secure signing of transactions.
-pub struct WalletIntegrationManager {
-	frontend_path: PathBuf,
+pub struct WalletIntegrationManager<F: Frontend> {
+	frontend: F,
 	// Cloning can be expensive (e.g. contract code in payload). Better to use Arc to avoid this.
 	payload: Arc<TransactionData>,
+	// The final payload signed by the wallet. Updated after server closure.
 	signed_payload: Option<String>,
 }
 
-impl WalletIntegrationManager {
-	/// - frontend_path: Path to the wallet-integration frontend.
-	/// - data: Data to be sent to the frontend for signing.
-	pub fn new(frontend_path: PathBuf, payload: TransactionData) -> Self {
-		Self { frontend_path, payload: Arc::new(payload), signed_payload: Default::default() }
+impl<F: Frontend> WalletIntegrationManager<F> {
+	/// - frontend: A frontend with custom route to serve content.
+	/// - payload: Payload to be sent to the frontend for signing.
+	pub fn new(frontend: F, payload: TransactionData) -> Self {
+		Self { frontend, payload: Arc::new(payload), signed_payload: Default::default() }
 	}
 
 	/// Serves the wallet-integration frontend and an API for the wallet to get
@@ -49,7 +61,7 @@ impl WalletIntegrationManager {
 			// cloning Arcs is cheap
 			.route("/payload", get(routes::get_payload_handler).with_state(self.payload.clone()))
 			.route("/submit", post(routes::handle_submit).with_state(state.clone()))
-			.nest_service("/", ServeDir::new(self.frontend_path.clone()));
+			.merge(self.frontend.serve_content()); // custom route for serving frontend
 
 		let listener = tokio::net::TcpListener::bind("127.0.0.1:3000").await.unwrap();
 		axum::serve(listener, app)
@@ -90,7 +102,23 @@ mod routes {
 		}
 
 		// graceful shutdown ensures response is sent before shutdown.
-		Json(json!({"status": "success", "payload": payload}))
+		Json(json!({"status": "success"}))
+	}
+}
+
+/// Default frontend. Current implementation serves static files from a directory.
+pub struct DefaultFrontend {
+	content: PathBuf,
+}
+impl DefaultFrontend {
+	pub fn new(content: PathBuf) -> Self {
+		Self { content }
+	}
+}
+
+impl Frontend for DefaultFrontend {
+	fn serve_content(&self) -> Router {
+		Router::new().nest_service("/", ServeDir::new(self.content.clone()))
 	}
 }
 
@@ -101,10 +129,11 @@ mod tests {
 	#[test]
 	fn new_works() {
 		let path = PathBuf::from("/path/to/frontend");
+		let default_frontend = DefaultFrontend::new(path.clone());
 		let data = TransactionData { chain_rpc: "localhost:9944".to_string(), call_data: vec![] };
-		let wim = WalletIntegrationManager::new(path.clone(), data);
+		let wim = WalletIntegrationManager::new(default_frontend, data);
 
-		assert_eq!(wim.frontend_path, path);
+		assert_eq!(wim.frontend.content, path);
 		assert_eq!(wim.payload.chain_rpc, "localhost:9944");
 		assert_eq!(wim.signed_payload, None);
 	}
