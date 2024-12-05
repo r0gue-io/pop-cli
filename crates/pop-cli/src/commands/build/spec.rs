@@ -139,7 +139,7 @@ pub struct BuildSpecCommand {
 	#[arg(short = 'o', long = "output")]
 	pub(crate) output_file: Option<PathBuf>,
 	// TODO: remove at release ...
-	/// [DEPRECATED] use `profile`.
+	/// [DEPRECATED] since v0.6.0, use `profile`.
 	#[arg(short = 'r', long, conflicts_with = "profile")]
 	pub(crate) release: bool,
 	/// Build profile for the binary to generate the chain specification.
@@ -534,8 +534,8 @@ impl BuildSpec {
 	fn customize(&self) -> anyhow::Result<()> {
 		let mut chain_spec = ChainSpec::from(&self.output_file)?;
 		chain_spec.replace_para_id(self.id)?;
-		chain_spec.replace_relay_chain(&self.relay.as_ref())?;
-		chain_spec.replace_chain_type(&self.chain_type.to_string())?;
+		chain_spec.replace_relay_chain(self.relay.as_ref())?;
+		chain_spec.replace_chain_type(self.chain_type.as_ref())?;
 		chain_spec.replace_protocol_id(&self.protocol_id)?;
 		chain_spec.to_file(&self.output_file)?;
 		Ok(())
