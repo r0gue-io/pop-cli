@@ -138,8 +138,7 @@ pub struct BuildSpecCommand {
 	/// the necessary directories will be created
 	#[arg(short = 'o', long = "output")]
 	pub(crate) output_file: Option<PathBuf>,
-	// TODO: remove at release ...
-	/// [DEPRECATED] since v0.6.0, use `profile`.
+	/// [DEPRECATED] and will be removed in v0.7.0, use `profile`.
 	#[arg(short = 'r', long, conflicts_with = "profile")]
 	pub(crate) release: bool,
 	/// Build profile for the binary to generate the chain specification.
