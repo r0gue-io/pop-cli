@@ -1,5 +1,4 @@
 use axum::{
-	response::Html,
 	routing::{get, post},
 	Router,
 };
@@ -25,6 +24,7 @@ pub struct TransactionData {
 // Shared state between routes. Serves two purposes:
 // - Maintains a channel to signal shutdown to the main app.
 // - Stores the signed payload received from the wallet.
+#[derive(Default)]
 struct StateHandler {
 	shutdown_tx: Option<oneshot::Sender<()>>,
 	signed_payload: Option<String>,
@@ -35,15 +35,14 @@ pub struct WalletIntegrationManager<F: Frontend> {
 	frontend: F,
 	// Cloning can be expensive (e.g. contract code in payload). Better to use Arc to avoid this.
 	payload: Arc<TransactionData>,
-	// The final payload signed by the wallet. Updated after server closure.
-	signed_payload: Option<String>,
+	state: Arc<Mutex<StateHandler>>,
 }
 
 impl<F: Frontend> WalletIntegrationManager<F> {
 	/// - frontend: A frontend with custom route to serve content.
 	/// - payload: Payload to be sent to the frontend for signing.
 	pub fn new(frontend: F, payload: TransactionData) -> Self {
-		Self { frontend, payload: Arc::new(payload), signed_payload: Default::default() }
+		Self { frontend, payload: Arc::new(payload), state: Default::default() }
 	}
 
 	/// Serves the wallet-integration frontend and an API for the wallet to get
@@ -55,8 +54,9 @@ impl<F: Frontend> WalletIntegrationManager<F> {
 		// shared state between routes. Will be used to store the signed payload.
 		let state =
 			Arc::new(Mutex::new(StateHandler { shutdown_tx: Some(tx), signed_payload: None }));
+		self.state = state.clone();
 
-		// will shutdown when the signed payload is received
+		// will shut down when the signed payload is received
 		let app = Router::new()
 			// cloning Arcs is cheap
 			.route("/payload", get(routes::get_payload_handler).with_state(self.payload.clone()))
@@ -70,8 +70,13 @@ impl<F: Frontend> WalletIntegrationManager<F> {
 			})
 			.await
 			.unwrap();
+	}
 
-		self.signed_payload = state.lock().await.signed_payload.take();
+	pub async fn terminate(&mut self) {
+		// signal shutdown
+		if let Some(shutdown_tx) = self.state.lock().await.shutdown_tx.take() {
+			let _ = shutdown_tx.send(());
+		}
 	}
 }
 
@@ -96,7 +101,9 @@ mod routes {
 		let mut state = state.lock().await;
 		state.signed_payload = Some(payload.clone());
 
-		// signal shutdown
+		// signal shutdown.
+		// TODO: decide if we want to shutdown on submit, or at some other time.
+		// Using WalletIntegrationManager::terminate() introduces complexity unnecessary for a TODO.
 		if let Some(shutdown_tx) = state.shutdown_tx.take() {
 			let _ = shutdown_tx.send(());
 		}
@@ -126,8 +133,8 @@ impl Frontend for DefaultFrontend {
 mod tests {
 	use super::*;
 
-	#[test]
-	fn new_works() {
+	#[tokio::test]
+	async fn new_works() {
 		let path = PathBuf::from("/path/to/frontend");
 		let default_frontend = DefaultFrontend::new(path.clone());
 		let data = TransactionData { chain_rpc: "localhost:9944".to_string(), call_data: vec![] };
@@ -135,6 +142,8 @@ mod tests {
 
 		assert_eq!(wim.frontend.content, path);
 		assert_eq!(wim.payload.chain_rpc, "localhost:9944");
-		assert_eq!(wim.signed_payload, None);
+		assert_eq!(wim.payload.call_data, vec![] as Vec<u8>);
+		assert!(wim.state.lock().await.shutdown_tx.is_none());
+		assert!(wim.state.lock().await.signed_payload.is_none());
 	}
 }
