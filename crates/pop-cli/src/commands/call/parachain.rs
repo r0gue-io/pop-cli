@@ -42,7 +42,7 @@ pub struct CallParachainCommand {
 	#[arg(short('y'), long)]
 	skip_confirm: bool,
 	/// Authenticates the sudo key and dispatches a function call with `Root` origin.
-	#[arg(name = "sudo", short = 'S', long)]
+	#[arg(short = 'S', long)]
 	sudo: bool,
 }
 
@@ -90,9 +90,8 @@ impl CallParachainCommand {
 				break;
 			}
 
-			if !prompt_to_repeat_call
-				|| !cli
-					.confirm("Do you want to perform another call?")
+			if !prompt_to_repeat_call ||
+				!cli.confirm("Do you want to perform another call?")
 					.initial_value(false)
 					.interact()?
 			{
@@ -154,9 +153,8 @@ impl CallParachainCommand {
 
 			// Resolve extrinsic.
 			let extrinsic = match self.extrinsic {
-				Some(ref extrinsic_name) => {
-					find_extrinsic_by_name(&chain.pallets, &pallet.name, extrinsic_name).await?
-				},
+				Some(ref extrinsic_name) =>
+					find_extrinsic_by_name(&chain.pallets, &pallet.name, extrinsic_name).await?,
 				None => {
 					let mut prompt_extrinsic = cli.select("Select the extrinsic to call:");
 					for extrinsic in &pallet.extrinsics {
@@ -193,15 +191,14 @@ impl CallParachainCommand {
 			// Resolve who is signing the extrinsic.
 			let suri = match self.clone().suri {
 				Some(suri) => suri,
-				None => {
-					cli.input("Signer of the extrinsic:").default_input(DEFAULT_URI).interact()?
-				},
+				None =>
+					cli.input("Signer of the extrinsic:").default_input(DEFAULT_URI).interact()?,
 			};
 
-			// Prompt the user to confirm if they want to execute the call with sudo privileges.
+			// Prompt the user to confirm if they want to execute the call via sudo.
 			if !self.sudo {
 				self.sudo = cli
-					.confirm("Would you like to execute this operation with sudo privileges?")
+					.confirm("Would you like to dispatch this function call with `Root` origin?")
 					.initial_value(false)
 					.interact()?;
 			}
@@ -230,9 +227,8 @@ impl CallParachainCommand {
 			None => &cli.input("Signer of the extrinsic:").default_input(DEFAULT_URI).interact()?,
 		};
 		cli.info(format!("Encoded call data: {}", call_data))?;
-		if !self.skip_confirm
-			&& !cli
-				.confirm("Do you want to submit the extrinsic?")
+		if !self.skip_confirm &&
+			!cli.confirm("Do you want to submit the extrinsic?")
 				.initial_value(true)
 				.interact()?
 		{
@@ -264,11 +260,11 @@ impl CallParachainCommand {
 
 	// Function to check if all required fields are specified
 	fn requires_user_input(&self) -> bool {
-		self.pallet.is_none()
-			|| self.extrinsic.is_none()
-			|| self.args.is_empty()
-			|| self.url.is_none()
-			|| self.suri.is_none()
+		self.pallet.is_none() ||
+			self.extrinsic.is_none() ||
+			self.args.is_empty() ||
+			self.url.is_none() ||
+			self.suri.is_none()
 	}
 }
 
@@ -318,7 +314,7 @@ impl CallParachain {
 				return Err(anyhow!("Error: {}", e));
 			},
 		};
-		// If sudo is enabled, wrap the call in a sudo call.
+		// If sudo is required, wrap the call in a sudo call.
 		let tx = if self.sudo { construct_sudo_extrinsic(tx).await? } else { tx };
 		cli.info(format!("Encoded call data: {}", encode_call_data(client, &tx)?))?;
 		Ok(tx)
@@ -331,9 +327,8 @@ impl CallParachain {
 		tx: DynamicPayload,
 		cli: &mut impl Cli,
 	) -> Result<()> {
-		if !self.skip_confirm
-			&& !cli
-				.confirm("Do you want to submit the extrinsic?")
+		if !self.skip_confirm &&
+			!cli.confirm("Do you want to submit the extrinsic?")
 				.initial_value(true)
 				.interact()?
 		{
@@ -572,7 +567,7 @@ mod tests {
 		let mut cli = MockCli::new()
 		.expect_intro("Call a parachain")
 		.expect_input("Signer of the extrinsic:", "//Bob".into())
-		.expect_confirm("Would you like to execute this operation with sudo privileges?", true)
+		.expect_confirm("Would you like to dispatch this function call with `Root` origin?", true)
 		.expect_input("Enter the value for the parameter: remark", "0x11".into())
 		.expect_input("Which chain would you like to interact with?", "wss://rpc1.paseo.popnetwork.xyz".into())
 		.expect_select::<Pallet>(
