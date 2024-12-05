@@ -7,107 +7,12 @@ use std::{path::PathBuf, sync::Arc};
 use tokio::sync::{oneshot, Mutex};
 use tower_http::services::ServeDir;
 
-/// Data to be sent to frontend for signing.
+/// Transaction payload to be sent to frontend for signing.
 #[derive(Serialize, Debug)]
-pub struct Data {
+pub struct TransactionData {
 	chain_rpc: String,
-	data_type: DataType,
+	call_data: Vec<u8>,
 }
-
-/// The type of transaction with specific data for signing (contract or parachain).
-#[derive(Serialize, Debug, PartialEq)]
-pub enum DataType {
-	/// Parachain call, where Vec<u8> is the encoded call data.
-	Parachain(Vec<u8>),
-	Contract(ContractArgs),
-}
-
-/// Contract specific data variations.
-pub mod contracts {
-	use super::Serialize;
-	#[derive(Serialize, Debug, PartialEq)]
-	pub struct ContractArgs {
-		call_type: ContractCallType,
-		storage_deposit_limit: Option<String>,
-		/// The binary (wasm, polkavm) of the contract.
-		code: Option<Vec<u8>>,
-	}
-
-	#[derive(Serialize, Debug, PartialEq)]
-	pub enum ContractCallType {
-		// no unique fields.
-		Upload,
-		Instantiate(InstantiateArgs),
-		Call(CallArgs),
-	}
-
-	/// Arguments for instantiating a contract.
-	#[derive(Serialize, Debug, PartialEq)]
-	pub struct InstantiateArgs {
-		constructor: String,
-		args: Vec<String>,
-		value: String,
-		gas_limit: Option<u64>,
-		proof_size: Option<u64>,
-		salt: Option<Vec<u8>>,
-	}
-
-	/// Arguments for calling a contract.
-	#[derive(Serialize, Debug, PartialEq)]
-	pub struct CallArgs {
-		address: String,
-		message: String,
-		args: Vec<String>,
-		value: String,
-		gas_limit: Option<u64>,
-		proof_size: Option<u64>,
-	}
-
-	#[cfg(test)]
-	mod tests {
-		use super::*;
-		use crate::*;
-		use serde_json::json;
-
-		#[test]
-		fn json_serialize_parachain_data_works() {
-			let data = Data {
-				chain_rpc: "localhost:9944".to_string(),
-				data_type: DataType::Parachain(vec![0, 1, 2, 3]),
-			};
-			let json_data = serde_json::to_value(&data).unwrap();
-
-			assert_eq!(
-				json_data,
-				json!({"chain_rpc": "localhost:9944", "data_type": {"Parachain": [0,1,2,3]}})
-			);
-		}
-		#[test]
-		fn json_serialize_contract_upload_data_works() {
-			let data = Data {
-				chain_rpc: "localhost:9944".to_string(),
-				data_type: DataType::Contract(ContractArgs {
-					call_type: ContractCallType::Upload,
-					storage_deposit_limit: Some("1234".to_string()),
-					code: Some(vec![0, 1, 2]),
-				}),
-			};
-			let json_data = serde_json::to_value(&data).unwrap();
-
-			assert_eq!(
-				json_data,
-				json!({"chain_rpc": "localhost:9944", "data_type": {"Contract": {
-					"call_type": "Upload",
-					"storage_deposit_limit": "1234",
-					"code": [0,1,2]
-				}}})
-			);
-		}
-
-		// TODO: after high level review, complete serialization tests.
-	}
-}
-use crate::contracts::ContractArgs;
 
 struct StateHandler {
 	shutdown_tx: Option<oneshot::Sender<()>>,
@@ -117,16 +22,16 @@ struct StateHandler {
 /// Manages the wallet integration for secure signing of transactions.
 pub struct WalletIntegrationManager {
 	frontend_path: PathBuf,
-	// cloning can be expensive (e.g. contract code stored in-memory)
-	data: Arc<Data>,
+	// Cloning can be expensive (e.g. contract code in payload). Better to use Arc to avoid this.
+	payload: Arc<TransactionData>,
 	signed_payload: Option<String>,
 }
 
 impl WalletIntegrationManager {
 	/// - frontend_path: Path to the wallet-integration frontend.
 	/// - data: Data to be sent to the frontend for signing.
-	pub fn new(frontend_path: PathBuf, data: Data) -> Self {
-		Self { frontend_path, data: Arc::new(data), signed_payload: Default::default() }
+	pub fn new(frontend_path: PathBuf, payload: TransactionData) -> Self {
+		Self { frontend_path, payload: Arc::new(payload), signed_payload: Default::default() }
 	}
 
 	/// Serves the wallet-integration frontend and an API for the wallet to get
@@ -142,7 +47,7 @@ impl WalletIntegrationManager {
 		// will shutdown when the signed payload is received
 		let app = Router::new()
 			// cloning Arcs is cheap
-			.route("/data", get(routes::get_data_handler).with_state(self.data.clone()))
+			.route("/payload", get(routes::get_payload_handler).with_state(self.payload.clone()))
 			.route("/submit", post(routes::handle_submit).with_state(state.clone()))
 			.nest_service("/", ServeDir::new(self.frontend_path.clone()));
 
@@ -159,13 +64,15 @@ impl WalletIntegrationManager {
 }
 
 mod routes {
-	use super::{Arc, Data, Mutex, StateHandler};
+	use super::{Arc, Mutex, StateHandler, TransactionData};
 	use axum::{extract::State, Json};
 	use serde_json::json;
 
 	/// Responds with the serialized JSON data for signing.
-	pub(super) async fn get_data_handler(State(data): State<Arc<Data>>) -> Json<serde_json::Value> {
-		Json(serde_json::to_value(&*data).unwrap())
+	pub(super) async fn get_payload_handler(
+		State(payload): State<Arc<TransactionData>>,
+	) -> Json<serde_json::Value> {
+		Json(serde_json::to_value(&*payload).unwrap())
 	}
 
 	/// Receives the signed payload from the wallet.
@@ -190,20 +97,15 @@ mod routes {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use serde_json::json;
 
 	#[test]
 	fn new_works() {
 		let path = PathBuf::from("/path/to/frontend");
-		let data = Data {
-			chain_rpc: "localhost:9944".to_string(),
-			data_type: DataType::Parachain(vec![]),
-		};
+		let data = TransactionData { chain_rpc: "localhost:9944".to_string(), call_data: vec![] };
 		let wim = WalletIntegrationManager::new(path.clone(), data);
 
 		assert_eq!(wim.frontend_path, path);
-		assert_eq!(wim.data.chain_rpc, "localhost:9944");
-		assert_eq!(wim.data.data_type, DataType::Parachain(vec![]));
+		assert_eq!(wim.payload.chain_rpc, "localhost:9944");
 		assert_eq!(wim.signed_payload, None);
 	}
 }
