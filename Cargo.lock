@@ -4738,6 +4738,7 @@ version = "0.5.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
+ "axum",
  "clap",
  "cliclack",
  "console",
@@ -4752,6 +4753,7 @@ dependencies = [
  "pop-telemetry",
  "predicates",
  "reqwest 0.12.7",
+ "serde",
  "serde_json",
  "sp-core",
  "sp-weights",
@@ -4759,6 +4761,7 @@ dependencies = [
  "strum_macros 0.26.4",
  "tempfile",
  "tokio",
+ "tower-http 0.6.2",
  "url",
 ]
 
@@ -4859,17 +4862,6 @@ dependencies = [
  "tempfile",
  "thiserror",
  "tokio",
-]
-
-[[package]]
-name = "pop-wallet-integration"
-version = "0.5.0"
-dependencies = [
- "axum",
- "serde",
- "serde_json",
- "tokio",
- "tower-http 0.6.2",
 ]
 
 [[package]]
