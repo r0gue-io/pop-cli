@@ -39,7 +39,8 @@ pub async fn construct_extrinsic(
 /// Constructs a Sudo extrinsic.
 ///
 /// # Arguments
-/// * `tx`: The transaction to be executed with sudo privileges.
+/// * `tx`: The transaction payload representing the function call to be dispatched with `Root`
+///   privileges.
 pub async fn construct_sudo_extrinsic(tx: DynamicPayload) -> Result<DynamicPayload, Error> {
 	Ok(subxt::dynamic::tx("Sudo", "sudo", [tx.into_value()].to_vec()))
 }

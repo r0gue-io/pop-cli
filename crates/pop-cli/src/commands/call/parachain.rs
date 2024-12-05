@@ -43,7 +43,7 @@ pub struct CallParachainCommand {
 	#[arg(name = "call", long, conflicts_with_all = ["pallet", "extrinsic", "args"])]
 	call_data: Option<String>,
 	/// Authenticates the sudo key and dispatches a function call with `Root` origin.
-	#[arg(name = "sudo", short = 'S', long)]
+	#[arg(short = 'S', long)]
 	sudo: bool,
 	/// Automatically signs and submits the extrinsic without prompting for confirmation.
 	#[arg(short('y'), long)]
@@ -195,10 +195,10 @@ impl CallParachainCommand {
 				self.expand_file_arguments()?
 			};
 
-			// Prompt the user to confirm if they want to execute the call with sudo privileges.
+			// Prompt the user to confirm if they want to execute the call via sudo.
 			if !self.sudo {
 				self.sudo = cli
-					.confirm("Would you like to execute this operation with sudo privileges?")
+					.confirm("Would you like to dispatch this function call with `Root` origin?")
 					.initial_value(false)
 					.interact()?;
 			}
@@ -346,7 +346,7 @@ impl CallParachain {
 				return Err(anyhow!("Error: {}", e));
 			},
 		};
-		// If sudo is enabled, wrap the call in a sudo call.
+		// If sudo is required, wrap the call in a sudo call.
 		let tx = if self.sudo { construct_sudo_extrinsic(tx).await? } else { tx };
 		let encoded_data = encode_call_data(client, &tx)?;
 		// If the encoded call data is too long, don't display it all.
@@ -637,7 +637,7 @@ mod tests {
 			0, // "remark" extrinsic
 		)
 		.expect_input("The value for `remark` might be too large to enter. You may enter the path to a file instead.", "0x11".into())
-		.expect_confirm("Would you like to execute this operation with sudo privileges?", true)
+		.expect_confirm("Would you like to dispatch this function call with `Root` origin?", true)
 		.expect_input("Signer of the extrinsic:", "//Bob".into());
 
 		let chain = call_config.configure_chain(&mut cli).await?;
