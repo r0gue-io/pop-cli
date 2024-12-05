@@ -52,50 +52,50 @@ impl CallParachainCommand {
 		// Configure the chain.
 		let chain = self.configure_chain(&mut cli).await?;
 		// Execute the call if call_data is provided.
-		if let Some(call_data) = self.call_data.as_ref().cloned() {
+		if let Some(call_data) = self.call_data.as_ref() {
 			if let Err(e) = self
-				.submit_extrinsic_from_call_data(&chain.client, &call_data, &mut cli::Cli)
+				.submit_extrinsic_from_call_data(&chain.client, call_data, &mut cli::Cli)
 				.await
 			{
 				display_message(&e.to_string(), false, &mut cli::Cli)?;
 			}
-		} else {
-			loop {
-				// Configure the call based on command line arguments/call UI.
-				let mut call = match self.configure_call(&chain, &mut cli).await {
-					Ok(call) => call,
-					Err(e) => {
-						display_message(&e.to_string(), false, &mut cli)?;
-						break;
-					},
-				};
-				// Display the configured call.
-				cli.info(call.display(&chain))?;
-				// Prepare the extrinsic.
-				let tx = match call.prepare_extrinsic(&chain.client, &mut cli).await {
-					Ok(payload) => payload,
-					Err(e) => {
-						display_message(&e.to_string(), false, &mut cli)?;
-						break;
-					},
-				};
-
-				// Send the extrinsic.
-				if let Err(e) = call.submit_extrinsic(&chain.client, tx, &mut cli).await {
+			return Ok(());
+		}
+		loop {
+			// Configure the call based on command line arguments/call UI.
+			let mut call = match self.configure_call(&chain, &mut cli).await {
+				Ok(call) => call,
+				Err(e) => {
 					display_message(&e.to_string(), false, &mut cli)?;
 					break;
-				}
-
-				if !prompt_to_repeat_call ||
-					!cli.confirm("Do you want to perform another call?")
-						.initial_value(false)
-						.interact()?
-				{
-					display_message("Parachain calling complete.", true, &mut cli)?;
+				},
+			};
+			// Display the configured call.
+			cli.info(call.display(&chain))?;
+			// Prepare the extrinsic.
+			let tx = match call.prepare_extrinsic(&chain.client, &mut cli).await {
+				Ok(payload) => payload,
+				Err(e) => {
+					display_message(&e.to_string(), false, &mut cli)?;
 					break;
-				}
-				self.reset_for_new_call();
+				},
+			};
+
+			// Send the extrinsic.
+			if let Err(e) = call.submit_extrinsic(&chain.client, tx, &mut cli).await {
+				display_message(&e.to_string(), false, &mut cli)?;
+				break;
 			}
+
+			if !prompt_to_repeat_call ||
+				!cli.confirm("Do you want to perform another call?")
+					.initial_value(false)
+					.interact()?
+			{
+				display_message("Parachain calling complete.", true, &mut cli)?;
+				break;
+			}
+			self.reset_for_new_call();
 		}
 		Ok(())
 	}
@@ -204,15 +204,15 @@ impl CallParachainCommand {
 
 	// Submits an extrinsic to the chain using the provided call data.
 	async fn submit_extrinsic_from_call_data(
-		&mut self,
+		&self,
 		client: &OnlineClient<SubstrateConfig>,
 		call_data: &str,
 		cli: &mut impl Cli,
 	) -> Result<()> {
 		// Resolve who is signing the extrinsic.
-		let suri = match self.clone().suri {
+		let suri = match self.suri.as_ref() {
 			Some(suri) => suri,
-			None => cli.input("Signer of the extrinsic:").default_input(DEFAULT_URI).interact()?,
+			None => &cli.input("Signer of the extrinsic:").default_input(DEFAULT_URI).interact()?,
 		};
 		cli.info(format!("Encoded call data: {}", call_data))?;
 		if !self.skip_confirm &&
@@ -229,7 +229,7 @@ impl CallParachainCommand {
 		}
 		let spinner = cliclack::spinner();
 		spinner.start("Signing and submitting the extrinsic, please wait...");
-		let result = sign_and_submit_extrinsic_with_call_data(client.clone(), call_data, &suri)
+		let result = sign_and_submit_extrinsic_with_call_data(client.clone(), call_data, suri)
 			.await
 			.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
 
@@ -702,7 +702,7 @@ mod tests {
 	#[tokio::test]
 	async fn user_cancel_submit_extrinsic_from_call_data_works() -> Result<()> {
 		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
-		let mut call_config = CallParachainCommand {
+		let call_config = CallParachainCommand {
 			pallet: None,
 			extrinsic: None,
 			args: vec![].to_vec(),
