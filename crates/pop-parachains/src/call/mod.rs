@@ -73,8 +73,8 @@ pub fn encode_call_data(
 	Ok(format!("0x{}", hex::encode(call_data)))
 }
 
-/// This struct implements the [`Payload`] trait and is used to submit
-/// pre-encoded SCALE call data directly, without the dynamic construction of transactions.
+// This struct implements the [`Payload`] trait and is used to submit
+// pre-encoded SCALE call data directly, without the dynamic construction of transactions.
 struct CallData(Vec<u8>);
 
 impl Payload for CallData {
@@ -88,11 +88,11 @@ impl Payload for CallData {
 	}
 }
 
-/// Signs and submits a given extrinsic to the blockchain.
+/// Signs and submits a given extrinsic.
 ///
 /// # Arguments
 /// * `client` - Reference to an `OnlineClient` connected to the chain.
-/// * `call_data` -SCALE encoded bytes representing the call data of the transaction.
+/// * `call_data` - SCALE encoded bytes representing the call data of the transaction.
 /// * `suri` - The secret URI (e.g., mnemonic or private key) for signing the extrinsic.
 pub async fn sign_and_submit_extrinsic_with_call_data(
 	client: OnlineClient<SubstrateConfig>,

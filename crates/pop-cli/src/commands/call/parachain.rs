@@ -35,8 +35,8 @@ pub struct CallParachainCommand {
 	/// - with a password "//Alice///SECRET_PASSWORD"
 	#[arg(short, long)]
 	suri: Option<String>,
-	/// SCALE encoded bytes representing the call data of the transaction.
-	#[arg(name = "call", short = 'c', long, conflicts_with_all = ["pallet", "extrinsic", "args"])]
+	/// SCALE encoded bytes representing the call data of the extrinsic.
+	#[arg(name = "call", long, conflicts_with_all = ["pallet", "extrinsic", "args"])]
 	call_data: Option<String>,
 	/// Automatically signs and submits the extrinsic without prompting for confirmation.
 	#[arg(short('y'), long)]
@@ -54,7 +54,7 @@ impl CallParachainCommand {
 		// Execute the call if call_data is provided.
 		if let Some(call_data) = self.call_data.as_ref().cloned() {
 			if let Err(e) = self
-				.send_extrinsic_from_call_data(&chain.client, &call_data, &mut cli::Cli)
+				.submit_extrinsic_from_call_data(&chain.client, &call_data, &mut cli::Cli)
 				.await
 			{
 				display_message(&e.to_string(), false, &mut cli::Cli)?;
@@ -202,12 +202,12 @@ impl CallParachainCommand {
 		}
 	}
 
-	// Sends an extrinsic to the chain using the call data.
-	async fn send_extrinsic_from_call_data(
+	// Submits an extrinsic to the chain using the provided call data.
+	async fn submit_extrinsic_from_call_data(
 		&mut self,
 		client: &OnlineClient<SubstrateConfig>,
 		call_data: &str,
-		cli: &mut impl cli::traits::Cli,
+		cli: &mut impl Cli,
 	) -> Result<()> {
 		// Resolve who is signing the extrinsic.
 		let suri = match self.clone().suri {
@@ -221,9 +221,7 @@ impl CallParachainCommand {
 				.interact()?
 		{
 			display_message(
-				&format!(
-					"Extrinsic with call data {call_data} was not submitted. Operation canceled by the user."
-				),
+				&format!("Extrinsic with call data {call_data} was not submitted."),
 				false,
 				cli,
 			)?;
@@ -236,7 +234,7 @@ impl CallParachainCommand {
 			.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
 
 		spinner.stop(format!("Extrinsic submitted successfully with hash: {:?}", result));
-		display_message("Parachain calling complete.", true, cli)?;
+		display_message("Call complete.", true, cli)?;
 		Ok(())
 	}
 
@@ -702,7 +700,7 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn user_cancel_send_extrinsic_from_call_data_works() -> Result<()> {
+	async fn user_cancel_submit_extrinsic_from_call_data_works() -> Result<()> {
 		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
 		let mut call_config = CallParachainCommand {
 			pallet: None,
@@ -716,9 +714,9 @@ mod tests {
 		let mut cli = MockCli::new()
 			.expect_input("Signer of the extrinsic:", "//Bob".into())
 			.expect_confirm("Do you want to submit the extrinsic?", false)
-			.expect_outro_cancel("Extrinsic with call data 0x00000411 was not submitted. Operation canceled by the user.");
+			.expect_outro_cancel("Extrinsic with call data 0x00000411 was not submitted.");
 		call_config
-			.send_extrinsic_from_call_data(&client, "0x00000411", &mut cli)
+			.submit_extrinsic_from_call_data(&client, "0x00000411", &mut cli)
 			.await?;
 
 		cli.verify()
