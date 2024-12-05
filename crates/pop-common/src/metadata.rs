@@ -163,9 +163,9 @@ mod tests {
 
 	#[tokio::test]
 	async fn format_type_works() -> Result<()> {
-		let api =
+		let client =
 			OnlineClient::<SubstrateConfig>::from_url("wss://rpc1.paseo.popnetwork.xyz").await?;
-		let metadata = api.metadata();
+		let metadata = client.metadata();
 		let registry = metadata.types();
 
 		// Validate `Nfts::mint` extrinsic types cover most of cases.

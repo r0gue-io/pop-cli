@@ -49,11 +49,11 @@ impl Display for Extrinsic {
 /// parameters.
 ///
 /// # Arguments
-/// * `api`: Reference to an `OnlineClient` connected to the chain.
+/// * `client`: Reference to an `OnlineClient` connected to the chain.
 pub async fn parse_chain_metadata(
-	api: &OnlineClient<SubstrateConfig>,
+	client: &OnlineClient<SubstrateConfig>,
 ) -> Result<Vec<Pallet>, Error> {
-	let metadata: Metadata = api.metadata();
+	let metadata: Metadata = client.metadata();
 
 	let pallets = metadata
 		.pallets()
@@ -70,7 +70,7 @@ pub async fn parse_chain_metadata(
 							let params = {
 								let mut parsed_params = Vec::new();
 								for field in &variant.fields {
-									match params::field_to_param(api, field) {
+									match params::field_to_param(client, field) {
 										Ok(param) => parsed_params.push(param),
 										Err(_) => {
 											// If an error occurs while parsing the values, mark the
@@ -165,14 +165,14 @@ pub async fn parse_extrinsic_arguments(raw_params: Vec<String>) -> Result<Vec<Va
 mod tests {
 	use super::*;
 
-	use crate::set_up_api;
+	use crate::set_up_client;
 	use anyhow::Result;
 	use subxt::ext::scale_bits;
 
 	#[tokio::test]
 	async fn parse_chain_metadata_works() -> Result<()> {
-		let api = set_up_api("wss://rpc1.paseo.popnetwork.xyz").await?;
-		let pallets = parse_chain_metadata(&api).await?;
+		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
+		let pallets = parse_chain_metadata(&client).await?;
 		// Test the first pallet is parsed correctly
 		let first_pallet = pallets.first().unwrap();
 		assert_eq!(first_pallet.name, "System");
@@ -196,8 +196,8 @@ mod tests {
 
 	#[tokio::test]
 	async fn find_pallet_by_name_works() -> Result<()> {
-		let api = set_up_api("wss://rpc1.paseo.popnetwork.xyz").await?;
-		let pallets = parse_chain_metadata(&api).await?;
+		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
+		let pallets = parse_chain_metadata(&client).await?;
 		assert!(matches!(
 			find_pallet_by_name(&pallets, "WrongName").await,
 			Err(Error::PalletNotFound(pallet)) if pallet == "WrongName".to_string()));
@@ -209,8 +209,8 @@ mod tests {
 
 	#[tokio::test]
 	async fn find_extrinsic_by_name_works() -> Result<()> {
-		let api = set_up_api("wss://rpc1.paseo.popnetwork.xyz").await?;
-		let pallets = parse_chain_metadata(&api).await?;
+		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
+		let pallets = parse_chain_metadata(&client).await?;
 		assert!(matches!(
 			find_extrinsic_by_name(&pallets, "WrongName", "wrong_extrinsic").await,
 			Err(Error::PalletNotFound(pallet)) if pallet == "WrongName".to_string()));

@@ -123,7 +123,7 @@ pub async fn supported_actions(pallets: &[Pallet]) -> Vec<Action> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::{parse_chain_metadata, set_up_api};
+	use crate::{parse_chain_metadata, set_up_client};
 	use anyhow::Result;
 	use std::collections::HashMap;
 
@@ -184,8 +184,9 @@ mod tests {
 	#[tokio::test]
 	async fn supported_actions_works() -> Result<()> {
 		// Test Pop Parachain.
-		let mut api = set_up_api("wss://rpc1.paseo.popnetwork.xyz").await?;
-		let mut actions = supported_actions(&parse_chain_metadata(&api).await?).await;
+		let mut client: subxt::OnlineClient<subxt::SubstrateConfig> =
+			set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
+		let mut actions = supported_actions(&parse_chain_metadata(&client).await?).await;
 		assert_eq!(actions.len(), 5);
 		assert_eq!(actions[0], Action::Transfer);
 		assert_eq!(actions[1], Action::CreateAsset);
@@ -194,8 +195,8 @@ mod tests {
 		assert_eq!(actions[4], Action::MintNFT);
 
 		// Test Polkadot Relay Chain.
-		api = set_up_api("wss://polkadot-rpc.publicnode.com").await?;
-		actions = supported_actions(&parse_chain_metadata(&api).await?).await;
+		client = set_up_client("wss://polkadot-rpc.publicnode.com").await?;
+		actions = supported_actions(&parse_chain_metadata(&client).await?).await;
 		assert_eq!(actions.len(), 4);
 		assert_eq!(actions[0], Action::Transfer);
 		assert_eq!(actions[1], Action::PurchaseOnDemandCoretime);

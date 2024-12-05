@@ -23,7 +23,7 @@ pub use call::{
 		params::Param,
 		parse_chain_metadata, Extrinsic, Pallet,
 	},
-	set_up_api, sign_and_submit_extrinsic,
+	set_up_client, sign_and_submit_extrinsic,
 };
 pub use errors::Error;
 pub use indexmap::IndexSet;

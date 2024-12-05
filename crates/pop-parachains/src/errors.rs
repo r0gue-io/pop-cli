@@ -9,12 +9,12 @@ pub enum Error {
 	Aborted,
 	#[error("Anyhow error: {0}")]
 	AnyhowError(#[from] anyhow::Error),
-	#[error("Failed to establish a connection to the API: {0}")]
-	ApiConnectionFailure(String),
 	#[error("Failed to encode call data. {0}")]
 	CallDataEncodingError(String),
 	#[error("{0}")]
 	CommonError(#[from] pop_common::Error),
+	#[error("Failed to establish a connection to: {0}")]
+	ConnectionFailure(String),
 	#[error("Configuration error: {0}")]
 	Config(String),
 	#[error("Failed to access the current directory")]
