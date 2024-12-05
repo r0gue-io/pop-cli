@@ -16,7 +16,7 @@ pub use build::{
 	generate_plain_chain_spec, generate_raw_chain_spec, is_supported, ChainSpec,
 };
 pub use call::{
-	construct_extrinsic, encode_call_data,
+	construct_extrinsic, construct_sudo_extrinsic, encode_call_data,
 	metadata::{
 		action::{supported_actions, Action},
 		find_extrinsic_by_name, find_pallet_by_name,

@@ -35,6 +35,15 @@ pub async fn construct_extrinsic(
 	Ok(subxt::dynamic::tx(pallet_name, extrinsic_name, parsed_args))
 }
 
+/// Constructs a Sudo extrinsic.
+///
+/// # Arguments
+/// * `tx`: The transaction payload representing the function call to be dispatched with `Root`
+///   privileges.
+pub async fn construct_sudo_extrinsic(tx: DynamicPayload) -> Result<DynamicPayload, Error> {
+	Ok(subxt::dynamic::tx("Sudo", "sudo", [tx.into_value()].to_vec()))
+}
+
 /// Signs and submits a given extrinsic to the blockchain.
 ///
 /// # Arguments
@@ -163,6 +172,24 @@ mod tests {
 		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
 		let extrinsic = construct_extrinsic("System", "remark", vec!["0x11".to_string()]).await?;
 		assert_eq!(encode_call_data(&client, &extrinsic)?, "0x00000411");
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn construct_sudo_extrinsic_works() -> Result<()> {
+		let extrinsic = construct_extrinsic(
+			"Balances",
+			"force_transfer",
+			vec![
+				"Id(5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty)".to_string(),
+				"Id(5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy)".to_string(),
+				"100".to_string(),
+			],
+		)
+		.await?;
+		let sudo_extrinsic = construct_sudo_extrinsic(extrinsic).await?;
+		assert_eq!(sudo_extrinsic.call_name(), "sudo");
+		assert_eq!(sudo_extrinsic.pallet_name(), "Sudo");
 		Ok(())
 	}
 }
