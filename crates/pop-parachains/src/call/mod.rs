@@ -229,9 +229,10 @@ mod tests {
 	async fn construct_sudo_extrinsic_works() -> Result<()> {
 		let extrinsic = construct_extrinsic(
 			"Balances",
-			"transfer_allow_death",
+			"force_transfer",
 			vec![
 				"Id(5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty)".to_string(),
+				"Id(5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy)".to_string(),
 				"100".to_string(),
 			],
 		)
