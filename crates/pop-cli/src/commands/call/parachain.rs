@@ -500,7 +500,6 @@ mod tests {
 
 	#[tokio::test]
 	async fn guide_user_to_call_parachain_works() -> Result<()> {
-		// Test all process specifying pallet, and see the prompted extrinsics.
 		let mut call_config = CallParachainCommand {
 			pallet: Some("System".to_string()),
 			extrinsic: None,
@@ -561,37 +560,37 @@ mod tests {
 			skip_confirm: false,
 		};
 
+		let mut cli = MockCli::new().expect_intro("Call a parachain").expect_input(
+			"Which chain would you like to interact with?",
+			"wss://polkadot-rpc.publicnode.com".into(),
+		);
+		let chain = call_config.configure_chain(&mut cli).await?;
+		assert_eq!(chain.url, Url::parse("wss://polkadot-rpc.publicnode.com")?);
+		cli.verify()?;
+
 		let mut cli = MockCli::new()
-			.expect_intro("Call a parachain")
-			.expect_input(
-				"Which chain would you like to interact with?",
-				"wss://polkadot-rpc.publicnode.com".into(),
-			)
 			.expect_select::<Pallet>(
 				"What would you like to do?",
 				Some(true),
 				true,
 				Some(
-					[
-						("Transfer balance".to_string(), "Balances".to_string()),
-						("Purchase on-demand coretime".to_string(), "OnDemand".to_string()),
-						("Reserve a parachain ID".to_string(), "Registrar".to_string()),
-						(
-							"Register a parachain ID with genesis state and code".to_string(),
-							"Registrar".to_string(),
-						),
-						("All".to_string(), "Explore all pallets and extrinsics".to_string()),
-					]
-					.to_vec(),
+					supported_actions(&chain.pallets)
+						.await
+						.into_iter()
+						.map(|action| {
+							(action.description().to_string(), action.pallet_name().to_string())
+						})
+						.chain(std::iter::once((
+							"All".to_string(),
+							"Explore all pallets and extrinsics".to_string(),
+						)))
+						.collect::<Vec<_>>(),
 				),
 				1, // "Purchase on-demand coretime" action
 			)
 			.expect_input("Enter the value for the parameter: max_amount", "10000".into())
 			.expect_input("Enter the value for the parameter: para_id", "2000".into())
 			.expect_input("Signer of the extrinsic:", "//Bob".into());
-
-		let chain = call_config.configure_chain(&mut cli).await?;
-		assert_eq!(chain.url, Url::parse("wss://polkadot-rpc.publicnode.com")?);
 
 		let call_parachain = call_config.configure_call(&chain, &mut cli).await?;
 
@@ -717,15 +716,17 @@ mod tests {
 			Some(true),
 			true,
 			Some(
-				[
-					("Transfer balance".to_string(), "Balances".to_string()),
-					("Create an asset".to_string(), "Assets".to_string()),
-					("Mint an asset".to_string(), "Assets".to_string()),
-					("Create an NFT collection".to_string(), "Nfts".to_string()),
-					("Mint an NFT".to_string(), "Nfts".to_string()),
-					("All".to_string(), "Explore all pallets and extrinsics".to_string()),
-				]
-				.to_vec(),
+				supported_actions(&pallets)
+					.await
+					.into_iter()
+					.map(|action| {
+						(action.description().to_string(), action.pallet_name().to_string())
+					})
+					.chain(std::iter::once((
+						"All".to_string(),
+						"Explore all pallets and extrinsics".to_string(),
+					)))
+					.collect::<Vec<_>>(),
 			),
 			2, // "Mint an Asset" action
 		);
