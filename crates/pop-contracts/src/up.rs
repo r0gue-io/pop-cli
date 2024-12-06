@@ -7,13 +7,17 @@ use crate::{
 	},
 };
 use contract_extrinsics::{
+	extrinsic_calls::{Instantiate, InstantiateWithCode},
 	BalanceVariant, ErrorVariant, ExtrinsicOptsBuilder, InstantiateCommandBuilder, InstantiateExec,
 	TokenMetadata, UploadCommandBuilder, UploadExec,
 };
 use ink_env::{DefaultEnvironment, Environment};
 use sp_core::Bytes;
 use sp_weights::Weight;
-use std::{fmt::Write, path::PathBuf};
+use std::{
+	fmt::Write,
+	path::{Path, PathBuf},
+};
 use subxt::{
 	ext::scale_encode::EncodeAsType, tx::Payload, utils::to_hex, PolkadotConfig as DefaultConfig,
 	SubstrateConfig,
@@ -101,7 +105,7 @@ pub async fn set_up_upload(
 }
 
 pub async fn get_upload_payload(up_opts: UpOpts) -> anyhow::Result<Vec<u8>> {
-	let code = get_contract_code(up_opts.clone()).await?;
+	let code = get_contract_code(up_opts.path.as_ref()).await?;
 
 	let storage_deposit_limit: Option<u128> = None;
 	let upload_code = contract_extrinsics::extrinsic_calls::UploadCode::new(
@@ -110,6 +114,7 @@ pub async fn get_upload_payload(up_opts: UpOpts) -> anyhow::Result<Vec<u8>> {
 		contract_extrinsics::upload::Determinism::Enforced,
 	);
 
+	// TODO: should not be here
 	let rpc_client = subxt::backend::rpc::RpcClient::from_url(up_opts.url.as_str()).await?;
 	let client = subxt::OnlineClient::<SubstrateConfig>::from_rpc_client(rpc_client).await?;
 
@@ -122,11 +127,50 @@ pub async fn get_upload_payload(up_opts: UpOpts) -> anyhow::Result<Vec<u8>> {
 	Ok(encoded_data)
 }
 
-// TODO, don't need full up_opts
-pub async fn get_contract_code(up_opts: UpOpts) -> anyhow::Result<contract_extrinsics::WasmCode> {
-	let manifest_path = get_manifest_path(up_opts.path.as_deref())?;
+pub async fn get_instantiate_payload(
+	instantiate_exec: InstantiateExec<DefaultConfig, DefaultEnvironment, Keypair>,
+	gas_limit: Weight,
+) -> anyhow::Result<Vec<u8>> {
+	// let code = get_contract_code(instantiate_exec.opts().manifest_path()).await?;
 
-	let signer = create_signer(&up_opts.suri)?;
+	let storage_deposit_limit: Option<u128> = None;
+	let mut encoded_data = Vec::<u8>::new();
+	match instantiate_exec.args().code() {
+		contract_extrinsics::Code::Upload(code) => InstantiateWithCode::new(
+			instantiate_exec.args().value(),
+			gas_limit,
+			storage_deposit_limit,
+			// TODO: revisit if expensive clone is necessary
+			code.clone(),
+			instantiate_exec.args().data().into(),
+			instantiate_exec.args().salt().into(),
+		)
+		.build()
+		.encode_call_data_to(&instantiate_exec.client().metadata(), &mut encoded_data),
+		contract_extrinsics::Code::Existing(hash) => Instantiate::new(
+			instantiate_exec.args().value(),
+			gas_limit,
+			storage_deposit_limit,
+			hash.clone(),
+			instantiate_exec.args().data().into(),
+			instantiate_exec.args().salt().into(),
+		)
+		.build()
+		.encode_call_data_to(&instantiate_exec.client().metadata(), &mut encoded_data),
+	}
+	.expect("encoding failed"); // TODO: error
+
+	Ok(encoded_data)
+}
+
+// TODO, don't need full up_opts
+pub async fn get_contract_code(
+	path: Option<&PathBuf>,
+) -> anyhow::Result<contract_extrinsics::WasmCode> {
+	let manifest_path = get_manifest_path(path.map(|p| p as &Path))?;
+
+	// TODO: signer doesn't matter here
+	let signer = create_signer("//Alice")?;
 	let extrinsic_opts =
 		ExtrinsicOptsBuilder::<DefaultConfig, DefaultEnvironment, Keypair>::new(signer)
 			.manifest_path(Some(manifest_path))
@@ -471,6 +515,71 @@ mod tests {
 		assert!(contract_info.address.starts_with("5"));
 		assert!(contract_info.code_hash.is_none());
 		// Stop the process contracts-node
+		Command::new("kill")
+			.args(["-s", "TERM", &process.id().to_string()])
+			.spawn()?
+			.wait()?;
+
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn get_instantiate_payload_works() -> Result<()> {
+		const LOCALHOST_URL: &str = "ws://127.0.0.1:9944";
+		let temp_dir = generate_smart_contract_test_environment()?;
+		mock_build_process(temp_dir.path().join("testing"))?;
+
+		let cache = temp_dir.path().join("");
+
+		let binary = contracts_node_generator(cache.clone(), None).await?;
+		binary.source(false, &(), true).await?;
+		let process = run_contracts_node(binary.path(), None).await?;
+
+		let upload_exec = set_up_upload(UpOpts {
+			path: Some(temp_dir.path().join("testing")),
+			constructor: "new".to_string(),
+			args: [].to_vec(),
+			value: "1000".to_string(),
+			gas_limit: None,
+			proof_size: None,
+			salt: None,
+			url: Url::parse(LOCALHOST_URL)?,
+			suri: "//Alice".to_string(),
+		})
+		.await?;
+
+		// Only upload a Smart Contract
+		let upload_result = upload_smart_contract(&upload_exec).await?;
+		assert!(!upload_result.starts_with("0x0x"));
+		assert!(upload_result.starts_with("0x"));
+		//Error when Smart Contract has been already uploaded
+		assert!(matches!(
+			upload_smart_contract(&upload_exec).await,
+			Err(Error::UploadContractError(..))
+		));
+
+		// Instantiate a Smart Contract
+		let instantiate_exec = set_up_deployment(UpOpts {
+			path: Some(temp_dir.path().join("testing")),
+			constructor: "new".to_string(),
+			args: ["false".to_string()].to_vec(),
+			value: "0".to_string(),
+			gas_limit: None,
+			proof_size: None,
+			salt: Some(Bytes::from(vec![0x00])),
+			url: Url::parse(LOCALHOST_URL)?,
+			suri: "//Alice".to_string(),
+		})
+		.await?;
+		// First gas estimation
+		let weight = dry_run_gas_estimate_instantiate(&instantiate_exec).await?;
+		assert!(weight.ref_time() > 0);
+		assert!(weight.proof_size() > 0);
+
+		let call_data = get_instantiate_payload(instantiate_exec, weight).await?;
+		println!("{:?}", to_hex(call_data));
+
+		//Stop the process contracts-node
 		Command::new("kill")
 			.args(["-s", "TERM", &process.id().to_string()])
 			.spawn()?
