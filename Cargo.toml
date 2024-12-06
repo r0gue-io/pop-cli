@@ -48,8 +48,11 @@ subxt = "0.37.0"
 ink_env = "5.0.0"
 sp-core = "31"
 sp-weights = "30"
-contract-build = "5.0.0-alpha"
-contract-extrinsics = "5.0.0-alpha"
+# TODO: upstream cargo-contract changes
+#contract-build = "5.0.0-alpha"
+contract-build = { path = "/Users/peter/dev/use-ink/cargo-contract/crates/build" }
+#contract-extrinsics = "5.0.0-alpha"
+contract-extrinsics = { path = "/Users/peter/dev/use-ink/cargo-contract/crates/extrinsics" }
 heck = "0.5.0"
 
 # parachains

@@ -1264,8 +1264,6 @@ checksum = "cd7e35aee659887cbfb97aaf227ac12cad1a9d7c71e55ff3376839ed4e282d08"
 [[package]]
 name = "contract-build"
 version = "5.0.0-alpha"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d12277cde43657b5a7a36c9bb6e9ecf12b757234a867f9f38ce78d386a328281"
 dependencies = [
  "anyhow",
  "blake2",
@@ -1305,8 +1303,6 @@ dependencies = [
 [[package]]
 name = "contract-extrinsics"
 version = "5.0.0-alpha"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bf7cd6c946b411dc175da09825bc0b041503eabca8347cefbf40eb346e035efc"
 dependencies = [
  "anyhow",
  "blake2",
@@ -1338,8 +1334,6 @@ dependencies = [
 [[package]]
 name = "contract-metadata"
 version = "5.0.0-alpha"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4fc0718fc46a399688c032f2141a3abafa0eb42041e3d6880390069ca4700fca"
 dependencies = [
  "anyhow",
  "impl-serde",
@@ -1352,8 +1346,6 @@ dependencies = [
 [[package]]
 name = "contract-transcode"
 version = "5.0.0-alpha"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "671e0dff122f02fff592b7f32aa59b1886352939945cba487ee10f6367f13a75"
 dependencies = [
  "anyhow",
  "base58",

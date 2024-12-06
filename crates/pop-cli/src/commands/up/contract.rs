@@ -4,13 +4,14 @@ use crate::{
 	cli::{traits::Cli as _, Cli},
 	common::contracts::check_contracts_node_and_prompt,
 	style::style,
+	wallet_integration::TransactionData,
 };
 use clap::Args;
 use cliclack::{confirm, log, log::error, spinner};
 use console::{Emoji, Style};
 use pop_common::manifest::from_path;
 use pop_contracts::{
-	build_smart_contract, dry_run_gas_estimate_instantiate, dry_run_upload,
+	build_smart_contract, dry_run_gas_estimate_instantiate, dry_run_upload, get_upload_payload,
 	instantiate_smart_contract, is_chain_alive, parse_hex_bytes, run_contracts_node,
 	set_up_deployment, set_up_upload, upload_smart_contract, UpOpts, Verbosity,
 };
@@ -64,6 +65,9 @@ pub struct UpContractCommand {
 	/// - with a password "//Alice///SECRET_PASSWORD"
 	#[clap(name = "suri", long, short, default_value = "//Alice")]
 	suri: String,
+	/// Use your browser wallet to sign a transaction.
+	#[clap(name = "use-wallet", long, default_value = "false")]
+	use_wallet: bool,
 	/// Perform a dry-run via RPC to estimate the gas usage. This does not submit a transaction.
 	#[clap(long)]
 	dry_run: bool,
@@ -163,7 +167,32 @@ impl UpContractCommand {
 			None
 		};
 
+		// TODO: **** Start of Wallet Integration
+		use crate::wallet_integration::{DefaultFrontend, WalletIntegrationManager};
+		let ui = DefaultFrontend::new(PathBuf::from(
+			"/Users/peter/dev/r0gue/react-teleport-example/dist",
+		));
+		if self.use_wallet {
+			let call_data = if self.upload_only {
+				let call_data = get_upload_payload(self.clone().into()).await?;
+				call_data
+			} else {
+			};
+
+			let transaction_data = TransactionData::new(self.url.to_string(), call_data);
+			let mut wallet = WalletIntegrationManager::new(ui, transaction_data);
+			let server = wallet.run().await?;
+
+			// TODO: instantiate
+		}
+
+		// TODO: ***** End of Wallet Integration
+
 		// Check for upload only.
+		// TODO: Option 1 for wallet integration
+		// TODO: checks if dry-run in function
+		// TODO: this is an upload only. Piece #1 of pop up
+		// TODO: server can be terminated on return here
 		if self.upload_only {
 			let result = self.upload_contract().await;
 			Self::terminate_node(process)?;
@@ -179,6 +208,7 @@ impl UpContractCommand {
 		}
 
 		// Otherwise instantiate.
+		// TODO: does not deploy, just setup
 		let instantiate_exec = match set_up_deployment(UpOpts {
 			path: self.path.clone(),
 			constructor: self.constructor.clone(),
@@ -206,6 +236,7 @@ impl UpContractCommand {
 		} else {
 			let spinner = spinner();
 			spinner.start("Doing a dry run to estimate the gas...");
+			// TODO: Option 2 for wallet integration. Requires signer info
 			match dry_run_gas_estimate_instantiate(&instantiate_exec).await {
 				Ok(w) => {
 					spinner.stop(format!("Gas limit estimate: {:?}", w));
@@ -221,6 +252,7 @@ impl UpContractCommand {
 		};
 
 		// Finally upload and instantiate.
+		// TODO: option 3 for wallet integration
 		if !self.dry_run {
 			let spinner = spinner();
 			spinner.start("Uploading and instantiating the contract...");
@@ -352,6 +384,7 @@ mod tests {
 	use super::*;
 	use duct::cmd;
 	use std::fs::{self, File};
+	use subxt::{tx::SubmittableExtrinsic, OnlineClient, PolkadotConfig};
 	use url::Url;
 
 	#[test]
@@ -369,6 +402,7 @@ mod tests {
 			dry_run: false,
 			upload_only: false,
 			skip_confirm: false,
+			use_wallet: false,
 		};
 		let opts: UpOpts = command.into();
 		assert_eq!(
@@ -407,5 +441,24 @@ mod tests {
 		File::create(contract_path.join(format!("target/ink/{}.contract", name)))?;
 		assert!(has_contract_been_built(Some(&path.join(name))));
 		Ok(())
+	}
+
+	#[tokio::test]
+	async fn submit_subxt() {
+		let api = OnlineClient::<PolkadotConfig>::new().await.unwrap();
+
+		// Build a balance transfer extrinsic.
+
+		// Create partial tx, ready to be signed.
+
+		let signed_payload = "45028400d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d012e10751f1ad230e492e7925a66d693e8281017bd1adfcf906796805334fff66f2c337ab364132128c0a6e11754a039670cbe51b2da2240073585d800bdb3a78815030000000a03001cbd2d43530a44705ad088af313e18f80b53ef16b36177cd4b77b846f2a5f07c0700e8764817";
+
+		let hex_encoded = hex::decode(signed_payload).unwrap();
+		println!("{:?}", hex::decode(hex_encoded.clone()));
+
+		let tx = SubmittableExtrinsic::from_bytes(api, hex_encoded);
+
+		// Submit it.
+		tx.submit_and_watch().await.unwrap().wait_for_finalized_success().await;
 	}
 }
