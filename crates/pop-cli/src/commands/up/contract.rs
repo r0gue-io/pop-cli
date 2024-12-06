@@ -243,10 +243,14 @@ impl UpContractCommand {
 
 			Self::terminate_node(process)?;
 			Cli.outro(COMPLETE)?;
-			return Ok(())
+			return Ok(());
 		}
 
 		// Check for upload only.
+		// TODO: Option 1 for wallet integration
+		// TODO: checks if dry-run in function
+		// TODO: this is an upload only. Piece #1 of pop up
+		// TODO: server can be terminated on return here
 		if self.upload_only {
 			let result = self.upload_contract().await;
 			Self::terminate_node(process)?;
@@ -277,6 +281,7 @@ impl UpContractCommand {
 		} else {
 			let spinner = spinner();
 			spinner.start("Doing a dry run to estimate the gas...");
+			// TODO: Option 2 for wallet integration. Requires signer info
 			match dry_run_gas_estimate_instantiate(&instantiate_exec).await {
 				Ok(w) => {
 					spinner.stop(format!("Gas limit estimate: {:?}", w));
@@ -292,6 +297,7 @@ impl UpContractCommand {
 		};
 
 		// Finally upload and instantiate.
+		// TODO: option 3 for wallet integration
 		if !self.dry_run {
 			let spinner = spinner();
 			spinner.start("Uploading and instantiating the contract...");

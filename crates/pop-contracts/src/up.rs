@@ -110,6 +110,7 @@ pub async fn set_up_upload(
 
 	let upload_exec: UploadExec<DefaultConfig, DefaultEnvironment, Keypair> =
 		UploadCommandBuilder::new(extrinsic_opts).done().await?;
+
 	Ok(upload_exec)
 }
 
@@ -242,7 +243,7 @@ pub async fn submit_signed_payload(
 		match status? {
 			TxStatus::InFinalizedBlock(tx_in_block) => {
 				let events = tx_in_block.wait_for_success().await?;
-				return Ok(events)
+				return Ok(events);
 			},
 			TxStatus::Error { message } => return Err(TransactionError::Error(message).into()),
 			TxStatus::Invalid { message } => return Err(TransactionError::Invalid(message).into()),
