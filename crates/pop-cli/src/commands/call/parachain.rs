@@ -512,8 +512,6 @@ mod tests {
 
 		let mut cli = MockCli::new()
 		.expect_intro("Call a parachain")
-		.expect_input("Signer of the extrinsic:", "//Bob".into())
-		.expect_input("Enter the value for the parameter: remark", "0x11".into())
 		.expect_input("Which chain would you like to interact with?", "wss://rpc1.paseo.popnetwork.xyz".into())
 		.expect_select::<Pallet>(
 			"Select the extrinsic to call:",
@@ -536,7 +534,9 @@ mod tests {
 				.to_vec(),
 			),
 			0, // "remark" extrinsic
-		);
+		)
+		.expect_input("Enter the value for the parameter: remark", "0x11".into())
+		.expect_input("Signer of the extrinsic:", "//Bob".into());
 
 		let chain = call_config.configure_chain(&mut cli).await?;
 		assert_eq!(chain.url, Url::parse("wss://rpc1.paseo.popnetwork.xyz")?);
@@ -563,9 +563,6 @@ mod tests {
 
 		let mut cli = MockCli::new()
 			.expect_intro("Call a parachain")
-			.expect_input("Signer of the extrinsic:", "//Bob".into())
-			.expect_input("Enter the value for the parameter: para_id", "2000".into())
-			.expect_input("Enter the value for the parameter: max_amount", "10000".into())
 			.expect_input(
 				"Which chain would you like to interact with?",
 				"wss://polkadot-rpc.publicnode.com".into(),
@@ -588,7 +585,10 @@ mod tests {
 					.to_vec(),
 				),
 				1, // "Purchase on-demand coretime" action
-			);
+			)
+			.expect_input("Enter the value for the parameter: max_amount", "10000".into())
+			.expect_input("Enter the value for the parameter: para_id", "2000".into())
+			.expect_input("Signer of the extrinsic:", "//Bob".into());
 
 		let chain = call_config.configure_chain(&mut cli).await?;
 		assert_eq!(chain.url, Url::parse("wss://polkadot-rpc.publicnode.com")?);
@@ -741,13 +741,8 @@ mod tests {
 		// Using NFT mint extrinsic to test the majority of subfunctions
 		let extrinsic = find_extrinsic_by_name(&pallets, "Nfts", "mint").await?;
 		let mut cli = MockCli::new()
-			.expect_input("Enter the value for the parameter: mint_price", "1000".into())
-			.expect_input(
-				"Enter the value for the parameter: Id",
-				"5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty".into(),
-			)
-			.expect_input("Enter the value for the parameter: item", "0".into())
 			.expect_input("Enter the value for the parameter: collection", "0".into())
+			.expect_input("Enter the value for the parameter: item", "0".into())
 			.expect_select::<Pallet>(
 				"Select the value for the parameter: mint_to",
 				Some(true),
@@ -764,8 +759,12 @@ mod tests {
 				),
 				0, // "Id" action
 			)
+			.expect_input(
+				"Enter the value for the parameter: Id",
+				"5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty".into(),
+			)
 			.expect_confirm(
-				"Do you want to provide a value for the optional parameter: mint_price?",
+				"Do you want to provide a value for the optional parameter: witness_data?",
 				true,
 			)
 			.expect_confirm(
@@ -773,9 +772,11 @@ mod tests {
 				false,
 			)
 			.expect_confirm(
-				"Do you want to provide a value for the optional parameter: witness_data?",
+				"Do you want to provide a value for the optional parameter: mint_price?",
 				true,
-			);
+			)
+			.expect_input("Enter the value for the parameter: mint_price", "1000".into());
+
 		// Test all the extrinsic params
 		let mut params: Vec<String> = Vec::new();
 		for param in extrinsic.params {
@@ -791,16 +792,16 @@ mod tests {
 		// Using Scheduler set_retry extrinsic to test the tuple params
 		let extrinsic = find_extrinsic_by_name(&pallets, "Scheduler", "set_retry").await?;
 		let mut cli = MockCli::new()
-			.expect_input("Enter the value for the parameter: period", "0".into())
-			.expect_input("Enter the value for the parameter: retries", "0".into())
+			.expect_input(
+				"Enter the value for the parameter: Index 0 of the tuple task",
+				"0".into(),
+			)
 			.expect_input(
 				"Enter the value for the parameter: Index 1 of the tuple task",
 				"0".into(),
 			)
-			.expect_input(
-				"Enter the value for the parameter: Index 0 of the tuple task",
-				"0".into(),
-			);
+			.expect_input("Enter the value for the parameter: retries", "0".into())
+			.expect_input("Enter the value for the parameter: period", "0".into());
 
 		// Test all the extrinsic params
 		let mut params: Vec<String> = Vec::new();
