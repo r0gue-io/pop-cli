@@ -10,9 +10,10 @@ use clap::Args;
 use cliclack::{confirm, log, log::error, spinner};
 use console::{Emoji, Style};
 use pop_contracts::{
-	build_smart_contract, dry_run_gas_estimate_instantiate, dry_run_upload, get_upload_payload,
-	instantiate_smart_contract, is_chain_alive, parse_hex_bytes, run_contracts_node,
-	set_up_deployment, set_up_upload, upload_smart_contract, UpOpts, Verbosity,
+	build_smart_contract, dry_run_gas_estimate_instantiate, dry_run_upload,
+	get_instantiate_payload, get_upload_payload, instantiate_smart_contract, is_chain_alive,
+	parse_hex_bytes, run_contracts_node, set_up_deployment, set_up_upload, upload_smart_contract,
+	UpOpts, Verbosity,
 };
 use sp_core::Bytes;
 use sp_weights::Weight;
@@ -178,6 +179,40 @@ impl UpContractCommand {
 				let call_data = get_upload_payload(self.clone().into()).await?;
 				call_data
 			} else {
+				// Otherwise instantiate.
+				// does not deploy, just setup
+				// TODO: DRY
+				let instantiate_exec = match set_up_deployment(UpOpts {
+					path: self.path.clone(),
+					constructor: self.constructor.clone(),
+					args: self.args.clone(),
+					value: self.value.clone(),
+					gas_limit: self.gas_limit,
+					proof_size: self.proof_size,
+					salt: self.salt.clone(),
+					url: self.url.clone(),
+					suri: self.suri.clone(),
+				})
+				.await
+				{
+					Ok(i) => i,
+					Err(e) => {
+						error(format!("An error occurred instantiating the contract: {e}"))?;
+						Self::terminate_node(process)?;
+						Cli.outro_cancel(FAILED)?;
+						return Ok(());
+					},
+				};
+
+				// TODO: note on weight_limit. We will need to do a dry-run in the UI then
+				// update the data with the weight limit.
+				let weight_limit = if self.gas_limit.is_some() && self.proof_size.is_some() {
+					Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap())
+				} else {
+					Weight::from_parts(0, 0)
+				};
+				let call_data = get_instantiate_payload(instantiate_exec, weight_limit).await?;
+				call_data
 			};
 
 			let transaction_data = TransactionData::new(self.url.to_string(), call_data);
