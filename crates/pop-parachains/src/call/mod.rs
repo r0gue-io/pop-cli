@@ -124,4 +124,16 @@ mod tests {
 		assert_eq!(encode_call_data(&client, &extrinsic)?, "0x00000411");
 		Ok(())
 	}
+
+	#[tokio::test]
+	async fn sign_and_submit_wrong_extrinsic_fails() -> Result<()> {
+		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
+		let tx =
+			construct_extrinsic("WrongPallet", "wrongExtrinsic", vec!["0x11".to_string()]).await?;
+		assert!(matches!(
+			sign_and_submit_extrinsic(client, tx, "//Alice").await,
+			Err(Error::ExtrinsicSubmissionError(message)) if message.contains("PalletNameNotFound(\"WrongPallet\"))")
+		));
+		Ok(())
+	}
 }
