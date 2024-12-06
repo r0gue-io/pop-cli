@@ -38,7 +38,7 @@ pub async fn construct_extrinsic(
 /// Signs and submits a given extrinsic to the blockchain.
 ///
 /// # Arguments
-/// * `client` - Reference to an `OnlineClient` connected to the chain.
+/// * `client` - The client used to interact with the chain.
 /// * `tx` - The transaction to be signed and submitted.
 /// * `suri` - The secret URI (e.g., mnemonic or private key) for signing the extrinsic.
 pub async fn sign_and_submit_extrinsic(
@@ -61,7 +61,7 @@ pub async fn sign_and_submit_extrinsic(
 /// Encodes the call data for a given extrinsic into a hexadecimal string.
 ///
 /// # Arguments
-/// * `client` - Reference to an `OnlineClient` connected to the chain.
+/// * `client` - The client used to interact with the chain.
 /// * `tx` - The transaction whose call data will be encoded and returned.
 pub fn encode_call_data(
 	client: &OnlineClient<SubstrateConfig>,

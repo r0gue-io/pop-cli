@@ -25,7 +25,7 @@ pub struct Param {
 /// Transforms a metadata field into its `Param` representation.
 ///
 /// # Arguments
-/// * `client`: Reference to an `OnlineClient` connected to the blockchain.
+/// * `client`: `client` - The client used to interact with the chain.
 /// * `field`: A reference to a metadata field of the extrinsic.
 pub fn field_to_param(
 	client: &OnlineClient<SubstrateConfig>,

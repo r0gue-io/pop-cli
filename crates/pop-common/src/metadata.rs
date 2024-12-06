@@ -5,8 +5,9 @@ use scale_info::{form::PortableForm, PortableRegistry, Type, TypeDef, TypeDefPri
 /// Formats a specified type, using the registry to output its full type representation.
 ///
 /// # Arguments
-/// * `ty`: A reference to the `Type<PortableForm>` to be formatted.
-/// * `registry`: A reference to the `PortableRegistry` to resolve type dependencies.
+/// * `ty`: The type to format, containing metadata like name, parameters, and definition.
+/// * `registry`: The registry used to resolve type dependencies and provides details for complex
+///   types.
 pub fn format_type(ty: &Type<PortableForm>, registry: &PortableRegistry) -> String {
 	let mut name = ty
 		.path
