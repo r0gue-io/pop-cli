@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::cli::{self, Cli};
-use anyhow::ensure;
 use clap::{Args, Subcommand};
 #[cfg(feature = "contract")]
 use contract::BuildContractCommand;
@@ -24,10 +23,8 @@ pub(crate) struct BuildArgs {
 	#[command(subcommand)]
 	pub command: Option<Command>,
 	/// Directory path for your project [default: current directory]
-	#[arg(long,required = false)]
+	#[arg(long)]
 	pub(crate) path: Option<PathBuf>,
-	#[arg(value_name = "PATH",required = false)]
-	pub(crate) path1: Option<PathBuf>,
 	/// The package to be built.
 	#[arg(short = 'p', long)]
 	pub(crate) package: Option<String>,
@@ -62,19 +59,10 @@ impl Command {
 	/// Executes the command.
 	pub(crate) fn execute(args: BuildArgs) -> anyhow::Result<&'static str> {
 		// If only contract feature enabled, build as contract
-		let path0 = args.path.clone();
-		let path1 = args.path1.clone();
-		let project_path = match path0 {
-			Some(ref path)  if path.to_str().unwrap().contains("./")=> Some(path.to_owned()),
-			_ => {
-				ensure!(path1.is_some());
-				path1
-			}
-		}; 
 		#[cfg(feature = "contract")]
-		if pop_contracts::is_supported(project_path.as_deref())? {
+		if pop_contracts::is_supported(args.path.as_deref())? {
 			// All commands originating from root command are valid
-			BuildContractCommand { path: project_path.clone(), path1:project_path, release: args.release, valid: true }
+			BuildContractCommand { path: args.path, release: args.release, valid: true }
 				.execute()?;
 			return Ok("contract");
 		}
@@ -151,7 +139,6 @@ mod tests {
 						BuildArgs {
 							command: None,
 							path: Some(path.join(name)),
-							path1: Some(path.join(name)),
 							package: package.clone(),
 							release,
 							id: None,

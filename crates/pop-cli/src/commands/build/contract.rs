@@ -10,11 +10,8 @@ use std::{thread::sleep, time::Duration};
 #[derive(Args)]
 pub struct BuildContractCommand {
 	/// Path for the contract project [default: current directory]
-	/// Directory path for your project [default: current directory]
-	#[arg(long,required = false)]
+	#[arg(long)]
 	pub(crate) path: Option<PathBuf>,
-	#[arg(value_name = "PATH",required = false)]
-	pub(crate) path1: Option<PathBuf>,
 	/// The default compilation includes debug functionality, increasing contract size and gas
 	/// usage. For production, always build in release mode to exclude debug features.
 	#[clap(short, long)]
@@ -45,17 +42,8 @@ impl BuildContractCommand {
 		}
 
 		// Build contract.
-		println!("what we have:{:?}",std::env::args().nth(2));
-		let contract_path = match self.path {
-			Some(ref path)  if path.to_str().unwrap_or("null").contains("./")=> path,
-			_ => {
-				// If no path is provided, assume it's the first positional argument
-				
-				&self.path1.unwrap_or("null".into())
-			}
-		}; 
 		let build_result =
-			build_smart_contract(Some(contract_path).as_deref().map(|v| &**v), self.release, Verbosity::Default)?;
+			build_smart_contract(self.path.as_deref(), self.release, Verbosity::Default)?;
 		cli.success(build_result.display())?;
 		cli.outro("Build completed successfully!")?;
 		Ok("contract")
@@ -88,7 +76,7 @@ mod tests {
 				}
 
 				assert_eq!(
-					BuildContractCommand { path: Some(path.join(name)), path1: Some(path.join(name)), release, valid }
+					BuildContractCommand { path: Some(path.join(name)), release, valid }
 						.build(&mut cli)?,
 					"contract"
 				);
