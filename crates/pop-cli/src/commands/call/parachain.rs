@@ -171,7 +171,7 @@ impl CallParachainCommand {
 				}
 				args
 			} else {
-				self.args.clone()
+				self.expand_file_arguments()?
 			};
 
 			// Resolve who is signing the extrinsic.
@@ -205,6 +205,21 @@ impl CallParachainCommand {
 			self.args.is_empty() ||
 			self.url.is_none() ||
 			self.suri.is_none()
+	}
+
+	/// Replaces file arguments with their contents, leaving other arguments unchanged.
+	fn expand_file_arguments(&self) -> Result<Vec<String>> {
+		self.args
+			.iter()
+			.map(|arg| {
+				if std::fs::metadata(arg).map(|m| m.is_file()).unwrap_or(false) {
+					std::fs::read_to_string(arg)
+						.map_err(|err| anyhow!("Failed to read file {}", err.to_string()))
+				} else {
+					Ok(arg.clone())
+				}
+			})
+			.collect()
 	}
 }
 
@@ -716,6 +731,42 @@ mod tests {
 	}
 
 	#[test]
+	fn expand_file_arguments_works() -> Result<()> {
+		let mut call_config = CallParachainCommand {
+			pallet: Some("Registrar".to_string()),
+			extrinsic: Some("register".to_string()),
+			args: vec!["2000".to_string(), "0x1".to_string(), "0x12".to_string()].to_vec(),
+			url: Some(Url::parse("wss://rpc1.paseo.popnetwork.xyz")?),
+			suri: Some(DEFAULT_URI.to_string()),
+			skip_confirm: false,
+		};
+		assert_eq!(
+			call_config.expand_file_arguments()?,
+			vec!["2000".to_string(), "0x1".to_string(), "0x12".to_string()]
+		);
+		// Temporal file for testing when the input is a file.
+		let temp_dir = tempdir()?;
+		let genesis_file = temp_dir.path().join("genesis_file.json");
+		std::fs::write(&genesis_file, "genesis_file_content")?;
+		let wasm_file = temp_dir.path().join("wasm_file.json");
+		std::fs::write(&wasm_file, "wasm_file_content")?;
+		call_config.args = vec![
+			"2000".to_string(),
+			genesis_file.display().to_string(),
+			wasm_file.display().to_string(),
+		];
+		assert_eq!(
+			call_config.expand_file_arguments()?,
+			vec![
+				"2000".to_string(),
+				"genesis_file_content".to_string(),
+				"wasm_file_content".to_string()
+			]
+		);
+		Ok(())
+	}
+
+	#[test]
 	fn display_message_works() -> Result<()> {
 		let mut cli = MockCli::new().expect_outro(&"Call completed successfully!");
 		display_message("Call completed successfully!", true, &mut cli)?;
@@ -853,7 +904,7 @@ mod tests {
 		// Test all the extrinsic params
 		let mut params: Vec<String> = Vec::new();
 		for param in extrinsic.params {
-			params.push(prompt_for_param(&client, &mut cli, &param)?);
+			params.push(prompt_for_param(&mut cli, &param)?);
 		}
 		assert_eq!(params.len(), 1);
 		assert_eq!(params[0], "testing".to_string()); // remark: test sequence from file
