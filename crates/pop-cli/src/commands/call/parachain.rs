@@ -165,7 +165,7 @@ impl CallParachainCommand {
 			let args = if self.args.is_empty() {
 				let mut args = Vec::new();
 				for param in &extrinsic.params {
-					let input = prompt_for_param(&chain.client, cli, param)?;
+					let input = prompt_for_param(cli, param)?;
 					args.push(input);
 				}
 				args
@@ -329,11 +329,7 @@ async fn prompt_predefined_actions(
 }
 
 // Prompts the user for the value of a parameter.
-fn prompt_for_param(
-	client: &OnlineClient<SubstrateConfig>,
-	cli: &mut impl Cli,
-	param: &Param,
-) -> Result<String> {
+fn prompt_for_param(cli: &mut impl Cli, param: &Param) -> Result<String> {
 	if param.is_optional {
 		if !cli
 			.confirm(format!(
@@ -344,27 +340,23 @@ fn prompt_for_param(
 		{
 			return Ok("None()".to_string());
 		}
-		let value = get_param_value(client, cli, param)?;
+		let value = get_param_value(cli, param)?;
 		Ok(format!("Some({})", value))
 	} else {
-		get_param_value(client, cli, param)
+		get_param_value(cli, param)
 	}
 }
 
 // Resolves the value of a parameter based on its type.
-fn get_param_value(
-	client: &OnlineClient<SubstrateConfig>,
-	cli: &mut impl Cli,
-	param: &Param,
-) -> Result<String> {
+fn get_param_value(cli: &mut impl Cli, param: &Param) -> Result<String> {
 	if param.sub_params.is_empty() {
 		prompt_for_primitive_param(cli, param)
 	} else if param.is_variant {
-		prompt_for_variant_param(client, cli, param)
+		prompt_for_variant_param(cli, param)
 	} else if param.is_tuple {
-		prompt_for_tuple_param(client, cli, param)
+		prompt_for_tuple_param(cli, param)
 	} else {
-		prompt_for_composite_param(client, cli, param)
+		prompt_for_composite_param(cli, param)
 	}
 }
 
@@ -379,11 +371,7 @@ fn prompt_for_primitive_param(cli: &mut impl Cli, param: &Param) -> Result<Strin
 // Prompt the user to select the value of the variant parameter and recursively prompt for nested
 // fields. Output example: `Id(5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY)` for the `Id`
 // variant.
-fn prompt_for_variant_param(
-	client: &OnlineClient<SubstrateConfig>,
-	cli: &mut impl Cli,
-	param: &Param,
-) -> Result<String> {
+fn prompt_for_variant_param(cli: &mut impl Cli, param: &Param) -> Result<String> {
 	let selected_variant = {
 		let mut select = cli.select(format!("Select the value for the parameter: {}", param.name));
 		for option in &param.sub_params {
@@ -395,7 +383,7 @@ fn prompt_for_variant_param(
 	if !selected_variant.sub_params.is_empty() {
 		let mut field_values = Vec::new();
 		for field_arg in &selected_variant.sub_params {
-			let field_value = prompt_for_param(client, cli, field_arg)?;
+			let field_value = prompt_for_param(cli, field_arg)?;
 			field_values.push(field_value);
 		}
 		Ok(format!("{}({})", selected_variant.name, field_values.join(", ")))
@@ -421,14 +409,10 @@ fn prompt_for_variant_param(
 //     ],
 //     is_variant: false
 // }
-fn prompt_for_composite_param(
-	client: &OnlineClient<SubstrateConfig>,
-	cli: &mut impl Cli,
-	param: &Param,
-) -> Result<String> {
+fn prompt_for_composite_param(cli: &mut impl Cli, param: &Param) -> Result<String> {
 	let mut field_values = Vec::new();
 	for field_arg in &param.sub_params {
-		let field_value = prompt_for_param(client, cli, field_arg)?;
+		let field_value = prompt_for_param(cli, field_arg)?;
 		if param.sub_params.len() == 1 && param.name == param.sub_params[0].name {
 			field_values.push(field_value);
 		} else {
@@ -443,14 +427,10 @@ fn prompt_for_composite_param(
 }
 
 // Recursively prompt the user for the tuple values.
-fn prompt_for_tuple_param(
-	client: &OnlineClient<SubstrateConfig>,
-	cli: &mut impl Cli,
-	param: &Param,
-) -> Result<String> {
+fn prompt_for_tuple_param(cli: &mut impl Cli, param: &Param) -> Result<String> {
 	let mut tuple_values = Vec::new();
 	for tuple_param in param.sub_params.iter() {
-		let tuple_value = prompt_for_param(client, cli, tuple_param)?;
+		let tuple_value = prompt_for_param(cli, tuple_param)?;
 		tuple_values.push(tuple_value);
 	}
 	Ok(format!("({})", tuple_values.join(", ")))
@@ -776,7 +756,7 @@ mod tests {
 		// Test all the extrinsic params
 		let mut params: Vec<String> = Vec::new();
 		for param in extrinsic.params {
-			params.push(prompt_for_param(&client, &mut cli, &param)?);
+			params.push(prompt_for_param(&mut cli, &param)?);
 		}
 		assert_eq!(params.len(), 4);
 		assert_eq!(params[0], "0".to_string()); // collection: test primitive
@@ -802,7 +782,7 @@ mod tests {
 		// Test all the extrinsic params
 		let mut params: Vec<String> = Vec::new();
 		for param in extrinsic.params {
-			params.push(prompt_for_param(&client, &mut cli, &param)?);
+			params.push(prompt_for_param(&mut cli, &param)?);
 		}
 		assert_eq!(params.len(), 3);
 		assert_eq!(params[0], "(0, 0)".to_string()); // task: test tuples
