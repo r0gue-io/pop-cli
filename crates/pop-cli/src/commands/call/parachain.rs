@@ -12,7 +12,7 @@ use url::Url;
 
 const DEFAULT_URL: &str = "ws://localhost:9944/";
 const DEFAULT_URI: &str = "//Alice";
-const ENCODED_CALL_DATA_MAX_LEN: usize = 1000; // Maximum length of encoded call data to display.
+const ENCODED_CALL_DATA_MAX_LEN: usize = 500; // Maximum length of encoded call data to display.
 
 /// Command to execute extrinsics with configurable pallets, arguments, and signing options.
 #[derive(Args, Clone)]
@@ -400,7 +400,7 @@ fn prompt_for_sequence_param(cli: &mut impl Cli, param: &Param) -> Result<String
 		let content = std::fs::read_to_string(&file_path)
 			.map_err(|err| anyhow!("Failed to read file {}", err.to_string()))?;
 
-		return Ok(content);
+		Ok(content)
 	} else {
 		prompt_for_primitive_param(cli, param)
 	}
@@ -500,6 +500,7 @@ fn parse_extrinsic_name(name: &str) -> Result<String, String> {
 mod tests {
 	use super::*;
 	use crate::cli::MockCli;
+	use tempfile::tempdir;
 	use url::Url;
 
 	#[tokio::test]
@@ -834,6 +835,32 @@ mod tests {
 		assert_eq!(params[0], "(0, 0)".to_string()); // task: test tuples
 		assert_eq!(params[1], "0".to_string()); // retries: test primitive
 		assert_eq!(params[2], "0".to_string()); // period: test primitive
+		cli.verify()?;
+
+		// Using System remark extrinsic to test the sequence params
+		let extrinsic = find_extrinsic_by_name(&pallets, "System", "remark").await?;
+		// Temporal file for testing the input.
+		let temp_dir = tempdir()?;
+		let file = temp_dir.path().join("file.json");
+		std::fs::write(&file, "testing")?;
+
+		let mut cli = MockCli::new()
+			.expect_confirm(
+				"The value for `remark` might be too large to enter. Provide a file instead?",
+				true,
+			)
+			.expect_input(
+				"Enter the file path for the parameter `remark`:",
+				file.display().to_string(),
+			);
+
+		// Test all the extrinsic params
+		let mut params: Vec<String> = Vec::new();
+		for param in extrinsic.params {
+			params.push(prompt_for_param(&client, &mut cli, &param)?);
+		}
+		assert_eq!(params.len(), 1);
+		assert_eq!(params[0], "testing".to_string()); // remark: test sequence from file
 		cli.verify()
 	}
 
