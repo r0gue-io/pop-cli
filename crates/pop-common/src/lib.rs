@@ -89,4 +89,14 @@ mod test {
 		assert_eq!(target()?, target_expected);
 		Ok(())
 	}
+
+	#[test]
+	fn find_free_port_works() -> Result<()> {
+		let port = find_free_port();
+		let addr = format!("127.0.0.1:{}", port);
+		// Constructs the TcpListener from the above port
+		let listener = TcpListener::bind(&addr);
+		assert!(listener.is_ok());
+		Ok(())
+	}
 }
