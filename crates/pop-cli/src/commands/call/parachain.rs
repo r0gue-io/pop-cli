@@ -91,8 +91,8 @@ impl CallParachainCommand {
 	async fn configure_chain(&self, cli: &mut impl Cli) -> Result<Chain> {
 		cli.intro("Call a parachain")?;
 		// Resolve url.
-		let url = match self.clone().url {
-			Some(url) => url,
+		let url = match &self.url {
+			Some(url) => url.clone(),
 			None => {
 				// Prompt for url.
 				let url: String = cli
@@ -162,7 +162,7 @@ impl CallParachainCommand {
 			}
 
 			// Resolve message arguments.
-			let args = if self.clone().args.is_empty() {
+			let args = if self.args.is_empty() {
 				let mut args = Vec::new();
 				for param in &extrinsic.params {
 					let input = prompt_for_param(&chain.client, cli, param)?;
@@ -170,12 +170,12 @@ impl CallParachainCommand {
 				}
 				args
 			} else {
-				self.clone().args
+				self.args.clone()
 			};
 
 			// Resolve who is signing the extrinsic.
-			let suri = match self.clone().suri {
-				Some(suri) => suri,
+			let suri = match self.suri.as_ref() {
+				Some(suri) => suri.clone(),
 				None =>
 					cli.input("Signer of the extrinsic:").default_input(DEFAULT_URI).interact()?,
 			};
@@ -273,10 +273,7 @@ impl CallParachain {
 				.interact()?
 		{
 			display_message(
-				&format!(
-					"Extrinsic {} was not submitted. Operation canceled by the user.",
-					self.extrinsic.name
-				),
+				&format!("Extrinsic {} was not submitted.", self.extrinsic.name),
 				false,
 				cli,
 			)?;
@@ -403,7 +400,7 @@ fn prompt_for_variant_param(
 		}
 		Ok(format!("{}({})", selected_variant.name, field_values.join(", ")))
 	} else {
-		Ok(format!("{}()", selected_variant.name.clone()))
+		Ok(format!("{}()", selected_variant.name))
 	}
 }
 
@@ -655,9 +652,7 @@ mod tests {
 		};
 		let mut cli = MockCli::new()
 			.expect_confirm("Do you want to submit the extrinsic?", false)
-			.expect_outro_cancel(
-				"Extrinsic remark was not submitted. Operation canceled by the user.",
-			);
+			.expect_outro_cancel("Extrinsic remark was not submitted.");
 		let tx = call_config.prepare_extrinsic(&client, &mut cli).await?;
 		call_config.submit_extrinsic(&client, tx, &mut cli).await?;
 

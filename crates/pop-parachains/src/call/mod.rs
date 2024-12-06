@@ -35,7 +35,7 @@ pub async fn construct_extrinsic(
 	Ok(subxt::dynamic::tx(pallet_name, extrinsic_name, parsed_args))
 }
 
-/// Signs and submits a given extrinsic to the blockchain.
+/// Signs and submits a given extrinsic.
 ///
 /// # Arguments
 /// * `client` - The client used to interact with the chain.
