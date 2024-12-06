@@ -2,6 +2,7 @@
 
 #![doc = include_str!("../README.md")]
 mod build;
+/// Provides functionality to construct, encode, sign, and submit chain extrinsics.
 mod call;
 mod errors;
 mod generator;

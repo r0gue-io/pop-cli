@@ -3,8 +3,10 @@ pub mod errors;
 pub mod git;
 pub mod helpers;
 pub mod manifest;
+/// Provides functionality for formatting and resolving metadata types.
 pub mod metadata;
 pub mod polkadot_sdk;
+/// Provides functionality for creating a signer from a secret URI.
 pub mod signer;
 pub mod sourcing;
 pub mod templates;
