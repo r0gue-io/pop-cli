@@ -16,9 +16,14 @@ use pop_common::{create_signer, DefaultConfig, Keypair};
 use sp_core::Bytes;
 use sp_weights::Weight;
 use std::{fmt::Write, path::PathBuf};
+use subxt::{
+	ext::scale_encode::EncodeAsType, tx::Payload, utils::to_hex, PolkadotConfig as DefaultConfig,
+	SubstrateConfig,
+};
+use subxt_signer::sr25519::Keypair;
 
 /// Attributes for the `up` command
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct UpOpts {
 	/// Path to the contract build directory.
 	pub path: Option<PathBuf>,
@@ -101,6 +106,46 @@ pub async fn set_up_upload(
 	let upload_exec: UploadExec<DefaultConfig, DefaultEnvironment, Keypair> =
 		UploadCommandBuilder::new(extrinsic_opts).done().await?;
 	Ok(upload_exec)
+}
+
+pub async fn get_upload_payload(up_opts: UpOpts) -> anyhow::Result<Vec<u8>> {
+	let code = get_contract_code(up_opts.clone()).await?;
+
+	let storage_deposit_limit: Option<u128> = None;
+	let upload_code = contract_extrinsics::extrinsic_calls::UploadCode::new(
+		code,
+		storage_deposit_limit,
+		contract_extrinsics::upload::Determinism::Enforced,
+	);
+
+	let rpc_client = subxt::backend::rpc::RpcClient::from_url(up_opts.url.as_str()).await?;
+	let client = subxt::OnlineClient::<SubstrateConfig>::from_rpc_client(rpc_client).await?;
+
+	let call_data = upload_code.build();
+	let mut encoded_data = Vec::<u8>::new();
+	// TODO: error
+	call_data
+		.encode_call_data_to(&client.metadata(), &mut encoded_data)
+		.expect("failed to encoded");
+	Ok(encoded_data)
+}
+
+// TODO, don't need full up_opts
+pub async fn get_contract_code(up_opts: UpOpts) -> anyhow::Result<contract_extrinsics::WasmCode> {
+	let manifest_path = get_manifest_path(up_opts.path.as_deref())?;
+
+	let signer = create_signer(&up_opts.suri)?;
+	let extrinsic_opts =
+		ExtrinsicOptsBuilder::<DefaultConfig, DefaultEnvironment, Keypair>::new(signer)
+			.manifest_path(Some(manifest_path))
+			.done();
+	let artifacts = extrinsic_opts.contract_artifacts()?;
+
+	let artifacts_path = artifacts.artifact_path().to_path_buf();
+	let code = artifacts.code.ok_or_else(|| {
+		anyhow::anyhow!("Contract code not found from artifact file {}", artifacts_path.display())
+	})?;
+	Ok(code)
 }
 
 /// Estimate the gas required for instantiating a contract without modifying the state of the
@@ -278,6 +323,26 @@ mod tests {
 			suri: "//Alice".to_string(),
 		};
 		set_up_upload(up_opts).await?;
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn get_payload_works() -> Result<()> {
+		let temp_dir = generate_smart_contract_test_environment()?;
+		mock_build_process(temp_dir.path().join("testing"))?;
+		let up_opts = UpOpts {
+			path: Some(temp_dir.path().join("testing")),
+			constructor: "new".to_string(),
+			args: ["false".to_string()].to_vec(),
+			value: "1000".to_string(),
+			gas_limit: None,
+			proof_size: None,
+			salt: None,
+			url: Url::parse(CONTRACTS_NETWORK_URL)?,
+			suri: "//Alice".to_string(),
+		};
+		let call_data = get_upload_payload(up_opts).await?;
+		// println!("{:?}", call_data);
 		Ok(())
 	}
 
