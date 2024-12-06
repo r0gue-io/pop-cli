@@ -495,9 +495,18 @@ async fn download(url: &str, dest: &Path) -> Result<(), Error> {
 	let mut file = File::create(dest)?;
 	file.write_all(&response.bytes().await?)?;
 	// Make executable
-	let mut perms = metadata(dest)?.permissions();
+	set_executable_permission(dest)?;
+	Ok(())
+}
+
+/// Sets the executable permission for a given file.
+///
+/// # Arguments
+/// * `path` - The file path to which permissions should be granted.
+pub fn set_executable_permission<P: AsRef<Path>>(path: P) -> Result<(), Error> {
+	let mut perms = metadata(&path)?.permissions();
 	perms.set_mode(0o755);
-	std::fs::set_permissions(dest, perms)?;
+	std::fs::set_permissions(path, perms)?;
 	Ok(())
 }
 

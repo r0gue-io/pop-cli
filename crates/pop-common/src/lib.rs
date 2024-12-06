@@ -12,6 +12,7 @@ pub use errors::Error;
 pub use git::{Git, GitHub, Release};
 pub use helpers::{get_project_name_from_path, prefix_with_current_dir_if_needed, replace_in_file};
 pub use manifest::{add_crate_to_workspace, find_workspace_toml};
+pub use sourcing::set_executable_permission;
 pub use templates::extractor::extract_template_files;
 
 static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
