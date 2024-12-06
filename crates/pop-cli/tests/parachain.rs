@@ -8,7 +8,7 @@ use std::{fs, path::Path, process::Command as Cmd};
 use strum::VariantArray;
 use tokio::time::{sleep, Duration};
 
-/// Test the parachain lifecycle: new, build, up, call
+/// Test the parachain lifecycle: new, build, up, call.
 #[tokio::test]
 async fn parachain_lifecycle() -> Result<()> {
 	let temp = tempfile::tempdir().unwrap();
@@ -118,7 +118,7 @@ name = "collator-01"
 		),
 	)?;
 
-	// pop up parachain -f ./network.toml --skip-confirm
+	// `pop up parachain -f ./network.toml --skip-confirm`
 	let mut cmd = Cmd::new(cargo_bin("pop"))
 		.current_dir(&temp_parachain_dir)
 		.args(&["up", "parachain", "-f", "./network.toml", "--skip-confirm"])
@@ -128,8 +128,8 @@ name = "collator-01"
 	// Wait for the networks to initialize. Increased timeout to accommodate CI environment delays.
 	sleep(Duration::from_secs(50)).await;
 
-	// pop call parachain --pallet System --extrinsic remark --args "0x11" --url
-	// ws://127.0.0.1:random_port --suri //Alice --skip-confirm
+	// `pop call parachain --pallet System --extrinsic remark --args "0x11" --url
+	// ws://127.0.0.1:random_port --suri //Alice --skip-confirm`
 	Command::cargo_bin("pop")
 		.unwrap()
 		.args(&[

@@ -228,7 +228,7 @@ mod tests {
 				.type_name,
 			"AccountId32 ([u8;32])"
 		);
-		// Test a extrinsic not supported
+		// Test an extrinsic that is not supported.
 		let extrinsic =
 			metadata.pallet_by_name("Sudo").unwrap().call_variant_by_name("sudo").unwrap();
 		assert!(matches!(

@@ -105,7 +105,6 @@ impl Action {
 /// Fetch the list of supported actions based on available pallets.
 ///
 /// # Arguments
-///
 /// * `pallets`: List of pallets availables in the chain.
 pub async fn supported_actions(pallets: &[Pallet]) -> Vec<Action> {
 	let mut actions = Vec::new();

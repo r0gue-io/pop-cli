@@ -3,6 +3,7 @@
 use thiserror::Error;
 use zombienet_sdk::OrchestratorError;
 
+/// Represents the various errors that can occur in the crate.
 #[derive(Error, Debug)]
 pub enum Error {
 	#[error("User aborted due to existing target directory.")]

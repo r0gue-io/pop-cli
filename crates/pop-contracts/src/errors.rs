@@ -3,6 +3,7 @@
 use pop_common::sourcing::Error as SourcingError;
 use thiserror::Error;
 
+/// Represents the various errors that can occur in the crate.
 #[derive(Error, Debug)]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {

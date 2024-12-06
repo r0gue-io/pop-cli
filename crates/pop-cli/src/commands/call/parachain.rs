@@ -13,6 +13,7 @@ use url::Url;
 const DEFAULT_URL: &str = "ws://localhost:9944/";
 const DEFAULT_URI: &str = "//Alice";
 
+/// Command to execute extrinsics with configurable pallets, arguments, and signing options.
 #[derive(Args, Clone)]
 pub struct CallParachainCommand {
 	/// The pallet containing the extrinsic to execute.
@@ -67,7 +68,7 @@ impl CallParachainCommand {
 				},
 			};
 
-			// Send the extrinsic.
+			// Sign and submit the extrinsic.
 			if let Err(e) = call.submit_extrinsic(&chain.client, tx, &mut cli).await {
 				display_message(&e.to_string(), false, &mut cli)?;
 				break;
@@ -78,7 +79,7 @@ impl CallParachainCommand {
 					.initial_value(false)
 					.interact()?
 			{
-				display_message("Parachain calling complete.", true, &mut cli)?;
+				display_message("Call complete.", true, &mut cli)?;
 				break;
 			}
 			self.reset_for_new_call();
@@ -86,6 +87,7 @@ impl CallParachainCommand {
 		Ok(())
 	}
 
+	// Configures the chain by resolving the URL and fetching its metadata.
 	async fn configure_chain(&self, cli: &mut impl Cli) -> Result<Chain> {
 		cli.intro("Call a parachain")?;
 		// Resolve url.
@@ -109,7 +111,7 @@ impl CallParachainCommand {
 		Ok(Chain { url, client, pallets })
 	}
 
-	/// Configure the call based on command line arguments/call UI.
+	// Configure the call based on command line arguments/call UI.
 	async fn configure_call(&mut self, chain: &Chain, cli: &mut impl Cli) -> Result<CallParachain> {
 		loop {
 			// Resolve pallet.
@@ -188,14 +190,14 @@ impl CallParachainCommand {
 		}
 	}
 
-	/// Resets specific fields to default values for a new call.
+	// Resets specific fields to default values for a new call.
 	fn reset_for_new_call(&mut self) {
 		self.pallet = None;
 		self.extrinsic = None;
 		self.args.clear();
 	}
 
-	// Function to check if all required fields are specified
+	// Function to check if all required fields are specified.
 	fn requires_user_input(&self) -> bool {
 		self.pallet.is_none() ||
 			self.extrinsic.is_none() ||
@@ -205,12 +207,18 @@ impl CallParachainCommand {
 	}
 }
 
+/// Represents a chain, including its URL, client connection, and available pallets.
 struct Chain {
+	/// Websocket endpoint of the node.
 	url: Url,
+	/// The client used to interact with the chain.
 	client: OnlineClient<SubstrateConfig>,
+	/// A list of pallets available on the chain.
 	pallets: Vec<Pallet>,
 }
 
+/// Represents a configured extrinsic call, including the pallet, extrinsic, arguments, and signing
+/// options.
 #[derive(Clone)]
 struct CallParachain {
 	/// The pallet of the extrinsic.
@@ -296,6 +304,7 @@ impl CallParachain {
 	}
 }
 
+// Displays a message to the user, with formatting based on the success status.
 fn display_message(message: &str, success: bool, cli: &mut impl Cli) -> Result<()> {
 	if success {
 		cli.outro(message)?;
@@ -362,7 +371,7 @@ fn get_param_value(
 	}
 }
 
-// Prompt for the value when is a primitive.
+// Prompt for the value when it is a primitive.
 fn prompt_for_primitive_param(cli: &mut impl Cli, param: &Param) -> Result<String> {
 	Ok(cli
 		.input(format!("Enter the value for the parameter: {}", param.name))
@@ -370,8 +379,9 @@ fn prompt_for_primitive_param(cli: &mut impl Cli, param: &Param) -> Result<Strin
 		.interact()?)
 }
 
-// Prompt the user to select the value of the Variant parameter and recursively prompt for nested
-// fields. Output example: Id(5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY) for the Id variant.
+// Prompt the user to select the value of the variant parameter and recursively prompt for nested
+// fields. Output example: `Id(5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY)` for the `Id`
+// variant.
 fn prompt_for_variant_param(
 	client: &OnlineClient<SubstrateConfig>,
 	cli: &mut impl Cli,
@@ -397,7 +407,23 @@ fn prompt_for_variant_param(
 	}
 }
 
-// Recursively prompt the user for all the nested fields in a Composite type.
+// Recursively prompt the user for all the nested fields in a composite type.
+// Example of a composite definition:
+// Param {
+//     name: "Id",
+//     type_name: "AccountId32 ([u8;32])",
+//     is_optional: false,
+//     sub_params: [
+//         Param {
+//             name: "Id",
+//             type_name: "[u8;32]",
+//             is_optional: false,
+//             sub_params: [],
+//             is_variant: false
+//         }
+//     ],
+//     is_variant: false
+// }
 fn prompt_for_composite_param(
 	client: &OnlineClient<SubstrateConfig>,
 	cli: &mut impl Cli,
@@ -406,9 +432,6 @@ fn prompt_for_composite_param(
 	let mut field_values = Vec::new();
 	for field_arg in &param.sub_params {
 		let field_value = prompt_for_param(client, cli, field_arg)?;
-		// Example: Param { name: "Id", type_name: "AccountId32 ([u8;32])", is_optional: false,
-		// sub_params: [Param { name: "Id", type_name: "[u8;32]", is_optional: false, sub_params:
-		// [], is_variant: false }], is_variant: false }
 		if param.sub_params.len() == 1 && param.name == param.sub_params[0].name {
 			field_values.push(field_value);
 		} else {
@@ -436,7 +459,7 @@ fn prompt_for_tuple_param(
 	Ok(format!("({})", tuple_values.join(", ")))
 }
 
-/// Parser to capitalize the first letter of the pallet name.
+// Parser to capitalize the first letter of the pallet name.
 fn parse_pallet_name(name: &str) -> Result<String, String> {
 	let mut chars = name.chars();
 	match chars.next() {
@@ -445,7 +468,7 @@ fn parse_pallet_name(name: &str) -> Result<String, String> {
 	}
 }
 
-/// Parser to convert the extrinsic name to lowercase.
+// Parser to convert the extrinsic name to lowercase.
 fn parse_extrinsic_name(name: &str) -> Result<String, String> {
 	Ok(name.to_ascii_lowercase())
 }
@@ -475,8 +498,6 @@ mod tests {
 		cli.verify()
 	}
 
-	// This test only covers the interactive portion of the call parachain command, without actually
-	// submitting any extrinsic.
 	#[tokio::test]
 	async fn guide_user_to_call_parachain_works() -> Result<()> {
 		// Test all process specifying pallet, and see the prompted extrinsics.
@@ -529,8 +550,6 @@ mod tests {
 		cli.verify()
 	}
 
-	// This test only covers the interactive portion of the call parachain command selecting one of
-	// the predefined actions, without actually submitting any extrinsic.
 	#[tokio::test]
 	async fn guide_user_to_configure_predefined_action_works() -> Result<()> {
 		let mut call_config = CallParachainCommand {
