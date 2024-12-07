@@ -8,8 +8,7 @@ use tokio::sync::{oneshot, Mutex};
 use tower_http::services::ServeDir;
 
 /// Make frontend sourcing more flexible by allowing a custom route
-/// to be defined. For example, sourcing frontend from a cached directory,
-/// or simply an HTML string built-in to the binary.
+/// to be defined.
 pub trait Frontend {
 	fn serve_content(&self) -> Router;
 }
@@ -27,21 +26,31 @@ pub struct TransactionData {
 #[derive(Default)]
 pub struct StateHandler {
 	shutdown_tx: Option<oneshot::Sender<()>>,
+	// signed payload received from UI.
 	pub signed_payload: Option<String>,
 }
 
 /// Manages the wallet integration for secure signing of transactions.
 pub struct WalletIntegrationManager {
+	// shared state between routes.
 	pub state: Arc<Mutex<StateHandler>>,
+	// node rpc address
 	pub addr: String,
+	// axum server task handle
 	pub task_handle: tokio::task::JoinHandle<anyhow::Result<()>>,
 }
 
 impl WalletIntegrationManager {
-	/// - frontend: A frontend with custom route to serve content.
-	/// - payload: Payload to be sent to the frontend for signing.
+	/// Launches a server for hosting the wallet integration. Server launched in separate task.
+	/// # Arguments
+	/// * `frontend`: A frontend with custom route to serve content.
+	/// * `payload`: Payload to be sent to the frontend for signing.
+	///
+	/// # Returns
+	/// A `WalletIntegrationManager` instance, with access to the state and task handle for the
+	/// server.
 	pub fn new<F: Frontend>(frontend: F, payload: TransactionData) -> Self {
-		// Self { frontend, payload: Arc::new(payload), state: Default::default() }
+		// channel to signal shutdown
 		let (tx, rx) = oneshot::channel();
 
 		let state =
@@ -50,7 +59,6 @@ impl WalletIntegrationManager {
 		let payload = Arc::new(payload);
 
 		let app = Router::new()
-			// cloning Arcs is cheap
 			.route("/payload", get(routes::get_payload_handler).with_state(payload))
 			.route("/submit", post(routes::handle_submit).with_state(state.clone()))
 			.merge(frontend.serve_content()); // custom route for serving frontend
@@ -74,6 +82,7 @@ impl WalletIntegrationManager {
 		Self { state, addr: addr.to_string(), task_handle }
 	}
 
+	/// Signals the wallet integration server to shut down.
 	pub async fn terminate(&mut self) {
 		// signal shutdown
 		if let Some(shutdown_tx) = self.state.lock().await.shutdown_tx.take() {
@@ -81,6 +90,7 @@ impl WalletIntegrationManager {
 		}
 	}
 
+	/// Checks if the server task is still running.
 	pub fn is_running(&self) -> bool {
 		!self.task_handle.is_finished()
 	}
@@ -97,7 +107,7 @@ mod routes {
 	};
 	use serde_json::json;
 
-	pub struct ApiError(Error);
+	struct ApiError(Error);
 
 	impl From<Error> for ApiError {
 		fn from(err: Error) -> Self {
@@ -133,9 +143,8 @@ mod routes {
 		let mut state = state.lock().await;
 		state.signed_payload = Some(payload.clone());
 
-		// signal shutdown.
-		// TODO: decide if we want to shutdown on submit, or at some other time.
-		// Using WalletIntegrationManager::terminate() introduces complexity unnecessary for a TODO.
+		// Signal shutdown.
+		// Using WalletIntegrationManager::terminate() introduces unnecessary complexity.
 		if let Some(shutdown_tx) = state.shutdown_tx.take() {
 			let _ = shutdown_tx.send(());
 		}
