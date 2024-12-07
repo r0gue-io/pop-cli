@@ -216,9 +216,24 @@ impl UpContractCommand {
 			};
 
 			let transaction_data = TransactionData::new(self.url.to_string(), call_data);
+			// starts server
 			let mut wallet = WalletIntegrationManager::new(ui, transaction_data);
-			let server = wallet.run().await?;
+			log::info(format!("Wallet signing portal started at http://{}", wallet.addr));
 
+			log::info("Waiting for signature... Press Ctrl+C to terminate early.");
+			loop {
+				if !wallet.is_running() {
+					wallet.finish().await?;
+					break;
+				}
+
+				let state = wallet.state.lock().await;
+
+				if state.signed_payload.is_some() {
+					log::warning(format!("Payload signed: {:?}", state.signed_payload))?;
+					break;
+				}
+			}
 			// TODO: instantiate
 		}
 
