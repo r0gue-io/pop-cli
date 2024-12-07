@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{
-	cli::{traits::Cli as _, Cli}, 
+	cli::{traits::Cli as _, Cli},
 	common::contracts::{check_contracts_node_and_prompt, has_contract_been_built},
 	style::style,
 };

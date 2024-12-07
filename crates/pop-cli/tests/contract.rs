@@ -43,8 +43,8 @@ async fn contract_lifecycle() -> Result<()> {
 		.current_dir(&temp_dir)
 		.args(&["build", "./test_contract", "--release"])
 		.assert()
-		.success();*/
-	
+		.success();
+	*/
 	println!("Contract built!!");
 
 	// Verify that the directory target has been created

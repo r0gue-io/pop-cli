@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::cli::{self, Cli};
-use clap::{Args, Subcommand};
+use anyhow::ensure;
+use clap::{Args, Parser, Subcommand};
 #[cfg(feature = "contract")]
 use contract::BuildContractCommand;
 use duct::cmd;
@@ -23,9 +24,12 @@ pub(crate) mod spec;
 pub(crate) struct BuildArgs {
 	#[command(subcommand)]
 	pub command: Option<Command>,
-	/// Directory path for your project [default: current directory]
+	/// Directory path with flag for your project [default: current directory]
 	#[arg(long)]
 	pub(crate) path: Option<PathBuf>,
+	/// Directory path without flag for your project [default: current directory]
+	#[arg(value_name = "PATH", required_unless_present = "path")]
+	pub(crate) path_pos: Option<PathBuf>,
 	/// The package to be built.
 	#[arg(short = 'p', long)]
 	pub(crate) package: Option<String>,
@@ -63,27 +67,37 @@ impl Command {
 	/// Executes the command.
 	pub(crate) fn execute(args: BuildArgs) -> anyhow::Result<&'static str> {
 		// If only contract feature enabled, build as contract
+		let path_flag = args.path.clone();
+		let path_pos = args.path_pos.clone();
+		let project_path = match path_flag {
+			Some(ref path) if path.to_str().unwrap().contains("./") => Some(path.to_owned()),
+			_ => {
+				ensure!(path_pos.is_some(), "Failed to get directory!");
+				path_pos
+			},
+		};
+
 		#[cfg(feature = "contract")]
-		if pop_contracts::is_supported(args.path.as_deref())? {
+		if pop_contracts::is_supported(project_path.as_deref())? {
 			// All commands originating from root command are valid
 			let release = match args.profile {
 				Some(profile) => profile.into(),
 				None => args.release,
 			};
-			BuildContractCommand { path: args.path, release, valid: true }.execute()?;
+			BuildContractCommand { path: project_path, release, valid: true }.execute()?;
 			return Ok("contract");
 		}
 
 		// If only parachain feature enabled, build as parachain
 		#[cfg(feature = "parachain")]
-		if pop_parachains::is_supported(args.path.as_deref())? {
+		if pop_parachains::is_supported(project_path.as_deref())? {
 			let profile = match args.profile {
 				Some(profile) => profile,
 				None => args.release.into(),
 			};
 			// All commands originating from root command are valid
 			BuildParachainCommand {
-				path: args.path,
+				path: project_path,
 				package: args.package,
 				profile: Some(profile),
 				id: args.id,
@@ -157,6 +171,7 @@ mod tests {
 							BuildArgs {
 								command: None,
 								path: Some(project_path.clone()),
+								path_pos: Some(project_path.clone()),
 								package: package.clone(),
 								release,
 								profile: Some(profile.clone()),
