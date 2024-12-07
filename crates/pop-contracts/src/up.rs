@@ -12,15 +12,17 @@ use contract_extrinsics::{
 	TokenMetadata, UploadCommandBuilder, UploadExec,
 };
 use ink_env::{DefaultEnvironment, Environment};
-use sp_core::Bytes;
+use sp_core::{bytes::from_hex, Bytes};
 use sp_weights::Weight;
 use std::{
 	fmt::Write,
 	path::{Path, PathBuf},
 };
 use subxt::{
-	ext::scale_encode::EncodeAsType, tx::Payload, utils::to_hex, PolkadotConfig as DefaultConfig,
-	SubstrateConfig,
+	ext::scale_encode::EncodeAsType,
+	tx::{Payload, SubmittableExtrinsic},
+	utils::to_hex,
+	PolkadotConfig as DefaultConfig, SubstrateConfig,
 };
 use subxt_signer::sr25519::Keypair;
 
@@ -182,6 +184,19 @@ pub async fn get_contract_code(
 		anyhow::anyhow!("Contract code not found from artifact file {}", artifacts_path.display())
 	})?;
 	Ok(code)
+}
+
+pub async fn submit_signed_payload(url: &str, payload: String) -> anyhow::Result<()> {
+	let rpc_client = subxt::backend::rpc::RpcClient::from_url(url).await?;
+	let client = subxt::OnlineClient::<SubstrateConfig>::from_rpc_client(rpc_client).await?;
+
+	let hex_encoded = from_hex(&payload)?;
+
+	let tx = SubmittableExtrinsic::from_bytes(client, hex_encoded);
+
+	tx.submit_and_watch().await?;
+
+	Ok(())
 }
 
 /// Estimate the gas required for instantiating a contract without modifying the state of the

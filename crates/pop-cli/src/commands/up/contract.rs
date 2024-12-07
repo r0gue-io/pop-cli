@@ -13,8 +13,8 @@ use pop_common::manifest::from_path;
 use pop_contracts::{
 	build_smart_contract, dry_run_gas_estimate_instantiate, dry_run_upload,
 	get_instantiate_payload, get_upload_payload, instantiate_smart_contract, is_chain_alive,
-	parse_hex_bytes, run_contracts_node, set_up_deployment, set_up_upload, upload_smart_contract,
-	UpOpts, Verbosity,
+	parse_hex_bytes, run_contracts_node, set_up_deployment, set_up_upload, submit_signed_payload,
+	upload_smart_contract, UpOpts, Verbosity,
 };
 use sp_core::Bytes;
 use sp_weights::Weight;
@@ -170,6 +170,7 @@ impl UpContractCommand {
 
 		// TODO: **** Start of Wallet Integration
 		use crate::wallet_integration::{DefaultFrontend, WalletIntegrationManager};
+		// TODO: using default frontend with local path
 		let ui = DefaultFrontend::new(PathBuf::from(
 			"/Users/peter/dev/r0gue/react-teleport-example/dist",
 		));
@@ -178,7 +179,6 @@ impl UpContractCommand {
 				let call_data = get_upload_payload(self.clone().into()).await?;
 				call_data
 			} else {
-				// Otherwise instantiate.
 				// does not deploy, just setup
 				// TODO: DRY
 				let instantiate_exec = match set_up_deployment(UpOpts {
@@ -222,7 +222,7 @@ impl UpContractCommand {
 			log::info("Waiting for signature... Press Ctrl+C to terminate early.");
 			loop {
 				if !wallet.is_running() {
-					wallet.finish().await?;
+					wallet.task_handle.await?;
 					break;
 				}
 
@@ -233,7 +233,16 @@ impl UpContractCommand {
 					break;
 				}
 			}
-			// TODO: instantiate
+
+			let maybe_payload = wallet.state.lock().await.signed_payload.clone();
+			if let Some(payload) = maybe_payload {
+				log::info("Submitting signed payload...")?;
+				submit_signed_payload(self.url.as_str(), payload).await?;
+				log::info("Submitted")?;
+			}
+
+			Self::terminate_node(process)?;
+			return Ok(())
 		}
 
 		// TODO: ***** End of Wallet Integration

@@ -22,6 +22,6 @@ pub use test::{test_e2e_smart_contract, test_smart_contract};
 pub use up::{
 	dry_run_gas_estimate_instantiate, dry_run_upload, get_contract_code, get_instantiate_payload,
 	get_upload_payload, instantiate_smart_contract, set_up_deployment, set_up_upload,
-	upload_smart_contract, UpOpts,
+	submit_signed_payload, upload_smart_contract, UpOpts,
 };
 pub use utils::signer::parse_hex_bytes;
