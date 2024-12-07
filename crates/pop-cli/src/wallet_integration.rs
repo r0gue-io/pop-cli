@@ -25,56 +25,53 @@ pub struct TransactionData {
 // - Maintains a channel to signal shutdown to the main app.
 // - Stores the signed payload received from the wallet.
 #[derive(Default)]
-struct StateHandler {
+pub struct StateHandler {
 	shutdown_tx: Option<oneshot::Sender<()>>,
-	signed_payload: Option<String>,
+	pub signed_payload: Option<String>,
 }
 
 /// Manages the wallet integration for secure signing of transactions.
-pub struct WalletIntegrationManager<F: Frontend> {
-	frontend: F,
-	// Cloning can be expensive (e.g. contract code in payload). Better to use Arc to avoid this.
-	payload: Arc<TransactionData>,
-	state: Arc<Mutex<StateHandler>>,
+pub struct WalletIntegrationManager {
+	pub state: Arc<Mutex<StateHandler>>,
+	pub addr: String,
+	pub task_handle: tokio::task::JoinHandle<anyhow::Result<()>>,
 }
 
-impl<F: Frontend> WalletIntegrationManager<F> {
+impl WalletIntegrationManager {
 	/// - frontend: A frontend with custom route to serve content.
 	/// - payload: Payload to be sent to the frontend for signing.
-	pub fn new(frontend: F, payload: TransactionData) -> Self {
-		Self { frontend, payload: Arc::new(payload), state: Default::default() }
-	}
-
-	/// Serves the wallet-integration frontend and an API for the wallet to get
-	/// the necessary data and submit the signed payload.
-	pub async fn run(&mut self) -> anyhow::Result<()> {
-		// used to signal shutdown.
+	pub fn new<F: Frontend>(frontend: F, payload: TransactionData) -> Self {
+		// Self { frontend, payload: Arc::new(payload), state: Default::default() }
 		let (tx, rx) = oneshot::channel();
 
-		// shared state between routes. Will be used to store the signed payload.
 		let state =
 			Arc::new(Mutex::new(StateHandler { shutdown_tx: Some(tx), signed_payload: None }));
-		self.state = state.clone();
 
-		// will shut down when the signed payload is received
+		let payload = Arc::new(payload);
+
 		let app = Router::new()
 			// cloning Arcs is cheap
-			.route("/payload", get(routes::get_payload_handler).with_state(self.payload.clone()))
+			.route("/payload", get(routes::get_payload_handler).with_state(payload))
 			.route("/submit", post(routes::handle_submit).with_state(state.clone()))
-			.merge(self.frontend.serve_content()); // custom route for serving frontend
-
+			.merge(frontend.serve_content()); // custom route for serving frontend
 		let addr = "127.0.0.1:9090";
-		let listener = tokio::net::TcpListener::bind(addr)
-			.await
-			.map_err(|e| anyhow::anyhow!("Failed to bind to {}: {}", addr, e))?;
 
-		axum::serve(listener, app)
-			.with_graceful_shutdown(async move {
-				let _ = rx.await.ok();
-			})
-			.await
-			.map_err(|e| anyhow::anyhow!("Server encountered an error: {}", e))?;
-		Ok(())
+		// will shut down when the signed payload is received
+		let task_handle = tokio::spawn(async move {
+			let listener = tokio::net::TcpListener::bind(addr)
+				.await
+				.map_err(|e| anyhow::anyhow!("Failed to bind to {}: {}", addr, e))?;
+
+			axum::serve(listener, app)
+				.with_graceful_shutdown(async move {
+					let _ = rx.await.ok();
+				})
+				.await
+				.map_err(|e| anyhow::anyhow!("Server encountered an error: {}", e))?;
+			Ok(())
+		});
+
+		Self { state, addr: addr.to_string(), task_handle }
 	}
 
 	pub async fn terminate(&mut self) {
@@ -82,6 +79,14 @@ impl<F: Frontend> WalletIntegrationManager<F> {
 		if let Some(shutdown_tx) = self.state.lock().await.shutdown_tx.take() {
 			let _ = shutdown_tx.send(());
 		}
+	}
+
+	pub fn is_running(&self) -> bool {
+		!self.task_handle.is_finished()
+	}
+
+	pub async fn finish(self) -> anyhow::Result<()> {
+		self.task_handle.await?
 	}
 }
 
