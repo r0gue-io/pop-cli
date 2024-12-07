@@ -84,10 +84,6 @@ impl WalletIntegrationManager {
 	pub fn is_running(&self) -> bool {
 		!self.task_handle.is_finished()
 	}
-
-	pub async fn finish(self) -> anyhow::Result<()> {
-		self.task_handle.await?
-	}
 }
 
 mod routes {
