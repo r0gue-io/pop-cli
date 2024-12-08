@@ -20,6 +20,8 @@ pub struct Param {
 	pub is_tuple: bool,
 	/// Indicates if the parameter is a Variant.
 	pub is_variant: bool,
+	/// Indicates if the parameter is a Sequence.
+	pub is_sequence: bool,
 }
 
 /// Transforms a metadata field into its `Param` representation.
@@ -66,6 +68,7 @@ fn type_to_param(name: String, registry: &PortableRegistry, type_id: u32) -> Res
 				is_optional: true,
 				is_tuple: false,
 				is_variant: false,
+				is_sequence: false,
 			})
 		} else {
 			Err(Error::MetadataParsingError(name))
@@ -74,16 +77,14 @@ fn type_to_param(name: String, registry: &PortableRegistry, type_id: u32) -> Res
 		// Determine the formatted type name.
 		let type_name = format_type(type_info, registry);
 		match &type_info.type_def {
-			TypeDef::Primitive(_) |
-			TypeDef::Array(_) |
-			TypeDef::Sequence(_) |
-			TypeDef::Compact(_) => Ok(Param {
+			TypeDef::Primitive(_) | TypeDef::Array(_) | TypeDef::Compact(_) => Ok(Param {
 				name,
 				type_name,
 				sub_params: Vec::new(),
 				is_optional: false,
 				is_tuple: false,
 				is_variant: false,
+				is_sequence: false,
 			}),
 			TypeDef::Composite(composite) => {
 				let sub_params = composite
@@ -106,6 +107,7 @@ fn type_to_param(name: String, registry: &PortableRegistry, type_id: u32) -> Res
 					is_optional: false,
 					is_tuple: false,
 					is_variant: false,
+					is_sequence: false,
 				})
 			},
 			TypeDef::Variant(variant) => {
@@ -132,6 +134,7 @@ fn type_to_param(name: String, registry: &PortableRegistry, type_id: u32) -> Res
 							is_optional: false,
 							is_tuple: false,
 							is_variant: true,
+							is_sequence: false,
 						})
 					})
 					.collect::<Result<Vec<Param>, Error>>()?;
@@ -143,8 +146,18 @@ fn type_to_param(name: String, registry: &PortableRegistry, type_id: u32) -> Res
 					is_optional: false,
 					is_tuple: false,
 					is_variant: true,
+					is_sequence: false,
 				})
 			},
+			TypeDef::Sequence(_) => Ok(Param {
+				name,
+				type_name,
+				sub_params: Vec::new(),
+				is_optional: false,
+				is_tuple: false,
+				is_variant: false,
+				is_sequence: true,
+			}),
 			TypeDef::Tuple(tuple) => {
 				let sub_params = tuple
 					.fields
@@ -166,6 +179,7 @@ fn type_to_param(name: String, registry: &PortableRegistry, type_id: u32) -> Res
 					is_optional: false,
 					is_tuple: true,
 					is_variant: false,
+					is_sequence: false,
 				})
 			},
 			_ => Err(Error::MetadataParsingError(name)),
