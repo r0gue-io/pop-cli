@@ -170,9 +170,9 @@ impl UpContractCommand {
 		};
 
 		// TODO: **** Start of Wallet Integration
-		use crate::wallet_integration::{DefaultFrontend, WalletIntegrationManager};
+		use crate::wallet_integration::{FrontendFromDir, WalletIntegrationManager};
 		// TODO: using default frontend with local path
-		let ui = DefaultFrontend::new(PathBuf::from(
+		let ui = FrontendFromDir::new(PathBuf::from(
 			"/Users/peter/dev/r0gue/react-teleport-example/dist",
 		));
 		if self.use_wallet {
