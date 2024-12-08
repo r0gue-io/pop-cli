@@ -3,17 +3,28 @@ pub mod errors;
 pub mod git;
 pub mod helpers;
 pub mod manifest;
+/// Provides functionality for formatting and resolving metadata types.
+pub mod metadata;
 pub mod polkadot_sdk;
+/// Provides functionality for creating a signer from a secret URI.
+pub mod signer;
 pub mod sourcing;
 pub mod templates;
+
+use std::net::TcpListener;
 
 pub use build::Profile;
 pub use errors::Error;
 pub use git::{Git, GitHub, Release};
 pub use helpers::{get_project_name_from_path, prefix_with_current_dir_if_needed, replace_in_file};
 pub use manifest::{add_crate_to_workspace, find_workspace_toml};
+pub use metadata::format_type;
+pub use signer::create_signer;
 pub use sourcing::set_executable_permission;
 pub use templates::extractor::extract_template_files;
+// External exports
+pub use subxt::{Config, PolkadotConfig as DefaultConfig};
+pub use subxt_signer::sr25519::Keypair;
 
 static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 
@@ -52,6 +63,15 @@ pub fn target() -> Result<&'static str, Error> {
 	Err(Error::UnsupportedPlatform { arch: ARCH, os: OS })
 }
 
+/// Finds an available port by binding to port 0 and retrieving the assigned port.
+pub fn find_free_port() -> u16 {
+	TcpListener::bind("127.0.0.1:0")
+		.expect("Failed to bind to an available port")
+		.local_addr()
+		.expect("Failed to retrieve local address")
+		.port()
+}
+
 #[cfg(test)]
 mod test {
 	use super::*;
@@ -69,6 +89,16 @@ mod test {
 			.unwrap()
 			.to_string();
 		assert_eq!(target()?, target_expected);
+		Ok(())
+	}
+
+	#[test]
+	fn find_free_port_works() -> Result<()> {
+		let port = find_free_port();
+		let addr = format!("127.0.0.1:{}", port);
+		// Constructs the TcpListener from the above port
+		let listener = TcpListener::bind(&addr);
+		assert!(listener.is_ok());
 		Ok(())
 	}
 }

@@ -292,7 +292,7 @@ pub(crate) mod tests {
 			self
 		}
 
-		pub(crate) fn expect_select(
+		pub(crate) fn expect_select<T>(
 			mut self,
 			prompt: impl Display,
 			required: Option<bool>,
