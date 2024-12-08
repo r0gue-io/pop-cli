@@ -262,7 +262,7 @@ impl CallParachain {
 	) -> Result<DynamicPayload> {
 		let tx = match construct_extrinsic(
 			self.pallet.name.as_str(),
-			self.extrinsic.name.as_str(),
+			&self.extrinsic,
 			self.args.clone(),
 		)
 		.await

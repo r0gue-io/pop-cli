@@ -146,19 +146,31 @@ pub async fn find_extrinsic_by_name(
 /// Parses and processes raw string parameters for an extrinsic, mapping them to `Value` types.
 ///
 /// # Arguments
+/// * `extrinsic`: The definition of the extrinsic, containing parameter metadata.
 /// * `raw_params`: A vector of raw string arguments for the extrinsic.
-pub async fn parse_extrinsic_arguments(raw_params: Vec<String>) -> Result<Vec<Value>, Error> {
-	let mut parsed_params: Vec<Value> = Vec::new();
-	for raw_param in raw_params {
-		let parsed_value: Value = scale_value::stringify::from_str_custom()
-			.add_custom_parser(custom_parsers::parse_hex)
-			.add_custom_parser(custom_parsers::parse_ss58)
-			.parse(&raw_param)
-			.0
-			.map_err(|_| Error::ParamProcessingError)?;
-		parsed_params.push(parsed_value);
-	}
-	Ok(parsed_params)
+pub async fn parse_extrinsic_arguments(
+	extrinsic: &Extrinsic,
+	raw_params: Vec<String>,
+) -> Result<Vec<Value>, Error> {
+	extrinsic
+		.params
+		.iter()
+		.zip(raw_params)
+		.map(|(param, raw_param)| {
+			// Convert sequence parameters to hex if is_sequence
+			let processed_param = if param.is_sequence && !raw_param.starts_with("0x") {
+				format!("0x{}", hex::encode(raw_param))
+			} else {
+				raw_param
+			};
+			scale_value::stringify::from_str_custom()
+				.add_custom_parser(custom_parsers::parse_hex)
+				.add_custom_parser(custom_parsers::parse_ss58)
+				.parse(&processed_param)
+				.0
+				.map_err(|_| Error::ParamProcessingError)
+		})
+		.collect()
 }
 
 #[cfg(test)]
@@ -229,6 +241,24 @@ mod tests {
 
 	#[tokio::test]
 	async fn parse_extrinsic_arguments_works() -> Result<()> {
+		/// Helper function to create a `Param` with default values.
+		fn create_param(
+			name: &str,
+			type_name: &str,
+			is_sequence: bool,
+			is_variant: bool,
+			is_tuple: bool,
+		) -> Param {
+			Param {
+				name: name.to_string(),
+				type_name: type_name.to_string(),
+				sub_params: vec![],
+				is_optional: false,
+				is_sequence,
+				is_variant,
+				is_tuple,
+			}
+		}
 		// Values for testing from: https://docs.rs/scale-value/0.18.0/scale_value/stringify/fn.from_str.html
 		// and https://docs.rs/scale-value/0.18.0/scale_value/stringify/fn.from_str_custom.html
 		let args = [
@@ -254,8 +284,26 @@ mod tests {
 				.into_iter()
 				.map(|b| Value::u128(b as u128))
 				.collect();
+		// Define mock extrinsic with parameters for testing.
+		let extrinsic = Extrinsic {
+			name: "test_extrinsic".to_string(),
+			docs: "Test extrinsic documentation".to_string(),
+			params: vec![
+				create_param("param_1", "u128", false, false, false),
+				create_param("param_2", "i128", false, false, false),
+				create_param("param_3", "bool", false, false, false),
+				create_param("param_4", "char", false, false, false),
+				create_param("param_5", "string", false, false, false),
+				create_param("param_6", "composite", false, false, false),
+				create_param("param_7", "variant", false, true, false),
+				create_param("param_8", "bit_sequence", false, false, false),
+				create_param("param_9", "tuple", false, false, true),
+				create_param("param_10", "composite", false, false, false),
+			],
+			is_supported: true,
+		};
 		assert_eq!(
-			parse_extrinsic_arguments(args).await?,
+			parse_extrinsic_arguments(&extrinsic, args).await?,
 			[
 				Value::u128(1),
 				Value::i128(-1),
