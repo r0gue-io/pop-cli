@@ -126,7 +126,7 @@ mod tests {
 	async fn encode_call_data_works() -> Result<()> {
 		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
 		let pallets = parse_chain_metadata(&client).await?;
-		let remark = find_extrinsic_by_name(&pallets, "Balances", "remark").await?;
+		let remark = find_extrinsic_by_name(&pallets, "System", "remark").await?;
 		let extrinsic = construct_extrinsic("System", &remark, vec!["0x11".to_string()]).await?;
 		assert_eq!(encode_call_data(&client, &extrinsic)?, "0x00000411");
 		let extrinsic = construct_extrinsic("System", &remark, vec!["123".to_string()]).await?;
