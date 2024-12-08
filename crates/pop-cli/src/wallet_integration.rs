@@ -1,8 +1,9 @@
 use axum::{
+	response::Html,
 	routing::{get, post},
 	Router,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{path::PathBuf, sync::Arc};
 use tokio::sync::{oneshot, Mutex};
 use tower_http::services::ServeDir;
@@ -15,6 +16,7 @@ pub trait Frontend {
 
 /// Transaction payload to be sent to frontend for signing.
 #[derive(Serialize, Debug)]
+#[cfg_attr(test, derive(Deserialize))]
 pub struct TransactionData {
 	chain_rpc: String,
 	call_data: Vec<u8>,
@@ -42,6 +44,7 @@ pub struct WalletIntegrationManager {
 
 impl WalletIntegrationManager {
 	/// Launches a server for hosting the wallet integration. Server launched in separate task.
+	/// Uses default address of 127.0.0.1:9090.
 	/// # Arguments
 	/// * `frontend`: A frontend with custom route to serve content.
 	/// * `payload`: Payload to be sent to the frontend for signing.
@@ -50,6 +53,15 @@ impl WalletIntegrationManager {
 	/// A `WalletIntegrationManager` instance, with access to the state and task handle for the
 	/// server.
 	pub fn new<F: Frontend>(frontend: F, payload: TransactionData) -> Self {
+		Self::new_with_address(frontend, payload, "127.0.0.1:9090")
+	}
+
+	/// Same as `new`, but allows specifying the address to bind to.
+	pub fn new_with_address<F: Frontend>(
+		frontend: F,
+		payload: TransactionData,
+		addr: &str,
+	) -> Self {
 		// channel to signal shutdown
 		let (tx, rx) = oneshot::channel();
 
@@ -62,13 +74,14 @@ impl WalletIntegrationManager {
 			.route("/payload", get(routes::get_payload_handler).with_state(payload))
 			.route("/submit", post(routes::handle_submit).with_state(state.clone()))
 			.merge(frontend.serve_content()); // custom route for serving frontend
-		let addr = "127.0.0.1:9090";
+
+		let addr_owned = addr.to_string();
 
 		// will shut down when the signed payload is received
 		let task_handle = tokio::spawn(async move {
-			let listener = tokio::net::TcpListener::bind(addr)
+			let listener = tokio::net::TcpListener::bind(&addr_owned)
 				.await
-				.map_err(|e| anyhow::anyhow!("Failed to bind to {}: {}", addr, e))?;
+				.map_err(|e| anyhow::anyhow!("Failed to bind to {}: {}", addr_owned, e))?;
 
 			axum::serve(listener, app)
 				.with_graceful_shutdown(async move {
@@ -107,7 +120,8 @@ mod routes {
 	};
 	use serde_json::json;
 
-	struct ApiError(Error);
+	// must be public for axum
+	pub struct ApiError(Error);
 
 	impl From<Error> for ApiError {
 		fn from(err: Error) -> Self {
@@ -129,6 +143,7 @@ mod routes {
 	pub(super) async fn get_payload_handler(
 		State(payload): State<Arc<TransactionData>>,
 	) -> Result<Json<serde_json::Value>, ApiError> {
+		// error should never occur.
 		let json_payload = serde_json::to_value(&*payload)
 			.map_err(|e| anyhow::anyhow!("Failed to serialize payload: {}", e))?;
 		Ok(Json(json_payload))
@@ -154,37 +169,259 @@ mod routes {
 	}
 }
 
-/// Default frontend. Current implementation serves static files from a directory.
-pub struct DefaultFrontend {
+/// Serves static files from a directory.
+pub struct FrontendFromDir {
 	content: PathBuf,
 }
-impl DefaultFrontend {
+impl FrontendFromDir {
 	pub fn new(content: PathBuf) -> Self {
 		Self { content }
 	}
 }
 
-impl Frontend for DefaultFrontend {
+impl Frontend for FrontendFromDir {
 	fn serve_content(&self) -> Router {
 		Router::new().nest_service("/", ServeDir::new(self.content.clone()))
+	}
+}
+
+/// Serves a hard-coded HTML string as the frontend.
+pub struct FrontendFromString {
+	content: String,
+}
+
+impl FrontendFromString {
+	pub fn new(content: String) -> Self {
+		Self { content }
+	}
+}
+
+impl Frontend for FrontendFromString {
+	fn serve_content(&self) -> Router {
+		let content = self.content.clone();
+		Router::new().route("/", get(move || async { Html(content) }))
 	}
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use serde_json::json;
+
+	const TEST_HTML: &str = "<html><body>Hello, world!</body></html>";
+
+	// wait for server to launch
+	async fn wait() {
+		tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+	}
 
 	#[tokio::test]
 	async fn new_works() {
-		let path = PathBuf::from("/path/to/frontend");
-		let default_frontend = DefaultFrontend::new(path.clone());
-		let data = TransactionData { chain_rpc: "localhost:9944".to_string(), call_data: vec![] };
-		let wim = WalletIntegrationManager::new(default_frontend, data);
+		let frontend = FrontendFromString::new(TEST_HTML.to_string());
+		let payload =
+			TransactionData { chain_rpc: "localhost:9944".to_string(), call_data: vec![] };
+		let mut wim = WalletIntegrationManager::new(frontend, payload);
 
-		assert_eq!(wim.frontend.content, path);
-		assert_eq!(wim.payload.chain_rpc, "localhost:9944");
-		assert_eq!(wim.payload.call_data, vec![] as Vec<u8>);
-		assert!(wim.state.lock().await.shutdown_tx.is_none());
+		assert_eq!(wim.addr, "127.0.0.1:9090");
+		assert_eq!(wim.is_running(), true);
+		assert!(wim.state.lock().await.shutdown_tx.is_some());
 		assert!(wim.state.lock().await.signed_payload.is_none());
+
+		// terminate the server and make sure result is ok
+		wim.terminate().await;
+		assert!(wim.task_handle.await.is_ok());
+	}
+
+	#[tokio::test]
+	async fn payload_works() {
+		// offset port per test to avoid conflicts
+		let addr = "127.0.0.1:9091";
+		let frontend = FrontendFromString::new(TEST_HTML.to_string());
+
+		let expected_payload =
+			TransactionData { chain_rpc: "localhost:9944".to_string(), call_data: vec![1, 2, 3] };
+		let mut wim = WalletIntegrationManager::new_with_address(frontend, expected_payload, addr);
+		wait().await;
+
+		let addr = format!("http://{}", wim.addr);
+		let actual_payload = reqwest::get(&format!("{}/payload", addr))
+			.await
+			.expect("Failed to get payload")
+			.json::<TransactionData>()
+			.await
+			.expect("Failed to parse payload");
+
+		assert_eq!(actual_payload.chain_rpc, "localhost:9944");
+		assert_eq!(actual_payload.call_data, vec![1, 2, 3]);
+
+		wim.terminate().await;
+		assert!(wim.task_handle.await.is_ok());
+	}
+
+	#[tokio::test]
+	async fn submit_works() {
+		// offset port per test to avoid conflicts
+		let addr = "127.0.0.1:9092";
+		let frontend = FrontendFromString::new(TEST_HTML.to_string());
+
+		let expected_payload =
+			TransactionData { chain_rpc: "localhost:9944".to_string(), call_data: vec![1, 2, 3] };
+		let mut wim = WalletIntegrationManager::new_with_address(frontend, expected_payload, addr);
+		wait().await;
+
+		let addr = format!("http://{}", wim.addr);
+		let response = reqwest::Client::new()
+			.post(&format!("{}/submit", addr))
+			.json(&"0xDEADBEEF")
+			.send()
+			.await
+			.expect("Failed to submit payload")
+			.json::<serde_json::Value>()
+			.await
+			.expect("Failed to parse JSON response");
+
+		assert_eq!(response, json!({"status": "success"}));
+		assert_eq!(wim.state.lock().await.signed_payload, Some("0xDEADBEEF".to_string()));
+		assert_eq!(wim.is_running(), false);
+
+		wim.terminate().await;
+		assert!(wim.task_handle.await.is_ok());
+	}
+
+	#[tokio::test]
+	async fn terminate_works() {
+		// offset port per test to avoid conflicts
+		let addr = "127.0.0.1:9093";
+
+		let frontend = FrontendFromString::new(TEST_HTML.to_string());
+
+		let expected_payload =
+			TransactionData { chain_rpc: "localhost:9944".to_string(), call_data: vec![1, 2, 3] };
+		let mut wim = WalletIntegrationManager::new_with_address(frontend, expected_payload, addr);
+
+		assert_eq!(wim.is_running(), true);
+		wim.terminate().await;
+		wait().await;
+		assert_eq!(wim.is_running(), false);
+
+		wim.terminate().await;
+		assert!(wim.task_handle.await.is_ok());
+	}
+
+	#[tokio::test]
+	async fn frontend_from_string_works() {
+		// offset port per test to avoid conflicts
+		let addr = "127.0.0.1:9094";
+
+		let frontend = FrontendFromString::new(TEST_HTML.to_string());
+		let expected_payload =
+			TransactionData { chain_rpc: "localhost:9944".to_string(), call_data: vec![1, 2, 3] };
+		let mut wim = WalletIntegrationManager::new_with_address(frontend, expected_payload, addr);
+		wait().await;
+
+		let actual_payload = reqwest::get(&format!("http://{}", addr))
+			.await
+			.expect("Failed to get web page")
+			.text()
+			.await
+			.expect("Failed to parse page");
+
+		assert_eq!(actual_payload, TEST_HTML);
+
+		wim.terminate().await;
+		assert!(wim.task_handle.await.is_ok());
+	}
+
+	#[tokio::test]
+	async fn frontend_from_dir_works() {
+		use std::fs;
+		use tempfile::tempdir;
+
+		// offset port per test to avoid conflicts
+		let addr = "127.0.0.1:9095";
+
+		let temp_dir = tempdir().expect("Failed to create temp directory");
+		let index_file_path = temp_dir.path().join("index.html");
+
+		let test_html = "<html><body>Hello, world from Directory!</body></html>";
+		fs::write(&index_file_path, test_html).expect("Failed to write index.html");
+
+		let frontend = FrontendFromDir::new(temp_dir.path().to_path_buf());
+		let expected_payload =
+			TransactionData { chain_rpc: "localhost:9944".to_string(), call_data: vec![1, 2, 3] };
+		let mut wim = WalletIntegrationManager::new_with_address(frontend, expected_payload, addr);
+		wait().await;
+
+		let actual_payload = reqwest::get(&format!("http://{}", addr))
+			.await
+			.expect("Failed to get web page")
+			.text()
+			.await
+			.expect("Failed to parse page");
+
+		assert_eq!(actual_payload, test_html);
+
+		wim.terminate().await;
+		assert!(wim.task_handle.await.is_ok());
+	}
+
+	#[tokio::test]
+	async fn large_payload_works() {
+		// offset port per test to avoid conflicts
+		let addr = "127.0.0.1:9096";
+		let frontend = FrontendFromString::new(TEST_HTML.to_string());
+
+		let call_data_5mb = vec![99u8; 5 * 1024 * 1024];
+
+		let expected_payload = TransactionData {
+			chain_rpc: "localhost:9944".to_string(),
+			call_data: call_data_5mb.clone(),
+		};
+		let mut wim = WalletIntegrationManager::new_with_address(frontend, expected_payload, addr);
+		wait().await;
+
+		let addr = format!("http://{}", wim.addr);
+		let actual_payload = reqwest::get(&format!("{}/payload", addr))
+			.await
+			.expect("Failed to get payload")
+			.json::<TransactionData>()
+			.await
+			.expect("Failed to parse payload");
+
+		assert_eq!(actual_payload.chain_rpc, "localhost:9944");
+		assert_eq!(actual_payload.call_data, call_data_5mb);
+
+		wim.terminate().await;
+		assert!(wim.task_handle.await.is_ok());
+	}
+
+	#[tokio::test]
+	async fn new_fails_on_conflicting_address() {
+		// offset port per test to avoid conflicts
+		let addr = "127.0.0.1:9097";
+
+		let frontend = FrontendFromString::new(TEST_HTML.to_string());
+		let expected_payload =
+			TransactionData { chain_rpc: "localhost:9944".to_string(), call_data: vec![1, 2, 3] };
+		let wim = WalletIntegrationManager::new_with_address(frontend, expected_payload, addr);
+		wait().await;
+
+		assert_eq!(wim.is_running(), true);
+
+		let frontend = FrontendFromString::new(TEST_HTML.to_string());
+		let expected_payload =
+			TransactionData { chain_rpc: "localhost:9944".to_string(), call_data: vec![1, 2, 3] };
+		let wim_conflict =
+			WalletIntegrationManager::new_with_address(frontend, expected_payload, addr);
+		wait().await;
+
+		assert_eq!(wim_conflict.is_running(), false);
+		let task_result = wim_conflict.task_handle.await.unwrap();
+		match task_result {
+			Err(e) => assert!(e
+				.to_string()
+				.starts_with(&format!("Failed to bind to {}: Address already in use", addr))),
+			Ok(_) => panic!("Expected error, but task succeeded"),
+		}
 	}
 }
