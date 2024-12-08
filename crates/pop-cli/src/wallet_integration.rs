@@ -44,6 +44,7 @@ pub struct StateHandler {
 	shutdown_tx: Option<oneshot::Sender<()>>,
 	// signed payload received from UI.
 	pub signed_payload: Option<String>,
+	pub error: Option<String>,
 }
 
 /// Manages the wallet integration for secure signing of transactions.
@@ -79,8 +80,11 @@ impl WalletIntegrationManager {
 		// channel to signal shutdown
 		let (tx, rx) = oneshot::channel();
 
-		let state =
-			Arc::new(Mutex::new(StateHandler { shutdown_tx: Some(tx), signed_payload: None }));
+		let state = Arc::new(Mutex::new(StateHandler {
+			shutdown_tx: Some(tx),
+			signed_payload: None,
+			error: None,
+		}));
 
 		// TODO: temporary until we host from here.
 		let cors = tower_http::cors::CorsLayer::new()
@@ -173,7 +177,7 @@ mod routes {
 
 	/// Receives the signed payload from the wallet.
 	/// Will signal for shutdown on success.
-	pub(super) async fn handle_submit(
+	pub(super) async fn submit_handler(
 		State(state): State<Arc<Mutex<StateHandler>>>,
 		Json(payload): Json<String>,
 	) -> Json<serde_json::Value> {
@@ -188,6 +192,23 @@ mod routes {
 
 		// graceful shutdown ensures response is sent before shutdown.
 		Json(json!({"status": "success"}))
+	}
+
+	/// Receives an error message from the wallet.
+	pub(super) async fn error_handler(
+		State(state): State<Arc<Mutex<StateHandler>>>,
+		Json(error): Json<String>,
+	) {
+		let mut state = state.lock().await;
+		state.error = Some(error);
+	}
+
+	/// Allows the server to be terminated from the frontend.
+	pub(super) async fn terminate_handler(State(state): State<Arc<Mutex<StateHandler>>>) {
+		let mut state = state.lock().await;
+		if let Some(shutdown_tx) = state.shutdown_tx.take() {
+			let _ = shutdown_tx.send(());
+		}
 	}
 }
 
@@ -253,7 +274,7 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn payload_works() {
+	async fn payload_handler_works() {
 		// offset port per test to avoid conflicts
 		let addr = "127.0.0.1:9091";
 		let frontend = FrontendFromString::new(TEST_HTML.to_string());
@@ -279,7 +300,7 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn submit_works() {
+	async fn submit_handler_works() {
 		// offset port per test to avoid conflicts
 		let addr = "127.0.0.1:9092";
 		let frontend = FrontendFromString::new(TEST_HTML.to_string());
@@ -309,9 +330,69 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn terminate_works() {
+	async fn error_handler_works() {
 		// offset port per test to avoid conflicts
 		let addr = "127.0.0.1:9093";
+		let frontend = FrontendFromString::new(TEST_HTML.to_string());
+
+		let expected_payload =
+			TransactionData { chain_rpc: "localhost:9944".to_string(), call_data: vec![1, 2, 3] };
+		let mut wim = WalletIntegrationManager::new_with_address(frontend, expected_payload, addr);
+		wait().await;
+
+		let addr = format!("http://{}", wim.addr);
+		let response = reqwest::Client::new()
+			.post(&format!("{}/error", addr))
+			.json(&"an error occurred")
+			.send()
+			.await
+			.expect("Failed to submit error")
+			.text()
+			.await
+			.expect("Failed to parse response");
+
+		// no response expected
+		assert_eq!(response.len(), 0);
+		assert_eq!(wim.state.lock().await.error, Some("an error occurred".to_string()));
+		assert_eq!(wim.is_running(), true);
+
+		wim.terminate().await;
+		assert!(wim.task_handle.await.is_ok());
+	}
+
+	#[tokio::test]
+	async fn terminate_handler_works() {
+		// offset port per test to avoid conflicts
+		let addr = "127.0.0.1:9094";
+		let frontend = FrontendFromString::new(TEST_HTML.to_string());
+
+		let expected_payload =
+			TransactionData { chain_rpc: "localhost:9944".to_string(), call_data: vec![1, 2, 3] };
+		let mut wim = WalletIntegrationManager::new_with_address(frontend, expected_payload, addr);
+		wait().await;
+
+		let addr = format!("http://{}", wim.addr);
+		let response = reqwest::Client::new()
+			.post(&format!("{}/terminate", addr))
+			.send()
+			.await
+			.expect("Failed to terminate")
+			.text()
+			.await
+			.expect("Failed to parse response");
+
+		// no response expected
+		assert_eq!(response.len(), 0);
+		assert_eq!(wim.is_running(), false);
+
+		wim.terminate().await;
+		assert!(wim.task_handle.await.is_ok());
+	}
+
+	#[tokio::test]
+	async fn wallet_terminate_works() {
+		// offset port per test to avoid conflicts
+		let addr = "127.0.0.1:9095";
 
 		let frontend = FrontendFromString::new(TEST_HTML.to_string());
 
@@ -331,7 +412,7 @@ mod tests {
 	#[tokio::test]
 	async fn frontend_from_string_works() {
 		// offset port per test to avoid conflicts
-		let addr = "127.0.0.1:9094";
+		let addr = "127.0.0.1:9096";
 
 		let frontend = FrontendFromString::new(TEST_HTML.to_string());
 		let expected_payload =
@@ -358,7 +439,7 @@ mod tests {
 		use tempfile::tempdir;
 
 		// offset port per test to avoid conflicts
-		let addr = "127.0.0.1:9095";
+		let addr = "127.0.0.1:9097";
 
 		let temp_dir = tempdir().expect("Failed to create temp directory");
 		let index_file_path = temp_dir.path().join("index.html");
@@ -388,7 +469,7 @@ mod tests {
 	#[tokio::test]
 	async fn large_payload_works() {
 		// offset port per test to avoid conflicts
-		let addr = "127.0.0.1:9096";
+		let addr = "127.0.0.1:9098";
 		let frontend = FrontendFromString::new(TEST_HTML.to_string());
 
 		let call_data_5mb = vec![99u8; 5 * 1024 * 1024];
@@ -416,9 +497,9 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn new_fails_on_conflicting_address() {
+	async fn new_with_conflicting_address_fails() {
 		// offset port per test to avoid conflicts
-		let addr = "127.0.0.1:9097";
+		let addr = "127.0.0.1:9099";
 
 		let frontend = FrontendFromString::new(TEST_HTML.to_string());
 		let expected_payload =
