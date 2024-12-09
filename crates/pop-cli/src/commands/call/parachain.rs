@@ -385,6 +385,7 @@ impl CallParachain {
 		spinner.stop(format!("Extrinsic submitted with hash: {:?}", result));
 		Ok(())
 	}
+
 	fn display(&self, chain: &Chain) -> String {
 		let mut full_message = "pop call parachain".to_string();
 		full_message.push_str(&format!(" --pallet {}", self.function.pallet));
