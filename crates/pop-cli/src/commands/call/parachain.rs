@@ -238,10 +238,9 @@ impl CallParachainCommand {
 		spinner.start("Signing and submitting the extrinsic and then waiting for finalization, please be patient...");
 		let call_data_bytes =
 			decode_call_data(call_data).map_err(|err| anyhow!("{}", format!("{err:?}")))?;
-		let result =
-			sign_and_submit_extrinsic_with_call_data(client.clone(), call_data_bytes, suri)
-				.await
-				.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
+		let result = sign_and_submit_extrinsic_with_call_data(&client, call_data_bytes, suri)
+			.await
+			.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
 
 		spinner.stop(format!("Extrinsic submitted successfully with hash: {:?}", result));
 		display_message("Call complete.", true, cli)?;

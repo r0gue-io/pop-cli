@@ -49,7 +49,7 @@ pub fn construct_sudo_extrinsic(xt: DynamicPayload) -> Result<DynamicPayload, Er
 /// * `xt` - The extrinsic to be signed and submitted.
 /// * `suri` - The secret URI (e.g., mnemonic or private key) for signing the extrinsic.
 pub async fn sign_and_submit_extrinsic(
-	client: OnlineClient<SubstrateConfig>,
+	client: &OnlineClient<SubstrateConfig>,
 	xt: DynamicPayload,
 	suri: &str,
 ) -> Result<String, Error> {
@@ -111,7 +111,7 @@ impl Payload for CallData {
 /// * `call_data` - SCALE encoded bytes representing the extrinsic's call data.
 /// * `suri` - The secret URI (e.g., mnemonic or private key) for signing the extrinsic.
 pub async fn sign_and_submit_extrinsic_with_call_data(
-	client: OnlineClient<SubstrateConfig>,
+	client: &OnlineClient<SubstrateConfig>,
 	call_data: Vec<u8>,
 	suri: &str,
 ) -> Result<String, Error> {
@@ -214,7 +214,7 @@ mod tests {
 		};
 		let xt = construct_extrinsic(&function, vec!["0x11".to_string()])?;
 		assert!(matches!(
-			sign_and_submit_extrinsic(client, xt, ALICE_SURI).await,
+			sign_and_submit_extrinsic(&client, xt, ALICE_SURI).await,
 			Err(Error::ExtrinsicSubmissionError(message)) if message.contains("PalletNameNotFound(\"WrongPallet\"))")
 		));
 		Ok(())
