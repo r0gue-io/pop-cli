@@ -116,16 +116,13 @@ pub async fn get_upload_payload(up_opts: UpOpts) -> anyhow::Result<Vec<u8>> {
 		contract_extrinsics::upload::Determinism::Enforced,
 	);
 
-	// TODO: should not be here
+	// TODO: review placement
 	let rpc_client = subxt::backend::rpc::RpcClient::from_url(up_opts.url.as_str()).await?;
 	let client = subxt::OnlineClient::<SubstrateConfig>::from_rpc_client(rpc_client).await?;
 
 	let call_data = upload_code.build();
 	let mut encoded_data = Vec::<u8>::new();
-	// TODO: error
-	call_data
-		.encode_call_data_to(&client.metadata(), &mut encoded_data)
-		.expect("failed to encoded");
+	call_data.encode_call_data_to(&client.metadata(), &mut encoded_data)?;
 	Ok(encoded_data)
 }
 
@@ -133,8 +130,6 @@ pub async fn get_instantiate_payload(
 	instantiate_exec: InstantiateExec<DefaultConfig, DefaultEnvironment, Keypair>,
 	gas_limit: Weight,
 ) -> anyhow::Result<Vec<u8>> {
-	// let code = get_contract_code(instantiate_exec.opts().manifest_path()).await?;
-
 	let storage_deposit_limit: Option<u128> = None;
 	let mut encoded_data = Vec::<u8>::new();
 	match instantiate_exec.args().code() {
@@ -142,7 +137,6 @@ pub async fn get_instantiate_payload(
 			instantiate_exec.args().value(),
 			gas_limit,
 			storage_deposit_limit,
-			// TODO: revisit if expensive clone is necessary
 			code.clone(),
 			instantiate_exec.args().data().into(),
 			instantiate_exec.args().salt().into(),
@@ -159,19 +153,17 @@ pub async fn get_instantiate_payload(
 		)
 		.build()
 		.encode_call_data_to(&instantiate_exec.client().metadata(), &mut encoded_data),
-	}
-	.expect("encoding failed"); // TODO: error
+	}?;
 
 	Ok(encoded_data)
 }
 
-// TODO, don't need full up_opts
 pub async fn get_contract_code(
 	path: Option<&PathBuf>,
 ) -> anyhow::Result<contract_extrinsics::WasmCode> {
 	let manifest_path = get_manifest_path(path.map(|p| p as &Path))?;
 
-	// TODO: signer doesn't matter here
+	// signer does not matter for this
 	let signer = create_signer("//Alice")?;
 	let extrinsic_opts =
 		ExtrinsicOptsBuilder::<DefaultConfig, DefaultEnvironment, Keypair>::new(signer)
