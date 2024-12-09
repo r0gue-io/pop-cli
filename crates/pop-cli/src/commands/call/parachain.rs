@@ -193,7 +193,7 @@ impl CallParachainCommand {
 
 			// If chain has sudo prompt the user to confirm if they want to execute the call via
 			// sudo.
-			self.configure_sudo(chain, cli).await?;
+			self.configure_sudo(chain, cli)?;
 
 			// Resolve who is signing the extrinsic.
 			let suri = match self.suri.as_ref() {
@@ -254,8 +254,8 @@ impl CallParachainCommand {
 
 	// Checks if the chain has the Sudo pallet and prompt the user to confirm if they want to
 	// execute the call via sudo.
-	async fn configure_sudo(&mut self, chain: &Chain, cli: &mut impl Cli) -> Result<()> {
-		match find_extrinsic_by_name(&chain.pallets, "Sudo", "sudo").await {
+	fn configure_sudo(&mut self, chain: &Chain, cli: &mut impl Cli) -> Result<()> {
+		match find_extrinsic_by_name(&chain.pallets, "Sudo", "sudo") {
 			Ok(_) =>
 				if !self.sudo {
 					self.sudo = cli
@@ -359,7 +359,7 @@ impl CallParachain {
 			},
 		};
 		// If sudo is required, wrap the call in a sudo call.
-		let tx = if self.sudo { construct_sudo_extrinsic(tx).await? } else { tx };
+		let tx = if self.sudo { construct_sudo_extrinsic(tx)? } else { tx };
 		let encoded_data = encode_call_data(client, &tx)?;
 		// If the encoded call data is too long, don't display it all.
 		if encoded_data.len() < ENCODED_CALL_DATA_MAX_LEN {
@@ -739,7 +739,7 @@ mod tests {
 		// Prepare extrinsic wrapped in sudo works.
 		cli = MockCli::new().expect_info("Encoded call data: 0x0f0000000411");
 		call_config.sudo = true;
-		call_config.prepare_extrinsic(&client, &mut cli).await?;
+		call_config.prepare_extrinsic(&client, &mut cli)?;
 
 		cli.verify()
 	}
@@ -806,7 +806,7 @@ mod tests {
 			.expect_intro("Call a parachain")
 			.expect_warning("NOTE: sudo is not supported by the chain. Ignoring `--sudo` flag.");
 		let chain = call_config.configure_chain(&mut cli).await?;
-		call_config.configure_sudo(&chain, &mut cli).await?;
+		call_config.configure_sudo(&chain, &mut cli)?;
 		assert!(!call_config.sudo);
 		cli.verify()?;
 
@@ -817,7 +817,7 @@ mod tests {
 		);
 		call_config.url = Some(Url::parse("wss://rpc1.paseo.popnetwork.xyz")?);
 		let chain = call_config.configure_chain(&mut cli).await?;
-		call_config.configure_sudo(&chain, &mut cli).await?;
+		call_config.configure_sudo(&chain, &mut cli)?;
 		assert!(call_config.sudo);
 		cli.verify()
 	}

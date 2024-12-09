@@ -40,7 +40,7 @@ pub fn construct_extrinsic(
 /// # Arguments
 /// * `tx`: The transaction payload representing the function call to be dispatched with `Root`
 ///   privileges.
-pub async fn construct_sudo_extrinsic(tx: DynamicPayload) -> Result<DynamicPayload, Error> {
+pub fn construct_sudo_extrinsic(tx: DynamicPayload) -> Result<DynamicPayload, Error> {
 	Ok(subxt::dynamic::tx("Sudo", "sudo", [tx.into_value()].to_vec()))
 }
 
@@ -226,8 +226,8 @@ mod tests {
 	#[tokio::test]
 	async fn construct_sudo_extrinsic_works() -> Result<()> {
 		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
-		let pallets = parse_chain_metadata(&client).await?;
-		let force_transfer = find_extrinsic_by_name(&pallets, "Balances", "force_transfer").await?;
+		let pallets = parse_chain_metadata(&client)?;
+		let force_transfer = find_extrinsic_by_name(&pallets, "Balances", "force_transfer")?;
 		let extrinsic = construct_extrinsic(
 			"Balances",
 			&force_transfer,
@@ -236,9 +236,8 @@ mod tests {
 				"Id(5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy)".to_string(),
 				"100".to_string(),
 			],
-		)
-		.await?;
-		let sudo_extrinsic = construct_sudo_extrinsic(extrinsic).await?;
+		)?;
+		let sudo_extrinsic = construct_sudo_extrinsic(extrinsic)?;
 		assert_eq!(sudo_extrinsic.call_name(), "sudo");
 		assert_eq!(sudo_extrinsic.pallet_name(), "Sudo");
 		Ok(())
