@@ -7,9 +7,9 @@ use anyhow::{anyhow, Result};
 use clap::Args;
 use pop_parachains::{
 	construct_extrinsic, construct_sudo_extrinsic, decode_call_data, encode_call_data,
-	find_extrinsic_by_name, find_pallet_by_name, parse_chain_metadata, set_up_client,
+	find_dispatchable_by_name, find_pallet_by_name, parse_chain_metadata, set_up_client,
 	sign_and_submit_extrinsic, sign_and_submit_extrinsic_with_call_data, supported_actions, Action,
-	DynamicPayload, Extrinsic, OnlineClient, Pallet, Param, SubstrateConfig,
+	DynamicPayload, Function, OnlineClient, Pallet, Param, SubstrateConfig,
 };
 use url::Url;
 
@@ -17,16 +17,17 @@ const DEFAULT_URL: &str = "ws://localhost:9944/";
 const DEFAULT_URI: &str = "//Alice";
 const ENCODED_CALL_DATA_MAX_LEN: usize = 500; // Maximum length of encoded call data to display.
 
-/// Command to execute extrinsics with configurable pallets, arguments, and signing options.
+/// Command to construct and execute extrinsics with configurable pallets, functions, arguments, and
+/// signing options.
 #[derive(Args, Clone, Default)]
 pub struct CallParachainCommand {
-	/// The pallet containing the extrinsic to execute.
+	/// The pallet containing the dispatchable function to execute.
 	#[arg(short, long, value_parser = parse_pallet_name)]
 	pallet: Option<String>,
-	/// The extrinsic to execute within the chosen pallet.
-	#[arg(short, long, value_parser = parse_extrinsic_name)]
-	extrinsic: Option<String>,
-	/// The extrinsic arguments, encoded as strings.
+	/// The dispatchable function to execute within the specified pallet.
+	#[arg(short, long, value_parser = parse_function_name)]
+	function: Option<String>,
+	/// The dispatchable function arguments, encoded as strings.
 	#[arg(short, long, num_args = 0..,)]
 	args: Vec<String>,
 	/// Websocket endpoint of a node.
@@ -40,7 +41,7 @@ pub struct CallParachainCommand {
 	#[arg(short, long)]
 	suri: Option<String>,
 	/// SCALE encoded bytes representing the call data of the extrinsic.
-	#[arg(name = "call", long, conflicts_with_all = ["pallet", "extrinsic", "args"])]
+	#[arg(name = "call", long, conflicts_with_all = ["pallet", "function", "args"])]
 	call_data: Option<String>,
 	/// Authenticates the sudo key and dispatches a function call with `Root` origin.
 	#[arg(short = 'S', long)]
@@ -80,7 +81,7 @@ impl CallParachainCommand {
 			// Display the configured call.
 			cli.info(call.display(&chain))?;
 			// Prepare the extrinsic.
-			let tx = match call.prepare_extrinsic(&chain.client, &mut cli) {
+			let xt = match call.prepare_extrinsic(&chain.client, &mut cli) {
 				Ok(payload) => payload,
 				Err(e) => {
 					display_message(&e.to_string(), false, &mut cli)?;
@@ -89,7 +90,7 @@ impl CallParachainCommand {
 			};
 
 			// Sign and submit the extrinsic.
-			if let Err(e) = call.submit_extrinsic(&chain.client, tx, &mut cli).await {
+			if let Err(e) = call.submit_extrinsic(&chain.client, xt, &mut cli).await {
 				display_message(&e.to_string(), false, &mut cli)?;
 				break;
 			}
@@ -130,9 +131,7 @@ impl CallParachainCommand {
 		})?;
 		// Sort by name for display.
 		pallets.sort_by(|a, b| a.name.cmp(&b.name));
-		pallets
-			.iter_mut()
-			.for_each(|p| p.extrinsics.sort_by(|a, b| a.name.cmp(&b.name)));
+		pallets.iter_mut().for_each(|p| p.functions.sort_by(|a, b| a.name.cmp(&b.name)));
 		Ok(Chain { url, client, pallets })
 	}
 
@@ -145,7 +144,7 @@ impl CallParachainCommand {
 				None => {
 					// Specific predefined actions first.
 					if let Some(action) = prompt_predefined_actions(&chain.pallets, cli)? {
-						self.extrinsic = Some(action.extrinsic_name().to_string());
+						self.function = Some(action.function_name().to_string());
 						find_pallet_by_name(&chain.pallets, action.pallet_name())?
 					} else {
 						let mut prompt = cli.select("Select the pallet to call:");
@@ -157,32 +156,30 @@ impl CallParachainCommand {
 				},
 			};
 
-			// Resolve extrinsic.
-			let extrinsic = match self.extrinsic {
-				Some(ref extrinsic_name) =>
-					find_extrinsic_by_name(&chain.pallets, &pallet.name, extrinsic_name)?,
+			// Resolve dispatchable function.
+			let function = match self.function {
+				Some(ref name) => find_dispatchable_by_name(&chain.pallets, &pallet.name, name)?,
 				None => {
-					let mut prompt_extrinsic = cli.select("Select the extrinsic to call:");
-					for extrinsic in &pallet.extrinsics {
-						prompt_extrinsic =
-							prompt_extrinsic.item(extrinsic, &extrinsic.name, &extrinsic.docs);
+					let mut prompt = cli.select("Select the function to call:");
+					for function in &pallet.functions {
+						prompt = prompt.item(function, &function.name, &function.docs);
 					}
-					prompt_extrinsic.interact()?
+					prompt.interact()?
 				},
 			};
-			// Certain extrinsics are not supported yet due to complexity.
-			if !extrinsic.is_supported {
+			// Certain dispatchable functions are not supported yet due to complexity.
+			if !function.is_supported {
 				cli.outro_cancel(
-					"The selected extrinsic is not supported yet. Please choose another one.",
+					"The selected function is not supported yet. Please choose another one.",
 				)?;
 				self.reset_for_new_call();
 				continue;
 			}
 
-			// Resolve message arguments.
+			// Resolve dispatchable function arguments.
 			let args = if self.args.is_empty() {
 				let mut args = Vec::new();
-				for param in &extrinsic.params {
+				for param in &function.params {
 					let input = prompt_for_param(cli, param)?;
 					args.push(input);
 				}
@@ -203,8 +200,7 @@ impl CallParachainCommand {
 			};
 
 			return Ok(CallParachain {
-				pallet: pallet.clone(),
-				extrinsic: extrinsic.clone(),
+				function: function.clone(),
 				args,
 				suri,
 				skip_confirm: self.skip_confirm,
@@ -213,7 +209,7 @@ impl CallParachainCommand {
 		}
 	}
 
-	// Submits an extrinsic to the chain using the provided call data.
+	// Submits an extrinsic to the chain using the provided encoded call data.
 	async fn submit_extrinsic_from_call_data(
 		&self,
 		client: &OnlineClient<SubstrateConfig>,
@@ -252,10 +248,10 @@ impl CallParachainCommand {
 		Ok(())
 	}
 
-	// Checks if the chain has the Sudo pallet and prompt the user to confirm if they want to
-	// execute the call via sudo.
+	// Checks if the chain has the Sudo pallet and prompts the user to confirm if they want to
+	// execute the call via `sudo`.
 	fn configure_sudo(&mut self, chain: &Chain, cli: &mut impl Cli) -> Result<()> {
-		match find_extrinsic_by_name(&chain.pallets, "Sudo", "sudo") {
+		match find_dispatchable_by_name(&chain.pallets, "Sudo", "sudo") {
 			Ok(_) =>
 				if !self.sudo {
 					self.sudo = cli
@@ -279,7 +275,7 @@ impl CallParachainCommand {
 	// Resets specific fields to default values for a new call.
 	fn reset_for_new_call(&mut self) {
 		self.pallet = None;
-		self.extrinsic = None;
+		self.function = None;
 		self.args.clear();
 		self.sudo = false;
 	}
@@ -287,7 +283,7 @@ impl CallParachainCommand {
 	// Function to check if all required fields are specified.
 	fn requires_user_input(&self) -> bool {
 		self.pallet.is_none() ||
-			self.extrinsic.is_none() ||
+			self.function.is_none() ||
 			self.args.is_empty() ||
 			self.url.is_none() ||
 			self.suri.is_none()
@@ -319,15 +315,13 @@ struct Chain {
 	pallets: Vec<Pallet>,
 }
 
-/// Represents a configured extrinsic call, including the pallet, extrinsic, arguments, and signing
-/// options.
+/// Represents a configured dispatchable function call, including the pallet, function, arguments,
+/// and signing options.
 #[derive(Clone)]
 struct CallParachain {
-	/// The pallet of the extrinsic.
-	pallet: Pallet,
-	/// The extrinsic to execute.
-	extrinsic: Extrinsic,
-	/// The extrinsic arguments, encoded as strings.
+	/// The dispatchable function to execute.
+	function: Function,
+	/// The dispatchable function arguments, encoded as strings.
 	args: Vec<String>,
 	/// Secret key URI for the account signing the extrinsic.
 	///
@@ -342,30 +336,26 @@ struct CallParachain {
 }
 
 impl CallParachain {
-	// Prepares the extrinsic or query.
+	// Prepares the extrinsic.
 	fn prepare_extrinsic(
 		&self,
 		client: &OnlineClient<SubstrateConfig>,
 		cli: &mut impl Cli,
 	) -> Result<DynamicPayload> {
-		let tx = match construct_extrinsic(
-			self.pallet.name.as_str(),
-			&self.extrinsic,
-			self.args.clone(),
-		) {
+		let xt = match construct_extrinsic(&self.function, self.args.clone()) {
 			Ok(tx) => tx,
 			Err(e) => {
 				return Err(anyhow!("Error: {}", e));
 			},
 		};
 		// If sudo is required, wrap the call in a sudo call.
-		let tx = if self.sudo { construct_sudo_extrinsic(tx)? } else { tx };
-		let encoded_data = encode_call_data(client, &tx)?;
+		let xt = if self.sudo { construct_sudo_extrinsic(xt)? } else { xt };
+		let encoded_data = encode_call_data(client, &xt)?;
 		// If the encoded call data is too long, don't display it all.
 		if encoded_data.len() < ENCODED_CALL_DATA_MAX_LEN {
-			cli.info(format!("Encoded call data: {}", encode_call_data(client, &tx)?))?;
+			cli.info(format!("Encoded call data: {}", encode_call_data(client, &xt)?))?;
 		}
-		Ok(tx)
+		Ok(xt)
 	}
 
 	// Sign and submit an extrinsic.
@@ -381,7 +371,7 @@ impl CallParachain {
 				.interact()?
 		{
 			display_message(
-				&format!("Extrinsic {} was not submitted.", self.extrinsic.name),
+				&format!("Extrinsic for `{}` was not submitted.", self.function.name),
 				false,
 				cli,
 			)?;
@@ -398,8 +388,8 @@ impl CallParachain {
 	}
 	fn display(&self, chain: &Chain) -> String {
 		let mut full_message = "pop call parachain".to_string();
-		full_message.push_str(&format!(" --pallet {}", self.pallet));
-		full_message.push_str(&format!(" --extrinsic {}", self.extrinsic));
+		full_message.push_str(&format!(" --pallet {}", self.function.pallet));
+		full_message.push_str(&format!(" --function {}", self.function));
 		if !self.args.is_empty() {
 			let args: Vec<_> = self
 				.args
@@ -443,7 +433,7 @@ fn prompt_predefined_actions(pallets: &[Pallet], cli: &mut impl Cli) -> Result<O
 			action.pallet_name(),
 		);
 	}
-	predefined_action = predefined_action.item(None, "All", "Explore all pallets and extrinsics");
+	predefined_action = predefined_action.item(None, "All", "Explore all pallets and functions");
 	Ok(predefined_action.interact()?)
 }
 
@@ -585,8 +575,8 @@ fn parse_pallet_name(name: &str) -> Result<String, String> {
 	}
 }
 
-// Parser to convert the extrinsic name to lowercase.
-fn parse_extrinsic_name(name: &str) -> Result<String, String> {
+// Parser to convert the function name to lowercase.
+fn parse_function_name(name: &str) -> Result<String, String> {
 	Ok(name.to_ascii_lowercase())
 }
 
@@ -623,7 +613,7 @@ mod tests {
 		.expect_intro("Call a parachain")
 		.expect_input("Which chain would you like to interact with?", POP_NETWORK_TESTNET_URL.into())
 		.expect_select(
-			"Select the extrinsic to call:",
+			"Select the function to call:",
 			Some(true),
 			true,
 			Some(
@@ -642,7 +632,7 @@ mod tests {
 				]
 				.to_vec(),
 			),
-			5, // "remark" extrinsic
+			5, // "remark" dispatchable function
 		)
 		.expect_input("The value for `remark` might be too large to enter. You may enter the path to a file instead.", "0x11".into())
 		.expect_confirm("Would you like to dispatch this function call with `Root` origin?", true)
@@ -652,12 +642,12 @@ mod tests {
 		assert_eq!(chain.url, Url::parse(POP_NETWORK_TESTNET_URL)?);
 
 		let call_parachain = call_config.configure_call(&chain, &mut cli)?;
-		assert_eq!(call_parachain.pallet.name, "System");
-		assert_eq!(call_parachain.extrinsic.name, "remark");
+		assert_eq!(call_parachain.function.pallet, "System");
+		assert_eq!(call_parachain.function.name, "remark");
 		assert_eq!(call_parachain.args, ["0x11".to_string()].to_vec());
 		assert_eq!(call_parachain.suri, "//Bob");
 		assert!(call_parachain.sudo);
-		assert_eq!(call_parachain.display(&chain), "pop call parachain --pallet System --extrinsic remark --args \"0x11\" --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Bob --sudo");
+		assert_eq!(call_parachain.display(&chain), "pop call parachain --pallet System --function remark --args \"0x11\" --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Bob --sudo");
 		cli.verify()
 	}
 
@@ -686,7 +676,7 @@ mod tests {
 						})
 						.chain(std::iter::once((
 							"All".to_string(),
-							"Explore all pallets and extrinsics".to_string(),
+							"Explore all pallets and functions".to_string(),
 						)))
 						.collect::<Vec<_>>(),
 				),
@@ -698,12 +688,12 @@ mod tests {
 
 		let call_parachain = call_config.configure_call(&chain, &mut cli)?;
 
-		assert_eq!(call_parachain.pallet.name, "OnDemand");
-		assert_eq!(call_parachain.extrinsic.name, "place_order_allow_death");
+		assert_eq!(call_parachain.function.pallet, "OnDemand");
+		assert_eq!(call_parachain.function.name, "place_order_allow_death");
 		assert_eq!(call_parachain.args, ["10000".to_string(), "2000".to_string()].to_vec());
 		assert_eq!(call_parachain.suri, "//Bob");
 		assert!(!call_parachain.sudo);
-		assert_eq!(call_parachain.display(&chain), "pop call parachain --pallet OnDemand --extrinsic place_order_allow_death --args \"10000\" \"2000\" --url wss://polkadot-rpc.publicnode.com/ --suri //Bob");
+		assert_eq!(call_parachain.display(&chain), "pop call parachain --pallet OnDemand --function place_order_allow_death --args \"10000\" \"2000\" --url wss://polkadot-rpc.publicnode.com/ --suri //Bob");
 		cli.verify()
 	}
 
@@ -711,8 +701,11 @@ mod tests {
 	async fn prepare_extrinsic_works() -> Result<()> {
 		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
 		let mut call_config = CallParachain {
-			pallet: Pallet { name: "WrongName".to_string(), ..Default::default() },
-			extrinsic: Extrinsic { name: "WrongName".to_string(), ..Default::default() },
+			function: Function {
+				pallet: "WrongName".to_string(),
+				name: "WrongName".to_string(),
+				..Default::default()
+			},
 			args: vec!["0x11".to_string()].to_vec(),
 			suri: DEFAULT_URI.to_string(),
 			skip_confirm: false,
@@ -720,21 +713,23 @@ mod tests {
 		};
 		let mut cli = MockCli::new();
 		// Error, wrong name of the pallet.
-		assert!(
-			matches!(call_config.prepare_extrinsic(&client, &mut cli), Err(message) if message.to_string().contains("Failed to encode call data. Metadata Error: Pallet with name WrongName not found"))
-		);
+		assert!(matches!(
+				call_config.prepare_extrinsic(&client, &mut cli),
+				Err(message)
+					if message.to_string().contains("Failed to encode call data. Metadata Error: Pallet with name WrongName not found")));
 		let pallets = parse_chain_metadata(&client)?;
-		call_config.pallet = find_pallet_by_name(&pallets, "System")?.clone();
-		// Error, wrong name of the extrinsic.
-		assert!(
-			matches!(call_config.prepare_extrinsic(&client, &mut cli), Err(message) if message.to_string().contains("Failed to encode call data. Metadata Error: Call with name WrongName not found"))
-		);
-		// Success, extrinsic and pallet specified.
+		call_config.function.pallet = "System".to_string();
+		// Error, wrong name of the function.
+		assert!(matches!(
+				call_config.prepare_extrinsic(&client, &mut cli),
+				Err(message)
+					if message.to_string().contains("Failed to encode call data. Metadata Error: Call with name WrongName not found")));
+		// Success, pallet and dispatchable function specified.
 		cli = MockCli::new().expect_info("Encoded call data: 0x00000411");
-		call_config.extrinsic = find_extrinsic_by_name(&pallets, "System", "remark")?.clone();
-		let tx = call_config.prepare_extrinsic(&client, &mut cli)?;
-		assert_eq!(tx.call_name(), "remark");
-		assert_eq!(tx.pallet_name(), "System");
+		call_config.function = find_dispatchable_by_name(&pallets, "System", "remark")?.clone();
+		let xt = call_config.prepare_extrinsic(&client, &mut cli)?;
+		assert_eq!(xt.call_name(), "remark");
+		assert_eq!(xt.pallet_name(), "System");
 
 		// Prepare extrinsic wrapped in sudo works.
 		cli = MockCli::new().expect_info("Encoded call data: 0x0f0000000411");
@@ -749,8 +744,7 @@ mod tests {
 		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
 		let pallets = parse_chain_metadata(&client)?;
 		let mut call_config = CallParachain {
-			pallet: find_pallet_by_name(&pallets, "System")?.clone(),
-			extrinsic: find_extrinsic_by_name(&pallets, "System", "remark")?.clone(),
+			function: find_dispatchable_by_name(&pallets, "System", "remark")?.clone(),
 			args: vec!["0x11".to_string()].to_vec(),
 			suri: DEFAULT_URI.to_string(),
 			skip_confirm: false,
@@ -758,9 +752,9 @@ mod tests {
 		};
 		let mut cli = MockCli::new()
 			.expect_confirm("Do you want to submit the extrinsic?", false)
-			.expect_outro_cancel("Extrinsic remark was not submitted.");
-		let tx = call_config.prepare_extrinsic(&client, &mut cli)?;
-		call_config.submit_extrinsic(&client, tx, &mut cli).await?;
+			.expect_outro_cancel("Extrinsic for `remark` was not submitted.");
+		let xt = call_config.prepare_extrinsic(&client, &mut cli)?;
+		call_config.submit_extrinsic(&client, xt, &mut cli).await?;
 
 		cli.verify()
 	}
@@ -770,7 +764,7 @@ mod tests {
 		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
 		let call_config = CallParachainCommand {
 			pallet: None,
-			extrinsic: None,
+			function: None,
 			args: vec![].to_vec(),
 			url: Some(Url::parse("wss://rpc1.paseo.popnetwork.xyz")?),
 			suri: None,
@@ -794,7 +788,7 @@ mod tests {
 		// Test when sudo pallet doesn't exist.
 		let mut call_config = CallParachainCommand {
 			pallet: None,
-			extrinsic: None,
+			function: None,
 			args: vec![].to_vec(),
 			url: Some(Url::parse("wss://polkadot-rpc.publicnode.com")?),
 			suri: Some("//Alice".to_string()),
@@ -826,7 +820,7 @@ mod tests {
 	fn reset_for_new_call_works() -> Result<()> {
 		let mut call_config = CallParachainCommand {
 			pallet: Some("System".to_string()),
-			extrinsic: Some("remark".to_string()),
+			function: Some("remark".to_string()),
 			args: vec!["0x11".to_string()].to_vec(),
 			url: Some(Url::parse(POP_NETWORK_TESTNET_URL)?),
 			suri: Some(DEFAULT_URI.to_string()),
@@ -836,7 +830,7 @@ mod tests {
 		};
 		call_config.reset_for_new_call();
 		assert_eq!(call_config.pallet, None);
-		assert_eq!(call_config.extrinsic, None);
+		assert_eq!(call_config.function, None);
 		assert_eq!(call_config.args.len(), 0);
 		assert!(!call_config.sudo);
 		Ok(())
@@ -846,7 +840,7 @@ mod tests {
 	fn requires_user_input_works() -> Result<()> {
 		let mut call_config = CallParachainCommand {
 			pallet: Some("System".to_string()),
-			extrinsic: Some("remark".to_string()),
+			function: Some("remark".to_string()),
 			args: vec!["0x11".to_string()].to_vec(),
 			url: Some(Url::parse(POP_NETWORK_TESTNET_URL)?),
 			suri: Some(DEFAULT_URI.to_string()),
@@ -864,7 +858,7 @@ mod tests {
 	fn expand_file_arguments_works() -> Result<()> {
 		let mut call_config = CallParachainCommand {
 			pallet: Some("Registrar".to_string()),
-			extrinsic: Some("register".to_string()),
+			function: Some("register".to_string()),
 			args: vec!["2000".to_string(), "0x1".to_string(), "0x12".to_string()].to_vec(),
 			url: Some(Url::parse(POP_NETWORK_TESTNET_URL)?),
 			suri: Some(DEFAULT_URI.to_string()),
@@ -924,7 +918,7 @@ mod tests {
 					})
 					.chain(std::iter::once((
 						"All".to_string(),
-						"Explore all pallets and extrinsics".to_string(),
+						"Explore all pallets and functions".to_string(),
 					)))
 					.collect::<Vec<_>>(),
 			),
@@ -939,8 +933,8 @@ mod tests {
 	async fn prompt_for_param_works() -> Result<()> {
 		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
 		let pallets = parse_chain_metadata(&client)?;
-		// Using NFT mint extrinsic to test the majority of subfunctions
-		let extrinsic = find_extrinsic_by_name(&pallets, "Nfts", "mint")?;
+		// Using NFT mint dispatchable function to test the majority of sub-functions.
+		let function = find_dispatchable_by_name(&pallets, "Nfts", "mint")?;
 		let mut cli = MockCli::new()
 			.expect_input("Enter the value for the parameter: collection", "0".into())
 			.expect_input("Enter the value for the parameter: item", "0".into())
@@ -978,9 +972,9 @@ mod tests {
 			)
 			.expect_input("Enter the value for the parameter: mint_price", "1000".into());
 
-		// Test all the extrinsic params
+		// Test all the function params.
 		let mut params: Vec<String> = Vec::new();
-		for param in &extrinsic.params {
+		for param in &function.params {
 			params.push(prompt_for_param(&mut cli, &param)?);
 		}
 		assert_eq!(params.len(), 4);
@@ -990,8 +984,8 @@ mod tests {
 		assert_eq!(params[3], "Some({owned_item: None(), mint_price: Some(1000)})".to_string()); // witness_data: test composite
 		cli.verify()?;
 
-		// Using Scheduler set_retry extrinsic to test the tuple params
-		let extrinsic = find_extrinsic_by_name(&pallets, "Scheduler", "set_retry")?;
+		// Using Scheduler set_retry dispatchable function to test the tuple params.
+		let function = find_dispatchable_by_name(&pallets, "Scheduler", "set_retry")?;
 		let mut cli = MockCli::new()
 			.expect_input(
 				"Enter the value for the parameter: Index 0 of the tuple task",
@@ -1006,7 +1000,7 @@ mod tests {
 
 		// Test all the extrinsic params
 		let mut params: Vec<String> = Vec::new();
-		for param in &extrinsic.params {
+		for param in &function.params {
 			params.push(prompt_for_param(&mut cli, &param)?);
 		}
 		assert_eq!(params.len(), 3);
@@ -1015,8 +1009,8 @@ mod tests {
 		assert_eq!(params[2], "0".to_string()); // period: test primitive
 		cli.verify()?;
 
-		// Using System remark extrinsic to test the sequence params
-		let extrinsic = find_extrinsic_by_name(&pallets, "System", "remark")?;
+		// Using System remark dispatchable function to test the sequence params.
+		let function = find_dispatchable_by_name(&pallets, "System", "remark")?;
 		// Temporal file for testing the input.
 		let temp_dir = tempdir()?;
 		let file = temp_dir.path().join("file.json");
@@ -1028,9 +1022,9 @@ mod tests {
 				file.display().to_string(),
 			);
 
-		// Test all the extrinsic params
+		// Test all the function params
 		let mut params: Vec<String> = Vec::new();
-		for param in &extrinsic.params {
+		for param in &function.params {
 			params.push(prompt_for_param(&mut cli, &param)?);
 		}
 		assert_eq!(params.len(), 1);
@@ -1047,10 +1041,10 @@ mod tests {
 	}
 
 	#[test]
-	fn parse_extrinsic_name_works() -> Result<()> {
-		assert_eq!(parse_extrinsic_name("Remark").unwrap(), "remark");
-		assert_eq!(parse_extrinsic_name("Force_transfer").unwrap(), "force_transfer");
-		assert_eq!(parse_extrinsic_name("MINT").unwrap(), "mint");
+	fn parse_function_name_works() -> Result<()> {
+		assert_eq!(parse_function_name("Remark").unwrap(), "remark");
+		assert_eq!(parse_function_name("Force_transfer").unwrap(), "force_transfer");
+		assert_eq!(parse_function_name("MINT").unwrap(), "mint");
 		Ok(())
 	}
 }

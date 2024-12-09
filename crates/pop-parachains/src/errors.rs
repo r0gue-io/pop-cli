@@ -27,12 +27,12 @@ pub enum Error {
 	CurrentDirAccess,
 	#[error("Failed to parse the endowment value")]
 	EndowmentError,
-	/// The extrinsic is not supported.
-	#[error("The extrinsic is not supported")]
-	ExtrinsicNotSupported,
 	/// An error occurred during the submission of an extrinsic.
 	#[error("Extrinsic submission error: {0}")]
 	ExtrinsicSubmissionError(String),
+	/// The dispatchable function is not supported.
+	#[error("The dispatchable function is not supported")]
+	FunctionNotSupported,
 	#[error("IO error: {0}")]
 	IO(#[from] std::io::Error),
 	#[error("JSON error: {0}")]

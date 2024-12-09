@@ -133,7 +133,7 @@ name = "collator-01"
 	// Wait for the networks to initialize. Increased timeout to accommodate CI environment delays.
 	sleep(Duration::from_secs(50)).await;
 
-	// `pop call parachain --pallet System --extrinsic remark --args "0x11" --url
+	// `pop call parachain --pallet System --function remark --args "0x11" --url
 	// ws://127.0.0.1:random_port --suri //Alice --skip-confirm`
 	Command::cargo_bin("pop")
 		.unwrap()
@@ -142,7 +142,7 @@ name = "collator-01"
 			"parachain",
 			"--pallet",
 			"System",
-			"--extrinsic",
+			"--function",
 			"remark",
 			"--args",
 			"0x11",

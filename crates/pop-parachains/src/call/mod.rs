@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{errors::Error, Extrinsic};
+use crate::{errors::Error, Function};
 use pop_common::create_signer;
 use subxt::{
 	dynamic::Value,
@@ -20,45 +20,43 @@ pub async fn set_up_client(url: &str) -> Result<OnlineClient<SubstrateConfig>, E
 		.map_err(|e| Error::ConnectionFailure(e.to_string()))
 }
 
-/// Constructs a dynamic extrinsic payload for a specified pallet and extrinsic.
+/// Constructs a dynamic extrinsic payload for a specified dispatchable function.
 ///
 /// # Arguments
-/// * `pallet_name` - The name of the pallet containing the extrinsic.
-/// * `extrinsic_name` - The specific extrinsic name within the pallet.
-/// * `args` - A vector of string arguments to be passed to the extrinsic.
+/// * `function` - A dispatchable function.
+/// * `args` - A vector of string arguments to be passed to construct the extrinsic.
 pub fn construct_extrinsic(
-	pallet_name: &str,
-	extrinsic: &Extrinsic,
+	function: &Function,
 	args: Vec<String>,
 ) -> Result<DynamicPayload, Error> {
-	let parsed_args: Vec<Value> = metadata::parse_extrinsic_arguments(&extrinsic.params, args)?;
-	Ok(subxt::dynamic::tx(pallet_name, extrinsic.name.clone(), parsed_args))
+	let parsed_args: Vec<Value> = metadata::parse_dispatchable_arguments(&function.params, args)?;
+	Ok(subxt::dynamic::tx(function.pallet.clone(), function.name.clone(), parsed_args))
 }
 
 /// Constructs a Sudo extrinsic.
 ///
 /// # Arguments
-/// * `tx`: The transaction payload representing the function call to be dispatched with `Root`
+/// * `xt`: The extrinsic representing the dispatchable function call to be dispatched with `Root`
 ///   privileges.
-pub fn construct_sudo_extrinsic(tx: DynamicPayload) -> Result<DynamicPayload, Error> {
-	Ok(subxt::dynamic::tx("Sudo", "sudo", [tx.into_value()].to_vec()))
+pub fn construct_sudo_extrinsic(xt: DynamicPayload) -> Result<DynamicPayload, Error> {
+	Ok(subxt::dynamic::tx("Sudo", "sudo", [xt.into_value()].to_vec()))
 }
 
 /// Signs and submits a given extrinsic.
 ///
 /// # Arguments
 /// * `client` - The client used to interact with the chain.
-/// * `tx` - The transaction to be signed and submitted.
+/// * `xt` - The extrinsic to be signed and submitted.
 /// * `suri` - The secret URI (e.g., mnemonic or private key) for signing the extrinsic.
 pub async fn sign_and_submit_extrinsic(
 	client: OnlineClient<SubstrateConfig>,
-	tx: DynamicPayload,
+	xt: DynamicPayload,
 	suri: &str,
 ) -> Result<String, Error> {
 	let signer = create_signer(suri)?;
 	let result = client
 		.tx()
-		.sign_and_submit_then_watch_default(&tx, &signer)
+		.sign_and_submit_then_watch_default(&xt, &signer)
 		.await
 		.map_err(|e| Error::ExtrinsicSubmissionError(format!("{:?}", e)))?
 		.wait_for_finalized_success()
@@ -133,7 +131,7 @@ pub async fn sign_and_submit_extrinsic_with_call_data(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::{find_extrinsic_by_name, parse_chain_metadata, set_up_client};
+	use crate::{find_dispatchable_by_name, parse_chain_metadata, set_up_client};
 	use anyhow::Result;
 
 	const ALICE_SURI: &str = "//Alice";
@@ -154,28 +152,26 @@ mod tests {
 		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
 		let pallets = parse_chain_metadata(&client)?;
 		let transfer_allow_death =
-			find_extrinsic_by_name(&pallets, "Balances", "transfer_allow_death")?;
+			find_dispatchable_by_name(&pallets, "Balances", "transfer_allow_death")?;
 
 		// Wrong parameters
 		assert!(matches!(
 			construct_extrinsic(
-				"Balances",
 				&transfer_allow_death,
 				vec![ALICE_SURI.to_string(), "100".to_string()],
 			),
 			Err(Error::ParamProcessingError)
 		));
 		// Valid parameters
-		let extrinsic = construct_extrinsic(
-			"Balances",
+		let xt = construct_extrinsic(
 			&transfer_allow_death,
 			vec![
 				"Id(5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty)".to_string(),
 				"100".to_string(),
 			],
 		)?;
-		assert_eq!(extrinsic.call_name(), "transfer_allow_death");
-		assert_eq!(extrinsic.pallet_name(), "Balances");
+		assert_eq!(xt.call_name(), "transfer_allow_death");
+		assert_eq!(xt.pallet_name(), "Balances");
 		Ok(())
 	}
 
@@ -183,13 +179,13 @@ mod tests {
 	async fn encode_call_data_works() -> Result<()> {
 		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
 		let pallets = parse_chain_metadata(&client)?;
-		let remark = find_extrinsic_by_name(&pallets, "System", "remark")?;
-		let extrinsic = construct_extrinsic("System", &remark, vec!["0x11".to_string()])?;
-		assert_eq!(encode_call_data(&client, &extrinsic)?, "0x00000411");
-		let extrinsic = construct_extrinsic("System", &remark, vec!["123".to_string()])?;
-		assert_eq!(encode_call_data(&client, &extrinsic)?, "0x00000c313233");
-		let extrinsic = construct_extrinsic("System", &remark, vec!["test".to_string()])?;
-		assert_eq!(encode_call_data(&client, &extrinsic)?, "0x00001074657374");
+		let remark = find_dispatchable_by_name(&pallets, "System", "remark")?;
+		let xt = construct_extrinsic(&remark, vec!["0x11".to_string()])?;
+		assert_eq!(encode_call_data(&client, &xt)?, "0x00000411");
+		let xt = construct_extrinsic(&remark, vec!["123".to_string()])?;
+		assert_eq!(encode_call_data(&client, &xt)?, "0x00000c313233");
+		let xt = construct_extrinsic(&remark, vec!["test".to_string()])?;
+		assert_eq!(encode_call_data(&client, &xt)?, "0x00001074657374");
 		Ok(())
 	}
 
@@ -198,9 +194,9 @@ mod tests {
 		assert!(matches!(decode_call_data("wrongcalldata"), Err(Error::CallDataDecodingError(..))));
 		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
 		let pallets = parse_chain_metadata(&client)?;
-		let remark = find_extrinsic_by_name(&pallets, "System", "remark")?;
-		let extrinsic = construct_extrinsic("System", &remark, vec!["0x11".to_string()])?;
-		let expected_call_data = extrinsic.encode_call_data(&client.metadata())?;
+		let remark = find_dispatchable_by_name(&pallets, "System", "remark")?;
+		let xt = construct_extrinsic(&remark, vec!["0x11".to_string()])?;
+		let expected_call_data = xt.encode_call_data(&client.metadata())?;
 		assert_eq!(decode_call_data("0x00000411")?, expected_call_data);
 		Ok(())
 	}
@@ -208,16 +204,17 @@ mod tests {
 	#[tokio::test]
 	async fn sign_and_submit_wrong_extrinsic_fails() -> Result<()> {
 		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
-		let extrinsic = Extrinsic {
+		let function = Function {
+			pallet: "WrongPallet".to_string(),
 			name: "wrong_extrinsic".to_string(),
 			index: 0,
 			docs: "documentation".to_string(),
 			is_supported: true,
 			..Default::default()
 		};
-		let tx = construct_extrinsic("WrongPallet", &extrinsic, vec!["0x11".to_string()])?;
+		let xt = construct_extrinsic(&function, vec!["0x11".to_string()])?;
 		assert!(matches!(
-			sign_and_submit_extrinsic(client, tx, ALICE_SURI).await,
+			sign_and_submit_extrinsic(client, xt, ALICE_SURI).await,
 			Err(Error::ExtrinsicSubmissionError(message)) if message.contains("PalletNameNotFound(\"WrongPallet\"))")
 		));
 		Ok(())
@@ -227,9 +224,8 @@ mod tests {
 	async fn construct_sudo_extrinsic_works() -> Result<()> {
 		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
 		let pallets = parse_chain_metadata(&client)?;
-		let force_transfer = find_extrinsic_by_name(&pallets, "Balances", "force_transfer")?;
-		let extrinsic = construct_extrinsic(
-			"Balances",
+		let force_transfer = find_dispatchable_by_name(&pallets, "Balances", "force_transfer")?;
+		let xt = construct_extrinsic(
 			&force_transfer,
 			vec![
 				"Id(5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty)".to_string(),
@@ -237,9 +233,9 @@ mod tests {
 				"100".to_string(),
 			],
 		)?;
-		let sudo_extrinsic = construct_sudo_extrinsic(extrinsic)?;
-		assert_eq!(sudo_extrinsic.call_name(), "sudo");
-		assert_eq!(sudo_extrinsic.pallet_name(), "Sudo");
+		let xt = construct_sudo_extrinsic(xt)?;
+		assert_eq!(xt.call_name(), "sudo");
+		assert_eq!(xt.pallet_name(), "Sudo");
 		Ok(())
 	}
 }
