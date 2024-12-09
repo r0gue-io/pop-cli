@@ -70,7 +70,7 @@ impl CallParachainCommand {
 		}
 		loop {
 			// Configure the call based on command line arguments/call UI.
-			let mut call = match self.configure_call(&chain, &mut cli).await {
+			let mut call = match self.configure_call(&chain, &mut cli) {
 				Ok(call) => call,
 				Err(e) => {
 					display_message(&e.to_string(), false, &mut cli)?;
@@ -80,7 +80,7 @@ impl CallParachainCommand {
 			// Display the configured call.
 			cli.info(call.display(&chain))?;
 			// Prepare the extrinsic.
-			let tx = match call.prepare_extrinsic(&chain.client, &mut cli).await {
+			let tx = match call.prepare_extrinsic(&chain.client, &mut cli) {
 				Ok(payload) => payload,
 				Err(e) => {
 					display_message(&e.to_string(), false, &mut cli)?;
@@ -125,7 +125,7 @@ impl CallParachainCommand {
 
 		// Parse metadata from chain url.
 		let client = set_up_client(url.as_str()).await?;
-		let mut pallets = parse_chain_metadata(&client).await.map_err(|e| {
+		let mut pallets = parse_chain_metadata(&client).map_err(|e| {
 			anyhow!(format!("Unable to fetch the chain metadata: {}", e.to_string()))
 		})?;
 		// Sort by name for display.
@@ -137,16 +137,16 @@ impl CallParachainCommand {
 	}
 
 	// Configure the call based on command line arguments/call UI.
-	async fn configure_call(&mut self, chain: &Chain, cli: &mut impl Cli) -> Result<CallParachain> {
+	fn configure_call(&mut self, chain: &Chain, cli: &mut impl Cli) -> Result<CallParachain> {
 		loop {
 			// Resolve pallet.
 			let pallet = match self.pallet {
-				Some(ref pallet_name) => find_pallet_by_name(&chain.pallets, pallet_name).await?,
+				Some(ref pallet_name) => find_pallet_by_name(&chain.pallets, pallet_name)?,
 				None => {
 					// Specific predefined actions first.
-					if let Some(action) = prompt_predefined_actions(&chain.pallets, cli).await? {
+					if let Some(action) = prompt_predefined_actions(&chain.pallets, cli)? {
 						self.extrinsic = Some(action.extrinsic_name().to_string());
-						find_pallet_by_name(&chain.pallets, action.pallet_name()).await?
+						find_pallet_by_name(&chain.pallets, action.pallet_name())?
 					} else {
 						let mut prompt = cli.select("Select the pallet to call:");
 						for pallet_item in &chain.pallets {
@@ -160,7 +160,7 @@ impl CallParachainCommand {
 			// Resolve extrinsic.
 			let extrinsic = match self.extrinsic {
 				Some(ref extrinsic_name) =>
-					find_extrinsic_by_name(&chain.pallets, &pallet.name, extrinsic_name).await?,
+					find_extrinsic_by_name(&chain.pallets, &pallet.name, extrinsic_name)?,
 				None => {
 					let mut prompt_extrinsic = cli.select("Select the extrinsic to call:");
 					for extrinsic in &pallet.extrinsics {
@@ -343,7 +343,7 @@ struct CallParachain {
 
 impl CallParachain {
 	// Prepares the extrinsic or query.
-	async fn prepare_extrinsic(
+	fn prepare_extrinsic(
 		&self,
 		client: &OnlineClient<SubstrateConfig>,
 		cli: &mut impl Cli,
@@ -352,9 +352,7 @@ impl CallParachain {
 			self.pallet.name.as_str(),
 			&self.extrinsic,
 			self.args.clone(),
-		)
-		.await
-		{
+		) {
 			Ok(tx) => tx,
 			Err(e) => {
 				return Err(anyhow!("Error: {}", e));
@@ -436,12 +434,9 @@ fn display_message(message: &str, success: bool, cli: &mut impl Cli) -> Result<(
 }
 
 // Prompts the user for some predefined actions.
-async fn prompt_predefined_actions(
-	pallets: &[Pallet],
-	cli: &mut impl Cli,
-) -> Result<Option<Action>> {
+fn prompt_predefined_actions(pallets: &[Pallet], cli: &mut impl Cli) -> Result<Option<Action>> {
 	let mut predefined_action = cli.select("What would you like to do?");
-	for action in supported_actions(pallets).await {
+	for action in supported_actions(pallets) {
 		predefined_action = predefined_action.item(
 			Some(action.clone()),
 			action.description(),
@@ -656,7 +651,7 @@ mod tests {
 		let chain = call_config.configure_chain(&mut cli).await?;
 		assert_eq!(chain.url, Url::parse(POP_NETWORK_TESTNET_URL)?);
 
-		let call_parachain = call_config.configure_call(&chain, &mut cli).await?;
+		let call_parachain = call_config.configure_call(&chain, &mut cli)?;
 		assert_eq!(call_parachain.pallet.name, "System");
 		assert_eq!(call_parachain.extrinsic.name, "remark");
 		assert_eq!(call_parachain.args, ["0x11".to_string()].to_vec());
@@ -685,7 +680,6 @@ mod tests {
 				true,
 				Some(
 					supported_actions(&chain.pallets)
-						.await
 						.into_iter()
 						.map(|action| {
 							(action.description().to_string(), action.pallet_name().to_string())
@@ -702,7 +696,7 @@ mod tests {
 			.expect_input("Enter the value for the parameter: para_id", "2000".into())
 			.expect_input("Signer of the extrinsic:", BOB_SURI.into());
 
-		let call_parachain = call_config.configure_call(&chain, &mut cli).await?;
+		let call_parachain = call_config.configure_call(&chain, &mut cli)?;
 
 		assert_eq!(call_parachain.pallet.name, "OnDemand");
 		assert_eq!(call_parachain.extrinsic.name, "place_order_allow_death");
@@ -727,18 +721,18 @@ mod tests {
 		let mut cli = MockCli::new();
 		// Error, wrong name of the pallet.
 		assert!(
-			matches!(call_config.prepare_extrinsic(&client, &mut cli).await, Err(message) if message.to_string().contains("Failed to encode call data. Metadata Error: Pallet with name WrongName not found"))
+			matches!(call_config.prepare_extrinsic(&client, &mut cli), Err(message) if message.to_string().contains("Failed to encode call data. Metadata Error: Pallet with name WrongName not found"))
 		);
-		let pallets = parse_chain_metadata(&client).await?;
-		call_config.pallet = find_pallet_by_name(&pallets, "System").await?.clone();
+		let pallets = parse_chain_metadata(&client)?;
+		call_config.pallet = find_pallet_by_name(&pallets, "System")?.clone();
 		// Error, wrong name of the extrinsic.
 		assert!(
-			matches!(call_config.prepare_extrinsic(&client, &mut cli).await, Err(message) if message.to_string().contains("Failed to encode call data. Metadata Error: Call with name WrongName not found"))
+			matches!(call_config.prepare_extrinsic(&client, &mut cli), Err(message) if message.to_string().contains("Failed to encode call data. Metadata Error: Call with name WrongName not found"))
 		);
 		// Success, extrinsic and pallet specified.
 		cli = MockCli::new().expect_info("Encoded call data: 0x00000411");
-		call_config.extrinsic = find_extrinsic_by_name(&pallets, "System", "remark").await?.clone();
-		let tx = call_config.prepare_extrinsic(&client, &mut cli).await?;
+		call_config.extrinsic = find_extrinsic_by_name(&pallets, "System", "remark")?.clone();
+		let tx = call_config.prepare_extrinsic(&client, &mut cli)?;
 		assert_eq!(tx.call_name(), "remark");
 		assert_eq!(tx.pallet_name(), "System");
 
@@ -753,10 +747,10 @@ mod tests {
 	#[tokio::test]
 	async fn user_cancel_submit_extrinsic_works() -> Result<()> {
 		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
-		let pallets = parse_chain_metadata(&client).await?;
+		let pallets = parse_chain_metadata(&client)?;
 		let mut call_config = CallParachain {
-			pallet: find_pallet_by_name(&pallets, "System").await?.clone(),
-			extrinsic: find_extrinsic_by_name(&pallets, "System", "remark").await?.clone(),
+			pallet: find_pallet_by_name(&pallets, "System")?.clone(),
+			extrinsic: find_extrinsic_by_name(&pallets, "System", "remark")?.clone(),
 			args: vec!["0x11".to_string()].to_vec(),
 			suri: DEFAULT_URI.to_string(),
 			skip_confirm: false,
@@ -765,7 +759,7 @@ mod tests {
 		let mut cli = MockCli::new()
 			.expect_confirm("Do you want to submit the extrinsic?", false)
 			.expect_outro_cancel("Extrinsic remark was not submitted.");
-		let tx = call_config.prepare_extrinsic(&client, &mut cli).await?;
+		let tx = call_config.prepare_extrinsic(&client, &mut cli)?;
 		call_config.submit_extrinsic(&client, tx, &mut cli).await?;
 
 		cli.verify()
@@ -918,14 +912,13 @@ mod tests {
 	#[tokio::test]
 	async fn prompt_predefined_actions_works() -> Result<()> {
 		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
-		let pallets = parse_chain_metadata(&client).await?;
+		let pallets = parse_chain_metadata(&client)?;
 		let mut cli = MockCli::new().expect_select(
 			"What would you like to do?",
 			Some(true),
 			true,
 			Some(
 				supported_actions(&pallets)
-					.await
 					.into_iter()
 					.map(|action| {
 						(action.description().to_string(), action.pallet_name().to_string())
@@ -938,7 +931,7 @@ mod tests {
 			),
 			2, // "Mint an Asset" action
 		);
-		let action = prompt_predefined_actions(&pallets, &mut cli).await?;
+		let action = prompt_predefined_actions(&pallets, &mut cli)?;
 		assert_eq!(action, Some(Action::MintAsset));
 		cli.verify()
 	}
@@ -946,9 +939,9 @@ mod tests {
 	#[tokio::test]
 	async fn prompt_for_param_works() -> Result<()> {
 		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
-		let pallets = parse_chain_metadata(&client).await?;
+		let pallets = parse_chain_metadata(&client)?;
 		// Using NFT mint extrinsic to test the majority of subfunctions
-		let extrinsic = find_extrinsic_by_name(&pallets, "Nfts", "mint").await?;
+		let extrinsic = find_extrinsic_by_name(&pallets, "Nfts", "mint")?;
 		let mut cli = MockCli::new()
 			.expect_input("Enter the value for the parameter: collection", "0".into())
 			.expect_input("Enter the value for the parameter: item", "0".into())
@@ -999,7 +992,7 @@ mod tests {
 		cli.verify()?;
 
 		// Using Scheduler set_retry extrinsic to test the tuple params
-		let extrinsic = find_extrinsic_by_name(&pallets, "Scheduler", "set_retry").await?;
+		let extrinsic = find_extrinsic_by_name(&pallets, "Scheduler", "set_retry")?;
 		let mut cli = MockCli::new()
 			.expect_input(
 				"Enter the value for the parameter: Index 0 of the tuple task",
@@ -1024,7 +1017,7 @@ mod tests {
 		cli.verify()?;
 
 		// Using System remark extrinsic to test the sequence params
-		let extrinsic = find_extrinsic_by_name(&pallets, "System", "remark").await?;
+		let extrinsic = find_extrinsic_by_name(&pallets, "System", "remark")?;
 		// Temporal file for testing the input.
 		let temp_dir = tempdir()?;
 		let file = temp_dir.path().join("file.json");

@@ -56,9 +56,7 @@ impl Display for Extrinsic {
 /// * `client`: The client to interact with the chain.
 ///
 /// NOTE: pallets are ordered by their index within the runtime by default.
-pub async fn parse_chain_metadata(
-	client: &OnlineClient<SubstrateConfig>,
-) -> Result<Vec<Pallet>, Error> {
+pub fn parse_chain_metadata(client: &OnlineClient<SubstrateConfig>) -> Result<Vec<Pallet>, Error> {
 	let metadata: Metadata = client.metadata();
 
 	let pallets = metadata
@@ -131,7 +129,7 @@ pub async fn parse_chain_metadata(
 /// # Arguments
 /// * `pallets`: List of pallets available in the chain.
 /// * `pallet_name`: The name of the pallet to find.
-pub async fn find_pallet_by_name<'a>(
+pub fn find_pallet_by_name<'a>(
 	pallets: &'a [Pallet],
 	pallet_name: &str,
 ) -> Result<&'a Pallet, Error> {
@@ -148,12 +146,12 @@ pub async fn find_pallet_by_name<'a>(
 /// * `pallets`: List of pallets available in the chain.
 /// * `pallet_name`: The name of the pallet to find.
 /// * `extrinsic_name`: Name of the extrinsic to locate.
-pub async fn find_extrinsic_by_name<'a>(
+pub fn find_extrinsic_by_name<'a>(
 	pallets: &'a [Pallet],
 	pallet_name: &str,
 	extrinsic_name: &str,
 ) -> Result<&'a Extrinsic, Error> {
-	let pallet = find_pallet_by_name(pallets, pallet_name).await?;
+	let pallet = find_pallet_by_name(pallets, pallet_name)?;
 	if let Some(extrinsic) = pallet.extrinsics.iter().find(|&e| e.name == extrinsic_name) {
 		Ok(extrinsic)
 	} else {
@@ -166,7 +164,7 @@ pub async fn find_extrinsic_by_name<'a>(
 /// # Arguments
 /// * `params`: The metadata definition for each parameter of the extrinsic.
 /// * `raw_params`: A vector of raw string arguments for the extrinsic.
-pub async fn parse_extrinsic_arguments(
+pub fn parse_extrinsic_arguments(
 	params: &[Param],
 	raw_params: Vec<String>,
 ) -> Result<Vec<Value>, Error> {
@@ -203,7 +201,7 @@ mod tests {
 	#[tokio::test]
 	async fn parse_chain_metadata_works() -> Result<()> {
 		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
-		let pallets = parse_chain_metadata(&client).await?;
+		let pallets = parse_chain_metadata(&client)?;
 		// Test the first pallet is parsed correctly
 		let first_pallet = pallets.first().unwrap();
 		assert_eq!(first_pallet.name, "System");
@@ -231,11 +229,11 @@ mod tests {
 	#[tokio::test]
 	async fn find_pallet_by_name_works() -> Result<()> {
 		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
-		let pallets = parse_chain_metadata(&client).await?;
+		let pallets = parse_chain_metadata(&client)?;
 		assert!(matches!(
-			find_pallet_by_name(&pallets, "WrongName").await,
+			find_pallet_by_name(&pallets, "WrongName"),
 			Err(Error::PalletNotFound(pallet)) if pallet == "WrongName".to_string()));
-		let pallet = find_pallet_by_name(&pallets, "Balances").await?;
+		let pallet = find_pallet_by_name(&pallets, "Balances")?;
 		assert_eq!(pallet.name, "Balances");
 		assert_eq!(pallet.extrinsics.len(), 9);
 		Ok(())
@@ -244,15 +242,15 @@ mod tests {
 	#[tokio::test]
 	async fn find_extrinsic_by_name_works() -> Result<()> {
 		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
-		let pallets = parse_chain_metadata(&client).await?;
+		let pallets = parse_chain_metadata(&client)?;
 		assert!(matches!(
-			find_extrinsic_by_name(&pallets, "WrongName", "wrong_extrinsic").await,
+			find_extrinsic_by_name(&pallets, "WrongName", "wrong_extrinsic"),
 			Err(Error::PalletNotFound(pallet)) if pallet == "WrongName".to_string()));
 		assert!(matches!(
-			find_extrinsic_by_name(&pallets, "Balances", "wrong_extrinsic").await,
+			find_extrinsic_by_name(&pallets, "Balances", "wrong_extrinsic"),
 			Err(Error::ExtrinsicNotSupported)
 		));
-		let extrinsic = find_extrinsic_by_name(&pallets, "Balances", "force_transfer").await?;
+		let extrinsic = find_extrinsic_by_name(&pallets, "Balances", "force_transfer")?;
 		assert_eq!(extrinsic.name, "force_transfer");
 		assert_eq!(extrinsic.docs, "Exactly as `transfer_allow_death`, except the origin must be root and the source account may be specified.");
 		assert_eq!(extrinsic.is_supported, true);
@@ -260,8 +258,8 @@ mod tests {
 		Ok(())
 	}
 
-	#[tokio::test]
-	async fn parse_extrinsic_arguments_works() -> Result<()> {
+	#[test]
+	fn parse_extrinsic_arguments_works() -> Result<()> {
 		// Values for testing from: https://docs.rs/scale-value/0.18.0/scale_value/stringify/fn.from_str.html
 		// and https://docs.rs/scale-value/0.18.0/scale_value/stringify/fn.from_str_custom.html
 		let args = [
@@ -301,7 +299,7 @@ mod tests {
 			Param { type_name: "composite".to_string(), ..Default::default() },
 		];
 		assert_eq!(
-			parse_extrinsic_arguments(&params, args).await?,
+			parse_extrinsic_arguments(&params, args)?,
 			[
 				Value::u128(1),
 				Value::i128(-1),
