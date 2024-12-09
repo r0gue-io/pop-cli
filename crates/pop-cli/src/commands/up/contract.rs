@@ -182,13 +182,17 @@ impl UpContractCommand {
 
 			let maybe_payload = self.wait_for_signature(call_data).await?;
 			if let Some(payload) = maybe_payload {
-				log::info("Submitting signed payload...")?;
+				log::success("Signed payload received.")?;
+				let spinner = spinner();
+				spinner.start("Submitting the signed payload...");
 				let result = submit_signed_payload(self.url.as_str(), payload).await;
+				spinner.stop("Signed payload submitted.");
 				match result {
 					Ok(_) => {
 						Cli.outro(COMPLETE)?;
 					},
-					Err(_) => {
+					Err(e) => {
+						error(format!("An error occurred submitting the signed payload: {e}"))?;
 						Cli.outro_cancel(FAILED)?;
 					},
 				}
@@ -365,24 +369,25 @@ impl UpContractCommand {
 		let transaction_data = TransactionData::new(self.url.to_string(), call_data);
 		// starts server
 		let mut wallet = WalletIntegrationManager::new(ui, transaction_data);
-		log::info(format!("Wallet signing portal started at http://{}", wallet.addr))?;
+		log::step(format!("Wallet signing portal started at http://{}", wallet.addr))?;
 
-		log::info("Waiting for signature... Press Ctrl+C to terminate early.")?;
+		log::step("Waiting for signature... Press Ctrl+C to terminate early.")?;
 		loop {
-			if !wallet.is_running() {
-				wallet.task_handle.await??;
-				break;
+			// Display error, if any.
+			if let Some(error) = wallet.take_error().await {
+				log::error(format!("Signing portal error: {error}"))?;
 			}
 
 			let state = wallet.state.lock().await;
-
-			if state.signed_payload.is_some() {
+			// If the payload is submitted we terminate the frontend.
+			if !wallet.is_running() || state.signed_payload.is_some() {
+				wallet.task_handle.await??;
 				break;
 			}
 		}
 
-		let x = Ok(wallet.state.lock().await.signed_payload.clone());
-		x
+		let signed_payload = wallet.state.lock().await.signed_payload.clone();
+		Ok(signed_payload)
 	}
 }
 
