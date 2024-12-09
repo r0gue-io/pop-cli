@@ -72,9 +72,9 @@ pub async fn sign_and_submit_extrinsic(
 /// * `tx` - The transaction whose call data will be encoded and returned.
 pub fn encode_call_data(
 	client: &OnlineClient<SubstrateConfig>,
-	tx: &DynamicPayload,
+	xt: &DynamicPayload,
 ) -> Result<String, Error> {
-	let call_data = tx
+	let call_data = xt
 		.encode_call_data(&client.metadata())
 		.map_err(|e| Error::CallDataEncodingError(e.to_string()))?;
 	Ok(format!("0x{}", hex::encode(call_data)))
