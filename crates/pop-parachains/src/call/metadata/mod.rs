@@ -49,7 +49,7 @@ impl Display for Extrinsic {
 /// parameters.
 ///
 /// # Arguments
-/// * `client`: Reference to an `OnlineClient` connected to the chain.
+/// * `client`:`client` - The client used to interact with the chain.
 pub async fn parse_chain_metadata(
 	client: &OnlineClient<SubstrateConfig>,
 ) -> Result<Vec<Pallet>, Error> {

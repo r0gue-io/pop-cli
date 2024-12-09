@@ -3,8 +3,10 @@ pub mod errors;
 pub mod git;
 pub mod helpers;
 pub mod manifest;
+/// Provides functionality for formatting and resolving metadata types.
 pub mod metadata;
 pub mod polkadot_sdk;
+/// Provides functionality for creating a signer from a secret URI.
 pub mod signer;
 pub mod sourcing;
 pub mod templates;
@@ -87,6 +89,16 @@ mod test {
 			.unwrap()
 			.to_string();
 		assert_eq!(target()?, target_expected);
+		Ok(())
+	}
+
+	#[test]
+	fn find_free_port_works() -> Result<()> {
+		let port = find_free_port();
+		let addr = format!("127.0.0.1:{}", port);
+		// Constructs the TcpListener from the above port
+		let listener = TcpListener::bind(&addr);
+		assert!(listener.is_ok());
 		Ok(())
 	}
 }

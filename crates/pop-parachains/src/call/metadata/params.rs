@@ -25,7 +25,7 @@ pub struct Param {
 /// Transforms a metadata field into its `Param` representation.
 ///
 /// # Arguments
-/// * `client`: Reference to an `OnlineClient` connected to the blockchain.
+/// * `client`: `client` - The client used to interact with the chain.
 /// * `field`: A reference to a metadata field of the extrinsic.
 pub fn field_to_param(
 	client: &OnlineClient<SubstrateConfig>,
@@ -33,6 +33,11 @@ pub fn field_to_param(
 ) -> Result<Param, Error> {
 	let metadata: Metadata = client.metadata();
 	let registry = metadata.types();
+	if let Some(name) = field.type_name.as_deref() {
+		if name.contains("RuntimeCall") {
+			return Err(Error::ExtrinsicNotSupported);
+		}
+	}
 	let name = field.name.clone().unwrap_or("Unnamed".to_string()); //It can be unnamed field
 	type_to_param(name, registry, field.ty.id)
 }
@@ -45,16 +50,8 @@ pub fn field_to_param(
 /// * `type_id`: The ID of the type to be converted.
 fn type_to_param(name: String, registry: &PortableRegistry, type_id: u32) -> Result<Param, Error> {
 	let type_info = registry.resolve(type_id).ok_or(Error::MetadataParsingError(name.clone()))?;
-	if let Some(last_segment) = type_info.path.segments.last() {
-		if last_segment == "RuntimeCall" {
-			return Err(Error::ExtrinsicNotSupported);
-		}
-	}
 	for param in &type_info.type_params {
-		if param.name == "RuntimeCall" ||
-			param.name == "Vec<RuntimeCall>" ||
-			param.name == "Vec<<T as Config>::RuntimeCall>"
-		{
+		if param.name.contains("RuntimeCall") {
 			return Err(Error::ExtrinsicNotSupported);
 		}
 	}
@@ -228,13 +225,32 @@ mod tests {
 				.type_name,
 			"AccountId32 ([u8;32])"
 		);
-		// Test a extrinsic not supported
+		// Test some extrinsics that are not supported.
 		let extrinsic =
 			metadata.pallet_by_name("Sudo").unwrap().call_variant_by_name("sudo").unwrap();
 		assert!(matches!(
 			field_to_param(&client, &extrinsic.fields.first().unwrap()),
 			Err(Error::ExtrinsicNotSupported)
 		));
+		let extrinsic = metadata
+			.pallet_by_name("Utility")
+			.unwrap()
+			.call_variant_by_name("batch")
+			.unwrap();
+		assert!(matches!(
+			field_to_param(&client, &extrinsic.fields.first().unwrap()),
+			Err(Error::ExtrinsicNotSupported)
+		));
+		let extrinsic = metadata
+			.pallet_by_name("PolkadotXcm")
+			.unwrap()
+			.call_variant_by_name("execute")
+			.unwrap();
+		assert!(matches!(
+			field_to_param(&client, &extrinsic.fields.first().unwrap()),
+			Err(Error::ExtrinsicNotSupported)
+		));
+
 		Ok(())
 	}
 }

@@ -35,10 +35,10 @@ pub async fn construct_extrinsic(
 	Ok(subxt::dynamic::tx(pallet_name, extrinsic_name, parsed_args))
 }
 
-/// Signs and submits a given extrinsic to the blockchain.
+/// Signs and submits a given extrinsic.
 ///
 /// # Arguments
-/// * `client` - Reference to an `OnlineClient` connected to the chain.
+/// * `client` - The client used to interact with the chain.
 /// * `tx` - The transaction to be signed and submitted.
 /// * `suri` - The secret URI (e.g., mnemonic or private key) for signing the extrinsic.
 pub async fn sign_and_submit_extrinsic(
@@ -61,7 +61,7 @@ pub async fn sign_and_submit_extrinsic(
 /// Encodes the call data for a given extrinsic into a hexadecimal string.
 ///
 /// # Arguments
-/// * `client` - Reference to an `OnlineClient` connected to the chain.
+/// * `client` - The client used to interact with the chain.
 /// * `tx` - The transaction whose call data will be encoded and returned.
 pub fn encode_call_data(
 	client: &OnlineClient<SubstrateConfig>,
@@ -163,6 +163,18 @@ mod tests {
 		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
 		let extrinsic = construct_extrinsic("System", "remark", vec!["0x11".to_string()]).await?;
 		assert_eq!(encode_call_data(&client, &extrinsic)?, "0x00000411");
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn sign_and_submit_wrong_extrinsic_fails() -> Result<()> {
+		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
+		let tx =
+			construct_extrinsic("WrongPallet", "wrongExtrinsic", vec!["0x11".to_string()]).await?;
+		assert!(matches!(
+			sign_and_submit_extrinsic(client, tx, "//Alice").await,
+			Err(Error::ExtrinsicSubmissionError(message)) if message.contains("PalletNameNotFound(\"WrongPallet\"))")
+		));
 		Ok(())
 	}
 }
