@@ -200,7 +200,6 @@ impl CallParachainCommand {
 			};
 
 			return Ok(CallParachain {
-				pallet: pallet.clone(),
 				function: function.clone(),
 				args,
 				suri,
@@ -320,8 +319,6 @@ struct Chain {
 /// and signing options.
 #[derive(Clone)]
 struct CallParachain {
-	/// The pallet containing the dispatchable function to execute.
-	pallet: Pallet,
 	/// The dispatchable function to execute.
 	function: Function,
 	/// The dispatchable function arguments, encoded as strings.
@@ -345,14 +342,12 @@ impl CallParachain {
 		client: &OnlineClient<SubstrateConfig>,
 		cli: &mut impl Cli,
 	) -> Result<DynamicPayload> {
-		let xt =
-			match construct_extrinsic(self.pallet.name.as_str(), &self.function, self.args.clone())
-			{
-				Ok(tx) => tx,
-				Err(e) => {
-					return Err(anyhow!("Error: {}", e));
-				},
-			};
+		let xt = match construct_extrinsic(&self.function, self.args.clone()) {
+			Ok(tx) => tx,
+			Err(e) => {
+				return Err(anyhow!("Error: {}", e));
+			},
+		};
 		// If sudo is required, wrap the call in a sudo call.
 		let xt = if self.sudo { construct_sudo_extrinsic(xt)? } else { xt };
 		let encoded_data = encode_call_data(client, &xt)?;
@@ -393,7 +388,7 @@ impl CallParachain {
 	}
 	fn display(&self, chain: &Chain) -> String {
 		let mut full_message = "pop call parachain".to_string();
-		full_message.push_str(&format!(" --pallet {}", self.pallet));
+		full_message.push_str(&format!(" --pallet {}", self.function.pallet));
 		full_message.push_str(&format!(" --function {}", self.function));
 		if !self.args.is_empty() {
 			let args: Vec<_> = self
@@ -647,7 +642,7 @@ mod tests {
 		assert_eq!(chain.url, Url::parse(POP_NETWORK_TESTNET_URL)?);
 
 		let call_parachain = call_config.configure_call(&chain, &mut cli)?;
-		assert_eq!(call_parachain.pallet.name, "System");
+		assert_eq!(call_parachain.function.pallet, "System");
 		assert_eq!(call_parachain.function.name, "remark");
 		assert_eq!(call_parachain.args, ["0x11".to_string()].to_vec());
 		assert_eq!(call_parachain.suri, "//Bob");
@@ -693,7 +688,7 @@ mod tests {
 
 		let call_parachain = call_config.configure_call(&chain, &mut cli)?;
 
-		assert_eq!(call_parachain.pallet.name, "OnDemand");
+		assert_eq!(call_parachain.function.pallet, "OnDemand");
 		assert_eq!(call_parachain.function.name, "place_order_allow_death");
 		assert_eq!(call_parachain.args, ["10000".to_string(), "2000".to_string()].to_vec());
 		assert_eq!(call_parachain.suri, "//Bob");
@@ -706,8 +701,11 @@ mod tests {
 	async fn prepare_extrinsic_works() -> Result<()> {
 		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
 		let mut call_config = CallParachain {
-			pallet: Pallet { name: "WrongName".to_string(), ..Default::default() },
-			function: Function { name: "WrongName".to_string(), ..Default::default() },
+			function: Function {
+				pallet: "WrongName".to_string(),
+				name: "WrongName".to_string(),
+				..Default::default()
+			},
 			args: vec!["0x11".to_string()].to_vec(),
 			suri: DEFAULT_URI.to_string(),
 			skip_confirm: false,
@@ -715,15 +713,17 @@ mod tests {
 		};
 		let mut cli = MockCli::new();
 		// Error, wrong name of the pallet.
-		assert!(
-			matches!(call_config.prepare_extrinsic(&client, &mut cli), Err(message) if message.to_string().contains("Failed to encode call data. Metadata Error: Pallet with name WrongName not found"))
-		);
+		assert!(matches!(
+				call_config.prepare_extrinsic(&client, &mut cli),
+				Err(message)
+					if message.to_string().contains("Failed to encode call data. Metadata Error: Pallet with name WrongName not found")));
 		let pallets = parse_chain_metadata(&client)?;
-		call_config.pallet = find_pallet_by_name(&pallets, "System")?.clone();
+		call_config.function.pallet = "System".to_string();
 		// Error, wrong name of the function.
-		assert!(
-			matches!(call_config.prepare_extrinsic(&client, &mut cli), Err(message) if message.to_string().contains("Failed to encode call data. Metadata Error: Call with name WrongName not found"))
-		);
+		assert!(matches!(
+				call_config.prepare_extrinsic(&client, &mut cli),
+				Err(message)
+					if message.to_string().contains("Failed to encode call data. Metadata Error: Call with name WrongName not found")));
 		// Success, pallet and dispatchable function specified.
 		cli = MockCli::new().expect_info("Encoded call data: 0x00000411");
 		call_config.function = find_dispatchable_by_name(&pallets, "System", "remark")?.clone();
@@ -744,7 +744,6 @@ mod tests {
 		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
 		let pallets = parse_chain_metadata(&client)?;
 		let mut call_config = CallParachain {
-			pallet: find_pallet_by_name(&pallets, "System")?.clone(),
 			function: find_dispatchable_by_name(&pallets, "System", "remark")?.clone(),
 			args: vec!["0x11".to_string()].to_vec(),
 			suri: DEFAULT_URI.to_string(),

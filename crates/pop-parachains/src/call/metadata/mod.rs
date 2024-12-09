@@ -31,6 +31,8 @@ impl Display for Pallet {
 /// Represents a dispatchable function.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Function {
+	/// The pallet containing the dispatchable function.
+	pub pallet: String,
 	/// The name of the function.
 	pub name: String,
 	/// The index of the function within the pallet.
@@ -89,6 +91,7 @@ pub fn parse_chain_metadata(client: &OnlineClient<SubstrateConfig>) -> Result<Ve
 							};
 
 							Ok(Function {
+								pallet: pallet.name().to_string(),
 								name: variant.name.clone(),
 								index: variant.index,
 								docs: if is_supported {
