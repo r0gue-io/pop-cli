@@ -3,7 +3,7 @@
 use crate::errors::Error;
 use subxt_signer::{sr25519::Keypair, SecretUri};
 
-/// Create a Signer from a secret URI.
+/// Create a keypair from a secret URI.
 ///
 /// # Arguments
 /// `suri` - Secret URI string used to generate the `Keypair`.
