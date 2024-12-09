@@ -269,7 +269,9 @@ impl CallParachainCommand {
 				},
 			Err(_) =>
 				if self.sudo {
-					cli.warning("NOTE: sudo extrinsic is not supported by the chain. Ignoring `--sudo` flag.")?;
+					cli.warning(
+						"NOTE: sudo is not supported by the chain. Ignoring `--sudo` flag.",
+					)?;
 					self.sudo = false;
 				},
 		}
@@ -808,9 +810,9 @@ mod tests {
 			call_data: Some("0x00000411".to_string()),
 			sudo: true,
 		};
-		let mut cli = MockCli::new().expect_intro("Call a parachain").expect_warning(
-			"NOTE: sudo extrinsic is not supported by the chain. Ignoring `--sudo` flag.",
-		);
+		let mut cli = MockCli::new()
+			.expect_intro("Call a parachain")
+			.expect_warning("NOTE: sudo is not supported by the chain. Ignoring `--sudo` flag.");
 		let chain = call_config.configure_chain(&mut cli).await?;
 		call_config.configure_sudo(&chain, &mut cli).await?;
 		assert!(!call_config.sudo);
