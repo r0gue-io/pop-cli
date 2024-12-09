@@ -4,9 +4,10 @@ use crate::cli::{self, traits::*};
 use anyhow::{anyhow, Result};
 use clap::Args;
 use pop_parachains::{
-	construct_extrinsic, encode_call_data, find_extrinsic_by_name, find_pallet_by_name,
-	parse_chain_metadata, set_up_client, sign_and_submit_extrinsic, supported_actions, Action,
-	DynamicPayload, Extrinsic, OnlineClient, Pallet, Param, SubstrateConfig,
+	construct_extrinsic, decode_call_data, encode_call_data, find_extrinsic_by_name,
+	find_pallet_by_name, parse_chain_metadata, set_up_client, sign_and_submit_extrinsic,
+	sign_and_submit_extrinsic_with_call_data, supported_actions, Action, DynamicPayload, Extrinsic,
+	OnlineClient, Pallet, Param, SubstrateConfig,
 };
 use url::Url;
 
@@ -35,6 +36,9 @@ pub struct CallParachainCommand {
 	/// - with a password "//Alice///SECRET_PASSWORD"
 	#[arg(short, long)]
 	suri: Option<String>,
+	/// SCALE encoded bytes representing the call data of the extrinsic.
+	#[arg(name = "call", long, conflicts_with_all = ["pallet", "extrinsic", "args"])]
+	call_data: Option<String>,
 	/// Automatically signs and submits the extrinsic without prompting for confirmation.
 	#[arg(short('y'), long)]
 	skip_confirm: bool,
@@ -48,6 +52,16 @@ impl CallParachainCommand {
 		let prompt_to_repeat_call = self.requires_user_input();
 		// Configure the chain.
 		let chain = self.configure_chain(&mut cli).await?;
+		// Execute the call if call_data is provided.
+		if let Some(call_data) = self.call_data.as_ref() {
+			if let Err(e) = self
+				.submit_extrinsic_from_call_data(&chain.client, call_data, &mut cli::Cli)
+				.await
+			{
+				display_message(&e.to_string(), false, &mut cli::Cli)?;
+			}
+			return Ok(());
+		}
 		loop {
 			// Configure the call based on command line arguments/call UI.
 			let mut call = match self.configure_call(&chain, &mut cli).await {
@@ -188,6 +202,45 @@ impl CallParachainCommand {
 				skip_confirm: self.skip_confirm,
 			});
 		}
+	}
+
+	// Submits an extrinsic to the chain using the provided call data.
+	async fn submit_extrinsic_from_call_data(
+		&self,
+		client: &OnlineClient<SubstrateConfig>,
+		call_data: &str,
+		cli: &mut impl Cli,
+	) -> Result<()> {
+		// Resolve who is signing the extrinsic.
+		let suri = match self.suri.as_ref() {
+			Some(suri) => suri,
+			None => &cli.input("Signer of the extrinsic:").default_input(DEFAULT_URI).interact()?,
+		};
+		cli.info(format!("Encoded call data: {}", call_data))?;
+		if !self.skip_confirm &&
+			!cli.confirm("Do you want to submit the extrinsic?")
+				.initial_value(true)
+				.interact()?
+		{
+			display_message(
+				&format!("Extrinsic with call data {call_data} was not submitted."),
+				false,
+				cli,
+			)?;
+			return Ok(());
+		}
+		let spinner = cliclack::spinner();
+		spinner.start("Signing and submitting the extrinsic, please wait...");
+		let call_data_bytes =
+			decode_call_data(call_data).map_err(|err| anyhow!("{}", format!("{err:?}")))?;
+		let result =
+			sign_and_submit_extrinsic_with_call_data(client.clone(), call_data_bytes, suri)
+				.await
+				.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
+
+		spinner.stop(format!("Extrinsic submitted successfully with hash: {:?}", result));
+		display_message("Call complete.", true, cli)?;
+		Ok(())
 	}
 
 	// Resets specific fields to default values for a new call.
@@ -465,6 +518,7 @@ mod tests {
 			url: None,
 			suri: Some(DEFAULT_URI.to_string()),
 			skip_confirm: false,
+			call_data: None,
 		};
 		let mut cli = MockCli::new().expect_intro("Call a parachain").expect_input(
 			"Which chain would you like to interact with?",
@@ -484,6 +538,7 @@ mod tests {
 			url: None,
 			suri: None,
 			skip_confirm: false,
+			call_data: None,
 		};
 
 		let mut cli = MockCli::new()
@@ -535,6 +590,7 @@ mod tests {
 			url: None,
 			suri: None,
 			skip_confirm: false,
+			call_data: None,
 		};
 
 		let mut cli = MockCli::new().expect_intro("Call a parachain").expect_input(
@@ -639,6 +695,29 @@ mod tests {
 		cli.verify()
 	}
 
+	#[tokio::test]
+	async fn user_cancel_submit_extrinsic_from_call_data_works() -> Result<()> {
+		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
+		let call_config = CallParachainCommand {
+			pallet: None,
+			extrinsic: None,
+			args: vec![].to_vec(),
+			url: Some(Url::parse("wss://rpc1.paseo.popnetwork.xyz")?),
+			suri: None,
+			skip_confirm: false,
+			call_data: Some("0x00000411".to_string()),
+		};
+		let mut cli = MockCli::new()
+			.expect_input("Signer of the extrinsic:", "//Bob".into())
+			.expect_confirm("Do you want to submit the extrinsic?", false)
+			.expect_outro_cancel("Extrinsic with call data 0x00000411 was not submitted.");
+		call_config
+			.submit_extrinsic_from_call_data(&client, "0x00000411", &mut cli)
+			.await?;
+
+		cli.verify()
+	}
+
 	#[test]
 	fn reset_for_new_call_works() -> Result<()> {
 		let mut call_config = CallParachainCommand {
@@ -648,6 +727,7 @@ mod tests {
 			url: Some(Url::parse("wss://rpc1.paseo.popnetwork.xyz")?),
 			suri: Some(DEFAULT_URI.to_string()),
 			skip_confirm: false,
+			call_data: None,
 		};
 		call_config.reset_for_new_call();
 		assert_eq!(call_config.pallet, None);
@@ -665,6 +745,7 @@ mod tests {
 			url: Some(Url::parse("wss://rpc1.paseo.popnetwork.xyz")?),
 			suri: Some(DEFAULT_URI.to_string()),
 			skip_confirm: false,
+			call_data: None,
 		};
 		assert!(!call_config.requires_user_input());
 		call_config.pallet = None;

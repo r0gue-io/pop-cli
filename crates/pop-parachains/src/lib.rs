@@ -17,14 +17,14 @@ pub use build::{
 	generate_plain_chain_spec, generate_raw_chain_spec, is_supported, ChainSpec,
 };
 pub use call::{
-	construct_extrinsic, encode_call_data,
+	construct_extrinsic, decode_call_data, encode_call_data,
 	metadata::{
 		action::{supported_actions, Action},
 		find_extrinsic_by_name, find_pallet_by_name,
 		params::Param,
 		parse_chain_metadata, Extrinsic, Pallet,
 	},
-	set_up_client, sign_and_submit_extrinsic,
+	set_up_client, sign_and_submit_extrinsic, sign_and_submit_extrinsic_with_call_data,
 };
 pub use errors::Error;
 pub use indexmap::IndexSet;
