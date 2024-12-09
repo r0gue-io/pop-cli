@@ -209,6 +209,16 @@ mod tests {
 	}
 
 	#[tokio::test]
+	async fn decode_call_data_works() -> Result<()> {
+		assert!(matches!(decode_call_data("wrongcalldata"), Err(Error::CallDataDecodingError(..))));
+		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
+		let extrinsic = construct_extrinsic("System", "remark", vec!["0x11".to_string()]).await?;
+		let expected_call_data = extrinsic.encode_call_data(&client.metadata())?;
+		assert_eq!(decode_call_data("0x00000411")?, expected_call_data);
+		Ok(())
+	}
+
+	#[tokio::test]
 	async fn sign_and_submit_wrong_extrinsic_fails() -> Result<()> {
 		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
 		let extrinsic = Extrinsic {
