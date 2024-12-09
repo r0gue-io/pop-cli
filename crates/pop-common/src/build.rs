@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0
+
 use std::{
 	fmt,
 	path::{Path, PathBuf},

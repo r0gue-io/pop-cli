@@ -75,7 +75,7 @@ pub fn parse_chain_metadata(client: &OnlineClient<SubstrateConfig>) -> Result<Ve
 							let params = {
 								let mut parsed_params = Vec::new();
 								for field in &variant.fields {
-									match params::field_to_param(client, field) {
+									match params::field_to_param(&metadata, field) {
 										Ok(param) => parsed_params.push(param),
 										Err(_) => {
 											// If an error occurs while parsing the values, mark the
@@ -130,7 +130,7 @@ pub fn parse_chain_metadata(client: &OnlineClient<SubstrateConfig>) -> Result<Ve
 /// Finds a specific pallet by name and retrieves its details from metadata.
 ///
 /// # Arguments
-/// * `pallets`: List of pallets available in the chain.
+/// * `pallets`: List of pallets available within the chain's runtime.
 /// * `pallet_name`: The name of the pallet to find.
 pub fn find_pallet_by_name<'a>(
 	pallets: &'a [Pallet],
@@ -146,7 +146,7 @@ pub fn find_pallet_by_name<'a>(
 /// Finds a specific dispatchable function by name and retrieves its details from metadata.
 ///
 /// # Arguments
-/// * `pallets`: List of pallets available in the chain.
+/// * `pallets`: List of pallets available within the chain's runtime.
 /// * `pallet_name`: The name of the pallet.
 /// * `function_name`: Name of the dispatchable function to locate.
 pub fn find_dispatchable_by_name<'a>(
