@@ -235,7 +235,7 @@ impl CallParachainCommand {
 			return Ok(());
 		}
 		let spinner = cliclack::spinner();
-		spinner.start("Signing and submitting the extrinsic, please wait...");
+		spinner.start("Signing and submitting the extrinsic and then waiting for finalization, please be patient...");
 		let call_data_bytes =
 			decode_call_data(call_data).map_err(|err| anyhow!("{}", format!("{err:?}")))?;
 		let result =
@@ -378,8 +378,8 @@ impl CallParachain {
 			return Ok(());
 		}
 		let spinner = cliclack::spinner();
-		spinner.start("Signing and submitting the extrinsic, please wait...");
-		let result = sign_and_submit_extrinsic(client.clone(), tx, &self.suri)
+		spinner.start("Signing and submitting the extrinsic and then waiting for finalization, please be patient...");
+		let result = sign_and_submit_extrinsic(&client, tx, &self.suri)
 			.await
 			.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
 
