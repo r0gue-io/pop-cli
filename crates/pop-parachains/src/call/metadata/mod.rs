@@ -14,6 +14,8 @@ pub mod params;
 pub struct Pallet {
 	/// The name of the pallet.
 	pub name: String,
+	/// The index of the pallet within the runtime.
+	pub index: u8,
 	/// The documentation of the pallet.
 	pub docs: String,
 	/// The extrinsics of the pallet.
@@ -31,6 +33,8 @@ impl Display for Pallet {
 pub struct Extrinsic {
 	/// The name of the extrinsic.
 	pub name: String,
+	/// The index of the extrinsic within the pallet.
+	pub index: u8,
 	/// The documentation of the extrinsic.
 	pub docs: String,
 	/// The parameters of the extrinsic.
@@ -50,6 +54,8 @@ impl Display for Extrinsic {
 ///
 /// # Arguments
 /// * `client`: The client to interact with the chain.
+///
+/// NOTE: pallets are ordered by their index within the runtime by default.
 pub async fn parse_chain_metadata(
 	client: &OnlineClient<SubstrateConfig>,
 ) -> Result<Vec<Pallet>, Error> {
@@ -86,8 +92,16 @@ pub async fn parse_chain_metadata(
 
 							Ok(Extrinsic {
 								name: variant.name.clone(),
+								index: variant.index,
 								docs: if is_supported {
-									variant.docs.concat()
+									// Filter out blank lines and then flatten into a single value.
+									variant
+										.docs
+										.iter()
+										.filter(|l| !l.is_empty())
+										.cloned()
+										.collect::<Vec<_>>()
+										.join(" ")
 								} else {
 									// To display the message in the UI
 									"Extrinsic Not Supported".to_string()
@@ -102,6 +116,7 @@ pub async fn parse_chain_metadata(
 
 			Ok(Pallet {
 				name: pallet.name().to_string(),
+				index: pallet.index(),
 				docs: pallet.docs().join(" "),
 				extrinsics,
 			})
@@ -114,11 +129,14 @@ pub async fn parse_chain_metadata(
 /// Finds a specific pallet by name and retrieves its details from metadata.
 ///
 /// # Arguments
-/// * `pallets`: List of pallets availables in the chain.
+/// * `pallets`: List of pallets available in the chain.
 /// * `pallet_name`: The name of the pallet to find.
-pub async fn find_pallet_by_name(pallets: &[Pallet], pallet_name: &str) -> Result<Pallet, Error> {
+pub async fn find_pallet_by_name<'a>(
+	pallets: &'a [Pallet],
+	pallet_name: &str,
+) -> Result<&'a Pallet, Error> {
 	if let Some(pallet) = pallets.iter().find(|p| p.name == pallet_name) {
-		Ok(pallet.clone())
+		Ok(pallet)
 	} else {
 		Err(Error::PalletNotFound(pallet_name.to_string()))
 	}
@@ -127,17 +145,17 @@ pub async fn find_pallet_by_name(pallets: &[Pallet], pallet_name: &str) -> Resul
 /// Finds a specific extrinsic by name and retrieves its details from metadata.
 ///
 /// # Arguments
-/// * `pallets`: List of pallets availables in the chain.
+/// * `pallets`: List of pallets available in the chain.
 /// * `pallet_name`: The name of the pallet to find.
 /// * `extrinsic_name`: Name of the extrinsic to locate.
-pub async fn find_extrinsic_by_name(
-	pallets: &[Pallet],
+pub async fn find_extrinsic_by_name<'a>(
+	pallets: &'a [Pallet],
 	pallet_name: &str,
 	extrinsic_name: &str,
-) -> Result<Extrinsic, Error> {
+) -> Result<&'a Extrinsic, Error> {
 	let pallet = find_pallet_by_name(pallets, pallet_name).await?;
 	if let Some(extrinsic) = pallet.extrinsics.iter().find(|&e| e.name == extrinsic_name) {
-		Ok(extrinsic.clone())
+		Ok(extrinsic)
 	} else {
 		Err(Error::ExtrinsicNotSupported)
 	}
@@ -189,13 +207,15 @@ mod tests {
 		// Test the first pallet is parsed correctly
 		let first_pallet = pallets.first().unwrap();
 		assert_eq!(first_pallet.name, "System");
+		assert_eq!(first_pallet.index, 0);
 		assert_eq!(first_pallet.docs, "");
 		assert_eq!(first_pallet.extrinsics.len(), 11);
 		let first_extrinsic = first_pallet.extrinsics.first().unwrap();
 		assert_eq!(first_extrinsic.name, "remark");
+		assert_eq!(first_extrinsic.index, 0);
 		assert_eq!(
 			first_extrinsic.docs,
-			"Make some on-chain remark.Can be executed by every `origin`."
+			"Make some on-chain remark. Can be executed by every `origin`."
 		);
 		assert!(first_extrinsic.is_supported);
 		assert_eq!(first_extrinsic.params.first().unwrap().name, "remark");
@@ -234,7 +254,7 @@ mod tests {
 		));
 		let extrinsic = find_extrinsic_by_name(&pallets, "Balances", "force_transfer").await?;
 		assert_eq!(extrinsic.name, "force_transfer");
-		assert_eq!(extrinsic.docs, "Exactly as `transfer_allow_death`, except the origin must be root and the source accountmay be specified.");
+		assert_eq!(extrinsic.docs, "Exactly as `transfer_allow_death`, except the origin must be root and the source account may be specified.");
 		assert_eq!(extrinsic.is_supported, true);
 		assert_eq!(extrinsic.params.len(), 3);
 		Ok(())

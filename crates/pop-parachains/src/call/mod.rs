@@ -213,6 +213,7 @@ mod tests {
 		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
 		let extrinsic = Extrinsic {
 			name: "wrong_extrinsic".to_string(),
+			index: 0,
 			docs: "documentation".to_string(),
 			is_supported: true,
 			..Default::default()
