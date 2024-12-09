@@ -708,7 +708,7 @@ mod tests {
 		assert_eq!(call_parachain.extrinsic.name, "place_order_allow_death");
 		assert_eq!(call_parachain.args, ["10000".to_string(), "2000".to_string()].to_vec());
 		assert_eq!(call_parachain.suri, "//Bob");
-		assert!(!call_config.sudo);
+		assert!(!call_parachain.sudo);
 		assert_eq!(call_parachain.display(&chain), "pop call parachain --pallet OnDemand --extrinsic place_order_allow_death --args \"10000\" \"2000\" --url wss://polkadot-rpc.publicnode.com/ --suri //Bob");
 		cli.verify()
 	}
