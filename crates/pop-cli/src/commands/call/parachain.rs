@@ -44,7 +44,7 @@ impl CallParachainCommand {
 	/// Executes the command.
 	pub(crate) async fn execute(mut self) -> Result<()> {
 		let mut cli = cli::Cli;
-		// Check if all fields are specified via command line argument.
+		// Check if all fields are specified via the command line.
 		let prompt_to_repeat_call = self.requires_user_input();
 		// Configure the chain.
 		let chain = self.configure_chain(&mut cli).await?;
@@ -207,13 +207,13 @@ impl CallParachainCommand {
 	}
 }
 
-/// Represents a chain, including its URL, client connection, and available pallets.
+// Represents a chain, including its URL, client connection, and available pallets.
 struct Chain {
-	/// Websocket endpoint of the node.
+	// Websocket endpoint of the node.
 	url: Url,
-	/// The client used to interact with the chain.
+	// The client used to interact with the chain.
 	client: OnlineClient<SubstrateConfig>,
-	/// A list of pallets available on the chain.
+	// A list of pallets available on the chain.
 	pallets: Vec<Pallet>,
 }
 

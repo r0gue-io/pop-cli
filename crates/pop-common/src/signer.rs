@@ -4,6 +4,9 @@ use crate::errors::Error;
 use subxt_signer::{sr25519::Keypair, SecretUri};
 
 /// Create a Signer from a secret URI.
+///
+/// # Arguments
+/// `suri` - Secret URI string used to generate the `Keypair`.
 pub fn create_signer(suri: &str) -> Result<Keypair, Error> {
 	let uri = <SecretUri as std::str::FromStr>::from_str(suri)
 		.map_err(|e| Error::ParseSecretURI(format!("{}", e)))?;

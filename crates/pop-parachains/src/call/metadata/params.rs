@@ -25,8 +25,8 @@ pub struct Param {
 /// Transforms a metadata field into its `Param` representation.
 ///
 /// # Arguments
-/// * `client`: `client` - The client used to interact with the chain.
-/// * `field`: A reference to a metadata field of the extrinsic.
+/// * `client`: The client to interact with the chain.
+/// * `field`: A parameter of an extrinsic as struct field.
 pub fn field_to_param(
 	client: &OnlineClient<SubstrateConfig>,
 	field: &Field<PortableForm>,
@@ -46,7 +46,7 @@ pub fn field_to_param(
 ///
 /// # Arguments
 /// * `name`: The name of the parameter.
-/// * `registry`: A reference to the `PortableRegistry` to resolve type dependencies.
+/// * `registry`: Type registry containing all types used in the metadata.
 /// * `type_id`: The ID of the type to be converted.
 fn type_to_param(name: String, registry: &PortableRegistry, type_id: u32) -> Result<Param, Error> {
 	let type_info = registry.resolve(type_id).ok_or(Error::MetadataParsingError(name.clone()))?;

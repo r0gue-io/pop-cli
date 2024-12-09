@@ -26,7 +26,7 @@ impl Display for Pallet {
 	}
 }
 
-/// Represents an extrinsic in a pallet.
+/// Represents an extrinsic.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Extrinsic {
 	/// The name of the extrinsic.
@@ -49,7 +49,7 @@ impl Display for Extrinsic {
 /// parameters.
 ///
 /// # Arguments
-/// * `client`:`client` - The client used to interact with the chain.
+/// * `client`: The client to interact with the chain.
 pub async fn parse_chain_metadata(
 	client: &OnlineClient<SubstrateConfig>,
 ) -> Result<Vec<Pallet>, Error> {
