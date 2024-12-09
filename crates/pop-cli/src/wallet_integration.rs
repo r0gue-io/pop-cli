@@ -226,12 +226,9 @@ async fn terminate_helper(handle: &Arc<Mutex<StateHandler>>) -> anyhow::Result<(
 pub struct FrontendFromDir {
 	content: PathBuf,
 }
+
 #[allow(dead_code)]
-impl FrontendFromDir {
-	pub fn new(content: PathBuf) -> Self {
-		Self { content }
-	}
-}
+impl FrontendFromDir {}
 
 impl Frontend for FrontendFromDir {
 	fn serve_content(&self) -> Router {
