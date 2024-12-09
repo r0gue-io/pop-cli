@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::errors::Error;
+use crate::{errors::Error, Extrinsic};
 use pop_common::create_signer;
 use subxt::{
 	dynamic::Value,
@@ -28,11 +28,12 @@ pub async fn set_up_client(url: &str) -> Result<OnlineClient<SubstrateConfig>, E
 /// * `args` - A vector of string arguments to be passed to the extrinsic.
 pub async fn construct_extrinsic(
 	pallet_name: &str,
-	extrinsic_name: &str,
+	extrinsic: &Extrinsic,
 	args: Vec<String>,
 ) -> Result<DynamicPayload, Error> {
-	let parsed_args: Vec<Value> = metadata::parse_extrinsic_arguments(args).await?;
-	Ok(subxt::dynamic::tx(pallet_name, extrinsic_name, parsed_args))
+	let parsed_args: Vec<Value> =
+		metadata::parse_extrinsic_arguments(&extrinsic.params, args).await?;
+	Ok(subxt::dynamic::tx(pallet_name, extrinsic.name.clone(), parsed_args))
 }
 
 /// Signs and submits a given extrinsic.
@@ -125,7 +126,7 @@ pub async fn sign_and_submit_extrinsic_with_call_data(
 mod tests {
 	use super::*;
 
-	use crate::set_up_client;
+	use crate::{find_extrinsic_by_name, parse_chain_metadata, set_up_client};
 	use anyhow::Result;
 
 	#[tokio::test]
@@ -140,11 +141,16 @@ mod tests {
 
 	#[tokio::test]
 	async fn construct_extrinsic_works() -> Result<()> {
+		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
+		let pallets = parse_chain_metadata(&client).await?;
+		let transfer_allow_death =
+			find_extrinsic_by_name(&pallets, "Balances", "transfer_allow_death").await?;
+
 		// Wrong parameters
 		assert!(matches!(
 			construct_extrinsic(
 				"Balances",
-				"transfer_allow_death",
+				&transfer_allow_death,
 				vec!["Bob".to_string(), "100".to_string()],
 			)
 			.await,
@@ -153,7 +159,7 @@ mod tests {
 		// Valid parameters
 		let extrinsic = construct_extrinsic(
 			"Balances",
-			"transfer_allow_death",
+			&transfer_allow_death,
 			vec![
 				"Id(5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty)".to_string(),
 				"100".to_string(),
@@ -168,8 +174,14 @@ mod tests {
 	#[tokio::test]
 	async fn encode_call_data_works() -> Result<()> {
 		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
-		let extrinsic = construct_extrinsic("System", "remark", vec!["0x11".to_string()]).await?;
+		let pallets = parse_chain_metadata(&client).await?;
+		let remark = find_extrinsic_by_name(&pallets, "System", "remark").await?;
+		let extrinsic = construct_extrinsic("System", &remark, vec!["0x11".to_string()]).await?;
 		assert_eq!(encode_call_data(&client, &extrinsic)?, "0x00000411");
+		let extrinsic = construct_extrinsic("System", &remark, vec!["123".to_string()]).await?;
+		assert_eq!(encode_call_data(&client, &extrinsic)?, "0x00000c313233");
+		let extrinsic = construct_extrinsic("System", &remark, vec!["test".to_string()]).await?;
+		assert_eq!(encode_call_data(&client, &extrinsic)?, "0x00001074657374");
 		Ok(())
 	}
 
@@ -186,8 +198,13 @@ mod tests {
 	#[tokio::test]
 	async fn sign_and_submit_wrong_extrinsic_fails() -> Result<()> {
 		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
-		let tx =
-			construct_extrinsic("WrongPallet", "wrongExtrinsic", vec!["0x11".to_string()]).await?;
+		let extrinsic = Extrinsic {
+			name: "wrong_extrinsic".to_string(),
+			docs: "documentation".to_string(),
+			params: vec![],
+			is_supported: true,
+		};
+		let tx = construct_extrinsic("WrongPallet", &extrinsic, vec!["0x11".to_string()]).await?;
 		assert!(matches!(
 			sign_and_submit_extrinsic(client, tx, "//Alice").await,
 			Err(Error::ExtrinsicSubmissionError(message)) if message.contains("PalletNameNotFound(\"WrongPallet\"))")

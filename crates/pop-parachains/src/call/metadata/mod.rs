@@ -146,19 +146,30 @@ pub async fn find_extrinsic_by_name(
 /// Parses and processes raw string parameters for an extrinsic, mapping them to `Value` types.
 ///
 /// # Arguments
+/// * `params`: The metadata definition for each parameter of the extrinsic.
 /// * `raw_params`: A vector of raw string arguments for the extrinsic.
-pub async fn parse_extrinsic_arguments(raw_params: Vec<String>) -> Result<Vec<Value>, Error> {
-	let mut parsed_params: Vec<Value> = Vec::new();
-	for raw_param in raw_params {
-		let parsed_value: Value = scale_value::stringify::from_str_custom()
-			.add_custom_parser(custom_parsers::parse_hex)
-			.add_custom_parser(custom_parsers::parse_ss58)
-			.parse(&raw_param)
-			.0
-			.map_err(|_| Error::ParamProcessingError)?;
-		parsed_params.push(parsed_value);
-	}
-	Ok(parsed_params)
+pub async fn parse_extrinsic_arguments(
+	params: &[Param],
+	raw_params: Vec<String>,
+) -> Result<Vec<Value>, Error> {
+	params
+		.iter()
+		.zip(raw_params)
+		.map(|(param, raw_param)| {
+			// Convert sequence parameters to hex if is_sequence
+			let processed_param = if param.is_sequence && !raw_param.starts_with("0x") {
+				format!("0x{}", hex::encode(raw_param))
+			} else {
+				raw_param
+			};
+			scale_value::stringify::from_str_custom()
+				.add_custom_parser(custom_parsers::parse_hex)
+				.add_custom_parser(custom_parsers::parse_ss58)
+				.parse(&processed_param)
+				.0
+				.map_err(|_| Error::ParamProcessingError)
+		})
+		.collect()
 }
 
 #[cfg(test)]
@@ -191,6 +202,7 @@ mod tests {
 		assert!(!first_extrinsic.params.first().unwrap().is_optional);
 		assert!(!first_extrinsic.params.first().unwrap().is_tuple);
 		assert!(!first_extrinsic.params.first().unwrap().is_variant);
+		assert!(first_extrinsic.params.first().unwrap().is_sequence);
 		Ok(())
 	}
 
@@ -253,8 +265,21 @@ mod tests {
 				.into_iter()
 				.map(|b| Value::u128(b as u128))
 				.collect();
+		// Define mock extrinsic parameters for testing.
+		let params = vec![
+			Param { type_name: "u128".to_string(), ..Default::default() },
+			Param { type_name: "i128".to_string(), ..Default::default() },
+			Param { type_name: "bool".to_string(), ..Default::default() },
+			Param { type_name: "char".to_string(), ..Default::default() },
+			Param { type_name: "string".to_string(), ..Default::default() },
+			Param { type_name: "compostie".to_string(), ..Default::default() },
+			Param { type_name: "variant".to_string(), is_variant: true, ..Default::default() },
+			Param { type_name: "bit_sequence".to_string(), ..Default::default() },
+			Param { type_name: "tuple".to_string(), is_tuple: true, ..Default::default() },
+			Param { type_name: "composite".to_string(), ..Default::default() },
+		];
 		assert_eq!(
-			parse_extrinsic_arguments(args).await?,
+			parse_extrinsic_arguments(&params, args).await?,
 			[
 				Value::u128(1),
 				Value::i128(-1),

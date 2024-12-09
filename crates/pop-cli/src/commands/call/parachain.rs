@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
+use std::path::Path;
+
 use crate::cli::{self, traits::*};
 use anyhow::{anyhow, Result};
 use clap::Args;
@@ -13,6 +15,7 @@ use url::Url;
 
 const DEFAULT_URL: &str = "ws://localhost:9944/";
 const DEFAULT_URI: &str = "//Alice";
+const ENCODED_CALL_DATA_MAX_LEN: usize = 500; // Maximum length of encoded call data to display.
 
 /// Command to execute extrinsics with configurable pallets, arguments, and signing options.
 #[derive(Args, Clone)]
@@ -184,7 +187,7 @@ impl CallParachainCommand {
 				}
 				args
 			} else {
-				self.args.clone()
+				self.expand_file_arguments()?
 			};
 
 			// Resolve who is signing the extrinsic.
@@ -258,6 +261,21 @@ impl CallParachainCommand {
 			self.url.is_none() ||
 			self.suri.is_none()
 	}
+
+	/// Replaces file arguments with their contents, leaving other arguments unchanged.
+	fn expand_file_arguments(&self) -> Result<Vec<String>> {
+		self.args
+			.iter()
+			.map(|arg| {
+				if std::fs::metadata(arg).map(|m| m.is_file()).unwrap_or(false) {
+					std::fs::read_to_string(arg)
+						.map_err(|err| anyhow!("Failed to read file {}", err.to_string()))
+				} else {
+					Ok(arg.clone())
+				}
+			})
+			.collect()
+	}
 }
 
 // Represents a chain, including its URL, client connection, and available pallets.
@@ -299,7 +317,7 @@ impl CallParachain {
 	) -> Result<DynamicPayload> {
 		let tx = match construct_extrinsic(
 			self.pallet.name.as_str(),
-			self.extrinsic.name.as_str(),
+			&self.extrinsic,
 			self.args.clone(),
 		)
 		.await
@@ -309,7 +327,11 @@ impl CallParachain {
 				return Err(anyhow!("Error: {}", e));
 			},
 		};
-		cli.info(format!("Encoded call data: {}", encode_call_data(client, &tx)?))?;
+		let encoded_data = encode_call_data(client, &tx)?;
+		// If the encoded call data is too long, don't display it all.
+		if encoded_data.len() < ENCODED_CALL_DATA_MAX_LEN {
+			cli.info(format!("Encoded call data: {}", encode_call_data(client, &tx)?))?;
+		}
 		Ok(tx)
 	}
 
@@ -346,7 +368,18 @@ impl CallParachain {
 		full_message.push_str(&format!(" --pallet {}", self.pallet));
 		full_message.push_str(&format!(" --extrinsic {}", self.extrinsic));
 		if !self.args.is_empty() {
-			let args: Vec<_> = self.args.iter().map(|a| format!("\"{a}\"")).collect();
+			let args: Vec<_> = self
+				.args
+				.iter()
+				.map(|a| {
+					// If the argument is too long, don't show it all, truncate it.
+					if a.len() > ENCODED_CALL_DATA_MAX_LEN {
+						format!("\"{}...{}\"", &a[..20], &a[a.len() - 20..])
+					} else {
+						format!("\"{a}\"")
+					}
+				})
+				.collect();
 			full_message.push_str(&format!(" --args {}", args.join(" ")));
 		}
 		full_message.push_str(&format!(" --url {} --suri {}", chain.url, self.suri));
@@ -402,7 +435,9 @@ fn prompt_for_param(cli: &mut impl Cli, param: &Param) -> Result<String> {
 
 // Resolves the value of a parameter based on its type.
 fn get_param_value(cli: &mut impl Cli, param: &Param) -> Result<String> {
-	if param.sub_params.is_empty() {
+	if param.is_sequence {
+		prompt_for_sequence_param(cli, param)
+	} else if param.sub_params.is_empty() {
 		prompt_for_primitive_param(cli, param)
 	} else if param.is_variant {
 		prompt_for_variant_param(cli, param)
@@ -411,6 +446,25 @@ fn get_param_value(cli: &mut impl Cli, param: &Param) -> Result<String> {
 	} else {
 		prompt_for_composite_param(cli, param)
 	}
+}
+
+// Prompt for the value when it is a sequence.
+fn prompt_for_sequence_param(cli: &mut impl Cli, param: &Param) -> Result<String> {
+	let input_value = cli
+		.input(format!(
+		"The value for `{}` might be too large to enter. You may enter the path to a file instead.",
+		param.name
+	))
+		.placeholder(&format!(
+			"Enter a value of type {} or provide a file path (e.g., /path/to/your/file.json)",
+			param.type_name
+		))
+		.interact()?;
+	if Path::new(&input_value).is_file() {
+		return std::fs::read_to_string(&input_value)
+			.map_err(|err| anyhow!("Failed to read file {}", err.to_string()));
+	}
+	Ok(input_value)
 }
 
 // Prompt for the value when it is a primitive.
@@ -507,6 +561,7 @@ fn parse_extrinsic_name(name: &str) -> Result<String, String> {
 mod tests {
 	use super::*;
 	use crate::cli::MockCli;
+	use tempfile::tempdir;
 	use url::Url;
 
 	#[tokio::test]
@@ -566,7 +621,7 @@ mod tests {
 			),
 			0, // "remark" extrinsic
 		)
-		.expect_input("Enter the value for the parameter: remark", "0x11".into())
+		.expect_input("The value for `remark` might be too large to enter. You may enter the path to a file instead.", "0x11".into())
 		.expect_input("Signer of the extrinsic:", "//Bob".into());
 
 		let chain = call_config.configure_chain(&mut cli).await?;
@@ -754,6 +809,42 @@ mod tests {
 	}
 
 	#[test]
+	fn expand_file_arguments_works() -> Result<()> {
+		let mut call_config = CallParachainCommand {
+			pallet: Some("Registrar".to_string()),
+			extrinsic: Some("register".to_string()),
+			args: vec!["2000".to_string(), "0x1".to_string(), "0x12".to_string()].to_vec(),
+			url: Some(Url::parse("wss://rpc1.paseo.popnetwork.xyz")?),
+			suri: Some(DEFAULT_URI.to_string()),
+			skip_confirm: false,
+		};
+		assert_eq!(
+			call_config.expand_file_arguments()?,
+			vec!["2000".to_string(), "0x1".to_string(), "0x12".to_string()]
+		);
+		// Temporal file for testing when the input is a file.
+		let temp_dir = tempdir()?;
+		let genesis_file = temp_dir.path().join("genesis_file.json");
+		std::fs::write(&genesis_file, "genesis_file_content")?;
+		let wasm_file = temp_dir.path().join("wasm_file.json");
+		std::fs::write(&wasm_file, "wasm_file_content")?;
+		call_config.args = vec![
+			"2000".to_string(),
+			genesis_file.display().to_string(),
+			wasm_file.display().to_string(),
+		];
+		assert_eq!(
+			call_config.expand_file_arguments()?,
+			vec![
+				"2000".to_string(),
+				"genesis_file_content".to_string(),
+				"wasm_file_content".to_string()
+			]
+		);
+		Ok(())
+	}
+
+	#[test]
 	fn display_message_works() -> Result<()> {
 		let mut cli = MockCli::new().expect_outro(&"Call completed successfully!");
 		display_message("Call completed successfully!", true, &mut cli)?;
@@ -869,6 +960,28 @@ mod tests {
 		assert_eq!(params[0], "(0, 0)".to_string()); // task: test tuples
 		assert_eq!(params[1], "0".to_string()); // retries: test primitive
 		assert_eq!(params[2], "0".to_string()); // period: test primitive
+		cli.verify()?;
+
+		// Using System remark extrinsic to test the sequence params
+		let extrinsic = find_extrinsic_by_name(&pallets, "System", "remark").await?;
+		// Temporal file for testing the input.
+		let temp_dir = tempdir()?;
+		let file = temp_dir.path().join("file.json");
+		std::fs::write(&file, "testing")?;
+
+		let mut cli = MockCli::new()
+			.expect_input(
+				"The value for `remark` might be too large to enter. You may enter the path to a file instead.",
+				file.display().to_string(),
+			);
+
+		// Test all the extrinsic params
+		let mut params: Vec<String> = Vec::new();
+		for param in extrinsic.params {
+			params.push(prompt_for_param(&mut cli, &param)?);
+		}
+		assert_eq!(params.len(), 1);
+		assert_eq!(params[0], "testing".to_string()); // remark: test sequence from file
 		cli.verify()
 	}
 
