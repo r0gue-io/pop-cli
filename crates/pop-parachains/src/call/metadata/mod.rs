@@ -146,14 +146,13 @@ pub async fn find_extrinsic_by_name(
 /// Parses and processes raw string parameters for an extrinsic, mapping them to `Value` types.
 ///
 /// # Arguments
-/// * `extrinsic`: The definition of the extrinsic, containing parameter metadata.
+/// * `params`: The metadata definition for each parameter of the extrinsic.
 /// * `raw_params`: A vector of raw string arguments for the extrinsic.
 pub async fn parse_extrinsic_arguments(
-	extrinsic: &Extrinsic,
+	params: &[Param],
 	raw_params: Vec<String>,
 ) -> Result<Vec<Value>, Error> {
-	extrinsic
-		.params
+	params
 		.iter()
 		.zip(raw_params)
 		.map(|(param, raw_param)| {
@@ -241,24 +240,6 @@ mod tests {
 
 	#[tokio::test]
 	async fn parse_extrinsic_arguments_works() -> Result<()> {
-		/// Helper function to create a `Param` with default values.
-		fn create_param(
-			name: &str,
-			type_name: &str,
-			is_sequence: bool,
-			is_variant: bool,
-			is_tuple: bool,
-		) -> Param {
-			Param {
-				name: name.to_string(),
-				type_name: type_name.to_string(),
-				sub_params: vec![],
-				is_optional: false,
-				is_sequence,
-				is_variant,
-				is_tuple,
-			}
-		}
 		// Values for testing from: https://docs.rs/scale-value/0.18.0/scale_value/stringify/fn.from_str.html
 		// and https://docs.rs/scale-value/0.18.0/scale_value/stringify/fn.from_str_custom.html
 		let args = [
@@ -284,26 +265,21 @@ mod tests {
 				.into_iter()
 				.map(|b| Value::u128(b as u128))
 				.collect();
-		// Define mock extrinsic with parameters for testing.
-		let extrinsic = Extrinsic {
-			name: "test_extrinsic".to_string(),
-			docs: "Test extrinsic documentation".to_string(),
-			params: vec![
-				create_param("param_1", "u128", false, false, false),
-				create_param("param_2", "i128", false, false, false),
-				create_param("param_3", "bool", false, false, false),
-				create_param("param_4", "char", false, false, false),
-				create_param("param_5", "string", false, false, false),
-				create_param("param_6", "composite", false, false, false),
-				create_param("param_7", "variant", false, true, false),
-				create_param("param_8", "bit_sequence", false, false, false),
-				create_param("param_9", "tuple", false, false, true),
-				create_param("param_10", "composite", false, false, false),
-			],
-			is_supported: true,
-		};
+		// Define mock extrinsic parameters for testing.
+		let params = vec![
+			Param { type_name: "u128".to_string(), ..Default::default() },
+			Param { type_name: "i128".to_string(), ..Default::default() },
+			Param { type_name: "bool".to_string(), ..Default::default() },
+			Param { type_name: "char".to_string(), ..Default::default() },
+			Param { type_name: "string".to_string(), ..Default::default() },
+			Param { type_name: "compostie".to_string(), ..Default::default() },
+			Param { type_name: "variant".to_string(), is_variant: true, ..Default::default() },
+			Param { type_name: "bit_sequence".to_string(), ..Default::default() },
+			Param { type_name: "tuple".to_string(), is_tuple: true, ..Default::default() },
+			Param { type_name: "composite".to_string(), ..Default::default() },
+		];
 		assert_eq!(
-			parse_extrinsic_arguments(&extrinsic, args).await?,
+			parse_extrinsic_arguments(&params, args).await?,
 			[
 				Value::u128(1),
 				Value::i128(-1),

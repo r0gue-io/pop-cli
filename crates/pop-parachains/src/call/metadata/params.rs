@@ -6,7 +6,7 @@ use scale_info::{form::PortableForm, Field, PortableRegistry, TypeDef};
 use subxt::{Metadata, OnlineClient, SubstrateConfig};
 
 /// Describes a parameter of an extrinsic.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct Param {
 	/// The name of the parameter.
 	pub name: String,

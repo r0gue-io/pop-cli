@@ -31,7 +31,8 @@ pub async fn construct_extrinsic(
 	extrinsic: &Extrinsic,
 	args: Vec<String>,
 ) -> Result<DynamicPayload, Error> {
-	let parsed_args: Vec<Value> = metadata::parse_extrinsic_arguments(&extrinsic, args).await?;
+	let parsed_args: Vec<Value> =
+		metadata::parse_extrinsic_arguments(&extrinsic.params, args).await?;
 	Ok(subxt::dynamic::tx(pallet_name, extrinsic.name.clone(), parsed_args))
 }
 
