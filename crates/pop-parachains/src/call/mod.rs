@@ -137,7 +137,7 @@ mod tests {
 	use anyhow::Result;
 
 	const ALICE_SURI: &str = "//Alice";
-	const POP_NETWORK_TESTNET_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";
+	pub(crate) const POP_NETWORK_TESTNET_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";
 
 	#[tokio::test]
 	async fn set_up_client_works() -> Result<()> {
@@ -196,7 +196,7 @@ mod tests {
 	#[tokio::test]
 	async fn decode_call_data_works() -> Result<()> {
 		assert!(matches!(decode_call_data("wrongcalldata"), Err(Error::CallDataDecodingError(..))));
-		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
+		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
 		let pallets = parse_chain_metadata(&client)?;
 		let remark = find_extrinsic_by_name(&pallets, "System", "remark")?;
 		let extrinsic = construct_extrinsic("System", &remark, vec!["0x11".to_string()])?;
@@ -225,7 +225,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn construct_sudo_extrinsic_works() -> Result<()> {
-		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
+		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
 		let pallets = parse_chain_metadata(&client)?;
 		let force_transfer = find_extrinsic_by_name(&pallets, "Balances", "force_transfer")?;
 		let extrinsic = construct_extrinsic(

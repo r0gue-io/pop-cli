@@ -119,11 +119,10 @@ pub fn supported_actions(pallets: &[Pallet]) -> Vec<Action> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::{parse_chain_metadata, set_up_client};
+	use crate::{call::tests::POP_NETWORK_TESTNET_URL, parse_chain_metadata, set_up_client};
 	use anyhow::Result;
 	use std::collections::HashMap;
 
-	const POP_NETWORK_TESTNET_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";
 	const POLKADOT_NETWORK_URL: &str = "wss://polkadot-rpc.publicnode.com";
 
 	#[test]

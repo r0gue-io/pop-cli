@@ -154,10 +154,8 @@ fn type_to_param(name: String, registry: &PortableRegistry, type_id: u32) -> Res
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::set_up_client;
+	use crate::{call::tests::POP_NETWORK_TESTNET_URL, set_up_client};
 	use anyhow::Result;
-
-	const POP_NETWORK_TESTNET_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";
 
 	#[tokio::test]
 	async fn field_to_param_works() -> Result<()> {

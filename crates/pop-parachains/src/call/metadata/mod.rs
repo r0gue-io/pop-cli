@@ -192,11 +192,9 @@ pub fn parse_extrinsic_arguments(
 mod tests {
 	use super::*;
 
-	use crate::set_up_client;
+	use crate::{call::tests::POP_NETWORK_TESTNET_URL, set_up_client};
 	use anyhow::Result;
 	use subxt::ext::scale_bits;
-
-	const POP_NETWORK_TESTNET_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";
 
 	#[tokio::test]
 	async fn parse_chain_metadata_works() -> Result<()> {
