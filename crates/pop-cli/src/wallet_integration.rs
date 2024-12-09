@@ -121,10 +121,8 @@ impl WalletIntegrationManager {
 	}
 
 	/// Signals the wallet integration server to shut down.
-	pub async fn terminate(&mut self) {
-		if let Some(shutdown_tx) = self.state.lock().await.shutdown_tx.take() {
-			let _ = shutdown_tx.send(());
-		}
+	pub async fn terminate(&mut self) -> anyhow::Result<()> {
+		terminate_helper(&self.state).await
 	}
 
 	/// Checks if the server task is still running.
@@ -139,7 +137,7 @@ impl WalletIntegrationManager {
 }
 
 mod routes {
-	use super::{Arc, Mutex, StateHandler, TransactionData};
+	use super::{terminate_helper, Arc, Mutex, StateHandler, TransactionData};
 	use anyhow::Error;
 	use axum::{
 		extract::State,
@@ -182,18 +180,17 @@ mod routes {
 	pub(super) async fn submit_handler(
 		State(state): State<Arc<Mutex<StateHandler>>>,
 		Json(payload): Json<String>,
-	) -> Json<serde_json::Value> {
-		let mut state = state.lock().await;
-		state.signed_payload = Some(payload);
-
+	) -> Result<Json<serde_json::Value>, ApiError> {
 		// Signal shutdown.
-		// Using WalletIntegrationManager::terminate() introduces unnecessary complexity.
-		if let Some(shutdown_tx) = state.shutdown_tx.take() {
-			let _ = shutdown_tx.send(());
-		}
+		let res = terminate_helper(&state).await;
+
+		let mut state_locked = state.lock().await;
+		state_locked.signed_payload = Some(payload);
+
+		res?;
 
 		// Graceful shutdown ensures response is sent before shutdown.
-		Json(json!({"status": "success"}))
+		Ok(Json(json!({"status": "success"})))
 	}
 
 	/// Receives an error message from the wallet.
@@ -206,12 +203,20 @@ mod routes {
 	}
 
 	/// Allows the server to be terminated from the frontend.
-	pub(super) async fn terminate_handler(State(state): State<Arc<Mutex<StateHandler>>>) {
-		let mut state = state.lock().await;
-		if let Some(shutdown_tx) = state.shutdown_tx.take() {
-			let _ = shutdown_tx.send(());
-		}
+	pub(super) async fn terminate_handler(
+		State(state): State<Arc<Mutex<StateHandler>>>,
+	) -> Result<(), ApiError> {
+		Ok(terminate_helper(&state).await?)
 	}
+}
+
+async fn terminate_helper(handle: &Arc<Mutex<StateHandler>>) -> anyhow::Result<()> {
+	if let Some(shutdown_tx) = handle.lock().await.shutdown_tx.take() {
+		shutdown_tx
+			.send(())
+			.map_err(|_| anyhow::anyhow!("Failed to send shutdown signal"))?;
+	}
+	Ok(())
 }
 
 /// Serves static files from a directory.
@@ -255,7 +260,7 @@ mod tests {
 
 	// Wait for server to launch.
 	async fn wait() {
-		tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+		tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 	}
 
 	fn default_payload() -> TransactionData {
@@ -273,8 +278,32 @@ mod tests {
 		assert!(wim.state.lock().await.signed_payload.is_none());
 
 		// Terminate the server and make sure result is ok.
-		wim.terminate().await;
+		wim.terminate().await.expect("Termination should not fail.");
 		assert!(wim.task_handle.await.is_ok());
+	}
+
+	#[test]
+	fn new_transaction_data_works() {
+		let chain_rpc = "localhost:9944".to_string();
+		let call_data = vec![1, 2, 3];
+		let transaction_data = TransactionData::new(chain_rpc.clone(), call_data.clone());
+
+		assert_eq!(transaction_data.chain_rpc, chain_rpc);
+		assert_eq!(transaction_data.call_data, call_data);
+	}
+
+	#[tokio::test]
+	async fn take_error_works() {
+		let frontend = FrontendFromString::new(TEST_HTML.to_string());
+		let mut wim = WalletIntegrationManager::new(frontend, default_payload());
+
+		assert_eq!(wim.take_error().await, None);
+
+		let error = "An error occurred".to_string();
+		wim.state.lock().await.error = Some(error.clone());
+
+		let taken_error = wim.take_error().await;
+		assert_eq!(taken_error, Some(error));
 	}
 
 	#[tokio::test]
@@ -300,7 +329,7 @@ mod tests {
 		assert_eq!(actual_payload.chain_rpc, expected_payload.chain_rpc);
 		assert_eq!(actual_payload.call_data, expected_payload.call_data);
 
-		wim.terminate().await;
+		wim.terminate().await.expect("Termination should not fail");
 		assert!(wim.task_handle.await.is_ok());
 	}
 
@@ -328,7 +357,7 @@ mod tests {
 		assert_eq!(wim.state.lock().await.signed_payload, Some("0xDEADBEEF".to_string()));
 		assert_eq!(wim.is_running(), false);
 
-		wim.terminate().await;
+		wim.terminate().await.expect("Termination should not fail");
 		assert!(wim.task_handle.await.is_ok());
 	}
 
@@ -357,7 +386,7 @@ mod tests {
 		assert_eq!(wim.state.lock().await.error, Some("an error occurred".to_string()));
 		assert_eq!(wim.is_running(), true);
 
-		wim.terminate().await;
+		wim.terminate().await.expect("Termination should not fail");
 		assert!(wim.task_handle.await.is_ok());
 	}
 
@@ -367,7 +396,7 @@ mod tests {
 		let addr = "127.0.0.1:9094";
 		let frontend = FrontendFromString::new(TEST_HTML.to_string());
 
-		let mut wim = WalletIntegrationManager::new_with_address(frontend, default_payload(), addr);
+		let wim = WalletIntegrationManager::new_with_address(frontend, default_payload(), addr);
 		wait().await;
 
 		let addr = format!("http://{}", wim.rpc_url);
@@ -384,7 +413,6 @@ mod tests {
 		assert_eq!(response.len(), 0);
 		assert_eq!(wim.is_running(), false);
 
-		wim.terminate().await;
 		assert!(wim.task_handle.await.is_ok());
 	}
 
@@ -398,11 +426,11 @@ mod tests {
 		let mut wim = WalletIntegrationManager::new_with_address(frontend, default_payload(), addr);
 
 		assert_eq!(wim.is_running(), true);
-		wim.terminate().await;
+		wim.terminate().await.expect("Termination should not fail");
 		wait().await;
 		assert_eq!(wim.is_running(), false);
 
-		wim.terminate().await;
+		wim.terminate().await.expect("Termination should not fail");
 		assert!(wim.task_handle.await.is_ok());
 	}
 
@@ -424,7 +452,7 @@ mod tests {
 
 		assert_eq!(actual_content, TEST_HTML);
 
-		wim.terminate().await;
+		wim.terminate().await.expect("Termination should not fail");
 		assert!(wim.task_handle.await.is_ok());
 	}
 
@@ -455,7 +483,7 @@ mod tests {
 
 		assert_eq!(actual_content, test_html);
 
-		wim.terminate().await;
+		wim.terminate().await.expect("Termination should not fail");
 		assert!(wim.task_handle.await.is_ok());
 	}
 
@@ -486,7 +514,7 @@ mod tests {
 		assert_eq!(actual_payload.chain_rpc, expected_payload.chain_rpc);
 		assert_eq!(actual_payload.call_data, call_data_5mb);
 
-		wim.terminate().await;
+		wim.terminate().await.expect("Termination should not fail.");
 		assert!(wim.task_handle.await.is_ok());
 	}
 
