@@ -817,6 +817,7 @@ mod tests {
 			url: Some(Url::parse("wss://rpc1.paseo.popnetwork.xyz")?),
 			suri: Some(DEFAULT_URI.to_string()),
 			skip_confirm: false,
+			call_data: None,
 		};
 		assert_eq!(
 			call_config.expand_file_arguments()?,
