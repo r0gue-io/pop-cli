@@ -203,8 +203,8 @@ mod tests {
 		let extrinsic = Extrinsic {
 			name: "wrong_extrinsic".to_string(),
 			docs: "documentation".to_string(),
-			params: vec![],
 			is_supported: true,
+			..Default::default()
 		};
 		let tx = construct_extrinsic("WrongPallet", &extrinsic, vec!["0x11".to_string()]).await?;
 		assert!(matches!(

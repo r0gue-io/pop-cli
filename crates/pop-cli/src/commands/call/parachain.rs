@@ -18,7 +18,7 @@ const DEFAULT_URI: &str = "//Alice";
 const ENCODED_CALL_DATA_MAX_LEN: usize = 500; // Maximum length of encoded call data to display.
 
 /// Command to execute extrinsics with configurable pallets, arguments, and signing options.
-#[derive(Args, Clone)]
+#[derive(Args, Clone, Default)]
 pub struct CallParachainCommand {
 	/// The pallet containing the extrinsic to execute.
 	#[arg(short, long, value_parser = parse_pallet_name)]
@@ -695,17 +695,8 @@ mod tests {
 	async fn prepare_extrinsic_works() -> Result<()> {
 		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
 		let mut call_config = CallParachain {
-			pallet: Pallet {
-				name: "WrongName".to_string(),
-				docs: "".to_string(),
-				extrinsics: vec![],
-			},
-			extrinsic: Extrinsic {
-				name: "WrongName".to_string(),
-				docs: "".to_string(),
-				is_supported: false,
-				params: vec![],
-			},
+			pallet: Pallet { name: "WrongName".to_string(), ..Default::default() },
+			extrinsic: Extrinsic { name: "WrongName".to_string(), ..Default::default() },
 			args: vec!["0x11".to_string()].to_vec(),
 			suri: DEFAULT_URI.to_string(),
 			skip_confirm: false,
