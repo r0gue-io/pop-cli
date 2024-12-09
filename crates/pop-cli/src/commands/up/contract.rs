@@ -370,7 +370,7 @@ impl UpContractCommand {
 		let transaction_data = TransactionData::new(self.url.to_string(), call_data);
 		// starts server
 		let mut wallet = WalletIntegrationManager::new(ui, transaction_data);
-		log::step(format!("Wallet signing portal started at http://{}", wallet.addr))?;
+		log::step(format!("Wallet signing portal started at http://{}", wallet.rpc_url))?;
 
 		log::step("Waiting for signature... Press Ctrl+C to terminate early.")?;
 		loop {
