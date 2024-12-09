@@ -26,13 +26,12 @@ pub async fn set_up_client(url: &str) -> Result<OnlineClient<SubstrateConfig>, E
 /// * `pallet_name` - The name of the pallet containing the extrinsic.
 /// * `extrinsic_name` - The specific extrinsic name within the pallet.
 /// * `args` - A vector of string arguments to be passed to the extrinsic.
-pub async fn construct_extrinsic(
+pub fn construct_extrinsic(
 	pallet_name: &str,
 	extrinsic: &Extrinsic,
 	args: Vec<String>,
 ) -> Result<DynamicPayload, Error> {
-	let parsed_args: Vec<Value> =
-		metadata::parse_extrinsic_arguments(&extrinsic.params, args).await?;
+	let parsed_args: Vec<Value> = metadata::parse_extrinsic_arguments(&extrinsic.params, args)?;
 	Ok(subxt::dynamic::tx(pallet_name, extrinsic.name.clone(), parsed_args))
 }
 
@@ -41,7 +40,7 @@ pub async fn construct_extrinsic(
 /// # Arguments
 /// * `tx`: The transaction payload representing the function call to be dispatched with `Root`
 ///   privileges.
-pub async fn construct_sudo_extrinsic(tx: DynamicPayload) -> Result<DynamicPayload, Error> {
+pub fn construct_sudo_extrinsic(tx: DynamicPayload) -> Result<DynamicPayload, Error> {
 	Ok(subxt::dynamic::tx("Sudo", "sudo", [tx.into_value()].to_vec()))
 }
 
@@ -138,7 +137,7 @@ mod tests {
 	use anyhow::Result;
 
 	const ALICE_SURI: &str = "//Alice";
-	const POP_NETWORK_TESTNET_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";
+	pub(crate) const POP_NETWORK_TESTNET_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";
 
 	#[tokio::test]
 	async fn set_up_client_works() -> Result<()> {
@@ -153,9 +152,9 @@ mod tests {
 	#[tokio::test]
 	async fn construct_extrinsic_works() -> Result<()> {
 		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
-		let pallets = parse_chain_metadata(&client).await?;
+		let pallets = parse_chain_metadata(&client)?;
 		let transfer_allow_death =
-			find_extrinsic_by_name(&pallets, "Balances", "transfer_allow_death").await?;
+			find_extrinsic_by_name(&pallets, "Balances", "transfer_allow_death")?;
 
 		// Wrong parameters
 		assert!(matches!(
@@ -163,8 +162,7 @@ mod tests {
 				"Balances",
 				&transfer_allow_death,
 				vec![ALICE_SURI.to_string(), "100".to_string()],
-			)
-			.await,
+			),
 			Err(Error::ParamProcessingError)
 		));
 		// Valid parameters
@@ -175,8 +173,7 @@ mod tests {
 				"Id(5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty)".to_string(),
 				"100".to_string(),
 			],
-		)
-		.await?;
+		)?;
 		assert_eq!(extrinsic.call_name(), "transfer_allow_death");
 		assert_eq!(extrinsic.pallet_name(), "Balances");
 		Ok(())
@@ -185,13 +182,13 @@ mod tests {
 	#[tokio::test]
 	async fn encode_call_data_works() -> Result<()> {
 		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
-		let pallets = parse_chain_metadata(&client).await?;
-		let remark = find_extrinsic_by_name(&pallets, "System", "remark").await?;
-		let extrinsic = construct_extrinsic("System", &remark, vec!["0x11".to_string()]).await?;
+		let pallets = parse_chain_metadata(&client)?;
+		let remark = find_extrinsic_by_name(&pallets, "System", "remark")?;
+		let extrinsic = construct_extrinsic("System", &remark, vec!["0x11".to_string()])?;
 		assert_eq!(encode_call_data(&client, &extrinsic)?, "0x00000411");
-		let extrinsic = construct_extrinsic("System", &remark, vec!["123".to_string()]).await?;
+		let extrinsic = construct_extrinsic("System", &remark, vec!["123".to_string()])?;
 		assert_eq!(encode_call_data(&client, &extrinsic)?, "0x00000c313233");
-		let extrinsic = construct_extrinsic("System", &remark, vec!["test".to_string()]).await?;
+		let extrinsic = construct_extrinsic("System", &remark, vec!["test".to_string()])?;
 		assert_eq!(encode_call_data(&client, &extrinsic)?, "0x00001074657374");
 		Ok(())
 	}
@@ -199,10 +196,10 @@ mod tests {
 	#[tokio::test]
 	async fn decode_call_data_works() -> Result<()> {
 		assert!(matches!(decode_call_data("wrongcalldata"), Err(Error::CallDataDecodingError(..))));
-		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
-		let pallets = parse_chain_metadata(&client).await?;
-		let remark = find_extrinsic_by_name(&pallets, "System", "remark").await?;
-		let extrinsic = construct_extrinsic("System", &remark, vec!["0x11".to_string()]).await?;
+		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
+		let pallets = parse_chain_metadata(&client)?;
+		let remark = find_extrinsic_by_name(&pallets, "System", "remark")?;
+		let extrinsic = construct_extrinsic("System", &remark, vec!["0x11".to_string()])?;
 		let expected_call_data = extrinsic.encode_call_data(&client.metadata())?;
 		assert_eq!(decode_call_data("0x00000411")?, expected_call_data);
 		Ok(())
@@ -213,11 +210,12 @@ mod tests {
 		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
 		let extrinsic = Extrinsic {
 			name: "wrong_extrinsic".to_string(),
+			index: 0,
 			docs: "documentation".to_string(),
 			is_supported: true,
 			..Default::default()
 		};
-		let tx = construct_extrinsic("WrongPallet", &extrinsic, vec!["0x11".to_string()]).await?;
+		let tx = construct_extrinsic("WrongPallet", &extrinsic, vec!["0x11".to_string()])?;
 		assert!(matches!(
 			sign_and_submit_extrinsic(client, tx, ALICE_SURI).await,
 			Err(Error::ExtrinsicSubmissionError(message)) if message.contains("PalletNameNotFound(\"WrongPallet\"))")
@@ -227,9 +225,9 @@ mod tests {
 
 	#[tokio::test]
 	async fn construct_sudo_extrinsic_works() -> Result<()> {
-		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
-		let pallets = parse_chain_metadata(&client).await?;
-		let force_transfer = find_extrinsic_by_name(&pallets, "Balances", "force_transfer").await?;
+		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
+		let pallets = parse_chain_metadata(&client)?;
+		let force_transfer = find_extrinsic_by_name(&pallets, "Balances", "force_transfer")?;
 		let extrinsic = construct_extrinsic(
 			"Balances",
 			&force_transfer,
@@ -238,9 +236,8 @@ mod tests {
 				"Id(5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy)".to_string(),
 				"100".to_string(),
 			],
-		)
-		.await?;
-		let sudo_extrinsic = construct_sudo_extrinsic(extrinsic).await?;
+		)?;
+		let sudo_extrinsic = construct_sudo_extrinsic(extrinsic)?;
 		assert_eq!(sudo_extrinsic.call_name(), "sudo");
 		assert_eq!(sudo_extrinsic.pallet_name(), "Sudo");
 		Ok(())

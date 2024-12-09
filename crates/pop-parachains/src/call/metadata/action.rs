@@ -106,13 +106,10 @@ impl Action {
 ///
 /// # Arguments
 /// * `pallets`: Supported pallets.
-pub async fn supported_actions(pallets: &[Pallet]) -> Vec<Action> {
+pub fn supported_actions(pallets: &[Pallet]) -> Vec<Action> {
 	let mut actions = Vec::new();
 	for action in Action::VARIANTS.iter() {
-		if find_extrinsic_by_name(pallets, action.pallet_name(), action.extrinsic_name())
-			.await
-			.is_ok()
-		{
+		if find_extrinsic_by_name(pallets, action.pallet_name(), action.extrinsic_name()).is_ok() {
 			actions.push(action.clone());
 		}
 	}
@@ -122,11 +119,10 @@ pub async fn supported_actions(pallets: &[Pallet]) -> Vec<Action> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::{parse_chain_metadata, set_up_client};
+	use crate::{call::tests::POP_NETWORK_TESTNET_URL, parse_chain_metadata, set_up_client};
 	use anyhow::Result;
 	use std::collections::HashMap;
 
-	const POP_NETWORK_TESTNET_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";
 	const POLKADOT_NETWORK_URL: &str = "wss://polkadot-rpc.publicnode.com";
 
 	#[test]
@@ -188,7 +184,7 @@ mod tests {
 		// Test Pop Parachain.
 		let mut client: subxt::OnlineClient<subxt::SubstrateConfig> =
 			set_up_client(POP_NETWORK_TESTNET_URL).await?;
-		let mut actions = supported_actions(&parse_chain_metadata(&client).await?).await;
+		let mut actions = supported_actions(&parse_chain_metadata(&client)?);
 		assert_eq!(actions.len(), 5);
 		assert_eq!(actions[0], Action::Transfer);
 		assert_eq!(actions[1], Action::CreateAsset);
@@ -198,7 +194,7 @@ mod tests {
 
 		// Test Polkadot Relay Chain.
 		client = set_up_client(POLKADOT_NETWORK_URL).await?;
-		actions = supported_actions(&parse_chain_metadata(&client).await?).await;
+		actions = supported_actions(&parse_chain_metadata(&client)?);
 		assert_eq!(actions.len(), 4);
 		assert_eq!(actions[0], Action::Transfer);
 		assert_eq!(actions[1], Action::PurchaseOnDemandCoretime);

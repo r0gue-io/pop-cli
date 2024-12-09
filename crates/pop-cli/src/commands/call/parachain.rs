@@ -70,7 +70,7 @@ impl CallParachainCommand {
 		}
 		loop {
 			// Configure the call based on command line arguments/call UI.
-			let mut call = match self.configure_call(&chain, &mut cli).await {
+			let mut call = match self.configure_call(&chain, &mut cli) {
 				Ok(call) => call,
 				Err(e) => {
 					display_message(&e.to_string(), false, &mut cli)?;
@@ -80,7 +80,7 @@ impl CallParachainCommand {
 			// Display the configured call.
 			cli.info(call.display(&chain))?;
 			// Prepare the extrinsic.
-			let tx = match call.prepare_extrinsic(&chain.client, &mut cli).await {
+			let tx = match call.prepare_extrinsic(&chain.client, &mut cli) {
 				Ok(payload) => payload,
 				Err(e) => {
 					display_message(&e.to_string(), false, &mut cli)?;
@@ -125,31 +125,32 @@ impl CallParachainCommand {
 
 		// Parse metadata from chain url.
 		let client = set_up_client(url.as_str()).await?;
-		let pallets = parse_chain_metadata(&client).await.map_err(|e| {
+		let mut pallets = parse_chain_metadata(&client).map_err(|e| {
 			anyhow!(format!("Unable to fetch the chain metadata: {}", e.to_string()))
 		})?;
+		// Sort by name for display.
+		pallets.sort_by(|a, b| a.name.cmp(&b.name));
+		pallets
+			.iter_mut()
+			.for_each(|p| p.extrinsics.sort_by(|a, b| a.name.cmp(&b.name)));
 		Ok(Chain { url, client, pallets })
 	}
 
 	// Configure the call based on command line arguments/call UI.
-	async fn configure_call(&mut self, chain: &Chain, cli: &mut impl Cli) -> Result<CallParachain> {
+	fn configure_call(&mut self, chain: &Chain, cli: &mut impl Cli) -> Result<CallParachain> {
 		loop {
 			// Resolve pallet.
 			let pallet = match self.pallet {
-				Some(ref pallet_name) => find_pallet_by_name(&chain.pallets, pallet_name).await?,
+				Some(ref pallet_name) => find_pallet_by_name(&chain.pallets, pallet_name)?,
 				None => {
 					// Specific predefined actions first.
-					if let Some(action) = prompt_predefined_actions(&chain.pallets, cli).await? {
+					if let Some(action) = prompt_predefined_actions(&chain.pallets, cli)? {
 						self.extrinsic = Some(action.extrinsic_name().to_string());
-						find_pallet_by_name(&chain.pallets, action.pallet_name()).await?
+						find_pallet_by_name(&chain.pallets, action.pallet_name())?
 					} else {
 						let mut prompt = cli.select("Select the pallet to call:");
 						for pallet_item in &chain.pallets {
-							prompt = prompt.item(
-								pallet_item.clone(),
-								&pallet_item.name,
-								&pallet_item.docs,
-							);
+							prompt = prompt.item(pallet_item, &pallet_item.name, &pallet_item.docs);
 						}
 						prompt.interact()?
 					}
@@ -159,15 +160,12 @@ impl CallParachainCommand {
 			// Resolve extrinsic.
 			let extrinsic = match self.extrinsic {
 				Some(ref extrinsic_name) =>
-					find_extrinsic_by_name(&chain.pallets, &pallet.name, extrinsic_name).await?,
+					find_extrinsic_by_name(&chain.pallets, &pallet.name, extrinsic_name)?,
 				None => {
 					let mut prompt_extrinsic = cli.select("Select the extrinsic to call:");
 					for extrinsic in &pallet.extrinsics {
-						prompt_extrinsic = prompt_extrinsic.item(
-							extrinsic.clone(),
-							&extrinsic.name,
-							&extrinsic.docs,
-						);
+						prompt_extrinsic =
+							prompt_extrinsic.item(extrinsic, &extrinsic.name, &extrinsic.docs);
 					}
 					prompt_extrinsic.interact()?
 				},
@@ -195,7 +193,7 @@ impl CallParachainCommand {
 
 			// If chain has sudo prompt the user to confirm if they want to execute the call via
 			// sudo.
-			self.configure_sudo(chain, cli).await?;
+			self.configure_sudo(chain, cli)?;
 
 			// Resolve who is signing the extrinsic.
 			let suri = match self.suri.as_ref() {
@@ -205,8 +203,8 @@ impl CallParachainCommand {
 			};
 
 			return Ok(CallParachain {
-				pallet,
-				extrinsic,
+				pallet: pallet.clone(),
+				extrinsic: extrinsic.clone(),
 				args,
 				suri,
 				skip_confirm: self.skip_confirm,
@@ -256,8 +254,8 @@ impl CallParachainCommand {
 
 	// Checks if the chain has the Sudo pallet and prompt the user to confirm if they want to
 	// execute the call via sudo.
-	async fn configure_sudo(&mut self, chain: &Chain, cli: &mut impl Cli) -> Result<()> {
-		match find_extrinsic_by_name(&chain.pallets, "Sudo", "sudo").await {
+	fn configure_sudo(&mut self, chain: &Chain, cli: &mut impl Cli) -> Result<()> {
+		match find_extrinsic_by_name(&chain.pallets, "Sudo", "sudo") {
 			Ok(_) =>
 				if !self.sudo {
 					self.sudo = cli
@@ -345,7 +343,7 @@ struct CallParachain {
 
 impl CallParachain {
 	// Prepares the extrinsic or query.
-	async fn prepare_extrinsic(
+	fn prepare_extrinsic(
 		&self,
 		client: &OnlineClient<SubstrateConfig>,
 		cli: &mut impl Cli,
@@ -354,16 +352,14 @@ impl CallParachain {
 			self.pallet.name.as_str(),
 			&self.extrinsic,
 			self.args.clone(),
-		)
-		.await
-		{
+		) {
 			Ok(tx) => tx,
 			Err(e) => {
 				return Err(anyhow!("Error: {}", e));
 			},
 		};
 		// If sudo is required, wrap the call in a sudo call.
-		let tx = if self.sudo { construct_sudo_extrinsic(tx).await? } else { tx };
+		let tx = if self.sudo { construct_sudo_extrinsic(tx)? } else { tx };
 		let encoded_data = encode_call_data(client, &tx)?;
 		// If the encoded call data is too long, don't display it all.
 		if encoded_data.len() < ENCODED_CALL_DATA_MAX_LEN {
@@ -438,12 +434,9 @@ fn display_message(message: &str, success: bool, cli: &mut impl Cli) -> Result<(
 }
 
 // Prompts the user for some predefined actions.
-async fn prompt_predefined_actions(
-	pallets: &[Pallet],
-	cli: &mut impl Cli,
-) -> Result<Option<Action>> {
+fn prompt_predefined_actions(pallets: &[Pallet], cli: &mut impl Cli) -> Result<Option<Action>> {
 	let mut predefined_action = cli.select("What would you like to do?");
-	for action in supported_actions(pallets).await {
+	for action in supported_actions(pallets) {
 		predefined_action = predefined_action.item(
 			Some(action.clone()),
 			action.description(),
@@ -635,21 +628,21 @@ mod tests {
 			true,
 			Some(
 				[
-					("remark".to_string(), "Make some on-chain remark.Can be executed by every `origin`.".to_string()),
-					("set_heap_pages".to_string(), "Set the number of pages in the WebAssembly environment's heap.".to_string()),
-					("set_code".to_string(), "Set the new runtime code.".to_string()),
-					("set_code_without_checks".to_string(), "Set the new runtime code without doing any checks of the given `code`.Note that runtime upgrades will not run if this is called with a not-increasing specversion!".to_string()),
-					("set_storage".to_string(), "Set some items of storage.".to_string()),
+					("apply_authorized_upgrade".to_string(), "Provide the preimage (runtime binary) `code` for an upgrade that has been authorized. If the authorization required a version check, this call will ensure the spec name remains unchanged and that the spec version has increased. Depending on the runtime's `OnSetCode` configuration, this function may directly apply the new `code` in the same block or attempt to schedule the upgrade. All origins are allowed.".to_string()),
+					("authorize_upgrade".to_string(), "Authorize an upgrade to a given `code_hash` for the runtime. The runtime can be supplied later. This call requires Root origin.".to_string()),
+					("authorize_upgrade_without_checks".to_string(), "Authorize an upgrade to a given `code_hash` for the runtime. The runtime can be supplied later. WARNING: This authorizes an upgrade that will take place without any safety checks, for example that the spec name remains the same and that the version number increases. Not recommended for normal use. Use `authorize_upgrade` instead. This call requires Root origin.".to_string()),
+					("kill_prefix".to_string(), "Kill all storage items with a key that starts with the given prefix. **NOTE:** We rely on the Root origin to provide us the number of subkeys under the prefix we are removing to accurately calculate the weight of this function.".to_string()),
 					("kill_storage".to_string(), "Kill some items from storage.".to_string()),
-					("kill_prefix".to_string(), "Kill all storage items with a key that starts with the given prefix.**NOTE:** We rely on the Root origin to provide us the number of subkeys underthe prefix we are removing to accurately calculate the weight of this function.".to_string()),
+					("remark".to_string(), "Make some on-chain remark. Can be executed by every `origin`.".to_string()),
 					("remark_with_event".to_string(), "Make some on-chain remark and emit event.".to_string()),
-					("authorize_upgrade".to_string(), "Authorize an upgrade to a given `code_hash` for the runtime. The runtime can be suppliedlater.This call requires Root origin.".to_string()),
-					("authorize_upgrade_without_checks".to_string(), "Authorize an upgrade to a given `code_hash` for the runtime. The runtime can be suppliedlater.WARNING: This authorizes an upgrade that will take place without any safety checks, forexample that the spec name remains the same and that the version number increases. Notrecommended for normal use. Use `authorize_upgrade` instead.This call requires Root origin.".to_string()),
-					("apply_authorized_upgrade".to_string(), "Provide the preimage (runtime binary) `code` for an upgrade that has been authorized.If the authorization required a version check, this call will ensure the spec nameremains unchanged and that the spec version has increased.Depending on the runtime's `OnSetCode` configuration, this function may directly applythe new `code` in the same block or attempt to schedule the upgrade.All origins are allowed.".to_string()),
+					("set_code".to_string(), "Set the new runtime code.".to_string()),
+					("set_code_without_checks".to_string(), "Set the new runtime code without doing any checks of the given `code`. Note that runtime upgrades will not run if this is called with a not-increasing spec version!".to_string()),
+					("set_heap_pages".to_string(), "Set the number of pages in the WebAssembly environment's heap.".to_string()),
+					("set_storage".to_string(), "Set some items of storage.".to_string()),
 				]
 				.to_vec(),
 			),
-			0, // "remark" extrinsic
+			5, // "remark" extrinsic
 		)
 		.expect_input("The value for `remark` might be too large to enter. You may enter the path to a file instead.", "0x11".into())
 		.expect_confirm("Would you like to dispatch this function call with `Root` origin?", true)
@@ -658,7 +651,7 @@ mod tests {
 		let chain = call_config.configure_chain(&mut cli).await?;
 		assert_eq!(chain.url, Url::parse(POP_NETWORK_TESTNET_URL)?);
 
-		let call_parachain = call_config.configure_call(&chain, &mut cli).await?;
+		let call_parachain = call_config.configure_call(&chain, &mut cli)?;
 		assert_eq!(call_parachain.pallet.name, "System");
 		assert_eq!(call_parachain.extrinsic.name, "remark");
 		assert_eq!(call_parachain.args, ["0x11".to_string()].to_vec());
@@ -687,7 +680,6 @@ mod tests {
 				true,
 				Some(
 					supported_actions(&chain.pallets)
-						.await
 						.into_iter()
 						.map(|action| {
 							(action.description().to_string(), action.pallet_name().to_string())
@@ -704,7 +696,7 @@ mod tests {
 			.expect_input("Enter the value for the parameter: para_id", "2000".into())
 			.expect_input("Signer of the extrinsic:", BOB_SURI.into());
 
-		let call_parachain = call_config.configure_call(&chain, &mut cli).await?;
+		let call_parachain = call_config.configure_call(&chain, &mut cli)?;
 
 		assert_eq!(call_parachain.pallet.name, "OnDemand");
 		assert_eq!(call_parachain.extrinsic.name, "place_order_allow_death");
@@ -729,25 +721,25 @@ mod tests {
 		let mut cli = MockCli::new();
 		// Error, wrong name of the pallet.
 		assert!(
-			matches!(call_config.prepare_extrinsic(&client, &mut cli).await, Err(message) if message.to_string().contains("Failed to encode call data. Metadata Error: Pallet with name WrongName not found"))
+			matches!(call_config.prepare_extrinsic(&client, &mut cli), Err(message) if message.to_string().contains("Failed to encode call data. Metadata Error: Pallet with name WrongName not found"))
 		);
-		let pallets = parse_chain_metadata(&client).await?;
-		call_config.pallet = find_pallet_by_name(&pallets, "System").await?;
+		let pallets = parse_chain_metadata(&client)?;
+		call_config.pallet = find_pallet_by_name(&pallets, "System")?.clone();
 		// Error, wrong name of the extrinsic.
 		assert!(
-			matches!(call_config.prepare_extrinsic(&client, &mut cli).await, Err(message) if message.to_string().contains("Failed to encode call data. Metadata Error: Call with name WrongName not found"))
+			matches!(call_config.prepare_extrinsic(&client, &mut cli), Err(message) if message.to_string().contains("Failed to encode call data. Metadata Error: Call with name WrongName not found"))
 		);
 		// Success, extrinsic and pallet specified.
 		cli = MockCli::new().expect_info("Encoded call data: 0x00000411");
-		call_config.extrinsic = find_extrinsic_by_name(&pallets, "System", "remark").await?;
-		let tx = call_config.prepare_extrinsic(&client, &mut cli).await?;
+		call_config.extrinsic = find_extrinsic_by_name(&pallets, "System", "remark")?.clone();
+		let tx = call_config.prepare_extrinsic(&client, &mut cli)?;
 		assert_eq!(tx.call_name(), "remark");
 		assert_eq!(tx.pallet_name(), "System");
 
 		// Prepare extrinsic wrapped in sudo works.
 		cli = MockCli::new().expect_info("Encoded call data: 0x0f0000000411");
 		call_config.sudo = true;
-		call_config.prepare_extrinsic(&client, &mut cli).await?;
+		call_config.prepare_extrinsic(&client, &mut cli)?;
 
 		cli.verify()
 	}
@@ -755,10 +747,10 @@ mod tests {
 	#[tokio::test]
 	async fn user_cancel_submit_extrinsic_works() -> Result<()> {
 		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
-		let pallets = parse_chain_metadata(&client).await?;
+		let pallets = parse_chain_metadata(&client)?;
 		let mut call_config = CallParachain {
-			pallet: find_pallet_by_name(&pallets, "System").await?,
-			extrinsic: find_extrinsic_by_name(&pallets, "System", "remark").await?,
+			pallet: find_pallet_by_name(&pallets, "System")?.clone(),
+			extrinsic: find_extrinsic_by_name(&pallets, "System", "remark")?.clone(),
 			args: vec!["0x11".to_string()].to_vec(),
 			suri: DEFAULT_URI.to_string(),
 			skip_confirm: false,
@@ -767,7 +759,7 @@ mod tests {
 		let mut cli = MockCli::new()
 			.expect_confirm("Do you want to submit the extrinsic?", false)
 			.expect_outro_cancel("Extrinsic remark was not submitted.");
-		let tx = call_config.prepare_extrinsic(&client, &mut cli).await?;
+		let tx = call_config.prepare_extrinsic(&client, &mut cli)?;
 		call_config.submit_extrinsic(&client, tx, &mut cli).await?;
 
 		cli.verify()
@@ -814,7 +806,7 @@ mod tests {
 			.expect_intro("Call a parachain")
 			.expect_warning("NOTE: sudo is not supported by the chain. Ignoring `--sudo` flag.");
 		let chain = call_config.configure_chain(&mut cli).await?;
-		call_config.configure_sudo(&chain, &mut cli).await?;
+		call_config.configure_sudo(&chain, &mut cli)?;
 		assert!(!call_config.sudo);
 		cli.verify()?;
 
@@ -825,7 +817,7 @@ mod tests {
 		);
 		call_config.url = Some(Url::parse("wss://rpc1.paseo.popnetwork.xyz")?);
 		let chain = call_config.configure_chain(&mut cli).await?;
-		call_config.configure_sudo(&chain, &mut cli).await?;
+		call_config.configure_sudo(&chain, &mut cli)?;
 		assert!(call_config.sudo);
 		cli.verify()
 	}
@@ -876,8 +868,8 @@ mod tests {
 			args: vec!["2000".to_string(), "0x1".to_string(), "0x12".to_string()].to_vec(),
 			url: Some(Url::parse(POP_NETWORK_TESTNET_URL)?),
 			suri: Some(DEFAULT_URI.to_string()),
-			skip_confirm: false,
 			call_data: None,
+			skip_confirm: false,
 			sudo: false,
 		};
 		assert_eq!(
@@ -919,14 +911,13 @@ mod tests {
 	#[tokio::test]
 	async fn prompt_predefined_actions_works() -> Result<()> {
 		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
-		let pallets = parse_chain_metadata(&client).await?;
+		let pallets = parse_chain_metadata(&client)?;
 		let mut cli = MockCli::new().expect_select(
 			"What would you like to do?",
 			Some(true),
 			true,
 			Some(
 				supported_actions(&pallets)
-					.await
 					.into_iter()
 					.map(|action| {
 						(action.description().to_string(), action.pallet_name().to_string())
@@ -939,7 +930,7 @@ mod tests {
 			),
 			2, // "Mint an Asset" action
 		);
-		let action = prompt_predefined_actions(&pallets, &mut cli).await?;
+		let action = prompt_predefined_actions(&pallets, &mut cli)?;
 		assert_eq!(action, Some(Action::MintAsset));
 		cli.verify()
 	}
@@ -947,9 +938,9 @@ mod tests {
 	#[tokio::test]
 	async fn prompt_for_param_works() -> Result<()> {
 		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
-		let pallets = parse_chain_metadata(&client).await?;
+		let pallets = parse_chain_metadata(&client)?;
 		// Using NFT mint extrinsic to test the majority of subfunctions
-		let extrinsic = find_extrinsic_by_name(&pallets, "Nfts", "mint").await?;
+		let extrinsic = find_extrinsic_by_name(&pallets, "Nfts", "mint")?;
 		let mut cli = MockCli::new()
 			.expect_input("Enter the value for the parameter: collection", "0".into())
 			.expect_input("Enter the value for the parameter: item", "0".into())
@@ -989,7 +980,7 @@ mod tests {
 
 		// Test all the extrinsic params
 		let mut params: Vec<String> = Vec::new();
-		for param in extrinsic.params {
+		for param in &extrinsic.params {
 			params.push(prompt_for_param(&mut cli, &param)?);
 		}
 		assert_eq!(params.len(), 4);
@@ -1000,7 +991,7 @@ mod tests {
 		cli.verify()?;
 
 		// Using Scheduler set_retry extrinsic to test the tuple params
-		let extrinsic = find_extrinsic_by_name(&pallets, "Scheduler", "set_retry").await?;
+		let extrinsic = find_extrinsic_by_name(&pallets, "Scheduler", "set_retry")?;
 		let mut cli = MockCli::new()
 			.expect_input(
 				"Enter the value for the parameter: Index 0 of the tuple task",
@@ -1015,7 +1006,7 @@ mod tests {
 
 		// Test all the extrinsic params
 		let mut params: Vec<String> = Vec::new();
-		for param in extrinsic.params {
+		for param in &extrinsic.params {
 			params.push(prompt_for_param(&mut cli, &param)?);
 		}
 		assert_eq!(params.len(), 3);
@@ -1025,7 +1016,7 @@ mod tests {
 		cli.verify()?;
 
 		// Using System remark extrinsic to test the sequence params
-		let extrinsic = find_extrinsic_by_name(&pallets, "System", "remark").await?;
+		let extrinsic = find_extrinsic_by_name(&pallets, "System", "remark")?;
 		// Temporal file for testing the input.
 		let temp_dir = tempdir()?;
 		let file = temp_dir.path().join("file.json");
@@ -1039,7 +1030,7 @@ mod tests {
 
 		// Test all the extrinsic params
 		let mut params: Vec<String> = Vec::new();
-		for param in extrinsic.params {
+		for param in &extrinsic.params {
 			params.push(prompt_for_param(&mut cli, &param)?);
 		}
 		assert_eq!(params.len(), 1);
