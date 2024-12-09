@@ -489,7 +489,7 @@ mod tests {
 		let mut cli = MockCli::new()
 		.expect_intro("Call a parachain")
 		.expect_input("Which chain would you like to interact with?", "wss://rpc1.paseo.popnetwork.xyz".into())
-		.expect_select::<Pallet>(
+		.expect_select(
 			"Select the extrinsic to call:",
 			Some(true),
 			true,
@@ -546,7 +546,7 @@ mod tests {
 		cli.verify()?;
 
 		let mut cli = MockCli::new()
-			.expect_select::<Pallet>(
+			.expect_select(
 				"What would you like to do?",
 				Some(true),
 				true,
@@ -686,7 +686,7 @@ mod tests {
 	async fn prompt_predefined_actions_works() -> Result<()> {
 		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
 		let pallets = parse_chain_metadata(&client).await?;
-		let mut cli = MockCli::new().expect_select::<Pallet>(
+		let mut cli = MockCli::new().expect_select(
 			"What would you like to do?",
 			Some(true),
 			true,
@@ -719,7 +719,7 @@ mod tests {
 		let mut cli = MockCli::new()
 			.expect_input("Enter the value for the parameter: collection", "0".into())
 			.expect_input("Enter the value for the parameter: item", "0".into())
-			.expect_select::<Pallet>(
+			.expect_select(
 				"Select the value for the parameter: mint_to",
 				Some(true),
 				true,

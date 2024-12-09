@@ -634,19 +634,19 @@ mod tests {
 						"What parachain ID should be used?", para_id.to_string())
 					.expect_input(
 						"Enter the protocol ID that will identify your network:", protocol_id.to_string())
-					.expect_select::<&str>(
+					.expect_select(
 						"Choose the chain type: ",
 						Some(false),
 						true,
 						Some(chain_types()),
 						chain_type.clone() as usize,
-					).expect_select::<&str>(
+					).expect_select(
 					"Choose the relay your chain will be connecting to: ",
 					Some(false),
 					true,
 					Some(relays()),
 					relay.clone() as usize,
-				).expect_select::<&str>(
+				).expect_select(
 					"Choose the build profile of the binary that should be used: ",
 					Some(false),
 					true,
@@ -732,7 +732,7 @@ mod tests {
 						);
 					}
 					if build_spec_cmd.chain_type.is_none() {
-						cli = cli.expect_select::<&str>(
+						cli = cli.expect_select(
 							"Choose the chain type: ",
 							Some(false),
 							true,
@@ -741,7 +741,7 @@ mod tests {
 						);
 					}
 					if build_spec_cmd.relay.is_none() {
-						cli = cli.expect_select::<&str>(
+						cli = cli.expect_select(
 							"Choose the relay your chain will be connecting to: ",
 							Some(false),
 							true,
@@ -750,7 +750,7 @@ mod tests {
 						);
 					}
 					if build_spec_cmd.profile.is_none() {
-						cli = cli.expect_select::<&str>(
+						cli = cli.expect_select(
 							"Choose the build profile of the binary that should be used: ",
 							Some(false),
 							true,

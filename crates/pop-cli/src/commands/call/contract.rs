@@ -612,7 +612,7 @@ mod tests {
 				"Do you want to perform another call using the existing smart contract?",
 				false,
 			)
-			.expect_select::<&str>(
+			.expect_select(
 				"Select the message to call:",
 				Some(false),
 				true,
@@ -669,7 +669,7 @@ mod tests {
 		];
 		// The inputs are processed in reverse order.
 		let mut cli = MockCli::new()
-			.expect_select::<&str>(
+			.expect_select(
 				"Select the message to call:",
 				Some(false),
 				true,
@@ -751,7 +751,7 @@ mod tests {
 		// The inputs are processed in reverse order.
 		let mut cli = MockCli::new()
 			.expect_confirm("Do you want to execute the call? (Selecting 'No' will perform a dry run)", true)
-			.expect_select::<&str>(
+			.expect_select(
 				"Select the message to call:",
 				Some(false),
 				true,
@@ -839,7 +839,7 @@ mod tests {
 		];
 		// The inputs are processed in reverse order.
 		let mut cli = MockCli::new()
-			.expect_select::<&str>(
+			.expect_select(
 				"Select the message to call:",
 				Some(false),
 				true,
