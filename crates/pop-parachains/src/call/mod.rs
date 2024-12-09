@@ -36,6 +36,15 @@ pub async fn construct_extrinsic(
 	Ok(subxt::dynamic::tx(pallet_name, extrinsic.name.clone(), parsed_args))
 }
 
+/// Constructs a Sudo extrinsic.
+///
+/// # Arguments
+/// * `tx`: The transaction payload representing the function call to be dispatched with `Root`
+///   privileges.
+pub async fn construct_sudo_extrinsic(tx: DynamicPayload) -> Result<DynamicPayload, Error> {
+	Ok(subxt::dynamic::tx("Sudo", "sudo", [tx.into_value()].to_vec()))
+}
+
 /// Signs and submits a given extrinsic.
 ///
 /// # Arguments
@@ -213,6 +222,27 @@ mod tests {
 			sign_and_submit_extrinsic(client, tx, ALICE_SURI).await,
 			Err(Error::ExtrinsicSubmissionError(message)) if message.contains("PalletNameNotFound(\"WrongPallet\"))")
 		));
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn construct_sudo_extrinsic_works() -> Result<()> {
+		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
+		let pallets = parse_chain_metadata(&client).await?;
+		let force_transfer = find_extrinsic_by_name(&pallets, "Balances", "force_transfer").await?;
+		let extrinsic = construct_extrinsic(
+			"Balances",
+			&force_transfer,
+			vec![
+				"Id(5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty)".to_string(),
+				"Id(5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy)".to_string(),
+				"100".to_string(),
+			],
+		)
+		.await?;
+		let sudo_extrinsic = construct_sudo_extrinsic(extrinsic).await?;
+		assert_eq!(sudo_extrinsic.call_name(), "sudo");
+		assert_eq!(sudo_extrinsic.pallet_name(), "Sudo");
 		Ok(())
 	}
 }
