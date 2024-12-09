@@ -41,7 +41,7 @@ pub struct CallParachainCommand {
 	#[arg(short, long)]
 	suri: Option<String>,
 	/// SCALE encoded bytes representing the call data of the extrinsic.
-	#[arg(name = "call", long, conflicts_with_all = ["pallet", "function", "args"])]
+	#[arg(name = "call", short, long, conflicts_with_all = ["pallet", "function", "args"])]
 	call_data: Option<String>,
 	/// Authenticates the sudo key and dispatches a function call with `Root` origin.
 	#[arg(short = 'S', long)]
