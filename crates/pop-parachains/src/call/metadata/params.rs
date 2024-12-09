@@ -12,7 +12,7 @@ pub struct Param {
 	pub name: String,
 	/// The type of the parameter.
 	pub type_name: String,
-	/// Nested parameters for composite, variants types or tuples.
+	/// Nested parameters for composite, variants, types or tuples.
 	pub sub_params: Vec<Param>,
 	/// Indicates if the parameter is optional (`Option<T>`).
 	pub is_optional: bool,
