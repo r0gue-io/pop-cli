@@ -110,6 +110,7 @@ impl WalletIntegrationManager {
 	}
 
 	/// Signals the wallet integration server to shut down.
+	#[allow(dead_code)]
 	pub async fn terminate(&mut self) -> anyhow::Result<()> {
 		terminate_helper(&self.state).await
 	}
@@ -229,6 +230,7 @@ pub struct FrontendFromString {
 	content: String,
 }
 
+#[allow(dead_code)]
 impl FrontendFromString {
 	pub fn new(content: String) -> Self {
 		Self { content }

@@ -4,6 +4,7 @@ use crate::{
 	cli::{traits::Cli as _, Cli},
 	common::contracts::check_contracts_node_and_prompt,
 	style::style,
+	wallet_integration::{FrontendFromDir, TransactionData, WalletIntegrationManager},
 };
 use clap::Args;
 use cliclack::{confirm, log, log::error, spinner};
@@ -11,8 +12,9 @@ use console::{Emoji, Style};
 use pop_common::manifest::from_path;
 use pop_contracts::{
 	build_smart_contract, dry_run_gas_estimate_instantiate, dry_run_upload,
-	instantiate_smart_contract, is_chain_alive, parse_hex_bytes, run_contracts_node,
-	set_up_deployment, set_up_upload, upload_smart_contract, UpOpts, Verbosity,
+	get_instantiate_payload, get_upload_payload, instantiate_smart_contract, is_chain_alive,
+	parse_hex_bytes, run_contracts_node, set_up_deployment, set_up_upload, submit_signed_payload,
+	upload_smart_contract, UpOpts, Verbosity,
 };
 use sp_core::Bytes;
 use sp_weights::Weight;
@@ -64,6 +66,9 @@ pub struct UpContractCommand {
 	/// - with a password "//Alice///SECRET_PASSWORD"
 	#[clap(name = "suri", long, short, default_value = "//Alice")]
 	suri: String,
+	/// Use your browser wallet to sign a transaction.
+	#[clap(name = "use-wallet", long, default_value = "false")]
+	use_wallet: bool,
 	/// Perform a dry-run via RPC to estimate the gas usage. This does not submit a transaction.
 	#[clap(long)]
 	dry_run: bool,
@@ -163,6 +168,42 @@ impl UpContractCommand {
 			None
 		};
 
+		// Run steps for signing with wallet integration. Returns early.
+		if self.use_wallet {
+			let call_data = match self.get_call_data().await {
+				Ok(data) => data,
+				Err(e) => {
+					error(format!("An error occurred getting the call data: {e}"))?;
+					Self::terminate_node(process)?;
+					Cli.outro_cancel(FAILED)?;
+					return Ok(());
+				},
+			};
+
+			let maybe_payload = self.wait_for_signature(call_data).await?;
+			if let Some(payload) = maybe_payload {
+				log::success("Signed payload received.")?;
+				let spinner = spinner();
+				spinner.start("Submitting the signed payload...");
+				let result = submit_signed_payload(self.url.as_str(), payload).await;
+				spinner.stop("Signed payload submitted.");
+				match result {
+					Ok(_) => {
+						Cli.outro(COMPLETE)?;
+					},
+					Err(e) => {
+						error(format!("An error occurred submitting the signed payload: {e}"))?;
+						Cli.outro_cancel(FAILED)?;
+					},
+				}
+			} else {
+				Cli.outro_cancel("Signed payload doesn't exist.")?;
+			}
+
+			Self::terminate_node(process)?;
+			return Ok(())
+		}
+
 		// Check for upload only.
 		if self.upload_only {
 			let result = self.upload_contract().await;
@@ -179,19 +220,7 @@ impl UpContractCommand {
 		}
 
 		// Otherwise instantiate.
-		let instantiate_exec = match set_up_deployment(UpOpts {
-			path: self.path.clone(),
-			constructor: self.constructor.clone(),
-			args: self.args.clone(),
-			value: self.value.clone(),
-			gas_limit: self.gas_limit,
-			proof_size: self.proof_size,
-			salt: self.salt.clone(),
-			url: self.url.clone(),
-			suri: self.suri.clone(),
-		})
-		.await
-		{
+		let instantiate_exec = match set_up_deployment(self.clone().into()).await {
 			Ok(i) => i,
 			Err(e) => {
 				error(format!("An error occurred instantiating the contract: {e}"))?;
@@ -312,6 +341,54 @@ impl UpContractCommand {
 
 		Ok(())
 	}
+
+	async fn get_call_data(&self) -> anyhow::Result<Vec<u8>> {
+		if self.upload_only {
+			let call_data = get_upload_payload(self.clone().into()).await?;
+			Ok(call_data)
+		} else {
+			let instantiate_exec = set_up_deployment(self.clone().into()).await?;
+
+			let weight_limit = if self.gas_limit.is_some() && self.proof_size.is_some() {
+				Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap())
+			} else {
+				// Frontend will do dry run and update call data.
+				Weight::from_parts(0, 0)
+			};
+			let call_data = get_instantiate_payload(instantiate_exec, weight_limit).await?;
+			Ok(call_data)
+		}
+	}
+
+	async fn wait_for_signature(&self, call_data: Vec<u8>) -> anyhow::Result<Option<String>> {
+		// TODO: to be addressed in future PR. Should not use FromDir (or local path).
+		let ui = FrontendFromDir::new(PathBuf::from(
+			"/Users/peter/dev/r0gue/react-teleport-example/dist",
+		));
+
+		let transaction_data = TransactionData::new(self.url.to_string(), call_data);
+		// starts server
+		let mut wallet = WalletIntegrationManager::new(ui, transaction_data);
+		log::step(format!("Wallet signing portal started at http://{}", wallet.rpc_url))?;
+
+		log::step("Waiting for signature... Press Ctrl+C to terminate early.")?;
+		loop {
+			// Display error, if any.
+			if let Some(error) = wallet.take_error().await {
+				log::error(format!("Signing portal error: {error}"))?;
+			}
+
+			let state = wallet.state.lock().await;
+			// If the payload is submitted we terminate the frontend.
+			if !wallet.is_running() || state.signed_payload.is_some() {
+				wallet.task_handle.await??;
+				break;
+			}
+		}
+
+		let signed_payload = wallet.state.lock().await.signed_payload.clone();
+		Ok(signed_payload)
+	}
 }
 
 impl From<UpContractCommand> for UpOpts {
@@ -354,9 +431,8 @@ mod tests {
 	use std::fs::{self, File};
 	use url::Url;
 
-	#[test]
-	fn conversion_up_contract_command_to_up_opts_works() -> anyhow::Result<()> {
-		let command = UpContractCommand {
+	fn default_up_contract_command() -> UpContractCommand {
+		UpContractCommand {
 			path: None,
 			constructor: "new".to_string(),
 			args: vec!["false".to_string()].to_vec(),
@@ -364,12 +440,18 @@ mod tests {
 			gas_limit: None,
 			proof_size: None,
 			salt: None,
-			url: Url::parse("ws://localhost:9944")?,
+			url: Url::parse("ws://localhost:9944").expect("default url is valid"),
 			suri: "//Alice".to_string(),
 			dry_run: false,
 			upload_only: false,
 			skip_confirm: false,
-		};
+			use_wallet: false,
+		}
+	}
+
+	#[test]
+	fn conversion_up_contract_command_to_up_opts_works() -> anyhow::Result<()> {
+		let command = default_up_contract_command();
 		let opts: UpOpts = command.into();
 		assert_eq!(
 			opts,
@@ -407,5 +489,18 @@ mod tests {
 		File::create(contract_path.join(format!("target/ink/{}.contract", name)))?;
 		assert!(has_contract_been_built(Some(&path.join(name))));
 		Ok(())
+	}
+
+	#[tokio::test]
+	async fn get_upload_call_data_works() -> anyhow::Result<()> {
+		todo!()
+	}
+
+	async fn get_instantiate_call_data_works() -> anyhow::Result<()> {
+		todo!()
+	}
+
+	async fn wait_for_signature_works() -> anyhow::Result<()> {
+		todo!()
 	}
 }
