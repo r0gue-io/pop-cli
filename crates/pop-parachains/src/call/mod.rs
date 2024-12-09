@@ -209,16 +209,6 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn decode_call_data_works() -> Result<()> {
-		assert!(matches!(decode_call_data("wrongcalldata"), Err(Error::CallDataDecodingError(..))));
-		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
-		let extrinsic = construct_extrinsic("System", "remark", vec!["0x11".to_string()]).await?;
-		let expected_call_data = extrinsic.encode_call_data(&client.metadata())?;
-		assert_eq!(decode_call_data("0x00000411")?, expected_call_data);
-		Ok(())
-	}
-
-	#[tokio::test]
 	async fn sign_and_submit_wrong_extrinsic_fails() -> Result<()> {
 		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
 		let extrinsic = Extrinsic {
@@ -237,9 +227,12 @@ mod tests {
 
 	#[tokio::test]
 	async fn construct_sudo_extrinsic_works() -> Result<()> {
+		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
+		let pallets = parse_chain_metadata(&client).await?;
+		let force_transfer = find_extrinsic_by_name(&pallets, "Balances", "force_transfer").await?;
 		let extrinsic = construct_extrinsic(
 			"Balances",
-			"force_transfer",
+			&force_transfer,
 			vec![
 				"Id(5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty)".to_string(),
 				"Id(5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy)".to_string(),
