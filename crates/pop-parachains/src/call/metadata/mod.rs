@@ -10,7 +10,7 @@ pub mod action;
 pub mod params;
 
 /// Represents a pallet in the blockchain, including its extrinsics.
-#[derive(Default, Clone, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Pallet {
 	/// The name of the pallet.
 	pub name: String,
@@ -27,7 +27,7 @@ impl Display for Pallet {
 }
 
 /// Represents an extrinsic.
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Extrinsic {
 	/// The name of the extrinsic.
 	pub name: String,
