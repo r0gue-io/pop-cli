@@ -4,8 +4,8 @@ use crate::cli::{self, traits::*};
 use anyhow::{anyhow, Result};
 use clap::Args;
 use pop_parachains::{
-	construct_extrinsic, encode_call_data, find_extrinsic_by_name, find_pallet_by_name,
-	parse_chain_metadata, set_up_client, sign_and_submit_extrinsic,
+	construct_extrinsic, decode_call_data, encode_call_data, find_extrinsic_by_name,
+	find_pallet_by_name, parse_chain_metadata, set_up_client, sign_and_submit_extrinsic,
 	sign_and_submit_extrinsic_with_call_data, supported_actions, Action, DynamicPayload, Extrinsic,
 	OnlineClient, Pallet, Param, SubstrateConfig,
 };
@@ -231,9 +231,12 @@ impl CallParachainCommand {
 		}
 		let spinner = cliclack::spinner();
 		spinner.start("Signing and submitting the extrinsic, please wait...");
-		let result = sign_and_submit_extrinsic_with_call_data(client.clone(), call_data, suri)
-			.await
-			.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
+		let call_data_bytes =
+			decode_call_data(call_data).map_err(|err| anyhow!("{}", format!("{err:?}")))?;
+		let result =
+			sign_and_submit_extrinsic_with_call_data(client.clone(), call_data_bytes, suri)
+				.await
+				.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
 
 		spinner.stop(format!("Extrinsic submitted successfully with hash: {:?}", result));
 		display_message("Call complete.", true, cli)?;

@@ -73,6 +73,15 @@ pub fn encode_call_data(
 	Ok(format!("0x{}", hex::encode(call_data)))
 }
 
+/// Decodes a hex-encoded string into a vector of bytes representing the call data.
+///
+/// # Arguments
+/// * `call_data` - The hex-encoded string representing call data.
+pub fn decode_call_data(call_data: &str) -> Result<Vec<u8>, Error> {
+	hex::decode(call_data.trim_start_matches("0x"))
+		.map_err(|e| Error::CallDataDecodingError(e.to_string()))
+}
+
 // This struct implements the [`Payload`] trait and is used to submit
 // pre-encoded SCALE call data directly, without the dynamic construction of transactions.
 struct CallData(Vec<u8>);
@@ -92,17 +101,15 @@ impl Payload for CallData {
 ///
 /// # Arguments
 /// * `client` - Reference to an `OnlineClient` connected to the chain.
-/// * `call_data` - SCALE encoded bytes representing the call data of the transaction.
+/// * `call_data` - SCALE encoded bytes representing the extrinsic's call data.
 /// * `suri` - The secret URI (e.g., mnemonic or private key) for signing the extrinsic.
 pub async fn sign_and_submit_extrinsic_with_call_data(
 	client: OnlineClient<SubstrateConfig>,
-	call_data: &str,
+	call_data: Vec<u8>,
 	suri: &str,
 ) -> Result<String, Error> {
 	let signer = create_signer(suri)?;
-	let call_data_bytes = hex::decode(call_data.trim_start_matches("0x"))
-		.map_err(|e| Error::CallDataDecodingError(e.to_string()))?;
-	let payload = CallData(call_data_bytes);
+	let payload = CallData(call_data);
 	let result = client
 		.tx()
 		.sign_and_submit_then_watch_default(&payload, &signer)
@@ -163,6 +170,16 @@ mod tests {
 		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
 		let extrinsic = construct_extrinsic("System", "remark", vec!["0x11".to_string()]).await?;
 		assert_eq!(encode_call_data(&client, &extrinsic)?, "0x00000411");
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn decode_call_data_works() -> Result<()> {
+		assert!(matches!(decode_call_data("wrongcalldata"), Err(Error::CallDataDecodingError(..))));
+		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
+		let extrinsic = construct_extrinsic("System", "remark", vec!["0x11".to_string()]).await?;
+		let expected_call_data = extrinsic.encode_call_data(&client.metadata())?;
+		assert_eq!(decode_call_data("0x00000411")?, expected_call_data);
 		Ok(())
 	}
 
