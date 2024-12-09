@@ -75,7 +75,7 @@ pub fn parse_chain_metadata(client: &OnlineClient<SubstrateConfig>) -> Result<Ve
 							let params = {
 								let mut parsed_params = Vec::new();
 								for field in &variant.fields {
-									match params::field_to_param(client, field) {
+									match params::field_to_param(&metadata, field) {
 										Ok(param) => parsed_params.push(param),
 										Err(_) => {
 											// If an error occurs while parsing the values, mark the

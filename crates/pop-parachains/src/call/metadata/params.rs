@@ -3,7 +3,7 @@
 use crate::errors::Error;
 use pop_common::format_type;
 use scale_info::{form::PortableForm, Field, PortableRegistry, TypeDef};
-use subxt::{Metadata, OnlineClient, SubstrateConfig};
+use subxt::Metadata;
 
 /// Describes a parameter of a dispatchable function.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -27,13 +27,9 @@ pub struct Param {
 /// Transforms a metadata field into its `Param` representation.
 ///
 /// # Arguments
-/// * `client`: The client to interact with the chain.
+/// * `metadata`: The chain metadata.
 /// * `field`: A parameter of a dispatchable function (as [Field]).
-pub fn field_to_param(
-	client: &OnlineClient<SubstrateConfig>,
-	field: &Field<PortableForm>,
-) -> Result<Param, Error> {
-	let metadata: Metadata = client.metadata();
+pub fn field_to_param(metadata: &Metadata, field: &Field<PortableForm>) -> Result<Param, Error> {
 	let registry = metadata.types();
 	if let Some(name) = field.type_name.as_deref() {
 		if name.contains("RuntimeCall") {
@@ -169,7 +165,7 @@ mod tests {
 			.unwrap();
 		let mut params = Vec::new();
 		for field in &function.fields {
-			params.push(field_to_param(&client, field)?)
+			params.push(field_to_param(&metadata, field)?)
 		}
 		assert_eq!(params.len(), 3);
 		assert_eq!(params.first().unwrap().name, "source");
@@ -207,7 +203,7 @@ mod tests {
 		let function =
 			metadata.pallet_by_name("Sudo").unwrap().call_variant_by_name("sudo").unwrap();
 		assert!(matches!(
-			field_to_param(&client, &function.fields.first().unwrap()),
+			field_to_param(&metadata, &function.fields.first().unwrap()),
 			Err(Error::FunctionNotSupported)
 		));
 		let function = metadata
@@ -216,7 +212,7 @@ mod tests {
 			.call_variant_by_name("batch")
 			.unwrap();
 		assert!(matches!(
-			field_to_param(&client, &function.fields.first().unwrap()),
+			field_to_param(&metadata, &function.fields.first().unwrap()),
 			Err(Error::FunctionNotSupported)
 		));
 		let function = metadata
@@ -225,7 +221,7 @@ mod tests {
 			.call_variant_by_name("execute")
 			.unwrap();
 		assert!(matches!(
-			field_to_param(&client, &function.fields.first().unwrap()),
+			field_to_param(&metadata, &function.fields.first().unwrap()),
 			Err(Error::FunctionNotSupported)
 		));
 
