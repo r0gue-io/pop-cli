@@ -870,7 +870,6 @@ mod tests {
 			suri: Some(DEFAULT_URI.to_string()),
 			call_data: None,
 			skip_confirm: false,
-			call_data: None,
 			sudo: false,
 		};
 		assert_eq!(
