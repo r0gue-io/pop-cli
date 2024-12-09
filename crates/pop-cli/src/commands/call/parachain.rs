@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
+use std::path::Path;
+
 use crate::cli::{self, traits::*};
 use anyhow::{anyhow, Result};
 use clap::Args;
@@ -75,8 +77,9 @@ impl CallParachainCommand {
 				break;
 			}
 
-			if !prompt_to_repeat_call ||
-				!cli.confirm("Do you want to perform another call?")
+			if !prompt_to_repeat_call
+				|| !cli
+					.confirm("Do you want to perform another call?")
 					.initial_value(false)
 					.interact()?
 			{
@@ -139,8 +142,9 @@ impl CallParachainCommand {
 
 			// Resolve extrinsic.
 			let extrinsic = match self.extrinsic {
-				Some(ref extrinsic_name) =>
-					find_extrinsic_by_name(&chain.pallets, &pallet.name, extrinsic_name).await?,
+				Some(ref extrinsic_name) => {
+					find_extrinsic_by_name(&chain.pallets, &pallet.name, extrinsic_name).await?
+				},
 				None => {
 					let mut prompt_extrinsic = cli.select("Select the extrinsic to call:");
 					for extrinsic in &pallet.extrinsics {
@@ -177,8 +181,9 @@ impl CallParachainCommand {
 			// Resolve who is signing the extrinsic.
 			let suri = match self.suri.as_ref() {
 				Some(suri) => suri.clone(),
-				None =>
-					cli.input("Signer of the extrinsic:").default_input(DEFAULT_URI).interact()?,
+				None => {
+					cli.input("Signer of the extrinsic:").default_input(DEFAULT_URI).interact()?
+				},
 			};
 
 			return Ok(CallParachain {
@@ -200,11 +205,11 @@ impl CallParachainCommand {
 
 	// Function to check if all required fields are specified.
 	fn requires_user_input(&self) -> bool {
-		self.pallet.is_none() ||
-			self.extrinsic.is_none() ||
-			self.args.is_empty() ||
-			self.url.is_none() ||
-			self.suri.is_none()
+		self.pallet.is_none()
+			|| self.extrinsic.is_none()
+			|| self.args.is_empty()
+			|| self.url.is_none()
+			|| self.suri.is_none()
 	}
 
 	/// Replaces file arguments with their contents, leaving other arguments unchanged.
@@ -287,8 +292,9 @@ impl CallParachain {
 		tx: DynamicPayload,
 		cli: &mut impl Cli,
 	) -> Result<()> {
-		if !self.skip_confirm &&
-			!cli.confirm("Do you want to submit the extrinsic?")
+		if !self.skip_confirm
+			&& !cli
+				.confirm("Do you want to submit the extrinsic?")
 				.initial_value(true)
 				.interact()?
 		{
@@ -395,26 +401,21 @@ fn get_param_value(cli: &mut impl Cli, param: &Param) -> Result<String> {
 
 // Prompt for the value when it is a sequence.
 fn prompt_for_sequence_param(cli: &mut impl Cli, param: &Param) -> Result<String> {
-	if cli
-		.confirm(format!(
-			"The value for `{}` might be too large to enter. Provide a file instead?",
-			param.name
+	let input_value = cli
+		.input(format!(
+		"The value for `{}` might be too large to enter. You may enter the path to a file instead.",
+		param.name
+	))
+		.placeholder(&format!(
+			"Enter a value of type {} or provide a file path (e.g., /path/to/your/file.json)",
+			param.type_name
 		))
-		.initial_value(true)
-		.interact()?
-	{
-		let file_path = cli
-			.input(format!("Enter the file path for the parameter `{}`:", param.name))
-			.placeholder("e.g., /path/to/your/file.json")
-			.interact()?;
-
-		let content = std::fs::read_to_string(&file_path)
-			.map_err(|err| anyhow!("Failed to read file {}", err.to_string()))?;
-
-		Ok(content)
-	} else {
-		prompt_for_primitive_param(cli, param)
+		.interact()?;
+	if Path::new(&input_value).is_file() {
+		return std::fs::read_to_string(&input_value)
+			.map_err(|err| anyhow!("Failed to read file {}", err.to_string()));
 	}
+	Ok(input_value)
 }
 
 // Prompt for the value when it is a primitive.
@@ -569,7 +570,7 @@ mod tests {
 			),
 			0, // "remark" extrinsic
 		)
-		.expect_input("Enter the value for the parameter: remark", "0x11".into())
+		.expect_input("The value for `remark` might be too large to enter. You may enter the path to a file instead.", "0x11".into())
 		.expect_input("Signer of the extrinsic:", "//Bob".into());
 
 		let chain = call_config.configure_chain(&mut cli).await?;
@@ -892,12 +893,8 @@ mod tests {
 		std::fs::write(&file, "testing")?;
 
 		let mut cli = MockCli::new()
-			.expect_confirm(
-				"The value for `remark` might be too large to enter. Provide a file instead?",
-				true,
-			)
 			.expect_input(
-				"Enter the file path for the parameter `remark`:",
+				"The value for `remark` might be too large to enter. You may enter the path to a file instead.",
 				file.display().to_string(),
 			);
 
