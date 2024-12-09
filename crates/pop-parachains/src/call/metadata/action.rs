@@ -126,6 +126,9 @@ mod tests {
 	use anyhow::Result;
 	use std::collections::HashMap;
 
+	const POP_NETWORK_TESTNET_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";
+	const POLKADOT_NETWORK_URL: &str = "wss://polkadot-rpc.publicnode.com";
+
 	#[test]
 	fn action_descriptions_are_correct() {
 		let descriptions = HashMap::from([
@@ -184,7 +187,7 @@ mod tests {
 	async fn supported_actions_works() -> Result<()> {
 		// Test Pop Parachain.
 		let mut client: subxt::OnlineClient<subxt::SubstrateConfig> =
-			set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
+			set_up_client(POP_NETWORK_TESTNET_URL).await?;
 		let mut actions = supported_actions(&parse_chain_metadata(&client).await?).await;
 		assert_eq!(actions.len(), 5);
 		assert_eq!(actions[0], Action::Transfer);
@@ -194,7 +197,7 @@ mod tests {
 		assert_eq!(actions[4], Action::MintNFT);
 
 		// Test Polkadot Relay Chain.
-		client = set_up_client("wss://polkadot-rpc.publicnode.com").await?;
+		client = set_up_client(POLKADOT_NETWORK_URL).await?;
 		actions = supported_actions(&parse_chain_metadata(&client).await?).await;
 		assert_eq!(actions.len(), 4);
 		assert_eq!(actions[0], Action::Transfer);

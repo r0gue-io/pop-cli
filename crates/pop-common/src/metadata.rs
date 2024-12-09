@@ -162,10 +162,11 @@ mod tests {
 	use anyhow::Result;
 	use subxt::{OnlineClient, SubstrateConfig};
 
+	const POP_NETWORK_TESTNET_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";
+
 	#[tokio::test]
 	async fn format_type_works() -> Result<()> {
-		let client =
-			OnlineClient::<SubstrateConfig>::from_url("wss://rpc1.paseo.popnetwork.xyz").await?;
+		let client = OnlineClient::<SubstrateConfig>::from_url(POP_NETWORK_TESTNET_URL).await?;
 		let metadata = client.metadata();
 		let registry = metadata.types();
 

@@ -180,9 +180,11 @@ mod tests {
 	use anyhow::Result;
 	use subxt::ext::scale_bits;
 
+	const POP_NETWORK_TESTNET_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";
+
 	#[tokio::test]
 	async fn parse_chain_metadata_works() -> Result<()> {
-		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
+		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
 		let pallets = parse_chain_metadata(&client).await?;
 		// Test the first pallet is parsed correctly
 		let first_pallet = pallets.first().unwrap();
@@ -208,7 +210,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn find_pallet_by_name_works() -> Result<()> {
-		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
+		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
 		let pallets = parse_chain_metadata(&client).await?;
 		assert!(matches!(
 			find_pallet_by_name(&pallets, "WrongName").await,
@@ -221,7 +223,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn find_extrinsic_by_name_works() -> Result<()> {
-		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
+		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
 		let pallets = parse_chain_metadata(&client).await?;
 		assert!(matches!(
 			find_extrinsic_by_name(&pallets, "WrongName", "wrong_extrinsic").await,

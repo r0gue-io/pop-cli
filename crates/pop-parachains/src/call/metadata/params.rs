@@ -157,9 +157,11 @@ mod tests {
 	use crate::set_up_client;
 	use anyhow::Result;
 
+	const POP_NETWORK_TESTNET_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";
+
 	#[tokio::test]
 	async fn field_to_param_works() -> Result<()> {
-		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
+		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
 		let metadata = client.metadata();
 		// Test a supported extrinsic
 		let extrinsic = metadata
