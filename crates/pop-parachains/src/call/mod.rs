@@ -10,7 +10,7 @@ use subxt::{
 
 pub mod metadata;
 
-/// Sets up an OnlineClient instance for connecting to a blockchain.
+/// Sets up an [OnlineClient] instance for connecting to a blockchain.
 ///
 /// # Arguments
 /// * `url` - Endpoint of the node.
