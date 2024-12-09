@@ -49,15 +49,17 @@ subxt = "0.38.0"
 ink_env = "5.0.0"
 sp-core = "32.0.0"
 sp-weights = "31.0.0"
-# TODO: upstream cargo-contract changes
-#contract-build = "5.0.0"
-contract-build = { path = "/Users/peter/dev/use-ink/cargo-contract/crates/build" }
-#contract-extrinsics = "5.0.0"
-contract-extrinsics = { path = "/Users/peter/dev/use-ink/cargo-contract/crates/extrinsics" }
-#contract-transcode = "5.0.0"
-contract-transcode = { path = "/Users/peter/dev/use-ink/cargo-contract/crates/extrinsics" }
 scale-info = { version = "2.11.4", default-features = false, features = ["derive"] }
 scale-value = { version = "0.17.0", default-features = false, features = ["from-string", "parser-ss58"] }
+sp-core = "31"
+sp-weights = "30"
+# TODO: git deps
+#contract-build = "5.0.0-alpha"
+contract-build = { git = "https://github.com/use-ink/cargo-contract", branch = "peter/chore-make-types-pub" }
+#contract-extrinsics = "5.0.0-alpha"
+contract-extrinsics = { git = "https://github.com/use-ink/cargo-contract", branch = "peter/chore-make-types-pub" }
+#contract-transcode = "5.0.0"
+contract-transcode = { git = "https://github.com/use-ink/cargo-contract", branch = "peter/chore-make-types-pub" }
 heck = "0.5.0"
 hex = { version = "0.4.3", default-features = false }
 
