@@ -125,9 +125,11 @@ pub async fn sign_and_submit_extrinsic_with_call_data(
 #[cfg(test)]
 mod tests {
 	use super::*;
-
 	use crate::{find_extrinsic_by_name, parse_chain_metadata, set_up_client};
 	use anyhow::Result;
+
+	const ALICE_SURI: &str = "//Alice";
+	const POP_NETWORK_TESTNET_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";
 
 	#[tokio::test]
 	async fn set_up_client_works() -> Result<()> {
@@ -135,13 +137,13 @@ mod tests {
 			set_up_client("wss://wronguri.xyz").await,
 			Err(Error::ConnectionFailure(_))
 		));
-		set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
+		set_up_client(POP_NETWORK_TESTNET_URL).await?;
 		Ok(())
 	}
 
 	#[tokio::test]
 	async fn construct_extrinsic_works() -> Result<()> {
-		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
+		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
 		let pallets = parse_chain_metadata(&client).await?;
 		let transfer_allow_death =
 			find_extrinsic_by_name(&pallets, "Balances", "transfer_allow_death").await?;
@@ -151,7 +153,7 @@ mod tests {
 			construct_extrinsic(
 				"Balances",
 				&transfer_allow_death,
-				vec!["Bob".to_string(), "100".to_string()],
+				vec![ALICE_SURI.to_string(), "100".to_string()],
 			)
 			.await,
 			Err(Error::ParamProcessingError)
@@ -173,7 +175,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn encode_call_data_works() -> Result<()> {
-		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
+		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
 		let pallets = parse_chain_metadata(&client).await?;
 		let remark = find_extrinsic_by_name(&pallets, "System", "remark").await?;
 		let extrinsic = construct_extrinsic("System", &remark, vec!["0x11".to_string()]).await?;
@@ -199,16 +201,16 @@ mod tests {
 
 	#[tokio::test]
 	async fn sign_and_submit_wrong_extrinsic_fails() -> Result<()> {
-		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
+		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
 		let extrinsic = Extrinsic {
 			name: "wrong_extrinsic".to_string(),
 			docs: "documentation".to_string(),
-			params: vec![],
 			is_supported: true,
+			..Default::default()
 		};
 		let tx = construct_extrinsic("WrongPallet", &extrinsic, vec!["0x11".to_string()]).await?;
 		assert!(matches!(
-			sign_and_submit_extrinsic(client, tx, "//Alice").await,
+			sign_and_submit_extrinsic(client, tx, ALICE_SURI).await,
 			Err(Error::ExtrinsicSubmissionError(message)) if message.contains("PalletNameNotFound(\"WrongPallet\"))")
 		));
 		Ok(())

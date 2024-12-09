@@ -18,7 +18,7 @@ const DEFAULT_URI: &str = "//Alice";
 const ENCODED_CALL_DATA_MAX_LEN: usize = 500; // Maximum length of encoded call data to display.
 
 /// Command to execute extrinsics with configurable pallets, arguments, and signing options.
-#[derive(Args, Clone)]
+#[derive(Args, Clone, Default)]
 pub struct CallParachainCommand {
 	/// The pallet containing the extrinsic to execute.
 	#[arg(short, long, value_parser = parse_pallet_name)]
@@ -564,41 +564,31 @@ mod tests {
 	use tempfile::tempdir;
 	use url::Url;
 
+	const BOB_SURI: &str = "//Bob";
+	const POP_NETWORK_TESTNET_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";
+	const POLKADOT_NETWORK_URL: &str = "wss://polkadot-rpc.publicnode.com";
+
 	#[tokio::test]
 	async fn configure_chain_works() -> Result<()> {
-		let call_config = CallParachainCommand {
-			pallet: None,
-			extrinsic: None,
-			args: vec![].to_vec(),
-			url: None,
-			suri: Some(DEFAULT_URI.to_string()),
-			skip_confirm: false,
-			call_data: None,
-		};
+		let call_config =
+			CallParachainCommand { suri: Some(DEFAULT_URI.to_string()), ..Default::default() };
 		let mut cli = MockCli::new().expect_intro("Call a parachain").expect_input(
 			"Which chain would you like to interact with?",
-			"wss://rpc1.paseo.popnetwork.xyz".into(),
+			POP_NETWORK_TESTNET_URL.into(),
 		);
 		let chain = call_config.configure_chain(&mut cli).await?;
-		assert_eq!(chain.url, Url::parse("wss://rpc1.paseo.popnetwork.xyz")?);
+		assert_eq!(chain.url, Url::parse(POP_NETWORK_TESTNET_URL)?);
 		cli.verify()
 	}
 
 	#[tokio::test]
 	async fn guide_user_to_call_parachain_works() -> Result<()> {
-		let mut call_config = CallParachainCommand {
-			pallet: Some("System".to_string()),
-			extrinsic: None,
-			args: vec![].to_vec(),
-			url: None,
-			suri: None,
-			skip_confirm: false,
-			call_data: None,
-		};
+		let mut call_config =
+			CallParachainCommand { pallet: Some("System".to_string()), ..Default::default() };
 
 		let mut cli = MockCli::new()
 		.expect_intro("Call a parachain")
-		.expect_input("Which chain would you like to interact with?", "wss://rpc1.paseo.popnetwork.xyz".into())
+		.expect_input("Which chain would you like to interact with?", POP_NETWORK_TESTNET_URL.into())
 		.expect_select(
 			"Select the extrinsic to call:",
 			Some(true),
@@ -622,38 +612,30 @@ mod tests {
 			0, // "remark" extrinsic
 		)
 		.expect_input("The value for `remark` might be too large to enter. You may enter the path to a file instead.", "0x11".into())
-		.expect_input("Signer of the extrinsic:", "//Bob".into());
+		.expect_input("Signer of the extrinsic:", BOB_SURI.into());
 
 		let chain = call_config.configure_chain(&mut cli).await?;
-		assert_eq!(chain.url, Url::parse("wss://rpc1.paseo.popnetwork.xyz")?);
+		assert_eq!(chain.url, Url::parse(POP_NETWORK_TESTNET_URL)?);
 
 		let call_parachain = call_config.configure_call(&chain, &mut cli).await?;
 		assert_eq!(call_parachain.pallet.name, "System");
 		assert_eq!(call_parachain.extrinsic.name, "remark");
 		assert_eq!(call_parachain.args, ["0x11".to_string()].to_vec());
-		assert_eq!(call_parachain.suri, "//Bob");
-		assert_eq!(call_parachain.display(&chain), "pop call parachain --pallet System --extrinsic remark --args \"0x11\" --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Bob");
+		assert_eq!(call_parachain.suri, BOB_SURI);
+		assert_eq!(call_parachain.display(&chain), format!("pop call parachain --pallet System --extrinsic remark --args \"0x11\" --url {}/ --suri {}", POP_NETWORK_TESTNET_URL, BOB_SURI));
 		cli.verify()
 	}
 
 	#[tokio::test]
 	async fn guide_user_to_configure_predefined_action_works() -> Result<()> {
-		let mut call_config = CallParachainCommand {
-			pallet: None,
-			extrinsic: None,
-			args: vec![].to_vec(),
-			url: None,
-			suri: None,
-			skip_confirm: false,
-			call_data: None,
-		};
+		let mut call_config = CallParachainCommand::default();
 
 		let mut cli = MockCli::new().expect_intro("Call a parachain").expect_input(
 			"Which chain would you like to interact with?",
-			"wss://polkadot-rpc.publicnode.com".into(),
+			POLKADOT_NETWORK_URL.into(),
 		);
 		let chain = call_config.configure_chain(&mut cli).await?;
-		assert_eq!(chain.url, Url::parse("wss://polkadot-rpc.publicnode.com")?);
+		assert_eq!(chain.url, Url::parse(POLKADOT_NETWORK_URL)?);
 		cli.verify()?;
 
 		let mut cli = MockCli::new()
@@ -678,33 +660,24 @@ mod tests {
 			)
 			.expect_input("Enter the value for the parameter: max_amount", "10000".into())
 			.expect_input("Enter the value for the parameter: para_id", "2000".into())
-			.expect_input("Signer of the extrinsic:", "//Bob".into());
+			.expect_input("Signer of the extrinsic:", BOB_SURI.into());
 
 		let call_parachain = call_config.configure_call(&chain, &mut cli).await?;
 
 		assert_eq!(call_parachain.pallet.name, "OnDemand");
 		assert_eq!(call_parachain.extrinsic.name, "place_order_allow_death");
 		assert_eq!(call_parachain.args, ["10000".to_string(), "2000".to_string()].to_vec());
-		assert_eq!(call_parachain.suri, "//Bob");
-		assert_eq!(call_parachain.display(&chain), "pop call parachain --pallet OnDemand --extrinsic place_order_allow_death --args \"10000\" \"2000\" --url wss://polkadot-rpc.publicnode.com/ --suri //Bob");
+		assert_eq!(call_parachain.suri, BOB_SURI);
+		assert_eq!(call_parachain.display(&chain), format!("pop call parachain --pallet OnDemand --extrinsic place_order_allow_death --args \"10000\" \"2000\" --url {}/ --suri {}", POLKADOT_NETWORK_URL, BOB_SURI));
 		cli.verify()
 	}
 
 	#[tokio::test]
 	async fn prepare_extrinsic_works() -> Result<()> {
-		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
+		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
 		let mut call_config = CallParachain {
-			pallet: Pallet {
-				name: "WrongName".to_string(),
-				docs: "".to_string(),
-				extrinsics: vec![],
-			},
-			extrinsic: Extrinsic {
-				name: "WrongName".to_string(),
-				docs: "".to_string(),
-				is_supported: false,
-				params: vec![],
-			},
+			pallet: Pallet { name: "WrongName".to_string(), ..Default::default() },
+			extrinsic: Extrinsic { name: "WrongName".to_string(), ..Default::default() },
 			args: vec!["0x11".to_string()].to_vec(),
 			suri: DEFAULT_URI.to_string(),
 			skip_confirm: false,
@@ -732,7 +705,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn user_cancel_submit_extrinsic_works() -> Result<()> {
-		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
+		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
 		let pallets = parse_chain_metadata(&client).await?;
 		let mut call_config = CallParachain {
 			pallet: find_pallet_by_name(&pallets, "System").await?,
@@ -779,7 +752,7 @@ mod tests {
 			pallet: Some("System".to_string()),
 			extrinsic: Some("remark".to_string()),
 			args: vec!["0x11".to_string()].to_vec(),
-			url: Some(Url::parse("wss://rpc1.paseo.popnetwork.xyz")?),
+			url: Some(Url::parse(POP_NETWORK_TESTNET_URL)?),
 			suri: Some(DEFAULT_URI.to_string()),
 			skip_confirm: false,
 			call_data: None,
@@ -797,7 +770,7 @@ mod tests {
 			pallet: Some("System".to_string()),
 			extrinsic: Some("remark".to_string()),
 			args: vec!["0x11".to_string()].to_vec(),
-			url: Some(Url::parse("wss://rpc1.paseo.popnetwork.xyz")?),
+			url: Some(Url::parse(POP_NETWORK_TESTNET_URL)?),
 			suri: Some(DEFAULT_URI.to_string()),
 			skip_confirm: false,
 			call_data: None,
@@ -814,7 +787,7 @@ mod tests {
 			pallet: Some("Registrar".to_string()),
 			extrinsic: Some("register".to_string()),
 			args: vec!["2000".to_string(), "0x1".to_string(), "0x12".to_string()].to_vec(),
-			url: Some(Url::parse("wss://rpc1.paseo.popnetwork.xyz")?),
+			url: Some(Url::parse(POP_NETWORK_TESTNET_URL)?),
 			suri: Some(DEFAULT_URI.to_string()),
 			skip_confirm: false,
 			call_data: None,
@@ -857,7 +830,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn prompt_predefined_actions_works() -> Result<()> {
-		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
+		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
 		let pallets = parse_chain_metadata(&client).await?;
 		let mut cli = MockCli::new().expect_select(
 			"What would you like to do?",
@@ -885,7 +858,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn prompt_for_param_works() -> Result<()> {
-		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
+		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
 		let pallets = parse_chain_metadata(&client).await?;
 		// Using NFT mint extrinsic to test the majority of subfunctions
 		let extrinsic = find_extrinsic_by_name(&pallets, "Nfts", "mint").await?;

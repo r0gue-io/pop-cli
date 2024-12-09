@@ -66,9 +66,7 @@ fn type_to_param(name: String, registry: &PortableRegistry, type_id: u32) -> Res
 				type_name: sub_param.type_name,
 				sub_params: sub_param.sub_params,
 				is_optional: true,
-				is_tuple: false,
-				is_variant: false,
-				is_sequence: false,
+				..Default::default()
 			})
 		} else {
 			Err(Error::MetadataParsingError(name))
@@ -77,15 +75,8 @@ fn type_to_param(name: String, registry: &PortableRegistry, type_id: u32) -> Res
 		// Determine the formatted type name.
 		let type_name = format_type(type_info, registry);
 		match &type_info.type_def {
-			TypeDef::Primitive(_) | TypeDef::Array(_) | TypeDef::Compact(_) => Ok(Param {
-				name,
-				type_name,
-				sub_params: Vec::new(),
-				is_optional: false,
-				is_tuple: false,
-				is_variant: false,
-				is_sequence: false,
-			}),
+			TypeDef::Primitive(_) | TypeDef::Array(_) | TypeDef::Compact(_) =>
+				Ok(Param { name, type_name, ..Default::default() }),
 			TypeDef::Composite(composite) => {
 				let sub_params = composite
 					.fields
@@ -100,15 +91,7 @@ fn type_to_param(name: String, registry: &PortableRegistry, type_id: u32) -> Res
 					})
 					.collect::<Result<Vec<Param>, Error>>()?;
 
-				Ok(Param {
-					name,
-					type_name,
-					sub_params,
-					is_optional: false,
-					is_tuple: false,
-					is_variant: false,
-					is_sequence: false,
-				})
+				Ok(Param { name, type_name, sub_params, ..Default::default() })
 			},
 			TypeDef::Variant(variant) => {
 				let variant_params = variant
@@ -131,10 +114,8 @@ fn type_to_param(name: String, registry: &PortableRegistry, type_id: u32) -> Res
 							name: variant_param.name.clone(),
 							type_name: "".to_string(),
 							sub_params: variant_sub_params,
-							is_optional: false,
-							is_tuple: false,
 							is_variant: true,
-							is_sequence: false,
+							..Default::default()
 						})
 					})
 					.collect::<Result<Vec<Param>, Error>>()?;
@@ -143,21 +124,12 @@ fn type_to_param(name: String, registry: &PortableRegistry, type_id: u32) -> Res
 					name,
 					type_name,
 					sub_params: variant_params,
-					is_optional: false,
-					is_tuple: false,
 					is_variant: true,
-					is_sequence: false,
+					..Default::default()
 				})
 			},
-			TypeDef::Sequence(_) => Ok(Param {
-				name,
-				type_name,
-				sub_params: Vec::new(),
-				is_optional: false,
-				is_tuple: false,
-				is_variant: false,
-				is_sequence: true,
-			}),
+			TypeDef::Sequence(_) =>
+				Ok(Param { name, type_name, is_sequence: true, ..Default::default() }),
 			TypeDef::Tuple(tuple) => {
 				let sub_params = tuple
 					.fields
@@ -172,15 +144,7 @@ fn type_to_param(name: String, registry: &PortableRegistry, type_id: u32) -> Res
 					})
 					.collect::<Result<Vec<Param>, Error>>()?;
 
-				Ok(Param {
-					name,
-					type_name,
-					sub_params,
-					is_optional: false,
-					is_tuple: true,
-					is_variant: false,
-					is_sequence: false,
-				})
+				Ok(Param { name, type_name, sub_params, is_tuple: true, ..Default::default() })
 			},
 			_ => Err(Error::MetadataParsingError(name)),
 		}
@@ -193,9 +157,11 @@ mod tests {
 	use crate::set_up_client;
 	use anyhow::Result;
 
+	const POP_NETWORK_TESTNET_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";
+
 	#[tokio::test]
 	async fn field_to_param_works() -> Result<()> {
-		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
+		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
 		let metadata = client.metadata();
 		// Test a supported extrinsic
 		let extrinsic = metadata
