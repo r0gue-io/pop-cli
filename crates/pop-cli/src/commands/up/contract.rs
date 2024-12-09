@@ -4,7 +4,7 @@ use crate::{
 	cli::{traits::Cli as _, Cli},
 	common::contracts::{check_contracts_node_and_prompt, has_contract_been_built},
 	style::style,
-	wallet_integration::TransactionData,
+	wallet_integration::{FrontendFromDir, TransactionData, WalletIntegrationManager},
 };
 use clap::Args;
 use cliclack::{confirm, log, log::error, spinner};
@@ -169,90 +169,39 @@ impl UpContractCommand {
 			None
 		};
 
-		// TODO: **** Start of Wallet Integration
-		use crate::wallet_integration::{FrontendFromDir, WalletIntegrationManager};
-		// TODO: using default frontend with local path
-		let ui = FrontendFromDir::new(PathBuf::from(
-			"/Users/peter/dev/r0gue/react-teleport-example/dist",
-		));
+		// Run steps for signing with wallet integration. Returns early.
 		if self.use_wallet {
-			let call_data = if self.upload_only {
-				let call_data = get_upload_payload(self.clone().into()).await?;
-				call_data
-			} else {
-				// does not deploy, just setup
-				// TODO: DRY
-				let instantiate_exec = match set_up_deployment(UpOpts {
-					path: self.path.clone(),
-					constructor: self.constructor.clone(),
-					args: self.args.clone(),
-					value: self.value.clone(),
-					gas_limit: self.gas_limit,
-					proof_size: self.proof_size,
-					salt: self.salt.clone(),
-					url: self.url.clone(),
-					suri: self.suri.clone(),
-				})
-				.await
-				{
-					Ok(i) => i,
-					Err(e) => {
-						error(format!("An error occurred instantiating the contract: {e}"))?;
-						Self::terminate_node(process)?;
-						Cli.outro_cancel(FAILED)?;
-						return Ok(());
-					},
-				};
-
-				// TODO: note on weight_limit. We will need to do a dry-run in the UI then
-				// update the data with the weight limit.
-				let weight_limit = if self.gas_limit.is_some() && self.proof_size.is_some() {
-					Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap())
-				} else {
-					Weight::from_parts(0, 0)
-				};
-				let call_data = get_instantiate_payload(instantiate_exec, weight_limit).await?;
-				call_data
+			let call_data = match self.get_call_data().await {
+				Ok(data) => data,
+				Err(e) => {
+					error(format!("An error occurred getting the call data: {e}"))?;
+					Self::terminate_node(process)?;
+					Cli.outro_cancel(FAILED)?;
+					return Ok(());
+				},
 			};
 
-			let transaction_data = TransactionData::new(self.url.to_string(), call_data);
-			// starts server
-			let mut wallet = WalletIntegrationManager::new(ui, transaction_data);
-			log::info(format!("Wallet signing portal started at http://{}", wallet.addr));
-
-			log::info("Waiting for signature... Press Ctrl+C to terminate early.");
-			loop {
-				if !wallet.is_running() {
-					wallet.task_handle.await?;
-					break;
-				}
-
-				let state = wallet.state.lock().await;
-
-				if state.signed_payload.is_some() {
-					log::warning(format!("Payload signed: {:?}", state.signed_payload))?;
-					break;
-				}
-			}
-
-			let maybe_payload = wallet.state.lock().await.signed_payload.clone();
+			let maybe_payload = self.wait_for_signature(call_data).await?;
 			if let Some(payload) = maybe_payload {
 				log::info("Submitting signed payload...")?;
-				submit_signed_payload(self.url.as_str(), payload).await?;
-				log::info("Submitted")?;
+				let result = submit_signed_payload(self.url.as_str(), payload).await;
+				match result {
+					Ok(_) => {
+						Cli.outro(COMPLETE)?;
+					},
+					Err(_) => {
+						Cli.outro_cancel(FAILED)?;
+					},
+				}
+			} else {
+				Cli.outro_cancel("Signed payload doesn't exist.")?;
 			}
 
 			Self::terminate_node(process)?;
 			return Ok(())
 		}
 
-		// TODO: ***** End of Wallet Integration
-
 		// Check for upload only.
-		// TODO: Option 1 for wallet integration
-		// TODO: checks if dry-run in function
-		// TODO: this is an upload only. Piece #1 of pop up
-		// TODO: server can be terminated on return here
 		if self.upload_only {
 			let result = self.upload_contract().await;
 			Self::terminate_node(process)?;
@@ -268,20 +217,7 @@ impl UpContractCommand {
 		}
 
 		// Otherwise instantiate.
-		// TODO: does not deploy, just setup
-		let instantiate_exec = match set_up_deployment(UpOpts {
-			path: self.path.clone(),
-			constructor: self.constructor.clone(),
-			args: self.args.clone(),
-			value: self.value.clone(),
-			gas_limit: self.gas_limit,
-			proof_size: self.proof_size,
-			salt: self.salt.clone(),
-			url: self.url.clone(),
-			suri: self.suri.clone(),
-		})
-		.await
-		{
+		let instantiate_exec = match set_up_deployment(self.clone().into()).await {
 			Ok(i) => i,
 			Err(e) => {
 				error(format!("An error occurred instantiating the contract: {e}"))?;
@@ -296,7 +232,6 @@ impl UpContractCommand {
 		} else {
 			let spinner = spinner();
 			spinner.start("Doing a dry run to estimate the gas...");
-			// TODO: Option 2 for wallet integration. Requires signer info
 			match dry_run_gas_estimate_instantiate(&instantiate_exec).await {
 				Ok(w) => {
 					spinner.stop(format!("Gas limit estimate: {:?}", w));
@@ -312,7 +247,6 @@ impl UpContractCommand {
 		};
 
 		// Finally upload and instantiate.
-		// TODO: option 3 for wallet integration
 		if !self.dry_run {
 			let spinner = spinner();
 			spinner.start("Uploading and instantiating the contract...");
@@ -404,6 +338,53 @@ impl UpContractCommand {
 
 		Ok(())
 	}
+
+	async fn get_call_data(&self) -> anyhow::Result<Vec<u8>> {
+		if self.upload_only {
+			let call_data = get_upload_payload(self.clone().into()).await?;
+			Ok(call_data)
+		} else {
+			let instantiate_exec = set_up_deployment(self.clone().into()).await?;
+
+			let weight_limit = if self.gas_limit.is_some() && self.proof_size.is_some() {
+				Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap())
+			} else {
+				// Frontend will do dry run and update call data.
+				Weight::from_parts(0, 0)
+			};
+			let call_data = get_instantiate_payload(instantiate_exec, weight_limit).await?;
+			Ok(call_data)
+		}
+	}
+
+	async fn wait_for_signature(&self, call_data: Vec<u8>) -> anyhow::Result<Option<String>> {
+		// TODO: to be addressed in future PR. Should not use FromDir (or local path).
+		let ui = FrontendFromDir::new(PathBuf::from(
+			"/Users/peter/dev/r0gue/react-teleport-example/dist",
+		));
+
+		let transaction_data = TransactionData::new(self.url.to_string(), call_data);
+		// starts server
+		let mut wallet = WalletIntegrationManager::new(ui, transaction_data);
+		log::info(format!("Wallet signing portal started at http://{}", wallet.addr))?;
+
+		log::info("Waiting for signature... Press Ctrl+C to terminate early.")?;
+		loop {
+			if !wallet.is_running() {
+				wallet.task_handle.await??;
+				break;
+			}
+
+			let state = wallet.state.lock().await;
+
+			if state.signed_payload.is_some() {
+				break;
+			}
+		}
+
+		let x = Ok(wallet.state.lock().await.signed_payload.clone());
+		x
+	}
 }
 
 impl From<UpContractCommand> for UpOpts {
@@ -427,12 +408,10 @@ mod tests {
 	use super::*;
 	use duct::cmd;
 	use std::fs::{self, File};
-	use subxt::{tx::SubmittableExtrinsic, OnlineClient, PolkadotConfig};
 	use url::Url;
 
-	#[test]
-	fn conversion_up_contract_command_to_up_opts_works() -> anyhow::Result<()> {
-		let command = UpContractCommand {
+	fn default_up_contract_command() -> UpContractCommand {
+		UpContractCommand {
 			path: None,
 			constructor: "new".to_string(),
 			args: vec![],
@@ -440,13 +419,18 @@ mod tests {
 			gas_limit: None,
 			proof_size: None,
 			salt: None,
-			url: Url::parse("ws://localhost:9944")?,
+			url: Url::parse("ws://localhost:9944").expect("default url is valid"),
 			suri: "//Alice".to_string(),
 			dry_run: false,
 			upload_only: false,
 			skip_confirm: false,
 			use_wallet: false,
-		};
+		}
+	}
+
+	#[test]
+	fn conversion_up_contract_command_to_up_opts_works() -> anyhow::Result<()> {
+		let command = default_up_contract_command();
 		let opts: UpOpts = command.into();
 		assert_eq!(
 			opts,
@@ -487,21 +471,15 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn submit_subxt() {
-		let api = OnlineClient::<PolkadotConfig>::new().await.unwrap();
+	async fn get_upload_call_data_works() -> anyhow::Result<()> {
+		todo!()
+	}
 
-		// Build a balance transfer extrinsic.
+	async fn get_instantiate_call_data_works() -> anyhow::Result<()> {
+		todo!()
+	}
 
-		// Create partial tx, ready to be signed.
-
-		let signed_payload = "45028400d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d012e10751f1ad230e492e7925a66d693e8281017bd1adfcf906796805334fff66f2c337ab364132128c0a6e11754a039670cbe51b2da2240073585d800bdb3a78815030000000a03001cbd2d43530a44705ad088af313e18f80b53ef16b36177cd4b77b846f2a5f07c0700e8764817";
-
-		let hex_encoded = hex::decode(signed_payload).unwrap();
-		println!("{:?}", hex::decode(hex_encoded.clone()));
-
-		let tx = SubmittableExtrinsic::from_bytes(api, hex_encoded);
-
-		// Submit it.
-		tx.submit_and_watch().await.unwrap().wait_for_finalized_success().await;
+	async fn wait_for_signature_works() -> anyhow::Result<()> {
+		todo!()
 	}
 }
