@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0
+
 pub mod build;
 pub mod errors;
 pub mod git;
