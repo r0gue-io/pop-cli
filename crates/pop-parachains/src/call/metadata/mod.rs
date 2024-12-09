@@ -240,24 +240,6 @@ mod tests {
 
 	#[tokio::test]
 	async fn parse_extrinsic_arguments_works() -> Result<()> {
-		/// Helper function to create a `Param` with default values.
-		fn create_param(
-			name: &str,
-			type_name: &str,
-			is_sequence: bool,
-			is_variant: bool,
-			is_tuple: bool,
-		) -> Param {
-			Param {
-				name: name.to_string(),
-				type_name: type_name.to_string(),
-				sub_params: vec![],
-				is_optional: false,
-				is_sequence,
-				is_variant,
-				is_tuple,
-			}
-		}
 		// Values for testing from: https://docs.rs/scale-value/0.18.0/scale_value/stringify/fn.from_str.html
 		// and https://docs.rs/scale-value/0.18.0/scale_value/stringify/fn.from_str_custom.html
 		let args = [
