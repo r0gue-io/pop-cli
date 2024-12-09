@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use super::{find_extrinsic_by_name, Pallet};
+use super::{find_dispatchable_by_name, Pallet};
 use strum::{EnumMessage as _, EnumProperty as _, VariantArray as _};
 use strum_macros::{AsRefStr, Display, EnumMessage, EnumProperty, EnumString, VariantArray};
 
@@ -91,8 +91,8 @@ impl Action {
 		self.get_detailed_message().unwrap_or_default()
 	}
 
-	/// Get the extrinsic name corresponding to the action.
-	pub fn extrinsic_name(&self) -> &str {
+	/// Get the dispatchable function name corresponding to the action.
+	pub fn function_name(&self) -> &str {
 		self.get_message().unwrap_or_default()
 	}
 
@@ -109,7 +109,8 @@ impl Action {
 pub fn supported_actions(pallets: &[Pallet]) -> Vec<Action> {
 	let mut actions = Vec::new();
 	for action in Action::VARIANTS.iter() {
-		if find_extrinsic_by_name(pallets, action.pallet_name(), action.extrinsic_name()).is_ok() {
+		if find_dispatchable_by_name(pallets, action.pallet_name(), action.function_name()).is_ok()
+		{
 			actions.push(action.clone());
 		}
 	}
@@ -162,7 +163,7 @@ mod tests {
 	}
 
 	#[test]
-	fn extrinsic_names_are_correct() {
+	fn function_names_are_correct() {
 		let pallets = HashMap::from([
 			(Action::CreateAsset, "create"),
 			(Action::MintAsset, "mint"),
@@ -175,7 +176,7 @@ mod tests {
 		]);
 
 		for action in Action::VARIANTS.iter() {
-			assert_eq!(&action.extrinsic_name(), pallets.get(action).unwrap(),);
+			assert_eq!(&action.function_name(), pallets.get(action).unwrap(),);
 		}
 	}
 

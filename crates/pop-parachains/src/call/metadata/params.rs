@@ -5,7 +5,7 @@ use pop_common::format_type;
 use scale_info::{form::PortableForm, Field, PortableRegistry, TypeDef};
 use subxt::{Metadata, OnlineClient, SubstrateConfig};
 
-/// Describes a parameter of an extrinsic.
+/// Describes a parameter of a dispatchable function.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Param {
 	/// The name of the parameter.
@@ -28,7 +28,7 @@ pub struct Param {
 ///
 /// # Arguments
 /// * `client`: The client to interact with the chain.
-/// * `field`: A parameter of an extrinsic as struct field.
+/// * `field`: A parameter of a dispatchable function (as [Field]).
 pub fn field_to_param(
 	client: &OnlineClient<SubstrateConfig>,
 	field: &Field<PortableForm>,
@@ -37,7 +37,7 @@ pub fn field_to_param(
 	let registry = metadata.types();
 	if let Some(name) = field.type_name.as_deref() {
 		if name.contains("RuntimeCall") {
-			return Err(Error::ExtrinsicNotSupported);
+			return Err(Error::FunctionNotSupported);
 		}
 	}
 	let name = field.name.clone().unwrap_or("Unnamed".to_string()); //It can be unnamed field
@@ -54,7 +54,7 @@ fn type_to_param(name: String, registry: &PortableRegistry, type_id: u32) -> Res
 	let type_info = registry.resolve(type_id).ok_or(Error::MetadataParsingError(name.clone()))?;
 	for param in &type_info.type_params {
 		if param.name.contains("RuntimeCall") {
-			return Err(Error::ExtrinsicNotSupported);
+			return Err(Error::FunctionNotSupported);
 		}
 	}
 	if type_info.path.segments == ["Option"] {
@@ -161,14 +161,14 @@ mod tests {
 	async fn field_to_param_works() -> Result<()> {
 		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
 		let metadata = client.metadata();
-		// Test a supported extrinsic
-		let extrinsic = metadata
+		// Test a supported dispatchable function.
+		let function = metadata
 			.pallet_by_name("Balances")
 			.unwrap()
 			.call_variant_by_name("force_transfer")
 			.unwrap();
 		let mut params = Vec::new();
-		for field in &extrinsic.fields {
+		for field in &function.fields {
 			params.push(field_to_param(&client, field)?)
 		}
 		assert_eq!(params.len(), 3);
@@ -203,30 +203,30 @@ mod tests {
 				.type_name,
 			"AccountId32 ([u8;32])"
 		);
-		// Test some extrinsics that are not supported.
-		let extrinsic =
+		// Test some dispatchable functions that are not supported.
+		let function =
 			metadata.pallet_by_name("Sudo").unwrap().call_variant_by_name("sudo").unwrap();
 		assert!(matches!(
-			field_to_param(&client, &extrinsic.fields.first().unwrap()),
-			Err(Error::ExtrinsicNotSupported)
+			field_to_param(&client, &function.fields.first().unwrap()),
+			Err(Error::FunctionNotSupported)
 		));
-		let extrinsic = metadata
+		let function = metadata
 			.pallet_by_name("Utility")
 			.unwrap()
 			.call_variant_by_name("batch")
 			.unwrap();
 		assert!(matches!(
-			field_to_param(&client, &extrinsic.fields.first().unwrap()),
-			Err(Error::ExtrinsicNotSupported)
+			field_to_param(&client, &function.fields.first().unwrap()),
+			Err(Error::FunctionNotSupported)
 		));
-		let extrinsic = metadata
+		let function = metadata
 			.pallet_by_name("PolkadotXcm")
 			.unwrap()
 			.call_variant_by_name("execute")
 			.unwrap();
 		assert!(matches!(
-			field_to_param(&client, &extrinsic.fields.first().unwrap()),
-			Err(Error::ExtrinsicNotSupported)
+			field_to_param(&client, &function.fields.first().unwrap()),
+			Err(Error::FunctionNotSupported)
 		));
 
 		Ok(())

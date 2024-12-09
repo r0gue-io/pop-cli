@@ -9,7 +9,7 @@ use subxt::{dynamic::Value, Metadata, OnlineClient, SubstrateConfig};
 pub mod action;
 pub mod params;
 
-/// Represents a pallet in the blockchain, including its extrinsics.
+/// Represents a pallet in the blockchain, including its dispatchable functions.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Pallet {
 	/// The name of the pallet.
@@ -18,8 +18,8 @@ pub struct Pallet {
 	pub index: u8,
 	/// The documentation of the pallet.
 	pub docs: String,
-	/// The extrinsics of the pallet.
-	pub extrinsics: Vec<Extrinsic>,
+	/// The dispatchable functions of the pallet.
+	pub functions: Vec<Function>,
 }
 
 impl Display for Pallet {
@@ -28,29 +28,28 @@ impl Display for Pallet {
 	}
 }
 
-/// Represents an extrinsic.
+/// Represents a dispatchable function.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub struct Extrinsic {
-	/// The name of the extrinsic.
+pub struct Function {
+	/// The name of the function.
 	pub name: String,
-	/// The index of the extrinsic within the pallet.
+	/// The index of the function within the pallet.
 	pub index: u8,
-	/// The documentation of the extrinsic.
+	/// The documentation of the function.
 	pub docs: String,
-	/// The parameters of the extrinsic.
+	/// The parameters of the function.
 	pub params: Vec<Param>,
-	/// Whether this extrinsic is supported (no recursive or unsupported types like `RuntimeCall`).
+	/// Whether this function is supported (no recursive or unsupported types like `RuntimeCall`).
 	pub is_supported: bool,
 }
 
-impl Display for Extrinsic {
+impl Display for Function {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
 		write!(f, "{}", self.name)
 	}
 }
 
-/// Parses the chain metadata to extract information about pallets and their extrinsics with its
-/// parameters.
+/// Parses the chain metadata to extract information about pallets and their dispatchable functions.
 ///
 /// # Arguments
 /// * `client`: The client to interact with the chain.
@@ -62,7 +61,7 @@ pub fn parse_chain_metadata(client: &OnlineClient<SubstrateConfig>) -> Result<Ve
 	let pallets = metadata
 		.pallets()
 		.map(|pallet| {
-			let extrinsics = pallet
+			let functions = pallet
 				.call_variants()
 				.map(|variants| {
 					variants
@@ -70,7 +69,7 @@ pub fn parse_chain_metadata(client: &OnlineClient<SubstrateConfig>) -> Result<Ve
 						.map(|variant| {
 							let mut is_supported = true;
 
-							// Parse parameters for the extrinsic
+							// Parse parameters for the dispatchable function.
 							let params = {
 								let mut parsed_params = Vec::new();
 								for field in &variant.fields {
@@ -78,7 +77,8 @@ pub fn parse_chain_metadata(client: &OnlineClient<SubstrateConfig>) -> Result<Ve
 										Ok(param) => parsed_params.push(param),
 										Err(_) => {
 											// If an error occurs while parsing the values, mark the
-											// extrinsic as unsupported rather than error.
+											// dispatchable function as unsupported rather than
+											// error.
 											is_supported = false;
 											parsed_params.clear();
 											break;
@@ -88,7 +88,7 @@ pub fn parse_chain_metadata(client: &OnlineClient<SubstrateConfig>) -> Result<Ve
 								parsed_params
 							};
 
-							Ok(Extrinsic {
+							Ok(Function {
 								name: variant.name.clone(),
 								index: variant.index,
 								docs: if is_supported {
@@ -102,13 +102,13 @@ pub fn parse_chain_metadata(client: &OnlineClient<SubstrateConfig>) -> Result<Ve
 										.join(" ")
 								} else {
 									// To display the message in the UI
-									"Extrinsic Not Supported".to_string()
+									"Function Not Supported".to_string()
 								},
 								params,
 								is_supported,
 							})
 						})
-						.collect::<Result<Vec<Extrinsic>, Error>>()
+						.collect::<Result<Vec<Function>, Error>>()
 				})
 				.unwrap_or_else(|| Ok(vec![]))?;
 
@@ -116,7 +116,7 @@ pub fn parse_chain_metadata(client: &OnlineClient<SubstrateConfig>) -> Result<Ve
 				name: pallet.name().to_string(),
 				index: pallet.index(),
 				docs: pallet.docs().join(" "),
-				extrinsics,
+				functions,
 			})
 		})
 		.collect::<Result<Vec<Pallet>, Error>>()?;
@@ -140,31 +140,33 @@ pub fn find_pallet_by_name<'a>(
 	}
 }
 
-/// Finds a specific extrinsic by name and retrieves its details from metadata.
+/// Finds a specific dispatchable function by name and retrieves its details from metadata.
 ///
 /// # Arguments
 /// * `pallets`: List of pallets available in the chain.
-/// * `pallet_name`: The name of the pallet to find.
-/// * `extrinsic_name`: Name of the extrinsic to locate.
-pub fn find_extrinsic_by_name<'a>(
+/// * `pallet_name`: The name of the pallet.
+/// * `function_name`: Name of the dispatchable function to locate.
+pub fn find_dispatchable_by_name<'a>(
 	pallets: &'a [Pallet],
 	pallet_name: &str,
-	extrinsic_name: &str,
-) -> Result<&'a Extrinsic, Error> {
+	function_name: &str,
+) -> Result<&'a Function, Error> {
 	let pallet = find_pallet_by_name(pallets, pallet_name)?;
-	if let Some(extrinsic) = pallet.extrinsics.iter().find(|&e| e.name == extrinsic_name) {
-		Ok(extrinsic)
+	if let Some(function) = pallet.functions.iter().find(|&e| e.name == function_name) {
+		Ok(function)
 	} else {
-		Err(Error::ExtrinsicNotSupported)
+		Err(Error::FunctionNotSupported)
 	}
 }
 
-/// Parses and processes raw string parameters for an extrinsic, mapping them to `Value` types.
+/// Parses and processes raw string parameter values for a dispatchable function, mapping them to
+/// `Value` types.
 ///
 /// # Arguments
-/// * `params`: The metadata definition for each parameter of the extrinsic.
-/// * `raw_params`: A vector of raw string arguments for the extrinsic.
-pub fn parse_extrinsic_arguments(
+/// * `params`: The metadata definition for each parameter of the corresponding dispatchable
+///   function.
+/// * `raw_params`: A vector of raw string arguments for the dispatchable function.
+pub fn parse_dispatchable_arguments(
 	params: &[Param],
 	raw_params: Vec<String>,
 ) -> Result<Vec<Value>, Error> {
@@ -205,22 +207,22 @@ mod tests {
 		assert_eq!(first_pallet.name, "System");
 		assert_eq!(first_pallet.index, 0);
 		assert_eq!(first_pallet.docs, "");
-		assert_eq!(first_pallet.extrinsics.len(), 11);
-		let first_extrinsic = first_pallet.extrinsics.first().unwrap();
-		assert_eq!(first_extrinsic.name, "remark");
-		assert_eq!(first_extrinsic.index, 0);
+		assert_eq!(first_pallet.functions.len(), 11);
+		let first_function = first_pallet.functions.first().unwrap();
+		assert_eq!(first_function.name, "remark");
+		assert_eq!(first_function.index, 0);
 		assert_eq!(
-			first_extrinsic.docs,
+			first_function.docs,
 			"Make some on-chain remark. Can be executed by every `origin`."
 		);
-		assert!(first_extrinsic.is_supported);
-		assert_eq!(first_extrinsic.params.first().unwrap().name, "remark");
-		assert_eq!(first_extrinsic.params.first().unwrap().type_name, "[u8]");
-		assert_eq!(first_extrinsic.params.first().unwrap().sub_params.len(), 0);
-		assert!(!first_extrinsic.params.first().unwrap().is_optional);
-		assert!(!first_extrinsic.params.first().unwrap().is_tuple);
-		assert!(!first_extrinsic.params.first().unwrap().is_variant);
-		assert!(first_extrinsic.params.first().unwrap().is_sequence);
+		assert!(first_function.is_supported);
+		assert_eq!(first_function.params.first().unwrap().name, "remark");
+		assert_eq!(first_function.params.first().unwrap().type_name, "[u8]");
+		assert_eq!(first_function.params.first().unwrap().sub_params.len(), 0);
+		assert!(!first_function.params.first().unwrap().is_optional);
+		assert!(!first_function.params.first().unwrap().is_tuple);
+		assert!(!first_function.params.first().unwrap().is_variant);
+		assert!(first_function.params.first().unwrap().is_sequence);
 		Ok(())
 	}
 
@@ -233,31 +235,31 @@ mod tests {
 			Err(Error::PalletNotFound(pallet)) if pallet == "WrongName".to_string()));
 		let pallet = find_pallet_by_name(&pallets, "Balances")?;
 		assert_eq!(pallet.name, "Balances");
-		assert_eq!(pallet.extrinsics.len(), 9);
+		assert_eq!(pallet.functions.len(), 9);
 		Ok(())
 	}
 
 	#[tokio::test]
-	async fn find_extrinsic_by_name_works() -> Result<()> {
+	async fn find_dispatchable_by_name_works() -> Result<()> {
 		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
 		let pallets = parse_chain_metadata(&client)?;
 		assert!(matches!(
-			find_extrinsic_by_name(&pallets, "WrongName", "wrong_extrinsic"),
+			find_dispatchable_by_name(&pallets, "WrongName", "wrong_name"),
 			Err(Error::PalletNotFound(pallet)) if pallet == "WrongName".to_string()));
 		assert!(matches!(
-			find_extrinsic_by_name(&pallets, "Balances", "wrong_extrinsic"),
-			Err(Error::ExtrinsicNotSupported)
+			find_dispatchable_by_name(&pallets, "Balances", "wrong_name"),
+			Err(Error::FunctionNotSupported)
 		));
-		let extrinsic = find_extrinsic_by_name(&pallets, "Balances", "force_transfer")?;
-		assert_eq!(extrinsic.name, "force_transfer");
-		assert_eq!(extrinsic.docs, "Exactly as `transfer_allow_death`, except the origin must be root and the source account may be specified.");
-		assert_eq!(extrinsic.is_supported, true);
-		assert_eq!(extrinsic.params.len(), 3);
+		let function = find_dispatchable_by_name(&pallets, "Balances", "force_transfer")?;
+		assert_eq!(function.name, "force_transfer");
+		assert_eq!(function.docs, "Exactly as `transfer_allow_death`, except the origin must be root and the source account may be specified.");
+		assert_eq!(function.is_supported, true);
+		assert_eq!(function.params.len(), 3);
 		Ok(())
 	}
 
 	#[test]
-	fn parse_extrinsic_arguments_works() -> Result<()> {
+	fn parse_dispatchable_arguments_works() -> Result<()> {
 		// Values for testing from: https://docs.rs/scale-value/0.18.0/scale_value/stringify/fn.from_str.html
 		// and https://docs.rs/scale-value/0.18.0/scale_value/stringify/fn.from_str_custom.html
 		let args = [
@@ -283,7 +285,7 @@ mod tests {
 				.into_iter()
 				.map(|b| Value::u128(b as u128))
 				.collect();
-		// Define mock extrinsic parameters for testing.
+		// Define mock dispatchable function parameters for testing.
 		let params = vec![
 			Param { type_name: "u128".to_string(), ..Default::default() },
 			Param { type_name: "i128".to_string(), ..Default::default() },
@@ -297,7 +299,7 @@ mod tests {
 			Param { type_name: "composite".to_string(), ..Default::default() },
 		];
 		assert_eq!(
-			parse_extrinsic_arguments(&params, args)?,
+			parse_dispatchable_arguments(&params, args)?,
 			[
 				Value::u128(1),
 				Value::i128(-1),
