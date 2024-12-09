@@ -1264,6 +1264,7 @@ checksum = "cd7e35aee659887cbfb97aaf227ac12cad1a9d7c71e55ff3376839ed4e282d08"
 [[package]]
 name = "contract-build"
 version = "5.0.0-alpha"
+source = "git+https://github.com/use-ink/cargo-contract?branch=peter/chore-make-types-pub#68691b9b6cdb7c6ec52ea441b3dc31fcb1ce08e0"
 dependencies = [
  "anyhow",
  "blake2",
@@ -1303,6 +1304,7 @@ dependencies = [
 [[package]]
 name = "contract-extrinsics"
 version = "5.0.0-alpha"
+source = "git+https://github.com/use-ink/cargo-contract?branch=peter/chore-make-types-pub#68691b9b6cdb7c6ec52ea441b3dc31fcb1ce08e0"
 dependencies = [
  "anyhow",
  "blake2",
@@ -1334,6 +1336,7 @@ dependencies = [
 [[package]]
 name = "contract-metadata"
 version = "5.0.0-alpha"
+source = "git+https://github.com/use-ink/cargo-contract?branch=peter/chore-make-types-pub#68691b9b6cdb7c6ec52ea441b3dc31fcb1ce08e0"
 dependencies = [
  "anyhow",
  "impl-serde",
@@ -1346,6 +1349,7 @@ dependencies = [
 [[package]]
 name = "contract-transcode"
 version = "5.0.0-alpha"
+source = "git+https://github.com/use-ink/cargo-contract?branch=peter/chore-make-types-pub#68691b9b6cdb7c6ec52ea441b3dc31fcb1ce08e0"
 dependencies = [
  "anyhow",
  "base58",
@@ -4388,7 +4392,7 @@ checksum = "4e69bf016dc406eff7d53a7d3f7cf1c2e72c82b9088aac1118591e36dd2cd3e9"
 dependencies = [
  "bitcoin_hashes 0.13.0",
  "rand",
- "rand_core 0.6.4",
+ "rand_core 0.5.1",
  "serde",
  "unicode-normalization",
 ]
