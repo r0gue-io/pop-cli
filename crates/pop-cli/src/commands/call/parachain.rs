@@ -479,7 +479,7 @@ fn prompt_for_sequence_param(cli: &mut impl Cli, param: &Param) -> Result<String
 		param.name
 	))
 		.placeholder(&format!(
-			"Enter a value of type {} or provide a file path (e.g., /path/to/your/file.json)",
+			"Enter a value of type {} or provide a file path (e.g. /path/to/your/file)",
 			param.type_name
 		))
 		.interact()?;
