@@ -91,8 +91,9 @@ impl CallParachainCommand {
 				break;
 			}
 
-			if !prompt_to_repeat_call ||
-				!cli.confirm("Do you want to perform another call?")
+			if !prompt_to_repeat_call
+				|| !cli
+					.confirm("Do you want to perform another call?")
 					.initial_value(false)
 					.interact()?
 			{
@@ -155,8 +156,9 @@ impl CallParachainCommand {
 
 			// Resolve extrinsic.
 			let extrinsic = match self.extrinsic {
-				Some(ref extrinsic_name) =>
-					find_extrinsic_by_name(&chain.pallets, &pallet.name, extrinsic_name).await?,
+				Some(ref extrinsic_name) => {
+					find_extrinsic_by_name(&chain.pallets, &pallet.name, extrinsic_name).await?
+				},
 				None => {
 					let mut prompt_extrinsic = cli.select("Select the extrinsic to call:");
 					for extrinsic in &pallet.extrinsics {
@@ -193,8 +195,9 @@ impl CallParachainCommand {
 			// Resolve who is signing the extrinsic.
 			let suri = match self.suri.as_ref() {
 				Some(suri) => suri.clone(),
-				None =>
-					cli.input("Signer of the extrinsic:").default_input(DEFAULT_URI).interact()?,
+				None => {
+					cli.input("Signer of the extrinsic:").default_input(DEFAULT_URI).interact()?
+				},
 			};
 
 			return Ok(CallParachain {
@@ -256,11 +259,11 @@ impl CallParachainCommand {
 
 	// Function to check if all required fields are specified.
 	fn requires_user_input(&self) -> bool {
-		self.pallet.is_none() ||
-			self.extrinsic.is_none() ||
-			self.args.is_empty() ||
-			self.url.is_none() ||
-			self.suri.is_none()
+		self.pallet.is_none()
+			|| self.extrinsic.is_none()
+			|| self.args.is_empty()
+			|| self.url.is_none()
+			|| self.suri.is_none()
 	}
 
 	/// Replaces file arguments with their contents, leaving other arguments unchanged.
@@ -343,8 +346,9 @@ impl CallParachain {
 		tx: DynamicPayload,
 		cli: &mut impl Cli,
 	) -> Result<()> {
-		if !self.skip_confirm &&
-			!cli.confirm("Do you want to submit the extrinsic?")
+		if !self.skip_confirm
+			&& !cli
+				.confirm("Do you want to submit the extrinsic?")
 				.initial_value(true)
 				.interact()?
 		{
@@ -567,15 +571,8 @@ mod tests {
 
 	#[tokio::test]
 	async fn configure_chain_works() -> Result<()> {
-		let call_config = CallParachainCommand {
-			pallet: None,
-			extrinsic: None,
-			args: vec![].to_vec(),
-			url: None,
-			suri: Some(DEFAULT_URI.to_string()),
-			skip_confirm: false,
-			call_data: None,
-		};
+		let call_config =
+			CallParachainCommand { suri: Some(DEFAULT_URI.to_string()), ..Default::default() };
 		let mut cli = MockCli::new().expect_intro("Call a parachain").expect_input(
 			"Which chain would you like to interact with?",
 			"wss://rpc1.paseo.popnetwork.xyz".into(),
@@ -587,15 +584,8 @@ mod tests {
 
 	#[tokio::test]
 	async fn guide_user_to_call_parachain_works() -> Result<()> {
-		let mut call_config = CallParachainCommand {
-			pallet: Some("System".to_string()),
-			extrinsic: None,
-			args: vec![].to_vec(),
-			url: None,
-			suri: None,
-			skip_confirm: false,
-			call_data: None,
-		};
+		let mut call_config =
+			CallParachainCommand { pallet: Some("System".to_string()), ..Default::default() };
 
 		let mut cli = MockCli::new()
 		.expect_intro("Call a parachain")
@@ -639,15 +629,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn guide_user_to_configure_predefined_action_works() -> Result<()> {
-		let mut call_config = CallParachainCommand {
-			pallet: None,
-			extrinsic: None,
-			args: vec![].to_vec(),
-			url: None,
-			suri: None,
-			skip_confirm: false,
-			call_data: None,
-		};
+		let mut call_config = CallParachainCommand::default();
 
 		let mut cli = MockCli::new().expect_intro("Call a parachain").expect_input(
 			"Which chain would you like to interact with?",
