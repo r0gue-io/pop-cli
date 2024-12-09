@@ -48,7 +48,6 @@ pop-common = { path = "../pop-common", version = "0.5.0" }
 
 [dev-dependencies]
 assert_cmd.workspace = true
-predicates.workspace = true
 
 [features]
 default = ["contract", "parachain", "telemetry"]
