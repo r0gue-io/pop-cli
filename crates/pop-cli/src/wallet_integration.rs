@@ -5,7 +5,10 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use std::{path::PathBuf, sync::Arc};
-use tokio::sync::{oneshot, Mutex};
+use tokio::{
+	sync::{oneshot, Mutex},
+	task::JoinHandle,
+};
 use tower_http::services::ServeDir;
 
 /// Make frontend sourcing more flexible by allowing a custom route
@@ -16,31 +19,34 @@ pub trait Frontend {
 
 /// Transaction payload to be sent to frontend for signing.
 #[derive(Serialize, Debug)]
-#[cfg_attr(test, derive(Deserialize))]
+#[cfg_attr(test, derive(Deserialize, Clone))]
 pub struct TransactionData {
 	chain_rpc: String,
 	call_data: Vec<u8>,
 }
 
-// Shared state between routes. Serves two purposes:
-// - Maintains a channel to signal shutdown to the main app.
-// - Stores the signed payload received from the wallet.
+/// Shared state between routes. Serves two purposes:
+/// - Maintains a channel to signal shutdown to the main app.
+/// - Stores the signed payload received from the wallet.
 #[derive(Default)]
 pub struct StateHandler {
+	/// Channel to signal shutdown to the main app.
 	shutdown_tx: Option<oneshot::Sender<()>>,
-	// signed payload received from UI.
+	/// Received from UI.
 	pub signed_payload: Option<String>,
-	pub error: Option<String>,
+	/// Holds a single error message.
+	/// Only method for consuming error removes (takes) it from state.
+	error: Option<String>,
 }
 
 /// Manages the wallet integration for secure signing of transactions.
 pub struct WalletIntegrationManager {
-	// shared state between routes.
+	/// Shared state between routes.
 	pub state: Arc<Mutex<StateHandler>>,
-	// node rpc address
-	pub addr: String,
-	// axum server task handle
-	pub task_handle: tokio::task::JoinHandle<anyhow::Result<()>>,
+	/// Node rpc address.
+	pub rpc_url: String,
+	/// Web server task handle.
+	pub task_handle: JoinHandle<anyhow::Result<()>>,
 }
 
 impl WalletIntegrationManager {
@@ -58,12 +64,8 @@ impl WalletIntegrationManager {
 	}
 
 	/// Same as `new`, but allows specifying the address to bind to.
-	pub fn new_with_address<F: Frontend>(
-		frontend: F,
-		payload: TransactionData,
-		addr: &str,
-	) -> Self {
-		// channel to signal shutdown
+	pub fn new_with_address<F: Frontend>(frontend: F, payload: TransactionData, rpc: &str) -> Self {
+		// Channel to signal shutdown.
 		let (tx, rx) = oneshot::channel();
 
 		let state = Arc::new(Mutex::new(StateHandler {
@@ -79,15 +81,15 @@ impl WalletIntegrationManager {
 			.route("/submit", post(routes::submit_handler).with_state(state.clone()))
 			.route("/error", post(routes::error_handler).with_state(state.clone()))
 			.route("/terminate", post(routes::terminate_handler).with_state(state.clone()))
-			.merge(frontend.serve_content()); // custom route for serving frontend
+			.merge(frontend.serve_content()); // Custom route for serving frontend.
 
-		let addr_owned = addr.to_string();
+		let rpc_owned = rpc.to_string();
 
-		// will shut down when the signed payload is received
+		// Will shut down when the signed payload is received.
 		let task_handle = tokio::spawn(async move {
-			let listener = tokio::net::TcpListener::bind(&addr_owned)
+			let listener = tokio::net::TcpListener::bind(&rpc_owned)
 				.await
-				.map_err(|e| anyhow::anyhow!("Failed to bind to {}: {}", addr_owned, e))?;
+				.map_err(|e| anyhow::anyhow!("Failed to bind to {}: {}", rpc_owned, e))?;
 
 			axum::serve(listener, app)
 				.with_graceful_shutdown(async move {
@@ -98,12 +100,11 @@ impl WalletIntegrationManager {
 			Ok(())
 		});
 
-		Self { state, addr: addr.to_string(), task_handle }
+		Self { state, rpc_url: rpc.to_string(), task_handle }
 	}
 
 	/// Signals the wallet integration server to shut down.
 	pub async fn terminate(&mut self) {
-		// signal shutdown
 		if let Some(shutdown_tx) = self.state.lock().await.shutdown_tx.take() {
 			let _ = shutdown_tx.send(());
 		}
@@ -112,6 +113,11 @@ impl WalletIntegrationManager {
 	/// Checks if the server task is still running.
 	pub fn is_running(&self) -> bool {
 		!self.task_handle.is_finished()
+	}
+
+	/// Takes the error from the state if it exists.
+	pub async fn take_error(&mut self) -> Option<String> {
+		self.state.lock().await.error.take()
 	}
 }
 
@@ -126,8 +132,7 @@ mod routes {
 	};
 	use serde_json::json;
 
-	// must be public for axum
-	pub struct ApiError(Error);
+	pub(super) struct ApiError(Error);
 
 	impl From<Error> for ApiError {
 		fn from(err: Error) -> Self {
@@ -149,7 +154,7 @@ mod routes {
 	pub(super) async fn get_payload_handler(
 		State(payload): State<Arc<TransactionData>>,
 	) -> Result<Json<serde_json::Value>, ApiError> {
-		// error should never occur.
+		// Error should never occur.
 		let json_payload = serde_json::to_value(&*payload)
 			.map_err(|e| anyhow::anyhow!("Failed to serialize payload: {}", e))?;
 		Ok(Json(json_payload))
@@ -162,7 +167,7 @@ mod routes {
 		Json(payload): Json<String>,
 	) -> Json<serde_json::Value> {
 		let mut state = state.lock().await;
-		state.signed_payload = Some(payload.clone());
+		state.signed_payload = Some(payload);
 
 		// Signal shutdown.
 		// Using WalletIntegrationManager::terminate() introduces unnecessary complexity.
@@ -170,7 +175,7 @@ mod routes {
 			let _ = shutdown_tx.send(());
 		}
 
-		// graceful shutdown ensures response is sent before shutdown.
+		// Graceful shutdown ensures response is sent before shutdown.
 		Json(json!({"status": "success"}))
 	}
 
@@ -233,24 +238,26 @@ mod tests {
 
 	const TEST_HTML: &str = "<html><body>Hello, world!</body></html>";
 
-	// wait for server to launch
+	// Wait for server to launch.
 	async fn wait() {
 		tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+	}
+
+	fn default_payload() -> TransactionData {
+		TransactionData { chain_rpc: "localhost:9944".to_string(), call_data: vec![1, 2, 3] }
 	}
 
 	#[tokio::test]
 	async fn new_works() {
 		let frontend = FrontendFromString::new(TEST_HTML.to_string());
-		let payload =
-			TransactionData { chain_rpc: "localhost:9944".to_string(), call_data: vec![] };
-		let mut wim = WalletIntegrationManager::new(frontend, payload);
+		let mut wim = WalletIntegrationManager::new(frontend, default_payload());
 
-		assert_eq!(wim.addr, "127.0.0.1:9090");
+		assert_eq!(wim.rpc_url, "127.0.0.1:9090");
 		assert_eq!(wim.is_running(), true);
 		assert!(wim.state.lock().await.shutdown_tx.is_some());
 		assert!(wim.state.lock().await.signed_payload.is_none());
 
-		// terminate the server and make sure result is ok
+		// Terminate the server and make sure result is ok.
 		wim.terminate().await;
 		assert!(wim.task_handle.await.is_ok());
 	}
@@ -263,10 +270,11 @@ mod tests {
 
 		let expected_payload =
 			TransactionData { chain_rpc: "localhost:9944".to_string(), call_data: vec![1, 2, 3] };
-		let mut wim = WalletIntegrationManager::new_with_address(frontend, expected_payload, addr);
+		let mut wim =
+			WalletIntegrationManager::new_with_address(frontend, expected_payload.clone(), addr);
 		wait().await;
 
-		let addr = format!("http://{}", wim.addr);
+		let addr = format!("http://{}", wim.rpc_url);
 		let actual_payload = reqwest::get(&format!("{}/payload", addr))
 			.await
 			.expect("Failed to get payload")
@@ -274,8 +282,8 @@ mod tests {
 			.await
 			.expect("Failed to parse payload");
 
-		assert_eq!(actual_payload.chain_rpc, "localhost:9944");
-		assert_eq!(actual_payload.call_data, vec![1, 2, 3]);
+		assert_eq!(actual_payload.chain_rpc, expected_payload.chain_rpc);
+		assert_eq!(actual_payload.call_data, expected_payload.call_data);
 
 		wim.terminate().await;
 		assert!(wim.task_handle.await.is_ok());
@@ -287,12 +295,10 @@ mod tests {
 		let addr = "127.0.0.1:9092";
 		let frontend = FrontendFromString::new(TEST_HTML.to_string());
 
-		let expected_payload =
-			TransactionData { chain_rpc: "localhost:9944".to_string(), call_data: vec![1, 2, 3] };
-		let mut wim = WalletIntegrationManager::new_with_address(frontend, expected_payload, addr);
+		let mut wim = WalletIntegrationManager::new_with_address(frontend, default_payload(), addr);
 		wait().await;
 
-		let addr = format!("http://{}", wim.addr);
+		let addr = format!("http://{}", wim.rpc_url);
 		let response = reqwest::Client::new()
 			.post(&format!("{}/submit", addr))
 			.json(&"0xDEADBEEF")
@@ -317,12 +323,10 @@ mod tests {
 		let addr = "127.0.0.1:9093";
 		let frontend = FrontendFromString::new(TEST_HTML.to_string());
 
-		let expected_payload =
-			TransactionData { chain_rpc: "localhost:9944".to_string(), call_data: vec![1, 2, 3] };
-		let mut wim = WalletIntegrationManager::new_with_address(frontend, expected_payload, addr);
+		let mut wim = WalletIntegrationManager::new_with_address(frontend, default_payload(), addr);
 		wait().await;
 
-		let addr = format!("http://{}", wim.addr);
+		let addr = format!("http://{}", wim.rpc_url);
 		let response = reqwest::Client::new()
 			.post(&format!("{}/error", addr))
 			.json(&"an error occurred")
@@ -348,12 +352,10 @@ mod tests {
 		let addr = "127.0.0.1:9094";
 		let frontend = FrontendFromString::new(TEST_HTML.to_string());
 
-		let expected_payload =
-			TransactionData { chain_rpc: "localhost:9944".to_string(), call_data: vec![1, 2, 3] };
-		let mut wim = WalletIntegrationManager::new_with_address(frontend, expected_payload, addr);
+		let mut wim = WalletIntegrationManager::new_with_address(frontend, default_payload(), addr);
 		wait().await;
 
-		let addr = format!("http://{}", wim.addr);
+		let addr = format!("http://{}", wim.rpc_url);
 		let response = reqwest::Client::new()
 			.post(&format!("{}/terminate", addr))
 			.send()
@@ -363,7 +365,7 @@ mod tests {
 			.await
 			.expect("Failed to parse response");
 
-		// no response expected
+		// No response expected.
 		assert_eq!(response.len(), 0);
 		assert_eq!(wim.is_running(), false);
 
@@ -378,9 +380,7 @@ mod tests {
 
 		let frontend = FrontendFromString::new(TEST_HTML.to_string());
 
-		let expected_payload =
-			TransactionData { chain_rpc: "localhost:9944".to_string(), call_data: vec![1, 2, 3] };
-		let mut wim = WalletIntegrationManager::new_with_address(frontend, expected_payload, addr);
+		let mut wim = WalletIntegrationManager::new_with_address(frontend, default_payload(), addr);
 
 		assert_eq!(wim.is_running(), true);
 		wim.terminate().await;
@@ -397,19 +397,17 @@ mod tests {
 		let addr = "127.0.0.1:9096";
 
 		let frontend = FrontendFromString::new(TEST_HTML.to_string());
-		let expected_payload =
-			TransactionData { chain_rpc: "localhost:9944".to_string(), call_data: vec![1, 2, 3] };
-		let mut wim = WalletIntegrationManager::new_with_address(frontend, expected_payload, addr);
+		let mut wim = WalletIntegrationManager::new_with_address(frontend, default_payload(), addr);
 		wait().await;
 
-		let actual_payload = reqwest::get(&format!("http://{}", addr))
+		let actual_content = reqwest::get(&format!("http://{}", addr))
 			.await
 			.expect("Failed to get web page")
 			.text()
 			.await
 			.expect("Failed to parse page");
 
-		assert_eq!(actual_payload, TEST_HTML);
+		assert_eq!(actual_content, TEST_HTML);
 
 		wim.terminate().await;
 		assert!(wim.task_handle.await.is_ok());
@@ -430,19 +428,17 @@ mod tests {
 		fs::write(&index_file_path, test_html).expect("Failed to write index.html");
 
 		let frontend = FrontendFromDir::new(temp_dir.path().to_path_buf());
-		let expected_payload =
-			TransactionData { chain_rpc: "localhost:9944".to_string(), call_data: vec![1, 2, 3] };
-		let mut wim = WalletIntegrationManager::new_with_address(frontend, expected_payload, addr);
+		let mut wim = WalletIntegrationManager::new_with_address(frontend, default_payload(), addr);
 		wait().await;
 
-		let actual_payload = reqwest::get(&format!("http://{}", addr))
+		let actual_content = reqwest::get(&format!("http://{}", addr))
 			.await
 			.expect("Failed to get web page")
 			.text()
 			.await
 			.expect("Failed to parse page");
 
-		assert_eq!(actual_payload, test_html);
+		assert_eq!(actual_content, test_html);
 
 		wim.terminate().await;
 		assert!(wim.task_handle.await.is_ok());
@@ -460,10 +456,11 @@ mod tests {
 			chain_rpc: "localhost:9944".to_string(),
 			call_data: call_data_5mb.clone(),
 		};
-		let mut wim = WalletIntegrationManager::new_with_address(frontend, expected_payload, addr);
+		let mut wim =
+			WalletIntegrationManager::new_with_address(frontend, expected_payload.clone(), addr);
 		wait().await;
 
-		let addr = format!("http://{}", wim.addr);
+		let addr = format!("http://{}", wim.rpc_url);
 		let actual_payload = reqwest::get(&format!("{}/payload", addr))
 			.await
 			.expect("Failed to get payload")
@@ -471,7 +468,7 @@ mod tests {
 			.await
 			.expect("Failed to parse payload");
 
-		assert_eq!(actual_payload.chain_rpc, "localhost:9944");
+		assert_eq!(actual_payload.chain_rpc, expected_payload.chain_rpc);
 		assert_eq!(actual_payload.call_data, call_data_5mb);
 
 		wim.terminate().await;
@@ -484,18 +481,14 @@ mod tests {
 		let addr = "127.0.0.1:9099";
 
 		let frontend = FrontendFromString::new(TEST_HTML.to_string());
-		let expected_payload =
-			TransactionData { chain_rpc: "localhost:9944".to_string(), call_data: vec![1, 2, 3] };
-		let wim = WalletIntegrationManager::new_with_address(frontend, expected_payload, addr);
+		let wim = WalletIntegrationManager::new_with_address(frontend, default_payload(), addr);
 		wait().await;
 
 		assert_eq!(wim.is_running(), true);
 
 		let frontend = FrontendFromString::new(TEST_HTML.to_string());
-		let expected_payload =
-			TransactionData { chain_rpc: "localhost:9944".to_string(), call_data: vec![1, 2, 3] };
 		let wim_conflict =
-			WalletIntegrationManager::new_with_address(frontend, expected_payload, addr);
+			WalletIntegrationManager::new_with_address(frontend, default_payload(), addr);
 		wait().await;
 
 		assert_eq!(wim_conflict.is_running(), false);
