@@ -36,7 +36,7 @@ pub fn field_to_param(metadata: &Metadata, field: &Field<PortableForm>) -> Resul
 			return Err(Error::FunctionNotSupported);
 		}
 	}
-	let name = field.name.clone().unwrap_or("Unnamed".to_string()); //It can be unnamed field
+	let name = field.name.as_deref().unwrap_or("Unnamed"); //It can be unnamed field
 	type_to_param(name, registry, field.ty.id)
 }
 
@@ -46,8 +46,10 @@ pub fn field_to_param(metadata: &Metadata, field: &Field<PortableForm>) -> Resul
 /// * `name`: The name of the parameter.
 /// * `registry`: Type registry containing all types used in the metadata.
 /// * `type_id`: The ID of the type to be converted.
-fn type_to_param(name: String, registry: &PortableRegistry, type_id: u32) -> Result<Param, Error> {
-	let type_info = registry.resolve(type_id).ok_or(Error::MetadataParsingError(name.clone()))?;
+fn type_to_param(name: &str, registry: &PortableRegistry, type_id: u32) -> Result<Param, Error> {
+	let type_info = registry
+		.resolve(type_id)
+		.ok_or_else(|| Error::MetadataParsingError(name.to_string()))?;
 	for param in &type_info.type_params {
 		if param.name.contains("RuntimeCall") {
 			return Err(Error::FunctionNotSupported);
@@ -56,38 +58,34 @@ fn type_to_param(name: String, registry: &PortableRegistry, type_id: u32) -> Res
 	if type_info.path.segments == ["Option"] {
 		if let Some(sub_type_id) = type_info.type_params.first().and_then(|param| param.ty) {
 			// Recursive for the sub parameters
-			let sub_param = type_to_param(name.clone(), registry, sub_type_id.id)?;
+			let sub_param = type_to_param(name, registry, sub_type_id.id)?;
 			Ok(Param {
-				name,
+				name: name.to_string(),
 				type_name: sub_param.type_name,
 				sub_params: sub_param.sub_params,
 				is_optional: true,
 				..Default::default()
 			})
 		} else {
-			Err(Error::MetadataParsingError(name))
+			Err(Error::MetadataParsingError(name.to_string()))
 		}
 	} else {
 		// Determine the formatted type name.
 		let type_name = format_type(type_info, registry);
 		match &type_info.type_def {
 			TypeDef::Primitive(_) | TypeDef::Array(_) | TypeDef::Compact(_) =>
-				Ok(Param { name, type_name, ..Default::default() }),
+				Ok(Param { name: name.to_string(), type_name, ..Default::default() }),
 			TypeDef::Composite(composite) => {
 				let sub_params = composite
 					.fields
 					.iter()
 					.map(|field| {
 						// Recursive for the sub parameters of composite type.
-						type_to_param(
-							field.name.clone().unwrap_or(name.clone()),
-							registry,
-							field.ty.id,
-						)
+						type_to_param(field.name.as_deref().unwrap_or(name), registry, field.ty.id)
 					})
 					.collect::<Result<Vec<Param>, Error>>()?;
 
-				Ok(Param { name, type_name, sub_params, ..Default::default() })
+				Ok(Param { name: name.to_string(), type_name, sub_params, ..Default::default() })
 			},
 			TypeDef::Variant(variant) => {
 				let variant_params = variant
@@ -100,7 +98,7 @@ fn type_to_param(name: String, registry: &PortableRegistry, type_id: u32) -> Res
 							.map(|field| {
 								// Recursive for the sub parameters of variant type.
 								type_to_param(
-									field.name.clone().unwrap_or(variant_param.name.clone()),
+									field.name.as_deref().unwrap_or(&variant_param.name),
 									registry,
 									field.ty.id,
 								)
@@ -117,15 +115,19 @@ fn type_to_param(name: String, registry: &PortableRegistry, type_id: u32) -> Res
 					.collect::<Result<Vec<Param>, Error>>()?;
 
 				Ok(Param {
-					name,
+					name: name.to_string(),
 					type_name,
 					sub_params: variant_params,
 					is_variant: true,
 					..Default::default()
 				})
 			},
-			TypeDef::Sequence(_) =>
-				Ok(Param { name, type_name, is_sequence: true, ..Default::default() }),
+			TypeDef::Sequence(_) => Ok(Param {
+				name: name.to_string(),
+				type_name,
+				is_sequence: true,
+				..Default::default()
+			}),
 			TypeDef::Tuple(tuple) => {
 				let sub_params = tuple
 					.fields
@@ -133,16 +135,22 @@ fn type_to_param(name: String, registry: &PortableRegistry, type_id: u32) -> Res
 					.enumerate()
 					.map(|(index, field_id)| {
 						type_to_param(
-							format!("Index {index} of the tuple {name}"),
+							&format!("Index {index} of the tuple {name}"),
 							registry,
 							field_id.id,
 						)
 					})
 					.collect::<Result<Vec<Param>, Error>>()?;
 
-				Ok(Param { name, type_name, sub_params, is_tuple: true, ..Default::default() })
+				Ok(Param {
+					name: name.to_string(),
+					type_name,
+					sub_params,
+					is_tuple: true,
+					..Default::default()
+				})
 			},
-			_ => Err(Error::MetadataParsingError(name)),
+			_ => Err(Error::MetadataParsingError(name.to_string())),
 		}
 	}
 }
