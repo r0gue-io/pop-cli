@@ -95,9 +95,8 @@ impl CallChainCommand {
 				break;
 			}
 
-			if !prompt_to_repeat_call
-				|| !cli
-					.confirm("Do you want to perform another call?")
+			if !prompt_to_repeat_call ||
+				!cli.confirm("Do you want to perform another call?")
 					.initial_value(false)
 					.interact()?
 			{
@@ -196,9 +195,8 @@ impl CallChainCommand {
 			// Resolve who is signing the extrinsic.
 			let suri = match self.suri.as_ref() {
 				Some(suri) => suri.clone(),
-				None => {
-					cli.input("Signer of the extrinsic:").default_input(DEFAULT_URI).interact()?
-				},
+				None =>
+					cli.input("Signer of the extrinsic:").default_input(DEFAULT_URI).interact()?,
 			};
 
 			return Ok(CallParachain {
@@ -224,9 +222,8 @@ impl CallChainCommand {
 			None => &cli.input("Signer of the extrinsic:").default_input(DEFAULT_URI).interact()?,
 		};
 		cli.info(format!("Encoded call data: {}", call_data))?;
-		if !self.skip_confirm
-			&& !cli
-				.confirm("Do you want to submit the extrinsic?")
+		if !self.skip_confirm &&
+			!cli.confirm("Do you want to submit the extrinsic?")
 				.initial_value(true)
 				.interact()?
 		{
@@ -254,7 +251,7 @@ impl CallChainCommand {
 	// execute the call via `sudo`.
 	fn configure_sudo(&mut self, chain: &Chain, cli: &mut impl Cli) -> Result<()> {
 		match find_dispatchable_by_name(&chain.pallets, "Sudo", "sudo") {
-			Ok(_) => {
+			Ok(_) =>
 				if !self.sudo {
 					self.sudo = cli
 						.confirm(
@@ -262,16 +259,14 @@ impl CallChainCommand {
 						)
 						.initial_value(false)
 						.interact()?;
-				}
-			},
-			Err(_) => {
+				},
+			Err(_) =>
 				if self.sudo {
 					cli.warning(
 						"NOTE: sudo is not supported by the chain. Ignoring `--sudo` flag.",
 					)?;
 					self.sudo = false;
-				}
-			},
+				},
 		}
 		Ok(())
 	}
@@ -286,11 +281,11 @@ impl CallChainCommand {
 
 	// Function to check if all required fields are specified.
 	fn requires_user_input(&self) -> bool {
-		self.pallet.is_none()
-			|| self.function.is_none()
-			|| self.args.is_empty()
-			|| self.url.is_none()
-			|| self.suri.is_none()
+		self.pallet.is_none() ||
+			self.function.is_none() ||
+			self.args.is_empty() ||
+			self.url.is_none() ||
+			self.suri.is_none()
 	}
 
 	/// Replaces file arguments with their contents, leaving other arguments unchanged.
@@ -369,9 +364,8 @@ impl CallParachain {
 		tx: DynamicPayload,
 		cli: &mut impl Cli,
 	) -> Result<()> {
-		if !self.skip_confirm
-			&& !cli
-				.confirm("Do you want to submit the extrinsic?")
+		if !self.skip_confirm &&
+			!cli.confirm("Do you want to submit the extrinsic?")
 				.initial_value(true)
 				.interact()?
 		{
