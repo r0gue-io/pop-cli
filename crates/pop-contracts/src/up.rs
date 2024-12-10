@@ -2,9 +2,9 @@
 use crate::{
 	errors::Error,
 	utils::{
-		helpers::{get_manifest_path, parse_balance},
+		get_manifest_path,
 		metadata::{process_function_args, FunctionType},
-		signer::create_signer,
+		parse_balance,
 	},
 };
 use contract_extrinsics::{
@@ -14,6 +14,7 @@ use contract_extrinsics::{
 	InstantiateExecResult, TokenMetadata, UploadCommandBuilder, UploadExec, UploadResult, WasmCode,
 };
 use ink_env::{DefaultEnvironment, Environment};
+use pop_common::{create_signer, DefaultConfig, Keypair};
 use sp_core::{bytes::from_hex, Bytes};
 use sp_weights::Weight;
 use std::{
@@ -23,9 +24,9 @@ use std::{
 use subxt::{
 	blocks::ExtrinsicEvents,
 	tx::{Payload, SubmittableExtrinsic},
-	Config, PolkadotConfig as DefaultConfig, SubstrateConfig,
+	utils::to_hex,
+	SubstrateConfig,
 };
-use subxt_signer::sr25519::Keypair;
 
 /// Attributes for the `up` command
 #[derive(Clone, Debug, PartialEq)]
@@ -243,7 +244,7 @@ pub async fn submit_signed_payload(
 		match status? {
 			TxStatus::InBestBlock(tx_in_block) | TxStatus::InFinalizedBlock(tx_in_block) => {
 				let events = tx_in_block.wait_for_success().await?;
-				return Ok(events)
+				return Ok(events);
 			},
 			TxStatus::Error { message } => return Err(TransactionError::Error(message).into()),
 			TxStatus::Invalid { message } => return Err(TransactionError::Invalid(message).into()),
@@ -381,10 +382,10 @@ mod tests {
 	use super::*;
 	use crate::{
 		contracts_node_generator, errors::Error, mock_build_process, new_environment,
-		run_contracts_node, testing::find_free_port,
+		run_contracts_node,
 	};
 	use anyhow::Result;
-	use pop_common::set_executable_permission;
+	use pop_common::{find_free_port, set_executable_permission};
 	use std::{env, process::Command, time::Duration};
 	use tokio::time::sleep;
 	use url::Url;
