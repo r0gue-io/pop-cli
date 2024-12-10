@@ -20,7 +20,7 @@ const ENCODED_CALL_DATA_MAX_LEN: usize = 500; // Maximum length of encoded call 
 /// Command to construct and execute extrinsics with configurable pallets, functions, arguments, and
 /// signing options.
 #[derive(Args, Clone, Default)]
-pub struct CallParachainCommand {
+pub struct CallChainCommand {
 	/// The pallet containing the dispatchable function to execute.
 	#[arg(short, long, value_parser = parse_pallet_name)]
 	pallet: Option<String>,
@@ -51,7 +51,7 @@ pub struct CallParachainCommand {
 	skip_confirm: bool,
 }
 
-impl CallParachainCommand {
+impl CallChainCommand {
 	/// Executes the command.
 	pub(crate) async fn execute(mut self) -> Result<()> {
 		let mut cli = cli::Cli;
@@ -600,7 +600,7 @@ mod tests {
 	#[tokio::test]
 	async fn configure_chain_works() -> Result<()> {
 		let call_config =
-			CallParachainCommand { suri: Some(DEFAULT_URI.to_string()), ..Default::default() };
+			CallChainCommand { suri: Some(DEFAULT_URI.to_string()), ..Default::default() };
 		let mut cli = MockCli::new().expect_intro("Call a chain").expect_input(
 			"Which chain would you like to interact with?",
 			POP_NETWORK_TESTNET_URL.into(),
@@ -611,9 +611,9 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn guide_user_to_call_parachain_works() -> Result<()> {
+	async fn guide_user_to_call_chain_works() -> Result<()> {
 		let mut call_config =
-			CallParachainCommand { pallet: Some("System".to_string()), ..Default::default() };
+			CallChainCommand { pallet: Some("System".to_string()), ..Default::default() };
 
 		let mut cli = MockCli::new()
 		.expect_intro("Call a chain")
@@ -647,19 +647,19 @@ mod tests {
 		let chain = call_config.configure_chain(&mut cli).await?;
 		assert_eq!(chain.url, Url::parse(POP_NETWORK_TESTNET_URL)?);
 
-		let call_parachain = call_config.configure_call(&chain, &mut cli)?;
-		assert_eq!(call_parachain.function.pallet, "System");
-		assert_eq!(call_parachain.function.name, "remark");
-		assert_eq!(call_parachain.args, ["0x11".to_string()].to_vec());
-		assert_eq!(call_parachain.suri, "//Bob");
-		assert!(call_parachain.sudo);
-		assert_eq!(call_parachain.display(&chain), "pop call chain --pallet System --function remark --args \"0x11\" --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Bob --sudo");
+		let call_chain = call_config.configure_call(&chain, &mut cli)?;
+		assert_eq!(call_chain.function.pallet, "System");
+		assert_eq!(call_chain.function.name, "remark");
+		assert_eq!(call_chain.args, ["0x11".to_string()].to_vec());
+		assert_eq!(call_chain.suri, "//Bob");
+		assert!(call_chain.sudo);
+		assert_eq!(call_chain.display(&chain), "pop call chain --pallet System --function remark --args \"0x11\" --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Bob --sudo");
 		cli.verify()
 	}
 
 	#[tokio::test]
 	async fn guide_user_to_configure_predefined_action_works() -> Result<()> {
-		let mut call_config = CallParachainCommand::default();
+		let mut call_config = CallChainCommand::default();
 
 		let mut cli = MockCli::new().expect_intro("Call a chain").expect_input(
 			"Which chain would you like to interact with?",
@@ -692,14 +692,14 @@ mod tests {
 			.expect_input("Enter the value for the parameter: para_id", "2000".into())
 			.expect_input("Signer of the extrinsic:", BOB_SURI.into());
 
-		let call_parachain = call_config.configure_call(&chain, &mut cli)?;
+		let call_chain = call_config.configure_call(&chain, &mut cli)?;
 
-		assert_eq!(call_parachain.function.pallet, "OnDemand");
-		assert_eq!(call_parachain.function.name, "place_order_allow_death");
-		assert_eq!(call_parachain.args, ["10000".to_string(), "2000".to_string()].to_vec());
-		assert_eq!(call_parachain.suri, "//Bob");
-		assert!(!call_parachain.sudo);
-		assert_eq!(call_parachain.display(&chain), "pop call chain --pallet OnDemand --function place_order_allow_death --args \"10000\" \"2000\" --url wss://polkadot-rpc.publicnode.com/ --suri //Bob");
+		assert_eq!(call_chain.function.pallet, "OnDemand");
+		assert_eq!(call_chain.function.name, "place_order_allow_death");
+		assert_eq!(call_chain.args, ["10000".to_string(), "2000".to_string()].to_vec());
+		assert_eq!(call_chain.suri, "//Bob");
+		assert!(!call_chain.sudo);
+		assert_eq!(call_chain.display(&chain), "pop call chain --pallet OnDemand --function place_order_allow_death --args \"10000\" \"2000\" --url wss://polkadot-rpc.publicnode.com/ --suri //Bob");
 		cli.verify()
 	}
 
@@ -768,7 +768,7 @@ mod tests {
 	#[tokio::test]
 	async fn user_cancel_submit_extrinsic_from_call_data_works() -> Result<()> {
 		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
-		let call_config = CallParachainCommand {
+		let call_config = CallChainCommand {
 			pallet: None,
 			function: None,
 			args: vec![].to_vec(),
@@ -792,7 +792,7 @@ mod tests {
 	#[tokio::test]
 	async fn configure_sudo_works() -> Result<()> {
 		// Test when sudo pallet doesn't exist.
-		let mut call_config = CallParachainCommand {
+		let mut call_config = CallChainCommand {
 			pallet: None,
 			function: None,
 			args: vec![].to_vec(),
@@ -824,7 +824,7 @@ mod tests {
 
 	#[test]
 	fn reset_for_new_call_works() -> Result<()> {
-		let mut call_config = CallParachainCommand {
+		let mut call_config = CallChainCommand {
 			pallet: Some("System".to_string()),
 			function: Some("remark".to_string()),
 			args: vec!["0x11".to_string()].to_vec(),
@@ -844,7 +844,7 @@ mod tests {
 
 	#[test]
 	fn requires_user_input_works() -> Result<()> {
-		let mut call_config = CallParachainCommand {
+		let mut call_config = CallChainCommand {
 			pallet: Some("System".to_string()),
 			function: Some("remark".to_string()),
 			args: vec!["0x11".to_string()].to_vec(),
@@ -862,7 +862,7 @@ mod tests {
 
 	#[test]
 	fn expand_file_arguments_works() -> Result<()> {
-		let mut call_config = CallParachainCommand {
+		let mut call_config = CallChainCommand {
 			pallet: Some("Registrar".to_string()),
 			function: Some("register".to_string()),
 			args: vec!["2000".to_string(), "0x1".to_string(), "0x12".to_string()].to_vec(),
