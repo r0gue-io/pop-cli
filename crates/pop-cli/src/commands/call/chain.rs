@@ -381,8 +381,7 @@ impl Call {
 		let result = sign_and_submit_extrinsic(client, tx, &self.suri)
 			.await
 			.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
-
-		spinner.stop(format!("Extrinsic submitted with hash: {:?}", result));
+		spinner.stop(result);
 		Ok(())
 	}
 
