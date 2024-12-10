@@ -3,9 +3,9 @@
 use crate::{
 	errors::Error,
 	utils::{
-		helpers::{get_manifest_path, parse_account, parse_balance},
+		get_manifest_path,
 		metadata::{process_function_args, FunctionType},
-		signer::create_signer,
+		parse_account, parse_balance,
 	},
 };
 use anyhow::Context;
@@ -15,10 +15,9 @@ use contract_extrinsics::{
 	ExtrinsicOptsBuilder, TokenMetadata,
 };
 use ink_env::{DefaultEnvironment, Environment};
+use pop_common::{create_signer, Config, DefaultConfig, Keypair};
 use sp_weights::Weight;
 use std::path::PathBuf;
-use subxt::{Config, PolkadotConfig as DefaultConfig};
-use subxt_signer::sr25519::Keypair;
 use url::Url;
 
 /// Attributes for the `call` command.
@@ -180,10 +179,10 @@ mod tests {
 	use crate::{
 		contracts_node_generator, dry_run_gas_estimate_instantiate, errors::Error,
 		instantiate_smart_contract, mock_build_process, new_environment, run_contracts_node,
-		set_up_deployment, testing::find_free_port, UpOpts,
+		set_up_deployment, UpOpts,
 	};
 	use anyhow::Result;
-	use pop_common::set_executable_permission;
+	use pop_common::{find_free_port, set_executable_permission};
 	use sp_core::Bytes;
 	use std::{env, process::Command, time::Duration};
 	use tokio::time::sleep;

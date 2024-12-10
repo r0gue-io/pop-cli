@@ -20,13 +20,12 @@ pub use new::{create_smart_contract, is_valid_contract_name};
 pub use node::{contracts_node_generator, is_chain_alive, run_contracts_node};
 pub use templates::{Contract, ContractType};
 pub use test::{test_e2e_smart_contract, test_smart_contract};
-pub use testing::{find_free_port, mock_build_process, new_environment};
+pub use testing::{mock_build_process, new_environment};
 pub use up::{
 	dry_run_gas_estimate_instantiate, dry_run_upload, instantiate_smart_contract,
 	set_up_deployment, set_up_upload, upload_smart_contract, UpOpts,
 };
 pub use utils::{
-	helpers::parse_account,
 	metadata::{get_messages, ContractFunction},
-	signer::parse_hex_bytes,
+	parse_account, parse_hex_bytes,
 };
