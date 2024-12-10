@@ -238,7 +238,7 @@ impl CallParachainCommand {
 		spinner.start("Signing and submitting the extrinsic and then waiting for finalization, please be patient...");
 		let call_data_bytes =
 			decode_call_data(call_data).map_err(|err| anyhow!("{}", format!("{err:?}")))?;
-		let result = sign_and_submit_extrinsic_with_call_data(&client, call_data_bytes, suri)
+		let result = sign_and_submit_extrinsic_with_call_data(client, call_data_bytes, suri)
 			.await
 			.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
 
@@ -378,7 +378,7 @@ impl CallParachain {
 		}
 		let spinner = cliclack::spinner();
 		spinner.start("Signing and submitting the extrinsic and then waiting for finalization, please be patient...");
-		let result = sign_and_submit_extrinsic(&client, tx, &self.suri)
+		let result = sign_and_submit_extrinsic(client, tx, &self.suri)
 			.await
 			.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
 
