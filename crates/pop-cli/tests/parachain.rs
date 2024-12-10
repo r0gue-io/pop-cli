@@ -133,13 +133,13 @@ name = "collator-01"
 	// Wait for the networks to initialize. Increased timeout to accommodate CI environment delays.
 	sleep(Duration::from_secs(50)).await;
 
-	// `pop call parachain --pallet System --function remark --args "0x11" --url
+	// `pop call chain --pallet System --function remark --args "0x11" --url
 	// ws://127.0.0.1:random_port --suri //Alice --skip-confirm`
 	Command::cargo_bin("pop")
 		.unwrap()
 		.args(&[
 			"call",
-			"parachain",
+			"chain",
 			"--pallet",
 			"System",
 			"--function",
@@ -155,13 +155,13 @@ name = "collator-01"
 		.assert()
 		.success();
 
-	// pop call parachain --call 0x00000411 --url ws://127.0.0.1:random_port --suri //Alice
+	// pop call chain --call 0x00000411 --url ws://127.0.0.1:random_port --suri //Alice
 	// --skip-confirm
 	Command::cargo_bin("pop")
 		.unwrap()
 		.args(&[
 			"call",
-			"parachain",
+			"chain",
 			"--call",
 			"0x00000411",
 			"--url",

@@ -2,10 +2,10 @@
 
 use clap::{Args, Subcommand};
 
+#[cfg(feature = "parachain")]
+pub(crate) mod chain;
 #[cfg(feature = "contract")]
 pub(crate) mod contract;
-#[cfg(feature = "parachain")]
-pub(crate) mod parachain;
 
 /// Arguments for calling a smart contract.
 #[derive(Args)]
@@ -15,13 +15,13 @@ pub(crate) struct CallArgs {
 	pub command: Command,
 }
 
-/// Call a smart contract.
+/// Call a chain or a smart contract.
 #[derive(Subcommand)]
 pub(crate) enum Command {
-	/// Call a parachain.
+	/// Call a chain
 	#[cfg(feature = "parachain")]
-	#[clap(alias = "p")]
-	Parachain(parachain::CallParachainCommand),
+	#[clap(alias = "p", visible_aliases = ["parachain"])]
+	Chain(chain::CallChainCommand),
 	/// Call a contract
 	#[cfg(feature = "contract")]
 	#[clap(alias = "c")]

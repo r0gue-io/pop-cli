@@ -26,7 +26,7 @@ pub(crate) enum Command {
 	#[clap(alias = "b", about = about_build())]
 	#[cfg(any(feature = "parachain", feature = "contract"))]
 	Build(build::BuildArgs),
-	/// Call a parachain or a smart contract.
+	/// Call a chain or a smart contract.
 	#[clap(alias = "c")]
 	#[cfg(any(feature = "parachain", feature = "contract"))]
 	Call(call::CallArgs),
@@ -99,7 +99,7 @@ impl Command {
 			#[cfg(any(feature = "parachain", feature = "contract"))]
 			Self::Call(args) => match args.command {
 				#[cfg(feature = "parachain")]
-				call::Command::Parachain(cmd) => cmd.execute().await.map(|_| Value::Null),
+				call::Command::Chain(cmd) => cmd.execute().await.map(|_| Value::Null),
 				#[cfg(feature = "contract")]
 				call::Command::Contract(cmd) => cmd.execute().await.map(|_| Value::Null),
 			},
