@@ -69,7 +69,7 @@ pub async fn sign_and_submit_extrinsic(
 ///
 /// # Arguments
 /// * `client` - The client used to interact with the chain.
-/// * `tx` - The transaction whose call data will be encoded and returned.
+/// * `xt` - The extrinsic whose call data will be encoded and returned.
 pub fn encode_call_data(
 	client: &OnlineClient<SubstrateConfig>,
 	xt: &DynamicPayload,
