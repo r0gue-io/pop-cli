@@ -62,7 +62,25 @@ pub async fn sign_and_submit_extrinsic(
 		.wait_for_finalized_success()
 		.await
 		.map_err(|e| Error::ExtrinsicSubmissionError(format!("{:?}", e)))?;
-	Ok(format!("{:?}", result.extrinsic_hash()))
+
+	// // Obtain events related to the extrinsic.
+	let mut events = Vec::new();
+	for event in result.iter() {
+		let event = event.map_err(|e| Error::ExtrinsicSubmissionError(format!("{:?}", e)))?;
+		let pallet =
+			if event.pallet_name() == xt.pallet_name() { event.pallet_name() } else { continue };
+		let variant = event.variant_name();
+		let field_values = event
+			.field_values()
+			.map_err(|e| Error::ExtrinsicSubmissionError(format!("{:?}", e)))?;
+		events.push(format!("{pallet}::{variant}: {field_values}"));
+	}
+
+	Ok(format!(
+		"Extrinsic Submitted with hash: {:?}\n\nEvent(s):\n\n{}",
+		result.extrinsic_hash(),
+		events.join("\n\n")
+	))
 }
 
 /// Encodes the call data for a given extrinsic into a hexadecimal string.
