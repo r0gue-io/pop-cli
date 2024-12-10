@@ -166,8 +166,6 @@ fn release_directory_by_target(tag: Option<&str>) -> Result<&'static str, Error>
 
 #[cfg(test)]
 mod tests {
-	use crate::testing::find_free_port;
-
 	use super::*;
 	use anyhow::{Error, Result};
 	use pop_common::find_free_port;
