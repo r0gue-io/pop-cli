@@ -20,7 +20,7 @@ pub(crate) struct CallArgs {
 pub(crate) enum Command {
 	/// Call a chain
 	#[cfg(feature = "parachain")]
-	#[clap(aliases = ["p"], visible_aliases = ["parachain"])]
+	#[clap(alias = "p", visible_aliases = ["parachain"])]
 	Chain(chain::CallChainCommand),
 	/// Call a contract
 	#[cfg(feature = "contract")]
