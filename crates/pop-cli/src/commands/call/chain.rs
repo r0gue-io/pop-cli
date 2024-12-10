@@ -136,7 +136,7 @@ impl CallChainCommand {
 	}
 
 	// Configure the call based on command line arguments/call UI.
-	fn configure_call(&mut self, chain: &Chain, cli: &mut impl Cli) -> Result<CallParachain> {
+	fn configure_call(&mut self, chain: &Chain, cli: &mut impl Cli) -> Result<Call> {
 		loop {
 			// Resolve pallet.
 			let pallet = match self.pallet {
@@ -199,7 +199,7 @@ impl CallChainCommand {
 					cli.input("Signer of the extrinsic:").default_input(DEFAULT_URI).interact()?,
 			};
 
-			return Ok(CallParachain {
+			return Ok(Call {
 				function: function.clone(),
 				args,
 				suri,
@@ -317,7 +317,7 @@ struct Chain {
 /// Represents a configured dispatchable function call, including the pallet, function, arguments,
 /// and signing options.
 #[derive(Clone)]
-struct CallParachain {
+struct Call {
 	/// The dispatchable function to execute.
 	function: Function,
 	/// The dispatchable function arguments, encoded as strings.
@@ -334,7 +334,7 @@ struct CallParachain {
 	sudo: bool,
 }
 
-impl CallParachain {
+impl Call {
 	// Prepares the extrinsic.
 	fn prepare_extrinsic(
 		&self,
@@ -700,7 +700,7 @@ mod tests {
 	#[tokio::test]
 	async fn prepare_extrinsic_works() -> Result<()> {
 		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
-		let mut call_config = CallParachain {
+		let mut call_config = Call {
 			function: Function {
 				pallet: "WrongName".to_string(),
 				name: "WrongName".to_string(),
@@ -743,7 +743,7 @@ mod tests {
 	async fn user_cancel_submit_extrinsic_works() -> Result<()> {
 		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
 		let pallets = parse_chain_metadata(&client)?;
-		let mut call_config = CallParachain {
+		let mut call_config = Call {
 			function: find_dispatchable_by_name(&pallets, "System", "remark")?.clone(),
 			args: vec!["0x11".to_string()].to_vec(),
 			suri: DEFAULT_URI.to_string(),
