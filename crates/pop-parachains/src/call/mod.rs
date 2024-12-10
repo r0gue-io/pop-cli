@@ -63,10 +63,11 @@ pub async fn sign_and_submit_extrinsic(
 		.await
 		.map_err(|e| Error::ExtrinsicSubmissionError(format!("{:?}", e)))?;
 
-	// // Obtain events related to the extrinsic.
+	// Obtain events related to the extrinsic.
 	let mut events = Vec::new();
 	for event in result.iter() {
 		let event = event.map_err(|e| Error::ExtrinsicSubmissionError(format!("{:?}", e)))?;
+		// Filter events that are from a different pallet.
 		let pallet =
 			if event.pallet_name() == xt.pallet_name() { event.pallet_name() } else { continue };
 		let variant = event.variant_name();
