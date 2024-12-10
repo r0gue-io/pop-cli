@@ -10,7 +10,7 @@ use subxt::{
 
 pub mod metadata;
 
-/// Sets up an OnlineClient instance for connecting to a blockchain.
+/// Sets up an [OnlineClient] instance for connecting to a blockchain.
 ///
 /// # Arguments
 /// * `url` - Endpoint of the node.
@@ -49,7 +49,7 @@ pub fn construct_sudo_extrinsic(xt: DynamicPayload) -> Result<DynamicPayload, Er
 /// * `xt` - The extrinsic to be signed and submitted.
 /// * `suri` - The secret URI (e.g., mnemonic or private key) for signing the extrinsic.
 pub async fn sign_and_submit_extrinsic(
-	client: OnlineClient<SubstrateConfig>,
+	client: &OnlineClient<SubstrateConfig>,
 	xt: DynamicPayload,
 	suri: &str,
 ) -> Result<String, Error> {
@@ -69,12 +69,12 @@ pub async fn sign_and_submit_extrinsic(
 ///
 /// # Arguments
 /// * `client` - The client used to interact with the chain.
-/// * `tx` - The transaction whose call data will be encoded and returned.
+/// * `xt` - The extrinsic whose call data will be encoded and returned.
 pub fn encode_call_data(
 	client: &OnlineClient<SubstrateConfig>,
-	tx: &DynamicPayload,
+	xt: &DynamicPayload,
 ) -> Result<String, Error> {
-	let call_data = tx
+	let call_data = xt
 		.encode_call_data(&client.metadata())
 		.map_err(|e| Error::CallDataEncodingError(e.to_string()))?;
 	Ok(format!("0x{}", hex::encode(call_data)))
@@ -111,7 +111,7 @@ impl Payload for CallData {
 /// * `call_data` - SCALE encoded bytes representing the extrinsic's call data.
 /// * `suri` - The secret URI (e.g., mnemonic or private key) for signing the extrinsic.
 pub async fn sign_and_submit_extrinsic_with_call_data(
-	client: OnlineClient<SubstrateConfig>,
+	client: &OnlineClient<SubstrateConfig>,
 	call_data: Vec<u8>,
 	suri: &str,
 ) -> Result<String, Error> {
@@ -214,7 +214,7 @@ mod tests {
 		};
 		let xt = construct_extrinsic(&function, vec!["0x11".to_string()])?;
 		assert!(matches!(
-			sign_and_submit_extrinsic(client, xt, ALICE_SURI).await,
+			sign_and_submit_extrinsic(&client, xt, ALICE_SURI).await,
 			Err(Error::ExtrinsicSubmissionError(message)) if message.contains("PalletNameNotFound(\"WrongPallet\"))")
 		));
 		Ok(())

@@ -41,7 +41,7 @@ pub struct CallParachainCommand {
 	#[arg(short, long)]
 	suri: Option<String>,
 	/// SCALE encoded bytes representing the call data of the extrinsic.
-	#[arg(name = "call", long, conflicts_with_all = ["pallet", "function", "args"])]
+	#[arg(name = "call", short, long, conflicts_with_all = ["pallet", "function", "args"])]
 	call_data: Option<String>,
 	/// Authenticates the sudo key and dispatches a function call with `Root` origin.
 	#[arg(short = 'S', long)]
@@ -235,13 +235,12 @@ impl CallParachainCommand {
 			return Ok(());
 		}
 		let spinner = cliclack::spinner();
-		spinner.start("Signing and submitting the extrinsic, please wait...");
+		spinner.start("Signing and submitting the extrinsic and then waiting for finalization, please be patient...");
 		let call_data_bytes =
 			decode_call_data(call_data).map_err(|err| anyhow!("{}", format!("{err:?}")))?;
-		let result =
-			sign_and_submit_extrinsic_with_call_data(client.clone(), call_data_bytes, suri)
-				.await
-				.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
+		let result = sign_and_submit_extrinsic_with_call_data(client, call_data_bytes, suri)
+			.await
+			.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
 
 		spinner.stop(format!("Extrinsic submitted successfully with hash: {:?}", result));
 		display_message("Call complete.", true, cli)?;
@@ -378,14 +377,15 @@ impl CallParachain {
 			return Ok(());
 		}
 		let spinner = cliclack::spinner();
-		spinner.start("Signing and submitting the extrinsic, please wait...");
-		let result = sign_and_submit_extrinsic(client.clone(), tx, &self.suri)
+		spinner.start("Signing and submitting the extrinsic and then waiting for finalization, please be patient...");
+		let result = sign_and_submit_extrinsic(client, tx, &self.suri)
 			.await
 			.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
 
 		spinner.stop(format!("Extrinsic submitted with hash: {:?}", result));
 		Ok(())
 	}
+
 	fn display(&self, chain: &Chain) -> String {
 		let mut full_message = "pop call parachain".to_string();
 		full_message.push_str(&format!(" --pallet {}", self.function.pallet));
@@ -479,7 +479,7 @@ fn prompt_for_sequence_param(cli: &mut impl Cli, param: &Param) -> Result<String
 		param.name
 	))
 		.placeholder(&format!(
-			"Enter a value of type {} or provide a file path (e.g., /path/to/your/file.json)",
+			"Enter a value of type {} or provide a file path (e.g. /path/to/your/file)",
 			param.type_name
 		))
 		.interact()?;

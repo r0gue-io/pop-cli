@@ -1,3 +1,19 @@
+// SPDX-License-Identifier: GPL-3.0
+
+use std::net::TcpListener;
+
+pub use build::Profile;
+pub use errors::Error;
+pub use git::{Git, GitHub, Release};
+pub use helpers::{get_project_name_from_path, prefix_with_current_dir_if_needed, replace_in_file};
+pub use manifest::{add_crate_to_workspace, find_workspace_toml};
+pub use metadata::format_type;
+pub use signer::create_signer;
+pub use sourcing::set_executable_permission;
+pub use subxt::{Config, PolkadotConfig as DefaultConfig};
+pub use subxt_signer::sr25519::Keypair;
+pub use templates::extractor::extract_template_files;
+
 pub mod build;
 pub mod errors;
 pub mod git;
@@ -10,21 +26,6 @@ pub mod polkadot_sdk;
 pub mod signer;
 pub mod sourcing;
 pub mod templates;
-
-use std::net::TcpListener;
-
-pub use build::Profile;
-pub use errors::Error;
-pub use git::{Git, GitHub, Release};
-pub use helpers::{get_project_name_from_path, prefix_with_current_dir_if_needed, replace_in_file};
-pub use manifest::{add_crate_to_workspace, find_workspace_toml};
-pub use metadata::format_type;
-pub use signer::create_signer;
-pub use sourcing::set_executable_permission;
-pub use templates::extractor::extract_template_files;
-// External exports
-pub use subxt::{Config, PolkadotConfig as DefaultConfig};
-pub use subxt_signer::sr25519::Keypair;
 
 static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 
