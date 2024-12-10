@@ -95,8 +95,9 @@ impl CallParachainCommand {
 				break;
 			}
 
-			if !prompt_to_repeat_call ||
-				!cli.confirm("Do you want to perform another call?")
+			if !prompt_to_repeat_call
+				|| !cli
+					.confirm("Do you want to perform another call?")
 					.initial_value(false)
 					.interact()?
 			{
@@ -110,7 +111,7 @@ impl CallParachainCommand {
 
 	// Configures the chain by resolving the URL and fetching its metadata.
 	async fn configure_chain(&self, cli: &mut impl Cli) -> Result<Chain> {
-		cli.intro("Call a parachain")?;
+		cli.intro("Call a chain")?;
 		// Resolve url.
 		let url = match &self.url {
 			Some(url) => url.clone(),
@@ -195,8 +196,9 @@ impl CallParachainCommand {
 			// Resolve who is signing the extrinsic.
 			let suri = match self.suri.as_ref() {
 				Some(suri) => suri.clone(),
-				None =>
-					cli.input("Signer of the extrinsic:").default_input(DEFAULT_URI).interact()?,
+				None => {
+					cli.input("Signer of the extrinsic:").default_input(DEFAULT_URI).interact()?
+				},
 			};
 
 			return Ok(CallParachain {
@@ -222,8 +224,9 @@ impl CallParachainCommand {
 			None => &cli.input("Signer of the extrinsic:").default_input(DEFAULT_URI).interact()?,
 		};
 		cli.info(format!("Encoded call data: {}", call_data))?;
-		if !self.skip_confirm &&
-			!cli.confirm("Do you want to submit the extrinsic?")
+		if !self.skip_confirm
+			&& !cli
+				.confirm("Do you want to submit the extrinsic?")
 				.initial_value(true)
 				.interact()?
 		{
@@ -251,7 +254,7 @@ impl CallParachainCommand {
 	// execute the call via `sudo`.
 	fn configure_sudo(&mut self, chain: &Chain, cli: &mut impl Cli) -> Result<()> {
 		match find_dispatchable_by_name(&chain.pallets, "Sudo", "sudo") {
-			Ok(_) =>
+			Ok(_) => {
 				if !self.sudo {
 					self.sudo = cli
 						.confirm(
@@ -259,14 +262,16 @@ impl CallParachainCommand {
 						)
 						.initial_value(false)
 						.interact()?;
-				},
-			Err(_) =>
+				}
+			},
+			Err(_) => {
 				if self.sudo {
 					cli.warning(
 						"NOTE: sudo is not supported by the chain. Ignoring `--sudo` flag.",
 					)?;
 					self.sudo = false;
-				},
+				}
+			},
 		}
 		Ok(())
 	}
@@ -281,11 +286,11 @@ impl CallParachainCommand {
 
 	// Function to check if all required fields are specified.
 	fn requires_user_input(&self) -> bool {
-		self.pallet.is_none() ||
-			self.function.is_none() ||
-			self.args.is_empty() ||
-			self.url.is_none() ||
-			self.suri.is_none()
+		self.pallet.is_none()
+			|| self.function.is_none()
+			|| self.args.is_empty()
+			|| self.url.is_none()
+			|| self.suri.is_none()
 	}
 
 	/// Replaces file arguments with their contents, leaving other arguments unchanged.
@@ -364,8 +369,9 @@ impl CallParachain {
 		tx: DynamicPayload,
 		cli: &mut impl Cli,
 	) -> Result<()> {
-		if !self.skip_confirm &&
-			!cli.confirm("Do you want to submit the extrinsic?")
+		if !self.skip_confirm
+			&& !cli
+				.confirm("Do you want to submit the extrinsic?")
 				.initial_value(true)
 				.interact()?
 		{
@@ -387,7 +393,7 @@ impl CallParachain {
 	}
 
 	fn display(&self, chain: &Chain) -> String {
-		let mut full_message = "pop call parachain".to_string();
+		let mut full_message = "pop call chain".to_string();
 		full_message.push_str(&format!(" --pallet {}", self.function.pallet));
 		full_message.push_str(&format!(" --function {}", self.function));
 		if !self.args.is_empty() {
@@ -595,7 +601,7 @@ mod tests {
 	async fn configure_chain_works() -> Result<()> {
 		let call_config =
 			CallParachainCommand { suri: Some(DEFAULT_URI.to_string()), ..Default::default() };
-		let mut cli = MockCli::new().expect_intro("Call a parachain").expect_input(
+		let mut cli = MockCli::new().expect_intro("Call a chain").expect_input(
 			"Which chain would you like to interact with?",
 			POP_NETWORK_TESTNET_URL.into(),
 		);
@@ -610,7 +616,7 @@ mod tests {
 			CallParachainCommand { pallet: Some("System".to_string()), ..Default::default() };
 
 		let mut cli = MockCli::new()
-		.expect_intro("Call a parachain")
+		.expect_intro("Call a chain")
 		.expect_input("Which chain would you like to interact with?", POP_NETWORK_TESTNET_URL.into())
 		.expect_select(
 			"Select the function to call:",
@@ -647,7 +653,7 @@ mod tests {
 		assert_eq!(call_parachain.args, ["0x11".to_string()].to_vec());
 		assert_eq!(call_parachain.suri, "//Bob");
 		assert!(call_parachain.sudo);
-		assert_eq!(call_parachain.display(&chain), "pop call parachain --pallet System --function remark --args \"0x11\" --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Bob --sudo");
+		assert_eq!(call_parachain.display(&chain), "pop call chain --pallet System --function remark --args \"0x11\" --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Bob --sudo");
 		cli.verify()
 	}
 
@@ -655,7 +661,7 @@ mod tests {
 	async fn guide_user_to_configure_predefined_action_works() -> Result<()> {
 		let mut call_config = CallParachainCommand::default();
 
-		let mut cli = MockCli::new().expect_intro("Call a parachain").expect_input(
+		let mut cli = MockCli::new().expect_intro("Call a chain").expect_input(
 			"Which chain would you like to interact with?",
 			POLKADOT_NETWORK_URL.into(),
 		);
@@ -693,7 +699,7 @@ mod tests {
 		assert_eq!(call_parachain.args, ["10000".to_string(), "2000".to_string()].to_vec());
 		assert_eq!(call_parachain.suri, "//Bob");
 		assert!(!call_parachain.sudo);
-		assert_eq!(call_parachain.display(&chain), "pop call parachain --pallet OnDemand --function place_order_allow_death --args \"10000\" \"2000\" --url wss://polkadot-rpc.publicnode.com/ --suri //Bob");
+		assert_eq!(call_parachain.display(&chain), "pop call chain --pallet OnDemand --function place_order_allow_death --args \"10000\" \"2000\" --url wss://polkadot-rpc.publicnode.com/ --suri //Bob");
 		cli.verify()
 	}
 
@@ -797,7 +803,7 @@ mod tests {
 			sudo: true,
 		};
 		let mut cli = MockCli::new()
-			.expect_intro("Call a parachain")
+			.expect_intro("Call a chain")
 			.expect_warning("NOTE: sudo is not supported by the chain. Ignoring `--sudo` flag.");
 		let chain = call_config.configure_chain(&mut cli).await?;
 		call_config.configure_sudo(&chain, &mut cli)?;
@@ -805,7 +811,7 @@ mod tests {
 		cli.verify()?;
 
 		// Test when sudo pallet exist.
-		cli = MockCli::new().expect_intro("Call a parachain").expect_confirm(
+		cli = MockCli::new().expect_intro("Call a chain").expect_confirm(
 			"Would you like to dispatch this function call with `Root` origin?",
 			true,
 		);

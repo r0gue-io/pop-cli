@@ -15,13 +15,13 @@ pub(crate) struct CallArgs {
 	pub command: Command,
 }
 
-/// Call a smart contract.
+/// Call a chain or a smart contract.
 #[derive(Subcommand)]
 pub(crate) enum Command {
-	/// Call a parachain.
+	/// Call a chain
 	#[cfg(feature = "parachain")]
-	#[clap(alias = "p")]
-	Parachain(parachain::CallParachainCommand),
+	#[clap(aliases = ["p"], visible_aliases = ["parachain"])]
+	Chain(parachain::CallParachainCommand),
 	/// Call a contract
 	#[cfg(feature = "contract")]
 	#[clap(alias = "c")]
