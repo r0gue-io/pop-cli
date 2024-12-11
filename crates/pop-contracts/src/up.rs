@@ -378,6 +378,10 @@ mod tests {
 	use anyhow::Result;
 	use reqwest::get;
 	use std::{env, fs, process::Command};
+	use subxt::{
+		config::{substrate::BlakeTwo256, Hasher},
+		utils::to_hex,
+	};
 	use url::Url;
 
 	const CONTRACTS_NETWORK_URL: &str = "wss://rpc2.paseo.popnetwork.xyz";
@@ -455,8 +459,13 @@ mod tests {
 			url: Url::parse(CONTRACTS_NETWORK_URL)?,
 			suri: "//Alice".to_string(),
 		};
-		let call_data = get_upload_payload(up_opts).await?;
-		// println!("{:?}", call_data);
+		let contract_code = get_contract_code(up_opts.path.as_ref()).await?;
+		let call_data = get_upload_payload(contract_code, CONTRACTS_NETWORK_URL).await?;
+		let payload_hash = BlakeTwo256::hash(&call_data).to_string();
+		// We know that for the above opts the payload hash should be:
+		// 0x4e4ff6ad411346d4cd6cf9bcc	9101360e4657f776b0af3b46bfe780b0413e819
+		assert!(payload_hash.starts_with("0x4e4f"));
+		assert!(payload_hash.ends_with("e819"));
 		Ok(())
 	}
 
