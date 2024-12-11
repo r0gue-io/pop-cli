@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{errors::Error, utils::helpers::get_manifest_path};
+use crate::{errors::Error, utils::get_manifest_path};
 pub use contract_build::Verbosity;
 use contract_build::{execute, BuildMode, BuildResult, ExecuteArgs};
 use std::path::Path;

@@ -2,14 +2,15 @@
 
 use crate::{
 	cli::{traits::Cli as _, Cli},
-	common::contracts::check_contracts_node_and_prompt,
+	common::{
+		contracts::{check_contracts_node_and_prompt, has_contract_been_built},
+		wallet::wait_for_signature,
+	},
 	style::style,
-	wallet_integration::{FrontendFromDir, TransactionData, WalletIntegrationManager},
 };
 use clap::Args;
 use cliclack::{confirm, log, log::error, spinner, ProgressBar};
 use console::{Emoji, Style};
-use pop_common::manifest::from_path;
 use pop_contracts::{
 	build_smart_contract, dry_run_gas_estimate_instantiate, dry_run_upload,
 	get_code_hash_from_event, get_contract_code, get_instantiate_payload, get_upload_payload,
@@ -20,7 +21,7 @@ use pop_contracts::{
 use sp_core::Bytes;
 use sp_weights::Weight;
 use std::{
-	path::{Path, PathBuf},
+	path::PathBuf,
 	process::{Child, Command},
 };
 use tempfile::NamedTempFile;
@@ -28,6 +29,7 @@ use url::Url;
 
 const COMPLETE: &str = "🚀 Deployment complete";
 const DEFAULT_URL: &str = "ws://localhost:9944/";
+const DEFAULT_PORT: u16 = 9944;
 const FAILED: &str = "🚫 Deployment failed.";
 
 #[derive(Args, Clone)]
@@ -39,7 +41,7 @@ pub struct UpContractCommand {
 	#[clap(name = "constructor", long, default_value = "new")]
 	constructor: String,
 	/// The constructor arguments, encoded as strings.
-	#[clap(long, num_args = 0..)]
+	#[clap(long, num_args = 0..,)]
 	args: Vec<String>,
 	/// Transfers an initial balance to the instantiated contract.
 	#[clap(name = "value", long, default_value = "0")]
@@ -147,7 +149,8 @@ impl UpContractCommand {
 			let spinner = spinner();
 			spinner.start("Starting local node...");
 
-			let process = run_contracts_node(binary_path, Some(log.as_file())).await?;
+			let process =
+				run_contracts_node(binary_path, Some(log.as_file()), DEFAULT_PORT).await?;
 			let bar = Style::new().magenta().dim().apply_to(Emoji("│", "|"));
 			spinner.stop(format!(
 				"Local node started successfully:{}",
@@ -181,7 +184,7 @@ impl UpContractCommand {
 				},
 			};
 
-			let maybe_payload = self.wait_for_signature(call_data).await?;
+			let maybe_payload = wait_for_signature(call_data, self.url.to_string()).await?;
 			if let Some(payload) = maybe_payload {
 				log::success("Signed payload received.")?;
 				let spinner = spinner();
@@ -234,7 +237,7 @@ impl UpContractCommand {
 
 			Self::terminate_node(process)?;
 			Cli.outro(COMPLETE)?;
-			return Ok(())
+			return Ok(());
 		}
 
 		// Check for upload only.
@@ -378,36 +381,6 @@ impl UpContractCommand {
 			Ok((call_data, hash))
 		}
 	}
-
-	async fn wait_for_signature(&self, call_data: Vec<u8>) -> anyhow::Result<Option<String>> {
-		// TODO: to be addressed in future PR. Should not use FromDir (or local path).
-		let ui = FrontendFromDir::new(PathBuf::from(
-			"/Users/peter/dev/r0gue/react-teleport-example/dist",
-		));
-
-		let transaction_data = TransactionData::new(self.url.to_string(), call_data);
-		// starts server
-		let mut wallet = WalletIntegrationManager::new(ui, transaction_data);
-		log::step(format!("Wallet signing portal started at http://{}", wallet.rpc_url))?;
-
-		log::step("Waiting for signature... Press Ctrl+C to terminate early.")?;
-		loop {
-			// Display error, if any.
-			if let Some(error) = wallet.take_error().await {
-				log::error(format!("Signing portal error: {error}"))?;
-			}
-
-			let state = wallet.state.lock().await;
-			// If the payload is submitted we terminate the frontend.
-			if !wallet.is_running() || state.signed_payload.is_some() {
-				wallet.task_handle.await??;
-				break;
-			}
-		}
-
-		let signed_payload = wallet.state.lock().await.signed_payload.clone();
-		Ok(signed_payload)
-	}
 }
 
 impl From<UpContractCommand> for UpOpts {
@@ -424,23 +397,6 @@ impl From<UpContractCommand> for UpOpts {
 			suri: cmd.suri,
 		}
 	}
-}
-
-/// Checks if a contract has been built by verifying the existence of the build directory and the
-/// <name>.contract file.
-///
-/// # Arguments
-/// * `path` - An optional path to the project directory. If no path is provided, the current
-///   directory is used.
-pub fn has_contract_been_built(path: Option<&Path>) -> bool {
-	let project_path = path.unwrap_or_else(|| Path::new("./"));
-	let manifest = match from_path(Some(project_path)) {
-		Ok(manifest) => manifest,
-		Err(_) => return false,
-	};
-	let contract_name = manifest.package().name();
-	project_path.join("target/ink").exists() &&
-		project_path.join(format!("target/ink/{}.contract", contract_name)).exists()
 }
 
 fn display_contract_info(spinner: &ProgressBar, address: String, code_hash: Option<String>) {
@@ -467,16 +423,13 @@ fn display_contract_info(spinner: &ProgressBar, address: String, code_hash: Opti
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use duct::cmd;
-	use std::fs::{self, File};
-	use subxt::{client::OfflineClientT, utils::to_hex};
 	use url::Url;
 
 	fn default_up_contract_command() -> UpContractCommand {
 		UpContractCommand {
 			path: None,
 			constructor: "new".to_string(),
-			args: vec!["false".to_string()].to_vec(),
+			args: vec![],
 			value: "0".to_string(),
 			gas_limit: None,
 			proof_size: None,
@@ -499,7 +452,7 @@ mod tests {
 			UpOpts {
 				path: None,
 				constructor: "new".to_string(),
-				args: vec!["false".to_string()].to_vec(),
+				args: vec![].to_vec(),
 				value: "0".to_string(),
 				gas_limit: None,
 				proof_size: None,
@@ -511,82 +464,6 @@ mod tests {
 		Ok(())
 	}
 
-	#[test]
-	fn has_contract_been_built_works() -> anyhow::Result<()> {
-		let temp_dir = tempfile::tempdir()?;
-		let path = temp_dir.path();
-
-		// Standard rust project
-		let name = "hello_world";
-		cmd("cargo", ["new", name]).dir(&path).run()?;
-		let contract_path = path.join(name);
-		assert!(!has_contract_been_built(Some(&contract_path)));
-
-		cmd("cargo", ["build"]).dir(&contract_path).run()?;
-		// Mock build directory
-		fs::create_dir(&contract_path.join("target/ink"))?;
-		assert!(!has_contract_been_built(Some(&path.join(name))));
-		// Create a mocked .contract file inside the target directory
-		File::create(contract_path.join(format!("target/ink/{}.contract", name)))?;
-		assert!(has_contract_been_built(Some(&path.join(name))));
-		Ok(())
-	}
-
-	// TODO: delete this test.
-	// This is a helper test for an actual running pop CLI.
-	// It can serve as the "frontend" to query the payload, sign it
-	// and submit back to the CLI.
-	#[tokio::test]
-	async fn sign_call_data() -> anyhow::Result<()> {
-		use subxt::{config::DefaultExtrinsicParamsBuilder as Params, tx::Payload};
-		// This struct implements the [`Payload`] trait and is used to submit
-		// pre-encoded SCALE call data directly, without the dynamic construction of transactions.
-		struct CallData(Vec<u8>);
-
-		impl Payload for CallData {
-			fn encode_call_data_to(
-				&self,
-				_: &subxt::Metadata,
-				out: &mut Vec<u8>,
-			) -> Result<(), subxt::ext::subxt_core::Error> {
-				out.extend_from_slice(&self.0);
-				Ok(())
-			}
-		}
-
-		use subxt_signer::sr25519::dev;
-		let payload = reqwest::get(&format!("{}/payload", "http://127.0.0.1:9090"))
-			.await
-			.expect("Failed to get payload")
-			.json::<TransactionData>()
-			.await
-			.expect("Failed to parse payload");
-
-		let url = "ws://localhost:9944";
-		let rpc_client = subxt::backend::rpc::RpcClient::from_url(url).await?;
-		let client =
-			subxt::OnlineClient::<subxt::SubstrateConfig>::from_rpc_client(rpc_client).await?;
-
-		let signer = dev::alice();
-
-		let payload = CallData(payload.call_data());
-		let ext_params = Params::new().build();
-		let signed = client.tx().create_signed(&payload, &signer, ext_params).await?;
-
-		let response = reqwest::Client::new()
-			.post(&format!("{}/submit", "http://localhost:9090"))
-			.json(&to_hex(signed.encoded()))
-			.send()
-			.await
-			.expect("Failed to submit payload")
-			.text()
-			.await
-			.expect("Failed to parse JSON response");
-
-		Ok(())
-	}
-
-	#[tokio::test]
 	async fn get_upload_call_data_works() -> anyhow::Result<()> {
 		todo!()
 	}

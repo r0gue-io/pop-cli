@@ -5,6 +5,7 @@ use clap::{Args, Subcommand};
 #[cfg(feature = "contract")]
 use contract::BuildContractCommand;
 use duct::cmd;
+use pop_common::Profile;
 use std::path::PathBuf;
 #[cfg(feature = "parachain")]
 use {parachain::BuildParachainCommand, spec::BuildSpecCommand};
@@ -29,8 +30,11 @@ pub(crate) struct BuildArgs {
 	#[arg(short = 'p', long)]
 	pub(crate) package: Option<String>,
 	/// For production, always build in release mode to exclude debug features.
-	#[clap(short, long)]
+	#[clap(short, long, conflicts_with = "profile")]
 	pub(crate) release: bool,
+	/// Build profile [default: debug].
+	#[clap(long, value_enum)]
+	pub(crate) profile: Option<Profile>,
 	/// Parachain ID to be used when generating the chain spec files.
 	#[arg(short = 'i', long = "id")]
 	#[cfg(feature = "parachain")]
@@ -62,19 +66,26 @@ impl Command {
 		#[cfg(feature = "contract")]
 		if pop_contracts::is_supported(args.path.as_deref())? {
 			// All commands originating from root command are valid
-			BuildContractCommand { path: args.path, release: args.release, valid: true }
-				.execute()?;
+			let release = match args.profile {
+				Some(profile) => profile.into(),
+				None => args.release,
+			};
+			BuildContractCommand { path: args.path, release, valid: true }.execute()?;
 			return Ok("contract");
 		}
 
 		// If only parachain feature enabled, build as parachain
 		#[cfg(feature = "parachain")]
 		if pop_parachains::is_supported(args.path.as_deref())? {
+			let profile = match args.profile {
+				Some(profile) => profile,
+				None => args.release.into(),
+			};
 			// All commands originating from root command are valid
 			BuildParachainCommand {
 				path: args.path,
 				package: args.package,
-				release: args.release,
+				profile: Some(profile),
 				id: args.id,
 				valid: true,
 			}
@@ -101,13 +112,15 @@ impl Command {
 			_args.push("--package");
 			_args.push(package)
 		}
-		if args.release {
+		let profile = args.profile.unwrap_or(Profile::Debug);
+		if profile == Profile::Release {
 			_args.push("--release");
+		} else if profile == Profile::Production {
+			_args.push("--profile=production");
 		}
 		cmd("cargo", _args).dir(args.path.unwrap_or_else(|| "./".into())).run()?;
 
-		let mode = if args.release { "RELEASE" } else { "DEBUG" };
-		cli.info(format!("The {project} was built in {mode} mode."))?;
+		cli.info(format!("The {project} was built in {} mode.", profile))?;
 		cli.outro("Build completed successfully!")?;
 		Ok(project)
 	}
@@ -117,41 +130,46 @@ impl Command {
 mod tests {
 	use super::*;
 	use cli::MockCli;
+	use pop_common::manifest::add_production_profile;
+	use strum::VariantArray;
 
 	#[test]
 	fn build_works() -> anyhow::Result<()> {
 		let name = "hello_world";
 		let temp_dir = tempfile::tempdir()?;
 		let path = temp_dir.path();
+		let project_path = path.join(name);
 		cmd("cargo", ["new", name, "--bin"]).dir(&path).run()?;
+		add_production_profile(&project_path)?;
 
 		for package in [None, Some(name.to_string())] {
-			for release in [false, true] {
-				let project = if package.is_some() { "package" } else { "project" };
-				let mode = if release { "RELEASE" } else { "DEBUG" };
-				let mut cli = MockCli::new()
-					.expect_intro(format!("Building your {project}"))
-					.expect_info(format!("The {project} was built in {mode} mode."))
-					.expect_outro("Build completed successfully!");
+			for release in [true, false] {
+				for profile in Profile::VARIANTS {
+					let profile = if release { Profile::Release } else { profile.clone() };
+					let project = if package.is_some() { "package" } else { "project" };
+					let mut cli = MockCli::new()
+						.expect_intro(format!("Building your {project}"))
+						.expect_info(format!("The {project} was built in {profile} mode."))
+						.expect_outro("Build completed successfully!");
 
-				assert_eq!(
-					Command::build(
-						BuildArgs {
-							command: None,
-							path: Some(path.join(name)),
-							package: package.clone(),
-							release,
-							id: None,
-						},
-						&mut cli,
-					)?,
-					project
-				);
-
-				cli.verify()?;
+					assert_eq!(
+						Command::build(
+							BuildArgs {
+								command: None,
+								path: Some(project_path.clone()),
+								package: package.clone(),
+								release,
+								profile: Some(profile.clone()),
+								id: None,
+							},
+							&mut cli,
+						)?,
+						project
+					);
+					cli.verify()?;
+				}
 			}
 		}
-
 		Ok(())
 	}
 }

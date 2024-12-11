@@ -1,0 +1,528 @@
+{
+  "source": {
+    "hash": "0xf4f0cafd08d8e362141b3c64e3c651ad6a38225dbf0b66f691c15bb0ea00eac3",
+    "language": "ink! 5.0.0",
+    "compiler": "rustc 1.78.0",
+    "build_info": {
+      "rust_toolchain": "stable-aarch64-apple-darwin",
+      "cargo_contract_version": "5.0.0-alpha",
+      "build_mode": "Release",
+      "wasm_opt_settings": {
+        "optimization_passes": "Z",
+        "keep_debug_symbols": false
+      }
+    }
+  },
+  "contract": {
+    "name": "testing",
+    "version": "0.1.0",
+    "authors": [
+      "[your_name] <[your_email]>"
+    ]
+  },
+  "image": null,
+  "version": 5,
+  "types": [
+    {
+      "id": 0,
+      "type": {
+        "def": {
+          "primitive": "bool"
+        }
+      }
+    },
+    {
+      "id": 1,
+      "type": {
+        "def": {
+          "primitive": "u32"
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": {
+        "path": [
+          "testing",
+          "testing",
+          "Testing"
+        ],
+        "def": {
+          "composite": {
+            "fields": [
+              {
+                "name": "value",
+                "type": 0,
+                "typeName": "<bool as::ink::storage::traits::AutoStorableHint<::ink::storage\n::traits::ManualKey<2310945317u32, ()>,>>::Type"
+              },
+              {
+                "name": "number",
+                "type": 1,
+                "typeName": "<u32 as::ink::storage::traits::AutoStorableHint<::ink::storage\n::traits::ManualKey<712936688u32, ()>,>>::Type"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": {
+        "path": [
+          "Result"
+        ],
+        "params": [
+          {
+            "name": "T",
+            "type": 4
+          },
+          {
+            "name": "E",
+            "type": 5
+          }
+        ],
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "name": "Ok",
+                "fields": [
+                  {
+                    "type": 4
+                  }
+                ],
+                "index": 0
+              },
+              {
+                "name": "Err",
+                "fields": [
+                  {
+                    "type": 5
+                  }
+                ],
+                "index": 1
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": {
+        "def": {
+          "tuple": []
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": {
+        "path": [
+          "ink_primitives",
+          "LangError"
+        ],
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "name": "CouldNotReadInput",
+                "index": 1
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": {
+        "path": [
+          "Option"
+        ],
+        "params": [
+          {
+            "name": "T",
+            "type": 1
+          }
+        ],
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "name": "None",
+                "index": 0
+              },
+              {
+                "name": "Some",
+                "fields": [
+                  {
+                    "type": 1
+                  }
+                ],
+                "index": 1
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": {
+        "path": [
+          "Result"
+        ],
+        "params": [
+          {
+            "name": "T",
+            "type": 0
+          },
+          {
+            "name": "E",
+            "type": 5
+          }
+        ],
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "name": "Ok",
+                "fields": [
+                  {
+                    "type": 0
+                  }
+                ],
+                "index": 0
+              },
+              {
+                "name": "Err",
+                "fields": [
+                  {
+                    "type": 5
+                  }
+                ],
+                "index": 1
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 8,
+      "type": {
+        "path": [
+          "ink_primitives",
+          "types",
+          "AccountId"
+        ],
+        "def": {
+          "composite": {
+            "fields": [
+              {
+                "type": 9,
+                "typeName": "[u8; 32]"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 9,
+      "type": {
+        "def": {
+          "array": {
+            "len": 32,
+            "type": 10
+          }
+        }
+      }
+    },
+    {
+      "id": 10,
+      "type": {
+        "def": {
+          "primitive": "u8"
+        }
+      }
+    },
+    {
+      "id": 11,
+      "type": {
+        "def": {
+          "primitive": "u128"
+        }
+      }
+    },
+    {
+      "id": 12,
+      "type": {
+        "path": [
+          "ink_primitives",
+          "types",
+          "Hash"
+        ],
+        "def": {
+          "composite": {
+            "fields": [
+              {
+                "type": 9,
+                "typeName": "[u8; 32]"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 13,
+      "type": {
+        "def": {
+          "primitive": "u64"
+        }
+      }
+    },
+    {
+      "id": 14,
+      "type": {
+        "path": [
+          "ink_env",
+          "types",
+          "NoChainExtension"
+        ],
+        "def": {
+          "variant": {}
+        }
+      }
+    }
+  ],
+  "storage": {
+    "root": {
+      "root_key": "0x00000000",
+      "layout": {
+        "struct": {
+          "name": "Testing",
+          "fields": [
+            {
+              "name": "value",
+              "layout": {
+                "leaf": {
+                  "key": "0x00000000",
+                  "ty": 0
+                }
+              }
+            },
+            {
+              "name": "number",
+              "layout": {
+                "leaf": {
+                  "key": "0x00000000",
+                  "ty": 1
+                }
+              }
+            }
+          ]
+        }
+      },
+      "ty": 2
+    }
+  },
+  "spec": {
+    "constructors": [
+      {
+        "label": "new",
+        "selector": "0x9bae9d5e",
+        "payable": false,
+        "args": [
+          {
+            "label": "init_value",
+            "type": {
+              "type": 0,
+              "displayName": [
+                "bool"
+              ]
+            }
+          }
+        ],
+        "returnType": {
+          "type": 3,
+          "displayName": [
+            "ink_primitives",
+            "ConstructorResult"
+          ]
+        },
+        "docs": [
+          "Constructor that initializes the `bool` value to the given `init_value`."
+        ],
+        "default": false
+      },
+      {
+        "label": "default",
+        "selector": "0xed4b9d1b",
+        "payable": false,
+        "args": [
+          {
+            "label": "init_value",
+            "type": {
+              "type": 0,
+              "displayName": [
+                "bool"
+              ]
+            }
+          },
+          {
+            "label": "number",
+            "type": {
+              "type": 6,
+              "displayName": [
+                "Option"
+              ]
+            }
+          }
+        ],
+        "returnType": {
+          "type": 3,
+          "displayName": [
+            "ink_primitives",
+            "ConstructorResult"
+          ]
+        },
+        "docs": [
+          "Constructor that initializes the `bool` value to `false`.",
+          "",
+          "Constructors can delegate to other constructors."
+        ],
+        "default": false
+      }
+    ],
+    "messages": [
+      {
+        "label": "flip",
+        "selector": "0x633aa551",
+        "mutates": true,
+        "payable": false,
+        "args": [],
+        "returnType": {
+          "type": 3,
+          "displayName": [
+            "ink",
+            "MessageResult"
+          ]
+        },
+        "docs": [
+          " A message that can be called on instantiated contracts.",
+          " This one flips the value of the stored `bool` from `true`",
+          " to `false` and vice versa."
+        ],
+        "default": false
+      },
+      {
+        "label": "get",
+        "selector": "0x2f865bd9",
+        "mutates": false,
+        "payable": false,
+        "args": [],
+        "returnType": {
+          "type": 7,
+          "displayName": [
+            "ink",
+            "MessageResult"
+          ]
+        },
+        "docs": [
+          " Simply returns the current value of our `bool`."
+        ],
+        "default": false
+      },
+      {
+        "label": "specific_flip",
+        "selector": "0x6c0f1df7",
+        "mutates": true,
+        "payable": true,
+        "args": [
+          {
+            "label": "new_value",
+            "type": {
+              "type": 0,
+              "displayName": [
+                "bool"
+              ]
+            }
+          },
+          {
+            "label": "number",
+            "type": {
+              "type": 6,
+              "displayName": [
+                "Option"
+              ]
+            }
+          }
+        ],
+        "returnType": {
+          "type": 3,
+          "displayName": [
+            "ink",
+            "MessageResult"
+          ]
+        },
+        "docs": [
+          " A message for testing, flips the value of the stored `bool` with `new_value`",
+          " and is payable"
+        ],
+        "default": false
+      }
+    ],
+    "events": [],
+    "docs": [],
+    "lang_error": {
+      "type": 5,
+      "displayName": [
+        "ink",
+        "LangError"
+      ]
+    },
+    "environment": {
+      "accountId": {
+        "type": 8,
+        "displayName": [
+          "AccountId"
+        ]
+      },
+      "balance": {
+        "type": 11,
+        "displayName": [
+          "Balance"
+        ]
+      },
+      "hash": {
+        "type": 12,
+        "displayName": [
+          "Hash"
+        ]
+      },
+      "timestamp": {
+        "type": 13,
+        "displayName": [
+          "Timestamp"
+        ]
+      },
+      "blockNumber": {
+        "type": 1,
+        "displayName": [
+          "BlockNumber"
+        ]
+      },
+      "chainExtension": {
+        "type": 14,
+        "displayName": [
+          "ChainExtension"
+        ]
+      },
+      "maxEventTopics": 4,
+      "staticBufferSize": 16384
+    }
+  }
+}
