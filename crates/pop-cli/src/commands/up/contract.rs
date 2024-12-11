@@ -3,7 +3,7 @@
 use crate::{
 	cli::{traits::Cli as _, Cli},
 	common::{
-		contracts::{check_contracts_node_and_prompt, has_contract_been_built},
+		contracts::{check_contracts_node_and_prompt, has_contract_been_built, terminate_node},
 		wallet::wait_for_signature,
 	},
 	style::style,
@@ -21,10 +21,7 @@ use pop_contracts::{
 };
 use sp_core::Bytes;
 use sp_weights::Weight;
-use std::{
-	path::PathBuf,
-	process::{Child, Command},
-};
+use std::path::PathBuf;
 use tempfile::NamedTempFile;
 use url::Url;
 
@@ -185,7 +182,7 @@ impl UpContractCommand {
 				Ok(data) => data,
 				Err(e) => {
 					error(format!("An error occurred getting the call data: {e}"))?;
-					Self::terminate_node(process)?;
+					terminate_node(process)?;
 					Cli.outro_cancel(FAILED)?;
 					return Ok(());
 				},
@@ -202,7 +199,7 @@ impl UpContractCommand {
 					// TODO: dry (see else below)
 					if let Err(e) = result {
 						spinner.error(format!("An error occurred uploading your contract: {e}"));
-						Self::terminate_node(process)?;
+						terminate_node(process)?;
 						Cli.outro_cancel(FAILED)?;
 						return Ok(());
 					}
@@ -221,7 +218,7 @@ impl UpContractCommand {
 					let result = instantiate_contract_signed(self.url.as_str(), payload).await;
 					if let Err(e) = result {
 						spinner.error(format!("An error occurred uploading your contract: {e}"));
-						Self::terminate_node(process)?;
+						terminate_node(process)?;
 						Cli.outro_cancel(FAILED)?;
 						return Ok(());
 					}
@@ -244,7 +241,7 @@ impl UpContractCommand {
 				return Ok(());
 			}
 
-			Self::terminate_node(process)?;
+			terminate_node(process)?;
 			Cli.outro(COMPLETE)?;
 			return Ok(());
 		}
@@ -252,7 +249,7 @@ impl UpContractCommand {
 		// Check for upload only.
 		if self.upload_only {
 			let result = self.upload_contract().await;
-			Self::terminate_node(process)?;
+			terminate_node(process)?;
 			match result {
 				Ok(_) => {
 					Cli.outro(COMPLETE)?;
@@ -269,7 +266,7 @@ impl UpContractCommand {
 			Ok(i) => i,
 			Err(e) => {
 				error(format!("An error occurred instantiating the contract: {e}"))?;
-				Self::terminate_node(process)?;
+				terminate_node(process)?;
 				Cli.outro_cancel(FAILED)?;
 				return Ok(());
 			},
@@ -287,7 +284,7 @@ impl UpContractCommand {
 				},
 				Err(e) => {
 					spinner.error(format!("{e}"));
-					Self::terminate_node(process)?;
+					terminate_node(process)?;
 					Cli.outro_cancel(FAILED)?;
 					return Ok(());
 				},
@@ -305,7 +302,7 @@ impl UpContractCommand {
 				contract_info.code_hash,
 			);
 
-			Self::terminate_node(process)?;
+			terminate_node(process)?;
 			Cli.outro(COMPLETE)?;
 		}
 
@@ -344,29 +341,6 @@ impl UpContractCommand {
 			spinner.stop(format!("Contract uploaded: The code hash is {:?}", code_hash));
 			log::warning("NOTE: The contract has not been instantiated.")?;
 		}
-		Ok(())
-	}
-
-	/// Handles the optional termination of a local running node.
-	fn terminate_node(process: Option<(Child, NamedTempFile)>) -> anyhow::Result<()> {
-		// Prompt to close any launched node
-		let Some((process, log)) = process else {
-			return Ok(());
-		};
-		if confirm("Would you like to terminate the local node?")
-			.initial_value(true)
-			.interact()?
-		{
-			// Stop the process contracts-node
-			Command::new("kill")
-				.args(["-s", "TERM", &process.id().to_string()])
-				.spawn()?
-				.wait()?;
-		} else {
-			log.keep()?;
-			log::warning(format!("NOTE: The node is running in the background with process ID {}. Please terminate it manually when done.", process.id()))?;
-		}
-
 		Ok(())
 	}
 
