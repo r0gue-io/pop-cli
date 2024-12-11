@@ -8,8 +8,8 @@ use clap::Args;
 use pop_parachains::{
 	construct_extrinsic, construct_sudo_extrinsic, decode_call_data, encode_call_data,
 	find_dispatchable_by_name, find_pallet_by_name, parse_chain_metadata, set_up_client,
-	sign_and_submit_extrinsic, supported_actions, Action, CallData,
-	DynamicPayload, Function, OnlineClient, Pallet, Param, SubstrateConfig,
+	sign_and_submit_extrinsic, supported_actions, Action, CallData, DynamicPayload, Function,
+	OnlineClient, Pallet, Param, SubstrateConfig,
 };
 use url::Url;
 
@@ -62,7 +62,12 @@ impl CallChainCommand {
 		// Execute the call if call_data is provided.
 		if let Some(call_data) = self.call_data.as_ref() {
 			if let Err(e) = self
-				.submit_extrinsic_from_call_data(&chain.client, &chain.url, call_data, &mut cli::Cli)
+				.submit_extrinsic_from_call_data(
+					&chain.client,
+					&chain.url,
+					call_data,
+					&mut cli::Cli,
+				)
 				.await
 			{
 				display_message(&e.to_string(), false, &mut cli::Cli)?;

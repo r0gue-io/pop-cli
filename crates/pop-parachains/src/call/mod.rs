@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{errors::Error, Function};
-use pop_common::{create_signer};
+use pop_common::{
+	call::{DefaultEnvironment, DisplayEvents, TokenMetadata, Verbosity},
+	create_signer,
+};
 use subxt::{
 	dynamic::Value,
 	tx::{DynamicPayload, Payload},
 	OnlineClient, SubstrateConfig,
 };
-use pop_common::call::{DisplayEvents, TokenMetadata, DefaultEnvironment, Verbosity};
 
 pub mod metadata;
 
@@ -66,19 +68,18 @@ pub async fn sign_and_submit_extrinsic<C: Payload>(
 		.await
 		.map_err(|e| Error::ExtrinsicSubmissionError(format!("{:?}", e)))?;
 
-	// Obtain required metadata and parse events.
+	// Obtain required metadata and parse events. The following is using existing logic from
+	// `cargo-contract`, also used in calling contracts, due to simplicity and can be refactored in
+	// the future.
 	let metadata = client.metadata();
 	let token_metadata = TokenMetadata::query::<SubstrateConfig>(url).await?;
-	let events =
-		DisplayEvents::from_events::<SubstrateConfig, DefaultEnvironment>(&result, None, &metadata)?;
+	let events = DisplayEvents::from_events::<SubstrateConfig, DefaultEnvironment>(
+		&result, None, &metadata,
+	)?;
 	let events =
 		events.display_events::<DefaultEnvironment>(Verbosity::Default, &token_metadata)?;
 
-	Ok(format!(
-		"Extrinsic Submitted with hash: {:?}\n\n{}",
-		result.extrinsic_hash(),
-		events,
-	))
+	Ok(format!("Extrinsic Submitted with hash: {:?}\n\n{}", result.extrinsic_hash(), events,))
 }
 
 /// Encodes the call data for a given extrinsic into a hexadecimal string.
@@ -110,6 +111,7 @@ pub fn decode_call_data(call_data: &str) -> Result<Vec<u8>, Error> {
 pub struct CallData(Vec<u8>);
 
 impl CallData {
+	/// Create a new instance of `CallData`.
 	pub fn new(data: Vec<u8>) -> CallData {
 		CallData(data)
 	}
@@ -126,35 +128,12 @@ impl Payload for CallData {
 	}
 }
 
-// /// Signs and submits a given extrinsic.
-// ///
-// /// # Arguments
-// /// * `client` - Reference to an `OnlineClient` connected to the chain.
-// /// * `call_data` - SCALE encoded bytes representing the extrinsic's call data.
-// /// * `suri` - The secret URI (e.g., mnemonic or private key) for signing the extrinsic.
-// pub async fn sign_and_submit_extrinsic_with_call_data(
-// 	client: &OnlineClient<SubstrateConfig>,
-// 	call_data: Vec<u8>,
-// 	suri: &str,
-// ) -> Result<String, Error> {
-// 	let signer = create_signer(suri)?;
-// 	let result = client
-// 		.tx()
-// 		.sign_and_submit_then_watch_default(&payload, &signer)
-// 		.await
-// 		.map_err(|e| Error::ExtrinsicSubmissionError(format!("{:?}", e)))?
-// 		.wait_for_finalized_success()
-// 		.await
-// 		.map_err(|e| Error::ExtrinsicSubmissionError(format!("{:?}", e)))?;
-// 	Ok(format!("{:?}", result.extrinsic_hash()))
-// }
-
 #[cfg(test)]
 mod tests {
 	use super::*;
 	use crate::{find_dispatchable_by_name, parse_chain_metadata, set_up_client};
-	use url::Url;
 	use anyhow::Result;
+	use url::Url;
 
 	const ALICE_SURI: &str = "//Alice";
 	pub(crate) const POP_NETWORK_TESTNET_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";
