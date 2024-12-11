@@ -384,6 +384,12 @@ mod tests {
 		run_contracts_node,
 	};
 	use anyhow::Result;
+	use reqwest::get;
+	use std::{env, fs, process::Command};
+	use subxt::{
+		config::{substrate::BlakeTwo256, Hasher},
+		utils::to_hex,
+	};
 	use pop_common::{find_free_port, set_executable_permission};
 	use std::{env, process::Command, time::Duration};
 	use tokio::time::sleep;
@@ -439,30 +445,35 @@ mod tests {
 		Ok(())
 	}
 
-	// #[tokio::test]
-	// async fn get_payload_works() -> Result<()> {
-	// 	let temp_dir = new_environment("testing")?;
-	// 	let current_dir = env::current_dir().expect("Failed to get current directory");
-	// 	mock_build_process(
-	// 		temp_dir.path().join("testing"),
-	// 		current_dir.join("./tests/files/testing.contract"),
-	// 		current_dir.join("./tests/files/testing.json"),
-	// 	)?;
-	// 	let up_opts = UpOpts {
-	// 		path: Some(temp_dir.path().join("testing")),
-	// 		constructor: "new".to_string(),
-	// 		args: ["false".to_string()].to_vec(),
-	// 		value: "1000".to_string(),
-	// 		gas_limit: None,
-	// 		proof_size: None,
-	// 		salt: None,
-	// 		url: Url::parse(CONTRACTS_NETWORK_URL)?,
-	// 		suri: "//Alice".to_string(),
-	// 	};
-	// 	let call_data = get_upload_payload(up_opts, CONTRACTS_NETWORK_URL).await?;
-	// 	// println!("{:?}", call_data);
-	// 	Ok(())
-	// }
+	#[tokio::test]
+	async fn get_payload_works() -> Result<()> {
+		let temp_dir = new_environment("testing")?;
+		let current_dir = env::current_dir().expect("Failed to get current directory");
+		mock_build_process(
+			temp_dir.path().join("testing"),
+			current_dir.join("./tests/files/testing.contract"),
+			current_dir.join("./tests/files/testing.json"),
+		)?;
+		let up_opts = UpOpts {
+			path: Some(temp_dir.path().join("testing")),
+			constructor: "new".to_string(),
+			args: ["false".to_string()].to_vec(),
+			value: "1000".to_string(),
+			gas_limit: None,
+			proof_size: None,
+			salt: None,
+			url: Url::parse(CONTRACTS_NETWORK_URL)?,
+			suri: "//Alice".to_string(),
+		};
+		let contract_code = get_contract_code(up_opts.path.as_ref()).await?;
+		let call_data = get_upload_payload(contract_code, CONTRACTS_NETWORK_URL).await?;
+		let payload_hash = BlakeTwo256::hash(&call_data).to_string();
+		// We know that for the above opts the payload hash should be:
+		// 0x4e4ff6ad411346d4cd6cf9bcc9101360e4657f776b0af3b46bfe780b0413e819
+		assert!(payload_hash.starts_with("0x4e4f"));
+		assert!(payload_hash.ends_with("e819"));
+		Ok(())
+	}
 
 	#[tokio::test]
 	async fn dry_run_gas_estimate_instantiate_works() -> Result<()> {
