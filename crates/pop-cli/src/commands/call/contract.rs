@@ -2,21 +2,25 @@
 
 use crate::{
 	cli::{self, traits::*},
-	common::contracts::has_contract_been_built,
+	common::{contracts::has_contract_been_built, wallet::wait_for_signature},
 };
 use anyhow::{anyhow, Result};
 use clap::Args;
 use cliclack::spinner;
+use pop_common::{DefaultConfig, Keypair};
 use pop_contracts::{
 	build_smart_contract, call_smart_contract, dry_run_call, dry_run_gas_estimate_call,
-	get_messages, parse_account, set_up_call, CallOpts, Verbosity,
+	get_messages, instantiate_contract_signed, parse_account, set_up_call, CallExec, CallOpts,
+	DefaultEnvironment, Verbosity,
 };
 use sp_weights::Weight;
 use std::path::PathBuf;
 
+const COMPLETE: &str = "🚀 Deployment complete";
 const DEFAULT_URL: &str = "ws://localhost:9944/";
 const DEFAULT_URI: &str = "//Alice";
 const DEFAULT_PAYABLE_VALUE: &str = "0";
+const FAILED: &str = "🚫 Deployment failed.";
 
 #[derive(Args, Clone)]
 pub struct CallContractCommand {
@@ -54,6 +58,9 @@ pub struct CallContractCommand {
 	/// - with a password "//Alice///SECRET_PASSWORD"
 	#[arg(name = "suri", long, short, default_value = DEFAULT_URI)]
 	suri: String,
+	/// Use your browser wallet to sign a transaction.
+	#[clap(name = "use-wallet", long, default_value = "false", conflicts_with = "suri")]
+	use_wallet: bool,
 	/// Submit an extrinsic for on-chain execution.
 	#[arg(short('x'), long)]
 	execute: bool,
@@ -117,7 +124,11 @@ impl CallContractCommand {
 		if let Some(proof_size) = self.proof_size {
 			full_message.push_str(&format!(" --proof_size {}", proof_size));
 		}
-		full_message.push_str(&format!(" --url {} --suri {}", self.url, self.suri));
+		if self.use_wallet {
+			full_message.push_str(&format!(" --url {} --use_wallet", self.url));
+		} else {
+			full_message.push_str(&format!(" --url {} --suri {}", self.url, self.suri));
+		}
 		if self.execute {
 			full_message.push_str(" --execute");
 		}
@@ -303,15 +314,24 @@ impl CallContractCommand {
 			self.proof_size = proof_size_input.parse::<u64>().ok(); // If blank or bad input, estimate it.
 		}
 
-		// Resolve who is calling the contract.
-		if self.suri == DEFAULT_URI {
-			// Prompt for uri.
-			self.suri = cli
-				.input("Signer calling the contract:")
-				.placeholder("//Alice")
-				.default_input("//Alice")
-				.interact()?;
-		};
+		if !self.use_wallet {
+			if cli.confirm("Do you want to use your browser wallet to sign the transaction? (Selecting 'No' will prompt you to manually enter the secret key URI for signing, e.g., '//Alice')")
+			.initial_value(true)
+			.interact()? {
+				self.use_wallet = true;
+			}
+			else{
+				// Resolve who is calling the contract.
+				if self.suri == DEFAULT_URI {
+					// Prompt for uri.
+					self.suri = cli
+						.input("Signer calling the contract:")
+						.placeholder("//Alice")
+						.default_input("//Alice")
+						.interact()?;
+				};
+			}
+		}
 
 		// Finally prompt for confirmation.
 		let is_call_confirmed = if message.mutates && !self.dev_mode {
@@ -346,6 +366,7 @@ impl CallContractCommand {
 				return Err(anyhow!("Please specify the contract address."));
 			},
 		};
+
 		let call_exec = match set_up_call(CallOpts {
 			path: self.path.clone(),
 			contract,
@@ -365,6 +386,11 @@ impl CallContractCommand {
 				return Err(anyhow!(format!("{}", e.to_string())));
 			},
 		};
+
+		// Run steps for signing with wallet integration. Returns early.
+		if self.use_wallet {
+			return self.execute_call_secure_signing(&call_exec, cli).await;
+		}
 
 		if self.dry_run {
 			let spinner = spinner();
@@ -435,6 +461,62 @@ impl CallContractCommand {
 		}
 	}
 
+	async fn execute_call_secure_signing(
+		&self,
+		call_exec: Result<CallExec<DefaultConfig, DefaultEnvironment, Keypair>>,
+		cli: &mut impl Cli,
+	) -> Result<()> {
+		let call_data = match self.get_contract_data(call_exec).await {
+			Ok(data) => data,
+			Err(e) => {
+				return Err(anyhow!(format!(
+					"An error occurred getting the call data: {}",
+					e.to_string()
+				)));
+			},
+		};
+
+		let maybe_payload = wait_for_signature(call_data, self.url.to_string()).await?;
+		if let Some(payload) = maybe_payload {
+			cli.success("Signed payload received.")?;
+			let spinner = spinner();
+			spinner.start("Uploading contract...");
+
+			let result =
+				call_smart_contract_from_signed_payload(call_data, payload, self.url).await;
+			if let Err(e) = result {
+				return Err(anyhow!(format!(
+					"An error occurred calling your contract: {}",
+					e.to_string()
+				)));
+			}
+
+			// let contract_info = result.unwrap();
+			// let hash = contract_info.code_hash.map(|code_hash| format!("{:?}", code_hash));
+			// display_contract_info(&spinner, contract_info.contract_address.to_string(), hash);
+		} else {
+			display_message("Signed payload doesn't exist.", false, cli)?;
+		}
+
+		display_message(COMPLETE, true, cli)?;
+		Ok(())
+	}
+
+	/// Get the call data and contract code hash
+	async fn get_contract_data(
+		&self,
+		call_exec: Result<CallExec<DefaultConfig, DefaultEnvironment, Keypair>>,
+	) -> anyhow::Result<Vec<u8>> {
+		let weight_limit = if self.gas_limit.is_some() && self.proof_size.is_some() {
+			Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap())
+		} else {
+			// Frontend will do dry run and update call data.
+			Weight::from_parts(0, 0)
+		};
+		let call_data = get_call_payload(call_exec, weight_limit).await?;
+		Ok(call_data)
+	}
+
 	/// Resets message specific fields to default values for a new call.
 	fn reset_for_new_call(&mut self) {
 		self.message = None;
@@ -482,6 +564,7 @@ mod tests {
 			proof_size: None,
 			url: Url::parse("wss://rpc1.paseo.popnetwork.xyz")?,
 			suri: "//Alice".to_string(),
+			use_wallet: false,
 			dry_run: false,
 			execute: false,
 			dev_mode: false,
@@ -517,6 +600,7 @@ mod tests {
 			proof_size: Some(10),
 			url: Url::parse("wss://rpc1.paseo.popnetwork.xyz")?,
 			suri: "//Alice".to_string(),
+			use_wallet: false,
 			dry_run: true,
 			execute: false,
 			dev_mode: false,
@@ -553,6 +637,7 @@ mod tests {
 			proof_size: Some(10),
 			url: Url::parse("wss://rpc1.paseo.popnetwork.xyz")?,
 			suri: "//Alice".to_string(),
+			use_wallet: false,
 			dry_run: true,
 			execute: false,
 			dev_mode: false,
@@ -638,6 +723,7 @@ mod tests {
 			proof_size: None,
 			url: Url::parse("wss://rpc1.paseo.popnetwork.xyz")?,
 			suri: "//Alice".to_string(),
+			use_wallet: false,
 			dry_run: false,
 			execute: false,
 			dev_mode: false,
@@ -704,6 +790,7 @@ mod tests {
 			proof_size: None,
 			url: Url::parse(DEFAULT_URL)?,
 			suri: DEFAULT_URI.to_string(),
+			use_wallet: false,
 			dry_run: false,
 			execute: false,
 			dev_mode: false,
@@ -791,6 +878,7 @@ mod tests {
 			proof_size: None,
 			url: Url::parse(DEFAULT_URL)?,
 			suri: DEFAULT_URI.to_string(),
+			use_wallet: false,
 			dry_run: false,
 			execute: false,
 			dev_mode: false,
@@ -877,6 +965,7 @@ mod tests {
 			proof_size: None,
 			url: Url::parse(DEFAULT_URL)?,
 			suri: DEFAULT_URI.to_string(),
+			use_wallet: false,
 			dry_run: false,
 			execute: false,
 			dev_mode: true,
@@ -935,6 +1024,7 @@ mod tests {
 			proof_size: None,
 			url: Url::parse("wss://rpc1.paseo.popnetwork.xyz")?,
 			suri: "//Alice".to_string(),
+			use_wallet: false,
 			dry_run: false,
 			execute: false,
 			dev_mode: false,
@@ -984,6 +1074,7 @@ mod tests {
 				proof_size: None,
 				url: Url::parse("wss://rpc1.paseo.popnetwork.xyz")?,
 				suri: "//Alice".to_string(),
+				use_wallet: false,
 				dry_run: false,
 				execute: false,
 				dev_mode: false,
@@ -1002,6 +1093,7 @@ mod tests {
 				proof_size: None,
 				url: Url::parse("wss://rpc1.paseo.popnetwork.xyz")?,
 				suri: "//Alice".to_string(),
+				use_wallet: false,
 				dry_run: false,
 				execute: false,
 				dev_mode: false,
@@ -1025,6 +1117,7 @@ mod tests {
 			proof_size: None,
 			url: Url::parse("wss://rpc1.paseo.popnetwork.xyz")?,
 			suri: "//Alice".to_string(),
+			use_wallet: false,
 			dry_run: false,
 			execute: false,
 			dev_mode: false,
@@ -1055,6 +1148,7 @@ mod tests {
 			proof_size: None,
 			url: Url::parse("wss://rpc1.paseo.popnetwork.xyz")?,
 			suri: "//Alice".to_string(),
+			use_wallet: false,
 			dry_run: false,
 			execute: false,
 			dev_mode: false,

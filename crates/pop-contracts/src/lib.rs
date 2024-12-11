@@ -31,3 +31,6 @@ pub use utils::{
 	metadata::{get_messages, ContractFunction},
 	parse_account, parse_hex_bytes,
 };
+// External exports
+pub use contract_extrinsics::CallExec;
+pub use ink_env::DefaultEnvironment;
