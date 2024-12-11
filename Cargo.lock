@@ -1264,7 +1264,7 @@ checksum = "cd7e35aee659887cbfb97aaf227ac12cad1a9d7c71e55ff3376839ed4e282d08"
 [[package]]
 name = "contract-build"
 version = "5.0.0-alpha"
-source = "git+https://github.com/use-ink/cargo-contract?branch=peter/chore-make-types-pub#68691b9b6cdb7c6ec52ea441b3dc31fcb1ce08e0"
+source = "git+https://github.com/use-ink/cargo-contract?branch=peter/chore-make-types-pub#253ddbe004d75b32b826e596a23f37918acd261e"
 dependencies = [
  "anyhow",
  "blake2",
@@ -1304,7 +1304,7 @@ dependencies = [
 [[package]]
 name = "contract-extrinsics"
 version = "5.0.0-alpha"
-source = "git+https://github.com/use-ink/cargo-contract?branch=peter/chore-make-types-pub#68691b9b6cdb7c6ec52ea441b3dc31fcb1ce08e0"
+source = "git+https://github.com/use-ink/cargo-contract?branch=peter/chore-make-types-pub#253ddbe004d75b32b826e596a23f37918acd261e"
 dependencies = [
  "anyhow",
  "blake2",
@@ -1336,7 +1336,7 @@ dependencies = [
 [[package]]
 name = "contract-metadata"
 version = "5.0.0-alpha"
-source = "git+https://github.com/use-ink/cargo-contract?branch=peter/chore-make-types-pub#68691b9b6cdb7c6ec52ea441b3dc31fcb1ce08e0"
+source = "git+https://github.com/use-ink/cargo-contract?branch=peter/chore-make-types-pub#253ddbe004d75b32b826e596a23f37918acd261e"
 dependencies = [
  "anyhow",
  "impl-serde",
@@ -1349,7 +1349,7 @@ dependencies = [
 [[package]]
 name = "contract-transcode"
 version = "5.0.0-alpha"
-source = "git+https://github.com/use-ink/cargo-contract?branch=peter/chore-make-types-pub#68691b9b6cdb7c6ec52ea441b3dc31fcb1ce08e0"
+source = "git+https://github.com/use-ink/cargo-contract?branch=peter/chore-make-types-pub#253ddbe004d75b32b826e596a23f37918acd261e"
 dependencies = [
  "anyhow",
  "base58",
@@ -4755,6 +4755,8 @@ dependencies = [
  "sp-weights",
  "strum 0.26.3",
  "strum_macros 0.26.4",
+ "subxt",
+ "subxt-signer",
  "tempfile",
  "tokio",
  "tower-http 0.6.2",
