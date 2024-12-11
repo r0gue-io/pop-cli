@@ -153,6 +153,7 @@ impl Payload for CallData {
 mod tests {
 	use super::*;
 	use crate::{find_dispatchable_by_name, parse_chain_metadata, set_up_client};
+	use url::Url;
 	use anyhow::Result;
 
 	const ALICE_SURI: &str = "//Alice";
@@ -235,7 +236,7 @@ mod tests {
 		};
 		let xt = construct_extrinsic(&function, vec!["0x11".to_string()])?;
 		assert!(matches!(
-			sign_and_submit_extrinsic(&client, xt, ALICE_SURI).await,
+			sign_and_submit_extrinsic(&client, &Url::parse(POP_NETWORK_TESTNET_URL)?, xt, ALICE_SURI).await,
 			Err(Error::ExtrinsicSubmissionError(message)) if message.contains("PalletNameNotFound(\"WrongPallet\"))")
 		));
 		Ok(())
