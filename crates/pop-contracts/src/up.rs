@@ -18,7 +18,7 @@ use pop_common::{create_signer, DefaultConfig, Keypair};
 use sp_core::{bytes::from_hex, Bytes};
 use sp_weights::Weight;
 use std::{
-	fmt::Write,
+	fmt::{format, Write},
 	path::{Path, PathBuf},
 };
 use subxt::{
@@ -179,7 +179,10 @@ pub async fn get_contract_code(
 
 	let artifacts_path = artifacts.artifact_path().to_path_buf();
 	let code = artifacts.code.ok_or_else(|| {
-		anyhow::anyhow!("Contract code not found from artifact file {}", artifacts_path.display())
+		Error::UploadContractError(format!(
+			"Contract code not found from artifact file {}",
+			artifacts_path.display()
+		))
 	})?;
 	Ok(code)
 }
@@ -209,7 +212,9 @@ pub async fn instantiate_contract_signed(
 
 	let instantiated = events
 		.find_first::<ContractInstantiated<subxt::config::substrate::AccountId32>>()?
-		.ok_or_else(|| anyhow::anyhow!("Failed to find Instantiated event"))?;
+		.ok_or_else(|| {
+			Error::InstantiateContractError("Failed to find Instantiated event".to_string())
+		})?;
 
 	Ok(InstantiateExecResult { events, code_hash, contract_address: instantiated.contract })
 }
