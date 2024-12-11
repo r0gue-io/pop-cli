@@ -385,8 +385,7 @@ mod tests {
 	};
 	use anyhow::Result;
 	use pop_common::{find_free_port, set_executable_permission};
-	use reqwest::get;
-	use std::{env, fs, process::Command, time::Duration};
+	use std::{env, process::Command, time::Duration};
 	use tokio::time::sleep;
 	use url::Url;
 
