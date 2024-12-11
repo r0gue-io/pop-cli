@@ -447,9 +447,6 @@ fn display_contract_info(spinner: &ProgressBar, address: String, code_hash: Opti
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use duct::cmd;
-	use std::fs::{self, File};
-	use subxt::{client::OfflineClientT, utils::to_hex};
 	use url::Url;
 
 	fn default_up_contract_command() -> UpContractCommand {
@@ -491,116 +488,6 @@ mod tests {
 		Ok(())
 	}
 
-	// TODO: delete this test.
-	// This is a helper test for an actual running pop CLI.
-	// It can serve as the "frontend" to query the payload, sign it
-	// and submit back to the CLI.
-	#[ignore]
-	#[tokio::test]
-	async fn sign_call_data() -> anyhow::Result<()> {
-		use subxt::{config::DefaultExtrinsicParamsBuilder as Params, tx::Payload};
-		// This struct implements the [`Payload`] trait and is used to submit
-		// pre-encoded SCALE call data directly, without the dynamic construction of transactions.
-		struct CallData(Vec<u8>);
-
-		impl Payload for CallData {
-			fn encode_call_data_to(
-				&self,
-				_: &subxt::Metadata,
-				out: &mut Vec<u8>,
-			) -> Result<(), subxt::ext::subxt_core::Error> {
-				out.extend_from_slice(&self.0);
-				Ok(())
-			}
-		}
-
-		use subxt_signer::sr25519::dev;
-		let payload = reqwest::get(&format!("{}/payload", "http://127.0.0.1:9090"))
-			.await
-			.expect("Failed to get payload")
-			.json::<TransactionData>()
-			.await
-			.expect("Failed to parse payload");
-
-		let url = "ws://localhost:9944";
-		let rpc_client = subxt::backend::rpc::RpcClient::from_url(url).await?;
-		let client =
-			subxt::OnlineClient::<subxt::SubstrateConfig>::from_rpc_client(rpc_client).await?;
-
-		let signer = dev::alice();
-
-		let payload = CallData(payload.call_data());
-		let ext_params = Params::new().build();
-		let signed = client.tx().create_signed(&payload, &signer, ext_params).await?;
-
-		let response = reqwest::Client::new()
-			.post(&format!("{}/submit", "http://localhost:9090"))
-			.json(&to_hex(signed.encoded()))
-			.send()
-			.await
-			.expect("Failed to submit payload")
-			.text()
-			.await
-			.expect("Failed to parse JSON response");
-
-		Ok(())
-	}
-
-	// TODO: delete this test.
-	// This is a helper test for an actual running pop CLI.
-	// It can serve as the "frontend" to query the payload, sign it
-	// and submit back to the CLI.
-	#[tokio::test]
-	async fn sign_call_data() -> anyhow::Result<()> {
-		use subxt::{config::DefaultExtrinsicParamsBuilder as Params, tx::Payload};
-		// This struct implements the [`Payload`] trait and is used to submit
-		// pre-encoded SCALE call data directly, without the dynamic construction of transactions.
-		struct CallData(Vec<u8>);
-
-		impl Payload for CallData {
-			fn encode_call_data_to(
-				&self,
-				_: &subxt::Metadata,
-				out: &mut Vec<u8>,
-			) -> Result<(), subxt::ext::subxt_core::Error> {
-				out.extend_from_slice(&self.0);
-				Ok(())
-			}
-		}
-
-		use subxt_signer::sr25519::dev;
-		let payload = reqwest::get(&format!("{}/payload", "http://127.0.0.1:9090"))
-			.await
-			.expect("Failed to get payload")
-			.json::<TransactionData>()
-			.await
-			.expect("Failed to parse payload");
-
-		let url = "ws://localhost:9944";
-		let rpc_client = subxt::backend::rpc::RpcClient::from_url(url).await?;
-		let client =
-			subxt::OnlineClient::<subxt::SubstrateConfig>::from_rpc_client(rpc_client).await?;
-
-		let signer = dev::alice();
-
-		let payload = CallData(payload.call_data());
-		let ext_params = Params::new().build();
-		let signed = client.tx().create_signed(&payload, &signer, ext_params).await?;
-
-		let response = reqwest::Client::new()
-			.post(&format!("{}/submit", "http://localhost:9090"))
-			.json(&to_hex(signed.encoded()))
-			.send()
-			.await
-			.expect("Failed to submit payload")
-			.text()
-			.await
-			.expect("Failed to parse JSON response");
-
-		Ok(())
-	}
-
-	#[tokio::test]
 	async fn get_upload_call_data_works() -> anyhow::Result<()> {
 		todo!()
 	}
