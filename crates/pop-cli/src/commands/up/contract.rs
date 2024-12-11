@@ -7,12 +7,13 @@ use crate::{
 	wallet_integration::{FrontendFromDir, TransactionData, WalletIntegrationManager},
 };
 use clap::Args;
-use cliclack::{confirm, log, log::error, spinner};
+use cliclack::{confirm, log, log::error, spinner, ProgressBar};
 use console::{Emoji, Style};
 use pop_contracts::{
 	build_smart_contract, dry_run_gas_estimate_instantiate, dry_run_upload,
-	get_instantiate_payload, get_upload_payload, instantiate_smart_contract, is_chain_alive,
-	parse_hex_bytes, run_contracts_node, set_up_deployment, set_up_upload, submit_signed_payload,
+	get_code_hash_from_event, get_contract_code, get_instantiate_payload, get_upload_payload,
+	instantiate_contract_signed, instantiate_smart_contract, is_chain_alive, parse_hex_bytes,
+	run_contracts_node, set_up_deployment, set_up_upload, upload_contract_signed,
 	upload_smart_contract, UpOpts, Verbosity,
 };
 use sp_core::Bytes;
@@ -171,7 +172,7 @@ impl UpContractCommand {
 
 		// Run steps for signing with wallet integration. Returns early.
 		if self.use_wallet {
-			let call_data = match self.get_call_data().await {
+			let (call_data, hash) = match self.get_contract_data().await {
 				Ok(data) => data,
 				Err(e) => {
 					error(format!("An error occurred getting the call data: {e}"))?;
@@ -185,23 +186,55 @@ impl UpContractCommand {
 			if let Some(payload) = maybe_payload {
 				log::success("Signed payload received.")?;
 				let spinner = spinner();
-				spinner.start("Submitting the signed payload...");
-				let result = submit_signed_payload(self.url.as_str(), payload).await;
-				spinner.stop("Signed payload submitted.");
-				match result {
-					Ok(_) => {
-						Cli.outro(COMPLETE)?;
-					},
-					Err(e) => {
-						error(format!("An error occurred submitting the signed payload: {e}"))?;
+				spinner.start("Uploading contract...");
+
+				if self.upload_only {
+					let result = upload_contract_signed(self.url.as_str(), payload).await;
+					// TODO: dry (see else below)
+					if let Err(e) = result {
+						spinner.error(format!("An error occurred uploading your contract: {e}"));
+						Self::terminate_node(process)?;
 						Cli.outro_cancel(FAILED)?;
-					},
+						return Ok(());
+					}
+					let upload_result = result.expect("Error check above.");
+
+					match get_code_hash_from_event(&upload_result, hash) {
+						Ok(r) => {
+							spinner.stop(format!("Contract uploaded: The code hash is {:?}", r));
+						},
+						Err(e) => {
+							spinner
+								.error(format!("An error occurred uploading your contract: {e}"));
+						},
+					};
+				} else {
+					let result = instantiate_contract_signed(self.url.as_str(), payload).await;
+					if let Err(e) = result {
+						spinner.error(format!("An error occurred uploading your contract: {e}"));
+						Self::terminate_node(process)?;
+						Cli.outro_cancel(FAILED)?;
+						return Ok(());
+					}
+
+					let contract_info = result.unwrap();
+					let hash = contract_info.code_hash.map(|code_hash| format!("{:?}", code_hash));
+					display_contract_info(
+						&spinner,
+						contract_info.contract_address.to_string(),
+						hash,
+					);
+				};
+
+				if self.upload_only {
+					log::warning("NOTE: The contract has not been instantiated.")?;
 				}
 			} else {
 				Cli.outro_cancel("Signed payload doesn't exist.")?;
 			}
 
 			Self::terminate_node(process)?;
+			Cli.outro(COMPLETE)?;
 			return Ok(())
 		}
 
@@ -255,29 +288,12 @@ impl UpContractCommand {
 			let spinner = spinner();
 			spinner.start("Uploading and instantiating the contract...");
 			let contract_info = instantiate_smart_contract(instantiate_exec, weight_limit).await?;
-			spinner.stop(format!(
-				"Contract deployed and instantiated:\n{}",
-				style(format!(
-					"{}\n{}",
-					style(format!(
-						"{} The contract address is {:?}",
-						console::Emoji("●", ">"),
-						contract_info.address
-					))
-					.dim(),
-					contract_info
-						.code_hash
-						.map(|hash| style(format!(
-							"{} The contract code hash is {:?}",
-							console::Emoji("●", ">"),
-							hash
-						))
-						.dim()
-						.to_string())
-						.unwrap_or_default(),
-				))
-				.dim()
-			));
+			display_contract_info(
+				&spinner,
+				contract_info.address.to_string(),
+				contract_info.code_hash,
+			);
+
 			Self::terminate_node(process)?;
 			Cli.outro(COMPLETE)?;
 		}
@@ -343,10 +359,13 @@ impl UpContractCommand {
 		Ok(())
 	}
 
-	async fn get_call_data(&self) -> anyhow::Result<Vec<u8>> {
+	// get the call data and contract code hash
+	async fn get_contract_data(&self) -> anyhow::Result<(Vec<u8>, [u8; 32])> {
+		let contract_code = get_contract_code(self.path.as_ref()).await?;
+		let hash = contract_code.code_hash();
 		if self.upload_only {
-			let call_data = get_upload_payload(self.clone().into()).await?;
-			Ok(call_data)
+			let call_data = get_upload_payload(contract_code, self.url.as_str()).await?;
+			Ok((call_data, hash))
 		} else {
 			let instantiate_exec = set_up_deployment(self.clone().into()).await?;
 
@@ -357,7 +376,7 @@ impl UpContractCommand {
 				Weight::from_parts(0, 0)
 			};
 			let call_data = get_instantiate_payload(instantiate_exec, weight_limit).await?;
-			Ok(call_data)
+			Ok((call_data, hash))
 		}
 	}
 
@@ -408,11 +427,50 @@ impl From<UpContractCommand> for UpOpts {
 	}
 }
 
+/// Checks if a contract has been built by verifying the existence of the build directory and the
+/// <name>.contract file.
+///
+/// # Arguments
+/// * `path` - An optional path to the project directory. If no path is provided, the current
+///   directory is used.
+pub fn has_contract_been_built(path: Option<&Path>) -> bool {
+	let project_path = path.unwrap_or_else(|| Path::new("./"));
+	let manifest = match from_path(Some(project_path)) {
+		Ok(manifest) => manifest,
+		Err(_) => return false,
+	};
+	let contract_name = manifest.package().name();
+	project_path.join("target/ink").exists() &&
+		project_path.join(format!("target/ink/{}.contract", contract_name)).exists()
+}
+
+fn display_contract_info(spinner: &ProgressBar, address: String, code_hash: Option<String>) {
+	spinner.stop(format!(
+		"Contract deployed and instantiated:\n{}",
+		style(format!(
+			"{}\n{}",
+			style(format!("{} The contract address is {:?}", console::Emoji("●", ">"), address))
+				.dim(),
+			code_hash
+				.map(|hash| style(format!(
+					"{} The contract code hash is {:?}",
+					console::Emoji("●", ">"),
+					hash
+				))
+				.dim()
+				.to_string())
+				.unwrap_or_default(),
+		))
+		.dim()
+	));
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
 	use duct::cmd;
 	use std::fs::{self, File};
+	use subxt::{client::OfflineClientT, utils::to_hex};
 	use url::Url;
 
 	fn default_up_contract_command() -> UpContractCommand {
@@ -472,6 +530,60 @@ mod tests {
 		// Create a mocked .contract file inside the target directory
 		File::create(contract_path.join(format!("target/ink/{}.contract", name)))?;
 		assert!(has_contract_been_built(Some(&path.join(name))));
+		Ok(())
+	}
+
+	// TODO: delete this test.
+	// This is a helper test for an actual running pop CLI.
+	// It can serve as the "frontend" to query the payload, sign it
+	// and submit back to the CLI.
+	#[tokio::test]
+	async fn sign_call_data() -> anyhow::Result<()> {
+		use subxt::{config::DefaultExtrinsicParamsBuilder as Params, tx::Payload};
+		// This struct implements the [`Payload`] trait and is used to submit
+		// pre-encoded SCALE call data directly, without the dynamic construction of transactions.
+		struct CallData(Vec<u8>);
+
+		impl Payload for CallData {
+			fn encode_call_data_to(
+				&self,
+				_: &subxt::Metadata,
+				out: &mut Vec<u8>,
+			) -> Result<(), subxt::ext::subxt_core::Error> {
+				out.extend_from_slice(&self.0);
+				Ok(())
+			}
+		}
+
+		use subxt_signer::sr25519::dev;
+		let payload = reqwest::get(&format!("{}/payload", "http://127.0.0.1:9090"))
+			.await
+			.expect("Failed to get payload")
+			.json::<TransactionData>()
+			.await
+			.expect("Failed to parse payload");
+
+		let url = "ws://localhost:9944";
+		let rpc_client = subxt::backend::rpc::RpcClient::from_url(url).await?;
+		let client =
+			subxt::OnlineClient::<subxt::SubstrateConfig>::from_rpc_client(rpc_client).await?;
+
+		let signer = dev::alice();
+
+		let payload = CallData(payload.call_data());
+		let ext_params = Params::new().build();
+		let signed = client.tx().create_signed(&payload, &signer, ext_params).await?;
+
+		let response = reqwest::Client::new()
+			.post(&format!("{}/submit", "http://localhost:9090"))
+			.json(&to_hex(signed.encoded()))
+			.send()
+			.await
+			.expect("Failed to submit payload")
+			.text()
+			.await
+			.expect("Failed to parse JSON response");
+
 		Ok(())
 	}
 

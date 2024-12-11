@@ -54,6 +54,8 @@ tower-http = { workspace = true, features = ["fs"] }
 [dev-dependencies]
 assert_cmd.workspace = true
 predicates.workspace = true
+subxt.workspace = true
+subxt-signer.workspace = true
 
 [features]
 default = ["contract", "parachain", "telemetry"]
