@@ -3,7 +3,11 @@
 use cliclack::{confirm, log::warning, spinner};
 use pop_common::{manifest::from_path, sourcing::set_executable_permission};
 use pop_contracts::contracts_node_generator;
-use std::path::{Path, PathBuf};
+use std::{
+	path::{Path, PathBuf},
+	process::{Child, Command},
+};
+use tempfile::NamedTempFile;
 
 ///  Checks the status of the `substrate-contracts-node` binary, sources it if necessary, and
 /// prompts the user to update it if the existing binary is not the latest version.
@@ -66,6 +70,29 @@ pub async fn check_contracts_node_and_prompt(skip_confirm: bool) -> anyhow::Resu
 	}
 
 	Ok(node_path)
+}
+
+/// Handles the optional termination of a local running node.
+pub fn terminate_node(process: Option<(Child, NamedTempFile)>) -> anyhow::Result<()> {
+	// Prompt to close any launched node
+	let Some((process, log)) = process else {
+		return Ok(());
+	};
+	if confirm("Would you like to terminate the local node?")
+		.initial_value(true)
+		.interact()?
+	{
+		// Stop the process contracts-node
+		Command::new("kill")
+			.args(["-s", "TERM", &process.id().to_string()])
+			.spawn()?
+			.wait()?;
+	} else {
+		log.keep()?;
+		warning(format!("NOTE: The node is running in the background with process ID {}. Please terminate it manually when done.", process.id()))?;
+	}
+
+	Ok(())
 }
 
 /// Checks if a contract has been built by verifying the existence of the build directory and the
