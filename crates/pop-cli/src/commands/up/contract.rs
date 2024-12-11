@@ -2,9 +2,11 @@
 
 use crate::{
 	cli::{traits::Cli as _, Cli},
-	common::contracts::{check_contracts_node_and_prompt, has_contract_been_built},
+	common::{
+		contracts::{check_contracts_node_and_prompt, has_contract_been_built},
+		wallet::wait_for_signature,
+	},
 	style::style,
-	wallet_integration::{FrontendFromDir, TransactionData, WalletIntegrationManager},
 };
 use clap::Args;
 use cliclack::{confirm, log, log::error, spinner, ProgressBar};
@@ -182,7 +184,7 @@ impl UpContractCommand {
 				},
 			};
 
-			let maybe_payload = self.wait_for_signature(call_data).await?;
+			let maybe_payload = wait_for_signature(call_data, self.url.to_string()).await?;
 			if let Some(payload) = maybe_payload {
 				log::success("Signed payload received.")?;
 				let spinner = spinner();
@@ -378,36 +380,6 @@ impl UpContractCommand {
 			let call_data = get_instantiate_payload(instantiate_exec, weight_limit).await?;
 			Ok((call_data, hash))
 		}
-	}
-
-	async fn wait_for_signature(&self, call_data: Vec<u8>) -> anyhow::Result<Option<String>> {
-		// TODO: to be addressed in future PR. Should not use FromDir (or local path).
-		let ui = FrontendFromDir::new(PathBuf::from(
-			"/Users/peter/dev/r0gue/react-teleport-example/dist",
-		));
-
-		let transaction_data = TransactionData::new(self.url.to_string(), call_data);
-		// starts server
-		let mut wallet = WalletIntegrationManager::new(ui, transaction_data);
-		log::step(format!("Wallet signing portal started at http://{}", wallet.rpc_url))?;
-
-		log::step("Waiting for signature... Press Ctrl+C to terminate early.")?;
-		loop {
-			// Display error, if any.
-			if let Some(error) = wallet.take_error().await {
-				log::error(format!("Signing portal error: {error}"))?;
-			}
-
-			let state = wallet.state.lock().await;
-			// If the payload is submitted we terminate the frontend.
-			if !wallet.is_running() || state.signed_payload.is_some() {
-				wallet.task_handle.await??;
-				break;
-			}
-		}
-
-		let signed_payload = wallet.state.lock().await.signed_payload.clone();
-		Ok(signed_payload)
 	}
 }
 
