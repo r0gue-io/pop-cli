@@ -90,7 +90,7 @@ impl CallChainCommand {
 			};
 
 			// Sign and submit the extrinsic.
-			if let Err(e) = call.submit_extrinsic(&chain.client, xt, &mut cli).await {
+			if let Err(e) = call.submit_extrinsic(&chain.client, &chain.url, xt, &mut cli).await {
 				display_message(&e.to_string(), false, &mut cli)?;
 				break;
 			}
@@ -361,6 +361,7 @@ impl Call {
 	async fn submit_extrinsic(
 		&mut self,
 		client: &OnlineClient<SubstrateConfig>,
+		url: &Url,
 		tx: DynamicPayload,
 		cli: &mut impl Cli,
 	) -> Result<()> {
@@ -378,7 +379,7 @@ impl Call {
 		}
 		let spinner = cliclack::spinner();
 		spinner.start("Signing and submitting the extrinsic and then waiting for finalization, please be patient...");
-		let result = sign_and_submit_extrinsic(client, tx, &self.suri)
+		let result = sign_and_submit_extrinsic(client, url, tx, &self.suri)
 			.await
 			.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
 		spinner.stop(result);

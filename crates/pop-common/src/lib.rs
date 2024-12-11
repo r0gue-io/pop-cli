@@ -73,6 +73,12 @@ pub fn find_free_port() -> u16 {
 		.port()
 }
 
+pub mod call {
+	pub use contract_extrinsics::{DisplayEvents, TokenMetadata};
+	pub use ink_env::{DefaultEnvironment};
+	pub use contract_build::Verbosity;
+}
+
 #[cfg(test)]
 mod test {
 	use super::*;

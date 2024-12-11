@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{errors::Error, Function};
-use pop_common::create_signer;
+use pop_common::{create_signer};
 use subxt::{
 	dynamic::Value,
 	tx::{DynamicPayload, Payload},
 	OnlineClient, SubstrateConfig,
 };
+use pop_common::call::TokenMetadata;
 
 pub mod metadata;
 
@@ -50,6 +51,7 @@ pub fn construct_sudo_extrinsic(xt: DynamicPayload) -> Result<DynamicPayload, Er
 /// * `suri` - The secret URI (e.g., mnemonic or private key) for signing the extrinsic.
 pub async fn sign_and_submit_extrinsic(
 	client: &OnlineClient<SubstrateConfig>,
+	url: &url::Url,
 	xt: DynamicPayload,
 	suri: &str,
 ) -> Result<String, Error> {
@@ -63,24 +65,17 @@ pub async fn sign_and_submit_extrinsic(
 		.await
 		.map_err(|e| Error::ExtrinsicSubmissionError(format!("{:?}", e)))?;
 
-	// Obtain events related to the extrinsic.
-	let mut events = Vec::new();
-	for event in result.iter() {
-		let event = event.map_err(|e| Error::ExtrinsicSubmissionError(format!("{:?}", e)))?;
-		// Filter events that are from a different pallet.
-		let pallet =
-			if event.pallet_name() == xt.pallet_name() { event.pallet_name() } else { continue };
-		let variant = event.variant_name();
-		let field_values = event
-			.field_values()
-			.map_err(|e| Error::ExtrinsicSubmissionError(format!("{:?}", e)))?;
-		events.push(format!("{pallet}::{variant}: {field_values}"));
-	}
+	let metadata = client.metadata();
+	let display_events =
+		pop_common::call::DisplayEvents::from_events::<SubstrateConfig, pop_common::call::DefaultEnvironment>(&result, None, &metadata)?;
+	let token_metadata = TokenMetadata::query::<SubstrateConfig>(url).await?;
+	let events =
+		display_events.display_events::<pop_common::call::DefaultEnvironment>(pop_common::call::Verbosity::Default, &token_metadata)?;
 
 	Ok(format!(
-		"Extrinsic Submitted with hash: {:?}\n\nEvent(s):\n\n{}",
+		"Extrinsic Submitted with hash: {:?}\n\n{}",
 		result.extrinsic_hash(),
-		events.join("\n\n")
+		events,
 	))
 }
 
@@ -152,6 +147,72 @@ mod tests {
 	use super::*;
 	use crate::{find_dispatchable_by_name, parse_chain_metadata, set_up_client};
 	use anyhow::Result;
+	use scale_info::scale::Compact;
+	use scale_info::TypeInfo;
+
+	//----
+	use subxt::events::{Events, EventDetails, Phase};
+	use subxt::ext::codec::{Encode, Decode};
+	use subxt::ext::{scale_decode, scale_encode};
+	use subxt::Metadata;
+	use subxt::utils::H256;
+	use pop_common::Config;
+
+	#[derive(
+		Encode,
+		Decode,
+		TypeInfo,
+		Clone,
+		Debug,
+		PartialEq,
+		Eq,
+		scale_encode::EncodeAsType,
+		scale_decode::DecodeAsType,
+	)]
+	pub enum AllEvents<Ev> {
+		Test(Ev),
+	}
+	#[derive(Encode)]
+	pub struct EventRecord<E: Encode> {
+		phase: Phase,
+		event: AllEvents<E>,
+		topics: Vec<<SubstrateConfig as Config>::Hash>,
+	}
+
+	pub fn events_raw(
+		metadata: Metadata,
+		event_bytes: Vec<u8>,
+		num_events: u32,
+	) -> Events<SubstrateConfig> {
+		// Prepend compact encoded length to event bytes:
+		let mut all_event_bytes = Compact(num_events).encode();
+		all_event_bytes.extend(event_bytes);
+		Events::decode_from(all_event_bytes, metadata)
+	}
+
+	fn events<E: Decode + Encode>(
+		metadata: Metadata,
+		event_records: Vec<EventRecord<E>>,
+	) -> Events<SubstrateConfig> {
+		let num_events = event_records.len() as u32;
+		let mut event_bytes = Vec::new();
+		for ev in event_records {
+			ev.encode_to(&mut event_bytes);
+		}
+		events_raw(metadata, event_bytes, num_events)
+	}
+
+	#[test]
+	fn test_filter_events() {
+		let events = ExtrinsicEvents::<SubstrateConfig> {
+			ext_hash: H256(),
+			idx: 0,
+			events: events::<TestEvent>()
+
+		};
+	}
+	//----
+
 
 	const ALICE_SURI: &str = "//Alice";
 	pub(crate) const POP_NETWORK_TESTNET_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";

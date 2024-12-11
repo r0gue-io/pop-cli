@@ -31,6 +31,10 @@ toml_edit.workspace = true
 url.workspace = true
 toml.workspace = true
 
+contract-extrinsics.workspace = true
+contract-build.workspace = true
+ink_env.workspace = true
+
 [dev-dependencies]
 mockito.workspace = true
 tempfile.workspace = true
