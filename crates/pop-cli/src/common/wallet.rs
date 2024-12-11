@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{
-	cli::{traits::Cli as _, Cli},
-	wallet_integration::{FrontendFromDir, TransactionData, WalletIntegrationManager},
-};
+use crate::wallet_integration::{FrontendFromDir, TransactionData, WalletIntegrationManager};
 use cliclack::log;
 use sp_core::bytes::to_hex;
 use std::path::PathBuf;
