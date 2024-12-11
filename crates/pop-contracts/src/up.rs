@@ -385,8 +385,7 @@ mod tests {
 	};
 	use anyhow::Result;
 	use pop_common::{find_free_port, set_executable_permission};
-	use reqwest::get;
-	use std::{env, fs, process::Command, time::Duration};
+	use std::{env, process::Command, time::Duration};
 	use tokio::time::sleep;
 	use url::Url;
 
@@ -679,7 +678,7 @@ mod tests {
 		assert!(weight.proof_size() > 0);
 
 		let call_data = get_instantiate_payload(instantiate_exec, weight).await?;
-		println!("{:?}", to_hex(call_data));
+		//println!("{:?}", to_hex(call_data));
 
 		//Stop the process contracts-node
 		Command::new("kill")
