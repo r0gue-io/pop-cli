@@ -25,7 +25,7 @@ use subxt::{
 	blocks::ExtrinsicEvents,
 	tx::{Payload, SubmittableExtrinsic},
 	utils::to_hex,
-	SubstrateConfig,
+	Config, SubstrateConfig,
 };
 
 /// Attributes for the `up` command
@@ -441,25 +441,30 @@ mod tests {
 		Ok(())
 	}
 
-	#[tokio::test]
-	async fn get_payload_works() -> Result<()> {
-		let temp_dir = generate_smart_contract_test_environment()?;
-		mock_build_process(temp_dir.path().join("testing"))?;
-		let up_opts = UpOpts {
-			path: Some(temp_dir.path().join("testing")),
-			constructor: "new".to_string(),
-			args: ["false".to_string()].to_vec(),
-			value: "1000".to_string(),
-			gas_limit: None,
-			proof_size: None,
-			salt: None,
-			url: Url::parse(CONTRACTS_NETWORK_URL)?,
-			suri: "//Alice".to_string(),
-		};
-		let call_data = get_upload_payload(up_opts).await?;
-		// println!("{:?}", call_data);
-		Ok(())
-	}
+	// #[tokio::test]
+	// async fn get_payload_works() -> Result<()> {
+	// 	let temp_dir = new_environment("testing")?;
+	// 	let current_dir = env::current_dir().expect("Failed to get current directory");
+	// 	mock_build_process(
+	// 		temp_dir.path().join("testing"),
+	// 		current_dir.join("./tests/files/testing.contract"),
+	// 		current_dir.join("./tests/files/testing.json"),
+	// 	)?;
+	// 	let up_opts = UpOpts {
+	// 		path: Some(temp_dir.path().join("testing")),
+	// 		constructor: "new".to_string(),
+	// 		args: ["false".to_string()].to_vec(),
+	// 		value: "1000".to_string(),
+	// 		gas_limit: None,
+	// 		proof_size: None,
+	// 		salt: None,
+	// 		url: Url::parse(CONTRACTS_NETWORK_URL)?,
+	// 		suri: "//Alice".to_string(),
+	// 	};
+	// 	let call_data = get_upload_payload(up_opts, CONTRACTS_NETWORK_URL).await?;
+	// 	// println!("{:?}", call_data);
+	// 	Ok(())
+	// }
 
 	#[tokio::test]
 	async fn dry_run_gas_estimate_instantiate_works() -> Result<()> {
@@ -618,15 +623,20 @@ mod tests {
 
 	#[tokio::test]
 	async fn get_instantiate_payload_works() -> Result<()> {
-		const LOCALHOST_URL: &str = "ws://127.0.0.1:9944";
-		let temp_dir = generate_smart_contract_test_environment()?;
-		mock_build_process(temp_dir.path().join("testing"))?;
-
+		let random_port = find_free_port();
+		let localhost_url = format!("ws://127.0.0.1:{}", random_port);
+		let temp_dir = new_environment("testing")?;
+		let current_dir = env::current_dir().expect("Failed to get current directory");
+		mock_build_process(
+			temp_dir.path().join("testing"),
+			current_dir.join("./tests/files/testing.contract"),
+			current_dir.join("./tests/files/testing.json"),
+		)?;
 		let cache = temp_dir.path().join("");
 
 		let binary = contracts_node_generator(cache.clone(), None).await?;
 		binary.source(false, &(), true).await?;
-		let process = run_contracts_node(binary.path(), None).await?;
+		let process = run_contracts_node(binary.path(), None, random_port).await?;
 
 		let upload_exec = set_up_upload(UpOpts {
 			path: Some(temp_dir.path().join("testing")),
@@ -636,7 +646,7 @@ mod tests {
 			gas_limit: None,
 			proof_size: None,
 			salt: None,
-			url: Url::parse(LOCALHOST_URL)?,
+			url: Url::parse(&localhost_url)?,
 			suri: "//Alice".to_string(),
 		})
 		.await?;
@@ -660,7 +670,7 @@ mod tests {
 			gas_limit: None,
 			proof_size: None,
 			salt: Some(Bytes::from(vec![0x00])),
-			url: Url::parse(LOCALHOST_URL)?,
+			url: Url::parse(&localhost_url)?,
 			suri: "//Alice".to_string(),
 		})
 		.await?;

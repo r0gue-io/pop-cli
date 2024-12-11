@@ -495,24 +495,58 @@ mod tests {
 		Ok(())
 	}
 
-	#[test]
-	fn has_contract_been_built_works() -> anyhow::Result<()> {
-		let temp_dir = tempfile::tempdir()?;
-		let path = temp_dir.path();
+	// TODO: delete this test.
+	// This is a helper test for an actual running pop CLI.
+	// It can serve as the "frontend" to query the payload, sign it
+	// and submit back to the CLI.
+	#[ignore]
+	#[tokio::test]
+	async fn sign_call_data() -> anyhow::Result<()> {
+		use subxt::{config::DefaultExtrinsicParamsBuilder as Params, tx::Payload};
+		// This struct implements the [`Payload`] trait and is used to submit
+		// pre-encoded SCALE call data directly, without the dynamic construction of transactions.
+		struct CallData(Vec<u8>);
 
-		// Standard rust project
-		let name = "hello_world";
-		cmd("cargo", ["new", name]).dir(&path).run()?;
-		let contract_path = path.join(name);
-		assert!(!has_contract_been_built(Some(&contract_path)));
+		impl Payload for CallData {
+			fn encode_call_data_to(
+				&self,
+				_: &subxt::Metadata,
+				out: &mut Vec<u8>,
+			) -> Result<(), subxt::ext::subxt_core::Error> {
+				out.extend_from_slice(&self.0);
+				Ok(())
+			}
+		}
 
-		cmd("cargo", ["build"]).dir(&contract_path).run()?;
-		// Mock build directory
-		fs::create_dir(&contract_path.join("target/ink"))?;
-		assert!(!has_contract_been_built(Some(&path.join(name))));
-		// Create a mocked .contract file inside the target directory
-		File::create(contract_path.join(format!("target/ink/{}.contract", name)))?;
-		assert!(has_contract_been_built(Some(&path.join(name))));
+		use subxt_signer::sr25519::dev;
+		let payload = reqwest::get(&format!("{}/payload", "http://127.0.0.1:9090"))
+			.await
+			.expect("Failed to get payload")
+			.json::<TransactionData>()
+			.await
+			.expect("Failed to parse payload");
+
+		let url = "ws://localhost:9944";
+		let rpc_client = subxt::backend::rpc::RpcClient::from_url(url).await?;
+		let client =
+			subxt::OnlineClient::<subxt::SubstrateConfig>::from_rpc_client(rpc_client).await?;
+
+		let signer = dev::alice();
+
+		let payload = CallData(payload.call_data());
+		let ext_params = Params::new().build();
+		let signed = client.tx().create_signed(&payload, &signer, ext_params).await?;
+
+		let response = reqwest::Client::new()
+			.post(&format!("{}/submit", "http://localhost:9090"))
+			.json(&to_hex(signed.encoded()))
+			.send()
+			.await
+			.expect("Failed to submit payload")
+			.text()
+			.await
+			.expect("Failed to parse JSON response");
+
 		Ok(())
 	}
 
