@@ -760,19 +760,19 @@ mod tests {
 			.expect_confirm("Do you want to submit the extrinsic?", false)
 			.expect_outro_cancel("Extrinsic for `remark` was not submitted.");
 		let xt = call_config.prepare_extrinsic(&client, &mut cli)?;
-		call_config.submit_extrinsic(&client, xt, &mut cli).await?;
+		call_config.submit_extrinsic(&client, &Url::parse(POP_NETWORK_TESTNET_URL)?, xt, &mut cli).await?;
 
 		cli.verify()
 	}
 
 	#[tokio::test]
 	async fn user_cancel_submit_extrinsic_from_call_data_works() -> Result<()> {
-		let client = set_up_client("wss://rpc1.paseo.popnetwork.xyz").await?;
+		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
 		let call_config = CallChainCommand {
 			pallet: None,
 			function: None,
 			args: vec![].to_vec(),
-			url: Some(Url::parse("wss://rpc1.paseo.popnetwork.xyz")?),
+			url: Some(Url::parse(POP_NETWORK_TESTNET_URL)?),
 			suri: None,
 			skip_confirm: false,
 			call_data: Some("0x00000411".to_string()),
@@ -783,7 +783,7 @@ mod tests {
 			.expect_confirm("Do you want to submit the extrinsic?", false)
 			.expect_outro_cancel("Extrinsic with call data 0x00000411 was not submitted.");
 		call_config
-			.submit_extrinsic_from_call_data(&client, "0x00000411", &mut cli)
+			.submit_extrinsic_from_call_data(&client, &Url::parse(POP_NETWORK_TESTNET_URL)?, "0x00000411", &mut cli)
 			.await?;
 
 		cli.verify()
@@ -815,7 +815,7 @@ mod tests {
 			"Would you like to dispatch this function call with `Root` origin?",
 			true,
 		);
-		call_config.url = Some(Url::parse("wss://rpc1.paseo.popnetwork.xyz")?);
+		call_config.url = Some(Url::parse(POP_NETWORK_TESTNET_URL)?);
 		let chain = call_config.configure_chain(&mut cli).await?;
 		call_config.configure_sudo(&chain, &mut cli)?;
 		assert!(call_config.sudo);
