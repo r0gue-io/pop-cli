@@ -73,6 +73,15 @@ pub fn find_free_port() -> u16 {
 		.port()
 }
 
+/// Provides functionality for making calls to parachains or smart contracts.
+pub mod call {
+	// Note: parsing events after calling a chain is done using cargo contract logic. This could be
+	// refactored in the future.
+	pub use contract_build::Verbosity;
+	pub use contract_extrinsics::{DisplayEvents, TokenMetadata};
+	pub use ink_env::DefaultEnvironment;
+}
+
 #[cfg(test)]
 mod test {
 	use super::*;

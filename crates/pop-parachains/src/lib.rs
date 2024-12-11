@@ -24,7 +24,7 @@ pub use call::{
 		params::Param,
 		parse_chain_metadata, Function, Pallet,
 	},
-	set_up_client, sign_and_submit_extrinsic, sign_and_submit_extrinsic_with_call_data,
+	set_up_client, sign_and_submit_extrinsic, CallData,
 };
 pub use errors::Error;
 pub use indexmap::IndexSet;

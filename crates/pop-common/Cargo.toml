@@ -10,10 +10,13 @@ repository.workspace = true
 [dependencies]
 anyhow.workspace = true
 cargo_toml.workspace = true
+contract-build.workspace = true
+contract-extrinsics.workspace = true
 duct.workspace = true
 flate2.workspace = true
 git2.workspace = true
 git2_credentials.workspace = true
+ink_env.workspace = true
 regex.workspace = true
 reqwest.workspace = true
 scale-info.workspace = true
@@ -27,9 +30,9 @@ tar.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
+toml.workspace = true
 toml_edit.workspace = true
 url.workspace = true
-toml.workspace = true
 
 [dev-dependencies]
 mockito.workspace = true
