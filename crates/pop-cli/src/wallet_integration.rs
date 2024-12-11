@@ -254,7 +254,6 @@ impl Frontend for FrontendFromString {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use serde_json::json;
 
 	const TEST_HTML: &str = "<html><body>Hello, world!</body></html>";
 
