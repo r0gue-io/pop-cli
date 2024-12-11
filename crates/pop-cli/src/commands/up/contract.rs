@@ -453,6 +453,27 @@ fn display_contract_info(spinner: &ProgressBar, address: String, code_hash: Opti
 	));
 }
 
+fn display_contract_info(spinner: &ProgressBar, address: String, code_hash: Option<String>) {
+	spinner.stop(format!(
+		"Contract deployed and instantiated:\n{}",
+		style(format!(
+			"{}\n{}",
+			style(format!("{} The contract address is {:?}", console::Emoji("●", ">"), address))
+				.dim(),
+			code_hash
+				.map(|hash| style(format!(
+					"{} The contract code hash is {:?}",
+					console::Emoji("●", ">"),
+					hash
+				))
+				.dim()
+				.to_string())
+				.unwrap_or_default(),
+		))
+		.dim()
+	));
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
