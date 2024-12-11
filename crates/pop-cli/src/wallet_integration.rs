@@ -29,6 +29,9 @@ impl TransactionData {
 	pub fn new(chain_rpc: String, call_data: Vec<u8>) -> Self {
 		Self { chain_rpc, call_data }
 	}
+	pub fn call_data(&self) -> Vec<u8> {
+		self.call_data.clone()
+	}
 }
 
 /// Shared state between routes. Serves two purposes:
@@ -110,6 +113,7 @@ impl WalletIntegrationManager {
 	}
 
 	/// Signals the wallet integration server to shut down.
+	#[allow(dead_code)]
 	pub async fn terminate(&mut self) -> anyhow::Result<()> {
 		terminate_helper(&self.state).await
 	}
@@ -229,6 +233,7 @@ pub struct FrontendFromString {
 	content: String,
 }
 
+#[allow(dead_code)]
 impl FrontendFromString {
 	pub fn new(content: String) -> Self {
 		Self { content }
@@ -340,9 +345,9 @@ mod tests {
 			.send()
 			.await
 			.expect("Failed to submit payload")
-			.json::<serde_json::Value>()
+			.text()
 			.await
-			.expect("Failed to parse JSON response");
+			.expect("Failed to parse response");
 
 		assert_eq!(response, json!({"status": "success"}));
 		assert_eq!(wim.state.lock().await.signed_payload, Some("0xDEADBEEF".to_string()));
