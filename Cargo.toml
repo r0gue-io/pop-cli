@@ -36,11 +36,12 @@ tar = "0.4.40"
 tempfile = "3.10"
 thiserror = "1.0.58"
 tokio-test = "0.4.4"
+toml = "0.5.0"
 
 # networking
 reqwest = { version = "0.12", features = ["json"] }
 tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
-url = "2.5"
+url = "2.5.4"
 
 # contracts
 subxt-signer = { version = "0.37.0", features = ["subxt", "sr25519"] }
@@ -50,7 +51,11 @@ sp-core = "31"
 sp-weights = "30"
 contract-build = "5.0.0-alpha"
 contract-extrinsics = "5.0.0-alpha"
+contract-transcode = "5.0.0-alpha"
+scale-info = { version = "2.11.3", default-features = false, features = ["derive"] }
+scale-value = { version = "0.16.2", default-features = false, features = ["from-string", "parser-ss58"] }
 heck = "0.5.0"
+hex = { version = "0.4.3", default-features = false }
 
 # parachains
 askama = "0.12"

@@ -2,13 +2,12 @@
 
 use crate::{
 	cli::{traits::Cli as _, Cli},
-	common::contracts::check_contracts_node_and_prompt,
+	common::contracts::{check_contracts_node_and_prompt, has_contract_been_built},
 	style::style,
 };
 use clap::Args;
 use cliclack::{confirm, log, log::error, spinner};
 use console::{Emoji, Style};
-use pop_common::manifest::from_path;
 use pop_contracts::{
 	build_smart_contract, dry_run_gas_estimate_instantiate, dry_run_upload,
 	instantiate_smart_contract, is_chain_alive, parse_hex_bytes, run_contracts_node,
@@ -17,7 +16,7 @@ use pop_contracts::{
 use sp_core::Bytes;
 use sp_weights::Weight;
 use std::{
-	path::{Path, PathBuf},
+	path::PathBuf,
 	process::{Child, Command},
 };
 use tempfile::NamedTempFile;
@@ -25,6 +24,7 @@ use url::Url;
 
 const COMPLETE: &str = "🚀 Deployment complete";
 const DEFAULT_URL: &str = "ws://localhost:9944/";
+const DEFAULT_PORT: u16 = 9944;
 const FAILED: &str = "🚫 Deployment failed.";
 
 #[derive(Args, Clone)]
@@ -36,7 +36,7 @@ pub struct UpContractCommand {
 	#[clap(name = "constructor", long, default_value = "new")]
 	constructor: String,
 	/// The constructor arguments, encoded as strings.
-	#[clap(long, num_args = 0..)]
+	#[clap(long, num_args = 0..,)]
 	args: Vec<String>,
 	/// Transfers an initial balance to the instantiated contract.
 	#[clap(name = "value", long, default_value = "0")]
@@ -141,7 +141,8 @@ impl UpContractCommand {
 			let spinner = spinner();
 			spinner.start("Starting local node...");
 
-			let process = run_contracts_node(binary_path, Some(log.as_file())).await?;
+			let process =
+				run_contracts_node(binary_path, Some(log.as_file()), DEFAULT_PORT).await?;
 			let bar = Style::new().magenta().dim().apply_to(Emoji("│", "|"));
 			spinner.stop(format!(
 				"Local node started successfully:{}",
@@ -330,28 +331,9 @@ impl From<UpContractCommand> for UpOpts {
 	}
 }
 
-/// Checks if a contract has been built by verifying the existence of the build directory and the
-/// <name>.contract file.
-///
-/// # Arguments
-/// * `path` - An optional path to the project directory. If no path is provided, the current
-///   directory is used.
-pub fn has_contract_been_built(path: Option<&Path>) -> bool {
-	let project_path = path.unwrap_or_else(|| Path::new("./"));
-	let manifest = match from_path(Some(project_path)) {
-		Ok(manifest) => manifest,
-		Err(_) => return false,
-	};
-	let contract_name = manifest.package().name();
-	project_path.join("target/ink").exists() &&
-		project_path.join(format!("target/ink/{}.contract", contract_name)).exists()
-}
-
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use duct::cmd;
-	use std::fs::{self, File};
 	use url::Url;
 
 	#[test]
@@ -359,7 +341,7 @@ mod tests {
 		let command = UpContractCommand {
 			path: None,
 			constructor: "new".to_string(),
-			args: vec!["false".to_string()].to_vec(),
+			args: vec![],
 			value: "0".to_string(),
 			gas_limit: None,
 			proof_size: None,
@@ -376,7 +358,7 @@ mod tests {
 			UpOpts {
 				path: None,
 				constructor: "new".to_string(),
-				args: vec!["false".to_string()].to_vec(),
+				args: vec![].to_vec(),
 				value: "0".to_string(),
 				gas_limit: None,
 				proof_size: None,
@@ -385,27 +367,6 @@ mod tests {
 				suri: "//Alice".to_string(),
 			}
 		);
-		Ok(())
-	}
-
-	#[test]
-	fn has_contract_been_built_works() -> anyhow::Result<()> {
-		let temp_dir = tempfile::tempdir()?;
-		let path = temp_dir.path();
-
-		// Standard rust project
-		let name = "hello_world";
-		cmd("cargo", ["new", name]).dir(&path).run()?;
-		let contract_path = path.join(name);
-		assert!(!has_contract_been_built(Some(&contract_path)));
-
-		cmd("cargo", ["build"]).dir(&contract_path).run()?;
-		// Mock build directory
-		fs::create_dir(&contract_path.join("target/ink"))?;
-		assert!(!has_contract_been_built(Some(&path.join(name))));
-		// Create a mocked .contract file inside the target directory
-		File::create(contract_path.join(format!("target/ink/{}.contract", name)))?;
-		assert!(has_contract_been_built(Some(&path.join(name))));
 		Ok(())
 	}
 }
