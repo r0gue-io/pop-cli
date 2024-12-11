@@ -110,6 +110,7 @@ pub async fn set_up_upload(
 
 	let upload_exec: UploadExec<DefaultConfig, DefaultEnvironment, Keypair> =
 		UploadCommandBuilder::new(extrinsic_opts).done().await?;
+
 	Ok(upload_exec)
 }
 
@@ -416,6 +417,12 @@ mod tests {
 		run_contracts_node,
 	};
 	use anyhow::Result;
+	use reqwest::get;
+	use std::{env, fs, process::Command};
+	use subxt::{
+		config::{substrate::BlakeTwo256, Hasher},
+		utils::to_hex,
+	};
 	use pop_common::{find_free_port, set_executable_permission};
 	use std::{env, process::Command, time::Duration};
 	use tokio::time::sleep;
@@ -468,6 +475,36 @@ mod tests {
 			suri: "//Alice".to_string(),
 		};
 		set_up_upload(up_opts).await?;
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn get_payload_works() -> Result<()> {
+		let temp_dir = new_environment("testing")?;
+		let current_dir = env::current_dir().expect("Failed to get current directory");
+		mock_build_process(
+			temp_dir.path().join("testing"),
+			current_dir.join("./tests/files/testing.contract"),
+			current_dir.join("./tests/files/testing.json"),
+		)?;
+		let up_opts = UpOpts {
+			path: Some(temp_dir.path().join("testing")),
+			constructor: "new".to_string(),
+			args: ["false".to_string()].to_vec(),
+			value: "1000".to_string(),
+			gas_limit: None,
+			proof_size: None,
+			salt: None,
+			url: Url::parse(CONTRACTS_NETWORK_URL)?,
+			suri: "//Alice".to_string(),
+		};
+		let contract_code = get_contract_code(up_opts.path.as_ref()).await?;
+		let call_data = get_upload_payload(contract_code, CONTRACTS_NETWORK_URL).await?;
+		let payload_hash = BlakeTwo256::hash(&call_data).to_string();
+		// We know that for the above opts the payload hash should be:
+		// 0x4e4ff6ad411346d4cd6cf9bcc9101360e4657f776b0af3b46bfe780b0413e819
+		assert!(payload_hash.starts_with("0x4e4f"));
+		assert!(payload_hash.ends_with("e819"));
 		Ok(())
 	}
 
@@ -618,6 +655,76 @@ mod tests {
 		assert!(contract_info.address.starts_with("5"));
 		assert!(contract_info.code_hash.is_none());
 		// Stop the process contracts-node
+		Command::new("kill")
+			.args(["-s", "TERM", &process.id().to_string()])
+			.spawn()?
+			.wait()?;
+
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn get_instantiate_payload_works() -> Result<()> {
+		let random_port = find_free_port();
+		let localhost_url = format!("ws://127.0.0.1:{}", random_port);
+		let temp_dir = new_environment("testing")?;
+		let current_dir = env::current_dir().expect("Failed to get current directory");
+		mock_build_process(
+			temp_dir.path().join("testing"),
+			current_dir.join("./tests/files/testing.contract"),
+			current_dir.join("./tests/files/testing.json"),
+		)?;
+		let cache = temp_dir.path().join("");
+
+		let binary = contracts_node_generator(cache.clone(), None).await?;
+		binary.source(false, &(), true).await?;
+		let process = run_contracts_node(binary.path(), None, random_port).await?;
+
+		let upload_exec = set_up_upload(UpOpts {
+			path: Some(temp_dir.path().join("testing")),
+			constructor: "new".to_string(),
+			args: [].to_vec(),
+			value: "1000".to_string(),
+			gas_limit: None,
+			proof_size: None,
+			salt: None,
+			url: Url::parse(&localhost_url)?,
+			suri: "//Alice".to_string(),
+		})
+		.await?;
+
+		// Only upload a Smart Contract
+		let upload_result = upload_smart_contract(&upload_exec).await?;
+		assert!(!upload_result.starts_with("0x0x"));
+		assert!(upload_result.starts_with("0x"));
+		//Error when Smart Contract has been already uploaded
+		assert!(matches!(
+			upload_smart_contract(&upload_exec).await,
+			Err(Error::UploadContractError(..))
+		));
+
+		// Instantiate a Smart Contract
+		let instantiate_exec = set_up_deployment(UpOpts {
+			path: Some(temp_dir.path().join("testing")),
+			constructor: "new".to_string(),
+			args: ["false".to_string()].to_vec(),
+			value: "0".to_string(),
+			gas_limit: None,
+			proof_size: None,
+			salt: Some(Bytes::from(vec![0x00])),
+			url: Url::parse(&localhost_url)?,
+			suri: "//Alice".to_string(),
+		})
+		.await?;
+		// First gas estimation
+		let weight = dry_run_gas_estimate_instantiate(&instantiate_exec).await?;
+		assert!(weight.ref_time() > 0);
+		assert!(weight.proof_size() > 0);
+
+		let call_data = get_instantiate_payload(instantiate_exec, weight).await?;
+		//println!("{:?}", to_hex(call_data));
+
+		//Stop the process contracts-node
 		Command::new("kill")
 			.args(["-s", "TERM", &process.id().to_string()])
 			.spawn()?
