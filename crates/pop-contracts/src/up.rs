@@ -16,7 +16,7 @@ use ink_env::{DefaultEnvironment, Environment};
 use sp_core::{bytes::from_hex, Bytes};
 use sp_weights::Weight;
 use std::{
-	fmt::{format, Write},
+	fmt::Write,
 	path::{Path, PathBuf},
 };
 use subxt::{

@@ -4,7 +4,7 @@ use crate::{
 	cli::{traits::Cli as _, Cli},
 	common::contracts::check_contracts_node_and_prompt,
 	style::style,
-	wallet_integration::{FrontendFromDir, TransactionData, WalletIntegrationManager},
+	wallet_integration::{FrontendFromString, TransactionData, WalletIntegrationManager},
 };
 use clap::Args;
 use cliclack::{confirm, log, log::error, spinner, ProgressBar};
@@ -230,6 +230,8 @@ impl UpContractCommand {
 				}
 			} else {
 				Cli.outro_cancel("Signed payload doesn't exist.")?;
+				Self::terminate_node(process)?;
+				return Ok(());
 			}
 
 			Self::terminate_node(process)?;
@@ -380,10 +382,7 @@ impl UpContractCommand {
 	}
 
 	async fn wait_for_signature(&self, call_data: Vec<u8>) -> anyhow::Result<Option<String>> {
-		// TODO: to be addressed in future PR. Should not use FromDir (or local path).
-		let ui = FrontendFromDir::new(PathBuf::from(
-			"/Users/peter/dev/r0gue/react-teleport-example/dist",
-		));
+		let ui = FrontendFromString::new(include_str!("../../assets/index.html").to_string());
 
 		let transaction_data = TransactionData::new(self.url.to_string(), call_data);
 		// starts server
