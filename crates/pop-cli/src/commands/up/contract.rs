@@ -7,7 +7,6 @@ use crate::{
 		wallet::wait_for_signature,
 	},
 	style::style,
-	wallet_integration::{FrontendFromString, TransactionData, WalletIntegrationManager},
 };
 use clap::Args;
 use cliclack::{confirm, log, log::error, spinner, ProgressBar};
@@ -231,7 +230,7 @@ impl UpContractCommand {
 				}
 			} else {
 				Cli.outro_cancel("Signed payload doesn't exist.")?;
-				Self::terminate_node(process)?;
+				terminate_node(process)?;
 				return Ok(());
 			}
 
