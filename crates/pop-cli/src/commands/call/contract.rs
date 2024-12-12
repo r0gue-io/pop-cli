@@ -9,18 +9,16 @@ use clap::Args;
 use cliclack::spinner;
 use pop_common::{DefaultConfig, Keypair};
 use pop_contracts::{
-	build_smart_contract, call_smart_contract, dry_run_call, dry_run_gas_estimate_call,
-	get_messages, instantiate_contract_signed, parse_account, set_up_call, CallExec, CallOpts,
-	DefaultEnvironment, Verbosity,
+	build_smart_contract, call_smart_contract, call_smart_contract_from_signed_payload,
+	dry_run_call, dry_run_gas_estimate_call, get_call_payload, get_messages, parse_account,
+	set_up_call, CallExec, CallOpts, DefaultEnvironment, Verbosity,
 };
 use sp_weights::Weight;
 use std::path::PathBuf;
 
-const COMPLETE: &str = "🚀 Deployment complete";
 const DEFAULT_URL: &str = "ws://localhost:9944/";
 const DEFAULT_URI: &str = "//Alice";
 const DEFAULT_PAYABLE_VALUE: &str = "0";
-const FAILED: &str = "🚫 Deployment failed.";
 
 #[derive(Args, Clone)]
 pub struct CallContractCommand {
@@ -122,10 +120,10 @@ impl CallContractCommand {
 			full_message.push_str(&format!(" --gas {}", gas_limit));
 		}
 		if let Some(proof_size) = self.proof_size {
-			full_message.push_str(&format!(" --proof_size {}", proof_size));
+			full_message.push_str(&format!(" --proof-size {}", proof_size));
 		}
 		if self.use_wallet {
-			full_message.push_str(&format!(" --url {} --use_wallet", self.url));
+			full_message.push_str(&format!(" --url {} --use-wallet", self.url));
 		} else {
 			full_message.push_str(&format!(" --url {} --suri {}", self.url, self.suri));
 		}
@@ -133,7 +131,7 @@ impl CallContractCommand {
 			full_message.push_str(" --execute");
 		}
 		if self.dry_run {
-			full_message.push_str(" --dry_run");
+			full_message.push_str(" --dry-run");
 		}
 		full_message
 	}
@@ -387,58 +385,59 @@ impl CallContractCommand {
 			},
 		};
 
-		// Run steps for signing with wallet integration. Returns early.
-		if self.use_wallet {
-			return self.execute_call_secure_signing(&call_exec, cli).await;
-		}
-
-		if self.dry_run {
-			let spinner = spinner();
-			spinner.start("Doing a dry run to estimate the gas...");
-			match dry_run_gas_estimate_call(&call_exec).await {
-				Ok(w) => {
-					cli.info(format!("Gas limit: {:?}", w))?;
-					cli.warning("Your call has not been executed.")?;
-				},
-				Err(e) => {
-					spinner.error(format!("{e}"));
-					display_message("Call failed.", false, cli)?;
-				},
-			};
-			return Ok(());
-		}
-
-		if !self.execute {
-			let spinner = spinner();
-			spinner.start("Calling the contract...");
-			let call_dry_run_result = dry_run_call(&call_exec).await?;
-			cli.info(format!("Result: {}", call_dry_run_result))?;
-			cli.warning("Your call has not been executed.")?;
+		// Run steps for signing with wallet integration.
+		if self.use_wallet && !self.dry_run && self.execute {
+			// TODO: Check how to do dry-run if flag
+			self.execute_call_secure_signing(call_exec, cli).await?;
 		} else {
-			let weight_limit = if self.gas_limit.is_some() && self.proof_size.is_some() {
-				Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap())
-			} else {
+			if self.dry_run {
 				let spinner = spinner();
 				spinner.start("Doing a dry run to estimate the gas...");
 				match dry_run_gas_estimate_call(&call_exec).await {
 					Ok(w) => {
 						cli.info(format!("Gas limit: {:?}", w))?;
-						w
+						cli.warning("Your call has not been executed.")?;
 					},
 					Err(e) => {
 						spinner.error(format!("{e}"));
-						return Err(anyhow!("Call failed."));
+						display_message("Call failed.", false, cli)?;
 					},
-				}
-			};
-			let spinner = spinner();
-			spinner.start("Calling the contract...");
+				};
+				return Ok(());
+			}
 
-			let call_result = call_smart_contract(call_exec, weight_limit, &self.url)
-				.await
-				.map_err(|err| anyhow!("{} {}", "ERROR:", format!("{err:?}")))?;
+			if !self.execute {
+				let spinner = spinner();
+				spinner.start("Calling the contract...");
+				let call_dry_run_result = dry_run_call(&call_exec).await?;
+				cli.info(format!("Result: {}", call_dry_run_result))?;
+				cli.warning("Your call has not been executed.")?;
+			} else {
+				let weight_limit = if self.gas_limit.is_some() && self.proof_size.is_some() {
+					Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap())
+				} else {
+					let spinner = spinner();
+					spinner.start("Doing a dry run to estimate the gas...");
+					match dry_run_gas_estimate_call(&call_exec).await {
+						Ok(w) => {
+							cli.info(format!("Gas limit: {:?}", w))?;
+							w
+						},
+						Err(e) => {
+							spinner.error(format!("{e}"));
+							return Err(anyhow!("Call failed."));
+						},
+					}
+				};
+				let spinner = spinner();
+				spinner.start("Calling the contract...");
 
-			cli.info(call_result)?;
+				let call_result = call_smart_contract(call_exec, weight_limit, &self.url)
+					.await
+					.map_err(|err| anyhow!("{} {}", "ERROR:", format!("{err:?}")))?;
+
+				cli.info(call_result)?;
+			}
 		}
 
 		// Prompt for any additional calls.
@@ -463,10 +462,10 @@ impl CallContractCommand {
 
 	async fn execute_call_secure_signing(
 		&self,
-		call_exec: Result<CallExec<DefaultConfig, DefaultEnvironment, Keypair>>,
+		call_exec: CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
 		cli: &mut impl Cli,
 	) -> Result<()> {
-		let call_data = match self.get_contract_data(call_exec).await {
+		let call_data = match self.get_contract_data(&call_exec).await {
 			Ok(data) => data,
 			Err(e) => {
 				return Err(anyhow!(format!(
@@ -480,32 +479,24 @@ impl CallContractCommand {
 		if let Some(payload) = maybe_payload {
 			cli.success("Signed payload received.")?;
 			let spinner = spinner();
-			spinner.start("Uploading contract...");
+			spinner.start("Calling the contract...");
 
-			let result =
-				call_smart_contract_from_signed_payload(call_data, payload, self.url).await;
-			if let Err(e) = result {
-				return Err(anyhow!(format!(
-					"An error occurred calling your contract: {}",
-					e.to_string()
-				)));
-			}
+			let call_result =
+				call_smart_contract_from_signed_payload(call_exec, payload, &self.url)
+					.await
+					.map_err(|err| anyhow!("{} {}", "ERROR:", format!("{err:?}")))?;
 
-			// let contract_info = result.unwrap();
-			// let hash = contract_info.code_hash.map(|code_hash| format!("{:?}", code_hash));
-			// display_contract_info(&spinner, contract_info.contract_address.to_string(), hash);
+			cli.info(call_result)?;
 		} else {
 			display_message("Signed payload doesn't exist.", false, cli)?;
 		}
-
-		display_message(COMPLETE, true, cli)?;
 		Ok(())
 	}
 
 	/// Get the call data and contract code hash
 	async fn get_contract_data(
 		&self,
-		call_exec: Result<CallExec<DefaultConfig, DefaultEnvironment, Keypair>>,
+		call_exec: &CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
 	) -> anyhow::Result<Vec<u8>> {
 		let weight_limit = if self.gas_limit.is_some() && self.proof_size.is_some() {
 			Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap())

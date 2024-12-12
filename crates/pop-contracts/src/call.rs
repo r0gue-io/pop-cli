@@ -16,10 +16,10 @@ use contract_extrinsics::{
 	DisplayEvents, ErrorVariant, ExtrinsicOptsBuilder, TokenMetadata,
 };
 use ink_env::{DefaultEnvironment, Environment};
-use pop_common::{create_signer, Config, DefaultConfig, Keypair};
+use pop_common::{create_signer, DefaultConfig, Keypair};
 use sp_weights::Weight;
 use std::path::PathBuf;
-use subxt::SubstrateConfig;
+use subxt::{tx::Payload, Config, SubstrateConfig};
 use url::Url;
 
 /// Attributes for the `call` command.
@@ -194,17 +194,17 @@ pub async fn call_smart_contract_from_signed_payload(
 }
 
 pub async fn get_call_payload(
-	call_exec: CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
+	call_exec: &CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
 	gas_limit: Weight,
 ) -> anyhow::Result<Vec<u8>> {
 	let storage_deposit_limit: Option<u128> = None;
 	let mut encoded_data = Vec::<u8>::new();
 	Call::new(
-		call_exec.contract(),
+		call_exec.contract().into(),
 		call_exec.value(),
 		gas_limit,
-		storage_deposit_limit,
-		call_exec.call_data(),
+		storage_deposit_limit.as_ref(),
+		call_exec.call_data().clone(),
 	)
 	.build()
 	.encode_call_data_to(&call_exec.client().metadata(), &mut encoded_data)?;

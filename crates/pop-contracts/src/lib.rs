@@ -14,7 +14,8 @@ mod utils;
 
 pub use build::{build_smart_contract, is_supported, Verbosity};
 pub use call::{
-	call_smart_contract, dry_run_call, dry_run_gas_estimate_call, set_up_call, CallOpts,
+	call_smart_contract, call_smart_contract_from_signed_payload, dry_run_call,
+	dry_run_gas_estimate_call, get_call_payload, set_up_call, CallOpts,
 };
 pub use new::{create_smart_contract, is_valid_contract_name};
 pub use node::{contracts_node_generator, is_chain_alive, run_contracts_node};
