@@ -466,7 +466,7 @@ mod tests {
 	use url::Url;
 
 	const WALLET_INT_URI: &str = "http://127.0.0.1:9090";
-	const WAIT_TIME: u64 = 50000;
+	const WAIT_SECS: u64 = 100;
 
 	// This struct implements the [`Payload`] trait and is used to submit
 	// pre-encoded SCALE call data directly, without the dynamic construction of transactions.
@@ -587,7 +587,7 @@ mod tests {
 		// Execute the command.
 		let task_handle = tokio::spawn(up_contract_opts.clone().execute());
 		// Wait a moment for the server to start
-		sleep(Duration::from_millis(WAIT_TIME)).await;
+		sleep(Duration::from_secs(WAIT_SECS)).await;
 
 		// Request payload from server.
 		let response = reqwest::get(&format!("{}/payload", WALLET_INT_URI))
@@ -646,7 +646,7 @@ mod tests {
 		// Execute the command.
 		let task_handle = tokio::spawn(up_contract_opts.clone().execute());
 		// Wait a moment for the server to start
-		sleep(Duration::from_millis(WAIT_TIME)).await;
+		sleep(Duration::from_secs(WAIT_SECS)).await;
 
 		// Request payload from server.
 		let response = reqwest::get(&format!("{}/payload", WALLET_INT_URI))
