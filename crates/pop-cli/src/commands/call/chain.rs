@@ -102,7 +102,8 @@ impl CallChainCommand {
 
 			if self.use_wallet {
 				// Sign and submit the extrinsic.
-				if let Err(e) = call.submit_extrinsic_secure_signing(&chain, &xt, &mut cli).await {
+				let call_data = call_data(&chain.client, &xt)?;
+				if let Err(e) = submit_extrinsic_secure_signing(&chain, call_data, &mut cli).await {
 					display_message(&e.to_string(), false, &mut cli)?;
 					break;
 				}
@@ -252,12 +253,37 @@ impl CallChainCommand {
 		call_data: &str,
 		cli: &mut impl Cli,
 	) -> Result<()> {
-		// Resolve who is signing the extrinsic.
-		// TODO: HERE TOO
+		// Resolve who is signing the extrinsic. If a `suri` was provided via the command line,
+		// skip the prompt.
+		let mut use_wallet = self.use_wallet;
 		let suri = match self.suri.as_ref() {
-			Some(suri) => suri,
-			None => &cli.input("Signer of the extrinsic:").default_input(DEFAULT_URI).interact()?,
+			Some(suri) => suri.clone(),
+			None => {
+				if !self.use_wallet {
+					if cli.confirm("Do you want to use your browser wallet to sign the transaction? (Selecting 'No' will prompt you to manually enter the secret key URI for signing, e.g., '//Alice')")
+						.initial_value(true)
+						.interact()? {
+							use_wallet = true;
+							DEFAULT_URI.to_string()
+						}
+						else {
+							cli.input("Signer of the extrinsic:").default_input(DEFAULT_URI).interact()?
+						}
+				} else {
+					DEFAULT_URI.to_string()
+				}
+			},
 		};
+		// Return early
+		if use_wallet {
+			let call_data_bytes =
+				decode_call_data(call_data).map_err(|err| anyhow!("{}", format!("{err:?}")))?;
+			submit_extrinsic_secure_signing(chain, call_data_bytes, cli)
+				.await
+				.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
+			display_message("Call complete.", true, cli)?;
+			return Ok(());
+		}
 		cli.info(format!("Encoded call data: {}", call_data))?;
 		if !self.skip_confirm
 			&& !cli
@@ -430,31 +456,6 @@ impl Call {
 		Ok(())
 	}
 
-	// Sign and submit an extrinsic.
-	async fn submit_extrinsic_secure_signing(
-		&mut self,
-		chain: &Chain,
-		xt: &DynamicPayload,
-		cli: &mut impl Cli,
-	) -> Result<()> {
-		let call_data = call_data(&chain.client, xt)?;
-		let maybe_payload = wait_for_signature(call_data, chain.url.to_string()).await?;
-		if let Some(payload) = maybe_payload {
-			cli.success("Signed payload received.")?;
-			let spinner = cliclack::spinner();
-			spinner.start("Signing and submitting the extrinsic and then waiting for finalization, please be patient...");
-
-			let result = submit_signed_extrinsic(chain.client.clone(), payload)
-				.await
-				.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
-
-			spinner.stop(format!("Extrinsic submitted with hash: {:?}", result));
-		} else {
-			display_message("Signed payload doesn't exist.", false, cli)?;
-		}
-		Ok(())
-	}
-
 	fn display(&self, chain: &Chain) -> String {
 		let mut full_message = "pop call chain".to_string();
 		full_message.push_str(&format!(" --pallet {}", self.function.pallet));
@@ -485,6 +486,31 @@ impl Call {
 		}
 		full_message
 	}
+}
+
+// Sign and submit an extrinsic.
+async fn submit_extrinsic_secure_signing(
+	chain: &Chain,
+	call_data: Vec<u8>,
+	cli: &mut impl Cli,
+) -> Result<()> {
+	let maybe_payload = wait_for_signature(call_data, chain.url.to_string()).await?;
+	if let Some(payload) = maybe_payload {
+		cli.success("Signed payload received.")?;
+		let spinner = cliclack::spinner();
+		spinner.start(
+			"Submitting the extrinsic and then waiting for finalization, please be patient...",
+		);
+
+		let result = submit_signed_extrinsic(chain.client.clone(), payload)
+			.await
+			.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
+
+		spinner.stop(format!("Extrinsic submitted with hash: {:?}", result));
+	} else {
+		display_message("Signed payload doesn't exist.", false, cli)?;
+	}
+	Ok(())
 }
 
 // Displays a message to the user, with formatting based on the success status.
@@ -853,6 +879,7 @@ mod tests {
 			sudo: false,
 		};
 		let mut cli = MockCli::new()
+			.expect_confirm("Do you want to use your browser wallet to sign the transaction? (Selecting 'No' will prompt you to manually enter the secret key URI for signing, e.g., '//Alice')", false)
 			.expect_input("Signer of the extrinsic:", "//Bob".into())
 			.expect_confirm("Do you want to submit the extrinsic?", false)
 			.expect_outro_cancel("Extrinsic with call data 0x00000411 was not submitted.");
@@ -875,7 +902,7 @@ mod tests {
 			pallet: None,
 			function: None,
 			args: vec![].to_vec(),
-			url: Some(Url::parse("wss://polkadot-rpc.publicnode.com")?),
+			url: Some(Url::parse(POLKADOT_NETWORK_URL)?),
 			suri: Some("//Alice".to_string()),
 			use_wallet: false,
 			skip_confirm: false,
