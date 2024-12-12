@@ -5,12 +5,12 @@ use pop_common::{
 	call::{DefaultEnvironment, DisplayEvents, TokenMetadata, Verbosity},
 	create_signer,
 };
+use sp_core::bytes::from_hex;
 use subxt::{
 	dynamic::Value,
-	tx::{DynamicPayload, Payload},
+	tx::{DynamicPayload, Payload, SubmittableExtrinsic},
 	OnlineClient, SubstrateConfig,
 };
-
 pub mod metadata;
 
 /// Sets up an [OnlineClient] instance for connecting to a blockchain.
@@ -82,6 +82,28 @@ pub async fn sign_and_submit_extrinsic<Xt: Payload>(
 	Ok(format!("Extrinsic Submitted with hash: {:?}\n\n{}", result.extrinsic_hash(), events))
 }
 
+/// TODO: Signs and submits a given extrinsic.
+///
+/// # Arguments
+/// * `client` - The client used to interact with the chain.
+/// * `xt` - The extrinsic to be signed and submitted.
+/// * `suri` - The secret URI (e.g., mnemonic or private key) for signing the extrinsic.
+pub async fn submit_signed_extrinsic(
+	client: OnlineClient<SubstrateConfig>,
+	payload: String,
+) -> Result<String, Error> {
+	let hex_encoded =
+		from_hex(&payload).map_err(|e| Error::CallDataDecodingError(e.to_string()))?;
+	let extrinsic = SubmittableExtrinsic::from_bytes(client, hex_encoded);
+	let result = extrinsic
+		.submit_and_watch()
+		.await
+		.map_err(|e| Error::ExtrinsicSubmissionError(format!("{:?}", e)))?
+		.wait_for_finalized_success()
+		.await
+		.map_err(|e| Error::ExtrinsicSubmissionError(format!("{:?}", e)))?;
+	Ok(format!("{:?}", result.extrinsic_hash()))
+}
 /// Encodes the call data for a given extrinsic into a hexadecimal string.
 ///
 /// # Arguments
@@ -95,6 +117,20 @@ pub fn encode_call_data(
 		.encode_call_data(&client.metadata())
 		.map_err(|e| Error::CallDataEncodingError(e.to_string()))?;
 	Ok(format!("0x{}", hex::encode(call_data)))
+}
+
+/// Encodes the call data for a given extrinsic into a hexadecimal string.
+///
+/// # Arguments
+/// * `client` - The client used to interact with the chain.
+/// * `xt` - The extrinsic whose call data will be encoded and returned.
+pub fn call_data(
+	client: &OnlineClient<SubstrateConfig>,
+	xt: &DynamicPayload,
+) -> Result<Vec<u8>, Error> {
+	Ok(xt
+		.encode_call_data(&client.metadata())
+		.map_err(|e| Error::CallDataEncodingError(e.to_string()))?)
 }
 
 /// Decodes a hex-encoded string into a vector of bytes representing the call data.

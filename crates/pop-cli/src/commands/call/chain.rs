@@ -2,14 +2,17 @@
 
 use std::path::Path;
 
-use crate::cli::{self, traits::*};
+use crate::{
+	cli::{self, traits::*},
+	common::wallet::wait_for_signature,
+};
 use anyhow::{anyhow, Result};
 use clap::Args;
 use pop_parachains::{
-	construct_extrinsic, construct_sudo_extrinsic, decode_call_data, encode_call_data,
+	call_data, construct_extrinsic, construct_sudo_extrinsic, decode_call_data, encode_call_data,
 	find_dispatchable_by_name, find_pallet_by_name, parse_chain_metadata, set_up_client,
-	sign_and_submit_extrinsic, supported_actions, Action, CallData, DynamicPayload, Function,
-	OnlineClient, Pallet, Param, SubstrateConfig,
+	sign_and_submit_extrinsic, submit_signed_extrinsic, supported_actions, Action, CallData,
+	DynamicPayload, Function, OnlineClient, Pallet, Param, SubstrateConfig,
 };
 use url::Url;
 
@@ -40,6 +43,9 @@ pub struct CallChainCommand {
 	/// - with a password "//Alice///SECRET_PASSWORD"
 	#[arg(short, long)]
 	suri: Option<String>,
+	/// Use your browser wallet to sign the extrinsic.
+	#[clap(name = "use-wallet", long, default_value = "false", conflicts_with = "suri")]
+	use_wallet: bool,
 	/// SCALE encoded bytes representing the call data of the extrinsic.
 	#[arg(name = "call", short, long, conflicts_with_all = ["pallet", "function", "args"])]
 	call_data: Option<String>,
@@ -94,10 +100,18 @@ impl CallChainCommand {
 				},
 			};
 
-			// Sign and submit the extrinsic.
-			if let Err(e) = call.submit_extrinsic(&chain.client, &chain.url, xt, &mut cli).await {
-				display_message(&e.to_string(), false, &mut cli)?;
-				break;
+			if self.use_wallet {
+				// Sign and submit the extrinsic.
+				if let Err(e) = call.submit_extrinsic_secure_signing(&chain, &xt, &mut cli).await {
+					display_message(&e.to_string(), false, &mut cli)?;
+					break;
+				}
+			} else {
+				// Sign and submit the extrinsic.
+				if let Err(e) = call.submit_extrinsic(&chain.client, xt, &mut cli).await {
+					display_message(&e.to_string(), false, &mut cli)?;
+					break;
+				}
 			}
 
 			if !prompt_to_repeat_call
@@ -198,11 +212,24 @@ impl CallChainCommand {
 			// sudo.
 			self.configure_sudo(chain, cli)?;
 
-			// Resolve who is signing the extrinsic.
+			// Resolve who is signing the extrinsic. If a `suri` was provided via the command line,
+			// skip the prompt.
 			let suri = match self.suri.as_ref() {
 				Some(suri) => suri.clone(),
 				None => {
-					cli.input("Signer of the extrinsic:").default_input(DEFAULT_URI).interact()?
+					if !self.use_wallet {
+						if cli.confirm("Do you want to use your browser wallet to sign the transaction? (Selecting 'No' will prompt you to manually enter the secret key URI for signing, e.g., '//Alice')")
+						.initial_value(true)
+						.interact()? {
+							self.use_wallet = true;
+							DEFAULT_URI.to_string()
+						}
+						else {
+							cli.input("Signer of the extrinsic:").default_input(DEFAULT_URI).interact()?
+						}
+					} else {
+						DEFAULT_URI.to_string()
+					}
 				},
 			};
 
@@ -212,6 +239,7 @@ impl CallChainCommand {
 				suri,
 				skip_confirm: self.skip_confirm,
 				sudo: self.sudo,
+				use_wallet: self.use_wallet,
 			});
 		}
 	}
@@ -225,6 +253,7 @@ impl CallChainCommand {
 		cli: &mut impl Cli,
 	) -> Result<()> {
 		// Resolve who is signing the extrinsic.
+		// TODO: HERE TOO
 		let suri = match self.suri.as_ref() {
 			Some(suri) => suri,
 			None => &cli.input("Signer of the extrinsic:").default_input(DEFAULT_URI).interact()?,
@@ -288,6 +317,7 @@ impl CallChainCommand {
 		self.function = None;
 		self.args.clear();
 		self.sudo = false;
+		self.use_wallet = false;
 	}
 
 	// Function to check if all required fields are specified.
@@ -339,6 +369,8 @@ struct Call {
 	/// - for a dev account "//Alice"
 	/// - with a password "//Alice///SECRET_PASSWORD"
 	suri: String,
+	/// Whether to use your browser wallet to sign the extrinsic.
+	use_wallet: bool,
 	/// Whether to automatically sign and submit the extrinsic without prompting for confirmation.
 	skip_confirm: bool,
 	/// Whether to dispatch the function call with `Root` origin.
@@ -398,6 +430,31 @@ impl Call {
 		Ok(())
 	}
 
+	// Sign and submit an extrinsic.
+	async fn submit_extrinsic_secure_signing(
+		&mut self,
+		chain: &Chain,
+		xt: &DynamicPayload,
+		cli: &mut impl Cli,
+	) -> Result<()> {
+		let call_data = call_data(&chain.client, xt)?;
+		let maybe_payload = wait_for_signature(call_data, chain.url.to_string()).await?;
+		if let Some(payload) = maybe_payload {
+			cli.success("Signed payload received.")?;
+			let spinner = cliclack::spinner();
+			spinner.start("Signing and submitting the extrinsic and then waiting for finalization, please be patient...");
+
+			let result = submit_signed_extrinsic(chain.client.clone(), payload)
+				.await
+				.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
+
+			spinner.stop(format!("Extrinsic submitted with hash: {:?}", result));
+		} else {
+			display_message("Signed payload doesn't exist.", false, cli)?;
+		}
+		Ok(())
+	}
+
 	fn display(&self, chain: &Chain) -> String {
 		let mut full_message = "pop call chain".to_string();
 		full_message.push_str(&format!(" --pallet {}", self.function.pallet));
@@ -417,7 +474,12 @@ impl Call {
 				.collect();
 			full_message.push_str(&format!(" --args {}", args.join(" ")));
 		}
-		full_message.push_str(&format!(" --url {} --suri {}", chain.url, self.suri));
+		full_message.push_str(&format!(" --url {}", chain.url));
+		if self.use_wallet {
+			full_message.push_str("--use-wallet");
+		} else {
+			full_message.push_str(&format!(" --suri {}", self.suri));
+		}
 		if self.sudo {
 			full_message.push_str(" --sudo");
 		}
@@ -720,6 +782,7 @@ mod tests {
 			},
 			args: vec!["0x11".to_string()].to_vec(),
 			suri: DEFAULT_URI.to_string(),
+			use_wallet: false,
 			skip_confirm: false,
 			sudo: false,
 		};
@@ -759,6 +822,7 @@ mod tests {
 			function: find_dispatchable_by_name(&pallets, "System", "remark")?.clone(),
 			args: vec!["0x11".to_string()].to_vec(),
 			suri: DEFAULT_URI.to_string(),
+			use_wallet: false,
 			skip_confirm: false,
 			sudo: false,
 		};
@@ -782,6 +846,7 @@ mod tests {
 			args: vec![].to_vec(),
 			url: Some(Url::parse(POP_NETWORK_TESTNET_URL)?),
 			suri: None,
+			use_wallet: false,
 			skip_confirm: false,
 			call_data: Some("0x00000411".to_string()),
 			sudo: false,
@@ -811,6 +876,7 @@ mod tests {
 			args: vec![].to_vec(),
 			url: Some(Url::parse("wss://polkadot-rpc.publicnode.com")?),
 			suri: Some("//Alice".to_string()),
+			use_wallet: false,
 			skip_confirm: false,
 			call_data: Some("0x00000411".to_string()),
 			sudo: true,
@@ -842,6 +908,7 @@ mod tests {
 			function: Some("remark".to_string()),
 			args: vec!["0x11".to_string()].to_vec(),
 			url: Some(Url::parse(POP_NETWORK_TESTNET_URL)?),
+			use_wallet: true,
 			suri: Some(DEFAULT_URI.to_string()),
 			skip_confirm: false,
 			call_data: None,
@@ -852,6 +919,7 @@ mod tests {
 		assert_eq!(call_config.function, None);
 		assert_eq!(call_config.args.len(), 0);
 		assert!(!call_config.sudo);
+		assert!(call_config.use_wallet);
 		Ok(())
 	}
 
@@ -863,6 +931,7 @@ mod tests {
 			args: vec!["0x11".to_string()].to_vec(),
 			url: Some(Url::parse(POP_NETWORK_TESTNET_URL)?),
 			suri: Some(DEFAULT_URI.to_string()),
+			use_wallet: false,
 			skip_confirm: false,
 			call_data: None,
 			sudo: false,
@@ -881,6 +950,7 @@ mod tests {
 			args: vec!["2000".to_string(), "0x1".to_string(), "0x12".to_string()].to_vec(),
 			url: Some(Url::parse(POP_NETWORK_TESTNET_URL)?),
 			suri: Some(DEFAULT_URI.to_string()),
+			use_wallet: false,
 			call_data: None,
 			skip_confirm: false,
 			sudo: false,
