@@ -465,7 +465,7 @@ mod tests {
 	use tokio::time::sleep;
 	use url::Url;
 
-	const WALLET_INT_URI: &str = "http://127.0.0.1:65535";
+	const WALLET_INT_URI: &str = "http://127.0.0.1:9090";
 	const WAIT_SECS: u64 = 100;
 
 	// This struct implements the [`Payload`] trait and is used to submit
