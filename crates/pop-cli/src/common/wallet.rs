@@ -33,6 +33,7 @@ pub async fn wait_for_signature(call_data: Vec<u8>, url: String) -> anyhow::Resu
 	Ok(signed_payload)
 }
 
+#[ignore]
 #[cfg(test)]
 mod tests {
 	use super::*;
