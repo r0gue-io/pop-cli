@@ -50,12 +50,12 @@ pub fn construct_sudo_extrinsic(xt: DynamicPayload) -> Result<DynamicPayload, Er
 /// # Arguments
 /// * `client` - The client used to interact with the chain.
 /// * `url` - Endpoint of the node.
-/// * `xt` - The extrinsic to be signed and submitted.
+/// * `xt` - The (encoded) extrinsic to be signed and submitted.
 /// * `suri` - The secret URI (e.g., mnemonic or private key) for signing the extrinsic.
-pub async fn sign_and_submit_extrinsic<C: Payload>(
+pub async fn sign_and_submit_extrinsic<Xt: Payload>(
 	client: &OnlineClient<SubstrateConfig>,
 	url: &url::Url,
-	xt: C,
+	xt: Xt,
 	suri: &str,
 ) -> Result<String, Error> {
 	let signer = create_signer(suri)?;

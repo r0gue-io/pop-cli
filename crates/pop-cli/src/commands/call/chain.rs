@@ -244,7 +244,7 @@ impl CallChainCommand {
 		spinner.start("Signing and submitting the extrinsic and then waiting for finalization, please be patient...");
 		let call_data_bytes =
 			decode_call_data(call_data).map_err(|err| anyhow!("{}", format!("{err:?}")))?;
-		let result = sign_and_submit_extrinsic(client, &url, CallData::new(call_data_bytes), suri)
+		let result = sign_and_submit_extrinsic(client, url, CallData::new(call_data_bytes), suri)
 			.await
 			.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
 
