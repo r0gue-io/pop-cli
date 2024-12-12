@@ -312,15 +312,16 @@ impl CallContractCommand {
 			self.proof_size = proof_size_input.parse::<u64>().ok(); // If blank or bad input, estimate it.
 		}
 
-		if !self.use_wallet {
-			if cli.confirm("Do you want to use your browser wallet to sign the transaction? (Selecting 'No' will prompt you to manually enter the secret key URI for signing, e.g., '//Alice')")
+		// Resolve who is calling the contract. If a `suri` was provided via the command line, skip
+		// the prompt.
+		if self.suri == DEFAULT_URI {
+			if !self.use_wallet {
+				if cli.confirm("Do you want to use your browser wallet to sign the transaction? (Selecting 'No' will prompt you to manually enter the secret key URI for signing, e.g., '//Alice')")
 			.initial_value(true)
 			.interact()? {
 				self.use_wallet = true;
 			}
 			else{
-				// Resolve who is calling the contract.
-				if self.suri == DEFAULT_URI {
 					// Prompt for uri.
 					self.suri = cli
 						.input("Signer calling the contract:")
@@ -385,7 +386,8 @@ impl CallContractCommand {
 			},
 		};
 
-		// Run steps for signing with wallet integration.
+		// Run steps for signing with wallet integration, skip the secure signing if it's a
+		// query-only operation.
 		if self.use_wallet && !self.dry_run && self.execute {
 			// TODO: Check how to do dry-run if flag
 			self.execute_call_secure_signing(call_exec, cli).await?;
@@ -514,6 +516,7 @@ impl CallContractCommand {
 		self.value = DEFAULT_PAYABLE_VALUE.to_string();
 		self.gas_limit = None;
 		self.proof_size = None;
+		self.use_wallet = false;
 	}
 }
 
@@ -598,7 +601,7 @@ mod tests {
 		};
 		call_config.configure(&mut cli, false).await?;
 		assert_eq!(call_config.display(), format!(
-			"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message flip --gas 100 --proof_size 10 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --dry_run",
+			"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message flip --gas 100 --proof-size 10 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --dry-run",
 			temp_dir.path().join("testing").display().to_string(),
 		));
 		// Contract deployed on Pop Network testnet, test dry-run
@@ -635,7 +638,7 @@ mod tests {
 		};
 		call_config.configure(&mut cli, false).await?;
 		assert_eq!(call_config.display(), format!(
-			"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message flip --gas 100 --proof_size 10 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --dry_run",
+			"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message flip --gas 100 --proof-size 10 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --dry-run",
 			current_dir.join("pop-contracts/tests/files/testing.contract").display().to_string(),
 		));
 		// Contract deployed on Pop Network testnet, test dry-run
@@ -645,7 +648,7 @@ mod tests {
 		call_config.path = Some(current_dir.join("pop-contracts/tests/files/testing.json"));
 		call_config.configure(&mut cli, false).await?;
 		assert_eq!(call_config.display(), format!(
-			"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message flip --gas 100 --proof_size 10 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --dry_run",
+			"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message flip --gas 100 --proof-size 10 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --dry-run",
 			current_dir.join("pop-contracts/tests/files/testing.json").display().to_string(),
 		));
 
@@ -653,7 +656,7 @@ mod tests {
 		call_config.path = Some(current_dir.join("pop-contracts/tests/files/testing.wasm"));
 		call_config.configure(&mut cli, false).await?;
 		assert_eq!(call_config.display(), format!(
-			"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message flip --gas 100 --proof_size 10 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --dry_run",
+			"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message flip --gas 100 --proof-size 10 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --dry-run",
 			current_dir.join("pop-contracts/tests/files/testing.wasm").display().to_string(),
 		));
 		// Contract deployed on Pop Network testnet, test dry-run
@@ -684,10 +687,6 @@ mod tests {
 				"Do you want to perform another call using the existing smart contract?",
 				true,
 			)
-			.expect_confirm(
-				"Do you want to perform another call using the existing smart contract?",
-				false,
-			)
 			.expect_select(
 				"Select the message to call:",
 				Some(false),
@@ -695,12 +694,17 @@ mod tests {
 				Some(items),
 				1, // "get" message
 			)
+			.expect_confirm("Do you want to use your browser wallet to sign the transaction? (Selecting 'No' will prompt you to manually enter the secret key URI for signing, e.g., '//Alice')", false)
 			.expect_input("Signer calling the contract:", "//Alice".into())
 			.expect_info(format!(
 			    "pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message get --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice",
 			    temp_dir.path().join("testing").display().to_string(),
 			))
 			.expect_warning("Your call has not been executed.")
+			.expect_confirm(
+				"Do you want to perform another call using the existing smart contract?",
+				false,
+			)
 			.expect_outro("Contract calling complete.");
 
 		// Contract deployed on Pop Network testnet, test get
@@ -828,14 +832,6 @@ mod tests {
 		];
 		// The inputs are processed in reverse order.
 		let mut cli = MockCli::new()
-			.expect_confirm("Do you want to execute the call? (Selecting 'No' will perform a dry run)", true)
-			.expect_select(
-				"Select the message to call:",
-				Some(false),
-				true,
-				Some(items),
-				2, // "specific_flip" message
-			)
 			.expect_input(
 				"Where is your project or contract artifact located?",
 				temp_dir.path().join("testing").display().to_string(),
@@ -848,14 +844,22 @@ mod tests {
 				"Provide the on-chain contract address:",
 				"15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".into(),
 			)
+			.expect_select(
+				"Select the message to call:",
+				Some(false),
+				true,
+				Some(items),
+				2, // "specific_flip" message
+			)
 			.expect_input("Enter the value for the parameter: new_value", "true".into()) // Args for specific_flip
 			.expect_input("Enter the value for the parameter: number", "2".into()) // Args for specific_flip
 			.expect_input("Value to transfer to the call:", "50".into()) // Only if payable
 			.expect_input("Enter the gas limit:", "".into()) // Only if call
 			.expect_input("Enter the proof size limit:", "".into()) // Only if call
-			.expect_input("Signer calling the contract:", "//Alice".into())
+			.expect_confirm("Do you want to use your browser wallet to sign the transaction? (Selecting 'No' will prompt you to manually enter the secret key URI for signing, e.g., '//Alice')", true)
+			.expect_confirm("Do you want to execute the call? (Selecting 'No' will perform a dry run)", true)
 			.expect_info(format!(
-				"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message specific_flip --args \"true\", \"2\" --value 50 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --execute",
+				"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message specific_flip --args \"true\", \"2\" --value 50 --url wss://rpc1.paseo.popnetwork.xyz/ --use-wallet --execute",
 				temp_dir.path().join("testing").display().to_string(),
 			));
 
@@ -888,10 +892,11 @@ mod tests {
 		assert_eq!(call_config.proof_size, None);
 		assert_eq!(call_config.url.to_string(), "wss://rpc1.paseo.popnetwork.xyz/");
 		assert_eq!(call_config.suri, "//Alice");
+		assert!(call_config.use_wallet);
 		assert!(call_config.execute);
 		assert!(!call_config.dry_run);
 		assert_eq!(call_config.display(), format!(
-			"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message specific_flip --args \"true\", \"2\" --value 50 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --execute",
+			"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message specific_flip --args \"true\", \"2\" --value 50 --url wss://rpc1.paseo.popnetwork.xyz/ --use-wallet --execute",
 			temp_dir.path().join("testing").display().to_string(),
 		));
 

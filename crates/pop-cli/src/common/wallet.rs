@@ -42,6 +42,7 @@ mod tests {
 	// This is a helper test for an actual running pop CLI.
 	// It can serve as the "frontend" to query the payload, sign it
 	// and submit back to the CLI.
+	#[ignore]
 	#[tokio::test]
 	async fn sign_call_data() -> anyhow::Result<()> {
 		use subxt::{config::DefaultExtrinsicParamsBuilder as Params, tx::Payload};
