@@ -613,8 +613,63 @@ mod tests {
 		Ok(())
 	}
 
+	#[tokio::test]
 	async fn get_instantiate_call_data_works() -> anyhow::Result<()> {
-		todo!()
+		let random_port = find_free_port();
+		let localhost_url = format!("ws://127.0.0.1:{}", random_port);
+		let temp_dir = new_environment("testing")?;
+		let current_dir = env::current_dir().expect("Failed to get current directory");
+		mock_build_process(
+			temp_dir.path().join("testing"),
+			current_dir.join("../pop-contracts/tests/files/testing.contract"),
+			current_dir.join("../pop-contracts/tests/files/testing.json"),
+		)?;
+
+		let up_contract_opts = UpContractCommand {
+			path: Some(temp_dir.path().join("testing")),
+			constructor: "new".to_string(),
+			args: vec!["false".to_string()],
+			value: "0".to_string(),
+			gas_limit: None,
+			proof_size: None,
+			salt: None,
+			//url: Url::parse(&localhost_url).expect("given url is valid"),
+			url: Url::parse("ws://localhost:9944").expect("default url is valid"),
+			suri: "//Alice".to_string(),
+			dry_run: false,
+			upload_only: false,
+			skip_confirm: true,
+			use_wallet: true,
+		};
+
+		let task_handle = tokio::spawn(up_contract_opts.clone().execute());
+
+		// Wait a moment for the server to start
+		sleep(Duration::from_millis(10000)).await;
+
+		// Request payload from server.
+		let response = reqwest::get(&format!("{}/payload", WALLET_INT_URI))
+			.await
+			.expect("Failed to get payload")
+			.json::<TransactionData>()
+			.await
+			.expect("Failed to parse payload");
+
+		// Calculate the expected call data based on the above command options.
+		let (expected_call_data, _) = match up_contract_opts.get_contract_data().await {
+			Ok(data) => data,
+			Err(e) => {
+				error(format!("An error occurred getting the call data: {e}"))?;
+				return Err(e);
+			},
+		};
+
+		assert_eq!(expected_call_data, response.call_data());
+
+		// Send signed payload to kill server.
+		send_signed_payload(response.call_data(), &up_contract_opts.url.to_string()).await?;
+
+		Ok(())
 	}
 
 	async fn wait_for_signature_works() -> anyhow::Result<()> {
