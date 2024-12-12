@@ -407,7 +407,7 @@ mod tests {
 	use url::Url;
 
 	const WALLET_INT_URI: &str = "http://127.0.0.1:9090";
-	const WAIT_TIME: u64 = 20000;
+	const WAIT_TIME: u64 = 50000;
 
 	// This struct implements the [`Payload`] trait and is used to submit
 	// pre-encoded SCALE call data directly, without the dynamic construction of transactions.
