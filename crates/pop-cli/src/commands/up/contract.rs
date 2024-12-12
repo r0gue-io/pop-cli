@@ -524,8 +524,8 @@ mod tests {
 			use_wallet: true,
 		};
 
+		// Execute the command.
 		let task_handle = tokio::spawn(up_contract_opts.clone().execute());
-
 		// Wait a moment for the server to start
 		sleep(Duration::from_millis(10000)).await;
 
@@ -583,8 +583,8 @@ mod tests {
 			use_wallet: true,
 		};
 
+		// Execute the command.
 		let task_handle = tokio::spawn(up_contract_opts.clone().execute());
-
 		// Wait a moment for the server to start
 		sleep(Duration::from_millis(10000)).await;
 
