@@ -92,6 +92,13 @@ impl WalletIntegrationManager {
 			.allow_methods(Any) // Allow any HTTP method
 			.allow_headers(Any); // Allow any headers (like 'Content-Type')
 
+		// TODO: temporary until we host from here.
+		let cors = tower_http::cors::CorsLayer::new()
+			.allow_origin("http://localhost:9090".parse::<HeaderValue>().unwrap())
+			.allow_origin("http://127.0.0.1:9090".parse::<HeaderValue>().unwrap())
+			.allow_methods(Any) // Allow any HTTP method
+			.allow_headers(Any); // Allow any headers (like 'Content-Type')
+
 		let app = Router::new()
 			.route("/payload", get(routes::get_payload_handler).with_state(payload))
 			.route("/submit", post(routes::submit_handler).with_state(state.clone()))
