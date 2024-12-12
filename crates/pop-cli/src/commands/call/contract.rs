@@ -386,9 +386,8 @@ impl CallContractCommand {
 		// Perform signing steps with wallet integration, skipping secure signing for query-only
 		// operations.
 		if self.use_wallet && !self.dry_run && self.execute {
-			// TODO: Check how to do dry-run if flag
-			self.execute_call_secure_signing(call_exec, cli).await?;
-			self.finalize_execute_call(cli, prompt_to_repeat_call).await
+			self.execute_with_secure_signing(call_exec, cli).await?;
+			return self.finalize_execute_call(cli, prompt_to_repeat_call).await;
 		}
 		if self.dry_run {
 			let spinner = spinner();
@@ -467,20 +466,15 @@ impl CallContractCommand {
 		}
 	}
 
-	async fn execute_call_secure_signing(
+	/// Execute the smart contract call using wallet integration.
+	async fn execute_with_secure_signing(
 		&self,
 		call_exec: CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
 		cli: &mut impl Cli,
 	) -> Result<()> {
-		let call_data = match self.get_contract_data(&call_exec).await {
-			Ok(data) => data,
-			Err(e) => {
-				return Err(anyhow!(format!(
-					"An error occurred getting the call data: {}",
-					e.to_string()
-				)));
-			},
-		};
+		let call_data = self.get_contract_data(&call_exec).map_err(|err| {
+			anyhow!("An error occurred getting the call data: {}", err.to_string())
+		})?;
 
 		let maybe_payload = wait_for_signature(call_data, self.url.to_string()).await?;
 		if let Some(payload) = maybe_payload {
@@ -495,23 +489,23 @@ impl CallContractCommand {
 
 			cli.info(call_result)?;
 		} else {
-			display_message("Signed payload doesn't exist.", false, cli)?;
+			display_message("No signed payload received.", false, cli)?;
 		}
 		Ok(())
 	}
 
-	/// Get the call data and contract code hash
-	async fn get_contract_data(
+	// Get the call data.
+	fn get_contract_data(
 		&self,
 		call_exec: &CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
 	) -> anyhow::Result<Vec<u8>> {
 		let weight_limit = if self.gas_limit.is_some() && self.proof_size.is_some() {
 			Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap())
 		} else {
-			// Frontend will do dry run and update call data.
+			// TODO: Frontend will do dry run and update call data.
 			Weight::from_parts(0, 0)
 		};
-		let call_data = get_call_payload(call_exec, weight_limit).await?;
+		let call_data = get_call_payload(call_exec, weight_limit)?;
 		Ok(call_data)
 	}
 

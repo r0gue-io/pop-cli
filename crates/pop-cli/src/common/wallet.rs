@@ -75,7 +75,6 @@ mod tests {
 			subxt::OnlineClient::<subxt::SubstrateConfig>::from_rpc_client(rpc_client).await?;
 
 		let signer = dev::alice();
-		// let signer = dev::bob();
 
 		let payload = CallData(payload.call_data());
 		let ext_params = Params::new().build();

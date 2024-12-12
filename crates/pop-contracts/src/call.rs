@@ -176,11 +176,19 @@ pub async fn call_smart_contract(
 	Ok(output)
 }
 
+/// Executes a smart contract call using a signed payload.
+///
+/// # Arguments
+///
+/// * `call_exec` - A struct containing the details of the contract call.
+/// * `payload` - The signed payload string to be submitted for executing the call.
+/// * `url` - The endpoint of the node where the call is executed.
 pub async fn call_smart_contract_from_signed_payload(
 	call_exec: CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
 	payload: String,
 	url: &Url,
 ) -> anyhow::Result<String, Error> {
+	println!("payload: {:?}", payload);
 	let token_metadata = TokenMetadata::query::<DefaultConfig>(url).await?;
 	let metadata = call_exec.client().metadata();
 	let events = submit_signed_payload(url.as_str(), payload).await?;
@@ -193,7 +201,12 @@ pub async fn call_smart_contract_from_signed_payload(
 	Ok(output)
 }
 
-pub async fn get_call_payload(
+/// Generates the payload for executing a smart contract call.
+///
+/// # Arguments
+/// * `call_exec` - A struct containing the details of the contract call.
+/// * `gas_limit` - The maximum amount of gas allocated for executing the contract call.
+pub fn get_call_payload(
 	call_exec: &CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
 	gas_limit: Weight,
 ) -> anyhow::Result<Vec<u8>> {
