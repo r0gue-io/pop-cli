@@ -79,7 +79,7 @@ pub async fn sign_and_submit_extrinsic<C: Payload>(
 	let events =
 		events.display_events::<DefaultEnvironment>(Verbosity::Default, &token_metadata)?;
 
-	Ok(format!("Extrinsic Submitted with hash: {:?}\n\n{}", result.extrinsic_hash(), events,))
+	Ok(format!("Extrinsic Submitted with hash: {:?}\n\n{}", result.extrinsic_hash(), events))
 }
 
 /// Encodes the call data for a given extrinsic into a hexadecimal string.
@@ -126,30 +126,6 @@ impl Payload for CallData {
 		out.extend_from_slice(&self.0);
 		Ok(())
 	}
-}
-
-/// Signs and submits a given extrinsic.
-///
-/// # Arguments
-/// * `client` - Reference to an `OnlineClient` connected to the chain.
-/// * `call_data` - SCALE encoded bytes representing the extrinsic's call data.
-/// * `suri` - The secret URI (e.g., mnemonic or private key) for signing the extrinsic.
-pub async fn sign_and_submit_extrinsic_with_call_data(
-	client: &OnlineClient<SubstrateConfig>,
-	call_data: Vec<u8>,
-	suri: &str,
-) -> Result<String, Error> {
-	let signer = create_signer(suri)?;
-	let payload = CallData(call_data);
-	let result = client
-		.tx()
-		.sign_and_submit_then_watch_default(&payload, &signer)
-		.await
-		.map_err(|e| Error::ExtrinsicSubmissionError(format!("{:?}", e)))?
-		.wait_for_finalized_success()
-		.await
-		.map_err(|e| Error::ExtrinsicSubmissionError(format!("{:?}", e)))?;
-	Ok(format!("{:?}", result.extrinsic_hash()))
 }
 
 #[cfg(test)]
