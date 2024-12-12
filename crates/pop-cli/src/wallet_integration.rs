@@ -69,7 +69,7 @@ impl WalletIntegrationManager {
 	/// A `WalletIntegrationManager` instance, with access to the state and task handle for the
 	/// server.
 	pub fn new<F: Frontend>(frontend: F, payload: TransactionData) -> Self {
-		Self::new_with_address(frontend, payload, "127.0.0.1:9090")
+		Self::new_with_address(frontend, payload, "127.0.0.1:65535")
 	}
 
 	/// Same as `new`, but allows specifying the address to bind to.
