@@ -417,14 +417,13 @@ mod tests {
 		run_contracts_node,
 	};
 	use anyhow::Result;
-	use reqwest::get;
-	use std::{env, fs, process::Command};
-	use subxt::{
-		config::{substrate::BlakeTwo256, Hasher},
-		utils::to_hex,
-	};
+	use hex::FromHex;
 	use pop_common::{find_free_port, set_executable_permission};
 	use std::{env, process::Command, time::Duration};
+	use subxt::{
+		config::{substrate::BlakeTwo256, Hasher},
+		utils::{to_hex, H256},
+	};
 	use tokio::time::sleep;
 	use url::Url;
 
@@ -500,11 +499,16 @@ mod tests {
 		};
 		let contract_code = get_contract_code(up_opts.path.as_ref()).await?;
 		let call_data = get_upload_payload(contract_code, CONTRACTS_NETWORK_URL).await?;
-		let payload_hash = BlakeTwo256::hash(&call_data).to_string();
+		let payload_hash = BlakeTwo256::hash(&call_data);
 		// We know that for the above opts the payload hash should be:
-		// 0x4e4ff6ad411346d4cd6cf9bcc9101360e4657f776b0af3b46bfe780b0413e819
-		assert!(payload_hash.starts_with("0x4e4f"));
-		assert!(payload_hash.ends_with("e819"));
+		// 0x98c24584107b3a01d12e8e02c0bb634d15dc86123c44d186206813ede42f478d
+		let expected_hash: H256 = H256::from(
+			<[u8; 32]>::from_hex(
+				"98c24584107b3a01d12e8e02c0bb634d15dc86123c44d186206813ede42f478d",
+			)
+			.expect("Invalid hex string"),
+		);
+		assert_eq!(expected_hash, payload_hash);
 		Ok(())
 	}
 

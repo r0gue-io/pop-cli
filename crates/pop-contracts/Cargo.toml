@@ -42,3 +42,4 @@ pop-common = { path = "../pop-common", version = "0.5.0" }
 dirs.workspace = true
 mockito.workspace = true
 tokio-test.workspace = true
+hex.workspace = true
