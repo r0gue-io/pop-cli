@@ -1,15 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::wallet_integration::{FrontendFromDir, TransactionData, WalletIntegrationManager};
+use crate::wallet_integration::{FrontendFromString, TransactionData, WalletIntegrationManager};
 use cliclack::log;
 use sp_core::bytes::to_hex;
-use std::path::PathBuf;
 
 pub async fn wait_for_signature(call_data: Vec<u8>, url: String) -> anyhow::Result<Option<String>> {
-	// TODO: to be addressed in future PR. Should not use FromDir (or local path).
-	let ui = FrontendFromDir::new(PathBuf::from(
-		"/Users/alexbean/Documents/react-teleport-example/dist",
-	));
+	let ui = FrontendFromString::new(include_str!("../assets/index.html").to_string());
 
 	let transaction_data = TransactionData::new(url, call_data);
 	let call_data_bytes = to_hex(&transaction_data.call_data(), false);
