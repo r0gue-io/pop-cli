@@ -44,16 +44,16 @@ tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
 url = "2.5.4"
 
 # contracts
-subxt-signer = { version = "0.37.0", features = ["subxt", "sr25519"] }
-subxt = "0.37.0"
+subxt-signer = { version = "0.38.0", features = ["subxt", "sr25519"] }
+subxt = "0.38.0"
 ink_env = "5.0.0"
-sp-core = "31"
-sp-weights = "30"
-contract-build = "5.0.0-alpha"
-contract-extrinsics = "5.0.0-alpha"
-contract-transcode = "5.0.0-alpha"
-scale-info = { version = "2.11.3", default-features = false, features = ["derive"] }
-scale-value = { version = "0.16.2", default-features = false, features = ["from-string", "parser-ss58"] }
+sp-core = "32.0.0"
+sp-weights = "31.0.0"
+contract-build = "5.0.0"
+contract-extrinsics = "5.0.0"
+contract-transcode = "5.0.0"
+scale-info = { version = "2.11.4", default-features = false, features = ["derive"] }
+scale-value = { version = "0.17.0", default-features = false, features = ["from-string", "parser-ss58"] }
 heck = "0.5.0"
 hex = { version = "0.4.3", default-features = false }
 
