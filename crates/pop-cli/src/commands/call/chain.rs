@@ -476,7 +476,7 @@ impl Call {
 		}
 		full_message.push_str(&format!(" --url {}", chain.url));
 		if self.use_wallet {
-			full_message.push_str("--use-wallet");
+			full_message.push_str(" --use-wallet");
 		} else {
 			full_message.push_str(&format!(" --suri {}", self.suri));
 		}
@@ -710,7 +710,7 @@ mod tests {
 		)
 		.expect_input("The value for `remark` might be too large to enter. You may enter the path to a file instead.", "0x11".into())
 		.expect_confirm("Would you like to dispatch this function call with `Root` origin?", true)
-		.expect_input("Signer of the extrinsic:", "//Bob".into());
+		.expect_confirm("Do you want to use your browser wallet to sign the transaction? (Selecting 'No' will prompt you to manually enter the secret key URI for signing, e.g., '//Alice')", true);
 
 		let chain = call_config.configure_chain(&mut cli).await?;
 		assert_eq!(chain.url, Url::parse(POP_NETWORK_TESTNET_URL)?);
@@ -719,9 +719,10 @@ mod tests {
 		assert_eq!(call_chain.function.pallet, "System");
 		assert_eq!(call_chain.function.name, "remark");
 		assert_eq!(call_chain.args, ["0x11".to_string()].to_vec());
-		assert_eq!(call_chain.suri, "//Bob");
+		assert_eq!(call_chain.suri, "//Alice"); // Default value
+		assert!(call_chain.use_wallet);
 		assert!(call_chain.sudo);
-		assert_eq!(call_chain.display(&chain), "pop call chain --pallet System --function remark --args \"0x11\" --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Bob --sudo");
+		assert_eq!(call_chain.display(&chain), "pop call chain --pallet System --function remark --args \"0x11\" --url wss://rpc1.paseo.popnetwork.xyz/ --use-wallet --sudo");
 		cli.verify()
 	}
 
@@ -919,7 +920,7 @@ mod tests {
 		assert_eq!(call_config.function, None);
 		assert_eq!(call_config.args.len(), 0);
 		assert!(!call_config.sudo);
-		assert!(call_config.use_wallet);
+		assert!(!call_config.use_wallet);
 		Ok(())
 	}
 
