@@ -248,7 +248,7 @@ impl CallChainCommand {
 			.await
 			.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
 
-		spinner.stop(format!("Extrinsic submitted successfully with hash: {:?}", result));
+		spinner.stop(result);
 		display_message("Call complete.", true, cli)?;
 		Ok(())
 	}
