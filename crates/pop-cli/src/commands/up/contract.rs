@@ -397,7 +397,30 @@ fn display_contract_info(spinner: &ProgressBar, address: String, code_hash: Opti
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::wallet_integration::TransactionData;
+	use pop_common::{find_free_port, set_executable_permission};
+	use pop_contracts::{contracts_node_generator, mock_build_process, new_environment};
+	use std::{env, process::Command, time::Duration};
+	use subxt::utils::to_hex;
+	use subxt_signer::sr25519::dev;
+	use tokio::time::sleep;
 	use url::Url;
+
+	use subxt::{config::DefaultExtrinsicParamsBuilder as Params, tx::Payload};
+	// This struct implements the [`Payload`] trait and is used to submit
+	// pre-encoded SCALE call data directly, without the dynamic construction of transactions.
+	struct CallData(Vec<u8>);
+
+	impl Payload for CallData {
+		fn encode_call_data_to(
+			&self,
+			_: &subxt::Metadata,
+			out: &mut Vec<u8>,
+		) -> Result<(), subxt::ext::subxt_core::Error> {
+			out.extend_from_slice(&self.0);
+			Ok(())
+		}
+	}
 
 	fn default_up_contract_command() -> UpContractCommand {
 		UpContractCommand {
@@ -415,6 +438,53 @@ mod tests {
 			skip_confirm: false,
 			use_wallet: false,
 		}
+	}
+
+	// This is a helper function to test the waller integration server.
+	// Given some preconfigured UpContractCommand, the command is executed and the payload is
+	// requested to the wallet integration http server.
+	// After retrievign the payload will sign and send it back to the server in order to kill the
+	// process.
+	async fn run_server_and_retrive_payload(
+		up_config: UpContractCommand,
+	) -> anyhow::Result<TransactionData> {
+		const WALLET_INT_URI: &str = "http://127.0.0.1:9090";
+
+		let task_handle = tokio::spawn(up_config.clone().execute());
+
+		// Wait a moment for the server to start
+		sleep(Duration::from_millis(10000)).await;
+
+		let pre_sign_payload = reqwest::get(&format!("{}/payload", WALLET_INT_URI))
+			.await
+			.expect("Failed to get payload")
+			.json::<TransactionData>()
+			.await
+			.expect("Failed to parse payload");
+
+		// Submit signed payload to kill the process.
+
+		let rpc_client = subxt::backend::rpc::RpcClient::from_url(up_config.url).await?;
+		let client =
+			subxt::OnlineClient::<subxt::SubstrateConfig>::from_rpc_client(rpc_client).await?;
+
+		let signer = dev::alice();
+
+		let payload = CallData(pre_sign_payload.call_data());
+		let ext_params = Params::new().build();
+		let signed = client.tx().create_signed(&payload, &signer, ext_params).await?;
+
+		let _ = reqwest::Client::new()
+			.post(&format!("{}/submit", WALLET_INT_URI))
+			.json(&to_hex(signed.encoded()))
+			.send()
+			.await
+			.expect("Failed to submit payload")
+			.text()
+			.await
+			.expect("Failed to parse JSON response");
+
+		Ok(pre_sign_payload)
 	}
 
 	#[test]
@@ -438,8 +508,80 @@ mod tests {
 		Ok(())
 	}
 
+	#[tokio::test]
 	async fn get_upload_call_data_works() -> anyhow::Result<()> {
-		todo!()
+		let random_port = find_free_port();
+		let localhost_url = format!("ws://127.0.0.1:{}", random_port);
+		let temp_dir = new_environment("testing")?;
+		let current_dir = env::current_dir().expect("Failed to get current directory");
+		mock_build_process(
+			temp_dir.path().join("testing"),
+			current_dir.join("../pop-contracts/tests/files/testing.contract"),
+			current_dir.join("../pop-contracts/tests/files/testing.json"),
+		)?;
+
+		const WALLET_INT_URI: &str = "http://127.0.0.1:9090";
+
+		let up_contract_opts = UpContractCommand {
+			path: Some(temp_dir.path().join("testing")),
+			constructor: "new".to_string(),
+			args: vec![],
+			value: "0".to_string(),
+			gas_limit: None,
+			proof_size: None,
+			salt: None,
+			url: Url::parse(&localhost_url).expect("default url is valid"),
+			suri: "//Alice".to_string(),
+			dry_run: false,
+			upload_only: true,
+			skip_confirm: true,
+			use_wallet: true,
+		};
+
+		let task_handle = tokio::spawn(up_contract_opts.clone().execute());
+
+		// Wait a moment for the server to start
+		sleep(Duration::from_millis(10000)).await;
+
+		// Calculate the expected call data based on the above command options.
+		let (expected_call_data, _) = match up_contract_opts.get_contract_data().await {
+			Ok(data) => data,
+			Err(e) => {
+				error(format!("An error occurred getting the call data: {e}"))?;
+				return Err(e);
+			},
+		};
+
+		let pre_sign_payload = reqwest::get(&format!("{}/payload", WALLET_INT_URI))
+			.await
+			.expect("Failed to get payload")
+			.json::<TransactionData>()
+			.await
+			.expect("Failed to parse payload");
+
+		let rpc_client = subxt::backend::rpc::RpcClient::from_url(&up_contract_opts.url).await?;
+		let client =
+			subxt::OnlineClient::<subxt::SubstrateConfig>::from_rpc_client(rpc_client).await?;
+
+		let signer = dev::alice();
+
+		let payload = CallData(pre_sign_payload.call_data());
+		let ext_params = Params::new().build();
+		let signed = client.tx().create_signed(&payload, &signer, ext_params).await?;
+
+		let _ = reqwest::Client::new()
+			.post(&format!("{}/submit", WALLET_INT_URI))
+			.json(&to_hex(signed.encoded()))
+			.send()
+			.await
+			.expect("Failed to submit payload")
+			.text()
+			.await
+			.expect("Failed to parse JSON response");
+
+		assert_eq!(expected_call_data, pre_sign_payload.call_data());
+
+		Ok(())
 	}
 
 	async fn get_instantiate_call_data_works() -> anyhow::Result<()> {
