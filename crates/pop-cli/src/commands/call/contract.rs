@@ -122,10 +122,11 @@ impl CallContractCommand {
 		if let Some(proof_size) = self.proof_size {
 			full_message.push_str(&format!(" --proof-size {}", proof_size));
 		}
+		full_message.push_str(&format!(" --url {}", self.url));
 		if self.use_wallet {
-			full_message.push_str(&format!(" --url {} --use-wallet", self.url));
+			full_message.push_str(" --use-wallet");
 		} else {
-			full_message.push_str(&format!(" --url {} --suri {}", self.url, self.suri));
+			full_message.push_str(&format!(" --suri {}", self.suri));
 		}
 		if self.execute {
 			full_message.push_str(" --execute");
@@ -174,7 +175,7 @@ impl CallContractCommand {
 	fn is_contract_build_required(&self) -> bool {
 		self.path
 			.as_ref()
-			.map(|p| p.is_dir() && !has_contract_been_built(Some(&p)))
+			.map(|p| p.is_dir() && !has_contract_been_built(Some(p)))
 			.unwrap_or_default()
 	}
 
@@ -314,22 +315,19 @@ impl CallContractCommand {
 
 		// Resolve who is calling the contract. If a `suri` was provided via the command line, skip
 		// the prompt.
-		if self.suri == DEFAULT_URI {
-			if !self.use_wallet {
-				if cli.confirm("Do you want to use your browser wallet to sign the transaction? (Selecting 'No' will prompt you to manually enter the secret key URI for signing, e.g., '//Alice')")
+		if self.suri == DEFAULT_URI && !self.use_wallet {
+			if cli.confirm("Do you want to use your browser wallet to sign the transaction? (Selecting 'No' will prompt you to manually enter the secret key URI for signing, e.g., '//Alice')")
 			.initial_value(true)
 			.interact()? {
 				self.use_wallet = true;
 			}
 			else{
-					// Prompt for uri.
 					self.suri = cli
 						.input("Signer calling the contract:")
 						.placeholder("//Alice")
 						.default_input("//Alice")
 						.interact()?;
 				};
-			}
 		}
 
 		// Finally prompt for confirmation.
@@ -365,7 +363,6 @@ impl CallContractCommand {
 				return Err(anyhow!("Please specify the contract address."));
 			},
 		};
-
 		let call_exec = match set_up_call(CallOpts {
 			path: self.path.clone(),
 			contract,
@@ -386,62 +383,70 @@ impl CallContractCommand {
 			},
 		};
 
-		// Run steps for signing with wallet integration, skip the secure signing if it's a
-		// query-only operation.
+		// Perform signing steps with wallet integration, skipping secure signing for query-only
+		// operations.
 		if self.use_wallet && !self.dry_run && self.execute {
 			// TODO: Check how to do dry-run if flag
 			self.execute_call_secure_signing(call_exec, cli).await?;
+			self.finalize_execute_call(cli, prompt_to_repeat_call).await
+		}
+		if self.dry_run {
+			let spinner = spinner();
+			spinner.start("Doing a dry run to estimate the gas...");
+			match dry_run_gas_estimate_call(&call_exec).await {
+				Ok(w) => {
+					cli.info(format!("Gas limit: {:?}", w))?;
+					cli.warning("Your call has not been executed.")?;
+				},
+				Err(e) => {
+					spinner.error(format!("{e}"));
+					display_message("Call failed.", false, cli)?;
+				},
+			};
+			return Ok(());
+		}
+
+		if !self.execute {
+			let spinner = spinner();
+			spinner.start("Calling the contract...");
+			let call_dry_run_result = dry_run_call(&call_exec).await?;
+			cli.info(format!("Result: {}", call_dry_run_result))?;
+			cli.warning("Your call has not been executed.")?;
 		} else {
-			if self.dry_run {
+			let weight_limit = if self.gas_limit.is_some() && self.proof_size.is_some() {
+				Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap())
+			} else {
 				let spinner = spinner();
 				spinner.start("Doing a dry run to estimate the gas...");
 				match dry_run_gas_estimate_call(&call_exec).await {
 					Ok(w) => {
 						cli.info(format!("Gas limit: {:?}", w))?;
-						cli.warning("Your call has not been executed.")?;
+						w
 					},
 					Err(e) => {
 						spinner.error(format!("{e}"));
-						display_message("Call failed.", false, cli)?;
+						return Err(anyhow!("Call failed."));
 					},
-				};
-				return Ok(());
-			}
+				}
+			};
+			let spinner = spinner();
+			spinner.start("Calling the contract...");
 
-			if !self.execute {
-				let spinner = spinner();
-				spinner.start("Calling the contract...");
-				let call_dry_run_result = dry_run_call(&call_exec).await?;
-				cli.info(format!("Result: {}", call_dry_run_result))?;
-				cli.warning("Your call has not been executed.")?;
-			} else {
-				let weight_limit = if self.gas_limit.is_some() && self.proof_size.is_some() {
-					Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap())
-				} else {
-					let spinner = spinner();
-					spinner.start("Doing a dry run to estimate the gas...");
-					match dry_run_gas_estimate_call(&call_exec).await {
-						Ok(w) => {
-							cli.info(format!("Gas limit: {:?}", w))?;
-							w
-						},
-						Err(e) => {
-							spinner.error(format!("{e}"));
-							return Err(anyhow!("Call failed."));
-						},
-					}
-				};
-				let spinner = spinner();
-				spinner.start("Calling the contract...");
+			let call_result = call_smart_contract(call_exec, weight_limit, &self.url)
+				.await
+				.map_err(|err| anyhow!("{} {}", "ERROR:", format!("{err:?}")))?;
 
-				let call_result = call_smart_contract(call_exec, weight_limit, &self.url)
-					.await
-					.map_err(|err| anyhow!("{} {}", "ERROR:", format!("{err:?}")))?;
-
-				cli.info(call_result)?;
-			}
+			cli.info(call_result)?;
 		}
+		self.finalize_execute_call(cli, prompt_to_repeat_call).await
+	}
 
+	/// Finalize the current call, prompting the user to repeat or conclude the process.
+	async fn finalize_execute_call(
+		&mut self,
+		cli: &mut impl Cli,
+		prompt_to_repeat_call: bool,
+	) -> Result<()> {
 		// Prompt for any additional calls.
 		if !prompt_to_repeat_call {
 			display_message("Call completed successfully!", true, cli)?;

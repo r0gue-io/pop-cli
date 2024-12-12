@@ -8,8 +8,8 @@ pub async fn wait_for_signature(call_data: Vec<u8>, url: String) -> anyhow::Resu
 	let ui = FrontendFromString::new(include_str!("../assets/index.html").to_string());
 
 	let transaction_data = TransactionData::new(url, call_data);
-	let call_data_bytes = to_hex(&transaction_data.call_data(), false);
-	println!("transaction_data: {:?}", call_data_bytes);
+	// let call_data_bytes = to_hex(&transaction_data.call_data(), false);
+	// println!("transaction_data: {:?}", call_data_bytes);
 	// starts server
 	let mut wallet = WalletIntegrationManager::new(ui, transaction_data);
 	log::step(format!("Wallet signing portal started at http://{}", wallet.rpc_url))?;
