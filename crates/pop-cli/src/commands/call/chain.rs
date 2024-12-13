@@ -9,10 +9,11 @@ use crate::{
 use anyhow::{anyhow, Result};
 use clap::Args;
 use pop_parachains::{
-	call_data, construct_extrinsic, construct_sudo_extrinsic, decode_call_data, encode_call_data,
+	construct_extrinsic, construct_sudo_extrinsic, decode_call_data, encode_call_data,
 	find_dispatchable_by_name, find_pallet_by_name, parse_chain_metadata, set_up_client,
-	sign_and_submit_extrinsic, submit_signed_extrinsic, supported_actions, Action, CallData,
-	DynamicPayload, Function, OnlineClient, Pallet, Param, SubstrateConfig,
+	sign_and_submit_extrinsic, submit_signed_extrinsic, submit_signed_extrinsic, supported_actions,
+	Action, CallData, DynamicPayload, Function, OnlineClient, Pallet, Param, Payload,
+	SubstrateConfig,
 };
 use url::Url;
 
@@ -102,8 +103,10 @@ impl CallChainCommand {
 
 			if self.use_wallet {
 				// Sign and submit the extrinsic.
-				let call_data = call_data(&chain.client, &xt)?;
-				if let Err(e) = submit_extrinsic_secure_signing(&chain, call_data, &mut cli).await {
+				let call_data = xt.encode_call_data(&chain.client.metadata())?;
+				if let Err(e) =
+					submit_extrinsic_with_secure_signing(&chain, call_data, &mut cli).await
+				{
 					display_message(&e.to_string(), false, &mut cli)?;
 					break;
 				}
@@ -223,13 +226,13 @@ impl CallChainCommand {
 						.initial_value(true)
 						.interact()? {
 							self.use_wallet = true;
-							DEFAULT_URI.to_string()
+							DEFAULT_URI.to_string() // Default value because the user is using the browser wallet.
 						}
 						else {
 							cli.input("Signer of the extrinsic:").default_input(DEFAULT_URI).interact()?
 						}
 					} else {
-						DEFAULT_URI.to_string()
+						DEFAULT_URI.to_string() // Default value because the user is using the browser wallet.
 					}
 				},
 			};
@@ -274,11 +277,11 @@ impl CallChainCommand {
 				}
 			},
 		};
-		// Return early
+		// Perform signing steps with wallet integration and return early.
 		if use_wallet {
 			let call_data_bytes =
 				decode_call_data(call_data).map_err(|err| anyhow!("{}", format!("{err:?}")))?;
-			submit_extrinsic_secure_signing(chain, call_data_bytes, cli)
+			submit_extrinsic_with_secure_signing(chain, call_data_bytes, cli)
 				.await
 				.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
 			display_message("Call complete.", true, cli)?;
@@ -488,8 +491,8 @@ impl Call {
 	}
 }
 
-// Sign and submit an extrinsic.
-async fn submit_extrinsic_secure_signing(
+// Sign and submit an extrinsic using wallet integration.
+async fn submit_extrinsic_with_secure_signing(
 	chain: &Chain,
 	call_data: Vec<u8>,
 	cli: &mut impl Cli,
@@ -508,7 +511,7 @@ async fn submit_extrinsic_secure_signing(
 
 		spinner.stop(format!("Extrinsic submitted with hash: {:?}", result));
 	} else {
-		display_message("Signed payload doesn't exist.", false, cli)?;
+		display_message("No signed payload received.", false, cli)?;
 	}
 	Ok(())
 }
