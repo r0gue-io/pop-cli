@@ -44,7 +44,7 @@ pub struct CallChainCommand {
 	#[arg(short, long)]
 	suri: Option<String>,
 	/// Use your browser wallet to sign the extrinsic.
-	#[clap(name = "use-wallet", long, default_value = "false", conflicts_with = "suri")]
+	#[arg(name = "use-wallet", long, default_value = "false", conflicts_with = "suri")]
 	use_wallet: bool,
 	/// SCALE encoded bytes representing the call data of the extrinsic.
 	#[arg(name = "call", short, long, conflicts_with_all = ["pallet", "function", "args"])]
