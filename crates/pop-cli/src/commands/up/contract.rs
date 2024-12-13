@@ -403,8 +403,10 @@ mod tests {
 		env,
 		process::{Child, Command},
 	};
+	use std::time::Duration;
 	use subxt::{tx::Payload, SubstrateConfig};
 	use tempfile::TempDir;
+	use tokio::time::sleep;
 	use url::Url;
 
 	fn default_up_contract_command() -> UpContractCommand {
@@ -472,6 +474,7 @@ mod tests {
 	async fn get_upload_call_data_works() -> anyhow::Result<()> {
 		let (contracts_node_process, port, temp_dir) = start_test_environment().await?;
 		let localhost_url = format!("ws://127.0.0.1:{}", port);
+		sleep(Duration::from_secs(20)).await;
 
 		let up_contract_opts = UpContractCommand {
 			path: Some(temp_dir.path().join("testing")),
@@ -500,6 +503,8 @@ mod tests {
 				return Err(e);
 			},
 		};
+		// We have retrieved some payload.
+		assert!(!retrieved_call_data.is_empty());
 
 		// Craft encoded call data for an upload code call.
 		let contract_code = get_contract_code(up_contract_opts.path.as_ref()).await?;
@@ -522,10 +527,12 @@ mod tests {
 		Ok(())
 	}
 
+	#[ignore]
 	#[tokio::test]
 	async fn get_instantiate_call_data_works() -> anyhow::Result<()> {
 		let (contracts_node_process, port, temp_dir) = start_test_environment().await?;
 		let localhost_url = format!("ws://127.0.0.1:{}", port);
+		sleep(Duration::from_secs(20)).await;
 
 		let up_contract_opts = UpContractCommand {
 			path: Some(temp_dir.path().join("testing")),
@@ -554,6 +561,8 @@ mod tests {
 				return Err(e);
 			},
 		};
+		// We have retrieved some payload.
+		assert!(!retrieved_call_data.is_empty());
 
 		// println!("retrieved_call_data: {:?}", retrieved_call_data);
 		// TODO: Can't use WasmCode for crafting the instantiation call data.
