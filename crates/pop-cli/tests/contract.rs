@@ -174,7 +174,7 @@ async fn contract_lifecycle() -> Result<()> {
 async fn wait_for_wallet_signature_works() -> Result<()> {
 	const DEFAULT_ENDPOINT: &str = "ws://127.0.0.1:9944";
 	const WALLET_INT_URI: &str = "http://127.0.0.1:9090";
-	const WAIT_SECS: u64 = 120;
+	const WAIT_SECS: u64 = 360;
 	let temp = tempfile::tempdir()?;
 	let temp_dir = temp.path();
 	//let temp_dir = Path::new("./"); //For testing locally
@@ -188,9 +188,13 @@ async fn wait_for_wallet_signature_works() -> Result<()> {
 	assert!(temp_dir.join("test_contract").exists());
 
 	// pop up contract --upload-only --use-wallet
-	let _handler = tokio::process::Command::new("pop")
-		.current_dir(temp_dir.join("test_contract"))
+	// Using `cargo run --` as means for the CI to pass.
+	// Possibly there's room for improvement here.
+	let _handler = tokio::process::Command::new("cargo")
+		//.current_dir(temp_dir.join("test_contract"))
 		.args(&[
+			"run",
+			"--",
 			"up",
 			"contract",
 			"--upload-only",
@@ -200,6 +204,8 @@ async fn wait_for_wallet_signature_works() -> Result<()> {
 			"//Alice",
 			"--url",
 			DEFAULT_ENDPOINT,
+			"-p",
+			temp_dir.join("test_contract").to_str().expect("to_str"),
 		])
 		.spawn()?;
 	// Wait a moment for node and server to be up.
