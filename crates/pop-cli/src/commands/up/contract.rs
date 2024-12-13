@@ -564,9 +564,4 @@ mod tests {
 		stop_test_environment(&contracts_node_process.id().to_string())?;
 		Ok(())
 	}
-
-	#[ignore]
-	async fn wait_for_signature_works() -> anyhow::Result<()> {
-		todo!()
-	}
 }
