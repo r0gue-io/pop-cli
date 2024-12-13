@@ -19,7 +19,7 @@ use ink_env::{DefaultEnvironment, Environment};
 use pop_common::{create_signer, Config, DefaultConfig, Keypair};
 use sp_weights::Weight;
 use std::path::PathBuf;
-use subxt::{tx::Payload, Config, SubstrateConfig};
+use subxt::{tx::Payload, SubstrateConfig};
 use url::Url;
 
 /// Attributes for the `call` command.

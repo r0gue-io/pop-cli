@@ -49,18 +49,16 @@ pub fn target() -> Result<&'static str, Error> {
 	}
 
 	match ARCH {
-		"aarch64" => {
+		"aarch64" =>
 			return match OS {
 				"macos" => Ok("aarch64-apple-darwin"),
 				_ => Ok("aarch64-unknown-linux-gnu"),
-			}
-		},
-		"x86_64" | "x86" => {
+			},
+		"x86_64" | "x86" =>
 			return match OS {
 				"macos" => Ok("x86_64-apple-darwin"),
 				_ => Ok("x86_64-unknown-linux-gnu"),
-			}
-		},
+			},
 		&_ => {},
 	}
 	Err(Error::UnsupportedPlatform { arch: ARCH, os: OS })
@@ -73,6 +71,16 @@ pub fn find_free_port() -> u16 {
 		.local_addr()
 		.expect("Failed to retrieve local address")
 		.port()
+}
+
+/// Provides functionality for making calls to parachains or smart contracts.
+pub mod call {
+	// Note: cargo contract logic is used for parsing events after calling a chain. This could be
+	// refactored in the future so that we don't have to use cargo contract code in
+	// `pop-parachains`.
+	pub use contract_build::Verbosity;
+	pub use contract_extrinsics::{DisplayEvents, TokenMetadata};
+	pub use ink_env::DefaultEnvironment;
 }
 
 #[cfg(test)]
