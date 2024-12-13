@@ -111,6 +111,7 @@ impl CallChainCommand {
 
 			if let Err(e) = result {
 				display_message(&e.to_string(), false, &mut cli)?;
+				break;
 			}
 
 			if !prompt_to_repeat_call ||
