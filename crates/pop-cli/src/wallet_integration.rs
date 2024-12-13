@@ -4,7 +4,7 @@ use axum::{
 	routing::{get, post},
 	Router,
 };
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::{path::PathBuf, sync::Arc};
 use tokio::{
 	sync::{oneshot, Mutex},
@@ -20,7 +20,7 @@ pub trait Frontend {
 
 /// Transaction payload to be sent to frontend for signing.
 #[derive(Serialize, Debug)]
-#[cfg_attr(test, derive(Deserialize, Clone))]
+#[cfg_attr(test, derive(serde::Deserialize, Clone))]
 pub struct TransactionData {
 	chain_rpc: String,
 	call_data: Vec<u8>,

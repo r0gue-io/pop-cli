@@ -30,6 +30,7 @@ pub async fn wait_for_signature(call_data: Vec<u8>, url: String) -> anyhow::Resu
 	Ok(signed_payload)
 }
 
+#[ignore]
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -39,7 +40,6 @@ mod tests {
 	// This is a helper test for an actual running pop CLI.
 	// It can serve as the "frontend" to query the payload, sign it
 	// and submit back to the CLI.
-	#[ignore]
 	#[tokio::test]
 	async fn sign_call_data() -> anyhow::Result<()> {
 		use subxt::{config::DefaultExtrinsicParamsBuilder as Params, tx::Payload};
