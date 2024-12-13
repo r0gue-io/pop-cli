@@ -461,8 +461,8 @@ mod tests {
 	use std::{
 		env,
 		process::{Child, Command},
+		time::Duration,
 	};
-	use std::time::Duration;
 	use subxt::{tx::Payload, SubstrateConfig};
 	use tempfile::TempDir;
 	use tokio::time::sleep;
