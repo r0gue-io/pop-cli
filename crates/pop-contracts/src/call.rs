@@ -16,7 +16,7 @@ use contract_extrinsics::{
 	DisplayEvents, ErrorVariant, ExtrinsicOptsBuilder, TokenMetadata,
 };
 use ink_env::{DefaultEnvironment, Environment};
-use pop_common::{create_signer, DefaultConfig, Keypair};
+use pop_common::{create_signer, Config, DefaultConfig, Keypair};
 use sp_weights::Weight;
 use std::path::PathBuf;
 use subxt::{tx::Payload, Config, SubstrateConfig};
