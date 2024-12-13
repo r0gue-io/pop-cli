@@ -693,7 +693,6 @@ mod tests {
 				Some(items),
 				1, // "get" message
 			)
-			.expect_confirm("Do you want to use your browser wallet to sign the transaction? (Selecting 'No' will prompt you to manually enter the secret key URI for signing, e.g., '//Alice')", false)
 			.expect_input("Signer calling the contract:", "//Alice".into())
 			.expect_info(format!(
 			    "pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message get --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice",
