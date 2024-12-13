@@ -2,14 +2,11 @@
 
 use crate::wallet_integration::{FrontendFromString, TransactionData, WalletIntegrationManager};
 use cliclack::log;
-use sp_core::bytes::to_hex;
 
 pub async fn wait_for_signature(call_data: Vec<u8>, url: String) -> anyhow::Result<Option<String>> {
 	let ui = FrontendFromString::new(include_str!("../assets/index.html").to_string());
 
 	let transaction_data = TransactionData::new(url, call_data);
-	let call_data_bytes = to_hex(&transaction_data.call_data(), false);
-	println!("transaction_data: {:?}", call_data_bytes);
 	// starts server
 	let mut wallet = WalletIntegrationManager::new(ui, transaction_data);
 	log::step(format!("Wallet signing portal started at http://{}", wallet.rpc_url))?;
