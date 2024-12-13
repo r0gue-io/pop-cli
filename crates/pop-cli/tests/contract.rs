@@ -234,6 +234,8 @@ async fn wait_for_wallet_signature_works() -> Result<()> {
 		.json::<TransactionData>()
 		.await
 		.expect("Failed to parse payload");
+	// We have received some payload.
+	assert!(!response.call_data().is_empty());
 
 	let rpc_client = subxt::backend::rpc::RpcClient::from_url(DEFAULT_ENDPOINT).await?;
 	let client = subxt::OnlineClient::<subxt::SubstrateConfig>::from_rpc_client(rpc_client).await?;
