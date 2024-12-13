@@ -17,7 +17,7 @@ pub use build::{
 	generate_plain_chain_spec, generate_raw_chain_spec, is_supported, ChainSpec,
 };
 pub use call::{
-	call_data, construct_extrinsic, construct_sudo_extrinsic, decode_call_data, encode_call_data,
+	construct_extrinsic, construct_sudo_extrinsic, decode_call_data, encode_call_data,
 	metadata::{
 		action::{supported_actions, Action},
 		find_dispatchable_by_name, find_pallet_by_name,
@@ -31,7 +31,10 @@ pub use indexmap::IndexSet;
 pub use new_pallet::{create_pallet_template, new_pallet_options::*, TemplatePalletConfig};
 pub use new_parachain::instantiate_template_dir;
 // External export from subxt.
-pub use subxt::{tx::DynamicPayload, OnlineClient, SubstrateConfig};
+pub use subxt::{
+	tx::{DynamicPayload, Payload},
+	OnlineClient, SubstrateConfig,
+};
 pub use templates::{Config, Parachain, Provider};
 pub use up::Zombienet;
 pub use utils::helpers::is_initial_endowment_valid;
