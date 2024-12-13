@@ -316,7 +316,7 @@ impl CallContractCommand {
 		// Resolve who is calling the contract. If a `suri` was provided via the command line, skip
 		// the prompt.
 		if self.suri == DEFAULT_URI && !self.use_wallet {
-			if cli.confirm("Do you want to use your browser wallet to sign the transaction? (Selecting 'No' will prompt you to manually enter the secret key URI for signing, e.g., '//Alice')")
+			if message.mutates && cli.confirm("Do you want to use your browser wallet to sign the transaction? (Selecting 'No' will prompt you to manually enter the secret key URI for signing, e.g., '//Alice')")
 			.initial_value(true)
 			.interact()? {
 				self.use_wallet = true;
@@ -385,7 +385,7 @@ impl CallContractCommand {
 
 		// Perform signing steps with wallet integration, skipping secure signing for query-only
 		// operations.
-		if self.use_wallet && !self.dry_run && self.execute {
+		if self.use_wallet {
 			self.execute_with_secure_signing(call_exec, cli).await?;
 			return self.finalize_execute_call(cli, prompt_to_repeat_call).await;
 		}
