@@ -5,15 +5,10 @@ use assert_cmd::Command;
 use pop_common::{set_executable_permission, templates::Template};
 use pop_contracts::{
 	contracts_node_generator, dry_run_gas_estimate_instantiate, instantiate_smart_contract,
-	mock_build_process, run_contracts_node, set_up_deployment, Contract, UpOpts,
+	run_contracts_node, set_up_deployment, Contract, UpOpts,
 };
 use serde::{Deserialize, Serialize};
-use std::{
-	env,
-	path::{Path, PathBuf},
-	process::Command as Cmd,
-	time::Duration,
-};
+use std::{path::Path, process::Command as Cmd, time::Duration};
 use strum::VariantArray;
 use subxt::{config::DefaultExtrinsicParamsBuilder as Params, tx::Payload, utils::to_hex};
 use subxt_signer::sr25519::dev;
@@ -179,7 +174,7 @@ async fn contract_lifecycle() -> Result<()> {
 async fn wait_for_wallet_signature_works() -> Result<()> {
 	const DEFAULT_ENDPOINT: &str = "ws://127.0.0.1:9944";
 	const WALLET_INT_URI: &str = "http://127.0.0.1:9090";
-	const WAIT_SECS: u64 = 10;
+	const WAIT_SECS: u64 = 120;
 	let temp = tempfile::tempdir()?;
 	let temp_dir = temp.path();
 	//let temp_dir = Path::new("./"); //For testing locally
@@ -192,25 +187,9 @@ async fn wait_for_wallet_signature_works() -> Result<()> {
 		.success();
 	assert!(temp_dir.join("test_contract").exists());
 
-	// Mock pop build --path ./test_contract --release
-	let current_dir = env::current_dir().expect("Failed to get current directory");
-	mock_build_process(
-		temp_dir.join("test_contract"),
-		current_dir.join("../pop-contracts/tests/files/testing.contract"),
-		current_dir.join("../pop-contracts/tests/files/testing.json"),
-	)?;
-	// Verify that the directory target has been created
-	assert!(temp_dir.join("test_contract/target").exists());
-	// Verify that all the artifacts has been generated
-	assert!(temp_dir.join("test_contract/target/ink/testing.contract").exists());
-	assert!(temp_dir.join("test_contract/target/ink/testing.json").exists());
-
-	// Only upload the contract with --use-wallet
 	// pop up contract --upload-only --use-wallet
-	let current_dir: PathBuf = temp_dir.join("test_contract");
-	Command::cargo_bin("pop")
-		.unwrap()
-		.current_dir(current_dir)
+	let _handler = tokio::process::Command::new("pop")
+		.current_dir(temp_dir.join("test_contract"))
 		.args(&[
 			"up",
 			"contract",
@@ -222,8 +201,7 @@ async fn wait_for_wallet_signature_works() -> Result<()> {
 			"--url",
 			DEFAULT_ENDPOINT,
 		])
-		.assert()
-		.success();
+		.spawn()?;
 	// Wait a moment for node and server to be up.
 	sleep(Duration::from_secs(WAIT_SECS)).await;
 
@@ -246,7 +224,7 @@ async fn wait_for_wallet_signature_works() -> Result<()> {
 	let ext_params = Params::new().build();
 	let signed = client.tx().create_signed(&payload, &signer, ext_params).await?;
 
-	// Submit signed payload. This kills server.
+	// Submit signed payload. This kills the wallet integration server.
 	let _ = reqwest::Client::new()
 		.post(&format!("{}/submit", WALLET_INT_URI))
 		.json(&to_hex(signed.encoded()))
@@ -256,6 +234,11 @@ async fn wait_for_wallet_signature_works() -> Result<()> {
 		.text()
 		.await
 		.expect("Failed to parse JSON response");
+
+	// Request payload from server after signed payload has been sent.
+	// Server should not be running!
+	let response = reqwest::get(&format!("{}/payload", WALLET_INT_URI)).await;
+	assert!(response.is_err());
 
 	Ok(())
 }
