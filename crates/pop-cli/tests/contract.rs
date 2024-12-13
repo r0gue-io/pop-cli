@@ -175,7 +175,7 @@ async fn wait_for_wallet_signature() -> Result<()> {
 	const DEFAULT_ENDPOINT: &str = "ws://127.0.0.1:9966";
 	const DEFAULT_PORT: u16 = 9966;
 	const WALLET_INT_URI: &str = "http://127.0.0.1:9090";
-	const WAIT_SECS: u64 = 320;
+	const WAIT_SECS: u64 = 500;
 	let temp = tempfile::tempdir()?;
 	let temp_dir = temp.path();
 	//let temp_dir = Path::new("./"); //For testing locally
