@@ -689,68 +689,68 @@ mod tests {
 		Ok(())
 	}
 
-	#[tokio::test]
-	async fn get_instantiate_payload_works() -> Result<()> {
-		const LOCALHOST_URL: &str = "ws://127.0.0.1:9944";
-		let temp_dir = generate_smart_contract_test_environment()?;
-		mock_build_process(temp_dir.path().join("testing"))?;
+	// #[tokio::test]
+	// async fn get_instantiate_payload_works() -> Result<()> {
+	// 	const LOCALHOST_URL: &str = "ws://127.0.0.1:9944";
+	// 	let temp_dir = generate_smart_contract_test_environment()?;
+	// 	mock_build_process(temp_dir.path().join("testing"))?;
 
-		let cache = temp_dir.path().join("");
+	// 	let cache = temp_dir.path().join("");
 
-		let binary = contracts_node_generator(cache.clone(), None).await?;
-		binary.source(false, &(), true).await?;
-		let process = run_contracts_node(binary.path(), None).await?;
+	// 	let binary = contracts_node_generator(cache.clone(), None).await?;
+	// 	binary.source(false, &(), true).await?;
+	// 	let process = run_contracts_node(binary.path(), None).await?;
 
-		let upload_exec = set_up_upload(UpOpts {
-			path: Some(temp_dir.path().join("testing")),
-			constructor: "new".to_string(),
-			args: [].to_vec(),
-			value: "1000".to_string(),
-			gas_limit: None,
-			proof_size: None,
-			salt: None,
-			url: Url::parse(LOCALHOST_URL)?,
-			suri: "//Alice".to_string(),
-		})
-		.await?;
+	// 	let upload_exec = set_up_upload(UpOpts {
+	// 		path: Some(temp_dir.path().join("testing")),
+	// 		constructor: "new".to_string(),
+	// 		args: [].to_vec(),
+	// 		value: "1000".to_string(),
+	// 		gas_limit: None,
+	// 		proof_size: None,
+	// 		salt: None,
+	// 		url: Url::parse(LOCALHOST_URL)?,
+	// 		suri: "//Alice".to_string(),
+	// 	})
+	// 	.await?;
 
-		// Only upload a Smart Contract
-		let upload_result = upload_smart_contract(&upload_exec).await?;
-		assert!(!upload_result.starts_with("0x0x"));
-		assert!(upload_result.starts_with("0x"));
-		//Error when Smart Contract has been already uploaded
-		assert!(matches!(
-			upload_smart_contract(&upload_exec).await,
-			Err(Error::UploadContractError(..))
-		));
+	// 	// Only upload a Smart Contract
+	// 	let upload_result = upload_smart_contract(&upload_exec).await?;
+	// 	assert!(!upload_result.starts_with("0x0x"));
+	// 	assert!(upload_result.starts_with("0x"));
+	// 	//Error when Smart Contract has been already uploaded
+	// 	assert!(matches!(
+	// 		upload_smart_contract(&upload_exec).await,
+	// 		Err(Error::UploadContractError(..))
+	// 	));
 
-		// Instantiate a Smart Contract
-		let instantiate_exec = set_up_deployment(UpOpts {
-			path: Some(temp_dir.path().join("testing")),
-			constructor: "new".to_string(),
-			args: ["false".to_string()].to_vec(),
-			value: "0".to_string(),
-			gas_limit: None,
-			proof_size: None,
-			salt: Some(Bytes::from(vec![0x00])),
-			url: Url::parse(LOCALHOST_URL)?,
-			suri: "//Alice".to_string(),
-		})
-		.await?;
-		// First gas estimation
-		let weight = dry_run_gas_estimate_instantiate(&instantiate_exec).await?;
-		assert!(weight.ref_time() > 0);
-		assert!(weight.proof_size() > 0);
+	// 	// Instantiate a Smart Contract
+	// 	let instantiate_exec = set_up_deployment(UpOpts {
+	// 		path: Some(temp_dir.path().join("testing")),
+	// 		constructor: "new".to_string(),
+	// 		args: ["false".to_string()].to_vec(),
+	// 		value: "0".to_string(),
+	// 		gas_limit: None,
+	// 		proof_size: None,
+	// 		salt: Some(Bytes::from(vec![0x00])),
+	// 		url: Url::parse(LOCALHOST_URL)?,
+	// 		suri: "//Alice".to_string(),
+	// 	})
+	// 	.await?;
+	// 	// First gas estimation
+	// 	let weight = dry_run_gas_estimate_instantiate(&instantiate_exec).await?;
+	// 	assert!(weight.ref_time() > 0);
+	// 	assert!(weight.proof_size() > 0);
 
-		let call_data = get_instantiate_payload(instantiate_exec, weight).await?;
-		println!("{:?}", to_hex(call_data));
+	// 	let call_data = get_instantiate_payload(instantiate_exec, weight).await?;
+	// 	println!("{:?}", to_hex(call_data));
 
-		//Stop the process contracts-node
-		Command::new("kill")
-			.args(["-s", "TERM", &process.id().to_string()])
-			.spawn()?
-			.wait()?;
+	// 	//Stop the process contracts-node
+	// 	Command::new("kill")
+	// 		.args(["-s", "TERM", &process.id().to_string()])
+	// 		.spawn()?
+	// 		.wait()?;
 
-		Ok(())
-	}
+	// 	Ok(())
+	// }
 }

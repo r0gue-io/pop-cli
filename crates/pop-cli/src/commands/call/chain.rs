@@ -11,9 +11,8 @@ use clap::Args;
 use pop_parachains::{
 	construct_extrinsic, construct_sudo_extrinsic, decode_call_data, encode_call_data,
 	find_dispatchable_by_name, find_pallet_by_name, parse_chain_metadata, set_up_client,
-	sign_and_submit_extrinsic, submit_signed_extrinsic, submit_signed_extrinsic, supported_actions,
-	Action, CallData, DynamicPayload, Function, OnlineClient, Pallet, Param, Payload,
-	SubstrateConfig,
+	sign_and_submit_extrinsic, submit_signed_extrinsic, supported_actions, Action, CallData,
+	DynamicPayload, Function, OnlineClient, Pallet, Param, Payload, SubstrateConfig,
 };
 use url::Url;
 
@@ -104,9 +103,10 @@ impl CallChainCommand {
 			// Sign and submit the extrinsic.
 			let result = if self.use_wallet {
 				let call_data = xt.encode_call_data(&chain.client.metadata())?;
-				submit_extrinsic_with_secure_signing(&chain, call_data, &mut cli).await
+				submit_extrinsic_with_secure_signing(&chain.client, &chain.url, call_data, &mut cli)
+					.await
 			} else {
-				call.submit_extrinsic(&chain.client, xt, &mut cli).await
+				call.submit_extrinsic(&chain.client, &chain.url, xt, &mut cli).await
 			};
 
 			if let Err(e) = result {
@@ -276,7 +276,7 @@ impl CallChainCommand {
 		if use_wallet {
 			let call_data_bytes =
 				decode_call_data(call_data).map_err(|err| anyhow!("{}", format!("{err:?}")))?;
-			submit_extrinsic_with_secure_signing(chain, call_data_bytes, cli)
+			submit_extrinsic_with_secure_signing(client, &url, call_data_bytes, cli)
 				.await
 				.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
 			display_message("Call complete.", true, cli)?;
@@ -300,7 +300,7 @@ impl CallChainCommand {
 		spinner.start("Signing and submitting the extrinsic and then waiting for finalization, please be patient...");
 		let call_data_bytes =
 			decode_call_data(call_data).map_err(|err| anyhow!("{}", format!("{err:?}")))?;
-		let result = sign_and_submit_extrinsic(client, url, CallData::new(call_data_bytes), suri)
+		let result = sign_and_submit_extrinsic(client, url, CallData::new(call_data_bytes), &suri)
 			.await
 			.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
 
@@ -488,11 +488,12 @@ impl Call {
 
 // Sign and submit an extrinsic using wallet integration.
 async fn submit_extrinsic_with_secure_signing(
-	chain: &Chain,
+	client: &OnlineClient<SubstrateConfig>,
+	url: &Url,
 	call_data: Vec<u8>,
 	cli: &mut impl Cli,
 ) -> Result<()> {
-	let maybe_payload = wait_for_signature(call_data, chain.url.to_string()).await?;
+	let maybe_payload = wait_for_signature(call_data, url.to_string()).await?;
 	if let Some(payload) = maybe_payload {
 		cli.success("Signed payload received.")?;
 		let spinner = cliclack::spinner();
@@ -500,7 +501,7 @@ async fn submit_extrinsic_with_secure_signing(
 			"Submitting the extrinsic and then waiting for finalization, please be patient...",
 		);
 
-		let result = submit_signed_extrinsic(chain.client.clone(), payload)
+		let result = submit_signed_extrinsic(client.clone(), payload)
 			.await
 			.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
 

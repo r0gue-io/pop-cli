@@ -146,48 +146,10 @@ impl traits::Confirm for Confirm {
 	fn interact(&mut self) -> Result<bool> {
 		self.0.interact()
 	}
-	/// Sets the initially selected value.
-	fn initial_value(mut self, initial_value: bool) -> Self {
-		self.0 = self.0.initial_value(initial_value);
-		self
-	}
 }
 
 /// A input prompt using cliclack.
 struct Input(cliclack::Input);
-impl traits::Input for Input {
-	/// Sets the default value for the input.
-	fn default_input(mut self, value: &str) -> Self {
-		self.0 = self.0.default_input(value);
-		self
-	}
-	/// Starts the prompt interaction.
-	fn interact(&mut self) -> Result<String> {
-		self.0.interact()
-	}
-	/// Sets the placeholder (hint) text for the input.
-	fn placeholder(mut self, placeholder: &str) -> Self {
-		self.0 = self.0.placeholder(placeholder);
-		self
-	}
-	/// Sets whether the input is required.
-	fn required(mut self, required: bool) -> Self {
-		self.0 = self.0.required(required);
-		self
-	}
-	/// Sets a validation callback for the input that is called when the user submits.
-	fn validate(
-		mut self,
-		validator: impl Fn(&String) -> std::result::Result<(), &'static str> + 'static,
-	) -> Self {
-		self.0 = self.0.validate(validator);
-		self
-	}
-}
-
-/// A input prompt using cliclack.
-struct Input(cliclack::Input);
-
 impl traits::Input for Input {
 	/// Sets the default value for the input.
 	fn default_input(mut self, value: &str) -> Self {
