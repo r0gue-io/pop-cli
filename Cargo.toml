@@ -59,7 +59,6 @@ contract-extrinsics = { git = "https://github.com/use-ink/cargo-contract", branc
 #contract-transcode = "5.0.0"
 contract-transcode = { git = "https://github.com/use-ink/cargo-contract", branch = "peter/chore-make-types-pub" }
 heck = "0.5.0"
-hex = { version = "0.4.3", default-features = false }
 
 # parachains
 askama = "0.12"

@@ -5,7 +5,7 @@ use pop_common::{
 	call::{DefaultEnvironment, DisplayEvents, TokenMetadata, Verbosity},
 	create_signer,
 };
-use sp_core::bytes::from_hex;
+use sp_core::bytes::{from_hex, to_hex};
 use subxt::{
 	dynamic::Value,
 	tx::{DynamicPayload, Payload, SubmittableExtrinsic},
@@ -116,7 +116,7 @@ pub fn encode_call_data(
 	let call_data = xt
 		.encode_call_data(&client.metadata())
 		.map_err(|e| Error::CallDataEncodingError(e.to_string()))?;
-	Ok(format!("0x{}", hex::encode(call_data)))
+	Ok(to_hex(&call_data, false))
 }
 
 /// Decodes a hex-encoded string into a vector of bytes representing the call data.
@@ -124,8 +124,7 @@ pub fn encode_call_data(
 /// # Arguments
 /// * `call_data` - The hex-encoded string representing call data.
 pub fn decode_call_data(call_data: &str) -> Result<Vec<u8>, Error> {
-	hex::decode(call_data.trim_start_matches("0x"))
-		.map_err(|e| Error::CallDataDecodingError(e.to_string()))
+	from_hex(call_data).map_err(|e| Error::CallDataDecodingError(e.to_string()))
 }
 
 /// This struct implements the [`Payload`] trait and is used to submit
