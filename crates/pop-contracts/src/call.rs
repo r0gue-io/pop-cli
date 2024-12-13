@@ -9,6 +9,7 @@ use crate::{
 		parse_account, parse_balance,
 	},
 };
+use anyhow::Context;
 use contract_build::Verbosity;
 use contract_extrinsics::{
 	extrinsic_calls::Call, BalanceVariant, CallCommandBuilder, CallExec, ContractArtifacts,
