@@ -427,23 +427,6 @@ impl From<UpContractCommand> for UpOpts {
 	}
 }
 
-/// Checks if a contract has been built by verifying the existence of the build directory and the
-/// <name>.contract file.
-///
-/// # Arguments
-/// * `path` - An optional path to the project directory. If no path is provided, the current
-///   directory is used.
-pub fn has_contract_been_built(path: Option<&Path>) -> bool {
-	let project_path = path.unwrap_or_else(|| Path::new("./"));
-	let manifest = match from_path(Some(project_path)) {
-		Ok(manifest) => manifest,
-		Err(_) => return false,
-	};
-	let contract_name = manifest.package().name();
-	project_path.join("target/ink").exists() &&
-		project_path.join(format!("target/ink/{}.contract", contract_name)).exists()
-}
-
 fn display_contract_info(spinner: &ProgressBar, address: String, code_hash: Option<String>) {
 	spinner.stop(format!(
 		"Contract deployed and instantiated:\n{}",

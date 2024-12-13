@@ -9396,6 +9396,8 @@ dependencies = [
  "sp-weights",
  "strum 0.26.3",
  "strum_macros 0.26.4",
+ "subxt",
+ "subxt-signer",
  "tar",
  "tempfile",
  "thiserror 1.0.69",

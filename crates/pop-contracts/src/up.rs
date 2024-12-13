@@ -18,15 +18,14 @@ use pop_common::{create_signer, DefaultConfig, Keypair};
 use sp_core::{bytes::from_hex, Bytes};
 use sp_weights::Weight;
 use std::{
-	fmt::{format, Write},
+	fmt::Write,
 	path::{Path, PathBuf},
 };
 use subxt::{
 	blocks::ExtrinsicEvents,
 	tx::{Payload, SubmittableExtrinsic},
-	Config, PolkadotConfig as DefaultConfig, SubstrateConfig,
+	Config, SubstrateConfig,
 };
-use subxt_signer::sr25519::Keypair;
 
 /// Attributes for the `up` command
 #[derive(Clone, Debug, PartialEq)]
