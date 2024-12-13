@@ -528,7 +528,6 @@ mod tests {
 	}
 
 	#[tokio::test]
-	#[ignore]
 	async fn get_instantiate_call_data_works() -> anyhow::Result<()> {
 		let (contracts_node_process, port, temp_dir) = start_test_environment().await?;
 		let localhost_url = format!("ws://127.0.0.1:{}", port);
@@ -564,10 +563,14 @@ mod tests {
 		// We have retrieved some payload.
 		assert!(!retrieved_call_data.is_empty());
 
-		// println!("retrieved_call_data: {:?}", retrieved_call_data);
-		// TODO: Can't use WasmCode for crafting the instantiation call data.
-		// Can't use `get_contract_code`.
-		// assert_eq!(retrieved_call_data, encoded_expected_call_data);
+		// Craft instantiate call data.
+		let weight = Weight::from_parts(0,0);
+		let expected_call_data = get_instantiate_payload(
+			set_up_deployment(up_contract_opts.into()).await?,
+			weight
+		).await?;
+		// Retrieved call data matches the one crafted above.
+		assert_eq!(retrieved_call_data, expected_call_data);
 
 		// Stop running contracts-node
 		stop_test_environment(&contracts_node_process.id().to_string())?;
