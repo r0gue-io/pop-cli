@@ -110,7 +110,6 @@ pub async fn set_up_upload(
 
 	let upload_exec: UploadExec<DefaultConfig, DefaultEnvironment, Keypair> =
 		UploadCommandBuilder::new(extrinsic_opts).done().await?;
-
 	Ok(upload_exec)
 }
 
