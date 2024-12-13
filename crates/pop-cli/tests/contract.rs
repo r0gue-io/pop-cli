@@ -50,6 +50,9 @@ impl TransactionData {
 #[tokio::test]
 async fn contract_lifecycle() -> Result<()> {
 	const DEFAULT_PORT: u16 = 9944;
+	const DEFAULT_ENDPOINT: &str = "ws://127.0.0.1:9944";
+	const WALLET_INT_URI: &str = "http://127.0.0.1:9090";
+	const WAIT_SECS: u64 = 240;
 	let temp = tempfile::tempdir().unwrap();
 	let temp_dir = temp.path();
 	//let temp_dir = Path::new("./"); //For testing locally
@@ -161,43 +164,11 @@ async fn contract_lifecycle() -> Result<()> {
 		.assert()
 		.success();
 
-	// Stop the process contracts-node
-	Cmd::new("kill")
-		.args(["-s", "TERM", &process.id().to_string()])
-		.spawn()?
-		.wait()?;
-
-	Ok(())
-}
-
-#[tokio::test]
-async fn wait_for_wallet_signature() -> Result<()> {
-	const DEFAULT_ENDPOINT: &str = "ws://127.0.0.1:9966";
-	const DEFAULT_PORT: u16 = 9966;
-	const WALLET_INT_URI: &str = "http://127.0.0.1:9090";
-	const WAIT_SECS: u64 = 500;
-	let temp = tempfile::tempdir()?;
-	let temp_dir = temp.path();
-	//let temp_dir = Path::new("./"); //For testing locally
-	// pop new contract test_contract (default)
-	Command::cargo_bin("pop")
-		.unwrap()
-		.current_dir(&temp_dir)
-		.args(&["new", "contract", "test_contract"])
-		.assert()
-		.success();
-	assert!(temp_dir.join("test_contract").exists());
-
-	let binary = contracts_node_generator(temp_dir.to_path_buf().clone(), None).await?;
-	binary.source(false, &(), true).await?;
-	set_executable_permission(binary.path())?;
-	let process = run_contracts_node(binary.path(), None, DEFAULT_PORT).await?;
-	sleep(Duration::from_secs(10)).await;
-
 	// pop up contract --upload-only --use-wallet
+	// Will run http server for wallet integration.
 	// Using `cargo run --` as means for the CI to pass.
 	// Possibly there's room for improvement here.
-	let _handler = tokio::process::Command::new("cargo")
+	let _ = tokio::process::Command::new("cargo")
 		.args(&[
 			"run",
 			"--",
@@ -207,8 +178,6 @@ async fn wait_for_wallet_signature() -> Result<()> {
 			"--use-wallet",
 			"--skip-confirm",
 			"--dry-run",
-			"--url",
-			DEFAULT_ENDPOINT,
 			"-p",
 			temp_dir.join("test_contract").to_str().expect("to_str"),
 		])
