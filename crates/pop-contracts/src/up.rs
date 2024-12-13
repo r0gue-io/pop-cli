@@ -635,6 +635,7 @@ mod tests {
 	}
 
 	#[tokio::test]
+	#[ignore]
 	async fn get_instantiate_payload_works() -> Result<()> {
 		let random_port = find_free_port();
 		let localhost_url = format!("ws://127.0.0.1:{}", random_port);

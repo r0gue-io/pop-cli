@@ -527,8 +527,8 @@ mod tests {
 		Ok(())
 	}
 
-	#[ignore]
 	#[tokio::test]
+	#[ignore]
 	async fn get_instantiate_call_data_works() -> anyhow::Result<()> {
 		let (contracts_node_process, port, temp_dir) = start_test_environment().await?;
 		let localhost_url = format!("ws://127.0.0.1:{}", port);
