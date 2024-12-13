@@ -564,11 +564,10 @@ mod tests {
 		assert!(!retrieved_call_data.is_empty());
 
 		// Craft instantiate call data.
-		let weight = Weight::from_parts(0,0);
-		let expected_call_data = get_instantiate_payload(
-			set_up_deployment(up_contract_opts.into()).await?,
-			weight
-		).await?;
+		let weight = Weight::from_parts(0, 0);
+		let expected_call_data =
+			get_instantiate_payload(set_up_deployment(up_contract_opts.into()).await?, weight)
+				.await?;
 		// Retrieved call data matches the one crafted above.
 		assert_eq!(retrieved_call_data, expected_call_data);
 

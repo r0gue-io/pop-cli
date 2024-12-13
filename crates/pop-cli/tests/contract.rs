@@ -171,10 +171,11 @@ async fn contract_lifecycle() -> Result<()> {
 }
 
 #[tokio::test]
-async fn wait_for_wallet_signature_works() -> Result<()> {
-	const DEFAULT_ENDPOINT: &str = "ws://127.0.0.1:9944";
+async fn wait_for_wallet_signature() -> Result<()> {
+	const DEFAULT_ENDPOINT: &str = "ws://127.0.0.1:9966";
+	const DEFAULT_PORT: u16 = 9966;
 	const WALLET_INT_URI: &str = "http://127.0.0.1:9090";
-	const WAIT_SECS: u64 = 500;
+	const WAIT_SECS: u64 = 320;
 	let temp = tempfile::tempdir()?;
 	let temp_dir = temp.path();
 	//let temp_dir = Path::new("./"); //For testing locally
@@ -187,11 +188,16 @@ async fn wait_for_wallet_signature_works() -> Result<()> {
 		.success();
 	assert!(temp_dir.join("test_contract").exists());
 
+	let binary = contracts_node_generator(temp_dir.to_path_buf().clone(), None).await?;
+	binary.source(false, &(), true).await?;
+	set_executable_permission(binary.path())?;
+	let process = run_contracts_node(binary.path(), None, DEFAULT_PORT).await?;
+	sleep(Duration::from_secs(10)).await;
+
 	// pop up contract --upload-only --use-wallet
 	// Using `cargo run --` as means for the CI to pass.
 	// Possibly there's room for improvement here.
 	let _handler = tokio::process::Command::new("cargo")
-		//.current_dir(temp_dir.join("test_contract"))
 		.args(&[
 			"run",
 			"--",
@@ -200,8 +206,7 @@ async fn wait_for_wallet_signature_works() -> Result<()> {
 			"--upload-only",
 			"--use-wallet",
 			"--skip-confirm",
-			"--suri",
-			"//Alice",
+			"--dry-run",
 			"--url",
 			DEFAULT_ENDPOINT,
 			"-p",
@@ -245,6 +250,12 @@ async fn wait_for_wallet_signature_works() -> Result<()> {
 	// Server should not be running!
 	let response = reqwest::get(&format!("{}/payload", WALLET_INT_URI)).await;
 	assert!(response.is_err());
+
+	// Stop the process contracts-node
+	Cmd::new("kill")
+		.args(["-s", "TERM", &process.id().to_string()])
+		.spawn()?
+		.wait()?;
 
 	Ok(())
 }
