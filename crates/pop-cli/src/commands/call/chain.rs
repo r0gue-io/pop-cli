@@ -101,21 +101,16 @@ impl CallChainCommand {
 				},
 			};
 
-			if self.use_wallet {
-				// Sign and submit the extrinsic.
+			// Sign and submit the extrinsic.
+			let result = if self.use_wallet {
 				let call_data = xt.encode_call_data(&chain.client.metadata())?;
-				if let Err(e) =
-					submit_extrinsic_with_secure_signing(&chain, call_data, &mut cli).await
-				{
-					display_message(&e.to_string(), false, &mut cli)?;
-					break;
-				}
+				submit_extrinsic_with_secure_signing(&chain, call_data, &mut cli).await
 			} else {
-				// Sign and submit the extrinsic.
-				if let Err(e) = call.submit_extrinsic(&chain.client, xt, &mut cli).await {
-					display_message(&e.to_string(), false, &mut cli)?;
-					break;
-				}
+				call.submit_extrinsic(&chain.client, xt, &mut cli).await
+			};
+
+			if let Err(e) = result {
+				display_message(&e.to_string(), false, &mut cli)?;
 			}
 
 			if !prompt_to_repeat_call
