@@ -9,7 +9,6 @@ use crate::{
 		parse_account, parse_balance,
 	},
 };
-use anyhow::Context;
 use contract_build::Verbosity;
 use contract_extrinsics::{
 	extrinsic_calls::Call, BalanceVariant, CallCommandBuilder, CallExec, ContractArtifacts,
@@ -188,7 +187,6 @@ pub async fn call_smart_contract_from_signed_payload(
 	payload: String,
 	url: &Url,
 ) -> anyhow::Result<String, Error> {
-	println!("payload: {:?}", payload);
 	let token_metadata = TokenMetadata::query::<DefaultConfig>(url).await?;
 	let metadata = call_exec.client().metadata();
 	let events = submit_signed_payload(url.as_str(), payload).await?;

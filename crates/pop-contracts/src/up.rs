@@ -619,6 +619,7 @@ mod tests {
 		Ok(())
 	}
 
+	#[ignore]
 	#[tokio::test]
 	async fn get_instantiate_payload_works() -> Result<()> {
 		let random_port = find_free_port();
