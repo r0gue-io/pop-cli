@@ -209,7 +209,7 @@ pub fn get_call_payload(
 	call_exec: &CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
 	gas_limit: Weight,
 ) -> anyhow::Result<Vec<u8>> {
-	let storage_deposit_limit: Option<u128> = None;
+	let storage_deposit_limit: Option<u128> = call_exec.opts().storage_deposit_limit();
 	let mut encoded_data = Vec::<u8>::new();
 	Call::new(
 		call_exec.contract().into(),
