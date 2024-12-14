@@ -331,7 +331,7 @@ impl CallContractCommand {
 		}
 
 		// Finally prompt for confirmation.
-		let is_call_confirmed = if message.mutates && !self.dev_mode {
+		let is_call_confirmed = if message.mutates && !self.dev_mode && !self.use_wallet {
 			cli.confirm("Do you want to execute the call? (Selecting 'No' will perform a dry run)")
 				.initial_value(true)
 				.interact()?
