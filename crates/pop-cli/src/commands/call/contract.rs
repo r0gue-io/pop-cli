@@ -57,7 +57,7 @@ pub struct CallContractCommand {
 	#[arg(name = "suri", long, short, default_value = DEFAULT_URI)]
 	suri: String,
 	/// Use your browser wallet to sign a transaction.
-	#[arg(name = "use-wallet", long, default_value = "false", conflicts_with = "suri")]
+	#[arg(name = "use-wallet", long, short('w'), default_value = "false", conflicts_with = "suri")]
 	use_wallet: bool,
 	/// Submit an extrinsic for on-chain execution.
 	#[arg(short('x'), long)]
