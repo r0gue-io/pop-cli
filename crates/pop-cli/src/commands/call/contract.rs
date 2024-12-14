@@ -315,8 +315,8 @@ impl CallContractCommand {
 
 		// Resolve who is calling the contract. If a `suri` was provided via the command line, skip
 		// the prompt.
-		if self.suri == DEFAULT_URI && !self.use_wallet {
-			if message.mutates && cli.confirm("Do you want to use your browser wallet to sign the transaction? (Selecting 'No' will prompt you to manually enter the secret key URI for signing, e.g., '//Alice')")
+		if self.suri == DEFAULT_URI && !self.use_wallet && message.mutates {
+			if cli.confirm("Do you want to use your browser wallet to sign the transaction? (Selecting 'No' will prompt you to manually enter the secret key URI for signing, e.g., '//Alice')")
 			.initial_value(true)
 			.interact()? {
 				self.use_wallet = true;
@@ -693,7 +693,6 @@ mod tests {
 				Some(items),
 				1, // "get" message
 			)
-			.expect_input("Signer calling the contract:", "//Alice".into())
 			.expect_info(format!(
 			    "pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message get --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice",
 			    temp_dir.path().join("testing").display().to_string(),
@@ -767,7 +766,6 @@ mod tests {
 				"Provide the on-chain contract address:",
 				"15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".into(),
 			)
-			.expect_input("Signer calling the contract:", "//Alice".into())
 			.expect_info(format!(
 	            "pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message get --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice",
 	            temp_dir.path().join("testing").display().to_string(),
@@ -855,7 +853,6 @@ mod tests {
 			.expect_input("Enter the gas limit:", "".into()) // Only if call
 			.expect_input("Enter the proof size limit:", "".into()) // Only if call
 			.expect_confirm("Do you want to use your browser wallet to sign the transaction? (Selecting 'No' will prompt you to manually enter the secret key URI for signing, e.g., '//Alice')", true)
-			.expect_confirm("Do you want to execute the call? (Selecting 'No' will perform a dry run)", true)
 			.expect_info(format!(
 				"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message specific_flip --args \"true\", \"2\" --value 50 --url wss://rpc1.paseo.popnetwork.xyz/ --use-wallet --execute",
 				temp_dir.path().join("testing").display().to_string(),
