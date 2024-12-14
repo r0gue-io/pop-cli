@@ -44,7 +44,7 @@ pub struct CallChainCommand {
 	#[arg(short, long)]
 	suri: Option<String>,
 	/// Use your browser wallet to sign the extrinsic.
-	#[arg(name = "use-wallet", long, default_value = "false", conflicts_with = "suri")]
+	#[arg(name = "use-wallet", short('w'), long, default_value = "false", conflicts_with = "suri")]
 	use_wallet: bool,
 	/// SCALE encoded bytes representing the call data of the extrinsic.
 	#[arg(name = "call", short, long, conflicts_with_all = ["pallet", "function", "args"])]
@@ -103,8 +103,7 @@ impl CallChainCommand {
 			// Sign and submit the extrinsic.
 			let result = if self.use_wallet {
 				let call_data = xt.encode_call_data(&chain.client.metadata())?;
-				submit_extrinsic_with_secure_signing(&chain.client, &chain.url, call_data, &mut cli)
-					.await
+				submit_extrinsic_with_wallet(&chain.client, &chain.url, call_data, &mut cli).await
 			} else {
 				call.submit_extrinsic(&chain.client, &chain.url, xt, &mut cli).await
 			};
@@ -275,7 +274,7 @@ impl CallChainCommand {
 		if use_wallet {
 			let call_data_bytes =
 				decode_call_data(call_data).map_err(|err| anyhow!("{}", format!("{err:?}")))?;
-			submit_extrinsic_with_secure_signing(client, &url, call_data_bytes, cli)
+			submit_extrinsic_with_wallet(client, &url, call_data_bytes, cli)
 				.await
 				.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
 			display_message("Call complete.", true, cli)?;
@@ -482,7 +481,7 @@ impl Call {
 }
 
 // Sign and submit an extrinsic using wallet integration.
-async fn submit_extrinsic_with_secure_signing(
+async fn submit_extrinsic_with_wallet(
 	client: &OnlineClient<SubstrateConfig>,
 	url: &Url,
 	call_data: Vec<u8>,
