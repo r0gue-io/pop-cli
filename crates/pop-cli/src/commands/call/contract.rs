@@ -10,11 +10,11 @@ use cliclack::spinner;
 use pop_common::{DefaultConfig, Keypair};
 use pop_contracts::{
 	build_smart_contract, call_smart_contract, call_smart_contract_from_signed_payload,
-	dry_run_call, dry_run_gas_estimate_call, get_call_payload, get_messages, parse_account,
-	set_up_call, CallExec, CallOpts, DefaultEnvironment, Verbosity,
+	dry_run_call, dry_run_gas_estimate_call, get_call_payload, get_message, get_messages,
+	parse_account, set_up_call, CallExec, CallOpts, DefaultEnvironment, Verbosity,
 };
 use sp_weights::Weight;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 const DEFAULT_URL: &str = "ws://localhost:9944/";
 const DEFAULT_URI: &str = "//Alice";
@@ -357,6 +357,14 @@ impl CallContractCommand {
 				return Err(anyhow!("Please specify the message to call."));
 			},
 		};
+		// Disable wallet signing and display warning if the call is read-only.
+		let message_metadata =
+			get_message(self.path.as_deref().unwrap_or_else(|| Path::new("./")), &message)?;
+		if !message_metadata.mutates && self.use_wallet {
+			cli.warning("NOTE: Signing is not required for this read-only call. The '--use-wallet' flag will be ignored.")?;
+			self.use_wallet = false;
+		}
+
 		let contract = match &self.contract {
 			Some(contract) => contract.to_string(),
 			None => {
@@ -697,6 +705,7 @@ mod tests {
 			    "pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message get --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice",
 			    temp_dir.path().join("testing").display().to_string(),
 			))
+			.expect_warning("NOTE: Signing is not required for this read-only call. The '--use-wallet' flag will be ignored.")
 			.expect_warning("Your call has not been executed.")
 			.expect_confirm(
 				"Do you want to perform another call using the existing smart contract?",
@@ -715,7 +724,7 @@ mod tests {
 			proof_size: None,
 			url: Url::parse("wss://rpc1.paseo.popnetwork.xyz")?,
 			suri: "//Alice".to_string(),
-			use_wallet: false,
+			use_wallet: true,
 			dry_run: false,
 			execute: false,
 			dev_mode: false,

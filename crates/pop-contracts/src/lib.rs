@@ -29,7 +29,7 @@ pub use up::{
 	upload_contract_signed, upload_smart_contract, ContractInfo, UpOpts,
 };
 pub use utils::{
-	metadata::{get_messages, ContractFunction},
+	metadata::{get_message, get_messages, ContractFunction},
 	parse_account, parse_hex_bytes,
 };
 // External exports
