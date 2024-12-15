@@ -597,8 +597,8 @@ mod tests {
 			constructor: "new".to_string(),
 			args: vec!["false".to_string()],
 			value: "0".to_string(),
-			gas_limit: None,
-			proof_size: None,
+			gas_limit: Some(200_000_000),
+			proof_size: Some(30_000),
 			salt: None,
 			url: Url::parse(&localhost_url).expect("given url is valid"),
 			suri: "//Alice".to_string(),
@@ -623,7 +623,7 @@ mod tests {
 		assert!(!retrieved_call_data.is_empty());
 
 		// Craft instantiate call data.
-		let weight = Weight::from_parts(0, 0);
+		let weight = Weight::from_parts(200_000_000, 30_000);
 		let expected_call_data =
 			get_instantiate_payload(set_up_deployment(up_contract_opts.into()).await?, weight)
 				.await?;
