@@ -2,7 +2,7 @@
 
 use anyhow::Result;
 use assert_cmd::Command;
-use pop_common::{set_executable_permission, templates::Template};
+use pop_common::{find_free_port, set_executable_permission, templates::Template};
 use pop_contracts::{
 	contracts_node_generator, dry_run_gas_estimate_instantiate, instantiate_smart_contract,
 	run_contracts_node, set_up_deployment, Contract, UpOpts,
@@ -49,10 +49,10 @@ impl TransactionData {
 /// Test the contract lifecycle: new, build, up, call
 #[tokio::test]
 async fn contract_lifecycle() -> Result<()> {
-	const DEFAULT_PORT: u16 = 9944;
-	const DEFAULT_ENDPOINT: &str = "ws://127.0.0.1:9944";
 	const WALLET_INT_URI: &str = "http://127.0.0.1:9090";
 	const WAIT_SECS: u64 = 240;
+	let endpoint_port = find_free_port();
+	let default_endpoint: &str = &format!("ws://127.0.0.1:{}", endpoint_port);
 	let temp = tempfile::tempdir().unwrap();
 	let temp_dir = temp.path();
 	//let temp_dir = Path::new("./"); //For testing locally
@@ -84,14 +84,15 @@ async fn contract_lifecycle() -> Result<()> {
 	let binary = contracts_node_generator(temp_dir.to_path_buf().clone(), None).await?;
 	binary.source(false, &(), true).await?;
 	set_executable_permission(binary.path())?;
-	let process = run_contracts_node(binary.path(), None, DEFAULT_PORT).await?;
+	let process = run_contracts_node(binary.path(), None, endpoint_port).await?;
+	sleep(Duration::from_secs(5)).await;
 
 	// Only upload the contract
 	// pop up contract --upload-only
 	Command::cargo_bin("pop")
 		.unwrap()
 		.current_dir(&temp_dir.join("test_contract"))
-		.args(&["up", "contract", "--upload-only"])
+		.args(&["up", "contract", "--upload-only", "--url", default_endpoint])
 		.assert()
 		.success();
 	// Instantiate contract, only dry-run
@@ -108,6 +109,8 @@ async fn contract_lifecycle() -> Result<()> {
 			"--suri",
 			"//Alice",
 			"--dry-run",
+			"--url",
+			default_endpoint,
 		])
 		.assert()
 		.success();
@@ -121,7 +124,7 @@ async fn contract_lifecycle() -> Result<()> {
 		gas_limit: None,
 		proof_size: None,
 		salt: None,
-		url: Url::parse("ws://127.0.0.1:9944")?,
+		url: Url::parse(default_endpoint)?,
 		suri: "//Alice".to_string(),
 	})
 	.await?;
@@ -141,6 +144,8 @@ async fn contract_lifecycle() -> Result<()> {
 			"get",
 			"--suri",
 			"//Alice",
+			"--url",
+			default_endpoint,
 		])
 		.assert()
 		.success();
@@ -160,6 +165,8 @@ async fn contract_lifecycle() -> Result<()> {
 			"--suri",
 			"//Alice",
 			"-x",
+			"--url",
+			default_endpoint,
 		])
 		.assert()
 		.success();
@@ -180,6 +187,8 @@ async fn contract_lifecycle() -> Result<()> {
 			"--dry-run",
 			"-p",
 			temp_dir.join("test_contract").to_str().expect("to_str"),
+			"--url",
+			default_endpoint,
 		])
 		.spawn()?;
 	// Wait a moment for node and server to be up.
@@ -195,7 +204,7 @@ async fn contract_lifecycle() -> Result<()> {
 	// We have received some payload.
 	assert!(!response.call_data().is_empty());
 
-	let rpc_client = subxt::backend::rpc::RpcClient::from_url(DEFAULT_ENDPOINT).await?;
+	let rpc_client = subxt::backend::rpc::RpcClient::from_url(default_endpoint).await?;
 	let client = subxt::OnlineClient::<subxt::SubstrateConfig>::from_rpc_client(rpc_client).await?;
 
 	// Sign payload.
