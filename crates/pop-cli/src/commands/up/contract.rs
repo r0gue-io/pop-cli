@@ -67,7 +67,13 @@ pub struct UpContractCommand {
 	#[clap(name = "suri", long, short, default_value = "//Alice")]
 	suri: String,
 	/// Use your browser wallet to sign a transaction.
-	#[clap(name = "use-wallet", long, default_value = "false")]
+	#[clap(
+		name = "use-wallet",
+		long,
+		default_value = "false",
+		short('w'),
+		conflicts_with = "suri"
+	)]
 	use_wallet: bool,
 	/// Perform a dry-run via RPC to estimate the gas usage. This does not submit a transaction.
 	#[clap(long)]
