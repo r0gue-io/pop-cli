@@ -121,7 +121,6 @@ pub async fn get_upload_payload(code: WasmCode, url: &str) -> anyhow::Result<Vec
 		contract_extrinsics::upload::Determinism::Enforced,
 	);
 
-	// TODO: review placement
 	let rpc_client = subxt::backend::rpc::RpcClient::from_url(url).await?;
 	let client = subxt::OnlineClient::<SubstrateConfig>::from_rpc_client(rpc_client).await?;
 
