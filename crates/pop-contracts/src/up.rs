@@ -240,7 +240,7 @@ pub async fn submit_signed_payload(
 
 	while let Some(status) = tx.next().await {
 		match status? {
-			TxStatus::InBestBlock(tx_in_block) | TxStatus::InFinalizedBlock(tx_in_block) => {
+			TxStatus::InFinalizedBlock(tx_in_block) => {
 				let events = tx_in_block.wait_for_success().await?;
 				return Ok(events)
 			},
