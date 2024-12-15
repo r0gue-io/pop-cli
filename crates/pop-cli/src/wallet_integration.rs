@@ -1,4 +1,5 @@
 use axum::{
+	http::HeaderValue,
 	response::Html,
 	routing::{get, post},
 	Router,
@@ -9,7 +10,7 @@ use tokio::{
 	sync::{oneshot, Mutex},
 	task::JoinHandle,
 };
-use tower_http::services::ServeDir;
+use tower_http::{cors::Any, services::ServeDir};
 
 /// Make frontend sourcing more flexible by allowing a custom route
 /// to be defined.
@@ -86,12 +87,20 @@ impl WalletIntegrationManager {
 
 		let payload = Arc::new(payload);
 
+		// TODO: temporary until we host from here.
+		let cors = tower_http::cors::CorsLayer::new()
+			.allow_origin("http://localhost:9090".parse::<HeaderValue>().unwrap())
+			.allow_origin("http://127.0.0.1:9090".parse::<HeaderValue>().unwrap())
+			.allow_methods(Any) // Allow any HTTP method
+			.allow_headers(Any); // Allow any headers (like 'Content-Type')
+
 		let app = Router::new()
 			.route("/payload", get(routes::get_payload_handler).with_state(payload))
 			.route("/submit", post(routes::submit_handler).with_state(state.clone()))
 			.route("/error", post(routes::error_handler).with_state(state.clone()))
 			.route("/terminate", post(routes::terminate_handler).with_state(state.clone()))
-			.merge(frontend.serve_content()); // Custom route for serving frontend.
+			.merge(frontend.serve_content()) // Custom route for serving frontend.
+			.layer(cors);
 
 		let rpc_owned = rpc.to_string();
 
@@ -217,6 +226,7 @@ async fn terminate_helper(handle: &Arc<Mutex<StateHandler>>) -> anyhow::Result<(
 pub struct FrontendFromDir {
 	content: PathBuf,
 }
+#[allow(dead_code)]
 impl FrontendFromDir {
 	pub fn new(content: PathBuf) -> Self {
 		Self { content }
