@@ -189,7 +189,6 @@ impl UpContractCommand {
 
 				if self.upload_only {
 					let result = upload_contract_signed(self.url.as_str(), payload).await;
-					// TODO: dry (see else below)
 					if let Err(e) = result {
 						spinner.error(format!("An error occurred uploading your contract: {e}"));
 						terminate_node(process)?;
