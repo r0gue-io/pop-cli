@@ -43,19 +43,19 @@ pub enum Action {
 		props(Pallet = "Assets")
 	)]
 	MintAsset,
-	/// Create an NFT collection.
+	/// Create a NFT collection.
 	#[strum(
 		serialize = "create_nft",
 		message = "create",
-		detailed_message = "Create an NFT collection",
+		detailed_message = "Create a NFT collection",
 		props(Pallet = "Nfts")
 	)]
 	CreateCollection,
-	/// Mint an NFT.
+	/// Mint a NFT.
 	#[strum(
 		serialize = "mint_nft",
 		message = "mint",
-		detailed_message = "Mint an NFT",
+		detailed_message = "Mint a NFT",
 		props(Pallet = "Nfts")
 	)]
 	MintNFT,
@@ -139,8 +139,8 @@ mod tests {
 		let descriptions = HashMap::from([
 			(CreateAsset, "Create an asset"),
 			(MintAsset, "Mint an asset"),
-			(CreateCollection, "Create an NFT collection"),
-			(MintNFT, "Mint an NFT"),
+			(CreateCollection, "Create a NFT collection"),
+			(MintNFT, "Mint a NFT"),
 			(PurchaseOnDemandCoretime, "Purchase on-demand coretime"),
 			(Transfer, "Transfer balance"),
 			(Register, "Register a parachain ID with genesis state and code"),
