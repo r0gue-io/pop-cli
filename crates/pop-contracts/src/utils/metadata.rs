@@ -117,7 +117,7 @@ fn get_contract_functions(
 /// # Arguments
 /// * `path` -  Location path of the project or contract artifact.
 /// * `message` - The label of the contract message.
-fn get_message<P>(path: P, message: &str) -> Result<ContractFunction, Error>
+pub fn get_message<P>(path: P, message: &str) -> Result<ContractFunction, Error>
 where
 	P: AsRef<Path>,
 {

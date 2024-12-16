@@ -2,9 +2,11 @@
 
 use crate::{
 	cli::{traits::Cli as _, Cli},
-	common::contracts::{check_contracts_node_and_prompt, has_contract_been_built},
+	common::{
+		contracts::{check_contracts_node_and_prompt, has_contract_been_built, terminate_node},
+		wallet::wait_for_signature,
+	},
 	style::style,
-	wallet_integration::{FrontendFromString, TransactionData, WalletIntegrationManager},
 };
 use clap::Args;
 use cliclack::{confirm, log, log::error, spinner, ProgressBar};
@@ -18,10 +20,7 @@ use pop_contracts::{
 };
 use sp_core::Bytes;
 use sp_weights::Weight;
-use std::{
-	path::PathBuf,
-	process::{Child, Command},
-};
+use std::path::PathBuf;
 use tempfile::NamedTempFile;
 use url::Url;
 
@@ -182,13 +181,13 @@ impl UpContractCommand {
 				Ok(data) => data,
 				Err(e) => {
 					error(format!("An error occurred getting the call data: {e}"))?;
-					Self::terminate_node(process)?;
+					terminate_node(process)?;
 					Cli.outro_cancel(FAILED)?;
 					return Ok(());
 				},
 			};
 
-			let maybe_payload = self.wait_for_signature(call_data).await?;
+			let maybe_payload = wait_for_signature(call_data, self.url.to_string()).await?;
 			if let Some(payload) = maybe_payload {
 				log::success("Signed payload received.")?;
 				let spinner = spinner();
@@ -196,10 +195,9 @@ impl UpContractCommand {
 
 				if self.upload_only {
 					let result = upload_contract_signed(self.url.as_str(), payload).await;
-					// TODO: dry (see else below)
 					if let Err(e) = result {
 						spinner.error(format!("An error occurred uploading your contract: {e}"));
-						Self::terminate_node(process)?;
+						terminate_node(process)?;
 						Cli.outro_cancel(FAILED)?;
 						return Ok(());
 					}
@@ -218,7 +216,7 @@ impl UpContractCommand {
 					let result = instantiate_contract_signed(self.url.as_str(), payload).await;
 					if let Err(e) = result {
 						spinner.error(format!("An error occurred uploading your contract: {e}"));
-						Self::terminate_node(process)?;
+						terminate_node(process)?;
 						Cli.outro_cancel(FAILED)?;
 						return Ok(());
 					}
@@ -237,19 +235,19 @@ impl UpContractCommand {
 				}
 			} else {
 				Cli.outro_cancel("Signed payload doesn't exist.")?;
-				Self::terminate_node(process)?;
+				terminate_node(process)?;
 				return Ok(());
 			}
 
-			Self::terminate_node(process)?;
+			terminate_node(process)?;
 			Cli.outro(COMPLETE)?;
-			return Ok(())
+			return Ok(());
 		}
 
 		// Check for upload only.
 		if self.upload_only {
 			let result = self.upload_contract().await;
-			Self::terminate_node(process)?;
+			terminate_node(process)?;
 			match result {
 				Ok(_) => {
 					Cli.outro(COMPLETE)?;
@@ -266,7 +264,7 @@ impl UpContractCommand {
 			Ok(i) => i,
 			Err(e) => {
 				error(format!("An error occurred instantiating the contract: {e}"))?;
-				Self::terminate_node(process)?;
+				terminate_node(process)?;
 				Cli.outro_cancel(FAILED)?;
 				return Ok(());
 			},
@@ -284,7 +282,7 @@ impl UpContractCommand {
 				},
 				Err(e) => {
 					spinner.error(format!("{e}"));
-					Self::terminate_node(process)?;
+					terminate_node(process)?;
 					Cli.outro_cancel(FAILED)?;
 					return Ok(());
 				},
@@ -302,7 +300,7 @@ impl UpContractCommand {
 				contract_info.code_hash,
 			);
 
-			Self::terminate_node(process)?;
+			terminate_node(process)?;
 			Cli.outro(COMPLETE)?;
 		}
 
@@ -344,29 +342,6 @@ impl UpContractCommand {
 		Ok(())
 	}
 
-	/// Handles the optional termination of a local running node.
-	fn terminate_node(process: Option<(Child, NamedTempFile)>) -> anyhow::Result<()> {
-		// Prompt to close any launched node
-		let Some((process, log)) = process else {
-			return Ok(());
-		};
-		if confirm("Would you like to terminate the local node?")
-			.initial_value(true)
-			.interact()?
-		{
-			// Stop the process contracts-node
-			Command::new("kill")
-				.args(["-s", "TERM", &process.id().to_string()])
-				.spawn()?
-				.wait()?;
-		} else {
-			log.keep()?;
-			log::warning(format!("NOTE: The node is running in the background with process ID {}. Please terminate it manually when done.", process.id()))?;
-		}
-
-		Ok(())
-	}
-
 	// get the call data and contract code hash
 	async fn get_contract_data(&self) -> anyhow::Result<(Vec<u8>, [u8; 32])> {
 		let contract_code = get_contract_code(self.path.as_ref()).await?;
@@ -386,33 +361,6 @@ impl UpContractCommand {
 			let call_data = get_instantiate_payload(instantiate_exec, weight_limit).await?;
 			Ok((call_data, hash))
 		}
-	}
-
-	async fn wait_for_signature(&self, call_data: Vec<u8>) -> anyhow::Result<Option<String>> {
-		let ui = FrontendFromString::new(include_str!("../../assets/index.html").to_string());
-
-		let transaction_data = TransactionData::new(self.url.to_string(), call_data);
-		// starts server
-		let mut wallet = WalletIntegrationManager::new(ui, transaction_data);
-		log::step(format!("Wallet signing portal started at http://{}", wallet.rpc_url))?;
-
-		log::step("Waiting for signature... Press Ctrl+C to terminate early.")?;
-		loop {
-			// Display error, if any.
-			if let Some(error) = wallet.take_error().await {
-				log::error(format!("Signing portal error: {error}"))?;
-			}
-
-			let state = wallet.state.lock().await;
-			// If the payload is submitted we terminate the frontend.
-			if !wallet.is_running() || state.signed_payload.is_some() {
-				wallet.task_handle.await??;
-				break;
-			}
-		}
-
-		let signed_payload = wallet.state.lock().await.signed_payload.clone();
-		Ok(signed_payload)
 	}
 }
 
@@ -607,9 +555,6 @@ mod tests {
 			skip_confirm: true,
 			use_wallet: true,
 		};
-
-		let rpc_client = subxt::backend::rpc::RpcClient::from_url(&up_contract_opts.url).await?;
-		let client = subxt::OnlineClient::<SubstrateConfig>::from_rpc_client(rpc_client).await?;
 
 		// Retrieve call data based on the above command options.
 		let (retrieved_call_data, _) = match up_contract_opts.get_contract_data().await {
