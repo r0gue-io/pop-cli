@@ -110,6 +110,7 @@ pub async fn set_up_upload(
 
 	let upload_exec: UploadExec<DefaultConfig, DefaultEnvironment, Keypair> =
 		UploadCommandBuilder::new(extrinsic_opts).done().await?;
+
 	Ok(upload_exec)
 }
 
@@ -415,8 +416,13 @@ mod tests {
 		run_contracts_node,
 	};
 	use anyhow::Result;
+	use hex::FromHex;
 	use pop_common::{find_free_port, set_executable_permission};
 	use std::{env, process::Command, time::Duration};
+	use subxt::{
+		config::{substrate::BlakeTwo256, Hasher},
+		utils::H256,
+	};
 	use tokio::time::sleep;
 	use url::Url;
 
@@ -467,6 +473,41 @@ mod tests {
 			suri: "//Alice".to_string(),
 		};
 		set_up_upload(up_opts).await?;
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn get_payload_works() -> Result<()> {
+		let temp_dir = new_environment("testing")?;
+		let current_dir = env::current_dir().expect("Failed to get current directory");
+		mock_build_process(
+			temp_dir.path().join("testing"),
+			current_dir.join("./tests/files/testing.contract"),
+			current_dir.join("./tests/files/testing.json"),
+		)?;
+		let up_opts = UpOpts {
+			path: Some(temp_dir.path().join("testing")),
+			constructor: "new".to_string(),
+			args: ["false".to_string()].to_vec(),
+			value: "1000".to_string(),
+			gas_limit: None,
+			proof_size: None,
+			salt: None,
+			url: Url::parse(CONTRACTS_NETWORK_URL)?,
+			suri: "//Alice".to_string(),
+		};
+		let contract_code = get_contract_code(up_opts.path.as_ref()).await?;
+		let call_data = get_upload_payload(contract_code, CONTRACTS_NETWORK_URL).await?;
+		let payload_hash = BlakeTwo256::hash(&call_data);
+		// We know that for the above opts the payload hash should be:
+		// 0x98c24584107b3a01d12e8e02c0bb634d15dc86123c44d186206813ede42f478d
+		let expected_hash: H256 = H256::from(
+			<[u8; 32]>::from_hex(
+				"98c24584107b3a01d12e8e02c0bb634d15dc86123c44d186206813ede42f478d",
+			)
+			.expect("Invalid hex string"),
+		);
+		assert_eq!(expected_hash, payload_hash);
 		Ok(())
 	}
 
