@@ -30,7 +30,6 @@ pub async fn wait_for_signature(call_data: Vec<u8>, url: String) -> anyhow::Resu
 	Ok(signed_payload)
 }
 
-#[ignore]
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -77,7 +76,7 @@ mod tests {
 		let ext_params = Params::new().build();
 		let signed = client.tx().create_signed(&payload, &signer, ext_params).await?;
 
-		let response = reqwest::Client::new()
+		let _response = reqwest::Client::new()
 			.post(&format!("{}/submit", "http://localhost:9090"))
 			.json(&to_hex(signed.encoded()))
 			.send()

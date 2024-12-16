@@ -355,7 +355,6 @@ impl UpContractCommand {
 			let weight_limit = if self.gas_limit.is_some() && self.proof_size.is_some() {
 				Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap())
 			} else {
-				// Frontend will do dry run and update call data.
 				Weight::from_parts(0, 0)
 			};
 			let call_data = get_instantiate_payload(instantiate_exec, weight_limit).await?;

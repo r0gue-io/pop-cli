@@ -113,6 +113,11 @@ pub async fn set_up_upload(
 	Ok(upload_exec)
 }
 
+/// Gets the encoded payload call data for contract upload (not instantiate).
+///
+/// # Arguments
+/// * `code` - contract code to upload.
+/// * `url` - the rpc of the chain node.
 pub async fn get_upload_payload(code: WasmCode, url: &str) -> anyhow::Result<Vec<u8>> {
 	let storage_deposit_limit: Option<u128> = None;
 	let upload_code = contract_extrinsics::extrinsic_calls::UploadCode::new(
@@ -129,7 +134,11 @@ pub async fn get_upload_payload(code: WasmCode, url: &str) -> anyhow::Result<Vec
 	call_data.encode_call_data_to(&client.metadata(), &mut encoded_data)?;
 	Ok(encoded_data)
 }
-
+/// Gets the encoded payload call data for a contract instantiation.
+///
+/// # Arguments
+/// * `instantiate_exec` - arguments for contract instantiate.
+/// * `gas_limit` - max amount of gas to be used for instantiation.
 pub async fn get_instantiate_payload(
 	instantiate_exec: InstantiateExec<DefaultConfig, DefaultEnvironment, Keypair>,
 	gas_limit: Weight,
@@ -151,7 +160,7 @@ pub async fn get_instantiate_payload(
 			instantiate_exec.args().value(),
 			gas_limit,
 			storage_deposit_limit,
-			hash.clone(),
+			hash,
 			instantiate_exec.args().data().into(),
 			instantiate_exec.args().salt().into(),
 		)
@@ -162,6 +171,10 @@ pub async fn get_instantiate_payload(
 	Ok(encoded_data)
 }
 
+/// Reads the contract code from contract file.
+///
+/// # Arguments
+/// * `path` - path to the contract file.
 pub async fn get_contract_code(
 	path: Option<&PathBuf>,
 ) -> anyhow::Result<contract_extrinsics::WasmCode> {
@@ -185,6 +198,11 @@ pub async fn get_contract_code(
 	Ok(code)
 }
 
+/// Submit a pre-signed payload for uploading a contract.
+///
+/// # Arguments
+/// * `url` - rpc for chain.
+/// * `payload` - the signed payload to submit (encoded call data).
 pub async fn upload_contract_signed(
 	url: &str,
 	payload: String,
@@ -196,6 +214,11 @@ pub async fn upload_contract_signed(
 	Ok(UploadResult { code_stored, events })
 }
 
+/// Submit a pre-signed payload for instantiating a contract.
+///
+/// # Arguments
+/// * `url` - rpc for chain.
+/// * `payload` - the signed payload to submit (encoded call data).
 pub async fn instantiate_contract_signed(
 	url: &str,
 	payload: String,
@@ -217,6 +240,11 @@ pub async fn instantiate_contract_signed(
 	Ok(InstantiateExecResult { events, code_hash, contract_address: instantiated.contract })
 }
 
+/// Submit a pre-signed payload.
+///
+/// # Arguments
+/// * `url` - rpc for chain.
+/// * `payload` - the signed payload to submit (encoded call data).
 pub async fn submit_signed_payload(
 	url: &str,
 	payload: String,
@@ -241,7 +269,7 @@ pub async fn submit_signed_payload(
 		match status? {
 			TxStatus::InFinalizedBlock(tx_in_block) => {
 				let events = tx_in_block.wait_for_success().await?;
-				return Ok(events);
+				return Ok(events)
 			},
 			TxStatus::Error { message } => return Err(TransactionError::Error(message).into()),
 			TxStatus::Invalid { message } => return Err(TransactionError::Invalid(message).into()),
@@ -356,6 +384,11 @@ pub async fn upload_smart_contract(
 	get_code_hash_from_event(&upload_result, upload_exec.code().code_hash())
 }
 
+/// Get the code hash of a contract from the upload event.
+///
+/// # Arguments
+/// * `upload_result` - the result of uploading the contract.
+/// * `metadata_code_hash` - the code hash from the metadata Used only for error reporting.
 pub fn get_code_hash_from_event<C: Config>(
 	upload_result: &UploadResult<C>,
 	// used for error reporting
