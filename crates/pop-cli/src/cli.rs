@@ -150,7 +150,6 @@ impl traits::Confirm for Confirm {
 
 /// A input prompt using cliclack.
 struct Input(cliclack::Input);
-
 impl traits::Input for Input {
 	/// Sets the default value for the input.
 	fn default_input(mut self, value: &str) -> Self {
