@@ -83,11 +83,11 @@ pub enum Action {
 		props(Pallet = "Registrar")
 	)]
 	Register,
-	/// Make some on-chain remark.
+	/// Make a remark.
 	#[strum(
 		serialize = "remark",
 		message = "remark_with_event",
-		detailed_message = "Make some on-chain remark",
+		detailed_message = "Make a remark",
 		props(Pallet = "System")
 	)]
 	Remark,
@@ -145,7 +145,7 @@ mod tests {
 			(Transfer, "Transfer balance"),
 			(Register, "Register a parachain ID with genesis state and code"),
 			(Reserve, "Reserve a parachain ID"),
-			(Remark, "Make some on-chain remark"),
+			(Remark, "Make a remark"),
 		]);
 
 		for action in Action::VARIANTS.iter() {
