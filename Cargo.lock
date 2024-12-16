@@ -9318,6 +9318,7 @@ dependencies = [
  "clap",
  "cliclack",
  "console",
+ "contract-extrinsics",
  "dirs",
  "duct",
  "env_logger 0.11.5",

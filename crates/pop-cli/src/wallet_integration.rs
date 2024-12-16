@@ -360,7 +360,7 @@ mod tests {
 			.await
 			.expect("Failed to parse response");
 
-		assert_eq!(response, json!({"status": "success"}));
+		assert_eq!(response, json!({"status": "success"}).to_string());
 		assert_eq!(wim.state.lock().await.signed_payload, Some("0xDEADBEEF".to_string()));
 		assert_eq!(wim.is_running(), false);
 
