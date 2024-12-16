@@ -49,11 +49,13 @@ pop-common = { path = "../pop-common", version = "0.5.0" }
 
 # wallet-integration
 axum.workspace = true
-tower-http = { workspace = true, features = ["fs"] }
+tower-http = { workspace = true, features = ["fs", "cors"] }
 
 [dev-dependencies]
 assert_cmd.workspace = true
 predicates.workspace = true
+subxt.workspace = true
+subxt-signer.workspace = true
 
 [features]
 default = ["contract", "parachain", "telemetry"]

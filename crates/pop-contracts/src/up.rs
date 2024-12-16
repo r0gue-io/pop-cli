@@ -8,17 +8,27 @@ use crate::{
 	},
 };
 use contract_extrinsics::{
+	events::{CodeStored, ContractInstantiated},
+	extrinsic_calls::{Instantiate, InstantiateWithCode},
 	BalanceVariant, ErrorVariant, ExtrinsicOptsBuilder, InstantiateCommandBuilder, InstantiateExec,
-	TokenMetadata, UploadCommandBuilder, UploadExec,
+	InstantiateExecResult, TokenMetadata, UploadCommandBuilder, UploadExec, UploadResult, WasmCode,
 };
 use ink_env::{DefaultEnvironment, Environment};
 use pop_common::{create_signer, DefaultConfig, Keypair};
-use sp_core::Bytes;
+use sp_core::{bytes::from_hex, Bytes};
 use sp_weights::Weight;
-use std::{fmt::Write, path::PathBuf};
+use std::{
+	fmt::Write,
+	path::{Path, PathBuf},
+};
+use subxt::{
+	blocks::ExtrinsicEvents,
+	tx::{Payload, SubmittableExtrinsic},
+	Config, SubstrateConfig,
+};
 
 /// Attributes for the `up` command
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct UpOpts {
 	/// Path to the contract build directory.
 	pub path: Option<PathBuf>,
@@ -101,6 +111,174 @@ pub async fn set_up_upload(
 	let upload_exec: UploadExec<DefaultConfig, DefaultEnvironment, Keypair> =
 		UploadCommandBuilder::new(extrinsic_opts).done().await?;
 	Ok(upload_exec)
+}
+
+/// Gets the encoded payload call data for contract upload (not instantiate).
+///
+/// # Arguments
+/// * `code` - contract code to upload.
+/// * `url` - the rpc of the chain node.
+pub async fn get_upload_payload(code: WasmCode, url: &str) -> anyhow::Result<Vec<u8>> {
+	let storage_deposit_limit: Option<u128> = None;
+	let upload_code = contract_extrinsics::extrinsic_calls::UploadCode::new(
+		code,
+		storage_deposit_limit,
+		contract_extrinsics::upload::Determinism::Enforced,
+	);
+
+	// TODO: review placement
+	let rpc_client = subxt::backend::rpc::RpcClient::from_url(url).await?;
+	let client = subxt::OnlineClient::<SubstrateConfig>::from_rpc_client(rpc_client).await?;
+
+	let call_data = upload_code.build();
+	let mut encoded_data = Vec::<u8>::new();
+	call_data.encode_call_data_to(&client.metadata(), &mut encoded_data)?;
+	Ok(encoded_data)
+}
+/// Gets the encoded payload call data for a contract instantiation.
+///
+/// # Arguments
+/// * `instantiate_exec` - arguments for contract instantiate.
+/// * `gas_limit` - max amount of gas to be used for instantiation.
+pub async fn get_instantiate_payload(
+	instantiate_exec: InstantiateExec<DefaultConfig, DefaultEnvironment, Keypair>,
+	gas_limit: Weight,
+) -> anyhow::Result<Vec<u8>> {
+	let storage_deposit_limit: Option<u128> = None;
+	let mut encoded_data = Vec::<u8>::new();
+	match instantiate_exec.args().code() {
+		contract_extrinsics::Code::Upload(code) => InstantiateWithCode::new(
+			instantiate_exec.args().value(),
+			gas_limit,
+			storage_deposit_limit,
+			code.clone(),
+			instantiate_exec.args().data().into(),
+			instantiate_exec.args().salt().into(),
+		)
+		.build()
+		.encode_call_data_to(&instantiate_exec.client().metadata(), &mut encoded_data),
+		contract_extrinsics::Code::Existing(hash) => Instantiate::new(
+			instantiate_exec.args().value(),
+			gas_limit,
+			storage_deposit_limit,
+			hash,
+			instantiate_exec.args().data().into(),
+			instantiate_exec.args().salt().into(),
+		)
+		.build()
+		.encode_call_data_to(&instantiate_exec.client().metadata(), &mut encoded_data),
+	}?;
+
+	Ok(encoded_data)
+}
+
+/// Reads the contract code from contract file.
+///
+/// # Arguments
+/// * `path` - path to the contract file.
+pub async fn get_contract_code(
+	path: Option<&PathBuf>,
+) -> anyhow::Result<contract_extrinsics::WasmCode> {
+	let manifest_path = get_manifest_path(path.map(|p| p as &Path))?;
+
+	// signer does not matter for this
+	let signer = create_signer("//Alice")?;
+	let extrinsic_opts =
+		ExtrinsicOptsBuilder::<DefaultConfig, DefaultEnvironment, Keypair>::new(signer)
+			.manifest_path(Some(manifest_path))
+			.done();
+	let artifacts = extrinsic_opts.contract_artifacts()?;
+
+	let artifacts_path = artifacts.artifact_path().to_path_buf();
+	let code = artifacts.code.ok_or_else(|| {
+		Error::UploadContractError(format!(
+			"Contract code not found from artifact file {}",
+			artifacts_path.display()
+		))
+	})?;
+	Ok(code)
+}
+
+/// Submit a pre-signed payload for uploading a contract.
+///
+/// # Arguments
+/// * `url` - rpc for chain.
+/// * `payload` - the signed payload to submit (encoded call data).
+pub async fn upload_contract_signed(
+	url: &str,
+	payload: String,
+) -> anyhow::Result<UploadResult<SubstrateConfig>> {
+	let events = submit_signed_payload(url, payload).await?;
+
+	let code_stored = events.find_first::<CodeStored<subxt::config::substrate::H256>>()?;
+
+	Ok(UploadResult { code_stored, events })
+}
+
+/// Submit a pre-signed payload for instantiating a contract.
+///
+/// # Arguments
+/// * `url` - rpc for chain.
+/// * `payload` - the signed payload to submit (encoded call data).
+pub async fn instantiate_contract_signed(
+	url: &str,
+	payload: String,
+) -> anyhow::Result<InstantiateExecResult<SubstrateConfig>> {
+	let events = submit_signed_payload(url, payload).await?;
+
+	// The CodeStored event is only raised if the contract has not already been
+	// uploaded.
+	let code_hash = events
+		.find_first::<CodeStored<subxt::config::substrate::H256>>()?
+		.map(|code_stored| code_stored.code_hash);
+
+	let instantiated = events
+		.find_first::<ContractInstantiated<subxt::config::substrate::AccountId32>>()?
+		.ok_or_else(|| {
+			Error::InstantiateContractError("Failed to find Instantiated event".to_string())
+		})?;
+
+	Ok(InstantiateExecResult { events, code_hash, contract_address: instantiated.contract })
+}
+
+/// Submit a pre-signed payload.
+///
+/// # Arguments
+/// * `url` - rpc for chain.
+/// * `payload` - the signed payload to submit (encoded call data).
+pub async fn submit_signed_payload(
+	url: &str,
+	payload: String,
+) -> anyhow::Result<ExtrinsicEvents<SubstrateConfig>> {
+	let rpc_client = subxt::backend::rpc::RpcClient::from_url(url).await?;
+	let client = subxt::OnlineClient::<SubstrateConfig>::from_rpc_client(rpc_client).await?;
+
+	let hex_encoded = from_hex(&payload)?;
+
+	let extrinsic = SubmittableExtrinsic::from_bytes(client, hex_encoded);
+
+	// src: https://github.com/use-ink/cargo-contract/blob/68691b9b6cdb7c6ec52ea441b3dc31fcb1ce08e0/crates/extrinsics/src/lib.rs#L143
+
+	use subxt::{
+		error::{RpcError, TransactionError},
+		tx::TxStatus,
+	};
+
+	let mut tx = extrinsic.submit_and_watch().await?;
+
+	while let Some(status) = tx.next().await {
+		match status? {
+			TxStatus::InFinalizedBlock(tx_in_block) => {
+				let events = tx_in_block.wait_for_success().await?;
+				return Ok(events)
+			},
+			TxStatus::Error { message } => return Err(TransactionError::Error(message).into()),
+			TxStatus::Invalid { message } => return Err(TransactionError::Invalid(message).into()),
+			TxStatus::Dropped { message } => return Err(TransactionError::Dropped(message).into()),
+			_ => continue,
+		}
+	}
+	Err(RpcError::SubscriptionDropped.into())
 }
 
 /// Estimate the gas required for instantiating a contract without modifying the state of the
@@ -204,14 +382,26 @@ pub async fn upload_smart_contract(
 		.upload_code()
 		.await
 		.map_err(|error_variant| Error::UploadContractError(format!("{:?}", error_variant)))?;
-	if let Some(code_stored) = upload_result.code_stored {
+	get_code_hash_from_event(&upload_result, upload_exec.code().code_hash())
+}
+
+/// Get the code hash of a contract from the upload event.
+///
+/// # Arguments
+/// * `upload_result` - the result of uploading the contract.
+/// * `metadata_code_hash` - the code hash from the metadata Used only for error reporting.
+pub fn get_code_hash_from_event<C: Config>(
+	upload_result: &UploadResult<C>,
+	// used for error reporting
+	metadata_code_hash: [u8; 32],
+) -> Result<String, Error> {
+	if let Some(code_stored) = upload_result.code_stored.as_ref() {
 		Ok(format!("{:?}", code_stored.code_hash))
 	} else {
-		let code_hash: String =
-			upload_exec.code().code_hash().iter().fold(String::new(), |mut output, b| {
-				write!(output, "{:02x}", b).expect("expected to write to string");
-				output
-			});
+		let code_hash: String = metadata_code_hash.iter().fold(String::new(), |mut output, b| {
+			write!(output, "{:02x}", b).expect("expected to write to string");
+			output
+		});
 		Err(Error::UploadContractError(format!(
 			"This contract has already been uploaded with code hash: 0x{code_hash}"
 		)))
