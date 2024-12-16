@@ -399,6 +399,16 @@ fn display_contract_info(spinner: &ProgressBar, address: String, code_hash: Opti
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use pop_common::{find_free_port, set_executable_permission};
+	use pop_contracts::{contracts_node_generator, mock_build_process, new_environment};
+	use std::{
+		env,
+		process::{Child, Command},
+		time::Duration,
+	};
+	use subxt::{tx::Payload, SubstrateConfig};
+	use tempfile::TempDir;
+	use tokio::time::sleep;
 	use url::Url;
 
 	fn default_up_contract_command() -> UpContractCommand {
@@ -417,6 +427,28 @@ mod tests {
 			skip_confirm: false,
 			use_wallet: false,
 		}
+	}
+
+	async fn start_test_environment() -> anyhow::Result<(Child, u16, TempDir)> {
+		let random_port = find_free_port();
+		let temp_dir = new_environment("testing")?;
+		let current_dir = env::current_dir().expect("Failed to get current directory");
+		mock_build_process(
+			temp_dir.path().join("testing"),
+			current_dir.join("../pop-contracts/tests/files/testing.contract"),
+			current_dir.join("../pop-contracts/tests/files/testing.json"),
+		)?;
+		let cache = temp_dir.path().join("");
+		let binary = contracts_node_generator(cache.clone(), None).await?;
+		binary.source(false, &(), true).await?;
+		set_executable_permission(binary.path())?;
+		let process = run_contracts_node(binary.path(), None, random_port).await?;
+		Ok((process, random_port, temp_dir))
+	}
+
+	fn stop_test_environment(id: &str) -> anyhow::Result<()> {
+		Command::new("kill").args(["-s", "TERM", id]).spawn()?.wait()?;
+		Ok(())
 	}
 
 	#[test]
@@ -440,15 +472,109 @@ mod tests {
 		Ok(())
 	}
 
+	#[tokio::test]
 	async fn get_upload_call_data_works() -> anyhow::Result<()> {
-		todo!()
+		let (contracts_node_process, port, temp_dir) = start_test_environment().await?;
+		let localhost_url = format!("ws://127.0.0.1:{}", port);
+		sleep(Duration::from_secs(20)).await;
+
+		let up_contract_opts = UpContractCommand {
+			path: Some(temp_dir.path().join("testing")),
+			constructor: "new".to_string(),
+			args: vec![],
+			value: "0".to_string(),
+			gas_limit: None,
+			proof_size: None,
+			salt: None,
+			url: Url::parse(&localhost_url).expect("given url is valid"),
+			suri: "//Alice".to_string(),
+			dry_run: false,
+			upload_only: true,
+			skip_confirm: true,
+			use_wallet: true,
+		};
+
+		let rpc_client = subxt::backend::rpc::RpcClient::from_url(&up_contract_opts.url).await?;
+		let client = subxt::OnlineClient::<SubstrateConfig>::from_rpc_client(rpc_client).await?;
+
+		// Retrieve call data based on the above command options.
+		let (retrieved_call_data, _) = match up_contract_opts.get_contract_data().await {
+			Ok(data) => data,
+			Err(e) => {
+				error(format!("An error occurred getting the call data: {e}"))?;
+				return Err(e);
+			},
+		};
+		// We have retrieved some payload.
+		assert!(!retrieved_call_data.is_empty());
+
+		// Craft encoded call data for an upload code call.
+		let contract_code = get_contract_code(up_contract_opts.path.as_ref()).await?;
+		let storage_deposit_limit: Option<u128> = None;
+		let upload_code = contract_extrinsics::extrinsic_calls::UploadCode::new(
+			contract_code,
+			storage_deposit_limit,
+			contract_extrinsics::upload::Determinism::Enforced,
+		);
+		let expected_call_data = upload_code.build();
+		let mut encoded_expected_call_data = Vec::<u8>::new();
+		expected_call_data
+			.encode_call_data_to(&client.metadata(), &mut encoded_expected_call_data)?;
+
+		// Retrieved call data and calculated match.
+		assert_eq!(retrieved_call_data, encoded_expected_call_data);
+
+		// Stop running contracts-node
+		stop_test_environment(&contracts_node_process.id().to_string())?;
+		Ok(())
 	}
 
+	#[tokio::test]
 	async fn get_instantiate_call_data_works() -> anyhow::Result<()> {
-		todo!()
-	}
+		let (contracts_node_process, port, temp_dir) = start_test_environment().await?;
+		let localhost_url = format!("ws://127.0.0.1:{}", port);
+		sleep(Duration::from_secs(20)).await;
 
-	async fn wait_for_signature_works() -> anyhow::Result<()> {
-		todo!()
+		let up_contract_opts = UpContractCommand {
+			path: Some(temp_dir.path().join("testing")),
+			constructor: "new".to_string(),
+			args: vec!["false".to_string()],
+			value: "0".to_string(),
+			gas_limit: Some(200_000_000),
+			proof_size: Some(30_000),
+			salt: None,
+			url: Url::parse(&localhost_url).expect("given url is valid"),
+			suri: "//Alice".to_string(),
+			dry_run: false,
+			upload_only: false,
+			skip_confirm: true,
+			use_wallet: true,
+		};
+
+		let rpc_client = subxt::backend::rpc::RpcClient::from_url(&up_contract_opts.url).await?;
+		let client = subxt::OnlineClient::<SubstrateConfig>::from_rpc_client(rpc_client).await?;
+
+		// Retrieve call data based on the above command options.
+		let (retrieved_call_data, _) = match up_contract_opts.get_contract_data().await {
+			Ok(data) => data,
+			Err(e) => {
+				error(format!("An error occurred getting the call data: {e}"))?;
+				return Err(e);
+			},
+		};
+		// We have retrieved some payload.
+		assert!(!retrieved_call_data.is_empty());
+
+		// Craft instantiate call data.
+		let weight = Weight::from_parts(200_000_000, 30_000);
+		let expected_call_data =
+			get_instantiate_payload(set_up_deployment(up_contract_opts.into()).await?, weight)
+				.await?;
+		// Retrieved call data matches the one crafted above.
+		assert_eq!(retrieved_call_data, expected_call_data);
+
+		// Stop running contracts-node
+		stop_test_environment(&contracts_node_process.id().to_string())?;
+		Ok(())
 	}
 }
