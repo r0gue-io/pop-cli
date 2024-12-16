@@ -127,7 +127,7 @@ pub fn supported_actions(pallets: &[Pallet]) -> Vec<Action> {
 
 #[cfg(test)]
 mod tests {
-	use super::*;
+	use super::{Action::*, *};
 	use crate::{call::tests::POP_NETWORK_TESTNET_URL, parse_chain_metadata, set_up_client};
 	use anyhow::Result;
 	use std::collections::HashMap;
@@ -137,15 +137,15 @@ mod tests {
 	#[test]
 	fn action_descriptions_are_correct() {
 		let descriptions = HashMap::from([
-			(Action::CreateAsset, "Create an asset"),
-			(Action::MintAsset, "Mint an asset"),
-			(Action::CreateCollection, "Create an NFT collection"),
-			(Action::MintNFT, "Mint an NFT"),
-			(Action::PurchaseOnDemandCoretime, "Purchase on-demand coretime"),
-			(Action::Transfer, "Transfer balance"),
-			(Action::Register, "Register a parachain ID with genesis state and code"),
-			(Action::Reserve, "Reserve a parachain ID"),
-			(Action::Remark, "Make some on-chain remark"),
+			(CreateAsset, "Create an asset"),
+			(MintAsset, "Mint an asset"),
+			(CreateCollection, "Create an NFT collection"),
+			(MintNFT, "Mint an NFT"),
+			(PurchaseOnDemandCoretime, "Purchase on-demand coretime"),
+			(Transfer, "Transfer balance"),
+			(Register, "Register a parachain ID with genesis state and code"),
+			(Reserve, "Reserve a parachain ID"),
+			(Remark, "Make some on-chain remark"),
 		]);
 
 		for action in Action::VARIANTS.iter() {
@@ -156,15 +156,15 @@ mod tests {
 	#[test]
 	fn pallet_names_are_correct() {
 		let pallets = HashMap::from([
-			(Action::CreateAsset, "Assets"),
-			(Action::MintAsset, "Assets"),
-			(Action::CreateCollection, "Nfts"),
-			(Action::MintNFT, "Nfts"),
-			(Action::PurchaseOnDemandCoretime, "OnDemand"),
-			(Action::Transfer, "Balances"),
-			(Action::Register, "Registrar"),
-			(Action::Reserve, "Registrar"),
-			(Action::Remark, "System"),
+			(CreateAsset, "Assets"),
+			(MintAsset, "Assets"),
+			(CreateCollection, "Nfts"),
+			(MintNFT, "Nfts"),
+			(PurchaseOnDemandCoretime, "OnDemand"),
+			(Transfer, "Balances"),
+			(Register, "Registrar"),
+			(Reserve, "Registrar"),
+			(Remark, "System"),
 		]);
 
 		for action in Action::VARIANTS.iter() {
@@ -175,15 +175,15 @@ mod tests {
 	#[test]
 	fn function_names_are_correct() {
 		let pallets = HashMap::from([
-			(Action::CreateAsset, "create"),
-			(Action::MintAsset, "mint"),
-			(Action::CreateCollection, "create"),
-			(Action::MintNFT, "mint"),
-			(Action::PurchaseOnDemandCoretime, "place_order_allow_death"),
-			(Action::Transfer, "transfer_allow_death"),
-			(Action::Register, "register"),
-			(Action::Reserve, "reserve"),
-			(Action::Remark, "remark_with_event"),
+			(CreateAsset, "create"),
+			(MintAsset, "mint"),
+			(CreateCollection, "create"),
+			(MintNFT, "mint"),
+			(PurchaseOnDemandCoretime, "place_order_allow_death"),
+			(Transfer, "transfer_allow_death"),
+			(Register, "register"),
+			(Reserve, "reserve"),
+			(Remark, "remark_with_event"),
 		]);
 
 		for action in Action::VARIANTS.iter() {
@@ -196,25 +196,16 @@ mod tests {
 		// Test Pop Parachain.
 		let mut client: subxt::OnlineClient<subxt::SubstrateConfig> =
 			set_up_client(POP_NETWORK_TESTNET_URL).await?;
-		let mut actions = supported_actions(&parse_chain_metadata(&client)?);
-		assert_eq!(actions.len(), 6);
-		assert_eq!(actions[0], Action::Transfer);
-		assert_eq!(actions[1], Action::CreateAsset);
-		assert_eq!(actions[2], Action::MintAsset);
-		assert_eq!(actions[3], Action::CreateCollection);
-		assert_eq!(actions[4], Action::MintNFT);
-		assert_eq!(actions[5], Action::Remark);
+		let actions = supported_actions(&parse_chain_metadata(&client)?);
+		assert_eq!(
+			actions,
+			vec![Transfer, CreateAsset, MintAsset, CreateCollection, MintNFT, Remark]
+		);
 
 		// Test Polkadot Relay Chain.
 		client = set_up_client(POLKADOT_NETWORK_URL).await?;
-		actions = supported_actions(&parse_chain_metadata(&client)?);
-		assert_eq!(actions.len(), 5);
-		assert_eq!(actions[0], Action::Transfer);
-		assert_eq!(actions[1], Action::PurchaseOnDemandCoretime);
-		assert_eq!(actions[2], Action::Reserve);
-		assert_eq!(actions[3], Action::Register);
-		assert_eq!(actions[4], Action::Remark);
-
+		let actions = supported_actions(&parse_chain_metadata(&client)?);
+		assert_eq!(actions, vec![Transfer, PurchaseOnDemandCoretime, Reserve, Register, Remark]);
 		Ok(())
 	}
 }
