@@ -83,6 +83,14 @@ pub enum Action {
 		props(Pallet = "Registrar")
 	)]
 	Register,
+	/// Make some on-chain remark.
+	#[strum(
+		serialize = "remark",
+		message = "remark_with_event",
+		detailed_message = "Make some on-chain remark",
+		props(Pallet = "System")
+	)]
+	Remark,
 }
 
 impl Action {
@@ -137,6 +145,7 @@ mod tests {
 			(Action::Transfer, "Transfer balance"),
 			(Action::Register, "Register a parachain ID with genesis state and code"),
 			(Action::Reserve, "Reserve a parachain ID"),
+			(Action::Remark, "Make some on-chain remark"),
 		]);
 
 		for action in Action::VARIANTS.iter() {
@@ -155,6 +164,7 @@ mod tests {
 			(Action::Transfer, "Balances"),
 			(Action::Register, "Registrar"),
 			(Action::Reserve, "Registrar"),
+			(Action::Remark, "System"),
 		]);
 
 		for action in Action::VARIANTS.iter() {
@@ -173,6 +183,7 @@ mod tests {
 			(Action::Transfer, "transfer_allow_death"),
 			(Action::Register, "register"),
 			(Action::Reserve, "reserve"),
+			(Action::Remark, "remark_with_event"),
 		]);
 
 		for action in Action::VARIANTS.iter() {
@@ -186,21 +197,23 @@ mod tests {
 		let mut client: subxt::OnlineClient<subxt::SubstrateConfig> =
 			set_up_client(POP_NETWORK_TESTNET_URL).await?;
 		let mut actions = supported_actions(&parse_chain_metadata(&client)?);
-		assert_eq!(actions.len(), 5);
+		assert_eq!(actions.len(), 6);
 		assert_eq!(actions[0], Action::Transfer);
 		assert_eq!(actions[1], Action::CreateAsset);
 		assert_eq!(actions[2], Action::MintAsset);
 		assert_eq!(actions[3], Action::CreateCollection);
 		assert_eq!(actions[4], Action::MintNFT);
+		assert_eq!(actions[5], Action::Remark);
 
 		// Test Polkadot Relay Chain.
 		client = set_up_client(POLKADOT_NETWORK_URL).await?;
 		actions = supported_actions(&parse_chain_metadata(&client)?);
-		assert_eq!(actions.len(), 4);
+		assert_eq!(actions.len(), 5);
 		assert_eq!(actions[0], Action::Transfer);
 		assert_eq!(actions[1], Action::PurchaseOnDemandCoretime);
 		assert_eq!(actions[2], Action::Reserve);
 		assert_eq!(actions[3], Action::Register);
+		assert_eq!(actions[4], Action::Remark);
 
 		Ok(())
 	}
