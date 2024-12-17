@@ -1,9 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::wallet_integration::{FrontendFromString, TransactionData, WalletIntegrationManager};
-use cliclack::log;
+use cliclack::{log, spinner};
 
-pub async fn wait_for_signature(call_data: Vec<u8>, url: String) -> anyhow::Result<Option<String>> {
+/// Launches the wallet integration for in-browser signing. Blocks until the signature is received.
+///
+/// # Arguments
+/// * `call_data` - The call data to be signed.
+/// * `url` - Chain rpc.
+/// # Returns
+/// * The signed payload, if it exists.
+pub async fn request_signature(call_data: Vec<u8>, url: String) -> anyhow::Result<Option<String>> {
 	let ui = FrontendFromString::new(include_str!("../assets/index.html").to_string());
 
 	let transaction_data = TransactionData::new(url, call_data);
@@ -11,7 +18,8 @@ pub async fn wait_for_signature(call_data: Vec<u8>, url: String) -> anyhow::Resu
 	let mut wallet = WalletIntegrationManager::new(ui, transaction_data);
 	log::step(format!("Wallet signing portal started at http://{}", wallet.rpc_url))?;
 
-	log::step("Waiting for signature... Press Ctrl+C to terminate early.")?;
+	let spinner = spinner();
+	spinner.start("Waiting for signature... Press Ctrl+C to terminate early.")?;
 	loop {
 		// Display error, if any.
 		if let Some(error) = wallet.take_error().await {
@@ -25,6 +33,7 @@ pub async fn wait_for_signature(call_data: Vec<u8>, url: String) -> anyhow::Resu
 			break;
 		}
 	}
+	spinner.stop("");
 
 	let signed_payload = wallet.state.lock().await.signed_payload.clone();
 	Ok(signed_payload)

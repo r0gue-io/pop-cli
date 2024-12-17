@@ -2,7 +2,7 @@
 
 use crate::{
 	cli::{self, traits::*},
-	common::{contracts::has_contract_been_built, wallet::wait_for_signature},
+	common::{contracts::has_contract_been_built, wallet::request_signature},
 };
 use anyhow::{anyhow, Result};
 use clap::Args;
@@ -56,7 +56,7 @@ pub struct CallContractCommand {
 	/// - with a password "//Alice///SECRET_PASSWORD"
 	#[arg(name = "suri", long, short, default_value = DEFAULT_URI)]
 	suri: String,
-	/// Use your browser wallet to sign a transaction.
+	/// Use a browser extension wallet to sign the extrinsic.
 	#[arg(name = "use-wallet", long, short('w'), default_value = "false", conflicts_with = "suri")]
 	use_wallet: bool,
 	/// Submit an extrinsic for on-chain execution.
@@ -417,6 +417,7 @@ impl CallContractCommand {
 			let spinner = spinner();
 			spinner.start("Calling the contract...");
 			let call_dry_run_result = dry_run_call(&call_exec).await?;
+			spinner.stop("");
 			cli.info(format!("Result: {}", call_dry_run_result))?;
 			cli.warning("Your call has not been executed.")?;
 		} else {
@@ -484,7 +485,7 @@ impl CallContractCommand {
 			anyhow!("An error occurred getting the call data: {}", err.to_string())
 		})?;
 
-		let maybe_payload = wait_for_signature(call_data, self.url.to_string()).await?;
+		let maybe_payload = request_signature(call_data, self.url.to_string()).await?;
 		if let Some(payload) = maybe_payload {
 			cli.success("Signed payload received.")?;
 			let spinner = spinner();
@@ -510,7 +511,7 @@ impl CallContractCommand {
 		let weight_limit = if self.gas_limit.is_some() && self.proof_size.is_some() {
 			Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap())
 		} else {
-			Weight::from_parts(0, 0)
+			Weight::zero()
 		};
 		let call_data = get_call_payload(call_exec, weight_limit)?;
 		Ok(call_data)

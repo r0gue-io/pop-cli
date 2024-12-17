@@ -4,7 +4,7 @@ use crate::{
 	cli::{traits::Cli as _, Cli},
 	common::{
 		contracts::{check_contracts_node_and_prompt, has_contract_been_built, terminate_node},
-		wallet::wait_for_signature,
+		wallet::request_signature,
 	},
 	style::style,
 };
@@ -187,7 +187,7 @@ impl UpContractCommand {
 				},
 			};
 
-			let maybe_payload = wait_for_signature(call_data, self.url.to_string()).await?;
+			let maybe_payload = request_signature(call_data, self.url.to_string()).await?;
 			if let Some(payload) = maybe_payload {
 				log::success("Signed payload received.")?;
 				let spinner = spinner();
@@ -356,7 +356,7 @@ impl UpContractCommand {
 				Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap())
 			} else {
 				// Frontend will do dry run and update call data.
-				Weight::from_parts(0, 0)
+				Weight::zero()
 			};
 			let call_data = get_instantiate_payload(instantiate_exec, weight_limit).await?;
 			Ok((call_data, hash))

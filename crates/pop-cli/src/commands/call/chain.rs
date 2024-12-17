@@ -4,7 +4,7 @@ use std::path::Path;
 
 use crate::{
 	cli::{self, traits::*},
-	common::wallet::wait_for_signature,
+	common::wallet::request_signature,
 };
 use anyhow::{anyhow, Result};
 use clap::Args;
@@ -43,7 +43,7 @@ pub struct CallChainCommand {
 	/// - with a password "//Alice///SECRET_PASSWORD"
 	#[arg(short, long)]
 	suri: Option<String>,
-	/// Use your browser wallet to sign the extrinsic.
+	/// Use a browser extension wallet to sign the extrinsic.
 	#[arg(name = "use-wallet", short('w'), long, default_value = "false", conflicts_with = "suri")]
 	use_wallet: bool,
 	/// SCALE encoded bytes representing the call data of the extrinsic.
@@ -274,7 +274,7 @@ impl CallChainCommand {
 		if use_wallet {
 			let call_data_bytes =
 				decode_call_data(call_data).map_err(|err| anyhow!("{}", format!("{err:?}")))?;
-			submit_extrinsic_with_wallet(client, &url, call_data_bytes, cli)
+			submit_extrinsic_with_wallet(client, url, call_data_bytes, cli)
 				.await
 				.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
 			display_message("Call complete.", true, cli)?;
@@ -487,7 +487,7 @@ async fn submit_extrinsic_with_wallet(
 	call_data: Vec<u8>,
 	cli: &mut impl Cli,
 ) -> Result<()> {
-	let maybe_payload = wait_for_signature(call_data, url.to_string()).await?;
+	let maybe_payload = request_signature(call_data, url.to_string()).await?;
 	if let Some(payload) = maybe_payload {
 		cli.success("Signed payload received.")?;
 		let spinner = cliclack::spinner();
