@@ -4,7 +4,6 @@ use crate::{
 	cli::{self, traits::*},
 	common::{
 		contracts::has_contract_been_built,
-		wallet,
 		wallet::{prompt_to_use_wallet, request_signature},
 	},
 };

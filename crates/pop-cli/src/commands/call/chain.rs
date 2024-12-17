@@ -4,10 +4,7 @@ use std::path::Path;
 
 use crate::{
 	cli::{self, traits::*},
-	common::{
-		wallet,
-		wallet::{prompt_to_use_wallet, request_signature},
-	},
+	common::wallet::{prompt_to_use_wallet, request_signature},
 };
 use anyhow::{anyhow, Result};
 use clap::Args;
