@@ -53,7 +53,7 @@ pub enum Dependencies {
 #[command(args_conflicts_with_subcommands = true)]
 pub(crate) struct InstallArgs {
 	/// Automatically install all dependencies required without prompting for confirmation.
-	#[clap(short('y'), long)]
+	#[clap(short = 'y', long)]
 	skip_confirm: bool,
 }
 
