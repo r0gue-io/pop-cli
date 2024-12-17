@@ -40,13 +40,13 @@ pub(crate) struct ZombienetCommand {
 	#[arg(short, long)]
 	parachain: Option<Vec<String>>,
 	/// The command to run after the network has been launched.
-	#[clap(name = "cmd", short = 'c', long)]
+	#[clap(name = "cmd", short, long)]
 	command: Option<String>,
 	/// Whether the output should be verbose.
 	#[arg(short, long, action)]
 	verbose: bool,
 	/// Automatically source all needed binaries required without prompting for confirmation.
-	#[clap(short('y'), long)]
+	#[clap(short = 'y', long)]
 	skip_confirm: bool,
 }
 

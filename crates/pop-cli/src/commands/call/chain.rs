@@ -53,7 +53,7 @@ pub struct CallChainCommand {
 	#[arg(short = 'S', long)]
 	sudo: bool,
 	/// Automatically signs and submits the extrinsic without prompting for confirmation.
-	#[arg(short('y'), long)]
+	#[arg(short = 'y', long)]
 	skip_confirm: bool,
 }
 

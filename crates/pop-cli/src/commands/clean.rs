@@ -26,7 +26,7 @@ pub(crate) enum Command {
 #[derive(Args)]
 pub struct CleanCommandArgs {
 	/// Pass flag to remove all artifacts
-	#[arg(short = 'a', long)]
+	#[arg(short, long)]
 	pub(crate) all: bool,
 }
 

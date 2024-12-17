@@ -14,13 +14,13 @@ pub struct BuildParachainCommand {
 	#[arg(long)]
 	pub(crate) path: Option<PathBuf>,
 	/// The package to be built.
-	#[arg(short = 'p', long)]
+	#[arg(short, long)]
 	pub(crate) package: Option<String>,
 	/// Build profile [default: debug].
 	#[clap(long, value_enum)]
 	pub(crate) profile: Option<Profile>,
 	/// Parachain ID to be used when generating the chain spec files.
-	#[arg(short = 'i', long = "id")]
+	#[arg(short, long)]
 	pub(crate) id: Option<u32>,
 	// Deprecation flag, used to specify whether the deprecation warning is shown.
 	#[clap(skip)]

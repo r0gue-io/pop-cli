@@ -13,22 +13,18 @@ use {std::time::Duration, tokio::time::sleep};
 
 #[derive(Args)]
 pub(crate) struct TestContractCommand {
-	#[arg(short = 'p', long, help = "Path for the contract project [default: current directory]")]
+	#[arg(short, long, help = "Path for the contract project [default: current directory]")]
 	path: Option<PathBuf>,
 	/// [DEPRECATED] Run e2e tests
-	#[arg(short = 'f', long = "features", value_parser=["e2e-tests"])]
+	#[arg(short, long, value_parser=["e2e-tests"])]
 	features: Option<String>,
 	/// Run end-to-end tests
-	#[arg(short = 'e', long = "e2e")]
+	#[arg(short, long)]
 	e2e: bool,
-	#[arg(
-		short = 'n',
-		long = "node",
-		help = "Path to the contracts node to run e2e tests [default: none]"
-	)]
+	#[arg(short, long, help = "Path to the contracts node to run e2e tests [default: none]")]
 	node: Option<PathBuf>,
 	/// Automatically source the needed binary required without prompting for confirmation.
-	#[clap(short('y'), long)]
+	#[clap(short = 'y', long)]
 	skip_confirm: bool,
 }
 
