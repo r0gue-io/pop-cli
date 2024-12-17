@@ -416,7 +416,6 @@ mod tests {
 		run_contracts_node,
 	};
 	use anyhow::Result;
-	use hex::FromHex;
 	use pop_common::{find_free_port, set_executable_permission};
 	use std::{env, process::Command, time::Duration};
 	use subxt::{
@@ -501,12 +500,14 @@ mod tests {
 		let payload_hash = BlakeTwo256::hash(&call_data);
 		// We know that for the above opts the payload hash should be:
 		// 0x98c24584107b3a01d12e8e02c0bb634d15dc86123c44d186206813ede42f478d
-		let expected_hash: H256 = H256::from(
-			<[u8; 32]>::from_hex(
-				"98c24584107b3a01d12e8e02c0bb634d15dc86123c44d186206813ede42f478d",
-			)
-			.expect("Invalid hex string"),
-		);
+		let hex_bytes =
+			from_hex("98c24584107b3a01d12e8e02c0bb634d15dc86123c44d186206813ede42f478d")
+				.expect("Invalid hex string");
+
+		let hex_array: [u8; 32] = hex_bytes.try_into().expect("Expected 32-byte array");
+
+		// Create `H256` from the `[u8; 32]` array
+		let expected_hash = H256::from(hex_array);
 		assert_eq!(expected_hash, payload_hash);
 		Ok(())
 	}

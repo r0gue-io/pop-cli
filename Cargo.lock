@@ -9388,7 +9388,6 @@ dependencies = [
  "duct",
  "flate2",
  "heck 0.5.0",
- "hex",
  "ink_env",
  "mockito",
  "pop-common",
