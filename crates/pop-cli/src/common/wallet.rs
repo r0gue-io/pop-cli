@@ -16,15 +16,22 @@ pub const USE_WALLET_PROMPT: &str = "Do you want to use your browser wallet to s
 /// * `url` - Chain rpc.
 /// # Returns
 /// * The signed payload, if it exists.
-pub async fn request_signature(call_data: Vec<u8>, url: String) -> anyhow::Result<Option<String>> {
+pub async fn request_signature(call_data: Vec<u8>, rpc: String) -> anyhow::Result<Option<String>> {
 	let ui = FrontendFromString::new(include_str!("../assets/index.html").to_string());
 
-	let transaction_data = TransactionData::new(url, call_data);
+	let transaction_data = TransactionData::new(rpc, call_data);
 	// Starts server with random port.
 	let mut wallet = WalletIntegrationManager::new(ui, transaction_data, None);
-	log::step(format!("Wallet signing portal started at http://{}", wallet.server_url))?;
+	let url = wallet.server_url.clone();
+	log::step(format!("Wallet signing portal started at http://{url}."))?;
 
 	let spinner = spinner();
+	spinner.start(format!("Opening browser to http://{url}"));
+	let res = open::that(format!("http://{url}"));
+	if let Err(e) = res {
+		spinner.error(format!("Failed to launch browser. Please open link manually. {e}"));
+	}
+
 	spinner.start("Waiting for signature... Press Ctrl+C to terminate early.");
 	loop {
 		// Display error, if any.
