@@ -239,7 +239,7 @@ mod tests {
 	#[ignore = "Works fine locally but is causing issues when running tests in parallel in the CI environment."]
 	#[tokio::test]
 	async fn run_contracts_node_works() -> Result<(), Error> {
-		let random_port = find_free_port();
+		let random_port = find_free_port(None);
 		let localhost_url = format!("ws://127.0.0.1:{}", random_port);
 		let local_url = url::Url::parse(&localhost_url)?;
 

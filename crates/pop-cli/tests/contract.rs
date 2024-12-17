@@ -51,7 +51,7 @@ impl TransactionData {
 async fn contract_lifecycle() -> Result<()> {
 	const WALLET_INT_URI: &str = "http://127.0.0.1:9090";
 	const WAIT_SECS: u64 = 240;
-	let endpoint_port = find_free_port();
+	let endpoint_port = find_free_port(None);
 	let default_endpoint: &str = &format!("ws://127.0.0.1:{}", endpoint_port);
 	let temp = tempfile::tempdir().unwrap();
 	let temp_dir = temp.path();

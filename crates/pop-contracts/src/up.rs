@@ -596,7 +596,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn instantiate_and_upload() -> Result<()> {
-		let random_port = find_free_port();
+		let random_port = find_free_port(None);
 		let localhost_url = format!("ws://127.0.0.1:{}", random_port);
 		let temp_dir = new_environment("testing")?;
 		let current_dir = env::current_dir().expect("Failed to get current directory");

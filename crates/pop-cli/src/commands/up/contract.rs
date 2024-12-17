@@ -435,7 +435,7 @@ mod tests {
 	}
 
 	async fn start_test_environment() -> anyhow::Result<(Child, u16, TempDir)> {
-		let random_port = find_free_port();
+		let random_port = find_free_port(None);
 		let temp_dir = new_environment("testing")?;
 		let current_dir = env::current_dir().expect("Failed to get current directory");
 		mock_build_process(

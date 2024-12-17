@@ -73,9 +73,9 @@ impl WalletIntegrationManager {
 	pub fn new<F: Frontend>(
 		frontend: F,
 		payload: TransactionData,
-		maybe_port: Option<String>,
+		maybe_port: Option<u16>,
 	) -> Self {
-		let port = if let Some(port) = maybe_port { port } else { find_free_port().to_string() };
+		let port = if let Some(port) = maybe_port { port } else { find_free_port(maybe_port) };
 		Self::new_with_address(frontend, payload, format!("127.0.0.1:{}", port))
 	}
 
@@ -284,10 +284,9 @@ mod tests {
 	#[tokio::test]
 	async fn new_works() {
 		let frontend = FrontendFromString::new(TEST_HTML.to_string());
-		let mut wim =
-			WalletIntegrationManager::new(frontend, default_payload(), Some("9090".to_string()));
+		let mut wim = WalletIntegrationManager::new(frontend, default_payload(), Some(9190));
 
-		assert_eq!(wim.server_url, "127.0.0.1:9090");
+		assert_eq!(wim.server_url, "127.0.0.1:9190");
 		assert_eq!(wim.is_running(), true);
 		assert!(wim.state.lock().await.shutdown_tx.is_some());
 		assert!(wim.state.lock().await.signed_payload.is_none());
