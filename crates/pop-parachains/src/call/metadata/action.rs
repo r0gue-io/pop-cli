@@ -43,19 +43,19 @@ pub enum Action {
 		props(Pallet = "Assets")
 	)]
 	MintAsset,
-	/// Create an NFT collection.
+	/// Create a NFT collection.
 	#[strum(
 		serialize = "create_nft",
 		message = "create",
-		detailed_message = "Create an NFT collection",
+		detailed_message = "Create a NFT collection",
 		props(Pallet = "Nfts")
 	)]
 	CreateCollection,
-	/// Mint an NFT.
+	/// Mint a NFT.
 	#[strum(
 		serialize = "mint_nft",
 		message = "mint",
-		detailed_message = "Mint an NFT",
+		detailed_message = "Mint a NFT",
 		props(Pallet = "Nfts")
 	)]
 	MintNFT,
@@ -83,6 +83,14 @@ pub enum Action {
 		props(Pallet = "Registrar")
 	)]
 	Register,
+	/// Make a remark.
+	#[strum(
+		serialize = "remark",
+		message = "remark_with_event",
+		detailed_message = "Make a remark",
+		props(Pallet = "System")
+	)]
+	Remark,
 }
 
 impl Action {
@@ -119,7 +127,7 @@ pub fn supported_actions(pallets: &[Pallet]) -> Vec<Action> {
 
 #[cfg(test)]
 mod tests {
-	use super::*;
+	use super::{Action::*, *};
 	use crate::{call::tests::POP_NETWORK_TESTNET_URL, parse_chain_metadata, set_up_client};
 	use anyhow::Result;
 	use std::collections::HashMap;
@@ -129,14 +137,15 @@ mod tests {
 	#[test]
 	fn action_descriptions_are_correct() {
 		let descriptions = HashMap::from([
-			(Action::CreateAsset, "Create an asset"),
-			(Action::MintAsset, "Mint an asset"),
-			(Action::CreateCollection, "Create an NFT collection"),
-			(Action::MintNFT, "Mint an NFT"),
-			(Action::PurchaseOnDemandCoretime, "Purchase on-demand coretime"),
-			(Action::Transfer, "Transfer balance"),
-			(Action::Register, "Register a parachain ID with genesis state and code"),
-			(Action::Reserve, "Reserve a parachain ID"),
+			(CreateAsset, "Create an asset"),
+			(MintAsset, "Mint an asset"),
+			(CreateCollection, "Create a NFT collection"),
+			(MintNFT, "Mint a NFT"),
+			(PurchaseOnDemandCoretime, "Purchase on-demand coretime"),
+			(Transfer, "Transfer balance"),
+			(Register, "Register a parachain ID with genesis state and code"),
+			(Reserve, "Reserve a parachain ID"),
+			(Remark, "Make a remark"),
 		]);
 
 		for action in Action::VARIANTS.iter() {
@@ -147,14 +156,15 @@ mod tests {
 	#[test]
 	fn pallet_names_are_correct() {
 		let pallets = HashMap::from([
-			(Action::CreateAsset, "Assets"),
-			(Action::MintAsset, "Assets"),
-			(Action::CreateCollection, "Nfts"),
-			(Action::MintNFT, "Nfts"),
-			(Action::PurchaseOnDemandCoretime, "OnDemand"),
-			(Action::Transfer, "Balances"),
-			(Action::Register, "Registrar"),
-			(Action::Reserve, "Registrar"),
+			(CreateAsset, "Assets"),
+			(MintAsset, "Assets"),
+			(CreateCollection, "Nfts"),
+			(MintNFT, "Nfts"),
+			(PurchaseOnDemandCoretime, "OnDemand"),
+			(Transfer, "Balances"),
+			(Register, "Registrar"),
+			(Reserve, "Registrar"),
+			(Remark, "System"),
 		]);
 
 		for action in Action::VARIANTS.iter() {
@@ -165,14 +175,15 @@ mod tests {
 	#[test]
 	fn function_names_are_correct() {
 		let pallets = HashMap::from([
-			(Action::CreateAsset, "create"),
-			(Action::MintAsset, "mint"),
-			(Action::CreateCollection, "create"),
-			(Action::MintNFT, "mint"),
-			(Action::PurchaseOnDemandCoretime, "place_order_allow_death"),
-			(Action::Transfer, "transfer_allow_death"),
-			(Action::Register, "register"),
-			(Action::Reserve, "reserve"),
+			(CreateAsset, "create"),
+			(MintAsset, "mint"),
+			(CreateCollection, "create"),
+			(MintNFT, "mint"),
+			(PurchaseOnDemandCoretime, "place_order_allow_death"),
+			(Transfer, "transfer_allow_death"),
+			(Register, "register"),
+			(Reserve, "reserve"),
+			(Remark, "remark_with_event"),
 		]);
 
 		for action in Action::VARIANTS.iter() {
@@ -185,23 +196,16 @@ mod tests {
 		// Test Pop Parachain.
 		let mut client: subxt::OnlineClient<subxt::SubstrateConfig> =
 			set_up_client(POP_NETWORK_TESTNET_URL).await?;
-		let mut actions = supported_actions(&parse_chain_metadata(&client)?);
-		assert_eq!(actions.len(), 5);
-		assert_eq!(actions[0], Action::Transfer);
-		assert_eq!(actions[1], Action::CreateAsset);
-		assert_eq!(actions[2], Action::MintAsset);
-		assert_eq!(actions[3], Action::CreateCollection);
-		assert_eq!(actions[4], Action::MintNFT);
+		let actions = supported_actions(&parse_chain_metadata(&client)?);
+		assert_eq!(
+			actions,
+			vec![Transfer, CreateAsset, MintAsset, CreateCollection, MintNFT, Remark]
+		);
 
 		// Test Polkadot Relay Chain.
 		client = set_up_client(POLKADOT_NETWORK_URL).await?;
-		actions = supported_actions(&parse_chain_metadata(&client)?);
-		assert_eq!(actions.len(), 4);
-		assert_eq!(actions[0], Action::Transfer);
-		assert_eq!(actions[1], Action::PurchaseOnDemandCoretime);
-		assert_eq!(actions[2], Action::Reserve);
-		assert_eq!(actions[3], Action::Register);
-
+		let actions = supported_actions(&parse_chain_metadata(&client)?);
+		assert_eq!(actions, vec![Transfer, PurchaseOnDemandCoretime, Reserve, Register, Remark]);
 		Ok(())
 	}
 }
