@@ -2,7 +2,11 @@
 
 use crate::{
 	cli::{self, traits::*},
-	common::{contracts::has_contract_been_built, wallet::request_signature},
+	common::{
+		contracts::has_contract_been_built,
+		wallet,
+		wallet::{prompt_to_use_wallet, request_signature},
+	},
 };
 use anyhow::{anyhow, Result};
 use clap::Args;
@@ -316,18 +320,15 @@ impl CallContractCommand {
 		// Resolve who is calling the contract. If a `suri` was provided via the command line, skip
 		// the prompt.
 		if self.suri == DEFAULT_URI && !self.use_wallet && message.mutates {
-			if cli.confirm("Do you want to use your browser wallet to sign the transaction? (Selecting 'No' will prompt you to manually enter the secret key URI for signing, e.g., '//Alice')")
-			.initial_value(true)
-			.interact()? {
+			if prompt_to_use_wallet(cli)? {
 				self.use_wallet = true;
-			}
-			else{
-					self.suri = cli
-						.input("Signer calling the contract:")
-						.placeholder("//Alice")
-						.default_input("//Alice")
-						.interact()?;
-				};
+			} else {
+				self.suri = cli
+					.input("Signer calling the contract:")
+					.placeholder("//Alice")
+					.default_input("//Alice")
+					.interact()?;
+			};
 		}
 
 		// Finally prompt for confirmation.
@@ -539,7 +540,7 @@ fn display_message(message: &str, success: bool, cli: &mut impl Cli) -> Result<(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::cli::MockCli;
+	use crate::{cli::MockCli, common::wallet::USE_WALLET_PROMPT};
 	use pop_contracts::{mock_build_process, new_environment};
 	use std::{env, fs::write};
 	use url::Url;
@@ -861,7 +862,7 @@ mod tests {
 			.expect_input("Value to transfer to the call:", "50".into()) // Only if payable
 			.expect_input("Enter the gas limit:", "".into()) // Only if call
 			.expect_input("Enter the proof size limit:", "".into()) // Only if call
-			.expect_confirm("Do you want to use your browser wallet to sign the transaction? (Selecting 'No' will prompt you to manually enter the secret key URI for signing, e.g., '//Alice')", true)
+			.expect_confirm(USE_WALLET_PROMPT, true)
 			.expect_info(format!(
 				"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message specific_flip --args \"true\", \"2\" --value 50 --url wss://rpc1.paseo.popnetwork.xyz/ --use-wallet --execute",
 				temp_dir.path().join("testing").display().to_string(),

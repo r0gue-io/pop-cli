@@ -1,7 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::wallet_integration::{FrontendFromString, TransactionData, WalletIntegrationManager};
+use crate::{
+	cli::traits::Cli,
+	wallet_integration::{FrontendFromString, TransactionData, WalletIntegrationManager},
+};
 use cliclack::{log, spinner};
+
+/// The prompt to ask the user if they want to use the wallet for signing.
+pub const USE_WALLET_PROMPT: &str = "Do you want to use your browser wallet to sign the transaction? (Selecting 'No' will prompt you to manually enter the secret key URI for signing, e.g., '//Alice')";
 
 /// Launches the wallet integration for in-browser signing. Blocks until the signature is received.
 ///
@@ -19,7 +25,7 @@ pub async fn request_signature(call_data: Vec<u8>, url: String) -> anyhow::Resul
 	log::step(format!("Wallet signing portal started at http://{}", wallet.rpc_url))?;
 
 	let spinner = spinner();
-	spinner.start("Waiting for signature... Press Ctrl+C to terminate early.")?;
+	spinner.start("Waiting for signature... Press Ctrl+C to terminate early.");
 	loop {
 		// Display error, if any.
 		if let Some(error) = wallet.take_error().await {
@@ -37,4 +43,19 @@ pub async fn request_signature(call_data: Vec<u8>, url: String) -> anyhow::Resul
 
 	let signed_payload = wallet.state.lock().await.signed_payload.clone();
 	Ok(signed_payload)
+}
+
+/// Prompts the user to use the wallet for signing.
+/// # Arguments
+/// * `cli` - The CLI instance.
+/// # Returns
+/// * `true` if the user wants to use the wallet, `false` otherwise.
+pub fn prompt_to_use_wallet(cli: &mut impl Cli) -> anyhow::Result<bool> {
+	use crate::cli::traits::Confirm;
+
+	if cli.confirm(USE_WALLET_PROMPT).initial_value(true).interact()? {
+		Ok(true)
+	} else {
+		Ok(false)
+	}
 }

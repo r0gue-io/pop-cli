@@ -4,7 +4,10 @@ use std::path::Path;
 
 use crate::{
 	cli::{self, traits::*},
-	common::wallet::request_signature,
+	common::{
+		wallet,
+		wallet::{prompt_to_use_wallet, request_signature},
+	},
 };
 use anyhow::{anyhow, Result};
 use clap::Args;
@@ -210,26 +213,8 @@ impl CallChainCommand {
 			// sudo.
 			self.configure_sudo(chain, cli)?;
 
-			// Resolve who is signing the extrinsic. If a `suri` was provided via the command line,
-			// skip the prompt.
-			let suri = match self.suri.as_ref() {
-				Some(suri) => suri.clone(),
-				None => {
-					if !self.use_wallet {
-						if cli.confirm("Do you want to use your browser wallet to sign the transaction? (Selecting 'No' will prompt you to manually enter the secret key URI for signing, e.g., '//Alice')")
-						.initial_value(true)
-						.interact()? {
-							self.use_wallet = true;
-							DEFAULT_URI.to_string() // Default value because the user is using the browser wallet.
-						}
-						else {
-							cli.input("Signer of the extrinsic:").default_input(DEFAULT_URI).interact()?
-						}
-					} else {
-						DEFAULT_URI.to_string() // Default value because the user is using the browser wallet.
-					}
-				},
-			};
+			let (use_wallet, suri) = self.determine_signing_method(cli)?;
+			self.use_wallet = use_wallet;
 
 			return Ok(Call {
 				function: function.clone(),
@@ -250,26 +235,8 @@ impl CallChainCommand {
 		call_data: &str,
 		cli: &mut impl Cli,
 	) -> Result<()> {
-		// Resolve who is signing the extrinsic. If a `suri` was provided via the command line,
-		// skip the prompt.
-		let mut use_wallet = self.use_wallet;
-		let suri = match self.suri.as_ref() {
-			Some(suri) => suri.clone(),
-			None =>
-				if !self.use_wallet {
-					if cli.confirm("Do you want to use your browser wallet to sign the transaction? (Selecting 'No' will prompt you to manually enter the secret key URI for signing, e.g., '//Alice')")
-						.initial_value(true)
-						.interact()? {
-							use_wallet = true;
-							DEFAULT_URI.to_string()
-						}
-						else {
-							cli.input("Signer of the extrinsic:").default_input(DEFAULT_URI).interact()?
-						}
-				} else {
-					DEFAULT_URI.to_string()
-				},
-		};
+		let (use_wallet, suri) = self.determine_signing_method(cli)?;
+
 		// Perform signing steps with wallet integration and return early.
 		if use_wallet {
 			let call_data_bytes =
@@ -304,6 +271,29 @@ impl CallChainCommand {
 		spinner.stop(result);
 		display_message("Call complete.", true, cli)?;
 		Ok(())
+	}
+
+	// Resolve who is signing the extrinsic. If a `suri` was provided via the command line,
+	// skip the prompt.
+	fn determine_signing_method(&self, cli: &mut impl Cli) -> Result<(bool, String)> {
+		let mut use_wallet = self.use_wallet;
+		let suri = match self.suri.as_ref() {
+			Some(suri) => suri.clone(),
+			None =>
+				if !self.use_wallet {
+					if prompt_to_use_wallet(cli)? {
+						use_wallet = true;
+						DEFAULT_URI.to_string()
+					} else {
+						cli.input("Signer of the extrinsic:")
+							.default_input(DEFAULT_URI)
+							.interact()?
+					}
+				} else {
+					DEFAULT_URI.to_string()
+				},
+		};
+		Ok((use_wallet, suri))
 	}
 
 	// Checks if the chain has the Sudo pallet and prompts the user to confirm if they want to
@@ -676,7 +666,7 @@ fn parse_function_name(name: &str) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::cli::MockCli;
+	use crate::{cli::MockCli, common::wallet::USE_WALLET_PROMPT};
 	use tempfile::tempdir;
 	use url::Url;
 
@@ -729,7 +719,7 @@ mod tests {
 		)
 		.expect_input("The value for `remark` might be too large to enter. You may enter the path to a file instead.", "0x11".into())
 		.expect_confirm("Would you like to dispatch this function call with `Root` origin?", true)
-		.expect_confirm("Do you want to use your browser wallet to sign the transaction? (Selecting 'No' will prompt you to manually enter the secret key URI for signing, e.g., '//Alice')", true);
+		.expect_confirm(USE_WALLET_PROMPT, true);
 
 		let chain = call_config.configure_chain(&mut cli).await?;
 		assert_eq!(chain.url, Url::parse(POP_NETWORK_TESTNET_URL)?);
@@ -872,7 +862,7 @@ mod tests {
 			sudo: false,
 		};
 		let mut cli = MockCli::new()
-			.expect_confirm("Do you want to use your browser wallet to sign the transaction? (Selecting 'No' will prompt you to manually enter the secret key URI for signing, e.g., '//Alice')", false)
+			.expect_confirm(USE_WALLET_PROMPT, false)
 			.expect_input("Signer of the extrinsic:", "//Bob".into())
 			.expect_confirm("Do you want to submit the extrinsic?", false)
 			.expect_outro_cancel("Extrinsic with call data 0x00000411 was not submitted.");
