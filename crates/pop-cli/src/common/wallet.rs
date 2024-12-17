@@ -20,9 +20,9 @@ pub async fn request_signature(call_data: Vec<u8>, url: String) -> anyhow::Resul
 	let ui = FrontendFromString::new(include_str!("../assets/index.html").to_string());
 
 	let transaction_data = TransactionData::new(url, call_data);
-	// starts server
-	let mut wallet = WalletIntegrationManager::new(ui, transaction_data);
-	log::step(format!("Wallet signing portal started at http://{}", wallet.rpc_url))?;
+	// Starts server with random port.
+	let mut wallet = WalletIntegrationManager::new(ui, transaction_data, None);
+	log::step(format!("Wallet signing portal started at http://{}", wallet.server_url))?;
 
 	let spinner = spinner();
 	spinner.start("Waiting for signature... Press Ctrl+C to terminate early.");
