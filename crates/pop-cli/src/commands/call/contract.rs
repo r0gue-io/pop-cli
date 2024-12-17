@@ -24,16 +24,16 @@ pub struct CallContractCommand {
 	#[arg(short, long)]
 	path: Option<PathBuf>,
 	/// The address of the contract to call.
-	#[arg(name = "contract", short, long, env = "CONTRACT")]
+	#[arg(short, long, env = "CONTRACT")]
 	contract: Option<String>,
 	/// The name of the contract message to call.
-	#[arg(long, short)]
+	#[arg(short, long)]
 	message: Option<String>,
 	/// The message arguments, encoded as strings.
 	#[arg(short, long, num_args = 0..,)]
 	args: Vec<String>,
 	/// The value to be transferred as part of the call.
-	#[arg(name = "value", short, long, default_value = DEFAULT_PAYABLE_VALUE)]
+	#[arg(short, long, default_value = DEFAULT_PAYABLE_VALUE)]
 	value: String,
 	/// Maximum amount of gas to be used for this command.
 	/// If not specified it will perform a dry-run to estimate the gas consumed for the
@@ -45,24 +45,24 @@ pub struct CallContractCommand {
 	#[arg(short = 'P', long)]
 	proof_size: Option<u64>,
 	/// Websocket endpoint of a node.
-	#[arg(name = "url", short, long, value_parser, default_value = DEFAULT_URL)]
+	#[arg(short, long, value_parser, default_value = DEFAULT_URL)]
 	url: url::Url,
 	/// Secret key URI for the account calling the contract.
 	///
 	/// e.g.
 	/// - for a dev account "//Alice"
 	/// - with a password "//Alice///SECRET_PASSWORD"
-	#[arg(name = "suri", long, short, default_value = DEFAULT_URI)]
+	#[arg(short, long, default_value = DEFAULT_URI)]
 	suri: String,
 	/// Submit an extrinsic for on-chain execution.
-	#[arg(short('x'), long)]
+	#[arg(short = 'x', long)]
 	execute: bool,
 	/// Perform a dry-run via RPC to estimate the gas usage. This does not submit a transaction.
 	#[arg(short = 'D', long, conflicts_with = "execute")]
 	dry_run: bool,
 	/// Enables developer mode, bypassing certain user prompts for faster testing.
 	/// Recommended for testing and local development only.
-	#[arg(name = "dev", long, short, default_value = "false")]
+	#[arg(name = "dev", short, long, default_value = "false")]
 	dev_mode: bool,
 }
 impl CallContractCommand {
