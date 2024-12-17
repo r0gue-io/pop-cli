@@ -19,7 +19,7 @@ use std::{
 	process::{Child, Command, Stdio},
 	time::Duration,
 };
-use subxt::{dynamic::Value, ext::scale_value::Composite, SubstrateConfig};
+use subxt::{dynamic::Value, SubstrateConfig};
 use tokio::time::sleep;
 
 const BIN_NAME: &str = "substrate-contracts-node";

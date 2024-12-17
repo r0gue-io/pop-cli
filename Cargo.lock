@@ -2003,8 +2003,9 @@ checksum = "cd7e35aee659887cbfb97aaf227ac12cad1a9d7c71e55ff3376839ed4e282d08"
 
 [[package]]
 name = "contract-build"
-version = "5.0.1"
-source = "git+https://github.com/use-ink/cargo-contract?branch=peter%2Fchore-make-types-pub#7c8fc481912d7a6f416a0f72e37840123064f90d"
+version = "5.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b014fa89030235ecd8bdeb061ec97df326281b484f89ad3e17a79f08759c2f52"
 dependencies = [
  "anyhow",
  "blake2",
@@ -2043,8 +2044,9 @@ dependencies = [
 
 [[package]]
 name = "contract-extrinsics"
-version = "5.0.1"
-source = "git+https://github.com/use-ink/cargo-contract?branch=peter%2Fchore-make-types-pub#7c8fc481912d7a6f416a0f72e37840123064f90d"
+version = "5.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "67d0c91349c31caec4d5e3c544b4bc4fcc7c0468dc49ee84a96a24f915464401"
 dependencies = [
  "anyhow",
  "blake2",
@@ -2075,8 +2077,9 @@ dependencies = [
 
 [[package]]
 name = "contract-metadata"
-version = "5.0.1"
-source = "git+https://github.com/use-ink/cargo-contract?branch=peter%2Fchore-make-types-pub#7c8fc481912d7a6f416a0f72e37840123064f90d"
+version = "5.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "83ae8bcb5f7c5ea033d05fa0bbffa4e762a5b69c0ce96e4188fb15385a01998b"
 dependencies = [
  "anyhow",
  "impl-serde 0.5.0",
@@ -2088,8 +2091,9 @@ dependencies = [
 
 [[package]]
 name = "contract-transcode"
-version = "5.0.1"
-source = "git+https://github.com/use-ink/cargo-contract?branch=peter%2Fchore-make-types-pub#7c8fc481912d7a6f416a0f72e37840123064f90d"
+version = "5.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "baca96dc859fd180eba5f15e468f59dc8c932a6b72f6b76f91b571b6743a9e7d"
 dependencies = [
  "anyhow",
  "base58",
