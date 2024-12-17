@@ -19,6 +19,7 @@ use std::{
 	process::{Child, Command, Stdio},
 	time::Duration,
 };
+use subxt::{dynamic::Value, ext::scale_value::Composite, SubstrateConfig};
 use tokio::time::sleep;
 
 const BIN_NAME: &str = "substrate-contracts-node";
@@ -133,6 +134,22 @@ pub async fn run_contracts_node(
 
 	// Wait 5 secs until the node is ready
 	sleep(Duration::from_millis(5000)).await;
+
+	let data = Value::from_bytes(subxt::utils::to_hex("initialize contracts node"));
+	let payload = subxt::dynamic::tx("System", "remark", [data].to_vec());
+
+	let client = subxt::client::OnlineClient::<SubstrateConfig>::from_url(format!(
+		"ws://127.0.0.1:{}",
+		port
+	))
+	.await
+	.map_err(|e| Error::AnyhowError(e.into()))?;
+	client
+		.tx()
+		.sign_and_submit_default(&payload, &subxt_signer::sr25519::dev::alice())
+		.await
+		.map_err(|e| Error::AnyhowError(e.into()))?;
+
 	Ok(process)
 }
 
