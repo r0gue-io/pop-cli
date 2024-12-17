@@ -7,7 +7,7 @@ use crate::{
 use cliclack::{log, spinner};
 
 /// The prompt to ask the user if they want to use the wallet for signing.
-pub const USE_WALLET_PROMPT: &str = "Do you want to use your browser wallet to sign the transaction? (Selecting 'No' will prompt you to manually enter the secret key URI for signing, e.g., '//Alice')";
+pub const USE_WALLET_PROMPT: &str = "Do you want to use your browser wallet to sign the extrinsic? (Selecting 'No' will prompt you to manually enter the secret key URI for signing, e.g., '//Alice')";
 
 /// Launches the wallet integration for in-browser signing. Blocks until the signature is received.
 ///
