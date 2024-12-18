@@ -24,7 +24,7 @@ pub(super) enum RelayChain {
 		Repository = "https://github.com/r0gue-io/polkadot",
 		Binary = "polkadot",
 		TagFormat = "polkadot-{tag}",
-		Fallback = "v1.12.0"
+		Fallback = "stable2409"
 	))]
 	Polkadot,
 }
