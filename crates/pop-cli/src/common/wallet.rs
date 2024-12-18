@@ -22,7 +22,7 @@ pub async fn request_signature(call_data: Vec<u8>, rpc: String) -> anyhow::Resul
 	let transaction_data = TransactionData::new(rpc, call_data);
 	// Starts server with port 9090.
 	let mut wallet = WalletIntegrationManager::new(ui, transaction_data, Some(9090));
-	let url = wallet.server_url.clone();
+	let url = &wallet.server_url;
 	log::step(format!("Wallet signing portal started at http://{url}."))?;
 
 	let spinner = spinner();
@@ -48,7 +48,7 @@ pub async fn request_signature(call_data: Vec<u8>, rpc: String) -> anyhow::Resul
 	}
 	spinner.stop("");
 
-	let signed_payload = wallet.state.lock().await.signed_payload.clone();
+	let signed_payload = wallet.state.lock().await.signed_payload.take();
 	Ok(signed_payload)
 }
 
