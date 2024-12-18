@@ -71,8 +71,8 @@ fn generate_storage_keys(para_ids: &[u32]) -> Vec<Vec<u8>> {
 pub enum RelayChain {
 	/// Paseo.
 	PaseoLocal,
-	/// Rococo.
-	RococoLocal,
+	/// Westend.
+	WestendLocal,
 }
 
 impl RelayChain {
@@ -83,7 +83,7 @@ impl RelayChain {
 	pub fn from(id: &str) -> Option<RelayChain> {
 		match id {
 			"paseo-local" => Some(RelayChain::PaseoLocal),
-			"rococo-local" => Some(RelayChain::RococoLocal),
+			"westend-local" => Some(RelayChain::WestendLocal),
 			_ => None,
 		}
 	}
@@ -137,7 +137,7 @@ mod tests {
 		for (s, e) in [
 			// Only chains with sudo supported
 			("paseo-local", Some(PaseoLocal)),
-			("rococo-local", Some(RococoLocal)),
+			("westend-local", Some(WestendLocal)),
 			("kusama-local", None),
 			("polkadot-local", None),
 		] {
