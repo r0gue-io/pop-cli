@@ -36,10 +36,6 @@ impl TransactionData {
 	pub fn new(chain_rpc: String, call_data: Vec<u8>) -> Self {
 		Self { chain_rpc, call_data }
 	}
-	#[allow(dead_code)]
-	pub fn call_data(&self) -> Vec<u8> {
-		self.call_data.clone()
-	}
 }
 
 /// Shared state between routes. Serves two purposes:
