@@ -132,8 +132,8 @@ pub async fn run_contracts_node(
 
 	let process = command.spawn()?;
 
-	// Wait 5 secs until the node is ready
-	sleep(Duration::from_millis(5000)).await;
+	// Wait 20 secs until the node is ready
+	sleep(Duration::from_millis(20000)).await;
 
 	let data = Value::from_bytes(subxt::utils::to_hex("initialize contracts node"));
 	let payload = subxt::dynamic::tx("System", "remark", [data].to_vec());

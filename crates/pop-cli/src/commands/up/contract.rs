@@ -483,18 +483,19 @@ mod tests {
 		let localhost_url = format!("ws://127.0.0.1:{}", port);
 		sleep(Duration::from_secs(5)).await;
 
-		get_upload_call_data_works(port, temp_dir).await?;
+		get_upload_call_data_works(port, temp_dir.path().join("testing")).await?;
+		get_instantiate_call_data_works(port, temp_dir.path().join("testing")).await?;
 
 		// Stop running contracts-node
 		stop_test_environment(&contracts_node_process.id().to_string())?;
 		Ok(())
 	}
 
-	async fn get_upload_call_data_works(port: u16, temp_dir: TempDir) -> anyhow::Result<()> {
+	async fn get_upload_call_data_works(port: u16, temp_dir: PathBuf) -> anyhow::Result<()> {
 		let localhost_url = format!("ws://127.0.0.1:{}", port);
 
 		let up_contract_opts = UpContractCommand {
-			path: Some(temp_dir.path().join("testing")),
+			path: Some(temp_dir),
 			constructor: "new".to_string(),
 			args: vec![],
 			value: "0".to_string(),
@@ -541,11 +542,11 @@ mod tests {
 		Ok(())
 	}
 
-	async fn get_instantiate_call_data_works(port: u16, temp_dir: TempDir) -> anyhow::Result<()> {
+	async fn get_instantiate_call_data_works(port: u16, temp_dir: PathBuf) -> anyhow::Result<()> {
 		let localhost_url = format!("ws://127.0.0.1:{}", port);
 
 		let up_contract_opts = UpContractCommand {
-			path: Some(temp_dir.path().join("testing")),
+			path: Some(temp_dir),
 			constructor: "new".to_string(),
 			args: vec!["false".to_string()],
 			value: "0".to_string(),
