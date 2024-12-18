@@ -98,7 +98,7 @@ impl WalletIntegrationManager {
 		let payload = Arc::new(payload);
 
 		let cors = tower_http::cors::CorsLayer::new()
-			.allow_origin(server_url.parse::<HeaderValue>().unwrap())
+			.allow_origin(server_url.parse::<HeaderValue>().expect("invalid server url"))
 			.allow_methods(Any) // Allow any HTTP method
 			.allow_headers(Any); // Allow any headers (like 'Content-Type')
 
