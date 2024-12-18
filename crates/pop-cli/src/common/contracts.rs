@@ -166,7 +166,7 @@ mod tests {
 			.expect_warning("⚠️ The substrate-contracts-node binary is not found.");
 
 		let node_path = check_contracts_node_and_prompt(&mut cli, cache_path.path(), false).await?;
-		// Binary path is at least equals to the cache path + "substrate-contracts-node".
+		// Binary path is at least equal to the cache path + "substrate-contracts-node".
 		assert!(node_path
 			.to_str()
 			.unwrap()
