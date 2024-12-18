@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🚀 Features
 
-- Wallet integration portal for secure signing (#371)
+- Wallet integration (#371)
 - Guide user to call a parachain (#316)
 - Guide user to call a contract (#306)
 - Call parachain events (#372)
