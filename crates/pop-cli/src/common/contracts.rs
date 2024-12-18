@@ -188,7 +188,7 @@ mod tests {
 			MockCli::new().expect_confirm("Would you like to terminate the local node?", true);
 		assert!(terminate_node(&mut cli, Some((process, log))).is_ok());
 		cli.verify()?;
-		assert_eq!(is_chain_alive(Url::parse(&format!("ws:localhost:{}", port))?).await?, false);
+		assert_eq!(is_chain_alive(Url::parse(&format!("ws://localhost:{}", port))?).await?, false);
 		Ok(())
 	}
 }
