@@ -284,7 +284,6 @@ pub async fn submit_signed_payload(
 /// blockchain.
 ///
 /// # Arguments
-///
 /// * `instantiate_exec` - the preprocessed data to instantiate a contract.
 pub async fn dry_run_gas_estimate_instantiate(
 	instantiate_exec: &InstantiateExec<DefaultConfig, DefaultEnvironment, Keypair>,
@@ -322,7 +321,6 @@ pub struct UploadDryRunResult {
 /// Performs a dry-run for uploading a contract without modifying the state of the blockchain.
 ///
 /// # Arguments
-///
 /// * `upload_exec` - the preprocessed data to upload a contract.
 pub async fn dry_run_upload(
 	upload_exec: &UploadExec<DefaultConfig, DefaultEnvironment, Keypair>,
@@ -354,7 +352,6 @@ pub struct ContractInfo {
 /// Instantiate a contract.
 ///
 /// # Arguments
-///
 /// * `instantiate_exec` - the preprocessed data to instantiate a contract.
 /// * `gas_limit` - maximum amount of gas to be used for this call.
 pub async fn instantiate_smart_contract(
@@ -374,7 +371,6 @@ pub async fn instantiate_smart_contract(
 /// Upload a contract.
 ///
 /// # Arguments
-///
 /// * `upload_exec` - the preprocessed data to upload a contract.
 pub async fn upload_smart_contract(
 	upload_exec: &UploadExec<DefaultConfig, DefaultEnvironment, Keypair>,
