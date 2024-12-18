@@ -495,7 +495,8 @@ impl CallContractCommand {
 		if let Some(payload) = maybe_payload {
 			cli.success("Signed payload received.")?;
 			let spinner = spinner();
-			spinner.start("Calling the contract...");
+			spinner
+				.start("Calling the contract and waiting for finalization, please be patient...");
 
 			let call_result =
 				call_smart_contract_from_signed_payload(call_exec, payload, &self.url)

@@ -191,7 +191,9 @@ impl UpContractCommand {
 			if let Some(payload) = maybe_payload {
 				log::success("Signed payload received.")?;
 				let spinner = spinner();
-				spinner.start("Uploading contract...");
+				spinner.start(
+					"Uploading the contract and waiting for finalization, please be patient...",
+				);
 
 				if self.upload_only {
 					let upload_result = match upload_contract_signed(self.url.as_str(), payload)
