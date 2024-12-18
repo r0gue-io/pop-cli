@@ -139,15 +139,16 @@ impl UpContractCommand {
 			let log = NamedTempFile::new()?;
 
 			// uses the cache location
-			let binary_path = match check_contracts_node_and_prompt(self.skip_confirm).await {
-				Ok(binary_path) => binary_path,
-				Err(_) => {
-					Cli.outro_cancel(
-						"🚫 You need to specify an accessible endpoint to deploy the contract.",
-					)?;
-					return Ok(());
-				},
-			};
+			let binary_path =
+				match check_contracts_node_and_prompt(&mut Cli, self.skip_confirm).await {
+					Ok(binary_path) => binary_path,
+					Err(_) => {
+						Cli.outro_cancel(
+							"🚫 You need to specify an accessible endpoint to deploy the contract.",
+						)?;
+						return Ok(());
+					},
+				};
 
 			let spinner = spinner();
 			spinner.start("Starting local node...");
@@ -181,7 +182,7 @@ impl UpContractCommand {
 				Ok(data) => data,
 				Err(e) => {
 					error(format!("An error occurred getting the call data: {e}"))?;
-					terminate_node(process)?;
+					terminate_node(&mut Cli, process)?;
 					Cli.outro_cancel(FAILED)?;
 					return Ok(());
 				},
@@ -200,7 +201,7 @@ impl UpContractCommand {
 						Err(e) => {
 							spinner
 								.error(format!("An error occurred uploading your contract: {e}"));
-							terminate_node(process)?;
+							terminate_node(&mut Cli, process)?;
 							Cli.outro_cancel(FAILED)?;
 							return Ok(());
 						},
@@ -223,7 +224,7 @@ impl UpContractCommand {
 								spinner.error(format!(
 									"An error occurred uploading your contract: {e}"
 								));
-								terminate_node(process)?;
+								terminate_node(&mut Cli, process)?;
 								Cli.outro_cancel(FAILED)?;
 								return Ok(());
 							},
@@ -243,11 +244,11 @@ impl UpContractCommand {
 				}
 			} else {
 				Cli.outro_cancel("Signed payload doesn't exist.")?;
-				terminate_node(process)?;
+				terminate_node(&mut Cli, process)?;
 				return Ok(());
 			}
 
-			terminate_node(process)?;
+			terminate_node(&mut Cli, process)?;
 			Cli.outro(COMPLETE)?;
 			return Ok(());
 		}
@@ -255,7 +256,7 @@ impl UpContractCommand {
 		// Check for upload only.
 		if self.upload_only {
 			let result = self.upload_contract().await;
-			terminate_node(process)?;
+			terminate_node(&mut Cli, process)?;
 			match result {
 				Ok(_) => {
 					Cli.outro(COMPLETE)?;
@@ -272,7 +273,7 @@ impl UpContractCommand {
 			Ok(i) => i,
 			Err(e) => {
 				error(format!("An error occurred instantiating the contract: {e}"))?;
-				terminate_node(process)?;
+				terminate_node(&mut Cli, process)?;
 				Cli.outro_cancel(FAILED)?;
 				return Ok(());
 			},
@@ -290,7 +291,7 @@ impl UpContractCommand {
 				},
 				Err(e) => {
 					spinner.error(format!("{e}"));
-					terminate_node(process)?;
+					terminate_node(&mut Cli, process)?;
 					Cli.outro_cancel(FAILED)?;
 					return Ok(());
 				},
@@ -308,7 +309,7 @@ impl UpContractCommand {
 				contract_info.code_hash,
 			);
 
-			terminate_node(process)?;
+			terminate_node(&mut Cli, process)?;
 			Cli.outro(COMPLETE)?;
 		}
 
