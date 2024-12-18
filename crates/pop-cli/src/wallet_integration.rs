@@ -15,6 +15,7 @@ use tower_http::{cors::Any, services::ServeDir};
 
 /// Make frontend sourcing more flexible by allowing a custom route to be defined.
 pub trait Frontend {
+	/// Serves the content via a [Router].
 	fn serve_content(&self) -> Router;
 }
 
@@ -81,6 +82,13 @@ impl WalletIntegrationManager {
 	}
 
 	/// Same as `new`, but allows specifying the address to bind to.
+	/// # Arguments
+	/// * `frontend`: A frontend with custom route to serve content.
+	/// * `payload`: Payload to be sent to the frontend for signing.
+	/// * `server_url`: The address to bind to.
+	///
+	/// # Returns
+	/// A `WalletIntegrationManager` instance, with access to the state and task handle for the
 	pub fn new_with_address<F: Frontend>(
 		frontend: F,
 		payload: TransactionData,
@@ -236,6 +244,9 @@ pub struct FrontendFromDir {
 }
 #[allow(dead_code)]
 impl FrontendFromDir {
+	/// A new static server.
+	/// # Arguments
+	/// * `content`: A directory path.
 	pub fn new(content: PathBuf) -> Self {
 		Self { content }
 	}
@@ -254,6 +265,9 @@ pub struct FrontendFromString {
 
 #[allow(dead_code)]
 impl FrontendFromString {
+	/// A new static server.
+	/// # Arguments
+	/// * `content`: A hard-coded HTML string
 	pub fn new(content: String) -> Self {
 		Self { content }
 	}
