@@ -13,8 +13,7 @@ use tokio::{
 };
 use tower_http::{cors::Any, services::ServeDir};
 
-/// Make frontend sourcing more flexible by allowing a custom route
-/// to be defined.
+/// Make frontend sourcing more flexible by allowing a custom route to be defined.
 pub trait Frontend {
 	fn serve_content(&self) -> Router;
 }
