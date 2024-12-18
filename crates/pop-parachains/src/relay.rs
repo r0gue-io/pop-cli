@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{call, Error};
+use crate::{call, DynamicPayload, Error};
 use sp_core::twox_128;
 use subxt::{
 	config::BlockHash,
@@ -26,9 +26,27 @@ pub async fn clear_dmpq(
 	}
 
 	// Generate storage keys to be removed
+	let clear_dmq_keys = generate_storage_keys(para_ids);
+
+	// Submit calls to remove specified keys
+	let kill_storage = construct_kill_storage_call(clear_dmq_keys);
+	let sudo = subxt_signer::sr25519::dev::alice();
+	let sudo_call = call::construct_sudo_extrinsic(kill_storage);
+	Ok(client.tx().sign_and_submit_default(&sudo_call, &sudo).await?)
+}
+
+fn construct_kill_storage_call(keys: Vec<Vec<u8>>) -> DynamicPayload {
+	dynamic::tx(
+		"System",
+		"kill_storage",
+		vec![Value::unnamed_composite(keys.into_iter().map(Value::from_bytes))],
+	)
+}
+
+fn generate_storage_keys(para_ids: &[u32]) -> Vec<Vec<u8>> {
 	let dmp = twox_128("Dmp".as_bytes());
-	let dmp_queues = twox_128("DownwardMessageQueues".as_bytes());
 	let dmp_queue_heads = twox_128("DownwardMessageQueueHeads".as_bytes());
+	let dmp_queues = twox_128("DownwardMessageQueues".as_bytes());
 	let mut clear_dmq_keys = Vec::<Vec<u8>>::new();
 	for id in para_ids {
 		let id = id.to_le_bytes();
@@ -45,16 +63,7 @@ pub async fn clear_dmpq(
 		key.extend(id);
 		clear_dmq_keys.push(key);
 	}
-
-	// Submit calls to remove specified keys
-	let sudo = subxt_signer::sr25519::dev::alice();
-	let kill_storage = dynamic::tx(
-		"System",
-		"kill_storage",
-		vec![Value::unnamed_composite(clear_dmq_keys.into_iter().map(Value::from_bytes))],
-	);
-	let sudo_call = call::construct_sudo_extrinsic(kill_storage);
-	Ok(client.tx().sign_and_submit_default(&sudo_call, &sudo).await?)
+	clear_dmq_keys
 }
 
 /// A supported relay chain.
@@ -83,7 +92,45 @@ impl RelayChain {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use subxt::ext::sp_core::twox_64;
 	use RelayChain::*;
+
+	#[test]
+	fn construct_kill_storage_call_works() {
+		let keys = vec!["key".as_bytes().to_vec()];
+		assert_eq!(
+			construct_kill_storage_call(keys.clone()),
+			dynamic::tx(
+				"System",
+				"kill_storage",
+				vec![Value::unnamed_composite(keys.into_iter().map(Value::from_bytes))],
+			)
+		)
+	}
+
+	#[test]
+	fn generate_storage_keys_works() {
+		let para_ids = vec![1_000, 4_385];
+		let dmp = twox_128("Dmp".as_bytes());
+		let dmp_queue_heads = [dmp, twox_128("DownwardMessageQueueHeads".as_bytes())].concat();
+		let dmp_queues = [dmp, twox_128("DownwardMessageQueues".as_bytes())].concat();
+
+		assert_eq!(
+			generate_storage_keys(&para_ids),
+			para_ids
+				.iter()
+				.flat_map(|id| {
+					let id = id.to_le_bytes().to_vec();
+					[
+						// DMP Queue Head
+						[dmp_queue_heads.clone(), twox_64(&id).to_vec(), id.clone()].concat(),
+						// DMP Queue
+						[dmp_queues.clone(), twox_64(&id).to_vec(), id].concat(),
+					]
+				})
+				.collect::<Vec<_>>()
+		)
+	}
 
 	#[test]
 	fn supported_relay_chains() {
