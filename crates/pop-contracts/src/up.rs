@@ -140,7 +140,7 @@ pub async fn get_upload_payload(code: WasmCode, url: &str) -> anyhow::Result<Vec
 /// # Arguments
 /// * `instantiate_exec` - arguments for contract instantiate.
 /// * `gas_limit` - max amount of gas to be used for instantiation.
-pub async fn get_instantiate_payload(
+pub fn get_instantiate_payload(
 	instantiate_exec: InstantiateExec<DefaultConfig, DefaultEnvironment, Keypair>,
 	gas_limit: Weight,
 ) -> anyhow::Result<Vec<u8>> {
@@ -176,9 +176,7 @@ pub async fn get_instantiate_payload(
 ///
 /// # Arguments
 /// * `path` - path to the contract file.
-pub async fn get_contract_code(
-	path: Option<&PathBuf>,
-) -> anyhow::Result<contract_extrinsics::WasmCode> {
+pub fn get_contract_code(path: Option<&PathBuf>) -> anyhow::Result<contract_extrinsics::WasmCode> {
 	let manifest_path = get_manifest_path(path.map(|p| p as &Path))?;
 
 	// signer does not matter for this
@@ -495,7 +493,7 @@ mod tests {
 			url: Url::parse(CONTRACTS_NETWORK_URL)?,
 			suri: "//Alice".to_string(),
 		};
-		let contract_code = get_contract_code(up_opts.path.as_ref()).await?;
+		let contract_code = get_contract_code(up_opts.path.as_ref())?;
 		let call_data = get_upload_payload(contract_code, CONTRACTS_NETWORK_URL).await?;
 		let payload_hash = BlakeTwo256::hash(&call_data);
 		// We know that for the above opts the payload hash should be:

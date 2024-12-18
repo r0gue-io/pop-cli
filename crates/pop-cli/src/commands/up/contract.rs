@@ -344,7 +344,7 @@ impl UpContractCommand {
 
 	// get the call data and contract code hash
 	async fn get_contract_data(&self) -> anyhow::Result<(Vec<u8>, [u8; 32])> {
-		let contract_code = get_contract_code(self.path.as_ref()).await?;
+		let contract_code = get_contract_code(self.path.as_ref())?;
 		let hash = contract_code.code_hash();
 		if self.upload_only {
 			let call_data = get_upload_payload(contract_code, self.url.as_str()).await?;
@@ -358,7 +358,7 @@ impl UpContractCommand {
 				// Frontend will do dry run and update call data.
 				Weight::zero()
 			};
-			let call_data = get_instantiate_payload(instantiate_exec, weight_limit).await?;
+			let call_data = get_instantiate_payload(instantiate_exec, weight_limit)?;
 			Ok((call_data, hash))
 		}
 	}
@@ -524,7 +524,7 @@ mod tests {
 		assert!(!retrieved_call_data.is_empty());
 
 		// Craft encoded call data for an upload code call.
-		let contract_code = get_contract_code(up_contract_opts.path.as_ref()).await?;
+		let contract_code = get_contract_code(up_contract_opts.path.as_ref())?;
 		let storage_deposit_limit: Option<u128> = None;
 		let upload_code = contract_extrinsics::extrinsic_calls::UploadCode::new(
 			contract_code,
@@ -574,8 +574,7 @@ mod tests {
 		// Craft instantiate call data.
 		let weight = Weight::from_parts(200_000_000, 30_000);
 		let expected_call_data =
-			get_instantiate_payload(set_up_deployment(up_contract_opts.into()).await?, weight)
-				.await?;
+			get_instantiate_payload(set_up_deployment(up_contract_opts.into()).await?, weight)?;
 		// Retrieved call data matches the one crafted above.
 		assert_eq!(retrieved_call_data, expected_call_data);
 
