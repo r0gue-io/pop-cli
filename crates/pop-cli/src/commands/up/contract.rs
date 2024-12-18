@@ -194,14 +194,18 @@ impl UpContractCommand {
 				spinner.start("Uploading contract...");
 
 				if self.upload_only {
-					let result = upload_contract_signed(self.url.as_str(), payload).await;
-					if let Err(e) = result {
-						spinner.error(format!("An error occurred uploading your contract: {e}"));
-						terminate_node(process)?;
-						Cli.outro_cancel(FAILED)?;
-						return Ok(());
-					}
-					let upload_result = result.expect("Error check above.");
+					let upload_result = match upload_contract_signed(self.url.as_str(), payload)
+						.await
+					{
+						Err(e) => {
+							spinner
+								.error(format!("An error occurred uploading your contract: {e}"));
+							terminate_node(process)?;
+							Cli.outro_cancel(FAILED)?;
+							return Ok(());
+						},
+						Ok(result) => result,
+					};
 
 					match get_code_hash_from_event(&upload_result, hash) {
 						Ok(r) => {
@@ -213,15 +217,19 @@ impl UpContractCommand {
 						},
 					};
 				} else {
-					let result = instantiate_contract_signed(self.url.as_str(), payload).await;
-					if let Err(e) = result {
-						spinner.error(format!("An error occurred uploading your contract: {e}"));
-						terminate_node(process)?;
-						Cli.outro_cancel(FAILED)?;
-						return Ok(());
-					}
+					let contract_info =
+						match instantiate_contract_signed(self.url.as_str(), payload).await {
+							Err(e) => {
+								spinner.error(format!(
+									"An error occurred uploading your contract: {e}"
+								));
+								terminate_node(process)?;
+								Cli.outro_cancel(FAILED)?;
+								return Ok(());
+							},
+							Ok(result) => result,
+						};
 
-					let contract_info = result.unwrap();
 					let hash = contract_info.code_hash.map(|code_hash| format!("{:?}", code_hash));
 					display_contract_info(
 						&spinner,
