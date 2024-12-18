@@ -9,9 +9,11 @@ use crate::{
 };
 use contract_extrinsics::{
 	events::{CodeStored, ContractInstantiated},
-	extrinsic_calls::{Instantiate, InstantiateWithCode},
-	BalanceVariant, ErrorVariant, ExtrinsicOptsBuilder, InstantiateCommandBuilder, InstantiateExec,
-	InstantiateExecResult, TokenMetadata, UploadCommandBuilder, UploadExec, UploadResult, WasmCode,
+	extrinsic_calls::{Instantiate, InstantiateWithCode, UploadCode},
+	upload::Determinism,
+	BalanceVariant, Code, ErrorVariant, ExtrinsicOptsBuilder, InstantiateCommandBuilder,
+	InstantiateExec, InstantiateExecResult, TokenMetadata, UploadCommandBuilder, UploadExec,
+	UploadResult, WasmCode,
 };
 use ink_env::{DefaultEnvironment, Environment};
 use pop_common::{create_signer, DefaultConfig, Keypair};
@@ -121,11 +123,7 @@ pub async fn set_up_upload(
 /// * `url` - the rpc of the chain node.
 pub async fn get_upload_payload(code: WasmCode, url: &str) -> anyhow::Result<Vec<u8>> {
 	let storage_deposit_limit: Option<u128> = None;
-	let upload_code = contract_extrinsics::extrinsic_calls::UploadCode::new(
-		code,
-		storage_deposit_limit,
-		contract_extrinsics::upload::Determinism::Enforced,
-	);
+	let upload_code = UploadCode::new(code, storage_deposit_limit, Determinism::Enforced);
 
 	let rpc_client = subxt::backend::rpc::RpcClient::from_url(url).await?;
 	let client = subxt::OnlineClient::<SubstrateConfig>::from_rpc_client(rpc_client).await?;
@@ -147,7 +145,7 @@ pub fn get_instantiate_payload(
 	let storage_deposit_limit: Option<u128> = None;
 	let mut encoded_data = Vec::<u8>::new();
 	match instantiate_exec.args().code() {
-		contract_extrinsics::Code::Upload(code) => InstantiateWithCode::new(
+		Code::Upload(code) => InstantiateWithCode::new(
 			instantiate_exec.args().value(),
 			gas_limit,
 			storage_deposit_limit,
@@ -157,7 +155,7 @@ pub fn get_instantiate_payload(
 		)
 		.build()
 		.encode_call_data_to(&instantiate_exec.client().metadata(), &mut encoded_data),
-		contract_extrinsics::Code::Existing(hash) => Instantiate::new(
+		Code::Existing(hash) => Instantiate::new(
 			instantiate_exec.args().value(),
 			gas_limit,
 			storage_deposit_limit,
@@ -176,7 +174,7 @@ pub fn get_instantiate_payload(
 ///
 /// # Arguments
 /// * `path` - path to the contract file.
-pub fn get_contract_code(path: Option<&PathBuf>) -> anyhow::Result<contract_extrinsics::WasmCode> {
+pub fn get_contract_code(path: Option<&PathBuf>) -> anyhow::Result<WasmCode> {
 	let manifest_path = get_manifest_path(path.map(|p| p as &Path))?;
 
 	// signer does not matter for this
