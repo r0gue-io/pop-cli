@@ -86,7 +86,9 @@ impl Zombienet {
 			cache,
 		)
 		.await?;
-		Ok(Self { network_config, relay_chain, parachains, hrmp_channels: false })
+		let hrmp_channels =
+			network_config.hrmp_channels().map(|c| !c.is_empty()).unwrap_or_default();
+		Ok(Self { network_config, relay_chain, parachains, hrmp_channels })
 	}
 
 	/// The binaries required to launch the network.
@@ -316,7 +318,6 @@ impl Zombienet {
 		let config = self.network_config.configure(&self.relay_chain, &self.parachains)?;
 		let path = config.path().to_str().expect("temp config file should have a path");
 		let network_config = NetworkConfig::load_from_toml(path)?;
-		self.hrmp_channels = !network_config.hrmp_channels().is_empty();
 		Ok(network_config.spawn_native().await?)
 	}
 }
@@ -365,6 +366,11 @@ impl NetworkConfiguration {
 	/// Returns the `parachains` configuration.
 	fn parachains_mut(&mut self) -> Option<&mut ArrayOfTables> {
 		self.0.get_mut("parachains").and_then(|p| p.as_array_of_tables_mut())
+	}
+
+	/// Returns the `hrmp_channels` configuration.
+	fn hrmp_channels(&self) -> Option<&ArrayOfTables> {
+		self.0.get("hrmp_channels").and_then(|p| p.as_array_of_tables())
 	}
 
 	/// Returns the `command` configuration.
@@ -719,6 +725,8 @@ chain = "paseo-local"
 				if *tag == Some(version.to_string())
 			));
 			assert!(zombienet.parachains.is_empty());
+			assert_eq!(zombienet.relay_chain(), "paseo-local");
+			assert!(!zombienet.hrmp_channels());
 			Ok(())
 		}
 
@@ -1196,6 +1204,48 @@ default_command = "moonbeam"
 				Binary::Source { source: Source::GitHub(SourceCodeArchive { reference, .. }), .. }
 				if *reference == Some(version.to_string())
 			));
+			Ok(())
+		}
+
+		#[tokio::test]
+		async fn new_with_hrmp_channels_works() -> Result<()> {
+			let temp_dir = tempdir()?;
+			let cache = PathBuf::from(temp_dir.path());
+			let config = Builder::new().suffix(".toml").tempfile()?;
+			writeln!(
+				config.as_file(),
+				r#"
+[relaychain]
+chain = "paseo-local"
+
+[[parachains]]
+id = 1000
+chain = "asset-hub-paseo-local"
+
+[[parachains]]
+id = 4385
+default_command = "pop-node"
+
+[[hrmp_channels]]
+sender = 4385
+recipient = 1000
+max_capacity = 1000
+max_message_size = 8000
+"#
+			)?;
+
+			let zombienet = Zombienet::new(
+				&cache,
+				config.path().to_str().unwrap(),
+				None,
+				None,
+				None,
+				None,
+				None,
+			)
+			.await?;
+
+			assert!(zombienet.hrmp_channels());
 			Ok(())
 		}
 
