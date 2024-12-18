@@ -7,9 +7,9 @@ All notable changes to this project will be documented in this file.
 ### 🚀 Features
 
 - Wallet integration (#371)
-- Guide user to call a parachain (#316)
+- Guide user to call a chain (#316)
 - Guide user to call a contract (#306)
-- Call parachain events (#372)
+- Call chain events (#372)
 - Add remark action (#387)
 
 ### 🐛 Fixes
