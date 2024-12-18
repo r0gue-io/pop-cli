@@ -164,5 +164,4 @@ mod tests {
 			.expect_warning("NOTE: The node is running in the background with process ID 0. Please terminate it manually when done.");
 		Ok(())
 	}
-
 }
