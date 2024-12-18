@@ -22,13 +22,12 @@ pub async fn request_signature(call_data: Vec<u8>, rpc: String) -> anyhow::Resul
 	let transaction_data = TransactionData::new(rpc, call_data);
 	// Starts server with port 9090.
 	let mut wallet = WalletIntegrationManager::new(ui, transaction_data, Some(9090));
-	let url = &wallet.server_url;
-	log::step(format!("Wallet signing portal started at http://{url}."))?;
+	let url = format!("http://{}", &wallet.server_url);
+	log::step(format!("Wallet signing portal started at {url}."))?;
 
 	let spinner = spinner();
-	spinner.start(format!("Opening browser to http://{url}"));
-	let res = open::that(format!("http://{url}"));
-	if let Err(e) = res {
+	spinner.start(format!("Opening browser to {url}"));
+	if let Err(e) = open::that(url) {
 		spinner.error(format!("Failed to launch browser. Please open link manually. {e}"));
 	}
 
