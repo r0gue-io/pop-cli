@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.0] - 2024-12-18
+
+### 🚀 Features
+
+- Wallet integration portal for secure signing (#371)
+- Guide user to call a parachain (#316)
+- Guide user to call a contract (#306)
+- Call parachain events (#372)
+- Add remark action (#387)
+
+### 🐛 Fixes
+
+- Build spec experience (#331)
+
+### 🚜 Refactor
+
+- Ensure short args consistency (#386)
+
+### ⚙️ Miscellaneous Tasks
+
+- Bump zombienet version to `v0.2.18` (#352)
+- Set msrv (#385)
+- Replace rococo to paseo name (#333)
+
 ## [0.5.0] - 2024-11-08
 
 ### 🚀 Features
