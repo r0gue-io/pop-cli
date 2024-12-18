@@ -313,7 +313,9 @@ pub async fn dry_run_gas_estimate_instantiate(
 
 /// Result of a dry-run upload of a smart contract.
 pub struct UploadDryRunResult {
+	/// The key under which the new code is stored.
 	pub code_hash: String,
+	/// The deposit that was reserved at the caller. Is zero when the code already existed.
 	pub deposit: String,
 }
 
