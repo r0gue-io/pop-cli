@@ -128,11 +128,7 @@ mod tests {
 	use duct::cmd;
 	use pop_common::find_free_port;
 	use pop_contracts::{is_chain_alive, run_contracts_node};
-	use std::{
-		fs::{self, File},
-		thread::sleep,
-		time::Duration,
-	};
+	use std::fs::{self, File};
 	use url::Url;
 
 	#[test]
@@ -158,7 +154,9 @@ mod tests {
 
 	#[tokio::test]
 	async fn check_contracts_node_and_prompt_works() -> anyhow::Result<()> {
-		let cache_path: PathBuf = crate::cache()?;
+		//let cache_path: PathBuf = crate::cache()?;
+
+		let cache_path = tempfile::tempdir().expect("Could create temp dir");
 		let mut cli = MockCli::new()
 			.expect_warning("⚠️ The substrate-contracts-node binary is not found.")
 			.expect_confirm("📦 Would you like to source it automatically now?", true)
@@ -169,9 +167,8 @@ mod tests {
 		assert!(node_path
 			.to_str()
 			.unwrap()
-			.starts_with(&cache_path.join("substrate-contracts-node").to_str().unwrap()));
-		cli.verify()?;
-		Ok(())
+			.starts_with(&cache_path.path().join("substrate-contracts-node").to_str().unwrap()));
+		cli.verify()
 	}
 
 	#[tokio::test]
@@ -187,8 +184,7 @@ mod tests {
 		let mut cli =
 			MockCli::new().expect_confirm("Would you like to terminate the local node?", true);
 		assert!(terminate_node(&mut cli, Some((process, log))).is_ok());
-		cli.verify()?;
 		assert_eq!(is_chain_alive(Url::parse(&format!("ws://localhost:{}", port))?).await?, false);
-		Ok(())
+		cli.verify()
 	}
 }
