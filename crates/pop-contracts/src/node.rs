@@ -166,18 +166,20 @@ fn release_directory_by_target(tag: Option<&str>) -> Result<&'static str, Error>
 	// The structure of the binary changed in v0.42.0
 	let is_old_structure = matches!(tag, Some(tag) if tag < "v0.42.0");
 	match OS {
-		"macos" =>
+		"macos" => {
 			if is_old_structure {
 				Ok("artifacts/substrate-contracts-node-mac/substrate-contracts-node")
 			} else {
 				Ok("substrate-contracts-node-mac/substrate-contracts-node")
-			},
-		"linux" =>
+			}
+		},
+		"linux" => {
 			if is_old_structure {
 				Ok("artifacts/substrate-contracts-node-linux/substrate-contracts-node")
 			} else {
 				Ok("substrate-contracts-node-linux/substrate-contracts-node")
-			},
+			}
+		},
 		_ => Err(Error::UnsupportedPlatform { arch: ARCH, os: OS }),
 	}
 }
