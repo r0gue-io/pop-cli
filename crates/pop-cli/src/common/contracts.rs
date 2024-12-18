@@ -14,6 +14,8 @@ use tempfile::NamedTempFile;
 /// prompts the user to update it if the existing binary is not the latest version.
 ///
 /// # Arguments
+/// * `cli`: Command line interface.
+/// * `cache_path`: The cache directory path.
 /// * `skip_confirm`: A boolean indicating whether to skip confirmation prompts.
 pub async fn check_contracts_node_and_prompt(
 	cli: &mut impl Cli,
@@ -78,6 +80,9 @@ pub async fn check_contracts_node_and_prompt(
 }
 
 /// Handles the optional termination of a local running node.
+/// # Arguments
+/// * `cli`: Command line interface.
+/// * `process`: Tuple identifying the child process to terminate and its log file.
 pub fn terminate_node(
 	cli: &mut impl Cli,
 	process: Option<(Child, NamedTempFile)>,
