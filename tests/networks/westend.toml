@@ -1,0 +1,12 @@
+# pop up parachain -f ./tests/networks/westend.toml
+
+[relaychain]
+chain = "westend-local"
+
+[[relaychain.nodes]]
+name = "alice"
+validator = true
+
+[[relaychain.nodes]]
+name = "bob"
+validator = true
