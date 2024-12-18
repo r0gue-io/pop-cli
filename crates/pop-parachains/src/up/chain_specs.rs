@@ -111,7 +111,7 @@ mod tests {
 	#[tokio::test]
 	async fn kusama_works() -> anyhow::Result<()> {
 		let expected = Runtime::Kusama;
-		let version = "v1.2.7";
+		let version = "v1.3.3";
 		let temp_dir = tempdir()?;
 		let binary = chain_spec_generator("kusama-local", Some(version), temp_dir.path())
 			.await?
@@ -135,7 +135,7 @@ mod tests {
 	#[tokio::test]
 	async fn paseo_works() -> anyhow::Result<()> {
 		let expected = Runtime::Paseo;
-		let version = "v1.2.4";
+		let version = "v1.3.4";
 		let temp_dir = tempdir()?;
 		let binary = chain_spec_generator("paseo-local", Some(version), temp_dir.path())
 			.await?
@@ -159,7 +159,7 @@ mod tests {
 	#[tokio::test]
 	async fn polkadot_works() -> anyhow::Result<()> {
 		let expected = Runtime::Polkadot;
-		let version = "v1.2.7";
+		let version = "v1.3.3";
 		let temp_dir = tempdir()?;
 		let binary = chain_spec_generator("polkadot-local", Some(version), temp_dir.path())
 			.await?
