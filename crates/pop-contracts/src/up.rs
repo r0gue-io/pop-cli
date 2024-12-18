@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
+
 use crate::{
 	errors::Error,
 	utils::{
@@ -133,6 +134,7 @@ pub async fn get_upload_payload(code: WasmCode, url: &str) -> anyhow::Result<Vec
 	call_data.encode_call_data_to(&client.metadata(), &mut encoded_data)?;
 	Ok(encoded_data)
 }
+
 /// Gets the encoded payload call data for a contract instantiation.
 ///
 /// # Arguments
@@ -144,24 +146,25 @@ pub fn get_instantiate_payload(
 ) -> anyhow::Result<Vec<u8>> {
 	let storage_deposit_limit: Option<u128> = None;
 	let mut encoded_data = Vec::<u8>::new();
-	match instantiate_exec.args().code() {
+	let args = instantiate_exec.args();
+	match args.code() {
 		Code::Upload(code) => InstantiateWithCode::new(
-			instantiate_exec.args().value(),
+			args.value(),
 			gas_limit,
 			storage_deposit_limit,
 			code.clone(),
-			instantiate_exec.args().data().into(),
-			instantiate_exec.args().salt().into(),
+			args.data().into(),
+			args.salt().into(),
 		)
 		.build()
 		.encode_call_data_to(&instantiate_exec.client().metadata(), &mut encoded_data),
 		Code::Existing(hash) => Instantiate::new(
-			instantiate_exec.args().value(),
+			args.value(),
 			gas_limit,
 			storage_deposit_limit,
 			hash,
-			instantiate_exec.args().data().into(),
-			instantiate_exec.args().salt().into(),
+			args.data().into(),
+			args.salt().into(),
 		)
 		.build()
 		.encode_call_data_to(&instantiate_exec.client().metadata(), &mut encoded_data),
