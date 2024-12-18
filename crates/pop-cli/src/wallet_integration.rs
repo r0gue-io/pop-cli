@@ -27,6 +27,12 @@ pub struct TransactionData {
 }
 
 impl TransactionData {
+	/// Create a new transaction payload.
+	/// # Arguments
+	/// * `chain_rpc`: The RPC of the chain.
+	/// * `call_data`: the call data.
+	/// # Returns
+	/// The transaction payload to be sent to frontend for signing.
 	pub fn new(chain_rpc: String, call_data: Vec<u8>) -> Self {
 		Self { chain_rpc, call_data }
 	}
