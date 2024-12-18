@@ -60,7 +60,13 @@ pub struct CallContractCommand {
 	#[arg(short, long, default_value = DEFAULT_URI)]
 	suri: String,
 	/// Use a browser extension wallet to sign the extrinsic.
-	#[arg(name = "use-wallet", long, short('w'), default_value = "false", conflicts_with = "suri")]
+	#[arg(
+		name = "use-wallet",
+		long,
+		short = 'w',
+		default_value = "false",
+		conflicts_with = "suri"
+	)]
 	use_wallet: bool,
 	/// Submit an extrinsic for on-chain execution.
 	#[arg(short = 'x', long)]
