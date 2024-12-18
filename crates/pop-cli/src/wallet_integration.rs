@@ -75,7 +75,7 @@ impl WalletIntegrationManager {
 		payload: TransactionData,
 		maybe_port: Option<u16>,
 	) -> Self {
-		let port = if let Some(port) = maybe_port { port } else { find_free_port(maybe_port) };
+		let port = find_free_port(maybe_port);
 		Self::new_with_address(frontend, payload, format!("127.0.0.1:{}", port))
 	}
 
