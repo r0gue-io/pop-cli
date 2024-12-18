@@ -13,9 +13,9 @@ use tokio::{
 };
 use tower_http::{cors::Any, services::ServeDir};
 
-/// Make frontend sourcing more flexible by allowing a custom route
-/// to be defined.
+/// Make frontend sourcing more flexible by allowing a custom route to be defined.
 pub trait Frontend {
+	/// Serves the content via a [Router].
 	fn serve_content(&self) -> Router;
 }
 
@@ -28,12 +28,14 @@ pub struct TransactionData {
 }
 
 impl TransactionData {
+	/// Create a new transaction payload.
+	/// # Arguments
+	/// * `chain_rpc`: The RPC of the chain.
+	/// * `call_data`: the call data.
+	/// # Returns
+	/// The transaction payload to be sent to frontend for signing.
 	pub fn new(chain_rpc: String, call_data: Vec<u8>) -> Self {
 		Self { chain_rpc, call_data }
-	}
-	#[allow(dead_code)]
-	pub fn call_data(&self) -> Vec<u8> {
-		self.call_data.clone()
 	}
 }
 
@@ -80,6 +82,13 @@ impl WalletIntegrationManager {
 	}
 
 	/// Same as `new`, but allows specifying the address to bind to.
+	/// # Arguments
+	/// * `frontend`: A frontend with custom route to serve content.
+	/// * `payload`: Payload to be sent to the frontend for signing.
+	/// * `server_url`: The address to bind to.
+	///
+	/// # Returns
+	/// A `WalletIntegrationManager` instance, with access to the state and task handle for the
 	pub fn new_with_address<F: Frontend>(
 		frontend: F,
 		payload: TransactionData,
@@ -97,7 +106,7 @@ impl WalletIntegrationManager {
 		let payload = Arc::new(payload);
 
 		let cors = tower_http::cors::CorsLayer::new()
-			.allow_origin(server_url.parse::<HeaderValue>().unwrap())
+			.allow_origin(server_url.parse::<HeaderValue>().expect("invalid server url"))
 			.allow_methods(Any) // Allow any HTTP method
 			.allow_headers(Any); // Allow any headers (like 'Content-Type')
 
@@ -235,6 +244,9 @@ pub struct FrontendFromDir {
 }
 #[allow(dead_code)]
 impl FrontendFromDir {
+	/// A new static server.
+	/// # Arguments
+	/// * `content`: A directory path.
 	pub fn new(content: PathBuf) -> Self {
 		Self { content }
 	}
@@ -253,6 +265,9 @@ pub struct FrontendFromString {
 
 #[allow(dead_code)]
 impl FrontendFromString {
+	/// A new static server.
+	/// # Arguments
+	/// * `content`: A hard-coded HTML string
 	pub fn new(content: String) -> Self {
 		Self { content }
 	}

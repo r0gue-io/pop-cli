@@ -23,6 +23,7 @@ use subxt::{dynamic::Value, SubstrateConfig};
 use tokio::time::sleep;
 
 const BIN_NAME: &str = "substrate-contracts-node";
+const STARTUP: Duration = Duration::from_millis(20_000);
 
 /// Checks if the specified node is alive and responsive.
 ///
@@ -132,8 +133,8 @@ pub async fn run_contracts_node(
 
 	let process = command.spawn()?;
 
-	// Wait 20 secs until the node is ready
-	sleep(Duration::from_millis(20000)).await;
+	// Wait until the node is ready
+	sleep(STARTUP).await;
 
 	let data = Value::from_bytes(subxt::utils::to_hex("initialize contracts node"));
 	let payload = subxt::dynamic::tx("System", "remark", [data].to_vec());

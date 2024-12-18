@@ -66,7 +66,7 @@ pub struct UpContractCommand {
 	/// - with a password "//Alice///SECRET_PASSWORD"
 	#[clap(short, long, default_value = "//Alice")]
 	suri: String,
-	/// Use your browser wallet to sign a transaction.
+	/// Use a browser extension wallet to sign the extrinsic.
 	#[clap(
 		name = "use-wallet",
 		long,
@@ -194,14 +194,18 @@ impl UpContractCommand {
 				spinner.start("Uploading contract...");
 
 				if self.upload_only {
-					let result = upload_contract_signed(self.url.as_str(), payload).await;
-					if let Err(e) = result {
-						spinner.error(format!("An error occurred uploading your contract: {e}"));
-						terminate_node(process)?;
-						Cli.outro_cancel(FAILED)?;
-						return Ok(());
-					}
-					let upload_result = result.expect("Error check above.");
+					let upload_result = match upload_contract_signed(self.url.as_str(), payload)
+						.await
+					{
+						Err(e) => {
+							spinner
+								.error(format!("An error occurred uploading your contract: {e}"));
+							terminate_node(process)?;
+							Cli.outro_cancel(FAILED)?;
+							return Ok(());
+						},
+						Ok(result) => result,
+					};
 
 					match get_code_hash_from_event(&upload_result, hash) {
 						Ok(r) => {
@@ -213,15 +217,19 @@ impl UpContractCommand {
 						},
 					};
 				} else {
-					let result = instantiate_contract_signed(self.url.as_str(), payload).await;
-					if let Err(e) = result {
-						spinner.error(format!("An error occurred uploading your contract: {e}"));
-						terminate_node(process)?;
-						Cli.outro_cancel(FAILED)?;
-						return Ok(());
-					}
+					let contract_info =
+						match instantiate_contract_signed(self.url.as_str(), payload).await {
+							Err(e) => {
+								spinner.error(format!(
+									"An error occurred uploading your contract: {e}"
+								));
+								terminate_node(process)?;
+								Cli.outro_cancel(FAILED)?;
+								return Ok(());
+							},
+							Ok(result) => result,
+						};
 
-					let contract_info = result.unwrap();
 					let hash = contract_info.code_hash.map(|code_hash| format!("{:?}", code_hash));
 					display_contract_info(
 						&spinner,
@@ -344,7 +352,7 @@ impl UpContractCommand {
 
 	// get the call data and contract code hash
 	async fn get_contract_data(&self) -> anyhow::Result<(Vec<u8>, [u8; 32])> {
-		let contract_code = get_contract_code(self.path.as_ref()).await?;
+		let contract_code = get_contract_code(self.path.as_ref())?;
 		let hash = contract_code.code_hash();
 		if self.upload_only {
 			let call_data = get_upload_payload(contract_code, self.url.as_str()).await?;
@@ -358,7 +366,7 @@ impl UpContractCommand {
 				// Frontend will do dry run and update call data.
 				Weight::zero()
 			};
-			let call_data = get_instantiate_payload(instantiate_exec, weight_limit).await?;
+			let call_data = get_instantiate_payload(instantiate_exec, weight_limit)?;
 			Ok((call_data, hash))
 		}
 	}
@@ -480,7 +488,6 @@ mod tests {
 	#[tokio::test]
 	async fn get_upload_and_instantiate_call_data_works() -> anyhow::Result<()> {
 		let (contracts_node_process, port, temp_dir) = start_test_environment().await?;
-		let localhost_url = format!("ws://127.0.0.1:{}", port);
 		sleep(Duration::from_secs(5)).await;
 
 		get_upload_call_data_works(port, temp_dir.path().join("testing")).await?;
@@ -525,7 +532,7 @@ mod tests {
 		assert!(!retrieved_call_data.is_empty());
 
 		// Craft encoded call data for an upload code call.
-		let contract_code = get_contract_code(up_contract_opts.path.as_ref()).await?;
+		let contract_code = get_contract_code(up_contract_opts.path.as_ref())?;
 		let storage_deposit_limit: Option<u128> = None;
 		let upload_code = contract_extrinsics::extrinsic_calls::UploadCode::new(
 			contract_code,
@@ -575,8 +582,7 @@ mod tests {
 		// Craft instantiate call data.
 		let weight = Weight::from_parts(200_000_000, 30_000);
 		let expected_call_data =
-			get_instantiate_payload(set_up_deployment(up_contract_opts.into()).await?, weight)
-				.await?;
+			get_instantiate_payload(set_up_deployment(up_contract_opts.into()).await?, weight)?;
 		// Retrieved call data matches the one crafted above.
 		assert_eq!(retrieved_call_data, expected_call_data);
 

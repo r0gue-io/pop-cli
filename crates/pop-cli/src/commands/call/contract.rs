@@ -60,7 +60,13 @@ pub struct CallContractCommand {
 	#[arg(short, long, default_value = DEFAULT_URI)]
 	suri: String,
 	/// Use a browser extension wallet to sign the extrinsic.
-	#[arg(name = "use-wallet", long, short('w'), default_value = "false", conflicts_with = "suri")]
+	#[arg(
+		name = "use-wallet",
+		long,
+		short = 'w',
+		default_value = "false",
+		conflicts_with = "suri"
+	)]
 	use_wallet: bool,
 	/// Submit an extrinsic for on-chain execution.
 	#[arg(short = 'x', long)]
@@ -394,7 +400,7 @@ impl CallContractCommand {
 		// Perform signing steps with wallet integration, skipping secure signing for query-only
 		// operations.
 		if self.use_wallet {
-			self.execute_with_secure_signing(call_exec, cli).await?;
+			self.execute_with_wallet(call_exec, cli).await?;
 			return self.finalize_execute_call(cli, prompt_to_repeat_call).await;
 		}
 		if self.dry_run {
@@ -476,7 +482,7 @@ impl CallContractCommand {
 	}
 
 	/// Execute the smart contract call using wallet integration.
-	async fn execute_with_secure_signing(
+	async fn execute_with_wallet(
 		&self,
 		call_exec: CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
 		cli: &mut impl Cli,

@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
+
 use crate::{
 	errors::Error,
 	utils::{
@@ -9,9 +10,11 @@ use crate::{
 };
 use contract_extrinsics::{
 	events::{CodeStored, ContractInstantiated},
-	extrinsic_calls::{Instantiate, InstantiateWithCode},
-	BalanceVariant, ErrorVariant, ExtrinsicOptsBuilder, InstantiateCommandBuilder, InstantiateExec,
-	InstantiateExecResult, TokenMetadata, UploadCommandBuilder, UploadExec, UploadResult, WasmCode,
+	extrinsic_calls::{Instantiate, InstantiateWithCode, UploadCode},
+	upload::Determinism,
+	BalanceVariant, Code, ErrorVariant, ExtrinsicOptsBuilder, InstantiateCommandBuilder,
+	InstantiateExec, InstantiateExecResult, TokenMetadata, UploadCommandBuilder, UploadExec,
+	UploadResult, WasmCode,
 };
 use ink_env::{DefaultEnvironment, Environment};
 use pop_common::{create_signer, DefaultConfig, Keypair};
@@ -121,11 +124,7 @@ pub async fn set_up_upload(
 /// * `url` - the rpc of the chain node.
 pub async fn get_upload_payload(code: WasmCode, url: &str) -> anyhow::Result<Vec<u8>> {
 	let storage_deposit_limit: Option<u128> = None;
-	let upload_code = contract_extrinsics::extrinsic_calls::UploadCode::new(
-		code,
-		storage_deposit_limit,
-		contract_extrinsics::upload::Determinism::Enforced,
-	);
+	let upload_code = UploadCode::new(code, storage_deposit_limit, Determinism::Enforced);
 
 	let rpc_client = subxt::backend::rpc::RpcClient::from_url(url).await?;
 	let client = subxt::OnlineClient::<SubstrateConfig>::from_rpc_client(rpc_client).await?;
@@ -135,35 +134,37 @@ pub async fn get_upload_payload(code: WasmCode, url: &str) -> anyhow::Result<Vec
 	call_data.encode_call_data_to(&client.metadata(), &mut encoded_data)?;
 	Ok(encoded_data)
 }
+
 /// Gets the encoded payload call data for a contract instantiation.
 ///
 /// # Arguments
 /// * `instantiate_exec` - arguments for contract instantiate.
 /// * `gas_limit` - max amount of gas to be used for instantiation.
-pub async fn get_instantiate_payload(
+pub fn get_instantiate_payload(
 	instantiate_exec: InstantiateExec<DefaultConfig, DefaultEnvironment, Keypair>,
 	gas_limit: Weight,
 ) -> anyhow::Result<Vec<u8>> {
 	let storage_deposit_limit: Option<u128> = None;
 	let mut encoded_data = Vec::<u8>::new();
-	match instantiate_exec.args().code() {
-		contract_extrinsics::Code::Upload(code) => InstantiateWithCode::new(
-			instantiate_exec.args().value(),
+	let args = instantiate_exec.args();
+	match args.code() {
+		Code::Upload(code) => InstantiateWithCode::new(
+			args.value(),
 			gas_limit,
 			storage_deposit_limit,
 			code.clone(),
-			instantiate_exec.args().data().into(),
-			instantiate_exec.args().salt().into(),
+			args.data().into(),
+			args.salt().into(),
 		)
 		.build()
 		.encode_call_data_to(&instantiate_exec.client().metadata(), &mut encoded_data),
-		contract_extrinsics::Code::Existing(hash) => Instantiate::new(
-			instantiate_exec.args().value(),
+		Code::Existing(hash) => Instantiate::new(
+			args.value(),
 			gas_limit,
 			storage_deposit_limit,
 			hash,
-			instantiate_exec.args().data().into(),
-			instantiate_exec.args().salt().into(),
+			args.data().into(),
+			args.salt().into(),
 		)
 		.build()
 		.encode_call_data_to(&instantiate_exec.client().metadata(), &mut encoded_data),
@@ -176,9 +177,7 @@ pub async fn get_instantiate_payload(
 ///
 /// # Arguments
 /// * `path` - path to the contract file.
-pub async fn get_contract_code(
-	path: Option<&PathBuf>,
-) -> anyhow::Result<contract_extrinsics::WasmCode> {
+pub fn get_contract_code(path: Option<&PathBuf>) -> anyhow::Result<WasmCode> {
 	let manifest_path = get_manifest_path(path.map(|p| p as &Path))?;
 
 	// signer does not matter for this
@@ -285,7 +284,6 @@ pub async fn submit_signed_payload(
 /// blockchain.
 ///
 /// # Arguments
-///
 /// * `instantiate_exec` - the preprocessed data to instantiate a contract.
 pub async fn dry_run_gas_estimate_instantiate(
 	instantiate_exec: &InstantiateExec<DefaultConfig, DefaultEnvironment, Keypair>,
@@ -314,14 +312,15 @@ pub async fn dry_run_gas_estimate_instantiate(
 
 /// Result of a dry-run upload of a smart contract.
 pub struct UploadDryRunResult {
+	/// The key under which the new code is stored.
 	pub code_hash: String,
+	/// The deposit that was reserved at the caller. Is zero when the code already existed.
 	pub deposit: String,
 }
 
 /// Performs a dry-run for uploading a contract without modifying the state of the blockchain.
 ///
 /// # Arguments
-///
 /// * `upload_exec` - the preprocessed data to upload a contract.
 pub async fn dry_run_upload(
 	upload_exec: &UploadExec<DefaultConfig, DefaultEnvironment, Keypair>,
@@ -353,7 +352,6 @@ pub struct ContractInfo {
 /// Instantiate a contract.
 ///
 /// # Arguments
-///
 /// * `instantiate_exec` - the preprocessed data to instantiate a contract.
 /// * `gas_limit` - maximum amount of gas to be used for this call.
 pub async fn instantiate_smart_contract(
@@ -373,7 +371,6 @@ pub async fn instantiate_smart_contract(
 /// Upload a contract.
 ///
 /// # Arguments
-///
 /// * `upload_exec` - the preprocessed data to upload a contract.
 pub async fn upload_smart_contract(
 	upload_exec: &UploadExec<DefaultConfig, DefaultEnvironment, Keypair>,
@@ -495,7 +492,7 @@ mod tests {
 			url: Url::parse(CONTRACTS_NETWORK_URL)?,
 			suri: "//Alice".to_string(),
 		};
-		let contract_code = get_contract_code(up_opts.path.as_ref()).await?;
+		let contract_code = get_contract_code(up_opts.path.as_ref())?;
 		let call_data = get_upload_payload(contract_code, CONTRACTS_NETWORK_URL).await?;
 		let payload_hash = BlakeTwo256::hash(&call_data);
 		// We know that for the above opts the payload hash should be:
