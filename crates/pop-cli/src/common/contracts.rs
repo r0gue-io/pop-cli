@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use cliclack::{confirm, log::warning, spinner};
+use crate::cli::traits::*;
+use cliclack::spinner;
 use pop_common::{manifest::from_path, sourcing::set_executable_permission};
 use pop_contracts::contracts_node_generator;
 use std::{
@@ -13,14 +14,20 @@ use tempfile::NamedTempFile;
 /// prompts the user to update it if the existing binary is not the latest version.
 ///
 /// # Arguments
+/// * `cli`: Command line interface.
+/// * `cache_path`: The cache directory path.
 /// * `skip_confirm`: A boolean indicating whether to skip confirmation prompts.
-pub async fn check_contracts_node_and_prompt(skip_confirm: bool) -> anyhow::Result<PathBuf> {
-	let cache_path: PathBuf = crate::cache()?;
-	let mut binary = contracts_node_generator(cache_path, None).await?;
+pub async fn check_contracts_node_and_prompt(
+	cli: &mut impl Cli,
+	cache_path: &Path,
+	skip_confirm: bool,
+) -> anyhow::Result<PathBuf> {
+	let mut binary = contracts_node_generator(PathBuf::from(cache_path), None).await?;
 	let mut node_path = binary.path();
 	if !binary.exists() {
-		warning("⚠️ The substrate-contracts-node binary is not found.")?;
-		if confirm("📦 Would you like to source it automatically now?")
+		cli.warning("⚠️ The substrate-contracts-node binary is not found.")?;
+		if cli
+			.confirm("📦 Would you like to source it automatically now?")
 			.initial_value(true)
 			.interact()?
 		{
@@ -37,14 +44,14 @@ pub async fn check_contracts_node_and_prompt(skip_confirm: bool) -> anyhow::Resu
 		}
 	}
 	if binary.stale() {
-		warning(format!(
+		cli.warning(format!(
 			"ℹ️ There is a newer version of {} available:\n {} -> {}",
 			binary.name(),
 			binary.version().unwrap_or("None"),
 			binary.latest().unwrap_or("None")
 		))?;
 		let latest = if !skip_confirm {
-			confirm(
+			cli.confirm(
 				"📦 Would you like to source it automatically now? It may take some time..."
 					.to_string(),
 			)
@@ -73,12 +80,19 @@ pub async fn check_contracts_node_and_prompt(skip_confirm: bool) -> anyhow::Resu
 }
 
 /// Handles the optional termination of a local running node.
-pub fn terminate_node(process: Option<(Child, NamedTempFile)>) -> anyhow::Result<()> {
+/// # Arguments
+/// * `cli`: Command line interface.
+/// * `process`: Tuple identifying the child process to terminate and its log file.
+pub fn terminate_node(
+	cli: &mut impl Cli,
+	process: Option<(Child, NamedTempFile)>,
+) -> anyhow::Result<()> {
 	// Prompt to close any launched node
 	let Some((process, log)) = process else {
 		return Ok(());
 	};
-	if confirm("Would you like to terminate the local node?")
+	if cli
+		.confirm("Would you like to terminate the local node?")
 		.initial_value(true)
 		.interact()?
 	{
@@ -89,7 +103,7 @@ pub fn terminate_node(process: Option<(Child, NamedTempFile)>) -> anyhow::Result
 			.wait()?;
 	} else {
 		log.keep()?;
-		warning(format!("NOTE: The node is running in the background with process ID {}. Please terminate it manually when done.", process.id()))?;
+		cli.warning(format!("NOTE: The node is running in the background with process ID {}. Please terminate it manually when done.", process.id()))?;
 	}
 
 	Ok(())
@@ -115,8 +129,12 @@ pub fn has_contract_been_built(path: Option<&Path>) -> bool {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::cli::MockCli;
 	use duct::cmd;
+	use pop_common::find_free_port;
+	use pop_contracts::{is_chain_alive, run_contracts_node};
 	use std::fs::{self, File};
+	use url::Url;
 
 	#[test]
 	fn has_contract_been_built_works() -> anyhow::Result<()> {
@@ -137,5 +155,39 @@ mod tests {
 		File::create(contract_path.join(format!("target/ink/{}.contract", name)))?;
 		assert!(has_contract_been_built(Some(&path.join(name))));
 		Ok(())
+	}
+
+	#[tokio::test]
+	async fn check_contracts_node_and_prompt_works() -> anyhow::Result<()> {
+		let cache_path = tempfile::tempdir().expect("Could create temp dir");
+		let mut cli = MockCli::new()
+			.expect_warning("⚠️ The substrate-contracts-node binary is not found.")
+			.expect_confirm("📦 Would you like to source it automatically now?", true)
+			.expect_warning("⚠️ The substrate-contracts-node binary is not found.");
+
+		let node_path = check_contracts_node_and_prompt(&mut cli, cache_path.path(), false).await?;
+		// Binary path is at least equal to the cache path + "substrate-contracts-node".
+		assert!(node_path
+			.to_str()
+			.unwrap()
+			.starts_with(&cache_path.path().join("substrate-contracts-node").to_str().unwrap()));
+		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn node_is_terminated() -> anyhow::Result<()> {
+		let cache = tempfile::tempdir().expect("Could not create temp dir");
+		let binary = contracts_node_generator(PathBuf::from(cache.path()), None).await?;
+		binary.source(false, &(), true).await?;
+		set_executable_permission(binary.path())?;
+		let port = find_free_port(None);
+		let process = run_contracts_node(binary.path(), None, port).await?;
+		let log = NamedTempFile::new()?;
+		// Terminate the process.
+		let mut cli =
+			MockCli::new().expect_confirm("Would you like to terminate the local node?", true);
+		assert!(terminate_node(&mut cli, Some((process, log))).is_ok());
+		assert_eq!(is_chain_alive(Url::parse(&format!("ws://localhost:{}", port))?).await?, false);
+		cli.verify()
 	}
 }

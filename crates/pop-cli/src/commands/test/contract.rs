@@ -48,7 +48,13 @@ impl TestContractCommand {
 				sleep(Duration::from_secs(3)).await;
 			}
 
-			self.node = match check_contracts_node_and_prompt(self.skip_confirm).await {
+			self.node = match check_contracts_node_and_prompt(
+				&mut Cli,
+				&crate::cache()?,
+				self.skip_confirm,
+			)
+			.await
+			{
 				Ok(binary_path) => Some(binary_path),
 				Err(_) => {
 					warning("🚫 substrate-contracts-node is necessary to run e2e tests. Will try to run tests anyway...")?;
