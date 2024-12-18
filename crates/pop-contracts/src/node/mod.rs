@@ -132,8 +132,8 @@ pub async fn run_contracts_node(
 
 	let process = command.spawn()?;
 
-	// Wait 5 secs until the node is ready
-	sleep(Duration::from_millis(5000)).await;
+	// Wait 20 secs until the node is ready
+	sleep(Duration::from_millis(20000)).await;
 
 	let data = Value::from_bytes(subxt::utils::to_hex("initialize contracts node"));
 	let payload = subxt::dynamic::tx("System", "remark", [data].to_vec());
@@ -165,18 +165,20 @@ fn release_directory_by_target(tag: Option<&str>) -> Result<&'static str, Error>
 	// The structure of the binary changed in v0.42.0
 	let is_old_structure = matches!(tag, Some(tag) if tag < "v0.42.0");
 	match OS {
-		"macos" =>
+		"macos" => {
 			if is_old_structure {
 				Ok("artifacts/substrate-contracts-node-mac/substrate-contracts-node")
 			} else {
 				Ok("substrate-contracts-node-mac/substrate-contracts-node")
-			},
-		"linux" =>
+			}
+		},
+		"linux" => {
 			if is_old_structure {
 				Ok("artifacts/substrate-contracts-node-linux/substrate-contracts-node")
 			} else {
 				Ok("substrate-contracts-node-linux/substrate-contracts-node")
-			},
+			}
+		},
 		_ => Err(Error::UnsupportedPlatform { arch: ARCH, os: OS }),
 	}
 }
