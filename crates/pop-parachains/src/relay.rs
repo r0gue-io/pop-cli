@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::Error;
+use crate::{call, Error};
 use sp_core::twox_128;
 use subxt::{
 	config::BlockHash,
@@ -53,7 +53,7 @@ pub async fn clear_dmpq(
 		"kill_storage",
 		vec![Value::unnamed_composite(clear_dmq_keys.into_iter().map(Value::from_bytes))],
 	);
-	let sudo_call = dynamic::tx("Sudo", "sudo", vec![kill_storage.into_value()]);
+	let sudo_call = call::construct_sudo_extrinsic(kill_storage);
 	Ok(client.tx().sign_and_submit_default(&sudo_call, &sudo).await?)
 }
 

@@ -41,8 +41,8 @@ pub fn construct_extrinsic(
 /// # Arguments
 /// * `xt`: The extrinsic representing the dispatchable function call to be dispatched with `Root`
 ///   privileges.
-pub fn construct_sudo_extrinsic(xt: DynamicPayload) -> Result<DynamicPayload, Error> {
-	Ok(subxt::dynamic::tx("Sudo", "sudo", [xt.into_value()].to_vec()))
+pub fn construct_sudo_extrinsic(xt: DynamicPayload) -> DynamicPayload {
+	subxt::dynamic::tx("Sudo", "sudo", [xt.into_value()].to_vec())
 }
 
 /// Signs and submits a given extrinsic.
@@ -255,7 +255,7 @@ mod tests {
 				"100".to_string(),
 			],
 		)?;
-		let xt = construct_sudo_extrinsic(xt)?;
+		let xt = construct_sudo_extrinsic(xt);
 		assert_eq!(xt.call_name(), "sudo");
 		assert_eq!(xt.pallet_name(), "Sudo");
 		Ok(())

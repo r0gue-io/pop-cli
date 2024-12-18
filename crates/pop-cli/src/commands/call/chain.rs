@@ -403,7 +403,7 @@ impl Call {
 			},
 		};
 		// If sudo is required, wrap the call in a sudo call.
-		let xt = if self.sudo { construct_sudo_extrinsic(xt)? } else { xt };
+		let xt = if self.sudo { construct_sudo_extrinsic(xt) } else { xt };
 		let encoded_data = encode_call_data(client, &xt)?;
 		// If the encoded call data is too long, don't display it all.
 		if encoded_data.len() < ENCODED_CALL_DATA_MAX_LEN {
