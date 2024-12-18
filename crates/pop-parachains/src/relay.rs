@@ -58,6 +58,7 @@ pub async fn clear_dmpq(
 }
 
 /// A supported relay chain.
+#[derive(Debug, PartialEq)]
 pub enum RelayChain {
 	/// Paseo.
 	PaseoLocal,
@@ -75,6 +76,25 @@ impl RelayChain {
 			"paseo-local" => Some(RelayChain::PaseoLocal),
 			"rococo-local" => Some(RelayChain::RococoLocal),
 			_ => None,
+		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use RelayChain::*;
+
+	#[test]
+	fn supported_relay_chains() {
+		for (s, e) in [
+			// Only chains with sudo supported
+			("paseo-local", Some(PaseoLocal)),
+			("rococo-local", Some(RococoLocal)),
+			("kusama-local", None),
+			("polkadot-local", None),
+		] {
+			assert_eq!(RelayChain::from(s), e)
 		}
 	}
 }
