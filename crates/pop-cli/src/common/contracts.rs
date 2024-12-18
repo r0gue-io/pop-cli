@@ -115,6 +115,7 @@ pub fn has_contract_been_built(path: Option<&Path>) -> bool {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::cli::MockCli;
 	use duct::cmd;
 	use std::fs::{self, File};
 
@@ -138,4 +139,30 @@ mod tests {
 		assert!(has_contract_been_built(Some(&path.join(name))));
 		Ok(())
 	}
+
+	#[tokio::test]
+	async fn check_contracts_node_and_prompt_works() -> anyhow::Result<()> {
+		let cache_path: PathBuf = crate::cache()?;
+		let cli = MockCli::new()
+			.expect_warning("⚠️ The substrate-contracts-node binary is not found.")
+			.expect_confirm("📦 Would you like to source it automatically now?", true)
+			.expect_warning("⚠️ The substrate-contracts-node binary is not found.");
+
+		let node_path = check_contracts_node_and_prompt(false).await?;
+		// Binary path is at least equals cache path + "substrate-contracts-node".
+		assert!(node_path
+			.to_str()
+			.unwrap()
+			.starts_with(&cache_path.join("substrate-contracts-node").to_str().unwrap()));
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn node_is_terminated() -> anyhow::Result<()> {
+		let cli = MockCli::new()
+			.expect_confirm("Would you like to terminate the local node?", false)
+			.expect_warning("NOTE: The node is running in the background with process ID 0. Please terminate it manually when done.");
+		Ok(())
+	}
+
 }
