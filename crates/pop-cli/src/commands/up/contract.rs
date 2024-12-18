@@ -66,7 +66,7 @@ pub struct UpContractCommand {
 	/// - with a password "//Alice///SECRET_PASSWORD"
 	#[clap(short, long, default_value = "//Alice")]
 	suri: String,
-	/// Use your browser wallet to sign a transaction.
+	/// Use a browser extension wallet to sign the extrinsic.
 	#[clap(
 		name = "use-wallet",
 		long,
