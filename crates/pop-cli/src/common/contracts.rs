@@ -17,10 +17,10 @@ use tempfile::NamedTempFile;
 /// * `skip_confirm`: A boolean indicating whether to skip confirmation prompts.
 pub async fn check_contracts_node_and_prompt(
 	cli: &mut impl Cli,
+	cache_path: &Path,
 	skip_confirm: bool,
 ) -> anyhow::Result<PathBuf> {
-	let cache_path: PathBuf = crate::cache()?;
-	let mut binary = contracts_node_generator(cache_path, None).await?;
+	let mut binary = contracts_node_generator(PathBuf::from(cache_path), None).await?;
 	let mut node_path = binary.path();
 	if !binary.exists() {
 		cli.warning("⚠️ The substrate-contracts-node binary is not found.")?;
@@ -154,15 +154,13 @@ mod tests {
 
 	#[tokio::test]
 	async fn check_contracts_node_and_prompt_works() -> anyhow::Result<()> {
-		//let cache_path: PathBuf = crate::cache()?;
-
 		let cache_path = tempfile::tempdir().expect("Could create temp dir");
 		let mut cli = MockCli::new()
 			.expect_warning("⚠️ The substrate-contracts-node binary is not found.")
 			.expect_confirm("📦 Would you like to source it automatically now?", true)
 			.expect_warning("⚠️ The substrate-contracts-node binary is not found.");
 
-		let node_path = check_contracts_node_and_prompt(&mut cli, false).await?;
+		let node_path = check_contracts_node_and_prompt(&mut cli, cache_path.path(), false).await?;
 		// Binary path is at least equals to the cache path + "substrate-contracts-node".
 		assert!(node_path
 			.to_str()

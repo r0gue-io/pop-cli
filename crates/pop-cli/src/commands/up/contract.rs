@@ -139,16 +139,21 @@ impl UpContractCommand {
 			let log = NamedTempFile::new()?;
 
 			// uses the cache location
-			let binary_path =
-				match check_contracts_node_and_prompt(&mut Cli, self.skip_confirm).await {
-					Ok(binary_path) => binary_path,
-					Err(_) => {
-						Cli.outro_cancel(
-							"🚫 You need to specify an accessible endpoint to deploy the contract.",
-						)?;
-						return Ok(());
-					},
-				};
+			let binary_path = match check_contracts_node_and_prompt(
+				&mut Cli,
+				&crate::cache()?,
+				self.skip_confirm,
+			)
+			.await
+			{
+				Ok(binary_path) => binary_path,
+				Err(_) => {
+					Cli.outro_cancel(
+						"🚫 You need to specify an accessible endpoint to deploy the contract.",
+					)?;
+					return Ok(());
+				},
+			};
 
 			let spinner = spinner();
 			spinner.start("Starting local node...");
