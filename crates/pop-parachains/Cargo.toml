@@ -12,14 +12,12 @@ version.workspace = true
 anyhow.workspace = true
 clap.workspace = true
 duct.workspace = true
-flate2.workspace = true
 glob.workspace = true
 serde_json.workspace = true
 strum.workspace = true
 strum_macros.workspace = true
 subxt-signer.workspace = true
 subxt.workspace = true
-tar.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
@@ -27,7 +25,6 @@ url.workspace = true
 
 askama.workspace = true
 indexmap.workspace = true
-reqwest.workspace = true
 scale-info.workspace = true
 scale-value.workspace = true
 sp-core.workspace = true
@@ -40,6 +37,3 @@ zombienet-sdk.workspace = true
 # Pop
 pop-common = { path = "../pop-common", version = "0.5.0" }
 
-[dev-dependencies]
-mockito.workspace = true
-tokio-test.workspace = true

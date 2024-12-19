@@ -13,9 +13,7 @@ version.workspace = true
 [dependencies]
 anyhow.workspace = true
 duct.workspace = true
-flate2.workspace = true
 reqwest.workspace = true
-tar.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
@@ -37,8 +35,3 @@ contract-transcode.workspace = true
 scale-info.workspace = true
 #  pop
 pop-common = { path = "../pop-common", version = "0.5.0" }
-
-[dev-dependencies]
-dirs.workspace = true
-mockito.workspace = true
-tokio-test.workspace = true
