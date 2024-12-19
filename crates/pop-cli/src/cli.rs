@@ -304,6 +304,7 @@ pub(crate) mod tests {
 			self
 		}
 
+		#[allow(dead_code)]
 		pub(crate) fn expect_success(mut self, message: impl Display) -> Self {
 			self.success_expectations.push(message.to_string());
 			self
