@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.0] - 2024-12-19
+
+### 🚀 Features
+
+- Wallet integration (#371)
+- Guide user to call a chain (#316)
+- Guide user to call a contract (#306)
+- Call chain events (#372)
+- Add remark action (#387)
+
+### 🐛 Fixes
+
+- Build spec experience (#331)
+- HRMP channels (#278)
+
+### 🚜 Refactor
+
+- Ensure short args consistency (#386)
+- Bump fallback versions (#393)
+
+### ⚙️ Miscellaneous Tasks
+
+- Bump zombienet version to `v0.2.18` (#352)
+- Set msrv (#385)
+- Replace rococo to paseo name (#333)
+- Replace codeowners (#388)
+
 ## [0.5.0] - 2024-11-08
 
 ### 🚀 Features
