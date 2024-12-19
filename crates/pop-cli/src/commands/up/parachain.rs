@@ -156,7 +156,7 @@ impl ZombienetCommand {
 							log::error(format!("🚫 Using `{relay_chain}` with HRMP channels is currently unsupported. Please use `paseo-local` or `rococo-local`."))?;
 						},
 						Some(_) => {
-							let spinner = cliclack::spinner();
+							let spinner = spinner();
 							spinner.start("Connecting to relay chain to prepare channels...");
 							// Allow relay node time to start
 							sleep(Duration::from_secs(10)).await;
