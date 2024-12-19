@@ -153,7 +153,7 @@ impl ZombienetCommand {
 					let relay_chain = zombienet.relay_chain();
 					match RelayChain::from(relay_chain) {
 						None => {
-							log::error(format!("🚫 Using `{relay_chain}` with HRMP channels is currently unsupported. Please use `paseo-local` or `rococo-local`."))?;
+							log::error(format!("🚫 Using `{relay_chain}` with HRMP channels is currently unsupported. Please use `paseo-local` or `westend-local`."))?;
 						},
 						Some(_) => {
 							let spinner = spinner();
