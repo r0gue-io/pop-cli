@@ -3552,15 +3552,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "float-cmp"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "98de4bbd547a563b716d8dfa9aad1cb19bfab00f4fa09a6a4ed21dbcf44ce9c4"
-dependencies = [
- "num-traits",
-]
-
-[[package]]
 name = "fnv"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6061,12 +6052,6 @@ dependencies = [
  "memchr",
  "nom",
 ]
-
-[[package]]
-name = "normalize-line-endings"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61807f77802ff30975e01f4f071c8ba10c022052f98b3294119f3e615d13e5be"
 
 [[package]]
 name = "nu-ansi-term"
@@ -9369,7 +9354,6 @@ dependencies = [
  "pop-contracts",
  "pop-parachains",
  "pop-telemetry",
- "predicates",
  "reqwest 0.12.9",
  "serde",
  "serde_json",
@@ -9425,12 +9409,9 @@ dependencies = [
  "contract-build",
  "contract-extrinsics",
  "contract-transcode",
- "dirs",
  "duct",
- "flate2",
  "heck 0.5.0",
  "ink_env",
- "mockito",
  "pop-common",
  "reqwest 0.12.9",
  "scale-info",
@@ -9440,7 +9421,6 @@ dependencies = [
  "strum_macros 0.26.4",
  "subxt",
  "subxt-signer",
- "tar",
  "tempfile",
  "thiserror 1.0.69",
  "tokio",
@@ -9456,12 +9436,9 @@ dependencies = [
  "askama",
  "clap",
  "duct",
- "flate2",
  "glob",
  "indexmap 2.7.0",
- "mockito",
  "pop-common",
- "reqwest 0.12.9",
  "scale-info",
  "scale-value",
  "serde_json",
@@ -9471,7 +9448,6 @@ dependencies = [
  "subxt",
  "subxt-signer",
  "symlink",
- "tar",
  "tempfile",
  "thiserror 1.0.69",
  "tokio",
@@ -9527,10 +9503,7 @@ checksum = "7e9086cc7640c29a356d1a29fd134380bee9d8f79a17410aa76e7ad295f42c97"
 dependencies = [
  "anstyle",
  "difflib",
- "float-cmp",
- "normalize-line-endings",
  "predicates-core",
- "regex",
 ]
 
 [[package]]

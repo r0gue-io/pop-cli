@@ -88,7 +88,6 @@ mod tests {
 	use super::*;
 	use crate::generator::parachain::ChainSpec;
 	use askama::Template;
-	use std::env::var;
 	use tempfile::tempdir;
 
 	#[test]
