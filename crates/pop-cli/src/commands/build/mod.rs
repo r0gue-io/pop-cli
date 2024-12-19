@@ -44,15 +44,6 @@ pub(crate) struct BuildArgs {
 /// Build a parachain, smart contract or Rust package.
 #[derive(Subcommand)]
 pub(crate) enum Command {
-	/// [DEPRECATED] Build a parachain
-	#[cfg(feature = "parachain")]
-	#[clap(alias = "p")]
-	Parachain(BuildParachainCommand),
-	/// [DEPRECATED] Build a contract, generate metadata, bundle together in a `<name>.contract`
-	/// file
-	#[cfg(feature = "contract")]
-	#[clap(alias = "c")]
-	Contract(BuildContractCommand),
 	/// Build a chain specification and its genesis artifacts.
 	#[cfg(feature = "parachain")]
 	#[clap(alias = "s")]
@@ -70,7 +61,7 @@ impl Command {
 				Some(profile) => profile.into(),
 				None => args.release,
 			};
-			BuildContractCommand { path: args.path, release, valid: true }.execute()?;
+			BuildContractCommand { path: args.path, release }.execute()?;
 			return Ok("contract");
 		}
 
@@ -87,7 +78,6 @@ impl Command {
 				package: args.package,
 				profile: Some(profile),
 				id: args.id,
-				valid: true,
 			}
 			.execute()?;
 			return Ok("parachain");

@@ -22,9 +22,6 @@ pub struct BuildParachainCommand {
 	/// Parachain ID to be used when generating the chain spec files.
 	#[arg(short, long)]
 	pub(crate) id: Option<u32>,
-	// Deprecation flag, used to specify whether the deprecation warning is shown.
-	#[clap(skip)]
-	pub(crate) valid: bool,
 }
 
 impl BuildParachainCommand {
@@ -42,12 +39,7 @@ impl BuildParachainCommand {
 		cli.intro(format!("Building your {project}"))?;
 
 		let profile = self.profile.unwrap_or(Profile::Debug);
-		// Show warning if specified as deprecated.
-		if !self.valid {
-			cli.warning("NOTE: this command is deprecated. Please use `pop build` (or simply `pop b`) in future...")?;
-			#[cfg(not(test))]
-			sleep(Duration::from_secs(3))
-		} else if profile == Profile::Debug {
+		if profile == Profile::Debug {
 			cli.warning("NOTE: this command now defaults to DEBUG builds. Please use `--release` (or simply `-r`) for a release build...")?;
 			#[cfg(not(test))]
 			sleep(Duration::from_secs(3))
@@ -115,36 +107,29 @@ mod tests {
 
 		for package in [None, Some(name.to_string())] {
 			for profile in Profile::VARIANTS {
-				for valid in [false, true] {
-					let project = if package.is_some() { "package" } else { "parachain" };
-					let mut cli = MockCli::new()
-						.expect_intro(format!("Building your {project}"))
-						.expect_warning("NOTE: this may take some time...")
-						.expect_info(format!("The {project} was built in {profile} mode."))
-						.expect_outro("Build completed successfully!");
+				let project = if package.is_some() { "package" } else { "parachain" };
+				let mut cli = MockCli::new()
+					.expect_intro(format!("Building your {project}"))
+					.expect_warning("NOTE: this may take some time...")
+					.expect_info(format!("The {project} was built in {profile} mode."))
+					.expect_outro("Build completed successfully!");
 
-					if !valid {
-						cli = cli.expect_warning("NOTE: this command is deprecated. Please use `pop build` (or simply `pop b`) in future...");
-					} else {
-						if profile == &Profile::Debug {
-							cli = cli.expect_warning("NOTE: this command now defaults to DEBUG builds. Please use `--release` (or simply `-r`) for a release build...");
-						}
-					}
-
-					assert_eq!(
-						BuildParachainCommand {
-							path: Some(project_path.clone()),
-							package: package.clone(),
-							profile: Some(profile.clone()),
-							id: None,
-							valid,
-						}
-						.build(&mut cli)?,
-						project
-					);
-
-					cli.verify()?;
+				if profile == &Profile::Debug {
+					cli = cli.expect_warning("NOTE: this command now defaults to DEBUG builds. Please use `--release` (or simply `-r`) for a release build...");
 				}
+
+				assert_eq!(
+					BuildParachainCommand {
+						path: Some(project_path.clone()),
+						package: package.clone(),
+						profile: Some(profile.clone()),
+						id: None,
+					}
+					.build(&mut cli)?,
+					project
+				);
+
+				cli.verify()?;
 			}
 		}
 

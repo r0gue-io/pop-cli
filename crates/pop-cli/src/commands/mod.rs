@@ -89,10 +89,6 @@ impl Command {
 				None => build::Command::execute(args).map(|t| json!(t)),
 				Some(cmd) => match cmd {
 					#[cfg(feature = "parachain")]
-					build::Command::Parachain(cmd) => cmd.execute().map(|_| Value::Null),
-					#[cfg(feature = "contract")]
-					build::Command::Contract(cmd) => cmd.execute().map(|_| Value::Null),
-					#[cfg(feature = "parachain")]
 					build::Command::Spec(cmd) => cmd.execute().await.map(|_| Value::Null),
 				},
 			},
