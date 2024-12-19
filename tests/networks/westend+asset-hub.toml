@@ -1,0 +1,19 @@
+# pop up parachain -f ./tests/networks/westend+asset-hub.toml
+
+[relaychain]
+chain = "westend-local"
+
+[[relaychain.nodes]]
+name = "alice"
+validator = true
+
+[[relaychain.nodes]]
+name = "bob"
+validator = true
+
+[[parachains]]
+id = 1000
+chain = "asset-hub-westend-local"
+
+[[parachains.collators]]
+name = "asset-hub"

@@ -30,6 +30,8 @@ pub struct Zombienet {
 	relay_chain: RelayChain,
 	/// The configuration required to launch parachains.
 	parachains: IndexMap<u32, Parachain>,
+	/// Whether any HRMP channels are to be pre-opened.
+	hrmp_channels: bool,
 }
 
 impl Zombienet {
@@ -59,7 +61,7 @@ impl Zombienet {
 		// Parse network config
 		let network_config = NetworkConfiguration::from(network_config)?;
 		// Determine relay and parachain requirements based on arguments and config
-		let relay_chain = Self::relay_chain(
+		let relay_chain = Self::init_relay_chain(
 			relay_chain_version,
 			relay_chain_runtime_version,
 			&network_config,
@@ -84,7 +86,9 @@ impl Zombienet {
 			cache,
 		)
 		.await?;
-		Ok(Self { network_config, relay_chain, parachains })
+		let hrmp_channels =
+			network_config.hrmp_channels().map(|c| !c.is_empty()).unwrap_or_default();
+		Ok(Self { network_config, relay_chain, parachains, hrmp_channels })
 	}
 
 	/// The binaries required to launch the network.
@@ -216,7 +220,7 @@ impl Zombienet {
 	///   will use the latest available version).
 	/// * `network_config` - The network configuration to be used to launch a network.
 	/// * `cache` - The location used for caching binaries.
-	async fn relay_chain(
+	async fn init_relay_chain(
 		version: Option<&str>,
 		runtime_version: Option<&str>,
 		network_config: &NetworkConfiguration,
@@ -274,6 +278,16 @@ impl Zombienet {
 		}
 		// Otherwise use default
 		Ok(relay::default(version, runtime_version, chain, cache).await?)
+	}
+
+	/// The name of the relay chain.
+	pub fn relay_chain(&self) -> &str {
+		&self.relay_chain.chain
+	}
+
+	/// Whether any HRMP channels are to be pre-opened.
+	pub fn hrmp_channels(&self) -> bool {
+		self.hrmp_channels
 	}
 
 	/// Launches the local network.
@@ -352,6 +366,11 @@ impl NetworkConfiguration {
 	/// Returns the `parachains` configuration.
 	fn parachains_mut(&mut self) -> Option<&mut ArrayOfTables> {
 		self.0.get_mut("parachains").and_then(|p| p.as_array_of_tables_mut())
+	}
+
+	/// Returns the `hrmp_channels` configuration.
+	fn hrmp_channels(&self) -> Option<&ArrayOfTables> {
+		self.0.get("hrmp_channels").and_then(|p| p.as_array_of_tables())
 	}
 
 	/// Returns the `command` configuration.
@@ -706,6 +725,8 @@ chain = "paseo-local"
 				if *tag == Some(version.to_string())
 			));
 			assert!(zombienet.parachains.is_empty());
+			assert_eq!(zombienet.relay_chain(), "paseo-local");
+			assert!(!zombienet.hrmp_channels());
 			Ok(())
 		}
 
@@ -1183,6 +1204,48 @@ default_command = "moonbeam"
 				Binary::Source { source: Source::GitHub(SourceCodeArchive { reference, .. }), .. }
 				if *reference == Some(version.to_string())
 			));
+			Ok(())
+		}
+
+		#[tokio::test]
+		async fn new_with_hrmp_channels_works() -> Result<()> {
+			let temp_dir = tempdir()?;
+			let cache = PathBuf::from(temp_dir.path());
+			let config = Builder::new().suffix(".toml").tempfile()?;
+			writeln!(
+				config.as_file(),
+				r#"
+[relaychain]
+chain = "paseo-local"
+
+[[parachains]]
+id = 1000
+chain = "asset-hub-paseo-local"
+
+[[parachains]]
+id = 4385
+default_command = "pop-node"
+
+[[hrmp_channels]]
+sender = 4385
+recipient = 1000
+max_capacity = 1000
+max_message_size = 8000
+"#
+			)?;
+
+			let zombienet = Zombienet::new(
+				&cache,
+				config.path().to_str().unwrap(),
+				None,
+				None,
+				None,
+				None,
+				None,
+			)
+			.await?;
+
+			assert!(zombienet.hrmp_channels());
 			Ok(())
 		}
 
