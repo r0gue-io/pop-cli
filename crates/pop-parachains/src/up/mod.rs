@@ -61,7 +61,7 @@ impl Zombienet {
 		// Parse network config
 		let network_config = NetworkConfiguration::from(network_config)?;
 		// Determine relay and parachain requirements based on arguments and config
-		let relay_chain = Self::_relay_chain(
+		let relay_chain = Self::init_relay_chain(
 			relay_chain_version,
 			relay_chain_runtime_version,
 			&network_config,
@@ -220,7 +220,7 @@ impl Zombienet {
 	///   will use the latest available version).
 	/// * `network_config` - The network configuration to be used to launch a network.
 	/// * `cache` - The location used for caching binaries.
-	async fn _relay_chain(
+	async fn init_relay_chain(
 		version: Option<&str>,
 		runtime_version: Option<&str>,
 		network_config: &NetworkConfiguration,
