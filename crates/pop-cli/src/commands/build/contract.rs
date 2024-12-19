@@ -4,9 +4,9 @@ use crate::cli;
 use pop_contracts::{build_smart_contract, Verbosity};
 use std::path::PathBuf;
 
-/// Represents the configuration for building a smart contract.
+/// Configuration for building a smart contract.
 pub struct BuildContract {
-	/// Path for the contract project.
+	/// Path of the contract project.
 	pub(crate) path: Option<PathBuf>,
 	/// Build profile: `true` for release mode, `false` for debug mode.
 	pub(crate) release: bool,

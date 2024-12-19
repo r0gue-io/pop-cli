@@ -33,7 +33,7 @@ contract-build.workspace = true
 contract-extrinsics.workspace = true
 contract-transcode.workspace = true
 scale-info.workspace = true
-#  pop
+# pop
 pop-common = { path = "../pop-common", version = "0.6.0" }
 
 [dev-dependencies]

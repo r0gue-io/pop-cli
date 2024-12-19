@@ -7,7 +7,7 @@ use std::path::PathBuf;
 #[cfg(not(test))]
 use std::{thread::sleep, time::Duration};
 
-// Represents the configuration for building a parachain.
+// Configuration for building a parachain.
 pub struct BuildParachain {
 	/// Directory path for your project.
 	pub(crate) path: PathBuf,

@@ -52,7 +52,6 @@ impl Command {
 		// If only contract feature enabled, build as contract
 		#[cfg(feature = "contract")]
 		if pop_contracts::is_supported(args.path.as_deref())? {
-			// All arguments originating from root command are valid
 			let release = match args.profile {
 				Some(profile) => profile.into(),
 				None => args.release,
@@ -68,7 +67,6 @@ impl Command {
 				Some(profile) => profile,
 				None => args.release.into(),
 			};
-			// All arguments originating from root command are valid.
 			BuildParachain {
 				path: args.path.unwrap_or_else(|| PathBuf::from("./")),
 				package: args.package,
