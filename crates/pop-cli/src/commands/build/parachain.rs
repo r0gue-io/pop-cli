@@ -7,9 +7,9 @@ use std::path::PathBuf;
 #[cfg(not(test))]
 use std::{thread::sleep, time::Duration};
 
-/// Command to build a parachain with configurable path, package, and profile.
-pub struct BuildParachainCommand {
-	/// Directory path for your project [default: current directory].
+// Represents the configuration for building a parachain.
+pub struct BuildParachain {
+	/// Directory path for your project.
 	pub(crate) path: PathBuf,
 	/// The package to be built.
 	pub(crate) package: Option<String>,
@@ -17,8 +17,8 @@ pub struct BuildParachainCommand {
 	pub(crate) profile: Profile,
 }
 
-impl BuildParachainCommand {
-	/// Executes the command.
+impl BuildParachain {
+	/// Executes the build process.
 	pub(crate) fn execute(self) -> anyhow::Result<&'static str> {
 		self.build(&mut cli::Cli)
 	}
@@ -110,7 +110,7 @@ mod tests {
 				}
 
 				assert_eq!(
-					BuildParachainCommand {
+					BuildParachain {
 						path: project_path.clone(),
 						package: package.clone(),
 						profile: profile.clone(),

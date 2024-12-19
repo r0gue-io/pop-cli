@@ -4,16 +4,15 @@ use crate::cli;
 use pop_contracts::{build_smart_contract, Verbosity};
 use std::path::PathBuf;
 
-/// Command to build a smart contract with configurable path and release mode.
-pub struct BuildContractCommand {
-	/// Path for the contract project [default: current directory]
+/// Represents the configuration for building a smart contract.
+pub struct BuildContract {
+	/// Path for the contract project.
 	pub(crate) path: Option<PathBuf>,
-	/// The default compilation includes debug functionality, increasing contract size and gas
-	/// usage. For production, always build in release mode to exclude debug features.
+	/// Build profile: `true` for release mode, `false` for debug mode.
 	pub(crate) release: bool,
 }
 
-impl BuildContractCommand {
+impl BuildContract {
 	/// Executes the command.
 	pub(crate) fn execute(self) -> anyhow::Result<&'static str> {
 		self.build(&mut cli::Cli)
@@ -55,7 +54,7 @@ mod tests {
 				.expect_outro("Build completed successfully!");
 
 			assert_eq!(
-				BuildContractCommand { path: Some(path.join(name)), release }.build(&mut cli)?,
+				BuildContract { path: Some(path.join(name)), release }.build(&mut cli)?,
 				"contract"
 			);
 

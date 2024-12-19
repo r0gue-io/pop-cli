@@ -3,12 +3,12 @@
 use crate::cli::{self, Cli};
 use clap::{Args, Subcommand};
 #[cfg(feature = "contract")]
-use contract::BuildContractCommand;
+use contract::BuildContract;
 use duct::cmd;
 use pop_common::Profile;
 use std::path::PathBuf;
 #[cfg(feature = "parachain")]
-use {parachain::BuildParachainCommand, spec::BuildSpecCommand};
+use {parachain::BuildParachain, spec::BuildSpecCommand};
 
 #[cfg(feature = "contract")]
 pub(crate) mod contract;
@@ -37,7 +37,7 @@ pub(crate) struct BuildArgs {
 	pub(crate) profile: Option<Profile>,
 }
 
-/// Build a parachain, smart contract, chain specification or Rust package.
+/// Build a chain specification and its genesis artifacts.
 #[derive(Subcommand)]
 pub(crate) enum Command {
 	/// Build a chain specification and its genesis artifacts.
@@ -52,12 +52,12 @@ impl Command {
 		// If only contract feature enabled, build as contract
 		#[cfg(feature = "contract")]
 		if pop_contracts::is_supported(args.path.as_deref())? {
-			// All commands originating from root command are valid
+			// All arguments originating from root command are valid
 			let release = match args.profile {
 				Some(profile) => profile.into(),
 				None => args.release,
 			};
-			BuildContractCommand { path: args.path, release }.execute()?;
+			BuildContract { path: args.path, release }.execute()?;
 			return Ok("contract");
 		}
 
@@ -68,8 +68,8 @@ impl Command {
 				Some(profile) => profile,
 				None => args.release.into(),
 			};
-			// All commands originating from root command are valid
-			BuildParachainCommand {
+			// All arguments originating from root command are valid.
+			BuildParachain {
 				path: args.path.unwrap_or_else(|| PathBuf::from("./")),
 				package: args.package,
 				profile,
