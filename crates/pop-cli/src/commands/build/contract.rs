@@ -1,18 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::cli;
-use clap::Args;
 use pop_contracts::{build_smart_contract, Verbosity};
 use std::path::PathBuf;
 
-#[derive(Args)]
+/// Command to build a smart contract with configurable path and release mode.
 pub struct BuildContractCommand {
 	/// Path for the contract project [default: current directory]
-	#[arg(long)]
 	pub(crate) path: Option<PathBuf>,
 	/// The default compilation includes debug functionality, increasing contract size and gas
 	/// usage. For production, always build in release mode to exclude debug features.
-	#[clap(short, long)]
 	pub(crate) release: bool,
 }
 

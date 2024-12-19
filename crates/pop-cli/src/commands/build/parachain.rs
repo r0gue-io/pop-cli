@@ -1,27 +1,20 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{cli, style::style};
-use clap::Args;
 use pop_common::Profile;
 use pop_parachains::build_parachain;
 use std::path::PathBuf;
 #[cfg(not(test))]
 use std::{thread::sleep, time::Duration};
 
-#[derive(Args)]
+/// Command to build a parachain with configurable path, package, and profile.
 pub struct BuildParachainCommand {
 	/// Directory path for your project [default: current directory].
-	#[arg(long)]
-	pub(crate) path: Option<PathBuf>,
+	pub(crate) path: PathBuf,
 	/// The package to be built.
-	#[arg(short, long)]
 	pub(crate) package: Option<String>,
-	/// Build profile [default: debug].
-	#[clap(long, value_enum)]
-	pub(crate) profile: Option<Profile>,
-	/// Parachain ID to be used when generating the chain spec files.
-	#[arg(short, long)]
-	pub(crate) id: Option<u32>,
+	/// Build profile.
+	pub(crate) profile: Profile,
 }
 
 impl BuildParachainCommand {
@@ -38,8 +31,7 @@ impl BuildParachainCommand {
 		let project = if self.package.is_some() { "package" } else { "parachain" };
 		cli.intro(format!("Building your {project}"))?;
 
-		let profile = self.profile.unwrap_or(Profile::Debug);
-		if profile == Profile::Debug {
+		if self.profile == Profile::Debug {
 			cli.warning("NOTE: this command now defaults to DEBUG builds. Please use `--release` (or simply `-r`) for a release build...")?;
 			#[cfg(not(test))]
 			sleep(Duration::from_secs(3))
@@ -47,9 +39,8 @@ impl BuildParachainCommand {
 
 		// Build parachain.
 		cli.warning("NOTE: this may take some time...")?;
-		let project_path = self.path.unwrap_or_else(|| PathBuf::from("./"));
-		let binary = build_parachain(&project_path, self.package, &profile, None)?;
-		cli.info(format!("The {project} was built in {} mode.", profile))?;
+		let binary = build_parachain(&self.path, self.package, &self.profile, None)?;
+		cli.info(format!("The {project} was built in {} mode.", self.profile))?;
 		cli.outro("Build completed successfully!")?;
 		let generated_files = [format!("Binary generated at: {}", binary.display())];
 		let generated_files: Vec<_> = generated_files
@@ -120,10 +111,9 @@ mod tests {
 
 				assert_eq!(
 					BuildParachainCommand {
-						path: Some(project_path.clone()),
+						path: project_path.clone(),
 						package: package.clone(),
-						profile: Some(profile.clone()),
-						id: None,
+						profile: profile.clone(),
 					}
 					.build(&mut cli)?,
 					project

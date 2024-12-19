@@ -35,13 +35,9 @@ pub(crate) struct BuildArgs {
 	/// Build profile [default: debug].
 	#[clap(long, value_enum)]
 	pub(crate) profile: Option<Profile>,
-	/// Parachain ID to be used when generating the chain spec files.
-	#[arg(short = 'i', long = "id")]
-	#[cfg(feature = "parachain")]
-	pub(crate) id: Option<u32>,
 }
 
-/// Build a parachain, smart contract or Rust package.
+/// Build a parachain, smart contract, chain specification or Rust package.
 #[derive(Subcommand)]
 pub(crate) enum Command {
 	/// Build a chain specification and its genesis artifacts.
@@ -74,10 +70,9 @@ impl Command {
 			};
 			// All commands originating from root command are valid
 			BuildParachainCommand {
-				path: args.path,
+				path: args.path.unwrap_or_else(|| PathBuf::from("./")),
 				package: args.package,
-				profile: Some(profile),
-				id: args.id,
+				profile,
 			}
 			.execute()?;
 			return Ok("parachain");
@@ -150,7 +145,6 @@ mod tests {
 								package: package.clone(),
 								release,
 								profile: Some(profile.clone()),
-								id: None,
 							},
 							&mut cli,
 						)?,
