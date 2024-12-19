@@ -24,7 +24,7 @@ pub(super) enum RelayChain {
 		Repository = "https://github.com/r0gue-io/polkadot",
 		Binary = "polkadot",
 		TagFormat = "polkadot-{tag}",
-		Fallback = "v1.12.0"
+		Fallback = "stable2409"
 	))]
 	Polkadot,
 }
@@ -131,17 +131,18 @@ mod tests {
 	use super::*;
 	use tempfile::tempdir;
 
+	const VERSION: &str = "stable2409";
+
 	#[tokio::test]
 	async fn default_works() -> anyhow::Result<()> {
 		let expected = RelayChain::Polkadot;
-		let version = "v1.12.0";
 		let temp_dir = tempdir()?;
-		let relay = default(Some(version), None, None, temp_dir.path()).await?;
+		let relay = default(Some(VERSION), None, None, temp_dir.path()).await?;
 		assert!(matches!(relay.binary, Binary::Source { name, source, cache }
 			if name == expected.binary() && source == Source::GitHub(ReleaseArchive {
 					owner: "r0gue-io".to_string(),
 					repository: "polkadot".to_string(),
-					tag: Some(version.to_string()),
+					tag: Some(VERSION.to_string()),
 					tag_format: Some("polkadot-{tag}".to_string()),
 					archive: format!("{name}-{}.tar.gz", target()?),
 					contents: ["polkadot", "polkadot-execute-worker", "polkadot-prepare-worker"].map(|b| (b, None)).to_vec(),
@@ -154,7 +155,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn default_with_chain_spec_generator_works() -> anyhow::Result<()> {
-		let runtime_version = "v1.2.7";
+		let runtime_version = "v1.3.3";
 		let temp_dir = tempdir()?;
 		let relay =
 			default(None, Some(runtime_version), Some("paseo-local"), temp_dir.path()).await?;
@@ -186,15 +187,14 @@ mod tests {
 	#[tokio::test]
 	async fn from_handles_local_command() -> anyhow::Result<()> {
 		let expected = RelayChain::Polkadot;
-		let version = "v1.12.0";
 		let temp_dir = tempdir()?;
 		let relay =
-			from("./bin-v1.6.0/polkadot", Some(version), None, None, temp_dir.path()).await?;
+			from("./bin-stable2409/polkadot", Some(VERSION), None, None, temp_dir.path()).await?;
 		assert!(matches!(relay.binary, Binary::Source { name, source, cache }
 			if name == expected.binary() && source == Source::GitHub(ReleaseArchive {
 					owner: "r0gue-io".to_string(),
 					repository: "polkadot".to_string(),
-					tag: Some(version.to_string()),
+					tag: Some(VERSION.to_string()),
 					tag_format: Some("polkadot-{tag}".to_string()),
 					archive: format!("{name}-{}.tar.gz", target()?),
 					contents: ["polkadot", "polkadot-execute-worker", "polkadot-prepare-worker"].map(|b| (b, None)).to_vec(),

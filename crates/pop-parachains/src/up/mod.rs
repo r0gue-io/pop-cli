@@ -679,6 +679,8 @@ mod tests {
 	use std::{env::current_dir, fs::File, io::Write};
 	use tempfile::tempdir;
 
+	pub(crate) const VERSION: &str = "stable2409";
+
 	mod zombienet {
 		use super::*;
 		use pop_common::Status;
@@ -702,12 +704,11 @@ mod tests {
 chain = "paseo-local"
 "#
 			)?;
-			let version = "v1.12.0";
 
 			let zombienet = Zombienet::new(
 				&cache,
 				config.path().to_str().unwrap(),
-				Some(version),
+				Some(VERSION),
 				None,
 				None,
 				None,
@@ -717,12 +718,12 @@ chain = "paseo-local"
 
 			let relay_chain = &zombienet.relay_chain.binary;
 			assert_eq!(relay_chain.name(), "polkadot");
-			assert_eq!(relay_chain.path(), temp_dir.path().join(format!("polkadot-{version}")));
-			assert_eq!(relay_chain.version().unwrap(), version);
+			assert_eq!(relay_chain.path(), temp_dir.path().join(format!("polkadot-{VERSION}")));
+			assert_eq!(relay_chain.version().unwrap(), VERSION);
 			assert!(matches!(
 				relay_chain,
 				Binary::Source { source: Source::GitHub(ReleaseArchive { tag, .. }), .. }
-				if *tag == Some(version.to_string())
+				if *tag == Some(VERSION.to_string())
 			));
 			assert!(zombienet.parachains.is_empty());
 			assert_eq!(zombienet.relay_chain(), "paseo-local");
@@ -742,7 +743,7 @@ chain = "paseo-local"
 chain = "paseo-local"
 "#
 			)?;
-			let version = "v1.2.7";
+			let version = "v1.3.3";
 
 			let zombienet = Zombienet::new(
 				&cache,
@@ -782,15 +783,14 @@ chain = "paseo-local"
 				r#"
 [relaychain]
 chain = "paseo-local"
-default_command = "./bin-v1.6.0/polkadot"
+default_command = "./bin-stable2409/polkadot"
 "#
 			)?;
-			let version = "v1.12.0";
 
 			let zombienet = Zombienet::new(
 				&cache,
 				config.path().to_str().unwrap(),
-				Some(version),
+				Some(VERSION),
 				None,
 				None,
 				None,
@@ -800,12 +800,12 @@ default_command = "./bin-v1.6.0/polkadot"
 
 			let relay_chain = &zombienet.relay_chain.binary;
 			assert_eq!(relay_chain.name(), "polkadot");
-			assert_eq!(relay_chain.path(), temp_dir.path().join(format!("polkadot-{version}")));
-			assert_eq!(relay_chain.version().unwrap(), version);
+			assert_eq!(relay_chain.path(), temp_dir.path().join(format!("polkadot-{VERSION}")));
+			assert_eq!(relay_chain.version().unwrap(), VERSION);
 			assert!(matches!(
 				relay_chain,
 				Binary::Source { source: Source::GitHub(ReleaseArchive { tag, .. }), .. }
-				if *tag == Some(version.to_string())
+				if *tag == Some(VERSION.to_string())
 			));
 			assert!(zombienet.parachains.is_empty());
 			Ok(())
@@ -828,12 +828,11 @@ validator = true
 command = "polkadot"
 "#
 			)?;
-			let version = "v1.12.0";
 
 			let zombienet = Zombienet::new(
 				&cache,
 				config.path().to_str().unwrap(),
-				Some(version),
+				Some(VERSION),
 				None,
 				None,
 				None,
@@ -843,12 +842,12 @@ command = "polkadot"
 
 			let relay_chain = &zombienet.relay_chain.binary;
 			assert_eq!(relay_chain.name(), "polkadot");
-			assert_eq!(relay_chain.path(), temp_dir.path().join(format!("polkadot-{version}")));
-			assert_eq!(relay_chain.version().unwrap(), version);
+			assert_eq!(relay_chain.path(), temp_dir.path().join(format!("polkadot-{VERSION}")));
+			assert_eq!(relay_chain.version().unwrap(), VERSION);
 			assert!(matches!(
 				relay_chain,
 				Binary::Source { source: Source::GitHub(ReleaseArchive { tag, .. }), .. }
-				if *tag == Some(version.to_string())
+				if *tag == Some(VERSION.to_string())
 			));
 			assert!(zombienet.parachains.is_empty());
 			Ok(())
@@ -873,14 +872,14 @@ command = "polkadot"
 [[relaychain.nodes]]
 name = "bob"
 validator = true
-command = "polkadot-v1.12.0"
+command = "polkadot-stable2409"
 "#
 			)?;
 
 			assert!(matches!(
 				Zombienet::new(&cache, config.path().to_str().unwrap(), None, None, None, None, None).await,
 				Err(Error::UnsupportedCommand(error))
-				if error == "the relay chain command is unsupported: polkadot-v1.12.0"
+				if error == "the relay chain command is unsupported: polkadot-stable2409"
 			));
 			Ok(())
 		}
@@ -900,14 +899,14 @@ default_command = "polkadot"
 [[relaychain.nodes]]
 name = "alice"
 validator = true
-command = "polkadot-v1.12.0"
+command = "polkadot-stable2409"
 "#
 			)?;
 
 			assert!(matches!(
 				Zombienet::new(&cache, config.path().to_str().unwrap(), None, None, None, None, None).await,
 				Err(Error::UnsupportedCommand(error))
-				if error == "the relay chain command is unsupported: polkadot-v1.12.0"
+				if error == "the relay chain command is unsupported: polkadot-stable2409"
 			));
 			Ok(())
 		}
@@ -928,12 +927,12 @@ id = 1000
 chain = "asset-hub-paseo-local"
 "#
 			)?;
-			let system_parachain_version = "v1.12.0";
+			let system_parachain_version = "stable2407";
 
 			let zombienet = Zombienet::new(
 				&cache,
 				config.path().to_str().unwrap(),
-				Some("v1.11.0"),
+				Some(VERSION),
 				None,
 				Some(system_parachain_version),
 				None,
@@ -973,7 +972,6 @@ id = 1000
 chain = "asset-hub-paseo-local"
 "#
 			)?;
-			let version = "v1.12.0";
 
 			let zombienet = Zombienet::new(
 				&cache,
@@ -981,7 +979,7 @@ chain = "asset-hub-paseo-local"
 				None,
 				None,
 				None,
-				Some(version),
+				Some(VERSION),
 				None,
 			)
 			.await?;
@@ -993,13 +991,13 @@ chain = "asset-hub-paseo-local"
 			assert_eq!(chain_spec_generator.name(), "paseo-chain-spec-generator");
 			assert_eq!(
 				chain_spec_generator.path(),
-				temp_dir.path().join(format!("paseo-chain-spec-generator-{version}"))
+				temp_dir.path().join(format!("paseo-chain-spec-generator-{VERSION}"))
 			);
-			assert_eq!(chain_spec_generator.version().unwrap(), version);
+			assert_eq!(chain_spec_generator.version().unwrap(), VERSION);
 			assert!(matches!(
 				chain_spec_generator,
 				Binary::Source { source: Source::GitHub(ReleaseArchive { tag, .. }), .. }
-				if *tag == Some(version.to_string())
+				if *tag == Some(VERSION.to_string())
 			));
 			Ok(())
 		}
@@ -1447,10 +1445,9 @@ chain = "paseo-local"
 chain = "paseo-local"
 "#
 			)?;
-			let version = "v1.12.0";
-			File::create(cache.join(format!("polkadot-{version}")))?;
-			File::create(cache.join(format!("polkadot-execute-worker-{version}")))?;
-			File::create(cache.join(format!("polkadot-prepare-worker-{version}")))?;
+			File::create(cache.join(format!("polkadot-{VERSION}")))?;
+			File::create(cache.join(format!("polkadot-execute-worker-{VERSION}")))?;
+			File::create(cache.join(format!("polkadot-prepare-worker-{VERSION}")))?;
 
 			let mut zombienet = Zombienet::new(
 				&cache,

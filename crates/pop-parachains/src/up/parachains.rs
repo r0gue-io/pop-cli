@@ -22,7 +22,7 @@ pub(super) enum Parachain {
 		Repository = "https://github.com/r0gue-io/polkadot",
 		Binary = "polkadot-parachain",
 		TagFormat = "polkadot-{tag}",
-		Fallback = "v1.12.0"
+		Fallback = "stable2409"
 	))]
 	System,
 	/// Pop Network makes it easy for smart contract developers to use the power of Polkadot.
@@ -30,7 +30,7 @@ pub(super) enum Parachain {
 		Repository = "https://github.com/r0gue-io/pop-node",
 		Binary = "pop-node",
 		Prerelease = "false",
-		Fallback = "testnet-v0.4.1"
+		Fallback = "testnet-v0.4.2"
 	))]
 	Pop,
 }
@@ -148,7 +148,7 @@ pub(super) async fn from(
 
 #[cfg(test)]
 mod tests {
-	use super::*;
+	use super::{super::tests::VERSION, *};
 	use std::path::PathBuf;
 	use tempfile::tempdir;
 
@@ -159,7 +159,7 @@ mod tests {
 			"polkadot",
 			None,
 			None,
-			"v1.12.0",
+			VERSION,
 			Some("asset-hub-paseo-local"),
 			tempdir()?.path()
 		)
@@ -170,13 +170,12 @@ mod tests {
 
 	#[tokio::test]
 	async fn system_using_relay_version() -> anyhow::Result<()> {
-		let version = "v1.12.0";
 		let expected = Parachain::System;
 		let para_id = 1000;
 
 		let temp_dir = tempdir()?;
 		let parachain =
-			system(para_id, expected.binary(), None, None, version, None, temp_dir.path())
+			system(para_id, expected.binary(), None, None, VERSION, None, temp_dir.path())
 				.await?
 				.unwrap();
 		assert_eq!(para_id, parachain.id);
@@ -184,7 +183,7 @@ mod tests {
 			if name == expected.binary() && source == Source::GitHub(ReleaseArchive {
 					owner: "r0gue-io".to_string(),
 					repository: "polkadot".to_string(),
-					tag: Some(version.to_string()),
+					tag: Some(VERSION.to_string()),
 					tag_format: Some("polkadot-{tag}".to_string()),
 					archive: format!("{name}-{}.tar.gz", target()?),
 					contents: vec![(expected.binary(), None)],
@@ -196,13 +195,12 @@ mod tests {
 
 	#[tokio::test]
 	async fn system_works() -> anyhow::Result<()> {
-		let version = "v1.12.0";
 		let expected = Parachain::System;
 		let para_id = 1000;
 
 		let temp_dir = tempdir()?;
 		let parachain =
-			system(para_id, expected.binary(), Some(version), None, version, None, temp_dir.path())
+			system(para_id, expected.binary(), Some(VERSION), None, VERSION, None, temp_dir.path())
 				.await?
 				.unwrap();
 		assert_eq!(para_id, parachain.id);
@@ -210,7 +208,7 @@ mod tests {
 			if name == expected.binary() && source == Source::GitHub(ReleaseArchive {
 					owner: "r0gue-io".to_string(),
 					repository: "polkadot".to_string(),
-					tag: Some(version.to_string()),
+					tag: Some(VERSION.to_string()),
 					tag_format: Some("polkadot-{tag}".to_string()),
 					archive: format!("{name}-{}.tar.gz", target()?),
 					contents: vec![(expected.binary(), None)],
@@ -223,7 +221,7 @@ mod tests {
 	#[tokio::test]
 	async fn system_with_chain_spec_generator_works() -> anyhow::Result<()> {
 		let expected = Parachain::System;
-		let runtime_version = "v1.2.7";
+		let runtime_version = "v1.3.3";
 		let para_id = 1000;
 
 		let temp_dir = tempdir()?;

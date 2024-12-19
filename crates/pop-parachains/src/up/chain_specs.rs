@@ -22,7 +22,7 @@ pub(super) enum Runtime {
 		Repository = "https://github.com/r0gue-io/polkadot-runtimes",
 		Binary = "chain-spec-generator",
 		Chain = "kusama-local",
-		Fallback = "v1.2.7"
+		Fallback = "v1.3.3"
 	))]
 	Kusama,
 	/// Paseo.
@@ -30,7 +30,7 @@ pub(super) enum Runtime {
 		Repository = "https://github.com/r0gue-io/paseo-runtimes",
 		Binary = "chain-spec-generator",
 		Chain = "paseo-local",
-		Fallback = "v1.2.6"
+		Fallback = "v1.3.4"
 	))]
 	Paseo,
 	/// Polkadot.
@@ -38,7 +38,7 @@ pub(super) enum Runtime {
 		Repository = "https://github.com/r0gue-io/polkadot-runtimes",
 		Binary = "chain-spec-generator",
 		Chain = "polkadot-local",
-		Fallback = "v1.2.7"
+		Fallback = "v1.3.3"
 	))]
 	Polkadot,
 }
@@ -111,7 +111,7 @@ mod tests {
 	#[tokio::test]
 	async fn kusama_works() -> anyhow::Result<()> {
 		let expected = Runtime::Kusama;
-		let version = "v1.2.7";
+		let version = "v1.3.3";
 		let temp_dir = tempdir()?;
 		let binary = chain_spec_generator("kusama-local", Some(version), temp_dir.path())
 			.await?
@@ -135,7 +135,7 @@ mod tests {
 	#[tokio::test]
 	async fn paseo_works() -> anyhow::Result<()> {
 		let expected = Runtime::Paseo;
-		let version = "v1.2.4";
+		let version = "v1.3.4";
 		let temp_dir = tempdir()?;
 		let binary = chain_spec_generator("paseo-local", Some(version), temp_dir.path())
 			.await?
@@ -159,7 +159,7 @@ mod tests {
 	#[tokio::test]
 	async fn polkadot_works() -> anyhow::Result<()> {
 		let expected = Runtime::Polkadot;
-		let version = "v1.2.7";
+		let version = "v1.3.3";
 		let temp_dir = tempdir()?;
 		let binary = chain_spec_generator("polkadot-local", Some(version), temp_dir.path())
 			.await?
