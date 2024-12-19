@@ -87,12 +87,7 @@ pub fn instantiate_openzeppelin_template(
 	let source = temp_dir.path();
 
 	let tag = Git::clone_and_degit(template.repository_url()?, source, tag_version)?;
-	let mut template_name = template.template_name_without_provider();
-	// Handle deprecated OpenZeppelin template
-	if matches!(template, Parachain::DeprecatedOpenZeppelinGeneric) {
-		template_name = Parachain::OpenZeppelinGeneric.template_name_without_provider();
-	}
-
+	let template_name = template.template_name_without_provider();
 	extract_template_files(template_name, temp_dir.path(), target, None)?;
 	Ok(tag)
 }

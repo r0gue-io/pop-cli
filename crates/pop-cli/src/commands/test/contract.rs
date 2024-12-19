@@ -8,16 +8,11 @@ use clap::Args;
 use cliclack::{clear_screen, log::warning, outro};
 use pop_contracts::{test_e2e_smart_contract, test_smart_contract};
 use std::path::PathBuf;
-#[cfg(not(test))]
-use {std::time::Duration, tokio::time::sleep};
 
 #[derive(Args)]
 pub(crate) struct TestContractCommand {
 	#[arg(short, long, help = "Path for the contract project [default: current directory]")]
 	path: Option<PathBuf>,
-	/// [DEPRECATED] Run e2e tests
-	#[arg(short, long, value_parser=["e2e-tests"])]
-	features: Option<String>,
 	/// Run end-to-end tests
 	#[arg(short, long)]
 	e2e: bool,
@@ -33,20 +28,8 @@ impl TestContractCommand {
 	pub(crate) async fn execute(mut self) -> anyhow::Result<&'static str> {
 		clear_screen()?;
 
-		let mut show_deprecated = false;
-		if self.features.is_some() && self.features.clone().unwrap().contains("e2e-tests") {
-			show_deprecated = true;
-			self.e2e = true;
-		}
-
 		if self.e2e {
 			Cli.intro("Starting end-to-end tests")?;
-
-			if show_deprecated {
-				warning("NOTE: --features e2e-tests is deprecated. Use --e2e instead.")?;
-				#[cfg(not(test))]
-				sleep(Duration::from_secs(3)).await;
-			}
 
 			self.node = match check_contracts_node_and_prompt(
 				&mut Cli,
