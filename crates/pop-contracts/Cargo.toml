@@ -33,5 +33,9 @@ contract-build.workspace = true
 contract-extrinsics.workspace = true
 contract-transcode.workspace = true
 scale-info.workspace = true
-#  pop
+# pop
 pop-common = { path = "../pop-common", version = "0.5.0" }
+
+[dev-dependencies]
+# Used in doc tests.
+tokio-test.workspace = true

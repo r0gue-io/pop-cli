@@ -37,3 +37,6 @@ zombienet-sdk.workspace = true
 # Pop
 pop-common = { path = "../pop-common", version = "0.5.0" }
 
+[dev-dependencies]
+# Used in doc tests.
+tokio-test.workspace = true
