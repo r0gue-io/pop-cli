@@ -29,6 +29,10 @@ All notable changes to this project will be documented in this file.
 - Replace rococo to paseo name (#333)
 - Replace codeowners (#388)
 
+### Build
+
+- *(deps)* Remove unused dependencies (#369)
+
 ## [0.5.0] - 2024-11-08
 
 ### 🚀 Features
