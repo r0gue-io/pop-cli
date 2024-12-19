@@ -74,6 +74,17 @@ async fn contract_lifecycle() -> Result<()> {
 		.args(&["build", "--path", "./test_contract", "--release"])
 		.assert()
 		.success();
+
+	// pop build ./test_contract --release
+	/*Command::cargo_bin("pop")
+		.unwrap()
+		.current_dir(&temp_dir)
+		.args(&["build", "./test_contract", "--release"])
+		.assert()
+		.success();
+	*/
+	println!("Contract built!!");
+
 	// Verify that the directory target has been created
 	assert!(temp_dir.join("test_contract/target").exists());
 	// Verify that all the artifacts has been generated
