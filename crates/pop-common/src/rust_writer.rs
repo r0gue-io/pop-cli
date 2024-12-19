@@ -17,6 +17,8 @@ mod expand;
 mod helpers;
 mod parse;
 pub mod types;
+#[cfg(test)]
+mod tests;
 
 pub fn update_config_trait(
 	file_path: &Path,
