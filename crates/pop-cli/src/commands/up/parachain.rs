@@ -166,8 +166,7 @@ impl ZombienetCommand {
 								network.parachains().iter().map(|p| p.para_id()).collect();
 							tokio::spawn(async move {
 								if let Err(e) = clear_dmpq(relay_endpoint, &para_ids).await {
-									progress.stop("");
-									log::error(format!("🚫 Could not prepare channels: {e}"))?;
+									progress.stop(format!("🚫 Could not prepare channels: {e}"));
 									return Ok::<(), Error>(());
 								}
 								progress.stop("Channels successfully prepared for initialization.");
