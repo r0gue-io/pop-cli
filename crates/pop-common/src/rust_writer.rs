@@ -16,9 +16,9 @@ use syn::{parse_str, Ident, ImplItem, ItemEnum, ItemUse, TraitBound, Type};
 mod expand;
 mod helpers;
 mod parse;
-pub mod types;
 #[cfg(test)]
 mod tests;
+pub mod types;
 
 pub fn update_config_trait(
 	file_path: &Path,
@@ -136,14 +136,11 @@ pub fn add_pallet_to_runtime_module(
 	)?;
 
 	// Parse the runtime to find which of the runtime macros is being used and the highest
-	// pallet index used (if needed).
-	let (highest_index, used_macro) =
-		parse::find_highest_pallet_index_and_runtime_macro_version(&ast);
-
-	if let types::RuntimeUsedMacro::NotFound = used_macro {
-		return Err(Error::Descriptive(
-			format! {"Unable to find a runtime declaration in {:?}", runtime_lib_path},
-		));
+	// pallet index used (if needed, otherwise 0).
+	let used_macro = parse::find_used_runtime_macro(&ast)?;
+	let mut highest_index = 0;
+	if let types::RuntimeUsedMacro::Runtime = used_macro {
+		highest_index = parse::find_highest_pallet_index(&ast)?;
 	}
 
 	// Find the pallet name and the pallet item to be added to the runtime. If the pallet_name is

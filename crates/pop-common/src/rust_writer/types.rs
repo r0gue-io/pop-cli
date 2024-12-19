@@ -13,7 +13,6 @@ pub enum DefaultConfigType {
 pub enum RuntimeUsedMacro {
 	Runtime,
 	ConstructRuntime,
-	NotFound,
 }
 
 #[derive(Debug, Clone, PartialEq)]

@@ -174,7 +174,6 @@ pub(crate) fn expand_runtime_add_pallet(
 				}
 			}
 		},
-		_ => (),
 	}
 }
 

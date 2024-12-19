@@ -160,7 +160,6 @@ impl TestBuilder {
 						_ => continue,
 					}
 				},
-			_ => (),
 		}
 		assert!(assert_happened);
 	}

@@ -2,7 +2,7 @@
 
 use crate::rust_writer::helpers;
 use std::{fs, path::PathBuf};
-use syn::{File, parse_quote};
+use syn::{parse_quote, File};
 
 pub(crate) struct TestBuilder {
 	test_files: PathBuf,
@@ -15,7 +15,7 @@ impl Default for TestBuilder {
 			test_files: PathBuf::from(env!("CARGO_MANIFEST_DIR"))
 				.join("src")
 				.join("rust_writer")
-        .join("tests")
+				.join("tests")
 				.join("sample_files"),
 			ast: parse_quote! {},
 		}
