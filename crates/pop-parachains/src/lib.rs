@@ -24,14 +24,17 @@ pub use call::{
 		params::Param,
 		parse_chain_metadata, Function, Pallet,
 	},
-	set_up_client, sign_and_submit_extrinsic, CallData,
+	set_up_client, sign_and_submit_extrinsic, submit_signed_extrinsic, CallData,
 };
 pub use errors::Error;
 pub use indexmap::IndexSet;
 pub use new_pallet::{create_pallet_template, new_pallet_options::*, TemplatePalletConfig};
 pub use new_parachain::instantiate_template_dir;
 // External export from subxt.
-pub use subxt::{tx::DynamicPayload, OnlineClient, SubstrateConfig};
+pub use subxt::{
+	tx::{DynamicPayload, Payload},
+	OnlineClient, SubstrateConfig,
+};
 pub use templates::{Config, Parachain, Provider};
 pub use up::Zombienet;
 pub use utils::helpers::is_initial_endowment_valid;

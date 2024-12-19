@@ -5,12 +5,12 @@ use pop_common::{
 	call::{DefaultEnvironment, DisplayEvents, TokenMetadata, Verbosity},
 	create_signer,
 };
+use sp_core::bytes::{from_hex, to_hex};
 use subxt::{
 	dynamic::Value,
-	tx::{DynamicPayload, Payload},
+	tx::{DynamicPayload, Payload, SubmittableExtrinsic},
 	OnlineClient, SubstrateConfig,
 };
-
 pub mod metadata;
 
 /// Sets up an [OnlineClient] instance for connecting to a blockchain.
@@ -82,6 +82,28 @@ pub async fn sign_and_submit_extrinsic<Xt: Payload>(
 	Ok(format!("Extrinsic Submitted with hash: {:?}\n\n{}", result.extrinsic_hash(), events))
 }
 
+/// Submits a signed extrinsic.
+///
+/// # Arguments
+/// * `client` - The client used to interact with the chain.
+/// * `payload` - The signed payload string to be submitted.
+pub async fn submit_signed_extrinsic(
+	client: OnlineClient<SubstrateConfig>,
+	payload: String,
+) -> Result<String, Error> {
+	let hex_encoded =
+		from_hex(&payload).map_err(|e| Error::CallDataDecodingError(e.to_string()))?;
+	let extrinsic = SubmittableExtrinsic::from_bytes(client, hex_encoded);
+	let result = extrinsic
+		.submit_and_watch()
+		.await
+		.map_err(|e| Error::ExtrinsicSubmissionError(format!("{:?}", e)))?
+		.wait_for_finalized_success()
+		.await
+		.map_err(|e| Error::ExtrinsicSubmissionError(format!("{:?}", e)))?;
+	Ok(format!("{:?}", result.extrinsic_hash()))
+}
+
 /// Encodes the call data for a given extrinsic into a hexadecimal string.
 ///
 /// # Arguments
@@ -94,7 +116,7 @@ pub fn encode_call_data(
 	let call_data = xt
 		.encode_call_data(&client.metadata())
 		.map_err(|e| Error::CallDataEncodingError(e.to_string()))?;
-	Ok(format!("0x{}", hex::encode(call_data)))
+	Ok(to_hex(&call_data, false))
 }
 
 /// Decodes a hex-encoded string into a vector of bytes representing the call data.
@@ -102,8 +124,7 @@ pub fn encode_call_data(
 /// # Arguments
 /// * `call_data` - The hex-encoded string representing call data.
 pub fn decode_call_data(call_data: &str) -> Result<Vec<u8>, Error> {
-	hex::decode(call_data.trim_start_matches("0x"))
-		.map_err(|e| Error::CallDataDecodingError(e.to_string()))
+	from_hex(call_data).map_err(|e| Error::CallDataDecodingError(e.to_string()))
 }
 
 /// This struct implements the [`Payload`] trait and is used to submit

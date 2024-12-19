@@ -64,12 +64,20 @@ pub fn target() -> Result<&'static str, Error> {
 	Err(Error::UnsupportedPlatform { arch: ARCH, os: OS })
 }
 
-/// Finds an available port by binding to port 0 and retrieving the assigned port.
-pub fn find_free_port() -> u16 {
+/// Checks if preferred port is available, otherwise returns a random available port.
+pub fn find_free_port(preferred_port: Option<u16>) -> u16 {
+	// Try to bind to preferred port if provided.
+	if let Some(port) = preferred_port {
+		if TcpListener::bind(format!("127.0.0.1:{}", port)).is_ok() {
+			return port;
+		}
+	}
+
+	// Else, fallback to a random available port
 	TcpListener::bind("127.0.0.1:0")
 		.expect("Failed to bind to an available port")
 		.local_addr()
-		.expect("Failed to retrieve local address")
+		.expect("Failed to retrieve local address. This should never occur.")
 		.port()
 }
 
@@ -105,7 +113,7 @@ mod test {
 
 	#[test]
 	fn find_free_port_works() -> Result<()> {
-		let port = find_free_port();
+		let port = find_free_port(None);
 		let addr = format!("127.0.0.1:{}", port);
 		// Constructs the TcpListener from the above port
 		let listener = TcpListener::bind(&addr);
