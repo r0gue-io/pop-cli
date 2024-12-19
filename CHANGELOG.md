@@ -9,7 +9,7 @@ All notable changes to this project will be documented in this file.
 - Wallet integration (#371)
 - Guide user to call a chain (#316)
 - Guide user to call a contract (#306)
-- Call chain events (#372)
+- Output events after calling a chain (#372)
 - Add remark action (#387)
 
 ### 🐛 Fixes
