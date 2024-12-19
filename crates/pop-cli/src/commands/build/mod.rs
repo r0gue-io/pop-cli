@@ -37,7 +37,7 @@ pub(crate) struct BuildArgs {
 	pub(crate) profile: Option<Profile>,
 }
 
-/// Build a chain specification and its genesis artifacts.
+/// Subcommand for building chain artifacts.
 #[derive(Subcommand)]
 pub(crate) enum Command {
 	/// Build a chain specification and its genesis artifacts.
