@@ -67,14 +67,14 @@ async fn contract_lifecycle() -> Result<()> {
 		.success();
 	assert!(temp_dir.join("test_contract").exists());
 
-/*	// pop build --path ./test_contract --release
-	Command::cargo_bin("pop")
-		.unwrap()
-		.current_dir(&temp_dir)
-		.args(&["build", "--path", "./test_contract", "--release"])
-		.assert()
-		.success();
-*/
+	/*	// pop build --path ./test_contract --release
+		Command::cargo_bin("pop")
+			.unwrap()
+			.current_dir(&temp_dir)
+			.args(&["build", "--path", "./test_contract", "--release"])
+			.assert()
+			.success();
+	*/
 	// pop build ./test_contract --release
 	Command::cargo_bin("pop")
 		.unwrap()
@@ -82,7 +82,7 @@ async fn contract_lifecycle() -> Result<()> {
 		.args(&["build", "./test_contract", "--release"])
 		.assert()
 		.success();
-	
+
 	println!("Contract built!!");
 
 	// Verify that the directory target has been created
@@ -103,7 +103,15 @@ async fn contract_lifecycle() -> Result<()> {
 	Command::cargo_bin("pop")
 		.unwrap()
 		.current_dir(&temp_dir.join("test_contract"))
-		.args(&["up", "contract",  "--path", "./test_contract","--upload-only", "--url", default_endpoint])
+		.args(&[
+			"up",
+			"contract",
+			"--path",
+			"./test_contract",
+			"--upload-only",
+			"--url",
+			default_endpoint,
+		])
 		.assert()
 		.success();
 	/*// pop up contract --upload-only

@@ -107,7 +107,11 @@ impl UpContractCommand {
 			Cli.warning("NOTE: contract has not yet been built.")?;
 			let spinner = spinner();
 			spinner.start("Building contract in RELEASE mode...");
-			let result = match build_smart_contract(project_path.as_deref().map(|v| &**v), true, Verbosity::Quiet) {
+			let result = match build_smart_contract(
+				project_path.as_deref().map(|v| &**v),
+				true,
+				Verbosity::Quiet,
+			) {
 				Ok(result) => result,
 				Err(e) => {
 					Cli.outro_cancel(format!("🚫 An error occurred building your contract: {e}\nUse `pop build` to retry with build output."))?;
