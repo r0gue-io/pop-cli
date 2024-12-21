@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::cli::{self, Cli};
-use anyhow::ensure;
-use clap::{Args, Parser, Subcommand};
+use clap::{Args, Subcommand};
 #[cfg(feature = "contract")]
 use contract::BuildContract;
 use duct::cmd;
@@ -28,7 +27,7 @@ pub(crate) struct BuildArgs {
 	#[arg(long)]
 	pub(crate) path: Option<PathBuf>,
 	/// Directory path without flag for your project [default: current directory]
-	#[arg(value_name = "PATH", required_unless_present = "path")]
+	#[arg(value_name = "PATH", index = 1, conflicts_with = "path")]
 	pub(crate) path_pos: Option<PathBuf>,
 	/// The package to be built.
 	#[arg(short = 'p', long)]
@@ -55,35 +54,33 @@ impl Command {
 	pub(crate) fn execute(args: BuildArgs) -> anyhow::Result<&'static str> {
 		// If only contract feature enabled, build as contract
 		let path_flag = args.path.clone();
-		let path_pos = args.path_pos.clone();
-		let project_path = match path_flag {
-			Some(ref path) if path.to_str().unwrap().contains("./") => Some(path.to_owned()),
-			_ => {
-				ensure!(path_pos.is_some(), "Failed to get directory!");
-				path_pos
-			},
+		let project_path = if let Some(ref path_pos) = args.path_pos {
+			Some(path_pos) // Use positional path if present
+		} else {
+			path_flag.as_ref() // Otherwise, use the named path
 		};
 
 		#[cfg(feature = "contract")]
-		if pop_contracts::is_supported(project_path.as_deref())? {
+		if pop_contracts::is_supported(project_path.as_deref().map(|v| &**v))? {
 			// All commands originating from root command are valid
 			let release = match args.profile {
 				Some(profile) => profile.into(),
 				None => args.release,
 			};
-			BuildContractCommand { path: project_path, release, valid: true }.execute()?;
+			BuildContract { path: project_path.cloned(), release }.execute()?;
 			return Ok("contract");
 		}
 
 		// If only parachain feature enabled, build as parachain
 		#[cfg(feature = "parachain")]
-		if pop_parachains::is_supported(project_path.as_deref())? {
+		if pop_parachains::is_supported(project_path.as_deref().map(|v| &**v))? {
 			let profile = match args.profile {
 				Some(profile) => profile,
 				None => args.release.into(),
 			};
+			let temp_path = &PathBuf::from("./");
 			BuildParachain {
-				path: project_path.unwrap_or_else(|| PathBuf::from("./")),
+				path: project_path.unwrap_or_else(|| temp_path).to_path_buf(),
 				package: args.package,
 				profile,
 			}
