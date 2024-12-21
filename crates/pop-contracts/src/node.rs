@@ -19,9 +19,11 @@ use std::{
 	process::{Child, Command, Stdio},
 	time::Duration,
 };
+use subxt::{dynamic::Value, SubstrateConfig};
 use tokio::time::sleep;
 
 const BIN_NAME: &str = "substrate-contracts-node";
+const STARTUP: Duration = Duration::from_millis(20_000);
 
 /// Checks if the specified node is alive and responsive.
 ///
@@ -131,8 +133,24 @@ pub async fn run_contracts_node(
 
 	let process = command.spawn()?;
 
-	// Wait 5 secs until the node is ready
-	sleep(Duration::from_millis(5000)).await;
+	// Wait until the node is ready
+	sleep(STARTUP).await;
+
+	let data = Value::from_bytes(subxt::utils::to_hex("initialize contracts node"));
+	let payload = subxt::dynamic::tx("System", "remark", [data].to_vec());
+
+	let client = subxt::client::OnlineClient::<SubstrateConfig>::from_url(format!(
+		"ws://127.0.0.1:{}",
+		port
+	))
+	.await
+	.map_err(|e| Error::AnyhowError(e.into()))?;
+	client
+		.tx()
+		.sign_and_submit_default(&payload, &subxt_signer::sr25519::dev::alice())
+		.await
+		.map_err(|e| Error::AnyhowError(e.into()))?;
+
 	Ok(process)
 }
 
@@ -166,10 +184,9 @@ fn release_directory_by_target(tag: Option<&str>) -> Result<&'static str, Error>
 
 #[cfg(test)]
 mod tests {
-	use crate::testing::find_free_port;
-
 	use super::*;
 	use anyhow::{Error, Result};
+	use pop_common::find_free_port;
 	use std::process::Command;
 
 	#[tokio::test]
@@ -223,7 +240,7 @@ mod tests {
 	#[ignore = "Works fine locally but is causing issues when running tests in parallel in the CI environment."]
 	#[tokio::test]
 	async fn run_contracts_node_works() -> Result<(), Error> {
-		let random_port = find_free_port();
+		let random_port = find_free_port(None);
 		let localhost_url = format!("ws://127.0.0.1:{}", random_port);
 		let local_url = url::Url::parse(&localhost_url)?;
 

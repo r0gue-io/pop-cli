@@ -2,26 +2,28 @@
 
 use crate::{
 	errors::Error,
+	submit_signed_payload,
 	utils::{
-		helpers::{get_manifest_path, parse_account, parse_balance},
+		get_manifest_path,
 		metadata::{process_function_args, FunctionType},
-		signer::create_signer,
+		parse_account, parse_balance,
 	},
 };
 use anyhow::Context;
 use contract_build::Verbosity;
 use contract_extrinsics::{
-	BalanceVariant, CallCommandBuilder, CallExec, ContractArtifacts, DisplayEvents, ErrorVariant,
-	ExtrinsicOptsBuilder, TokenMetadata,
+	extrinsic_calls::Call, BalanceVariant, CallCommandBuilder, CallExec, ContractArtifacts,
+	DisplayEvents, ErrorVariant, ExtrinsicOptsBuilder, TokenMetadata,
 };
 use ink_env::{DefaultEnvironment, Environment};
+use pop_common::{create_signer, Config, DefaultConfig, Keypair};
 use sp_weights::Weight;
 use std::path::PathBuf;
-use subxt::{Config, PolkadotConfig as DefaultConfig};
-use subxt_signer::sr25519::Keypair;
+use subxt::{tx::Payload, SubstrateConfig};
 use url::Url;
 
 /// Attributes for the `call` command.
+#[derive(Clone, Debug, PartialEq)]
 pub struct CallOpts {
 	/// Path to the contract build directory.
 	pub path: Option<PathBuf>,
@@ -174,16 +176,63 @@ pub async fn call_smart_contract(
 	Ok(output)
 }
 
+/// Executes a smart contract call using a signed payload.
+///
+/// # Arguments
+///
+/// * `call_exec` - A struct containing the details of the contract call.
+/// * `payload` - The signed payload string to be submitted for executing the call.
+/// * `url` - The endpoint of the node where the call is executed.
+pub async fn call_smart_contract_from_signed_payload(
+	call_exec: CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
+	payload: String,
+	url: &Url,
+) -> anyhow::Result<String, Error> {
+	let token_metadata = TokenMetadata::query::<DefaultConfig>(url).await?;
+	let metadata = call_exec.client().metadata();
+	let events = submit_signed_payload(url.as_str(), payload).await?;
+	let display_events = DisplayEvents::from_events::<SubstrateConfig, DefaultEnvironment>(
+		&events, None, &metadata,
+	)?;
+
+	let output =
+		display_events.display_events::<DefaultEnvironment>(Verbosity::Default, &token_metadata)?;
+	Ok(output)
+}
+
+/// Generates the payload for executing a smart contract call.
+///
+/// # Arguments
+/// * `call_exec` - A struct containing the details of the contract call.
+/// * `gas_limit` - The maximum amount of gas allocated for executing the contract call.
+pub fn get_call_payload(
+	call_exec: &CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
+	gas_limit: Weight,
+) -> anyhow::Result<Vec<u8>> {
+	let storage_deposit_limit: Option<u128> = call_exec.opts().storage_deposit_limit();
+	let mut encoded_data = Vec::<u8>::new();
+	Call::new(
+		call_exec.contract().into(),
+		call_exec.value(),
+		gas_limit,
+		storage_deposit_limit.as_ref(),
+		call_exec.call_data().clone(),
+	)
+	.build()
+	.encode_call_data_to(&call_exec.client().metadata(), &mut encoded_data)?;
+	Ok(encoded_data)
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
 	use crate::{
 		contracts_node_generator, dry_run_gas_estimate_instantiate, errors::Error,
 		instantiate_smart_contract, mock_build_process, new_environment, run_contracts_node,
-		set_up_deployment, testing::find_free_port, UpOpts,
+		set_up_deployment, UpOpts,
 	};
 	use anyhow::Result;
-	use pop_common::set_executable_permission;
+	use pop_common::{find_free_port, set_executable_permission};
 	use sp_core::Bytes;
 	use std::{env, process::Command, time::Duration};
 	use tokio::time::sleep;
@@ -336,7 +385,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn call_works() -> Result<()> {
-		let random_port = find_free_port();
+		let random_port = find_free_port(None);
 		let localhost_url = format!("ws://127.0.0.1:{}", random_port);
 		let temp_dir = new_environment("testing")?;
 		let current_dir = env::current_dir().expect("Failed to get current directory");

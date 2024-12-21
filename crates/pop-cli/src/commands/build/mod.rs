@@ -4,12 +4,12 @@ use crate::cli::{self, Cli};
 use anyhow::ensure;
 use clap::{Args, Parser, Subcommand};
 #[cfg(feature = "contract")]
-use contract::BuildContractCommand;
+use contract::BuildContract;
 use duct::cmd;
 use pop_common::Profile;
 use std::path::PathBuf;
 #[cfg(feature = "parachain")]
-use {parachain::BuildParachainCommand, spec::BuildSpecCommand};
+use {parachain::BuildParachain, spec::BuildSpecCommand};
 
 #[cfg(feature = "contract")]
 pub(crate) mod contract;
@@ -39,24 +39,11 @@ pub(crate) struct BuildArgs {
 	/// Build profile [default: debug].
 	#[clap(long, value_enum)]
 	pub(crate) profile: Option<Profile>,
-	/// Parachain ID to be used when generating the chain spec files.
-	#[arg(short = 'i', long = "id")]
-	#[cfg(feature = "parachain")]
-	pub(crate) id: Option<u32>,
 }
 
-/// Build a parachain, smart contract or Rust package.
+/// Subcommand for building chain artifacts.
 #[derive(Subcommand)]
 pub(crate) enum Command {
-	/// [DEPRECATED] Build a parachain
-	#[cfg(feature = "parachain")]
-	#[clap(alias = "p")]
-	Parachain(BuildParachainCommand),
-	/// [DEPRECATED] Build a contract, generate metadata, bundle together in a `<name>.contract`
-	/// file
-	#[cfg(feature = "contract")]
-	#[clap(alias = "c")]
-	Contract(BuildContractCommand),
 	/// Build a chain specification and its genesis artifacts.
 	#[cfg(feature = "parachain")]
 	#[clap(alias = "s")]
@@ -95,13 +82,10 @@ impl Command {
 				Some(profile) => profile,
 				None => args.release.into(),
 			};
-			// All commands originating from root command are valid
-			BuildParachainCommand {
-				path: project_path,
+			BuildParachain {
+				path: project_path.unwrap_or_else(|| PathBuf::from("./")),
 				package: args.package,
-				profile: Some(profile),
-				id: args.id,
-				valid: true,
+				profile,
 			}
 			.execute()?;
 			return Ok("parachain");
@@ -175,7 +159,6 @@ mod tests {
 								package: package.clone(),
 								release,
 								profile: Some(profile.clone()),
-								id: None,
 							},
 							&mut cli,
 						)?,

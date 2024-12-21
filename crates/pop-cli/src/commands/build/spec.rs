@@ -136,38 +136,38 @@ pub(crate) enum RelayChain {
 pub struct BuildSpecCommand {
 	/// File name for the resulting spec. If a path is given,
 	/// the necessary directories will be created
-	#[arg(short = 'o', long = "output")]
+	#[arg(short, long = "output")]
 	pub(crate) output_file: Option<PathBuf>,
 	/// [DEPRECATED] and will be removed in v0.7.0, use `profile`.
-	#[arg(short = 'r', long, conflicts_with = "profile")]
+	#[arg(short = 'R', long, conflicts_with = "profile")]
 	pub(crate) release: bool,
 	/// Build profile for the binary to generate the chain specification.
 	#[arg(long, value_enum)]
 	pub(crate) profile: Option<Profile>,
 	/// Parachain ID to be used when generating the chain spec files.
-	#[arg(short = 'i', long)]
+	#[arg(short, long)]
 	pub(crate) id: Option<u32>,
 	/// Whether to keep localhost as a bootnode.
-	#[arg(long)]
+	#[arg(short = 'b', long)]
 	pub(crate) default_bootnode: bool,
 	/// Type of the chain.
 	#[arg(short = 't', long = "type", value_enum)]
 	pub(crate) chain_type: Option<ChainType>,
 	/// Provide the chain specification to use (e.g. dev, local, custom or a path to an existing
 	/// file).
-	#[arg(short = 'c', long = "chain")]
+	#[arg(short, long)]
 	pub(crate) chain: Option<String>,
 	/// Relay chain this parachain will connect to.
-	#[arg(long, value_enum)]
+	#[arg(short = 'r', long, value_enum)]
 	pub(crate) relay: Option<RelayChain>,
 	/// Protocol-id to use in the specification.
-	#[arg(long = "protocol-id")]
+	#[arg(short = 'P', long = "protocol-id")]
 	pub(crate) protocol_id: Option<String>,
 	/// Whether the genesis state file should be generated.
-	#[arg(long = "genesis-state")]
+	#[arg(short = 'S', long = "genesis-state")]
 	pub(crate) genesis_state: bool,
 	/// Whether the genesis code file should be generated.
-	#[arg(long = "genesis-code")]
+	#[arg(short = 'C', long = "genesis-code")]
 	pub(crate) genesis_code: bool,
 }
 
