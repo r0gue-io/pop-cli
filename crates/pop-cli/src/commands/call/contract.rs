@@ -161,7 +161,7 @@ impl CallContractCommand {
 		let spinner = spinner();
 		spinner.start("Building contract in RELEASE mode...");
 		let result = match build_smart_contract(
-			project_path.as_deref().map(|v| v),
+			project_path.as_deref(),
 			true,
 			Verbosity::Quiet,
 		) {

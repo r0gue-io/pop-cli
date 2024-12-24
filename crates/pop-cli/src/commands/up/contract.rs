@@ -100,7 +100,7 @@ impl UpContractCommand {
 
 		let project_path = get_project_path(self.path.clone(), self.path_pos.clone());
 		// Check if build exists in the specified "Contract build directory"
-		if !has_contract_been_built(project_path.as_deref().map(|v| v)) {
+		if !has_contract_been_built(project_path.as_deref()) {
 			// Build the contract in release mode
 			Cli.warning("NOTE: contract has not yet been built.")?;
 			let spinner = spinner();
