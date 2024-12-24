@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{common::contracts::get_project_path, cli::{self, Cli}};
+use crate::{
+	cli::{self, Cli},
+	common::contracts::get_project_path,
+};
 use clap::{Args, Subcommand};
 #[cfg(feature = "contract")]
 use contract::BuildContract;

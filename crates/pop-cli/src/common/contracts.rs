@@ -126,7 +126,6 @@ pub fn has_contract_been_built(path: Option<&Path>) -> bool {
 		.unwrap_or_default()
 }
 
-
 pub fn get_project_path(path_flag: Option<PathBuf>, path_pos: Option<PathBuf>) -> Option<PathBuf> {
 	let project_path = if let Some(ref path) = path_pos {
 		Some(path) // Use positional path if present

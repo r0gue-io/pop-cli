@@ -3,7 +3,7 @@
 use crate::{
 	cli::{self, traits::*},
 	common::{
-		contracts::{has_contract_been_built, get_project_path},
+		contracts::{get_project_path, has_contract_been_built},
 		wallet::{prompt_to_use_wallet, request_signature},
 	},
 };
@@ -115,10 +115,10 @@ impl CallContractCommand {
 
 		if let Some(path) = &self.path {
 			full_message.push_str(&format!(" --path {}", path.display()));
-		  }
-		  if let Some(path_pos) = &self.path_pos {
+		}
+		if let Some(path_pos) = &self.path_pos {
 			full_message.push_str(&format!(" --path {}", path_pos.display()));
-		  }
+		}
 		if let Some(contract) = &self.contract {
 			full_message.push_str(&format!(" --contract {}", contract));
 		}
@@ -791,7 +791,7 @@ mod tests {
 				true,
 				Some(items),
 				1, // "get" message
-			)			
+			)
 			.expect_input(
 				"Where is your contract deployed?",
 				"wss://rpc1.paseo.popnetwork.xyz".into(),
