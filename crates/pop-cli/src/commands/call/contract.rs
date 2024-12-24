@@ -3,7 +3,7 @@
 use crate::{
 	cli::{self, traits::*},
 	common::{
-		contracts::has_contract_been_built,
+		contracts::{has_contract_been_built, get_project_path},
 		wallet::{prompt_to_use_wallet, request_signature},
 	},
 };
@@ -112,16 +112,13 @@ impl CallContractCommand {
 
 	fn display(&self) -> String {
 		let mut full_message = "pop call contract".to_string();
-		let path_flag = self.path.clone();
-		let project_path = if let Some(ref path_pos) = self.path_pos {
-			Some(path_pos) // Use positional path if present
-		} else {
-			path_flag.as_ref() // Otherwise, use the named path
-		};
 
-		if let Some(path) = &project_path {
+		if let Some(path) = &self.path {
 			full_message.push_str(&format!(" --path {}", path.display()));
-		}
+		  }
+		  if let Some(path_pos) = &self.path_pos {
+			full_message.push_str(&format!(" --path {}", path_pos.display()));
+		  }
 		if let Some(contract) = &self.contract {
 			full_message.push_str(&format!(" --contract {}", contract));
 		}
@@ -158,18 +155,13 @@ impl CallContractCommand {
 
 	/// If the contract has not been built, build it in release mode.
 	async fn ensure_contract_built(&self, cli: &mut impl Cli) -> Result<()> {
-		let path_flag = self.path.clone();
-		let project_path = if let Some(ref path_pos) = self.path_pos {
-			Some(path_pos) // Use positional path if present
-		} else {
-			path_flag.as_ref() // Otherwise, use the named path
-		};
+		let project_path = get_project_path(self.path.clone(), self.path_pos.clone());
 		// Build the contract in release mode
 		cli.warning("NOTE: contract has not yet been built.")?;
 		let spinner = spinner();
 		spinner.start("Building contract in RELEASE mode...");
 		let result = match build_smart_contract(
-			project_path.as_deref().map(|v| &**v),
+			project_path.as_deref().map(|v| v),
 			true,
 			Verbosity::Quiet,
 		) {
@@ -202,12 +194,7 @@ impl CallContractCommand {
 
 	/// Checks whether building the contract is required
 	fn is_contract_build_required(&self) -> bool {
-		let path_flag = self.path.clone();
-		let project_path = if let Some(ref path_pos) = self.path_pos {
-			Some(path_pos) // Use positional path if present
-		} else {
-			path_flag.as_ref() // Otherwise, use the named path
-		};
+		let project_path = get_project_path(self.path.clone(), self.path_pos.clone());
 
 		project_path
 			.as_ref()
@@ -217,12 +204,7 @@ impl CallContractCommand {
 
 	/// Configure the call based on command line arguments/call UI.
 	async fn configure(&mut self, cli: &mut impl Cli, repeat: bool) -> Result<()> {
-		let path_flag = self.path.clone();
-		let mut project_path: Option<PathBuf> = if let Some(ref path_pos) = self.path_pos {
-			Some(path_pos.to_path_buf()) // Use positional path if present
-		} else {
-			path_flag // Otherwise, use the named path
-		};
+		let mut project_path = get_project_path(self.path.clone(), self.path_pos.clone());
 
 		// Show intro on first run.
 		if !repeat {
@@ -390,12 +372,7 @@ impl CallContractCommand {
 		cli: &mut impl Cli,
 		prompt_to_repeat_call: bool,
 	) -> Result<()> {
-		let path_flag = self.path.clone();
-		let project_path = if let Some(ref path_pos) = self.path_pos {
-			Some(path_pos) // Use positional path if present
-		} else {
-			path_flag.as_ref() // Otherwise, use the named path
-		};
+		let project_path = get_project_path(self.path.clone(), self.path_pos.clone());
 
 		let message = match &self.message {
 			Some(message) => message.to_string(),
@@ -419,7 +396,7 @@ impl CallContractCommand {
 			},
 		};
 		let call_exec = match set_up_call(CallOpts {
-			path: project_path.cloned(),
+			path: project_path,
 			contract,
 			message,
 			args: self.args.clone(),
@@ -605,7 +582,7 @@ mod tests {
 		// Contract deployed on Pop Network testnet, test get
 		CallContractCommand {
 			path: Some(temp_dir.path().join("testing")),
-			path_pos: Some(temp_dir.path().join("testing")),
+			path_pos: None,
 			contract: Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string()),
 			message: Some("get".to_string()),
 			args: vec![].to_vec(),
@@ -642,7 +619,7 @@ mod tests {
 
 		let mut call_config = CallContractCommand {
 			path: Some(temp_dir.path().join("testing")),
-			path_pos: Some(temp_dir.path().join("testing")),
+			path_pos: None,
 			contract: Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string()),
 			message: Some("flip".to_string()),
 			args: vec![].to_vec(),
@@ -680,7 +657,7 @@ mod tests {
 		// From .contract file
 		let mut call_config = CallContractCommand {
 			path: Some(current_dir.join("pop-contracts/tests/files/testing.contract")),
-			path_pos: Some(current_dir.join("pop-contracts/tests/files/testing.contract")),
+			path_pos: None,
 			contract: Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string()),
 			message: Some("flip".to_string()),
 			args: vec![].to_vec(),
@@ -767,7 +744,7 @@ mod tests {
 		// Contract deployed on Pop Network testnet, test get
 		let mut call_config = CallContractCommand {
 			path: Some(temp_dir.path().join("testing")),
-			path_pos: Some(temp_dir.path().join("testing")),
+			path_pos: None,
 			contract: Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string()),
 			message: Some("get".to_string()),
 			args: vec![].to_vec(),
@@ -814,11 +791,7 @@ mod tests {
 				true,
 				Some(items),
 				1, // "get" message
-			)
-			.expect_input(
-				"Where is your project or contract artifact located?",
-				temp_dir.path().join("testing").display().to_string(),
-			)
+			)			
 			.expect_input(
 				"Where is your contract deployed?",
 				"wss://rpc1.paseo.popnetwork.xyz".into(),
@@ -834,7 +807,7 @@ mod tests {
 
 		let mut call_config = CallContractCommand {
 			path: None,
-			path_pos: None,
+			path_pos: Some(temp_dir.path().join("testing")),
 			contract: None,
 			message: None,
 			args: vec![].to_vec(),
@@ -864,7 +837,7 @@ mod tests {
 		assert!(!call_config.dry_run);
 		assert_eq!(call_config.display(), format!(
 			"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message get --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice",
-			temp_dir.path().join("testing").display().to_string(),
+			temp_dir.path().join("testing").display().to_string()
 		));
 
 		cli.verify()
@@ -890,10 +863,6 @@ mod tests {
 		];
 		// The inputs are processed in reverse order.
 		let mut cli = MockCli::new()
-			.expect_input(
-				"Where is your project or contract artifact located?",
-				temp_dir.path().join("testing").display().to_string(),
-			)
 			.expect_input(
 				"Where is your contract deployed?",
 				"wss://rpc1.paseo.popnetwork.xyz".into(),
@@ -922,7 +891,7 @@ mod tests {
 
 		let mut call_config = CallContractCommand {
 			path: None,
-			path_pos: None,
+			path_pos: Some(temp_dir.path().join("testing")),
 			contract: None,
 			message: None,
 			args: vec![].to_vec(),
@@ -955,7 +924,7 @@ mod tests {
 		assert!(!call_config.dry_run);
 		assert_eq!(call_config.display(), format!(
 			"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message specific_flip --args \"true\", \"2\" --value 50 --url wss://rpc1.paseo.popnetwork.xyz/ --use-wallet --execute",
-			temp_dir.path().join("testing").display().to_string(),
+			temp_dir.path().join("testing").display().to_string()
 		));
 
 		cli.verify()
@@ -989,10 +958,6 @@ mod tests {
 				2, // "specific_flip" message
 			)
 			.expect_input(
-				"Where is your project or contract artifact located?",
-				temp_dir.path().join("testing").display().to_string(),
-			)
-			.expect_input(
 				"Where is your contract deployed?",
 				"wss://rpc1.paseo.popnetwork.xyz".into(),
 			)
@@ -1011,7 +976,7 @@ mod tests {
 
 		let mut call_config = CallContractCommand {
 			path: None,
-			path_pos: None,
+			path_pos: Some(temp_dir.path().join("testing")),
 			contract: None,
 			message: None,
 			args: vec![].to_vec(),
@@ -1044,7 +1009,7 @@ mod tests {
 		assert!(call_config.dev_mode);
 		assert_eq!(call_config.display(), format!(
 			"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message specific_flip --args \"true\", \"2\" --value 50 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --execute",
-			temp_dir.path().join("testing").display().to_string(),
+			temp_dir.path().join("testing").display().to_string()
 		));
 
 		cli.verify()
@@ -1071,7 +1036,7 @@ mod tests {
 		// Test the path is a folder with an invalid build.
 		let mut command = CallContractCommand {
 			path: Some(temp_dir.path().join("testing")),
-			path_pos: Some(temp_dir.path().join("testing")),
+			path_pos: None,
 			contract: None,
 			message: None,
 			args: vec![].to_vec(),
@@ -1122,7 +1087,7 @@ mod tests {
 		assert!(matches!(
 			CallContractCommand {
 				path: Some(temp_dir.path().join("testing")),
-				path_pos: Some(temp_dir.path().join("testing")),
+				path_pos: None,
 				contract: Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string()),
 				message: None,
 				args: vec![].to_vec(),
@@ -1142,7 +1107,7 @@ mod tests {
 		assert!(matches!(
 			CallContractCommand {
 				path: Some(temp_dir.path().join("testing")),
-				path_pos: Some(temp_dir.path().join("testing")),
+				path_pos: None,
 				contract: None,
 				message: Some("get".to_string()),
 				args: vec![].to_vec(),
@@ -1167,7 +1132,7 @@ mod tests {
 		let temp_dir = new_environment("testing")?;
 		let call_config = CallContractCommand {
 			path: Some(temp_dir.path().join("testing")),
-			path_pos: Some(temp_dir.path().join("testing")),
+			path_pos: None,
 			contract: Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string()),
 			message: None,
 			args: vec![].to_vec(),
@@ -1199,7 +1164,7 @@ mod tests {
 		let temp_dir = new_environment("testing")?;
 		let call_config = CallContractCommand {
 			path: Some(temp_dir.path().join("testing")),
-			path_pos: Some(temp_dir.path().join("testing")),
+			path_pos: None,
 			contract: Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string()),
 			message: None,
 			args: vec![].to_vec(),

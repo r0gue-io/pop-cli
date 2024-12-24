@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::cli::{self, Cli};
+use crate::{common::contracts::get_project_path, cli::{self, Cli}};
 use clap::{Args, Subcommand};
 #[cfg(feature = "contract")]
 use contract::BuildContract;
@@ -53,32 +53,27 @@ impl Command {
 	/// Executes the command.
 	pub(crate) fn execute(args: BuildArgs) -> anyhow::Result<&'static str> {
 		// If only contract feature enabled, build as contract
-		let path_flag = args.path.clone();
-		let project_path = if let Some(ref path_pos) = args.path_pos {
-			Some(path_pos) // Use positional path if present
-		} else {
-			path_flag.as_ref() // Otherwise, use the named path
-		};
+		let project_path = get_project_path(args.path.clone(), args.path_pos.clone());
 
 		#[cfg(feature = "contract")]
-		if pop_contracts::is_supported(project_path.as_deref().map(|v| &**v))? {
+		if pop_contracts::is_supported(project_path.as_deref().map(|v| v))? {
 			// All commands originating from root command are valid
 			let release = match args.profile {
 				Some(profile) => profile.into(),
 				None => args.release,
 			};
-			BuildContract { path: project_path.cloned(), release }.execute()?;
+			BuildContract { path: project_path, release }.execute()?;
 			return Ok("contract");
 		}
 
 		// If only parachain feature enabled, build as parachain
 		#[cfg(feature = "parachain")]
-		if pop_parachains::is_supported(project_path.as_deref().map(|v| &**v))? {
+		if pop_parachains::is_supported(project_path.as_deref().map(|v| v))? {
 			let profile = match args.profile {
 				Some(profile) => profile,
 				None => args.release.into(),
 			};
-			let temp_path = &PathBuf::from("./");
+			let temp_path = PathBuf::from("./");
 			BuildParachain {
 				path: project_path.unwrap_or_else(|| temp_path).to_path_buf(),
 				package: args.package,

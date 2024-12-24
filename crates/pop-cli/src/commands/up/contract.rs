@@ -3,7 +3,7 @@
 use crate::{
 	cli::{traits::Cli as _, Cli},
 	common::{
-		contracts::{check_contracts_node_and_prompt, has_contract_been_built, terminate_node},
+		contracts::{check_contracts_node_and_prompt, has_contract_been_built, terminate_node, get_project_path},
 		wallet::request_signature,
 	},
 	style::style,
@@ -95,20 +95,15 @@ impl UpContractCommand {
 	pub(crate) async fn execute(mut self) -> anyhow::Result<()> {
 		Cli.intro("Deploy a smart contract")?;
 
-		let path_flag = self.path.clone();
-		let project_path = if let Some(ref path_pos) = self.path_pos {
-			Some(path_pos) // Use positional path if present
-		} else {
-			path_flag.as_ref() // Otherwise, use the named path
-		};
+		let project_path = get_project_path(self.path.clone(), self.path_pos.clone());
 		// Check if build exists in the specified "Contract build directory"
-		if !has_contract_been_built(project_path.as_deref().map(|v| &**v)) {
+		if !has_contract_been_built(project_path.as_deref().map(|v| v)) {
 			// Build the contract in release mode
 			Cli.warning("NOTE: contract has not yet been built.")?;
 			let spinner = spinner();
 			spinner.start("Building contract in RELEASE mode...");
 			let result = match build_smart_contract(
-				project_path.as_deref().map(|v| &**v),
+				project_path.as_deref().map(|v| v),
 				true,
 				Verbosity::Quiet,
 			) {
@@ -373,13 +368,8 @@ impl UpContractCommand {
 
 	// get the call data and contract code hash
 	async fn get_contract_data(&self) -> anyhow::Result<(Vec<u8>, [u8; 32])> {
-		let path_flag = self.path.clone();
-		let project_path = if let Some(ref path_pos) = self.path_pos {
-			Some(path_pos) // Use positional path if present
-		} else {
-			path_flag.as_ref() // Otherwise, use the named path
-		};
-		let contract_code = get_contract_code(project_path)?;
+		let project_path = get_project_path(self.path.clone(), self.path_pos.clone());
+		let contract_code = get_contract_code(project_path.as_ref())?;
 		let hash = contract_code.code_hash();
 		if self.upload_only {
 			let call_data = get_upload_payload(contract_code, self.url.as_str()).await?;
