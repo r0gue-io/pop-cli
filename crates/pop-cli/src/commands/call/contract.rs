@@ -160,11 +160,7 @@ impl CallContractCommand {
 		cli.warning("NOTE: contract has not yet been built.")?;
 		let spinner = spinner();
 		spinner.start("Building contract in RELEASE mode...");
-		let result = match build_smart_contract(
-			project_path.as_deref(),
-			true,
-			Verbosity::Quiet,
-		) {
+		let result = match build_smart_contract(project_path.as_deref(), true, Verbosity::Quiet) {
 			Ok(result) => result,
 			Err(e) => {
 				return Err(anyhow!(format!(
