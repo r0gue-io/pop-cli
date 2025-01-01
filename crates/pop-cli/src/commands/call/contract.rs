@@ -3,7 +3,8 @@
 use crate::{
 	cli::{self, traits::*},
 	common::{
-		contracts::{get_project_path, has_contract_been_built},
+		builds::get_project_path,
+		contracts::has_contract_been_built,
 		wallet::{prompt_to_use_wallet, request_signature},
 	},
 };

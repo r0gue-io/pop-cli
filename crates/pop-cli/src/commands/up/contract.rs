@@ -3,10 +3,8 @@
 use crate::{
 	cli::{traits::Cli as _, Cli},
 	common::{
-		contracts::{
-			check_contracts_node_and_prompt, get_project_path, has_contract_been_built,
-			terminate_node,
-		},
+		builds::get_project_path,
+		contracts::{check_contracts_node_and_prompt, has_contract_been_built, terminate_node},
 		wallet::request_signature,
 	},
 	style::style,
