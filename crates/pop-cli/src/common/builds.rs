@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0
 use std::path::PathBuf;
 
 /// This method is used to get the proper project path format (with or without cli flag)
