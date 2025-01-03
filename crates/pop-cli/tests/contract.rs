@@ -10,10 +10,7 @@ use pop_contracts::{
 use serde::{Deserialize, Serialize};
 use std::{path::Path, process::Command as Cmd, time::Duration};
 use strum::VariantArray;
-use subxt::{
-	client::OfflineClientT, config::DefaultExtrinsicParamsBuilder as Params, tx::Payload,
-	utils::to_hex,
-};
+use subxt::{config::DefaultExtrinsicParamsBuilder as Params, tx::Payload, utils::to_hex};
 use subxt_signer::sr25519::dev;
 use tokio::time::sleep;
 use url::Url;
