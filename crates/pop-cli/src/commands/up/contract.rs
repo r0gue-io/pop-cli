@@ -3,6 +3,7 @@
 use crate::{
 	cli::{traits::Cli as _, Cli},
 	common::{
+		builds::get_project_path,
 		contracts::{check_contracts_node_and_prompt, has_contract_been_built, terminate_node},
 		wallet::request_signature,
 	},
@@ -34,6 +35,9 @@ pub struct UpContractCommand {
 	/// Path to the contract build directory.
 	#[arg(short, long)]
 	path: Option<PathBuf>,
+	/// Directory path without flag for your project [default: current directory]
+	#[arg(value_name = "PATH", index = 1, conflicts_with = "path")]
+	pub path_pos: Option<PathBuf>,
 	/// The name of the contract constructor to call.
 	#[clap(short, long, default_value = "new")]
 	constructor: String,
@@ -92,13 +96,18 @@ impl UpContractCommand {
 	pub(crate) async fn execute(mut self) -> anyhow::Result<()> {
 		Cli.intro("Deploy a smart contract")?;
 
+		let project_path = get_project_path(self.path.clone(), self.path_pos.clone());
 		// Check if build exists in the specified "Contract build directory"
-		if !has_contract_been_built(self.path.as_deref()) {
+		if !has_contract_been_built(project_path.as_deref()) {
 			// Build the contract in release mode
 			Cli.warning("NOTE: contract has not yet been built.")?;
 			let spinner = spinner();
 			spinner.start("Building contract in RELEASE mode...");
-			let result = match build_smart_contract(self.path.as_deref(), true, Verbosity::Quiet) {
+			let result = match build_smart_contract(
+				project_path.as_deref().map(|v| v),
+				true,
+				Verbosity::Quiet,
+			) {
 				Ok(result) => result,
 				Err(e) => {
 					Cli.outro_cancel(format!("🚫 An error occurred building your contract: {e}\nUse `pop build` to retry with build output."))?;
@@ -360,7 +369,8 @@ impl UpContractCommand {
 
 	// get the call data and contract code hash
 	async fn get_contract_data(&self) -> anyhow::Result<(Vec<u8>, [u8; 32])> {
-		let contract_code = get_contract_code(self.path.as_ref())?;
+		let project_path = get_project_path(self.path.clone(), self.path_pos.clone());
+		let contract_code = get_contract_code(project_path.as_ref())?;
 		let hash = contract_code.code_hash();
 		if self.upload_only {
 			let call_data = get_upload_payload(contract_code, self.url.as_str()).await?;
@@ -435,6 +445,7 @@ mod tests {
 	fn default_up_contract_command() -> UpContractCommand {
 		UpContractCommand {
 			path: None,
+			path_pos: None,
 			constructor: "new".to_string(),
 			args: vec![],
 			value: "0".to_string(),
@@ -510,7 +521,8 @@ mod tests {
 		let localhost_url = format!("ws://127.0.0.1:{}", port);
 
 		let up_contract_opts = UpContractCommand {
-			path: Some(temp_dir),
+			path: Some(temp_dir.clone()),
+			path_pos: Some(temp_dir),
 			constructor: "new".to_string(),
 			args: vec![],
 			value: "0".to_string(),
@@ -561,7 +573,8 @@ mod tests {
 		let localhost_url = format!("ws://127.0.0.1:{}", port);
 
 		let up_contract_opts = UpContractCommand {
-			path: Some(temp_dir),
+			path: Some(temp_dir.clone()),
+			path_pos: Some(temp_dir),
 			constructor: "new".to_string(),
 			args: vec!["false".to_string()],
 			value: "0".to_string(),

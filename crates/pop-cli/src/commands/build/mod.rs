@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::cli::{self, Cli};
+use crate::{
+	cli::{self, Cli},
+	common::builds::get_project_path,
+};
 use clap::{Args, Subcommand};
 #[cfg(feature = "contract")]
 use contract::BuildContract;
@@ -23,9 +26,12 @@ pub(crate) mod spec;
 pub(crate) struct BuildArgs {
 	#[command(subcommand)]
 	pub command: Option<Command>,
-	/// Directory path for your project [default: current directory]
+	/// Directory path with flag for your project [default: current directory]
 	#[arg(long)]
 	pub(crate) path: Option<PathBuf>,
+	/// Directory path without flag for your project [default: current directory]
+	#[arg(value_name = "PATH", index = 1, conflicts_with = "path")]
+	pub(crate) path_pos: Option<PathBuf>,
 	/// The package to be built.
 	#[arg(short = 'p', long)]
 	pub(crate) package: Option<String>,
@@ -50,25 +56,29 @@ impl Command {
 	/// Executes the command.
 	pub(crate) fn execute(args: BuildArgs) -> anyhow::Result<&'static str> {
 		// If only contract feature enabled, build as contract
+		let project_path = get_project_path(args.path.clone(), args.path_pos.clone());
+
 		#[cfg(feature = "contract")]
-		if pop_contracts::is_supported(args.path.as_deref())? {
+		if pop_contracts::is_supported(project_path.as_deref().map(|v| v))? {
+			// All commands originating from root command are valid
 			let release = match args.profile {
 				Some(profile) => profile.into(),
 				None => args.release,
 			};
-			BuildContract { path: args.path, release }.execute()?;
+			BuildContract { path: project_path, release }.execute()?;
 			return Ok("contract");
 		}
 
 		// If only parachain feature enabled, build as parachain
 		#[cfg(feature = "parachain")]
-		if pop_parachains::is_supported(args.path.as_deref())? {
+		if pop_parachains::is_supported(project_path.as_deref().map(|v| v))? {
 			let profile = match args.profile {
 				Some(profile) => profile,
 				None => args.release.into(),
 			};
+			let temp_path = PathBuf::from("./");
 			BuildParachain {
-				path: args.path.unwrap_or_else(|| PathBuf::from("./")),
+				path: project_path.unwrap_or_else(|| temp_path).to_path_buf(),
 				package: args.package,
 				profile,
 			}
@@ -140,6 +150,7 @@ mod tests {
 							BuildArgs {
 								command: None,
 								path: Some(project_path.clone()),
+								path_pos: Some(project_path.clone()),
 								package: package.clone(),
 								release,
 								profile: Some(profile.clone()),

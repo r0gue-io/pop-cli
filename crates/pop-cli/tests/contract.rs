@@ -74,6 +74,7 @@ async fn contract_lifecycle() -> Result<()> {
 		.args(&["build", "--path", "./test_contract", "--release"])
 		.assert()
 		.success();
+
 	// Verify that the directory target has been created
 	assert!(temp_dir.join("test_contract/target").exists());
 	// Verify that all the artifacts has been generated
@@ -88,11 +89,19 @@ async fn contract_lifecycle() -> Result<()> {
 	sleep(Duration::from_secs(5)).await;
 
 	// Only upload the contract
-	// pop up contract --upload-only
+	// pop up contract --path ./test_contract --upload-only
 	Command::cargo_bin("pop")
 		.unwrap()
 		.current_dir(&temp_dir.join("test_contract"))
-		.args(&["up", "contract", "--upload-only", "--url", default_endpoint])
+		.args(&[
+			"up",
+			"contract",
+			"--path",
+			"./test_contract",
+			"--upload-only",
+			"--url",
+			default_endpoint,
+		])
 		.assert()
 		.success();
 	// Instantiate contract, only dry-run
