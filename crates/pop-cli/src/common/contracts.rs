@@ -26,11 +26,14 @@ pub async fn check_contracts_node_and_prompt(
 	let mut node_path = binary.path();
 	if !binary.exists() {
 		cli.warning("⚠️ The substrate-contracts-node binary is not found.")?;
-		if cli
-			.confirm("📦 Would you like to source it automatically now?")
-			.initial_value(true)
-			.interact()?
-		{
+		let latest = if !skip_confirm {
+			cli.confirm("📦 Would you like to source it automatically now?")
+				.initial_value(true)
+				.interact()?
+		} else {
+			true
+		};
+		if latest {
 			let spinner = spinner();
 			spinner.start("📦 Sourcing substrate-contracts-node...");
 
@@ -166,6 +169,21 @@ mod tests {
 			.expect_warning("⚠️ The substrate-contracts-node binary is not found.");
 
 		let node_path = check_contracts_node_and_prompt(&mut cli, cache_path.path(), false).await?;
+		// Binary path is at least equal to the cache path + "substrate-contracts-node".
+		assert!(node_path
+			.to_str()
+			.unwrap()
+			.starts_with(&cache_path.path().join("substrate-contracts-node").to_str().unwrap()));
+		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn check_contracts_node_and_prompt_handles_skip_confirm() -> anyhow::Result<()> {
+		let cache_path = tempfile::tempdir().expect("Could create temp dir");
+		let mut cli =
+			MockCli::new().expect_warning("⚠️ The substrate-contracts-node binary is not found.");
+
+		let node_path = check_contracts_node_and_prompt(&mut cli, cache_path.path(), true).await?;
 		// Binary path is at least equal to the cache path + "substrate-contracts-node".
 		assert!(node_path
 			.to_str()
