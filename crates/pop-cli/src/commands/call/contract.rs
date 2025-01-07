@@ -3,6 +3,7 @@
 use crate::{
 	cli::{self, traits::*},
 	common::{
+		builds::get_project_path,
 		contracts::has_contract_been_built,
 		wallet::{prompt_to_use_wallet, request_signature},
 	},
@@ -17,7 +18,7 @@ use pop_contracts::{
 	parse_account, set_up_call, CallExec, CallOpts, DefaultEnvironment, Verbosity,
 };
 use sp_weights::Weight;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 const DEFAULT_URL: &str = "ws://localhost:9944/";
 const DEFAULT_URI: &str = "//Alice";
@@ -28,6 +29,9 @@ pub struct CallContractCommand {
 	/// Path to the contract build directory or a contract artifact.
 	#[arg(short, long)]
 	path: Option<PathBuf>,
+	/// Directory path without flag for your project [default: current directory]
+	#[arg(value_name = "PATH", index = 1, conflicts_with = "path")]
+	pub(crate) path_pos: Option<PathBuf>,
 	/// The address of the contract to call.
 	#[arg(short, long, env = "CONTRACT")]
 	contract: Option<String>,
@@ -109,8 +113,12 @@ impl CallContractCommand {
 
 	fn display(&self) -> String {
 		let mut full_message = "pop call contract".to_string();
+
 		if let Some(path) = &self.path {
 			full_message.push_str(&format!(" --path {}", path.display()));
+		}
+		if let Some(path_pos) = &self.path_pos {
+			full_message.push_str(&format!(" --path {}", path_pos.display()));
 		}
 		if let Some(contract) = &self.contract {
 			full_message.push_str(&format!(" --contract {}", contract));
@@ -148,11 +156,12 @@ impl CallContractCommand {
 
 	/// If the contract has not been built, build it in release mode.
 	async fn ensure_contract_built(&self, cli: &mut impl Cli) -> Result<()> {
+		let project_path = get_project_path(self.path.clone(), self.path_pos.clone());
 		// Build the contract in release mode
 		cli.warning("NOTE: contract has not yet been built.")?;
 		let spinner = spinner();
 		spinner.start("Building contract in RELEASE mode...");
-		let result = match build_smart_contract(self.path.as_deref(), true, Verbosity::Quiet) {
+		let result = match build_smart_contract(project_path.as_deref(), true, Verbosity::Quiet) {
 			Ok(result) => result,
 			Err(e) => {
 				return Err(anyhow!(format!(
@@ -182,7 +191,9 @@ impl CallContractCommand {
 
 	/// Checks whether building the contract is required
 	fn is_contract_build_required(&self) -> bool {
-		self.path
+		let project_path = get_project_path(self.path.clone(), self.path_pos.clone());
+
+		project_path
 			.as_ref()
 			.map(|p| p.is_dir() && !has_contract_been_built(Some(p)))
 			.unwrap_or_default()
@@ -190,6 +201,8 @@ impl CallContractCommand {
 
 	/// Configure the call based on command line arguments/call UI.
 	async fn configure(&mut self, cli: &mut impl Cli, repeat: bool) -> Result<()> {
+		let mut project_path = get_project_path(self.path.clone(), self.path_pos.clone());
+
 		// Show intro on first run.
 		if !repeat {
 			cli.intro("Call a contract")?;
@@ -201,16 +214,15 @@ impl CallContractCommand {
 		}
 
 		// Resolve path.
-		if self.path.is_none() {
+		if project_path.is_none() {
 			let input_path: String = cli
 				.input("Where is your project or contract artifact located?")
 				.placeholder("./")
 				.default_input("./")
 				.interact()?;
-			self.path = Some(PathBuf::from(input_path));
+			project_path = Some(PathBuf::from(input_path));
 		}
-		let contract_path = self
-			.path
+		let contract_path = project_path
 			.as_ref()
 			.expect("path is guaranteed to be set as input as prompted when None; qed");
 
@@ -357,6 +369,8 @@ impl CallContractCommand {
 		cli: &mut impl Cli,
 		prompt_to_repeat_call: bool,
 	) -> Result<()> {
+		let project_path = get_project_path(self.path.clone(), self.path_pos.clone());
+
 		let message = match &self.message {
 			Some(message) => message.to_string(),
 			None => {
@@ -364,8 +378,9 @@ impl CallContractCommand {
 			},
 		};
 		// Disable wallet signing and display warning if the call is read-only.
+		let path = PathBuf::from("./");
 		let message_metadata =
-			get_message(self.path.as_deref().unwrap_or_else(|| Path::new("./")), &message)?;
+			get_message(project_path.as_deref().unwrap_or_else(|| &path), &message)?;
 		if !message_metadata.mutates && self.use_wallet {
 			cli.warning("NOTE: Signing is not required for this read-only call. The '--use-wallet' flag will be ignored.")?;
 			self.use_wallet = false;
@@ -378,7 +393,7 @@ impl CallContractCommand {
 			},
 		};
 		let call_exec = match set_up_call(CallOpts {
-			path: self.path.clone(),
+			path: project_path,
 			contract,
 			message,
 			args: self.args.clone(),
@@ -564,6 +579,7 @@ mod tests {
 		// Contract deployed on Pop Network testnet, test get
 		CallContractCommand {
 			path: Some(temp_dir.path().join("testing")),
+			path_pos: None,
 			contract: Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string()),
 			message: Some("get".to_string()),
 			args: vec![].to_vec(),
@@ -600,6 +616,7 @@ mod tests {
 
 		let mut call_config = CallContractCommand {
 			path: Some(temp_dir.path().join("testing")),
+			path_pos: None,
 			contract: Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string()),
 			message: Some("flip".to_string()),
 			args: vec![].to_vec(),
@@ -637,6 +654,7 @@ mod tests {
 		// From .contract file
 		let mut call_config = CallContractCommand {
 			path: Some(current_dir.join("pop-contracts/tests/files/testing.contract")),
+			path_pos: None,
 			contract: Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string()),
 			message: Some("flip".to_string()),
 			args: vec![].to_vec(),
@@ -723,6 +741,7 @@ mod tests {
 		// Contract deployed on Pop Network testnet, test get
 		let mut call_config = CallContractCommand {
 			path: Some(temp_dir.path().join("testing")),
+			path_pos: None,
 			contract: Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string()),
 			message: Some("get".to_string()),
 			args: vec![].to_vec(),
@@ -771,10 +790,6 @@ mod tests {
 				1, // "get" message
 			)
 			.expect_input(
-				"Where is your project or contract artifact located?",
-				temp_dir.path().join("testing").display().to_string(),
-			)
-			.expect_input(
 				"Where is your contract deployed?",
 				"wss://rpc1.paseo.popnetwork.xyz".into(),
 			)
@@ -789,6 +804,7 @@ mod tests {
 
 		let mut call_config = CallContractCommand {
 			path: None,
+			path_pos: Some(temp_dir.path().join("testing")),
 			contract: None,
 			message: None,
 			args: vec![].to_vec(),
@@ -818,7 +834,7 @@ mod tests {
 		assert!(!call_config.dry_run);
 		assert_eq!(call_config.display(), format!(
 			"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message get --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice",
-			temp_dir.path().join("testing").display().to_string(),
+			temp_dir.path().join("testing").display().to_string()
 		));
 
 		cli.verify()
@@ -844,10 +860,6 @@ mod tests {
 		];
 		// The inputs are processed in reverse order.
 		let mut cli = MockCli::new()
-			.expect_input(
-				"Where is your project or contract artifact located?",
-				temp_dir.path().join("testing").display().to_string(),
-			)
 			.expect_input(
 				"Where is your contract deployed?",
 				"wss://rpc1.paseo.popnetwork.xyz".into(),
@@ -876,6 +888,7 @@ mod tests {
 
 		let mut call_config = CallContractCommand {
 			path: None,
+			path_pos: Some(temp_dir.path().join("testing")),
 			contract: None,
 			message: None,
 			args: vec![].to_vec(),
@@ -908,7 +921,7 @@ mod tests {
 		assert!(!call_config.dry_run);
 		assert_eq!(call_config.display(), format!(
 			"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message specific_flip --args \"true\", \"2\" --value 50 --url wss://rpc1.paseo.popnetwork.xyz/ --use-wallet --execute",
-			temp_dir.path().join("testing").display().to_string(),
+			temp_dir.path().join("testing").display().to_string()
 		));
 
 		cli.verify()
@@ -942,10 +955,6 @@ mod tests {
 				2, // "specific_flip" message
 			)
 			.expect_input(
-				"Where is your project or contract artifact located?",
-				temp_dir.path().join("testing").display().to_string(),
-			)
-			.expect_input(
 				"Where is your contract deployed?",
 				"wss://rpc1.paseo.popnetwork.xyz".into(),
 			)
@@ -964,6 +973,7 @@ mod tests {
 
 		let mut call_config = CallContractCommand {
 			path: None,
+			path_pos: Some(temp_dir.path().join("testing")),
 			contract: None,
 			message: None,
 			args: vec![].to_vec(),
@@ -996,7 +1006,7 @@ mod tests {
 		assert!(call_config.dev_mode);
 		assert_eq!(call_config.display(), format!(
 			"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message specific_flip --args \"true\", \"2\" --value 50 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --execute",
-			temp_dir.path().join("testing").display().to_string(),
+			temp_dir.path().join("testing").display().to_string()
 		));
 
 		cli.verify()
@@ -1023,6 +1033,7 @@ mod tests {
 		// Test the path is a folder with an invalid build.
 		let mut command = CallContractCommand {
 			path: Some(temp_dir.path().join("testing")),
+			path_pos: None,
 			contract: None,
 			message: None,
 			args: vec![].to_vec(),
@@ -1073,6 +1084,7 @@ mod tests {
 		assert!(matches!(
 			CallContractCommand {
 				path: Some(temp_dir.path().join("testing")),
+				path_pos: None,
 				contract: Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string()),
 				message: None,
 				args: vec![].to_vec(),
@@ -1092,6 +1104,7 @@ mod tests {
 		assert!(matches!(
 			CallContractCommand {
 				path: Some(temp_dir.path().join("testing")),
+				path_pos: None,
 				contract: None,
 				message: Some("get".to_string()),
 				args: vec![].to_vec(),
@@ -1116,6 +1129,7 @@ mod tests {
 		let temp_dir = new_environment("testing")?;
 		let call_config = CallContractCommand {
 			path: Some(temp_dir.path().join("testing")),
+			path_pos: None,
 			contract: Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string()),
 			message: None,
 			args: vec![].to_vec(),
@@ -1147,6 +1161,7 @@ mod tests {
 		let temp_dir = new_environment("testing")?;
 		let call_config = CallContractCommand {
 			path: Some(temp_dir.path().join("testing")),
+			path_pos: None,
 			contract: Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string()),
 			message: None,
 			args: vec![].to_vec(),
