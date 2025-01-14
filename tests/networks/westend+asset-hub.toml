@@ -1,7 +1,7 @@
-# pop up parachain -f ./tests/networks/rococo+coretime.toml
+# pop up parachain -f ./tests/networks/westend+asset-hub.toml
 
 [relaychain]
-chain = "rococo-local"
+chain = "westend-local"
 
 [[relaychain.nodes]]
 name = "alice"
@@ -12,8 +12,8 @@ name = "bob"
 validator = true
 
 [[parachains]]
-id = 1005
-chain = "coretime-rococo-local"
+id = 1000
+chain = "asset-hub-westend-local"
 
 [[parachains.collators]]
-name = "coretime-01"
+name = "asset-hub"

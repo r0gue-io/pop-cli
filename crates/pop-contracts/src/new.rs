@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{errors::Error, utils::helpers::canonicalized_path, Contract};
+use crate::{errors::Error, utils::canonicalized_path, Contract};
 use anyhow::Result;
 use contract_build::new_contract_project;
 use heck::ToUpperCamelCase;
@@ -65,15 +65,10 @@ fn create_template_contract(
 	// Retrieve only the template contract files.
 	if template == &Contract::PSP22 || template == &Contract::PSP34 {
 		// Different template structure requires extracting different path
-		extract_template_files(
-			String::from(""),
-			temp_dir.path(),
-			canonicalized_path.as_path(),
-			None,
-		)?;
+		extract_template_files("", temp_dir.path(), canonicalized_path.as_path(), None)?;
 	} else {
 		extract_template_files(
-			template.to_string(),
+			template.as_ref(),
 			temp_dir.path(),
 			canonicalized_path.as_path(),
 			Some(vec!["frontend".to_string()]),
@@ -95,10 +90,19 @@ pub fn rename_contract(name: &str, path: PathBuf, template: &Contract) -> Result
 	// Replace name in the lib.rs file.
 	file_path = path.join("lib.rs");
 	let name_in_camel_case = name.to_upper_camel_case();
-	let mut replacements_in_contract = HashMap::new();
-	replacements_in_contract.insert(template_name.as_str(), name);
-	replacements_in_contract.insert(template.name(), &name_in_camel_case);
-	replace_in_file(file_path, replacements_in_contract)?;
+	replace_in_file(
+		file_path,
+		HashMap::from([(template_name.as_str(), name), (template.name(), &name_in_camel_case)]),
+	)?;
+	// Replace name in the e2e_tests.rs file if exists.
+	let e2e_tests = path.join("e2e_tests.rs");
+	if e2e_tests.exists() {
+		let name_in_camel_case = format!("\"{}\"", name.to_upper_camel_case());
+		replace_in_file(
+			e2e_tests,
+			HashMap::from([(template_name.as_str(), name), (template.name(), &name_in_camel_case)]),
+		)?;
+	}
 	Ok(())
 }
 
@@ -187,6 +191,20 @@ mod tests {
 				mod erc20
 			"#
 		)?;
+
+		let e2e_code = temp_dir.path().join("e2e_tests.rs");
+		let mut e2e_code_file = fs::File::create(e2e_code.clone())?;
+		writeln!(
+			e2e_code_file,
+			r#"
+				#[ink_e2e::test]
+					let contract = client
+						.instantiate("erc20", &ink_e2e::alice(), &mut constructor)
+						.submit()
+						.await
+						.expect("erc20 instantiate failed");
+			"#
+		)?;
 		Ok(temp_dir)
 	}
 	#[test]
@@ -200,6 +218,10 @@ mod tests {
 		let generated_code =
 			fs::read_to_string(temp_dir.path().join("lib.rs")).expect("Could not read file");
 		assert!(generated_code.contains("mod my_contract"));
+		let generated_e2e_code =
+			fs::read_to_string(temp_dir.path().join("e2e_tests.rs")).expect("Could not read file");
+		assert!(generated_e2e_code
+			.contains(".instantiate(\"my_contract\", &ink_e2e::alice(), &mut constructor)"));
 
 		Ok(())
 	}

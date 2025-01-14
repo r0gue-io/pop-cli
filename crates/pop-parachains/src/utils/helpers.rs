@@ -33,7 +33,8 @@ pub fn is_initial_endowment_valid(initial_endowment: &str) -> bool {
 	initial_endowment.parse::<u128>().is_ok() ||
 		is_valid_bitwise_left_shift(initial_endowment).is_ok()
 }
-// Auxiliar method to check if the endowment input with a shift left (1u64 << 60) format is valid.
+
+// Auxiliary method to check if the endowment input with a shift left (1u64 << 60) format is valid.
 // Parse the self << rhs format and check the shift left operation is valid.
 fn is_valid_bitwise_left_shift(initial_endowment: &str) -> Result<u128, Error> {
 	let v: Vec<&str> = initial_endowment.split(" << ").collect();

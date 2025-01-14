@@ -123,19 +123,34 @@ pub enum Parachain {
 	EVM,
 	// OpenZeppelin
 	#[strum(
-		serialize = "polkadot-generic-runtime-template",
+		serialize = "openzeppelin/generic-template",
 		message = "Generic Runtime Template",
-		detailed_message = "A generic template for Substrate Runtime",
+		detailed_message = "A generic template for Substrate Runtime.",
 		props(
 			Provider = "OpenZeppelin",
 			Repository = "https://github.com/OpenZeppelin/polkadot-runtime-templates",
 			Network = "./zombienet-config/devnet.toml",
-			SupportedVersions = "v1.0.0",
+			SupportedVersions = "v1.0.0,v2.0.1,v2.0.3",
 			IsAudited = "true",
 			License = "GPL-3.0"
 		)
 	)]
 	OpenZeppelinGeneric,
+	// OpenZeppelin EVM
+	#[strum(
+		serialize = "openzeppelin/evm-template",
+		message = "EVM Template",
+		detailed_message = "Parachain with EVM compatibility out of the box.",
+		props(
+			Provider = "OpenZeppelin",
+			Repository = "https://github.com/OpenZeppelin/polkadot-runtime-templates",
+			Network = "./zombienet-config/devnet.toml",
+			SupportedVersions = "v2.0.3",
+			IsAudited = "true",
+			License = "GPL-3.0"
+		)
+	)]
+	OpenZeppelinEVM,
 	/// The Parachain-Ready Template From Polkadot SDK.
 	#[strum(
 		serialize = "paritytech/polkadot-sdk-parachain-template",
@@ -153,7 +168,7 @@ pub enum Parachain {
 	#[strum(
 		serialize = "paritytech/substrate-contracts-node",
 		message = "Contracts",
-		detailed_message = "Minimal Substrate node configured for smart contracts via pallet-contracts. [deprecated]. Suggested to use Pop > Contracts template instead.",
+		detailed_message = "Minimal Substrate node configured for smart contracts via pallet-contracts.",
 		props(
 			Provider = "Parity",
 			Repository = "https://github.com/paritytech/substrate-contracts-node",
@@ -162,22 +177,6 @@ pub enum Parachain {
 		)
 	)]
 	ParityContracts,
-	/// [Deprecated] This command is deprecated, please use 'paritytech/substrate-contracts-node'
-	/// instead.
-	#[strum(
-		serialize = "cpt",
-		message = "Contracts",
-		detailed_message = "Minimal Substrate node configured for smart contracts via pallet-contracts.",
-		props(
-			Provider = "Parity",
-			Repository = "https://github.com/paritytech/substrate-contracts-node",
-			Network = "./zombienet.toml",
-			License = "Unlicense",
-			IsDeprecated = "true",
-			DeprecatedMessage = "This template is deprecated. Please use paritytech/substrate-contracts-node in the future.",
-		)
-	)]
-	DeprecatedParityContracts,
 	// templates for unit tests below
 	#[cfg(test)]
 	#[strum(
@@ -233,6 +232,12 @@ impl Parachain {
 	pub fn license(&self) -> Option<&str> {
 		self.get_str("License")
 	}
+
+	/// Gets the template name, removing the provider if present.
+	pub fn template_name_without_provider(&self) -> &str {
+		let name = self.as_ref();
+		name.split_once('/').map_or(name, |(_, template)| template)
+	}
 }
 
 #[cfg(test)]
@@ -249,12 +254,28 @@ mod tests {
 			("contracts".to_string(), Contracts),
 			("evm".to_string(), EVM),
 			// openzeppelin
-			("polkadot-generic-runtime-template".to_string(), OpenZeppelinGeneric),
+			("openzeppelin/generic-template".to_string(), OpenZeppelinGeneric),
+			("openzeppelin/evm-template".to_string(), OpenZeppelinEVM),
+			// pàrity
 			("paritytech/polkadot-sdk-parachain-template".to_string(), ParityGeneric),
 			("paritytech/substrate-contracts-node".to_string(), ParityContracts),
-			("cpt".to_string(), DeprecatedParityContracts),
 			("test_01".to_string(), TestTemplate01),
 			("test_02".to_string(), TestTemplate02),
+		])
+	}
+
+	fn templates_names_without_providers() -> HashMap<Parachain, String> {
+		HashMap::from([
+			(Standard, "standard".to_string()),
+			(Assets, "assets".to_string()),
+			(Contracts, "contracts".to_string()),
+			(EVM, "evm".to_string()),
+			(OpenZeppelinGeneric, "generic-template".to_string()),
+			(OpenZeppelinEVM, "evm-template".to_string()),
+			(ParityGeneric, "polkadot-sdk-parachain-template".to_string()),
+			(ParityContracts, "substrate-contracts-node".to_string()),
+			(TestTemplate01, "test_01".to_string()),
+			(TestTemplate02, "test_02".to_string()),
 		])
 	}
 
@@ -265,6 +286,14 @@ mod tests {
 			("contracts".to_string(), "https://github.com/r0gue-io/contracts-parachain"),
 			("evm".to_string(), "https://github.com/r0gue-io/evm-parachain"),
 			// openzeppelin
+			(
+				"openzeppelin/generic-template".to_string(),
+				"https://github.com/OpenZeppelin/polkadot-runtime-templates",
+			),
+			(
+				"openzeppelin/evm-template".to_string(),
+				"https://github.com/OpenZeppelin/polkadot-runtime-templates",
+			),
 			(
 				"polkadot-generic-runtime-template".to_string(),
 				"https://github.com/OpenZeppelin/polkadot-runtime-templates",
@@ -290,9 +319,9 @@ mod tests {
 			(Contracts, Some("./network.toml")),
 			(EVM, Some("./network.toml")),
 			(OpenZeppelinGeneric, Some("./zombienet-config/devnet.toml")),
+			(OpenZeppelinEVM, Some("./zombienet-config/devnet.toml")),
 			(ParityGeneric, Some("./zombienet.toml")),
 			(ParityContracts, Some("./zombienet.toml")),
-			(DeprecatedParityContracts, Some("./zombienet.toml")),
 			(TestTemplate01, Some("")),
 			(TestTemplate02, Some("")),
 		]
@@ -306,9 +335,9 @@ mod tests {
 			(Contracts, Some("Unlicense")),
 			(EVM, Some("Unlicense")),
 			(OpenZeppelinGeneric, Some("GPL-3.0")),
+			(OpenZeppelinEVM, Some("GPL-3.0")),
 			(ParityGeneric, Some("Unlicense")),
 			(ParityContracts, Some("Unlicense")),
-			(DeprecatedParityContracts, Some("Unlicense")),
 			(TestTemplate01, Some("Unlicense")),
 			(TestTemplate02, Some("GPL-3.0")),
 		]
@@ -358,6 +387,7 @@ mod tests {
 	fn test_network_config() {
 		let network_configs = template_network_configs();
 		for template in Parachain::VARIANTS {
+			println!("{:?}", template.name());
 			assert_eq!(template.network_config(), network_configs[template]);
 		}
 	}
@@ -428,7 +458,7 @@ mod tests {
 	}
 
 	#[test]
-	fn test_is_deprecated() {
+	fn is_deprecated_works() {
 		let template = TestTemplate01;
 		assert_eq!(template.is_deprecated(), true);
 
@@ -437,7 +467,7 @@ mod tests {
 	}
 
 	#[test]
-	fn test_deprecated_message() {
+	fn deprecated_message_works() {
 		let template = TestTemplate01;
 		assert_eq!(
 			template.deprecated_message(),
@@ -446,5 +476,16 @@ mod tests {
 
 		let template = TestTemplate02;
 		assert_eq!(template.deprecated_message(), "");
+	}
+
+	#[test]
+	fn template_name_without_provider() {
+		let template_names = templates_names_without_providers();
+		for template in Parachain::VARIANTS {
+			assert_eq!(
+				template.template_name_without_provider(),
+				template_names.get(template).unwrap()
+			);
+		}
 	}
 }
