@@ -153,6 +153,14 @@ impl Zombienet {
 							}
 						}
 					}
+					// Check if collator has defined command
+					if let Some(collator) = table.get("collator").and_then(|i| i.as_table()) {
+						if let Some(command) =
+							NetworkConfiguration::command(collator).and_then(|i| i.as_str())
+						{
+							return Some(Item::Value(Value::String(Formatted::new(command.into()))));
+						}
+					}
 
 					// Otherwise default to polkadot-parachain
 					Some(Item::Value(Value::String(Formatted::new("polkadot-parachain".into()))))
@@ -206,6 +214,16 @@ impl Zombienet {
 				continue;
 			}
 
+			// Check if command references a parachain template binary without a specified path
+			// (e.g. Polkadot SDK parachain template)
+			if command == "parachain-template-node" || command == "substrate-contracts-node" {
+				let binary_path = PathBuf::from("./target/release").join(&command);
+				if !binary_path.exists() {
+					return Err(Error::MissingBinary(command));
+				}
+				paras.insert(id, Parachain::from_local(id, binary_path, chain)?);
+				continue;
+			}
 			return Err(Error::MissingBinary(command));
 		}
 		Ok(paras)
@@ -479,6 +497,12 @@ impl NetworkConfiguration {
 						}
 					}
 				}
+				// Resolve individual collator command to binary
+				if let Some(collator) = table.get_mut("collator").and_then(|p| p.as_table_mut()) {
+					if let Some(command) = NetworkConfiguration::command_mut(collator) {
+						*command = value(&path)
+					}
+				}
 			}
 		}
 
@@ -676,7 +700,11 @@ fn resolve_manifest(package: &str, path: &Path) -> Result<Option<PathBuf>, Error
 mod tests {
 	use super::*;
 	use anyhow::Result;
-	use std::{env::current_dir, fs::File, io::Write};
+	use std::{
+		env::current_dir,
+		fs::{create_dir_all, remove_dir, remove_file, File},
+		io::Write,
+	};
 	use tempfile::tempdir;
 
 	pub(crate) const VERSION: &str = "stable2409";
@@ -1120,6 +1148,77 @@ default_command = "./target/release/parachain-template-node"
 			assert_eq!(pop.path(), Path::new("./target/release/parachain-template-node"));
 			assert_eq!(pop.version(), None);
 			assert!(matches!(pop, Binary::Local { .. }));
+			Ok(())
+		}
+
+		#[tokio::test]
+		async fn new_with_local_parachain_without_path_works() -> Result<()> {
+			let temp_dir = tempdir()?;
+			let cache = PathBuf::from(temp_dir.path());
+			let config = Builder::new().suffix(".toml").tempfile()?;
+			writeln!(
+				config.as_file(),
+				r#"
+[relaychain]
+chain = "rococo-local"
+
+[[parachains]]
+id = 1000
+
+[parachains.collator]
+name = "collator"
+command = "parachain-template-node"
+
+[[parachains]]
+id = 2000
+
+[parachains.collator]
+name = "collator"
+command = "substrate-contracts-node"
+"#
+			)?;
+			assert!(matches!(
+				Zombienet::new(&cache, config.path().to_str().unwrap(), None, None, None, None, None).await,
+				Err(Error::MissingBinary(command))
+				if command == "parachain-template-node"
+			));
+			// Create the binaries in the hardcoded path
+			let parachain_template = PathBuf::from("target/release/parachain-template-node");
+			create_dir_all(parachain_template.parent().unwrap())?;
+			File::create(&parachain_template)?;
+			let parachain_contracts_template =
+				PathBuf::from("target/release/substrate-contracts-node");
+			File::create(&parachain_contracts_template)?;
+
+			let zombienet = Zombienet::new(
+				&cache,
+				config.path().to_str().unwrap(),
+				None,
+				None,
+				None,
+				None,
+				None,
+			)
+			.await?;
+			// Remove the binary hardcoded path
+			remove_file(&parachain_template)?;
+			remove_file(&parachain_contracts_template)?;
+			remove_dir(parachain_template.parent().unwrap())?;
+
+			assert_eq!(zombienet.parachains.len(), 2);
+			let parachain = &zombienet.parachains.get(&1000).unwrap().binary;
+			assert_eq!(parachain.name(), "parachain-template-node");
+			assert_eq!(parachain.path(), Path::new("./target/release/parachain-template-node"));
+			assert_eq!(parachain.version(), None);
+			assert!(matches!(parachain, Binary::Local { .. }));
+			let contract_parachain = &zombienet.parachains.get(&2000).unwrap().binary;
+			assert_eq!(contract_parachain.name(), "substrate-contracts-node");
+			assert_eq!(
+				contract_parachain.path(),
+				Path::new("./target/release/substrate-contracts-node")
+			);
+			assert_eq!(contract_parachain.version(), None);
+			assert!(matches!(contract_parachain, Binary::Local { .. }));
 			Ok(())
 		}
 
@@ -1619,6 +1718,14 @@ default_command = "./target/release/parachain-template-node"
 [[parachains.collators]]
 name = "collator"
 command = "./target/release/parachain-template-node"
+
+[[parachains]]
+id = 2002
+default_command = "./target/release/parachain-template-node"
+
+[parachains.collator]
+name = "collator"
+command = "./target/release/parachain-template-node"
 "#
 			)?;
 			let mut network_config = NetworkConfiguration::from(config.path())?;
@@ -1688,6 +1795,19 @@ command = "./target/release/parachain-template-node"
 							chain_spec_generator: None,
 						},
 					),
+					(
+						2002,
+						Parachain {
+							id: 2002,
+							binary: Binary::Local {
+								name: "parachain-template-node".to_string(),
+								path: parachain_template.to_path_buf(),
+								manifest: None,
+							},
+							chain: None,
+							chain_spec_generator: None,
+						},
+					),
 				]
 				.into(),
 			)?;
@@ -1730,6 +1850,14 @@ id = 2001
 default_command = "{3}"
 
 [[parachains.collators]]
+name = "collator"
+command = "{3}"
+
+[[parachains]]
+id = 2002
+default_command = "{3}"
+
+[parachains.collator]
 name = "collator"
 command = "{3}"
 
