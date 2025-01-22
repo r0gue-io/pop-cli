@@ -112,7 +112,18 @@ pub(crate) fn find_composite_enum(ast: &File, composite_enum: &ItemEnum) -> bool
 					content.as_ref().expect("content is always Some thanks to the match guard");
 				for item in items {
 					match item {
-						Item::Enum(ItemEnum { ident, .. }) if *ident == composite_enum.ident =>
+						Item::Enum(ItemEnum { ident, attrs, .. })
+							if *ident == composite_enum.ident &&
+								attrs.iter().any(|attribute| {
+									if let Meta::Path(Path { segments, .. }) = &attribute.meta {
+										// It's enough checking than composite_enum is in the path
+										segments
+											.iter()
+											.any(|segment| segment.ident == "composite_enum")
+									} else {
+										false
+									}
+								}) =>
 							return true,
 						_ => continue,
 					}

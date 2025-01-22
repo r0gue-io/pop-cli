@@ -91,3 +91,37 @@ fn find_use_statement_works_well() {
 	assert!(find_use_statement(&test_builder.ast, &valid_use_statement));
 	assert!(!find_use_statement(&test_builder.ast, &invalid_use_statement));
 }
+
+#[test]
+fn find_composite_enum_works_well() {
+	let mut test_builder = TestBuilder::default();
+
+	test_builder.add_basic_pallet_with_composite_enum_ast();
+
+	// This enum appears in the sample file basic_pallet_with_composite_enum
+	let composite_enum: ItemEnum = parse_quote! {
+			#[pallet::composite_enum]
+			pub enum SomeEnum {
+				#[codec(index = 0)]
+				Something,
+			}
+	};
+
+	// This enum doesn't appear in the sample file basic_pallet_with_composite_enum
+	let bad_composite_enum: ItemEnum = parse_quote! {
+		#[pallet::composite_enum]
+		pub enum OtherEnum{
+			#[codec(index=0)]
+			Something,
+		}
+	};
+
+	assert!(find_composite_enum(&test_builder.ast, &composite_enum));
+	assert!(!find_composite_enum(&test_builder.ast, &bad_composite_enum));
+
+	// basic pallet contains an enum called SomeEnum but it's not annotated as composite_enum
+	let mut test_builder = TestBuilder::default();
+
+	test_builder.add_basic_pallet_ast();
+	assert!(!find_composite_enum(&test_builder.ast, &composite_enum));
+}

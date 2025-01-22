@@ -1,8 +1,8 @@
-// SPDX-License-Identifier: GPL-3.0
-
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use frame::prelude::*;
+
+use frame::traits::{fungible, VariantCount};
 
 pub use pallet::*;
 
@@ -19,6 +19,7 @@ mod benchmarking;
 pub mod pallet {
     use super::*;
 
+    #[pallet::composite_enum]
     pub enum SomeEnum {
         #[codec(index = 0)]
         Something,
@@ -27,7 +28,7 @@ pub mod pallet {
     #[pallet::pallet]
     pub struct Pallet<T>(_);
 
-    #[pallet::config(with_default)]
+    #[pallet::config]
     pub trait Config: frame_system::Config {}
 
     #[pallet::call]
