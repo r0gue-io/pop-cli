@@ -119,6 +119,7 @@ impl CommonTypes {
 			CommonTypes::RuntimeEvent => Vec::new(),
 			CommonTypes::RuntimeOrigin => Vec::new(),
 			CommonTypes::RuntimeHoldReason => vec![parse_quote! {
+				///TEMP_DOC
 				/// A reason for the pallet placing a hold on funds.
 				#[pallet::composite_enum]
 				pub enum HoldReason {

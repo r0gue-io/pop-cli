@@ -4,7 +4,7 @@
 mod tests;
 
 use crate::rust_writer::types::*;
-use proc_macro2::{Group, Literal, Span, TokenStream, TokenTree};
+use proc_macro2::{Group, Literal, TokenStream, TokenTree};
 use syn::{
 	parse_quote, Expr, File, Ident, ImplItem, Item, ItemEnum, ItemImpl, ItemMacro, ItemMod,
 	ItemStruct, ItemTrait, ItemUse, Macro, Meta, MetaList, TraitBound, TraitItem, Type,
@@ -29,17 +29,17 @@ pub(crate) fn expand_pallet_config_trait(
 							items.push(match default_config {
 								DefaultConfigType::Default { .. } =>
 									TraitItem::Type(parse_quote! {
-										///EMPTY_LINE
+										///TEMP_DOC
 										type #type_name: #(#trait_bounds +)*;
 									}),
 								DefaultConfigType::NoDefault => TraitItem::Type(parse_quote! {
-									///EMPTY_LINE
+									///TEMP_DOC
 									#[pallet::no_default]
 									type #type_name: #(#trait_bounds +)*;
 								}),
 								DefaultConfigType::NoDefaultBounds { .. } => {
 									TraitItem::Type(parse_quote! {
-										///EMPTY_LINE
+										///TEMP_DOC
 										#[pallet::no_default_bounds]
 										type #type_name: #(#trait_bounds +)*;
 									})
@@ -193,7 +193,7 @@ pub(crate) fn expand_runtime_add_impl_block(
 		let parameter_values: Vec<&Expr> = parameter_types.iter().map(|item| &item.value).collect();
 
 		items.push(Item::Macro(parse_quote! {
-			///EMPTY_LINE
+			///TEMP_DOC
 			parameter_types!{
 				#(
 					pub #parameter_idents: #parameter_types_types = #parameter_values;
@@ -204,13 +204,13 @@ pub(crate) fn expand_runtime_add_impl_block(
 
 	if default_config {
 		items.push(Item::Impl(parse_quote! {
-			///EMPTY_LINE
+			///TEMP_DOC
 			#[derive_impl(#pallet_name::config_preludes::TestDefaultConfig)]
 			impl #pallet_name::Config for Runtime{}
 		}));
 	} else {
 		items.push(Item::Impl(parse_quote! {
-			///EMPTY_LINE
+			///TEMP_DOC
 			impl #pallet_name::Config for Runtime{}
 		}));
 	}
@@ -242,7 +242,7 @@ pub(crate) fn expand_add_use_statement(ast: &mut File, use_statement: ItemUse) {
 	// Find the first use statement
 	let position = items.iter().position(|item| matches!(item, Item::Use(_))).unwrap_or(0);
 	// Insert the use statement where needed
-	items.insert(position, Item::Use(use_statement));
+	items.insert(position.saturating_add(1), Item::Use(use_statement));
 }
 
 pub(crate) fn expand_pallet_add_composite_enum(ast: &mut File, composite_enum: ItemEnum) {
@@ -260,8 +260,8 @@ pub(crate) fn expand_pallet_add_composite_enum(ast: &mut File, composite_enum: I
 						|item| matches!(item, Item::Struct(ItemStruct { ident, .. }) if *ident == "Pallet"),
 					)
 					.unwrap_or(0);
-				// Insert the composite_enum just before the Pallet struct
-				items.insert(position.saturating_sub(1), Item::Enum(composite_enum.clone()));
+				// Insert the composite_enum just after the Pallet struct
+				items.insert(position.saturating_add(1), Item::Enum(composite_enum.clone()));
 			},
 			_ => continue,
 		}

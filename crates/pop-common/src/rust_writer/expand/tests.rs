@@ -181,7 +181,7 @@ impl TestBuilder {
 
 			assert_eq!(
 				self.ast.items.contains(&Item::Macro(parse_quote! {
-					///EMPTY_LINE
+					///TEMP_DOC
 					parameter_types!{
 						#(
 							pub #parameter_idents: #parameter_types_types = #parameter_values;
@@ -195,7 +195,7 @@ impl TestBuilder {
 		if using_default_config {
 			assert_eq!(
 				self.ast.items.contains(&Item::Impl(parse_quote! {
-					///EMPTY_LINE
+					///TEMP_DOC
 					#[derive_impl(#pallet_name::config_preludes::TestDefaultConfig)]
 					impl #pallet_name::Config for Runtime{}
 				})),
@@ -204,7 +204,7 @@ impl TestBuilder {
 		} else {
 			assert_eq!(
 				self.ast.items.contains(&Item::Impl(parse_quote! {
-					///EMPTY_LINE
+					///TEMP_DOC
 					impl #pallet_name::Config for Runtime{}
 				})),
 				contains
@@ -300,7 +300,7 @@ fn expand_pallet_config_trait_works_well_test() {
 	test_builder.assert_item_in_config_trait(
 		false,
 		TraitItem::Type(parse_quote! {
-			///EMPTY_LINE
+			///TEMP_DOC
 			type MyDefaultType: Bound1 + From<Trait2> +;
 		}),
 	);
@@ -317,7 +317,7 @@ fn expand_pallet_config_trait_works_well_test() {
 	test_builder.assert_item_in_config_trait(
 		true,
 		TraitItem::Type(parse_quote! {
-			///EMPTY_LINE
+			///TEMP_DOC
 			type MyDefaultType: Bound1 + From<Trait2> +;
 		}),
 	);
@@ -325,7 +325,7 @@ fn expand_pallet_config_trait_works_well_test() {
 	test_builder.assert_item_in_config_trait(
 		false,
 		TraitItem::Type(parse_quote! {
-			///EMPTY_LINE
+			///TEMP_DOC
 			#[pallet::no_default]
 			type MyNoDefaultType: Bound1 + From<Trait2> +;
 		}),
@@ -342,7 +342,7 @@ fn expand_pallet_config_trait_works_well_test() {
 	test_builder.assert_item_in_config_trait(
 		true,
 		TraitItem::Type(parse_quote! {
-			///EMPTY_LINE
+			///TEMP_DOC
 			#[pallet::no_default]
 			type MyNoDefaultType: Bound1 + From<Trait2> +;
 		}),
@@ -351,7 +351,7 @@ fn expand_pallet_config_trait_works_well_test() {
 	test_builder.assert_item_in_config_trait(
 		false,
 		TraitItem::Type(parse_quote! {
-			///EMPTY_LINE
+			///TEMP_DOC
 			#[pallet::no_default_bounds]
 			type MyNoDefaultBoundsType: Bound1 + From<Trait2> +;
 		}),
@@ -370,7 +370,7 @@ fn expand_pallet_config_trait_works_well_test() {
 	test_builder.assert_item_in_config_trait(
 		true,
 		TraitItem::Type(parse_quote! {
-			///EMPTY_LINE
+			///TEMP_DOC
 			#[pallet::no_default_bounds]
 			type MyNoDefaultBoundsType: Bound1 + From<Trait2> +;
 		}),

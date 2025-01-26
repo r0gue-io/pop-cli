@@ -26,7 +26,10 @@ pub fn update_config_trait(
 	trait_bounds: Vec<TraitBound>,
 	default_config: &types::DefaultConfigType,
 ) -> Result<(), Error> {
-	let mut ast = helpers::preserve_and_parse(fs::read_to_string(file_path)?, vec![])?;
+	let mut preserver = types::Preserver::new("pub mod pallet");
+	preserver.add_inners(vec!["pub trait Config"]);
+
+	let mut ast = helpers::preserve_and_parse(fs::read_to_string(file_path)?, vec![preserver])?;
 
 	// Expand the config trait
 	expand::expand_pallet_config_trait(&mut ast, default_config, type_name, trait_bounds);
@@ -52,9 +55,10 @@ pub fn add_type_to_runtimes(
 		type_name: Ident,
 		runtime_value: Type,
 	) -> Result<(), Error> {
-		let mut ast = helpers::preserve_and_parse(file_content.to_string(), vec![])?;
-
 		let pallet_name = find_crate_name(pallet_manifest_path)?.replace("-", "_");
+		let preserver = types::Preserver::new(&format!("impl {}::Config", pallet_name));
+
+		let mut ast = helpers::preserve_and_parse(file_content.to_string(), vec![preserver])?;
 
 		expand::expand_runtime_add_type_to_impl_block(
 			&mut ast,
@@ -109,7 +113,51 @@ pub fn add_type_to_config_preludes(
 	file_path: &Path,
 	type_default_impl: ImplItem,
 ) -> Result<(), Error> {
-	let mut ast = helpers::preserve_and_parse(fs::read_to_string(file_path)?, vec![])?;
+	// Define preservers for the most common used struct names for default config. Both for
+	// independent module file and module contained inside pallet
+	let preserver_testchain_config =
+		types::Preserver::new("impl DefaultConfig for TestDefaultConfig");
+	let mut preserver_testchain_config_inside_pallet_mod = types::Preserver::new("pub mod pallet");
+	preserver_testchain_config_inside_pallet_mod
+		.add_inners(vec!["pub mod config_preludes", "impl DefaultConfig for TestDefaultConfig"]);
+
+	let preserver_solochain_config =
+		types::Preserver::new("impl DefaultConfig for SolochainDefaultConfig");
+	let mut preserver_solochain_config_inside_pallet_mod = types::Preserver::new("pub mod pallet");
+	preserver_solochain_config_inside_pallet_mod.add_inners(vec![
+		"pub mod config_preludes",
+		"impl DefaultConfig for SolochainDefaultConfig",
+	]);
+
+	let preserver_relaychain_config =
+		types::Preserver::new("impl DefaultConfig for RelayChainDefaultConfig");
+	let mut preserver_relaychain_config_inside_pallet_mod = types::Preserver::new("pub mod pallet");
+	preserver_relaychain_config_inside_pallet_mod.add_inners(vec![
+		"pub mod config_preludes",
+		"impl DefaultConfig for RelayChainDefaultConfig",
+	]);
+
+	let preserver_parachain_config =
+		types::Preserver::new("impl DefaultConfig for ParaChainDefaultConfig");
+	let mut preserver_parachain_config_inside_pallet_mod = types::Preserver::new("pub mod pallet");
+	preserver_parachain_config_inside_pallet_mod.add_inners(vec![
+		"pub mod config_preludes",
+		"impl DefaultConfig for ParaChainDefaultConfig",
+	]);
+
+	let mut ast = helpers::preserve_and_parse(
+		fs::read_to_string(file_path)?,
+		vec![
+			preserver_testchain_config,
+			preserver_testchain_config_inside_pallet_mod,
+			preserver_solochain_config,
+			preserver_solochain_config_inside_pallet_mod,
+			preserver_relaychain_config,
+			preserver_relaychain_config_inside_pallet_mod,
+			preserver_parachain_config,
+			preserver_parachain_config_inside_pallet_mod,
+		],
+	)?;
 
 	// Expand the config_preludes
 	expand::expand_pallet_config_preludes(&mut ast, type_default_impl);
@@ -128,11 +176,11 @@ pub fn add_pallet_to_runtime_module(
 	runtime_lib_path: &Path,
 	pallet_dependencie_type: CrateDependencie,
 ) -> Result<(), Error> {
-	// As the runtime may be constructed with construc_runtime!, we have to avoid preserving that
-	// macro with comments
+	let preserver_construct_runtime = types::Preserver::new("construct_runtime!");
+	let preserver_mod_runtime = types::Preserver::new("mod runtime");
 	let mut ast = helpers::preserve_and_parse(
 		fs::read_to_string(runtime_lib_path)?,
-		vec!["construct_runtime"],
+		vec![preserver_construct_runtime, preserver_mod_runtime],
 	)?;
 
 	// Parse the runtime to find which of the runtime macros is being used and the highest
@@ -194,6 +242,7 @@ pub fn add_pallet_impl_block_to_runtime(
 	values: Vec<Type>,
 	default_config: bool,
 ) -> Result<(), Error> {
+	// Nothing to preserve in this ast as this is a new impl block
 	let mut ast = helpers::preserve_and_parse(fs::read_to_string(runtime_impl_path)?, vec![])?;
 	let pallet_name_ident = Ident::new(&pallet_name.replace("-", "_"), Span::call_site());
 	// Expand the runtime to add the impl_block
@@ -225,7 +274,9 @@ pub fn add_pallet_impl_block_to_runtime(
 }
 
 pub fn add_use_statements(file_path: &Path, use_statements: Vec<ItemUse>) -> Result<(), Error> {
-	let mut ast = helpers::preserve_and_parse(fs::read_to_string(file_path)?, vec![])?;
+	// Preserve the first use statement to insert the new one where they're
+	let preserver = types::Preserver::new("use");
+	let mut ast = helpers::preserve_and_parse(fs::read_to_string(file_path)?, vec![preserver])?;
 
 	use_statements.into_iter().for_each(|use_statement| {
 		if !parse::find_use_statement(&ast, &use_statement) {
@@ -243,7 +294,9 @@ pub fn add_use_statements(file_path: &Path, use_statements: Vec<ItemUse>) -> Res
 }
 
 pub fn add_composite_enums(file_path: &Path, composite_enums: Vec<ItemEnum>) -> Result<(), Error> {
-	let mut ast = helpers::preserve_and_parse(fs::read_to_string(file_path)?, vec![])?;
+	let mut preserver = types::Preserver::new("pub mod pallet");
+	preserver.add_inners(vec!["pub struct Pallet"]);
+	let mut ast = helpers::preserve_and_parse(fs::read_to_string(file_path)?, vec![preserver])?;
 
 	composite_enums.into_iter().for_each(|composite_enum| {
 		if !parse::find_composite_enum(&ast, &composite_enum) {

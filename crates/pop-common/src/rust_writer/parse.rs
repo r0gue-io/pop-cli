@@ -42,7 +42,14 @@ pub(crate) fn find_highest_pallet_index(ast: &File) -> Result<PalletIndex, Error
 							if let Meta::List(MetaList { tokens, .. }) =
 								&pallet_index_attribute.meta
 							{
-								pallet_index = tokens.clone().into_iter().next().expect("This iterator has one element due to the attribute shape; qed;").to_string().parse::<PalletIndex>().expect("The macro #[runtime::pallet_index(n)] is only valid if n is a valid number, so we can parse it to PalletIndex; qed;");
+								pallet_index = tokens
+                                    .clone()
+                                    .into_iter()
+                                    .next()
+                                    .expect("This iterator has one element due to the attribute shape; qed;")
+                                    .to_string()
+                                    .parse::<PalletIndex>()
+                                    .expect("The macro #[runtime::pallet_index(n)] is only valid if n is a valid number, so we can parse it to PalletIndex; qed;");
 							}
 							// Despite the pallets will likely be ordered by call_index in the
 							// runtime, that's not necessarily true, so we keep the highest index in
