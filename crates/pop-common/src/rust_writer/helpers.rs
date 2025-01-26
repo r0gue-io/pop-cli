@@ -81,7 +81,7 @@ fn apply_preservers(code: String, mut preservers: Vec<Preserver>) -> String {
 					// Global attributes may be hard to parse with syn, so we comment them to solve
 					// potential issues related to them.
 					result.push(format!("///TEMP_DOC{}\ntype temp_marker = ();", line));
-				} else if line.is_empty() {
+				} else if trimmed_line.is_empty() {
 					// Preserve empty lines inside a non-preserved block
 					result.push("///TEMP_DOC\ntype temp_marker = ();".to_owned());
 				} else {

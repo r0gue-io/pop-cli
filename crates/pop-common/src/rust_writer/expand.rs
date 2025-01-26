@@ -33,9 +33,9 @@ pub(crate) fn expand_pallet_config_trait(
 										type #type_name: #(#trait_bounds +)*;
 									}),
 								DefaultConfigType::NoDefault => TraitItem::Type(parse_quote! {
-									///TEMP_DOC
-									#[pallet::no_default]
-									type #type_name: #(#trait_bounds +)*;
+									  ///TEMP_DOC
+									  #[pallet::no_default]
+									  type #type_name: #(#trait_bounds +)*;
 								}),
 								DefaultConfigType::NoDefaultBounds { .. } => {
 									TraitItem::Type(parse_quote! {
