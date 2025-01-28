@@ -2,8 +2,8 @@
 
 use clap::{Args, Subcommand};
 
-pub mod config_type;
-pub mod pallet;
+pub mod pallet_config_type;
+pub mod runtime_pallet;
 
 /// Arguments for adding a new feature to existing code
 #[derive(Args)]
@@ -14,12 +14,23 @@ pub struct AddArgs {
 }
 
 #[derive(Subcommand)]
-pub enum Command {
+pub enum Command{
+    /// Expand your runtime using Pop-Cli
+#[command(subcommand)]
+    Runtime(RuntimeCommand),
+    /// Expand a pallet using Pop-Cli
+    #[command(subcommand)]
+    Pallet(PalletCommand)
+}
+
+#[derive(Subcommand)]
+pub enum RuntimeCommand {
+	/// Add pallets to an existing runtime
+	Pallet(runtime_pallet::AddPalletCommand),
+}
+
+#[derive(Subcommand)]
+pub enum PalletCommand {
 	/// Add a new config type to an existing pallet
-	#[cfg(feature = "parachain")]
-	#[clap(alias = "C")]
-	ConfigType(config_type::AddConfigTypeCommand),
-	/// Add a new pallet to an existing runtime
-	#[clap(alias = "P")]
-	Pallet(pallet::AddPalletCommand),
+	ConfigType(pallet_config_type::AddConfigTypeCommand),
 }

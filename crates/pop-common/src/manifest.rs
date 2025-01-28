@@ -3,7 +3,7 @@
 pub mod types;
 use crate::Error;
 use anyhow;
-pub use cargo_toml::{Dependency, Manifest, LtoSetting, Profile, Profiles};
+pub use cargo_toml::{Dependency, LtoSetting, Manifest, Profile, Profiles};
 use pathdiff::diff_paths;
 use std::{
 	fs::{read_to_string, write},

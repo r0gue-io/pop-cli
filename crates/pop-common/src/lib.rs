@@ -5,8 +5,14 @@ use std::net::TcpListener;
 pub use build::Profile;
 pub use errors::Error;
 pub use git::{Git, GitHub, Release};
-pub use helpers::{capitalize_str, get_project_name_from_path, prefix_with_current_dir_if_needed, replace_in_file, format_dir};
-pub use manifest::{add_crate_to_workspace, find_workspace_toml, find_pallet_runtime_impl_path, find_pallet_runtime_lib_path, find_crate_name};
+pub use helpers::{
+	capitalize_str, format_dir, get_project_name_from_path, prefix_with_current_dir_if_needed,
+	replace_in_file,
+};
+pub use manifest::{
+	add_crate_to_workspace, find_crate_name, find_pallet_runtime_impl_path,
+	find_pallet_runtime_lib_path, find_workspace_toml,
+};
 pub use metadata::format_type;
 pub use signer::create_signer;
 pub use sourcing::set_executable_permission;
@@ -19,10 +25,10 @@ pub mod errors;
 pub mod git;
 pub mod helpers;
 pub mod manifest;
-pub mod rust_writer;
 /// Provides functionality for formatting and resolving metadata types.
 pub mod metadata;
 pub mod polkadot_sdk;
+pub mod rust_writer;
 /// Provides functionality for creating a signer from a secret URI.
 pub mod signer;
 pub mod sourcing;

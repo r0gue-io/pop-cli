@@ -42,8 +42,8 @@ pub(crate) enum Command {
 	/// Remove generated/cached artifacts.
 	#[clap(alias = "C")]
 	Clean(clean::CleanArgs),
-	/// Add a feature to existing Rust code
-	#[clap(alias = "a")]
+	/// Add a new feature to your existing polkadot-sdk project
+	#[clap(name = "add-to", alias = "a")]
 	Add(add::AddArgs),
 }
 
@@ -126,8 +126,14 @@ impl Command {
 				},
 			},
 			Self::Add(args) => match args.command {
-				add::Command::ConfigType(cmd) => cmd.execute().await.map(|_| json!("default")),
-				add::Command::Pallet(cmd) => cmd.execute().await.map(|_| json!("default")),
+				add::Command::Runtime(runtime_command) => match runtime_command {
+					add::RuntimeCommand::Pallet(cmd) =>
+						cmd.execute().await.map(|_| json!("default")),
+				},
+				add::Command::Pallet(pallet_command) => match pallet_command {
+					add::PalletCommand::ConfigType(cmd) =>
+						cmd.execute().await.map(|_| json!("default")),
+				},
 			},
 		}
 	}
