@@ -1,27 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::cli;
-use clap::Args;
 use pop_contracts::{build_smart_contract, Verbosity};
 use std::path::PathBuf;
-#[cfg(not(test))]
-use std::{thread::sleep, time::Duration};
 
-#[derive(Args)]
-pub struct BuildContractCommand {
-	/// Path for the contract project [default: current directory]
-	#[arg(long)]
+/// Configuration for building a smart contract.
+pub struct BuildContract {
+	/// Path of the contract project.
 	pub(crate) path: Option<PathBuf>,
-	/// The default compilation includes debug functionality, increasing contract size and gas
-	/// usage. For production, always build in release mode to exclude debug features.
-	#[clap(short, long)]
+	/// Build profile: `true` for release mode, `false` for debug mode.
 	pub(crate) release: bool,
-	// Deprecation flag, used to specify whether the deprecation warning is shown.
-	#[clap(skip)]
-	pub(crate) valid: bool,
 }
 
-impl BuildContractCommand {
+impl BuildContract {
 	/// Executes the command.
 	pub(crate) fn execute(self) -> anyhow::Result<&'static str> {
 		self.build(&mut cli::Cli)
@@ -33,14 +24,6 @@ impl BuildContractCommand {
 	/// * `cli` - The CLI implementation to be used.
 	fn build(self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<&'static str> {
 		cli.intro("Building your contract")?;
-
-		// Show warning if specified as deprecated.
-		if !self.valid {
-			cli.warning("NOTE: this command is deprecated. Please use `pop build` (or simply `pop b`) in future...")?;
-			#[cfg(not(test))]
-			sleep(Duration::from_secs(3));
-		}
-
 		// Build contract.
 		let build_result =
 			build_smart_contract(self.path.as_deref(), self.release, Verbosity::Default)?;
@@ -66,23 +49,16 @@ mod tests {
 		create_smart_contract(name, &path.join(name), &Standard)?;
 
 		for release in [false, true] {
-			for valid in [false, true] {
-				let mut cli = MockCli::new()
-					.expect_intro("Building your contract")
-					.expect_outro("Build completed successfully!");
+			let mut cli = MockCli::new()
+				.expect_intro("Building your contract")
+				.expect_outro("Build completed successfully!");
 
-				if !valid {
-					cli = cli.expect_warning("NOTE: this command is deprecated. Please use `pop build` (or simply `pop b`) in future...");
-				}
+			assert_eq!(
+				BuildContract { path: Some(path.join(name)), release }.build(&mut cli)?,
+				"contract"
+			);
 
-				assert_eq!(
-					BuildContractCommand { path: Some(path.join(name)), release, valid }
-						.build(&mut cli)?,
-					"contract"
-				);
-
-				cli.verify()?;
-			}
+			cli.verify()?;
 		}
 
 		Ok(())

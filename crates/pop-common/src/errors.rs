@@ -3,6 +3,7 @@
 use crate::{sourcing, templates};
 use thiserror::Error;
 
+/// Represents the various errors that can occur in the crate.
 #[derive(Error, Debug)]
 pub enum Error {
 	#[error("Anyhow error: {0}")]
@@ -15,12 +16,19 @@ pub enum Error {
 	Git(String),
 	#[error("IO error: {0}")]
 	IO(#[from] std::io::Error),
-	#[error("Failed to get manifest path: {0}")]
-	ManifestPath(String),
+	/// An error occurred while attempting to create a keypair from the provided URI.
+	#[error("Failed to create keypair from URI: {0}")]
+	KeyPairCreation(String),
 	#[error("Manifest error: {0}")]
 	ManifestError(#[from] cargo_toml::Error),
+	/// An error occurred while attempting to retrieve the manifest path.
+	#[error("Failed to get manifest path: {0}")]
+	ManifestPath(String),
 	#[error("ParseError error: {0}")]
 	ParseError(#[from] url::ParseError),
+	/// An error occurred while parsing the provided secret URI.
+	#[error("Failed to parse secret URI: {0}")]
+	ParseSecretURI(String),
 	#[error("SourceError error: {0}")]
 	SourceError(#[from] sourcing::Error),
 	#[error("Syn parse error: {0}. To preserve your not-docs comments, blank lines and declarative macro invocations, Pop-CLi temporarily transform them to comments followed by a marker type associated to that doc. This error is likely originated cause one of your files has such an element in a place where that marker type cannot be placed. Example: the type marker cannot be defined inside a match block\nmatch option{{\n\t//This is the painful comment\n\tSome(some)=>(),\n\tNone=>()\n}}")]

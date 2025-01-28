@@ -32,17 +32,13 @@ pub struct NewContractCommand {
 	/// The type of contract.
 	#[arg(
 		default_value = ContractType::Examples.as_ref(),
-		short = 'c',
+		short,
 		long,
 		value_parser = enum_variants!(ContractType)
 	)]
 	pub(crate) contract_type: Option<ContractType>,
 	/// The template to use.
-	#[arg(
-		short = 't',
-		long,
-		value_parser = enum_variants!(Contract)
-	)]
+	#[arg(short, long, value_parser = enum_variants!(Contract))]
 	pub(crate) template: Option<Contract>,
 }
 

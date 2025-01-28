@@ -27,9 +27,9 @@ pub(crate) enum Command {
 	#[clap(alias = "b", about = about_build())]
 	#[cfg(any(feature = "parachain", feature = "contract"))]
 	Build(build::BuildArgs),
-	/// Call a smart contract.
+	/// Call a chain or a smart contract.
 	#[clap(alias = "c")]
-	#[cfg(feature = "contract")]
+	#[cfg(any(feature = "parachain", feature = "contract"))]
 	Call(call::CallArgs),
 	/// Launch a local network or deploy a smart contract.
 	#[clap(alias = "u")]
@@ -50,9 +50,9 @@ pub(crate) enum Command {
 /// Help message for the build command.
 fn about_build() -> &'static str {
 	#[cfg(all(feature = "parachain", feature = "contract"))]
-	return "Build a parachain, smart contract or Rust package.";
+	return "Build a parachain, chain specification, smart contract or Rust package.";
 	#[cfg(all(feature = "parachain", not(feature = "contract")))]
-	return "Build a parachain or Rust package.";
+	return "Build a parachain, chain specification or Rust package.";
 	#[cfg(all(feature = "contract", not(feature = "parachain")))]
 	return "Build a smart contract or Rust package.";
 }
@@ -93,15 +93,14 @@ impl Command {
 				None => build::Command::execute(args).map(|t| json!(t)),
 				Some(cmd) => match cmd {
 					#[cfg(feature = "parachain")]
-					build::Command::Parachain(cmd) => cmd.execute().map(|_| Value::Null),
-					#[cfg(feature = "contract")]
-					build::Command::Contract(cmd) => cmd.execute().map(|_| Value::Null),
-					#[cfg(feature = "parachain")]
 					build::Command::Spec(cmd) => cmd.execute().await.map(|_| Value::Null),
 				},
 			},
-			#[cfg(feature = "contract")]
+			#[cfg(any(feature = "parachain", feature = "contract"))]
 			Self::Call(args) => match args.command {
+				#[cfg(feature = "parachain")]
+				call::Command::Chain(cmd) => cmd.execute().await.map(|_| Value::Null),
+				#[cfg(feature = "contract")]
 				call::Command::Contract(cmd) => cmd.execute().await.map(|_| Value::Null),
 			},
 			#[cfg(any(feature = "parachain", feature = "contract"))]

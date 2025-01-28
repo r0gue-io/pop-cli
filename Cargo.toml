@@ -17,6 +17,8 @@ edition = "2021"
 documentation = "https://learn.onpop.io/"
 license = "GPL-3.0"
 repository = "https://github.com/r0gue-io/pop-cli"
+rust-version = "1.81.0"
+version = "0.6.0"
 
 [workspace.dependencies]
 anyhow = "1.0"
@@ -39,20 +41,24 @@ tempfile = "3.10"
 thiserror = "1.0.58"
 tokio-test = "0.4.4"
 syn = { version = "2.0.77", features = ["full", "extra-traits"]}
+toml = "0.5.0"
 
 # networking
 reqwest = { version = "0.12", features = ["json"] }
 tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
-url = "2.5"
+url = "2.5.4"
 
 # contracts
-subxt-signer = { version = "0.37.0", features = ["subxt", "sr25519"] }
-subxt = "0.37.0"
+subxt-signer = { version = "0.38.0", features = ["subxt", "sr25519"] }
+subxt = "0.38.0"
 ink_env = "5.0.0"
-sp-core = "31"
-sp-weights = "30"
-contract-build = "5.0.0-alpha"
-contract-extrinsics = "5.0.0-alpha"
+sp-core = "32.0.0"
+sp-weights = "31.0.0"
+scale-info = { version = "2.11.4", default-features = false, features = ["derive"] }
+scale-value = { version = "0.17.0", default-features = false, features = ["from-string", "parser-ss58"] }
+contract-build = "5.0.2"
+contract-extrinsics = "5.0.2"
+contract-transcode = "5.0.2"
 heck = "0.5.0"
 
 # parachains
@@ -64,8 +70,7 @@ toml_edit = { version = "0.22", features = ["serde"] }
 symlink = "0.1"
 serde_json = { version = "1.0", features = ["preserve_order"] }
 serde = { version = "1.0", features = ["derive"] }
-zombienet-sdk = "0.2.7"
-zombienet-support = "0.2.7"
+zombienet-sdk = "0.2.18"
 git2_credentials = "0.13.0"
 
 # pop-cli
@@ -75,3 +80,8 @@ console = "0.15"
 os_info = { version = "3", default-features = false }
 strum = "0.26"
 strum_macros = "0.26"
+
+# wallet-integration
+axum = "0.7.9"
+open = "5.3.1"
+tower-http = "0.6.2"

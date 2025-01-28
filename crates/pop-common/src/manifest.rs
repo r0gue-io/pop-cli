@@ -3,7 +3,7 @@
 pub mod types;
 use crate::Error;
 use anyhow;
-pub use cargo_toml::{Dependency, Manifest};
+pub use cargo_toml::{Dependency, Manifest, LtoSetting, Profile, Profiles};
 use pathdiff::diff_paths;
 use std::{
 	fs::{read_to_string, write},
@@ -72,6 +72,7 @@ pub fn find_crate_manifest(target_dir: &Path) -> Option<PathBuf> {
 
 /// This function is used to add a crate to a workspace.
 /// # Arguments
+///
 /// * `workspace_toml` - The path to the workspace `Cargo.toml`
 /// * `crate_path`: The path to the crate that should be added to the workspace
 pub fn add_crate_to_workspace(workspace_toml: &Path, crate_path: &Path) -> anyhow::Result<()> {
@@ -245,6 +246,44 @@ pub fn find_pallet_runtime_impl_path(path: &Path) -> Option<PathBuf> {
 	} else {
 		None
 	}
+}
+
+/// Adds a "production" profile to the Cargo.toml manifest if it doesn't already exist.
+///
+/// # Arguments
+/// * `project` - The path to the root of the Cargo project containing the Cargo.toml.
+pub fn add_production_profile(project: &Path) -> anyhow::Result<()> {
+	let root_toml_path = project.join("Cargo.toml");
+	let mut manifest = Manifest::from_path(&root_toml_path)?;
+	// Check if the `production` profile already exists.
+	if manifest.profile.custom.contains_key("production") {
+		return Ok(());
+	}
+	// Create the production profile with required fields.
+	let production_profile = Profile {
+		opt_level: None,
+		debug: None,
+		split_debuginfo: None,
+		rpath: None,
+		lto: Some(LtoSetting::Fat),
+		debug_assertions: None,
+		codegen_units: Some(1),
+		panic: None,
+		incremental: None,
+		overflow_checks: None,
+		strip: None,
+		package: std::collections::BTreeMap::new(),
+		build_override: None,
+		inherits: Some("release".to_string()),
+	};
+	// Insert the new profile into the custom profiles
+	manifest.profile.custom.insert("production".to_string(), production_profile);
+
+	// Serialize the updated manifest and write it back to the file
+	let toml_string = toml::to_string(&manifest)?;
+	write(&root_toml_path, toml_string)?;
+
+	Ok(())
 }
 
 #[cfg(test)]
@@ -568,5 +607,43 @@ mod tests {
 				.path(),
 		);
 		assert!(add_crate.is_err());
+	}
+
+	#[test]
+	fn add_production_profile_works() {
+		let test_builder = TestBuilder::default().add_workspace().add_workspace_cargo_toml(
+			r#"[profile.release]
+            opt-level = 3
+            "#,
+		);
+
+		let binding = test_builder.workspace.expect("Workspace should exist");
+		let project_path = binding.path();
+		let cargo_toml_path = project_path.join("Cargo.toml");
+
+		// Call the function to add the production profile
+		let result = add_production_profile(project_path);
+		assert!(result.is_ok());
+
+		// Verify the production profile is added
+		let manifest =
+			Manifest::from_path(&cargo_toml_path).expect("Should parse updated Cargo.toml");
+		let production_profile = manifest
+			.profile
+			.custom
+			.get("production")
+			.expect("Production profile should exist");
+		assert_eq!(production_profile.codegen_units, Some(1));
+		assert_eq!(production_profile.inherits.as_deref(), Some("release"));
+		assert_eq!(production_profile.lto, Some(LtoSetting::Fat));
+
+		// Test idempotency: Running the function again should not modify the manifest
+		let initial_toml_content =
+			read_to_string(&cargo_toml_path).expect("Cargo.toml should be readable");
+		let second_result = add_production_profile(project_path);
+		assert!(second_result.is_ok());
+		let final_toml_content =
+			read_to_string(&cargo_toml_path).expect("Cargo.toml should be readable");
+		assert_eq!(initial_toml_content, final_toml_content);
 	}
 }
