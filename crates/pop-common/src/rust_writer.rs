@@ -14,8 +14,8 @@ use std::{fs, path::Path};
 use syn::{parse_str, Ident, ImplItem, ItemEnum, ItemUse, TraitBound, Type};
 
 mod expand;
-mod helpers;
 mod parse;
+mod preserver;
 #[cfg(test)]
 mod tests;
 pub mod types;
@@ -29,11 +29,11 @@ pub fn update_config_trait(
 	let mut preserver = types::Preserver::new("pub mod pallet");
 	preserver.add_inners(vec!["pub trait Config"]);
 
-	let mut ast = helpers::preserve_and_parse(fs::read_to_string(file_path)?, vec![preserver])?;
+	let mut ast = preserver::preserve_and_parse(fs::read_to_string(file_path)?, vec![preserver])?;
 
 	// Expand the config trait
 	expand::expand_pallet_config_trait(&mut ast, default_config, type_name, trait_bounds);
-	let generated_code = helpers::resolve_preserved(unparse(&ast));
+	let generated_code = preserver::resolve_preserved(unparse(&ast));
 
 	fs::write(file_path, &generated_code).map_err(|_| {
 		Error::WriteError(format!("Path :{}", file_path.to_str().unwrap_or("Invalid UTF-8 path")))
@@ -58,7 +58,7 @@ pub fn add_type_to_runtimes(
 		let pallet_name = find_crate_name(pallet_manifest_path)?.replace("-", "_");
 		let preserver = types::Preserver::new(&format!("impl {}::Config", pallet_name));
 
-		let mut ast = helpers::preserve_and_parse(file_content.to_string(), vec![preserver])?;
+		let mut ast = preserver::preserve_and_parse(file_content.to_string(), vec![preserver])?;
 
 		expand::expand_runtime_add_type_to_impl_block(
 			&mut ast,
@@ -67,7 +67,7 @@ pub fn add_type_to_runtimes(
 			&pallet_name,
 		);
 
-		let generated_code = helpers::resolve_preserved(unparse(&ast));
+		let generated_code = preserver::resolve_preserved(unparse(&ast));
 
 		fs::write(file_path, generated_code).map_err(|_| {
 			Error::WriteError(format!(
@@ -145,7 +145,7 @@ pub fn add_type_to_config_preludes(
 		"impl DefaultConfig for ParaChainDefaultConfig",
 	]);
 
-	let mut ast = helpers::preserve_and_parse(
+	let mut ast = preserver::preserve_and_parse(
 		fs::read_to_string(file_path)?,
 		vec![
 			preserver_testchain_config,
@@ -162,7 +162,7 @@ pub fn add_type_to_config_preludes(
 	// Expand the config_preludes
 	expand::expand_pallet_config_preludes(&mut ast, type_default_impl);
 
-	let generated_code = helpers::resolve_preserved(unparse(&ast));
+	let generated_code = preserver::resolve_preserved(unparse(&ast));
 
 	fs::write(file_path, generated_code).map_err(|_| {
 		Error::WriteError(format!("Path :{}", file_path.to_str().unwrap_or("Invalid UTF-8 path")))
@@ -178,7 +178,7 @@ pub fn add_pallet_to_runtime_module(
 ) -> Result<(), Error> {
 	let preserver_construct_runtime = types::Preserver::new("construct_runtime!");
 	let preserver_mod_runtime = types::Preserver::new("mod runtime");
-	let mut ast = helpers::preserve_and_parse(
+	let mut ast = preserver::preserve_and_parse(
 		fs::read_to_string(runtime_lib_path)?,
 		vec![preserver_construct_runtime, preserver_mod_runtime],
 	)?;
@@ -216,7 +216,7 @@ pub fn add_pallet_to_runtime_module(
 		pallet_item,
 	);
 
-	let generated_code = helpers::resolve_preserved(unparse(&ast));
+	let generated_code = preserver::resolve_preserved(unparse(&ast));
 
 	fs::write(runtime_lib_path, generated_code).map_err(|_| {
 		Error::WriteError(format!(
@@ -243,7 +243,7 @@ pub fn add_pallet_impl_block_to_runtime(
 	default_config: bool,
 ) -> Result<(), Error> {
 	// Nothing to preserve in this ast as this is a new impl block
-	let mut ast = helpers::preserve_and_parse(fs::read_to_string(runtime_impl_path)?, vec![])?;
+	let mut ast = preserver::preserve_and_parse(fs::read_to_string(runtime_impl_path)?, vec![])?;
 	let pallet_name_ident = Ident::new(&pallet_name.replace("-", "_"), Span::call_site());
 	// Expand the runtime to add the impl_block
 	expand::expand_runtime_add_impl_block(
@@ -262,7 +262,7 @@ pub fn add_pallet_impl_block_to_runtime(
 		)
 	});
 
-	let generated_code = helpers::resolve_preserved(unparse(&ast));
+	let generated_code = preserver::resolve_preserved(unparse(&ast));
 
 	fs::write(runtime_impl_path, generated_code).map_err(|_| {
 		Error::WriteError(format!(
@@ -276,7 +276,7 @@ pub fn add_pallet_impl_block_to_runtime(
 pub fn add_use_statements(file_path: &Path, use_statements: Vec<ItemUse>) -> Result<(), Error> {
 	// Preserve the first use statement to insert the new one where they're
 	let preserver = types::Preserver::new("use");
-	let mut ast = helpers::preserve_and_parse(fs::read_to_string(file_path)?, vec![preserver])?;
+	let mut ast = preserver::preserve_and_parse(fs::read_to_string(file_path)?, vec![preserver])?;
 
 	use_statements.into_iter().for_each(|use_statement| {
 		if !parse::find_use_statement(&ast, &use_statement) {
@@ -284,7 +284,7 @@ pub fn add_use_statements(file_path: &Path, use_statements: Vec<ItemUse>) -> Res
 		}
 	});
 
-	let generated_code = helpers::resolve_preserved(unparse(&ast));
+	let generated_code = preserver::resolve_preserved(unparse(&ast));
 
 	fs::write(file_path, &generated_code).map_err(|_| {
 		Error::WriteError(format!("Path :{}", file_path.to_str().unwrap_or("Invalid UTF-8 path")))
@@ -296,7 +296,7 @@ pub fn add_use_statements(file_path: &Path, use_statements: Vec<ItemUse>) -> Res
 pub fn add_composite_enums(file_path: &Path, composite_enums: Vec<ItemEnum>) -> Result<(), Error> {
 	let mut preserver = types::Preserver::new("pub mod pallet");
 	preserver.add_inners(vec!["pub struct Pallet"]);
-	let mut ast = helpers::preserve_and_parse(fs::read_to_string(file_path)?, vec![preserver])?;
+	let mut ast = preserver::preserve_and_parse(fs::read_to_string(file_path)?, vec![preserver])?;
 
 	composite_enums.into_iter().for_each(|composite_enum| {
 		if !parse::find_composite_enum(&ast, &composite_enum) {
@@ -304,7 +304,7 @@ pub fn add_composite_enums(file_path: &Path, composite_enums: Vec<ItemEnum>) -> 
 		}
 	});
 
-	let generated_code = helpers::resolve_preserved(unparse(&ast));
+	let generated_code = preserver::resolve_preserved(unparse(&ast));
 
 	fs::write(file_path, &generated_code).map_err(|_| {
 		Error::WriteError(format!("Path :{}", file_path.to_str().unwrap_or("Invalid UTF-8 path")))

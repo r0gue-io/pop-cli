@@ -14,13 +14,13 @@ pub struct AddArgs {
 }
 
 #[derive(Subcommand)]
-pub enum Command{
-    /// Expand your runtime using Pop-Cli
-#[command(subcommand)]
-    Runtime(RuntimeCommand),
-    /// Expand a pallet using Pop-Cli
-    #[command(subcommand)]
-    Pallet(PalletCommand)
+pub enum Command {
+	/// Expand your runtime using Pop-Cli
+	#[command(subcommand)]
+	Runtime(RuntimeCommand),
+	/// Expand a pallet using Pop-Cli
+	#[command(subcommand)]
+	Pallet(PalletCommand),
 }
 
 #[derive(Subcommand)]

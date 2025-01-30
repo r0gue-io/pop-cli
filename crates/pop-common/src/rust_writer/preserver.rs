@@ -26,8 +26,12 @@ pub(crate) fn resolve_preserved(code: String) -> String {
 	let re =
 		Regex::new(r#"#\s*\[\s*doc\s*=\s*"TEMP_DOC(.*?)"\s*\]"#).expect("The regex is valid;qed;");
 	let code = re.replace_all(&code, |caps: &Captures| format!("\n{}\n", &caps[1])).to_string();
-	// Delete all TEMP_DOCS and temp_marker present in the code and return the result.
-	code.replace("///TEMP_DOC", "").replace("type temp_marker = ();", "")
+	// Same happens with 'type temp_marker = ();'. This lines also delete them from everywhere, not
+	// just inside declarative macros
+	let re = Regex::new(r"type\s+temp_marker\s*=\s*\(\);\s*").expect("The regex is valid; qed;");
+	let code = re.replace_all(&code, "\n").to_string();
+	// Delete all TEMP_DOCS present in the rest of the code and return the result.
+	code.replace("///TEMP_DOC", "")
 }
 
 fn apply_preservers(code: String, mut preservers: Vec<Preserver>) -> String {
