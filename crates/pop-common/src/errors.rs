@@ -31,7 +31,7 @@ pub enum Error {
 	ParseSecretURI(String),
 	#[error("SourceError error: {0}")]
 	SourceError(#[from] sourcing::Error),
-	#[error("Syn parse error: {0}. To preserve your not-docs comments, blank lines and declarative macro invocations, Pop-CLi temporarily transform them to comments followed by a marker type associated to that doc. This error is likely originated cause one of your files has such an element in a place where that marker type cannot be placed. Example: the type marker cannot be defined inside a match block\nmatch option{{\n\t//This is the painful comment\n\tSome(some)=>(),\n\tNone=>()\n}}")]
+	#[error("Syn parse error: {0}. Pop CLI has to parse your code in order to expand it. To preserve its structure while parsing, some temporal type markers may be added in the target part of your code. If declaring a type in that part of the code is invalid Rust code, that may be the origin of this error. Please review the code you're modifying to solve this. Example: If you're modifying an Enum likee the following one, it'll fail as types cannot be defined inside enums\npub enum Enum{{\n\t//This is the painful comment\n\tA,\n\tB\n}}")]
 	SynError(#[from] syn::Error),
 	#[error("TemplateError error: {0}")]
 	TemplateError(#[from] templates::Error),
