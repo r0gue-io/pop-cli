@@ -3,7 +3,7 @@ use clap::ValueEnum;
 use pop_common::rust_writer::types::ParameterTypes;
 use proc_macro2::Span;
 use strum_macros::{EnumIter, EnumMessage};
-use syn::{parse_quote, Ident, Type};
+use syn::{parse_quote, Ident, ItemUse, Type};
 
 #[derive(Debug, Copy, Clone, PartialEq, EnumIter, EnumMessage, ValueEnum)]
 pub enum CommonPallets {
@@ -38,6 +38,17 @@ impl CommonPallets {
 				type_: parse_quote! {pallet_contracts::Schedule<Runtime>},
 				value: parse_quote! {Default::default()},
 			}],
+		}
+	}
+
+	pub fn get_impl_needed_use_statements(&self) -> Vec<ItemUse> {
+		match self {
+			CommonPallets::Balances => vec![parse_quote!(
+				use crate::System;
+			)],
+			CommonPallets::Contracts => vec![parse_quote!(
+				use crate::Balances;
+			)],
 		}
 	}
 

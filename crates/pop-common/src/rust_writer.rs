@@ -3,15 +3,14 @@
 use crate::{
 	capitalize_str,
 	manifest::{
-		add_crate_to_dependencies, find_crate_manifest, find_crate_name,
-		find_pallet_runtime_impl_path, types::CrateDependencie,
+		add_crate_to_dependencies, find_crate_manifest, find_crate_name, types::CrateDependencie,
 	},
 	Error,
 };
 use prettyplease::unparse;
 use proc_macro2::Span;
 use std::{fs, path::Path};
-use syn::{parse_str, Ident, ImplItem, ItemEnum, ItemUse, TraitBound, Type};
+use syn::{parse_str, Ident, ImplItem, ItemEnum, ItemMod, ItemUse, TraitBound, Type};
 
 mod expand;
 mod parse;
@@ -93,10 +92,7 @@ pub fn add_type_to_runtimes(
 	)?;
 
 	// If the pallet is contained inside a runtime add the type to that runtime as well
-	if let Some(runtime_impl_path) = runtime_impl_path
-		.map(|inner| inner.to_path_buf())
-		.or_else(|| find_pallet_runtime_impl_path(pallet_path))
-	{
+	if let Some(runtime_impl_path) = runtime_impl_path.map(|inner| inner.to_path_buf()) {
 		let runtime_impl_content = fs::read_to_string(&runtime_impl_path)?;
 		do_add_type_to_runtime(
 			&runtime_impl_content,
@@ -236,14 +232,14 @@ pub fn add_pallet_to_runtime_module(
 
 pub fn add_pallet_impl_block_to_runtime(
 	pallet_name: &str,
-	runtime_impl_path: &Path,
+	pallet_impl_path: &Path,
 	parameter_types: Vec<types::ParameterTypes>,
 	types: Vec<Ident>,
 	values: Vec<Type>,
 	default_config: bool,
 ) -> Result<(), Error> {
 	// Nothing to preserve in this ast as this is a new impl block
-	let mut ast = preserver::preserve_and_parse(fs::read_to_string(runtime_impl_path)?, vec![])?;
+	let mut ast = preserver::preserve_and_parse(fs::read_to_string(pallet_impl_path)?, vec![])?;
 	let pallet_name_ident = Ident::new(&pallet_name.replace("-", "_"), Span::call_site());
 	// Expand the runtime to add the impl_block
 	expand::expand_runtime_add_impl_block(
@@ -264,10 +260,10 @@ pub fn add_pallet_impl_block_to_runtime(
 
 	let generated_code = preserver::resolve_preserved(unparse(&ast));
 
-	fs::write(runtime_impl_path, generated_code).map_err(|_| {
+	fs::write(pallet_impl_path, generated_code).map_err(|_| {
 		Error::WriteError(format!(
 			"Path :{}",
-			runtime_impl_path.to_str().unwrap_or("Invalid UTF-8 path")
+			pallet_impl_path.to_str().unwrap_or("Invalid UTF-8 path")
 		))
 	})?;
 	Ok(())
@@ -283,6 +279,24 @@ pub fn add_use_statements(file_path: &Path, use_statements: Vec<ItemUse>) -> Res
 			expand::expand_add_use_statement(&mut ast, use_statement)
 		}
 	});
+
+	let generated_code = preserver::resolve_preserved(unparse(&ast));
+
+	fs::write(file_path, &generated_code).map_err(|_| {
+		Error::WriteError(format!("Path :{}", file_path.to_str().unwrap_or("Invalid UTF-8 path")))
+	})?;
+
+	Ok(())
+}
+
+pub fn add_mod_declarations(file_path: &Path, mod_declarations: Vec<ItemMod>) -> Result<(), Error> {
+	// Preserve the first mod declaration to insert the new one where they're
+	let preserver = types::Preserver::new("mod");
+	let mut ast = preserver::preserve_and_parse(fs::read_to_string(file_path)?, vec![preserver])?;
+
+	mod_declarations
+		.into_iter()
+		.for_each(|mod_declaration| expand::expand_add_mod(&mut ast, mod_declaration));
 
 	let generated_code = preserver::resolve_preserved(unparse(&ast));
 

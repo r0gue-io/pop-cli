@@ -245,6 +245,14 @@ pub(crate) fn expand_add_use_statement(ast: &mut File, use_statement: ItemUse) {
 	items.insert(position.saturating_add(1), Item::Use(use_statement));
 }
 
+pub(crate) fn expand_add_mod(ast: &mut File, mod_: ItemMod) {
+	let items = &mut ast.items;
+	// Find the first mod
+	let position = items.iter().position(|item| matches!(item, Item::Mod(_))).unwrap_or(0);
+	// Insert the mod where needed
+	items.insert(position.saturating_add(1), Item::Mod(mod_));
+}
+
 pub(crate) fn expand_pallet_add_composite_enum(ast: &mut File, composite_enum: ItemEnum) {
 	for item in &mut ast.items {
 		match item {

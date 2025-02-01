@@ -2,6 +2,7 @@
 
 use super::*;
 use crate::rust_writer::tests::test_builder::TestBuilder;
+use proc_macro2::Span;
 use syn::parse_str;
 
 impl TestBuilder {
@@ -246,8 +247,20 @@ impl TestBuilder {
 		let position =
 			self.ast.items.iter().position(|item| matches!(item, Item::Use(_))).unwrap_or(0);
 		// The use statement has been added together with other use statements
-		if let Some(item) = self.ast.items.get(position) {
+		if let Some(item) = self.ast.items.get(position.saturating_add(1)) {
 			assert_eq!(item == &Item::Use(use_statement), contains);
+		} else {
+			assert!(false);
+		}
+	}
+
+	fn assert_mod_included(&self, contains: bool, mod_: ItemMod) {
+		// Find the first mod declaration
+		let position =
+			self.ast.items.iter().position(|item| matches!(item, Item::Mod(_))).unwrap_or(0);
+		// The mod has been added together with other mod declarations
+		if let Some(item) = self.ast.items.get(position.saturating_add(1)) {
+			assert_eq!(item == &Item::Mod(mod_), contains);
 		} else {
 			assert!(false);
 		}
@@ -269,11 +282,8 @@ impl TestBuilder {
 							|item| matches!(item, Item::Struct(ItemStruct { ident, .. }) if *ident == "Pallet"),
 						)
 						.unwrap_or(0);
-					// The composite enum has been added just before the Pallet struct (if prior
-					// insertion pallet is in position n, now it's in position n+1, as the item
-					// is included in position n-1, we have to check in n+1 - (n-1) = 2
-					// positions before the actual position of pallet)
-					if let Some(item) = items.get(position.saturating_sub(2)) {
+					// The composite enum has been added just after the Pallet struct
+					if let Some(item) = items.get(position.saturating_add(1)) {
 						assert_eq!(item == &Item::Enum(composite_enum.clone()), contains);
 						assert_happened = true;
 					}
@@ -664,6 +674,22 @@ fn expand_add_use_statement_works_well_test() {
 	expand_add_use_statement(&mut test_builder.ast, use_statement.clone());
 
 	test_builder.assert_use_statement_included(true, use_statement);
+}
+
+#[test]
+fn expand_add_mod_works_well_test() {
+	let mut test_builder = TestBuilder::default();
+	test_builder.add_basic_pallet_ast();
+
+	let mod_: ItemMod = parse_quote! {
+		mod some_mod;
+	};
+
+	test_builder.assert_mod_included(false, mod_.clone());
+
+	expand_add_mod(&mut test_builder.ast, mod_.clone());
+
+	test_builder.assert_mod_included(true, mod_);
 }
 
 #[test]
