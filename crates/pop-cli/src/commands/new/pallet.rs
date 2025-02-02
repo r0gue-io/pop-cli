@@ -55,9 +55,9 @@ pub struct NewPalletCommand {
 	pub(crate) description: Option<String>,
 	#[arg(
 		long,
-		help = "If your pallet is created in a workspace containing a runtime, Pop-Cli will try to add the impl block for your pallet's Config trait inside configs/mod.rs or lib.rs in the runtime crate by default. If you need to use another path, use this option to specify it."
+		help = "If your pallet is created in a workspace containing a runtime, Pop-Cli will place the impl blocks for your pallets' Config traits inside a dedicated file under configs directory. Use this argument to point to another path."
 	)]
-	pub(crate) runtime_impl_path: Option<PathBuf>,
+	pub(crate) pallet_impl_path: Option<PathBuf>,
 	#[command(subcommand)]
 	pub(crate) mode: Option<Mode>,
 }
@@ -195,25 +195,27 @@ impl NewPalletCommand {
 		)?;
 		let pallet_crate_name = find_crate_name(&pallet_path.join("Cargo.toml"))?;
 
-		spinner.set_message("Adding the pallet to your runtime if needed...");
 		// Check if the pallet has to be included in a runtime and include it if so
-		if let (Some(runtime_lib_path), Some(runtime_impl_path)) = (
-			find_pallet_runtime_lib_path(&pallet_path),
-			self.runtime_impl_path.or_else(|| {
-				get_pallet_impl_path(
-					&pallet_path,
-					&pallet_crate_name.splitn(2, '-').nth(1).unwrap_or("pallet").to_string(),
-				)
-			}),
-		) {
+		if let Some(runtime_lib_path) = find_pallet_runtime_lib_path(&pallet_path) {
 			// If the pallet has been created inside a workspace containing a runtime, add the
 			// pallet to that runtime.
 
+			spinner.set_message("Adding the pallet to your runtime if needed...");
 			rust_writer::add_pallet_to_runtime_module(
 				&pallet_crate_name,
 				&runtime_lib_path,
 				CrateDependencie::Local { local_crate_path: pallet_path.to_path_buf() },
 			)?;
+
+			let pallet_impl_path = if let Some(impl_path) = self.pallet_impl_path {
+				impl_path.clone()
+			} else {
+				get_pallet_impl_path(
+					&pallet_path,
+					&pallet_crate_name.splitn(2, '-').nth(1).unwrap_or("pallet").to_string(),
+				)?
+			};
+
 			// Add pallet's impl block
 			let (types, values) = if pallet_default_config {
 				(Vec::new(), Vec::new())
@@ -232,7 +234,7 @@ impl NewPalletCommand {
 
 			rust_writer::add_pallet_impl_block_to_runtime(
 				&pallet_crate_name,
-				&runtime_impl_path,
+				&pallet_impl_path,
 				Vec::new(),
 				types,
 				values,

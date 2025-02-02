@@ -7,10 +7,13 @@ use crate::{
 use clap::{error::ErrorKind, Args, Command};
 use cliclack::multiselect;
 use pop_common::{
-	find_workspace_toml, format_dir, get_pallet_impl_path, manifest,
-	prefix_with_current_dir_if_needed, rust_writer,
+	find_workspace_toml, format_dir, manifest, prefix_with_current_dir_if_needed, rust_writer,
 };
-use std::{env, path::PathBuf};
+use std::{
+	env,
+	path::PathBuf,
+	sync::{Arc, Mutex},
+};
 use strum::{EnumMessage, IntoEnumIterator};
 
 mod common_pallets;
@@ -49,9 +52,7 @@ impl AddPalletCommand {
 			}
 		};
 
-		let src = runtime_path.join("src");
-		let lib_path = src.join("lib.rs");
-		if !lib_path.is_file() {
+		if !manifest::is_runtime_crate(&runtime_path) {
 			cmd.error(
 				ErrorKind::InvalidValue,
 				"Make sure to run this command either in a workspace containing a runtime crate/a runtime crate or to specify the path to the runtime crate using -r.",
@@ -73,32 +74,24 @@ impl AddPalletCommand {
 
 		let mut handles = Vec::new();
 		// Mutex over the memory shared across threads
-		let mutex_cmd = std::sync::Arc::new(std::sync::Mutex::new(cmd));
-		let mutex_pallet_impl_path =
-			std::sync::Arc::new(std::sync::Mutex::new(self.pallet_impl_path));
-		let mutex_lib_path = std::sync::Arc::new(std::sync::Mutex::new(lib_path));
-		let mutex_runtime_path = std::sync::Arc::new(std::sync::Mutex::new(runtime_path.clone()));
+		let mutex_pallet_impl_path = Arc::new(Mutex::new(self.pallet_impl_path));
+		let mutex_runtime_path = Arc::new(Mutex::new(runtime_path.clone()));
 
 		for pallet in pallets {
-			let mutex_cmd = std::sync::Arc::clone(&mutex_cmd);
-			let mutex_pallet_impl_path = std::sync::Arc::clone(&mutex_pallet_impl_path);
-			let mutex_lib_path = std::sync::Arc::clone(&mutex_lib_path);
-			let mutex_runtime_path = std::sync::Arc::clone(&mutex_runtime_path);
-
+			let mutex_pallet_impl_path = Arc::clone(&mutex_pallet_impl_path);
+			let mutex_runtime_path = Arc::clone(&mutex_runtime_path);
 			handles.push(std::thread::spawn(move || -> Result<(), anyhow::Error> {
-				let mut cmd = mutex_cmd.lock().map_err(|e| anyhow::Error::msg(format!("{}", e)))?;
 				let pallet_impl_path = mutex_pallet_impl_path
 					.lock()
 					.map_err(|e| anyhow::Error::msg(format!("{}", e)))?;
-				let lib_path =
-					mutex_lib_path.lock().map_err(|e| anyhow::Error::msg(format!("{}", e)))?;
 				let runtime_path =
 					mutex_runtime_path.lock().map_err(|e| anyhow::Error::msg(format!("{}", e)))?;
 
-				let mut pallet_computed_path: Option<PathBuf> = None;
-
-				let pallet_impl_path = match pallet_impl_path.as_ref().or_else(|| {
-					pallet_computed_path = get_pallet_impl_path(
+				let runtime_lib_path = runtime_path.join("src").join("lib.rs");
+				let pallet_impl_path = if pallet_impl_path.is_some() {
+					pallet_impl_path.clone().expect("The if statement ensures this is Some;qed;")
+				} else {
+					manifest::get_pallet_impl_path(
 						&runtime_path,
 						&pallet
 							.get_crate_name()
@@ -106,22 +99,13 @@ impl AddPalletCommand {
 							.nth(1)
 							.unwrap_or("pallet")
 							.to_string(),
-					);
-					pallet_computed_path.as_ref()
-				}) {
-					Some(impl_path) => impl_path,
-					None => cmd
-						.error(
-							ErrorKind::InvalidValue,
-							"Make sure that the used path correspond to a runtime crate.",
-						)
-						.exit(),
+					)?
 				};
 
 				// Add the pallet to the crate and to the runtime module
 				rust_writer::add_pallet_to_runtime_module(
 					&pallet.get_crate_name(),
-					&lib_path,
+					&runtime_lib_path,
 					manifest::types::CrateDependencie::External { version: pallet.get_version() },
 				)?;
 
@@ -145,7 +129,10 @@ impl AddPalletCommand {
 		}
 
 		for handle in handles {
-			let _ = handle.join().expect("Unexpected error");
+			let result = handle.join().expect("Unexpected error");
+    if result.is_err(){
+                return result;
+            }
 		}
 
 		if let Some(mut workspace_toml) = find_workspace_toml(&runtime_path) {

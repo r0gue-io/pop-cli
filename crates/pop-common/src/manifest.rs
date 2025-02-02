@@ -160,7 +160,7 @@ pub fn add_crate_to_dependencies(
 				{
 					path
 				} else {
-					return Err(Error::Config("Calling add_crate_to_dependencies with a internal crate whose path isn't valid.".to_string()))
+					return Err(Error::Config("Calling add_crate_to_dependencies with a internal crate whose path isn't valid.".to_string()));
 				};
 
 				crate_declaration.insert(
@@ -208,6 +208,28 @@ pub fn find_crate_name(manifest_path: &Path) -> Result<String, Error> {
 		.map(|package| package.name)?)
 }
 
+pub fn is_runtime_crate(path: &Path) -> bool {
+	// Ideally the runtime would be contained inside a workspace
+	if let Some(workspace_toml) = find_workspace_toml(path) {
+		match Manifest::from_path(&workspace_toml)
+			.ok()
+			.map(|manifest| manifest.workspace.map(|workspace| workspace.members))
+		{
+			Some(Some(members))
+				if members.contains(&"runtime".to_owned()) &&
+					path.join("src").join("lib.rs").is_file() =>
+				return true,
+			_ => (),
+		}
+	}
+	// If not, at least it should be a lib crate
+	if path.join("src").join("lib.rs").is_file() {
+		true
+	} else {
+		false
+	}
+}
+
 pub fn find_pallet_runtime_lib_path(pallet_path: &Path) -> Option<PathBuf> {
 	if let Some(mut workspace_toml) = find_workspace_toml(pallet_path) {
 		match Manifest::from_path(&workspace_toml)
@@ -225,67 +247,49 @@ pub fn find_pallet_runtime_lib_path(pallet_path: &Path) -> Option<PathBuf> {
 	}
 }
 
-pub fn get_pallet_impl_path(runtime_path: &Path, pallet_name: &str) -> Option<PathBuf> {
-	if let Some(mut workspace_toml) = find_workspace_toml(runtime_path) {
-		match Manifest::from_path(&workspace_toml)
-			.ok()
-			.map(|manifest| manifest.workspace.map(|workspace| workspace.members))
-		{
-			Some(Some(members)) if members.contains(&"runtime".to_string()) => {
-				// Create the pallet config impl file
-				workspace_toml.pop();
-				let runtime_src_path = workspace_toml.join("runtime").join("src");
-				let runtime_lib_path = runtime_src_path.join("lib.rs");
-				let configs_rs_path = runtime_src_path.join("configs.rs");
-				let configs_folder_path = runtime_src_path.join("configs");
-				let configs_mod_path = configs_folder_path.join("mod.rs");
-				let pallet_config_file = configs_folder_path.join(format!("{}.rs", pallet_name));
-				match (configs_rs_path.exists(), configs_mod_path.exists()) {
-					// The runtime is using a configs module without the mod.rs sintax
-					(true, false) => {
-						let mut write_configs_rs =
-							std::fs::OpenOptions::new().append(true).open(configs_rs_path).ok()?;
-						writeln!(write_configs_rs, "{}", format!("mod {};", pallet_name)).ok()?;
-						std::fs::File::create(&pallet_config_file).ok()?;
-						Some(pallet_config_file)
-					},
-					// The runtime is using a configs module with the mod.rs syntax
-					(false, true) => {
-						let mut write_configs_mod =
-							std::fs::OpenOptions::new().append(true).open(configs_mod_path).ok()?;
-						writeln!(write_configs_mod, "{}", format!("mod {};", pallet_name)).ok()?;
-						std::fs::File::create(&pallet_config_file).ok()?;
-						Some(pallet_config_file)
-					},
-					// The runtime isn't using a configs module yet, we opt for the configs.rs
-					// convention
-					(false, false) => {
-						let mut write_configs_rs = std::fs::OpenOptions::new()
-							.create(true)
-							.write(true)
-							.open(configs_rs_path)
-							.ok()?;
-						writeln!(write_configs_rs, "{}", format!("mod {};", pallet_name)).ok()?;
-						std::fs::create_dir(configs_folder_path).ok()?;
-						std::fs::File::create(&pallet_config_file).ok()?;
-						rust_writer::add_mod_declarations(
-							&runtime_lib_path,
-							vec![parse_quote!(
-								pub mod configs;
-							)],
-						)
-						.ok()?;
-						Some(pallet_config_file)
-					},
-					// Both approaches at the sime time aren't supported by the compiler, so this is
-					// unreachable in a compiling project
-					(true, true) => unreachable!(),
-				}
-			},
-			_ => None,
-		}
-	} else {
-		None
+pub fn get_pallet_impl_path(runtime_path: &Path, pallet_name: &str) -> Result<PathBuf, Error> {
+	let runtime_src_path = runtime_path.join("src");
+	let runtime_lib_path = runtime_src_path.join("lib.rs");
+	let configs_rs_path = runtime_src_path.join("configs.rs");
+	let configs_folder_path = runtime_src_path.join("configs");
+	let configs_mod_path = configs_folder_path.join("mod.rs");
+	let pallet_config_file = configs_folder_path.join(format!("{}.rs", pallet_name));
+	match (configs_rs_path.exists(), configs_mod_path.exists()) {
+		// The runtime is using a configs module without the mod.rs sintax
+		(true, false) => {
+			let mut write_configs_rs =
+				std::fs::OpenOptions::new().append(true).open(configs_rs_path)?;
+			writeln!(write_configs_rs, "{}", format!("mod {};", pallet_name))?;
+			std::fs::File::create(&pallet_config_file)?;
+			Ok(pallet_config_file)
+		},
+		// The runtime is using a configs module with the mod.rs syntax
+		(false, true) => {
+			let mut write_configs_mod =
+				std::fs::OpenOptions::new().append(true).open(configs_mod_path)?;
+			writeln!(write_configs_mod, "{}", format!("mod {};", pallet_name))?;
+			std::fs::File::create(&pallet_config_file)?;
+			Ok(pallet_config_file)
+		},
+		// The runtime isn't using a configs module yet, we opt for the configs.rs
+		// convention
+		(false, false) => {
+			let mut write_configs_rs =
+				std::fs::OpenOptions::new().create(true).write(true).open(configs_rs_path)?;
+			writeln!(write_configs_rs, "{}", format!("mod {};", pallet_name))?;
+			std::fs::create_dir(configs_folder_path)?;
+			std::fs::File::create(&pallet_config_file)?;
+			rust_writer::add_mod_declarations(
+				&runtime_lib_path,
+				vec![parse_quote!(
+					pub mod configs;
+				)],
+			)?;
+			Ok(pallet_config_file)
+		},
+		// Both approaches at the sime time aren't supported by the compiler, so this is
+		// unreachable in a compiling project
+		(true, true) => unreachable!(),
 	}
 }
 
