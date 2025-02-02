@@ -8,8 +8,8 @@ use crate::{
 use clap::{Args, Subcommand};
 use cliclack::{confirm, input, multiselect, outro, outro_cancel};
 use pop_common::{
-	add_crate_to_workspace, find_crate_name, find_pallet_runtime_path, find_workspace_toml,
-	format_dir, get_pallet_impl_path, manifest::types::CrateDependencie,
+	add_crate_to_workspace, compute_new_pallet_impl_path, find_crate_name,
+	find_pallet_runtime_path, find_workspace_toml, format_dir, manifest::types::CrateDependencie,
 	prefix_with_current_dir_if_needed, rust_writer,
 };
 use pop_parachains::{
@@ -55,7 +55,7 @@ pub struct NewPalletCommand {
 	pub(crate) description: Option<String>,
 	#[arg(
 		long,
-		help = "If your pallet is created in a workspace containing a runtime, Pop-Cli will place the impl blocks for your pallets' Config traits inside a dedicated file under configs directory. Use this argument to point to another path."
+		help = "If your pallet is created in a workspace containing a runtime, Pop-Cli will place the impl blocks for your pallets' Config traits inside a dedicated file under configs directory. Use this argument to point to other path."
 	)]
 	pub(crate) pallet_impl_path: Option<PathBuf>,
 	#[command(subcommand)]
@@ -210,7 +210,7 @@ impl NewPalletCommand {
 			let pallet_impl_path = if let Some(impl_path) = self.pallet_impl_path {
 				impl_path.clone()
 			} else {
-				get_pallet_impl_path(
+				compute_new_pallet_impl_path(
 					&runtime_path,
 					&pallet_crate_name.splitn(2, '-').nth(1).unwrap_or("pallet").to_string(),
 				)?

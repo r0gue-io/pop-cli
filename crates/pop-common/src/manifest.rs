@@ -247,7 +247,10 @@ pub fn find_pallet_runtime_path(pallet_path: &Path) -> Option<PathBuf> {
 	}
 }
 
-pub fn get_pallet_impl_path(runtime_path: &Path, pallet_name: &str) -> Result<PathBuf, Error> {
+pub fn compute_new_pallet_impl_path(
+	runtime_path: &Path,
+	pallet_name: &str,
+) -> Result<PathBuf, Error> {
 	let runtime_src_path = runtime_path.join("src");
 	let runtime_lib_path = runtime_src_path.join("lib.rs");
 	let configs_rs_path = runtime_src_path.join("configs.rs");
@@ -291,6 +294,22 @@ pub fn get_pallet_impl_path(runtime_path: &Path, pallet_name: &str) -> Result<Pa
 		// unreachable in a compiling project
 		(true, true) => unreachable!(),
 	}
+}
+
+pub fn get_pallet_impl_path(runtime_path: &Path, pallet_name: &str) -> Result<PathBuf, Error> {
+	let pallet_config_path =
+		runtime_path.join("src").join("configs").join(format!("{}.rs", pallet_name));
+	if pallet_config_path.exists() {
+		return Ok(pallet_config_path);
+	}
+	let runtime_lib_path = runtime_path.join("src").join("lib.rs");
+	if read_to_string(&runtime_lib_path)?.contains(&format!("{} for Runtime", pallet_name)) {
+		return Ok(runtime_lib_path)
+	}
+	Err(Error::Descriptive(format!(
+		"Pop-CLI couldn't find the impl block for the pallet {}",
+		pallet_name
+	)))
 }
 
 /// Adds a "production" profile to the Cargo.toml manifest if it doesn't already exist.

@@ -26,7 +26,7 @@ pub struct AddPalletCommand {
 	pub(crate) runtime_path: Option<PathBuf>,
 	#[arg(
 		long,
-		help = "Pop-Cli will place the impl blocks for your pallets' Config traits inside a dedicated file under configs directory. Use this argument to point to another path."
+		help = "Pop-Cli will place the impl blocks for your pallets' Config traits inside a dedicated file under configs directory. Use this argument to point to other path."
 	)]
 	pub(crate) pallet_impl_path: Option<PathBuf>,
 }
@@ -88,10 +88,11 @@ impl AddPalletCommand {
 					mutex_runtime_path.lock().map_err(|e| anyhow::Error::msg(format!("{}", e)))?;
 
 				let runtime_lib_path = runtime_path.join("src").join("lib.rs");
-				let pallet_impl_path = if pallet_impl_path.is_some() {
-					pallet_impl_path.clone().expect("The if statement ensures this is Some;qed;")
-				} else {
-					manifest::get_pallet_impl_path(
+				let pallet_impl_path = match *pallet_impl_path {
+					Some(_) => pallet_impl_path
+						.clone()
+						.expect("The match arm guarantees this is Some; qed;"),
+					None => manifest::compute_new_pallet_impl_path(
 						&runtime_path,
 						&pallet
 							.get_crate_name()
@@ -99,7 +100,7 @@ impl AddPalletCommand {
 							.nth(1)
 							.unwrap_or("pallet")
 							.to_string(),
-					)?
+					)?,
 				};
 
 				// Add the pallet to the crate and to the runtime module

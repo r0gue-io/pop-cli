@@ -9,7 +9,10 @@ use crate::{
 };
 use prettyplease::unparse;
 use proc_macro2::Span;
-use std::{fs, path::Path};
+use std::{
+	fs,
+	path::{Path, PathBuf},
+};
 use syn::{parse_str, Ident, ImplItem, ItemEnum, ItemMod, ItemUse, TraitBound, Type};
 
 mod expand;
@@ -45,7 +48,7 @@ pub fn add_type_to_runtimes(
 	pallet_path: &Path,
 	type_name: Ident,
 	runtime_value: Type,
-	runtime_impl_path: Option<&Path>,
+	pallet_impl_path: Option<PathBuf>,
 ) -> Result<(), Error> {
 	fn do_add_type_to_runtime(
 		file_content: &str,
@@ -92,11 +95,11 @@ pub fn add_type_to_runtimes(
 	)?;
 
 	// If the pallet is contained inside a runtime add the type to that runtime as well
-	if let Some(runtime_impl_path) = runtime_impl_path.map(|inner| inner.to_path_buf()) {
-		let runtime_impl_content = fs::read_to_string(&runtime_impl_path)?;
+	if let Some(pallet_impl_path) = pallet_impl_path {
+		let pallet_impl_content = fs::read_to_string(&pallet_impl_path)?;
 		do_add_type_to_runtime(
-			&runtime_impl_content,
-			&runtime_impl_path,
+			&pallet_impl_content,
+			&pallet_impl_path,
 			&pallet_manifest_path,
 			type_name,
 			runtime_value,
