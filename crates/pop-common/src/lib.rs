@@ -10,7 +10,7 @@ pub use helpers::{
 	replace_in_file,
 };
 pub use manifest::{
-	add_crate_to_workspace, find_crate_name, find_pallet_runtime_lib_path, find_workspace_toml,
+	add_crate_to_workspace, find_crate_name, find_pallet_runtime_path, find_workspace_toml,
 	get_pallet_impl_path,
 };
 pub use metadata::format_type;

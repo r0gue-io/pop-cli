@@ -230,7 +230,7 @@ pub fn is_runtime_crate(path: &Path) -> bool {
 	}
 }
 
-pub fn find_pallet_runtime_lib_path(pallet_path: &Path) -> Option<PathBuf> {
+pub fn find_pallet_runtime_path(pallet_path: &Path) -> Option<PathBuf> {
 	if let Some(mut workspace_toml) = find_workspace_toml(pallet_path) {
 		match Manifest::from_path(&workspace_toml)
 			.ok()
@@ -238,7 +238,7 @@ pub fn find_pallet_runtime_lib_path(pallet_path: &Path) -> Option<PathBuf> {
 		{
 			Some(Some(members)) if members.contains(&"runtime".to_string()) => {
 				workspace_toml.pop();
-				Some(workspace_toml.join("runtime").join("src").join("lib.rs"))
+				Some(workspace_toml.join("runtime"))
 			},
 			_ => None,
 		}

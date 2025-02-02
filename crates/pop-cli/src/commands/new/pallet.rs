@@ -8,7 +8,7 @@ use crate::{
 use clap::{Args, Subcommand};
 use cliclack::{confirm, input, multiselect, outro, outro_cancel};
 use pop_common::{
-	add_crate_to_workspace, find_crate_name, find_pallet_runtime_lib_path, find_workspace_toml,
+	add_crate_to_workspace, find_crate_name, find_pallet_runtime_path, find_workspace_toml,
 	format_dir, get_pallet_impl_path, manifest::types::CrateDependencie,
 	prefix_with_current_dir_if_needed, rust_writer,
 };
@@ -196,11 +196,11 @@ impl NewPalletCommand {
 		let pallet_crate_name = find_crate_name(&pallet_path.join("Cargo.toml"))?;
 
 		// Check if the pallet has to be included in a runtime and include it if so
-		if let Some(runtime_lib_path) = find_pallet_runtime_lib_path(&pallet_path) {
+		if let Some(runtime_path) = find_pallet_runtime_path(&pallet_path) {
 			// If the pallet has been created inside a workspace containing a runtime, add the
 			// pallet to that runtime.
-
-			spinner.set_message("Adding the pallet to your runtime if needed...");
+			spinner.set_message("Adding the pallet to your runtime...");
+			let runtime_lib_path = runtime_path.join("src").join("lib.rs");
 			rust_writer::add_pallet_to_runtime_module(
 				&pallet_crate_name,
 				&runtime_lib_path,
@@ -211,7 +211,7 @@ impl NewPalletCommand {
 				impl_path.clone()
 			} else {
 				get_pallet_impl_path(
-					&pallet_path,
+					&runtime_path,
 					&pallet_crate_name.splitn(2, '-').nth(1).unwrap_or("pallet").to_string(),
 				)?
 			};

@@ -130,9 +130,9 @@ impl AddPalletCommand {
 
 		for handle in handles {
 			let result = handle.join().expect("Unexpected error");
-    if result.is_err(){
-                return result;
-            }
+			if result.is_err() {
+				return result;
+			}
 		}
 
 		if let Some(mut workspace_toml) = find_workspace_toml(&runtime_path) {
