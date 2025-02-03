@@ -11,6 +11,7 @@ use cliclack::multiselect;
 use pop_common::{
 	capitalize_str, find_workspace_toml, format_dir, manifest, prefix_with_current_dir_if_needed,
 	rust_writer::{self, types::*},
+	Rollback,
 };
 use proc_macro2::Span;
 use std::{
@@ -109,14 +110,23 @@ impl AddConfigTypeCommand {
 				let pallet_crate_name = manifest::find_crate_name(&pallet_path.join("Cargo.toml"))?;
 				let config_preludes_path = pallet_path.join("src").join("config_preludes.rs");
 				let runtime_path = manifest::find_pallet_runtime_path(&pallet_path);
+				let pallet_mock_path = pallet_path.join("src").join("mock.rs");
+
+				let mut rollback = Rollback::with_capacity(3, 0, 0);
+
+				let roll_pallet_lib_path = rollback.note_file(&pallet_lib_path)?;
+				let roll_pallet_mock_path = rollback.note_file(&pallet_mock_path)?;
+				// This may be Err as the file may not exist due to the config preludes may not be
+				// in a separate file.
+				let roll_config_preludes_path = rollback.note_file(&config_preludes_path);
 
 				rust_writer::add_use_statements(
-					&pallet_lib_path,
+					&roll_pallet_lib_path,
 					type_.get_needed_use_statements(),
 				)?;
 
 				rust_writer::add_composite_enums(
-					&pallet_lib_path,
+					&roll_pallet_lib_path,
 					type_.get_needed_composite_enums(),
 				)?;
 
@@ -132,7 +142,7 @@ impl AddConfigTypeCommand {
 				};
 				// Update the config trait in lib.rs
 				rust_writer::update_config_trait(
-					&pallet_lib_path,
+					&roll_pallet_lib_path,
 					type_name_ident.clone(),
 					type_.get_common_trait_bounds(),
 					&default_config,
@@ -147,9 +157,11 @@ impl AddConfigTypeCommand {
 						// If config_preludes is defined in its own file, we pass it to
 						// 'add_type_to_config_preludes", otherwise we pass lib.rs
 						let file_path = if config_preludes_path.is_file() {
-							&config_preludes_path
+							// As config_preludes_path is indeed a file, roll_config_preludes_path
+							// should be Ok
+							&roll_config_preludes_path?
 						} else {
-							&pallet_lib_path
+							&roll_pallet_lib_path
 						};
 
 						rust_writer::add_type_to_config_preludes(file_path, type_default_impl)?;
@@ -172,15 +184,23 @@ impl AddConfigTypeCommand {
 							None
 						};
 
+						let roll_pallet_impl_path = if let Some(impl_path) = pallet_impl_path {
+							rollback.note_file(&impl_path).ok()
+						} else {
+							None
+						};
+
 						rust_writer::add_type_to_runtimes(
-							&pallet_path,
 							type_name_ident,
 							type_.get_common_runtime_value(),
-							pallet_impl_path,
+							roll_pallet_impl_path,
+							&roll_pallet_mock_path,
+							&pallet_crate_name,
 						)?;
 					},
 				}
 
+				rollback.commit();
 				Ok(())
 			}));
 		}
@@ -188,7 +208,7 @@ impl AddConfigTypeCommand {
 		for handle in handles {
 			let result = handle.join().expect("Unexpected error");
 			if result.is_err() {
-				return result;
+				Cli.warning("Some of the types weren't added to your pallet")?;
 			}
 		}
 

@@ -8,6 +8,7 @@ use clap::{error::ErrorKind, Args, Command};
 use cliclack::multiselect;
 use pop_common::{
 	find_workspace_toml, format_dir, manifest, prefix_with_current_dir_if_needed, rust_writer,
+	Rollback,
 };
 use std::{
 	env,
@@ -88,43 +89,83 @@ impl AddPalletCommand {
 					mutex_runtime_path.lock().map_err(|e| anyhow::Error::msg(format!("{}", e)))?;
 
 				let runtime_lib_path = runtime_path.join("src").join("lib.rs");
+				let runtime_manifest = manifest::find_crate_manifest(&runtime_lib_path)
+					.expect("Runtime is a crate, so it contains a manifest; qed;");
+
+				let mut rollback;
+				let roll_runtime_lib_path;
 				let pallet_impl_path = match *pallet_impl_path {
-					Some(_) => pallet_impl_path
-						.clone()
-						.expect("The match arm guarantees this is Some; qed;"),
-					None => manifest::compute_new_pallet_impl_path(
-						&runtime_path,
-						&pallet
-							.get_crate_name()
-							.splitn(2, '-')
-							.nth(1)
-							.unwrap_or("pallet")
-							.to_string(),
-					)?,
+					Some(_) => {
+						rollback = Rollback::with_capacity(3, 0, 0);
+						roll_runtime_lib_path = rollback.note_file(&runtime_lib_path)?;
+						pallet_impl_path
+							.clone()
+							.expect("The match arm guarantees this is Some; qed;")
+					},
+					None => {
+						let (rollback_temp, runtime_lib_path_rolled) =
+							manifest::compute_new_pallet_impl_path(
+								&runtime_path,
+								&pallet
+									.get_crate_name()
+									.splitn(2, '-')
+									.nth(1)
+									.unwrap_or("pallet")
+									.to_string(),
+							)?;
+						rollback = rollback_temp;
+
+						// The rollback created above may already contain a noted version of
+						// runtime_lib_path and a new file which corresponds to the pallet
+						// impl path
+						roll_runtime_lib_path = if runtime_lib_path_rolled {
+							rollback.noted_files().remove(0)
+						} else {
+							rollback.note_file(&runtime_lib_path)?
+						};
+						rollback.new_files().remove(0)
+					},
 				};
 
+				let roll_pallet_impl_path = rollback.note_file(&pallet_impl_path)?;
+				let roll_manifest = rollback.note_file(&runtime_manifest)?;
+
 				// Add the pallet to the crate and to the runtime module
-				rust_writer::add_pallet_to_runtime_module(
-					&pallet.get_crate_name(),
-					&runtime_lib_path,
-					manifest::types::CrateDependencie::External { version: pallet.get_version() },
-				)?;
+				let (rollback, _) =
+					rollback.ok_or_rollback(rust_writer::add_pallet_to_runtime_module(
+						&pallet.get_crate_name(),
+						&roll_runtime_lib_path,
+					))?;
 
 				// Add the pallet impl block and its related use statements
-				rust_writer::add_use_statements(
-					&pallet_impl_path,
+				let (rollback, _) = rollback.ok_or_rollback(rust_writer::add_use_statements(
+					&roll_pallet_impl_path,
 					pallet.get_impl_needed_use_statements(),
-				)?;
+				))?;
 
-				rust_writer::add_pallet_impl_block_to_runtime(
-					&pallet.get_crate_name(),
-					&pallet_impl_path,
-					pallet.get_parameter_types(),
-					pallet.get_config_types(),
-					pallet.get_config_values(),
-					pallet.get_default_config(),
-				)?;
+				let (rollback, _) =
+					rollback.ok_or_rollback(rust_writer::add_pallet_impl_block_to_runtime(
+						&pallet.get_crate_name(),
+						&roll_pallet_impl_path,
+						pallet.get_parameter_types(),
+						pallet.get_config_types(),
+						pallet.get_config_values(),
+						pallet.get_default_config(),
+					))?;
 
+				// Update the crate's manifest to add the pallet crate
+				let (rollback, _) =
+					rollback.ok_or_rollback(manifest::add_crate_to_dependencies(
+						&roll_manifest,
+						&runtime_manifest,
+						&pallet.get_crate_name(),
+						manifest::types::CrateDependencie::External {
+							version: pallet.get_version(),
+						},
+					))?;
+
+				// At this point, we can commit the rollback
+				rollback.commit();
 				Ok(())
 			}));
 		}
@@ -132,7 +173,7 @@ impl AddPalletCommand {
 		for handle in handles {
 			let result = handle.join().expect("Unexpected error");
 			if result.is_err() {
-				return result;
+				Cli.warning("Some of the pallets weren't added to your runtime")?;
 			}
 		}
 

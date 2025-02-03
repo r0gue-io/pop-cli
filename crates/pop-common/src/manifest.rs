@@ -1,16 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0
 
 pub mod types;
-use crate::{rust_writer, Error};
+use crate::{rust_writer, Error, Rollback};
 use anyhow;
 pub use cargo_toml::{Dependency, LtoSetting, Manifest, Profile, Profiles};
 use pathdiff::diff_paths;
+use proc_macro2::Span;
 use std::{
 	fs::{read_to_string, write},
 	io::Write,
 	path::{Path, PathBuf},
 };
-use syn::parse_quote;
+use syn::{parse_quote, Ident};
 use toml_edit::{value, Array, DocumentMut, InlineTable, Item, Table, Value};
 
 /// Parses the contents of a `Cargo.toml` manifest.
@@ -115,6 +116,7 @@ pub fn add_crate_to_workspace(workspace_toml: &Path, crate_path: &Path) -> anyho
 }
 
 pub fn add_crate_to_dependencies(
+	maybe_rolled_manifest_path: &Path,
 	manifest_path: &Path,
 	crate_name: &str,
 	dependencie_format: types::CrateDependencie,
@@ -160,7 +162,7 @@ pub fn add_crate_to_dependencies(
 				{
 					path
 				} else {
-					return Err(Error::Config("Calling add_crate_to_dependencies with a internal crate whose path isn't valid.".to_string()));
+					return Err(Error::Config("Calling add_crate_to_dependencies with an internal crate whose path isn't valid.".to_string()));
 				};
 
 				crate_declaration.insert(
@@ -182,7 +184,7 @@ pub fn add_crate_to_dependencies(
 		}
 		Ok(())
 	}
-	let content = read_to_string(manifest_path)?;
+	let content = read_to_string(maybe_rolled_manifest_path)?;
 	let mut doc = content.parse::<DocumentMut>()?;
 	if let Some(Item::Table(dependencies)) = doc.get_mut("dependencies") {
 		do_add_crate_to_dependencies(manifest_path, dependencies, crate_name, dependencie_format)?;
@@ -197,7 +199,7 @@ pub fn add_crate_to_dependencies(
 		doc.insert("dependencies", Item::Table(dependencies));
 	}
 
-	write(manifest_path, doc.to_string())?;
+	write(maybe_rolled_manifest_path, doc.to_string())?;
 	Ok(())
 }
 
@@ -250,45 +252,63 @@ pub fn find_pallet_runtime_path(pallet_path: &Path) -> Option<PathBuf> {
 pub fn compute_new_pallet_impl_path(
 	runtime_path: &Path,
 	pallet_name: &str,
-) -> Result<PathBuf, Error> {
+) -> Result<(Rollback, bool), Error> {
 	let runtime_src_path = runtime_path.join("src");
 	let runtime_lib_path = runtime_src_path.join("lib.rs");
 	let configs_rs_path = runtime_src_path.join("configs.rs");
 	let configs_folder_path = runtime_src_path.join("configs");
 	let configs_mod_path = configs_folder_path.join("mod.rs");
 	let pallet_config_file = configs_folder_path.join(format!("{}.rs", pallet_name));
-	match (configs_rs_path.exists(), configs_mod_path.exists()) {
+	let pallet_name_ident = Ident::new(pallet_name, Span::call_site());
+	match (configs_rs_path.is_file(), configs_mod_path.is_file()) {
 		// The runtime is using a configs module without the mod.rs sintax
 		(true, false) => {
-			let mut write_configs_rs =
-				std::fs::OpenOptions::new().append(true).open(configs_rs_path)?;
-			writeln!(write_configs_rs, "{}", format!("mod {};", pallet_name))?;
-			std::fs::File::create(&pallet_config_file)?;
-			Ok(pallet_config_file)
+			let mut rollback = Rollback::with_capacity(1, 1, 0);
+			let roll_configs_rs_path = rollback.note_file(&configs_rs_path)?;
+			rust_writer::add_mod_declarations(
+				&roll_configs_rs_path,
+				vec![parse_quote!(mod #pallet_name_ident;)],
+			)?;
+			rollback.new_file(&pallet_config_file)?;
+			Ok((rollback, false))
 		},
 		// The runtime is using a configs module with the mod.rs syntax
 		(false, true) => {
-			let mut write_configs_mod =
-				std::fs::OpenOptions::new().append(true).open(configs_mod_path)?;
-			writeln!(write_configs_mod, "{}", format!("mod {};", pallet_name))?;
-			std::fs::File::create(&pallet_config_file)?;
-			Ok(pallet_config_file)
+			let mut rollback = Rollback::with_capacity(1, 1, 0);
+			let roll_configs_mod_path = rollback.note_file(&configs_mod_path)?;
+			rust_writer::add_mod_declarations(
+				&roll_configs_mod_path,
+				vec![parse_quote!(mod #pallet_name_ident;)],
+			)?;
+			rollback.new_file(&pallet_config_file)?;
+			Ok((rollback, false))
 		},
 		// The runtime isn't using a configs module yet, we opt for the configs.rs
 		// convention
 		(false, false) => {
-			let mut write_configs_rs =
-				std::fs::OpenOptions::new().create(true).write(true).open(configs_rs_path)?;
-			writeln!(write_configs_rs, "{}", format!("mod {};", pallet_name))?;
-			std::fs::create_dir(configs_folder_path)?;
-			std::fs::File::create(&pallet_config_file)?;
+			let mut rollback = Rollback::with_capacity(1, 2, 1);
+			let roll_runtime_lib_path = rollback.note_file(&runtime_lib_path)?;
 			rust_writer::add_mod_declarations(
-				&runtime_lib_path,
+				&roll_runtime_lib_path,
 				vec![parse_quote!(
 					pub mod configs;
 				)],
 			)?;
-			Ok(pallet_config_file)
+
+			rollback.new_file(&configs_rs_path)?;
+			rollback.new_dir(&configs_folder_path)?;
+			rollback.new_file(&pallet_config_file)?;
+
+			let (rollback, mut write_configs_rs) = rollback
+				.ok_or_rollback(std::fs::OpenOptions::new().write(true).open(configs_rs_path))?;
+
+			let (rollback, _) = rollback.ok_or_rollback(writeln!(
+				write_configs_rs,
+				"{}",
+				format!("mod {};", pallet_name)
+			))?;
+
+			Ok((rollback, true))
 		},
 		// Both approaches at the sime time aren't supported by the compiler, so this is
 		// unreachable in a compiling project

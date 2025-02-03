@@ -76,16 +76,7 @@ pub(crate) fn find_highest_pallet_index(ast: &File) -> Result<PalletIndex, Error
 pub(crate) fn find_used_runtime_macro(ast: &File) -> Result<RuntimeUsedMacro, Error> {
 	for item in &ast.items {
 		match item {
-			Item::Mod(ItemMod { ident, attrs, .. })
-				if *ident == "runtime" &&
-					attrs.iter().any(|attribute| {
-						if let Meta::Path(Path { segments, .. }) = &attribute.meta {
-							segments.iter().any(|segment| segment.ident == "runtime")
-						} else {
-							false
-						}
-					}) =>
-			{
+			Item::Mod(ItemMod { ident, .. }) if *ident == "runtime" => {
 				return Ok(RuntimeUsedMacro::Runtime);
 			},
 			Item::Macro(ItemMacro { mac: Macro { path: Path { segments, .. }, .. }, .. })

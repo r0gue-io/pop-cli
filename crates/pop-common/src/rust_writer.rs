@@ -1,12 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{
-	capitalize_str,
-	manifest::{
-		add_crate_to_dependencies, find_crate_manifest, find_crate_name, types::CrateDependencie,
-	},
-	Error,
-};
+use crate::{capitalize_str, Error};
 use prettyplease::unparse;
 use proc_macro2::Span;
 use std::{
@@ -45,19 +39,20 @@ pub fn update_config_trait(
 }
 
 pub fn add_type_to_runtimes(
-	pallet_path: &Path,
 	type_name: Ident,
 	runtime_value: Type,
 	pallet_impl_path: Option<PathBuf>,
+	pallet_mock_path: &Path,
+	pallet_crate_name: &str,
 ) -> Result<(), Error> {
 	fn do_add_type_to_runtime(
 		file_content: &str,
 		file_path: &Path,
-		pallet_manifest_path: &Path,
 		type_name: Ident,
 		runtime_value: Type,
+		pallet_crate_name: &str,
 	) -> Result<(), Error> {
-		let pallet_name = find_crate_name(pallet_manifest_path)?.replace("-", "_");
+		let pallet_name = pallet_crate_name.replace("-", "_");
 		let preserver = types::Preserver::new(&format!("impl {}::Config", pallet_name));
 
 		let mut ast = preserver::preserve_and_parse(file_content.to_string(), vec![preserver])?;
@@ -81,17 +76,14 @@ pub fn add_type_to_runtimes(
 		Ok(())
 	}
 
-	let src = pallet_path.join("src");
-	let pallet_manifest_path = pallet_path.join("Cargo.toml");
 	// All pallets should have a mock runtime, so we add the type to it.
-	let mock_path = src.join("mock.rs");
-	let mock_content = fs::read_to_string(&mock_path)?;
+	let mock_content = fs::read_to_string(&pallet_mock_path)?;
 	do_add_type_to_runtime(
 		&mock_content,
-		&mock_path,
-		&pallet_manifest_path,
+		&pallet_mock_path,
 		type_name.clone(),
 		runtime_value.clone(),
+		pallet_crate_name,
 	)?;
 
 	// If the pallet is contained inside a runtime add the type to that runtime as well
@@ -100,9 +92,9 @@ pub fn add_type_to_runtimes(
 		do_add_type_to_runtime(
 			&pallet_impl_content,
 			&pallet_impl_path,
-			&pallet_manifest_path,
 			type_name,
 			runtime_value,
+			pallet_crate_name,
 		)?;
 	}
 	Ok(())
@@ -173,7 +165,6 @@ pub fn add_type_to_config_preludes(
 pub fn add_pallet_to_runtime_module(
 	pallet_name: &str,
 	runtime_lib_path: &Path,
-	pallet_dependencie_type: CrateDependencie,
 ) -> Result<(), Error> {
 	let preserver_construct_runtime = types::Preserver::new("construct_runtime!");
 	let preserver_mod_runtime = types::Preserver::new("mod runtime");
@@ -181,7 +172,6 @@ pub fn add_pallet_to_runtime_module(
 		fs::read_to_string(runtime_lib_path)?,
 		vec![preserver_construct_runtime, preserver_mod_runtime],
 	)?;
-
 	// Parse the runtime to find which of the runtime macros is being used and the highest
 	// pallet index used (if needed, otherwise 0).
 	let used_macro = parse::find_used_runtime_macro(&ast)?;
@@ -223,12 +213,6 @@ pub fn add_pallet_to_runtime_module(
 			runtime_lib_path.to_str().unwrap_or("Invalid UTF-8 path")
 		))
 	})?;
-
-	// Update the crate's manifest to add the pallet crate
-	let runtime_manifest = find_crate_manifest(runtime_lib_path)
-		.expect("Runtime is a crate, so it contains a manifest; qed;");
-
-	add_crate_to_dependencies(&runtime_manifest, pallet_name, pallet_dependencie_type)?;
 
 	Ok(())
 }
@@ -273,9 +257,13 @@ pub fn add_pallet_impl_block_to_runtime(
 }
 
 pub fn add_use_statements(file_path: &Path, use_statements: Vec<ItemUse>) -> Result<(), Error> {
-	// Preserve the first use statement to insert the new one where they're
-	let preserver = types::Preserver::new("use");
-	let mut ast = preserver::preserve_and_parse(fs::read_to_string(file_path)?, vec![preserver])?;
+	// Preserve the first use/pub use statement to insert the new one where they're
+	let preserver_use = types::Preserver::new("use");
+	let preserver_pub_use = types::Preserver::new("pub use");
+	let mut ast = preserver::preserve_and_parse(
+		fs::read_to_string(file_path)?,
+		vec![preserver_use, preserver_pub_use],
+	)?;
 
 	use_statements.into_iter().for_each(|use_statement| {
 		if !parse::find_use_statement(&ast, &use_statement) {
@@ -293,9 +281,13 @@ pub fn add_use_statements(file_path: &Path, use_statements: Vec<ItemUse>) -> Res
 }
 
 pub fn add_mod_declarations(file_path: &Path, mod_declarations: Vec<ItemMod>) -> Result<(), Error> {
-	// Preserve the first mod declaration to insert the new one where they're
-	let preserver = types::Preserver::new("mod");
-	let mut ast = preserver::preserve_and_parse(fs::read_to_string(file_path)?, vec![preserver])?;
+	// Preserve the first mod/pub mod declaration to insert the new one where they're
+	let preserver_mod = types::Preserver::new("mod");
+	let preserver_pub_mod = types::Preserver::new("pub mod");
+	let mut ast = preserver::preserve_and_parse(
+		fs::read_to_string(file_path)?,
+		vec![preserver_mod, preserver_pub_mod],
+	)?;
 
 	mod_declarations
 		.into_iter()

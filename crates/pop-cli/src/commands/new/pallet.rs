@@ -9,8 +9,8 @@ use clap::{Args, Subcommand};
 use cliclack::{confirm, input, multiselect, outro, outro_cancel};
 use pop_common::{
 	add_crate_to_workspace, compute_new_pallet_impl_path, find_crate_name,
-	find_pallet_runtime_path, find_workspace_toml, format_dir, manifest::types::CrateDependencie,
-	prefix_with_current_dir_if_needed, rust_writer,
+	find_pallet_runtime_path, find_workspace_toml, format_dir, manifest,
+	manifest::types::CrateDependencie, prefix_with_current_dir_if_needed, rust_writer, Rollback,
 };
 use pop_parachains::{
 	create_pallet_template, TemplatePalletConfig, TemplatePalletConfigCommonTypes,
@@ -201,20 +201,49 @@ impl NewPalletCommand {
 			// pallet to that runtime.
 			spinner.set_message("Adding the pallet to your runtime...");
 			let runtime_lib_path = runtime_path.join("src").join("lib.rs");
-			rust_writer::add_pallet_to_runtime_module(
-				&pallet_crate_name,
-				&runtime_lib_path,
-				CrateDependencie::Local { local_crate_path: pallet_path.to_path_buf() },
-			)?;
+			let runtime_manifest = manifest::find_crate_manifest(&runtime_lib_path)
+				.expect("Runtime is a crate, so it contains a manifest; qed;");
 
+			let mut rollback;
+			let roll_runtime_lib_path;
 			let pallet_impl_path = if let Some(impl_path) = self.pallet_impl_path {
+				rollback = Rollback::with_capacity(3, 0, 0);
+				roll_runtime_lib_path = rollback.note_file(&runtime_lib_path)?;
 				impl_path.clone()
 			} else {
-				compute_new_pallet_impl_path(
+				let (rollback_temp, runtime_lib_path_rolled) = compute_new_pallet_impl_path(
 					&runtime_path,
 					&pallet_crate_name.splitn(2, '-').nth(1).unwrap_or("pallet").to_string(),
-				)?
+				)?;
+
+				rollback = rollback_temp;
+				// The rollback created above may already contain a noted version of
+				// runtime_lib_path and a new file which corresponds to the pallet
+				// impl path
+				roll_runtime_lib_path = if runtime_lib_path_rolled {
+					rollback.noted_files().remove(0)
+				} else {
+					rollback.note_file(&runtime_lib_path)?
+				};
+				rollback.new_files().remove(0)
 			};
+
+			let roll_pallet_impl_path = rollback.note_file(&pallet_impl_path)?;
+			let roll_runtime_manifest = rollback.note_file(&runtime_manifest)?;
+
+			// Add pallet to runtime module
+			let add_pallet_to_runtime = rust_writer::add_pallet_to_runtime_module(
+				&pallet_crate_name,
+				&roll_runtime_lib_path,
+			);
+
+			// Update the crate's manifest to add the pallet crate
+			let add_crate_dependencies = manifest::add_crate_to_dependencies(
+				&roll_runtime_manifest,
+				&runtime_manifest,
+				&pallet_crate_name,
+				CrateDependencie::Local { local_crate_path: pallet_path.to_path_buf() },
+			);
 
 			// Add pallet's impl block
 			let (types, values) = if pallet_default_config {
@@ -232,14 +261,27 @@ impl NewPalletCommand {
 				(types, values)
 			};
 
-			rust_writer::add_pallet_impl_block_to_runtime(
+			let add_pallet_impl_block = rust_writer::add_pallet_impl_block_to_runtime(
 				&pallet_crate_name,
-				&pallet_impl_path,
+				&roll_pallet_impl_path,
 				Vec::new(),
 				types,
 				values,
 				pallet_default_config,
-			)?;
+			);
+
+			// If some of these results are Err, that doesn't mean that everything went wrong, only
+			// that the pallet wasn't included into the runtime. But the pallet was indeed
+			// created, so we cannot return an error here
+			match (add_pallet_to_runtime, add_crate_dependencies, add_pallet_impl_block) {
+				(Ok(_), Ok(_), Ok(_)) => rollback.commit(),
+				_ => {
+					Cli.warning(
+						"Your pallet has been created but it couldn't be added to your runtime.",
+					)?;
+					rollback.rollback();
+				},
+			}
 		}
 
 		// If the pallet has been created inside a workspace, add it to that workspace

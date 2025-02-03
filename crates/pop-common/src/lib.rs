@@ -14,6 +14,7 @@ pub use manifest::{
 	find_pallet_runtime_path, find_workspace_toml,
 };
 pub use metadata::format_type;
+pub use rollback::Rollback;
 pub use signer::create_signer;
 pub use sourcing::set_executable_permission;
 pub use subxt::{Config, PolkadotConfig as DefaultConfig};
@@ -28,6 +29,7 @@ pub mod manifest;
 /// Provides functionality for formatting and resolving metadata types.
 pub mod metadata;
 pub mod polkadot_sdk;
+mod rollback;
 pub mod rust_writer;
 /// Provides functionality for creating a signer from a secret URI.
 pub mod signer;

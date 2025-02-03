@@ -16,22 +16,66 @@ pub(crate) fn preserve_and_parse(code: String, preservers: Vec<Preserver>) -> Re
 }
 
 pub(crate) fn resolve_preserved(code: String) -> String {
-	// Inside non-preserved declarative macros invocations, everything is a token so the doc
-	// comments became #[doc] in order to preserve them (tokens doesn't accept doc comments).
-	// ///TEMP_DOC comments became #[doc = "TEMP_DOC"] which are 4 tokens in the AST. When the
-	// AST is converted to a String, new line characters can appear in the middle of any of those
-	// tokens, so to properly convert them in a new line we can use regex.
-	// As the #[doc] attribute may be present anywhere, be sure to keep spaces before and after the
-	// comment to don't leave commented some lines of code.
-	let re =
-		Regex::new(r#"#\s*\[\s*doc\s*=\s*"TEMP_DOC(.*?)"\s*\]"#).expect("The regex is valid;qed;");
-	let code = re.replace_all(&code, |caps: &Captures| format!("\n{}\n", &caps[1])).to_string();
-	// Same happens with 'type temp_marker = ();'. This lines also delete them from everywhere, not
-	// just inside declarative macros
-	let re = Regex::new(r"type\s+temp_marker\s*=\s*\(\);\s*").expect("The regex is valid; qed;");
-	let code = re.replace_all(&code, "\n").to_string();
-	// Delete all TEMP_DOCS present in the rest of the code and return the result.
-	code.replace("///TEMP_DOC", "")
+	// Inside non-preserved declarative macros invocations, everything is a token and hence it
+	// should be managed carefully. We capture all the macro invocations and apply regex to those
+	// pieces of code to properly resolve them.
+	let mut delimiters_counts = DelimitersCount::new();
+	let mut lines = code.lines();
+
+	// We'll reduce lines, so this capacity is a max bond on the result
+	let mut macro_cleaned_code: Vec<String> = Vec::with_capacity(code.lines().count());
+	let mut macro_content = String::new();
+
+	let macro_invocation_matcher =
+		Regex::new(r"\w+!\s*[\{\(\[]").expect("The regex is valid; qed;");
+
+	// Inside declarative macros, doc comments became #[doc] in order to preserve them (tokens
+	// doesn't accept doc comments). ///TEMP_DOC comments became #[doc = "TEMP_DOC(something)"]
+	// which are 4 tokens in the AST. When the AST is converted to a String, new line characters
+	// can appear in the middle of any of those tokens, so to properly convert them in a new line
+	// we can use regex. As the #[doc] attribute may be present anywhere, be sure to keep spaces
+	// before and after the comment to don't leave commented some lines of code.
+	let macro_docs_matcher = Regex::new(r#"#\s*\[\s*doc\s*=\s*"TEMP_DOC([\\t]*)(.*?)"\s*\]"#)
+		.expect("The regex is valid; qed;");
+	// Same happens with 'type temp_marker = ();'.
+	let temp_marker_matcher =
+		Regex::new(r"type\s+temp_marker\s*=\s*\(\);\s*").expect("The regex is valid; qed;");
+
+	while let Some(line) = lines.next() {
+		// We're noting the content of a macro
+		if !macro_content.is_empty() && !delimiters_counts.is_complete() {
+			delimiters_counts.count(line);
+			macro_content.push_str(line);
+			macro_content.push_str("\n");
+			// Start noting the content of a macro
+		} else if macro_invocation_matcher.is_match(&line) {
+			delimiters_counts.count(line);
+			macro_content.push_str(line);
+			macro_content.push_str("\n");
+			// macro_content contains the whole macro, so we preserve it and push it, together with
+			// the new line to the cleaned code
+		} else if delimiters_counts.is_complete() {
+			let docs_resolved_code = macro_docs_matcher
+				.replace_all(&macro_content, |caps: &Captures| format!("\n{}\n", &caps[2]))
+				.to_string();
+
+			macro_cleaned_code
+				.push(temp_marker_matcher.replace_all(&docs_resolved_code, "\n").to_string());
+			macro_cleaned_code.push(line.to_owned());
+			macro_cleaned_code.push("\n".to_owned());
+
+			macro_content.clear();
+		} else {
+			macro_cleaned_code.push(line.to_owned());
+			macro_cleaned_code.push("\n".to_owned());
+		}
+	}
+
+	// Delete all TEMP_DOCS and temp_marker present in the rest of the code and return the result.
+	macro_cleaned_code
+		.join("")
+		.replace("///TEMP_DOC", "")
+		.replace("type temp_marker = ();\n", "")
 }
 
 fn apply_preservers(code: String, mut preservers: Vec<Preserver>) -> String {
