@@ -102,7 +102,7 @@ impl Command {
 			#[cfg(any(feature = "parachain", feature = "contract"))]
 			Self::Up(args) => match args.command {
 				#[cfg(feature = "parachain")]
-				up::Command::Parachain(cmd) => cmd.execute().await.map(|_| Value::Null),
+				up::Command::Network(cmd) => cmd.execute().await.map(|_| Value::Null),
 				#[cfg(feature = "contract")]
 				up::Command::Contract(cmd) => cmd.execute().await.map(|_| Value::Null),
 			},

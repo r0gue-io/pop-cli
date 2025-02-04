@@ -5,7 +5,7 @@ use clap::{Args, Subcommand};
 #[cfg(feature = "contract")]
 mod contract;
 #[cfg(feature = "parachain")]
-mod parachain;
+mod network;
 
 /// Arguments for launching or deploying.
 #[derive(Args)]
@@ -20,8 +20,8 @@ pub(crate) struct UpArgs {
 pub(crate) enum Command {
 	#[cfg(feature = "parachain")]
 	/// Launch a local network.
-	#[clap(alias = "p")]
-	Parachain(parachain::ZombienetCommand),
+	#[clap(alias = "p", visible_alias = "parachain")]
+	Network(network::ZombienetCommand),
 	#[cfg(feature = "contract")]
 	/// Deploy a smart contract.
 	#[clap(alias = "c")]
