@@ -3,7 +3,6 @@
 use crate::{
 	cli::{traits::Cli as _, Cli},
 	common::{
-		builds::get_project_path,
 		contracts::{check_contracts_node_and_prompt, has_contract_been_built, terminate_node},
 		wallet::request_signature,
 	},
@@ -29,46 +28,44 @@ const COMPLETE: &str = "🚀 Deployment complete";
 const DEFAULT_URL: &str = "ws://localhost:9944/";
 const DEFAULT_PORT: u16 = 9944;
 const FAILED: &str = "🚫 Deployment failed.";
+const HELP_HEADER: &str = "Smart Contract deployment options";
 
 #[derive(Args, Clone)]
 pub struct UpContractCommand {
 	/// Path to the contract build directory.
-	#[arg(short, long)]
-	path: Option<PathBuf>,
-	/// Directory path without flag for your project [default: current directory]
-	#[arg(value_name = "PATH", index = 1, conflicts_with = "path")]
-	pub path_pos: Option<PathBuf>,
+	#[clap(skip)]
+	pub(crate) path: Option<PathBuf>,
 	/// The name of the contract constructor to call.
-	#[clap(short, long, default_value = "new")]
+	#[clap(short, long, default_value = "new", help_heading = HELP_HEADER)]
 	constructor: String,
 	/// The constructor arguments, encoded as strings.
-	#[clap(short, long, num_args = 0..,)]
+	#[clap(short, long, help_heading = HELP_HEADER, num_args = 0..,)]
 	args: Vec<String>,
 	/// Transfers an initial balance to the instantiated contract.
-	#[clap(short, long, default_value = "0")]
+	#[clap(short, long, default_value = "0", help_heading = HELP_HEADER)]
 	value: String,
 	/// Maximum amount of gas to be used for this command.
 	/// If not specified it will perform a dry-run to estimate the gas consumed for the
 	/// instantiation.
-	#[clap(name = "gas", short, long)]
+	#[clap(name = "gas", short, long, help_heading = HELP_HEADER )]
 	gas_limit: Option<u64>,
 	/// Maximum proof size for the instantiation.
 	/// If not specified it will perform a dry-run to estimate the proof size required.
-	#[clap(short = 'P', long)]
+	#[clap(short = 'P', long, help_heading = HELP_HEADER )]
 	proof_size: Option<u64>,
 	/// A salt used in the address derivation of the new contract. Use to create multiple
 	/// instances of the same contract code from the same account.
-	#[clap(short = 'S', long, value_parser = parse_hex_bytes)]
+	#[clap(short = 'S', long, value_parser = parse_hex_bytes, help_heading = HELP_HEADER)]
 	salt: Option<Bytes>,
 	/// Websocket endpoint of a chain.
-	#[clap(short, long, value_parser, default_value = DEFAULT_URL)]
+	#[clap(short, long, value_parser, default_value = DEFAULT_URL, help_heading = HELP_HEADER )]
 	url: Url,
 	/// Secret key URI for the account deploying the contract.
 	///
 	/// e.g.
 	/// - for a dev account "//Alice"
 	/// - with a password "//Alice///SECRET_PASSWORD"
-	#[clap(short, long, default_value = "//Alice")]
+	#[clap(short, long, default_value = "//Alice", help_heading = HELP_HEADER )]
 	suri: String,
 	/// Use a browser extension wallet to sign the extrinsic.
 	#[clap(
@@ -76,38 +73,40 @@ pub struct UpContractCommand {
 		long,
 		default_value = "false",
 		short('w'),
-		conflicts_with = "suri"
+		conflicts_with = "suri",
+		help_heading = HELP_HEADER
 	)]
 	use_wallet: bool,
 	/// Perform a dry-run via RPC to estimate the gas usage. This does not submit a transaction.
-	#[clap(short = 'D', long)]
+	#[clap(short = 'D', long, help_heading = HELP_HEADER )]
 	dry_run: bool,
 	/// Uploads the contract only, without instantiation.
-	#[clap(short = 'U', long)]
+	#[clap(short = 'U', long, help_heading = HELP_HEADER)]
 	upload_only: bool,
 	/// Automatically source or update the needed binary required without prompting for
 	/// confirmation.
-	#[clap(short = 'y', long)]
+	#[clap(short = 'y', long, help_heading = HELP_HEADER)]
 	skip_confirm: bool,
+	// Deprecation flag, used to specify whether the deprecation warning is shown.
+	#[clap(skip)]
+	pub(crate) valid: bool,
 }
 
 impl UpContractCommand {
 	/// Executes the command.
 	pub(crate) async fn execute(mut self) -> anyhow::Result<()> {
 		Cli.intro("Deploy a smart contract")?;
-
-		let project_path = get_project_path(self.path.clone(), self.path_pos.clone());
+		// Show warning if specified as deprecated.
+		if !self.valid {
+			Cli.warning("NOTE: this command is deprecated. Please use `pop up` (or simply `pop u`) in future...")?;
+		}
 		// Check if build exists in the specified "Contract build directory"
-		if !has_contract_been_built(project_path.as_deref()) {
+		if !has_contract_been_built(self.path.as_deref()) {
 			// Build the contract in release mode
 			Cli.warning("NOTE: contract has not yet been built.")?;
 			let spinner = spinner();
 			spinner.start("Building contract in RELEASE mode...");
-			let result = match build_smart_contract(
-				project_path.as_deref().map(|v| v),
-				true,
-				Verbosity::Quiet,
-			) {
+			let result = match build_smart_contract(self.path.as_deref(), true, Verbosity::Quiet) {
 				Ok(result) => result,
 				Err(e) => {
 					Cli.outro_cancel(format!("🚫 An error occurred building your contract: {e}\nUse `pop build` to retry with build output."))?;
@@ -369,8 +368,7 @@ impl UpContractCommand {
 
 	// get the call data and contract code hash
 	async fn get_contract_data(&self) -> anyhow::Result<(Vec<u8>, [u8; 32])> {
-		let project_path = get_project_path(self.path.clone(), self.path_pos.clone());
-		let contract_code = get_contract_code(project_path.as_ref())?;
+		let contract_code = get_contract_code(self.path.as_ref())?;
 		let hash = contract_code.code_hash();
 		if self.upload_only {
 			let call_data = get_upload_payload(contract_code, self.url.as_str()).await?;
@@ -445,7 +443,6 @@ mod tests {
 	fn default_up_contract_command() -> UpContractCommand {
 		UpContractCommand {
 			path: None,
-			path_pos: None,
 			constructor: "new".to_string(),
 			args: vec![],
 			value: "0".to_string(),
@@ -458,6 +455,7 @@ mod tests {
 			upload_only: false,
 			skip_confirm: false,
 			use_wallet: false,
+			valid: true,
 		}
 	}
 
@@ -521,8 +519,7 @@ mod tests {
 		let localhost_url = format!("ws://127.0.0.1:{}", port);
 
 		let up_contract_opts = UpContractCommand {
-			path: Some(temp_dir.clone()),
-			path_pos: Some(temp_dir),
+			path: Some(temp_dir),
 			constructor: "new".to_string(),
 			args: vec![],
 			value: "0".to_string(),
@@ -535,6 +532,7 @@ mod tests {
 			upload_only: true,
 			skip_confirm: true,
 			use_wallet: true,
+			valid: true,
 		};
 
 		let rpc_client = subxt::backend::rpc::RpcClient::from_url(&up_contract_opts.url).await?;
@@ -573,8 +571,7 @@ mod tests {
 		let localhost_url = format!("ws://127.0.0.1:{}", port);
 
 		let up_contract_opts = UpContractCommand {
-			path: Some(temp_dir.clone()),
-			path_pos: Some(temp_dir),
+			path: Some(temp_dir),
 			constructor: "new".to_string(),
 			args: vec!["false".to_string()],
 			value: "0".to_string(),
@@ -587,6 +584,7 @@ mod tests {
 			upload_only: false,
 			skip_confirm: true,
 			use_wallet: true,
+			valid: true,
 		};
 
 		// Retrieve call data based on the above command options.
