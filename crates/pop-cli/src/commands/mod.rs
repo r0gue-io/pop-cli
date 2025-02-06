@@ -104,7 +104,10 @@ impl Command {
 				None => up::Command::execute(args).await.map(|t| json!(t)),
 				Some(cmd) => match cmd {
 					#[cfg(feature = "parachain")]
-					up::Command::Network(cmd) => cmd.execute().await.map(|_| Value::Null),
+					up::Command::Network(mut cmd) => {
+						cmd.valid = true;
+						cmd.execute().await.map(|_| Value::Null)
+					},
 					#[cfg(feature = "parachain")]
 					up::Command::Parachain(cmd) => cmd.execute().await.map(|_| Value::Null),
 					#[cfg(feature = "contract")]
