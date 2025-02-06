@@ -87,23 +87,26 @@ pub struct UpContractCommand {
 	/// confirmation.
 	#[clap(short = 'y', long, help_heading = HELP_HEADER)]
 	skip_confirm: bool,
+	// Deprecation flag, used to specify whether the deprecation warning is shown.
+	#[clap(skip)]
+	pub(crate) valid: bool,
 }
 
 impl UpContractCommand {
 	/// Executes the command.
 	pub(crate) async fn execute(mut self) -> anyhow::Result<()> {
 		Cli.intro("Deploy a smart contract")?;
+		// Show warning if specified as deprecated.
+		if !self.valid {
+			Cli.warning("NOTE: this command is deprecated. Please use `pop up` (or simply `pop u`) in future...")?;
+		}
 		// Check if build exists in the specified "Contract build directory"
 		if !has_contract_been_built(self.path.as_deref()) {
 			// Build the contract in release mode
 			Cli.warning("NOTE: contract has not yet been built.")?;
 			let spinner = spinner();
 			spinner.start("Building contract in RELEASE mode...");
-			let result = match build_smart_contract(
-				self.path.as_deref(),
-				true,
-				Verbosity::Quiet,
-			) {
+			let result = match build_smart_contract(self.path.as_deref(), true, Verbosity::Quiet) {
 				Ok(result) => result,
 				Err(e) => {
 					Cli.outro_cancel(format!("🚫 An error occurred building your contract: {e}\nUse `pop build` to retry with build output."))?;

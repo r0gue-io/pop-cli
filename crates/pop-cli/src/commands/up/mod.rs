@@ -54,6 +54,7 @@ impl Command {
 		if pop_contracts::is_supported(project_path.as_deref())? {
 			let mut cmd = args.contract;
 			cmd.set_project_path(project_path);
+			cmd.valid = true;
 			cmd.execute().await?;
 		}
 		// TODO: if pop_parachains::is_supported(project_path.as_deref())?
