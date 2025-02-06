@@ -112,7 +112,7 @@ impl Command {
 					up::Command::Parachain(cmd) => cmd.execute().await.map(|_| Value::Null),
 					#[cfg(feature = "contract")]
 					up::Command::Contract(mut cmd) => {
-						cmd.set_project_path(get_project_path(args.path, args.path_pos));
+						cmd.path = get_project_path(args.path, args.path_pos);
 						cmd.execute().await.map(|_| Value::Null)
 					},
 				},
