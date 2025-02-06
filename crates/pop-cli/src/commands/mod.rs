@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{cache, cli::Cli};
+use crate::{cache, cli::Cli, common::builds::get_project_path};
 use clap::Subcommand;
 use pop_common::templates::Template;
 use serde_json::{json, Value};
@@ -101,10 +101,18 @@ impl Command {
 			},
 			#[cfg(any(feature = "parachain", feature = "contract"))]
 			Self::Up(args) => match args.command {
-				#[cfg(feature = "parachain")]
-				up::Command::Network(cmd) => cmd.execute().await.map(|_| Value::Null),
-				#[cfg(feature = "contract")]
-				up::Command::Contract(cmd) => cmd.execute().await.map(|_| Value::Null),
+				None => up::Command::execute(args).await.map(|t| json!(t)),
+				Some(cmd) => match cmd {
+					#[cfg(feature = "parachain")]
+					up::Command::Network(cmd) => cmd.execute().await.map(|_| Value::Null),
+					#[cfg(feature = "parachain")]
+					up::Command::Parachain(cmd) => cmd.execute().await.map(|_| Value::Null),
+					#[cfg(feature = "contract")]
+					up::Command::Contract(mut cmd) => {
+						cmd.set_project_path(get_project_path(args.path, args.path_pos));
+						cmd.execute().await.map(|_| Value::Null)
+					},
+				},
 			},
 			#[cfg(feature = "contract")]
 			Self::Test(args) => match args.command {
