@@ -34,7 +34,7 @@ const HELP_HEADER: &str = "Smart Contract deployment options";
 pub struct UpContractCommand {
 	/// Path to the contract build directory.
 	#[clap(skip)]
-	path: Option<PathBuf>,
+	pub(crate) path: Option<PathBuf>,
 	/// The name of the contract constructor to call.
 	#[clap(short, long, default_value = "new", help_heading = HELP_HEADER)]
 	constructor: String,
@@ -386,11 +386,6 @@ impl UpContractCommand {
 			Ok((call_data, hash))
 		}
 	}
-
-	/// Sets the project path
-	pub fn set_project_path(&mut self, project_path: Option<PathBuf>) {
-		self.path = project_path;
-	}
 }
 
 impl From<UpContractCommand> for UpOpts {
@@ -448,7 +443,6 @@ mod tests {
 	fn default_up_contract_command() -> UpContractCommand {
 		UpContractCommand {
 			path: None,
-			path_pos: None,
 			constructor: "new".to_string(),
 			args: vec![],
 			value: "0".to_string(),
@@ -461,6 +455,7 @@ mod tests {
 			upload_only: false,
 			skip_confirm: false,
 			use_wallet: false,
+			valid: true,
 		}
 	}
 
@@ -524,8 +519,7 @@ mod tests {
 		let localhost_url = format!("ws://127.0.0.1:{}", port);
 
 		let up_contract_opts = UpContractCommand {
-			path: Some(temp_dir.clone()),
-			path_pos: Some(temp_dir),
+			path: Some(temp_dir),
 			constructor: "new".to_string(),
 			args: vec![],
 			value: "0".to_string(),
@@ -538,6 +532,7 @@ mod tests {
 			upload_only: true,
 			skip_confirm: true,
 			use_wallet: true,
+			valid: true,
 		};
 
 		let rpc_client = subxt::backend::rpc::RpcClient::from_url(&up_contract_opts.url).await?;
@@ -576,8 +571,7 @@ mod tests {
 		let localhost_url = format!("ws://127.0.0.1:{}", port);
 
 		let up_contract_opts = UpContractCommand {
-			path: Some(temp_dir.clone()),
-			path_pos: Some(temp_dir),
+			path: Some(temp_dir),
 			constructor: "new".to_string(),
 			args: vec!["false".to_string()],
 			value: "0".to_string(),
@@ -590,6 +584,7 @@ mod tests {
 			upload_only: false,
 			skip_confirm: true,
 			use_wallet: true,
+			valid: true,
 		};
 
 		// Retrieve call data based on the above command options.
