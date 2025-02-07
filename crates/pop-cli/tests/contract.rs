@@ -92,7 +92,7 @@ async fn contract_lifecycle() -> Result<()> {
 	// pop up --path ./test_contract --upload-only
 	Command::cargo_bin("pop")
 		.unwrap()
-		.current_dir(&temp_dir.join("test_contract"))
+		.current_dir(&temp_dir)
 		.args(&["up", "--path", "./test_contract", "--upload-only", "--url", default_endpoint])
 		.assert()
 		.success();
@@ -184,7 +184,7 @@ async fn contract_lifecycle() -> Result<()> {
 			"--use-wallet",
 			"--skip-confirm",
 			"--dry-run",
-			"-p",
+			"--path",
 			temp_dir.join("test_contract").to_str().expect("to_str"),
 			"--url",
 			default_endpoint,
