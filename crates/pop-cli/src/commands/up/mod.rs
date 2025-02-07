@@ -23,7 +23,7 @@ pub(crate) struct UpArgs {
 	pub path_pos: Option<PathBuf>,
 
 	#[command(flatten)]
-	#[cfg(feature = "contract")] // Display all arguments related to contract deployemnt
+	#[cfg(feature = "contract")]
 	pub contract: contract::UpContractCommand,
 
 	#[command(subcommand)]
