@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::common::builds::get_project_path;
+use crate::{
+	cli::{self, Cli},
+	common::builds::get_project_path,
+};
 use clap::{Args, Subcommand};
 use std::path::PathBuf;
 
@@ -9,13 +12,13 @@ mod contract;
 #[cfg(feature = "parachain")]
 mod network;
 
-/// Arguments for launching or deploying.
+/// Arguments for launching or deploying a project.
 #[derive(Args)]
 #[command(args_conflicts_with_subcommands = true)]
 pub(crate) struct UpArgs {
 	/// Path to the project directory.
-	#[arg(long, global = true)]
 	// TODO: Introduce the short option in v0.8.0 once deprecated parachain command is removed.
+	#[arg(long, global = true)]
 	pub path: Option<PathBuf>,
 
 	/// Directory path without flag for your project [default: current directory]
@@ -49,17 +52,30 @@ pub(crate) enum Command {
 
 impl Command {
 	/// Executes the command.
-	pub(crate) async fn execute(args: UpArgs) -> anyhow::Result<()> {
+	pub(crate) async fn execute(args: UpArgs) -> anyhow::Result<&'static str> {
+		Self::execute_project_deployment(args, &mut Cli).await
+	}
+
+	/// Identifies the project type and executes the appropriate deployment process.
+	async fn execute_project_deployment(
+		args: UpArgs,
+		cli: &mut impl cli::traits::Cli,
+	) -> anyhow::Result<&'static str> {
 		let project_path = get_project_path(args.path.clone(), args.path_pos.clone());
 		// If only contract feature enabled, deploy a contract
 		#[cfg(feature = "contract")]
 		if pop_contracts::is_supported(project_path.as_deref())? {
 			let mut cmd = args.contract;
 			cmd.path = project_path;
-			cmd.valid = true;
+			cmd.valid = true; // To handle deprecated command, remove in v0.8.0.
 			cmd.execute().await?;
+			return Ok("contract");
 		}
-		// TODO: if pop_parachains::is_supported(project_path.as_deref())?
-		Ok(())
+		if pop_parachains::is_supported(project_path.as_deref())? {
+			cli.warning("Parachain deployment is currently not implemented.")?;
+			return Ok("parachain");
+		}
+		cli.warning("No contract or parachain detected. Ensure you are in a valid project directory.")?;
+		Ok("")
 	}
 }
