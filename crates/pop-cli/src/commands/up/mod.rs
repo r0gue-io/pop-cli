@@ -14,7 +14,7 @@ mod network;
 #[command(args_conflicts_with_subcommands = true)]
 pub(crate) struct UpArgs {
 	/// Path to the project directory.
-	#[arg(short, long, global = true)]
+	#[arg(long, global = true)] // TODO: Introduce the short option in v0.8.0 once deprecated parachain command is removed.
 	pub path: Option<PathBuf>,
 
 	/// Directory path without flag for your project [default: current directory]
@@ -36,11 +36,12 @@ pub(crate) enum Command {
 	/// Launch a local network.
 	#[clap(alias = "n")]
 	Network(network::ZombienetCommand),
-	/// [DEPRECATED] Launch a local network.
+	#[cfg(feature = "parachain")]
+	/// [DEPRECATED] Launch a local network (will be removed in v0.8.0).
 	#[clap(alias = "p", hide = true)]
 	Parachain(network::ZombienetCommand),
 	#[cfg(feature = "contract")]
-	/// [DEPRECATED] Deploy a smart contract.
+	/// [DEPRECATED] Deploy a smart contract (will be removed in v0.8.0).
 	#[clap(alias = "c", hide = true)]
 	Contract(contract::UpContractCommand),
 }
