@@ -31,41 +31,42 @@ const FAILED: &str = "🚫 Deployment failed.";
 const HELP_HEADER: &str = "Smart Contract deployment options";
 
 #[derive(Args, Clone)]
+#[clap(next_help_heading = HELP_HEADER)]
 pub struct UpContractCommand {
 	/// Path to the contract build directory.
 	#[clap(skip)]
 	pub(crate) path: Option<PathBuf>,
 	/// The name of the contract constructor to call.
-	#[clap(short, long, default_value = "new", help_heading = HELP_HEADER)]
+	#[clap(short, long, default_value = "new")]
 	constructor: String,
 	/// The constructor arguments, encoded as strings.
-	#[clap(short, long, help_heading = HELP_HEADER, num_args = 0..,)]
+	#[clap(short, long, num_args = 0..,)]
 	args: Vec<String>,
 	/// Transfers an initial balance to the instantiated contract.
-	#[clap(short, long, default_value = "0", help_heading = HELP_HEADER)]
+	#[clap(short, long, default_value = "0")]
 	value: String,
 	/// Maximum amount of gas to be used for this command.
 	/// If not specified it will perform a dry-run to estimate the gas consumed for the
 	/// instantiation.
-	#[clap(name = "gas", short, long, help_heading = HELP_HEADER )]
+	#[clap(name = "gas", short, long)]
 	gas_limit: Option<u64>,
 	/// Maximum proof size for the instantiation.
 	/// If not specified it will perform a dry-run to estimate the proof size required.
-	#[clap(short = 'P', long, help_heading = HELP_HEADER )]
+	#[clap(short = 'P', long)]
 	proof_size: Option<u64>,
 	/// A salt used in the address derivation of the new contract. Use to create multiple
 	/// instances of the same contract code from the same account.
-	#[clap(short = 'S', long, value_parser = parse_hex_bytes, help_heading = HELP_HEADER)]
+	#[clap(short = 'S', long, value_parser = parse_hex_bytes)]
 	salt: Option<Bytes>,
 	/// Websocket endpoint of a chain.
-	#[clap(short, long, value_parser, default_value = DEFAULT_URL, help_heading = HELP_HEADER )]
+	#[clap(short, long, value_parser, default_value = DEFAULT_URL)]
 	url: Url,
 	/// Secret key URI for the account deploying the contract.
 	///
 	/// e.g.
 	/// - for a dev account "//Alice"
 	/// - with a password "//Alice///SECRET_PASSWORD"
-	#[clap(short, long, default_value = "//Alice", help_heading = HELP_HEADER )]
+	#[clap(short, long, default_value = "//Alice")]
 	suri: String,
 	/// Use a browser extension wallet to sign the extrinsic.
 	#[clap(
@@ -73,19 +74,18 @@ pub struct UpContractCommand {
 		long,
 		default_value = "false",
 		short('w'),
-		conflicts_with = "suri",
-		help_heading = HELP_HEADER
+		conflicts_with = "suri"
 	)]
 	use_wallet: bool,
 	/// Perform a dry-run via RPC to estimate the gas usage. This does not submit a transaction.
-	#[clap(short = 'D', long, help_heading = HELP_HEADER )]
+	#[clap(short = 'D', long)]
 	dry_run: bool,
 	/// Uploads the contract only, without instantiation.
-	#[clap(short = 'U', long, help_heading = HELP_HEADER)]
+	#[clap(short = 'U', long)]
 	upload_only: bool,
 	/// Automatically source or update the needed binary required without prompting for
 	/// confirmation.
-	#[clap(short = 'y', long, help_heading = HELP_HEADER)]
+	#[clap(short = 'y', long)]
 	skip_confirm: bool,
 	// Deprecation flag, used to specify whether the deprecation warning is shown.
 	#[clap(skip)]
