@@ -14,7 +14,8 @@ mod network;
 #[command(args_conflicts_with_subcommands = true)]
 pub(crate) struct UpArgs {
 	/// Path to the project directory.
-	#[arg(long, global = true)] // TODO: Introduce the short option in v0.8.0 once deprecated parachain command is removed.
+	#[arg(long, global = true)]
+	// TODO: Introduce the short option in v0.8.0 once deprecated parachain command is removed.
 	pub path: Option<PathBuf>,
 
 	/// Directory path without flag for your project [default: current directory]
