@@ -71,6 +71,7 @@ impl Command {
 			cmd.execute().await?;
 			return Ok("contract");
 		}
+		#[cfg(feature = "parachain")]
 		if pop_parachains::is_supported(project_path.as_deref())? {
 			cli.warning("Parachain deployment is currently not implemented.")?;
 			return Ok("parachain");
