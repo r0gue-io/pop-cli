@@ -71,7 +71,13 @@ impl Command {
 			cmd.execute().await?;
 			return Ok("contract");
 		}
-		cli.warning("No contract detected. Ensure you are in a valid project directory.")?;
+		if pop_parachains::is_supported(project_path.as_deref())? {
+			cli.warning("Parachain deployment is currently not implemented.")?;
+			return Ok("parachain");
+		}
+		cli.warning(
+			"No contract or parachain detected. Ensure you are in a valid project directory.",
+		)?;
 		Ok("")
 	}
 }
@@ -83,6 +89,7 @@ mod tests {
 	use cli::MockCli;
 	use duct::cmd;
 	use pop_contracts::{mock_build_process, new_environment};
+	use pop_parachains::{instantiate_template_dir, Config, Parachain};
 	use std::env;
 	use url::Url;
 
@@ -127,6 +134,25 @@ mod tests {
 	}
 
 	#[tokio::test]
+	async fn detects_parachain_correctly() -> anyhow::Result<()> {
+		let temp_dir = tempfile::tempdir()?;
+		let name = "parachain";
+		let project_path = temp_dir.path().join(name);
+		let config = Config {
+			symbol: "DOT".to_string(),
+			decimals: 18,
+			initial_endowment: "1000000".to_string(),
+		};
+		instantiate_template_dir(&Parachain::Standard, &project_path, None, config)?;
+
+		let args = create_up_args(project_path)?;
+		let mut cli =
+			MockCli::new().expect_warning("Parachain deployment is currently not implemented.");
+		assert_eq!(Command::execute_project_deployment(args, &mut cli).await?, "parachain");
+		cli.verify()
+	}
+
+	#[tokio::test]
 	async fn detects_rust_project_correctly() -> anyhow::Result<()> {
 		let temp_dir = tempfile::tempdir()?;
 		let name = "hello_world";
@@ -135,8 +161,9 @@ mod tests {
 		let args = create_up_args(project_path)?;
 
 		cmd("cargo", ["new", name, "--bin"]).dir(&path).run()?;
-		let mut cli = MockCli::new()
-			.expect_warning("No contract detected. Ensure you are in a valid project directory.");
+		let mut cli = MockCli::new().expect_warning(
+			"No contract or parachain detected. Ensure you are in a valid project directory.",
+		);
 		assert_eq!(Command::execute_project_deployment(args, &mut cli).await?, "");
 		cli.verify()
 	}
