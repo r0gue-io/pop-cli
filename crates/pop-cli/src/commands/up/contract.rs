@@ -38,36 +38,36 @@ pub struct UpContractCommand {
 	pub(crate) path: Option<PathBuf>,
 	/// The name of the contract constructor to call.
 	#[clap(short, long, default_value = "new")]
-	constructor: String,
+	pub(crate) constructor: String,
 	/// The constructor arguments, encoded as strings.
 	#[clap(short, long, num_args = 0..,)]
-	args: Vec<String>,
+	pub(crate) args: Vec<String>,
 	/// Transfers an initial balance to the instantiated contract.
 	#[clap(short, long, default_value = "0")]
-	value: String,
+	pub(crate) value: String,
 	/// Maximum amount of gas to be used for this command.
 	/// If not specified it will perform a dry-run to estimate the gas consumed for the
 	/// instantiation.
 	#[clap(name = "gas", short, long)]
-	gas_limit: Option<u64>,
+	pub(crate) gas_limit: Option<u64>,
 	/// Maximum proof size for the instantiation.
 	/// If not specified it will perform a dry-run to estimate the proof size required.
 	#[clap(short = 'P', long)]
-	proof_size: Option<u64>,
+	pub(crate) proof_size: Option<u64>,
 	/// A salt used in the address derivation of the new contract. Use to create multiple
 	/// instances of the same contract code from the same account.
 	#[clap(short = 'S', long, value_parser = parse_hex_bytes)]
-	salt: Option<Bytes>,
+	pub(crate) salt: Option<Bytes>,
 	/// Websocket endpoint of a chain.
 	#[clap(short, long, value_parser, default_value = DEFAULT_URL)]
-	url: Url,
+	pub(crate) url: Url,
 	/// Secret key URI for the account deploying the contract.
 	///
 	/// e.g.
 	/// - for a dev account "//Alice"
 	/// - with a password "//Alice///SECRET_PASSWORD"
 	#[clap(short, long, default_value = "//Alice")]
-	suri: String,
+	pub(crate) suri: String,
 	/// Use a browser extension wallet to sign the extrinsic.
 	#[clap(
 		name = "use-wallet",
@@ -76,17 +76,17 @@ pub struct UpContractCommand {
 		short('w'),
 		conflicts_with = "suri"
 	)]
-	use_wallet: bool,
+	pub(crate) use_wallet: bool,
 	/// Perform a dry-run via RPC to estimate the gas usage. This does not submit a transaction.
 	#[clap(short = 'D', long)]
-	dry_run: bool,
+	pub(crate) dry_run: bool,
 	/// Uploads the contract only, without instantiation.
 	#[clap(short = 'U', long)]
-	upload_only: bool,
+	pub(crate) upload_only: bool,
 	/// Automatically source or update the needed binary required without prompting for
 	/// confirmation.
 	#[clap(short = 'y', long)]
-	skip_confirm: bool,
+	pub(crate) skip_confirm: bool,
 	// Deprecation flag, used to specify whether the deprecation warning is shown.
 	#[clap(skip)]
 	pub(crate) valid: bool,
