@@ -13,7 +13,7 @@ mod contract;
 mod network;
 
 /// Arguments for launching or deploying a project.
-#[derive(Args)]
+#[derive(Args, Clone)]
 #[command(args_conflicts_with_subcommands = true)]
 pub(crate) struct UpArgs {
 	/// Path to the project directory.
@@ -27,14 +27,14 @@ pub(crate) struct UpArgs {
 
 	#[command(flatten)]
 	#[cfg(feature = "contract")]
-	pub contract: contract::UpContractCommand,
+	pub(crate) contract: contract::UpContractCommand,
 
 	#[command(subcommand)]
 	pub(crate) command: Option<Command>,
 }
 
 /// Launch a local network or deploy a smart contract.
-#[derive(Subcommand)]
+#[derive(Subcommand, Clone)]
 pub(crate) enum Command {
 	#[cfg(feature = "parachain")]
 	/// Launch a local network.
@@ -75,7 +75,85 @@ impl Command {
 			cli.warning("Parachain deployment is currently not implemented.")?;
 			return Ok("parachain");
 		}
-		cli.warning("No contract or parachain detected. Ensure you are in a valid project directory.")?;
+		cli.warning(
+			"No contract or parachain detected. Ensure you are in a valid project directory.",
+		)?;
 		Ok("")
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::{contract::UpContractCommand, *};
+	
+	use std::env;
+	use cli::MockCli;
+	use duct::cmd;
+	use pop_contracts::{mock_build_process, new_environment};
+	use pop_parachains::{instantiate_template_dir, Config, Parachain};
+	use url::Url;
+
+	#[tokio::test]
+	async fn detects_project_type_correctly() -> anyhow::Result<()> {
+		let temp_dir = new_environment("testing")?;
+		let mut current_dir = env::current_dir().expect("Failed to get current directory");
+		current_dir.pop();
+		// Contract
+		mock_build_process(
+			temp_dir.path().join("testing"),
+			current_dir.join("pop-contracts/tests/files/testing.contract"),
+			current_dir.join("pop-contracts/tests/files/testing.json"),
+		)?;
+		let mut args = UpArgs {
+			path: Some(temp_dir.path().join("testing")),
+			path_pos: None,
+			contract: UpContractCommand {
+				path: None,
+				constructor: "new".to_string(),
+				args: vec!["false".to_string()].to_vec(),
+				value: "0".to_string(),
+				gas_limit: None,
+				proof_size: None,
+				salt: None,
+				url: Url::parse("wss://rpc2.paseo.popnetwork.xyz")?,
+				suri: "//Alice".to_string(),
+				use_wallet: false,
+				dry_run: true,
+				upload_only: true,
+				skip_confirm: false,
+				valid: false,
+			},
+			command: None,
+		};
+		let mut cli = MockCli::new();
+		assert_eq!(Command::execute_project_deployment(args.clone(), &mut cli).await?, "contract");
+		cli.verify()?;
+
+		// Parachain
+		let name = "parachain";
+		let project_path = temp_dir.path().join(name);
+		let config = Config {
+			symbol: "DOT".to_string(),
+			decimals: 18,
+			initial_endowment: "1000000".to_string(),
+		};
+		instantiate_template_dir(&Parachain::Standard, &project_path, None, config)?;
+		
+		args.path = Some(project_path);
+		cli = MockCli::new().expect_warning("Parachain deployment is currently not implemented.");
+		assert_eq!(Command::execute_project_deployment(args.clone(), &mut cli).await?, "parachain");
+		cli.verify()?;
+
+		// Neither Contract nor Parachain
+		let name = "hello_world";
+		let path = temp_dir.path();
+		let project_path = path.join(name);
+		cmd("cargo", ["new", name, "--bin"]).dir(&path).run()?;
+		args.path = Some(project_path);
+		cli = MockCli::new().expect_warning(
+			"No contract or parachain detected. Ensure you are in a valid project directory.",
+		);
+		assert_eq!(Command::execute_project_deployment(args, &mut cli).await?, "");
+		cli.verify()
 	}
 }
