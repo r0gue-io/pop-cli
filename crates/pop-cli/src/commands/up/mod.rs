@@ -71,13 +71,7 @@ impl Command {
 			cmd.execute().await?;
 			return Ok("contract");
 		}
-		if pop_parachains::is_supported(project_path.as_deref())? {
-			cli.warning("Parachain deployment is currently not implemented.")?;
-			return Ok("parachain");
-		}
-		cli.warning(
-			"No contract or parachain detected. Ensure you are in a valid project directory.",
-		)?;
+		cli.warning("No contract detected. Ensure you are in a valid project directory.")?;
 		Ok("")
 	}
 }
@@ -85,12 +79,11 @@ impl Command {
 #[cfg(test)]
 mod tests {
 	use super::{contract::UpContractCommand, *};
-	
-	use std::env;
+
 	use cli::MockCli;
 	use duct::cmd;
 	use pop_contracts::{mock_build_process, new_environment};
-	use pop_parachains::{instantiate_template_dir, Config, Parachain};
+	use std::env;
 	use url::Url;
 
 	#[tokio::test]
@@ -129,30 +122,14 @@ mod tests {
 		assert_eq!(Command::execute_project_deployment(args.clone(), &mut cli).await?, "contract");
 		cli.verify()?;
 
-		// Parachain
-		let name = "parachain";
-		let project_path = temp_dir.path().join(name);
-		let config = Config {
-			symbol: "DOT".to_string(),
-			decimals: 18,
-			initial_endowment: "1000000".to_string(),
-		};
-		instantiate_template_dir(&Parachain::Standard, &project_path, None, config)?;
-		
-		args.path = Some(project_path);
-		cli = MockCli::new().expect_warning("Parachain deployment is currently not implemented.");
-		assert_eq!(Command::execute_project_deployment(args.clone(), &mut cli).await?, "parachain");
-		cli.verify()?;
-
-		// Neither Contract nor Parachain
+		// Rust project
 		let name = "hello_world";
 		let path = temp_dir.path();
 		let project_path = path.join(name);
 		cmd("cargo", ["new", name, "--bin"]).dir(&path).run()?;
 		args.path = Some(project_path);
-		cli = MockCli::new().expect_warning(
-			"No contract or parachain detected. Ensure you are in a valid project directory.",
-		);
+		cli = MockCli::new()
+			.expect_warning("No contract detected. Ensure you are in a valid project directory.");
 		assert_eq!(Command::execute_project_deployment(args, &mut cli).await?, "");
 		cli.verify()
 	}
