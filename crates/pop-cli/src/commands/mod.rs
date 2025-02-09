@@ -55,9 +55,9 @@ fn about_build() -> &'static str {
 /// Help message for the up command.
 fn about_up() -> &'static str {
 	#[cfg(all(feature = "parachain", feature = "contract"))]
-	return "Deploy a smart contract or launch a local network.";
+	return "Deploy a parachain, deploy a smart contract or launch a local network.";
 	#[cfg(all(feature = "parachain", not(feature = "contract")))]
-	return "Launch a local network.";
+	return "Deploy a parachain or launch a local network.";
 	#[cfg(all(feature = "contract", not(feature = "parachain")))]
 	return "Deploy a smart contract.";
 }
