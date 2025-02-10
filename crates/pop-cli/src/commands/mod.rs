@@ -5,7 +5,6 @@ use clap::Subcommand;
 use pop_common::templates::Template;
 use serde_json::{json, Value};
 
-#[cfg(feature = "parachain")]
 pub(crate) mod bench;
 pub(crate) mod build;
 pub(crate) mod call;
@@ -25,15 +24,14 @@ pub(crate) enum Command {
 	#[clap(alias = "n")]
 	#[cfg(any(feature = "parachain", feature = "contract"))]
 	New(new::NewArgs),
-	/// Benchmark a pallet or parachain.
 	#[cfg(feature = "parachain")]
 	Bench(bench::BenchmarkArgs),
 	#[clap(alias = "b", about = about_build())]
 	#[cfg(any(feature = "parachain", feature = "contract"))]
 	Build(build::BuildArgs),
-	/// Call a chain or a smart contract.
+	/// Call a smart contract.
 	#[clap(alias = "c")]
-	#[cfg(any(feature = "parachain", feature = "contract"))]
+	#[cfg(feature = "contract")]
 	Call(call::CallArgs),
 	/// Launch a local network or deploy a smart contract.
 	#[clap(alias = "u")]
@@ -51,9 +49,9 @@ pub(crate) enum Command {
 /// Help message for the build command.
 fn about_build() -> &'static str {
 	#[cfg(all(feature = "parachain", feature = "contract"))]
-	return "Build a parachain, chain specification, smart contract or Rust package.";
+	return "Build a parachain, smart contract or Rust package.";
 	#[cfg(all(feature = "parachain", not(feature = "contract")))]
-	return "Build a parachain, chain specification or Rust package.";
+	return "Build a parachain or Rust package.";
 	#[cfg(all(feature = "contract", not(feature = "parachain")))]
 	return "Build a smart contract or Rust package.";
 }
@@ -78,32 +76,37 @@ impl Command {
 				},
 				#[cfg(feature = "parachain")]
 				new::Command::Pallet(cmd) => {
-					// When more contract selections are added the tel data will likely need to go
-					// deeper in the stack
+					// When more contract selections are added the tel data will likely need to go deeper in the stack
 					cmd.execute().await.map(|_| json!("template"))
 				},
 				#[cfg(feature = "contract")]
 				new::Command::Contract(cmd) => {
-					// When more contract selections are added, the tel data will likely need to go
-					// deeper in the stack
+					// When more contract selections are added, the tel data will likely need to go deeper in the stack
 					cmd.execute().await.map(|_| json!("default"))
 				},
 			},
 			#[cfg(feature = "parachain")]
-			Self::Bench(args) => bench::Command::execute(args).map(|_| Value::Null),
+			Self::Bench(args) => match args.command {
+				None => bench::Command::execute(args).map(|t| json!(t)),
+				Some(cmd) => match cmd {
+					#[cfg(feature = "parachain")]
+					bench::Command::Pallet(cmd) => cmd.execute().map(|_| Value::Null),
+				},
+			},
 			#[cfg(any(feature = "parachain", feature = "contract"))]
 			Self::Build(args) => match args.command {
 				None => build::Command::execute(args).map(|t| json!(t)),
 				Some(cmd) => match cmd {
 					#[cfg(feature = "parachain")]
+					build::Command::Parachain(cmd) => cmd.execute().map(|_| Value::Null),
+					#[cfg(feature = "contract")]
+					build::Command::Contract(cmd) => cmd.execute().map(|_| Value::Null),
+					#[cfg(feature = "parachain")]
 					build::Command::Spec(cmd) => cmd.execute().await.map(|_| Value::Null),
 				},
 			},
-			#[cfg(any(feature = "parachain", feature = "contract"))]
+			#[cfg(feature = "contract")]
 			Self::Call(args) => match args.command {
-				#[cfg(feature = "parachain")]
-				call::Command::Chain(cmd) => cmd.execute().await.map(|_| Value::Null),
-				#[cfg(feature = "contract")]
 				call::Command::Contract(cmd) => cmd.execute().await.map(|_| Value::Null),
 			},
 			#[cfg(any(feature = "parachain", feature = "contract"))]
