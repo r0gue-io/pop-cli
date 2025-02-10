@@ -31,14 +31,21 @@ impl Command {
 	/// Executes the command.
 	pub(crate) fn execute(args: BenchmarkArgs) -> anyhow::Result<()> {
 		let mut cli = cli::Cli;
+
 		match args.command {
 			#[cfg(feature = "parachain")]
 			Command::Pallet(cmd) => Command::bechmark_pallet(cmd, &mut cli),
-		}
+		}?;
+
+		cli.outro("Benchmark completed successfully!")?;
+		Ok(())
 	}
 
 	fn bechmark_pallet(cmd: PalletCmd, cli: &mut impl Cli) -> anyhow::Result<()> {
 		cli.intro("Benchmarking your pallets")?;
+		cli.warning(
+			"NOTE: the `pop bench pallet` is not yet battle tested - double check the results.",
+		)?;
 
 		if let Some(spec) = cmd.shared_params.chain {
 			return Err(anyhow::anyhow!(format!(
@@ -46,9 +53,40 @@ impl Command {
 								`--runtime=<PATH>` instead"
 			)))?;
 		}
+		cli.warning("NOTE: this may take some time...")?;
 
 		cmd.run_with_spec::<BlakeTwo256, HostFunctions>(None)
 			.map_err(|_| anyhow::anyhow!(format!("Failed to run benchmarking for the pallet")))?;
+
+		if let Some(output_path) = cmd.output {
+			cli.info(format!("Weight file is generated to {:?}", output_path.to_str()))?;
+		}
+		Ok(())
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use clap::Parser;
+
+	use super::*;
+	use crate::cli::MockCli;
+
+	#[test]
+	fn benchmark_works() -> anyhow::Result<()> {
+		let mut cli = MockCli::new()
+			.expect_intro("Benchmarking your pallets")
+			.expect_warning("NOTE: this may take some time...")
+			.expect_warning(
+				"NOTE: the `pop bench pallet` is not yet battle tested - double check the results.",
+			)
+			.expect_outro("Benchmark completed successfully!");
+
+		let cmd = PalletCmd::try_parse_from(&["--extrinsic=", "--pallet=", "--runtime="])?;
+		assert!(Command::bechmark_pallet(cmd, &mut cli).is_ok());
+
+		cli.verify()?;
+
 		Ok(())
 	}
 }
