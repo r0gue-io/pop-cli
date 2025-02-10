@@ -5,6 +5,8 @@ use clap::Subcommand;
 use pop_common::templates::Template;
 use serde_json::{json, Value};
 
+use sp_runtime::traits::BlakeTwo256;
+
 pub(crate) mod bench;
 pub(crate) mod build;
 pub(crate) mod call;
@@ -13,6 +15,11 @@ pub(crate) mod install;
 pub(crate) mod new;
 pub(crate) mod test;
 pub(crate) mod up;
+
+type HostFunctions = (
+	sp_statement_store::runtime_api::HostFunctions,
+	cumulus_primitives_proof_size_hostfunction::storage_proof_size::HostFunctions,
+);
 
 #[derive(Subcommand)]
 #[command(subcommand_required = true)]
@@ -24,6 +31,7 @@ pub(crate) enum Command {
 	#[clap(alias = "n")]
 	#[cfg(any(feature = "parachain", feature = "contract"))]
 	New(new::NewArgs),
+	/// Benchmark a pallet or parachain.
 	#[cfg(feature = "parachain")]
 	Bench(bench::BenchmarkArgs),
 	#[clap(alias = "b", about = about_build())]
@@ -89,10 +97,19 @@ impl Command {
 			},
 			#[cfg(feature = "parachain")]
 			Self::Bench(args) => match args.command {
-				None => bench::Command::execute(args).map(|t| json!(t)),
-				Some(cmd) => match cmd {
-					#[cfg(feature = "parachain")]
-					bench::Command::Pallet(cmd) => cmd.execute().map(|_| Value::Null),
+				#[cfg(feature = "parachain")]
+				bench::Command::Pallet(cmd) => {
+					if let Some(spec) = cmd.shared_params.chain {
+						return Err(anyhow::anyhow!(format!(
+							"Chain specs are not supported. Please remove `--chain={spec}` and use \
+								`--runtime=<PATH>` instead"
+						)));
+					}
+					cmd.run_with_spec::<BlakeTwo256, HostFunctions>(None)
+						.map_err(|_| {
+							anyhow::anyhow!(format!("Failed to run benchmarking for the pallet"))
+						})
+						.map(|_| Value::Null)
 				},
 			},
 			#[cfg(any(feature = "parachain", feature = "contract"))]
