@@ -9,7 +9,7 @@ use crate::{
 	style::style,
 };
 use clap::{Args, ValueEnum};
-use cliclack::spinner;
+use cliclack::{spinner, ProgressBar};
 use pop_common::Profile;
 use pop_parachains::{
 	binary_path, build_parachain, export_wasm_file, generate_genesis_state_file,
@@ -193,7 +193,7 @@ impl BuildSpecCommand {
 	///
 	/// # Arguments
 	/// * `cli` - The cli.
-	async fn configure_build_spec(
+	pub async fn configure_build_spec(
 		self,
 		cli: &mut impl cli::traits::Cli,
 	) -> anyhow::Result<BuildSpec> {
@@ -439,7 +439,7 @@ impl BuildSpecCommand {
 
 // Represents the configuration for building a chain specification.
 #[derive(Debug)]
-struct BuildSpec {
+pub struct BuildSpec {
 	output_file: PathBuf,
 	profile: Profile,
 	id: u32,
@@ -461,39 +461,18 @@ impl BuildSpec {
 	fn build(self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<&'static str> {
 		cli.intro("Building your chain spec")?;
 		let mut generated_files = vec![];
-		let BuildSpec {
-			ref output_file,
-			ref profile,
-			id,
-			default_bootnode,
-			ref chain,
-			genesis_state,
-			genesis_code,
-			..
-		} = self;
+		let BuildSpec { ref output_file, ref profile, id, genesis_code, genesis_state, .. } = self;
 		// Ensure binary is built.
 		let binary_path = ensure_binary_exists(cli, profile)?;
 		let spinner = spinner();
-		spinner.start("Generating chain specification...");
 
-		// Generate chain spec.
-		generate_plain_chain_spec(&binary_path, output_file, default_bootnode, chain)?;
-		// Customize spec based on input.
-		self.customize()?;
+		let raw_chain_spec = self.generate_chain_spec(&binary_path, &spinner)?;
+
 		generated_files.push(format!(
 			"Plain text chain specification file generated at: {}",
 			&output_file.display()
 		));
 
-		// Generate raw spec.
-		spinner.set_message("Generating raw chain specification...");
-		let spec_name = &output_file
-			.file_name()
-			.and_then(|s| s.to_str())
-			.unwrap_or(DEFAULT_SPEC_NAME)
-			.trim_end_matches(".json");
-		let raw_spec_name = format!("{spec_name}-raw.json");
-		let raw_chain_spec = generate_raw_chain_spec(&binary_path, output_file, &raw_spec_name)?;
 		generated_files.push(format!(
 			"Raw chain specification file generated at: {}",
 			raw_chain_spec.display()
@@ -527,6 +506,62 @@ impl BuildSpec {
 			style("https://learn.onpop.io").magenta().underlined()
 		))?;
 		Ok("spec")
+	}
+
+	/// Generates chain specification files and returns the paths of the genesis code and genesis
+	/// state.
+	///
+	/// # Arguments
+	/// * `cli` - The cli.
+	pub fn generate_genesis_artifacts(
+		self,
+		cli: &mut impl cli::traits::Cli,
+	) -> anyhow::Result<(PathBuf, PathBuf)> {
+		// Ensure binary is built once.
+		let binary_path = ensure_binary_exists(cli, &self.profile)?;
+		let spinner = spinner();
+		spinner.start("Generating files...");
+
+		let raw_chain_spec = self.generate_chain_spec(&binary_path, &spinner)?;
+
+		spinner.set_message("Generating genesis code...");
+		let wasm_file_name = format!("para-{}.wasm", self.id);
+		let genesis_code = export_wasm_file(&binary_path, &raw_chain_spec, &wasm_file_name)?;
+
+		spinner.set_message("Generating genesis state...");
+		let genesis_file_name = format!("para-{}-genesis-state", self.id);
+		let genesis_state =
+			generate_genesis_state_file(&binary_path, &raw_chain_spec, &genesis_file_name)?;
+
+		spinner.stop("Genesis artifacts generated successfully.");
+		Ok((genesis_code, genesis_state))
+	}
+
+	/// Generates plain and raw chain specification files.
+	fn generate_chain_spec(
+		&self,
+		binary_path: &PathBuf,
+		spinner: &ProgressBar,
+	) -> anyhow::Result<PathBuf> {
+		let BuildSpec { output_file, chain, .. } = self;
+		spinner.start("Generating chain specification...");
+
+		// Generate plain chain spec.
+		generate_plain_chain_spec(&binary_path, output_file, self.default_bootnode, chain)?;
+		// Customize spec based on input.
+		self.customize()?;
+
+		// Generate raw spec.
+		spinner.set_message("Generating raw chain specification...");
+		let spec_name = &output_file
+			.file_name()
+			.and_then(|s| s.to_str())
+			.unwrap_or(DEFAULT_SPEC_NAME)
+			.trim_end_matches(".json");
+		let raw_spec_name = format!("{spec_name}-raw.json");
+		let raw_chain_spec = generate_raw_chain_spec(&binary_path, output_file, &raw_spec_name)?;
+
+		Ok(raw_chain_spec)
 	}
 
 	// Customize a chain specification.
