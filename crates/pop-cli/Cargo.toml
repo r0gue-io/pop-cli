@@ -53,10 +53,10 @@ open.workspace = true
 tower-http = { workspace = true, features = ["fs", "cors"] }
 
 # benchmarking
+cumulus-primitives-proof-size-hostfunction.workspace = true
 frame-benchmarking-cli.workspace = true
 sp-runtime.workspace = true
 sp-statement-store.workspace = true
-cumulus-primitives-proof-size-hostfunction.workspace = true
 
 [dev-dependencies]
 assert_cmd.workspace = true
