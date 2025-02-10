@@ -11,6 +11,8 @@ use std::path::PathBuf;
 mod contract;
 #[cfg(feature = "parachain")]
 mod network;
+#[cfg(feature = "parachain")]
+mod parachain;
 
 /// Arguments for launching or deploying a project.
 #[derive(Args, Clone)]
@@ -28,6 +30,10 @@ pub(crate) struct UpArgs {
 	#[command(flatten)]
 	#[cfg(feature = "contract")]
 	pub(crate) contract: contract::UpContractCommand,
+
+	#[command(flatten)]
+	#[cfg(feature = "parachain")]
+	pub(crate) parachain: parachain::UpParachainCommand,
 
 	#[command(subcommand)]
 	pub(crate) command: Option<Command>,
@@ -73,7 +79,9 @@ impl Command {
 		}
 		#[cfg(feature = "parachain")]
 		if pop_parachains::is_supported(project_path.as_deref())? {
-			cli.warning("Rollup deployment is currently not implemented.")?;
+			let mut cmd = args.parachain;
+			cmd.path = project_path;
+			cmd.execute(cli).await?;
 			return Ok("parachain");
 		}
 		cli.warning(
@@ -85,7 +93,7 @@ impl Command {
 
 #[cfg(test)]
 mod tests {
-	use super::{contract::UpContractCommand, *};
+	use super::{contract::UpContractCommand, parachain::UpParachainCommand, *};
 
 	use cli::MockCli;
 	use duct::cmd;
@@ -114,6 +122,7 @@ mod tests {
 				skip_confirm: false,
 				valid: false,
 			},
+			parachain: UpParachainCommand::default(),
 			command: None,
 		})
 	}
@@ -148,7 +157,7 @@ mod tests {
 
 		let args = create_up_args(project_path)?;
 		let mut cli =
-			MockCli::new().expect_warning("Rollup deployment is currently not implemented.");
+			MockCli::new().expect_warning("Deploy a parachain");
 		assert_eq!(Command::execute_project_deployment(args, &mut cli).await?, "parachain");
 		cli.verify()
 	}
