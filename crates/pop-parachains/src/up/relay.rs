@@ -3,6 +3,7 @@
 use super::chain_specs::chain_spec_generator;
 pub use pop_common::{
 	git::GitHub,
+	polkadot_sdk::parse_latest_tag,
 	sourcing::{
 		traits::{Source as _, *},
 		Binary,
@@ -23,7 +24,7 @@ pub(super) enum RelayChain {
 		Repository = "https://github.com/r0gue-io/polkadot",
 		Binary = "polkadot",
 		TagFormat = "polkadot-{tag}",
-		Fallback = "v1.12.0"
+		Fallback = "stable2409"
 	))]
 	Polkadot,
 }
@@ -96,9 +97,9 @@ pub(super) async fn from(
 	chain: Option<&str>,
 	cache: &Path,
 ) -> Result<super::RelayChain, Error> {
-	for relay in RelayChain::VARIANTS
+	if let Some(relay) = RelayChain::VARIANTS
 		.iter()
-		.filter(|r| command.to_lowercase().ends_with(r.binary()))
+		.find(|r| command.to_lowercase().ends_with(r.binary()))
 	{
 		let name = relay.binary();
 		let releases = relay.releases().await?;
@@ -106,14 +107,14 @@ pub(super) async fn from(
 		// Only set latest when caller has not explicitly specified a version to use
 		let latest = version
 			.is_none()
-			.then(|| releases.iter().nth(0).map(|v| v.to_string()))
+			.then(|| parse_latest_tag(releases.iter().map(|s| s.as_str()).collect()))
 			.flatten();
 		let binary = Binary::Source {
 			name: name.to_string(),
 			source: TryInto::try_into(&relay, tag, latest)?,
 			cache: cache.to_path_buf(),
 		};
-		let chain = chain.unwrap_or_else(|| "rococo-local");
+		let chain = chain.unwrap_or("paseo-local");
 		return Ok(super::RelayChain {
 			binary,
 			workers: relay.workers(),
@@ -130,17 +131,18 @@ mod tests {
 	use super::*;
 	use tempfile::tempdir;
 
+	const VERSION: &str = "stable2409";
+
 	#[tokio::test]
 	async fn default_works() -> anyhow::Result<()> {
 		let expected = RelayChain::Polkadot;
-		let version = "v1.12.0";
 		let temp_dir = tempdir()?;
-		let relay = default(Some(version), None, None, temp_dir.path()).await?;
+		let relay = default(Some(VERSION), None, None, temp_dir.path()).await?;
 		assert!(matches!(relay.binary, Binary::Source { name, source, cache }
 			if name == expected.binary() && source == Source::GitHub(ReleaseArchive {
 					owner: "r0gue-io".to_string(),
 					repository: "polkadot".to_string(),
-					tag: Some(version.to_string()),
+					tag: Some(VERSION.to_string()),
 					tag_format: Some("polkadot-{tag}".to_string()),
 					archive: format!("{name}-{}.tar.gz", target()?),
 					contents: ["polkadot", "polkadot-execute-worker", "polkadot-prepare-worker"].map(|b| (b, None)).to_vec(),
@@ -153,7 +155,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn default_with_chain_spec_generator_works() -> anyhow::Result<()> {
-		let runtime_version = "v1.2.7";
+		let runtime_version = "v1.3.3";
 		let temp_dir = tempdir()?;
 		let relay =
 			default(None, Some(runtime_version), Some("paseo-local"), temp_dir.path()).await?;
@@ -185,15 +187,14 @@ mod tests {
 	#[tokio::test]
 	async fn from_handles_local_command() -> anyhow::Result<()> {
 		let expected = RelayChain::Polkadot;
-		let version = "v1.12.0";
 		let temp_dir = tempdir()?;
 		let relay =
-			from("./bin-v1.6.0/polkadot", Some(version), None, None, temp_dir.path()).await?;
+			from("./bin-stable2409/polkadot", Some(VERSION), None, None, temp_dir.path()).await?;
 		assert!(matches!(relay.binary, Binary::Source { name, source, cache }
 			if name == expected.binary() && source == Source::GitHub(ReleaseArchive {
 					owner: "r0gue-io".to_string(),
 					repository: "polkadot".to_string(),
-					tag: Some(version.to_string()),
+					tag: Some(VERSION.to_string()),
 					tag_format: Some("polkadot-{tag}".to_string()),
 					archive: format!("{name}-{}.tar.gz", target()?),
 					contents: ["polkadot", "polkadot-execute-worker", "polkadot-prepare-worker"].map(|b| (b, None)).to_vec(),

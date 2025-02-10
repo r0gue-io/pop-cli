@@ -46,7 +46,7 @@ let package = None;  // The optional package to be built.
 let binary_path = build_parachain(&path, package, &Profile::Release, None).unwrap();;
 // Generate a plain chain specification file of a parachain
 let plain_chain_spec_path = path.join("plain-parachain-chainspec.json");
-generate_plain_chain_spec(&binary_path, &plain_chain_spec_path, true);
+generate_plain_chain_spec(&binary_path, &plain_chain_spec_path, true, "dev");
 // Customize your chain specification
 let mut chain_spec = ChainSpec::from(&plain_chain_spec_path).unwrap();
 chain_spec.replace_para_id(2002);
@@ -70,7 +70,7 @@ let package = None;  // The optional package to be built.
 let binary_path = build_parachain(&path, package, &Profile::Release, None).unwrap();;
 // Generate a plain chain specification file of a parachain
 let plain_chain_spec_path = path.join("plain-parachain-chainspec.json");
-generate_plain_chain_spec(&binary_path, &plain_chain_spec_path, true);
+generate_plain_chain_spec(&binary_path, &plain_chain_spec_path, true, "dev");
 // Generate a raw chain specification file of a parachain
 let chain_spec = generate_raw_chain_spec(&binary_path, &plain_chain_spec_path, "raw-parachain-chainspec.json").unwrap();
 // Export the WebAssembly runtime for the parachain.
@@ -122,15 +122,22 @@ Generate a new Pallet:
 
 ```rust,no_run
 use pop_parachains::{create_pallet_template, TemplatePalletConfig};
+use std::path::PathBuf;
 
-let path = "./".to_string();
+let path = "./";
 let pallet_config = TemplatePalletConfig {
-    name: "MyPallet".to_string(),
     authors: "R0GUE".to_string(),
-    description: "Template pallet".to_string()
+    description: "Template pallet".to_string(),
+    pallet_in_workspace: false,
+    pallet_advanced_mode: true,
+    pallet_default_config: true,
+    pallet_common_types: Vec::new(),
+    pallet_storage: Vec::new(),
+    pallet_genesis: false,
+    pallet_custom_origin: false,
 };
 
-create_pallet_template(Some(path),pallet_config);
+create_pallet_template(PathBuf::from(path),pallet_config);
 ```
 
 ## Acknowledgements

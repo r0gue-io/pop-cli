@@ -1,10 +1,16 @@
+{{- let using_currency = pallet_common_types|contains(TemplatePalletConfigCommonTypes::Currency) -}}
 [package]
 name = "pallet-^^name|lower^^"
 authors = ["^^authors^^"]
 description = "^^description^^"
 version = "0.1.0"
 license = "Unlicense"
+{{- if pallet_in_workspace }}
+edition.workspace = true
+repository.workspace = true
+{{- else }}
 edition = "2021"
+{{- endif }}
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
@@ -18,11 +24,10 @@ scale-info = { version = "2.11.1", default-features = false, features = [
 ] }
 frame = { version = "0.3.0", package = "polkadot-sdk-frame", default-features = false, features = ["experimental", "runtime"] }
 
-
-sp-core = { version = "33.0.1", default-features = false }
-sp-io = { version = "36.0.0", default-features = false }
-sp-runtime = { version = "37.0.0", default-features = false }
-sp-std = { version = "14.0.0", default-features = false }
+{{ if using_currency }}
+[dev-dependencies]
+pallet-balances = { version = "35.0.0" }
+{{- endif }}
 
 [features]
 default = ["std"]
@@ -30,10 +35,6 @@ std = [
 	"codec/std",
 	"frame/std",
 	"scale-info/std",
-	"sp-runtime/std",
-	"sp-io/std",
-	"sp-core/std",
-	"sp-std/std",
 ]
 runtime-benchmarks = ["frame/runtime-benchmarks"]
 try-runtime = ["frame/try-runtime"]

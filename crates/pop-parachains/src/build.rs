@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::Error;
-use anyhow::Result;
+use crate::Error::{self, *};
+use anyhow::{anyhow, Result};
 use duct::cmd;
 use pop_common::{manifest::from_path, Profile};
 use serde_json::{json, Value};
@@ -14,10 +14,12 @@ use std::{
 /// Build the parachain and returns the path to the binary.
 ///
 /// # Arguments
-/// * `path` - The optional path to the parachain manifest, defaulting to the current directory if not specified.
+/// * `path` - The optional path to the parachain manifest, defaulting to the current directory if
+///   not specified.
 /// * `package` - The optional package to be built.
 /// * `release` - Whether the parachain should be built without any debugging functionality.
-/// * `node_path` - An optional path to the node directory. Defaults to the `node` subdirectory of the project path if not provided.
+/// * `node_path` - An optional path to the node directory. Defaults to the `node` subdirectory of
+///   the project path if not provided.
 pub fn build_parachain(
 	path: &Path,
 	package: Option<String>,
@@ -29,29 +31,32 @@ pub fn build_parachain(
 		args.push("--package");
 		args.push(package)
 	}
-	if matches!(profile, &Profile::Release) {
+	if profile == &Profile::Release {
 		args.push("--release");
+	} else if profile == &Profile::Production {
+		args.push("--profile=production");
 	}
 	cmd("cargo", args).dir(path).run()?;
-	binary_path(&profile.target_folder(path), node_path.unwrap_or(&path.join("node")))
+	binary_path(&profile.target_directory(path), node_path.unwrap_or(&path.join("node")))
 }
 
 /// Determines whether the manifest at the supplied path is a supported parachain project.
 ///
 /// # Arguments
-/// * `path` - The optional path to the manifest, defaulting to the current directory if not specified.
+/// * `path` - The optional path to the manifest, defaulting to the current directory if not
+///   specified.
 pub fn is_supported(path: Option<&Path>) -> Result<bool, Error> {
 	let manifest = from_path(path)?;
 	// Simply check for a parachain dependency
 	const DEPENDENCIES: [&str; 4] =
 		["cumulus-client-collator", "cumulus-primitives-core", "parachains-common", "polkadot-sdk"];
 	Ok(DEPENDENCIES.into_iter().any(|d| {
-		manifest.dependencies.contains_key(d)
-			|| manifest.workspace.as_ref().map_or(false, |w| w.dependencies.contains_key(d))
+		manifest.dependencies.contains_key(d) ||
+			manifest.workspace.as_ref().map_or(false, |w| w.dependencies.contains_key(d))
 	}))
 }
 
-/// Constructs the node binary path based on the target path and the node folder path.
+/// Constructs the node binary path based on the target path and the node directory path.
 ///
 /// # Arguments
 /// * `target_path` - The path where the binaries are expected to be found.
@@ -72,17 +77,30 @@ pub fn binary_path(target_path: &Path, node_path: &Path) -> Result<PathBuf, Erro
 /// * `binary_path` - The path to the node binary executable that contains the `build-spec` command.
 /// * `plain_chain_spec` - Location of the plain_parachain_spec file to be generated.
 /// * `default_bootnode` - Whether to include localhost as a bootnode.
+/// * `chain` - The chain specification. It can be one of the predefined ones (e.g. dev, local or a
+///   custom one) or the path to an existing chain spec.
 pub fn generate_plain_chain_spec(
 	binary_path: &Path,
 	plain_chain_spec: &Path,
 	default_bootnode: bool,
+	chain: &str,
 ) -> Result<(), Error> {
-	check_command_exists(&binary_path, "build-spec")?;
-	let mut args = vec!["build-spec"];
+	check_command_exists(binary_path, "build-spec")?;
+	let mut args = vec!["build-spec", "--chain", chain];
 	if !default_bootnode {
 		args.push("--disable-default-bootnode");
 	}
-	cmd(binary_path, args).stdout_path(plain_chain_spec).stderr_null().run()?;
+	// Create a temporary file.
+	let temp_file = tempfile::NamedTempFile::new_in(std::env::temp_dir())?;
+	// Run the command and redirect output to the temporary file.
+	cmd(binary_path, args).stdout_path(temp_file.path()).stderr_null().run()?;
+	// Atomically replace the chain spec file with the temporary file.
+	temp_file.persist(plain_chain_spec).map_err(|e| {
+		AnyhowError(anyhow!(
+			"Failed to replace the chain spec file with the temporary file: {}",
+			e.to_string()
+		))
+	})?;
 	Ok(())
 }
 
@@ -100,7 +118,7 @@ pub fn generate_raw_chain_spec(
 	if !plain_chain_spec.exists() {
 		return Err(Error::MissingChainSpec(plain_chain_spec.display().to_string()));
 	}
-	check_command_exists(&binary_path, "build-spec")?;
+	check_command_exists(binary_path, "build-spec")?;
 	let raw_chain_spec = plain_chain_spec.with_file_name(chain_spec_file_name);
 	cmd(
 		binary_path,
@@ -121,7 +139,8 @@ pub fn generate_raw_chain_spec(
 /// Export the WebAssembly runtime for the parachain.
 ///
 /// # Arguments
-/// * `binary_path` - The path to the node binary executable that contains the `export-genesis-wasm` command.
+/// * `binary_path` - The path to the node binary executable that contains the `export-genesis-wasm`
+///   command.
 /// * `chain_spec` - Location of the raw chain specification file.
 /// * `wasm_file_name` - The name of the wasm runtime file to be generated.
 pub fn export_wasm_file(
@@ -132,7 +151,7 @@ pub fn export_wasm_file(
 	if !chain_spec.exists() {
 		return Err(Error::MissingChainSpec(chain_spec.display().to_string()));
 	}
-	check_command_exists(&binary_path, "export-genesis-wasm")?;
+	check_command_exists(binary_path, "export-genesis-wasm")?;
 	let wasm_file = chain_spec.parent().unwrap_or(Path::new("./")).join(wasm_file_name);
 	cmd(
 		binary_path,
@@ -152,7 +171,8 @@ pub fn export_wasm_file(
 /// Generate the parachain genesis state.
 ///
 /// # Arguments
-/// * `binary_path` - The path to the node binary executable that contains the `export-genesis-state` command.
+/// * `binary_path` - The path to the node binary executable that contains the
+///   `export-genesis-state` command.
 /// * `chain_spec` - Location of the raw chain specification file.
 /// * `genesis_file_name` - The name of the genesis state file to be generated.
 pub fn generate_genesis_state_file(
@@ -163,7 +183,7 @@ pub fn generate_genesis_state_file(
 	if !chain_spec.exists() {
 		return Err(Error::MissingChainSpec(chain_spec.display().to_string()));
 	}
-	check_command_exists(&binary_path, "export-genesis-state")?;
+	check_command_exists(binary_path, "export-genesis-state")?;
 	let genesis_file = chain_spec.parent().unwrap_or(Path::new("./")).join(genesis_file_name);
 	cmd(
 		binary_path,
@@ -316,17 +336,12 @@ mod tests {
 		Zombienet,
 	};
 	use anyhow::Result;
-	use pop_common::manifest::Dependency;
-	use std::{
-		fs,
-		fs::{metadata, write},
-		io::Write,
-		os::unix::fs::PermissionsExt,
-		path::Path,
-	};
-	use tempfile::{tempdir, Builder};
+	use pop_common::{manifest::Dependency, set_executable_permission};
+	use std::{fs, fs::write, io::Write, path::Path};
+	use strum::VariantArray;
+	use tempfile::{tempdir, Builder, TempDir};
 
-	fn setup_template_and_instantiate() -> Result<tempfile::TempDir> {
+	fn setup_template_and_instantiate() -> Result<TempDir> {
 		let temp_dir = tempdir().expect("Failed to create temp dir");
 		let config = Config {
 			symbol: "DOT".to_string(),
@@ -348,10 +363,10 @@ mod tests {
 		Ok(())
 	}
 
-	// Function that generates a Cargo.toml inside node folder for testing.
-	fn generate_mock_node(temp_dir: &Path) -> Result<(), Error> {
+	// Function that generates a Cargo.toml inside node directory for testing.
+	fn generate_mock_node(temp_dir: &Path, name: Option<&str>) -> Result<PathBuf, Error> {
 		// Create a node directory
-		let target_dir = temp_dir.join("node");
+		let target_dir = temp_dir.join(name.unwrap_or("node"));
 		fs::create_dir(&target_dir)?;
 		// Create a Cargo.toml file
 		let mut toml_file = fs::File::create(target_dir.join("Cargo.toml"))?;
@@ -366,7 +381,7 @@ mod tests {
 
 			"#
 		)?;
-		Ok(())
+		Ok(target_dir)
 	}
 
 	// Function that fetch a binary from pop network
@@ -375,13 +390,13 @@ mod tests {
 		writeln!(
 			config.as_file(),
 			r#"
-[relaychain]
-chain = "rococo-local"
+            [relaychain]
+            chain = "paseo-local"
 
-[[parachains]]
-id = 4385
-default_command = "pop-node"
-"#
+			[[parachains]]
+			id = 4385
+			default_command = "pop-node"
+			"#
 		)?;
 		let mut zombienet =
 			Zombienet::new(&cache, config.path().to_str().unwrap(), None, None, None, None, None)
@@ -400,27 +415,49 @@ default_command = "pop-node"
 		let content = fs::read(&binary_path)?;
 		write(temp_dir.join("target/release/parachain-template-node"), content)?;
 		// Make executable
-		let mut perms =
-			metadata(temp_dir.join("target/release/parachain-template-node"))?.permissions();
-		perms.set_mode(0o755);
-		fs::set_permissions(temp_dir.join("target/release/parachain-template-node"), perms)?;
+		set_executable_permission(temp_dir.join("target/release/parachain-template-node"))?;
 		Ok(binary_path)
+	}
+
+	fn add_production_profile(project: &Path) -> Result<()> {
+		let root_toml_path = project.join("Cargo.toml");
+		let mut root_toml_content = fs::read_to_string(&root_toml_path)?;
+		root_toml_content.push_str(
+			r#"
+			[profile.production]
+			codegen-units = 1
+			inherits = "release"
+			lto = true
+			"#,
+		);
+		// Write the updated content back to the file
+		write(&root_toml_path, root_toml_content)?;
+		Ok(())
 	}
 
 	#[test]
 	fn build_parachain_works() -> Result<()> {
-		let temp_dir = tempdir()?;
 		let name = "parachain_template_node";
+		let temp_dir = tempdir()?;
 		cmd("cargo", ["new", name, "--bin"]).dir(temp_dir.path()).run()?;
-		generate_mock_node(&temp_dir.path().join(name))?;
-		let binary = build_parachain(&temp_dir.path().join(name), None, &Profile::Release, None)?;
-		let target_folder = temp_dir.path().join(name).join("target/release");
-		assert!(target_folder.exists());
-		assert!(target_folder.join("parachain_template_node").exists());
-		assert_eq!(
-			binary.display().to_string(),
-			target_folder.join("parachain_template_node").display().to_string()
-		);
+		let project = temp_dir.path().join(name);
+		add_production_profile(&project)?;
+		for node in vec![None, Some("custom_node")] {
+			let node_path = generate_mock_node(&project, node)?;
+			for package in vec![None, Some(String::from("parachain_template_node"))] {
+				for profile in Profile::VARIANTS {
+					let node_path = node.map(|_| node_path.as_path());
+					let binary = build_parachain(&project, package.clone(), &profile, node_path)?;
+					let target_directory = profile.target_directory(&project);
+					assert!(target_directory.exists());
+					assert!(target_directory.join("parachain_template_node").exists());
+					assert_eq!(
+						binary.display().to_string(),
+						target_directory.join("parachain_template_node").display().to_string()
+					);
+				}
+			}
+		}
 		Ok(())
 	}
 
@@ -461,7 +498,8 @@ default_command = "pop-node"
 		generate_plain_chain_spec(
 			&binary_path,
 			&temp_dir.path().join("plain-parachain-chainspec.json"),
-			true,
+			false,
+			"local",
 		)?;
 		assert!(plain_chain_spec.exists());
 		{
@@ -477,6 +515,8 @@ default_command = "pop-node"
 		assert!(raw_chain_spec.exists());
 		let content = fs::read_to_string(raw_chain_spec.clone()).expect("Could not read file");
 		assert!(content.contains("\"para_id\": 2001"));
+		assert!(content.contains("\"id\": \"pop-devnet\""));
+		assert!(content.contains("\"bootNodes\": []"));
 		// Test export wasm file
 		let wasm_file = export_wasm_file(&binary_path, &raw_chain_spec, "para-2001-wasm")?;
 		assert!(wasm_file.exists());

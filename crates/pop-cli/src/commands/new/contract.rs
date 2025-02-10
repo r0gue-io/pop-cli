@@ -4,6 +4,8 @@ use crate::cli::{
 	traits::{Cli as _, Confirm as _},
 	Cli,
 };
+use pop_common::manifest::{add_crate_to_workspace, find_workspace_toml};
+
 use anyhow::Result;
 use clap::{
 	builder::{PossibleValue, PossibleValuesParser, TypedValueParser},
@@ -30,17 +32,13 @@ pub struct NewContractCommand {
 	/// The type of contract.
 	#[arg(
 		default_value = ContractType::Examples.as_ref(),
-		short = 'c',
+		short,
 		long,
 		value_parser = enum_variants!(ContractType)
 	)]
 	pub(crate) contract_type: Option<ContractType>,
 	/// The template to use.
-	#[arg(
-		short = 't',
-		long,
-		value_parser = enum_variants!(Contract)
-	)]
+	#[arg(short, long, value_parser = enum_variants!(Contract))]
 	pub(crate) template: Option<Contract>,
 }
 
@@ -70,11 +68,17 @@ impl NewContractCommand {
 		let contract_type = &contract_config.contract_type.clone().unwrap_or_default();
 		let template = match &contract_config.template {
 			Some(template) => template.clone(),
-			None => contract_type.default_template().expect("contract types have defaults; qed."), // Default contract type
+			None => contract_type.default_template().expect("contract types have defaults; qed."), /* Default contract type */
 		};
 
 		is_template_supported(contract_type, &template)?;
-		generate_contract_from_template(name, &path, &template)?;
+		generate_contract_from_template(name, path, &template)?;
+
+		// If the contract is part of a workspace, add it to that workspace
+		if let Some(workspace_toml) = find_workspace_toml(path) {
+			add_crate_to_workspace(&workspace_toml, path)?;
+		}
+
 		Ok(())
 	}
 }
@@ -87,7 +91,7 @@ fn is_template_supported(contract_type: &ContractType, template: &Contract) -> R
 			contract_type, template
 		)));
 	};
-	return Ok(());
+	Ok(())
 }
 
 /// Guide the user to generate a contract from available templates.
@@ -147,7 +151,7 @@ fn generate_contract_from_template(
 	fs::create_dir_all(contract_path.as_path())?;
 	let spinner = cliclack::spinner();
 	spinner.start("Generating contract...");
-	create_smart_contract(&name, contract_path.as_path(), template)?;
+	create_smart_contract(name, contract_path.as_path(), template)?;
 	spinner.clear();
 	// Replace spinner with success.
 	console::Term::stderr().clear_last_lines(2)?;
@@ -165,7 +169,7 @@ fn generate_contract_from_template(
 		format!("cd into {:?} and enjoy hacking! 🚀", contract_path.display()),
 		"Use `pop build` to build your contract.".into(),
 	];
-	next_steps.push(format!("Use `pop up contract` to deploy your contract to a live network."));
+	next_steps.push("Use `pop up contract` to deploy your contract to a live network.".to_string());
 	let next_steps: Vec<_> = next_steps
 		.iter()
 		.map(|s| style(format!("{} {s}", console::Emoji("●", ">"))).dim().to_string())

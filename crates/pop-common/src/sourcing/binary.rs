@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{
+	polkadot_sdk::parse_latest_tag,
 	sourcing::{
-		from_local_package, Error, GitHub::ReleaseArchive, GitHub::SourceCodeArchive, Source,
-		Source::Archive, Source::Git, Source::GitHub,
+		from_local_package, Error,
+		GitHub::{ReleaseArchive, SourceCodeArchive},
+		Source::{self, Archive, Git, GitHub},
 	},
 	Status,
 };
@@ -43,13 +45,12 @@ impl Binary {
 	pub fn latest(&self) -> Option<&str> {
 		match self {
 			Self::Local { .. } => None,
-			Self::Source { source, .. } => {
+			Self::Source { source, .. } =>
 				if let GitHub(ReleaseArchive { latest, .. }) = source {
 					latest.as_deref()
 				} else {
 					None
-				}
-			},
+				},
 		}
 	}
 
@@ -85,13 +86,14 @@ impl Binary {
 		}
 	}
 
-	/// Attempts to resolve a version of a binary based on whether one is specified, an existing version
-	/// can be found cached locally, or uses the latest version.
+	/// Attempts to resolve a version of a binary based on whether one is specified, an existing
+	/// version can be found cached locally, or uses the latest version.
 	///
 	/// # Arguments
 	/// * `name` - The name of the binary.
 	/// * `specified` - If available, a version explicitly specified.
-	/// * `available` - The available versions, used to check for those cached locally or the latest otherwise.
+	/// * `available` - The available versions, used to check for those cached locally or the latest
+	///   otherwise.
 	/// * `cache` - The location used for caching binaries.
 	pub fn resolve_version(
 		name: &str,
@@ -110,17 +112,19 @@ impl Binary {
 					path.exists().then_some(Some(version.to_string()))
 				})
 				.nth(0)
-				.unwrap_or(
+				.unwrap_or_else(|| {
 					// Default to latest version
-					available.get(0).and_then(|version| Some(version.as_ref().to_string())),
-				),
+					let versions = available.iter().map(|v| v.as_ref()).collect::<Vec<&str>>();
+					parse_latest_tag(versions)
+				}),
 		}
 	}
 
 	/// Sources the binary.
 	///
 	/// # Arguments
-	/// * `release` - Whether any binaries needing to be built should be done so using the release profile.
+	/// * `release` - Whether any binaries needing to be built should be done so using the release
+	///   profile.
 	/// * `status` - Used to observe status updates.
 	/// * `verbose` - Whether verbose output is required.
 	pub async fn source(
@@ -131,18 +135,14 @@ impl Binary {
 	) -> Result<(), Error> {
 		match self {
 			Self::Local { name, path, manifest, .. } => match manifest {
-				None => {
-					return Err(Error::MissingBinary(format!(
-						"The {path:?} binary cannot be sourced automatically."
-					)))
-				},
-				Some(manifest) => {
-					from_local_package(manifest, name, release, status, verbose).await
-				},
+				None => Err(Error::MissingBinary(format!(
+					"The {path:?} binary cannot be sourced automatically."
+				))),
+				Some(manifest) =>
+					from_local_package(manifest, name, release, status, verbose).await,
 			},
-			Self::Source { source, cache, .. } => {
-				source.source(cache, release, status, verbose).await
-			},
+			Self::Source { source, cache, .. } =>
+				source.source(cache, release, status, verbose).await,
 		}
 	}
 
@@ -157,10 +157,12 @@ impl Binary {
 
 	/// Specifies that the latest available versions are to be used (where possible).
 	pub fn use_latest(&mut self) {
-		if let Self::Source { source: GitHub(ReleaseArchive { tag, latest, .. }), .. } = self {
-			if let Some(latest) = latest {
-				*tag = Some(latest.clone())
-			}
+		if let Self::Source {
+			source: GitHub(ReleaseArchive { tag, latest: Some(latest), .. }),
+			..
+		} = self
+		{
+			*tag = Some(latest.clone())
 		};
 	}
 
@@ -236,7 +238,7 @@ mod tests {
 		let name = "polkadot";
 		let temp_dir = tempdir()?;
 
-		let available = vec!["v1.13.0", "v1.12.0", "v1.11.0"];
+		let available = vec!["v1.13.0", "v1.12.0", "v1.11.0", "stable2409"];
 
 		// Specified
 		let specified = Some("v1.12.0");
@@ -247,7 +249,7 @@ mod tests {
 		// Latest
 		assert_eq!(
 			Binary::resolve_version(name, None, &available, temp_dir.path()).unwrap(),
-			available[0]
+			"stable2409"
 		);
 		// Cached
 		File::create(temp_dir.path().join(format!("{name}-{}", available[1])))?;

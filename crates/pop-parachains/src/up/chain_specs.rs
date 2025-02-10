@@ -22,7 +22,7 @@ pub(super) enum Runtime {
 		Repository = "https://github.com/r0gue-io/polkadot-runtimes",
 		Binary = "chain-spec-generator",
 		Chain = "kusama-local",
-		Fallback = "v1.2.7"
+		Fallback = "v1.3.3"
 	))]
 	Kusama,
 	/// Paseo.
@@ -30,7 +30,7 @@ pub(super) enum Runtime {
 		Repository = "https://github.com/r0gue-io/paseo-runtimes",
 		Binary = "chain-spec-generator",
 		Chain = "paseo-local",
-		Fallback = "v1.2.4"
+		Fallback = "v1.3.4"
 	))]
 	Paseo,
 	/// Polkadot.
@@ -38,7 +38,7 @@ pub(super) enum Runtime {
 		Repository = "https://github.com/r0gue-io/polkadot-runtimes",
 		Binary = "chain-spec-generator",
 		Chain = "polkadot-local",
-		Fallback = "v1.2.7"
+		Fallback = "v1.3.3"
 	))]
 	Polkadot,
 }
@@ -50,23 +50,19 @@ impl TryInto for &Runtime {
 	/// * `tag` - If applicable, a tag used to determine a specific release.
 	/// * `latest` - If applicable, some specifier used to determine the latest source.
 	fn try_into(&self, tag: Option<String>, latest: Option<String>) -> Result<Source, Error> {
-		Ok(match self {
-			_ => {
-				// Source from GitHub release asset
-				let repo = GitHub::parse(self.repository())?;
-				let name = self.name().to_lowercase();
-				let binary = self.binary();
-				Source::GitHub(ReleaseArchive {
-					owner: repo.org,
-					repository: repo.name,
-					tag,
-					tag_format: self.tag_format().map(|t| t.into()),
-					archive: format!("{binary}-{}.tar.gz", target()?),
-					contents: vec![(binary, Some(format!("{name}-{binary}")))],
-					latest,
-				})
-			},
-		})
+		// Source from GitHub release asset
+		let repo = GitHub::parse(self.repository())?;
+		let name = self.name().to_lowercase();
+		let binary = self.binary();
+		Ok(Source::GitHub(ReleaseArchive {
+			owner: repo.org,
+			repository: repo.name,
+			tag,
+			tag_format: self.tag_format().map(|t| t.into()),
+			archive: format!("{binary}-{}.tar.gz", target()?),
+			contents: vec![(binary, Some(format!("{name}-{binary}")))],
+			latest,
+		}))
 	}
 }
 
@@ -89,15 +85,14 @@ pub(super) async fn chain_spec_generator(
 	version: Option<&str>,
 	cache: &Path,
 ) -> Result<Option<Binary>, Error> {
-	for runtime in Runtime::VARIANTS.iter().filter(|r| chain.to_lowercase().ends_with(r.chain())) {
+	if let Some(runtime) =
+		Runtime::VARIANTS.iter().find(|r| chain.to_lowercase().ends_with(r.chain()))
+	{
 		let name = format!("{}-{}", runtime.name().to_lowercase(), runtime.binary());
 		let releases = runtime.releases().await?;
 		let tag = Binary::resolve_version(&name, version, &releases, cache);
 		// Only set latest when caller has not explicitly specified a version to use
-		let latest = version
-			.is_none()
-			.then(|| releases.iter().nth(0).map(|v| v.to_string()))
-			.flatten();
+		let latest = version.is_none().then(|| releases.first().map(|v| v.to_string())).flatten();
 		let binary = Binary::Source {
 			name: name.to_string(),
 			source: TryInto::try_into(&runtime, tag, latest)?,
@@ -116,7 +111,7 @@ mod tests {
 	#[tokio::test]
 	async fn kusama_works() -> anyhow::Result<()> {
 		let expected = Runtime::Kusama;
-		let version = "v1.2.7";
+		let version = "v1.3.3";
 		let temp_dir = tempdir()?;
 		let binary = chain_spec_generator("kusama-local", Some(version), temp_dir.path())
 			.await?
@@ -140,7 +135,7 @@ mod tests {
 	#[tokio::test]
 	async fn paseo_works() -> anyhow::Result<()> {
 		let expected = Runtime::Paseo;
-		let version = "v1.2.4";
+		let version = "v1.3.4";
 		let temp_dir = tempdir()?;
 		let binary = chain_spec_generator("paseo-local", Some(version), temp_dir.path())
 			.await?
@@ -164,7 +159,7 @@ mod tests {
 	#[tokio::test]
 	async fn polkadot_works() -> anyhow::Result<()> {
 		let expected = Runtime::Polkadot;
-		let version = "v1.2.7";
+		let version = "v1.3.3";
 		let temp_dir = tempdir()?;
 		let binary = chain_spec_generator("polkadot-local", Some(version), temp_dir.path())
 			.await?

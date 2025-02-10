@@ -2,6 +2,109 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.0] - 2024-12-19
+
+### 🚀 Features
+
+- Wallet integration (#371)
+- Guide user to call a chain (#316)
+- Guide user to call a contract (#306)
+- Output events after calling a chain (#372)
+- Add remark action (#387)
+
+### 🐛 Fixes
+
+- Build spec experience (#331)
+- HRMP channels (#278)
+
+### 🚜 Refactor
+
+- Ensure short args consistency (#386)
+- Bump fallback versions (#393)
+
+### ⚙️ Miscellaneous Tasks
+
+- Bump zombienet version to `v0.2.18` (#352)
+- Set msrv (#385)
+- Replace rococo to paseo name (#333)
+- Replace codeowners (#388)
+
+### Build
+
+- *(deps)* Remove unused dependencies (#369)
+
+## [0.5.0] - 2024-11-08
+
+### 🚀 Features
+
+- Include OpenZeppelinEVM template
+- Instantiate_openzeppelin_template
+
+### 🐛 Fixes
+
+- Fetch stable version (#328)
+- Templates errors (#329)
+- Improve contract experience (#330)
+- Unnnecesary API query
+- Bump zombienet and insert evm_based
+- Include support for v2.0.1 in generic template
+- Deprecate template instantiation
+- Clippy
+
+### 🚜 Refactor
+
+- Move extract_template_files into common crate
+- Rename enum_variants_for_help macro
+
+### ⚙️ Miscellaneous Tasks
+
+- Merge main
+- Bump zombienet-sdk version
+- Bump supported version for template and add a test
+- Deprecate command for change of name
+- Deprecation logic
+- Template_name_without_provider
+- Merge main
+- Upgrade zombienet-sdk
+- Update evm supported version
+- Fmt
+
+## [0.4.0] - 2024-10-07
+
+### 🚀 Features
+
+- Adding new packages to workspace Cargo.toml automatically (#277)
+- Improve pallet template generation (#261)
+
+### 🐛 Fixes
+
+- Update chain spec and fix fetch_latest_tag (#282)
+- Remove extra 0x in outputted text when pop up (#298)
+- Limit API calls when generating parachain (#299)
+
+### 🚜 Refactor
+
+- Update new pallet template (default) (#272)
+- Move extract_template_files into common crate (#283)
+
+### 📚 Documentation
+
+- Add community section to README (#289)
+
+### 🎨 Styling
+
+- Format in ci.yml (#287)
+
+### ⚙️ Miscellaneous Tasks
+
+- Bump cargo-contract and subxt versions (#307)
+- Add clippy checks (#281)
+- Release 0.4.0 (#318)
+
+### Build
+
+- *(deps)* Bump zombienet-sdk (#273)
+
 ## [0.3.0] - 2024-07-26
 
 ### 🚀 Features
@@ -48,9 +151,7 @@ All notable changes to this project will be documented in this file.
 ### ⚙️ Miscellaneous Tasks
 
 - Set `CONTRACTS_NODE_PATH` env variable for e2e tests (#209)
-- Release 0.3.0
-- Merge main
-- Update changelog
+- Release 0.3.0 (#244)
 
 ### Build
 

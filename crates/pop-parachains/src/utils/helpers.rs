@@ -9,7 +9,7 @@ use std::{
 
 pub(crate) fn sanitize(target: &Path) -> Result<(), Error> {
 	if target.exists() {
-		print!("\"{}\" folder exists. Do you want to clean it? [y/n]: ", target.display());
+		print!("\"{}\" directory exists. Do you want to clean it? [y/n]: ", target.display());
 		stdout().flush()?;
 
 		let mut input = String::new();
@@ -30,10 +30,11 @@ pub(crate) fn sanitize(target: &Path) -> Result<(), Error> {
 ///
 /// * `initial_endowment` - initial endowment amount to be checked for validity.
 pub fn is_initial_endowment_valid(initial_endowment: &str) -> bool {
-	initial_endowment.parse::<u128>().is_ok()
-		|| is_valid_bitwise_left_shift(initial_endowment).is_ok()
+	initial_endowment.parse::<u128>().is_ok() ||
+		is_valid_bitwise_left_shift(initial_endowment).is_ok()
 }
-// Auxiliar method to check if the endowment input with a shift left (1u64 << 60) format is valid.
+
+// Auxiliary method to check if the endowment input with a shift left (1u64 << 60) format is valid.
 // Parse the self << rhs format and check the shift left operation is valid.
 fn is_valid_bitwise_left_shift(initial_endowment: &str) -> Result<u128, Error> {
 	let v: Vec<&str> = initial_endowment.split(" << ").collect();
@@ -41,17 +42,17 @@ fn is_valid_bitwise_left_shift(initial_endowment: &str) -> Result<u128, Error> {
 		return Err(Error::EndowmentError);
 	}
 	let left = v[0]
-		.split("u") // parse 1u64 characters
+		.split('u') // parse 1u64 characters
 		.take(1)
 		.collect::<String>()
 		.parse::<u128>()
-		.or_else(|_e| Err(Error::EndowmentError))?;
+		.map_err(|_e| Error::EndowmentError)?;
 	let right = v[1]
 		.chars()
 		.filter(|c| c.is_numeric()) // parse 1u64 characters
 		.collect::<String>()
 		.parse::<u32>()
-		.or_else(|_e| Err(Error::EndowmentError))?;
+		.map_err(|_e| Error::EndowmentError)?;
 	left.checked_shl(right).ok_or(Error::EndowmentError)
 }
 
@@ -61,15 +62,15 @@ pub(crate) fn write_to_file(path: &Path, contents: &str) -> Result<(), Error> {
 		.truncate(true)
 		.create(true)
 		.open(path)
-		.map_err(|err| Error::RustfmtError(err))?;
+		.map_err(Error::RustfmtError)?;
 
-	file.write_all(contents.as_bytes()).map_err(|err| Error::RustfmtError(err))?;
+	file.write_all(contents.as_bytes()).map_err(Error::RustfmtError)?;
 
 	if path.extension().map_or(false, |ext| ext == "rs") {
 		let output = std::process::Command::new("rustfmt")
 			.arg(path.to_str().unwrap())
 			.output()
-			.map_err(|err| Error::RustfmtError(err))?;
+			.map_err(Error::RustfmtError)?;
 
 		if !output.status.success() {
 			return Err(Error::RustfmtError(io::Error::new(

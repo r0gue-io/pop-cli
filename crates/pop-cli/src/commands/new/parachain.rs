@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::cli::{traits::Cli as _, Cli};
-use crate::style::style;
+use crate::{
+	cli::{traits::Cli as _, Cli},
+	style::style,
+};
 use anyhow::Result;
 use clap::{
 	builder::{PossibleValue, PossibleValuesParser, TypedValueParser},
@@ -13,7 +15,7 @@ use cliclack::{
 	outro, outro_cancel,
 };
 use pop_common::{
-	enum_variants,
+	enum_variants, enum_variants_without_deprecated,
 	templates::{Template, Type},
 	Git, GitHub, Release,
 };
@@ -38,8 +40,9 @@ pub struct NewParachainCommand {
 	#[arg(
 		short = 't',
 		long,
-		help = "Template to use.",
-		value_parser = enum_variants!(Parachain)
+		help = format!("Template to use. [possible values: {}]", enum_variants_without_deprecated!(Parachain)),
+		value_parser = enum_variants!(Parachain),
+		hide_possible_values = true // Hide the deprecated templates
 	)]
 	pub(crate) template: Option<Parachain>,
 	#[arg(
@@ -59,6 +62,12 @@ pub struct NewParachainCommand {
 		default_value = DEFAULT_INITIAL_ENDOWMENT
 	)]
 	pub(crate) initial_endowment: Option<String>,
+	#[arg(
+		short = 'v',
+		long,
+		help = "Verifies the commit SHA when fetching the latest license and release from GitHub."
+	)]
+	pub(crate) verify: bool,
 }
 
 impl NewParachainCommand {
@@ -66,7 +75,7 @@ impl NewParachainCommand {
 	pub(crate) async fn execute(self) -> Result<Parachain> {
 		// If user doesn't select the name guide them to generate a parachain.
 		let parachain_config = if self.name.is_none() {
-			guide_user_to_generate_parachain().await?
+			guide_user_to_generate_parachain(self.verify).await?
 		} else {
 			self.clone()
 		};
@@ -78,7 +87,7 @@ impl NewParachainCommand {
 		let provider = &parachain_config.provider.clone().unwrap_or_default();
 		let template = match &parachain_config.template {
 			Some(template) => template.clone(),
-			None => provider.default_template().expect("parachain templates have defaults; qed."), // Each provider has a template by default
+			None => provider.default_template().expect("parachain templates have defaults; qed."), /* Each provider has a template by default */
 		};
 
 		is_template_supported(provider, &template)?;
@@ -91,13 +100,21 @@ impl NewParachainCommand {
 
 		let tag_version = parachain_config.release_tag.clone();
 
-		generate_parachain_from_template(name, provider, &template, tag_version, config)?;
+		generate_parachain_from_template(
+			name,
+			provider,
+			&template,
+			tag_version,
+			config,
+			self.verify,
+		)
+		.await?;
 		Ok(template)
 	}
 }
 
 /// Guide the user to generate a parachain from available templates.
-async fn guide_user_to_generate_parachain() -> Result<NewParachainCommand> {
+async fn guide_user_to_generate_parachain(verify: bool) -> Result<NewParachainCommand> {
 	Cli.intro("Generate a parachain")?;
 
 	// Prompt for template selection.
@@ -119,7 +136,7 @@ async fn guide_user_to_generate_parachain() -> Result<NewParachainCommand> {
 	}
 	let provider = prompt.interact()?;
 	let template = display_select_options(provider)?;
-	let release_name = choose_release(template).await?;
+	let release_name = choose_release(template, verify).await?;
 
 	// Prompt for location.
 	let name: String = input("Where should your project be created?")
@@ -133,7 +150,7 @@ async fn guide_user_to_generate_parachain() -> Result<NewParachainCommand> {
 		decimals: 12,
 		initial_endowment: "1u64 << 60".to_string(),
 	};
-	if Provider::Pop.provides(&template) {
+	if Provider::Pop.provides(template) {
 		customizable_options = prompt_customizable_options()?;
 	}
 
@@ -145,15 +162,17 @@ async fn guide_user_to_generate_parachain() -> Result<NewParachainCommand> {
 		symbol: Some(customizable_options.symbol),
 		decimals: Some(customizable_options.decimals),
 		initial_endowment: Some(customizable_options.initial_endowment),
+		verify,
 	})
 }
 
-fn generate_parachain_from_template(
+async fn generate_parachain_from_template(
 	name_template: &String,
 	provider: &Provider,
 	template: &Parachain,
 	tag_version: Option<String>,
 	config: Config,
+	verify: bool,
 ) -> Result<()> {
 	Cli.intro(format!(
 		"Generating \"{name_template}\" using {} from {}!",
@@ -175,9 +194,16 @@ fn generate_parachain_from_template(
 
 	// Replace spinner with success.
 	console::Term::stderr().clear_last_lines(2)?;
+	let mut verify_note = "".to_string();
+	if verify && tag.is_some() {
+		let url = url::Url::parse(template.repository_url()?).expect("valid repository url");
+		let repo = GitHub::parse(url.as_str())?;
+		let commit = repo.get_commit_sha_from_release(&tag.clone().unwrap()).await;
+		verify_note = format!(" ✅ Fetched the latest release of the template along with its license based on the commit SHA for the release ({}).", commit.unwrap_or_default());
+	}
 	success(format!(
 		"Generation complete{}",
-		tag.map(|t| format!("\n{}", style(format!("Version: {t}")).dim()))
+		tag.map(|t| format!("\n{}", style(format!("Version: {t} {}", verify_note)).dim()))
 			.unwrap_or_default()
 	))?;
 
@@ -191,7 +217,7 @@ fn generate_parachain_from_template(
 	// add next steps
 	let mut next_steps = vec![
 		format!("cd into \"{name_template}\" and enjoy hacking! 🚀"),
-		"Use `pop build` to build your parachain.".into(),
+		"Use `pop build --release` to build your parachain.".into(),
 	];
 	if let Some(network_config) = template.network_config() {
 		next_steps.push(format!(
@@ -219,7 +245,10 @@ fn is_template_supported(provider: &Provider, template: &Parachain) -> Result<()
 			provider, template
 		)));
 	};
-	return Ok(());
+	if template.is_deprecated() {
+		warning(format!("NOTE: this template is deprecated.{}", template.deprecated_message()))?;
+	}
+	Ok(())
 }
 
 fn display_select_options(provider: &Provider) -> Result<&Parachain> {
@@ -239,17 +268,17 @@ fn get_customization_value(
 	decimals: Option<u8>,
 	initial_endowment: Option<String>,
 ) -> Result<Config> {
-	if !matches!(template, Parachain::Standard)
-		&& (symbol.is_some() || decimals.is_some() || initial_endowment.is_some())
+	if !matches!(template, Parachain::Standard) &&
+		(symbol.is_some() || decimals.is_some() || initial_endowment.is_some())
 	{
 		log::warning("Customization options are not available for this template")?;
 		sleep(Duration::from_secs(3))
 	}
-	return Ok(Config {
+	Ok(Config {
 		symbol: symbol.clone().expect("default values"),
-		decimals: decimals.clone().expect("default values"),
+		decimals: decimals.expect("default values"),
 		initial_endowment: initial_endowment.clone().expect("default values"),
-	});
+	})
 }
 
 fn check_destination_path(name_template: &String) -> Result<&Path> {
@@ -279,22 +308,26 @@ fn check_destination_path(name_template: &String) -> Result<&Path> {
 /// Otherwise, the default release is used.
 ///
 /// return: `Option<String>` - The release name selected by the user or None if no releases found.
-async fn choose_release(template: &Parachain) -> Result<Option<String>> {
-	let url = url::Url::parse(&template.repository_url()?).expect("valid repository url");
+async fn choose_release(template: &Parachain, verify: bool) -> Result<Option<String>> {
+	let url = url::Url::parse(template.repository_url()?).expect("valid repository url");
 	let repo = GitHub::parse(url.as_str())?;
 
-	let license = repo.get_repo_license().await?;
+	let license = if verify || template.license().is_none() {
+		repo.get_repo_license().await?
+	} else {
+		template.license().unwrap().to_string() // unwrap is safe as it is checked above
+	};
 	log::info(format!("Template {}: {}", style("License").bold(), license))?;
 
 	// Get only the latest 3 releases that are supported by the template (default is all)
-	let latest_3_releases: Vec<Release> = get_latest_3_releases(&repo)
+	let latest_3_releases: Vec<Release> = get_latest_3_releases(&repo, verify)
 		.await?
 		.into_iter()
 		.filter(|r| template.is_supported_version(&r.tag_name))
 		.collect();
 
 	let mut release_name = None;
-	if latest_3_releases.len() > 0 {
+	if !latest_3_releases.is_empty() {
 		release_name = Some(display_release_versions_to_user(latest_3_releases)?);
 	} else {
 		// If supported_versions exists and no other releases are found,
@@ -310,14 +343,15 @@ async fn choose_release(template: &Parachain) -> Result<Option<String>> {
 	Ok(release_name)
 }
 
-async fn get_latest_3_releases(repo: &GitHub) -> Result<Vec<Release>> {
+async fn get_latest_3_releases(repo: &GitHub, verify: bool) -> Result<Vec<Release>> {
 	let mut latest_3_releases: Vec<Release> =
 		repo.releases().await?.into_iter().filter(|r| !r.prerelease).take(3).collect();
-	repo.get_repo_license().await?;
-	// Get the commit sha for the releases
-	for release in latest_3_releases.iter_mut() {
-		let commit = repo.get_commit_sha_from_release(&release.tag_name).await?;
-		release.commit = Some(commit);
+	if verify {
+		// Get the commit sha for the releases
+		for release in latest_3_releases.iter_mut() {
+			let commit = repo.get_commit_sha_from_release(&release.tag_name).await?;
+			release.commit = Some(commit);
+		}
 	}
 	Ok(latest_3_releases)
 }
@@ -421,6 +455,7 @@ mod tests {
 			symbol: Some("UNIT".to_string()),
 			decimals: Some(12),
 			initial_endowment: Some("1u64 << 60".to_string()),
+			verify: false,
 		};
 		command.execute().await?;
 
