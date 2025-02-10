@@ -28,12 +28,12 @@ pub(crate) struct UpArgs {
 	pub path_pos: Option<PathBuf>,
 
 	#[command(flatten)]
-	#[cfg(feature = "contract")]
-	pub(crate) contract: contract::UpContractCommand,
-
-	#[command(flatten)]
 	#[cfg(feature = "parachain")]
 	pub(crate) parachain: parachain::UpParachainCommand,
+
+	#[command(flatten)]
+	#[cfg(feature = "contract")]
+	pub(crate) contract: contract::UpContractCommand,
 
 	#[command(subcommand)]
 	pub(crate) command: Option<Command>,
