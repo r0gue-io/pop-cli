@@ -5,6 +5,7 @@ use clap::Subcommand;
 use pop_common::templates::Template;
 use serde_json::{json, Value};
 
+pub(crate) mod bench;
 pub(crate) mod build;
 pub(crate) mod call;
 pub(crate) mod clean;
@@ -23,6 +24,8 @@ pub(crate) enum Command {
 	#[clap(alias = "n")]
 	#[cfg(any(feature = "parachain", feature = "contract"))]
 	New(new::NewArgs),
+	#[cfg(feature = "parachain")]
+	Bench(bench::BenchmarkArgs),
 	#[clap(alias = "b", about = about_build())]
 	#[cfg(any(feature = "parachain", feature = "contract"))]
 	Build(build::BuildArgs),
@@ -80,6 +83,14 @@ impl Command {
 				new::Command::Contract(cmd) => {
 					// When more contract selections are added, the tel data will likely need to go deeper in the stack
 					cmd.execute().await.map(|_| json!("default"))
+				},
+			},
+			#[cfg(feature = "parachain")]
+			Self::Bench(args) => match args.command {
+				None => bench::Command::execute(args).map(|t| json!(t)),
+				Some(cmd) => match cmd {
+					#[cfg(feature = "parachain")]
+					bench::Command::Pallet(cmd) => cmd.execute().map(|_| Value::Null),
 				},
 			},
 			#[cfg(any(feature = "parachain", feature = "contract"))]
