@@ -534,7 +534,7 @@ impl BuildSpec {
 			generate_genesis_state_file(&binary_path, &raw_chain_spec, &genesis_file_name)?;
 
 		spinner.stop("Genesis artifacts generated successfully.");
-		Ok((genesis_code, genesis_state))
+		Ok((genesis_state, genesis_code))
 	}
 
 	/// Generates plain and raw chain specification files.
