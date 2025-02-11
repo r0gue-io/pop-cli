@@ -2,15 +2,14 @@
 
 use crate::{
 	build::spec::BuildSpecCommand,
-	call::chain::Chain,
+	call::chain::{submit_extrinsic_with_wallet, Chain},
 	cli::{self, traits::*},
-	common::wallet::request_signature,
 };
 use anyhow::{anyhow, Result};
 use clap::Args;
 use pop_parachains::{
 	construct_extrinsic, find_dispatchable_by_name, parse_chain_metadata, set_up_client,
-	submit_signed_extrinsic, Action, OnlineClient, Payload, SubstrateConfig,
+	Action,  Payload,
 };
 
 use std::path::PathBuf;
@@ -22,7 +21,7 @@ const HELP_HEADER: &str = "Parachain deployment options";
 #[derive(Args, Clone, Default)]
 #[clap(next_help_heading = HELP_HEADER)]
 pub struct UpParachainCommand {
-	/// Path to the contract build directory.
+	/// Path to the chain directory.
 	#[clap(skip)]
 	pub(crate) path: Option<PathBuf>,
 	/// Parachain ID to be used when generating the chain spec files.
@@ -44,12 +43,17 @@ impl UpParachainCommand {
 	pub(crate) async fn execute(self, cli: &mut impl Cli) -> Result<()> {
 		cli.intro("Deploy a parachain")?;
 		let chain = self.configure_chain(cli).await?;
-		let para_id = self.id.unwrap_or(reserve_para_id(chain, cli).await?);
+        let para_id = if let Some(id) = self.id {
+            id
+        } else {
+            reserve_para_id(&chain, cli).await?
+        };
 		let (genesis_state, genesis_code) =
 			match (self.genesis_state.clone(), self.genesis_code.clone()) {
 				(Some(state), Some(code)) => (state, code),
-				_ => generate_spec_files(para_id, cli).await?,
+				_ => generate_spec_files(para_id, self.path, cli).await?,
 			};
+        register_parachain(&chain, para_id, genesis_state, genesis_code, cli).await?;
 		cli.outro("Parachain deployment complete.")?;
 		Ok(())
 	}
@@ -71,17 +75,14 @@ impl UpParachainCommand {
 
 		// Parse metadata from chain url.
 		let client = set_up_client(url.as_str()).await?;
-		let mut pallets = parse_chain_metadata(&client).map_err(|e| {
+		let pallets = parse_chain_metadata(&client).map_err(|e| {
 			anyhow!(format!("Unable to fetch the chain metadata: {}", e.to_string()))
 		})?;
-		// Sort by name for display.
-		pallets.sort_by(|a, b| a.name.cmp(&b.name));
-		pallets.iter_mut().for_each(|p| p.functions.sort_by(|a, b| a.name.cmp(&b.name)));
 		Ok(Chain { url, client, pallets })
 	}
 }
 
-async fn reserve_para_id(chain: Chain, cli: &mut impl Cli) -> Result<u32> {
+async fn reserve_para_id(chain: &Chain, cli: &mut impl Cli) -> Result<u32> {
 	cli.info("Reserving a parachain ID for your parachain...")?;
 	let ex = find_dispatchable_by_name(
 		&chain.pallets,
@@ -96,37 +97,32 @@ async fn reserve_para_id(chain: Chain, cli: &mut impl Cli) -> Result<u32> {
 
 async fn generate_spec_files(
 	id: u32,
+    path: Option<PathBuf>,
 	cli: &mut impl cli::traits::Cli,
 ) -> anyhow::Result<(PathBuf, PathBuf)> {
-	cli.info("Generating the chain spec for your parachain—some extra information is needed:")?;
+	cli.info("Generating the chain spec for your parachain, some extra information is needed:")?;
+    if let Some(path) = &path {
+        std::env::set_current_dir(path).map_err(|err| {
+            anyhow!("Failed to change working directory to {}: {}", path.display(), err)
+        })?;
+    }
 	let build_spec = BuildSpecCommand { id: Some(id), ..Default::default() }
 		.configure_build_spec(cli)
 		.await?;
 	build_spec.generate_genesis_artifacts(cli)
 }
 
-// Sign and submit an extrinsic using wallet integration.
-pub async fn submit_extrinsic_with_wallet(
-	client: &OnlineClient<SubstrateConfig>,
-	url: &Url,
-	call_data: Vec<u8>,
-	cli: &mut impl Cli,
-) -> Result<()> {
-	let maybe_payload = request_signature(call_data, url.to_string()).await?;
-	if let Some(payload) = maybe_payload {
-		cli.success("Signed payload received.")?;
-		let spinner = cliclack::spinner();
-		spinner.start(
-			"Submitting the extrinsic and then waiting for finalization, please be patient...",
-		);
-
-		let result = submit_signed_extrinsic(client.clone(), payload)
-			.await
-			.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
-
-		spinner.stop(format!("Extrinsic submitted with hash: {:?}", result));
-	} else {
-		cli.outro_cancel("No signed payload received.")?;
-	}
+async fn register_parachain(chain: &Chain, id: u32, genesis_state: PathBuf, genesis_code: PathBuf, cli: &mut impl Cli) -> Result<()> {
+	cli.info("Registering a parachain ID")?;
+	let ex = find_dispatchable_by_name(
+		&chain.pallets,
+		Action::Register.pallet_name(),
+		Action::Register.function_name(),
+	)?;
+    let state = std::fs::read_to_string(genesis_state).map_err(|err| anyhow!("Failed to read genesis state file: {}", err.to_string()))?;
+    let code = std::fs::read_to_string(genesis_code).map_err(|err| anyhow!("Failed to read genesis state file: {}", err.to_string()))?;
+	let xt = construct_extrinsic(ex, vec![id.to_string(), state, code])?;
+	let call_data = xt.encode_call_data(&chain.client.metadata())?;
+	submit_extrinsic_with_wallet(&chain.client, &chain.url, call_data, cli).await?;
 	Ok(())
 }

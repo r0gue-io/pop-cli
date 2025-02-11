@@ -474,7 +474,7 @@ impl Call {
 }
 
 // Sign and submit an extrinsic using wallet integration.
-async fn submit_extrinsic_with_wallet(
+pub async fn submit_extrinsic_with_wallet(
 	client: &OnlineClient<SubstrateConfig>,
 	url: &Url,
 	call_data: Vec<u8>,
