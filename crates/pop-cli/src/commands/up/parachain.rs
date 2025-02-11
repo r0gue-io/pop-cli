@@ -3,7 +3,7 @@
 use crate::{
 	build::spec::{BuildSpec, BuildSpecCommand},
 	call::chain::{submit_extrinsic_with_wallet, Chain},
-	cli::{self, traits::*},
+	cli::traits::*,
 };
 use anyhow::{anyhow, Result};
 use clap::Args;
@@ -89,7 +89,7 @@ impl UpParachainCommand {
 			None => {
 				// Prompt for url.
 				let url: String = cli
-					.input("Enter the relay chain node URL to deploy your parachain:")
+					.input("Enter the relay chain node URL to deploy your parachain")
 					.default_input(DEFAULT_URL)
 					.interact()?;
 				Url::parse(&url)?
@@ -186,4 +186,153 @@ fn prepare_register_parachain_extrinsic(
 		.map_err(|err| anyhow!("Failed to read genesis state file: {}", err.to_string()))?;
 	let xt = construct_extrinsic(ex, vec![id.to_string(), state, code])?;
 	Ok(xt.encode_call_data(&chain.client.metadata())?)
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::{
+		build::spec::{ChainType, RelayChain},
+		cli::MockCli,
+	};
+	use pop_common::Profile;
+	use pop_parachains::decode_call_data;
+	use std::{env, fs};
+	use strum::{EnumMessage, VariantArray};
+	use tempfile::tempdir;
+	use url::Url;
+
+	const POLKADOT_NETWORK_URL: &str = "wss://polkadot-rpc.publicnode.com";
+
+	#[tokio::test]
+	async fn configure_chain_works() -> Result<()> {
+		let mut cli = MockCli::new().expect_input(
+			"Enter the relay chain node URL to deploy your parachain",
+			POLKADOT_NETWORK_URL.into(),
+		);
+		let chain = UpParachainCommand::default().configure_chain(&mut cli).await?;
+		assert_eq!(chain.url, Url::parse(POLKADOT_NETWORK_URL)?);
+		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn prepare_reserve_para_id_extrinsic_works() -> Result<()> {
+		let mut cli = MockCli::new();
+		let chain = UpParachainCommand {
+			relay_url: Some(Url::parse(POLKADOT_NETWORK_URL)?),
+			..Default::default()
+		}
+		.configure_chain(&mut cli)
+		.await?;
+		let call_data = prepare_reserve_para_id_extrinsic(&chain)?;
+		assert_eq!(call_data, decode_call_data("0x4605")?);
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn change_working_directory_works() -> Result<()> {
+		let temp_dir = tempdir()?;
+		let my_parachain_path = Some(temp_dir.path().to_path_buf());
+		change_working_directory(&my_parachain_path)?;
+		assert_eq!(fs::canonicalize(env::current_dir()?)?, fs::canonicalize(temp_dir.path())?);
+
+		change_working_directory(&None)?;
+		assert_eq!(fs::canonicalize(env::current_dir()?)?, fs::canonicalize(temp_dir.path())?);
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn prepare_register_parachain_extrinsic_works() -> Result<()> {
+		let mut cli = MockCli::new();
+		let chain = UpParachainCommand {
+			relay_url: Some(Url::parse(POLKADOT_NETWORK_URL)?),
+			..Default::default()
+		}
+		.configure_chain(&mut cli)
+		.await?;
+		// Create a temporary files to act as genesis_state and genesis_code files.
+		let temp_dir = tempdir()?;
+		let genesis_state_path = temp_dir.path().join("genesis_state");
+		let genesis_code_path = temp_dir.path().join("genesis_code.wasm");
+		std::fs::write(&genesis_state_path, "0x1234")?;
+		std::fs::write(&genesis_code_path, "0x1234")?;
+
+		let call_data = prepare_register_parachain_extrinsic(
+			&chain,
+			2000,
+			genesis_state_path,
+			genesis_code_path,
+		)?;
+		assert_eq!(call_data, decode_call_data("0x4600d0070000081234081234")?);
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn configure_build_spec_works() -> Result<()> {
+		let mut cli = MockCli::new().expect_input("Provide the chain specification to use (e.g. dev, local, custom or a path to an existing file)", "dev".to_string())
+			.expect_input(
+				"Name or path for the plain chain spec file:", "output_file".to_string())
+			.expect_input(
+				"Enter the protocol ID that will identify your network:", "protocol_id".to_string())
+			.expect_select(
+				"Choose the chain type: ",
+				Some(false),
+				true,
+				Some(chain_types()),
+				ChainType::Development as usize,
+			).expect_select(
+				"Choose the relay your chain will be connecting to: ",
+				Some(false),
+				true,
+				Some(relays()),
+				RelayChain::PaseoLocal as usize,
+			).expect_select(
+				"Choose the build profile of the binary that should be used: ",
+				Some(false),
+				true,
+				Some(profiles()),
+				Profile::Release as usize,
+		);
+
+		configure_build_spec(2000, &mut cli).await?;
+		cli.verify()?;
+		Ok(())
+	}
+
+
+	fn relays() -> Vec<(String, String)> {
+		RelayChain::VARIANTS
+			.iter()
+			.map(|variant| {
+				(
+					variant.get_message().unwrap_or(variant.as_ref()).into(),
+					variant.get_detailed_message().unwrap_or_default().into(),
+				)
+			})
+			.collect()
+	}
+
+	fn chain_types() -> Vec<(String, String)> {
+		ChainType::VARIANTS
+			.iter()
+			.map(|variant| {
+				(
+					variant.get_message().unwrap_or(variant.as_ref()).into(),
+					variant.get_detailed_message().unwrap_or_default().into(),
+				)
+			})
+			.collect()
+	}
+
+	fn profiles() -> Vec<(String, String)> {
+		Profile::VARIANTS
+			.iter()
+			.map(|variant| {
+				(
+					variant.get_message().unwrap_or(variant.as_ref()).into(),
+					variant.get_detailed_message().unwrap_or_default().into(),
+				)
+			})
+			.collect()
+	}
 }
