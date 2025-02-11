@@ -14,6 +14,8 @@ use tokio::{
 };
 use tower_http::{cors::Any, services::ServeDir};
 
+const MAX_PAYLOAD_SIZE: usize = 15 * 1024 * 1024;
+
 /// Make frontend sourcing more flexible by allowing a custom route to be defined.
 pub trait Frontend {
 	/// Serves the content via a [Router].
@@ -118,7 +120,7 @@ impl WalletIntegrationManager {
 			.route("/terminate", post(routes::terminate_handler).with_state(state.clone()))
 			.merge(frontend.serve_content()) // Custom route for serving frontend.
 			.layer(cors)
-			.layer(DefaultBodyLimit::max(15 * 1024 * 1024));
+			.layer(DefaultBodyLimit::max(MAX_PAYLOAD_SIZE));
 
 		let url_owned = server_url.to_string();
 
@@ -560,6 +562,20 @@ mod tests {
 		assert!(response.status().is_success());
 		let error = wim.take_error().await;
 		assert!(error.is_none());
+
+		let call_data_15mb = vec![99u8; MAX_PAYLOAD_SIZE + 1];
+		let encoded_oversized_payload: String =
+			call_data_15mb.iter().map(|b| format!("{:02x}", b)).collect();
+		let response = client
+			.post(&format!("{}/submit", addr))
+			.json(&encoded_oversized_payload)
+			.send()
+			.await;
+
+		assert!(
+			response.is_err() ||
+				response.unwrap().status() == reqwest::StatusCode::PAYLOAD_TOO_LARGE
+		);
 
 		wim.terminate().await.expect("Termination should not fail.");
 		assert!(wim.task_handle.await.is_ok());
