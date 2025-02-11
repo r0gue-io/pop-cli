@@ -1,4 +1,5 @@
 use axum::{
+	extract::DefaultBodyLimit,
 	http::HeaderValue,
 	response::Html,
 	routing::{get, post},
@@ -116,7 +117,8 @@ impl WalletIntegrationManager {
 			.route("/error", post(routes::error_handler).with_state(state.clone()))
 			.route("/terminate", post(routes::terminate_handler).with_state(state.clone()))
 			.merge(frontend.serve_content()) // Custom route for serving frontend.
-			.layer(cors);
+			.layer(cors)
+			.layer(DefaultBodyLimit::max(15 * 1024 * 1024));
 
 		let url_owned = server_url.to_string();
 
@@ -545,6 +547,19 @@ mod tests {
 
 		assert_eq!(actual_payload.chain_rpc, expected_payload.chain_rpc);
 		assert_eq!(actual_payload.call_data, call_data_5mb);
+
+		let encoded_payload: String = call_data_5mb.iter().map(|b| format!("{:02x}", b)).collect();
+		let client = reqwest::Client::new();
+		let response = client
+			.post(&format!("{}/submit", addr))
+			.json(&encoded_payload)
+			.send()
+			.await
+			.expect("Failed to send large payload");
+
+		assert!(response.status().is_success());
+		let error = wim.take_error().await;
+		assert!(error.is_none());
 
 		wim.terminate().await.expect("Termination should not fail.");
 		assert!(wim.task_handle.await.is_ok());
