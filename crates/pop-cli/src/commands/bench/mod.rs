@@ -32,10 +32,10 @@ impl Command {
 	pub(crate) fn execute(args: BenchmarkArgs) -> anyhow::Result<()> {
 		let mut cli = cli::Cli;
 
+		#[cfg(feature = "parachain")]
 		match args.command {
-			#[cfg(feature = "parachain")]
-			Command::Pallet(cmd) => Command::bechmark_pallet(cmd, &mut cli),
-		}?;
+			Command::Pallet(cmd) => Command::bechmark_pallet(cmd, &mut cli)?,
+		};
 
 		cli.outro("Benchmark completed successfully!")?;
 		Ok(())
