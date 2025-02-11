@@ -18,7 +18,7 @@ pub struct BenchmarkArgs {
 	pub command: Command,
 }
 
-/// Benchmark a pallet.
+/// Benchmark a pallet or parachain.
 #[derive(Subcommand)]
 pub enum Command {
 	/// Benchmark the extrinsic weight of FRAME Pallets
