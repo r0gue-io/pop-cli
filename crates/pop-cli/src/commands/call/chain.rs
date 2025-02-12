@@ -358,7 +358,7 @@ impl CallChainCommand {
 }
 
 // Represents a chain, including its URL, client connection, and available pallets.
-pub struct Chain {
+pub(crate) struct Chain {
 	// Websocket endpoint of the node.
 	pub(crate) url: Url,
 	// The client used to interact with the chain.
@@ -474,7 +474,7 @@ impl Call {
 }
 
 // Sign and submit an extrinsic using wallet integration.
-pub async fn submit_extrinsic_with_wallet(
+pub(crate) async fn submit_extrinsic_with_wallet(
 	client: &OnlineClient<SubstrateConfig>,
 	url: &Url,
 	call_data: Vec<u8>,
