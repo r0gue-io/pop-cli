@@ -117,8 +117,10 @@ impl Command {
 						cmd.valid = true;
 						cmd.execute().await.map(|_| Value::Null)
 					},
+					// TODO: Deprecated, will be removed in v0.8.0.
 					#[cfg(feature = "parachain")]
 					up::Command::Parachain(cmd) => cmd.execute().await.map(|_| Value::Null),
+					// TODO: Deprecated, will be removed in v0.8.0.
 					#[cfg(feature = "contract")]
 					up::Command::Contract(mut cmd) => {
 						cmd.path = get_project_path(args.path, args.path_pos);
