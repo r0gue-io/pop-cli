@@ -40,6 +40,44 @@ pub fn build_parachain(
 	binary_path(&profile.target_directory(path), node_path.unwrap_or(&path.join("node")))
 }
 
+/// Build the runtime and returns the path to the WASM blob.
+///
+/// # Arguments
+/// * `path` - The optional path to the runtime manifest, defaulting to the current directory if not
+///   specified.
+/// * `package` - The optional package to be built.
+/// * `release` - Whether the parachain should be built without any debugging functionality.
+/// * `runtime_path` - An optional path to the runtime directory. Defaults to the `runtime`
+///   subdirectory of the project path if not provided.
+pub fn build_runtime(
+	path: &Path,
+	package: Option<String>,
+	profile: &Profile,
+	runtime_path: Option<&Path>,
+	features: Vec<&str>,
+) -> Result<PathBuf, Error> {
+	let mut args = vec!["build"];
+	if let Some(package) = package.as_deref() {
+		args.push("--package");
+		args.push(package)
+	}
+	if profile == &Profile::Release {
+		args.push("--release");
+	} else if profile == &Profile::Production {
+		args.push("--profile=production");
+	}
+
+	if !features.is_empty() {
+		args.push("--features=");
+	}
+	for feature in features {
+		args.push(feature)
+	}
+
+	cmd("cargo", args).dir(path).run()?;
+	binary_path(&profile.wasm_build_directory(path), runtime_path.unwrap_or(&path.join("runtime")))
+}
+
 /// Determines whether the manifest at the supplied path is a supported parachain project.
 ///
 /// # Arguments
@@ -63,6 +101,21 @@ pub fn is_supported(path: Option<&Path>) -> Result<bool, Error> {
 /// * `node_path` - The path to the node from which the node name will be parsed.
 pub fn binary_path(target_path: &Path, node_path: &Path) -> Result<PathBuf, Error> {
 	let manifest = from_path(Some(node_path))?;
+	let node_name = manifest.package().name();
+	let release = target_path.join(node_name);
+	if !release.exists() {
+		return Err(Error::MissingBinary(node_name.to_string()));
+	}
+	Ok(release)
+}
+
+/// Constructs the runtime WASM blob path based on the target path and the runtime directory path.
+///
+/// # Arguments
+/// * `target_path` - The path where the binaries are expected to be found.
+/// * `runtime_path` - The path to the runtime from which the runtime name will be parsed.
+pub fn runtime_wasm_path(target_path: &Path, runtime_path: &Path) -> Result<PathBuf, Error> {
+	let manifest = from_path(Some(runtime_path))?;
 	let node_name = manifest.package().name();
 	let release = target_path.join(node_name);
 	if !release.exists() {

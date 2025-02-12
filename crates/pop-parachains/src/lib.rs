@@ -16,8 +16,8 @@ mod utils;
 
 pub use benchmark::generate_benchmarks;
 pub use build::{
-	binary_path, build_parachain, export_wasm_file, generate_genesis_state_file,
-	generate_plain_chain_spec, generate_raw_chain_spec, is_supported, ChainSpec,
+	binary_path, build_parachain, build_runtime, export_wasm_file, generate_genesis_state_file,
+	generate_plain_chain_spec, generate_raw_chain_spec, is_supported, runtime_wasm_path, ChainSpec,
 };
 pub use call::{
 	construct_extrinsic, construct_sudo_extrinsic, decode_call_data, encode_call_data,
