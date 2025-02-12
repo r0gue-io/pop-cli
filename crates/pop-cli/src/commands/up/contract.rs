@@ -28,7 +28,7 @@ const COMPLETE: &str = "🚀 Deployment complete";
 const DEFAULT_URL: &str = "ws://localhost:9944/";
 const DEFAULT_PORT: u16 = 9944;
 const FAILED: &str = "🚫 Deployment failed.";
-const HELP_HEADER: &str = "Smart Contract deployment options";
+const HELP_HEADER: &str = "Smart contract deployment options";
 
 #[derive(Args, Clone)]
 #[clap(next_help_heading = HELP_HEADER)]
