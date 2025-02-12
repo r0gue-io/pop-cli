@@ -299,7 +299,6 @@ mod tests {
 		Ok(())
 	}
 
-
 	fn relays() -> Vec<(String, String)> {
 		RelayChain::VARIANTS
 			.iter()
