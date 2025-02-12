@@ -7,6 +7,7 @@ use crate::{
 	common::prompt::display_message,
 };
 use clap::{Args, Subcommand};
+use cliclack::spinner;
 use frame_benchmarking_cli::PalletCmd;
 use pop_common::Profile;
 use pop_parachains::{build_project, generate_benchmarks, runtime_binary_path};
