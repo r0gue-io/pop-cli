@@ -86,24 +86,14 @@ mod tests {
 	use std::env;
 	use url::Url;
 
-	#[tokio::test]
-	async fn detects_project_type_correctly() -> anyhow::Result<()> {
-		let temp_dir = new_environment("testing")?;
-		let mut current_dir = env::current_dir().expect("Failed to get current directory");
-		current_dir.pop();
-		// Contract
-		mock_build_process(
-			temp_dir.path().join("testing"),
-			current_dir.join("pop-contracts/tests/files/testing.contract"),
-			current_dir.join("pop-contracts/tests/files/testing.json"),
-		)?;
-		let mut args = UpArgs {
-			path: Some(temp_dir.path().join("testing")),
+	fn create_up_args(project_path: PathBuf) -> anyhow::Result<UpArgs> {
+		Ok(UpArgs {
+			path: Some(project_path),
 			path_pos: None,
 			contract: UpContractCommand {
 				path: None,
 				constructor: "new".to_string(),
-				args: vec!["false".to_string()].to_vec(),
+				args: vec!["false".to_string()],
 				value: "0".to_string(),
 				gas_limit: None,
 				proof_size: None,
@@ -117,18 +107,35 @@ mod tests {
 				valid: false,
 			},
 			command: None,
-		};
-		let mut cli = MockCli::new();
-		assert_eq!(Command::execute_project_deployment(args.clone(), &mut cli).await?, "contract");
-		cli.verify()?;
+		})
+	}
 
-		// Rust project
+	#[tokio::test]
+	async fn detects_contract_correctly() -> anyhow::Result<()> {
+		let temp_dir = new_environment("testing")?;
+		let mut current_dir = env::current_dir().expect("Failed to get current directory");
+		current_dir.pop();
+		mock_build_process(
+			temp_dir.path().join("testing"),
+			current_dir.join("pop-contracts/tests/files/testing.contract"),
+			current_dir.join("pop-contracts/tests/files/testing.json"),
+		)?;
+		let args = create_up_args(temp_dir.path().join("testing"))?;
+		let mut cli = MockCli::new();
+		assert_eq!(Command::execute_project_deployment(args, &mut cli).await?, "contract");
+		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn detects_rust_project_correctly() -> anyhow::Result<()> {
+		let temp_dir = tempfile::tempdir()?;
 		let name = "hello_world";
 		let path = temp_dir.path();
 		let project_path = path.join(name);
+		let args = create_up_args(project_path)?;
+
 		cmd("cargo", ["new", name, "--bin"]).dir(&path).run()?;
-		args.path = Some(project_path);
-		cli = MockCli::new()
+		let mut cli = MockCli::new()
 			.expect_warning("No contract detected. Ensure you are in a valid project directory.");
 		assert_eq!(Command::execute_project_deployment(args, &mut cli).await?, "");
 		cli.verify()
