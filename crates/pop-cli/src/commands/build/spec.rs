@@ -193,7 +193,7 @@ impl BuildSpecCommand {
 	///
 	/// # Arguments
 	/// * `cli` - The cli.
-	pub async fn configure_build_spec(
+	pub(crate) async fn configure_build_spec(
 		self,
 		cli: &mut impl cli::traits::Cli,
 	) -> anyhow::Result<BuildSpec> {
@@ -439,7 +439,7 @@ impl BuildSpecCommand {
 
 // Represents the configuration for building a chain specification.
 #[derive(Debug)]
-pub struct BuildSpec {
+pub(crate) struct BuildSpec {
 	output_file: PathBuf,
 	profile: Profile,
 	id: u32,
@@ -508,12 +508,12 @@ impl BuildSpec {
 		Ok("spec")
 	}
 
-	/// Generates chain specification files and returns the paths of the genesis code and genesis
-	/// state.
+	/// Generates chain specification files and returns the file paths for the generated genesis
+	/// code and genesis state files.
 	///
 	/// # Arguments
 	/// * `cli` - The cli.
-	pub fn generate_genesis_artifacts(
+	pub(crate) fn generate_genesis_artifacts(
 		self,
 		cli: &mut impl cli::traits::Cli,
 	) -> anyhow::Result<(PathBuf, PathBuf)> {
