@@ -188,10 +188,7 @@ pub fn parse_dispatchable_arguments(
 				.add_custom_parser(custom_parsers::parse_ss58)
 				.parse(&processed_param)
 				.0
-				.map_err(|_| {
-					eprintln!("Failed to parse parameter: {}", processed_param);
-					Error::ParamProcessingError
-				})
+				.map_err(|_| Error::ParamProcessingError)
 		})
 		.collect()
 }
