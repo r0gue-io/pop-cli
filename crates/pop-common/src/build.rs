@@ -38,11 +38,6 @@ impl Profile {
 			Profile::Production => path.join("target/production"),
 		}
 	}
-
-	/// Returns the corresponding path to the target WASM build directory.
-	pub fn wasm_build_directory(&self, path: &Path) -> PathBuf {
-		self.target_directory(path).join("wbuild")
-	}
 }
 
 impl From<Profile> for bool {

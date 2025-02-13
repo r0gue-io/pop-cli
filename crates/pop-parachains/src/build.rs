@@ -72,22 +72,22 @@ pub fn build_project(
 	Ok(())
 }
 
-/// Build the runtime and returns the path to the WASM blob.
+/// Build the Rust project.
 ///
 /// # Arguments
-/// * `path` - The optional path to the runtime manifest, defaulting to the current directory if not
+/// * `path` - The optional path to the project manifest, defaulting to the current directory if not
 ///   specified.
 /// * `package` - The optional package to be built.
-/// * `release` - Whether the parachain should be built without any debugging functionality.
-/// * `runtime_path` - An optional path to the runtime directory. Defaults to the `runtime`
-///   subdirectory of the project path if not provided.
-pub fn build_runtime(
+/// * `profile` - Whether the project should be built without any debugging functionality.
+/// * `features` - A set of features the project is built with.
+/// * `target` - The option target to be specified.
+pub fn build_project(
 	path: &Path,
 	package: Option<String>,
 	profile: &Profile,
-	runtime_path: Option<&Path>,
 	features: Vec<&str>,
-) -> Result<PathBuf, Error> {
+	target: Option<&str>,
+) -> Result<(), Error> {
 	let mut args = vec!["build"];
 	if let Some(package) = package.as_deref() {
 		args.push("--package");
@@ -106,8 +106,13 @@ pub fn build_runtime(
 		args.push(feature)
 	}
 
+	if let Some(target) = target {
+		args.push("--target");
+		args.push(target);
+	}
+
 	cmd("cargo", args).dir(path).run()?;
-	binary_path(&profile.wasm_build_directory(path), runtime_path.unwrap_or(&path.join("runtime")))
+	Ok(())
 }
 
 /// Determines whether the manifest at the supplied path is a supported parachain project.
@@ -159,17 +164,17 @@ where
 	Ok(release)
 }
 
-/// Constructs the runtime WASM blob path based on the target path and the runtime directory path.
+/// Constructs the WASM binary path based on the target path and the directory path.
 ///
 /// # Arguments
 /// * `target_path` - The path where the binaries are expected to be found.
-/// * `runtime_path` - The path to the runtime from which the runtime name will be parsed.
-pub fn runtime_wasm_path(target_path: &Path, runtime_path: &Path) -> Result<PathBuf, Error> {
-	let manifest = from_path(Some(runtime_path))?;
-	let node_name = manifest.package().name();
-	let release = target_path.join(node_name);
+/// * `path` - The path to the WASM project from which the WASM project name will be parsed.
+pub fn wasm_binary_path(target_path: &Path, project_path: &Path) -> Result<PathBuf, Error> {
+	let manifest = from_path(Some(project_path))?;
+	let project_name = manifest.package().name();
+	let release = target_path.join(format!("{project_name}.wasm"));
 	if !release.exists() {
-		return Err(Error::MissingBinary(node_name.to_string()));
+		return Err(Error::MissingBinary(project_name.to_string()));
 	}
 	Ok(release)
 }
