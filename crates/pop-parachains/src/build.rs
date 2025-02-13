@@ -38,7 +38,7 @@ pub fn build_parachain(
 /// * `package` - The optional package to be built.
 /// * `profile` - Whether the project should be built without any debugging functionality.
 /// * `features` - A set of features the project is built with.
-/// * `target` - The option target to be specified.
+/// * `target` - The optional target to be specified.
 pub fn build_project(
 	path: &Path,
 	package: Option<String>,
