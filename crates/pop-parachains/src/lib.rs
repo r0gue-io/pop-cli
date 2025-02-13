@@ -34,6 +34,7 @@ pub use new_parachain::instantiate_template_dir;
 pub use relay::{clear_dmpq, RelayChain};
 // External export from subxt.
 pub use subxt::{
+	blocks::ExtrinsicEvents,
 	tx::{DynamicPayload, Payload},
 	OnlineClient, SubstrateConfig,
 };
