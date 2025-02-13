@@ -98,7 +98,7 @@ impl UpContractCommand {
 		Cli.intro("Deploy a smart contract")?;
 		// Show warning if specified as deprecated.
 		if !self.valid {
-			Cli.warning("NOTE: this command is deprecated. Please use `pop up` (or simply `pop u`) in future...")?;
+			Cli.warning("DEPRECATION: Please use `pop up` (or simply `pop u`) in future...")?;
 		}
 		// Check if build exists in the specified "Contract build directory"
 		if !has_contract_been_built(self.path.as_deref()) {
