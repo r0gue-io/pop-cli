@@ -108,7 +108,7 @@ impl UpParachainCommand {
 /// Reserves a parachain ID by submitting an extrinsic.
 async fn reserve_para_id(chain: &Chain, cli: &mut impl Cli) -> Result<u32> {
 	let call_data = prepare_reserve_para_id_extrinsic(chain)?;
-	submit_extrinsic_with_wallet(&chain.client, &chain.url, call_data, cli).await?;
+	let events = submit_extrinsic_with_wallet(&chain.client, &chain.url, call_data, cli).await?;
 	Ok(2000)
 }
 
