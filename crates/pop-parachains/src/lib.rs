@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
 #![doc = include_str!("../README.md")]
-mod benchmark;
+mod bench;
 mod build;
 /// Provides functionality to construct, encode, sign, and submit chain extrinsics.
 mod call;
@@ -14,7 +14,7 @@ mod templates;
 mod up;
 mod utils;
 
-pub use benchmark::generate_benchmarks;
+pub use bench::generate_benchmarks;
 pub use build::{
 	binary_path, build_parachain, build_project, export_wasm_file, generate_genesis_state_file,
 	generate_plain_chain_spec, generate_raw_chain_spec, is_supported, runtime_binary_path,
