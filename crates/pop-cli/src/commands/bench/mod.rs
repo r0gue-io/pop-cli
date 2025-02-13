@@ -10,7 +10,6 @@ use crate::{
 	common::prompt::display_message,
 };
 use clap::{Args, Subcommand};
-use cliclack::spinner;
 use frame_benchmarking_cli::PalletCmd;
 use pop_common::{manifest::from_path, Profile};
 use pop_parachains::{build_project, generate_benchmarks, runtime_binary_path};
@@ -65,19 +64,13 @@ impl Command {
 		cli.warning("NOTE: this may take some time...")?;
 		cli.info("Benchmarking and generating weight file....")?;
 
-		let spinner = spinner();
-		spinner.start("Benchmarking and generating weight file....");
-
-		if let Err(e) = generate_benchmarks(&cmd) {
+		if let Err(e) = generate_benchmarks(cmd) {
 			return display_message(&e.to_string(), false, cli);
 		}
 
 		if let Some(ref output_path) = cmd.output {
 			console::Term::stderr().clear_last_lines(1)?;
-			cli.info(format!(
-				"Weight file is generated to {}",
-				output_path.as_path().display().to_string()
-			))?;
+			cli.info(format!("Weight file is generated to {}", output_path.as_path().display()))?;
 		}
 
 		display_message("Benchmark completed successfully!", true, cli)?;
