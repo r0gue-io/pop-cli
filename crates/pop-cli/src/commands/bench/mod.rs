@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0
 
+use std::{env::current_dir, path::PathBuf};
+
 use crate::{
 	cli::{self, traits::Cli},
 	common::prompt::display_message,
 };
 use clap::{Args, Subcommand};
 use frame_benchmarking_cli::PalletCmd;
-use pop_parachains::generate_benchmarks;
+use pop_common::Profile;
+use pop_parachains::{build_project, generate_benchmarks, runtime_binary_path};
 
 /// Arguments for bencharmking a project.
 #[derive(Args)]
@@ -31,7 +34,7 @@ impl Command {
 		let mut cli = cli::Cli;
 
 		let result = match args.command {
-			Command::Pallet(cmd) => Command::bechmark_pallet(cmd, &mut cli),
+			Command::Pallet(mut cmd) => Command::bechmark_pallet(&mut cmd, &mut cli),
 		};
 		match result {
 			Ok(()) => display_message("Benchmark completed successfully!", true, &mut cli),
@@ -39,13 +42,12 @@ impl Command {
 		}
 	}
 
-	fn bechmark_pallet(cmd: PalletCmd, cli: &mut impl Cli) -> anyhow::Result<()> {
+	fn bechmark_pallet(cmd: &mut PalletCmd, cli: &mut impl Cli) -> anyhow::Result<()> {
 		cli.intro("Benchmarking your pallets")?;
 		cli.warning(
 			"NOTE: the `pop bench pallet` is not yet battle tested - double check the results.",
 		)?;
-
-		if let Some(spec) = cmd.shared_params.chain {
+		if let Some(ref spec) = cmd.shared_params.chain {
 			return display_message(
 				&format!(
 					"Chain specs are not supported. Please remove `--chain={spec}` \
@@ -55,13 +57,17 @@ impl Command {
 				cli,
 			);
 		}
+		// No runtime path provided, auto-detect the runtime WASM binary. If not found, build the
+		// runtime.
+		if cmd.runtime.is_none() {
+			cmd.runtime = Some(ensure_wasm_blob_exists(cli, &Profile::Release)?);
+		}
 		cli.warning("NOTE: this may take some time...")?;
-
+		cli.info("Benchmarking and generating weight file....")?;
 		if let Err(e) = generate_benchmarks(&cmd) {
 			return display_message(&e.to_string(), false, cli);
 		}
-
-		if let Some(output_path) = cmd.output {
+		if let Some(ref output_path) = cmd.output {
 			console::Term::stderr().clear_last_lines(1)?;
 			cli.info(format!(
 				"Weight file is generated to {}",
@@ -69,6 +75,25 @@ impl Command {
 			))?;
 		}
 		Ok(())
+	}
+}
+
+// Locate runtime WASM binary, if it doesn't exist trigger build.
+fn ensure_wasm_blob_exists(
+	cli: &mut impl cli::traits::Cli,
+	mode: &Profile,
+) -> anyhow::Result<PathBuf> {
+	let cwd = current_dir().unwrap_or(PathBuf::from("./"));
+	let target_path = mode.target_directory(&cwd).join("wbuild");
+	let project_path = cwd.join("runtime");
+	match runtime_binary_path(&target_path, &project_path) {
+		Ok(binary_path) => Ok(binary_path),
+		_ => {
+			cli.info("Runtime was not found. The runtime will be built locally.".to_string())?;
+			cli.warning("NOTE: this may take some time...")?;
+			build_project(&project_path, None, mode, vec!["runtime-benchmarks"], None)?;
+			runtime_binary_path(&target_path, &project_path).map_err(|e| e.into())
+		},
 	}
 }
 
@@ -89,7 +114,7 @@ mod tests {
 			)
 			.expect_warning("NOTE: this may take some time...");
 
-		let cmd = PalletCmd::try_parse_from(&[
+		let mut cmd = PalletCmd::try_parse_from(&[
 			"",
 			"--runtime",
 			get_mock_runtime_path().to_str().unwrap(),
@@ -98,7 +123,7 @@ mod tests {
 			"--extrinsic",
 			"",
 		])?;
-		Command::bechmark_pallet(cmd, &mut cli)?;
+		Command::bechmark_pallet(&mut cmd, &mut cli)?;
 		cli.verify()?;
 		Ok(())
 	}
@@ -117,7 +142,7 @@ mod tests {
 			)
 			.expect_outro_cancel(expected.clone());
 
-		let cmd = PalletCmd::try_parse_from(&[
+		let mut cmd = PalletCmd::try_parse_from(&[
 			"",
 			"--chain",
 			spec,
@@ -127,7 +152,7 @@ mod tests {
 			"",
 		])?;
 
-		Command::bechmark_pallet(cmd, &mut cli)?;
+		Command::bechmark_pallet(&mut cmd, &mut cli)?;
 		cli.verify()?;
 		Ok(())
 	}
@@ -143,7 +168,7 @@ mod tests {
 				"Failed to run benchmarking: Invalid input: No benchmarks found which match your input."
 			));
 
-		let cmd = PalletCmd::try_parse_from(&[
+		let mut cmd = PalletCmd::try_parse_from(&[
 			"",
 			"--runtime",
 			get_mock_runtime_path().to_str().unwrap(),
@@ -153,7 +178,7 @@ mod tests {
 			"",
 		])?;
 
-		Command::bechmark_pallet(cmd, &mut cli)?;
+		Command::bechmark_pallet(&mut cmd, &mut cli)?;
 		cli.verify()?;
 		Ok(())
 	}
