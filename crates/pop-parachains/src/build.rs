@@ -57,11 +57,10 @@ pub fn build_project(
 		args.push("--profile=production");
 	}
 
+	let feature_args = features.join(",");
 	if !features.is_empty() {
-		args.push("--features=");
-	}
-	for feature in features {
-		args.push(feature)
+		args.push("--features");
+		args.push(&feature_args);
 	}
 
 	if let Some(target) = target {
@@ -95,24 +94,27 @@ pub fn is_supported(path: Option<&Path>) -> Result<bool, Error> {
 /// * `target_path` - The path where the binaries are expected to be found.
 /// * `node_path` - The path to the node from which the node name will be parsed.
 pub fn binary_path(target_path: &Path, node_path: &Path) -> Result<PathBuf, Error> {
-	let manifest = from_path(Some(node_path))?;
-	let node_name = manifest.package().name();
-	let release = target_path.join(node_name);
-	if !release.exists() {
-		return Err(Error::MissingBinary(node_name.to_string()));
-	}
-	Ok(release)
+	build_binary_path(node_path, |node_name| target_path.join(node_name))
 }
 
-/// Constructs the WASM binary path based on the target path and the directory path.
+/// Constructs the runtime binary path based on the target path and the directory path.
 ///
 /// # Arguments
 /// * `target_path` - The path where the binaries are expected to be found.
-/// * `path` - The path to the WASM project from which the WASM project name will be parsed.
-pub fn wasm_binary_path(target_path: &Path, project_path: &Path) -> Result<PathBuf, Error> {
+/// * `runtime_path` - The path to the runtime from which the runtime name will be parsed.
+pub fn runtime_binary_path(target_path: &Path, runtime_path: &Path) -> Result<PathBuf, Error> {
+	build_binary_path(runtime_path, |runtime_name| {
+		target_path.join(format!("{runtime_name}/{}.wasm", runtime_name.replace("-", "_")))
+	})
+}
+
+fn build_binary_path<F>(project_path: &Path, path_builder: F) -> Result<PathBuf, Error>
+where
+	F: Fn(&str) -> PathBuf,
+{
 	let manifest = from_path(Some(project_path))?;
 	let project_name = manifest.package().name();
-	let release = target_path.join(format!("{project_name}.wasm"));
+	let release = path_builder(project_name);
 	if !release.exists() {
 		return Err(Error::MissingBinary(project_name.to_string()));
 	}
@@ -561,10 +563,11 @@ mod tests {
 						None => &project.join("runtime"),
 					};
 					build_project(&project, package.clone(), &profile, vec![], Some(target))?;
-					let binary = wasm_binary_path(
-						&project.join(format!("target/{target}/{}", profile.as_ref())),
-						runtime_path,
-					)?;
+					let target_path =
+						&project.join(format!("target/{target}/{}", profile.as_ref()));
+					let binary = build_binary_path(&runtime_path, |runtime_name| {
+						target_path.join(format!("{runtime_name}.wasm"))
+					})?;
 					let target_directy =
 						project.join(format!("target/{target}/{}", profile.as_ref()));
 					assert!(target_directy.exists());
@@ -600,8 +603,8 @@ mod tests {
 		// Ensure binary path works for the runtime.
 		let runtime = "parachain-template-runtime";
 		mock_build_runtime_process(temp_dir.path())?;
-		let release_path = wasm_binary_path(
-			&temp_dir.path().join(format!("target/release/wbuild/{runtime}")),
+		let release_path = runtime_binary_path(
+			&temp_dir.path().join(format!("target/release/wbuild")),
 			&temp_dir.path().join("runtime"),
 		)?;
 		assert_eq!(

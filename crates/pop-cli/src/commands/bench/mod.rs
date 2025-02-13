@@ -10,7 +10,7 @@ use clap::{Args, Subcommand};
 use cliclack::spinner;
 use frame_benchmarking_cli::PalletCmd;
 use pop_common::Profile;
-use pop_parachains::{build_project, generate_benchmarks, wasm_binary_path};
+use pop_parachains::{build_project, generate_benchmarks, runtime_binary_path};
 
 /// Arguments for bencharmking a project.
 #[derive(Args)]
@@ -65,7 +65,7 @@ impl Command {
 		// No runtime path provided, auto-detect the runtime WASM binary. If not found, build the
 		// runtime.
 		if cmd.runtime.is_none() {
-			cmd.runtime = Some(ensure_wasm_blob_exists(cli, &Profile::Production)?);
+			cmd.runtime = Some(ensure_wasm_blob_exists(cli, &Profile::Release)?);
 		}
 
 		cli.warning("NOTE: this may take some time...")?;
@@ -96,13 +96,13 @@ fn ensure_wasm_blob_exists(
 	let cwd = current_dir().unwrap_or(PathBuf::from("./"));
 	let target_path = mode.target_directory(&cwd).join("wbuild");
 	let project_path = cwd.join("runtime");
-	match wasm_binary_path(&target_path, &project_path) {
+	match runtime_binary_path(&target_path, &project_path) {
 		Ok(binary_path) => Ok(binary_path),
 		_ => {
 			cli.info("Runtime was not found. The runtime will be built locally.".to_string())?;
 			cli.warning("NOTE: this may take some time...")?;
 			build_project(&project_path, None, mode, vec!["runtime-benchmarks"], None)?;
-			wasm_binary_path(&target_path, &project_path).map_err(|e| e.into())
+			runtime_binary_path(&target_path, &project_path).map_err(|e| e.into())
 		},
 	}
 }
