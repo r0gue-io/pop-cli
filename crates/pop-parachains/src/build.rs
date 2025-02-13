@@ -99,11 +99,10 @@ pub fn build_project(
 		args.push("--profile=production");
 	}
 
+	let feature_args = features.join(",");
 	if !features.is_empty() {
-		args.push("--features=");
-	}
-	for feature in features {
-		args.push(feature)
+		args.push("--features");
+		args.push(&feature_args);
 	}
 
 	if let Some(target) = target {
@@ -164,15 +163,24 @@ where
 	Ok(release)
 }
 
-/// Constructs the WASM binary path based on the target path and the directory path.
+/// Constructs the runtime binary path based on the target path and the directory path.
 ///
 /// # Arguments
 /// * `target_path` - The path where the binaries are expected to be found.
-/// * `path` - The path to the WASM project from which the WASM project name will be parsed.
-pub fn wasm_binary_path(target_path: &Path, project_path: &Path) -> Result<PathBuf, Error> {
+/// * `runtime_path` - The path to the runtime from which the runtime name will be parsed.
+pub fn runtime_binary_path(target_path: &Path, runtime_path: &Path) -> Result<PathBuf, Error> {
+	build_binary_path(runtime_path, |runtime_name| {
+		target_path.join(format!("{runtime_name}/{}.wasm", runtime_name.replace("-", "_")))
+	})
+}
+
+fn build_binary_path<F>(project_path: &Path, path_builder: F) -> Result<PathBuf, Error>
+where
+	F: Fn(&str) -> PathBuf,
+{
 	let manifest = from_path(Some(project_path))?;
 	let project_name = manifest.package().name();
-	let release = target_path.join(format!("{project_name}.wasm"));
+	let release = path_builder(project_name);
 	if !release.exists() {
 		return Err(Error::MissingBinary(project_name.to_string()));
 	}
