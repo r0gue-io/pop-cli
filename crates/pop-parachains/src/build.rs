@@ -423,7 +423,9 @@ mod tests {
 		fs::create_dir(&target_dir.join("release/wbuild"))?;
 		fs::create_dir(&target_dir.join(format!("release/wbuild/{runtime}")))?;
 		// Create a WASM binary file
-		fs::File::create(target_dir.join(format!("release/wbuild/{runtime}/{runtime}.wasm")))?;
+		fs::File::create(
+			target_dir.join(format!("release/wbuild/{runtime}/{}.wasm", runtime.replace("-", "_"))),
+		)?;
 		Ok(())
 	}
 
@@ -609,7 +611,11 @@ mod tests {
 		)?;
 		assert_eq!(
 			release_path.display().to_string(),
-			format!("{}/target/release/wbuild/{runtime}/{runtime}.wasm", temp_dir.path().display())
+			format!(
+				"{}/target/release/wbuild/{runtime}/{}.wasm",
+				temp_dir.path().display(),
+				runtime.replace("-", "_")
+			)
 		);
 
 		Ok(())

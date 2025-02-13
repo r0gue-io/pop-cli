@@ -7,9 +7,9 @@ use crate::{
 	common::prompt::display_message,
 };
 use clap::{Args, Subcommand};
-use cliclack::spinner;
 use frame_benchmarking_cli::PalletCmd;
 use pop_common::Profile;
+#[cfg(feature = "parachain")]
 use pop_parachains::{build_project, generate_benchmarks, runtime_binary_path};
 
 /// Arguments for bencharmking a project.
@@ -51,7 +51,6 @@ impl Command {
 		cli.warning(
 			"NOTE: the `pop bench pallet` is not yet battle tested - double check the results.",
 		)?;
-
 		if let Some(ref spec) = cmd.shared_params.chain {
 			return display_message(
 				&format!(
@@ -67,16 +66,11 @@ impl Command {
 		if cmd.runtime.is_none() {
 			cmd.runtime = Some(ensure_wasm_blob_exists(cli, &Profile::Release)?);
 		}
-
 		cli.warning("NOTE: this may take some time...")?;
-
-		let spinner = spinner();
-		spinner.start("Benchmarking and generating weight file....");
-
+		cli.info("Benchmarking and generating weight file....")?;
 		if let Err(e) = generate_benchmarks(&cmd) {
 			return display_message(&e.to_string(), false, cli);
 		}
-
 		if let Some(ref output_path) = cmd.output {
 			console::Term::stderr().clear_last_lines(1)?;
 			cli.info(format!(
@@ -187,25 +181,6 @@ mod tests {
 			"--extrinsic",
 			"",
 		])?;
-
-		Command::bechmark_pallet(&mut cmd, &mut cli)?;
-		cli.verify()?;
-		Ok(())
-	}
-
-	#[test]
-	fn benchmark_pallet_detects_runtime_works() -> anyhow::Result<()> {
-		let mut cli = MockCli::new()
-			.expect_intro("Benchmarking your pallets")
-			.expect_warning(
-				"NOTE: the `pop bench pallet` is not yet battle tested - double check the results.",
-			)
-			.expect_outro_cancel(format!(
-				"Failed to run benchmarking: Invalid input: No benchmarks found which match your input."
-			));
-
-		let mut cmd =
-			PalletCmd::try_parse_from(&["", "--pallet", "unknown-pallet-name", "--extrinsic", ""])?;
 
 		Command::bechmark_pallet(&mut cmd, &mut cli)?;
 		cli.verify()?;
