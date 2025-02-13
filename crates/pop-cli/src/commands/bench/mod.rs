@@ -10,7 +10,7 @@ use clap::{Args, Subcommand};
 use cliclack::spinner;
 use frame_benchmarking_cli::PalletCmd;
 use pop_common::Profile;
-use pop_parachains::{build_runtime, generate_benchmarks, runtime_wasm_path};
+use pop_parachains::{build_project, generate_benchmarks, wasm_binary_path};
 
 /// Arguments for bencharmking a project.
 #[derive(Args)]
@@ -18,6 +18,9 @@ use pop_parachains::{build_runtime, generate_benchmarks, runtime_wasm_path};
 pub struct BenchmarkArgs {
 	#[command(subcommand)]
 	pub command: Command,
+	/// Directory path for your runtime [default: "runtime"]
+	#[clap(alias = "r", short, long, default_value = "runtime")]
+	runtime_path: PathBuf,
 }
 
 /// Benchmark a pallet or parachain.
@@ -59,7 +62,7 @@ impl Command {
 				cli,
 			);
 		}
-		// No runtime path provided, auto-detect the runtime WASM blob. If not found, build the
+		// No runtime path provided, auto-detect the runtime WASM binary. If not found, build the
 		// runtime.
 		if cmd.runtime.is_none() {
 			cmd.runtime = Some(ensure_wasm_blob_exists(cli, &Profile::Production)?);
@@ -85,18 +88,21 @@ impl Command {
 	}
 }
 
-// Locate runtime WASM blob, if it doesn't exist trigger build.
+// Locate runtime WASM binary, if it doesn't exist trigger build.
 fn ensure_wasm_blob_exists(
 	cli: &mut impl cli::traits::Cli,
 	mode: &Profile,
 ) -> anyhow::Result<PathBuf> {
 	let cwd = current_dir().unwrap_or(PathBuf::from("./"));
-	match runtime_wasm_path(&mode.wasm_build_directory(&cwd), &cwd.join("runtime")) {
+	let target_path = mode.target_directory(&cwd).join("wbuild");
+	let project_path = cwd.join("runtime");
+	match wasm_binary_path(&target_path, &project_path) {
 		Ok(binary_path) => Ok(binary_path),
 		_ => {
-			cli.info("Runtime was not found. The project will be built locally.".to_string())?;
+			cli.info("Runtime was not found. The runtime will be built locally.".to_string())?;
 			cli.warning("NOTE: this may take some time...")?;
-			build_runtime(&cwd, None, mode, None, vec!["runtime-benchmarks"]).map_err(|e| e.into())
+			build_project(&project_path, None, mode, vec!["runtime-benchmarks"], None)?;
+			wasm_binary_path(&target_path, &project_path).map_err(|e| e.into())
 		},
 	}
 }
@@ -181,6 +187,25 @@ mod tests {
 			"--extrinsic",
 			"",
 		])?;
+
+		Command::bechmark_pallet(&mut cmd, &mut cli)?;
+		cli.verify()?;
+		Ok(())
+	}
+
+	#[test]
+	fn benchmark_pallet_detects_runtime_works() -> anyhow::Result<()> {
+		let mut cli = MockCli::new()
+			.expect_intro("Benchmarking your pallets")
+			.expect_warning(
+				"NOTE: the `pop bench pallet` is not yet battle tested - double check the results.",
+			)
+			.expect_outro_cancel(format!(
+				"Failed to run benchmarking: Invalid input: No benchmarks found which match your input."
+			));
+
+		let mut cmd =
+			PalletCmd::try_parse_from(&["", "--pallet", "unknown-pallet-name", "--extrinsic", ""])?;
 
 		Command::bechmark_pallet(&mut cmd, &mut cli)?;
 		cli.verify()?;

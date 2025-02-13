@@ -17,7 +17,7 @@ use std::{
 /// * `path` - The optional path to the parachain manifest, defaulting to the current directory if
 ///   not specified.
 /// * `package` - The optional package to be built.
-/// * `release` - Whether the parachain should be built without any debugging functionality.
+/// * `profile` - Whether the parachain should be built without any debugging functionality.
 /// * `node_path` - An optional path to the node directory. Defaults to the `node` subdirectory of
 ///   the project path if not provided.
 pub fn build_parachain(
@@ -26,36 +26,26 @@ pub fn build_parachain(
 	profile: &Profile,
 	node_path: Option<&Path>,
 ) -> Result<PathBuf, Error> {
-	let mut args = vec!["build"];
-	if let Some(package) = package.as_deref() {
-		args.push("--package");
-		args.push(package)
-	}
-	if profile == &Profile::Release {
-		args.push("--release");
-	} else if profile == &Profile::Production {
-		args.push("--profile=production");
-	}
-	cmd("cargo", args).dir(path).run()?;
+	build_project(path, package, profile, vec![], None)?;
 	binary_path(&profile.target_directory(path), node_path.unwrap_or(&path.join("node")))
 }
 
-/// Build the runtime and returns the path to the WASM blob.
+/// Build the Rust project.
 ///
 /// # Arguments
-/// * `path` - The optional path to the runtime manifest, defaulting to the current directory if not
+/// * `path` - The optional path to the project manifest, defaulting to the current directory if not
 ///   specified.
 /// * `package` - The optional package to be built.
-/// * `release` - Whether the parachain should be built without any debugging functionality.
-/// * `runtime_path` - An optional path to the runtime directory. Defaults to the `runtime`
-///   subdirectory of the project path if not provided.
-pub fn build_runtime(
+/// * `profile` - Whether the project should be built without any debugging functionality.
+/// * `features` - A set of features the project is built with.
+/// * `target` - The option target to be specified.
+pub fn build_project(
 	path: &Path,
 	package: Option<String>,
 	profile: &Profile,
-	runtime_path: Option<&Path>,
 	features: Vec<&str>,
-) -> Result<PathBuf, Error> {
+	target: Option<&str>,
+) -> Result<(), Error> {
 	let mut args = vec!["build"];
 	if let Some(package) = package.as_deref() {
 		args.push("--package");
@@ -74,8 +64,13 @@ pub fn build_runtime(
 		args.push(feature)
 	}
 
+	if let Some(target) = target {
+		args.push("--target");
+		args.push(target);
+	}
+
 	cmd("cargo", args).dir(path).run()?;
-	binary_path(&profile.wasm_build_directory(path), runtime_path.unwrap_or(&path.join("runtime")))
+	Ok(())
 }
 
 /// Determines whether the manifest at the supplied path is a supported parachain project.
@@ -109,17 +104,17 @@ pub fn binary_path(target_path: &Path, node_path: &Path) -> Result<PathBuf, Erro
 	Ok(release)
 }
 
-/// Constructs the runtime WASM blob path based on the target path and the runtime directory path.
+/// Constructs the WASM binary path based on the target path and the directory path.
 ///
 /// # Arguments
 /// * `target_path` - The path where the binaries are expected to be found.
-/// * `runtime_path` - The path to the runtime from which the runtime name will be parsed.
-pub fn runtime_wasm_path(target_path: &Path, runtime_path: &Path) -> Result<PathBuf, Error> {
-	let manifest = from_path(Some(runtime_path))?;
-	let node_name = manifest.package().name();
-	let release = target_path.join(node_name);
+/// * `path` - The path to the WASM project from which the WASM project name will be parsed.
+pub fn wasm_binary_path(target_path: &Path, project_path: &Path) -> Result<PathBuf, Error> {
+	let manifest = from_path(Some(project_path))?;
+	let project_name = manifest.package().name();
+	let release = target_path.join(format!("{project_name}.wasm"));
 	if !release.exists() {
-		return Err(Error::MissingBinary(node_name.to_string()));
+		return Err(Error::MissingBinary(project_name.to_string()));
 	}
 	Ok(release)
 }
@@ -416,6 +411,20 @@ mod tests {
 		Ok(())
 	}
 
+	// Function that mocks the build process of WASM runtime generating the target dir and release.
+	fn mock_build_runtime_process(temp_dir: &Path) -> Result<(), Error> {
+		let runtime = "parachain-template-runtime";
+		// Create a target directory
+		let target_dir = temp_dir.join("target");
+		fs::create_dir(&target_dir)?;
+		fs::create_dir(&target_dir.join("release"))?;
+		fs::create_dir(&target_dir.join("release/wbuild"))?;
+		fs::create_dir(&target_dir.join(format!("release/wbuild/{runtime}")))?;
+		// Create a WASM binary file
+		fs::File::create(target_dir.join(format!("release/wbuild/{runtime}/{runtime}.wasm")))?;
+		Ok(())
+	}
+
 	// Function that generates a Cargo.toml inside node directory for testing.
 	fn generate_mock_node(temp_dir: &Path, name: Option<&str>) -> Result<PathBuf, Error> {
 		// Create a node directory
@@ -428,6 +437,27 @@ mod tests {
 			r#"
 			[package]
 			name = "parachain_template_node"
+			version = "0.1.0"
+
+			[dependencies]
+
+			"#
+		)?;
+		Ok(target_dir)
+	}
+
+	// Function that generates a Cargo.toml inside runtime directory for testing.
+	fn generate_mock_runtime(temp_dir: &Path, name: Option<&str>) -> Result<PathBuf, Error> {
+		// Create a runtime directory
+		let target_dir = temp_dir.join(name.unwrap_or("runtime"));
+		fs::create_dir(&target_dir)?;
+		// Create a Cargo.toml file
+		let mut toml_file = fs::File::create(target_dir.join("Cargo.toml"))?;
+		writeln!(
+			toml_file,
+			r#"
+			[package]
+			name = "parachain_template_runtime"
 			version = "0.1.0"
 
 			[dependencies]
@@ -515,7 +545,42 @@ mod tests {
 	}
 
 	#[test]
-	fn binary_path_works() -> Result<()> {
+	fn build_runtime_works() -> Result<()> {
+		let name = "parachain_template_runtime";
+		let target = "wasm32-unknown-unknown";
+		let temp_dir = tempdir()?;
+		cmd("cargo", ["new", name, "--bin"]).dir(temp_dir.path()).run()?;
+		let project = temp_dir.path().join(name);
+		add_production_profile(&project)?;
+		for runtime in vec![None, Some("custom_runtime")] {
+			let runtime_path = generate_mock_runtime(&project, runtime)?;
+			for package in vec![None, Some(String::from(name))] {
+				for profile in Profile::VARIANTS {
+					let runtime_path = match runtime {
+						Some(_) => runtime_path.as_path(),
+						None => &project.join("runtime"),
+					};
+					build_project(&project, package.clone(), &profile, vec![], Some(target))?;
+					let binary = wasm_binary_path(
+						&project.join(format!("target/{target}/{}", profile.as_ref())),
+						runtime_path,
+					)?;
+					let target_directy =
+						project.join(format!("target/{target}/{}", profile.as_ref()));
+					assert!(target_directy.exists());
+					assert!(target_directy.join(format!("{name}.wasm")).exists());
+					assert_eq!(
+						binary.display().to_string(),
+						target_directy.join(format!("{name}.wasm")).display().to_string()
+					);
+				}
+			}
+		}
+		Ok(())
+	}
+
+	#[test]
+	fn binary_path_of_node_works() -> Result<()> {
 		let temp_dir =
 			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
 		mock_build_process(temp_dir.path())?;
@@ -525,6 +590,25 @@ mod tests {
 			release_path.display().to_string(),
 			format!("{}/target/release/parachain-template-node", temp_dir.path().display())
 		);
+		Ok(())
+	}
+
+	#[test]
+	fn binary_path_of_runtime_works() -> Result<()> {
+		let temp_dir =
+			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
+		// Ensure binary path works for the runtime.
+		let runtime = "parachain-template-runtime";
+		mock_build_runtime_process(temp_dir.path())?;
+		let release_path = wasm_binary_path(
+			&temp_dir.path().join(format!("target/release/wbuild/{runtime}")),
+			&temp_dir.path().join("runtime"),
+		)?;
+		assert_eq!(
+			release_path.display().to_string(),
+			format!("{}/target/release/wbuild/{runtime}/{runtime}.wasm", temp_dir.path().display())
+		);
+
 		Ok(())
 	}
 
