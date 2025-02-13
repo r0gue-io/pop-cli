@@ -18,6 +18,9 @@ use pop_parachains::{build_project, generate_benchmarks, runtime_binary_path};
 pub struct BenchmarkArgs {
 	#[command(subcommand)]
 	pub command: Command,
+	/// Directory path for your runtime [default: "runtime"]
+	#[clap(alias = "r", short, long, default_value = "runtime")]
+	runtime_path: PathBuf,
 }
 
 /// Benchmark a pallet or parachain.
@@ -178,6 +181,25 @@ mod tests {
 			"--extrinsic",
 			"",
 		])?;
+
+		Command::bechmark_pallet(&mut cmd, &mut cli)?;
+		cli.verify()?;
+		Ok(())
+	}
+
+	#[test]
+	fn benchmark_pallet_detects_runtime_works() -> anyhow::Result<()> {
+		let mut cli = MockCli::new()
+			.expect_intro("Benchmarking your pallets")
+			.expect_warning(
+				"NOTE: the `pop bench pallet` is not yet battle tested - double check the results.",
+			)
+			.expect_outro_cancel(format!(
+				"Failed to run benchmarking: Invalid input: No benchmarks found which match your input."
+			));
+
+		let mut cmd =
+			PalletCmd::try_parse_from(&["", "--pallet", "unknown-pallet-name", "--extrinsic", ""])?;
 
 		Command::bechmark_pallet(&mut cmd, &mut cli)?;
 		cli.verify()?;
