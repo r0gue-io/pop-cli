@@ -89,19 +89,11 @@ async fn contract_lifecycle() -> Result<()> {
 	sleep(Duration::from_secs(5)).await;
 
 	// Only upload the contract
-	// pop up contract --path ./test_contract --upload-only
+	// pop up --path ./test_contract --upload-only
 	Command::cargo_bin("pop")
 		.unwrap()
-		.current_dir(&temp_dir.join("test_contract"))
-		.args(&[
-			"up",
-			"contract",
-			"--path",
-			"./test_contract",
-			"--upload-only",
-			"--url",
-			default_endpoint,
-		])
+		.current_dir(&temp_dir)
+		.args(&["up", "--path", "./test_contract", "--upload-only", "--url", default_endpoint])
 		.assert()
 		.success();
 	// Instantiate contract, only dry-run
@@ -110,7 +102,6 @@ async fn contract_lifecycle() -> Result<()> {
 		.current_dir(&temp_dir.join("test_contract"))
 		.args(&[
 			"up",
-			"contract",
 			"--constructor",
 			"new",
 			"--args",
@@ -180,7 +171,7 @@ async fn contract_lifecycle() -> Result<()> {
 		.assert()
 		.success();
 
-	// pop up contract --upload-only --use-wallet
+	// pop up --upload-only --use-wallet
 	// Will run http server for wallet integration.
 	// Using `cargo run --` as means for the CI to pass.
 	// Possibly there's room for improvement here.
@@ -189,12 +180,11 @@ async fn contract_lifecycle() -> Result<()> {
 			"run",
 			"--",
 			"up",
-			"contract",
 			"--upload-only",
 			"--use-wallet",
 			"--skip-confirm",
 			"--dry-run",
-			"-p",
+			"--path",
 			temp_dir.join("test_contract").to_str().expect("to_str"),
 			"--url",
 			default_endpoint,
