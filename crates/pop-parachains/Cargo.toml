@@ -25,6 +25,7 @@ url.workspace = true
 
 askama.workspace = true
 indexmap.workspace = true
+scale.workspace = true
 scale-info.workspace = true
 scale-value.workspace = true
 sp-core.workspace = true
