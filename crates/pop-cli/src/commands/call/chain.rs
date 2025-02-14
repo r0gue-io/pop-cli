@@ -12,7 +12,8 @@ use pop_parachains::{
 	construct_extrinsic, construct_sudo_extrinsic, decode_call_data, encode_call_data,
 	find_dispatchable_by_name, find_pallet_by_name, parse_chain_metadata, set_up_client,
 	sign_and_submit_extrinsic, submit_signed_extrinsic, supported_actions, Action, CallData,
-	DynamicPayload, Function, OnlineClient, Pallet, Param, Payload, SubstrateConfig,
+	DynamicPayload, ExtrinsicEvents, Function, OnlineClient, Pallet, Param, Payload,
+	SubstrateConfig,
 };
 use url::Url;
 
@@ -109,7 +110,9 @@ impl CallChainCommand {
 			// Sign and submit the extrinsic.
 			let result = if self.use_wallet {
 				let call_data = xt.encode_call_data(&chain.client.metadata())?;
-				submit_extrinsic_with_wallet(&chain.client, &chain.url, call_data, &mut cli).await
+				submit_extrinsic_with_wallet(&chain.client, &chain.url, call_data, &mut cli)
+					.await?;
+				Ok(())
 			} else {
 				call.submit_extrinsic(&chain.client, &chain.url, xt, &mut cli).await
 			};
@@ -358,13 +361,13 @@ impl CallChainCommand {
 }
 
 // Represents a chain, including its URL, client connection, and available pallets.
-struct Chain {
+pub(crate) struct Chain {
 	// Websocket endpoint of the node.
-	url: Url,
+	pub(crate) url: Url,
 	// The client used to interact with the chain.
-	client: OnlineClient<SubstrateConfig>,
+	pub(crate) client: OnlineClient<SubstrateConfig>,
 	// A list of pallets available on the chain.
-	pallets: Vec<Pallet>,
+	pub(crate) pallets: Vec<Pallet>,
 }
 
 /// Represents a configured dispatchable function call, including the pallet, function, arguments,
@@ -473,13 +476,13 @@ impl Call {
 	}
 }
 
-// Sign and submit an extrinsic using wallet integration.
-async fn submit_extrinsic_with_wallet(
+// Sign and submit an extrinsic using wallet integration, then returns the resulting events.
+pub(crate) async fn submit_extrinsic_with_wallet(
 	client: &OnlineClient<SubstrateConfig>,
 	url: &Url,
 	call_data: Vec<u8>,
 	cli: &mut impl Cli,
-) -> Result<()> {
+) -> Result<ExtrinsicEvents<SubstrateConfig>> {
 	let maybe_payload = request_signature(call_data, url.to_string()).await?;
 	if let Some(payload) = maybe_payload {
 		cli.success("Signed payload received.")?;
@@ -492,11 +495,11 @@ async fn submit_extrinsic_with_wallet(
 			.await
 			.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
 
-		spinner.stop(format!("Extrinsic submitted with hash: {:?}", result));
+		spinner.stop(format!("Extrinsic submitted with hash: {:?}", result.extrinsic_hash()));
+		Ok(result)
 	} else {
-		display_message("No signed payload received.", false, cli)?;
+		return Err(anyhow!("No signed payload received."));
 	}
-	Ok(())
 }
 
 // Displays a message to the user, with formatting based on the success status.

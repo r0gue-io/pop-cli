@@ -21,6 +21,7 @@ pub use call::{
 	construct_extrinsic, construct_sudo_extrinsic, decode_call_data, encode_call_data,
 	metadata::{
 		action::{supported_actions, Action},
+		events::extract_para_id_from_event,
 		find_dispatchable_by_name, find_pallet_by_name,
 		params::Param,
 		parse_chain_metadata, Function, Pallet,
@@ -34,6 +35,7 @@ pub use new_parachain::instantiate_template_dir;
 pub use relay::{clear_dmpq, RelayChain};
 // External export from subxt.
 pub use subxt::{
+	blocks::ExtrinsicEvents,
 	tx::{DynamicPayload, Payload},
 	OnlineClient, SubstrateConfig,
 };
