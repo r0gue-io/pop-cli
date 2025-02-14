@@ -8,8 +8,8 @@ use crate::{
 use anyhow::{anyhow, Result};
 use clap::Args;
 use pop_parachains::{
-	construct_extrinsic, find_dispatchable_by_name, parse_chain_metadata, set_up_client, Action,
-	Payload,
+	construct_extrinsic, extract_para_id_from_event, find_dispatchable_by_name,
+	parse_chain_metadata, set_up_client, Action, Payload,
 };
 
 use std::path::PathBuf;
@@ -50,8 +50,8 @@ impl UpParachainCommand {
 				match reserve_para_id(&chain, cli).await {
 					Ok(id) => id,
 					Err(e) => {
-						cli.outro_cancel(&format!("Failed to reserve parachain ID: {}", e))?;
-						return Err(e);
+						cli.outro_cancel(&format!("{}", e))?;
+						return Ok(());
 					},
 				}
 			},
@@ -60,12 +60,12 @@ impl UpParachainCommand {
 			match (self.genesis_state.clone(), self.genesis_code.clone()) {
 				(Some(state), Some(code)) => (state, code),
 				_ => {
-					cli.info("Generating the chain spec for your parachain, some extra information is needed:")?;
+					cli.info("Generating the chain spec for your parachain.")?;
 					match generate_spec_files(para_id, self.path, cli).await {
 						Ok(files) => files,
 						Err(e) => {
 							cli.outro_cancel(&format!("Failed to generate spec files: {}", e))?;
-							return Err(e);
+							return Ok(());
 						},
 					}
 				},
@@ -74,7 +74,7 @@ impl UpParachainCommand {
 		if let Err(e) = register_parachain(&chain, para_id, genesis_state, genesis_code, cli).await
 		{
 			cli.outro_cancel(&format!("Failed to register parachain: {}", e))?;
-			return Err(e);
+			return Ok(());
 		}
 
 		cli.outro("Parachain deployment complete.")?;
@@ -108,8 +108,14 @@ impl UpParachainCommand {
 /// Reserves a parachain ID by submitting an extrinsic.
 async fn reserve_para_id(chain: &Chain, cli: &mut impl Cli) -> Result<u32> {
 	let call_data = prepare_reserve_para_id_extrinsic(chain)?;
-	let events = submit_extrinsic_with_wallet(&chain.client, &chain.url, call_data, cli).await?;
-	Ok(2000)
+	let events = submit_extrinsic_with_wallet(&chain.client.clone(), &chain.url, call_data, cli)
+		.await
+		.map_err(|e| anyhow::anyhow!("Parachain ID reservation failed: {}", e))?;
+	let para_id = extract_para_id_from_event(&events).await.map_err(|_| {
+		anyhow::anyhow!("Unable to parse the event. Specify the parachain ID manually with --id.")
+	})?;
+	cli.success(format!("Successfully reserved parachain ID: {}", para_id))?;
+	Ok(para_id)
 }
 
 /// Constructs an extrinsic for reserving a parachain ID.
