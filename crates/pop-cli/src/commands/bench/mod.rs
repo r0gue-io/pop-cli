@@ -10,7 +10,6 @@ use crate::{
 	common::prompt::display_message,
 };
 use clap::{Args, Subcommand};
-use cliclack::spinner;
 use frame_benchmarking_cli::PalletCmd;
 use pop_common::{manifest::from_path, Profile};
 use pop_parachains::{build_project, generate_benchmarks, runtime_binary_path};
@@ -21,9 +20,6 @@ use pop_parachains::{build_project, generate_benchmarks, runtime_binary_path};
 pub struct BenchmarkArgs {
 	#[command(subcommand)]
 	pub command: Command,
-	/// Directory path for your runtime [default: "runtime"]
-	#[clap(alias = "r", short, long, default_value = "runtime")]
-	runtime_path: PathBuf,
 }
 
 /// Benchmark a pallet or parachain.
