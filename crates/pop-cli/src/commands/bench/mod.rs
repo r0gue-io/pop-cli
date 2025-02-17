@@ -63,10 +63,7 @@ impl Command {
 
 		if let Some(output_path) = cmd.output {
 			console::Term::stderr().clear_last_lines(1)?;
-			cli.info(format!(
-				"Weight file is generated to {}",
-				output_path.as_path().display().to_string()
-			))?;
+			cli.info(format!("Weight file is generated to {}", output_path.as_path().display()))?;
 		}
 		Ok(())
 	}
