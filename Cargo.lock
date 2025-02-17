@@ -11875,6 +11875,7 @@ dependencies = [
  "env_logger 0.11.5",
  "frame-benchmarking-cli",
  "git2",
+ "log",
  "open",
  "os_info",
  "pop-common",
@@ -11882,6 +11883,7 @@ dependencies = [
  "pop-parachains",
  "pop-telemetry",
  "reqwest 0.12.9",
+ "rust-fuzzy-search",
  "serde",
  "serde_json",
  "sp-core 32.0.0",
@@ -11977,6 +11979,7 @@ dependencies = [
  "sp-core 32.0.0",
  "sp-runtime 40.1.0",
  "sp-statement-store 15.0.0",
+ "stdio-override",
  "strum 0.26.3",
  "strum_macros 0.26.4",
  "subxt 0.38.0",
@@ -13031,6 +13034,12 @@ name = "ruint-macro"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "48fd7bd8a6377e15ad9d42a8ec25371b94ddc67abe7c8b9127bec79bebaaae18"
+
+[[package]]
+name = "rust-fuzzy-search"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a157657054ffe556d8858504af8a672a054a6e0bd9e8ee531059100c0fa11bb2"
 
 [[package]]
 name = "rust_decimal"
@@ -17955,6 +17964,16 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
+]
+
+[[package]]
+name = "stdio-override"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cffa8a2e517b4e9f270c47e1c4120df90506d9451c1efa67e3698d66446d30ce"
+dependencies = [
+ "libc",
+ "winapi",
 ]
 
 [[package]]

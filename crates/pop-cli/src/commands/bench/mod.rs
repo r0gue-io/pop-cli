@@ -3,17 +3,20 @@
 use crate::{
 	cli::{
 		self,
-		traits::{Cli, Select},
+		traits::{Input, MultiSelect, Select},
 	},
 	common::prompt::display_message,
 };
 use clap::{Args, Subcommand};
+use cliclack::spinner;
 use frame_benchmarking_cli::PalletCmd;
+use log::{self, LevelFilter};
 use pop_common::{manifest::from_path, Profile};
 use pop_parachains::{
 	build_project, generate_benchmarks, parse_genesis_builder_policy, runtime_binary_path, list_pallets_and_extrinsics
 };
-use std::{env::current_dir, fs, path::PathBuf};
+use rust_fuzzy_search::fuzzy_search_sorted;
+use std::{collections::HashMap, env::current_dir, fs, path::PathBuf};
 
 /// Arguments for bencharmking a project.
 #[derive(Args)]
@@ -39,22 +42,6 @@ impl Command {
 		match args.command {
 			Command::Pallet(mut cmd) => Command::bechmark_pallet(&mut cmd, &mut cli),
 		}
-	}
-
-	// Prompt for pallet search input if not provided.
-	fn guide_user_to_select_pallets(
-		cmd: &mut PalletCmd,
-		cli: &mut impl cli::traits::Cli,
-	) -> anyhow::Result<()> {
-		let input = cli
-			.input("Search for pallets by name separated by commas to benchmark.")
-			.placeholder("nfts, assets, system")
-			.interact()?;
-		let pallet_inputs = input.split(",");
-		if let Some(ref runtime) = cmd.runtime {
-			list_pallets_and_extrinsics(runtime.to_str().unwrap())?;
-		}
-		Ok(())
 	}
 
 	fn bechmark_pallet(cmd: &mut PalletCmd, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
@@ -84,8 +71,9 @@ impl Command {
 			cmd.genesis_builder = parse_genesis_builder_policy(policy)?.genesis_builder;
 		}
 
-		if cmd.pallet.is_none() {
-			Command::guide_user_to_select_pallets(cmd, cli)?;
+		// Pallet or extrinsic is not provided, prompts user to select pallets or extrinsics.
+		if cmd.pallet.is_none() || cmd.extrinsic.is_none() {
+			guide_user_to_select_pallets_or_extrinsics(cmd, cli)?;
 		}
 
 		cli.warning("NOTE: this may take some time...")?;
@@ -125,6 +113,88 @@ fn ensure_runtime_binary_exists(
 	}
 }
 
+fn guide_user_to_select_pallets_or_extrinsics(
+	cmd: &mut PalletCmd,
+	cli: &mut impl cli::traits::Cli,
+) -> anyhow::Result<()> {
+	spinner().start("Fetching pallets and extrinsics form your runtime....");
+	log::set_max_level(LevelFilter::Off);
+	let runtime_path = cmd.runtime.clone().unwrap();
+	let pallet_extrinsics = list_pallets_and_extrinsics(&runtime_path)?;
+	let mut selected_pallets = vec![];
+	if cmd.pallet.is_none() {
+		selected_pallets = guide_user_to_select_pallets(cmd, &pallet_extrinsics, cli)?;
+	};
+	if cmd.extrinsic.is_none() {
+		if selected_pallets.len() == 1 {
+			guide_user_to_select_extrinsics(cmd, &pallet_extrinsics, cli)?;
+		} else {
+			cmd.extrinsic = Some("*".to_string());
+		}
+	}
+	log::set_max_level(LevelFilter::Info);
+	Ok(())
+}
+
+fn guide_user_to_select_pallets(
+	cmd: &mut PalletCmd,
+	pallet_extrinsics: &HashMap<String, Vec<String>>,
+	cli: &mut impl cli::traits::Cli,
+) -> anyhow::Result<Vec<String>> {
+	// Prompt for pallet search input.
+	let input = cli
+		.input(r#"Search for pallets by name separated by commas. ("*" to select all)"#)
+		.placeholder("nfts, assets, system")
+		.required(false)
+		.interact()?;
+
+	if input == "*" {
+		cmd.pallet = Some("*".to_string());
+		return Ok(vec![]);
+	}
+
+	// Prompt user to select pallets.
+	let pallets = search_for_pallets(&pallet_extrinsics, &input);
+	let mut prompt = cli.multiselect("Select the pallets to benchmark:");
+	for pallet in pallets {
+		prompt = prompt.item(pallet.clone(), &pallet, &"");
+	}
+	let selected = prompt.interact()?;
+	cmd.pallet = Some(selected.join(","));
+	Ok(selected)
+}
+
+fn guide_user_to_select_extrinsics(
+	cmd: &mut PalletCmd,
+	pallet_extrinsics: &HashMap<String, Vec<String>>,
+	cli: &mut impl cli::traits::Cli,
+) -> anyhow::Result<()> {
+	let pallets = cmd.pallet.as_ref().expect("No pallet provided").split(",");
+
+	// Prompt for extrinsic search input.
+	let input = cli
+		.input(r#"Search for extrinsics by name separated by commas. ("*" to select all)"#)
+		.placeholder("transfer, mint, burn")
+		.required(false)
+		.interact()?;
+
+	if input == "*" {
+		cmd.extrinsic = Some("*".to_string());
+		return Ok(());
+	}
+
+	// Prompt user to select extrinsics.
+	let extrinsics =
+		search_for_extrinsics(&pallet_extrinsics, pallets.map(String::from).collect(), &input);
+	let mut prompt = cli.multiselect("Select the extrinsics to benchmark:");
+	for extrinsic in extrinsics {
+		prompt = prompt.item(extrinsic.clone(), &extrinsic, &"");
+	}
+	let selected = prompt.interact()?;
+	cmd.extrinsic = Some(selected.join(","));
+	Ok(())
+}
+
 fn guide_user_to_select_runtime(
 	project_path: &PathBuf,
 	cli: &mut impl cli::traits::Cli,
@@ -154,13 +224,56 @@ fn guide_user_to_select_genesis_builder(cli: &mut impl cli::traits::Cli) -> anyh
 	Ok(prompt.interact()?)
 }
 
+fn search_for_pallets(
+	pallet_extrinsics: &HashMap<String, Vec<String>>,
+	input: &String,
+) -> Vec<String> {
+	let pallets = pallet_extrinsics.keys();
+
+	if input.is_empty() {
+		return pallets.map(String::from).collect();
+	}
+	let inputs = input.split(",");
+	let pallets: Vec<&str> = pallets.map(|s| s.as_str()).collect();
+	let mut output = inputs
+		.map(|input| fuzzy_search_sorted(input, &pallets))
+		.flatten()
+		.map(|v| v.0.to_string())
+		.collect::<Vec<String>>();
+	output.dedup();
+	output
+}
+
+fn search_for_extrinsics(
+	pallet_extrinsics: &HashMap<String, Vec<String>>,
+	matched_pallets: Vec<String>,
+	input: &String,
+) -> Vec<String> {
+	let extrinsics: Vec<&str> = pallet_extrinsics
+		.iter()
+		.filter(|(pallet, _)| matched_pallets.contains(pallet))
+		.flat_map(|(_, extrinsics)| extrinsics.iter().map(String::as_str))
+		.collect();
+
+	if input.is_empty() {
+		return extrinsics.into_iter().map(String::from).collect();
+	}
+	let inputs = input.split(",");
+	let mut output = inputs
+		.map(|input| fuzzy_search_sorted(input, &extrinsics))
+		.flatten()
+		.map(|v| v.0.to_string())
+		.collect::<Vec<String>>();
+	output.dedup();
+	output
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
 	use crate::cli::MockCli;
 	use clap::Parser;
 	use duct::cmd;
-	use pop_common::find_project_root;
 	use std::env;
 	use tempfile::tempdir;
 
@@ -282,16 +395,18 @@ mod tests {
 			#[test]
 	fn guide_user_to_select_pallets_works() -> anyhow::Result<()> {
 		let mut cli = MockCli::new();
+		let runtime_path = get_mock_runtime_path(true);
 		let mut cmd = PalletCmd::try_parse_from(&[
 			"",
 			"--runtime",
-			get_mock_runtime_path(true).to_str().unwrap(),
+			runtime_path.to_str().unwrap(),
 			"--pallet",
 			"",
 			"--extrinsic",
 			"",
 		])?;
-		Command::guide_user_to_select_pallets(&mut cmd, &mut cli)?;
+		let pallet_extrinsics = list_pallets_and_extrinsics(&runtime_path)?;
+		guide_user_to_select_pallets(&mut cmd, &pallet_extrinsics, &mut cli)?;
 		Ok(())
 	}
 
@@ -320,9 +435,13 @@ mod tests {
 
 	// Construct the path to the mock runtime WASM file.
 	fn get_mock_runtime_path(with_benchmark_features: bool) -> std::path::PathBuf {
-		env::current_dir().unwrap().join(format!(
-			"tests/files/{}.wasm",
-			if with_benchmark_features { "base_parachain_benchmark" } else { "base_parachain" }
-		))
+		env::current_dir()
+			.unwrap()
+			.join(format!(
+				"../../../../tests/runtimes/{}.wasm",
+				if with_benchmark_features { "base_parachain_benchmark" } else { "base_parachain" }
+			))
+			.canonicalize()
+			.unwrap()
 	}
 }
