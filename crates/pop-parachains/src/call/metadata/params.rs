@@ -50,6 +50,10 @@ fn type_to_param(name: &str, registry: &PortableRegistry, type_id: u32) -> Resul
 	let type_info = registry
 		.resolve(type_id)
 		.ok_or_else(|| Error::MetadataParsingError(name.to_string()))?;
+	// Check for unsupported `RuntimeCall` type
+	if type_info.path.segments.contains(&"RuntimeCall".to_string()) {
+		return Err(Error::FunctionNotSupported);
+	}
 	for param in &type_info.type_params {
 		if param.name.contains("RuntimeCall") {
 			return Err(Error::FunctionNotSupported);
@@ -225,6 +229,19 @@ mod tests {
 		));
 		let function = metadata
 			.pallet_by_name("PolkadotXcm")
+			.unwrap()
+			.call_variant_by_name("execute")
+			.unwrap();
+		assert!(matches!(
+			field_to_param(&metadata, &function.fields.first().unwrap()),
+			Err(Error::FunctionNotSupported)
+		));
+		// TODO: Use the Pop Network endpoint once the mainnet (or an equivalent testnet with the
+		// same runtime) is available.
+		let client = set_up_client("wss://mythos.ibp.network").await?;
+		let metadata = client.metadata();
+		let function = metadata
+			.pallet_by_name("Council")
 			.unwrap()
 			.call_variant_by_name("execute")
 			.unwrap();
