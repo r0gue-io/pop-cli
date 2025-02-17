@@ -3,7 +3,7 @@
 use crate::Error;
 use std::{
 	collections::HashMap,
-	fs,
+	env, fs,
 	io::{Read, Write},
 	path::{Component, Path, PathBuf},
 };
@@ -53,6 +53,19 @@ pub fn prefix_with_current_dir_if_needed(path: PathBuf) -> PathBuf {
 		}
 	}
 	path
+}
+
+/// Attempts to find the root directory of a Rust project by searching for `Cargo.toml`
+/// in the current directory and its parent directories.
+pub fn find_project_root() -> Option<PathBuf> {
+	let mut dir = env::current_dir().ok()?;
+	while dir.parent().is_some() {
+		if dir.join("Cargo.toml").exists() {
+			return Some(dir);
+		}
+		dir.pop();
+	}
+	None
 }
 
 #[cfg(test)]
