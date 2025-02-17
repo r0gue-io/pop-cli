@@ -13,7 +13,7 @@ use pop_parachains::{clear_dmpq, Error, IndexSet, NetworkNode, RelayChain, Zombi
 use std::{path::Path, time::Duration};
 use tokio::time::sleep;
 
-#[derive(Args)]
+#[derive(Args, Clone)]
 pub(crate) struct ZombienetCommand {
 	/// The Zombienet network configuration file to be used.
 	#[arg(short, long)]
@@ -48,6 +48,9 @@ pub(crate) struct ZombienetCommand {
 	/// Automatically source all needed binaries required without prompting for confirmation.
 	#[clap(short = 'y', long)]
 	skip_confirm: bool,
+	// Deprecation flag, used to specify whether the deprecation warning is shown.
+	#[clap(skip)]
+	pub(crate) valid: bool,
 }
 
 impl ZombienetCommand {
@@ -56,6 +59,13 @@ impl ZombienetCommand {
 		clear_screen()?;
 		intro(format!("{}: Launch a local network", style(" Pop CLI ").black().on_magenta()))?;
 		set_theme(Theme);
+
+		// Show warning if specified as deprecated.
+		if !self.valid {
+			log::warning(
+				"DEPRECATION: Please use `pop up network` (or simply `pop up n`) in future...",
+			)?;
+		}
 
 		// Parse arguments
 		let cache = crate::cache()?;
