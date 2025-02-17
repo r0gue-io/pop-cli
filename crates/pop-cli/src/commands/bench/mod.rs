@@ -64,7 +64,7 @@ impl Command {
 		cli.warning("NOTE: this may take some time...")?;
 		cli.info("Benchmarking and generating weight file....")?;
 
-		if let Err(e) = generate_benchmarks(&cmd) {
+		if let Err(e) = generate_benchmarks(cmd) {
 			return display_message(&e.to_string(), false, cli);
 		}
 
