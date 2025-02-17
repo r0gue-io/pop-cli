@@ -11,7 +11,7 @@ use clap::{Args, Subcommand};
 use frame_benchmarking_cli::PalletCmd;
 use pop_common::{manifest::from_path, Profile};
 use pop_parachains::{
-	build_project, generate_benchmarks, parse_genesis_builder_policy, runtime_binary_path,
+	build_project, generate_benchmarks, parse_genesis_builder_policy, runtime_binary_path, list_pallets_and_extrinsics
 };
 use std::{env::current_dir, fs, path::PathBuf};
 
@@ -41,11 +41,28 @@ impl Command {
 		}
 	}
 
-	fn bechmark_pallet(cmd: &mut PalletCmd, cli: &mut impl Cli) -> anyhow::Result<()> {
+	// Prompt for pallet search input if not provided.
+	fn guide_user_to_select_pallets(
+		cmd: &mut PalletCmd,
+		cli: &mut impl cli::traits::Cli,
+	) -> anyhow::Result<()> {
+		let input = cli
+			.input("Search for pallets by name separated by commas to benchmark.")
+			.placeholder("nfts, assets, system")
+			.interact()?;
+		let pallet_inputs = input.split(",");
+		if let Some(ref runtime) = cmd.runtime {
+			list_pallets_and_extrinsics(runtime.to_str().unwrap())?;
+		}
+		Ok(())
+	}
+
+	fn bechmark_pallet(cmd: &mut PalletCmd, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		cli.intro("Benchmarking your pallets")?;
 		cli.warning(
 			"NOTE: the `pop bench pallet` is not yet battle tested - double check the results.",
 		)?;
+
 		if let Some(ref spec) = cmd.shared_params.chain {
 			return display_message(
 				&format!(
@@ -66,6 +83,11 @@ impl Command {
 			let policy = guide_user_to_select_genesis_builder(cli)?;
 			cmd.genesis_builder = parse_genesis_builder_policy(policy)?.genesis_builder;
 		}
+
+		if cmd.pallet.is_none() {
+			Command::guide_user_to_select_pallets(cmd, cli)?;
+		}
+
 		cli.warning("NOTE: this may take some time...")?;
 		cli.info("Benchmarking and generating weight file...")?;
 		if let Err(e) = generate_benchmarks(cmd) {
@@ -138,6 +160,7 @@ mod tests {
 	use crate::cli::MockCli;
 	use clap::Parser;
 	use duct::cmd;
+	use pop_common::find_project_root;
 	use std::env;
 	use tempfile::tempdir;
 
@@ -256,6 +279,22 @@ mod tests {
 		Ok(())
 	}
 
+			#[test]
+	fn guide_user_to_select_pallets_works() -> anyhow::Result<()> {
+		let mut cli = MockCli::new();
+		let mut cmd = PalletCmd::try_parse_from(&[
+			"",
+			"--runtime",
+			get_mock_runtime_path(true).to_str().unwrap(),
+			"--pallet",
+			"",
+			"--extrinsic",
+			"",
+		])?;
+		Command::guide_user_to_select_pallets(&mut cmd, &mut cli)?;
+		Ok(())
+	}
+
 	#[test]
 	fn parse_genesis_builder_policy_works() {
 		["none", "spec", "runtime"]
@@ -276,6 +315,8 @@ mod tests {
 	];
 		cli.expect_select("Select the genesis builder policy:", Some(true), true, Some(policies), 0)
 	}
+
+
 
 	// Construct the path to the mock runtime WASM file.
 	fn get_mock_runtime_path(with_benchmark_features: bool) -> std::path::PathBuf {
