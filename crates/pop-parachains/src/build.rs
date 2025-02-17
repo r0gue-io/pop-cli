@@ -72,48 +72,6 @@ pub fn build_project(
 	Ok(())
 }
 
-/// Build the Rust project.
-///
-/// # Arguments
-/// * `path` - The optional path to the project manifest, defaulting to the current directory if not
-///   specified.
-/// * `package` - The optional package to be built.
-/// * `profile` - Whether the project should be built without any debugging functionality.
-/// * `features` - A set of features the project is built with.
-/// * `target` - The option target to be specified.
-pub fn build_project(
-	path: &Path,
-	package: Option<String>,
-	profile: &Profile,
-	features: Vec<&str>,
-	target: Option<&str>,
-) -> Result<(), Error> {
-	let mut args = vec!["build"];
-	if let Some(package) = package.as_deref() {
-		args.push("--package");
-		args.push(package)
-	}
-	if profile == &Profile::Release {
-		args.push("--release");
-	} else if profile == &Profile::Production {
-		args.push("--profile=production");
-	}
-
-	let feature_args = features.join(",");
-	if !features.is_empty() {
-		args.push("--features");
-		args.push(&feature_args);
-	}
-
-	if let Some(target) = target {
-		args.push("--target");
-		args.push(target);
-	}
-
-	cmd("cargo", args).dir(path).run()?;
-	Ok(())
-}
-
 /// Determines whether the manifest at the supplied path is a supported parachain project.
 ///
 /// # Arguments
@@ -137,30 +95,6 @@ pub fn is_supported(path: Option<&Path>) -> Result<bool, Error> {
 /// * `node_path` - The path to the node from which the node name will be parsed.
 pub fn binary_path(target_path: &Path, node_path: &Path) -> Result<PathBuf, Error> {
 	build_binary_path(node_path, |node_name| target_path.join(node_name))
-}
-
-/// Constructs the runtime binary path based on the target path and the directory path.
-///
-/// # Arguments
-/// * `target_path` - The path where the binaries are expected to be found.
-/// * `runtime_path` - The path to the runtime from which the runtime name will be parsed.
-pub fn runtime_binary_path(target_path: &Path, runtime_path: &Path) -> Result<PathBuf, Error> {
-	build_binary_path(runtime_path, |runtime_name| {
-		target_path.join(format!("{runtime_name}/{}.wasm", runtime_name.replace("-", "_")))
-	})
-}
-
-fn build_binary_path<F>(project_path: &Path, path_builder: F) -> Result<PathBuf, Error>
-where
-	F: Fn(&str) -> PathBuf,
-{
-	let manifest = from_path(Some(project_path))?;
-	let project_name = manifest.package().name();
-	let release = path_builder(project_name);
-	if !release.exists() {
-		return Err(Error::MissingBinary(project_name.to_string()));
-	}
-	Ok(release)
 }
 
 /// Constructs the runtime binary path based on the target path and the directory path.
