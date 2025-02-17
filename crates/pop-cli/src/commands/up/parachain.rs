@@ -237,6 +237,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn change_working_directory_works() -> Result<()> {
+		let original_dir = std::env::current_dir()?;
 		let temp_dir = tempdir()?;
 		let my_parachain_path = Some(temp_dir.path().to_path_buf());
 		change_working_directory(&my_parachain_path)?;
@@ -244,6 +245,9 @@ mod tests {
 
 		change_working_directory(&None)?;
 		assert_eq!(fs::canonicalize(env::current_dir()?)?, fs::canonicalize(temp_dir.path())?);
+
+		// Reset working directory back to original
+		change_working_directory(&Some(original_dir))?;
 		Ok(())
 	}
 
