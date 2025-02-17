@@ -27,10 +27,10 @@ pub struct UpParachainCommand {
 	/// Parachain ID to use. If not specified, a new ID will be reserved.
 	#[arg(short, long)]
 	pub(crate) id: Option<u32>,
-	/// Path to the genesis state file.
+	/// Path to the genesis state file. If not specified, it will be generated.
 	#[arg(short = 'G', long = "genesis-state")]
 	pub(crate) genesis_state: Option<PathBuf>,
-	/// Path to the genesis code file.
+	/// Path to the genesis code file.  If not specified, it will be generated.
 	#[arg(short = 'C', long = "genesis-code")]
 	pub(crate) genesis_code: Option<PathBuf>,
 	/// Websocket endpoint of the relay chain.

@@ -110,9 +110,15 @@ impl CallChainCommand {
 			// Sign and submit the extrinsic.
 			let result = if self.use_wallet {
 				let call_data = xt.encode_call_data(&chain.client.metadata())?;
-				submit_extrinsic_with_wallet(&chain.client, &chain.url, call_data, &mut cli)
-					.await?;
-				Ok(())
+				match submit_extrinsic_with_wallet(&chain.client, &chain.url, call_data, &mut cli)
+					.await
+				{
+					Ok(_) => Ok(()),
+					Err(e) => {
+						display_message(&e.to_string(), false, &mut cli)?;
+						break;
+					},
+				}
 			} else {
 				call.submit_extrinsic(&chain.client, &chain.url, xt, &mut cli).await
 			};
@@ -476,7 +482,13 @@ impl Call {
 	}
 }
 
-// Sign and submit an extrinsic using wallet integration, then returns the resulting events.
+/// Sign and submit an extrinsic using wallet integration, then returns the resulting events.
+///
+/// # Arguments
+/// * `client` - The client used to interact with the chain.
+/// * `url` - Endpoint of the node.
+/// * `call_data` - The call data to be signed.
+/// * `cli` - The CLI implementation to be used.
 pub(crate) async fn submit_extrinsic_with_wallet(
 	client: &OnlineClient<SubstrateConfig>,
 	url: &Url,

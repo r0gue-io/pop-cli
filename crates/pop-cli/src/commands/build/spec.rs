@@ -508,6 +508,33 @@ impl BuildSpec {
 		Ok("spec")
 	}
 
+	/// Generates plain and raw chain specification files.
+	fn generate_chain_spec(
+		&self,
+		binary_path: &PathBuf,
+		spinner: &ProgressBar,
+	) -> anyhow::Result<PathBuf> {
+		let BuildSpec { output_file, chain, .. } = self;
+		spinner.start("Generating chain specification...");
+
+		// Generate plain chain spec.
+		generate_plain_chain_spec(&binary_path, output_file, self.default_bootnode, chain)?;
+		// Customize spec based on input.
+		self.customize()?;
+
+		// Generate raw spec.
+		spinner.set_message("Generating raw chain specification...");
+		let spec_name = &output_file
+			.file_name()
+			.and_then(|s| s.to_str())
+			.unwrap_or(DEFAULT_SPEC_NAME)
+			.trim_end_matches(".json");
+		let raw_spec_name = format!("{spec_name}-raw.json");
+		let raw_chain_spec = generate_raw_chain_spec(&binary_path, output_file, &raw_spec_name)?;
+
+		Ok(raw_chain_spec)
+	}
+
 	/// Generates chain specification files and returns the file paths for the generated genesis
 	/// code and genesis state files.
 	///
@@ -535,33 +562,6 @@ impl BuildSpec {
 
 		spinner.stop("Genesis artifacts generated successfully.");
 		Ok((genesis_state, genesis_code))
-	}
-
-	/// Generates plain and raw chain specification files.
-	fn generate_chain_spec(
-		&self,
-		binary_path: &PathBuf,
-		spinner: &ProgressBar,
-	) -> anyhow::Result<PathBuf> {
-		let BuildSpec { output_file, chain, .. } = self;
-		spinner.start("Generating chain specification...");
-
-		// Generate plain chain spec.
-		generate_plain_chain_spec(&binary_path, output_file, self.default_bootnode, chain)?;
-		// Customize spec based on input.
-		self.customize()?;
-
-		// Generate raw spec.
-		spinner.set_message("Generating raw chain specification...");
-		let spec_name = &output_file
-			.file_name()
-			.and_then(|s| s.to_str())
-			.unwrap_or(DEFAULT_SPEC_NAME)
-			.trim_end_matches(".json");
-		let raw_spec_name = format!("{spec_name}-raw.json");
-		let raw_chain_spec = generate_raw_chain_spec(&binary_path, output_file, &raw_spec_name)?;
-
-		Ok(raw_chain_spec)
 	}
 
 	// Customize a chain specification.
