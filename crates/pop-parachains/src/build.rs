@@ -17,7 +17,7 @@ use std::{
 /// * `path` - The optional path to the parachain manifest, defaulting to the current directory if
 ///   not specified.
 /// * `package` - The optional package to be built.
-/// * `release` - Whether the parachain should be built without any debugging functionality.
+/// * `profile` - Whether the parachain should be built without any debugging functionality.
 /// * `node_path` - An optional path to the node directory. Defaults to the `node` subdirectory of
 ///   the project path if not provided.
 pub fn build_parachain(
