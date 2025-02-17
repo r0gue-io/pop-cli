@@ -3,11 +3,12 @@
 use crate::{
 	cli::{
 		self,
-		traits::{Cli, Select},
+		traits::{Input, Select},
 	},
 	common::prompt::display_message,
 };
 use clap::{Args, Subcommand};
+use cliclack::spinner;
 use frame_benchmarking_cli::PalletCmd;
 use pop_common::{manifest::from_path, Profile};
 use pop_parachains::{
@@ -17,7 +18,7 @@ use std::{env::current_dir, fs, path::PathBuf};
 
 /// Arguments for bencharmking a project.
 #[derive(Args)]
-#[command(args_conflicts_with_subcommands = true)]
+#[command(args_conflicts_with_subcommands = true, ignore_errors = true)]
 pub struct BenchmarkArgs {
 	#[command(subcommand)]
 	pub command: Command,
@@ -39,22 +40,6 @@ impl Command {
 		match args.command {
 			Command::Pallet(mut cmd) => Command::bechmark_pallet(&mut cmd, &mut cli),
 		}
-	}
-
-	// Prompt for pallet search input if not provided.
-	fn guide_user_to_select_pallets(
-		cmd: &mut PalletCmd,
-		cli: &mut impl cli::traits::Cli,
-	) -> anyhow::Result<()> {
-		let input = cli
-			.input("Search for pallets by name separated by commas to benchmark.")
-			.placeholder("nfts, assets, system")
-			.interact()?;
-		let pallet_inputs = input.split(",");
-		if let Some(ref runtime) = cmd.runtime {
-			list_pallets_and_extrinsics(runtime.to_str().unwrap())?;
-		}
-		Ok(())
 	}
 
 	fn bechmark_pallet(cmd: &mut PalletCmd, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
@@ -100,6 +85,28 @@ impl Command {
 		}
 
 		display_message("Benchmark completed successfully!", true, cli)?;
+		Ok(())
+	}
+
+	// Prompt for pallet search input if not provided.
+	fn guide_user_to_select_pallets(
+		cmd: &mut PalletCmd,
+		cli: &mut impl cli::traits::Cli,
+	) -> anyhow::Result<()> {
+		let input = cli
+			.input("Search for pallets by name separated by commas to benchmark.")
+			.placeholder("nfts, assets, system")
+			.interact()?;
+		let pallet_inputs = input.split(",");
+		if let Some(ref runtime) = cmd.runtime {
+			let spinner = spinner();
+			spinner
+				.set_message(format!("Searching for the pallets matched your input {:?}", input));
+			let output = list_pallets_and_extrinsics(runtime)?;
+
+			RuntimeMetadata::V1::from();
+			println!("{:?}", &output);
+		}
 		Ok(())
 	}
 }
@@ -154,7 +161,6 @@ mod tests {
 	use crate::cli::MockCli;
 	use clap::Parser;
 	use duct::cmd;
-	use pop_common::find_project_root;
 	use std::env;
 	use tempfile::tempdir;
 
@@ -298,10 +304,14 @@ mod tests {
 
 	// Construct the path to the mock runtime WASM file.
 	fn get_mock_runtime_path(with_benchmark_features: bool) -> std::path::PathBuf {
-		env::current_dir().unwrap().join(if with_benchmark_features {
-			"tests/files/base_parachain_benchmark.wasm"
-		} else {
-			"tests/files/base_parachain.wasm"
-		})
+		env::current_dir()
+			.unwrap()
+			.join(if with_benchmark_features {
+				"../../../../tests/runtimes/base_parachain_benchmark.wasm"
+			} else {
+				"../../../../tests/runtimes/base_parachain.wasm"
+			})
+			.canonicalize()
+			.unwrap()
 	}
 }
