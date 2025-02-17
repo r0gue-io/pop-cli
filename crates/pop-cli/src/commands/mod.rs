@@ -5,6 +5,7 @@ use clap::Subcommand;
 use pop_common::templates::Template;
 use serde_json::{json, Value};
 
+#[cfg(feature = "parachain")]
 pub(crate) mod bench;
 pub(crate) mod build;
 pub(crate) mod call;
