@@ -16,6 +16,7 @@ path = "src/main.rs"
 anyhow.workspace = true
 duct.workspace = true
 env_logger.workspace = true
+log.workspace = true
 os_info.workspace = true
 reqwest.workspace = true
 serde = { workspace = true, features = ["derive"] }
@@ -55,6 +56,7 @@ tower-http = { workspace = true, features = ["fs", "cors"] }
 # benchmarking
 cumulus-primitives-proof-size-hostfunction.workspace = true
 frame-benchmarking-cli.workspace = true
+rust-fuzzy-search = "0.1.1"
 sp-runtime.workspace = true
 sp-statement-store.workspace = true
 
