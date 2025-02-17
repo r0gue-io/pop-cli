@@ -87,7 +87,8 @@ pub struct UpContractCommand {
 	/// confirmation.
 	#[clap(short = 'y', long)]
 	pub(crate) skip_confirm: bool,
-	// Deprecation flag, used to specify whether the deprecation warning is shown.
+	// Deprecation flag, used to specify whether the deprecation warning is shown (will be removed
+	// in v0.8.0).
 	#[clap(skip)]
 	pub(crate) valid: bool,
 }
@@ -98,7 +99,7 @@ impl UpContractCommand {
 		Cli.intro("Deploy a smart contract")?;
 		// Show warning if specified as deprecated.
 		if !self.valid {
-			Cli.warning("DEPRECATION: Please use `pop up` (or simply `pop u`) in future...")?;
+			Cli.warning("DEPRECATION: Please use `pop up` (or simply `pop u`) in the future...")?;
 		}
 		// Check if build exists in the specified "Contract build directory"
 		if !has_contract_been_built(self.path.as_deref()) {
