@@ -26,7 +26,6 @@ pub struct BenchmarkArgs {
 #[derive(Subcommand)]
 pub enum Command {
 	/// Benchmark the extrinsic weight of FRAME Pallets
-	#[cfg(feature = "parachain")]
 	#[clap(alias = "p")]
 	Pallet(PalletCmd),
 }
