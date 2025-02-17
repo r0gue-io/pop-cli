@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use std::{env::current_dir, fs, path::PathBuf};
-
 use crate::{
 	cli::{
 		self,
@@ -13,6 +11,7 @@ use clap::{Args, Subcommand};
 use frame_benchmarking_cli::PalletCmd;
 use pop_common::{manifest::from_path, Profile};
 use pop_parachains::{build_project, generate_benchmarks, runtime_binary_path};
+use std::{env::current_dir, fs, path::PathBuf};
 
 /// Arguments for bencharmking a project.
 #[derive(Args)]
