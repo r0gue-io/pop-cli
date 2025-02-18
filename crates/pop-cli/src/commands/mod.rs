@@ -5,6 +5,7 @@ use clap::Subcommand;
 use pop_common::templates::Template;
 use serde_json::{json, Value};
 
+#[cfg(feature = "parachain")]
 pub(crate) mod bench;
 pub(crate) mod build;
 pub(crate) mod call;
@@ -24,6 +25,7 @@ pub(crate) enum Command {
 	#[clap(alias = "n")]
 	#[cfg(any(feature = "parachain", feature = "contract"))]
 	New(new::NewArgs),
+	/// Benchmark a pallet or parachain.
 	#[cfg(feature = "parachain")]
 	Bench(bench::BenchmarkArgs),
 	#[clap(alias = "b", about = about_build())]
@@ -97,13 +99,7 @@ impl Command {
 				},
 			},
 			#[cfg(feature = "parachain")]
-			Self::Bench(args) => match args.command {
-				None => bench::Command::execute(args).map(|t| json!(t)),
-				Some(cmd) => match cmd {
-					#[cfg(feature = "parachain")]
-					bench::Command::Pallet(cmd) => cmd.execute().map(|_| Value::Null),
-				},
-			},
+			Self::Bench(args) => bench::Command::execute(args).map(|_| Value::Null),
 			#[cfg(any(feature = "parachain", feature = "contract"))]
 			Self::Build(args) => match args.command {
 				None => build::Command::execute(args).map(|t| json!(t)),
