@@ -153,7 +153,7 @@ impl Zombienet {
 							}
 						}
 					}
-					// Check if collator has defined command
+					// Check if the collator defines a custom launch command
 					if let Some(collator) = table.get("collator").and_then(|i| i.as_table()) {
 						if let Some(command) =
 							NetworkConfiguration::command(collator).and_then(|i| i.as_str())
@@ -1182,7 +1182,7 @@ command = "substrate-contracts-node"
 				Err(Error::MissingBinary(command))
 				if command == "parachain-template-node"
 			));
-			// Create the binaries in the hardcoded path
+			// Create the binaries in the default build directory.
 			let parachain_template = PathBuf::from("target/release/parachain-template-node");
 			create_dir_all(parachain_template.parent().unwrap())?;
 			File::create(&parachain_template)?;
@@ -1200,7 +1200,7 @@ command = "substrate-contracts-node"
 				None,
 			)
 			.await?;
-			// Remove the binary hardcoded path
+			// Remove the binary default build directory.
 			remove_file(&parachain_template)?;
 			remove_file(&parachain_contracts_template)?;
 			remove_dir(parachain_template.parent().unwrap())?;

@@ -164,11 +164,12 @@ pub enum Parachain {
 		)
 	)]
 	ParityGeneric,
-	/// Minimal Substrate node configured for smart contracts via pallet-contracts.
+	/// Minimal Substrate node configured for smart contracts via pallet-contracts and
+	/// pallet-revive.
 	#[strum(
 		serialize = "paritytech/substrate-contracts-node",
 		message = "Contracts",
-		detailed_message = "Minimal Substrate node configured for smart contracts via pallet-contracts.",
+		detailed_message = "Minimal Substrate node configured for smart contracts via pallet-contracts and pallet-revive.",
 		props(
 			Provider = "Parity",
 			Repository = "https://github.com/paritytech/substrate-contracts-node",
