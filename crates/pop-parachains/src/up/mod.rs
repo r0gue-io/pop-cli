@@ -3,6 +3,7 @@
 use crate::errors::Error;
 use glob::glob;
 use indexmap::IndexMap;
+use pop_common::Profile;
 pub use pop_common::{
 	git::{GitHub, Repository},
 	sourcing::{Binary, GitHub::*, Source, Source::*},
@@ -13,6 +14,7 @@ use std::{
 	iter::once,
 	path::{Path, PathBuf},
 };
+use strum::VariantArray;
 use symlink::{remove_symlink_file, symlink_file};
 use tempfile::{Builder, NamedTempFile};
 use toml_edit::{value, ArrayOfTables, DocumentMut, Formatted, Item, Table, Value};
@@ -217,12 +219,14 @@ impl Zombienet {
 			// Check if command references a parachain template binary without a specified path
 			// (e.g. Polkadot SDK parachain template)
 			if command == "parachain-template-node" || command == "substrate-contracts-node" {
-				let binary_path = PathBuf::from("./target/release").join(&command);
-				if !binary_path.exists() {
-					return Err(Error::MissingBinary(command));
+				for profile in Profile::VARIANTS {
+					let binary_path = profile.target_directory(Path::new("./")).join(&command);
+					if binary_path.exists() {
+						paras.insert(id, Parachain::from_local(id, binary_path, chain)?);
+						continue 'outer;
+					}
 				}
-				paras.insert(id, Parachain::from_local(id, binary_path, chain)?);
-				continue;
+				return Err(Error::MissingBinary(command));
 			}
 			return Err(Error::MissingBinary(command));
 		}
@@ -1188,8 +1192,10 @@ command = "substrate-contracts-node"
 			let parachain_template = PathBuf::from("target/release/parachain-template-node");
 			create_dir_all(parachain_template.parent().unwrap())?;
 			File::create(&parachain_template)?;
+			// Ensure the the binary is detected in the debug profile too.
 			let parachain_contracts_template =
-				PathBuf::from("target/release/substrate-contracts-node");
+				PathBuf::from("target/debug/substrate-contracts-node");
+			create_dir_all(parachain_contracts_template.parent().unwrap())?;
 			File::create(&parachain_contracts_template)?;
 
 			let zombienet = Zombienet::new(
@@ -1207,6 +1213,7 @@ command = "substrate-contracts-node"
 			remove_file(&parachain_template)?;
 			remove_file(&parachain_contracts_template)?;
 			remove_dir(parachain_template.parent().unwrap())?;
+			remove_dir(parachain_contracts_template.parent().unwrap())?;
 
 			assert_eq!(zombienet.parachains.len(), 2);
 			let parachain = &zombienet.parachains.get(&1000).unwrap().binary;
@@ -1218,7 +1225,7 @@ command = "substrate-contracts-node"
 			assert_eq!(contract_parachain.name(), "substrate-contracts-node");
 			assert_eq!(
 				contract_parachain.path(),
-				Path::new("./target/release/substrate-contracts-node")
+				Path::new("./target/debug/substrate-contracts-node")
 			);
 			assert_eq!(contract_parachain.version(), None);
 			assert!(matches!(contract_parachain, Binary::Local { .. }));
