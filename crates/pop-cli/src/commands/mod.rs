@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{cache, cli::Cli};
+use crate::{cache, cli::Cli, common::builds::get_project_path};
 use clap::Subcommand;
 use pop_common::templates::Template;
 use serde_json::{json, Value};
@@ -35,8 +35,7 @@ pub(crate) enum Command {
 	#[clap(alias = "c")]
 	#[cfg(any(feature = "parachain", feature = "contract"))]
 	Call(call::CallArgs),
-	/// Launch a local network or deploy a smart contract.
-	#[clap(alias = "u")]
+	#[clap(alias = "u", about = about_up())]
 	#[cfg(any(feature = "parachain", feature = "contract"))]
 	Up(up::UpArgs),
 	/// Test a smart contract.
@@ -56,6 +55,16 @@ fn about_build() -> &'static str {
 	return "Build a parachain, chain specification or Rust package.";
 	#[cfg(all(feature = "contract", not(feature = "parachain")))]
 	return "Build a smart contract or Rust package.";
+}
+
+/// Help message for the up command.
+fn about_up() -> &'static str {
+	#[cfg(all(feature = "parachain", feature = "contract"))]
+	return "Deploy a smart contract or launch a local network.";
+	#[cfg(all(feature = "parachain", not(feature = "contract")))]
+	return "Launch a local network.";
+	#[cfg(all(feature = "contract", not(feature = "parachain")))]
+	return "Deploy a smart contract.";
 }
 
 impl Command {
@@ -108,10 +117,23 @@ impl Command {
 			},
 			#[cfg(any(feature = "parachain", feature = "contract"))]
 			Self::Up(args) => match args.command {
-				#[cfg(feature = "parachain")]
-				up::Command::Parachain(cmd) => cmd.execute().await.map(|_| Value::Null),
-				#[cfg(feature = "contract")]
-				up::Command::Contract(cmd) => cmd.execute().await.map(|_| Value::Null),
+				None => up::Command::execute(args).await.map(|t| json!(t)),
+				Some(cmd) => match cmd {
+					#[cfg(feature = "parachain")]
+					up::Command::Network(mut cmd) => {
+						cmd.valid = true;
+						cmd.execute().await.map(|_| Value::Null)
+					},
+					// TODO: Deprecated, will be removed in v0.8.0.
+					#[cfg(feature = "parachain")]
+					up::Command::Parachain(cmd) => cmd.execute().await.map(|_| Value::Null),
+					// TODO: Deprecated, will be removed in v0.8.0.
+					#[cfg(feature = "contract")]
+					up::Command::Contract(mut cmd) => {
+						cmd.path = get_project_path(args.path, args.path_pos);
+						cmd.execute().await.map(|_| Value::Null)
+					},
+				},
 			},
 			#[cfg(feature = "contract")]
 			Self::Test(args) => match args.command {
