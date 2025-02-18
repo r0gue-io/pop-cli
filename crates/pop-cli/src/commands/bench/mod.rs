@@ -71,15 +71,6 @@ impl Command {
 		if let Err(e) = generate_benchmarks(cmd) {
 			return display_message(&e.to_string(), false, cli);
 		}
-		if cmd.pallet.is_none() && cmd.extrinsic.is_none() {
-			if let Some(ref output_path) = cmd.output {
-				console::Term::stderr().clear_last_lines(1)?;
-				cli.info(format!(
-					"Weight file is generated to {}",
-					output_path.as_path().display()
-				))?;
-			}
-		}
 		display_message("Benchmark completed successfully!", true, cli)?;
 		Ok(())
 	}
