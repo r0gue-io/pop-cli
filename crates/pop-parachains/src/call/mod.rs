@@ -95,13 +95,13 @@ pub async fn submit_signed_extrinsic(
 	let hex_encoded =
 		from_hex(&payload).map_err(|e| Error::CallDataDecodingError(e.to_string()))?;
 	let extrinsic = SubmittableExtrinsic::from_bytes(client, hex_encoded);
-	Ok(extrinsic
+	extrinsic
 		.submit_and_watch()
 		.await
 		.map_err(|e| Error::ExtrinsicSubmissionError(format!("{:?}", e)))?
 		.wait_for_finalized_success()
 		.await
-		.map_err(|e| Error::ExtrinsicSubmissionError(format!("{:?}", e)))?)
+		.map_err(|e| Error::ExtrinsicSubmissionError(format!("{:?}", e)))
 }
 
 /// Encodes the call data for a given extrinsic into a hexadecimal string.
