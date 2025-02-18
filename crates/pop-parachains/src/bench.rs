@@ -20,7 +20,7 @@ pub fn generate_benchmarks(cmd: &PalletCmd) -> Result<()> {
 /// Parse the pallet command from string value of genesis policy builder.
 ///
 /// # Arguments
-/// * `cmd` - Command to benchmark the extrinsic weight of FRAME Pallets.
+/// * `policy` - Genesis builder policy ( none | spec | runtime ).
 pub fn parse_genesis_builder_policy(policy: &str) -> anyhow::Result<PalletCmd> {
 	PalletCmd::try_parse_from(["", "--list", "--genesis-builder", policy])
 		.map_err(|_| anyhow::anyhow!(format!("Invalid genesis builder option: {policy}")))
