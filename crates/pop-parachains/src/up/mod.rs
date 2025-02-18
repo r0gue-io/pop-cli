@@ -3,10 +3,10 @@
 use crate::errors::Error;
 use glob::glob;
 use indexmap::IndexMap;
-use pop_common::Profile;
 pub use pop_common::{
 	git::{GitHub, Repository},
 	sourcing::{Binary, GitHub::*, Source, Source::*},
+	Profile,
 };
 use std::{
 	fmt::Debug,
