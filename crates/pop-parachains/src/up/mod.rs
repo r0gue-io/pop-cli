@@ -218,7 +218,7 @@ impl Zombienet {
 
 			// Check if command references a parachain template binary without a specified path
 			// (e.g. Polkadot SDK parachain template)
-			if command == "parachain-template-node" || command == "substrate-contracts-node" {
+			if ["parachain-template-node", "substrate-contracts-node"].contains(&command.as_str()) {
 				for profile in Profile::VARIANTS {
 					let binary_path = profile.target_directory(Path::new("./")).join(&command);
 					if binary_path.exists() {
@@ -650,8 +650,8 @@ fn resolve_manifest(package: &str, path: &Path) -> Result<Option<PathBuf>, Error
 			.get("package")
 			.and_then(|i| i.as_table())
 			.and_then(|t| t.get("name"))
-			.and_then(|i| i.as_str())
-			.map_or(false, |n| n == package)
+			.and_then(|i| i.as_str()) ==
+			Some(package)
 	};
 
 	let mut manifest = Some(path);
