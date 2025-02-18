@@ -66,7 +66,12 @@ impl Command {
 		// No runtime path provided, auto-detect the runtime WASM binary. If not found, build
 		// the runtime.
 		if cmd.runtime.is_none() {
-			cmd.runtime = Some(ensure_runtime_binary_exists(cli, &Profile::Release)?);
+			match ensure_runtime_binary_exists(cli, &Profile::Release) {
+				Ok(runtime_binary_path) => cmd.runtime = Some(runtime_binary_path),
+				Err(e) => {
+					return display_message(&e.to_string(), false, cli);
+				},
+			}
 		}
 		// No genesis builder, prompts user to select the genesis builder policy.
 		if cmd.genesis_builder.is_none() {
