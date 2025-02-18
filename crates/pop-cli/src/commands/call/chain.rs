@@ -510,7 +510,7 @@ pub(crate) async fn submit_extrinsic_with_wallet(
 		spinner.stop(format!("Extrinsic submitted with hash: {:?}", result.extrinsic_hash()));
 		Ok(result)
 	} else {
-		return Err(anyhow!("No signed payload received."));
+		Err(anyhow!("No signed payload received."))
 	}
 }
 

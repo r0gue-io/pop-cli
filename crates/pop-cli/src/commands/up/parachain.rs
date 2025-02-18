@@ -50,7 +50,7 @@ impl UpParachainCommand {
 				match reserve_para_id(&chain, cli).await {
 					Ok(id) => id,
 					Err(e) => {
-						cli.outro_cancel(&format!("{}", e))?;
+						cli.outro_cancel(format!("{}", e))?;
 						return Ok(());
 					},
 				}
@@ -64,7 +64,7 @@ impl UpParachainCommand {
 					match generate_spec_files(para_id, self.path, cli).await {
 						Ok(files) => files,
 						Err(e) => {
-							cli.outro_cancel(&format!("Failed to generate spec files: {}", e))?;
+							cli.outro_cancel(format!("Failed to generate spec files: {}", e))?;
 							return Ok(());
 						},
 					}
@@ -73,7 +73,7 @@ impl UpParachainCommand {
 		cli.info("Registering a parachain ID")?;
 		if let Err(e) = register_parachain(&chain, para_id, genesis_state, genesis_code, cli).await
 		{
-			cli.outro_cancel(&format!("Failed to register parachain: {}", e))?;
+			cli.outro_cancel(format!("Failed to register parachain: {}", e))?;
 			return Ok(());
 		}
 
@@ -151,14 +151,9 @@ fn change_working_directory(path: &Option<PathBuf>) -> Result<()> {
 
 /// Configures the chain specification requirements.
 async fn configure_build_spec(id: u32, cli: &mut impl Cli) -> Result<BuildSpec> {
-	Ok(BuildSpecCommand {
-		id: Some(id),
-		genesis_code: true,
-		genesis_state: true,
-		..Default::default()
-	}
-	.configure_build_spec(cli)
-	.await?)
+	BuildSpecCommand { id: Some(id), genesis_code: true, genesis_state: true, ..Default::default() }
+		.configure_build_spec(cli)
+		.await
 }
 
 /// Registers a parachain by submitting an extrinsic.
