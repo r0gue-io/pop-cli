@@ -7,7 +7,7 @@ use crate::{
 	},
 	common::prompt::display_message,
 };
-use clap::{Args, Subcommand};
+use clap::{Args, Parser, Subcommand};
 use frame_benchmarking_cli::PalletCmd;
 use pop_common::{manifest::from_path, Profile};
 use pop_parachains::{build_project, generate_benchmarks, runtime_binary_path};
@@ -15,7 +15,7 @@ use std::{env::current_dir, fs, path::PathBuf};
 
 /// Arguments for bencharmking a project.
 #[derive(Args)]
-#[command(args_conflicts_with_subcommands = true)]
+#[command(args_conflicts_with_subcommands = true, ignore_errors = true)]
 pub struct BenchmarkArgs {
 	#[command(subcommand)]
 	pub command: Command,
@@ -59,18 +59,25 @@ impl Command {
 		if cmd.runtime.is_none() {
 			cmd.runtime = Some(ensure_wasm_blob_exists(cli, &Profile::Release)?);
 		}
+		// No genesis builder, prompts user to select the genesis builder policy.
+		if cmd.genesis_builder.is_none() {
+			let policy = guide_user_to_select_genesis_builder(cli)?;
+			cmd.genesis_builder = parse_genesis_builder_policy(policy)?.genesis_builder;
+		}
 		cli.warning("NOTE: this may take some time...")?;
 		cli.info("Benchmarking and generating weight file....")?;
-
 		if let Err(e) = generate_benchmarks(cmd) {
 			return display_message(&e.to_string(), false, cli);
 		}
-
-		if let Some(ref output_path) = cmd.output {
-			console::Term::stderr().clear_last_lines(1)?;
-			cli.info(format!("Weight file is generated to {}", output_path.as_path().display()))?;
+		if cmd.pallet.is_none() && cmd.extrinsic.is_none() {
+			if let Some(ref output_path) = cmd.output {
+				console::Term::stderr().clear_last_lines(1)?;
+				cli.info(format!(
+					"Weight file is generated to {}",
+					output_path.as_path().display()
+				))?;
+			}
 		}
-
 		display_message("Benchmark completed successfully!", true, cli)?;
 		Ok(())
 	}
@@ -84,18 +91,21 @@ fn ensure_wasm_blob_exists(
 	let cwd = current_dir().unwrap_or(PathBuf::from("./"));
 	let target_path = mode.target_directory(&cwd).join("wbuild");
 	let mut project_path = cwd.join("runtime");
+
+	// If there is no TOML file exist, list all directories in the folder and prompt the
+	// user to select a runtime.
+	if !project_path.join("Cargo.toml").exists() {
+		let runtime = guide_user_to_select_runtime(&project_path, cli)?;
+		project_path = project_path.join(runtime);
+	}
+
 	match runtime_binary_path(&target_path, &project_path) {
 		Ok(binary_path) => Ok(binary_path),
 		_ => {
-			cli.info("Runtime was not found. The runtime will be built locally.".to_string())?;
+			cli.info(
+				"Runtime binary was not found. The runtime will be built locally.".to_string(),
+			)?;
 			cli.warning("NOTE: this may take some time...")?;
-
-			if !project_path.join("Cargo.toml").exists() {
-				// If there is no TOML file exist, list all directories in the folder and prompt the
-				// user to select a runtime.
-				let runtime = guide_user_to_select_runtime(&project_path, cli)?;
-				project_path = project_path.join(runtime);
-			}
 			build_project(&project_path, None, mode, vec!["runtime-benchmarks"], None)?;
 			runtime_binary_path(&target_path, &project_path).map_err(|e| e.into())
 		},
@@ -107,7 +117,7 @@ fn guide_user_to_select_runtime(
 	cli: &mut impl cli::traits::Cli,
 ) -> anyhow::Result<PathBuf> {
 	let runtimes = fs::read_dir(project_path).unwrap();
-	let mut prompt = cli.select("Select the runtime to build:");
+	let mut prompt = cli.select("Select the runtime:");
 	for runtime in runtimes {
 		let path = runtime.unwrap().path();
 		let manifest = from_path(Some(path.as_path()))?;
@@ -119,9 +129,27 @@ fn guide_user_to_select_runtime(
 	Ok(prompt.interact()?)
 }
 
+fn guide_user_to_select_genesis_builder(cli: &mut impl cli::traits::Cli) -> anyhow::Result<&str> {
+	let mut prompt = cli.select("Select the genesis builder policy:").initial_value("none");
+
+	for (policy, description) in [
+    	("none", "Do not provide any genesis state"),
+    	("runtime", "Let the runtime build the genesis state through its `BuildGenesisConfig` runtime API. \
+         This will use the `development` preset by default.")
+	] {
+		prompt = prompt.item(policy, &policy, &description);
+	}
+	Ok(prompt.interact()?)
+}
+
+fn parse_genesis_builder_policy(policy: &str) -> anyhow::Result<PalletCmd> {
+	PalletCmd::try_parse_from(["", "--list", "--genesis-builder", policy])
+		.map_err(|_| anyhow::anyhow!(format!("Invalid genesis builder option: {policy}")))
+}
+
 #[cfg(test)]
 mod tests {
-	use super::*;
+	use super::{parse_genesis_builder_policy, *};
 
 	use crate::cli::MockCli;
 	use clap::Parser;
@@ -248,7 +276,34 @@ mod tests {
 			cmd("cargo", ["new", runtime, "--bin"]).dir(&runtime_path).run()?;
 		}
 		guide_user_to_select_runtime(&runtime_path, &mut cli)?;
+		cli.verify()?;
 		Ok(())
+	}
+
+	#[test]
+	fn guide_user_to_select_genesis_builder_works() -> anyhow::Result<()> {
+		let policies = vec![
+           	("none".to_string(), "Do not provide any genesis state".to_string()),
+           	("runtime".to_string(), "Let the runtime build the genesis state through its `BuildGenesisConfig` runtime API. \
+            This will use the `development` preset by default.".to_string())
+		];
+		let mut cli = MockCli::new().expect_select(
+			"Select the genesis builder policy:",
+			Some(true),
+			true,
+			Some(policies),
+			0,
+		);
+
+		guide_user_to_select_genesis_builder(&mut cli)?;
+		cli.verify()?;
+		Ok(())
+	}
+
+	#[test]
+	fn parse_genesis_builder_policy_works() {
+		["none", "spec", "runtime"]
+			.map(|policy| assert!(parse_genesis_builder_policy(policy).is_ok()));
 	}
 
 	// Construct the path to the mock runtime WASM file.
