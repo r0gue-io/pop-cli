@@ -127,10 +127,9 @@ async fn guide_user_to_generate_parachain(verify: bool) -> Result<NewParachainCo
 			provider,
 			provider.name(),
 			format!(
-				"{} {} available option(s) {}",
+				"{} {} available option(s)",
 				provider.description(),
-				provider.templates().len(),
-				if provider.name() == "Parity" { "[deprecated]" } else { "" }
+				provider.templates().len()
 			),
 		);
 	}
@@ -257,7 +256,7 @@ fn display_select_options(provider: &Provider) -> Result<&Parachain> {
 		if i == 0 {
 			prompt = prompt.initial_value(template);
 		}
-		prompt = prompt.item(template, template.name(), template.description());
+		prompt = prompt.item(template, template.name(), template.description().trim());
 	}
 	Ok(prompt.interact()?)
 }
@@ -471,11 +470,11 @@ mod tests {
 	fn test_is_template_supported() -> Result<()> {
 		is_template_supported(&Provider::Pop, &Parachain::Standard)?;
 		assert!(is_template_supported(&Provider::Pop, &Parachain::ParityContracts).is_err());
-		assert!(is_template_supported(&Provider::Pop, &Parachain::ParityFPT).is_err());
+		assert!(is_template_supported(&Provider::Pop, &Parachain::ParityGeneric).is_err());
 
 		assert!(is_template_supported(&Provider::Parity, &Parachain::Standard).is_err());
 		is_template_supported(&Provider::Parity, &Parachain::ParityContracts)?;
-		is_template_supported(&Provider::Parity, &Parachain::ParityFPT)
+		is_template_supported(&Provider::Parity, &Parachain::ParityGeneric)
 	}
 
 	#[test]
