@@ -1177,6 +1177,8 @@ name = "collator"
 command = "substrate-contracts-node"
 "#
 			)?;
+			// Expecting failure since no custom path is provided and binaries don't exist in the
+			// default build directory.
 			assert!(matches!(
 				Zombienet::new(&cache, config.path().to_str().unwrap(), None, None, None, None, None).await,
 				Err(Error::MissingBinary(command))
@@ -1200,7 +1202,8 @@ command = "substrate-contracts-node"
 				None,
 			)
 			.await?;
-			// Remove the binary default build directory.
+			// Remove the binaries created above after Zombienet initialization, as they are no
+			// longer needed.
 			remove_file(&parachain_template)?;
 			remove_file(&parachain_contracts_template)?;
 			remove_dir(parachain_template.parent().unwrap())?;
