@@ -11,13 +11,13 @@ use clap::{Args, Subcommand};
 use frame_benchmarking_cli::PalletCmd;
 use pop_common::{manifest::from_path, Profile};
 use pop_parachains::{
-	build_project, generate_benchmarks, parse_genesis_builder_policy, runtime_binary_path,
+	build_project, parse_genesis_builder_policy, run_pallet_benchmarking, runtime_binary_path,
 };
 use std::{env::current_dir, fs, path::PathBuf};
 
 /// Arguments for bencharmking a project.
 #[derive(Args)]
-#[command(args_conflicts_with_subcommands = true, ignore_errors = true)]
+#[command(args_conflicts_with_subcommands = true)]
 pub struct BenchmarkArgs {
 	#[command(subcommand)]
 	pub command: Command,
@@ -37,7 +37,14 @@ impl Command {
 		let mut cli = cli::Cli;
 
 		match args.command {
-			Command::Pallet(mut cmd) => Command::bechmark_pallet(&mut cmd, &mut cli),
+			Command::Pallet(mut cmd) => {
+				if cmd.list.is_some() || cmd.json_output {
+					if let Err(e) = run_pallet_benchmarking(&mut cmd) {
+						return display_message(&e.to_string(), false, &mut cli);
+					}
+				}
+				Command::bechmark_pallet(&mut cmd, &mut cli)
+			},
 		}
 	}
 
@@ -56,8 +63,8 @@ impl Command {
 				cli,
 			);
 		}
-		// No runtime path provided, auto-detect the runtime WASM binary. If not found, build the
-		// runtime.
+		// No runtime path provided, auto-detect the runtime WASM binary. If not found, build
+		// the runtime.
 		if cmd.runtime.is_none() {
 			cmd.runtime = Some(ensure_runtime_binary_exists(cli, &Profile::Release)?);
 		}
@@ -68,7 +75,7 @@ impl Command {
 		}
 		cli.warning("NOTE: this may take some time...")?;
 		cli.info("Benchmarking and generating weight file...")?;
-		if let Err(e) = generate_benchmarks(cmd) {
+		if let Err(e) = run_pallet_benchmarking(cmd) {
 			return display_message(&e.to_string(), false, cli);
 		}
 		display_message("Benchmark completed successfully!", true, cli)?;
@@ -85,7 +92,12 @@ fn ensure_runtime_binary_exists(
 	let target_path = mode.target_directory(&cwd).join("wbuild");
 	let mut project_path = cwd.join("runtime");
 
-	// If there is no TOML file exist, list all directories in the folder and prompt the
+	// Runtime folder does not exist.
+	if !project_path.exists() {
+		return Err(anyhow::anyhow!("No runtime found."));
+	}
+
+	// If there is no TOML file exist, list all directories in the "runtime" folder and prompt the
 	// user to select a runtime.
 	if !project_path.join("Cargo.toml").exists() {
 		let runtime = guide_user_to_select_runtime(&project_path, cli)?;
@@ -233,7 +245,7 @@ mod tests {
 		let runtime_path = temp_dir.path().join("runtime");
 		let runtimes = ["runtime-1", "runtime-2", "runtime-3"];
 		let mut cli = MockCli::new().expect_select(
-			"Select the runtime to build:",
+			"Select the runtime:",
 			Some(true),
 			true,
 			Some(runtimes.map(|runtime| (runtime.to_string(), "".to_string())).to_vec()),
@@ -254,12 +266,6 @@ mod tests {
 		guide_user_to_select_genesis_builder(&mut cli)?;
 		cli.verify()?;
 		Ok(())
-	}
-
-	#[test]
-	fn parse_genesis_builder_policy_works() {
-		["none", "spec", "runtime"]
-			.map(|policy| assert!(parse_genesis_builder_policy(policy).is_ok()));
 	}
 
 	fn expect_pallet_benchmarking_intro(cli: MockCli) -> MockCli {

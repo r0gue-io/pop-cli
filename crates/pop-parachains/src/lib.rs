@@ -14,7 +14,7 @@ mod templates;
 mod up;
 mod utils;
 
-pub use bench::{generate_benchmarks, parse_genesis_builder_policy};
+pub use bench::{parse_genesis_builder_policy, run_pallet_benchmarking};
 pub use build::{
 	binary_path, build_parachain, build_project, export_wasm_file, generate_genesis_state_file,
 	generate_plain_chain_spec, generate_raw_chain_spec, is_supported, runtime_binary_path,
