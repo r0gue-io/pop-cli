@@ -39,7 +39,7 @@ impl Command {
 		match args.command {
 			Command::Pallet(mut cmd) => {
 				if cmd.list.is_some() || cmd.json_output {
-					if let Err(e) = run_pallet_benchmarking(&mut cmd) {
+					if let Err(e) = run_pallet_benchmarking(&cmd) {
 						return display_message(&e.to_string(), false, &mut cli);
 					}
 				}
