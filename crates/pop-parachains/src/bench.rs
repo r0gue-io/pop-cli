@@ -4,7 +4,12 @@ use csv::Reader;
 use frame_benchmarking_cli::PalletCmd;
 use rust_fuzzy_search::fuzzy_search_sorted;
 use sp_runtime::traits::BlakeTwo256;
-use std::{collections::HashMap, fs::File, io::BufReader, path::PathBuf};
+use std::{
+	collections::HashMap,
+	fs::File,
+	io::BufReader,
+	path::{Path, PathBuf},
+};
 use stdio_override::StdoutOverride;
 use tempfile::tempdir;
 
@@ -40,35 +45,18 @@ pub fn parse_genesis_builder_policy(policy: &str) -> anyhow::Result<PalletCmd> {
 	})
 }
 
-#[cfg(test)]
-mod tests {
-	use super::*;
-
-	#[test]
-	fn parse_genesis_builder_policy_works() -> anyhow::Result<()> {
-		for policy in ["none", "runtime"] {
-			parse_genesis_builder_policy(policy)?;
-		}
-		Ok(())
-	}
-}
-
 /// List a mapping of pallets and their extrinsics.
 ///
 /// # Arguments
 /// * `runtime_path` - Path to the runtime WASM binary.
 pub fn list_pallets_and_extrinsics(
-	runtime_path: &PathBuf,
+	runtime_path: &Path,
 ) -> anyhow::Result<HashMap<String, Vec<String>>> {
 	let temp_dir = tempdir()?;
 	let temp_file_path = temp_dir.path().join("pallets.csv");
 	let guard = StdoutOverride::from_file(&temp_file_path)?;
-	let cmd = PalletCmd::try_parse_from(&[
-		"",
-		"--runtime",
-		runtime_path.to_str().unwrap(),
-		"--list=all",
-	])?;
+	let cmd =
+		PalletCmd::try_parse_from(["", "--runtime", runtime_path.to_str().unwrap(), "--list=all"])?;
 	cmd.run_with_spec::<BlakeTwo256, HostFunctions>(None)
 		.map_err(|e| anyhow::anyhow!(format!("Failed to list pallets: {}", e.to_string())))?;
 	drop(guard);
@@ -82,7 +70,7 @@ pub fn list_pallets_and_extrinsics(
 /// * `input` - The search input used to match pallets.
 pub fn search_for_pallets(
 	pallet_extrinsics: &HashMap<String, Vec<String>>,
-	input: &String,
+	input: &str,
 ) -> Vec<String> {
 	let pallets = pallet_extrinsics.keys();
 
@@ -92,8 +80,7 @@ pub fn search_for_pallets(
 	let inputs = input.split(",");
 	let pallets: Vec<&str> = pallets.map(|s| s.as_str()).collect();
 	let mut output = inputs
-		.map(|input| fuzzy_search_sorted(input, &pallets))
-		.flatten()
+		.flat_map(|input| fuzzy_search_sorted(input, &pallets))
 		.map(|v| v.0.to_string())
 		.collect::<Vec<String>>();
 	output.dedup();
@@ -109,7 +96,7 @@ pub fn search_for_pallets(
 pub fn search_for_extrinsics(
 	pallet_extrinsics: &HashMap<String, Vec<String>>,
 	pallets: Vec<String>,
-	input: &String,
+	input: &str,
 ) -> Vec<String> {
 	let extrinsics: Vec<&str> = pallet_extrinsics
 		.iter()
@@ -122,8 +109,7 @@ pub fn search_for_extrinsics(
 	}
 	let inputs = input.split(",");
 	let mut output = inputs
-		.map(|input| fuzzy_search_sorted(input, &extrinsics))
-		.flatten()
+		.flat_map(|input| fuzzy_search_sorted(input, &extrinsics))
 		.map(|v| v.0.to_string())
 		.collect::<Vec<String>>();
 	output.dedup();
@@ -139,7 +125,7 @@ fn parse_csv_to_map(file_path: &PathBuf) -> anyhow::Result<HashMap<String, Vec<S
 		if record.len() == 2 {
 			let pallet = record[0].trim().to_string();
 			let extrinsic = record[1].trim().to_string();
-			map.entry(pallet).or_insert_with(Vec::new).push(extrinsic);
+			map.entry(pallet).or_default().push(extrinsic);
 		}
 	}
 	Ok(map)
@@ -158,7 +144,22 @@ mod tests {
 			.unwrap();
 
 		let pallets = list_pallets_and_extrinsics(&runtime_path)?;
-		println!("{:?}", pallets);
+		assert_eq!(
+			pallets.get("pallet_timestamp").cloned().unwrap_or_default(),
+			["on_finalize", "set"]
+		);
+		assert_eq!(
+			pallets.get("pallet_sudo").cloned().unwrap_or_default(),
+			["check_only_sudo_account", "remove_key", "set_key", "sudo", "sudo_as"]
+		);
+		Ok(())
+	}
+
+	#[test]
+	fn parse_genesis_builder_policy_works() -> anyhow::Result<()> {
+		for policy in ["none", "runtime"] {
+			parse_genesis_builder_policy(policy)?;
+		}
 		Ok(())
 	}
 }

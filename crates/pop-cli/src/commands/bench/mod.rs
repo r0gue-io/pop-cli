@@ -20,7 +20,11 @@ pub struct BenchmarkArgs {
 
 	/// How to construct the genesis state. Uses `none` by default.
 	#[arg(long, alias = "genesis-builder-policy", hide = true)]
-	pub(crate) genesis_builder: Option<String>,
+	genesis_builder: Option<String>,
+
+	/// How to construct the genesis state. Uses `none` by default.
+	#[arg(short, long = "skip", alias = "s", hide = true, action = clap::ArgAction::SetFalse)]
+	skip_menu: bool,
 }
 
 /// Benchmark a pallet or a parachain.
@@ -43,7 +47,7 @@ impl Command {
 						return display_message(&e.to_string(), false, &mut cli);
 					}
 				}
-				BenchmarkPallet { genesis_builder: args.genesis_builder }
+				BenchmarkPallet { genesis_builder: args.genesis_builder, skip_menu: args.skip_menu }
 					.execute(&mut cmd, &mut cli)
 			},
 		}
