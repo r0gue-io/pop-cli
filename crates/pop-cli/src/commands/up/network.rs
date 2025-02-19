@@ -48,7 +48,8 @@ pub(crate) struct ZombienetCommand {
 	/// Automatically source all needed binaries required without prompting for confirmation.
 	#[clap(short = 'y', long)]
 	skip_confirm: bool,
-	// Deprecation flag, used to specify whether the deprecation warning is shown.
+	// Deprecation flag, used to specify whether the deprecation warning is shown (will be removed
+	// in v0.8.0).
 	#[clap(skip)]
 	pub(crate) valid: bool,
 }
@@ -63,7 +64,7 @@ impl ZombienetCommand {
 		// Show warning if specified as deprecated.
 		if !self.valid {
 			log::warning(
-				"DEPRECATION: Please use `pop up network` (or simply `pop up n`) in future...",
+				"DEPRECATION: Please use `pop up network` (or simply `pop up n`) in the future...",
 			)?;
 		}
 
