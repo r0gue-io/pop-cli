@@ -15,7 +15,7 @@ mod up;
 mod utils;
 
 pub use bench::{
-	generate_benchmarks, list_pallets_and_extrinsics, parse_genesis_builder_policy,
+	list_pallets_and_extrinsics, parse_genesis_builder_policy, run_pallet_benchmarking,
 	search_for_extrinsics, search_for_pallets,
 };
 pub use build::{

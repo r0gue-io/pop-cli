@@ -13,13 +13,13 @@ mod pallet;
 
 /// Arguments for benchmarking a project.
 #[derive(Args)]
-#[command(args_conflicts_with_subcommands = true)]
+#[command(args_conflicts_with_subcommands = true, ignore_errors = true)]
 pub struct BenchmarkArgs {
 	#[command(subcommand)]
 	pub command: Command,
 
 	/// How to construct the genesis state. Uses `none` by default.
-	#[arg(long, alias = "genesis-builder-policy")]
+	#[arg(long, alias = "genesis-builder-policy", hide = true)]
 	pub(crate) genesis_builder: Option<String>,
 }
 
@@ -27,7 +27,7 @@ pub struct BenchmarkArgs {
 #[derive(Subcommand)]
 pub enum Command {
 	/// Benchmark the extrinsic weight of FRAME Pallets
-	#[clap(alias = "p")]
+	#[clap(alias = "p", disable_help_flag = true)]
 	Pallet(PalletCmd),
 }
 
@@ -43,7 +43,8 @@ impl Command {
 						return display_message(&e.to_string(), false, &mut cli);
 					}
 				}
-				BenchmarkPallet { genesis_builder: args.genesis_builder }.execute(&mut cmd, &mut cli)
+				BenchmarkPallet { genesis_builder: args.genesis_builder }
+					.execute(&mut cmd, &mut cli)
 			},
 		}
 	}

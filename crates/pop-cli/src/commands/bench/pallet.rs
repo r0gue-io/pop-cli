@@ -5,8 +5,8 @@ use frame_benchmarking_cli::PalletCmd;
 use log::LevelFilter;
 use pop_common::{manifest::from_path, Profile};
 use pop_parachains::{
-	build_project, generate_benchmarks, list_pallets_and_extrinsics, parse_genesis_builder_policy,
-	runtime_binary_path, search_for_extrinsics, search_for_pallets,
+	build_project, list_pallets_and_extrinsics, parse_genesis_builder_policy,
+	run_pallet_benchmarking, runtime_binary_path, search_for_extrinsics, search_for_pallets,
 };
 use std::{collections::HashMap, env::current_dir, fs, path::PathBuf};
 use strum::{EnumMessage, IntoEnumIterator};
@@ -69,7 +69,7 @@ impl BenchmarkPallet {
 
 		cli.warning("NOTE: this may take some time...")?;
 		cli.info("Benchmarking and generating weight file...")?;
-		if let Err(e) = generate_benchmarks(cmd) {
+		if let Err(e) = run_pallet_benchmarking(cmd) {
 			return display_message(&e.to_string(), false, cli);
 		}
 		display_message("Benchmark completed successfully!", true, cli)?;
