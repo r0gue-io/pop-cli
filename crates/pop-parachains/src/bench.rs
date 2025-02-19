@@ -1,4 +1,7 @@
-use std::{fs, path::PathBuf};
+use std::{
+	fs,
+	path::{Path, PathBuf},
+};
 
 use anyhow::Result;
 use clap::Parser;
@@ -54,6 +57,18 @@ pub fn check_preset(binary_path: &PathBuf, preset: Option<&String>) -> anyhow::R
 		)))
 	}
 	Ok(())
+}
+
+/// Get the runtime folder path and throws error if not exist.
+///
+/// # Arguments
+/// * `parent` - Parent path that contains the runtime folder.
+pub fn get_runtime_path(parent: &Path) -> anyhow::Result<PathBuf> {
+	["runtime", "runtimes"]
+		.iter()
+		.map(|f| parent.join(f))
+		.find(|path| path.exists())
+		.ok_or_else(|| anyhow::anyhow!("No runtime found."))
 }
 
 #[cfg(test)]

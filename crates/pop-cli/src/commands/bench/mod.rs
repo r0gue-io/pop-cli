@@ -11,8 +11,8 @@ use clap::{Args, Subcommand};
 use frame_benchmarking_cli::PalletCmd;
 use pop_common::{manifest::from_path, Profile};
 use pop_parachains::{
-	build_project, check_preset, parse_genesis_builder_policy, run_pallet_benchmarking,
-	runtime_binary_path,
+	build_project, check_preset, get_runtime_path, parse_genesis_builder_policy,
+	run_pallet_benchmarking, runtime_binary_path,
 };
 use std::{env::current_dir, fs, path::PathBuf};
 
@@ -115,12 +115,7 @@ fn ensure_runtime_binary_exists(
 ) -> anyhow::Result<PathBuf> {
 	let cwd = current_dir().unwrap_or(PathBuf::from("./"));
 	let target_path = mode.target_directory(&cwd).join("wbuild");
-	let mut project_path = cwd.join("runtime");
-
-	// Runtime folder does not exist.
-	if !project_path.exists() {
-		return Err(anyhow::anyhow!("No runtime found."));
-	}
+	let mut project_path = get_runtime_path(&cwd)?;
 
 	// If there is no TOML file exist, list all directories in the "runtime" folder and prompt the
 	// user to select a runtime.
