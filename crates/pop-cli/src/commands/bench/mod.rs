@@ -15,7 +15,7 @@ use pop_parachains::{
 };
 use std::{env::current_dir, fs, path::PathBuf};
 
-/// Arguments for bencharmking a project.
+/// Arguments for benchmarking a project.
 #[derive(Args)]
 #[command(args_conflicts_with_subcommands = true)]
 pub struct BenchmarkArgs {
@@ -23,7 +23,7 @@ pub struct BenchmarkArgs {
 	pub command: Command,
 }
 
-/// Benchmark a pallet or parachain.
+/// Benchmark a pallet or a parachain.
 #[derive(Subcommand)]
 pub enum Command {
 	/// Benchmark the extrinsic weight of FRAME Pallets
