@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{call, DynamicPayload, Error};
-use sp_core::twox_128;
+use sp_core::{twox_128, twox_64};
 use subxt::{
 	config::BlockHash,
 	dynamic::{self, Value},
-	ext::sp_core,
 	OnlineClient, PolkadotConfig,
 };
 
@@ -52,13 +51,13 @@ fn generate_storage_keys(para_ids: &[u32]) -> Vec<Vec<u8>> {
 		// DMP Queue Head
 		let mut key = dmp.to_vec();
 		key.extend(&dmp_queue_heads);
-		key.extend(sp_core::twox_64(&id));
+		key.extend(twox_64(&id));
 		key.extend(id);
 		clear_dmq_keys.push(key);
 		// DMP Queue
 		let mut key = dmp.to_vec();
 		key.extend(&dmp_queues);
-		key.extend(sp_core::twox_64(&id));
+		key.extend(twox_64(&id));
 		key.extend(id);
 		clear_dmq_keys.push(key);
 	}
@@ -91,7 +90,6 @@ impl RelayChain {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use subxt::ext::sp_core::twox_64;
 	use RelayChain::*;
 
 	#[test]
