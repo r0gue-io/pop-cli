@@ -7,6 +7,7 @@ use crate::{
 use clap::{Args, Subcommand};
 use frame_benchmarking_cli::PalletCmd;
 use pallet::BenchmarkPallet;
+use pop_parachains::run_pallet_benchmarking;
 
 mod pallet;
 
@@ -36,8 +37,14 @@ impl Command {
 		let mut cli = cli::Cli;
 
 		match args.command {
-			Command::Pallet(mut cmd) => BenchmarkPallet { genesis_builder: args.genesis_builder }
-				.execute(&mut cmd, &mut cli),
+			Command::Pallet(mut cmd) => {
+				if cmd.list.is_some() || cmd.json_output {
+					if let Err(e) = run_pallet_benchmarking(&cmd) {
+						return display_message(&e.to_string(), false, &mut cli);
+					}
+				}
+				BenchmarkPallet { genesis_builder: args.genesis_builder }.execute(&mut cmd, &mut cli)
+			},
 		}
 	}
 }

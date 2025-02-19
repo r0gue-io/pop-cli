@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0
+
 use cliclack::{spinner, ProgressBar};
 use frame_benchmarking_cli::PalletCmd;
 use log::LevelFilter;
@@ -165,7 +167,12 @@ fn ensure_runtime_binary_exists(
 	let target_path = mode.target_directory(&cwd).join("wbuild");
 	let mut project_path = cwd.join("runtime");
 
-	// If there is no TOML file exist, list all directories in the folder and prompt the
+	// Runtime folder does not exist.
+	if !project_path.exists() {
+		return Err(anyhow::anyhow!("No runtime found."));
+	}
+
+	// If there is no TOML file exist, list all directories in the "runtime" folder and prompt the
 	// user to select a runtime.
 	if !project_path.join("Cargo.toml").exists() {
 		let runtime = guide_user_to_select_runtime(&project_path, cli)?;
@@ -344,7 +351,6 @@ mod tests {
 			"--extrinsic",
 			"",
 		])?;
-		println!("{:?}", cmd.runtime);
 		BenchmarkPallet::default().execute(&mut cmd, &mut cli)?;
 		cli.verify()?;
 		Ok(())
@@ -421,7 +427,7 @@ mod tests {
 		let runtime_path = temp_dir.path().join("runtime");
 		let runtimes = ["runtime-1", "runtime-2", "runtime-3"];
 		let mut cli = MockCli::new().expect_select(
-			"Select the runtime to build:",
+			"Select the runtime:",
 			Some(true),
 			true,
 			Some(runtimes.map(|runtime| (runtime.to_string(), "".to_string())).to_vec()),
