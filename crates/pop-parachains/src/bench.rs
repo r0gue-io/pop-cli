@@ -1,6 +1,9 @@
+use std::{fs, path::PathBuf};
+
 use anyhow::Result;
 use clap::Parser;
 use frame_benchmarking_cli::PalletCmd;
+use sc_chain_spec::GenesisConfigBuilderRuntimeCaller;
 use sp_runtime::traits::BlakeTwo256;
 
 type HostFunctions = (
@@ -33,6 +36,18 @@ pub fn parse_genesis_builder_policy(policy: &str) -> anyhow::Result<PalletCmd> {
 	.map_err(|e| {
 		anyhow::anyhow!(format!(r#"Invalid genesis builder option {policy}: {}"#, e.to_string()))
 	})
+}
+
+/// Check if a runtime has a genesis config preset.
+///
+/// # Arguments
+/// * `binary_path` - Path to the runtime WASM binary.
+/// * `preset` - Optional ID of the genesis config preset. If not provided, it checks the default
+///   preset.
+pub fn check_preset(binary_path: &PathBuf, preset: Option<&String>) -> bool {
+	let binary = fs::read(binary_path).expect("No runtime binary found");
+	let genesis_config_builder = GenesisConfigBuilderRuntimeCaller::new(&binary);
+	genesis_config_builder.get_named_preset(preset).is_ok()
 }
 
 #[cfg(test)]

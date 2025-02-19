@@ -3,7 +3,7 @@
 use crate::{
 	cli::{
 		self,
-		traits::{Cli, Select},
+		traits::{Cli, Input, Select},
 	},
 	common::prompt::display_message,
 };
@@ -11,9 +11,14 @@ use clap::{Args, Subcommand};
 use frame_benchmarking_cli::PalletCmd;
 use pop_common::{manifest::from_path, Profile};
 use pop_parachains::{
-	build_project, parse_genesis_builder_policy, run_pallet_benchmarking, runtime_binary_path,
+	build_project, check, check_preset, parse_genesis_builder_policy, run_pallet_benchmarking,
+	runtime_binary_path,
 };
 use std::{env::current_dir, fs, path::PathBuf};
+
+const GENESIS_CONFIG_DEFAULT_PRESET: &str = "development";
+const GENSIS_CONFIG_NO_POLICY: &str = "none";
+const GENSIS_CONFIG_RUNTIME_POLICY: &str = "runtime";
 
 /// Arguments for benchmarking a project.
 #[derive(Args)]
@@ -77,6 +82,11 @@ impl Command {
 		if cmd.genesis_builder.is_none() {
 			let policy = guide_user_to_select_genesis_builder(cli)?;
 			cmd.genesis_builder = parse_genesis_builder_policy(policy)?.genesis_builder;
+			if policy == GENSIS_CONFIG_RUNTIME_POLICY {
+				let preset = guide_user_to_input_genesis_preset(cli)?;
+				check_preset(&cmd.runtime.expect("No runtime found"), preset);
+				cmd.genesis_builder_preset = preset;
+			}
 		}
 		cli.warning("NOTE: this may take some time...")?;
 		cli.info("Benchmarking and generating weight file...")?;
@@ -140,13 +150,25 @@ fn guide_user_to_select_runtime(
 fn guide_user_to_select_genesis_builder(cli: &mut impl cli::traits::Cli) -> anyhow::Result<&str> {
 	let mut prompt = cli.select("Select the genesis builder policy:").initial_value("none");
 	for (policy, description) in [
-    	("none", "Do not provide any genesis state"),
-    	("runtime", "Let the runtime build the genesis state through its `BuildGenesisConfig` runtime API. \
+    	(GENSIS_CONFIG_NO_POLICY, "Do not provide any genesis state"),
+    	(GENSIS_CONFIG_RUNTIME_POLICY, "Let the runtime build the genesis state through its `BuildGenesisConfig` runtime API. \
          This will use the `development` preset by default.")
 	] {
 		prompt = prompt.item(policy, policy, description);
 	}
 	Ok(prompt.interact()?)
+}
+
+fn guide_user_to_input_genesis_preset(cli: &mut impl cli::traits::Cli) -> Option<String> {
+	let input = cli.input("Provide the genesis config preset of the runtime (e.g. development, local or your custom preset name)")
+	    .required(false)
+		.placeholder(GENESIS_CONFIG_DEFAULT_PRESET)
+		.default_input(GENESIS_CONFIG_DEFAULT_PRESET)
+		.interact()?;
+	if input.is_empty() {
+		return None;
+	}
+	Some(input)
 }
 
 #[cfg(test)]
