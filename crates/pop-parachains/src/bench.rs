@@ -55,8 +55,14 @@ pub fn list_pallets_and_extrinsics(
 	let temp_dir = tempdir()?;
 	let temp_file_path = temp_dir.path().join("pallets.csv");
 	let guard = StdoutOverride::from_file(&temp_file_path)?;
-	let cmd =
-		PalletCmd::try_parse_from(["", "--runtime", runtime_path.to_str().unwrap(), "--list=all"])?;
+	let cmd = PalletCmd::try_parse_from([
+		"",
+		"--runtime",
+		runtime_path.to_str().unwrap(),
+		"--genesis-builder",
+		"none", // For parsing purpose.
+		"--list=all",
+	])?;
 	cmd.run_with_spec::<BlakeTwo256, HostFunctions>(None)
 		.map_err(|e| anyhow::anyhow!(format!("Failed to list pallets: {}", e.to_string())))?;
 	drop(guard);
@@ -114,6 +120,19 @@ pub fn search_for_extrinsics(
 		.collect::<Vec<String>>();
 	output.dedup();
 	output
+}
+
+/// Get the runtime folder path and throws error if not exist.
+///
+/// # Arguments
+/// * `parent` - Parent path that contains the runtime folder.
+pub fn get_runtime_folder_path(parent: &PathBuf) -> anyhow::Result<PathBuf> {
+	let runtime_path = parent.join("runtime");
+	// Runtime folder does not exist.
+	if !runtime_path.exists() {
+		return Err(anyhow::anyhow!("No runtime found."));
+	}
+	Ok(runtime_path)
 }
 
 fn parse_csv_to_map(file_path: &PathBuf) -> anyhow::Result<HashMap<String, Vec<String>>> {

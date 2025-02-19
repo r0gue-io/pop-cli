@@ -1,24 +1,25 @@
 // SPDX-License-Identifier: GPL-3.0
 
+use super::display_message;
+use crate::cli::{
+	self,
+	traits::{Input, MultiSelect, Select},
+};
 use clap::Args;
 use cliclack::{spinner, ProgressBar};
 use frame_benchmarking_cli::PalletCmd;
 use log::LevelFilter;
 use pop_common::{manifest::from_path, Profile};
 use pop_parachains::{
-	build_project, list_pallets_and_extrinsics, parse_genesis_builder_policy,
-	run_pallet_benchmarking, runtime_binary_path, search_for_extrinsics, search_for_pallets,
+	build_project, get_runtime_folder_path, list_pallets_and_extrinsics,
+	parse_genesis_builder_policy, run_pallet_benchmarking, runtime_binary_path,
+	search_for_extrinsics, search_for_pallets,
 };
 use std::{collections::HashMap, env::current_dir, fs, path::PathBuf};
-use strum::{EnumMessage, IntoEnumIterator};
+use strum::{EnumIs, EnumMessage, IntoEnumIterator};
 use strum_macros::{EnumIter, EnumMessage as EnumMessageDerive};
 
-use crate::cli::{
-	self,
-	traits::{Input, MultiSelect, Select},
-};
-
-use super::display_message;
+const ALL_SELECTED: &str = "*";
 
 #[derive(Args)]
 pub(crate) struct BenchmarkPalletArgs {
@@ -38,6 +39,7 @@ impl BenchmarkPalletArgs {
 				return display_message(&e.to_string(), false, cli);
 			}
 		}
+		let mut pallet_extrinsics: HashMap<String, Vec<String>> = HashMap::default();
 		let spinner = spinner();
 		cli.intro("Benchmarking your pallets")?;
 		cli.warning(
@@ -54,25 +56,36 @@ impl BenchmarkPalletArgs {
 				cli,
 			);
 		}
-		// No runtime path provided, auto-detect the runtime WASM binary. If not found, build the
-		// runtime.
+		// No runtime path provided, locate the runtime binary. If not found, build the runtime.
 		if cmd.runtime.is_none() {
 			cmd.runtime = Some(ensure_runtime_binary_exists(cli, &Profile::Release)?);
 		}
 		// No genesis builder, prompts user to select the genesis builder policy.
 		if cmd.genesis_builder.is_none() {
-			let policy = guide_user_to_select_genesis_builder(cli)?;
-			cmd.genesis_builder = parse_genesis_builder_policy(policy)?.genesis_builder;
+			update_genesis_builder_policy(cmd, cli)?;
 		};
-
-		// Pallet or extrinsic is not provided, prompts user to select pallets or extrinsics.
-		if cmd.pallet.is_none() || cmd.extrinsic.is_none() {
-			guide_user_to_select_pallets_or_extrinsics(cmd, cli, spinner)?;
+		// No pallet provided, prompts user to select the pallets fetched from runtime.
+		if cmd.pallet.is_none() {
+			update_pallets(cmd, cli, &mut pallet_extrinsics, &spinner)?;
+		}
+		// No extrinsic provided, prompts user to select the extrinsics fetched from runtime.
+		if cmd.extrinsic.is_none() {
+			update_extrinsics(cmd, cli, &mut pallet_extrinsics, &spinner)?;
 		}
 
 		// Only prompt user to update parameters when `skip_menu` is not provided.
 		if !self.skip_menu {
-			guide_user_to_update_parameter(cmd, cli)?;
+			loop {
+				match guide_user_to_select_menu_option(cmd, cli)? {
+					BenchmarkPalletMenuOption::GenesisBuilder =>
+						update_genesis_builder_policy(cmd, cli)?,
+					BenchmarkPalletMenuOption::Pallets =>
+						update_pallets(cmd, cli, &mut pallet_extrinsics, &spinner)?,
+					BenchmarkPalletMenuOption::Extrinsics =>
+						update_extrinsics(cmd, cli, &mut pallet_extrinsics, &spinner)?,
+					_ => unimplemented!(),
+				}
+			}
 		}
 
 		cli.warning("NOTE: this may take some time...")?;
@@ -85,34 +98,11 @@ impl BenchmarkPalletArgs {
 	}
 }
 
-#[derive(Debug, EnumIter, EnumMessageDerive, Copy, Clone)]
-pub(crate) enum BenchmarkPalletParameters {
+#[derive(Debug, EnumIter, EnumIs, EnumMessageDerive, Eq, PartialEq, Copy, Clone)]
+pub(crate) enum BenchmarkPalletMenuOption {
 	// Example documentation.
-	#[strum(message = "Steps", detailed_message = "steps")]
-	Steps,
-	// Example documentation.
-	#[strum(message = "Repeats", detailed_message = "repeat")]
-	Repeat,
-	// Example documentation.
-	#[strum(
-		message = "Map size",
-		detailed_message = "",
-		props(field_name = "worst_case_map_values")
-	)]
-	MapSize,
-	// Example documentation.
-	#[strum(message = "High", detailed_message = "highest_range_values")]
-	High,
-	// Example documentation.
-	#[strum(message = "Low", detailed_message = "lowest_range_values")]
-	Low,
-	// Example documentation.
-	#[strum(message = "Additional trie layer", detailed_message = "")]
-	// Example documentation.
+	#[strum(message = "Additional trie layer", detailed_message = "additiona_trie_layer")]
 	AdditionalTrieLayer,
-	// Example documentation.
-	#[strum(message = "Pallets", detailed_message = "pallet")]
-	Pallets,
 	// Example documentation.
 	#[strum(message = "Extrinsics", detailed_message = "extrinsics")]
 	Extrinsics,
@@ -120,13 +110,33 @@ pub(crate) enum BenchmarkPalletParameters {
 	#[strum(message = "Genesis builder policy", detailed_message = "genesis_builder")]
 	GenesisBuilder,
 	// Example documentation.
+	#[strum(message = "High", detailed_message = "highest_range_values")]
+	High,
+	// Example documentation.
+	#[strum(message = "Low", detailed_message = "lowest_range_values")]
+	Low,
+	// Example documentation.
+	#[strum(message = "Map size", detailed_message = "worst_case_map_values")]
+	MapSize,
+	// Example documentation.
+	#[strum(message = "Pallets", detailed_message = "pallet")]
+	Pallets,
+	// Example documentation.
+	#[strum(message = "Repeats", detailed_message = "repeat")]
+	Repeat,
+	// Example documentation.
 	#[strum(message = "Runtime path", detailed_message = "runtime")]
 	Runtime,
+	// Example documentation.
+	#[strum(message = "Steps", detailed_message = "steps")]
+	Steps,
+	#[strum(message = "> Save all parameter changes and continue")]
+	SaveAndContinue,
 }
 
-impl BenchmarkPalletParameters {
+impl BenchmarkPalletMenuOption {
 	pub fn get_value(self, cmd: &PalletCmd) -> anyhow::Result<String> {
-		use BenchmarkPalletParameters::*;
+		use BenchmarkPalletMenuOption::*;
 		Ok(match self {
 			Steps => cmd.steps.to_string(),
 			Repeat => cmd.repeat.to_string(),
@@ -148,6 +158,7 @@ impl BenchmarkPalletParameters {
 				.to_str()
 				.unwrap()
 				.to_string(),
+			SaveAndContinue => String::default(),
 		})
 	}
 
@@ -168,20 +179,67 @@ impl BenchmarkPalletParameters {
 	}
 }
 
+pub fn update_pallets(
+	cmd: &mut PalletCmd,
+	cli: &mut impl cli::traits::Cli,
+	pallet_extrinsics: &mut HashMap<String, Vec<String>>,
+	spinner: &ProgressBar,
+) -> anyhow::Result<()> {
+	fetch_pallet_extrinsics_if_not_exist(cmd, pallet_extrinsics, &spinner)?;
+	cmd.pallet = Some(guide_user_to_select_pallets(&pallet_extrinsics, cli)?);
+	Ok(())
+}
+
+pub fn update_extrinsics(
+	cmd: &mut PalletCmd,
+	cli: &mut impl cli::traits::Cli,
+	pallet_extrinsics: &mut HashMap<String, Vec<String>>,
+	spinner: &ProgressBar,
+) -> anyhow::Result<()> {
+	fetch_pallet_extrinsics_if_not_exist(cmd, pallet_extrinsics, &spinner)?;
+	// Not allow selecting extrinsics when multiple pallets are selected.
+	let pallet_count = cmd.pallet.as_deref().unwrap_or_default().matches(",").count();
+	cmd.extrinsic = Some(match pallet_count {
+		0 => guide_user_to_select_extrinsics(cmd, &pallet_extrinsics, cli)?,
+		_ => ALL_SELECTED.to_string(),
+	});
+	Ok(())
+}
+
+pub fn update_genesis_builder_policy(
+	cmd: &mut PalletCmd,
+	cli: &mut impl cli::traits::Cli,
+) -> anyhow::Result<()> {
+	let policy = guide_user_to_select_genesis_builder(cli)?;
+	cmd.genesis_builder = parse_genesis_builder_policy(policy)?.genesis_builder;
+	Ok(())
+}
+
+pub fn fetch_pallet_extrinsics_if_not_exist(
+	cmd: &PalletCmd,
+	pallet_extrinsics: &mut HashMap<String, Vec<String>>,
+	spinner: &ProgressBar,
+) -> anyhow::Result<()> {
+	if pallet_extrinsics.is_empty() {
+		spinner.start("Fetching pallets and extrinsics from your runtime...");
+		let runtime_path = cmd.runtime.clone().expect("No runtime found.");
+		log::set_max_level(LevelFilter::Off);
+		let fetched_extrinsics = list_pallets_and_extrinsics(&runtime_path)?;
+		*pallet_extrinsics = fetched_extrinsics;
+		log::set_max_level(LevelFilter::Info);
+		spinner.clear();
+	}
+	Ok(())
+}
+
 // Locate runtime WASM binary. If it doesn't exist, trigger build.
 fn ensure_runtime_binary_exists(
 	cli: &mut impl cli::traits::Cli,
 	mode: &Profile,
 ) -> anyhow::Result<PathBuf> {
 	let cwd = current_dir().unwrap_or(PathBuf::from("./"));
+	let mut project_path = get_runtime_folder_path(&cwd)?;
 	let target_path = mode.target_directory(&cwd).join("wbuild");
-	let mut project_path = cwd.join("runtime");
-
-	// Runtime folder does not exist.
-	if !project_path.exists() {
-		return Err(anyhow::anyhow!("No runtime found."));
-	}
-
 	// If there is no TOML file exist, list all directories in the "runtime" folder and prompt the
 	// user to select a runtime.
 	if !project_path.join("Cargo.toml").exists() {
@@ -200,36 +258,10 @@ fn ensure_runtime_binary_exists(
 	}
 }
 
-fn guide_user_to_select_pallets_or_extrinsics(
-	cmd: &mut PalletCmd,
-	cli: &mut impl cli::traits::Cli,
-	spinner: ProgressBar,
-) -> anyhow::Result<()> {
-	spinner.start("Fetching pallets and extrinsics from your runtime...");
-	log::set_max_level(LevelFilter::Off);
-	let runtime_path = cmd.runtime.clone().unwrap();
-	let pallet_extrinsics = list_pallets_and_extrinsics(&runtime_path)?;
-	spinner.clear();
-	let mut selected_pallets = vec![];
-	if cmd.pallet.is_none() {
-		selected_pallets = guide_user_to_select_pallets(cmd, &pallet_extrinsics, cli)?;
-	};
-	if cmd.extrinsic.is_none() {
-		if selected_pallets.len() == 1 {
-			guide_user_to_select_extrinsics(cmd, &pallet_extrinsics, cli)?;
-		} else {
-			cmd.extrinsic = Some("*".to_string());
-		}
-	}
-	log::set_max_level(LevelFilter::Info);
-	Ok(())
-}
-
 fn guide_user_to_select_pallets(
-	cmd: &mut PalletCmd,
 	pallet_extrinsics: &HashMap<String, Vec<String>>,
 	cli: &mut impl cli::traits::Cli,
-) -> anyhow::Result<Vec<String>> {
+) -> anyhow::Result<String> {
 	// Prompt for pallet search input.
 	let input = cli
 		.input(r#"Search for pallets by name separated by commas. ("*" to select all)"#)
@@ -238,8 +270,7 @@ fn guide_user_to_select_pallets(
 		.interact()?;
 
 	if input == "*" {
-		cmd.pallet = Some("*".to_string());
-		return Ok(vec![]);
+		return Ok(ALL_SELECTED.to_string());
 	}
 
 	// Prompt user to select pallets.
@@ -248,16 +279,14 @@ fn guide_user_to_select_pallets(
 	for pallet in pallets {
 		prompt = prompt.item(pallet.clone(), &pallet, "");
 	}
-	let selected = prompt.interact()?;
-	cmd.pallet = Some(selected.join(","));
-	Ok(selected)
+	Ok(prompt.interact()?.join(","))
 }
 
 fn guide_user_to_select_extrinsics(
 	cmd: &mut PalletCmd,
 	pallet_extrinsics: &HashMap<String, Vec<String>>,
 	cli: &mut impl cli::traits::Cli,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<String> {
 	let pallets = cmd.pallet.as_ref().expect("No pallet provided").split(",");
 
 	// Prompt for extrinsic search input.
@@ -268,8 +297,7 @@ fn guide_user_to_select_extrinsics(
 		.interact()?;
 
 	if input == "*" {
-		cmd.extrinsic = Some("*".to_string());
-		return Ok(());
+		return Ok(ALL_SELECTED.to_string());
 	}
 
 	// Prompt user to select extrinsics.
@@ -279,9 +307,7 @@ fn guide_user_to_select_extrinsics(
 	for extrinsic in extrinsics {
 		prompt = prompt.item(extrinsic.clone(), &extrinsic, "");
 	}
-	let selected = prompt.interact()?;
-	cmd.extrinsic = Some(selected.join(","));
-	Ok(())
+	Ok(prompt.interact()?.join(","))
 }
 
 fn guide_user_to_select_runtime(
@@ -313,25 +339,22 @@ fn guide_user_to_select_genesis_builder(cli: &mut impl cli::traits::Cli) -> anyh
 	Ok(prompt.interact()?)
 }
 
-fn guide_user_to_update_parameter(
+fn guide_user_to_select_menu_option(
 	cmd: &mut PalletCmd,
 	cli: &mut impl cli::traits::Cli,
-) -> anyhow::Result<usize> {
+) -> anyhow::Result<BenchmarkPalletMenuOption> {
 	let mut prompt = cli.select("Select the parameter to update:");
-	for (index, param) in BenchmarkPalletParameters::iter().enumerate() {
-		let label = param.get_message().unwrap();
-		let value = param.get_value(cmd)?;
-		prompt = prompt.item(
-			index,
-			format!("({index}) - {label} : {value}"),
-			param.get_documentation().unwrap_or_default(),
-		);
+	for (index, param) in BenchmarkPalletMenuOption::iter().enumerate() {
+		let label = param.get_message().unwrap_or_default();
+		let hint = param.get_documentation().unwrap_or_default();
+		prompt = match param.is_save_and_continue() {
+			true => prompt.item(param, label, hint),
+			false => {
+				let value = param.get_value(cmd)?;
+				prompt.item(param, format!("({index}) - {label}: {value}"), hint)
+			},
+		};
 	}
-	prompt = prompt.item(
-		BenchmarkPalletParameters::iter().len(),
-		"> Save all parameter changes and continue",
-		"",
-	);
 	Ok(prompt.interact()?)
 }
 
