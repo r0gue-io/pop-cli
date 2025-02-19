@@ -10,9 +10,9 @@ use pallet::BenchmarkPallet;
 
 mod pallet;
 
-/// Arguments for bencharmking a project.
+/// Arguments for benchmarking a project.
 #[derive(Args)]
-#[command(args_conflicts_with_subcommands = true, ignore_errors = true)]
+#[command(args_conflicts_with_subcommands = true)]
 pub struct BenchmarkArgs {
 	#[command(subcommand)]
 	pub command: Command,
@@ -22,7 +22,7 @@ pub struct BenchmarkArgs {
 	pub(crate) genesis_builder: Option<String>,
 }
 
-/// Benchmark a pallet or parachain.
+/// Benchmark a pallet or a parachain.
 #[derive(Subcommand)]
 pub enum Command {
 	/// Benchmark the extrinsic weight of FRAME Pallets
