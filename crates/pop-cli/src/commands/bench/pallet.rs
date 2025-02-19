@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
+use clap::Args;
 use cliclack::{spinner, ProgressBar};
 use frame_benchmarking_cli::PalletCmd;
 use log::LevelFilter;
@@ -19,19 +20,24 @@ use crate::cli::{
 
 use super::display_message;
 
-#[derive(Default)]
-pub(crate) struct BenchmarkPallet {
-	pub genesis_builder: Option<String>,
+#[derive(Args)]
+pub(crate) struct BenchmarkPalletArgs {
+	#[command(flatten)]
+	pub command: PalletCmd,
+
 	/// If this is set to true, no parameter menu pops up.
+	#[arg(long = "skip")]
 	pub skip_menu: bool,
 }
 
-impl BenchmarkPallet {
-	pub fn execute(
-		&mut self,
-		cmd: &mut PalletCmd,
-		cli: &mut impl cli::traits::Cli,
-	) -> anyhow::Result<()> {
+impl BenchmarkPalletArgs {
+	pub fn execute(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+		let cmd = &mut self.command;
+		if cmd.list.is_some() || cmd.json_output {
+			if let Err(e) = run_pallet_benchmarking(&cmd) {
+				return display_message(&e.to_string(), false, cli);
+			}
+		}
 		let spinner = spinner();
 		cli.intro("Benchmarking your pallets")?;
 		cli.warning(
@@ -54,12 +60,9 @@ impl BenchmarkPallet {
 			cmd.runtime = Some(ensure_runtime_binary_exists(cli, &Profile::Release)?);
 		}
 		// No genesis builder, prompts user to select the genesis builder policy.
-		let genesis_builder_policy = if self.genesis_builder.is_none() {
+		if cmd.genesis_builder.is_none() {
 			let policy = guide_user_to_select_genesis_builder(cli)?;
 			cmd.genesis_builder = parse_genesis_builder_policy(policy)?.genesis_builder;
-			policy.to_string()
-		} else {
-			"none".to_string()
 		};
 
 		// Pallet or extrinsic is not provided, prompts user to select pallets or extrinsics.
@@ -69,7 +72,7 @@ impl BenchmarkPallet {
 
 		// Only prompt user to update parameters when `skip_menu` is not provided.
 		if !self.skip_menu {
-			guide_user_to_update_parameter(cmd, cli, &genesis_builder_policy)?;
+			guide_user_to_update_parameter(cmd, cli)?;
 		}
 
 		cli.warning("NOTE: this may take some time...")?;
@@ -122,7 +125,7 @@ pub(crate) enum BenchmarkPalletParameters {
 }
 
 impl BenchmarkPalletParameters {
-	pub fn get_value(self, cmd: &PalletCmd, genesis_builder: &str) -> anyhow::Result<String> {
+	pub fn get_value(self, cmd: &PalletCmd) -> anyhow::Result<String> {
 		use BenchmarkPalletParameters::*;
 		Ok(match self {
 			Steps => cmd.steps.to_string(),
@@ -134,7 +137,9 @@ impl BenchmarkPalletParameters {
 			Pallets => self.get_joined_string(cmd.pallet.as_ref().expect("No pallet provided")),
 			Extrinsics =>
 				self.get_joined_string(cmd.extrinsic.as_ref().expect("No extrinsic provided")),
-			GenesisBuilder => genesis_builder.to_owned(),
+			GenesisBuilder =>
+				serde_json::to_string(&cmd.genesis_builder.expect("No chainspec provided"))
+					.expect("Failed to serialize genesis builder policy"),
 			Runtime => cmd
 				.runtime
 				.as_ref()
@@ -311,12 +316,11 @@ fn guide_user_to_select_genesis_builder(cli: &mut impl cli::traits::Cli) -> anyh
 fn guide_user_to_update_parameter(
 	cmd: &mut PalletCmd,
 	cli: &mut impl cli::traits::Cli,
-	genesis_builder: &str,
 ) -> anyhow::Result<usize> {
 	let mut prompt = cli.select("Select the parameter to update:");
 	for (index, param) in BenchmarkPalletParameters::iter().enumerate() {
 		let label = param.get_message().unwrap();
-		let value = param.get_value(cmd, &genesis_builder)?;
+		let value = param.get_value(cmd)?;
 		prompt = prompt.item(
 			index,
 			format!("({index}) - {label} : {value}"),
@@ -347,7 +351,7 @@ mod tests {
 				.expect_warning("NOTE: this may take some time...")
 				.expect_outro("Benchmark completed successfully!");
 
-		let mut cmd = PalletCmd::try_parse_from(&[
+		let cmd = PalletCmd::try_parse_from(&[
 			"",
 			"--runtime",
 			get_mock_runtime_path(true).to_str().unwrap(),
@@ -356,7 +360,7 @@ mod tests {
 			"--extrinsic",
 			"",
 		])?;
-		BenchmarkPallet { genesis_builder: None, skip_menu: true }.execute(&mut cmd, &mut cli)?;
+		BenchmarkPalletArgs { command: cmd, skip_menu: true }.execute(&mut cli)?;
 		cli.verify()?;
 		Ok(())
 	}
@@ -370,7 +374,7 @@ mod tests {
 			          and use `--runtime=<PATH>` instead"
 			));
 
-		let mut cmd = PalletCmd::try_parse_from(&[
+		let cmd = PalletCmd::try_parse_from(&[
 			"",
 			"--chain",
 			spec,
@@ -380,7 +384,7 @@ mod tests {
 			"",
 		])?;
 
-		BenchmarkPallet::default().execute(&mut cmd, &mut cli)?;
+		BenchmarkPalletArgs { command: cmd, skip_menu: true }.execute(&mut cli)?;
 		cli.verify()?;
 		Ok(())
 	}
@@ -394,7 +398,7 @@ mod tests {
 					or the chain spec that you are using was not created by a node that was compiled with the flag: \
 					Other: Exported method Benchmark_benchmark_metadata is not found"
 			);
-		let mut cmd = PalletCmd::try_parse_from(&[
+		let cmd = PalletCmd::try_parse_from(&[
 			"",
 			"--runtime",
 			get_mock_runtime_path(false).to_str().unwrap(),
@@ -403,7 +407,7 @@ mod tests {
 			"--extrinsic",
 			"",
 		])?;
-		BenchmarkPallet::default().execute(&mut cmd, &mut cli)?;
+		BenchmarkPalletArgs { command: cmd, skip_menu: true }.execute(&mut cli)?;
 		cli.verify()?;
 		Ok(())
 	}
@@ -412,7 +416,7 @@ mod tests {
 	fn benchmark_pallet_fails_with_error() -> anyhow::Result<()> {
 		let mut cli =  expect_select_genesis_builder(expect_pallet_benchmarking_intro(MockCli::new()))
 			.expect_outro_cancel("Failed to run benchmarking: Invalid input: No benchmarks found which match your input.");
-		let mut cmd = PalletCmd::try_parse_from(&[
+		let cmd = PalletCmd::try_parse_from(&[
 			"",
 			"--runtime",
 			get_mock_runtime_path(true).to_str().unwrap(),
@@ -421,7 +425,7 @@ mod tests {
 			"--extrinsic",
 			"",
 		])?;
-		BenchmarkPallet { genesis_builder: None, skip_menu: true }.execute(&mut cmd, &mut cli)?;
+		BenchmarkPalletArgs { command: cmd, skip_menu: true }.execute(&mut cli)?;
 		cli.verify()?;
 		Ok(())
 	}
