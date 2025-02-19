@@ -44,10 +44,16 @@ pub fn parse_genesis_builder_policy(policy: &str) -> anyhow::Result<PalletCmd> {
 /// * `binary_path` - Path to the runtime WASM binary.
 /// * `preset` - Optional ID of the genesis config preset. If not provided, it checks the default
 ///   preset.
-pub fn check_preset(binary_path: &PathBuf, preset: Option<&String>) -> bool {
+pub fn check_preset(binary_path: &PathBuf, preset: Option<&String>) -> anyhow::Result<()> {
 	let binary = fs::read(binary_path).expect("No runtime binary found");
 	let genesis_config_builder = GenesisConfigBuilderRuntimeCaller::<HostFunctions>::new(&binary);
-	genesis_config_builder.get_named_preset(preset).is_ok()
+	if !genesis_config_builder.get_named_preset(preset).is_ok() {
+		return Err(anyhow::anyhow!(format!(
+			r#"The preset with name "{:?}" is not available."#,
+			preset
+		)))
+	}
+	Ok(())
 }
 
 #[cfg(test)]
