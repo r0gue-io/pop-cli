@@ -46,7 +46,7 @@ pub fn parse_genesis_builder_policy(policy: &str) -> anyhow::Result<PalletCmd> {
 ///   preset.
 pub fn check_preset(binary_path: &PathBuf, preset: Option<&String>) -> bool {
 	let binary = fs::read(binary_path).expect("No runtime binary found");
-	let genesis_config_builder = GenesisConfigBuilderRuntimeCaller::new(&binary);
+	let genesis_config_builder = GenesisConfigBuilderRuntimeCaller::<HostFunctions>::new(&binary);
 	genesis_config_builder.get_named_preset(preset).is_ok()
 }
 

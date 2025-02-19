@@ -11,7 +11,7 @@ use clap::{Args, Subcommand};
 use frame_benchmarking_cli::PalletCmd;
 use pop_common::{manifest::from_path, Profile};
 use pop_parachains::{
-	build_project, check, check_preset, parse_genesis_builder_policy, run_pallet_benchmarking,
+	build_project, check_preset, parse_genesis_builder_policy, run_pallet_benchmarking,
 	runtime_binary_path,
 };
 use std::{env::current_dir, fs, path::PathBuf};
@@ -83,9 +83,7 @@ impl Command {
 			let policy = guide_user_to_select_genesis_builder(cli)?;
 			cmd.genesis_builder = parse_genesis_builder_policy(policy)?.genesis_builder;
 			if policy == GENSIS_CONFIG_RUNTIME_POLICY {
-				let preset = guide_user_to_input_genesis_preset(cli)?;
-				check_preset(&cmd.runtime.expect("No runtime found"), preset);
-				cmd.genesis_builder_preset = preset;
+				update_genesis_preset(cmd, cli)?;
 			}
 		}
 		cli.warning("NOTE: this may take some time...")?;
@@ -96,6 +94,22 @@ impl Command {
 		display_message("Benchmark completed successfully!", true, cli)?;
 		Ok(())
 	}
+}
+
+fn update_genesis_preset(
+	cmd: &mut PalletCmd,
+	cli: &mut impl cli::traits::Cli,
+) -> anyhow::Result<()> {
+	let preset_input = guide_user_to_input_genesis_preset(cli)?;
+	let runtime_path = cmd.runtime.as_ref().expect("No runtime found");
+	let preset = (!preset_input.is_empty()).then_some(&preset_input);
+	if !check_preset(runtime_path, preset) {
+		return Err(anyhow::anyhow!(format!(
+			r#"The preset with name "{preset_input}" is not available."#
+		)))
+	}
+	cmd.genesis_builder_preset = preset_input;
+	Ok(())
 }
 
 // Locate runtime WASM binary. If it doesn't exist, trigger build.
@@ -159,16 +173,12 @@ fn guide_user_to_select_genesis_builder(cli: &mut impl cli::traits::Cli) -> anyh
 	Ok(prompt.interact()?)
 }
 
-fn guide_user_to_input_genesis_preset(cli: &mut impl cli::traits::Cli) -> Option<String> {
-	let input = cli.input("Provide the genesis config preset of the runtime (e.g. development, local or your custom preset name)")
+fn guide_user_to_input_genesis_preset(cli: &mut impl cli::traits::Cli) -> anyhow::Result<String> {
+	cli.input("Provide the genesis config preset of the runtime (e.g. development, local or your custom preset name)")
 	    .required(false)
 		.placeholder(GENESIS_CONFIG_DEFAULT_PRESET)
 		.default_input(GENESIS_CONFIG_DEFAULT_PRESET)
-		.interact()?;
-	if input.is_empty() {
-		return None;
-	}
-	Some(input)
+		.interact().map_err(|e| anyhow::anyhow!(e.to_string()))
 }
 
 #[cfg(test)]
