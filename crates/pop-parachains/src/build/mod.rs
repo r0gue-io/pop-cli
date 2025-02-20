@@ -11,6 +11,8 @@ use std::{
 	str::FromStr,
 };
 
+pub mod runtime;
+
 /// Build the parachain and returns the path to the binary.
 ///
 /// # Arguments

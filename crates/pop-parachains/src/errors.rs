@@ -72,6 +72,8 @@ pub enum Error {
 	TomlError(#[from] toml_edit::de::Error),
 	#[error("Unsupported command: {0}")]
 	UnsupportedCommand(String),
+	#[error("Unknown container engine `{0:?}`")]
+	UnknownContainerEngine(Option<String>),
 	#[error("Failed to locate the workspace")]
 	WorkspaceLocate,
 }

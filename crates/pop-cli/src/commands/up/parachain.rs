@@ -7,12 +7,13 @@ use crate::{
 use anyhow::{anyhow, Result};
 use clap::Args;
 use pop_parachains::{
-	construct_extrinsic, extract_para_id_from_event, find_dispatchable_by_name,
-	parse_chain_metadata, set_up_client, Action, Payload,
+	construct_extrinsic, extract_para_id_from_event, find_dispatchable_by_name, parse_chain_metadata, set_up_client, Action, ContainerEngine, Payload
 };
 use std::path::{Path, PathBuf};
 use url::Url;
 
+const DEFAULT_PACKAGE: &str = "parachain-template-runtime";
+const DEFAULT_RUNTIME_DIR: &str = "./runtime";
 const DEFAULT_URL: &str = "wss://paseo.rpc.amforc.com/";
 const HELP_HEADER: &str = "Chain deployment options";
 
@@ -34,6 +35,12 @@ pub struct UpChainCommand {
 	/// Websocket endpoint of the relay chain.
 	#[arg(long)]
 	pub(crate) relay_url: Option<Url>,
+	/// Specify the runtime package name.
+	#[clap(long, default_value = DEFAULT_PACKAGE)]
+	pub package: String,
+	/// Define the directory path where the runtime is located.
+	#[clap(name = "runtime", long, default_value = DEFAULT_RUNTIME_DIR)]
+	pub runtime_dir: PathBuf,
 }
 
 impl UpChainCommand {
@@ -58,8 +65,16 @@ impl UpChainCommand {
 	async fn prepare_chain_for_registration(self, cli: &mut impl Cli) -> Result<UpChain> {
 		let chain = self.configure_chain(cli).await?;
 		let para_id = self.resolve_parachain_id(&chain, cli).await?;
+		// TODO: Deterministic build spec generation.
+		// TODO: Update generate_genesis_artifacts to use the runtime instead of building the binary
+		// node.
 		let (genesis_state, genesis_code) = self.resolve_genesis_files(para_id, cli).await?;
-		Ok(UpChain { id: para_id, genesis_state, genesis_code, chain })
+		Ok(UpChain {
+			id: para_id,
+			genesis_state,
+			genesis_code,
+			chain,
+		})
 	}
 
 	// Configures the chain by resolving the URL and fetching its metadata.
@@ -108,6 +123,14 @@ impl UpChainCommand {
 			},
 		}
 	}
+
+	// Generates chain spec files for the parachain.
+	async fn generate_deterministic_runtime(&self, cli: &mut impl Cli) -> anyhow::Result<()> {
+		let engine = ContainerEngine::detect()?;
+		// TODO: Warning if docker.
+		// format!("{engine} pull {image}:{tag}");
+		Ok(())
+	}
 }
 
 // Represents the configuration for deploying a chain.
@@ -128,7 +151,7 @@ impl UpChain {
 
 	// Prepares and returns the encoded call data for registering a parachain.
 	fn prepare_register_parachain_call_data(&self) -> Result<Vec<u8>> {
-		let UpChain { id, genesis_code, genesis_state, chain } = self;
+		let UpChain { id, genesis_code, genesis_state, chain, .. } = self;
 		let ex = find_dispatchable_by_name(
 			&chain.pallets,
 			Action::Register.pallet_name(),
@@ -260,6 +283,7 @@ mod tests {
 			genesis_code: Some(genesis_code.clone()),
 			relay_url: Some(Url::parse(POP_NETWORK_TESTNET_URL)?),
 			path: None,
+			..Default::default()
 		}
 		.execute(&mut cli)
 		.await?;
@@ -311,6 +335,7 @@ mod tests {
 			genesis_code: None,
 			relay_url: Some(Url::parse(POP_NETWORK_TESTNET_URL)?),
 			path: Some(project_path.clone()),
+			..Default::default()
 		}
 		.execute(&mut cli)
 		.await?;
@@ -334,6 +359,7 @@ mod tests {
 			genesis_code: Some(genesis_code.clone()),
 			relay_url: Some(Url::parse(POP_NETWORK_TESTNET_URL)?),
 			path: None,
+			..Default::default()
 		}
 		.execute(&mut cli)
 		.await?;
