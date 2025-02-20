@@ -46,7 +46,7 @@ impl Command {
 
 	fn bechmark_pallet(cmd: &mut PalletCmd, cli: &mut impl Cli) -> anyhow::Result<()> {
 		if cmd.list.is_some() || cmd.json_output {
-			if let Err(e) = run_pallet_benchmarking(&cmd) {
+			if let Err(e) = run_pallet_benchmarking(cmd) {
 				return display_message(&e.to_string(), false, cli);
 			}
 		}
