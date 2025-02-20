@@ -2,7 +2,7 @@ use anyhow::Result;
 use clap::Parser;
 use csv::Reader;
 use frame_benchmarking_cli::PalletCmd;
-use rust_fuzzy_search::fuzzy_search_sorted;
+use rust_fuzzy_search::fuzzy_search_best_n;
 use sc_chain_spec::GenesisConfigBuilderRuntimeCaller;
 use sp_runtime::traits::BlakeTwo256;
 use std::{
@@ -20,6 +20,10 @@ type HostFunctions = (
 	cumulus_primitives_proof_size_hostfunction::storage_proof_size::HostFunctions,
 );
 
+/// Type alias for records where the key is the pallet name and the value is a array of its
+/// extrinsics.
+pub type PalletExtrinsicsCollection = HashMap<String, Vec<String>>;
+
 /// Check if a runtime has a genesis config preset.
 ///
 /// # Arguments
@@ -27,7 +31,7 @@ type HostFunctions = (
 /// * `preset` - Optional ID of the genesis config preset. If not provided, it checks the default
 ///   preset.
 pub fn check_preset(binary_path: &PathBuf, preset: Option<&String>) -> anyhow::Result<()> {
-	let binary = fs::read(binary_path).expect("No runtime binary found");
+	let binary = fs::read(binary_path).map_err(anyhow::Error::from)?;
 	let genesis_config_builder = GenesisConfigBuilderRuntimeCaller::<HostFunctions>::new(&binary);
 	if genesis_config_builder.get_named_preset(preset).is_err() {
 		return Err(anyhow::anyhow!(format!(
@@ -56,7 +60,7 @@ pub fn get_runtime_path(parent: &Path) -> anyhow::Result<PathBuf> {
 /// * `runtime_path` - Path to the runtime WASM binary.
 pub fn list_pallets_and_extrinsics(
 	runtime_path: &Path,
-) -> anyhow::Result<HashMap<String, Vec<String>>> {
+) -> anyhow::Result<PalletExtrinsicsCollection> {
 	let temp_dir = tempdir()?;
 	let temp_file_path = temp_dir.path().join("pallets.csv");
 	let guard = StdoutOverride::from_file(&temp_file_path)?;
@@ -92,10 +96,10 @@ pub fn parse_genesis_builder_policy(policy: &str) -> anyhow::Result<PalletCmd> {
 	})
 }
 
-fn parse_csv_to_map(file_path: &PathBuf) -> anyhow::Result<HashMap<String, Vec<String>>> {
+fn parse_csv_to_map(file_path: &PathBuf) -> anyhow::Result<PalletExtrinsicsCollection> {
 	let file = File::open(file_path)?;
 	let mut rdr = Reader::from_reader(BufReader::new(file));
-	let mut map: HashMap<String, Vec<String>> = HashMap::new();
+	let mut map: PalletExtrinsicsCollection = HashMap::new();
 	for result in rdr.records() {
 		let record = result?;
 		if record.len() == 2 {
@@ -122,18 +126,19 @@ pub fn run_pallet_benchmarking(cmd: &PalletCmd) -> Result<()> {
 /// * `pallet_extrinsics` - A mapping of pallets and their extrinsics.
 /// * `input` - The search input used to match pallets.
 pub fn search_for_pallets(
-	pallet_extrinsics: &HashMap<String, Vec<String>>,
+	pallet_extrinsics: &PalletExtrinsicsCollection,
 	input: &str,
+	limit: usize,
 ) -> Vec<String> {
 	let pallets = pallet_extrinsics.keys();
 
 	if input.is_empty() {
-		return pallets.map(String::from).collect();
+		return pallets.map(String::from).take(limit).collect();
 	}
 	let inputs = input.split(",");
 	let pallets: Vec<&str> = pallets.map(|s| s.as_str()).collect();
 	let mut output = inputs
-		.flat_map(|input| fuzzy_search_sorted(input, &pallets))
+		.flat_map(|input| fuzzy_search_best_n(input, &pallets, limit))
 		.map(|v| v.0.to_string())
 		.collect::<Vec<String>>();
 	output.dedup();
@@ -147,9 +152,10 @@ pub fn search_for_pallets(
 /// * `pallets` - List of pallets used to find the extrinsics.
 /// * `input` - The search input used to match extrinsics.
 pub fn search_for_extrinsics(
-	pallet_extrinsics: &HashMap<String, Vec<String>>,
+	pallet_extrinsics: &PalletExtrinsicsCollection,
 	pallets: Vec<String>,
 	input: &str,
+	limit: usize,
 ) -> Vec<String> {
 	let extrinsics: Vec<&str> = pallet_extrinsics
 		.iter()
@@ -158,11 +164,11 @@ pub fn search_for_extrinsics(
 		.collect();
 
 	if input.is_empty() {
-		return extrinsics.into_iter().map(String::from).collect();
+		return extrinsics.into_iter().map(String::from).take(limit).collect();
 	}
 	let inputs = input.split(",");
 	let mut output = inputs
-		.flat_map(|input| fuzzy_search_sorted(input, &extrinsics))
+		.flat_map(|input| fuzzy_search_best_n(input, &extrinsics, limit))
 		.map(|v| v.0.to_string())
 		.collect::<Vec<String>>();
 	output.dedup();

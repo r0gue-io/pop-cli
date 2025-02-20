@@ -13,7 +13,7 @@ use pop_common::{manifest::from_path, Profile};
 use pop_parachains::{
 	build_project, check_preset, get_runtime_path, list_pallets_and_extrinsics,
 	parse_genesis_builder_policy, run_pallet_benchmarking, runtime_binary_path,
-	search_for_extrinsics, search_for_pallets,
+	search_for_extrinsics, search_for_pallets, PalletExtrinsicsCollection,
 };
 use std::{collections::HashMap, env::current_dir, fs, path::PathBuf};
 use strum::{EnumIs, EnumMessage, IntoEnumIterator};
@@ -22,6 +22,8 @@ use strum_macros::{EnumIter, EnumMessage as EnumMessageDerive};
 const ALL_SELECTED: &str = "*";
 const GENESIS_CONFIG_NO_POLICY: &str = "none";
 const GENESIS_CONFIG_RUNTIME_POLICY: &str = "runtime";
+const MAX_EXTRINSIC_LIMIT: usize = 10;
+const MAX_PALLET_LIMIT: usize = 20;
 
 #[derive(Args)]
 pub(crate) struct BenchmarkPalletArgs {
@@ -41,7 +43,7 @@ impl BenchmarkPalletArgs {
 				return display_message(&e.to_string(), false, cli);
 			}
 		}
-		let mut pallet_extrinsics: HashMap<String, Vec<String>> = HashMap::default();
+		let mut pallet_extrinsics: PalletExtrinsicsCollection = HashMap::default();
 		let spinner = spinner();
 		cli.intro("Benchmarking your pallets")?;
 		cli.warning(
@@ -71,7 +73,9 @@ impl BenchmarkPalletArgs {
 		if cmd.genesis_builder.is_none() {
 			let policy = update_genesis_builder_policy(cmd, cli)?;
 			if policy == GENESIS_CONFIG_RUNTIME_POLICY {
-				update_genesis_preset(cmd, cli)?;
+				if let Err(e) = update_genesis_preset(cmd, cli, &spinner) {
+					return display_message(&e.to_string(), false, cli);
+				};
 			};
 		}
 		// No pallet provided, prompts user to select the pallets fetched from runtime.
@@ -86,16 +90,12 @@ impl BenchmarkPalletArgs {
 		// Only prompt user to update parameters when `skip_menu` is not provided.
 		if !self.skip_menu {
 			loop {
-				match guide_user_to_select_menu_option(cmd, cli)? {
-					BenchmarkPalletMenuOption::GenesisBuilder => {
-						let _ = update_genesis_builder_policy(cmd, cli)?;
-					},
-					BenchmarkPalletMenuOption::Pallets =>
-						update_pallets(cmd, cli, &mut pallet_extrinsics, &spinner)?,
-					BenchmarkPalletMenuOption::Extrinsics =>
-						update_extrinsics(cmd, cli, &mut pallet_extrinsics, &spinner)?,
-					_ => unimplemented!(),
-				};
+				let option = guide_user_to_select_menu_option(cmd, cli)?;
+				match option.update(cmd, &mut pallet_extrinsics, cli, &spinner) {
+					Ok(true) => break,
+					Ok(false) => continue,
+					Err(e) => cli.info(&e.to_string())?,
+				}
 			}
 		}
 
@@ -112,41 +112,44 @@ impl BenchmarkPalletArgs {
 #[derive(Debug, EnumIter, EnumIs, EnumMessageDerive, Eq, PartialEq, Copy, Clone)]
 pub(crate) enum BenchmarkPalletMenuOption {
 	// Example documentation.
-	#[strum(message = "Additional trie layer", detailed_message = "additiona_trie_layer")]
+	#[strum(message = "Additional trie layer")]
 	AdditionalTrieLayer,
 	// Example documentation.
-	#[strum(message = "Extrinsics", detailed_message = "extrinsics")]
+	#[strum(message = "Extrinsics")]
 	Extrinsics,
 	// Example documentation.
-	#[strum(message = "Genesis builder policy", detailed_message = "genesis_builder")]
+	#[strum(message = "Genesis builder policy")]
 	GenesisBuilder,
 	// Example documentation.
-	#[strum(message = "High", detailed_message = "highest_range_values")]
+	#[strum(message = "High")]
 	High,
 	// Example documentation.
-	#[strum(message = "Low", detailed_message = "lowest_range_values")]
+	#[strum(message = "Low")]
 	Low,
 	// Example documentation.
-	#[strum(message = "Map size", detailed_message = "worst_case_map_values")]
+	#[strum(message = "Map size")]
 	MapSize,
 	// Example documentation.
-	#[strum(message = "Pallets", detailed_message = "pallet")]
+	#[strum(message = "Pallets")]
 	Pallets,
 	// Example documentation.
-	#[strum(message = "Repeats", detailed_message = "repeat")]
+	#[strum(message = "Repeats")]
 	Repeat,
 	// Example documentation.
-	#[strum(message = "Runtime path", detailed_message = "runtime")]
+	#[strum(message = "Runtime path")]
 	Runtime,
 	// Example documentation.
-	#[strum(message = "Steps", detailed_message = "steps")]
+	#[strum(message = "Genesis config preset")]
+	GenesisConfigPreset,
+	// Example documentation.
+	#[strum(message = "Steps")]
 	Steps,
 	#[strum(message = "> Save all parameter changes and continue")]
 	SaveAndContinue,
 }
 
 impl BenchmarkPalletMenuOption {
-	pub fn get_value(self, cmd: &PalletCmd) -> anyhow::Result<String> {
+	pub fn read_command(self, cmd: &PalletCmd) -> anyhow::Result<String> {
 		use BenchmarkPalletMenuOption::*;
 		Ok(match self {
 			Steps => cmd.steps.to_string(),
@@ -158,6 +161,7 @@ impl BenchmarkPalletMenuOption {
 			Pallets => self.get_joined_string(cmd.pallet.as_ref().expect("No pallet provided")),
 			Extrinsics =>
 				self.get_joined_string(cmd.extrinsic.as_ref().expect("No extrinsic provided")),
+			GenesisConfigPreset => cmd.genesis_builder_preset.clone(),
 			GenesisBuilder =>
 				serde_json::to_string(&cmd.genesis_builder.expect("No chainspec provided"))
 					.expect("Failed to serialize genesis builder policy"),
@@ -173,11 +177,83 @@ impl BenchmarkPalletMenuOption {
 		})
 	}
 
+	fn update(
+		self,
+		cmd: &mut PalletCmd,
+		pallet_extrinsics: &mut PalletExtrinsicsCollection,
+		cli: &mut impl cli::traits::Cli,
+		spinner: &ProgressBar,
+	) -> anyhow::Result<bool> {
+		use BenchmarkPalletMenuOption::*;
+		match self {
+			GenesisBuilder => update_genesis_builder_policy(cmd, cli).map(|_| ())?,
+			GenesisConfigPreset =>
+				cmd.genesis_builder_preset =
+					guide_user_to_input_genesis_preset(cli, &cmd.genesis_builder_preset)?,
+			Pallets => update_pallets(cmd, cli, pallet_extrinsics, &spinner)?,
+			Extrinsics => update_extrinsics(cmd, cli, pallet_extrinsics, &spinner)?,
+			Steps => cmd.steps = self.input_parameter(cmd, cli, true)?.parse()?,
+			Repeat => cmd.repeat = self.input_parameter(cmd, cli, true)?.parse()?,
+			AdditionalTrieLayer =>
+				cmd.additional_trie_layers = self.input_parameter(cmd, cli, true)?.parse()?,
+			MapSize => cmd.worst_case_map_values = self.input_parameter(cmd, cli, true)?.parse()?,
+			High => cmd.highest_range_values = self.input_range_values(cmd, cli, true)?,
+			Low => cmd.lowest_range_values = self.input_range_values(cmd, cli, true)?,
+			Runtime => cmd.runtime = Some(guide_user_to_select_runtime_path(cli)?),
+			SaveAndContinue => return Ok(true),
+		};
+		Ok(false)
+	}
+
+	fn input_parameter(
+		self,
+		cmd: &PalletCmd,
+		cli: &mut impl cli::traits::Cli,
+		is_required: bool,
+	) -> anyhow::Result<String> {
+		let default_value = self.read_command(cmd)?;
+		cli.input(format!(
+			r#"Provide value to the parameter "{}""#,
+			self.get_message().unwrap_or_default()
+		))
+		.required(is_required)
+		.placeholder(&default_value)
+		.default_input(&default_value)
+		.interact()
+		.map(|v| v.trim().to_string())
+		.map_err(|e| anyhow::anyhow!(e.to_string()))
+	}
+
+	fn input_range_values(
+		self,
+		cmd: &PalletCmd,
+		cli: &mut impl cli::traits::Cli,
+		is_required: bool,
+	) -> anyhow::Result<Vec<u32>> {
+		let default_value = self.read_command(cmd)?;
+		let input = cli
+			.input(format!(
+				r#"Provide range values to the parameter "{}" (number separated by commas)"#,
+				self.get_message().unwrap_or_default()
+			))
+			.required(is_required)
+			.placeholder(&default_value)
+			.default_input(&default_value)
+			.interact()
+			.map(|v| v.trim().to_string())
+			.map_err(anyhow::Error::from)?;
+		let mut parsed_inputs = vec![];
+		for num in input.split(",") {
+			parsed_inputs.push(num.parse()?);
+		}
+		Ok(parsed_inputs)
+	}
+
 	fn get_range_values<T: ToString>(self, range_values: &[T]) -> String {
 		if range_values.is_empty() {
 			return "None".to_string();
 		}
-		range_values.iter().map(|i| i.to_string()).collect::<String>()
+		range_values.iter().map(ToString::to_string).collect::<Vec<_>>().join(", ")
 	}
 
 	fn get_joined_string(self, s: &String) -> String {
@@ -193,7 +269,7 @@ impl BenchmarkPalletMenuOption {
 pub fn update_pallets(
 	cmd: &mut PalletCmd,
 	cli: &mut impl cli::traits::Cli,
-	pallet_extrinsics: &mut HashMap<String, Vec<String>>,
+	pallet_extrinsics: &mut PalletExtrinsicsCollection,
 	spinner: &ProgressBar,
 ) -> anyhow::Result<()> {
 	fetch_pallet_extrinsics_if_not_exist(cmd, pallet_extrinsics, &spinner)?;
@@ -204,7 +280,7 @@ pub fn update_pallets(
 pub fn update_extrinsics(
 	cmd: &mut PalletCmd,
 	cli: &mut impl cli::traits::Cli,
-	pallet_extrinsics: &mut HashMap<String, Vec<String>>,
+	pallet_extrinsics: &mut PalletExtrinsicsCollection,
 	spinner: &ProgressBar,
 ) -> anyhow::Result<()> {
 	fetch_pallet_extrinsics_if_not_exist(cmd, pallet_extrinsics, &spinner)?;
@@ -228,7 +304,7 @@ pub fn update_genesis_builder_policy(
 
 pub fn fetch_pallet_extrinsics_if_not_exist(
 	cmd: &PalletCmd,
-	pallet_extrinsics: &mut HashMap<String, Vec<String>>,
+	pallet_extrinsics: &mut PalletExtrinsicsCollection,
 	spinner: &ProgressBar,
 ) -> anyhow::Result<()> {
 	if pallet_extrinsics.is_empty() {
@@ -246,11 +322,14 @@ pub fn fetch_pallet_extrinsics_if_not_exist(
 fn update_genesis_preset(
 	cmd: &mut PalletCmd,
 	cli: &mut impl cli::traits::Cli,
+	spinner: &ProgressBar,
 ) -> anyhow::Result<()> {
 	let preset_input = guide_user_to_input_genesis_preset(cli, &cmd.genesis_builder_preset)?;
 	let runtime_path = cmd.runtime.as_ref().expect("No runtime found");
 	let preset = (!preset_input.is_empty()).then_some(&preset_input);
+	spinner.start("Verifying genesis config preset...");
 	check_preset(runtime_path, preset)?;
+	spinner.clear();
 	cmd.genesis_builder_preset = preset_input;
 	Ok(())
 }
@@ -262,14 +341,7 @@ fn ensure_runtime_binary_exists(
 ) -> anyhow::Result<PathBuf> {
 	let cwd = current_dir().unwrap_or(PathBuf::from("./"));
 	let target_path = mode.target_directory(&cwd).join("wbuild");
-	let mut project_path = get_runtime_path(&cwd)?;
-
-	// If there is no TOML file exist, list all directories in the "runtime" folder and prompt the
-	// user to select a runtime.
-	if !project_path.join("Cargo.toml").exists() {
-		let runtime = guide_user_to_select_runtime(&project_path, cli)?;
-		project_path = project_path.join(runtime);
-	}
+	let project_path = guide_user_to_select_runtime_path(cli)?;
 
 	match runtime_binary_path(&target_path, &project_path) {
 		Ok(binary_path) => Ok(binary_path),
@@ -283,7 +355,7 @@ fn ensure_runtime_binary_exists(
 }
 
 fn guide_user_to_select_pallets(
-	pallet_extrinsics: &HashMap<String, Vec<String>>,
+	pallet_extrinsics: &PalletExtrinsicsCollection,
 	cli: &mut impl cli::traits::Cli,
 ) -> anyhow::Result<String> {
 	// Prompt for pallet search input.
@@ -293,12 +365,12 @@ fn guide_user_to_select_pallets(
 		.required(false)
 		.interact()?;
 
-	if input == "*" {
+	if input.trim() == ALL_SELECTED {
 		return Ok(ALL_SELECTED.to_string());
 	}
 
 	// Prompt user to select pallets.
-	let pallets = search_for_pallets(pallet_extrinsics, &input);
+	let pallets = search_for_pallets(pallet_extrinsics, &input, MAX_PALLET_LIMIT);
 	let mut prompt = cli.multiselect("Select the pallets to benchmark:").required(true);
 	for pallet in pallets {
 		prompt = prompt.item(pallet.clone(), &pallet, "");
@@ -308,7 +380,7 @@ fn guide_user_to_select_pallets(
 
 fn guide_user_to_select_extrinsics(
 	cmd: &mut PalletCmd,
-	pallet_extrinsics: &HashMap<String, Vec<String>>,
+	pallet_extrinsics: &PalletExtrinsicsCollection,
 	cli: &mut impl cli::traits::Cli,
 ) -> anyhow::Result<String> {
 	let pallets = cmd.pallet.as_ref().expect("No pallet provided").split(",");
@@ -320,13 +392,17 @@ fn guide_user_to_select_extrinsics(
 		.required(false)
 		.interact()?;
 
-	if input == "*" {
+	if input.trim() == ALL_SELECTED {
 		return Ok(ALL_SELECTED.to_string());
 	}
 
 	// Prompt user to select extrinsics.
-	let extrinsics =
-		search_for_extrinsics(pallet_extrinsics, pallets.map(String::from).collect(), &input);
+	let extrinsics = search_for_extrinsics(
+		pallet_extrinsics,
+		pallets.map(String::from).collect(),
+		&input,
+		MAX_EXTRINSIC_LIMIT,
+	);
 	let mut prompt = cli.multiselect("Select the extrinsics to benchmark:").required(true);
 	for extrinsic in extrinsics {
 		prompt = prompt.item(extrinsic.clone(), &extrinsic, "");
@@ -334,21 +410,55 @@ fn guide_user_to_select_extrinsics(
 	Ok(prompt.interact()?.join(","))
 }
 
+fn guide_user_to_select_runtime_path(cli: &mut impl cli::traits::Cli) -> anyhow::Result<PathBuf> {
+	let cwd = current_dir().unwrap_or(PathBuf::from("./"));
+	let mut project_path = get_runtime_path(&cwd).or_else(|_| {
+		cli.warning(format!(
+			r#"No runtime folder found at {:?}. Please input the runtime path manually."#,
+			cwd
+		))?;
+		guide_user_to_input_runtime_path(cli)
+	})?;
+	// If there is no TOML file exist, list all directories in the "runtime" folder and prompt the
+	// user to select a runtime.
+	if !project_path.join("Cargo.toml").exists() {
+		let runtime = guide_user_to_select_runtime(&project_path, cli)?;
+		project_path = project_path.join(runtime);
+	}
+	Ok(project_path)
+}
+
+fn guide_user_to_input_runtime_path(cli: &mut impl cli::traits::Cli) -> anyhow::Result<PathBuf> {
+	let input = cli
+		.input("Please provide the path to the runtime or parachain project.")
+		.required(true)
+		.default_input("./runtime")
+		.placeholder("./runtime")
+		.interact()
+		.map(PathBuf::from)
+		.map_err(anyhow::Error::from)?;
+	input.canonicalize().map_err(anyhow::Error::from)
+}
+
 fn guide_user_to_select_runtime(
 	project_path: &PathBuf,
 	cli: &mut impl cli::traits::Cli,
 ) -> anyhow::Result<PathBuf> {
-	let runtimes = fs::read_dir(project_path).unwrap();
 	let mut prompt = cli.select("Select the runtime:");
-	for runtime in runtimes {
-		let path = runtime.unwrap().path();
-		let manifest = from_path(Some(path.as_path()))?;
+	let mut found_runtime = false;
+	for entry in fs::read_dir(project_path)? {
+		let path = entry?.path();
+		let manifest = from_path(Some(&path))?;
 		let package = manifest.package();
 		let name = package.clone().name;
-		let description = package.description().unwrap_or_default().to_string();
-		prompt = prompt.item(path, &name, &description);
+		let description = package.description().unwrap_or_default();
+		prompt = prompt.item(path, &name, description);
+		found_runtime = true;
 	}
-	Ok(prompt.interact()?)
+	if !found_runtime {
+		return Err(anyhow::anyhow!("No runtime found."));
+	}
+	prompt.interact().map_err(Into::into)
 }
 
 fn guide_user_to_select_genesis_builder(cli: &mut impl cli::traits::Cli) -> anyhow::Result<&str> {
@@ -371,13 +481,13 @@ fn guide_user_to_select_menu_option(
 	for (index, param) in BenchmarkPalletMenuOption::iter().enumerate() {
 		let label = param.get_message().unwrap_or_default();
 		let hint = param.get_documentation().unwrap_or_default();
-		prompt = match param.is_save_and_continue() {
-			true => prompt.item(param, label, hint),
-			false => {
-				let value = param.get_value(cmd)?;
-				prompt.item(param, format!("({index}) - {label}: {value}"), hint)
-			},
+		let formatted_label = if param.is_save_and_continue() {
+			label
+		} else {
+			let value = param.read_command(cmd)?;
+			&format!("({index}) - {label}: {value}")
 		};
+		prompt = prompt.item(param, formatted_label, hint);
 	}
 	Ok(prompt.interact()?)
 }
@@ -390,7 +500,7 @@ fn guide_user_to_input_genesis_preset(
 	    .required(false)
 		.placeholder(default_value)
 		.default_input(default_value)
-		.interact().map_err(|e| anyhow::anyhow!(e.to_string()))
+		.interact().map_err(anyhow::Error::from)
 }
 
 #[cfg(test)]
