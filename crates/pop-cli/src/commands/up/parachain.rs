@@ -2,8 +2,9 @@
 
 use crate::{
 	build::spec::{BuildSpec, BuildSpecCommand},
-	call::chain::{submit_extrinsic_with_wallet, Chain},
+	call::chain::Chain,
 	cli::traits::*,
+	common::wallet::submit_extrinsic_with_wallet,
 };
 use anyhow::{anyhow, Result};
 use clap::Args;
