@@ -39,20 +39,17 @@ impl Command {
 	/// Executes the command.
 	pub(crate) fn execute(args: BenchmarkArgs) -> anyhow::Result<()> {
 		let mut cli = cli::Cli;
-
 		match args.command {
-			Command::Pallet(mut cmd) => {
-				if cmd.list.is_some() || cmd.json_output {
-					if let Err(e) = run_pallet_benchmarking(&cmd) {
-						return display_message(&e.to_string(), false, &mut cli);
-					}
-				}
-				Command::bechmark_pallet(&mut cmd, &mut cli)
-			},
+			Command::Pallet(mut cmd) => Command::bechmark_pallet(&mut cmd, &mut cli),
 		}
 	}
 
 	fn bechmark_pallet(cmd: &mut PalletCmd, cli: &mut impl Cli) -> anyhow::Result<()> {
+		if cmd.list.is_some() || cmd.json_output {
+			if let Err(e) = run_pallet_benchmarking(&cmd) {
+				return display_message(&e.to_string(), false, cli);
+			}
+		}
 		cli.intro("Benchmarking your pallets")?;
 		cli.warning(
 			"NOTE: the `pop bench pallet` is not yet battle tested - double check the results.",
@@ -309,7 +306,7 @@ mod tests {
 	#[test]
 	fn guide_user_to_input_genesis_preset_works() -> anyhow::Result<()> {
 		let preset = String::from("development");
-		let mut cli = exepct_input_genesis_preset(MockCli::new(), &preset);
+		let mut cli = expect_input_genesis_preset(MockCli::new(), &preset);
 		guide_user_to_input_genesis_preset(&mut cli, &preset)?;
 		cli.verify()?;
 		Ok(())
@@ -336,7 +333,7 @@ mod tests {
 		)
 	}
 
-	fn exepct_input_genesis_preset(cli: MockCli, input: &str) -> MockCli {
+	fn expect_input_genesis_preset(cli: MockCli, input: &str) -> MockCli {
 		cli.expect_input(
     	    "Provide the genesis config preset of the runtime (e.g. development, local_testnet or your custom preset name)",
             input.to_string()
