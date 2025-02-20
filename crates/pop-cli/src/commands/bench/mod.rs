@@ -7,7 +7,6 @@ use crate::{
 use clap::{Args, Subcommand};
 use frame_benchmarking_cli::PalletCmd;
 use pallet::BenchmarkPallet;
-use pop_parachains::run_pallet_benchmarking;
 
 mod pallet;
 
@@ -32,9 +31,7 @@ impl Command {
 	pub(crate) fn execute(args: BenchmarkArgs) -> anyhow::Result<()> {
 		let mut cli = cli::Cli;
 		match args.command {
-			Command::Pallet(mut cmd) => {
-				BenchmarkPallet::default().execute(&mut cmd, &mut cli)
-			},
+			Command::Pallet(mut cmd) => BenchmarkPallet::default().execute(&mut cmd, &mut cli),
 		}
 	}
 }

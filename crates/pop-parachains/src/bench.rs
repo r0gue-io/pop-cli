@@ -27,7 +27,7 @@ pub fn check_preset(binary_path: &PathBuf, preset: Option<&String>) -> anyhow::R
 		return Err(anyhow::anyhow!(format!(
 			r#"The preset with name "{:?}" is not available."#,
 			preset
-		)));
+		)))
 	}
 	Ok(())
 }
