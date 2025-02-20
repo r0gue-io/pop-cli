@@ -7,7 +7,6 @@ use crate::{
 use clap::{Args, Subcommand};
 use frame_benchmarking_cli::PalletCmd;
 use pallet::BenchmarkPallet;
-use pop_parachains::run_pallet_benchmarking;
 
 mod pallet;
 
