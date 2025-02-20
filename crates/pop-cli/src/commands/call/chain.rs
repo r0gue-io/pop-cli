@@ -371,8 +371,8 @@ pub(crate) struct Chain {
 
 /// Represents a configured dispatchable function call, including the pallet, function, arguments,
 /// and signing options.
-#[derive(Clone)]
-struct Call {
+#[derive(Clone, Default)]
+pub(crate) struct Call {
 	/// The dispatchable function to execute.
 	function: Function,
 	/// The dispatchable function arguments, encoded as strings.
@@ -393,7 +393,7 @@ struct Call {
 
 impl Call {
 	// Prepares the extrinsic.
-	fn prepare_extrinsic(
+	pub(crate) fn prepare_extrinsic(
 		&self,
 		client: &OnlineClient<SubstrateConfig>,
 		cli: &mut impl Cli,
