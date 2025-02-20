@@ -29,7 +29,7 @@ pub(crate) struct UpArgs {
 
 	#[command(flatten)]
 	#[cfg(feature = "parachain")]
-	pub(crate) parachain: parachain::UpParachainCommand,
+	pub(crate) parachain: parachain::UpChainCommand,
 
 	#[command(flatten)]
 	#[cfg(feature = "contract")]
@@ -93,7 +93,7 @@ impl Command {
 
 #[cfg(test)]
 mod tests {
-	use super::{contract::UpContractCommand, parachain::UpParachainCommand, *};
+	use super::{contract::UpContractCommand, parachain::UpChainCommand, *};
 
 	use cli::MockCli;
 	use duct::cmd;
@@ -122,7 +122,7 @@ mod tests {
 				skip_confirm: false,
 				valid: false,
 			},
-			parachain: UpParachainCommand::default(),
+			parachain: UpChainCommand::default(),
 			command: None,
 		})
 	}

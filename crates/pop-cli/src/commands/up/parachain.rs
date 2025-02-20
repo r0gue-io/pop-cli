@@ -12,16 +12,15 @@ use pop_parachains::{
 	construct_extrinsic, extract_para_id_from_event, find_dispatchable_by_name,
 	parse_chain_metadata, set_up_client, Action, Payload,
 };
-
 use std::path::PathBuf;
 use url::Url;
 
 const DEFAULT_URL: &str = "wss://paseo.rpc.amforc.com/";
-const HELP_HEADER: &str = "Parachain deployment options";
+const HELP_HEADER: &str = "Chain deployment options";
 
 #[derive(Args, Clone, Default)]
 #[clap(next_help_heading = HELP_HEADER)]
-pub struct UpParachainCommand {
+pub struct UpChainCommand {
 	/// Path to the chain directory.
 	#[clap(skip)]
 	pub(crate) path: Option<PathBuf>,
@@ -39,47 +38,30 @@ pub struct UpParachainCommand {
 	pub(crate) relay_url: Option<Url>,
 }
 
-impl UpParachainCommand {
+impl UpChainCommand {
 	/// Executes the command.
 	pub(crate) async fn execute(self, cli: &mut impl Cli) -> Result<()> {
-		cli.intro("Deploy a parachain")?;
-		let chain = self.configure_chain(cli).await?;
-		let para_id = match self.id {
-			Some(id) => id,
-			None => {
-				cli.info("Reserving a parachain ID...")?;
-				match reserve_para_id(&chain, cli).await {
-					Ok(id) => id,
-					Err(e) => {
-						cli.outro_cancel(format!("{}", e))?;
-						return Ok(());
-					},
-				}
+		cli.intro("Deploy a chain")?;
+		let chain_config = match self.prepare_chain_for_registration(cli).await {
+			Ok(chain) => chain,
+			Err(e) => {
+				cli.outro_cancel(format!("{}", e))?;
+				return Ok(());
 			},
 		};
-		let (genesis_state, genesis_code) =
-			match (self.genesis_state.clone(), self.genesis_code.clone()) {
-				(Some(state), Some(code)) => (state, code),
-				_ => {
-					cli.info("Generating the chain spec for your parachain.")?;
-					match generate_spec_files(para_id, self.path, cli).await {
-						Ok(files) => files,
-						Err(e) => {
-							cli.outro_cancel(format!("Failed to generate spec files: {}", e))?;
-							return Ok(());
-						},
-					}
-				},
-			};
-		cli.info("Registering a parachain ID")?;
-		if let Err(e) = register_parachain(&chain, para_id, genesis_state, genesis_code, cli).await
-		{
-			cli.outro_cancel(format!("Failed to register parachain: {}", e))?;
-			return Ok(());
+		match chain_config.register_parachain(cli).await {
+			Ok(_) => cli.success("Chain deployed successfully")?,
+			Err(e) => cli.outro_cancel(format!("{}", e))?,
 		}
-
-		cli.outro("Parachain deployment complete.")?;
 		Ok(())
+	}
+
+	// Prepares the chain for registration by setting up its configuration.
+	async fn prepare_chain_for_registration(self, cli: &mut impl Cli) -> Result<UpChain> {
+		let chain = self.configure_chain(cli).await?;
+		let para_id = self.resolve_parachain_id(&chain, cli).await?;
+		let (genesis_state, genesis_code) = self.resolve_genesis_files(para_id, cli).await?;
+		Ok(UpChain { id: para_id, genesis_state, genesis_code, chain })
 	}
 
 	// Configures the chain by resolving the URL and fetching its metadata.
@@ -103,6 +85,63 @@ impl UpParachainCommand {
 			anyhow!(format!("Unable to fetch the chain metadata: {}", e.to_string()))
 		})?;
 		Ok(Chain { url, client, pallets })
+	}
+	// Resolves the parachain ID, reserving a new one if necessary.
+	async fn resolve_parachain_id(&self, chain: &Chain, cli: &mut impl Cli) -> Result<u32> {
+		match self.id {
+			Some(id) => Ok(id),
+			None => {
+				cli.info("Reserving a parachain ID...")?;
+				return reserve_para_id(&chain, cli).await;
+			},
+		}
+	}
+	// Resolves the genesis state and code files, generating them if necessary.
+	async fn resolve_genesis_files(
+		&self,
+		para_id: u32,
+		cli: &mut impl Cli,
+	) -> Result<(PathBuf, PathBuf)> {
+		match (self.genesis_state.clone(), self.genesis_code.clone()) {
+			(Some(state), Some(code)) => Ok((state, code)),
+			_ => {
+				cli.info("Generating the chain spec for your parachain.")?;
+				return generate_spec_files(para_id, self.path.clone(), cli).await;
+			},
+		}
+	}
+}
+
+// Represents the configuration for deploying a chain.
+pub(crate) struct UpChain {
+	id: u32,
+	genesis_state: PathBuf,
+	genesis_code: PathBuf,
+	chain: Chain,
+}
+impl UpChain {
+	// Registers a parachain by submitting an extrinsic.
+	async fn register_parachain(&self, cli: &mut impl Cli) -> Result<()> {
+		cli.info("Registering a parachain ID")?;
+		let call_data = self.prepare_register_parachain_extrinsic()?;
+		submit_extrinsic_with_wallet(&self.chain.client, &self.chain.url, call_data, cli).await?;
+		Ok(())
+	}
+
+	// Constructs an extrinsic for registering a parachain.
+	fn prepare_register_parachain_extrinsic(&self) -> Result<Vec<u8>> {
+		let UpChain { id, genesis_code, genesis_state, chain } = self;
+		let ex = find_dispatchable_by_name(
+			&chain.pallets,
+			Action::Register.pallet_name(),
+			Action::Register.function_name(),
+		)?;
+		let state = std::fs::read_to_string(genesis_state)
+			.map_err(|err| anyhow!("Failed to read genesis state file: {}", err.to_string()))?;
+		let code = std::fs::read_to_string(genesis_code)
+			.map_err(|err| anyhow!("Failed to read genesis state file: {}", err.to_string()))?;
+		let xt = construct_extrinsic(ex, vec![id.to_string(), state, code])?;
+		Ok(xt.encode_call_data(&chain.client.metadata())?)
 	}
 }
 
@@ -157,39 +196,6 @@ async fn configure_build_spec(id: u32, cli: &mut impl Cli) -> Result<BuildSpec> 
 		.await
 }
 
-/// Registers a parachain by submitting an extrinsic.
-async fn register_parachain(
-	chain: &Chain,
-	id: u32,
-	genesis_state: PathBuf,
-	genesis_code: PathBuf,
-	cli: &mut impl Cli,
-) -> Result<()> {
-	let call_data = prepare_register_parachain_extrinsic(chain, id, genesis_state, genesis_code)?;
-	submit_extrinsic_with_wallet(&chain.client, &chain.url, call_data, cli).await?;
-	Ok(())
-}
-
-/// Constructs an extrinsic for registering a parachain.
-fn prepare_register_parachain_extrinsic(
-	chain: &Chain,
-	id: u32,
-	genesis_state: PathBuf,
-	genesis_code: PathBuf,
-) -> Result<Vec<u8>> {
-	let ex = find_dispatchable_by_name(
-		&chain.pallets,
-		Action::Register.pallet_name(),
-		Action::Register.function_name(),
-	)?;
-	let state = std::fs::read_to_string(genesis_state)
-		.map_err(|err| anyhow!("Failed to read genesis state file: {}", err.to_string()))?;
-	let code = std::fs::read_to_string(genesis_code)
-		.map_err(|err| anyhow!("Failed to read genesis state file: {}", err.to_string()))?;
-	let xt = construct_extrinsic(ex, vec![id.to_string(), state, code])?;
-	Ok(xt.encode_call_data(&chain.client.metadata())?)
-}
-
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -212,7 +218,7 @@ mod tests {
 			"Enter the relay chain node URL to deploy your parachain",
 			POLKADOT_NETWORK_URL.into(),
 		);
-		let chain = UpParachainCommand::default().configure_chain(&mut cli).await?;
+		let chain = UpChainCommand::default().configure_chain(&mut cli).await?;
 		assert_eq!(chain.url, Url::parse(POLKADOT_NETWORK_URL)?);
 		cli.verify()
 	}
@@ -220,7 +226,7 @@ mod tests {
 	#[tokio::test]
 	async fn prepare_reserve_para_id_extrinsic_works() -> Result<()> {
 		let mut cli = MockCli::new();
-		let chain = UpParachainCommand {
+		let chain = UpChainCommand {
 			relay_url: Some(Url::parse(POLKADOT_NETWORK_URL)?),
 			..Default::default()
 		}
@@ -250,7 +256,7 @@ mod tests {
 	#[tokio::test]
 	async fn prepare_register_parachain_extrinsic_works() -> Result<()> {
 		let mut cli = MockCli::new();
-		let chain = UpParachainCommand {
+		let chain = UpChainCommand {
 			relay_url: Some(Url::parse(POLKADOT_NETWORK_URL)?),
 			..Default::default()
 		}
@@ -263,12 +269,13 @@ mod tests {
 		std::fs::write(&genesis_state_path, "0x1234")?;
 		std::fs::write(&genesis_code_path, "0x1234")?;
 
-		let call_data = prepare_register_parachain_extrinsic(
-			&chain,
-			2000,
-			genesis_state_path,
-			genesis_code_path,
-		)?;
+		let call_data = UpChain {
+			id: 2000,
+			genesis_state: genesis_state_path,
+			genesis_code: genesis_code_path,
+			chain,
+		}
+		.prepare_register_parachain_extrinsic()?;
 		assert_eq!(call_data, decode_call_data("0x4600d0070000081234081234")?);
 		Ok(())
 	}
