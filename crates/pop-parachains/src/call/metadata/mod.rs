@@ -7,7 +7,6 @@ use std::fmt::{Display, Formatter};
 use subxt::{dynamic::Value, utils::to_hex, Metadata, OnlineClient, SubstrateConfig};
 
 pub mod action;
-pub mod events;
 pub mod params;
 
 /// Represents a pallet in the blockchain, including its dispatchable functions.

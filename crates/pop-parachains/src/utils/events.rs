@@ -25,9 +25,7 @@ impl StaticEvent for Reserved {
 ///
 /// # Arguments
 /// * `events` - The extrinsic events from a transaction.
-pub async fn extract_para_id_from_event(
-	events: &ExtrinsicEvents<SubstrateConfig>,
-) -> Result<u32, Error> {
+pub fn extract_para_id_from_event(events: &ExtrinsicEvents<SubstrateConfig>) -> Result<u32, Error> {
 	let reserved_event = events.find_first::<Reserved>()?;
 	reserved_event
 		.map(|event| event.para_id)

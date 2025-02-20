@@ -149,7 +149,7 @@ async fn reserve_para_id(chain: &Chain, cli: &mut impl Cli) -> Result<u32> {
 	let events = submit_extrinsic_with_wallet(&chain.client, &chain.url, call_data, cli)
 		.await
 		.map_err(|e| anyhow::anyhow!("Parachain ID reservation failed: {}", e))?;
-	let para_id = extract_para_id_from_event(&events).await.map_err(|_| {
+	let para_id = extract_para_id_from_event(&events).map_err(|_| {
 		anyhow::anyhow!("Unable to parse the event. Specify the parachain ID manually with --id.")
 	})?;
 	cli.success(format!("Successfully reserved parachain ID: {}", para_id))?;
