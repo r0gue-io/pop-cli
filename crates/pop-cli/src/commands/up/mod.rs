@@ -147,8 +147,7 @@ mod tests {
 	async fn detects_parachain_correctly() -> anyhow::Result<()> {
 		let temp_dir = tempfile::tempdir()?;
 		let name = "parachain";
-		let path = temp_dir.path();
-		let project_path = path.join(name);
+		let project_path = temp_dir.path().join(name);
 		let config = Config {
 			symbol: "DOT".to_string(),
 			decimals: 18,

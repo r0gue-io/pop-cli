@@ -109,15 +109,9 @@ impl CallChainCommand {
 			// Sign and submit the extrinsic.
 			let result = if self.use_wallet {
 				let call_data = xt.encode_call_data(&chain.client.metadata())?;
-				match submit_extrinsic_with_wallet(&chain.client, &chain.url, call_data, &mut cli)
+				submit_extrinsic_with_wallet(&chain.client, &chain.url, call_data, &mut cli)
 					.await
-				{
-					Ok(_) => Ok(()),
-					Err(e) => {
-						display_message(&e.to_string(), false, &mut cli)?;
-						break;
-					},
-				}
+					.map(|_| ()) // Mapping to `()` since we don't need events returned
 			} else {
 				call.submit_extrinsic(&chain.client, &chain.url, xt, &mut cli).await
 			};
