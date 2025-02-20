@@ -26,7 +26,7 @@ impl BenchmarkPallet {
 		cli: &mut impl cli::traits::Cli,
 	) -> anyhow::Result<()> {
 		if cmd.list.is_some() || cmd.json_output {
-			if let Err(e) = run_pallet_benchmarking(&cmd) {
+			if let Err(e) = run_pallet_benchmarking(cmd) {
 				return display_message(&e.to_string(), false, cli);
 			}
 		}
@@ -322,9 +322,10 @@ mod tests {
 
 	// Construct the path to the mock runtime WASM file.
 	fn get_mock_runtime_path(with_benchmark_features: bool) -> std::path::PathBuf {
-		env::current_dir().unwrap().join(format!(
-			"tests/files/{}.wasm",
+		let path = format!(
+			"../../tests/runtimes/{}.wasm",
 			if with_benchmark_features { "base_parachain_benchmark" } else { "base_parachain" }
-		))
+		);
+		env::current_dir().unwrap().join(path).canonicalize().unwrap()
 	}
 }
