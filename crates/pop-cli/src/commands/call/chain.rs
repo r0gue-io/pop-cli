@@ -4,16 +4,15 @@ use std::path::Path;
 
 use crate::{
 	cli::{self, traits::*},
-	common::wallet::{prompt_to_use_wallet, request_signature},
+	common::wallet::{prompt_to_use_wallet, submit_extrinsic_with_wallet},
 };
 use anyhow::{anyhow, Result};
 use clap::Args;
 use pop_parachains::{
 	construct_extrinsic, construct_sudo_extrinsic, decode_call_data, encode_call_data,
 	find_dispatchable_by_name, find_pallet_by_name, parse_chain_metadata, set_up_client,
-	sign_and_submit_extrinsic, submit_signed_extrinsic, supported_actions, Action, CallData,
-	DynamicPayload, ExtrinsicEvents, Function, OnlineClient, Pallet, Param, Payload,
-	SubstrateConfig,
+	sign_and_submit_extrinsic, supported_actions, Action, CallData, DynamicPayload, Function,
+	OnlineClient, Pallet, Param, Payload, SubstrateConfig,
 };
 use url::Url;
 
@@ -479,38 +478,6 @@ impl Call {
 			full_message.push_str(" --sudo");
 		}
 		full_message
-	}
-}
-
-/// Sign and submit an extrinsic using wallet integration, then returns the resulting events.
-///
-/// # Arguments
-/// * `client` - The client used to interact with the chain.
-/// * `url` - Endpoint of the node.
-/// * `call_data` - The call data to be signed.
-/// * `cli` - The CLI implementation to be used.
-pub(crate) async fn submit_extrinsic_with_wallet(
-	client: &OnlineClient<SubstrateConfig>,
-	url: &Url,
-	call_data: Vec<u8>,
-	cli: &mut impl Cli,
-) -> Result<ExtrinsicEvents<SubstrateConfig>> {
-	let maybe_payload = request_signature(call_data, url.to_string()).await?;
-	if let Some(payload) = maybe_payload {
-		cli.success("Signed payload received.")?;
-		let spinner = cliclack::spinner();
-		spinner.start(
-			"Submitting the extrinsic and then waiting for finalization, please be patient...",
-		);
-
-		let result = submit_signed_extrinsic(client.clone(), payload)
-			.await
-			.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
-
-		spinner.stop(format!("Extrinsic submitted with hash: {:?}", result.extrinsic_hash()));
-		Ok(result)
-	} else {
-		Err(anyhow!("No signed payload received."))
 	}
 }
 
