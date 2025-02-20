@@ -530,9 +530,8 @@ impl BuildSpec {
 			.unwrap_or(DEFAULT_SPEC_NAME)
 			.trim_end_matches(".json");
 		let raw_spec_name = format!("{spec_name}-raw.json");
-		let raw_chain_spec = generate_raw_chain_spec(binary_path, output_file, &raw_spec_name)?;
-
-		Ok(raw_chain_spec)
+		generate_raw_chain_spec(binary_path, output_file, &raw_spec_name)
+			.map_err(anyhow::Error::from)
 	}
 
 	/// Generates chain specification files and returns the file paths for the generated genesis
