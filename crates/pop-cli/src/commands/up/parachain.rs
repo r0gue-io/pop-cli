@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{
-	build::spec::BuildSpecCommand,
-	call::chain::Chain,
-	cli::traits::*,
+	build::spec::BuildSpecCommand, call::chain::Chain, cli::traits::*,
 	common::wallet::submit_extrinsic_with_wallet,
 };
 use anyhow::{anyhow, Result};
@@ -123,13 +121,13 @@ impl UpChain {
 	// Registers a parachain by submitting an extrinsic.
 	async fn register_parachain(&self, cli: &mut impl Cli) -> Result<()> {
 		cli.info("Registering a parachain ID")?;
-		let call_data = self.prepare_register_parachain_extrinsic()?;
+		let call_data = self.prepare_register_parachain_call_data()?;
 		submit_extrinsic_with_wallet(&self.chain.client, &self.chain.url, call_data, cli).await?;
 		Ok(())
 	}
 
-	// Constructs an extrinsic for registering a parachain.
-	fn prepare_register_parachain_extrinsic(&self) -> Result<Vec<u8>> {
+	// Prepares and returns the encoded call data for registering a parachain.
+	fn prepare_register_parachain_call_data(&self) -> Result<Vec<u8>> {
 		let UpChain { id, genesis_code, genesis_state, chain } = self;
 		let ex = find_dispatchable_by_name(
 			&chain.pallets,
@@ -145,10 +143,10 @@ impl UpChain {
 	}
 }
 
-/// Reserves a parachain ID by submitting an extrinsic.
+// Reserves a parachain ID by submitting an extrinsic.
 async fn reserve_para_id(chain: &Chain, cli: &mut impl Cli) -> Result<u32> {
-	let call_data = prepare_reserve_para_id_extrinsic(chain)?;
-	let events = submit_extrinsic_with_wallet(&chain.client.clone(), &chain.url, call_data, cli)
+	let call_data = prepare_reserve_parachain_call_data(chain)?;
+	let events = submit_extrinsic_with_wallet(&chain.client, &chain.url, call_data, cli)
 		.await
 		.map_err(|e| anyhow::anyhow!("Parachain ID reservation failed: {}", e))?;
 	let para_id = extract_para_id_from_event(&events).await.map_err(|_| {
@@ -158,8 +156,8 @@ async fn reserve_para_id(chain: &Chain, cli: &mut impl Cli) -> Result<u32> {
 	Ok(para_id)
 }
 
-/// Constructs an extrinsic for reserving a parachain ID.
-fn prepare_reserve_para_id_extrinsic(chain: &Chain) -> Result<Vec<u8>> {
+// Prepares and returns the encoded call data for reserving a parachain ID.
+fn prepare_reserve_parachain_call_data(chain: &Chain) -> Result<Vec<u8>> {
 	let function = find_dispatchable_by_name(
 		&chain.pallets,
 		Action::Reserve.pallet_name(),
@@ -169,7 +167,7 @@ fn prepare_reserve_para_id_extrinsic(chain: &Chain) -> Result<Vec<u8>> {
 	Ok(xt.encode_call_data(&chain.client.metadata())?)
 }
 
-/// Generates chain spec files for the parachain.
+// Generates chain spec files for the parachain.
 async fn generate_spec_files(
 	id: u32,
 	path: Option<PathBuf>,
@@ -227,7 +225,7 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn prepare_reserve_para_id_extrinsic_works() -> Result<()> {
+	async fn prepare_reserve_parachain_call_data_works() -> Result<()> {
 		let mut cli = MockCli::new();
 		let chain = UpChainCommand {
 			relay_url: Some(Url::parse(POLKADOT_NETWORK_URL)?),
@@ -235,7 +233,7 @@ mod tests {
 		}
 		.configure_chain(&mut cli)
 		.await?;
-		let call_data = prepare_reserve_para_id_extrinsic(&chain)?;
+		let call_data = prepare_reserve_parachain_call_data(&chain)?;
 		assert_eq!(call_data, decode_call_data("0x4605")?);
 		Ok(())
 	}
@@ -261,7 +259,7 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn prepare_register_parachain_extrinsic_works() -> Result<()> {
+	async fn prepare_register_parachain_call_data_works() -> Result<()> {
 		let mut cli = MockCli::new();
 		let chain = UpChainCommand {
 			relay_url: Some(Url::parse(POLKADOT_NETWORK_URL)?),
@@ -282,7 +280,7 @@ mod tests {
 			genesis_code: genesis_code_path,
 			chain,
 		}
-		.prepare_register_parachain_extrinsic()?;
+		.prepare_register_parachain_call_data()?;
 		assert_eq!(call_data, decode_call_data("0x4600d0070000081234081234")?);
 		Ok(())
 	}

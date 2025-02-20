@@ -508,7 +508,7 @@ impl BuildSpec {
 		Ok("spec")
 	}
 
-	/// Generates plain and raw chain specification files.
+	/// Generates plain and raw chain specification files, and returns the path to the latter.
 	fn generate_chain_spec(
 		&self,
 		binary_path: &Path,
