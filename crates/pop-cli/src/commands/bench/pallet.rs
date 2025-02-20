@@ -37,7 +37,7 @@ impl BenchmarkPalletArgs {
 	pub fn execute(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		let cmd = &mut self.command;
 		if cmd.list.is_some() || cmd.json_output {
-			if let Err(e) = run_pallet_benchmarking(&cmd) {
+			if let Err(e) = run_pallet_benchmarking(cmd) {
 				return display_message(&e.to_string(), false, cli);
 			}
 		}
