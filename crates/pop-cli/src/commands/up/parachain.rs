@@ -90,7 +90,7 @@ impl UpChainCommand {
 			Some(id) => Ok(id),
 			None => {
 				cli.info("Reserving a parachain ID...")?;
-				return reserve_para_id(&chain, cli).await;
+				reserve_para_id(chain, cli).await
 			},
 		}
 	}
@@ -104,7 +104,7 @@ impl UpChainCommand {
 			(Some(state), Some(code)) => Ok((state, code)),
 			_ => {
 				cli.info("Generating the chain spec for your parachain.")?;
-				return generate_spec_files(para_id, self.path.clone(), cli).await;
+				generate_spec_files(para_id, self.path.clone(), cli).await
 			},
 		}
 	}
