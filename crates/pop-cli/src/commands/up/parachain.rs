@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{
-	build::spec::{BuildSpec, BuildSpecCommand},
+	build::spec::BuildSpecCommand,
 	call::chain::Chain,
 	cli::traits::*,
 	common::wallet::submit_extrinsic_with_wallet,
@@ -175,51 +175,54 @@ async fn generate_spec_files(
 	path: Option<PathBuf>,
 	cli: &mut impl Cli,
 ) -> anyhow::Result<(PathBuf, PathBuf)> {
-	change_working_directory(&path)?;
-	let build_spec = configure_build_spec(id, cli).await?;
-	build_spec.generate_genesis_artifacts(cli)
-}
-
-/// Changes the working directory if a path is provided, ensuring the build spec process runs in the
-/// correct context.
-fn change_working_directory(path: &Option<PathBuf>) -> Result<()> {
+	// Changes the working directory if a path is provided to ensure the build spec process runs in
+	// the correct context.
 	if let Some(path) = path {
 		std::env::set_current_dir(path)?;
 	}
-	Ok(())
-}
-
-/// Configures the chain specification requirements.
-async fn configure_build_spec(id: u32, cli: &mut impl Cli) -> Result<BuildSpec> {
-	BuildSpecCommand { id: Some(id), genesis_code: true, genesis_state: true, ..Default::default() }
-		.configure_build_spec(cli)
-		.await
+	let build_spec = BuildSpecCommand {
+		id: Some(id),
+		genesis_code: true,
+		genesis_state: true,
+		..Default::default()
+	}
+	.configure_build_spec(cli)
+	.await?;
+	build_spec.generate_genesis_artifacts(cli)
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::{
-		build::spec::{ChainType, RelayChain},
-		cli::MockCli,
-	};
-	use pop_common::Profile;
+	use crate::cli::MockCli;
 	use pop_parachains::decode_call_data;
-	use std::{env, fs};
-	use strum::{EnumMessage, VariantArray};
+	use std::fs;
 	use tempfile::tempdir;
 	use url::Url;
 
 	const POLKADOT_NETWORK_URL: &str = "wss://polkadot-rpc.publicnode.com";
+	const POP_NETWORK_TESTNET_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";
 
 	#[tokio::test]
-	async fn configure_chain_works() -> Result<()> {
+	async fn prepare_chain_for_registration_works() -> Result<()> {
 		let mut cli = MockCli::new().expect_input(
 			"Enter the relay chain node URL to deploy your parachain",
 			POLKADOT_NETWORK_URL.into(),
 		);
-		let chain = UpChainCommand::default().configure_chain(&mut cli).await?;
-		assert_eq!(chain.url, Url::parse(POLKADOT_NETWORK_URL)?);
+		let (genesis_state, genesis_code) = create_temp_genesis_files()?;
+		let chain_config = UpChainCommand {
+			id: Some(2000),
+			genesis_state: Some(genesis_state.clone()),
+			genesis_code: Some(genesis_code.clone()),
+			..Default::default()
+		}
+		.prepare_chain_for_registration(&mut cli)
+		.await?;
+
+		assert_eq!(chain_config.id, 2000);
+		assert_eq!(chain_config.genesis_code, genesis_code);
+		assert_eq!(chain_config.genesis_state, genesis_state);
+		assert_eq!(chain_config.chain.url, Url::parse(POLKADOT_NETWORK_URL)?);
 		cli.verify()
 	}
 
@@ -238,19 +241,23 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn change_working_directory_works() -> Result<()> {
-		let original_dir = std::env::current_dir()?;
-		let temp_dir = tempdir()?;
-		let my_parachain_path = Some(temp_dir.path().to_path_buf());
-		change_working_directory(&my_parachain_path)?;
-		assert_eq!(fs::canonicalize(env::current_dir()?)?, fs::canonicalize(temp_dir.path())?);
+	async fn register_parachain_fails_wrong_chain() -> Result<()> {
+		let mut cli = MockCli::new()
+			.expect_intro("Deploy a chain")
+			.expect_info("Registering a parachain ID")
+			.expect_outro_cancel("Failed to find the pallet Registrar");
+		let (genesis_state, genesis_code) = create_temp_genesis_files()?;
+		UpChainCommand {
+			id: Some(2000),
+			genesis_state: Some(genesis_state.clone()),
+			genesis_code: Some(genesis_code.clone()),
+			relay_url: Some(Url::parse(POP_NETWORK_TESTNET_URL)?),
+			path: None,
+		}
+		.execute(&mut cli)
+		.await?;
 
-		change_working_directory(&None)?;
-		assert_eq!(fs::canonicalize(env::current_dir()?)?, fs::canonicalize(temp_dir.path())?);
-
-		// Reset working directory back to original
-		change_working_directory(&Some(original_dir))?;
-		Ok(())
+		cli.verify()
 	}
 
 	#[tokio::test]
@@ -280,71 +287,15 @@ mod tests {
 		Ok(())
 	}
 
-	#[tokio::test]
-	async fn configure_build_spec_works() -> Result<()> {
-		let mut cli = MockCli::new().expect_input("Provide the chain specification to use (e.g. dev, local, custom or a path to an existing file)", "dev".to_string())
-			.expect_input(
-				"Name or path for the plain chain spec file:", "output_file".to_string())
-			.expect_input(
-				"Enter the protocol ID that will identify your network:", "protocol_id".to_string())
-			.expect_select(
-				"Choose the chain type: ",
-				Some(false),
-				true,
-				Some(chain_types()),
-				ChainType::Development as usize,
-			).expect_select(
-				"Choose the relay your chain will be connecting to: ",
-				Some(false),
-				true,
-				Some(relays()),
-				RelayChain::PaseoLocal as usize,
-			).expect_select(
-				"Choose the build profile of the binary that should be used: ",
-				Some(false),
-				true,
-				Some(profiles()),
-				Profile::Release as usize,
-		);
+	// Creates temporary files to act as `genesis_state` and `genesis_code` files.
+	fn create_temp_genesis_files() -> Result<(PathBuf, PathBuf)> {
+		let temp_dir = tempdir()?; // Create a temporary directory
+		let genesis_state_path = temp_dir.path().join("genesis_state");
+		let genesis_code_path = temp_dir.path().join("genesis_code.wasm");
 
-		configure_build_spec(2000, &mut cli).await?;
-		cli.verify()?;
-		Ok(())
-	}
+		fs::write(&genesis_state_path, "0x1234")?;
+		fs::write(&genesis_code_path, "0x1234")?;
 
-	fn relays() -> Vec<(String, String)> {
-		RelayChain::VARIANTS
-			.iter()
-			.map(|variant| {
-				(
-					variant.get_message().unwrap_or(variant.as_ref()).into(),
-					variant.get_detailed_message().unwrap_or_default().into(),
-				)
-			})
-			.collect()
-	}
-
-	fn chain_types() -> Vec<(String, String)> {
-		ChainType::VARIANTS
-			.iter()
-			.map(|variant| {
-				(
-					variant.get_message().unwrap_or(variant.as_ref()).into(),
-					variant.get_detailed_message().unwrap_or_default().into(),
-				)
-			})
-			.collect()
-	}
-
-	fn profiles() -> Vec<(String, String)> {
-		Profile::VARIANTS
-			.iter()
-			.map(|variant| {
-				(
-					variant.get_message().unwrap_or(variant.as_ref()).into(),
-					variant.get_detailed_message().unwrap_or_default().into(),
-				)
-			})
-			.collect()
+		Ok((genesis_state_path, genesis_code_path))
 	}
 }
