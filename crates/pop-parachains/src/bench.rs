@@ -1,8 +1,3 @@
-use std::{
-	fs,
-	path::{Path, PathBuf},
-};
-
 use anyhow::Result;
 use clap::Parser;
 use csv::Reader;
@@ -12,6 +7,7 @@ use sc_chain_spec::GenesisConfigBuilderRuntimeCaller;
 use sp_runtime::traits::BlakeTwo256;
 use std::{
 	collections::HashMap,
+	fs,
 	fs::File,
 	io::BufReader,
 	path::{Path, PathBuf},
@@ -150,13 +146,12 @@ pub fn check_preset(binary_path: &PathBuf, preset: Option<&String>) -> anyhow::R
 ///
 /// # Arguments
 /// * `parent` - Parent path that contains the runtime folder.
-pub fn get_runtime_folder_path(parent: &PathBuf) -> anyhow::Result<PathBuf> {
-	let runtime_path = parent.join("runtime");
-	// Runtime folder does not exist.
-	if !runtime_path.exists() {
-		return Err(anyhow::anyhow!("No runtime found."));
-	}
-	Ok(runtime_path)
+pub fn get_runtime_path(parent: &Path) -> anyhow::Result<PathBuf> {
+	["runtime", "runtimes"]
+		.iter()
+		.map(|f| parent.join(f))
+		.find(|path| path.exists())
+		.ok_or_else(|| anyhow::anyhow!("No runtime found."))
 }
 
 fn parse_csv_to_map(file_path: &PathBuf) -> anyhow::Result<HashMap<String, Vec<String>>> {
@@ -172,14 +167,6 @@ fn parse_csv_to_map(file_path: &PathBuf) -> anyhow::Result<HashMap<String, Vec<S
 		}
 	}
 	Ok(map)
-}
-
-pub fn get_runtime_path(parent: &Path) -> anyhow::Result<PathBuf> {
-	["runtime", "runtimes"]
-		.iter()
-		.map(|f| parent.join(f))
-		.find(|path| path.exists())
-		.ok_or_else(|| anyhow::anyhow!("No runtime found."))
 }
 
 #[cfg(test)]

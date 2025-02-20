@@ -11,9 +11,9 @@ use frame_benchmarking_cli::PalletCmd;
 use log::LevelFilter;
 use pop_common::{manifest::from_path, Profile};
 use pop_parachains::{
-	build_project, get_runtime_folder_path, list_pallets_and_extrinsics,
+	build_project, check_preset, get_runtime_path, list_pallets_and_extrinsics,
 	parse_genesis_builder_policy, run_pallet_benchmarking, runtime_binary_path,
-	search_for_extrinsics, search_for_pallets, check_preset
+	search_for_extrinsics, search_for_pallets,
 };
 use std::{collections::HashMap, env::current_dir, fs, path::PathBuf};
 use strum::{EnumIs, EnumMessage, IntoEnumIterator};
@@ -47,7 +47,7 @@ impl BenchmarkPalletArgs {
 		cli.warning(
 			"NOTE: the `pop bench pallet` is not yet battle tested - double check the results.",
 		)?;
-		
+
 		if let Some(ref spec) = cmd.shared_params.chain {
 			return display_message(
 				&format!(
@@ -70,7 +70,7 @@ impl BenchmarkPalletArgs {
 		}
 		// No genesis builder, prompts user to select the genesis builder policy.
 		if cmd.genesis_builder.is_none() {
-			update_genesis_builder_policy(cmd, cli)?;
+			let policy = update_genesis_builder_policy(cmd, cli)?;
 			if policy == GENESIS_CONFIG_RUNTIME_POLICY {
 				update_genesis_preset(cmd, cli)?;
 			};
@@ -88,14 +88,15 @@ impl BenchmarkPalletArgs {
 		if !self.skip_menu {
 			loop {
 				match guide_user_to_select_menu_option(cmd, cli)? {
-					BenchmarkPalletMenuOption::GenesisBuilder =>
-						update_genesis_builder_policy(cmd, cli)?,
+					BenchmarkPalletMenuOption::GenesisBuilder => {
+						let _ = update_genesis_builder_policy(cmd, cli)?;
+					},
 					BenchmarkPalletMenuOption::Pallets =>
 						update_pallets(cmd, cli, &mut pallet_extrinsics, &spinner)?,
 					BenchmarkPalletMenuOption::Extrinsics =>
 						update_extrinsics(cmd, cli, &mut pallet_extrinsics, &spinner)?,
 					_ => unimplemented!(),
-				}
+				};
 			}
 		}
 
@@ -220,10 +221,10 @@ pub fn update_extrinsics(
 pub fn update_genesis_builder_policy(
 	cmd: &mut PalletCmd,
 	cli: &mut impl cli::traits::Cli,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<String> {
 	let policy = guide_user_to_select_genesis_builder(cli)?;
 	cmd.genesis_builder = parse_genesis_builder_policy(policy)?.genesis_builder;
-	Ok(())
+	Ok(policy.to_string())
 }
 
 pub fn fetch_pallet_extrinsics_if_not_exist(
@@ -240,6 +241,7 @@ pub fn fetch_pallet_extrinsics_if_not_exist(
 		log::set_max_level(LevelFilter::Info);
 		spinner.clear();
 	}
+	Ok(())
 }
 
 fn update_genesis_preset(
@@ -404,7 +406,7 @@ mod tests {
 	#[test]
 	fn benchmark_pallet_works() -> anyhow::Result<()> {
 		let mut cli =
-			expect_select_genesis_builder(expect_pallet_benchmarking_intro(MockCli::new()))
+			expect_select_genesis_builder(expect_pallet_benchmarking_intro(MockCli::new()), 0)
 				.expect_warning("NOTE: this may take some time...")
 				.expect_outro("Benchmark completed successfully!");
 
@@ -504,14 +506,6 @@ mod tests {
 			cmd("cargo", ["new", runtime, "--bin"]).dir(&runtime_path).run()?;
 		}
 		guide_user_to_select_runtime(&runtime_path, &mut cli)?;
-		cli.verify()?;
-		Ok(())
-	}
-
-	#[test]
-	fn guide_user_to_select_genesis_builder_works() -> anyhow::Result<()> {
-		let mut cli = expect_select_genesis_builder(MockCli::new());
-		guide_user_to_select_genesis_builder(&mut cli)?;
 		cli.verify()?;
 		Ok(())
 	}
