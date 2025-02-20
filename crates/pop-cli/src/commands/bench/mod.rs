@@ -29,7 +29,6 @@ impl Command {
 	/// Executes the command.
 	pub(crate) fn execute(args: BenchmarkArgs) -> anyhow::Result<()> {
 		let mut cli = cli::Cli;
-
 		match args.command {
 			Command::Pallet(mut sub_args) => sub_args.execute(&mut cli),
 		}

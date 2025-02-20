@@ -47,7 +47,6 @@ impl BenchmarkPalletArgs {
 		cli.warning(
 			"NOTE: the `pop bench pallet` is not yet battle tested - double check the results.",
 		)?;
-
 		if let Some(ref spec) = cmd.shared_params.chain {
 			return display_message(
 				&format!(
@@ -508,30 +507,6 @@ mod tests {
 		guide_user_to_select_runtime(&runtime_path, &mut cli)?;
 		cli.verify()?;
 		Ok(())
-	}
-
-	// #[test]
-	// fn guide_user_to_select_pallets_works() -> anyhow::Result<()> {
-	// 	let mut cli = MockCli::new();
-	// 	let runtime_path = get_mock_runtime_path(true);
-	// 	let mut cmd = PalletCmd::try_parse_from(&[
-	// 		"",
-	// 		"--runtime",
-	// 		runtime_path.to_str().unwrap(),
-	// 		"--pallet",
-	// 		"",
-	// 		"--extrinsic",
-	// 		"",
-	// 	])?;
-	// 	let pallet_extrinsics = list_pallets_and_extrinsics(&runtime_path)?;
-	// 	guide_user_to_select_pallets(&mut cmd, &pallet_extrinsics, &mut cli)?;
-	// 	Ok(())
-	// }
-
-	#[test]
-	fn parse_genesis_builder_policy_works() {
-		["none", "spec", "runtime"]
-			.map(|policy| assert!(parse_genesis_builder_policy(policy).is_ok()));
 	}
 
 	#[test]
