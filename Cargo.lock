@@ -11974,6 +11974,7 @@ dependencies = [
  "indexmap 2.7.0",
  "pop-common",
  "rust-fuzzy-search",
+ "sc-chain-spec",
  "scale-info",
  "scale-value 0.17.0",
  "serde_json",

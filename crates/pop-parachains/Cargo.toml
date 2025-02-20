@@ -37,7 +37,8 @@ zombienet-sdk.workspace = true
 # Benchmarking
 cumulus-primitives-proof-size-hostfunction.workspace = true
 frame-benchmarking-cli.workspace = true
-rust-fuzzy-search = "0.1.1"
+rust-fuzzy-search.workspace = true
+sc-chain-spec.workspace = true
 sp-runtime.workspace = true
 sp-statement-store.workspace = true
 stdio-override.workspace = true

@@ -13,13 +13,15 @@ use pop_common::{manifest::from_path, Profile};
 use pop_parachains::{
 	build_project, get_runtime_folder_path, list_pallets_and_extrinsics,
 	parse_genesis_builder_policy, run_pallet_benchmarking, runtime_binary_path,
-	search_for_extrinsics, search_for_pallets,
+	search_for_extrinsics, search_for_pallets, check_preset
 };
 use std::{collections::HashMap, env::current_dir, fs, path::PathBuf};
 use strum::{EnumIs, EnumMessage, IntoEnumIterator};
 use strum_macros::{EnumIter, EnumMessage as EnumMessageDerive};
 
 const ALL_SELECTED: &str = "*";
+const GENESIS_CONFIG_NO_POLICY: &str = "none";
+const GENESIS_CONFIG_RUNTIME_POLICY: &str = "runtime";
 
 #[derive(Args)]
 pub(crate) struct BenchmarkPalletArgs {
@@ -45,7 +47,7 @@ impl BenchmarkPalletArgs {
 		cli.warning(
 			"NOTE: the `pop bench pallet` is not yet battle tested - double check the results.",
 		)?;
-
+		
 		if let Some(ref spec) = cmd.shared_params.chain {
 			return display_message(
 				&format!(
@@ -56,14 +58,23 @@ impl BenchmarkPalletArgs {
 				cli,
 			);
 		}
-		// No runtime path provided, locate the runtime binary. If not found, build the runtime.
+		// No runtime path provided, auto-detect the runtime WASM binary. If not found, build
+		// the runtime.
 		if cmd.runtime.is_none() {
-			cmd.runtime = Some(ensure_runtime_binary_exists(cli, &Profile::Release)?);
+			match ensure_runtime_binary_exists(cli, &Profile::Release) {
+				Ok(runtime_binary_path) => cmd.runtime = Some(runtime_binary_path),
+				Err(e) => {
+					return display_message(&e.to_string(), false, cli);
+				},
+			}
 		}
 		// No genesis builder, prompts user to select the genesis builder policy.
 		if cmd.genesis_builder.is_none() {
 			update_genesis_builder_policy(cmd, cli)?;
-		};
+			if policy == GENESIS_CONFIG_RUNTIME_POLICY {
+				update_genesis_preset(cmd, cli)?;
+			};
+		}
 		// No pallet provided, prompts user to select the pallets fetched from runtime.
 		if cmd.pallet.is_none() {
 			update_pallets(cmd, cli, &mut pallet_extrinsics, &spinner)?;
@@ -229,6 +240,17 @@ pub fn fetch_pallet_extrinsics_if_not_exist(
 		log::set_max_level(LevelFilter::Info);
 		spinner.clear();
 	}
+}
+
+fn update_genesis_preset(
+	cmd: &mut PalletCmd,
+	cli: &mut impl cli::traits::Cli,
+) -> anyhow::Result<()> {
+	let preset_input = guide_user_to_input_genesis_preset(cli, &cmd.genesis_builder_preset)?;
+	let runtime_path = cmd.runtime.as_ref().expect("No runtime found");
+	let preset = (!preset_input.is_empty()).then_some(&preset_input);
+	check_preset(runtime_path, preset)?;
+	cmd.genesis_builder_preset = preset_input;
 	Ok(())
 }
 
@@ -238,8 +260,9 @@ fn ensure_runtime_binary_exists(
 	mode: &Profile,
 ) -> anyhow::Result<PathBuf> {
 	let cwd = current_dir().unwrap_or(PathBuf::from("./"));
-	let mut project_path = get_runtime_folder_path(&cwd)?;
 	let target_path = mode.target_directory(&cwd).join("wbuild");
+	let mut project_path = get_runtime_path(&cwd)?;
+
 	// If there is no TOML file exist, list all directories in the "runtime" folder and prompt the
 	// user to select a runtime.
 	if !project_path.join("Cargo.toml").exists() {
@@ -330,8 +353,8 @@ fn guide_user_to_select_runtime(
 fn guide_user_to_select_genesis_builder(cli: &mut impl cli::traits::Cli) -> anyhow::Result<&str> {
 	let mut prompt = cli.select("Select the genesis builder policy:").initial_value("none");
 	for (policy, description) in [
-    	("none", "Do not provide any genesis state"),
-    	("runtime", "Let the runtime build the genesis state through its `BuildGenesisConfig` runtime API. \
+    	(GENESIS_CONFIG_NO_POLICY, "Do not provide any genesis state"),
+    	(GENESIS_CONFIG_RUNTIME_POLICY, "Let the runtime build the genesis state through its `BuildGenesisConfig` runtime API. \
          This will use the `development` preset by default.")
 	] {
 		prompt = prompt.item(policy, policy, description);
@@ -356,6 +379,17 @@ fn guide_user_to_select_menu_option(
 		};
 	}
 	Ok(prompt.interact()?)
+}
+
+fn guide_user_to_input_genesis_preset(
+	cli: &mut impl cli::traits::Cli,
+	default_value: &str,
+) -> anyhow::Result<String> {
+	cli.input("Provide the genesis config preset of the runtime (e.g. development, local_testnet or your custom preset name)")
+	    .required(false)
+		.placeholder(default_value)
+		.default_input(default_value)
+		.interact().map_err(|e| anyhow::anyhow!(e.to_string()))
 }
 
 #[cfg(test)]
@@ -414,7 +448,7 @@ mod tests {
 
 	#[test]
 	fn benchmark_pallet_without_runtime_benchmarks_feature_fails() -> anyhow::Result<()> {
-		let mut cli = 	expect_select_genesis_builder(expect_pallet_benchmarking_intro(MockCli::new()))
+		let mut cli = 	expect_select_genesis_builder(expect_pallet_benchmarking_intro(MockCli::new()), 0)
 			.expect_outro_cancel(
 			        "Failed to run benchmarking: Invalid input: Could not call runtime API to Did not find the benchmarking metadata. \
 			        This could mean that you either did not build the node correctly with the `--features runtime-benchmarks` flag, \
@@ -437,7 +471,7 @@ mod tests {
 
 	#[test]
 	fn benchmark_pallet_fails_with_error() -> anyhow::Result<()> {
-		let mut cli =  expect_select_genesis_builder(expect_pallet_benchmarking_intro(MockCli::new()))
+		let mut cli =  expect_select_genesis_builder(expect_pallet_benchmarking_intro(MockCli::new()), 0)
 			.expect_outro_cancel("Failed to run benchmarking: Invalid input: No benchmarks found which match your input.");
 		let cmd = PalletCmd::try_parse_from(&[
 			"",
@@ -506,19 +540,56 @@ mod tests {
 			.map(|policy| assert!(parse_genesis_builder_policy(policy).is_ok()));
 	}
 
+	#[test]
+	fn guide_user_to_select_genesis_policy_works() -> anyhow::Result<()> {
+		// Select genesis builder policy `none`.
+		let mut cli = expect_select_genesis_builder(MockCli::new(), 0);
+		guide_user_to_select_genesis_builder(&mut cli)?;
+		cli.verify()?;
+
+		// Select genesis builder policy `runtime`.
+		cli = expect_select_genesis_builder(MockCli::new(), 1);
+		guide_user_to_select_genesis_builder(&mut cli)?;
+		guide_user_to_input_genesis_preset(&mut cli, "development")?;
+		cli.verify()?;
+		Ok(())
+	}
+
+	#[test]
+	fn guide_user_to_input_genesis_preset_works() -> anyhow::Result<()> {
+		let preset = String::from("development");
+		let mut cli = expect_input_genesis_preset(MockCli::new(), &preset);
+		guide_user_to_input_genesis_preset(&mut cli, &preset)?;
+		cli.verify()?;
+		Ok(())
+	}
+
 	fn expect_pallet_benchmarking_intro(cli: MockCli) -> MockCli {
 		cli.expect_intro("Benchmarking your pallets").expect_warning(
 			"NOTE: the `pop bench pallet` is not yet battle tested - double check the results.",
 		)
 	}
 
-	fn expect_select_genesis_builder(cli: MockCli) -> MockCli {
+	fn expect_select_genesis_builder(cli: MockCli, item: usize) -> MockCli {
 		let policies = vec![
-           	("none".to_string(), "Do not provide any genesis state".to_string()),
-           	("runtime".to_string(), "Let the runtime build the genesis state through its `BuildGenesisConfig` runtime API. \
+           	(GENESIS_CONFIG_NO_POLICY.to_string(), "Do not provide any genesis state".to_string()),
+           	(GENESIS_CONFIG_RUNTIME_POLICY.to_string(), "Let the runtime build the genesis state through its `BuildGenesisConfig` runtime API. \
             This will use the `development` preset by default.".to_string())
 	];
-		cli.expect_select("Select the genesis builder policy:", Some(true), true, Some(policies), 0)
+		cli.expect_select(
+			"Select the genesis builder policy:",
+			Some(true),
+			true,
+			Some(policies),
+			item,
+		)
+	}
+
+	fn expect_input_genesis_preset(cli: MockCli, input: &str) -> MockCli {
+		cli.expect_input(
+    	    "Provide the genesis config preset of the runtime (e.g. development, local_testnet or your custom preset name)",
+            input.to_string()
+    	)
 	}
 
 	// Construct the path to the mock runtime WASM file.

@@ -1,8 +1,14 @@
+use std::{
+	fs,
+	path::{Path, PathBuf},
+};
+
 use anyhow::Result;
 use clap::Parser;
 use csv::Reader;
 use frame_benchmarking_cli::PalletCmd;
 use rust_fuzzy_search::fuzzy_search_sorted;
+use sc_chain_spec::GenesisConfigBuilderRuntimeCaller;
 use sp_runtime::traits::BlakeTwo256;
 use std::{
 	collections::HashMap,
@@ -122,6 +128,24 @@ pub fn search_for_extrinsics(
 	output
 }
 
+/// Check if a runtime has a genesis config preset.
+///
+/// # Arguments
+/// * `binary_path` - Path to the runtime WASM binary.
+/// * `preset` - Optional ID of the genesis config preset. If not provided, it checks the default
+///   preset.
+pub fn check_preset(binary_path: &PathBuf, preset: Option<&String>) -> anyhow::Result<()> {
+	let binary = fs::read(binary_path).expect("No runtime binary found");
+	let genesis_config_builder = GenesisConfigBuilderRuntimeCaller::<HostFunctions>::new(&binary);
+	if genesis_config_builder.get_named_preset(preset).is_err() {
+		return Err(anyhow::anyhow!(format!(
+			r#"The preset with name "{:?}" is not available."#,
+			preset
+		)))
+	}
+	Ok(())
+}
+
 /// Get the runtime folder path and throws error if not exist.
 ///
 /// # Arguments
@@ -148,6 +172,14 @@ fn parse_csv_to_map(file_path: &PathBuf) -> anyhow::Result<HashMap<String, Vec<S
 		}
 	}
 	Ok(map)
+}
+
+pub fn get_runtime_path(parent: &Path) -> anyhow::Result<PathBuf> {
+	["runtime", "runtimes"]
+		.iter()
+		.map(|f| parent.join(f))
+		.find(|path| path.exists())
+		.ok_or_else(|| anyhow::anyhow!("No runtime found."))
 }
 
 #[cfg(test)]
