@@ -240,7 +240,10 @@ mod tests {
 		.configure_chain(&mut cli)
 		.await?;
 		let call_data = prepare_reserve_parachain_call_data(&chain)?;
-		assert_eq!(call_data, decode_call_data("0x4605")?);
+		// Encoded call data for a reserve extrinsic.
+		// Reference: https://polkadot.js.org/apps/?rpc=wss%3A%2F%2Fpolkadot.public.curie.radiumblock.co%2Fws#/extrinsics/decode/0x4605
+		let encoded_reserve_extrinsic: &str = "0x4605";
+		assert_eq!(call_data, decode_call_data(encoded_reserve_extrinsic)?);
 		Ok(())
 	}
 
@@ -286,19 +289,19 @@ mod tests {
 				"Choose the chain type: ",
 				Some(false),
 				true,
-				Some(chain_types()),
+				Some(get_messages(ChainType::VARIANTS)),
 				ChainType::Development as usize,
 			).expect_select(
 				"Choose the relay your chain will be connecting to: ",
 				Some(false),
 				true,
-				Some(relays()),
+				Some(get_messages(RelayChain::VARIANTS)),
 				RelayChain::PaseoLocal as usize,
 			).expect_select(
 				"Choose the build profile of the binary that should be used: ",
 				Some(false),
 				true,
-				Some(profiles()),
+				Some(get_messages(Profile::VARIANTS)),
 				Profile::Release as usize,
 		).expect_outro_cancel(format!("Failed to get manifest path: {}/node/Cargo.toml", fs::canonicalize(&project_path)?.display().to_string()));
 
@@ -361,7 +364,10 @@ mod tests {
 			chain,
 		}
 		.prepare_register_parachain_call_data()?;
-		assert_eq!(call_data, decode_call_data("0x4600d0070000081234081234")?);
+		// Encoded call data for a register extrinsic with the above values.
+		// Reference: https://polkadot.js.org/apps/?rpc=wss%3A%2F%2Fpolkadot.public.curie.radiumblock.co%2Fws#/extrinsics/decode/0x4600d0070000081234081234
+		let encoded_reserve_extrinsic: &str = "0x4605";
+		assert_eq!(call_data, decode_call_data(encoded_reserve_extrinsic)?);
 		Ok(())
 	}
 
@@ -377,32 +383,9 @@ mod tests {
 		Ok((genesis_state_path, genesis_code_path))
 	}
 
-	fn relays() -> Vec<(String, String)> {
-		RelayChain::VARIANTS
-			.iter()
-			.map(|variant| {
-				(
-					variant.get_message().unwrap_or(variant.as_ref()).into(),
-					variant.get_detailed_message().unwrap_or_default().into(),
-				)
-			})
-			.collect()
-	}
-
-	fn chain_types() -> Vec<(String, String)> {
-		ChainType::VARIANTS
-			.iter()
-			.map(|variant| {
-				(
-					variant.get_message().unwrap_or(variant.as_ref()).into(),
-					variant.get_detailed_message().unwrap_or_default().into(),
-				)
-			})
-			.collect()
-	}
-
-	fn profiles() -> Vec<(String, String)> {
-		Profile::VARIANTS
+	// Generic helper function to convert enum variants into (message, detailed message) tuples.
+	fn get_messages<T: EnumMessage + AsRef<str>>(variants: &[T]) -> Vec<(String, String)> {
+		variants
 			.iter()
 			.map(|variant| {
 				(
