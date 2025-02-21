@@ -362,11 +362,11 @@ impl CallChainCommand {
 // Represents a chain, including its URL, client connection, and available pallets.
 pub(crate) struct Chain {
 	// Websocket endpoint of the node.
-	pub(crate) url: Url,
+	pub url: Url,
 	// The client used to interact with the chain.
-	pub(crate) client: OnlineClient<SubstrateConfig>,
+	pub client: OnlineClient<SubstrateConfig>,
 	// A list of pallets available on the chain.
-	pub(crate) pallets: Vec<Pallet>,
+	pub pallets: Vec<Pallet>,
 }
 
 /// Represents a configured dispatchable function call, including the pallet, function, arguments,
