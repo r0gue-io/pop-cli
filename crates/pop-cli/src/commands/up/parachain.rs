@@ -366,8 +366,8 @@ mod tests {
 		.prepare_register_parachain_call_data()?;
 		// Encoded call data for a register extrinsic with the above values.
 		// Reference: https://polkadot.js.org/apps/?rpc=wss%3A%2F%2Fpolkadot.public.curie.radiumblock.co%2Fws#/extrinsics/decode/0x4600d0070000081234081234
-		let encoded_reserve_extrinsic: &str = "0x4605";
-		assert_eq!(call_data, decode_call_data(encoded_reserve_extrinsic)?);
+		let encoded_register_extrinsic: &str = "0x4600d0070000081234081234";
+		assert_eq!(call_data, decode_call_data(encoded_register_extrinsic)?);
 		Ok(())
 	}
 
