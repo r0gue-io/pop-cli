@@ -9455,6 +9455,7 @@ dependencies = [
  "scale-value",
  "serde_json",
  "sp-core 32.0.0",
+ "srtool-lib",
  "strum 0.26.3",
  "strum_macros 0.26.4",
  "subxt",
@@ -12884,6 +12885,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "srtool-lib"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f9e2d7720949084d22b538173dad4fe8a4ff5471bef37c155ad9693302359c96"
+dependencies = [
+ "log",
+ "serde_json",
+ "ureq",
+]
+
+[[package]]
 name = "ss58-registry"
 version = "1.51.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -14226,6 +14238,22 @@ name = "untrusted"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
+
+[[package]]
+name = "ureq"
+version = "2.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "02d1a66277ed75f640d608235660df48c8e3c19f3b4edb6a263315626cc3c01d"
+dependencies = [
+ "base64 0.22.1",
+ "flate2",
+ "log",
+ "once_cell",
+ "rustls 0.23.20",
+ "rustls-pki-types",
+ "url",
+ "webpki-roots",
+]
 
 [[package]]
 name = "url"

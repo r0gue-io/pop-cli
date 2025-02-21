@@ -7,7 +7,9 @@ use crate::{
 use anyhow::{anyhow, Result};
 use clap::Args;
 use pop_parachains::{
-	construct_extrinsic, extract_para_id_from_event, find_dispatchable_by_name, parse_chain_metadata, set_up_client, Action, ContainerEngine, Payload
+	construct_extrinsic, extract_para_id_from_event, find_dispatchable_by_name,
+	generate_deterministic_runtime, parse_chain_metadata, set_up_client, Action, ContainerEngine,
+	Payload,
 };
 use std::path::{Path, PathBuf};
 use url::Url;
@@ -65,16 +67,19 @@ impl UpChainCommand {
 	async fn prepare_chain_for_registration(self, cli: &mut impl Cli) -> Result<UpChain> {
 		let chain = self.configure_chain(cli).await?;
 		let para_id = self.resolve_parachain_id(&chain, cli).await?;
-		// TODO: Deterministic build spec generation.
-		// TODO: Update generate_genesis_artifacts to use the runtime instead of building the binary
-		// node.
-		let (genesis_state, genesis_code) = self.resolve_genesis_files(para_id, cli).await?;
-		Ok(UpChain {
-			id: para_id,
-			genesis_state,
-			genesis_code,
-			chain,
-		})
+		let (genesis_state, genesis_code) =
+			match self.deterministic_runtime(cli).await {
+				Ok(_) => {
+					// TODO: Update generate_genesis_artifacts to use the runtime instead of
+					// building the binary node.
+					self.resolve_genesis_files(para_id, cli).await?
+				},
+				Err(_) => {
+					cli.warning("WARNING: Error generating deterministic runtime, proceeding with normal flow.")?;
+					self.resolve_genesis_files(para_id, cli).await?
+				},
+			};
+		Ok(UpChain { id: para_id, genesis_state, genesis_code, chain })
 	}
 
 	// Configures the chain by resolving the URL and fetching its metadata.
@@ -125,9 +130,18 @@ impl UpChainCommand {
 	}
 
 	// Generates chain spec files for the parachain.
-	async fn generate_deterministic_runtime(&self, cli: &mut impl Cli) -> anyhow::Result<()> {
+	async fn deterministic_runtime(&self, cli: &mut impl Cli) -> anyhow::Result<()> {
 		let engine = ContainerEngine::detect()?;
-		// TODO: Warning if docker.
+		if engine == ContainerEngine::Docker {
+			cli.warning("WARNING: You are using docker. We recommend using podman instead.")?;
+		}
+		generate_deterministic_runtime(
+			engine,
+			self.path.clone(),
+			self.package.clone(),
+			self.runtime_dir.clone(),
+		)
+		.await?;
 		// format!("{engine} pull {image}:{tag}");
 		Ok(())
 	}
