@@ -79,20 +79,16 @@ pub(crate) async fn submit_extrinsic_with_wallet(
 	cli: &mut impl Cli,
 ) -> Result<ExtrinsicEvents<SubstrateConfig>> {
 	let maybe_payload = request_signature(call_data, url.to_string()).await?;
-	if let Some(payload) = maybe_payload {
-		cli.success("Signed payload received.")?;
-		let spinner = cliclack::spinner();
-		spinner.start(
-			"Submitting the extrinsic and then waiting for finalization, please be patient...",
-		);
+	let payload = maybe_payload.ok_or_else(|| anyhow!("No signed payload received."))?;
+	cli.success("Signed payload received.")?;
+	let spinner = cliclack::spinner();
+	spinner
+		.start("Submitting the extrinsic and then waiting for finalization, please be patient...");
 
-		let result = submit_signed_extrinsic(client.clone(), payload)
-			.await
-			.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
+	let result = submit_signed_extrinsic(client.clone(), payload)
+		.await
+		.map_err(anyhow::Error::from)?;
 
-		spinner.stop(format!("Extrinsic submitted with hash: {:?}", result.extrinsic_hash()));
-		Ok(result)
-	} else {
-		Err(anyhow!("No signed payload received."))
-	}
+	spinner.stop(format!("Extrinsic submitted with hash: {:?}", result.extrinsic_hash()));
+	Ok(result)
 }
