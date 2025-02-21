@@ -4,15 +4,15 @@ use std::path::Path;
 
 use crate::{
 	cli::{self, traits::*},
-	common::wallet::{prompt_to_use_wallet, request_signature},
+	common::wallet::{prompt_to_use_wallet, submit_extrinsic_with_wallet},
 };
 use anyhow::{anyhow, Result};
 use clap::Args;
 use pop_parachains::{
 	construct_extrinsic, construct_sudo_extrinsic, decode_call_data, encode_call_data,
 	find_dispatchable_by_name, find_pallet_by_name, parse_chain_metadata, set_up_client,
-	sign_and_submit_extrinsic, submit_signed_extrinsic, supported_actions, Action, CallData,
-	DynamicPayload, Function, OnlineClient, Pallet, Param, Payload, SubstrateConfig,
+	sign_and_submit_extrinsic, supported_actions, Action, CallData, DynamicPayload, Function,
+	OnlineClient, Pallet, Param, Payload, SubstrateConfig,
 };
 use url::Url;
 
@@ -109,7 +109,9 @@ impl CallChainCommand {
 			// Sign and submit the extrinsic.
 			let result = if self.use_wallet {
 				let call_data = xt.encode_call_data(&chain.client.metadata())?;
-				submit_extrinsic_with_wallet(&chain.client, &chain.url, call_data, &mut cli).await
+				submit_extrinsic_with_wallet(&chain.client, &chain.url, call_data, &mut cli)
+					.await
+					.map(|_| ()) // Mapping to `()` since we don't need events returned
 			} else {
 				call.submit_extrinsic(&chain.client, &chain.url, xt, &mut cli).await
 			};
@@ -358,19 +360,19 @@ impl CallChainCommand {
 }
 
 // Represents a chain, including its URL, client connection, and available pallets.
-struct Chain {
+pub(crate) struct Chain {
 	// Websocket endpoint of the node.
-	url: Url,
+	pub url: Url,
 	// The client used to interact with the chain.
-	client: OnlineClient<SubstrateConfig>,
+	pub client: OnlineClient<SubstrateConfig>,
 	// A list of pallets available on the chain.
-	pallets: Vec<Pallet>,
+	pub pallets: Vec<Pallet>,
 }
 
 /// Represents a configured dispatchable function call, including the pallet, function, arguments,
 /// and signing options.
-#[derive(Clone)]
-struct Call {
+#[derive(Clone, Default)]
+pub struct Call {
 	/// The dispatchable function to execute.
 	function: Function,
 	/// The dispatchable function arguments, encoded as strings.
@@ -391,7 +393,7 @@ struct Call {
 
 impl Call {
 	// Prepares the extrinsic.
-	fn prepare_extrinsic(
+	pub fn prepare_extrinsic(
 		&self,
 		client: &OnlineClient<SubstrateConfig>,
 		cli: &mut impl Cli,
@@ -471,32 +473,6 @@ impl Call {
 		}
 		full_message
 	}
-}
-
-// Sign and submit an extrinsic using wallet integration.
-async fn submit_extrinsic_with_wallet(
-	client: &OnlineClient<SubstrateConfig>,
-	url: &Url,
-	call_data: Vec<u8>,
-	cli: &mut impl Cli,
-) -> Result<()> {
-	let maybe_payload = request_signature(call_data, url.to_string()).await?;
-	if let Some(payload) = maybe_payload {
-		cli.success("Signed payload received.")?;
-		let spinner = cliclack::spinner();
-		spinner.start(
-			"Submitting the extrinsic and then waiting for finalization, please be patient...",
-		);
-
-		let result = submit_signed_extrinsic(client.clone(), payload)
-			.await
-			.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
-
-		spinner.stop(format!("Extrinsic submitted with hash: {:?}", result));
-	} else {
-		display_message("No signed payload received.", false, cli)?;
-	}
-	Ok(())
 }
 
 // Displays a message to the user, with formatting based on the success status.
