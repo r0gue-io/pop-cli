@@ -76,6 +76,7 @@ git2_credentials = "0.13.0"
 # benchmarking
 cumulus-primitives-proof-size-hostfunction = "0.10.0"
 frame-benchmarking-cli = "46.0.0"
+sc-chain-spec = "41.0.0"
 sp-runtime = "40.0.1"
 sp-statement-store = "15.0.0"
 
