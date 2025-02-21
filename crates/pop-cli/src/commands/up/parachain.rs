@@ -150,7 +150,7 @@ async fn reserve_para_id(chain: &Chain, cli: &mut impl Cli) -> Result<u32> {
 		.await
 		.map_err(|e| anyhow::anyhow!("Parachain ID reservation failed: {}", e))?;
 	let para_id = extract_para_id_from_event(&events).map_err(|_| {
-		anyhow::anyhow!("Unable to parse the event. Specify the parachain ID manually with --id.")
+		anyhow::anyhow!("Unable to parse the event. Specify the parachain ID manually with `--id`.")
 	})?;
 	cli.success(format!("Successfully reserved parachain ID: {}", para_id))?;
 	Ok(para_id)
@@ -158,12 +158,12 @@ async fn reserve_para_id(chain: &Chain, cli: &mut impl Cli) -> Result<u32> {
 
 // Prepares and returns the encoded call data for reserving a parachain ID.
 fn prepare_reserve_parachain_call_data(chain: &Chain) -> Result<Vec<u8>> {
-	let function = find_dispatchable_by_name(
+	let dispatchable = find_dispatchable_by_name(
 		&chain.pallets,
 		Action::Reserve.pallet_name(),
 		Action::Reserve.function_name(),
 	)?;
-	let xt = construct_extrinsic(function, Vec::new())?;
+	let xt = construct_extrinsic(dispatchable, Vec::new())?;
 	Ok(xt.encode_call_data(&chain.client.metadata())?)
 }
 
