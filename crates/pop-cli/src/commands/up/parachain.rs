@@ -10,7 +10,7 @@ use pop_parachains::{
 	construct_extrinsic, extract_para_id_from_event, find_dispatchable_by_name,
 	parse_chain_metadata, set_up_client, Action, Payload,
 };
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use url::Url;
 
 const DEFAULT_URL: &str = "wss://paseo.rpc.amforc.com/";
@@ -100,11 +100,11 @@ impl UpChainCommand {
 		para_id: u32,
 		cli: &mut impl Cli,
 	) -> Result<(PathBuf, PathBuf)> {
-		match (self.genesis_state.clone(), self.genesis_code.clone()) {
-			(Some(state), Some(code)) => Ok((state, code)),
+		match (&self.genesis_state, &self.genesis_code) {
+			(Some(state), Some(code)) => Ok((state.clone(), code.clone())),
 			_ => {
 				cli.info("Generating the chain spec for your parachain")?;
-				generate_spec_files(para_id, self.path.clone(), cli).await
+				generate_spec_files(para_id, self.path.as_deref(), cli).await
 			},
 		}
 	}
@@ -170,7 +170,7 @@ fn prepare_reserve_parachain_call_data(chain: &Chain) -> Result<Vec<u8>> {
 // Generates chain spec files for the parachain.
 async fn generate_spec_files(
 	id: u32,
-	path: Option<PathBuf>,
+	path: Option<&Path>,
 	cli: &mut impl Cli,
 ) -> anyhow::Result<(PathBuf, PathBuf)> {
 	// Changes the working directory if a path is provided to ensure the build spec process runs in
