@@ -16,7 +16,7 @@ mod utils;
 pub use build::{
 	binary_path, build_parachain, export_wasm_file, generate_genesis_state_file,
 	generate_plain_chain_spec, generate_raw_chain_spec, is_supported,
-	runtime::{container_engine::ContainerEngine, generate_deterministic_runtime},
+	runtime::{container_engine::ContainerEngine, SrToolBuilder},
 	ChainSpec,
 };
 pub use call::{

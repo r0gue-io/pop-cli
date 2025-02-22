@@ -8,8 +8,7 @@ use anyhow::{anyhow, Result};
 use clap::Args;
 use pop_parachains::{
 	construct_extrinsic, extract_para_id_from_event, find_dispatchable_by_name,
-	generate_deterministic_runtime, parse_chain_metadata, set_up_client, Action, ContainerEngine,
-	Payload,
+	parse_chain_metadata, set_up_client, Action, ContainerEngine, Payload, SrToolBuilder,
 };
 use std::path::{Path, PathBuf};
 use url::Url;
@@ -68,8 +67,8 @@ impl UpChainCommand {
 		let chain = self.configure_chain(cli).await?;
 		let para_id = self.resolve_parachain_id(&chain, cli).await?;
 		let (genesis_state, genesis_code) =
-			match self.deterministic_runtime(cli).await {
-				Ok(_) => {
+			match self.generate_deterministic_runtime(cli) {
+				Ok(wasm) => {
 					// TODO: Update generate_genesis_artifacts to use the runtime instead of
 					// building the binary node.
 					self.resolve_genesis_files(para_id, cli).await?
@@ -130,20 +129,18 @@ impl UpChainCommand {
 	}
 
 	// Generates chain spec files for the parachain.
-	async fn deterministic_runtime(&self, cli: &mut impl Cli) -> anyhow::Result<()> {
+	fn generate_deterministic_runtime(&self, cli: &mut impl Cli) -> anyhow::Result<Vec<u8>> {
 		let engine = ContainerEngine::detect()?;
 		if engine == ContainerEngine::Docker {
 			cli.warning("WARNING: You are using docker. We recommend using podman instead.")?;
 		}
-		generate_deterministic_runtime(
+		let builder = SrToolBuilder::new(
 			engine,
 			self.path.clone(),
 			self.package.clone(),
 			self.runtime_dir.clone(),
-		)
-		.await?;
-		// format!("{engine} pull {image}:{tag}");
-		Ok(())
+		)?;
+		builder.generate_deterministic_runtime().map_err(anyhow::Error::from)
 	}
 }
 
