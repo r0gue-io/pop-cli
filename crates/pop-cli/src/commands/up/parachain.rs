@@ -1,14 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{
-	build::spec::BuildSpecCommand, call::chain::Chain, cli::traits::*,
-	common::wallet::submit_extrinsic_with_wallet,
+	build::spec::BuildSpecCommand,
+	cli::traits::*,
+	common::{
+		chain::{configure_chain, Chain},
+		wallet::submit_extrinsic_with_wallet,
+	},
 };
 use anyhow::{anyhow, Result};
 use clap::Args;
 use pop_parachains::{
-	construct_extrinsic, extract_para_id_from_event, find_dispatchable_by_name,
-	parse_chain_metadata, set_up_client, Action, Payload,
+	construct_extrinsic, extract_para_id_from_event, find_dispatchable_by_name, Action, Payload,
 };
 use std::path::{Path, PathBuf};
 use url::Url;
@@ -56,34 +59,18 @@ impl UpChainCommand {
 
 	// Prepares the chain for registration by setting up its configuration.
 	async fn prepare_chain_for_registration(self, cli: &mut impl Cli) -> Result<UpChain> {
-		let chain = self.configure_chain(cli).await?;
+		let chain = configure_chain(
+			"Enter the relay chain node URL to deploy your parachain",
+			DEFAULT_URL,
+			&self.relay_url,
+			cli,
+		)
+		.await?;
 		let para_id = self.resolve_parachain_id(&chain, cli).await?;
 		let (genesis_state, genesis_code) = self.resolve_genesis_files(para_id, cli).await?;
 		Ok(UpChain { id: para_id, genesis_state, genesis_code, chain })
 	}
 
-	// Configures the chain by resolving the URL and fetching its metadata.
-	async fn configure_chain(&self, cli: &mut impl Cli) -> Result<Chain> {
-		// Resolve url.
-		let url = match &self.relay_url {
-			Some(url) => url.clone(),
-			None => {
-				// Prompt for url.
-				let url: String = cli
-					.input("Enter the relay chain node URL to deploy your parachain")
-					.default_input(DEFAULT_URL)
-					.interact()?;
-				Url::parse(&url)?
-			},
-		};
-
-		// Parse metadata from chain url.
-		let client = set_up_client(url.as_str()).await?;
-		let pallets = parse_chain_metadata(&client).map_err(|e| {
-			anyhow!(format!("Unable to fetch the chain metadata: {}", e.to_string()))
-		})?;
-		Ok(Chain { url, client, pallets })
-	}
 	// Resolves the parachain ID, reserving a new one if necessary.
 	async fn resolve_parachain_id(&self, chain: &Chain, cli: &mut impl Cli) -> Result<u32> {
 		match self.id {
@@ -233,11 +220,12 @@ mod tests {
 	#[tokio::test]
 	async fn prepare_reserve_parachain_call_data_works() -> Result<()> {
 		let mut cli = MockCli::new();
-		let chain = UpChainCommand {
-			relay_url: Some(Url::parse(POLKADOT_NETWORK_URL)?),
-			..Default::default()
-		}
-		.configure_chain(&mut cli)
+		let chain = configure_chain(
+			"Enter the relay chain node URL to deploy your parachain",
+			DEFAULT_URL,
+			&Some(Url::parse(POLKADOT_NETWORK_URL)?),
+			&mut cli,
+		)
 		.await?;
 		let call_data = prepare_reserve_parachain_call_data(&chain)?;
 		// Encoded call data for a reserve extrinsic.
@@ -344,11 +332,12 @@ mod tests {
 	#[tokio::test]
 	async fn prepare_register_parachain_call_data_works() -> Result<()> {
 		let mut cli = MockCli::new();
-		let chain = UpChainCommand {
-			relay_url: Some(Url::parse(POLKADOT_NETWORK_URL)?),
-			..Default::default()
-		}
-		.configure_chain(&mut cli)
+		let chain = configure_chain(
+			"Enter the relay chain node URL to deploy your parachain",
+			DEFAULT_URL,
+			&Some(Url::parse(POLKADOT_NETWORK_URL)?),
+			&mut cli,
+		)
 		.await?;
 		// Create a temporary files to act as genesis_state and genesis_code files.
 		let temp_dir = tempdir()?;

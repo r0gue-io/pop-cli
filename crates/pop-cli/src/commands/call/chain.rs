@@ -4,15 +4,18 @@ use std::path::Path;
 
 use crate::{
 	cli::{self, traits::*},
-	common::wallet::{prompt_to_use_wallet, submit_extrinsic_with_wallet},
+	common::{
+		chain::{configure_chain, Chain},
+		wallet::{prompt_to_use_wallet, submit_extrinsic_with_wallet},
+	},
 };
 use anyhow::{anyhow, Result};
 use clap::Args;
 use pop_parachains::{
 	construct_extrinsic, construct_sudo_extrinsic, decode_call_data, encode_call_data,
-	find_dispatchable_by_name, find_pallet_by_name, parse_chain_metadata, set_up_client,
-	sign_and_submit_extrinsic, supported_actions, Action, CallData, DynamicPayload, Function,
-	OnlineClient, Pallet, Param, Payload, SubstrateConfig,
+	find_dispatchable_by_name, find_pallet_by_name, sign_and_submit_extrinsic, supported_actions,
+	Action, CallData, DynamicPayload, Function, OnlineClient, Pallet, Param, Payload,
+	SubstrateConfig,
 };
 use url::Url;
 
@@ -67,10 +70,17 @@ impl CallChainCommand {
 	/// Executes the command.
 	pub(crate) async fn execute(mut self) -> Result<()> {
 		let mut cli = cli::Cli;
+		cli.intro("Call a chain")?;
 		// Check if all fields are specified via the command line.
 		let prompt_to_repeat_call = self.requires_user_input();
 		// Configure the chain.
-		let chain = self.configure_chain(&mut cli).await?;
+		let chain = configure_chain(
+			"Which chain would you like to interact with?",
+			DEFAULT_URL,
+			&self.url,
+			&mut cli,
+		)
+		.await?;
 		// Execute the call if call_data is provided.
 		if let Some(call_data) = self.call_data.as_ref() {
 			if let Err(e) = self
@@ -132,33 +142,6 @@ impl CallChainCommand {
 			self.reset_for_new_call();
 		}
 		Ok(())
-	}
-
-	// Configures the chain by resolving the URL and fetching its metadata.
-	async fn configure_chain(&self, cli: &mut impl Cli) -> Result<Chain> {
-		cli.intro("Call a chain")?;
-		// Resolve url.
-		let url = match &self.url {
-			Some(url) => url.clone(),
-			None => {
-				// Prompt for url.
-				let url: String = cli
-					.input("Which chain would you like to interact with?")
-					.default_input(DEFAULT_URL)
-					.interact()?;
-				Url::parse(&url)?
-			},
-		};
-
-		// Parse metadata from chain url.
-		let client = set_up_client(url.as_str()).await?;
-		let mut pallets = parse_chain_metadata(&client).map_err(|e| {
-			anyhow!(format!("Unable to fetch the chain metadata: {}", e.to_string()))
-		})?;
-		// Sort by name for display.
-		pallets.sort_by(|a, b| a.name.cmp(&b.name));
-		pallets.iter_mut().for_each(|p| p.functions.sort_by(|a, b| a.name.cmp(&b.name)));
-		Ok(Chain { url, client, pallets })
 	}
 
 	// Configure the call based on command line arguments/call UI.
@@ -357,16 +340,6 @@ impl CallChainCommand {
 			})
 			.collect()
 	}
-}
-
-// Represents a chain, including its URL, client connection, and available pallets.
-pub(crate) struct Chain {
-	// Websocket endpoint of the node.
-	pub url: Url,
-	// The client used to interact with the chain.
-	pub client: OnlineClient<SubstrateConfig>,
-	// A list of pallets available on the chain.
-	pub pallets: Vec<Pallet>,
 }
 
 /// Represents a configured dispatchable function call, including the pallet, function, arguments,
@@ -646,6 +619,7 @@ fn parse_function_name(name: &str) -> Result<String, String> {
 mod tests {
 	use super::*;
 	use crate::{cli::MockCli, common::wallet::USE_WALLET_PROMPT};
+	use pop_parachains::{parse_chain_metadata, set_up_client};
 	use tempfile::tempdir;
 	use url::Url;
 
@@ -654,25 +628,11 @@ mod tests {
 	const POLKADOT_NETWORK_URL: &str = "wss://polkadot-rpc.publicnode.com";
 
 	#[tokio::test]
-	async fn configure_chain_works() -> Result<()> {
-		let call_config =
-			CallChainCommand { suri: Some(DEFAULT_URI.to_string()), ..Default::default() };
-		let mut cli = MockCli::new().expect_intro("Call a chain").expect_input(
-			"Which chain would you like to interact with?",
-			POP_NETWORK_TESTNET_URL.into(),
-		);
-		let chain = call_config.configure_chain(&mut cli).await?;
-		assert_eq!(chain.url, Url::parse(POP_NETWORK_TESTNET_URL)?);
-		cli.verify()
-	}
-
-	#[tokio::test]
 	async fn guide_user_to_call_chain_works() -> Result<()> {
 		let mut call_config =
 			CallChainCommand { pallet: Some("System".to_string()), ..Default::default() };
 
 		let mut cli = MockCli::new()
-		.expect_intro("Call a chain")
 		.expect_input("Which chain would you like to interact with?", POP_NETWORK_TESTNET_URL.into())
 		.expect_select(
 			"Select the function to call:",
@@ -700,7 +660,13 @@ mod tests {
 		.expect_confirm("Would you like to dispatch this function call with `Root` origin?", true)
 		.expect_confirm(USE_WALLET_PROMPT, true);
 
-		let chain = call_config.configure_chain(&mut cli).await?;
+		let chain = configure_chain(
+			"Which chain would you like to interact with?",
+			POP_NETWORK_TESTNET_URL,
+			&None,
+			&mut cli,
+		)
+		.await?;
 		assert_eq!(chain.url, Url::parse(POP_NETWORK_TESTNET_URL)?);
 
 		let call_chain = call_config.configure_call(&chain, &mut cli)?;
@@ -718,11 +684,17 @@ mod tests {
 	async fn guide_user_to_configure_predefined_action_works() -> Result<()> {
 		let mut call_config = CallChainCommand::default();
 
-		let mut cli = MockCli::new().expect_intro("Call a chain").expect_input(
+		let mut cli = MockCli::new().expect_input(
 			"Which chain would you like to interact with?",
 			POLKADOT_NETWORK_URL.into(),
 		);
-		let chain = call_config.configure_chain(&mut cli).await?;
+		let chain = configure_chain(
+			"Which chain would you like to interact with?",
+			POP_NETWORK_TESTNET_URL,
+			&None,
+			&mut cli,
+		)
+		.await?;
 		assert_eq!(chain.url, Url::parse(POLKADOT_NETWORK_URL)?);
 		cli.verify()?;
 
@@ -872,20 +844,30 @@ mod tests {
 			sudo: true,
 		};
 		let mut cli = MockCli::new()
-			.expect_intro("Call a chain")
 			.expect_warning("NOTE: sudo is not supported by the chain. Ignoring `--sudo` flag.");
-		let chain = call_config.configure_chain(&mut cli).await?;
+		let chain = configure_chain(
+			"Which chain would you like to interact with?",
+			POP_NETWORK_TESTNET_URL,
+			&Some(Url::parse(POLKADOT_NETWORK_URL)?),
+			&mut cli,
+		)
+		.await?;
 		call_config.configure_sudo(&chain, &mut cli)?;
 		assert!(!call_config.sudo);
 		cli.verify()?;
 
 		// Test when sudo pallet exist.
-		cli = MockCli::new().expect_intro("Call a chain").expect_confirm(
+		cli = MockCli::new().expect_confirm(
 			"Would you like to dispatch this function call with `Root` origin?",
 			true,
 		);
-		call_config.url = Some(Url::parse(POP_NETWORK_TESTNET_URL)?);
-		let chain = call_config.configure_chain(&mut cli).await?;
+		let chain = configure_chain(
+			"Which chain would you like to interact with?",
+			POP_NETWORK_TESTNET_URL,
+			&Some(Url::parse(POP_NETWORK_TESTNET_URL)?),
+			&mut cli,
+		)
+		.await?;
 		call_config.configure_sudo(&chain, &mut cli)?;
 		assert!(call_config.sudo);
 		cli.verify()
