@@ -5,6 +5,7 @@ use anyhow::{anyhow, Result};
 use duct::cmd;
 use pop_common::{manifest::from_path, Profile};
 use serde_json::{json, Value};
+use sp_core::bytes::to_hex;
 use std::{
 	fs,
 	path::{Path, PathBuf},
@@ -326,6 +327,26 @@ impl ChainSpec {
 	/// * `path` - The path to the chain specification file.
 	pub fn to_file(&self, path: &Path) -> Result<()> {
 		fs::write(path, self.to_string()?)?;
+		Ok(())
+	}
+
+	/// Updates the runtime code in the chain specification.
+	///
+	/// # Arguments
+	/// * `wasm_bytes` - The new runtime Wasm code.
+	pub fn update_runtime_code(&mut self, wasm_bytes: &[u8]) -> Result<(), Error> {
+		let wasm_hex = to_hex(wasm_bytes, true);
+		// Replace `genesis.runtimeGenesis.code`
+		let replace = self
+			.0
+			.get_mut("genesis")
+			.ok_or_else(|| Error::Config("expected `genesis`".into()))?
+			.get_mut("runtimeGenesis")
+			.ok_or_else(|| Error::Config("expected `runtimeGenesis`".into()))?
+			.get_mut("code")
+			.ok_or_else(|| Error::Config("expected `runtimeGenesis.code`".into()))?;
+
+		*replace = json!(wasm_hex);
 		Ok(())
 	}
 }

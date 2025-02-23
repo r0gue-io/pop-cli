@@ -582,7 +582,7 @@ impl BuildSpec {
 			match self.generate_deterministic_runtime(cli) {
 				Ok(wasm) => {
 					spinner.set_message("Deterministic runtime generated successfully.");
-					// TODO: UPDATE CODE
+					self.update_code(&wasm)?;
 				},
 				Err(_) => {
 					cli.warning("WARNING: Error generating deterministic runtime, proceeding with normal flow.")?;
@@ -658,6 +658,16 @@ impl BuildSpec {
 			return Err(anyhow::anyhow!("Cant't find the generated runtime at {:?}", wasm_path));
 		}
 		fs::read(&wasm_path).map_err(anyhow::Error::from)
+	}
+
+	// Updates the chain specification with the runtime code.
+	fn update_code(&self, wasm_bytes: &[u8]) -> anyhow::Result<()> {
+		let mut chain_spec = ChainSpec::from(&self.output_file)?;
+
+		chain_spec.update_runtime_code(wasm_bytes)?;
+
+		chain_spec.to_file(&self.output_file)?;
+		Ok(())
 	}
 }
 
