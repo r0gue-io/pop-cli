@@ -13,11 +13,12 @@ use cliclack::{spinner, ProgressBar};
 use pop_common::Profile;
 use pop_parachains::{
 	binary_path, build_parachain, export_wasm_file, generate_genesis_state_file,
-	generate_plain_chain_spec, generate_raw_chain_spec, is_supported, ChainSpec,
+	generate_plain_chain_spec, generate_raw_chain_spec, is_supported, ChainSpec, ContainerEngine,
+	SrToolBuilder,
 };
 use std::{
 	env::current_dir,
-	fs::create_dir_all,
+	fs::{self, create_dir_all},
 	path::{Path, PathBuf},
 };
 #[cfg(not(test))]
@@ -26,8 +27,10 @@ use strum::{EnumMessage, VariantArray};
 use strum_macros::{AsRefStr, Display, EnumString};
 
 const DEFAULT_CHAIN: &str = "dev";
+const DEFAULT_PACKAGE: &str = "parachain-template-runtime";
 const DEFAULT_PARA_ID: u32 = 2000;
 const DEFAULT_PROTOCOL_ID: &str = "my-protocol";
+const DEFAULT_RUNTIME_DIR: &str = "./runtime";
 const DEFAULT_SPEC_NAME: &str = "chain-spec.json";
 
 #[derive(
@@ -169,6 +172,15 @@ pub struct BuildSpecCommand {
 	/// Whether the genesis code file should be generated.
 	#[arg(short = 'C', long = "genesis-code")]
 	pub(crate) genesis_code: bool,
+	/// Whether to build the Wasm runtime deterministically.
+	#[arg(short, long)]
+	pub(crate) deterministic: bool,
+	/// Specify the runtime package name.
+	#[clap(long, requires = "deterministic")]
+	pub package: Option<String>,
+	/// Define the directory path where the runtime is located.
+	#[clap(name = "runtime", long, requires = "deterministic")]
+	pub runtime_dir: Option<PathBuf>,
 }
 
 impl BuildSpecCommand {
@@ -209,6 +221,9 @@ impl BuildSpecCommand {
 			protocol_id,
 			genesis_state,
 			genesis_code,
+			deterministic,
+			package,
+			runtime_dir,
 		} = self;
 
 		// Chain.
@@ -415,6 +430,40 @@ impl BuildSpecCommand {
 			true
 		};
 
+		// Prompt the user for deterministic build only if the profile is Production.
+		let deterministic = deterministic || (profile == Profile::Production && cli
+			.confirm("Would you like to build the Wasm runtime deterministically? (Recommended for production builds)")
+			.initial_value(true)
+			.interact()?);
+
+		// If deterministic build is selected, prompt for package and runtime_dir if not provided.
+		let package = if deterministic {
+			match package {
+				Some(pkg) => pkg,
+				None => cli
+					.input("Enter the runtime package name:")
+					.placeholder(DEFAULT_PACKAGE)
+					.default_input(DEFAULT_PACKAGE)
+					.interact()?,
+			}
+		} else {
+			DEFAULT_PACKAGE.to_string()
+		};
+
+		let runtime_dir = if deterministic {
+			match runtime_dir {
+				Some(dir) => dir,
+				None => PathBuf::from(
+					cli.input("Enter the runtime directory path:")
+						.placeholder(DEFAULT_RUNTIME_DIR)
+						.default_input(DEFAULT_RUNTIME_DIR)
+						.interact()?,
+				),
+			}
+		} else {
+			DEFAULT_RUNTIME_DIR.into()
+		};
+
 		if release {
 			cli.warning("NOTE: release flag is deprecated. Use `--profile` instead.")?;
 			#[cfg(not(test))]
@@ -433,6 +482,9 @@ impl BuildSpecCommand {
 			protocol_id,
 			genesis_state,
 			genesis_code,
+			deterministic,
+			package,
+			runtime_dir,
 		})
 	}
 }
@@ -450,6 +502,9 @@ pub(crate) struct BuildSpec {
 	protocol_id: String,
 	genesis_state: bool,
 	genesis_code: bool,
+	deterministic: bool,
+	package: String,
+	runtime_dir: PathBuf,
 }
 
 impl BuildSpec {
@@ -466,7 +521,7 @@ impl BuildSpec {
 		let binary_path = ensure_binary_exists(cli, profile)?;
 		let spinner = spinner();
 
-		let raw_chain_spec = self.generate_chain_spec(&binary_path, &spinner)?;
+		let raw_chain_spec = self.generate_chain_spec(&binary_path, &spinner, cli)?;
 
 		generated_files.push(format!(
 			"Plain text chain specification file generated at: {}",
@@ -513,6 +568,7 @@ impl BuildSpec {
 		&self,
 		binary_path: &Path,
 		spinner: &ProgressBar,
+		cli: &mut impl cli::traits::Cli,
 	) -> anyhow::Result<PathBuf> {
 		let BuildSpec { output_file, chain, .. } = self;
 		spinner.start("Generating chain specification...");
@@ -521,6 +577,18 @@ impl BuildSpec {
 		generate_plain_chain_spec(binary_path, output_file, self.default_bootnode, chain)?;
 		// Customize spec based on input.
 		self.customize()?;
+		// Deterministic build.
+		if self.deterministic {
+			match self.generate_deterministic_runtime(cli) {
+				Ok(wasm) => {
+					spinner.set_message("Deterministic runtime generated successfully.");
+					// TODO: UPDATE CODE
+				},
+				Err(_) => {
+					cli.warning("WARNING: Error generating deterministic runtime, proceeding with normal flow.")?;
+				},
+			}
+		}
 
 		// Generate raw spec.
 		spinner.set_message("Generating raw chain specification...");
@@ -548,7 +616,7 @@ impl BuildSpec {
 		let spinner = spinner();
 		spinner.start("Generating files...");
 
-		let raw_chain_spec = self.generate_chain_spec(&binary_path, &spinner)?;
+		let raw_chain_spec = self.generate_chain_spec(&binary_path, &spinner, cli)?;
 
 		spinner.set_message("Generating genesis code...");
 		let wasm_file_name = format!("para-{}.wasm", self.id);
@@ -572,6 +640,24 @@ impl BuildSpec {
 		chain_spec.replace_protocol_id(&self.protocol_id)?;
 		chain_spec.to_file(&self.output_file)?;
 		Ok(())
+	}
+
+	// Generates the deterministic runtime and returns the runtime generated.
+	fn generate_deterministic_runtime(
+		&self,
+		cli: &mut impl cli::traits::Cli,
+	) -> anyhow::Result<Vec<u8>> {
+		let engine = ContainerEngine::detect()?;
+		if engine == ContainerEngine::Docker {
+			cli.warning("WARNING: You are using docker. We recommend using podman instead.")?;
+		}
+		let builder =
+			SrToolBuilder::new(engine, None, self.package.clone(), self.runtime_dir.clone())?;
+		let wasm_path = builder.generate_deterministic_runtime()?;
+		if !wasm_path.exists() {
+			return Err(anyhow::anyhow!("Cant't find the generated runtime at {:?}", wasm_path));
+		}
+		fs::read(&wasm_path).map_err(anyhow::Error::from)
 	}
 }
 
@@ -638,6 +724,9 @@ mod tests {
 		let relay = Polkadot;
 		let release = false;
 		let profile = Profile::Production;
+		let deterministic = true;
+		let package = "runtime-name";
+		let runtime_dir = PathBuf::from("./new-runtime-dir");
 
 		for build_spec_cmd in [
 			// No flags used.
@@ -655,6 +744,9 @@ mod tests {
 				protocol_id: Some(protocol_id.to_string()),
 				genesis_state,
 				genesis_code,
+				deterministic,
+				package: Some(package.to_string()),
+				runtime_dir: Some(runtime_dir.clone()),
 			},
 		] {
 			let mut cli = MockCli::new();
@@ -688,7 +780,10 @@ mod tests {
 					profile.clone() as usize
 				).expect_confirm("Would you like to use local host as a bootnode ?", default_bootnode
 				).expect_confirm("Should the genesis state file be generated ?", genesis_state
-				).expect_confirm("Should the genesis code file be generated ?", genesis_code);
+				).expect_confirm("Should the genesis code file be generated ?", genesis_code)
+				.expect_confirm("Would you like to build the Wasm runtime deterministically? (Recommended for production builds)", deterministic)
+				.expect_input("Enter the runtime package name:", package.to_string())
+				.expect_input("Enter the runtime directory path:", runtime_dir.display().to_string());
 			}
 			let build_spec = build_spec_cmd.configure_build_spec(&mut cli).await?;
 			assert_eq!(build_spec.chain, chain);
@@ -701,6 +796,9 @@ mod tests {
 			assert_eq!(build_spec.protocol_id, protocol_id);
 			assert_eq!(build_spec.genesis_state, genesis_state);
 			assert_eq!(build_spec.genesis_code, genesis_code);
+			assert_eq!(build_spec.deterministic, deterministic);
+			assert_eq!(build_spec.package, package);
+			assert_eq!(build_spec.runtime_dir, runtime_dir);
 			cli.verify()?;
 		}
 		Ok(())
@@ -718,6 +816,9 @@ mod tests {
 		let relay = Polkadot;
 		let release = false;
 		let profile = Profile::Production;
+		let deterministic = true;
+		let package = "runtime-name";
+		let runtime_dir = PathBuf::from("./new-runtime-dir");
 
 		// Create a temporary file to act as the existing chain spec file.
 		let temp_dir = tempdir()?;
@@ -745,6 +846,9 @@ mod tests {
 					protocol_id: Some(protocol_id.to_string()),
 					genesis_state,
 					genesis_code,
+					deterministic,
+					package: Some(package.to_string()),
+					runtime_dir: Some(runtime_dir.clone()),
 				},
 			] {
 				let mut cli = MockCli::new().expect_confirm(
@@ -810,6 +914,13 @@ mod tests {
 							genesis_code,
 						);
 					}
+					if !build_spec_cmd.deterministic {
+						cli = cli.expect_confirm(
+							"Would you like to build the Wasm runtime deterministically? (Recommended for production builds)",
+							deterministic,
+						).expect_input("Enter the runtime package name:", package.to_string())
+						.expect_input("Enter the runtime directory path:", runtime_dir.display().to_string());
+					}
 				}
 				let build_spec = build_spec_cmd.configure_build_spec(&mut cli).await?;
 				if changes && no_flags_used {
@@ -821,6 +932,9 @@ mod tests {
 					assert_eq!(build_spec.protocol_id, protocol_id);
 					assert_eq!(build_spec.genesis_state, genesis_state);
 					assert_eq!(build_spec.genesis_code, genesis_code);
+					assert_eq!(build_spec.deterministic, deterministic);
+					assert_eq!(build_spec.package, package);
+					assert_eq!(build_spec.runtime_dir, runtime_dir);
 				}
 				// Assert that the chain spec file is correctly detected and used.
 				assert_eq!(build_spec.chain, chain_spec_path.to_string_lossy());

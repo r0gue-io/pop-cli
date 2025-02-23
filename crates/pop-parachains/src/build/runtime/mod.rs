@@ -65,13 +65,12 @@ impl SrToolBuilder {
 		})
 	}
 	/// Executes the runtime build process and returns the path of the generated `.wasm` file.
-	pub fn generate_deterministic_runtime(&self) -> Result<Vec<u8>, Error> {
+	pub fn generate_deterministic_runtime(&self) -> Result<PathBuf, Error> {
 		let command = self.build_command();
 		Command::new("sh").arg("-c").arg(command).spawn()?.wait_with_output()?;
 
 		let wasm_path = self.get_runtime_path();
-		let wasm_content = fs::read(&wasm_path)?;
-		Ok(wasm_content)
+		Ok(wasm_path)
 	}
 
 	// Builds the srtool runtime container command string.
