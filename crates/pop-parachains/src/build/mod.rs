@@ -360,6 +360,7 @@ mod tests {
 	};
 	use anyhow::Result;
 	use pop_common::{manifest::Dependency, set_executable_permission};
+	use sp_core::bytes::from_hex;
 	use std::{fs, fs::write, io::Write, path::Path};
 	use strum::VariantArray;
 	use tempfile::{tempdir, Builder, TempDir};
@@ -798,6 +799,34 @@ mod tests {
 		let mut chain_spec = ChainSpec(json!({"": "old-protocolId"}));
 		assert!(
 			matches!(chain_spec.replace_protocol_id("new-protocolId"), Err(Error::Config(error)) if error == "expected `protocolId`")
+		);
+		Ok(())
+	}
+
+	#[test]
+	fn update_runtime_code_works() -> Result<()> {
+		let mut chain_spec = ChainSpec(json!({"genesis": {"runtimeGenesis" : {  "code": "0x00" }}}));
+
+		chain_spec.update_runtime_code(&from_hex("0x1234")?)?;
+		assert_eq!(chain_spec.0, json!({"genesis": {"runtimeGenesis" : {  "code": "0x1234" }}}));
+		Ok(())
+	}
+
+	#[test]
+	fn update_runtime_code_fails() -> Result<()> {
+		let mut chain_spec = ChainSpec(json!({"invalidKey": {"runtimeGenesis" : {  "code": "0x00" }}}));
+		assert!(
+			matches!(chain_spec.update_runtime_code(&from_hex("0x1234")?), Err(Error::Config(error)) if error == "expected `genesis`")
+		);
+
+		chain_spec = ChainSpec(json!({"genesis": {"invalidKey" : {  "code": "0x00" }}}));
+		assert!(
+			matches!(chain_spec.update_runtime_code(&from_hex("0x1234")?), Err(Error::Config(error)) if error == "expected `runtimeGenesis`")
+		);
+
+		chain_spec = ChainSpec(json!({"genesis": {"runtimeGenesis" : {  "invalidKey": "0x00" }}}));
+		assert!(
+			matches!(chain_spec.update_runtime_code(&from_hex("0x1234")?), Err(Error::Config(error)) if error == "expected `runtimeGenesis.code`")
 		);
 		Ok(())
 	}

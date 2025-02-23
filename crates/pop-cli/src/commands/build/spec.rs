@@ -490,7 +490,7 @@ impl BuildSpecCommand {
 }
 
 // Represents the configuration for building a chain specification.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub(crate) struct BuildSpec {
 	output_file: PathBuf,
 	profile: Profile,
@@ -718,6 +718,8 @@ fn prepare_output_path(output_path: impl AsRef<Path>) -> anyhow::Result<PathBuf>
 mod tests {
 	use super::{ChainType::*, RelayChain::*, *};
 	use crate::cli::MockCli;
+	use serde_json::json;
+	use sp_core::bytes::from_hex;
 	use std::{fs::create_dir_all, path::PathBuf};
 	use tempfile::{tempdir, TempDir};
 
@@ -976,6 +978,37 @@ mod tests {
 		let build_spec = build_spec_cmd.configure_build_spec(&mut cli).await?;
 		assert_eq!(build_spec.profile, release.into());
 		cli.verify()?;
+		Ok(())
+	}
+
+	#[test]
+	fn update_code_works() -> anyhow::Result<()> {
+		let temp_dir = tempdir()?;
+		let output_file = temp_dir.path().join("chain_spec.json");
+		std::fs::write(&output_file, json!({
+			"genesis": {
+				"runtimeGenesis": {
+					"code": "0x00"
+				}
+			}
+		}).to_string())?;
+		let build_spec = BuildSpec {
+			output_file: output_file.clone(),
+			..Default::default()
+		};
+		build_spec.update_code(&from_hex("0x1234")?)?;
+
+		let updated_output_file: serde_json::Value = serde_json::from_str(&fs::read_to_string(&output_file)?)?;
+		assert_eq!(
+			updated_output_file,
+			json!({
+				"genesis": {
+					"runtimeGenesis": {
+						"code": "0x1234"
+					}
+				}
+			})
+		);
 		Ok(())
 	}
 
