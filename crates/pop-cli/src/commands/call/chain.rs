@@ -345,7 +345,7 @@ impl CallChainCommand {
 /// Represents a configured dispatchable function call, including the pallet, function, arguments,
 /// and signing options.
 #[derive(Clone, Default)]
-pub struct Call {
+struct Call {
 	/// The dispatchable function to execute.
 	function: Function,
 	/// The dispatchable function arguments, encoded as strings.
@@ -366,7 +366,7 @@ pub struct Call {
 
 impl Call {
 	// Prepares the extrinsic.
-	pub fn prepare_extrinsic(
+	fn prepare_extrinsic(
 		&self,
 		client: &OnlineClient<SubstrateConfig>,
 		cli: &mut impl Cli,
