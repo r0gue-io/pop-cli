@@ -522,7 +522,7 @@ impl BuildSpec {
 		let binary_path = ensure_binary_exists(cli, profile)?;
 		let spinner = spinner();
 
-		let raw_chain_spec = self.generate_chain_spec(&binary_path, &spinner)?;
+		let raw_chain_spec = self.generate_chain_spec(&binary_path, &spinner, cli)?;
 
 		generated_files.push(format!(
 			"Plain text chain specification file generated at: {}",
@@ -569,6 +569,7 @@ impl BuildSpec {
 		&self,
 		binary_path: &Path,
 		spinner: &ProgressBar,
+		cli: &mut impl cli::traits::Cli,
 	) -> anyhow::Result<PathBuf> {
 		let BuildSpec { output_file, chain, .. } = self;
 		spinner.start("Generating chain specification...");
@@ -579,15 +580,18 @@ impl BuildSpec {
 		self.customize()?;
 		// Deterministic build.
 		if self.deterministic {
+			spinner.set_message("Generating deterministic runtime...");
+			cli.warning("NOTE: this may take some time...")?;
+			spinner.clear();
 			match self.generate_deterministic_runtime() {
 				Ok(wasm) => {
-					spinner.set_message("Deterministic runtime generated successfully.");
+					cli.success("Deterministic runtime generated successfully.")?;
 					self.update_code(&wasm)?;
 				},
 				Err(_) => {
-					spinner.set_message("WARNING: Failed to generate deterministic runtime. Falling back to the standard build process.");
+					cli.warning("WARNING: Failed to generate deterministic runtime. Proceeding with the standard local build.")?;
 				},
-			}
+			};
 		}
 
 		// Generate raw spec.
@@ -616,7 +620,7 @@ impl BuildSpec {
 		let spinner = spinner();
 		spinner.start("Generating files...");
 
-		let raw_chain_spec = self.generate_chain_spec(&binary_path, &spinner)?;
+		let raw_chain_spec = self.generate_chain_spec(&binary_path, &spinner, cli)?;
 
 		spinner.set_message("Generating genesis code...");
 		let wasm_file_name = format!("para-{}.wasm", self.id);

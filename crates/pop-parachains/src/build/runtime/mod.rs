@@ -3,8 +3,9 @@
 use pop_common::Profile;
 
 use crate::{ContainerEngine, Error};
+use duct::cmd;
 use srtool_lib::{get_image_digest, get_image_tag};
-use std::{env, fs, path::PathBuf, process::Command};
+use std::{env, fs, path::PathBuf};
 
 pub mod container_engine;
 
@@ -67,8 +68,7 @@ impl SrToolBuilder {
 	/// Executes the runtime build process and returns the path of the generated `.wasm` file.
 	pub fn generate_deterministic_runtime(&self) -> Result<PathBuf, Error> {
 		let command = self.build_command();
-		Command::new("sh").arg("-c").arg(command).spawn()?.wait_with_output()?;
-
+		cmd("sh", vec!["-c", &command]).stderr_null().run()?;
 		let wasm_path = self.get_runtime_path();
 		Ok(wasm_path)
 	}
