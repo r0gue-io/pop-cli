@@ -583,7 +583,7 @@ impl BuildSpec {
 			spinner.set_message("Generating deterministic runtime...");
 			cli.warning("NOTE: this may take some time...")?;
 			spinner.clear();
-			match self.generate_deterministic_runtime() {
+			match self.generate_deterministic_runtime(cli) {
 				Ok(wasm) => {
 					cli.success("Deterministic runtime generated successfully.")?;
 					self.update_code(&wasm)?;
