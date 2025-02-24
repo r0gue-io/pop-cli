@@ -522,7 +522,7 @@ impl BuildSpec {
 		let binary_path = ensure_binary_exists(cli, profile)?;
 		let spinner = spinner();
 
-		let raw_chain_spec = self.generate_chain_spec(&binary_path, &spinner, cli)?;
+		let raw_chain_spec = self.generate_chain_spec(&binary_path, &spinner)?;
 
 		generated_files.push(format!(
 			"Plain text chain specification file generated at: {}",
@@ -569,7 +569,6 @@ impl BuildSpec {
 		&self,
 		binary_path: &Path,
 		spinner: &ProgressBar,
-		cli: &mut impl cli::traits::Cli,
 	) -> anyhow::Result<PathBuf> {
 		let BuildSpec { output_file, chain, .. } = self;
 		spinner.start("Generating chain specification...");
@@ -580,13 +579,13 @@ impl BuildSpec {
 		self.customize()?;
 		// Deterministic build.
 		if self.deterministic {
-			match self.generate_deterministic_runtime(cli) {
+			match self.generate_deterministic_runtime() {
 				Ok(wasm) => {
 					spinner.set_message("Deterministic runtime generated successfully.");
 					self.update_code(&wasm)?;
 				},
 				Err(_) => {
-					cli.warning("WARNING: Error generating deterministic runtime, proceeding with normal flow.")?;
+					spinner.set_message("WARNING: Failed to generate deterministic runtime. Falling back to the standard build process.");
 				},
 			}
 		}
@@ -617,7 +616,7 @@ impl BuildSpec {
 		let spinner = spinner();
 		spinner.start("Generating files...");
 
-		let raw_chain_spec = self.generate_chain_spec(&binary_path, &spinner, cli)?;
+		let raw_chain_spec = self.generate_chain_spec(&binary_path, &spinner)?;
 
 		spinner.set_message("Generating genesis code...");
 		let wasm_file_name = format!("para-{}.wasm", self.id);
@@ -644,14 +643,8 @@ impl BuildSpec {
 	}
 
 	// Generates the deterministic runtime and returns the runtime generated.
-	fn generate_deterministic_runtime(
-		&self,
-		cli: &mut impl cli::traits::Cli,
-	) -> anyhow::Result<Vec<u8>> {
+	fn generate_deterministic_runtime(&self) -> anyhow::Result<Vec<u8>> {
 		let engine = ContainerEngine::detect()?;
-		if engine == ContainerEngine::Docker {
-			cli.warning("WARNING: You are using docker. We recommend using podman instead.")?;
-		}
 		let builder =
 			SrToolBuilder::new(engine, None, self.package.clone(), self.runtime_dir.clone())?;
 		let wasm_path = builder.generate_deterministic_runtime()?;

@@ -35,6 +35,7 @@ impl ContainerEngine {
 		if let Some(docker) = docker_output {
 			let docker = String::from_utf8_lossy(&docker.stdout);
 			if docker.to_lowercase().contains("docker") {
+				println!("WARNING: You are using docker. We recommend using podman instead.");
 				return Ok(ContainerEngine::Docker);
 			} else if docker.contains("podman") {
 				return Ok(ContainerEngine::Podman);
@@ -68,38 +69,37 @@ impl Display for ContainerEngine {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+	use super::*;
 	use anyhow::Result;
-    use std::env;
+	use std::env;
 
 	#[test]
-    fn detect_works() -> Result<()> {
-        env::set_var("ENGINE", "docker");
-        assert!(ContainerEngine::detect()? == ContainerEngine::Docker);
-		
-        env::set_var("ENGINE", "podman");
-        assert!(ContainerEngine::detect()? == ContainerEngine::Podman);
+	fn detect_works() -> Result<()> {
+		env::set_var("ENGINE", "docker");
+		assert!(ContainerEngine::detect()? == ContainerEngine::Docker);
+
+		env::set_var("ENGINE", "podman");
+		assert!(ContainerEngine::detect()? == ContainerEngine::Podman);
 		// Cleanup after test
-        env::remove_var("ENGINE"); 
+		env::remove_var("ENGINE");
 		Ok(())
-    }
+	}
 
-
-    #[test]
-    fn container_enginer_try_from_works() -> Result<()> {
-        assert!(ContainerEngine::try_from("docker")? == ContainerEngine::Docker);
-        assert!(ContainerEngine::try_from("podman")? == ContainerEngine::Podman);
-        assert!(matches!(
-            ContainerEngine::try_from("invalid"),
-            Err(Error::UnknownContainerEngine(Some(_)))
-        ));
+	#[test]
+	fn container_enginer_try_from_works() -> Result<()> {
+		assert!(ContainerEngine::try_from("docker")? == ContainerEngine::Docker);
+		assert!(ContainerEngine::try_from("podman")? == ContainerEngine::Podman);
+		assert!(matches!(
+			ContainerEngine::try_from("invalid"),
+			Err(Error::UnknownContainerEngine(Some(_)))
+		));
 		Ok(())
-    }
+	}
 
-    #[test]
-    fn container_enginer_display_works() -> Result<()> {
-        assert_eq!(ContainerEngine::Docker.to_string(), "docker");
-        assert_eq!(ContainerEngine::Podman.to_string(), "podman");
+	#[test]
+	fn container_enginer_display_works() -> Result<()> {
+		assert_eq!(ContainerEngine::Docker.to_string(), "docker");
+		assert_eq!(ContainerEngine::Podman.to_string(), "podman");
 		Ok(())
-    }
+	}
 }
