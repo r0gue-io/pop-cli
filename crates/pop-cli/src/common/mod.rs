@@ -6,4 +6,5 @@ pub mod chain;
 #[cfg(feature = "contract")]
 pub mod contracts;
 pub mod helpers;
+pub mod prompt;
 pub mod wallet;
