@@ -1,26 +1,27 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use super::display_message;
-use crate::cli::{
-	self,
-	traits::{Input, Select},
-};
+use crate::cli::{self, traits::Select};
 use frame_benchmarking_cli::PalletCmd;
 use pop_common::{manifest::from_path, Profile};
 use pop_parachains::{
-	build_project, check_preset, get_runtime_path, parse_genesis_builder_policy,
+	build_project, get_preset_names, get_runtime_path, parse_genesis_builder_policy,
 	run_pallet_benchmarking, runtime_binary_path,
 };
 use std::{env::current_dir, fs, path::PathBuf};
 
-const GENESIS_CONFIG_NO_POLICY: &str = "none";
-const GENESIS_CONFIG_RUNTIME_POLICY: &str = "runtime";
+const GENESIS_BUILDER_NO_POLICY: &str = "none";
+const GENESIS_BUILDER_RUNTIME_POLICY: &str = "runtime";
 
 #[derive(Default)]
 pub(crate) struct BenchmarkPallet;
 
 impl BenchmarkPallet {
-	fn execute(cmd: &mut PalletCmd, cli: &mut impl Cli) -> anyhow::Result<()> {
+	pub fn execute(
+		&self,
+		cmd: &mut PalletCmd,
+		cli: &mut impl cli::traits::Cli,
+	) -> anyhow::Result<()> {
 		if cmd.list.is_some() || cmd.json_output {
 			if let Err(e) = run_pallet_benchmarking(cmd) {
 				return display_message(&e.to_string(), false, cli);
@@ -191,7 +192,7 @@ mod tests {
 			"--extrinsic",
 			"",
 		])?;
-		Command::bechmark_pallet(&mut cmd, &mut cli)?;
+		BenchmarkPallet::default().execute(&mut cmd, &mut cli)?;
 		cli.verify()
 	}
 
@@ -214,7 +215,7 @@ mod tests {
 			"",
 		])?;
 
-		Command::bechmark_pallet(&mut cmd, &mut cli)?;
+		BenchmarkPallet::default().execute(&mut cmd, &mut cli)?;
 		cli.verify()
 	}
 
@@ -236,7 +237,7 @@ mod tests {
 			"--extrinsic",
 			"",
 		])?;
-		Command::bechmark_pallet(&mut cmd, &mut cli)?;
+		BenchmarkPallet::default().execute(&mut cmd, &mut cli)?;
 		cli.verify()
 	}
 
@@ -253,7 +254,7 @@ mod tests {
 			"--extrinsic",
 			"",
 		])?;
-		Command::bechmark_pallet(&mut cmd, &mut cli)?;
+		BenchmarkPallet::default().execute(&mut cmd, &mut cli)?;
 		cli.verify()
 	}
 
