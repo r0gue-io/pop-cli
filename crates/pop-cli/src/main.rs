@@ -23,6 +23,11 @@ mod wallet_integration;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+	// Set environment for logging configuration, requires for `pop bench`.
+	if std::env::var("RUST_LOG").is_err() {
+		std::env::set_var("RUST_LOG", "info");
+	}
+
 	#[cfg(feature = "telemetry")]
 	let maybe_tel = init().unwrap_or(None);
 
