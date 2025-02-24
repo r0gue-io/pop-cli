@@ -3,13 +3,13 @@
 use super::display_message;
 use crate::cli::{
 	self,
-	traits::{Input, MultiSelect, Select},
+	traits::{Confirm, Input, MultiSelect, Select},
 };
 use clap::Args;
 use cliclack::{spinner, ProgressBar};
 use frame_benchmarking_cli::PalletCmd;
 use log::LevelFilter;
-use pop_common::{manifest::from_path, Profile};
+use pop_common::{get_relative_or_absolute, manifest::from_path, Profile};
 use pop_parachains::{
 	build_project, get_preset_names, get_runtime_path, list_pallets_and_extrinsics,
 	parse_genesis_builder_policy, run_pallet_benchmarking, runtime_binary_path,
@@ -43,6 +43,13 @@ impl BenchmarkPalletArgs {
 				return display_message(&e.to_string(), false, cli);
 			}
 		}
+
+		// If --all is provided, we override the value of --pallet to select all.
+		if cmd.all {
+			cmd.pallet = Some(ALL_SELECTED.to_string());
+			cmd.all = false;
+		}
+
 		let mut pallet_extrinsics: PalletExtrinsicsCollection = HashMap::default();
 		let spinner = spinner();
 		cli.intro("Benchmarking your pallets")?;
@@ -91,7 +98,7 @@ impl BenchmarkPalletArgs {
 				match option.update(cmd, &mut pallet_extrinsics, cli, &spinner) {
 					Ok(true) => break,
 					Ok(false) => continue,
-					Err(e) => cli.info(&e.to_string())?,
+					Err(e) => cli.info(e)?,
 				}
 			}
 		}
@@ -108,68 +115,93 @@ impl BenchmarkPalletArgs {
 
 #[derive(Debug, EnumIter, EnumIs, EnumMessageDerive, Eq, PartialEq, Copy, Clone)]
 pub(crate) enum BenchmarkPalletMenuOption {
-	// Example documentation.
-	#[strum(message = "Additional trie layer")]
-	AdditionalTrieLayer,
-	// Example documentation.
-	#[strum(message = "Extrinsics")]
-	Extrinsics,
-	// Example documentation.
-	#[strum(message = "Genesis builder policy")]
-	GenesisBuilder,
-	// Example documentation.
-	#[strum(message = "High")]
-	High,
-	// Example documentation.
-	#[strum(message = "Low")]
-	Low,
-	// Example documentation.
-	#[strum(message = "Map size")]
-	MapSize,
-	// Example documentation.
+	/// FRAME Pallets to benchmark
 	#[strum(message = "Pallets")]
 	Pallets,
-	// Example documentation.
-	#[strum(message = "Repeats")]
-	Repeat,
-	// Example documentation.
+	/// Extrinsics inside the pallet to benchmark
+	#[strum(message = "Extrinsics")]
+	Extrinsics,
+	/// Path to the runtime WASM binary
 	#[strum(message = "Runtime path")]
 	Runtime,
-	// Example documentation.
-	#[strum(message = "Genesis config preset")]
-	GenesisConfigPreset,
-	// Example documentation.
+	/// How to construct the genesis state
+	#[strum(message = "Genesis builder policy")]
+	GenesisBuilderPolicy,
+	/// The preset that we expect to find in the GenesisBuilder runtime API
+	#[strum(message = "Genesis builder preset")]
+	GenesisBuilderPreset,
+	/// How many samples we should take across the variable components
 	#[strum(message = "Steps")]
 	Steps,
+	/// How many repetitions of this benchmark should run from within the wasm
+	#[strum(message = "Repeats")]
+	Repeat,
+	/// Indicates highest values for each of the component ranges
+	#[strum(message = "High")]
+	High,
+	/// Indicates lowest values for each of the component ranges
+	#[strum(message = "Low")]
+	Low,
+	/// The assumed default maximum size of any `StorageMap`
+	#[strum(message = "Map size")]
+	MapSize,
+	/// Limit the memory (in MiB) the database cache can use.
+	#[strum(message = "Database cache size")]
+	DatabaseCacheSize,
+	/// Adjust the PoV estimation by adding additional trie layers to it
+	#[strum(message = "Additional trie layer")]
+	AdditionalTrieLayer,
+	/// Don't print the median-slopes linear regression analysis.
+	#[strum(message = "No median slope")]
+	NoMedianSlope,
+	/// Don't print the min-squares linear regression analysis.
+	#[strum(message = "No min square")]
+	NoMinSquare,
+	///  If enabled, the storage info is not displayed in the output next to the analysis.
+	#[strum(message = "No storage info")]
+	NoStorageInfo,
 	#[strum(message = "> Save all parameter changes and continue")]
 	SaveAndContinue,
 }
 
 impl BenchmarkPalletMenuOption {
+	fn is_disabled(self, cmd: &PalletCmd) -> anyhow::Result<bool> {
+		use BenchmarkPalletMenuOption::*;
+		Ok(match self {
+			GenesisBuilderPreset =>
+				cmd.genesis_builder == parse_genesis_builder_policy("none")?.genesis_builder,
+			// If there are multiple pallets provided, disable the extrinsics.
+			Extrinsics => cmd.pallet.as_ref().expect("No pallet provided").matches(",").count() > 0,
+			_ => false,
+		})
+	}
+
 	pub fn read_command(self, cmd: &PalletCmd) -> anyhow::Result<String> {
 		use BenchmarkPalletMenuOption::*;
 		Ok(match self {
 			Pallets => self.get_joined_string(cmd.pallet.as_ref().expect("No pallet provided")),
 			Extrinsics =>
 				self.get_joined_string(cmd.extrinsic.as_ref().expect("No extrinsic provided")),
-			Runtime => cmd
-				.runtime
-				.as_ref()
-				.expect("No runtime provided")
-				.as_path()
-				.to_str()
-				.unwrap()
-				.to_string(),
-			GenesisConfigPreset => cmd.genesis_builder_preset.clone(),
-			GenesisBuilder =>
+			Runtime => {
+				let cwd = current_dir().unwrap_or(PathBuf::from("./"));
+				let runtime_path = cmd.runtime.clone().expect("No runtime provided");
+				let output_path = get_relative_or_absolute(cwd.as_path(), runtime_path.as_path());
+				output_path.as_path().to_str().unwrap().to_string()
+			},
+			GenesisBuilderPolicy =>
 				serde_json::to_string(&cmd.genesis_builder.expect("No chainspec provided"))
 					.expect("Failed to serialize genesis builder policy"),
+			GenesisBuilderPreset => cmd.genesis_builder_preset.clone(),
 			Steps => cmd.steps.to_string(),
 			Repeat => cmd.repeat.to_string(),
 			High => self.get_range_values(&cmd.highest_range_values),
 			Low => self.get_range_values(&cmd.lowest_range_values),
 			MapSize => cmd.worst_case_map_values.to_string(),
+			DatabaseCacheSize => cmd.database_cache_size.to_string(),
 			AdditionalTrieLayer => cmd.additional_trie_layers.to_string(),
+			NoMedianSlope => cmd.no_median_slopes.to_string(),
+			NoMinSquare => cmd.no_min_squares.to_string(),
+			NoStorageInfo => cmd.no_storage_info.to_string(),
 			SaveAndContinue => String::default(),
 		})
 	}
@@ -185,16 +217,21 @@ impl BenchmarkPalletMenuOption {
 		match self {
 			Pallets => update_pallets(cmd, cli, pallet_extrinsics, &spinner)?,
 			Extrinsics => update_extrinsics(cmd, cli, pallet_extrinsics, &spinner)?,
-			Runtime => cmd.runtime = Some(guide_user_to_select_runtime_path(cli)?),
-			GenesisBuilder => update_genesis_builder_policy(cmd, cli).map(|_| ())?,
-			GenesisConfigPreset => update_genesis_preset(cmd, cli)?,
+			Runtime => cmd.runtime = Some(ensure_runtime_binary_exists(cli, &Profile::Release)?),
+			GenesisBuilderPolicy => update_genesis_builder_policy(cmd, cli).map(|_| ())?,
+			GenesisBuilderPreset => update_genesis_preset(cmd, cli)?,
 			Steps => cmd.steps = self.input_parameter(cmd, cli, true)?.parse()?,
 			Repeat => cmd.repeat = self.input_parameter(cmd, cli, true)?.parse()?,
 			High => cmd.highest_range_values = self.input_range_values(cmd, cli, true)?,
 			Low => cmd.lowest_range_values = self.input_range_values(cmd, cli, true)?,
 			MapSize => cmd.worst_case_map_values = self.input_parameter(cmd, cli, true)?.parse()?,
+			DatabaseCacheSize =>
+				cmd.database_cache_size = self.input_parameter(cmd, cli, true)?.parse()?,
 			AdditionalTrieLayer =>
 				cmd.additional_trie_layers = self.input_parameter(cmd, cli, true)?.parse()?,
+			NoMedianSlope => cmd.no_median_slopes = self.confirm(cmd, cli)?,
+			NoMinSquare => cmd.no_min_squares = self.confirm(cmd, cli)?,
+			NoStorageInfo => cmd.no_storage_info = self.confirm(cmd, cli)?,
 			SaveAndContinue => return Ok(true),
 		};
 		Ok(false)
@@ -228,7 +265,7 @@ impl BenchmarkPalletMenuOption {
 		let default_value = self.read_command(cmd)?;
 		let input = cli
 			.input(format!(
-				r#"Provide range values to the parameter "{}" (number separated by commas)"#,
+				r#"Provide range values to the parameter "{}" (numbers separated by commas)"#,
 				self.get_message().unwrap_or_default()
 			))
 			.required(is_required)
@@ -242,6 +279,18 @@ impl BenchmarkPalletMenuOption {
 			parsed_inputs.push(num.parse()?);
 		}
 		Ok(parsed_inputs)
+	}
+
+	fn confirm(self, cmd: &PalletCmd, cli: &mut impl cli::traits::Cli) -> anyhow::Result<bool> {
+		let default_value = self.read_command(cmd)?;
+		let parsed_default_value = default_value.trim().parse().unwrap();
+		cli.confirm(format!(
+			r#"Do you want to enable "{}"?"#,
+			self.get_message().unwrap_or_default()
+		))
+		.initial_value(parsed_default_value)
+		.interact()
+		.map_err(anyhow::Error::from)
 	}
 
 	fn get_range_values<T: ToString>(self, range_values: &[T]) -> String {
@@ -507,7 +556,12 @@ fn guide_user_to_select_menu_option(
 	cli: &mut impl cli::traits::Cli,
 ) -> anyhow::Result<BenchmarkPalletMenuOption> {
 	let mut prompt = cli.select("Select the parameter to update:");
-	for (index, param) in BenchmarkPalletMenuOption::iter().enumerate() {
+
+	let mut index = 0;
+	for param in BenchmarkPalletMenuOption::iter() {
+		if param.is_disabled(cmd)? {
+			continue;
+		}
 		let label = param.get_message().unwrap_or_default();
 		let hint = param.get_documentation().unwrap_or_default();
 		let formatted_label = if param.is_save_and_continue() {
@@ -517,6 +571,7 @@ fn guide_user_to_select_menu_option(
 			&format!("({index}) - {label}: {value}")
 		};
 		prompt = prompt.item(param, formatted_label, hint);
+		index += 1;
 	}
 	Ok(prompt.interact()?)
 }
@@ -697,8 +752,12 @@ mod tests {
 
 	fn expect_select_genesis_policy(cli: MockCli, item: usize) -> MockCli {
 		let policies = vec![
-		    (GENESIS_BUILDER_NO_POLICY.to_string(), "Do not provide any genesis state".to_string()),
-			(GENESIS_BUILDER_RUNTIME_POLICY.to_string(), "Let the runtime build the genesis state through its `BuildGenesisConfig` runtime API".to_string())
+			(GENESIS_BUILDER_NO_POLICY.to_string(), "Do not provide any genesis state".to_string()),
+			(
+				GENESIS_BUILDER_RUNTIME_POLICY.to_string(),
+				"Let the runtime build the genesis state through its `BuildGenesisConfig` runtime API"
+					.to_string(),
+			),
 		];
 		cli.expect_select(
 			"Select the genesis builder policy:",
