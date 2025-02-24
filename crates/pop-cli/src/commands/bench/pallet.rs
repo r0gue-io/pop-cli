@@ -11,17 +11,14 @@ use frame_benchmarking_cli::PalletCmd;
 use log::LevelFilter;
 use pop_common::{get_relative_or_absolute, manifest::from_path, Profile};
 use pop_parachains::{
-	build_project, get_preset_names, get_runtime_path, list_pallets_and_extrinsics,
-	parse_genesis_builder_policy, run_pallet_benchmarking, runtime_binary_path,
+	build_project, constants::*, get_preset_names, get_runtime_path, list_pallets_and_extrinsics,
+	parse_genesis_builder_policy, print_command, run_pallet_benchmarking, runtime_binary_path,
 	search_for_extrinsics, search_for_pallets, PalletExtrinsicsCollection,
 };
 use std::{collections::HashMap, env::current_dir, fs, path::PathBuf};
 use strum::{EnumIs, EnumMessage, IntoEnumIterator};
 use strum_macros::{EnumIter, EnumMessage as EnumMessageDerive};
 
-const ALL_SELECTED: &str = "*";
-const GENESIS_BUILDER_NO_POLICY: &str = "none";
-const GENESIS_BUILDER_RUNTIME_POLICY: &str = "runtime";
 const MAX_EXTRINSIC_LIMIT: usize = 10;
 const MAX_PALLET_LIMIT: usize = 20;
 
@@ -108,7 +105,11 @@ impl BenchmarkPalletArgs {
 		if let Err(e) = run_pallet_benchmarking(cmd) {
 			return display_message(&e.to_string(), false, cli);
 		}
-		display_message("Benchmark completed successfully!", true, cli)?;
+		display_message(
+			&format!("Benchmark completed successfully with command: {}", print_command(cmd)),
+			true,
+			cli,
+		)?;
 		Ok(())
 	}
 }
@@ -188,9 +189,12 @@ impl BenchmarkPalletMenuOption {
 				let output_path = get_relative_or_absolute(cwd.as_path(), runtime_path.as_path());
 				output_path.as_path().to_str().unwrap().to_string()
 			},
-			GenesisBuilderPolicy =>
-				serde_json::to_string(&cmd.genesis_builder.expect("No chainspec provided"))
-					.expect("Failed to serialize genesis builder policy"),
+			GenesisBuilderPolicy => {
+				let genesis_builder = cmd.genesis_builder.as_ref().expect("No policy provided");
+				serde_json::to_string(genesis_builder)
+					.expect("Failed to convert genesis builder policy to string")
+					.to_lowercase()
+			},
 			GenesisBuilderPreset => cmd.genesis_builder_preset.clone(),
 			Steps => cmd.steps.to_string(),
 			Repeat => cmd.repeat.to_string(),

@@ -15,6 +15,12 @@ use std::{
 use stdio_override::StdoutOverride;
 use tempfile::tempdir;
 
+pub mod constants {
+	pub const ALL_SELECTED: &str = "*";
+	pub const GENESIS_BUILDER_NO_POLICY: &str = "none";
+	pub const GENESIS_BUILDER_RUNTIME_POLICY: &str = "runtime";
+}
+
 type HostFunctions = (
 	sp_statement_store::runtime_api::HostFunctions,
 	cumulus_primitives_proof_size_hostfunction::storage_proof_size::HostFunctions,
@@ -23,6 +29,85 @@ type HostFunctions = (
 /// Type alias for records where the key is the pallet name and the value is a array of its
 /// extrinsics.
 pub type PalletExtrinsicsCollection = HashMap<String, Vec<String>>;
+
+pub fn print_command(cmd: &PalletCmd) -> String {
+	let mut full_message = "pop bench palelt".to_string();
+	full_message
+		.push_str(&format!(" --pallets={}", cmd.pallet.as_ref().expect("No pallet provided")));
+	full_message.push_str(&format!(
+		" --extrinsics={}",
+		cmd.extrinsic.as_ref().expect("No extrinsic provided")
+	));
+	full_message.push_str(&format!(
+		" --runtime={}",
+		cmd.runtime.as_ref().expect("No runtime provided").display()
+	));
+
+	let genesis_builder = cmd.genesis_builder.as_ref().expect("No policy provided");
+	let genesis_builder_string = serde_json::to_string(genesis_builder).unwrap().to_lowercase();
+	full_message.push_str(&format!(" --genesis-builder={}", genesis_builder_string));
+	if genesis_builder_string == constants::GENESIS_BUILDER_RUNTIME_POLICY {
+		full_message.push_str(&format!(" --genesis-builder-preset {}", cmd.genesis_builder_preset));
+	}
+	full_message.push_str(&format!(" --steps={}", cmd.steps));
+	full_message.push_str(&format!(" --repeat={}", cmd.repeat));
+
+	if !cmd.lowest_range_values.is_empty() {
+		let low = cmd
+			.lowest_range_values
+			.iter()
+			.map(ToString::to_string)
+			.collect::<Vec<_>>()
+			.join(", ");
+		full_message.push_str(&format!(" --low={}", low));
+	}
+	if !cmd.highest_range_values.is_empty() {
+		let low = cmd
+			.highest_range_values
+			.iter()
+			.map(ToString::to_string)
+			.collect::<Vec<_>>()
+			.join(", ");
+		full_message.push_str(&format!(" --high={}", low));
+	}
+	if cmd.no_median_slopes {
+		full_message.push_str(" --no-median-slopes");
+	}
+	if cmd.no_min_squares {
+		full_message.push_str(" --no-min-squares");
+	}
+	if cmd.no_storage_info {
+		full_message.push_str(" --no-storage-info");
+	}
+	if cmd.no_verify {
+		full_message.push_str(" --no-verify");
+	}
+	if cmd.no_verify {
+		full_message.push_str(" --no-verify");
+	}
+	if cmd.json_output {
+		full_message.push_str(" --json");
+	}
+	if cmd.extra {
+		full_message.push_str(" --extra");
+	}
+	if let Some(ref output) = cmd.output {
+		full_message.push_str(&format!(" --output={}", output.as_path().to_str().unwrap()));
+	}
+	if let Some(ref template) = cmd.template {
+		full_message.push_str(&format!(" --template={}", template.as_path().to_str().unwrap()));
+	}
+	if let Some(ref output_analysis) = cmd.output_analysis {
+		full_message.push_str(&format!(" --output-analysis={}", output_analysis));
+	}
+	if let Some(ref output_pov_analysis) = cmd.output_pov_analysis {
+		full_message.push_str(&format!(" --output-pov-analysis={}", output_pov_analysis));
+	}
+	if let Some(ref heap_pages) = cmd.heap_pages {
+		full_message.push_str(&format!(" --heap-pages={}", heap_pages));
+	}
+	full_message
+}
 
 /// Get genesis builder preset names of the runtime.
 ///
