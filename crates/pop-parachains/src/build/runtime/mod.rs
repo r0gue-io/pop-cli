@@ -34,15 +34,16 @@ impl SrToolBuilder {
 	/// * `engine` - The container engine to use.
 	/// * `path` - The path to the project.
 	/// * `package` - The runtime package name.
+	/// * `profile` - The profile to build the runtime.
 	/// * `runtime_dir` - The directory path where the runtime is located.
 	pub fn new(
 		engine: ContainerEngine,
 		path: Option<PathBuf>,
 		package: String,
+		profile: Profile,
 		runtime_dir: PathBuf,
 	) -> Result<Self, Error> {
 		let default_features = String::new();
-		let profile = Profile::Release;
 		let tag = get_image_tag(Some(ONE_HOUR)).map_err(|_| Error::ImageTagRetrievalFailed)?;
 		let digest = get_image_digest(DEFAULT_IMAGE, &tag).unwrap_or_default();
 		let dir = fs::canonicalize(path.unwrap_or_else(|| PathBuf::from("./")))?;
@@ -68,7 +69,7 @@ impl SrToolBuilder {
 	/// Executes the runtime build process and returns the path of the generated `.wasm` file.
 	pub fn generate_deterministic_runtime(&self) -> Result<PathBuf, Error> {
 		let command = self.build_command();
-		cmd("sh", vec!["-c", &command]).stderr_null().run()?;
+		cmd("sh", vec!["-c", &command]).run()?;
 		let wasm_path = self.get_runtime_path();
 		Ok(wasm_path)
 	}
@@ -120,6 +121,7 @@ mod tests {
 			ContainerEngine::Docker,
 			None,
 			"parachain-template-runtime".to_string(),
+			Profile::Release,
 			PathBuf::from("./runtime"),
 		)?;
 		assert_eq!(
@@ -154,6 +156,7 @@ mod tests {
 				ContainerEngine::Podman,
 				Some(path.to_path_buf()),
 				"parachain-template-runtime".to_string(),
+				Profile::Production,
 				PathBuf::from("./runtime"),
 			)?
 			.build_command(),
@@ -162,7 +165,7 @@ mod tests {
 			 -e PACKAGE=parachain-template-runtime \
 			 -e RUNTIME_DIR=./runtime \
 			 -e DEFAULT_FEATURES= \
-			 -e PROFILE=release \
+			 -e PROFILE=production \
 			 -e IMAGE={} \
 			 -v {}:/build \
 			 {} \
@@ -183,8 +186,9 @@ mod tests {
 			ContainerEngine::Podman,
 			None,
 			"template-runtime".to_string(),
+			Profile::Debug,
 			PathBuf::from("./runtime-folder"),
-		)?.get_runtime_path().display().to_string(), "./runtime-folder/target/srtool/release/wbuild/template-runtime/template_runtime.compact.compressed.wasm");
+		)?.get_runtime_path().display().to_string(), "./runtime-folder/target/srtool/debug/wbuild/template-runtime/template_runtime.compact.compressed.wasm");
 		Ok(())
 	}
 }

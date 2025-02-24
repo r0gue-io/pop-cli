@@ -649,8 +649,13 @@ impl BuildSpec {
 	// Generates the deterministic runtime and returns the runtime generated.
 	fn generate_deterministic_runtime(&self) -> anyhow::Result<Vec<u8>> {
 		let engine = ContainerEngine::detect()?;
-		let builder =
-			SrToolBuilder::new(engine, None, self.package.clone(), self.runtime_dir.clone())?;
+		let builder = SrToolBuilder::new(
+			engine,
+			None,
+			self.package.clone(),
+			self.profile.clone(),
+			self.runtime_dir.clone(),
+		)?;
 		let wasm_path = builder.generate_deterministic_runtime()?;
 		if !wasm_path.exists() {
 			return Err(anyhow::anyhow!("Cant't find the generated runtime at {:?}", wasm_path));
