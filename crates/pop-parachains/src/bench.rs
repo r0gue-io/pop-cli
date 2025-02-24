@@ -15,9 +15,11 @@ use std::{
 use stdio_override::StdoutOverride;
 use tempfile::tempdir;
 
+/// Constant variables used for benchmarking.
 pub mod constants {
-	pub const ALL_SELECTED: &str = "*";
+	/// Do not provide any genesis state.
 	pub const GENESIS_BUILDER_NO_POLICY: &str = "none";
+	/// Let the runtime build the genesis state through its `BuildGenesisConfig` runtime API.
 	pub const GENESIS_BUILDER_RUNTIME_POLICY: &str = "runtime";
 }
 
@@ -29,85 +31,6 @@ type HostFunctions = (
 /// Type alias for records where the key is the pallet name and the value is a array of its
 /// extrinsics.
 pub type PalletExtrinsicsCollection = HashMap<String, Vec<String>>;
-
-pub fn print_command(cmd: &PalletCmd) -> String {
-	let mut full_message = "pop bench palelt".to_string();
-	full_message
-		.push_str(&format!(" --pallets={}", cmd.pallet.as_ref().expect("No pallet provided")));
-	full_message.push_str(&format!(
-		" --extrinsics={}",
-		cmd.extrinsic.as_ref().expect("No extrinsic provided")
-	));
-	full_message.push_str(&format!(
-		" --runtime={}",
-		cmd.runtime.as_ref().expect("No runtime provided").display()
-	));
-
-	let genesis_builder = cmd.genesis_builder.as_ref().expect("No policy provided");
-	let genesis_builder_string = serde_json::to_string(genesis_builder).unwrap().to_lowercase();
-	full_message.push_str(&format!(" --genesis-builder={}", genesis_builder_string));
-	if genesis_builder_string == constants::GENESIS_BUILDER_RUNTIME_POLICY {
-		full_message.push_str(&format!(" --genesis-builder-preset {}", cmd.genesis_builder_preset));
-	}
-	full_message.push_str(&format!(" --steps={}", cmd.steps));
-	full_message.push_str(&format!(" --repeat={}", cmd.repeat));
-
-	if !cmd.lowest_range_values.is_empty() {
-		let low = cmd
-			.lowest_range_values
-			.iter()
-			.map(ToString::to_string)
-			.collect::<Vec<_>>()
-			.join(", ");
-		full_message.push_str(&format!(" --low={}", low));
-	}
-	if !cmd.highest_range_values.is_empty() {
-		let low = cmd
-			.highest_range_values
-			.iter()
-			.map(ToString::to_string)
-			.collect::<Vec<_>>()
-			.join(", ");
-		full_message.push_str(&format!(" --high={}", low));
-	}
-	if cmd.no_median_slopes {
-		full_message.push_str(" --no-median-slopes");
-	}
-	if cmd.no_min_squares {
-		full_message.push_str(" --no-min-squares");
-	}
-	if cmd.no_storage_info {
-		full_message.push_str(" --no-storage-info");
-	}
-	if cmd.no_verify {
-		full_message.push_str(" --no-verify");
-	}
-	if cmd.no_verify {
-		full_message.push_str(" --no-verify");
-	}
-	if cmd.json_output {
-		full_message.push_str(" --json");
-	}
-	if cmd.extra {
-		full_message.push_str(" --extra");
-	}
-	if let Some(ref output) = cmd.output {
-		full_message.push_str(&format!(" --output={}", output.as_path().to_str().unwrap()));
-	}
-	if let Some(ref template) = cmd.template {
-		full_message.push_str(&format!(" --template={}", template.as_path().to_str().unwrap()));
-	}
-	if let Some(ref output_analysis) = cmd.output_analysis {
-		full_message.push_str(&format!(" --output-analysis={}", output_analysis));
-	}
-	if let Some(ref output_pov_analysis) = cmd.output_pov_analysis {
-		full_message.push_str(&format!(" --output-pov-analysis={}", output_pov_analysis));
-	}
-	if let Some(ref heap_pages) = cmd.heap_pages {
-		full_message.push_str(&format!(" --heap-pages={}", heap_pages));
-	}
-	full_message
-}
 
 /// Get genesis builder preset names of the runtime.
 ///
@@ -153,6 +76,112 @@ pub fn list_pallets_and_extrinsics(
 		.map_err(|e| anyhow::anyhow!(format!("Failed to list pallets: {}", e.to_string())))?;
 	drop(guard);
 	parse_csv_to_map(&temp_file_path)
+}
+
+/// Print the pallet benchmarking command with arguments.
+///
+/// # Arguments
+/// * `cmd` - Command to benchmarking extrinsic weights of FRAME pallets.
+pub fn print_pallet_command(cmd: &PalletCmd) -> String {
+	let mut full_message = "pop bench pallet".to_string();
+
+	if let Some(ref pallet) = cmd.pallet {
+		full_message.push_str(&format!(" --pallet={}", pallet));
+	}
+	if let Some(ref extrinsic) = cmd.extrinsic {
+		full_message.push_str(&format!(" --extrinsic={}", extrinsic));
+	}
+	if !cmd.exclude_pallets.is_empty() {
+		full_message.push_str(&format!(" --exclude-pallets={}", cmd.exclude_pallets.join(",")));
+	}
+	full_message.push_str(&format!(" --steps={}", cmd.steps));
+	if !cmd.lowest_range_values.is_empty() {
+		let low = cmd
+			.lowest_range_values
+			.iter()
+			.map(ToString::to_string)
+			.collect::<Vec<_>>()
+			.join(", ");
+		full_message.push_str(&format!(" --low={}", low));
+	}
+	if !cmd.highest_range_values.is_empty() {
+		let high = cmd
+			.highest_range_values
+			.iter()
+			.map(ToString::to_string)
+			.collect::<Vec<_>>()
+			.join(", ");
+		full_message.push_str(&format!(" --high={}", high));
+	}
+	full_message.push_str(&format!(" --repeat={}", cmd.repeat));
+	full_message.push_str(&format!(" --external-repeat={}", cmd.external_repeat));
+	if cmd.json_output {
+		full_message.push_str(" --json");
+	}
+	if let Some(ref json_file) = cmd.json_file {
+		full_message.push_str(&format!(" --json-file={}", json_file.display()));
+	}
+	if cmd.no_median_slopes {
+		full_message.push_str(" --no-median-slopes");
+	}
+	if cmd.no_min_squares {
+		full_message.push_str(" --no-min-squares");
+	}
+	if let Some(ref output) = cmd.output {
+		full_message.push_str(&format!(" --output={}", output.display()));
+	}
+	if let Some(ref header) = cmd.header {
+		full_message.push_str(&format!(" --header={}", header.display()));
+	}
+	if let Some(ref template) = cmd.template {
+		full_message.push_str(&format!(" --template={}", template.display()));
+	}
+	if let Some(ref output_analysis) = cmd.output_analysis {
+		full_message.push_str(&format!(" --output-analysis={}", output_analysis));
+	}
+	if let Some(ref output_pov_analysis) = cmd.output_pov_analysis {
+		full_message.push_str(&format!(" --output-pov-analysis={}", output_pov_analysis));
+	}
+	if let Some(ref heap_pages) = cmd.heap_pages {
+		full_message.push_str(&format!(" --heap-pages={}", heap_pages));
+	}
+	if cmd.no_verify {
+		full_message.push_str(" --no-verify");
+	}
+	if cmd.extra {
+		full_message.push_str(" --extra");
+	}
+	if let Some(ref runtime) = cmd.runtime {
+		full_message.push_str(&format!(" --runtime={}", runtime.display()));
+	}
+	if cmd.allow_missing_host_functions {
+		full_message.push_str(" --allow-missing-host-functions");
+	}
+	if let Some(ref genesis_builder) = cmd.genesis_builder {
+		let genesis_builder_string = serde_json::to_string(genesis_builder).unwrap().to_lowercase();
+		full_message.push_str(&format!(" --genesis-builder={}", genesis_builder_string));
+		if genesis_builder_string == constants::GENESIS_BUILDER_RUNTIME_POLICY {
+			full_message
+				.push_str(&format!(" --genesis-builder-preset {}", cmd.genesis_builder_preset));
+		}
+	}
+	if let Some(ref execution) = cmd.execution {
+		full_message.push_str(&format!(" --execution={}", execution));
+	}
+	full_message.push_str(&format!(" --db-cache={}", cmd.database_cache_size));
+	if cmd.no_storage_info {
+		full_message.push_str(" --no-storage-info");
+	}
+	full_message.push_str(&format!(" --map-size={}", cmd.worst_case_map_values));
+	full_message.push_str(&format!(" --additional-trie-layers={}", cmd.additional_trie_layers));
+	if let Some(ref json_input) = cmd.json_input {
+		full_message.push_str(&format!(" --json-input={}", json_input.display()));
+	}
+	if cmd.unsafe_overwrite_results {
+		full_message
+			.push_str(&format!(" --unsafe-overwrite-results={}", cmd.unsafe_overwrite_results));
+	}
+	full_message
 }
 
 /// Parse the pallet command from string value of genesis policy builder.
@@ -201,9 +230,12 @@ pub fn run_pallet_benchmarking(cmd: &PalletCmd) -> Result<()> {
 ///
 /// # Arguments
 /// * `pallet_extrinsics` - A mapping of pallets and their extrinsics.
+/// * `excluded_pallets` - Pallets that are excluded from the search results.
 /// * `input` - The search input used to match pallets.
+/// * `limit` - Maximum number of pallets returned from search.
 pub fn search_for_pallets(
 	pallet_extrinsics: &PalletExtrinsicsCollection,
+	excluded_pallets: &Vec<String>,
 	input: &str,
 	limit: usize,
 ) -> Vec<String> {
@@ -213,7 +245,10 @@ pub fn search_for_pallets(
 		return pallets.map(String::from).take(limit).collect();
 	}
 	let inputs = input.split(",");
-	let pallets: Vec<&str> = pallets.map(|s| s.as_str()).collect();
+	let pallets: Vec<&str> = pallets
+		.map(String::as_str)
+		.filter(|s| !excluded_pallets.contains(&s.to_string()))
+		.collect();
 	let mut output = inputs
 		.flat_map(|input| fuzzy_search_best_n(input, &pallets, limit))
 		.map(|v| v.0.to_string())

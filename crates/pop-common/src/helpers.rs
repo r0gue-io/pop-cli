@@ -61,7 +61,7 @@ pub fn prefix_with_current_dir_if_needed(path: PathBuf) -> PathBuf {
 /// # Arguments
 /// * `base` - The base directory to compare against.
 /// * `full` - The full path to be shortened.
-pub fn get_relative_or_absolute(base: &Path, full: &Path) -> PathBuf {
+pub fn get_relative_or_absolute_path(base: &Path, full: &Path) -> PathBuf {
 	match full.strip_prefix(base) {
 		Ok(relative) => relative.to_path_buf(),
 		// If prefix is different, return the full path

@@ -9,16 +9,17 @@ use clap::Args;
 use cliclack::{spinner, ProgressBar};
 use frame_benchmarking_cli::PalletCmd;
 use log::LevelFilter;
-use pop_common::{get_relative_or_absolute, manifest::from_path, Profile};
+use pop_common::{get_relative_or_absolute_path, manifest::from_path, Profile};
 use pop_parachains::{
 	build_project, constants::*, get_preset_names, get_runtime_path, list_pallets_and_extrinsics,
-	parse_genesis_builder_policy, print_command, run_pallet_benchmarking, runtime_binary_path,
-	search_for_extrinsics, search_for_pallets, PalletExtrinsicsCollection,
+	parse_genesis_builder_policy, print_pallet_command, run_pallet_benchmarking,
+	runtime_binary_path, search_for_extrinsics, search_for_pallets, PalletExtrinsicsCollection,
 };
-use std::{collections::HashMap, env::current_dir, fs, path::PathBuf};
+use std::{collections::HashMap, env::current_dir, ffi::OsStr, fs, path::PathBuf};
 use strum::{EnumIs, EnumMessage, IntoEnumIterator};
 use strum_macros::{EnumIter, EnumMessage as EnumMessageDerive};
 
+const ALL_SELECTED: &str = "*";
 const MAX_EXTRINSIC_LIMIT: usize = 10;
 const MAX_PALLET_LIMIT: usize = 20;
 
@@ -40,10 +41,10 @@ impl BenchmarkPalletArgs {
 				return display_message(&e.to_string(), false, cli);
 			}
 		}
-
-		// If --all is provided, we override the value of --pallet to select all.
+		// If --all is provided, we override the value of --pallet and -- to select all.
 		if cmd.all {
 			cmd.pallet = Some(ALL_SELECTED.to_string());
+			cmd.extrinsic = Some(ALL_SELECTED.to_string());
 			cmd.all = false;
 		}
 
@@ -101,15 +102,15 @@ impl BenchmarkPalletArgs {
 		}
 
 		cli.warning("NOTE: this may take some time...")?;
-		cli.info("Benchmarking and generating weight file...")?;
-		if let Err(e) = run_pallet_benchmarking(cmd) {
+		cli.info("Benchmarking extrinsic weights of selected pallets...")?;
+		let result = run_pallet_benchmarking(cmd);
+
+		// Display the benchmarking command.
+		cli.info(print_pallet_command(cmd))?;
+		if let Err(e) = result {
 			return display_message(&e.to_string(), false, cli);
 		}
-		display_message(
-			&format!("Benchmark completed successfully with command: {}", print_command(cmd)),
-			true,
-			cli,
-		)?;
+		display_message("Benchmark completed successfully!", true, cli)?;
 		Ok(())
 	}
 }
@@ -122,6 +123,9 @@ pub(crate) enum BenchmarkPalletMenuOption {
 	/// Extrinsics inside the pallet to benchmark
 	#[strum(message = "Extrinsics")]
 	Extrinsics,
+	/// Comma separated list of pallets that should be excluded from the benchmark.
+	#[strum(message = "Excluded pallets")]
+	ExcludedPallets,
 	/// Path to the runtime WASM binary
 	#[strum(message = "Runtime path")]
 	Runtime,
@@ -183,10 +187,15 @@ impl BenchmarkPalletMenuOption {
 			Pallets => self.get_joined_string(cmd.pallet.as_ref().expect("No pallet provided")),
 			Extrinsics =>
 				self.get_joined_string(cmd.extrinsic.as_ref().expect("No extrinsic provided")),
+			ExcludedPallets => match cmd.exclude_pallets.is_empty() {
+				true => "None".to_string(),
+				false => cmd.exclude_pallets.join(", "),
+			},
 			Runtime => {
 				let cwd = current_dir().unwrap_or(PathBuf::from("./"));
 				let runtime_path = cmd.runtime.clone().expect("No runtime provided");
-				let output_path = get_relative_or_absolute(cwd.as_path(), runtime_path.as_path());
+				let output_path =
+					get_relative_or_absolute_path(cwd.as_path(), runtime_path.as_path());
 				output_path.as_path().to_str().unwrap().to_string()
 			},
 			GenesisBuilderPolicy => {
@@ -221,6 +230,7 @@ impl BenchmarkPalletMenuOption {
 		match self {
 			Pallets => update_pallets(cmd, cli, pallet_extrinsics, &spinner)?,
 			Extrinsics => update_extrinsics(cmd, cli, pallet_extrinsics, &spinner)?,
+			ExcludedPallets => update_excluded_pallets(cmd, cli, pallet_extrinsics, &spinner)?,
 			Runtime => cmd.runtime = Some(ensure_runtime_binary_exists(cli, &Profile::Release)?),
 			GenesisBuilderPolicy => update_genesis_builder_policy(cmd, cli).map(|_| ())?,
 			GenesisBuilderPreset => update_genesis_preset(cmd, cli)?,
@@ -266,21 +276,43 @@ impl BenchmarkPalletMenuOption {
 		cli: &mut impl cli::traits::Cli,
 		is_required: bool,
 	) -> anyhow::Result<Vec<u32>> {
-		let default_value = self.read_command(cmd)?;
-		let input = cli
-			.input(format!(
+		let values = self.input_array(
+			cmd,
+			&format!(
 				r#"Provide range values to the parameter "{}" (numbers separated by commas)"#,
 				self.get_message().unwrap_or_default()
-			))
+			),
+			cli,
+			is_required,
+		)?;
+
+		let mut parsed_inputs = vec![];
+		for value in values {
+			parsed_inputs.push(value.parse()?);
+		}
+		Ok(parsed_inputs)
+	}
+
+	fn input_array(
+		self,
+		cmd: &PalletCmd,
+		label: &str,
+		cli: &mut impl cli::traits::Cli,
+		is_required: bool,
+	) -> anyhow::Result<Vec<String>> {
+		let default_value = self.read_command(cmd)?;
+		let input = cli
+			.input(label)
 			.required(is_required)
 			.placeholder(&default_value)
 			.default_input(&default_value)
 			.interact()
 			.map(|v| v.trim().to_string())
 			.map_err(anyhow::Error::from)?;
+
 		let mut parsed_inputs = vec![];
-		for num in input.split(",") {
-			parsed_inputs.push(num.parse()?);
+		for value in input.split(",") {
+			parsed_inputs.push(value.to_string());
 		}
 		Ok(parsed_inputs)
 	}
@@ -306,11 +338,9 @@ impl BenchmarkPalletMenuOption {
 
 	fn get_joined_string(self, s: &String) -> String {
 		if s == &"*".to_string() || s.is_empty() {
-			"All selected".to_string()
-		} else {
-			let count = s.split(",").collect::<Vec<&str>>().len();
-			format!("{count} selected")
+			return "All selected".to_string()
 		}
+		s.clone()
 	}
 }
 
@@ -321,7 +351,8 @@ pub fn update_pallets(
 	spinner: &ProgressBar,
 ) -> anyhow::Result<()> {
 	fetch_pallet_extrinsics_if_not_exist(cmd, pallet_extrinsics, &spinner)?;
-	cmd.pallet = Some(guide_user_to_select_pallets(&pallet_extrinsics, cli)?);
+	cmd.pallet =
+		Some(guide_user_to_select_pallets(&pallet_extrinsics, &cmd.exclude_pallets, cli, true)?);
 	Ok(())
 }
 
@@ -338,6 +369,22 @@ pub fn update_extrinsics(
 		0 => guide_user_to_select_extrinsics(cmd, &pallet_extrinsics, cli)?,
 		_ => ALL_SELECTED.to_string(),
 	});
+	Ok(())
+}
+
+pub fn update_excluded_pallets(
+	cmd: &mut PalletCmd,
+	cli: &mut impl cli::traits::Cli,
+	pallet_extrinsics: &mut PalletExtrinsicsCollection,
+	spinner: &ProgressBar,
+) -> anyhow::Result<()> {
+	fetch_pallet_extrinsics_if_not_exist(cmd, pallet_extrinsics, &spinner)?;
+	let pallets = guide_user_to_select_pallets(&pallet_extrinsics, &vec![], cli, false)?;
+	if pallets.is_empty() {
+		cmd.exclude_pallets = vec![];
+	} else {
+		cmd.exclude_pallets = pallets.split(",").map(String::from).collect();
+	}
 	Ok(())
 }
 
@@ -384,22 +431,29 @@ fn ensure_runtime_binary_exists(
 ) -> anyhow::Result<PathBuf> {
 	let cwd = current_dir().unwrap_or(PathBuf::from("./"));
 	let target_path = mode.target_directory(&cwd).join("wbuild");
-	let project_path = guide_user_to_select_runtime_path(cli)?;
+	let runtime_path = guide_user_to_select_runtime_path(cli)?;
 
-	match runtime_binary_path(&target_path, &project_path) {
+	// Return directly if user provided a path to the runtime binary.
+	if runtime_path.extension() == Some(OsStr::new("wasm")) {
+		return Ok(runtime_path);
+	}
+
+	match runtime_binary_path(&target_path, &runtime_path) {
 		Ok(binary_path) => Ok(binary_path),
 		_ => {
 			cli.info("Runtime binary was not found. The runtime will be built locally.")?;
 			cli.warning("NOTE: this may take some time...")?;
-			build_project(&project_path, None, mode, vec!["runtime-benchmarks"], None)?;
-			runtime_binary_path(&target_path, &project_path).map_err(|e| e.into())
+			build_project(&runtime_path, None, mode, vec!["runtime-benchmarks"], None)?;
+			runtime_binary_path(&target_path, &runtime_path).map_err(|e| e.into())
 		},
 	}
 }
 
 fn guide_user_to_select_pallets(
 	pallet_extrinsics: &PalletExtrinsicsCollection,
+	excluded_pallets: &Vec<String>,
 	cli: &mut impl cli::traits::Cli,
+	required: bool,
 ) -> anyhow::Result<String> {
 	// Prompt for pallet search input.
 	let input = cli
@@ -413,12 +467,12 @@ fn guide_user_to_select_pallets(
 	}
 
 	// Prompt user to select pallets.
-	let pallets = search_for_pallets(pallet_extrinsics, &input, MAX_PALLET_LIMIT);
-	let mut prompt = cli.multiselect("Select the pallets to benchmark:").required(true);
+	let pallets = search_for_pallets(pallet_extrinsics, excluded_pallets, &input, MAX_PALLET_LIMIT);
+	let mut prompt = cli.multiselect("Select the pallets:").required(required);
 	for pallet in pallets {
 		prompt = prompt.item(pallet.clone(), &pallet, "");
 	}
-	Ok(prompt.interact()?.join(","))
+	Ok(prompt.interact()?.join(", "))
 }
 
 fn guide_user_to_select_extrinsics(
@@ -450,7 +504,7 @@ fn guide_user_to_select_extrinsics(
 	for extrinsic in extrinsics {
 		prompt = prompt.item(extrinsic.clone(), &extrinsic, "");
 	}
-	Ok(prompt.interact()?.join(","))
+	Ok(prompt.interact()?.join(", "))
 }
 
 fn guide_user_to_select_runtime_path(cli: &mut impl cli::traits::Cli) -> anyhow::Result<PathBuf> {
@@ -462,9 +516,10 @@ fn guide_user_to_select_runtime_path(cli: &mut impl cli::traits::Cli) -> anyhow:
 		))?;
 		guide_user_to_input_runtime_path(cli)
 	})?;
+
 	// If there is no TOML file exist, list all directories in the "runtime" folder and prompt the
 	// user to select a runtime.
-	if !project_path.join("Cargo.toml").exists() {
+	if project_path.is_dir() && !project_path.join("Cargo.toml").exists() {
 		let runtime = guide_user_to_select_runtime(&project_path, cli)?;
 		project_path = project_path.join(runtime);
 	}
@@ -507,7 +562,7 @@ fn guide_user_to_select_runtime(
 	project_path: &PathBuf,
 	cli: &mut impl cli::traits::Cli,
 ) -> anyhow::Result<PathBuf> {
-	let runtimes = fs::read_dir(project_path).unwrap();
+	let runtimes = fs::read_dir(project_path).expect("No project found");
 	let mut prompt = cli.select("Select the runtime:");
 	for runtime in runtimes {
 		let path = runtime.unwrap().path();
