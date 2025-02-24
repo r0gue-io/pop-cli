@@ -5,9 +5,12 @@ use crate::Error;
 
 use std::{fmt::Display, process::Command};
 
+/// Represents the container engine being used.
 #[derive(Clone, Copy, PartialEq)]
 pub enum ContainerEngine {
+	/// Represents the Docker container engine.
 	Docker,
+	/// Represents the Podman container engine.
 	Podman,
 }
 
@@ -26,7 +29,6 @@ impl ContainerEngine {
 			if podman.to_lowercase().contains("podman") {
 				return Ok(ContainerEngine::Podman);
 			} else if podman.contains("docker") {
-				println!("WARNING: You have podman symlinked to docker. This is strange :)");
 				return Ok(ContainerEngine::Docker);
 			}
 		}
@@ -35,7 +37,6 @@ impl ContainerEngine {
 		if let Some(docker) = docker_output {
 			let docker = String::from_utf8_lossy(&docker.stdout);
 			if docker.to_lowercase().contains("docker") {
-				println!("WARNING: You are using docker. We recommend using podman instead.");
 				return Ok(ContainerEngine::Docker);
 			} else if docker.contains("podman") {
 				return Ok(ContainerEngine::Podman);

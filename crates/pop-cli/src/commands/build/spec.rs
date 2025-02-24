@@ -647,8 +647,15 @@ impl BuildSpec {
 	}
 
 	// Generates the deterministic runtime and returns the runtime generated.
-	fn generate_deterministic_runtime(&self) -> anyhow::Result<Vec<u8>> {
+	fn generate_deterministic_runtime(
+		&self,
+		cli: &mut impl cli::traits::Cli,
+	) -> anyhow::Result<Vec<u8>> {
 		let engine = ContainerEngine::detect()?;
+		// As srtool-cli(https://github.com/chevdor/srtool-cli/blob/master/cli/src/container_engine.rs#L33) warn about using docker.
+		if engine == ContainerEngine::Docker {
+			cli.warning("WARNING: You are using docker. We recommend using podman instead.")?;
+		}
 		let builder = SrToolBuilder::new(
 			engine,
 			None,
