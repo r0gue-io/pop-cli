@@ -450,27 +450,6 @@ mod tests {
 		Ok(target_dir)
 	}
 
-	// Function that generates a Cargo.toml inside runtime directory for testing.
-	fn generate_mock_runtime(temp_dir: &Path, name: Option<&str>) -> Result<PathBuf, Error> {
-		// Create a runtime directory
-		let target_dir = temp_dir.join(name.unwrap_or("runtime"));
-		fs::create_dir(&target_dir)?;
-		// Create a Cargo.toml file
-		let mut toml_file = fs::File::create(target_dir.join("Cargo.toml"))?;
-		writeln!(
-			toml_file,
-			r#"
-			[package]
-			name = "parachain_template_runtime"
-			version = "0.1.0"
-
-			[dependencies]
-
-			"#
-		)?;
-		Ok(target_dir)
-	}
-
 	// Function that fetch a binary from pop network
 	async fn fetch_binary(cache: &Path) -> Result<String, Error> {
 		let config = Builder::new().suffix(".toml").tempfile()?;
@@ -549,36 +528,25 @@ mod tests {
 	}
 
 	#[test]
-	fn build_runtime_works() -> Result<()> {
-		let name = "parachain_template_runtime";
-		let target = "wasm32-unknown-unknown";
+	fn build_project_works() -> Result<()> {
+		let name = "example_project";
 		let temp_dir = tempdir()?;
 		cmd("cargo", ["new", name, "--bin"]).dir(temp_dir.path()).run()?;
 		let project = temp_dir.path().join(name);
 		add_production_profile(&project)?;
-		for runtime in vec![None, Some("custom_runtime")] {
-			let runtime_path = generate_mock_runtime(&project, runtime)?;
-			for package in vec![None, Some(String::from(name))] {
-				for profile in Profile::VARIANTS {
-					let runtime_path = match runtime {
-						Some(_) => runtime_path.as_path(),
-						None => &project.join("runtime"),
-					};
-					build_project(&project, package.clone(), &profile, vec![], Some(target))?;
-					let target_path =
-						&project.join(format!("target/{target}/{}", profile.as_ref()));
-					let binary = build_binary_path(&runtime_path, |runtime_name| {
-						target_path.join(format!("{runtime_name}.wasm"))
-					})?;
-					let target_directy =
-						project.join(format!("target/{target}/{}", profile.as_ref()));
-					assert!(target_directy.exists());
-					assert!(target_directy.join(format!("{name}.wasm")).exists());
-					assert_eq!(
-						binary.display().to_string(),
-						target_directy.join(format!("{name}.wasm")).display().to_string()
-					);
-				}
+		for package in vec![None, Some(String::from(name))] {
+			for profile in Profile::VARIANTS {
+				build_project(&project, package.clone(), &profile, vec![], None)?;
+				let target_directory = profile.target_directory(&project);
+				let binary = build_binary_path(&project, |runtime_name| {
+					target_directory.join(runtime_name)
+				})?;
+				assert!(target_directory.exists());
+				assert!(target_directory.join(name).exists());
+				assert_eq!(
+					binary.display().to_string(),
+					target_directory.join(name).display().to_string()
+				);
 			}
 		}
 		Ok(())

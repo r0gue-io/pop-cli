@@ -20,26 +20,14 @@ type HostFunctions = (
 	cumulus_primitives_proof_size_hostfunction::storage_proof_size::HostFunctions,
 );
 
-/// Type alias for records where the key is the pallet name and the value is a array of its
-/// extrinsics.
-pub type PalletExtrinsicsCollection = HashMap<String, Vec<String>>;
-
-/// Check if a runtime has a genesis config preset.
+/// Get genesis builder preset names of the runtime.
 ///
 /// # Arguments
 /// * `binary_path` - Path to the runtime WASM binary.
-/// * `preset` - Optional ID of the genesis config preset. If not provided, it checks the default
-///   preset.
-pub fn check_preset(binary_path: &PathBuf, preset: Option<&String>) -> anyhow::Result<()> {
-	let binary = fs::read(binary_path).map_err(anyhow::Error::from)?;
+pub fn get_preset_names(binary_path: &PathBuf) -> anyhow::Result<Vec<String>> {
+	let binary = fs::read(binary_path).expect("No runtime binary found");
 	let genesis_config_builder = GenesisConfigBuilderRuntimeCaller::<HostFunctions>::new(&binary);
-	if genesis_config_builder.get_named_preset(preset).is_err() {
-		return Err(anyhow::anyhow!(format!(
-			r#"The preset with name "{:?}" is not available."#,
-			preset
-		)))
-	}
-	Ok(())
+	genesis_config_builder.preset_names().map_err(|e| anyhow::anyhow!(e))
 }
 
 /// Get the runtime folder path and throws error if not exist.
@@ -181,13 +169,12 @@ mod tests {
 	use tempfile::tempdir;
 
 	#[test]
-	fn check_preset_works() -> anyhow::Result<()> {
+	fn get_preset_names_works() -> anyhow::Result<()> {
 		let runtime_path = std::env::current_dir()
 			.unwrap()
 			.join("../../tests/runtimes/base_parachain_benchmark.wasm")
 			.canonicalize()?;
-		assert!(check_preset(&runtime_path, Some(&"development".to_string())).is_ok());
-		assert!(check_preset(&runtime_path, Some(&"random-preset-name".to_string())).is_err());
+		assert_eq!(get_preset_names(&runtime_path)?, vec!["development", "local_testnet"]);
 		Ok(())
 	}
 
