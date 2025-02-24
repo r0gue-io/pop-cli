@@ -805,7 +805,8 @@ mod tests {
 
 	#[test]
 	fn update_runtime_code_works() -> Result<()> {
-		let mut chain_spec = ChainSpec(json!({"genesis": {"runtimeGenesis" : {  "code": "0x00" }}}));
+		let mut chain_spec =
+			ChainSpec(json!({"genesis": {"runtimeGenesis" : {  "code": "0x00" }}}));
 
 		chain_spec.update_runtime_code(&from_hex("0x1234")?)?;
 		assert_eq!(chain_spec.0, json!({"genesis": {"runtimeGenesis" : {  "code": "0x1234" }}}));
@@ -814,7 +815,8 @@ mod tests {
 
 	#[test]
 	fn update_runtime_code_fails() -> Result<()> {
-		let mut chain_spec = ChainSpec(json!({"invalidKey": {"runtimeGenesis" : {  "code": "0x00" }}}));
+		let mut chain_spec =
+			ChainSpec(json!({"invalidKey": {"runtimeGenesis" : {  "code": "0x00" }}}));
 		assert!(
 			matches!(chain_spec.update_runtime_code(&from_hex("0x1234")?), Err(Error::Config(error)) if error == "expected `genesis`")
 		);

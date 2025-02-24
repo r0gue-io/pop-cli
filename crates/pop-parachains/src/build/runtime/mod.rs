@@ -128,7 +128,7 @@ mod tests {
 		);
 		assert_eq!(srtool_builer.default_features, "");
 
-		let tag = get_image_tag(Some(ONE_HOUR)).map_err(|_| Error::ImageTagRetrievalFailed)?;
+		let tag = get_image_tag(Some(ONE_HOUR))?;
 		let digest = get_image_digest(DEFAULT_IMAGE, &tag).unwrap_or_default();
 		assert_eq!(srtool_builer.digest, digest);
 		assert_eq!(srtool_builer.tag, tag);
@@ -147,7 +147,7 @@ mod tests {
 	fn build_command_works() -> Result<()> {
 		let temp_dir = tempfile::tempdir()?;
 		let path = temp_dir.path();
-		let tag = get_image_tag(Some(ONE_HOUR)).map_err(|_| Error::ImageTagRetrievalFailed)?;
+		let tag = get_image_tag(Some(ONE_HOUR))?;
 		let digest = get_image_digest(DEFAULT_IMAGE, &tag).unwrap_or_default();
 		assert_eq!(
 			SrToolBuilder::new(

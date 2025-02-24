@@ -436,7 +436,8 @@ impl BuildSpecCommand {
 			.initial_value(true)
 			.interact()?);
 
-		// If deterministic build is selected, prompt for package and runtime_dir if not provided.
+		// If deterministic build is selected, prompt for package name and runtime path if not
+		// provided.
 		let package = if deterministic {
 			match package {
 				Some(pkg) => pkg,
@@ -454,7 +455,7 @@ impl BuildSpecCommand {
 			match runtime_dir {
 				Some(dir) => dir,
 				None => PathBuf::from(
-					cli.input("Enter the runtime directory path:")
+					cli.input("Enter the directory path where the runtime is located:")
 						.placeholder(DEFAULT_RUNTIME_DIR)
 						.default_input(DEFAULT_RUNTIME_DIR)
 						.interact()?,
@@ -795,7 +796,7 @@ mod tests {
 				).expect_confirm("Should the genesis code file be generated ?", genesis_code)
 				.expect_confirm("Would you like to build the Wasm runtime deterministically? (Recommended for production builds)", deterministic)
 				.expect_input("Enter the runtime package name:", package.to_string())
-				.expect_input("Enter the runtime directory path:", runtime_dir.display().to_string());
+				.expect_input("Enter the directory path where the runtime is located:", runtime_dir.display().to_string());
 			}
 			let build_spec = build_spec_cmd.configure_build_spec(&mut cli).await?;
 			assert_eq!(build_spec.chain, chain);
@@ -931,7 +932,7 @@ mod tests {
 							"Would you like to build the Wasm runtime deterministically? (Recommended for production builds)",
 							deterministic,
 						).expect_input("Enter the runtime package name:", package.to_string())
-						.expect_input("Enter the runtime directory path:", runtime_dir.display().to_string());
+						.expect_input("Enter the directory path where the runtime is located:", runtime_dir.display().to_string());
 					}
 				}
 				let build_spec = build_spec_cmd.configure_build_spec(&mut cli).await?;
@@ -985,20 +986,22 @@ mod tests {
 	fn update_code_works() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
 		let output_file = temp_dir.path().join("chain_spec.json");
-		std::fs::write(&output_file, json!({
-			"genesis": {
-				"runtimeGenesis": {
-					"code": "0x00"
+		std::fs::write(
+			&output_file,
+			json!({
+				"genesis": {
+					"runtimeGenesis": {
+						"code": "0x00"
+					}
 				}
-			}
-		}).to_string())?;
-		let build_spec = BuildSpec {
-			output_file: output_file.clone(),
-			..Default::default()
-		};
+			})
+			.to_string(),
+		)?;
+		let build_spec = BuildSpec { output_file: output_file.clone(), ..Default::default() };
 		build_spec.update_code(&from_hex("0x1234")?)?;
 
-		let updated_output_file: serde_json::Value = serde_json::from_str(&fs::read_to_string(&output_file)?)?;
+		let updated_output_file: serde_json::Value =
+			serde_json::from_str(&fs::read_to_string(&output_file)?)?;
 		assert_eq!(
 			updated_output_file,
 			json!({
