@@ -20,6 +20,10 @@ type HostFunctions = (
 	cumulus_primitives_proof_size_hostfunction::storage_proof_size::HostFunctions,
 );
 
+/// Type alias for records where the key is the pallet name and the value is a array of its
+/// extrinsics.
+pub type PalletExtrinsicsCollection = HashMap<String, Vec<String>>;
+
 /// Get genesis builder preset names of the runtime.
 ///
 /// # Arguments

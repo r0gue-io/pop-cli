@@ -11,7 +11,7 @@ use frame_benchmarking_cli::PalletCmd;
 use log::LevelFilter;
 use pop_common::{manifest::from_path, Profile};
 use pop_parachains::{
-	build_project, check_preset, get_preset_names, get_runtime_path, list_pallets_and_extrinsics,
+	build_project, get_preset_names, get_runtime_path, list_pallets_and_extrinsics,
 	parse_genesis_builder_policy, run_pallet_benchmarking, runtime_binary_path,
 	search_for_extrinsics, search_for_pallets, PalletExtrinsicsCollection,
 };
@@ -149,21 +149,9 @@ impl BenchmarkPalletMenuOption {
 	pub fn read_command(self, cmd: &PalletCmd) -> anyhow::Result<String> {
 		use BenchmarkPalletMenuOption::*;
 		Ok(match self {
-			Steps => cmd.steps.to_string(),
-			Repeat => cmd.repeat.to_string(),
-			MapSize => cmd.worst_case_map_values.to_string(),
-			Low => self.get_range_values(&cmd.lowest_range_values),
-			High => self.get_range_values(&cmd.highest_range_values),
-			AdditionalTrieLayer => cmd.additional_trie_layers.to_string(),
 			Pallets => self.get_joined_string(cmd.pallet.as_ref().expect("No pallet provided")),
-			Extrinsics => {
-				self.get_joined_string(cmd.extrinsic.as_ref().expect("No extrinsic provided"))
-			},
-			GenesisConfigPreset => cmd.genesis_builder_preset.clone(),
-			GenesisBuilder => {
-				serde_json::to_string(&cmd.genesis_builder.expect("No chainspec provided"))
-					.expect("Failed to serialize genesis builder policy")
-			},
+			Extrinsics =>
+				self.get_joined_string(cmd.extrinsic.as_ref().expect("No extrinsic provided")),
 			Runtime => cmd
 				.runtime
 				.as_ref()
@@ -172,6 +160,16 @@ impl BenchmarkPalletMenuOption {
 				.to_str()
 				.unwrap()
 				.to_string(),
+			GenesisConfigPreset => cmd.genesis_builder_preset.clone(),
+			GenesisBuilder =>
+				serde_json::to_string(&cmd.genesis_builder.expect("No chainspec provided"))
+					.expect("Failed to serialize genesis builder policy"),
+			Steps => cmd.steps.to_string(),
+			Repeat => cmd.repeat.to_string(),
+			High => self.get_range_values(&cmd.highest_range_values),
+			Low => self.get_range_values(&cmd.lowest_range_values),
+			MapSize => cmd.worst_case_map_values.to_string(),
+			AdditionalTrieLayer => cmd.additional_trie_layers.to_string(),
 			SaveAndContinue => String::default(),
 		})
 	}
@@ -185,22 +183,18 @@ impl BenchmarkPalletMenuOption {
 	) -> anyhow::Result<bool> {
 		use BenchmarkPalletMenuOption::*;
 		match self {
-			GenesisBuilder => update_genesis_builder_policy(cmd, cli).map(|_| ())?,
-			GenesisConfigPreset => {
-				cmd.genesis_builder_preset =
-					guide_user_to_input_genesis_preset(cli, &cmd.genesis_builder_preset)?
-			},
 			Pallets => update_pallets(cmd, cli, pallet_extrinsics, &spinner)?,
 			Extrinsics => update_extrinsics(cmd, cli, pallet_extrinsics, &spinner)?,
+			Runtime => cmd.runtime = Some(guide_user_to_select_runtime_path(cli)?),
+			GenesisBuilder => update_genesis_builder_policy(cmd, cli).map(|_| ())?,
+			GenesisConfigPreset => update_genesis_preset(cmd, cli)?,
 			Steps => cmd.steps = self.input_parameter(cmd, cli, true)?.parse()?,
 			Repeat => cmd.repeat = self.input_parameter(cmd, cli, true)?.parse()?,
-			AdditionalTrieLayer => {
-				cmd.additional_trie_layers = self.input_parameter(cmd, cli, true)?.parse()?
-			},
-			MapSize => cmd.worst_case_map_values = self.input_parameter(cmd, cli, true)?.parse()?,
 			High => cmd.highest_range_values = self.input_range_values(cmd, cli, true)?,
 			Low => cmd.lowest_range_values = self.input_range_values(cmd, cli, true)?,
-			Runtime => cmd.runtime = Some(guide_user_to_select_runtime_path(cli)?),
+			MapSize => cmd.worst_case_map_values = self.input_parameter(cmd, cli, true)?.parse()?,
+			AdditionalTrieLayer =>
+				cmd.additional_trie_layers = self.input_parameter(cmd, cli, true)?.parse()?,
 			SaveAndContinue => return Ok(true),
 		};
 		Ok(false)
@@ -298,7 +292,7 @@ pub fn update_genesis_builder_policy(
 	cmd: &mut PalletCmd,
 	cli: &mut impl cli::traits::Cli,
 ) -> anyhow::Result<String> {
-	let policy = guide_user_to_select_genesis_builder(cli)?;
+	let policy = guide_user_to_select_genesis_policy(cli)?;
 	cmd.genesis_builder = parse_genesis_builder_policy(policy)?.genesis_builder;
 	Ok(policy.to_string())
 }
@@ -310,7 +304,7 @@ pub fn fetch_pallet_extrinsics_if_not_exist(
 ) -> anyhow::Result<()> {
 	if pallet_extrinsics.is_empty() {
 		spinner.start("Fetching pallets and extrinsics from your runtime...");
-		let runtime_path = cmd.runtime.clone().expect("No runtime found.");
+		let runtime_path = cmd.runtime.clone().expect("No runtime found");
 		log::set_max_level(LevelFilter::Off);
 		let fetched_extrinsics = list_pallets_and_extrinsics(&runtime_path)?;
 		*pallet_extrinsics = fetched_extrinsics;
@@ -323,15 +317,10 @@ pub fn fetch_pallet_extrinsics_if_not_exist(
 fn update_genesis_preset(
 	cmd: &mut PalletCmd,
 	cli: &mut impl cli::traits::Cli,
-	spinner: &ProgressBar,
 ) -> anyhow::Result<()> {
-	let preset_input = guide_user_to_input_genesis_preset(cli, &cmd.genesis_builder_preset)?;
 	let runtime_path = cmd.runtime.as_ref().expect("No runtime found");
-	let preset = (!preset_input.is_empty()).then_some(&preset_input);
-	spinner.start("Verifying genesis config preset...");
-	check_preset(runtime_path, preset)?;
-	spinner.clear();
-	cmd.genesis_builder_preset = preset_input;
+	cmd.genesis_builder_preset =
+		guide_user_to_select_genesis_preset(cli, &runtime_path, &cmd.genesis_builder_preset)?;
 	Ok(())
 }
 
@@ -544,7 +533,7 @@ mod tests {
 	#[test]
 	fn benchmark_pallet_works() -> anyhow::Result<()> {
 		let mut cli =
-			expect_select_genesis_builder(expect_pallet_benchmarking_intro(MockCli::new()), 0)
+			expect_select_genesis_policy(expect_pallet_benchmarking_intro(MockCli::new()), 0)
 				.expect_warning("NOTE: this may take some time...")
 				.expect_outro("Benchmark completed successfully!");
 
@@ -588,7 +577,7 @@ mod tests {
 
 	#[test]
 	fn benchmark_pallet_without_runtime_benchmarks_feature_fails() -> anyhow::Result<()> {
-		let mut cli = 	expect_select_genesis_builder(expect_pallet_benchmarking_intro(MockCli::new()), 0)
+		let mut cli = 	expect_select_genesis_policy(expect_pallet_benchmarking_intro(MockCli::new()), 0)
 			.expect_outro_cancel(
 		        "Failed to run benchmarking: Invalid input: Could not call runtime API to Did not find the benchmarking metadata. \
 		        This could mean that you either did not build the node correctly with the `--features runtime-benchmarks` flag, \
@@ -611,7 +600,7 @@ mod tests {
 
 	#[test]
 	fn benchmark_pallet_fails_with_error() -> anyhow::Result<()> {
-		let mut cli =  expect_select_genesis_builder(expect_pallet_benchmarking_intro(MockCli::new()), 0)
+		let mut cli =  expect_select_genesis_policy(expect_pallet_benchmarking_intro(MockCli::new()), 0)
 			.expect_outro_cancel("Failed to run benchmarking: Invalid input: No benchmarks found which match your input.");
 		let cmd = PalletCmd::try_parse_from(&[
 			"",
@@ -708,8 +697,8 @@ mod tests {
 
 	fn expect_select_genesis_policy(cli: MockCli, item: usize) -> MockCli {
 		let policies = vec![
-									(GENESIS_BUILDER_NO_POLICY.to_string(), "Do not provide any genesis state".to_string()),
-									(GENESIS_BUILDER_RUNTIME_POLICY.to_string(), "Let the runtime build the genesis state through its `BuildGenesisConfig` runtime API".to_string())
+		    (GENESIS_BUILDER_NO_POLICY.to_string(), "Do not provide any genesis state".to_string()),
+			(GENESIS_BUILDER_RUNTIME_POLICY.to_string(), "Let the runtime build the genesis state through its `BuildGenesisConfig` runtime API".to_string())
 		];
 		cli.expect_select(
 			"Select the genesis builder policy:",
