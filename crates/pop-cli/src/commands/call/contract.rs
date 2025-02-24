@@ -5,6 +5,7 @@ use crate::{
 	common::{
 		builds::get_project_path,
 		contracts::has_contract_been_built,
+		prompt::display_message,
 		wallet::{prompt_to_use_wallet, request_signature},
 	},
 };
@@ -547,15 +548,6 @@ impl CallContractCommand {
 		self.proof_size = None;
 		self.use_wallet = false;
 	}
-}
-
-fn display_message(message: &str, success: bool, cli: &mut impl Cli) -> Result<()> {
-	if success {
-		cli.outro(message)?;
-	} else {
-		cli.outro_cancel(message)?;
-	}
-	Ok(())
 }
 
 #[cfg(test)]
@@ -1191,15 +1183,5 @@ mod tests {
 		)?;
 		assert!(!call_config.is_contract_build_required());
 		Ok(())
-	}
-
-	#[test]
-	fn display_message_works() -> Result<()> {
-		let mut cli = MockCli::new().expect_outro(&"Call completed successfully!");
-		display_message("Call completed successfully!", true, &mut cli)?;
-		cli.verify()?;
-		let mut cli = MockCli::new().expect_outro_cancel("Call failed.");
-		display_message("Call failed.", false, &mut cli)?;
-		cli.verify()
 	}
 }
