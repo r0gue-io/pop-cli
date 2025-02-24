@@ -192,7 +192,7 @@ mod tests {
 			"--extrinsic",
 			"",
 		])?;
-		BenchmarkPallet::default().execute(&mut cmd, &mut cli)?;
+		BenchmarkPallet.execute(&mut cmd, &mut cli)?;
 		cli.verify()
 	}
 
@@ -215,7 +215,7 @@ mod tests {
 			"",
 		])?;
 
-		BenchmarkPallet::default().execute(&mut cmd, &mut cli)?;
+		BenchmarkPallet.execute(&mut cmd, &mut cli)?;
 		cli.verify()
 	}
 
@@ -237,7 +237,7 @@ mod tests {
 			"--extrinsic",
 			"",
 		])?;
-		BenchmarkPallet::default().execute(&mut cmd, &mut cli)?;
+		BenchmarkPallet.execute(&mut cmd, &mut cli)?;
 		cli.verify()
 	}
 
@@ -254,7 +254,7 @@ mod tests {
 			"--extrinsic",
 			"",
 		])?;
-		BenchmarkPallet::default().execute(&mut cmd, &mut cli)?;
+		BenchmarkPallet.execute(&mut cmd, &mut cli)?;
 		cli.verify()
 	}
 

@@ -31,7 +31,7 @@ impl Command {
 	pub(crate) fn execute(args: BenchmarkArgs) -> anyhow::Result<()> {
 		let mut cli = cli::Cli;
 		match args.command {
-			Command::Pallet(mut cmd) => BenchmarkPallet::default().execute(&mut cmd, &mut cli),
+			Command::Pallet(mut cmd) => BenchmarkPallet.execute(&mut cmd, &mut cli),
 		}
 	}
 }
