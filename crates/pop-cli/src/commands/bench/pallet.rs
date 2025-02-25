@@ -358,6 +358,23 @@ impl BenchmarkPalletMenuOption {
 	}
 }
 
+fn fetch_pallet_registry(
+	cmd: &PalletCmd,
+	registry: &mut PalletExtrinsicsRegistry,
+) -> anyhow::Result<()> {
+	if registry.is_empty() {
+		let spinner = spinner();
+		spinner.start("Fetching pallets and extrinsics from your runtime...");
+		let runtime_path = get_runtime_argument(cmd)?;
+		log::set_max_level(LevelFilter::Off);
+		let loaded_registry = load_pallet_extrinsics(&runtime_path)?;
+		log::set_max_level(LevelFilter::Info);
+		*registry = loaded_registry;
+		spinner.clear();
+	}
+	Ok(())
+}
+
 fn update_pallets(
 	cmd: &mut PalletCmd,
 	cli: &mut impl cli::traits::Cli,
@@ -375,9 +392,13 @@ fn update_extrinsics(
 ) -> anyhow::Result<()> {
 	fetch_pallet_registry(cmd, registry)?;
 	// Not allow selecting extrinsics when multiple pallets are selected.
-	let pallet_count = cmd.pallet.as_deref().expect("No pallet provided").matches(",").count();
+	let pallet = cmd.pallet.as_deref().expect("No pallet provided");
+	let pallet_count = pallet.matches(",").count();
 	cmd.extrinsic = Some(match pallet_count {
-		0 => guide_user_to_select_extrinsics(cmd, &registry, cli)?,
+		0 => {
+			let pallets = pallet.split(",").map(String::from).collect();
+			guide_user_to_select_extrinsics(&pallets, &registry, cli)?
+		},
 		_ => ALL_SELECTED.to_string(),
 	});
 	Ok(())
@@ -402,23 +423,6 @@ fn update_genesis_builder_policy(
 	let policy = guide_user_to_select_genesis_policy(cli)?;
 	cmd.genesis_builder = parse_genesis_builder_policy(policy)?.genesis_builder;
 	Ok(policy.to_string())
-}
-
-fn fetch_pallet_registry(
-	cmd: &PalletCmd,
-	registry: &mut PalletExtrinsicsRegistry,
-) -> anyhow::Result<()> {
-	if registry.is_empty() {
-		let spinner = spinner();
-		spinner.start("Fetching pallets and extrinsics from your runtime...");
-		let runtime_path = get_runtime_argument(cmd)?;
-		log::set_max_level(LevelFilter::Off);
-		let loaded_registry = load_pallet_extrinsics(&runtime_path)?;
-		log::set_max_level(LevelFilter::Info);
-		*registry = loaded_registry;
-		spinner.clear();
-	}
-	Ok(())
 }
 
 fn update_genesis_preset(
@@ -483,12 +487,10 @@ fn guide_user_to_select_pallets(
 }
 
 fn guide_user_to_select_extrinsics(
-	cmd: &mut PalletCmd,
+	pallets: &Vec<String>,
 	registry: &PalletExtrinsicsRegistry,
 	cli: &mut impl cli::traits::Cli,
 ) -> anyhow::Result<String> {
-	let pallets = cmd.pallet.as_ref().expect("No pallet provided").split(",");
-
 	// Prompt for extrinsic search input.
 	let input = cli
 		.input(r#"Search for extrinsics by name ("*" to select all)"#)
@@ -501,13 +503,8 @@ fn guide_user_to_select_extrinsics(
 	}
 
 	// Prompt user to select extrinsics.
-	let extrinsics = search_for_extrinsics(
-		registry,
-		pallets.map(String::from).collect(),
-		&input,
-		MAX_EXTRINSIC_LIMIT,
-	);
-	let mut prompt = cli.multiselect("Select the extrinsics to benchmark:").required(true);
+	let extrinsics = search_for_extrinsics(registry, &pallets, &input, MAX_EXTRINSIC_LIMIT);
+	let mut prompt = cli.multiselect("Select the extrinsics:").required(true);
 	for extrinsic in extrinsics {
 		prompt = prompt.item(extrinsic.clone(), &extrinsic, "");
 	}
@@ -881,22 +878,77 @@ mod tests {
 	}
 
 	#[test]
-	fn guide_user_to_select_menu_option_works() -> anyhow::Result<()> {
-		Ok(())
-	}
-
-	#[test]
 	fn guide_user_to_select_pallets_works() -> anyhow::Result<()> {
-		Ok(())
+		let runtime_path = get_mock_runtime_path(true);
+		let registry = load_pallet_extrinsics(&runtime_path)?;
+		let prompt = r#"Search for pallets by name ("*" to select all)"#;
+
+		// Select all pallets.
+		let mut cli = MockCli::new();
+		cli = cli.expect_input(prompt, ALL_SELECTED.to_string());
+		let input = guide_user_to_select_pallets(&registry, &vec![], &mut cli, true)?;
+		assert_eq!(input, ALL_SELECTED.to_string());
+		cli.verify()?;
+
+		// Search for pallets.
+		cli = MockCli::new();
+		let input = "pallet_timestamp";
+		let pallets = search_for_pallets(&registry, &vec![], &input, MAX_PALLET_LIMIT);
+		cli = cli.expect_input(prompt, input.to_string());
+		cli = cli.expect_multiselect::<String>(
+			"Select the pallets:",
+			Some(true),
+			true,
+			Some(
+				pallets
+					.into_iter()
+					.map(|pallet| (pallet, Default::default()))
+					.take(MAX_PALLET_LIMIT)
+					.collect(),
+			),
+		);
+		guide_user_to_select_pallets(&registry, &vec![], &mut cli, true)?;
+		cli.verify()
 	}
 
 	#[test]
 	fn guide_user_to_select_extrinsics_works() -> anyhow::Result<()> {
-		Ok(())
+		let runtime_path = get_mock_runtime_path(true);
+		let registry = load_pallet_extrinsics(&runtime_path)?;
+		let prompt = r#"Search for extrinsics by name ("*" to select all)"#;
+		let pallets = vec!["pallet_timestamp".to_string()];
+
+		// Select all extrinsics.
+		let mut cli = MockCli::new();
+		cli = cli.expect_input(prompt, ALL_SELECTED.to_string());
+		let input = guide_user_to_select_extrinsics(&pallets, &registry, &mut cli)?;
+		assert_eq!(input, ALL_SELECTED.to_string());
+		cli.verify()?;
+
+		// Search for pallets.
+		cli = MockCli::new();
+		let input = "on_finalize";
+		let extrinsics = search_for_extrinsics(&registry, &pallets, &input, MAX_EXTRINSIC_LIMIT);
+		cli = cli.expect_input(prompt, input.to_string());
+		cli = cli.expect_multiselect::<String>(
+			"Select the extrinsics:",
+			Some(true),
+			true,
+			Some(
+				extrinsics
+					.into_iter()
+					.map(|extrinsic| (extrinsic, Default::default()))
+					.take(MAX_EXTRINSIC_LIMIT)
+					.collect(),
+			),
+		);
+		guide_user_to_select_extrinsics(&pallets, &registry, &mut cli)?;
+		cli.verify()
 	}
 
 	#[test]
 	fn menu_option_is_disabled_works() -> anyhow::Result<()> {
+		use BenchmarkPalletMenuOption::*;
 		let runtime_path = get_mock_runtime_path(false);
 		let cmd = PalletCmd::try_parse_from(&[
 			"",
@@ -909,26 +961,121 @@ mod tests {
 			"--genesis-builder",
 			"none",
 		])?;
-		assert_eq!(BenchmarkPalletMenuOption::GenesisBuilderPolicy.is_disabled(&cmd)?, false);
-		assert_eq!(BenchmarkPalletMenuOption::GenesisBuilderPreset.is_disabled(&cmd)?, true);
-		assert_eq!(BenchmarkPalletMenuOption::Extrinsics.is_disabled(&cmd)?, true);
+		assert!(!GenesisBuilderPolicy.is_disabled(&cmd)?);
+		assert!(GenesisBuilderPreset.is_disabled(&cmd)?);
+		assert!(Extrinsics.is_disabled(&cmd)?);
 		Ok(())
 	}
 
 	#[test]
-	fn menu_option_read_command_works() {}
+	fn menu_option_read_command_works() -> anyhow::Result<()> {
+		use BenchmarkPalletMenuOption::*;
+		let runtime_path = get_mock_runtime_path(false);
+		let cmd = PalletCmd::try_parse_from(&[
+			"",
+			"--runtime",
+			runtime_path.to_str().unwrap(),
+			"--pallet",
+			"",
+			"--extrinsic",
+			"",
+			"--genesis-builder",
+			"runtime",
+			"--genesis-builder-preset",
+			"development",
+		])?;
+		[
+			(Pallets, "All selected"),
+			(Extrinsics, "All selected"),
+			(ExcludedPallets, "None"),
+			(Runtime, runtime_path.to_str().unwrap()),
+			(GenesisBuilderPolicy, GENESIS_BUILDER_RUNTIME_POLICY),
+			(GenesisBuilderPreset, "development"),
+			(Steps, "50"),
+			(Repeat, "20"),
+			(High, "None"),
+			(Low, "None"),
+			(MapSize, "1000000"),
+			(DatabaseCacheSize, "1024"),
+			(AdditionalTrieLayer, "2"),
+			(NoMedianSlope, "false"),
+			(NoMinSquare, "false"),
+			(NoStorageInfo, "false"),
+		]
+		.into_iter()
+		.for_each(|(option, value)| {
+			assert_eq!(option.read_command(&cmd).unwrap(), value.to_string());
+		});
+		Ok(())
+	}
 
 	#[test]
-	fn menu_option_update_parameters_works() {}
+	fn menu_option_input_parameter_works() -> anyhow::Result<()> {
+		use BenchmarkPalletMenuOption::*;
+		let mut cli = MockCli::new();
+		let cmd = PalletCmd::try_parse_from(&[
+			"",
+			"--runtime",
+			"path-to-runtime",
+			"--pallet",
+			"",
+			"--extrinsic",
+			"",
+		])?;
+		let options = [
+			(Steps, "100"),
+			(Repeat, "40"),
+			(High, "10,20"),
+			(Low, "10,20"),
+			(MapSize, "50000"),
+			(DatabaseCacheSize, "2048"),
+			(AdditionalTrieLayer, "4"),
+		];
+		for (option, value) in options.into_iter() {
+			cli = cli.expect_input(
+				format!(
+					r#"Provide value to the parameter "{}""#,
+					option.get_message().unwrap_or_default()
+				),
+				value.to_string(),
+			);
+		}
+		for (option, _) in options.into_iter() {
+			option.input_parameter(&cmd, &mut cli, true)?;
+		}
+
+		cli.verify()
+	}
 
 	#[test]
-	fn menu_option_input_parameter_works() {}
+	fn menu_option_input_range_values_works() -> anyhow::Result<()> {
+		use BenchmarkPalletMenuOption::*;
+		let mut cli = MockCli::new();
+		let cmd = PalletCmd::try_parse_from(&[
+			"",
+			"--runtime",
+			"path-to-runtime",
+			"--pallet",
+			"",
+			"--extrinsic",
+			"",
+		])?;
+		let options = [High, Low];
+		for option in options.into_iter() {
+			cli = cli.expect_input(
+				&format!(
+					r#"Provide range values to the parameter "{}" (numbers separated by commas)"#,
+					option.get_message().unwrap_or_default()
+				),
+				"10,20,30".to_string(),
+			);
+		}
+		for option in options.into_iter() {
+			option.input_range_values(&cmd, &mut cli, true)?;
+		}
 
-	#[test]
-	fn menu_option_input_range_values_works() {}
-
-	#[test]
-	fn menu_option_input_array_works() {}
+		cli.verify()
+	}
 
 	#[test]
 	fn get_runtime_argument_works() -> anyhow::Result<()> {

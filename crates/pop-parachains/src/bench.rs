@@ -272,7 +272,7 @@ pub fn search_for_pallets(
 /// * `input` - The search input used to match extrinsics.
 pub fn search_for_extrinsics(
 	registry: &PalletExtrinsicsRegistry,
-	pallets: Vec<String>,
+	pallets: &Vec<String>,
 	input: &str,
 	limit: usize,
 ) -> Vec<String> {
@@ -384,10 +384,10 @@ mod tests {
 		let runtime_path = get_mock_runtime_path(true);
 		let registry = load_pallet_extrinsics(&runtime_path)?;
 		let extrinsics =
-			search_for_extrinsics(&registry, vec!["pallet_timestamp".to_string()], "", 5);
+			search_for_extrinsics(&registry, &vec!["pallet_timestamp".to_string()], "", 5);
 		assert_eq!(extrinsics, vec!["on_finalize".to_string(), "set".to_string()]);
 		assert_eq!(
-			search_for_extrinsics(&registry, vec!["pallet_timestamp".to_string()], "set", 5),
+			search_for_extrinsics(&registry, &vec!["pallet_timestamp".to_string()], "set", 5),
 			vec!["set".to_string(), "on_finalize".to_string()]
 		);
 		Ok(())
