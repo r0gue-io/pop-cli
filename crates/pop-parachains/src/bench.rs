@@ -63,7 +63,7 @@ pub fn get_runtime_path(parent: &Path) -> anyhow::Result<PathBuf> {
 pub fn load_pallet_extrinsics(runtime_path: &Path) -> anyhow::Result<PalletExtrinsicsRegistry> {
 	let temp_dir = tempdir()?;
 	let temp_file_path = temp_dir.path().join("pallets.csv");
-	let guard = StdoutOverride::from_file(&temp_file_path)?;
+	StdoutOverride::from_file(&temp_file_path)?;
 	let cmd = PalletCmd::try_parse_from([
 		"",
 		"--runtime",
@@ -72,12 +72,8 @@ pub fn load_pallet_extrinsics(runtime_path: &Path) -> anyhow::Result<PalletExtri
 		"none", // For parsing purpose.
 		"--list=all",
 	])?;
-	let result = cmd
-		.run_with_spec::<BlakeTwo256, HostFunctions>(None)
-		.map_err(|e| anyhow::anyhow!(format!("Failed to list pallets: {}", e.to_string())));
-
-	drop(guard);
-	result?;
+	cmd.run_with_spec::<BlakeTwo256, HostFunctions>(None)
+		.map_err(|e| anyhow::anyhow!(format!("Failed to list pallets: {}", e.to_string())))?;
 	parse_csv_to_map(&temp_file_path)
 }
 
