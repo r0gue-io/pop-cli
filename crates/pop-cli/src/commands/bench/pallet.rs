@@ -6,7 +6,7 @@ use crate::cli::{
 	traits::{Confirm, Input, MultiSelect, Select},
 };
 use clap::Args;
-use cliclack::{spinner, ProgressBar};
+use cliclack::spinner;
 use frame_benchmarking_cli::PalletCmd;
 use log::LevelFilter;
 use pop_common::{manifest::from_path, Profile};
@@ -16,12 +16,12 @@ use pop_parachains::{
 	print_pallet_command, run_pallet_benchmarking, runtime_binary_path, search_for_extrinsics,
 	search_for_pallets, PalletExtrinsicsRegistry,
 };
-use std::{collections::HashMap, env::current_dir, ffi::OsStr, fs, path::PathBuf, str::FromStr};
+use std::{collections::HashMap, env::current_dir, ffi::OsStr, fs, path::PathBuf};
 use strum::{EnumMessage, IntoEnumIterator};
 use strum_macros::{EnumIter, EnumMessage as EnumMessageDerive};
 
 const ALL_SELECTED: &str = "*";
-const MAX_EXTRINSIC_LIMIT: usize = 10;
+const MAX_EXTRINSIC_LIMIT: usize = 15;
 const MAX_PALLET_LIMIT: usize = 20;
 
 #[derive(Args)]
@@ -178,13 +178,27 @@ impl BenchmarkPalletMenuOption {
 	// menu.
 	fn is_disabled(self, cmd: &PalletCmd) -> anyhow::Result<bool> {
 		use BenchmarkPalletMenuOption::*;
-		Ok(match self {
-			GenesisBuilderPreset =>
-				cmd.genesis_builder == parse_genesis_builder_policy("none")?.genesis_builder,
+		match self {
+			GenesisBuilderPolicy | GenesisBuilderPreset => {
+				let runtime_path = get_runtime_argument(cmd);
+				let presets = get_preset_names(&runtime_path)?;
+				// If there are no presets available, disable the preset builder options.
+				if presets.is_empty() {
+					return Ok(true);
+				}
+				if self == GenesisBuilderPreset {
+					// If the preset policy is not enabled, disable the preset builder preset
+					// option.
+					let policy = parse_genesis_builder_policy(GENESIS_BUILDER_NO_POLICY)?;
+					return Ok(cmd.genesis_builder == policy.genesis_builder);
+				}
+				Ok(false)
+			},
 			// If there are multiple pallets provided, disable the extrinsics.
-			Extrinsics => cmd.pallet.as_ref().expect("No pallet provided").matches(",").count() > 0,
-			_ => false,
-		})
+			Extrinsics =>
+				Ok(cmd.pallet.as_ref().expect("No pallet provided").matches(",").count() > 0),
+			_ => Ok(false),
+		}
 	}
 
 	// Reads the command argument based on the selected menu option.
@@ -236,15 +250,15 @@ impl BenchmarkPalletMenuOption {
 			Runtime => cmd.runtime = Some(ensure_runtime_binary_exists(cli, &Profile::Release)?),
 			GenesisBuilderPolicy => update_genesis_builder_policy(cmd, cli).map(|_| ())?,
 			GenesisBuilderPreset => update_genesis_preset(cmd, cli)?,
-			Steps => cmd.steps = self.input_parameter(cmd, cli, true)?.parse(),
-			Repeat => cmd.repeat = self.input_parameter(cmd, cli, true)?.parse(),
-			High => cmd.highest_range_values = self.input_range_values(cmd, cli, true)?.parse(),
-			Low => cmd.lowest_range_values = self.input_range_values(cmd, cli, true)?.parse(),
-			MapSize => cmd.worst_case_map_values = self.input_parameter(cmd, cli, true)?.parse(),
+			Steps => cmd.steps = self.input_parameter(cmd, cli, true)?.parse()?,
+			Repeat => cmd.repeat = self.input_parameter(cmd, cli, true)?.parse()?,
+			High => cmd.highest_range_values = self.input_range_values(cmd, cli, true)?,
+			Low => cmd.lowest_range_values = self.input_range_values(cmd, cli, true)?,
+			MapSize => cmd.worst_case_map_values = self.input_parameter(cmd, cli, true)?.parse()?,
 			DatabaseCacheSize =>
-				cmd.database_cache_size = self.input_parameter(cmd, cli, true)?.parse(),
+				cmd.database_cache_size = self.input_parameter(cmd, cli, true)?.parse()?,
 			AdditionalTrieLayer =>
-				cmd.additional_trie_layers = self.input_parameter(cmd, cli, true)?.parse(),
+				cmd.additional_trie_layers = self.input_parameter(cmd, cli, true)?.parse()?,
 			NoMedianSlope => cmd.no_median_slopes = self.confirm(cmd, cli)?,
 			NoMinSquare => cmd.no_min_squares = self.confirm(cmd, cli)?,
 			NoStorageInfo => cmd.no_storage_info = self.confirm(cmd, cli)?,
@@ -312,12 +326,7 @@ impl BenchmarkPalletMenuOption {
 			.interact()
 			.map(|v| v.trim().to_string())
 			.map_err(anyhow::Error::from)?;
-
-		let mut parsed_inputs = vec![];
-		for value in input.split(",") {
-			parsed_inputs.push(value.to_string());
-		}
-		Ok(parsed_inputs)
+		Ok(input.split(",").map(String::from).collect())
 	}
 
 	fn confirm(self, cmd: &PalletCmd, cli: &mut impl cli::traits::Cli) -> anyhow::Result<bool> {
@@ -400,7 +409,7 @@ fn fetch_pallet_registry(
 	if registry.is_empty() {
 		let spinner = spinner();
 		spinner.start("Fetching pallets and extrinsics from your runtime...");
-		let runtime_path = cmd.runtime.as_ref().expect("No runtime found");
+		let runtime_path = get_runtime_argument(cmd);
 		log::set_max_level(LevelFilter::Off);
 		let loaded_registry = load_pallet_extrinsics(&runtime_path)?;
 		log::set_max_level(LevelFilter::Info);
@@ -414,7 +423,7 @@ fn update_genesis_preset(
 	cmd: &mut PalletCmd,
 	cli: &mut impl cli::traits::Cli,
 ) -> anyhow::Result<()> {
-	let runtime_path = cmd.runtime.as_ref().expect("No runtime found");
+	let runtime_path = get_runtime_argument(cmd);
 	cmd.genesis_builder_preset =
 		guide_user_to_select_genesis_preset(cli, &runtime_path, &cmd.genesis_builder_preset)?;
 	Ok(())
@@ -453,7 +462,7 @@ fn guide_user_to_select_pallets(
 ) -> anyhow::Result<String> {
 	// Prompt for pallet search input.
 	let input = cli
-		.input(r#"Search for pallets by name separated by commas. ("*" to select all)"#)
+		.input(r#"Search for pallets by name ("*" to select all)"#)
 		.placeholder("nfts, assets, system")
 		.required(false)
 		.interact()?;
@@ -480,7 +489,7 @@ fn guide_user_to_select_extrinsics(
 
 	// Prompt for extrinsic search input.
 	let input = cli
-		.input(r#"Search for extrinsics by name separated by commas. ("*" to select all)"#)
+		.input(r#"Search for extrinsics by name ("*" to select all)"#)
 		.placeholder("transfer, mint, burn")
 		.required(false)
 		.interact()?;
@@ -538,19 +547,22 @@ fn guide_user_to_configure_genesis(
 	cmd: &mut PalletCmd,
 	cli: &mut impl cli::traits::Cli,
 ) -> anyhow::Result<()> {
-	let runtime_path = cmd.runtime.as_ref().expect("No runtime found.");
-	let preset_names = get_preset_names(runtime_path)?;
-	let policy = match preset_names.is_empty() {
-		true => GENESIS_BUILDER_NO_POLICY,
-		false => guide_user_to_select_genesis_policy(cli)?,
+	let runtime_path = get_runtime_argument(cmd);
+	let preset_names = get_preset_names(&runtime_path)?;
+	// Determine policy based on preset availability.
+	let policy = if preset_names.is_empty() {
+		GENESIS_BUILDER_NO_POLICY
+	} else {
+		guide_user_to_select_genesis_policy(cli)?
 	};
-
 	let parsed_policy = parse_genesis_builder_policy(policy)?;
-	cmd.genesis_builder = parsed_policy.genesis_builder;
+	// If the policy requires a preset, prompt the user to select one.
 	if policy == GENESIS_BUILDER_RUNTIME_POLICY {
-		cmd.genesis_builder_preset =
-			guide_user_to_select_genesis_preset(cli, runtime_path, &cmd.genesis_builder_preset)?;
+		let preset =
+			guide_user_to_select_genesis_preset(cli, &runtime_path, &cmd.genesis_builder_preset)?;
+		cmd.genesis_builder_preset = preset;
 	}
+	cmd.genesis_builder = parsed_policy.genesis_builder;
 	Ok(())
 }
 
@@ -629,6 +641,10 @@ fn guide_user_to_select_menu_option(
 		index += 1;
 	}
 	Ok(prompt.interact()?)
+}
+
+fn get_runtime_argument(cmd: &PalletCmd) -> &PathBuf {
+	cmd.runtime.as_ref().expect("No runtime found")
 }
 
 #[cfg(test)]

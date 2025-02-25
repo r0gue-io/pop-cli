@@ -7,7 +7,7 @@ use rust_fuzzy_search::fuzzy_search_best_n;
 use sc_chain_spec::GenesisConfigBuilderRuntimeCaller;
 use sp_runtime::traits::BlakeTwo256;
 use std::{
-	collections::HashMap,
+	collections::{HashMap, HashSet},
 	env::current_dir,
 	fs,
 	fs::File,
@@ -251,17 +251,15 @@ pub fn search_for_pallets(
 	if input.is_empty() {
 		return pallets.map(String::from).take(limit).collect();
 	}
-	let inputs = input.split(",");
 	let pallets: Vec<&str> = pallets
 		.map(String::as_str)
 		.filter(|s| !excluded_pallets.contains(&s.to_string()))
 		.collect();
-	let mut output = inputs
-		.flat_map(|input| fuzzy_search_best_n(input, &pallets, limit))
+	let output = fuzzy_search_best_n(input, &pallets, limit)
+		.into_iter()
 		.map(|v| v.0.to_string())
 		.collect::<Vec<String>>();
-	output.dedup();
-	output
+	output.into_iter().collect::<HashSet<_>>().into_iter().collect()
 }
 
 /// Performs a fuzzy search for extrinsics that match the provided input.
@@ -285,13 +283,11 @@ pub fn search_for_extrinsics(
 	if input.is_empty() {
 		return extrinsics.into_iter().map(String::from).take(limit).collect();
 	}
-	let inputs = input.split(",");
-	let mut output = inputs
-		.flat_map(|input| fuzzy_search_best_n(input, &extrinsics, limit))
+	let output = fuzzy_search_best_n(input, &extrinsics, limit)
+		.into_iter()
 		.map(|v| v.0.to_string())
 		.collect::<Vec<String>>();
-	output.dedup();
-	output
+	output.into_iter().collect::<HashSet<_>>().into_iter().collect()
 }
 
 /// Get serialized value of the  the pallet benchmarking command's genesis builder.
