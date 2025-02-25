@@ -72,9 +72,12 @@ pub fn load_pallet_extrinsics(runtime_path: &Path) -> anyhow::Result<PalletExtri
 		"none", // For parsing purpose.
 		"--list=all",
 	])?;
-	cmd.run_with_spec::<BlakeTwo256, HostFunctions>(None)
-		.map_err(|e| anyhow::anyhow!(format!("Failed to list pallets: {}", e.to_string())))?;
+	let result = cmd
+		.run_with_spec::<BlakeTwo256, HostFunctions>(None)
+		.map_err(|e| anyhow::anyhow!(format!("Failed to list pallets: {}", e.to_string())));
+
 	drop(guard);
+	result?;
 	parse_csv_to_map(&temp_file_path)
 }
 

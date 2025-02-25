@@ -11892,7 +11892,6 @@ dependencies = [
  "pop-parachains",
  "pop-telemetry",
  "reqwest 0.12.9",
- "rust-fuzzy-search",
  "serde",
  "serde_json",
  "sp-core 32.0.0",
@@ -13045,12 +13044,6 @@ name = "ruint-macro"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "48fd7bd8a6377e15ad9d42a8ec25371b94ddc67abe7c8b9127bec79bebaaae18"
-
-[[package]]
-name = "rust-fuzzy-search"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a157657054ffe556d8858504af8a672a054a6e0bd9e8ee531059100c0fa11bb2"
 
 [[package]]
 name = "rust_decimal"
