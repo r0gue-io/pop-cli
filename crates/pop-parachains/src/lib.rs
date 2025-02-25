@@ -15,9 +15,10 @@ mod up;
 mod utils;
 
 pub use bench::{
-	constants, get_preset_names, get_runtime_path, list_pallets_and_extrinsics,
-	parse_genesis_builder_policy, print_pallet_command, run_pallet_benchmarking,
-	search_for_extrinsics, search_for_pallets, PalletExtrinsicsCollection,
+	constants, get_preset_names, get_relative_runtime_path, get_runtime_path,
+	get_searilized_genesis_builder, load_pallet_extrinsics, parse_genesis_builder_policy,
+	print_pallet_command, run_pallet_benchmarking, search_for_extrinsics, search_for_pallets,
+	PalletExtrinsicsRegistry,
 };
 pub use build::{
 	binary_path, build_parachain, build_project, export_wasm_file, generate_genesis_state_file,

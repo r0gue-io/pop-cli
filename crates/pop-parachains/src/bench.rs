@@ -2,11 +2,13 @@ use anyhow::Result;
 use clap::Parser;
 use csv::Reader;
 use frame_benchmarking_cli::PalletCmd;
+use pop_common::get_relative_or_absolute_path;
 use rust_fuzzy_search::fuzzy_search_best_n;
 use sc_chain_spec::GenesisConfigBuilderRuntimeCaller;
 use sp_runtime::traits::BlakeTwo256;
 use std::{
 	collections::HashMap,
+	env::current_dir,
 	fs,
 	fs::File,
 	io::BufReader,
@@ -30,7 +32,7 @@ type HostFunctions = (
 
 /// Type alias for records where the key is the pallet name and the value is a array of its
 /// extrinsics.
-pub type PalletExtrinsicsCollection = HashMap<String, Vec<String>>;
+pub type PalletExtrinsicsRegistry = HashMap<String, Vec<String>>;
 
 /// Get genesis builder preset names of the runtime.
 ///
@@ -54,13 +56,11 @@ pub fn get_runtime_path(parent: &Path) -> anyhow::Result<PathBuf> {
 		.ok_or_else(|| anyhow::anyhow!("No runtime found."))
 }
 
-/// List a mapping of pallets and their extrinsics.
+/// Loads a mapping of pallets and their associated extrinsics from the runtime WASM binary.
 ///
 /// # Arguments
 /// * `runtime_path` - Path to the runtime WASM binary.
-pub fn list_pallets_and_extrinsics(
-	runtime_path: &Path,
-) -> anyhow::Result<PalletExtrinsicsCollection> {
+pub fn load_pallet_extrinsics(runtime_path: &Path) -> anyhow::Result<PalletExtrinsicsRegistry> {
 	let temp_dir = tempdir()?;
 	let temp_file_path = temp_dir.path().join("pallets.csv");
 	let guard = StdoutOverride::from_file(&temp_file_path)?;
@@ -83,105 +83,112 @@ pub fn list_pallets_and_extrinsics(
 /// # Arguments
 /// * `cmd` - Command to benchmarking extrinsic weights of FRAME pallets.
 pub fn print_pallet_command(cmd: &PalletCmd) -> String {
-	let mut full_message = "pop bench pallet".to_string();
+	let mut args = vec!["pop bench pallet".to_string()];
 
 	if let Some(ref pallet) = cmd.pallet {
-		full_message.push_str(&format!(" --pallet={}", pallet));
+		args.push(format!("--pallet={}", pallet));
 	}
 	if let Some(ref extrinsic) = cmd.extrinsic {
-		full_message.push_str(&format!(" --extrinsic={}", extrinsic));
+		args.push(format!("--extrinsic={}", extrinsic));
 	}
 	if !cmd.exclude_pallets.is_empty() {
-		full_message.push_str(&format!(" --exclude-pallets={}", cmd.exclude_pallets.join(",")));
+		args.push(format!("--exclude-pallets={}", cmd.exclude_pallets.join(",")));
 	}
-	full_message.push_str(&format!(" --steps={}", cmd.steps));
+
+	args.push(format!("--steps={}", cmd.steps));
+
 	if !cmd.lowest_range_values.is_empty() {
-		let low = cmd
-			.lowest_range_values
-			.iter()
-			.map(ToString::to_string)
-			.collect::<Vec<_>>()
-			.join(", ");
-		full_message.push_str(&format!(" --low={}", low));
+		args.push(format!(
+			"--low={}",
+			cmd.lowest_range_values
+				.iter()
+				.map(ToString::to_string)
+				.collect::<Vec<_>>()
+				.join(",")
+		));
 	}
 	if !cmd.highest_range_values.is_empty() {
-		let high = cmd
-			.highest_range_values
-			.iter()
-			.map(ToString::to_string)
-			.collect::<Vec<_>>()
-			.join(", ");
-		full_message.push_str(&format!(" --high={}", high));
+		args.push(format!(
+			"--high={}",
+			cmd.highest_range_values
+				.iter()
+				.map(ToString::to_string)
+				.collect::<Vec<_>>()
+				.join(",")
+		));
 	}
-	full_message.push_str(&format!(" --repeat={}", cmd.repeat));
-	full_message.push_str(&format!(" --external-repeat={}", cmd.external_repeat));
+
+	args.extend([
+		format!("--repeat={}", cmd.repeat),
+		format!("--external-repeat={}", cmd.external_repeat),
+		format!("--db-cache={}", cmd.database_cache_size),
+		format!("--map-size={}", cmd.worst_case_map_values),
+		format!("--additional-trie-layers={}", cmd.additional_trie_layers),
+	]);
+
 	if cmd.json_output {
-		full_message.push_str(" --json");
+		args.push("--json".to_string());
 	}
 	if let Some(ref json_file) = cmd.json_file {
-		full_message.push_str(&format!(" --json-file={}", json_file.display()));
+		args.push(format!("--json-file={}", json_file.display()));
 	}
 	if cmd.no_median_slopes {
-		full_message.push_str(" --no-median-slopes");
+		args.push("--no-median-slopes".to_string());
 	}
 	if cmd.no_min_squares {
-		full_message.push_str(" --no-min-squares");
+		args.push("--no-min-squares".to_string());
+	}
+	if cmd.no_storage_info {
+		args.push("--no-storage-info".to_string());
 	}
 	if let Some(ref output) = cmd.output {
-		full_message.push_str(&format!(" --output={}", output.display()));
+		args.push(format!("--output={}", output.display()));
 	}
 	if let Some(ref header) = cmd.header {
-		full_message.push_str(&format!(" --header={}", header.display()));
+		args.push(format!("--header={}", header.display()));
 	}
 	if let Some(ref template) = cmd.template {
-		full_message.push_str(&format!(" --template={}", template.display()));
+		args.push(format!("--template={}", template.display()));
 	}
 	if let Some(ref output_analysis) = cmd.output_analysis {
-		full_message.push_str(&format!(" --output-analysis={}", output_analysis));
+		args.push(format!("--output-analysis={}", output_analysis));
 	}
 	if let Some(ref output_pov_analysis) = cmd.output_pov_analysis {
-		full_message.push_str(&format!(" --output-pov-analysis={}", output_pov_analysis));
+		args.push(format!("--output-pov-analysis={}", output_pov_analysis));
 	}
 	if let Some(ref heap_pages) = cmd.heap_pages {
-		full_message.push_str(&format!(" --heap-pages={}", heap_pages));
+		args.push(format!("--heap-pages={}", heap_pages));
 	}
 	if cmd.no_verify {
-		full_message.push_str(" --no-verify");
+		args.push("--no-verify".to_string());
 	}
 	if cmd.extra {
-		full_message.push_str(" --extra");
+		args.push("--extra".to_string());
 	}
 	if let Some(ref runtime) = cmd.runtime {
-		full_message.push_str(&format!(" --runtime={}", runtime.display()));
+		args.push(format!("--runtime={}", runtime.display()));
 	}
 	if cmd.allow_missing_host_functions {
-		full_message.push_str(" --allow-missing-host-functions");
+		args.push("--allow-missing-host-functions".to_string());
 	}
 	if let Some(ref genesis_builder) = cmd.genesis_builder {
-		let genesis_builder_string = serde_json::to_string(genesis_builder).unwrap().to_lowercase();
-		full_message.push_str(&format!(" --genesis-builder={}", genesis_builder_string));
-		if genesis_builder_string == constants::GENESIS_BUILDER_RUNTIME_POLICY {
-			full_message
-				.push_str(&format!(" --genesis-builder-preset {}", cmd.genesis_builder_preset));
+		let builder_str = serde_json::to_string(genesis_builder).unwrap().to_lowercase();
+		args.push(format!("--genesis-builder={}", builder_str));
+
+		if builder_str == constants::GENESIS_BUILDER_RUNTIME_POLICY {
+			args.push(format!("--genesis-builder-preset={}", cmd.genesis_builder_preset));
 		}
 	}
 	if let Some(ref execution) = cmd.execution {
-		full_message.push_str(&format!(" --execution={}", execution));
+		args.push(format!("--execution={}", execution));
 	}
-	full_message.push_str(&format!(" --db-cache={}", cmd.database_cache_size));
-	if cmd.no_storage_info {
-		full_message.push_str(" --no-storage-info");
-	}
-	full_message.push_str(&format!(" --map-size={}", cmd.worst_case_map_values));
-	full_message.push_str(&format!(" --additional-trie-layers={}", cmd.additional_trie_layers));
 	if let Some(ref json_input) = cmd.json_input {
-		full_message.push_str(&format!(" --json-input={}", json_input.display()));
+		args.push(format!("--json-input={}", json_input.display()));
 	}
 	if cmd.unsafe_overwrite_results {
-		full_message
-			.push_str(&format!(" --unsafe-overwrite-results={}", cmd.unsafe_overwrite_results));
+		args.push(format!("--unsafe-overwrite-results={}", cmd.unsafe_overwrite_results));
 	}
-	full_message
+	args.join(" ")
 }
 
 /// Parse the pallet command from string value of genesis policy builder.
@@ -202,10 +209,10 @@ pub fn parse_genesis_builder_policy(policy: &str) -> anyhow::Result<PalletCmd> {
 	})
 }
 
-fn parse_csv_to_map(file_path: &PathBuf) -> anyhow::Result<PalletExtrinsicsCollection> {
+fn parse_csv_to_map(file_path: &PathBuf) -> anyhow::Result<PalletExtrinsicsRegistry> {
 	let file = File::open(file_path)?;
 	let mut rdr = Reader::from_reader(BufReader::new(file));
-	let mut map: PalletExtrinsicsCollection = HashMap::new();
+	let mut map: PalletExtrinsicsRegistry = HashMap::new();
 	for result in rdr.records() {
 		let record = result?;
 		if record.len() == 2 {
@@ -234,12 +241,12 @@ pub fn run_pallet_benchmarking(cmd: &PalletCmd) -> Result<()> {
 /// * `input` - The search input used to match pallets.
 /// * `limit` - Maximum number of pallets returned from search.
 pub fn search_for_pallets(
-	pallet_extrinsics: &PalletExtrinsicsCollection,
+	registry: &PalletExtrinsicsRegistry,
 	excluded_pallets: &Vec<String>,
 	input: &str,
 	limit: usize,
 ) -> Vec<String> {
-	let pallets = pallet_extrinsics.keys();
+	let pallets = registry.keys();
 
 	if input.is_empty() {
 		return pallets.map(String::from).take(limit).collect();
@@ -264,12 +271,12 @@ pub fn search_for_pallets(
 /// * `pallets` - List of pallets used to find the extrinsics.
 /// * `input` - The search input used to match extrinsics.
 pub fn search_for_extrinsics(
-	pallet_extrinsics: &PalletExtrinsicsCollection,
+	registry: &PalletExtrinsicsRegistry,
 	pallets: Vec<String>,
 	input: &str,
 	limit: usize,
 ) -> Vec<String> {
-	let extrinsics: Vec<&str> = pallet_extrinsics
+	let extrinsics: Vec<&str> = registry
 		.iter()
 		.filter(|(pallet, _)| pallets.contains(pallet))
 		.flat_map(|(_, extrinsics)| extrinsics.iter().map(String::as_str))
@@ -285,6 +292,28 @@ pub fn search_for_extrinsics(
 		.collect::<Vec<String>>();
 	output.dedup();
 	output
+}
+
+/// Get serialized value of the  the pallet benchmarking command's genesis builder.
+///
+/// # Arguments
+/// * `cmd` - Command to benchmark the FRAME Pallets.
+pub fn get_searilized_genesis_builder(cmd: &PalletCmd) -> String {
+	let genesis_builder = cmd.genesis_builder.as_ref().expect("No policy provided");
+	serde_json::to_string(genesis_builder)
+		.expect("Failed to convert genesis builder policy to string")
+		.replace('"', "")
+		.to_lowercase()
+}
+/// Get relative path of the runtime.
+///
+/// # Arguments
+/// * `cmd` - Command to benchmark the FRAME Pallets.
+pub fn get_relative_runtime_path(cmd: &PalletCmd) -> String {
+	let cwd = current_dir().unwrap_or(PathBuf::from("./"));
+	let runtime_path = cmd.runtime.as_ref().expect("No runtime provided");
+	let path = get_relative_or_absolute_path(cwd.as_path(), runtime_path.as_path());
+	path.as_path().to_str().expect("No path provided").to_string()
 }
 
 #[cfg(test)]
@@ -321,7 +350,7 @@ mod tests {
 			.canonicalize()
 			.unwrap();
 
-		let pallets = list_pallets_and_extrinsics(&runtime_path)?;
+		let pallets = load_pallet_extrinsics(&runtime_path)?;
 		assert_eq!(
 			pallets.get("pallet_timestamp").cloned().unwrap_or_default(),
 			["on_finalize", "set"]
