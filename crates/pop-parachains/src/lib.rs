@@ -16,7 +16,7 @@ mod utils;
 
 pub use bench::{
 	constants, get_preset_names, get_relative_runtime_path, get_runtime_path,
-	get_searilized_genesis_builder, load_pallet_extrinsics, parse_genesis_builder_policy,
+	get_serialized_genesis_builder, load_pallet_extrinsics, parse_genesis_builder_policy,
 	print_pallet_command, run_pallet_benchmarking, search_for_extrinsics, search_for_pallets,
 	PalletExtrinsicsRegistry,
 };

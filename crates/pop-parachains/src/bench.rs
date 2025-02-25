@@ -2,12 +2,12 @@ use anyhow::Result;
 use clap::Parser;
 use csv::Reader;
 use frame_benchmarking_cli::PalletCmd;
+use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use pop_common::get_relative_or_absolute_path;
-use rust_fuzzy_search::fuzzy_search_best_n;
 use sc_chain_spec::GenesisConfigBuilderRuntimeCaller;
 use sp_runtime::traits::BlakeTwo256;
 use std::{
-	collections::{HashMap, HashSet},
+	collections::HashMap,
 	env::current_dir,
 	fs,
 	fs::File,
@@ -236,7 +236,7 @@ pub fn run_pallet_benchmarking(cmd: &PalletCmd) -> Result<()> {
 /// Performs a fuzzy search for pallets that match the provided input.
 ///
 /// # Arguments
-/// * `pallet_extrinsics` - A mapping of pallets and their extrinsics.
+/// * `registry` - A mapping of pallets and their extrinsics.
 /// * `excluded_pallets` - Pallets that are excluded from the search results.
 /// * `input` - The search input used to match pallets.
 /// * `limit` - Maximum number of pallets returned from search.
@@ -246,20 +246,22 @@ pub fn search_for_pallets(
 	input: &str,
 	limit: usize,
 ) -> Vec<String> {
+	let matcher = SkimMatcherV2::default();
 	let pallets = registry.keys();
 
 	if input.is_empty() {
 		return pallets.map(String::from).take(limit).collect();
 	}
 	let pallets: Vec<&str> = pallets
-		.map(String::as_str)
 		.filter(|s| !excluded_pallets.contains(&s.to_string()))
+		.map(String::as_str)
 		.collect();
-	let output = fuzzy_search_best_n(input, &pallets, limit)
+	let mut output: Vec<(String, i64)> = pallets
 		.into_iter()
-		.map(|v| v.0.to_string())
-		.collect::<Vec<String>>();
-	output.into_iter().collect::<HashSet<_>>().into_iter().collect()
+		.map(|v| (v.to_string(), matcher.fuzzy_match(v, input).unwrap_or_default()))
+		.collect();
+	output.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+	output.into_iter().map(|(name, _)| name).take(limit).collect::<Vec<String>>()
 }
 
 /// Performs a fuzzy search for extrinsics that match the provided input.
@@ -274,6 +276,7 @@ pub fn search_for_extrinsics(
 	input: &str,
 	limit: usize,
 ) -> Vec<String> {
+	let matcher = SkimMatcherV2::default();
 	let extrinsics: Vec<&str> = registry
 		.iter()
 		.filter(|(pallet, _)| pallets.contains(pallet))
@@ -283,18 +286,19 @@ pub fn search_for_extrinsics(
 	if input.is_empty() {
 		return extrinsics.into_iter().map(String::from).take(limit).collect();
 	}
-	let output = fuzzy_search_best_n(input, &extrinsics, limit)
+	let mut output: Vec<(String, i64)> = extrinsics
 		.into_iter()
-		.map(|v| v.0.to_string())
-		.collect::<Vec<String>>();
-	output.into_iter().collect::<HashSet<_>>().into_iter().collect()
+		.map(|v| (v.to_string(), matcher.fuzzy_match(v, input).unwrap_or_default()))
+		.collect();
+	output.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+	output.into_iter().map(|(name, _)| name).take(limit).collect::<Vec<String>>()
 }
 
 /// Get serialized value of the  the pallet benchmarking command's genesis builder.
 ///
 /// # Arguments
 /// * `cmd` - Command to benchmark the FRAME Pallets.
-pub fn get_searilized_genesis_builder(cmd: &PalletCmd) -> String {
+pub fn get_serialized_genesis_builder(cmd: &PalletCmd) -> String {
 	let genesis_builder = cmd.genesis_builder.as_ref().expect("No policy provided");
 	serde_json::to_string(genesis_builder)
 		.expect("Failed to convert genesis builder policy to string")
@@ -319,11 +323,10 @@ mod tests {
 
 	#[test]
 	fn get_preset_names_works() -> anyhow::Result<()> {
-		let runtime_path = std::env::current_dir()
-			.unwrap()
-			.join("../../tests/runtimes/base_parachain_benchmark.wasm")
-			.canonicalize()?;
-		assert_eq!(get_preset_names(&runtime_path)?, vec!["development", "local_testnet"]);
+		assert_eq!(
+			get_preset_names(&get_mock_runtime_path(true))?,
+			vec!["development", "local_testnet"]
+		);
 		Ok(())
 	}
 
@@ -340,20 +343,52 @@ mod tests {
 
 	#[test]
 	fn list_pallets_and_extrinsics_works() -> Result<()> {
-		let runtime_path = std::env::current_dir()
-			.unwrap()
-			.join("../../tests/runtimes/base_parachain_benchmark.wasm")
-			.canonicalize()
-			.unwrap();
-
-		let pallets = load_pallet_extrinsics(&runtime_path)?;
+		let registry = load_pallet_extrinsics(&get_mock_runtime_path(true))?;
 		assert_eq!(
-			pallets.get("pallet_timestamp").cloned().unwrap_or_default(),
+			registry.get("pallet_timestamp").cloned().unwrap_or_default(),
 			["on_finalize", "set"]
 		);
 		assert_eq!(
-			pallets.get("pallet_sudo").cloned().unwrap_or_default(),
+			registry.get("pallet_sudo").cloned().unwrap_or_default(),
 			["check_only_sudo_account", "remove_key", "set_key", "sudo", "sudo_as"]
+		);
+		Ok(())
+	}
+
+	#[test]
+	fn search_pallets_works() -> Result<()> {
+		let runtime_path = get_mock_runtime_path(true);
+		let registry = load_pallet_extrinsics(&runtime_path)?;
+		[
+			("message", "pallet_message_queue"),
+			("timestamp", "pallet_timestamp"),
+			("balances", "pallet_balances"),
+		]
+		.iter()
+		.for_each(|(input, pallet)| {
+			let pallets = search_for_pallets(&registry, &vec![], input, 5);
+			assert_eq!(pallets.first(), Some(&pallet.to_string()));
+			assert_eq!(pallets.len(), 5);
+		});
+
+		assert_ne!(
+			search_for_pallets(&registry, &vec!["pallet_message_queue".to_string()], "message", 5)
+				.first(),
+			Some(&"pallet_message_queue".to_string())
+		);
+		Ok(())
+	}
+
+	#[test]
+	fn search_extrinsics_works() -> Result<()> {
+		let runtime_path = get_mock_runtime_path(true);
+		let registry = load_pallet_extrinsics(&runtime_path)?;
+		let extrinsics =
+			search_for_extrinsics(&registry, vec!["pallet_timestamp".to_string()], "", 5);
+		assert_eq!(extrinsics, vec!["on_finalize".to_string(), "set".to_string()]);
+		assert_eq!(
+			search_for_extrinsics(&registry, vec!["pallet_timestamp".to_string()], "set", 5),
+			vec!["set".to_string(), "on_finalize".to_string()]
 		);
 		Ok(())
 	}
@@ -364,5 +399,13 @@ mod tests {
 			parse_genesis_builder_policy(policy)?;
 		}
 		Ok(())
+	}
+
+	fn get_mock_runtime_path(with_runtime_benchmarks: bool) -> PathBuf {
+		let binary_path = format!(
+			"../../tests/runtimes/{}.wasm",
+			if with_runtime_benchmarks { "base_parachain_benchmark" } else { "base_parachain" }
+		);
+		std::env::current_dir().unwrap().join(binary_path).canonicalize().unwrap()
 	}
 }

@@ -12,7 +12,7 @@ use log::LevelFilter;
 use pop_common::{manifest::from_path, Profile};
 use pop_parachains::{
 	build_project, constants::*, get_preset_names, get_relative_runtime_path, get_runtime_path,
-	get_searilized_genesis_builder, load_pallet_extrinsics, parse_genesis_builder_policy,
+	get_serialized_genesis_builder, load_pallet_extrinsics, parse_genesis_builder_policy,
 	print_pallet_command, run_pallet_benchmarking, runtime_binary_path, search_for_extrinsics,
 	search_for_pallets, PalletExtrinsicsRegistry,
 };
@@ -195,8 +195,10 @@ impl BenchmarkPalletMenuOption {
 				Ok(false)
 			},
 			// If there are multiple pallets provided, disable the extrinsics.
-			Extrinsics =>
-				Ok(cmd.pallet.as_ref().expect("No pallet provided").matches(",").count() > 0),
+			Extrinsics => {
+				let pallet = cmd.pallet.as_ref().expect("No pallet provided");
+				Ok(is_selected_all(pallet) || pallet.matches(",").count() > 0)
+			},
 			_ => Ok(false),
 		}
 	}
@@ -219,7 +221,7 @@ impl BenchmarkPalletMenuOption {
 					cmd.exclude_pallets.join(",")
 				},
 			Runtime => get_relative_runtime_path(cmd),
-			GenesisBuilderPolicy => get_searilized_genesis_builder(cmd),
+			GenesisBuilderPolicy => get_serialized_genesis_builder(cmd),
 			GenesisBuilderPreset => cmd.genesis_builder_preset.clone(),
 			Steps => cmd.steps.to_string(),
 			Repeat => cmd.repeat.to_string(),
@@ -349,7 +351,7 @@ impl BenchmarkPalletMenuOption {
 	}
 
 	fn get_joined_string(self, s: &String) -> String {
-		if s == &"*".to_string() || s.is_empty() {
+		if is_selected_all(s) {
 			return "All selected".to_string()
 		}
 		s.clone()
@@ -658,6 +660,10 @@ fn get_runtime_argument(cmd: &PalletCmd) -> anyhow::Result<&PathBuf> {
 	}
 }
 
+fn is_selected_all(s: &String) -> bool {
+	s == &ALL_SELECTED.to_string() || s.is_empty()
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -875,7 +881,54 @@ mod tests {
 	}
 
 	#[test]
-	fn guide_user_to_select_menu_option_works() {}
+	fn guide_user_to_select_menu_option_works() -> anyhow::Result<()> {
+		Ok(())
+	}
+
+	#[test]
+	fn guide_user_to_select_pallets_works() -> anyhow::Result<()> {
+		Ok(())
+	}
+
+	#[test]
+	fn guide_user_to_select_extrinsics_works() -> anyhow::Result<()> {
+		Ok(())
+	}
+
+	#[test]
+	fn menu_option_is_disabled_works() -> anyhow::Result<()> {
+		let runtime_path = get_mock_runtime_path(false);
+		let cmd = PalletCmd::try_parse_from(&[
+			"",
+			"--runtime",
+			runtime_path.to_str().unwrap(),
+			"--pallet",
+			"",
+			"--extrinsic",
+			"",
+			"--genesis-builder",
+			"none",
+		])?;
+		assert_eq!(BenchmarkPalletMenuOption::GenesisBuilderPolicy.is_disabled(&cmd)?, false);
+		assert_eq!(BenchmarkPalletMenuOption::GenesisBuilderPreset.is_disabled(&cmd)?, true);
+		assert_eq!(BenchmarkPalletMenuOption::Extrinsics.is_disabled(&cmd)?, true);
+		Ok(())
+	}
+
+	#[test]
+	fn menu_option_read_command_works() {}
+
+	#[test]
+	fn menu_option_update_parameters_works() {}
+
+	#[test]
+	fn menu_option_input_parameter_works() {}
+
+	#[test]
+	fn menu_option_input_range_values_works() {}
+
+	#[test]
+	fn menu_option_input_array_works() {}
 
 	#[test]
 	fn get_runtime_argument_works() -> anyhow::Result<()> {

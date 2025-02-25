@@ -4924,6 +4924,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "fuzzy-matcher"
+version = "0.3.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "54614a3312934d066701a80f20f15fa3b56d67ac7722b39eea5b4c9dd1d66c94"
+dependencies = [
+ "thread_local",
+]
+
+[[package]]
 name = "fxhash"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11970,10 +11979,10 @@ dependencies = [
  "cumulus-primitives-proof-size-hostfunction 0.10.0",
  "duct",
  "frame-benchmarking-cli",
+ "fuzzy-matcher",
  "glob",
  "indexmap 2.7.0",
  "pop-common",
- "rust-fuzzy-search",
  "sc-chain-spec",
  "scale-info",
  "scale-value 0.17.0",
