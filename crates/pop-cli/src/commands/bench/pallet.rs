@@ -16,7 +16,13 @@ use pop_parachains::{
 	print_pallet_command, run_pallet_benchmarking, runtime_binary_path, search_for_extrinsics,
 	search_for_pallets, PalletExtrinsicsRegistry,
 };
-use std::{collections::HashMap, env::current_dir, ffi::OsStr, fs, path::PathBuf};
+use std::{
+	collections::HashMap,
+	env::current_dir,
+	ffi::OsStr,
+	fs,
+	path::{Path, PathBuf},
+};
 use strum::{EnumMessage, IntoEnumIterator};
 use strum_macros::{EnumIter, EnumMessage as EnumMessageDerive};
 
@@ -181,7 +187,7 @@ impl BenchmarkPalletMenuOption {
 		match self {
 			GenesisBuilderPolicy | GenesisBuilderPreset => {
 				let runtime_path = get_runtime_argument(cmd)?;
-				let presets = get_preset_names(&runtime_path)?;
+				let presets = get_preset_names(runtime_path)?;
 				// If there are no presets available, disable the preset builder options.
 				if presets.is_empty() {
 					return Ok(true);
@@ -367,7 +373,7 @@ fn fetch_pallet_registry(
 		spinner.start("Fetching pallets and extrinsics from your runtime...");
 		let runtime_path = get_runtime_argument(cmd)?;
 		log::set_max_level(LevelFilter::Off);
-		let loaded_registry = load_pallet_extrinsics(&runtime_path)?;
+		let loaded_registry = load_pallet_extrinsics(runtime_path)?;
 		log::set_max_level(LevelFilter::Info);
 		*registry = loaded_registry;
 		spinner.clear();
@@ -381,7 +387,7 @@ fn update_pallets(
 	registry: &mut PalletExtrinsicsRegistry,
 ) -> anyhow::Result<()> {
 	fetch_pallet_registry(cmd, registry)?;
-	cmd.pallet = Some(guide_user_to_select_pallets(&registry, &cmd.exclude_pallets, cli, true)?);
+	cmd.pallet = Some(guide_user_to_select_pallets(registry, &cmd.exclude_pallets, cli, true)?);
 	Ok(())
 }
 
@@ -397,7 +403,7 @@ fn update_extrinsics(
 	cmd.extrinsic = Some(match pallet_count {
 		0 => {
 			let pallets = pallet.split(",").map(String::from).collect();
-			guide_user_to_select_extrinsics(&pallets, &registry, cli)?
+			guide_user_to_select_extrinsics(&pallets, registry, cli)?
 		},
 		_ => ALL_SELECTED.to_string(),
 	});
@@ -410,7 +416,7 @@ fn update_excluded_pallets(
 	registry: &mut PalletExtrinsicsRegistry,
 ) -> anyhow::Result<()> {
 	fetch_pallet_registry(cmd, registry)?;
-	let pallets = guide_user_to_select_pallets(&registry, &vec![], cli, false)?;
+	let pallets = guide_user_to_select_pallets(registry, &vec![], cli, false)?;
 	cmd.exclude_pallets =
 		pallets.split(',').filter(|s| !s.is_empty()).map(|s| s.to_string()).collect();
 	Ok(())
@@ -431,7 +437,7 @@ fn update_genesis_preset(
 ) -> anyhow::Result<()> {
 	let runtime_path = get_runtime_argument(cmd)?;
 	cmd.genesis_builder_preset =
-		guide_user_to_select_genesis_preset(cli, &runtime_path, &cmd.genesis_builder_preset)?;
+		guide_user_to_select_genesis_preset(cli, runtime_path, &cmd.genesis_builder_preset)?;
 	Ok(())
 }
 
@@ -462,7 +468,7 @@ fn ensure_runtime_binary_exists(
 
 fn guide_user_to_select_pallets(
 	registry: &PalletExtrinsicsRegistry,
-	excluded_pallets: &Vec<String>,
+	excluded_pallets: &[String],
 	cli: &mut impl cli::traits::Cli,
 	required: bool,
 ) -> anyhow::Result<String> {
@@ -503,7 +509,7 @@ fn guide_user_to_select_extrinsics(
 	}
 
 	// Prompt user to select extrinsics.
-	let extrinsics = search_for_extrinsics(registry, &pallets, &input, MAX_EXTRINSIC_LIMIT);
+	let extrinsics = search_for_extrinsics(registry, pallets, &input, MAX_EXTRINSIC_LIMIT);
 	let mut prompt = cli.multiselect("Select the extrinsics:").required(true);
 	for extrinsic in extrinsics {
 		prompt = prompt.item(extrinsic.clone(), &extrinsic, "");
@@ -512,7 +518,7 @@ fn guide_user_to_select_extrinsics(
 }
 
 fn guide_user_to_select_runtime_path(
-	target_path: &PathBuf,
+	target_path: &Path,
 	cli: &mut impl cli::traits::Cli,
 ) -> anyhow::Result<PathBuf> {
 	println!("target_path: {}", target_path.display());
@@ -552,7 +558,7 @@ fn guide_user_to_configure_genesis(
 	cli: &mut impl cli::traits::Cli,
 ) -> anyhow::Result<()> {
 	let runtime_path = get_runtime_argument(cmd)?;
-	let preset_names = get_preset_names(&runtime_path)?;
+	let preset_names = get_preset_names(runtime_path)?;
 	// Determine policy based on preset availability.
 	let policy = if preset_names.is_empty() {
 		GENESIS_BUILDER_NO_POLICY
@@ -563,7 +569,7 @@ fn guide_user_to_configure_genesis(
 	// If the policy requires a preset, prompt the user to select one.
 	if policy == GENESIS_BUILDER_RUNTIME_POLICY {
 		let preset =
-			guide_user_to_select_genesis_preset(cli, &runtime_path, &cmd.genesis_builder_preset)?;
+			guide_user_to_select_genesis_preset(cli, runtime_path, &cmd.genesis_builder_preset)?;
 		cmd.genesis_builder_preset = preset;
 	}
 	cmd.genesis_builder = parsed_policy.genesis_builder;
@@ -886,14 +892,14 @@ mod tests {
 		// Select all pallets.
 		let mut cli = MockCli::new();
 		cli = cli.expect_input(prompt, ALL_SELECTED.to_string());
-		let input = guide_user_to_select_pallets(&registry, &vec![], &mut cli, true)?;
+		let input = guide_user_to_select_pallets(&registry, &[], &mut cli, true)?;
 		assert_eq!(input, ALL_SELECTED.to_string());
 		cli.verify()?;
 
 		// Search for pallets.
 		cli = MockCli::new();
 		let input = "pallet_timestamp";
-		let pallets = search_for_pallets(&registry, &vec![], &input, MAX_PALLET_LIMIT);
+		let pallets = search_for_pallets(&registry, &[], &input, MAX_PALLET_LIMIT);
 		cli = cli.expect_input(prompt, input.to_string());
 		cli = cli.expect_multiselect::<String>(
 			"Select the pallets:",

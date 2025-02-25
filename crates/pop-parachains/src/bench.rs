@@ -241,7 +241,7 @@ pub fn run_pallet_benchmarking(cmd: &PalletCmd) -> Result<()> {
 /// * `limit` - Maximum number of pallets returned from search.
 pub fn search_for_pallets(
 	registry: &PalletExtrinsicsRegistry,
-	excluded_pallets: &Vec<String>,
+	excluded_pallets: &[String],
 	input: &str,
 	limit: usize,
 ) -> Vec<String> {
@@ -365,13 +365,13 @@ mod tests {
 		]
 		.iter()
 		.for_each(|(input, pallet)| {
-			let pallets = search_for_pallets(&registry, &vec![], input, 5);
+			let pallets = search_for_pallets(&registry, &[], input, 5);
 			assert_eq!(pallets.first(), Some(&pallet.to_string()));
 			assert_eq!(pallets.len(), 5);
 		});
 
 		assert_ne!(
-			search_for_pallets(&registry, &vec!["pallet_message_queue".to_string()], "message", 5)
+			search_for_pallets(&registry, &["pallet_message_queue".to_string()], "message", 5)
 				.first(),
 			Some(&"pallet_message_queue".to_string())
 		);
