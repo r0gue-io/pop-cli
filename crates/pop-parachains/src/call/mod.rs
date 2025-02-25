@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{errors::Error, Function};
+use crate::{errors::Error, Function, Param};
+use metadata::params::field_to_param;
 use pop_common::{
 	call::{DefaultEnvironment, DisplayEvents, TokenMetadata, Verbosity},
 	create_signer,
@@ -44,6 +45,45 @@ pub fn construct_extrinsic(
 ///   privileges.
 pub fn construct_sudo_extrinsic(xt: DynamicPayload) -> DynamicPayload {
 	subxt::dynamic::tx("Sudo", "sudo", [xt.into_value()].to_vec())
+}
+
+/// Constructs a Proxy call extrinsic.
+///
+/// # Arguments
+/// * `client` - The client used to interact with the chain.
+/// * `proxy_account` - The proxied account that will execute the extrinsic.
+/// * `xt`: The extrinsic representing the dispatchable function call to be dispatched using the
+///   proxy.
+pub fn construct_proxy_extrinsic(
+	client: &OnlineClient<SubstrateConfig>,
+	proxy_account: String,
+	xt: DynamicPayload,
+) -> Result<DynamicPayload, Error> {
+	let metadata = client.metadata();
+	let proxy_call_fields: Vec<Param> = metadata
+		.pallet_by_name("Proxy")
+		.and_then(|p| p.call_variant_by_name("proxy"))
+		.map(|c| {
+			c.fields
+				.iter()
+				.filter(|f| {
+					// Skip fields where type_name contains "RuntimeCall"
+					f.type_name.as_deref().map_or(true, |name| !name.contains("RuntimeCall"))
+				})
+				.map(|f| field_to_param(&metadata, f))
+				.collect::<Result<Vec<Param>, Error>>()
+		})
+		.ok_or_else(|| Error::MetadataParsingError("Proxy call".to_string()))??;
+	let parsed_args: Vec<Value> = metadata::parse_dispatchable_arguments(
+		&proxy_call_fields,
+		vec![proxy_account, "None()".to_string()],
+	)?;
+
+	Ok(subxt::dynamic::tx(
+		"Proxy",
+		"proxy",
+		[parsed_args[0].clone(), parsed_args[1].clone(), xt.into_value()].to_vec(),
+	))
 }
 
 /// Signs and submits a given extrinsic.
@@ -166,6 +206,26 @@ mod tests {
 			Err(Error::ConnectionFailure(_))
 		));
 		set_up_client(POP_NETWORK_TESTNET_URL).await?;
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn construct_proxy_extrinsic_work() -> Result<()> {
+		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
+		let pallets = parse_chain_metadata(&client)?;
+		let remark_dispatchable = find_dispatchable_by_name(&pallets, "System", "remark")?;
+		let remark = construct_extrinsic(remark_dispatchable, ["0x11".to_string()].to_vec())?;
+		let xt = construct_proxy_extrinsic(
+			&client,
+			"Id(13czcAAt6xgLwZ8k6ZpkrRL5V2pjKEui3v9gHAN9PoxYZDbf)".to_string(),
+			remark,
+		)?;
+		// Encoded call data for a proxy extrinsic with remark as the call.
+		// Reference: https://polkadot.js.org/apps/?rpc=wss%3A%2F%2Frpc1.paseo.popnetwork.xyz#/extrinsics/decode/0x29000073ebf9c947490b9170ea4fd3031ae039452e428531317f76bf0a02124f8166de0000000411
+		assert_eq!(
+			encode_call_data(&client, &xt)?,
+			"0x29000073ebf9c947490b9170ea4fd3031ae039452e428531317f76bf0a02124f8166de0000000411"
+		);
 		Ok(())
 	}
 
