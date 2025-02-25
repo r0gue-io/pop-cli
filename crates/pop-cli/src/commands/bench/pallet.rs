@@ -180,7 +180,7 @@ impl BenchmarkPalletMenuOption {
 		use BenchmarkPalletMenuOption::*;
 		match self {
 			GenesisBuilderPolicy | GenesisBuilderPreset => {
-				let runtime_path = get_runtime_argument(cmd);
+				let runtime_path = get_runtime_argument(cmd)?;
 				let presets = get_preset_names(&runtime_path)?;
 				// If there are no presets available, disable the preset builder options.
 				if presets.is_empty() {
@@ -409,7 +409,7 @@ fn fetch_pallet_registry(
 	if registry.is_empty() {
 		let spinner = spinner();
 		spinner.start("Fetching pallets and extrinsics from your runtime...");
-		let runtime_path = get_runtime_argument(cmd);
+		let runtime_path = get_runtime_argument(cmd)?;
 		log::set_max_level(LevelFilter::Off);
 		let loaded_registry = load_pallet_extrinsics(&runtime_path)?;
 		log::set_max_level(LevelFilter::Info);
@@ -423,7 +423,7 @@ fn update_genesis_preset(
 	cmd: &mut PalletCmd,
 	cli: &mut impl cli::traits::Cli,
 ) -> anyhow::Result<()> {
-	let runtime_path = get_runtime_argument(cmd);
+	let runtime_path = get_runtime_argument(cmd)?;
 	cmd.genesis_builder_preset =
 		guide_user_to_select_genesis_preset(cli, &runtime_path, &cmd.genesis_builder_preset)?;
 	Ok(())
@@ -436,7 +436,7 @@ fn ensure_runtime_binary_exists(
 ) -> anyhow::Result<PathBuf> {
 	let cwd = current_dir().unwrap_or(PathBuf::from("./"));
 	let target_path = mode.target_directory(&cwd).join("wbuild");
-	let runtime_path = guide_user_to_select_runtime_path(cli)?;
+	let runtime_path = guide_user_to_select_runtime_path(&cwd, cli)?;
 
 	// Return immediately if the user has specified a path to the runtime binary.
 	if runtime_path.extension() == Some(OsStr::new("wasm")) {
@@ -512,16 +512,21 @@ fn guide_user_to_select_extrinsics(
 	Ok(prompt.interact()?.join(","))
 }
 
-fn guide_user_to_select_runtime_path(cli: &mut impl cli::traits::Cli) -> anyhow::Result<PathBuf> {
-	let cwd = current_dir().unwrap_or(PathBuf::from("./"));
-	let mut project_path = get_runtime_path(&cwd).or_else(|_| {
+fn guide_user_to_select_runtime_path(
+	target_path: &PathBuf,
+	cli: &mut impl cli::traits::Cli,
+) -> anyhow::Result<PathBuf> {
+	println!("target_path: {}", target_path.display());
+
+	let mut project_path = get_runtime_path(target_path).or_else(|_| {
 		cli.warning(format!(
-			r#"No runtime folder found at {:?}. Please input the runtime path manually."#,
-			cwd
+			"No runtime folder found at {}. Please input the runtime path manually.",
+			target_path.display()
 		))?;
 		guide_user_to_input_runtime_path(cli)
 	})?;
 
+	println!("{}", project_path.display());
 	// If there is no TOML file exist, list all directories in the "runtime" folder and prompt the
 	// user to select a runtime.
 	if project_path.is_dir() && !project_path.join("Cargo.toml").exists() {
@@ -547,7 +552,7 @@ fn guide_user_to_configure_genesis(
 	cmd: &mut PalletCmd,
 	cli: &mut impl cli::traits::Cli,
 ) -> anyhow::Result<()> {
-	let runtime_path = get_runtime_argument(cmd);
+	let runtime_path = get_runtime_argument(cmd)?;
 	let preset_names = get_preset_names(&runtime_path)?;
 	// Determine policy based on preset availability.
 	let policy = if preset_names.is_empty() {
@@ -574,6 +579,9 @@ fn guide_user_to_select_runtime(
 	let mut prompt = cli.select("Select the runtime:");
 	for runtime in runtimes {
 		let path = runtime.unwrap().path();
+		if !path.is_dir() {
+			continue;
+		}
 		let manifest = from_path(Some(path.as_path()))?;
 		let package = manifest.package();
 		let name = package.clone().name;
@@ -643,8 +651,11 @@ fn guide_user_to_select_menu_option(
 	Ok(prompt.interact()?)
 }
 
-fn get_runtime_argument(cmd: &PalletCmd) -> &PathBuf {
-	cmd.runtime.as_ref().expect("No runtime found")
+fn get_runtime_argument(cmd: &PalletCmd) -> anyhow::Result<&PathBuf> {
+	match cmd.runtime.as_ref() {
+		Some(runtime) => Ok(runtime),
+		None => Err(anyhow::anyhow!("No runtime found")),
+	}
 }
 
 #[cfg(test)]
@@ -657,33 +668,45 @@ mod tests {
 
 	#[test]
 	fn benchmark_pallet_works() -> anyhow::Result<()> {
-		let mut cli =
-			expect_select_genesis_policy(expect_pallet_benchmarking_intro(MockCli::new()), 0)
-				.expect_warning("NOTE: this may take some time...")
-				.expect_outro("Benchmark completed successfully!");
+		let runtime_path = get_mock_runtime_path(true);
+		let mut cli = MockCli::new();
+		cli = expect_pallet_benchmarking_intro(cli);
+		cli = expect_select_genesis_policy(cli, 1);
+		cli = expect_select_genesis_preset(cli, &runtime_path, 0);
+		cli = cli.expect_warning("NOTE: this may take some time...");
+		cli = cli.expect_info("Benchmarking extrinsic weights of selected pallets...");
 
 		let cmd = PalletCmd::try_parse_from(&[
 			"",
 			"--runtime",
-			get_mock_runtime_path(true).to_str().unwrap(),
+			runtime_path.to_str().unwrap(),
 			"--pallet",
 			"pallet_timestamp",
 			"--extrinsic",
 			"",
 		])?;
-		BenchmarkPalletArgs { command: cmd, skip_menu: true }.execute(&mut cli)?;
-		cli.verify()?;
-		Ok(())
+		let mut args = BenchmarkPalletArgs { command: cmd, skip_menu: true };
+		args.execute(&mut cli)?;
+
+		// Verify the printed command.
+		let mut command_output = print_pallet_command(&args.command);
+		command_output.push_str(" --skip");
+		cli = cli.expect_info(command_output);
+		cli = cli.expect_outro("Benchmark completed successfully!");
+		args.execute(&mut cli)?;
+
+		cli.verify()
 	}
 
 	#[test]
 	fn benchmark_pallet_with_chainspec_fails() -> anyhow::Result<()> {
 		let spec = "path-to-chainspec";
-		let mut cli =
-			expect_pallet_benchmarking_intro(MockCli::new()).expect_outro_cancel(format!(
-				"Chain specs are not supported. Please remove `--chain={spec}` \
-			          and use `--runtime=<PATH>` instead"
-			));
+		let mut cli = MockCli::new();
+		cli = expect_pallet_benchmarking_intro(cli);
+		cli = cli.expect_outro_cancel(format!(
+			"Chain specs are not supported. Please remove `--chain={spec}` \
+			        and use `--runtime=<PATH>` instead"
+		));
 
 		let cmd = PalletCmd::try_parse_from(&[
 			"",
@@ -694,21 +717,22 @@ mod tests {
 			"--extrinsic",
 			"",
 		])?;
-
 		BenchmarkPalletArgs { command: cmd, skip_menu: true }.execute(&mut cli)?;
-		cli.verify()?;
-		Ok(())
+		cli.verify()
 	}
 
 	#[test]
 	fn benchmark_pallet_without_runtime_benchmarks_feature_fails() -> anyhow::Result<()> {
-		let mut cli = 	expect_select_genesis_policy(expect_pallet_benchmarking_intro(MockCli::new()), 0)
-			.expect_outro_cancel(
-		        "Failed to run benchmarking: Invalid input: Could not call runtime API to Did not find the benchmarking metadata. \
-		        This could mean that you either did not build the node correctly with the `--features runtime-benchmarks` flag, \
-				or the chain spec that you are using was not created by a node that was compiled with the flag: \
-				Other: Exported method Benchmark_benchmark_metadata is not found"
-			);
+		let mut cli = MockCli::new();
+		cli = expect_pallet_benchmarking_intro(cli);
+		cli = expect_select_genesis_policy(cli, 0);
+		cli = cli.expect_outro_cancel(
+	        "Failed to run benchmarking: Invalid input: Could not call runtime API to Did not find the benchmarking metadata. \
+	        This could mean that you either did not build the node correctly with the `--features runtime-benchmarks` flag, \
+			or the chain spec that you are using was not created by a node that was compiled with the flag: \
+			Other: Exported method Benchmark_benchmark_metadata is not found"
+		);
+
 		let cmd = PalletCmd::try_parse_from(&[
 			"",
 			"--runtime",
@@ -719,14 +743,16 @@ mod tests {
 			"",
 		])?;
 		BenchmarkPalletArgs { command: cmd, skip_menu: true }.execute(&mut cli)?;
-		cli.verify()?;
-		Ok(())
+		cli.verify()
 	}
 
 	#[test]
 	fn benchmark_pallet_fails_with_error() -> anyhow::Result<()> {
-		let mut cli =  expect_select_genesis_policy(expect_pallet_benchmarking_intro(MockCli::new()), 0)
-			.expect_outro_cancel("Failed to run benchmarking: Invalid input: No benchmarks found which match your input.");
+		let mut cli = MockCli::new();
+		cli = expect_pallet_benchmarking_intro(cli);
+		cli = expect_select_genesis_policy(cli, 0);
+		cli = cli.expect_outro_cancel("Failed to run benchmarking: Invalid input: No benchmarks found which match your input.");
+
 		let cmd = PalletCmd::try_parse_from(&[
 			"",
 			"--runtime",
@@ -737,22 +763,20 @@ mod tests {
 			"",
 		])?;
 		BenchmarkPalletArgs { command: cmd, skip_menu: true }.execute(&mut cli)?;
-		cli.verify()?;
-		Ok(())
+		cli.verify()
 	}
 
 	#[test]
 	fn guide_user_to_select_runtime_works() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
-		let runtime_path = temp_dir.path().join("runtime");
 		let runtimes = ["runtime-1", "runtime-2", "runtime-3"];
-		let mut cli = MockCli::new().expect_select(
-			"Select the runtime:",
-			Some(true),
-			true,
-			Some(runtimes.map(|runtime| (runtime.to_string(), "".to_string())).to_vec()),
-			0,
-		);
+		let runtime_path = temp_dir.path().join("runtime");
+		let runtime_items = runtimes.map(|runtime| (runtime.to_string(), "".to_string())).to_vec();
+
+		// Found runtimes in the specified runtime path.
+		let mut cli = MockCli::new();
+		cli = cli.expect_select("Select the runtime:", Some(true), true, Some(runtime_items), 0);
+
 		fs::create_dir(&runtime_path)?;
 		for runtime in runtimes {
 			cmd("cargo", ["new", runtime, "--bin"]).dir(&runtime_path).run()?;
@@ -762,13 +786,47 @@ mod tests {
 	}
 
 	#[test]
+	fn guide_user_to_select_runtime_path_works() -> anyhow::Result<()> {
+		let temp_dir = tempdir()?;
+		let temp_path = temp_dir.path().to_path_buf();
+		let runtime_path = temp_dir.path().join("runtimes");
+
+		// No runtime path found, ask for manual input from user.
+		let mut cli = MockCli::new();
+		let runtime_binary_path = temp_path.join("dummy.wasm");
+		cli = cli.expect_warning(format!(
+			"No runtime folder found at {}. Please input the runtime path manually.",
+			temp_path.display()
+		));
+		cli = cli.expect_input(
+			"Please provide the path to the runtime or parachain project.",
+			runtime_binary_path.to_str().unwrap().to_string(),
+		);
+		fs::File::create(runtime_binary_path)?;
+		guide_user_to_select_runtime_path(&temp_path, &mut cli)?;
+		cli.verify()?;
+
+		// Runtime folder found and not a Rust project, select from existing runtimes.
+		fs::create_dir(&runtime_path)?;
+		let runtimes = ["runtime-1", "runtime-2", "runtime-3"];
+		let runtime_items = runtimes.map(|runtime| (runtime.to_string(), "".to_string())).to_vec();
+		cli = MockCli::new();
+		cli = cli.expect_select("Select the runtime:", Some(true), true, Some(runtime_items), 0);
+		for runtime in runtimes {
+			cmd("cargo", ["new", runtime, "--bin"]).dir(&runtime_path).run()?;
+		}
+		guide_user_to_select_runtime_path(&temp_path, &mut cli)?;
+
+		cli.verify()
+	}
+
+	#[test]
 	fn guide_user_to_configure_genesis_works() -> anyhow::Result<()> {
 		let runtime_path = get_mock_runtime_path(false);
-		let mut cli = expect_select_genesis_preset(
-			expect_select_genesis_policy(MockCli::new(), 1),
-			&runtime_path,
-			0,
-		);
+		let mut cli = MockCli::new();
+		cli = expect_select_genesis_policy(cli, 1);
+		cli = expect_select_genesis_preset(cli, &runtime_path, 0);
+
 		let mut cmd = PalletCmd::try_parse_from(&[
 			"",
 			"--runtime",
@@ -790,17 +848,18 @@ mod tests {
 	#[test]
 	fn guide_user_to_select_genesis_policy_works() -> anyhow::Result<()> {
 		// Select genesis builder policy `none`.
-		let mut cli = expect_select_genesis_policy(MockCli::new(), 0);
+		let mut cli = MockCli::new();
+		cli = expect_select_genesis_policy(cli, 0);
+
 		guide_user_to_select_genesis_policy(&mut cli)?;
 		cli.verify()?;
 
 		// Select genesis builder policy `runtime`.
-		let runtime_path = get_mock_runtime_path(false);
-		cli = expect_select_genesis_preset(
-			expect_select_genesis_policy(MockCli::new(), 1),
-			&runtime_path,
-			0,
-		);
+		let runtime_path = get_mock_runtime_path(true);
+		cli = MockCli::new();
+		cli = expect_select_genesis_policy(cli, 1);
+		cli = expect_select_genesis_preset(cli, &runtime_path, 0);
+
 		guide_user_to_select_genesis_policy(&mut cli)?;
 		guide_user_to_select_genesis_preset(&mut cli, &runtime_path, "development")?;
 		cli.verify()
@@ -809,9 +868,44 @@ mod tests {
 	#[test]
 	fn guide_user_to_select_genesis_preset_works() -> anyhow::Result<()> {
 		let runtime_path = get_mock_runtime_path(false);
-		let mut cli = expect_select_genesis_preset(MockCli::new(), &runtime_path, 0);
+		let mut cli = MockCli::new();
+		cli = expect_select_genesis_preset(cli, &runtime_path, 0);
 		guide_user_to_select_genesis_preset(&mut cli, &runtime_path, "development")?;
 		cli.verify()
+	}
+
+	#[test]
+	fn guide_user_to_select_menu_option_works() {}
+
+	#[test]
+	fn get_runtime_argument_works() -> anyhow::Result<()> {
+		let runtime_path = get_mock_runtime_path(false);
+		assert_eq!(
+			get_runtime_argument(&PalletCmd::try_parse_from(&[
+				"",
+				"--runtime",
+				runtime_path.to_str().unwrap(),
+				"--pallet",
+				"",
+				"--extrinsic",
+				"",
+			])?)
+			.unwrap(),
+			&runtime_path
+		);
+		assert_eq!(
+			get_runtime_argument(&PalletCmd::try_parse_from(&[
+				"",
+				"--chain",
+				"path-to-chainspec",
+				"--list",
+			])?)
+			.err()
+			.unwrap()
+			.to_string(),
+			"No runtime found"
+		);
+		Ok(())
 	}
 
 	fn expect_pallet_benchmarking_intro(cli: MockCli) -> MockCli {

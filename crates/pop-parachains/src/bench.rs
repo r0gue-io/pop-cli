@@ -53,7 +53,7 @@ pub fn get_runtime_path(parent: &Path) -> anyhow::Result<PathBuf> {
 		.iter()
 		.map(|f| parent.join(f))
 		.find(|path| path.exists())
-		.ok_or_else(|| anyhow::anyhow!("No runtime found."))
+		.ok_or_else(|| anyhow::anyhow!("No runtime found"))
 }
 
 /// Loads a mapping of pallets and their associated extrinsics from the runtime WASM binary.

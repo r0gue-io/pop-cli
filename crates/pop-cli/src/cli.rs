@@ -598,7 +598,6 @@ pub(crate) mod tests {
 		}
 
 		fn interact(&mut self) -> Result<T> {
-			println!("{:?} {:?}", self.items.len(), self.item);
 			Ok(self.items[self.item].clone())
 		}
 
