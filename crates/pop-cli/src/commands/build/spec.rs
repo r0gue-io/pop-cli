@@ -10,7 +10,7 @@ use crate::{
 };
 use clap::{Args, ValueEnum};
 use cliclack::{spinner, ProgressBar};
-use pop_common::Profile;
+use pop_common::{manifest::from_path, Profile};
 use pop_parachains::{
 	binary_path, build_parachain, export_wasm_file, generate_genesis_state_file,
 	generate_plain_chain_spec, generate_raw_chain_spec, is_supported, ChainSpec, ContainerEngine,
@@ -436,21 +436,8 @@ impl BuildSpecCommand {
 			.initial_value(true)
 			.interact()?);
 
-		// If deterministic build is selected, prompt for package name and runtime path if not
-		// provided.
-		let package = if deterministic {
-			match package {
-				Some(pkg) => pkg,
-				None => cli
-					.input("Enter the runtime package name:")
-					.placeholder(DEFAULT_PACKAGE)
-					.default_input(DEFAULT_PACKAGE)
-					.interact()?,
-			}
-		} else {
-			DEFAULT_PACKAGE.to_string()
-		};
-
+		// If deterministic build is selected, use the provided runtime path or prompt the user if
+		// missing.
 		let runtime_dir = if deterministic {
 			match runtime_dir {
 				Some(dir) => dir,
@@ -463,6 +450,28 @@ impl BuildSpecCommand {
 			}
 		} else {
 			DEFAULT_RUNTIME_DIR.into()
+		};
+		// If deterministic build is selected, extract package name from runtime path provided
+		// aboce. Prompt the user if unavailable.
+		let package = if deterministic {
+			match package {
+				Some(pkg) => pkg,
+				None => {
+					match from_path(Some(&runtime_dir))
+						.ok()
+						.and_then(|manifest| manifest.package.map(|pkg| pkg.name))
+					{
+						Some(pkg_name) => pkg_name,
+						None => cli
+							.input("Enter the runtime package name:")
+							.placeholder(DEFAULT_PACKAGE)
+							.default_input(DEFAULT_PACKAGE)
+							.interact()?,
+					}
+				},
+			}
+		} else {
+			DEFAULT_PACKAGE.to_string()
 		};
 
 		if release {
@@ -802,8 +811,8 @@ mod tests {
 				).expect_confirm("Should the genesis state file be generated ?", genesis_state
 				).expect_confirm("Should the genesis code file be generated ?", genesis_code)
 				.expect_confirm("Would you like to build the runtime deterministically? (Recommended for production builds)", deterministic)
-				.expect_input("Enter the runtime package name:", package.to_string())
-				.expect_input("Enter the directory path where the runtime is located:", runtime_dir.display().to_string());
+				.expect_input("Enter the directory path where the runtime is located:", runtime_dir.display().to_string())
+				.expect_input("Enter the runtime package name:", package.to_string());
 			}
 			let build_spec = build_spec_cmd.configure_build_spec(&mut cli).await?;
 			assert_eq!(build_spec.chain, chain);
@@ -938,8 +947,8 @@ mod tests {
 						cli = cli.expect_confirm(
 							"Would you like to build the runtime deterministically? (Recommended for production builds)",
 							deterministic,
-						).expect_input("Enter the runtime package name:", package.to_string())
-						.expect_input("Enter the directory path where the runtime is located:", runtime_dir.display().to_string());
+						).expect_input("Enter the directory path where the runtime is located:", runtime_dir.display().to_string())
+						.expect_input("Enter the runtime package name:", package.to_string());
 					}
 				}
 				let build_spec = build_spec_cmd.configure_build_spec(&mut cli).await?;
