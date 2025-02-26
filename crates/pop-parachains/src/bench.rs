@@ -70,6 +70,8 @@ pub fn load_pallet_extrinsics(runtime_path: &Path) -> anyhow::Result<PalletExtri
 		Ok(())
 	})?;
 
+	println!("output: {:?}", output);
+
 	// Process the captured output and return the pallet extrinsics registry.
 	let mut registry = PalletExtrinsicsRegistry::new();
 	let lines: Vec<String> = output.split("\n").map(String::from).collect();
