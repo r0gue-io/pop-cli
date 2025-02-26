@@ -15,7 +15,7 @@ use std::{
 	path::{Path, PathBuf},
 };
 use stdio_override::StdoutOverride;
-use tempfile::tempdir;
+use tempfile::NamedTempFile;
 
 /// Constant variables used for benchmarking.
 pub mod constants {
@@ -61,9 +61,9 @@ pub fn get_runtime_path(parent: &Path) -> anyhow::Result<PathBuf> {
 /// # Arguments
 /// * `runtime_path` - Path to the runtime WASM binary.
 pub fn load_pallet_extrinsics(runtime_path: &Path) -> anyhow::Result<PalletExtrinsicsRegistry> {
-	let temp_dir = tempdir()?;
-	let temp_file_path = temp_dir.path().join("pallets.csv");
-	StdoutOverride::from_file(&temp_file_path)?;
+	let temp_file = NamedTempFile::new()?;
+	let temp_file_path = temp_file.path().to_path_buf();
+	let guard = StdoutOverride::from_file(&temp_file_path)?;
 	let cmd = PalletCmd::try_parse_from([
 		"",
 		"--runtime",
@@ -72,8 +72,11 @@ pub fn load_pallet_extrinsics(runtime_path: &Path) -> anyhow::Result<PalletExtri
 		"none", // For parsing purpose.
 		"--list=all",
 	])?;
-	cmd.run_with_spec::<BlakeTwo256, HostFunctions>(None)
-		.map_err(|e| anyhow::anyhow!(format!("Failed to list pallets: {}", e.to_string())))?;
+	let result = cmd
+		.run_with_spec::<BlakeTwo256, HostFunctions>(None)
+		.map_err(|e| anyhow::anyhow!(format!("Failed to list pallets: {}", e.to_string())));
+	drop(guard);
+	result?;
 	parse_csv_to_map(&temp_file_path)
 }
 
@@ -341,7 +344,7 @@ mod tests {
 	}
 
 	#[test]
-	fn list_pallets_and_extrinsics_works() -> Result<()> {
+	fn load_pallet_extrinsics_works() -> Result<()> {
 		let registry = load_pallet_extrinsics(&get_mock_runtime_path(true))?;
 		assert_eq!(
 			registry.get("pallet_timestamp").cloned().unwrap_or_default(),
