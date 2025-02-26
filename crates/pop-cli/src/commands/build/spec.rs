@@ -432,7 +432,7 @@ impl BuildSpecCommand {
 
 		// Prompt the user for deterministic build only if the profile is Production.
 		let deterministic = deterministic || (profile == Profile::Production && cli
-			.confirm("Would you like to build the Wasm runtime deterministically? (Recommended for production builds)")
+			.confirm("Would you like to build the runtime deterministically? (Recommended for production builds)")
 			.initial_value(true)
 			.interact()?);
 
@@ -673,9 +673,7 @@ impl BuildSpec {
 	// Updates the chain specification with the runtime code.
 	fn update_code(&self, wasm_bytes: &[u8]) -> anyhow::Result<()> {
 		let mut chain_spec = ChainSpec::from(&self.output_file)?;
-
 		chain_spec.update_runtime_code(wasm_bytes)?;
-
 		chain_spec.to_file(&self.output_file)?;
 		Ok(())
 	}
@@ -803,7 +801,7 @@ mod tests {
 				).expect_confirm("Would you like to use local host as a bootnode ?", default_bootnode
 				).expect_confirm("Should the genesis state file be generated ?", genesis_state
 				).expect_confirm("Should the genesis code file be generated ?", genesis_code)
-				.expect_confirm("Would you like to build the Wasm runtime deterministically? (Recommended for production builds)", deterministic)
+				.expect_confirm("Would you like to build the runtime deterministically? (Recommended for production builds)", deterministic)
 				.expect_input("Enter the runtime package name:", package.to_string())
 				.expect_input("Enter the directory path where the runtime is located:", runtime_dir.display().to_string());
 			}
@@ -938,7 +936,7 @@ mod tests {
 					}
 					if !build_spec_cmd.deterministic {
 						cli = cli.expect_confirm(
-							"Would you like to build the Wasm runtime deterministically? (Recommended for production builds)",
+							"Would you like to build the runtime deterministically? (Recommended for production builds)",
 							deterministic,
 						).expect_input("Enter the runtime package name:", package.to_string())
 						.expect_input("Enter the directory path where the runtime is located:", runtime_dir.display().to_string());

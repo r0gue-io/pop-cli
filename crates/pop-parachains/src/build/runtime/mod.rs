@@ -70,7 +70,7 @@ impl SrToolBuilder {
 	pub fn generate_deterministic_runtime(&self) -> Result<PathBuf, Error> {
 		let command = self.build_command();
 		cmd("sh", vec!["-c", &command]).run()?;
-		let wasm_path = self.get_runtime_path();
+		let wasm_path = self.get_wasm_output_path();
 		Ok(wasm_path)
 	}
 
@@ -99,7 +99,7 @@ impl SrToolBuilder {
 		)
 	}
 	// Returns the expected output path of the compiled runtime `.wasm` file.
-	fn get_runtime_path(&self) -> PathBuf {
+	fn get_wasm_output_path(&self) -> PathBuf {
 		self.runtime_dir
 			.join("target")
 			.join("srtool")
@@ -181,14 +181,15 @@ mod tests {
 	}
 
 	#[test]
-	fn get_runtime_path_works() -> Result<()> {
-		assert_eq!(SrToolBuilder::new(
+	fn get_wasm_output_path_works() -> Result<()> {
+		let srtool_builder = SrToolBuilder::new(
 			ContainerEngine::Podman,
 			None,
 			"template-runtime".to_string(),
 			Profile::Debug,
 			PathBuf::from("./runtime-folder"),
-		)?.get_runtime_path().display().to_string(), "./runtime-folder/target/srtool/debug/wbuild/template-runtime/template_runtime.compact.compressed.wasm");
+		)?;
+		assert_eq!(srtool_builder.get_wasm_output_path().display().to_string(), "./runtime-folder/target/srtool/debug/wbuild/template-runtime/template_runtime.compact.compressed.wasm");
 		Ok(())
 	}
 }
