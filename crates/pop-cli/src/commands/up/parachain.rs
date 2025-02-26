@@ -124,7 +124,7 @@ impl UpChain {
 		let state = std::fs::read_to_string(genesis_state)
 			.map_err(|err| anyhow!("Failed to read genesis state file: {}", err.to_string()))?;
 		let code = std::fs::read_to_string(genesis_code)
-			.map_err(|err| anyhow!("Failed to read genesis state file: {}", err.to_string()))?;
+			.map_err(|err| anyhow!("Failed to read genesis code file: {}", err.to_string()))?;
 		let xt = construct_extrinsic(ex, vec![id.to_string(), state, code])?;
 		Ok(xt.encode_call_data(&chain.client.metadata())?)
 	}
@@ -343,20 +343,34 @@ mod tests {
 		let temp_dir = tempdir()?;
 		let genesis_state_path = temp_dir.path().join("genesis_state");
 		let genesis_code_path = temp_dir.path().join("genesis_code.wasm");
+		let up_chain = UpChain {
+			id: 2000,
+			genesis_state: genesis_state_path.clone(),
+			genesis_code: genesis_code_path.clone(),
+			chain,
+		};
+
+		// Expect failure when the genesis state file cannot be read.
+		assert!(matches!(
+			up_chain.prepare_register_parachain_call_data(),
+			Err(message) if message.to_string().contains("Failed to read genesis state file")
+		));
 		std::fs::write(&genesis_state_path, "0x1234")?;
+
+		// Expect failure when the genesis code file cannot be read.
+		assert!(matches!(
+			up_chain.prepare_register_parachain_call_data(),
+			Err(message) if message.to_string().contains("Failed to read genesis code file")
+		));
 		std::fs::write(&genesis_code_path, "0x1234")?;
 
-		let call_data = UpChain {
-			id: 2000,
-			genesis_state: genesis_state_path,
-			genesis_code: genesis_code_path,
-			chain,
-		}
-		.prepare_register_parachain_call_data()?;
 		// Encoded call data for a register extrinsic with the above values.
 		// Reference: https://polkadot.js.org/apps/?rpc=wss%3A%2F%2Fpolkadot.public.curie.radiumblock.co%2Fws#/extrinsics/decode/0x4600d0070000081234081234
 		let encoded_register_extrinsic: &str = "0x4600d0070000081234081234";
-		assert_eq!(call_data, decode_call_data(encoded_register_extrinsic)?);
+		assert_eq!(
+			up_chain.prepare_register_parachain_call_data()?,
+			decode_call_data(encoded_register_extrinsic)?
+		);
 		Ok(())
 	}
 
