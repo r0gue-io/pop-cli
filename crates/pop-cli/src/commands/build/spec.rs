@@ -661,7 +661,7 @@ impl BuildSpec {
 		cli: &mut impl cli::traits::Cli,
 	) -> anyhow::Result<Vec<u8>> {
 		let engine = ContainerEngine::detect()?;
-		// As srtool-cli(https://github.com/chevdor/srtool-cli/blob/master/cli/src/container_engine.rs#L33) warn about using docker.
+		// As srtool-cli(https://github.com/chevdor/srtool-cli/blob/master/cli/src/main.rs#L28) warn about using docker.
 		if engine == ContainerEngine::Docker {
 			cli.warning("WARNING: You are using docker. We recommend using podman instead.")?;
 		}
