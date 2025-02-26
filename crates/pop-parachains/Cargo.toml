@@ -35,14 +35,16 @@ walkdir.workspace = true
 zombienet-sdk.workspace = true
 
 # Benchmarking
+ac-node-api.workspace = true
 cumulus-primitives-proof-size-hostfunction.workspace = true
 frame-benchmarking-cli.workspace = true
-fuzzy-matcher = "0.3.7"
+frame-metadata.workspace = true
+fuzzy-matcher.workspace = true
 sc-chain-spec.workspace = true
 sp-runtime.workspace = true
 sp-statement-store.workspace = true
-stdio-override.workspace = true
-csv.workspace = true
+wasm-testbed.workspace = true
+wasm-loader.workspace = true
 
 # Pop
 pop-common = { path = "../pop-common", version = "0.6.0" }

@@ -1,7 +1,8 @@
+use ac_node_api::Metadata;
 use anyhow::Result;
 use clap::Parser;
-use csv::Reader;
 use frame_benchmarking_cli::PalletCmd;
+use frame_metadata::RuntimeMetadataPrefixed;
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use pop_common::get_relative_or_absolute_path;
 use sc_chain_spec::GenesisConfigBuilderRuntimeCaller;
@@ -9,13 +10,12 @@ use sp_runtime::traits::BlakeTwo256;
 use std::{
 	collections::HashMap,
 	env::current_dir,
-	fs,
-	fs::File,
-	io::BufReader,
+	fs::{self},
 	path::{Path, PathBuf},
 };
-use stdio_override::StdoutOverride;
-use tempfile::NamedTempFile;
+use subxt::ext::codec::{Decode, Encode};
+use wasm_loader::Source;
+use wasm_testbed::WasmTestBed;
 
 /// Constant variables used for benchmarking.
 pub mod constants {
@@ -61,23 +61,22 @@ pub fn get_runtime_path(parent: &Path) -> anyhow::Result<PathBuf> {
 /// # Arguments
 /// * `runtime_path` - Path to the runtime WASM binary.
 pub fn load_pallet_extrinsics(runtime_path: &Path) -> anyhow::Result<PalletExtrinsicsRegistry> {
-	let temp_file = NamedTempFile::new()?;
-	let temp_file_path = temp_file.path().to_path_buf();
-	let guard = StdoutOverride::from_file(&temp_file_path)?;
-	let cmd = PalletCmd::try_parse_from([
-		"",
-		"--runtime",
-		runtime_path.to_str().unwrap(),
-		"--genesis-builder",
-		"none", // For parsing purpose.
-		"--list=all",
-	])?;
-	let result = cmd
-		.run_with_spec::<BlakeTwo256, HostFunctions>(None)
-		.map_err(|e| anyhow::anyhow!(format!("Failed to list pallets: {}", e.to_string())));
-	drop(guard);
-	result?;
-	parse_csv_to_map(&temp_file_path)
+	let mut registry = PalletExtrinsicsRegistry::default();
+	let source = Source::File(runtime_path.to_path_buf());
+	let wasm = WasmTestBed::new(&source)?;
+	let encoded = wasm.runtime_metadata_prefixed().encode();
+	let runtime_metadata_prefixed = RuntimeMetadataPrefixed::decode(&mut &encoded[..])
+		.map_err(|_| anyhow::anyhow!("Failed to decode the "))?;
+	let metadata = Metadata::try_from(runtime_metadata_prefixed).unwrap();
+
+	for pallet in metadata.pallets() {
+		if let Some(call_variants) = pallet.call_variants() {
+			let mut calls: Vec<String> = call_variants.iter().map(|c| c.name.clone()).collect();
+			calls.sort_by(|c1, c2| c2.cmp(c1));
+			registry.insert(pallet.name().to_string(), calls);
+		}
+	}
+	Ok(registry)
 }
 
 /// Print the pallet benchmarking command with arguments.
@@ -211,21 +210,6 @@ pub fn parse_genesis_builder_policy(policy: &str) -> anyhow::Result<PalletCmd> {
 	})
 }
 
-fn parse_csv_to_map(file_path: &PathBuf) -> anyhow::Result<PalletExtrinsicsRegistry> {
-	let file = File::open(file_path)?;
-	let mut rdr = Reader::from_reader(BufReader::new(file));
-	let mut map: PalletExtrinsicsRegistry = HashMap::new();
-	for result in rdr.records() {
-		let record = result?;
-		if record.len() == 2 {
-			let pallet = record[0].trim().to_string();
-			let extrinsic = record[1].trim().to_string();
-			map.entry(pallet).or_default().push(extrinsic);
-		}
-	}
-	Ok(map)
-}
-
 /// Run command for pallet benchmarking.
 ///
 /// # Arguments
@@ -262,7 +246,7 @@ pub fn search_for_pallets(
 		.into_iter()
 		.map(|v| (v.to_string(), matcher.fuzzy_match(v, input).unwrap_or_default()))
 		.collect();
-	output.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+	output.sort_by(|a, b| b.1.cmp(&a.1));
 	output.into_iter().map(|(name, _)| name).take(limit).collect::<Vec<String>>()
 }
 
@@ -292,7 +276,7 @@ pub fn search_for_extrinsics(
 		.into_iter()
 		.map(|v| (v.to_string(), matcher.fuzzy_match(v, input).unwrap_or_default()))
 		.collect();
-	output.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+	output.sort_by(|a, b| b.1.cmp(&a.1));
 	output.into_iter().map(|(name, _)| name).take(limit).collect::<Vec<String>>()
 }
 
@@ -346,12 +330,9 @@ mod tests {
 	#[test]
 	fn load_pallet_extrinsics_works() -> Result<()> {
 		let registry = load_pallet_extrinsics(&get_mock_runtime_path(true))?;
+		assert_eq!(registry.get("Timestamp").cloned().unwrap_or_default(), ["on_finalize", "set"]);
 		assert_eq!(
-			registry.get("pallet_timestamp").cloned().unwrap_or_default(),
-			["on_finalize", "set"]
-		);
-		assert_eq!(
-			registry.get("pallet_sudo").cloned().unwrap_or_default(),
+			registry.get("Sudo").cloned().unwrap_or_default(),
 			["check_only_sudo_account", "remove_key", "set_key", "sudo", "sudo_as"]
 		);
 		Ok(())
@@ -361,22 +342,17 @@ mod tests {
 	fn search_pallets_works() -> Result<()> {
 		let runtime_path = get_mock_runtime_path(true);
 		let registry = load_pallet_extrinsics(&runtime_path)?;
-		[
-			("message", "pallet_message_queue"),
-			("timestamp", "pallet_timestamp"),
-			("balances", "pallet_balances"),
-		]
-		.iter()
-		.for_each(|(input, pallet)| {
-			let pallets = search_for_pallets(&registry, &[], input, 5);
-			assert_eq!(pallets.first(), Some(&pallet.to_string()));
-			assert_eq!(pallets.len(), 5);
-		});
+		[("message", "MessageQueue"), ("timestamp", "Timestamp"), ("balances", "Balances")]
+			.iter()
+			.for_each(|(input, pallet)| {
+				let pallets = search_for_pallets(&registry, &[], input, 5);
+				assert_eq!(pallets.first(), Some(&pallet.to_string()));
+				assert_eq!(pallets.len(), 5);
+			});
 
 		assert_ne!(
-			search_for_pallets(&registry, &["pallet_message_queue".to_string()], "message", 5)
-				.first(),
-			Some(&"pallet_message_queue".to_string())
+			search_for_pallets(&registry, &["MessageQueue".to_string()], "message", 5).first(),
+			Some(&"MessageQueue".to_string())
 		);
 		Ok(())
 	}
