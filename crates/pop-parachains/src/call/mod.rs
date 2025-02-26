@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{errors::Error, Function, Param};
-use metadata::params::field_to_param;
+use crate::{errors::Error, find_dispatchable_by_name, Function, Pallet, Param};
 use pop_common::{
 	call::{DefaultEnvironment, DisplayEvents, TokenMetadata, Verbosity},
 	create_signer,
@@ -50,32 +49,23 @@ pub fn construct_sudo_extrinsic(xt: DynamicPayload) -> DynamicPayload {
 /// Constructs a Proxy call extrinsic.
 ///
 /// # Arguments
-/// * `client` - The client used to interact with the chain.
+/// * `pallets`: List of pallets available within the chain's runtime.
 /// * `proxy_account` - The proxied account that will execute the extrinsic.
 /// * `xt`: The extrinsic representing the dispatchable function call to be dispatched using the
 ///   proxy.
 pub fn construct_proxy_extrinsic(
-	client: &OnlineClient<SubstrateConfig>,
+	pallets: &[Pallet],
 	proxy_account: String,
 	xt: DynamicPayload,
 ) -> Result<DynamicPayload, Error> {
-	let metadata = client.metadata();
-	let proxy_call_fields: Vec<Param> = metadata
-		.pallet_by_name("Proxy")
-		.and_then(|p| p.call_variant_by_name("proxy"))
-		.map(|c| {
-			c.fields
-				.iter()
-				.filter(|f| {
-					// Skip fields where type_name contains "RuntimeCall"
-					f.type_name.as_deref().map_or(true, |name| !name.contains("RuntimeCall"))
-				})
-				.map(|f| field_to_param(&metadata, f))
-				.collect::<Result<Vec<Param>, Error>>()
-		})
-		.ok_or_else(|| Error::MetadataParsingError("Proxy call".to_string()))??;
+	let proxy_function = find_dispatchable_by_name(&pallets, "Proxy", "proxy")?;
+	// `find_dispatchable_by_name` doesn't support parsing parameters that are calls.
+	// Therefore, we only parse the first two parameters for the proxy call
+	// using `parse_dispatchable_arguments`, while the last parameter (which is the call)
+	// must be manually added.
+	let required_params: Vec<Param> = proxy_function.params.iter().take(2).cloned().collect();
 	let parsed_args: Vec<Value> = metadata::parse_dispatchable_arguments(
-		&proxy_call_fields,
+		&required_params,
 		vec![proxy_account, "None()".to_string()],
 	)?;
 
@@ -216,7 +206,7 @@ mod tests {
 		let remark_dispatchable = find_dispatchable_by_name(&pallets, "System", "remark")?;
 		let remark = construct_extrinsic(remark_dispatchable, ["0x11".to_string()].to_vec())?;
 		let xt = construct_proxy_extrinsic(
-			&client,
+			&pallets,
 			"Id(13czcAAt6xgLwZ8k6ZpkrRL5V2pjKEui3v9gHAN9PoxYZDbf)".to_string(),
 			remark,
 		)?;
