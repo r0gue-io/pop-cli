@@ -21,6 +21,7 @@ pub mod build;
 pub mod errors;
 pub mod git;
 pub mod helpers;
+pub mod io;
 pub mod manifest;
 /// Provides functionality for formatting and resolving metadata types.
 pub mod metadata;

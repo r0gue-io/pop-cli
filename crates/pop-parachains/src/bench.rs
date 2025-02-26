@@ -1,21 +1,16 @@
 use anyhow::Result;
 use clap::Parser;
-use csv::Reader;
 use frame_benchmarking_cli::PalletCmd;
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
-use pop_common::get_relative_or_absolute_path;
+use pop_common::{get_relative_or_absolute_path, io::capture_stdout};
 use sc_chain_spec::GenesisConfigBuilderRuntimeCaller;
 use sp_runtime::traits::BlakeTwo256;
 use std::{
 	collections::HashMap,
 	env::current_dir,
 	fs,
-	fs::File,
-	io::BufReader,
 	path::{Path, PathBuf},
 };
-use stdio_override::StdoutOverride;
-use tempfile::tempdir;
 
 /// Constant variables used for benchmarking.
 pub mod constants {
@@ -61,20 +56,33 @@ pub fn get_runtime_path(parent: &Path) -> anyhow::Result<PathBuf> {
 /// # Arguments
 /// * `runtime_path` - Path to the runtime WASM binary.
 pub fn load_pallet_extrinsics(runtime_path: &Path) -> anyhow::Result<PalletExtrinsicsRegistry> {
-	let temp_dir = tempdir()?;
-	let temp_file_path = temp_dir.path().join("pallets.csv");
-	StdoutOverride::from_file(&temp_file_path)?;
-	let cmd = PalletCmd::try_parse_from([
-		"",
-		"--runtime",
-		runtime_path.to_str().unwrap(),
-		"--genesis-builder",
-		"none", // For parsing purpose.
-		"--list=all",
-	])?;
-	cmd.run_with_spec::<BlakeTwo256, HostFunctions>(None)
-		.map_err(|e| anyhow::anyhow!(format!("Failed to list pallets: {}", e.to_string())))?;
-	parse_csv_to_map(&temp_file_path)
+	let output = capture_stdout(|| {
+		let cmd = PalletCmd::try_parse_from([
+			"",
+			"--runtime",
+			runtime_path.to_str().unwrap(),
+			"--genesis-builder",
+			"none", // For parsing purpose.
+			"--list=all",
+		])?;
+		cmd.run_with_spec::<BlakeTwo256, HostFunctions>(None)
+			.map_err(|e| anyhow::anyhow!(format!("Failed to list pallets: {}", e.to_string())))?;
+		Ok(())
+	})?;
+
+	// Process the captured output and return the pallet extrinsics registry.
+	let mut registry = PalletExtrinsicsRegistry::new();
+	let lines: Vec<String> = output.split("\n").map(String::from).collect();
+	for line in lines {
+		if line.is_empty() {
+			continue;
+		}
+		let record: Vec<String> = line.split(", ").map(String::from).collect();
+		let pallet = record[0].trim().to_string();
+		let extrinsic = record[1].trim().to_string();
+		registry.entry(pallet).or_default().push(extrinsic);
+	}
+	Ok(registry)
 }
 
 /// Print the pallet benchmarking command with arguments.
@@ -206,21 +214,6 @@ pub fn parse_genesis_builder_policy(policy: &str) -> anyhow::Result<PalletCmd> {
 	.map_err(|e| {
 		anyhow::anyhow!(format!(r#"Invalid genesis builder option {policy}: {}"#, e.to_string()))
 	})
-}
-
-fn parse_csv_to_map(file_path: &PathBuf) -> anyhow::Result<PalletExtrinsicsRegistry> {
-	let file = File::open(file_path)?;
-	let mut rdr = Reader::from_reader(BufReader::new(file));
-	let mut map: PalletExtrinsicsRegistry = HashMap::new();
-	for result in rdr.records() {
-		let record = result?;
-		if record.len() == 2 {
-			let pallet = record[0].trim().to_string();
-			let extrinsic = record[1].trim().to_string();
-			map.entry(pallet).or_default().push(extrinsic);
-		}
-	}
-	Ok(map)
 }
 
 /// Run command for pallet benchmarking.
