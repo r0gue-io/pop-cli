@@ -239,8 +239,9 @@ impl BenchmarkPallet {
 
 		// Only prompt user to update parameters when `skip_menu` is not provided.
 		if !self.skip_menu {
+			self.fetch_pallet_registry(cli, &mut registry).await?;
 			loop {
-				let option = guide_user_to_select_menu_option(self, cli)?;
+				let option = guide_user_to_select_menu_option(self, cli, &mut registry).await?;
 				match option.update_arguments(self, &mut registry, cli).await {
 					Ok(true) => break,
 					Ok(false) => continue,
@@ -404,8 +405,7 @@ impl BenchmarkPallet {
 		registry: &mut PalletExtrinsicsRegistry,
 	) -> anyhow::Result<()> {
 		self.fetch_pallet_registry(cli, registry).await?;
-		self.pallet =
-			Some(guide_user_to_select_pallets(registry, &self.exclude_pallets, cli, true)?);
+		self.pallet = Some(guide_user_to_select_pallets(registry, &self.exclude_pallets, cli)?);
 		Ok(())
 	}
 
@@ -418,10 +418,7 @@ impl BenchmarkPallet {
 		// Not allow selecting extrinsics when multiple pallets are selected.
 		let pallet_count = self.pallet()?.matches(",").count();
 		self.extrinsic = Some(match pallet_count {
-			0 => {
-				let pallets = self.pallet()?.split(",").map(String::from).collect();
-				guide_user_to_select_extrinsics(&pallets, registry, cli)?
-			},
+			0 => guide_user_to_select_extrinsics(self.pallet()?, registry, cli)?,
 			_ => ALL_SELECTED.to_string(),
 		});
 		Ok(())
@@ -433,7 +430,7 @@ impl BenchmarkPallet {
 		registry: &mut PalletExtrinsicsRegistry,
 	) -> anyhow::Result<()> {
 		self.fetch_pallet_registry(cli, registry).await?;
-		let pallets = guide_user_to_select_pallets(registry, &vec![], cli, false)?;
+		let pallets = guide_user_to_exclude_pallets(registry, cli)?;
 		self.exclude_pallets =
 			pallets.split(',').filter(|s| !s.is_empty()).map(|s| s.to_string()).collect();
 		Ok(())
@@ -549,7 +546,11 @@ enum BenchmarkPalletMenuOption {
 impl BenchmarkPalletMenuOption {
 	// Check if the menu option is disabled. If disabled, the menu option is not displayed in the
 	// menu.
-	fn is_disabled(self, cmd: &BenchmarkPallet) -> anyhow::Result<bool> {
+	async fn is_disabled(
+		self,
+		cmd: &BenchmarkPallet,
+		registry: &PalletExtrinsicsRegistry,
+	) -> anyhow::Result<bool> {
 		use BenchmarkPalletMenuOption::*;
 		match self {
 			GenesisBuilder | GenesisBuilderPreset => {
@@ -566,7 +567,7 @@ impl BenchmarkPalletMenuOption {
 			// If there are multiple pallets provided, disable the extrinsics.
 			Extrinsics => {
 				let pallet = cmd.pallet()?;
-				Ok(is_selected_all(&pallet) || pallet.matches(",").count() > 0)
+				Ok(is_selected_all(&pallet) || !registry.contains_key(pallet))
 			},
 			_ => Ok(false),
 		}
@@ -759,7 +760,6 @@ fn guide_user_to_select_pallets(
 	registry: &PalletExtrinsicsRegistry,
 	excluded_pallets: &[String],
 	cli: &mut impl cli::traits::Cli,
-	required: bool,
 ) -> anyhow::Result<String> {
 	// Prompt for pallet search input.
 	let input = cli
@@ -774,7 +774,27 @@ fn guide_user_to_select_pallets(
 
 	// Prompt user to select pallets.
 	let pallets = search_for_pallets(registry, excluded_pallets, &input, MAX_PALLET_LIMIT);
-	let mut prompt = cli.multiselect("Select the pallets:").required(required);
+	let mut prompt = cli.select("Select the pallets:");
+	for pallet in pallets {
+		prompt = prompt.item(pallet.clone(), &pallet, "");
+	}
+	Ok(prompt.interact()?)
+}
+
+fn guide_user_to_exclude_pallets(
+	registry: &PalletExtrinsicsRegistry,
+	cli: &mut impl cli::traits::Cli,
+) -> anyhow::Result<String> {
+	// Prompt for pallet search input.
+	let input = cli
+		.input(r#"Search for pallets by name to exclude"#)
+		.placeholder("balances")
+		.required(false)
+		.interact()?;
+
+	// Prompt user to select pallets.
+	let pallets = search_for_pallets(registry, &vec![], &input, MAX_PALLET_LIMIT);
+	let mut prompt = cli.multiselect("Exclude pallets from benchmarking:").required(false);
 	for pallet in pallets {
 		prompt = prompt.item(pallet.clone(), &pallet, "");
 	}
@@ -782,7 +802,7 @@ fn guide_user_to_select_pallets(
 }
 
 fn guide_user_to_select_extrinsics(
-	pallets: &Vec<String>,
+	pallet: &String,
 	registry: &PalletExtrinsicsRegistry,
 	cli: &mut impl cli::traits::Cli,
 ) -> anyhow::Result<String> {
@@ -798,7 +818,7 @@ fn guide_user_to_select_extrinsics(
 	}
 
 	// Prompt user to select extrinsics.
-	let extrinsics = search_for_extrinsics(registry, pallets, &input, MAX_EXTRINSIC_LIMIT);
+	let extrinsics = search_for_extrinsics(registry, pallet, &input, MAX_EXTRINSIC_LIMIT);
 	let mut prompt = cli.multiselect("Select the extrinsics:").required(true);
 	for extrinsic in extrinsics {
 		prompt = prompt.item(extrinsic.clone(), &extrinsic, "");
@@ -897,15 +917,16 @@ fn guide_user_to_select_genesis_preset(
 	Ok(prompt.interact()?)
 }
 
-fn guide_user_to_select_menu_option(
+async fn guide_user_to_select_menu_option(
 	cmd: &mut BenchmarkPallet,
 	cli: &mut impl cli::traits::Cli,
+	registry: &mut PalletExtrinsicsRegistry,
 ) -> anyhow::Result<BenchmarkPalletMenuOption> {
 	let mut prompt = cli.select("Select the parameter to update:");
 
 	let mut index = 0;
 	for param in BenchmarkPalletMenuOption::iter() {
-		if param.is_disabled(cmd)? {
+		if param.is_disabled(cmd, registry).await? {
 			continue;
 		}
 		let label = param.get_message().unwrap_or_default();
@@ -1093,16 +1114,14 @@ mod tests {
 		// Select all pallets.
 		let mut cli = MockCli::new();
 		cli = cli.expect_input(prompt, ALL_SELECTED.to_string());
-		let input = guide_user_to_select_pallets(&registry, &[], &mut cli, true)?;
+		let input = guide_user_to_select_pallets(&registry, &[], &mut cli)?;
 		assert_eq!(input, ALL_SELECTED.to_string());
 		cli.verify()?;
 
 		// Search for pallets.
-		cli = MockCli::new();
 		let input = "pallet_timestamp";
 		let pallets = search_for_pallets(&registry, &[], &input, MAX_PALLET_LIMIT);
-		cli = cli.expect_input(prompt, input.to_string());
-		cli = cli.expect_multiselect::<String>(
+		cli = MockCli::new().expect_input(prompt, input.to_string()).expect_select(
 			"Select the pallets:",
 			Some(true),
 			true,
@@ -1113,8 +1132,9 @@ mod tests {
 					.take(MAX_PALLET_LIMIT)
 					.collect(),
 			),
+			0,
 		);
-		guide_user_to_select_pallets(&registry, &vec![], &mut cli, true)?;
+		guide_user_to_select_pallets(&registry, &vec![], &mut cli)?;
 		cli.verify()
 	}
 
@@ -1125,39 +1145,49 @@ mod tests {
 		let binary_path = check_omni_bencher_and_prompt(&mut cli, &crate::cache()?, true).await?;
 		let registry = load_pallet_extrinsics(&runtime_path, binary_path.as_path()).await?;
 		let prompt = r#"Search for extrinsics by name ("*" to select all)"#;
-		let pallets = vec!["pallet_timestamp".to_string()];
 
 		// Select all extrinsics.
 		let mut cli = MockCli::new();
 		cli = cli.expect_input(prompt, ALL_SELECTED.to_string());
-		let input = guide_user_to_select_extrinsics(&pallets, &registry, &mut cli)?;
+		let input =
+			guide_user_to_select_extrinsics(&"pallet_timestamp".to_string(), &registry, &mut cli)?;
 		assert_eq!(input, ALL_SELECTED.to_string());
 		cli.verify()?;
 
 		// Search for pallets.
-		cli = MockCli::new();
 		let input = "on_finalize";
-		let extrinsics = search_for_extrinsics(&registry, &pallets, &input, MAX_EXTRINSIC_LIMIT);
-		cli = cli.expect_input(prompt, input.to_string());
-		cli = cli.expect_multiselect::<String>(
-			"Select the extrinsics:",
-			Some(true),
-			true,
-			Some(
-				extrinsics
-					.into_iter()
-					.map(|extrinsic| (extrinsic, Default::default()))
-					.take(MAX_EXTRINSIC_LIMIT)
-					.collect(),
-			),
+		let extrinsics = search_for_extrinsics(
+			&registry,
+			&"pallet_timestamp".to_string(),
+			&input,
+			MAX_EXTRINSIC_LIMIT,
 		);
-		guide_user_to_select_extrinsics(&pallets, &registry, &mut cli)?;
+		cli = MockCli::new()
+			.expect_input(prompt, input.to_string())
+			.expect_multiselect::<String>(
+				"Select the extrinsics:",
+				Some(true),
+				true,
+				Some(
+					extrinsics
+						.into_iter()
+						.map(|extrinsic| (extrinsic, Default::default()))
+						.take(MAX_EXTRINSIC_LIMIT)
+						.collect(),
+				),
+			);
+		guide_user_to_select_extrinsics(&"pallet_timestamp".to_string(), &registry, &mut cli)?;
 		cli.verify()
 	}
 
-	#[test]
-	fn menu_option_is_disabled_works() -> anyhow::Result<()> {
+	#[tokio::test]
+	async fn menu_option_is_disabled_works() -> anyhow::Result<()> {
 		use BenchmarkPalletMenuOption::*;
+		let mut cli = MockCli::new();
+		let runtime_path = get_mock_runtime(true);
+		let binary_path = check_omni_bencher_and_prompt(&mut cli, &crate::cache()?, true).await?;
+		let registry = load_pallet_extrinsics(&runtime_path, binary_path.as_path()).await?;
+
 		let cmd = BenchmarkPallet {
 			runtime: Some(get_mock_runtime(false)),
 			pallet: Some(ALL_SELECTED.to_string()),
@@ -1165,9 +1195,9 @@ mod tests {
 			genesis_builder: Some(GenesisBuilderPolicy::None),
 			..Default::default()
 		};
-		assert!(!GenesisBuilder.is_disabled(&cmd)?);
-		assert!(GenesisBuilderPreset.is_disabled(&cmd)?);
-		assert!(Extrinsics.is_disabled(&cmd)?);
+		assert!(!GenesisBuilder.is_disabled(&cmd, &registry).await?);
+		assert!(GenesisBuilderPreset.is_disabled(&cmd, &registry).await?);
+		assert!(Extrinsics.is_disabled(&cmd, &registry).await?);
 		Ok(())
 	}
 

@@ -129,7 +129,7 @@ fn process_pallet_extrinsics(output_file: PathBuf) -> anyhow::Result<PalletExtri
 
 	// Process the captured output and return the pallet extrinsics registry.
 	let mut registry = PalletExtrinsicsRegistry::new();
-	let lines: Vec<String> = output.split("\n").map(String::from).collect();
+	let lines: Vec<String> = output.split("\n").map(String::from).skip(1).collect();
 	for line in lines {
 		if line.is_empty() {
 			continue;
@@ -202,30 +202,26 @@ pub fn search_for_pallets(
 ///
 /// # Arguments
 /// * `pallet_extrinsics` - A mapping of pallets and their extrinsics.
-/// * `pallets` - List of pallets used to find the extrinsics.
+/// * `pallet` - Pallet to find the extrinsics.
 /// * `input` - The search input used to match extrinsics.
 pub fn search_for_extrinsics(
 	registry: &PalletExtrinsicsRegistry,
-	pallets: &Vec<String>,
+	pallet: &String,
 	input: &str,
 	limit: usize,
 ) -> Vec<String> {
 	let matcher = SkimMatcherV2::default();
-	let extrinsics: Vec<&str> = registry
-		.iter()
-		.filter(|(pallet, _)| pallets.contains(pallet))
-		.flat_map(|(_, extrinsics)| extrinsics.iter().map(String::as_str))
-		.collect();
+	let extrinsics = registry.get(pallet).cloned().unwrap_or_default();
 
 	if input.is_empty() {
 		return extrinsics.into_iter().map(String::from).take(limit).collect();
 	}
 	let mut output: Vec<(String, i64)> = extrinsics
 		.into_iter()
-		.map(|v| (v.to_string(), matcher.fuzzy_match(v, input).unwrap_or_default()))
+		.map(|v| (v.clone(), matcher.fuzzy_match(&v, input).unwrap_or_default()))
 		.collect();
 	// Sort extrinsics by score.
-	output.sort_by(|a, b| b.0.cmp(&a.0));
+	output.sort_by(|a, b| b.1.cmp(&a.1));
 	output.into_iter().map(|(name, _)| name).take(limit).collect::<Vec<String>>()
 }
 
@@ -321,12 +317,12 @@ mod tests {
 		let registry = get_mock_registry();
 		// Extrinsics are sorted alphabetically if there are no matches.
 		assert_eq!(
-			search_for_extrinsics(&registry, &vec!["pallet_timestamp".to_string()], "", 5),
+			search_for_extrinsics(&registry, &"pallet_timestamp".to_string(), "", 5),
 			vec!["on_finalize".to_string(), "set".to_string()]
 		);
 		// Sort by score if there are matches.
 		assert_eq!(
-			search_for_extrinsics(&registry, &vec!["pallet_timestamp".to_string()], "set", 5),
+			search_for_extrinsics(&registry, &"pallet_timestamp".to_string(), "set", 5),
 			vec!["set".to_string(), "on_finalize".to_string()]
 		);
 	}
