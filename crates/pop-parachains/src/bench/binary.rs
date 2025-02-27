@@ -10,13 +10,13 @@ pub use pop_common::{
 	},
 	target, Error,
 };
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use strum_macros::EnumProperty;
 
 #[derive(Debug, EnumProperty, PartialEq)]
 pub(super) enum BenchmarkingCli {
 	#[strum(props(
-		Repository = "https://github.com/r0gue-io/polkadot-runtimes",
+		Repository = "https://github.com/chungquantin/polkadot-runtimes",
 		Binary = "frame-omni-bencher",
 		Fallback = "v1.3.3"
 	))]

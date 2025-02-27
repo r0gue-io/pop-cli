@@ -48,7 +48,7 @@ async fn source_omni_bencher_binary(
 			binary.source(false, &(), true).await?;
 
 			spinner.stop(format!(
-				"✅ frame-omni-benchersuccessfully sourced. Cached at: {}",
+				"✅ frame-omni-bencher successfully sourced. Cached at: {}",
 				binary.path().to_str().unwrap()
 			));
 			bencher_path = binary.path();
@@ -95,7 +95,6 @@ async fn source_omni_bencher_binary(
 mod tests {
 	use super::*;
 	use crate::cli::MockCli;
-	use tempfile::tempdir;
 
 	#[tokio::test]
 	async fn source_omni_bencher_binary_works() -> anyhow::Result<()> {
@@ -105,9 +104,24 @@ mod tests {
 			.expect_confirm("📦 Would you like to source it automatically now?", true)
 			.expect_warning("⚠️ The frame-omni-bencher binary is not found.");
 
-		let node_path = source_omni_bencher_binary(&mut cli, cache_path.path(), false).await?;
+		let path = source_omni_bencher_binary(&mut cli, cache_path.path(), false).await?;
 		// Binary path is at least equal to the cache path + "frame-omni-bencher".
-		assert!(node_path
+		assert!(path
+			.to_str()
+			.unwrap()
+			.starts_with(&cache_path.path().join("frame-omni-bencher").to_str().unwrap()));
+		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn source_omni_bencher_binary_handles_skip_confirm() -> anyhow::Result<()> {
+		let cache_path = tempfile::tempdir().expect("Could create temp dir");
+		let mut cli =
+			MockCli::new().expect_warning("⚠️ The frame-omni-bencher binary is not found.");
+
+		let path = source_omni_bencher_binary(&mut cli, cache_path.path(), true).await?;
+		// Binary path is at least equal to the cache path + "frame-omni-bencher".
+		assert!(path
 			.to_str()
 			.unwrap()
 			.starts_with(&cache_path.path().join("frame-omni-bencher").to_str().unwrap()));
