@@ -1,13 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use pop_common::Profile;
-
-use crate::{ContainerEngine, Error};
+use crate::Error;
 use duct::cmd;
-use srtool_lib::{get_image_digest, get_image_tag};
+use pop_common::Profile;
+pub use srtool_lib::{get_image_digest, get_image_tag, ContainerEngine};
 use std::{env, fs, path::PathBuf};
-
-pub mod container_engine;
 
 const DEFAULT_IMAGE: &str = "docker.io/paritytech/srtool";
 const ONE_HOUR: u64 = 60 * 60;
