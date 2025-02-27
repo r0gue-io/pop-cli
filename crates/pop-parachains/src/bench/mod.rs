@@ -1,24 +1,28 @@
+// SPDX-License-Identifier: GPL-3.0
+
 use anyhow::Result;
 use clap::Parser;
 use frame_benchmarking_cli::PalletCmd;
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
-use pop_common::{get_relative_or_absolute_path, io::capture_stdout};
+use pop_common::get_relative_or_absolute_path;
 use sc_chain_spec::GenesisConfigBuilderRuntimeCaller;
 use sp_runtime::traits::BlakeTwo256;
 use std::{
 	collections::HashMap,
 	env::current_dir,
-	fs,
+	fs::{self, File},
+	io::Read,
 	path::{Path, PathBuf},
+	process::{Child, Command, Stdio},
 };
+use tempfile::NamedTempFile;
 
-/// Constant variables used for benchmarking.
-pub mod constants {
-	/// Do not provide any genesis state.
-	pub const GENESIS_BUILDER_NO_POLICY: &str = "none";
-	/// Let the runtime build the genesis state through its `BuildGenesisConfig` runtime API.
-	pub const GENESIS_BUILDER_RUNTIME_POLICY: &str = "runtime";
-}
+pub mod binary;
+
+/// Do not provide any genesis state.
+pub const GENESIS_BUILDER_NO_POLICY: &str = "none";
+/// Let the runtime build the genesis state through its `BuildGenesisConfig` runtime API.
+pub const GENESIS_BUILDER_RUNTIME_POLICY: &str = "runtime";
 
 type HostFunctions = (
 	sp_statement_store::runtime_api::HostFunctions,
@@ -55,22 +59,32 @@ pub fn get_runtime_path(parent: &Path) -> anyhow::Result<PathBuf> {
 ///
 /// # Arguments
 /// * `runtime_path` - Path to the runtime WASM binary.
-pub fn load_pallet_extrinsics(runtime_path: &Path) -> anyhow::Result<PalletExtrinsicsRegistry> {
-	let output = capture_stdout(|| {
-		let cmd = PalletCmd::try_parse_from([
-			"",
-			"--runtime",
-			runtime_path.to_str().unwrap(),
-			"--genesis-builder",
-			"none", // For parsing purpose.
-			"--list=all",
-		])?;
-		cmd.run_with_spec::<BlakeTwo256, HostFunctions>(None)
-			.map_err(|e| anyhow::anyhow!(format!("Failed to list pallets: {}", e.to_string())))?;
-		Ok(())
-	})?;
+/// * `binary_path` - Path to the binary of FRAME Omni Bencher.
+pub async fn load_pallet_extrinsics(
+	runtime_path: &Path,
+	binary_path: &Path,
+) -> anyhow::Result<PalletExtrinsicsRegistry> {
+	let temp_file = NamedTempFile::new()?;
 
-	println!("output: {:?}", output);
+	let mut process = run_benchmarking_with_binary(
+		binary_path,
+		Some(temp_file.as_file()),
+		vec![&format!("--runtime={}", runtime_path.display()), "--list=all"],
+	)
+	.await?;
+
+	// Wait for the process to finish and retain the output file.
+	let (_, path) = temp_file.keep()?;
+	process.wait()?;
+
+	// Process the captured output and return the pallet extrinsics registry.
+	process_pallet_extrinsics(path)
+}
+
+fn process_pallet_extrinsics(output_file: PathBuf) -> anyhow::Result<PalletExtrinsicsRegistry> {
+	let mut output_file = File::open(output_file)?;
+	let mut output = String::new();
+	output_file.read_to_string(&mut output)?;
 
 	// Process the captured output and return the pallet extrinsics registry.
 	let mut registry = PalletExtrinsicsRegistry::new();
@@ -184,7 +198,7 @@ pub fn print_pallet_command(cmd: &PalletCmd) -> String {
 		let builder_str = serde_json::to_string(genesis_builder).unwrap().to_lowercase();
 		args.push(format!("--genesis-builder={}", builder_str));
 
-		if builder_str == constants::GENESIS_BUILDER_RUNTIME_POLICY {
+		if builder_str == GENESIS_BUILDER_RUNTIME_POLICY {
 			args.push(format!("--genesis-builder-preset={}", cmd.genesis_builder_preset));
 		}
 	}
@@ -218,13 +232,37 @@ pub fn parse_genesis_builder_policy(policy: &str) -> anyhow::Result<PalletCmd> {
 	})
 }
 
-/// Run command for pallet benchmarking.
+/// Run command for pallet benchmarking using `frame-benchmarking-cli` directly.
 ///
 /// # Arguments
 /// * `cmd` - Command to benchmark the FRAME Pallets.
 pub fn run_pallet_benchmarking(cmd: &PalletCmd) -> Result<()> {
 	cmd.run_with_spec::<BlakeTwo256, HostFunctions>(None)
 		.map_err(|e| anyhow::anyhow!(format!("Failed to run benchmarking: {}", e.to_string())))
+}
+
+/// Run command for benchmarking with a provided binary.
+///
+/// # Arguments
+/// * `binary_path` - Path to the binary to run.
+/// * `output` - Output file to write the benchmark results to.
+/// * `args` - Additional arguments to pass to the binary.
+pub async fn run_benchmarking_with_binary(
+	binary_path: &Path,
+	output: Option<&File>,
+	args: Vec<&str>,
+) -> anyhow::Result<Child> {
+	let mut command = Command::new(binary_path);
+	command.env("RUST_LOG", "none");
+	command.args(["v1", "benchmark", "pallet"]);
+	for arg in args {
+		command.arg(arg);
+	}
+	if let Some(output) = output {
+		command.stdout(Stdio::from(output.try_clone()?));
+		command.stderr(Stdio::from(output.try_clone()?));
+	}
+	Ok(command.spawn()?)
 }
 
 /// Performs a fuzzy search for pallets that match the provided input.
@@ -254,6 +292,7 @@ pub fn search_for_pallets(
 		.into_iter()
 		.map(|v| (v.to_string(), matcher.fuzzy_match(v, input).unwrap_or_default()))
 		.collect();
+	// Sort pallets by score.
 	output.sort_by(|a, b| b.1.cmp(&a.1));
 	output.into_iter().map(|(name, _)| name).take(limit).collect::<Vec<String>>()
 }
@@ -284,7 +323,8 @@ pub fn search_for_extrinsics(
 		.into_iter()
 		.map(|v| (v.to_string(), matcher.fuzzy_match(v, input).unwrap_or_default()))
 		.collect();
-	output.sort_by(|a, b| b.1.cmp(&a.1));
+	// Sort extrinsics by score.
+	output.sort_by(|a, b| b.0.cmp(&a.0));
 	output.into_iter().map(|(name, _)| name).take(limit).collect::<Vec<String>>()
 }
 
@@ -313,6 +353,7 @@ pub fn get_relative_runtime_path(cmd: &PalletCmd) -> String {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use binary::omni_bencher_generator;
 	use tempfile::tempdir;
 
 	#[test]
@@ -335,9 +376,14 @@ mod tests {
 		Ok(())
 	}
 
-	#[test]
-	fn load_pallet_extrinsics_works() -> Result<()> {
-		let registry = load_pallet_extrinsics(&get_mock_runtime_path(true))?;
+	#[tokio::test]
+	async fn load_pallet_extrinsics_works() -> Result<()> {
+		let temp_dir = tempdir()?;
+		let runtime_path = get_mock_runtime_path(true);
+		let binary = omni_bencher_generator(temp_dir.path(), None).await?;
+		binary.source(false, &(), true).await?;
+
+		let registry = load_pallet_extrinsics(&runtime_path, &binary.path()).await?;
 		assert_eq!(
 			registry.get("pallet_timestamp").cloned().unwrap_or_default(),
 			["on_finalize", "set"]
@@ -349,37 +395,38 @@ mod tests {
 		Ok(())
 	}
 
-	#[test]
-	fn search_pallets_works() -> Result<()> {
-		let runtime_path = get_mock_runtime_path(true);
-		let registry = load_pallet_extrinsics(&runtime_path)?;
+	#[tokio::test]
+	async fn search_pallets_works() -> Result<()> {
+		let registry = get_mock_registry();
 		[
-			("message", "pallet_message_queue"),
-			("timestamp", "pallet_timestamp"),
 			("balances", "pallet_balances"),
+			("timestamp", "pallet_timestamp"),
+			("system", "frame_system"),
 		]
 		.iter()
 		.for_each(|(input, pallet)| {
 			let pallets = search_for_pallets(&registry, &[], input, 5);
 			assert_eq!(pallets.first(), Some(&pallet.to_string()));
-			assert_eq!(pallets.len(), 5);
+			assert_eq!(pallets.len(), 3);
 		});
 
 		assert_ne!(
-			search_for_pallets(&registry, &["pallet_message_queue".to_string()], "message", 5)
+			search_for_pallets(&registry, &["pallet_timestamp".to_string()], "timestamp", 5)
 				.first(),
-			Some(&"pallet_message_queue".to_string())
+			Some(&"pallet_timestamp".to_string())
 		);
 		Ok(())
 	}
 
-	#[test]
-	fn search_extrinsics_works() -> Result<()> {
-		let runtime_path = get_mock_runtime_path(true);
-		let registry = load_pallet_extrinsics(&runtime_path)?;
-		let extrinsics =
-			search_for_extrinsics(&registry, &vec!["pallet_timestamp".to_string()], "", 5);
-		assert_eq!(extrinsics, vec!["on_finalize".to_string(), "set".to_string()]);
+	#[tokio::test]
+	async fn search_extrinsics_works() -> Result<()> {
+		let registry = get_mock_registry();
+		// Extrinsics are sorted alphabetically if there are no matches.
+		assert_eq!(
+			search_for_extrinsics(&registry, &vec!["pallet_timestamp".to_string()], "", 5),
+			vec!["on_finalize".to_string(), "set".to_string()]
+		);
+		// Sort by score if there are matches.
 		assert_eq!(
 			search_for_extrinsics(&registry, &vec!["pallet_timestamp".to_string()], "set", 5),
 			vec!["set".to_string(), "on_finalize".to_string()]
@@ -401,5 +448,20 @@ mod tests {
 			if with_runtime_benchmarks { "base_parachain_benchmark" } else { "base_parachain" }
 		);
 		std::env::current_dir().unwrap().join(binary_path).canonicalize().unwrap()
+	}
+
+	fn get_mock_registry() -> PalletExtrinsicsRegistry {
+		PalletExtrinsicsRegistry::from([
+			(
+				"pallet_balances".to_string(),
+				vec![
+					"transfer".to_string(),
+					"force_transfer".to_string(),
+					"set_balance".to_string(),
+				],
+			),
+			("pallet_timestamp".to_string(), vec!["on_finalize".to_string(), "set".to_string()]),
+			("frame_system".to_string(), vec!["set_code".to_string(), "remark".to_string()]),
+		])
 	}
 }
