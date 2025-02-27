@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use super::display_message;
-use crate::cli::{
-	self,
-	traits::{Confirm, Input, MultiSelect, Select},
+use crate::{
+	cli::{
+		self,
+		traits::{Confirm, Input, MultiSelect, Select},
+	},
+	common::bench::check_omni_bencher_and_prompt,
 };
 use clap::Args;
 use cliclack::spinner;
@@ -39,10 +42,14 @@ pub(crate) struct BenchmarkPalletArgs {
 	/// If this is set to true, no parameter menu pops up
 	#[arg(long = "skip")]
 	pub skip_menu: bool,
+
+	/// Automatically source the needed binary required without prompting for confirmation.
+	#[clap(short = 'y', long)]
+	pub skip_confirm: bool,
 }
 
 impl BenchmarkPalletArgs {
-	pub fn execute(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+	pub async fn execute(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		let cmd = &mut self.command;
 		if cmd.list.is_some() || cmd.json_output {
 			if let Err(e) = run_pallet_benchmarking(cmd) {
@@ -83,24 +90,24 @@ impl BenchmarkPalletArgs {
 		}
 		// No genesis builder, prompts user to select the genesis builder policy.
 		if cmd.genesis_builder.is_none() {
-			if let Err(e) = guide_user_to_configure_genesis(cmd, cli) {
+			if let Err(e) = update_configure_genesis(cmd, cli) {
 				return display_message(&e.to_string(), false, cli);
 			};
 		}
 		// No pallet provided, prompts user to select the pallets fetched from runtime.
 		if cmd.pallet.is_none() {
-			update_pallets(cmd, cli, &mut registry)?;
+			update_pallets(cmd, cli, &mut registry).await?;
 		}
 		// No extrinsic provided, prompts user to select the extrinsics fetched from runtime.
 		if cmd.extrinsic.is_none() {
-			update_extrinsics(cmd, cli, &mut registry)?;
+			update_extrinsics(cmd, cli, &mut registry).await?;
 		}
 
 		// Only prompt user to update parameters when `skip_menu` is not provided.
 		if !self.skip_menu {
 			loop {
 				let option = guide_user_to_select_menu_option(cmd, cli)?;
-				match option.update_arguments(cmd, &mut registry, cli) {
+				match option.update_arguments(cmd, &mut registry, cli).await {
 					Ok(true) => break,
 					Ok(false) => continue,
 					Err(e) => cli.info(e)?,
@@ -245,7 +252,7 @@ impl BenchmarkPalletMenuOption {
 	}
 
 	// Implementation to update the command argument when the menu option is selected.
-	fn update_arguments(
+	async fn update_arguments(
 		self,
 		cmd: &mut PalletCmd,
 		registry: &mut PalletExtrinsicsRegistry,
@@ -253,9 +260,9 @@ impl BenchmarkPalletMenuOption {
 	) -> anyhow::Result<bool> {
 		use BenchmarkPalletMenuOption::*;
 		match self {
-			Pallets => update_pallets(cmd, cli, registry)?,
-			Extrinsics => update_extrinsics(cmd, cli, registry)?,
-			ExcludedPallets => update_excluded_pallets(cmd, cli, registry)?,
+			Pallets => update_pallets(cmd, cli, registry).await?,
+			Extrinsics => update_extrinsics(cmd, cli, registry).await?,
+			ExcludedPallets => update_excluded_pallets(cmd, cli, registry).await?,
 			Runtime => cmd.runtime = Some(ensure_runtime_binary_exists(cli, &Profile::Release)?),
 			GenesisBuilderPolicy => update_genesis_builder_policy(cmd, cli).map(|_| ())?,
 			GenesisBuilderPreset => update_genesis_preset(cmd, cli)?,
@@ -365,39 +372,41 @@ impl BenchmarkPalletMenuOption {
 	}
 }
 
-fn fetch_pallet_registry(
+async fn fetch_pallet_registry(
+	cli: &mut impl cli::traits::Cli,
 	cmd: &PalletCmd,
 	registry: &mut PalletExtrinsicsRegistry,
 ) -> anyhow::Result<()> {
 	if registry.is_empty() {
-		let spinner = spinner();
-		spinner.start("Fetching pallets and extrinsics from your runtime...");
 		let runtime_path = get_runtime_argument(cmd)?;
-		log::set_max_level(LevelFilter::Off);
-		let loaded_registry = load_pallet_extrinsics(runtime_path)?;
-		log::set_max_level(LevelFilter::Info);
-		*registry = loaded_registry;
+		let binary_path = check_omni_bencher_and_prompt(cli, &crate::cache()?, true).await?;
+
+		let spinner = spinner();
+		spinner.start("Loading pallets and extrinsics from your runtime...");
+		let loaded_registry = load_pallet_extrinsics(runtime_path, binary_path.as_path()).await?;
 		spinner.clear();
+
+		*registry = loaded_registry;
 	}
 	Ok(())
 }
 
-fn update_pallets(
+async fn update_pallets(
 	cmd: &mut PalletCmd,
 	cli: &mut impl cli::traits::Cli,
 	registry: &mut PalletExtrinsicsRegistry,
 ) -> anyhow::Result<()> {
-	fetch_pallet_registry(cmd, registry)?;
+	fetch_pallet_registry(cli, cmd, registry).await?;
 	cmd.pallet = Some(guide_user_to_select_pallets(registry, &cmd.exclude_pallets, cli, true)?);
 	Ok(())
 }
 
-fn update_extrinsics(
+async fn update_extrinsics(
 	cmd: &mut PalletCmd,
 	cli: &mut impl cli::traits::Cli,
 	registry: &mut PalletExtrinsicsRegistry,
 ) -> anyhow::Result<()> {
-	fetch_pallet_registry(cmd, registry)?;
+	fetch_pallet_registry(cli, cmd, registry).await?;
 	// Not allow selecting extrinsics when multiple pallets are selected.
 	let pallet = cmd.pallet.as_deref().expect("No pallet provided");
 	let pallet_count = pallet.matches(",").count();
@@ -411,12 +420,12 @@ fn update_extrinsics(
 	Ok(())
 }
 
-fn update_excluded_pallets(
+async fn update_excluded_pallets(
 	cmd: &mut PalletCmd,
 	cli: &mut impl cli::traits::Cli,
 	registry: &mut PalletExtrinsicsRegistry,
 ) -> anyhow::Result<()> {
-	fetch_pallet_registry(cmd, registry)?;
+	fetch_pallet_registry(cli, cmd, registry).await?;
 	let pallets = guide_user_to_select_pallets(registry, &vec![], cli, false)?;
 	cmd.exclude_pallets =
 		pallets.split(',').filter(|s| !s.is_empty()).map(|s| s.to_string()).collect();
@@ -468,7 +477,7 @@ fn ensure_runtime_binary_exists(
 }
 
 fn guide_user_to_select_pallets(
-	registry: &PalletExtrinsicsRegistry,
+	registry: &mut PalletExtrinsicsRegistry,
 	excluded_pallets: &[String],
 	cli: &mut impl cli::traits::Cli,
 	required: bool,
@@ -495,7 +504,7 @@ fn guide_user_to_select_pallets(
 
 fn guide_user_to_select_extrinsics(
 	pallets: &Vec<String>,
-	registry: &PalletExtrinsicsRegistry,
+	registry: &mut PalletExtrinsicsRegistry,
 	cli: &mut impl cli::traits::Cli,
 ) -> anyhow::Result<String> {
 	// Prompt for extrinsic search input.
@@ -554,7 +563,7 @@ fn guide_user_to_input_runtime_path(cli: &mut impl cli::traits::Cli) -> anyhow::
 	input.canonicalize().map_err(anyhow::Error::from)
 }
 
-fn guide_user_to_configure_genesis(
+fn update_configure_genesis(
 	cmd: &mut PalletCmd,
 	cli: &mut impl cli::traits::Cli,
 ) -> anyhow::Result<()> {
@@ -676,8 +685,8 @@ mod tests {
 	use duct::cmd;
 	use tempfile::tempdir;
 
-	#[test]
-	fn benchmark_pallet_works() -> anyhow::Result<()> {
+	#[tokio::test]
+	async fn benchmark_pallet_works() -> anyhow::Result<()> {
 		let runtime_path = get_mock_runtime_path(true);
 		let mut cli = MockCli::new();
 		cli = expect_pallet_benchmarking_intro(cli);
@@ -695,8 +704,8 @@ mod tests {
 			"--extrinsic",
 			"",
 		])?;
-		let mut args = BenchmarkPalletArgs { command: cmd, skip_menu: true };
-		args.execute(&mut cli)?;
+		let mut args = BenchmarkPalletArgs { command: cmd, skip_menu: true, skip_confirm: false };
+		args.execute(&mut cli).await?;
 
 		// Verify the printed command.
 		let mut command_output = print_pallet_command(&args.command);
@@ -708,8 +717,8 @@ mod tests {
 		cli.verify()
 	}
 
-	#[test]
-	fn benchmark_pallet_with_chainspec_fails() -> anyhow::Result<()> {
+	#[tokio::test]
+	async fn benchmark_pallet_with_chainspec_fails() -> anyhow::Result<()> {
 		let spec = "path-to-chainspec";
 		let mut cli = MockCli::new();
 		cli = expect_pallet_benchmarking_intro(cli);
@@ -727,12 +736,14 @@ mod tests {
 			"--extrinsic",
 			"",
 		])?;
-		BenchmarkPalletArgs { command: cmd, skip_menu: true }.execute(&mut cli)?;
+		BenchmarkPalletArgs { command: cmd, skip_menu: true, skip_confirm: false }
+			.execute(&mut cli)
+			.await?;
 		cli.verify()
 	}
 
 	#[test]
-	fn benchmark_pallet_without_runtime_benchmarks_feature_fails() -> anyhow::Result<()> {
+	async fn benchmark_pallet_without_runtime_benchmarks_feature_fails() -> anyhow::Result<()> {
 		let mut cli = MockCli::new();
 		cli = expect_pallet_benchmarking_intro(cli);
 		cli = expect_select_genesis_policy(cli, 0);
@@ -752,12 +763,14 @@ mod tests {
 			"--extrinsic",
 			"",
 		])?;
-		BenchmarkPalletArgs { command: cmd, skip_menu: true }.execute(&mut cli)?;
+		BenchmarkPalletArgs { command: cmd, skip_menu: true, skip_confirm: false }
+			.execute(&mut cli)
+			.await?;
 		cli.verify()
 	}
 
 	#[test]
-	fn benchmark_pallet_fails_with_error() -> anyhow::Result<()> {
+	async fn benchmark_pallet_fails_with_error() -> anyhow::Result<()> {
 		let mut cli = MockCli::new();
 		cli = expect_pallet_benchmarking_intro(cli);
 		cli = expect_select_genesis_policy(cli, 0);
@@ -772,7 +785,9 @@ mod tests {
 			"--extrinsic",
 			"",
 		])?;
-		BenchmarkPalletArgs { command: cmd, skip_menu: true }.execute(&mut cli)?;
+		BenchmarkPalletArgs { command: cmd, skip_menu: true, skip_confirm: false }
+			.execute(&mut cli)
+			.await?;
 		cli.verify()
 	}
 
@@ -831,7 +846,7 @@ mod tests {
 	}
 
 	#[test]
-	fn guide_user_to_configure_genesis_works() -> anyhow::Result<()> {
+	fn update_configure_genesis_genesis_works() -> anyhow::Result<()> {
 		let runtime_path = get_mock_runtime_path(false);
 		let mut cli = MockCli::new();
 		cli = expect_select_genesis_policy(cli, 1);
@@ -846,7 +861,7 @@ mod tests {
 			"--extrinsic",
 			"",
 		])?;
-		guide_user_to_configure_genesis(&mut cmd, &mut cli)?;
+		update_configure_genesis_genesis(&mut cmd, &mut cli)?;
 		assert_eq!(cmd.genesis_builder, parse_genesis_builder_policy("runtime")?.genesis_builder);
 		assert_eq!(
 			cmd.genesis_builder_preset,
@@ -887,7 +902,8 @@ mod tests {
 	#[test]
 	fn guide_user_to_select_pallets_works() -> anyhow::Result<()> {
 		let runtime_path = get_mock_runtime_path(true);
-		let registry = load_pallet_extrinsics(&runtime_path)?;
+		let binary_path = check_omni_bencher_and_prompt(cli, &crate::cache()?, true)?;
+		let registry = load_pallet_extrinsics(&runtime_path, binary_path)?;
 		let prompt = r#"Search for pallets by name ("*" to select all)"#;
 
 		// Select all pallets.
@@ -921,7 +937,8 @@ mod tests {
 	#[test]
 	fn guide_user_to_select_extrinsics_works() -> anyhow::Result<()> {
 		let runtime_path = get_mock_runtime_path(true);
-		let registry = load_pallet_extrinsics(&runtime_path)?;
+		let binary_path = check_omni_bencher_and_prompt(cli, &crate::cache()?, true)?;
+		let registry = load_pallet_extrinsics(&runtime_path, binary_path)?;
 		let prompt = r#"Search for extrinsics by name ("*" to select all)"#;
 		let pallets = vec!["pallet_timestamp".to_string()];
 

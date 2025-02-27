@@ -31,7 +31,7 @@ async fn source_omni_bencher_binary(
 	cache_path: &Path,
 	skip_confirm: bool,
 ) -> anyhow::Result<PathBuf> {
-	let mut binary = omni_bencher_generator(PathBuf::from(cache_path), None).await?;
+	let mut binary = omni_bencher_generator(cache_path, None).await?;
 	let mut bencher_path = binary.path();
 	if !binary.exists() {
 		cli.warning("⚠️ The frame-omni-bencher binary is not found.")?;
@@ -77,7 +77,7 @@ async fn source_omni_bencher_binary(
 			let spinner = spinner();
 			spinner.start("📦 Sourcing frame-omni-bencher...");
 
-			binary = omni_bencher_generator(crate::cache()?, binary.latest()).await?;
+			binary = omni_bencher_generator(crate::cache()?.as_path(), binary.latest()).await?;
 			binary.source(false, &(), true).await?;
 			set_executable_permission(binary.path())?;
 

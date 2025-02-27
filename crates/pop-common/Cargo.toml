@@ -17,7 +17,6 @@ flate2.workspace = true
 git2.workspace = true
 git2_credentials.workspace = true
 ink_env.workspace = true
-nix.workspace = true
 regex.workspace = true
 reqwest.workspace = true
 scale-info.workspace = true
