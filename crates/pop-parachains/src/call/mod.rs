@@ -58,7 +58,7 @@ pub fn construct_proxy_extrinsic(
 	proxy_account: String,
 	xt: DynamicPayload,
 ) -> Result<DynamicPayload, Error> {
-	let proxy_function = find_dispatchable_by_name(&pallets, "Proxy", "proxy")?;
+	let proxy_function = find_dispatchable_by_name(pallets, "Proxy", "proxy")?;
 	// `find_dispatchable_by_name` doesn't support parsing parameters that are calls.
 	// Therefore, we only parse the first two parameters for the proxy call
 	// using `parse_dispatchable_arguments`, while the last parameter (which is the call)

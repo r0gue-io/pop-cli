@@ -39,7 +39,8 @@ pub struct UpChainCommand {
 	/// Websocket endpoint of the relay chain.
 	#[arg(long)]
 	pub(crate) relay_url: Option<Url>,
-	/// Proxy address for registration.
+	/// Proxy address for registration. Specify the address type, e.g.
+	/// `Id(5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty)`.
 	#[arg(long = "proxy")]
 	pub(crate) proxy_address: Option<String>,
 }
@@ -55,6 +56,7 @@ impl UpChainCommand {
 				return Ok(());
 			},
 		};
+		chain_config.display();
 		match chain_config.register_parachain(cli).await {
 			Ok(_) => cli.success("Chain deployed successfully")?,
 			Err(e) => cli.outro_cancel(format!("{}", e))?,
@@ -163,6 +165,18 @@ impl UpChain {
 			xt = construct_proxy_extrinsic(&chain.pallets, addr.to_string(), xt)?;
 		}
 		Ok(xt.encode_call_data(&chain.client.metadata())?)
+	}
+
+	fn display(&self) -> String {
+		let mut full_message = "pop up".to_string();
+		full_message.push_str(&format!(" --id {}", self.id));
+		full_message.push_str(&format!(" --genesis-state {}", self.genesis_state.display()));
+		full_message.push_str(&format!(" --genesis-code {}", self.genesis_code.display()));
+		full_message.push_str(&format!(" --relay-url {}", self.chain.url));
+		if let ProxyConfig::Address(addr) = &self.proxy {
+			full_message.push_str(&format!(" --proxy {}", addr));
+		}
+		full_message
 	}
 }
 
@@ -490,6 +504,44 @@ mod tests {
 		// Reference: https://polkadot.js.org/apps/?rpc=wss%3A%2F%2Fpolkadot.public.curie.radiumblock.co%2Fws#/extrinsics/decode/0x1d000073ebf9c947490b9170ea4fd3031ae039452e428531317f76bf0a02124f8166de004600d0070000081234081234
 		let encoded_reserve_extrinsic: &str = "0x1d000073ebf9c947490b9170ea4fd3031ae039452e428531317f76bf0a02124f8166de004600d0070000081234081234";
 		assert_eq!(call_data, decode_call_data(encoded_reserve_extrinsic)?);
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn display_works() -> Result<()> {
+		let mut cli = MockCli::new();
+		let chain = configure_chain(
+			"Enter the relay chain node URL to deploy your parachain",
+			DEFAULT_URL,
+			&Some(Url::parse(POLKADOT_NETWORK_URL)?),
+			&mut cli,
+		)
+		.await?;
+		// Create a temporary files to act as genesis_state and genesis_code files.
+		let temp_dir = tempdir()?;
+		let genesis_state_path = temp_dir.path().join("genesis_state");
+		let genesis_code_path = temp_dir.path().join("genesis_code.wasm");
+
+		let up_chain = UpChain {
+			id: 2000,
+			genesis_state: genesis_state_path,
+			genesis_code: genesis_code_path,
+			chain,
+			proxy: ProxyConfig::Address(
+				"Id(13czcAAt6xgLwZ8k6ZpkrRL5V2pjKEui3v9gHAN9PoxYZDbf)".to_string(),
+			),
+		};
+		assert_eq!(
+			up_chain.display(),
+			format!(
+				"pop up --id {} --genesis-state {} --genesis-code {} --relay-url {} --proxy {}",
+				up_chain.id,
+				up_chain.genesis_state.display(),
+				up_chain.genesis_code.display(),
+				up_chain.chain.url,
+				"Id(13czcAAt6xgLwZ8k6ZpkrRL5V2pjKEui3v9gHAN9PoxYZDbf)"
+			)
+		);
 		Ok(())
 	}
 
