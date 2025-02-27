@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0
+
 use anyhow::Result;
 use clap::Parser;
 use frame_benchmarking_cli::PalletCmd;
@@ -9,16 +11,17 @@ use std::{
 	collections::HashMap,
 	env::current_dir,
 	fs,
+	fs::File,
 	path::{Path, PathBuf},
+	process::{Command, Stdio},
 };
 
-/// Constant variables used for benchmarking.
-pub mod constants {
-	/// Do not provide any genesis state.
-	pub const GENESIS_BUILDER_NO_POLICY: &str = "none";
-	/// Let the runtime build the genesis state through its `BuildGenesisConfig` runtime API.
-	pub const GENESIS_BUILDER_RUNTIME_POLICY: &str = "runtime";
-}
+pub mod binary;
+
+/// Do not provide any genesis state.
+pub const GENESIS_BUILDER_NO_POLICY: &str = "none";
+/// Let the runtime build the genesis state through its `BuildGenesisConfig` runtime API.
+pub const GENESIS_BUILDER_RUNTIME_POLICY: &str = "runtime";
 
 type HostFunctions = (
 	sp_statement_store::runtime_api::HostFunctions,
@@ -69,8 +72,6 @@ pub fn load_pallet_extrinsics(runtime_path: &Path) -> anyhow::Result<PalletExtri
 			.map_err(|e| anyhow::anyhow!(format!("Failed to list pallets: {}", e.to_string())))?;
 		Ok(())
 	})?;
-
-	println!("output: {:?}", output);
 
 	// Process the captured output and return the pallet extrinsics registry.
 	let mut registry = PalletExtrinsicsRegistry::new();
@@ -184,7 +185,7 @@ pub fn print_pallet_command(cmd: &PalletCmd) -> String {
 		let builder_str = serde_json::to_string(genesis_builder).unwrap().to_lowercase();
 		args.push(format!("--genesis-builder={}", builder_str));
 
-		if builder_str == constants::GENESIS_BUILDER_RUNTIME_POLICY {
+		if builder_str == GENESIS_BUILDER_RUNTIME_POLICY {
 			args.push(format!("--genesis-builder-preset={}", cmd.genesis_builder_preset));
 		}
 	}
@@ -218,13 +219,33 @@ pub fn parse_genesis_builder_policy(policy: &str) -> anyhow::Result<PalletCmd> {
 	})
 }
 
-/// Run command for pallet benchmarking.
+/// Run command for pallet benchmarking using `frame-benchmarking-cli` directly.
 ///
 /// # Arguments
 /// * `cmd` - Command to benchmark the FRAME Pallets.
 pub fn run_pallet_benchmarking(cmd: &PalletCmd) -> Result<()> {
 	cmd.run_with_spec::<BlakeTwo256, HostFunctions>(None)
 		.map_err(|e| anyhow::anyhow!(format!("Failed to run benchmarking: {}", e.to_string())))
+}
+
+// Run command for benchmarking with a provided binary.
+async fn run_benchmarking_with_binary(
+	binary_path: PathBuf,
+	output: Option<&File>,
+	args: &[&str],
+) -> anyhow::Result<Vec<u8>> {
+	let mut command = Command::new(binary_path);
+	for arg in args.iter() {
+		command.arg(arg);
+	}
+	if let Some(output) = output {
+		command.stdout(Stdio::from(output.try_clone()?));
+		command.stderr(Stdio::from(output.try_clone()?));
+	}
+
+	let process = command.spawn()?;
+	let output = process.wait_with_output()?;
+	Ok(output.stdout)
 }
 
 /// Performs a fuzzy search for pallets that match the provided input.

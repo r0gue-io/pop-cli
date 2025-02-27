@@ -2390,7 +2390,7 @@ dependencies = [
  "wasm-encoder",
  "wasm-opt",
  "wasmparser 0.220.0",
- "which",
+ "which 7.0.0",
  "zip",
 ]
 
@@ -11897,6 +11897,7 @@ dependencies = [
  "tokio",
  "tower-http 0.6.2",
  "url",
+ "which 4.4.2",
 ]
 
 [[package]]
@@ -20182,6 +20183,18 @@ dependencies = [
  "sp-weights",
  "staging-xcm 14.2.0",
  "staging-xcm-builder",
+]
+
+[[package]]
+name = "which"
+version = "4.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "87ba24419a2078cd2b0f2ede2691b6c66d8e47836da3b6db8265ebad47afbfc7"
+dependencies = [
+ "either",
+ "home",
+ "once_cell",
+ "rustix 0.38.42",
 ]
 
 [[package]]

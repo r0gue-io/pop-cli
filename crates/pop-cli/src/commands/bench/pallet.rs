@@ -11,10 +11,11 @@ use frame_benchmarking_cli::PalletCmd;
 use log::LevelFilter;
 use pop_common::{manifest::from_path, Profile};
 use pop_parachains::{
-	build_project, constants::*, get_preset_names, get_relative_runtime_path, get_runtime_path,
+	build_project, get_preset_names, get_relative_runtime_path, get_runtime_path,
 	get_serialized_genesis_builder, load_pallet_extrinsics, parse_genesis_builder_policy,
 	print_pallet_command, run_pallet_benchmarking, runtime_binary_path, search_for_extrinsics,
-	search_for_pallets, PalletExtrinsicsRegistry,
+	search_for_pallets, PalletExtrinsicsRegistry, GENESIS_BUILDER_NO_POLICY,
+	GENESIS_BUILDER_RUNTIME_POLICY,
 };
 use std::{
 	collections::HashMap,
