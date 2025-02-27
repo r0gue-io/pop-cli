@@ -16,9 +16,9 @@ use strum_macros::EnumProperty;
 #[derive(Debug, EnumProperty, PartialEq)]
 pub(super) enum BenchmarkingCli {
 	#[strum(props(
-		Repository = "https://github.com/chungquantin/polkadot-runtimes",
+		Repository = "https://github.com/AlexD10S/polkadot-test",
 		Binary = "frame-omni-bencher",
-		Fallback = "v1.3.3"
+		Fallback = "polkadot-stable2412"
 	))]
 	OmniBencher,
 }
@@ -79,12 +79,12 @@ mod tests {
 	#[tokio::test]
 	async fn omni_bencher_generator_works() -> Result<(), Error> {
 		let temp_dir = tempdir()?;
-		let version = "v1.3.3";
+		let version = "polkadot-stable2412";
 		let binary = omni_bencher_generator(temp_dir.path(), None).await?;
 		assert!(matches!(binary, Binary::Source { name: _, source, cache }
 				if source == Source::GitHub(ReleaseArchive {
-					owner: "chungquantin".to_string(),
-					repository: "polkadot-runtimes".to_string(),
+					owner: "AlexD10S".to_string(),
+					repository: "polkadot-test".to_string(),
 					tag: Some(version.to_string()),
 					tag_format: None,
 					archive: format!("frame-omni-bencher-{}.tar.gz", target()?),

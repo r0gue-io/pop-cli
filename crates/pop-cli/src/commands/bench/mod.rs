@@ -5,13 +5,13 @@ use crate::{
 	common::prompt::display_message,
 };
 use clap::{Args, Subcommand};
-use pallet::BenchmarkPalletArgs;
+use pallet::BenchmarkPallet;
 
 mod pallet;
 
 /// Arguments for benchmarking a project.
 #[derive(Args)]
-#[command(args_conflicts_with_subcommands = true, ignore_errors = true)]
+#[command(args_conflicts_with_subcommands = true)]
 pub struct BenchmarkArgs {
 	#[command(subcommand)]
 	pub command: Command,
@@ -21,8 +21,8 @@ pub struct BenchmarkArgs {
 #[derive(Subcommand)]
 pub enum Command {
 	/// Benchmark the extrinsic weight of FRAME Pallets
-	#[clap(alias = "p", disable_help_flag = true)]
-	Pallet(BenchmarkPalletArgs),
+	#[clap(alias = "p")]
+	Pallet(BenchmarkPallet),
 }
 
 impl Command {
@@ -30,7 +30,7 @@ impl Command {
 	pub(crate) async fn execute(args: BenchmarkArgs) -> anyhow::Result<()> {
 		let mut cli = cli::Cli;
 		match args.command {
-			Command::Pallet(mut sub_args) => sub_args.execute(&mut cli).await,
+			Command::Pallet(mut cmd) => cmd.execute(&mut cli).await,
 		}
 	}
 }
