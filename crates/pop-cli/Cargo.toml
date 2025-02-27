@@ -16,7 +16,6 @@ path = "src/main.rs"
 anyhow.workspace = true
 duct.workspace = true
 env_logger.workspace = true
-log.workspace = true
 os_info.workspace = true
 reqwest.workspace = true
 serde = { workspace = true, features = ["derive"] }

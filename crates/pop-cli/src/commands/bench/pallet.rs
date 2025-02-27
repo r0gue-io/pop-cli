@@ -11,7 +11,6 @@ use crate::{
 use clap::Args;
 use cliclack::spinner;
 use frame_benchmarking_cli::PalletCmd;
-use log::LevelFilter;
 use pop_common::{manifest::from_path, Profile};
 use pop_parachains::{
 	build_project, get_preset_names, get_relative_runtime_path, get_runtime_path,
@@ -90,7 +89,7 @@ impl BenchmarkPalletArgs {
 		}
 		// No genesis builder, prompts user to select the genesis builder policy.
 		if cmd.genesis_builder.is_none() {
-			if let Err(e) = update_configure_genesis(cmd, cli) {
+			if let Err(e) = update_genesis_builder(cmd, cli) {
 				return display_message(&e.to_string(), false, cli);
 			};
 		}
@@ -477,7 +476,7 @@ fn ensure_runtime_binary_exists(
 }
 
 fn guide_user_to_select_pallets(
-	registry: &mut PalletExtrinsicsRegistry,
+	registry: &PalletExtrinsicsRegistry,
 	excluded_pallets: &[String],
 	cli: &mut impl cli::traits::Cli,
 	required: bool,
@@ -504,7 +503,7 @@ fn guide_user_to_select_pallets(
 
 fn guide_user_to_select_extrinsics(
 	pallets: &Vec<String>,
-	registry: &mut PalletExtrinsicsRegistry,
+	registry: &PalletExtrinsicsRegistry,
 	cli: &mut impl cli::traits::Cli,
 ) -> anyhow::Result<String> {
 	// Prompt for extrinsic search input.
@@ -560,7 +559,7 @@ fn guide_user_to_input_runtime_path(cli: &mut impl cli::traits::Cli) -> anyhow::
 	input.canonicalize().map_err(anyhow::Error::from)
 }
 
-fn update_configure_genesis(
+fn update_genesis_builder(
 	cmd: &mut PalletCmd,
 	cli: &mut impl cli::traits::Cli,
 ) -> anyhow::Result<()> {
@@ -688,9 +687,9 @@ mod tests {
 		let mut cli = MockCli::new();
 		cli = expect_pallet_benchmarking_intro(cli);
 		cli = expect_select_genesis_policy(cli, 1);
-		cli = expect_select_genesis_preset(cli, &runtime_path, 0);
-		cli = cli.expect_warning("NOTE: this may take some time...");
-		cli = cli.expect_info("Benchmarking extrinsic weights of selected pallets...");
+		cli = expect_select_genesis_preset(cli, &runtime_path, 0)
+			.expect_warning("NOTE: this may take some time...")
+			.expect_info("Benchmarking extrinsic weights of selected pallets...");
 
 		let cmd = PalletCmd::try_parse_from(&[
 			"",
@@ -709,7 +708,7 @@ mod tests {
 		command_output.push_str(" --skip");
 		cli = cli.expect_info(command_output);
 		cli = cli.expect_outro("Benchmark completed successfully!");
-		args.execute(&mut cli)?;
+		args.execute(&mut cli).await?;
 
 		cli.verify()
 	}
@@ -718,8 +717,7 @@ mod tests {
 	async fn benchmark_pallet_with_chainspec_fails() -> anyhow::Result<()> {
 		let spec = "path-to-chainspec";
 		let mut cli = MockCli::new();
-		cli = expect_pallet_benchmarking_intro(cli);
-		cli = cli.expect_outro_cancel(format!(
+		cli = expect_pallet_benchmarking_intro(cli).expect_outro_cancel(format!(
 			"Chain specs are not supported. Please remove `--chain={spec}` \
 			        and use `--runtime=<PATH>` instead"
 		));
@@ -739,7 +737,7 @@ mod tests {
 		cli.verify()
 	}
 
-	#[test]
+	#[tokio::test]
 	async fn benchmark_pallet_without_runtime_benchmarks_feature_fails() -> anyhow::Result<()> {
 		let mut cli = MockCli::new();
 		cli = expect_pallet_benchmarking_intro(cli);
@@ -766,7 +764,7 @@ mod tests {
 		cli.verify()
 	}
 
-	#[test]
+	#[tokio::test]
 	async fn benchmark_pallet_fails_with_error() -> anyhow::Result<()> {
 		let mut cli = MockCli::new();
 		cli = expect_pallet_benchmarking_intro(cli);
@@ -843,7 +841,7 @@ mod tests {
 	}
 
 	#[test]
-	fn update_configure_genesis_genesis_works() -> anyhow::Result<()> {
+	fn update_configure_genesis_works() -> anyhow::Result<()> {
 		let runtime_path = get_mock_runtime_path(false);
 		let mut cli = MockCli::new();
 		cli = expect_select_genesis_policy(cli, 1);
@@ -858,7 +856,7 @@ mod tests {
 			"--extrinsic",
 			"",
 		])?;
-		update_configure_genesis_genesis(&mut cmd, &mut cli)?;
+		update_genesis_builder(&mut cmd, &mut cli)?;
 		assert_eq!(cmd.genesis_builder, parse_genesis_builder_policy("runtime")?.genesis_builder);
 		assert_eq!(
 			cmd.genesis_builder_preset,
@@ -896,11 +894,12 @@ mod tests {
 		cli.verify()
 	}
 
-	#[test]
-	fn guide_user_to_select_pallets_works() -> anyhow::Result<()> {
+	#[tokio::test]
+	async fn guide_user_to_select_pallets_works() -> anyhow::Result<()> {
+		let mut cli = MockCli::new();
 		let runtime_path = get_mock_runtime_path(true);
-		let binary_path = check_omni_bencher_and_prompt(cli, &crate::cache()?, true)?;
-		let registry = load_pallet_extrinsics(&runtime_path, binary_path)?;
+		let binary_path = check_omni_bencher_and_prompt(&mut cli, &crate::cache()?, true).await?;
+		let registry = load_pallet_extrinsics(&runtime_path, binary_path.as_path()).await?;
 		let prompt = r#"Search for pallets by name ("*" to select all)"#;
 
 		// Select all pallets.
@@ -931,11 +930,12 @@ mod tests {
 		cli.verify()
 	}
 
-	#[test]
-	fn guide_user_to_select_extrinsics_works() -> anyhow::Result<()> {
+	#[tokio::test]
+	async fn guide_user_to_select_extrinsics_works() -> anyhow::Result<()> {
+		let mut cli = MockCli::new();
 		let runtime_path = get_mock_runtime_path(true);
-		let binary_path = check_omni_bencher_and_prompt(cli, &crate::cache()?, true)?;
-		let registry = load_pallet_extrinsics(&runtime_path, binary_path)?;
+		let binary_path = check_omni_bencher_and_prompt(&mut cli, &crate::cache()?, true).await?;
+		let registry = load_pallet_extrinsics(&runtime_path, binary_path.as_path()).await?;
 		let prompt = r#"Search for extrinsics by name ("*" to select all)"#;
 		let pallets = vec!["pallet_timestamp".to_string()];
 
