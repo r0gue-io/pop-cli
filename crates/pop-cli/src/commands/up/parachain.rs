@@ -304,7 +304,10 @@ mod tests {
 		);
 		cli.verify()?;
 
-		cli = MockCli::new().expect_confirm("Do you want to use a proxy for registration?", false);
+		cli = MockCli::new().expect_confirm(
+			"Would you like to use a proxy for registration? This is considered a best practice.",
+			false,
+		);
 		let proxy_address = UpChainCommand::default().resolve_proxy_address(&chain, &mut cli)?;
 		assert_eq!(proxy_address, ProxyConfig::None);
 		cli.verify()?;
