@@ -531,8 +531,6 @@ fn guide_user_to_select_runtime_path(
 	target_path: &Path,
 	cli: &mut impl cli::traits::Cli,
 ) -> anyhow::Result<PathBuf> {
-	println!("target_path: {}", target_path.display());
-
 	let mut project_path = get_runtime_path(target_path).or_else(|_| {
 		cli.warning(format!(
 			"No runtime folder found at {}. Please input the runtime path manually.",
@@ -541,7 +539,6 @@ fn guide_user_to_select_runtime_path(
 		guide_user_to_input_runtime_path(cli)
 	})?;
 
-	println!("{}", project_path.display());
 	// If there is no TOML file exist, list all directories in the "runtime" folder and prompt the
 	// user to select a runtime.
 	if project_path.is_dir() && !project_path.join("Cargo.toml").exists() {
