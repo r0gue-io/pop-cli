@@ -85,7 +85,7 @@ impl UpChainCommand {
 		if let Some(addr) = &self.proxy_address {
 			return Ok(ProxyConfig::Address(addr.clone()));
 		}
-		if cli.confirm("Do you want to use a proxy for registration?").interact()? {
+		if cli.confirm("Would you like to use a proxy for registration? This is considered a best practice.").interact()? {
 			let proxy = find_dispatchable_by_name(&chain.pallets, "Proxy", "proxy")?;
 			let address = prompt_for_param(cli, &proxy.params[0])?;
 			Ok(ProxyConfig::Address(address))
@@ -280,7 +280,7 @@ mod tests {
 	#[tokio::test]
 	async fn resolve_proxy_address_works() -> Result<()> {
 		let mut cli = MockCli::new()
-			.expect_confirm("Do you want to use a proxy for registration?", true)
+			.expect_confirm("Would you like to use a proxy for registration? This is considered a best practice.", true)
 			.expect_select(
 				"Select the value for the parameter: real",
 				Some(true),
