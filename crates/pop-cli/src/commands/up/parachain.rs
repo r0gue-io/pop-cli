@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{
-	build::spec::BuildSpecCommand,
+	build::spec::{BuildSpecCommand, CodePathBuf, StatePathBuf},
 	cli::traits::*,
 	common::{
 		chain::{configure_chain, Chain},
@@ -30,10 +30,10 @@ pub struct UpChainCommand {
 	pub(crate) id: Option<u32>,
 	/// Path to the genesis state file. If not specified, it will be generated.
 	#[arg(short = 'G', long = "genesis-state")]
-	pub(crate) genesis_state: Option<PathBuf>,
+	pub(crate) genesis_state: Option<StatePathBuf>,
 	/// Path to the genesis code file.  If not specified, it will be generated.
 	#[arg(short = 'C', long = "genesis-code")]
-	pub(crate) genesis_code: Option<PathBuf>,
+	pub(crate) genesis_code: Option<CodePathBuf>,
 	/// Websocket endpoint of the relay chain.
 	#[arg(long)]
 	pub(crate) relay_url: Option<Url>,
@@ -67,7 +67,7 @@ impl UpChainCommand {
 		)
 		.await?;
 		let para_id = self.resolve_parachain_id(&chain, cli).await?;
-		let (genesis_state, genesis_code) = self.resolve_genesis_files(para_id, cli).await?;
+		let (genesis_code, genesis_state) = self.resolve_genesis_files(para_id, cli).await?;
 		Ok(UpChain { id: para_id, genesis_state, genesis_code, chain })
 	}
 
@@ -86,9 +86,9 @@ impl UpChainCommand {
 		&self,
 		para_id: u32,
 		cli: &mut impl Cli,
-	) -> Result<(PathBuf, PathBuf)> {
-		match (&self.genesis_state, &self.genesis_code) {
-			(Some(state), Some(code)) => Ok((state.clone(), code.clone())),
+	) -> Result<(CodePathBuf, StatePathBuf)> {
+		match (&self.genesis_code, &self.genesis_state) {
+			(Some(code), Some(state)) => Ok((code.clone(), state.clone())),
 			_ => {
 				cli.info("Generating the chain spec for your parachain")?;
 				generate_spec_files(para_id, self.path.as_deref(), cli).await
@@ -159,7 +159,7 @@ async fn generate_spec_files(
 	id: u32,
 	path: Option<&Path>,
 	cli: &mut impl Cli,
-) -> anyhow::Result<(PathBuf, PathBuf)> {
+) -> anyhow::Result<(CodePathBuf, StatePathBuf)> {
 	// Changes the working directory if a path is provided to ensure the build spec process runs in
 	// the correct context.
 	if let Some(path) = path {
@@ -173,7 +173,13 @@ async fn generate_spec_files(
 	}
 	.configure_build_spec(cli)
 	.await?;
-	build_spec.generate_genesis_artifacts(cli)
+
+	let (genesis_code_file, genesis_state_file) = build_spec.build(cli)?;
+	Ok((
+		genesis_code_file.ok_or_else(|| anyhow::anyhow!("Failed to generate the genesis code."))?,
+		genesis_state_file
+			.ok_or_else(|| anyhow::anyhow!("Failed to generate the genesis state file."))?,
+	))
 }
 
 #[cfg(test)]
