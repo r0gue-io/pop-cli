@@ -246,7 +246,9 @@ mod tests {
 			id: Some(2000),
 			genesis_state: Some(genesis_state.clone()),
 			genesis_code: Some(genesis_code.clone()),
-			proxied_address: Some("Id(13czcAAt6xgLwZ8k6ZpkrRL5V2pjKEui3v9gHAN9PoxYZDbf)".to_string()),
+			proxied_address: Some(
+				"Id(13czcAAt6xgLwZ8k6ZpkrRL5V2pjKEui3v9gHAN9PoxYZDbf)".to_string(),
+			),
 			..Default::default()
 		}
 		.prepare_chain_for_registration(&mut cli)
@@ -297,7 +299,8 @@ mod tests {
 			&mut cli,
 		)
 		.await?;
-		let proxied_address = UpChainCommand::default().resolve_proxied_address(&chain, &mut cli)?;
+		let proxied_address =
+			UpChainCommand::default().resolve_proxied_address(&chain, &mut cli)?;
 		assert_eq!(
 			proxied_address,
 			ProxyConfig::Address(
@@ -310,13 +313,16 @@ mod tests {
 			"Would you like to use a proxy for registration? This is considered a best practice.",
 			false,
 		);
-		let proxied_address = UpChainCommand::default().resolve_proxied_address(&chain, &mut cli)?;
+		let proxied_address =
+			UpChainCommand::default().resolve_proxied_address(&chain, &mut cli)?;
 		assert_eq!(proxied_address, ProxyConfig::None);
 		cli.verify()?;
 
 		cli = MockCli::new();
 		let proxied_address = UpChainCommand {
-			proxied_address: Some("Id(5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty)".to_string()),
+			proxied_address: Some(
+				"Id(5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty)".to_string(),
+			),
 			..Default::default()
 		}
 		.resolve_proxied_address(&chain, &mut cli)?;
