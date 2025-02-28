@@ -1,5 +1,5 @@
 FROM rust as builder
-RUN apt-get update && apt-get -y install cmake
+RUN apt-get update && apt-get -y install cmake && apt-get install protobuf-compiler
 WORKDIR /pop
 COPY . /pop
 RUN rustup show active-toolchain || rustup toolchain install
