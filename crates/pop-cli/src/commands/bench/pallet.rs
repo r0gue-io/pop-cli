@@ -6,15 +6,15 @@ use crate::{
 		self,
 		traits::{Confirm, Input, MultiSelect, Select},
 	},
-	common::bench::check_omni_bencher_and_prompt,
+	common::bench::{check_omni_bencher_and_prompt, get_relative_path},
 };
 use clap::Args;
 use cliclack::spinner;
 use pop_common::{manifest::from_path, Profile};
 use pop_parachains::{
-	build_project, generate_benchmarks, get_preset_names, get_relative_runtime_path,
-	get_runtime_path, load_pallet_extrinsics, runtime_binary_path, search_for_extrinsics,
-	search_for_pallets, GenesisBuilderPolicy, PalletExtrinsicsRegistry, GENESIS_BUILDER_DEV_PRESET,
+	build_project, generate_benchmarks, get_preset_names, get_runtime_path, load_pallet_extrinsics,
+	runtime_binary_path, search_for_extrinsics, search_for_pallets, GenesisBuilderPolicy,
+	PalletExtrinsicsRegistry, GENESIS_BUILDER_DEV_PRESET,
 };
 use std::{
 	collections::HashMap,
@@ -30,7 +30,7 @@ const ALL_SELECTED: &str = "*";
 const MAX_EXTRINSIC_LIMIT: usize = 15;
 const MAX_PALLET_LIMIT: usize = 20;
 
-#[derive(Args, Default)]
+#[derive(Args)]
 pub(crate) struct BenchmarkPallet {
 	/// Select a FRAME Pallet to benchmark, or `*` for all (in which case `extrinsic` must be `*`).
 	#[arg(short, long, value_parser = parse_pallet_name, default_value_if("all", "true", Some("*".into())))]
@@ -192,6 +192,45 @@ pub(crate) struct BenchmarkPallet {
 	skip_confirm: bool,
 }
 
+impl Default for BenchmarkPallet {
+	fn default() -> Self {
+		Self {
+			pallet: None,
+			extrinsic: None,
+			exclude_pallets: vec![],
+			all: false,
+			steps: 50,
+			lowest_range_values: vec![],
+			highest_range_values: vec![],
+			repeat: 20,
+			external_repeat: 1,
+			json_output: false,
+			json_file: None,
+			no_median_slopes: false,
+			no_min_squares: false,
+			output: None,
+			template: None,
+			output_analysis: None,
+			output_pov_analysis: Some("median-slopes".to_string()),
+			heap_pages: None,
+			no_verify: false,
+			extra: false,
+			runtime: None,
+			allow_missing_host_functions: false,
+			genesis_builder: None,
+			genesis_builder_preset: GENESIS_BUILDER_DEV_PRESET.to_string(),
+			database_cache_size: 1024,
+			list: false,
+			no_storage_info: false,
+			worst_case_map_values: 1000000,
+			additional_trie_layers: 2,
+			disable_proof_recording: false,
+			skip_menu: false,
+			skip_confirm: false,
+		}
+	}
+}
+
 impl BenchmarkPallet {
 	pub async fn execute(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		if self.list || self.json_output {
@@ -249,6 +288,9 @@ impl BenchmarkPallet {
 				}
 			}
 		}
+
+		// Prompt user to update output path of the benchmarking results.
+		self.update_output(cli)?;
 
 		cli.warning("NOTE: this may take some time...")?;
 		cli.info("Benchmarking extrinsic weights of selected pallets...")?;
@@ -344,7 +386,8 @@ impl BenchmarkPallet {
 			args.push("--no-storage-info".to_string());
 		}
 		if let Some(ref output) = self.output {
-			args.push(format!("--output={}", output.display()));
+			let relative_output_path = get_relative_path(output.as_path());
+			args.push(format!("--output={}", relative_output_path));
 		}
 		if let Some(ref template) = self.template {
 			args.push(format!("--template={}", template.display()));
@@ -410,9 +453,13 @@ impl BenchmarkPallet {
 		let pallet = guide_user_to_select_pallet(registry, &self.exclude_pallets, cli)?;
 		self.pallet = Some(pallet);
 
-		// Reset the extrinsic to "*" when the pallet is changed.
-		if self.pallet != current_pallet {
-			self.extrinsic = Some(ALL_SELECTED.to_string());
+		if self.pallet != Some(ALL_SELECTED.to_string()) {
+			// Reset the extrinsic to "*" when the pallet is changed.
+			if self.pallet != current_pallet && self.extrinsic.is_some() {
+				self.extrinsic = Some(ALL_SELECTED.to_string());
+			}
+		} else {
+			self.extrinsic = Some(ALL_SELECTED.to_string())
 		}
 		Ok(())
 	}
@@ -424,10 +471,10 @@ impl BenchmarkPallet {
 	) -> anyhow::Result<()> {
 		self.ensure_pallet_registry(cli, registry).await?;
 		// Not allow selecting extrinsics when multiple pallets are selected.
-		let pallet_count = self.pallet()?.matches(",").count();
-		self.extrinsic = Some(match pallet_count {
-			0 => guide_user_to_select_extrinsics(self.pallet()?, registry, cli)?,
-			_ => ALL_SELECTED.to_string(),
+		let pallet = self.pallet()?;
+		self.extrinsic = Some(match pallet.clone() {
+			s if s == ALL_SELECTED.to_string() => ALL_SELECTED.to_string(),
+			_ => guide_user_to_select_extrinsics(pallet, registry, cli)?,
 		});
 		Ok(())
 	}
@@ -449,6 +496,13 @@ impl BenchmarkPallet {
 			self.runtime()?,
 			&self.genesis_builder_preset,
 		)?;
+		Ok(())
+	}
+
+	fn update_output(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+		let output = self.output.as_ref();
+		let input = guide_user_to_input_output_path(cli, output)?;
+		self.output = if !input.to_str().unwrap().is_empty() { Some(input) } else { None };
 		Ok(())
 	}
 
@@ -543,7 +597,7 @@ enum BenchmarkPalletMenuOption {
 	/// Don't print the min-squares linear regression analysis
 	#[strum(message = "No min square")]
 	NoMinSquare,
-	///  If enabled, the storage info is not displayed in the output next to the analysis
+	/// If enabled, the storage info is not displayed in the output next to the analysis
 	#[strum(message = "No storage info")]
 	NoStorageInfo,
 	#[strum(message = "> Save all parameter changes and continue")]
@@ -598,7 +652,7 @@ impl BenchmarkPalletMenuOption {
 				} else {
 					cmd.exclude_pallets.join(",")
 				},
-			Runtime => get_relative_runtime_path(cmd.runtime()?),
+			Runtime => get_relative_path(cmd.runtime()?),
 			GenesisBuilder => cmd.genesis_builder.unwrap_or(GenesisBuilderPolicy::None).to_string(),
 			GenesisBuilderPreset => cmd.genesis_builder_preset.clone(),
 			Steps => cmd.steps.to_string(),
@@ -656,7 +710,7 @@ impl BenchmarkPalletMenuOption {
 		let default_value = self.read_command(cmd)?;
 		let prompt_message = format!(
 			r#"Provide value to the parameter "{}""#,
-			self.get_message().unwrap_or_default()
+			self.get_message().unwrap_or_default(),
 		);
 		cli.input(prompt_message)
 			.required(is_required)
@@ -950,6 +1004,21 @@ async fn guide_user_to_select_menu_option(
 	Ok(prompt.interact()?)
 }
 
+fn guide_user_to_input_output_path(
+	cli: &mut impl cli::traits::Cli,
+	default_value: Option<&PathBuf>,
+) -> anyhow::Result<PathBuf> {
+	let output = default_value.map(|o| o.to_str().unwrap()).unwrap_or_else(|| "./weights.rs");
+	let input = cli
+		.input("Provide the output file path for benchmark results (optional).")
+		.required(false)
+		.placeholder(output)
+		.interact()
+		.map(PathBuf::from)
+		.map_err(anyhow::Error::from)?;
+	Ok(input)
+}
+
 fn is_selected_all(s: &String) -> bool {
 	s == &ALL_SELECTED.to_string() || s.is_empty()
 }
@@ -963,18 +1032,34 @@ fn parse_pallet_name(pallet: &str) -> std::result::Result<String, String> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::cli::MockCli;
+	use crate::{cli::MockCli, common::bench::source_omni_bencher_binary};
 	use anyhow::Ok;
 	use duct::cmd;
 	use tempfile::tempdir;
 
 	#[tokio::test]
 	async fn benchmark_pallet_works() -> anyhow::Result<()> {
-		let runtime_path = get_mock_runtime(true);
 		let mut cli = MockCli::new();
+
+		let cwd = current_dir().unwrap_or(PathBuf::from("./"));
+		let runtime_path = get_mock_runtime(true);
+		let binary_path =
+			source_omni_bencher_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
+		let registry = load_pallet_extrinsics(&runtime_path, binary_path.as_path()).await?;
+
 		cli = expect_pallet_benchmarking_intro(cli);
+		cli = expect_input_runtime_path(cli, cwd.as_path(), runtime_path.as_path());
 		cli = expect_select_genesis_policy(cli, 1);
-		cli = expect_select_genesis_preset(cli, &runtime_path, 0)
+		cli = expect_select_genesis_preset(cli, &runtime_path, 0);
+		cli = expect_select_pallet(cli, &registry, &"pallet_timestamp", &[], MAX_PALLET_LIMIT, 0);
+		cli = expect_select_extrinsics(
+			cli,
+			&registry,
+			"pallet_timestamp",
+			"set",
+			MAX_EXTRINSIC_LIMIT,
+		);
+		cli = cli
 			.expect_warning("NOTE: this may take some time...")
 			.expect_info("Benchmarking extrinsic weights of selected pallets...");
 
@@ -1005,6 +1090,8 @@ mod tests {
 
 		BenchmarkPallet {
 			runtime: Some(get_mock_runtime(false)),
+			pallet: Some("pallet_timestamp".to_string()),
+			extrinsic: Some(ALL_SELECTED.to_string()),
 			skip_menu: true,
 			..Default::default()
 		}
@@ -1022,6 +1109,8 @@ mod tests {
 
 		BenchmarkPallet {
 			runtime: Some(get_mock_runtime(true)),
+			pallet: Some("unknown_pallet".to_string()),
+			extrinsic: Some(ALL_SELECTED.to_string()),
 			skip_menu: true,
 			..Default::default()
 		}
@@ -1115,37 +1204,25 @@ mod tests {
 
 	#[tokio::test]
 	async fn guide_user_to_select_pallets_works() -> anyhow::Result<()> {
-		let mut cli = MockCli::new();
 		let runtime_path = get_mock_runtime(true);
-		let binary_path = check_omni_bencher_and_prompt(&mut cli, &crate::cache()?, true).await?;
+		let binary_path =
+			source_omni_bencher_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
 		let registry = load_pallet_extrinsics(&runtime_path, binary_path.as_path()).await?;
-		let prompt = r#"🔎 Search for pallets by name ("*" to select all)"#;
 
 		// Select all pallets.
-		let mut cli = MockCli::new();
-		cli = cli.expect_input(prompt, ALL_SELECTED.to_string());
+		let mut cli =
+			expect_select_pallet(MockCli::new(), &registry, ALL_SELECTED, &[], MAX_PALLET_LIMIT, 0);
 		let input = guide_user_to_select_pallet(&registry, &[], &mut cli)?;
 		assert_eq!(input, ALL_SELECTED.to_string());
 		cli.verify()?;
 
 		// Search for pallets.
 		let input = "pallet_timestamp";
-		let pallets = search_for_pallets(&registry, &[], &input, MAX_PALLET_LIMIT);
-		cli = MockCli::new().expect_input(prompt, input.to_string()).expect_select(
-			"Select a pallet to benchmark:",
-			Some(true),
-			true,
-			Some(
-				pallets
-					.into_iter()
-					.map(|pallet| (pallet, Default::default()))
-					.take(MAX_PALLET_LIMIT)
-					.collect(),
-			),
-			0,
-		);
+		let mut cli =
+			expect_select_pallet(MockCli::new(), &registry, &input, &[], MAX_PALLET_LIMIT, 0);
+
 		let selected = guide_user_to_select_pallet(&registry, &vec![], &mut cli)?;
-		assert_eq!(selected, "pallet_timestamp".to_string());
+		assert_eq!(selected, input.to_string());
 		// TODO: Excluded pallets.
 		cli.verify()
 	}
@@ -1154,7 +1231,7 @@ mod tests {
 	async fn guide_user_to_exclude_pallets_works() -> anyhow::Result<()> {
 		let mut cli = MockCli::new();
 		let runtime_path = get_mock_runtime(true);
-		let binary_path = check_omni_bencher_and_prompt(&mut cli, &crate::cache()?, true).await?;
+		let binary_path = source_omni_bencher_binary(&mut cli, &crate::cache()?, true).await?;
 		let registry = load_pallet_extrinsics(&runtime_path, binary_path.as_path()).await?;
 
 		let pallet_items = search_for_pallets(&registry, &[], &"", MAX_PALLET_LIMIT)
@@ -1181,38 +1258,32 @@ mod tests {
 	async fn guide_user_to_select_extrinsics_works() -> anyhow::Result<()> {
 		let mut cli = MockCli::new();
 		let runtime_path = get_mock_runtime(true);
-		let binary_path = check_omni_bencher_and_prompt(&mut cli, &crate::cache()?, true).await?;
+		let binary_path = source_omni_bencher_binary(&mut cli, &crate::cache()?, true).await?;
 		let registry = load_pallet_extrinsics(&runtime_path, binary_path.as_path()).await?;
-		let prompt = r#"🔎 Search for extrinsics by name ("*" to select all)"#;
 
 		// Select all extrinsics.
-		let mut cli = MockCli::new();
-		cli = cli.expect_input(prompt, ALL_SELECTED.to_string());
+		let mut cli = expect_select_extrinsics(
+			MockCli::new(),
+			&registry,
+			"pallet_timestamp",
+			ALL_SELECTED,
+			MAX_EXTRINSIC_LIMIT,
+		);
 		let input =
 			guide_user_to_select_extrinsics(&"pallet_timestamp".to_string(), &registry, &mut cli)?;
 		assert_eq!(input, ALL_SELECTED.to_string());
 		cli.verify()?;
 
-		// Search for pallets.
-		let extrinsic_items = search_for_extrinsics(
+		// Search for extrinsics.
+		let mut cli = expect_select_extrinsics(
+			MockCli::new(),
 			&registry,
-			&"pallet_timestamp".to_string(),
+			"pallet_timestamp",
 			"on_finalize",
 			MAX_EXTRINSIC_LIMIT,
-		)
-		.into_iter()
-		.map(|extrinsic| (extrinsic, Default::default()))
-		.take(MAX_EXTRINSIC_LIMIT)
-		.collect();
-		cli = MockCli::new()
-			.expect_input(prompt, "on_finalize".to_string())
-			.expect_multiselect::<String>(
-				"Select the extrinsics:",
-				Some(true),
-				true,
-				Some(extrinsic_items),
-			);
+		);
 		guide_user_to_select_extrinsics(&"pallet_timestamp".to_string(), &registry, &mut cli)?;
+		assert_eq!(input, ALL_SELECTED.to_string());
 		cli.verify()
 	}
 
@@ -1221,7 +1292,7 @@ mod tests {
 		use BenchmarkPalletMenuOption::*;
 		let mut cli = MockCli::new();
 		let runtime_path = get_mock_runtime(true);
-		let binary_path = check_omni_bencher_and_prompt(&mut cli, &crate::cache()?, true).await?;
+		let binary_path = source_omni_bencher_binary(&mut cli, &crate::cache()?, true).await?;
 		let registry = load_pallet_extrinsics(&runtime_path, binary_path.as_path()).await?;
 
 		let cmd = BenchmarkPallet {
@@ -1245,12 +1316,6 @@ mod tests {
 			pallet: Some(ALL_SELECTED.to_string()),
 			extrinsic: Some(ALL_SELECTED.to_string()),
 			genesis_builder: Some(GenesisBuilderPolicy::Runtime),
-			genesis_builder_preset: GENESIS_BUILDER_DEV_PRESET.to_string(),
-			steps: 50,
-			repeat: 20,
-			worst_case_map_values: 1000000,
-			database_cache_size: 1024,
-			additional_trie_layers: 2,
 			..Default::default()
 		};
 		[
@@ -1292,7 +1357,7 @@ mod tests {
 			(DatabaseCacheSize, "2048"),
 			(AdditionalTrieLayer, "4"),
 		];
-		for (option, value) in options.into_iter() {
+		for (option, value) in options.to_vec().into_iter() {
 			cli = cli.expect_input(
 				format!(
 					r#"Provide value to the parameter "{}""#,
@@ -1301,7 +1366,7 @@ mod tests {
 				value.to_string(),
 			);
 		}
-		for (option, _) in options.into_iter() {
+		for (option, _) in options.to_vec() {
 			option.input_parameter(&cmd, &mut cli, true)?;
 		}
 		cli.verify()
@@ -1414,6 +1479,70 @@ mod tests {
 			true,
 			Some(policies),
 			item,
+		)
+	}
+
+	fn expect_select_pallet(
+		cli: MockCli,
+		registry: &PalletExtrinsicsRegistry,
+		input: &str,
+		excluded_pallets: &[String],
+		limit: usize,
+		item: usize,
+	) -> MockCli {
+		let pallet_items = search_for_pallets(&registry, excluded_pallets, input, limit)
+			.into_iter()
+			.map(|pallet| (pallet, Default::default()))
+			.collect();
+
+		let prompt = r#"🔎 Search for pallets by name ("*" to select all)"#;
+
+		if is_selected_all(&input.to_string()) {
+			cli.expect_input(prompt, input.to_string())
+		} else {
+			cli.expect_input(prompt, input.to_string()).expect_select(
+				"Select a pallet to benchmark:",
+				Some(false),
+				true,
+				Some(pallet_items),
+				item,
+			)
+		}
+	}
+
+	fn expect_select_extrinsics(
+		cli: MockCli,
+		registry: &PalletExtrinsicsRegistry,
+		pallet: &str,
+		input: &str,
+		limit: usize,
+	) -> MockCli {
+		let extrinsic_items = search_for_extrinsics(&registry, &pallet.to_string(), input, limit)
+			.into_iter()
+			.map(|pallet| (pallet, Default::default()))
+			.collect();
+		let prompt = r#"🔎 Search for extrinsics by name ("*" to select all)"#;
+
+		if is_selected_all(&input.to_string()) {
+			cli.expect_input(prompt, input.to_string())
+		} else {
+			cli.expect_input(prompt, input.to_string()).expect_multiselect::<String>(
+				"Select the extrinsics:",
+				Some(true),
+				true,
+				Some(extrinsic_items),
+			)
+		}
+	}
+
+	fn expect_input_runtime_path(cli: MockCli, target_path: &Path, input: &Path) -> MockCli {
+		cli.expect_warning(format!(
+			"No runtime folder found at {}. Please input the runtime path manually.",
+			target_path.display()
+		))
+		.expect_input(
+			"Please provide the path to the runtime or parachain project.",
+			input.to_str().unwrap().to_string(),
 		)
 	}
 

@@ -2,9 +2,12 @@
 
 use crate::cli::traits::*;
 use cliclack::spinner;
-use pop_common::set_executable_permission;
+use pop_common::{get_relative_or_absolute_path, set_executable_permission};
 use pop_parachains::omni_bencher_generator;
-use std::path::{Path, PathBuf};
+use std::{
+	env::current_dir,
+	path::{Path, PathBuf},
+};
 use which::which;
 
 /// Checks the status of the `frame-omni-bencher` binary, use the local binary if available.
@@ -26,7 +29,13 @@ pub async fn check_omni_bencher_and_prompt(
 	})
 }
 
-async fn source_omni_bencher_binary(
+/// Prompt to source the `frame-omni-bencher` binary.
+///
+/// # Arguments
+/// * `cli`: Command line interface.
+/// * `cache_path`: The cache directory path.
+/// * `skip_confirm`: A boolean indicating whether to skip confirmation prompts.
+pub async fn source_omni_bencher_binary(
 	cli: &mut impl Cli,
 	cache_path: &Path,
 	skip_confirm: bool,
@@ -89,6 +98,13 @@ async fn source_omni_bencher_binary(
 		}
 	}
 	Ok(bencher_path)
+}
+
+/// Get relative path. Returns absolute path if the path is not relative.
+pub fn get_relative_path(path: &Path) -> String {
+	let cwd = current_dir().unwrap_or(PathBuf::from("./"));
+	let path = get_relative_or_absolute_path(cwd.as_path(), path);
+	path.as_path().to_str().expect("No path provided").to_string()
 }
 
 #[cfg(test)]

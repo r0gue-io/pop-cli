@@ -3,12 +3,10 @@
 use clap::Parser;
 use frame_benchmarking_cli::PalletCmd;
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
-use pop_common::get_relative_or_absolute_path;
 use sc_chain_spec::GenesisConfigBuilderRuntimeCaller;
 use sp_runtime::traits::BlakeTwo256;
 use std::{
 	collections::HashMap,
-	env::current_dir,
 	fs::{self, File},
 	io::Read,
 	path::{Path, PathBuf},
@@ -201,9 +199,10 @@ pub fn search_for_pallets(
 /// Performs a fuzzy search for extrinsics that match the provided input.
 ///
 /// # Arguments
-/// * `pallet_extrinsics` - A mapping of pallets and their extrinsics.
+/// * `registry` - A mapping of pallets and their extrinsics.
 /// * `pallet` - Pallet to find the extrinsics.
 /// * `input` - The search input used to match extrinsics.
+/// * `limit` - The maximum number of results to return.
 pub fn search_for_extrinsics(
 	registry: &PalletExtrinsicsRegistry,
 	pallet: &String,
@@ -223,16 +222,6 @@ pub fn search_for_extrinsics(
 	// Sort extrinsics by score.
 	output.sort_by(|a, b| b.1.cmp(&a.1));
 	output.into_iter().map(|(name, _)| name).take(limit).collect::<Vec<String>>()
-}
-
-/// Get relative path of the runtime.
-///
-/// # Arguments
-/// * `runtiem` - Path to the runtime Wasm binary.
-pub fn get_relative_runtime_path(runtime_path: &Path) -> String {
-	let cwd = current_dir().unwrap_or(PathBuf::from("./"));
-	let path = get_relative_or_absolute_path(cwd.as_path(), runtime_path);
-	path.as_path().to_str().expect("No path provided").to_string()
 }
 
 #[cfg(test)]
