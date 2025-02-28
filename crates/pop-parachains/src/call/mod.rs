@@ -50,12 +50,12 @@ pub fn construct_sudo_extrinsic(xt: DynamicPayload) -> DynamicPayload {
 ///
 /// # Arguments
 /// * `pallets`: List of pallets available within the chain's runtime.
-/// * `proxy_account` - The proxied account that will execute the extrinsic.
+/// * `proxied_account` - The account on whose behalf the proxy will act.
 /// * `xt`: The extrinsic representing the dispatchable function call to be dispatched using the
 ///   proxy.
 pub fn construct_proxy_extrinsic(
 	pallets: &[Pallet],
-	proxy_account: String,
+	proxied_account: String,
 	xt: DynamicPayload,
 ) -> Result<DynamicPayload, Error> {
 	let proxy_function = find_dispatchable_by_name(pallets, "Proxy", "proxy")?;
@@ -66,7 +66,7 @@ pub fn construct_proxy_extrinsic(
 	let required_params: Vec<Param> = proxy_function.params.iter().take(2).cloned().collect();
 	let parsed_args: Vec<Value> = metadata::parse_dispatchable_arguments(
 		&required_params,
-		vec![proxy_account, "None()".to_string()],
+		vec![proxied_account, "None()".to_string()],
 	)?;
 
 	Ok(subxt::dynamic::tx(

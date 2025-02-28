@@ -39,10 +39,10 @@ pub struct UpChainCommand {
 	/// Websocket endpoint of the relay chain.
 	#[arg(long)]
 	pub(crate) relay_url: Option<Url>,
-	/// Proxy address for registration. Specify the address type, e.g.
-	/// `Id(5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty)`.
+	///  Proxied account address. The proxy can act on behalf of this account.
+	/// Specify the address type, e.g. `Id(5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty)`.
 	#[arg(long = "proxy")]
-	pub(crate) proxy_address: Option<String>,
+	pub(crate) proxied_address: Option<String>,
 }
 
 impl UpChainCommand {
@@ -73,18 +73,19 @@ impl UpChainCommand {
 		)
 		.await?;
 
-		let proxy = self.resolve_proxy_address(&chain, cli)?;
+		let proxy = self.resolve_proxied_address(&chain, cli)?;
 		let para_id = self.resolve_parachain_id(&chain, &proxy, cli).await?;
 		let (genesis_state, genesis_code) = self.resolve_genesis_files(para_id, cli).await?;
 		Ok(UpChain { id: para_id, genesis_state, genesis_code, chain, proxy })
 	}
 
-	// Retrieves the proxy address, prompting the user if none is specified.
-	fn resolve_proxy_address(&self, chain: &Chain, cli: &mut impl Cli) -> Result<ProxyConfig> {
-		if let Some(addr) = &self.proxy_address {
+	// Retrieves the proxied address, prompting the user if none is specified.
+	fn resolve_proxied_address(&self, chain: &Chain, cli: &mut impl Cli) -> Result<ProxyConfig> {
+		if let Some(addr) = &self.proxied_address {
 			return Ok(ProxyConfig::Address(addr.clone()));
 		}
 		if cli.confirm("Would you like to use a proxy for registration? This is considered a best practice.").interact()? {
+			cli.info("Enter the account the proxy will represent.")?;
 			let proxy = find_dispatchable_by_name(&chain.pallets, "Proxy", "proxy")?;
 			let address = prompt_for_param(cli, &proxy.params[0])?;
 			Ok(ProxyConfig::Address(address))
@@ -245,7 +246,7 @@ mod tests {
 			id: Some(2000),
 			genesis_state: Some(genesis_state.clone()),
 			genesis_code: Some(genesis_code.clone()),
-			proxy_address: Some("Id(13czcAAt6xgLwZ8k6ZpkrRL5V2pjKEui3v9gHAN9PoxYZDbf)".to_string()),
+			proxied_address: Some("Id(13czcAAt6xgLwZ8k6ZpkrRL5V2pjKEui3v9gHAN9PoxYZDbf)".to_string()),
 			..Default::default()
 		}
 		.prepare_chain_for_registration(&mut cli)
@@ -265,9 +266,10 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn resolve_proxy_address_works() -> Result<()> {
+	async fn resolve_proxied_address_works() -> Result<()> {
 		let mut cli = MockCli::new()
 			.expect_confirm("Would you like to use a proxy for registration? This is considered a best practice.", true)
+			.expect_info("Enter the account the proxy will represent.")
 			.expect_select(
 				"Select the value for the parameter: real",
 				Some(true),
@@ -295,9 +297,9 @@ mod tests {
 			&mut cli,
 		)
 		.await?;
-		let proxy_address = UpChainCommand::default().resolve_proxy_address(&chain, &mut cli)?;
+		let proxied_address = UpChainCommand::default().resolve_proxied_address(&chain, &mut cli)?;
 		assert_eq!(
-			proxy_address,
+			proxied_address,
 			ProxyConfig::Address(
 				"Id(5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty)".to_string()
 			)
@@ -308,18 +310,18 @@ mod tests {
 			"Would you like to use a proxy for registration? This is considered a best practice.",
 			false,
 		);
-		let proxy_address = UpChainCommand::default().resolve_proxy_address(&chain, &mut cli)?;
-		assert_eq!(proxy_address, ProxyConfig::None);
+		let proxied_address = UpChainCommand::default().resolve_proxied_address(&chain, &mut cli)?;
+		assert_eq!(proxied_address, ProxyConfig::None);
 		cli.verify()?;
 
 		cli = MockCli::new();
-		let proxy_address = UpChainCommand {
-			proxy_address: Some("Id(5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty)".to_string()),
+		let proxied_address = UpChainCommand {
+			proxied_address: Some("Id(5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty)".to_string()),
 			..Default::default()
 		}
-		.resolve_proxy_address(&chain, &mut cli)?;
+		.resolve_proxied_address(&chain, &mut cli)?;
 		assert_eq!(
-			proxy_address,
+			proxied_address,
 			ProxyConfig::Address(
 				"Id(5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty)".to_string()
 			)
@@ -371,7 +373,7 @@ mod tests {
 			genesis_code: Some(genesis_code.clone()),
 			relay_url: Some(Url::parse(POP_NETWORK_TESTNET_URL)?),
 			path: None,
-			proxy_address: None,
+			proxied_address: None,
 		}
 		.execute(&mut cli)
 		.await?;
@@ -423,7 +425,7 @@ mod tests {
 			genesis_code: None,
 			relay_url: Some(Url::parse(POP_NETWORK_TESTNET_URL)?),
 			path: Some(project_path.clone()),
-			proxy_address: None,
+			proxied_address: None,
 		}
 		.execute(&mut cli)
 		.await?;
@@ -447,7 +449,7 @@ mod tests {
 			genesis_code: Some(genesis_code.clone()),
 			relay_url: Some(Url::parse(POP_NETWORK_TESTNET_URL)?),
 			path: None,
-			proxy_address: None,
+			proxied_address: None,
 		}
 		.execute(&mut cli)
 		.await?;
