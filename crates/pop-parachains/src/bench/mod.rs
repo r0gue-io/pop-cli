@@ -54,8 +54,8 @@ impl ToString for GenesisBuilderPolicy {
 impl From<String> for GenesisBuilderPolicy {
 	fn from(s: String) -> Self {
 		match s {
-			s if s == "none".to_string() => GenesisBuilderPolicy::None,
-			s if s == "runtime".to_string() => GenesisBuilderPolicy::Runtime,
+			s if s == *"none" => GenesisBuilderPolicy::None,
+			s if s == *"runtime" => GenesisBuilderPolicy::Runtime,
 			_ => unreachable!(),
 		}
 	}
@@ -213,7 +213,7 @@ pub fn search_for_extrinsics(
 	let extrinsics = registry.get(pallet).cloned().unwrap_or_default();
 
 	if input.is_empty() {
-		return extrinsics.into_iter().map(String::from).take(limit).collect();
+		return extrinsics.into_iter().take(limit).collect();
 	}
 	let mut output: Vec<(String, i64)> = extrinsics
 		.into_iter()

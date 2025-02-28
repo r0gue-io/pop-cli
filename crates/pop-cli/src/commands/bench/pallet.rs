@@ -473,7 +473,7 @@ impl BenchmarkPallet {
 		// Not allow selecting extrinsics when multiple pallets are selected.
 		let pallet = self.pallet()?;
 		self.extrinsic = Some(match pallet.clone() {
-			s if s == ALL_SELECTED.to_string() => ALL_SELECTED.to_string(),
+			s if s == *ALL_SELECTED => ALL_SELECTED.to_string(),
 			_ => guide_user_to_select_extrinsics(pallet, registry, cli)?,
 		});
 		Ok(())

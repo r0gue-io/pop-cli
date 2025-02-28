@@ -60,7 +60,7 @@ pub async fn omni_bencher_generator(cache: &Path, version: Option<&str>) -> Resu
 	let cli = BenchmarkingCli::OmniBencher;
 	let name = cli.binary();
 	let releases = cli.releases().await?;
-	let tag = Binary::resolve_version(&name, version, &releases, cache);
+	let tag = Binary::resolve_version(name, version, &releases, cache);
 	// Only set latest when caller has not explicitly specified a version to use
 	let latest = version.is_none().then(|| releases.first().map(|v| v.to_string())).flatten();
 	let binary = Binary::Source {
