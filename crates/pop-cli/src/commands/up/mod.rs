@@ -156,7 +156,7 @@ mod tests {
 		instantiate_template_dir(&Parachain::Standard, &project_path, None, config)?;
 
 		let mut args = create_up_args(project_path)?;
-		args.parachain.relay_url = Some(Url::parse("wss://polkadot-rpc.publicnode.com")?);
+		args.parachain.relay_chain_url = Some(Url::parse("wss://polkadot-rpc.publicnode.com")?);
 		args.parachain.id = Some(2000);
 		args.parachain.genesis_code = Some(PathBuf::from("path/to/genesis"));
 		args.parachain.genesis_state = Some(PathBuf::from("path/to/state"));

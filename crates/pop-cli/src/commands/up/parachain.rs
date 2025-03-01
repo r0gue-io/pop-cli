@@ -35,7 +35,7 @@ pub struct UpCommand {
 	pub(crate) genesis_code: Option<CodePathBuf>,
 	/// Websocket endpoint of the relay chain.
 	#[arg(long)]
-	pub(crate) relay_url: Option<Url>,
+	pub(crate) relay_chain_url: Option<Url>,
 }
 
 impl UpCommand {
@@ -61,7 +61,7 @@ impl UpCommand {
 		let chain = configure(
 			"Enter the relay chain node URL to deploy your parachain",
 			DEFAULT_URL,
-			&self.relay_url,
+			&self.relay_chain_url,
 			cli,
 		)
 		.await?;
