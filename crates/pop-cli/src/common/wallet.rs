@@ -70,7 +70,7 @@ pub fn prompt_to_use_wallet(cli: &mut impl Cli) -> anyhow::Result<bool> {
 	}
 }
 
-// Sign and submit an extrinsic using wallet integration, then returns the resulting events.
+// Sign and submit an extrinsic using wallet integration.
 #[cfg(feature = "parachain")]
 pub(crate) async fn submit_extrinsic_with_wallet(
 	client: &OnlineClient<SubstrateConfig>,
@@ -82,8 +82,7 @@ pub(crate) async fn submit_extrinsic_with_wallet(
 	let payload = maybe_payload.ok_or_else(|| anyhow!("No signed payload received."))?;
 	cli.success("Signed payload received.")?;
 	let spinner = cliclack::spinner();
-	spinner
-		.start("Submitting the extrinsic and then waiting for finalization, please be patient...");
+	spinner.start("Submitting the extrinsic and waiting for finalization, please be patient...");
 
 	let result = submit_signed_extrinsic(client.clone(), payload)
 		.await

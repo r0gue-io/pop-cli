@@ -21,10 +21,10 @@ const HELP_HEADER: &str = "Chain deployment options";
 #[derive(Args, Clone, Default)]
 #[clap(next_help_heading = HELP_HEADER)]
 pub struct UpChainCommand {
-	/// Path to the chain directory.
+	/// Path to the project.
 	#[clap(skip)]
 	pub(crate) path: Option<PathBuf>,
-	/// Parachain ID to use. If not specified, a new ID will be reserved.
+	/// ID to use. If not specified, a new ID will be reserved.
 	#[arg(short, long)]
 	pub(crate) id: Option<u32>,
 	/// Path to the genesis state file. If not specified, it will be generated.
@@ -104,7 +104,7 @@ pub(crate) struct UpChain {
 	chain: Chain,
 }
 impl UpChain {
-	// Registers a parachain by submitting an extrinsic.
+	// Registers by submitting an extrinsic.
 	async fn register_parachain(&self, cli: &mut impl Cli) -> Result<()> {
 		cli.info("Registering a parachain ID")?;
 		let call_data = self.prepare_register_parachain_call_data(cli)?;
@@ -135,20 +135,20 @@ impl UpChain {
 	}
 }
 
-// Reserves a parachain ID by submitting an extrinsic.
+// Reserves an ID by submitting an extrinsic.
 async fn reserve_para_id(chain: &Chain, cli: &mut impl Cli) -> Result<u32> {
 	let call_data = prepare_reserve_parachain_call_data(chain, cli)?;
 	let events = submit_extrinsic_with_wallet(&chain.client, &chain.url, call_data, cli)
 		.await
-		.map_err(|e| anyhow::anyhow!("Parachain ID reservation failed: {}", e))?;
+		.map_err(|e| anyhow::anyhow!("ID reservation failed: {}", e))?;
 	let para_id = extract_para_id_from_event(&events).map_err(|_| {
-		anyhow::anyhow!("Unable to parse the event. Specify the parachain ID manually with `--id`.")
+		anyhow::anyhow!("Unable to parse the event. Specify the ID manually with `--id`.")
 	})?;
-	cli.success(format!("Successfully reserved parachain ID: {}", para_id))?;
+	cli.success(format!("Successfully reserved ID: {}", para_id))?;
 	Ok(para_id)
 }
 
-// Prepares and returns the encoded call data for reserving a parachain ID.
+// Prepares and returns the encoded call data for reserving an ID.
 fn prepare_reserve_parachain_call_data(chain: &Chain, cli: &mut impl Cli) -> Result<Vec<u8>> {
 	let dispatchable = find_dispatchable_by_name(
 		&chain.pallets,
@@ -160,7 +160,7 @@ fn prepare_reserve_parachain_call_data(chain: &Chain, cli: &mut impl Cli) -> Res
 	Ok(xt.encode_call_data(&chain.client.metadata())?)
 }
 
-// Generates chain spec files for the parachain.
+// Generates chain spec files for the project.
 async fn generate_spec_files(
 	id: u32,
 	path: Option<&Path>,

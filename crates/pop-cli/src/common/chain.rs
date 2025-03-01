@@ -5,7 +5,7 @@ use anyhow::{anyhow, Result};
 use pop_parachains::{parse_chain_metadata, set_up_client, OnlineClient, Pallet, SubstrateConfig};
 use url::Url;
 
-// Represents a chain, including its URL, client connection, and available pallets.
+// Represents a chain and its associated metadata.
 pub(crate) struct Chain {
 	// Websocket endpoint of the node.
 	pub url: Url,
@@ -15,7 +15,7 @@ pub(crate) struct Chain {
 	pub pallets: Vec<Pallet>,
 }
 
-// Configures the chain by resolving the URL and fetching its metadata.
+// Configures a chain by resolving the URL and fetching its metadata.
 pub(crate) async fn configure_chain(
 	input_message: &str,
 	default_input: &str,
