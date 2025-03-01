@@ -73,11 +73,11 @@ impl Command {
 		}
 		#[cfg(feature = "parachain")]
 		if pop_parachains::is_supported(project_path.as_deref())? {
-			cli.warning("Parachain deployment is currently not implemented.")?;
+			cli.warning("Rollup deployment is currently not implemented.")?;
 			return Ok("parachain");
 		}
 		cli.warning(
-			"No contract or parachain detected. Ensure you are in a valid project directory.",
+			"No contract or rollup detected. Ensure you are in a valid project directory.",
 		)?;
 		Ok("")
 	}
@@ -135,9 +135,9 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn detects_parachain_correctly() -> anyhow::Result<()> {
+	async fn detects_rollup_correctly() -> anyhow::Result<()> {
 		let temp_dir = tempfile::tempdir()?;
-		let name = "parachain";
+		let name = "rollup";
 		let project_path = temp_dir.path().join(name);
 		let config = Config {
 			symbol: "DOT".to_string(),
@@ -148,7 +148,7 @@ mod tests {
 
 		let args = create_up_args(project_path)?;
 		let mut cli =
-			MockCli::new().expect_warning("Parachain deployment is currently not implemented.");
+			MockCli::new().expect_warning("Rollup deployment is currently not implemented.");
 		assert_eq!(Command::execute_project_deployment(args, &mut cli).await?, "parachain");
 		cli.verify()
 	}
@@ -163,7 +163,7 @@ mod tests {
 
 		cmd("cargo", ["new", name, "--bin"]).dir(&path).run()?;
 		let mut cli = MockCli::new().expect_warning(
-			"No contract or parachain detected. Ensure you are in a valid project directory.",
+			"No contract or rollup detected. Ensure you are in a valid project directory.",
 		);
 		assert_eq!(Command::execute_project_deployment(args, &mut cli).await?, "");
 		cli.verify()
