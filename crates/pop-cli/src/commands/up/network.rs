@@ -64,7 +64,7 @@ impl ZombienetCommand {
 		// Show warning if specified as deprecated.
 		if !self.valid {
 			log::warning(
-				"DEPRECATION: Please use `pop up network` (or simply `pop up n`) in the future...",
+				"DEPRECATION: Please use `pop up network` (or simply `pop u n`) in the future...",
 			)?;
 		}
 
