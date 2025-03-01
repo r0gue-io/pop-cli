@@ -345,28 +345,28 @@ impl CallChainCommand {
 /// Represents a configured dispatchable function call, including the pallet, function, arguments,
 /// and signing options.
 #[derive(Clone, Default)]
-struct Call {
+pub(crate) struct Call {
 	/// The dispatchable function to execute.
-	function: Function,
+	pub(crate) function: Function,
 	/// The dispatchable function arguments, encoded as strings.
-	args: Vec<String>,
+	pub(crate) args: Vec<String>,
 	/// Secret key URI for the account signing the extrinsic.
 	///
 	/// e.g.
 	/// - for a dev account "//Alice"
 	/// - with a password "//Alice///SECRET_PASSWORD"
-	suri: String,
+	pub(crate) suri: String,
 	/// Whether to use your browser wallet to sign the extrinsic.
-	use_wallet: bool,
+	pub(crate) use_wallet: bool,
 	/// Whether to automatically sign and submit the extrinsic without prompting for confirmation.
-	skip_confirm: bool,
+	pub(crate) skip_confirm: bool,
 	/// Whether to dispatch the function call with `Root` origin.
-	sudo: bool,
+	pub(crate) sudo: bool,
 }
 
 impl Call {
 	// Prepares the extrinsic.
-	fn prepare_extrinsic(
+	pub(crate) fn prepare_extrinsic(
 		&self,
 		client: &OnlineClient<SubstrateConfig>,
 		cli: &mut impl Cli,

@@ -2,6 +2,7 @@
 
 use crate::{
 	build::spec::{BuildSpecCommand, CodePathBuf, StatePathBuf},
+	call::chain::Call,
 	cli::traits::*,
 	common::{
 		chain::{configure_chain, Chain},
@@ -10,9 +11,7 @@ use crate::{
 };
 use anyhow::{anyhow, Result};
 use clap::Args;
-use pop_parachains::{
-	construct_extrinsic, extract_para_id_from_event, find_dispatchable_by_name, Action, Payload,
-};
+use pop_parachains::{extract_para_id_from_event, find_dispatchable_by_name, Action, Payload};
 use std::path::{Path, PathBuf};
 use url::Url;
 
@@ -108,15 +107,15 @@ impl UpChain {
 	// Registers a parachain by submitting an extrinsic.
 	async fn register_parachain(&self, cli: &mut impl Cli) -> Result<()> {
 		cli.info("Registering a parachain ID")?;
-		let call_data = self.prepare_register_parachain_call_data()?;
+		let call_data = self.prepare_register_parachain_call_data(cli)?;
 		submit_extrinsic_with_wallet(&self.chain.client, &self.chain.url, call_data, cli).await?;
 		Ok(())
 	}
 
 	// Prepares and returns the encoded call data for registering a parachain.
-	fn prepare_register_parachain_call_data(&self) -> Result<Vec<u8>> {
+	fn prepare_register_parachain_call_data(&self, cli: &mut impl Cli) -> Result<Vec<u8>> {
 		let UpChain { id, genesis_code, genesis_state, chain } = self;
-		let ex = find_dispatchable_by_name(
+		let dispatchable = find_dispatchable_by_name(
 			&chain.pallets,
 			Action::Register.pallet_name(),
 			Action::Register.function_name(),
@@ -125,14 +124,20 @@ impl UpChain {
 			.map_err(|err| anyhow!("Failed to read genesis state file: {}", err.to_string()))?;
 		let code = std::fs::read_to_string(genesis_code)
 			.map_err(|err| anyhow!("Failed to read genesis code file: {}", err.to_string()))?;
-		let xt = construct_extrinsic(ex, vec![id.to_string(), state, code])?;
+		let xt = Call {
+			function: dispatchable.clone(),
+			args: vec![id.to_string(), state, code],
+			use_wallet: true,
+			..Default::default()
+		}
+		.prepare_extrinsic(&chain.client, cli)?;
 		Ok(xt.encode_call_data(&chain.client.metadata())?)
 	}
 }
 
 // Reserves a parachain ID by submitting an extrinsic.
 async fn reserve_para_id(chain: &Chain, cli: &mut impl Cli) -> Result<u32> {
-	let call_data = prepare_reserve_parachain_call_data(chain)?;
+	let call_data = prepare_reserve_parachain_call_data(chain, cli)?;
 	let events = submit_extrinsic_with_wallet(&chain.client, &chain.url, call_data, cli)
 		.await
 		.map_err(|e| anyhow::anyhow!("Parachain ID reservation failed: {}", e))?;
@@ -144,13 +149,14 @@ async fn reserve_para_id(chain: &Chain, cli: &mut impl Cli) -> Result<u32> {
 }
 
 // Prepares and returns the encoded call data for reserving a parachain ID.
-fn prepare_reserve_parachain_call_data(chain: &Chain) -> Result<Vec<u8>> {
+fn prepare_reserve_parachain_call_data(chain: &Chain, cli: &mut impl Cli) -> Result<Vec<u8>> {
 	let dispatchable = find_dispatchable_by_name(
 		&chain.pallets,
 		Action::Reserve.pallet_name(),
 		Action::Reserve.function_name(),
 	)?;
-	let xt = construct_extrinsic(dispatchable, Vec::new())?;
+	let xt = Call { function: dispatchable.clone(), use_wallet: true, ..Default::default() }
+		.prepare_extrinsic(&chain.client, cli)?;
 	Ok(xt.encode_call_data(&chain.client.metadata())?)
 }
 
@@ -233,7 +239,7 @@ mod tests {
 			&mut cli,
 		)
 		.await?;
-		let call_data = prepare_reserve_parachain_call_data(&chain)?;
+		let call_data = prepare_reserve_parachain_call_data(&chain, &mut cli)?;
 		// Encoded call data for a reserve extrinsic.
 		// Reference: https://polkadot.js.org/apps/?rpc=wss%3A%2F%2Fpolkadot.public.curie.radiumblock.co%2Fws#/extrinsics/decode/0x4605
 		let encoded_reserve_extrinsic: &str = "0x4605";
@@ -358,14 +364,14 @@ mod tests {
 
 		// Expect failure when the genesis state file cannot be read.
 		assert!(matches!(
-			up_chain.prepare_register_parachain_call_data(),
+			up_chain.prepare_register_parachain_call_data(&mut cli),
 			Err(message) if message.to_string().contains("Failed to read genesis state file")
 		));
 		std::fs::write(&genesis_state_path, "0x1234")?;
 
 		// Expect failure when the genesis code file cannot be read.
 		assert!(matches!(
-			up_chain.prepare_register_parachain_call_data(),
+			up_chain.prepare_register_parachain_call_data(&mut cli),
 			Err(message) if message.to_string().contains("Failed to read genesis code file")
 		));
 		std::fs::write(&genesis_code_path, "0x1234")?;
@@ -374,7 +380,7 @@ mod tests {
 		// Reference: https://polkadot.js.org/apps/?rpc=wss%3A%2F%2Fpolkadot.public.curie.radiumblock.co%2Fws#/extrinsics/decode/0x4600d0070000081234081234
 		let encoded_register_extrinsic: &str = "0x4600d0070000081234081234";
 		assert_eq!(
-			up_chain.prepare_register_parachain_call_data()?,
+			up_chain.prepare_register_parachain_call_data(&mut cli)?,
 			decode_call_data(encoded_register_extrinsic)?
 		);
 		Ok(())
