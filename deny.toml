@@ -37,6 +37,10 @@ confidence-threshold = 0.93
 allow = ["OpenSSL"]
 name = "ring"
 
+[[licenses.exceptions]]
+allow = ["ISC"]
+name = "webpki"
+
 [[licenses.clarify]]
 name = "ring"
 expression = "ISC AND MIT AND OpenSSL"
