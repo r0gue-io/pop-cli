@@ -72,7 +72,7 @@ pub fn prompt_to_use_wallet(cli: &mut impl Cli) -> anyhow::Result<bool> {
 
 // Sign and submit an extrinsic using wallet integration.
 #[cfg(feature = "parachain")]
-pub(crate) async fn submit_extrinsic_with_wallet(
+pub(crate) async fn submit_extrinsic(
 	client: &OnlineClient<SubstrateConfig>,
 	url: &Url,
 	call_data: Vec<u8>,

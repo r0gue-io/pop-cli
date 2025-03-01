@@ -16,7 +16,7 @@ pub(crate) struct Chain {
 }
 
 // Configures a chain by resolving the URL and fetching its metadata.
-pub(crate) async fn configure_chain(
+pub(crate) async fn configure(
 	input_message: &str,
 	default_input: &str,
 	url: &Option<Url>,
@@ -50,10 +50,10 @@ mod tests {
 	const POP_NETWORK_TESTNET_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";
 
 	#[tokio::test]
-	async fn configure_chain_works() -> Result<()> {
+	async fn configure_works() -> Result<()> {
 		let message = "Enter the URL of the chain:";
 		let mut cli = MockCli::new().expect_input(message, POP_NETWORK_TESTNET_URL.into());
-		let chain = configure_chain(message, POP_NETWORK_TESTNET_URL, &None, &mut cli).await?;
+		let chain = configure(message, POP_NETWORK_TESTNET_URL, &None, &mut cli).await?;
 		assert_eq!(chain.url, Url::parse(POP_NETWORK_TESTNET_URL)?);
 		cli.verify()
 	}

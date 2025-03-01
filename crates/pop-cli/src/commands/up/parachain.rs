@@ -5,8 +5,8 @@ use crate::{
 	call::chain::Call,
 	cli::traits::*,
 	common::{
-		chain::{configure_chain, Chain},
-		wallet::submit_extrinsic_with_wallet,
+		chain::{configure, Chain},
+		wallet::submit_extrinsic,
 	},
 };
 use anyhow::{anyhow, Result};
@@ -20,7 +20,7 @@ const HELP_HEADER: &str = "Chain deployment options";
 
 #[derive(Args, Clone, Default)]
 #[clap(next_help_heading = HELP_HEADER)]
-pub struct UpChainCommand {
+pub struct UpCommand {
 	/// Path to the project.
 	#[clap(skip)]
 	pub(crate) path: Option<PathBuf>,
@@ -38,18 +38,18 @@ pub struct UpChainCommand {
 	pub(crate) relay_url: Option<Url>,
 }
 
-impl UpChainCommand {
+impl UpCommand {
 	/// Executes the command.
 	pub(crate) async fn execute(self, cli: &mut impl Cli) -> Result<()> {
 		cli.intro("Deploy a chain")?;
-		let chain_config = match self.prepare_chain_for_registration(cli).await {
+		let config = match self.prepare_for_registration(cli).await {
 			Ok(chain) => chain,
 			Err(e) => {
 				cli.outro_cancel(format!("{}", e))?;
 				return Ok(());
 			},
 		};
-		match chain_config.register_parachain(cli).await {
+		match config.register(cli).await {
 			Ok(_) => cli.success("Chain deployed successfully")?,
 			Err(e) => cli.outro_cancel(format!("{}", e))?,
 		}
@@ -57,17 +57,17 @@ impl UpChainCommand {
 	}
 
 	// Prepares the chain for registration by setting up its configuration.
-	async fn prepare_chain_for_registration(self, cli: &mut impl Cli) -> Result<UpChain> {
-		let chain = configure_chain(
+	async fn prepare_for_registration(self, cli: &mut impl Cli) -> Result<Registration> {
+		let chain = configure(
 			"Enter the relay chain node URL to deploy your parachain",
 			DEFAULT_URL,
 			&self.relay_url,
 			cli,
 		)
 		.await?;
-		let para_id = self.resolve_parachain_id(&chain, cli).await?;
-		let (genesis_code, genesis_state) = self.resolve_genesis_files(para_id, cli).await?;
-		Ok(UpChain { id: para_id, genesis_state, genesis_code, chain })
+		let id = self.resolve_parachain_id(&chain, cli).await?;
+		let (genesis_code, genesis_state) = self.resolve_genesis_files(id, cli).await?;
+		Ok(Registration { id, genesis_state, genesis_code, chain })
 	}
 
 	// Resolves the parachain ID, reserving a new one if necessary.
@@ -76,45 +76,45 @@ impl UpChainCommand {
 			Some(id) => Ok(id),
 			None => {
 				cli.info("Reserving a parachain ID")?;
-				reserve_para_id(chain, cli).await
+				reserve(chain, cli).await
 			},
 		}
 	}
 	// Resolves the genesis state and code files, generating them if necessary.
 	async fn resolve_genesis_files(
 		&self,
-		para_id: u32,
+		id: u32,
 		cli: &mut impl Cli,
 	) -> Result<(CodePathBuf, StatePathBuf)> {
 		match (&self.genesis_code, &self.genesis_state) {
 			(Some(code), Some(state)) => Ok((code.clone(), state.clone())),
 			_ => {
 				cli.info("Generating the chain spec for your parachain")?;
-				generate_spec_files(para_id, self.path.as_deref(), cli).await
+				generate_spec_files(id, self.path.as_deref(), cli).await
 			},
 		}
 	}
 }
 
 // Represents the configuration for deploying a chain.
-pub(crate) struct UpChain {
+pub(crate) struct Registration {
 	id: u32,
 	genesis_state: PathBuf,
 	genesis_code: PathBuf,
 	chain: Chain,
 }
-impl UpChain {
+impl Registration {
 	// Registers by submitting an extrinsic.
-	async fn register_parachain(&self, cli: &mut impl Cli) -> Result<()> {
+	async fn register(&self, cli: &mut impl Cli) -> Result<()> {
 		cli.info("Registering a parachain ID")?;
 		let call_data = self.prepare_register_parachain_call_data(cli)?;
-		submit_extrinsic_with_wallet(&self.chain.client, &self.chain.url, call_data, cli).await?;
+		submit_extrinsic(&self.chain.client, &self.chain.url, call_data, cli).await?;
 		Ok(())
 	}
 
 	// Prepares and returns the encoded call data for registering a parachain.
 	fn prepare_register_parachain_call_data(&self, cli: &mut impl Cli) -> Result<Vec<u8>> {
-		let UpChain { id, genesis_code, genesis_state, chain } = self;
+		let Registration { id, genesis_code, genesis_state, chain } = self;
 		let dispatchable = find_dispatchable_by_name(
 			&chain.pallets,
 			Action::Register.pallet_name(),
@@ -136,16 +136,16 @@ impl UpChain {
 }
 
 // Reserves an ID by submitting an extrinsic.
-async fn reserve_para_id(chain: &Chain, cli: &mut impl Cli) -> Result<u32> {
+async fn reserve(chain: &Chain, cli: &mut impl Cli) -> Result<u32> {
 	let call_data = prepare_reserve_parachain_call_data(chain, cli)?;
-	let events = submit_extrinsic_with_wallet(&chain.client, &chain.url, call_data, cli)
+	let events = submit_extrinsic(&chain.client, &chain.url, call_data, cli)
 		.await
 		.map_err(|e| anyhow::anyhow!("ID reservation failed: {}", e))?;
-	let para_id = extract_para_id_from_event(&events).map_err(|_| {
+	let id = extract_para_id_from_event(&events).map_err(|_| {
 		anyhow::anyhow!("Unable to parse the event. Specify the ID manually with `--id`.")
 	})?;
-	cli.success(format!("Successfully reserved ID: {}", para_id))?;
-	Ok(para_id)
+	cli.success(format!("Successfully reserved ID: {}", id))?;
+	Ok(id)
 }
 
 // Prepares and returns the encoded call data for reserving an ID.
@@ -207,19 +207,19 @@ mod tests {
 	const POP_NETWORK_TESTNET_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";
 
 	#[tokio::test]
-	async fn prepare_chain_for_registration_works() -> Result<()> {
+	async fn prepare_for_registration_works() -> Result<()> {
 		let mut cli = MockCli::new().expect_input(
 			"Enter the relay chain node URL to deploy your parachain",
 			POLKADOT_NETWORK_URL.into(),
 		);
 		let (genesis_state, genesis_code) = create_temp_genesis_files()?;
-		let chain_config = UpChainCommand {
+		let chain_config = UpCommand {
 			id: Some(2000),
 			genesis_state: Some(genesis_state.clone()),
 			genesis_code: Some(genesis_code.clone()),
 			..Default::default()
 		}
-		.prepare_chain_for_registration(&mut cli)
+		.prepare_for_registration(&mut cli)
 		.await?;
 
 		assert_eq!(chain_config.id, 2000);
@@ -232,7 +232,7 @@ mod tests {
 	#[tokio::test]
 	async fn prepare_reserve_parachain_call_data_works() -> Result<()> {
 		let mut cli = MockCli::new();
-		let chain = configure_chain(
+		let chain = configure(
 			"Enter the relay chain node URL to deploy your parachain",
 			DEFAULT_URL,
 			&Some(Url::parse(POLKADOT_NETWORK_URL)?),
@@ -254,7 +254,7 @@ mod tests {
 			.expect_info("Reserving a parachain ID")
 			.expect_outro_cancel("Failed to find the pallet Registrar");
 		let (genesis_state, genesis_code) = create_temp_genesis_files()?;
-		UpChainCommand {
+		UpCommand {
 			id: None,
 			genesis_state: Some(genesis_state.clone()),
 			genesis_code: Some(genesis_code.clone()),
@@ -305,7 +305,7 @@ mod tests {
 				Profile::Release as usize,
 		).expect_outro_cancel(format!("Failed to get manifest path: {}/node/Cargo.toml", fs::canonicalize(&project_path)?.display().to_string()));
 
-		UpChainCommand {
+		UpCommand {
 			id: Some(2000),
 			genesis_state: None,
 			genesis_code: None,
@@ -322,13 +322,13 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn register_parachain_fails_wrong_chain() -> Result<()> {
+	async fn register_fails_wrong_chain() -> Result<()> {
 		let mut cli = MockCli::new()
 			.expect_intro("Deploy a chain")
 			.expect_info("Registering a parachain ID")
 			.expect_outro_cancel("Failed to find the pallet Registrar");
 		let (genesis_state, genesis_code) = create_temp_genesis_files()?;
-		UpChainCommand {
+		UpCommand {
 			id: Some(2000),
 			genesis_state: Some(genesis_state.clone()),
 			genesis_code: Some(genesis_code.clone()),
@@ -344,7 +344,7 @@ mod tests {
 	#[tokio::test]
 	async fn prepare_register_parachain_call_data_works() -> Result<()> {
 		let mut cli = MockCli::new();
-		let chain = configure_chain(
+		let chain = configure(
 			"Enter the relay chain node URL to deploy your parachain",
 			DEFAULT_URL,
 			&Some(Url::parse(POLKADOT_NETWORK_URL)?),
@@ -355,7 +355,7 @@ mod tests {
 		let temp_dir = tempdir()?;
 		let genesis_state_path = temp_dir.path().join("genesis_state");
 		let genesis_code_path = temp_dir.path().join("genesis_code.wasm");
-		let up_chain = UpChain {
+		let up_chain = Registration {
 			id: 2000,
 			genesis_state: genesis_state_path.clone(),
 			genesis_code: genesis_code_path.clone(),
