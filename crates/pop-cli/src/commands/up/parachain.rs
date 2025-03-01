@@ -11,7 +11,7 @@ use crate::{
 };
 use anyhow::{anyhow, Result};
 use clap::Args;
-use pop_parachains::{extract_para_id_from_event, find_dispatchable_by_name, Action, Payload};
+use pop_parachains::{find_dispatchable_by_name, Action, Payload, Reserved};
 use std::path::{Path, PathBuf};
 use url::Url;
 
@@ -141,9 +141,10 @@ async fn reserve(chain: &Chain, cli: &mut impl Cli) -> Result<u32> {
 	let events = submit_extrinsic(&chain.client, &chain.url, call_data, cli)
 		.await
 		.map_err(|e| anyhow::anyhow!("ID reservation failed: {}", e))?;
-	let id = extract_para_id_from_event(&events).map_err(|_| {
-		anyhow::anyhow!("Unable to parse the event. Specify the ID manually with `--id`.")
-	})?;
+	let id = events
+		.find_first::<Reserved>()?
+		.ok_or(anyhow::anyhow!("Unable to parse the event. Specify the ID manually with `--id`."))?
+		.para_id;
 	cli.success(format!("Successfully reserved ID: {}", id))?;
 	Ok(id)
 }
