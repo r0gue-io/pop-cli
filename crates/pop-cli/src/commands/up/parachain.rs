@@ -107,13 +107,13 @@ impl Registration {
 	// Registers by submitting an extrinsic.
 	async fn register(&self, cli: &mut impl Cli) -> Result<()> {
 		cli.info("Registering a parachain ID")?;
-		let call_data = self.prepare_register_parachain_call_data(cli)?;
+		let call_data = self.prepare_register_call_data(cli)?;
 		submit_extrinsic(&self.chain.client, &self.chain.url, call_data, cli).await?;
 		Ok(())
 	}
 
 	// Prepares and returns the encoded call data for registering a parachain.
-	fn prepare_register_parachain_call_data(&self, cli: &mut impl Cli) -> Result<Vec<u8>> {
+	fn prepare_register_call_data(&self, cli: &mut impl Cli) -> Result<Vec<u8>> {
 		let Registration { id, genesis_code, genesis_state, chain } = self;
 		let dispatchable = find_dispatchable_by_name(
 			&chain.pallets,
@@ -137,7 +137,7 @@ impl Registration {
 
 // Reserves an ID by submitting an extrinsic.
 async fn reserve(chain: &Chain, cli: &mut impl Cli) -> Result<u32> {
-	let call_data = prepare_reserve_parachain_call_data(chain, cli)?;
+	let call_data = prepare_reserve_call_data(chain, cli)?;
 	let events = submit_extrinsic(&chain.client, &chain.url, call_data, cli)
 		.await
 		.map_err(|e| anyhow::anyhow!("ID reservation failed: {}", e))?;
@@ -149,7 +149,7 @@ async fn reserve(chain: &Chain, cli: &mut impl Cli) -> Result<u32> {
 }
 
 // Prepares and returns the encoded call data for reserving an ID.
-fn prepare_reserve_parachain_call_data(chain: &Chain, cli: &mut impl Cli) -> Result<Vec<u8>> {
+fn prepare_reserve_call_data(chain: &Chain, cli: &mut impl Cli) -> Result<Vec<u8>> {
 	let dispatchable = find_dispatchable_by_name(
 		&chain.pallets,
 		Action::Reserve.pallet_name(),
@@ -230,7 +230,7 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn prepare_reserve_parachain_call_data_works() -> Result<()> {
+	async fn prepare_reserve_call_data_works() -> Result<()> {
 		let mut cli = MockCli::new();
 		let chain = configure(
 			"Enter the relay chain node URL to deploy your parachain",
@@ -239,7 +239,7 @@ mod tests {
 			&mut cli,
 		)
 		.await?;
-		let call_data = prepare_reserve_parachain_call_data(&chain, &mut cli)?;
+		let call_data = prepare_reserve_call_data(&chain, &mut cli)?;
 		// Encoded call data for a reserve extrinsic.
 		// Reference: https://polkadot.js.org/apps/?rpc=wss%3A%2F%2Fpolkadot.public.curie.radiumblock.co%2Fws#/extrinsics/decode/0x4605
 		let encoded_reserve_extrinsic: &str = "0x4605";
@@ -342,7 +342,7 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn prepare_register_parachain_call_data_works() -> Result<()> {
+	async fn prepare_register_call_data_works() -> Result<()> {
 		let mut cli = MockCli::new();
 		let chain = configure(
 			"Enter the relay chain node URL to deploy your parachain",
@@ -364,14 +364,14 @@ mod tests {
 
 		// Expect failure when the genesis state file cannot be read.
 		assert!(matches!(
-			up_chain.prepare_register_parachain_call_data(&mut cli),
+			up_chain.prepare_register_call_data(&mut cli),
 			Err(message) if message.to_string().contains("Failed to read genesis state file")
 		));
 		std::fs::write(&genesis_state_path, "0x1234")?;
 
 		// Expect failure when the genesis code file cannot be read.
 		assert!(matches!(
-			up_chain.prepare_register_parachain_call_data(&mut cli),
+			up_chain.prepare_register_call_data(&mut cli),
 			Err(message) if message.to_string().contains("Failed to read genesis code file")
 		));
 		std::fs::write(&genesis_code_path, "0x1234")?;
@@ -380,7 +380,7 @@ mod tests {
 		// Reference: https://polkadot.js.org/apps/?rpc=wss%3A%2F%2Fpolkadot.public.curie.radiumblock.co%2Fws#/extrinsics/decode/0x4600d0070000081234081234
 		let encoded_register_extrinsic: &str = "0x4600d0070000081234081234";
 		assert_eq!(
-			up_chain.prepare_register_parachain_call_data(&mut cli)?,
+			up_chain.prepare_register_call_data(&mut cli)?,
 			decode_call_data(encoded_register_extrinsic)?
 		);
 		Ok(())
