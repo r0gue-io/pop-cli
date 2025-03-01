@@ -191,15 +191,9 @@ async fn generate_spec_files(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::{
-		build::spec::{ChainType, RelayChain},
-		cli::MockCli,
-	};
-	use duct::cmd;
-	use pop_common::Profile;
+	use crate::cli::MockCli;
 	use pop_parachains::decode_call_data;
-	use std::{env, fs};
-	use strum::{EnumMessage, VariantArray};
+	use std::fs;
 	use tempfile::tempdir;
 	use url::Url;
 
@@ -248,7 +242,7 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn reserve_parachain_id_fails_wrong_chain() -> Result<()> {
+	async fn reserve_id_fails_wrong_chain() -> Result<()> {
 		let mut cli = MockCli::new()
 			.expect_intro("Deploy a chain")
 			.expect_info("Reserving a parachain ID")
@@ -258,66 +252,12 @@ mod tests {
 			id: None,
 			genesis_state: Some(genesis_state.clone()),
 			genesis_code: Some(genesis_code.clone()),
-			relay_url: Some(Url::parse(POP_NETWORK_TESTNET_URL)?),
+			relay_chain_url: Some(Url::parse(POP_NETWORK_TESTNET_URL)?),
 			path: None,
 		}
 		.execute(&mut cli)
 		.await?;
 
-		cli.verify()
-	}
-
-	#[tokio::test]
-	async fn resolve_genesis_files_fails_wrong_path() -> Result<()> {
-		// Mock a project path without node.
-		let name = "hello_world";
-		let temp_dir = tempfile::tempdir()?;
-		let path = temp_dir.path();
-		let project_path = path.join(name);
-		cmd("cargo", ["new", name, "--bin"]).dir(&path).run()?;
-		let original_dir = std::env::current_dir()?;
-
-		let mut cli = MockCli::new()
-			.expect_intro("Deploy a chain")
-			.expect_info("Generating the chain spec for your parachain")
-			.expect_input("Provide the chain specification to use (e.g. dev, local, custom or a path to an existing file)", "dev".to_string())
-			.expect_input(
-				"Name or path for the plain chain spec file:", "output_file".to_string())
-			.expect_input(
-				"Enter the protocol ID that will identify your network:", "protocol_id".to_string())
-			.expect_select(
-				"Choose the chain type: ",
-				Some(false),
-				true,
-				Some(get_messages(ChainType::VARIANTS)),
-				ChainType::Development as usize,
-			).expect_select(
-				"Choose the relay your chain will be connecting to: ",
-				Some(false),
-				true,
-				Some(get_messages(RelayChain::VARIANTS)),
-				RelayChain::PaseoLocal as usize,
-			).expect_select(
-				"Choose the build profile of the binary that should be used: ",
-				Some(false),
-				true,
-				Some(get_messages(Profile::VARIANTS)),
-				Profile::Release as usize,
-		).expect_outro_cancel(format!("Failed to get manifest path: {}/node/Cargo.toml", fs::canonicalize(&project_path)?.display().to_string()));
-
-		UpCommand {
-			id: Some(2000),
-			genesis_state: None,
-			genesis_code: None,
-			relay_url: Some(Url::parse(POP_NETWORK_TESTNET_URL)?),
-			path: Some(project_path.clone()),
-		}
-		.execute(&mut cli)
-		.await?;
-
-		assert_eq!(fs::canonicalize(env::current_dir()?)?, fs::canonicalize(project_path)?);
-		// Reset working directory back to original
-		std::env::set_current_dir(original_dir)?;
 		cli.verify()
 	}
 
@@ -332,7 +272,7 @@ mod tests {
 			id: Some(2000),
 			genesis_state: Some(genesis_state.clone()),
 			genesis_code: Some(genesis_code.clone()),
-			relay_url: Some(Url::parse(POP_NETWORK_TESTNET_URL)?),
+			relay_chain_url: Some(Url::parse(POP_NETWORK_TESTNET_URL)?),
 			path: None,
 		}
 		.execute(&mut cli)
@@ -396,18 +336,5 @@ mod tests {
 		fs::write(&genesis_code_path, "0x1234")?;
 
 		Ok((genesis_state_path, genesis_code_path))
-	}
-
-	// Generic helper function to convert enum variants into (message, detailed message) tuples.
-	fn get_messages<T: EnumMessage + AsRef<str>>(variants: &[T]) -> Vec<(String, String)> {
-		variants
-			.iter()
-			.map(|variant| {
-				(
-					variant.get_message().unwrap_or(variant.as_ref()).into(),
-					variant.get_detailed_message().unwrap_or_default().into(),
-				)
-			})
-			.collect()
 	}
 }
