@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use clap::Parser;
-use frame_benchmarking_cli::PalletCmd;
+use frame_benchmarking_cli::{OpaqueBlock, OverheadCmd, PalletCmd};
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use sc_chain_spec::GenesisConfigBuilderRuntimeCaller;
 use sp_runtime::traits::BlakeTwo256;
@@ -40,6 +40,12 @@ pub enum GenesisBuilderPolicy {
 	None,
 	/// Let the runtime build the genesis state through its `BuildGenesisConfig` runtime API.
 	Runtime,
+}
+
+impl GenesisBuilderPolicy {
+	pub fn from_serialized(serialized: &str) -> GenesisBuilderPolicy {
+		GenesisBuilderPolicy::from(serialized.to_lowercase())
+	}
 }
 
 impl ToString for GenesisBuilderPolicy {
@@ -92,6 +98,18 @@ pub fn generate_benchmarks(args: Vec<String>) -> anyhow::Result<()> {
 		.map_err(|e| anyhow::anyhow!("Invalid command arguments: {}", e))?;
 	cmd.run_with_spec::<BlakeTwo256, HostFunctions>(None)
 		.map_err(|e| anyhow::anyhow!("Failed to run benchmarking: {}", e))
+}
+
+/// Run command for overhead benchmarking.
+///
+/// # Arguments
+/// * `cmd` - Command to benchmark the execution overhead per-block and per-extrinsic.
+pub async fn generate_overhead_benchmarks(cmd: OverheadCmd) -> anyhow::Result<()> {
+	tokio::task::spawn_blocking(move || {
+		cmd.run_with_default_builder_and_spec::<OpaqueBlock, HostFunctions>(None)
+			.map_err(|e| anyhow::anyhow!(format!("Failed to run benchmarking: {}", e)))
+	})
+	.await?
 }
 
 /// Loads a mapping of pallets and their associated extrinsics from the runtime WASM binary.
