@@ -39,8 +39,10 @@ pub struct UpCommand {
 	/// Websocket endpoint of the relay chain.
 	#[arg(long)]
 	pub(crate) relay_chain_url: Option<Url>,
-	///  Proxied account address. The proxy can act on behalf of this account.
-	/// Specify the address type, e.g. `Id(5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty)`.
+	/// Proxied address. Your account must be registered as a proxy which can act on behalf of this
+	/// account.  You can specify the MultiAddress type explicitly, e.g.,
+	/// `Id(5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty)`. If no type is provided, it
+	/// defaults to `Id()`.
 	#[arg(long = "proxy")]
 	pub(crate) proxied_address: Option<String>,
 }
@@ -83,12 +85,20 @@ impl UpCommand {
 
 	// Retrieves the proxied address, prompting the user if none is specified.
 	fn resolve_proxied_address(&self, chain: &Chain, cli: &mut impl Cli) -> Result<ProxyConfig> {
+		let proxy = find_dispatchable_by_name(&chain.pallets, "Proxy", "proxy")?;
 		if let Some(addr) = &self.proxied_address {
-			return Ok(ProxyConfig::Address(addr.clone()));
+			let valid_multi_address: Vec<String> =
+				proxy.params[0].sub_params.iter().map(|p| p.name.to_string()).collect();
+			return Ok(ProxyConfig::Address(
+				if valid_multi_address.iter().any(|t| addr.starts_with(&format!("{}(", t))) {
+					addr.to_string()
+				} else {
+					format!("Id({})", addr)
+				},
+			));
 		}
 		if cli.confirm("Would you like to use a proxy for registration? This is considered a best practice.").interact()? {
-			cli.info("Enter the account the proxy will represent.")?;
-			let proxy = find_dispatchable_by_name(&chain.pallets, "Proxy", "proxy")?;
+			cli.info("Enter the account that the proxy will make a call on behalf of.")?;
 			let address = prompt_for_param(cli, &proxy.params[0])?;
 			Ok(ProxyConfig::Address(address))
 		} else {
@@ -283,7 +293,7 @@ mod tests {
 	async fn resolve_proxied_address_works() -> Result<()> {
 		let mut cli = MockCli::new()
 			.expect_confirm("Would you like to use a proxy for registration? This is considered a best practice.", true)
-			.expect_info("Enter the account the proxy will represent.")
+			.expect_info("Enter the account that the proxy will make a call on behalf of.")
 			.expect_select(
 				"Select the value for the parameter: real",
 				Some(true),
@@ -330,9 +340,7 @@ mod tests {
 
 		cli = MockCli::new();
 		let proxied_address = UpCommand {
-			proxied_address: Some(
-				"Id(5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty)".to_string(),
-			),
+			proxied_address: Some("5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty".to_string()),
 			..Default::default()
 		}
 		.resolve_proxied_address(&chain, &mut cli)?;
