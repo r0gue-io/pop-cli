@@ -6,23 +6,20 @@ use crate::{
 		self,
 		traits::{Confirm, Input, MultiSelect, Select},
 	},
-	common::bench::{check_omni_bencher_and_prompt, get_relative_path},
+	common::bench::{
+		check_genesis_builder_and_prompt, check_omni_bencher_and_prompt,
+		ensure_runtime_binary_exists, get_relative_path, guide_user_to_select_genesis_policy,
+		guide_user_to_select_genesis_preset,
+	},
 };
 use clap::Args;
 use cliclack::spinner;
-use pop_common::{manifest::from_path, Profile};
+use pop_common::Profile;
 use pop_parachains::{
-	build_project, generate_benchmarks, get_preset_names, get_runtime_path, load_pallet_extrinsics,
-	runtime_binary_path, search_for_extrinsics, search_for_pallets, GenesisBuilderPolicy,
-	PalletExtrinsicsRegistry, GENESIS_BUILDER_DEV_PRESET,
+	generate_benchmarks, get_preset_names, load_pallet_extrinsics, search_for_extrinsics,
+	search_for_pallets, GenesisBuilderPolicy, PalletExtrinsicsRegistry, GENESIS_BUILDER_DEV_PRESET,
 };
-use std::{
-	collections::HashMap,
-	env::current_dir,
-	ffi::OsStr,
-	fs,
-	path::{Path, PathBuf},
-};
+use std::{collections::HashMap, path::PathBuf};
 use strum::{EnumMessage, IntoEnumIterator};
 use strum_macros::{EnumIter, EnumMessage as EnumMessageDerive};
 
@@ -263,7 +260,13 @@ impl BenchmarkPallet {
 		}
 		// No genesis builder, prompts user to select the genesis builder policy.
 		if self.genesis_builder.is_none() {
-			if let Err(e) = self.update_genesis_builder(cli) {
+			let runtime_path = self.runtime()?.clone();
+			if let Err(e) = check_genesis_builder_and_prompt(
+				cli,
+				&runtime_path,
+				&mut self.genesis_builder,
+				&mut self.genesis_builder_preset,
+			) {
 				return display_message(&e.to_string(), false, cli);
 			};
 		}
@@ -506,28 +509,6 @@ impl BenchmarkPallet {
 		Ok(())
 	}
 
-	fn update_genesis_builder(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
-		let runtime_path = self.runtime()?;
-		let preset_names = get_preset_names(runtime_path)?;
-		// Determine policy based on preset availability.
-		let policy = if preset_names.is_empty() {
-			GenesisBuilderPolicy::Runtime
-		} else {
-			guide_user_to_select_genesis_policy(cli)?
-		};
-		// If the policy requires a preset, prompt the user to select one.
-		if policy == GenesisBuilderPolicy::Runtime {
-			let preset = guide_user_to_select_genesis_preset(
-				cli,
-				runtime_path,
-				&self.genesis_builder_preset,
-			)?;
-			self.genesis_builder_preset = preset;
-		}
-		self.genesis_builder = Some(policy);
-		Ok(())
-	}
-
 	fn runtime(&self) -> anyhow::Result<&PathBuf> {
 		match self.runtime.as_ref() {
 			Some(runtime) => Ok(runtime),
@@ -682,7 +663,9 @@ impl BenchmarkPalletMenuOption {
 			Extrinsics => cmd.update_extrinsics(cli, registry).await?,
 			ExcludedPallets => cmd.update_excluded_pallets(cli, registry).await?,
 			Runtime => cmd.runtime = Some(ensure_runtime_binary_exists(cli, &Profile::Release)?),
-			GenesisBuilder => cmd.genesis_builder = Some(guide_user_to_select_genesis_policy(cli)?),
+			GenesisBuilder =>
+				cmd.genesis_builder =
+					Some(guide_user_to_select_genesis_policy(cli, &cmd.genesis_builder)?),
 			GenesisBuilderPreset => cmd.update_genesis_preset(cli)?,
 			Steps => cmd.steps = self.input_parameter(cmd, cli, true)?.parse()?,
 			Repeat => cmd.repeat = self.input_parameter(cmd, cli, true)?.parse()?,
@@ -794,31 +777,6 @@ impl BenchmarkPalletMenuOption {
 	}
 }
 
-// Locate runtime WASM binary. If it doesn't exist, trigger build.
-fn ensure_runtime_binary_exists(
-	cli: &mut impl cli::traits::Cli,
-	mode: &Profile,
-) -> anyhow::Result<PathBuf> {
-	let cwd = current_dir().unwrap_or(PathBuf::from("./"));
-	let target_path = mode.target_directory(&cwd).join("wbuild");
-	let runtime_path = guide_user_to_select_runtime_path(&cwd, cli)?;
-
-	// Return immediately if the user has specified a path to the runtime binary.
-	if runtime_path.extension() == Some(OsStr::new("wasm")) {
-		return Ok(runtime_path);
-	}
-
-	match runtime_binary_path(&target_path, &runtime_path) {
-		Ok(binary_path) => Ok(binary_path),
-		_ => {
-			cli.info("📦 Runtime binary was not found. The runtime will be built locally.")?;
-			cli.warning("NOTE: this may take some time...")?;
-			build_project(&runtime_path, None, mode, vec!["runtime-benchmarks"], None)?;
-			runtime_binary_path(&target_path, &runtime_path).map_err(|e| e.into())
-		},
-	}
-}
-
 fn guide_user_to_select_pallet(
 	registry: &PalletExtrinsicsRegistry,
 	excluded_pallets: &[String],
@@ -889,97 +847,6 @@ fn guide_user_to_select_extrinsics(
 	Ok(prompt.interact()?.join(","))
 }
 
-fn guide_user_to_select_runtime_path(
-	target_path: &Path,
-	cli: &mut impl cli::traits::Cli,
-) -> anyhow::Result<PathBuf> {
-	let mut project_path = get_runtime_path(target_path).or_else(|_| {
-		cli.warning(format!(
-			"No runtime folder found at {}. Please input the runtime path manually.",
-			target_path.display()
-		))?;
-		guide_user_to_input_runtime_path(cli)
-	})?;
-
-	// If there is no TOML file exist, list all directories in the "runtime" folder and prompt the
-	// user to select a runtime.
-	if project_path.is_dir() && !project_path.join("Cargo.toml").exists() {
-		let runtime = guide_user_to_select_runtime(&project_path, cli)?;
-		project_path = project_path.join(runtime);
-	}
-	Ok(project_path)
-}
-
-fn guide_user_to_input_runtime_path(cli: &mut impl cli::traits::Cli) -> anyhow::Result<PathBuf> {
-	let input = cli
-		.input("Please provide the path to the runtime or parachain project.")
-		.required(true)
-		.default_input("./runtime")
-		.placeholder("./runtime")
-		.interact()
-		.map(PathBuf::from)
-		.map_err(anyhow::Error::from)?;
-	input.canonicalize().map_err(anyhow::Error::from)
-}
-
-fn guide_user_to_select_runtime(
-	project_path: &PathBuf,
-	cli: &mut impl cli::traits::Cli,
-) -> anyhow::Result<PathBuf> {
-	let runtimes = fs::read_dir(project_path).expect("No project found");
-	let mut prompt = cli.select("Select the runtime:");
-	for runtime in runtimes {
-		let path = runtime.unwrap().path();
-		if !path.is_dir() {
-			continue;
-		}
-		let manifest = from_path(Some(path.as_path()))?;
-		let package = manifest.package();
-		let name = package.clone().name;
-		let description = package.description().unwrap_or_default().to_string();
-		prompt = prompt.item(path, &name, &description);
-	}
-	Ok(prompt.interact()?)
-}
-
-fn guide_user_to_select_genesis_policy(
-	cli: &mut impl cli::traits::Cli,
-) -> anyhow::Result<GenesisBuilderPolicy> {
-	let mut prompt = cli
-		.select("Select the genesis builder policy:")
-		.initial_value(GenesisBuilderPolicy::None.to_string());
-
-	let policies: Vec<(String, String)> = GenesisBuilderPolicy::iter()
-		.map(|policy| (policy.to_string(), policy.get_documentation().unwrap().to_string()))
-		.collect();
-	for (policy, description) in policies {
-		prompt = prompt.item(policy.clone(), policy.to_string(), description);
-	}
-	let input = prompt.interact()?;
-	Ok(GenesisBuilderPolicy::from(input))
-}
-
-fn guide_user_to_select_genesis_preset(
-	cli: &mut impl cli::traits::Cli,
-	runtime_path: &PathBuf,
-	default_value: &str,
-) -> anyhow::Result<String> {
-	let spinner = cliclack::spinner();
-	spinner.start("Loading available genesis builder presets of your runtime...");
-	let mut prompt = cli
-		.select("Select the genesis builder preset:")
-		.initial_value(default_value.to_string());
-	let preset_names = get_preset_names(runtime_path)?;
-	if preset_names.is_empty() {
-		return Err(anyhow::anyhow!("No preset found for the runtime"));
-	}
-	spinner.stop(format!("Found {} genesis builder presets", preset_names.len()));
-	for preset in preset_names {
-		prompt = prompt.item(preset.to_string(), preset, "");
-	}
-	Ok(prompt.interact()?)
-}
-
 async fn guide_user_to_select_menu_option(
 	cmd: &mut BenchmarkPallet,
 	cli: &mut impl cli::traits::Cli,
@@ -1034,8 +901,7 @@ mod tests {
 	use super::*;
 	use crate::{cli::MockCli, common::bench::source_omni_bencher_binary};
 	use anyhow::Ok;
-	use duct::cmd;
-	use tempfile::tempdir;
+	use std::{env::current_dir, path::Path};
 
 	#[tokio::test]
 	async fn benchmark_pallet_works() -> anyhow::Result<()> {
@@ -1049,8 +915,6 @@ mod tests {
 
 		cli = expect_pallet_benchmarking_intro(cli);
 		cli = expect_input_runtime_path(cli, cwd.as_path(), runtime_path.as_path());
-		cli = expect_select_genesis_policy(cli, 1);
-		cli = expect_select_genesis_preset(cli, &runtime_path, 0);
 		cli = expect_select_pallet(cli, &registry, &"pallet_timestamp", &[], MAX_PALLET_LIMIT, 0);
 		cli = expect_select_extrinsics(
 			cli,
@@ -1063,8 +927,12 @@ mod tests {
 			.expect_warning("NOTE: this may take some time...")
 			.expect_info("Benchmarking extrinsic weights of selected pallets...");
 
-		let mut cmd =
-			BenchmarkPallet { skip_menu: true, skip_confirm: false, ..Default::default() };
+		let mut cmd = BenchmarkPallet {
+			skip_menu: true,
+			skip_confirm: false,
+			genesis_builder: Some(GenesisBuilderPolicy::None),
+			..Default::default()
+		};
 		cmd.execute(&mut cli).await?;
 
 		// Verify the printed command.
@@ -1080,7 +948,6 @@ mod tests {
 	async fn benchmark_pallet_without_runtime_benchmarks_feature_fails() -> anyhow::Result<()> {
 		let mut cli = MockCli::new();
 		cli = expect_pallet_benchmarking_intro(cli);
-		cli = expect_select_genesis_policy(cli, 0);
 		cli = cli.expect_outro_cancel(
 	        "Failed to run benchmarking: Invalid input: Could not call runtime API to Did not find the benchmarking metadata. \
 	        This could mean that you either did not build the node correctly with the `--features runtime-benchmarks` flag, \
@@ -1093,6 +960,7 @@ mod tests {
 			pallet: Some("pallet_timestamp".to_string()),
 			extrinsic: Some(ALL_SELECTED.to_string()),
 			skip_menu: true,
+			genesis_builder: Some(GenesisBuilderPolicy::None),
 			..Default::default()
 		}
 		.execute(&mut cli)
@@ -1104,7 +972,6 @@ mod tests {
 	async fn benchmark_pallet_fails_with_error() -> anyhow::Result<()> {
 		let mut cli = MockCli::new();
 		cli = expect_pallet_benchmarking_intro(cli);
-		cli = expect_select_genesis_policy(cli, 0);
 		cli = cli.expect_outro_cancel("Failed to run benchmarking: Invalid input: No benchmarks found which match your input.");
 
 		BenchmarkPallet {
@@ -1112,93 +979,11 @@ mod tests {
 			pallet: Some("unknown_pallet".to_string()),
 			extrinsic: Some(ALL_SELECTED.to_string()),
 			skip_menu: true,
+			genesis_builder: Some(GenesisBuilderPolicy::None),
 			..Default::default()
 		}
 		.execute(&mut cli)
 		.await?;
-		cli.verify()
-	}
-
-	#[test]
-	fn guide_user_to_select_runtime_works() -> anyhow::Result<()> {
-		let temp_dir = tempdir()?;
-		let runtimes = ["runtime-1", "runtime-2", "runtime-3"];
-		let runtime_path = temp_dir.path().join("runtime");
-		let runtime_items = runtimes.map(|runtime| (runtime.to_string(), "".to_string())).to_vec();
-
-		// Found runtimes in the specified runtime path.
-		let mut cli = MockCli::new();
-		cli = cli.expect_select("Select the runtime:", Some(true), true, Some(runtime_items), 0);
-
-		fs::create_dir(&runtime_path)?;
-		for runtime in runtimes {
-			cmd("cargo", ["new", runtime, "--bin"]).dir(&runtime_path).run()?;
-		}
-		guide_user_to_select_runtime(&runtime_path, &mut cli)?;
-		cli.verify()
-	}
-
-	#[test]
-	fn guide_user_to_select_runtime_path_works() -> anyhow::Result<()> {
-		let temp_dir = tempdir()?;
-		let temp_path = temp_dir.path().to_path_buf();
-		let runtime_path = temp_dir.path().join("runtimes");
-
-		// No runtime path found, ask for manual input from user.
-		let mut cli = MockCli::new();
-		let runtime_binary_path = temp_path.join("dummy.wasm");
-		cli = cli.expect_warning(format!(
-			"No runtime folder found at {}. Please input the runtime path manually.",
-			temp_path.display()
-		));
-		cli = cli.expect_input(
-			"Please provide the path to the runtime or parachain project.",
-			runtime_binary_path.to_str().unwrap().to_string(),
-		);
-		fs::File::create(runtime_binary_path)?;
-		guide_user_to_select_runtime_path(&temp_path, &mut cli)?;
-		cli.verify()?;
-
-		// Runtime folder found and not a Rust project, select from existing runtimes.
-		fs::create_dir(&runtime_path)?;
-		let runtimes = ["runtime-1", "runtime-2", "runtime-3"];
-		let runtime_items = runtimes.map(|runtime| (runtime.to_string(), "".to_string())).to_vec();
-		cli = MockCli::new();
-		cli = cli.expect_select("Select the runtime:", Some(true), true, Some(runtime_items), 0);
-		for runtime in runtimes {
-			cmd("cargo", ["new", runtime, "--bin"]).dir(&runtime_path).run()?;
-		}
-		guide_user_to_select_runtime_path(&temp_path, &mut cli)?;
-
-		cli.verify()
-	}
-
-	#[test]
-	fn guide_user_to_select_genesis_policy_works() -> anyhow::Result<()> {
-		// Select genesis builder policy `none`.
-		let mut cli = MockCli::new();
-		cli = expect_select_genesis_policy(cli, 0);
-
-		guide_user_to_select_genesis_policy(&mut cli)?;
-		cli.verify()?;
-
-		// Select genesis builder policy `runtime`.
-		let runtime_path = get_mock_runtime(true);
-		cli = MockCli::new();
-		cli = expect_select_genesis_policy(cli, 1);
-		cli = expect_select_genesis_preset(cli, &runtime_path, 0);
-
-		guide_user_to_select_genesis_policy(&mut cli)?;
-		guide_user_to_select_genesis_preset(&mut cli, &runtime_path, "development")?;
-		cli.verify()
-	}
-
-	#[test]
-	fn guide_user_to_select_genesis_preset_works() -> anyhow::Result<()> {
-		let runtime_path = get_mock_runtime(false);
-		let mut cli = MockCli::new();
-		cli = expect_select_genesis_preset(cli, &runtime_path, 0);
-		guide_user_to_select_genesis_preset(&mut cli, &runtime_path, "development")?;
 		cli.verify()
 	}
 
@@ -1469,19 +1254,6 @@ mod tests {
 		)
 	}
 
-	fn expect_select_genesis_policy(cli: MockCli, item: usize) -> MockCli {
-		let policies: Vec<(String, String)> = GenesisBuilderPolicy::iter()
-			.map(|policy| (policy.to_string(), policy.get_documentation().unwrap().to_string()))
-			.collect();
-		cli.expect_select(
-			"Select the genesis builder policy:",
-			Some(true),
-			true,
-			Some(policies),
-			item,
-		)
-	}
-
 	fn expect_select_pallet(
 		cli: MockCli,
 		registry: &PalletExtrinsicsRegistry,
@@ -1543,21 +1315,6 @@ mod tests {
 		.expect_input(
 			"Please provide the path to the runtime or parachain project.",
 			input.to_str().unwrap().to_string(),
-		)
-	}
-
-	fn expect_select_genesis_preset(cli: MockCli, runtime_path: &PathBuf, item: usize) -> MockCli {
-		let preset_names = get_preset_names(runtime_path)
-			.unwrap()
-			.into_iter()
-			.map(|preset| (preset, String::default()))
-			.collect();
-		cli.expect_select(
-			"Select the genesis builder preset:",
-			Some(true),
-			true,
-			Some(preset_names),
-			item,
 		)
 	}
 
