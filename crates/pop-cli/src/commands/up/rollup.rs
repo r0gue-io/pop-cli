@@ -8,6 +8,7 @@ use crate::{
 		chain::{configure, Chain},
 		wallet::submit_extrinsic,
 	},
+	style::style,
 };
 use anyhow::{anyhow, Result};
 use clap::Args;
@@ -50,7 +51,14 @@ impl UpCommand {
 			},
 		};
 		match config.register(cli).await {
-			Ok(_) => cli.success("Chain deployed successfully")?,
+			Ok(_) => cli.success(format!(
+				"Deployment successfully {}",
+				style(format!(
+					"https://polkadot.js.org/apps/?rpc={}#/parachains",
+					config.chain.url
+				))
+				.dim()
+			))?,
 			Err(e) => cli.outro_cancel(format!("{}", e))?,
 		}
 		Ok(())
@@ -71,7 +79,7 @@ impl UpCommand {
 		match self.id {
 			Some(id) => Ok(id),
 			None => {
-				cli.info("Reserving an ID")?;
+				cli.info(format!("Reserving an ID. You will need to sign a transaction to reserve an ID on {} using the `Registrar::reserve` function.", chain.url))?;
 				reserve(chain, cli).await
 			},
 		}
@@ -102,7 +110,7 @@ pub(crate) struct Registration {
 impl Registration {
 	// Registers by submitting an extrinsic.
 	async fn register(&self, cli: &mut impl Cli) -> Result<()> {
-		cli.info("Registering a parachain ID")?;
+		cli.info(format!("Registering. You will need to sign a transaction on {} using the `Registrar::register` function.", self.chain.url))?;
 		let call_data = self.prepare_register_call_data(cli)?;
 		submit_extrinsic(&self.chain.client, &self.chain.url, call_data, cli).await?;
 		Ok(())
@@ -240,7 +248,7 @@ mod tests {
 	async fn reserve_id_fails_wrong_chain() -> Result<()> {
 		let mut cli = MockCli::new()
 			.expect_intro("Deploy a chain")
-			.expect_info("Reserving a parachain ID")
+			.expect_info(format!("Reserving an ID. You will need to sign a transaction to reserve an ID on {} using the `Registrar::reserve` function.", Url::parse(POP_NETWORK_TESTNET_URL)?.as_str()))
 			.expect_outro_cancel("Failed to find the pallet Registrar");
 		let (genesis_state, genesis_code) = create_temp_genesis_files()?;
 		UpCommand {
@@ -260,7 +268,7 @@ mod tests {
 	async fn register_fails_wrong_chain() -> Result<()> {
 		let mut cli = MockCli::new()
 			.expect_intro("Deploy a chain")
-			.expect_info("Registering a parachain ID")
+			.expect_info(format!("Registering. You will need to sign a transaction on {} using the `Registrar::register` function.", Url::parse(POP_NETWORK_TESTNET_URL)?.as_str()))
 			.expect_outro_cancel("Failed to find the pallet Registrar");
 		let (genesis_state, genesis_code) = create_temp_genesis_files()?;
 		UpCommand {
