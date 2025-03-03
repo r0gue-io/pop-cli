@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{
-	build::spec::BuildSpecCommand,
-	call::chain::prompt_for_param,
+	build::spec::{BuildSpecCommand, CodePathBuf, StatePathBuf},
+	call::chain::{prompt_for_param, Call},
 	cli::traits::*,
 	common::{
-		chain::{configure_chain, Chain},
-		wallet::submit_extrinsic_with_wallet,
+		chain::{configure, Chain},
+		wallet::submit_extrinsic,
 	},
+	style::style,
 };
 use anyhow::{anyhow, Result};
 use clap::Args;
 use pop_parachains::{
-	construct_extrinsic, construct_proxy_extrinsic, extract_para_id_from_event,
-	find_dispatchable_by_name, Action, Payload,
+	construct_proxy_extrinsic, find_dispatchable_by_name, Action, Payload, Reserved,
 };
 use std::path::{Path, PathBuf};
 use url::Url;
@@ -23,60 +23,62 @@ const HELP_HEADER: &str = "Chain deployment options";
 
 #[derive(Args, Clone, Default)]
 #[clap(next_help_heading = HELP_HEADER)]
-pub struct UpChainCommand {
-	/// Path to the chain directory.
+pub struct UpCommand {
+	/// Path to the project.
 	#[clap(skip)]
 	pub(crate) path: Option<PathBuf>,
-	/// Parachain ID to use. If not specified, a new ID will be reserved.
+	/// ID to use. If not specified, a new ID will be reserved.
 	#[arg(short, long)]
 	pub(crate) id: Option<u32>,
 	/// Path to the genesis state file. If not specified, it will be generated.
 	#[arg(short = 'G', long = "genesis-state")]
-	pub(crate) genesis_state: Option<PathBuf>,
+	pub(crate) genesis_state: Option<StatePathBuf>,
 	/// Path to the genesis code file.  If not specified, it will be generated.
 	#[arg(short = 'C', long = "genesis-code")]
-	pub(crate) genesis_code: Option<PathBuf>,
+	pub(crate) genesis_code: Option<CodePathBuf>,
 	/// Websocket endpoint of the relay chain.
 	#[arg(long)]
-	pub(crate) relay_url: Option<Url>,
+	pub(crate) relay_chain_url: Option<Url>,
 	///  Proxied account address. The proxy can act on behalf of this account.
 	/// Specify the address type, e.g. `Id(5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty)`.
 	#[arg(long = "proxy")]
 	pub(crate) proxied_address: Option<String>,
 }
 
-impl UpChainCommand {
+impl UpCommand {
 	/// Executes the command.
 	pub(crate) async fn execute(self, cli: &mut impl Cli) -> Result<()> {
-		cli.intro("Deploy a chain")?;
-		let chain_config = match self.prepare_chain_for_registration(cli).await {
+		cli.intro("Deploy a rollup")?;
+		let config = match self.prepare_for_registration(cli).await {
 			Ok(chain) => chain,
 			Err(e) => {
 				cli.outro_cancel(format!("{}", e))?;
 				return Ok(());
 			},
 		};
-		match chain_config.register_parachain(cli).await {
-			Ok(_) => cli.success("Chain deployed successfully")?,
+		match config.register(cli).await {
+			Ok(_) => cli.success(format!(
+				"Deployment successfully {}",
+				style(format!(
+					"https://polkadot.js.org/apps/?rpc={}#/parachains",
+					config.chain.url
+				))
+				.dim()
+			))?,
 			Err(e) => cli.outro_cancel(format!("{}", e))?,
 		}
 		Ok(())
 	}
 
 	// Prepares the chain for registration by setting up its configuration.
-	async fn prepare_chain_for_registration(self, cli: &mut impl Cli) -> Result<UpChain> {
-		let chain = configure_chain(
-			"Enter the relay chain node URL to deploy your parachain",
-			DEFAULT_URL,
-			&self.relay_url,
-			cli,
-		)
-		.await?;
-
+	async fn prepare_for_registration(self, cli: &mut impl Cli) -> Result<Registration> {
+		let chain =
+			configure("Enter the relay chain node URL", DEFAULT_URL, &self.relay_chain_url, cli)
+				.await?;
 		let proxy = self.resolve_proxied_address(&chain, cli)?;
-		let para_id = self.resolve_parachain_id(&chain, &proxy, cli).await?;
-		let (genesis_state, genesis_code) = self.resolve_genesis_files(para_id, cli).await?;
-		Ok(UpChain { id: para_id, genesis_state, genesis_code, chain, proxy })
+		let id = self.resolve_id(&chain, &proxy, cli).await?;
+		let (genesis_code, genesis_state) = self.resolve_genesis_files(id, cli).await?;
+		Ok(Registration { id, genesis_state, genesis_code, chain, proxy })
 	}
 
 	// Retrieves the proxied address, prompting the user if none is specified.
@@ -94,8 +96,8 @@ impl UpChainCommand {
 		}
 	}
 
-	// Resolves the parachain ID, reserving a new one if necessary.
-	async fn resolve_parachain_id(
+	// Resolves the ID, reserving a new one if necessary.
+	async fn resolve_id(
 		&self,
 		chain: &Chain,
 		proxy: &ProxyConfig,
@@ -104,22 +106,22 @@ impl UpChainCommand {
 		match self.id {
 			Some(id) => Ok(id),
 			None => {
-				cli.info("Reserving a parachain ID")?;
-				reserve_para_id(chain, proxy, cli).await
+				cli.info(format!("Reserving an ID. You will need to sign a transaction to reserve an ID on {} using the `Registrar::reserve` function.", chain.url))?;
+				reserve(chain, proxy, cli).await
 			},
 		}
 	}
 	// Resolves the genesis state and code files, generating them if necessary.
 	async fn resolve_genesis_files(
 		&self,
-		para_id: u32,
+		id: u32,
 		cli: &mut impl Cli,
-	) -> Result<(PathBuf, PathBuf)> {
-		match (&self.genesis_state, &self.genesis_code) {
-			(Some(state), Some(code)) => Ok((state.clone(), code.clone())),
+	) -> Result<(CodePathBuf, StatePathBuf)> {
+		match (&self.genesis_code, &self.genesis_state) {
+			(Some(code), Some(state)) => Ok((code.clone(), state.clone())),
 			_ => {
-				cli.info("Generating the chain spec for your parachain")?;
-				generate_spec_files(para_id, self.path.as_deref(), cli).await
+				cli.info("Generating the chain spec for your project")?;
+				generate_spec_files(id, self.path.as_deref(), cli).await
 			},
 		}
 	}
@@ -131,27 +133,27 @@ enum ProxyConfig {
 	Address(String),
 }
 
-// Represents the configuration for deploying a chain.
-pub(crate) struct UpChain {
+// Represents the configuration for rollup registration.
+pub(crate) struct Registration {
 	id: u32,
 	genesis_state: PathBuf,
 	genesis_code: PathBuf,
 	chain: Chain,
 	proxy: ProxyConfig,
 }
-impl UpChain {
-	// Registers a parachain by submitting an extrinsic.
-	async fn register_parachain(&self, cli: &mut impl Cli) -> Result<()> {
-		cli.info("Registering a parachain ID")?;
-		let call_data = self.prepare_register_parachain_call_data()?;
-		submit_extrinsic_with_wallet(&self.chain.client, &self.chain.url, call_data, cli).await?;
+impl Registration {
+	// Registers by submitting an extrinsic.
+	async fn register(&self, cli: &mut impl Cli) -> Result<()> {
+		cli.info(format!("Registering. You will need to sign a transaction on {} using the `Registrar::register` function.", self.chain.url))?;
+		let call_data = self.prepare_register_call_data(cli)?;
+		submit_extrinsic(&self.chain.client, &self.chain.url, call_data, cli).await?;
 		Ok(())
 	}
 
-	// Prepares and returns the encoded call data for registering a parachain.
-	fn prepare_register_parachain_call_data(&self) -> Result<Vec<u8>> {
-		let UpChain { id, genesis_code, genesis_state, chain, proxy } = self;
-		let ex = find_dispatchable_by_name(
+	// Prepares and returns the encoded call data for registering a chain.
+	fn prepare_register_call_data(&self, cli: &mut impl Cli) -> Result<Vec<u8>> {
+		let Registration { id, genesis_code, genesis_state, chain, proxy } = self;
+		let dispatchable = find_dispatchable_by_name(
 			&chain.pallets,
 			Action::Register.pallet_name(),
 			Action::Register.function_name(),
@@ -159,8 +161,14 @@ impl UpChain {
 		let state = std::fs::read_to_string(genesis_state)
 			.map_err(|err| anyhow!("Failed to read genesis state file: {}", err.to_string()))?;
 		let code = std::fs::read_to_string(genesis_code)
-			.map_err(|err| anyhow!("Failed to read genesis state file: {}", err.to_string()))?;
-		let mut xt = construct_extrinsic(ex, vec![id.to_string(), state, code])?;
+			.map_err(|err| anyhow!("Failed to read genesis code file: {}", err.to_string()))?;
+		let mut xt = Call {
+			function: dispatchable.clone(),
+			args: vec![id.to_string(), state, code],
+			use_wallet: true,
+			..Default::default()
+		}
+		.prepare_extrinsic(&chain.client, cli)?;
 		if let ProxyConfig::Address(addr) = proxy {
 			xt = construct_proxy_extrinsic(&chain.pallets, addr.to_string(), xt)?;
 		}
@@ -168,39 +176,45 @@ impl UpChain {
 	}
 }
 
-// Reserves a parachain ID by submitting an extrinsic.
-async fn reserve_para_id(chain: &Chain, proxy: &ProxyConfig, cli: &mut impl Cli) -> Result<u32> {
-	let call_data = prepare_reserve_parachain_call_data(chain, proxy)?;
-	let events = submit_extrinsic_with_wallet(&chain.client, &chain.url, call_data, cli)
+// Reserves an ID by submitting an extrinsic.
+async fn reserve(chain: &Chain, proxy: &ProxyConfig, cli: &mut impl Cli) -> Result<u32> {
+	let call_data = prepare_reserve_call_data(chain, proxy, cli)?;
+	let events = submit_extrinsic(&chain.client, &chain.url, call_data, cli)
 		.await
-		.map_err(|e| anyhow::anyhow!("Parachain ID reservation failed: {}", e))?;
-	let para_id = extract_para_id_from_event(&events).map_err(|_| {
-		anyhow::anyhow!("Unable to parse the event. Specify the parachain ID manually with `--id`.")
-	})?;
-	cli.success(format!("Successfully reserved parachain ID: {}", para_id))?;
-	Ok(para_id)
+		.map_err(|e| anyhow::anyhow!("ID reservation failed: {}", e))?;
+	let id = events
+		.find_first::<Reserved>()?
+		.ok_or(anyhow::anyhow!("Unable to parse the event. Specify the ID manually with `--id`."))?
+		.para_id;
+	cli.success(format!("Successfully reserved ID: {}", id))?;
+	Ok(id)
 }
 
-// Prepares and returns the encoded call data for reserving a parachain ID.
-fn prepare_reserve_parachain_call_data(chain: &Chain, proxy: &ProxyConfig) -> Result<Vec<u8>> {
+// Prepares and returns the encoded call data for reserving an ID.
+fn prepare_reserve_call_data(
+	chain: &Chain,
+	proxy: &ProxyConfig,
+	cli: &mut impl Cli,
+) -> Result<Vec<u8>> {
 	let dispatchable = find_dispatchable_by_name(
 		&chain.pallets,
 		Action::Reserve.pallet_name(),
 		Action::Reserve.function_name(),
 	)?;
-	let mut xt = construct_extrinsic(dispatchable, Vec::new())?;
+	let mut xt = Call { function: dispatchable.clone(), use_wallet: true, ..Default::default() }
+		.prepare_extrinsic(&chain.client, cli)?;
 	if let ProxyConfig::Address(addr) = proxy {
 		xt = construct_proxy_extrinsic(&chain.pallets, addr.to_string(), xt)?;
 	}
 	Ok(xt.encode_call_data(&chain.client.metadata())?)
 }
 
-// Generates chain spec files for the parachain.
+// Generates chain spec files for the project.
 async fn generate_spec_files(
 	id: u32,
 	path: Option<&Path>,
 	cli: &mut impl Cli,
-) -> anyhow::Result<(PathBuf, PathBuf)> {
+) -> anyhow::Result<(CodePathBuf, StatePathBuf)> {
 	// Changes the working directory if a path is provided to ensure the build spec process runs in
 	// the correct context.
 	if let Some(path) = path {
@@ -214,21 +228,21 @@ async fn generate_spec_files(
 	}
 	.configure_build_spec(cli)
 	.await?;
-	build_spec.generate_genesis_artifacts(cli)
+
+	let (genesis_code_file, genesis_state_file) = build_spec.build(cli)?;
+	Ok((
+		genesis_code_file.ok_or_else(|| anyhow::anyhow!("Failed to generate the genesis code."))?,
+		genesis_state_file
+			.ok_or_else(|| anyhow::anyhow!("Failed to generate the genesis state file."))?,
+	))
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::{
-		build::spec::{ChainType, RelayChain},
-		cli::MockCli,
-	};
-	use duct::cmd;
-	use pop_common::Profile;
+	use crate::cli::MockCli;
 	use pop_parachains::decode_call_data;
-	use std::{env, fs};
-	use strum::{EnumMessage, VariantArray};
+	use std::fs;
 	use tempfile::tempdir;
 	use url::Url;
 
@@ -236,13 +250,11 @@ mod tests {
 	const POP_NETWORK_TESTNET_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";
 
 	#[tokio::test]
-	async fn prepare_chain_for_registration_works() -> Result<()> {
-		let mut cli = MockCli::new().expect_input(
-			"Enter the relay chain node URL to deploy your parachain",
-			POLKADOT_NETWORK_URL.into(),
-		);
+	async fn prepare_for_registration_works() -> Result<()> {
+		let mut cli = MockCli::new()
+			.expect_input("Enter the relay chain node URL", POLKADOT_NETWORK_URL.into());
 		let (genesis_state, genesis_code) = create_temp_genesis_files()?;
-		let chain_config = UpChainCommand {
+		let chain_config = UpCommand {
 			id: Some(2000),
 			genesis_state: Some(genesis_state.clone()),
 			genesis_code: Some(genesis_code.clone()),
@@ -251,7 +263,7 @@ mod tests {
 			),
 			..Default::default()
 		}
-		.prepare_chain_for_registration(&mut cli)
+		.prepare_for_registration(&mut cli)
 		.await?;
 
 		assert_eq!(chain_config.id, 2000);
@@ -292,15 +304,14 @@ mod tests {
 				"Enter the value for the parameter: Id",
 				"5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty".into(),
 			);
-		let chain = configure_chain(
-			"Enter the relay chain node URL to deploy your parachain",
+		let chain = configure(
+			"Enter the relay chain node URL",
 			DEFAULT_URL,
 			&Some(Url::parse(POLKADOT_NETWORK_URL)?),
 			&mut cli,
 		)
 		.await?;
-		let proxied_address =
-			UpChainCommand::default().resolve_proxied_address(&chain, &mut cli)?;
+		let proxied_address = UpCommand::default().resolve_proxied_address(&chain, &mut cli)?;
 		assert_eq!(
 			proxied_address,
 			ProxyConfig::Address(
@@ -313,13 +324,12 @@ mod tests {
 			"Would you like to use a proxy for registration? This is considered a best practice.",
 			false,
 		);
-		let proxied_address =
-			UpChainCommand::default().resolve_proxied_address(&chain, &mut cli)?;
+		let proxied_address = UpCommand::default().resolve_proxied_address(&chain, &mut cli)?;
 		assert_eq!(proxied_address, ProxyConfig::None);
 		cli.verify()?;
 
 		cli = MockCli::new();
-		let proxied_address = UpChainCommand {
+		let proxied_address = UpCommand {
 			proxied_address: Some(
 				"Id(5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty)".to_string(),
 			),
@@ -336,27 +346,28 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn prepare_reserve_parachain_call_data_works() -> Result<()> {
+	async fn prepare_reserve_call_data_works() -> Result<()> {
 		let mut cli = MockCli::new();
-		let chain = configure_chain(
-			"Enter the relay chain node URL to deploy your parachain",
+		let chain = configure(
+			"Enter the relay chain node URL",
 			DEFAULT_URL,
 			&Some(Url::parse(POLKADOT_NETWORK_URL)?),
 			&mut cli,
 		)
 		.await?;
-		let call_data = prepare_reserve_parachain_call_data(&chain, &ProxyConfig::None)?;
+		let call_data = prepare_reserve_call_data(&chain, &ProxyConfig::None, &mut cli)?;
 		// Encoded call data for a reserve extrinsic.
 		// Reference: https://polkadot.js.org/apps/?rpc=wss%3A%2F%2Fpolkadot.public.curie.radiumblock.co%2Fws#/extrinsics/decode/0x4605
 		let encoded_reserve_extrinsic: &str = "0x4605";
 		assert_eq!(call_data, decode_call_data(encoded_reserve_extrinsic)?);
 
-		// Ensure `prepare_reserve_parachain_call_data` works with a proxy.
-		let call_data = prepare_reserve_parachain_call_data(
+		// Ensure `prepare_reserve_call_data` works with a proxy.
+		let call_data = prepare_reserve_call_data(
 			&chain,
 			&ProxyConfig::Address(
 				"Id(13czcAAt6xgLwZ8k6ZpkrRL5V2pjKEui3v9gHAN9PoxYZDbf)".to_string(),
 			),
+			&mut cli,
 		)?;
 		// Encoded call data for a proxy extrinsic with reserve as the call.
 		// Reference: https://polkadot.js.org/apps/?rpc=wss%3A%2F%2Fpolkadot.public.curie.radiumblock.co%2Fws#/extrinsics/decode/0x1d000073ebf9c947490b9170ea4fd3031ae039452e428531317f76bf0a02124f8166de004605
@@ -367,17 +378,17 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn reserve_parachain_id_fails_wrong_chain() -> Result<()> {
+	async fn reserve_id_fails_wrong_chain() -> Result<()> {
 		let mut cli = MockCli::new()
-			.expect_intro("Deploy a chain")
-			.expect_info("Reserving a parachain ID")
+			.expect_intro("Deploy a rollup")
+			.expect_info(format!("Reserving an ID. You will need to sign a transaction to reserve an ID on {} using the `Registrar::reserve` function.", Url::parse(POP_NETWORK_TESTNET_URL)?.as_str()))
 			.expect_outro_cancel("Failed to find the pallet Registrar");
 		let (genesis_state, genesis_code) = create_temp_genesis_files()?;
-		UpChainCommand {
+		UpCommand {
 			id: None,
 			genesis_state: Some(genesis_state.clone()),
 			genesis_code: Some(genesis_code.clone()),
-			relay_url: Some(Url::parse(POP_NETWORK_TESTNET_URL)?),
+			relay_chain_url: Some(Url::parse(POP_NETWORK_TESTNET_URL)?),
 			path: None,
 			proxied_address: None,
 		}
@@ -388,72 +399,17 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn resolve_genesis_files_fails_wrong_path() -> Result<()> {
-		// Mock a project path without node.
-		let name = "hello_world";
-		let temp_dir = tempfile::tempdir()?;
-		let path = temp_dir.path();
-		let project_path = path.join(name);
-		cmd("cargo", ["new", name, "--bin"]).dir(&path).run()?;
-		let original_dir = std::env::current_dir()?;
-
+	async fn register_fails_wrong_chain() -> Result<()> {
 		let mut cli = MockCli::new()
-			.expect_intro("Deploy a chain")
-			.expect_info("Generating the chain spec for your parachain")
-			.expect_input("Provide the chain specification to use (e.g. dev, local, custom or a path to an existing file)", "dev".to_string())
-			.expect_input(
-				"Name or path for the plain chain spec file:", "output_file".to_string())
-			.expect_input(
-				"Enter the protocol ID that will identify your network:", "protocol_id".to_string())
-			.expect_select(
-				"Choose the chain type: ",
-				Some(false),
-				true,
-				Some(get_messages(ChainType::VARIANTS)),
-				ChainType::Development as usize,
-			).expect_select(
-				"Choose the relay your chain will be connecting to: ",
-				Some(false),
-				true,
-				Some(get_messages(RelayChain::VARIANTS)),
-				RelayChain::PaseoLocal as usize,
-			).expect_select(
-				"Choose the build profile of the binary that should be used: ",
-				Some(false),
-				true,
-				Some(get_messages(Profile::VARIANTS)),
-				Profile::Release as usize,
-		).expect_outro_cancel(format!("Failed to get manifest path: {}/node/Cargo.toml", fs::canonicalize(&project_path)?.display().to_string()));
-
-		UpChainCommand {
-			id: Some(2000),
-			genesis_state: None,
-			genesis_code: None,
-			relay_url: Some(Url::parse(POP_NETWORK_TESTNET_URL)?),
-			path: Some(project_path.clone()),
-			proxied_address: None,
-		}
-		.execute(&mut cli)
-		.await?;
-
-		assert_eq!(fs::canonicalize(env::current_dir()?)?, fs::canonicalize(project_path)?);
-		// Reset working directory back to original
-		std::env::set_current_dir(original_dir)?;
-		cli.verify()
-	}
-
-	#[tokio::test]
-	async fn register_parachain_fails_wrong_chain() -> Result<()> {
-		let mut cli = MockCli::new()
-			.expect_intro("Deploy a chain")
-			.expect_info("Registering a parachain ID")
+			.expect_intro("Deploy a rollup")
+			.expect_info(format!("Registering. You will need to sign a transaction on {} using the `Registrar::register` function.", Url::parse(POP_NETWORK_TESTNET_URL)?.as_str()))
 			.expect_outro_cancel("Failed to find the pallet Registrar");
 		let (genesis_state, genesis_code) = create_temp_genesis_files()?;
-		UpChainCommand {
+		UpCommand {
 			id: Some(2000),
 			genesis_state: Some(genesis_state.clone()),
 			genesis_code: Some(genesis_code.clone()),
-			relay_url: Some(Url::parse(POP_NETWORK_TESTNET_URL)?),
+			relay_chain_url: Some(Url::parse(POP_NETWORK_TESTNET_URL)?),
 			path: None,
 			proxied_address: None,
 		}
@@ -464,10 +420,10 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn prepare_register_parachain_call_data_works() -> Result<()> {
+	async fn prepare_register_call_data_works() -> Result<()> {
 		let mut cli = MockCli::new();
-		let chain = configure_chain(
-			"Enter the relay chain node URL to deploy your parachain",
+		let chain = configure(
+			"Enter the relay chain node URL",
 			DEFAULT_URL,
 			&Some(Url::parse(POLKADOT_NETWORK_URL)?),
 			&mut cli,
@@ -477,27 +433,41 @@ mod tests {
 		let temp_dir = tempdir()?;
 		let genesis_state_path = temp_dir.path().join("genesis_state");
 		let genesis_code_path = temp_dir.path().join("genesis_code.wasm");
-		std::fs::write(&genesis_state_path, "0x1234")?;
-		std::fs::write(&genesis_code_path, "0x1234")?;
-
-		let mut up_chain = UpChain {
+		let mut up_chain = Registration {
 			id: 2000,
-			genesis_state: genesis_state_path,
-			genesis_code: genesis_code_path,
+			genesis_state: genesis_state_path.clone(),
+			genesis_code: genesis_code_path.clone(),
 			chain,
 			proxy: ProxyConfig::None,
 		};
-		let call_data = up_chain.prepare_register_parachain_call_data()?;
+
+		// Expect failure when the genesis state file cannot be read.
+		assert!(matches!(
+			up_chain.prepare_register_call_data(&mut cli),
+			Err(message) if message.to_string().contains("Failed to read genesis state file")
+		));
+		std::fs::write(&genesis_state_path, "0x1234")?;
+
+		// Expect failure when the genesis code file cannot be read.
+		assert!(matches!(
+			up_chain.prepare_register_call_data(&mut cli),
+			Err(message) if message.to_string().contains("Failed to read genesis code file")
+		));
+		std::fs::write(&genesis_code_path, "0x1234")?;
+
 		// Encoded call data for a register extrinsic with the above values.
 		// Reference: https://polkadot.js.org/apps/?rpc=wss%3A%2F%2Fpolkadot.public.curie.radiumblock.co%2Fws#/extrinsics/decode/0x4600d0070000081234081234
 		let encoded_register_extrinsic: &str = "0x4600d0070000081234081234";
-		assert_eq!(call_data, decode_call_data(encoded_register_extrinsic)?);
+		assert_eq!(
+			up_chain.prepare_register_call_data(&mut cli)?,
+			decode_call_data(encoded_register_extrinsic)?
+		);
 
-		// Ensure `prepare_register_parachain_call_data` works with a proxy.
+		// Ensure `prepare_register_call_data` works with a proxy.
 		up_chain.proxy = ProxyConfig::Address(
 			"Id(13czcAAt6xgLwZ8k6ZpkrRL5V2pjKEui3v9gHAN9PoxYZDbf)".to_string(),
 		);
-		let call_data = up_chain.prepare_register_parachain_call_data()?;
+		let call_data = up_chain.prepare_register_call_data(&mut cli)?;
 		// Encoded call data for a proxy extrinsic with register as the call.
 		// Reference: https://polkadot.js.org/apps/?rpc=wss%3A%2F%2Fpolkadot.public.curie.radiumblock.co%2Fws#/extrinsics/decode/0x1d000073ebf9c947490b9170ea4fd3031ae039452e428531317f76bf0a02124f8166de004600d0070000081234081234
 		let encoded_reserve_extrinsic: &str = "0x1d000073ebf9c947490b9170ea4fd3031ae039452e428531317f76bf0a02124f8166de004600d0070000081234081234";
@@ -515,18 +485,5 @@ mod tests {
 		fs::write(&genesis_code_path, "0x1234")?;
 
 		Ok((genesis_state_path, genesis_code_path))
-	}
-
-	// Generic helper function to convert enum variants into (message, detailed message) tuples.
-	fn get_messages<T: EnumMessage + AsRef<str>>(variants: &[T]) -> Vec<(String, String)> {
-		variants
-			.iter()
-			.map(|variant| {
-				(
-					variant.get_message().unwrap_or(variant.as_ref()).into(),
-					variant.get_detailed_message().unwrap_or_default().into(),
-				)
-			})
-			.collect()
 	}
 }

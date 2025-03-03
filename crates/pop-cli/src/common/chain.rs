@@ -5,7 +5,7 @@ use anyhow::{anyhow, Result};
 use pop_parachains::{parse_chain_metadata, set_up_client, OnlineClient, Pallet, SubstrateConfig};
 use url::Url;
 
-// Represents a chain, including its URL, client connection, and available pallets.
+// Represents a chain and its associated metadata.
 pub(crate) struct Chain {
 	// Websocket endpoint of the node.
 	pub url: Url,
@@ -15,8 +15,8 @@ pub(crate) struct Chain {
 	pub pallets: Vec<Pallet>,
 }
 
-// Configures the chain by resolving the URL and fetching its metadata.
-pub(crate) async fn configure_chain(
+// Configures a chain by resolving the URL and fetching its metadata.
+pub(crate) async fn configure(
 	input_message: &str,
 	default_input: &str,
 	url: &Option<Url>,
@@ -50,10 +50,10 @@ mod tests {
 	const POP_NETWORK_TESTNET_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";
 
 	#[tokio::test]
-	async fn configure_chain_works() -> Result<()> {
+	async fn configure_works() -> Result<()> {
 		let message = "Enter the URL of the chain:";
 		let mut cli = MockCli::new().expect_input(message, POP_NETWORK_TESTNET_URL.into());
-		let chain = configure_chain(message, POP_NETWORK_TESTNET_URL, &None, &mut cli).await?;
+		let chain = configure(message, POP_NETWORK_TESTNET_URL, &None, &mut cli).await?;
 		assert_eq!(chain.url, Url::parse(POP_NETWORK_TESTNET_URL)?);
 		cli.verify()
 	}

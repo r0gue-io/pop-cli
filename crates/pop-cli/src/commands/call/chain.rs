@@ -5,8 +5,8 @@ use std::path::Path;
 use crate::{
 	cli::{self, traits::*},
 	common::{
-		chain::{configure_chain, Chain},
-		wallet::{prompt_to_use_wallet, submit_extrinsic_with_wallet},
+		chain::{configure, Chain},
+		wallet::{self, prompt_to_use_wallet},
 	},
 };
 use anyhow::{anyhow, Result};
@@ -74,7 +74,7 @@ impl CallChainCommand {
 		// Check if all fields are specified via the command line.
 		let prompt_to_repeat_call = self.requires_user_input();
 		// Configure the chain.
-		let chain = configure_chain(
+		let chain = configure(
 			"Which chain would you like to interact with?",
 			DEFAULT_URL,
 			&self.url,
@@ -119,7 +119,7 @@ impl CallChainCommand {
 			// Sign and submit the extrinsic.
 			let result = if self.use_wallet {
 				let call_data = xt.encode_call_data(&chain.client.metadata())?;
-				submit_extrinsic_with_wallet(&chain.client, &chain.url, call_data, &mut cli)
+				wallet::submit_extrinsic(&chain.client, &chain.url, call_data, &mut cli)
 					.await
 					.map(|_| ()) // Mapping to `()` since we don't need events returned
 			} else {
@@ -229,7 +229,7 @@ impl CallChainCommand {
 		if use_wallet {
 			let call_data_bytes =
 				decode_call_data(call_data).map_err(|err| anyhow!("{}", format!("{err:?}")))?;
-			submit_extrinsic_with_wallet(client, url, call_data_bytes, cli)
+			wallet::submit_extrinsic(client, url, call_data_bytes, cli)
 				.await
 				.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
 			display_message("Call complete.", true, cli)?;
@@ -345,28 +345,28 @@ impl CallChainCommand {
 /// Represents a configured dispatchable function call, including the pallet, function, arguments,
 /// and signing options.
 #[derive(Clone, Default)]
-struct Call {
+pub(crate) struct Call {
 	/// The dispatchable function to execute.
-	function: Function,
+	pub(crate) function: Function,
 	/// The dispatchable function arguments, encoded as strings.
-	args: Vec<String>,
+	pub(crate) args: Vec<String>,
 	/// Secret key URI for the account signing the extrinsic.
 	///
 	/// e.g.
 	/// - for a dev account "//Alice"
 	/// - with a password "//Alice///SECRET_PASSWORD"
-	suri: String,
+	pub(crate) suri: String,
 	/// Whether to use your browser wallet to sign the extrinsic.
-	use_wallet: bool,
+	pub(crate) use_wallet: bool,
 	/// Whether to automatically sign and submit the extrinsic without prompting for confirmation.
-	skip_confirm: bool,
+	pub(crate) skip_confirm: bool,
 	/// Whether to dispatch the function call with `Root` origin.
-	sudo: bool,
+	pub(crate) sudo: bool,
 }
 
 impl Call {
 	// Prepares the extrinsic.
-	fn prepare_extrinsic(
+	pub(crate) fn prepare_extrinsic(
 		&self,
 		client: &OnlineClient<SubstrateConfig>,
 		cli: &mut impl Cli,
@@ -660,7 +660,7 @@ mod tests {
 		.expect_confirm("Would you like to dispatch this function call with `Root` origin?", true)
 		.expect_confirm(USE_WALLET_PROMPT, true);
 
-		let chain = configure_chain(
+		let chain = configure(
 			"Which chain would you like to interact with?",
 			POP_NETWORK_TESTNET_URL,
 			&None,
@@ -688,7 +688,7 @@ mod tests {
 			"Which chain would you like to interact with?",
 			POLKADOT_NETWORK_URL.into(),
 		);
-		let chain = configure_chain(
+		let chain = configure(
 			"Which chain would you like to interact with?",
 			POP_NETWORK_TESTNET_URL,
 			&None,
@@ -845,7 +845,7 @@ mod tests {
 		};
 		let mut cli = MockCli::new()
 			.expect_warning("NOTE: sudo is not supported by the chain. Ignoring `--sudo` flag.");
-		let chain = configure_chain(
+		let chain = configure(
 			"Which chain would you like to interact with?",
 			POP_NETWORK_TESTNET_URL,
 			&Some(Url::parse(POLKADOT_NETWORK_URL)?),
@@ -861,7 +861,7 @@ mod tests {
 			"Would you like to dispatch this function call with `Root` origin?",
 			true,
 		);
-		let chain = configure_chain(
+		let chain = configure(
 			"Which chain would you like to interact with?",
 			POP_NETWORK_TESTNET_URL,
 			&Some(Url::parse(POP_NETWORK_TESTNET_URL)?),
