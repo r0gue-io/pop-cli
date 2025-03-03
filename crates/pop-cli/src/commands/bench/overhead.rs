@@ -1,5 +1,5 @@
 use crate::{
-	cli::{self, traits::Cli},
+	cli::{self},
 	common::bench::{ensure_runtime_binary_exists, guide_user_to_select_genesis_preset},
 };
 use clap::{Args, Parser};
@@ -16,8 +16,7 @@ pub struct BenchmarkOverhead {
 }
 
 impl BenchmarkOverhead {
-	pub fn execute(&mut self) -> anyhow::Result<()> {
-		let mut cli = cli::Cli;
+	pub fn execute(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		let cmd = &mut self.command;
 
 		cli.warning("NOTE: this may take some time...")?;
@@ -26,10 +25,10 @@ impl BenchmarkOverhead {
 		// No runtime path provided, auto-detect the runtime WASM binary. If not found, build
 		// the runtime.
 		if cmd.params.runtime.is_none() {
-			match ensure_runtime_binary_exists(&mut cli, &Profile::Release) {
+			match ensure_runtime_binary_exists(cli, &Profile::Release) {
 				Ok(runtime_binary_path) => cmd.params.runtime = Some(runtime_binary_path),
 				Err(e) => {
-					return display_message(&e.to_string(), false, &mut cli);
+					return display_message(&e.to_string(), false, cli);
 				},
 			}
 		}
@@ -39,15 +38,15 @@ impl BenchmarkOverhead {
 				parse_genesis_builder_policy("runtime")?.params.genesis_builder;
 			let preset = cmd.params.genesis_builder_preset.clone();
 			let runtime_path = cmd.params.runtime.as_ref().expect("No runtime found");
-			if let Err(e) = guide_user_to_select_genesis_preset(&mut cli, &runtime_path, &preset) {
-				return display_message(&e.to_string(), false, &mut cli);
+			if let Err(e) = guide_user_to_select_genesis_preset(cli, &runtime_path, &preset) {
+				return display_message(&e.to_string(), false, cli);
 			};
 		}
 
 		if let Err(e) = generate_overhead_benchmarks(&cmd) {
-			return display_message(&e.to_string(), false, &mut cli);
+			return display_message(&e.to_string(), false, cli);
 		}
-		display_message("Benchmark completed successfully!", true, &mut cli)?;
+		display_message("Benchmark completed successfully!", true, cli)?;
 		Ok(())
 	}
 }
