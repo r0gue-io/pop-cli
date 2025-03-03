@@ -443,15 +443,14 @@ impl BuildSpecCommand {
 		// If deterministic build is selected, use the provided runtime path or prompt the user if
 		// missing.
 		let runtime_dir = if deterministic {
-			match runtime_dir {
-				Some(dir) => dir,
-				None => PathBuf::from(
-					cli.input("Enter the directory path where the runtime is located:")
-						.placeholder(DEFAULT_RUNTIME_DIR)
-						.default_input(DEFAULT_RUNTIME_DIR)
-						.interact()?,
-				),
-			}
+			runtime_dir.unwrap_or_else(|| {
+				cli.input("Enter the directory path where the runtime is located:")
+					.placeholder(DEFAULT_RUNTIME_DIR)
+					.default_input(DEFAULT_RUNTIME_DIR)
+					.interact()
+					.map(PathBuf::from)
+					.unwrap_or_else(|_| PathBuf::from(DEFAULT_RUNTIME_DIR))
+			})
 		} else {
 			DEFAULT_RUNTIME_DIR.into()
 		};
@@ -459,22 +458,19 @@ impl BuildSpecCommand {
 		// If deterministic build is selected, extract package name from runtime path provided
 		// above. Prompt the user if unavailable.
 		let package = if deterministic {
-			match package {
-				Some(pkg) => pkg,
-				None => {
-					match from_path(Some(&runtime_dir))
+			package
+				.or_else(|| {
+					from_path(Some(&runtime_dir))
 						.ok()
 						.and_then(|manifest| manifest.package.map(|pkg| pkg.name))
-					{
-						Some(pkg_name) => pkg_name,
-						None => cli
-							.input("Enter the runtime package name:")
-							.placeholder(DEFAULT_PACKAGE)
-							.default_input(DEFAULT_PACKAGE)
-							.interact()?,
-					}
-				},
-			}
+				})
+				.unwrap_or_else(|| {
+					cli.input("Enter the runtime package name:")
+						.placeholder(DEFAULT_PACKAGE)
+						.default_input(DEFAULT_PACKAGE)
+						.interact()
+						.unwrap_or_else(|_| DEFAULT_PACKAGE.to_string())
+				})
 		} else {
 			DEFAULT_PACKAGE.to_string()
 		};

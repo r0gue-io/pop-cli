@@ -71,7 +71,7 @@ async fn parachain_lifecycle() -> Result<()> {
 			"--genesis-code",
 			"--protocol-id",
 			"pop-protocol",
-			"deterministic",
+			"--deterministic",
 		])
 		.assert()
 		.success();
