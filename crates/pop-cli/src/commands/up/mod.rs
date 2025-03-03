@@ -12,7 +12,7 @@ mod contract;
 #[cfg(feature = "parachain")]
 mod network;
 #[cfg(feature = "parachain")]
-mod parachain;
+mod rollup;
 
 /// Arguments for launching or deploying a project.
 #[derive(Args, Clone)]
@@ -29,7 +29,7 @@ pub(crate) struct UpArgs {
 
 	#[command(flatten)]
 	#[cfg(feature = "parachain")]
-	pub(crate) parachain: parachain::UpCommand,
+	pub(crate) rollup: rollup::UpCommand,
 
 	#[command(flatten)]
 	#[cfg(feature = "contract")]
@@ -79,7 +79,7 @@ impl Command {
 		}
 		#[cfg(feature = "parachain")]
 		if pop_parachains::is_supported(project_path.as_deref())? {
-			let mut cmd = args.parachain;
+			let mut cmd = args.rollup;
 			cmd.path = project_path;
 			cmd.execute(cli).await?;
 			return Ok("parachain");
@@ -122,7 +122,7 @@ mod tests {
 				skip_confirm: false,
 				valid: false,
 			},
-			parachain: parachain::UpCommand::default(),
+			rollup: rollup::UpCommand::default(),
 			command: None,
 		})
 	}
@@ -156,10 +156,10 @@ mod tests {
 		instantiate_template_dir(&Parachain::Standard, &project_path, None, config)?;
 
 		let mut args = create_up_args(project_path)?;
-		args.parachain.relay_chain_url = Some(Url::parse("wss://polkadot-rpc.publicnode.com")?);
-		args.parachain.id = Some(2000);
-		args.parachain.genesis_code = Some(PathBuf::from("path/to/genesis"));
-		args.parachain.genesis_state = Some(PathBuf::from("path/to/state"));
+		args.rollup.relay_chain_url = Some(Url::parse("wss://polkadot-rpc.publicnode.com")?);
+		args.rollup.id = Some(2000);
+		args.rollup.genesis_code = Some(PathBuf::from("path/to/genesis"));
+		args.rollup.genesis_state = Some(PathBuf::from("path/to/state"));
 		let mut cli = MockCli::new();
 		assert_eq!(Command::execute_project_deployment(args, &mut cli).await?, "parachain");
 		cli.verify()

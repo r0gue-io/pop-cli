@@ -58,24 +58,20 @@ impl UpCommand {
 
 	// Prepares the chain for registration by setting up its configuration.
 	async fn prepare_for_registration(self, cli: &mut impl Cli) -> Result<Registration> {
-		let chain = configure(
-			"Enter the relay chain node URL to deploy your parachain",
-			DEFAULT_URL,
-			&self.relay_chain_url,
-			cli,
-		)
-		.await?;
-		let id = self.resolve_parachain_id(&chain, cli).await?;
+		let chain =
+			configure("Enter the relay chain node URL", DEFAULT_URL, &self.relay_chain_url, cli)
+				.await?;
+		let id = self.resolve_id(&chain, cli).await?;
 		let (genesis_code, genesis_state) = self.resolve_genesis_files(id, cli).await?;
 		Ok(Registration { id, genesis_state, genesis_code, chain })
 	}
 
-	// Resolves the parachain ID, reserving a new one if necessary.
-	async fn resolve_parachain_id(&self, chain: &Chain, cli: &mut impl Cli) -> Result<u32> {
+	// Resolves the ID, reserving a new one if necessary.
+	async fn resolve_id(&self, chain: &Chain, cli: &mut impl Cli) -> Result<u32> {
 		match self.id {
 			Some(id) => Ok(id),
 			None => {
-				cli.info("Reserving a parachain ID")?;
+				cli.info("Reserving an ID")?;
 				reserve(chain, cli).await
 			},
 		}
@@ -89,14 +85,14 @@ impl UpCommand {
 		match (&self.genesis_code, &self.genesis_state) {
 			(Some(code), Some(state)) => Ok((code.clone(), state.clone())),
 			_ => {
-				cli.info("Generating the chain spec for your parachain")?;
+				cli.info("Generating the chain spec for your project")?;
 				generate_spec_files(id, self.path.as_deref(), cli).await
 			},
 		}
 	}
 }
 
-// Represents the configuration for deploying a chain.
+// Represents the configuration for rollup registration.
 pub(crate) struct Registration {
 	id: u32,
 	genesis_state: PathBuf,
@@ -112,7 +108,7 @@ impl Registration {
 		Ok(())
 	}
 
-	// Prepares and returns the encoded call data for registering a parachain.
+	// Prepares and returns the encoded call data for registering a chain.
 	fn prepare_register_call_data(&self, cli: &mut impl Cli) -> Result<Vec<u8>> {
 		let Registration { id, genesis_code, genesis_state, chain } = self;
 		let dispatchable = find_dispatchable_by_name(
@@ -203,10 +199,8 @@ mod tests {
 
 	#[tokio::test]
 	async fn prepare_for_registration_works() -> Result<()> {
-		let mut cli = MockCli::new().expect_input(
-			"Enter the relay chain node URL to deploy your parachain",
-			POLKADOT_NETWORK_URL.into(),
-		);
+		let mut cli = MockCli::new()
+			.expect_input("Enter the relay chain node URL", POLKADOT_NETWORK_URL.into());
 		let (genesis_state, genesis_code) = create_temp_genesis_files()?;
 		let chain_config = UpCommand {
 			id: Some(2000),
@@ -228,7 +222,7 @@ mod tests {
 	async fn prepare_reserve_call_data_works() -> Result<()> {
 		let mut cli = MockCli::new();
 		let chain = configure(
-			"Enter the relay chain node URL to deploy your parachain",
+			"Enter the relay chain node URL",
 			DEFAULT_URL,
 			&Some(Url::parse(POLKADOT_NETWORK_URL)?),
 			&mut cli,
@@ -286,7 +280,7 @@ mod tests {
 	async fn prepare_register_call_data_works() -> Result<()> {
 		let mut cli = MockCli::new();
 		let chain = configure(
-			"Enter the relay chain node URL to deploy your parachain",
+			"Enter the relay chain node URL",
 			DEFAULT_URL,
 			&Some(Url::parse(POLKADOT_NETWORK_URL)?),
 			&mut cli,
