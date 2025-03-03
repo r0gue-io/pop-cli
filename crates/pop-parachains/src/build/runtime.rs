@@ -12,15 +12,25 @@ const ONE_HOUR: u64 = 60 * 60;
 /// Builds and executes the command for running the deterministic runtime build process using
 /// srtool.
 pub struct SrToolBuilder {
+	/// Mount point for cargo cache.
 	cache_mount: String,
+	/// List of default features to enable during the build process.
 	default_features: String,
+	/// Digest of the image for reproducibility.
 	digest: String,
+	/// The container engine used to run the build process.
 	engine: ContainerEngine,
+	/// Name of the image used for building.
 	image: String,
+	/// The runtime package name.
 	package: String,
+	/// The path to the project directory.
 	path: PathBuf,
+	/// The profile used for building.
 	profile: Profile,
+	/// The directory path where the runtime is located.
 	runtime_dir: PathBuf,
+	/// The tag of the image to use.
 	tag: String,
 }
 
@@ -63,7 +73,8 @@ impl SrToolBuilder {
 			tag,
 		})
 	}
-	/// Executes the runtime build process and returns the path of the generated `.wasm` file.
+
+	/// Executes the runtime build process and returns the path of the generated file.
 	pub fn generate_deterministic_runtime(&self) -> Result<PathBuf, Error> {
 		let command = self.build_command();
 		cmd("sh", vec!["-c", &command]).run()?;
@@ -95,6 +106,7 @@ impl SrToolBuilder {
 			self.tag
 		)
 	}
+
 	// Returns the expected output path of the compiled runtime `.wasm` file.
 	fn get_wasm_output_path(&self) -> PathBuf {
 		self.runtime_dir

@@ -12,6 +12,7 @@ use std::{
 	str::FromStr,
 };
 
+/// Build the deterministic runtime.
 pub mod runtime;
 
 /// Build the parachain and returns the path to the binary.

@@ -175,7 +175,8 @@ pub struct BuildSpecCommand {
 	/// Whether the genesis code file should be generated.
 	#[arg(short = 'C', long = "genesis-code")]
 	pub(crate) genesis_code: bool,
-	/// Whether to build the Wasm runtime deterministically.
+	/// Whether to build the runtime deterministically. This requires a containerization solution
+	/// (Docker/Podman).
 	#[arg(short, long)]
 	pub(crate) deterministic: bool,
 	/// Specify the runtime package name.
@@ -454,8 +455,9 @@ impl BuildSpecCommand {
 		} else {
 			DEFAULT_RUNTIME_DIR.into()
 		};
+
 		// If deterministic build is selected, extract package name from runtime path provided
-		// aboce. Prompt the user if unavailable.
+		// above. Prompt the user if unavailable.
 		let package = if deterministic {
 			match package {
 				Some(pkg) => pkg,
@@ -553,16 +555,16 @@ impl BuildSpec {
 		self.customize()?;
 		// Deterministic build.
 		if self.deterministic {
-			spinner.set_message("Generating deterministic runtime...");
+			spinner.set_message("Building deterministic runtime...");
 			cli.warning("NOTE: this may take some time...")?;
 			spinner.clear();
-			match self.generate_deterministic_runtime(cli) {
+			match self.build_deterministic_runtime(cli) {
 				Ok(wasm) => {
-					cli.success("Deterministic runtime generated successfully.")?;
+					cli.success("Runtime built successfully.")?;
 					self.update_code(&wasm)?;
 				},
 				Err(_) => {
-					cli.warning("WARNING: Failed to generate deterministic runtime. Proceeding with the standard local build.")?;
+					cli.warning("WARNING: Failed to build deterministic runtime. Proceeding with the standard local build.")?;
 				},
 			};
 		}
@@ -633,13 +635,13 @@ impl BuildSpec {
 		Ok(())
 	}
 
-	// Generates the deterministic runtime and returns the runtime generated.
-	fn generate_deterministic_runtime(
+	// Build a deterministic runtime.
+	fn build_deterministic_runtime(
 		&self,
 		cli: &mut impl cli::traits::Cli,
 	) -> anyhow::Result<Vec<u8>> {
 		let engine = ContainerEngine::detect()?;
-		// As srtool-cli(https://github.com/chevdor/srtool-cli/blob/master/cli/src/main.rs#L28) warn about using docker.
+		// Warning from srtool-cli: https://github.com/chevdor/srtool-cli/blob/master/cli/src/main.rs#L28).
 		if engine == ContainerEngine::Docker {
 			cli.warning("WARNING: You are using docker. We recommend using podman instead.")?;
 		}
@@ -652,7 +654,7 @@ impl BuildSpec {
 		)?;
 		let wasm_path = builder.generate_deterministic_runtime()?;
 		if !wasm_path.exists() {
-			return Err(anyhow::anyhow!("Cant't find the generated runtime at {:?}", wasm_path));
+			return Err(anyhow::anyhow!("Can't find the generated runtime at {:?}", wasm_path));
 		}
 		fs::read(&wasm_path).map_err(anyhow::Error::from)
 	}
