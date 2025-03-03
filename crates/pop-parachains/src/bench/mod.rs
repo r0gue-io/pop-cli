@@ -42,6 +42,12 @@ pub enum GenesisBuilderPolicy {
 	Runtime,
 }
 
+impl GenesisBuilderPolicy {
+	pub fn from_serialized(serialized: &str) -> GenesisBuilderPolicy {
+		GenesisBuilderPolicy::from(serialized.to_lowercase())
+	}
+}
+
 impl ToString for GenesisBuilderPolicy {
 	fn to_string(&self) -> String {
 		match self {
