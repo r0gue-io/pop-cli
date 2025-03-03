@@ -147,6 +147,12 @@ jobs:
           target: wasm32-unknown-unknown
           components: rust-src, clippy
 
+      - name: Install packages (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          brew install protobuf
+          protoc --version
+
       - name: Cache
         uses: Swatinem/rust-cache@v2
 
