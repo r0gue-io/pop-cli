@@ -102,9 +102,12 @@ pub fn generate_benchmarks(args: Vec<String>) -> anyhow::Result<()> {
 ///
 /// # Arguments
 /// * `cmd` - Command to benchmark the execution overhead per-block and per-extrinsic.
-pub fn generate_overhead_benchmarks(cmd: &OverheadCmd) -> anyhow::Result<()> {
-	cmd.run_with_default_builder_and_spec::<OpaqueBlock, HostFunctions>(None)
-		.map_err(|e| anyhow::anyhow!(format!("Failed to run benchmarking: {}", e.to_string())))
+pub async fn generate_overhead_benchmarks(cmd: OverheadCmd) -> anyhow::Result<()> {
+	tokio::task::spawn_blocking(move || {
+		cmd.run_with_default_builder_and_spec::<OpaqueBlock, HostFunctions>(None)
+			.map_err(|e| anyhow::anyhow!(format!("Failed to run benchmarking: {}", e)))
+	})
+	.await?
 }
 
 /// Loads a mapping of pallets and their associated extrinsics from the runtime binary.
