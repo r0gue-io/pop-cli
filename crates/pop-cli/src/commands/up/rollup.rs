@@ -180,7 +180,6 @@ async fn generate_spec_files(
 		id: Some(id),
 		genesis_code: true,
 		genesis_state: true,
-		deterministic: true,
 		..Default::default()
 	}
 	.configure_build_spec(cli)

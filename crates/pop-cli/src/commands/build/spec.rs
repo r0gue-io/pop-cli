@@ -434,10 +434,10 @@ impl BuildSpecCommand {
 		};
 
 		// Prompt the user for deterministic build only if the profile is Production.
-		let deterministic = deterministic || (profile == Profile::Production && cli
-			.confirm("Would you like to build the runtime deterministically? (Recommended for production builds)")
-			.initial_value(true)
-			.interact()?);
+		let deterministic = deterministic || cli
+			.confirm("Would you like to build the runtime deterministically? This requires a containerization solution (Docker/Podman) and is recommended for production builds.")
+			.initial_value(profile == Profile::Production)
+			.interact()?;
 
 		// If deterministic build is selected, use the provided runtime path or prompt the user if
 		// missing.
@@ -788,7 +788,7 @@ mod tests {
 				).expect_confirm("Would you like to use local host as a bootnode ?", default_bootnode
 				).expect_confirm("Should the genesis state file be generated ?", genesis_state
 				).expect_confirm("Should the genesis code file be generated ?", genesis_code)
-				.expect_confirm("Would you like to build the runtime deterministically? (Recommended for production builds)", deterministic)
+				.expect_confirm("Would you like to build the runtime deterministically? This requires a containerization solution (Docker/Podman) and is recommended for production builds.", deterministic)
 				.expect_input("Enter the directory path where the runtime is located:", runtime_dir.display().to_string())
 				.expect_input("Enter the runtime package name:", package.to_string());
 			}
@@ -923,7 +923,7 @@ mod tests {
 					}
 					if !build_spec_cmd.deterministic {
 						cli = cli.expect_confirm(
-							"Would you like to build the runtime deterministically? (Recommended for production builds)",
+							"Would you like to build the runtime deterministically? This requires a containerization solution (Docker/Podman) and is recommended for production builds.",
 							deterministic,
 						).expect_input("Enter the directory path where the runtime is located:", runtime_dir.display().to_string())
 						.expect_input("Enter the runtime package name:", package.to_string());
