@@ -90,10 +90,12 @@ impl RelayChain {
 	}
 }
 
+/// A event emitted when an id has been registered.
 #[derive(Debug, Encode, Decode, DecodeAsType, EncodeAsType)]
 #[decode_as_type(crate_path = "subxt::ext::scale_decode")]
 #[encode_as_type(crate_path = "subxt::ext::scale_encode")]
 pub struct Reserved {
+	/// The id that has been reserved.
 	pub para_id: u32,
 }
 impl StaticEvent for Reserved {
