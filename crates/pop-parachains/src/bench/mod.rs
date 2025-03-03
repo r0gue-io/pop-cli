@@ -98,6 +98,15 @@ pub fn generate_benchmarks(args: Vec<String>) -> anyhow::Result<()> {
 		.map_err(|e| anyhow::anyhow!("Failed to run benchmarking: {}", e))
 }
 
+/// Run command for overhead benchmarking.
+///
+/// # Arguments
+/// * `cmd` - Command to benchmark the execution overhead per-block and per-extrinsic.
+pub fn generate_overhead_benchmarks(cmd: &OverheadCmd) -> anyhow::Result<()> {
+	cmd.run_with_default_builder_and_spec::<OpaqueBlock, HostFunctions>(None)
+		.map_err(|e| anyhow::anyhow!(format!("Failed to run benchmarking: {}", e.to_string())))
+}
+
 /// Loads a mapping of pallets and their associated extrinsics from the runtime binary.
 ///
 /// # Arguments

@@ -7,6 +7,7 @@ use crate::{
 use clap::{Args, Subcommand};
 use pallet::BenchmarkPallet;
 
+mod overhead;
 mod pallet;
 
 /// Arguments for benchmarking a project.
@@ -23,6 +24,8 @@ pub enum Command {
 	/// Benchmark the extrinsic weight of FRAME Pallets
 	#[clap(alias = "p")]
 	Pallet(BenchmarkPallet),
+	#[clap(alias = "o")]
+	Overhead(overhead::BenchmarkOverhead),
 }
 
 impl Command {
@@ -31,6 +34,7 @@ impl Command {
 		let mut cli = cli::Cli;
 		match args.command {
 			Command::Pallet(mut cmd) => cmd.execute(&mut cli).await,
+			Command::Overhead(mut cmd) => cmd.execute(),
 		}
 	}
 }
