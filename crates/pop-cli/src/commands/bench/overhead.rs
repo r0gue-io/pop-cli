@@ -16,7 +16,7 @@ pub struct BenchmarkOverhead {
 }
 
 impl BenchmarkOverhead {
-	pub fn execute(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+	pub async fn execute(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		let cmd = &mut self.command;
 
 		cli.warning("NOTE: this may take some time...")?;
@@ -43,7 +43,13 @@ impl BenchmarkOverhead {
 			};
 		}
 
-		if let Err(e) = generate_overhead_benchmarks(&cmd) {
+		if let Err(e) = generate_overhead_benchmarks(OverheadCmd {
+			import_params: cmd.import_params.clone(),
+			params: cmd.params.clone(),
+			shared_params: cmd.shared_params.clone(),
+		})
+		.await
+		{
 			return display_message(&e.to_string(), false, cli);
 		}
 		display_message("Benchmark completed successfully!", true, cli)?;

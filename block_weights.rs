@@ -1,5 +1,5 @@
 
-//! THIS FILE WAS AUTO-GENERATED USING THE SUBSTRATE BENCHMARK CLI VERSION 45.0.0
+//! THIS FILE WAS AUTO-GENERATED USING THE SUBSTRATE BENCHMARK CLI VERSION 46.0.0
 //! DATE: 2025-03-03 (Y/M/D)
 //! HOSTNAME: `Tins-MacBook-Pro.local`, CPU: `<UNKNOWN>`
 //!
@@ -9,13 +9,9 @@
 //! WEIGHT-METRIC: `Average`, WEIGHT-MUL: `1.0`, WEIGHT-ADD: `0`
 
 // Executed Command:
-//   frame-omni-bencher
-//   v1
-//   benchmark
+//   target/debug/pop
+//   bench
 //   overhead
-//   --runtime=./tests/runtimes/base_parachain_benchmark.wasm
-//   --genesis-builder=runtime
-//   --genesis-builder-preset=development
 
 use sp_core::parameter_types;
 use sp_weights::{constants::WEIGHT_REF_TIME_PER_NANOS, Weight};
@@ -25,17 +21,17 @@ parameter_types! {
 	/// Calculated by multiplying the *Average* with `1.0` and adding `0`.
 	///
 	/// Stats nanoseconds:
-	///   Min, Max: 599_250, 763_083
-	///   Average:  658_682
-	///   Median:   655_583
-	///   Std-Dev:  31186.7
+	///   Min, Max: 2_804_708, 6_587_458
+	///   Average:  3_213_519
+	///   Median:   3_108_542
+	///   Std-Dev:  489372.74
 	///
 	/// Percentiles nanoseconds:
-	///   99th: 741_792
-	///   95th: 707_958
-	///   75th: 674_500
+	///   99th: 5_690_125
+	///   95th: 3_826_000
+	///   75th: 3_297_291
 	pub const BlockExecutionWeight: Weight =
-		Weight::from_parts(WEIGHT_REF_TIME_PER_NANOS.saturating_mul(658_682), 2_277);
+		Weight::from_parts(WEIGHT_REF_TIME_PER_NANOS.saturating_mul(3_213_519), 2_277);
 }
 
 #[cfg(test)]
