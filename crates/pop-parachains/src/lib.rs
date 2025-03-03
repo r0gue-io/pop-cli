@@ -33,8 +33,7 @@ pub use errors::Error;
 pub use indexmap::IndexSet;
 pub use new_pallet::{create_pallet_template, new_pallet_options::*, TemplatePalletConfig};
 pub use new_parachain::instantiate_template_dir;
-pub use relay::{clear_dmpq, RelayChain};
-pub use utils::events::extract_para_id_from_event;
+pub use relay::{clear_dmpq, RelayChain, Reserved};
 // External export from subxt.
 pub use subxt::{
 	blocks::ExtrinsicEvents,

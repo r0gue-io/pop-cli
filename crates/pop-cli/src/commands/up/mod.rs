@@ -12,7 +12,7 @@ mod contract;
 #[cfg(feature = "parachain")]
 mod network;
 #[cfg(feature = "parachain")]
-mod parachain;
+mod rollup;
 
 /// Arguments for launching or deploying a project.
 #[derive(Args, Clone)]
@@ -29,7 +29,7 @@ pub(crate) struct UpArgs {
 
 	#[command(flatten)]
 	#[cfg(feature = "parachain")]
-	pub(crate) parachain: parachain::UpChainCommand,
+	pub(crate) rollup: rollup::UpCommand,
 
 	#[command(flatten)]
 	#[cfg(feature = "contract")]
@@ -79,13 +79,13 @@ impl Command {
 		}
 		#[cfg(feature = "parachain")]
 		if pop_parachains::is_supported(project_path.as_deref())? {
-			let mut cmd = args.parachain;
+			let mut cmd = args.rollup;
 			cmd.path = project_path;
 			cmd.execute(cli).await?;
 			return Ok("parachain");
 		}
 		cli.warning(
-			"No contract or parachain detected. Ensure you are in a valid project directory.",
+			"No contract or rollup detected. Ensure you are in a valid project directory.",
 		)?;
 		Ok("")
 	}
@@ -93,7 +93,7 @@ impl Command {
 
 #[cfg(test)]
 mod tests {
-	use super::{contract::UpContractCommand, parachain::UpChainCommand, *};
+	use super::{contract::UpContractCommand, *};
 
 	use cli::MockCli;
 	use duct::cmd;
@@ -122,7 +122,7 @@ mod tests {
 				skip_confirm: false,
 				valid: false,
 			},
-			parachain: UpChainCommand::default(),
+			rollup: rollup::UpCommand::default(),
 			command: None,
 		})
 	}
@@ -144,9 +144,9 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn detects_parachain_correctly() -> anyhow::Result<()> {
+	async fn detects_rollup_correctly() -> anyhow::Result<()> {
 		let temp_dir = tempfile::tempdir()?;
-		let name = "parachain";
+		let name = "rollup";
 		let project_path = temp_dir.path().join(name);
 		let config = Config {
 			symbol: "DOT".to_string(),
@@ -156,10 +156,10 @@ mod tests {
 		instantiate_template_dir(&Parachain::Standard, &project_path, None, config)?;
 
 		let mut args = create_up_args(project_path)?;
-		args.parachain.relay_url = Some(Url::parse("wss://polkadot-rpc.publicnode.com")?);
-		args.parachain.id = Some(2000);
-		args.parachain.genesis_code = Some(PathBuf::from("path/to/genesis"));
-		args.parachain.genesis_state = Some(PathBuf::from("path/to/state"));
+		args.rollup.relay_chain_url = Some(Url::parse("wss://polkadot-rpc.publicnode.com")?);
+		args.rollup.id = Some(2000);
+		args.rollup.genesis_code = Some(PathBuf::from("path/to/genesis"));
+		args.rollup.genesis_state = Some(PathBuf::from("path/to/state"));
 		let mut cli = MockCli::new();
 		assert_eq!(Command::execute_project_deployment(args, &mut cli).await?, "parachain");
 		cli.verify()
@@ -175,7 +175,7 @@ mod tests {
 
 		cmd("cargo", ["new", name, "--bin"]).dir(&path).run()?;
 		let mut cli = MockCli::new().expect_warning(
-			"No contract or parachain detected. Ensure you are in a valid project directory.",
+			"No contract or rollup detected. Ensure you are in a valid project directory.",
 		);
 		assert_eq!(Command::execute_project_deployment(args, &mut cli).await?, "");
 		cli.verify()

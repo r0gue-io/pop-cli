@@ -9,7 +9,7 @@ use crate::{
 	style::style,
 };
 use clap::{Args, ValueEnum};
-use cliclack::{spinner, ProgressBar};
+use cliclack::spinner;
 use pop_common::{manifest::from_path, Profile};
 use pop_parachains::{
 	binary_path, build_parachain, export_wasm_file, generate_genesis_state_file,
@@ -25,6 +25,9 @@ use std::{
 use std::{thread::sleep, time::Duration};
 use strum::{EnumMessage, VariantArray};
 use strum_macros::{AsRefStr, Display, EnumString};
+
+pub(crate) type CodePathBuf = PathBuf;
+pub(crate) type StatePathBuf = PathBuf;
 
 const DEFAULT_CHAIN: &str = "dev";
 const DEFAULT_PACKAGE: &str = "parachain-template-runtime";
@@ -191,13 +194,13 @@ impl BuildSpecCommand {
 		// Checks for appchain project in `./`.
 		if is_supported(None)? {
 			let build_spec = self.configure_build_spec(&mut cli).await?;
-			build_spec.build(&mut cli)
+			build_spec.build(&mut cli)?;
 		} else {
 			cli.outro_cancel(
 				"🚫 Can't build a specification for target. Maybe not a chain project ?",
 			)?;
-			Ok("spec")
 		}
+		Ok("spec")
 	}
 
 	/// Configure chain specification requirements by prompting for missing inputs, validating
@@ -523,68 +526,29 @@ impl BuildSpec {
 	// This function generates plain and raw chain spec files based on the provided configuration,
 	// optionally including genesis state and runtime artifacts. If the node binary is missing,
 	// it triggers a build process.
-	fn build(self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<&'static str> {
+	pub(crate) fn build(
+		self,
+		cli: &mut impl cli::traits::Cli,
+	) -> anyhow::Result<(Option<CodePathBuf>, Option<StatePathBuf>)> {
 		cli.intro("Building your chain spec")?;
 		let mut generated_files = vec![];
-		let BuildSpec { ref output_file, ref profile, id, genesis_code, genesis_state, .. } = self;
+		let BuildSpec {
+			ref output_file,
+			ref profile,
+			id,
+			default_bootnode,
+			ref chain,
+			genesis_state,
+			genesis_code,
+			..
+		} = self;
 		// Ensure binary is built.
 		let binary_path = ensure_binary_exists(cli, profile)?;
 		let spinner = spinner();
-
-		let raw_chain_spec = self.generate_chain_spec(&binary_path, &spinner, cli)?;
-
-		generated_files.push(format!(
-			"Plain text chain specification file generated at: {}",
-			&output_file.display()
-		));
-
-		generated_files.push(format!(
-			"Raw chain specification file generated at: {}",
-			raw_chain_spec.display()
-		));
-
-		// Generate genesis artifacts.
-		if genesis_code {
-			spinner.set_message("Generating genesis code...");
-			let wasm_file_name = format!("para-{}.wasm", id);
-			let wasm_file = export_wasm_file(&binary_path, &raw_chain_spec, &wasm_file_name)?;
-			generated_files
-				.push(format!("WebAssembly runtime file exported at: {}", wasm_file.display()));
-		}
-		if genesis_state {
-			spinner.set_message("Generating genesis state...");
-			let genesis_file_name = format!("para-{}-genesis-state", id);
-			let genesis_state_file =
-				generate_genesis_state_file(&binary_path, &raw_chain_spec, &genesis_file_name)?;
-			generated_files
-				.push(format!("Genesis State file exported at: {}", genesis_state_file.display()));
-		}
-
-		spinner.stop("Chain specification built successfully.");
-		let generated_files: Vec<_> = generated_files
-			.iter()
-			.map(|s| style(format!("{} {s}", console::Emoji("●", ">"))).dim().to_string())
-			.collect();
-		cli.success(format!("Generated files:\n{}", generated_files.join("\n")))?;
-		cli.outro(format!(
-			"Need help? Learn more at {}\n",
-			style("https://learn.onpop.io").magenta().underlined()
-		))?;
-		Ok("spec")
-	}
-
-	/// Generates plain and raw chain specification files, and returns the path to the latter.
-	fn generate_chain_spec(
-		&self,
-		binary_path: &Path,
-		spinner: &ProgressBar,
-		cli: &mut impl cli::traits::Cli,
-	) -> anyhow::Result<PathBuf> {
-		let BuildSpec { output_file, chain, .. } = self;
 		spinner.start("Generating chain specification...");
 
-		// Generate plain chain spec.
-		generate_plain_chain_spec(binary_path, output_file, self.default_bootnode, chain)?;
+		// Generate chain spec.
+		generate_plain_chain_spec(&binary_path, output_file, default_bootnode, chain)?;
 		// Customize spec based on input.
 		self.customize()?;
 		// Deterministic build.
@@ -603,6 +567,11 @@ impl BuildSpec {
 			};
 		}
 
+		generated_files.push(format!(
+			"Plain text chain specification file generated at: {}",
+			&output_file.display()
+		));
+
 		// Generate raw spec.
 		spinner.set_message("Generating raw chain specification...");
 		let spec_name = &output_file
@@ -611,37 +580,46 @@ impl BuildSpec {
 			.unwrap_or(DEFAULT_SPEC_NAME)
 			.trim_end_matches(".json");
 		let raw_spec_name = format!("{spec_name}-raw.json");
-		generate_raw_chain_spec(binary_path, output_file, &raw_spec_name)
-			.map_err(anyhow::Error::from)
-	}
+		let raw_chain_spec = generate_raw_chain_spec(&binary_path, output_file, &raw_spec_name)?;
+		generated_files.push(format!(
+			"Raw chain specification file generated at: {}",
+			raw_chain_spec.display()
+		));
 
-	/// Generates chain specification files and returns the file paths for the generated genesis
-	/// code and genesis state files.
-	///
-	/// # Arguments
-	/// * `cli` - The cli.
-	pub(crate) fn generate_genesis_artifacts(
-		self,
-		cli: &mut impl cli::traits::Cli,
-	) -> anyhow::Result<(PathBuf, PathBuf)> {
-		// Ensure binary is built once.
-		let binary_path = ensure_binary_exists(cli, &self.profile)?;
-		let spinner = spinner();
-		spinner.start("Generating files...");
+		// Generate genesis artifacts.
+		let genesis_code_file = if genesis_code {
+			spinner.set_message("Generating genesis code...");
+			let wasm_file_name = format!("para-{}.wasm", id);
+			let wasm_file = export_wasm_file(&binary_path, &raw_chain_spec, &wasm_file_name)?;
+			generated_files
+				.push(format!("WebAssembly runtime file exported at: {}", wasm_file.display()));
+			Some(wasm_file)
+		} else {
+			None
+		};
+		let genesis_state_file = if genesis_state {
+			spinner.set_message("Generating genesis state...");
+			let genesis_file_name = format!("para-{}-genesis-state", id);
+			let genesis_state_file =
+				generate_genesis_state_file(&binary_path, &raw_chain_spec, &genesis_file_name)?;
+			generated_files
+				.push(format!("Genesis State file exported at: {}", genesis_state_file.display()));
+			Some(genesis_state_file)
+		} else {
+			None
+		};
 
-		let raw_chain_spec = self.generate_chain_spec(&binary_path, &spinner, cli)?;
-
-		spinner.set_message("Generating genesis code...");
-		let wasm_file_name = format!("para-{}.wasm", self.id);
-		let genesis_code = export_wasm_file(&binary_path, &raw_chain_spec, &wasm_file_name)?;
-
-		spinner.set_message("Generating genesis state...");
-		let genesis_file_name = format!("para-{}-genesis-state", self.id);
-		let genesis_state =
-			generate_genesis_state_file(&binary_path, &raw_chain_spec, &genesis_file_name)?;
-
-		spinner.stop("Genesis artifacts generated successfully.");
-		Ok((genesis_state, genesis_code))
+		spinner.stop("Chain specification built successfully.");
+		let generated_files: Vec<_> = generated_files
+			.iter()
+			.map(|s| style(format!("{} {s}", console::Emoji("●", ">"))).dim().to_string())
+			.collect();
+		cli.success(format!("Generated files:\n{}", generated_files.join("\n")))?;
+		cli.outro(format!(
+			"Need help? Learn more at {}\n",
+			style("https://learn.onpop.io").magenta().underlined()
+		))?;
+		Ok((genesis_code_file, genesis_state_file))
 	}
 
 	// Customize a chain specification.
