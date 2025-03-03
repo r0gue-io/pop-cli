@@ -73,6 +73,7 @@ fn cache() -> Result<PathBuf> {
 /// Initializes telemetry.
 #[cfg(feature = "telemetry")]
 fn init() -> Result<Option<Telemetry>> {
+	// Disable these log targets because they are spammy.
 	let unwanted_targets =
 		&["cranelift_codegen", "wasm_cranelift", "wasmtime_jit", "wasmtime_cranelift", "wasm_jit"];
 
