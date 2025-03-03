@@ -42,7 +42,7 @@ pub struct UpCommand {
 impl UpCommand {
 	/// Executes the command.
 	pub(crate) async fn execute(self, cli: &mut impl Cli) -> Result<()> {
-		cli.intro("Deploy a chain")?;
+		cli.intro("Deploy a rollup")?;
 		let config = match self.prepare_for_registration(cli).await {
 			Ok(chain) => chain,
 			Err(e) => {
@@ -247,7 +247,7 @@ mod tests {
 	#[tokio::test]
 	async fn reserve_id_fails_wrong_chain() -> Result<()> {
 		let mut cli = MockCli::new()
-			.expect_intro("Deploy a chain")
+			.expect_intro("Deploy a rollup")
 			.expect_info(format!("Reserving an ID. You will need to sign a transaction to reserve an ID on {} using the `Registrar::reserve` function.", Url::parse(POP_NETWORK_TESTNET_URL)?.as_str()))
 			.expect_outro_cancel("Failed to find the pallet Registrar");
 		let (genesis_state, genesis_code) = create_temp_genesis_files()?;
@@ -267,7 +267,7 @@ mod tests {
 	#[tokio::test]
 	async fn register_fails_wrong_chain() -> Result<()> {
 		let mut cli = MockCli::new()
-			.expect_intro("Deploy a chain")
+			.expect_intro("Deploy a rollup")
 			.expect_info(format!("Registering. You will need to sign a transaction on {} using the `Registrar::register` function.", Url::parse(POP_NETWORK_TESTNET_URL)?.as_str()))
 			.expect_outro_cancel("Failed to find the pallet Registrar");
 		let (genesis_state, genesis_code) = create_temp_genesis_files()?;
