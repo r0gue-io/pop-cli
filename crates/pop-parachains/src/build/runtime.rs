@@ -7,11 +7,11 @@ pub use srtool_lib::{get_image_digest, get_image_tag, ContainerEngine};
 use std::{env, fs, path::PathBuf};
 
 const DEFAULT_IMAGE: &str = "docker.io/paritytech/srtool";
-const ONE_HOUR: u64 = 60 * 60;
+const TIMEOUT: u64 = 60 * 60;
 
-/// Builds and executes the command for running the deterministic runtime build process using
+/// Builds and executes the command for running a deterministic runtime build process using
 /// srtool.
-pub struct SrToolBuilder {
+pub struct Builder {
 	/// Mount point for cargo cache.
 	cache_mount: String,
 	/// List of default features to enable during the build process.
@@ -34,8 +34,8 @@ pub struct SrToolBuilder {
 	tag: String,
 }
 
-impl SrToolBuilder {
-	/// Creates a new instance of `SrToolBuilder`.
+impl Builder {
+	/// Creates a new instance of `Builder`.
 	///
 	/// # Arguments
 	/// * `engine` - The container engine to use.
@@ -51,7 +51,7 @@ impl SrToolBuilder {
 		runtime_dir: PathBuf,
 	) -> Result<Self, Error> {
 		let default_features = String::new();
-		let tag = get_image_tag(Some(ONE_HOUR)).map_err(|_| Error::ImageTagRetrievalFailed)?;
+		let tag = get_image_tag(Some(TIMEOUT)).map_err(|_| Error::ImageTagRetrievalFailed)?;
 		let digest = get_image_digest(DEFAULT_IMAGE, &tag).unwrap_or_default();
 		let dir = fs::canonicalize(path.unwrap_or_else(|| PathBuf::from("./")))?;
 		let tmpdir = env::temp_dir().join("cargo");
@@ -75,10 +75,10 @@ impl SrToolBuilder {
 	}
 
 	/// Executes the runtime build process and returns the path of the generated file.
-	pub fn generate_deterministic_runtime(&self) -> Result<PathBuf, Error> {
+	pub fn build(&self) -> Result<PathBuf, Error> {
 		let command = self.build_command();
 		cmd("sh", vec!["-c", &command]).run()?;
-		let wasm_path = self.get_wasm_output_path();
+		let wasm_path = self.get_output_path();
 		Ok(wasm_path)
 	}
 
@@ -108,7 +108,7 @@ impl SrToolBuilder {
 	}
 
 	// Returns the expected output path of the compiled runtime `.wasm` file.
-	fn get_wasm_output_path(&self) -> PathBuf {
+	fn get_output_path(&self) -> PathBuf {
 		self.runtime_dir
 			.join("target")
 			.join("srtool")
@@ -126,7 +126,7 @@ mod tests {
 
 	#[test]
 	fn srtool_builder_new_works() -> Result<()> {
-		let srtool_builer = SrToolBuilder::new(
+		let srtool_builer = Builder::new(
 			ContainerEngine::Docker,
 			None,
 			"parachain-template-runtime".to_string(),
@@ -139,7 +139,7 @@ mod tests {
 		);
 		assert_eq!(srtool_builer.default_features, "");
 
-		let tag = get_image_tag(Some(ONE_HOUR))?;
+		let tag = get_image_tag(Some(TIMEOUT))?;
 		let digest = get_image_digest(DEFAULT_IMAGE, &tag).unwrap_or_default();
 		assert_eq!(srtool_builer.digest, digest);
 		assert_eq!(srtool_builer.tag, tag);
@@ -158,10 +158,10 @@ mod tests {
 	fn build_command_works() -> Result<()> {
 		let temp_dir = tempfile::tempdir()?;
 		let path = temp_dir.path();
-		let tag = get_image_tag(Some(ONE_HOUR))?;
+		let tag = get_image_tag(Some(TIMEOUT))?;
 		let digest = get_image_digest(DEFAULT_IMAGE, &tag).unwrap_or_default();
 		assert_eq!(
-			SrToolBuilder::new(
+			Builder::new(
 				ContainerEngine::Podman,
 				Some(path.to_path_buf()),
 				"parachain-template-runtime".to_string(),
@@ -190,15 +190,15 @@ mod tests {
 	}
 
 	#[test]
-	fn get_wasm_output_path_works() -> Result<()> {
-		let srtool_builder = SrToolBuilder::new(
+	fn get_output_path_works() -> Result<()> {
+		let srtool_builder = Builder::new(
 			ContainerEngine::Podman,
 			None,
 			"template-runtime".to_string(),
 			Profile::Debug,
 			PathBuf::from("./runtime-folder"),
 		)?;
-		assert_eq!(srtool_builder.get_wasm_output_path().display().to_string(), "./runtime-folder/target/srtool/debug/wbuild/template-runtime/template_runtime.compact.compressed.wasm");
+		assert_eq!(srtool_builder.get_output_path().display().to_string(), "./runtime-folder/target/srtool/debug/wbuild/template-runtime/template_runtime.compact.compressed.wasm");
 		Ok(())
 	}
 }

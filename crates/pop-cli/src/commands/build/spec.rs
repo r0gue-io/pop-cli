@@ -13,8 +13,8 @@ use cliclack::spinner;
 use pop_common::{manifest::from_path, Profile};
 use pop_parachains::{
 	binary_path, build_parachain, export_wasm_file, generate_genesis_state_file,
-	generate_plain_chain_spec, generate_raw_chain_spec, is_supported, ChainSpec, ContainerEngine,
-	SrToolBuilder,
+	generate_plain_chain_spec, generate_raw_chain_spec, is_supported, Builder, ChainSpec,
+	ContainerEngine,
 };
 use std::{
 	env::current_dir,
@@ -555,9 +555,9 @@ impl BuildSpec {
 			cli.warning("NOTE: this may take some time...")?;
 			spinner.clear();
 			match self.build_deterministic_runtime(cli) {
-				Ok(wasm) => {
+				Ok(code) => {
 					cli.success("Runtime built successfully.")?;
-					self.update_code(&wasm)?;
+					self.update_code(&code)?;
 				},
 				Err(_) => {
 					cli.warning("WARNING: Failed to build deterministic runtime. Proceeding with the standard local build.")?;
@@ -641,14 +641,14 @@ impl BuildSpec {
 		if engine == ContainerEngine::Docker {
 			cli.warning("WARNING: You are using docker. It is recommend to use podman instead.")?;
 		}
-		let builder = SrToolBuilder::new(
+		let builder = Builder::new(
 			engine,
 			None,
 			self.package.clone(),
 			self.profile.clone(),
 			self.runtime_dir.clone(),
 		)?;
-		let wasm_path = builder.generate_deterministic_runtime()?;
+		let wasm_path = builder.build()?;
 		if !wasm_path.exists() {
 			return Err(anyhow::anyhow!("Can't find the generated runtime at {:?}", wasm_path));
 		}
@@ -656,9 +656,9 @@ impl BuildSpec {
 	}
 
 	// Updates the chain specification with the runtime code.
-	fn update_code(&self, wasm_bytes: &[u8]) -> anyhow::Result<()> {
+	fn update_code(&self, bytes: &[u8]) -> anyhow::Result<()> {
 		let mut chain_spec = ChainSpec::from(&self.output_file)?;
-		chain_spec.update_runtime_code(wasm_bytes)?;
+		chain_spec.update_runtime_code(bytes)?;
 		chain_spec.to_file(&self.output_file)?;
 		Ok(())
 	}

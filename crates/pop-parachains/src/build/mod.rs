@@ -334,11 +334,10 @@ impl ChainSpec {
 	/// Updates the runtime code in the chain specification.
 	///
 	/// # Arguments
-	/// * `wasm_bytes` - The new runtime Wasm code.
-	pub fn update_runtime_code(&mut self, wasm_bytes: &[u8]) -> Result<(), Error> {
-		let wasm_hex = to_hex(wasm_bytes, true);
+	/// * `bytes` - The new runtime code.
+	pub fn update_runtime_code(&mut self, bytes: &[u8]) -> Result<(), Error> {
 		// Replace `genesis.runtimeGenesis.code`
-		let replace = self
+		let code = self
 			.0
 			.get_mut("genesis")
 			.ok_or_else(|| Error::Config("expected `genesis`".into()))?
@@ -346,8 +345,8 @@ impl ChainSpec {
 			.ok_or_else(|| Error::Config("expected `runtimeGenesis`".into()))?
 			.get_mut("code")
 			.ok_or_else(|| Error::Config("expected `runtimeGenesis.code`".into()))?;
-
-		*replace = json!(wasm_hex);
+		let hex = to_hex(bytes, true);
+		*code = json!(hex);
 		Ok(())
 	}
 }
