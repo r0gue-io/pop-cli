@@ -64,16 +64,13 @@ pub fn construct_proxy_extrinsic(
 	// using `parse_dispatchable_arguments`, while the last parameter (which is the call)
 	// must be manually added.
 	let required_params: Vec<Param> = proxy_function.params.iter().take(2).cloned().collect();
-	let parsed_args: Vec<Value> = metadata::parse_dispatchable_arguments(
+	let mut parsed_args: Vec<Value> = metadata::parse_dispatchable_arguments(
 		&required_params,
 		vec![proxied_account, "None()".to_string()],
 	)?;
-
-	Ok(subxt::dynamic::tx(
-		"Proxy",
-		"proxy",
-		[parsed_args[0].clone(), parsed_args[1].clone(), xt.into_value()].to_vec(),
-	))
+	let real = parsed_args.remove(0);
+	let proxy_type = parsed_args.remove(0);
+	Ok(subxt::dynamic::tx("Proxy", "proxy", [real, proxy_type, xt.into_value()].to_vec()))
 }
 
 /// Signs and submits a given extrinsic.
