@@ -18,6 +18,8 @@ use pop_parachains::{
 use std::path::{Path, PathBuf};
 use url::Url;
 
+type Proxy = Option<String>;
+
 const DEFAULT_URL: &str = "wss://paseo.rpc.amforc.com/";
 const HELP_HEADER: &str = "Chain deployment options";
 
@@ -84,35 +86,29 @@ impl UpCommand {
 	}
 
 	// Retrieves the proxied address, prompting the user if none is specified.
-	fn resolve_proxied_address(&self, chain: &Chain, cli: &mut impl Cli) -> Result<ProxyConfig> {
+	fn resolve_proxied_address(&self, chain: &Chain, cli: &mut impl Cli) -> Result<Proxy> {
 		let proxy = find_dispatchable_by_name(&chain.pallets, "Proxy", "proxy")?;
 		if let Some(addr) = &self.proxied_address {
 			let valid_multi_address: Vec<String> =
 				proxy.params[0].sub_params.iter().map(|p| p.name.to_string()).collect();
-			return Ok(ProxyConfig::Address(
+			return Ok(
 				if valid_multi_address.iter().any(|t| addr.starts_with(&format!("{}(", t))) {
-					addr.to_string()
+					Some(addr.to_string())
 				} else {
-					format!("Id({})", addr)
+					Some(format!("Id({})", addr))
 				},
-			));
+			);
 		}
 		if cli.confirm("Would you like to use a proxy for registration? This is considered a best practice.").interact()? {
 			cli.info("Enter the account that the proxy will make a call on behalf of.")?;
 			let address = prompt_for_param(cli, &proxy.params[0])?;
-			Ok(ProxyConfig::Address(address))
-		} else {
-			Ok(ProxyConfig::None)
+			return Ok(Some(address));
 		}
+		Ok(None)
 	}
 
 	// Resolves the ID, reserving a new one if necessary.
-	async fn resolve_id(
-		&self,
-		chain: &Chain,
-		proxy: &ProxyConfig,
-		cli: &mut impl Cli,
-	) -> Result<u32> {
+	async fn resolve_id(&self, chain: &Chain, proxy: &Proxy, cli: &mut impl Cli) -> Result<u32> {
 		match self.id {
 			Some(id) => Ok(id),
 			None => {
@@ -137,19 +133,13 @@ impl UpCommand {
 	}
 }
 
-#[derive(Clone, Debug, PartialEq)]
-enum ProxyConfig {
-	None,
-	Address(String),
-}
-
 // Represents the configuration for rollup registration.
 pub(crate) struct Registration {
 	id: u32,
 	genesis_state: PathBuf,
 	genesis_code: PathBuf,
 	chain: Chain,
-	proxy: ProxyConfig,
+	proxy: Proxy,
 }
 impl Registration {
 	// Registers by submitting an extrinsic.
@@ -179,7 +169,7 @@ impl Registration {
 			..Default::default()
 		}
 		.prepare_extrinsic(&chain.client, cli)?;
-		if let ProxyConfig::Address(addr) = proxy {
+		if let Some(addr) = proxy {
 			xt = construct_proxy_extrinsic(&chain.pallets, addr.to_string(), xt)?;
 		}
 		Ok(xt.encode_call_data(&chain.client.metadata())?)
@@ -187,7 +177,7 @@ impl Registration {
 }
 
 // Reserves an ID by submitting an extrinsic.
-async fn reserve(chain: &Chain, proxy: &ProxyConfig, cli: &mut impl Cli) -> Result<u32> {
+async fn reserve(chain: &Chain, proxy: &Proxy, cli: &mut impl Cli) -> Result<u32> {
 	let call_data = prepare_reserve_call_data(chain, proxy, cli)?;
 	let events = submit_extrinsic(&chain.client, &chain.url, call_data, cli)
 		.await
@@ -201,11 +191,7 @@ async fn reserve(chain: &Chain, proxy: &ProxyConfig, cli: &mut impl Cli) -> Resu
 }
 
 // Prepares and returns the encoded call data for reserving an ID.
-fn prepare_reserve_call_data(
-	chain: &Chain,
-	proxy: &ProxyConfig,
-	cli: &mut impl Cli,
-) -> Result<Vec<u8>> {
+fn prepare_reserve_call_data(chain: &Chain, proxy: &Proxy, cli: &mut impl Cli) -> Result<Vec<u8>> {
 	let dispatchable = find_dispatchable_by_name(
 		&chain.pallets,
 		Action::Reserve.pallet_name(),
@@ -213,7 +199,7 @@ fn prepare_reserve_call_data(
 	)?;
 	let mut xt = Call { function: dispatchable.clone(), use_wallet: true, ..Default::default() }
 		.prepare_extrinsic(&chain.client, cli)?;
-	if let ProxyConfig::Address(addr) = proxy {
+	if let Some(addr) = proxy {
 		xt = construct_proxy_extrinsic(&chain.pallets, addr.to_string(), xt)?;
 	}
 	Ok(xt.encode_call_data(&chain.client.metadata())?)
@@ -282,9 +268,7 @@ mod tests {
 		assert_eq!(chain_config.chain.url, Url::parse(POLKADOT_NETWORK_URL)?);
 		assert_eq!(
 			chain_config.proxy,
-			ProxyConfig::Address(
-				"Id(13czcAAt6xgLwZ8k6ZpkrRL5V2pjKEui3v9gHAN9PoxYZDbf)".to_string()
-			)
+			Some("Id(13czcAAt6xgLwZ8k6ZpkrRL5V2pjKEui3v9gHAN9PoxYZDbf)".to_string())
 		);
 		cli.verify()
 	}
@@ -324,9 +308,7 @@ mod tests {
 		let proxied_address = UpCommand::default().resolve_proxied_address(&chain, &mut cli)?;
 		assert_eq!(
 			proxied_address,
-			ProxyConfig::Address(
-				"Id(5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty)".to_string()
-			)
+			Some("Id(5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty)".to_string())
 		);
 		cli.verify()?;
 
@@ -335,7 +317,7 @@ mod tests {
 			false,
 		);
 		let proxied_address = UpCommand::default().resolve_proxied_address(&chain, &mut cli)?;
-		assert_eq!(proxied_address, ProxyConfig::None);
+		assert_eq!(proxied_address, None);
 		cli.verify()?;
 
 		cli = MockCli::new();
@@ -346,9 +328,7 @@ mod tests {
 		.resolve_proxied_address(&chain, &mut cli)?;
 		assert_eq!(
 			proxied_address,
-			ProxyConfig::Address(
-				"Id(5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty)".to_string()
-			)
+			Some("Id(5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty)".to_string())
 		);
 		cli.verify()
 	}
@@ -363,7 +343,7 @@ mod tests {
 			&mut cli,
 		)
 		.await?;
-		let call_data = prepare_reserve_call_data(&chain, &ProxyConfig::None, &mut cli)?;
+		let call_data = prepare_reserve_call_data(&chain, &None, &mut cli)?;
 		// Encoded call data for a reserve extrinsic.
 		// Reference: https://polkadot.js.org/apps/?rpc=wss%3A%2F%2Fpolkadot.public.curie.radiumblock.co%2Fws#/extrinsics/decode/0x4605
 		let encoded_reserve_extrinsic: &str = "0x4605";
@@ -372,9 +352,7 @@ mod tests {
 		// Ensure `prepare_reserve_call_data` works with a proxy.
 		let call_data = prepare_reserve_call_data(
 			&chain,
-			&ProxyConfig::Address(
-				"Id(13czcAAt6xgLwZ8k6ZpkrRL5V2pjKEui3v9gHAN9PoxYZDbf)".to_string(),
-			),
+			&Some("Id(13czcAAt6xgLwZ8k6ZpkrRL5V2pjKEui3v9gHAN9PoxYZDbf)".to_string()),
 			&mut cli,
 		)?;
 		// Encoded call data for a proxy extrinsic with reserve as the call.
@@ -446,7 +424,7 @@ mod tests {
 			genesis_state: genesis_state_path.clone(),
 			genesis_code: genesis_code_path.clone(),
 			chain,
-			proxy: ProxyConfig::None,
+			proxy: None,
 		};
 
 		// Expect failure when the genesis state file cannot be read.
@@ -472,9 +450,7 @@ mod tests {
 		);
 
 		// Ensure `prepare_register_call_data` works with a proxy.
-		up_chain.proxy = ProxyConfig::Address(
-			"Id(13czcAAt6xgLwZ8k6ZpkrRL5V2pjKEui3v9gHAN9PoxYZDbf)".to_string(),
-		);
+		up_chain.proxy = Some("Id(13czcAAt6xgLwZ8k6ZpkrRL5V2pjKEui3v9gHAN9PoxYZDbf)".to_string());
 		let call_data = up_chain.prepare_register_call_data(&mut cli)?;
 		// Encoded call data for a proxy extrinsic with register as the call.
 		// Reference: https://polkadot.js.org/apps/?rpc=wss%3A%2F%2Fpolkadot.public.curie.radiumblock.co%2Fws#/extrinsics/decode/0x1d000073ebf9c947490b9170ea4fd3031ae039452e428531317f76bf0a02124f8166de004600d0070000081234081234
