@@ -11874,6 +11874,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "tower-http 0.6.2",
+ "tracing-subscriber 0.3.19",
  "url",
 ]
 
