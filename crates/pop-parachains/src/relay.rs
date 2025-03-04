@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{call, DynamicPayload, Error};
-use scale::{Decode, Encode};
 use sp_core::twox_128;
 use subxt::{
 	config::BlockHash,
 	dynamic::{self, Value},
-	events::StaticEvent,
-	ext::{scale_decode::DecodeAsType, scale_encode::EncodeAsType},
+	ext::sp_core,
 	OnlineClient, PolkadotConfig,
 };
 
@@ -90,23 +88,10 @@ impl RelayChain {
 	}
 }
 
-/// A event emitted when an id has been registered.
-#[derive(Debug, Encode, Decode, DecodeAsType, EncodeAsType)]
-#[decode_as_type(crate_path = "subxt::ext::scale_decode")]
-#[encode_as_type(crate_path = "subxt::ext::scale_encode")]
-pub struct Reserved {
-	/// The id that has been reserved.
-	pub para_id: u32,
-}
-impl StaticEvent for Reserved {
-	const PALLET: &'static str = "Registrar";
-	const EVENT: &'static str = "Reserved";
-}
-
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use sp_core::twox_64;
+	use subxt::ext::sp_core::twox_64;
 	use RelayChain::*;
 
 	#[test]
