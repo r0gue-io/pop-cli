@@ -230,11 +230,6 @@ impl Default for BenchmarkPallet {
 
 impl BenchmarkPallet {
 	pub async fn execute(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
-		if self.list || self.json_output {
-			if let Err(e) = self.run() {
-				return display_message(&e.to_string(), false, cli);
-			}
-		}
 		// If `all` is provided, we override the value of `pallet` and `extrinsic` to select all.
 		if self.all {
 			self.pallet = Some(ALL_SELECTED.to_string());
@@ -243,7 +238,12 @@ impl BenchmarkPallet {
 		}
 
 		let mut registry: PalletExtrinsicsRegistry = HashMap::default();
-		cli.intro("Benchmarking your pallets")?;
+
+		cli.intro(if self.list {
+			"Listing available pallets and extrinsics"
+		} else {
+			"Benchmarking your pallets"
+		})?;
 		cli.warning(
 			"NOTE: the `pop bench pallet` is not yet battle tested - double check the results.",
 		)?;
@@ -258,6 +258,14 @@ impl BenchmarkPallet {
 				},
 			}
 		}
+
+		if self.list {
+			if let Err(e) = self.run() {
+				return display_message(&e.to_string(), false, cli);
+			}
+			return display_message("All pallets and extrinsics listed!", true, cli);
+		}
+
 		// No genesis builder, prompts user to select the genesis builder policy.
 		if self.genesis_builder.is_none() {
 			let runtime_path = self.runtime()?.clone();
@@ -270,6 +278,7 @@ impl BenchmarkPallet {
 				return display_message(&e.to_string(), false, cli);
 			};
 		}
+
 		// No pallet provided, prompts user to select the pallets fetched from runtime.
 		if self.pallet.is_none() {
 			self.update_pallets(cli, &mut registry).await?;
@@ -326,6 +335,10 @@ impl BenchmarkPallet {
 
 	fn collect_arguments(&self) -> Vec<String> {
 		let mut args = vec![];
+
+		if self.list {
+			args.push("--list".to_string());
+		}
 
 		if let Some(ref pallet) = self.pallet {
 			args.push(format!(
@@ -863,9 +876,11 @@ async fn guide_user_to_select_menu_option(
 	cli: &mut impl cli::traits::Cli,
 	registry: &mut PalletExtrinsicsRegistry,
 ) -> anyhow::Result<BenchmarkPalletMenuOption> {
+	let spinner = spinner();
 	let mut prompt = cli.select("Select the parameter to update:");
 
 	let mut index = 0;
+	spinner.start("Loading parameter menu...");
 	for param in BenchmarkPalletMenuOption::iter() {
 		if param.is_disabled(cmd, registry).await? {
 			continue;
@@ -879,6 +894,7 @@ async fn guide_user_to_select_menu_option(
 		prompt = prompt.item(param, formatted_label, hint);
 		index += 1;
 	}
+	spinner.clear();
 	Ok(prompt.interact()?)
 }
 
@@ -954,6 +970,20 @@ mod tests {
 		// Verify the printed command.
 		cli = cli.expect_info(cmd.display()).expect_outro("Benchmark completed successfully!");
 		cmd.execute(&mut cli).await?;
+		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn list_pallets_works() -> anyhow::Result<()> {
+		let mut cli = MockCli::new()
+			.expect_intro("Listing available pallets and extrinsics")
+			.expect_warning(
+				"NOTE: the `pop bench pallet` is not yet battle tested - double check the results.",
+			)
+			.expect_outro("All pallets and extrinsics listed!");
+		BenchmarkPallet { list: true, runtime: Some(get_mock_runtime(true)), ..Default::default() }
+			.execute(&mut cli)
+			.await?;
 		cli.verify()
 	}
 

@@ -111,7 +111,11 @@ pub async fn load_pallet_extrinsics(
 	let mut process = run_benchmarking_with_binary(
 		binary_path,
 		Some(temp_file.as_file()),
-		vec![&format!("--runtime={}", runtime_path.display()), "--list=all"],
+		vec![
+			&format!("--runtime={}", runtime_path.display()),
+			"--genesis-builder=none",
+			"--list=all",
+		],
 	)
 	.await?;
 
