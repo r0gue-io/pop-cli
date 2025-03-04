@@ -18,6 +18,8 @@ use std::{
 };
 use strum::{EnumMessage, IntoEnumIterator};
 
+const DEFAULT_RUNTIME_DIR: &str = "./runtime";
+
 /// Checks the status of the `frame-omni-bencher` binary, use the local binary if available.
 /// Otherwise, sources it if necessary, and prompts the user to update it if the existing binary in
 /// cache is not the latest version.
@@ -177,13 +179,23 @@ pub fn guide_user_to_select_runtime_path(
 	cli: &mut impl Cli,
 	target_path: &Path,
 ) -> anyhow::Result<PathBuf> {
-	let mut project_path = get_runtime_path(target_path).or_else(|_| {
-		cli.warning(format!(
-			"No runtime folder found at {}. Please input the runtime path manually.",
-			target_path.display()
-		))?;
-		guide_user_to_input_runtime_path(cli)
-	})?;
+	let mut project_path = match get_runtime_path(target_path) {
+		Ok(path) => path,
+		Err(_) => {
+			cli.warning(format!(
+				"No runtime folder found at {}. Please input the runtime path manually.",
+				target_path.display()
+			))?;
+			let input: PathBuf = cli
+				.input("Please provide the path to the runtime or parachain project.")
+				.required(true)
+				.default_input(DEFAULT_RUNTIME_DIR)
+				.placeholder(DEFAULT_RUNTIME_DIR)
+				.interact()?
+				.into();
+			input.canonicalize()?
+		},
+	};
 
 	// If there is no TOML file exist, list all directories in the "runtime" folder and prompt the
 	// user to select a runtime.
@@ -192,22 +204,6 @@ pub fn guide_user_to_select_runtime_path(
 		project_path = project_path.join(runtime);
 	}
 	Ok(project_path)
-}
-
-/// Guide the user to input a runtime path.
-///
-/// # Arguments
-/// * `cli`: Command line interface.
-pub fn guide_user_to_input_runtime_path(cli: &mut impl Cli) -> anyhow::Result<PathBuf> {
-	let input = cli
-		.input("Please provide the path to the runtime or parachain project.")
-		.required(true)
-		.default_input("./runtime")
-		.placeholder("./runtime")
-		.interact()
-		.map(PathBuf::from)
-		.map_err(anyhow::Error::from)?;
-	input.canonicalize().map_err(anyhow::Error::from)
 }
 
 /// Guide the user to select a runtime project.

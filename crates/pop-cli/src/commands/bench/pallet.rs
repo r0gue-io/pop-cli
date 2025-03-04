@@ -293,7 +293,9 @@ impl BenchmarkPallet {
 		}
 
 		// Prompt user to update output path of the benchmarking results.
-		self.update_output(cli)?;
+		if self.output.is_none() {
+			self.update_output(cli)?;
+		}
 
 		cli.warning("NOTE: this may take some time...")?;
 		cli.info("Benchmarking extrinsic weights of selected pallets...")?;
@@ -416,7 +418,7 @@ impl BenchmarkPallet {
 			args.push("--allow-missing-host-functions".to_string());
 		}
 		if let Some(ref genesis_builder) = self.genesis_builder {
-			args.push(format!("--genesis-builder={}", genesis_builder));
+			args.push(format!("--genesis-builder={}", genesis_builder.to_string()));
 			if genesis_builder == &GenesisBuilderPolicy::Runtime {
 				args.push(format!("--genesis-builder-preset={}", self.genesis_builder_preset));
 			}
@@ -502,9 +504,17 @@ impl BenchmarkPallet {
 	}
 
 	fn update_output(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
-		let output = self.output.as_ref();
-		let input = guide_user_to_input_output_path(cli, output)?;
-		self.output = if !input.to_str().unwrap().is_empty() { Some(input) } else { None };
+		let output = self
+			.output
+			.as_ref()
+			.map(|o| o.to_str().unwrap())
+			.unwrap_or_else(|| "./weights.rs");
+		let input = cli
+			.input("Provide the output file path for benchmark results (optional).")
+			.required(false)
+			.placeholder(output)
+			.interact()?;
+		self.output = if !input.is_empty() { Some(input.into()) } else { None };
 		Ok(())
 	}
 
@@ -784,7 +794,8 @@ fn guide_user_to_select_pallet(
 	// Prompt for pallet search input.
 	let input = cli
 		.input(r#"🔎 Search for pallets by name ("*" to select all)"#)
-		.placeholder("balances")
+		.placeholder(ALL_SELECTED)
+		.default_input(ALL_SELECTED)
 		.required(false)
 		.interact()?;
 
@@ -829,7 +840,8 @@ fn guide_user_to_select_extrinsics(
 	// Prompt for extrinsic search input.
 	let input = cli
 		.input(r#"🔎 Search for extrinsics by name ("*" to select all)"#)
-		.placeholder("transfer")
+		.placeholder(ALL_SELECTED)
+		.default_input(ALL_SELECTED)
 		.required(false)
 		.interact()?;
 
@@ -870,21 +882,6 @@ async fn guide_user_to_select_menu_option(
 	Ok(prompt.interact()?)
 }
 
-fn guide_user_to_input_output_path(
-	cli: &mut impl cli::traits::Cli,
-	default_value: Option<&PathBuf>,
-) -> anyhow::Result<PathBuf> {
-	let output = default_value.map(|o| o.to_str().unwrap()).unwrap_or_else(|| "./weights.rs");
-	let input = cli
-		.input("Provide the output file path for benchmark results (optional).")
-		.required(false)
-		.placeholder(output)
-		.interact()
-		.map(PathBuf::from)
-		.map_err(anyhow::Error::from)?;
-	Ok(input)
-}
-
 fn is_selected_all(s: &String) -> bool {
 	s == &ALL_SELECTED.to_string() || s.is_empty()
 }
@@ -903,20 +900,30 @@ mod tests {
 		common::bench::{get_mock_runtime, source_omni_bencher_binary},
 	};
 	use anyhow::Ok;
-	use std::{env::current_dir, path::Path};
+	use std::env::current_dir;
 
 	#[tokio::test]
 	async fn benchmark_pallet_works() -> anyhow::Result<()> {
 		let mut cli = MockCli::new();
+		let temp_dir = tempfile::tempdir()?;
 
 		let cwd = current_dir().unwrap_or(PathBuf::from("./"));
 		let runtime_path = get_mock_runtime(true);
 		let binary_path =
 			source_omni_bencher_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
 		let registry = load_pallet_extrinsics(&runtime_path, binary_path.as_path()).await?;
+		let output_path = temp_dir.path().join("weights.rs");
 
 		cli = expect_pallet_benchmarking_intro(cli);
-		cli = expect_input_runtime_path(cli, cwd.as_path(), runtime_path.as_path());
+		cli = cli
+			.expect_warning(format!(
+				"No runtime folder found at {}. Please input the runtime path manually.",
+				cwd.display()
+			))
+			.expect_input(
+				"Please provide the path to the runtime or parachain project.",
+				runtime_path.to_str().unwrap().to_string(),
+			);
 		cli = expect_select_pallet(cli, &registry, &"pallet_timestamp", &[], MAX_PALLET_LIMIT, 0);
 		cli = expect_select_extrinsics(
 			cli,
@@ -929,6 +936,12 @@ mod tests {
 			.expect_warning("NOTE: this may take some time...")
 			.expect_info("Benchmarking extrinsic weights of selected pallets...");
 
+		// Verify the output of generated weight file.
+		cli = cli.expect_input(
+			"Provide the output file path for benchmark results (optional).",
+			output_path.to_str().unwrap().to_string(),
+		);
+
 		let mut cmd = BenchmarkPallet {
 			skip_menu: true,
 			skip_confirm: false,
@@ -936,10 +949,10 @@ mod tests {
 			..Default::default()
 		};
 		cmd.execute(&mut cli).await?;
+		assert!(output_path.exists());
 
 		// Verify the printed command.
-		cli = cli.expect_info(cmd.display());
-		cli = cli.expect_outro("Benchmark completed successfully!");
+		cli = cli.expect_info(cmd.display()).expect_outro("Benchmark completed successfully!");
 		cmd.execute(&mut cli).await?;
 		cli.verify()
 	}
@@ -1306,17 +1319,4 @@ mod tests {
 			)
 		}
 	}
-
-	fn expect_input_runtime_path(cli: MockCli, target_path: &Path, input: &Path) -> MockCli {
-		cli.expect_warning(format!(
-			"No runtime folder found at {}. Please input the runtime path manually.",
-			target_path.display()
-		))
-		.expect_input(
-			"Please provide the path to the runtime or parachain project.",
-			input.to_str().unwrap().to_string(),
-		)
-	}
-
-	// Construct the path to the mock runtime WASM file.
 }
