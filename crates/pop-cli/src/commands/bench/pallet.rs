@@ -300,11 +300,7 @@ impl BenchmarkPallet {
 		let result = self.run();
 
 		// Display the benchmarking command.
-		let mut message = self.display();
-		if self.skip_menu {
-			message.push_str(" --skip");
-		}
-		cli.info(message)?;
+		cli.info(self.display())?;
 		if let Err(e) = result {
 			return display_message(&e.to_string(), false, cli);
 		}
@@ -318,7 +314,10 @@ impl BenchmarkPallet {
 
 	fn display(&self) -> String {
 		let mut args = vec!["pop bench pallet".to_string()];
-		let arguments = self.collect_arguments();
+		let mut arguments = self.collect_arguments();
+		if self.skip_menu {
+			arguments.push("--skip".to_string());
+		}
 		args.extend(arguments);
 		args.join(" ")
 	}
