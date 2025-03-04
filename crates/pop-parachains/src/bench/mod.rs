@@ -155,6 +155,7 @@ pub async fn run_benchmarking_with_binary(
 	args: Vec<&str>,
 ) -> anyhow::Result<Child> {
 	let mut command = Command::new(binary_path);
+	let env = std::env::var("RUST_LOG").unwrap_or_default();
 	command.env("RUST_LOG", "none");
 	command.args(["v1", "benchmark", "pallet"]);
 	for arg in args {
@@ -164,6 +165,7 @@ pub async fn run_benchmarking_with_binary(
 		command.stdout(Stdio::from(output.try_clone()?));
 		command.stderr(Stdio::from(output.try_clone()?));
 	}
+	command.env("RUST_LOG", env);
 	Ok(command.spawn()?)
 }
 
