@@ -2,6 +2,7 @@ FROM rust as builder
 RUN apt-get update && apt-get -y install cmake
 WORKDIR /pop
 COPY . /pop
+RUN rustup show active-toolchain || rustup toolchain install
 RUN cargo build --release
 
 # Build image, preinstalling all dependencies for general Polkadot development
