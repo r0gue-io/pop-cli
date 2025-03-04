@@ -160,7 +160,7 @@ pub fn check_genesis_builder_and_prompt(
 
 	// If the policy requires a preset, prompt the user to select one.
 	if policy == GenesisBuilderPolicy::Runtime {
-		*current_preset = guide_user_to_select_genesis_preset(cli, runtime_path, &current_preset)?;
+		*current_preset = guide_user_to_select_genesis_preset(cli, runtime_path, current_preset)?;
 	}
 	Ok(())
 }
