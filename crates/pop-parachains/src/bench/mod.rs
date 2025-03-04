@@ -165,8 +165,9 @@ pub async fn run_benchmarking_with_binary(
 		command.stdout(Stdio::from(output.try_clone()?));
 		command.stderr(Stdio::from(output.try_clone()?));
 	}
+	let child = command.spawn()?;
 	command.env("RUST_LOG", env);
-	Ok(command.spawn()?)
+	Ok(child)
 }
 
 /// Performs a fuzzy search for pallets that match the provided input.

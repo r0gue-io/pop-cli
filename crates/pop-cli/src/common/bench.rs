@@ -2,6 +2,7 @@
 
 use crate::cli::traits::*;
 use cliclack::spinner;
+use duct::cmd;
 use pop_common::{
 	get_relative_or_absolute_path, manifest::from_path, set_executable_permission, Profile,
 };
@@ -16,7 +17,6 @@ use std::{
 	path::{Path, PathBuf},
 };
 use strum::{EnumMessage, IntoEnumIterator};
-use which::which;
 
 /// Checks the status of the `frame-omni-bencher` binary, use the local binary if available.
 /// Otherwise, sources it if necessary, and prompts the user to update it if the existing binary in
@@ -31,8 +31,11 @@ pub async fn check_omni_bencher_and_prompt(
 	cache_path: &Path,
 	skip_confirm: bool,
 ) -> anyhow::Result<PathBuf> {
-	Ok(match which("frame-omni-bencher") {
-		Ok(local_path) => local_path,
+	Ok(match cmd("which", &["frame-omni-bencher"]).stdout_capture().run() {
+		Ok(output) => {
+			let path = String::from_utf8(output.stdout).unwrap();
+			PathBuf::from(path.replace("\n", ""))
+		},
 		Err(_) => source_omni_bencher_binary(cli, cache_path, skip_confirm).await?,
 	})
 }
