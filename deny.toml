@@ -5,9 +5,11 @@ all-features = true
 [advisories]
 ignore = [
     { id = "RUSTSEC-2024-0344", reason = "No upgrade available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/214" },
-    { id = "RUSTSEC-2024-0388", reason = "No safe upgrade is available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/436" },
-    { id = "RUSTSEC-2024-0384", reason = "No safe upgrade is available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/437" },
-    { id = "RUSTSEC-2020-0163", reason = "No safe upgrade is available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/438" },
+    { id = "RUSTSEC-2024-0388", reason = "No upgrade available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/436" },
+    { id = "RUSTSEC-2024-0384", reason = "No upgrade available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/437" },
+    { id = "RUSTSEC-2020-0163", reason = "No upgrade available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/438" },
+    { id = "RUSTSEC-2020-0168", reason = "No upgrade available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/439" },
+    { id = "RUSTSEC-2021-0139", reason = "No upgrade available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/440" },
 ]
 
 [licenses]
