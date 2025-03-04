@@ -3,9 +3,11 @@ all-features = true
 
 # This section is considered when running `cargo deny check advisories`
 [advisories]
-unmaintained = "warn"
 ignore = [
     { id = "RUSTSEC-2024-0344", reason = "No upgrade available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/214" },
+    { id = "RUSTSEC-2024-0388", reason = "No upgrade available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/436" },
+    { id = "RUSTSEC-2024-0384", reason = "No upgrade available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/437" },
+    { id = "RUSTSEC-2020-0163", reason = "No upgrade available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/438" },
 ]
 
 [licenses]
