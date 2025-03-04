@@ -1485,9 +1485,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.5.23"
+version = "4.5.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3135e7ec2ef7b10c6ed8950f0f792ed96ee093fa088608f1c76e569722700c84"
+checksum = "027bb0d98429ae334a8698531da7077bdf906419543a35a55c2cb1b66437d767"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -1495,9 +1495,9 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-version = "4.5.23"
+version = "4.5.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "30582fc632330df2bd26877bde0c1f4470d57c582bbc070376afcd04d8cb4838"
+checksum = "5589e0cba072e0f3d23791efac0fd8627b49c829c196a492e88168e6a669d863"
 dependencies = [
  "anstream",
  "anstyle",
@@ -1508,9 +1508,9 @@ dependencies = [
 
 [[package]]
 name = "clap_derive"
-version = "4.5.18"
+version = "4.5.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ac6a0c7b1a9e9a5186361f67dfa1b88213572f427fb9ab038efb2bd8c582dab"
+checksum = "bf4ced95c6f4a675af3da73304b9ac4ed991640c36374e4b46795c49e17cf1ed"
 dependencies = [
  "heck 0.5.0",
  "proc-macro2",
@@ -1709,9 +1709,9 @@ checksum = "cd7e35aee659887cbfb97aaf227ac12cad1a9d7c71e55ff3376839ed4e282d08"
 
 [[package]]
 name = "contract-build"
-version = "5.0.2"
+version = "5.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b014fa89030235ecd8bdeb061ec97df326281b484f89ad3e17a79f08759c2f52"
+checksum = "6e661897ab30bc0290628b2ea3ce18463c766a1264687a76aa8f5a36b6e75e78"
 dependencies = [
  "anyhow",
  "blake2 0.10.6",
@@ -1750,9 +1750,9 @@ dependencies = [
 
 [[package]]
 name = "contract-extrinsics"
-version = "5.0.2"
+version = "5.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "67d0c91349c31caec4d5e3c544b4bc4fcc7c0468dc49ee84a96a24f915464401"
+checksum = "f21e03420806389aa620e4aa6c01085478f0b5024e7bdefa26c41af26379ffcf"
 dependencies = [
  "anyhow",
  "blake2 0.10.6",
@@ -1783,9 +1783,9 @@ dependencies = [
 
 [[package]]
 name = "contract-metadata"
-version = "5.0.2"
+version = "5.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "83ae8bcb5f7c5ea033d05fa0bbffa4e762a5b69c0ce96e4188fb15385a01998b"
+checksum = "3ce11bf540c9b154aca38e9d828ae7ea93ec7b4486c5dea87d553016b28af175"
 dependencies = [
  "anyhow",
  "impl-serde 0.5.0",
@@ -1797,9 +1797,9 @@ dependencies = [
 
 [[package]]
 name = "contract-transcode"
-version = "5.0.2"
+version = "5.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "baca96dc859fd180eba5f15e468f59dc8c932a6b72f6b76f91b571b6743a9e7d"
+checksum = "b315857697f467045d8c1bcf2bce7c9eb0a6e32d94554afd0d2892e772ecad0c"
 dependencies = [
  "anyhow",
  "base58",
