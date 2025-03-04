@@ -935,9 +935,7 @@ mod tests {
 		cmd.execute(&mut cli).await?;
 
 		// Verify the printed command.
-		let mut command_output = cmd.display();
-		command_output.push_str(" --skip");
-		cli = cli.expect_info(command_output);
+		cli = cli.expect_info(cmd.display());
 		cli = cli.expect_outro("Benchmark completed successfully!");
 		cmd.execute(&mut cli).await?;
 		cli.verify()
