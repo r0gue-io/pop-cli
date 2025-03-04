@@ -5,6 +5,7 @@ use sp_core::twox_128;
 use subxt::{
 	config::BlockHash,
 	dynamic::{self, Value},
+	ext::sp_core,
 	OnlineClient, PolkadotConfig,
 };
 
@@ -90,7 +91,7 @@ impl RelayChain {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use sp_core::twox_64;
+	use subxt::ext::sp_core::twox_64;
 	use RelayChain::*;
 
 	#[test]
