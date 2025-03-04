@@ -19,8 +19,7 @@ impl BenchmarkOverhead {
 	pub async fn execute(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		let cmd = &mut self.command;
 
-		cli.warning("NOTE: this may take some time...")?;
-		cli.info("Benchmarking and generating weight file...")?;
+		cli.intro("Benchmarking the execution overhead per-block and per-extrinsic")?;
 
 		// No runtime path provided, auto-detect the runtime WASM binary. If not found, build
 		// the runtime.
@@ -42,6 +41,9 @@ impl BenchmarkOverhead {
 				return display_message(&e.to_string(), false, cli);
 			};
 		}
+
+		cli.warning("NOTE: this may take some time...")?;
+		cli.info("Benchmarking and generating weight file...")?;
 
 		if let Err(e) = generate_overhead_benchmarks(OverheadCmd {
 			import_params: cmd.import_params.clone(),
@@ -73,12 +75,51 @@ fn parse_genesis_builder_policy(policy: &str) -> anyhow::Result<OverheadCmd> {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::{cli::MockCli, common::bench::get_mock_runtime};
+	use pop_parachains::get_preset_names;
+	use tempfile::tempdir;
 
 	#[test]
 	fn parse_genesis_builder_policy_works() -> anyhow::Result<()> {
 		for policy in ["runtime", "spec-runtime", "spec-genesis"] {
 			parse_genesis_builder_policy(policy)?;
 		}
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn benchmarking_overhead_works() -> anyhow::Result<()> {
+		let temp_dir = tempdir()?;
+		let runtime_path = get_mock_runtime(true);
+		let preset_names = get_preset_names(&runtime_path)
+			.unwrap()
+			.into_iter()
+			.map(|preset| (preset, String::default()))
+			.collect();
+		let mut cli = MockCli::new()
+			.expect_intro("Benchmarking the execution overhead per-block and per-extrinsic")
+			.expect_warning("NOTE: this may take some time...")
+			.expect_select(
+				"Select the genesis builder preset:",
+				Some(true),
+				true,
+				Some(preset_names),
+				0,
+			)
+			.expect_info("Benchmarking and generating weight file...")
+			.expect_outro("Benchmark completed successfully!");
+
+		let cmd = OverheadCmd::try_parse_from([
+			"",
+			"--runtime",
+			get_mock_runtime(true).to_str().unwrap(),
+			"--warmup=1",
+			"--repeat=1",
+			"--weight-path",
+			temp_dir.path().to_str().unwrap(),
+		])?;
+
+		BenchmarkOverhead { command: cmd }.execute(&mut cli).await?;
 		Ok(())
 	}
 }

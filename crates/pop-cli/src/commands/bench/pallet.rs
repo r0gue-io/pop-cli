@@ -899,7 +899,10 @@ fn parse_pallet_name(pallet: &str) -> std::result::Result<String, String> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::{cli::MockCli, common::bench::source_omni_bencher_binary};
+	use crate::{
+		cli::MockCli,
+		common::bench::{get_mock_runtime, source_omni_bencher_binary},
+	};
 	use anyhow::Ok;
 	use std::{env::current_dir, path::Path};
 
@@ -1316,14 +1319,5 @@ mod tests {
 			"Please provide the path to the runtime or parachain project.",
 			input.to_str().unwrap().to_string(),
 		)
-	}
-
-	// Construct the path to the mock runtime WASM file.
-	fn get_mock_runtime(with_benchmark_features: bool) -> std::path::PathBuf {
-		let path = format!(
-			"../../tests/runtimes/{}.wasm",
-			if with_benchmark_features { "base_parachain_benchmark" } else { "base_parachain" }
-		);
-		current_dir().unwrap().join(path).canonicalize().unwrap()
 	}
 }
