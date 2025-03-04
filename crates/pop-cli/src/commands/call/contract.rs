@@ -725,6 +725,7 @@ mod tests {
 				true,
 				Some(items),
 				1, // "get" message
+				None
 			)
 			.expect_info(format!(
 			    "pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message get --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice",
@@ -788,6 +789,7 @@ mod tests {
 				true,
 				Some(items),
 				1, // "get" message
+				None
 			)
 			.expect_input(
 				"Where is your contract deployed?",
@@ -874,6 +876,7 @@ mod tests {
 				true,
 				Some(items),
 				2, // "specific_flip" message
+				None
 			)
 			.expect_input("Enter the value for the parameter: new_value", "true".into()) // Args for specific_flip
 			.expect_input("Enter the value for the parameter: number", "2".into()) // Args for specific_flip
@@ -953,6 +956,7 @@ mod tests {
 				true,
 				Some(items),
 				2, // "specific_flip" message
+				None
 			)
 			.expect_input(
 				"Where is your contract deployed?",
