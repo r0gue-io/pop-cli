@@ -33,7 +33,7 @@ pub async fn check_omni_bencher_and_prompt(
 ) -> anyhow::Result<PathBuf> {
 	Ok(match cmd("which", &["frame-omni-bencher"]).stdout_capture().run() {
 		Ok(output) => {
-			let path = String::from_utf8(output.stdout).unwrap();
+			let path = String::from_utf8(output.stdout)?;
 			PathBuf::from(path.replace("\n", ""))
 		},
 		Err(_) => source_omni_bencher_binary(cli, cache_path, skip_confirm).await?,
@@ -222,7 +222,7 @@ pub fn guide_user_to_select_runtime(
 	let runtimes = fs::read_dir(project_path).expect("No project found");
 	let mut prompt = cli.select("Select the runtime:");
 	for runtime in runtimes {
-		let path = runtime.unwrap().path();
+		let path = runtime?.path();
 		if !path.is_dir() {
 			continue;
 		}
@@ -268,7 +268,7 @@ pub fn guide_user_to_select_genesis_preset(
 	runtime_path: &PathBuf,
 	default_value: &str,
 ) -> anyhow::Result<String> {
-	let spinner = cliclack::spinner();
+	let spinner = spinner();
 	spinner.start("Loading available genesis builder presets of your runtime...");
 	let mut prompt = cli
 		.select("Select the genesis builder preset:")
@@ -291,6 +291,16 @@ pub fn get_relative_path(path: &Path) -> String {
 	path.as_path().to_str().expect("No path provided").to_string()
 }
 
+/// Construct the path to the mock runtime WASM file.
+#[cfg(test)]
+pub(crate) fn get_mock_runtime(with_benchmark_features: bool) -> PathBuf {
+	let path = format!(
+		"../../tests/runtimes/{}.wasm",
+		if with_benchmark_features { "base_parachain_benchmark" } else { "base_parachain" }
+	);
+	current_dir().unwrap().join(path).canonicalize().unwrap()
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -300,7 +310,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn source_omni_bencher_binary_works() -> anyhow::Result<()> {
-		let cache_path = tempfile::tempdir().expect("Could create temp dir");
+		let cache_path = tempdir().expect("Could create temp dir");
 		let mut cli = MockCli::new()
 			.expect_warning("⚠️ The frame-omni-bencher binary is not found.")
 			.expect_confirm("📦 Would you like to source it automatically now?", true)
@@ -317,7 +327,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn source_omni_bencher_binary_handles_skip_confirm() -> anyhow::Result<()> {
-		let cache_path = tempfile::tempdir().expect("Could create temp dir");
+		let cache_path = tempdir().expect("Could create temp dir");
 		let mut cli =
 			MockCli::new().expect_warning("⚠️ The frame-omni-bencher binary is not found.");
 
@@ -439,14 +449,5 @@ mod tests {
 			Some(preset_names),
 			item,
 		)
-	}
-
-	// Construct the path to the mock runtime WASM file.
-	fn get_mock_runtime(with_benchmark_features: bool) -> std::path::PathBuf {
-		let path = format!(
-			"../../tests/runtimes/{}.wasm",
-			if with_benchmark_features { "base_parachain_benchmark" } else { "base_parachain" }
-		);
-		current_dir().unwrap().join(path).canonicalize().unwrap()
 	}
 }
