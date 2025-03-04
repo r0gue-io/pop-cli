@@ -23,8 +23,6 @@ pub(crate) mod traits {
 		fn outro(&mut self, message: impl Display) -> Result<()>;
 		/// Prints a footer of the prompt sequence with a failure style.
 		fn outro_cancel(&mut self, message: impl Display) -> Result<()>;
-		/// Constructs a new [`Password`] prompt.
-		fn password(&mut self, prompt: impl Display) -> impl Password;
 		/// Constructs a new [`Select`] prompt.
 		fn select<T: Clone + Eq>(&mut self, prompt: impl Display) -> impl Select<T>;
 		/// Prints a success message.
@@ -68,12 +66,6 @@ pub(crate) mod traits {
 		fn required(self, required: bool) -> Self;
 		/// The filter mode allows to filter the items by typing.
 		fn filter_mode(self) -> Self;
-	}
-
-	/// A prompt that masks the input.
-	pub trait Password {
-		/// Starts the prompt interaction.
-		fn interact(&mut self) -> Result<String>;
 	}
 
 	/// A select prompt.
@@ -127,11 +119,6 @@ impl traits::Cli for Cli {
 	/// Prints a footer of the prompt sequence with a failure style.
 	fn outro_cancel(&mut self, message: impl Display) -> Result<()> {
 		cliclack::outro_cancel(message)
-	}
-
-	/// Constructs a new [`Password`] prompt.
-	fn password(&mut self, prompt: impl Display) -> impl traits::Password {
-		Password(cliclack::password(prompt))
 	}
 
 	/// Constructs a new [`Select`] prompt.
@@ -225,15 +212,6 @@ impl<T: Clone + Eq> traits::MultiSelect<T> for MultiSelect<T> {
 	}
 }
 
-/// A password prompt using cliclack.
-struct Password(cliclack::Password);
-impl traits::Password for Password {
-	/// Starts the prompt interaction.
-	fn interact(&mut self) -> Result<String> {
-		self.0.interact()
-	}
-}
-
 /// A select prompt using cliclack.
 struct Select<T: Clone + Eq>(cliclack::Select<T>);
 
@@ -278,7 +256,6 @@ pub(crate) mod tests {
 		multiselect_expectation:
 			Option<(String, Option<bool>, bool, Option<Vec<(String, String)>>, Option<bool>)>,
 		outro_cancel_expectation: Option<String>,
-		password_expectations: Vec<(String, String)>,
 		select_expectation:
 			Vec<(String, Option<bool>, bool, Option<Vec<(String, String)>>, usize, Option<bool>)>,
 		success_expectations: Vec<String>,
@@ -333,11 +310,6 @@ pub(crate) mod tests {
 			self
 		}
 
-		pub(crate) fn expect_password(mut self, prompt: impl Display, input: String) -> Self {
-			self.password_expectations.insert(0, (prompt.to_string(), input));
-			self
-		}
-
 		pub(crate) fn expect_select(
 			mut self,
 			prompt: impl Display,
@@ -384,9 +356,6 @@ pub(crate) mod tests {
 			}
 			if let Some(expectation) = self.outro_cancel_expectation {
 				panic!("`{expectation}` outro cancel expectation not satisfied")
-			}
-			if !self.password_expectations.is_empty() {
-				panic!("`{:?}` password expectation not satisfied", self.password_expectations)
 			}
 			if !self.select_expectation.is_empty() {
 				panic!(
@@ -494,15 +463,6 @@ pub(crate) mod tests {
 				);
 			}
 			Ok(())
-		}
-
-		fn password(&mut self, prompt: impl Display) -> impl Password {
-			let prompt = prompt.to_string();
-			if let Some((expectation, input)) = self.password_expectations.pop() {
-				assert_eq!(expectation, prompt, "prompt does not satisfy expectation");
-				return MockPassword { prompt: input.clone() };
-			}
-			MockPassword::default()
 		}
 
 		fn select<T: Clone + Eq>(&mut self, prompt: impl Display) -> impl Select<T> {
@@ -650,18 +610,6 @@ pub(crate) mod tests {
 				self.filter_mode_expectation = None;
 			}
 			self
-		}
-	}
-
-	/// Mock password prompt
-	#[derive(Default)]
-	struct MockPassword {
-		prompt: String,
-	}
-
-	impl Password for MockPassword {
-		fn interact(&mut self) -> Result<String> {
-			Ok(self.prompt.clone())
 		}
 	}
 

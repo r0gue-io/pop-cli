@@ -640,14 +640,14 @@ mod tests {
 						true,
 						Some(chain_types()),
 						chain_type.clone() as usize,
-						None,
+							None,
 					).expect_select(
 					"Choose the relay your chain will be connecting to: ",
 					Some(false),
 					true,
 					Some(relays()),
 					relay.clone() as usize,
-					None,
+						None,
 				).expect_select(
 					"Choose the build profile of the binary that should be used: ",
 					Some(false),

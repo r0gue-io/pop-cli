@@ -712,7 +712,7 @@ mod tests {
 				.to_vec(),
 			),
 			5, // "remark" dispatchable function
-			None,
+				None,
 		)
 		.expect_input("The value for `remark` might be too large to enter. You may enter the path to a file instead.", "0x11".into())
 		.expect_confirm("Would you like to dispatch this function call with `Root` origin?", true)
