@@ -345,7 +345,14 @@ mod tests {
 
 		// Found runtimes in the specified runtime path.
 		let mut cli = MockCli::new();
-		cli = cli.expect_select("Select the runtime:", Some(true), true, Some(runtime_items), 0);
+		cli = cli.expect_select(
+			"Select the runtime:",
+			Some(true),
+			true,
+			Some(runtime_items),
+			0,
+			None,
+		);
 
 		fs::create_dir(&runtime_path)?;
 		for runtime in runtimes {
@@ -381,7 +388,14 @@ mod tests {
 		let runtimes = ["runtime-1", "runtime-2", "runtime-3"];
 		let runtime_items = runtimes.map(|runtime| (runtime.to_string(), "".to_string())).to_vec();
 		cli = MockCli::new();
-		cli = cli.expect_select("Select the runtime:", Some(true), true, Some(runtime_items), 0);
+		cli = cli.expect_select(
+			"Select the runtime:",
+			Some(true),
+			true,
+			Some(runtime_items),
+			0,
+			None,
+		);
 		for runtime in runtimes {
 			cmd("cargo", ["new", runtime, "--bin"]).dir(&runtime_path).run()?;
 		}
@@ -429,6 +443,7 @@ mod tests {
 			true,
 			Some(policies),
 			item,
+			None,
 		)
 	}
 
@@ -444,6 +459,7 @@ mod tests {
 			true,
 			Some(preset_names),
 			item,
+			None,
 		)
 	}
 }

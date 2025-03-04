@@ -2,7 +2,6 @@
 
 use clap::Parser;
 use frame_benchmarking_cli::PalletCmd;
-use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use sc_chain_spec::GenesisConfigBuilderRuntimeCaller;
 use sp_runtime::traits::BlakeTwo256;
 use std::{
@@ -174,66 +173,6 @@ pub async fn run_benchmarking_with_binary(
 	Ok(child)
 }
 
-/// Performs a fuzzy search for pallets that match the provided input.
-///
-/// # Arguments
-/// * `registry` - A mapping of pallets and their extrinsics.
-/// * `excluded_pallets` - Pallets that are excluded from the search results.
-/// * `input` - The search input used to match pallets.
-/// * `limit` - Maximum number of pallets returned from search.
-pub fn search_for_pallets(
-	registry: &PalletExtrinsicsRegistry,
-	excluded_pallets: &[String],
-	input: &str,
-	limit: usize,
-) -> Vec<String> {
-	let matcher = SkimMatcherV2::default();
-	let pallets = registry.keys();
-
-	if input.is_empty() {
-		return pallets.map(String::from).take(limit).collect();
-	}
-	let pallets: Vec<&str> = pallets
-		.filter(|s| !excluded_pallets.contains(&s.to_string()))
-		.map(String::as_str)
-		.collect();
-	let mut output: Vec<(String, i64)> = pallets
-		.into_iter()
-		.map(|v| (v.to_string(), matcher.fuzzy_match(v, input).unwrap_or_default()))
-		.collect();
-	// Sort pallets by score.
-	output.sort_by(|a, b| b.1.cmp(&a.1));
-	output.into_iter().map(|(name, _)| name).take(limit).collect::<Vec<String>>()
-}
-
-/// Performs a fuzzy search for extrinsics that match the provided input.
-///
-/// # Arguments
-/// * `registry` - A mapping of pallets and their extrinsics.
-/// * `pallet` - Pallet to find the extrinsics.
-/// * `input` - The search input used to match extrinsics.
-/// * `limit` - The maximum number of results to return.
-pub fn search_for_extrinsics(
-	registry: &PalletExtrinsicsRegistry,
-	pallet: &String,
-	input: &str,
-	limit: usize,
-) -> Vec<String> {
-	let matcher = SkimMatcherV2::default();
-	let extrinsics = registry.get(pallet).cloned().unwrap_or_default();
-
-	if input.is_empty() {
-		return extrinsics.into_iter().take(limit).collect();
-	}
-	let mut output: Vec<(String, i64)> = extrinsics
-		.into_iter()
-		.map(|v| (v.clone(), matcher.fuzzy_match(&v, input).unwrap_or_default()))
-		.collect();
-	// Sort extrinsics by score.
-	output.sort_by(|a, b| b.1.cmp(&a.1));
-	output.into_iter().map(|(name, _)| name).take(limit).collect::<Vec<String>>()
-}
-
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -289,63 +228,11 @@ mod tests {
 		Ok(())
 	}
 
-	#[test]
-	fn search_pallets_works() {
-		let registry = get_mock_registry();
-		[
-			("balances", "pallet_balances"),
-			("timestamp", "pallet_timestamp"),
-			("system", "frame_system"),
-		]
-		.iter()
-		.for_each(|(input, pallet)| {
-			let pallets = search_for_pallets(&registry, &[], input, 5);
-			assert_eq!(pallets.first(), Some(&pallet.to_string()));
-			assert_eq!(pallets.len(), 3);
-		});
-
-		assert_ne!(
-			search_for_pallets(&registry, &["pallet_timestamp".to_string()], "timestamp", 5)
-				.first(),
-			Some(&"pallet_timestamp".to_string())
-		);
-	}
-
-	#[test]
-	fn search_extrinsics_works() {
-		let registry = get_mock_registry();
-		// Extrinsics are sorted alphabetically if there are no matches.
-		assert_eq!(
-			search_for_extrinsics(&registry, &"pallet_timestamp".to_string(), "", 5),
-			vec!["on_finalize".to_string(), "set".to_string()]
-		);
-		// Sort by score if there are matches.
-		assert_eq!(
-			search_for_extrinsics(&registry, &"pallet_timestamp".to_string(), "set", 5),
-			vec!["set".to_string(), "on_finalize".to_string()]
-		);
-	}
-
 	fn get_mock_runtime_path(with_runtime_benchmarks: bool) -> PathBuf {
 		let binary_path = format!(
 			"../../tests/runtimes/{}.wasm",
 			if with_runtime_benchmarks { "base_parachain_benchmark" } else { "base_parachain" }
 		);
 		std::env::current_dir().unwrap().join(binary_path).canonicalize().unwrap()
-	}
-
-	fn get_mock_registry() -> PalletExtrinsicsRegistry {
-		PalletExtrinsicsRegistry::from([
-			(
-				"pallet_balances".to_string(),
-				vec![
-					"transfer".to_string(),
-					"force_transfer".to_string(),
-					"set_balance".to_string(),
-				],
-			),
-			("pallet_timestamp".to_string(), vec!["on_finalize".to_string(), "set".to_string()]),
-			("frame_system".to_string(), vec!["set_code".to_string(), "remark".to_string()]),
-		])
 	}
 }
