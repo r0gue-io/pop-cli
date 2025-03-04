@@ -259,6 +259,15 @@ pub(crate) fn get_mock_runtime(with_benchmark_features: bool) -> PathBuf {
 }
 
 #[cfg(test)]
+pub(crate) fn get_mock_runtime(with_benchmark_features: bool) -> std::path::PathBuf {
+	let path = format!(
+		"../../tests/runtimes/{}.wasm",
+		if with_benchmark_features { "base_parachain_benchmark" } else { "base_parachain" }
+	);
+	current_dir().unwrap().join(path).canonicalize().unwrap()
+}
+
+#[cfg(test)]
 mod tests {
 	use super::*;
 	use crate::cli::MockCli;
