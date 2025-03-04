@@ -7,6 +7,7 @@ use sc_chain_spec::GenesisConfigBuilderRuntimeCaller;
 use sp_runtime::traits::BlakeTwo256;
 use std::{
 	collections::HashMap,
+	fmt::Display,
 	fs::{self, File},
 	io::Read,
 	path::{Path, PathBuf},
@@ -42,12 +43,13 @@ pub enum GenesisBuilderPolicy {
 	Runtime,
 }
 
-impl ToString for GenesisBuilderPolicy {
-	fn to_string(&self) -> String {
-		match self {
-			GenesisBuilderPolicy::None => "none".to_string(),
-			GenesisBuilderPolicy::Runtime => "runtime".to_string(),
-		}
+impl Display for GenesisBuilderPolicy {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		let s = match self {
+			GenesisBuilderPolicy::None => "none",
+			GenesisBuilderPolicy::Runtime => "runtime",
+		};
+		write!(f, "{}", s)
 	}
 }
 

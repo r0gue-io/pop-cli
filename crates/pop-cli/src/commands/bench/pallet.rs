@@ -417,7 +417,7 @@ impl BenchmarkPallet {
 			args.push("--allow-missing-host-functions".to_string());
 		}
 		if let Some(ref genesis_builder) = self.genesis_builder {
-			args.push(format!("--genesis-builder={}", genesis_builder.to_string()));
+			args.push(format!("--genesis-builder={}", genesis_builder));
 			if genesis_builder == &GenesisBuilderPolicy::Runtime {
 				args.push(format!("--genesis-builder-preset={}", self.genesis_builder_preset));
 			}
