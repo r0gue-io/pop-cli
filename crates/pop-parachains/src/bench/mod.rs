@@ -16,6 +16,7 @@ use std::{
 use strum_macros::{EnumIter, EnumMessage as EnumMessageDerive};
 use tempfile::NamedTempFile;
 
+/// Provides functionality for sourcing binaries of the benchmarking CLI.
 pub mod binary;
 
 /// The default `development` preset used to communicate with the runtime via
