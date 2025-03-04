@@ -217,6 +217,7 @@ mod tests {
 			Some(false),
 			true,
 			Some(items),
+			None,
 		);
 
 		CleanCacheCommand { cli: &mut cli, cache, all: false }.execute()?;
@@ -238,6 +239,7 @@ mod tests {
 				"Select the artifacts you wish to remove:",
 				Some(false),
 				false,
+				None,
 				None,
 			)
 			.expect_outro("ℹ️ No artifacts removed");
@@ -263,6 +265,7 @@ mod tests {
 				"Select the artifacts you wish to remove:",
 				None,
 				true,
+				None,
 				None,
 			)
 			.expect_confirm("Are you sure you want to remove the selected artifact?", false)
@@ -353,6 +356,7 @@ mod tests {
 				"Select the artifacts you wish to remove:",
 				None,
 				true,
+				None,
 				None,
 			)
 			.expect_confirm("Are you sure you want to remove the 3 selected artifacts?", true)
