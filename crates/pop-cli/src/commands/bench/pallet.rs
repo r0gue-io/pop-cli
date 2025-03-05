@@ -845,19 +845,22 @@ fn guide_user_to_select_extrinsics(
 		return Err(anyhow::anyhow!("No extrinsics found for the pallet"));
 	}
 
+	if cli
+		.confirm(format!(r#"Would you like to benchmark all extrinsics of "{}"?"#, pallet))
+		.initial_value(true)
+		.interact()?
+	{
+		return Ok(ALL_SELECTED.to_string());
+	}
+
 	let mut prompt = cli
-		.multiselect(r#"🔎 Search for extrinsics to select (Press ENTER to select all)"#)
+		.multiselect(r#"🔎 Search for extrinsics to benchmark"#)
 		.filter_mode()
-		.required(false);
+		.required(true);
 	for extrinsic in extrinsics {
 		prompt = prompt.item(extrinsic.clone(), &extrinsic, "");
 	}
-
-	let input = prompt.interact()?;
-	if input.is_empty() {
-		return Ok(ALL_SELECTED.to_string());
-	}
-	Ok(input.join(","))
+	Ok(prompt.interact()?.join(","))
 }
 
 async fn guide_user_to_select_menu_option(
@@ -1025,26 +1028,42 @@ mod tests {
 		let binary_path =
 			source_omni_bencher_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
 		let registry = load_pallet_extrinsics(&runtime_path, binary_path.as_path()).await?;
-		let pallet_items = pallets(&registry, &[])
+		let pallet_items: Vec<(String, String)> = pallets(&registry, &[])
 			.into_iter()
 			.map(|pallet| (pallet, Default::default()))
 			.collect();
+		let prompt = "Would you like to benchmark all pallets?";
 
-		let mut cli =
-			MockCli::new().expect_confirm("Would you like to benchmark all pallets?", true);
-		guide_user_to_select_pallet(&registry, &[], &mut cli)?;
+		// Select all pallets.
+		let mut cli = MockCli::new().expect_confirm(prompt, true);
+		assert_eq!(
+			guide_user_to_select_pallet(&registry, &[], &mut cli)?,
+			ALL_SELECTED.to_string()
+		);
+		cli.verify()?;
 
-		cli = MockCli::new()
-			.expect_confirm("Would you like to benchmark all pallets?", false)
-			.expect_select(
-				r#"🔎 Search for a pallet to benchmark"#,
-				Some(false),
-				true,
-				Some(pallet_items),
-				0,
-				Some(true),
-			);
+		// Not exclude pallets.
+		cli = MockCli::new().expect_confirm(prompt, false).expect_select(
+			r#"🔎 Search for a pallet to benchmark"#,
+			None,
+			true,
+			Some(pallet_items.clone()),
+			0,
+			Some(true),
+		);
 		guide_user_to_select_pallet(&registry, &[], &mut cli)?;
+		cli.verify()?;
+
+		// Exclude pallets
+		cli = MockCli::new().expect_confirm(prompt, false).expect_select(
+			r#"🔎 Search for a pallet to benchmark"#,
+			None,
+			true,
+			Some(pallet_items.into_iter().filter(|(p, _)| p != "pallet_timestamp").collect()),
+			0,
+			Some(true),
+		);
+		guide_user_to_select_pallet(&registry, &["pallet_timestamp".to_string()], &mut cli)?;
 		cli.verify()
 	}
 
@@ -1079,13 +1098,28 @@ mod tests {
 			.into_iter()
 			.map(|pallet| (pallet, Default::default()))
 			.collect();
-		cli = MockCli::new().expect_multiselect::<String>(
-			r#"🔎 Search for extrinsics to select (Press ENTER to select all)"#,
-			Some(false),
+
+		let mut cli = MockCli::new().expect_confirm(
+			r#"Would you like to benchmark all extrinsics of "pallet_timestamp"?"#,
 			true,
-			Some(extrinsic_items),
-			Some(true),
 		);
+		assert_eq!(
+			guide_user_to_select_extrinsics(&"pallet_timestamp".to_string(), &registry, &mut cli)?,
+			ALL_SELECTED.to_string()
+		);
+
+		cli = MockCli::new()
+			.expect_confirm(
+				r#"Would you like to benchmark all extrinsics of "pallet_timestamp"?"#,
+				false,
+			)
+			.expect_multiselect::<String>(
+				r#"🔎 Search for extrinsics to benchmark"#,
+				Some(true),
+				true,
+				Some(extrinsic_items),
+				Some(true),
+			);
 		guide_user_to_select_extrinsics(&"pallet_timestamp".to_string(), &registry, &mut cli)?;
 		cli.verify()
 	}
