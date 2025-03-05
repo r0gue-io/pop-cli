@@ -1,5 +1,5 @@
 use crate::{
-	cli::{self},
+	cli::{self, traits::Input},
 	common::bench::{ensure_runtime_binary_exists, guide_user_to_select_genesis_preset},
 };
 use clap::{Args, Parser};
@@ -44,6 +44,18 @@ impl BenchmarkOverhead {
 
 		cli.warning("NOTE: this may take some time...")?;
 		cli.info("Benchmarking and generating weight file...")?;
+
+		// Prompt user to update output path of the benchmarking results.
+		if cmd.params.weight.weight_path.is_none() {
+			let input = cli
+				.input("Provide file or directory to write the weight files to (optional).")
+				.required(false)
+				.placeholder(".")
+				.default_input(".")
+				.interact()?;
+			cmd.params.weight.weight_path =
+				if !input.is_empty() { Some(input.into()) } else { None };
+		}
 
 		if let Err(e) = generate_overhead_benchmarks(OverheadCmd {
 			import_params: cmd.import_params.clone(),
