@@ -179,6 +179,9 @@ pub struct BuildSpecCommand {
 	/// (Docker/Podman).
 	#[arg(short, long)]
 	pub(crate) deterministic: bool,
+	/// Skips the confirmation prompt for deterministic build.
+	#[arg(long, conflicts_with = "deterministic")]
+	pub(crate) skip_deterministic_build: bool,
 	/// Specify the runtime package name.
 	#[clap(long, requires = "deterministic")]
 	pub package: Option<String>,
@@ -226,6 +229,7 @@ impl BuildSpecCommand {
 			genesis_state,
 			genesis_code,
 			deterministic,
+			skip_deterministic_build,
 			package,
 			runtime_dir,
 		} = self;
@@ -435,10 +439,14 @@ impl BuildSpecCommand {
 		};
 
 		// Prompt the user for deterministic build only if the profile is Production.
-		let deterministic = deterministic || cli
-			.confirm("Would you like to build the runtime deterministically? This requires a containerization solution (Docker/Podman) and is recommended for production builds.")
-			.initial_value(profile == Profile::Production)
-			.interact()?;
+		let deterministic = if skip_deterministic_build {
+			false
+		} else {
+			deterministic || cli
+				.confirm("Would you like to build the runtime deterministically? This requires a containerization solution (Docker/Podman) and is recommended for production builds.")
+				.initial_value(profile == Profile::Production)
+				.interact()?
+		};
 
 		// If deterministic build is selected, use the provided runtime path or prompt the user if
 		// missing.
@@ -746,6 +754,7 @@ mod tests {
 				genesis_state,
 				genesis_code,
 				deterministic,
+				skip_deterministic_build: false,
 				package: Some(package.to_string()),
 				runtime_dir: Some(runtime_dir.clone()),
 			},
@@ -848,6 +857,7 @@ mod tests {
 					genesis_state,
 					genesis_code,
 					deterministic,
+					skip_deterministic_build: false,
 					package: Some(package.to_string()),
 					runtime_dir: Some(runtime_dir.clone()),
 				},
