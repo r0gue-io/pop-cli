@@ -4860,6 +4860,7 @@ dependencies = [
  "duct",
  "glob",
  "indexmap 2.7.0",
+ "parity-scale-codec",
  "pop-common",
  "scale-info",
  "scale-value",

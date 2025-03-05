@@ -11,6 +11,8 @@ use std::path::PathBuf;
 mod contract;
 #[cfg(feature = "parachain")]
 mod network;
+#[cfg(feature = "parachain")]
+mod rollup;
 
 /// Arguments for launching or deploying a project.
 #[derive(Args, Clone)]
@@ -24,6 +26,10 @@ pub(crate) struct UpArgs {
 	/// Directory path without flag for your project [default: current directory]
 	#[arg(value_name = "PATH", index = 1, global = true, conflicts_with = "path")]
 	pub path_pos: Option<PathBuf>,
+
+	#[command(flatten)]
+	#[cfg(feature = "parachain")]
+	pub(crate) rollup: rollup::UpCommand,
 
 	#[command(flatten)]
 	#[cfg(feature = "contract")]
@@ -73,7 +79,9 @@ impl Command {
 		}
 		#[cfg(feature = "parachain")]
 		if pop_parachains::is_supported(project_path.as_deref())? {
-			cli.warning("Rollup deployment is currently not implemented.")?;
+			let mut cmd = args.rollup;
+			cmd.path = project_path;
+			cmd.execute(cli).await?;
 			return Ok("parachain");
 		}
 		cli.warning(
@@ -114,6 +122,7 @@ mod tests {
 				skip_confirm: false,
 				valid: false,
 			},
+			rollup: rollup::UpCommand::default(),
 			command: None,
 		})
 	}
@@ -146,9 +155,12 @@ mod tests {
 		};
 		instantiate_template_dir(&Parachain::Standard, &project_path, None, config)?;
 
-		let args = create_up_args(project_path)?;
-		let mut cli =
-			MockCli::new().expect_warning("Rollup deployment is currently not implemented.");
+		let mut args = create_up_args(project_path)?;
+		args.rollup.relay_chain_url = Some(Url::parse("wss://polkadot-rpc.publicnode.com")?);
+		args.rollup.id = Some(2000);
+		args.rollup.genesis_code = Some(PathBuf::from("path/to/genesis"));
+		args.rollup.genesis_state = Some(PathBuf::from("path/to/state"));
+		let mut cli = MockCli::new();
 		assert_eq!(Command::execute_project_deployment(args, &mut cli).await?, "parachain");
 		cli.verify()
 	}

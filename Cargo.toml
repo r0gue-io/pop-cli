@@ -49,6 +49,7 @@ subxt = "0.38.0"
 ink_env = "5.0.0"
 sp-core = "32.0.0"
 sp-weights = "31.0.0"
+scale = { package = "parity-scale-codec", version = "3.0.0", features = ["derive"] }
 scale-info = { version = "2.11.4", default-features = false, features = ["derive"] }
 scale-value = { version = "0.17.0", default-features = false, features = ["from-string", "parser-ss58"] }
 contract-build = "5.0.2"
