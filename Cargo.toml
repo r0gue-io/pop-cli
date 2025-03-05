@@ -70,7 +70,7 @@ toml_edit = { version = "0.22", features = ["serde"] }
 symlink = "0.1"
 serde_json = { version = "1.0", features = ["preserve_order"] }
 serde = { version = "1.0", features = ["derive"] }
-zombienet-sdk = "0.2.18"
+zombienet-sdk = "0.2.25"
 git2_credentials = "0.13.0"
 
 # benchmarking

@@ -640,18 +640,21 @@ mod tests {
 						true,
 						Some(chain_types()),
 						chain_type.clone() as usize,
+						None,
 					).expect_select(
 					"Choose the relay your chain will be connecting to: ",
 					Some(false),
 					true,
 					Some(relays()),
 					relay.clone() as usize,
+					None,
 				).expect_select(
 					"Choose the build profile of the binary that should be used: ",
 					Some(false),
 					true,
 					Some(profiles()),
-					profile.clone() as usize
+					profile.clone() as usize,
+					None,
 				).expect_confirm("Would you like to use local host as a bootnode ?", default_bootnode
 				).expect_confirm("Should the genesis state file be generated ?", genesis_state
 				).expect_confirm("Should the genesis code file be generated ?", genesis_code);
@@ -738,6 +741,7 @@ mod tests {
 							true,
 							Some(chain_types()),
 							chain_type.clone() as usize,
+							None,
 						);
 					}
 					if build_spec_cmd.relay.is_none() {
@@ -747,6 +751,7 @@ mod tests {
 							true,
 							Some(relays()),
 							relay.clone() as usize,
+							None,
 						);
 					}
 					if build_spec_cmd.profile.is_none() {
@@ -756,6 +761,7 @@ mod tests {
 							true,
 							Some(profiles()),
 							profile.clone() as usize,
+							None,
 						);
 					}
 					if !build_spec_cmd.default_bootnode {
