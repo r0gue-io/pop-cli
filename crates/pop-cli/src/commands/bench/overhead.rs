@@ -105,6 +105,7 @@ mod tests {
 				true,
 				Some(preset_names),
 				0,
+				None,
 			)
 			.expect_info("Benchmarking and generating weight file...")
 			.expect_outro("Benchmark completed successfully!");

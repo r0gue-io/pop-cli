@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use clap::Parser;
-use frame_benchmarking_cli::PalletCmd;
+use frame_benchmarking_cli::{OpaqueBlock, OverheadCmd, PalletCmd};
 use sc_chain_spec::GenesisConfigBuilderRuntimeCaller;
 use sp_runtime::traits::BlakeTwo256;
 use std::{
