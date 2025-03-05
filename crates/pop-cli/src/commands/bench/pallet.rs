@@ -338,12 +338,21 @@ impl BenchmarkPallet {
 	}
 
 	fn run(&self) -> anyhow::Result<()> {
-		generate_benchmarks(self.collect_arguments())
+		generate_benchmarks(
+			self.collect_arguments()
+				.into_iter()
+				.map(|(field, value)| {
+					value
+						.map(|v| format!("--{}={}", field, v))
+						.unwrap_or_else(|| format!("--{}", field))
+				})
+				.collect(),
+		)
 	}
 
 	fn display(&self) -> String {
 		let mut args = vec!["pop bench pallet".to_string()];
-		let mut arguments = self.collect_arguments();
+		let mut arguments = self.collect_command_arguments();
 		if self.skip_menu {
 			arguments.push("--skip".to_string());
 		}
@@ -351,110 +360,139 @@ impl BenchmarkPallet {
 		args.join(" ")
 	}
 
-	fn collect_arguments(&self) -> Vec<String> {
-		let mut args = vec![];
+	fn save_to_bench_file(path: &Path) -> anyhow::Result<()> {
+		Ok(())
+	}
+
+	fn collect_arguments(&self) -> Vec<(&str, Option<String>)> {
+		let mut args: Vec<(&str, Option<String>)> = vec![];
 
 		if self.list {
-			args.push("--list".to_string());
+			args.push(("list", None));
 		}
 
 		if let Some(ref pallet) = self.pallet {
-			args.push(format!(
-				"--pallet={}",
-				if is_selected_all(pallet) { String::new() } else { pallet.clone() }
+			args.push((
+				"pallet",
+				if is_selected_all(pallet) {
+					Some(String::default())
+				} else {
+					Some(pallet.clone())
+				},
 			));
 		}
 		if let Some(ref extrinsic) = self.extrinsic {
-			args.push(format!(
-				"--extrinsic={}",
-				if is_selected_all(extrinsic) { String::new() } else { extrinsic.clone() }
+			args.push((
+				"extrinsic",
+				if is_selected_all(extrinsic) {
+					Some(String::default())
+				} else {
+					Some(extrinsic.clone())
+				},
 			));
 		}
 		if !self.exclude_pallets.is_empty() {
-			args.push(format!("--exclude-pallets={}", self.exclude_pallets.join(",")));
+			args.push(("exclude-pallets", Some(self.exclude_pallets.join(","))));
 		}
 
-		args.push(format!("--steps={}", self.steps));
+		args.push(("steps", Some(self.steps.to_string())));
 
 		if !self.lowest_range_values.is_empty() {
-			args.push(format!(
-				"--low={}",
-				self.lowest_range_values
-					.iter()
-					.map(ToString::to_string)
-					.collect::<Vec<_>>()
-					.join(",")
+			args.push((
+				"low",
+				Some(
+					self.lowest_range_values
+						.iter()
+						.map(ToString::to_string)
+						.collect::<Vec<_>>()
+						.join(","),
+				),
 			));
 		}
 		if !self.highest_range_values.is_empty() {
-			args.push(format!(
-				"--high={}",
-				self.highest_range_values
-					.iter()
-					.map(ToString::to_string)
-					.collect::<Vec<_>>()
-					.join(",")
+			args.push((
+				"high",
+				Some(
+					self.highest_range_values
+						.iter()
+						.map(ToString::to_string)
+						.collect::<Vec<_>>()
+						.join(","),
+				),
 			));
 		}
 
 		args.extend([
-			format!("--repeat={}", self.repeat),
-			format!("--external-repeat={}", self.external_repeat),
-			format!("--db-cache={}", self.database_cache_size),
-			format!("--map-size={}", self.worst_case_map_values),
-			format!("--additional-trie-layers={}", self.additional_trie_layers),
+			("repeat", Some(self.repeat.to_string())),
+			("external-repeat", Some(self.external_repeat.to_string())),
+			("db-cache", Some(self.database_cache_size.to_string())),
+			("map-size", Some(self.worst_case_map_values.to_string())),
+			("additional-trie-layers", Some(self.additional_trie_layers.to_string())),
 		]);
 
 		if self.json_output {
-			args.push("--json".to_string());
+			args.push(("json", None));
 		}
 		if let Some(ref json_file) = self.json_file {
-			args.push(format!("--json-file={}", json_file.display()));
+			args.push(("json-file", json_file.to_str().map(String::from)));
 		}
 		if self.no_median_slopes {
-			args.push("--no-median-slopes".to_string());
+			args.push(("--no-median-slopes", None));
 		}
 		if self.no_min_squares {
-			args.push("--no-min-squares".to_string());
+			args.push(("no-min-squares", None));
 		}
 		if self.no_storage_info {
-			args.push("--no-storage-info".to_string());
+			args.push(("no-storage-info", None));
 		}
 		if let Some(ref output) = self.output {
-			let relative_output_path = get_relative_path(output.as_path());
-			args.push(format!("--output={}", relative_output_path));
+			args.push(("output", Some(get_relative_path(output.as_path()))));
 		}
 		if let Some(ref template) = self.template {
-			args.push(format!("--template={}", template.display()));
+			args.push(("template", template.to_str().map(String::from)));
 		}
 		if let Some(ref output_analysis) = self.output_analysis {
-			args.push(format!("--output-analysis={}", output_analysis));
+			args.push(("output-analysis", Some(output_analysis.clone())));
 		}
 		if let Some(ref output_pov_analysis) = self.output_pov_analysis {
-			args.push(format!("--output-pov-analysis={}", output_pov_analysis));
+			args.push(("output-pov-analysis", Some(output_pov_analysis.clone())));
 		}
 		if let Some(ref heap_pages) = self.heap_pages {
-			args.push(format!("--heap-pages={}", heap_pages));
+			args.push(("heap-pages", Some(heap_pages.to_string())));
 		}
 		if self.no_verify {
-			args.push("--no-verify".to_string());
+			args.push(("no-verify", None));
 		}
 		if self.extra {
-			args.push("--extra".to_string());
+			args.push(("extra", None));
 		}
 		if let Some(ref runtime) = self.runtime {
-			args.push(format!("--runtime={}", runtime.display()));
+			args.push(("runtime", runtime.to_str().map(String::from)));
 		}
 		if self.allow_missing_host_functions {
-			args.push("--allow-missing-host-functions".to_string());
+			args.push(("allow-missing-host-functions", None));
 		}
 		if let Some(ref genesis_builder) = self.genesis_builder {
-			args.push(format!("--genesis-builder={}", genesis_builder));
+			args.push(("genesis-builder", Some(genesis_builder.to_string())));
 			if genesis_builder == &GenesisBuilderPolicy::Runtime {
-				args.push(format!("--genesis-builder-preset={}", self.genesis_builder_preset));
+				args.push((
+					"genesis-builder-preset",
+					Some(self.genesis_builder_preset.to_string()),
+				));
 			}
 		}
 		args
+	}
+
+	fn collect_command_arguments(&self) -> Vec<String> {
+		self.collect_arguments()
+			.into_iter()
+			.map(|(field, value)| {
+				value
+					.map(|v| format!("--{}={}", field, v))
+					.unwrap_or_else(|| format!("--{}", field))
+			})
+			.collect()
 	}
 
 	// Guarantees that the registry is loaded before use. If not, it loads the registry.
