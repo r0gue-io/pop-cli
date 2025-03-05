@@ -171,7 +171,8 @@ impl ZombienetCommand {
 							// Allow relay node time to start
 							sleep(Duration::from_secs(10)).await;
 							progress.set_message("Preparing channels...");
-							let relay_endpoint = network.relaychain().nodes()[0].client().await?;
+							let relay_endpoint =
+								network.relaychain().nodes()[0].wait_client().await?;
 							let para_ids: Vec<_> =
 								network.parachains().iter().map(|p| p.para_id()).collect();
 							tokio::spawn(async move {
