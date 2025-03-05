@@ -16,16 +16,14 @@ use clap::Args;
 use cliclack::spinner;
 use pop_common::Profile;
 use pop_parachains::{
-	generate_benchmarks, get_preset_names, load_pallet_extrinsics, search_for_extrinsics,
-	search_for_pallets, GenesisBuilderPolicy, PalletExtrinsicsRegistry, GENESIS_BUILDER_DEV_PRESET,
+	generate_benchmarks, get_preset_names, load_pallet_extrinsics, GenesisBuilderPolicy,
+	PalletExtrinsicsRegistry, GENESIS_BUILDER_DEV_PRESET,
 };
 use std::{collections::HashMap, path::PathBuf};
 use strum::{EnumMessage, IntoEnumIterator};
 use strum_macros::{EnumIter, EnumMessage as EnumMessageDerive};
 
 const ALL_SELECTED: &str = "*";
-const MAX_EXTRINSIC_LIMIT: usize = 15;
-const MAX_PALLET_LIMIT: usize = 20;
 
 #[derive(Args)]
 pub(crate) struct BenchmarkPallet {
@@ -279,7 +277,7 @@ impl BenchmarkPallet {
 			};
 		}
 
-		// No pallet provided, prompts user to select the pallets fetched from runtime.
+		// No pallet provided, prompts user to select the pallet fetched from runtime.
 		if self.pallet.is_none() {
 			self.update_pallets(cli, &mut registry).await?;
 		}
@@ -804,42 +802,34 @@ fn guide_user_to_select_pallet(
 	excluded_pallets: &[String],
 	cli: &mut impl cli::traits::Cli,
 ) -> anyhow::Result<String> {
-	// Prompt for pallet search input.
-	let input = cli
-		.input(r#"🔎 Search for pallets by name ("*" to select all)"#)
-		.placeholder(ALL_SELECTED)
-		.default_input(ALL_SELECTED)
-		.required(false)
-		.interact()?;
+	let pallets = pallets(registry, excluded_pallets);
+	if pallets.is_empty() {
+		return Err(anyhow::anyhow!("No pallets found for the runtime"));
+	}
 
-	if input.trim() == ALL_SELECTED {
+	if cli
+		.confirm("Would you like to benchmark all pallets?")
+		.initial_value(true)
+		.interact()?
+	{
 		return Ok(ALL_SELECTED.to_string());
 	}
 
-	// Prompt user to select pallets.
-	let pallets = search_for_pallets(registry, excluded_pallets, &input, MAX_PALLET_LIMIT);
-	let mut prompt = cli.select("Select a pallet to benchmark:");
+	let mut prompt = cli.select(r#"🔎 Search for a pallet to benchmark"#).filter_mode();
 	for pallet in pallets {
 		prompt = prompt.item(pallet.clone(), &pallet, "");
 	}
-	Ok(prompt.interact()?)
+	Ok(prompt.interact()?.to_string())
 }
 
 fn guide_user_to_exclude_pallets(
 	registry: &PalletExtrinsicsRegistry,
 	cli: &mut impl cli::traits::Cli,
 ) -> anyhow::Result<Vec<String>> {
-	// Prompt for pallet search input.
-	let input = cli
-		.input(r#"🔎 Search for pallets by name to exclude"#)
-		.placeholder("balances")
-		.required(false)
-		.interact()?;
-
-	// Prompt user to select pallets.
-	let pallets = search_for_pallets(registry, &[], &input, MAX_PALLET_LIMIT);
-	let mut prompt = cli.multiselect("Exclude pallets from benchmarking:").required(false);
-	for pallet in pallets {
+	let mut prompt = cli
+		.multiselect(r#"🔎 Search for pallets to exclude (Press ENTER to skip)"#)
+		.required(false);
+	for pallet in pallets(registry, &[]) {
 		prompt = prompt.item(pallet.clone(), &pallet, "");
 	}
 	Ok(prompt.interact()?)
@@ -850,21 +840,23 @@ fn guide_user_to_select_extrinsics(
 	registry: &PalletExtrinsicsRegistry,
 	cli: &mut impl cli::traits::Cli,
 ) -> anyhow::Result<String> {
-	// Prompt for extrinsic search input.
-	let input = cli
-		.input(r#"🔎 Search for extrinsics by name ("*" to select all)"#)
-		.placeholder(ALL_SELECTED)
-		.default_input(ALL_SELECTED)
-		.required(false)
-		.interact()?;
+	let extrinsics = extrinsics(registry, pallet);
+	if extrinsics.is_empty() {
+		return Err(anyhow::anyhow!("No extrinsics found for the pallet"));
+	}
 
-	if input.trim() == ALL_SELECTED {
+	if cli
+		.confirm(format!(r#"Would you like to benchmark all extrinsics of "{}"?"#, pallet))
+		.initial_value(true)
+		.interact()?
+	{
 		return Ok(ALL_SELECTED.to_string());
 	}
 
-	// Prompt user to select extrinsics.
-	let extrinsics = search_for_extrinsics(registry, pallet, &input, MAX_EXTRINSIC_LIMIT);
-	let mut prompt = cli.multiselect("Select the extrinsics:").required(true);
+	let mut prompt = cli
+		.multiselect(r#"🔎 Search for extrinsics to benchmark"#)
+		.filter_mode()
+		.required(true);
 	for extrinsic in extrinsics {
 		prompt = prompt.item(extrinsic.clone(), &extrinsic, "");
 	}
@@ -908,6 +900,18 @@ fn parse_pallet_name(pallet: &str) -> std::result::Result<String, String> {
 	Ok(pallet.replace("-", "_"))
 }
 
+fn pallets(registry: &PalletExtrinsicsRegistry, excluded_pallets: &[String]) -> Vec<String> {
+	registry
+		.keys()
+		.filter(|s| !excluded_pallets.contains(&s.to_string()))
+		.map(String::from)
+		.collect()
+}
+
+fn extrinsics(registry: &PalletExtrinsicsRegistry, pallet: &str) -> Vec<String> {
+	registry.get(pallet).cloned().unwrap_or_default()
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -925,9 +929,6 @@ mod tests {
 
 		let cwd = current_dir().unwrap_or(PathBuf::from("./"));
 		let runtime_path = get_mock_runtime(true);
-		let binary_path =
-			source_omni_bencher_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
-		let registry = load_pallet_extrinsics(&runtime_path, binary_path.as_path()).await?;
 		let output_path = temp_dir.path().join("weights.rs");
 
 		cli = expect_pallet_benchmarking_intro(cli);
@@ -939,29 +940,20 @@ mod tests {
 			.expect_input(
 				"Please provide the path to the runtime or parachain project.",
 				runtime_path.to_str().unwrap().to_string(),
-			);
-		cli = expect_select_pallet(cli, &registry, &"pallet_timestamp", &[], MAX_PALLET_LIMIT, 0);
-		cli = expect_select_extrinsics(
-			cli,
-			&registry,
-			"pallet_timestamp",
-			"set",
-			MAX_EXTRINSIC_LIMIT,
-		);
-		cli = cli
+			)
 			.expect_warning("NOTE: this may take some time...")
-			.expect_info("Benchmarking extrinsic weights of selected pallets...");
-
-		// Verify the output of generated weight file.
-		cli = cli.expect_input(
-			"Provide the output file path for benchmark results (optional).",
-			output_path.to_str().unwrap().to_string(),
-		);
+			.expect_info("Benchmarking extrinsic weights of selected pallets...")
+			.expect_input(
+				"Provide the output file path for benchmark results (optional).",
+				output_path.to_str().unwrap().to_string(),
+			);
 
 		let mut cmd = BenchmarkPallet {
 			skip_menu: true,
 			skip_confirm: false,
 			genesis_builder: Some(GenesisBuilderPolicy::None),
+			pallet: Some("pallet_timestamp".to_string()),
+			extrinsic: Some(ALL_SELECTED.to_string()),
 			..Default::default()
 		};
 		cmd.execute(&mut cli).await?;
@@ -1031,27 +1023,47 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn guide_user_to_select_pallets_works() -> anyhow::Result<()> {
+	async fn guide_user_to_select_pallet_works() -> anyhow::Result<()> {
 		let runtime_path = get_mock_runtime(true);
 		let binary_path =
 			source_omni_bencher_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
 		let registry = load_pallet_extrinsics(&runtime_path, binary_path.as_path()).await?;
+		let pallet_items: Vec<(String, String)> = pallets(&registry, &[])
+			.into_iter()
+			.map(|pallet| (pallet, Default::default()))
+			.collect();
+		let prompt = "Would you like to benchmark all pallets?";
 
 		// Select all pallets.
-		let mut cli =
-			expect_select_pallet(MockCli::new(), &registry, ALL_SELECTED, &[], MAX_PALLET_LIMIT, 0);
-		let input = guide_user_to_select_pallet(&registry, &[], &mut cli)?;
-		assert_eq!(input, ALL_SELECTED.to_string());
+		let mut cli = MockCli::new().expect_confirm(prompt, true);
+		assert_eq!(
+			guide_user_to_select_pallet(&registry, &[], &mut cli)?,
+			ALL_SELECTED.to_string()
+		);
 		cli.verify()?;
 
-		// Search for pallets.
-		let input = "pallet_timestamp";
-		let mut cli =
-			expect_select_pallet(MockCli::new(), &registry, &input, &[], MAX_PALLET_LIMIT, 0);
+		// Not exclude pallets.
+		cli = MockCli::new().expect_confirm(prompt, false).expect_select(
+			r#"🔎 Search for a pallet to benchmark"#,
+			None,
+			true,
+			Some(pallet_items.clone()),
+			0,
+			Some(true),
+		);
+		guide_user_to_select_pallet(&registry, &[], &mut cli)?;
+		cli.verify()?;
 
-		let selected = guide_user_to_select_pallet(&registry, &vec![], &mut cli)?;
-		assert_eq!(selected, input.to_string());
-		// TODO: Excluded pallets.
+		// Exclude pallets
+		cli = MockCli::new().expect_confirm(prompt, false).expect_select(
+			r#"🔎 Search for a pallet to benchmark"#,
+			None,
+			true,
+			Some(pallet_items.into_iter().filter(|(p, _)| p != "pallet_timestamp").collect()),
+			0,
+			Some(true),
+		);
+		guide_user_to_select_pallet(&registry, &["pallet_timestamp".to_string()], &mut cli)?;
 		cli.verify()
 	}
 
@@ -1061,23 +1073,17 @@ mod tests {
 		let runtime_path = get_mock_runtime(true);
 		let binary_path = source_omni_bencher_binary(&mut cli, &crate::cache()?, true).await?;
 		let registry = load_pallet_extrinsics(&runtime_path, binary_path.as_path()).await?;
-
-		let pallet_items = search_for_pallets(&registry, &[], &"", MAX_PALLET_LIMIT)
+		let pallet_items = pallets(&registry, &[])
 			.into_iter()
 			.map(|pallet| (pallet, Default::default()))
-			.take(MAX_PALLET_LIMIT)
 			.collect();
-		cli = MockCli::new()
-			.expect_input(
-				r#"🔎 Search for pallets by name to exclude"#,
-				"pallet_timestamp".to_string(),
-			)
-			.expect_multiselect::<String>(
-				"Exclude pallets from benchmarking:",
-				Some(false),
-				true,
-				Some(pallet_items),
-			);
+		cli = MockCli::new().expect_multiselect::<String>(
+			r#"🔎 Search for pallets to exclude (Press ENTER to skip)"#,
+			Some(false),
+			true,
+			Some(pallet_items),
+			Some(true),
+		);
 		guide_user_to_exclude_pallets(&registry, &mut cli)?;
 		cli.verify()
 	}
@@ -1088,30 +1094,33 @@ mod tests {
 		let runtime_path = get_mock_runtime(true);
 		let binary_path = source_omni_bencher_binary(&mut cli, &crate::cache()?, true).await?;
 		let registry = load_pallet_extrinsics(&runtime_path, binary_path.as_path()).await?;
+		let extrinsic_items = extrinsics(&registry, "pallet_timestamp")
+			.into_iter()
+			.map(|pallet| (pallet, Default::default()))
+			.collect();
 
-		// Select all extrinsics.
-		let mut cli = expect_select_extrinsics(
-			MockCli::new(),
-			&registry,
-			"pallet_timestamp",
-			ALL_SELECTED,
-			MAX_EXTRINSIC_LIMIT,
+		let mut cli = MockCli::new().expect_confirm(
+			r#"Would you like to benchmark all extrinsics of "pallet_timestamp"?"#,
+			true,
 		);
-		let input =
-			guide_user_to_select_extrinsics(&"pallet_timestamp".to_string(), &registry, &mut cli)?;
-		assert_eq!(input, ALL_SELECTED.to_string());
-		cli.verify()?;
+		assert_eq!(
+			guide_user_to_select_extrinsics(&"pallet_timestamp".to_string(), &registry, &mut cli)?,
+			ALL_SELECTED.to_string()
+		);
 
-		// Search for extrinsics.
-		let mut cli = expect_select_extrinsics(
-			MockCli::new(),
-			&registry,
-			"pallet_timestamp",
-			"on_finalize",
-			MAX_EXTRINSIC_LIMIT,
-		);
+		cli = MockCli::new()
+			.expect_confirm(
+				r#"Would you like to benchmark all extrinsics of "pallet_timestamp"?"#,
+				false,
+			)
+			.expect_multiselect::<String>(
+				r#"🔎 Search for extrinsics to benchmark"#,
+				Some(true),
+				true,
+				Some(extrinsic_items),
+				Some(true),
+			);
 		guide_user_to_select_extrinsics(&"pallet_timestamp".to_string(), &registry, &mut cli)?;
-		assert_eq!(input, ALL_SELECTED.to_string());
 		cli.verify()
 	}
 
@@ -1295,58 +1304,5 @@ mod tests {
 		cli.expect_intro("Benchmarking your pallets").expect_warning(
 			"NOTE: the `pop bench pallet` is not yet battle tested - double check the results.",
 		)
-	}
-
-	fn expect_select_pallet(
-		cli: MockCli,
-		registry: &PalletExtrinsicsRegistry,
-		input: &str,
-		excluded_pallets: &[String],
-		limit: usize,
-		item: usize,
-	) -> MockCli {
-		let pallet_items = search_for_pallets(&registry, excluded_pallets, input, limit)
-			.into_iter()
-			.map(|pallet| (pallet, Default::default()))
-			.collect();
-
-		let prompt = r#"🔎 Search for pallets by name ("*" to select all)"#;
-
-		if is_selected_all(&input.to_string()) {
-			cli.expect_input(prompt, input.to_string())
-		} else {
-			cli.expect_input(prompt, input.to_string()).expect_select(
-				"Select a pallet to benchmark:",
-				Some(false),
-				true,
-				Some(pallet_items),
-				item,
-			)
-		}
-	}
-
-	fn expect_select_extrinsics(
-		cli: MockCli,
-		registry: &PalletExtrinsicsRegistry,
-		pallet: &str,
-		input: &str,
-		limit: usize,
-	) -> MockCli {
-		let extrinsic_items = search_for_extrinsics(&registry, &pallet.to_string(), input, limit)
-			.into_iter()
-			.map(|pallet| (pallet, Default::default()))
-			.collect();
-		let prompt = r#"🔎 Search for extrinsics by name ("*" to select all)"#;
-
-		if is_selected_all(&input.to_string()) {
-			cli.expect_input(prompt, input.to_string())
-		} else {
-			cli.expect_input(prompt, input.to_string()).expect_multiselect::<String>(
-				"Select the extrinsics:",
-				Some(true),
-				true,
-				Some(extrinsic_items),
-			)
-		}
 	}
 }
