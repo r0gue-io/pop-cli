@@ -88,9 +88,12 @@ impl UpCommand {
 	// Retrieves the proxied address, prompting the user if none is specified.
 	fn resolve_proxied_address(&self, chain: &Chain, cli: &mut impl Cli) -> Result<Proxy> {
 		let proxy = find_dispatchable_by_name(&chain.pallets, "Proxy", "proxy")?;
+		let multi_address_parameter = &proxy.params[0];
 		if let Some(addr) = &self.proxied_address {
+			// Checks if the provided address is already in a valid MultiAddress format if not,
+			// wraps it in the "Id()" as the default.
 			let valid_multi_address: Vec<String> =
-				proxy.params[0].sub_params.iter().map(|p| p.name.to_string()).collect();
+				multi_address_parameter.sub_params.iter().map(|p| p.name.to_string()).collect();
 			return Ok(Some(
 				if valid_multi_address.iter().any(|t| addr.starts_with(&format!("{}(", t))) {
 					addr.to_string()
@@ -101,7 +104,7 @@ impl UpCommand {
 		}
 		if cli.confirm("Would you like to use a proxy for registration? This is considered a best practice.").interact()? {
 			cli.info("Enter the account that the proxy will make a call on behalf of.")?;
-			let address = prompt_for_param(cli, &proxy.params[0])?;
+			let address = prompt_for_param(cli, multi_address_parameter)?;
 			return Ok(Some(address));
 		}
 		Ok(None)
@@ -242,6 +245,8 @@ mod tests {
 	use tempfile::tempdir;
 	use url::Url;
 
+	const MOCK_PROXIED_ADDRESS: &str = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty";
+	const MOCK_PROXY_ADDRESS_ID: &str = "Id(13czcAAt6xgLwZ8k6ZpkrRL5V2pjKEui3v9gHAN9PoxYZDbf)";
 	const POLKADOT_NETWORK_URL: &str = "wss://polkadot-rpc.publicnode.com";
 	const POP_NETWORK_TESTNET_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";
 
@@ -254,9 +259,7 @@ mod tests {
 			id: Some(2000),
 			genesis_state: Some(genesis_state.clone()),
 			genesis_code: Some(genesis_code.clone()),
-			proxied_address: Some(
-				"Id(13czcAAt6xgLwZ8k6ZpkrRL5V2pjKEui3v9gHAN9PoxYZDbf)".to_string(),
-			),
+			proxied_address: Some(MOCK_PROXY_ADDRESS_ID.to_string()),
 			..Default::default()
 		}
 		.prepare_for_registration(&mut cli)
@@ -266,10 +269,7 @@ mod tests {
 		assert_eq!(chain_config.genesis_code, genesis_code);
 		assert_eq!(chain_config.genesis_state, genesis_state);
 		assert_eq!(chain_config.chain.url, Url::parse(POLKADOT_NETWORK_URL)?);
-		assert_eq!(
-			chain_config.proxy,
-			Some("Id(13czcAAt6xgLwZ8k6ZpkrRL5V2pjKEui3v9gHAN9PoxYZDbf)".to_string())
-		);
+		assert_eq!(chain_config.proxy, Some(MOCK_PROXY_ADDRESS_ID.to_string()));
 		cli.verify()
 	}
 
@@ -296,7 +296,7 @@ mod tests {
 			)
 			.expect_input(
 				"Enter the value for the parameter: Id",
-				"5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty".into(),
+				MOCK_PROXIED_ADDRESS.into(),
 			);
 		let chain = configure(
 			"Enter the relay chain node URL",
@@ -306,10 +306,7 @@ mod tests {
 		)
 		.await?;
 		let proxied_address = UpCommand::default().resolve_proxied_address(&chain, &mut cli)?;
-		assert_eq!(
-			proxied_address,
-			Some("Id(5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty)".to_string())
-		);
+		assert_eq!(proxied_address, Some(format!("Id({})", MOCK_PROXIED_ADDRESS)));
 		cli.verify()?;
 
 		cli = MockCli::new().expect_confirm(
@@ -322,14 +319,11 @@ mod tests {
 
 		cli = MockCli::new();
 		let proxied_address = UpCommand {
-			proxied_address: Some("5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty".to_string()),
+			proxied_address: Some(MOCK_PROXIED_ADDRESS.to_string()),
 			..Default::default()
 		}
 		.resolve_proxied_address(&chain, &mut cli)?;
-		assert_eq!(
-			proxied_address,
-			Some("Id(5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty)".to_string())
-		);
+		assert_eq!(proxied_address, Some(format!("Id({})", MOCK_PROXIED_ADDRESS)));
 		cli.verify()
 	}
 
@@ -350,11 +344,8 @@ mod tests {
 		assert_eq!(call_data, decode_call_data(encoded_reserve_extrinsic)?);
 
 		// Ensure `prepare_reserve_call_data` works with a proxy.
-		let call_data = prepare_reserve_call_data(
-			&chain,
-			&Some("Id(13czcAAt6xgLwZ8k6ZpkrRL5V2pjKEui3v9gHAN9PoxYZDbf)".to_string()),
-			&mut cli,
-		)?;
+		let call_data =
+			prepare_reserve_call_data(&chain, &Some(MOCK_PROXY_ADDRESS_ID.to_string()), &mut cli)?;
 		// Encoded call data for a proxy extrinsic with reserve as the call.
 		// Reference: https://polkadot.js.org/apps/?rpc=wss%3A%2F%2Fpolkadot.public.curie.radiumblock.co%2Fws#/extrinsics/decode/0x1d000073ebf9c947490b9170ea4fd3031ae039452e428531317f76bf0a02124f8166de004605
 		let encoded_reserve_extrinsic: &str =
@@ -450,7 +441,7 @@ mod tests {
 		);
 
 		// Ensure `prepare_register_call_data` works with a proxy.
-		up_chain.proxy = Some("Id(13czcAAt6xgLwZ8k6ZpkrRL5V2pjKEui3v9gHAN9PoxYZDbf)".to_string());
+		up_chain.proxy = Some(MOCK_PROXY_ADDRESS_ID.to_string());
 		let call_data = up_chain.prepare_register_call_data(&mut cli)?;
 		// Encoded call data for a proxy extrinsic with register as the call.
 		// Reference: https://polkadot.js.org/apps/?rpc=wss%3A%2F%2Fpolkadot.public.curie.radiumblock.co%2Fws#/extrinsics/decode/0x1d000073ebf9c947490b9170ea4fd3031ae039452e428531317f76bf0a02124f8166de004600d0070000081234081234
