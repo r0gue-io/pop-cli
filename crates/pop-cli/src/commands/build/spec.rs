@@ -182,12 +182,13 @@ pub struct BuildSpecCommand {
 	/// Skips the confirmation prompt for deterministic build.
 	#[arg(long, conflicts_with = "deterministic")]
 	pub(crate) skip_deterministic_build: bool,
-	/// Specify the runtime package name.
-	#[clap(long, requires = "deterministic")]
-	pub package: Option<String>,
 	/// Define the directory path where the runtime is located.
 	#[clap(name = "runtime", long, requires = "deterministic")]
 	pub runtime_dir: Option<PathBuf>,
+	/// Specify the runtime package name. If not specified, it will be automatically determined
+	/// based on `runtime`.
+	#[clap(long, requires = "deterministic")]
+	pub package: Option<String>,
 }
 
 impl BuildSpecCommand {
@@ -635,7 +636,6 @@ impl BuildSpec {
 		Ok(())
 	}
 
-	// Build a deterministic runtime.
 	fn build_deterministic_runtime(
 		&self,
 		cli: &mut impl cli::traits::Cli,
