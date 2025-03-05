@@ -27,6 +27,9 @@ pub enum Error {
 	CurrentDirAccess,
 	#[error("Failed to parse the endowment value")]
 	EndowmentError,
+	/// The specified event was not found.
+	#[error("Event {0} not found.")]
+	EventNotFound(String),
 	/// An error occurred during the submission of an extrinsic.
 	#[error("Extrinsic submission error: {0}")]
 	ExtrinsicSubmissionError(String),

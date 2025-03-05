@@ -7,6 +7,7 @@ use pop_common::{
 };
 use sp_core::bytes::{from_hex, to_hex};
 use subxt::{
+	blocks::ExtrinsicEvents,
 	dynamic::Value,
 	tx::{DynamicPayload, Payload, SubmittableExtrinsic},
 	OnlineClient, SubstrateConfig,
@@ -90,18 +91,17 @@ pub async fn sign_and_submit_extrinsic<Xt: Payload>(
 pub async fn submit_signed_extrinsic(
 	client: OnlineClient<SubstrateConfig>,
 	payload: String,
-) -> Result<String, Error> {
+) -> Result<ExtrinsicEvents<SubstrateConfig>, Error> {
 	let hex_encoded =
 		from_hex(&payload).map_err(|e| Error::CallDataDecodingError(e.to_string()))?;
 	let extrinsic = SubmittableExtrinsic::from_bytes(client, hex_encoded);
-	let result = extrinsic
+	extrinsic
 		.submit_and_watch()
 		.await
 		.map_err(|e| Error::ExtrinsicSubmissionError(format!("{:?}", e)))?
 		.wait_for_finalized_success()
 		.await
-		.map_err(|e| Error::ExtrinsicSubmissionError(format!("{:?}", e)))?;
-	Ok(format!("{:?}", result.extrinsic_hash()))
+		.map_err(|e| Error::ExtrinsicSubmissionError(format!("{:?}", e)))
 }
 
 /// Encodes the call data for a given extrinsic into a hexadecimal string.
