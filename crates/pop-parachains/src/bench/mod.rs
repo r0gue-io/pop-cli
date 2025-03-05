@@ -3,6 +3,7 @@
 use clap::Parser;
 use frame_benchmarking_cli::PalletCmd;
 use sc_chain_spec::GenesisConfigBuilderRuntimeCaller;
+use serde::Serialize;
 use sp_runtime::traits::BlakeTwo256;
 use std::{
 	collections::HashMap,
@@ -34,7 +35,9 @@ type HostFunctions = (
 pub type PalletExtrinsicsRegistry = HashMap<String, Vec<String>>;
 
 /// How the genesis state for benchmarking should be built.
-#[derive(clap::ValueEnum, Debug, Eq, PartialEq, Clone, Copy, EnumIter, EnumMessageDerive)]
+#[derive(
+	clap::ValueEnum, Debug, Eq, PartialEq, Clone, Copy, EnumIter, EnumMessageDerive, Serialize,
+)]
 #[clap(rename_all = "kebab-case")]
 pub enum GenesisBuilderPolicy {
 	/// Do not provide any genesis state.

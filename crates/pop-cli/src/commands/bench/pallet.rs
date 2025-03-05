@@ -18,6 +18,7 @@ use pop_parachains::{
 	generate_benchmarks, get_preset_names, load_pallet_extrinsics, GenesisBuilderPolicy,
 	PalletExtrinsicsRegistry, GENESIS_BUILDER_DEV_PRESET,
 };
+use serde::Serialize;
 use std::{
 	collections::HashMap,
 	env::current_dir,
@@ -28,7 +29,7 @@ use strum_macros::{EnumIter, EnumMessage as EnumMessageDerive};
 
 const ALL_SELECTED: &str = "*";
 
-#[derive(Args)]
+#[derive(Args, Serialize)]
 pub(crate) struct BenchmarkPallet {
 	/// Select a pallet to benchmark, or `*` for all (in which case `extrinsic` must be `*`).
 	#[arg(short, long, value_parser = parse_pallet_name, default_value_if("all", "true", Some("*".into())))]
@@ -338,16 +339,7 @@ impl BenchmarkPallet {
 	}
 
 	fn run(&self) -> anyhow::Result<()> {
-		generate_benchmarks(
-			self.collect_arguments()
-				.into_iter()
-				.map(|(field, value)| {
-					value
-						.map(|v| format!("--{}={}", field, v))
-						.unwrap_or_else(|| format!("--{}", field))
-				})
-				.collect(),
-		)
+		generate_benchmarks(self.collect_command_arguments())
 	}
 
 	fn display(&self) -> String {
@@ -358,10 +350,6 @@ impl BenchmarkPallet {
 		}
 		args.extend(arguments);
 		args.join(" ")
-	}
-
-	fn save_to_bench_file(path: &Path) -> anyhow::Result<()> {
-		Ok(())
 	}
 
 	fn collect_arguments(&self) -> Vec<(&str, Option<String>)> {
@@ -957,6 +945,10 @@ fn get_relative_path(path: &Path) -> String {
 
 fn get_current_directory() -> PathBuf {
 	current_dir().unwrap_or(PathBuf::from("./"))
+}
+
+fn save_to_bench_file(path: &Path) -> anyhow::Result<()> {
+	Ok(())
 }
 
 #[cfg(test)]
