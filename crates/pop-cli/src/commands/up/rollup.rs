@@ -2,7 +2,7 @@
 
 use crate::{
 	build::spec::{BuildSpecCommand, CodePathBuf, StatePathBuf},
-	call::chain::{prompt_for_param, Call},
+	call::chain::Call,
 	cli::traits::*,
 	common::{
 		chain::{configure, Chain},
@@ -13,7 +13,7 @@ use crate::{
 use anyhow::{anyhow, Result};
 use clap::Args;
 use pop_parachains::{
-	construct_proxy_extrinsic, find_dispatchable_by_name, Action, Payload, Reserved,
+	construct_proxy_extrinsic, find_dispatchable_by_name, Action, Param, Payload, Reserved,
 };
 use std::path::{Path, PathBuf};
 use url::Url;
@@ -104,7 +104,7 @@ impl UpCommand {
 		}
 		if cli.confirm("Would you like to use a proxy for registration? This is considered a best practice.").interact()? {
 			cli.info("Enter the account that the proxy will make a call on behalf of.")?;
-			let address = prompt_for_param(cli, multi_address_parameter)?;
+			let address = prompt_for_proxy_address(cli, multi_address_parameter)?;
 			return Ok(Some(address));
 		}
 		Ok(None)
@@ -236,6 +236,32 @@ async fn generate_spec_files(
 	))
 }
 
+// Prompt the user to select the value of the variant parameter and the address.
+// Output example: `Id(5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY)` for the `Id` variant.
+fn prompt_for_proxy_address(cli: &mut impl Cli, param: &Param) -> Result<String> {
+	let selected_variant = {
+		let mut select = cli.select("What type of address do you want to use?");
+		for option in &param.sub_params {
+			select = select.item(option, &option.name, &option.type_name);
+		}
+		select.interact()?
+	};
+
+	if !selected_variant.sub_params.is_empty() {
+		let mut field_values = Vec::new();
+		for field_arg in &selected_variant.sub_params {
+			let field_value = cli
+				.input("Enter the address")
+				.placeholder(&format!("Type required: {}", field_arg.type_name))
+				.interact()?;
+			field_values.push(field_value);
+		}
+		Ok(format!("{}({})", selected_variant.name, field_values.join(", ")))
+	} else {
+		Ok(format!("{}()", selected_variant.name))
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -279,7 +305,7 @@ mod tests {
 			.expect_confirm("Would you like to use a proxy for registration? This is considered a best practice.", true)
 			.expect_info("Enter the account that the proxy will make a call on behalf of.")
 			.expect_select(
-				"Select the value for the parameter: real",
+				"What type of address do you want to use?",
 				Some(true),
 				true,
 				Some(
@@ -295,7 +321,7 @@ mod tests {
 				0, // "Id" action
 			)
 			.expect_input(
-				"Enter the value for the parameter: Id",
+				"Enter the address",
 				MOCK_PROXIED_ADDRESS.into(),
 			);
 		let chain = configure(
