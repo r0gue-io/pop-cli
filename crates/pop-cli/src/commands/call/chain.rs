@@ -473,7 +473,7 @@ fn prompt_predefined_actions(pallets: &[Pallet], cli: &mut impl Cli) -> Result<O
 }
 
 // Prompts the user for the value of a parameter.
-pub fn prompt_for_param(cli: &mut impl Cli, param: &Param) -> Result<String> {
+pub(crate) fn prompt_for_param(cli: &mut impl Cli, param: &Param) -> Result<String> {
 	if param.is_optional {
 		if !cli
 			.confirm(format!(
