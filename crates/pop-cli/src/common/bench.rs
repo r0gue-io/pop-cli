@@ -3,9 +3,7 @@
 use crate::cli::traits::*;
 use cliclack::spinner;
 use duct::cmd;
-use pop_common::{
-	get_relative_or_absolute_path, manifest::from_path, set_executable_permission, Profile,
-};
+use pop_common::{manifest::from_path, set_executable_permission, Profile};
 use pop_parachains::{
 	build_project, get_preset_names, get_runtime_path, omni_bencher_generator, runtime_binary_path,
 	GenesisBuilderPolicy,
@@ -278,13 +276,6 @@ pub fn guide_user_to_select_genesis_preset(
 		prompt = prompt.item(preset.to_string(), preset, "");
 	}
 	Ok(prompt.interact()?)
-}
-
-/// Get relative path. Returns absolute path if the path is not relative.
-pub fn get_relative_path(path: &Path) -> String {
-	let cwd = current_dir().unwrap_or(PathBuf::from("./"));
-	let path = get_relative_or_absolute_path(cwd.as_path(), path);
-	path.as_path().to_str().expect("No path provided").to_string()
 }
 
 /// Construct the path to the mock runtime WASM file.

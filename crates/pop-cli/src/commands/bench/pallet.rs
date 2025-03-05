@@ -8,18 +8,22 @@ use crate::{
 	},
 	common::bench::{
 		check_genesis_builder_and_prompt, check_omni_bencher_and_prompt,
-		ensure_runtime_binary_exists, get_relative_path, guide_user_to_select_genesis_policy,
+		ensure_runtime_binary_exists, guide_user_to_select_genesis_policy,
 		guide_user_to_select_genesis_preset,
 	},
 };
 use clap::Args;
 use cliclack::spinner;
-use pop_common::Profile;
+use pop_common::{get_relative_or_absolute_path, Profile};
 use pop_parachains::{
 	generate_benchmarks, get_preset_names, load_pallet_extrinsics, GenesisBuilderPolicy,
 	PalletExtrinsicsRegistry, GENESIS_BUILDER_DEV_PRESET,
 };
-use std::{collections::HashMap, path::PathBuf};
+use std::{
+	collections::HashMap,
+	env::current_dir,
+	path::{Path, PathBuf},
+};
 use strum::{EnumMessage, IntoEnumIterator};
 use strum_macros::{EnumIter, EnumMessage as EnumMessageDerive};
 
@@ -894,12 +898,6 @@ fn is_selected_all(s: &String) -> bool {
 	s == &ALL_SELECTED.to_string() || s.is_empty()
 }
 
-// Add a more relaxed parsing for pallet names by allowing pallet directory names with `-` to be
-// used like crate names with `_`
-fn parse_pallet_name(pallet: &str) -> std::result::Result<String, String> {
-	Ok(pallet.replace("-", "_"))
-}
-
 fn pallets(registry: &PalletExtrinsicsRegistry, excluded_pallets: &[String]) -> Vec<String> {
 	registry
 		.keys()
@@ -910,6 +908,19 @@ fn pallets(registry: &PalletExtrinsicsRegistry, excluded_pallets: &[String]) -> 
 
 fn extrinsics(registry: &PalletExtrinsicsRegistry, pallet: &str) -> Vec<String> {
 	registry.get(pallet).cloned().unwrap_or_default()
+}
+
+// Add a more relaxed parsing for pallet names by allowing pallet directory names with `-` to be
+// used like crate names with `_`
+fn parse_pallet_name(pallet: &str) -> std::result::Result<String, String> {
+	Ok(pallet.replace("-", "_"))
+}
+
+// Get relative path. Returns absolute path if the path is not relative.
+fn get_relative_path(path: &Path) -> String {
+	let cwd = current_dir().unwrap_or(PathBuf::from("./"));
+	let path = get_relative_or_absolute_path(cwd.as_path(), path);
+	path.as_path().to_str().expect("No path provided").to_string()
 }
 
 #[cfg(test)]
@@ -1142,6 +1153,17 @@ mod tests {
 		assert!(!GenesisBuilder.is_disabled(&cmd, &registry).await?);
 		assert!(GenesisBuilderPreset.is_disabled(&cmd, &registry).await?);
 		assert!(Extrinsics.is_disabled(&cmd, &registry).await?);
+		assert!(
+			ExcludedPallets
+				.is_disabled(
+					&mut BenchmarkPallet {
+						pallet: Some("pallet_timestamp".to_string()),
+						..Default::default()
+					},
+					&registry
+				)
+				.await?
+		);
 		Ok(())
 	}
 
@@ -1290,12 +1312,37 @@ mod tests {
 	fn get_runtime_works() -> anyhow::Result<()> {
 		assert_eq!(
 			BenchmarkPallet { runtime: Some(get_mock_runtime(false)), ..Default::default() }
-				.runtime()
-				.unwrap(),
+				.runtime()?,
 			&get_mock_runtime(false)
 		);
 		assert!(matches!(BenchmarkPallet::default().runtime(), Err(message)
 			if message.to_string().contains("No runtime found")
+		));
+		Ok(())
+	}
+
+	#[test]
+	fn get_pallet_works() -> anyhow::Result<()> {
+		assert_eq!(
+			BenchmarkPallet { pallet: Some("pallet_timestamp".to_string()), ..Default::default() }
+				.pallet()?,
+			&"pallet_timestamp".to_string()
+		);
+		assert!(matches!(BenchmarkPallet::default().pallet(), Err(message)
+			if message.to_string().contains("No pallet provided")
+		));
+		Ok(())
+	}
+
+	#[test]
+	fn get_extrinsic_works() -> anyhow::Result<()> {
+		assert_eq!(
+			BenchmarkPallet { extrinsic: Some("set".to_string()), ..Default::default() }
+				.extrinsic()?,
+			&"set".to_string()
+		);
+		assert!(matches!(BenchmarkPallet::default().extrinsic(), Err(message)
+			if message.to_string().contains("No extrinsic provided")
 		));
 		Ok(())
 	}

@@ -130,4 +130,22 @@ mod tests {
 		);
 		assert_eq!(prefix_with_current_dir_if_needed(empty_path), PathBuf::from("".to_string()));
 	}
+
+	#[test]
+	fn get_relative_or_absolute_path_works() {
+		[
+			("/path/to/project", "/path/to/project", ""),
+			("/path/to/project", "/path/to/src", "/path/to/src"),
+			("/path/to/project", "/path/to/project/main.rs", "main.rs"),
+			("/path/to/project", "/path/to/project/../main.rs", "../main.rs"),
+			("/path/to/project", "/path/to/project/src/main.rs", "src/main.rs"),
+		]
+		.into_iter()
+		.for_each(|(base, full, expected)| {
+			assert_eq!(
+				get_relative_or_absolute_path(Path::new(base), Path::new(full)),
+				Path::new(expected)
+			);
+		});
+	}
 }
