@@ -305,7 +305,12 @@ impl BenchmarkPallet {
 
 		// Prompt user to update output path of the benchmarking results.
 		if self.output.is_none() {
-			self.update_output(cli)?;
+			let input = cli
+				.input("Provide the output file path for benchmark results (optional).")
+				.required(false)
+				.placeholder(".")
+				.interact()?;
+			self.output = if !input.is_empty() { Some(input.into()) } else { None };
 		}
 
 		cli.warning("NOTE: this may take some time...")?;
@@ -509,30 +514,6 @@ impl BenchmarkPallet {
 		Ok(())
 	}
 
-	fn update_genesis_preset(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
-		self.genesis_builder_preset = guide_user_to_select_genesis_preset(
-			cli,
-			self.runtime()?,
-			&self.genesis_builder_preset,
-		)?;
-		Ok(())
-	}
-
-	fn update_output(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
-		let output = self
-			.output
-			.as_ref()
-			.map(|o| o.to_str().unwrap())
-			.unwrap_or_else(|| "./weights.rs");
-		let input = cli
-			.input("Provide the output file path for benchmark results (optional).")
-			.required(false)
-			.placeholder(output)
-			.interact()?;
-		self.output = if !input.is_empty() { Some(input.into()) } else { None };
-		Ok(())
-	}
-
 	fn runtime(&self) -> anyhow::Result<&PathBuf> {
 		match self.runtime.as_ref() {
 			Some(runtime) => Ok(runtime),
@@ -690,7 +671,13 @@ impl BenchmarkPalletMenuOption {
 			GenesisBuilder =>
 				cmd.genesis_builder =
 					Some(guide_user_to_select_genesis_policy(cli, &cmd.genesis_builder)?),
-			GenesisBuilderPreset => cmd.update_genesis_preset(cli)?,
+			GenesisBuilderPreset => {
+				cmd.genesis_builder_preset = guide_user_to_select_genesis_preset(
+					cli,
+					cmd.runtime()?,
+					&cmd.genesis_builder_preset,
+				)?;
+			},
 			Steps => cmd.steps = self.input_parameter(cmd, cli, true)?.parse()?,
 			Repeat => cmd.repeat = self.input_parameter(cmd, cli, true)?.parse()?,
 			High => cmd.highest_range_values = self.input_range_values(cmd, cli, true)?,
