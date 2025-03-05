@@ -554,15 +554,11 @@ impl BuildSpec {
 			spinner.set_message("Building deterministic runtime...");
 			cli.warning("NOTE: this may take some time...")?;
 			spinner.clear();
-			match self.build_deterministic_runtime(cli) {
-				Ok(code) => {
-					cli.success("Runtime built successfully.")?;
-					self.update_code(&code)?;
-				},
-				Err(_) => {
-					cli.warning("WARNING: Failed to build deterministic runtime. Proceeding with the standard local build.")?;
-				},
-			};
+			let code = self.build_deterministic_runtime(cli).map_err(|e| {
+				anyhow::anyhow!("Failed to build the deterministic runtime: {}", e.to_string())
+			})?;
+			cli.success("Runtime built successfully.")?;
+			self.update_code(&code)?;
 		}
 
 		generated_files.push(format!(
@@ -636,7 +632,7 @@ impl BuildSpec {
 		&self,
 		cli: &mut impl cli::traits::Cli,
 	) -> anyhow::Result<Vec<u8>> {
-		let engine = ContainerEngine::detect()?;
+		let engine = ContainerEngine::detect().map_err(|_| anyhow::anyhow!("No container engine detected. A supported containerization solution (Docker or Podman) is required."))?;
 		// Warning from srtool-cli: https://github.com/chevdor/srtool-cli/blob/master/cli/src/main.rs#L28).
 		if engine == ContainerEngine::Docker {
 			cli.warning("WARNING: You are using docker. It is recommend to use podman instead.")?;
