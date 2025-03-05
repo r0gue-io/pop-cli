@@ -269,6 +269,7 @@ mod tests {
 			true,
 			Some(runtimes.map(|runtime| (runtime.to_string(), "".to_string())).to_vec()),
 			0,
+			None,
 		);
 		fs::create_dir(&runtime_path)?;
 		for runtime in runtimes {
@@ -348,6 +349,7 @@ mod tests {
 			true,
 			Some(policies),
 			item,
+			None,
 		)
 	}
 
@@ -363,6 +365,7 @@ mod tests {
 			true,
 			Some(preset_names),
 			item,
+			None,
 		)
 	}
 
