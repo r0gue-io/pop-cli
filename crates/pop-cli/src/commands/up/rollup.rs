@@ -91,13 +91,13 @@ impl UpCommand {
 		if let Some(addr) = &self.proxied_address {
 			let valid_multi_address: Vec<String> =
 				proxy.params[0].sub_params.iter().map(|p| p.name.to_string()).collect();
-			return Ok(
+			return Ok(Some(
 				if valid_multi_address.iter().any(|t| addr.starts_with(&format!("{}(", t))) {
-					Some(addr.to_string())
+					addr.to_string()
 				} else {
-					Some(format!("Id({})", addr))
+					format!("Id({})", addr)
 				},
-			);
+			));
 		}
 		if cli.confirm("Would you like to use a proxy for registration? This is considered a best practice.").interact()? {
 			cli.info("Enter the account that the proxy will make a call on behalf of.")?;
