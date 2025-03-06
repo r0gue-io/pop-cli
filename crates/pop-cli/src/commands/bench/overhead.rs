@@ -61,7 +61,7 @@ impl BenchmarkOverhead {
 				let runtime_path = cmd.params.runtime.as_ref().expect("No runtime found");
 				guide_user_to_select_genesis_preset(
 					cli,
-					&runtime_path,
+					runtime_path,
 					&cmd.params.genesis_builder_preset,
 				)?;
 			}
