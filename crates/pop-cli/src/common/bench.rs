@@ -9,7 +9,6 @@ use pop_parachains::{
 	GenesisBuilderPolicy,
 };
 use std::{
-	env::current_dir,
 	ffi::OsStr,
 	fs,
 	path::{Path, PathBuf},
@@ -113,11 +112,15 @@ pub async fn source_omni_bencher_binary(
 ///
 /// # Arguments
 /// * `cli`: Command line interface.
+/// * `project_path`: The path to the project that contains the runtime.
 /// * `mode`: The build profile.
-pub fn ensure_runtime_binary_exists(cli: &mut impl Cli, mode: &Profile) -> anyhow::Result<PathBuf> {
-	let cwd = current_dir().unwrap_or(PathBuf::from("./"));
-	let target_path = mode.target_directory(&cwd).join("wbuild");
-	let runtime_path = guide_user_to_select_runtime_path(cli, &cwd)?;
+pub fn ensure_runtime_binary_exists(
+	cli: &mut impl Cli,
+	project_path: &PathBuf,
+	mode: &Profile,
+) -> anyhow::Result<PathBuf> {
+	let target_path = mode.target_directory(&project_path).join("wbuild");
+	let runtime_path = guide_user_to_input_runtime_path(cli, &project_path)?;
 
 	// Return if the user has specified a path to the runtime binary.
 	if runtime_path.extension() == Some(OsStr::new("wasm")) {
@@ -135,12 +138,12 @@ pub fn ensure_runtime_binary_exists(cli: &mut impl Cli, mode: &Profile) -> anyho
 	}
 }
 
-/// Guide the user to select a runtime path.
+/// Guide the user to input a runtime path.
 ///
 /// # Arguments
 /// * `cli`: Command line interface.
 /// * `target_path`: The target path.
-pub fn guide_user_to_select_runtime_path(
+pub fn guide_user_to_input_runtime_path(
 	cli: &mut impl Cli,
 	target_path: &Path,
 ) -> anyhow::Result<PathBuf> {
@@ -252,7 +255,7 @@ pub(crate) fn get_mock_runtime(with_benchmark_features: bool) -> PathBuf {
 		"../../tests/runtimes/{}.wasm",
 		if with_benchmark_features { "base_parachain_benchmark" } else { "base_parachain" }
 	);
-	current_dir().unwrap().join(path).canonicalize().unwrap()
+	std::env::current_dir().unwrap().join(path).canonicalize().unwrap()
 }
 
 #[cfg(test)]
@@ -260,6 +263,8 @@ mod tests {
 	use super::*;
 	use crate::cli::MockCli;
 	use duct::cmd;
+	use fs::File;
+	use strum::VariantArray;
 	use tempfile::tempdir;
 
 	#[tokio::test]
@@ -294,6 +299,41 @@ mod tests {
 		cli.verify()
 	}
 
+	fn expect_input_runtime_path(project_path: &PathBuf, binary_path: &PathBuf) -> MockCli {
+		MockCli::new()
+			.expect_warning(format!(
+				"No runtime folder found at {}. Please input the runtime path manually.",
+				project_path.display()
+			))
+			.expect_input(
+				"Please provide the path to the runtime.",
+				binary_path.to_str().unwrap().to_string(),
+			)
+	}
+
+	#[test]
+	fn ensure_runtime_binary_exists_works() -> anyhow::Result<()> {
+		let temp_dir = tempdir()?;
+		let temp_path = temp_dir.into_path();
+		fs::create_dir(&temp_path.join("target"))?;
+
+		for profile in Profile::VARIANTS {
+			let target_path = profile.target_directory(temp_path.as_path());
+			fs::create_dir(target_path.clone())?;
+
+			// Input path to binary file.
+			let binary_path = target_path.join("runtime.wasm");
+			let mut cli = expect_input_runtime_path(&temp_path, &binary_path);
+			File::create(binary_path.as_path())?;
+			assert_eq!(
+				ensure_runtime_binary_exists(&mut cli, &temp_path, profile)?,
+				binary_path.canonicalize()?
+			);
+			cli.verify()?;
+		}
+		Ok(())
+	}
+
 	#[test]
 	fn guide_user_to_select_runtime_works() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
@@ -321,7 +361,7 @@ mod tests {
 	}
 
 	#[test]
-	fn guide_user_to_select_runtime_path_works() -> anyhow::Result<()> {
+	fn guide_user_to_input_runtime_path_works() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
 		let temp_path = temp_dir.path().to_path_buf();
 		let runtime_path = temp_dir.path().join("runtimes");
@@ -329,16 +369,17 @@ mod tests {
 		// No runtime path found, ask for manual input from user.
 		let mut cli = MockCli::new();
 		let runtime_binary_path = temp_path.join("dummy.wasm");
-		cli = cli.expect_warning(format!(
-			"No runtime folder found at {}. Please input the runtime path manually.",
-			temp_path.display()
-		));
-		cli = cli.expect_input(
-			"Please provide the path to the runtime.",
-			runtime_binary_path.to_str().unwrap().to_string(),
-		);
+		cli = cli
+			.expect_warning(format!(
+				"No runtime folder found at {}. Please input the runtime path manually.",
+				temp_path.display()
+			))
+			.expect_input(
+				"Please provide the path to the runtime.",
+				runtime_binary_path.to_str().unwrap().to_string(),
+			);
 		fs::File::create(runtime_binary_path)?;
-		guide_user_to_select_runtime_path(&mut cli, &temp_path)?;
+		guide_user_to_input_runtime_path(&mut cli, &temp_path)?;
 		cli.verify()?;
 
 		// Runtime folder found and not a Rust project, select from existing runtimes.
@@ -357,7 +398,7 @@ mod tests {
 		for runtime in runtimes {
 			cmd("cargo", ["new", runtime, "--bin"]).dir(&runtime_path).run()?;
 		}
-		guide_user_to_select_runtime_path(&mut cli, &temp_path)?;
+		guide_user_to_input_runtime_path(&mut cli, &temp_path)?;
 
 		cli.verify()
 	}

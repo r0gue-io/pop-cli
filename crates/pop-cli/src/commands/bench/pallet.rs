@@ -252,7 +252,7 @@ impl BenchmarkPallet {
 		// No runtime path provided, auto-detect the runtime WASM binary. If not found, build
 		// the runtime.
 		if self.runtime.is_none() {
-			match ensure_runtime_binary_exists(cli, &Profile::Release) {
+			match ensure_runtime_binary_exists(cli, &get_current_directory(), &Profile::Release) {
 				Ok(runtime_binary_path) => self.runtime = Some(runtime_binary_path),
 				Err(e) => {
 					return display_message(&e.to_string(), false, cli);
@@ -449,7 +449,7 @@ impl BenchmarkPallet {
 			args.push("--allow-missing-host-functions".to_string());
 		}
 		if let Some(ref genesis_builder) = self.genesis_builder {
-			args.push(format!("--genesis-builder={}", genesis_builder.to_string()));
+			args.push(format!("--genesis-builder={}", genesis_builder));
 			if genesis_builder == &GenesisBuilderPolicy::Runtime {
 				args.push(format!("--genesis-builder-preset={}", self.genesis_builder_preset));
 			}
@@ -669,7 +669,12 @@ impl BenchmarkPalletMenuOption {
 			Pallets => cmd.update_pallets(cli, registry).await?,
 			Extrinsics => cmd.update_extrinsics(cli, registry).await?,
 			ExcludedPallets => cmd.update_excluded_pallets(cli, registry).await?,
-			Runtime => cmd.runtime = Some(ensure_runtime_binary_exists(cli, &Profile::Release)?),
+			Runtime =>
+				cmd.runtime = Some(ensure_runtime_binary_exists(
+					cli,
+					&get_current_directory(),
+					&Profile::Release,
+				)?),
 			GenesisBuilder =>
 				cmd.genesis_builder =
 					Some(guide_user_to_select_genesis_policy(cli, &cmd.genesis_builder)?),
@@ -910,6 +915,10 @@ fn get_relative_path(path: &Path) -> String {
 	let cwd = current_dir().unwrap_or(PathBuf::from("./"));
 	let path = get_relative_or_absolute_path(cwd.as_path(), path);
 	path.as_path().to_str().expect("No path provided").to_string()
+}
+
+fn get_current_directory() -> PathBuf {
+	current_dir().unwrap_or(PathBuf::from("./"))
 }
 
 #[cfg(test)]
