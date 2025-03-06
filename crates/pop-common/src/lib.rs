@@ -2,6 +2,7 @@
 
 use std::net::TcpListener;
 
+pub use account_id::parse_account;
 pub use build::Profile;
 pub use errors::Error;
 pub use git::{Git, GitHub, Release};
@@ -14,6 +15,8 @@ pub use subxt::{Config, PolkadotConfig as DefaultConfig};
 pub use subxt_signer::sr25519::Keypair;
 pub use templates::extractor::extract_template_files;
 
+/// Module for parsing and handling account IDs.
+pub mod account_id;
 pub mod build;
 pub mod errors;
 pub mod git;

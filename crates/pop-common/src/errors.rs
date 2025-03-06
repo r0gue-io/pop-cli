@@ -6,6 +6,8 @@ use thiserror::Error;
 /// Represents the various errors that can occur in the crate.
 #[derive(Error, Debug)]
 pub enum Error {
+	#[error("Failed to parse account address: {0}")]
+	AccountAddressParsing(String),
 	#[error("Anyhow error: {0}")]
 	AnyhowError(#[from] anyhow::Error),
 	#[error("Configuration error: {0}")]

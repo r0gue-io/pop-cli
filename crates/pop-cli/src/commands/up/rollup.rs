@@ -12,8 +12,9 @@ use crate::{
 };
 use anyhow::{anyhow, Result};
 use clap::Args;
+use pop_common::parse_account;
 use pop_parachains::{
-	construct_proxy_extrinsic, find_dispatchable_by_name, Action, Param, Payload, Reserved,
+	construct_proxy_extrinsic, find_dispatchable_by_name, Action, Payload, Reserved,
 };
 use std::path::{Path, PathBuf};
 use url::Url;
@@ -22,6 +23,7 @@ type Proxy = Option<String>;
 
 const DEFAULT_URL: &str = "wss://paseo.rpc.amforc.com/";
 const HELP_HEADER: &str = "Chain deployment options";
+const PLACEHOLDER_ADDRESS: &str = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty";
 
 #[derive(Args, Clone, Default)]
 #[clap(next_help_heading = HELP_HEADER)]
@@ -42,9 +44,7 @@ pub struct UpCommand {
 	#[arg(long)]
 	pub(crate) relay_chain_url: Option<Url>,
 	/// Proxied address. Your account must be registered as a proxy which can act on behalf of this
-	/// account.  You can specify the MultiAddress type explicitly, e.g.,
-	/// `Id(5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty)`. If no type is provided, it
-	/// defaults to `Id()`.
+	/// account.
 	#[arg(long = "proxy")]
 	pub(crate) proxied_address: Option<String>,
 }
@@ -79,33 +79,20 @@ impl UpCommand {
 		let chain =
 			configure("Enter the relay chain node URL", DEFAULT_URL, &self.relay_chain_url, cli)
 				.await?;
-		let proxy = self.resolve_proxied_address(&chain, cli)?;
+		let proxy = self.resolve_proxied_address(cli)?;
+		println!("proxy: {:?}", proxy);
 		let id = self.resolve_id(&chain, &proxy, cli).await?;
 		let (genesis_code, genesis_state) = self.resolve_genesis_files(id, cli).await?;
 		Ok(Registration { id, genesis_state, genesis_code, chain, proxy })
 	}
 
 	// Retrieves the proxied address, prompting the user if none is specified.
-	fn resolve_proxied_address(&self, chain: &Chain, cli: &mut impl Cli) -> Result<Proxy> {
-		let proxy = find_dispatchable_by_name(&chain.pallets, "Proxy", "proxy")?;
-		let multi_address_parameter = &proxy.params[0];
+	fn resolve_proxied_address(&self, cli: &mut impl Cli) -> Result<Proxy> {
 		if let Some(addr) = &self.proxied_address {
-			// Checks if the provided address is already in a valid MultiAddress format if not,
-			// wraps it in the "Id()" as the default.
-			let valid_multi_address: Vec<String> =
-				multi_address_parameter.sub_params.iter().map(|p| p.name.to_string()).collect();
-			return Ok(Some(
-				if valid_multi_address.iter().any(|t| addr.starts_with(&format!("{}(", t))) {
-					addr.to_string()
-				} else {
-					format!("Id({})", addr)
-				},
-			));
+			return Ok(parse_account(addr).map(|valid_addr| Some(format!("Id({valid_addr})")))?);
 		}
 		if cli.confirm("Would you like to use a proxy for registration? This is considered a best practice.").interact()? {
-			cli.info("Enter the account that the proxy will make a call on behalf of.")?;
-			let address = prompt_for_proxy_address(cli, multi_address_parameter)?;
-			return Ok(Some(address));
+			return Ok(Some(prompt_for_proxy_address(cli)?));
 		}
 		Ok(None)
 	}
@@ -236,30 +223,17 @@ async fn generate_spec_files(
 	))
 }
 
-// Prompt the user to select the value of the variant parameter and the address.
-// Output example: `Id(5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY)` for the `Id` variant.
-fn prompt_for_proxy_address(cli: &mut impl Cli, param: &Param) -> Result<String> {
-	let selected_variant = {
-		let mut select = cli.select("What type of address do you want to use?");
-		for option in &param.sub_params {
-			select = select.item(option, &option.name, &option.type_name);
-		}
-		select.interact()?
-	};
-
-	if !selected_variant.sub_params.is_empty() {
-		let mut field_values = Vec::new();
-		for field_arg in &selected_variant.sub_params {
-			let field_value = cli
-				.input("Enter the address")
-				.placeholder(&format!("Type required: {}", field_arg.type_name))
-				.interact()?;
-			field_values.push(field_value);
-		}
-		Ok(format!("{}({})", selected_variant.name, field_values.join(", ")))
-	} else {
-		Ok(format!("{}()", selected_variant.name))
-	}
+// Prompt the user to input an address and return it formatted as `Id(address)`
+fn prompt_for_proxy_address(cli: &mut impl Cli) -> Result<String> {
+	let address = cli
+		.input("Enter the account that the proxy will make a call on behalf of")
+		.placeholder(&format!("e.g {}", PLACEHOLDER_ADDRESS))
+		.validate(|input: &String| match parse_account(input) {
+			Ok(_) => Ok(()),
+			Err(_) => Err("Invalid address."),
+		})
+		.interact()?;
+	Ok(format!("Id({address})"))
 }
 
 #[cfg(test)]
@@ -285,7 +259,7 @@ mod tests {
 			id: Some(2000),
 			genesis_state: Some(genesis_state.clone()),
 			genesis_code: Some(genesis_code.clone()),
-			proxied_address: Some(MOCK_PROXY_ADDRESS_ID.to_string()),
+			proxied_address: Some(MOCK_PROXIED_ADDRESS.to_string()),
 			..Default::default()
 		}
 		.prepare_for_registration(&mut cli)
@@ -295,7 +269,7 @@ mod tests {
 		assert_eq!(chain_config.genesis_code, genesis_code);
 		assert_eq!(chain_config.genesis_state, genesis_state);
 		assert_eq!(chain_config.chain.url, Url::parse(POLKADOT_NETWORK_URL)?);
-		assert_eq!(chain_config.proxy, Some(MOCK_PROXY_ADDRESS_ID.to_string()));
+		assert_eq!(chain_config.proxy, Some(format!("Id({})", MOCK_PROXIED_ADDRESS.to_string())));
 		cli.verify()
 	}
 
@@ -303,35 +277,11 @@ mod tests {
 	async fn resolve_proxied_address_works() -> Result<()> {
 		let mut cli = MockCli::new()
 			.expect_confirm("Would you like to use a proxy for registration? This is considered a best practice.", true)
-			.expect_info("Enter the account that the proxy will make a call on behalf of.")
-			.expect_select(
-				"What type of address do you want to use?",
-				Some(true),
-				true,
-				Some(
-					[
-						("Id".to_string(), "".to_string()),
-						("Index".to_string(), "".to_string()),
-						("Raw".to_string(), "".to_string()),
-						("Address32".to_string(), "".to_string()),
-						("Address20".to_string(), "".to_string()),
-					]
-					.to_vec(),
-				),
-				0, // "Id" action
-			)
 			.expect_input(
-				"Enter the address",
+				"Enter the account that the proxy will make a call on behalf of",
 				MOCK_PROXIED_ADDRESS.into(),
 			);
-		let chain = configure(
-			"Enter the relay chain node URL",
-			DEFAULT_URL,
-			&Some(Url::parse(POLKADOT_NETWORK_URL)?),
-			&mut cli,
-		)
-		.await?;
-		let proxied_address = UpCommand::default().resolve_proxied_address(&chain, &mut cli)?;
+		let proxied_address = UpCommand::default().resolve_proxied_address(&mut cli)?;
 		assert_eq!(proxied_address, Some(format!("Id({})", MOCK_PROXIED_ADDRESS)));
 		cli.verify()?;
 
@@ -339,7 +289,7 @@ mod tests {
 			"Would you like to use a proxy for registration? This is considered a best practice.",
 			false,
 		);
-		let proxied_address = UpCommand::default().resolve_proxied_address(&chain, &mut cli)?;
+		let proxied_address = UpCommand::default().resolve_proxied_address(&mut cli)?;
 		assert_eq!(proxied_address, None);
 		cli.verify()?;
 
@@ -348,7 +298,7 @@ mod tests {
 			proxied_address: Some(MOCK_PROXIED_ADDRESS.to_string()),
 			..Default::default()
 		}
-		.resolve_proxied_address(&chain, &mut cli)?;
+		.resolve_proxied_address(&mut cli)?;
 		assert_eq!(proxied_address, Some(format!("Id({})", MOCK_PROXIED_ADDRESS)));
 		cli.verify()
 	}
