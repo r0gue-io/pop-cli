@@ -14,9 +14,11 @@ use anyhow::{anyhow, Result};
 use clap::Args;
 use pop_common::parse_account;
 use pop_parachains::{
-	construct_proxy_extrinsic, find_dispatchable_by_name, Action, Payload, Reserved,
+	construct_proxy_extrinsic, find_dispatchable_by_name, Action, DeploymentProvider, Payload,
+	Reserved, SupportedChains,
 };
 use std::path::{Path, PathBuf};
+use strum::VariantArray;
 use url::Url;
 
 type Proxy = Option<String>;
@@ -76,9 +78,15 @@ impl UpCommand {
 
 	// Prepares the chain for registration by setting up its configuration.
 	async fn prepare_for_registration(self, cli: &mut impl Cli) -> Result<Registration> {
+		let provider = prompt_provider(cli)?;
+		let relay_chain_url = self.relay_chain_url.clone().or_else(|| {
+			prompt_supported_chain(provider, cli)
+				.ok()?
+				.and_then(|chain| chain.get_rpc_url())
+				.and_then(|url| Url::parse(&url).ok())
+		});
 		let chain =
-			configure("Enter the relay chain node URL", DEFAULT_URL, &self.relay_chain_url, cli)
-				.await?;
+			configure("Enter the relay chain node URL", DEFAULT_URL, &relay_chain_url, cli).await?;
 		let proxy = self.resolve_proxied_address(cli)?;
 		let id = self.resolve_id(&chain, &proxy, cli).await?;
 		let (genesis_code, genesis_state) = self.resolve_genesis_files(id, cli).await?;
@@ -235,6 +243,38 @@ fn prompt_for_proxy_address(cli: &mut impl Cli) -> Result<String> {
 		})
 		.interact()?;
 	Ok(format!("Id({address})"))
+}
+
+// Prompts the user for what action they want to do.
+fn prompt_provider(cli: &mut impl Cli) -> Result<Option<DeploymentProvider>> {
+	let mut predefined_action = cli.select("Select your deployment method:");
+	for action in DeploymentProvider::VARIANTS {
+		predefined_action =
+			predefined_action.item(Some(action.clone()), action.name(), action.description());
+	}
+	predefined_action = predefined_action.item(
+		None,
+		"Only Register in Relay Chain",
+		"Register the parachain in the relay chain without deploying",
+	);
+	Ok(predefined_action.interact()?)
+}
+
+// Prompts the user for what action they want to do.
+fn prompt_supported_chain(
+	provider: Option<DeploymentProvider>,
+	cli: &mut impl Cli,
+) -> Result<Option<SupportedChains>> {
+	let mut chain_selected =
+		cli.select("Select a Relay Chain\n\nChoose from the supported relay chains:");
+	for chain in SupportedChains::VARIANTS {
+		chain_selected = chain_selected.item(Some(chain.clone()), chain.to_string(), "");
+	}
+	if provider.is_none() {
+		chain_selected =
+			chain_selected.item(None, "Custom", "You will be asked to enter the URL manually.");
+	}
+	Ok(chain_selected.interact()?)
 }
 
 #[cfg(test)]
