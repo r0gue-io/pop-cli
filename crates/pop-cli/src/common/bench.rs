@@ -34,7 +34,7 @@ pub async fn check_omni_bencher_and_prompt(
 	Ok(match cmd("which", &["frame-omni-bencher"]).stdout_capture().run() {
 		Ok(output) => {
 			let path = String::from_utf8(output.stdout)?;
-			PathBuf::from(path.replace("\n", ""))
+			PathBuf::from(path.trim())
 		},
 		Err(_) => source_omni_bencher_binary(cli, cache_path, skip_confirm).await?,
 	})
@@ -213,7 +213,7 @@ pub fn guide_user_to_select_runtime(
 	cli: &mut impl Cli,
 	project_path: &PathBuf,
 ) -> anyhow::Result<PathBuf> {
-	let runtimes = fs::read_dir(project_path).expect("No project found");
+	let runtimes = fs::read_dir(project_path)?;
 	let mut prompt = cli.select("Select the runtime:");
 	for runtime in runtimes {
 		let path = runtime?.path();
@@ -248,7 +248,7 @@ pub fn guide_user_to_select_genesis_policy(
 		prompt = prompt.item(policy.clone(), policy.to_string(), description);
 	}
 	let input = prompt.interact()?;
-	Ok(GenesisBuilderPolicy::from(input))
+	GenesisBuilderPolicy::try_from(input).map_err(|e| anyhow::anyhow!(e.to_string()))
 }
 
 /// Guide the user to select a genesis builder preset.

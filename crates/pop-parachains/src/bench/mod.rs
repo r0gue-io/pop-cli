@@ -53,12 +53,14 @@ impl Display for GenesisBuilderPolicy {
 	}
 }
 
-impl From<String> for GenesisBuilderPolicy {
-	fn from(s: String) -> Self {
-		match s {
-			s if s == *"none" => GenesisBuilderPolicy::None,
-			s if s == *"runtime" => GenesisBuilderPolicy::Runtime,
-			_ => unreachable!(),
+impl TryFrom<String> for GenesisBuilderPolicy {
+	type Error = String;
+
+	fn try_from(s: String) -> Result<Self, Self::Error> {
+		match s.as_str() {
+			"none" => Ok(GenesisBuilderPolicy::None),
+			"runtime" => Ok(GenesisBuilderPolicy::Runtime),
+			_ => Err(format!("Invalid genesis builder policy: {}", s)),
 		}
 	}
 }
@@ -68,7 +70,7 @@ impl From<String> for GenesisBuilderPolicy {
 /// # Arguments
 /// * `binary_path` - Path to the runtime WASM binary.
 pub fn get_preset_names(binary_path: &PathBuf) -> anyhow::Result<Vec<String>> {
-	let binary = fs::read(binary_path).expect("No runtime binary found");
+	let binary = fs::read(binary_path)?;
 	let genesis_config_builder = GenesisConfigBuilderRuntimeCaller::<HostFunctions>::new(&binary);
 	genesis_config_builder.preset_names().map_err(|e| anyhow::anyhow!(e))
 }
