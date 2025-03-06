@@ -133,6 +133,11 @@ fn process_pallet_extrinsics(output_file: PathBuf) -> anyhow::Result<PalletExtri
 	let mut output = String::new();
 	output_file.read_to_string(&mut output)?;
 
+	// Returns an error if the runtime is not built with `--features runtime-benchmarks`.
+	if output.contains("--features runtime-benchmarks") {
+		return Err(anyhow::anyhow!("Runtime is not built with `--features runtime-benchmarks`. Please rebuild it with the feature enabled."))
+	}
+
 	// Process the captured output and return the pallet extrinsics registry.
 	let mut registry = PalletExtrinsicsRegistry::new();
 	let lines: Vec<String> = output.split("\n").map(String::from).skip(1).collect();
@@ -226,6 +231,20 @@ mod tests {
 		assert_eq!(
 			registry.get("pallet_sudo").cloned().unwrap_or_default(),
 			["check_only_sudo_account", "remove_key", "set_key", "sudo", "sudo_as"]
+		);
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn load_pallet_extrinsics_missing_runtime_benchmarks_fails() -> anyhow::Result<()> {
+		let temp_dir = tempdir()?;
+		let runtime_path = get_mock_runtime_path(false);
+		let binary = omni_bencher_generator(temp_dir.path(), None).await?;
+		binary.source(false, &(), true).await?;
+
+		assert_eq!(
+		    load_pallet_extrinsics(&runtime_path, &binary.path()).await.err().unwrap().to_string(),
+			"Runtime is not built with `--features runtime-benchmarks`. Please rebuild it with the feature enabled."
 		);
 		Ok(())
 	}

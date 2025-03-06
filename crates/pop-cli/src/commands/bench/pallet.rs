@@ -261,6 +261,9 @@ impl BenchmarkPallet {
 		}
 
 		if self.list {
+			// Without overriding the genesis builder policy, listing will fail for a runtime
+			// that is not built with the `runtime-benchmarks` feature.
+			self.genesis_builder = Some(GenesisBuilderPolicy::None);
 			if let Err(e) = self.run() {
 				return display_message(&e.to_string(), false, cli);
 			}
@@ -270,7 +273,7 @@ impl BenchmarkPallet {
 		// No genesis builder, prompts user to select the genesis builder policy.
 		if self.genesis_builder.is_none() {
 			let runtime_path = self.runtime()?.clone();
-			let preset_names = get_preset_names(&runtime_path)?;
+			let preset_names = get_preset_names(&runtime_path).unwrap_or_default();
 			// Determine policy based on preset availability.
 			let policy = if preset_names.is_empty() {
 				GenesisBuilderPolicy::None
