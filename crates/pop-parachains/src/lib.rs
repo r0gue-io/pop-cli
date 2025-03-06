@@ -4,6 +4,8 @@
 mod build;
 /// Provides functionality to construct, encode, sign, and submit chain extrinsics.
 mod call;
+/// Deployment providers metadata and utility functions.
+mod deployer_providers;
 mod errors;
 mod generator;
 mod new_pallet;
@@ -28,6 +30,7 @@ pub use call::{
 	},
 	set_up_client, sign_and_submit_extrinsic, submit_signed_extrinsic, CallData,
 };
+pub use deployer_providers::{DeploymentProvider, SupportedChains};
 pub use errors::Error;
 pub use indexmap::IndexSet;
 pub use new_pallet::{create_pallet_template, new_pallet_options::*, TemplatePalletConfig};
