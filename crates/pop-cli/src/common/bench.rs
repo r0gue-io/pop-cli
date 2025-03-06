@@ -334,7 +334,7 @@ mod tests {
 			temp_path.display()
 		));
 		cli = cli.expect_input(
-			"Please provide the path to the runtime or parachain project.",
+			"Please provide the path to the runtime.",
 			runtime_binary_path.to_str().unwrap().to_string(),
 		);
 		fs::File::create(runtime_binary_path)?;

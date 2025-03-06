@@ -938,7 +938,7 @@ mod tests {
 				cwd.display()
 			))
 			.expect_input(
-				"Please provide the path to the runtime or parachain project.",
+				"Please provide the path to the runtime.",
 				runtime_path.to_str().unwrap().to_string(),
 			)
 			.expect_warning("NOTE: this may take some time...")
@@ -967,16 +967,23 @@ mod tests {
 
 	#[tokio::test]
 	async fn list_pallets_works() -> anyhow::Result<()> {
-		let mut cli = MockCli::new()
+		for with_benchmark_feature in [true] {
+			let mut cli = MockCli::new()
 			.expect_intro("Listing available pallets and extrinsics")
 			.expect_warning(
 				"NOTE: the `pop bench pallet` is not yet battle tested - double check the results.",
 			)
 			.expect_outro("All pallets and extrinsics listed!");
-		BenchmarkPallet { list: true, runtime: Some(get_mock_runtime(true)), ..Default::default() }
+			BenchmarkPallet {
+				list: true,
+				runtime: Some(get_mock_runtime(with_benchmark_feature)),
+				..Default::default()
+			}
 			.execute(&mut cli)
 			.await?;
-		cli.verify()
+			cli.verify()?;
+		}
+		Ok(())
 	}
 
 	#[tokio::test]
