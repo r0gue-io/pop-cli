@@ -29,7 +29,7 @@ type HostFunctions = (
 	cumulus_primitives_proof_size_hostfunction::storage_proof_size::HostFunctions,
 );
 
-/// Type alias for records where the key is the pallet name and the value is a array of its
+/// Type alias for records where the key is the pallet name and the value is an array of its
 /// extrinsics.
 pub type PalletExtrinsicsRegistry = HashMap<String, Vec<String>>;
 
@@ -68,14 +68,14 @@ impl TryFrom<String> for GenesisBuilderPolicy {
 /// Get genesis builder preset names of the runtime.
 ///
 /// # Arguments
-/// * `binary_path` - Path to the runtime WASM binary.
+/// * `binary_path` - Path to the runtime binary.
 pub fn get_preset_names(binary_path: &PathBuf) -> anyhow::Result<Vec<String>> {
 	let binary = fs::read(binary_path)?;
 	let genesis_config_builder = GenesisConfigBuilderRuntimeCaller::<HostFunctions>::new(&binary);
 	genesis_config_builder.preset_names().map_err(|e| anyhow::anyhow!(e))
 }
 
-/// Get the runtime folder path and throws error if not exist.
+/// Get the runtime folder path and throws error if it does not exist.
 ///
 /// # Arguments
 /// * `parent` - Parent path that contains the runtime folder.
@@ -87,7 +87,7 @@ pub fn get_runtime_path(parent: &Path) -> anyhow::Result<PathBuf> {
 		.ok_or_else(|| anyhow::anyhow!("No runtime found"))
 }
 
-/// Runs FRAME pallet benchmarks using `frame-benchmarking-cli`.
+/// Runs pallet benchmarks using `frame-benchmarking-cli`.
 ///
 /// # Arguments
 /// * `args` - Arguments to pass to the benchmarking command.
@@ -98,10 +98,10 @@ pub fn generate_benchmarks(args: Vec<String>) -> anyhow::Result<()> {
 		.map_err(|e| anyhow::anyhow!("Failed to run benchmarking: {}", e))
 }
 
-/// Loads a mapping of pallets and their associated extrinsics from the runtime WASM binary.
+/// Loads a mapping of pallets and their associated extrinsics from the runtime binary.
 ///
 /// # Arguments
-/// * `runtime_path` - Path to the runtime WASM binary.
+/// * `runtime_path` - Path to the runtime binary.
 /// * `binary_path` - Path to the binary of FRAME Omni Bencher.
 pub async fn load_pallet_extrinsics(
 	runtime_path: &Path,

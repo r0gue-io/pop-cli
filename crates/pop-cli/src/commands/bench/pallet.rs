@@ -7,9 +7,8 @@ use crate::{
 		traits::{Confirm, Input, MultiSelect, Select},
 	},
 	common::bench::{
-		check_genesis_builder_and_prompt, check_omni_bencher_and_prompt,
-		ensure_runtime_binary_exists, guide_user_to_select_genesis_policy,
-		guide_user_to_select_genesis_preset,
+		check_omni_bencher_and_prompt, ensure_runtime_binary_exists,
+		guide_user_to_select_genesis_policy, guide_user_to_select_genesis_preset,
 	},
 };
 use clap::Args;
@@ -31,7 +30,7 @@ const ALL_SELECTED: &str = "*";
 
 #[derive(Args)]
 pub(crate) struct BenchmarkPallet {
-	/// Select a FRAME Pallet to benchmark, or `*` for all (in which case `extrinsic` must be `*`).
+	/// Select a pallet to benchmark, or `*` for all (in which case `extrinsic` must be `*`).
 	#[arg(short, long, value_parser = parse_pallet_name, default_value_if("all", "true", Some("*".into())))]
 	pub pallet: Option<String>,
 
@@ -271,14 +270,23 @@ impl BenchmarkPallet {
 		// No genesis builder, prompts user to select the genesis builder policy.
 		if self.genesis_builder.is_none() {
 			let runtime_path = self.runtime()?.clone();
-			if let Err(e) = check_genesis_builder_and_prompt(
-				cli,
-				&runtime_path,
-				&mut self.genesis_builder,
-				&mut self.genesis_builder_preset,
-			) {
-				return display_message(&e.to_string(), false, cli);
+			let preset_names = get_preset_names(&runtime_path)?;
+			// Determine policy based on preset availability.
+			let policy = if preset_names.is_empty() {
+				GenesisBuilderPolicy::None
+			} else {
+				guide_user_to_select_genesis_policy(cli, &self.genesis_builder)?
 			};
+			self.genesis_builder = Some(policy);
+
+			// If the policy requires a preset, prompt the user to select one.
+			if policy == GenesisBuilderPolicy::Runtime {
+				self.genesis_builder_preset = guide_user_to_select_genesis_preset(
+					cli,
+					&runtime_path,
+					&self.genesis_builder_preset,
+				)?;
+			}
 		}
 
 		// No pallet provided, prompts user to select the pallet fetched from runtime.
@@ -454,7 +462,7 @@ impl BenchmarkPallet {
 	) -> anyhow::Result<()> {
 		if registry.is_empty() {
 			let runtime_path = self.runtime()?;
-			let binary_path = check_omni_bencher_and_prompt(cli, &crate::cache()?, true).await?;
+			let binary_path = check_omni_bencher_and_prompt(cli, true).await?;
 
 			let spinner = spinner();
 			spinner.start("Loading pallets and extrinsics from your runtime...");

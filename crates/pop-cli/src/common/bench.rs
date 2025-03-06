@@ -18,17 +18,15 @@ use strum::{EnumMessage, IntoEnumIterator};
 
 const DEFAULT_RUNTIME_DIR: &str = "./runtime";
 
-/// Checks the status of the `frame-omni-bencher` binary, use the local binary if available.
-/// Otherwise, sources it if necessary, and prompts the user to update it if the existing binary in
-/// cache is not the latest version.
+/// Checks the status of the `frame-omni-bencher` binary, using the local version if available.
+/// If the binary is missing, it is sourced as needed, and if an outdated version exists in cache,
+/// the user is prompted to update to the latest release.
 ///
 /// # Arguments
 /// * `cli`: Command line interface.
-/// * `cache_path`: The cache directory path.
 /// * `skip_confirm`: A boolean indicating whether to skip confirmation prompts.
 pub async fn check_omni_bencher_and_prompt(
 	cli: &mut impl Cli,
-	cache_path: &Path,
 	skip_confirm: bool,
 ) -> anyhow::Result<PathBuf> {
 	Ok(match cmd("which", &["frame-omni-bencher"]).stdout_capture().run() {
@@ -36,7 +34,7 @@ pub async fn check_omni_bencher_and_prompt(
 			let path = String::from_utf8(output.stdout)?;
 			PathBuf::from(path.trim())
 		},
-		Err(_) => source_omni_bencher_binary(cli, cache_path, skip_confirm).await?,
+		Err(_) => source_omni_bencher_binary(cli, &crate::cache()?, skip_confirm).await?,
 	})
 }
 
@@ -111,18 +109,17 @@ pub async fn source_omni_bencher_binary(
 	Ok(bencher_path)
 }
 
-/// Ensure that the runtime WASM binary exists and is ready for use. If the binary is not found, it
-/// triggers a build process.
+/// Ensure the runtime binary exists. If the binary is not found, it triggers a build process.
 ///
 /// # Arguments
 /// * `cli`: Command line interface.
-/// * `mode`: A reference to the profile mode.
+/// * `mode`: The build profile.
 pub fn ensure_runtime_binary_exists(cli: &mut impl Cli, mode: &Profile) -> anyhow::Result<PathBuf> {
 	let cwd = current_dir().unwrap_or(PathBuf::from("./"));
 	let target_path = mode.target_directory(&cwd).join("wbuild");
 	let runtime_path = guide_user_to_select_runtime_path(cli, &cwd)?;
 
-	// Return immediately if the user has specified a path to the runtime binary.
+	// Return if the user has specified a path to the runtime binary.
 	if runtime_path.extension() == Some(OsStr::new("wasm")) {
 		return Ok(runtime_path);
 	}
@@ -138,41 +135,11 @@ pub fn ensure_runtime_binary_exists(cli: &mut impl Cli, mode: &Profile) -> anyho
 	}
 }
 
-/// Check the genesis builder policy and prompt the user to select one if there are genesis builder
-/// presets available.
-///
-/// # Arguments
-/// * `cli`: Command line interface.
-/// * `runtime_path`: A reference to the runtime path.
-/// * `current_policy`: A mutable reference to the current genesis builder policy.
-/// * `current_preset`: A mutable reference to the current genesis builder preset.
-pub fn check_genesis_builder_and_prompt(
-	cli: &mut impl Cli,
-	runtime_path: &PathBuf,
-	current_policy: &mut Option<GenesisBuilderPolicy>,
-	current_preset: &mut String,
-) -> anyhow::Result<()> {
-	let preset_names = get_preset_names(runtime_path)?;
-	// Determine policy based on preset availability.
-	let policy = if preset_names.is_empty() {
-		GenesisBuilderPolicy::None
-	} else {
-		guide_user_to_select_genesis_policy(cli, current_policy)?
-	};
-	*current_policy = Some(policy);
-
-	// If the policy requires a preset, prompt the user to select one.
-	if policy == GenesisBuilderPolicy::Runtime {
-		*current_preset = guide_user_to_select_genesis_preset(cli, runtime_path, current_preset)?;
-	}
-	Ok(())
-}
-
 /// Guide the user to select a runtime path.
 ///
 /// # Arguments
 /// * `cli`: Command line interface.
-/// * `target_path`: A reference to the target path.
+/// * `target_path`: The target path.
 pub fn guide_user_to_select_runtime_path(
 	cli: &mut impl Cli,
 	target_path: &Path,
@@ -185,7 +152,7 @@ pub fn guide_user_to_select_runtime_path(
 				target_path.display()
 			))?;
 			let input: PathBuf = cli
-				.input("Please provide the path to the runtime or parachain project.")
+				.input("Please provide the path to the runtime.")
 				.required(true)
 				.default_input(DEFAULT_RUNTIME_DIR)
 				.placeholder(DEFAULT_RUNTIME_DIR)
@@ -195,7 +162,7 @@ pub fn guide_user_to_select_runtime_path(
 		},
 	};
 
-	// If there is no TOML file exist, list all directories in the "runtime" folder and prompt the
+	// If a TOML file does not exist, list all directories in the "runtime" folder and prompt the
 	// user to select a runtime.
 	if project_path.is_dir() && !project_path.join("Cargo.toml").exists() {
 		let runtime = guide_user_to_select_runtime(cli, &project_path)?;
