@@ -515,24 +515,15 @@ impl BenchmarkPallet {
 	}
 
 	fn runtime(&self) -> anyhow::Result<&PathBuf> {
-		match self.runtime.as_ref() {
-			Some(runtime) => Ok(runtime),
-			None => Err(anyhow::anyhow!("No runtime found")),
-		}
+		self.runtime.as_ref().ok_or_else(|| anyhow::anyhow!("No runtime found"))
 	}
 
 	fn pallet(&self) -> anyhow::Result<&String> {
-		match self.pallet.as_ref() {
-			Some(pallet) => Ok(pallet),
-			None => Err(anyhow::anyhow!("No pallet provided")),
-		}
+		self.pallet.as_ref().ok_or_else(|| anyhow::anyhow!("No pallet provided"))
 	}
 
 	fn extrinsic(&self) -> anyhow::Result<&String> {
-		match self.extrinsic.as_ref() {
-			Some(extinsic) => Ok(extinsic),
-			None => Err(anyhow::anyhow!("No extrinsic provided")),
-		}
+		self.extrinsic.as_ref().ok_or_else(|| anyhow::anyhow!("No extrinsic provided"))
 	}
 }
 
