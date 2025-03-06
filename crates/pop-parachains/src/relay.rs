@@ -7,7 +7,7 @@ use subxt::{
 	config::BlockHash,
 	dynamic::{self, Value},
 	events::StaticEvent,
-	ext::{scale_decode::DecodeAsType, scale_encode::EncodeAsType, sp_core},
+	ext::{scale_decode::DecodeAsType, scale_encode::EncodeAsType},
 	OnlineClient, PolkadotConfig,
 };
 
@@ -106,7 +106,7 @@ impl StaticEvent for Reserved {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use subxt::ext::sp_core::twox_64;
+	use sp_core::twox_64;
 	use RelayChain::*;
 
 	#[test]

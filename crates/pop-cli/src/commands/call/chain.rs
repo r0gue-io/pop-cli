@@ -5,7 +5,7 @@ use std::path::Path;
 use crate::{
 	cli::{self, traits::*},
 	common::{
-		chain::{configure, Chain},
+		chain::{self, Chain},
 		wallet::{self, prompt_to_use_wallet},
 	},
 };
@@ -74,7 +74,7 @@ impl CallChainCommand {
 		// Check if all fields are specified via the command line.
 		let prompt_to_repeat_call = self.requires_user_input();
 		// Configure the chain.
-		let chain = configure(
+		let chain = chain::configure(
 			"Which chain would you like to interact with?",
 			DEFAULT_URL,
 			&self.url,
@@ -660,7 +660,7 @@ mod tests {
 		.expect_confirm("Would you like to dispatch this function call with `Root` origin?", true)
 		.expect_confirm(USE_WALLET_PROMPT, true);
 
-		let chain = configure(
+		let chain = chain::configure(
 			"Which chain would you like to interact with?",
 			POP_NETWORK_TESTNET_URL,
 			&None,
@@ -688,7 +688,7 @@ mod tests {
 			"Which chain would you like to interact with?",
 			POLKADOT_NETWORK_URL.into(),
 		);
-		let chain = configure(
+		let chain = chain::configure(
 			"Which chain would you like to interact with?",
 			POP_NETWORK_TESTNET_URL,
 			&None,
@@ -845,7 +845,7 @@ mod tests {
 		};
 		let mut cli = MockCli::new()
 			.expect_warning("NOTE: sudo is not supported by the chain. Ignoring `--sudo` flag.");
-		let chain = configure(
+		let chain = chain::configure(
 			"Which chain would you like to interact with?",
 			POP_NETWORK_TESTNET_URL,
 			&Some(Url::parse(POLKADOT_NETWORK_URL)?),
@@ -861,7 +861,7 @@ mod tests {
 			"Would you like to dispatch this function call with `Root` origin?",
 			true,
 		);
-		let chain = configure(
+		let chain = chain::configure(
 			"Which chain would you like to interact with?",
 			POP_NETWORK_TESTNET_URL,
 			&Some(Url::parse(POP_NETWORK_TESTNET_URL)?),

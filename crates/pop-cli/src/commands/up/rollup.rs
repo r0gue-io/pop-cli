@@ -80,7 +80,6 @@ impl UpCommand {
 			configure("Enter the relay chain node URL", DEFAULT_URL, &self.relay_chain_url, cli)
 				.await?;
 		let proxy = self.resolve_proxied_address(cli)?;
-		println!("proxy: {:?}", proxy);
 		let id = self.resolve_id(&chain, &proxy, cli).await?;
 		let (genesis_code, genesis_state) = self.resolve_genesis_files(id, cli).await?;
 		Ok(Registration { id, genesis_state, genesis_code, chain, proxy })
@@ -102,7 +101,7 @@ impl UpCommand {
 		match self.id {
 			Some(id) => Ok(id),
 			None => {
-				cli.info(format!("Reserving an ID. You will need to sign a transaction to reserve an ID on {} using the `Registrar::reserve` function.", chain.url))?;
+				cli.info(format!("You will need to sign a transaction to reserve an ID on {} using the `Registrar::reserve` function.", chain.url))?;
 				reserve(chain, proxy, cli).await
 			},
 		}
@@ -126,17 +125,19 @@ impl UpCommand {
 // Represents the configuration for rollup registration.
 pub(crate) struct Registration {
 	id: u32,
-	genesis_state: PathBuf,
-	genesis_code: PathBuf,
+	genesis_state: StatePathBuf,
+	genesis_code: CodePathBuf,
 	chain: Chain,
 	proxy: Proxy,
 }
 impl Registration {
 	// Registers by submitting an extrinsic.
 	async fn register(&self, cli: &mut impl Cli) -> Result<()> {
-		cli.info(format!("Registering. You will need to sign a transaction on {} using the `Registrar::register` function.", self.chain.url))?;
+		cli.info(format!("You will need to sign a transaction to register on {}, using the `Registrar::register` function.", self.chain.url))?;
 		let call_data = self.prepare_register_call_data(cli)?;
-		submit_extrinsic(&self.chain.client, &self.chain.url, call_data, cli).await?;
+		submit_extrinsic(&self.chain.client, &self.chain.url, call_data, cli)
+			.await
+			.map_err(|e| anyhow::anyhow!("Registration failed: {}", e))?;
 		Ok(())
 	}
 
@@ -334,7 +335,7 @@ mod tests {
 	async fn reserve_id_fails_wrong_chain() -> Result<()> {
 		let mut cli = MockCli::new()
 			.expect_intro("Deploy a rollup")
-			.expect_info(format!("Reserving an ID. You will need to sign a transaction to reserve an ID on {} using the `Registrar::reserve` function.", Url::parse(POP_NETWORK_TESTNET_URL)?.as_str()))
+			.expect_info(format!("You will need to sign a transaction to reserve an ID on {} using the `Registrar::reserve` function.", Url::parse(POP_NETWORK_TESTNET_URL)?.as_str()))
 			.expect_outro_cancel("Failed to find the pallet Registrar");
 		let (genesis_state, genesis_code) = create_temp_genesis_files()?;
 		UpCommand {
@@ -355,7 +356,7 @@ mod tests {
 	async fn register_fails_wrong_chain() -> Result<()> {
 		let mut cli = MockCli::new()
 			.expect_intro("Deploy a rollup")
-			.expect_info(format!("Registering. You will need to sign a transaction on {} using the `Registrar::register` function.", Url::parse(POP_NETWORK_TESTNET_URL)?.as_str()))
+			.expect_info(format!("You will need to sign a transaction to register on {}, using the `Registrar::register` function.", Url::parse(POP_NETWORK_TESTNET_URL)?.as_str()))
 			.expect_outro_cancel("Failed to find the pallet Registrar");
 		let (genesis_state, genesis_code) = create_temp_genesis_files()?;
 		UpCommand {
