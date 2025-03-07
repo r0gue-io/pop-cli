@@ -15,7 +15,9 @@ mod utils;
 
 pub use build::{
 	binary_path, build_parachain, export_wasm_file, generate_genesis_state_file,
-	generate_plain_chain_spec, generate_raw_chain_spec, is_supported, ChainSpec,
+	generate_plain_chain_spec, generate_raw_chain_spec, is_supported,
+	runtime::{Builder, ContainerEngine},
+	ChainSpec,
 };
 pub use call::{
 	construct_extrinsic, construct_sudo_extrinsic, decode_call_data, encode_call_data,

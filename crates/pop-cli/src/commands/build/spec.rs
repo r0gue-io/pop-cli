@@ -10,14 +10,15 @@ use crate::{
 };
 use clap::{Args, ValueEnum};
 use cliclack::spinner;
-use pop_common::Profile;
+use pop_common::{manifest::from_path, Profile};
 use pop_parachains::{
 	binary_path, build_parachain, export_wasm_file, generate_genesis_state_file,
-	generate_plain_chain_spec, generate_raw_chain_spec, is_supported, ChainSpec,
+	generate_plain_chain_spec, generate_raw_chain_spec, is_supported, Builder, ChainSpec,
+	ContainerEngine,
 };
 use std::{
 	env::current_dir,
-	fs::create_dir_all,
+	fs::{self, create_dir_all},
 	path::{Path, PathBuf},
 };
 #[cfg(not(test))]
@@ -29,8 +30,10 @@ pub(crate) type CodePathBuf = PathBuf;
 pub(crate) type StatePathBuf = PathBuf;
 
 const DEFAULT_CHAIN: &str = "dev";
+const DEFAULT_PACKAGE: &str = "parachain-template-runtime";
 const DEFAULT_PARA_ID: u32 = 2000;
 const DEFAULT_PROTOCOL_ID: &str = "my-protocol";
+const DEFAULT_RUNTIME_DIR: &str = "./runtime";
 const DEFAULT_SPEC_NAME: &str = "chain-spec.json";
 
 #[derive(
@@ -172,6 +175,20 @@ pub struct BuildSpecCommand {
 	/// Whether the genesis code file should be generated.
 	#[arg(short = 'C', long = "genesis-code")]
 	pub(crate) genesis_code: bool,
+	/// Whether to build the runtime deterministically. This requires a containerization solution
+	/// (Docker/Podman).
+	#[arg(short, long)]
+	pub(crate) deterministic: bool,
+	/// Skips the confirmation prompt for deterministic build.
+	#[arg(long, conflicts_with = "deterministic")]
+	pub(crate) skip_deterministic_build: bool,
+	/// Define the directory path where the runtime is located.
+	#[clap(name = "runtime", long, requires = "deterministic")]
+	pub runtime_dir: Option<PathBuf>,
+	/// Specify the runtime package name. If not specified, it will be automatically determined
+	/// based on `runtime`.
+	#[clap(long, requires = "deterministic")]
+	pub package: Option<String>,
 }
 
 impl BuildSpecCommand {
@@ -212,6 +229,10 @@ impl BuildSpecCommand {
 			protocol_id,
 			genesis_state,
 			genesis_code,
+			deterministic,
+			skip_deterministic_build,
+			package,
+			runtime_dir,
 		} = self;
 
 		// Chain.
@@ -418,6 +439,51 @@ impl BuildSpecCommand {
 			true
 		};
 
+		// Prompt the user for deterministic build only if the profile is Production.
+		let deterministic = if skip_deterministic_build {
+			false
+		} else {
+			deterministic || cli
+				.confirm("Would you like to build the runtime deterministically? This requires a containerization solution (Docker/Podman) and is recommended for production builds.")
+				.initial_value(profile == Profile::Production)
+				.interact()?
+		};
+
+		// If deterministic build is selected, use the provided runtime path or prompt the user if
+		// missing.
+		let runtime_dir = if deterministic {
+			runtime_dir.unwrap_or_else(|| {
+				cli.input("Enter the directory path where the runtime is located:")
+					.placeholder(DEFAULT_RUNTIME_DIR)
+					.default_input(DEFAULT_RUNTIME_DIR)
+					.interact()
+					.map(PathBuf::from)
+					.unwrap_or_else(|_| PathBuf::from(DEFAULT_RUNTIME_DIR))
+			})
+		} else {
+			DEFAULT_RUNTIME_DIR.into()
+		};
+
+		// If deterministic build is selected, extract package name from runtime path provided
+		// above. Prompt the user if unavailable.
+		let package = if deterministic {
+			package
+				.or_else(|| {
+					from_path(Some(&runtime_dir))
+						.ok()
+						.and_then(|manifest| manifest.package.map(|pkg| pkg.name))
+				})
+				.unwrap_or_else(|| {
+					cli.input("Enter the runtime package name:")
+						.placeholder(DEFAULT_PACKAGE)
+						.default_input(DEFAULT_PACKAGE)
+						.interact()
+						.unwrap_or_else(|_| DEFAULT_PACKAGE.to_string())
+				})
+		} else {
+			DEFAULT_PACKAGE.to_string()
+		};
+
 		if release {
 			cli.warning("NOTE: release flag is deprecated. Use `--profile` instead.")?;
 			#[cfg(not(test))]
@@ -436,12 +502,15 @@ impl BuildSpecCommand {
 			protocol_id,
 			genesis_state,
 			genesis_code,
+			deterministic,
+			package,
+			runtime_dir,
 		})
 	}
 }
 
 // Represents the configuration for building a chain specification.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub(crate) struct BuildSpec {
 	output_file: PathBuf,
 	profile: Profile,
@@ -453,6 +522,9 @@ pub(crate) struct BuildSpec {
 	protocol_id: String,
 	genesis_state: bool,
 	genesis_code: bool,
+	deterministic: bool,
+	package: String,
+	runtime_dir: PathBuf,
 }
 
 impl BuildSpec {
@@ -486,6 +558,18 @@ impl BuildSpec {
 		generate_plain_chain_spec(&binary_path, output_file, default_bootnode, chain)?;
 		// Customize spec based on input.
 		self.customize()?;
+		// Deterministic build.
+		if self.deterministic {
+			spinner.set_message("Building deterministic runtime...");
+			cli.warning("NOTE: this may take some time...")?;
+			spinner.clear();
+			let code = self.build_deterministic_runtime(cli).map_err(|e| {
+				anyhow::anyhow!("Failed to build the deterministic runtime: {}", e.to_string())
+			})?;
+			cli.success("Runtime built successfully.")?;
+			self.update_code(&code)?;
+		}
+
 		generated_files.push(format!(
 			"Plain text chain specification file generated at: {}",
 			&output_file.display()
@@ -551,6 +635,37 @@ impl BuildSpec {
 		chain_spec.to_file(&self.output_file)?;
 		Ok(())
 	}
+
+	fn build_deterministic_runtime(
+		&self,
+		cli: &mut impl cli::traits::Cli,
+	) -> anyhow::Result<Vec<u8>> {
+		let engine = ContainerEngine::detect().map_err(|_| anyhow::anyhow!("No container engine detected. A supported containerization solution (Docker or Podman) is required."))?;
+		// Warning from srtool-cli: https://github.com/chevdor/srtool-cli/blob/master/cli/src/main.rs#L28).
+		if engine == ContainerEngine::Docker {
+			cli.warning("WARNING: You are using docker. It is recommend to use podman instead.")?;
+		}
+		let builder = Builder::new(
+			engine,
+			None,
+			self.package.clone(),
+			self.profile.clone(),
+			self.runtime_dir.clone(),
+		)?;
+		let wasm_path = builder.build()?;
+		if !wasm_path.exists() {
+			return Err(anyhow::anyhow!("Can't find the generated runtime at {:?}", wasm_path));
+		}
+		fs::read(&wasm_path).map_err(anyhow::Error::from)
+	}
+
+	// Updates the chain specification with the runtime code.
+	fn update_code(&self, bytes: &[u8]) -> anyhow::Result<()> {
+		let mut chain_spec = ChainSpec::from(&self.output_file)?;
+		chain_spec.update_runtime_code(bytes)?;
+		chain_spec.to_file(&self.output_file)?;
+		Ok(())
+	}
 }
 
 // Locate binary, if it doesn't exist trigger build.
@@ -600,6 +715,8 @@ fn prepare_output_path(output_path: impl AsRef<Path>) -> anyhow::Result<PathBuf>
 mod tests {
 	use super::{ChainType::*, RelayChain::*, *};
 	use crate::cli::MockCli;
+	use serde_json::json;
+	use sp_core::bytes::from_hex;
 	use std::{fs::create_dir_all, path::PathBuf};
 	use tempfile::{tempdir, TempDir};
 
@@ -616,6 +733,9 @@ mod tests {
 		let relay = Polkadot;
 		let release = false;
 		let profile = Profile::Production;
+		let deterministic = true;
+		let package = "runtime-name";
+		let runtime_dir = PathBuf::from("./new-runtime-dir");
 
 		for build_spec_cmd in [
 			// No flags used.
@@ -633,6 +753,10 @@ mod tests {
 				protocol_id: Some(protocol_id.to_string()),
 				genesis_state,
 				genesis_code,
+				deterministic,
+				skip_deterministic_build: false,
+				package: Some(package.to_string()),
+				runtime_dir: Some(runtime_dir.clone()),
 			},
 		] {
 			let mut cli = MockCli::new();
@@ -669,7 +793,10 @@ mod tests {
 					None,
 				).expect_confirm("Would you like to use local host as a bootnode ?", default_bootnode
 				).expect_confirm("Should the genesis state file be generated ?", genesis_state
-				).expect_confirm("Should the genesis code file be generated ?", genesis_code);
+				).expect_confirm("Should the genesis code file be generated ?", genesis_code)
+				.expect_confirm("Would you like to build the runtime deterministically? This requires a containerization solution (Docker/Podman) and is recommended for production builds.", deterministic)
+				.expect_input("Enter the directory path where the runtime is located:", runtime_dir.display().to_string())
+				.expect_input("Enter the runtime package name:", package.to_string());
 			}
 			let build_spec = build_spec_cmd.configure_build_spec(&mut cli).await?;
 			assert_eq!(build_spec.chain, chain);
@@ -682,6 +809,9 @@ mod tests {
 			assert_eq!(build_spec.protocol_id, protocol_id);
 			assert_eq!(build_spec.genesis_state, genesis_state);
 			assert_eq!(build_spec.genesis_code, genesis_code);
+			assert_eq!(build_spec.deterministic, deterministic);
+			assert_eq!(build_spec.package, package);
+			assert_eq!(build_spec.runtime_dir, runtime_dir);
 			cli.verify()?;
 		}
 		Ok(())
@@ -699,6 +829,9 @@ mod tests {
 		let relay = Polkadot;
 		let release = false;
 		let profile = Profile::Production;
+		let deterministic = true;
+		let package = "runtime-name";
+		let runtime_dir = PathBuf::from("./new-runtime-dir");
 
 		// Create a temporary file to act as the existing chain spec file.
 		let temp_dir = tempdir()?;
@@ -726,6 +859,10 @@ mod tests {
 					protocol_id: Some(protocol_id.to_string()),
 					genesis_state,
 					genesis_code,
+					deterministic,
+					skip_deterministic_build: false,
+					package: Some(package.to_string()),
+					runtime_dir: Some(runtime_dir.clone()),
 				},
 			] {
 				let mut cli = MockCli::new().expect_confirm(
@@ -794,6 +931,13 @@ mod tests {
 							genesis_code,
 						);
 					}
+					if !build_spec_cmd.deterministic {
+						cli = cli.expect_confirm(
+							"Would you like to build the runtime deterministically? This requires a containerization solution (Docker/Podman) and is recommended for production builds.",
+							deterministic,
+						).expect_input("Enter the directory path where the runtime is located:", runtime_dir.display().to_string())
+						.expect_input("Enter the runtime package name:", package.to_string());
+					}
 				}
 				let build_spec = build_spec_cmd.configure_build_spec(&mut cli).await?;
 				if changes && no_flags_used {
@@ -805,6 +949,9 @@ mod tests {
 					assert_eq!(build_spec.protocol_id, protocol_id);
 					assert_eq!(build_spec.genesis_state, genesis_state);
 					assert_eq!(build_spec.genesis_code, genesis_code);
+					assert_eq!(build_spec.deterministic, deterministic);
+					assert_eq!(build_spec.package, package);
+					assert_eq!(build_spec.runtime_dir, runtime_dir);
 				}
 				// Assert that the chain spec file is correctly detected and used.
 				assert_eq!(build_spec.chain, chain_spec_path.to_string_lossy());
@@ -836,6 +983,39 @@ mod tests {
 		let build_spec = build_spec_cmd.configure_build_spec(&mut cli).await?;
 		assert_eq!(build_spec.profile, release.into());
 		cli.verify()?;
+		Ok(())
+	}
+
+	#[test]
+	fn update_code_works() -> anyhow::Result<()> {
+		let temp_dir = tempdir()?;
+		let output_file = temp_dir.path().join("chain_spec.json");
+		std::fs::write(
+			&output_file,
+			json!({
+				"genesis": {
+					"runtimeGenesis": {
+						"code": "0x00"
+					}
+				}
+			})
+			.to_string(),
+		)?;
+		let build_spec = BuildSpec { output_file: output_file.clone(), ..Default::default() };
+		build_spec.update_code(&from_hex("0x1234")?)?;
+
+		let updated_output_file: serde_json::Value =
+			serde_json::from_str(&fs::read_to_string(&output_file)?)?;
+		assert_eq!(
+			updated_output_file,
+			json!({
+				"genesis": {
+					"runtimeGenesis": {
+						"code": "0x1234"
+					}
+				}
+			})
+		);
 		Ok(())
 	}
 
