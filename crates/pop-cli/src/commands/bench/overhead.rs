@@ -150,7 +150,7 @@ mod tests {
 				cwd.display()
 			))
 			.expect_input(
-				"Please provide the path to the runtime or parachain project.",
+				"Please provide the path to the runtime.",
 				runtime_path.to_str().unwrap().to_string(),
 			)
 			.expect_select(
