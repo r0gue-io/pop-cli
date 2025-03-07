@@ -36,6 +36,9 @@ pub enum Error {
 	/// The dispatchable function is not supported.
 	#[error("The dispatchable function is not supported")]
 	FunctionNotSupported,
+	/// Failed to retrieve the image tag.
+	#[error("Failed to retrieve image tag.")]
+	ImageTagRetrievalFailed,
 	#[error("IO error: {0}")]
 	IO(#[from] std::io::Error),
 	#[error("JSON error: {0}")]
