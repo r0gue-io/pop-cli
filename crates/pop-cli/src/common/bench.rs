@@ -116,11 +116,11 @@ pub async fn source_omni_bencher_binary(
 /// * `mode`: The build profile.
 pub fn ensure_runtime_binary_exists(
 	cli: &mut impl Cli,
-	project_path: &PathBuf,
+	project_path: &Path,
 	mode: &Profile,
 ) -> anyhow::Result<PathBuf> {
-	let target_path = mode.target_directory(&project_path).join("wbuild");
-	let runtime_path = guide_user_to_input_runtime_path(cli, &project_path)?;
+	let target_path = mode.target_directory(project_path).join("wbuild");
+	let runtime_path = guide_user_to_input_runtime_path(cli, project_path)?;
 
 	// Return if the user has specified a path to the runtime binary.
 	if runtime_path.extension() == Some(OsStr::new("wasm")) {
