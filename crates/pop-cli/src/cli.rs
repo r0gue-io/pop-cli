@@ -76,6 +76,12 @@ pub(crate) mod traits {
 		fn interact(&mut self) -> Result<String>;
 	}
 
+	/// A prompt that masks the input.
+	pub trait Password {
+		/// Starts the prompt interaction.
+		fn interact(&mut self) -> Result<String>;
+	}
+
 	/// A select prompt.
 	pub trait Select<T> {
 		/// Sets the initially selected value.
@@ -222,6 +228,15 @@ impl<T: Clone + Eq> traits::MultiSelect<T> for MultiSelect<T> {
 	fn filter_mode(mut self) -> Self {
 		self.0 = self.0.filter_mode();
 		self
+	}
+}
+
+/// A password prompt using cliclack.
+struct Password(cliclack::Password);
+impl traits::Password for Password {
+	/// Starts the prompt interaction.
+	fn interact(&mut self) -> Result<String> {
+		self.0.interact()
 	}
 }
 
@@ -650,6 +665,18 @@ pub(crate) mod tests {
 				self.filter_mode_expectation = None;
 			}
 			self
+		}
+	}
+
+	/// Mock password prompt
+	#[derive(Default)]
+	struct MockPassword {
+		prompt: String,
+	}
+
+	impl Password for MockPassword {
+		fn interact(&mut self) -> Result<String> {
+			Ok(self.prompt.clone())
 		}
 	}
 
