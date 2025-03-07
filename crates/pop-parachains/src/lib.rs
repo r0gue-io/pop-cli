@@ -20,7 +20,8 @@ pub use build::{
 	ChainSpec,
 };
 pub use call::{
-	construct_extrinsic, construct_sudo_extrinsic, decode_call_data, encode_call_data,
+	construct_extrinsic, construct_proxy_extrinsic, construct_sudo_extrinsic, decode_call_data,
+	encode_call_data,
 	metadata::{
 		action::{supported_actions, Action},
 		find_dispatchable_by_name, find_pallet_by_name,
