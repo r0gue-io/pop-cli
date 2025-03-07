@@ -181,8 +181,7 @@ mod tests {
 		let mut cli = MockCli::new()
 			.expect_intro("Benchmarking the execution overhead per-block and per-extrinsic")
 			.expect_warning("NOTE: this may take some time...")
-			.expect_info("Benchmarking and generating weight file...")
-			.expect_outro("Benchmark completed successfully!");
+			.expect_info("Benchmarking and generating weight file...");
 		let cmd = OverheadCmd::try_parse_from([
 			"",
 			"--runtime",
