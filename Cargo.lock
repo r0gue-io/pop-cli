@@ -4770,6 +4770,7 @@ dependencies = [
  "duct",
  "env_logger",
  "git2",
+ "mockito",
  "open",
  "os_info",
  "pop-common",
