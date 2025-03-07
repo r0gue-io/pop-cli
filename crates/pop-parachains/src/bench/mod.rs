@@ -208,6 +208,21 @@ mod tests {
 		])
 	}
 
+	#[tokio::test]
+	async fn generate_overhead_benchmarks_works() -> anyhow::Result<()> {
+		let temp_dir = tempdir()?;
+		let output_path = temp_dir.path().to_str().unwrap();
+		generate_overhead_benchmarks(OverheadCmd::try_parse_from(vec![
+			"--warmup=1",
+			"--repeat=1",
+			"--runtime",
+			get_mock_runtime_path(true).to_str().unwrap(),
+			"--weight-path",
+			output_path,
+		])?)
+		.await
+	}
+
 	#[test]
 	fn get_preset_names_works() -> anyhow::Result<()> {
 		assert_eq!(

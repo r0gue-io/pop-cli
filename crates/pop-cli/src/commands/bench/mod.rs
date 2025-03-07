@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{
-	cli::{self},
-	common::prompt::display_message,
-};
+use crate::cli::{self};
 use clap::{Args, Subcommand};
 use pallet::BenchmarkPallet;
 

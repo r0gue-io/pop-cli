@@ -1,13 +1,14 @@
 use crate::{
 	cli::{self, traits::Input},
-	common::bench::{ensure_runtime_binary_exists, guide_user_to_select_genesis_preset},
+	common::{
+		bench::{ensure_runtime_binary_exists, guide_user_to_select_genesis_preset},
+		prompt::display_message,
+	},
 };
 use clap::{Args, Parser};
 use frame_benchmarking_cli::OverheadCmd;
 use pop_common::Profile;
 use pop_parachains::generate_overhead_benchmarks;
-
-use super::display_message;
 
 #[derive(Args)]
 pub struct BenchmarkOverhead {
