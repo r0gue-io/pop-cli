@@ -55,14 +55,13 @@ impl DeploymentProvider {
 	/// # Arguments
 	/// * `chain_name` - The specific chain name associated with the parachain.
 	/// * `para_id` - The parachain ID for which collator keys are being requested.
-	pub fn get_collator_keys_uri(&self, chain_name: &str, para_id: u32) -> String {
+	pub fn get_collator_keys_path(&self, chain_name: &str, para_id: u32) -> String {
 		self.get_str("CollatorKeysURI")
 			.map(|template| {
 				template
 					.replace("{para_id}", &para_id.to_string())
 					.replace("{chain_name}", chain_name)
 			})
-			.map(|uri| format!("{}{}", self.base_url(), uri))
 			.unwrap_or_else(|| "".to_string())
 	}
 
@@ -70,10 +69,9 @@ impl DeploymentProvider {
 	///
 	/// # Arguments
 	/// * `para_id` - The parachain ID that is being deployed.
-	pub fn get_deploy_uri(&self, para_id: u32) -> String {
+	pub fn get_deploy_path(&self, para_id: u32) -> String {
 		self.get_str("DeployURI")
 			.map(|template| template.replace("{para_id}", &para_id.to_string()))
-			.map(|uri| format!("{}{}", self.base_url(), uri))
 			.unwrap_or_else(|| "".to_string())
 	}
 }
@@ -160,21 +158,18 @@ mod tests {
 	}
 
 	#[test]
-	fn get_collator_keys_uri_works() {
+	fn get_collator_keys_path_works() {
 		let provider = DeploymentProvider::PDP;
 		assert_eq!(
-			provider.get_collator_keys_uri("paseo", 2000),
-			"https://staging.deploypolkadot.xyz/public-api/v1/parachains/2000/collators/paseo"
+			provider.get_collator_keys_path("paseo", 2000),
+			"/public-api/v1/parachains/2000/collators/paseo"
 		);
 	}
 
 	#[test]
-	fn get_deploy_uri_works() {
+	fn get_deploy_path_works() {
 		let provider = DeploymentProvider::PDP;
-		assert_eq!(
-			provider.get_deploy_uri(2000),
-			"https://staging.deploypolkadot.xyz/public-api/v1/parachains/2000/resources"
-		);
+		assert_eq!(provider.get_deploy_path(2000), "/public-api/v1/parachains/2000/resources");
 	}
 
 	#[test]
