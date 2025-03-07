@@ -78,19 +78,20 @@ impl UpCommand {
 
 	// Prepares the chain for registration by setting up its configuration.
 	async fn prepare_for_registration(self, cli: &mut impl Cli) -> Result<Registration> {
-		let provider = prompt_provider(cli)?;
-		let relay_chain_url = self.relay_chain_url.clone().or_else(|| {
-			prompt_supported_chain(provider, cli)
-				.ok()?
-				.and_then(|chain| chain.get_rpc_url())
-				.and_then(|url| Url::parse(&url).ok())
-		});
+		let mut provider = None;
+    	let mut relay_chain_url = self.relay_chain_url.clone();
+		if relay_chain_url.is_none(){
+			provider = prompt_provider(cli)?;
+			relay_chain_url = prompt_supported_chain(&provider, cli)?
+					.and_then(|chain| chain.get_rpc_url())
+					.and_then(|url| Url::parse(&url).ok());
+		}
 		let chain =
 			configure("Enter the relay chain node URL", DEFAULT_URL, &relay_chain_url, cli).await?;
 		let proxy = self.resolve_proxied_address(cli)?;
 		let id = self.resolve_id(&chain, &proxy, cli).await?;
 		let (genesis_code, genesis_state) = self.resolve_genesis_files(id, cli).await?;
-		Ok(Registration { id, genesis_state, genesis_code, chain, proxy })
+		Ok(Registration { id, genesis_state, genesis_code, chain, proxy, provider })
 	}
 
 	// Retrieves the proxied address, prompting the user if none is specified.
@@ -137,6 +138,7 @@ pub(crate) struct Registration {
 	genesis_code: CodePathBuf,
 	chain: Chain,
 	proxy: Proxy,
+	provider: Option<DeploymentProvider>,
 }
 impl Registration {
 	// Registers by submitting an extrinsic.
@@ -151,7 +153,7 @@ impl Registration {
 
 	// Prepares and returns the encoded call data for registering a chain.
 	fn prepare_register_call_data(&self, cli: &mut impl Cli) -> Result<Vec<u8>> {
-		let Registration { id, genesis_code, genesis_state, chain, proxy } = self;
+		let Registration { id, genesis_code, genesis_state, chain, proxy, .. } = self;
 		let dispatchable = find_dispatchable_by_name(
 			&chain.pallets,
 			Action::Register.pallet_name(),
@@ -262,7 +264,7 @@ fn prompt_provider(cli: &mut impl Cli) -> Result<Option<DeploymentProvider>> {
 
 // Prompts the user for what action they want to do.
 fn prompt_supported_chain(
-	provider: Option<DeploymentProvider>,
+	provider: &Option<DeploymentProvider>,
 	cli: &mut impl Cli,
 ) -> Result<Option<SupportedChains>> {
 	let mut chain_selected =
@@ -294,6 +296,36 @@ mod tests {
 	#[tokio::test]
 	async fn prepare_for_registration_works() -> Result<()> {
 		let mut cli = MockCli::new()
+			.expect_select(
+				"Select your deployment method:",
+				Some(false),
+				true,
+				Some(DeploymentProvider::VARIANTS.into_iter()
+				.map(|action| {
+					(action.name().to_string(), action.description().to_string())
+				})
+				.chain(std::iter::once((
+					"Only Register in Relay Chain".to_string(),
+					"Register the parachain in the relay chain without deploying".to_string(),
+				)))
+				.collect::<Vec<_>>()),
+				DeploymentProvider::VARIANTS.len(), // Only Register in Relay Chain
+			)
+			.expect_select(
+				"Select a Relay Chain\n\nChoose from the supported relay chains:",
+				Some(false),
+				true,
+				Some(SupportedChains::VARIANTS.into_iter()
+				.map(|chain| {
+					(chain.to_string(), "".to_string())
+				})
+				.chain(std::iter::once((
+					"Custom".to_string(),
+					"You will be asked to enter the URL manually.".to_string(),
+				)))
+				.collect::<Vec<_>>()),
+				SupportedChains::VARIANTS.len(), // Custom
+			)
 			.expect_input("Enter the relay chain node URL", POLKADOT_NETWORK_URL.into());
 		let (genesis_state, genesis_code) = create_temp_genesis_files()?;
 		let chain_config = UpCommand {
@@ -311,6 +343,7 @@ mod tests {
 		assert_eq!(chain_config.genesis_state, genesis_state);
 		assert_eq!(chain_config.chain.url, Url::parse(POLKADOT_NETWORK_URL)?);
 		assert_eq!(chain_config.proxy, Some(format!("Id({})", MOCK_PROXIED_ADDRESS.to_string())));
+		assert_eq!(chain_config.provider, None);
 		cli.verify()
 	}
 
@@ -433,6 +466,7 @@ mod tests {
 			genesis_code: genesis_code_path.clone(),
 			chain,
 			proxy: None,
+			provider: None,
 		};
 
 		// Expect failure when the genesis state file cannot be read.
