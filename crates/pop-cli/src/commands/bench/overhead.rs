@@ -1,3 +1,5 @@
+use std::{env::current_dir, path::PathBuf};
+
 use crate::{
 	cli::{self, traits::Input},
 	common::{
@@ -47,7 +49,11 @@ impl BenchmarkOverhead {
 			// No runtime path provided, auto-detect the runtime WASM binary. If not found,
 			// build the runtime.
 			if cmd.params.runtime.is_none() {
-				cmd.params.runtime = Some(ensure_runtime_binary_exists(cli, &Profile::Release)?);
+				cmd.params.runtime = Some(ensure_runtime_binary_exists(
+					cli,
+					&current_dir().unwrap_or(PathBuf::from("./")),
+					&Profile::Release,
+				)?);
 			}
 
 			let runtime_policy = parse_genesis_builder_policy("runtime")?.params.genesis_builder;
@@ -59,7 +65,11 @@ impl BenchmarkOverhead {
 			// If the provided policy is `runtime`, we prompt the user to select the genesis
 			// builder preset.
 			if cmd.params.genesis_builder == runtime_policy {
-				let runtime_path = cmd.params.runtime.as_ref().expect("No runtime found");
+				let runtime_path = cmd
+					.params
+					.runtime
+					.as_ref()
+					.ok_or_else(|| anyhow::anyhow!("No runtime found"))?;
 				guide_user_to_select_genesis_preset(
 					cli,
 					runtime_path,
