@@ -18,6 +18,8 @@ mod cli;
 #[cfg(any(feature = "parachain", feature = "contract"))]
 mod commands;
 mod common;
+#[cfg(feature = "parachain")]
+mod deployment_api;
 mod style;
 #[cfg(feature = "telemetry")]
 use tracing_subscriber::EnvFilter;
