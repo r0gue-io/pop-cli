@@ -22,6 +22,7 @@ use serde::Serialize;
 use std::{
 	collections::HashMap,
 	env::current_dir,
+	fs,
 	path::{Path, PathBuf},
 };
 use strum::{EnumMessage, IntoEnumIterator};
@@ -189,6 +190,10 @@ pub(crate) struct BenchmarkPallet {
 	/// Automatically source the needed binary required without prompting for confirmation.
 	#[clap(short = 'y', long)]
 	skip_confirm: bool,
+
+	/// Output file of the benchmark parameters.
+	#[clap(short = 'f', long)]
+	bench_file: Option<PathBuf>,
 }
 
 impl Default for BenchmarkPallet {
@@ -226,6 +231,7 @@ impl Default for BenchmarkPallet {
 			disable_proof_recording: false,
 			skip_menu: false,
 			skip_confirm: false,
+			bench_file: None,
 		}
 	}
 }
@@ -323,6 +329,22 @@ impl BenchmarkPallet {
 				.placeholder(".")
 				.interact()?;
 			self.output = if !input.is_empty() { Some(input.into()) } else { None };
+		}
+
+		// Prompt user to update `.bench` file path of the benchmarking parameters.
+		if self.bench_file.is_none() {
+			let input = cli
+				.input("Provide the file path for benchmark parameters (optional).")
+				.required(false)
+				.placeholder(".bench")
+				.interact()?;
+			self.bench_file = if !input.is_empty() { Some(input.into()) } else { None };
+		}
+
+		// If `bench_file` is provided, write the parameters to the file.
+		if let Some(ref bench_file) = self.bench_file {
+			let toml_output = toml::to_string(self)?;
+			fs::write(bench_file, toml_output)?;
 		}
 
 		cli.warning("NOTE: this may take some time...")?;
@@ -945,10 +967,6 @@ fn get_relative_path(path: &Path) -> String {
 
 fn get_current_directory() -> PathBuf {
 	current_dir().unwrap_or(PathBuf::from("./"))
-}
-
-fn save_to_bench_file(path: &Path) -> anyhow::Result<()> {
-	Ok(())
 }
 
 #[cfg(test)]
