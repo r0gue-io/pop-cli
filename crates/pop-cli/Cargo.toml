@@ -55,6 +55,7 @@ tower-http = { workspace = true, features = ["fs", "cors"] }
 [dev-dependencies]
 assert_cmd.workspace = true
 contract-extrinsics.workspace = true
+mockito.workspace = true
 subxt.workspace = true
 subxt-signer.workspace = true
 sp-weights.workspace = true

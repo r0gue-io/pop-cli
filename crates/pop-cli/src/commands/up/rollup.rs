@@ -1,14 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{
-	build::spec::{BuildSpecCommand, CodePathBuf, StatePathBuf},
-	call::chain::Call,
-	cli::traits::*,
-	common::{
+	build::spec::{BuildSpecCommand, CodePathBuf, StatePathBuf}, call::chain::Call, cli::traits::*, common::{
 		chain::{configure, Chain},
 		wallet::submit_extrinsic,
-	},
-	style::style,
+	}, deployment_api::DeploymentApi, style::style
 };
 use anyhow::{anyhow, Result};
 use clap::Args;
@@ -83,21 +79,25 @@ impl UpCommand {
 
 	// Prepares the chain for registration by setting up its configuration.
 	async fn prepare_for_registration(self, cli: &mut impl Cli) -> Result<Registration> {
-		let mut provider = None;
+		let mut api = None;
 		let mut relay_chain_url = self.relay_chain_url.clone();
 		if relay_chain_url.is_none() {
-			provider = prompt_provider(cli)?;
+			let provider = prompt_provider(cli)?;
 			relay_chain_url = prompt_supported_chain(&provider, cli)?
 				.and_then(|chain| chain.get_rpc_url())
 				.and_then(|url| Url::parse(&url).ok());
+
+			if let Some(provider) = provider {
+				let api_key = prompt_api_key(cli)?;
+				api = Some(DeploymentApi::new(provider, api_key)?);
+			}
 		}
 		let chain =
 			configure("Enter the relay chain node URL", DEFAULT_URL, &relay_chain_url, cli).await?;
 		let proxy = self.resolve_proxied_address(cli)?;
 		let id = self.resolve_id(&chain, &proxy, cli).await?;
-		// TODO:  resolve_genesis_files needs to know if provider.
 		let (genesis_code, genesis_state) = self.resolve_genesis_files(id, cli).await?;
-		Ok(Registration { id, genesis_state, genesis_code, chain, proxy, provider })
+		Ok(Registration { id, genesis_state, genesis_code, chain, proxy, api })
 	}
 
 	// Retrieves the proxied address, prompting the user if none is specified.
@@ -144,7 +144,7 @@ pub(crate) struct Registration {
 	genesis_code: CodePathBuf,
 	chain: Chain,
 	proxy: Proxy,
-	provider: Option<DeploymentProvider>,
+	api: Option<DeploymentApi>,
 }
 impl Registration {
 	// Registers by submitting an extrinsic.
@@ -238,7 +238,6 @@ async fn generate_spec_files(
 	// TODO: Read the sudo from the user.
 	// TODO: Add the sudo key to the chain_spec if changes.
 	// TODO: Recalculate build spec passing chain --chain-spec.json.
-	let api_key = prompt_api_key(cli)?;
 	Ok((
 		genesis_code_file.ok_or_else(|| anyhow::anyhow!("Failed to generate the genesis code."))?,
 		genesis_state_file
@@ -375,7 +374,7 @@ mod tests {
 		assert_eq!(chain_config.genesis_state, genesis_state);
 		assert_eq!(chain_config.chain.url, Url::parse(POLKADOT_NETWORK_URL)?);
 		assert_eq!(chain_config.proxy, Some(format!("Id({})", MOCK_PROXIED_ADDRESS.to_string())));
-		assert_eq!(chain_config.provider, None);
+		assert!(chain_config.api.is_none());
 		cli.verify()
 	}
 
@@ -498,7 +497,7 @@ mod tests {
 			genesis_code: genesis_code_path.clone(),
 			chain,
 			proxy: None,
-			provider: None,
+			api: None,
 		};
 
 		// Expect failure when the genesis state file cannot be read.
