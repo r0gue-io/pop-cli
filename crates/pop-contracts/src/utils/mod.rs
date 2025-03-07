@@ -4,7 +4,6 @@ use crate::errors::Error;
 use contract_build::{util::decode_hex, ManifestPath};
 use contract_extrinsics::BalanceVariant;
 use ink_env::{DefaultEnvironment, Environment};
-use pop_common::{Config, DefaultConfig};
 use sp_core::Bytes;
 use std::{
 	path::{Path, PathBuf},
@@ -36,15 +35,6 @@ pub fn parse_balance(
 	balance: &str,
 ) -> Result<BalanceVariant<<DefaultEnvironment as Environment>::Balance>, Error> {
 	BalanceVariant::from_str(balance).map_err(|e| Error::BalanceParsing(format!("{}", e)))
-}
-
-/// Parses an account ID from its string representation.
-///
-/// # Arguments
-/// * `account` - A string representing the account ID to parse.
-pub fn parse_account(account: &str) -> Result<<DefaultConfig as Config>::AccountId, Error> {
-	<DefaultConfig as Config>::AccountId::from_str(account)
-		.map_err(|e| Error::AccountAddressParsing(format!("{}", e)))
 }
 
 /// Parse hex encoded bytes.
@@ -114,22 +104,6 @@ mod tests {
 	#[test]
 	fn parse_balance_fails_wrong_balance() -> Result<(), Error> {
 		assert!(matches!(parse_balance("wrongbalance"), Err(super::Error::BalanceParsing(..))));
-		Ok(())
-	}
-
-	#[test]
-	fn parse_account_works() -> Result<(), Error> {
-		let account = parse_account("5CLPm1CeUvJhZ8GCDZCR7nWZ2m3XXe4X5MtAQK69zEjut36A")?;
-		assert_eq!(account.to_string(), "5CLPm1CeUvJhZ8GCDZCR7nWZ2m3XXe4X5MtAQK69zEjut36A");
-		Ok(())
-	}
-
-	#[test]
-	fn parse_account_fails_wrong_value() -> Result<(), Error> {
-		assert!(matches!(
-			parse_account("wrongaccount"),
-			Err(super::Error::AccountAddressParsing(..))
-		));
 		Ok(())
 	}
 
