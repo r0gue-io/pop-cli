@@ -274,8 +274,8 @@ mod tests {
 		cli.verify()
 	}
 
-	#[tokio::test]
-	async fn resolve_proxied_address_works() -> Result<()> {
+	#[test]
+	fn resolve_proxied_address_works() -> Result<()> {
 		let mut cli = MockCli::new()
 			.expect_confirm("Would you like to use a proxy for registration? This is considered a best practice.", true)
 			.expect_input(
