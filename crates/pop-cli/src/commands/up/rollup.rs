@@ -17,7 +17,10 @@ use pop_parachains::{
 	construct_proxy_extrinsic, find_dispatchable_by_name, Action, DeploymentProvider, Payload,
 	Reserved, SupportedChains,
 };
-use std::path::{Path, PathBuf};
+use std::{
+	env,
+	path::{Path, PathBuf},
+};
 use strum::VariantArray;
 use url::Url;
 
@@ -26,6 +29,7 @@ type Proxy = Option<String>;
 const DEFAULT_URL: &str = "wss://paseo.rpc.amforc.com/";
 const HELP_HEADER: &str = "Chain deployment options";
 const PLACEHOLDER_ADDRESS: &str = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty";
+const POP_API_KEY: &str = "POP_API_KEY";
 
 #[derive(Args, Clone, Default)]
 #[clap(next_help_heading = HELP_HEADER)]
@@ -73,23 +77,25 @@ impl UpCommand {
 			))?,
 			Err(e) => cli.outro_cancel(format!("{}", e))?,
 		}
+		// TODO: if provider POST to the API with the chain spec from variable chain.
 		Ok(())
 	}
 
 	// Prepares the chain for registration by setting up its configuration.
 	async fn prepare_for_registration(self, cli: &mut impl Cli) -> Result<Registration> {
 		let mut provider = None;
-    	let mut relay_chain_url = self.relay_chain_url.clone();
-		if relay_chain_url.is_none(){
+		let mut relay_chain_url = self.relay_chain_url.clone();
+		if relay_chain_url.is_none() {
 			provider = prompt_provider(cli)?;
 			relay_chain_url = prompt_supported_chain(&provider, cli)?
-					.and_then(|chain| chain.get_rpc_url())
-					.and_then(|url| Url::parse(&url).ok());
+				.and_then(|chain| chain.get_rpc_url())
+				.and_then(|url| Url::parse(&url).ok());
 		}
 		let chain =
 			configure("Enter the relay chain node URL", DEFAULT_URL, &relay_chain_url, cli).await?;
 		let proxy = self.resolve_proxied_address(cli)?;
 		let id = self.resolve_id(&chain, &proxy, cli).await?;
+		// TODO:  resolve_genesis_files needs to know if provider.
 		let (genesis_code, genesis_state) = self.resolve_genesis_files(id, cli).await?;
 		Ok(Registration { id, genesis_state, genesis_code, chain, proxy, provider })
 	}
@@ -227,6 +233,12 @@ async fn generate_spec_files(
 	.await?;
 
 	let (genesis_code_file, genesis_state_file) = build_spec.build(cli)?;
+	// TODO: If provieder get keys from API.
+	// TODO: Inject keys in the chain_spec.
+	// TODO: Read the sudo from the user.
+	// TODO: Add the sudo key to the chain_spec if changes.
+	// TODO: Recalculate build spec passing chain --chain-spec.json.
+	let api_key = prompt_api_key(cli)?;
 	Ok((
 		genesis_code_file.ok_or_else(|| anyhow::anyhow!("Failed to generate the genesis code."))?,
 		genesis_state_file
@@ -279,6 +291,23 @@ fn prompt_supported_chain(
 	Ok(chain_selected.interact()?)
 }
 
+// Prompts for an API key and stores it securely.
+fn prompt_api_key(cli: &mut impl Cli) -> Result<String> {
+	if let Ok(api_key) = env::var(POP_API_KEY) {
+		cli.info(format!("Using API key from environment variable ({POP_API_KEY})."))?;
+		return Ok(api_key);
+	}
+	cli.warning(format!("No API key found. You can set the `{POP_API_KEY}` environment variable or enter it manually."))?;
+	let api_key = cli.password("Enter your API key:").interact()?;
+	if cli
+		.confirm("Do you want to set this API key as an environment variable for this session?")
+		.interact()?
+	{
+		env::set_var("POP_API_KEY", &api_key);
+	}
+	Ok(api_key)
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -300,30 +329,33 @@ mod tests {
 				"Select your deployment method:",
 				Some(false),
 				true,
-				Some(DeploymentProvider::VARIANTS.into_iter()
-				.map(|action| {
-					(action.name().to_string(), action.description().to_string())
-				})
-				.chain(std::iter::once((
-					"Only Register in Relay Chain".to_string(),
-					"Register the parachain in the relay chain without deploying".to_string(),
-				)))
-				.collect::<Vec<_>>()),
+				Some(
+					DeploymentProvider::VARIANTS
+						.into_iter()
+						.map(|action| (action.name().to_string(), action.description().to_string()))
+						.chain(std::iter::once((
+							"Only Register in Relay Chain".to_string(),
+							"Register the parachain in the relay chain without deploying"
+								.to_string(),
+						)))
+						.collect::<Vec<_>>(),
+				),
 				DeploymentProvider::VARIANTS.len(), // Only Register in Relay Chain
 			)
 			.expect_select(
 				"Select a Relay Chain\n\nChoose from the supported relay chains:",
 				Some(false),
 				true,
-				Some(SupportedChains::VARIANTS.into_iter()
-				.map(|chain| {
-					(chain.to_string(), "".to_string())
-				})
-				.chain(std::iter::once((
-					"Custom".to_string(),
-					"You will be asked to enter the URL manually.".to_string(),
-				)))
-				.collect::<Vec<_>>()),
+				Some(
+					SupportedChains::VARIANTS
+						.into_iter()
+						.map(|chain| (chain.to_string(), "".to_string()))
+						.chain(std::iter::once((
+							"Custom".to_string(),
+							"You will be asked to enter the URL manually.".to_string(),
+						)))
+						.collect::<Vec<_>>(),
+				),
 				SupportedChains::VARIANTS.len(), // Custom
 			)
 			.expect_input("Enter the relay chain node URL", POLKADOT_NETWORK_URL.into());
@@ -498,6 +530,39 @@ mod tests {
 		// Reference: https://polkadot.js.org/apps/?rpc=wss%3A%2F%2Fpolkadot.public.curie.radiumblock.co%2Fws#/extrinsics/decode/0x1d000073ebf9c947490b9170ea4fd3031ae039452e428531317f76bf0a02124f8166de004600d0070000081234081234
 		let encoded_reserve_extrinsic: &str = "0x1d000073ebf9c947490b9170ea4fd3031ae039452e428531317f76bf0a02124f8166de004600d0070000081234081234";
 		assert_eq!(call_data, decode_call_data(encoded_reserve_extrinsic)?);
+		Ok(())
+	}
+
+	#[test]
+	fn prompt_api_key_works() -> Result<()> {
+		// A backup of the existing env variable to restore it at the end of the test.
+		let original_api_key = env::var(POP_API_KEY).ok();
+
+		env::remove_var(POP_API_KEY); // Remove the environment variable for the test
+		let mut cli = MockCli::new()
+			.expect_warning(format!("No API key found. You can set the `{POP_API_KEY}` environment variable or enter it manually."))
+			.expect_password("Enter your API key:", "test_api_key".into())
+			.expect_confirm("Do you want to set this API key as an environment variable for this session?", true);
+
+		let api_key = prompt_api_key(&mut cli)?;
+		assert_eq!(api_key, "test_api_key");
+		cli.verify()?;
+
+		// Test when API KEY exist in the env variable.
+		cli = MockCli::new()
+			.expect_info(format!("Using API key from environment variable ({POP_API_KEY})."));
+
+		let api_key = prompt_api_key(&mut cli)?;
+		assert_eq!(api_key, "test_api_key");
+		cli.verify()?;
+
+		// Restore the original `POP_API_KEY` if it existed before the test, otherwise, remove it to
+		// ensure a clean environment.
+		if let Some(original) = original_api_key {
+			env::set_var("POP_API_KEY", original);
+		} else {
+			env::remove_var("POP_API_KEY");
+		}
 		Ok(())
 	}
 

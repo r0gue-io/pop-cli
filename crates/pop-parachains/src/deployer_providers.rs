@@ -29,7 +29,6 @@ pub enum DeploymentProvider {
 			BaseURL = "https://staging.deploypolkadot.xyz",
 			CollatorKeysURI = "/public-api/v1/parachains/{para_id}/collators/{chain_name}",
 			DeployURI = "/public-api/v1/parachains/{para_id}/resources",
-			RequiresAPIKey = "true"
 		)
 	)]
 	PDP,
@@ -76,11 +75,6 @@ impl DeploymentProvider {
 			.map(|template| template.replace("{para_id}", &para_id.to_string()))
 			.map(|uri| format!("{}{}", self.base_url(), uri))
 			.unwrap_or_else(|| "".to_string())
-	}
-
-	/// Checks whether the provider requires an API key for authentication.
-	pub fn requires_api_key(&self) -> bool {
-		self.get_str("RequiresAPIKey").map_or(false, |s| s == "true")
 	}
 }
 
@@ -181,12 +175,6 @@ mod tests {
 			provider.get_deploy_uri(2000),
 			"https://staging.deploypolkadot.xyz/public-api/v1/parachains/2000/resources"
 		);
-	}
-
-	#[test]
-	fn requires_api_key_works() {
-		let provider = DeploymentProvider::PDP;
-		assert_eq!(provider.requires_api_key(), true);
 	}
 
 	#[test]
