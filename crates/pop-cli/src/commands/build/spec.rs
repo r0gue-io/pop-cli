@@ -511,8 +511,21 @@ impl BuildSpecCommand {
 	}
 }
 
+/// Represents the generated chain specification artifacts.
+#[derive(Debug, Default, Clone)]
+pub struct GenesisArtifacts {
+    /// Path to the plain text chain specification file.
+    pub chain_spec: PathBuf,
+    /// Path to the raw chain specification file.
+    pub raw_chain_spec: PathBuf,
+    /// Optional path to the genesis state file.
+    pub genesis_state_file: Option<CodePathBuf>,
+    /// Optional path to the genesis code file.
+    pub genesis_code_file: Option<StatePathBuf>,
+}
+
 // Represents the configuration for building a chain specification.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub(crate) struct BuildSpec {
 	output_file: PathBuf,
 	profile: Profile,
@@ -538,7 +551,7 @@ impl BuildSpec {
 	pub(crate) fn build(
 		self,
 		cli: &mut impl cli::traits::Cli,
-	) -> anyhow::Result<(Option<CodePathBuf>, Option<StatePathBuf>)> {
+	) -> anyhow::Result<GenesisArtifacts> {
 		cli.intro("Building your chain spec")?;
 		let mut generated_files = vec![];
 		let BuildSpec {
@@ -624,7 +637,25 @@ impl BuildSpec {
 			"Need help? Learn more at {}\n",
 			style("https://learn.onpop.io").magenta().underlined()
 		))?;
-		Ok((genesis_code_file, genesis_state_file))
+		Ok(GenesisArtifacts {chain_spec: output_file.clone(), raw_chain_spec, genesis_code_file, genesis_state_file})
+	}
+
+	/// Injects collator keys into the chain spec and updates the file.
+	/// 
+	/// # Arguments
+	/// * `collator_keys` - The list of collator keys to insert.
+	/// * `chain_spec_path` - The file path of the chain spec to be updated.
+	pub fn update_chain_spec_with_keys(
+		&mut self,
+		collator_keys: Vec<String>,
+		chain_spec_path: &Path
+	) -> anyhow::Result<()> {
+		let mut chain_spec = ChainSpec::from(&chain_spec_path)?;
+		chain_spec.replace_collator_keys(collator_keys)?;
+		chain_spec.to_file(&chain_spec_path)?;
+
+		self.chain = chain_spec_path.display().to_string();
+		Ok(())
 	}
 
 	// Customize a chain specification.
@@ -1048,6 +1079,73 @@ mod tests {
 				"genesis": {
 					"runtimeGenesis": {
 						"code": "0x1234"
+					}
+				}
+			})
+		);
+		Ok(())
+	}
+
+	#[test]
+	fn update_chain_spec_with_keys_works() -> anyhow::Result<()> {
+		let temp_dir = tempdir()?;
+		let output_file = temp_dir.path().join("chain_spec.json");
+		std::fs::write(
+			&output_file,
+			json!({
+				"genesis": {
+					"runtimeGenesis": {
+						"patch": {
+						"collatorSelection": {
+							"invulnerables": [
+							  "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+							]
+						  },
+						  "session": {
+							"keys": [
+							  [
+								"5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+								"5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+								{
+								  "aura": "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"
+								}
+							  ],
+							]
+						}
+						}
+					}
+				}
+			})
+			.to_string(),
+		)?;
+		let mut build_spec = BuildSpec { output_file: output_file.clone(), ..Default::default() };
+		build_spec.update_chain_spec_with_keys(vec!["5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty".to_string()], &output_file)?;
+
+		let updated_output_file: serde_json::Value =
+			serde_json::from_str(&fs::read_to_string(&build_spec.chain)?)?;
+		assert_eq!(
+			updated_output_file,
+			json!({
+				"genesis": {
+					"runtimeGenesis": {
+						"patch": {
+						"collatorSelection": {
+							"invulnerables": [
+							  "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty",
+							]
+						  },
+						  "session": {
+							"keys": [
+							  [
+								"5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty",
+								"5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty",
+								{
+								  "aura": "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
+								}
+							  ],
+							]
+						},
+						}
 					}
 				}
 			})
