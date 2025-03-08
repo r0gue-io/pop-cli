@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use anyhow::Result;
-use pop_parachains::DeploymentProvider;
+use pop_parachains::{ChainSpec, DeploymentProvider, SupportedChains};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
+use crate::build::spec::GenesisArtifacts;
+
 /// API client for interacting with deployment provider.
-pub struct DeploymentApi {
+pub(crate) struct DeploymentApi {
 	/// API key used for authentication with the deployment provider.
 	api_key: String,
 	/// The base URL of the deployment provider's API.
@@ -14,7 +16,7 @@ pub struct DeploymentApi {
 	/// HTTP client used for making API requests.
 	client: Client,
 	/// The selected deployment provider.
-	provider: DeploymentProvider,
+	pub(crate) provider: DeploymentProvider,
 }
 
 impl DeploymentApi {
@@ -45,9 +47,22 @@ impl DeploymentApi {
 	/// Deploys a parachain by sending the chain specification.
 	///
 	/// # Arguments
-    /// * `id` - The ID for which collator keys are being fetched.
+	/// * `collator_file_id` - The ID for which collator keys are being fetched.
 	/// * `request` - The deployment request containing the necessary parameters.
-	pub async fn deploy(&self, id: u32, request: DeployRequest) -> Result<DeployResponse> {
+	pub async fn deploy(
+		&self,
+		collator_file_id: u32,
+		genesis_artifacts: GenesisArtifacts,
+		id: u32,
+		relay_chain: Option<SupportedChains>,
+		proxy_address: Option<String>,
+	) -> Result<DeployResponse> {
+		let request = DeployRequest::new(
+			collator_file_id,
+			genesis_artifacts,
+			relay_chain,
+			proxy_address,
+		)?;
 		let url = format!("{}{}", self.base_url, self.provider.get_deploy_path(id));
 		let res = self
 			.client
@@ -57,7 +72,6 @@ impl DeploymentApi {
 			.send()
 			.await?
 			.error_for_status()?;
-
 		Ok(res.json().await?)
 	}
 
@@ -67,57 +81,87 @@ impl DeploymentApi {
 	/// * `id` - The ID for which collator keys are being fetched.
 	/// * `name` - The name of the chain to be deployed.
 	pub async fn get_collator_keys(&self, id: u32, name: &str) -> Result<CollatorKeysResponse> {
-		// let url = format!("{}{}", self.base_url, self.provider.get_collator_keys_path(name, id));
-		// let res = self
-		// 	.client
-		// 	.get(&url)
-		// 	.header("Authorization", format!("Bearer {}", self.api_key))
-		// 	.send()
-		// 	.await?
-		// 	.error_for_status()?;
-		// Ok(res.json().await?)
-		Ok(CollatorKeysResponse {
-			collator_keys: vec!["5FLSigC9HGRKVhB9FiEo4Y3koPsNmBmLJbpXg2mp1hXcS59Y".to_string(), "5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy".to_string()],
-			collator_file_id: "1".to_string(),
-		})
+		let url = format!("{}{}", self.base_url, self.provider.get_collator_keys_path(name, id));
+		let res = self
+			.client
+			.get(&url)
+			.header("Authorization", format!("Bearer {}", self.api_key))
+			.send()
+			.await?
+			.error_for_status()?;
+		Ok(res.json().await?)
 	}
 }
 
 /// Request payload for the deployment call.
 #[derive(Debug, Serialize)]
 pub struct DeployRequest {
-    /// The name of the chain to be deployed.
+	/// The name of the chain to be deployed.
 	pub name: String,
-    /// The key of the proxy owner.
+	/// The key of the proxy owner.
 	pub proxy_key: Option<String>,
-    /// The runtime template used.
+	/// The runtime template used.
 	pub runtime_template: String,
-    /// The relay chain where it was registered.
-    pub chain: String,
-    /// Sudo account for the created parachain (SS58 format).
-    pub sudo_key: String,
-    /// Collator file ID.
-    pub collator_file_id: String,
-    /// Chain specification JSON file (limited to 10 MB).
-    pub chainspec: Vec<u8>,
+	/// The relay chain where it was registered.
+	pub chain: String,
+	/// Sudo account for the created parachain (SS58 format).
+	pub sudo_key: String,
+	/// Collator file ID.
+	pub collator_file_id: u32,
+	/// Chain specification JSON file (limited to 10 MB).
+	pub chainspec: Vec<u8>,
+}
+impl DeployRequest {
+	// Creates a new `DeployRequest`.
+	fn new(
+		collator_file_id: u32,
+		genesis_artifacts: GenesisArtifacts,
+		relay_chain: Option<SupportedChains>,
+		proxy_address: Option<String>,
+	) -> anyhow::Result<Self> {
+		let chain_spec = ChainSpec::from(&genesis_artifacts.chain_spec)?;
+		let chain_name = chain_spec
+			.get_name()
+			.ok_or_else(|| anyhow::anyhow!("Failed to retrieve chain name from the chain spec"))?;
+		// TODO: Add more parsing in case basedOn doesn't exist.
+		let template = chain_spec.get_property_based_on().ok_or_else(|| {
+			anyhow::anyhow!("Failed to retrieve the template from the chain spec")
+		})?;
+		let chain = relay_chain
+			.ok_or_else(|| anyhow::anyhow!("Failed to retrieve the chain from the chain spec"))?;
+		let sudo_address = chain_spec.get_sudo_key().ok_or_else(|| {
+			anyhow::anyhow!("Failed to retrieve the sudo address from the chain spec")
+		})?;
+		let raw_chain_spec = std::fs::read(genesis_artifacts.raw_chain_spec).map_err(|err| {
+			anyhow::anyhow!("Failed to read raw_chain_spec file: {}", err.to_string())
+		})?;
+		Ok(Self {
+			name: chain_name.to_string(),
+			proxy_key: proxy_address,
+			runtime_template: template.to_string(),
+			chain: chain.to_string(),
+			sudo_key: sudo_address.to_string(),
+			collator_file_id,
+			chainspec: raw_chain_spec,
+		})
+	}
 }
 
 /// Response from the deployment call.
 #[derive(Debug, Deserialize)]
 pub struct DeployResponse {
 	pub status: String,
-	pub message: Option<String>,
+	pub message: String,
 }
 
 /// Response from a collator keys request.
 #[derive(Debug, Deserialize)]
 pub struct CollatorKeysResponse {
-    /// List of the collator keys.
+	/// Collator file ID.
+	pub collator_file_id: u32,
+	/// List of the collator keys.
 	pub collator_keys: Vec<String>,
-    /// Collator file ID.
-    pub collator_file_id: String,
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -140,20 +184,47 @@ mod tests {
 			.await
 	}
 
-    async fn mock_deploy(mock_server: &mut Server, para_id: u32, payload: &str) -> Mock {
-        mock_server
-            .mock("POST", format!("/public-api/v1/parachains/{}/resources", para_id).as_str())
-            .with_status(200)
-            .with_header("Content-Type", "application/json")
-            .with_body(payload)
-            .create_async()
-            .await
-    }
+	async fn mock_deploy(mock_server: &mut Server, para_id: u32, payload: &str) -> Mock {
+		mock_server
+			.mock("POST", format!("/public-api/v1/parachains/{}/resources", para_id).as_str())
+			.with_status(200)
+			.with_header("Content-Type", "application/json")
+			.with_body(payload)
+			.create_async()
+			.await
+	}
+
+	fn mock_genesis_artifacts(temp_dir: &tempfile::TempDir) -> Result<GenesisArtifacts> {
+		let chain_spec = temp_dir.path().join("chain_spec.json");
+		std::fs::write(
+			&chain_spec,
+			json!({
+				"name": "Development",
+				"properties": {
+					"basedOn": "standard",
+				},
+				"genesis": {
+					"runtimeGenesis": {
+						"patch": {
+							"sudo": {
+								"key": "sudo"
+							}
+						}
+					}
+				}
+			})
+			.to_string(),
+		)?;
+		let raw_chain_spec = temp_dir.path().join("raw_chain_spec.json");
+		std::fs::write(&raw_chain_spec, "0x00")?;
+		Ok(GenesisArtifacts { chain_spec, raw_chain_spec, ..Default::default() })
+	}
 
 	#[tokio::test]
 	async fn get_collator_keys_works() -> Result<(), Box<dyn std::error::Error>> {
 		let mut mock_server = Server::new_async().await;
 		let mocked_payload = json!({
+			"collator_file_id": 2000,
 			"collator_keys": [ "0x1234", "0x5678" ]
 		})
 		.to_string();
@@ -173,12 +244,13 @@ mod tests {
 		Ok(())
 	}
 
-    #[tokio::test]
+	#[tokio::test]
 	async fn deploy_works() -> Result<(), Box<dyn std::error::Error>> {
+		let temp_dir = tempfile::tempdir()?;
 		let mut mock_server = Server::new_async().await;
 		let mocked_payload = json!({
 			"status": "success",
-            "message": "Deployment successfully"
+			"message": "Deployment successfully"
 		})
 		.to_string();
 		let id = 2000;
@@ -189,20 +261,40 @@ mod tests {
 			"api_key".to_string(),
 			mock_server.url(),
 		)?;
-        let request = DeployRequest {
-            name: "test".to_string(),
-            proxy_key: None,
-            runtime_template: "test".to_string(),
-            chain: "test".to_string(),
-            sudo_key: "test".to_string(),
-            collator_file_id: "test".to_string(),
-            chainspec: vec![1, 2, 3],
-        };
-		let result = api.deploy(2000, request).await?;
+		let result = api
+			.deploy(
+				1,
+				mock_genesis_artifacts(&temp_dir)?,
+				2000,
+				Some(SupportedChains::PASEO),
+				Some("test".to_string()),
+			)
+			.await?;
 		assert_eq!(result.status, "success");
-        assert_eq!(result.message, Some("Deployment successfully".to_string()));
+		assert_eq!(result.message, "Deployment successfully");
 		mock.assert_async().await;
 
+		Ok(())
+	}
+
+	#[test]
+	fn new_deploy_request_works() -> Result<(), Box<dyn std::error::Error>> {
+		let temp_dir = tempfile::tempdir()?;
+		let genesis_artifacts = mock_genesis_artifacts(&temp_dir)?;
+		let request = DeployRequest::new(
+			1,
+			genesis_artifacts,
+			Some(SupportedChains::PASEO),
+			Some("proxy".to_string()),
+		)?;
+
+		assert_eq!(request.name, "Development");
+		assert_eq!(request.proxy_key, Some("proxy".to_string()));
+		assert_eq!(request.runtime_template, "standard");
+		assert_eq!(request.chain, "PASEO");
+		assert_eq!(request.sudo_key, "sudo");
+		assert_eq!(request.collator_file_id, 1);
+		assert_eq!(request.chainspec, "0x00".as_bytes());
 		Ok(())
 	}
 }
