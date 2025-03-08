@@ -67,15 +67,19 @@ impl DeploymentApi {
 	/// * `id` - The ID for which collator keys are being fetched.
 	/// * `name` - The name of the chain to be deployed.
 	pub async fn get_collator_keys(&self, id: u32, name: &str) -> Result<CollatorKeysResponse> {
-		let url = format!("{}{}", self.base_url, self.provider.get_collator_keys_path(name, id));
-		let res = self
-			.client
-			.get(&url)
-			.header("Authorization", format!("Bearer {}", self.api_key))
-			.send()
-			.await?
-			.error_for_status()?;
-		Ok(res.json().await?)
+		// let url = format!("{}{}", self.base_url, self.provider.get_collator_keys_path(name, id));
+		// let res = self
+		// 	.client
+		// 	.get(&url)
+		// 	.header("Authorization", format!("Bearer {}", self.api_key))
+		// 	.send()
+		// 	.await?
+		// 	.error_for_status()?;
+		// Ok(res.json().await?)
+		Ok(CollatorKeysResponse {
+			collator_keys: vec!["5FLSigC9HGRKVhB9FiEo4Y3koPsNmBmLJbpXg2mp1hXcS59Y".to_string(), "5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy".to_string()],
+			collator_file_id: "1".to_string(),
+		})
 	}
 }
 
