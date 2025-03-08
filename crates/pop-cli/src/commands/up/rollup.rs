@@ -1,16 +1,22 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{
-	build::spec::{BuildSpecCommand, CodePathBuf, GenesisArtifacts, StatePathBuf}, call::chain::Call, cli::traits::*, common::{
+	build::spec::{BuildSpecCommand, CodePathBuf, GenesisArtifacts, StatePathBuf},
+	call::chain::Call,
+	cli::traits::*,
+	common::{
 		chain::{configure, Chain},
 		wallet::submit_extrinsic,
-	}, deployment_api::DeploymentApi, style::style
+	},
+	deployment_api::DeploymentApi,
+	style::style,
 };
 use anyhow::{anyhow, Result};
 use clap::Args;
 use pop_common::parse_account;
 use pop_parachains::{
-	construct_proxy_extrinsic, find_dispatchable_by_name, Action, ChainSpec, DeploymentProvider, Payload, Reserved, SupportedChains
+	construct_proxy_extrinsic, find_dispatchable_by_name, Action, ChainSpec, DeploymentProvider,
+	Payload, Reserved, SupportedChains,
 };
 use std::{
 	env,
@@ -61,28 +67,53 @@ impl UpCommand {
 				return Ok(());
 			},
 		};
-		match config.register(cli).await {
+		match config.registration.register(cli).await {
 			Ok(_) => cli.success(format!(
-				"Deployment successfully {}",
+				"Registration successfully {}",
 				style(format!(
 					"https://polkadot.js.org/apps/?rpc={}#/parachains",
-					config.chain.url
+					config.registration.chain.url
 				))
 				.dim()
 			))?,
 			Err(e) => cli.outro_cancel(e.to_string())?,
 		}
-		// TODO: if provider POST to the API with the chain spec from variable chain.
+		if let Some(api) = config.api {
+			let Some(collator_file_id) = config.collator_file_id else {
+				cli.outro_cancel("No collator_file_id was found.")?;
+				return Ok(());
+			};
+			cli.info(format!("Starting deployment with {}", api.provider.name()))?;
+			match api
+				.deploy(
+					collator_file_id,
+					config.registration.genesis_artifacts,
+					config.registration.id,
+					config.relay_chain,
+					config.registration.proxy,
+				)
+				.await
+			{
+				Ok(result) => cli.success(format!(
+					"Deployment successfully {}",
+					style(format!("{}", result.message)).dim()
+				))?,
+				Err(e) => cli.outro_cancel(format!("{}", e))?,
+			}
+		}
+
 		Ok(())
 	}
 
 	// Prepares the chain for registration by setting up its configuration.
-	async fn prepare_for_registration(self, cli: &mut impl Cli) -> Result<Registration> {
+	async fn prepare_for_registration(self, cli: &mut impl Cli) -> Result<Deployment> {
 		let mut api = None;
+		let mut relay_chain = None;
 		let mut relay_chain_url = self.relay_chain_url.clone();
 		if relay_chain_url.is_none() {
 			let provider = prompt_provider(cli)?;
-			relay_chain_url = prompt_supported_chain(&provider, cli)?
+			relay_chain = prompt_supported_chain(&provider, cli)?;
+			relay_chain_url = relay_chain
 				.and_then(|chain| chain.get_rpc_url())
 				.and_then(|url| Url::parse(&url).ok());
 
@@ -95,8 +126,14 @@ impl UpCommand {
 			configure("Enter the relay chain node URL", DEFAULT_URL, &relay_chain_url, cli).await?;
 		let proxy = self.resolve_proxied_address(cli)?;
 		let id = self.resolve_id(&chain, &proxy, cli).await?;
-		let genesis_artifacts = self.resolve_genesis_files(api, id, cli).await?;
-		Ok(Registration { id, genesis_artifacts, chain, proxy })
+		let (genesis_artifacts, collator_file_id) =
+			self.resolve_genesis_files(&api, id, cli).await?;
+		Ok(Deployment {
+			api,
+			collator_file_id,
+			registration: Registration { id, genesis_artifacts, chain, proxy },
+			relay_chain,
+		})
 	}
 
 	// Retrieves the proxied address, prompting the user if none is specified.
@@ -123,28 +160,39 @@ impl UpCommand {
 	// Resolves the genesis state and code files, generating them if necessary.
 	async fn resolve_genesis_files(
 		&self,
-		api: Option<DeploymentApi>,
+		api: &Option<DeploymentApi>,
 		id: u32,
 		cli: &mut impl Cli,
-	) -> Result<GenesisArtifacts> {
+	) -> Result<(GenesisArtifacts, Option<u32>)> {
 		if let (Some(code), Some(state), _) = (&self.genesis_code, &self.genesis_state, &api) {
-			return Ok(GenesisArtifacts {
-				genesis_code_file: Some(code.clone()),
-				genesis_state_file: Some(state.clone()),
-				..Default::default()
-			});
+			return Ok((
+				GenesisArtifacts {
+					genesis_code_file: Some(code.clone()),
+					genesis_state_file: Some(state.clone()),
+					..Default::default()
+				},
+				None,
+			)); // Ignore the collator file ID and the chain spec files.
 		}
 		cli.info("Generating the chain spec for your project")?;
 		generate_spec_files(api, id, self.path.as_deref(), cli).await
 	}
 }
 
+// Represents the configuration for deployment.
+struct Deployment {
+	api: Option<DeploymentApi>,
+	collator_file_id: Option<u32>,
+	registration: Registration,
+	relay_chain: Option<SupportedChains>,
+}
+
 // Represents the configuration for rollup registration.
-pub(crate) struct Registration {
+struct Registration {
 	id: u32,
 	genesis_artifacts: GenesisArtifacts,
 	chain: Chain,
-	proxy: Proxy
+	proxy: Proxy,
 }
 impl Registration {
 	// Registers by submitting an extrinsic.
@@ -165,10 +213,20 @@ impl Registration {
 			Action::Register.pallet_name(),
 			Action::Register.function_name(),
 		)?;
-		let state = std::fs::read_to_string(genesis_artifacts.genesis_state_file.as_ref().ok_or_else(|| anyhow::anyhow!("Failed to generate the genesis state file."))?)
-			.map_err(|err| anyhow!("Failed to read genesis state file: {}", err.to_string()))?;
-		let code = std::fs::read_to_string(genesis_artifacts.genesis_code_file.as_ref().ok_or_else(|| anyhow::anyhow!("Failed to generate the genesis code."))?)
-			.map_err(|err| anyhow!("Failed to read genesis code file: {}", err.to_string()))?;
+		let state = std::fs::read_to_string(
+			genesis_artifacts
+				.genesis_state_file
+				.as_ref()
+				.ok_or_else(|| anyhow::anyhow!("Failed to generate the genesis state file."))?,
+		)
+		.map_err(|err| anyhow!("Failed to read genesis state file: {}", err.to_string()))?;
+		let code = std::fs::read_to_string(
+			genesis_artifacts
+				.genesis_code_file
+				.as_ref()
+				.ok_or_else(|| anyhow::anyhow!("Failed to generate the genesis code."))?,
+		)
+		.map_err(|err| anyhow!("Failed to read genesis code file: {}", err.to_string()))?;
 		let mut xt = Call {
 			function: dispatchable.clone(),
 			args: vec![id.to_string(), state, code],
@@ -214,11 +272,11 @@ fn prepare_reserve_call_data(chain: &Chain, proxy: &Proxy, cli: &mut impl Cli) -
 
 // Generates chain spec files for the project.
 async fn generate_spec_files(
-	api: Option<DeploymentApi>,
+	api: &Option<DeploymentApi>,
 	id: u32,
 	path: Option<&Path>,
 	cli: &mut impl Cli,
-) -> anyhow::Result<GenesisArtifacts> {
+) -> anyhow::Result<(GenesisArtifacts, Option<u32>)> {
 	// Changes the working directory if a path is provided to ensure the build spec process runs in
 	// the correct context.
 	if let Some(path) = path {
@@ -234,14 +292,21 @@ async fn generate_spec_files(
 	.await?;
 
 	let mut genesis_artifacts = build_spec.clone().build(cli)?;
+	let mut collator_file_id = None;
 	if let Some(api) = api {
 		cli.info("Fetching collator keys...")?;
-    	let keys = api.get_collator_keys(id, "name").await?;
+		let chain_spec = ChainSpec::from(&genesis_artifacts.chain_spec)?;
+		let chain_name = chain_spec
+			.get_name()
+			.ok_or_else(|| anyhow::anyhow!("Failed to retrieve chain name from the chain spec"))?;
+		let keys = api.get_collator_keys(id, chain_name).await?;
 		cli.info("Rebuilding chain spec with updated collator keys...")?;
-		build_spec.update_chain_spec_with_keys(keys.collator_keys, &genesis_artifacts.chain_spec)?;
+		build_spec
+			.update_chain_spec_with_keys(keys.collator_keys, &genesis_artifacts.chain_spec)?;
 		genesis_artifacts = build_spec.build(cli)?;
-    }
-	Ok(genesis_artifacts)
+		collator_file_id = Some(keys.collator_file_id);
+	}
+	Ok((genesis_artifacts, collator_file_id))
 }
 
 // Prompt the user to input an address and return it formatted as `Id(address)`
@@ -368,11 +433,22 @@ mod tests {
 		.prepare_for_registration(&mut cli)
 		.await?;
 
-		assert_eq!(chain_config.id, 2000);
-		assert_eq!(chain_config.genesis_artifacts.genesis_code_file, Some(genesis_code));
-		assert_eq!(chain_config.genesis_artifacts.genesis_state_file, Some(genesis_state));
-		assert_eq!(chain_config.chain.url, Url::parse(POLKADOT_NETWORK_URL)?);
-		assert_eq!(chain_config.proxy, Some(format!("Id({})", MOCK_PROXIED_ADDRESS.to_string())));
+		assert_eq!(chain_config.registration.id, 2000);
+		assert_eq!(
+			chain_config.registration.genesis_artifacts.genesis_code_file,
+			Some(genesis_code)
+		);
+		assert_eq!(
+			chain_config.registration.genesis_artifacts.genesis_state_file,
+			Some(genesis_state)
+		);
+		assert_eq!(chain_config.registration.chain.url, Url::parse(POLKADOT_NETWORK_URL)?);
+		assert_eq!(
+			chain_config.registration.proxy,
+			Some(format!("Id({})", MOCK_PROXIED_ADDRESS.to_string()))
+		);
+		assert!(chain_config.api.is_none());
+		assert!(chain_config.collator_file_id.is_none());
 		cli.verify()
 	}
 
