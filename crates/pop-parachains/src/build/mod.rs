@@ -243,9 +243,19 @@ impl ChainSpec {
 		self.0.get("chainType").and_then(|v| v.as_str())
 	}
 
+	/// Get the name from the chain specification.
+	pub fn get_name(&self) -> Option<&str> {
+		self.0.get("name").and_then(|v| v.as_str())
+	}
+
 	/// Get the parachain ID from the chain specification.
 	pub fn get_parachain_id(&self) -> Option<u64> {
 		self.0.get("para_id").and_then(|v| v.as_u64())
+	}
+
+	/// Get the property `basedOn` from the chain specification.
+	pub fn get_property_based_on(&self) -> Option<&str> {
+		self.0.get("properties").and_then(|v| v.get("basedOn")).and_then(|v| v.as_str())
 	}
 
 	/// Get the protocol ID from the chain specification.
@@ -256,6 +266,17 @@ impl ChainSpec {
 	/// Get the relay chain from the chain specification.
 	pub fn get_relay_chain(&self) -> Option<&str> {
 		self.0.get("relay_chain").and_then(|v| v.as_str())
+	}
+
+	/// Get the sudo key from the chain specification.
+	pub fn get_sudo_key(&self) -> Option<&str> {
+		self.0
+			.get("genesis")
+			.and_then(|genesis| genesis.get("runtimeGenesis"))
+			.and_then(|runtime_genesis| runtime_genesis.get("patch"))
+			.and_then(|patch| patch.get("sudo"))
+			.and_then(|sudo| sudo.get("key"))
+			.and_then(|key| key.as_str())
 	}
 
 	/// Replaces the parachain id with the provided `para_id`.
@@ -329,7 +350,8 @@ impl ChainSpec {
 		Ok(())
 	}
 
-	/// Replaces the invulnerables session keys in the chain specification with the provided `collator_keys`.
+	/// Replaces the invulnerables session keys in the chain specification with the provided
+	/// `collator_keys`.
 	///
 	/// # Arguments
 	/// * `collator_keys` - A list of new collator keys.
@@ -691,11 +713,31 @@ mod tests {
 	}
 
 	#[test]
+	fn get_chain_name_works() -> Result<()> {
+		let chain_spec = ChainSpec(json!({
+			"name": "test",
+		}));
+		assert_eq!(chain_spec.get_name(), Some("test"));
+		Ok(())
+	}
+
+	#[test]
 	fn get_parachain_id_works() -> Result<()> {
 		let chain_spec = ChainSpec(json!({
 			"para_id": 2002,
 		}));
 		assert_eq!(chain_spec.get_parachain_id(), Some(2002));
+		Ok(())
+	}
+
+	#[test]
+	fn get_property_based_on_works() -> Result<()> {
+		let chain_spec = ChainSpec(json!({
+			"properties": {
+				"basedOn": "test",
+			}
+		}));
+		assert_eq!(chain_spec.get_property_based_on(), Some("test"));
 		Ok(())
 	}
 
@@ -714,6 +756,24 @@ mod tests {
 			"relay_chain": "test",
 		}));
 		assert_eq!(chain_spec.get_relay_chain(), Some("test"));
+		Ok(())
+	}
+
+	#[test]
+	fn get_sudo_key_works() -> Result<()> {
+		let chain_spec = ChainSpec(json!({
+			"para_id": 1000,
+			"genesis": {
+				"runtimeGenesis": {
+					"patch": {
+						"sudo": {
+							"key": "sudo-key"
+						}
+					}
+				}
+			},
+		}));
+		assert_eq!(chain_spec.get_sudo_key(), Some("sudo-key"));
 		Ok(())
 	}
 
@@ -929,7 +989,9 @@ mod tests {
 				}
 			},
 		}));
-		chain_spec.replace_collator_keys(vec!["5Gw3s7q4QLkSWwknsi8jj5P1K79e5N4b6pfsNUzS97H1DXYF".to_string()])?;
+		chain_spec.replace_collator_keys(vec![
+			"5Gw3s7q4QLkSWwknsi8jj5P1K79e5N4b6pfsNUzS97H1DXYF".to_string(),
+		])?;
 		assert_eq!(
 			chain_spec.0,
 			json!({
