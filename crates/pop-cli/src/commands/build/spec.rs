@@ -500,14 +500,14 @@ impl BuildSpecCommand {
 /// Represents the generated chain specification artifacts.
 #[derive(Debug, Default, Clone)]
 pub struct GenesisArtifacts {
-    /// Path to the plain text chain specification file.
-    pub chain_spec: PathBuf,
-    /// Path to the raw chain specification file.
-    pub raw_chain_spec: PathBuf,
-    /// Optional path to the genesis state file.
-    pub genesis_state_file: Option<CodePathBuf>,
-    /// Optional path to the genesis code file.
-    pub genesis_code_file: Option<StatePathBuf>,
+	/// Path to the plain text chain specification file.
+	pub chain_spec: PathBuf,
+	/// Path to the raw chain specification file.
+	pub raw_chain_spec: PathBuf,
+	/// Optional path to the genesis state file.
+	pub genesis_state_file: Option<CodePathBuf>,
+	/// Optional path to the genesis code file.
+	pub genesis_code_file: Option<StatePathBuf>,
 }
 
 // Represents the configuration for building a chain specification.
@@ -624,18 +624,23 @@ impl BuildSpec {
 			"Need help? Learn more at {}\n",
 			style("https://learn.onpop.io").magenta().underlined()
 		))?;
-		Ok(GenesisArtifacts {chain_spec: output_file.clone(), raw_chain_spec, genesis_code_file, genesis_state_file})
+		Ok(GenesisArtifacts {
+			chain_spec: output_file.clone(),
+			raw_chain_spec,
+			genesis_code_file,
+			genesis_state_file,
+		})
 	}
 
 	/// Injects collator keys into the chain spec and updates the file.
-	/// 
+	///
 	/// # Arguments
 	/// * `collator_keys` - The list of collator keys to insert.
 	/// * `chain_spec_path` - The file path of the chain spec to be updated.
 	pub fn update_chain_spec_with_keys(
 		&mut self,
 		collator_keys: Vec<String>,
-		chain_spec_path: &Path
+		chain_spec_path: &Path,
 	) -> anyhow::Result<()> {
 		let mut chain_spec = ChainSpec::from(&chain_spec_path)?;
 		chain_spec.replace_collator_keys(collator_keys)?;
@@ -1090,10 +1095,15 @@ mod tests {
 			.to_string(),
 		)?;
 		let mut build_spec = BuildSpec { output_file: output_file.clone(), ..Default::default() };
-		build_spec.update_chain_spec_with_keys(vec!["5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty".to_string()], &output_file)?;
+		build_spec.update_chain_spec_with_keys(
+			vec!["5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty".to_string()],
+			&output_file,
+		)?;
 
 		let updated_output_file: serde_json::Value =
 			serde_json::from_str(&fs::read_to_string(&build_spec.chain)?)?;
+
+		assert_eq!(build_spec.chain, output_file.display().to_string());
 		assert_eq!(
 			updated_output_file,
 			json!({
