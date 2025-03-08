@@ -381,6 +381,55 @@ impl ChainSpec {
 		Ok(())
 	}
 
+	/// Replaces the invulnerables session keys in the chain specification with the provided `collator_keys`.
+	///
+	/// # Arguments
+	/// * `collator_keys` - A list of new collator keys.
+	pub fn replace_collator_keys(&mut self, collator_keys: Vec<String>) -> Result<(), Error> {
+		let invulnerables = self
+			.0
+			.get_mut("genesis")
+			.ok_or_else(|| Error::Config("expected `genesis`".into()))?
+			.get_mut("runtimeGenesis")
+			.ok_or_else(|| Error::Config("expected `runtimeGenesis`".into()))?
+			.get_mut("patch")
+			.ok_or_else(|| Error::Config("expected `patch`".into()))?
+			.get_mut("collatorSelection")
+			.ok_or_else(|| Error::Config("expected `collatorSelection`".into()))?
+			.get_mut("invulnerables")
+			.ok_or_else(|| Error::Config("expected `invulnerables`".into()))?;
+
+		*invulnerables = json!(collator_keys);
+
+		let session_keys = collator_keys
+			.iter()
+			.map(|address| {
+				json!([
+					address,
+					address,
+					{ "aura": address }
+				])
+			})
+			.collect::<Vec<_>>();
+
+		let session_keys_field = self
+			.0
+			.get_mut("genesis")
+			.ok_or_else(|| Error::Config("expected `genesis`".into()))?
+			.get_mut("runtimeGenesis")
+			.ok_or_else(|| Error::Config("expected `runtimeGenesis`".into()))?
+			.get_mut("patch")
+			.ok_or_else(|| Error::Config("expected `patch`".into()))?
+			.get_mut("session")
+			.ok_or_else(|| Error::Config("expected `session`".into()))?
+			.get_mut("keys")
+			.ok_or_else(|| Error::Config("expected `session.keys`".into()))?;
+
+		*session_keys_field = json!(session_keys);
+
+		Ok(())
+	}
+
 	/// Converts the chain specification to a string.
 	pub fn to_string(&self) -> Result<String> {
 		Ok(serde_json::to_string_pretty(&self.0)?)
@@ -968,6 +1017,73 @@ mod tests {
 		let mut chain_spec = ChainSpec(json!({"": "old-protocolId"}));
 		assert!(
 			matches!(chain_spec.replace_protocol_id("new-protocolId"), Err(Error::Config(error)) if error == "expected `protocolId`")
+		);
+		Ok(())
+	}
+
+	#[test]
+	fn replace_collator_key_works() -> Result<()> {
+		let mut chain_spec = ChainSpec(json!({
+			"para_id": 1000,
+			"genesis": {
+				"runtimeGenesis": {
+					"patch": {
+						"collatorSelection": {
+							"invulnerables": [
+							  "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+							  "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
+							]
+						  },
+						  "session": {
+							"keys": [
+							  [
+								"5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+								"5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+								{
+								  "aura": "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"
+								}
+							  ],
+							  [
+								"5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty",
+								"5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty",
+								{
+								  "aura": "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
+								}
+							  ]
+							]
+						  },
+					}
+				}
+			},
+		}));
+		chain_spec.replace_collator_keys(vec!["5Gw3s7q4QLkSWwknsi8jj5P1K79e5N4b6pfsNUzS97H1DXYF".to_string()])?;
+		assert_eq!(
+			chain_spec.0,
+			json!({
+				"para_id": 1000,
+				"genesis": {
+				"runtimeGenesis": {
+					"patch": {
+						"collatorSelection": {
+							"invulnerables": [
+							  "5Gw3s7q4QLkSWwknsi8jj5P1K79e5N4b6pfsNUzS97H1DXYF",
+							]
+						  },
+						  "session": {
+							"keys": [
+							  [
+								"5Gw3s7q4QLkSWwknsi8jj5P1K79e5N4b6pfsNUzS97H1DXYF",
+								"5Gw3s7q4QLkSWwknsi8jj5P1K79e5N4b6pfsNUzS97H1DXYF",
+								{
+								  "aura": "5Gw3s7q4QLkSWwknsi8jj5P1K79e5N4b6pfsNUzS97H1DXYF"
+								}
+							  ],
+							]
+						  },
+					}
+				}
+			},
+			})
 		);
 		Ok(())
 	}
