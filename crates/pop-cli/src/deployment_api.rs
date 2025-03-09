@@ -57,12 +57,8 @@ impl DeploymentApi {
 		relay_chain: Option<SupportedChains>,
 		proxy_address: Option<String>,
 	) -> Result<DeployResponse> {
-		let request = DeployRequest::new(
-			collator_file_id,
-			genesis_artifacts,
-			relay_chain,
-			proxy_address,
-		)?;
+		let request =
+			DeployRequest::new(collator_file_id, genesis_artifacts, relay_chain, proxy_address)?;
 		let url = format!("{}{}", self.base_url, self.provider.get_deploy_path(id));
 		let res = self
 			.client
