@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use pop_common::templates::{Template, Type};
-use strum::EnumProperty as _;
-use strum_macros::{AsRefStr, Display, EnumMessage, EnumProperty, EnumString, VariantArray};
+use strum::{EnumProperty as _, VariantArray};
+use strum_macros::{AsRefStr, Display, EnumMessage, EnumProperty, EnumString};
 
 /// Supported template providers.
 #[derive(
@@ -77,7 +77,8 @@ pub enum Parachain {
 			Provider = "Pop",
 			Repository = "https://github.com/r0gue-io/base-parachain",
 			Network = "./network.toml",
-			License = "Unlicense"
+			License = "Unlicense",
+			DeploymentName = "POP_STANDARD"
 		)
 	)]
 	Standard,
@@ -90,7 +91,8 @@ pub enum Parachain {
 			Provider = "Pop",
 			Repository = "https://github.com/r0gue-io/assets-parachain",
 			Network = "./network.toml",
-			License = "Unlicense"
+			License = "Unlicense",
+			DeploymentName = "POP_ASSETS"
 		)
 	)]
 	Assets,
@@ -103,7 +105,8 @@ pub enum Parachain {
 			Provider = "Pop",
 			Repository = "https://github.com/r0gue-io/contracts-parachain",
 			Network = "./network.toml",
-			License = "Unlicense"
+			License = "Unlicense",
+			DeploymentName = "POP_CONTRACTS"
 		)
 	)]
 	Contracts,
@@ -117,7 +120,8 @@ pub enum Parachain {
 			Provider = "Pop",
 			Repository = "https://github.com/r0gue-io/evm-parachain",
 			Network = "./network.toml",
-			License = "Unlicense"
+			License = "Unlicense",
+			DeploymentName = "POP_EVM"
 		)
 	)]
 	EVM,
@@ -132,7 +136,8 @@ pub enum Parachain {
 			Network = "./zombienet-config/devnet.toml",
 			SupportedVersions = "v1.0.0,v2.0.1,v2.0.3,v3.0.0",
 			IsAudited = "true",
-			License = "GPL-3.0"
+			License = "GPL-3.0",
+			DeploymentName = "OZ_GENERIC"
 		)
 	)]
 	OpenZeppelinGeneric,
@@ -147,7 +152,8 @@ pub enum Parachain {
 			Network = "./zombienet-config/devnet.toml",
 			SupportedVersions = "v2.0.3,v3.0.0",
 			IsAudited = "true",
-			License = "GPL-3.0"
+			License = "GPL-3.0",
+			DeploymentName = "OZ_EVM"
 		)
 	)]
 	OpenZeppelinEVM,
@@ -160,7 +166,8 @@ pub enum Parachain {
 			Provider = "Parity",
 			Repository = "https://github.com/paritytech/polkadot-sdk-parachain-template",
 			Network = "./zombienet.toml",
-			License = "Unlicense"
+			License = "Unlicense",
+			DeploymentName = "PARITY_GENERIC"
 		)
 	)]
 	ParityGeneric,
@@ -234,6 +241,28 @@ impl Parachain {
 		self.get_str("License")
 	}
 
+	/// Returns the deployment name for the parachain if defined.
+	pub fn deployment_name(&self) -> Option<&str> {
+		self.get_str("DeploymentName")
+	}
+
+	/// Retrieves the deployment name using the `based_on` value.
+	pub fn deployment_name_from_based_on(based_on: &str) -> Option<String> {
+		// OpenZeppelin special cases first (https://github.com/OpenZeppelin/polkadot-runtime-templates/pull/406)
+		let mapped_based_on = match based_on {
+			"OpenZeppelin EVM Template" => Some(Parachain::OpenZeppelinEVM),
+			"OpenZeppelin Generic Template" => Some(Parachain::OpenZeppelinGeneric),
+			_ => None,
+		};
+		if let Some(variant) = mapped_based_on {
+			return variant.deployment_name().map(String::from);
+		}
+		Parachain::VARIANTS
+			.iter()
+			.find(|variant| variant.as_ref() == based_on)
+			.and_then(|variant| variant.deployment_name().map(String::from))
+	}
+
 	/// Gets the template name, removing the provider if present.
 	pub fn template_name_without_provider(&self) -> &str {
 		let name = self.as_ref();
@@ -245,7 +274,6 @@ impl Parachain {
 mod tests {
 	use super::*;
 	use std::{collections::HashMap, str::FromStr};
-	use strum::VariantArray;
 	use Parachain::*;
 
 	fn templates_names() -> HashMap<String, Parachain> {
@@ -345,6 +373,22 @@ mod tests {
 		.into()
 	}
 
+	fn template_deployment_name() -> HashMap<Parachain, Option<&'static str>> {
+		[
+			(Standard, Some("POP_STANDARD")),
+			(Assets, Some("POP_ASSETS")),
+			(Contracts, Some("POP_CONTRACTS")),
+			(EVM, Some("POP_EVM")),
+			(OpenZeppelinGeneric, Some("OZ_GENERIC")),
+			(OpenZeppelinEVM, Some("OZ_EVM")),
+			(ParityGeneric, Some("PARITY_GENERIC")),
+			(ParityContracts, None),
+			(TestTemplate01, None),
+			(TestTemplate02, None),
+		]
+		.into()
+	}
+
 	#[test]
 	fn test_is_template_correct() {
 		for template in Parachain::VARIANTS {
@@ -399,6 +443,33 @@ mod tests {
 		for template in Parachain::VARIANTS {
 			assert_eq!(template.license(), licenses[template]);
 		}
+	}
+
+	#[test]
+	fn deployment_name_works() {
+		let deployment_name = template_deployment_name();
+		for template in Parachain::VARIANTS {
+			assert_eq!(template.deployment_name(), deployment_name[template]);
+		}
+	}
+
+	#[test]
+	fn deployment_name_from_based_on_works() {
+		for template in Parachain::VARIANTS {
+			assert_eq!(
+				Parachain::deployment_name_from_based_on(&template.to_string()),
+				template.deployment_name().map(String::from),
+			);
+		}
+		// test special cases
+		assert_eq!(
+			Parachain::deployment_name_from_based_on("OpenZeppelin EVM Template"),
+			Some(OpenZeppelinEVM.deployment_name().unwrap().to_string())
+		);
+		assert_eq!(
+			Parachain::deployment_name_from_based_on("OpenZeppelin Generic Template"),
+			Some(OpenZeppelinGeneric.deployment_name().unwrap().to_string())
+		);
 	}
 
 	#[test]

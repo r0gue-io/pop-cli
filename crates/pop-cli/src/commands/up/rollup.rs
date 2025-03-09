@@ -8,15 +8,15 @@ use crate::{
 		chain::{configure, Chain},
 		wallet::submit_extrinsic,
 	},
-	deployment_api::DeploymentApi,
+	deployment_api::{DeployRequest, DeploymentApi},
 	style::style,
 };
 use anyhow::{anyhow, Result};
 use clap::Args;
-use pop_common::parse_account;
+use pop_common::{parse_account, templates::Template};
 use pop_parachains::{
 	construct_proxy_extrinsic, find_dispatchable_by_name, Action, ChainSpec, DeploymentProvider,
-	Payload, Reserved, SupportedChains,
+	Parachain, Payload, Reserved, SupportedChains,
 };
 use std::{
 	env,
@@ -86,17 +86,18 @@ impl UpCommand {
 				cli.outro_cancel("No collator_file_id was found.")?;
 				return Ok(());
 			};
+			let mut request = DeployRequest::new(
+				collator_file_id,
+				config.registration.genesis_artifacts,
+				config.relay_chain,
+				config.registration.proxy,
+			)?;
+			if request.runtime_template.is_none() {
+				let template_name = prompt_template_used(cli)?;
+				request.runtime_template = template_name.map(|name| name.to_string());
+			}
 			cli.info(format!("Starting deployment with {}", api.provider.name()))?;
-			match api
-				.deploy(
-					collator_file_id,
-					config.registration.genesis_artifacts,
-					config.registration.id,
-					config.relay_chain,
-					config.registration.proxy,
-				)
-				.await
-			{
+			match api.deploy(config.registration.id, request).await {
 				Ok(result) => cli.success(format!(
 					"Deployment successfully {}",
 					style(format!("{}", result.message)).dim()
@@ -378,6 +379,27 @@ fn prompt_api_key(cli: &mut impl Cli) -> Result<String> {
 	Ok(api_key)
 }
 
+// Prompts the user to select the template used.
+fn prompt_template_used(cli: &mut impl Cli) -> Result<Option<&str>> {
+	cli.warning("We could not detect which template was used to build your rollup.")?;
+	let mut template = cli.select("Select the template used:");
+	for supported_template in
+		Parachain::VARIANTS.iter().filter(|variant| variant.deployment_name().is_some())
+	{
+		template = template.item(
+			supported_template.deployment_name(),
+			supported_template.name(),
+			supported_template.description().trim(),
+		);
+	}
+	template = template.item(
+		None,
+		"None of the above",
+		"Proceed without a predefined template (Omninode deployment)",
+	);
+	Ok(template.interact()?)
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -650,6 +672,34 @@ mod tests {
 			env::remove_var("POP_API_KEY");
 		}
 		Ok(())
+	}
+
+	#[tokio::test]
+	async fn prompt_template_used_works() -> Result<()> {
+		let mut cli = MockCli::new()
+			.expect_warning("We could not detect which template was used to build your rollup.")
+			.expect_select(
+				"Select the template used:",
+				Some(false),
+				true,
+				Some(
+					Parachain::VARIANTS
+						.iter()
+						.filter(|variant| variant.deployment_name().is_some())
+						.map(|template| {
+							(template.name().to_string(), template.description().trim().to_string())
+						})
+						.chain(std::iter::once((
+							"None of the above".to_string(),
+							"Proceed without a predefined template (Omninode deployment)"
+								.to_string(),
+						)))
+						.collect::<Vec<_>>(),
+				),
+				Parachain::Standard as usize,
+			);
+		assert_eq!(prompt_template_used(&mut cli)?, Some("POP_STANDARD"));
+		cli.verify()
 	}
 
 	// Creates temporary files to act as `genesis_state` and `genesis_code` files.

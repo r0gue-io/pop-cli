@@ -29,7 +29,7 @@ pub fn instantiate_template_dir(
 ) -> Result<Option<String>> {
 	sanitize(target)?;
 
-	if Provider::Pop.provides(template) {
+	if Provider::Pop.provides(template) || template == &Parachain::ParityGeneric {
 		return instantiate_standard_template(template, target, config, tag_version);
 	}
 	if Provider::OpenZeppelin.provides(template) {
