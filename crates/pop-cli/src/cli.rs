@@ -24,7 +24,7 @@ pub(crate) mod traits {
 		/// Prints a footer of the prompt sequence with a failure style.
 		fn outro_cancel(&mut self, message: impl Display) -> Result<()>;
 		/// Constructs a new [`Password`] prompt.
-        fn password(&mut self, prompt: impl Display) -> impl Password;
+		fn password(&mut self, prompt: impl Display) -> impl Password;
 		/// Constructs a new [`Select`] prompt.
 		fn select<T: Clone + Eq>(&mut self, prompt: impl Display) -> impl Select<T>;
 		/// Prints a success message.
@@ -70,11 +70,11 @@ pub(crate) mod traits {
 		fn filter_mode(self) -> Self;
 	}
 
-	 /// A prompt that masks the input.
-	 pub trait Password {
-        /// Starts the prompt interaction.
-        fn interact(&mut self) -> Result<String>;
-    }
+	/// A prompt that masks the input.
+	pub trait Password {
+		/// Starts the prompt interaction.
+		fn interact(&mut self) -> Result<String>;
+	}
 
 	/// A select prompt.
 	pub trait Select<T> {
@@ -131,8 +131,8 @@ impl traits::Cli for Cli {
 
 	/// Constructs a new [`Password`] prompt.
 	fn password(&mut self, prompt: impl Display) -> impl traits::Password {
-        Password(cliclack::password(prompt))
-    }
+		Password(cliclack::password(prompt))
+	}
 
 	/// Constructs a new [`Select`] prompt.
 	fn select<T: Clone + Eq>(&mut self, prompt: impl Display) -> impl traits::Select<T> {
@@ -228,10 +228,10 @@ impl<T: Clone + Eq> traits::MultiSelect<T> for MultiSelect<T> {
 /// A password prompt using cliclack.
 struct Password(cliclack::Password);
 impl traits::Password for Password {
-    /// Starts the prompt interaction.
-    fn interact(&mut self) -> Result<String> {
-        self.0.interact()
-    }
+	/// Starts the prompt interaction.
+	fn interact(&mut self) -> Result<String> {
+		self.0.interact()
+	}
 }
 
 /// A select prompt using cliclack.
@@ -334,9 +334,9 @@ pub(crate) mod tests {
 		}
 
 		pub(crate) fn expect_password(mut self, prompt: impl Display, input: String) -> Self {
-            self.password_expectations.insert(0, (prompt.to_string(), input));
-            self
-        }
+			self.password_expectations.insert(0, (prompt.to_string(), input));
+			self
+		}
 
 		pub(crate) fn expect_select(
 			mut self,
@@ -386,8 +386,8 @@ pub(crate) mod tests {
 				panic!("`{expectation}` outro cancel expectation not satisfied")
 			}
 			if !self.password_expectations.is_empty() {
-                panic!("`{:?}` password expectation not satisfied", self.password_expectations)
-            }
+				panic!("`{:?}` password expectation not satisfied", self.password_expectations)
+			}
 			if !self.select_expectation.is_empty() {
 				panic!(
 					"`{}` select prompt expectation not satisfied",
@@ -497,13 +497,13 @@ pub(crate) mod tests {
 		}
 
 		fn password(&mut self, prompt: impl Display) -> impl Password {
-            let prompt = prompt.to_string();
-            if let Some((expectation, input)) = self.password_expectations.pop() {
-                assert_eq!(expectation, prompt, "prompt does not satisfy expectation");
-                return MockPassword { prompt: input.clone() };
-            }
-            MockPassword::default()
-        }
+			let prompt = prompt.to_string();
+			if let Some((expectation, input)) = self.password_expectations.pop() {
+				assert_eq!(expectation, prompt, "prompt does not satisfy expectation");
+				return MockPassword { prompt: input.clone() };
+			}
+			MockPassword::default()
+		}
 
 		fn select<T: Clone + Eq>(&mut self, prompt: impl Display) -> impl Select<T> {
 			let prompt = prompt.to_string();
@@ -654,16 +654,16 @@ pub(crate) mod tests {
 	}
 
 	/// Mock password prompt
-    #[derive(Default)]
-    struct MockPassword {
-        prompt: String,
-    }
+	#[derive(Default)]
+	struct MockPassword {
+		prompt: String,
+	}
 
-    impl Password for MockPassword {
-        fn interact(&mut self) -> Result<String> {
-            Ok(self.prompt.clone())
-        }
-    }
+	impl Password for MockPassword {
+		fn interact(&mut self) -> Result<String> {
+			Ok(self.prompt.clone())
+		}
+	}
 
 	/// Mock select prompt
 	pub(crate) struct MockSelect<T> {
