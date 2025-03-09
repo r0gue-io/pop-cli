@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0
 
+use crate::build::spec::GenesisArtifacts;
+
 use anyhow::Result;
-use pop_parachains::{ChainSpec, DeploymentProvider, SupportedChains};
+use pop_parachains::{ChainSpec, DeploymentProvider, Parachain, SupportedChains};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-
-use crate::build::spec::GenesisArtifacts;
 
 /// API client for interacting with deployment provider.
 pub(crate) struct DeploymentApi {
@@ -47,18 +47,9 @@ impl DeploymentApi {
 	/// Deploys a parachain by sending the chain specification.
 	///
 	/// # Arguments
-	/// * `collator_file_id` - The ID for which collator keys are being fetched.
+	/// * `id` - The ID for which collator keys are being fetched.
 	/// * `request` - The deployment request containing the necessary parameters.
-	pub async fn deploy(
-		&self,
-		collator_file_id: u32,
-		genesis_artifacts: GenesisArtifacts,
-		id: u32,
-		relay_chain: Option<SupportedChains>,
-		proxy_address: Option<String>,
-	) -> Result<DeployResponse> {
-		let request =
-			DeployRequest::new(collator_file_id, genesis_artifacts, relay_chain, proxy_address)?;
+	pub async fn deploy(&self, id: u32, request: DeployRequest) -> Result<DeployResponse> {
 		let url = format!("{}{}", self.base_url, self.provider.get_deploy_path(id));
 		let res = self
 			.client
@@ -97,7 +88,7 @@ pub struct DeployRequest {
 	/// The key of the proxy owner.
 	pub proxy_key: Option<String>,
 	/// The runtime template used.
-	pub runtime_template: String,
+	pub runtime_template: Option<String>,
 	/// The relay chain where it was registered.
 	pub chain: String,
 	/// Sudo account for the created parachain (SS58 format).
@@ -109,7 +100,7 @@ pub struct DeployRequest {
 }
 impl DeployRequest {
 	// Creates a new `DeployRequest`.
-	fn new(
+	pub fn new(
 		collator_file_id: u32,
 		genesis_artifacts: GenesisArtifacts,
 		relay_chain: Option<SupportedChains>,
@@ -119,10 +110,10 @@ impl DeployRequest {
 		let chain_name = chain_spec
 			.get_name()
 			.ok_or_else(|| anyhow::anyhow!("Failed to retrieve chain name from the chain spec"))?;
-		// TODO: Add more parsing in case basedOn doesn't exist.
-		let template = chain_spec.get_property_based_on().ok_or_else(|| {
-			anyhow::anyhow!("Failed to retrieve the template from the chain spec")
-		})?;
+		let template = chain_spec
+			.get_property_based_on()
+			.and_then(Parachain::deployment_name_from_based_on)
+			.map(String::from);
 		let chain = relay_chain
 			.ok_or_else(|| anyhow::anyhow!("Failed to retrieve the chain from the chain spec"))?;
 		let sudo_address = chain_spec.get_sudo_key().ok_or_else(|| {
@@ -134,7 +125,7 @@ impl DeployRequest {
 		Ok(Self {
 			name: chain_name.to_string(),
 			proxy_key: proxy_address,
-			runtime_template: template.to_string(),
+			runtime_template: template,
 			chain: chain.to_string(),
 			sudo_key: sudo_address.to_string(),
 			collator_file_id,
@@ -257,15 +248,13 @@ mod tests {
 			"api_key".to_string(),
 			mock_server.url(),
 		)?;
-		let result = api
-			.deploy(
-				1,
-				mock_genesis_artifacts(&temp_dir)?,
-				2000,
-				Some(SupportedChains::PASEO),
-				Some("test".to_string()),
-			)
-			.await?;
+		let request = DeployRequest::new(
+			1,
+			mock_genesis_artifacts(&temp_dir)?,
+			Some(SupportedChains::PASEO),
+			Some("test".to_string()),
+		)?;
+		let result = api.deploy(2000, request).await?;
 		assert_eq!(result.status, "success");
 		assert_eq!(result.message, "Deployment successfully");
 		mock.assert_async().await;
@@ -286,7 +275,7 @@ mod tests {
 
 		assert_eq!(request.name, "Development");
 		assert_eq!(request.proxy_key, Some("proxy".to_string()));
-		assert_eq!(request.runtime_template, "standard");
+		assert_eq!(request.runtime_template, Some("standard".to_string()));
 		assert_eq!(request.chain, "PASEO");
 		assert_eq!(request.sudo_key, "sudo");
 		assert_eq!(request.collator_file_id, 1);
