@@ -141,7 +141,7 @@ impl UpCommand {
 		if let Some(addr) = &self.proxied_address {
 			return Ok(parse_account(addr).map(|valid_addr| Some(format!("Id({valid_addr})")))?);
 		}
-		if cli.confirm("Would you like to use a proxy for registration? This is considered a best practice.").interact()? {
+		if cli.confirm("Would you like to use a pure proxy for registration? This is considered a best practice.").interact()? {
 			return Ok(Some(prompt_for_proxy_address(cli)?));
 		}
 		Ok(None)
@@ -311,8 +311,12 @@ async fn generate_spec_files(
 
 // Prompt the user to input an address and return it formatted as `Id(address)`
 fn prompt_for_proxy_address(cli: &mut impl Cli) -> Result<String> {
+	cli.info(format!(
+		"Don't have a pure proxy yet? \n{}",
+		style("Create one: `pop call chain` and fund it").dim()
+	))?;
 	let address = cli
-		.input("Enter the account that the proxy will make a call on behalf of")
+	.input("Enter your pure proxy account or the account that the proxy will make a call on behalf of")
 		.placeholder(&format!("e.g {}", PLACEHOLDER_ADDRESS))
 		.validate(|input: &String| match parse_account(input) {
 			Ok(_) => Ok(()),
@@ -455,9 +459,13 @@ mod tests {
 	#[test]
 	fn resolve_proxied_address_works() -> Result<()> {
 		let mut cli = MockCli::new()
-			.expect_confirm("Would you like to use a proxy for registration? This is considered a best practice.", true)
+			.expect_confirm("Would you like to use a pure proxy for registration? This is considered a best practice.", true)
+			.expect_info(format!(
+				"Don't have a pure proxy yet? \n{}",
+				style("Create one: `pop call chain` and fund it").dim()
+			))
 			.expect_input(
-				"Enter the account that the proxy will make a call on behalf of",
+				"Enter your pure proxy account or the account that the proxy will make a call on behalf of",
 				MOCK_PROXIED_ADDRESS.into(),
 			);
 		let proxied_address = UpCommand::default().resolve_proxied_address(&mut cli)?;
@@ -465,7 +473,7 @@ mod tests {
 		cli.verify()?;
 
 		cli = MockCli::new().expect_confirm(
-			"Would you like to use a proxy for registration? This is considered a best practice.",
+			"Would you like to use a pure proxy for registration? This is considered a best practice.",
 			false,
 		);
 		let proxied_address = UpCommand::default().resolve_proxied_address(&mut cli)?;
