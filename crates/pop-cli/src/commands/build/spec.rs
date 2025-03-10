@@ -226,8 +226,8 @@ impl BuildSpecCommand {
 		// Output file.
 		let maybe_chain_spec_file = PathBuf::from(&chain);
 		// Check if the provided chain specification is a file.
-		let (output_file, prompt) = if maybe_chain_spec_file.exists()
-			&& maybe_chain_spec_file.is_file()
+		let (output_file, prompt) = if maybe_chain_spec_file.exists() &&
+			maybe_chain_spec_file.is_file()
 		{
 			if output_file.is_some() {
 				cli.warning("NOTE: If an existing chain spec file is provided it will be used for the output path.")?;
