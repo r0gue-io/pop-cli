@@ -433,6 +433,7 @@ mod tests {
 						.collect::<Vec<_>>(),
 				),
 				DeploymentProvider::VARIANTS.len(), // Only Register in Relay Chain
+				None,
 			)
 			.expect_select(
 				"Select a Relay Chain\n\nChoose from the supported relay chains:",
@@ -448,7 +449,8 @@ mod tests {
 						)))
 						.collect::<Vec<_>>(),
 				),
-				SupportedChains::VARIANTS.len(), // Custom
+				SupportedChains::VARIANTS.len(),
+				None
 			)
 			.expect_input("Enter the relay chain node URL", POLKADOT_NETWORK_URL.into());
 		let (genesis_state, genesis_code) = create_temp_genesis_files()?;
@@ -697,6 +699,7 @@ mod tests {
 						.collect::<Vec<_>>(),
 				),
 				Parachain::Standard as usize,
+				None
 			);
 		assert_eq!(prompt_template_used(&mut cli)?, Some("POP_STANDARD"));
 		cli.verify()

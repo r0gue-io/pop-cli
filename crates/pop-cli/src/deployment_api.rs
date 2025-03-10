@@ -275,7 +275,7 @@ mod tests {
 
 		assert_eq!(request.name, "Development");
 		assert_eq!(request.proxy_key, Some("proxy".to_string()));
-		assert_eq!(request.runtime_template, Some("standard".to_string()));
+		assert_eq!(request.runtime_template, Some("POP_STANDARD".to_string()));
 		assert_eq!(request.chain, "PASEO");
 		assert_eq!(request.sudo_key, "sudo");
 		assert_eq!(request.collator_file_id, 1);

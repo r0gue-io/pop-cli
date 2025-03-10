@@ -67,7 +67,7 @@ symlink = "0.1"
 serde_json = { version = "1.0", features = ["preserve_order"] }
 serde = { version = "1.0", features = ["derive"] }
 srtool-lib = "0.13.2"
-zombienet-sdk = "0.2.25"
+zombienet-sdk = "0.2.26"
 git2_credentials = "0.13.0"
 
 # pop-cli
