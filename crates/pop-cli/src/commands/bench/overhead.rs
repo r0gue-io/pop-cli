@@ -23,7 +23,7 @@ pub struct BenchmarkOverhead {
 }
 
 impl BenchmarkOverhead {
-	pub async fn execute(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+	pub(crate) async fn execute(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		cli.intro("Benchmarking the execution overhead per-block and per-extrinsic")?;
 
 		if !self.skip_all {
