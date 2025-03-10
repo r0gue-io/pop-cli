@@ -302,14 +302,18 @@ impl BenchmarkPallet {
 		}
 
 		// Only prompt user to update parameters when `skip_menu` is not provided.
-		if !self.skip_menu {
+		if !self.skip_menu &&
+			cli.confirm("Do you want to open the parameter menu?")
+				.initial_value(false)
+				.interact()?
+		{
 			self.ensure_pallet_registry(cli, &mut registry).await?;
 			loop {
 				let option = guide_user_to_select_menu_option(self, cli, &mut registry).await?;
 				match option.update_arguments(self, &mut registry, cli).await {
 					Ok(true) => break,
 					Ok(false) => continue,
-					Err(e) => cli.info(e)?,
+					Err(e) => cliclack::log::error(e)?,
 				}
 			}
 		}
@@ -329,7 +333,8 @@ impl BenchmarkPallet {
 		let result = self.run();
 
 		// Display the benchmarking command.
-		cli.info(self.display())?;
+		cliclack::log::remark("\n")?;
+		cliclack::log::success(self.display())?;
 		if let Err(e) = result {
 			return display_message(&e.to_string(), false, cli);
 		}
@@ -540,7 +545,7 @@ impl BenchmarkPallet {
 
 #[derive(Clone, Copy, EnumIter, EnumMessageDerive, Eq, PartialEq)]
 enum BenchmarkPalletMenuOption {
-	/// FRAME Pallets to benchmark
+	/// Pallets to benchmark
 	#[strum(message = "Pallets")]
 	Pallets,
 	/// Extrinsics inside the pallet to benchmark
@@ -595,7 +600,7 @@ enum BenchmarkPalletMenuOption {
 impl BenchmarkPalletMenuOption {
 	// Check if the menu option is disabled. If disabled, the menu option is not displayed in the
 	// menu.
-	async fn is_disabled(
+	fn is_disabled(
 		self,
 		cmd: &BenchmarkPallet,
 		registry: &PalletExtrinsicsRegistry,
@@ -852,7 +857,7 @@ fn guide_user_to_select_extrinsics(
 	}
 
 	let mut prompt = cli
-		.multiselect(r#"🔎 Search for extrinsics to benchmark"#)
+		.multiselect(r#"🔎 Search for extrinsics to benchmark (select with space)"#)
 		.filter_mode()
 		.required(true);
 	for extrinsic in extrinsics {
@@ -872,7 +877,7 @@ async fn guide_user_to_select_menu_option(
 	let mut index = 0;
 	spinner.start("Loading parameter menu...");
 	for param in BenchmarkPalletMenuOption::iter() {
-		if param.is_disabled(cmd, registry).await? {
+		if param.is_disabled(cmd, registry)? {
 			continue;
 		}
 		let label = param.get_message().unwrap_or_default();
@@ -940,8 +945,7 @@ mod tests {
 		let runtime_path = get_mock_runtime(true);
 		let output_path = temp_dir.path().join("weights.rs");
 
-		cli = expect_pallet_benchmarking_intro(cli);
-		cli = cli
+		cli = expect_pallet_benchmarking_intro(cli)
 			.expect_warning(format!(
 				"No runtime folder found at {}. Please input the runtime path manually.",
 				cwd.display()
@@ -950,6 +954,7 @@ mod tests {
 				"Please provide the path to the runtime.",
 				runtime_path.to_str().unwrap().to_string(),
 			)
+			.expect_confirm("Do you want to open the parameter menu?", false)
 			.expect_warning("NOTE: this may take some time...")
 			.expect_info("Benchmarking extrinsic weights of selected pallets...")
 			.expect_input(
@@ -958,7 +963,6 @@ mod tests {
 			);
 
 		let mut cmd = BenchmarkPallet {
-			skip_menu: true,
 			skip_confirm: false,
 			genesis_builder: Some(GenesisBuilderPolicy::None),
 			pallet: Some("pallet_timestamp".to_string()),
@@ -1130,13 +1134,32 @@ mod tests {
 				false,
 			)
 			.expect_multiselect::<String>(
-				r#"🔎 Search for extrinsics to benchmark"#,
+				r#"🔎 Search for extrinsics to benchmark (select with space)"#,
 				Some(true),
 				true,
 				Some(extrinsic_items),
 				Some(true),
 			);
 		guide_user_to_select_extrinsics(&"pallet_timestamp".to_string(), &registry, &mut cli)?;
+		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn guide_user_to_select_menu_option_works() -> anyhow::Result<()> {
+		let runtime_path = get_mock_runtime(true);
+		let binary_path =
+			source_omni_bencher_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
+		let mut registry = load_pallet_extrinsics(&runtime_path, binary_path.as_path()).await?;
+
+		let mut cmd = BenchmarkPallet {
+			skip_confirm: false,
+			runtime: Some(get_mock_runtime(true)),
+			pallet: Some(ALL_SELECTED.to_string()),
+			..Default::default()
+		};
+
+		let mut cli = expect_parameter_menu(MockCli::new(), &cmd, &registry, 0)?;
+		guide_user_to_select_menu_option(&mut cmd, &mut cli, &mut registry).await?;
 		cli.verify()
 	}
 
@@ -1155,20 +1178,16 @@ mod tests {
 			genesis_builder: Some(GenesisBuilderPolicy::None),
 			..Default::default()
 		};
-		assert!(!GenesisBuilder.is_disabled(&cmd, &registry).await?);
-		assert!(GenesisBuilderPreset.is_disabled(&cmd, &registry).await?);
-		assert!(Extrinsics.is_disabled(&cmd, &registry).await?);
-		assert!(
-			ExcludedPallets
-				.is_disabled(
-					&mut BenchmarkPallet {
-						pallet: Some("pallet_timestamp".to_string()),
-						..Default::default()
-					},
-					&registry
-				)
-				.await?
-		);
+		assert!(!GenesisBuilder.is_disabled(&cmd, &registry)?);
+		assert!(GenesisBuilderPreset.is_disabled(&cmd, &registry)?);
+		assert!(Extrinsics.is_disabled(&cmd, &registry)?);
+		assert!(ExcludedPallets.is_disabled(
+			&mut BenchmarkPallet {
+				pallet: Some("pallet_timestamp".to_string()),
+				..Default::default()
+			},
+			&registry
+		)?);
 		Ok(())
 	}
 
@@ -1356,5 +1375,36 @@ mod tests {
 		cli.expect_intro("Benchmarking your pallets").expect_warning(
 			"NOTE: the `pop bench pallet` is not yet battle tested - double check the results.",
 		)
+	}
+
+	fn expect_parameter_menu(
+		cli: MockCli,
+		cmd: &BenchmarkPallet,
+		registry: &PalletExtrinsicsRegistry,
+		item: usize,
+	) -> anyhow::Result<MockCli> {
+		let mut items: Vec<(String, String)> = vec![];
+		let mut index = 0;
+		for param in BenchmarkPalletMenuOption::iter() {
+			if param.is_disabled(cmd, registry)? {
+				continue;
+			}
+			let label = param.get_message().unwrap_or_default();
+			let hint = param.get_documentation().unwrap_or_default();
+			let formatted_label = match param {
+				BenchmarkPalletMenuOption::SaveAndContinue => label,
+				_ => &format!("({index}) - {label}: {}", param.read_command(cmd)?),
+			};
+			items.push((formatted_label.to_string(), hint.to_string()));
+			index += 1;
+		}
+		Ok(cli.expect_select(
+			"Select the parameter to update:",
+			Some(true),
+			true,
+			Some(items),
+			item,
+			Some(false),
+		))
 	}
 }
