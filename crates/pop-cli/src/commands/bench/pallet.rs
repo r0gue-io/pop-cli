@@ -334,7 +334,7 @@ impl BenchmarkPallet {
 
 		// Display the benchmarking command.
 		cliclack::log::remark("\n")?;
-		cliclack::log::success(self.display())?;
+		cli.success(self.display())?;
 		if let Err(e) = result {
 			return display_message(&e.to_string(), false, cli);
 		}
@@ -973,7 +973,9 @@ mod tests {
 		assert!(output_path.exists());
 
 		// Verify the printed command.
-		cli = cli.expect_info(cmd.display()).expect_outro("Benchmark completed successfully!");
+		cli = cli
+			.expect_success(cmd.display())
+			.expect_outro("Benchmark completed successfully!");
 		cmd.execute(&mut cli).await?;
 		cli.verify()
 	}
