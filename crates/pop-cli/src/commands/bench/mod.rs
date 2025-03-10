@@ -1,17 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{
-	cli::{
-		self,
-		traits::{Cli, Select},
-	},
+	cli::{self},
 	common::prompt::display_message,
 };
 use clap::{Args, Subcommand};
 use pallet::BenchmarkPallet;
 
-const GENESIS_BUILDER_NO_POLICY: &str = "none";
-const GENESIS_BUILDER_RUNTIME_POLICY: &str = "runtime";
+mod pallet;
 
 /// Arguments for benchmarking a project.
 #[derive(Args)]
