@@ -552,7 +552,7 @@ fn ensure_binary_exists(
 		_ => {
 			cli.info("Node was not found. The project will be built locally.".to_string())?;
 			cli.warning("NOTE: this may take some time...")?;
-			build_parachain(&cwd, None, mode, None).map_err(|e| e.into())
+			build_parachain(&cwd, None, mode, None, vec![]).map_err(|e| e.into())
 		},
 	}
 }
