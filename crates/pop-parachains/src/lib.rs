@@ -15,8 +15,9 @@ mod up;
 mod utils;
 
 pub use bench::{
-	binary::*, generate_benchmarks, get_preset_names, get_runtime_path, load_pallet_extrinsics,
-	GenesisBuilderPolicy, PalletExtrinsicsRegistry, GENESIS_BUILDER_DEV_PRESET,
+	binary::*, generate_benchmarks, generate_storage_benchmarks, get_preset_names,
+	get_runtime_path, load_pallet_extrinsics, GenesisBuilderPolicy, PalletExtrinsicsRegistry,
+	GENESIS_BUILDER_DEV_PRESET,
 };
 pub use build::{
 	binary_path, build_parachain, build_project, export_wasm_file, generate_genesis_state_file,

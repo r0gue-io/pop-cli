@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use clap::Parser;
-use frame_benchmarking_cli::PalletCmd;
+use frame_benchmarking_cli::{PalletCmd, StorageCmd};
 use sc_chain_spec::GenesisConfigBuilderRuntimeCaller;
 use sp_runtime::traits::BlakeTwo256;
 use std::{
@@ -96,6 +96,14 @@ pub fn generate_benchmarks(args: Vec<String>) -> anyhow::Result<()> {
 		.map_err(|e| anyhow::anyhow!("Invalid command arguments: {}", e))?;
 	cmd.run_with_spec::<BlakeTwo256, HostFunctions>(None)
 		.map_err(|e| anyhow::anyhow!("Failed to run benchmarking: {}", e))
+}
+
+/// Run command for storage benchmarking.
+///
+/// # Arguments
+/// * `cmd` - Command to benchmark the storage speed of a chain snapshot.
+pub async fn generate_storage_benchmarks(_cmd: StorageCmd) -> anyhow::Result<()> {
+	unimplemented!()
 }
 
 /// Loads a mapping of pallets and their associated extrinsics from the runtime binary.
