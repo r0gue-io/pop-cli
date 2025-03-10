@@ -23,6 +23,8 @@ pub(crate) mod traits {
 		fn outro(&mut self, message: impl Display) -> Result<()>;
 		/// Prints a footer of the prompt sequence with a failure style.
 		fn outro_cancel(&mut self, message: impl Display) -> Result<()>;
+		/// Constructs a new [`Password`] prompt.
+		fn password(&mut self, prompt: impl Display) -> impl Password;
 		/// Constructs a new [`Select`] prompt.
 		fn select<T: Clone + Eq>(&mut self, prompt: impl Display) -> impl Select<T>;
 		/// Prints a success message.
@@ -119,6 +121,11 @@ impl traits::Cli for Cli {
 	/// Prints a footer of the prompt sequence with a failure style.
 	fn outro_cancel(&mut self, message: impl Display) -> Result<()> {
 		cliclack::outro_cancel(message)
+	}
+
+	/// Constructs a new [`Password`] prompt.
+	fn password(&mut self, prompt: impl Display) -> impl traits::Password {
+		Password(cliclack::password(prompt))
 	}
 
 	/// Constructs a new [`Select`] prompt.
@@ -310,6 +317,11 @@ pub(crate) mod tests {
 			self
 		}
 
+		pub(crate) fn expect_password(mut self, prompt: impl Display, input: String) -> Self {
+			self.password_expectations.insert(0, (prompt.to_string(), input));
+			self
+		}
+
 		pub(crate) fn expect_select(
 			mut self,
 			prompt: impl Display,
@@ -356,6 +368,9 @@ pub(crate) mod tests {
 			}
 			if let Some(expectation) = self.outro_cancel_expectation {
 				panic!("`{expectation}` outro cancel expectation not satisfied")
+			}
+			if !self.password_expectations.is_empty() {
+				panic!("`{:?}` password expectation not satisfied", self.password_expectations)
 			}
 			if !self.select_expectation.is_empty() {
 				panic!(
@@ -463,6 +478,15 @@ pub(crate) mod tests {
 				);
 			}
 			Ok(())
+		}
+
+		fn password(&mut self, prompt: impl Display) -> impl Password {
+			let prompt = prompt.to_string();
+			if let Some((expectation, input)) = self.password_expectations.pop() {
+				assert_eq!(expectation, prompt, "prompt does not satisfy expectation");
+				return MockPassword { prompt: input.clone() };
+			}
+			MockPassword::default()
 		}
 
 		fn select<T: Clone + Eq>(&mut self, prompt: impl Display) -> impl Select<T> {
