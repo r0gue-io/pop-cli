@@ -15,8 +15,8 @@ use anyhow::{anyhow, Result};
 use clap::Args;
 use pop_common::{parse_account, templates::Template};
 use pop_parachains::{
-	construct_proxy_extrinsic, find_dispatchable_by_name, Action, ChainSpec, DeploymentProvider,
-	Parachain, Payload, Reserved, SupportedChains,
+	construct_proxy_extrinsic, find_dispatchable_by_name, Action, DeploymentProvider, Parachain,
+	Payload, Reserved, SupportedChains,
 };
 use std::{
 	env,
@@ -128,7 +128,7 @@ impl UpCommand {
 		let proxy = self.resolve_proxied_address(cli)?;
 		let id = self.resolve_id(&chain, &proxy, cli).await?;
 		let (genesis_artifacts, collator_file_id) =
-			self.resolve_genesis_files(&api, id, cli).await?;
+			self.resolve_genesis_files(&api, id, &relay_chain, cli).await?;
 		Ok(Deployment {
 			api,
 			collator_file_id,
@@ -163,8 +163,9 @@ impl UpCommand {
 		&self,
 		api: &Option<DeploymentApi>,
 		id: u32,
+		relay_chain: &Option<SupportedChains>,
 		cli: &mut impl Cli,
-	) -> Result<(GenesisArtifacts, Option<u32>)> {
+	) -> Result<(GenesisArtifacts, Option<String>)> {
 		if let (Some(code), Some(state), _) = (&self.genesis_code, &self.genesis_state, &api) {
 			return Ok((
 				GenesisArtifacts {
@@ -176,14 +177,14 @@ impl UpCommand {
 			)); // Ignore the collator file ID and the chain spec files.
 		}
 		cli.info("Generating the chain spec for your project")?;
-		generate_spec_files(api, id, self.path.as_deref(), cli).await
+		generate_spec_files(api, id, self.path.as_deref(), relay_chain, cli).await
 	}
 }
 
 // Represents the configuration for deployment.
 struct Deployment {
 	api: Option<DeploymentApi>,
-	collator_file_id: Option<u32>,
+	collator_file_id: Option<String>,
 	registration: Registration,
 	relay_chain: Option<SupportedChains>,
 }
@@ -276,8 +277,9 @@ async fn generate_spec_files(
 	api: &Option<DeploymentApi>,
 	id: u32,
 	path: Option<&Path>,
+	relay_chain: &Option<SupportedChains>,
 	cli: &mut impl Cli,
-) -> anyhow::Result<(GenesisArtifacts, Option<u32>)> {
+) -> anyhow::Result<(GenesisArtifacts, Option<String>)> {
 	// Changes the working directory if a path is provided to ensure the build spec process runs in
 	// the correct context.
 	if let Some(path) = path {
@@ -296,11 +298,9 @@ async fn generate_spec_files(
 	let mut collator_file_id = None;
 	if let Some(api) = api {
 		cli.info("Fetching collator keys...")?;
-		let chain_spec = ChainSpec::from(&genesis_artifacts.chain_spec)?;
-		let chain_name = chain_spec
-			.get_name()
-			.ok_or_else(|| anyhow::anyhow!("Failed to retrieve chain name from the chain spec"))?;
-		let keys = api.get_collator_keys(id, chain_name).await?;
+		let keys = api
+			.get_collator_keys(id, &relay_chain.unwrap_or(SupportedChains::PASEO).to_string())
+			.await?;
 		cli.info("Rebuilding chain spec with updated collator keys...")?;
 		build_spec
 			.update_chain_spec_with_keys(keys.collator_keys, &genesis_artifacts.chain_spec)?;
@@ -445,7 +445,8 @@ mod tests {
 						)))
 						.collect::<Vec<_>>(),
 				),
-				SupportedChains::VARIANTS.len(), // Custom
+				SupportedChains::VARIANTS.len(),
+				None,
 			)
 			.expect_input("Enter the relay chain node URL", POLKADOT_NETWORK_URL.into());
 		let (genesis_state, genesis_code) = create_temp_genesis_files()?;
@@ -694,6 +695,7 @@ mod tests {
 						.collect::<Vec<_>>(),
 				),
 				Parachain::Standard as usize,
+				None,
 			);
 		assert_eq!(prompt_template_used(&mut cli)?, Some("POP_STANDARD"));
 		cli.verify()

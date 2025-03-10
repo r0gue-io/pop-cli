@@ -27,8 +27,8 @@ pub enum DeploymentProvider {
 		detailed_message = "Effortlessly deploy Polkadot Native Rollups in the Polkadot Cloud.",
 		props(
 			BaseURL = "https://staging.deploypolkadot.xyz",
-			CollatorKeysURI = "/public-api/v1/parachains/{para_id}/collators/{chain_name}",
-			DeployURI = "/public-api/v1/parachains/{para_id}/resources",
+			CollatorKeysURI = "/api/public/v1/parachains/{para_id}/collators/{chain_name}",
+			DeployURI = "/api/public/v1/parachains/{para_id}/resources",
 		)
 	)]
 	PDP,
