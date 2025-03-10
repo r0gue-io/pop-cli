@@ -70,7 +70,7 @@ impl BenchmarkOverhead {
 					.runtime
 					.as_ref()
 					.ok_or_else(|| anyhow::anyhow!("No runtime found"))?;
-				guide_user_to_select_genesis_preset(
+				cmd.params.genesis_builder_preset = guide_user_to_select_genesis_preset(
 					cli,
 					runtime_path,
 					&cmd.params.genesis_builder_preset,
