@@ -153,7 +153,7 @@ fn process_pallet_extrinsics(output_file: PathBuf) -> anyhow::Result<PalletExtri
 
 	// Returns an error if the runtime is not built with `--features runtime-benchmarks`.
 	if output.contains("--features runtime-benchmarks") {
-		return Err(anyhow::anyhow!("Runtime is not built with `--features runtime-benchmarks`. Please rebuild it with the feature enabled."))
+		return Err(anyhow::anyhow!("Runtime is not built with `--features runtime-benchmarks`. Please rebuild it with the feature enabled."));
 	}
 
 	// Process the captured output and return the pallet extrinsics registry.
