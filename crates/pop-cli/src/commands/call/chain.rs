@@ -719,6 +719,7 @@ mod tests {
 				.to_vec(),
 			),
 			5, // "remark" dispatchable function
+			None,
 		)
 		.expect_input("The value for `remark` might be too large to enter. You may enter the path to a file instead.", "0x11".into())
 		.expect_confirm("Would you like to dispatch this function call with `Root` origin?", true)
@@ -768,6 +769,7 @@ mod tests {
 						.collect::<Vec<_>>(),
 				),
 				1, // "Purchase on-demand coretime" action
+				None,
 			)
 			.expect_input("Enter the value for the parameter: max_amount", "10000".into())
 			.expect_input("Enter the value for the parameter: para_id", "2000".into())
@@ -1026,6 +1028,7 @@ mod tests {
 					.collect::<Vec<_>>(),
 			),
 			2, // "Mint an Asset" action
+			None,
 		);
 		let action = prompt_predefined_actions(&pallets, &mut cli)?;
 		assert_eq!(action, Some(Action::MintAsset));
@@ -1056,6 +1059,7 @@ mod tests {
 					.to_vec(),
 				),
 				0, // "Id" action
+				None,
 			)
 			.expect_input(
 				"Enter the value for the parameter: Id",
