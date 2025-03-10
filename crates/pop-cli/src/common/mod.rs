@@ -2,6 +2,9 @@
 
 /// Contains utilities for sourcing binaries.
 pub mod binary;
+#[cfg(feature = "parachain")]
+/// Contains benchmarking utilities.
+pub mod bench;
 pub mod builds;
 #[cfg(feature = "parachain")]
 pub mod chain;
