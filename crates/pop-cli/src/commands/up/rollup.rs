@@ -89,7 +89,6 @@ impl UpCommand {
 			let mut request = DeployRequest::new(
 				collator_file_id,
 				config.registration.genesis_artifacts,
-				config.relay_chain,
 				config.registration.proxy,
 			)?;
 			if request.runtime_template.is_none() {
@@ -112,18 +111,26 @@ impl UpCommand {
 	// Prepares the chain for registration by setting up its configuration.
 	async fn prepare_for_registration(self, cli: &mut impl Cli) -> Result<Deployment> {
 		let mut api = None;
-		let mut relay_chain = None;
 		let mut relay_chain_url = self.relay_chain_url.clone();
 		if relay_chain_url.is_none() {
+			// TODO: Needs refactoring once we don't manage supporting Local deployments.
 			let provider = prompt_provider(cli)?;
-			relay_chain = prompt_supported_chain(&provider, cli)?;
+			let relay_chain = prompt_supported_chain(cli)?;
 			relay_chain_url = relay_chain
 				.and_then(|chain| chain.get_rpc_url())
 				.and_then(|url| Url::parse(&url).ok());
 
 			if let Some(provider) = provider {
 				let api_key = prompt_api_key(cli)?;
-				api = Some(DeploymentApi::new(provider, api_key)?);
+				// TODO: As above. Local is only testing
+				api = Some(DeploymentApi::new(
+					provider,
+					api_key,
+					relay_chain
+						.as_ref()
+						.map(ToString::to_string)
+						.unwrap_or_else(|| "Local".to_string()),
+				)?);
 			}
 		}
 		let chain =
@@ -131,12 +138,11 @@ impl UpCommand {
 		let proxy = self.resolve_proxied_address(cli)?;
 		let id = self.resolve_id(&chain, &proxy, cli).await?;
 		let (genesis_artifacts, collator_file_id) =
-			self.resolve_genesis_files(&api, id, &relay_chain, cli).await?;
+			self.resolve_genesis_files(&api, id, cli).await?;
 		Ok(Deployment {
 			api,
 			collator_file_id,
 			registration: Registration { id, genesis_artifacts, chain, proxy },
-			relay_chain,
 		})
 	}
 
@@ -166,7 +172,6 @@ impl UpCommand {
 		&self,
 		api: &Option<DeploymentApi>,
 		id: u32,
-		relay_chain: &Option<SupportedChains>,
 		cli: &mut impl Cli,
 	) -> Result<(GenesisArtifacts, Option<String>)> {
 		if let (Some(code), Some(state), _) = (&self.genesis_code, &self.genesis_state, &api) {
@@ -180,7 +185,7 @@ impl UpCommand {
 			)); // Ignore the collator file ID and the chain spec files.
 		}
 		cli.info("Generating the chain spec for your project")?;
-		generate_spec_files(api, id, self.path.as_deref(), relay_chain, cli).await
+		generate_spec_files(api, id, self.path.as_deref(), cli).await
 	}
 }
 
@@ -189,7 +194,6 @@ struct Deployment {
 	api: Option<DeploymentApi>,
 	collator_file_id: Option<String>,
 	registration: Registration,
-	relay_chain: Option<SupportedChains>,
 }
 
 // Represents the configuration for rollup registration.
@@ -280,7 +284,6 @@ async fn generate_spec_files(
 	api: &Option<DeploymentApi>,
 	id: u32,
 	path: Option<&Path>,
-	relay_chain: &Option<SupportedChains>,
 	cli: &mut impl Cli,
 ) -> anyhow::Result<(GenesisArtifacts, Option<String>)> {
 	// Changes the working directory if a path is provided to ensure the build spec process runs in
@@ -301,9 +304,7 @@ async fn generate_spec_files(
 	let mut collator_file_id = None;
 	if let Some(api) = api {
 		cli.info("Fetching collator keys...")?;
-		let keys = api
-			.get_collator_keys(id, &relay_chain.unwrap_or(SupportedChains::PASEO).to_string())
-			.await?;
+		let keys = api.get_collator_keys(id).await?;
 		cli.info("Rebuilding chain spec with updated collator keys...")?;
 		build_spec
 			.update_chain_spec_with_keys(keys.collator_keys, &genesis_artifacts.chain_spec)?;
@@ -346,19 +347,17 @@ fn prompt_provider(cli: &mut impl Cli) -> Result<Option<DeploymentProvider>> {
 }
 
 // Prompts the user for what action they want to do.
-fn prompt_supported_chain(
-	provider: &Option<DeploymentProvider>,
-	cli: &mut impl Cli,
-) -> Result<Option<SupportedChains>> {
+fn prompt_supported_chain(cli: &mut impl Cli) -> Result<Option<SupportedChains>> {
 	let mut chain_selected =
 		cli.select("Select a Relay Chain\n\nChoose from the supported relay chains:");
 	for chain in SupportedChains::VARIANTS {
 		chain_selected = chain_selected.item(Some(chain.clone()), chain.to_string(), "");
 	}
-	if provider.is_none() {
-		chain_selected =
-			chain_selected.item(None, "Custom", "You will be asked to enter the URL manually.");
-	}
+	// TODO: Remove after local testing.
+	//if provider.is_none() {
+	chain_selected =
+		chain_selected.item(None, "CUSTOM", "You will be asked to enter the URL manually.");
+	//}
 	Ok(chain_selected.interact()?)
 }
 
@@ -444,7 +443,7 @@ mod tests {
 						.into_iter()
 						.map(|chain| (chain.to_string(), "".to_string()))
 						.chain(std::iter::once((
-							"Custom".to_string(),
+							"CUSTOM".to_string(),
 							"You will be asked to enter the URL manually.".to_string(),
 						)))
 						.collect::<Vec<_>>(),

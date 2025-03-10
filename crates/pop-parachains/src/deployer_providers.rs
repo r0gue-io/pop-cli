@@ -162,14 +162,14 @@ mod tests {
 		let provider = DeploymentProvider::PDP;
 		assert_eq!(
 			provider.get_collator_keys_path("paseo", 2000),
-			"/public-api/v1/parachains/2000/collators/paseo"
+			"/api/public/v1/parachains/2000/collators/paseo"
 		);
 	}
 
 	#[test]
 	fn get_deploy_path_works() {
 		let provider = DeploymentProvider::PDP;
-		assert_eq!(provider.get_deploy_path(2000), "/public-api/v1/parachains/2000/resources");
+		assert_eq!(provider.get_deploy_path(2000), "/api/public/v1/parachains/2000/resources");
 	}
 
 	#[test]
