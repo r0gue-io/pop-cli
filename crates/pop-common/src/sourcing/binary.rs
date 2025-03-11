@@ -152,7 +152,7 @@ impl Binary {
 		let Self::Source { source: GitHub(ReleaseArchive { tag, latest, .. }), .. } = self else {
 			return false;
 		};
-		latest.as_ref().map_or(false, |l| tag.as_ref() != Some(l))
+		latest.as_ref().is_some_and(|l| tag.as_ref() != Some(l))
 	}
 
 	/// Specifies that the latest available versions are to be used (where possible).
