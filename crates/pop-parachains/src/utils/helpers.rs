@@ -66,7 +66,7 @@ pub(crate) fn write_to_file(path: &Path, contents: &str) -> Result<(), Error> {
 
 	file.write_all(contents.as_bytes()).map_err(Error::RustfmtError)?;
 
-	if path.extension().map_or(false, |ext| ext == "rs") {
+	if path.extension().is_some_and(|ext| ext == "rs") {
 		let output = std::process::Command::new("rustfmt")
 			.arg(path.to_str().unwrap())
 			.output()

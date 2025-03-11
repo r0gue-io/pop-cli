@@ -137,7 +137,7 @@ async fn launch_paseo_and_two_parachains() -> Result<()> {
 		None,
 		Some(BINARY_VERSION),
 		None,
-		Some(&vec!["https://github.com/r0gue-io/pop-node".to_string()]),
+		Some(&vec!["https://github.com/r0gue-io/pop-node#testnet-v0.4.2".to_string()]),
 	)
 	.await?;
 
