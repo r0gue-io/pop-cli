@@ -17,7 +17,7 @@ use clap::Args;
 use cliclack::spinner;
 use pop_common::{get_relative_or_absolute_path, Profile};
 use pop_parachains::{
-	generate_benchmarks, get_preset_names, load_pallet_extrinsics, GenesisBuilderPolicy,
+	generate_pallet_benchmarks, get_preset_names, load_pallet_extrinsics, GenesisBuilderPolicy,
 	PalletExtrinsicsRegistry, GENESIS_BUILDER_DEV_PRESET,
 };
 use std::{
@@ -345,7 +345,7 @@ impl BenchmarkPallet {
 	}
 
 	fn run(&self) -> anyhow::Result<()> {
-		generate_benchmarks(self.collect_arguments())
+		generate_pallet_benchmarks(self.collect_arguments())
 	}
 
 	fn display(&self) -> String {
