@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use super::display_message;
 use crate::{
 	cli::{
 		self,
 		traits::{Confirm, Input, MultiSelect, Select},
 	},
-	common::bench::{
-		check_omni_bencher_and_prompt, ensure_runtime_binary_exists,
-		guide_user_to_select_genesis_policy, guide_user_to_select_genesis_preset,
+	common::{
+		bench::{
+			check_omni_bencher_and_prompt, ensure_runtime_binary_exists,
+			guide_user_to_select_genesis_policy, guide_user_to_select_genesis_preset,
+		},
+		prompt::display_message,
 	},
 };
 use clap::Args;
