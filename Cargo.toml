@@ -39,7 +39,7 @@ tokio-test = "0.4.4"
 toml = "0.5.0"
 
 # networking
-reqwest = { version = "0.12", features = ["json", "multipart"] }
+reqwest = { version = "0.12", features = ["json", "multipart", "stream"] }
 tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
 url = "2.5.4"
 
