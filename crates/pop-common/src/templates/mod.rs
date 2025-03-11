@@ -48,7 +48,7 @@ pub trait Template:
 
 	/// Get whether the template is deprecated.
 	fn is_deprecated(&self) -> bool {
-		self.get_str("IsDeprecated").map_or(false, |s| s == "true")
+		self.get_str("IsDeprecated") == Some("true")
 	}
 
 	/// Get the deprecation message for the template
