@@ -17,7 +17,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install prerequisites
-        run: pacman -Syu --needed --noconfirm cmake curl git base-devel protobuf
+        run: pacman -Syu --needed --noconfirm cmake curl git base-devel clang protobuf
       - name: Install Rust
         run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
       - name: Install Pop
@@ -34,7 +34,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install prerequisites
-        run: apt-get update && apt-get -y install build-essential cmake curl git protobuf-compiler
+        run: apt-get update && apt-get -y install build-essential cmake curl git clang protobuf-compiler
       - name: Install Rust
         run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
       - name: Install Pop
@@ -84,7 +84,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install prerequisites
-        run: apt-get update && apt-get -y install build-essential cmake curl git protobuf-compiler
+        run: apt-get update && apt-get -y install build-essential cmake curl git clang protobuf-compiler
       - name: Install Rust
         run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
       - name: Install Pop
