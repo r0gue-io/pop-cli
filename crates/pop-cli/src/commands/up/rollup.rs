@@ -20,6 +20,8 @@ use pop_parachains::{
 };
 use std::{
 	env,
+	fs::OpenOptions,
+	io::Write,
 	path::{Path, PathBuf},
 };
 use strum::VariantArray;
@@ -121,7 +123,7 @@ impl UpCommand {
 				.and_then(|url| Url::parse(&url).ok());
 
 			if let Some(provider) = provider {
-				let api_key = prompt_api_key(cli)?;
+				let api_key = prompt_api_key(POP_API_KEY, cli)?;
 				// TODO: As above. Local is only testing
 				api = Some(DeploymentApi::new(
 					provider,
@@ -364,18 +366,23 @@ fn prompt_supported_chain(cli: &mut impl Cli) -> Result<Option<SupportedChains>>
 }
 
 // Prompts for an API key and stores it securely.
-fn prompt_api_key(cli: &mut impl Cli) -> Result<String> {
-	if let Ok(api_key) = env::var(POP_API_KEY) {
-		cli.info(format!("Using API key from environment variable ({POP_API_KEY})."))?;
+fn prompt_api_key(env_var_name: &str, cli: &mut impl Cli) -> Result<String> {
+	dotenv::dotenv().ok(); // This loads environment variables from your ".env" file if present.
+	if let Ok(api_key) = env::var(env_var_name) {
+		cli.info(format!("Using API key from environment variable ({env_var_name})."))?;
 		return Ok(api_key);
 	}
-	cli.warning(format!("No API key found. You can set the `{POP_API_KEY}` environment variable or enter it manually."))?;
+	cli.warning(format!("No API key found. You can set the `{env_var_name}` in a `.env` file or type it manually below:"))?;
 	let api_key = cli.password("Enter your API key:").interact()?;
 	if cli
-		.confirm("Do you want to set this API key as an environment variable for this session?")
+		.confirm("Would you like to save this API key in your .env file so you will not need to enter it again?")
 		.interact()?
 	{
-		env::set_var("POP_API_KEY", &api_key);
+		let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(".env")?;
+    	writeln!(file, "{}=\"{}\"", env_var_name, api_key)?;
 	}
 	Ok(api_key)
 }
@@ -642,33 +649,28 @@ mod tests {
 
 	#[test]
 	fn prompt_api_key_works() -> Result<()> {
-		// A backup of the existing env variable to restore it at the end of the test.
-		let original_api_key = env::var(POP_API_KEY).ok();
+		let test_env_var = "TEST_POP_API_KEY";
 
-		env::remove_var(POP_API_KEY); // Remove the environment variable for the test
 		let mut cli = MockCli::new()
-			.expect_warning(format!("No API key found. You can set the `{POP_API_KEY}` environment variable or enter it manually."))
+			.expect_warning(format!("No API key found. You can set the `{test_env_var}` in a `.env` file or type it manually below:"))
 			.expect_password("Enter your API key:", "test_api_key".into())
-			.expect_confirm("Do you want to set this API key as an environment variable for this session?", true);
+			.expect_confirm("Would you like to save this API key in your .env file so you will not need to enter it again?", true);
 
-		let api_key = prompt_api_key(&mut cli)?;
+		let api_key = prompt_api_key(test_env_var, &mut cli)?;
 		assert_eq!(api_key, "test_api_key");
 		cli.verify()?;
 
 		// Test when API KEY exist in the env variable.
 		cli = MockCli::new()
-			.expect_info(format!("Using API key from environment variable ({POP_API_KEY})."));
+			.expect_info(format!("Using API key from environment variable ({test_env_var})."));
 
-		let api_key = prompt_api_key(&mut cli)?;
+		let api_key = prompt_api_key(test_env_var, &mut cli)?;
 		assert_eq!(api_key, "test_api_key");
 		cli.verify()?;
 
-		// Restore the original `POP_API_KEY` if it existed before the test, otherwise, remove it to
-		// ensure a clean environment.
-		if let Some(original) = original_api_key {
-			env::set_var("POP_API_KEY", original);
-		} else {
-			env::remove_var("POP_API_KEY");
+		// Cleanup: Remove `.env` file after test
+		if fs::metadata(".env").is_ok() {
+			fs::remove_file(".env")?;
 		}
 		Ok(())
 	}
