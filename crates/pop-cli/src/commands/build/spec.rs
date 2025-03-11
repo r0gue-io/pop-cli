@@ -17,6 +17,7 @@ use pop_parachains::{
 	generate_raw_chain_spec, is_supported, ChainSpec,
 };
 use std::{
+	env::current_dir,
 	fs::create_dir_all,
 	path::{Path, PathBuf},
 };
@@ -446,6 +447,7 @@ impl BuildSpec {
 	// it triggers a build process.
 	fn build(self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<&'static str> {
 		cli.intro("Building your chain spec")?;
+		let cwd = current_dir().unwrap_or(PathBuf::from("./"));
 		let mut generated_files = vec![];
 		let BuildSpec {
 			ref output_file,
@@ -458,7 +460,7 @@ impl BuildSpec {
 			..
 		} = self;
 		// Ensure binary is built.
-		let binary_path = ensure_node_binary_exists(cli, profile, vec![])?;
+		let binary_path = ensure_node_binary_exists(cli, &cwd, profile, vec![])?;
 		let spinner = spinner();
 		spinner.start("Generating chain specification...");
 

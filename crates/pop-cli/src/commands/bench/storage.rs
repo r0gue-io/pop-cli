@@ -1,3 +1,5 @@
+use std::{env::current_dir, path::PathBuf};
+
 use crate::{
 	cli::{self},
 	common::{
@@ -17,13 +19,17 @@ pub struct BenchmarkStorage {
 
 impl BenchmarkStorage {
 	pub(crate) async fn execute(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+		let cwd = current_dir().unwrap_or(PathBuf::from("./"));
+
 		cli.intro("Benchmarking the storage speed of a chain snapshot")?;
+
+		let profile = guide_user_to_select_profile(cli)?;
+		let binary_path =
+			ensure_node_binary_exists(cli, &cwd, &profile, vec!["runtime-benchmarks"])?;
 
 		cli.warning("NOTE: this may take some time...")?;
 		cli.info("Benchmarking and generating weight file...")?;
 
-		let profile = guide_user_to_select_profile(cli)?;
-		let binary_path = ensure_node_binary_exists(cli, &profile, vec!["runtime-benchmarks"])?;
 		if let Err(e) = generate_binary_benchmarks(&binary_path, "storage").await {
 			return display_message(&format!("Failed to run storage benchmark: {}", e), false, cli);
 		}

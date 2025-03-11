@@ -2,7 +2,7 @@
 use crate::cli::traits::{Cli, Select};
 use pop_common::Profile;
 use pop_parachains::{binary_path, build_parachain};
-use std::{env::current_dir, path::PathBuf};
+use std::path::{Path, PathBuf};
 use strum::{EnumMessage, VariantArray};
 
 /// This method is used to get the proper project path format (with or without cli flag)
@@ -19,20 +19,21 @@ pub fn get_project_path(path_flag: Option<PathBuf>, path_pos: Option<PathBuf>) -
 ///
 /// # Arguments
 /// * `cli`: Command line interface.
+/// * `project_path`: The project path.
 /// * `mode`: The profile to use for building.
 /// * `features`: The features that node is built with.
 pub fn ensure_node_binary_exists(
 	cli: &mut impl Cli,
+	project_path: &Path,
 	mode: &Profile,
 	features: Vec<&str>,
 ) -> anyhow::Result<PathBuf> {
-	let cwd = current_dir().unwrap_or(PathBuf::from("./"));
-	match binary_path(&mode.target_directory(&cwd), &cwd.join("node")) {
+	match binary_path(&mode.target_directory(&project_path), &project_path.join("node")) {
 		Ok(binary_path) => Ok(binary_path),
 		_ => {
 			cli.info("Node was not found. The project will be built locally.".to_string())?;
 			cli.warning("NOTE: this may take some time...")?;
-			build_parachain(&cwd, None, mode, None, features).map_err(|e| e.into())
+			build_parachain(&project_path, None, mode, None, features).map_err(|e| e.into())
 		},
 	}
 }
@@ -59,8 +60,12 @@ pub fn guide_user_to_select_profile(cli: &mut impl Cli) -> anyhow::Result<Profil
 
 #[cfg(test)]
 mod tests {
+	use std::fs::{self, File};
+
 	use super::*;
 	use crate::cli::MockCli;
+	use duct::cmd;
+	use tempfile::tempdir;
 
 	#[test]
 	fn guide_user_to_select_profile_works() -> anyhow::Result<()> {
@@ -81,6 +86,24 @@ mod tests {
 			None,
 		);
 		guide_user_to_select_profile(&mut cli)?;
+		cli.verify()
+	}
+
+	#[test]
+	fn ensure_node_binary_exists_works() -> anyhow::Result<()> {
+		let mut cli = MockCli::new();
+		let name = "node";
+		let temp_dir = tempdir()?;
+		cmd("cargo", ["new", name, "--bin"]).dir(temp_dir.path()).run()?;
+		let target_path = Profile::Release.target_directory(temp_dir.path());
+
+		fs::create_dir(&temp_dir.path().join("target"))?;
+		fs::create_dir(&target_path)?;
+		File::create(target_path.join("node"))?;
+
+		let binary_path =
+			ensure_node_binary_exists(&mut cli, temp_dir.path(), &Profile::Release, vec![])?;
+		assert_eq!(binary_path, target_path.join("node"));
 		cli.verify()
 	}
 }
