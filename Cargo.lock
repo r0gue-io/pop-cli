@@ -8066,6 +8066,7 @@ dependencies = [
  "console",
  "contract-extrinsics",
  "dirs",
+ "dotenv",
  "duct",
  "env_logger 0.11.7",
  "frame-benchmarking-cli",
