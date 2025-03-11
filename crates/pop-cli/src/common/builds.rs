@@ -28,12 +28,12 @@ pub fn ensure_node_binary_exists(
 	mode: &Profile,
 	features: Vec<&str>,
 ) -> anyhow::Result<PathBuf> {
-	match binary_path(&mode.target_directory(&project_path), &project_path.join("node")) {
+	match binary_path(&mode.target_directory(project_path), &project_path.join("node")) {
 		Ok(binary_path) => Ok(binary_path),
 		_ => {
 			cli.info("Node was not found. The project will be built locally.".to_string())?;
 			cli.warning("NOTE: this may take some time...")?;
-			build_parachain(&project_path, None, mode, None, features).map_err(|e| e.into())
+			build_parachain(project_path, None, mode, None, features).map_err(|e| e.into())
 		},
 	}
 }
