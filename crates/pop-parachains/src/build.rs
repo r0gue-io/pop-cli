@@ -398,12 +398,19 @@ mod tests {
 			default_command = "pop-node"
 			"#
 		)?;
-		let mut zombienet =
-			Zombienet::new(&cache, config.path().to_str().unwrap(), None, None, None, None, None)
-				.await?;
+		let mut zombienet = Zombienet::new(
+			&cache,
+			config.path().to_str().unwrap(),
+			None,
+			None,
+			None,
+			None,
+			Some(&vec!["https://github.com/r0gue-io/pop-node#testnet-v0.4.2".to_string()]),
+		)
+		.await?;
 		let mut binary_name: String = "".to_string();
 		for binary in zombienet.binaries().filter(|b| !b.exists() && b.name() == "pop-node") {
-			binary_name = format!("{}-{}", binary.name(), binary.latest().unwrap());
+			binary_name = format!("{}-{}", binary.name(), binary.version().unwrap());
 			binary.source(true, &(), true).await?;
 		}
 		Ok(binary_name)
