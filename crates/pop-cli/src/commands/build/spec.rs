@@ -507,6 +507,7 @@ impl BuildSpecCommand {
 			deterministic,
 			package,
 			runtime_dir,
+			skip_plain_chain_spec: false,
 		})
 	}
 }
@@ -540,6 +541,7 @@ pub(crate) struct BuildSpec {
 	deterministic: bool,
 	package: String,
 	runtime_dir: PathBuf,
+	pub(crate) skip_plain_chain_spec: bool,
 }
 
 impl BuildSpec {
@@ -559,33 +561,35 @@ impl BuildSpec {
 			ref chain,
 			genesis_state,
 			genesis_code,
+			skip_plain_chain_spec,
 			..
 		} = self;
 		// Ensure binary is built.
 		let binary_path = ensure_binary_exists(cli, profile)?;
 		let spinner = spinner();
-		spinner.start("Generating chain specification...");
+		if !skip_plain_chain_spec {
+			spinner.start("Generating chain specification...");
+			// Generate chain spec.
+			generate_plain_chain_spec(&binary_path, output_file, default_bootnode, chain)?;
+			// Customize spec based on input.
+			self.customize()?;
+			// Deterministic build.
+			if self.deterministic {
+				spinner.set_message("Building deterministic runtime...");
+				let runtime_path = self.build_deterministic_runtime(cli, &spinner).map_err(|e| {
+					anyhow::anyhow!("Failed to build the deterministic runtime: {}", e.to_string())
+				})?;
+				let code = fs::read(&runtime_path).map_err(anyhow::Error::from)?;
+				cli.success("Runtime built successfully.")?;
+				generated_files.push(format!("Runtime file generated at: {}", &runtime_path.display()));
+				self.update_code(&code)?;
+			}
 
-		// Generate chain spec.
-		generate_plain_chain_spec(&binary_path, output_file, default_bootnode, chain)?;
-		// Customize spec based on input.
-		self.customize()?;
-		// Deterministic build.
-		if self.deterministic {
-			spinner.set_message("Building deterministic runtime...");
-			let runtime_path = self.build_deterministic_runtime(cli, &spinner).map_err(|e| {
-				anyhow::anyhow!("Failed to build the deterministic runtime: {}", e.to_string())
-			})?;
-			let code = fs::read(&runtime_path).map_err(anyhow::Error::from)?;
-			cli.success("Runtime built successfully.")?;
-			generated_files.push(format!("Runtime file generated at: {}", &runtime_path.display()));
-			self.update_code(&code)?;
+			generated_files.push(format!(
+				"Plain text chain specification file generated at: {}",
+				&output_file.display()
+			));
 		}
-
-		generated_files.push(format!(
-			"Plain text chain specification file generated at: {}",
-			&output_file.display()
-		));
 
 		// Generate raw spec.
 		spinner.set_message("Generating raw chain specification...");
@@ -625,15 +629,17 @@ impl BuildSpec {
 		};
 
 		spinner.stop("Chain specification built successfully.");
-		let generated_files: Vec<_> = generated_files
-			.iter()
-			.map(|s| style(format!("{} {s}", console::Emoji("●", ">"))).dim().to_string())
-			.collect();
-		cli.success(format!("Generated files:\n{}", generated_files.join("\n")))?;
-		cli.outro(format!(
-			"Need help? Learn more at {}\n",
-			style("https://learn.onpop.io").magenta().underlined()
-		))?;
+		if !skip_plain_chain_spec {
+			let generated_files: Vec<_> = generated_files
+				.iter()
+				.map(|s| style(format!("{} {s}", console::Emoji("●", ">"))).dim().to_string())
+				.collect();
+			cli.success(format!("Generated files:\n{}", generated_files.join("\n")))?;
+			cli.outro(format!(
+				"Need help? Learn more at {}\n",
+				style("https://learn.onpop.io").magenta().underlined()
+			))?;
+		}
 		Ok(GenesisArtifacts {
 			chain_spec: output_file.clone(),
 			raw_chain_spec,
