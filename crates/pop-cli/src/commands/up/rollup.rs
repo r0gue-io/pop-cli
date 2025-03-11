@@ -379,7 +379,7 @@ fn prompt_api_key(cli: &mut impl Cli) -> Result<String> {
 
 // Prompts the user to select the template used.
 fn prompt_template_used(cli: &mut impl Cli) -> Result<Option<&str>> {
-	cli.warning("We could not detect which template was used to build your rollup.")?;
+	cli.warning("We could not automatically detect which template was used to build your rollup.")?;
 	let mut template = cli.select("Select the template used:");
 	for supported_template in
 		Parachain::VARIANTS.iter().filter(|variant| variant.deployment_name().is_some())
@@ -390,11 +390,7 @@ fn prompt_template_used(cli: &mut impl Cli) -> Result<Option<&str>> {
 			supported_template.description().trim(),
 		);
 	}
-	template = template.item(
-		None,
-		"None of the above",
-		"Proceed without a predefined template (Omninode deployment)",
-	);
+	template = template.item(None, "None of the above", "Proceed without a predefined template.");
 	Ok(template.interact()?)
 }
 
@@ -676,7 +672,9 @@ mod tests {
 	#[tokio::test]
 	async fn prompt_template_used_works() -> Result<()> {
 		let mut cli = MockCli::new()
-			.expect_warning("We could not detect which template was used to build your rollup.")
+			.expect_warning(
+				"We could not automatically detect which template was used to build your rollup.",
+			)
 			.expect_select(
 				"Select the template used:",
 				Some(false),
@@ -690,8 +688,7 @@ mod tests {
 						})
 						.chain(std::iter::once((
 							"None of the above".to_string(),
-							"Proceed without a predefined template (Omninode deployment)"
-								.to_string(),
+							"Proceed without a predefined template.".to_string(),
 						)))
 						.collect::<Vec<_>>(),
 				),
