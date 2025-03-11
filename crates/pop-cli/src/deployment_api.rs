@@ -2,7 +2,7 @@
 
 use crate::build::spec::GenesisArtifacts;
 use anyhow::Result;
-use pop_parachains::{ChainSpec, DeploymentProvider, Parachain, SupportedChains};
+use pop_parachains::{ChainSpec, DeploymentProvider, Parachain};
 use reqwest::{
 	multipart::{Form, Part},
 	Client,
@@ -193,6 +193,7 @@ where
 mod tests {
 	use super::*;
 	use mockito::{Mock, Server};
+	use pop_parachains::SupportedChains;
 	use serde_json::json;
 
 	async fn mock_collator_keys(
