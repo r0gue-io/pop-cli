@@ -18,7 +18,7 @@ documentation = "https://learn.onpop.io/"
 license = "GPL-3.0"
 repository = "https://github.com/r0gue-io/pop-cli"
 rust-version = "1.81.0"
-version = "0.6.0"
+version = "0.6.0-interpop"
 
 [workspace.dependencies]
 anyhow = "1.0"
@@ -67,6 +67,10 @@ serde_json = { version = "1.0", features = ["preserve_order"] }
 serde = { version = "1.0", features = ["derive"] }
 zombienet-sdk = "0.2.26"
 git2_credentials = "0.13.0"
+
+# ismp
+ismp = { git = "https://github.com/r0gue-io/ismp", branch = "polkadot-stable2412" }
+substrate-state-machine = { git = "https://github.com/r0gue-io/ismp", branch = "polkadot-stable2412" }
 
 # pop-cli
 clap = { version = "4.5", features = ["derive"] }
