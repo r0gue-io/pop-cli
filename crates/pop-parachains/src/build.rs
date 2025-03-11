@@ -85,8 +85,8 @@ pub fn is_supported(path: Option<&Path>) -> Result<bool, Error> {
 	const DEPENDENCIES: [&str; 4] =
 		["cumulus-client-collator", "cumulus-primitives-core", "parachains-common", "polkadot-sdk"];
 	Ok(DEPENDENCIES.into_iter().any(|d| {
-		manifest.dependencies.contains_key(d)
-			|| manifest.workspace.as_ref().map_or(false, |w| w.dependencies.contains_key(d))
+		manifest.dependencies.contains_key(d) ||
+			manifest.workspace.as_ref().map_or(false, |w| w.dependencies.contains_key(d))
 	}))
 }
 
