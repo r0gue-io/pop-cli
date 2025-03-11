@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{
-	build::spec::{BuildSpecCommand, CodePathBuf, GenesisArtifacts, StatePathBuf},
+	build::spec::{BuildSpecCommand, ChainType, CodePathBuf, GenesisArtifacts, StatePathBuf},
 	call::chain::Call,
 	cli::traits::*,
 	common::{
@@ -295,6 +295,7 @@ async fn generate_spec_files(
 		id: Some(id),
 		genesis_code: true,
 		genesis_state: true,
+		chain_type: Some(ChainType::Live),
 		..Default::default()
 	}
 	.configure_build_spec(cli)
@@ -308,6 +309,7 @@ async fn generate_spec_files(
 		cli.info("Rebuilding chain spec with updated collator keys...")?;
 		build_spec
 			.update_chain_spec_with_keys(keys.collator_keys, &genesis_artifacts.chain_spec)?;
+		build_spec.skip_plain_chain_spec = true;
 		genesis_artifacts = build_spec.build(cli)?;
 		collator_file_id = Some(keys.collator_file_id);
 	}
