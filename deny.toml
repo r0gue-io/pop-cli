@@ -21,7 +21,6 @@ ignore = [
 ]
 
 [licenses]
-unused-allowed-license = "warn"
 allow = [
     "Apache-2.0",
     "Apache-2.0 WITH LLVM-exception",
@@ -31,6 +30,7 @@ allow = [
     "CC0-1.0",
     "ISC",
     "GPL-3.0",
+    "GPL-3.0 WITH Classpath-exception-2.0", # For Substrate crates
     "MIT",
     "MPL-2.0",
     "Unicode-3.0",
@@ -43,6 +43,13 @@ confidence-threshold = 0.93
 [[licenses.exceptions]]
 allow = ["OpenSSL"]
 name = "ring"
+
+[[licenses.clarify]]
+crate = "webpki"
+expression = "ISC"
+license-files = [
+    { path = "LICENSE", hash = 0x001c7e6c },
+]
 
 [[licenses.exceptions]]
 allow = ["GPL-3.0-or-later WITH Classpath-exception-2.0"]
