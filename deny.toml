@@ -30,7 +30,7 @@ allow = [
     "BSD-3-Clause",
     "CC0-1.0",
     "ISC",
-    "GPL-3.0-or-later WITH Classpath-exception-2.0",
+    "GPL-3.0",
     "MIT",
     "MPL-2.0",
     "Unicode-3.0",
@@ -43,6 +43,10 @@ confidence-threshold = 0.93
 [[licenses.exceptions]]
 allow = ["OpenSSL"]
 name = "ring"
+
+[[licenses.exceptions]]
+allow = ["GPL-3.0-or-later WITH Classpath-exception-2.0"]
+name = "cumulus-rely-chain-interface"
 
 [[licenses.clarify]]
 name = "ring"
