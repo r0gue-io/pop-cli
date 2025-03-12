@@ -40,7 +40,7 @@ pub(crate) struct CleanCacheCommand<'a, CLI: Cli> {
 	pub(crate) all: bool,
 }
 
-impl<'a, CLI: Cli> CleanCacheCommand<'a, CLI> {
+impl<CLI: Cli> CleanCacheCommand<'_, CLI> {
 	/// Executes the command.
 	pub(crate) fn execute(self) -> Result<()> {
 		self.cli.intro("Remove cached artifacts")?;

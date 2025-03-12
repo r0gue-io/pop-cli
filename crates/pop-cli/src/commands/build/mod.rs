@@ -59,7 +59,7 @@ impl Command {
 		let project_path = get_project_path(args.path.clone(), args.path_pos.clone());
 
 		#[cfg(feature = "contract")]
-		if pop_contracts::is_supported(project_path.as_deref().map(|v| v))? {
+		if pop_contracts::is_supported(project_path.as_deref())? {
 			// All commands originating from root command are valid
 			let release = match args.profile {
 				Some(profile) => profile.into(),
@@ -71,14 +71,14 @@ impl Command {
 
 		// If only parachain feature enabled, build as parachain
 		#[cfg(feature = "parachain")]
-		if pop_parachains::is_supported(project_path.as_deref().map(|v| v))? {
+		if pop_parachains::is_supported(project_path.as_deref())? {
 			let profile = match args.profile {
 				Some(profile) => profile,
 				None => args.release.into(),
 			};
 			let temp_path = PathBuf::from("./");
 			BuildParachain {
-				path: project_path.unwrap_or_else(|| temp_path).to_path_buf(),
+				path: project_path.unwrap_or(temp_path).to_path_buf(),
 				package: args.package,
 				profile,
 			}
