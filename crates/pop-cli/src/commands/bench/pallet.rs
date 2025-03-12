@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use super::display_message;
 use crate::{
 	cli::{
 		self,
 		traits::{Confirm, Input, MultiSelect, Select},
 	},
-	common::bench::{
-		check_omni_bencher_and_prompt, ensure_runtime_binary_exists,
-		guide_user_to_select_genesis_policy, guide_user_to_select_genesis_preset,
+	common::{
+		bench::{
+			check_omni_bencher_and_prompt, ensure_runtime_binary_exists,
+			guide_user_to_select_genesis_policy, guide_user_to_select_genesis_preset,
+		},
+		prompt::display_message,
 	},
 };
 use clap::Args;
@@ -302,8 +304,9 @@ impl BenchmarkPallet {
 		}
 
 		// Only prompt user to update parameters when `skip_menu` is not provided.
-		if !self.skip_menu &&
-			cli.confirm("Do you want to open the parameter menu?")
+		if !self.skip_menu
+			&& cli
+				.confirm("Do you want to open the parameter menu?")
 				.initial_value(false)
 				.interact()?
 		{
@@ -639,12 +642,13 @@ impl BenchmarkPalletMenuOption {
 		Ok(match self {
 			Pallets => self.get_joined_string(cmd.pallet()?),
 			Extrinsics => self.get_joined_string(cmd.extrinsic()?),
-			ExcludedPallets =>
+			ExcludedPallets => {
 				if cmd.exclude_pallets.is_empty() {
 					"None".to_string()
 				} else {
 					cmd.exclude_pallets.join(",")
-				},
+				}
+			},
 			Runtime => get_relative_path(cmd.runtime()?),
 			GenesisBuilder => cmd.genesis_builder.unwrap_or(GenesisBuilderPolicy::None).to_string(),
 			GenesisBuilderPreset => cmd.genesis_builder_preset.clone(),
@@ -674,15 +678,17 @@ impl BenchmarkPalletMenuOption {
 			Pallets => cmd.update_pallets(cli, registry).await?,
 			Extrinsics => cmd.update_extrinsics(cli, registry).await?,
 			ExcludedPallets => cmd.update_excluded_pallets(cli, registry).await?,
-			Runtime =>
+			Runtime => {
 				cmd.runtime = Some(ensure_runtime_binary_exists(
 					cli,
 					&get_current_directory(),
 					&Profile::Release,
-				)?),
-			GenesisBuilder =>
+				)?)
+			},
+			GenesisBuilder => {
 				cmd.genesis_builder =
-					Some(guide_user_to_select_genesis_policy(cli, &cmd.genesis_builder)?),
+					Some(guide_user_to_select_genesis_policy(cli, &cmd.genesis_builder)?)
+			},
 			GenesisBuilderPreset => {
 				cmd.genesis_builder_preset = guide_user_to_select_genesis_preset(
 					cli,
@@ -695,10 +701,12 @@ impl BenchmarkPalletMenuOption {
 			High => cmd.highest_range_values = self.input_range_values(cmd, cli, true)?,
 			Low => cmd.lowest_range_values = self.input_range_values(cmd, cli, true)?,
 			MapSize => cmd.worst_case_map_values = self.input_parameter(cmd, cli, true)?.parse()?,
-			DatabaseCacheSize =>
-				cmd.database_cache_size = self.input_parameter(cmd, cli, true)?.parse()?,
-			AdditionalTrieLayer =>
-				cmd.additional_trie_layers = self.input_parameter(cmd, cli, true)?.parse()?,
+			DatabaseCacheSize => {
+				cmd.database_cache_size = self.input_parameter(cmd, cli, true)?.parse()?
+			},
+			AdditionalTrieLayer => {
+				cmd.additional_trie_layers = self.input_parameter(cmd, cli, true)?.parse()?
+			},
 			NoMedianSlope => cmd.no_median_slopes = self.confirm(cmd, cli)?,
 			NoMinSquare => cmd.no_min_squares = self.confirm(cmd, cli)?,
 			NoStorageInfo => cmd.no_storage_info = self.confirm(cmd, cli)?,
@@ -794,7 +802,7 @@ impl BenchmarkPalletMenuOption {
 
 	fn get_joined_string(self, s: &String) -> String {
 		if is_selected_all(s) {
-			return "All selected".to_string()
+			return "All selected".to_string();
 		}
 		s.clone()
 	}
