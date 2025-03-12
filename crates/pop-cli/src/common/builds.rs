@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0
 use crate::cli::traits::{Cli, Select};
-use pop_common::Profile;
-use pop_parachains::{binary_path, build_parachain};
 use std::path::{Path, PathBuf};
+
+#[cfg(feature = "parachain")]
+use pop_common::Profile;
+#[cfg(feature = "parachain")]
+use pop_parachains::{binary_path, build_parachain};
+#[cfg(feature = "parachain")]
 use strum::{EnumMessage, VariantArray};
 
 /// This method is used to get the proper project path format (with or without cli flag)
@@ -22,6 +26,7 @@ pub fn get_project_path(path_flag: Option<PathBuf>, path_pos: Option<PathBuf>) -
 /// * `project_path`: The project path.
 /// * `mode`: The profile to use for building.
 /// * `features`: The features that node is built with.
+#[cfg(feature = "parachain")]
 pub fn ensure_node_binary_exists(
 	cli: &mut impl Cli,
 	project_path: &Path,
@@ -42,6 +47,7 @@ pub fn ensure_node_binary_exists(
 ///
 /// # Arguments
 /// * `cli`: Command line interface.
+#[cfg(feature = "parachain")]
 pub fn guide_user_to_select_profile(cli: &mut impl Cli) -> anyhow::Result<Profile> {
 	let default = Profile::Release;
 	// Prompt for build profile.
