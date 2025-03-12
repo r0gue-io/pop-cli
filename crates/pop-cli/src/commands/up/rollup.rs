@@ -125,9 +125,13 @@ impl UpCommand {
 			if let Some(provider) = provider {
 				let api_key = prompt_api_key(POP_API_KEY, cli)?;
 				// TODO: As above. Local is only testing
-				api = Some(DeploymentApi::new(
+				let api_url = cli
+					.input("Enter the API base url (e.g https://staging.deploypolkadot.xyz)")
+					.interact()?;
+				api = Some(DeploymentApi::new_for_testing(
 					provider,
 					api_key,
+					api_url,
 					relay_chain
 						.as_ref()
 						.map(ToString::to_string)

@@ -46,8 +46,8 @@ impl DeploymentApi {
 	}
 
 	// Creates a new API client instance for testing, allowing to mock the base_url.
-	#[cfg(test)]
-	fn new_for_testing(
+	// #[cfg(test)]
+	pub fn new_for_testing(
 		provider: DeploymentProvider,
 		api_key: String,
 		base_url: String,
