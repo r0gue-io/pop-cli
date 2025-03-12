@@ -77,7 +77,7 @@ impl Builder {
 	/// Executes the runtime build process and returns the path of the generated file.
 	pub fn build(&self) -> Result<PathBuf, Error> {
 		let command = self.build_command();
-		cmd("sh", vec!["-c", &command]).stderr_null().run()?;
+		cmd("sh", vec!["-c", &command]).stdout_null().stderr_null().run()?;
 		let wasm_path = self.get_output_path();
 		Ok(wasm_path)
 	}
