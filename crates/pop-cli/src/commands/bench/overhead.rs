@@ -46,7 +46,7 @@ impl BenchmarkOverhead {
 		let cmd = &mut self.command;
 		// If `chain` is provided, we don't prompt the user to configure the runtime.
 		if cmd.shared_params.chain.is_none() {
-			// No runtime path provided, auto-detect the runtime WASM binary. If not found,
+			// No runtime path provided, auto-detect the runtime binary. If not found,
 			// build the runtime.
 			if cmd.params.runtime.is_none() {
 				cmd.params.runtime = Some(ensure_runtime_binary_exists(
@@ -124,11 +124,10 @@ mod tests {
 	use tempfile::tempdir;
 
 	#[test]
-	fn parse_genesis_builder_policy_works() -> anyhow::Result<()> {
+	fn parse_genesis_builder_policy_works() {
 		for policy in ["runtime", "spec-runtime", "spec-genesis"] {
-			parse_genesis_builder_policy(policy)?;
+			parse_genesis_builder_policy(policy).unwrap();
 		}
-		Ok(())
 	}
 
 	#[tokio::test]
@@ -196,7 +195,7 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn benchmark_overhead_without_runtime_benchmarks_feature_fails() -> anyhow::Result<()> {
+	async fn benchmark_overhead_fails_with_no_feature() -> anyhow::Result<()> {
 		let mut cli = MockCli::new()
 			.expect_intro("Benchmarking the execution overhead per-block and per-extrinsic")
 			.expect_warning("NOTE: this may take some time...")
