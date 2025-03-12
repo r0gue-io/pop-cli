@@ -563,10 +563,12 @@ impl BuildSpec {
 			spinner.set_message("Building deterministic runtime...");
 			cli.warning("NOTE: this may take some time...")?;
 			spinner.clear();
-			let code = self.build_deterministic_runtime(cli).map_err(|e| {
+			let runtime_path = self.build_deterministic_runtime(cli).map_err(|e| {
 				anyhow::anyhow!("Failed to build the deterministic runtime: {}", e.to_string())
 			})?;
+			let code = fs::read(&runtime_path).map_err(anyhow::Error::from)?;
 			cli.success("Runtime built successfully.")?;
+			generated_files.push(format!("Runtime file generated at: {}", &runtime_path.display()));
 			self.update_code(&code)?;
 		}
 
@@ -639,7 +641,7 @@ impl BuildSpec {
 	fn build_deterministic_runtime(
 		&self,
 		cli: &mut impl cli::traits::Cli,
-	) -> anyhow::Result<Vec<u8>> {
+	) -> anyhow::Result<PathBuf> {
 		let engine = ContainerEngine::detect().map_err(|_| anyhow::anyhow!("No container engine detected. A supported containerization solution (Docker or Podman) is required."))?;
 		// Warning from srtool-cli: https://github.com/chevdor/srtool-cli/blob/master/cli/src/main.rs#L28).
 		if engine == ContainerEngine::Docker {
@@ -656,7 +658,7 @@ impl BuildSpec {
 		if !wasm_path.exists() {
 			return Err(anyhow::anyhow!("Can't find the generated runtime at {:?}", wasm_path));
 		}
-		fs::read(&wasm_path).map_err(anyhow::Error::from)
+		Ok(wasm_path)
 	}
 
 	// Updates the chain specification with the runtime code.
