@@ -267,7 +267,7 @@ fn get_customization_value(
 	decimals: Option<u8>,
 	initial_endowment: Option<String>,
 ) -> Result<Config> {
-	if !matches!(template, Parachain::Standard) &&
+	if (Provider::Pop.provides(template) || template == &Parachain::ParityGeneric) &&
 		(symbol.is_some() || decimals.is_some() || initial_endowment.is_some())
 	{
 		log::warning("Customization options are not available for this template")?;
