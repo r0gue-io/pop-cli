@@ -9,7 +9,7 @@ pub use helpers::{
 	get_project_name_from_path, get_relative_or_absolute_path, prefix_with_current_dir_if_needed,
 	replace_in_file,
 };
-pub use manifest::{add_crate_to_workspace, add_feature, find_workspace_toml};
+pub use manifest::{add_crate_to_workspace, find_workspace_toml};
 pub use metadata::format_type;
 pub use signer::create_signer;
 pub use sourcing::set_executable_permission;

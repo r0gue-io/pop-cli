@@ -388,7 +388,10 @@ mod tests {
 		Zombienet,
 	};
 	use anyhow::Result;
-	use pop_common::{manifest::Dependency, set_executable_permission};
+	use pop_common::{
+		manifest::{add_feature, Dependency},
+		set_executable_permission,
+	};
 	use std::{fs, fs::write, io::Write, path::Path};
 	use strum::VariantArray;
 	use tempfile::{tempdir, Builder, TempDir};
@@ -510,21 +513,6 @@ mod tests {
 		Ok(())
 	}
 
-	fn add_feature(project: &Path, feature: &str) -> Result<()> {
-		let root_toml_path = project.join("Cargo.toml");
-		let mut root_toml_content = fs::read_to_string(&root_toml_path)?;
-		root_toml_content.push_str(&format!(
-			r#"
-			[features]
-			{} = []
-			"#,
-			feature
-		));
-		// Write the updated content back to the file
-		write(&root_toml_path, root_toml_content)?;
-		Ok(())
-	}
-
 	#[test]
 	fn build_parachain_works() -> Result<()> {
 		let name = "parachain_template_node";
@@ -532,7 +520,7 @@ mod tests {
 		cmd("cargo", ["new", name, "--bin"]).dir(temp_dir.path()).run()?;
 		let project = temp_dir.path().join(name);
 		add_production_profile(&project)?;
-		add_feature(&project, "dummy-feature")?;
+		add_feature(&project, ("dummy-feature".to_string(), vec![]))?;
 		for node in vec![None, Some("custom_node")] {
 			let node_path = generate_mock_node(&project, node)?;
 			for package in vec![None, Some(String::from("parachain_template_node"))] {
@@ -565,7 +553,7 @@ mod tests {
 		cmd("cargo", ["new", name, "--bin"]).dir(temp_dir.path()).run()?;
 		let project = temp_dir.path().join(name);
 		add_production_profile(&project)?;
-		add_feature(&project, "dummy-feature")?;
+		add_feature(&project, ("dummy-feature".to_string(), vec![]))?;
 		for package in vec![None, Some(String::from(name))] {
 			for profile in Profile::VARIANTS {
 				build_project(&project, package.clone(), &profile, vec!["dummy-feature"], None)?;
