@@ -94,6 +94,7 @@ impl UpCommand {
 			None => return Ok(Deployment::default()),
 			Some(provider) => provider,
 		};
+		warn_supported_templates(&provider, cli)?;
 		let relay_chain = prompt_supported_chain(cli)?;
 		let relay_chain_str = relay_chain.to_string();
 		self.relay_chain_url = relay_chain.get_rpc_url().and_then(|url| Url::parse(&url).ok());
@@ -312,8 +313,8 @@ async fn generate_spec_files(
 // Prompt the user to input an address and return it formatted as `Id(address)`
 fn prompt_for_proxy_address(cli: &mut impl Cli) -> Result<String> {
 	cli.info(format!(
-		"Don't have a pure proxy yet? \n{}",
-		style("Create one: `pop call chain` and fund it").dim()
+		"Don't have a pure proxy?\n{}",
+		style("Create a proxy account using `pop call chain` and fund it with enough balance for the registration.").dim()
 	))?;
 	let address = cli
 	.input("Enter your pure proxy account or the account that the proxy will make a call on behalf of")
@@ -374,6 +375,19 @@ fn prompt_template_used(cli: &mut impl Cli) -> Result<&str> {
 		template = template.item(supported_template.0, supported_template.1, supported_template.2);
 	}
 	Ok(template.interact()?)
+}
+
+fn warn_supported_templates(provider: &DeploymentProvider, cli: &mut impl Cli) -> Result<()> {
+	let supported_templates: Vec<String> = Parachain::VARIANTS
+		.iter()
+		.filter_map(|variant| variant.deployment_name().map(|_| format!("{}", variant.name())))
+		.collect();
+	cli.warning(format!(
+		"Currently {} only supports the deployment of the following templates: {}.\n",
+		provider.name(),
+		style(format!("{}", supported_templates.join(", "))).dim()
+	))?;
+	Ok(())
 }
 
 #[cfg(test)]
@@ -494,8 +508,8 @@ mod tests {
 		let mut cli = MockCli::new()
 			.expect_confirm("Would you like to use a pure proxy for registration? This is considered a best practice.", true)
 			.expect_info(format!(
-				"Don't have a pure proxy yet? \n{}",
-				style("Create one: `pop call chain` and fund it").dim()
+				"Don't have a pure proxy?\n{}",
+				style("Create a proxy account using `pop call chain` and fund it with enough balance for the registration.").dim()
 			))
 			.expect_input(
 				"Enter your pure proxy account or the account that the proxy will make a call on behalf of",
@@ -729,6 +743,22 @@ mod tests {
 				None,
 			);
 		assert_eq!(prompt_template_used(&mut cli)?, "POP_STANDARD");
+		cli.verify()
+	}
+
+	#[test]
+	fn warn_supported_templates_works() -> Result<()> {
+		let mut cli = MockCli::new()
+			.expect_warning(
+				format!(
+					"Currently Polkadot Deployment Portal only supports the deployment of the following templates: {}.\n",
+					style(format!("{}", Parachain::VARIANTS
+					.iter()
+					.filter_map(|variant| variant.deployment_name().map(|_| format!("{}", variant.name())))
+					.collect::<Vec<String>>().join(", "))).dim()
+				),
+			);
+		warn_supported_templates(&DeploymentProvider::PDP, &mut cli)?;
 		cli.verify()
 	}
 
