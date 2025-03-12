@@ -68,7 +68,7 @@ impl DeploymentApi {
 		let form = Form::new()
 			.text("parachainName", request.name)
 			.text("signerKey", request.proxy_key)
-			.text("runtimeTemplate", request.runtime_template.clone().unwrap_or_else(String::new))
+			.text("runtimeTemplate", request.runtime_template.unwrap_or_default())
 			.text("chain", self.relay_chain_name.clone())
 			.text("sudoKey", request.sudo_key)
 			.text("collatorFileId", request.collator_file_id)
@@ -145,8 +145,7 @@ impl DeployRequest {
 			.to_string();
 		let template = chain_spec
 			.get_property_based_on()
-			.and_then(Parachain::deployment_name_from_based_on)
-			.map(String::from);
+			.and_then(Parachain::deployment_name_from_based_on);
 		let sudo_address = chain_spec.get_sudo_key().ok_or_else(|| {
 			anyhow::anyhow!("Failed to retrieve the sudo address from the chain spec")
 		})?;

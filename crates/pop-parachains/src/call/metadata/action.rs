@@ -218,7 +218,7 @@ mod tests {
 		let actions = supported_actions(&parse_chain_metadata(&client)?);
 		assert_eq!(
 			actions,
-			vec![Transfer, PureProxy, PurchaseOnDemandCoretime, Reserve, Register, Remark]
+			vec![Transfer, PurchaseOnDemandCoretime, PureProxy, Reserve, Register, Remark]
 		);
 		Ok(())
 	}
