@@ -8,7 +8,7 @@ use crate::{
 		chain::{configure, Chain},
 		wallet::submit_extrinsic,
 	},
-	deployment_api::{DeployRequest, DeploymentApi},
+	deployment_api::{DeployRequest, DeployResponse, DeploymentApi},
 	style::style,
 };
 use anyhow::{anyhow, Result};
@@ -80,8 +80,15 @@ impl UpCommand {
 			Err(e) => cli.outro_cancel(e.to_string())?,
 		}
 		match deployment_config.deploy(&config, cli).await {
-			Ok(Some(message)) =>
-				cli.success(format!("Deployment successfully {}", style(message).dim()))?,
+			Ok(Some(result)) => cli.success(format!(
+				"Deployment successfully\n   {}\n   {}",
+				style(format!("{} Status: {}", console::Emoji("●", ">"), result.status)).dim(),
+				style(format!(
+					"{} View Deployment: {}",
+					console::Emoji("●", ">"),
+					style(result.message).magenta().underlined()
+				))
+			))?,
 			Ok(None) => {},
 			Err(e) => cli.outro_cancel(format!("Deployment failed: {}", e))?,
 		}
@@ -169,7 +176,11 @@ struct Deployment {
 }
 impl Deployment {
 	// Executes the deployment process.
-	async fn deploy(&self, config: &Registration, cli: &mut impl Cli) -> Result<Option<String>> {
+	async fn deploy(
+		&self,
+		config: &Registration,
+		cli: &mut impl Cli,
+	) -> Result<Option<DeployResponse>> {
 		let Some(api) = &self.api else {
 			return Ok(None);
 		};
@@ -187,7 +198,7 @@ impl Deployment {
 		}
 		cli.info(format!("Starting deployment with {}", api.provider.name()))?;
 		let result = api.deploy(config.id, request).await?;
-		Ok(Some(result.message))
+		Ok(Some(result))
 	}
 }
 
@@ -380,12 +391,12 @@ fn prompt_template_used(cli: &mut impl Cli) -> Result<&str> {
 fn warn_supported_templates(provider: &DeploymentProvider, cli: &mut impl Cli) -> Result<()> {
 	let supported_templates: Vec<String> = Parachain::VARIANTS
 		.iter()
-		.filter_map(|variant| variant.deployment_name().map(|_| format!("{}", variant.name())))
+		.filter_map(|variant| variant.deployment_name().map(|_| variant.name().to_string()))
 		.collect();
 	cli.warning(format!(
 		"Currently {} only supports the deployment of the following templates: {}.\n",
 		provider.name(),
-		style(format!("{}", supported_templates.join(", "))).dim()
+		style(supported_templates.join(", ")).dim()
 	))?;
 	Ok(())
 }

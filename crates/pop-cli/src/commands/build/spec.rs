@@ -648,9 +648,9 @@ impl BuildSpec {
 		collator_keys: Vec<String>,
 		chain_spec_path: &Path,
 	) -> anyhow::Result<()> {
-		let mut chain_spec = ChainSpec::from(&chain_spec_path)?;
+		let mut chain_spec = ChainSpec::from(chain_spec_path)?;
 		chain_spec.replace_collator_keys(collator_keys)?;
-		chain_spec.to_file(&chain_spec_path)?;
+		chain_spec.to_file(chain_spec_path)?;
 
 		self.chain = chain_spec_path.display().to_string();
 		Ok(())
