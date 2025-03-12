@@ -14,7 +14,6 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow.workspace = true
-dotenv.workspace = true
 duct.workspace = true
 env_logger.workspace = true
 os_info.workspace = true

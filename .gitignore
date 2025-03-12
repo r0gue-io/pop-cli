@@ -6,7 +6,6 @@ debug
 **/debug/
 
 .DS_Store
-.env
 
 # IDEs
 .idea
