@@ -13,29 +13,29 @@ use pop_common::Profile;
 use pop_parachains::generate_overhead_benchmarks;
 
 #[derive(Args)]
-pub struct BenchmarkOverhead {
+pub(crate) struct BenchmarkOverhead {
+	/// Commmand to benchmark the execution overhead per-block and per-extrinsic.
 	#[clap(flatten)]
 	pub command: OverheadCmd,
-
-	/// If this is set to true, no interactive prompts will be shown.
-	#[clap(short = 'i', long)]
-	pub skip_all: bool,
 }
 
 impl BenchmarkOverhead {
 	pub(crate) async fn execute(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		cli.intro("Benchmarking the execution overhead per-block and per-extrinsic")?;
 
-		if !self.skip_all {
-			if let Err(e) = self.interact(cli).await {
-				return display_message(&e.to_string(), false, cli);
-			};
-		}
+		if let Err(e) = self.interact(cli).await {
+			return display_message(&e.to_string(), false, cli);
+		};
 
 		cli.warning("NOTE: this may take some time...")?;
 		cli.info("Benchmarking and generating weight file...")?;
 
-		if let Err(e) = self.run().await {
+		let result = self.run().await;
+
+		// Display the benchmarking command.
+		cliclack::log::remark("\n")?;
+		cli.success(self.display())?;
+		if let Err(e) = result {
 			return display_message(&e.to_string(), false, cli);
 		}
 		display_message("Benchmark completed successfully!", true, cli)?;
@@ -57,7 +57,7 @@ impl BenchmarkOverhead {
 			}
 
 			let runtime_policy = parse_genesis_builder_policy("runtime")?.params.genesis_builder;
-			// No genesis builder, prompts user to select the genesis builder policy.
+			// No genesis builder, hard-coded the policy with `runtime`.
 			if cmd.params.genesis_builder.is_none() {
 				cmd.params.genesis_builder = runtime_policy;
 			}
@@ -100,6 +100,47 @@ impl BenchmarkOverhead {
 		})
 		.await
 	}
+
+	fn display(&self) -> String {
+		let mut args = vec!["pop bench overhead".to_string()];
+		let mut arguments: Vec<String> = std::env::args().skip(3).collect();
+
+		// Check if the arguments are provided by the user.
+		let mut print_runtime = true;
+		let mut print_genesis_builder = true;
+		let mut print_genesis_builder_preset = true;
+		let mut print_weight_path = true;
+		for argument in arguments.iter() {
+			print_runtime = print_runtime && !argument.starts_with("--runtime");
+			print_genesis_builder =
+				print_genesis_builder && !argument.starts_with("--genesis-builder");
+			print_genesis_builder_preset =
+				print_genesis_builder_preset && !argument.starts_with("--genesis-builder-preset");
+			print_weight_path = print_weight_path && !argument.starts_with("--weight-path");
+		}
+
+		if print_runtime {
+			if let Some(ref runtime) = self.command.params.runtime {
+				arguments.push(format!("--runtime={}", runtime.display()));
+			}
+		}
+		if print_genesis_builder {
+			arguments.push("--genesis-builder=runtime".to_string());
+		}
+		if print_genesis_builder_preset {
+			arguments.push(format!(
+				"--genesis-builder-preset={}",
+				self.command.params.genesis_builder_preset
+			));
+		}
+		if print_weight_path {
+			if let Some(ref weight_path) = self.command.params.weight.weight_path {
+				arguments.push(format!("--weight-path={}", weight_path.display()));
+			}
+		}
+		args.extend(arguments);
+		args.join(" ")
+	}
 }
 
 fn parse_genesis_builder_policy(policy: &str) -> anyhow::Result<OverheadCmd> {
@@ -128,6 +169,29 @@ mod tests {
 		for policy in ["runtime", "spec-runtime", "spec-genesis"] {
 			parse_genesis_builder_policy(policy).unwrap();
 		}
+	}
+
+	#[test]
+	fn display_works() {
+		assert_eq!(
+			BenchmarkOverhead { command: OverheadCmd::try_parse_from([""]).unwrap() }.display(),
+			"pop bench overhead --genesis-builder=runtime --genesis-builder-preset=development"
+		);
+		assert_eq!(
+			BenchmarkOverhead {
+				command: OverheadCmd::try_parse_from([
+					"",
+					"--runtime",
+					"dummy-runtime",
+					"--genesis-builder=runtime",
+					"--weight-path=weights.rs",
+				])
+				.unwrap()
+			}
+			.display(),
+			"pop bench overhead --runtime=dummy-runtime --genesis-builder=runtime \
+			--genesis-builder-preset=development --weight-path=weights.rs"
+		);
 	}
 
 	#[tokio::test]
@@ -166,38 +230,39 @@ mod tests {
 			)
 			.expect_warning("NOTE: this may take some time...")
 			.expect_info("Benchmarking and generating weight file...")
+			// Unable to mock the `std::env::args` for testing. In production, in must include
+			// `--warmup` and `--repeat`.
+			.expect_success(format!(
+				"pop bench overhead --runtime={} --genesis-builder=runtime \
+				--genesis-builder-preset=development --weight-path={}",
+				runtime_path.display(),
+				output_path.to_string(),
+			))
 			.expect_outro("Benchmark completed successfully!");
 
 		let cmd = OverheadCmd::try_parse_from(["", "--warmup=1", "--repeat=1"])?;
-		BenchmarkOverhead { command: cmd, skip_all: false }.execute(&mut cli).await?;
-		cli.verify()
-	}
-
-	#[tokio::test]
-	async fn benchmark_overhead_non_interactive_works() -> anyhow::Result<()> {
-		let temp_dir = tempdir()?;
-		let output_path = temp_dir.path().to_str().unwrap();
-		let mut cli = MockCli::new()
-			.expect_intro("Benchmarking the execution overhead per-block and per-extrinsic")
-			.expect_warning("NOTE: this may take some time...")
-			.expect_info("Benchmarking and generating weight file...");
-		let cmd = OverheadCmd::try_parse_from([
-			"",
-			"--runtime",
-			get_mock_runtime(false).to_str().unwrap(),
-			"--warmup=1",
-			"--repeat=1",
-			"--weight-path",
-			output_path,
-		])?;
-		BenchmarkOverhead { command: cmd, skip_all: true }.execute(&mut cli).await?;
+		BenchmarkOverhead { command: cmd }.execute(&mut cli).await?;
 		cli.verify()
 	}
 
 	#[tokio::test]
 	async fn benchmark_overhead_fails_with_no_feature() -> anyhow::Result<()> {
+		let runtime_path = get_mock_runtime(false);
+		let preset_names = get_preset_names(&runtime_path)
+			.unwrap()
+			.into_iter()
+			.map(|preset| (preset, String::default()))
+			.collect();
 		let mut cli = MockCli::new()
 			.expect_intro("Benchmarking the execution overhead per-block and per-extrinsic")
+			.expect_select(
+				"Select the genesis builder preset:",
+				Some(true),
+				true,
+				Some(preset_names),
+				0,
+				None,
+			)
 			.expect_warning("NOTE: this may take some time...")
 			.expect_outro_cancel(
 				"Failed to run benchmarking: Invalid input: Need directory as --weight-path",
@@ -208,7 +273,7 @@ mod tests {
 			get_mock_runtime(false).to_str().unwrap(),
 			"--weight-path=weights.rs",
 		])?;
-		BenchmarkOverhead { command: cmd, skip_all: true }.execute(&mut cli).await?;
+		BenchmarkOverhead { command: cmd }.execute(&mut cli).await?;
 		cli.verify()
 	}
 }

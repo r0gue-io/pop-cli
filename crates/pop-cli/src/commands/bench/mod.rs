@@ -2,6 +2,7 @@
 
 use crate::cli::{self};
 use clap::{Args, Subcommand};
+use overhead::BenchmarkOverhead;
 use pallet::BenchmarkPallet;
 
 mod overhead;
@@ -23,7 +24,7 @@ pub enum Command {
 	Pallet(BenchmarkPallet),
 	/// Benchmark the execution overhead per-block and per-extrinsic.
 	#[clap(alias = "o")]
-	Overhead(overhead::BenchmarkOverhead),
+	Overhead(BenchmarkOverhead),
 }
 
 impl Command {

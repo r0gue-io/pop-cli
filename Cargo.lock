@@ -8168,6 +8168,7 @@ dependencies = [
  "clap",
  "cumulus-primitives-proof-size-hostfunction 0.10.0",
  "duct",
+ "env_logger 0.11.7",
  "frame-benchmarking-cli",
  "glob",
  "indexmap 2.8.0",
