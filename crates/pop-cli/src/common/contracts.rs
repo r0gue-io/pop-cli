@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 
+use super::binary::BinaryBuilder;
 use crate::cli::traits::*;
-use cliclack::spinner;
-use pop_common::{manifest::from_path, sourcing::set_executable_permission};
+use pop_common::manifest::from_path;
 use pop_contracts::contracts_node_generator;
 use std::{
 	path::{Path, PathBuf},
@@ -22,64 +22,9 @@ pub async fn check_contracts_node_and_prompt(
 	cache_path: &Path,
 	skip_confirm: bool,
 ) -> anyhow::Result<PathBuf> {
-	let mut binary = contracts_node_generator(PathBuf::from(cache_path), None).await?;
-	let mut node_path = binary.path();
-	if !binary.exists() {
-		cli.warning("⚠️ The substrate-contracts-node binary is not found.")?;
-		let latest = if !skip_confirm {
-			cli.confirm("📦 Would you like to source it automatically now?")
-				.initial_value(true)
-				.interact()?
-		} else {
-			true
-		};
-		if latest {
-			let spinner = spinner();
-			spinner.start("📦 Sourcing substrate-contracts-node...");
-
-			binary.source(false, &(), true).await?;
-
-			spinner.stop(format!(
-				"✅ substrate-contracts-node successfully sourced. Cached at: {}",
-				binary.path().to_str().unwrap()
-			));
-			node_path = binary.path();
-		}
-	}
-	if binary.stale() {
-		cli.warning(format!(
-			"ℹ️ There is a newer version of {} available:\n {} -> {}",
-			binary.name(),
-			binary.version().unwrap_or("None"),
-			binary.latest().unwrap_or("None")
-		))?;
-		let latest = if !skip_confirm {
-			cli.confirm(
-				"📦 Would you like to source it automatically now? It may take some time..."
-					.to_string(),
-			)
-			.initial_value(true)
-			.interact()?
-		} else {
-			true
-		};
-		if latest {
-			let spinner = spinner();
-			spinner.start("📦 Sourcing substrate-contracts-node...");
-
-			binary = contracts_node_generator(crate::cache()?, binary.latest()).await?;
-			binary.source(false, &(), true).await?;
-			set_executable_permission(binary.path())?;
-
-			spinner.stop(format!(
-				"✅ substrate-contracts-node successfully sourced. Cached at: {}",
-				binary.path().to_str().unwrap()
-			));
-			node_path = binary.path();
-		}
-	}
-
-	Ok(node_path)
+	BinaryBuilder::new("substrate-contracts-node")
+		.check_and_prompt(cli, contracts_node_generator, cache_path, skip_confirm)
+		.await
 }
 
 /// Handles the optional termination of a local running node.
@@ -134,7 +79,7 @@ mod tests {
 	use super::*;
 	use crate::cli::MockCli;
 	use duct::cmd;
-	use pop_common::find_free_port;
+	use pop_common::{find_free_port, set_executable_permission};
 	use pop_contracts::{is_chain_alive, run_contracts_node};
 	use std::fs::{self, File};
 	use url::Url;
@@ -158,38 +103,6 @@ mod tests {
 		File::create(contract_path.join(format!("target/ink/{}.contract", name)))?;
 		assert!(has_contract_been_built(Some(&path.join(name))));
 		Ok(())
-	}
-
-	#[tokio::test]
-	async fn check_contracts_node_and_prompt_works() -> anyhow::Result<()> {
-		let cache_path = tempfile::tempdir().expect("Could create temp dir");
-		let mut cli = MockCli::new()
-			.expect_warning("⚠️ The substrate-contracts-node binary is not found.")
-			.expect_confirm("📦 Would you like to source it automatically now?", true)
-			.expect_warning("⚠️ The substrate-contracts-node binary is not found.");
-
-		let node_path = check_contracts_node_and_prompt(&mut cli, cache_path.path(), false).await?;
-		// Binary path is at least equal to the cache path + "substrate-contracts-node".
-		assert!(node_path
-			.to_str()
-			.unwrap()
-			.starts_with(&cache_path.path().join("substrate-contracts-node").to_str().unwrap()));
-		cli.verify()
-	}
-
-	#[tokio::test]
-	async fn check_contracts_node_and_prompt_handles_skip_confirm() -> anyhow::Result<()> {
-		let cache_path = tempfile::tempdir().expect("Could create temp dir");
-		let mut cli =
-			MockCli::new().expect_warning("⚠️ The substrate-contracts-node binary is not found.");
-
-		let node_path = check_contracts_node_and_prompt(&mut cli, cache_path.path(), true).await?;
-		// Binary path is at least equal to the cache path + "substrate-contracts-node".
-		assert!(node_path
-			.to_str()
-			.unwrap()
-			.starts_with(&cache_path.path().join("substrate-contracts-node").to_str().unwrap()));
-		cli.verify()
 	}
 
 	#[tokio::test]
