@@ -14,7 +14,7 @@ use std::path::PathBuf;
 /// API client for interacting with deployment provider.
 pub(crate) struct DeploymentApi {
 	/// API key used for authentication with the deployment provider.
-	api_key: String,
+	pub(crate) api_key: String,
 	/// The base URL of the deployment provider's API.
 	base_url: String,
 	/// HTTP client used for making API requests.
@@ -22,7 +22,7 @@ pub(crate) struct DeploymentApi {
 	/// The selected deployment provider.
 	pub(crate) provider: DeploymentProvider,
 	/// The chain where the deployment is happening.
-	relay_chain_name: String,
+	pub(crate) relay_chain_name: String,
 }
 
 impl DeploymentApi {
