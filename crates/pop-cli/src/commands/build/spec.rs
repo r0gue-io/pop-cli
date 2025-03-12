@@ -17,6 +17,7 @@ use pop_parachains::{
 	generate_raw_chain_spec, is_supported, ChainSpec,
 };
 use std::{
+	env::current_dir,
 	fs::create_dir_all,
 	path::{Path, PathBuf},
 };
