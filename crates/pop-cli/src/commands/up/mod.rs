@@ -98,8 +98,9 @@ mod tests {
 	use cli::MockCli;
 	use duct::cmd;
 	use pop_contracts::{mock_build_process, new_environment};
-	use pop_parachains::{instantiate_template_dir, Config, Parachain};
+	use pop_parachains::{instantiate_template_dir, Config, DeploymentProvider, Parachain};
 	use std::env;
+	use strum::VariantArray;
 	use url::Url;
 
 	fn create_up_args(project_path: PathBuf) -> anyhow::Result<UpArgs> {
@@ -160,7 +161,23 @@ mod tests {
 		args.rollup.id = Some(2000);
 		args.rollup.genesis_code = Some(PathBuf::from("path/to/genesis"));
 		args.rollup.genesis_state = Some(PathBuf::from("path/to/state"));
-		let mut cli = MockCli::new();
+		let mut cli = MockCli::new().expect_select(
+			"Select your deployment method:",
+			Some(false),
+			true,
+			Some(
+				DeploymentProvider::VARIANTS
+					.into_iter()
+					.map(|action| (action.name().to_string(), action.description().to_string()))
+					.chain(std::iter::once((
+						"Only Register in Relay Chain".to_string(),
+						"Register the parachain in the relay chain without deploying".to_string(),
+					)))
+					.collect::<Vec<_>>(),
+			),
+			DeploymentProvider::VARIANTS.len(), // Only Register in Relay Chain
+			None,
+		);
 		assert_eq!(Command::execute_project_deployment(args, &mut cli).await?, "parachain");
 		cli.verify()
 	}
