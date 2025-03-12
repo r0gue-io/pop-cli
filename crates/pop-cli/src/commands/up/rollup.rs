@@ -364,23 +364,12 @@ fn prompt_supported_chain(cli: &mut impl Cli) -> Result<Option<SupportedChains>>
 
 // Prompts for an API key and stores it securely.
 fn prompt_api_key(env_var_name: &str, cli: &mut impl Cli) -> Result<String> {
-	dotenv::dotenv().ok(); // This loads environment variables from your ".env" file if present.
 	if let Ok(api_key) = env::var(env_var_name) {
 		cli.info(format!("Using API key from environment variable ({env_var_name})."))?;
 		return Ok(api_key);
 	}
-	cli.warning(format!("No API key found. You can set the `{env_var_name}` in a `.env` file or type it manually below:"))?;
+	cli.warning(format!("No API key found for the environment variable `{env_var_name}`.\n{}", style(format!("Note: Consider setting this variable in your shell (e.g., `export {env_var_name}=...`) or system environment so you won’t be prompted each time.")).dim()))?;
 	let api_key = cli.password("Enter your API key:").interact()?;
-	if cli
-		.confirm("Would you like to save this API key in your .env file so you will not need to enter it again?")
-		.interact()?
-	{
-		let mut file = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(".env")?;
-    	writeln!(file, "{}=\"{}\"", env_var_name, api_key)?;
-	}
 	Ok(api_key)
 }
 
@@ -646,29 +635,24 @@ mod tests {
 	#[test]
 	fn prompt_api_key_works() -> Result<()> {
 		let test_env_var = "TEST_POP_API_KEY";
+		env::remove_var(test_env_var);
 
 		let mut cli = MockCli::new()
-			.expect_warning(format!("No API key found. You can set the `{test_env_var}` in a `.env` file or type it manually below:"))
-			.expect_password("Enter your API key:", "test_api_key".into())
-			.expect_confirm("Would you like to save this API key in your .env file so you will not need to enter it again?", true);
+			.expect_warning(format!("No API key found for the environment variable `{test_env_var}`.\n{}", style(format!("Note: Consider setting this variable in your shell (e.g., `export {test_env_var}=...`) or system environment so you won’t be prompted each time.")).dim()))
+			.expect_password("Enter your API key:", "test_api_key".into());
 
 		let api_key = prompt_api_key(test_env_var, &mut cli)?;
 		assert_eq!(api_key, "test_api_key");
 		cli.verify()?;
 
 		// Test when API KEY exist in the env variable.
+		env::set_var(test_env_var, "test_api_key");
 		cli = MockCli::new()
 			.expect_info(format!("Using API key from environment variable ({test_env_var})."));
 
 		let api_key = prompt_api_key(test_env_var, &mut cli)?;
 		assert_eq!(api_key, "test_api_key");
-		cli.verify()?;
-
-		// Cleanup: Remove `.env` file after test
-		if fs::metadata(".env").is_ok() {
-			fs::remove_file(".env")?;
-		}
-		Ok(())
+		cli.verify()
 	}
 
 	#[tokio::test]
