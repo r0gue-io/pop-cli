@@ -20,8 +20,6 @@ use pop_parachains::{
 };
 use std::{
 	env,
-	fs::OpenOptions,
-	io::Write,
 	path::{Path, PathBuf},
 };
 use strum::VariantArray;
@@ -60,89 +58,64 @@ pub struct UpCommand {
 
 impl UpCommand {
 	/// Executes the command.
-	pub(crate) async fn execute(self, cli: &mut impl Cli) -> Result<()> {
+	pub(crate) async fn execute(mut self, cli: &mut impl Cli) -> Result<()> {
 		cli.intro("Deploy a rollup")?;
-		let config = match self.prepare_for_registration(cli).await {
+		let mut deployment_config = self.prepare_for_deployment(cli)?;
+		let config = match self.prepare_for_registration(&mut deployment_config, cli).await {
 			Ok(chain) => chain,
 			Err(e) => {
 				cli.outro_cancel(e.to_string())?;
 				return Ok(());
 			},
 		};
-		match config.registration.register(cli).await {
+		match config.register(cli).await {
 			Ok(_) => cli.success(format!(
 				"Registration successfully {}",
 				style(format!(
 					"https://polkadot.js.org/apps/?rpc={}#/parachains",
-					config.registration.chain.url
+					config.chain.url
 				))
 				.dim()
 			))?,
 			Err(e) => cli.outro_cancel(e.to_string())?,
 		}
-		if let Some(api) = config.api {
-			let Some(collator_file_id) = config.collator_file_id else {
-				cli.outro_cancel("No collator_file_id was found.")?;
-				return Ok(());
-			};
-			let mut request = DeployRequest::new(
-				collator_file_id,
-				config.registration.genesis_artifacts,
-				config.registration.proxy,
-			)?;
-			if request.runtime_template.is_none() {
-				let template_name = prompt_template_used(cli)?;
-				request.runtime_template = template_name.map(|name| name.to_string());
-			}
-			cli.info(format!("Starting deployment with {}", api.provider.name()))?;
-			match api.deploy(config.registration.id, request).await {
-				Ok(result) => cli.success(format!(
-					"Deployment successfully {}",
-					style(format!("{}", result.message)).dim()
-				))?,
-				Err(e) => cli.outro_cancel(format!("{}", e))?,
-			}
+		match deployment_config.deploy(&config, cli).await {
+			Ok(Some(message)) =>
+				cli.success(format!("Deployment successfully {}", style(message).dim()))?,
+			Ok(None) => {},
+			Err(e) => cli.outro_cancel(format!("Deployment failed: {}", e))?,
 		}
-
 		Ok(())
 	}
 
-	// Prepares the chain for registration by setting up its configuration.
-	async fn prepare_for_registration(self, cli: &mut impl Cli) -> Result<Deployment> {
-		let mut api = None;
-		let mut relay_chain_url = self.relay_chain_url.clone();
-		if relay_chain_url.is_none() {
-			// TODO: Needs refactoring once we don't manage supporting Local deployments.
-			let provider = prompt_provider(cli)?;
-			let relay_chain = prompt_supported_chain(cli)?;
-			relay_chain_url = relay_chain
-				.and_then(|chain| chain.get_rpc_url())
-				.and_then(|url| Url::parse(&url).ok());
+	// Prepares the chain for deployment by setting up its configuration.
+	fn prepare_for_deployment(&mut self, cli: &mut impl Cli) -> Result<Deployment> {
+		let provider = match prompt_provider(cli)? {
+			None => return Ok(Deployment::default()),
+			Some(provider) => provider,
+		};
+		let relay_chain = prompt_supported_chain(cli)?;
+		let relay_chain_str = relay_chain.to_string();
+		self.relay_chain_url = relay_chain.get_rpc_url().and_then(|url| Url::parse(&url).ok());
+		let api_key = prompt_api_key(POP_API_KEY, cli)?;
 
-			if let Some(provider) = provider {
-				let api_key = prompt_api_key(POP_API_KEY, cli)?;
-				// TODO: As above. Local is only testing
-				api = Some(DeploymentApi::new(
-					provider,
-					api_key,
-					relay_chain
-						.as_ref()
-						.map(ToString::to_string)
-						.unwrap_or_else(|| "Local".to_string()),
-				)?);
-			}
-		}
+		let api = Some(DeploymentApi::new(provider, api_key, relay_chain_str)?);
+		Ok(Deployment { api, collator_file_id: None })
+	}
+
+	// Prepares the chain for registration by setting up its configuration.
+	async fn prepare_for_registration(
+		self,
+		deployment_config: &mut Deployment,
+		cli: &mut impl Cli,
+	) -> Result<Registration> {
 		let chain =
-			configure("Enter the relay chain node URL", DEFAULT_URL, &relay_chain_url, cli).await?;
+			configure("Enter the relay chain node URL", DEFAULT_URL, &self.relay_chain_url, cli)
+				.await?;
 		let proxy = self.resolve_proxied_address(cli)?;
 		let id = self.resolve_id(&chain, &proxy, cli).await?;
-		let (genesis_artifacts, collator_file_id) =
-			self.resolve_genesis_files(&api, id, cli).await?;
-		Ok(Deployment {
-			api,
-			collator_file_id,
-			registration: Registration { id, genesis_artifacts, chain, proxy },
-		})
+		let genesis_artifacts = self.resolve_genesis_files(deployment_config, id, cli).await?;
+		Ok(Registration { id, genesis_artifacts, chain, proxy })
 	}
 
 	// Retrieves the proxied address, prompting the user if none is specified.
@@ -169,30 +142,52 @@ impl UpCommand {
 	// Resolves the genesis state and code files, generating them if necessary.
 	async fn resolve_genesis_files(
 		&self,
-		api: &Option<DeploymentApi>,
+		deployment_config: &mut Deployment,
 		id: u32,
 		cli: &mut impl Cli,
-	) -> Result<(GenesisArtifacts, Option<String>)> {
-		if let (Some(code), Some(state), _) = (&self.genesis_code, &self.genesis_state, &api) {
-			return Ok((
-				GenesisArtifacts {
-					genesis_code_file: Some(code.clone()),
-					genesis_state_file: Some(state.clone()),
-					..Default::default()
-				},
-				None,
-			)); // Ignore the collator file ID and the chain spec files.
+	) -> Result<GenesisArtifacts> {
+		if let (Some(code), Some(state), _) =
+			(&self.genesis_code, &self.genesis_state, &deployment_config.api)
+		{
+			return Ok(GenesisArtifacts {
+				genesis_code_file: Some(code.clone()),
+				genesis_state_file: Some(state.clone()),
+				..Default::default()
+			});
 		}
 		cli.info("Generating the chain spec for your project")?;
-		generate_spec_files(api, id, self.path.as_deref(), cli).await
+		generate_spec_files(deployment_config, id, self.path.as_deref(), cli).await
 	}
 }
 
 // Represents the configuration for deployment.
+#[derive(Default)]
 struct Deployment {
 	api: Option<DeploymentApi>,
 	collator_file_id: Option<String>,
-	registration: Registration,
+}
+impl Deployment {
+	// Executes the deployment process.
+	async fn deploy(&self, config: &Registration, cli: &mut impl Cli) -> Result<Option<String>> {
+		let Some(api) = &self.api else {
+			return Ok(None);
+		};
+		let Some(collator_file_id) = &self.collator_file_id else {
+			return Err(anyhow::anyhow!("No collator_file_id was found"));
+		};
+		let mut request = DeployRequest::new(
+			collator_file_id.to_string(),
+			config.genesis_artifacts.clone(),
+			config.proxy.clone(),
+		)?;
+		if request.runtime_template.is_none() {
+			let template_name = prompt_template_used(cli)?;
+			request.runtime_template = Some(template_name.to_string());
+		}
+		cli.info(format!("Starting deployment with {}", api.provider.name()))?;
+		let result = api.deploy(config.id, request).await?;
+		Ok(Some(result.message))
+	}
 }
 
 // Represents the configuration for rollup registration.
@@ -280,11 +275,11 @@ fn prepare_reserve_call_data(chain: &Chain, proxy: &Proxy, cli: &mut impl Cli) -
 
 // Generates chain spec files for the project.
 async fn generate_spec_files(
-	api: &Option<DeploymentApi>,
+	deployment_config: &mut Deployment,
 	id: u32,
 	path: Option<&Path>,
 	cli: &mut impl Cli,
-) -> anyhow::Result<(GenesisArtifacts, Option<String>)> {
+) -> anyhow::Result<GenesisArtifacts> {
 	// Changes the working directory if a path is provided to ensure the build spec process runs in
 	// the correct context.
 	if let Some(path) = path {
@@ -301,8 +296,7 @@ async fn generate_spec_files(
 	.await?;
 
 	let mut genesis_artifacts = build_spec.clone().build(cli)?;
-	let mut collator_file_id = None;
-	if let Some(api) = api {
+	if let Some(api) = &deployment_config.api {
 		cli.info("Fetching collator keys...")?;
 		let keys = api.get_collator_keys(id).await?;
 		cli.info("Rebuilding chain spec with updated collator keys...")?;
@@ -310,9 +304,9 @@ async fn generate_spec_files(
 			.update_chain_spec_with_keys(keys.collator_keys, &genesis_artifacts.chain_spec)?;
 		build_spec.skip_plain_chain_spec = true;
 		genesis_artifacts = build_spec.build(cli)?;
-		collator_file_id = Some(keys.collator_file_id);
+		deployment_config.collator_file_id = Some(keys.collator_file_id);
 	}
-	Ok((genesis_artifacts, collator_file_id))
+	Ok(genesis_artifacts)
 }
 
 // Prompt the user to input an address and return it formatted as `Id(address)`
@@ -348,17 +342,12 @@ fn prompt_provider(cli: &mut impl Cli) -> Result<Option<DeploymentProvider>> {
 }
 
 // Prompts the user for what action they want to do.
-fn prompt_supported_chain(cli: &mut impl Cli) -> Result<Option<SupportedChains>> {
+fn prompt_supported_chain(cli: &mut impl Cli) -> Result<&SupportedChains> {
 	let mut chain_selected =
 		cli.select("Select a Relay Chain\n\nChoose from the supported relay chains:");
 	for chain in SupportedChains::VARIANTS {
-		chain_selected = chain_selected.item(Some(chain.clone()), chain.to_string(), "");
+		chain_selected = chain_selected.item(chain, chain.to_string(), "");
 	}
-	// TODO: Remove after local testing.
-	//if provider.is_none() {
-	chain_selected =
-		chain_selected.item(None, "CUSTOM", "You will be asked to enter the URL manually.");
-	//}
 	Ok(chain_selected.interact()?)
 }
 
@@ -374,19 +363,16 @@ fn prompt_api_key(env_var_name: &str, cli: &mut impl Cli) -> Result<String> {
 }
 
 // Prompts the user to select the template used.
-fn prompt_template_used(cli: &mut impl Cli) -> Result<Option<&str>> {
+fn prompt_template_used(cli: &mut impl Cli) -> Result<&str> {
 	cli.warning("We could not automatically detect which template was used to build your rollup.")?;
 	let mut template = cli.select("Select the template used:");
-	for supported_template in
-		Parachain::VARIANTS.iter().filter(|variant| variant.deployment_name().is_some())
-	{
-		template = template.item(
-			supported_template.deployment_name(),
-			supported_template.name(),
-			supported_template.description().trim(),
-		);
+	for supported_template in Parachain::VARIANTS.iter().filter_map(|variant| {
+		variant
+			.deployment_name()
+			.map(|name| (name, variant.name(), variant.description().trim()))
+	}) {
+		template = template.item(supported_template.0, supported_template.1, supported_template.2);
 	}
-	template = template.item(None, "None of the above", "Proceed without a predefined template.");
 	Ok(template.interact()?)
 }
 
@@ -407,6 +393,52 @@ mod tests {
 	#[tokio::test]
 	async fn prepare_for_registration_works() -> Result<()> {
 		let mut cli = MockCli::new()
+			.expect_input("Enter the relay chain node URL", POLKADOT_NETWORK_URL.into());
+		let (genesis_state, genesis_code) = create_temp_genesis_files()?;
+		let chain_config = UpCommand {
+			id: Some(2000),
+			genesis_state: Some(genesis_state.clone()),
+			genesis_code: Some(genesis_code.clone()),
+			proxied_address: Some(MOCK_PROXIED_ADDRESS.to_string()),
+			..Default::default()
+		}
+		.prepare_for_registration(&mut Deployment::default(), &mut cli)
+		.await?;
+
+		assert_eq!(chain_config.id, 2000);
+		assert_eq!(chain_config.genesis_artifacts.genesis_code_file, Some(genesis_code));
+		assert_eq!(chain_config.genesis_artifacts.genesis_state_file, Some(genesis_state));
+		assert_eq!(chain_config.chain.url, Url::parse(POLKADOT_NETWORK_URL)?);
+		assert_eq!(chain_config.proxy, Some(format!("Id({})", MOCK_PROXIED_ADDRESS.to_string())));
+		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn prepare_for_deployment_works() -> Result<()> {
+		let mut cli = MockCli::new().expect_select(
+			"Select your deployment method:",
+			Some(false),
+			true,
+			Some(
+				DeploymentProvider::VARIANTS
+					.into_iter()
+					.map(|action| (action.name().to_string(), action.description().to_string()))
+					.chain(std::iter::once((
+						"Only Register in Relay Chain".to_string(),
+						"Register the parachain in the relay chain without deploying".to_string(),
+					)))
+					.collect::<Vec<_>>(),
+			),
+			DeploymentProvider::VARIANTS.len(), // Only Register in Relay Chain
+			None,
+		);
+		let chain_config = UpCommand::default().prepare_for_deployment(&mut cli)?;
+
+		assert!(chain_config.api.is_none());
+		assert!(chain_config.collator_file_id.is_none());
+		cli.verify()?;
+
+		let mut cli = MockCli::new()
 			.expect_select(
 				"Select your deployment method:",
 				Some(false),
@@ -422,7 +454,8 @@ mod tests {
 						)))
 						.collect::<Vec<_>>(),
 				),
-				DeploymentProvider::VARIANTS.len(), // Only Register in Relay Chain
+				DeploymentProvider::PDP as usize,
+				None,
 			)
 			.expect_select(
 				"Select a Relay Chain\n\nChoose from the supported relay chains:",
@@ -432,43 +465,27 @@ mod tests {
 					SupportedChains::VARIANTS
 						.into_iter()
 						.map(|chain| (chain.to_string(), "".to_string()))
-						.chain(std::iter::once((
-							"CUSTOM".to_string(),
-							"You will be asked to enter the URL manually.".to_string(),
-						)))
 						.collect::<Vec<_>>(),
 				),
-				SupportedChains::VARIANTS.len(),
+				SupportedChains::PASEO as usize,
 				None,
-			)
-			.expect_input("Enter the relay chain node URL", POLKADOT_NETWORK_URL.into());
-		let (genesis_state, genesis_code) = create_temp_genesis_files()?;
-		let chain_config = UpCommand {
-			id: Some(2000),
-			genesis_state: Some(genesis_state.clone()),
-			genesis_code: Some(genesis_code.clone()),
-			proxied_address: Some(MOCK_PROXIED_ADDRESS.to_string()),
-			..Default::default()
-		}
-		.prepare_for_registration(&mut cli)
-		.await?;
+			);
 
-		assert_eq!(chain_config.registration.id, 2000);
-		assert_eq!(
-			chain_config.registration.genesis_artifacts.genesis_code_file,
-			Some(genesis_code)
-		);
-		assert_eq!(
-			chain_config.registration.genesis_artifacts.genesis_state_file,
-			Some(genesis_state)
-		);
-		assert_eq!(chain_config.registration.chain.url, Url::parse(POLKADOT_NETWORK_URL)?);
-		assert_eq!(
-			chain_config.registration.proxy,
-			Some(format!("Id({})", MOCK_PROXIED_ADDRESS.to_string()))
-		);
-		assert!(chain_config.api.is_none());
-		assert!(chain_config.collator_file_id.is_none());
+		// A backup of the existing env variable to restore it at the end of the test.
+		let original_api_key = env::var(POP_API_KEY).ok();
+		env::set_var(POP_API_KEY, "test_api_key");
+		let chain_config = UpCommand::default().prepare_for_deployment(&mut cli)?;
+		assert!(!chain_config.api.is_none());
+		let api = chain_config.api.unwrap();
+		assert_eq!(api.api_key, "test_api_key");
+		assert_eq!(api.relay_chain_name, "PASEO");
+
+		// Ensure a clean environment.
+		if let Some(original) = original_api_key {
+			env::set_var("POP_API_KEY", original);
+		} else {
+			env::remove_var("POP_API_KEY");
+		}
 		cli.verify()
 	}
 
@@ -537,6 +554,23 @@ mod tests {
 	async fn reserve_id_fails_wrong_chain() -> Result<()> {
 		let mut cli = MockCli::new()
 			.expect_intro("Deploy a rollup")
+			.expect_select(
+				"Select your deployment method:",
+				Some(false),
+				true,
+				Some(
+					DeploymentProvider::VARIANTS
+						.into_iter()
+						.map(|action| (action.name().to_string(), action.description().to_string()))
+						.chain(std::iter::once((
+							"Only Register in Relay Chain".to_string(),
+							"Register the parachain in the relay chain without deploying".to_string(),
+						)))
+						.collect::<Vec<_>>(),
+				),
+				DeploymentProvider::VARIANTS.len(), // Only Register in Relay Chain
+				None,
+			)
 			.expect_info(format!("You will need to sign a transaction to reserve an ID on {} using the `Registrar::reserve` function.", Url::parse(POP_NETWORK_TESTNET_URL)?.as_str()))
 			.expect_outro_cancel("Failed to find the pallet Registrar");
 		let (genesis_state, genesis_code) = create_temp_genesis_files()?;
@@ -558,6 +592,23 @@ mod tests {
 	async fn register_fails_wrong_chain() -> Result<()> {
 		let mut cli = MockCli::new()
 			.expect_intro("Deploy a rollup")
+			.expect_select(
+				"Select your deployment method:",
+				Some(false),
+				true,
+				Some(
+					DeploymentProvider::VARIANTS
+						.into_iter()
+						.map(|action| (action.name().to_string(), action.description().to_string()))
+						.chain(std::iter::once((
+							"Only Register in Relay Chain".to_string(),
+							"Register the parachain in the relay chain without deploying".to_string(),
+						)))
+						.collect::<Vec<_>>(),
+				),
+				DeploymentProvider::VARIANTS.len(), // Only Register in Relay Chain
+				None,
+			)
 			.expect_info(format!("You will need to sign a transaction to register on {}, using the `Registrar::register` function.", Url::parse(POP_NETWORK_TESTNET_URL)?.as_str()))
 			.expect_outro_cancel("Failed to find the pallet Registrar");
 		let (genesis_state, genesis_code) = create_temp_genesis_files()?;
@@ -672,16 +723,12 @@ mod tests {
 						.map(|template| {
 							(template.name().to_string(), template.description().trim().to_string())
 						})
-						.chain(std::iter::once((
-							"None of the above".to_string(),
-							"Proceed without a predefined template.".to_string(),
-						)))
 						.collect::<Vec<_>>(),
 				),
 				Parachain::Standard as usize,
 				None,
 			);
-		assert_eq!(prompt_template_used(&mut cli)?, Some("POP_STANDARD"));
+		assert_eq!(prompt_template_used(&mut cli)?, "POP_STANDARD");
 		cli.verify()
 	}
 
