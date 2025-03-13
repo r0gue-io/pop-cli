@@ -507,7 +507,7 @@ impl BuildSpecCommand {
 			deterministic,
 			package,
 			runtime_dir,
-			skip_plain_chain_spec: false,
+			use_existing_plain_spec: false,
 		})
 	}
 }
@@ -541,7 +541,7 @@ pub(crate) struct BuildSpec {
 	deterministic: bool,
 	package: String,
 	runtime_dir: PathBuf,
-	pub(crate) skip_plain_chain_spec: bool,
+	use_existing_plain_spec: bool,
 }
 
 impl BuildSpec {
@@ -561,13 +561,13 @@ impl BuildSpec {
 			ref chain,
 			genesis_state,
 			genesis_code,
-			skip_plain_chain_spec,
+			use_existing_plain_spec,
 			..
 		} = self;
 		// Ensure binary is built.
 		let binary_path = ensure_binary_exists(cli, profile)?;
 		let spinner = spinner();
-		if !skip_plain_chain_spec {
+		if !use_existing_plain_spec {
 			spinner.start("Generating chain specification...");
 			// Generate chain spec.
 			generate_plain_chain_spec(&binary_path, output_file, default_bootnode, chain)?;
@@ -629,7 +629,7 @@ impl BuildSpec {
 		};
 
 		spinner.stop("Chain specification built successfully.");
-		if !skip_plain_chain_spec {
+		if !use_existing_plain_spec {
 			let generated_files: Vec<_> = generated_files
 				.iter()
 				.map(|s| style(format!("{} {s}", console::Emoji("●", ">"))).dim().to_string())
@@ -646,6 +646,11 @@ impl BuildSpec {
 			genesis_code_file,
 			genesis_state_file,
 		})
+	}
+
+	/// Enables the use of an existing plain chain spec, preventing unnecessary regeneration.
+	pub fn enable_existing_plain_spec(&mut self) {
+		self.use_existing_plain_spec = true;
 	}
 
 	/// Injects collator keys into the chain spec and updates the file.
