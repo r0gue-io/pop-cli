@@ -53,7 +53,7 @@ impl BenchmarkMachine {
 
 		// Display the benchmarking command.
 		cliclack::log::remark("\n")?;
-		cli.success(self.display())?;
+		cli.info(self.display())?;
 		if let Err(e) = result {
 			return display_message(&e.to_string(), false, cli);
 		}
@@ -101,7 +101,7 @@ mod tests {
 			.expect_intro("Benchmarking the hardware")
 			.expect_warning("NOTE: this may take some time...")
 			.expect_info("Benchmarking your hardware performance...")
-			.expect_success("pop bench machine --profile=debug")
+			.expect_info("pop bench machine --profile=debug")
 			.expect_outro_cancel(
 				// As we only mock the node to test the interactive flow, the returned error is
 				// expected.
@@ -136,7 +136,7 @@ mod tests {
 			)
 			.expect_warning("NOTE: this may take some time...")
 			.expect_info("Benchmarking your hardware performance...")
-			.expect_success("pop bench machine --profile=debug")
+			.expect_info("pop bench machine --profile=debug")
 			.expect_outro_cancel(
 				// As we only mock the node to test the interactive flow, the returned error is
 				// expected.
