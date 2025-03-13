@@ -16,7 +16,7 @@ use std::{
 
 #[derive(Args)]
 pub(crate) struct BenchmarkMachine {
-	/// Command to enchmark the hardwar.
+	/// Command to benchmark the hardware.
 	#[clap(flatten)]
 	pub command: MachineCmd,
 	/// Build profile.
