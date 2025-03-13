@@ -52,7 +52,7 @@ impl BenchmarkBlock {
 
 		// Display the benchmarking command.
 		cliclack::log::remark("\n")?;
-		cli.success(self.display())?;
+		cli.info(self.display())?;
 		if let Err(e) = result {
 			return display_message(&e.to_string(), false, cli);
 		}
@@ -99,7 +99,7 @@ mod tests {
 		let mut cli = MockCli::new()
 			.expect_intro("Benchmarking the execution time of historic blocks")
 			.expect_warning("NOTE: this may take some time...")
-			.expect_success("pop bench block --profile=debug")
+			.expect_info("pop bench block --profile=debug")
 			.expect_outro_cancel(
 				// As we only mock the node to test the interactive flow, the returned error is
 				// expected.
@@ -133,7 +133,7 @@ mod tests {
 				None,
 			)
 			.expect_warning("NOTE: this may take some time...")
-			.expect_success("pop bench block --profile=debug")
+			.expect_info("pop bench block --profile=debug")
 			.expect_outro_cancel(
 				// As we only mock the node to test the interactive flow, the returned error is
 				// expected.
