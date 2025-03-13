@@ -53,13 +53,13 @@ impl DeploymentProvider {
 	/// Constructs the full URI for querying collator keys.
 	///
 	/// # Arguments
-	/// * `chain_name` - The specific chain name associated with the parachain.
-	/// * `para_id` - The parachain ID for which collator keys are being requested.
-	pub fn get_collator_keys_path(&self, chain_name: &str, para_id: u32) -> String {
+	/// * `chain_name` - The specific relay chain name where is going to be deployed.
+	/// * `id` - The ID for which collator keys are being requested.
+	pub fn get_collator_keys_path(&self, chain_name: &str, id: u32) -> String {
 		self.get_str("CollatorKeysURI")
 			.map(|template| {
 				template
-					.replace("{para_id}", &para_id.to_string())
+					.replace("{para_id}", &id.to_string())
 					.replace("{chain_name}", chain_name)
 			})
 			.unwrap_or_else(|| "".to_string())
@@ -68,10 +68,10 @@ impl DeploymentProvider {
 	/// Constructs the full URI for deploying a parachain.
 	///
 	/// # Arguments
-	/// * `para_id` - The parachain ID that is being deployed.
-	pub fn get_deploy_path(&self, para_id: u32) -> String {
+	/// * `id` - The ID that is being deployed.
+	pub fn get_deploy_path(&self, id: u32) -> String {
 		self.get_str("DeployURI")
-			.map(|template| template.replace("{para_id}", &para_id.to_string()))
+			.map(|template| template.replace("{para_id}", &id.to_string()))
 			.unwrap_or_else(|| "".to_string())
 	}
 }
@@ -97,8 +97,8 @@ impl SupportedChains {
 			)
 			.map(|s| s.to_string())
 	}
-	// List of RPC URLs for a given chain.
-	fn rpc_urls(&self) -> Vec<&'static str> {
+	// Returns a static list of RPC URLs for the chain.
+	fn rpc_urls(&self) -> &'static [&'static str] {
 		match self {
 			SupportedChains::PASEO => &[
 				"wss://paseo.dotters.network",
@@ -129,7 +129,6 @@ impl SupportedChains {
 				"wss://polkadot.dotters.network",
 			],
 		}
-		.to_vec()
 	}
 }
 
