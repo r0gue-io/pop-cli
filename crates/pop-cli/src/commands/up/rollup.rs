@@ -60,8 +60,8 @@ impl UpCommand {
 	/// Executes the command.
 	pub(crate) async fn execute(mut self, cli: &mut impl Cli) -> Result<()> {
 		cli.intro("Deploy a rollup")?;
-		let mut deployment_config = self.prepare_for_deployment(cli)?;
-		let config = match self.prepare_for_registration(&mut deployment_config, cli).await {
+		let mut deployment = self.prepare_for_deployment(cli)?;
+		let config = match self.prepare_for_registration(&mut deployment, cli).await {
 			Ok(chain) => chain,
 			Err(e) => {
 				cli.outro_cancel(e.to_string())?;
@@ -79,7 +79,7 @@ impl UpCommand {
 			))?,
 			Err(e) => cli.outro_cancel(e.to_string())?,
 		}
-		match deployment_config.deploy(&config, cli).await {
+		match deployment.deploy(&config, cli).await {
 			Ok(Some(result)) => cli.success(format!(
 				"Deployment successfully\n   {}\n   {}",
 				style(format!("{} Status: {}", console::Emoji("●", ">"), result.status)).dim(),
@@ -98,16 +98,16 @@ impl UpCommand {
 	// Prepares the chain for deployment by setting up its configuration.
 	fn prepare_for_deployment(&mut self, cli: &mut impl Cli) -> Result<Deployment> {
 		let provider = match prompt_provider(cli)? {
-			None => return Ok(Deployment::default()),
 			Some(provider) => provider,
+			None => return Ok(Deployment::default()),
 		};
 		warn_supported_templates(&provider, cli)?;
 		let relay_chain = prompt_supported_chain(cli)?;
-		let relay_chain_str = relay_chain.to_string();
+		let relay_chain_name = relay_chain.to_string();
 		self.relay_chain_url = relay_chain.get_rpc_url().and_then(|url| Url::parse(&url).ok());
-		let api_key = prompt_api_key(POP_API_KEY, cli)?;
 
-		let api = Some(DeploymentApi::new(provider, api_key, relay_chain_str)?);
+		let api_key = prompt_api_key(POP_API_KEY, cli)?;
+		let api = Some(DeploymentApi::new(api_key, provider, relay_chain_name)?);
 		Ok(Deployment { api, collator_file_id: None })
 	}
 
@@ -338,7 +338,7 @@ fn prompt_for_proxy_address(cli: &mut impl Cli) -> Result<String> {
 	Ok(format!("Id({address})"))
 }
 
-// Prompts the user for what action they want to do.
+// Prompts the user the user to select a deployment provider or only register.
 fn prompt_provider(cli: &mut impl Cli) -> Result<Option<DeploymentProvider>> {
 	let mut predefined_action = cli.select("Select your deployment method:");
 	for action in DeploymentProvider::VARIANTS {
@@ -353,7 +353,7 @@ fn prompt_provider(cli: &mut impl Cli) -> Result<Option<DeploymentProvider>> {
 	Ok(predefined_action.interact()?)
 }
 
-// Prompts the user for what action they want to do.
+// Prompts user to select a supported chain for deployment.
 fn prompt_supported_chain(cli: &mut impl Cli) -> Result<&SupportedChains> {
 	let mut chain_selected =
 		cli.select("Select a Relay Chain\n\nChoose from the supported relay chains:");
@@ -363,7 +363,7 @@ fn prompt_supported_chain(cli: &mut impl Cli) -> Result<&SupportedChains> {
 	Ok(chain_selected.interact()?)
 }
 
-// Prompts for an API key and stores it securely.
+// Prompts for an API key and attempts to read from environment first.
 fn prompt_api_key(env_var_name: &str, cli: &mut impl Cli) -> Result<String> {
 	if let Ok(api_key) = env::var(env_var_name) {
 		cli.info(format!("Using API key from environment variable ({env_var_name})."))?;
@@ -374,7 +374,7 @@ fn prompt_api_key(env_var_name: &str, cli: &mut impl Cli) -> Result<String> {
 	Ok(api_key)
 }
 
-// Prompts the user to select the template used.
+// Prompts the user to choose which template was used.
 fn prompt_template_used(cli: &mut impl Cli) -> Result<&str> {
 	cli.warning("We could not automatically detect which template was used to build your rollup.")?;
 	let mut template = cli.select("Select the template used:");
@@ -388,6 +388,7 @@ fn prompt_template_used(cli: &mut impl Cli) -> Result<&str> {
 	Ok(template.interact()?)
 }
 
+/// Warns user about which templates are supported for the given provider.
 fn warn_supported_templates(provider: &DeploymentProvider, cli: &mut impl Cli) -> Result<()> {
 	let supported_templates: Vec<String> = Parachain::VARIANTS
 		.iter()
