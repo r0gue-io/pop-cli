@@ -579,7 +579,8 @@ impl BuildSpec {
 				})?;
 				let code = fs::read(&runtime_path).map_err(anyhow::Error::from)?;
 				cli.success("Runtime built successfully.")?;
-				generated_files.push(format!("Runtime file generated at: {}", &runtime_path.display()));
+				generated_files
+					.push(format!("Runtime file generated at: {}", &runtime_path.display()));
 				self.update_code(&code)?;
 			}
 
