@@ -47,7 +47,7 @@ impl BenchmarkMachine {
 		)?;
 
 		cli.warning("NOTE: this may take some time...")?;
-		cli.info("Benchmarking and generating weight file...")?;
+		cli.info("Benchmarking your hardware performance...")?;
 
 		let result = generate_binary_benchmarks(&binary_path, "machine");
 
@@ -100,7 +100,7 @@ mod tests {
 		let mut cli = MockCli::new()
 			.expect_intro("Benchmarking the hardware")
 			.expect_warning("NOTE: this may take some time...")
-			.expect_info("Benchmarking and generating weight file...")
+			.expect_info("Benchmarking your hardware performance...")
 			.expect_success("pop bench machine --profile=debug")
 			.expect_outro_cancel(
 				// As we only mock the node to test the interactive flow, the returned error is
@@ -135,7 +135,7 @@ mod tests {
 				None,
 			)
 			.expect_warning("NOTE: this may take some time...")
-			.expect_info("Benchmarking and generating weight file...")
+			.expect_info("Benchmarking your hardware performance...")
 			.expect_success("pop bench machine --profile=debug")
 			.expect_outro_cancel(
 				// As we only mock the node to test the interactive flow, the returned error is
