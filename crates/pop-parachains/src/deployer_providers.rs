@@ -62,7 +62,7 @@ impl DeploymentProvider {
 					.replace("{para_id}", &id.to_string())
 					.replace("{chain_name}", chain_name)
 			})
-			.unwrap_or_else(|| "".to_string())
+			.unwrap_or_default()
 	}
 
 	/// Constructs the full URI for deploying a parachain.
@@ -72,7 +72,7 @@ impl DeploymentProvider {
 	pub fn get_deploy_path(&self, id: u32) -> String {
 		self.get_str("DeployURI")
 			.map(|template| template.replace("{para_id}", &id.to_string()))
-			.unwrap_or_else(|| "".to_string())
+			.unwrap_or_default()
 	}
 }
 
