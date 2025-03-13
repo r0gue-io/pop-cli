@@ -314,7 +314,7 @@ async fn generate_spec_files(
 		cli.info("Rebuilding chain spec with updated collator keys...")?;
 		build_spec
 			.update_chain_spec_with_keys(keys.collator_keys, &genesis_artifacts.chain_spec)?;
-		build_spec.skip_plain_chain_spec = true;
+		build_spec.enable_existing_plain_spec();
 		genesis_artifacts = build_spec.build(cli)?;
 		deployment_config.collator_file_id = Some(keys.collator_file_id);
 	}
