@@ -3,10 +3,12 @@
 use crate::cli::{self};
 use block::BenchmarkBlock;
 use clap::{Args, Subcommand};
+use machine::BenchmarkMachine;
 use pallet::BenchmarkPallet;
 use storage::BenchmarkStorage;
 
 mod block;
+mod machine;
 mod pallet;
 mod storage;
 
@@ -30,6 +32,9 @@ pub enum Command {
 	/// Benchmark the storage speed of a chain snapshot.
 	#[clap(alias = "s")]
 	Storage(BenchmarkStorage),
+	/// Benchmark the machine performance.
+	#[clap(alias = "m")]
+	Machine(BenchmarkMachine),
 }
 
 impl Command {
@@ -40,6 +45,7 @@ impl Command {
 			Command::Block(mut cmd) => cmd.execute(&mut cli),
 			Command::Pallet(mut cmd) => cmd.execute(&mut cli).await,
 			Command::Storage(mut cmd) => cmd.execute(&mut cli),
+			Command::Machine(mut cmd) => cmd.execute(&mut cli),
 		}
 	}
 }
