@@ -33,7 +33,7 @@ impl Command {
 		let mut cli = cli::Cli;
 		match args.command {
 			Command::Pallet(mut cmd) => cmd.execute(&mut cli).await,
-			Command::Storage(mut cmd) => cmd.execute(&mut cli).await,
+			Command::Storage(mut cmd) => cmd.execute(&mut cli),
 		}
 	}
 }
