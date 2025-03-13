@@ -1,23 +1,18 @@
-// SPDX-License-Identifier: GPL-3.0
-
 use crate::{
 	cli::{self},
 	common::{
 		builds::{ensure_node_binary_exists, guide_user_to_select_profile},
 		prompt::display_message,
-		runtime::RuntimeFeature,
 	},
 };
 use clap::Args;
 use frame_benchmarking_cli::MachineCmd;
 use pop_common::Profile;
-use pop_parachains::{generate_binary_benchmarks, BenchmarkingCliCommand};
+use pop_parachains::generate_binary_benchmarks;
 use std::{
 	env::current_dir,
 	path::{Path, PathBuf},
 };
-
-const EXCLUDED_ARGS: [&str; 1] = ["--profile"];
 
 #[derive(Args)]
 pub(crate) struct BenchmarkMachine {
@@ -48,18 +43,13 @@ impl BenchmarkMachine {
 			cli,
 			target_path,
 			self.profile.as_ref().ok_or_else(|| anyhow::anyhow!("No profile provided"))?,
-			vec![RuntimeFeature::Benchmark.as_ref()],
+			vec!["runtime-benchmarks"],
 		)?;
 
 		cli.warning("NOTE: this may take some time...")?;
 		cli.info("Benchmarking your hardware performance...")?;
 
-		let result = generate_binary_benchmarks(
-			&binary_path,
-			BenchmarkingCliCommand::Machine,
-			|args| args,
-			&EXCLUDED_ARGS,
-		);
+		let result = generate_binary_benchmarks(&binary_path, "machine");
 
 		// Display the benchmarking command.
 		cliclack::log::remark("\n")?;
@@ -90,12 +80,13 @@ mod tests {
 	use frame_benchmarking_cli::MachineCmd;
 	use pop_common::Profile;
 	use std::fs::{self, File};
+	use strum::{EnumMessage, VariantArray};
 	use tempfile::tempdir;
 
 	use super::BenchmarkMachine;
 
 	#[test]
-	fn benchmark_machine_works() -> anyhow::Result<()> {
+	fn benchmark_storage_works() -> anyhow::Result<()> {
 		let name = "node";
 		let temp_dir = tempdir()?;
 		cmd("cargo", ["new", name, "--bin"]).dir(temp_dir.path()).run()?;
@@ -123,13 +114,23 @@ mod tests {
 		.benchmark(&mut cli, temp_dir.path())?;
 		cli.verify()?;
 
+		// Prompt user to select `profile` if not provided.
+		let profiles = Profile::VARIANTS
+			.iter()
+			.map(|profile| {
+				(
+					profile.get_message().unwrap_or(profile.as_ref()).to_string(),
+					profile.get_detailed_message().unwrap_or_default().to_string(),
+				)
+			})
+			.collect();
 		let mut cli = MockCli::new()
 			.expect_intro("Benchmarking the hardware")
 			.expect_select(
 				"Choose the build profile of the binary that should be used: ",
 				Some(true),
 				true,
-				Some(Profile::get_variants()),
+				Some(profiles),
 				0,
 				None,
 			)
