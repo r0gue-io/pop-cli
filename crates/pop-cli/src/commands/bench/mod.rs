@@ -9,6 +9,7 @@ use machine::BenchmarkMachine;
 use pallet::BenchmarkPallet;
 use storage::BenchmarkStorage;
 
+mod block;
 mod machine;
 mod pallet;
 mod storage;
@@ -24,6 +25,9 @@ pub struct BenchmarkArgs {
 /// Benchmark a pallet or a parachain.
 #[derive(Subcommand)]
 pub enum Command {
+	/// Benchmark the execution time of historic blocks.
+	#[clap(alias = "b")]
+	Block(BenchmarkBlock),
 	/// Benchmark the extrinsic weight of FRAME Pallets
 	#[clap(alias = "p")]
 	Pallet(BenchmarkPallet),
@@ -40,6 +44,7 @@ impl Command {
 	pub(crate) async fn execute(args: BenchmarkArgs) -> anyhow::Result<()> {
 		let mut cli = cli::Cli;
 		match args.command {
+			Command::Block(mut cmd) => cmd.execute(&mut cli),
 			Command::Pallet(mut cmd) => cmd.execute(&mut cli).await,
 			Command::Storage(mut cmd) => cmd.execute(&mut cli),
 			Command::Machine(mut cmd) => cmd.execute(&mut cli),
