@@ -55,7 +55,7 @@ impl BenchmarkStorage {
 		cliclack::log::remark("\n")?;
 		cli.success(self.display())?;
 		if let Err(e) = result {
-			return display_message(&format!("Failed to run storage benchmark: {}", e), false, cli);
+			return display_message(&e.to_string(), false, cli);
 		}
 		display_message("Benchmark completed successfully!", true, cli)?;
 		Ok(())
@@ -105,7 +105,7 @@ mod tests {
 			.expect_outro_cancel(
 				// As we only mock the node to test the interactive flow, the returned error is
 				// expected.
-				"Failed to run storage benchmark: Permission denied (os error 13)",
+				"Failed to run benchmarking: Permission denied (os error 13)",
 			);
 		BenchmarkStorage {
 			command: StorageCmd::try_parse_from(vec!["", "--state-version=1"])?,
@@ -140,7 +140,7 @@ mod tests {
 			.expect_outro_cancel(
 				// As we only mock the node to test the interactive flow, the returned error is
 				// expected.
-				"Failed to run storage benchmark: Permission denied (os error 13)",
+				"Failed to run benchmarking: Permission denied (os error 13)",
 			);
 		BenchmarkStorage {
 			command: StorageCmd::try_parse_from(vec!["", "--state-version=1"])?,
