@@ -131,7 +131,7 @@ impl UpCommand {
 		if let Some(addr) = &self.proxied_address {
 			return Ok(parse_account(addr).map(|valid_addr| Some(format!("Id({valid_addr})")))?);
 		}
-		if cli.confirm("Would you like to use a pure proxy for registration? This is considered a best practice.").interact()? {
+		if cli.confirm("Would you like to use a pure proxy for registration? This is considered a best practice.").initial_value(true).interact()? {
 			return Ok(Some(prompt_for_proxy_address(cli)?));
 		}
 		Ok(None)
