@@ -85,8 +85,8 @@ pub fn is_supported(path: Option<&Path>) -> Result<bool, Error> {
 	const DEPENDENCIES: [&str; 4] =
 		["cumulus-client-collator", "cumulus-primitives-core", "parachains-common", "polkadot-sdk"];
 	Ok(DEPENDENCIES.into_iter().any(|d| {
-		manifest.dependencies.contains_key(d)
-			|| manifest.workspace.as_ref().is_some_and(|w| w.dependencies.contains_key(d))
+		manifest.dependencies.contains_key(d) ||
+			manifest.workspace.as_ref().is_some_and(|w| w.dependencies.contains_key(d))
 	}))
 }
 
@@ -508,21 +508,6 @@ mod tests {
 			lto = true
 			"#,
 		);
-		// Write the updated content back to the file
-		write(&root_toml_path, root_toml_content)?;
-		Ok(())
-	}
-
-	fn add_feature(project: &Path, feature: &str) -> Result<()> {
-		let root_toml_path = project.join("Cargo.toml");
-		let mut root_toml_content = fs::read_to_string(&root_toml_path)?;
-		root_toml_content.push_str(&format!(
-			r#"
-			[features]
-			{} = []
-			"#,
-			feature
-		));
 		// Write the updated content back to the file
 		write(&root_toml_path, root_toml_content)?;
 		Ok(())
