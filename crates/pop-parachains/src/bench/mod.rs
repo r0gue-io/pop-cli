@@ -105,7 +105,7 @@ pub fn generate_benchmarks(args: Vec<String>) -> anyhow::Result<()> {
 pub async fn generate_overhead_benchmarks(cmd: OverheadCmd) -> anyhow::Result<()> {
 	tokio::task::spawn_blocking(move || {
 		std::env::set_var("RUST_LOG", "info");
-		env_logger::init();
+		let _ = env_logger::try_init();
 		cmd.run_with_default_builder_and_spec::<OpaqueBlock, HostFunctions>(None)
 			.map_err(|e| anyhow::anyhow!(format!("Failed to run benchmarking: {}", e)))
 	})
