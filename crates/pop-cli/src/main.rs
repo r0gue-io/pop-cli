@@ -20,14 +20,10 @@ mod commands;
 mod common;
 mod style;
 mod wallet_integration;
+use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-	// Set environment for logging configuration, requires for `pop bench`.
-	if std::env::var("RUST_LOG").is_err() {
-		std::env::set_var("RUST_LOG", "info");
-	}
-
 	#[cfg(feature = "telemetry")]
 	let maybe_tel = init().unwrap_or(None);
 
@@ -77,7 +73,22 @@ fn cache() -> Result<PathBuf> {
 /// Initializes telemetry.
 #[cfg(feature = "telemetry")]
 fn init() -> Result<Option<Telemetry>> {
-	env_logger::init();
+	// Disable these log targets because they are spammy.
+	let unwanted_targets =
+		&["cranelift_codegen", "wasm_cranelift", "wasmtime_jit", "wasmtime_cranelift", "wasm_jit"];
+
+	let mut env_filter =
+		EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+
+	for target in unwanted_targets {
+		env_filter = env_filter.add_directive(format!("{}=off", target).parse().unwrap());
+	}
+
+	tracing_subscriber::fmt()
+		.with_env_filter(env_filter)
+		.with_writer(std::io::stderr)
+		.init();
+
 	let maybe_config_path = config_file_path();
 
 	let maybe_tel = maybe_config_path.ok().map(|path| Telemetry::new(&path));
