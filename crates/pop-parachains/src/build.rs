@@ -85,8 +85,8 @@ pub fn is_supported(path: Option<&Path>) -> Result<bool, Error> {
 	const DEPENDENCIES: [&str; 4] =
 		["cumulus-client-collator", "cumulus-primitives-core", "parachains-common", "polkadot-sdk"];
 	Ok(DEPENDENCIES.into_iter().any(|d| {
-		manifest.dependencies.contains_key(d) ||
-			manifest.workspace.as_ref().is_some_and(|w| w.dependencies.contains_key(d))
+		manifest.dependencies.contains_key(d)
+			|| manifest.workspace.as_ref().is_some_and(|w| w.dependencies.contains_key(d))
 	}))
 }
 
@@ -388,7 +388,10 @@ mod tests {
 		Zombienet,
 	};
 	use anyhow::Result;
-	use pop_common::{manifest::Dependency, set_executable_permission};
+	use pop_common::{
+		manifest::{add_feature, Dependency},
+		set_executable_permission,
+	};
 	use std::{fs, fs::write, io::Write, path::Path};
 	use strum::VariantArray;
 	use tempfile::{tempdir, Builder, TempDir};
@@ -532,7 +535,7 @@ mod tests {
 		cmd("cargo", ["new", name, "--bin"]).dir(temp_dir.path()).run()?;
 		let project = temp_dir.path().join(name);
 		add_production_profile(&project)?;
-		add_feature(&project, "dummy-feature")?;
+		add_feature(&project, ("dummy-feature".to_string(), vec![]))?;
 		for node in vec![None, Some("custom_node")] {
 			let node_path = generate_mock_node(&project, node)?;
 			for package in vec![None, Some(String::from("parachain_template_node"))] {
@@ -565,7 +568,7 @@ mod tests {
 		cmd("cargo", ["new", name, "--bin"]).dir(temp_dir.path()).run()?;
 		let project = temp_dir.path().join(name);
 		add_production_profile(&project)?;
-		add_feature(&project, "dummy-feature")?;
+		add_feature(&project, ("dummy-feature".to_string(), vec![]))?;
 		for package in vec![None, Some(String::from(name))] {
 			for profile in Profile::VARIANTS {
 				build_project(&project, package.clone(), &profile, vec!["dummy-feature"], None)?;
