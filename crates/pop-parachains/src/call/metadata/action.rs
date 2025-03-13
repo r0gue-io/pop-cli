@@ -67,7 +67,7 @@ pub enum Action {
 		props(Pallet = "OnDemand")
 	)]
 	PurchaseOnDemandCoretime,
-	/// Purchase on-demand coretime.
+	/// Create a pure proxy.
 	#[strum(
 		serialize = "create_pure",
 		message = "create_pure",
