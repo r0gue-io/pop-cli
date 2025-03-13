@@ -29,11 +29,12 @@ impl DeploymentApi {
 	/// Creates a new API client instance.
 	///
 	/// # Arguments
-	/// * `provider` - The deployment provider to be used (e.g., Polkadot Deployment Portal).
+	/// * `provider` - The deployment provider to be used.
 	/// * `api_key` - The API key used for authentication.
+	/// * `relay_chain_name` - The name of the relay chain where deployment will occur.
 	pub fn new(
-		provider: DeploymentProvider,
 		api_key: String,
+		provider: DeploymentProvider,
 		relay_chain_name: String,
 	) -> Result<Self> {
 		Ok(Self {
@@ -48,23 +49,23 @@ impl DeploymentApi {
 	// Creates a new API client instance for testing, allowing to mock the base_url.
 	#[cfg(test)]
 	fn new_for_testing(
-		provider: DeploymentProvider,
 		api_key: String,
 		base_url: String,
+		provider: DeploymentProvider,
 		relay_chain_name: String,
 	) -> Result<Self> {
 		Ok(Self { api_key, base_url, client: Client::new(), provider, relay_chain_name })
 	}
 
-	/// Deploys a parachain by sending the chain specification.
+	/// Deploys a parachain by sending the chain specification to the provider.
 	///
 	/// # Arguments
-	/// * `id` - The ID for which collator keys are being fetched.
+	/// * `id` - The ID to be deployed.
 	/// * `request` - The deployment request containing the necessary parameters.
 	pub async fn deploy(&self, id: u32, request: DeployRequest) -> Result<DeployResponse> {
 		let url = format!("{}{}", self.base_url, self.provider.get_deploy_path(id));
-		let file_part = Part::file(request.chainspec).await?.mime_str("application/json")?;
 
+		let file_part = Part::file(request.chainspec).await?.mime_str("application/json")?;
 		let form = Form::new()
 			.text("parachainName", request.name)
 			.text("signerKey", request.proxy_key)
@@ -93,7 +94,6 @@ impl DeploymentApi {
 	///
 	/// # Arguments
 	/// * `id` - The ID for which collator keys are being fetched.
-	/// * `name` - The name of the chain to be deployed.
 	pub async fn get_collator_keys(&self, id: u32) -> Result<CollatorKeysResponse> {
 		let url = format!(
 			"{}{}",
@@ -128,7 +128,7 @@ pub struct DeployRequest {
 	pub chainspec: PathBuf,
 }
 impl DeployRequest {
-	// Creates a new `DeployRequest`.
+	// Creates a new `DeployRequest` by parsing the chain specification file.
 	pub fn new(
 		collator_file_id: String,
 		genesis_artifacts: GenesisArtifacts,
@@ -279,9 +279,9 @@ mod tests {
 		.await;
 
 		let api = DeploymentApi::new_for_testing(
-			DeploymentProvider::PDP,
 			"api_key".to_string(),
 			mock_server.url(),
+			DeploymentProvider::PDP,
 			SupportedChains::PASEO.to_string(),
 		)?;
 		let collator_keys = api.get_collator_keys(2000).await?;
@@ -306,9 +306,9 @@ mod tests {
 			mock_deploy(&mut mock_server, id, &mocked_payload, DeploymentProvider::PDP).await;
 
 		let api = DeploymentApi::new_for_testing(
-			DeploymentProvider::PDP,
 			"api_key".to_string(),
 			mock_server.url(),
+			DeploymentProvider::PDP,
 			SupportedChains::PASEO.to_string(),
 		)?;
 		let request = DeployRequest::new(
