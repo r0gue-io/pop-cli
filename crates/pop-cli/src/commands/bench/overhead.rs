@@ -167,7 +167,7 @@ mod tests {
 	#[test]
 	fn parse_genesis_builder_policy_works() {
 		for policy in ["runtime", "spec-runtime", "spec-genesis"] {
-			parse_genesis_builder_policy(policy).unwrap();
+			assert!(parse_genesis_builder_policy(policy).is_ok());
 		}
 	}
 
