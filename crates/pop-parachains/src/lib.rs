@@ -4,7 +4,7 @@
 mod build;
 /// Provides functionality to construct, encode, sign, and submit chain extrinsics.
 mod call;
-/// Deployment providers metadata and utility functions.
+/// Deployment providers' metadata and utility functions.
 mod deployer_providers;
 mod errors;
 mod generator;

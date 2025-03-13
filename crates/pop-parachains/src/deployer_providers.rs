@@ -24,7 +24,7 @@ pub enum DeploymentProvider {
 		ascii_case_insensitive,
 		serialize = "pdp",
 		message = "Polkadot Deployment Portal",
-		detailed_message = "Effortlessly deploy Polkadot Native Rollups in the Polkadot Cloud.",
+		detailed_message = "Effortlessly deploy Polkadot Native Rollups on the Polkadot Cloud",
 		props(
 			BaseURL = "https://staging.deploypolkadot.xyz",
 			CollatorKeysURI = "/api/public/v1/parachains/{para_id}/collators/{chain_name}",
@@ -53,14 +53,14 @@ impl DeploymentProvider {
 	/// Constructs the full URI for querying collator keys.
 	///
 	/// # Arguments
-	/// * `chain_name` - The specific relay chain name where is going to be deployed.
+	/// * `relay_chain_name` - The name of the relay chain where deployment will occur.
 	/// * `id` - The ID for which collator keys are being requested.
-	pub fn get_collator_keys_path(&self, chain_name: &str, id: u32) -> String {
+	pub fn get_collator_keys_path(&self, relay_chain_name: &str, id: u32) -> String {
 		self.get_str("CollatorKeysURI")
 			.map(|template| {
 				template
 					.replace("{para_id}", &id.to_string())
-					.replace("{chain_name}", chain_name)
+					.replace("{chain_name}", relay_chain_name)
 			})
 			.unwrap_or_default()
 	}
@@ -79,9 +79,13 @@ impl DeploymentProvider {
 /// Supported chains with its public RPC endpoints.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumString, Display, VariantArray)]
 pub enum SupportedChains {
+	/// Paseo.
 	PASEO,
+	/// Westend.
 	WESTEND,
+	/// Kusama.
 	KUSAMA,
+	/// Polkadot.
 	POLKADOT,
 }
 
@@ -146,7 +150,7 @@ mod tests {
 	fn get_description_works() {
 		assert_eq!(
 			DeploymentProvider::PDP.description(),
-			"Effortlessly deploy Polkadot Native Rollups in the Polkadot Cloud."
+			"Effortlessly deploy Polkadot Native Rollups on the Polkadot Cloud"
 		);
 	}
 

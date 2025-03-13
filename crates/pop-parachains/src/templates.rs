@@ -246,7 +246,7 @@ impl Parachain {
 		self.get_str("DeploymentName")
 	}
 
-	/// Retrieves the deployment name using the `based_on` value.
+	/// Retrieves the deployment name from the `based_on` value.
 	pub fn deployment_name_from_based_on(based_on: &str) -> Option<String> {
 		// OpenZeppelin special cases first (https://github.com/OpenZeppelin/polkadot-runtime-templates/pull/406)
 		let mapped_based_on = match based_on {
