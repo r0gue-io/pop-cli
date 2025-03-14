@@ -41,13 +41,13 @@ pub enum OmniBencherCommand {
 	Overhead,
 }
 
-impl ToString for OmniBencherCommand {
-	fn to_string(&self) -> String {
-		match self {
+impl Display for OmniBencherCommand {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		let s = match self {
 			OmniBencherCommand::Pallet => "pallet",
 			OmniBencherCommand::Overhead => "overhead",
-		}
-		.to_string()
+		};
+		write!(f, "{}", s)
 	}
 }
 
