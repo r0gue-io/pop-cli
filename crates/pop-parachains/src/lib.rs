@@ -15,7 +15,7 @@ mod up;
 mod utils;
 
 pub use bench::{
-	binary::*, generate_binary_benchmarks, generate_overhead_benchmarks,
+	binary::*, generate_binary_benchmarks, generate_omni_bencher_benchmarks,
 	generate_pallet_benchmarks, get_preset_names, get_runtime_path, load_pallet_extrinsics,
 	GenesisBuilderPolicy, PalletExtrinsicsRegistry, GENESIS_BUILDER_DEV_PRESET,
 };

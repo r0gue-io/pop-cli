@@ -2,16 +2,15 @@
 
 use clap::Parser;
 use duct::cmd;
-use frame_benchmarking_cli::{OpaqueBlock, OverheadCmd, PalletCmd};
+use frame_benchmarking_cli::PalletCmd;
 use sc_chain_spec::GenesisConfigBuilderRuntimeCaller;
 use sp_runtime::traits::BlakeTwo256;
 use std::{
 	collections::HashMap,
 	fmt::Display,
-	fs::{self, File},
+	fs::{self},
 	io::Read,
 	path::{Path, PathBuf},
-	process::{Child, Command, Stdio},
 };
 use strum_macros::{EnumIter, EnumMessage as EnumMessageDerive};
 use tempfile::NamedTempFile;
@@ -99,20 +98,6 @@ pub fn generate_pallet_benchmarks(args: Vec<String>) -> anyhow::Result<()> {
 		.map_err(|e| anyhow::anyhow!("Failed to run benchmarking: {}", e))
 }
 
-/// Run command for overhead benchmarking.
-///
-/// # Arguments
-/// * `cmd` - Command to benchmark the execution overhead per-block and per-extrinsic.
-pub async fn generate_overhead_benchmarks(cmd: OverheadCmd) -> anyhow::Result<()> {
-	tokio::task::spawn_blocking(move || {
-		std::env::set_var("RUST_LOG", "info");
-		let _ = env_logger::try_init();
-		cmd.run_with_default_builder_and_spec::<OpaqueBlock, HostFunctions>(None)
-			.map_err(|e| anyhow::anyhow!(format!("Failed to run benchmarking: {}", e)))
-	})
-	.await?
-}
-
 /// Generates binary benchmarks using `frame-benchmarking-cli`.
 ///
 /// # Arguments
@@ -150,32 +135,21 @@ pub async fn load_pallet_extrinsics(
 	runtime_path: &Path,
 	binary_path: &Path,
 ) -> anyhow::Result<PalletExtrinsicsRegistry> {
-	let temp_file = NamedTempFile::new()?;
-
-	let mut process = run_benchmarking_with_binary(
+	let output = generate_omni_bencher_benchmarks(
 		binary_path,
-		Some(temp_file.as_file()),
+		"pallet",
 		vec![
-			&format!("--runtime={}", runtime_path.display()),
-			"--genesis-builder=none",
-			"--list=all",
+			format!("--runtime={}", runtime_path.display()),
+			"--genesis-builder=none".to_string(),
+			"--list=all".to_string(),
 		],
-	)
-	.await?;
-
-	// Wait for the process to finish and retain the output file.
-	let (_, path) = temp_file.keep()?;
-	process.wait()?;
-
+		false,
+	)?;
 	// Process the captured output and return the pallet extrinsics registry.
-	process_pallet_extrinsics(path)
+	process_pallet_extrinsics(output)
 }
 
-fn process_pallet_extrinsics(output_file: PathBuf) -> anyhow::Result<PalletExtrinsicsRegistry> {
-	let mut output_file = File::open(output_file)?;
-	let mut output = String::new();
-	output_file.read_to_string(&mut output)?;
-
+fn process_pallet_extrinsics(output: String) -> anyhow::Result<PalletExtrinsicsRegistry> {
 	// Returns an error if the runtime is not built with `--features runtime-benchmarks`.
 	if output.contains("--features runtime-benchmarks") {
 		return Err(anyhow::anyhow!("Runtime is not built with `--features runtime-benchmarks`. Please rebuild it with the feature enabled."));
@@ -196,31 +170,51 @@ fn process_pallet_extrinsics(output_file: PathBuf) -> anyhow::Result<PalletExtri
 	Ok(registry)
 }
 
-/// Run command for benchmarking with a provided binary.
+/// Run command for benchmarking with a provided `frame-omni-bencher` binary.
 ///
 /// # Arguments
 /// * `binary_path` - Path to the binary to run.
-/// * `output` - Output file to write the benchmark results to.
+/// * `command` - Command to run. `frame-omni-bencher` only supports `pallet` and `overhead`.
 /// * `args` - Additional arguments to pass to the binary.
-pub async fn run_benchmarking_with_binary(
+/// * `log_enabled` - Whether to enable logging.
+pub fn generate_omni_bencher_benchmarks(
 	binary_path: &Path,
-	output: Option<&File>,
-	args: Vec<&str>,
-) -> anyhow::Result<Child> {
-	let mut command = Command::new(binary_path);
-	let env = std::env::var("RUST_LOG").unwrap_or_default();
-	command.env("RUST_LOG", "none");
-	command.args(["v1", "benchmark", "pallet"]);
-	for arg in args {
-		command.arg(arg);
+	command: &str,
+	args: Vec<String>,
+	log_enabled: bool,
+) -> anyhow::Result<String> {
+	let stdout_file = NamedTempFile::new()?;
+	let stdout_path = stdout_file.path().to_owned();
+
+	let stderror_file = NamedTempFile::new()?;
+	let stderror_path = stderror_file.path().to_owned();
+
+	let mut cmd_args = vec!["v1".to_string(), "benchmark".to_string(), command.to_string()];
+	cmd_args.append(&mut args.clone());
+
+	let mut cmd = cmd(binary_path, cmd_args)
+		.env("RUST_LOG", if log_enabled { "info" } else { "none" })
+		.stderr_path(&stderror_path)
+		.stdout_path(&stdout_path);
+
+	if let Err(e) = cmd.run() {
+		let mut error_output = String::new();
+		std::fs::File::open(&stderror_path)
+			.unwrap()
+			.read_to_string(&mut error_output)
+			.unwrap();
+		return Err(anyhow::anyhow!(
+			"Failed to run benchmarking: {}",
+			if error_output.is_empty() { e.to_string() } else { error_output }.trim()
+		));
 	}
-	if let Some(output) = output {
-		command.stdout(Stdio::from(output.try_clone()?));
-		command.stderr(Stdio::from(output.try_clone()?));
-	}
-	let child = command.spawn()?;
-	command.env("RUST_LOG", env);
-	Ok(child)
+
+	let mut stdout_output = String::new();
+	std::fs::File::open(&stdout_path)
+		.unwrap()
+		.read_to_string(&mut stdout_output)
+		.unwrap();
+	Ok(stdout_output)
 }
 
 #[cfg(test)]
@@ -237,21 +231,6 @@ mod tests {
 			"--runtime".to_string(),
 			get_mock_runtime_path(true).to_str().unwrap().to_string(),
 		])
-	}
-
-	#[tokio::test]
-	async fn generate_overhead_benchmarks_works() -> anyhow::Result<()> {
-		let temp_dir = tempdir()?;
-		let output_path = temp_dir.path().to_str().unwrap();
-		generate_overhead_benchmarks(OverheadCmd::try_parse_from(vec![
-			"--warmup=1",
-			"--repeat=1",
-			"--runtime",
-			get_mock_runtime_path(true).to_str().unwrap(),
-			"--weight-path",
-			output_path,
-		])?)
-		.await
 	}
 
 	#[test]
