@@ -197,7 +197,7 @@ pub fn generate_omni_bencher_benchmarks(
 	let mut cmd_args = vec!["v1".to_string(), "benchmark".to_string(), command.to_string()];
 	cmd_args.append(&mut args.clone());
 
-	let mut cmd = cmd(binary_path, cmd_args)
+	let cmd = cmd(binary_path, cmd_args)
 		.env("RUST_LOG", if log_enabled { "info" } else { "none" })
 		.stderr_path(&stderror_path)
 		.stdout_path(&stdout_path);

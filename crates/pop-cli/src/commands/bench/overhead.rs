@@ -123,7 +123,7 @@ impl BenchmarkOverhead {
 		let mut args = vec!["pop bench overhead".to_string()];
 		let mut arguments = self.collect_arguments();
 		if let Some(ref profile) = self.profile {
-			arguments.push(format!("--profile={}", profile.to_string()));
+			arguments.push(format!("--profile={}", profile));
 		}
 		if self.skip_confirm {
 			arguments.push("--skip-confirm".to_string());
