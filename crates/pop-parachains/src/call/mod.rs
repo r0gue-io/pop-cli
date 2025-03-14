@@ -96,18 +96,33 @@ pub async fn sign_and_submit_extrinsic<Xt: Payload>(
 		.await
 		.map_err(|e| Error::ExtrinsicSubmissionError(format!("{:?}", e)))?;
 
+	let events = parse_and_format_events(client, url, &result).await?;
+
+	Ok(format!("Extrinsic Submitted with hash: {:?}\n\n{}", result.extrinsic_hash(), events))
+}
+
+/// Parses and formats the events from the extrinsic result.
+///
+/// # Arguments
+/// * `client` - The client used to interact with the chain.
+/// * `url` - Endpoint of the node.
+/// * `result` - The extrinsic result from which to extract events.
+pub async fn parse_and_format_events(
+	client: &OnlineClient<SubstrateConfig>,
+	url: &url::Url,
+	result: &ExtrinsicEvents<SubstrateConfig>,
+) -> Result<String, Error> {
 	// Obtain required metadata and parse events. The following is using existing logic from
 	// `cargo-contract`, also used in calling contracts, due to simplicity and can be refactored in
 	// the future.
 	let metadata = client.metadata();
 	let token_metadata = TokenMetadata::query::<SubstrateConfig>(url).await?;
-	let events = DisplayEvents::from_events::<SubstrateConfig, DefaultEnvironment>(
-		&result, None, &metadata,
-	)?;
+	let events =
+		DisplayEvents::from_events::<SubstrateConfig, DefaultEnvironment>(result, None, &metadata)?;
 	let events =
 		events.display_events::<DefaultEnvironment>(Verbosity::Default, &token_metadata)?;
 
-	Ok(format!("Extrinsic Submitted with hash: {:?}\n\n{}", result.extrinsic_hash(), events))
+	Ok(events)
 }
 
 /// Submits a signed extrinsic.

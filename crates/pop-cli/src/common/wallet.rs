@@ -7,7 +7,10 @@ use crate::{
 use anyhow::{anyhow, Result};
 use cliclack::{log, spinner};
 #[cfg(feature = "parachain")]
-use pop_parachains::{submit_signed_extrinsic, ExtrinsicEvents, OnlineClient, SubstrateConfig};
+use pop_parachains::{
+	parse_and_format_events, submit_signed_extrinsic, ExtrinsicEvents, OnlineClient,
+	SubstrateConfig,
+};
 use url::Url;
 
 /// The prompt to ask the user if they want to use the wallet for signing.
@@ -88,6 +91,11 @@ pub(crate) async fn submit_extrinsic(
 		.await
 		.map_err(anyhow::Error::from)?;
 
-	spinner.stop(format!("Extrinsic submitted with hash: {:?}", result.extrinsic_hash()));
+	let events = parse_and_format_events(client, url, &result).await?;
+	spinner.stop(format!(
+		"Extrinsic submitted with hash: {:?}\n{}",
+		result.extrinsic_hash(),
+		events
+	));
 	Ok(result)
 }
