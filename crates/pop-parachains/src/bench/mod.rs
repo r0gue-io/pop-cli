@@ -6,7 +6,7 @@ use frame_benchmarking_cli::PalletCmd;
 use sc_chain_spec::GenesisConfigBuilderRuntimeCaller;
 use sp_runtime::traits::BlakeTwo256;
 use std::{
-	collections::HashMap,
+	collections::BTreeMap,
 	fmt::Display,
 	fs::{self},
 	io::Read,
@@ -31,7 +31,7 @@ type HostFunctions = (
 
 /// Type alias for records where the key is the pallet name and the value is an array of its
 /// extrinsics.
-pub type PalletExtrinsicsRegistry = HashMap<String, Vec<String>>;
+pub type PalletExtrinsicsRegistry = BTreeMap<String, Vec<String>>;
 
 /// How the genesis state for benchmarking should be built.
 #[derive(clap::ValueEnum, Debug, Eq, PartialEq, Clone, Copy, EnumIter, EnumMessageDerive)]
@@ -167,6 +167,11 @@ fn process_pallet_extrinsics(output: String) -> anyhow::Result<PalletExtrinsicsR
 		let extrinsic = record[1].trim().to_string();
 		registry.entry(pallet).or_default().push(extrinsic);
 	}
+
+	// Sort the extrinsics by alphabetical order for each pallet.
+	for extrinsics in registry.values_mut() {
+		extrinsics.sort();
+	}
 	Ok(registry)
 }
 
@@ -261,6 +266,21 @@ mod tests {
 		binary.source(false, &(), true).await?;
 
 		let registry = load_pallet_extrinsics(&runtime_path, &binary.path()).await?;
+		let pallets: Vec<String> = registry.keys().map(|k| k.clone()).collect();
+		assert_eq!(
+			pallets,
+			vec![
+				"cumulus_pallet_parachain_system",
+				"cumulus_pallet_xcmp_queue",
+				"frame_system",
+				"pallet_balances",
+				"pallet_collator_selection",
+				"pallet_message_queue",
+				"pallet_session",
+				"pallet_sudo",
+				"pallet_timestamp"
+			]
+		);
 		assert_eq!(
 			registry.get("pallet_timestamp").cloned().unwrap_or_default(),
 			["on_finalize", "set"]
