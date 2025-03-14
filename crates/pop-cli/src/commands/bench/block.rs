@@ -50,12 +50,7 @@ impl BenchmarkBlock {
 
 		cli.warning("NOTE: this may take some time...")?;
 
-		let args = std::env::args()
-			.skip(3)
-			// Exclude custom arguments which are not in the `BlockCmd`.
-			.filter(|arg| !EXCLUDED_ARGS.iter().any(|a| arg.starts_with(a)))
-			.collect::<Vec<String>>();
-		let result = generate_binary_benchmarks(&binary_path, "block", args);
+		let result = generate_binary_benchmarks(&binary_path, "block", EXCLUDED_ARGS.to_vec());
 
 		// Display the benchmarking command.
 		cliclack::log::remark("\n")?;

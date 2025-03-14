@@ -51,12 +51,7 @@ impl BenchmarkStorage {
 		cli.warning("NOTE: this may take some time...")?;
 		cli.info("Benchmarking and generating weight file...")?;
 
-		let args = std::env::args()
-			.skip(3)
-			// Exclude custom arguments which are not in the `StorageCmd`.
-			.filter(|arg| !EXCLUDED_ARGS.iter().any(|a| arg.starts_with(a)))
-			.collect::<Vec<String>>();
-		let result = generate_binary_benchmarks(&binary_path, "storage", args);
+		let result = generate_binary_benchmarks(&binary_path, "storage", EXCLUDED_ARGS.to_vec());
 
 		// Display the benchmarking command.
 		cliclack::log::remark("\n")?;
