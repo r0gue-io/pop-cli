@@ -19,8 +19,9 @@ mod cli;
 mod commands;
 mod common;
 mod style;
-mod wallet_integration;
+#[cfg(feature = "telemetry")]
 use tracing_subscriber::EnvFilter;
+mod wallet_integration;
 
 #[tokio::main]
 async fn main() -> Result<()> {
