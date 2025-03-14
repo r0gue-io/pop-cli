@@ -241,8 +241,7 @@ mod tests {
 		let temp_dir = tempdir()?;
 		let output_path = temp_dir.path().to_str().unwrap();
 		let runtime_path = get_mock_runtime(true);
-		let preset_names = get_preset_names(&runtime_path)
-			.unwrap()
+		let preset_names = get_preset_names(&runtime_path)?
 			.into_iter()
 			.map(|preset| (preset, String::default()))
 			.collect();
@@ -308,8 +307,7 @@ mod tests {
 	#[tokio::test]
 	async fn benchmark_overhead_invalid_weight_path_fails() -> anyhow::Result<()> {
 		let runtime_path = get_mock_runtime(true);
-		let preset_names = get_preset_names(&runtime_path)
-			.unwrap()
+		let preset_names = get_preset_names(&runtime_path)?
 			.into_iter()
 			.map(|preset| (preset, String::default()))
 			.collect();

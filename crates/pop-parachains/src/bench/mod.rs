@@ -205,7 +205,7 @@ pub fn generate_omni_bencher_benchmarks(
 	let stderror_path = stderror_file.path().to_owned();
 
 	let mut cmd_args = vec!["v1".to_string(), "benchmark".to_string(), command.to_string()];
-	cmd_args.append(&mut args.clone());
+	cmd_args.extend(args);
 
 	let cmd = cmd(binary_path, cmd_args)
 		.env("RUST_LOG", if log_enabled { "info" } else { "none" })
@@ -214,7 +214,7 @@ pub fn generate_omni_bencher_benchmarks(
 
 	if let Err(e) = cmd.run() {
 		let mut error_output = String::new();
-		std::fs::File::open(&stderror_path).unwrap().read_to_string(&mut error_output)?;
+		std::fs::File::open(&stderror_path)?.read_to_string(&mut error_output)?;
 		return Err(anyhow::anyhow!(
 			"Failed to run benchmarking: {}",
 			if error_output.is_empty() { e.to_string() } else { error_output }.trim()
@@ -222,10 +222,7 @@ pub fn generate_omni_bencher_benchmarks(
 	}
 
 	let mut stdout_output = String::new();
-	std::fs::File::open(&stdout_path)
-		.unwrap()
-		.read_to_string(&mut stdout_output)
-		.unwrap();
+	std::fs::File::open(&stdout_path)?.read_to_string(&mut stdout_output)?;
 	Ok(stdout_output)
 }
 
