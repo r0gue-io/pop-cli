@@ -505,12 +505,26 @@ impl BuildSpecCommand {
 			deterministic,
 			package,
 			runtime_dir,
+			use_existing_plain_spec: false,
 		})
 	}
 }
 
+/// Represents the generated chain specification artifacts.
+#[derive(Debug, Default, Clone)]
+pub struct GenesisArtifacts {
+	/// Path to the plain text chain specification file.
+	pub chain_spec: PathBuf,
+	/// Path to the raw chain specification file.
+	pub raw_chain_spec: PathBuf,
+	/// Optional path to the genesis state file.
+	pub genesis_state_file: Option<CodePathBuf>,
+	/// Optional path to the genesis code file.
+	pub genesis_code_file: Option<StatePathBuf>,
+}
+
 // Represents the configuration for building a chain specification.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub(crate) struct BuildSpec {
 	output_file: PathBuf,
 	profile: Profile,
@@ -525,6 +539,7 @@ pub(crate) struct BuildSpec {
 	deterministic: bool,
 	package: String,
 	runtime_dir: PathBuf,
+	use_existing_plain_spec: bool,
 }
 
 impl BuildSpec {
@@ -533,11 +548,8 @@ impl BuildSpec {
 	// This function generates plain and raw chain spec files based on the provided configuration,
 	// optionally including genesis state and runtime artifacts. If the node binary is missing,
 	// it triggers a build process.
-	pub(crate) fn build(
-		self,
-		cli: &mut impl cli::traits::Cli,
-	) -> anyhow::Result<(Option<CodePathBuf>, Option<StatePathBuf>)> {
-		cli.intro("Building your chain spec")?;
+	pub(crate) fn build(self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<GenesisArtifacts> {
+		cli.info("Building your chain spec")?;
 		let mut generated_files = vec![];
 		let BuildSpec {
 			ref output_file,
@@ -547,35 +559,38 @@ impl BuildSpec {
 			ref chain,
 			genesis_state,
 			genesis_code,
+			use_existing_plain_spec,
 			..
 		} = self;
 		// Ensure binary is built.
 		let binary_path = ensure_binary_exists(cli, profile)?;
 		let spinner = spinner();
-		spinner.start("Generating chain specification...");
+		if !use_existing_plain_spec {
+			spinner.start("Generating chain specification...");
+			// Generate chain spec.
+			generate_plain_chain_spec(&binary_path, output_file, default_bootnode, chain)?;
+			// Customize spec based on input.
+			self.customize()?;
+			// Deterministic build.
+			if self.deterministic {
+				spinner.set_message("Building deterministic runtime...");
+				cli.warning("NOTE: this may take some time...")?;
+				spinner.clear();
+				let runtime_path = self.build_deterministic_runtime(cli).map_err(|e| {
+					anyhow::anyhow!("Failed to build the deterministic runtime: {}", e.to_string())
+				})?;
+				let code = fs::read(&runtime_path).map_err(anyhow::Error::from)?;
+				cli.success("Runtime built successfully.")?;
+				generated_files
+					.push(format!("Runtime file generated at: {}", &runtime_path.display()));
+				self.update_code(&code)?;
+			}
 
-		// Generate chain spec.
-		generate_plain_chain_spec(&binary_path, output_file, default_bootnode, chain)?;
-		// Customize spec based on input.
-		self.customize()?;
-		// Deterministic build.
-		if self.deterministic {
-			spinner.set_message("Building deterministic runtime...");
-			cli.warning("NOTE: this may take some time...")?;
-			spinner.clear();
-			let runtime_path = self.build_deterministic_runtime(cli).map_err(|e| {
-				anyhow::anyhow!("Failed to build the deterministic runtime: {}", e.to_string())
-			})?;
-			let code = fs::read(&runtime_path).map_err(anyhow::Error::from)?;
-			cli.success("Runtime built successfully.")?;
-			generated_files.push(format!("Runtime file generated at: {}", &runtime_path.display()));
-			self.update_code(&code)?;
+			generated_files.push(format!(
+				"Plain text chain specification file generated at: {}",
+				&output_file.display()
+			));
 		}
-
-		generated_files.push(format!(
-			"Plain text chain specification file generated at: {}",
-			&output_file.display()
-		));
 
 		// Generate raw spec.
 		spinner.set_message("Generating raw chain specification...");
@@ -615,16 +630,46 @@ impl BuildSpec {
 		};
 
 		spinner.stop("Chain specification built successfully.");
-		let generated_files: Vec<_> = generated_files
-			.iter()
-			.map(|s| style(format!("{} {s}", console::Emoji("●", ">"))).dim().to_string())
-			.collect();
-		cli.success(format!("Generated files:\n{}", generated_files.join("\n")))?;
-		cli.outro(format!(
-			"Need help? Learn more at {}\n",
-			style("https://learn.onpop.io").magenta().underlined()
-		))?;
-		Ok((genesis_code_file, genesis_state_file))
+		if !use_existing_plain_spec {
+			let generated_files: Vec<_> = generated_files
+				.iter()
+				.map(|s| style(format!("{} {s}", console::Emoji("●", ">"))).dim().to_string())
+				.collect();
+			cli.success(format!("Generated files:\n{}", generated_files.join("\n")))?;
+			cli.outro(format!(
+				"Need help? Learn more at {}\n",
+				style("https://learn.onpop.io").magenta().underlined()
+			))?;
+		}
+		Ok(GenesisArtifacts {
+			chain_spec: output_file.clone(),
+			raw_chain_spec,
+			genesis_code_file,
+			genesis_state_file,
+		})
+	}
+
+	/// Enables the use of an existing plain chain spec, preventing unnecessary regeneration.
+	pub fn enable_existing_plain_spec(&mut self) {
+		self.use_existing_plain_spec = true;
+	}
+
+	/// Injects collator keys into the chain spec and updates the file.
+	///
+	/// # Arguments
+	/// * `collator_keys` - The list of collator keys to insert.
+	/// * `chain_spec_path` - The file path of the chain spec to be updated.
+	pub fn update_chain_spec_with_keys(
+		&mut self,
+		collator_keys: Vec<String>,
+		chain_spec_path: &Path,
+	) -> anyhow::Result<()> {
+		let mut chain_spec = ChainSpec::from(chain_spec_path)?;
+		chain_spec.replace_collator_keys(collator_keys)?;
+		chain_spec.to_file(chain_spec_path)?;
+
+		self.chain = chain_spec_path.display().to_string();
+		Ok(())
 	}
 
 	// Customize a chain specification.
@@ -1014,6 +1059,78 @@ mod tests {
 				"genesis": {
 					"runtimeGenesis": {
 						"code": "0x1234"
+					}
+				}
+			})
+		);
+		Ok(())
+	}
+
+	#[test]
+	fn update_chain_spec_with_keys_works() -> anyhow::Result<()> {
+		let temp_dir = tempdir()?;
+		let output_file = temp_dir.path().join("chain_spec.json");
+		std::fs::write(
+			&output_file,
+			json!({
+				"genesis": {
+					"runtimeGenesis": {
+						"patch": {
+						"collatorSelection": {
+							"invulnerables": [
+							  "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+							]
+						  },
+						  "session": {
+							"keys": [
+							  [
+								"5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+								"5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+								{
+								  "aura": "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"
+								}
+							  ],
+							]
+						}
+						}
+					}
+				}
+			})
+			.to_string(),
+		)?;
+		let mut build_spec = BuildSpec { output_file: output_file.clone(), ..Default::default() };
+		build_spec.update_chain_spec_with_keys(
+			vec!["5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty".to_string()],
+			&output_file,
+		)?;
+
+		let updated_output_file: serde_json::Value =
+			serde_json::from_str(&fs::read_to_string(&build_spec.chain)?)?;
+
+		assert_eq!(build_spec.chain, output_file.display().to_string());
+		assert_eq!(
+			updated_output_file,
+			json!({
+				"genesis": {
+					"runtimeGenesis": {
+						"patch": {
+						"collatorSelection": {
+							"invulnerables": [
+							  "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty",
+							]
+						  },
+						  "session": {
+							"keys": [
+							  [
+								"5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty",
+								"5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty",
+								{
+								  "aura": "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
+								}
+							  ],
+							]
+						},
+						}
 					}
 				}
 			})

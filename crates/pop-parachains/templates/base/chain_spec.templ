@@ -68,6 +68,7 @@ pub fn development_config() -> ChainSpec {
 	properties.insert("tokenSymbol".into(), "^^token_symbol^^".into());
 	properties.insert("tokenDecimals".into(), ^^decimals^^.into());
 	properties.insert("ss58Format".into(), 42.into());
+	properties.insert("basedOn".into(), "^^based_on^^".into());
 
 	ChainSpec::builder(
 		runtime::WASM_BINARY.expect("WASM binary was not built, please build it!"),
@@ -109,6 +110,7 @@ pub fn development_config() -> ChainSpec {
 		get_account_id_from_seed::<sr25519::Public>("Alice"),
 		2000.into(),
 	))
+	.with_properties(properties)
 	.build()
 }
 
@@ -118,6 +120,7 @@ pub fn local_testnet_config() -> ChainSpec {
 	properties.insert("tokenSymbol".into(), "^^token_symbol^^".into());
 	properties.insert("tokenDecimals".into(), ^^decimals^^.into());
 	properties.insert("ss58Format".into(), 42.into());
+	properties.insert("basedOn".into(), "^^based_on^^".into());
 
 	#[allow(deprecated)]
 	ChainSpec::builder(

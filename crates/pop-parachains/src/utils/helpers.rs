@@ -86,7 +86,7 @@ pub(crate) fn write_to_file(path: &Path, contents: &str) -> Result<(), Error> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::generator::parachain::ChainSpec;
+	use crate::{generator::parachain::ChainSpec, Parachain};
 	use askama::Template;
 	use tempfile::tempdir;
 
@@ -97,18 +97,20 @@ mod tests {
 			token_symbol: "DOT".to_string(),
 			decimals: 6,
 			initial_endowment: "1000000".to_string(),
+			based_on: Parachain::Standard.to_string(),
 		};
 		let file_path = temp_dir.path().join("file.rs");
 		let _ = fs::write(&file_path, "");
 		write_to_file(&file_path, chainspec.render().expect("infallible").as_ref())?;
 		let generated_file_content =
 			fs::read_to_string(temp_dir.path().join("file.rs")).expect("Failed to read file");
-
 		assert!(generated_file_content
 			.contains("properties.insert(\"tokenSymbol\".into(), \"DOT\".into());"));
 		assert!(generated_file_content
 			.contains("properties.insert(\"tokenDecimals\".into(), 6.into());"));
 		assert!(generated_file_content.contains("1000000"));
+		assert!(generated_file_content
+			.contains("properties.insert(\"basedOn\".into(), \"standard\".into());"));
 
 		Ok(())
 	}
