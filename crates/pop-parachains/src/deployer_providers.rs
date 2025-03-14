@@ -89,6 +89,39 @@ pub enum SupportedChains {
 	POLKADOT,
 }
 
+// Define static constants for RPC URLs
+const PASEO_RPC_URLS: &[&str] = &[
+	"wss://paseo.dotters.network",
+	"wss://rpc.ibp.network/paseo",
+	"wss://pas-rpc.stakeworld.io",
+	"wss://paseo-rpc.dwellir.com",
+	"wss://paseo.rpc.amforc.com",
+];
+
+const WESTEND_RPC_URLS: &[&str] = &[
+	"wss://westend-rpc.polkadot.io",
+	"wss://westend-rpc.dwellir.com",
+	"wss://westend-rpc-tn.dwellir.com",
+	"wss://rpc.ibp.network/westend",
+	"wss://westend.dotters.network",
+];
+
+const KUSAMA_RPC_URLS: &[&str] = &[
+	"wss://kusama-rpc.publicnode.com",
+	"wss://kusama-rpc.dwellir.com",
+	"wss://kusama-rpc-tn.dwellir.com",
+	"wss://rpc.ibp.network/kusama",
+	"wss://kusama.dotters.network",
+];
+
+const POLKADOT_RPC_URLS: &[&str] = &[
+	"wss://polkadot-rpc.publicnode.com",
+	"wss://polkadot-public-rpc.blockops.network/ws",
+	"wss://polkadot-rpc.dwellir.com",
+	"wss://rpc.ibp.network/polkadot",
+	"wss://polkadot.dotters.network",
+];
+
 impl SupportedChains {
 	/// Selects a RPC URL for the chain.
 	pub fn get_rpc_url(&self) -> Option<String> {
@@ -101,37 +134,13 @@ impl SupportedChains {
 			)
 			.map(|s| s.to_string())
 	}
-	// Returns a static list of RPC URLs for the chain.
+	/// Returns a static list of RPC URLs for the chain.
 	fn rpc_urls(&self) -> &'static [&'static str] {
 		match self {
-			SupportedChains::PASEO => &[
-				"wss://paseo.dotters.network",
-				"wss://rpc.ibp.network/paseo",
-				"wss://pas-rpc.stakeworld.io",
-				"wss://paseo-rpc.dwellir.com",
-				"wss://paseo.rpc.amforc.com",
-			],
-			SupportedChains::WESTEND => &[
-				"wss://westend-rpc.polkadot.io",
-				"wss://westend-rpc.dwellir.com",
-				"wss://westend-rpc-tn.dwellir.com",
-				"wss://rpc.ibp.network/westend",
-				"wss://westend.dotters.network",
-			],
-			SupportedChains::KUSAMA => &[
-				"wss://kusama-rpc.publicnode.com",
-				"wss://kusama-rpc.dwellir.com",
-				"wss://kusama-rpc-tn.dwellir.com",
-				"wss://rpc.ibp.network/kusama",
-				"wss://kusama.dotters.network",
-			],
-			SupportedChains::POLKADOT => &[
-				"wss://polkadot-rpc.publicnode.com",
-				"wss://polkadot-public-rpc.blockops.network/ws",
-				"wss://polkadot-rpc.dwellir.com",
-				"wss://rpc.ibp.network/polkadot",
-				"wss://polkadot.dotters.network",
-			],
+			SupportedChains::PASEO => PASEO_RPC_URLS,
+			SupportedChains::WESTEND => WESTEND_RPC_URLS,
+			SupportedChains::KUSAMA => KUSAMA_RPC_URLS,
+			SupportedChains::POLKADOT => POLKADOT_RPC_URLS,
 		}
 	}
 }
