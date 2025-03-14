@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
 #![doc = include_str!("../README.md")]
+mod bench;
 mod build;
 /// Provides functionality to construct, encode, sign, and submit chain extrinsics.
 mod call;
@@ -13,9 +14,15 @@ mod templates;
 mod up;
 mod utils;
 
+pub use bench::{
+	binary::*, generate_binary_benchmarks, generate_pallet_benchmarks, get_preset_names,
+	get_runtime_path, load_pallet_extrinsics, GenesisBuilderPolicy, PalletExtrinsicsRegistry,
+	GENESIS_BUILDER_DEV_PRESET,
+};
 pub use build::{
-	binary_path, build_parachain, export_wasm_file, generate_genesis_state_file,
-	generate_plain_chain_spec, generate_raw_chain_spec, is_supported, ChainSpec,
+	binary_path, build_parachain, build_project, export_wasm_file, generate_genesis_state_file,
+	generate_plain_chain_spec, generate_raw_chain_spec, is_supported, runtime_binary_path,
+	ChainSpec,
 };
 pub use call::{
 	construct_extrinsic, construct_sudo_extrinsic, decode_call_data, encode_call_data,

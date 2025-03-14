@@ -22,6 +22,7 @@ serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 tempfile.workspace = true
 tokio.workspace = true
+tracing-subscriber.workspace = true
 url.workspace = true
 
 # pop-cli
@@ -51,6 +52,12 @@ pop-common = { path = "../pop-common", version = "0.6.0" }
 axum.workspace = true
 open.workspace = true
 tower-http = { workspace = true, features = ["fs", "cors"] }
+
+# benchmarking
+cumulus-primitives-proof-size-hostfunction.workspace = true
+frame-benchmarking-cli.workspace = true
+sp-runtime.workspace = true
+sp-statement-store.workspace = true
 
 [dev-dependencies]
 assert_cmd.workspace = true

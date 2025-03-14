@@ -1,19 +1,20 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{
-	cli,
 	cli::{
+		self,
 		traits::{Cli as _, *},
 		Cli,
 	},
+	common::builds::{ensure_node_binary_exists, guide_user_to_select_profile},
 	style::style,
 };
 use clap::{Args, ValueEnum};
 use cliclack::spinner;
 use pop_common::Profile;
 use pop_parachains::{
-	binary_path, build_parachain, export_wasm_file, generate_genesis_state_file,
-	generate_plain_chain_spec, generate_raw_chain_spec, is_supported, ChainSpec,
+	export_wasm_file, generate_genesis_state_file, generate_plain_chain_spec,
+	generate_raw_chain_spec, is_supported, ChainSpec,
 };
 use std::{
 	env::current_dir,
@@ -343,21 +344,7 @@ impl BuildSpecCommand {
 			None => {
 				let default = Profile::Release;
 				if prompt && !release {
-					// Prompt for build profile.
-					let mut prompt = cli
-						.select(
-							"Choose the build profile of the binary that should be used: "
-								.to_string(),
-						)
-						.initial_value(&default);
-					for profile in Profile::VARIANTS {
-						prompt = prompt.item(
-							profile,
-							profile.get_message().unwrap_or(profile.as_ref()),
-							profile.get_detailed_message().unwrap_or_default(),
-						);
-					}
-					prompt.interact()?.clone()
+					guide_user_to_select_profile(cli)?
 				} else {
 					default
 				}
@@ -460,6 +447,7 @@ impl BuildSpec {
 	// it triggers a build process.
 	fn build(self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<&'static str> {
 		cli.intro("Building your chain spec")?;
+		let cwd = current_dir().unwrap_or(PathBuf::from("./"));
 		let mut generated_files = vec![];
 		let BuildSpec {
 			ref output_file,
@@ -472,7 +460,7 @@ impl BuildSpec {
 			..
 		} = self;
 		// Ensure binary is built.
-		let binary_path = ensure_binary_exists(cli, profile)?;
+		let binary_path = ensure_node_binary_exists(cli, &cwd, profile, vec![])?;
 		let spinner = spinner();
 		spinner.start("Generating chain specification...");
 
@@ -538,22 +526,6 @@ impl BuildSpec {
 		chain_spec.replace_protocol_id(&self.protocol_id)?;
 		chain_spec.to_file(&self.output_file)?;
 		Ok(())
-	}
-}
-
-// Locate binary, if it doesn't exist trigger build.
-fn ensure_binary_exists(
-	cli: &mut impl cli::traits::Cli,
-	mode: &Profile,
-) -> anyhow::Result<PathBuf> {
-	let cwd = current_dir().unwrap_or(PathBuf::from("./"));
-	match binary_path(&mode.target_directory(&cwd), &cwd.join("node")) {
-		Ok(binary_path) => Ok(binary_path),
-		_ => {
-			cli.info("Node was not found. The project will be built locally.".to_string())?;
-			cli.warning("NOTE: this may take some time...")?;
-			build_parachain(&cwd, None, mode, None).map_err(|e| e.into())
-		},
 	}
 }
 
