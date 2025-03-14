@@ -150,11 +150,6 @@ pub async fn load_pallet_extrinsics(
 }
 
 fn process_pallet_extrinsics(output: String) -> anyhow::Result<PalletExtrinsicsRegistry> {
-	// Returns an error if the runtime is not built with `--features runtime-benchmarks`.
-	if output.contains("--features runtime-benchmarks") {
-		return Err(anyhow::anyhow!("Runtime is not built with `--features runtime-benchmarks`. Please rebuild it with the feature enabled."));
-	}
-
 	// Process the captured output and return the pallet extrinsics registry.
 	let mut registry = PalletExtrinsicsRegistry::new();
 	let lines: Vec<String> = output.split("\n").map(String::from).skip(1).collect();
@@ -301,7 +296,10 @@ mod tests {
 
 		assert_eq!(
 		    load_pallet_extrinsics(&runtime_path, &binary.path()).await.err().unwrap().to_string(),
-			"Runtime is not built with `--features runtime-benchmarks`. Please rebuild it with the feature enabled."
+				"Failed to run benchmarking: Error: Input(\"Could not call runtime API to Did not find the benchmarking metadata. \
+				This could mean that you either did not build the node correctly with the `--features runtime-benchmarks` flag, \
+				or the chain spec that you are using was not created by a node that was compiled with the flag: Other: \
+				Exported method Benchmark_benchmark_metadata is not found\")"
 		);
 		Ok(())
 	}
