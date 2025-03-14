@@ -14,6 +14,8 @@ use std::{
 	path::{Path, PathBuf},
 };
 
+const EXCLUDED_ARGS: [&str; 1] = ["--profile"];
+
 #[derive(Args)]
 pub(crate) struct BenchmarkStorage {
 	/// Command to benchmark the storage speed of a chain snapshot.
@@ -49,7 +51,7 @@ impl BenchmarkStorage {
 		cli.warning("NOTE: this may take some time...")?;
 		cli.info("Benchmarking and generating weight file...")?;
 
-		let result = generate_binary_benchmarks(&binary_path, "storage");
+		let result = generate_binary_benchmarks(&binary_path, "storage", EXCLUDED_ARGS.to_vec());
 
 		// Display the benchmarking command.
 		cliclack::log::remark("\n")?;
