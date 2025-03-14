@@ -4,11 +4,13 @@ use crate::cli::{self};
 use block::BenchmarkBlock;
 use clap::{Args, Subcommand};
 use machine::BenchmarkMachine;
+use overhead::BenchmarkOverhead;
 use pallet::BenchmarkPallet;
 use storage::BenchmarkStorage;
 
 mod block;
 mod machine;
+mod overhead;
 mod pallet;
 mod storage;
 
@@ -26,15 +28,18 @@ pub enum Command {
 	/// Benchmark the execution time of historic blocks.
 	#[clap(alias = "b")]
 	Block(BenchmarkBlock),
+	/// Benchmark the machine performance.
+	#[clap(alias = "m")]
+	Machine(BenchmarkMachine),
+	/// Benchmark the execution overhead per-block and per-extrinsic.
+	#[clap(alias = "o")]
+	Overhead(BenchmarkOverhead),
 	/// Benchmark the extrinsic weight of FRAME Pallets
 	#[clap(alias = "p")]
 	Pallet(BenchmarkPallet),
 	/// Benchmark the storage speed of a chain snapshot.
 	#[clap(alias = "s")]
 	Storage(BenchmarkStorage),
-	/// Benchmark the machine performance.
-	#[clap(alias = "m")]
-	Machine(BenchmarkMachine),
 }
 
 impl Command {
@@ -43,9 +48,10 @@ impl Command {
 		let mut cli = cli::Cli;
 		match args.command {
 			Command::Block(mut cmd) => cmd.execute(&mut cli),
+			Command::Machine(mut cmd) => cmd.execute(&mut cli),
+			Command::Overhead(mut cmd) => cmd.execute(&mut cli).await,
 			Command::Pallet(mut cmd) => cmd.execute(&mut cli).await,
 			Command::Storage(mut cmd) => cmd.execute(&mut cli),
-			Command::Machine(mut cmd) => cmd.execute(&mut cli),
 		}
 	}
 }
