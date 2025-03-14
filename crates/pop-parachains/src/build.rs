@@ -20,13 +20,15 @@ use std::{
 /// * `profile` - Whether the parachain should be built without any debugging functionality.
 /// * `node_path` - An optional path to the node directory. Defaults to the `node` subdirectory of
 ///   the project path if not provided.
+/// * `features` - A set of features the project is built with.
 pub fn build_parachain(
 	path: &Path,
 	package: Option<String>,
 	profile: &Profile,
 	node_path: Option<&Path>,
+	features: Vec<&str>,
 ) -> Result<PathBuf, Error> {
-	build_project(path, package, profile, vec![], None)?;
+	build_project(path, package, profile, features, None)?;
 	binary_path(&profile.target_directory(path), node_path.unwrap_or(&path.join("node")))
 }
 
@@ -386,7 +388,10 @@ mod tests {
 		Zombienet,
 	};
 	use anyhow::Result;
-	use pop_common::{manifest::Dependency, set_executable_permission};
+	use pop_common::{
+		manifest::{add_feature, Dependency},
+		set_executable_permission,
+	};
 	use std::{fs, fs::write, io::Write, path::Path};
 	use strum::VariantArray;
 	use tempfile::{tempdir, Builder, TempDir};
@@ -515,12 +520,19 @@ mod tests {
 		cmd("cargo", ["new", name, "--bin"]).dir(temp_dir.path()).run()?;
 		let project = temp_dir.path().join(name);
 		add_production_profile(&project)?;
+		add_feature(&project, ("dummy-feature".to_string(), vec![]))?;
 		for node in vec![None, Some("custom_node")] {
 			let node_path = generate_mock_node(&project, node)?;
 			for package in vec![None, Some(String::from("parachain_template_node"))] {
 				for profile in Profile::VARIANTS {
 					let node_path = node.map(|_| node_path.as_path());
-					let binary = build_parachain(&project, package.clone(), &profile, node_path)?;
+					let binary = build_parachain(
+						&project,
+						package.clone(),
+						&profile,
+						node_path,
+						vec!["dummy-feature"],
+					)?;
 					let target_directory = profile.target_directory(&project);
 					assert!(target_directory.exists());
 					assert!(target_directory.join("parachain_template_node").exists());
@@ -541,9 +553,10 @@ mod tests {
 		cmd("cargo", ["new", name, "--bin"]).dir(temp_dir.path()).run()?;
 		let project = temp_dir.path().join(name);
 		add_production_profile(&project)?;
+		add_feature(&project, ("dummy-feature".to_string(), vec![]))?;
 		for package in vec![None, Some(String::from(name))] {
 			for profile in Profile::VARIANTS {
-				build_project(&project, package.clone(), &profile, vec![], None)?;
+				build_project(&project, package.clone(), &profile, vec!["dummy-feature"], None)?;
 				let target_directory = profile.target_directory(&project);
 				let binary = build_binary_path(&project, |runtime_name| {
 					target_directory.join(runtime_name)

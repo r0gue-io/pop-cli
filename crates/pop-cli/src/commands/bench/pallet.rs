@@ -17,7 +17,7 @@ use clap::Args;
 use cliclack::spinner;
 use pop_common::{get_relative_or_absolute_path, Profile};
 use pop_parachains::{
-	generate_benchmarks, get_preset_names, load_pallet_extrinsics, GenesisBuilderPolicy,
+	generate_pallet_benchmarks, get_preset_names, load_pallet_extrinsics, GenesisBuilderPolicy,
 	PalletExtrinsicsRegistry, GENESIS_BUILDER_DEV_PRESET,
 };
 use std::{
@@ -336,7 +336,7 @@ impl BenchmarkPallet {
 
 		// Display the benchmarking command.
 		cliclack::log::remark("\n")?;
-		cli.success(self.display())?;
+		cli.info(self.display())?;
 		if let Err(e) = result {
 			return display_message(&e.to_string(), false, cli);
 		}
@@ -345,7 +345,7 @@ impl BenchmarkPallet {
 	}
 
 	fn run(&self) -> anyhow::Result<()> {
-		generate_benchmarks(self.collect_arguments())
+		generate_pallet_benchmarks(self.collect_arguments())
 	}
 
 	fn display(&self) -> String {
@@ -796,7 +796,7 @@ impl BenchmarkPalletMenuOption {
 
 	fn get_joined_string(self, s: &String) -> String {
 		if is_selected_all(s) {
-			return "All selected".to_string()
+			return "All selected".to_string();
 		}
 		s.clone()
 	}
@@ -975,9 +975,7 @@ mod tests {
 		assert!(output_path.exists());
 
 		// Verify the printed command.
-		cli = cli
-			.expect_success(cmd.display())
-			.expect_outro("Benchmark completed successfully!");
+		cli = cli.expect_info(cmd.display()).expect_outro("Benchmark completed successfully!");
 		cmd.execute(&mut cli).await?;
 		cli.verify()
 	}

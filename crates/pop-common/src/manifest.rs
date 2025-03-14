@@ -136,6 +136,27 @@ pub fn add_production_profile(project: &Path) -> anyhow::Result<()> {
 	Ok(())
 }
 
+/// Add a new feature to the Cargo.toml manifest if it doesn't already exist.
+///
+/// # Arguments
+/// * `project` - The path to the project directory.
+/// * `(key, items)` - The feature key and its associated items.
+pub fn add_feature(project: &Path, (key, items): (String, Vec<String>)) -> anyhow::Result<()> {
+	let root_toml_path = project.join("Cargo.toml");
+	let mut manifest = Manifest::from_path(&root_toml_path)?;
+	// Check if the feature already exists.
+	if manifest.features.contains_key(&key) {
+		return Ok(());
+	}
+	manifest.features.insert(key, items);
+
+	// Serialize the updated manifest and write it back to the file
+	let toml_string = toml::to_string(&manifest)?;
+	write(&root_toml_path, toml_string)?;
+
+	Ok(())
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -491,6 +512,50 @@ mod tests {
 		let initial_toml_content =
 			read_to_string(&cargo_toml_path).expect("Cargo.toml should be readable");
 		let second_result = add_production_profile(project_path);
+		assert!(second_result.is_ok());
+		let final_toml_content =
+			read_to_string(&cargo_toml_path).expect("Cargo.toml should be readable");
+		assert_eq!(initial_toml_content, final_toml_content);
+	}
+
+	#[test]
+	fn add_feature_works() {
+		let test_builder = TestBuilder::default().add_workspace().add_workspace_cargo_toml(
+			r#"[profile.release]
+            opt-level = 3
+            "#,
+		);
+
+		let expected_feature_key = "runtime-benchmarks";
+		let expected_feature_items =
+			vec!["feature-a".to_string(), "feature-b".to_string(), "feature-c".to_string()];
+		let binding = test_builder.workspace.expect("Workspace should exist");
+		let project_path = binding.path();
+		let cargo_toml_path = project_path.join("Cargo.toml");
+
+		// Call the function to add the production profile
+		let result = add_feature(
+			project_path,
+			(expected_feature_key.to_string(), expected_feature_items.clone()),
+		);
+		assert!(result.is_ok());
+
+		// Verify the feature is added
+		let manifest =
+			Manifest::from_path(&cargo_toml_path).expect("Should parse updated Cargo.toml");
+		let feature_items = manifest
+			.features
+			.get(expected_feature_key)
+			.expect("Production profile should exist");
+		assert_eq!(feature_items, &expected_feature_items);
+
+		// Test idempotency: Running the function again should not modify the manifest
+		let initial_toml_content =
+			read_to_string(&cargo_toml_path).expect("Cargo.toml should be readable");
+		let second_result = add_feature(
+			project_path,
+			(expected_feature_key.to_string(), expected_feature_items.clone()),
+		);
 		assert!(second_result.is_ok());
 		let final_toml_content =
 			read_to_string(&cargo_toml_path).expect("Cargo.toml should be readable");
