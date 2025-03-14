@@ -354,6 +354,9 @@ impl BenchmarkPallet {
 		if self.skip_menu {
 			arguments.push("--skip".to_string());
 		}
+		if self.skip_confirm {
+			arguments.push("-y".to_string());
+		}
 		args.extend(arguments);
 		args.join(" ")
 	}
@@ -472,7 +475,7 @@ impl BenchmarkPallet {
 	) -> anyhow::Result<()> {
 		if registry.is_empty() {
 			let runtime_path = self.runtime()?;
-			let binary_path = check_omni_bencher_and_prompt(cli, true).await?;
+			let binary_path = check_omni_bencher_and_prompt(cli, self.skip_confirm).await?;
 
 			let spinner = spinner();
 			spinner.start("Loading pallets and extrinsics from your runtime...");
