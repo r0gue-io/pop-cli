@@ -15,7 +15,7 @@ use clap::{Args, Parser};
 use cliclack::spinner;
 use frame_benchmarking_cli::OverheadCmd;
 use pop_common::Profile;
-use pop_parachains::generate_omni_bencher_benchmarks;
+use pop_parachains::{generate_omni_bencher_benchmarks, OmniBencherCommand};
 
 const EXCLUDED_ARGS: [&str; 3] = ["--profile", "--skip-config", "-y"];
 
@@ -112,7 +112,7 @@ impl BenchmarkOverhead {
 		let binary_path = check_omni_bencher_and_prompt(cli, self.skip_confirm).await?;
 		generate_omni_bencher_benchmarks(
 			binary_path.as_path(),
-			"overhead",
+			OmniBencherCommand::Overhead,
 			self.collect_arguments(),
 			false,
 		)?;

@@ -8,7 +8,7 @@ use sp_runtime::traits::BlakeTwo256;
 use std::{
 	collections::BTreeMap,
 	fmt::Display,
-	fs::{self},
+	fs,
 	io::Read,
 	path::{Path, PathBuf},
 };
@@ -32,6 +32,24 @@ type HostFunctions = (
 /// Type alias for records where the key is the pallet name and the value is an array of its
 /// extrinsics.
 pub type PalletExtrinsicsRegistry = BTreeMap<String, Vec<String>>;
+
+/// Commands that can be executed by the `frame-omni-bencher` CLI.
+pub enum OmniBencherCommand {
+	/// Execute a pallet benchmark.
+	Pallet,
+	/// Execute an overhead benchmark.
+	Overhead,
+}
+
+impl ToString for OmniBencherCommand {
+	fn to_string(&self) -> String {
+		match self {
+			OmniBencherCommand::Pallet => "pallet",
+			OmniBencherCommand::Overhead => "overhead",
+		}
+		.to_string()
+	}
+}
 
 /// How the genesis state for benchmarking should be built.
 #[derive(clap::ValueEnum, Debug, Eq, PartialEq, Clone, Copy, EnumIter, EnumMessageDerive)]
@@ -114,10 +132,7 @@ pub fn generate_binary_benchmarks(binary_path: &PathBuf, command: &str) -> anyho
 
 	if let Err(e) = cmd(binary_path, cmd_args).stderr_path(&temp_path).run() {
 		let mut error_output = String::new();
-		std::fs::File::open(&temp_path)
-			.unwrap()
-			.read_to_string(&mut error_output)
-			.unwrap();
+		std::fs::File::open(&temp_path).unwrap().read_to_string(&mut error_output)?;
 		return Err(anyhow::anyhow!(
 			"Failed to run benchmarking: {}",
 			if error_output.is_empty() { e.to_string() } else { error_output }
@@ -137,7 +152,7 @@ pub async fn load_pallet_extrinsics(
 ) -> anyhow::Result<PalletExtrinsicsRegistry> {
 	let output = generate_omni_bencher_benchmarks(
 		binary_path,
-		"pallet",
+		OmniBencherCommand::Pallet,
 		vec![
 			format!("--runtime={}", runtime_path.display()),
 			"--genesis-builder=none".to_string(),
@@ -179,7 +194,7 @@ fn process_pallet_extrinsics(output: String) -> anyhow::Result<PalletExtrinsicsR
 /// * `log_enabled` - Whether to enable logging.
 pub fn generate_omni_bencher_benchmarks(
 	binary_path: &Path,
-	command: &str,
+	command: OmniBencherCommand,
 	args: Vec<String>,
 	log_enabled: bool,
 ) -> anyhow::Result<String> {
@@ -199,10 +214,7 @@ pub fn generate_omni_bencher_benchmarks(
 
 	if let Err(e) = cmd.run() {
 		let mut error_output = String::new();
-		std::fs::File::open(&stderror_path)
-			.unwrap()
-			.read_to_string(&mut error_output)
-			.unwrap();
+		std::fs::File::open(&stderror_path).unwrap().read_to_string(&mut error_output)?;
 		return Err(anyhow::anyhow!(
 			"Failed to run benchmarking: {}",
 			if error_output.is_empty() { e.to_string() } else { error_output }.trim()
