@@ -21,7 +21,7 @@ use pop_parachains::{
 	PalletExtrinsicsRegistry, GENESIS_BUILDER_DEV_PRESET,
 };
 use std::{
-	collections::HashMap,
+	collections::BTreeMap,
 	env::current_dir,
 	path::{Path, PathBuf},
 };
@@ -240,7 +240,7 @@ impl BenchmarkPallet {
 			self.all = false;
 		}
 
-		let mut registry: PalletExtrinsicsRegistry = HashMap::default();
+		let mut registry: PalletExtrinsicsRegistry = BTreeMap::default();
 
 		cli.intro(if self.list {
 			"Listing available pallets and extrinsics"
