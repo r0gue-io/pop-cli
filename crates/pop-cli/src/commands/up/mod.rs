@@ -11,6 +11,8 @@ use std::path::PathBuf;
 mod contract;
 #[cfg(feature = "parachain")]
 mod network;
+#[cfg(feature = "parachain")]
+mod rollup;
 
 /// Arguments for launching or deploying a project.
 #[derive(Args, Clone)]
@@ -24,6 +26,10 @@ pub(crate) struct UpArgs {
 	/// Directory path without flag for your project [default: current directory]
 	#[arg(value_name = "PATH", index = 1, global = true, conflicts_with = "path")]
 	pub path_pos: Option<PathBuf>,
+
+	#[command(flatten)]
+	#[cfg(feature = "parachain")]
+	pub(crate) rollup: rollup::UpCommand,
 
 	#[command(flatten)]
 	#[cfg(feature = "contract")]
@@ -71,7 +77,16 @@ impl Command {
 			cmd.execute().await?;
 			return Ok("contract");
 		}
-		cli.warning("No contract detected. Ensure you are in a valid project directory.")?;
+		#[cfg(feature = "parachain")]
+		if pop_parachains::is_supported(project_path.as_deref())? {
+			let mut cmd = args.rollup;
+			cmd.path = project_path;
+			cmd.execute(cli).await?;
+			return Ok("parachain");
+		}
+		cli.warning(
+			"No contract or rollup detected. Ensure you are in a valid project directory.",
+		)?;
 		Ok("")
 	}
 }
@@ -83,6 +98,7 @@ mod tests {
 	use cli::MockCli;
 	use duct::cmd;
 	use pop_contracts::{mock_build_process, new_environment};
+	use pop_parachains::{instantiate_template_dir, Config, Parachain};
 	use std::env;
 	use url::Url;
 
@@ -106,6 +122,7 @@ mod tests {
 				skip_confirm: false,
 				valid: false,
 			},
+			rollup: rollup::UpCommand::default(),
 			command: None,
 		})
 	}
@@ -127,6 +144,28 @@ mod tests {
 	}
 
 	#[tokio::test]
+	async fn detects_rollup_correctly() -> anyhow::Result<()> {
+		let temp_dir = tempfile::tempdir()?;
+		let name = "rollup";
+		let project_path = temp_dir.path().join(name);
+		let config = Config {
+			symbol: "DOT".to_string(),
+			decimals: 18,
+			initial_endowment: "1000000".to_string(),
+		};
+		instantiate_template_dir(&Parachain::Standard, &project_path, None, config)?;
+
+		let mut args = create_up_args(project_path)?;
+		args.rollup.relay_chain_url = Some(Url::parse("wss://polkadot-rpc.publicnode.com")?);
+		args.rollup.id = Some(2000);
+		args.rollup.genesis_code = Some(PathBuf::from("path/to/genesis"));
+		args.rollup.genesis_state = Some(PathBuf::from("path/to/state"));
+		let mut cli = MockCli::new();
+		assert_eq!(Command::execute_project_deployment(args, &mut cli).await?, "parachain");
+		cli.verify()
+	}
+
+	#[tokio::test]
 	async fn detects_rust_project_correctly() -> anyhow::Result<()> {
 		let temp_dir = tempfile::tempdir()?;
 		let name = "hello_world";
@@ -135,8 +174,9 @@ mod tests {
 		let args = create_up_args(project_path)?;
 
 		cmd("cargo", ["new", name, "--bin"]).dir(&path).run()?;
-		let mut cli = MockCli::new()
-			.expect_warning("No contract detected. Ensure you are in a valid project directory.");
+		let mut cli = MockCli::new().expect_warning(
+			"No contract or rollup detected. Ensure you are in a valid project directory.",
+		);
 		assert_eq!(Command::execute_project_deployment(args, &mut cli).await?, "");
 		cli.verify()
 	}

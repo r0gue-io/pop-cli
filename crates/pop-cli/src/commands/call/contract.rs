@@ -11,11 +11,11 @@ use crate::{
 use anyhow::{anyhow, Result};
 use clap::Args;
 use cliclack::spinner;
-use pop_common::{DefaultConfig, Keypair};
+use pop_common::{parse_account, DefaultConfig, Keypair};
 use pop_contracts::{
 	build_smart_contract, call_smart_contract, call_smart_contract_from_signed_payload,
 	dry_run_call, dry_run_gas_estimate_call, get_call_payload, get_message, get_messages,
-	parse_account, set_up_call, CallExec, CallOpts, DefaultEnvironment, Verbosity,
+	set_up_call, CallExec, CallOpts, DefaultEnvironment, Verbosity,
 };
 use sp_weights::Weight;
 use std::path::PathBuf;

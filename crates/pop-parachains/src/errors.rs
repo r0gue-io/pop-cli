@@ -27,12 +27,18 @@ pub enum Error {
 	CurrentDirAccess,
 	#[error("Failed to parse the endowment value")]
 	EndowmentError,
+	/// The specified event was not found.
+	#[error("Event {0} not found.")]
+	EventNotFound(String),
 	/// An error occurred during the submission of an extrinsic.
 	#[error("Extrinsic submission error: {0}")]
 	ExtrinsicSubmissionError(String),
 	/// The dispatchable function is not supported.
 	#[error("The dispatchable function is not supported")]
 	FunctionNotSupported,
+	/// Failed to retrieve the image tag.
+	#[error("Failed to retrieve image tag.")]
+	ImageTagRetrievalFailed,
 	#[error("IO error: {0}")]
 	IO(#[from] std::io::Error),
 	#[error("JSON error: {0}")]

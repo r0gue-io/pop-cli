@@ -30,7 +30,7 @@ pub use up::{
 };
 pub use utils::{
 	metadata::{get_message, get_messages, ContractFunction},
-	parse_account, parse_hex_bytes,
+	parse_hex_bytes,
 };
 // External exports
 pub use contract_extrinsics::CallExec;

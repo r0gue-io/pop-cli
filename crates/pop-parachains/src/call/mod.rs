@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{errors::Error, Function};
+use crate::{errors::Error, find_dispatchable_by_name, Function, Pallet, Param};
 use pop_common::{
 	call::{DefaultEnvironment, DisplayEvents, TokenMetadata, Verbosity},
 	create_signer,
 };
 use sp_core::bytes::{from_hex, to_hex};
 use subxt::{
+	blocks::ExtrinsicEvents,
 	dynamic::Value,
 	tx::{DynamicPayload, Payload, SubmittableExtrinsic},
 	OnlineClient, SubstrateConfig,
@@ -43,6 +44,33 @@ pub fn construct_extrinsic(
 ///   privileges.
 pub fn construct_sudo_extrinsic(xt: DynamicPayload) -> DynamicPayload {
 	subxt::dynamic::tx("Sudo", "sudo", [xt.into_value()].to_vec())
+}
+
+/// Constructs a Proxy call extrinsic.
+///
+/// # Arguments
+/// * `pallets`: List of pallets available within the chain's runtime.
+/// * `proxied_account` - The account on whose behalf the proxy will act.
+/// * `xt`: The extrinsic representing the dispatchable function call to be dispatched using the
+///   proxy.
+pub fn construct_proxy_extrinsic(
+	pallets: &[Pallet],
+	proxied_account: String,
+	xt: DynamicPayload,
+) -> Result<DynamicPayload, Error> {
+	let proxy_function = find_dispatchable_by_name(pallets, "Proxy", "proxy")?;
+	// `find_dispatchable_by_name` doesn't support parsing parameters that are calls.
+	// Therefore, we only parse the first two parameters for the proxy call
+	// using `parse_dispatchable_arguments`, while the last parameter (which is the call)
+	// must be manually added.
+	let required_params: Vec<Param> = proxy_function.params.iter().take(2).cloned().collect();
+	let mut parsed_args: Vec<Value> = metadata::parse_dispatchable_arguments(
+		&required_params,
+		vec![proxied_account, "None()".to_string()],
+	)?;
+	let real = parsed_args.remove(0);
+	let proxy_type = parsed_args.remove(0);
+	Ok(subxt::dynamic::tx("Proxy", "proxy", [real, proxy_type, xt.into_value()].to_vec()))
 }
 
 /// Signs and submits a given extrinsic.
@@ -90,18 +118,17 @@ pub async fn sign_and_submit_extrinsic<Xt: Payload>(
 pub async fn submit_signed_extrinsic(
 	client: OnlineClient<SubstrateConfig>,
 	payload: String,
-) -> Result<String, Error> {
+) -> Result<ExtrinsicEvents<SubstrateConfig>, Error> {
 	let hex_encoded =
 		from_hex(&payload).map_err(|e| Error::CallDataDecodingError(e.to_string()))?;
 	let extrinsic = SubmittableExtrinsic::from_bytes(client, hex_encoded);
-	let result = extrinsic
+	extrinsic
 		.submit_and_watch()
 		.await
 		.map_err(|e| Error::ExtrinsicSubmissionError(format!("{:?}", e)))?
 		.wait_for_finalized_success()
 		.await
-		.map_err(|e| Error::ExtrinsicSubmissionError(format!("{:?}", e)))?;
-	Ok(format!("{:?}", result.extrinsic_hash()))
+		.map_err(|e| Error::ExtrinsicSubmissionError(format!("{:?}", e)))
 }
 
 /// Encodes the call data for a given extrinsic into a hexadecimal string.
@@ -166,6 +193,26 @@ mod tests {
 			Err(Error::ConnectionFailure(_))
 		));
 		set_up_client(POP_NETWORK_TESTNET_URL).await?;
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn construct_proxy_extrinsic_work() -> Result<()> {
+		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
+		let pallets = parse_chain_metadata(&client)?;
+		let remark_dispatchable = find_dispatchable_by_name(&pallets, "System", "remark")?;
+		let remark = construct_extrinsic(remark_dispatchable, ["0x11".to_string()].to_vec())?;
+		let xt = construct_proxy_extrinsic(
+			&pallets,
+			"Id(13czcAAt6xgLwZ8k6ZpkrRL5V2pjKEui3v9gHAN9PoxYZDbf)".to_string(),
+			remark,
+		)?;
+		// Encoded call data for a proxy extrinsic with remark as the call.
+		// Reference: https://polkadot.js.org/apps/?rpc=wss%3A%2F%2Frpc1.paseo.popnetwork.xyz#/extrinsics/decode/0x29000073ebf9c947490b9170ea4fd3031ae039452e428531317f76bf0a02124f8166de0000000411
+		assert_eq!(
+			encode_call_data(&client, &xt)?,
+			"0x29000073ebf9c947490b9170ea4fd3031ae039452e428531317f76bf0a02124f8166de0000000411"
+		);
 		Ok(())
 	}
 

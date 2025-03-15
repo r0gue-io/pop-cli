@@ -4,7 +4,11 @@ use crate::{
 	cli::traits::Cli,
 	wallet_integration::{FrontendFromString, TransactionData, WalletIntegrationManager},
 };
+use anyhow::{anyhow, Result};
 use cliclack::{log, spinner};
+#[cfg(feature = "parachain")]
+use pop_parachains::{submit_signed_extrinsic, ExtrinsicEvents, OnlineClient, SubstrateConfig};
+use url::Url;
 
 /// The prompt to ask the user if they want to use the wallet for signing.
 pub const USE_WALLET_PROMPT: &str = "Do you want to use your browser wallet to sign the extrinsic? (Selecting 'No' will prompt you to manually enter the secret key URI for signing, e.g., '//Alice')";
@@ -64,4 +68,26 @@ pub fn prompt_to_use_wallet(cli: &mut impl Cli) -> anyhow::Result<bool> {
 	} else {
 		Ok(false)
 	}
+}
+
+// Sign and submit an extrinsic using wallet integration.
+#[cfg(feature = "parachain")]
+pub(crate) async fn submit_extrinsic(
+	client: &OnlineClient<SubstrateConfig>,
+	url: &Url,
+	call_data: Vec<u8>,
+	cli: &mut impl Cli,
+) -> Result<ExtrinsicEvents<SubstrateConfig>> {
+	let maybe_payload = request_signature(call_data, url.to_string()).await?;
+	let payload = maybe_payload.ok_or_else(|| anyhow!("No signed payload received."))?;
+	cli.success("Signed payload received.")?;
+	let spinner = cliclack::spinner();
+	spinner.start("Submitting the extrinsic and waiting for finalization, please be patient...");
+
+	let result = submit_signed_extrinsic(client.clone(), payload)
+		.await
+		.map_err(anyhow::Error::from)?;
+
+	spinner.stop(format!("Extrinsic submitted with hash: {:?}", result.extrinsic_hash()));
+	Ok(result)
 }
