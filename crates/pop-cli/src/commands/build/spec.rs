@@ -566,9 +566,13 @@ impl BuildSpec {
 			// Deterministic build.
 			if self.deterministic {
 				spinner.set_message("Building deterministic runtime...");
-				let runtime_path = self.build_deterministic_runtime(cli, &spinner).map_err(|e| {
-					anyhow::anyhow!("Failed to build the deterministic runtime: {}", e.to_string())
-				})?;
+				let runtime_path =
+					self.build_deterministic_runtime(cli, &spinner).map_err(|e| {
+						anyhow::anyhow!(
+							"Failed to build the deterministic runtime: {}",
+							e.to_string()
+						)
+					})?;
 				let code = fs::read(&runtime_path).map_err(anyhow::Error::from)?;
 				cli.success("Runtime built successfully.")?;
 				generated_files
