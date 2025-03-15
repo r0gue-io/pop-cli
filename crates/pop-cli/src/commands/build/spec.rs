@@ -9,7 +9,7 @@ use crate::{
 	style::style,
 };
 use clap::{Args, ValueEnum};
-use cliclack::spinner;
+use cliclack::{spinner, ProgressBar};
 use pop_common::{manifest::from_path, Profile};
 use pop_parachains::{
 	binary_path, build_parachain, export_wasm_file, generate_genesis_state_file,
@@ -561,9 +561,7 @@ impl BuildSpec {
 		// Deterministic build.
 		if self.deterministic {
 			spinner.set_message("Building deterministic runtime...");
-			cli.warning("NOTE: this may take some time...")?;
-			spinner.clear();
-			let runtime_path = self.build_deterministic_runtime(cli).map_err(|e| {
+			let runtime_path = self.build_deterministic_runtime(cli, &spinner).map_err(|e| {
 				anyhow::anyhow!("Failed to build the deterministic runtime: {}", e.to_string())
 			})?;
 			let code = fs::read(&runtime_path).map_err(anyhow::Error::from)?;
@@ -641,12 +639,14 @@ impl BuildSpec {
 	fn build_deterministic_runtime(
 		&self,
 		cli: &mut impl cli::traits::Cli,
+		spinner: &ProgressBar,
 	) -> anyhow::Result<PathBuf> {
 		let engine = ContainerEngine::detect().map_err(|_| anyhow::anyhow!("No container engine detected. A supported containerization solution (Docker or Podman) is required."))?;
 		// Warning from srtool-cli: https://github.com/chevdor/srtool-cli/blob/master/cli/src/main.rs#L28).
 		if engine == ContainerEngine::Docker {
 			cli.warning("WARNING: You are using docker. It is recommend to use podman instead.")?;
 		}
+		spinner.set_message("NOTE: This process may take 10-15 minutes. Please be patient...");
 		let builder = Builder::new(
 			engine,
 			None,

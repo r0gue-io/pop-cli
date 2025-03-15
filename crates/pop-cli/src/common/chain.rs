@@ -37,8 +37,8 @@ pub(crate) async fn configure(
 	let mut pallets = parse_chain_metadata(&client)
 		.map_err(|e| anyhow!(format!("Unable to fetch the chain metadata: {}", e.to_string())))?;
 	// Sort by name for display.
-	pallets.sort_by(|a, b| a.name.cmp(&b.name));
-	pallets.iter_mut().for_each(|p| p.functions.sort_by(|a, b| a.name.cmp(&b.name)));
+	pallets.sort_by_key(|pallet| pallet.name.clone());
+	pallets.iter_mut().for_each(|p| p.functions.sort_by_key(|f| f.name.clone()));
 	Ok(Chain { url, client, pallets })
 }
 

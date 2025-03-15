@@ -56,7 +56,7 @@ impl UpCommand {
 		let config = match self.prepare_for_registration(cli).await {
 			Ok(chain) => chain,
 			Err(e) => {
-				cli.outro_cancel(format!("{}", e))?;
+				cli.outro_cancel(e.to_string())?;
 				return Ok(());
 			},
 		};
@@ -69,7 +69,7 @@ impl UpCommand {
 				))
 				.dim()
 			))?,
-			Err(e) => cli.outro_cancel(format!("{}", e))?,
+			Err(e) => cli.outro_cancel(e.to_string())?,
 		}
 		Ok(())
 	}
