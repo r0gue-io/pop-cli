@@ -6,13 +6,17 @@ use crate::{
 };
 use clap::Args;
 use cliclack::{clear_screen, log::warning, outro};
-use pop_contracts::{test_e2e_smart_contract, test_smart_contract};
+use pop_common::test_project;
+use pop_contracts::test_e2e_smart_contract;
 use std::path::PathBuf;
 
+const HELP_HEADER: &str = "Smart contract testing options";
+
 #[derive(Args)]
+#[clap(next_help_heading = HELP_HEADER)]
 pub(crate) struct TestContractCommand {
-	#[arg(short, long, help = "Path for the contract project [default: current directory]")]
-	path: Option<PathBuf>,
+	#[clap(skip)]
+	pub(crate) path: Option<PathBuf>,
 	/// Run end-to-end tests
 	#[arg(short, long)]
 	e2e: bool,
@@ -50,7 +54,7 @@ impl TestContractCommand {
 			Ok("e2e")
 		} else {
 			Cli.intro("Starting unit tests")?;
-			test_smart_contract(self.path.as_deref())?;
+			test_project(self.path.as_deref())?;
 			outro("Unit testing complete")?;
 			Ok("unit")
 		}

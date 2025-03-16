@@ -29,8 +29,11 @@ pub enum Error {
 	ParseSecretURI(String),
 	#[error("SourceError error: {0}")]
 	SourceError(#[from] sourcing::Error),
+	/// An error occurred while executing a test command.
 	#[error("TemplateError error: {0}")]
 	TemplateError(#[from] templates::Error),
+	#[error("Failed to execute test command: {0}")]
+	TestCommand(String),
 	#[error("Unsupported command: {0}")]
 	UnsupportedCommand(String),
 	#[error("Unsupported platform: {arch} {os}")]
