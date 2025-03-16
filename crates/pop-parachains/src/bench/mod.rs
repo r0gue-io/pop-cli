@@ -8,10 +8,9 @@ use sp_runtime::traits::BlakeTwo256;
 use std::{
 	collections::BTreeMap,
 	fmt::Display,
-	fs::{self, File},
+	fs,
 	io::Read,
 	path::{Path, PathBuf},
-	process::{Child, Command, Stdio},
 };
 use strum_macros::{EnumIter, EnumMessage as EnumMessageDerive};
 use tempfile::NamedTempFile;
@@ -33,6 +32,24 @@ type HostFunctions = (
 /// Type alias for records where the key is the pallet name and the value is an array of its
 /// extrinsics.
 pub type PalletExtrinsicsRegistry = BTreeMap<String, Vec<String>>;
+
+/// Commands that can be executed by the `frame-omni-bencher` CLI.
+pub enum OmniBencherCommand {
+	/// Execute a pallet benchmark.
+	Pallet,
+	/// Execute an overhead benchmark.
+	Overhead,
+}
+
+impl Display for OmniBencherCommand {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		let s = match self {
+			OmniBencherCommand::Pallet => "pallet",
+			OmniBencherCommand::Overhead => "overhead",
+		};
+		write!(f, "{}", s)
+	}
+}
 
 /// How the genesis state for benchmarking should be built.
 #[derive(clap::ValueEnum, Debug, Eq, PartialEq, Clone, Copy, EnumIter, EnumMessageDerive)]
@@ -123,10 +140,7 @@ pub fn generate_binary_benchmarks(
 
 	if let Err(e) = cmd(binary_path, cmd_args).stderr_path(&temp_path).run() {
 		let mut error_output = String::new();
-		std::fs::File::open(&temp_path)
-			.unwrap()
-			.read_to_string(&mut error_output)
-			.unwrap();
+		std::fs::File::open(&temp_path).unwrap().read_to_string(&mut error_output)?;
 		return Err(anyhow::anyhow!(
 			"Failed to run benchmarking: {}",
 			if error_output.is_empty() { e.to_string() } else { error_output }
@@ -144,37 +158,21 @@ pub async fn load_pallet_extrinsics(
 	runtime_path: &Path,
 	binary_path: &Path,
 ) -> anyhow::Result<PalletExtrinsicsRegistry> {
-	let temp_file = NamedTempFile::new()?;
-
-	let mut process = run_benchmarking_with_binary(
+	let output = generate_omni_bencher_benchmarks(
 		binary_path,
-		Some(temp_file.as_file()),
+		OmniBencherCommand::Pallet,
 		vec![
-			&format!("--runtime={}", runtime_path.display()),
-			"--genesis-builder=none",
-			"--list=all",
+			format!("--runtime={}", runtime_path.display()),
+			"--genesis-builder=none".to_string(),
+			"--list=all".to_string(),
 		],
-	)
-	.await?;
-
-	// Wait for the process to finish and retain the output file.
-	let (_, path) = temp_file.keep()?;
-	process.wait()?;
-
+		false,
+	)?;
 	// Process the captured output and return the pallet extrinsics registry.
-	process_pallet_extrinsics(path)
+	process_pallet_extrinsics(output)
 }
 
-fn process_pallet_extrinsics(output_file: PathBuf) -> anyhow::Result<PalletExtrinsicsRegistry> {
-	let mut output_file = File::open(output_file)?;
-	let mut output = String::new();
-	output_file.read_to_string(&mut output)?;
-
-	// Returns an error if the runtime is not built with `--features runtime-benchmarks`.
-	if output.contains("--features runtime-benchmarks") {
-		return Err(anyhow::anyhow!("Runtime is not built with `--features runtime-benchmarks`. Please rebuild it with the feature enabled."));
-	}
-
+fn process_pallet_extrinsics(output: String) -> anyhow::Result<PalletExtrinsicsRegistry> {
 	// Process the captured output and return the pallet extrinsics registry.
 	let mut registry = PalletExtrinsicsRegistry::new();
 	let lines: Vec<String> = output.split("\n").map(String::from).skip(1).collect();
@@ -195,31 +193,45 @@ fn process_pallet_extrinsics(output_file: PathBuf) -> anyhow::Result<PalletExtri
 	Ok(registry)
 }
 
-/// Run command for benchmarking with a provided binary.
+/// Run command for benchmarking with a provided `frame-omni-bencher` binary.
 ///
 /// # Arguments
 /// * `binary_path` - Path to the binary to run.
-/// * `output` - Output file to write the benchmark results to.
+/// * `command` - Command to run. `frame-omni-bencher` only supports `pallet` and `overhead`.
 /// * `args` - Additional arguments to pass to the binary.
-pub async fn run_benchmarking_with_binary(
+/// * `log_enabled` - Whether to enable logging.
+pub fn generate_omni_bencher_benchmarks(
 	binary_path: &Path,
-	output: Option<&File>,
-	args: Vec<&str>,
-) -> anyhow::Result<Child> {
-	let mut command = Command::new(binary_path);
-	let env = std::env::var("RUST_LOG").unwrap_or_default();
-	command.env("RUST_LOG", "none");
-	command.args(["v1", "benchmark", "pallet"]);
-	for arg in args {
-		command.arg(arg);
+	command: OmniBencherCommand,
+	args: Vec<String>,
+	log_enabled: bool,
+) -> anyhow::Result<String> {
+	let stdout_file = NamedTempFile::new()?;
+	let stdout_path = stdout_file.path().to_owned();
+
+	let stderror_file = NamedTempFile::new()?;
+	let stderror_path = stderror_file.path().to_owned();
+
+	let mut cmd_args = vec!["v1".to_string(), "benchmark".to_string(), command.to_string()];
+	cmd_args.extend(args);
+
+	let cmd = cmd(binary_path, cmd_args)
+		.env("RUST_LOG", if log_enabled { "info" } else { "none" })
+		.stderr_path(&stderror_path)
+		.stdout_path(&stdout_path);
+
+	if let Err(e) = cmd.run() {
+		let mut error_output = String::new();
+		std::fs::File::open(&stderror_path)?.read_to_string(&mut error_output)?;
+		return Err(anyhow::anyhow!(
+			"Failed to run benchmarking: {}",
+			if error_output.is_empty() { e.to_string() } else { error_output }.trim()
+		));
 	}
-	if let Some(output) = output {
-		command.stdout(Stdio::from(output.try_clone()?));
-		command.stderr(Stdio::from(output.try_clone()?));
-	}
-	let child = command.spawn()?;
-	command.env("RUST_LOG", env);
-	Ok(child)
+
+	let mut stdout_output = String::new();
+	std::fs::File::open(&stdout_path)?.read_to_string(&mut stdout_output)?;
+	Ok(stdout_output)
 }
 
 #[cfg(test)]
@@ -301,7 +313,10 @@ mod tests {
 
 		assert_eq!(
 		    load_pallet_extrinsics(&runtime_path, &binary.path()).await.err().unwrap().to_string(),
-			"Runtime is not built with `--features runtime-benchmarks`. Please rebuild it with the feature enabled."
+				"Failed to run benchmarking: Error: Input(\"Could not call runtime API to Did not find the benchmarking metadata. \
+				This could mean that you either did not build the node correctly with the `--features runtime-benchmarks` flag, \
+				or the chain spec that you are using was not created by a node that was compiled with the flag: Other: \
+				Exported method Benchmark_benchmark_metadata is not found\")"
 		);
 		Ok(())
 	}
