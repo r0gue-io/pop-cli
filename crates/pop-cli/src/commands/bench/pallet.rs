@@ -10,12 +10,13 @@ use crate::{
 			check_omni_bencher_and_prompt, ensure_runtime_binary_exists,
 			guide_user_to_select_genesis_policy, guide_user_to_select_genesis_preset,
 		},
+		builds::guide_user_to_select_profile,
 		prompt::display_message,
 	},
 };
 use clap::Args;
 use cliclack::spinner;
-use pop_common::{get_relative_or_absolute_path, Profile};
+use pop_common::get_relative_or_absolute_path;
 use pop_parachains::{
 	generate_pallet_benchmarks, get_preset_names, load_pallet_extrinsics, GenesisBuilderPolicy,
 	PalletExtrinsicsRegistry, GENESIS_BUILDER_DEV_PRESET,
@@ -254,11 +255,8 @@ impl BenchmarkPallet {
 		// No runtime path provided, auto-detect the runtime WASM binary. If not found, build
 		// the runtime.
 		if self.runtime.is_none() {
-			match ensure_runtime_binary_exists(cli, &get_current_directory(), &Profile::Release) {
-				Ok(runtime_binary_path) => self.runtime = Some(runtime_binary_path),
-				Err(e) => {
-					return display_message(&e.to_string(), false, cli);
-				},
+			if let Err(e) = self.update_runtime_path(cli) {
+				return display_message(&e.to_string(), false, cli);
 			}
 		}
 
@@ -535,6 +533,12 @@ impl BenchmarkPallet {
 		Ok(())
 	}
 
+	fn update_runtime_path(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+		let profile = guide_user_to_select_profile(cli)?;
+		self.runtime = Some(ensure_runtime_binary_exists(cli, &get_current_directory(), &profile)?);
+		Ok(())
+	}
+
 	fn runtime(&self) -> anyhow::Result<&PathBuf> {
 		self.runtime.as_ref().ok_or_else(|| anyhow::anyhow!("No runtime found"))
 	}
@@ -679,12 +683,7 @@ impl BenchmarkPalletMenuOption {
 			Pallets => cmd.update_pallets(cli, registry).await?,
 			Extrinsics => cmd.update_extrinsics(cli, registry).await?,
 			ExcludedPallets => cmd.update_excluded_pallets(cli, registry).await?,
-			Runtime =>
-				cmd.runtime = Some(ensure_runtime_binary_exists(
-					cli,
-					&get_current_directory(),
-					&Profile::Release,
-				)?),
+			Runtime => cmd.update_runtime_path(cli)?,
 			GenesisBuilder =>
 				cmd.genesis_builder =
 					Some(guide_user_to_select_genesis_policy(cli, &cmd.genesis_builder)?),
@@ -939,7 +938,9 @@ mod tests {
 		common::bench::{get_mock_runtime, source_omni_bencher_binary},
 	};
 	use anyhow::Ok;
+	use pop_common::Profile;
 	use std::env::current_dir;
+	use strum::{EnumMessage, VariantArray};
 
 	#[tokio::test]
 	async fn benchmark_pallet_works() -> anyhow::Result<()> {
@@ -949,8 +950,26 @@ mod tests {
 		let cwd = current_dir().unwrap_or(PathBuf::from("./"));
 		let runtime_path = get_mock_runtime(true);
 		let output_path = temp_dir.path().join("weights.rs");
+		// Prompt user to select `profile` if not provided.
+		let profiles = Profile::VARIANTS
+			.iter()
+			.map(|profile| {
+				(
+					profile.get_message().unwrap_or(profile.as_ref()).to_string(),
+					profile.get_detailed_message().unwrap_or_default().to_string(),
+				)
+			})
+			.collect();
 
 		cli = expect_pallet_benchmarking_intro(cli)
+			.expect_select(
+				"Choose the build profile of the binary that should be used: ",
+				Some(true),
+				true,
+				Some(profiles),
+				0,
+				None,
+			)
 			.expect_warning(format!(
 				"No runtime folder found at {}. Please input the runtime path manually.",
 				cwd.display()
