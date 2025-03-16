@@ -95,7 +95,7 @@ pub mod call {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
 	use super::*;
 	use anyhow::Result;
 

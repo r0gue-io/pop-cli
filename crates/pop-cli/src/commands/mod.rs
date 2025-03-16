@@ -132,7 +132,7 @@ impl Command {
 				None => test::Command::execute(args).await.map(|t| json!(t)),
 				Some(cmd) => match cmd {
 					#[cfg(feature = "contract")]
-					test::Command::Contract(cmd) => match cmd.execute().await {
+					test::Command::Contract(cmd) => match cmd.execute(&mut Cli).await {
 						Ok(feature) => Ok(json!(feature)),
 						Err(e) => Err(e),
 					},
