@@ -646,7 +646,9 @@ impl BuildSpec {
 		if engine == ContainerEngine::Docker {
 			cli.warning("WARNING: You are using docker. It is recommend to use podman instead.")?;
 		}
-		spinner.set_message("NOTE: This process may take 10-15 minutes. Please be patient...");
+		spinner.set_message(
+			"NOTE: This process may take longer than 10-15 minutes. Please be patient...",
+		);
 		let builder = Builder::new(
 			engine,
 			None,
