@@ -10,7 +10,8 @@ use pop_parachains::{
 };
 use std::{
 	ffi::OsStr,
-	fs,
+	fs::{self, File},
+	io::{BufRead, BufReader},
 	path::{Path, PathBuf},
 };
 use strum::{EnumMessage, IntoEnumIterator};
@@ -256,6 +257,76 @@ pub(crate) fn get_mock_runtime(with_benchmark_features: bool) -> PathBuf {
 		if with_benchmark_features { "base_parachain_benchmark" } else { "base_parachain" }
 	);
 	std::env::current_dir().unwrap().join(path).canonicalize().unwrap()
+}
+
+/// Overwrite the generated weight files' executed command in the destination directory.
+///
+/// # Arguments
+/// * `temp_path`: The path to the temporary directory.
+/// * `dest_path`: The path to the destination directory.
+/// * `arguments`: The arguments to overwrite the weight directory with.
+pub(crate) fn overwrite_weight_dir_command(
+	temp_path: &Path,
+	dest_path: &Path,
+	arguments: &Vec<String>,
+) -> anyhow::Result<()> {
+	// Read and print contents of all files in the temporary directory.
+	for entry in temp_path.read_dir()? {
+		let path = entry?.path();
+		if !path.is_file() {
+			continue;
+		}
+
+		let file = File::open(&path)?;
+		let destination = dest_path.join(path.file_name().unwrap());
+		overwrite_weight_file_command(file, destination.as_path(), arguments)?;
+	}
+	Ok(())
+}
+
+/// Overwrites the weight file's executed command with the given arguments.
+///
+/// # Arguments
+/// * `temp_file` - The file to overwrite.
+/// * `dest_file_path` - The path to the destination file.
+/// * `arguments` - The arguments to write to the file.
+pub(crate) fn overwrite_weight_file_command(
+	temp_file: File,
+	dest_file_path: &Path,
+	arguments: &Vec<String>,
+) -> anyhow::Result<()> {
+	let reader = BufReader::new(temp_file);
+	let mut lines = reader.lines();
+	let mut new_lines: Vec<String> = vec![];
+
+	let mut inside_command_block = false;
+	while let Some(Ok(line)) = lines.next() {
+		if line.starts_with("// Executed Command:") {
+			inside_command_block = true;
+			continue;
+		} else if inside_command_block {
+			if line.starts_with("//") {
+				continue;
+			} else if line.trim().is_empty() {
+				// Write new command block to the generated weight file.
+				new_lines.push("// Executed Command:".to_string());
+				for argument in arguments.to_vec() {
+					new_lines.push(format!("//  {}", argument));
+				}
+				new_lines.push(String::new());
+				break;
+			}
+		}
+		new_lines.push(line);
+	}
+
+	// Write the rest of the file to the destination file.
+	while let Some(Ok(line)) = lines.next() {
+		new_lines.push(line);
+	}
+
+	std::fs::write(dest_file_path, new_lines.join("\n"))?;
+	Ok(())
 }
 
 #[cfg(test)]

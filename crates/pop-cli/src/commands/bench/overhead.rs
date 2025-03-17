@@ -1,11 +1,9 @@
-use std::{env::current_dir, path::PathBuf};
-
 use crate::{
 	cli::{self, traits::Input},
 	common::{
 		bench::{
 			check_omni_bencher_and_prompt, ensure_runtime_binary_exists,
-			guide_user_to_select_genesis_preset,
+			guide_user_to_select_genesis_preset, overwrite_weight_dir_command,
 		},
 		builds::guide_user_to_select_profile,
 		prompt::display_message,
@@ -16,6 +14,8 @@ use cliclack::spinner;
 use frame_benchmarking_cli::OverheadCmd;
 use pop_common::Profile;
 use pop_parachains::{generate_omni_bencher_benchmarks, OmniBencherCommand};
+use std::{env::current_dir, path::PathBuf};
+use tempfile::tempdir;
 
 const EXCLUDED_ARGS: [&str; 3] = ["--profile", "--skip-config", "-y"];
 
@@ -47,7 +47,7 @@ impl BenchmarkOverhead {
 		spinner.clear();
 
 		// Display the benchmarking command.
-		cli.success(self.display())?;
+		cli.info(self.display())?;
 		if let Err(e) = result {
 			return display_message(&e.to_string(), false, cli);
 		}
@@ -108,7 +108,17 @@ impl BenchmarkOverhead {
 		Ok(())
 	}
 
-	async fn run(&self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+	async fn run(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+		let temp_dir = tempdir()?;
+		let original_weight_path = self
+			.command
+			.params
+			.weight
+			.weight_path
+			.clone()
+			.unwrap_or_else(|| PathBuf::from("."));
+		self.command.params.weight.weight_path = Some(temp_dir.path().to_path_buf());
+
 		let binary_path = check_omni_bencher_and_prompt(cli, self.skip_confirm).await?;
 		generate_omni_bencher_benchmarks(
 			binary_path.as_path(),
@@ -116,11 +126,23 @@ impl BenchmarkOverhead {
 			self.collect_arguments(),
 			false,
 		)?;
+		// Overwrite the weight files with the correct executed command.
+		overwrite_weight_dir_command(
+			temp_dir.path(),
+			&original_weight_path,
+			&self.collect_display_arguments(),
+		)?;
+		// Restore the original weight path.
+		self.command.params.weight.weight_path = Some(original_weight_path);
 		Ok(())
 	}
 
 	fn display(&self) -> String {
-		let mut args = vec!["pop bench overhead".to_string()];
+		self.collect_display_arguments().join(" ")
+	}
+
+	fn collect_display_arguments(&self) -> Vec<String> {
+		let mut args = vec!["pop".to_string(), "bench".to_string(), "overhead".to_string()];
 		let mut arguments = self.collect_arguments();
 		if let Some(ref profile) = self.profile {
 			arguments.push(format!("--profile={}", profile));
@@ -129,7 +151,7 @@ impl BenchmarkOverhead {
 			arguments.push("--skip-confirm".to_string());
 		}
 		args.extend(arguments);
-		args.join(" ")
+		args
 	}
 
 	fn collect_arguments(&self) -> Vec<String> {
