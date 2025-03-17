@@ -120,19 +120,19 @@ impl UpCommand {
 		let chain =
 			configure("Enter the relay chain node URL", DEFAULT_URL, &self.relay_chain_url, cli)
 				.await?;
-		let proxy = self.resolve_proxied_address(cli)?;
+		let proxy = self.resolve_proxied_address(chain.url.as_str(), cli)?;
 		let id = self.resolve_id(&chain, &proxy, cli).await?;
 		let genesis_artifacts = self.resolve_genesis_files(deployment_config, id, cli).await?;
 		Ok(Registration { id, genesis_artifacts, chain, proxy })
 	}
 
 	// Retrieves the proxied address, prompting the user if none is specified.
-	fn resolve_proxied_address(&self, cli: &mut impl Cli) -> Result<Proxy> {
+	fn resolve_proxied_address(&self, relay_chain_url: &str, cli: &mut impl Cli) -> Result<Proxy> {
 		if let Some(addr) = &self.proxied_address {
 			return Ok(parse_account(addr).map(|valid_addr| Some(format!("Id({valid_addr})")))?);
 		}
 		if cli.confirm("Would you like to use a pure proxy for registration? This is considered a best practice.").initial_value(true).interact()? {
-			return Ok(Some(prompt_for_proxy_address(cli)?));
+			return Ok(Some(prompt_for_proxy_address(relay_chain_url, cli)?));
 		}
 		Ok(None)
 	}
@@ -322,10 +322,10 @@ async fn generate_spec_files(
 }
 
 // Prompt the user to input an address and return it formatted as `Id(address)`
-fn prompt_for_proxy_address(cli: &mut impl Cli) -> Result<String> {
+fn prompt_for_proxy_address(relay_chain_url: &str, cli: &mut impl Cli) -> Result<String> {
 	cli.info(format!(
 		"Don't have a pure proxy?\n{}",
-		style("Create a proxy account using `pop call chain` and fund it with enough balance for the registration.").dim()
+		style(format!("Create a proxy account using `pop call chain --pallet Proxy --function create_pure --args \"Any()\" \"0\" \"0\" --url {relay_chain_url} --use-wallet` and fund it with enough balance for the registration.")).dim()
 	))?;
 	let address = cli
 	.input("Enter your pure proxy account or the account that the proxy will make a call on behalf of")
@@ -517,17 +517,19 @@ mod tests {
 
 	#[test]
 	fn resolve_proxied_address_works() -> Result<()> {
+		let relay_chain_url = "ws://127.0.0.1:9944";
 		let mut cli = MockCli::new()
 			.expect_confirm("Would you like to use a pure proxy for registration? This is considered a best practice.", true)
 			.expect_info(format!(
 				"Don't have a pure proxy?\n{}",
-				style("Create a proxy account using `pop call chain` and fund it with enough balance for the registration.").dim()
+				style(format!("Create a proxy account using `pop call chain --pallet Proxy --function create_pure --args \"Any()\" \"0\" \"0\" --url {relay_chain_url} --use-wallet` and fund it with enough balance for the registration.")).dim()
 			))
 			.expect_input(
 				"Enter your pure proxy account or the account that the proxy will make a call on behalf of",
 				MOCK_PROXIED_ADDRESS.into(),
 			);
-		let proxied_address = UpCommand::default().resolve_proxied_address(&mut cli)?;
+		let proxied_address =
+			UpCommand::default().resolve_proxied_address(relay_chain_url, &mut cli)?;
 		assert_eq!(proxied_address, Some(format!("Id({})", MOCK_PROXIED_ADDRESS)));
 		cli.verify()?;
 
@@ -535,7 +537,8 @@ mod tests {
 			"Would you like to use a pure proxy for registration? This is considered a best practice.",
 			false,
 		);
-		let proxied_address = UpCommand::default().resolve_proxied_address(&mut cli)?;
+		let proxied_address =
+			UpCommand::default().resolve_proxied_address(relay_chain_url, &mut cli)?;
 		assert_eq!(proxied_address, None);
 		cli.verify()?;
 
@@ -544,7 +547,7 @@ mod tests {
 			proxied_address: Some(MOCK_PROXIED_ADDRESS.to_string()),
 			..Default::default()
 		}
-		.resolve_proxied_address(&mut cli)?;
+		.resolve_proxied_address(relay_chain_url, &mut cli)?;
 		assert_eq!(proxied_address, Some(format!("Id({})", MOCK_PROXIED_ADDRESS)));
 		cli.verify()
 	}
