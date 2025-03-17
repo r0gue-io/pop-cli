@@ -42,11 +42,14 @@ pub struct UpCommand {
 	#[clap(skip)]
 	pub(crate) path: Option<PathBuf>,
 	/// ID to use. If not specified, a new ID will be reserved.
-	#[arg(short, long, required_if_eq("skip_registration", "true"))]
+	#[arg(short, long)]
 	pub(crate) id: Option<u32>,
 	/// Flag to skip the registration step and only attempt deployment.
 	#[arg(long, requires = "id")]
 	pub(crate) skip_registration: bool,
+	/// Path to the chain spec file. If provided, it will be used to generate genesis artifacts.
+	#[arg(long = "chain-spec")]
+	pub(crate) chain_spec: Option<PathBuf>,
 	/// Path to the genesis state file. If not specified, it will be generated.
 	#[arg(short = 'G', long = "genesis-state")]
 	pub(crate) genesis_state: Option<StatePathBuf>,
@@ -172,7 +175,14 @@ impl UpCommand {
 			});
 		}
 		cli.info("Generating the chain spec for your project")?;
-		generate_spec_files(deployment_config, id, self.path.as_deref(), cli).await
+		generate_spec_files(
+			self.chain_spec.as_deref(),
+			deployment_config,
+			id,
+			self.path.as_deref(),
+			cli,
+		)
+		.await
 	}
 }
 
@@ -295,11 +305,14 @@ fn prepare_reserve_call_data(chain: &Chain, proxy: &Proxy, cli: &mut impl Cli) -
 
 // Generates chain spec files for the project.
 async fn generate_spec_files(
+	chain_spec: Option<&Path>,
 	deployment_config: &mut Deployment,
 	id: u32,
 	path: Option<&Path>,
 	cli: &mut impl Cli,
 ) -> anyhow::Result<GenesisArtifacts> {
+	let chain_spec_path = chain_spec
+		.map(|p| p.canonicalize().unwrap_or_else(|_| p.to_path_buf()).display().to_string());
 	// Changes the working directory if a path is provided to ensure the build spec process runs in
 	// the correct context.
 	if let Some(path) = path {
@@ -310,6 +323,7 @@ async fn generate_spec_files(
 		genesis_code: true,
 		genesis_state: true,
 		chain_type: Some(ChainType::Live),
+		chain: chain_spec_path,
 		relay: deployment_config
 			.api
 			.as_ref()
@@ -623,7 +637,7 @@ mod tests {
 			relay_chain_url: Some(Url::parse(POP_NETWORK_TESTNET_URL)?),
 			path: None,
 			proxied_address: None,
-			skip_registration: false,
+			..Default::default()
 		}
 		.execute(&mut cli)
 		.await?;
@@ -662,7 +676,7 @@ mod tests {
 			relay_chain_url: Some(Url::parse(POP_NETWORK_TESTNET_URL)?),
 			path: None,
 			proxied_address: None,
-			skip_registration: false,
+			..Default::default()
 		}
 		.execute(&mut cli)
 		.await?;
