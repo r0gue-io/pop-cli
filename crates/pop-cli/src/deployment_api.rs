@@ -84,7 +84,24 @@ impl DeploymentApi {
 		let status = res.status();
 		let body = res.text().await?;
 		if !status.is_success() {
-			return Err(anyhow::anyhow!("Deployment failed with status {}: {}", status, body));
+			let error_cause = serde_json::from_str::<Value>(&body)
+				.ok()
+				.and_then(|json| {
+					json.get("error")?
+						.get("issues")?
+						.as_array()?
+						.last()?
+						.get("message")?
+						.as_str()
+						.map(|s| s.to_string())
+				})
+				.unwrap_or_else(|| body);
+
+			return Err(anyhow::anyhow!(
+				"Deployment failed with status {}: {}",
+				status,
+				error_cause
+			));
 		}
 		Ok(serde_json::from_str(&body)?)
 	}
@@ -233,6 +250,29 @@ mod tests {
 			.await
 	}
 
+	async fn mock_deploy_error(
+		mock_server: &mut Server,
+		para_id: u32,
+		provider: DeploymentProvider,
+	) -> Mock {
+		let mocked_error_payload = json!({
+			"error": {
+				"issues": [
+					{ "message": "Invalid chainspec format: Expected object, received null" },
+					{ "message": "ParaId in chainspec (undefined) doesn't match the provided paraId - 2000" }
+				]
+			}
+		})
+		.to_string();
+		mock_server
+			.mock("POST", format!("{}", provider.get_deploy_path(para_id)).as_str())
+			.with_status(400)
+			.with_header("Content-Type", "application/json")
+			.with_body(mocked_error_payload)
+			.create_async()
+			.await
+	}
+
 	fn mock_genesis_artifacts(temp_dir: &tempfile::TempDir) -> Result<GenesisArtifacts> {
 		let chain_spec = temp_dir.path().join("chain_spec.json");
 		std::fs::write(
@@ -320,6 +360,31 @@ mod tests {
 		assert_eq!(result.message, DeploymentProvider::PDP.base_url());
 		mock.assert_async().await;
 
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn deploy_fails() -> Result<(), Box<dyn std::error::Error>> {
+		let temp_dir = tempfile::tempdir()?;
+		let mut mock_server = Server::new_async().await;
+		let id = 2000;
+		let mock = mock_deploy_error(&mut mock_server, id, DeploymentProvider::PDP).await;
+
+		let api = DeploymentApi::new_for_testing(
+			"api_key".to_string(),
+			mock_server.url(),
+			DeploymentProvider::PDP,
+			SupportedChains::PASEO.to_string(),
+		)?;
+		let request = DeployRequest::new(
+			"1".to_string(),
+			mock_genesis_artifacts(&temp_dir)?,
+			Some("Id(13czcAAt6xgLwZ8k6ZpkrRL5V2pjKEui3v9gHAN9PoxYZDbf)".to_string()),
+		)?;
+		assert!(
+			matches!(api.deploy(2000, request).await, anyhow::Result::Err(message) if message.to_string() == "Deployment failed with status 400 Bad Request: ParaId in chainspec (undefined) doesn't match the provided paraId - 2000")
+		);
+		mock.assert_async().await;
 		Ok(())
 	}
 
