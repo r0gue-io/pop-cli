@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{
-	build::spec::{BuildSpecCommand, ChainType, CodePathBuf, GenesisArtifacts, StatePathBuf},
+	build::spec::{
+		BuildSpecCommand, ChainType, CodePathBuf, GenesisArtifacts, RelayChain, StatePathBuf,
+	},
 	call::chain::Call,
 	cli::traits::*,
 	common::{
@@ -21,6 +23,7 @@ use pop_parachains::{
 use std::{
 	env,
 	path::{Path, PathBuf},
+	str::FromStr,
 };
 use strum::VariantArray;
 use url::Url;
@@ -302,6 +305,11 @@ async fn generate_spec_files(
 		genesis_code: true,
 		genesis_state: true,
 		chain_type: Some(ChainType::Live),
+		relay: deployment_config
+			.api
+			.as_ref()
+			.map(|api| RelayChain::from_str(&api.relay_chain_name.to_lowercase()).ok())
+			.flatten(),
 		..Default::default()
 	}
 	.configure_build_spec(cli)
