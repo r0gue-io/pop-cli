@@ -442,7 +442,7 @@ impl BuildSpecCommand {
 		};
 
 		// Prompt the user for deterministic build only if the profile is Production.
-		let deterministic = if skip_deterministic_build {
+		let deterministic = if skip_deterministic_build || !prompt {
 			false
 		} else {
 			deterministic || cli
@@ -507,7 +507,7 @@ impl BuildSpecCommand {
 			deterministic,
 			package,
 			runtime_dir,
-			use_existing_plain_spec: false,
+			use_existing_plain_spec: !prompt,
 		})
 	}
 }
