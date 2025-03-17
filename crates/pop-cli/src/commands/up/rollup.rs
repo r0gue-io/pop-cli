@@ -101,7 +101,7 @@ impl UpCommand {
 				))
 			))?,
 			Ok(None) => {},
-			Err(e) => cli.outro_cancel(format!("Deployment failed: {}", e))?,
+			Err(e) => cli.outro_cancel(format!("{}", e))?,
 		}
 		Ok(())
 	}
