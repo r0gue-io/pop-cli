@@ -82,7 +82,6 @@ pub fn parse_chain_metadata(client: &OnlineClient<SubstrateConfig>) -> Result<Ve
 											// dispatchable function as unsupported rather than
 											// error.
 											is_supported = false;
-											parsed_params.clear();
 											break;
 										},
 									}
