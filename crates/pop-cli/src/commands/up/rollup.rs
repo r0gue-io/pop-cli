@@ -42,8 +42,11 @@ pub struct UpCommand {
 	#[clap(skip)]
 	pub(crate) path: Option<PathBuf>,
 	/// ID to use. If not specified, a new ID will be reserved.
-	#[arg(short, long)]
+	#[arg(short, long, required_if_eq("skip_registration", "true"))]
 	pub(crate) id: Option<u32>,
+	/// Flag to skip the registration step and only attempt deployment.
+	#[arg(long, requires = "id")]
+	pub(crate) skip_registration: bool,
 	/// Path to the genesis state file. If not specified, it will be generated.
 	#[arg(short = 'G', long = "genesis-state")]
 	pub(crate) genesis_state: Option<StatePathBuf>,
@@ -61,7 +64,7 @@ pub struct UpCommand {
 
 impl UpCommand {
 	/// Executes the command.
-	pub(crate) async fn execute(mut self, cli: &mut impl Cli) -> Result<()> {
+	pub(crate) async fn execute(&mut self, cli: &mut impl Cli) -> Result<()> {
 		cli.intro("Deploy a rollup")?;
 		let mut deployment = self.prepare_for_deployment(cli)?;
 		let config = match self.prepare_for_registration(&mut deployment, cli).await {
@@ -71,16 +74,18 @@ impl UpCommand {
 				return Ok(());
 			},
 		};
-		match config.register(cli).await {
-			Ok(_) => cli.success(format!(
-				"Registration successfully {}",
-				style(format!(
-					"https://polkadot.js.org/apps/?rpc={}#/parachains",
-					config.chain.url
-				))
-				.dim()
-			))?,
-			Err(e) => cli.outro_cancel(e.to_string())?,
+		if !self.skip_registration {
+			match config.register(cli).await {
+				Ok(_) => cli.success(format!(
+					"Registration successfully {}",
+					style(format!(
+						"https://polkadot.js.org/apps/?rpc={}#/parachains",
+						config.chain.url
+					))
+					.dim()
+				))?,
+				Err(e) => cli.outro_cancel(e.to_string())?,
+			}
 		}
 		match deployment.deploy(&config, cli).await {
 			Ok(Some(result)) => cli.success(format!(
@@ -116,7 +121,7 @@ impl UpCommand {
 
 	// Prepares the chain for registration by setting up its configuration.
 	async fn prepare_for_registration(
-		self,
+		&self,
 		deployment_config: &mut Deployment,
 		cli: &mut impl Cli,
 	) -> Result<Registration> {
@@ -618,6 +623,7 @@ mod tests {
 			relay_chain_url: Some(Url::parse(POP_NETWORK_TESTNET_URL)?),
 			path: None,
 			proxied_address: None,
+			skip_registration: false,
 		}
 		.execute(&mut cli)
 		.await?;
@@ -656,6 +662,7 @@ mod tests {
 			relay_chain_url: Some(Url::parse(POP_NETWORK_TESTNET_URL)?),
 			path: None,
 			proxied_address: None,
+			skip_registration: false,
 		}
 		.execute(&mut cli)
 		.await?;
