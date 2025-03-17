@@ -64,7 +64,6 @@ impl DeploymentApi {
 	/// * `request` - The deployment request containing the necessary parameters.
 	pub async fn deploy(&self, id: u32, request: DeployRequest) -> Result<DeployResponse> {
 		let url = format!("{}{}", self.base_url, self.provider.get_deploy_path(id));
-
 		let file_part = Part::file(request.chainspec).await?.mime_str("application/json")?;
 		let form = Form::new()
 			.text("parachainName", request.name)
