@@ -4,6 +4,7 @@ use clap::Parser;
 use duct::cmd;
 use frame_benchmarking_cli::PalletCmd;
 use sc_chain_spec::GenesisConfigBuilderRuntimeCaller;
+use serde::{Deserialize, Serialize};
 use sp_runtime::traits::BlakeTwo256;
 use std::{
 	collections::BTreeMap,
@@ -61,7 +62,18 @@ impl Display for BenchmarkingCliCommand {
 }
 
 /// How the genesis state for benchmarking should be built.
-#[derive(clap::ValueEnum, Debug, Eq, PartialEq, Clone, Copy, EnumIter, EnumMessageDerive)]
+#[derive(
+	clap::ValueEnum,
+	Debug,
+	Eq,
+	PartialEq,
+	Clone,
+	Copy,
+	EnumIter,
+	EnumMessageDerive,
+	Serialize,
+	Deserialize,
+)]
 #[clap(rename_all = "kebab-case")]
 pub enum GenesisBuilderPolicy {
 	/// Do not provide any genesis state.

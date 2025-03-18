@@ -22,9 +22,11 @@ use pop_parachains::{
 	generate_pallet_benchmarks, get_preset_names, load_pallet_extrinsics, GenesisBuilderPolicy,
 	PalletExtrinsicsRegistry, GENESIS_BUILDER_DEV_PRESET,
 };
+use serde::{Deserialize, Serialize};
 use std::{
 	collections::BTreeMap,
 	env::current_dir,
+	fs,
 	path::{Path, PathBuf},
 };
 use strum::{EnumMessage, IntoEnumIterator};
@@ -33,7 +35,7 @@ use tempfile::tempdir;
 
 const ALL_SELECTED: &str = "*";
 
-#[derive(Args)]
+#[derive(Args, Serialize, Deserialize)]
 pub(crate) struct BenchmarkPallet {
 	/// Select a pallet to benchmark, or `*` for all (in which case `extrinsic` must be `*`).
 	#[arg(short, long, value_parser = parse_pallet_name, default_value_if("all", "true", Some("*".into())))]
@@ -193,6 +195,11 @@ pub(crate) struct BenchmarkPallet {
 	/// Automatically source the needed binary required without prompting for confirmation.
 	#[clap(short = 'y', long)]
 	skip_confirm: bool,
+
+	/// Output file of the benchmark parameters.
+	#[clap(short = 'f', long)]
+	#[serde(skip_serializing)]
+	bench_file: Option<PathBuf>,
 }
 
 impl Default for BenchmarkPallet {
@@ -230,12 +237,25 @@ impl Default for BenchmarkPallet {
 			disable_proof_recording: false,
 			skip_menu: false,
 			skip_confirm: false,
+			bench_file: None,
 		}
 	}
 }
 
 impl BenchmarkPallet {
 	pub async fn execute(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+		if let Some(ref bench_file) = self.bench_file {
+			if !bench_file.exists() {
+				return display_message(
+					&format!("Provided invalid benchmark parameter file: {}", bench_file.display()),
+					false,
+					cli,
+				);
+			}
+			let content = fs::read_to_string(bench_file)?;
+			*self = toml::from_str(&content)?;
+		}
+
 		// If `all` is provided, we override the value of `pallet` and `extrinsic` to select all.
 		if self.all {
 			self.pallet = Some(ALL_SELECTED.to_string());
@@ -328,6 +348,22 @@ impl BenchmarkPallet {
 				.placeholder(".")
 				.interact()?;
 			self.output = if !input.is_empty() { Some(input.into()) } else { None };
+		}
+
+		// Prompt user to update `.bench` file path of the benchmarking parameters.
+		if self.bench_file.is_none() &&
+			cli.confirm("Do you want to save the updated parameters?").interact()?
+		{
+			let input = cli
+				.input("Provide the file path for benchmark parameters.")
+				.required(true)
+				.placeholder(".bench")
+				.interact()?;
+			let bench_file = PathBuf::from(input);
+			self.bench_file = Some(bench_file.clone());
+
+			let toml_output = toml::to_string(self)?;
+			fs::write(&bench_file, toml_output)?;
 		}
 
 		cli.warning("NOTE: this may take some time...")?;
