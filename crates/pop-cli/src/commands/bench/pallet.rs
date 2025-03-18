@@ -273,6 +273,7 @@ impl BenchmarkPallet {
 			*self = VersionedBenchmarkPallet::try_from(bench_file.as_path())?.parameters();
 			self.bench_file = Some(bench_file);
 		}
+		let original_cmd = self.clone();
 
 		// No runtime path provided, auto-detect the runtime WASM binary. If not found, build
 		// the runtime.
@@ -350,8 +351,10 @@ impl BenchmarkPallet {
 			self.output = if !input.is_empty() { Some(input.into()) } else { None };
 		}
 
-		// Prompt user to update file path to save the benchmarking parameters.
-		if let Some(bench_file) = guide_user_to_update_bench_file_path(self, cli)? {
+		// Prompt user to save benchmarking parameters to output file if there are changes made.
+		if let Some(bench_file) =
+			guide_user_to_update_bench_file_path(self, cli, original_cmd != self.clone())?
+		{
 			let toml_output = toml::to_string(&VersionedBenchmarkPallet::from(self.clone()))?;
 			fs::write(&bench_file, toml_output)?;
 			cli.info(format!("Parameters saved successfully to {:?}", bench_file.display()))?;
@@ -995,10 +998,11 @@ async fn guide_user_to_select_menu_option(
 fn guide_user_to_update_bench_file_path(
 	cmd: &mut BenchmarkPallet,
 	cli: &mut impl cli::traits::Cli,
+	params_updated: bool,
 ) -> anyhow::Result<Option<PathBuf>> {
 	if let Some(ref bench_file) = cmd.bench_file {
-		if cli
-			.confirm(format!(
+		if params_updated &&
+			cli.confirm(format!(
 				"Do you want to overwrite {:?} with the updated parameters?",
 				bench_file.display()
 			))
@@ -1151,30 +1155,50 @@ mod tests {
 
 	#[tokio::test]
 	async fn benchmark_pallet_with_provided_bench_file_works() -> anyhow::Result<()> {
-		let mut cli = MockCli::new();
 		let temp_dir = tempdir()?;
 		let output_path = temp_dir.path().join("weights.rs");
 
 		// Prepare the benchmarking parameter files.
 		let bench_file_path = temp_dir.path().join(DEFAULT_BENCH_FILE);
-		let versioned = VersionedBenchmarkPallet::from(BenchmarkPallet {
+		let mut cmd = BenchmarkPallet {
 			runtime: Some(get_mock_runtime(true)),
 			genesis_builder: Some(GenesisBuilderPolicy::Runtime),
 			genesis_builder_preset: "development".to_string(),
 			skip_menu: true,
 			pallet: Some("pallet_timestamp".to_string()),
 			extrinsic: Some(ALL_SELECTED.to_string()),
-			output: Some(output_path),
+			output: Some(output_path.clone()),
 			..Default::default()
-		});
-		let toml_str = toml::to_string(&versioned)?;
+		};
+		let toml_str = toml::to_string(&VersionedBenchmarkPallet::from(cmd.clone()))?;
 		fs::write(&bench_file_path, toml_str)?;
 
-		cli = expect_pallet_benchmarking_intro(cli)
+		// No changes made to parameters.
+		let mut cli = expect_pallet_benchmarking_intro(MockCli::new())
 			.expect_info(format!(
 				"Benchmarking parameter file found at {:?}. Loading parameters...",
 				bench_file_path.display()
 			))
+			.expect_warning("NOTE: this may take some time...")
+			.expect_info("Benchmarking extrinsic weights of selected pallets...");
+		BenchmarkPallet { bench_file: Some(bench_file_path.clone()), ..Default::default() }
+			.execute(&mut cli)
+			.await?;
+		cli.verify()?;
+
+		// Changes made to parameters.
+		cmd.output = None;
+		let toml_str = toml::to_string(&VersionedBenchmarkPallet::from(cmd))?;
+		fs::write(&bench_file_path, toml_str)?;
+		let mut cli = expect_pallet_benchmarking_intro(MockCli::new())
+			.expect_info(format!(
+				"Benchmarking parameter file found at {:?}. Loading parameters...",
+				bench_file_path.display()
+			))
+			.expect_input(
+				"Provide the output file path for benchmark results (optional).",
+				output_path.to_str().unwrap().to_string(),
+			)
 			.expect_confirm(
 				format!(
 					"Do you want to overwrite {:?} with the updated parameters?",
@@ -1184,10 +1208,11 @@ mod tests {
 			)
 			.expect_warning("NOTE: this may take some time...")
 			.expect_info("Benchmarking extrinsic weights of selected pallets...");
-		BenchmarkPallet { bench_file: Some(bench_file_path), ..Default::default() }
+		BenchmarkPallet { bench_file: Some(bench_file_path.clone()), ..Default::default() }
 			.execute(&mut cli)
 			.await?;
-		cli.verify()
+		cli.verify()?;
+		Ok(())
 	}
 
 	#[tokio::test]
@@ -1425,7 +1450,7 @@ mod tests {
 				file_path_str.clone(),
 			);
 		assert_eq!(
-			guide_user_to_update_bench_file_path(&mut BenchmarkPallet::default(), &mut cli)?,
+			guide_user_to_update_bench_file_path(&mut BenchmarkPallet::default(), &mut cli, true)?,
 			Some(file_path.clone())
 		);
 		cli.verify()?;
@@ -1434,7 +1459,7 @@ mod tests {
 		let mut cli =
 			MockCli::new().expect_confirm("Do you want to save the updated parameters?", false);
 		assert_eq!(
-			guide_user_to_update_bench_file_path(&mut BenchmarkPallet::default(), &mut cli)?,
+			guide_user_to_update_bench_file_path(&mut BenchmarkPallet::default(), &mut cli, true)?,
 			None
 		);
 		cli.verify()?;
@@ -1447,7 +1472,7 @@ mod tests {
 				invalid_file_path.to_str().unwrap().to_string(),
 			);
 		assert_eq!(
-			guide_user_to_update_bench_file_path(&mut BenchmarkPallet::default(), &mut cli)
+			guide_user_to_update_bench_file_path(&mut BenchmarkPallet::default(), &mut cli, true)
 				.err()
 				.unwrap()
 				.to_string(),
@@ -1462,7 +1487,7 @@ mod tests {
 			format!("Do you want to overwrite {:?} with the updated parameters?", file_path_str),
 			false,
 		);
-		assert_eq!(guide_user_to_update_bench_file_path(&mut cmd, &mut cli)?, None);
+		assert_eq!(guide_user_to_update_bench_file_path(&mut cmd, &mut cli, true)?, None);
 		cli.verify()?;
 
 		// Provide bench file path.
@@ -1473,7 +1498,10 @@ mod tests {
 			),
 			true,
 		);
-		assert_eq!(guide_user_to_update_bench_file_path(&mut cmd, &mut cli)?, Some(file_path));
+		assert_eq!(
+			guide_user_to_update_bench_file_path(&mut cmd, &mut cli, true)?,
+			Some(file_path)
+		);
 		cli.verify()?;
 
 		Ok(())
