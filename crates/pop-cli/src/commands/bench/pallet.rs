@@ -1247,6 +1247,9 @@ mod tests {
 		}
 		assert!(content.contains(&command_block));
 		assert!(output_path.exists());
+		BenchmarkPallet { bench_file: Some(bench_file_path), ..Default::default() }
+			.execute(&mut cli)
+			.await?;
 		cli.verify()
 	}
 
