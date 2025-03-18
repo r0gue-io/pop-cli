@@ -35,7 +35,38 @@ use tempfile::tempdir;
 
 const ALL_SELECTED: &str = "*";
 
-#[derive(Args, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
+#[serde(tag = "version")] // This tells Serde to use the "version" field for enum tagging
+enum VersionedBenchmarkPallet {
+	#[serde(rename = "1")]
+	V1(BenchmarkPallet),
+}
+
+impl VersionedBenchmarkPallet {
+	/// Returns the parameters of the benchmarking pallet.
+	pub fn parameters(&self) -> BenchmarkPallet {
+		match self {
+			VersionedBenchmarkPallet::V1(parameters) => parameters.clone(),
+		}
+	}
+}
+
+impl TryFrom<&Path> for VersionedBenchmarkPallet {
+	type Error = anyhow::Error;
+
+	fn try_from(bench_file: &Path) -> anyhow::Result<Self> {
+		if !bench_file.exists() {
+			return Err(anyhow::anyhow!(format!(
+				"Provided invalid benchmarking parameter file: {}",
+				bench_file.display()
+			)));
+		}
+		let content = fs::read_to_string(bench_file)?;
+		toml::from_str(&content).map_err(anyhow::Error::from)
+	}
+}
+
+#[derive(Args, Serialize, Deserialize, Clone)]
 pub(crate) struct BenchmarkPallet {
 	/// Select a pallet to benchmark, or `*` for all (in which case `extrinsic` must be `*`).
 	#[arg(short, long, value_parser = parse_pallet_name, default_value_if("all", "true", Some("*".into())))]
@@ -244,16 +275,9 @@ impl Default for BenchmarkPallet {
 
 impl BenchmarkPallet {
 	pub async fn execute(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+		// If bench file is provided, load the provided parameters in the file.
 		if let Some(ref bench_file) = self.bench_file {
-			if !bench_file.exists() {
-				return display_message(
-					&format!("Provided invalid benchmark parameter file: {}", bench_file.display()),
-					false,
-					cli,
-				);
-			}
-			let content = fs::read_to_string(bench_file)?;
-			*self = toml::from_str(&content)?;
+			*self = VersionedBenchmarkPallet::try_from(bench_file.as_path())?.parameters();
 		}
 
 		// If `all` is provided, we override the value of `pallet` and `extrinsic` to select all.
