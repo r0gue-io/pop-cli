@@ -8,7 +8,7 @@ use crate::{
 use clap::Args;
 use frame_benchmarking_cli::MachineCmd;
 use pop_common::Profile;
-use pop_parachains::generate_binary_benchmarks;
+use pop_parachains::{generate_binary_benchmarks, BenchmarkingCliCommand};
 use std::{
 	env::current_dir,
 	path::{Path, PathBuf},
@@ -49,7 +49,8 @@ impl BenchmarkMachine {
 		cli.warning("NOTE: this may take some time...")?;
 		cli.info("Benchmarking your hardware performance...")?;
 
-		let result = generate_binary_benchmarks(&binary_path, "machine");
+		let result =
+			generate_binary_benchmarks(&binary_path, BenchmarkingCliCommand::Machine, |args| args);
 
 		// Display the benchmarking command.
 		cliclack::log::remark("\n")?;
