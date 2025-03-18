@@ -1,6 +1,7 @@
 use crate::{
 	cli::{self},
 	common::{
+		bench::overwrite_weight_dir_command,
 		builds::{ensure_node_binary_exists, guide_user_to_select_profile},
 		prompt::display_message,
 	},
@@ -13,6 +14,7 @@ use std::{
 	env::current_dir,
 	path::{Path, PathBuf},
 };
+use tempfile::tempdir;
 
 #[derive(Args)]
 pub(crate) struct BenchmarkStorage {
@@ -49,7 +51,7 @@ impl BenchmarkStorage {
 		cli.warning("NOTE: this may take some time...")?;
 		cli.info("Benchmarking and generating weight file...")?;
 
-		let result = generate_binary_benchmarks(&binary_path, "storage");
+		let result = self.run(binary_path);
 
 		// Display the benchmarking command.
 		cliclack::log::remark("\n")?;
@@ -61,14 +63,53 @@ impl BenchmarkStorage {
 		Ok(())
 	}
 
+	fn run(&mut self, binary_path: PathBuf) -> anyhow::Result<()> {
+		let temp_dir = tempdir()?;
+		let original_weight_path = self
+			.command
+			.params
+			.weight_params
+			.weight_path
+			.clone()
+			.unwrap_or_else(|| PathBuf::from("."));
+		self.command.params.weight_params.weight_path = Some(temp_dir.path().to_path_buf());
+
+		// Run the benchmark with updated arguments.
+		generate_binary_benchmarks(&binary_path, "storage", |args| {
+			args.into_iter()
+				.map(|arg| {
+					if arg.starts_with("--weight-path") {
+						format!("--weight-path={}", temp_dir.path().display())
+					} else {
+						arg
+					}
+				})
+				.collect()
+		})?;
+
+		// Restore the original weight path.
+		self.command.params.weight_params.weight_path = Some(original_weight_path.clone());
+		// Overwrite the weight files with the correct executed command.
+		overwrite_weight_dir_command(
+			temp_dir.path(),
+			&original_weight_path,
+			&self.collect_display_arguments(),
+		)?;
+		Ok(())
+	}
+
 	fn display(&self) -> String {
-		let mut args = vec!["pop bench storage".to_string()];
+		self.collect_display_arguments().join(" ")
+	}
+
+	fn collect_display_arguments(&self) -> Vec<String> {
+		let mut args = vec!["pop".to_string(), "bench".to_string(), "storage".to_string()];
 		let mut arguments: Vec<String> = std::env::args().skip(3).collect();
 		if let Some(ref profile) = self.profile {
 			arguments.push(format!("--profile={}", profile));
 		}
 		args.extend(arguments);
-		args.join(" ")
+		args
 	}
 }
 

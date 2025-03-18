@@ -49,7 +49,7 @@ impl BenchmarkMachine {
 		cli.warning("NOTE: this may take some time...")?;
 		cli.info("Benchmarking your hardware performance...")?;
 
-		let result = generate_binary_benchmarks(&binary_path, "machine");
+		let result = generate_binary_benchmarks(&binary_path, "machine", |args| args);
 
 		// Display the benchmarking command.
 		cliclack::log::remark("\n")?;

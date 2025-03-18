@@ -126,14 +126,15 @@ impl BenchmarkOverhead {
 			self.collect_arguments(),
 			false,
 		)?;
+
+		// Restore the original weight path.
+		self.command.params.weight.weight_path = Some(original_weight_path.clone());
 		// Overwrite the weight files with the correct executed command.
 		overwrite_weight_dir_command(
 			temp_dir.path(),
 			&original_weight_path,
 			&self.collect_display_arguments(),
 		)?;
-		// Restore the original weight path.
-		self.command.params.weight.weight_path = Some(original_weight_path);
 		Ok(())
 	}
 
@@ -214,9 +215,12 @@ fn parse_genesis_builder_policy(policy: &str) -> anyhow::Result<OverheadCmd> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::{cli::MockCli, common::bench::get_mock_runtime};
+	use crate::{
+		cli::MockCli,
+		common::bench::{get_mock_runtime, EXECUTED_COMMAND_COMMENT},
+	};
 	use pop_parachains::get_preset_names;
-	use std::{env::current_dir, path::PathBuf};
+	use std::{env::current_dir, fs, path::PathBuf};
 	use strum::{EnumMessage, VariantArray};
 	use tempfile::tempdir;
 
@@ -323,6 +327,59 @@ mod tests {
 			.execute(&mut cli)
 			.await
 			.is_ok());
+		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn benchmark_overhead_weight_file_works() -> anyhow::Result<()> {
+		let temp_dir = tempdir()?;
+		let runtime_path = get_mock_runtime(true);
+		let output_path = temp_dir.path().to_str().unwrap();
+		let preset_names = get_preset_names(&runtime_path)?
+			.into_iter()
+			.map(|preset| (preset, String::default()))
+			.collect();
+		let mut cli = MockCli::new()
+			.expect_intro("Benchmarking the execution overhead per-block and per-extrinsic")
+			.expect_select(
+				"Select the genesis builder preset:",
+				Some(true),
+				true,
+				Some(preset_names),
+				0,
+				None,
+			)
+			.expect_input(
+				"Provide the output directory path for weight files",
+				output_path.to_string(),
+			)
+			.expect_warning("NOTE: this may take some time...")
+			.expect_outro("Benchmark completed successfully!");
+		let mut cmd = BenchmarkOverhead {
+			command: OverheadCmd::try_parse_from([
+				"",
+				&format!("--runtime={}", runtime_path.display()),
+				"--warmup=1",
+				"--repeat=1",
+			])?,
+			skip_confirm: true,
+			profile: None,
+		};
+		assert!(cmd.execute(&mut cli).await.is_ok());
+
+		for entry in temp_dir.path().read_dir()? {
+			let path = entry?.path();
+			if !path.is_file() {
+				continue;
+			}
+
+			let mut command_block = format!("{EXECUTED_COMMAND_COMMENT}\n");
+			for argument in cmd.collect_display_arguments() {
+				command_block.push_str(&format!("//  {argument}\n"));
+			}
+			assert!(fs::read_to_string(temp_dir.path().join(path.file_name().unwrap()))?
+				.contains(&command_block));
+		}
 		cli.verify()
 	}
 

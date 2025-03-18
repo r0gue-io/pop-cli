@@ -121,12 +121,20 @@ pub fn generate_pallet_benchmarks(args: Vec<String>) -> anyhow::Result<()> {
 /// # Arguments
 /// * `binary_path` - Path to the binary of FRAME Omni Bencher.
 /// * `command` - Command to run for benchmarking.
-pub fn generate_binary_benchmarks(binary_path: &PathBuf, command: &str) -> anyhow::Result<()> {
+/// * `update_args` - Function to update the arguments before running the benchmark.
+pub fn generate_binary_benchmarks<F>(
+	binary_path: &PathBuf,
+	command: &str,
+	update_args: F,
+) -> anyhow::Result<()>
+where
+	F: Fn(Vec<String>) -> Vec<String>,
+{
 	let temp_file = NamedTempFile::new()?;
 	let temp_path = temp_file.path().to_owned();
 
 	// Get all arguments of the command and skip the program name.
-	let mut args = std::env::args().skip(3).collect::<Vec<String>>();
+	let mut args = update_args(std::env::args().skip(3).collect::<Vec<String>>());
 	let mut cmd_args = vec!["benchmark".to_string(), command.to_string()];
 	cmd_args.append(&mut args);
 

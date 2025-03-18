@@ -48,7 +48,7 @@ impl BenchmarkBlock {
 
 		cli.warning("NOTE: this may take some time...")?;
 
-		let result = generate_binary_benchmarks(&binary_path, "block");
+		let result = generate_binary_benchmarks(&binary_path, "block", |args| args);
 
 		// Display the benchmarking command.
 		cliclack::log::remark("\n")?;
