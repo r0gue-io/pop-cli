@@ -327,8 +327,7 @@ async fn generate_spec_files(
 		relay: deployment_config
 			.api
 			.as_ref()
-			.map(|api| RelayChain::from_str(&api.relay_chain_name.to_lowercase()).ok())
-			.flatten(),
+			.and_then(|api| RelayChain::from_str(&api.relay_chain_name.to_lowercase()).ok()),
 		..Default::default()
 	}
 	.configure_build_spec(cli)

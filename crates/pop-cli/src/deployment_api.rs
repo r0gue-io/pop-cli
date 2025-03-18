@@ -95,7 +95,7 @@ impl DeploymentApi {
 						.as_str()
 						.map(|s| s.to_string())
 				})
-				.unwrap_or_else(|| body);
+				.unwrap_or(body);
 
 			return Err(anyhow::anyhow!(
 				"Deployment failed with status {}: {}",
