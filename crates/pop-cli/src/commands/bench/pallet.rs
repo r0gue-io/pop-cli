@@ -26,6 +26,7 @@ use serde::{Deserialize, Serialize};
 use std::{
 	collections::BTreeMap,
 	env::current_dir,
+	ffi::OsStr,
 	fs,
 	path::{Path, PathBuf},
 };
@@ -34,39 +35,9 @@ use strum_macros::{EnumIter, EnumMessage as EnumMessageDerive};
 use tempfile::tempdir;
 
 const ALL_SELECTED: &str = "*";
+const DEFAULT_BENCH_FILE: &str = "pop-bench.toml";
 
-#[derive(Serialize, Deserialize)]
-#[serde(tag = "version")] // This tells Serde to use the "version" field for enum tagging
-enum VersionedBenchmarkPallet {
-	#[serde(rename = "1")]
-	V1(BenchmarkPallet),
-}
-
-impl VersionedBenchmarkPallet {
-	/// Returns the parameters of the benchmarking pallet.
-	pub fn parameters(&self) -> BenchmarkPallet {
-		match self {
-			VersionedBenchmarkPallet::V1(parameters) => parameters.clone(),
-		}
-	}
-}
-
-impl TryFrom<&Path> for VersionedBenchmarkPallet {
-	type Error = anyhow::Error;
-
-	fn try_from(bench_file: &Path) -> anyhow::Result<Self> {
-		if !bench_file.exists() {
-			return Err(anyhow::anyhow!(format!(
-				"Provided invalid benchmarking parameter file: {}",
-				bench_file.display()
-			)));
-		}
-		let content = fs::read_to_string(bench_file)?;
-		toml::from_str(&content).map_err(anyhow::Error::from)
-	}
-}
-
-#[derive(Args, Serialize, Deserialize, Clone)]
+#[derive(Args, Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
 pub(crate) struct BenchmarkPallet {
 	/// Select a pallet to benchmark, or `*` for all (in which case `extrinsic` must be `*`).
 	#[arg(short, long, value_parser = parse_pallet_name, default_value_if("all", "true", Some("*".into())))]
@@ -275,11 +246,6 @@ impl Default for BenchmarkPallet {
 
 impl BenchmarkPallet {
 	pub async fn execute(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
-		// If bench file is provided, load the provided parameters in the file.
-		if let Some(ref bench_file) = self.bench_file {
-			*self = VersionedBenchmarkPallet::try_from(bench_file.as_path())?.parameters();
-		}
-
 		// If `all` is provided, we override the value of `pallet` and `extrinsic` to select all.
 		if self.all {
 			self.pallet = Some(ALL_SELECTED.to_string());
@@ -297,6 +263,16 @@ impl BenchmarkPallet {
 		cli.warning(
 			"NOTE: the `pop bench pallet` is not yet battle tested - double check the results.",
 		)?;
+
+		// If bench file is provided, load the provided parameters in the file.
+		if let Some(bench_file) = self.bench_file.clone() {
+			cli.info(format!(
+				"Benchmarking parameter file found at {:?}. Loading parameters...",
+				bench_file.display()
+			))?;
+			*self = VersionedBenchmarkPallet::try_from(bench_file.as_path())?.parameters();
+			self.bench_file = Some(bench_file);
+		}
 
 		// No runtime path provided, auto-detect the runtime WASM binary. If not found, build
 		// the runtime.
@@ -374,20 +350,11 @@ impl BenchmarkPallet {
 			self.output = if !input.is_empty() { Some(input.into()) } else { None };
 		}
 
-		// Prompt user to update `.bench` file path of the benchmarking parameters.
-		if self.bench_file.is_none() &&
-			cli.confirm("Do you want to save the updated parameters?").interact()?
-		{
-			let input = cli
-				.input("Provide the file path for benchmark parameters.")
-				.required(true)
-				.placeholder(".bench")
-				.interact()?;
-			let bench_file = PathBuf::from(input);
-			self.bench_file = Some(bench_file.clone());
-
-			let toml_output = toml::to_string(self)?;
+		// Prompt user to update file path to save the benchmarking parameters.
+		if let Some(bench_file) = guide_user_to_update_bench_file_path(self, cli)? {
+			let toml_output = toml::to_string(&VersionedBenchmarkPallet::from(self.clone()))?;
 			fs::write(&bench_file, toml_output)?;
+			cli.info(format!("Parameters saved successfully to {:?}", bench_file.display()))?;
 		}
 
 		cli.warning("NOTE: this may take some time...")?;
@@ -885,6 +852,53 @@ impl BenchmarkPalletMenuOption {
 	}
 }
 
+#[derive(Serialize, Deserialize)]
+// Tells `serde` to use the "version" field for enum tagging.
+#[serde(tag = "version")]
+enum VersionedBenchmarkPallet {
+	#[serde(rename = "1")]
+	V1(BenchmarkPallet),
+}
+
+impl VersionedBenchmarkPallet {
+	/// Returns the parameters of the benchmarking pallet.
+	pub fn parameters(&self) -> BenchmarkPallet {
+		match self {
+			VersionedBenchmarkPallet::V1(parameters) => parameters.clone(),
+		}
+	}
+}
+
+impl TryFrom<&Path> for VersionedBenchmarkPallet {
+	type Error = anyhow::Error;
+
+	fn try_from(bench_file: &Path) -> anyhow::Result<Self> {
+		if !bench_file.exists() || bench_file.is_dir() {
+			return Err(anyhow::anyhow!(format!(
+				"Provided invalid benchmarking parameter file: {:?}",
+				bench_file.display()
+			)));
+		}
+		let content = fs::read_to_string(bench_file)?;
+		toml::from_str(&content)
+			.map_err(|e| anyhow::anyhow!("Failed to parse TOML content: {:?}", e.to_string()))
+	}
+}
+
+impl From<BenchmarkPallet> for VersionedBenchmarkPallet {
+	fn from(parameters: BenchmarkPallet) -> Self {
+		VersionedBenchmarkPallet::V1(parameters)
+	}
+}
+
+impl From<VersionedBenchmarkPallet> for BenchmarkPallet {
+	fn from(versioned: VersionedBenchmarkPallet) -> Self {
+		match versioned {
+			VersionedBenchmarkPallet::V1(parameters) => parameters,
+		}
+	}
+}
+
 fn guide_user_to_select_pallet(
 	registry: &PalletExtrinsicsRegistry,
 	excluded_pallets: &[String],
@@ -978,6 +992,42 @@ async fn guide_user_to_select_menu_option(
 	Ok(prompt.interact()?)
 }
 
+fn guide_user_to_update_bench_file_path(
+	cmd: &mut BenchmarkPallet,
+	cli: &mut impl cli::traits::Cli,
+) -> anyhow::Result<Option<PathBuf>> {
+	if let Some(ref bench_file) = cmd.bench_file {
+		if cli
+			.confirm(format!(
+				"Do you want to overwrite {:?} with the updated parameters?",
+				bench_file.display()
+			))
+			.initial_value(true)
+			.interact()?
+		{
+			return Ok(Some(bench_file.clone()));
+		}
+	} else if cli
+		.confirm("Do you want to save the updated parameters?")
+		.initial_value(true)
+		.interact()?
+	{
+		let input = cli
+			.input("Provide the output path for benchmark parameters")
+			.required(true)
+			.placeholder(DEFAULT_BENCH_FILE)
+			.default_input(DEFAULT_BENCH_FILE)
+			.interact()?;
+		let bench_file = PathBuf::from(input);
+		if bench_file.extension() != Some(OsStr::new("toml")) {
+			return Err(anyhow::anyhow!("Invalid file extension. Expected .toml"));
+		}
+		cmd.bench_file = Some(bench_file.clone());
+		return Ok(Some(bench_file));
+	};
+	Ok(None)
+}
+
 fn is_selected_all(s: &String) -> bool {
 	s == &ALL_SELECTED.to_string() || s.is_empty()
 }
@@ -1022,13 +1072,15 @@ mod tests {
 	use pop_common::Profile;
 	use std::{env::current_dir, fs};
 	use strum::{EnumMessage, VariantArray};
+	use tempfile::tempdir;
 
 	#[tokio::test]
 	async fn benchmark_pallet_works() -> anyhow::Result<()> {
 		let mut cli = MockCli::new();
-		let temp_dir = tempfile::tempdir()?;
+		let temp_dir = tempdir()?;
 
 		let cwd = current_dir().unwrap_or(PathBuf::from("./"));
+		let bench_file_path = temp_dir.path().join(DEFAULT_BENCH_FILE);
 		let runtime_path = get_mock_runtime(true);
 		let output_path = temp_dir.path().join("weights.rs");
 		// Prompt user to select `profile` if not provided.
@@ -1065,7 +1117,16 @@ mod tests {
 			.expect_input(
 				"Provide the output file path for benchmark results (optional).",
 				output_path.to_str().unwrap().to_string(),
-			);
+			)
+			.expect_confirm("Do you want to save the updated parameters?", true)
+			.expect_input(
+				"Provide the output path for benchmark parameters",
+				bench_file_path.to_str().unwrap().to_string(),
+			)
+			.expect_info(format!(
+				"Parameters saved successfully to {:?}",
+				bench_file_path.display()
+			));
 
 		let mut cmd = BenchmarkPallet {
 			skip_confirm: false,
@@ -1080,6 +1141,52 @@ mod tests {
 		// Verify the printed command.
 		cli = cli.expect_info(cmd.display()).expect_outro("Benchmark completed successfully!");
 		cmd.execute(&mut cli).await?;
+
+		// Verify the content of the benchmarking parameter file.
+		let versioned = VersionedBenchmarkPallet::try_from(bench_file_path.as_path())?;
+		cmd.bench_file = None;
+		assert_eq!(versioned.parameters(), cmd.clone());
+		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn benchmark_pallet_with_provided_bench_file_works() -> anyhow::Result<()> {
+		let mut cli = MockCli::new();
+		let temp_dir = tempdir()?;
+		let output_path = temp_dir.path().join("weights.rs");
+
+		// Prepare the benchmarking parameter files.
+		let bench_file_path = temp_dir.path().join(DEFAULT_BENCH_FILE);
+		let versioned = VersionedBenchmarkPallet::from(BenchmarkPallet {
+			runtime: Some(get_mock_runtime(true)),
+			genesis_builder: Some(GenesisBuilderPolicy::Runtime),
+			genesis_builder_preset: "development".to_string(),
+			skip_menu: true,
+			pallet: Some("pallet_timestamp".to_string()),
+			extrinsic: Some(ALL_SELECTED.to_string()),
+			output: Some(output_path),
+			..Default::default()
+		});
+		let toml_str = toml::to_string(&versioned)?;
+		fs::write(&bench_file_path, toml_str)?;
+
+		cli = expect_pallet_benchmarking_intro(cli)
+			.expect_info(format!(
+				"Benchmarking parameter file found at {:?}. Loading parameters...",
+				bench_file_path.display()
+			))
+			.expect_confirm(
+				format!(
+					"Do you want to overwrite {:?} with the updated parameters?",
+					bench_file_path.display()
+				),
+				true,
+			)
+			.expect_warning("NOTE: this may take some time...")
+			.expect_info("Benchmarking extrinsic weights of selected pallets...");
+		BenchmarkPallet { bench_file: Some(bench_file_path), ..Default::default() }
+			.execute(&mut cli)
+			.await?;
 		cli.verify()
 	}
 
@@ -1303,6 +1410,75 @@ mod tests {
 		cli.verify()
 	}
 
+	#[test]
+	fn guide_user_to_update_bench_file_path_works() -> anyhow::Result<()> {
+		let temp_dir = tempdir()?;
+		let file_path = temp_dir.path().join(DEFAULT_BENCH_FILE);
+		let invalid_file_path = temp_dir.path().join("invalid_file.txt");
+		let file_path_str = file_path.to_str().unwrap().to_string();
+
+		// No bench file path provided.
+		let mut cli = MockCli::new()
+			.expect_confirm("Do you want to save the updated parameters?", true)
+			.expect_input(
+				"Provide the output path for benchmark parameters",
+				file_path_str.clone(),
+			);
+		assert_eq!(
+			guide_user_to_update_bench_file_path(&mut BenchmarkPallet::default(), &mut cli)?,
+			Some(file_path.clone())
+		);
+		cli.verify()?;
+
+		// Reject to save the updated parameters.
+		let mut cli =
+			MockCli::new().expect_confirm("Do you want to save the updated parameters?", false);
+		assert_eq!(
+			guide_user_to_update_bench_file_path(&mut BenchmarkPallet::default(), &mut cli)?,
+			None
+		);
+		cli.verify()?;
+
+		// Invalid file extension.
+		let mut cli = MockCli::new()
+			.expect_confirm("Do you want to save the updated parameters?", true)
+			.expect_input(
+				"Provide the output path for benchmark parameters",
+				invalid_file_path.to_str().unwrap().to_string(),
+			);
+		assert_eq!(
+			guide_user_to_update_bench_file_path(&mut BenchmarkPallet::default(), &mut cli)
+				.err()
+				.unwrap()
+				.to_string(),
+			"Invalid file extension. Expected .toml"
+		);
+		cli.verify()?;
+
+		// Provide bench file path but reject to overwrite.
+		let mut cmd = BenchmarkPallet::default();
+		cmd.bench_file = Some(file_path.clone());
+		let mut cli = MockCli::new().expect_confirm(
+			format!("Do you want to overwrite {:?} with the updated parameters?", file_path_str),
+			false,
+		);
+		assert_eq!(guide_user_to_update_bench_file_path(&mut cmd, &mut cli)?, None);
+		cli.verify()?;
+
+		// Provide bench file path.
+		let mut cli = MockCli::new().expect_confirm(
+			format!(
+				"Do you want to overwrite {:?} with the updated parameters?",
+				file_path_str.clone()
+			),
+			true,
+		);
+		assert_eq!(guide_user_to_update_bench_file_path(&mut cmd, &mut cli)?, Some(file_path));
+		cli.verify()?;
+
+		Ok(())
+	}
+
 	#[tokio::test]
 	async fn menu_option_is_disabled_works() -> anyhow::Result<()> {
 		use BenchmarkPalletMenuOption::*;
@@ -1508,6 +1684,66 @@ mod tests {
 		assert!(matches!(BenchmarkPallet::default().extrinsic(), Err(message)
 			if message.to_string().contains("No extrinsic provided")
 		));
+		Ok(())
+	}
+
+	#[test]
+	fn versioned_benchmark_pallet_serialization_works() {
+		let benchmark_pallet = BenchmarkPallet::default();
+		let versioned = VersionedBenchmarkPallet::V1(benchmark_pallet.clone());
+		let toml_str = toml::to_string(&versioned).expect("Failed to serialize");
+		assert!(toml_str.contains("version = \"1\""));
+		let deserialized: VersionedBenchmarkPallet =
+			toml::from_str(&toml_str).expect("Failed to deserialize");
+		assert_eq!(BenchmarkPallet::from(deserialized), benchmark_pallet);
+	}
+
+	#[test]
+	fn versioned_benchmark_pallet_parameters_works() {
+		let benchmark_pallet = BenchmarkPallet::default();
+		let versioned = VersionedBenchmarkPallet::V1(benchmark_pallet.clone());
+		assert_eq!(versioned.parameters(), benchmark_pallet);
+	}
+
+	#[test]
+	fn versioned_benchmark_pallet_try_from_valid_file() -> anyhow::Result<()> {
+		let temp_dir = tempdir()?;
+		let file_path = temp_dir.path().join(DEFAULT_BENCH_FILE);
+		let benchmark_pallet = BenchmarkPallet::default();
+		let versioned = VersionedBenchmarkPallet::from(benchmark_pallet);
+
+		let toml_str = toml::to_string(&versioned)?;
+		fs::write(&file_path, toml_str)?;
+
+		let parsed = VersionedBenchmarkPallet::try_from(file_path.as_path())?;
+		assert!(matches!(parsed, VersionedBenchmarkPallet::V1(_)));
+		Ok(())
+	}
+
+	#[test]
+	fn versioned_benchmark_pallet_try_from_invalid_file() -> anyhow::Result<()> {
+		let temp_dir = tempdir()?;
+		let file_path = temp_dir.path().join("invalid.toml");
+
+		// Provide missing file.
+		assert_eq!(
+			VersionedBenchmarkPallet::try_from(file_path.as_path())
+				.err()
+				.unwrap()
+				.to_string(),
+			format!(r#"Provided invalid benchmarking parameter file: "{}""#, file_path.display())
+		);
+		// Write invalid TOML content
+		fs::write(&file_path, "invalid toml content").expect("Failed to write to file");
+		assert_eq!(
+			VersionedBenchmarkPallet::try_from(file_path.as_path())
+				.err()
+				.unwrap()
+				.to_string(),
+			format!(
+				r#"Failed to parse TOML content: "expected an equals, found an identifier at line 1 column 9""#
+			)
+		);
 		Ok(())
 	}
 
