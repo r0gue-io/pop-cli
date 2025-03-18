@@ -1255,6 +1255,41 @@ mod tests {
 	}
 
 	#[tokio::test]
+	async fn benchmark_pallet_weight_file_works() -> anyhow::Result<()> {
+		let temp_dir = tempfile::tempdir()?;
+		let output_path = temp_dir.path().join("weights.rs");
+		let mut cli = expect_pallet_benchmarking_intro(MockCli::new())
+			.expect_warning("NOTE: this may take some time...")
+			.expect_info("Benchmarking extrinsic weights of selected pallets...")
+			.expect_input(
+				"Provide the output file path for benchmark results (optional).",
+				output_path.to_str().unwrap().to_string(),
+			)
+			.expect_outro("Benchmark completed successfully!");
+
+		let mut cmd = BenchmarkPallet {
+			skip_menu: true,
+			skip_confirm: true,
+			runtime: Some(get_mock_runtime(true)),
+			genesis_builder: Some(GenesisBuilderPolicy::Runtime),
+			genesis_builder_preset: "development".to_string(),
+			pallet: Some("pallet_timestamp".to_string()),
+			extrinsic: Some(ALL_SELECTED.to_string()),
+			..Default::default()
+		};
+		cmd.execute(&mut cli).await?;
+
+		let content = fs::read_to_string(&output_path)?;
+		let mut command_block = format!("{EXECUTED_COMMAND_COMMENT}\n");
+		for argument in cmd.collect_display_arguments() {
+			command_block.push_str(&format!("//  {argument}\n"));
+		}
+		assert!(content.contains(&command_block));
+		assert!(output_path.exists());
+		cli.verify()
+	}
+
+	#[tokio::test]
 	async fn list_pallets_works() -> anyhow::Result<()> {
 		for with_benchmark_feature in [true] {
 			let mut cli = MockCli::new()
