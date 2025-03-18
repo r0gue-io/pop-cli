@@ -287,7 +287,7 @@ pub(crate) fn overwrite_weight_dir_command(
 /// Overwrites the weight file's executed command with the given arguments.
 ///
 /// # Arguments
-/// * `temp_file` - The path to the temporary.
+/// * `temp_file` - The path to the temporary file.
 /// * `dest_file` - The path to the destination file.
 /// * `arguments` - The arguments to write to the file.
 pub(crate) fn overwrite_weight_file_command(

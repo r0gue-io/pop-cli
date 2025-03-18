@@ -13,7 +13,7 @@ use clap::{Args, Parser};
 use cliclack::spinner;
 use frame_benchmarking_cli::OverheadCmd;
 use pop_common::Profile;
-use pop_parachains::{generate_omni_bencher_benchmarks, OmniBencherCommand};
+use pop_parachains::{generate_omni_bencher_benchmarks, BenchmarkingCliCommand};
 use std::{env::current_dir, path::PathBuf};
 use tempfile::tempdir;
 
@@ -126,7 +126,7 @@ impl BenchmarkOverhead {
 		let binary_path = check_omni_bencher_and_prompt(cli, self.skip_confirm).await?;
 		generate_omni_bencher_benchmarks(
 			binary_path.as_path(),
-			OmniBencherCommand::Overhead,
+			BenchmarkingCliCommand::Overhead,
 			self.collect_arguments(),
 			false,
 		)?;

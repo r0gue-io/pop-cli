@@ -345,26 +345,23 @@ impl BenchmarkPallet {
 	}
 
 	fn run(&mut self) -> anyhow::Result<()> {
-		match self.output.clone() {
-			Some(original_weight_path) => {
-				let temp_dir = tempdir()?;
-				let temp_file_path = temp_dir.path().join("temp_weights.rs");
-				self.output = Some(temp_file_path.clone());
+		if let Some(original_weight_path) = self.output.clone() {
+			let temp_dir = tempdir()?;
+			let temp_file_path = temp_dir.path().join("temp_weights.rs");
+			self.output = Some(temp_file_path.clone());
 
-				generate_pallet_benchmarks(self.collect_arguments())?;
+			generate_pallet_benchmarks(self.collect_arguments())?;
 
-				// Restore the original weight path.
-				self.output = Some(original_weight_path.clone());
-				// Overwrite the weight files with the correct executed command.
-				overwrite_weight_file_command(
-					&temp_file_path,
-					&original_weight_path,
-					&self.collect_display_arguments(),
-				)?;
-			},
-			None => {
-				generate_pallet_benchmarks(self.collect_arguments())?;
-			},
+			// Restore the original weight path.
+			self.output = Some(original_weight_path.clone());
+			// Overwrite the weight files with the correct executed command.
+			overwrite_weight_file_command(
+				&temp_file_path,
+				&original_weight_path,
+				&self.collect_display_arguments(),
+			)?;
+		} else {
+			generate_pallet_benchmarks(self.collect_arguments())?;
 		}
 		Ok(())
 	}

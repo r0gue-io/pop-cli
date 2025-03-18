@@ -9,7 +9,7 @@ use crate::{
 use clap::Args;
 use frame_benchmarking_cli::StorageCmd;
 use pop_common::Profile;
-use pop_parachains::generate_binary_benchmarks;
+use pop_parachains::{generate_binary_benchmarks, BenchmarkingCliCommand};
 use std::{
 	env::current_dir,
 	path::{Path, PathBuf},
@@ -75,7 +75,7 @@ impl BenchmarkStorage {
 		self.command.params.weight_params.weight_path = Some(temp_dir.path().to_path_buf());
 
 		// Run the benchmark with updated arguments.
-		generate_binary_benchmarks(&binary_path, "storage", |args| {
+		generate_binary_benchmarks(&binary_path, BenchmarkingCliCommand::Storage, |args| {
 			args.into_iter()
 				.map(|arg| {
 					if arg.starts_with("--weight-path") {
