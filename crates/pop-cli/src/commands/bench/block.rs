@@ -8,7 +8,7 @@ use crate::{
 use clap::Args;
 use frame_benchmarking_cli::BlockCmd;
 use pop_common::Profile;
-use pop_parachains::generate_binary_benchmarks;
+use pop_parachains::{generate_binary_benchmarks, BenchmarkingCliCommand};
 use std::{
 	env::current_dir,
 	path::{Path, PathBuf},
@@ -48,7 +48,8 @@ impl BenchmarkBlock {
 
 		cli.warning("NOTE: this may take some time...")?;
 
-		let result = generate_binary_benchmarks(&binary_path, "block");
+		let result =
+			generate_binary_benchmarks(&binary_path, BenchmarkingCliCommand::Block, |args| args);
 
 		// Display the benchmarking command.
 		cliclack::log::remark("\n")?;
