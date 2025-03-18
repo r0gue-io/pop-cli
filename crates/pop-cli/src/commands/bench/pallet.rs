@@ -246,11 +246,6 @@ impl Default for BenchmarkPallet {
 
 impl BenchmarkPallet {
 	pub async fn execute(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
-		// If bench file is provided, load the provided parameters in the file.
-		if let Some(ref bench_file) = self.bench_file {
-			*self = VersionedBenchmarkPallet::try_from(bench_file.as_path())?.parameters();
-		}
-
 		// If `all` is provided, we override the value of `pallet` and `extrinsic` to select all.
 		if self.all {
 			self.pallet = Some(ALL_SELECTED.to_string());
