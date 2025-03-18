@@ -33,19 +33,28 @@ type HostFunctions = (
 /// extrinsics.
 pub type PalletExtrinsicsRegistry = BTreeMap<String, Vec<String>>;
 
-/// Commands that can be executed by the `frame-omni-bencher` CLI.
-pub enum OmniBencherCommand {
+/// Commands that can be executed by the `frame-benchmarking-cli` CLI.
+pub enum BenchmarkingCliCommand {
 	/// Execute a pallet benchmark.
 	Pallet,
 	/// Execute an overhead benchmark.
 	Overhead,
+	/// Execute a storage benchmark.
+	Storage,
+	/// Execute a machine benchmark.
+	Machine,
+	/// Execute a block benchmark.
+	Block,
 }
 
-impl Display for OmniBencherCommand {
+impl Display for BenchmarkingCliCommand {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		let s = match self {
-			OmniBencherCommand::Pallet => "pallet",
-			OmniBencherCommand::Overhead => "overhead",
+			BenchmarkingCliCommand::Pallet => "pallet",
+			BenchmarkingCliCommand::Overhead => "overhead",
+			BenchmarkingCliCommand::Storage => "storage",
+			BenchmarkingCliCommand::Machine => "machine",
+			BenchmarkingCliCommand::Block => "block",
 		};
 		write!(f, "{}", s)
 	}
@@ -121,12 +130,20 @@ pub fn generate_pallet_benchmarks(args: Vec<String>) -> anyhow::Result<()> {
 /// # Arguments
 /// * `binary_path` - Path to the binary of FRAME Omni Bencher.
 /// * `command` - Command to run for benchmarking.
-pub fn generate_binary_benchmarks(binary_path: &PathBuf, command: &str) -> anyhow::Result<()> {
+/// * `update_args` - Function to update the arguments before running the benchmark.
+pub fn generate_binary_benchmarks<F>(
+	binary_path: &PathBuf,
+	command: BenchmarkingCliCommand,
+	update_args: F,
+) -> anyhow::Result<()>
+where
+	F: Fn(Vec<String>) -> Vec<String>,
+{
 	let temp_file = NamedTempFile::new()?;
 	let temp_path = temp_file.path().to_owned();
 
 	// Get all arguments of the command and skip the program name.
-	let mut args = std::env::args().skip(3).collect::<Vec<String>>();
+	let mut args = update_args(std::env::args().skip(3).collect::<Vec<String>>());
 	let mut cmd_args = vec!["benchmark".to_string(), command.to_string()];
 	cmd_args.append(&mut args);
 
@@ -152,7 +169,7 @@ pub async fn load_pallet_extrinsics(
 ) -> anyhow::Result<PalletExtrinsicsRegistry> {
 	let output = generate_omni_bencher_benchmarks(
 		binary_path,
-		OmniBencherCommand::Pallet,
+		BenchmarkingCliCommand::Pallet,
 		vec![
 			format!("--runtime={}", runtime_path.display()),
 			"--genesis-builder=none".to_string(),
@@ -194,7 +211,7 @@ fn process_pallet_extrinsics(output: String) -> anyhow::Result<PalletExtrinsicsR
 /// * `log_enabled` - Whether to enable logging.
 pub fn generate_omni_bencher_benchmarks(
 	binary_path: &Path,
-	command: OmniBencherCommand,
+	command: BenchmarkingCliCommand,
 	args: Vec<String>,
 	log_enabled: bool,
 ) -> anyhow::Result<String> {
