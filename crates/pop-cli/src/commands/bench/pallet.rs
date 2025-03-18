@@ -1250,8 +1250,7 @@ mod tests {
 		BenchmarkPallet { bench_file: Some(bench_file_path), ..Default::default() }
 			.execute(&mut cli)
 			.await?;
-		cli.verify()?;
-		Ok(())
+		cli.verify()
 	}
 
 	#[tokio::test]
