@@ -4,11 +4,11 @@ use crate::errors::Error;
 use duct::cmd;
 use std::path::Path;
 
-/// Run tests of a rust project.
+/// Run tests of a Rust project.
 ///
 /// # Arguments
 ///
-/// * `path` - location of the smart contract.
+/// * `path` - location of the project.
 pub fn test_project(path: Option<&Path>) -> Result<(), Error> {
 	// Execute `cargo test` command in the specified directory.
 	cmd("cargo", vec!["test"])
@@ -27,7 +27,6 @@ mod tests {
 	fn test_project_works() -> Result<(), Error> {
 		let temp_dir = tempfile::tempdir()?;
 		cmd("cargo", ["new", "test_contract", "--bin"]).dir(temp_dir.path()).run()?;
-		// Run unit tests for the temporary project directory.
 		test_project(Some(&temp_dir.path().join("test_contract")))?;
 		Ok(())
 	}

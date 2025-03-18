@@ -33,7 +33,7 @@ pub(crate) enum Command {
 	#[clap(alias = "u", about = about_up())]
 	#[cfg(any(feature = "parachain", feature = "contract"))]
 	Up(up::UpArgs),
-	/// Test a project.
+	/// Test a Rust project.
 	#[clap(alias = "t")]
 	#[cfg(any(feature = "parachain", feature = "contract"))]
 	Test(test::TestArgs),
@@ -132,10 +132,7 @@ impl Command {
 				None => test::Command::execute(args).await.map(|t| json!(t)),
 				Some(cmd) => match cmd {
 					#[cfg(feature = "contract")]
-					test::Command::Contract(cmd) => match cmd.execute(&mut Cli).await {
-						Ok(feature) => Ok(json!(feature)),
-						Err(e) => Err(e),
-					},
+					test::Command::Contract(cmd) => cmd.execute(&mut Cli).await.map(|t| json!(t)),
 				},
 			},
 			Self::Clean(args) => match args.command {

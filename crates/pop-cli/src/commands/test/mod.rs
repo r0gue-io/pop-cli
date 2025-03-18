@@ -13,7 +13,7 @@ pub mod contract;
 #[command(args_conflicts_with_subcommands = true)]
 pub(crate) struct TestArgs {
 	#[command(subcommand)]
-	pub command: Option<Command>,
+	pub(crate) command: Option<Command>,
 	/// Directory path for your project [default: current directory]
 	#[arg(short, long, global = true)]
 	pub(crate) path: Option<PathBuf>,
@@ -25,7 +25,7 @@ pub(crate) struct TestArgs {
 	pub(crate) contract: contract::TestContractCommand,
 }
 
-/// Test a project.
+/// Test a Rust project.
 #[derive(Subcommand)]
 pub(crate) enum Command {
 	/// [DEPRECATED] Test a smart contract (will be removed in v0.8.0).
