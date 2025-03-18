@@ -106,7 +106,7 @@ pub fn generate_plain_chain_spec(
 	handle_command_error(&output, Error::BuildSpecError)?;
 	// Atomically replace the chain spec file with the temporary file.
 	temp_file.persist(plain_chain_spec).map_err(|e| {
-		Error::AnyhowError(anyhow!(
+		AnyhowError(anyhow!(
 			"Failed to replace the chain spec file with the temporary file: {}",
 			e.to_string()
 		))
@@ -391,7 +391,7 @@ impl ChainSpec {
 				json!([
 					address,
 					address,
-					{ "aura": original_address } // Always the origina address
+					{ "aura": original_address } // Always the original address
 				])
 			})
 			.collect::<Vec<_>>();
@@ -1045,23 +1045,23 @@ mod tests {
 		let mut chain_spec = ChainSpec(json!({
 			"para_id": 1000,
 			"properties": {
-				"basedOn": "OpenZeppelin EVM Template"
+				"isEthereum": true
 			},
 			"genesis": {
 				"runtimeGenesis": {
 					"patch": {
 						"collatorSelection": {
 							"invulnerables": [
-							  "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"
+							  "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
 							]
 						  },
 						  "session": {
 							"keys": [
 							  [
-								"5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
-								"5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+								"5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty",
+								"5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty",
 								{
-								  "aura": "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"
+								  "aura": "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
 								}
 							  ]
 							]
@@ -1078,23 +1078,23 @@ mod tests {
 			json!({
 				"para_id": 1000,
 				"properties": {
-					"basedOn": "OpenZeppelin EVM Template"
+					"isEthereum": true
 				},
 				"genesis": {
 				"runtimeGenesis": {
 					"patch": {
 						"collatorSelection": {
 							"invulnerables": [
-							  "0x25451a4de12dccc2d166922fa938e900fcc4ed24",
+							  "0x9621dde636de098b43efb0fa9b61facfe328f99d",
 							]
 						  },
 						  "session": {
 							"keys": [
 							  [
-								"0x25451a4de12dccc2d166922fa938e900fcc4ed24",
-								"0x25451a4de12dccc2d166922fa938e900fcc4ed24",
+								"0x9621dde636de098b43efb0fa9b61facfe328f99d",
+								"0x9621dde636de098b43efb0fa9b61facfe328f99d",
 								{
-								  "aura": "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
+								  "aura": "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"
 								}
 							  ],
 							]
