@@ -34,6 +34,9 @@ pub enum Error {
 	SourceError(#[from] sourcing::Error),
 	#[error("TemplateError error: {0}")]
 	TemplateError(#[from] templates::Error),
+	/// An error occurred while executing a test command.
+	#[error("Failed to execute test command: {0}")]
+	TestCommand(String),
 	#[error("Unsupported command: {0}")]
 	UnsupportedCommand(String),
 	#[error("Unsupported platform: {arch} {os}")]

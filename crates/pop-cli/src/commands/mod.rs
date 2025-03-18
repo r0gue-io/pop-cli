@@ -33,9 +33,9 @@ pub(crate) enum Command {
 	#[clap(alias = "u", about = about_up())]
 	#[cfg(any(feature = "parachain", feature = "contract"))]
 	Up(up::UpArgs),
-	/// Test a smart contract.
+	/// Test a Rust project.
 	#[clap(alias = "t")]
-	#[cfg(feature = "contract")]
+	#[cfg(any(feature = "parachain", feature = "contract"))]
 	Test(test::TestArgs),
 	/// Remove generated/cached artifacts.
 	#[clap(alias = "C")]
@@ -128,11 +128,11 @@ impl Command {
 					},
 				},
 			},
-			#[cfg(feature = "contract")]
 			Self::Test(args) => match args.command {
-				test::Command::Contract(cmd) => match cmd.execute().await {
-					Ok(feature) => Ok(json!(feature)),
-					Err(e) => Err(e),
+				None => test::Command::execute(args).await.map(|t| json!(t)),
+				Some(cmd) => match cmd {
+					#[cfg(feature = "contract")]
+					test::Command::Contract(cmd) => cmd.execute(&mut Cli).await.map(|t| json!(t)),
 				},
 			},
 			Self::Clean(args) => match args.command {
