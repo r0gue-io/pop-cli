@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{
-	cli::{traits::Cli as _, Cli},
-	common::contracts::check_contracts_node_and_prompt,
-};
+use crate::{cli, common::contracts::check_contracts_node_and_prompt};
 use clap::Args;
-use cliclack::{clear_screen, log::warning, outro};
-use pop_contracts::{test_e2e_smart_contract, test_smart_contract};
+use pop_common::test_project;
+use pop_contracts::test_e2e_smart_contract;
 use std::path::PathBuf;
 
-#[derive(Args)]
+const HELP_HEADER: &str = "Smart contract testing options";
+
+#[derive(Args, Default)]
+#[clap(next_help_heading = HELP_HEADER)]
 pub(crate) struct TestContractCommand {
-	#[arg(short, long, help = "Path for the contract project [default: current directory]")]
-	path: Option<PathBuf>,
+	#[clap(skip)]
+	pub(crate) path: Option<PathBuf>,
 	/// Run end-to-end tests
 	#[arg(short, long)]
 	e2e: bool,
@@ -25,14 +25,15 @@ pub(crate) struct TestContractCommand {
 
 impl TestContractCommand {
 	/// Executes the command.
-	pub(crate) async fn execute(mut self) -> anyhow::Result<&'static str> {
-		clear_screen()?;
-
+	pub(crate) async fn execute(
+		mut self,
+		cli: &mut impl cli::traits::Cli,
+	) -> anyhow::Result<&'static str> {
 		if self.e2e {
-			Cli.intro("Starting end-to-end tests")?;
+			cli.intro("Starting end-to-end tests")?;
 
 			self.node = match check_contracts_node_and_prompt(
-				&mut Cli,
+				cli,
 				&crate::cache()?,
 				self.skip_confirm,
 			)
@@ -40,18 +41,18 @@ impl TestContractCommand {
 			{
 				Ok(binary_path) => Some(binary_path),
 				Err(_) => {
-					warning("🚫 substrate-contracts-node is necessary to run e2e tests. Will try to run tests anyway...")?;
+					cli.warning("🚫 substrate-contracts-node is necessary to run e2e tests. Will try to run tests anyway...")?;
 					Some(PathBuf::new())
 				},
 			};
 
 			test_e2e_smart_contract(self.path.as_deref(), self.node.as_deref())?;
-			outro("End-to-end testing complete")?;
+			cli.outro("End-to-end testing complete")?;
 			Ok("e2e")
 		} else {
-			Cli.intro("Starting unit tests")?;
-			test_smart_contract(self.path.as_deref())?;
-			outro("Unit testing complete")?;
+			cli.intro("Starting unit tests")?;
+			test_project(self.path.as_deref())?;
+			cli.outro("Unit testing complete")?;
 			Ok("unit")
 		}
 	}

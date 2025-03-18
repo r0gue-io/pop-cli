@@ -26,14 +26,15 @@ let result = build_smart_contract(Some(&contract_path), build_release, Verbosity
 
 Test an existing Smart Contract:
 ```rust,no_run
-use pop_contracts::{test_e2e_smart_contract, test_smart_contract};
+use pop_common::test_project;
+use pop_contracts::test_e2e_smart_contract;
 use std::path::Path;
 
 let contract_path = Path::new("./");
 let contracts_node_path = Path::new("./path-to-contracts-node-binary");
 
 //unit testing
-test_smart_contract(Some(contract_path));
+test_project(Some(contract_path));
 //e2e testing
 test_e2e_smart_contract(Some(contract_path), Some(contracts_node_path));
 ```

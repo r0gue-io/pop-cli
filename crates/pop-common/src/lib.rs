@@ -14,6 +14,7 @@ pub use sourcing::set_executable_permission;
 pub use subxt::{Config, PolkadotConfig as DefaultConfig};
 pub use subxt_signer::sr25519::Keypair;
 pub use templates::extractor::extract_template_files;
+pub use test::test_project;
 
 /// Module for parsing and handling account IDs.
 pub mod account_id;
@@ -29,6 +30,8 @@ pub mod polkadot_sdk;
 pub mod signer;
 pub mod sourcing;
 pub mod templates;
+/// Module for testing utilities and functionality.
+pub mod test;
 
 static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 
@@ -95,7 +98,7 @@ pub mod call {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
 	use super::*;
 	use anyhow::Result;
 
