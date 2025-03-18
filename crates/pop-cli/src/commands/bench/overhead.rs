@@ -116,7 +116,11 @@ impl BenchmarkOverhead {
 			.weight
 			.weight_path
 			.clone()
-			.unwrap_or_else(|| PathBuf::from("."));
+			.ok_or_else(|| anyhow::anyhow!("No weight path provided"))?;
+
+		if original_weight_path.is_file() {
+			return Err(anyhow::anyhow!("Weight path needs to be a directory"));
+		}
 		self.command.params.weight.weight_path = Some(temp_dir.path().to_path_buf());
 
 		let binary_path = check_omni_bencher_and_prompt(cli, self.skip_confirm).await?;
@@ -220,7 +224,11 @@ mod tests {
 		common::bench::{get_mock_runtime, EXECUTED_COMMAND_COMMENT},
 	};
 	use pop_parachains::get_preset_names;
-	use std::{env::current_dir, fs, path::PathBuf};
+	use std::{
+		env::current_dir,
+		fs::{self, File},
+		path::PathBuf,
+	};
 	use strum::{EnumMessage, VariantArray};
 	use tempfile::tempdir;
 
@@ -314,7 +322,7 @@ mod tests {
 			.expect_warning("NOTE: this may take some time...")
 			// Unable to mock the `std::env::args` for testing. In production, in must include
 			// `--warmup` and `--repeat`.
-			.expect_success(format!(
+			.expect_info(format!(
 				"pop bench overhead --runtime={} --genesis-builder=runtime \
 				--genesis-builder-preset=development --weight-path={} --profile=debug --skip-confirm",
 				runtime_path.display(),
@@ -385,11 +393,14 @@ mod tests {
 
 	#[tokio::test]
 	async fn benchmark_overhead_invalid_weight_path_fails() -> anyhow::Result<()> {
+		let temp_dir = tempdir()?;
 		let runtime_path = get_mock_runtime(true);
 		let preset_names = get_preset_names(&runtime_path)?
 			.into_iter()
 			.map(|preset| (preset, String::default()))
 			.collect();
+
+		File::create(temp_dir.path().join("weights.rs"))?;
 		let mut cli = MockCli::new()
 			.expect_intro("Benchmarking the execution overhead per-block and per-extrinsic")
 			.expect_select(
@@ -401,14 +412,13 @@ mod tests {
 				None,
 			)
 			.expect_warning("NOTE: this may take some time...")
-			.expect_outro_cancel(
-				"Failed to run benchmarking: Error: Input(\"Need directory as --weight-path\")",
-			);
+			.expect_outro_cancel("Weight path needs to be a directory");
 		let cmd = OverheadCmd::try_parse_from([
 			"",
 			"--runtime",
 			get_mock_runtime(false).to_str().unwrap(),
-			"--weight-path=weights.rs",
+			"--weight-path",
+			temp_dir.path().join("weights.rs").to_str().unwrap(),
 		])?;
 		assert!(BenchmarkOverhead {
 			command: cmd,
