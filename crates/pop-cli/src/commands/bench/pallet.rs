@@ -1155,6 +1155,47 @@ mod tests {
 
 	#[tokio::test]
 	async fn benchmark_pallet_with_provided_bench_file_works() -> anyhow::Result<()> {
+		let mut cli = MockCli::new();
+		let temp_dir = tempdir()?;
+		let output_path = temp_dir.path().join("weights.rs");
+
+		// Prepare the benchmarking parameter files.
+		let bench_file_path = temp_dir.path().join(DEFAULT_BENCH_FILE);
+		let versioned = VersionedBenchmarkPallet::from(BenchmarkPallet {
+			runtime: Some(get_mock_runtime(true)),
+			genesis_builder: Some(GenesisBuilderPolicy::Runtime),
+			genesis_builder_preset: "development".to_string(),
+			skip_menu: true,
+			pallet: Some("pallet_timestamp".to_string()),
+			extrinsic: Some(ALL_SELECTED.to_string()),
+			output: Some(output_path),
+			..Default::default()
+		});
+		let toml_str = toml::to_string(&versioned)?;
+		fs::write(&bench_file_path, toml_str)?;
+
+		cli = expect_pallet_benchmarking_intro(cli)
+			.expect_info(format!(
+				"Benchmarking parameter file found at {:?}. Loading parameters...",
+				bench_file_path.display()
+			))
+			.expect_confirm(
+				format!(
+					"Do you want to overwrite {:?} with the updated parameters?",
+					bench_file_path.display()
+				),
+				true,
+			)
+			.expect_warning("NOTE: this may take some time...")
+			.expect_info("Benchmarking extrinsic weights of selected pallets...");
+		BenchmarkPallet { bench_file: Some(bench_file_path), ..Default::default() }
+			.execute(&mut cli)
+			.await?;
+		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn benchmark_pallet_with_provided_bench_file_works() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
 		let output_path = temp_dir.path().join("weights.rs");
 
