@@ -246,16 +246,9 @@ impl Default for BenchmarkPallet {
 
 impl BenchmarkPallet {
 	pub async fn execute(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+		// If bench file is provided, load the provided parameters in the file.
 		if let Some(ref bench_file) = self.bench_file {
-			if !bench_file.exists() {
-				return display_message(
-					&format!("Provided invalid benchmark parameter file: {}", bench_file.display()),
-					false,
-					cli,
-				);
-			}
-			let content = fs::read_to_string(bench_file)?;
-			*self = toml::from_str(&content)?;
+			*self = VersionedBenchmarkPallet::try_from(bench_file.as_path())?.parameters();
 		}
 
 		// If `all` is provided, we override the value of `pallet` and `extrinsic` to select all.
