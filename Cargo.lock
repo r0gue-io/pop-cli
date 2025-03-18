@@ -4823,6 +4823,7 @@ dependencies = [
  "git2",
  "git2_credentials",
  "ink_env",
+ "keccak-hash",
  "mockito",
  "regex",
  "reqwest",
