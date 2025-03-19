@@ -796,7 +796,7 @@ impl BenchmarkPalletMenuOption {
 
 	fn get_joined_string(self, s: &String) -> String {
 		if is_selected_all(s) {
-			return "All selected".to_string()
+			return "All selected".to_string();
 		}
 		s.clone()
 	}
