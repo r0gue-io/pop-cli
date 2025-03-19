@@ -44,7 +44,7 @@ pub struct UpCommand {
 	/// ID to use. If not specified, a new ID will be reserved.
 	#[arg(short, long)]
 	pub(crate) id: Option<u32>,
-	/// Flag to skip the registration step and only attempt deployment.
+	/// Flag to skip the registration step and only deploy.
 	#[arg(long, requires = "id")]
 	pub(crate) skip_registration: bool,
 	/// Path to the chain spec file. If provided, it will be used to generate genesis artifacts.
@@ -80,7 +80,7 @@ impl UpCommand {
 		if !self.skip_registration {
 			match config.register(cli).await {
 				Ok(_) => cli.success(format!(
-					"Registration successfully {}",
+					"Registration successful {}",
 					style(format!(
 						"https://polkadot.js.org/apps/?rpc={}#/parachains",
 						config.chain.url
@@ -92,7 +92,7 @@ impl UpCommand {
 		}
 		match deployment.deploy(&config, cli).await {
 			Ok(Some(result)) => cli.success(format!(
-				"Deployment successfully\n   {}\n   {}",
+				"Deployment successful\n   {}\n   {}",
 				style(format!("{} Status: {}", console::Emoji("●", ">"), result.status)).dim(),
 				style(format!(
 					"{} View Deployment: {}",
@@ -391,7 +391,7 @@ fn prompt_for_proxy_address(
 	Ok(format!("Id({address})"))
 }
 
-// Prompts the user the user to select a deployment provider or only register.
+// Prompts the user to select deployment options.
 fn prompt_provider(
 	skip_registration: bool,
 	cli: &mut impl Cli,
@@ -404,8 +404,8 @@ fn prompt_provider(
 	if !skip_registration {
 		predefined_action = predefined_action.item(
 			None,
-			"Only Register in Relay Chain",
-			"Register the parachain in the relay chain without deploying",
+			"Register",
+			"Register the rollup on the relay chain without deploying with a provider",
 		);
 	}
 	Ok(predefined_action.interact()?)
@@ -413,8 +413,7 @@ fn prompt_provider(
 
 // Prompts user to select a supported chain for deployment.
 fn prompt_supported_chain(cli: &mut impl Cli) -> Result<&SupportedChains> {
-	let mut chain_selected =
-		cli.select("Select a Relay Chain\n\nChoose from the supported relay chains:");
+	let mut chain_selected = cli.select("Select a Relay Chain:");
 	for chain in SupportedChains::VARIANTS {
 		chain_selected = chain_selected.item(chain, chain.to_string(), "");
 	}
@@ -446,14 +445,14 @@ fn prompt_template_used(cli: &mut impl Cli) -> Result<&str> {
 	Ok(template.interact()?)
 }
 
-/// Warns user about which templates are supported for the given provider.
+// Warns user about which templates are supported for the given provider.
 fn warn_supported_templates(provider: &DeploymentProvider, cli: &mut impl Cli) -> Result<()> {
 	let supported_templates: Vec<String> = Parachain::VARIANTS
 		.iter()
 		.filter_map(|variant| variant.deployment_name().map(|_| variant.name().to_string()))
 		.collect();
 	cli.warning(format!(
-		"Currently {} only supports the deployment of the following templates: {}.\n",
+		"Currently {} only supports the following templates: {}.\n",
 		provider.name(),
 		style(supported_templates.join(", ")).dim()
 	))?;
@@ -508,12 +507,13 @@ mod tests {
 					.into_iter()
 					.map(|action| (action.name().to_string(), action.description().to_string()))
 					.chain(std::iter::once((
-						"Only Register in Relay Chain".to_string(),
-						"Register the parachain in the relay chain without deploying".to_string(),
+						"Register".to_string(),
+						"Register the rollup on the relay chain without deploying with a provider"
+							.to_string(),
 					)))
 					.collect::<Vec<_>>(),
 			),
-			DeploymentProvider::VARIANTS.len(), // Only Register in Relay Chain
+			DeploymentProvider::VARIANTS.len(), // Register
 			None,
 		);
 		let chain_config = UpCommand::default().prepare_for_deployment(&mut cli)?;
@@ -537,7 +537,7 @@ mod tests {
 				None,
 			)
 			.expect_select(
-				"Select a Relay Chain\n\nChoose from the supported relay chains:",
+				"Select a Relay Chain",
 				Some(false),
 				true,
 				Some(
@@ -664,12 +664,12 @@ mod tests {
                         .into_iter()
                         .map(|action| (action.name().to_string(), action.description().to_string()))
                         .chain(std::iter::once((
-                            "Only Register in Relay Chain".to_string(),
-                            "Register the parachain in the relay chain without deploying".to_string(),
+                            "Register".to_string(),
+                            "Register the rollup on the relay chain without deploying with a provider".to_string(),
                         )))
                         .collect::<Vec<_>>(),
                 ),
-                DeploymentProvider::VARIANTS.len(), // Only Register in Relay Chain
+                DeploymentProvider::VARIANTS.len(), // Register
                 None,
             )
             .expect_info(format!("You will need to sign a transaction to reserve an ID on {} using the `Registrar::reserve` function.", Url::parse(POP_NETWORK_TESTNET_URL)?.as_str()))
@@ -703,12 +703,12 @@ mod tests {
                         .into_iter()
                         .map(|action| (action.name().to_string(), action.description().to_string()))
                         .chain(std::iter::once((
-                            "Only Register in Relay Chain".to_string(),
-                            "Register the parachain in the relay chain without deploying".to_string(),
+                            "Register".to_string(),
+                            "Register the rollup on the relay chain without deploying with a provider".to_string(),
                         )))
                         .collect::<Vec<_>>(),
                 ),
-                DeploymentProvider::VARIANTS.len(), // Only Register in Relay Chain
+                DeploymentProvider::VARIANTS.len(), // Register
                 None,
             )
             .expect_info(format!("You will need to sign a transaction to register on {}, using the `Registrar::register` function.", Url::parse(POP_NETWORK_TESTNET_URL)?.as_str()))
