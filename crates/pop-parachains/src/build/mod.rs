@@ -5,11 +5,15 @@ use anyhow::{anyhow, Result};
 use duct::cmd;
 use pop_common::{manifest::from_path, Profile};
 use serde_json::{json, Value};
+use sp_core::bytes::to_hex;
 use std::{
 	fs,
 	path::{Path, PathBuf},
 	str::FromStr,
 };
+
+/// Build the deterministic runtime.
+pub mod runtime;
 
 /// Build the parachain and returns the path to the binary.
 ///
@@ -388,6 +392,25 @@ impl ChainSpec {
 	/// * `path` - The path to the chain specification file.
 	pub fn to_file(&self, path: &Path) -> Result<()> {
 		fs::write(path, self.to_string()?)?;
+		Ok(())
+	}
+
+	/// Updates the runtime code in the chain specification.
+	///
+	/// # Arguments
+	/// * `bytes` - The new runtime code.
+	pub fn update_runtime_code(&mut self, bytes: &[u8]) -> Result<(), Error> {
+		// Replace `genesis.runtimeGenesis.code`
+		let code = self
+			.0
+			.get_mut("genesis")
+			.ok_or_else(|| Error::Config("expected `genesis`".into()))?
+			.get_mut("runtimeGenesis")
+			.ok_or_else(|| Error::Config("expected `runtimeGenesis`".into()))?
+			.get_mut("code")
+			.ok_or_else(|| Error::Config("expected `runtimeGenesis.code`".into()))?;
+		let hex = to_hex(bytes, true);
+		*code = json!(hex);
 		Ok(())
 	}
 }
@@ -942,6 +965,36 @@ mod tests {
 		let mut chain_spec = ChainSpec(json!({"": "old-protocolId"}));
 		assert!(
 			matches!(chain_spec.replace_protocol_id("new-protocolId"), Err(Error::Config(error)) if error == "expected `protocolId`")
+		);
+		Ok(())
+	}
+
+	#[test]
+	fn update_runtime_code_works() -> Result<()> {
+		let mut chain_spec =
+			ChainSpec(json!({"genesis": {"runtimeGenesis" : {  "code": "0x00" }}}));
+
+		chain_spec.update_runtime_code(&from_hex("0x1234")?)?;
+		assert_eq!(chain_spec.0, json!({"genesis": {"runtimeGenesis" : {  "code": "0x1234" }}}));
+		Ok(())
+	}
+
+	#[test]
+	fn update_runtime_code_fails() -> Result<()> {
+		let mut chain_spec =
+			ChainSpec(json!({"invalidKey": {"runtimeGenesis" : {  "code": "0x00" }}}));
+		assert!(
+			matches!(chain_spec.update_runtime_code(&from_hex("0x1234")?), Err(Error::Config(error)) if error == "expected `genesis`")
+		);
+
+		chain_spec = ChainSpec(json!({"genesis": {"invalidKey" : {  "code": "0x00" }}}));
+		assert!(
+			matches!(chain_spec.update_runtime_code(&from_hex("0x1234")?), Err(Error::Config(error)) if error == "expected `runtimeGenesis`")
+		);
+
+		chain_spec = ChainSpec(json!({"genesis": {"runtimeGenesis" : {  "invalidKey": "0x00" }}}));
+		assert!(
+			matches!(chain_spec.update_runtime_code(&from_hex("0x1234")?), Err(Error::Config(error)) if error == "expected `runtimeGenesis.code`")
 		);
 		Ok(())
 	}
