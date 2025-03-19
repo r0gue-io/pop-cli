@@ -14,6 +14,8 @@ use std::{
 	path::{Path, PathBuf},
 };
 
+const EXCLUDED_ARGS: [&str; 1] = ["--profile"];
+
 #[derive(Args)]
 pub(crate) struct BenchmarkBlock {
 	/// Command to benchmark the execution time of historic blocks.
@@ -48,8 +50,12 @@ impl BenchmarkBlock {
 
 		cli.warning("NOTE: this may take some time...")?;
 
-		let result =
-			generate_binary_benchmarks(&binary_path, BenchmarkingCliCommand::Block, |args| args);
+		let result = generate_binary_benchmarks(
+			&binary_path,
+			BenchmarkingCliCommand::Block,
+			|args| args,
+			&EXCLUDED_ARGS,
+		);
 
 		// Display the benchmarking command.
 		cliclack::log::remark("\n")?;
