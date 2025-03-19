@@ -346,7 +346,7 @@ impl BenchmarkPallet {
 			let input = cli
 				.input("Provide the output file path for benchmark results (optional).")
 				.required(false)
-				.placeholder(".")
+				.placeholder("./weights.rs")
 				.interact()?;
 			self.output = if !input.is_empty() { Some(input.into()) } else { None };
 		}
@@ -401,9 +401,10 @@ impl BenchmarkPallet {
 	}
 
 	fn collect_display_arguments(&self) -> Vec<String> {
+		let default_values = Self::default();
 		let mut args = vec!["pop".to_string(), "bench".to_string(), "pallet".to_string()];
 		let mut arguments = self.collect_arguments();
-		if self.skip_menu {
+		if self.skip_menu && self.skip_menu != default_values.skip_menu {
 			arguments.push("--skip".to_string());
 		}
 		args.extend(arguments);
@@ -411,6 +412,7 @@ impl BenchmarkPallet {
 	}
 
 	fn collect_arguments(&self) -> Vec<String> {
+		let default_values = Self::default();
 		let mut args = vec![];
 
 		if self.list {
@@ -456,27 +458,34 @@ impl BenchmarkPallet {
 			));
 		}
 
-		args.extend([
-			format!("--repeat={}", self.repeat),
-			format!("--external-repeat={}", self.external_repeat),
-			format!("--db-cache={}", self.database_cache_size),
-			format!("--map-size={}", self.worst_case_map_values),
-			format!("--additional-trie-layers={}", self.additional_trie_layers),
-		]);
-
-		if self.json_output {
+		if self.repeat != default_values.repeat {
+			args.push(format!("--repeat={}", self.repeat));
+		}
+		if self.external_repeat != default_values.external_repeat {
+			args.push(format!("--external-repeat={}", self.external_repeat));
+		}
+		if self.database_cache_size != default_values.database_cache_size {
+			args.push(format!("--db-cache={}", self.database_cache_size));
+		}
+		if self.worst_case_map_values != default_values.worst_case_map_values {
+			args.push(format!("--map-size={}", self.worst_case_map_values));
+		}
+		if self.additional_trie_layers != default_values.additional_trie_layers {
+			args.push(format!("--additional-trie-layers={}", self.additional_trie_layers));
+		}
+		if self.json_output && self.json_output != default_values.json_output {
 			args.push("--json".to_string());
 		}
 		if let Some(ref json_file) = self.json_file {
 			args.push(format!("--json-file={}", json_file.display()));
 		}
-		if self.no_median_slopes {
+		if self.no_median_slopes && self.no_median_slopes != default_values.no_median_slopes {
 			args.push("--no-median-slopes".to_string());
 		}
-		if self.no_min_squares {
+		if self.no_min_squares && self.no_min_squares != default_values.no_min_squares {
 			args.push("--no-min-squares".to_string());
 		}
-		if self.no_storage_info {
+		if self.no_storage_info && self.no_storage_info != default_values.no_storage_info {
 			args.push("--no-storage-info".to_string());
 		}
 		if let Some(ref output) = self.output {
@@ -486,31 +495,41 @@ impl BenchmarkPallet {
 		if let Some(ref template) = self.template {
 			args.push(format!("--template={}", template.display()));
 		}
-		if let Some(ref output_analysis) = self.output_analysis {
-			args.push(format!("--output-analysis={}", output_analysis));
+		if self.output_analysis != default_values.output_analysis {
+			if let Some(ref output_analysis) = self.output_analysis {
+				args.push(format!("--output-analysis={}", output_analysis));
+			}
 		}
-		if let Some(ref output_pov_analysis) = self.output_pov_analysis {
-			args.push(format!("--output-pov-analysis={}", output_pov_analysis));
+		if self.output_pov_analysis != default_values.output_pov_analysis {
+			if let Some(ref output_pov_analysis) = self.output_pov_analysis {
+				args.push(format!("--output-pov-analysis={}", output_pov_analysis));
+			}
 		}
 		if let Some(ref heap_pages) = self.heap_pages {
 			args.push(format!("--heap-pages={}", heap_pages));
 		}
-		if self.no_verify {
+		if self.no_verify && self.no_verify != default_values.no_verify {
 			args.push("--no-verify".to_string());
 		}
-		if self.extra {
+		if self.extra && self.extra != default_values.extra {
 			args.push("--extra".to_string());
 		}
 		if let Some(ref runtime) = self.runtime {
 			args.push(format!("--runtime={}", runtime.display()));
 		}
-		if self.allow_missing_host_functions {
+		if self.allow_missing_host_functions &&
+			self.allow_missing_host_functions != default_values.allow_missing_host_functions
+		{
 			args.push("--allow-missing-host-functions".to_string());
 		}
-		if let Some(ref genesis_builder) = self.genesis_builder {
-			args.push(format!("--genesis-builder={}", genesis_builder));
-			if genesis_builder == &GenesisBuilderPolicy::Runtime {
-				args.push(format!("--genesis-builder-preset={}", self.genesis_builder_preset));
+		if self.genesis_builder != default_values.genesis_builder {
+			if let Some(ref genesis_builder) = self.genesis_builder {
+				args.push(format!("--genesis-builder={}", genesis_builder));
+				if genesis_builder == &GenesisBuilderPolicy::Runtime &&
+					self.genesis_builder_preset != default_values.genesis_builder_preset
+				{
+					args.push(format!("--genesis-builder-preset={}", self.genesis_builder_preset));
+				}
 			}
 		}
 		args
@@ -590,6 +609,19 @@ impl BenchmarkPallet {
 		Ok(())
 	}
 
+	fn update_template_path(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+		let input = cli
+			.input("Provide path to the custom template for generated weight files (optional)")
+			.required(false)
+			.interact()?;
+		let path: PathBuf = input.into();
+		if !path.exists() {
+			return Err(anyhow::anyhow!("Template path does not exist"));
+		}
+		self.template = Some(path);
+		Ok(())
+	}
+
 	fn runtime(&self) -> anyhow::Result<&PathBuf> {
 		self.runtime.as_ref().ok_or_else(|| anyhow::anyhow!("No runtime found"))
 	}
@@ -653,6 +685,9 @@ enum BenchmarkPalletMenuOption {
 	/// If enabled, the storage info is not displayed in the output next to the analysis
 	#[strum(message = "No storage info")]
 	NoStorageInfo,
+	/// Path to the custom weight file template
+	#[strum(message = "Weight file template")]
+	WeightFileTemplate,
 	#[strum(message = "> Save all parameter changes and continue")]
 	SaveAndContinue,
 }
@@ -718,6 +753,12 @@ impl BenchmarkPalletMenuOption {
 			NoMedianSlope => cmd.no_median_slopes.to_string(),
 			NoMinSquare => cmd.no_min_squares.to_string(),
 			NoStorageInfo => cmd.no_storage_info.to_string(),
+			WeightFileTemplate =>
+				if let Some(ref template) = cmd.template {
+					get_relative_path(&template)
+				} else {
+					String::default()
+				},
 			SaveAndContinue => String::default(),
 		})
 	}
@@ -757,6 +798,7 @@ impl BenchmarkPalletMenuOption {
 			NoMedianSlope => cmd.no_median_slopes = self.confirm(cmd, cli)?,
 			NoMinSquare => cmd.no_min_squares = self.confirm(cmd, cli)?,
 			NoStorageInfo => cmd.no_storage_info = self.confirm(cmd, cli)?,
+			WeightFileTemplate => cmd.update_template_path(cli)?,
 			SaveAndContinue => return Ok(true),
 		};
 		Ok(false)
@@ -1562,6 +1604,7 @@ mod tests {
 			(NoMedianSlope, "false"),
 			(NoMinSquare, "false"),
 			(NoStorageInfo, "false"),
+			(WeightFileTemplate, ""),
 		]
 		.into_iter()
 		.for_each(|(option, value)| {
