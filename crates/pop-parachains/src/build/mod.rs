@@ -5,15 +5,11 @@ use anyhow::{anyhow, Result};
 use duct::cmd;
 use pop_common::{manifest::from_path, Profile};
 use serde_json::{json, Value};
-use sp_core::bytes::to_hex;
 use std::{
 	fs,
 	path::{Path, PathBuf},
 	str::FromStr,
 };
-
-/// Build the deterministic runtime.
-pub mod runtime;
 
 /// Build the parachain and returns the path to the binary.
 ///
@@ -24,13 +20,15 @@ pub mod runtime;
 /// * `profile` - Whether the parachain should be built without any debugging functionality.
 /// * `node_path` - An optional path to the node directory. Defaults to the `node` subdirectory of
 ///   the project path if not provided.
+/// * `features` - A set of features the project is built with.
 pub fn build_parachain(
 	path: &Path,
 	package: Option<String>,
 	profile: &Profile,
 	node_path: Option<&Path>,
+	features: Vec<&str>,
 ) -> Result<PathBuf, Error> {
-	build_project(path, package, profile, vec![], None)?;
+	build_project(path, package, profile, features, None)?;
 	binary_path(&profile.target_directory(path), node_path.unwrap_or(&path.join("node")))
 }
 
@@ -380,25 +378,6 @@ impl ChainSpec {
 		fs::write(path, self.to_string()?)?;
 		Ok(())
 	}
-
-	/// Updates the runtime code in the chain specification.
-	///
-	/// # Arguments
-	/// * `bytes` - The new runtime code.
-	pub fn update_runtime_code(&mut self, bytes: &[u8]) -> Result<(), Error> {
-		// Replace `genesis.runtimeGenesis.code`
-		let code = self
-			.0
-			.get_mut("genesis")
-			.ok_or_else(|| Error::Config("expected `genesis`".into()))?
-			.get_mut("runtimeGenesis")
-			.ok_or_else(|| Error::Config("expected `runtimeGenesis`".into()))?
-			.get_mut("code")
-			.ok_or_else(|| Error::Config("expected `runtimeGenesis.code`".into()))?;
-		let hex = to_hex(bytes, true);
-		*code = json!(hex);
-		Ok(())
-	}
 }
 
 #[cfg(test)]
@@ -409,8 +388,10 @@ mod tests {
 		Zombienet,
 	};
 	use anyhow::Result;
-	use pop_common::{manifest::Dependency, set_executable_permission};
-	use sp_core::bytes::from_hex;
+	use pop_common::{
+		manifest::{add_feature, Dependency},
+		set_executable_permission,
+	};
 	use std::{fs, fs::write, io::Write, path::Path};
 	use strum::VariantArray;
 	use tempfile::{tempdir, Builder, TempDir};
@@ -539,12 +520,19 @@ mod tests {
 		cmd("cargo", ["new", name, "--bin"]).dir(temp_dir.path()).run()?;
 		let project = temp_dir.path().join(name);
 		add_production_profile(&project)?;
+		add_feature(&project, ("dummy-feature".to_string(), vec![]))?;
 		for node in vec![None, Some("custom_node")] {
 			let node_path = generate_mock_node(&project, node)?;
 			for package in vec![None, Some(String::from("parachain_template_node"))] {
 				for profile in Profile::VARIANTS {
 					let node_path = node.map(|_| node_path.as_path());
-					let binary = build_parachain(&project, package.clone(), &profile, node_path)?;
+					let binary = build_parachain(
+						&project,
+						package.clone(),
+						&profile,
+						node_path,
+						vec!["dummy-feature"],
+					)?;
 					let target_directory = profile.target_directory(&project);
 					assert!(target_directory.exists());
 					assert!(target_directory.join("parachain_template_node").exists());
@@ -565,9 +553,10 @@ mod tests {
 		cmd("cargo", ["new", name, "--bin"]).dir(temp_dir.path()).run()?;
 		let project = temp_dir.path().join(name);
 		add_production_profile(&project)?;
+		add_feature(&project, ("dummy-feature".to_string(), vec![]))?;
 		for package in vec![None, Some(String::from(name))] {
 			for profile in Profile::VARIANTS {
-				build_project(&project, package.clone(), &profile, vec![], None)?;
+				build_project(&project, package.clone(), &profile, vec!["dummy-feature"], None)?;
 				let target_directory = profile.target_directory(&project);
 				let binary = build_binary_path(&project, |runtime_name| {
 					target_directory.join(runtime_name)
@@ -919,36 +908,6 @@ mod tests {
 		let mut chain_spec = ChainSpec(json!({"": "old-protocolId"}));
 		assert!(
 			matches!(chain_spec.replace_protocol_id("new-protocolId"), Err(Error::Config(error)) if error == "expected `protocolId`")
-		);
-		Ok(())
-	}
-
-	#[test]
-	fn update_runtime_code_works() -> Result<()> {
-		let mut chain_spec =
-			ChainSpec(json!({"genesis": {"runtimeGenesis" : {  "code": "0x00" }}}));
-
-		chain_spec.update_runtime_code(&from_hex("0x1234")?)?;
-		assert_eq!(chain_spec.0, json!({"genesis": {"runtimeGenesis" : {  "code": "0x1234" }}}));
-		Ok(())
-	}
-
-	#[test]
-	fn update_runtime_code_fails() -> Result<()> {
-		let mut chain_spec =
-			ChainSpec(json!({"invalidKey": {"runtimeGenesis" : {  "code": "0x00" }}}));
-		assert!(
-			matches!(chain_spec.update_runtime_code(&from_hex("0x1234")?), Err(Error::Config(error)) if error == "expected `genesis`")
-		);
-
-		chain_spec = ChainSpec(json!({"genesis": {"invalidKey" : {  "code": "0x00" }}}));
-		assert!(
-			matches!(chain_spec.update_runtime_code(&from_hex("0x1234")?), Err(Error::Config(error)) if error == "expected `runtimeGenesis`")
-		);
-
-		chain_spec = ChainSpec(json!({"genesis": {"runtimeGenesis" : {  "invalidKey": "0x00" }}}));
-		assert!(
-			matches!(chain_spec.update_runtime_code(&from_hex("0x1234")?), Err(Error::Config(error)) if error == "expected `runtimeGenesis.code`")
 		);
 		Ok(())
 	}
