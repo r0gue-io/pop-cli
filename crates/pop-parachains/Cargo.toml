@@ -40,6 +40,7 @@ zombienet-sdk.workspace = true
 cumulus-primitives-proof-size-hostfunction.workspace = true
 frame-benchmarking-cli.workspace = true
 sc-chain-spec.workspace = true
+serde.workspace = true
 sp-runtime.workspace = true
 sp-statement-store.workspace = true
 
