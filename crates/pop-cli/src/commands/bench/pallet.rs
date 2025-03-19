@@ -616,8 +616,8 @@ impl BenchmarkPallet {
 			.required(false)
 			.interact()?;
 		let path: PathBuf = input.into();
-		if !path.exists() {
-			return Err(anyhow::anyhow!("Template path does not exist"));
+		if !path.is_file() {
+			return Err(anyhow::anyhow!("Template path does not exist or is a directory"));
 		}
 		self.template = Some(path);
 		Ok(())
@@ -1816,6 +1816,42 @@ mod tests {
 				r#"Failed to parse TOML content: "expected an equals, found an identifier at line 1 column 9""#
 			)
 		);
+		Ok(())
+	}
+
+	#[test]
+	fn update_template_path_works() -> anyhow::Result<()> {
+		let temp_dir = tempdir()?;
+
+		// Provided template path is not an existing file.
+		let mut cli = MockCli::new().expect_input(
+			"Provide path to the custom template for generated weight files (optional)",
+			temp_dir.path().join("template.txt").to_str().unwrap().to_string(),
+		);
+		assert_eq!(
+			BenchmarkPallet::default()
+				.update_template_path(&mut cli)
+				.err()
+				.unwrap()
+				.to_string(),
+			"Template path does not exist or is a directory"
+		);
+		cli.verify()?;
+
+		// Provided template path is a directory.
+		let mut cli = MockCli::new().expect_input(
+			"Provide path to the custom template for generated weight files (optional)",
+			temp_dir.path().to_str().unwrap().to_string(),
+		);
+		assert_eq!(
+			BenchmarkPallet::default()
+				.update_template_path(&mut cli)
+				.err()
+				.unwrap()
+				.to_string(),
+			"Template path does not exist or is a directory"
+		);
+		cli.verify()?;
 		Ok(())
 	}
 
