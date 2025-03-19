@@ -12,7 +12,7 @@ use serde_json::Value;
 use std::path::PathBuf;
 
 /// API client for interacting with deployment provider.
-pub(crate) struct DeploymentApi {
+pub struct DeploymentApi {
 	/// API key used for authentication with the deployment provider.
 	pub(crate) api_key: String,
 	/// The base URL of the deployment provider's API.
@@ -179,7 +179,9 @@ impl DeployRequest {
 /// Response from the deployment call.
 #[derive(Debug, Deserialize)]
 pub struct DeployResponse {
+	/// The status of the deployment.
 	pub status: String,
+	/// The message returned after deployment.
 	#[serde(rename = "rollupUrl")]
 	pub message: String,
 }
