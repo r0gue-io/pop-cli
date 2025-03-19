@@ -14,6 +14,8 @@ use std::{
 	path::{Path, PathBuf},
 };
 
+const EXCLUDED_ARGS: [&str; 1] = ["--profile"];
+
 #[derive(Args)]
 pub(crate) struct BenchmarkMachine {
 	/// Command to benchmark the hardware.
@@ -49,8 +51,12 @@ impl BenchmarkMachine {
 		cli.warning("NOTE: this may take some time...")?;
 		cli.info("Benchmarking your hardware performance...")?;
 
-		let result =
-			generate_binary_benchmarks(&binary_path, BenchmarkingCliCommand::Machine, |args| args);
+		let result = generate_binary_benchmarks(
+			&binary_path,
+			BenchmarkingCliCommand::Machine,
+			|args| args,
+			&EXCLUDED_ARGS,
+		);
 
 		// Display the benchmarking command.
 		cliclack::log::remark("\n")?;

@@ -16,6 +16,8 @@ use std::{
 };
 use tempfile::tempdir;
 
+const EXCLUDED_ARGS: [&str; 1] = ["--profile"];
+
 #[derive(Args)]
 pub(crate) struct BenchmarkStorage {
 	/// Command to benchmark the storage speed of a chain snapshot.
@@ -75,17 +77,22 @@ impl BenchmarkStorage {
 		self.command.params.weight_params.weight_path = Some(temp_dir.path().to_path_buf());
 
 		// Run the benchmark with updated arguments.
-		generate_binary_benchmarks(&binary_path, BenchmarkingCliCommand::Storage, |args| {
-			args.into_iter()
-				.map(|arg| {
-					if arg.starts_with("--weight-path") {
-						format!("--weight-path={}", temp_dir.path().display())
-					} else {
-						arg
-					}
-				})
-				.collect()
-		})?;
+		generate_binary_benchmarks(
+			&binary_path,
+			BenchmarkingCliCommand::Storage,
+			|args| {
+				args.into_iter()
+					.map(|arg| {
+						if arg.starts_with("--weight-path") {
+							format!("--weight-path={}", temp_dir.path().display())
+						} else {
+							arg
+						}
+					})
+					.collect()
+			},
+			&EXCLUDED_ARGS,
+		)?;
 
 		// Restore the original weight path.
 		self.command.params.weight_params.weight_path = Some(original_weight_path.clone());
