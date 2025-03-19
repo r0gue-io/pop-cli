@@ -143,10 +143,12 @@ pub fn generate_pallet_benchmarks(args: Vec<String>) -> anyhow::Result<()> {
 /// * `binary_path` - Path to the binary of FRAME Omni Bencher.
 /// * `command` - Command to run for benchmarking.
 /// * `update_args` - Function to update the arguments before running the benchmark.
+/// * `excluded_args` - Arguments to exclude from the benchmarking command.
 pub fn generate_binary_benchmarks<F>(
 	binary_path: &PathBuf,
 	command: BenchmarkingCliCommand,
 	update_args: F,
+	excluded_args: &[&str],
 ) -> anyhow::Result<()>
 where
 	F: Fn(Vec<String>) -> Vec<String>,
@@ -156,6 +158,10 @@ where
 
 	// Get all arguments of the command and skip the program name.
 	let mut args = update_args(std::env::args().skip(3).collect::<Vec<String>>());
+	args = args
+		.into_iter()
+		.filter(|arg| !excluded_args.iter().any(|a| arg.starts_with(a)))
+		.collect::<Vec<String>>();
 	let mut cmd_args = vec!["benchmark".to_string(), command.to_string()];
 	cmd_args.append(&mut args);
 
