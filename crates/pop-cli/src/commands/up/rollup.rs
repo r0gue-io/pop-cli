@@ -262,20 +262,8 @@ impl Registration {
 			Action::Register.pallet_name(),
 			Action::Register.function_name(),
 		)?;
-		let state = std::fs::read_to_string(
-			genesis_artifacts
-				.genesis_state_file
-				.as_ref()
-				.ok_or_else(|| anyhow::anyhow!("Failed to generate the genesis state file."))?,
-		)
-		.map_err(|err| anyhow!("Failed to read genesis state file: {}", err.to_string()))?;
-		let code = std::fs::read_to_string(
-			genesis_artifacts
-				.genesis_code_file
-				.as_ref()
-				.ok_or_else(|| anyhow::anyhow!("Failed to generate the genesis code."))?,
-		)
-		.map_err(|err| anyhow!("Failed to read genesis code file: {}", err.to_string()))?;
+		let state = genesis_artifacts.read_genesis_state()?;
+		let code = genesis_artifacts.read_genesis_code()?;
 		let mut xt = Call {
 			function: dispatchable.clone(),
 			args: vec![id.to_string(), state, code],
@@ -742,7 +730,9 @@ mod tests {
 		// Create a temporary files to act as genesis_state and genesis_code files.
 		let temp_dir = tempdir()?;
 		let genesis_state_path = temp_dir.path().join("genesis_state");
+		std::fs::write(&genesis_state_path, "0x1234")?;
 		let genesis_code_path = temp_dir.path().join("genesis_code.wasm");
+		std::fs::write(&genesis_code_path, "0x1234")?;
 		let mut up_chain = Registration {
 			id: 2000,
 			genesis_artifacts: GenesisArtifacts {
@@ -753,20 +743,6 @@ mod tests {
 			chain,
 			proxy: None,
 		};
-
-		// Expect failure when the genesis state file cannot be read.
-		assert!(matches!(
-			up_chain.prepare_register_call_data(&mut cli),
-			Err(message) if message.to_string().contains("Failed to read genesis state file")
-		));
-		std::fs::write(&genesis_state_path, "0x1234")?;
-
-		// Expect failure when the genesis code file cannot be read.
-		assert!(matches!(
-			up_chain.prepare_register_call_data(&mut cli),
-			Err(message) if message.to_string().contains("Failed to read genesis code file")
-		));
-		std::fs::write(&genesis_code_path, "0x1234")?;
 
 		// Encoded call data for a register extrinsic with the above values.
 		// Reference: https://polkadot.js.org/apps/?rpc=wss%3A%2F%2Fpolkadot.public.curie.radiumblock.co%2Fws#/extrinsics/decode/0x4600d0070000081234081234
