@@ -524,6 +524,27 @@ pub struct GenesisArtifacts {
 	/// Optional path to the genesis code file.
 	pub genesis_code_file: Option<StatePathBuf>,
 }
+impl GenesisArtifacts {
+	/// Reads the genesis state file as a string.
+	pub fn read_genesis_state(&self) -> anyhow::Result<String> {
+		std::fs::read_to_string(
+			self.genesis_state_file
+				.as_ref()
+				.ok_or_else(|| anyhow::anyhow!("Missing genesis state file path"))?,
+		)
+		.map_err(|e| anyhow::anyhow!("Failed to read genesis state file: {}", e))
+	}
+
+	/// Reads the genesis code file as a string.
+	pub fn read_genesis_code(&self) -> anyhow::Result<String> {
+		std::fs::read_to_string(
+			self.genesis_code_file
+				.as_ref()
+				.ok_or_else(|| anyhow::anyhow!("Missing genesis code file path"))?,
+		)
+		.map_err(|e| anyhow::anyhow!("Failed to read genesis code file: {}", e))
+	}
+}
 
 // Represents the configuration for building a chain specification.
 #[derive(Debug, Default, Clone)]
@@ -1208,6 +1229,52 @@ mod tests {
 			// The directory should now exist.
 			assert!(result.parent().unwrap().exists());
 		}
+
+		Ok(())
+	}
+
+	#[test]
+	fn read_genesis_state_works() -> anyhow::Result<()> {
+		let mut artifacts = GenesisArtifacts::default();
+		let temp_dir = tempdir()?;
+		// Expect failure when the genesis state is None.
+		assert!(matches!(
+			artifacts.read_genesis_state(),
+			Err(message) if message.to_string().contains("Missing genesis state file path")
+		));
+		let genesis_state_path = temp_dir.path().join("genesis_state");
+		artifacts.genesis_state_file = Some(genesis_state_path.clone());
+		// Expect failure when the genesis state file cannot be read.
+		assert!(matches!(
+			artifacts.read_genesis_state(),
+			Err(message) if message.to_string().contains("Failed to read genesis state file")
+		));
+		// Successfully read the genesis state file.
+		std::fs::write(&genesis_state_path, "0x1234")?;
+		assert_eq!(artifacts.read_genesis_state()?, "0x1234");
+
+		Ok(())
+	}
+
+	#[test]
+	fn read_genesis_code_works() -> anyhow::Result<()> {
+		let mut artifacts = GenesisArtifacts::default();
+		let temp_dir = tempdir()?;
+		// Expect failure when the genesis code is None.
+		assert!(matches!(
+			artifacts.read_genesis_code(),
+			Err(message) if message.to_string().contains("Missing genesis code file path")
+		));
+		let genesis_code_path = temp_dir.path().join("genesis_code.wasm");
+		artifacts.genesis_code_file = Some(genesis_code_path.clone());
+		// Expect failure when the genesis code file cannot be read.
+		assert!(matches!(
+			artifacts.read_genesis_code(),
+			Err(message) if message.to_string().contains("Failed to read genesis code file")
+		));
+		// Successfully read the genesis code file.
+		std::fs::write(&genesis_code_path, "0x1234")?;
+		assert_eq!(artifacts.read_genesis_code()?, "0x1234");
 
 		Ok(())
 	}
