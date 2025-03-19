@@ -144,18 +144,21 @@ pub struct DeployRequest {
 	pub chainspec: PathBuf,
 }
 impl DeployRequest {
-	// Creates a new `DeployRequest` by parsing the chain specification file.
+	/// Creates a new `DeployRequest` by parsing the chain specification file.
+	/// # Arguments
+	/// * `collator_file_id` - The identifier of the collator file.
+	/// * `genesis_artifacts` - Chain specification artifacts.
+	/// * `proxy_address` - An optional proxy address in `Id(...)` format.
 	pub fn new(
 		collator_file_id: String,
-		genesis_artifacts: GenesisArtifacts,
-		proxy_address: Option<String>,
+		genesis_artifacts: &GenesisArtifacts,
+		proxy_address: Option<&str>,
 	) -> anyhow::Result<Self> {
 		let chain_spec = ChainSpec::from(&genesis_artifacts.chain_spec)?;
 		let chain_name = chain_spec
 			.get_name()
 			.ok_or_else(|| anyhow::anyhow!("Failed to retrieve chain name from the chain spec"))?;
 		let proxy_key = proxy_address
-			.as_deref()
 			.map(|s| s.trim_start_matches("Id(").trim_end_matches(")"))
 			.unwrap_or("")
 			.to_string();
@@ -171,7 +174,7 @@ impl DeployRequest {
 			runtime_template: template,
 			sudo_key: sudo_address.to_string(),
 			collator_file_id,
-			chainspec: genesis_artifacts.raw_chain_spec,
+			chainspec: genesis_artifacts.raw_chain_spec.clone(),
 		})
 	}
 }

@@ -181,12 +181,15 @@ impl UpCommand {
 		id: u32,
 		cli: &mut impl Cli,
 	) -> Result<GenesisArtifacts> {
-		if let (Some(code), Some(state), _) =
-			(&self.genesis_code, &self.genesis_state, &deployment_config.api)
+		// If the API is unavailable and both genesis code & state exist, there's no need to
+		// generate the chain spec.
+		if deployment_config.api.is_none() &&
+			self.genesis_code.is_some() &&
+			self.genesis_state.is_some()
 		{
 			return Ok(GenesisArtifacts {
-				genesis_code_file: Some(code.clone()),
-				genesis_state_file: Some(state.clone()),
+				genesis_code_file: self.genesis_code.clone(),
+				genesis_state_file: self.genesis_state.clone(),
 				..Default::default()
 			});
 		}
@@ -223,8 +226,8 @@ impl Deployment {
 		};
 		let mut request = DeployRequest::new(
 			collator_file_id.to_string(),
-			config.genesis_artifacts.clone(),
-			config.proxy.clone(),
+			&config.genesis_artifacts,
+			config.proxy.as_deref(),
 		)?;
 		if request.runtime_template.is_none() {
 			let template_name = prompt_template_used(cli)?;
