@@ -131,20 +131,36 @@ impl UpCommand {
 		let chain =
 			configure("Enter the relay chain node URL", DEFAULT_URL, &self.relay_chain_url, cli)
 				.await?;
-		let proxy = self.resolve_proxied_address(chain.url.as_str(), cli)?;
+		let proxy =
+			self.resolve_proxied_address(&deployment_config.api, chain.url.as_str(), cli)?;
 		let id = self.resolve_id(&chain, &proxy, cli).await?;
 		let genesis_artifacts = self.resolve_genesis_files(deployment_config, id, cli).await?;
 		Ok(Registration { id, genesis_artifacts, chain, proxy })
 	}
 
 	// Retrieves the proxied address, prompting the user if none is specified.
-	fn resolve_proxied_address(&self, relay_chain_url: &str, cli: &mut impl Cli) -> Result<Proxy> {
+	fn resolve_proxied_address(
+		&self,
+		api: &Option<DeploymentApi>,
+		relay_chain_url: &str,
+		cli: &mut impl Cli,
+	) -> Result<Proxy> {
 		if let Some(addr) = &self.proxied_address {
 			return Ok(parse_account(addr).map(|valid_addr| Some(format!("Id({valid_addr})")))?);
 		}
-		if cli.confirm("Would you like to use a pure proxy for registration? This is considered a best practice.").initial_value(true).interact()? {
-			return Ok(Some(prompt_for_proxy_address(relay_chain_url, cli)?));
+		if let Some(api) = api {
+			if api.provider == DeploymentProvider::PDP {
+				cli.info(format!("The provider {} requires registration via a pure proxy for security and best practices.", api.provider.name()))?;
+				return Ok(Some(prompt_for_proxy_address(
+					self.skip_registration,
+					relay_chain_url,
+					cli,
+				)?));
+			}
 		}
+		if cli.confirm("Would you like to use a pure proxy for registration? This is considered a best practice.").initial_value(true).interact()? {
+            return Ok(Some(prompt_for_proxy_address(self.skip_registration, relay_chain_url, cli)?));
+        }
 		Ok(None)
 	}
 
@@ -348,13 +364,24 @@ async fn generate_spec_files(
 }
 
 // Prompt the user to input an address and return it formatted as `Id(address)`
-fn prompt_for_proxy_address(relay_chain_url: &str, cli: &mut impl Cli) -> Result<String> {
-	cli.info(format!(
-		"Don't have a pure proxy?\n{}",
-		style(format!("Create a proxy account using `pop call chain --pallet Proxy --function create_pure --args \"Any()\" \"0\" \"0\" --url {relay_chain_url} --use-wallet` and fund it with enough balance for the registration.")).dim()
-	))?;
+fn prompt_for_proxy_address(
+	skip_registration: bool,
+	relay_chain_url: &str,
+	cli: &mut impl Cli,
+) -> Result<String> {
+	if !skip_registration {
+		cli.info(format!(
+			"Don't have a pure proxy?\n{}",
+			style(format!("Create a proxy account using `pop call chain --pallet Proxy --function create_pure --args \"Any()\" \"0\" \"0\" --url {relay_chain_url} --use-wallet` and fund it with enough balance for the registration.")).dim()
+		))?;
+	}
+	let prompt_message = if skip_registration {
+		"Enter the pure proxy account used for the registration"
+	} else {
+		"Enter your pure proxy account or the account that the proxy will make a call on behalf of"
+	};
 	let address = cli
-	.input("Enter your pure proxy account or the account that the proxy will make a call on behalf of")
+		.input(prompt_message)
 		.placeholder(&format!("e.g {}", PLACEHOLDER_ADDRESS))
 		.validate(|input: &String| match parse_account(input) {
 			Ok(_) => Ok(()),
@@ -546,26 +573,44 @@ mod tests {
 	fn resolve_proxied_address_works() -> Result<()> {
 		let relay_chain_url = "ws://127.0.0.1:9944";
 		let mut cli = MockCli::new()
-			.expect_confirm("Would you like to use a pure proxy for registration? This is considered a best practice.", true)
-			.expect_info(format!(
-				"Don't have a pure proxy?\n{}",
-				style(format!("Create a proxy account using `pop call chain --pallet Proxy --function create_pure --args \"Any()\" \"0\" \"0\" --url {relay_chain_url} --use-wallet` and fund it with enough balance for the registration.")).dim()
-			))
-			.expect_input(
-				"Enter your pure proxy account or the account that the proxy will make a call on behalf of",
-				MOCK_PROXIED_ADDRESS.into(),
-			);
+            .expect_confirm("Would you like to use a pure proxy for registration? This is considered a best practice.", true)
+            .expect_info(format!(
+                "Don't have a pure proxy?\n{}",
+                style(format!("Create a proxy account using `pop call chain --pallet Proxy --function create_pure --args \"Any()\" \"0\" \"0\" --url {relay_chain_url} --use-wallet` and fund it with enough balance for the registration.")).dim()
+            ))
+            .expect_input(
+                "Enter your pure proxy account or the account that the proxy will make a call on behalf of",
+                MOCK_PROXIED_ADDRESS.into(),
+            );
 		let proxied_address =
-			UpCommand::default().resolve_proxied_address(relay_chain_url, &mut cli)?;
+			UpCommand::default().resolve_proxied_address(&None, relay_chain_url, &mut cli)?;
+		assert_eq!(proxied_address, Some(format!("Id({})", MOCK_PROXIED_ADDRESS)));
+		cli.verify()?;
+
+		cli = MockCli::new().expect_info(format!("The provider {} requires registration via a pure proxy for security and best practices.", DeploymentProvider::PDP.name()))
+		.expect_input(
+			"Enter the pure proxy account used for the registration",
+			MOCK_PROXIED_ADDRESS.into(),
+		);
+		let proxied_address = UpCommand { skip_registration: true, ..Default::default() }
+			.resolve_proxied_address(
+				&Some(DeploymentApi::new(
+					"api_test_key".to_string(),
+					DeploymentProvider::PDP,
+					"PASEO".to_string(),
+				)?),
+				relay_chain_url,
+				&mut cli,
+			)?;
 		assert_eq!(proxied_address, Some(format!("Id({})", MOCK_PROXIED_ADDRESS)));
 		cli.verify()?;
 
 		cli = MockCli::new().expect_confirm(
-			"Would you like to use a pure proxy for registration? This is considered a best practice.",
-			false,
-		);
+            "Would you like to use a pure proxy for registration? This is considered a best practice.",
+            false,
+        );
 		let proxied_address =
-			UpCommand::default().resolve_proxied_address(relay_chain_url, &mut cli)?;
+			UpCommand::default().resolve_proxied_address(&None, relay_chain_url, &mut cli)?;
 		assert_eq!(proxied_address, None);
 		cli.verify()?;
 
@@ -574,7 +619,7 @@ mod tests {
 			proxied_address: Some(MOCK_PROXIED_ADDRESS.to_string()),
 			..Default::default()
 		}
-		.resolve_proxied_address(relay_chain_url, &mut cli)?;
+		.resolve_proxied_address(&None, relay_chain_url, &mut cli)?;
 		assert_eq!(proxied_address, Some(format!("Id({})", MOCK_PROXIED_ADDRESS)));
 		cli.verify()
 	}
@@ -609,26 +654,26 @@ mod tests {
 	#[tokio::test]
 	async fn reserve_id_fails_wrong_chain() -> Result<()> {
 		let mut cli = MockCli::new()
-			.expect_intro("Deploy a rollup")
-			.expect_select(
-				"Select your deployment method:",
-				Some(false),
-				true,
-				Some(
-					DeploymentProvider::VARIANTS
-						.into_iter()
-						.map(|action| (action.name().to_string(), action.description().to_string()))
-						.chain(std::iter::once((
-							"Only Register in Relay Chain".to_string(),
-							"Register the parachain in the relay chain without deploying".to_string(),
-						)))
-						.collect::<Vec<_>>(),
-				),
-				DeploymentProvider::VARIANTS.len(), // Only Register in Relay Chain
-				None,
-			)
-			.expect_info(format!("You will need to sign a transaction to reserve an ID on {} using the `Registrar::reserve` function.", Url::parse(POP_NETWORK_TESTNET_URL)?.as_str()))
-			.expect_outro_cancel("Failed to find the pallet Registrar");
+            .expect_intro("Deploy a rollup")
+            .expect_select(
+                "Select your deployment method:",
+                Some(false),
+                true,
+                Some(
+                    DeploymentProvider::VARIANTS
+                        .into_iter()
+                        .map(|action| (action.name().to_string(), action.description().to_string()))
+                        .chain(std::iter::once((
+                            "Only Register in Relay Chain".to_string(),
+                            "Register the parachain in the relay chain without deploying".to_string(),
+                        )))
+                        .collect::<Vec<_>>(),
+                ),
+                DeploymentProvider::VARIANTS.len(), // Only Register in Relay Chain
+                None,
+            )
+            .expect_info(format!("You will need to sign a transaction to reserve an ID on {} using the `Registrar::reserve` function.", Url::parse(POP_NETWORK_TESTNET_URL)?.as_str()))
+            .expect_outro_cancel("Failed to find the pallet Registrar");
 		let (genesis_state, genesis_code) = create_temp_genesis_files()?;
 		UpCommand {
 			id: None,
@@ -648,26 +693,26 @@ mod tests {
 	#[tokio::test]
 	async fn register_fails_wrong_chain() -> Result<()> {
 		let mut cli = MockCli::new()
-			.expect_intro("Deploy a rollup")
-			.expect_select(
-				"Select your deployment method:",
-				Some(false),
-				true,
-				Some(
-					DeploymentProvider::VARIANTS
-						.into_iter()
-						.map(|action| (action.name().to_string(), action.description().to_string()))
-						.chain(std::iter::once((
-							"Only Register in Relay Chain".to_string(),
-							"Register the parachain in the relay chain without deploying".to_string(),
-						)))
-						.collect::<Vec<_>>(),
-				),
-				DeploymentProvider::VARIANTS.len(), // Only Register in Relay Chain
-				None,
-			)
-			.expect_info(format!("You will need to sign a transaction to register on {}, using the `Registrar::register` function.", Url::parse(POP_NETWORK_TESTNET_URL)?.as_str()))
-			.expect_outro_cancel("Failed to find the pallet Registrar");
+            .expect_intro("Deploy a rollup")
+            .expect_select(
+                "Select your deployment method:",
+                Some(false),
+                true,
+                Some(
+                    DeploymentProvider::VARIANTS
+                        .into_iter()
+                        .map(|action| (action.name().to_string(), action.description().to_string()))
+                        .chain(std::iter::once((
+                            "Only Register in Relay Chain".to_string(),
+                            "Register the parachain in the relay chain without deploying".to_string(),
+                        )))
+                        .collect::<Vec<_>>(),
+                ),
+                DeploymentProvider::VARIANTS.len(), // Only Register in Relay Chain
+                None,
+            )
+            .expect_info(format!("You will need to sign a transaction to register on {}, using the `Registrar::register` function.", Url::parse(POP_NETWORK_TESTNET_URL)?.as_str()))
+            .expect_outro_cancel("Failed to find the pallet Registrar");
 		let (genesis_state, genesis_code) = create_temp_genesis_files()?;
 		UpCommand {
 			id: Some(2000),
@@ -747,8 +792,8 @@ mod tests {
 		env::remove_var(test_env_var);
 
 		let mut cli = MockCli::new()
-			.expect_warning(format!("No API key found for the environment variable `{test_env_var}`.\n{}", style(format!("Note: Consider setting this variable in your shell (e.g., `export {test_env_var}=...`) or system environment so you won’t be prompted each time.")).dim()))
-			.expect_password("Enter your API key:", "test_api_key".into());
+            .expect_warning(format!("No API key found for the environment variable `{test_env_var}`.\n{}", style(format!("Note: Consider setting this variable in your shell (e.g., `export {test_env_var}=...`) or system environment so you won’t be prompted each time.")).dim()))
+            .expect_password("Enter your API key:", "test_api_key".into());
 
 		let api_key = prompt_api_key(test_env_var, &mut cli)?;
 		assert_eq!(api_key, "test_api_key");
@@ -793,15 +838,15 @@ mod tests {
 	#[test]
 	fn warn_supported_templates_works() -> Result<()> {
 		let mut cli = MockCli::new()
-			.expect_warning(
-				format!(
-					"Currently Polkadot Deployment Portal only supports the deployment of the following templates: {}.\n",
-					style(format!("{}", Parachain::VARIANTS
-					.iter()
-					.filter_map(|variant| variant.deployment_name().map(|_| format!("{}", variant.name())))
-					.collect::<Vec<String>>().join(", "))).dim()
-				),
-			);
+            .expect_warning(
+                format!(
+                    "Currently Polkadot Deployment Portal only supports the deployment of the following templates: {}.\n",
+                    style(format!("{}", Parachain::VARIANTS
+                    .iter()
+                    .filter_map(|variant| variant.deployment_name().map(|_| format!("{}", variant.name())))
+                    .collect::<Vec<String>>().join(", "))).dim()
+                ),
+            );
 		warn_supported_templates(&DeploymentProvider::PDP, &mut cli)?;
 		cli.verify()
 	}
