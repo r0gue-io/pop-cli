@@ -108,7 +108,7 @@ impl UpCommand {
 
 	// Prepares the chain for deployment by setting up its configuration.
 	fn prepare_for_deployment(&mut self, cli: &mut impl Cli) -> Result<Deployment> {
-		let provider = match prompt_provider(cli)? {
+		let provider = match prompt_provider(self.skip_registration, cli)? {
 			Some(provider) => provider,
 			None => return Ok(Deployment::default()),
 		};
@@ -365,17 +365,22 @@ fn prompt_for_proxy_address(relay_chain_url: &str, cli: &mut impl Cli) -> Result
 }
 
 // Prompts the user the user to select a deployment provider or only register.
-fn prompt_provider(cli: &mut impl Cli) -> Result<Option<DeploymentProvider>> {
+fn prompt_provider(
+	skip_registration: bool,
+	cli: &mut impl Cli,
+) -> Result<Option<DeploymentProvider>> {
 	let mut predefined_action = cli.select("Select your deployment method:");
 	for action in DeploymentProvider::VARIANTS {
 		predefined_action =
 			predefined_action.item(Some(action.clone()), action.name(), action.description());
 	}
-	predefined_action = predefined_action.item(
-		None,
-		"Only Register in Relay Chain",
-		"Register the parachain in the relay chain without deploying",
-	);
+	if !skip_registration {
+		predefined_action = predefined_action.item(
+			None,
+			"Only Register in Relay Chain",
+			"Register the parachain in the relay chain without deploying",
+		);
+	}
 	Ok(predefined_action.interact()?)
 }
 
@@ -499,11 +504,6 @@ mod tests {
 					DeploymentProvider::VARIANTS
 						.into_iter()
 						.map(|action| (action.name().to_string(), action.description().to_string()))
-						.chain(std::iter::once((
-							"Only Register in Relay Chain".to_string(),
-							"Register the parachain in the relay chain without deploying"
-								.to_string(),
-						)))
 						.collect::<Vec<_>>(),
 				),
 				DeploymentProvider::PDP as usize,
@@ -526,7 +526,8 @@ mod tests {
 		// A backup of the existing env variable to restore it at the end of the test.
 		let original_api_key = env::var(POP_API_KEY).ok();
 		env::set_var(POP_API_KEY, "test_api_key");
-		let chain_config = UpCommand::default().prepare_for_deployment(&mut cli)?;
+		let chain_config = UpCommand { skip_registration: true, ..Default::default() }
+			.prepare_for_deployment(&mut cli)?;
 		assert!(!chain_config.api.is_none());
 		let api = chain_config.api.unwrap();
 		assert_eq!(api.api_key, "test_api_key");
