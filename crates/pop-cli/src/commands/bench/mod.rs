@@ -34,7 +34,7 @@ pub enum Command {
 	/// Benchmark the execution overhead per-block and per-extrinsic.
 	#[clap(alias = "o")]
 	Overhead(BenchmarkOverhead),
-	/// Benchmark the extrinsic weight of FRAME Pallets
+	/// Benchmark the extrinsic weight of pallets.
 	#[clap(alias = "p")]
 	Pallet(BenchmarkPallet),
 	/// Benchmark the storage speed of a chain snapshot.
