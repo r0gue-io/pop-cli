@@ -2,7 +2,7 @@
 
 use crate::{
 	cli::{self, Cli},
-	common::{builds::get_project_path, runtime::RuntimeFeature},
+	common::builds::get_project_path,
 };
 use clap::{Args, Subcommand};
 #[cfg(feature = "contract")]

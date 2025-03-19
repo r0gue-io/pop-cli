@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{cli, common::runtime::RuntimeFeature, style::style};
+use crate::{cli, style::style};
 use pop_common::Profile;
 use pop_parachains::build_parachain;
 use std::path::PathBuf;

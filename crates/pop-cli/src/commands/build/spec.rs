@@ -1,20 +1,20 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{
+	cli,
 	cli::{
-		self,
 		traits::{Cli as _, *},
 		Cli,
 	},
-	common::builds::{ensure_node_binary_exists, guide_user_to_select_profile},
 	style::style,
 };
 use clap::{Args, ValueEnum};
 use cliclack::{spinner, ProgressBar};
 use pop_common::{manifest::from_path, Profile};
 use pop_parachains::{
-	export_wasm_file, generate_genesis_state_file, generate_plain_chain_spec,
-	generate_raw_chain_spec, is_supported, Builder, ChainSpec, ContainerEngine,
+	binary_path, build_parachain, export_wasm_file, generate_genesis_state_file,
+	generate_plain_chain_spec, generate_raw_chain_spec, is_supported, Builder, ChainSpec,
+	ContainerEngine,
 };
 use std::{
 	env::current_dir,
@@ -199,9 +199,7 @@ impl BuildSpecCommand {
 		// Checks for appchain project in `./`.
 		if is_supported(None)? {
 			let build_spec = self.configure_build_spec(&mut cli).await?;
-			if let Err(e) = build_spec.build(&mut cli) {
-				cli.outro_cancel(e.to_string())?;
-			}
+			build_spec.build(&mut cli)?;
 		} else {
 			cli.outro_cancel(
 				"🚫 Can't build a specification for target. Maybe not a chain project ?",
@@ -369,7 +367,21 @@ impl BuildSpecCommand {
 			None => {
 				let default = Profile::Release;
 				if prompt && !release {
-					guide_user_to_select_profile(cli)?
+					// Prompt for build profile.
+					let mut prompt = cli
+						.select(
+							"Choose the build profile of the binary that should be used: "
+								.to_string(),
+						)
+						.initial_value(&default);
+					for profile in Profile::VARIANTS {
+						prompt = prompt.item(
+							profile,
+							profile.get_message().unwrap_or(profile.as_ref()),
+							profile.get_detailed_message().unwrap_or_default(),
+						);
+					}
+					prompt.interact()?.clone()
 				} else {
 					default
 				}
@@ -398,7 +410,7 @@ impl BuildSpecCommand {
 		};
 
 		// Prompt for default bootnode if not provided and chain type is Local or Live.
-		let default_bootnode = if !default_bootnode && prompt {
+		let default_bootnode = if !default_bootnode {
 			match chain_type {
 				ChainType::Development => true,
 				_ => cli
@@ -526,7 +538,6 @@ impl BuildSpec {
 		cli: &mut impl cli::traits::Cli,
 	) -> anyhow::Result<(Option<CodePathBuf>, Option<StatePathBuf>)> {
 		cli.intro("Building your chain spec")?;
-		let cwd = current_dir().unwrap_or(PathBuf::from("./"));
 		let mut generated_files = vec![];
 		let BuildSpec {
 			ref output_file,
@@ -539,7 +550,7 @@ impl BuildSpec {
 			..
 		} = self;
 		// Ensure binary is built.
-		let binary_path = ensure_node_binary_exists(cli, &cwd, profile, vec![])?;
+		let binary_path = ensure_binary_exists(cli, profile)?;
 		let spinner = spinner();
 		spinner.start("Generating chain specification...");
 
@@ -658,6 +669,22 @@ impl BuildSpec {
 		chain_spec.update_runtime_code(bytes)?;
 		chain_spec.to_file(&self.output_file)?;
 		Ok(())
+	}
+}
+
+// Locate binary, if it doesn't exist trigger build.
+fn ensure_binary_exists(
+	cli: &mut impl cli::traits::Cli,
+	mode: &Profile,
+) -> anyhow::Result<PathBuf> {
+	let cwd = current_dir().unwrap_or(PathBuf::from("./"));
+	match binary_path(&mode.target_directory(&cwd), &cwd.join("node")) {
+		Ok(binary_path) => Ok(binary_path),
+		_ => {
+			cli.info("Node was not found. The project will be built locally.".to_string())?;
+			cli.warning("NOTE: this may take some time...")?;
+			build_parachain(&cwd, None, mode, None, vec![]).map_err(|e| e.into())
+		},
 	}
 }
 
@@ -915,39 +942,9 @@ mod tests {
 						).expect_input("Enter the directory path where the runtime is located:", runtime_dir.display().to_string())
 						.expect_input("Enter the runtime package name:", package.to_string());
 					}
-				} else if !changes && no_flags_used {
-					if !build_spec_cmd.genesis_state {
-						cli = cli.expect_confirm(
-							"Should the genesis state file be generated ?",
-							genesis_state,
-						);
-					}
-					if !build_spec_cmd.genesis_code {
-						cli = cli.expect_confirm(
-							"Should the genesis code file be generated ?",
-							genesis_code,
-						);
-					}
-					if !build_spec_cmd.deterministic {
-						cli = cli.expect_confirm(
-							"Would you like to build the runtime deterministically? This requires a containerization solution (Docker/Podman) and is recommended for production builds.",
-							deterministic,
-						).expect_input("Enter the directory path where the runtime is located:", runtime_dir.display().to_string())
-						.expect_input("Enter the runtime package name:", package.to_string());
-					}
 				}
 				let build_spec = build_spec_cmd.configure_build_spec(&mut cli).await?;
-				if !changes && no_flags_used {
-					assert_eq!(build_spec.id, 2000);
-					assert_eq!(build_spec.chain_type, Development);
-					assert_eq!(build_spec.relay, PaseoLocal);
-					assert_eq!(build_spec.protocol_id, "my-protocol");
-					assert_eq!(build_spec.genesis_state, genesis_state);
-					assert_eq!(build_spec.genesis_code, genesis_code);
-					assert_eq!(build_spec.deterministic, deterministic);
-					assert_eq!(build_spec.package, package);
-					assert_eq!(build_spec.runtime_dir, runtime_dir);
-				} else if changes && no_flags_used {
+				if changes && no_flags_used {
 					assert_eq!(build_spec.id, para_id);
 					assert_eq!(build_spec.profile, profile);
 					assert_eq!(build_spec.default_bootnode, default_bootnode);
