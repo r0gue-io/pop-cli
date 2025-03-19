@@ -170,12 +170,13 @@ mod tests {
 					.into_iter()
 					.map(|action| (action.name().to_string(), action.description().to_string()))
 					.chain(std::iter::once((
-						"Only Register in Relay Chain".to_string(),
-						"Register the parachain in the relay chain without deploying".to_string(),
+						"Register".to_string(),
+						"Register the rollup on the relay chain without deploying with a provider"
+							.to_string(),
 					)))
 					.collect::<Vec<_>>(),
 			),
-			DeploymentProvider::VARIANTS.len(), // Only Register in Relay Chain
+			DeploymentProvider::VARIANTS.len(), // Register
 			None,
 		);
 		assert_eq!(Command::execute_project_deployment(args, &mut cli).await?, "parachain");
