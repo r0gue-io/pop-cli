@@ -36,6 +36,7 @@ use tempfile::tempdir;
 
 const ALL_SELECTED: &str = "*";
 const DEFAULT_BENCH_FILE: &str = "pop-bench.toml";
+const ARGUMENT_NO_VALUE: &str = "None";
 
 #[derive(Args, Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
 pub(crate) struct BenchmarkPallet {
@@ -736,7 +737,7 @@ impl BenchmarkPalletMenuOption {
 			Extrinsics => self.get_joined_string(cmd.extrinsic()?),
 			ExcludedPallets =>
 				if cmd.exclude_pallets.is_empty() {
-					"None".to_string()
+					ARGUMENT_NO_VALUE.to_string()
 				} else {
 					cmd.exclude_pallets.join(",")
 				},
@@ -755,9 +756,9 @@ impl BenchmarkPalletMenuOption {
 			NoStorageInfo => cmd.no_storage_info.to_string(),
 			WeightFileTemplate =>
 				if let Some(ref template) = cmd.template {
-					get_relative_path(&template)
+					get_relative_path(template)
 				} else {
-					String::default()
+					ARGUMENT_NO_VALUE.to_string()
 				},
 			SaveAndContinue => String::default(),
 		})
@@ -884,7 +885,7 @@ impl BenchmarkPalletMenuOption {
 
 	fn get_range_values<T: ToString>(self, range_values: &[T]) -> String {
 		if range_values.is_empty() {
-			return "None".to_string();
+			return ARGUMENT_NO_VALUE.to_string();
 		}
 		range_values.iter().map(ToString::to_string).collect::<Vec<_>>().join(",")
 	}
@@ -1590,14 +1591,14 @@ mod tests {
 		[
 			(Pallets, "All selected"),
 			(Extrinsics, "All selected"),
-			(ExcludedPallets, "None"),
+			(ExcludedPallets, ARGUMENT_NO_VALUE),
 			(Runtime, get_mock_runtime(false).to_str().unwrap()),
 			(GenesisBuilder, &GenesisBuilderPolicy::Runtime.to_string()),
 			(GenesisBuilderPreset, "development"),
 			(Steps, "50"),
 			(Repeat, "20"),
-			(High, "None"),
-			(Low, "None"),
+			(High, ARGUMENT_NO_VALUE),
+			(Low, ARGUMENT_NO_VALUE),
 			(MapSize, "1000000"),
 			(DatabaseCacheSize, "1024"),
 			(AdditionalTrieLayer, "2"),
