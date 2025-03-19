@@ -1605,7 +1605,7 @@ mod tests {
 			(NoMedianSlope, "false"),
 			(NoMinSquare, "false"),
 			(NoStorageInfo, "false"),
-			(WeightFileTemplate, ""),
+			(WeightFileTemplate, ARGUMENT_NO_VALUE),
 		]
 		.into_iter()
 		.for_each(|(option, value)| {
