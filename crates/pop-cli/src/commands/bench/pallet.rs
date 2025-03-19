@@ -353,7 +353,7 @@ impl BenchmarkPallet {
 
 		// Prompt user to save benchmarking parameters to output file if there are changes made.
 		if let Some(bench_file) =
-			guide_user_to_update_bench_file_path(self, cli, original_cmd != self.clone())?
+			guide_user_to_update_bench_file_path(self, cli, self != &original_cmd)?
 		{
 			let toml_output = toml::to_string(&VersionedBenchmarkPallet::from(self.clone()))?;
 			fs::write(&bench_file, toml_output)?;
@@ -876,7 +876,7 @@ impl TryFrom<&Path> for VersionedBenchmarkPallet {
 	type Error = anyhow::Error;
 
 	fn try_from(bench_file: &Path) -> anyhow::Result<Self> {
-		if !bench_file.exists() || bench_file.is_dir() {
+		if !bench_file.is_file() {
 			return Err(anyhow::anyhow!(format!(
 				"Provided invalid benchmarking parameter file: {:?}",
 				bench_file.display()
