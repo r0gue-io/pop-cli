@@ -11,7 +11,7 @@ pub enum Error {
 	#[error("Anyhow error: {0}")]
 	AnyhowError(#[from] anyhow::Error),
 	/// An error occurred while generating the chain specification.
-	#[error("Failed to build the chain spec: {0}")]
+	#[error("Failed to build the chain spec. {0}")]
 	BuildSpecError(String),
 	/// An error occurred while decoding the call data.
 	#[error("Failed to decode call data. {0}")]
