@@ -200,7 +200,7 @@ impl BuildSpecCommand {
 		if is_supported(None)? {
 			let build_spec = self.configure_build_spec(&mut cli).await?;
 			if let Err(e) = build_spec.build(&mut cli) {
-				cli.outro_cancel(&format!("{}", e))?;
+				cli.outro_cancel(e.to_string())?;
 			}
 		} else {
 			cli.outro_cancel(
