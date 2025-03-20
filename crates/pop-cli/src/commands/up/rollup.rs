@@ -501,30 +501,6 @@ mod tests {
 
 	#[tokio::test]
 	async fn prepare_for_deployment_works() -> Result<()> {
-		let mut cli = MockCli::new().expect_select(
-			"Select your deployment method:",
-			Some(false),
-			true,
-			Some(
-				DeploymentProvider::VARIANTS
-					.into_iter()
-					.map(|action| (action.name().to_string(), action.description().to_string()))
-					.chain(std::iter::once((
-						"Register".to_string(),
-						"Register the rollup on the relay chain without deploying with a provider"
-							.to_string(),
-					)))
-					.collect::<Vec<_>>(),
-			),
-			DeploymentProvider::VARIANTS.len(), // Register
-			None,
-		);
-		let chain_config = UpCommand::default().prepare_for_deployment(&mut cli)?;
-
-		assert!(chain_config.api.is_none());
-		assert!(chain_config.collator_file_id.is_none());
-		cli.verify()?;
-
 		let mut cli = MockCli::new()
 			.expect_select(
 				"Select your deployment method:",
@@ -569,6 +545,33 @@ mod tests {
 		} else {
 			env::remove_var("POP_API_KEY");
 		}
+		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn prepare_for_deployment_only_register_works() -> Result<()> {
+		let mut cli = MockCli::new().expect_select(
+			"Select your deployment method:",
+			Some(false),
+			true,
+			Some(
+				DeploymentProvider::VARIANTS
+					.into_iter()
+					.map(|action| (action.name().to_string(), action.description().to_string()))
+					.chain(std::iter::once((
+						"Register".to_string(),
+						"Register the rollup on the relay chain without deploying with a provider"
+							.to_string(),
+					)))
+					.collect::<Vec<_>>(),
+			),
+			DeploymentProvider::VARIANTS.len(), // Register
+			None,
+		);
+		let chain_config = UpCommand::default().prepare_for_deployment(&mut cli)?;
+
+		assert!(chain_config.api.is_none());
+		assert!(chain_config.collator_file_id.is_none());
 		cli.verify()
 	}
 
