@@ -97,7 +97,16 @@ pub fn generate_plain_chain_spec(
 	// Create a temporary file.
 	let temp_file = tempfile::NamedTempFile::new_in(std::env::temp_dir())?;
 	// Run the command and redirect output to the temporary file.
-	cmd(binary_path, args).stdout_path(temp_file.path()).stderr_null().run()?;
+	let output = cmd(binary_path, args)
+		.stdout_path(temp_file.path())
+		.stderr_capture()
+		.unchecked()
+		.run()?;
+	// Check if the command failed.
+	if !output.status.success() {
+		let stderr_msg = String::from_utf8_lossy(&output.stderr);
+		return Err(Error::BuildSpecError(stderr_msg.to_string()));
+	};
 	// Atomically replace the chain spec file with the temporary file.
 	temp_file.persist(plain_chain_spec).map_err(|e| {
 		AnyhowError(anyhow!(
@@ -554,6 +563,26 @@ mod tests {
 		let genesis_file =
 			generate_genesis_state_file(&binary_path, &raw_chain_spec, "para-2001-genesis-state")?;
 		assert!(genesis_file.exists());
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn fails_to_generate_plain_chain_spec_when_file_missing() -> Result<()> {
+		let temp_dir =
+			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
+		mock_build_process(temp_dir.path())?;
+		let binary_name = fetch_binary(temp_dir.path()).await?;
+		let binary_path = replace_mock_with_binary(temp_dir.path(), binary_name)?;
+		assert!(matches!(
+			generate_plain_chain_spec(
+				&binary_path,
+				&temp_dir.path().join("plain-parachain-chainspec.json"),
+				false,
+				&temp_dir.path().join("plain-parachain-chainspec.json").display().to_string(),
+			),
+			Err(Error::BuildSpecError(message)) if message.contains("No such file or directory")
+		));
+		assert!(!temp_dir.path().join("plain-parachain-chainspec.json").exists());
 		Ok(())
 	}
 
