@@ -48,7 +48,15 @@ pub(crate) struct BuildArgs {
 	/// Build profile [default: debug].
 	#[clap(long, value_enum)]
 	pub(crate) profile: Option<Profile>,
-	/// List of features that project is built with.
+	/// List of features that project is built with, separated by commas.
+	///
+	/// Common features:
+	///
+	/// - `runtime-benchmarks`: For benchmarking, the parachain project must be built with this
+	///   feature.
+	///
+	/// - `try-runtime`: For testing runtime upgrades, the parachain project must be built with
+	///   this feature.
 	#[clap(short, long)]
 	pub(crate) features: Option<String>,
 }
