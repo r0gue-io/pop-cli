@@ -20,6 +20,13 @@ pub(crate) mod parachain;
 #[cfg(feature = "parachain")]
 pub(crate) mod spec;
 
+const PACKAGE: &str = "package";
+const PARACHAIN: &str = "parachain";
+const PROJECT: &str = "project";
+// Features.
+const RUNTIME_BENCHMARKS_FEATURE: &str = "runtime-benchmarks";
+const TRY_RUNTIME_FEATURE: &str = "try-runtime";
+
 /// Arguments for building a project.
 #[derive(Args)]
 #[command(args_conflicts_with_subcommands = true)]
@@ -41,9 +48,9 @@ pub(crate) struct BuildArgs {
 	/// Build profile [default: debug].
 	#[clap(long, value_enum)]
 	pub(crate) profile: Option<Profile>,
-	/// For benchmarking, always build with `runtime-benchmarks` feature.
+	/// List of features that project is built with.
 	#[clap(short, long)]
-	pub(crate) benchmark: bool,
+	pub(crate) features: String,
 }
 
 /// Subcommand for building chain artifacts.
@@ -80,11 +87,13 @@ impl Command {
 				None => args.release.into(),
 			};
 			let temp_path = PathBuf::from("./");
+			let features: Vec<&str> = args.features.split(",").collect();
 			BuildParachain {
 				path: project_path.unwrap_or(temp_path).to_path_buf(),
 				package: args.package,
 				profile,
-				benchmark: args.benchmark,
+				benchmark: features.contains(&RUNTIME_BENCHMARKS_FEATURE),
+				try_runtime: features.contains(&TRY_RUNTIME_FEATURE),
 			}
 			.execute()?;
 			return Ok("parachain");
@@ -101,7 +110,7 @@ impl Command {
 	/// * `package` - A specific package to be built.
 	/// * `release` - Whether the release profile is to be used.
 	fn build(args: BuildArgs, cli: &mut impl cli::traits::Cli) -> anyhow::Result<&'static str> {
-		let project = if args.package.is_some() { "package" } else { "project" };
+		let project = if args.package.is_some() { PACKAGE } else { PROJECT };
 		cli.intro(format!("Building your {project}"))?;
 
 		let mut _args = vec!["build"];
@@ -115,13 +124,21 @@ impl Command {
 		} else if profile == Profile::Production {
 			_args.push("--profile=production");
 		}
-		if args.benchmark {
-			_args.push("--features=runtime-benchmarks");
+		let features = format!("--features={}", args.features);
+		if !args.features.is_empty() {
+			_args.push(&features);
 		}
 
 		cmd("cargo", _args).dir(args.path.unwrap_or_else(|| "./".into())).run()?;
 
-		cli.info(format!("The {project} was built in {} mode.", profile))?;
+		if args.features.is_empty() {
+			cli.info(format!("The {project} was built in {profile} mode."))?;
+		} else {
+			cli.info(format!(
+				"The {project} was built in {profile} with the following features: {}",
+				args.features
+			))?;
+		}
 		cli.outro("Build completed successfully!")?;
 		Ok(project)
 	}
@@ -140,41 +157,74 @@ mod tests {
 		let temp_dir = tempfile::tempdir()?;
 		let path = temp_dir.path();
 		let project_path = path.join(name);
+		let features = &[RUNTIME_BENCHMARKS_FEATURE, TRY_RUNTIME_FEATURE];
 		cmd("cargo", ["new", name, "--bin"]).dir(&path).run()?;
 		add_production_profile(&project_path)?;
-		add_feature(&project_path, ("runtime-benchmarks".to_string(), vec![]))?;
+		for feature in features {
+			add_feature(&project_path, (feature.to_string(), vec![]))?;
+		}
 
 		for package in [None, Some(name.to_string())] {
 			for release in [true, false] {
 				for profile in Profile::VARIANTS {
-					for benchmark in [true, false] {
-						let profile = if release { Profile::Release } else { profile.clone() };
-						let project = if package.is_some() { "package" } else { "project" };
-						let mut cli = MockCli::new()
-							.expect_intro(format!("Building your {project}"))
-							.expect_info(format!("The {project} was built in {profile} mode."))
-							.expect_outro("Build completed successfully!");
+					let profile = if release { Profile::Release } else { profile.clone() };
 
-						assert_eq!(
-							Command::build(
-								BuildArgs {
-									command: None,
-									path: Some(project_path.clone()),
-									path_pos: Some(project_path.clone()),
-									package: package.clone(),
-									release,
-									profile: Some(profile.clone()),
-									benchmark
-								},
-								&mut cli,
-							)?,
-							project
-						);
-						cli.verify()?;
-					}
+					// Build without features.
+					test_build(package.clone(), &project_path, &profile, release, &[])?;
+
+					// Build with one feature.
+					test_build(
+						package.clone(),
+						&project_path,
+						&profile,
+						release,
+						&[RUNTIME_BENCHMARKS_FEATURE],
+					)?;
+
+					// Build with multiple features.
+					test_build(package.clone(), &project_path, &profile, release, features)?;
 				}
 			}
 		}
 		Ok(())
+	}
+
+	fn test_build(
+		package: Option<String>,
+		project_path: &PathBuf,
+		profile: &Profile,
+		release: bool,
+		features: &[&str],
+	) -> anyhow::Result<()> {
+		let project = if package.is_some() { PACKAGE } else { PROJECT };
+		let mut cli = MockCli::new().expect_intro(format!("Building your {project}"));
+
+		cli = if features.is_empty() {
+			cli.expect_info(format!("The {project} was built in {profile} mode."))
+		} else {
+			cli.expect_info(format!(
+				"The {project} was built in {profile} with the following features: {}",
+				features.join(",")
+			))
+		};
+
+		cli = cli.expect_outro("Build completed successfully!");
+
+		assert_eq!(
+			Command::build(
+				BuildArgs {
+					command: None,
+					path: Some(project_path.clone()),
+					path_pos: Some(project_path.clone()),
+					package: package.clone(),
+					release,
+					profile: Some(profile.clone()),
+					features: features.join(",")
+				},
+				&mut cli,
+			)?,
+			project
+		);
+		cli.verify()
 	}
 }
