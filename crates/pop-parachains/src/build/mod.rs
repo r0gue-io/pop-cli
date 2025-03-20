@@ -103,10 +103,7 @@ pub fn generate_plain_chain_spec(
 		.unchecked()
 		.run()?;
 	// Check if the command failed.
-	if !output.status.success() {
-		let stderr_msg = String::from_utf8_lossy(&output.stderr);
-		return Err(Error::BuildSpecError(stderr_msg.to_string()));
-	};
+	handle_command_error(&output)?;
 	// Atomically replace the chain spec file with the temporary file.
 	temp_file.persist(plain_chain_spec).map_err(|e| {
 		AnyhowError(anyhow!(
@@ -133,7 +130,7 @@ pub fn generate_raw_chain_spec(
 	}
 	check_command_exists(binary_path, "build-spec")?;
 	let raw_chain_spec = plain_chain_spec.with_file_name(chain_spec_file_name);
-	cmd(
+	let output = cmd(
 		binary_path,
 		vec![
 			"build-spec",
@@ -143,9 +140,11 @@ pub fn generate_raw_chain_spec(
 			"--raw",
 		],
 	)
-	.stderr_null()
 	.stdout_path(&raw_chain_spec)
+	.stderr_capture()
+	.unchecked()
 	.run()?;
+	handle_command_error(&output)?;
 	Ok(raw_chain_spec)
 }
 
@@ -166,7 +165,7 @@ pub fn export_wasm_file(
 	}
 	check_command_exists(binary_path, "export-genesis-wasm")?;
 	let wasm_file = chain_spec.parent().unwrap_or(Path::new("./")).join(wasm_file_name);
-	cmd(
+	let output = cmd(
 		binary_path,
 		vec![
 			"export-genesis-wasm",
@@ -176,8 +175,10 @@ pub fn export_wasm_file(
 		],
 	)
 	.stdout_null()
-	.stderr_null()
+	.stderr_capture()
+	.unchecked()
 	.run()?;
+	handle_command_error(&output)?;
 	Ok(wasm_file)
 }
 
@@ -198,7 +199,7 @@ pub fn generate_genesis_state_file(
 	}
 	check_command_exists(binary_path, "export-genesis-state")?;
 	let genesis_file = chain_spec.parent().unwrap_or(Path::new("./")).join(genesis_file_name);
-	cmd(
+	let output = cmd(
 		binary_path,
 		vec![
 			"export-genesis-state",
@@ -208,8 +209,10 @@ pub fn generate_genesis_state_file(
 		],
 	)
 	.stdout_null()
-	.stderr_null()
+	.stderr_capture()
+	.unchecked()
 	.run()?;
+	handle_command_error(&output)?;
 	Ok(genesis_file)
 }
 
@@ -221,6 +224,15 @@ fn check_command_exists(binary_path: &Path, command: &str) -> Result<(), Error> 
 			binary: binary_path.display().to_string(),
 		}
 	})?;
+	Ok(())
+}
+
+// Handles command execution errors by extracting and returning the stderr message.
+fn handle_command_error(output: &std::process::Output) -> Result<(), Error> {
+	if !output.status.success() {
+		let stderr_msg = String::from_utf8_lossy(&output.stderr);
+		return Err(Error::BuildSpecError(stderr_msg.to_string()));
+	}
 	Ok(())
 }
 
@@ -370,7 +382,13 @@ mod tests {
 	use anyhow::Result;
 	use pop_common::{manifest::Dependency, set_executable_permission};
 	use sp_core::bytes::from_hex;
-	use std::{fs, fs::write, io::Write, path::Path};
+	use std::{
+		fs::{self, write},
+		io::Write,
+		os::unix::process::ExitStatusExt,
+		path::Path,
+		process::{ExitStatus, Output},
+	};
 	use strum::VariantArray;
 	use tempfile::{tempdir, Builder, TempDir};
 
@@ -898,6 +916,21 @@ mod tests {
 		let manifest = toml_edit::ser::to_string_pretty(&manifest)?;
 		write(path.join(name).join("Cargo.toml"), manifest)?;
 		assert!(is_supported(Some(&path.join(name)))?);
+		Ok(())
+	}
+
+	#[test]
+	fn handle_command_error_failure() -> Result<()> {
+		let output = Output {
+			status: ExitStatus::from_raw(1),
+			stdout: Vec::new(),
+			stderr: Vec::from("Error message".as_bytes()),
+		};
+		assert!(matches!(
+			handle_command_error(&output),
+			Err(Error::BuildSpecError(message))
+			if message == "Error message"
+		));
 		Ok(())
 	}
 }
