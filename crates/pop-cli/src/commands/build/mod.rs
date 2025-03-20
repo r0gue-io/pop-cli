@@ -50,7 +50,7 @@ pub(crate) struct BuildArgs {
 	pub(crate) profile: Option<Profile>,
 	/// List of features that project is built with.
 	#[clap(short, long)]
-	pub(crate) features: String,
+	pub(crate) features: Option<String>,
 }
 
 /// Subcommand for building chain artifacts.
@@ -87,13 +87,14 @@ impl Command {
 				None => args.release.into(),
 			};
 			let temp_path = PathBuf::from("./");
-			let features: Vec<&str> = args.features.split(",").collect();
+			let features = args.features.unwrap_or_default();
+			let feature_list: Vec<&str> = features.split(",").collect();
 			BuildParachain {
 				path: project_path.unwrap_or(temp_path).to_path_buf(),
 				package: args.package,
 				profile,
-				benchmark: features.contains(&RUNTIME_BENCHMARKS_FEATURE),
-				try_runtime: features.contains(&TRY_RUNTIME_FEATURE),
+				benchmark: feature_list.contains(&RUNTIME_BENCHMARKS_FEATURE),
+				try_runtime: feature_list.contains(&TRY_RUNTIME_FEATURE),
 			}
 			.execute()?;
 			return Ok("parachain");
@@ -124,19 +125,19 @@ impl Command {
 		} else if profile == Profile::Production {
 			_args.push("--profile=production");
 		}
-		let features = format!("--features={}", args.features);
-		if !args.features.is_empty() {
+		let features = format!("--features={}", args.features.unwrap_or_default());
+		if !features.is_empty() {
 			_args.push(&features);
 		}
 
 		cmd("cargo", _args).dir(args.path.unwrap_or_else(|| "./".into())).run()?;
 
-		if args.features.is_empty() {
+		if features.is_empty() {
 			cli.info(format!("The {project} was built in {profile} mode."))?;
 		} else {
 			cli.info(format!(
 				"The {project} was built in {profile} with the following features: {}",
-				args.features
+				features
 			))?;
 		}
 		cli.outro("Build completed successfully!")?;
@@ -219,7 +220,7 @@ mod tests {
 					package: package.clone(),
 					release,
 					profile: Some(profile.clone()),
-					features: features.join(",")
+					features: Some(features.join(","))
 				},
 				&mut cli,
 			)?,
