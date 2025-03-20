@@ -89,8 +89,8 @@ impl UpCommand {
 				))?,
 				Err(e) => {
 					cli.outro_cancel(format!("{}\n{}", e, style(format!(
-						"Retry registration without reserve  or rebuilding the chain specs using: {}", style(format!("`pop up --id {} --chain-spec {} --skip-registration`",
-						config.id, config.genesis_artifacts.chain_spec.display())).bold()
+						"Retry registration without reserve or rebuilding the chain specs using: {}", style(format!("`pop up --id {}{} --skip-registration`",
+						config.id, if config.genesis_artifacts.chain_spec.display().to_string().is_empty() { "".to_string() } else { format!(" --chain-spec {}", config.genesis_artifacts.chain_spec.display())})).bold()
 					)).black()
 					))?;
 					return Ok(());
@@ -540,7 +540,7 @@ mod tests {
 				None,
 			)
 			.expect_select(
-				"Select a Relay Chain",
+				"Select a Relay Chain:",
 				Some(false),
 				true,
 				Some(
@@ -715,7 +715,10 @@ mod tests {
                 None,
             )
             .expect_info(format!("You will need to sign a transaction to register on {}, using the `Registrar::register` function.", Url::parse(POP_NETWORK_TESTNET_URL)?.as_str()))
-            .expect_outro_cancel("Failed to find the pallet Registrar");
+            .expect_outro_cancel(format!("Failed to find the pallet Registrar\n{}", style(format!(
+				"Retry registration without reserve or rebuilding the chain specs using: {}", style("`pop up --id 2000 --skip-registration`").bold()
+			)).black()
+			));
 		let (genesis_state, genesis_code) = create_temp_genesis_files()?;
 		UpCommand {
 			id: Some(2000),
@@ -828,16 +831,20 @@ mod tests {
 
 	#[test]
 	fn warn_supported_templates_works() -> Result<()> {
-		let mut cli = MockCli::new()
-            .expect_warning(
-                format!(
-                    "Currently Polkadot Deployment Portal only supports the deployment of the following templates: {}.\n",
-                    style(format!("{}", Parachain::VARIANTS
-                    .iter()
-                    .filter_map(|variant| variant.deployment_name().map(|_| format!("{}", variant.name())))
-                    .collect::<Vec<String>>().join(", "))).dim()
-                ),
-            );
+		let mut cli = MockCli::new().expect_warning(format!(
+			"Currently Polkadot Deployment Portal only supports the following templates: {}.\n",
+			style(format!(
+				"{}",
+				Parachain::VARIANTS
+					.iter()
+					.filter_map(|variant| variant
+						.deployment_name()
+						.map(|_| format!("{}", variant.name())))
+					.collect::<Vec<String>>()
+					.join(", ")
+			))
+			.dim()
+		));
 		warn_supported_templates(&DeploymentProvider::PDP, &mut cli)?;
 		cli.verify()
 	}
