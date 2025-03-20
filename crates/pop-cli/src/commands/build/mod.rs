@@ -133,9 +133,10 @@ impl Command {
 		} else if profile == Profile::Production {
 			_args.push("--profile=production");
 		}
-		let features = format!("--features={}", args.features.unwrap_or_default());
+		let features = args.features.unwrap_or_default();
+		let feature_arg = format!("--features={}", features);
 		if !features.is_empty() {
-			_args.push(&features);
+			_args.push(&feature_arg);
 		}
 
 		cmd("cargo", _args).dir(args.path.unwrap_or_else(|| "./".into())).run()?;
