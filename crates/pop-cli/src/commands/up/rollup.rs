@@ -13,7 +13,7 @@ use crate::{
 	deployment_api::{DeployRequest, DeployResponse, DeploymentApi},
 	style::style,
 };
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use clap::Args;
 use pop_common::{parse_account, templates::Template};
 use pop_parachains::{
@@ -87,11 +87,22 @@ impl UpCommand {
 					))
 					.dim()
 				))?,
-				Err(e) => cli.outro_cancel(e.to_string())?,
+				Err(e) => {
+					cli.outro_cancel(format!("{}\n{}", e, style(format!(
+						"Retry registration without reserve  or rebuilding the chain specs using: {}", style(format!("`pop up --id {} --chain-spec {} --skip-registration`",
+						config.id, config.genesis_artifacts.chain_spec.display())).bold()
+					)).black()
+					))?;
+					return Ok(());
+				},
 			}
 		}
+		// If no API is provided, there's no need to deploy.
+		if deployment.api.is_none() {
+			return Ok(());
+		}
 		match deployment.deploy(&config, cli).await {
-			Ok(Some(result)) => cli.success(format!(
+			Ok(result) => cli.success(format!(
 				"Deployment successful\n   {}\n   {}",
 				style(format!("{} Status: {}", console::Emoji("●", ">"), result.status)).dim(),
 				style(format!(
@@ -100,8 +111,13 @@ impl UpCommand {
 					style(result.message).magenta().underlined()
 				))
 			))?,
-			Ok(None) => {},
-			Err(e) => cli.outro_cancel(format!("{}", e))?,
+			Err(e) => {
+				cli.outro_cancel(format!("{}\n{}", e, style(format!(
+					"Retry deployment without registration or rebuilding the chain specs using: {}", style(format!("`pop up --id {} --chain-spec {} --skip-registration`",
+					config.id, config.genesis_artifacts.chain_spec.display())).bold()
+				))
+				.black()))?;
+			},
 		}
 		Ok(())
 	}
@@ -213,17 +229,14 @@ struct Deployment {
 }
 impl Deployment {
 	// Executes the deployment process.
-	async fn deploy(
-		&self,
-		config: &Registration,
-		cli: &mut impl Cli,
-	) -> Result<Option<DeployResponse>> {
-		let Some(api) = &self.api else {
-			return Ok(None);
-		};
-		let Some(collator_file_id) = &self.collator_file_id else {
-			return Err(anyhow::anyhow!("No collator_file_id was found"));
-		};
+	async fn deploy(&self, config: &Registration, cli: &mut impl Cli) -> Result<DeployResponse> {
+		let api = self.api.as_ref().ok_or_else(|| {
+			anyhow::anyhow!("Missing deployment provider. Ensure a valid provider is selected.")
+		})?;
+		let collator_file_id = self
+			.collator_file_id
+			.as_ref()
+			.ok_or_else(|| anyhow::anyhow!("No collator_file_id was found."))?;
 		let mut request = DeployRequest::new(
 			collator_file_id.to_string(),
 			&config.genesis_artifacts,
@@ -234,8 +247,7 @@ impl Deployment {
 			request.runtime_template = Some(template_name.to_string());
 		}
 		cli.info(format!("Starting deployment with {}", api.provider.name()))?;
-		let result = api.deploy(config.id, request).await?;
-		Ok(Some(result))
+		api.deploy(config.id, request).await
 	}
 }
 
