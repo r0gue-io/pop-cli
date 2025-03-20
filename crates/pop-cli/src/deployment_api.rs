@@ -357,8 +357,8 @@ mod tests {
 		)?;
 		let request = DeployRequest::new(
 			"1".to_string(),
-			mock_genesis_artifacts(&temp_dir)?,
-			Some("Id(13czcAAt6xgLwZ8k6ZpkrRL5V2pjKEui3v9gHAN9PoxYZDbf)".to_string()),
+			&mock_genesis_artifacts(&temp_dir)?,
+			Some("Id(13czcAAt6xgLwZ8k6ZpkrRL5V2pjKEui3v9gHAN9PoxYZDbf)"),
 		)?;
 		let result = api.deploy(2000, request).await?;
 		assert_eq!(result.status, "success");
@@ -383,8 +383,8 @@ mod tests {
 		)?;
 		let request = DeployRequest::new(
 			"1".to_string(),
-			mock_genesis_artifacts(&temp_dir)?,
-			Some("Id(13czcAAt6xgLwZ8k6ZpkrRL5V2pjKEui3v9gHAN9PoxYZDbf)".to_string()),
+			&mock_genesis_artifacts(&temp_dir)?,
+			Some("Id(13czcAAt6xgLwZ8k6ZpkrRL5V2pjKEui3v9gHAN9PoxYZDbf)"),
 		)?;
 		assert!(
 			matches!(api.deploy(2000, request).await, anyhow::Result::Err(message) if message.to_string() == "Deployment failed with status 400 Bad Request: ParaId in chainspec (undefined) doesn't match the provided paraId - 2000")
@@ -399,8 +399,8 @@ mod tests {
 		let genesis_artifacts = mock_genesis_artifacts(&temp_dir)?;
 		let request = DeployRequest::new(
 			"1".to_string(),
-			genesis_artifacts.clone(),
-			Some("Id(13czcAAt6xgLwZ8k6ZpkrRL5V2pjKEui3v9gHAN9PoxYZDbf)".to_string()),
+			&genesis_artifacts,
+			Some("Id(13czcAAt6xgLwZ8k6ZpkrRL5V2pjKEui3v9gHAN9PoxYZDbf)"),
 		)?;
 
 		assert_eq!(request.name, "Development");
