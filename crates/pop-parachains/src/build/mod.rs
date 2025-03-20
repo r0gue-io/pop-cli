@@ -678,6 +678,7 @@ mod tests {
 
 	#[test]
 	fn get_chain_name_works() -> Result<()> {
+		assert_eq!(ChainSpec(json!({})).get_name(), None);
 		let chain_spec = ChainSpec(json!({
 			"name": "test",
 		}));
@@ -696,6 +697,7 @@ mod tests {
 
 	#[test]
 	fn get_property_based_on_works() -> Result<()> {
+		assert_eq!(ChainSpec(json!({})).get_property_based_on(), None);
 		let chain_spec = ChainSpec(json!({
 			"properties": {
 				"basedOn": "test",
@@ -725,6 +727,7 @@ mod tests {
 
 	#[test]
 	fn get_sudo_key_works() -> Result<()> {
+		assert_eq!(ChainSpec(json!({})).get_sudo_key(), None);
 		let chain_spec = ChainSpec(json!({
 			"para_id": 1000,
 			"genesis": {
