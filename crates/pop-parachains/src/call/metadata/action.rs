@@ -67,6 +67,14 @@ pub enum Action {
 		props(Pallet = "OnDemand")
 	)]
 	PurchaseOnDemandCoretime,
+	/// Create a pure proxy.
+	#[strum(
+		serialize = "create_pure",
+		message = "create_pure",
+		detailed_message = "Create a pure proxy",
+		props(Pallet = "Proxy")
+	)]
+	PureProxy,
 	/// Reserve a parachain ID.
 	#[strum(
 		serialize = "reserve",
@@ -142,6 +150,7 @@ mod tests {
 			(CreateCollection, "Create a NFT collection"),
 			(MintNFT, "Mint a NFT"),
 			(PurchaseOnDemandCoretime, "Purchase on-demand coretime"),
+			(PureProxy, "Create a pure proxy"),
 			(Transfer, "Transfer balance"),
 			(Register, "Register a parachain ID with genesis state and code"),
 			(Reserve, "Reserve a parachain ID"),
@@ -161,6 +170,7 @@ mod tests {
 			(CreateCollection, "Nfts"),
 			(MintNFT, "Nfts"),
 			(PurchaseOnDemandCoretime, "OnDemand"),
+			(PureProxy, "Proxy"),
 			(Transfer, "Balances"),
 			(Register, "Registrar"),
 			(Reserve, "Registrar"),
@@ -180,6 +190,7 @@ mod tests {
 			(CreateCollection, "create"),
 			(MintNFT, "mint"),
 			(PurchaseOnDemandCoretime, "place_order_allow_death"),
+			(PureProxy, "create_pure"),
 			(Transfer, "transfer_allow_death"),
 			(Register, "register"),
 			(Reserve, "reserve"),
@@ -199,13 +210,16 @@ mod tests {
 		let actions = supported_actions(&parse_chain_metadata(&client)?);
 		assert_eq!(
 			actions,
-			vec![Transfer, CreateAsset, MintAsset, CreateCollection, MintNFT, Remark]
+			vec![Transfer, CreateAsset, MintAsset, CreateCollection, MintNFT, PureProxy, Remark]
 		);
 
 		// Test Polkadot Relay Chain.
 		client = set_up_client(POLKADOT_NETWORK_URL).await?;
 		let actions = supported_actions(&parse_chain_metadata(&client)?);
-		assert_eq!(actions, vec![Transfer, PurchaseOnDemandCoretime, Reserve, Register, Remark]);
+		assert_eq!(
+			actions,
+			vec![Transfer, PurchaseOnDemandCoretime, PureProxy, Reserve, Register, Remark]
+		);
 		Ok(())
 	}
 }
