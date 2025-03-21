@@ -199,7 +199,9 @@ impl BuildSpecCommand {
 		// Checks for appchain project in `./`.
 		if is_supported(None)? {
 			let build_spec = self.configure_build_spec(&mut cli).await?;
-			build_spec.build(&mut cli)?;
+			if let Err(e) = build_spec.build(&mut cli) {
+				cli.outro_cancel(e.to_string())?;
+			}
 		} else {
 			cli.outro_cancel(
 				"🚫 Can't build a specification for target. Maybe not a chain project ?",
