@@ -2,9 +2,9 @@ name: ci
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    types: [ opened, synchronize, reopened, ready_for_review ]
+    types: [opened, synchronize, reopened, ready_for_review]
 
 env:
   CARGO_TERM_COLOR: always
@@ -23,7 +23,7 @@ jobs:
           profile: minimal
           components: rustfmt
           override: true
-          
+
       - name: Check formatting
         run: cargo +nightly fmt --all -- --check
 
@@ -114,7 +114,7 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: codecov.json
           fail_ci_if_error: true
-  
+
   documentation-tests:
     needs: lint
     runs-on: ubuntu-latest
@@ -132,7 +132,7 @@ jobs:
     needs: lint
     strategy:
       matrix:
-        os: [ "ubuntu-latest", "macos-latest" ]
+        os: ["ubuntu-latest", "macos-latest"]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
@@ -147,6 +147,16 @@ jobs:
           target: wasm32-unknown-unknown
           components: rust-src, clippy
 
+      - name: Install dependencies
+        run: |
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            sudo apt-get update
+            sudo apt-get install -y protobuf-compiler
+          elif [[ "$RUNNER_OS" == "macOS" ]]; then
+            brew install protobuf
+          fi
+          protoc --version
+
       - name: Cache
         uses: Swatinem/rust-cache@v2
 
@@ -157,7 +167,7 @@ jobs:
     needs: lint
     strategy:
       matrix:
-        os: [ "ubuntu-latest", "macos-latest" ]
+        os: ["ubuntu-latest", "macos-latest"]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
