@@ -965,10 +965,10 @@ mod tests {
 				}
 				let build_spec = build_spec_cmd.configure_build_spec(&mut cli).await?;
 				if !changes && no_flags_used {
-					assert_eq!(build_spec.id, para_id);
-					assert_eq!(build_spec.chain_type, chain_type);
-					assert_eq!(build_spec.relay, relay);
-					assert_eq!(build_spec.protocol_id, protocol_id);
+					assert_eq!(build_spec.id, 2000);
+					assert_eq!(build_spec.chain_type, Development);
+					assert_eq!(build_spec.relay, PaseoLocal);
+					assert_eq!(build_spec.protocol_id, "my-protocol");
 					assert_eq!(build_spec.genesis_state, genesis_state);
 					assert_eq!(build_spec.genesis_code, genesis_code);
 					assert_eq!(build_spec.deterministic, deterministic);
