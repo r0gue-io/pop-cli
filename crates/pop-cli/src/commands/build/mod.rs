@@ -20,6 +20,7 @@ pub(crate) mod parachain;
 #[cfg(feature = "parachain")]
 pub(crate) mod spec;
 
+const CHAIN_HELP_HEADER: &str = "Chain options";
 const PACKAGE: &str = "package";
 const PARACHAIN: &str = "parachain";
 const PROJECT: &str = "project";
@@ -49,16 +50,14 @@ pub(crate) struct BuildArgs {
 	#[clap(long, value_enum)]
 	pub(crate) profile: Option<Profile>,
 	/// List of features that project is built with, separated by commas.
-	///
-	/// Common features:
-	///
-	/// - `runtime-benchmarks`: For benchmarking, the parachain project must be built with this
-	///   feature.
-	///
-	/// - `try-runtime`: For testing runtime upgrades, the parachain project must be built with
-	///   this feature.
 	#[clap(short, long)]
 	pub(crate) features: Option<String>,
+	/// For benchmarking, always build with `runtime-benchmarks` feature.
+	#[clap(short, long, help_heading = CHAIN_HELP_HEADER)]
+	pub(crate) benchmark: bool,
+	/// For testing with `try-runtime`, always build with `try-runtime` feature.
+	#[clap(short, long, help_heading = CHAIN_HELP_HEADER)]
+	pub(crate) try_runtime: bool,
 }
 
 /// Subcommand for building chain artifacts.
@@ -96,7 +95,15 @@ impl Command {
 			};
 			let temp_path = PathBuf::from("./");
 			let features = args.features.unwrap_or_default();
-			let feature_list: Vec<&str> = features.split(",").collect();
+			let mut feature_list: Vec<&str> = features.split(",").collect();
+
+			if args.benchmark && !feature_list.contains(&RUNTIME_BENCHMARKS_FEATURE) {
+				feature_list.push(RUNTIME_BENCHMARKS_FEATURE);
+			}
+			if args.try_runtime && !feature_list.contains(&TRY_RUNTIME_FEATURE) {
+				feature_list.push(TRY_RUNTIME_FEATURE);
+			}
+
 			BuildParachain {
 				path: project_path.unwrap_or(temp_path).to_path_buf(),
 				package: args.package,
@@ -133,22 +140,29 @@ impl Command {
 		} else if profile == Profile::Production {
 			_args.push("--profile=production");
 		}
-		let features = args.features.unwrap_or_default();
-		let feature_arg = format!("--features={}", features);
+
+		let feature_input = args.features.unwrap_or_default();
+		let mut features: Vec<&str> = feature_input.split(',').filter(|s| !s.is_empty()).collect();
+		if args.benchmark && !features.contains(&RUNTIME_BENCHMARKS_FEATURE) {
+			features.push(RUNTIME_BENCHMARKS_FEATURE);
+		}
+		if args.try_runtime && !features.contains(&TRY_RUNTIME_FEATURE) {
+			features.push(TRY_RUNTIME_FEATURE);
+		}
+		let feature_arg = format!("--features={}", features.join(","));
 		if !features.is_empty() {
 			_args.push(&feature_arg);
 		}
 
 		cmd("cargo", _args).dir(args.path.unwrap_or_else(|| "./".into())).run()?;
 
-		if features.is_empty() {
-			cli.info(format!("The {project} was built in {profile} mode."))?;
-		} else {
-			cli.info(format!(
-				"The {project} was built in {profile} with the following features: {}",
-				features
-			))?;
-		}
+		cli.info(format!(
+			"The {project} was built in {profile} mode{}.",
+			features
+				.is_empty()
+				.then(|| String::new())
+				.unwrap_or_else(|| format!(" with the following features: {}", features.join(",")))
+		))?;
 		cli.outro("Build completed successfully!")?;
 		Ok(project)
 	}
@@ -167,32 +181,45 @@ mod tests {
 		let temp_dir = tempfile::tempdir()?;
 		let path = temp_dir.path();
 		let project_path = path.join(name);
-		let features = &[RUNTIME_BENCHMARKS_FEATURE, TRY_RUNTIME_FEATURE];
+		let benchmark = RUNTIME_BENCHMARKS_FEATURE;
+		let try_runtime = TRY_RUNTIME_FEATURE;
+		let features = vec![benchmark, try_runtime];
 		cmd("cargo", ["new", name, "--bin"]).dir(&path).run()?;
 		add_production_profile(&project_path)?;
-		for feature in features {
+		for feature in features.to_vec() {
 			add_feature(&project_path, (feature.to_string(), vec![]))?;
 		}
-
 		for package in [None, Some(name.to_string())] {
 			for release in [true, false] {
 				for profile in Profile::VARIANTS {
 					let profile = if release { Profile::Release } else { profile.clone() };
-
-					// Build without features.
-					test_build(package.clone(), &project_path, &profile, release, &[])?;
-
-					// Build with one feature.
-					test_build(
-						package.clone(),
-						&project_path,
-						&profile,
-						release,
-						&[RUNTIME_BENCHMARKS_FEATURE],
-					)?;
-
-					// Build with multiple features.
-					test_build(package.clone(), &project_path, &profile, release, features)?;
+					for &(benchmark_flag, try_runtime_flag, features_flag, expected_features) in &[
+						// No features
+						(false, false, &vec![], &vec![]),
+						// --features runtime-benchmarks
+						(false, false, &vec![benchmark], &vec![benchmark]),
+						// --benchmark
+						(true, false, &vec![], &vec![benchmark]),
+						// --features try-runtime
+						(false, false, &vec![try_runtime], &vec![try_runtime]),
+						// --try-runtime
+						(false, true, &vec![], &vec![try_runtime]),
+						// --features runtime-benchmarks,try-runtime
+						(false, false, &features, &features),
+						// --benchmark --try-runtime
+						(true, true, &vec![], &features),
+					] {
+						test_build(
+							package.clone(),
+							&project_path,
+							&profile,
+							release,
+							benchmark_flag,
+							try_runtime_flag,
+							features_flag,
+							expected_features,
+						)?;
+					}
 				}
 			}
 		}
@@ -204,22 +231,22 @@ mod tests {
 		project_path: &PathBuf,
 		profile: &Profile,
 		release: bool,
-		features: &[&str],
+		benchmark: bool,
+		try_runtime: bool,
+		features: &Vec<&str>,
+		expected_features: &Vec<&str>,
 	) -> anyhow::Result<()> {
 		let project = if package.is_some() { PACKAGE } else { PROJECT };
 		let mut cli = MockCli::new().expect_intro(format!("Building your {project}"));
-
-		cli = if features.is_empty() {
+		cli = if expected_features.is_empty() {
 			cli.expect_info(format!("The {project} was built in {profile} mode."))
 		} else {
 			cli.expect_info(format!(
-				"The {project} was built in {profile} with the following features: {}",
-				features.join(",")
+				"The {project} was built in {profile} mode with the following features: {}.",
+				expected_features.join(",")
 			))
 		};
-
 		cli = cli.expect_outro("Build completed successfully!");
-
 		assert_eq!(
 			Command::build(
 				BuildArgs {
@@ -229,6 +256,8 @@ mod tests {
 					package: package.clone(),
 					release,
 					profile: Some(profile.clone()),
+					benchmark,
+					try_runtime,
 					features: Some(features.join(","))
 				},
 				&mut cli,
