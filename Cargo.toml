@@ -78,6 +78,9 @@ sc-chain-spec = "41.0.0"
 sp-runtime = "40.0.1"
 sp-statement-store = "15.0.0"
 
+# try-runtime
+try-runtime-core = { path = "../try-runtime-cli/core" }
+
 # pop-cli
 clap = { version = "4.5", features = ["derive"] }
 cliclack = "0.3.1"

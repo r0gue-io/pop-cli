@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{cli, common::builds::get_project_path};
-use clap::{Args, Subcommand};
+use clap::{Args, Parser, Subcommand};
 use pop_common::test_project;
 use std::path::PathBuf;
+use try_runtime_core::common::shared_parameters::SharedParams;
 
 #[cfg(feature = "contract")]
 pub mod contract;
+#[cfg(feature = "parachain")]
+pub mod on_runtime_upgrade;
 
 /// Arguments for testing.
 #[derive(Args, Default)]
@@ -25,6 +28,19 @@ pub(crate) struct TestArgs {
 	pub(crate) contract: contract::TestContractCommand,
 }
 
+#[derive(Args)]
+pub(crate) struct TestTryRuntimeCommand<T>
+where
+	T: Parser,
+{
+	/// Subcommand of try-runtime.
+	#[clap(flatten)]
+	pub command: T,
+	/// Shared params of the try-runtime commands.
+	#[clap(flatten)]
+	pub shared_params: SharedParams,
+}
+
 /// Test a Rust project.
 #[derive(Subcommand)]
 pub(crate) enum Command {
@@ -32,6 +48,9 @@ pub(crate) enum Command {
 	#[cfg(feature = "contract")]
 	#[clap(alias = "c")]
 	Contract(contract::TestContractCommand),
+	/// Execute the migrations of the given runtime.
+	#[cfg(feature = "parachain")]
+	OnRuntimeUpgrade(on_runtime_upgrade::TestOnRuntimeUpgradeCommand),
 }
 impl Command {
 	pub(crate) async fn execute(args: TestArgs) -> anyhow::Result<&'static str> {
