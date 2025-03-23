@@ -10,7 +10,6 @@ use pop_common::{
 	},
 	Error, GitHub,
 };
-// use strum::{EnumProperty, VariantArray};
 use strum_macros::{EnumProperty, VariantArray};
 
 use std::{
