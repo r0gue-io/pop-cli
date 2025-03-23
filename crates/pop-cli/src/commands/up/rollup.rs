@@ -133,7 +133,7 @@ impl UpCommand {
 		let relay_chain_name = relay_chain.to_string();
 		self.relay_chain_url = relay_chain.get_rpc_url().and_then(|url| Url::parse(&url).ok());
 
-		let api_key = prompt_api_key(POP_API_KEY, cli)?;
+		let api_key = prompt_api_key(POP_API_KEY, &provider, cli)?;
 		let api = Some(DeploymentApi::new(api_key, provider, relay_chain_name)?);
 		Ok(Deployment { api, collator_file_id: None })
 	}
@@ -402,7 +402,7 @@ fn prompt_provider(
 	let mut predefined_action = cli.select("Select your deployment method:");
 	for action in DeploymentProvider::VARIANTS {
 		predefined_action =
-			predefined_action.item(Some(action.clone()), action.name(), action.description());
+			predefined_action.item(Some(action.clone()), action.name(), format!("{}", style(format!("{}", action.base_url())).bold().underlined()));
 	}
 	if !skip_registration {
 		predefined_action = predefined_action.item(
@@ -424,12 +424,12 @@ fn prompt_supported_chain(cli: &mut impl Cli) -> Result<&SupportedChains> {
 }
 
 // Prompts for an API key and attempts to read from environment first.
-fn prompt_api_key(env_var_name: &str, cli: &mut impl Cli) -> Result<String> {
+fn prompt_api_key(env_var_name: &str, provider: &DeploymentProvider, cli: &mut impl Cli) -> Result<String> {
 	if let Ok(api_key) = env::var(env_var_name) {
 		cli.info(format!("Using API key from environment variable ({env_var_name})."))?;
 		return Ok(api_key);
 	}
-	cli.warning(format!("No API key found for the environment variable `{env_var_name}`.\n{}", style(format!("Note: Consider setting this variable in your shell (e.g., `export {env_var_name}=...`) or system environment so you won’t be prompted each time.")).dim()))?;
+	cli.warning(format!("No API key found for the environment variable `{env_var_name}`.\n{}\n{}", style(format!("You can generate an API key at: {}", style(format!("{}", provider.base_url())).underlined().magenta())), style(format!("Note: Consider setting this variable in your shell (e.g., `export {env_var_name}=...`) or system environment so you won’t be prompted each time.")).dim()))?;
 	let api_key = cli.password("Enter your API key:").interact()?;
 	Ok(api_key)
 }
@@ -509,7 +509,7 @@ mod tests {
 				Some(
 					DeploymentProvider::VARIANTS
 						.into_iter()
-						.map(|action| (action.name().to_string(), action.description().to_string()))
+						.map(|action| (action.name().to_string(), format!("{}", style(format!("{}", action.base_url())).bold().underlined())))
 						.collect::<Vec<_>>(),
 				),
 				DeploymentProvider::PDP as usize,
@@ -557,7 +557,7 @@ mod tests {
 			Some(
 				DeploymentProvider::VARIANTS
 					.into_iter()
-					.map(|action| (action.name().to_string(), action.description().to_string()))
+					.map(|action| (action.name().to_string(), format!("{}", style(format!("{}", action.base_url())).bold().underlined())))
 					.chain(std::iter::once((
 						"Register".to_string(),
 						"Register the rollup on the relay chain without deploying with a provider"
@@ -668,7 +668,7 @@ mod tests {
                 Some(
                     DeploymentProvider::VARIANTS
                         .into_iter()
-                        .map(|action| (action.name().to_string(), action.description().to_string()))
+                        .map(|action| (action.name().to_string(), format!("{}", style(format!("{}", action.base_url())).bold().underlined())))
                         .chain(std::iter::once((
                             "Register".to_string(),
                             "Register the rollup on the relay chain without deploying with a provider".to_string(),
@@ -707,7 +707,7 @@ mod tests {
                 Some(
                     DeploymentProvider::VARIANTS
                         .into_iter()
-                        .map(|action| (action.name().to_string(), action.description().to_string()))
+                        .map(|action| (action.name().to_string(), format!("{}", style(format!("{}", action.base_url())).bold().underlined())))
                         .chain(std::iter::once((
                             "Register".to_string(),
                             "Register the rollup on the relay chain without deploying with a provider".to_string(),
@@ -787,12 +787,13 @@ mod tests {
 	fn prompt_api_key_works() -> Result<()> {
 		let test_env_var = "TEST_POP_API_KEY";
 		env::remove_var(test_env_var);
+		let provider = DeploymentProvider::PDP;
 
 		let mut cli = MockCli::new()
-            .expect_warning(format!("No API key found for the environment variable `{test_env_var}`.\n{}", style(format!("Note: Consider setting this variable in your shell (e.g., `export {test_env_var}=...`) or system environment so you won’t be prompted each time.")).dim()))
+            .expect_warning(format!("No API key found for the environment variable `{test_env_var}`.\n{}\n{}", style(format!("You can generate an API key at: {}", style(format!("{}", provider.base_url())).underlined().magenta())), style(format!("Note: Consider setting this variable in your shell (e.g., `export {test_env_var}=...`) or system environment so you won’t be prompted each time.")).dim()))
             .expect_password("Enter your API key:", "test_api_key".into());
 
-		let api_key = prompt_api_key(test_env_var, &mut cli)?;
+		let api_key = prompt_api_key(test_env_var, &provider, &mut cli)?;
 		assert_eq!(api_key, "test_api_key");
 		cli.verify()?;
 
@@ -801,7 +802,7 @@ mod tests {
 		cli = MockCli::new()
 			.expect_info(format!("Using API key from environment variable ({test_env_var})."));
 
-		let api_key = prompt_api_key(test_env_var, &mut cli)?;
+		let api_key = prompt_api_key(test_env_var,&provider, &mut cli)?;
 		assert_eq!(api_key, "test_api_key");
 		cli.verify()
 	}
