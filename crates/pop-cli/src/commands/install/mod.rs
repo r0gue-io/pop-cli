@@ -6,7 +6,7 @@ use clap::Args;
 use cliclack::{clear_screen, confirm, intro, log, outro, set_theme};
 use duct::cmd;
 use os_info::Type;
-use strum::Display;
+use strum_macros::Display;
 use tokio::fs;
 use Dependencies::*;
 
