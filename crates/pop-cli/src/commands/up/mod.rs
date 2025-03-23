@@ -168,7 +168,15 @@ mod tests {
 			Some(
 				DeploymentProvider::VARIANTS
 					.into_iter()
-					.map(|action| (action.name().to_string(), format!("{}", style(format!("{}", action.base_url())).bold().underlined())))
+					.map(|action| {
+						(
+							action.name().to_string(),
+							format!(
+								"{}",
+								style(format!("{}", action.base_url())).bold().underlined()
+							),
+						)
+					})
 					.chain(std::iter::once((
 						"Register".to_string(),
 						"Register the rollup on the relay chain without deploying with a provider"
