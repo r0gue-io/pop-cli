@@ -2192,7 +2192,7 @@ checksum = "cd7e35aee659887cbfb97aaf227ac12cad1a9d7c71e55ff3376839ed4e282d08"
 [[package]]
 name = "contract-build"
 version = "6.0.0-alpha"
-source = "git+https://github.com/use-ink/cargo-contract?branch=alex%2Ffix-mod-visibility#75397ffb6713ed65e8df058bf73f9ca6214f52bb"
+source = "git+https://github.com/use-ink/cargo-contract?branch=alex%2Ffix-mod-visibility#7978f68e1eb62f5200068cf8e38d091739005e9c"
 dependencies = [
  "alloy-json-abi",
  "anyhow",
@@ -2234,7 +2234,7 @@ dependencies = [
 [[package]]
 name = "contract-extrinsics"
 version = "6.0.0-alpha"
-source = "git+https://github.com/use-ink/cargo-contract?branch=alex%2Ffix-mod-visibility#75397ffb6713ed65e8df058bf73f9ca6214f52bb"
+source = "git+https://github.com/use-ink/cargo-contract?branch=alex%2Ffix-mod-visibility#7978f68e1eb62f5200068cf8e38d091739005e9c"
 dependencies = [
  "anyhow",
  "blake2 0.10.6",
@@ -2267,7 +2267,7 @@ dependencies = [
 [[package]]
 name = "contract-metadata"
 version = "6.0.0-alpha"
-source = "git+https://github.com/use-ink/cargo-contract?branch=alex%2Ffix-mod-visibility#75397ffb6713ed65e8df058bf73f9ca6214f52bb"
+source = "git+https://github.com/use-ink/cargo-contract?branch=alex%2Ffix-mod-visibility#7978f68e1eb62f5200068cf8e38d091739005e9c"
 dependencies = [
  "anyhow",
  "impl-serde 0.5.0",
@@ -2280,7 +2280,7 @@ dependencies = [
 [[package]]
 name = "contract-transcode"
 version = "6.0.0-alpha"
-source = "git+https://github.com/use-ink/cargo-contract?branch=alex%2Ffix-mod-visibility#75397ffb6713ed65e8df058bf73f9ca6214f52bb"
+source = "git+https://github.com/use-ink/cargo-contract?branch=alex%2Ffix-mod-visibility#7978f68e1eb62f5200068cf8e38d091739005e9c"
 dependencies = [
  "anyhow",
  "base58",
@@ -5573,7 +5573,7 @@ dependencies = [
 [[package]]
 name = "ink_allocator"
 version = "6.0.0-alpha"
-source = "git+https://github.com/use-ink/ink?branch=master#84ae2da18c67b620263ef69c5fd53065ee95c630"
+source = "git+https://github.com/use-ink/ink?branch=master#841b1c5cefb028fe6986aa4c76e372d37409183a"
 dependencies = [
  "cfg-if",
 ]
@@ -5581,7 +5581,7 @@ dependencies = [
 [[package]]
 name = "ink_codegen"
 version = "6.0.0-alpha"
-source = "git+https://github.com/use-ink/ink?branch=master#84ae2da18c67b620263ef69c5fd53065ee95c630"
+source = "git+https://github.com/use-ink/ink?branch=master#841b1c5cefb028fe6986aa4c76e372d37409183a"
 dependencies = [
  "blake2 0.10.6",
  "derive_more 2.0.1",
@@ -5603,7 +5603,7 @@ dependencies = [
 [[package]]
 name = "ink_engine"
 version = "6.0.0-alpha"
-source = "git+https://github.com/use-ink/ink?branch=master#84ae2da18c67b620263ef69c5fd53065ee95c630"
+source = "git+https://github.com/use-ink/ink?branch=master#841b1c5cefb028fe6986aa4c76e372d37409183a"
 dependencies = [
  "blake2 0.10.6",
  "derive_more 2.0.1",
@@ -5620,7 +5620,7 @@ dependencies = [
 [[package]]
 name = "ink_env"
 version = "6.0.0-alpha"
-source = "git+https://github.com/use-ink/ink?branch=master#84ae2da18c67b620263ef69c5fd53065ee95c630"
+source = "git+https://github.com/use-ink/ink?branch=master#841b1c5cefb028fe6986aa4c76e372d37409183a"
 dependencies = [
  "alloy-sol-types",
  "blake2 0.10.6",
@@ -5655,7 +5655,7 @@ dependencies = [
 [[package]]
 name = "ink_ir"
 version = "6.0.0-alpha"
-source = "git+https://github.com/use-ink/ink?branch=master#84ae2da18c67b620263ef69c5fd53065ee95c630"
+source = "git+https://github.com/use-ink/ink?branch=master#841b1c5cefb028fe6986aa4c76e372d37409183a"
 dependencies = [
  "blake2 0.10.6",
  "either",
@@ -5671,7 +5671,7 @@ dependencies = [
 [[package]]
 name = "ink_macro"
 version = "6.0.0-alpha"
-source = "git+https://github.com/use-ink/ink?branch=master#84ae2da18c67b620263ef69c5fd53065ee95c630"
+source = "git+https://github.com/use-ink/ink?branch=master#841b1c5cefb028fe6986aa4c76e372d37409183a"
 dependencies = [
  "ink_codegen",
  "ink_ir",
@@ -5686,7 +5686,7 @@ dependencies = [
 [[package]]
 name = "ink_metadata"
 version = "6.0.0-alpha"
-source = "git+https://github.com/use-ink/ink?branch=master#84ae2da18c67b620263ef69c5fd53065ee95c630"
+source = "git+https://github.com/use-ink/ink?branch=master#841b1c5cefb028fe6986aa4c76e372d37409183a"
 dependencies = [
  "derive_more 2.0.1",
  "impl-serde 0.5.0",
@@ -5702,7 +5702,7 @@ dependencies = [
 [[package]]
 name = "ink_prelude"
 version = "6.0.0-alpha"
-source = "git+https://github.com/use-ink/ink?branch=master#84ae2da18c67b620263ef69c5fd53065ee95c630"
+source = "git+https://github.com/use-ink/ink?branch=master#841b1c5cefb028fe6986aa4c76e372d37409183a"
 dependencies = [
  "cfg-if",
 ]
@@ -5710,7 +5710,7 @@ dependencies = [
 [[package]]
 name = "ink_primitives"
 version = "6.0.0-alpha"
-source = "git+https://github.com/use-ink/ink?branch=master#84ae2da18c67b620263ef69c5fd53065ee95c630"
+source = "git+https://github.com/use-ink/ink?branch=master#841b1c5cefb028fe6986aa4c76e372d37409183a"
 dependencies = [
  "alloy-sol-types",
  "cfg-if",
@@ -5734,7 +5734,7 @@ dependencies = [
 [[package]]
 name = "ink_storage_traits"
 version = "6.0.0-alpha"
-source = "git+https://github.com/use-ink/ink?branch=master#84ae2da18c67b620263ef69c5fd53065ee95c630"
+source = "git+https://github.com/use-ink/ink?branch=master#841b1c5cefb028fe6986aa4c76e372d37409183a"
 dependencies = [
  "ink_metadata",
  "ink_prelude",
@@ -9194,7 +9194,7 @@ dependencies = [
 [[package]]
 name = "polkavm-common"
 version = "0.21.0"
-source = "git+https://github.com/paritytech/polkavm#be91bf2852f26f5b5e13042aa374c2a412840912"
+source = "git+https://github.com/paritytech/polkavm#d0a4f5d72cfc00fc4d847633e5d0f98cf31de7d4"
 
 [[package]]
 name = "polkavm-derive"
@@ -9226,7 +9226,7 @@ dependencies = [
 [[package]]
 name = "polkavm-derive"
 version = "0.21.0"
-source = "git+https://github.com/paritytech/polkavm#be91bf2852f26f5b5e13042aa374c2a412840912"
+source = "git+https://github.com/paritytech/polkavm#d0a4f5d72cfc00fc4d847633e5d0f98cf31de7d4"
 dependencies = [
  "polkavm-derive-impl-macro 0.21.0 (git+https://github.com/paritytech/polkavm)",
 ]
@@ -9270,7 +9270,7 @@ dependencies = [
 [[package]]
 name = "polkavm-derive-impl"
 version = "0.21.0"
-source = "git+https://github.com/paritytech/polkavm#be91bf2852f26f5b5e13042aa374c2a412840912"
+source = "git+https://github.com/paritytech/polkavm#d0a4f5d72cfc00fc4d847633e5d0f98cf31de7d4"
 dependencies = [
  "polkavm-common 0.21.0 (git+https://github.com/paritytech/polkavm)",
  "proc-macro2",
@@ -9311,7 +9311,7 @@ dependencies = [
 [[package]]
 name = "polkavm-derive-impl-macro"
 version = "0.21.0"
-source = "git+https://github.com/paritytech/polkavm#be91bf2852f26f5b5e13042aa374c2a412840912"
+source = "git+https://github.com/paritytech/polkavm#d0a4f5d72cfc00fc4d847633e5d0f98cf31de7d4"
 dependencies = [
  "polkavm-derive-impl 0.21.0 (git+https://github.com/paritytech/polkavm)",
  "syn 2.0.100",
@@ -9336,7 +9336,7 @@ dependencies = [
 [[package]]
 name = "polkavm-linker"
 version = "0.21.0"
-source = "git+https://github.com/paritytech/polkavm#be91bf2852f26f5b5e13042aa374c2a412840912"
+source = "git+https://github.com/paritytech/polkavm#d0a4f5d72cfc00fc4d847633e5d0f98cf31de7d4"
 dependencies = [
  "dirs",
  "gimli 0.31.1",
@@ -10558,9 +10558,9 @@ dependencies = [
 
 [[package]]
 name = "ruint"
-version = "1.13.1"
+version = "1.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "825df406ec217a8116bd7b06897c6cc8f65ffefc15d030ae2c9540acc9ed50b6"
+checksum = "78a46eb779843b2c4f21fac5773e25d6d5b7c8f0922876c91541790d2ca27eef"
 dependencies = [
  "alloy-rlp",
  "ark-ff 0.3.0",
@@ -10575,6 +10575,7 @@ dependencies = [
  "primitive-types 0.12.2",
  "proptest",
  "rand 0.8.5",
+ "rand 0.9.0",
  "rlp 0.5.2",
  "ruint-macro",
  "serde",
@@ -13646,7 +13647,7 @@ dependencies = [
 [[package]]
 name = "sp-crypto-ec-utils"
 version = "0.10.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#1a514f6d3753189c21a6b68d38cc6289999de047"
+source = "git+https://github.com/paritytech/polkadot-sdk#4d3354f2c63f0897a5f73b73c383dae4af73088c"
 dependencies = [
  "ark-bls12-377",
  "ark-bls12-377-ext",
@@ -13778,7 +13779,7 @@ dependencies = [
 [[package]]
 name = "sp-debug-derive"
 version = "14.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#1a514f6d3753189c21a6b68d38cc6289999de047"
+source = "git+https://github.com/paritytech/polkadot-sdk#4d3354f2c63f0897a5f73b73c383dae4af73088c"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -13808,7 +13809,7 @@ dependencies = [
 [[package]]
 name = "sp-externalities"
 version = "0.25.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#1a514f6d3753189c21a6b68d38cc6289999de047"
+source = "git+https://github.com/paritytech/polkadot-sdk#4d3354f2c63f0897a5f73b73c383dae4af73088c"
 dependencies = [
  "environmental",
  "parity-scale-codec",
@@ -14356,7 +14357,7 @@ dependencies = [
 [[package]]
 name = "sp-runtime-interface"
 version = "24.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#1a514f6d3753189c21a6b68d38cc6289999de047"
+source = "git+https://github.com/paritytech/polkadot-sdk#4d3354f2c63f0897a5f73b73c383dae4af73088c"
 dependencies = [
  "bytes",
  "impl-trait-for-tuples",
@@ -14461,7 +14462,7 @@ dependencies = [
 [[package]]
 name = "sp-runtime-interface-proc-macro"
 version = "17.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#1a514f6d3753189c21a6b68d38cc6289999de047"
+source = "git+https://github.com/paritytech/polkadot-sdk#4d3354f2c63f0897a5f73b73c383dae4af73088c"
 dependencies = [
  "Inflector",
  "expander",
@@ -14691,7 +14692,7 @@ source = "git+https://github.com/paritytech/polkadot-sdk?rev=f8c90b2a01ec77579bc
 [[package]]
 name = "sp-std"
 version = "14.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#1a514f6d3753189c21a6b68d38cc6289999de047"
+source = "git+https://github.com/paritytech/polkadot-sdk#4d3354f2c63f0897a5f73b73c383dae4af73088c"
 
 [[package]]
 name = "sp-storage"
@@ -14720,7 +14721,7 @@ dependencies = [
 [[package]]
 name = "sp-storage"
 version = "19.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#1a514f6d3753189c21a6b68d38cc6289999de047"
+source = "git+https://github.com/paritytech/polkadot-sdk#4d3354f2c63f0897a5f73b73c383dae4af73088c"
 dependencies = [
  "impl-serde 0.5.0",
  "parity-scale-codec",
@@ -14817,7 +14818,7 @@ dependencies = [
 [[package]]
 name = "sp-tracing"
 version = "16.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#1a514f6d3753189c21a6b68d38cc6289999de047"
+source = "git+https://github.com/paritytech/polkadot-sdk#4d3354f2c63f0897a5f73b73c383dae4af73088c"
 dependencies = [
  "parity-scale-codec",
  "tracing",
@@ -15121,7 +15122,7 @@ dependencies = [
 [[package]]
 name = "sp-wasm-interface"
 version = "20.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#1a514f6d3753189c21a6b68d38cc6289999de047"
+source = "git+https://github.com/paritytech/polkadot-sdk#4d3354f2c63f0897a5f73b73c383dae4af73088c"
 dependencies = [
  "anyhow",
  "impl-trait-for-tuples",
