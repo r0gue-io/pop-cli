@@ -12,7 +12,7 @@ use crate::{
 use anyhow::{anyhow, Result};
 use clap::Args;
 use cliclack::spinner;
-use pop_common::{parse_account, DefaultConfig, Keypair};
+use pop_common::{parse_h160_account, DefaultConfig, Keypair};
 use pop_contracts::{
 	build_smart_contract, call_smart_contract, call_smart_contract_from_signed_payload,
 	dry_run_call, dry_run_gas_estimate_call, get_call_payload, get_message, get_messages,
@@ -261,8 +261,8 @@ impl CallContractCommand {
 			// Prompt for contract address.
 			let contract_address: String = cli
 				.input("Provide the on-chain contract address:")
-				.placeholder("e.g. 5DYs7UGBm2LuX4ryvyqfksozNAW5V47tPbGiVgnjYWCZ29bt")
-				.validate(|input: &String| match parse_account(input) {
+				.placeholder("e.g. 0x48550a4bb374727186c55365b7c9c0a1a31bdafe")
+				.validate(|input: &String| match parse_h160_account(input) {
 					Ok(_) => Ok(()),
 					Err(_) => Err("Invalid address."),
 				})
@@ -504,7 +504,7 @@ impl CallContractCommand {
 		call_exec: CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
 		cli: &mut impl Cli,
 	) -> Result<()> {
-		let call_data = self.get_contract_data(&call_exec).map_err(|err| {
+		let call_data = self.get_contract_data(&call_exec).await.map_err(|err| {
 			anyhow!("An error occurred getting the call data: {}", err.to_string())
 		})?;
 
@@ -528,7 +528,7 @@ impl CallContractCommand {
 	}
 
 	// Get the call data.
-	fn get_contract_data(
+	async fn get_contract_data(
 		&self,
 		call_exec: &CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
 	) -> anyhow::Result<Vec<u8>> {
@@ -537,7 +537,7 @@ impl CallContractCommand {
 		} else {
 			Weight::zero()
 		};
-		let call_data = get_call_payload(call_exec, weight_limit)?;
+		let call_data = get_call_payload(call_exec, weight_limit).await?;
 		Ok(call_data)
 	}
 

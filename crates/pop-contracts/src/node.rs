@@ -10,7 +10,7 @@ use pop_common::{
 	},
 	Error, GitHub,
 };
-use strum::{EnumProperty, VariantArray};
+use strum_macros::{EnumProperty, VariantArray};
 
 use std::{
 	env::consts::{ARCH, OS},
@@ -51,10 +51,10 @@ pub(super) enum Chain {
 	/// Minimal Substrate node configured for smart contracts via pallet-contracts and
 	/// pallet-revive.
 	#[strum(props(
-		Repository = "https://github.com/paritytech/substrate-contracts-node",
+		Repository = "https://github.com/AlexD10S/substrate-contracts-node",
 		Binary = "substrate-contracts-node",
 		TagFormat = "{tag}",
-		Fallback = "v0.41.0"
+		Fallback = "v0.43.0"
 	))]
 	ContractsNode,
 }
