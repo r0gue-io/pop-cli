@@ -16,7 +16,7 @@ use crate::{
 use anyhow::Result;
 use clap::Args;
 use cliclack::spinner;
-use pop_common::{parse_account, templates::Template};
+use pop_common::{parse_account, templates::Template, Profile};
 use pop_parachains::{
 	construct_proxy_extrinsic, find_dispatchable_by_name, Action, DeploymentProvider, Parachain,
 	Payload, Reserved, SupportedChains,
@@ -64,6 +64,9 @@ pub struct UpCommand {
 	/// account.
 	#[arg(long = "proxy")]
 	pub(crate) proxied_address: Option<String>,
+	/// Build profile [default: release].
+	#[clap(long, value_enum)]
+	pub(crate) profile: Option<Profile>,
 }
 
 impl UpCommand {
@@ -216,6 +219,7 @@ impl UpCommand {
 			deployment_config,
 			id,
 			self.path.as_deref(),
+			self.profile.clone(),
 			cli,
 		)
 		.await
@@ -329,6 +333,7 @@ async fn generate_spec_files(
 	deployment_config: &mut Deployment,
 	id: u32,
 	path: Option<&Path>,
+	profile: Option<Profile>,
 	cli: &mut impl Cli,
 ) -> anyhow::Result<GenesisArtifacts> {
 	let chain_spec_path = chain_spec
@@ -348,6 +353,7 @@ async fn generate_spec_files(
 			.api
 			.as_ref()
 			.and_then(|api| RelayChain::from_str(&api.relay_chain_name.to_lowercase()).ok()),
+		profile: profile.or(Some(Profile::Release)),
 		..Default::default()
 	}
 	.configure_build_spec(cli)
