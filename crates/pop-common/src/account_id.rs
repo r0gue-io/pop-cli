@@ -2,14 +2,32 @@
 
 use crate::{Config, DefaultConfig, Error};
 use std::str::FromStr;
+use subxt::utils::H160;
 
-/// Parses an account ID from its string representation.
+/// Parses a Substrate account ID from its string representation.
 ///
 /// # Arguments
 /// * `account` - A string representing the account ID to parse.
 pub fn parse_account(account: &str) -> Result<<DefaultConfig as Config>::AccountId, Error> {
 	<DefaultConfig as Config>::AccountId::from_str(account)
 		.map_err(|e| Error::AccountAddressParsing(format!("{}", e)))
+}
+
+/// Parses a H160 account from its string representation.
+///
+/// # Arguments
+/// * `account` - A hex-encoded string representation to parse.
+pub fn parse_h160_account(account: &str) -> Result<H160, Error> {
+	let bytes = contract_build::util::decode_hex(account)
+		.map_err(|e| Error::AccountAddressParsing(format!("Invalid hex: {}", e)))?;
+
+	if bytes.len() != 20 {
+		return Err(Error::AccountAddressParsing(format!(
+			"H160 must be 20 bytes in length, got {}",
+			bytes.len()
+		)));
+	}
+	Ok(H160::from_slice(&bytes[..]))
 }
 
 #[cfg(test)]

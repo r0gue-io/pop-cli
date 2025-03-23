@@ -16,7 +16,7 @@ use contract_extrinsics::{
 	DisplayEvents, ErrorVariant, ExtrinsicOptsBuilder, TokenMetadata,
 };
 use ink_env::{DefaultEnvironment, Environment};
-use pop_common::{create_signer, parse_account, Config, DefaultConfig, Keypair};
+use pop_common::{account_id::parse_h160_account, create_signer, DefaultConfig, Keypair};
 use sp_weights::Weight;
 use std::path::PathBuf;
 use subxt::{tx::Payload, SubstrateConfig};
@@ -79,7 +79,7 @@ pub async fn set_up_call(
 	let value: BalanceVariant<<DefaultEnvironment as Environment>::Balance> =
 		parse_balance(&call_opts.value)?;
 
-	let contract: <DefaultConfig as Config>::AccountId = parse_account(&call_opts.contract)?;
+	let contract = parse_h160_account(&call_opts.contract)?;
 	// Process the provided argument values.
 	let args = process_function_args(
 		call_opts.path.unwrap_or_else(|| PathBuf::from("./")),
@@ -165,7 +165,7 @@ pub async fn call_smart_contract(
 	let token_metadata = TokenMetadata::query::<DefaultConfig>(url).await?;
 	let metadata = call_exec.client().metadata();
 	let events = call_exec
-		.call(Some(gas_limit))
+		.call(Some(gas_limit), None) // TODO: storage_deposit_limit
 		.await
 		.map_err(|error_variant| Error::CallContractError(format!("{:?}", error_variant)))?;
 	let display_events =
@@ -205,17 +205,20 @@ pub async fn call_smart_contract_from_signed_payload(
 /// # Arguments
 /// * `call_exec` - A struct containing the details of the contract call.
 /// * `gas_limit` - The maximum amount of gas allocated for executing the contract call.
-pub fn get_call_payload(
+pub async fn get_call_payload(
 	call_exec: &CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
 	gas_limit: Weight,
 ) -> anyhow::Result<Vec<u8>> {
-	let storage_deposit_limit: Option<u128> = call_exec.opts().storage_deposit_limit();
+	let storage_deposit_limit = match call_exec.opts().storage_deposit_limit() {
+		Some(deposit_limit) => deposit_limit,
+		None => call_exec.estimate_gas().await?.1,
+	};
 	let mut encoded_data = Vec::<u8>::new();
 	Call::new(
-		call_exec.contract().into(),
+		*call_exec.contract(),
 		call_exec.value(),
 		gas_limit,
-		storage_deposit_limit.as_ref(),
+		&storage_deposit_limit,
 		call_exec.call_data().clone(),
 	)
 	.build()
