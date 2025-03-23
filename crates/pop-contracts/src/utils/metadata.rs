@@ -93,7 +93,7 @@ fn get_contract_functions(
 				payable: message.payable(),
 				args: process_args(message.args(), metadata.registry()),
 				docs: message.docs().join(" "),
-				default: *message.default(),
+				default: message.default(),
 			})
 			.collect(),
 		FunctionType::Constructor => metadata
@@ -102,10 +102,10 @@ fn get_contract_functions(
 			.iter()
 			.map(|constructor| ContractFunction {
 				label: constructor.label().to_string(),
-				payable: *constructor.payable(),
+				payable: constructor.payable(),
 				args: process_args(constructor.args(), metadata.registry()),
 				docs: constructor.docs().join(" "),
-				default: *constructor.default(),
+				default: constructor.default(),
 				mutates: true,
 			})
 			.collect(),

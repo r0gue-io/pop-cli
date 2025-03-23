@@ -12,13 +12,13 @@ use clap::Args;
 use cliclack::{confirm, log, log::error, spinner, ProgressBar};
 use console::{Emoji, Style};
 use pop_contracts::{
-	build_smart_contract, dry_run_gas_estimate_instantiate, dry_run_upload,
-	get_code_hash_from_event, get_contract_code, get_instantiate_payload, get_upload_payload,
-	instantiate_contract_signed, instantiate_smart_contract, is_chain_alive, parse_hex_bytes,
-	run_contracts_node, set_up_deployment, set_up_upload, upload_contract_signed,
-	upload_smart_contract, UpOpts, Verbosity,
+	build_smart_contract, dry_run_gas_estimate_instantiate, dry_run_upload, get_contract_code,
+	get_instantiate_payload, get_upload_payload, instantiate_contract_signed,
+	instantiate_smart_contract, is_chain_alive, parse_hex_bytes, run_contracts_node,
+	set_up_deployment, set_up_upload, upload_contract_signed, upload_smart_contract, UpOpts,
+	Verbosity,
 };
-use sp_core::Bytes;
+use sp_core::{bytes::to_hex, Bytes};
 use sp_weights::Weight;
 use std::path::PathBuf;
 use tempfile::NamedTempFile;
@@ -190,6 +190,15 @@ impl UpContractCommand {
 			None
 		};
 
+		let instantiate_exec = match set_up_deployment(self.clone().into()).await {
+			Ok(i) => i,
+			Err(e) => {
+				error(format!("An error occurred instantiating the contract: {e}"))?;
+				terminate_node(&mut Cli, process)?;
+				Cli.outro_cancel(FAILED)?;
+				return Ok(());
+			},
+		};
 		// Run steps for signing with wallet integration. Returns early.
 		if self.use_wallet {
 			let (call_data, hash) = match self.get_contract_data().await {
@@ -211,8 +220,28 @@ impl UpContractCommand {
 				);
 
 				if self.upload_only {
-					let upload_result = match upload_contract_signed(self.url.as_str(), payload)
-						.await
+					match upload_contract_signed(self.url.as_str(), payload).await {
+						Err(e) => {
+							spinner
+								.error(format!("An error occurred uploading your contract: {e}"));
+							terminate_node(&mut Cli, process)?;
+							Cli.outro_cancel(FAILED)?;
+							return Ok(());
+						},
+						Ok(_) => {
+							spinner.stop(format!(
+								"Contract uploaded: The code hash is {:?}",
+								to_hex(&hash, false)
+							));
+						},
+					};
+				} else {
+					let contract_info = match instantiate_contract_signed(
+						instantiate_exec,
+						self.url.as_str(),
+						payload,
+					)
+					.await
 					{
 						Err(e) => {
 							spinner
@@ -223,29 +252,6 @@ impl UpContractCommand {
 						},
 						Ok(result) => result,
 					};
-
-					match get_code_hash_from_event(&upload_result, hash) {
-						Ok(r) => {
-							spinner.stop(format!("Contract uploaded: The code hash is {:?}", r));
-						},
-						Err(e) => {
-							spinner
-								.error(format!("An error occurred uploading your contract: {e}"));
-						},
-					};
-				} else {
-					let contract_info =
-						match instantiate_contract_signed(self.url.as_str(), payload).await {
-							Err(e) => {
-								spinner.error(format!(
-									"An error occurred uploading your contract: {e}"
-								));
-								terminate_node(&mut Cli, process)?;
-								Cli.outro_cancel(FAILED)?;
-								return Ok(());
-							},
-							Ok(result) => result,
-						};
 
 					let hash = contract_info.code_hash.map(|code_hash| format!("{:?}", code_hash));
 					display_contract_info(
@@ -285,16 +291,6 @@ impl UpContractCommand {
 		}
 
 		// Otherwise instantiate.
-		let instantiate_exec = match set_up_deployment(self.clone().into()).await {
-			Ok(i) => i,
-			Err(e) => {
-				error(format!("An error occurred instantiating the contract: {e}"))?;
-				terminate_node(&mut Cli, process)?;
-				Cli.outro_cancel(FAILED)?;
-				return Ok(());
-			},
-		};
-
 		let weight_limit = if self.gas_limit.is_some() && self.proof_size.is_some() {
 			Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap())
 		} else {
@@ -372,7 +368,9 @@ impl UpContractCommand {
 		let contract_code = get_contract_code(self.path.as_ref())?;
 		let hash = contract_code.code_hash();
 		if self.upload_only {
-			let call_data = get_upload_payload(contract_code, self.url.as_str()).await?;
+			let upload_exec = set_up_upload(self.clone().into()).await?;
+			let call_data =
+				get_upload_payload(upload_exec, contract_code, self.url.as_str()).await?;
 			Ok((call_data, hash))
 		} else {
 			let instantiate_exec = set_up_deployment(self.clone().into()).await?;
@@ -383,7 +381,7 @@ impl UpContractCommand {
 				// Frontend will do dry run and update call data.
 				Weight::zero()
 			};
-			let call_data = get_instantiate_payload(instantiate_exec, weight_limit)?;
+			let call_data = get_instantiate_payload(instantiate_exec, weight_limit).await?;
 			Ok((call_data, hash))
 		}
 	}
@@ -558,7 +556,6 @@ mod tests {
 		let upload_code = contract_extrinsics::extrinsic_calls::UploadCode::new(
 			contract_code,
 			storage_deposit_limit,
-			contract_extrinsics::upload::Determinism::Enforced,
 		);
 		let expected_call_data = upload_code.build();
 		let mut encoded_expected_call_data = Vec::<u8>::new();
@@ -604,7 +601,8 @@ mod tests {
 		// Craft instantiate call data.
 		let weight = Weight::from_parts(200_000_000, 30_000);
 		let expected_call_data =
-			get_instantiate_payload(set_up_deployment(up_contract_opts.into()).await?, weight)?;
+			get_instantiate_payload(set_up_deployment(up_contract_opts.into()).await?, weight)
+				.await?;
 		// Retrieved call data matches the one crafted above.
 		assert_eq!(retrieved_call_data, expected_call_data);
 

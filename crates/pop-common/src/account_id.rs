@@ -5,7 +5,7 @@ use sp_core::keccak_256;
 use std::str::FromStr;
 use subxt::utils::{to_hex, H160};
 
-/// Parses an account ID from its string representation.
+/// Parses a Substrate account ID from its string representation.
 ///
 /// # Arguments
 /// * `account` - A string representing the account ID to parse.
@@ -14,10 +14,25 @@ pub fn parse_account(account: &str) -> Result<<DefaultConfig as Config>::Account
 		.map_err(|e| Error::AccountAddressParsing(format!("{}", e)))
 }
 
+/// Parses a H160 account from its string representation.
+///
+/// # Arguments
+pub fn parse_h160_account(account: &str) -> Result<H160, Error> {
+	let bytes = contract_build::util::decode_hex(account)
+		.map_err(|e| Error::AccountAddressParsing(format!("Invalid hex: {}", e)))?;
+
+	if bytes.len() != 20 {
+		return Err(Error::AccountAddressParsing(format!(
+			"H160 must be 20 bytes in length, got {}",
+			bytes.len()
+		)));
+	}
+	Ok(H160::from_slice(&bytes[..]))
+}
+
 /// Converts a list of accounts into EVM-compatible `AccountId20`.
 ///
 /// # Arguments
-/// * `accounts` - A vector of `AccountId32` strings.
 pub fn convert_to_evm_accounts(accounts: Vec<String>) -> Result<Vec<String>, Error> {
 	accounts
 		.into_iter()
@@ -61,7 +76,6 @@ impl AccountIdMapper {
 }
 
 #[cfg(test)]
-mod tests {
 	use super::*;
 	use anyhow::Result;
 
