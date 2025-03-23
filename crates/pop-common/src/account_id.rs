@@ -5,7 +5,7 @@ use sp_core::keccak_256;
 use std::str::FromStr;
 use subxt::utils::{to_hex, H160};
 
-/// Parses an account ID from its string representation.
+/// Parses a Substrate account ID from its string representation.
 ///
 /// # Arguments
 /// * `account` - A string representing the account ID to parse.
@@ -17,6 +17,7 @@ pub fn parse_account(account: &str) -> Result<<DefaultConfig as Config>::Account
 /// Parses a H160 account from its string representation.
 ///
 /// # Arguments
+/// * `account` - A hex-encoded string representation to parse.
 pub fn parse_h160_account(account: &str) -> Result<H160, Error> {
 	let bytes = contract_build::util::decode_hex(account)
 		.map_err(|e| Error::AccountAddressParsing(format!("Invalid hex: {}", e)))?;
