@@ -21,7 +21,7 @@ const EXCLUDED_ARGS: [&str; 3] = ["--profile", "--skip-config", "-y"];
 
 #[derive(Args)]
 pub(crate) struct BenchmarkOverhead {
-	/// Commmand to benchmark the execution overhead per-block and per-extrinsic.
+	/// Command to benchmark the execution overhead per-block and per-extrinsic.
 	#[clap(flatten)]
 	pub command: OverheadCmd,
 	/// Build profile.
@@ -229,7 +229,6 @@ mod tests {
 		fs::{self, File},
 		path::PathBuf,
 	};
-	use strum::{EnumMessage, VariantArray};
 	use tempfile::tempdir;
 
 	#[test]
@@ -279,15 +278,6 @@ mod tests {
 			.into_iter()
 			.map(|preset| (preset, String::default()))
 			.collect();
-		let profiles = Profile::VARIANTS
-			.iter()
-			.map(|profile| {
-				(
-					profile.get_message().unwrap_or(profile.as_ref()).to_string(),
-					profile.get_detailed_message().unwrap_or_default().to_string(),
-				)
-			})
-			.collect();
 
 		let mut cli = MockCli::new()
 			.expect_intro("Benchmarking the execution overhead per-block and per-extrinsic")
@@ -295,7 +285,7 @@ mod tests {
 				"Choose the build profile of the binary that should be used: ",
 				Some(true),
 				true,
-				Some(profiles),
+				Some(Profile::get_variants()),
 				0,
 				None,
 			)
@@ -304,7 +294,7 @@ mod tests {
 				cwd.display()
 			))
 			.expect_input(
-				"Please provide the path to the runtime.",
+				"Please specify the path to the runtime project or the runtime binary.",
 				runtime_path.to_str().unwrap().to_string(),
 			)
 			.expect_select(
