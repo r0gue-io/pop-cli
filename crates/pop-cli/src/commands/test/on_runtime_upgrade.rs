@@ -1,5 +1,8 @@
 use crate::{
-	cli,
+	cli::{
+		self,
+		traits::{Input, Select},
+	},
 	commands::test::TestTryRuntimeCommand,
 	common::{bench::ensure_runtime_binary_exists, builds::guide_user_to_select_profile},
 };
@@ -19,7 +22,7 @@ use try_runtime_core::{
 #[derive(Args)]
 pub(crate) struct TestOnRuntimeUpgradeCommand {
 	/// Command to test runtime migrations.
-	#[clap(subcommand)]
+	#[clap(flatten)]
 	command: TestTryRuntimeCommand<Command>,
 	/// Build profile.
 	#[clap(long, value_enum)]
