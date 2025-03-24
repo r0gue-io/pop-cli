@@ -31,7 +31,7 @@ pub(crate) struct TestArgs {
 #[derive(Args)]
 pub(crate) struct TestTryRuntimeCommand<T>
 where
-	T: Parser,
+	T: Parser + Args,
 {
 	/// Subcommand of try-runtime.
 	#[clap(flatten)]
