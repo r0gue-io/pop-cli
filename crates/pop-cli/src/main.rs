@@ -35,21 +35,51 @@ async fn main() -> Result<()> {
 
 	#[cfg(feature = "telemetry")]
 	if let Some(tel) = maybe_tel.clone() {
-		// `args` is guaranteed to have at least 3 elements as clap will display help message if not
-		// set.
-		let (command, subcommand) = parse_args(args().collect());
-
-		if let Ok(sub_data) = &res {
-			// Best effort to send on first try, no action if failure.
-			let _ = record_cli_command(
-				tel.clone(),
-				&command,
-				json!({&subcommand: sub_data.to_string()}),
-			)
-			.await;
-		} else {
-			let _ = record_cli_command(tel, "error", json!({&command: &subcommand})).await;
-		}
+		// Record command and subcommand properly for telemetry
+		match std::env::args().collect::<Vec<_>>().as_slice() {
+            // Only try to use canonical command if we have enough args to parse
+            [_, _cmd, ..] => {
+                // Create a new command instance and parse from the original args
+                #[allow(unused_imports)]
+                use clap::CommandFactory;
+                if let Ok(matches) = Cli::command().try_get_matches_from(std::env::args()) {
+                    let canonical_command = get_canonical_command(&matches);
+                    let _ = record_cli_command(
+                        tel.clone(),
+                        &canonical_command,
+                        json!({}),
+                    )
+                    .await;
+                } else {
+                    // Fall back to legacy behavior
+                    let (command, subcommand) = parse_args(args().collect());
+                    if let Ok(sub_data) = &res {
+                        let _ = record_cli_command(
+                            tel.clone(),
+                            &command,
+                            json!({&subcommand: sub_data.to_string()}),
+                        )
+                        .await;
+                    } else {
+                        let _ = record_cli_command(tel, "error", json!({&command: &subcommand})).await;
+                    }
+                }
+            },
+            // Not enough args, fall back to legacy behavior
+            _ => {
+                let (command, subcommand) = parse_args(args().collect());
+                if let Ok(sub_data) = &res {
+                    let _ = record_cli_command(
+                        tel.clone(),
+                        &command,
+                        json!({&subcommand: sub_data.to_string()}),
+                    )
+                    .await;
+                } else {
+                    let _ = record_cli_command(tel, "error", json!({&command: &subcommand})).await;
+                }
+            }
+        }
 	}
 
 	// map result from Result<Value> to Result<()>
@@ -116,6 +146,50 @@ fn parse_args(args: Vec<String>) -> (String, String) {
 	(command.clone(), subcommand.clone())
 }
 
+#[cfg(feature = "telemetry")]
+fn get_canonical_command(matches: &clap::ArgMatches) -> String {
+    match matches.subcommand() {
+        Some(("build", sub_matches)) | Some(("b", sub_matches)) => {
+            match sub_matches.subcommand() {
+                Some(("spec", _)) | Some(("s", _)) => "build_spec".to_string(),
+                _ => "build".to_string(),
+            }
+        },
+        Some(("test", sub_matches)) | Some(("t", sub_matches)) => {
+            match sub_matches.subcommand() {
+                Some(("contract", _)) | Some(("c", _)) => "test_contract".to_string(),
+                _ => "test".to_string(),
+            }
+        },
+        Some(("new", sub_matches)) | Some(("n", sub_matches)) => {
+            match sub_matches.subcommand() {
+                Some(("parachain", _)) => "new_parachain".to_string(),
+                Some(("contract", _)) => "new_contract".to_string(),
+                Some(("pallet", _)) => "new_pallet".to_string(),
+                _ => "new".to_string(),
+            }
+        },
+        Some(("up", sub_matches)) | Some(("u", sub_matches)) => {
+            match sub_matches.subcommand() {
+                Some(("network", _)) | Some(("n", _)) => "up_network".to_string(), 
+                Some(("parachain", _)) | Some(("p", _)) => "up_parachain".to_string(),
+                Some(("contract", _)) | Some(("c", _)) => "up_contract".to_string(),
+                _ => "up".to_string(),
+            }
+        },
+        Some(("call", sub_matches)) | Some(("c", sub_matches)) => {
+            match sub_matches.subcommand() {
+                Some(("chain", _)) | Some(("p", _)) | Some(("parachain", _)) => "call_chain".to_string(),
+                Some(("contract", _)) | Some(("c", _)) => "call_contract".to_string(),
+                _ => "call".to_string(),
+            }
+        },
+        Some(("clean", _)) | Some(("C", _)) => "clean".to_string(),
+        Some(("install", _)) | Some(("i", _)) => "install".to_string(),
+        _ => "unknown".to_string(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -134,6 +208,210 @@ mod tests {
 		Ok(())
 	}
 
+	#[cfg(feature = "telemetry")]
+	#[test]
+	fn test_get_canonical_command() {
+		use clap::{ArgMatches, CommandFactory};
+		
+		/// Test structure for command definitions
+		struct CommandTest {
+			/// Full command name
+			command: &'static str,
+			/// Command alias (shorthand)
+			alias: &'static str,
+			/// Expected canonical result for this command
+			canonical: &'static str,
+			/// Subcommands to test with this command
+			subcommands: Vec<SubcommandTest>,
+		}
+		
+		/// Test structure for subcommand definitions
+		struct SubcommandTest {
+			/// Full subcommand name
+			subcommand: &'static str,
+			/// Subcommand alias (shorthand)
+			alias: &'static str,
+			/// Expected canonical result for this command+subcommand combination
+			canonical: &'static str,
+		}
+		
+		// Define all commands and their subcommands to test
+		let command_tests = vec![
+			CommandTest {
+				command: "build",
+				alias: "b",
+				canonical: "build",
+				subcommands: vec![
+					SubcommandTest {
+						subcommand: "spec",
+						alias: "s",
+						canonical: "build_spec",
+					},
+				],
+			},
+			CommandTest {
+				command: "new",
+				alias: "n",
+				canonical: "new",
+				subcommands: vec![
+					SubcommandTest {
+						subcommand: "parachain",
+						alias: "parachain", // No specific alias for parachain
+						canonical: "new_parachain",
+					},
+					SubcommandTest {
+						subcommand: "contract",
+						alias: "contract", // No specific alias for contract
+						canonical: "new_contract",
+					},
+					SubcommandTest {
+						subcommand: "pallet",
+						alias: "pallet", // No specific alias for pallet
+						canonical: "new_pallet",
+					},
+				],
+			},
+			CommandTest {
+				command: "call",
+				alias: "c",
+				canonical: "call",
+				subcommands: vec![
+					SubcommandTest {
+						subcommand: "chain",
+						alias: "p", // 'p' is an alias for chain
+						canonical: "call_chain",
+					},
+					SubcommandTest {
+						subcommand: "contract",
+						alias: "c",
+						canonical: "call_contract",
+					},
+				],
+			},
+			CommandTest {
+				command: "test",
+				alias: "t",
+				canonical: "test",
+				subcommands: vec![
+					SubcommandTest {
+						subcommand: "contract",
+						alias: "c",
+						canonical: "test_contract",
+					},
+				],
+			},
+			CommandTest {
+				command: "up",
+				alias: "u",
+				canonical: "up",
+				subcommands: vec![
+					SubcommandTest {
+						subcommand: "network",
+						alias: "n",
+						canonical: "up_network",
+					},
+					SubcommandTest {
+						subcommand: "parachain",
+						alias: "p",
+						canonical: "up_parachain",
+					},
+					SubcommandTest {
+						subcommand: "contract",
+						alias: "c",
+						canonical: "up_contract",
+					},
+				],
+			},
+			CommandTest {
+				command: "clean",
+				alias: "C",
+				canonical: "clean",
+				subcommands: vec![],
+			},
+			CommandTest {
+				command: "install",
+				alias: "i",
+				canonical: "install",
+				subcommands: vec![],
+			},
+		];
+		
+		/// Helper function to create ArgMatches for a given command sequence
+		fn get_matches(args: &[&str]) -> Option<ArgMatches> {
+			let mut full_args = vec!["pop"];
+			full_args.extend(args);
+			
+			match Cli::command().try_get_matches_from(&full_args) {
+				Ok(matches) => Some(matches),
+				Err(_) => None,
+			}
+		}
+		
+		// Add dummy required arguments for commands that need them
+		let dummy_args = &["--dummy-required-arg", "value"];
+		
+		// Test all commands and their aliases
+		for test in &command_tests {
+			// Main command test
+			if let Some(matches) = get_matches(&[test.command]) {
+				let result = get_canonical_command(&matches);
+				assert_eq!(result, test.canonical);
+			}
+			
+			// Command alias test
+			if let Some(matches) = get_matches(&[test.alias]) {
+				let result = get_canonical_command(&matches);
+				assert_eq!(result, test.canonical);
+			}
+			
+			// Test all subcommands
+			for subtest in &test.subcommands {
+				// Test combinations:
+				// 1. Command + Subcommand
+				if let Some(matches) = get_matches(&[test.command, subtest.subcommand]) {
+					let result = get_canonical_command(&matches);
+					assert_eq!(result, subtest.canonical);
+				} else if let Some(matches) = get_matches(&[test.command, subtest.subcommand, dummy_args[0], dummy_args[1]]) {
+					// Try with dummy args for commands requiring them
+					let result = get_canonical_command(&matches);
+					assert_eq!(result, subtest.canonical);
+				}
+				
+				// 2. Command + Subcommand alias
+				if subtest.subcommand != subtest.alias { // Only test if there's a real alias
+					if let Some(matches) = get_matches(&[test.command, subtest.alias]) {
+						let result = get_canonical_command(&matches);
+						assert_eq!(result, subtest.canonical);
+					} else if let Some(matches) = get_matches(&[test.command, subtest.alias, dummy_args[0], dummy_args[1]]) {
+						let result = get_canonical_command(&matches);
+						assert_eq!(result, subtest.canonical);
+					}
+				}
+				
+				// 3. Command alias + Subcommand
+				if let Some(matches) = get_matches(&[test.alias, subtest.subcommand]) {
+					let result = get_canonical_command(&matches);
+					assert_eq!(result, subtest.canonical);
+				} else if let Some(matches) = get_matches(&[test.alias, subtest.subcommand, dummy_args[0], dummy_args[1]]) {
+					let result = get_canonical_command(&matches);
+					assert_eq!(result, subtest.canonical);
+				}
+				
+				// 4. Command alias + Subcommand alias
+				if subtest.subcommand != subtest.alias { // Only test if there's a real alias
+					if let Some(matches) = get_matches(&[test.alias, subtest.alias]) {
+						let result = get_canonical_command(&matches);
+						assert_eq!(result, subtest.canonical);
+					} else if let Some(matches) = get_matches(&[test.alias, subtest.alias, dummy_args[0], dummy_args[1]]) {
+						let result = get_canonical_command(&matches);
+						assert_eq!(result, subtest.canonical);
+					}
+				}
+			}
+		}
+	}
+
+	#[cfg(feature = "telemetry")]
 	#[test]
 	fn parse_args_works() {
 		for args in vec![
