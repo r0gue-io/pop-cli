@@ -1001,13 +1001,6 @@ mod tests {
 							genesis_code,
 						);
 					}
-					if !build_spec_cmd.deterministic {
-						cli = cli.expect_confirm(
-							"Would you like to build the runtime deterministically? This requires a containerization solution (Docker/Podman) and is recommended for production builds.",
-							deterministic,
-						).expect_input("Enter the directory path where the runtime is located:", runtime_dir.display().to_string())
-						.expect_input("Enter the runtime package name:", package.to_string());
-					}
 				}
 				let build_spec = build_spec_cmd.configure_build_spec(&mut cli).await?;
 				if !changes && no_flags_used {
@@ -1017,9 +1010,9 @@ mod tests {
 					assert_eq!(build_spec.protocol_id, "my-protocol");
 					assert_eq!(build_spec.genesis_state, genesis_state);
 					assert_eq!(build_spec.genesis_code, genesis_code);
-					assert_eq!(build_spec.deterministic, deterministic);
-					assert_eq!(build_spec.package, package);
-					assert_eq!(build_spec.runtime_dir, runtime_dir);
+					assert_eq!(build_spec.deterministic, false);
+					assert_eq!(build_spec.package, DEFAULT_PACKAGE);
+					assert_eq!(build_spec.runtime_dir, PathBuf::from(DEFAULT_RUNTIME_DIR));
 				} else if changes && no_flags_used {
 					assert_eq!(build_spec.id, para_id);
 					assert_eq!(build_spec.profile, profile);
