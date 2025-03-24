@@ -160,7 +160,7 @@ impl Command {
 			"The {project} was built in {profile} mode{}.",
 			features
 				.is_empty()
-				.then(|| String::new())
+				.then(String::new)
 				.unwrap_or_else(|| format!(" with the following features: {}", features.join(",")))
 		))?;
 		cli.outro("Build completed successfully!")?;
