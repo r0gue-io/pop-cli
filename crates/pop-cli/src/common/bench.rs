@@ -11,7 +11,7 @@ use pop_parachains::{
 use std::{
 	self,
 	ffi::OsStr,
-	fs,
+	fs::{self, File},
 	path::{Path, PathBuf},
 };
 use strum::{EnumMessage, IntoEnumIterator};
@@ -157,7 +157,7 @@ pub fn guide_user_to_input_runtime_path(
 				target_path.display()
 			))?;
 			let input: PathBuf = cli
-				.input("Please provide the path to the runtime.")
+				.input("Please specify the path to the runtime project or the runtime binary.")
 				.required(true)
 				.default_input(DEFAULT_RUNTIME_DIR)
 				.placeholder(DEFAULT_RUNTIME_DIR)
@@ -326,7 +326,7 @@ pub(crate) fn overwrite_weight_file_command(
 		new_lines.push(line.to_string());
 	}
 
-	std::fs::write(dest_file, new_lines.join("\n"))?;
+	fs::write(dest_file, new_lines.join("\n"))?;
 	Ok(())
 }
 
@@ -378,7 +378,7 @@ mod tests {
 				project_path.display()
 			))
 			.expect_input(
-				"Please provide the path to the runtime.",
+				"Please specify the path to the runtime project or the runtime binary.",
 				binary_path.to_str().unwrap().to_string(),
 			)
 	}
@@ -439,18 +439,9 @@ mod tests {
 		let runtime_path = temp_dir.path().join("runtimes");
 
 		// No runtime path found, ask for manual input from user.
-		let mut cli = MockCli::new();
 		let runtime_binary_path = temp_path.join("dummy.wasm");
-		cli = cli
-			.expect_warning(format!(
-				"No runtime folder found at {}. Please input the runtime path manually.",
-				temp_path.display()
-			))
-			.expect_input(
-				"Please provide the path to the runtime.",
-				runtime_binary_path.to_str().unwrap().to_string(),
-			);
-		fs::File::create(runtime_binary_path)?;
+		let mut cli = expect_input_runtime_path(&temp_path, &runtime_binary_path);
+		File::create(runtime_binary_path)?;
 		guide_user_to_input_runtime_path(&mut cli, &temp_path)?;
 		cli.verify()?;
 
