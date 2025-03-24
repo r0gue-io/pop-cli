@@ -81,11 +81,11 @@ pub enum Parachain {
 		)
 	)]
 	Standard,
-	/// Parachain configured with fungible and non-fungilble asset functionalities.
+	/// Parachain configured with fungible and non-fungible asset functionalities.
 	#[strum(
 		serialize = "assets",
 		message = "Assets",
-		detailed_message = "Parachain configured with fungible and non-fungilble asset functionalities.",
+		detailed_message = "Parachain configured with fungible and non-fungible asset functionalities.",
 		props(
 			Provider = "Pop",
 			Repository = "https://github.com/r0gue-io/assets-parachain",
