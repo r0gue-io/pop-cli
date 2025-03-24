@@ -11,7 +11,7 @@ use pop_parachains::{
 use std::{
 	self,
 	ffi::OsStr,
-	fs::{self, File},
+	fs,
 	path::{Path, PathBuf},
 };
 use strum::{EnumMessage, IntoEnumIterator};
