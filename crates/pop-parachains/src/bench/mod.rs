@@ -153,9 +153,6 @@ pub fn generate_binary_benchmarks<F>(
 where
 	F: Fn(Vec<String>) -> Vec<String>,
 {
-	let temp_file = NamedTempFile::new()?;
-	let temp_path = temp_file.path().to_owned();
-
 	// Get all arguments of the command and skip the program name.
 	let mut args = update_args(std::env::args().skip(3).collect::<Vec<String>>());
 	args = args
@@ -165,13 +162,8 @@ where
 	let mut cmd_args = vec!["benchmark".to_string(), command.to_string()];
 	cmd_args.append(&mut args);
 
-	if let Err(e) = cmd(binary_path, cmd_args).stderr_path(&temp_path).run() {
-		let mut error_output = String::new();
-		std::fs::File::open(&temp_path).unwrap().read_to_string(&mut error_output)?;
-		return Err(anyhow::anyhow!(
-			"Failed to run benchmarking: {}",
-			if error_output.is_empty() { e.to_string() } else { error_output }
-		));
+	if let Err(e) = cmd(binary_path, cmd_args).stderr_capture().run() {
+		return Err(anyhow::anyhow!("Failed to run benchmarking: {}", e.to_string()));
 	}
 	Ok(())
 }

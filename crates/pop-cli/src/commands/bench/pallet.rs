@@ -175,9 +175,9 @@ pub(crate) struct BenchmarkPallet {
 	/// Adjust the PoV estimation by adding additional trie layers to it.
 	///
 	/// This should be set to `log16(n)` where `n` is the number of top-level storage items in the
-	/// runtime, eg. `StorageMap`s and `StorageValue`s. A value of 2 to 3 is usually sufficient.
+	/// runtime, e.g. `StorageMap`s and `StorageValue`s. A value of 2 to 3 is usually sufficient.
 	/// Each layer will result in an additional 495 bytes PoV per distinct top-level access.
-	/// Therefore multiple `StorageMap` accesses only suffer from this increase once. The exact
+	/// Therefore, multiple `StorageMap` accesses only suffer from this increase once. The exact
 	/// number of storage items depends on the runtime and the deployed pallets.
 	#[clap(long, default_value = "2")]
 	pub additional_trie_layers: u8,
@@ -191,9 +191,9 @@ pub(crate) struct BenchmarkPallet {
 	#[arg(long)]
 	disable_proof_recording: bool,
 
-	/// If this is set to true, no parameter menu pops up
+	/// If set to true, no additional configuration prompts will be shown.
 	#[arg(long = "skip")]
-	skip_menu: bool,
+	skip_configuration: bool,
 
 	/// Automatically source the needed binary required without prompting for confirmation.
 	#[clap(short = 'y', long)]
@@ -238,7 +238,7 @@ impl Default for BenchmarkPallet {
 			worst_case_map_values: 1000000,
 			additional_trie_layers: 2,
 			disable_proof_recording: false,
-			skip_menu: false,
+			skip_configuration: false,
 			skip_confirm: false,
 			bench_file: None,
 		}
@@ -288,7 +288,7 @@ impl BenchmarkPallet {
 			// Without overriding the genesis builder policy, listing will fail for a runtime
 			// that is not built with the `runtime-benchmarks` feature.
 			self.genesis_builder = Some(GenesisBuilderPolicy::None);
-			if let Err(e) = self.run() {
+			if let Err(e) = self.run(cli) {
 				return display_message(&e.to_string(), false, cli);
 			}
 			return display_message("All pallets and extrinsics listed!", true, cli);
@@ -325,9 +325,10 @@ impl BenchmarkPallet {
 			self.update_extrinsics(cli, &mut registry).await?;
 		}
 
-		// Only prompt user to update parameters when `skip_menu` is not provided.
-		if !self.skip_menu &&
-			cli.confirm("Do you want to open the parameter menu?")
+		// Only prompt user to update additional configurations when `skip_configuration` is not
+		// provided.
+		if !self.skip_configuration &&
+			cli.confirm("Would you like to update any additional configurations?")
 				.initial_value(false)
 				.interact()?
 		{
@@ -363,10 +364,9 @@ impl BenchmarkPallet {
 
 		cli.warning("NOTE: this may take some time...")?;
 		cli.info("Benchmarking extrinsic weights of selected pallets...")?;
-		let result = self.run();
+		let result = self.run(cli);
 
 		// Display the benchmarking command.
-		cliclack::log::remark("\n")?;
 		cli.info(self.display())?;
 		if let Err(e) = result {
 			return display_message(&e.to_string(), false, cli);
@@ -375,13 +375,15 @@ impl BenchmarkPallet {
 		Ok(())
 	}
 
-	fn run(&mut self) -> anyhow::Result<()> {
+	fn run(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		if let Some(original_weight_path) = self.output.clone() {
 			let temp_dir = tempdir()?;
 			let temp_file_path = temp_dir.path().join("temp_weights.rs");
 			self.output = Some(temp_file_path.clone());
 
 			generate_pallet_benchmarks(self.collect_arguments())?;
+			console::Term::stderr().clear_last_lines(1)?;
+			cli.info(format!("Weight file is generated to {:?}", original_weight_path.display()))?;
 
 			// Restore the original weight path.
 			self.output = Some(original_weight_path.clone());
@@ -405,7 +407,7 @@ impl BenchmarkPallet {
 		let default_values = Self::default();
 		let mut args = vec!["pop".to_string(), "bench".to_string(), "pallet".to_string()];
 		let mut arguments = self.collect_arguments();
-		if self.skip_menu && self.skip_menu != default_values.skip_menu {
+		if self.skip_configuration && self.skip_configuration != default_values.skip_configuration {
 			arguments.push("--skip".to_string());
 		}
 		if self.skip_confirm {
@@ -876,7 +878,7 @@ impl BenchmarkPalletMenuOption {
 		cli: &mut impl cli::traits::Cli,
 	) -> anyhow::Result<bool> {
 		let default_value = self.read_command(cmd)?;
-		let parsed_default_value = default_value.trim().parse().unwrap();
+		let parsed_default_value = default_value.trim().parse()?;
 		cli.confirm(format!(
 			r#"Do you want to enable "{}"?"#,
 			self.get_message().unwrap_or_default()
@@ -1023,7 +1025,7 @@ async fn guide_user_to_select_menu_option(
 	let mut prompt = cli.select("Select the parameter to update:");
 
 	let mut index = 0;
-	spinner.start("Loading parameter menu...");
+	spinner.start("Loading parameters...");
 	for param in BenchmarkPalletMenuOption::iter() {
 		if param.is_disabled(cmd, registry)? {
 			continue;
@@ -1058,7 +1060,11 @@ fn guide_user_to_update_bench_file_path(
 			return Ok(Some(bench_file.clone()));
 		}
 	} else if cli
-		.confirm("Do you want to save the updated parameters?")
+		.confirm(format!(
+			"Do you want to save the parameters to {:?}?\n{}.",
+			DEFAULT_BENCH_FILE,
+			console::style("This will allow loading parameters from the file by using `-f`").dim()
+		))
 		.initial_value(true)
 		.interact()?
 	{
@@ -1096,7 +1102,7 @@ fn extrinsics(registry: &PalletExtrinsicsRegistry, pallet: &str) -> Vec<String> 
 
 // Add a more relaxed parsing for pallet names by allowing pallet directory names with `-` to be
 // used like crate names with `_`
-fn parse_pallet_name(pallet: &str) -> std::result::Result<String, String> {
+fn parse_pallet_name(pallet: &str) -> Result<String, String> {
 	Ok(pallet.replace("-", "_"))
 }
 
@@ -1121,7 +1127,7 @@ mod tests {
 	use anyhow::Ok;
 	use pop_common::Profile;
 	use std::{env::current_dir, fs};
-	use strum::{EnumMessage, VariantArray};
+	use strum::EnumMessage;
 	use tempfile::tempdir;
 
 	#[tokio::test]
@@ -1133,23 +1139,13 @@ mod tests {
 		let bench_file_path = temp_dir.path().join(DEFAULT_BENCH_FILE);
 		let runtime_path = get_mock_runtime(true);
 		let output_path = temp_dir.path().join("weights.rs");
-		// Prompt user to select `profile` if not provided.
-		let profiles = Profile::VARIANTS
-			.iter()
-			.map(|profile| {
-				(
-					profile.get_message().unwrap_or(profile.as_ref()).to_string(),
-					profile.get_detailed_message().unwrap_or_default().to_string(),
-				)
-			})
-			.collect();
 
 		cli = expect_pallet_benchmarking_intro(cli)
 			.expect_select(
 				"Choose the build profile of the binary that should be used: ",
 				Some(true),
 				true,
-				Some(profiles),
+				Some(Profile::get_variants()),
 				0,
 				None,
 			)
@@ -1158,17 +1154,27 @@ mod tests {
 				cwd.display()
 			))
 			.expect_input(
-				"Please provide the path to the runtime.",
+				"Please specify the path to the runtime project or the runtime binary.",
 				runtime_path.to_str().unwrap().to_string(),
 			)
-			.expect_confirm("Do you want to open the parameter menu?", false)
+			.expect_confirm("Would you like to update any additional configurations?", false)
 			.expect_warning("NOTE: this may take some time...")
 			.expect_info("Benchmarking extrinsic weights of selected pallets...")
 			.expect_input(
 				"Provide the output file path for benchmark results (optional).",
 				output_path.to_str().unwrap().to_string(),
 			)
-			.expect_confirm("Do you want to save the updated parameters?", true)
+			.expect_confirm(
+				format!(
+					"Do you want to save the parameters to {:?}?\n{}.",
+					DEFAULT_BENCH_FILE,
+					console::style(
+						"This will allow loading parameters from the file by using `-f`"
+					)
+					.dim()
+				),
+				true,
+			)
 			.expect_input(
 				"Provide the output path for benchmark parameters",
 				bench_file_path.to_str().unwrap().to_string(),
@@ -1176,7 +1182,8 @@ mod tests {
 			.expect_info(format!(
 				"Parameters saved successfully to {:?}",
 				bench_file_path.display()
-			));
+			))
+			.expect_info(format!("Weight file is generated to {:?}", output_path.display()));
 
 		let mut cmd = BenchmarkPallet {
 			skip_confirm: false,
@@ -1210,7 +1217,7 @@ mod tests {
 			runtime: Some(get_mock_runtime(true)),
 			genesis_builder: Some(GenesisBuilderPolicy::Runtime),
 			genesis_builder_preset: "development".to_string(),
-			skip_menu: true,
+			skip_configuration: true,
 			pallet: Some("pallet_timestamp".to_string()),
 			extrinsic: Some(ALL_SELECTED.to_string()),
 			output: Some(output_path.clone()),
@@ -1263,7 +1270,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn benchmark_pallet_weight_file_works() -> anyhow::Result<()> {
-		let temp_dir = tempfile::tempdir()?;
+		let temp_dir = tempdir()?;
 		let output_path = temp_dir.path().join("weights.rs");
 		let mut cli = expect_pallet_benchmarking_intro(MockCli::new())
 			.expect_warning("NOTE: this may take some time...")
@@ -1275,7 +1282,7 @@ mod tests {
 			.expect_outro("Benchmark completed successfully!");
 
 		let mut cmd = BenchmarkPallet {
-			skip_menu: true,
+			skip_configuration: true,
 			skip_confirm: true,
 			runtime: Some(get_mock_runtime(true)),
 			genesis_builder: Some(GenesisBuilderPolicy::Runtime),
@@ -1332,7 +1339,7 @@ mod tests {
 			runtime: Some(get_mock_runtime(false)),
 			pallet: Some("pallet_timestamp".to_string()),
 			extrinsic: Some(ALL_SELECTED.to_string()),
-			skip_menu: true,
+			skip_configuration: true,
 			genesis_builder: Some(GenesisBuilderPolicy::None),
 			..Default::default()
 		}
@@ -1351,7 +1358,7 @@ mod tests {
 			runtime: Some(get_mock_runtime(true)),
 			pallet: Some("unknown_pallet".to_string()),
 			extrinsic: Some(ALL_SELECTED.to_string()),
-			skip_menu: true,
+			skip_configuration: true,
 			genesis_builder: Some(GenesisBuilderPolicy::None),
 			..Default::default()
 		}
@@ -1487,14 +1494,17 @@ mod tests {
 		let file_path = temp_dir.path().join(DEFAULT_BENCH_FILE);
 		let invalid_file_path = temp_dir.path().join("invalid_file.txt");
 		let file_path_str = file_path.to_str().unwrap().to_string();
+		let prompt = format!(
+			"Do you want to save the parameters to {:?}?\n{}.",
+			DEFAULT_BENCH_FILE,
+			console::style("This will allow loading parameters from the file by using `-f`").dim()
+		);
 
 		// No bench file path provided.
-		let mut cli = MockCli::new()
-			.expect_confirm("Do you want to save the updated parameters?", true)
-			.expect_input(
-				"Provide the output path for benchmark parameters",
-				file_path_str.clone(),
-			);
+		let mut cli = MockCli::new().expect_confirm(&prompt, true).expect_input(
+			"Provide the output path for benchmark parameters",
+			file_path_str.clone(),
+		);
 		assert_eq!(
 			guide_user_to_update_bench_file_path(&mut BenchmarkPallet::default(), &mut cli, true)?,
 			Some(file_path.clone())
@@ -1502,8 +1512,7 @@ mod tests {
 		cli.verify()?;
 
 		// Reject to save the updated parameters.
-		let mut cli =
-			MockCli::new().expect_confirm("Do you want to save the updated parameters?", false);
+		let mut cli = MockCli::new().expect_confirm(&prompt, false);
 		assert_eq!(
 			guide_user_to_update_bench_file_path(&mut BenchmarkPallet::default(), &mut cli, true)?,
 			None
@@ -1511,12 +1520,10 @@ mod tests {
 		cli.verify()?;
 
 		// Invalid file extension.
-		let mut cli = MockCli::new()
-			.expect_confirm("Do you want to save the updated parameters?", true)
-			.expect_input(
-				"Provide the output path for benchmark parameters",
-				invalid_file_path.to_str().unwrap().to_string(),
-			);
+		let mut cli = MockCli::new().expect_confirm(&prompt, true).expect_input(
+			"Provide the output path for benchmark parameters",
+			invalid_file_path.to_str().unwrap().to_string(),
+		);
 		assert_eq!(
 			guide_user_to_update_bench_file_path(&mut BenchmarkPallet::default(), &mut cli, true)
 				.err()
@@ -1815,9 +1822,7 @@ mod tests {
 				.err()
 				.unwrap()
 				.to_string(),
-			format!(
-				r#"Failed to parse TOML content: "expected an equals, found an identifier at line 1 column 9""#
-			)
+			r#"Failed to parse TOML content: "expected an equals, found an identifier at line 1 column 9""#
 		);
 		Ok(())
 	}

@@ -4,6 +4,7 @@ use std::{
 	fmt,
 	path::{Path, PathBuf},
 };
+use strum::{EnumMessage as _, VariantArray as _};
 use strum_macros::{AsRefStr, EnumMessage, EnumString, VariantArray};
 
 /// Enum representing a build profile.
@@ -37,6 +38,19 @@ impl Profile {
 			Profile::Debug => path.join("target/debug"),
 			Profile::Production => path.join("target/production"),
 		}
+	}
+
+	/// Returns the variants of the enum.
+	pub fn get_variants() -> Vec<(String, String)> {
+		Profile::VARIANTS
+			.iter()
+			.map(|profile| {
+				(
+					profile.get_message().unwrap_or(profile.as_ref()).to_string(),
+					profile.get_detailed_message().unwrap_or_default().to_string(),
+				)
+			})
+			.collect()
 	}
 }
 
