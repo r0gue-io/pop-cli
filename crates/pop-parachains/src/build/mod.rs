@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::Error::{self, *};
+use crate::errors::{handle_command_error, Error};
 use anyhow::{anyhow, Result};
 use duct::cmd;
 use pop_common::{manifest::from_path, Profile};
@@ -103,10 +103,10 @@ pub fn generate_plain_chain_spec(
 		.unchecked()
 		.run()?;
 	// Check if the command failed.
-	handle_command_error(&output)?;
+	handle_command_error(&output, Error::BuildSpecError)?;
 	// Atomically replace the chain spec file with the temporary file.
 	temp_file.persist(plain_chain_spec).map_err(|e| {
-		AnyhowError(anyhow!(
+		Error::AnyhowError(anyhow!(
 			"Failed to replace the chain spec file with the temporary file: {}",
 			e.to_string()
 		))
@@ -144,7 +144,7 @@ pub fn generate_raw_chain_spec(
 	.stderr_capture()
 	.unchecked()
 	.run()?;
-	handle_command_error(&output)?;
+	handle_command_error(&output, Error::BuildSpecError)?;
 	Ok(raw_chain_spec)
 }
 
@@ -178,7 +178,7 @@ pub fn export_wasm_file(
 	.stderr_capture()
 	.unchecked()
 	.run()?;
-	handle_command_error(&output)?;
+	handle_command_error(&output, Error::BuildSpecError)?;
 	Ok(wasm_file)
 }
 
@@ -212,7 +212,7 @@ pub fn generate_genesis_state_file(
 	.stderr_capture()
 	.unchecked()
 	.run()?;
-	handle_command_error(&output)?;
+	handle_command_error(&output, Error::BuildSpecError)?;
 	Ok(genesis_file)
 }
 
@@ -224,15 +224,6 @@ fn check_command_exists(binary_path: &Path, command: &str) -> Result<(), Error> 
 			binary: binary_path.display().to_string(),
 		}
 	})?;
-	Ok(())
-}
-
-// Handles command execution errors by extracting and returning the stderr message.
-fn handle_command_error(output: &std::process::Output) -> Result<(), Error> {
-	if !output.status.success() {
-		let stderr_msg = String::from_utf8_lossy(&output.stderr);
-		return Err(Error::BuildSpecError(stderr_msg.to_string()));
-	}
 	Ok(())
 }
 
@@ -385,9 +376,7 @@ mod tests {
 	use std::{
 		fs::{self, write},
 		io::Write,
-		os::unix::process::ExitStatusExt,
 		path::Path,
-		process::{ExitStatus, Output},
 	};
 	use strum::VariantArray;
 	use tempfile::{tempdir, Builder, TempDir};
@@ -916,21 +905,6 @@ mod tests {
 		let manifest = toml_edit::ser::to_string_pretty(&manifest)?;
 		write(path.join(name).join("Cargo.toml"), manifest)?;
 		assert!(is_supported(Some(&path.join(name)))?);
-		Ok(())
-	}
-
-	#[test]
-	fn handle_command_error_failure() -> Result<()> {
-		let output = Output {
-			status: ExitStatus::from_raw(1),
-			stdout: Vec::new(),
-			stderr: Vec::from("Error message".as_bytes()),
-		};
-		assert!(matches!(
-			handle_command_error(&output),
-			Err(Error::BuildSpecError(message))
-			if message == "Error message"
-		));
 		Ok(())
 	}
 }
