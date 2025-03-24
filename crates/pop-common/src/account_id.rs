@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{Config, DefaultConfig, Error};
-use keccak_hash::keccak;
+use sp_core::keccak_256;
 use std::str::FromStr;
-use subxt::{ext::subxt_core::utils::AccountId20, utils::to_hex};
+use subxt::utils::{to_hex, H160};
 
 /// Parses an account ID from its string representation.
 ///
@@ -22,14 +22,42 @@ pub fn convert_to_evm_accounts(accounts: Vec<String>) -> Result<Vec<String>, Err
 	accounts
 		.into_iter()
 		.map(|account| {
-			// Obtains the public address of the account by taking the last 20 bytes of the
-			// Keccak-256 hash of the public key.
-			let hash = keccak(parse_account(&account)?.0).0;
-			let hash20 = hash[12..].try_into().expect("should be 20 bytes");
-			let evm_account = AccountId20(hash20);
-			Ok(to_hex(&evm_account.0))
+			let account_id = parse_account(&account)?.0;
+			let evm_account = AccountIdMapper::to_address(&account_id);
+			Ok(format!("{}", to_hex(&evm_account)))
 		})
 		.collect()
+}
+
+// Logic copied from `cargo-contract` for `AccountId` to `H160` mapping:
+// https://github.com/use-ink/cargo-contract/blob/master/crates/extrinsics/src/lib.rs#L332
+pub(crate) struct AccountIdMapper {}
+impl AccountIdMapper {
+	pub fn to_address(account_id: &[u8]) -> H160 {
+		let mut account_bytes: [u8; 32] = [0u8; 32];
+		account_bytes.copy_from_slice(&account_id[..32]);
+		if Self::is_eth_derived(account_id) {
+			// this was originally an eth address
+			// we just strip the 0xEE suffix to get the original address
+			H160::from_slice(&account_bytes[..20])
+		} else {
+			// this is an (ed|sr)25510 derived address
+			// avoid truncating the public key by hashing it first
+			let account_hash = keccak_256(account_bytes.as_ref());
+			H160::from_slice(&account_hash[12..])
+		}
+	}
+
+	/// Returns true if the passed account id is controlled by an Ethereum key.
+	///
+	/// This is a stateless check that just compares the last 12 bytes. Please note that
+	/// it is theoretically possible to create an ed25519 keypair that passed this
+	/// filter. However, this can't be used for an attack. It also won't happen by
+	/// accident since everbody is using sr25519 where this is not a valid public key.
+	//fn is_eth_derived(account_id: &[u8]) -> bool {
+	fn is_eth_derived(account_bytes: &[u8]) -> bool {
+		account_bytes[20..] == [0xEE; 12]
+	}
 }
 
 #[cfg(test)]
