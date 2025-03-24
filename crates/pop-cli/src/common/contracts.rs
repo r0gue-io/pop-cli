@@ -1,14 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use super::binary::BinaryBuilder;
-use crate::cli::traits::*;
-use pop_common::manifest::from_path;
+use crate::{
+	cli::traits::*,
+	common::binary::{check_and_prompt, BinaryGenerator},
+	impl_binary_generator,
+};
+use pop_common::{manifest::from_path, sourcing::Binary};
 use pop_contracts::contracts_node_generator;
 use std::{
 	path::{Path, PathBuf},
 	process::{Child, Command},
 };
 use tempfile::NamedTempFile;
+
+impl_binary_generator!(ContractsNodeGenerator, contracts_node_generator);
 
 ///  Checks the status of the `substrate-contracts-node` binary, sources it if necessary, and
 /// prompts the user to update it if the existing binary is not the latest version.
@@ -22,9 +27,13 @@ pub async fn check_contracts_node_and_prompt(
 	cache_path: &Path,
 	skip_confirm: bool,
 ) -> anyhow::Result<PathBuf> {
-	BinaryBuilder::new("substrate-contracts-node")
-		.check_and_prompt(cli, contracts_node_generator, cache_path, skip_confirm)
-		.await
+	check_and_prompt::<ContractsNodeGenerator>(
+		cli,
+		"substrate-contracts-node",
+		cache_path,
+		skip_confirm,
+	)
+	.await
 }
 
 /// Handles the optional termination of a local running node.
