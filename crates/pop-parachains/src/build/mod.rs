@@ -106,7 +106,7 @@ pub fn generate_plain_chain_spec(
 	handle_command_error(&output, Error::BuildSpecError)?;
 	// Atomically replace the chain spec file with the temporary file.
 	temp_file.persist(plain_chain_spec).map_err(|e| {
-		AnyhowError(anyhow!(
+		Error::AnyhowError(anyhow!(
 			"Failed to replace the chain spec file with the temporary file: {}",
 			e.to_string()
 		))
