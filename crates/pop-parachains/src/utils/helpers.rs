@@ -110,7 +110,7 @@ mod tests {
 			.contains("properties.insert(\"tokenDecimals\".into(), 6.into());"));
 		assert!(generated_file_content.contains("1000000"));
 		assert!(generated_file_content
-			.contains("properties.insert(\"basedOn\".into(), \"standard\".into());"));
+			.contains("properties.insert(\"basedOn\".into(), \"r0gue-io/standard\".into());"));
 
 		Ok(())
 	}
