@@ -199,6 +199,10 @@ pub(crate) struct BenchmarkPallet {
 	#[clap(short = 'y', long)]
 	skip_confirm: bool,
 
+	/// Avoid rebuilding the runtime if there is an existing runtime binary.
+	#[clap(short = 'n', long)]
+	no_build: bool,
+
 	/// Output file of the benchmark parameters.
 	#[clap(short = 'f', long)]
 	#[serde(skip_serializing)]
@@ -240,6 +244,7 @@ impl Default for BenchmarkPallet {
 			disable_proof_recording: false,
 			skip_configuration: false,
 			skip_confirm: false,
+			no_build: false,
 			bench_file: None,
 		}
 	}
@@ -346,7 +351,7 @@ impl BenchmarkPallet {
 		// Prompt user to update output path of the benchmarking results.
 		if self.output.is_none() {
 			let input = cli
-				.input("Provide the output file path for benchmark results (optional).")
+				.input("Provide the output path for benchmark results (optional).")
 				.required(false)
 				.placeholder("./weights.rs")
 				.interact()?;
@@ -377,25 +382,70 @@ impl BenchmarkPallet {
 
 	fn run(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		if let Some(original_weight_path) = self.output.clone() {
-			let temp_dir = tempdir()?;
-			let temp_file_path = temp_dir.path().join("temp_weights.rs");
-			self.output = Some(temp_file_path.clone());
-
-			generate_pallet_benchmarks(self.collect_arguments())?;
-			console::Term::stderr().clear_last_lines(1)?;
-			cli.info(format!("Weight file is generated to {:?}", original_weight_path.display()))?;
-
-			// Restore the original weight path.
-			self.output = Some(original_weight_path.clone());
-			// Overwrite the weight files with the correct executed command.
-			overwrite_weight_file_command(
-				&temp_file_path,
-				&original_weight_path,
-				&self.collect_display_arguments(),
-			)?;
+			if original_weight_path.is_file() {
+				self.run_with_weight_file(cli, original_weight_path)?;
+			} else {
+				self.run_with_weight_dir(cli, original_weight_path)?;
+			}
 		} else {
 			generate_pallet_benchmarks(self.collect_arguments())?;
 		}
+		Ok(())
+	}
+
+	fn run_with_weight_file(
+		&mut self,
+		cli: &mut impl cli::traits::Cli,
+		weight_path: PathBuf,
+	) -> anyhow::Result<()> {
+		let temp_dir = tempdir()?;
+		let temp_file_path = temp_dir.path().join("temp_weights.rs");
+		self.output = Some(temp_file_path.clone());
+
+		generate_pallet_benchmarks(self.collect_arguments())?;
+		console::Term::stderr().clear_last_lines(1)?;
+		cli.info(format!("Weight file is generated to {:?}", weight_path.display()))?;
+
+		// Restore the original weight path.
+		self.output = Some(weight_path.clone());
+		// Overwrite the weight files with the correct executed command.
+		overwrite_weight_file_command(
+			&temp_file_path,
+			&weight_path,
+			&self.collect_display_arguments(),
+		)?;
+		Ok(())
+	}
+
+	fn run_with_weight_dir(
+		&mut self,
+		cli: &mut impl cli::traits::Cli,
+		weight_path: PathBuf,
+	) -> anyhow::Result<()> {
+		let temp_dir = tempdir()?;
+		let temp_dir_path = temp_dir.into_path();
+		self.output = Some(temp_dir_path.clone());
+
+		generate_pallet_benchmarks(self.collect_arguments())?;
+		console::Term::stderr()
+			.clear_last_lines(fs::read_dir(temp_dir_path.clone()).iter().count() + 1)?;
+
+		// Restore the original weight path.
+		self.output = Some(weight_path.clone());
+		// Overwrite the weight files with the correct executed command.
+		let mut info = String::default();
+		for entry in fs::read_dir(temp_dir_path)? {
+			let entry = entry?;
+			let path = entry.path();
+			let original_path = weight_path.join(entry.file_name());
+			overwrite_weight_file_command(
+				&path,
+				&original_path,
+				&self.collect_display_arguments(),
+			)?;
+			info.push_str(&format!("Created file: {:?}\n", original_path));
+		}
+		cli.info(info)?;
 		Ok(())
 	}
 
@@ -412,6 +462,9 @@ impl BenchmarkPallet {
 		}
 		if self.skip_confirm {
 			arguments.push("-y".to_string());
+		}
+		if self.no_build {
+			arguments.push("-n".to_string());
 		}
 		args.extend(arguments);
 		args
@@ -611,7 +664,12 @@ impl BenchmarkPallet {
 
 	fn update_runtime_path(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		let profile = guide_user_to_select_profile(cli)?;
-		self.runtime = Some(ensure_runtime_binary_exists(cli, &get_current_directory(), &profile)?);
+		self.runtime = Some(ensure_runtime_binary_exists(
+			cli,
+			&get_current_directory(),
+			&profile,
+			!self.no_build,
+		)?);
 		Ok(())
 	}
 
@@ -1161,7 +1219,7 @@ mod tests {
 			.expect_warning("NOTE: this may take some time...")
 			.expect_info("Benchmarking extrinsic weights of selected pallets...")
 			.expect_input(
-				"Provide the output file path for benchmark results (optional).",
+				"Provide the output path for benchmark results (optional).",
 				output_path.to_str().unwrap().to_string(),
 			)
 			.expect_confirm(
@@ -1249,7 +1307,7 @@ mod tests {
 				bench_file_path.display()
 			))
 			.expect_input(
-				"Provide the output file path for benchmark results (optional).",
+				"Provide the output path for benchmark results (optional).",
 				output_path.to_str().unwrap().to_string(),
 			)
 			.expect_confirm(
@@ -1269,6 +1327,58 @@ mod tests {
 	}
 
 	#[tokio::test]
+	async fn benchmark_pallet_weight_dir_works() -> anyhow::Result<()> {
+		let temp_dir = tempdir()?;
+		let output_path = temp_dir.path();
+
+		let runtime_path = get_mock_runtime(true);
+		let binary_path =
+			source_omni_bencher_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
+		let registry = load_pallet_extrinsics(&runtime_path, binary_path.as_path()).await?;
+
+		let mut cli = expect_pallet_benchmarking_intro(MockCli::new())
+			.expect_warning("NOTE: this may take some time...")
+			.expect_info("Benchmarking extrinsic weights of selected pallets...")
+			.expect_input(
+				"Provide the output path for benchmark results (optional).",
+				output_path.to_str().unwrap().to_string(),
+			)
+			.expect_outro("Benchmark completed successfully!");
+
+		let mut cmd = BenchmarkPallet {
+			skip_configuration: true,
+			skip_confirm: true,
+			runtime: Some(get_mock_runtime(true)),
+			genesis_builder: Some(GenesisBuilderPolicy::Runtime),
+			genesis_builder_preset: "development".to_string(),
+			pallet: Some(ALL_SELECTED.to_string()),
+			extrinsic: Some(ALL_SELECTED.to_string()),
+			exclude_pallets: registry
+				.keys()
+				.cloned()
+				.filter(|p| *p != "pallet_timestamp" && *p != "pallet_proxy")
+				.collect(),
+			repeat: 2,
+			steps: 2,
+			..Default::default()
+		};
+		cmd.execute(&mut cli).await?;
+
+		for entry in fs::read_dir(output_path)? {
+			let entry = entry?;
+			let path = entry.path();
+			let content = fs::read_to_string(&path)?;
+			let mut command_block = format!("{EXECUTED_COMMAND_COMMENT}\n");
+			for argument in cmd.collect_display_arguments() {
+				command_block.push_str(&format!("//  {argument}\n"));
+			}
+			assert!(content.contains(&command_block));
+			assert!(path.exists());
+		}
+		cli.verify()
+	}
+
+	#[tokio::test]
 	async fn benchmark_pallet_weight_file_works() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
 		let output_path = temp_dir.path().join("weights.rs");
@@ -1276,7 +1386,7 @@ mod tests {
 			.expect_warning("NOTE: this may take some time...")
 			.expect_info("Benchmarking extrinsic weights of selected pallets...")
 			.expect_input(
-				"Provide the output file path for benchmark results (optional).",
+				"Provide the output path for benchmark results (optional).",
 				output_path.to_str().unwrap().to_string(),
 			)
 			.expect_outro("Benchmark completed successfully!");

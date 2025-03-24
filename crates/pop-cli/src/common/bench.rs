@@ -116,10 +116,12 @@ pub async fn source_omni_bencher_binary(
 /// * `cli`: Command line interface.
 /// * `project_path`: The path to the project that contains the runtime.
 /// * `mode`: The build profile.
+/// * `force`: Whether to force the build process.
 pub fn ensure_runtime_binary_exists(
 	cli: &mut impl Cli,
 	project_path: &Path,
 	mode: &Profile,
+	force: bool,
 ) -> anyhow::Result<PathBuf> {
 	let target_path = mode.target_directory(project_path).join("wbuild");
 	let runtime_path = guide_user_to_input_runtime_path(cli, project_path)?;
@@ -129,15 +131,27 @@ pub fn ensure_runtime_binary_exists(
 		return Ok(runtime_path);
 	}
 
+	// Rebuild the runtime if the binary is not found or the user has forced the build process.
+	if force {
+		return build_runtime_benchmark(&runtime_path, &target_path, mode);
+	}
 	match runtime_binary_path(&target_path, &runtime_path) {
 		Ok(binary_path) => Ok(binary_path),
 		_ => {
 			cli.info("📦 Runtime binary was not found. The runtime will be built locally.")?;
 			cli.warning("NOTE: this may take some time...")?;
-			build_project(&runtime_path, None, mode, vec!["runtime-benchmarks"], None)?;
-			runtime_binary_path(&target_path, &runtime_path).map_err(|e| e.into())
+			build_runtime_benchmark(&runtime_path, &target_path, mode)
 		},
 	}
+}
+
+fn build_runtime_benchmark(
+	runtime_path: &Path,
+	target_path: &Path,
+	mode: &Profile,
+) -> anyhow::Result<PathBuf> {
+	build_project(runtime_path, None, mode, vec!["runtime-benchmarks"], None)?;
+	runtime_binary_path(target_path, runtime_path).map_err(|e| e.into())
 }
 
 /// Guide the user to input a runtime path.
@@ -297,11 +311,11 @@ pub(crate) fn overwrite_weight_file_command(
 ) -> anyhow::Result<()> {
 	let contents = fs::read_to_string(temp_file)?;
 	let lines: Vec<&str> = contents.split("\n").collect();
-	let mut iter = lines.iter();
+	let iter = lines.iter();
 	let mut new_lines: Vec<String> = vec![];
 
 	let mut inside_command_block = false;
-	for line in iter.by_ref() {
+	for line in iter.as_ref() {
 		if line.starts_with(EXECUTED_COMMAND_COMMENT) {
 			inside_command_block = true;
 			continue;
@@ -398,7 +412,7 @@ mod tests {
 			let mut cli = expect_input_runtime_path(&temp_path, &binary_path);
 			File::create(binary_path.as_path())?;
 			assert_eq!(
-				ensure_runtime_binary_exists(&mut cli, &temp_path, profile)?,
+				ensure_runtime_binary_exists(&mut cli, &temp_path, profile, true)?,
 				binary_path.canonicalize()?
 			);
 			cli.verify()?;

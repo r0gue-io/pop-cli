@@ -17,7 +17,7 @@ use pop_parachains::{generate_omni_bencher_benchmarks, BenchmarkingCliCommand};
 use std::{env::current_dir, path::PathBuf};
 use tempfile::tempdir;
 
-const EXCLUDED_ARGS: [&str; 3] = ["--profile", "--skip-config", "-y"];
+const EXCLUDED_ARGS: [&str; 5] = ["--profile", "--skip-confirm", "-y", "--no-build", "-n"];
 
 #[derive(Args)]
 pub(crate) struct BenchmarkOverhead {
@@ -27,6 +27,9 @@ pub(crate) struct BenchmarkOverhead {
 	/// Build profile.
 	#[clap(long, value_enum)]
 	pub(crate) profile: Option<Profile>,
+	/// Avoid rebuilding the runtime if there is an existing runtime binary.
+	#[clap(short = 'n', long)]
+	no_build: bool,
 	/// Automatically source the needed binary required without prompting for confirmation.
 	#[clap(short = 'y', long)]
 	skip_confirm: bool,
@@ -69,6 +72,7 @@ impl BenchmarkOverhead {
 					cli,
 					&current_dir().unwrap_or(PathBuf::from("./")),
 					self.profile.as_ref().ok_or_else(|| anyhow::anyhow!("No profile provided"))?,
+					!self.no_build,
 				)?);
 			}
 
@@ -153,7 +157,10 @@ impl BenchmarkOverhead {
 			arguments.push(format!("--profile={}", profile));
 		}
 		if self.skip_confirm {
-			arguments.push("--skip-confirm".to_string());
+			arguments.push("-y".to_string());
+		}
+		if self.no_build {
+			arguments.push("-n".to_string());
 		}
 		args.extend(arguments);
 		args
@@ -244,7 +251,8 @@ mod tests {
 			BenchmarkOverhead {
 				command: OverheadCmd::try_parse_from([""]).unwrap(),
 				skip_confirm: false,
-				profile: Some(Profile::Debug)
+				profile: Some(Profile::Debug),
+				no_build: false
 			}
 			.display(),
 			"pop bench overhead --genesis-builder=runtime --genesis-builder-preset=development --profile=debug"
@@ -260,11 +268,13 @@ mod tests {
 				])
 				.unwrap(),
 				skip_confirm: true,
-				profile: Some(Profile::Debug)
+				profile: Some(Profile::Debug),
+				no_build: true
 			}
 			.display(),
 			"pop bench overhead --runtime=dummy-runtime --genesis-builder=runtime \
-			--genesis-builder-preset=development --weight-path=weights.rs --profile=debug --skip-confirm"
+			--genesis-builder-preset=development --weight-path=weights.rs --profile=debug \
+			-y -n"
 		);
 	}
 
@@ -321,10 +331,15 @@ mod tests {
 			.expect_outro("Benchmark completed successfully!");
 
 		let cmd = OverheadCmd::try_parse_from(["", "--warmup=1", "--repeat=1"])?;
-		assert!(BenchmarkOverhead { command: cmd, skip_confirm: true, profile: None }
-			.execute(&mut cli)
-			.await
-			.is_ok());
+		assert!(BenchmarkOverhead {
+			command: cmd,
+			skip_confirm: true,
+			profile: None,
+			no_build: false
+		}
+		.execute(&mut cli)
+		.await
+		.is_ok());
 		cli.verify()
 	}
 
@@ -362,6 +377,7 @@ mod tests {
 			])?,
 			skip_confirm: true,
 			profile: None,
+			no_build: false,
 		};
 		assert!(cmd.execute(&mut cli).await.is_ok());
 
@@ -413,7 +429,8 @@ mod tests {
 		assert!(BenchmarkOverhead {
 			command: cmd,
 			skip_confirm: true,
-			profile: Some(Profile::Debug)
+			profile: Some(Profile::Debug),
+			no_build: false
 		}
 		.execute(&mut cli)
 		.await
