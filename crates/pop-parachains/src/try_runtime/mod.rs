@@ -1,3 +1,5 @@
+mod binary;
+
 use strum_macros::{AsRefStr, EnumMessage, EnumString, VariantArray};
 
 /// Chain state options for testing the runtime migrations.
