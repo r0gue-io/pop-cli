@@ -115,6 +115,38 @@ mod tests {
 	}
 
 	#[tokio::test]
+	async fn check_contracts_node_and_prompt_works() -> anyhow::Result<()> {
+		let cache_path = tempfile::tempdir().expect("Could create temp dir");
+		let mut cli = MockCli::new()
+			.expect_warning("⚠️ The substrate-contracts-node binary is not found.")
+			.expect_confirm("📦 Would you like to source it automatically now?", true)
+			.expect_warning("⚠️ The substrate-contracts-node binary is not found.");
+
+		let node_path = check_contracts_node_and_prompt(&mut cli, cache_path.path(), false).await?;
+		// Binary path is at least equal to the cache path + "substrate-contracts-node".
+		assert!(node_path
+			.to_str()
+			.unwrap()
+			.starts_with(&cache_path.path().join("substrate-contracts-node").to_str().unwrap()));
+		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn check_contracts_node_and_prompt_handles_skip_confirm() -> anyhow::Result<()> {
+		let cache_path = tempfile::tempdir().expect("Could create temp dir");
+		let mut cli =
+			MockCli::new().expect_warning("⚠️ The substrate-contracts-node binary is not found.");
+
+		let node_path = check_contracts_node_and_prompt(&mut cli, cache_path.path(), true).await?;
+		// Binary path is at least equal to the cache path + "substrate-contracts-node".
+		assert!(node_path
+			.to_str()
+			.unwrap()
+			.starts_with(&cache_path.path().join("substrate-contracts-node").to_str().unwrap()));
+		cli.verify()
+	}
+
+	#[tokio::test]
 	async fn node_is_terminated() -> anyhow::Result<()> {
 		let cache = tempfile::tempdir().expect("Could not create temp dir");
 		let binary = contracts_node_generator(PathBuf::from(cache.path()), None).await?;

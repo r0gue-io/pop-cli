@@ -93,6 +93,7 @@ pub async fn check_and_prompt<Generator: BinaryGenerator>(
 	Ok(binary_path)
 }
 
+/// A macro to implement a binary generator.
 #[macro_export]
 macro_rules! impl_binary_generator {
 	($generator_name:ident, $generate_fn:ident) => {
