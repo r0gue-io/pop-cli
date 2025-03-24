@@ -10,6 +10,9 @@ pub enum Error {
 	Aborted,
 	#[error("Anyhow error: {0}")]
 	AnyhowError(#[from] anyhow::Error),
+	/// An error occurred while generating the chain specification.
+	#[error("Failed to build the chain spec. {0}")]
+	BuildSpecError(String),
 	/// An error occurred while decoding the call data.
 	#[error("Failed to decode call data. {0}")]
 	CallDataDecodingError(String),
@@ -77,4 +80,45 @@ pub enum Error {
 	UnsupportedCommand(String),
 	#[error("Failed to locate the workspace")]
 	WorkspaceLocate,
+}
+
+// Handles command execution errors by extracting and returning the stderr message using the
+// provided error constructor.
+pub(crate) fn handle_command_error<F>(
+	output: &std::process::Output,
+	custom_error: F,
+) -> Result<(), Error>
+where
+	F: FnOnce(String) -> Error,
+{
+	if !output.status.success() {
+		let stderr_msg = String::from_utf8_lossy(&output.stderr);
+		return Err(custom_error(stderr_msg.to_string()));
+	}
+	Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use anyhow::Result;
+	use std::{
+		os::unix::process::ExitStatusExt,
+		process::{ExitStatus, Output},
+	};
+
+	#[test]
+	fn handle_command_error_failure() -> Result<()> {
+		let output = Output {
+			status: ExitStatus::from_raw(1),
+			stdout: Vec::new(),
+			stderr: Vec::from("Error message".as_bytes()),
+		};
+		assert!(matches!(
+			handle_command_error(&output, Error::BuildSpecError),
+			Err(Error::BuildSpecError(message))
+			if message == "Error message"
+		));
+		Ok(())
+	}
 }

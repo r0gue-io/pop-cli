@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::Error::{self, *};
+use crate::errors::{handle_command_error, Error};
 use anyhow::{anyhow, Result};
 use duct::cmd;
 use pop_common::{manifest::from_path, Profile};
@@ -97,10 +97,16 @@ pub fn generate_plain_chain_spec(
 	// Create a temporary file.
 	let temp_file = tempfile::NamedTempFile::new_in(std::env::temp_dir())?;
 	// Run the command and redirect output to the temporary file.
-	cmd(binary_path, args).stdout_path(temp_file.path()).stderr_null().run()?;
+	let output = cmd(binary_path, args)
+		.stdout_path(temp_file.path())
+		.stderr_capture()
+		.unchecked()
+		.run()?;
+	// Check if the command failed.
+	handle_command_error(&output, Error::BuildSpecError)?;
 	// Atomically replace the chain spec file with the temporary file.
 	temp_file.persist(plain_chain_spec).map_err(|e| {
-		AnyhowError(anyhow!(
+		Error::AnyhowError(anyhow!(
 			"Failed to replace the chain spec file with the temporary file: {}",
 			e.to_string()
 		))
@@ -124,7 +130,7 @@ pub fn generate_raw_chain_spec(
 	}
 	check_command_exists(binary_path, "build-spec")?;
 	let raw_chain_spec = plain_chain_spec.with_file_name(chain_spec_file_name);
-	cmd(
+	let output = cmd(
 		binary_path,
 		vec![
 			"build-spec",
@@ -134,9 +140,11 @@ pub fn generate_raw_chain_spec(
 			"--raw",
 		],
 	)
-	.stderr_null()
 	.stdout_path(&raw_chain_spec)
+	.stderr_capture()
+	.unchecked()
 	.run()?;
+	handle_command_error(&output, Error::BuildSpecError)?;
 	Ok(raw_chain_spec)
 }
 
@@ -157,7 +165,7 @@ pub fn export_wasm_file(
 	}
 	check_command_exists(binary_path, "export-genesis-wasm")?;
 	let wasm_file = chain_spec.parent().unwrap_or(Path::new("./")).join(wasm_file_name);
-	cmd(
+	let output = cmd(
 		binary_path,
 		vec![
 			"export-genesis-wasm",
@@ -167,8 +175,10 @@ pub fn export_wasm_file(
 		],
 	)
 	.stdout_null()
-	.stderr_null()
+	.stderr_capture()
+	.unchecked()
 	.run()?;
+	handle_command_error(&output, Error::BuildSpecError)?;
 	Ok(wasm_file)
 }
 
@@ -189,7 +199,7 @@ pub fn generate_genesis_state_file(
 	}
 	check_command_exists(binary_path, "export-genesis-state")?;
 	let genesis_file = chain_spec.parent().unwrap_or(Path::new("./")).join(genesis_file_name);
-	cmd(
+	let output = cmd(
 		binary_path,
 		vec![
 			"export-genesis-state",
@@ -199,8 +209,10 @@ pub fn generate_genesis_state_file(
 		],
 	)
 	.stdout_null()
-	.stderr_null()
+	.stderr_capture()
+	.unchecked()
 	.run()?;
+	handle_command_error(&output, Error::BuildSpecError)?;
 	Ok(genesis_file)
 }
 
@@ -361,7 +373,11 @@ mod tests {
 	use anyhow::Result;
 	use pop_common::{manifest::Dependency, set_executable_permission};
 	use sp_core::bytes::from_hex;
-	use std::{fs, fs::write, io::Write, path::Path};
+	use std::{
+		fs::{self, write},
+		io::Write,
+		path::Path,
+	};
 	use strum::VariantArray;
 	use tempfile::{tempdir, Builder, TempDir};
 
@@ -554,6 +570,26 @@ mod tests {
 		let genesis_file =
 			generate_genesis_state_file(&binary_path, &raw_chain_spec, "para-2001-genesis-state")?;
 		assert!(genesis_file.exists());
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn fails_to_generate_plain_chain_spec_when_file_missing() -> Result<()> {
+		let temp_dir =
+			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
+		mock_build_process(temp_dir.path())?;
+		let binary_name = fetch_binary(temp_dir.path()).await?;
+		let binary_path = replace_mock_with_binary(temp_dir.path(), binary_name)?;
+		assert!(matches!(
+			generate_plain_chain_spec(
+				&binary_path,
+				&temp_dir.path().join("plain-parachain-chainspec.json"),
+				false,
+				&temp_dir.path().join("plain-parachain-chainspec.json").display().to_string(),
+			),
+			Err(Error::BuildSpecError(message)) if message.contains("No such file or directory")
+		));
+		assert!(!temp_dir.path().join("plain-parachain-chainspec.json").exists());
 		Ok(())
 	}
 
