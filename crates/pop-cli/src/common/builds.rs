@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
+
 use crate::cli::traits::{Cli, Select};
 use std::path::{Path, PathBuf};
 

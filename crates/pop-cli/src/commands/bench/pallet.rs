@@ -323,7 +323,9 @@ impl BenchmarkPallet {
 
 		// No pallet provided, prompts user to select the pallet fetched from runtime.
 		if self.pallet.is_none() {
-			self.update_pallets(cli, &mut registry).await?;
+			if let Err(e) = self.update_pallets(cli, &mut registry).await {
+				return display_message(&e.to_string(), false, cli);
+			};
 		}
 		// No extrinsic provided, prompts user to select the extrinsics fetched from runtime.
 		if self.extrinsic.is_none() {
