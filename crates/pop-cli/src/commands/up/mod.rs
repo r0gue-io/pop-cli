@@ -171,10 +171,7 @@ mod tests {
 					.map(|action| {
 						(
 							action.name().to_string(),
-							format!(
-								"{}",
-								style(format!("{}", action.base_url())).bold().underlined()
-							),
+							format!("{}", style(action.base_url().to_string()).bold().underlined()),
 						)
 					})
 					.chain(std::iter::once((

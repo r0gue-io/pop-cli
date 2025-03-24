@@ -74,8 +74,10 @@ impl UpCommand {
 	pub(crate) async fn execute(&mut self, cli: &mut impl Cli) -> Result<()> {
 		cli.intro("Deploy a rollup")?;
 		let mut deployment = self.prepare_for_deployment(cli)?;
-		let is_show_steps = self.show_steps(&deployment);
-		let config = match self.prepare_for_registration(&mut deployment, is_show_steps, cli).await
+		let show_deployment_steps = self.should_show_deployment_steps(&deployment);
+		let config = match self
+			.prepare_for_registration(&mut deployment, show_deployment_steps, cli)
+			.await
 		{
 			Ok(chain) => chain,
 			Err(e) => {
@@ -84,7 +86,7 @@ impl UpCommand {
 			},
 		};
 		if !self.skip_registration {
-			match config.register(is_show_steps, cli).await {
+			match config.register(show_deployment_steps, cli).await {
 				Ok(_) => cli.success(format!(
 					"Registration successful {}",
 					style(format!(
@@ -107,7 +109,7 @@ impl UpCommand {
 		if deployment.api.is_none() {
 			return Ok(());
 		}
-		match deployment.deploy(&config, is_show_steps, cli).await {
+		match deployment.deploy(&config, show_deployment_steps, cli).await {
 			Ok(result) => cli.success(format!(
 				"Deployment successful\n   {}\n   {}",
 				style(format!("{} Status: {}", console::Emoji("●", ">"), result.status)).dim(),
@@ -148,7 +150,7 @@ impl UpCommand {
 	async fn prepare_for_registration(
 		&self,
 		deployment_config: &mut Deployment,
-		is_show_steps: bool,
+		show_deployment_steps: bool,
 		cli: &mut impl Cli,
 	) -> Result<Registration> {
 		let chain =
@@ -156,13 +158,14 @@ impl UpCommand {
 				.await?;
 		let proxy = self.resolve_proxied_address(
 			&deployment_config.api,
-			is_show_steps,
+			show_deployment_steps,
 			chain.url.as_str(),
 			cli,
 		)?;
-		let id = self.resolve_id(&chain, is_show_steps, &proxy, cli).await?;
-		let genesis_artifacts =
-			self.resolve_genesis_files(deployment_config, id, is_show_steps, cli).await?;
+		let id = self.resolve_id(&chain, show_deployment_steps, &proxy, cli).await?;
+		let genesis_artifacts = self
+			.resolve_genesis_files(deployment_config, id, show_deployment_steps, cli)
+			.await?;
 		Ok(Registration { id, genesis_artifacts, chain, proxy })
 	}
 
@@ -170,7 +173,7 @@ impl UpCommand {
 	fn resolve_proxied_address(
 		&self,
 		api: &Option<DeploymentApi>,
-		is_show_steps: bool,
+		show_deployment_steps: bool,
 		relay_chain_url: &str,
 		cli: &mut impl Cli,
 	) -> Result<Proxy> {
@@ -179,7 +182,7 @@ impl UpCommand {
 		}
 		if let Some(api) = api {
 			if api.provider == DeploymentProvider::PDP {
-				cli.info(format!("{}The provider {} requires registration via a pure proxy for security and best practices.", if is_show_steps { "Step 1/5: " } else {""} , api.provider.name()))?;
+				cli.info(format!("{}The provider {} requires registration via a pure proxy for security and best practices.", if show_deployment_steps { "Step 1/5: " } else {""} , api.provider.name()))?;
 				return Ok(Some(prompt_for_proxy_address(
 					self.skip_registration,
 					relay_chain_url,
@@ -197,14 +200,14 @@ impl UpCommand {
 	async fn resolve_id(
 		&self,
 		chain: &Chain,
-		is_show_steps: bool,
+		show_deployment_steps: bool,
 		proxy: &Proxy,
 		cli: &mut impl Cli,
 	) -> Result<u32> {
 		match self.id {
 			Some(id) => Ok(id),
 			None => {
-				cli.info(format!("{}You will need to sign a transaction to reserve an ID on {} using the `Registrar::reserve` function.", if is_show_steps { "Step 2/5: " } else {""}, chain.url))?;
+				cli.info(format!("{}You will need to sign a transaction to reserve an ID on {} using the `Registrar::reserve` function.", if show_deployment_steps { "Step 2/5: " } else {""}, chain.url))?;
 				reserve(chain, proxy, cli).await
 			},
 		}
@@ -214,7 +217,7 @@ impl UpCommand {
 		&self,
 		deployment_config: &mut Deployment,
 		id: u32,
-		is_show_steps: bool,
+		show_deployment_steps: bool,
 		cli: &mut impl Cli,
 	) -> Result<GenesisArtifacts> {
 		// If the API is unavailable and both genesis code & state exist, there's no need to
@@ -231,7 +234,7 @@ impl UpCommand {
 		}
 		cli.info(format!(
 			"{}Generating the chain spec for your project",
-			if is_show_steps { "Step 3/5: " } else { "" }
+			if show_deployment_steps { "Step 3/5: " } else { "" }
 		))?;
 		generate_spec_files(
 			self.chain_spec.as_deref(),
@@ -244,7 +247,7 @@ impl UpCommand {
 		.await
 	}
 
-	fn show_steps(&self, deployment: &Deployment) -> bool {
+	fn should_show_deployment_steps(&self, deployment: &Deployment) -> bool {
 		deployment.api.is_some() &&
 			self.id.is_none() &&
 			!self.skip_registration &&
@@ -263,7 +266,7 @@ impl Deployment {
 	async fn deploy(
 		&self,
 		config: &Registration,
-		is_show_steps: bool,
+		show_deployment_steps: bool,
 		cli: &mut impl Cli,
 	) -> Result<DeployResponse> {
 		let api = self.api.as_ref().ok_or_else(|| {
@@ -284,7 +287,7 @@ impl Deployment {
 		}
 		cli.info(format!(
 			"{}Starting deployment with {}",
-			if is_show_steps { "Step 5/5: " } else { "" },
+			if show_deployment_steps { "Step 5/5: " } else { "" },
 			api.provider.name()
 		))?;
 		api.deploy(config.id, request).await
@@ -300,8 +303,8 @@ struct Registration {
 }
 impl Registration {
 	// Registers by submitting an extrinsic.
-	async fn register(&self, is_show_steps: bool, cli: &mut impl Cli) -> Result<()> {
-		cli.info(format!("{}You will need to sign a transaction to register on {}, using the `Registrar::register` function.", if is_show_steps { "Step 4/5: " } else {""}, self.chain.url))?;
+	async fn register(&self, show_deployment_steps: bool, cli: &mut impl Cli) -> Result<()> {
+		cli.info(format!("{}You will need to sign a transaction to register on {}, using the `Registrar::register` function.", if show_deployment_steps { "Step 4/5: " } else {""}, self.chain.url))?;
 		let call_data = self.prepare_register_call_data(cli)?;
 		submit_extrinsic(&self.chain.client, &self.chain.url, call_data, cli)
 			.await
@@ -448,7 +451,7 @@ fn prompt_provider(
 		predefined_action = predefined_action.item(
 			Some(action.clone()),
 			action.name(),
-			format!("{}", style(format!("{}", action.base_url())).bold().underlined()),
+			format!("{}", style(action.base_url().to_string()).bold().underlined()),
 		);
 	}
 	if !skip_registration {
@@ -480,7 +483,7 @@ fn prompt_api_key(
 		cli.info(format!("Using API key from environment variable ({env_var_name})."))?;
 		return Ok(api_key);
 	}
-	cli.warning(format!("No API key found for the environment variable `{env_var_name}`.\n{}\n{}", style(format!("You can generate an API key at: {}", style(format!("{}", provider.base_url())).underlined().magenta())), style(format!("Note: Consider setting this variable in your shell (e.g., `export {env_var_name}=...`) or system environment so you won’t be prompted each time.")).dim()))?;
+	cli.warning(format!("No API key found for the environment variable `{env_var_name}`.\n{}\n{}", style(format!("You can generate an API key at: {}", style(provider.base_url().to_string()).underlined().magenta())), style(format!("Note: Consider setting this variable in your shell (e.g., `export {env_var_name}=...`) or system environment so you won’t be prompted each time.")).dim()))?;
 	let api_key = cli.password("Enter your API key:").interact()?;
 	Ok(api_key)
 }
@@ -565,7 +568,7 @@ mod tests {
 								action.name().to_string(),
 								format!(
 									"{}",
-									style(format!("{}", action.base_url())).bold().underlined()
+									style(action.base_url().to_string()).bold().underlined()
 								),
 							)
 						})
@@ -619,10 +622,7 @@ mod tests {
 					.map(|action| {
 						(
 							action.name().to_string(),
-							format!(
-								"{}",
-								style(format!("{}", action.base_url())).bold().underlined()
-							),
+							format!("{}", style(action.base_url().to_string()).bold().underlined()),
 						)
 					})
 					.chain(std::iter::once((
@@ -744,7 +744,7 @@ mod tests {
                 Some(
                     DeploymentProvider::VARIANTS
                         .into_iter()
-                        .map(|action| (action.name().to_string(), format!("{}", style(format!("{}", action.base_url())).bold().underlined())))
+                        .map(|action| (action.name().to_string(), format!("{}", style(action.base_url().to_string()).bold().underlined())))
                         .chain(std::iter::once((
                             "Register".to_string(),
                             "Register the rollup on the relay chain without deploying with a provider".to_string(),
@@ -783,7 +783,7 @@ mod tests {
                 Some(
                     DeploymentProvider::VARIANTS
                         .into_iter()
-                        .map(|action| (action.name().to_string(), format!("{}", style(format!("{}", action.base_url())).bold().underlined())))
+                        .map(|action| (action.name().to_string(), format!("{}", style(action.base_url().to_string()).bold().underlined())))
                         .chain(std::iter::once((
                             "Register".to_string(),
                             "Register the rollup on the relay chain without deploying with a provider".to_string(),
@@ -866,7 +866,7 @@ mod tests {
 		let provider = DeploymentProvider::PDP;
 
 		let mut cli = MockCli::new()
-            .expect_warning(format!("No API key found for the environment variable `{test_env_var}`.\n{}\n{}", style(format!("You can generate an API key at: {}", style(format!("{}", provider.base_url())).underlined().magenta())), style(format!("Note: Consider setting this variable in your shell (e.g., `export {test_env_var}=...`) or system environment so you won’t be prompted each time.")).dim()))
+            .expect_warning(format!("No API key found for the environment variable `{test_env_var}`.\n{}\n{}", style(format!("You can generate an API key at: {}", style(provider.base_url().to_string()).underlined().magenta())), style(format!("Note: Consider setting this variable in your shell (e.g., `export {test_env_var}=...`) or system environment so you won’t be prompted each time.")).dim()))
             .expect_password("Enter your API key:", "test_api_key".into());
 
 		let api_key = prompt_api_key(test_env_var, &provider, &mut cli)?;
@@ -930,7 +930,7 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn show_steps_works() -> Result<()> {
+	async fn should_show_deployment_steps_works() -> Result<()> {
 		let deployment = Deployment {
 			api: Some(DeploymentApi::new(
 				"api_test_key".to_string(),
@@ -940,13 +940,13 @@ mod tests {
 			..Default::default()
 		};
 		// Nothing provided, should show steps.
-		assert!(UpCommand { ..Default::default() }.show_steps(&deployment));
+		assert!(UpCommand { ..Default::default() }.should_show_deployment_steps(&deployment));
 		// skip_registration is true, should not show steps.
 		assert!(!UpCommand { id: Some(2000), skip_registration: true, ..Default::default() }
-			.show_steps(&deployment));
+			.should_show_deployment_steps(&deployment));
 		// No API provided, should not show steps.
 		assert!(!UpCommand { ..Default::default() }
-			.show_steps(&Deployment { api: None, ..Default::default() }));
+			.should_show_deployment_steps(&Deployment { api: None, ..Default::default() }));
 		Ok(())
 	}
 
