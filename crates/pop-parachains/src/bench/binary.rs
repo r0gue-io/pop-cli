@@ -16,7 +16,7 @@ use strum_macros::EnumProperty;
 #[derive(Debug, EnumProperty, PartialEq)]
 pub(super) enum BenchmarkingCli {
 	#[strum(props(
-		Repository = "https://github.com/AlexD10S/polkadot-test",
+		Repository = "https://github.com/r0gue-io/polkadot",
 		Binary = "frame-omni-bencher",
 		Fallback = "polkadot-stable2412"
 	))]
@@ -61,11 +61,10 @@ pub async fn omni_bencher_generator(cache: &Path, version: Option<&str>) -> Resu
 	let name = cli.binary();
 	let releases = cli.releases().await?;
 	let tag = Binary::resolve_version(name, version, &releases, cache);
-	// Only set latest when caller has not explicitly specified a version to use
-	let latest = version.is_none().then(|| releases.first().map(|v| v.to_string())).flatten();
 	let binary = Binary::Source {
 		name: name.to_string(),
-		source: TryInto::try_into(&cli, tag, latest)?,
+		// TODO: Update to only set latest when caller has not explicitly specified a version to use
+		source: TryInto::try_into(&cli, tag, Some("polkadot-stable2412".to_string()))?,
 		cache: cache.to_path_buf(),
 	};
 	Ok(binary)
@@ -83,8 +82,8 @@ mod tests {
 		let binary = omni_bencher_generator(temp_dir.path(), None).await?;
 		assert!(matches!(binary, Binary::Source { name: _, source, cache }
 				if source == Source::GitHub(ReleaseArchive {
-					owner: "AlexD10S".to_string(),
-					repository: "polkadot-test".to_string(),
+					owner: "r0gue-io".to_string(),
+					repository: "polkadot".to_string(),
 					tag: Some(version.to_string()),
 					tag_format: None,
 					archive: format!("frame-omni-bencher-{}.tar.gz", target()?),
