@@ -6,6 +6,7 @@ use crate::{
 	cli::{self, traits::*},
 	common::{
 		chain::{self, Chain},
+		prompt::display_message,
 		wallet::{self, prompt_to_use_wallet},
 	},
 };
@@ -446,16 +447,6 @@ impl Call {
 		}
 		full_message
 	}
-}
-
-// Displays a message to the user, with formatting based on the success status.
-fn display_message(message: &str, success: bool, cli: &mut impl Cli) -> Result<()> {
-	if success {
-		cli.outro(message)?;
-	} else {
-		cli.outro_cancel(message)?;
-	}
-	Ok(())
 }
 
 // Prompts the user for some predefined actions.
@@ -953,16 +944,6 @@ mod tests {
 			]
 		);
 		Ok(())
-	}
-
-	#[test]
-	fn display_message_works() -> Result<()> {
-		let mut cli = MockCli::new().expect_outro(&"Call completed successfully!");
-		display_message("Call completed successfully!", true, &mut cli)?;
-		cli.verify()?;
-		let mut cli = MockCli::new().expect_outro_cancel("Call failed.");
-		display_message("Call failed.", false, &mut cli)?;
-		cli.verify()
 	}
 
 	#[tokio::test]

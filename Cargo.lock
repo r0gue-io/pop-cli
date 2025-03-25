@@ -8065,7 +8065,6 @@ dependencies = [
  "cliclack",
  "console",
  "contract-extrinsics",
- "cumulus-primitives-proof-size-hostfunction 0.10.0",
  "dirs",
  "duct",
  "env_logger 0.11.7",
@@ -8081,8 +8080,6 @@ dependencies = [
  "serde",
  "serde_json",
  "sp-core 32.0.0",
- "sp-runtime 40.1.0",
- "sp-statement-store 15.0.0",
  "sp-weights",
  "strum 0.26.3",
  "strum_macros 0.26.4",
@@ -15664,17 +15661,15 @@ dependencies = [
 
 [[package]]
 name = "zip"
-version = "2.2.2"
+version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ae9c1ea7b3a5e1f4b922ff856a129881167511563dc219869afe3787fc0c1a45"
+checksum = "27c03817464f64e23f6f37574b4fdc8cf65925b5bfd2b0f2aedf959791941f88"
 dependencies = [
  "arbitrary",
  "crc32fast",
  "crossbeam-utils",
- "displaydoc",
  "indexmap 2.8.0",
  "memchr",
- "thiserror 2.0.11",
 ]
 
 [[package]]

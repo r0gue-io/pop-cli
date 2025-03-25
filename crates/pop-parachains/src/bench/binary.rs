@@ -10,13 +10,13 @@ pub use pop_common::{
 	},
 	target, Error,
 };
-use std::path::Path;
+use std::path::PathBuf;
 use strum_macros::EnumProperty;
 
 #[derive(Debug, EnumProperty, PartialEq)]
 pub(super) enum BenchmarkingCli {
 	#[strum(props(
-		Repository = "https://github.com/AlexD10S/polkadot-test",
+		Repository = "https://github.com/r0gue-io/polkadot",
 		Binary = "frame-omni-bencher",
 		Fallback = "polkadot-stable2412"
 	))]
@@ -56,16 +56,18 @@ impl pop_common::sourcing::traits::Source for BenchmarkingCli {}
 /// # Arguments
 /// * `cache` - The path to the directory where the binary should be cached.
 /// * `version` - An optional version string. If `None`, the latest available version is used.
-pub async fn omni_bencher_generator(cache: &Path, version: Option<&str>) -> Result<Binary, Error> {
+pub async fn omni_bencher_generator(
+	cache: PathBuf,
+	version: Option<&str>,
+) -> Result<Binary, Error> {
 	let cli = BenchmarkingCli::OmniBencher;
 	let name = cli.binary();
 	let releases = cli.releases().await?;
-	let tag = Binary::resolve_version(name, version, &releases, cache);
-	// Only set latest when caller has not explicitly specified a version to use
-	let latest = version.is_none().then(|| releases.first().map(|v| v.to_string())).flatten();
+	let tag = Binary::resolve_version(name, version, &releases, &cache);
 	let binary = Binary::Source {
 		name: name.to_string(),
-		source: TryInto::try_into(&cli, tag, latest)?,
+		// TODO: Update to only set latest when caller has not explicitly specified a version to use
+		source: TryInto::try_into(&cli, tag, Some("polkadot-stable2412".to_string()))?,
 		cache: cache.to_path_buf(),
 	};
 	Ok(binary)
@@ -79,19 +81,20 @@ mod tests {
 	#[tokio::test]
 	async fn omni_bencher_generator_works() -> Result<(), Error> {
 		let temp_dir = tempdir()?;
+		let temp_dir_path = temp_dir.into_path();
 		let version = "polkadot-stable2412";
-		let binary = omni_bencher_generator(temp_dir.path(), None).await?;
+		let binary = omni_bencher_generator(temp_dir_path.clone(), None).await?;
 		assert!(matches!(binary, Binary::Source { name: _, source, cache }
 				if source == Source::GitHub(ReleaseArchive {
-					owner: "AlexD10S".to_string(),
-					repository: "polkadot-test".to_string(),
+					owner: "r0gue-io".to_string(),
+					repository: "polkadot".to_string(),
 					tag: Some(version.to_string()),
 					tag_format: None,
 					archive: format!("frame-omni-bencher-{}.tar.gz", target()?),
 					contents: ["frame-omni-bencher"].map(|b| (b, Some(b.to_string()))).to_vec(),
 					latest: binary.latest().map(|l| l.to_string()),
 				}) &&
-				cache == temp_dir.path()
+				cache == temp_dir_path.as_path()
 		));
 		Ok(())
 	}

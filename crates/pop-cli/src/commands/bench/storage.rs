@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0
+
 use crate::{
 	cli::{self},
 	common::{
@@ -128,7 +130,6 @@ mod tests {
 	use frame_benchmarking_cli::StorageCmd;
 	use pop_common::Profile;
 	use std::fs::{self, File};
-	use strum::{EnumMessage, VariantArray};
 	use tempfile::tempdir;
 
 	use super::BenchmarkStorage;
@@ -162,23 +163,13 @@ mod tests {
 		.benchmark(&mut cli, temp_dir.path())?;
 		cli.verify()?;
 
-		// Prompt user to select `profile` if not provided.
-		let profiles = Profile::VARIANTS
-			.iter()
-			.map(|profile| {
-				(
-					profile.get_message().unwrap_or(profile.as_ref()).to_string(),
-					profile.get_detailed_message().unwrap_or_default().to_string(),
-				)
-			})
-			.collect();
 		let mut cli = MockCli::new()
 			.expect_intro("Benchmarking the storage speed of a chain snapshot")
 			.expect_select(
 				"Choose the build profile of the binary that should be used: ",
 				Some(true),
 				true,
-				Some(profiles),
+				Some(Profile::get_variants()),
 				0,
 				None,
 			)
