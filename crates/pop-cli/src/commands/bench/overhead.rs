@@ -326,7 +326,7 @@ mod tests {
 			// `--warmup` and `--repeat`.
 			.expect_info(format!(
 				"pop bench overhead --runtime={} --genesis-builder=runtime \
-				--genesis-builder-preset=development --weight-path={} --profile=debug --skip-confirm",
+				--genesis-builder-preset=development --weight-path={} --profile=debug -y",
 				runtime_path.display(),
 				output_path.to_string(),
 			))
