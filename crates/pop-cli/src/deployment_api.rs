@@ -285,7 +285,7 @@ mod tests {
 			json!({
 				"name": "Development",
 				"properties": {
-					"basedOn": "r0gue-io/standard",
+					"basedOn": "r0gue-io/base-parachain",
 				},
 				"genesis": {
 					"runtimeGenesis": {

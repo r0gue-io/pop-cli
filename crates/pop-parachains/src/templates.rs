@@ -70,7 +70,7 @@ pub enum Parachain {
 	/// Minimalist parachain template.
 	#[default]
 	#[strum(
-		serialize = "r0gue-io/standard",
+		serialize = "r0gue-io/base-parachain",
 		message = "Standard",
 		detailed_message = "A standard parachain",
 		props(
@@ -84,7 +84,7 @@ pub enum Parachain {
 	Standard,
 	/// Parachain configured with fungible and non-fungible asset functionalities.
 	#[strum(
-		serialize = "r0gue-io/assets",
+		serialize = "r0gue-io/assets-parachain",
 		message = "Assets",
 		detailed_message = "Parachain configured with fungible and non-fungible asset functionalities.",
 		props(
@@ -98,7 +98,7 @@ pub enum Parachain {
 	Assets,
 	/// Parachain configured to support WebAssembly smart contracts.
 	#[strum(
-		serialize = "r0gue-io/contracts",
+		serialize = "r0gue-io/contracts-parachain",
 		message = "Contracts",
 		detailed_message = "Parachain configured to support WebAssembly smart contracts.",
 		props(
@@ -113,7 +113,7 @@ pub enum Parachain {
 	/// Parachain configured with Frontier, enabling compatibility with the Ethereum Virtual
 	/// Machine (EVM).
 	#[strum(
-		serialize = "r0gue-io/evm",
+		serialize = "r0gue-io/evm-parachain",
 		message = "EVM",
 		detailed_message = "Parachain configured with Frontier, enabling compatibility with the Ethereum Virtual Machine (EVM).",
 		props(
@@ -278,10 +278,10 @@ mod tests {
 
 	fn templates_names() -> HashMap<String, Parachain> {
 		HashMap::from([
-			("r0gue-io/standard".to_string(), Standard),
-			("r0gue-io/assets".to_string(), Assets),
-			("r0gue-io/contracts".to_string(), Contracts),
-			("r0gue-io/evm".to_string(), EVM),
+			("r0gue-io/base-parachain".to_string(), Standard),
+			("r0gue-io/assets-parachain".to_string(), Assets),
+			("r0gue-io/contracts-parachain".to_string(), Contracts),
+			("r0gue-io/evm-parachain".to_string(), EVM),
 			// openzeppelin
 			("openzeppelin/generic-template".to_string(), OpenZeppelinGeneric),
 			("openzeppelin/evm-template".to_string(), OpenZeppelinEVM),
@@ -295,10 +295,10 @@ mod tests {
 
 	fn templates_names_without_providers() -> HashMap<Parachain, String> {
 		HashMap::from([
-			(Standard, "standard".to_string()),
-			(Assets, "assets".to_string()),
-			(Contracts, "contracts".to_string()),
-			(EVM, "evm".to_string()),
+			(Standard, "base-parachain".to_string()),
+			(Assets, "assets-parachain".to_string()),
+			(Contracts, "contracts-parachain".to_string()),
+			(EVM, "evm-parachain".to_string()),
 			(OpenZeppelinGeneric, "generic-template".to_string()),
 			(OpenZeppelinEVM, "evm-template".to_string()),
 			(ParityGeneric, "polkadot-sdk-parachain-template".to_string()),
@@ -310,10 +310,16 @@ mod tests {
 
 	fn templates_urls() -> HashMap<String, &'static str> {
 		HashMap::from([
-			("r0gue-io/standard".to_string(), "https://github.com/r0gue-io/base-parachain"),
-			("r0gue-io/assets".to_string(), "https://github.com/r0gue-io/assets-parachain"),
-			("r0gue-io/contracts".to_string(), "https://github.com/r0gue-io/contracts-parachain"),
-			("r0gue-io/evm".to_string(), "https://github.com/r0gue-io/evm-parachain"),
+			("r0gue-io/base-parachain".to_string(), "https://github.com/r0gue-io/base-parachain"),
+			(
+				"r0gue-io/assets-parachain".to_string(),
+				"https://github.com/r0gue-io/assets-parachain",
+			),
+			(
+				"r0gue-io/contracts-parachain".to_string(),
+				"https://github.com/r0gue-io/contracts-parachain",
+			),
+			("r0gue-io/evm-parachain".to_string(), "https://github.com/r0gue-io/evm-parachain"),
 			// openzeppelin
 			(
 				"openzeppelin/generic-template".to_string(),
