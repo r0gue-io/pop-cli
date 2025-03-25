@@ -133,23 +133,26 @@ pub fn ensure_runtime_binary_exists(
 
 	// Rebuild the runtime if the binary is not found or the user has forced the build process.
 	if force {
-		return build_runtime_benchmark(&runtime_path, &target_path, mode);
+		cli.info("📦 Building the local runtime...")?;
+		return build_runtime_benchmark(cli, &runtime_path, &target_path, mode);
 	}
+
 	match runtime_binary_path(&target_path, &runtime_path) {
 		Ok(binary_path) => Ok(binary_path),
 		_ => {
 			cli.info("📦 Runtime binary was not found. The runtime will be built locally.")?;
-			cli.warning("NOTE: this may take some time...")?;
-			build_runtime_benchmark(&runtime_path, &target_path, mode)
+			build_runtime_benchmark(cli, &runtime_path, &target_path, mode)
 		},
 	}
 }
 
 fn build_runtime_benchmark(
+	cli: &mut impl Cli,
 	runtime_path: &Path,
 	target_path: &Path,
 	mode: &Profile,
 ) -> anyhow::Result<PathBuf> {
+	cli.warning("NOTE: this may take some time...")?;
 	build_project(runtime_path, None, mode, vec!["runtime-benchmarks"], None)?;
 	runtime_binary_path(target_path, runtime_path).map_err(|e| e.into())
 }
