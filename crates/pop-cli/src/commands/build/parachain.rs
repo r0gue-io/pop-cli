@@ -4,8 +4,6 @@ use crate::{cli, style::style};
 use pop_common::Profile;
 use pop_parachains::build_parachain;
 use std::path::PathBuf;
-#[cfg(not(test))]
-use std::{thread::sleep, time::Duration};
 
 // Configuration for building a parachain.
 pub struct BuildParachain {
@@ -39,8 +37,6 @@ impl BuildParachain {
 
 		if self.profile == Profile::Debug {
 			cli.warning("NOTE: this command now defaults to DEBUG builds. Please use `--release` (or simply `-r`) for a release build...")?;
-			#[cfg(not(test))]
-			sleep(Duration::from_secs(3))
 		}
 
 		// Build parachain.

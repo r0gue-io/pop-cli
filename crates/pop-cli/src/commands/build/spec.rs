@@ -21,8 +21,6 @@ use std::{
 	fs::{self, create_dir_all},
 	path::{Path, PathBuf},
 };
-#[cfg(not(test))]
-use std::{thread::sleep, time::Duration};
 use strum::{EnumMessage, VariantArray};
 use strum_macros::{AsRefStr, Display, EnumString};
 
@@ -474,8 +472,6 @@ impl BuildSpecCommand {
 
 		if release {
 			cli.warning("NOTE: release flag is deprecated. Use `--profile` instead.")?;
-			#[cfg(not(test))]
-			sleep(Duration::from_secs(3));
 			profile = Profile::Release;
 		}
 

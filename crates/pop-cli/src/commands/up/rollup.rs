@@ -11,11 +11,12 @@ use crate::{
 		wallet::submit_extrinsic,
 	},
 	deployment_api::{DeployRequest, DeployResponse, DeploymentApi},
-	style::style,
+	style::{format_step_prefix, format_url, style},
 };
 use anyhow::Result;
 use clap::Args;
-use pop_common::{parse_account, templates::Template};
+use cliclack::spinner;
+use pop_common::{parse_account, templates::Template, Profile};
 use pop_parachains::{
 	construct_proxy_extrinsic, find_dispatchable_by_name, Action, DeploymentProvider, Parachain,
 	Payload, Reserved, SupportedChains,
@@ -63,6 +64,9 @@ pub struct UpCommand {
 	/// account.
 	#[arg(long = "proxy")]
 	pub(crate) proxied_address: Option<String>,
+	/// Build profile [default: release].
+	#[clap(long, value_enum)]
+	pub(crate) profile: Option<Profile>,
 }
 
 impl UpCommand {
@@ -70,7 +74,11 @@ impl UpCommand {
 	pub(crate) async fn execute(&mut self, cli: &mut impl Cli) -> Result<()> {
 		cli.intro("Deploy a rollup")?;
 		let mut deployment = self.prepare_for_deployment(cli)?;
-		let config = match self.prepare_for_registration(&mut deployment, cli).await {
+		let show_deployment_steps = self.should_show_deployment_steps(&deployment);
+		let config = match self
+			.prepare_for_registration(&mut deployment, show_deployment_steps, cli)
+			.await
+		{
 			Ok(chain) => chain,
 			Err(e) => {
 				cli.outro_cancel(e.to_string())?;
@@ -78,7 +86,7 @@ impl UpCommand {
 			},
 		};
 		if !self.skip_registration {
-			match config.register(cli).await {
+			match config.register(show_deployment_steps, cli).await {
 				Ok(_) => cli.success(format!(
 					"Registration successful {}",
 					style(format!(
@@ -101,7 +109,7 @@ impl UpCommand {
 		if deployment.api.is_none() {
 			return Ok(());
 		}
-		match deployment.deploy(&config, cli).await {
+		match deployment.deploy(&config, show_deployment_steps, cli).await {
 			Ok(result) => cli.success(format!(
 				"Deployment successful\n   {}\n   {}",
 				style(format!("{} Status: {}", console::Emoji("●", ">"), result.status)).dim(),
@@ -133,7 +141,7 @@ impl UpCommand {
 		let relay_chain_name = relay_chain.to_string();
 		self.relay_chain_url = relay_chain.get_rpc_url().and_then(|url| Url::parse(&url).ok());
 
-		let api_key = prompt_api_key(POP_API_KEY, cli)?;
+		let api_key = prompt_api_key(POP_API_KEY, &provider, cli)?;
 		let api = Some(DeploymentApi::new(api_key, provider, relay_chain_name)?);
 		Ok(Deployment { api, collator_file_id: None })
 	}
@@ -142,15 +150,22 @@ impl UpCommand {
 	async fn prepare_for_registration(
 		&self,
 		deployment_config: &mut Deployment,
+		show_deployment_steps: bool,
 		cli: &mut impl Cli,
 	) -> Result<Registration> {
 		let chain =
 			configure("Enter the relay chain node URL", DEFAULT_URL, &self.relay_chain_url, cli)
 				.await?;
-		let proxy =
-			self.resolve_proxied_address(&deployment_config.api, chain.url.as_str(), cli)?;
-		let id = self.resolve_id(&chain, &proxy, cli).await?;
-		let genesis_artifacts = self.resolve_genesis_files(deployment_config, id, cli).await?;
+		let proxy = self.resolve_proxied_address(
+			&deployment_config.api,
+			show_deployment_steps,
+			chain.url.as_str(),
+			cli,
+		)?;
+		let id = self.resolve_id(&chain, show_deployment_steps, &proxy, cli).await?;
+		let genesis_artifacts = self
+			.resolve_genesis_files(deployment_config, id, show_deployment_steps, cli)
+			.await?;
 		Ok(Registration { id, genesis_artifacts, chain, proxy })
 	}
 
@@ -158,6 +173,7 @@ impl UpCommand {
 	fn resolve_proxied_address(
 		&self,
 		api: &Option<DeploymentApi>,
+		show_deployment_steps: bool,
 		relay_chain_url: &str,
 		cli: &mut impl Cli,
 	) -> Result<Proxy> {
@@ -166,7 +182,7 @@ impl UpCommand {
 		}
 		if let Some(api) = api {
 			if api.provider == DeploymentProvider::PDP {
-				cli.info(format!("The provider {} requires registration via a pure proxy for security and best practices.", api.provider.name()))?;
+				cli.info(format!("{}The provider {} requires registration via a pure proxy for security and best practices.", format_step_prefix(1,5, show_deployment_steps), api.provider.name()))?;
 				return Ok(Some(prompt_for_proxy_address(
 					self.skip_registration,
 					relay_chain_url,
@@ -181,11 +197,17 @@ impl UpCommand {
 	}
 
 	// Resolves the ID, reserving a new one if necessary.
-	async fn resolve_id(&self, chain: &Chain, proxy: &Proxy, cli: &mut impl Cli) -> Result<u32> {
+	async fn resolve_id(
+		&self,
+		chain: &Chain,
+		show_deployment_steps: bool,
+		proxy: &Proxy,
+		cli: &mut impl Cli,
+	) -> Result<u32> {
 		match self.id {
 			Some(id) => Ok(id),
 			None => {
-				cli.info(format!("You will need to sign a transaction to reserve an ID on {} using the `Registrar::reserve` function.", chain.url))?;
+				cli.info(format!("{}You will need to sign a transaction to reserve an ID on {} using the `Registrar::reserve` function.", format_step_prefix(2,5, show_deployment_steps), chain.url))?;
 				reserve(chain, proxy, cli).await
 			},
 		}
@@ -195,6 +217,7 @@ impl UpCommand {
 		&self,
 		deployment_config: &mut Deployment,
 		id: u32,
+		show_deployment_steps: bool,
 		cli: &mut impl Cli,
 	) -> Result<GenesisArtifacts> {
 		// If the API is unavailable and both genesis code & state exist, there's no need to
@@ -209,15 +232,26 @@ impl UpCommand {
 				..Default::default()
 			});
 		}
-		cli.info("Generating the chain spec for your project")?;
+		cli.info(format!(
+			"{}Generating the chain spec for your project",
+			format_step_prefix(3, 5, show_deployment_steps)
+		))?;
 		generate_spec_files(
 			self.chain_spec.as_deref(),
 			deployment_config,
 			id,
 			self.path.as_deref(),
+			self.profile.clone(),
 			cli,
 		)
 		.await
+	}
+
+	fn should_show_deployment_steps(&self, deployment: &Deployment) -> bool {
+		deployment.api.is_some() &&
+			self.id.is_none() &&
+			!self.skip_registration &&
+			self.chain_spec.is_none()
 	}
 }
 
@@ -229,7 +263,12 @@ struct Deployment {
 }
 impl Deployment {
 	// Executes the deployment process.
-	async fn deploy(&self, config: &Registration, cli: &mut impl Cli) -> Result<DeployResponse> {
+	async fn deploy(
+		&self,
+		config: &Registration,
+		show_deployment_steps: bool,
+		cli: &mut impl Cli,
+	) -> Result<DeployResponse> {
 		let api = self.api.as_ref().ok_or_else(|| {
 			anyhow::anyhow!("Missing deployment provider. Ensure a valid provider is selected.")
 		})?;
@@ -246,7 +285,11 @@ impl Deployment {
 			let template_name = prompt_template_used(cli)?;
 			request.runtime_template = Some(template_name.to_string());
 		}
-		cli.info(format!("Starting deployment with {}", api.provider.name()))?;
+		cli.info(format!(
+			"{}Starting deployment with {}",
+			format_step_prefix(5, 5, show_deployment_steps),
+			api.provider.name()
+		))?;
 		api.deploy(config.id, request).await
 	}
 }
@@ -260,8 +303,8 @@ struct Registration {
 }
 impl Registration {
 	// Registers by submitting an extrinsic.
-	async fn register(&self, cli: &mut impl Cli) -> Result<()> {
-		cli.info(format!("You will need to sign a transaction to register on {}, using the `Registrar::register` function.", self.chain.url))?;
+	async fn register(&self, show_deployment_steps: bool, cli: &mut impl Cli) -> Result<()> {
+		cli.info(format!("{}You will need to sign a transaction to register on {}, using the `Registrar::register` function.",format_step_prefix(4,5, show_deployment_steps), self.chain.url))?;
 		let call_data = self.prepare_register_call_data(cli)?;
 		submit_extrinsic(&self.chain.client, &self.chain.url, call_data, cli)
 			.await
@@ -328,6 +371,7 @@ async fn generate_spec_files(
 	deployment_config: &mut Deployment,
 	id: u32,
 	path: Option<&Path>,
+	profile: Option<Profile>,
 	cli: &mut impl Cli,
 ) -> anyhow::Result<GenesisArtifacts> {
 	let chain_spec_path = chain_spec
@@ -347,6 +391,7 @@ async fn generate_spec_files(
 			.api
 			.as_ref()
 			.and_then(|api| RelayChain::from_str(&api.relay_chain_name.to_lowercase()).ok()),
+		profile: profile.or(Some(Profile::Release)),
 		..Default::default()
 	}
 	.configure_build_spec(cli)
@@ -354,14 +399,16 @@ async fn generate_spec_files(
 
 	let mut genesis_artifacts = build_spec.clone().build(cli)?;
 	if let Some(api) = &deployment_config.api {
-		cli.info("Fetching collator keys...")?;
+		let spinner = spinner();
+		spinner.start("Fetching collator keys...");
 		let keys = api.get_collator_keys(id).await?;
-		cli.info("Rebuilding chain spec with updated collator keys...")?;
+		spinner.set_message("Rebuilding chain spec with updated collator keys...");
 		build_spec
 			.update_chain_spec_with_keys(keys.collator_keys, &genesis_artifacts.chain_spec)?;
 		build_spec.enable_existing_plain_spec();
 		genesis_artifacts = build_spec.build(cli)?;
 		deployment_config.collator_file_id = Some(keys.collator_file_id);
+		spinner.stop("Collator keys successfully fetched and chain spec updated.");
 	}
 	Ok(genesis_artifacts)
 }
@@ -401,8 +448,11 @@ fn prompt_provider(
 ) -> Result<Option<DeploymentProvider>> {
 	let mut predefined_action = cli.select("Select your deployment method:");
 	for action in DeploymentProvider::VARIANTS {
-		predefined_action =
-			predefined_action.item(Some(action.clone()), action.name(), action.description());
+		predefined_action = predefined_action.item(
+			Some(action.clone()),
+			action.name(),
+			format_url(action.base_url()),
+		);
 	}
 	if !skip_registration {
 		predefined_action = predefined_action.item(
@@ -424,12 +474,16 @@ fn prompt_supported_chain(cli: &mut impl Cli) -> Result<&SupportedChains> {
 }
 
 // Prompts for an API key and attempts to read from environment first.
-fn prompt_api_key(env_var_name: &str, cli: &mut impl Cli) -> Result<String> {
+fn prompt_api_key(
+	env_var_name: &str,
+	provider: &DeploymentProvider,
+	cli: &mut impl Cli,
+) -> Result<String> {
 	if let Ok(api_key) = env::var(env_var_name) {
 		cli.info(format!("Using API key from environment variable ({env_var_name})."))?;
 		return Ok(api_key);
 	}
-	cli.warning(format!("No API key found for the environment variable `{env_var_name}`.\n{}", style(format!("Note: Consider setting this variable in your shell (e.g., `export {env_var_name}=...`) or system environment so you won’t be prompted each time.")).dim()))?;
+	cli.warning(format!("No API key found for the environment variable `{env_var_name}`.\n{}\n{}", style(format!("You can generate an API key at: {}", style(provider.base_url().to_string()).underlined().magenta())), style(format!("Note: Consider setting this variable in your shell (e.g., `export {env_var_name}=...`) or system environment so you won’t be prompted each time.")).dim()))?;
 	let api_key = cli.password("Enter your API key:").interact()?;
 	Ok(api_key)
 }
@@ -488,7 +542,7 @@ mod tests {
 			proxied_address: Some(MOCK_PROXIED_ADDRESS.to_string()),
 			..Default::default()
 		}
-		.prepare_for_registration(&mut Deployment::default(), &mut cli)
+		.prepare_for_registration(&mut Deployment::default(), false, &mut cli)
 		.await?;
 
 		assert_eq!(chain_config.id, 2000);
@@ -509,7 +563,15 @@ mod tests {
 				Some(
 					DeploymentProvider::VARIANTS
 						.into_iter()
-						.map(|action| (action.name().to_string(), action.description().to_string()))
+						.map(|action| {
+							(
+								action.name().to_string(),
+								format!(
+									"{}",
+									style(action.base_url().to_string()).bold().underlined()
+								),
+							)
+						})
 						.collect::<Vec<_>>(),
 				),
 				DeploymentProvider::PDP as usize,
@@ -557,7 +619,7 @@ mod tests {
 			Some(
 				DeploymentProvider::VARIANTS
 					.into_iter()
-					.map(|action| (action.name().to_string(), action.description().to_string()))
+					.map(|action| (action.name().to_string(), format_url(action.base_url())))
 					.chain(std::iter::once((
 						"Register".to_string(),
 						"Register the rollup on the relay chain without deploying with a provider"
@@ -588,12 +650,16 @@ mod tests {
                 "Enter your pure proxy account or the account that the proxy will make a call on behalf of",
                 MOCK_PROXIED_ADDRESS.into(),
             );
-		let proxied_address =
-			UpCommand::default().resolve_proxied_address(&None, relay_chain_url, &mut cli)?;
+		let proxied_address = UpCommand::default().resolve_proxied_address(
+			&None,
+			false,
+			relay_chain_url,
+			&mut cli,
+		)?;
 		assert_eq!(proxied_address, Some(format!("Id({})", MOCK_PROXIED_ADDRESS)));
 		cli.verify()?;
 
-		cli = MockCli::new().expect_info(format!("The provider {} requires registration via a pure proxy for security and best practices.", DeploymentProvider::PDP.name()))
+		cli = MockCli::new().expect_info(format!("[1/5]: The provider {} requires registration via a pure proxy for security and best practices.", DeploymentProvider::PDP.name()))
 		.expect_input(
 			"Enter the pure proxy account used for the registration",
 			MOCK_PROXIED_ADDRESS.into(),
@@ -605,6 +671,7 @@ mod tests {
 					DeploymentProvider::PDP,
 					"PASEO".to_string(),
 				)?),
+				true,
 				relay_chain_url,
 				&mut cli,
 			)?;
@@ -615,8 +682,12 @@ mod tests {
             "Would you like to use a pure proxy for registration? This is considered a best practice.",
             false,
         );
-		let proxied_address =
-			UpCommand::default().resolve_proxied_address(&None, relay_chain_url, &mut cli)?;
+		let proxied_address = UpCommand::default().resolve_proxied_address(
+			&None,
+			false,
+			relay_chain_url,
+			&mut cli,
+		)?;
 		assert_eq!(proxied_address, None);
 		cli.verify()?;
 
@@ -625,7 +696,7 @@ mod tests {
 			proxied_address: Some(MOCK_PROXIED_ADDRESS.to_string()),
 			..Default::default()
 		}
-		.resolve_proxied_address(&None, relay_chain_url, &mut cli)?;
+		.resolve_proxied_address(&None, false, relay_chain_url, &mut cli)?;
 		assert_eq!(proxied_address, Some(format!("Id({})", MOCK_PROXIED_ADDRESS)));
 		cli.verify()
 	}
@@ -668,7 +739,7 @@ mod tests {
                 Some(
                     DeploymentProvider::VARIANTS
                         .into_iter()
-                        .map(|action| (action.name().to_string(), action.description().to_string()))
+                        .map(|action| (action.name().to_string(), format_url(action.base_url())))
                         .chain(std::iter::once((
                             "Register".to_string(),
                             "Register the rollup on the relay chain without deploying with a provider".to_string(),
@@ -707,7 +778,7 @@ mod tests {
                 Some(
                     DeploymentProvider::VARIANTS
                         .into_iter()
-                        .map(|action| (action.name().to_string(), action.description().to_string()))
+                        .map(|action| (action.name().to_string(), format_url(action.base_url())))
                         .chain(std::iter::once((
                             "Register".to_string(),
                             "Register the rollup on the relay chain without deploying with a provider".to_string(),
@@ -787,12 +858,13 @@ mod tests {
 	fn prompt_api_key_works() -> Result<()> {
 		let test_env_var = "TEST_POP_API_KEY";
 		env::remove_var(test_env_var);
+		let provider = DeploymentProvider::PDP;
 
 		let mut cli = MockCli::new()
-            .expect_warning(format!("No API key found for the environment variable `{test_env_var}`.\n{}", style(format!("Note: Consider setting this variable in your shell (e.g., `export {test_env_var}=...`) or system environment so you won’t be prompted each time.")).dim()))
+            .expect_warning(format!("No API key found for the environment variable `{test_env_var}`.\n{}\n{}", style(format!("You can generate an API key at: {}", style(provider.base_url().to_string()).underlined().magenta())), style(format!("Note: Consider setting this variable in your shell (e.g., `export {test_env_var}=...`) or system environment so you won’t be prompted each time.")).dim()))
             .expect_password("Enter your API key:", "test_api_key".into());
 
-		let api_key = prompt_api_key(test_env_var, &mut cli)?;
+		let api_key = prompt_api_key(test_env_var, &provider, &mut cli)?;
 		assert_eq!(api_key, "test_api_key");
 		cli.verify()?;
 
@@ -801,7 +873,7 @@ mod tests {
 		cli = MockCli::new()
 			.expect_info(format!("Using API key from environment variable ({test_env_var})."));
 
-		let api_key = prompt_api_key(test_env_var, &mut cli)?;
+		let api_key = prompt_api_key(test_env_var, &provider, &mut cli)?;
 		assert_eq!(api_key, "test_api_key");
 		cli.verify()
 	}
@@ -850,6 +922,27 @@ mod tests {
 		));
 		warn_supported_templates(&DeploymentProvider::PDP, &mut cli)?;
 		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn should_show_deployment_steps_works() -> Result<()> {
+		let deployment = Deployment {
+			api: Some(DeploymentApi::new(
+				"api_test_key".to_string(),
+				DeploymentProvider::PDP,
+				"PASEO".to_string(),
+			)?),
+			..Default::default()
+		};
+		// Nothing provided, should show steps.
+		assert!(UpCommand::default().should_show_deployment_steps(&deployment));
+		// skip_registration is true, should not show steps.
+		assert!(!UpCommand { id: Some(2000), skip_registration: true, ..Default::default() }
+			.should_show_deployment_steps(&deployment));
+		// No API provided, should not show steps.
+		assert!(!UpCommand { ..Default::default() }
+			.should_show_deployment_steps(&Deployment { api: None, ..Default::default() }));
+		Ok(())
 	}
 
 	// Creates temporary files to act as `genesis_state` and `genesis_code` files.
