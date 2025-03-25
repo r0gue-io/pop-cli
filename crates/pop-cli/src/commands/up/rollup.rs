@@ -11,7 +11,7 @@ use crate::{
 		wallet::submit_extrinsic,
 	},
 	deployment_api::{DeployRequest, DeployResponse, DeploymentApi},
-	style::style,
+	style::{format_url, style},
 };
 use anyhow::Result;
 use clap::Args;
@@ -451,7 +451,7 @@ fn prompt_provider(
 		predefined_action = predefined_action.item(
 			Some(action.clone()),
 			action.name(),
-			format!("{}", style(action.base_url().to_string()).bold().underlined()),
+			format_url(action.base_url()),
 		);
 	}
 	if !skip_registration {
@@ -619,12 +619,7 @@ mod tests {
 			Some(
 				DeploymentProvider::VARIANTS
 					.into_iter()
-					.map(|action| {
-						(
-							action.name().to_string(),
-							format!("{}", style(action.base_url().to_string()).bold().underlined()),
-						)
-					})
+					.map(|action| (action.name().to_string(), format_url(action.base_url())))
 					.chain(std::iter::once((
 						"Register".to_string(),
 						"Register the rollup on the relay chain without deploying with a provider"
@@ -744,7 +739,7 @@ mod tests {
                 Some(
                     DeploymentProvider::VARIANTS
                         .into_iter()
-                        .map(|action| (action.name().to_string(), format!("{}", style(action.base_url().to_string()).bold().underlined())))
+                        .map(|action| (action.name().to_string(), format_url(action.base_url())))
                         .chain(std::iter::once((
                             "Register".to_string(),
                             "Register the rollup on the relay chain without deploying with a provider".to_string(),
@@ -783,7 +778,7 @@ mod tests {
                 Some(
                     DeploymentProvider::VARIANTS
                         .into_iter()
-                        .map(|action| (action.name().to_string(), format!("{}", style(action.base_url().to_string()).bold().underlined())))
+                        .map(|action| (action.name().to_string(), format_url(action.base_url())))
                         .chain(std::iter::once((
                             "Register".to_string(),
                             "Register the rollup on the relay chain without deploying with a provider".to_string(),
@@ -940,7 +935,7 @@ mod tests {
 			..Default::default()
 		};
 		// Nothing provided, should show steps.
-		assert!(UpCommand { ..Default::default() }.should_show_deployment_steps(&deployment));
+		assert!(UpCommand::default().should_show_deployment_steps(&deployment));
 		// skip_registration is true, should not show steps.
 		assert!(!UpCommand { id: Some(2000), skip_registration: true, ..Default::default() }
 			.should_show_deployment_steps(&deployment));

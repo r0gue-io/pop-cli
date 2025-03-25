@@ -94,7 +94,7 @@ impl Command {
 #[cfg(test)]
 mod tests {
 	use super::{contract::UpContractCommand, *};
-	use crate::style::style;
+	use crate::style::{format_url, style};
 	use cli::MockCli;
 	use duct::cmd;
 	use pop_contracts::{mock_build_process, new_environment};
@@ -168,12 +168,7 @@ mod tests {
 			Some(
 				DeploymentProvider::VARIANTS
 					.into_iter()
-					.map(|action| {
-						(
-							action.name().to_string(),
-							format!("{}", style(action.base_url().to_string()).bold().underlined()),
-						)
-					})
+					.map(|action| (action.name().to_string(), format_url(action.base_url())))
 					.chain(std::iter::once((
 						"Register".to_string(),
 						"Register the rollup on the relay chain without deploying with a provider"
