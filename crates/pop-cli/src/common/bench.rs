@@ -11,7 +11,7 @@ use pop_parachains::{
 use std::{
 	self,
 	ffi::OsStr,
-	fs::{self, File},
+	fs,
 	path::{Path, PathBuf},
 };
 use strum::{EnumMessage, IntoEnumIterator};
@@ -133,7 +133,7 @@ pub fn ensure_runtime_binary_exists(
 
 	// Rebuild the runtime if the binary is not found or the user has forced the build process.
 	if force {
-		cli.info("📦 Building the local runtime...")?;
+		cli.info("Building your runtime...")?;
 		return build_runtime_benchmark(cli, &runtime_path, &target_path, mode);
 	}
 
