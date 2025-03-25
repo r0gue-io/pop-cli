@@ -311,11 +311,11 @@ pub(crate) fn overwrite_weight_file_command(
 ) -> anyhow::Result<()> {
 	let contents = fs::read_to_string(temp_file)?;
 	let lines: Vec<&str> = contents.split("\n").collect();
-	let iter = lines.iter();
+	let mut iter = lines.iter();
 	let mut new_lines: Vec<String> = vec![];
 
 	let mut inside_command_block = false;
-	for line in iter.as_ref() {
+	for line in iter.by_ref() {
 		if line.starts_with(EXECUTED_COMMAND_COMMENT) {
 			inside_command_block = true;
 			continue;
