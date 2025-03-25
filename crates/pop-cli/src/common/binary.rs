@@ -49,6 +49,7 @@ pub async fn check_and_prompt<Generator: BinaryGenerator>(
 			spinner.start(format!("📦 Sourcing {binary_name}..."));
 
 			binary.source(false, &(), true).await?;
+			set_executable_permission(binary.path())?;
 
 			spinner.stop(format!(
 				"✅ {binary_name} successfully sourced. Cached at: {}",
