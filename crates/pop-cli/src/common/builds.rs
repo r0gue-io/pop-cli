@@ -76,19 +76,11 @@ mod tests {
 
 	#[test]
 	fn guide_user_to_select_profile_works() -> anyhow::Result<()> {
-		let items: Vec<(String, String)> = Profile::VARIANTS
-			.iter()
-			.map(|profile| {
-				let label = profile.get_message().unwrap_or(profile.as_ref());
-				let hint = profile.get_detailed_message().unwrap_or_default();
-				(label.to_string(), hint.to_string())
-			})
-			.collect();
 		let mut cli = MockCli::new().expect_select(
 			"Choose the build profile of the binary that should be used: ".to_string(),
 			Some(true),
 			true,
-			Some(items),
+			Some(Profile::get_variants()),
 			0,
 			None,
 		);

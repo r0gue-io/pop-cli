@@ -385,18 +385,6 @@ mod tests {
 		cli.verify()
 	}
 
-	fn expect_input_runtime_path(project_path: &PathBuf, binary_path: &PathBuf) -> MockCli {
-		MockCli::new()
-			.expect_warning(format!(
-				"No runtime folder found at {}. Please input the runtime path manually.",
-				project_path.display()
-			))
-			.expect_input(
-				"Please specify the path to the runtime project or the runtime binary.",
-				binary_path.to_str().unwrap().to_string(),
-			)
-	}
-
 	#[test]
 	fn ensure_runtime_binary_exists_works() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
@@ -575,6 +563,18 @@ mod tests {
     		);
 		}
 		Ok(())
+	}
+
+	fn expect_input_runtime_path(project_path: &PathBuf, binary_path: &PathBuf) -> MockCli {
+		MockCli::new()
+			.expect_warning(format!(
+				"No runtime folder found at {}. Please input the runtime path manually.",
+				project_path.display()
+			))
+			.expect_input(
+				"Please specify the path to the runtime project or the runtime binary.",
+				binary_path.to_str().unwrap().to_string(),
+			)
 	}
 
 	fn expect_select_genesis_policy(cli: MockCli, item: usize) -> MockCli {
