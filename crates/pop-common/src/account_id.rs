@@ -24,7 +24,7 @@ pub fn convert_to_evm_accounts(accounts: Vec<String>) -> Result<Vec<String>, Err
 		.map(|account| {
 			let account_id = parse_account(&account)?.0;
 			let evm_account = AccountIdMapper::to_address(&account_id);
-			Ok(format!("{}", to_hex(&evm_account)))
+			Ok(to_hex(evm_account))
 		})
 		.collect()
 }
