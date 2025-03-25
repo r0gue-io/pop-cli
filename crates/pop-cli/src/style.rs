@@ -47,14 +47,25 @@ pub(crate) fn format_url(url: &str) -> String {
 	format!("{}", style(url).bold().underlined())
 }
 
+/// Formats the step label if steps should be shown.
+pub(crate) fn format_step_prefix(current: usize, total: usize, show: bool) -> String {
+	show.then(|| format!("[{}/{}]: ", current, total)).unwrap_or_default()
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
 	use console::Style;
 
 	#[test]
-	fn test_format_provider_url() {
+	fn format_provider_url_works() {
 		let url = "https://example.com";
 		assert_eq!(format_url(url), format!("{}", Style::new().bold().underlined().apply_to(url)));
+	}
+
+	#[test]
+	fn format_step_prefix_works() {
+		assert_eq!(format_step_prefix(2, 5, true), "[2/5]: ");
+		assert_eq!(format_step_prefix(2, 5, false), "");
 	}
 }

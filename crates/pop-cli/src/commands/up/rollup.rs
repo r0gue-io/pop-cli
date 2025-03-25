@@ -11,7 +11,7 @@ use crate::{
 		wallet::submit_extrinsic,
 	},
 	deployment_api::{DeployRequest, DeployResponse, DeploymentApi},
-	style::{format_url, style},
+	style::{format_step_prefix, format_url, style},
 };
 use anyhow::Result;
 use clap::Args;
@@ -182,7 +182,7 @@ impl UpCommand {
 		}
 		if let Some(api) = api {
 			if api.provider == DeploymentProvider::PDP {
-				cli.info(format!("{}The provider {} requires registration via a pure proxy for security and best practices.", if show_deployment_steps { "Step 1/5: " } else {""} , api.provider.name()))?;
+				cli.info(format!("{}The provider {} requires registration via a pure proxy for security and best practices.", format_step_prefix(1,5, show_deployment_steps), api.provider.name()))?;
 				return Ok(Some(prompt_for_proxy_address(
 					self.skip_registration,
 					relay_chain_url,
@@ -207,7 +207,7 @@ impl UpCommand {
 		match self.id {
 			Some(id) => Ok(id),
 			None => {
-				cli.info(format!("{}You will need to sign a transaction to reserve an ID on {} using the `Registrar::reserve` function.", if show_deployment_steps { "Step 2/5: " } else {""}, chain.url))?;
+				cli.info(format!("{}You will need to sign a transaction to reserve an ID on {} using the `Registrar::reserve` function.", format_step_prefix(2,5, show_deployment_steps), chain.url))?;
 				reserve(chain, proxy, cli).await
 			},
 		}
@@ -234,7 +234,7 @@ impl UpCommand {
 		}
 		cli.info(format!(
 			"{}Generating the chain spec for your project",
-			if show_deployment_steps { "Step 3/5: " } else { "" }
+			format_step_prefix(3, 5, show_deployment_steps)
 		))?;
 		generate_spec_files(
 			self.chain_spec.as_deref(),
@@ -287,7 +287,7 @@ impl Deployment {
 		}
 		cli.info(format!(
 			"{}Starting deployment with {}",
-			if show_deployment_steps { "Step 5/5: " } else { "" },
+			format_step_prefix(5, 5, show_deployment_steps),
 			api.provider.name()
 		))?;
 		api.deploy(config.id, request).await
@@ -304,7 +304,7 @@ struct Registration {
 impl Registration {
 	// Registers by submitting an extrinsic.
 	async fn register(&self, show_deployment_steps: bool, cli: &mut impl Cli) -> Result<()> {
-		cli.info(format!("{}You will need to sign a transaction to register on {}, using the `Registrar::register` function.", if show_deployment_steps { "Step 4/5: " } else {""}, self.chain.url))?;
+		cli.info(format!("{}You will need to sign a transaction to register on {}, using the `Registrar::register` function.",format_step_prefix(4,5, show_deployment_steps), self.chain.url))?;
 		let call_data = self.prepare_register_call_data(cli)?;
 		submit_extrinsic(&self.chain.client, &self.chain.url, call_data, cli)
 			.await
