@@ -150,7 +150,7 @@ impl traits::Cli for Cli {
 	fn warning(&mut self, message: impl Display) -> Result<()> {
 		cliclack::log::warning(message)?;
 		#[cfg(not(test))]
-		sleep(Duration::from_secs(2));
+		sleep(Duration::from_secs(1));
 		Ok(())
 	}
 }
