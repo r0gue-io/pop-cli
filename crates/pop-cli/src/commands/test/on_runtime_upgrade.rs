@@ -4,11 +4,14 @@ use crate::{
 		traits::{Input, Select},
 	},
 	commands::test::TestTryRuntimeCommand,
-	common::{bench::ensure_runtime_binary_exists, builds::guide_user_to_select_profile},
+	common::{
+		builds::guide_user_to_select_profile, runtime::ensure_runtime_binary_exists,
+		try_runtime::check_try_runtime_and_prompt,
+	},
 };
 use clap::Args;
 use pop_common::Profile;
-use pop_parachains::Migration;
+use pop_parachains::{generate_try_runtime, Migration, TryRuntimeCliCommand};
 use std::{env::current_dir, path::PathBuf};
 use strum::{EnumMessage, VariantArray};
 use try_runtime_core::{
@@ -30,6 +33,12 @@ pub(crate) struct TestOnRuntimeUpgradeCommand {
 	/// Migration mode to run with.
 	#[clap(long, value_enum, alias = "m")]
 	migration: Option<Migration>,
+	/// Avoid rebuilding the runtime if there is an existing runtime binary.
+	#[clap(short = 'n', long)]
+	no_build: bool,
+	/// Automatically source the needed binary required without prompting for confirmation.
+	#[clap(short = 'y', long)]
+	skip_confirm: bool,
 }
 
 impl TestOnRuntimeUpgradeCommand {
@@ -43,6 +52,7 @@ impl TestOnRuntimeUpgradeCommand {
 			cli,
 			&current_dir().unwrap_or(PathBuf::from("./")),
 			self.profile.as_ref().ok_or_else(|| anyhow::anyhow!("No profile provided"))?,
+			!self.no_build,
 		)?);
 
 		// Select the migration to run.
@@ -68,7 +78,13 @@ impl TestOnRuntimeUpgradeCommand {
 			},
 		}
 
-		// TODO: run on runtime upgrade. Requires sourcing the binaries.
+		let binary_path = check_try_runtime_and_prompt(cli, self.skip_confirm).await?;
+		generate_try_runtime(
+			&binary_path,
+			TryRuntimeCliCommand::OnRuntimeUpgrade,
+			|args| args,
+			&[],
+		);
 		Ok(())
 	}
 
