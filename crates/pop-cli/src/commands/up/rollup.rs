@@ -659,7 +659,7 @@ mod tests {
 		assert_eq!(proxied_address, Some(format!("Id({})", MOCK_PROXIED_ADDRESS)));
 		cli.verify()?;
 
-		cli = MockCli::new().expect_info(format!("Step 1/5: The provider {} requires registration via a pure proxy for security and best practices.", DeploymentProvider::PDP.name()))
+		cli = MockCli::new().expect_info(format!("[1/5]: The provider {} requires registration via a pure proxy for security and best practices.", DeploymentProvider::PDP.name()))
 		.expect_input(
 			"Enter the pure proxy account used for the registration",
 			MOCK_PROXIED_ADDRESS.into(),
