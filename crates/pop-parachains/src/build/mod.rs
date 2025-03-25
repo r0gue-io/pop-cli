@@ -423,7 +423,10 @@ mod tests {
 		Zombienet,
 	};
 	use anyhow::Result;
-	use pop_common::{manifest::{Dependency, add_feature}, set_executable_permission};
+	use pop_common::{
+		manifest::{add_feature, Dependency},
+		set_executable_permission,
+	};
 	use sp_core::bytes::from_hex;
 	use std::{
 		fs::{self, write},
