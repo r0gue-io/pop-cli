@@ -13,6 +13,9 @@ pub enum Error {
 	/// An error occurred while generating the chain specification.
 	#[error("Failed to build the chain spec. {0}")]
 	BuildSpecError(String),
+	/// An error occurred while running benchmarking.
+	#[error("Failed to run benchmarking: {0}")]
+	BenchmarkingError(String),
 	/// An error occurred while decoding the call data.
 	#[error("Failed to decode call data. {0}")]
 	CallDataDecodingError(String),
@@ -39,6 +42,9 @@ pub enum Error {
 	/// The dispatchable function is not supported.
 	#[error("The dispatchable function is not supported")]
 	FunctionNotSupported,
+	/// An error occurred while working with the genesis builder.
+	#[error("Genesis builder error: {0}")]
+	GenesisBuilderError(String),
 	/// Failed to retrieve the image tag.
 	#[error("Failed to retrieve image tag.")]
 	ImageTagRetrievalFailed,
@@ -65,10 +71,16 @@ pub enum Error {
 	/// An error occurred while processing the arguments provided by the user.
 	#[error("Failed to process the arguments provided by the user.")]
 	ParamProcessingError,
+	/// An error occurred while parsing the arguments provided by the user.
+	#[error("Failed to parse the arguments provided by the user: {0}")]
+	ParamParsingError(String),
 	#[error("Invalid path")]
 	PathError,
 	#[error("Failed to execute rustfmt")]
 	RustfmtError(std::io::Error),
+	/// The specified runtime could not be found.
+	#[error("Failed to find the runtime {0}")]
+	RuntimeNotFound(String),
 	#[error("Template error: {0}")]
 	SourcingError(#[from] pop_common::sourcing::Error),
 	/// An error occurred whilst interacting with a chain using `subxt`.

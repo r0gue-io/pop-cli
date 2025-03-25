@@ -116,10 +116,12 @@ pub async fn source_omni_bencher_binary(
 /// * `cli`: Command line interface.
 /// * `project_path`: The path to the project that contains the runtime.
 /// * `mode`: The build profile.
+/// * `force`: Whether to force the build process.
 pub fn ensure_runtime_binary_exists(
 	cli: &mut impl Cli,
 	project_path: &Path,
 	mode: &Profile,
+	force: bool,
 ) -> anyhow::Result<PathBuf> {
 	let target_path = mode.target_directory(project_path).join("wbuild");
 	let runtime_path = guide_user_to_input_runtime_path(cli, project_path)?;
@@ -129,15 +131,30 @@ pub fn ensure_runtime_binary_exists(
 		return Ok(runtime_path);
 	}
 
+	// Rebuild the runtime if the binary is not found or the user has forced the build process.
+	if force {
+		cli.info("Building your runtime...")?;
+		return build_runtime_benchmark(cli, &runtime_path, &target_path, mode);
+	}
+
 	match runtime_binary_path(&target_path, &runtime_path) {
 		Ok(binary_path) => Ok(binary_path),
 		_ => {
 			cli.info("📦 Runtime binary was not found. The runtime will be built locally.")?;
-			cli.warning("NOTE: this may take some time...")?;
-			build_project(&runtime_path, None, mode, vec!["runtime-benchmarks"], None)?;
-			runtime_binary_path(&target_path, &runtime_path).map_err(|e| e.into())
+			build_runtime_benchmark(cli, &runtime_path, &target_path, mode)
 		},
 	}
+}
+
+fn build_runtime_benchmark(
+	cli: &mut impl Cli,
+	runtime_path: &Path,
+	target_path: &Path,
+	mode: &Profile,
+) -> anyhow::Result<PathBuf> {
+	cli.warning("NOTE: this may take some time...")?;
+	build_project(runtime_path, None, mode, vec!["runtime-benchmarks"], None)?;
+	runtime_binary_path(target_path, runtime_path).map_err(|e| e.into())
 }
 
 /// Guide the user to input a runtime path.
@@ -271,6 +288,11 @@ pub(crate) fn overwrite_weight_dir_command(
 	dest_path: &Path,
 	arguments: &[String],
 ) -> anyhow::Result<()> {
+	// Create the destination directory if it doesn't exist.
+	if !dest_path.is_dir() {
+		fs::create_dir(dest_path)?;
+	}
+
 	// Read and print contents of all files in the temporary directory.
 	for entry in temp_path.read_dir()? {
 		let path = entry?.path();
@@ -371,18 +393,6 @@ mod tests {
 		cli.verify()
 	}
 
-	fn expect_input_runtime_path(project_path: &PathBuf, binary_path: &PathBuf) -> MockCli {
-		MockCli::new()
-			.expect_warning(format!(
-				"No runtime folder found at {}. Please input the runtime path manually.",
-				project_path.display()
-			))
-			.expect_input(
-				"Please specify the path to the runtime project or the runtime binary.",
-				binary_path.to_str().unwrap().to_string(),
-			)
-	}
-
 	#[test]
 	fn ensure_runtime_binary_exists_works() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
@@ -398,7 +408,7 @@ mod tests {
 			let mut cli = expect_input_runtime_path(&temp_path, &binary_path);
 			File::create(binary_path.as_path())?;
 			assert_eq!(
-				ensure_runtime_binary_exists(&mut cli, &temp_path, profile)?,
+				ensure_runtime_binary_exists(&mut cli, &temp_path, profile, true)?,
 				binary_path.canonicalize()?
 			);
 			cli.verify()?;
@@ -561,6 +571,18 @@ mod tests {
     		);
 		}
 		Ok(())
+	}
+
+	fn expect_input_runtime_path(project_path: &PathBuf, binary_path: &PathBuf) -> MockCli {
+		MockCli::new()
+			.expect_warning(format!(
+				"No runtime folder found at {}. Please input the runtime path manually.",
+				project_path.display()
+			))
+			.expect_input(
+				"Please specify the path to the runtime project or the runtime binary.",
+				binary_path.to_str().unwrap().to_string(),
+			)
 	}
 
 	fn expect_select_genesis_policy(cli: MockCli, item: usize) -> MockCli {

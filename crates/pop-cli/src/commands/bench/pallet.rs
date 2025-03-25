@@ -199,6 +199,10 @@ pub(crate) struct BenchmarkPallet {
 	#[clap(short = 'y', long)]
 	skip_confirm: bool,
 
+	/// Avoid rebuilding the runtime if there is an existing runtime binary.
+	#[clap(short = 'n', long)]
+	no_build: bool,
+
 	/// Output file of the benchmark parameters.
 	#[clap(short = 'f', long)]
 	#[serde(skip_serializing)]
@@ -240,6 +244,7 @@ impl Default for BenchmarkPallet {
 			disable_proof_recording: false,
 			skip_configuration: false,
 			skip_confirm: false,
+			no_build: false,
 			bench_file: None,
 		}
 	}
@@ -318,7 +323,9 @@ impl BenchmarkPallet {
 
 		// No pallet provided, prompts user to select the pallet fetched from runtime.
 		if self.pallet.is_none() {
-			self.update_pallets(cli, &mut registry).await?;
+			if let Err(e) = self.update_pallets(cli, &mut registry).await {
+				return display_message(&e.to_string(), false, cli);
+			};
 		}
 		// No extrinsic provided, prompts user to select the extrinsics fetched from runtime.
 		if self.extrinsic.is_none() {
@@ -346,7 +353,7 @@ impl BenchmarkPallet {
 		// Prompt user to update output path of the benchmarking results.
 		if self.output.is_none() {
 			let input = cli
-				.input("Provide the output file path for benchmark results (optional).")
+				.input("Provide the output path for benchmark results (optional).")
 				.required(false)
 				.placeholder("./weights.rs")
 				.interact()?;
@@ -377,25 +384,70 @@ impl BenchmarkPallet {
 
 	fn run(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		if let Some(original_weight_path) = self.output.clone() {
-			let temp_dir = tempdir()?;
-			let temp_file_path = temp_dir.path().join("temp_weights.rs");
-			self.output = Some(temp_file_path.clone());
-
-			generate_pallet_benchmarks(self.collect_arguments())?;
-			console::Term::stderr().clear_last_lines(1)?;
-			cli.info(format!("Weight file is generated to {:?}", original_weight_path.display()))?;
-
-			// Restore the original weight path.
-			self.output = Some(original_weight_path.clone());
-			// Overwrite the weight files with the correct executed command.
-			overwrite_weight_file_command(
-				&temp_file_path,
-				&original_weight_path,
-				&self.collect_display_arguments(),
-			)?;
+			if original_weight_path.extension().is_some() {
+				self.run_with_weight_file(cli, original_weight_path)?;
+			} else {
+				self.run_with_weight_dir(cli, original_weight_path)?;
+			}
 		} else {
 			generate_pallet_benchmarks(self.collect_arguments())?;
 		}
+		Ok(())
+	}
+
+	fn run_with_weight_file(
+		&mut self,
+		cli: &mut impl cli::traits::Cli,
+		weight_path: PathBuf,
+	) -> anyhow::Result<()> {
+		let temp_dir = tempdir()?;
+		let temp_file_path = temp_dir.path().join("temp_weights.rs");
+		self.output = Some(temp_file_path.clone());
+
+		generate_pallet_benchmarks(self.collect_arguments())?;
+		console::Term::stderr().clear_last_lines(1)?;
+		cli.info(format!("Weight file is generated to {:?}", weight_path.display()))?;
+
+		// Restore the original weight path.
+		self.output = Some(weight_path.clone());
+		// Overwrite the weight files with the correct executed command.
+		overwrite_weight_file_command(
+			&temp_file_path,
+			&weight_path,
+			&self.collect_display_arguments(),
+		)?;
+		Ok(())
+	}
+
+	fn run_with_weight_dir(
+		&mut self,
+		cli: &mut impl cli::traits::Cli,
+		weight_path: PathBuf,
+	) -> anyhow::Result<()> {
+		let temp_dir = tempdir()?;
+		let temp_dir_path = temp_dir.into_path();
+		self.output = Some(temp_dir_path.clone());
+
+		generate_pallet_benchmarks(self.collect_arguments())?;
+		console::Term::stderr()
+			.clear_last_lines(fs::read_dir(temp_dir_path.clone()).iter().count() + 1)?;
+
+		// Restore the original weight path.
+		self.output = Some(weight_path.clone());
+		// Overwrite the weight files with the correct executed command.
+		let mut info = String::default();
+		for entry in fs::read_dir(temp_dir_path)? {
+			let entry = entry?;
+			let path = entry.path();
+			let original_path = weight_path.join(entry.file_name());
+			overwrite_weight_file_command(
+				&path,
+				&original_path,
+				&self.collect_display_arguments(),
+			)?;
+			info.push_str(&format!("Created file: {:?}\n", original_path));
+		}
+		cli.info(info)?;
 		Ok(())
 	}
 
@@ -412,6 +464,9 @@ impl BenchmarkPallet {
 		}
 		if self.skip_confirm {
 			arguments.push("-y".to_string());
+		}
+		if self.no_build {
+			arguments.push("-n".to_string());
 		}
 		args.extend(arguments);
 		args
@@ -611,7 +666,12 @@ impl BenchmarkPallet {
 
 	fn update_runtime_path(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		let profile = guide_user_to_select_profile(cli)?;
-		self.runtime = Some(ensure_runtime_binary_exists(cli, &get_current_directory(), &profile)?);
+		self.runtime = Some(ensure_runtime_binary_exists(
+			cli,
+			&get_current_directory(),
+			&profile,
+			!self.no_build,
+		)?);
 		Ok(())
 	}
 
@@ -981,6 +1041,7 @@ fn guide_user_to_exclude_pallets(
 ) -> anyhow::Result<Vec<String>> {
 	let mut prompt = cli
 		.multiselect(r#"🔎 Search for pallets to exclude (Press ENTER to skip)"#)
+		.filter_mode()
 		.required(false);
 	for pallet in pallets(registry, &[]) {
 		prompt = prompt.item(pallet.clone(), &pallet, "");
@@ -1126,7 +1187,10 @@ mod tests {
 	};
 	use anyhow::Ok;
 	use pop_common::Profile;
-	use std::{env::current_dir, fs};
+	use std::{
+		env::current_dir,
+		fs::{self, File},
+	};
 	use strum::EnumMessage;
 	use tempfile::tempdir;
 
@@ -1161,7 +1225,7 @@ mod tests {
 			.expect_warning("NOTE: this may take some time...")
 			.expect_info("Benchmarking extrinsic weights of selected pallets...")
 			.expect_input(
-				"Provide the output file path for benchmark results (optional).",
+				"Provide the output path for benchmark results (optional).",
 				output_path.to_str().unwrap().to_string(),
 			)
 			.expect_confirm(
@@ -1249,7 +1313,7 @@ mod tests {
 				bench_file_path.display()
 			))
 			.expect_input(
-				"Provide the output file path for benchmark results (optional).",
+				"Provide the output path for benchmark results (optional).",
 				output_path.to_str().unwrap().to_string(),
 			)
 			.expect_confirm(
@@ -1269,6 +1333,54 @@ mod tests {
 	}
 
 	#[tokio::test]
+	async fn benchmark_pallet_weight_dir_works() -> anyhow::Result<()> {
+		let temp_dir = tempdir()?;
+		let output_path = temp_dir.path();
+		let registry = get_registry().await?;
+
+		let mut cli = expect_pallet_benchmarking_intro(MockCli::new())
+			.expect_warning("NOTE: this may take some time...")
+			.expect_info("Benchmarking extrinsic weights of selected pallets...")
+			.expect_input(
+				"Provide the output path for benchmark results (optional).",
+				output_path.to_str().unwrap().to_string(),
+			)
+			.expect_outro("Benchmark completed successfully!");
+
+		let mut cmd = BenchmarkPallet {
+			skip_configuration: true,
+			skip_confirm: true,
+			runtime: Some(get_mock_runtime(true)),
+			genesis_builder: Some(GenesisBuilderPolicy::Runtime),
+			genesis_builder_preset: "development".to_string(),
+			pallet: Some(ALL_SELECTED.to_string()),
+			extrinsic: Some(ALL_SELECTED.to_string()),
+			exclude_pallets: registry
+				.keys()
+				.cloned()
+				.filter(|p| *p != "pallet_timestamp" && *p != "pallet_proxy")
+				.collect(),
+			repeat: 2,
+			steps: 2,
+			..Default::default()
+		};
+		cmd.execute(&mut cli).await?;
+
+		for entry in fs::read_dir(output_path)? {
+			let entry = entry?;
+			let path = entry.path();
+			let content = fs::read_to_string(&path)?;
+			let mut command_block = format!("{EXECUTED_COMMAND_COMMENT}\n");
+			for argument in cmd.collect_display_arguments() {
+				command_block.push_str(&format!("//  {argument}\n"));
+			}
+			assert!(content.contains(&command_block));
+			assert!(path.exists());
+		}
+		cli.verify()
+	}
+
+	#[tokio::test]
 	async fn benchmark_pallet_weight_file_works() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
 		let output_path = temp_dir.path().join("weights.rs");
@@ -1276,7 +1388,7 @@ mod tests {
 			.expect_warning("NOTE: this may take some time...")
 			.expect_info("Benchmarking extrinsic weights of selected pallets...")
 			.expect_input(
-				"Provide the output file path for benchmark results (optional).",
+				"Provide the output path for benchmark results (optional).",
 				output_path.to_str().unwrap().to_string(),
 			)
 			.expect_outro("Benchmark completed successfully!");
@@ -1369,10 +1481,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn guide_user_to_select_pallet_works() -> anyhow::Result<()> {
-		let runtime_path = get_mock_runtime(true);
-		let binary_path =
-			source_omni_bencher_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
-		let registry = load_pallet_extrinsics(&runtime_path, binary_path.as_path()).await?;
+		let registry = get_registry().await?;
 		let pallet_items: Vec<(String, String)> = pallets(&registry, &[])
 			.into_iter()
 			.map(|pallet| (pallet, Default::default()))
@@ -1414,15 +1523,12 @@ mod tests {
 
 	#[tokio::test]
 	async fn guide_user_to_exclude_pallets_works() -> anyhow::Result<()> {
-		let mut cli = MockCli::new();
-		let runtime_path = get_mock_runtime(true);
-		let binary_path = source_omni_bencher_binary(&mut cli, &crate::cache()?, true).await?;
-		let registry = load_pallet_extrinsics(&runtime_path, binary_path.as_path()).await?;
+		let registry = get_registry().await?;
 		let pallet_items = pallets(&registry, &[])
 			.into_iter()
 			.map(|pallet| (pallet, Default::default()))
 			.collect();
-		cli = MockCli::new().expect_multiselect::<String>(
+		let mut cli = MockCli::new().expect_multiselect::<String>(
 			r#"🔎 Search for pallets to exclude (Press ENTER to skip)"#,
 			Some(false),
 			true,
@@ -1435,10 +1541,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn guide_user_to_select_extrinsics_works() -> anyhow::Result<()> {
-		let mut cli = MockCli::new();
-		let runtime_path = get_mock_runtime(true);
-		let binary_path = source_omni_bencher_binary(&mut cli, &crate::cache()?, true).await?;
-		let registry = load_pallet_extrinsics(&runtime_path, binary_path.as_path()).await?;
+		let registry = get_registry().await?;
 		let extrinsic_items = extrinsics(&registry, "pallet_timestamp")
 			.into_iter()
 			.map(|pallet| (pallet, Default::default()))
@@ -1453,7 +1556,7 @@ mod tests {
 			ALL_SELECTED.to_string()
 		);
 
-		cli = MockCli::new()
+		let mut cli = MockCli::new()
 			.expect_confirm(
 				r#"Would you like to benchmark all extrinsics of "pallet_timestamp"?"#,
 				false,
@@ -1471,11 +1574,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn guide_user_to_select_menu_option_works() -> anyhow::Result<()> {
-		let runtime_path = get_mock_runtime(true);
-		let binary_path =
-			source_omni_bencher_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
-		let mut registry = load_pallet_extrinsics(&runtime_path, binary_path.as_path()).await?;
-
+		let mut registry = get_registry().await?;
 		let mut cmd = BenchmarkPallet {
 			skip_confirm: false,
 			runtime: Some(get_mock_runtime(true)),
@@ -1719,10 +1818,7 @@ mod tests {
 		);
 
 		// If the pallet registry already exists, skip loading it.
-		let mock_registry = PalletExtrinsicsRegistry::from([
-			("pallet_timestamp".to_string(), vec!["on_finalize".to_string(), "set".to_string()]),
-			("frame_system".to_string(), vec!["set_code".to_string(), "remark".to_string()]),
-		]);
+		let mock_registry = get_mock_registry();
 		registry = mock_registry.clone();
 		cmd.ensure_pallet_registry(&mut cli, &mut registry).await?;
 		assert_eq!(registry, mock_registry);
@@ -1827,6 +1923,169 @@ mod tests {
 		Ok(())
 	}
 
+	#[tokio::test]
+	async fn update_pallets_works() -> anyhow::Result<()> {
+		// Load pallet registry if the registry is empty.
+		let mut cli =
+			MockCli::new().expect_confirm("Would you like to benchmark all pallets?", true);
+		let mut registry = PalletExtrinsicsRegistry::default();
+		BenchmarkPallet { runtime: Some(get_mock_runtime(true)), ..Default::default() }
+			.update_pallets(&mut cli, &mut registry)
+			.await?;
+		assert!(!registry.is_empty());
+
+		let pallet_items: Vec<(String, String)> = pallets(&registry, &[])
+			.into_iter()
+			.map(|pallet| (pallet, Default::default()))
+			.collect();
+		for (select_all, mut cmd, expected_pallet, expected_extrinsic) in [
+			// Select all pallets overwrites the extrinsic to "*".
+			(
+				true,
+				BenchmarkPallet {
+					extrinsic: Some("dummy_extrinsic".to_string()),
+					..Default::default()
+				},
+				Some(ALL_SELECTED.to_string()),
+				Some(ALL_SELECTED.to_string()),
+			),
+			// Not reset the extrinsic to "*" if pallet is not changed.
+			(
+				false,
+				BenchmarkPallet { pallet: Some(pallet_items[0].0.clone()), ..Default::default() },
+				Some(pallet_items[0].0.clone()),
+				None,
+			),
+			// Reset the extrinsic to "*" when the pallet is changed.
+			(
+				false,
+				BenchmarkPallet {
+					pallet: Some("dummy_pallet".to_string()),
+					extrinsic: Some("dummy_extrinsic".to_string()),
+					..Default::default()
+				},
+				Some(pallet_items[0].0.clone()),
+				Some(ALL_SELECTED.to_string()),
+			),
+		] {
+			let mut cli = MockCli::new()
+				.expect_confirm("Would you like to benchmark all pallets?", select_all);
+			if !select_all {
+				cli = cli.expect_select(
+					r#"🔎 Search for a pallet to benchmark"#,
+					None,
+					true,
+					Some(pallet_items.clone()),
+					0,
+					Some(true),
+				);
+			}
+			cmd.update_pallets(&mut cli, &mut registry).await?;
+			assert_eq!(cmd.pallet, expected_pallet);
+			assert_eq!(cmd.extrinsic, expected_extrinsic);
+			cli.verify()?;
+		}
+
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn update_extrinsic_works() -> anyhow::Result<()> {
+		let pallet = "pallet_timestamp";
+
+		// Load pallet registry if the registry is empty.
+		let mut registry = PalletExtrinsicsRegistry::default();
+		BenchmarkPallet {
+			runtime: Some(get_mock_runtime(true)),
+			pallet: Some(ALL_SELECTED.to_string()),
+			..Default::default()
+		}
+		.update_extrinsics(&mut MockCli::new(), &mut registry)
+		.await?;
+		assert!(!registry.is_empty());
+
+		// If `pallet` is "*", select all extrinsics.
+		let mut cmd =
+			BenchmarkPallet { pallet: Some(ALL_SELECTED.to_string()), ..Default::default() };
+		cmd.update_extrinsics(&mut MockCli::new(), &mut registry).await?;
+		assert_eq!(cmd.extrinsic, Some(ALL_SELECTED.to_string()));
+
+		// Select all extrinsics of the `pallet`.
+		let prompt = format!(r#"Would you like to benchmark all extrinsics of {:?}?"#, pallet);
+		let mut cli = MockCli::new().expect_confirm(prompt, true);
+		let mut cmd = BenchmarkPallet { pallet: Some(pallet.to_string()), ..Default::default() };
+		cmd.update_extrinsics(&mut cli, &mut registry).await?;
+		assert_eq!(cmd.extrinsic, Some(ALL_SELECTED.to_string()));
+		cli.verify()?;
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn update_excluded_pallets_works() -> anyhow::Result<()> {
+		let registry = get_registry().await?;
+		let pallet_items = pallets(&registry, &[])
+			.into_iter()
+			.map(|pallet| (pallet, Default::default()))
+			.collect();
+		let mut cli = MockCli::new().expect_multiselect::<String>(
+			r#"🔎 Search for pallets to exclude (Press ENTER to skip)"#,
+			Some(false),
+			true,
+			Some(pallet_items),
+			Some(true),
+		);
+
+		// Load pallet registry if the registry is empty.
+		let mut cmd =
+			BenchmarkPallet { runtime: Some(get_mock_runtime(true)), ..Default::default() };
+		let mut registry = PalletExtrinsicsRegistry::default();
+		cmd.update_excluded_pallets(&mut cli, &mut registry).await?;
+		assert!(!registry.is_empty());
+
+		// Update the `exclude_pallets`.
+		let excluded_pallets = registry.keys().cloned().collect::<Vec<_>>();
+		assert_eq!(cmd.exclude_pallets, excluded_pallets);
+
+		Ok(())
+	}
+
+	#[test]
+	fn update_runtime_path_works() -> anyhow::Result<()> {
+		let temp_dir = tempdir()?;
+		let temp_path = temp_dir.into_path();
+		fs::create_dir(&temp_path.join("target"))?;
+
+		let target_path = Profile::Debug.target_directory(temp_path.as_path());
+		fs::create_dir(target_path.clone())?;
+
+		// Input path to binary file.
+		let binary_path = target_path.join("runtime.wasm");
+		File::create(binary_path.as_path())?;
+		let mut cli = MockCli::new()
+			.expect_select(
+				"Choose the build profile of the binary that should be used: ".to_string(),
+				Some(true),
+				true,
+				Some(Profile::get_variants()),
+				0,
+				None,
+			)
+			.expect_warning(format!(
+				"No runtime folder found at {}. Please input the runtime path manually.",
+				get_current_directory().display()
+			))
+			.expect_input(
+				"Please specify the path to the runtime project or the runtime binary.",
+				binary_path.to_str().unwrap().to_string(),
+			);
+
+		let mut cmd = BenchmarkPallet::default();
+		assert!(cmd.update_runtime_path(&mut cli).is_ok());
+		assert_eq!(cmd.runtime, Some(binary_path.canonicalize()?));
+		cli.verify()?;
+		Ok(())
+	}
+
 	#[test]
 	fn update_template_path_works() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
@@ -1898,5 +2157,19 @@ mod tests {
 			item,
 			Some(false),
 		))
+	}
+
+	async fn get_registry() -> anyhow::Result<PalletExtrinsicsRegistry> {
+		let runtime_path = get_mock_runtime(true);
+		let binary_path =
+			source_omni_bencher_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
+		Ok(load_pallet_extrinsics(&runtime_path, binary_path.as_path()).await?)
+	}
+
+	fn get_mock_registry() -> PalletExtrinsicsRegistry {
+		PalletExtrinsicsRegistry::from([
+			("pallet_timestamp".to_string(), vec!["on_finalize".to_string(), "set".to_string()]),
+			("frame_system".to_string(), vec!["set_code".to_string(), "remark".to_string()]),
+		])
 	}
 }
