@@ -3,7 +3,7 @@
 use crate::errors::{handle_command_error, Error};
 use anyhow::{anyhow, Result};
 use duct::cmd;
-use pop_common::{manifest::from_path, Profile};
+use pop_common::{account_id::convert_to_evm_accounts, manifest::from_path, Profile};
 use serde_json::{json, Value};
 use sp_core::bytes::to_hex;
 use std::{
@@ -408,6 +408,19 @@ impl ChainSpec {
 	/// # Arguments
 	/// * `collator_keys` - A list of new collator keys.
 	pub fn replace_collator_keys(&mut self, collator_keys: Vec<String>) -> Result<(), Error> {
+		let uses_evm_keys = self
+			.0
+			.get("properties")
+			.and_then(|p| p.get("isEthereum"))
+			.and_then(|v| v.as_bool())
+			.unwrap_or(false);
+
+		let keys = if uses_evm_keys {
+			convert_to_evm_accounts(collator_keys.clone())?
+		} else {
+			collator_keys.clone()
+		};
+
 		let invulnerables = self
 			.0
 			.get_mut("genesis")
@@ -421,15 +434,16 @@ impl ChainSpec {
 			.get_mut("invulnerables")
 			.ok_or_else(|| Error::Config("expected `invulnerables`".into()))?;
 
-		*invulnerables = json!(collator_keys);
+		*invulnerables = json!(keys);
 
-		let session_keys = collator_keys
+		let session_keys = keys
 			.iter()
-			.map(|address| {
+			.zip(collator_keys.iter())
+			.map(|(address, original_address)| {
 				json!([
 					address,
 					address,
-					{ "aura": address }
+					{ "aura": original_address } // Always the original address
 				])
 			})
 			.collect::<Vec<_>>();
@@ -1085,7 +1099,7 @@ mod tests {
 	}
 
 	#[test]
-	fn replace_collator_key_works() -> Result<()> {
+	fn replace_collator_keys_works() -> Result<()> {
 		let mut chain_spec = ChainSpec(json!({
 			"para_id": 1000,
 			"genesis": {
@@ -1141,6 +1155,73 @@ mod tests {
 								"5Gw3s7q4QLkSWwknsi8jj5P1K79e5N4b6pfsNUzS97H1DXYF",
 								{
 								  "aura": "5Gw3s7q4QLkSWwknsi8jj5P1K79e5N4b6pfsNUzS97H1DXYF"
+								}
+							  ],
+							]
+						  },
+					}
+				}
+			},
+			})
+		);
+		Ok(())
+	}
+
+	#[test]
+	fn replace_use_evm_collator_keys_works() -> Result<()> {
+		let mut chain_spec = ChainSpec(json!({
+			"para_id": 1000,
+			"properties": {
+				"isEthereum": true
+			},
+			"genesis": {
+				"runtimeGenesis": {
+					"patch": {
+						"collatorSelection": {
+							"invulnerables": [
+							  "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
+							]
+						  },
+						  "session": {
+							"keys": [
+							  [
+								"5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty",
+								"5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty",
+								{
+								  "aura": "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
+								}
+							  ]
+							]
+						  },
+					}
+				}
+			},
+		}));
+		chain_spec.replace_collator_keys(vec![
+			"5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY".to_string(),
+		])?;
+		assert_eq!(
+			chain_spec.0,
+			json!({
+				"para_id": 1000,
+				"properties": {
+					"isEthereum": true
+				},
+				"genesis": {
+				"runtimeGenesis": {
+					"patch": {
+						"collatorSelection": {
+							"invulnerables": [
+							  "0x9621dde636de098b43efb0fa9b61facfe328f99d",
+							]
+						  },
+						  "session": {
+							"keys": [
+							  [
+								"0x9621dde636de098b43efb0fa9b61facfe328f99d",
+								"0x9621dde636de098b43efb0fa9b61facfe328f99d",
+								{
+								  "aura": "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"
 								}
 							  ],
 							]
