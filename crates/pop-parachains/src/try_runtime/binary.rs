@@ -10,7 +10,7 @@ pub use pop_common::{
 	},
 	target, Error,
 };
-use std::path::Path;
+use std::path::PathBuf;
 use strum_macros::EnumProperty;
 
 #[derive(Debug, EnumProperty, PartialEq)]
@@ -56,11 +56,11 @@ impl pop_common::sourcing::traits::Source for TryRuntimeCli {}
 /// # Arguments
 /// * `cache` - The path to the directory where the binary should be cached.
 /// * `version` - An optional version string. If `None`, the latest available version is used.
-pub async fn try_runtime_generator(cache: &Path, version: Option<&str>) -> Result<Binary, Error> {
+pub async fn try_runtime_generator(cache: PathBuf, version: Option<&str>) -> Result<Binary, Error> {
 	let cli = TryRuntimeCli::TryRuntime;
 	let name = cli.binary();
 	let releases = cli.releases().await?;
-	let tag = Binary::resolve_version(name, version, &releases, cache);
+	let tag = Binary::resolve_version(name, version, &releases, &cache);
 	// Only set latest when caller has not explicitly specified a version to use
 	let latest = version.is_none().then(|| releases.first().map(|v| v.to_string())).flatten();
 	let binary = Binary::Source {
@@ -78,9 +78,9 @@ mod tests {
 
 	#[tokio::test]
 	async fn omni_bencher_generator_works() -> Result<(), Error> {
-		let temp_dir = tempdir()?;
+		let temp_dir = tempdir()?.into_path();
 		let version = "v0.8.0";
-		let binary = try_runtime_generator(temp_dir.path(), None).await?;
+		let binary = try_runtime_generator(temp_dir.clone(), None).await?;
 		assert!(matches!(binary, Binary::Source { name: _, source, cache }
 				if source == Source::GitHub(ReleaseArchive {
 					owner: "paritytech".to_string(),
@@ -91,7 +91,7 @@ mod tests {
 					contents: ["try-runtime"].map(|b| (b, Some(b.to_string()))).to_vec(),
 					latest: binary.latest().map(|l| l.to_string()),
 				}) &&
-				cache == temp_dir.path()
+				cache == temp_dir.as_path()
 		));
 		Ok(())
 	}
