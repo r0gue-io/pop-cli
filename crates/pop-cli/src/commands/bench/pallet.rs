@@ -1924,18 +1924,16 @@ mod tests {
 
 	#[tokio::test]
 	async fn update_pallets_works() -> anyhow::Result<()> {
-		let mut mock_registry = get_mock_registry();
-
 		// Load pallet registry if the registry is empty.
 		let mut cli =
 			MockCli::new().expect_confirm("Would you like to benchmark all pallets?", true);
-		let mut empty_registry = PalletExtrinsicsRegistry::default();
+		let mut registry = PalletExtrinsicsRegistry::default();
 		BenchmarkPallet { runtime: Some(get_mock_runtime(true)), ..Default::default() }
-			.update_pallets(&mut cli, &mut empty_registry)
+			.update_pallets(&mut cli, &mut registry)
 			.await?;
-		assert!(!empty_registry.is_empty());
+		assert!(!registry.is_empty());
 
-		let pallet_items: Vec<(String, String)> = pallets(&mock_registry, &[])
+		let pallet_items: Vec<(String, String)> = pallets(&registry, &[])
 			.into_iter()
 			.map(|pallet| (pallet, Default::default()))
 			.collect();
@@ -1981,7 +1979,7 @@ mod tests {
 					Some(true),
 				);
 			}
-			cmd.update_pallets(&mut cli, &mut mock_registry).await?;
+			cmd.update_pallets(&mut cli, &mut registry).await?;
 			assert_eq!(cmd.pallet, expected_pallet);
 			assert_eq!(cmd.extrinsic, expected_extrinsic);
 			cli.verify()?;
@@ -1992,31 +1990,30 @@ mod tests {
 
 	#[tokio::test]
 	async fn update_extrinsic_works() -> anyhow::Result<()> {
-		let mut mock_registry = get_mock_registry();
 		let pallet = "pallet_timestamp";
 
 		// Load pallet registry if the registry is empty.
-		let mut empty_registry = PalletExtrinsicsRegistry::default();
+		let mut registry = PalletExtrinsicsRegistry::default();
 		BenchmarkPallet {
 			runtime: Some(get_mock_runtime(true)),
 			pallet: Some(ALL_SELECTED.to_string()),
 			..Default::default()
 		}
-		.update_extrinsics(&mut MockCli::new(), &mut empty_registry)
+		.update_extrinsics(&mut MockCli::new(), &mut registry)
 		.await?;
-		assert!(!empty_registry.is_empty());
+		assert!(!registry.is_empty());
 
 		// If `pallet` is "*", select all extrinsics.
 		let mut cmd =
 			BenchmarkPallet { pallet: Some(ALL_SELECTED.to_string()), ..Default::default() };
-		cmd.update_extrinsics(&mut MockCli::new(), &mut mock_registry).await?;
+		cmd.update_extrinsics(&mut MockCli::new(), &mut registry).await?;
 		assert_eq!(cmd.extrinsic, Some(ALL_SELECTED.to_string()));
 
 		// Select all extrinsics of the `pallet`.
 		let prompt = format!(r#"Would you like to benchmark all extrinsics of {:?}?"#, pallet);
 		let mut cli = MockCli::new().expect_confirm(prompt, true);
 		let mut cmd = BenchmarkPallet { pallet: Some(pallet.to_string()), ..Default::default() };
-		cmd.update_extrinsics(&mut cli, &mut mock_registry).await?;
+		cmd.update_extrinsics(&mut cli, &mut registry).await?;
 		assert_eq!(cmd.extrinsic, Some(ALL_SELECTED.to_string()));
 		cli.verify()?;
 		Ok(())
