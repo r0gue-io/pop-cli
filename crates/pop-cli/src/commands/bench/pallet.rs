@@ -1041,6 +1041,7 @@ fn guide_user_to_exclude_pallets(
 ) -> anyhow::Result<Vec<String>> {
 	let mut prompt = cli
 		.multiselect(r#"🔎 Search for pallets to exclude (Press ENTER to skip)"#)
+		.filter_mode()
 		.required(false);
 	for pallet in pallets(registry, &[]) {
 		prompt = prompt.item(pallet.clone(), &pallet, "");
