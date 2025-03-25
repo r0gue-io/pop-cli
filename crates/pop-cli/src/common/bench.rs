@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::cli::traits::*;
+use crate::{
+	cli::traits::*,
+	common::binary::{check_and_prompt, BinaryGenerator},
+	impl_binary_generator,
+};
 use cliclack::spinner;
 use duct::cmd;
-use pop_common::{manifest::from_path, set_executable_permission, Profile};
+use pop_common::{manifest::from_path, sourcing::Binary, Profile};
 use pop_parachains::{
 	build_project, get_preset_names, get_runtime_path, omni_bencher_generator, runtime_binary_path,
 	GenesisBuilderPolicy,
@@ -18,6 +22,8 @@ use strum::{EnumMessage, IntoEnumIterator};
 
 const DEFAULT_RUNTIME_DIR: &str = "./runtime";
 pub(crate) const EXECUTED_COMMAND_COMMENT: &str = "// Executed Command:";
+
+impl_binary_generator!(OmniBencherGenerator, omni_bencher_generator);
 
 /// Checks the status of the `frame-omni-bencher` binary, using the local version if available.
 /// If the binary is missing, it is sourced as needed, and if an outdated version exists in cache,
@@ -50,64 +56,13 @@ pub async fn source_omni_bencher_binary(
 	cache_path: &Path,
 	skip_confirm: bool,
 ) -> anyhow::Result<PathBuf> {
-	let mut binary = omni_bencher_generator(cache_path, None).await?;
-	let mut bencher_path = binary.path();
-	if !binary.exists() {
-		cli.warning("⚠️ The frame-omni-bencher binary is not found.")?;
-		let latest = if !skip_confirm {
-			cli.confirm("📦 Would you like to source it automatically now?")
-				.initial_value(true)
-				.interact()?
-		} else {
-			true
-		};
-		if latest {
-			let spinner = spinner();
-			spinner.start("📦 Sourcing frame-omni-bencher...");
-			binary.source(false, &(), true).await?;
-
-			spinner.stop(format!(
-				"✅ frame-omni-bencher successfully sourced. Cached at: {}",
-				binary.path().to_str().unwrap()
-			));
-			bencher_path = binary.path();
-		}
-	}
-
-	if binary.stale() {
-		cli.warning(format!(
-			"ℹ️ There is a newer version of {} available:\n {} -> {}",
-			binary.name(),
-			binary.version().unwrap_or("None"),
-			binary.latest().unwrap_or("None")
-		))?;
-
-		let latest = if !skip_confirm {
-			cli.confirm(
-				"📦 Would you like to source it automatically now? It may take some time..."
-					.to_string(),
-			)
-			.initial_value(true)
-			.interact()?
-		} else {
-			true
-		};
-		if latest {
-			let spinner = spinner();
-			spinner.start("📦 Sourcing frame-omni-bencher...");
-
-			binary = omni_bencher_generator(crate::cache()?.as_path(), binary.latest()).await?;
-			binary.source(false, &(), true).await?;
-			set_executable_permission(binary.path())?;
-
-			spinner.stop(format!(
-				"✅ frame-omni-bencher successfully sourced. Cached at: {}",
-				binary.path().to_str().unwrap()
-			));
-			bencher_path = binary.path();
-		}
-	}
-	Ok(bencher_path)
+	Ok(check_and_prompt::<OmniBencherGenerator>(
+		cli,
+		"frame-omni-bencher",
+		cache_path,
+		skip_confirm,
+	)
+	.await?)
 }
 
 /// Ensure the runtime binary exists. If the binary is not found, it triggers a build process.

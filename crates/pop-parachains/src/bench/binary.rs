@@ -10,7 +10,7 @@ pub use pop_common::{
 	},
 	target, Error,
 };
-use std::path::Path;
+use std::path::PathBuf;
 use strum_macros::EnumProperty;
 
 #[derive(Debug, EnumProperty, PartialEq)]
@@ -56,11 +56,14 @@ impl pop_common::sourcing::traits::Source for BenchmarkingCli {}
 /// # Arguments
 /// * `cache` - The path to the directory where the binary should be cached.
 /// * `version` - An optional version string. If `None`, the latest available version is used.
-pub async fn omni_bencher_generator(cache: &Path, version: Option<&str>) -> Result<Binary, Error> {
+pub async fn omni_bencher_generator(
+	cache: PathBuf,
+	version: Option<&str>,
+) -> Result<Binary, Error> {
 	let cli = BenchmarkingCli::OmniBencher;
 	let name = cli.binary();
 	let releases = cli.releases().await?;
-	let tag = Binary::resolve_version(name, version, &releases, cache);
+	let tag = Binary::resolve_version(name, version, &releases, &cache);
 	let binary = Binary::Source {
 		name: name.to_string(),
 		// TODO: Update to only set latest when caller has not explicitly specified a version to use
@@ -78,8 +81,9 @@ mod tests {
 	#[tokio::test]
 	async fn omni_bencher_generator_works() -> Result<(), Error> {
 		let temp_dir = tempdir()?;
+		let temp_dir_path = temp_dir.into_path();
 		let version = "polkadot-stable2412";
-		let binary = omni_bencher_generator(temp_dir.path(), None).await?;
+		let binary = omni_bencher_generator(temp_dir_path.clone(), None).await?;
 		assert!(matches!(binary, Binary::Source { name: _, source, cache }
 				if source == Source::GitHub(ReleaseArchive {
 					owner: "r0gue-io".to_string(),
@@ -90,7 +94,7 @@ mod tests {
 					contents: ["frame-omni-bencher"].map(|b| (b, Some(b.to_string()))).to_vec(),
 					latest: binary.latest().map(|l| l.to_string()),
 				}) &&
-				cache == temp_dir.path()
+				cache == temp_dir_path.as_path()
 		));
 		Ok(())
 	}
