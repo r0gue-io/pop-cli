@@ -384,7 +384,7 @@ impl BenchmarkPallet {
 
 	fn run(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		if let Some(original_weight_path) = self.output.clone() {
-			if original_weight_path.is_file() {
+			if original_weight_path.extension().is_some() {
 				self.run_with_weight_file(cli, original_weight_path)?;
 			} else {
 				self.run_with_weight_dir(cli, original_weight_path)?;

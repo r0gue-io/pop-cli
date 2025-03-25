@@ -11,7 +11,7 @@ use pop_parachains::{
 use std::{
 	self,
 	ffi::OsStr,
-	fs,
+	fs::{self, File},
 	path::{Path, PathBuf},
 };
 use strum::{EnumMessage, IntoEnumIterator};
@@ -288,6 +288,11 @@ pub(crate) fn overwrite_weight_dir_command(
 	dest_path: &Path,
 	arguments: &[String],
 ) -> anyhow::Result<()> {
+	// Create the destination directory if it doesn't exist.
+	if !dest_path.is_dir() {
+		fs::create_dir(dest_path)?;
+	}
+
 	// Read and print contents of all files in the temporary directory.
 	for entry in temp_path.read_dir()? {
 		let path = entry?.path();
