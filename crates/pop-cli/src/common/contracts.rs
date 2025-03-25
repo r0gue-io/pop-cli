@@ -1,14 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::cli::traits::*;
-use cliclack::spinner;
-use pop_common::{manifest::from_path, sourcing::set_executable_permission};
+use crate::{
+	cli::traits::*,
+	common::binary::{check_and_prompt, BinaryGenerator},
+	impl_binary_generator,
+};
+use pop_common::{manifest::from_path, sourcing::Binary};
 use pop_contracts::contracts_node_generator;
 use std::{
 	path::{Path, PathBuf},
 	process::{Child, Command},
 };
 use tempfile::NamedTempFile;
+
+impl_binary_generator!(ContractsNodeGenerator, contracts_node_generator);
 
 ///  Checks the status of the `substrate-contracts-node` binary, sources it if necessary, and
 /// prompts the user to update it if the existing binary is not the latest version.
@@ -22,64 +27,13 @@ pub async fn check_contracts_node_and_prompt(
 	cache_path: &Path,
 	skip_confirm: bool,
 ) -> anyhow::Result<PathBuf> {
-	let mut binary = contracts_node_generator(PathBuf::from(cache_path), None).await?;
-	let mut node_path = binary.path();
-	if !binary.exists() {
-		cli.warning("⚠️ The substrate-contracts-node binary is not found.")?;
-		let latest = if !skip_confirm {
-			cli.confirm("📦 Would you like to source it automatically now?")
-				.initial_value(true)
-				.interact()?
-		} else {
-			true
-		};
-		if latest {
-			let spinner = spinner();
-			spinner.start("📦 Sourcing substrate-contracts-node...");
-
-			binary.source(false, &(), true).await?;
-
-			spinner.stop(format!(
-				"✅ substrate-contracts-node successfully sourced. Cached at: {}",
-				binary.path().to_str().unwrap()
-			));
-			node_path = binary.path();
-		}
-	}
-	if binary.stale() {
-		cli.warning(format!(
-			"ℹ️ There is a newer version of {} available:\n {} -> {}",
-			binary.name(),
-			binary.version().unwrap_or("None"),
-			binary.latest().unwrap_or("None")
-		))?;
-		let latest = if !skip_confirm {
-			cli.confirm(
-				"📦 Would you like to source it automatically now? It may take some time..."
-					.to_string(),
-			)
-			.initial_value(true)
-			.interact()?
-		} else {
-			true
-		};
-		if latest {
-			let spinner = spinner();
-			spinner.start("📦 Sourcing substrate-contracts-node...");
-
-			binary = contracts_node_generator(crate::cache()?, binary.latest()).await?;
-			binary.source(false, &(), true).await?;
-			set_executable_permission(binary.path())?;
-
-			spinner.stop(format!(
-				"✅ substrate-contracts-node successfully sourced. Cached at: {}",
-				binary.path().to_str().unwrap()
-			));
-			node_path = binary.path();
-		}
-	}
-
-	Ok(node_path)
+	check_and_prompt::<ContractsNodeGenerator>(
+		cli,
+		"substrate-contracts-node",
+		cache_path,
+		skip_confirm,
+	)
+	.await
 }
 
 /// Handles the optional termination of a local running node.
@@ -134,7 +88,7 @@ mod tests {
 	use super::*;
 	use crate::cli::MockCli;
 	use duct::cmd;
-	use pop_common::find_free_port;
+	use pop_common::{find_free_port, set_executable_permission};
 	use pop_contracts::{is_chain_alive, run_contracts_node};
 	use std::fs::{self, File};
 	use url::Url;
