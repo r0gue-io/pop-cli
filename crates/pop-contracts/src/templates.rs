@@ -72,7 +72,7 @@ pub enum Contract {
 		serialize = "erc20",
 		message = "Erc20",
 		detailed_message = "The implementation of the ERC-20 standard in ink!",
-		props(Type = "ERC", Repository = "https://github.com/use-ink/ink-examples/tree/v6.x")
+		props(Type = "ERC", Repository = "https://github.com/use-ink/ink-examples")
 	)]
 	ERC20,
 	/// The implementation of the ERC-721 standard in ink!
@@ -80,7 +80,7 @@ pub enum Contract {
 		serialize = "erc721",
 		message = "Erc721",
 		detailed_message = "The implementation of the ERC-721 standard in ink!",
-		props(Type = "ERC", Repository = "https://github.com/use-ink/ink-examples/tree/v6.x")
+		props(Type = "ERC", Repository = "https://github.com/use-ink/ink-examples")
 	)]
 	ERC721,
 	/// The implementation of the ERC-1155 standard in ink!
@@ -88,7 +88,7 @@ pub enum Contract {
 		serialize = "erc1155",
 		message = "Erc1155",
 		detailed_message = "The implementation of the ERC-1155 standard in ink!",
-		props(Type = "ERC", Repository = "https://github.com/use-ink/ink-examples/tree/v6.x")
+		props(Type = "ERC", Repository = "https://github.com/use-ink/ink-examples")
 	)]
 	ERC1155,
 	/// The implementation of the PSP22 standard in ink!
@@ -104,7 +104,7 @@ pub enum Contract {
 		serialize = "PSP34",
 		message = "Psp34",
 		detailed_message = "The implementation of the PSP34 standard in ink!",
-		props(Type = "PSP", Repository = "https://github.com/r0gue-io/PSP34/tree/ink-v6.x")
+		props(Type = "PSP", Repository = "https://github.com/r0gue-io/PSP34") // TODO: Change the tag to v6.x
 	)]
 	PSP34,
 	/// Domain name service example implemented in ink!
@@ -112,7 +112,7 @@ pub enum Contract {
 		serialize = "dns",
 		message = "DNS",
 		detailed_message = "Domain name service example implemented in ink!",
-		props(Type = "Examples", Repository = "https://github.com/use-ink/ink-examples/tree/v6.x")
+		props(Type = "Examples", Repository = "https://github.com/use-ink/ink-examples")
 	)]
 	DNS,
 	/// Cross-contract call example implemented in ink!
@@ -120,7 +120,7 @@ pub enum Contract {
 		serialize = "cross-contract-calls",
 		message = "Cross Contract Calls",
 		detailed_message = "Cross-contract call example implemented in ink!",
-		props(Type = "Examples", Repository = "https://github.com/use-ink/ink-examples/tree/v6.x")
+		props(Type = "Examples", Repository = "https://github.com/use-ink/ink-examples")
 	)]
 	CrossContract,
 	/// Multisig contract example implemented in ink!
@@ -128,7 +128,7 @@ pub enum Contract {
 		serialize = "multisig",
 		message = "Multisig Contract",
 		detailed_message = "Multisig contract example implemented in ink!",
-		props(Type = "Examples", Repository = "https://github.com/use-ink/ink-examples/tree/v6.x")
+		props(Type = "Examples", Repository = "https://github.com/use-ink/ink-examples")
 	)]
 	Multisig,
 }
@@ -158,14 +158,14 @@ mod tests {
 
 	fn templates_urls() -> HashMap<String, &'static str> {
 		HashMap::from([
-			("erc20".to_string(), "https://github.com/use-ink/ink-examples/tree/v6.x"),
-			("erc721".to_string(), "https://github.com/use-ink/ink-examples/tree/v6.x"),
-			("erc1155".to_string(), "https://github.com/use-ink/ink-examples/tree/v6.x"),
+			("erc20".to_string(), "https://github.com/use-ink/ink-examples"),
+			("erc721".to_string(), "https://github.com/use-ink/ink-examples"),
+			("erc1155".to_string(), "https://github.com/use-ink/ink-examples"),
 			("PSP22".to_string(), "https://github.com/r0gue-io/PSP22"),
-			("PSP34".to_string(), "https://github.com/r0gue-io/PSP34/tree/ink-v6.x"),
-			("dns".to_string(), "https://github.com/use-ink/ink-examples/tree/v6.x"),
-			("cross-contract-calls".to_string(), "https://github.com/use-ink/ink-examples/tree/v6.x"),
-			("multisig".to_string(), "https://github.com/use-ink/ink-examples/tree/v6.x"),
+			("PSP34".to_string(), "https://github.com/r0gue-io/PSP34"),
+			("dns".to_string(), "https://github.com/use-ink/ink-examples"),
+			("cross-contract-calls".to_string(), "https://github.com/use-ink/ink-examples"),
+			("multisig".to_string(), "https://github.com/use-ink/ink-examples"),
 		])
 	}
 

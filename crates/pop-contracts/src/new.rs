@@ -24,7 +24,8 @@ pub fn create_smart_contract(name: &str, target: &Path, template: &Contract) -> 
 	if matches!(template, Contract::Standard) {
 		return create_standard_contract(name, canonicalized_path);
 	}
-	create_template_contract(name, canonicalized_path, template)
+	let reference = Some("v6.x");
+	create_template_contract(name, canonicalized_path, template, reference)
 }
 
 pub fn is_valid_contract_name(name: &str) -> Result<(), Error> {
@@ -57,11 +58,12 @@ fn create_template_contract(
 	name: &str,
 	canonicalized_path: PathBuf,
 	template: &Contract,
+	reference: Option<&str>,
 ) -> Result<()> {
 	let template_repository = template.repository_url()?;
 	// Clone the repository into the temporary directory.
 	let temp_dir = ::tempfile::TempDir::new_in(std::env::temp_dir())?;
-	Git::clone(&Url::parse(template_repository)?, temp_dir.path(), None)?;
+	Git::clone(&Url::parse(template_repository)?, temp_dir.path(), reference)?;
 	// Retrieve only the template contract files.
 	if template == &Contract::PSP22 || template == &Contract::PSP34 {
 		// Different template structure requires extracting different path
