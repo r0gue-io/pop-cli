@@ -24,7 +24,7 @@ use std::{
 #[cfg(not(test))]
 use std::{thread::sleep, time::Duration};
 use strum::{EnumMessage, VariantArray};
-use strum_macros::{AsRefStr, Display, EnumMessage, EnumString, VariantArray};
+use strum_macros::{AsRefStr, Display, EnumString};
 
 pub(crate) type CodePathBuf = PathBuf;
 pub(crate) type StatePathBuf = PathBuf;

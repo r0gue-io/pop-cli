@@ -5,7 +5,7 @@ use clap::{Args, Subcommand};
 use pop_common::test_project;
 use std::path::PathBuf;
 
-#[cfg(feature = "contract")]
+#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 pub mod contract;
 
 /// Arguments for testing.
@@ -21,7 +21,7 @@ pub(crate) struct TestArgs {
 	#[arg(value_name = "PATH", index = 1, global = true, conflicts_with = "path")]
 	pub(crate) path_pos: Option<PathBuf>,
 	#[command(flatten)]
-	#[cfg(feature = "contract")]
+	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 	pub(crate) contract: contract::TestContractCommand,
 }
 
@@ -29,7 +29,7 @@ pub(crate) struct TestArgs {
 #[derive(Subcommand)]
 pub(crate) enum Command {
 	/// [DEPRECATED] Test a smart contract (will be removed in v0.8.0).
-	#[cfg(feature = "contract")]
+	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 	#[clap(alias = "c")]
 	Contract(contract::TestContractCommand),
 }
@@ -41,7 +41,7 @@ impl Command {
 	async fn test(args: TestArgs, cli: &mut impl cli::traits::Cli) -> anyhow::Result<&'static str> {
 		let project_path = get_project_path(args.path.clone(), args.path_pos.clone());
 
-		#[cfg(feature = "contract")]
+		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 		if pop_contracts::is_supported(project_path.as_deref())? {
 			let mut cmd = args.contract;
 			cmd.path = project_path;

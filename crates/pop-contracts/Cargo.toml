@@ -20,22 +20,34 @@ tokio.workspace = true
 url.workspace = true
 
 heck.workspace = true
-ink_env.workspace = true
-sp-core.workspace = true
-sp-weights.workspace = true
+ink_env = { workspace = true, optional = true }
+ink_env_v6 = { workspace = true, optional = true }
+sp-core = { workspace = true, optional = true }
+sp-core_inkv6 = { workspace = true, optional = true }
+sp-weights = { workspace = true, optional = true }
+sp-weights_inkv6 = { workspace = true, optional = true }
 strum.workspace = true
 strum_macros.workspace = true
 subxt-signer.workspace = true
 subxt.workspace = true
 
 # cargo-contracts
-contract-build.workspace = true
-contract-extrinsics.workspace = true
-contract-transcode.workspace = true
-scale-info.workspace = true
+contract-build = { workspace = true, optional = true }
+contract-build_inkv6 = { workspace = true, optional = true }
+contract-extrinsics = { workspace = true, optional = true }
+contract-extrinsics_inkv6 = { workspace = true, optional = true }
+contract-transcode = { workspace = true, optional = true }
+contract-transcode_inkv6 = { workspace = true, optional = true }
+scale-info = { workspace = true }
+
 # pop
 pop-common = { path = "../pop-common", version = "0.6.0" }
 
 [dev-dependencies]
 # Used in doc tests.
 tokio-test.workspace = true
+
+[features]
+default = ["v5"]
+v5 = ["dep:contract-build", "dep:contract-extrinsics", "dep:contract-transcode", "dep:ink_env", "dep:sp-core", "dep:sp-weights"]
+v6 = ["dep:contract-build_inkv6", "dep:contract-extrinsics_inkv6", "dep:contract-transcode_inkv6", "dep:ink_env_v6", "dep:sp-core_inkv6", "dep:sp-weights_inkv6"]

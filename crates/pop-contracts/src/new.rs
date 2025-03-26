@@ -2,7 +2,10 @@
 
 use crate::{errors::Error, utils::canonicalized_path, Contract};
 use anyhow::Result;
+#[cfg(feature = "v5")]
 use contract_build::new_contract_project;
+#[cfg(feature = "v6")]
+use contract_build_inkv6::new_contract_project;
 use heck::ToUpperCamelCase;
 use pop_common::{extract_template_files, replace_in_file, templates::Template, Git};
 use std::{
