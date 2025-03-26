@@ -7,27 +7,39 @@ use crate::{
 		metadata::{process_function_args, FunctionType},
 		parse_balance,
 	},
+	Bytes, DefaultEnvironment, Environment, UploadCode, Weight,
 };
-use contract_extrinsics::{
-	contract_address,
-	extrinsic_calls::{Instantiate, InstantiateWithCode, UploadCode},
-	fetch_contract_binary, BalanceVariant, Code, ContractBinary, ErrorVariant,
-	ExtrinsicOptsBuilder, InstantiateCommandBuilder, InstantiateExec, InstantiateExecResult,
-	TokenMetadata, UploadCommandBuilder, UploadExec, UploadResult,
-};
-use ink_env::{DefaultEnvironment, Environment};
 use pop_common::{create_signer, DefaultConfig, Keypair};
-use sp_core::{
-	bytes::{from_hex, to_hex},
-	Bytes,
-};
-use sp_weights::Weight;
 use std::path::{Path, PathBuf};
 use subxt::{
-	backend::{legacy::LegacyRpcMethods, rpc::RpcClient},
 	blocks::ExtrinsicEvents,
 	tx::{Payload, SubmittableExtrinsic},
 	SubstrateConfig,
+};
+#[cfg(feature = "v5")]
+use {
+	contract_extrinsics::{
+		events::{CodeStored, ContractInstantiated},
+		extrinsic_calls::{Instantiate, InstantiateWithCode},
+		upload::Determinism,
+		BalanceVariant, Code, ErrorVariant, ExtrinsicOptsBuilder, InstantiateCommandBuilder,
+		InstantiateExec, InstantiateExecResult, TokenMetadata, UploadCommandBuilder, UploadExec,
+		UploadResult, WasmCode as ContractBinary,
+	},
+	sp_core::bytes::from_hex,
+	subxt::Config,
+};
+#[cfg(feature = "v6")]
+use {
+	contract_extrinsics_inkv6::{
+		contract_address,
+		extrinsic_calls::{Instantiate, InstantiateWithCode},
+		fetch_contract_binary, BalanceVariant, Code, ContractBinary, ErrorVariant,
+		ExtrinsicOptsBuilder, InstantiateCommandBuilder, InstantiateExec, InstantiateExecResult,
+		TokenMetadata, UploadCommandBuilder, UploadExec, UploadResult,
+	},
+	sp_core_inkv6::bytes::{from_hex, to_hex},
+	subxt::backend::{legacy::LegacyRpcMethods, rpc::RpcClient},
 };
 
 /// Attributes for the `up` command
@@ -111,25 +123,45 @@ pub async fn set_up_upload(
 		.url(up_opts.url.clone())
 		.done();
 
+	#[allow(unused_mut)]
 	let mut upload_exec: UploadExec<DefaultConfig, DefaultEnvironment, Keypair> =
 		UploadCommandBuilder::new(extrinsic_opts).done().await?;
 
-	let storage_deposit_limit = match upload_exec.opts().storage_deposit_limit() {
-		Some(deposit_limit) => deposit_limit,
-		None =>
-			upload_exec
-				.upload_code_rpc()
-				.await?
-				.or_else(|_| {
-					Err(Error::DryRunUploadContractError(
-						"No storage limit returned from dry-run".to_string(),
-					))
-				})?
-				.deposit,
-	};
-	upload_exec.set_storage_deposit_limit(Some(storage_deposit_limit));
+	#[cfg(feature = "v6")]
+	{
+		let storage_deposit_limit = match upload_exec.opts().storage_deposit_limit() {
+			Some(deposit_limit) => deposit_limit,
+			None =>
+				upload_exec
+					.upload_code_rpc()
+					.await?
+					.or_else(|_| {
+						Err(Error::DryRunUploadContractError(
+							"No storage limit returned from dry-run".to_string(),
+						))
+					})?
+					.deposit,
+		};
+		upload_exec.set_storage_deposit_limit(Some(storage_deposit_limit));
+	}
 
 	Ok(upload_exec)
+}
+
+/// # Arguments
+/// * `code` - contract code to upload.
+/// * `url` - the rpc of the chain node.
+#[cfg(feature = "v5")]
+pub async fn get_upload_payload(code: ContractBinary, url: &str) -> anyhow::Result<Vec<u8>> {
+	let storage_deposit_limit: Option<u128> = None;
+	let upload_code = UploadCode::new(code, storage_deposit_limit, Determinism::Enforced);
+
+	let rpc_client = subxt::backend::rpc::RpcClient::from_url(url).await?;
+	let client = subxt::OnlineClient::<SubstrateConfig>::from_rpc_client(rpc_client).await?;
+	let call_data = upload_code.build();
+	let mut encoded_data = Vec::<u8>::new();
+	call_data.encode_call_data_to(&client.metadata(), &mut encoded_data)?;
+	Ok(encoded_data)
 }
 
 /// Gets the encoded payload call data for contract upload (not instantiate).
@@ -137,6 +169,7 @@ pub async fn set_up_upload(
 /// # Arguments
 /// * `code` - contract code to upload.
 /// * `url` - the rpc of the chain node.
+#[cfg(feature = "v6")]
 pub async fn get_upload_payload(
 	upload_exec: UploadExec<DefaultConfig, DefaultEnvironment, Keypair>,
 	code: ContractBinary,
@@ -167,6 +200,45 @@ pub async fn get_upload_payload(
 /// # Arguments
 /// * `instantiate_exec` - arguments for contract instantiate.
 /// * `gas_limit` - max amount of gas to be used for instantiation.
+#[cfg(feature = "v5")]
+pub fn get_instantiate_payload(
+	instantiate_exec: InstantiateExec<DefaultConfig, DefaultEnvironment, Keypair>,
+	gas_limit: Weight,
+) -> anyhow::Result<Vec<u8>> {
+	let storage_deposit_limit: Option<u128> = None;
+	let mut encoded_data = Vec::<u8>::new();
+	let args = instantiate_exec.args();
+	match args.code() {
+		Code::Upload(code) => InstantiateWithCode::new(
+			args.value(),
+			gas_limit,
+			storage_deposit_limit,
+			code.clone(),
+			args.data().into(),
+			args.salt().into(),
+		)
+		.build()
+		.encode_call_data_to(&instantiate_exec.client().metadata(), &mut encoded_data),
+		Code::Existing(hash) => Instantiate::new(
+			args.value(),
+			gas_limit,
+			storage_deposit_limit,
+			hash,
+			args.data().into(),
+			args.salt().into(),
+		)
+		.build()
+		.encode_call_data_to(&instantiate_exec.client().metadata(), &mut encoded_data),
+	}?;
+	Ok(encoded_data)
+}
+
+/// Gets the encoded payload call data for a contract instantiation.
+///
+/// # Arguments
+/// * `instantiate_exec` - arguments for contract instantiate.
+/// * `gas_limit` - max amount of gas to be used for instantiation.
+#[cfg(feature = "v6")]
 pub async fn get_instantiate_payload(
 	instantiate_exec: InstantiateExec<DefaultConfig, DefaultEnvironment, Keypair>,
 	gas_limit: Weight,
@@ -216,13 +288,16 @@ pub fn get_contract_code(path: Option<&PathBuf>) -> anyhow::Result<ContractBinar
 	let artifacts = extrinsic_opts.contract_artifacts()?;
 
 	let artifacts_path = artifacts.artifact_path().to_path_buf();
-	let code = artifacts.contract_binary.ok_or_else(|| {
+	#[cfg(feature = "v5")]
+	let binary = artifacts.code;
+	#[cfg(feature = "v6")]
+	let binary = artifacts.contract_binary;
+	Ok(binary.ok_or_else(|| {
 		Error::UploadContractError(format!(
 			"Contract code not found from artifact file {}",
 			artifacts_path.display()
 		))
-	})?;
-	Ok(code)
+	})?)
 }
 
 /// Submit a pre-signed payload for uploading a contract.
@@ -235,6 +310,12 @@ pub async fn upload_contract_signed(
 	payload: String,
 ) -> anyhow::Result<UploadResult<SubstrateConfig>> {
 	let events = submit_signed_payload(url, payload).await?;
+	#[cfg(feature = "v5")]
+	{
+		let code_stored = events.find_first::<CodeStored<subxt::config::substrate::H256>>()?;
+		return Ok(UploadResult { code_stored, events })
+	}
+	#[cfg(feature = "v6")]
 	Ok(UploadResult { events })
 }
 
@@ -244,31 +325,56 @@ pub async fn upload_contract_signed(
 /// * `url` - rpc for chain.
 /// * `payload` - the signed payload to submit (encoded call data).
 pub async fn instantiate_contract_signed(
-	instantiate_exec: InstantiateExec<DefaultConfig, DefaultEnvironment, Keypair>,
+	#[cfg(feature = "v6")] instantiate_exec: InstantiateExec<
+		DefaultConfig,
+		DefaultEnvironment,
+		Keypair,
+	>,
 	url: &str,
 	payload: String,
 ) -> anyhow::Result<InstantiateExecResult<SubstrateConfig>> {
 	let events = submit_signed_payload(url, payload).await?;
-	// TODO: Replace instantiate_exec.rpc()
-	let rpc_cli = RpcClient::from_url(&url).await?;
-	let rpc = LegacyRpcMethods::new(rpc_cli);
-	let code = match instantiate_exec.args().code().clone() {
-		Code::Upload(code) => code.into(),
-		Code::Existing(hash) =>
-			fetch_contract_binary(&instantiate_exec.client(), &rpc, &hash).await?,
-	};
-	let data = instantiate_exec.args().data();
-	let contract_address = contract_address(
-		instantiate_exec.client(),
-		&rpc,
-		instantiate_exec.opts().signer(),
-		&instantiate_exec.args().salt().cloned(),
-		&code[..],
-		&data[..],
-	)
-	.await?;
 
-	Ok(InstantiateExecResult { events, code_hash: None, contract_address })
+	#[cfg(feature = "v5")]
+	let (code_hash, contract_address) = {
+		// The CodeStored event is only raised if the contract has not already been
+		// uploaded.
+		let code_hash = events
+			.find_first::<CodeStored<subxt::config::substrate::H256>>()?
+			.map(|code_stored| code_stored.code_hash);
+
+		let instantiated = events
+			.find_first::<ContractInstantiated<subxt::config::substrate::AccountId32>>()?
+			.ok_or_else(|| {
+				Error::InstantiateContractError("Failed to find Instantiated event".to_string())
+			})?;
+		(code_hash, instantiated.contract)
+	};
+
+	#[cfg(feature = "v6")]
+	let (code_hash, contract_address) = {
+		// TODO: Replace instantiate_exec.rpc()
+		let rpc_cli = RpcClient::from_url(&url).await?;
+		let rpc = LegacyRpcMethods::new(rpc_cli);
+		let code = match instantiate_exec.args().code().clone() {
+			Code::Upload(code) => code.into(),
+			Code::Existing(hash) =>
+				fetch_contract_binary(&instantiate_exec.client(), &rpc, &hash).await?,
+		};
+		let data = instantiate_exec.args().data();
+		let contract_address = contract_address(
+			instantiate_exec.client(),
+			&rpc,
+			instantiate_exec.opts().signer(),
+			&instantiate_exec.args().salt().cloned(),
+			&code[..],
+			&data[..],
+		)
+		.await?;
+		(None, contract_address)
+	};
+
+	Ok(InstantiateExecResult { events, code_hash, contract_address })
 }
 
 /// Submit a pre-signed payload.
@@ -390,15 +496,22 @@ pub async fn instantiate_smart_contract(
 	gas_limit: Weight,
 ) -> anyhow::Result<ContractInfo, Error> {
 	let instantiate_result = instantiate_exec
-		.instantiate(Some(gas_limit), instantiate_exec.opts().storage_deposit_limit())
+		.instantiate(
+			Some(gas_limit),
+			#[cfg(feature = "v6")]
+			instantiate_exec.opts().storage_deposit_limit(),
+		)
 		.await
 		.map_err(|error_variant| Error::InstantiateContractError(format!("{:?}", error_variant)))?;
 	// If is upload + instantiate, return the code hash.
 	let hash = instantiate_result.code_hash.map(|code_hash| format!("{:?}", code_hash));
-	Ok(ContractInfo {
-		address: format!("{:?}", instantiate_result.contract_address),
-		code_hash: hash,
-	})
+
+	#[cfg(feature = "v5")]
+	let address = instantiate_result.contract_address.to_string();
+	#[cfg(feature = "v6")]
+	let address = format!("{:?}", instantiate_result.contract_address);
+
+	Ok(ContractInfo { address, code_hash: hash })
 }
 
 /// Upload a contract.
@@ -408,19 +521,52 @@ pub async fn instantiate_smart_contract(
 pub async fn upload_smart_contract(
 	upload_exec: &UploadExec<DefaultConfig, DefaultEnvironment, Keypair>,
 ) -> anyhow::Result<String, Error> {
-	upload_exec
+	#[allow(unused_variables)]
+	let upload_result = upload_exec
 		.upload_code()
 		.await
 		.map_err(|error_variant| Error::UploadContractError(format!("{:?}", error_variant)))?;
+
+	#[cfg(feature = "v5")]
+	return get_code_hash_from_event(&upload_result, upload_exec.code().code_hash());
+
+	#[cfg(feature = "v6")]
 	Ok(to_hex(&upload_exec.code().code_hash(), false))
+}
+
+// Get the code hash of a contract from the upload event.
+///
+/// # Arguments
+/// * `upload_result` - the result of uploading the contract.
+/// * `metadata_code_hash` - the code hash from the metadata Used only for error reporting.
+#[cfg(feature = "v5")]
+pub fn get_code_hash_from_event<C: Config>(
+	upload_result: &UploadResult<C>,
+	// used for error reporting
+	metadata_code_hash: [u8; 32],
+) -> Result<String, Error> {
+	if let Some(code_stored) = upload_result.code_stored.as_ref() {
+		Ok(format!("{:?}", code_stored.code_hash))
+	} else {
+		let code_hash: String = metadata_code_hash.iter().fold(String::new(), |mut output, b| {
+			use std::fmt::Write;
+			write!(output, "{:02x}", b).expect("expected to write to string");
+			output
+		});
+		Err(Error::UploadContractError(format!(
+			"This contract has already been uploaded with code hash: 0x{code_hash}"
+		)))
+	}
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
+	#[cfg(feature = "v6")]
+	use crate::AccountMapper;
 	use crate::{
 		contracts_node_generator, errors::Error, mock_build_process, new_environment,
-		run_contracts_node, AccountMapper,
+		run_contracts_node,
 	};
 	use anyhow::Result;
 	use pop_common::{find_free_port, set_executable_permission};
@@ -432,6 +578,9 @@ mod tests {
 	use tokio::time::sleep;
 	use url::Url;
 
+	#[cfg(feature = "v5")]
+	const CONTRACTS_NETWORK_URL: &str = "wss://rpc2.paseo.popnetwork.xyz";
+	#[cfg(feature = "v6")]
 	const CONTRACTS_NETWORK_URL: &str = "wss://westend-asset-hub-rpc.polkadot.io";
 
 	#[tokio::test]
@@ -503,15 +652,23 @@ mod tests {
 			suri: "//Alice".to_string(),
 		};
 		let contract_code = get_contract_code(up_opts.path.as_ref())?;
-		let upload_exec = set_up_upload(up_opts).await?;
-		let call_data =
-			get_upload_payload(upload_exec, contract_code, CONTRACTS_NETWORK_URL).await?;
+		#[cfg(feature = "v5")]
+		let call_data = get_upload_payload(contract_code, CONTRACTS_NETWORK_URL).await?;
+		#[cfg(feature = "v6")]
+		let call_data = {
+			let upload_exec = set_up_upload(up_opts).await?;
+			get_upload_payload(upload_exec, contract_code, CONTRACTS_NETWORK_URL).await?
+		};
 		let payload_hash = BlakeTwo256::hash(&call_data);
 		// We know that for the above opts the payload hash should be:
+		// 0x98c24584107b3a01d12e8e02c0bb634d15dc86123c44d186206813ede42f478d
+		#[cfg(feature = "v5")]
+		let hex_bytes = from_hex("98c24584107b3a01d12e8e02c0bb634d15dc86123c44d186206813ede42f478d")
+			.expect("Invalid hex string");
 		// 0x1e971a1ba0f3fe41c9c162ab30bb0ab9300108ddf32c4c4cdd01adf01638a76f
-		let hex_bytes =
-			from_hex("1e971a1ba0f3fe41c9c162ab30bb0ab9300108ddf32c4c4cdd01adf01638a76f")
-				.expect("Invalid hex string");
+		#[cfg(feature = "v6")]
+		let hex_bytes = from_hex("1e971a1ba0f3fe41c9c162ab30bb0ab9300108ddf32c4c4cdd01adf01638a76f")
+			.expect("Invalid hex string");
 
 		let hex_array: [u8; 32] = hex_bytes.try_into().expect("Expected 32-byte array");
 
@@ -640,11 +797,12 @@ mod tests {
 		let upload_result = upload_smart_contract(&upload_exec).await?;
 		assert!(!upload_result.starts_with("0x0x"));
 		assert!(upload_result.starts_with("0x"));
-		//Error when Smart Contract has been already uploaded. TODO: Check why
-		// assert!(matches!(
-		// 	upload_smart_contract(&upload_exec).await,
-		// 	Err(Error::UploadContractError(..))
-		// ));
+		//Error when Smart Contract has been already uploaded.
+		#[cfg(feature = "v5")]
+		assert!(matches!(
+			upload_smart_contract(&upload_exec).await,
+			Err(Error::UploadContractError(..))
+		));
 
 		// Instantiate a Smart Contract
 		let instantiate_exec = set_up_deployment(UpOpts {
@@ -660,7 +818,9 @@ mod tests {
 		})
 		.await?;
 		// Map account
+		#[cfg(feature = "v6")]
 		let map = AccountMapper::new(&instantiate_exec.opts()).await?;
+		#[cfg(feature = "v6")]
 		map.map_account().await?;
 		// First gas estimation
 		let weight = dry_run_gas_estimate_instantiate(&instantiate_exec).await?;
@@ -668,7 +828,10 @@ mod tests {
 		assert!(weight.proof_size() > 0);
 		// Instantiate smart contract
 		let contract_info = instantiate_smart_contract(instantiate_exec, weight).await?;
+		#[cfg(feature = "v6")]
 		assert!(contract_info.address.starts_with("0x"));
+		#[cfg(feature = "v5")]
+		assert!(contract_info.address.starts_with("5"));
 		assert!(contract_info.code_hash.is_none());
 		// Stop the process contracts-node
 		Command::new("kill")

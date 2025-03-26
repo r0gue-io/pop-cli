@@ -3,7 +3,7 @@
 use duct::cmd;
 #[cfg(feature = "parachain")]
 use std::cmp::Ordering;
-#[cfg(any(feature = "contract", feature = "parachain"))]
+#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "parachain"))]
 use {
 	crate::cli::traits::*,
 	cliclack::spinner,
@@ -12,7 +12,7 @@ use {
 };
 
 /// A trait for binary generator.
-#[cfg(any(feature = "contract", feature = "parachain"))]
+#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "parachain"))]
 pub(crate) trait BinaryGenerator {
 	/// Generates a binary.
 	///
@@ -34,7 +34,7 @@ pub(crate) trait BinaryGenerator {
 /// * `cache_path` - The cache directory path where the binary is stored.
 /// * `skip_confirm` - If `true`, skips confirmation prompts and automatically sources the binary if
 ///   needed.
-#[cfg(any(feature = "contract", feature = "parachain"))]
+#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "parachain"))]
 pub async fn check_and_prompt<Generator: BinaryGenerator>(
 	cli: &mut impl Cli,
 	binary_name: &'static str,

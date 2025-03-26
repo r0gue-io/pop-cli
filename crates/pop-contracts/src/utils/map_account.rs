@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::errors::Error;
-use contract_extrinsics::{ExtrinsicOpts, MapAccountCommandBuilder, MapAccountExec};
-use ink_env::DefaultEnvironment;
+use crate::{errors::Error, DefaultEnvironment};
+use contract_extrinsics_inkv6::{ExtrinsicOpts, MapAccountCommandBuilder, MapAccountExec};
 use pop_common::{DefaultConfig, Keypair};
-use sp_core::H160;
+use sp_core_inkv6::H160;
 
 /// A helper struct for performing account mapping operations.
 pub struct AccountMapper {
@@ -46,7 +45,7 @@ mod tests {
 		contracts_node_generator, mock_build_process, new_environment, run_contracts_node,
 	};
 	use anyhow::Result;
-	use contract_extrinsics::ExtrinsicOptsBuilder;
+	use contract_extrinsics_inkv6::ExtrinsicOptsBuilder;
 	use pop_common::{find_free_port, set_executable_permission};
 	use std::{env, process::Command};
 	use subxt_signer::sr25519::dev;
