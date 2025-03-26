@@ -44,6 +44,9 @@ serde.workspace = true
 sp-runtime.workspace = true
 sp-statement-store.workspace = true
 
+# Try-runtime
+frame-try-runtime.workspace = true
+
 # Pop
 pop-common = { path = "../pop-common", version = "0.6.0" }
 
