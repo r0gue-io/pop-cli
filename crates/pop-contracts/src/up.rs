@@ -22,15 +22,12 @@ use sp_core::{
 	Bytes,
 };
 use sp_weights::Weight;
-use std::{
-	fmt::Write,
-	path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 use subxt::{
 	backend::{legacy::LegacyRpcMethods, rpc::RpcClient},
 	blocks::ExtrinsicEvents,
 	tx::{Payload, SubmittableExtrinsic},
-	Config, SubstrateConfig,
+	SubstrateConfig,
 };
 
 /// Attributes for the `up` command
@@ -507,7 +504,8 @@ mod tests {
 		};
 		let contract_code = get_contract_code(up_opts.path.as_ref())?;
 		let upload_exec = set_up_upload(up_opts).await?;
-		let call_data = get_upload_payload(upload_exec, contract_code, CONTRACTS_NETWORK_URL).await?;
+		let call_data =
+			get_upload_payload(upload_exec, contract_code, CONTRACTS_NETWORK_URL).await?;
 		let payload_hash = BlakeTwo256::hash(&call_data);
 		// We know that for the above opts the payload hash should be:
 		// 0x98c24584107b3a01d12e8e02c0bb634d15dc86123c44d186206813ede42f478d

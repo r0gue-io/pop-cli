@@ -3,7 +3,9 @@
 use crate::{
 	cli::{traits::Cli as _, Cli},
 	common::{
-		contracts::{check_contracts_node_and_prompt, has_contract_been_built, terminate_node},
+		contracts::{
+			check_contracts_node_and_prompt, has_contract_been_built, map_account, terminate_node,
+		},
 		wallet::request_signature,
 	},
 	style::style,
@@ -199,6 +201,9 @@ impl UpContractCommand {
 				return Ok(());
 			},
 		};
+		// Check if the account is already mapped, and prompt the user to perform the mapping if
+		// it's required.
+		map_account(instantiate_exec.opts(), &mut Cli).await?;
 		// Run steps for signing with wallet integration. Returns early.
 		if self.use_wallet {
 			let (call_data, hash) = match self.get_contract_data().await {

@@ -4,9 +4,10 @@ use crate::{
 	cli::traits::*,
 	common::binary::{check_and_prompt, BinaryGenerator},
 	impl_binary_generator,
+	style::style,
 };
-use pop_common::{manifest::from_path, sourcing::Binary};
-use pop_contracts::contracts_node_generator;
+use pop_common::{manifest::from_path, sourcing::Binary, DefaultConfig, Keypair};
+use pop_contracts::{contracts_node_generator, AccountMapper, DefaultEnvironment, ExtrinsicOpts};
 use std::{
 	path::{Path, PathBuf},
 	process::{Child, Command},
@@ -81,6 +82,18 @@ pub fn has_contract_been_built(path: Option<&Path>) -> bool {
 		.package
 		.map(|p| project_path.join(format!("target/ink/{}.contract", p.name())).exists())
 		.unwrap_or_default()
+}
+
+pub(crate) async fn map_account(
+	extrinsic_opts: &ExtrinsicOpts<DefaultConfig, DefaultEnvironment, Keypair>,
+	cli: &mut impl Cli,
+) -> anyhow::Result<()> {
+	let mapper = AccountMapper::new(extrinsic_opts).await?;
+	if mapper.needs_mapping().await? && cli.confirm("The account you're submitting from is not yet mapped. Would you like to map your account?").initial_value(true).interact()? {
+		let address = mapper.map_account().await?;
+		cli.success(format!("Account mapped successfully.\n{}", style(format!("Address {:?}.", address)).dim()))?;
+	}
+	Ok(())
 }
 
 #[cfg(test)]
