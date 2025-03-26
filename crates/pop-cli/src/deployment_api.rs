@@ -225,22 +225,6 @@ mod tests {
 	use pop_parachains::SupportedChains;
 	use serde_json::json;
 
-	async fn mock_collator_keys(
-		mock_server: &mut Server,
-		chain_name: &str,
-		id: u32,
-		payload: &str,
-		provider: DeploymentProvider,
-	) -> Mock {
-		mock_server
-			.mock("GET", format!("{}", provider.get_collator_keys_uri(chain_name, id)).as_str())
-			.with_status(200)
-			.with_header("Content-Type", "application/json")
-			.with_body(payload)
-			.create_async()
-			.await
-	}
-
 	async fn mock_deploy(
 		mock_server: &mut Server,
 		para_id: u32,
@@ -279,6 +263,22 @@ mod tests {
 			.await
 	}
 
+	async fn mock_collator_keys(
+		mock_server: &mut Server,
+		chain_name: &str,
+		id: u32,
+		payload: &str,
+		provider: DeploymentProvider,
+	) -> Mock {
+		mock_server
+			.mock("GET", format!("{}", provider.get_collator_keys_uri(chain_name, id)).as_str())
+			.with_status(200)
+			.with_header("Content-Type", "application/json")
+			.with_body(payload)
+			.create_async()
+			.await
+	}
+
 	fn mock_genesis_artifacts(temp_dir: &tempfile::TempDir) -> Result<GenesisArtifacts> {
 		let chain_spec = temp_dir.path().join("chain_spec.json");
 		std::fs::write(
@@ -305,35 +305,25 @@ mod tests {
 		Ok(GenesisArtifacts { chain_spec, raw_chain_spec, ..Default::default() })
 	}
 
-	#[tokio::test]
-	async fn get_collator_keys_works() -> Result<(), Box<dyn std::error::Error>> {
-		let mut mock_server = Server::new_async().await;
-		let mocked_payload = json!({
-			"fileId": "1",
-			"publicCollatorKey": "0x1234"
-		})
-		.to_string();
-		let id = 2000;
-		let mock = mock_collator_keys(
-			&mut mock_server,
-			&SupportedChains::PASEO.to_string(),
-			id,
-			&mocked_payload,
-			DeploymentProvider::PDP,
-		)
-		.await;
-
-		let api = DeploymentApi::new_for_testing(
-			"api_key".to_string(),
-			mock_server.url(),
-			DeploymentProvider::PDP,
-			SupportedChains::PASEO.to_string(),
+	#[test]
+	fn new_deploy_request_works() -> Result<(), Box<dyn std::error::Error>> {
+		let temp_dir = tempfile::tempdir()?;
+		let genesis_artifacts = mock_genesis_artifacts(&temp_dir)?;
+		let request = DeployRequest::new(
+			"1".to_string(),
+			&genesis_artifacts,
+			Some("Id(13czcAAt6xgLwZ8k6ZpkrRL5V2pjKEui3v9gHAN9PoxYZDbf)"),
 		)?;
-		let collator_keys = api.get_collator_keys(2000).await?;
-		assert_eq!(collator_keys.collator_keys, vec!["0x1234"]);
-		assert_eq!(collator_keys.collator_file_id, "1");
-		mock.assert_async().await;
 
+		assert_eq!(request.name, "Development");
+		assert_eq!(
+			request.proxy_key,
+			"13czcAAt6xgLwZ8k6ZpkrRL5V2pjKEui3v9gHAN9PoxYZDbf".to_string()
+		);
+		assert_eq!(request.runtime_template, Some("POP_STANDARD".to_string()));
+		assert_eq!(request.sudo_key, "sudo");
+		assert_eq!(request.collator_file_id, "1");
+		assert_eq!(request.chainspec, genesis_artifacts.raw_chain_spec);
 		Ok(())
 	}
 
@@ -394,25 +384,35 @@ mod tests {
 		Ok(())
 	}
 
-	#[test]
-	fn new_deploy_request_works() -> Result<(), Box<dyn std::error::Error>> {
-		let temp_dir = tempfile::tempdir()?;
-		let genesis_artifacts = mock_genesis_artifacts(&temp_dir)?;
-		let request = DeployRequest::new(
-			"1".to_string(),
-			&genesis_artifacts,
-			Some("Id(13czcAAt6xgLwZ8k6ZpkrRL5V2pjKEui3v9gHAN9PoxYZDbf)"),
-		)?;
+	#[tokio::test]
+	async fn get_collator_keys_works() -> Result<(), Box<dyn std::error::Error>> {
+		let mut mock_server = Server::new_async().await;
+		let mocked_payload = json!({
+			"fileId": "1",
+			"publicCollatorKey": "0x1234"
+		})
+		.to_string();
+		let id = 2000;
+		let mock = mock_collator_keys(
+			&mut mock_server,
+			&SupportedChains::PASEO.to_string(),
+			id,
+			&mocked_payload,
+			DeploymentProvider::PDP,
+		)
+		.await;
 
-		assert_eq!(request.name, "Development");
-		assert_eq!(
-			request.proxy_key,
-			"13czcAAt6xgLwZ8k6ZpkrRL5V2pjKEui3v9gHAN9PoxYZDbf".to_string()
-		);
-		assert_eq!(request.runtime_template, Some("POP_STANDARD".to_string()));
-		assert_eq!(request.sudo_key, "sudo");
-		assert_eq!(request.collator_file_id, "1");
-		assert_eq!(request.chainspec, genesis_artifacts.raw_chain_spec);
+		let api = DeploymentApi::new_for_testing(
+			"api_key".to_string(),
+			mock_server.url(),
+			DeploymentProvider::PDP,
+			SupportedChains::PASEO.to_string(),
+		)?;
+		let collator_keys = api.get_collator_keys(2000).await?;
+		assert_eq!(collator_keys.collator_keys, vec!["0x1234"]);
+		assert_eq!(collator_keys.collator_file_id, "1");
+		mock.assert_async().await;
+
 		Ok(())
 	}
 }

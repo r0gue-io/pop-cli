@@ -554,29 +554,6 @@ mod tests {
 	const POP_NETWORK_TESTNET_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";
 
 	#[tokio::test]
-	async fn prepare_for_registration_works() -> Result<()> {
-		let mut cli = MockCli::new()
-			.expect_input("Enter the relay chain node URL", POLKADOT_NETWORK_URL.into());
-		let (genesis_state, genesis_code) = create_temp_genesis_files()?;
-		let chain_config = UpCommand {
-			id: Some(2000),
-			genesis_state: Some(genesis_state.clone()),
-			genesis_code: Some(genesis_code.clone()),
-			proxied_address: Some(MOCK_PROXIED_ADDRESS.to_string()),
-			..Default::default()
-		}
-		.prepare_for_registration(&mut Deployment::default(), false, &mut cli)
-		.await?;
-
-		assert_eq!(chain_config.id, 2000);
-		assert_eq!(chain_config.genesis_artifacts.genesis_code_file, Some(genesis_code));
-		assert_eq!(chain_config.genesis_artifacts.genesis_state_file, Some(genesis_state));
-		assert_eq!(chain_config.chain.url, Url::parse(POLKADOT_NETWORK_URL)?);
-		assert_eq!(chain_config.proxy, Some(format!("Id({})", MOCK_PROXIED_ADDRESS.to_string())));
-		cli.verify()
-	}
-
-	#[tokio::test]
 	async fn prepare_for_deployment_works() -> Result<()> {
 		let mut cli = MockCli::new()
 			.expect_select(
@@ -652,6 +629,50 @@ mod tests {
 		cli.verify()
 	}
 
+	#[tokio::test]
+	async fn should_show_deployment_steps_works() -> Result<()> {
+		let deployment = Deployment {
+			api: Some(DeploymentApi::new(
+				"api_test_key".to_string(),
+				DeploymentProvider::PDP,
+				"PASEO".to_string(),
+			)?),
+			..Default::default()
+		};
+		// Nothing provided, should show steps.
+		assert!(UpCommand::default().should_show_deployment_steps(&deployment));
+		// skip_registration is true, should not show steps.
+		assert!(!UpCommand { id: Some(2000), skip_registration: true, ..Default::default() }
+			.should_show_deployment_steps(&deployment));
+		// No API provided, should not show steps.
+		assert!(!UpCommand::default()
+			.should_show_deployment_steps(&Deployment { api: None, ..Default::default() }));
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn prepare_for_registration_works() -> Result<()> {
+		let mut cli = MockCli::new()
+			.expect_input("Enter the relay chain node URL", POLKADOT_NETWORK_URL.into());
+		let (genesis_state, genesis_code) = create_temp_genesis_files()?;
+		let chain_config = UpCommand {
+			id: Some(2000),
+			genesis_state: Some(genesis_state.clone()),
+			genesis_code: Some(genesis_code.clone()),
+			proxied_address: Some(MOCK_PROXIED_ADDRESS.to_string()),
+			..Default::default()
+		}
+		.prepare_for_registration(&mut Deployment::default(), false, &mut cli)
+		.await?;
+
+		assert_eq!(chain_config.id, 2000);
+		assert_eq!(chain_config.genesis_artifacts.genesis_code_file, Some(genesis_code));
+		assert_eq!(chain_config.genesis_artifacts.genesis_state_file, Some(genesis_state));
+		assert_eq!(chain_config.chain.url, Url::parse(POLKADOT_NETWORK_URL)?);
+		assert_eq!(chain_config.proxy, Some(format!("Id({})", MOCK_PROXIED_ADDRESS.to_string())));
+		cli.verify()
+	}
+
 	#[test]
 	fn resolve_proxied_address_works() -> Result<()> {
 		let relay_chain_url = "ws://127.0.0.1:9944";
@@ -713,72 +734,6 @@ mod tests {
 		}
 		.resolve_proxied_address(&None, false, relay_chain_url, &mut cli)?;
 		assert_eq!(proxied_address, Some(format!("Id({})", MOCK_PROXIED_ADDRESS)));
-		cli.verify()
-	}
-
-	#[tokio::test]
-	async fn prepare_reserve_call_data_works() -> Result<()> {
-		let mut cli = MockCli::new();
-		let chain = configure(
-			"Enter the relay chain node URL",
-			DEFAULT_URL,
-			&Some(Url::parse(POLKADOT_NETWORK_URL)?),
-			&mut cli,
-		)
-		.await?;
-		let call_data = prepare_reserve_call_data(&chain, &None, &mut cli)?;
-		// Encoded call data for a reserve extrinsic.
-		// Reference: https://polkadot.js.org/apps/?rpc=wss%3A%2F%2Fpolkadot.public.curie.radiumblock.co%2Fws#/extrinsics/decode/0x4605
-		let encoded_reserve_extrinsic: &str = "0x4605";
-		assert_eq!(call_data, decode_call_data(encoded_reserve_extrinsic)?);
-
-		// Ensure `prepare_reserve_call_data` works with a proxy.
-		let call_data =
-			prepare_reserve_call_data(&chain, &Some(MOCK_PROXY_ADDRESS_ID.to_string()), &mut cli)?;
-		// Encoded call data for a proxy extrinsic with reserve as the call.
-		// Reference: https://polkadot.js.org/apps/?rpc=wss%3A%2F%2Fpolkadot.public.curie.radiumblock.co%2Fws#/extrinsics/decode/0x1d000073ebf9c947490b9170ea4fd3031ae039452e428531317f76bf0a02124f8166de004605
-		let encoded_reserve_extrinsic: &str =
-			"0x1d000073ebf9c947490b9170ea4fd3031ae039452e428531317f76bf0a02124f8166de004605";
-		assert_eq!(call_data, decode_call_data(encoded_reserve_extrinsic)?);
-		Ok(())
-	}
-
-	#[tokio::test]
-	async fn reserve_id_fails_wrong_chain() -> Result<()> {
-		let mut cli = MockCli::new()
-            .expect_intro("Deploy a rollup")
-            .expect_select(
-                "Select your deployment method:",
-                Some(false),
-                true,
-                Some(
-                    DeploymentProvider::VARIANTS
-                        .into_iter()
-                        .map(|action| (action.name().to_string(), format_url(action.base_url())))
-                        .chain(std::iter::once((
-                            "Register".to_string(),
-                            "Register the rollup on the relay chain without deploying with a provider".to_string(),
-                        )))
-                        .collect::<Vec<_>>(),
-                ),
-                DeploymentProvider::VARIANTS.len(), // Register
-                None,
-            )
-            .expect_info(format!("You will need to sign a transaction to reserve an ID on {} using the `Registrar::reserve` function.", Url::parse(POP_NETWORK_TESTNET_URL)?.as_str()))
-            .expect_outro_cancel("Failed to find the pallet Registrar");
-		let (genesis_state, genesis_code) = create_temp_genesis_files()?;
-		UpCommand {
-			id: None,
-			genesis_state: Some(genesis_state.clone()),
-			genesis_code: Some(genesis_code.clone()),
-			relay_chain_url: Some(Url::parse(POP_NETWORK_TESTNET_URL)?),
-			path: None,
-			proxied_address: None,
-			..Default::default()
-		}
-		.execute(&mut cli)
-		.await?;
-
 		cli.verify()
 	}
 
@@ -869,6 +824,72 @@ mod tests {
 		Ok(())
 	}
 
+	#[tokio::test]
+	async fn reserve_id_fails_wrong_chain() -> Result<()> {
+		let mut cli = MockCli::new()
+            .expect_intro("Deploy a rollup")
+            .expect_select(
+                "Select your deployment method:",
+                Some(false),
+                true,
+                Some(
+                    DeploymentProvider::VARIANTS
+                        .into_iter()
+                        .map(|action| (action.name().to_string(), format_url(action.base_url())))
+                        .chain(std::iter::once((
+                            "Register".to_string(),
+                            "Register the rollup on the relay chain without deploying with a provider".to_string(),
+                        )))
+                        .collect::<Vec<_>>(),
+                ),
+                DeploymentProvider::VARIANTS.len(), // Register
+                None,
+            )
+            .expect_info(format!("You will need to sign a transaction to reserve an ID on {} using the `Registrar::reserve` function.", Url::parse(POP_NETWORK_TESTNET_URL)?.as_str()))
+            .expect_outro_cancel("Failed to find the pallet Registrar");
+		let (genesis_state, genesis_code) = create_temp_genesis_files()?;
+		UpCommand {
+			id: None,
+			genesis_state: Some(genesis_state.clone()),
+			genesis_code: Some(genesis_code.clone()),
+			relay_chain_url: Some(Url::parse(POP_NETWORK_TESTNET_URL)?),
+			path: None,
+			proxied_address: None,
+			..Default::default()
+		}
+		.execute(&mut cli)
+		.await?;
+
+		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn prepare_reserve_call_data_works() -> Result<()> {
+		let mut cli = MockCli::new();
+		let chain = configure(
+			"Enter the relay chain node URL",
+			DEFAULT_URL,
+			&Some(Url::parse(POLKADOT_NETWORK_URL)?),
+			&mut cli,
+		)
+		.await?;
+		let call_data = prepare_reserve_call_data(&chain, &None, &mut cli)?;
+		// Encoded call data for a reserve extrinsic.
+		// Reference: https://polkadot.js.org/apps/?rpc=wss%3A%2F%2Fpolkadot.public.curie.radiumblock.co%2Fws#/extrinsics/decode/0x4605
+		let encoded_reserve_extrinsic: &str = "0x4605";
+		assert_eq!(call_data, decode_call_data(encoded_reserve_extrinsic)?);
+
+		// Ensure `prepare_reserve_call_data` works with a proxy.
+		let call_data =
+			prepare_reserve_call_data(&chain, &Some(MOCK_PROXY_ADDRESS_ID.to_string()), &mut cli)?;
+		// Encoded call data for a proxy extrinsic with reserve as the call.
+		// Reference: https://polkadot.js.org/apps/?rpc=wss%3A%2F%2Fpolkadot.public.curie.radiumblock.co%2Fws#/extrinsics/decode/0x1d000073ebf9c947490b9170ea4fd3031ae039452e428531317f76bf0a02124f8166de004605
+		let encoded_reserve_extrinsic: &str =
+			"0x1d000073ebf9c947490b9170ea4fd3031ae039452e428531317f76bf0a02124f8166de004605";
+		assert_eq!(call_data, decode_call_data(encoded_reserve_extrinsic)?);
+		Ok(())
+	}
+
 	#[test]
 	fn prompt_api_key_works() -> Result<()> {
 		let test_env_var = "TEST_PDP_API_KEY";
@@ -939,27 +960,6 @@ mod tests {
 		));
 		warn_supported_templates(&DeploymentProvider::PDP, &mut cli)?;
 		cli.verify()
-	}
-
-	#[tokio::test]
-	async fn should_show_deployment_steps_works() -> Result<()> {
-		let deployment = Deployment {
-			api: Some(DeploymentApi::new(
-				"api_test_key".to_string(),
-				DeploymentProvider::PDP,
-				"PASEO".to_string(),
-			)?),
-			..Default::default()
-		};
-		// Nothing provided, should show steps.
-		assert!(UpCommand::default().should_show_deployment_steps(&deployment));
-		// skip_registration is true, should not show steps.
-		assert!(!UpCommand { id: Some(2000), skip_registration: true, ..Default::default() }
-			.should_show_deployment_steps(&deployment));
-		// No API provided, should not show steps.
-		assert!(!UpCommand::default()
-			.should_show_deployment_steps(&Deployment { api: None, ..Default::default() }));
-		Ok(())
 	}
 
 	// Creates temporary files to act as `genesis_state` and `genesis_code` files.
