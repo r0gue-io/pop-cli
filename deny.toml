@@ -9,7 +9,15 @@ ignore = [
     { id = "RUSTSEC-2024-0384", reason = "No upgrade available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/437" },
     { id = "RUSTSEC-2020-0163", reason = "No upgrade available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/438" },
     { id = "RUSTSEC-2024-0436", reason = "No upgrade available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/450" },
-    { id = "RUSTSEC-2025-0012", reason = "No upgrade available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/451" }
+    { id = "RUSTSEC-2025-0012", reason = "No upgrade available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/451" },
+    { id = "RUSTSEC-2024-0336", reason = "No upgrade available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/458" },
+    { id = "RUSTSEC-2024-0421", reason = "No upgrade available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/458" },
+    { id = "RUSTSEC-2025-0009", reason = "No upgrade available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/458" },
+    { id = "RUSTSEC-2025-0010", reason = "No upgrade available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/458" },
+    { id = "RUSTSEC-2024-0370", reason = "No upgrade available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/458" },
+    { id = "RUSTSEC-2022-0061", reason = "No upgrade available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/458" },
+    { id = "RUSTSEC-2020-0168", reason = "No upgrade available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/458" },
+    { id = "RUSTSEC-2025-0017", reason = "No upgrade available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/458" },
 ]
 
 [licenses]
@@ -22,6 +30,7 @@ allow = [
     "CC0-1.0",
     "ISC",
     "GPL-3.0",
+    "GPL-3.0 WITH Classpath-exception-2.0", # For Substrate crates
     "MIT",
     "MPL-2.0",
     "Unicode-3.0",
@@ -34,6 +43,17 @@ confidence-threshold = 0.93
 [[licenses.exceptions]]
 allow = ["OpenSSL"]
 name = "ring"
+
+[[licenses.clarify]]
+crate = "webpki"
+expression = "ISC"
+license-files = [
+    { path = "LICENSE", hash = 0x001c7e6c },
+]
+
+[[licenses.exceptions]]
+allow = ["GPL-3.0-or-later WITH Classpath-exception-2.0"]
+name = "cumulus-rely-chain-interface"
 
 [[licenses.clarify]]
 name = "ring"
