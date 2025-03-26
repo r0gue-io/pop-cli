@@ -1,8 +1,47 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use super::*;
-use crate::rust_writer::tests::test_builder::TestBuilder;
-use syn::parse_quote;
+use std::{fs, path::PathBuf};
+use syn::{parse_file, parse_quote, File};
+
+struct TestBuilder {
+	test_files: PathBuf,
+	pub(crate) ast: File,
+}
+
+impl Default for TestBuilder {
+	fn default() -> Self {
+		Self {
+			test_files: PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+				.join("src")
+				.join("rust_writer_helpers")
+				.join("sample_files"),
+			ast: parse_quote! {},
+		}
+	}
+}
+
+macro_rules! add_ast_to_builder_no_preserve{
+    ($([$name: ident, $file: literal]),*) => {
+        $(
+            fn $name(&mut self){
+            self.ast = parse_file(
+                &fs::read_to_string(self.test_files.join($file))
+                    .expect(concat!{"Error reading file in ", stringify!($name)}),
+                )
+                .expect(concat!{"Error parsing file in ", stringify!($name)});
+            }
+        )*
+    };
+}
+
+impl TestBuilder {
+	add_ast_to_builder_no_preserve! {
+		[add_basic_pallet_ast, "basic_pallet.rs"],
+		[add_runtime_using_runtime_macro_ast, "runtime_using_runtime_macro.rs"],
+		[add_runtime_using_construct_runtime_macro_ast, "runtime_using_construct_runtime_macro.rs"]
+	}
+}
 
 #[test]
 fn find_highest_pallet_index_works_well() {
@@ -15,7 +54,7 @@ fn find_highest_pallet_index_works_well() {
 		.expect("find_highest_pallet_index is supposed to be Ok");
 
 	// The highest index in the sample pallet is 11
-	assert_eq!(highest_index, 11);
+	assert_eq!(highest_index.to_string(), "12");
 }
 
 #[test]
@@ -76,52 +115,4 @@ fn find_used_runtime_macro_fails_if_input_isnt_runtime_file() {
 	} else {
 		panic!("find_used_runtime_macro should return only Error::Descriptive")
 	}
-}
-
-#[test]
-fn find_use_statement_works_well() {
-	let mut test_builder = TestBuilder::default();
-
-	test_builder.add_basic_pallet_ast();
-
-	//Basic pallet has the use statement pub use pallet::*;
-	let valid_use_statement: ItemUse = parse_quote! {pub use pallet::*;};
-	let invalid_use_statement: ItemUse = parse_quote! {use std::path::Path;};
-
-	assert!(find_use_statement(&test_builder.ast, &valid_use_statement));
-	assert!(!find_use_statement(&test_builder.ast, &invalid_use_statement));
-}
-
-#[test]
-fn find_composite_enum_works_well() {
-	let mut test_builder = TestBuilder::default();
-
-	test_builder.add_basic_pallet_with_composite_enum_ast();
-
-	// This enum appears in the sample file basic_pallet_with_composite_enum
-	let composite_enum: ItemEnum = parse_quote! {
-			#[pallet::composite_enum]
-			pub enum SomeEnum {
-				#[codec(index = 0)]
-				Something,
-			}
-	};
-
-	// This enum doesn't appear in the sample file basic_pallet_with_composite_enum
-	let bad_composite_enum: ItemEnum = parse_quote! {
-		#[pallet::composite_enum]
-		pub enum OtherEnum{
-			#[codec(index=0)]
-			Something,
-		}
-	};
-
-	assert!(find_composite_enum(&test_builder.ast, &composite_enum));
-	assert!(!find_composite_enum(&test_builder.ast, &bad_composite_enum));
-
-	// basic pallet contains an enum called SomeEnum but it's not annotated as composite_enum
-	let mut test_builder = TestBuilder::default();
-
-	test_builder.add_basic_pallet_ast();
-	assert!(!find_composite_enum(&test_builder.ast, &composite_enum));
 }

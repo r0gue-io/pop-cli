@@ -1,18 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0
 
-pub mod types;
-use crate::{rust_writer, Error, Rollback};
+use crate::Error;
 use anyhow;
 pub use cargo_toml::{Dependency, LtoSetting, Manifest, Profile, Profiles};
-use pathdiff::diff_paths;
-use proc_macro2::Span;
 use std::{
 	fs::{read_to_string, write},
-	io::Write,
 	path::{Path, PathBuf},
 };
-use syn::{parse_quote, Ident};
-use toml_edit::{value, Array, DocumentMut, InlineTable, Item, Table, Value};
+use toml_edit::{value, Array, DocumentMut, Item, Value};
 
 /// Parses the contents of a `Cargo.toml` manifest.
 ///
@@ -32,45 +27,6 @@ pub fn from_path(path: Option<&Path>) -> Result<Manifest, Error> {
 		return Err(Error::ManifestPath(path.display().to_string()));
 	}
 	Ok(Manifest::from_path(path.canonicalize()?)?)
-}
-
-/// This function is used to determine if a Path is contained inside a workspace, and returns a
-/// PathBuf to the workspace Cargo.toml if found.
-///
-/// # Arguments
-/// * `target_dir` - A directory that may be contained inside a workspace
-pub fn find_workspace_toml(target_dir: &Path) -> Option<PathBuf> {
-	let mut dir = target_dir;
-	while let Some(parent) = dir.parent() {
-		// This condition is necessary to avoid that calling the function from a workspace using a
-		// path which isn't contained in a workspace returns `Some(Cargo.toml)` refering the
-		// workspace from where the function has been called instead of the expected `None`.
-		if parent.to_str() == Some("") {
-			return None;
-		}
-		let cargo_toml = parent.join("Cargo.toml");
-		if cargo_toml.exists() {
-			if let Ok(contents) = read_to_string(&cargo_toml) {
-				if contents.contains("[workspace]") {
-					return Some(cargo_toml);
-				}
-			}
-		}
-		dir = parent;
-	}
-	None
-}
-
-pub fn find_crate_manifest(target_dir: &Path) -> Option<PathBuf> {
-	let mut dir = target_dir;
-	while let Some(parent) = dir.parent() {
-		let cargo_toml = parent.join("Cargo.toml");
-		if cargo_toml.exists() {
-			return Some(cargo_toml);
-		}
-		dir = parent;
-	}
-	None
 }
 
 /// This function is used to add a crate to a workspace.
@@ -115,104 +71,9 @@ pub fn add_crate_to_workspace(workspace_toml: &Path, crate_path: &Path) -> anyho
 	Ok(())
 }
 
-pub fn add_crate_to_dependencies(
-	maybe_rolled_manifest_path: &Path,
-	manifest_path: &Path,
-	crate_name: &str,
-	dependencie_format: types::CrateDependencie,
-) -> Result<(), Error> {
-	fn do_add_crate_to_dependencies(
-		manifest_path: &Path,
-		dependencies: &mut Table,
-		crate_name: &str,
-		dependencie_format: types::CrateDependencie,
-	) -> Result<(), Error> {
-		match dependencie_format {
-			types::CrateDependencie::Workspace => {
-				let mut crate_declaration = Table::new();
-				crate_declaration.set_dotted(true);
-				crate_declaration.insert("workspace", value(true));
-				dependencies.insert(crate_name, Item::Table(crate_declaration));
-			},
-			types::CrateDependencie::External { version } => {
-				let mut crate_declaration = InlineTable::new();
-				crate_declaration.insert(
-					"version",
-					value(version)
-						.as_value()
-						.expect("version is String, so value(version) is Value::String; qed;")
-						.clone(),
-				);
-				crate_declaration.insert(
-					"default-features",
-					value(false)
-						.as_value()
-						.expect("false is bool so value(false) is Value::Boolean; qed;")
-						.clone(),
-				);
-				dependencies.insert(crate_name, value(crate_declaration));
-			},
-			types::CrateDependencie::Local { local_crate_path } => {
-				let mut crate_declaration = InlineTable::new();
-				let relative_path = if let Some(path) = diff_paths(
-					&local_crate_path,
-					manifest_path.parent().expect("A file's always contained in a directory;qed;"),
-				)
-				.and_then(|path| path.to_str().map(|path| path.to_string()))
-				{
-					path
-				} else {
-					return Err(Error::Config("Calling add_crate_to_dependencies with an internal crate whose path isn't valid.".to_string()));
-				};
-
-				crate_declaration.insert(
-					"path",
-					value(&relative_path)
-						.as_value()
-						.expect("version is String, so value(version) is Value::String; qed;")
-						.clone(),
-				);
-				crate_declaration.insert(
-					"default-features",
-					value(false)
-						.as_value()
-						.expect("false is bool so value(false) is Value::Boolean; qed;")
-						.clone(),
-				);
-				dependencies.insert(crate_name, value(crate_declaration));
-			},
-		}
-		Ok(())
-	}
-	let content = read_to_string(maybe_rolled_manifest_path)?;
-	let mut doc = content.parse::<DocumentMut>()?;
-	if let Some(Item::Table(dependencies)) = doc.get_mut("dependencies") {
-		do_add_crate_to_dependencies(manifest_path, dependencies, crate_name, dependencie_format)?;
-	} else {
-		let mut dependencies = Table::new();
-		do_add_crate_to_dependencies(
-			manifest_path,
-			&mut dependencies,
-			crate_name,
-			dependencie_format,
-		)?;
-		doc.insert("dependencies", Item::Table(dependencies));
-	}
-
-	write(maybe_rolled_manifest_path, doc.to_string())?;
-	Ok(())
-}
-
-pub fn find_crate_name(manifest_path: &Path) -> Result<String, Error> {
-	Ok(Manifest::from_path(manifest_path)?
-		.package
-		.ok_or(cargo_toml::Error::Other("Package not found in Cargo.toml"))
-		.map(|package| package.name)?)
-}
-
 pub fn is_runtime_crate(path: &Path) -> bool {
 	// Ideally the runtime would be contained inside a workspace
-	if let Some(workspace_toml) = find_workspace_toml(path) {
+	if let Some(workspace_toml) = rustilities::manifest::find_workspace_manifest(path) {
 		match Manifest::from_path(&workspace_toml)
 			.ok()
 			.map(|manifest| manifest.workspace.map(|workspace| workspace.members))
@@ -233,7 +94,7 @@ pub fn is_runtime_crate(path: &Path) -> bool {
 }
 
 pub fn find_pallet_runtime_path(pallet_path: &Path) -> Option<PathBuf> {
-	if let Some(mut workspace_toml) = find_workspace_toml(pallet_path) {
+	if let Some(mut workspace_toml) = rustilities::manifest::find_workspace_manifest(pallet_path) {
 		match Manifest::from_path(&workspace_toml)
 			.ok()
 			.map(|manifest| manifest.workspace.map(|workspace| workspace.members))
@@ -246,73 +107,6 @@ pub fn find_pallet_runtime_path(pallet_path: &Path) -> Option<PathBuf> {
 		}
 	} else {
 		None
-	}
-}
-
-pub fn compute_new_pallet_impl_path(
-	runtime_path: &Path,
-	pallet_name: &str,
-) -> Result<(Rollback, bool), Error> {
-	let runtime_src_path = runtime_path.join("src");
-	let runtime_lib_path = runtime_src_path.join("lib.rs");
-	let configs_rs_path = runtime_src_path.join("configs.rs");
-	let configs_folder_path = runtime_src_path.join("configs");
-	let configs_mod_path = configs_folder_path.join("mod.rs");
-	let pallet_config_file = configs_folder_path.join(format!("{}.rs", pallet_name));
-	let pallet_name_ident = Ident::new(pallet_name, Span::call_site());
-	match (configs_rs_path.is_file(), configs_mod_path.is_file()) {
-		// The runtime is using a configs module without the mod.rs sintax
-		(true, false) => {
-			let mut rollback = Rollback::with_capacity(1, 1, 0);
-			let roll_configs_rs_path = rollback.note_file(&configs_rs_path)?;
-			rust_writer::add_mod_declarations(
-				&roll_configs_rs_path,
-				vec![parse_quote!(mod #pallet_name_ident;)],
-			)?;
-			rollback.new_file(&pallet_config_file)?;
-			Ok((rollback, false))
-		},
-		// The runtime is using a configs module with the mod.rs syntax
-		(false, true) => {
-			let mut rollback = Rollback::with_capacity(1, 1, 0);
-			let roll_configs_mod_path = rollback.note_file(&configs_mod_path)?;
-			rust_writer::add_mod_declarations(
-				&roll_configs_mod_path,
-				vec![parse_quote!(mod #pallet_name_ident;)],
-			)?;
-			rollback.new_file(&pallet_config_file)?;
-			Ok((rollback, false))
-		},
-		// The runtime isn't using a configs module yet, we opt for the configs.rs
-		// convention
-		(false, false) => {
-			let mut rollback = Rollback::with_capacity(1, 2, 1);
-			let roll_runtime_lib_path = rollback.note_file(&runtime_lib_path)?;
-			rust_writer::add_mod_declarations(
-				&roll_runtime_lib_path,
-				vec![parse_quote!(
-					pub mod configs;
-				)],
-			)?;
-
-			rollback.new_file(&configs_rs_path)?;
-			rollback.new_dir(&configs_folder_path)?;
-			rollback.new_file(&pallet_config_file)?;
-
-			let (rollback, mut write_configs_rs) = rollback
-				.ok_or_rollback(std::fs::OpenOptions::new().write(true).open(configs_rs_path))?;
-
-			let (rollback, _) = rollback.ok_or_rollback(writeln!(
-				write_configs_rs,
-				"{}",
-				format!("mod {};", pallet_name)
-			))?;
-
-			Ok((rollback, true))
-		},
-		// Both approaches at the sime time aren't supported by the compiler, so this is
-		// unreachable in a compiling project
-		(true, true) => unreachable!(),
 	}
 }
 
@@ -450,49 +244,6 @@ mod tests {
 			Err(super::Error::ManifestPath(..))
 		));
 		Ok(())
-	}
-
-	#[test]
-	fn find_workspace_toml_works_well() {
-		let test_builder = TestBuilder::default()
-			.add_workspace()
-			.add_inside_workspace_dir()
-			.add_workspace_cargo_toml(
-				r#"[workspace]
-                resolver = "2"
-                members = ["member1"]
-                "#,
-			)
-			.add_outside_workspace_dir();
-		assert!(find_workspace_toml(
-			test_builder
-				.inside_workspace_dir
-				.as_ref()
-				.expect("Inside workspace dir should exist")
-				.path()
-		)
-		.is_some());
-		assert_eq!(
-			find_workspace_toml(
-				test_builder
-					.inside_workspace_dir
-					.as_ref()
-					.expect("Inside workspace dir should exist")
-					.path()
-			)
-			.expect("The Cargo.toml should exist at this point"),
-			test_builder.workspace_cargo_toml.expect("Cargo.toml should exist")
-		);
-		assert!(find_workspace_toml(
-			test_builder
-				.outside_workspace_dir
-				.as_ref()
-				.expect("Outside workspace dir should exist")
-				.path()
-		)
-		.is_none());
-		// Calling the function from a relative path which parent is "" returns None
-		assert!(find_workspace_toml(&PathBuf::from("..")).is_none());
 	}
 
 	#[test]

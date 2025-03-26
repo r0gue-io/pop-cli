@@ -7,19 +7,28 @@ use crate::{
 
 use clap::{Args, Subcommand};
 use cliclack::{confirm, input, multiselect, outro, outro_cancel};
+use fs_rollback::Rollback;
 use pop_common::{
-	add_crate_to_workspace, compute_new_pallet_impl_path, find_crate_name,
-	find_pallet_runtime_path, find_workspace_toml, format_dir, manifest,
-	manifest::types::CrateDependencie, prefix_with_current_dir_if_needed, rust_writer, Rollback,
+	capitalize_str, find_pallet_runtime_path, rust_writer_helpers,
+	rust_writer_helpers::RuntimeUsedMacro,
 };
 use pop_parachains::{
 	create_pallet_template, TemplatePalletConfig, TemplatePalletConfigCommonTypes,
 	TemplatePalletOptions, TemplatePalletStorageTypes,
 };
 use proc_macro2::Span;
+use rust_writer::{
+	ast::{
+		finder::{Finder, ToFind},
+		implementors::{ItemToFile, ItemToMod, TokenStreamToMacro},
+		mutator::{Mutator, ToMutate},
+	},
+	preserver::Preserver,
+};
+use rustilities::manifest::{ManifestDependencyConfig, ManifestDependencyOrigin};
 use std::{fs, path::PathBuf};
 use strum::{EnumMessage, IntoEnumIterator};
-use syn::{Ident, Type};
+use syn::{parse_quote, parse_str, Ident, Type};
 
 fn after_help_simple() -> &'static str {
 	r#"Examples:
@@ -157,10 +166,10 @@ impl NewPalletCommand {
 		// If the user has introduced something like pallets/my_pallet, probably it refers to
 		// ./pallets/my_pallet. We need to transform this path, as otherwise the Cargo.toml won't be
 		// detected and the pallet won't be added to the workspace.
-		let pallet_path = prefix_with_current_dir_if_needed(pallet_path);
+		let pallet_path = rustilities::paths::prefix_with_current_dir(pallet_path);
 
 		// Determine if the pallet is being created inside a workspace
-		let workspace_toml = find_workspace_toml(&pallet_path);
+		let workspace_toml = rustilities::manifest::find_workspace_manifest(&pallet_path);
 
 		if pallet_path.exists() {
 			if !confirm(format!(
@@ -193,59 +202,165 @@ impl NewPalletCommand {
 				pallet_custom_origin,
 			},
 		)?;
-		let pallet_crate_name = find_crate_name(&pallet_path.join("Cargo.toml"))?;
 
-		// Check if the pallet has to be included in a runtime and include it if so
+		// If the pallet has been created inside a workspace containing a runtime, add the
+		// pallet to that runtime.
 		if let Some(runtime_path) = find_pallet_runtime_path(&pallet_path) {
-			// If the pallet has been created inside a workspace containing a runtime, add the
-			// pallet to that runtime.
 			spinner.set_message("Adding the pallet to your runtime...");
+
+			let pallet_crate_name =
+				rustilities::manifest::find_crate_name(&pallet_path.join("Cargo.toml"))
+					.unwrap_or("pallet".to_owned());
+
 			let runtime_lib_path = runtime_path.join("src").join("lib.rs");
-			let runtime_manifest = manifest::find_crate_manifest(&runtime_lib_path)
-				.expect("Runtime is a crate, so it contains a manifest; qed;");
+			let runtime_manifest =
+				rustilities::manifest::find_innermost_manifest(&runtime_lib_path)
+					.expect("Runtime is a crate, so it contains a manifest; qed;");
 
-			let mut rollback;
-			let roll_runtime_lib_path;
-			let pallet_impl_path = if let Some(impl_path) = self.pallet_impl_path {
-				rollback = Rollback::with_capacity(3, 0, 0);
-				roll_runtime_lib_path = rollback.note_file(&runtime_lib_path)?;
-				impl_path.clone()
-			} else {
-				let (rollback_temp, runtime_lib_path_rolled) = compute_new_pallet_impl_path(
-					&runtime_path,
-					&pallet_crate_name.splitn(2, '-').nth(1).unwrap_or("pallet").to_string(),
-				)?;
+			let pallet_ident = Ident::new(
+				&capitalize_str(
+					&pallet_crate_name
+						.split("pallet-")
+						.last()
+						.ok_or(anyhow::anyhow! {
+						"Pallet crates are supposed to be called pallet-something."})?
+						.replace("-", ""),
+				),
+				Span::call_site(),
+			);
+			let pallet_type = parse_str::<Type>(&pallet_crate_name.replace("-", "_"))?;
 
-				rollback = rollback_temp;
-				// The rollback created above may already contain a noted version of
-				// runtime_lib_path and a new file which corresponds to the pallet
-				// impl path
-				roll_runtime_lib_path = if runtime_lib_path_rolled {
-					rollback.noted_files().remove(0)
-				} else {
-					rollback.note_file(&runtime_lib_path)?
-				};
-				rollback.new_files().remove(0)
+			let pallet_name =
+				pallet_crate_name.splitn(2, '-').nth(1).unwrap_or("pallet").to_string();
+
+			let (runtime_lib_path, configs_rs_path, configs_folder_path, configs_mod_path) =
+				rust_writer_helpers::compute_pallet_related_paths(&runtime_path);
+			let pallet_config_path = configs_folder_path.join(format!("{}.rs", pallet_name));
+
+			let mut rollback = Rollback::default();
+
+			if let Some(ref pallet_impl_path) = self.pallet_impl_path {
+				rollback.note_file(pallet_impl_path)?;
+			}
+
+			rollback.note_file(&runtime_manifest)?;
+			rollback.note_file(&runtime_lib_path)?;
+
+			let roll_pallet_impl_path = match self.pallet_impl_path {
+				Some(ref pallet_impl_path) => rollback
+					.get_noted_file(&pallet_impl_path)
+					.expect("The file has been noted above;qed;"),
+				None => {
+					rollback = rust_writer_helpers::compute_new_pallet_impl_path(
+						rollback,
+						&runtime_lib_path,
+						&configs_rs_path,
+						&configs_folder_path,
+						&configs_mod_path,
+						&pallet_config_path,
+						&pallet_name,
+					)?;
+
+					rollback
+						.get_new_file(&pallet_config_path)
+						.expect("compute_new_pallet_impl_path noted this file; qed;")
+				},
 			};
 
-			let roll_pallet_impl_path = rollback.note_file(&pallet_impl_path)?;
-			let roll_runtime_manifest = rollback.note_file(&runtime_manifest)?;
+			let roll_runtime_lib_path = rollback
+				.get_noted_file(&runtime_lib_path)
+				.expect("This file is noted by the rollback; qed;");
+			let roll_manifest = rollback
+				.get_noted_file(&runtime_manifest)
+				.expect("This file is noted by the rollback; qed;");
 
-			// Add pallet to runtime module
-			let add_pallet_to_runtime = rust_writer::add_pallet_to_runtime_module(
-				&pallet_crate_name,
-				&roll_runtime_lib_path,
-			);
+			// Add the pallet to the runtime module
+			let construct_runtime_preserver = Preserver::new("construct_runtime!");
+			let mod_runtime_preserver = Preserver::new("mod runtime");
+			let mut preserved_ast = rust_writer::preserver::preserve_and_parse(
+				roll_runtime_lib_path,
+				&[&construct_runtime_preserver, &mod_runtime_preserver],
+			)?;
+
+			// Parse the runtime to find which of the runtime macros is being used and the highest
+			// pallet index used (if needed, otherwise 0).
+			let used_macro = rust_writer_helpers::find_used_runtime_macro(&preserved_ast)?;
+
+			let pallet_added_to_runtime = match used_macro {
+				RuntimeUsedMacro::Runtime => {
+					let highest_index =
+						rust_writer_helpers::find_highest_pallet_index(&preserved_ast)?;
+					let pallet_to_runtime_implementor: ItemToMod = (
+						"runtime",
+						parse_quote! {
+							///TEMP_DOC
+							#[runtime::pallet_index(#highest_index)]
+							pub type #pallet_ident = #pallet_type;
+						},
+					)
+						.into();
+
+					let mut finder = Finder::default().to_find(&pallet_to_runtime_implementor);
+					let pallet_already_present = finder.find(&preserved_ast);
+					if !pallet_already_present {
+						let mut mutator =
+							Mutator::default().to_mutate(&pallet_to_runtime_implementor);
+						mutator.mutate(&mut preserved_ast)?;
+						rust_writer::preserver::resolve_preserved(
+							&preserved_ast,
+							roll_runtime_lib_path,
+						)
+					} else {
+						Ok(())
+					}
+				},
+				RuntimeUsedMacro::ConstructRuntime => {
+					let pallet_to_construct_runtime_implementor: TokenStreamToMacro = (
+						parse_quote!(construct_runtime),
+						Some(parse_quote!(Runtime)),
+						parse_quote!(#pallet_ident: #pallet_type,),
+					)
+						.into();
+					let mut finder =
+						Finder::default().to_find(&pallet_to_construct_runtime_implementor);
+					let pallet_already_present = finder.find(&preserved_ast);
+					if !pallet_already_present {
+						let mut mutator =
+							Mutator::default().to_mutate(&pallet_to_construct_runtime_implementor);
+						mutator.mutate(&mut preserved_ast)?;
+						rust_writer::preserver::resolve_preserved(
+							&preserved_ast,
+							roll_runtime_lib_path,
+						)
+					} else {
+						Ok(())
+					}
+				},
+			};
 
 			// Update the crate's manifest to add the pallet crate
-			let add_crate_dependencies = manifest::add_crate_to_dependencies(
-				&roll_runtime_manifest,
-				&runtime_manifest,
+			let relative_local_path = pathdiff::diff_paths(
+				&pallet_path,
+				&runtime_manifest
+					.parent()
+					.expect("A file's always contained inside a directory; qed;"),
+			)
+			.unwrap_or(pallet_path.clone());
+			let crate_added_to_dependencies = rustilities::manifest::add_crate_to_dependencies(
+				roll_manifest,
 				&pallet_crate_name,
-				CrateDependencie::Local { local_crate_path: pallet_path.to_path_buf() },
+				ManifestDependencyConfig::new(
+					ManifestDependencyOrigin::local(&relative_local_path),
+					false,
+					vec![],
+					false,
+				),
 			);
 
 			// Add pallet's impl block
+			let mut preserved_ast =
+				rust_writer::preserver::preserve_and_parse(roll_pallet_impl_path, &[])?;
+
 			let (types, values) = if pallet_default_config {
 				(Vec::new(), Vec::new())
 			} else {
@@ -261,38 +376,45 @@ impl NewPalletCommand {
 				(types, values)
 			};
 
-			let add_pallet_impl_block = rust_writer::add_pallet_impl_block_to_runtime(
-				&pallet_crate_name,
-				&roll_pallet_impl_path,
-				Vec::new(),
-				types,
-				values,
-				pallet_default_config,
-			);
+			let pallet_impl_block_implementor = ItemToFile {
+				item: parse_quote! {
+					///TEMP_DOC
+					impl #pallet_type::Config for Runtime{
+						#(
+						  type #types = #values;
+						 )*
+					}
+				},
+			};
+
+			let mut mutator = Mutator::default().to_mutate(&pallet_impl_block_implementor);
+
+			let pallet_impl_block_added = mutator.mutate(&mut preserved_ast);
+
+			rust_writer::preserver::resolve_preserved(&preserved_ast, roll_pallet_impl_path)?;
 
 			// If some of these results are Err, that doesn't mean that everything went wrong, only
 			// that the pallet wasn't included into the runtime. But the pallet was indeed
 			// created, so we cannot return an error here
-			match (add_pallet_to_runtime, add_crate_dependencies, add_pallet_impl_block) {
-				(Ok(_), Ok(_), Ok(_)) => rollback.commit(),
+			match (pallet_added_to_runtime, crate_added_to_dependencies, pallet_impl_block_added) {
+				(Ok(_), Ok(_), Ok(_)) => rollback.commit()?,
 				_ => {
 					Cli.warning(
 						"Your pallet has been created but it couldn't be added to your runtime.",
 					)?;
-					rollback.rollback();
 				},
 			}
 		}
 
 		// If the pallet has been created inside a workspace, add it to that workspace
-		if let Some(mut workspace_toml) = workspace_toml {
-			add_crate_to_workspace(&workspace_toml, &pallet_path)?;
-			// Format the whole workspace
+		if let Some(mut workspace_toml) =
+			rustilities::manifest::find_workspace_manifest(&pallet_path)
+		{
+			pop_common::add_crate_to_workspace(&workspace_toml, &pallet_path)?;
 			workspace_toml.pop();
-			format_dir(&workspace_toml)?;
+			rustilities::fmt::format_dir(&workspace_toml)?;
 		} else {
-			// Format the pallet dir
-			format_dir(&pallet_path)?;
+			rustilities::fmt::format_dir(&pallet_path)?;
 		}
 
 		spinner.stop("Generation complete");

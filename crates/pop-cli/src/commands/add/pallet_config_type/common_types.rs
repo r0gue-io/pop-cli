@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 use clap::ValueEnum;
-use pop_common::rust_writer::types::DefaultConfigType;
+use pop_common::rust_writer_helpers::DefaultConfigType;
 use strum_macros::{EnumIter, EnumMessage};
-use syn::{parse_quote, ImplItem, ItemEnum, ItemUse, TraitBound, Type};
+use syn::{parse_quote, ImplItem, Item, TraitItem};
 
 /// This enum is used to register from the CLI which types that are kind of usual in config traits
 /// are included in the pallet
@@ -43,33 +43,81 @@ pub enum CommonTypes {
 }
 
 impl CommonTypes {
-	pub fn get_common_trait_bounds(&self) -> Vec<TraitBound> {
-		match self {
-			CommonTypes::RuntimeEvent => vec![
-				parse_quote! {From<Event<Self>>},
-				parse_quote! {IsType<<Self as frame_system::Config>::RuntimeEvent>},
-			],
-			CommonTypes::RuntimeOrigin => vec![parse_quote! {From<OriginFor<Self>>}],
-			CommonTypes::RuntimeHoldReason => vec![parse_quote! {From<HoldReason>}],
-			CommonTypes::RuntimeFreezeReason => vec![parse_quote! {VariantCount}],
-			CommonTypes::Fungibles => vec![
-				parse_quote! {fungible::Inspect<Self::AccountId>},
-				parse_quote! {fungible::Mutate<Self::AccountId>},
-				parse_quote! {fungible::hold::Inspect<Self::AccountId>},
-				parse_quote! {fungible::hold::Mutate<Self::AccountId, Reason = Self::RuntimeHoldReason>},
-				parse_quote! {fungible::freeze::Inspect<Self::AccountId>},
-				parse_quote! {fungible::freeze::Mutate<Self::AccountId>},
-			],
+	pub fn get_type_definition(&self, default_config: DefaultConfigType) -> TraitItem {
+		match (self, default_config) {
+			(CommonTypes::RuntimeEvent, DefaultConfigType::NoDefaultBounds { .. }) =>
+				parse_quote! {
+				  /// The aggregated event type of the runtime.
+				#[pallet::no_default_bounds]
+				  type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+				},
+			(CommonTypes::RuntimeEvent, DefaultConfigType::Default { .. }) => parse_quote! {
+			/// The aggregated event type of the runtime.
+			  type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+			},
+			(CommonTypes::RuntimeOrigin, DefaultConfigType::NoDefaultBounds { .. }) =>
+				parse_quote! {
+				/// The aggregated origin type of the runtime.
+					#[pallet::no_default_bounds]
+					type RuntimeOrigin: From<OriginFor<Self>>;
+				  },
+			(CommonTypes::RuntimeOrigin, DefaultConfigType::Default { .. }) => parse_quote! {
+			/// The aggregated origin type of the runtime.
+			  type RuntimeOrigin: From<OriginFor<Self>>;
+			},
+			(CommonTypes::RuntimeHoldReason, DefaultConfigType::NoDefaultBounds { .. }) =>
+				parse_quote! {
+				/// A reason for placing a hold on funds
+					#[pallet::no_default_bounds]
+					type RuntimeHoldReason: From<HoldReason>;
+				  },
+			(CommonTypes::RuntimeHoldReason, DefaultConfigType::Default { .. }) => parse_quote! {
+			/// A reason for placing a hold on funds
+			  type RuntimeHoldReason: From<HoldReason>;
+			},
+			(CommonTypes::RuntimeFreezeReason, DefaultConfigType::NoDefaultBounds { .. }) =>
+				parse_quote! {
+				/// A reason for placing a freeze on funds
+					#[pallet::no_default_bounds]
+					type RuntimeFreezeReason: VariantCount;
+				  },
+			(CommonTypes::RuntimeFreezeReason, DefaultConfigType::Default { .. }) => parse_quote! {
+			/// A reason for placing a freeze on funds
+			  type RuntimeFreezeReason: VariantCount;
+			},
+			(CommonTypes::Fungibles, DefaultConfigType::NoDefault) => parse_quote! {
+			  #[pallet::no_default]
+			  type Fungibles:
+				fungible::Inspect<Self::AccountId> +
+				fungible::Mutate<Self::AccountId> +
+				fungible::hold::Inspect<Self::AccountId> +
+				fungible::hold::Mutate<Self::AccountId, Reason = Self::RuntimeHoldReason> +
+				fungible::freeze::Inspect<Self::AccountId> +
+				fungible::freeze::Mutate<Self::AccountId>;
+			},
+			(CommonTypes::Fungibles, DefaultConfigType::Default { .. }) => parse_quote! {
+			  type Fungibles:
+				fungible::Inspect<Self::AccountId> +
+				fungible::Mutate<Self::AccountId> +
+				fungible::hold::Inspect<Self::AccountId> +
+				fungible::hold::Mutate<Self::AccountId, Reason = Self::RuntimeHoldReason> +
+				fungible::freeze::Inspect<Self::AccountId> +
+				fungible::freeze::Mutate<Self::AccountId>;
+			},
+			// By construction this case shouldn't occur.
+			_ => parse_quote! {},
 		}
 	}
 
-	pub fn get_common_runtime_value(&self) -> Type {
+	pub fn get_common_runtime_value(&self) -> ImplItem {
 		match self {
-			CommonTypes::RuntimeEvent => parse_quote! {RuntimeEvent},
-			CommonTypes::RuntimeOrigin => parse_quote! {RuntimeOrigin},
-			CommonTypes::RuntimeHoldReason => parse_quote! {RuntimeHoldReason},
-			CommonTypes::RuntimeFreezeReason => parse_quote! {RuntimeFreezeReason},
-			CommonTypes::Fungibles => parse_quote! {Balances},
+			CommonTypes::RuntimeEvent => parse_quote! {type RuntimeEvent = RuntimeEvent;},
+			CommonTypes::RuntimeOrigin => parse_quote! {type RuntimeOrigin = RuntimeOrigin;},
+			CommonTypes::RuntimeHoldReason =>
+				parse_quote! {type RuntimeHoldReason = RuntimeHoldReason;},
+			CommonTypes::RuntimeFreezeReason =>
+				parse_quote! {type RuntimeFreezeReason = RuntimeFreezeReason;},
+			CommonTypes::Fungibles => parse_quote! {type Fungibles = Balances;},
 		}
 	}
 
@@ -103,7 +151,7 @@ impl CommonTypes {
 		}
 	}
 
-	pub fn get_needed_use_statements(&self) -> Vec<ItemUse> {
+	pub fn get_needed_use_statements(&self) -> Vec<Item> {
 		match self {
 			CommonTypes::RuntimeEvent => Vec::new(),
 			CommonTypes::RuntimeOrigin => Vec::new(),
@@ -114,12 +162,11 @@ impl CommonTypes {
 		}
 	}
 
-	pub fn get_needed_composite_enums(&self) -> Vec<ItemEnum> {
+	pub fn get_needed_composite_enums(&self) -> Vec<Item> {
 		match self {
 			CommonTypes::RuntimeEvent => Vec::new(),
 			CommonTypes::RuntimeOrigin => Vec::new(),
 			CommonTypes::RuntimeHoldReason => vec![parse_quote! {
-				///TEMP_DOC
 				/// A reason for the pallet placing a hold on funds.
 				#[pallet::composite_enum]
 				pub enum HoldReason {

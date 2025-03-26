@@ -5,16 +5,9 @@ use std::net::TcpListener;
 pub use build::Profile;
 pub use errors::Error;
 pub use git::{Git, GitHub, Release};
-pub use helpers::{
-	capitalize_str, format_dir, get_project_name_from_path, prefix_with_current_dir_if_needed,
-	replace_in_file,
-};
-pub use manifest::{
-	add_crate_to_workspace, compute_new_pallet_impl_path, find_crate_name,
-	find_pallet_runtime_path, find_workspace_toml,
-};
+pub use helpers::{capitalize_str, get_project_name_from_path, replace_in_file};
+pub use manifest::{add_crate_to_workspace, find_pallet_runtime_path};
 pub use metadata::format_type;
-pub use rollback::Rollback;
 pub use signer::create_signer;
 pub use sourcing::set_executable_permission;
 pub use subxt::{Config, PolkadotConfig as DefaultConfig};
@@ -29,8 +22,7 @@ pub mod manifest;
 /// Provides functionality for formatting and resolving metadata types.
 pub mod metadata;
 pub mod polkadot_sdk;
-mod rollback;
-pub mod rust_writer;
+pub mod rust_writer_helpers;
 /// Provides functionality for creating a signer from a secret URI.
 pub mod signer;
 pub mod sourcing;

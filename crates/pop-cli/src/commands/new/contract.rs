@@ -4,7 +4,7 @@ use crate::cli::{
 	traits::{Cli as _, Confirm as _},
 	Cli,
 };
-use pop_common::manifest::{add_crate_to_workspace, find_workspace_toml};
+use pop_common::manifest::add_crate_to_workspace;
 
 use anyhow::Result;
 use clap::{
@@ -75,7 +75,7 @@ impl NewContractCommand {
 		generate_contract_from_template(name, path, &template)?;
 
 		// If the contract is part of a workspace, add it to that workspace
-		if let Some(workspace_toml) = find_workspace_toml(path) {
+		if let Some(workspace_toml) = rustilities::manifest::find_workspace_manifest(path) {
 			add_crate_to_workspace(&workspace_toml, path)?;
 		}
 
