@@ -144,8 +144,8 @@ mod tests {
 	#[tokio::test]
 	async fn check_contracts_node_and_prompt_handles_skip_confirm() -> anyhow::Result<()> {
 		let cache_path = tempfile::tempdir().expect("Could create temp dir");
-		let mut cli =
-			MockCli::new().expect_warning("⚠️ The {CONTRACTS_NODE_BINARY} binary is not found.");
+		let mut cli = MockCli::new()
+			.expect_warning(format!("⚠️ The {CONTRACTS_NODE_BINARY} binary is not found."));
 
 		let node_path = check_contracts_node_and_prompt(&mut cli, cache_path.path(), true).await?;
 		// Binary path is at least equal to the cache path + the constracts node binary.
