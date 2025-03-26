@@ -32,7 +32,7 @@ toml.workspace = true
 url.workspace = true
 
 # contracts
-pop-contracts = { path = "../pop-contracts", version = "0.7.0", optional = true }
+pop-contracts = { path = "../pop-contracts", version = "0.7.0", default-features = false, optional = true }
 sp-core = { workspace = true, optional = true }
 sp-weights = { workspace = true, optional = true }
 
@@ -58,13 +58,15 @@ contract-extrinsics.workspace = true
 mockito.workspace = true
 subxt.workspace = true
 subxt-signer.workspace = true
-sp-weights.workspace = true
 
 [features]
-default = ["contract", "parachain", "telemetry"]
-contract = ["dep:pop-contracts", "dep:sp-core", "dep:sp-weights", "wallet-integration"]
+default = ["parachain", "telemetry", "wasm-contracts"]
+contract = ["wasm-contracts"]
+contracts = ["polkavm-contracts"]
 experimental = ["hashing"]
 hashing = ["dep:sp-core"]
 parachain = ["dep:pop-parachains", "dep:git2", "dep:sp-core", "dep:tracing-subscriber", "wallet-integration"]
+polkavm-contracts = ["pop-contracts/v6", "dep:pop-contracts", "dep:sp-core", "dep:sp-weights", "wallet-integration"]
 telemetry = ["dep:pop-telemetry"]
+wasm-contracts = ["pop-contracts/v5", "dep:pop-contracts", "dep:sp-core", "dep:sp-weights", "wallet-integration"]
 wallet-integration = ["dep:axum", "dep:open", "dep:tower-http"]

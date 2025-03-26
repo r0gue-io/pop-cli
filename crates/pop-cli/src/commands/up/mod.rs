@@ -13,7 +13,7 @@ use std::{
 	path::PathBuf,
 };
 
-#[cfg(feature = "contract")]
+#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 mod contract;
 #[cfg(feature = "parachain")]
 mod network;
@@ -39,7 +39,7 @@ pub(crate) struct UpArgs {
 	pub(crate) rollup: rollup::UpCommand,
 
 	#[command(flatten)]
-	#[cfg(feature = "contract")]
+	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 	pub(crate) contract: contract::UpContractCommand,
 
 	#[command(subcommand)]
@@ -59,7 +59,7 @@ pub(crate) enum Command {
 	#[deprecated(since = "0.7.0", note = "will be removed in v0.8.0")]
 	#[allow(rustdoc::broken_intra_doc_links)]
 	Parachain(network::ZombienetCommand),
-	#[cfg(feature = "contract")]
+	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 	/// [DEPRECATED] Deploy a smart contract (will be removed in v0.8.0).
 	#[clap(alias = "c", hide = true)]
 	#[deprecated(since = "0.7.0", note = "will be removed in v0.8.0")]
@@ -80,7 +80,7 @@ impl Command {
 	) -> anyhow::Result<Project> {
 		let project_path = get_project_path(args.path.clone(), args.path_pos.clone());
 		// If only contract feature enabled, deploy a contract
-		#[cfg(feature = "contract")]
+		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 		if pop_contracts::is_supported(project_path.as_deref())? {
 			let mut cmd = args.contract;
 			cmd.path = project_path;
@@ -110,7 +110,7 @@ impl Display for Command {
 			#[cfg(feature = "parachain")]
 			#[allow(deprecated)]
 			Command::Parachain(_) => write!(f, "chain"),
-			#[cfg(feature = "contract")]
+			#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 			#[allow(deprecated)]
 			Command::Contract(_) => write!(f, "contract"),
 		}
@@ -123,7 +123,7 @@ mod tests {
 	use cli::MockCli;
 	use duct::cmd;
 	use url::Url;
-	#[cfg(feature = "contract")]
+	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 	use {
 		super::contract::UpContractCommand,
 		pop_contracts::{mock_build_process, new_environment},
