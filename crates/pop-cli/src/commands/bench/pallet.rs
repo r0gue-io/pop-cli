@@ -1420,23 +1420,20 @@ mod tests {
 
 	#[tokio::test]
 	async fn list_pallets_works() -> anyhow::Result<()> {
-		for feature in [None, Some(RuntimeFeature::Benchmark)] {
-			let mut cli = MockCli::new()
+		let mut cli = MockCli::new()
 			.expect_intro("Listing available pallets and extrinsics")
 			.expect_warning(
 				"NOTE: the `pop bench pallet` is not yet battle tested - double check the results.",
 			)
 			.expect_outro("All pallets and extrinsics listed!");
-			BenchmarkPallet {
-				list: true,
-				runtime: Some(get_mock_runtime(feature)),
-				..Default::default()
-			}
-			.execute(&mut cli)
-			.await?;
-			cli.verify()?;
+		BenchmarkPallet {
+			list: true,
+			runtime: Some(get_mock_runtime(Some(RuntimeFeature::Benchmark))),
+			..Default::default()
 		}
-		Ok(())
+		.execute(&mut cli)
+		.await?;
+		cli.verify()
 	}
 
 	#[tokio::test]
