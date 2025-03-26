@@ -1,6 +1,8 @@
 use crate::Error;
 use duct::cmd;
+use frame_try_runtime::UpgradeCheckSelect;
 use std::{fmt::Display, path::PathBuf};
+use strum::Display;
 use strum_macros::{AsRefStr, EnumMessage, EnumString, VariantArray};
 
 /// Provides functionality for sourcing binaries of the try-runtime CLI.
@@ -22,8 +24,8 @@ impl Display for TryRuntimeCliCommand {
 }
 
 /// Chain state options for testing the runtime migrations.
-#[derive(AsRefStr, Clone, Debug, EnumString, EnumMessage, VariantArray, Eq, PartialEq)]
-pub enum Migration {
+#[derive(AsRefStr, Clone, Debug, EnumString, EnumMessage, VariantArray, Eq, PartialEq, Display)]
+pub enum StateExt {
 	/// Run the migrations of a given runtime on top of a live state.
 	#[strum(
 		serialize = "live",
@@ -34,16 +36,30 @@ pub enum Migration {
 	/// Run the migrations of a given runtime on top of a chain snapshot.
 	#[strum(
 		serialize = "snapshot",
-		message = "Live",
+		message = "Snapshot",
 		detailed_message = "Run the migrations of a given runtime on top of a chain snapshot."
 	)]
 	Snapshot,
 }
 
+/// Parse the upgrade checks options for testing the runtime migrations to string.
+///
+/// # Arguments
+/// * `upgrade_check_select` - The selected upgrade check option.
+pub fn parse_upgrade_checks(upgrade_check_select: UpgradeCheckSelect) -> String {
+	match upgrade_check_select {
+		UpgradeCheckSelect::All => "all",
+		UpgradeCheckSelect::None => "none",
+		UpgradeCheckSelect::TryState => "try-state",
+		UpgradeCheckSelect::PreAndPost => "pre-and-post",
+	}
+	.to_string()
+}
+
 /// Generates binary benchmarks using `try-runtime`.
 ///
 /// # Arguments
-/// * `binary_path` - Path to the binary of FRAME Omni Bencher.
+/// * `binary_path` - Path to the binary of Try Runtime CLI.
 /// * `command` - Command to run for benchmarking.
 /// * `update_args` - Function to update the arguments before running the benchmark.
 /// * `excluded_args` - Arguments to exclude from the benchmarking command.
