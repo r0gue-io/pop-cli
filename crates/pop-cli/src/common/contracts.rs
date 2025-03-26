@@ -4,15 +4,20 @@ use crate::{
 	cli::traits::*,
 	common::binary::{check_and_prompt, BinaryGenerator},
 	impl_binary_generator,
-	style::style,
 };
-use pop_common::{manifest::from_path, sourcing::Binary, DefaultConfig, Keypair};
-use pop_contracts::{contracts_node_generator, AccountMapper, DefaultEnvironment, ExtrinsicOpts};
+use pop_common::{manifest::from_path, sourcing::Binary};
+use pop_contracts::contracts_node_generator;
 use std::{
 	path::{Path, PathBuf},
 	process::{Child, Command},
 };
 use tempfile::NamedTempFile;
+#[cfg(feature = "polkavm-contracts")]
+use {
+	crate::style::style,
+	pop_common::{DefaultConfig, Keypair},
+	pop_contracts::{AccountMapper, DefaultEnvironment, ExtrinsicOpts},
+};
 
 impl_binary_generator!(ContractsNodeGenerator, contracts_node_generator);
 
@@ -84,6 +89,7 @@ pub fn has_contract_been_built(path: Option<&Path>) -> bool {
 		.unwrap_or_default()
 }
 
+#[cfg(feature = "polkavm-contracts")]
 pub(crate) async fn map_account(
 	extrinsic_opts: &ExtrinsicOpts<DefaultConfig, DefaultEnvironment, Keypair>,
 	cli: &mut impl Cli,

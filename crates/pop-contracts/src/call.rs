@@ -8,19 +8,31 @@ use crate::{
 		metadata::{process_function_args, FunctionType},
 		parse_balance,
 	},
+	CallExec, DefaultEnvironment, Environment, Verbosity,
 };
 use anyhow::Context;
-use contract_build::Verbosity;
-use contract_extrinsics::{
-	extrinsic_calls::Call, BalanceVariant, CallCommandBuilder, CallExec, ContractArtifacts,
-	DisplayEvents, ErrorVariant, ExtrinsicOptsBuilder, TokenMetadata,
-};
-use ink_env::{DefaultEnvironment, Environment};
-use pop_common::{account_id::parse_h160_account, create_signer, DefaultConfig, Keypair};
-use sp_weights::Weight;
+use pop_common::{create_signer, DefaultConfig, Keypair};
 use std::path::PathBuf;
 use subxt::{tx::Payload, SubstrateConfig};
 use url::Url;
+#[cfg(feature = "v5")]
+use {
+	contract_extrinsics::{
+		extrinsic_calls::Call, BalanceVariant, CallCommandBuilder, ContractArtifacts,
+		DisplayEvents, ErrorVariant, ExtrinsicOptsBuilder, TokenMetadata,
+	},
+	pop_common::{parse_account, Config},
+	sp_weights::Weight,
+};
+#[cfg(feature = "v6")]
+use {
+	contract_extrinsics_inkv6::{
+		extrinsic_calls::Call, BalanceVariant, CallCommandBuilder, ContractArtifacts,
+		DisplayEvents, ErrorVariant, ExtrinsicOptsBuilder, TokenMetadata,
+	},
+	pop_common::account_id::parse_h160_account,
+	sp_weights_inkv6::Weight,
+};
 
 /// Attributes for the `call` command.
 #[derive(Clone, Debug, PartialEq)]
@@ -79,6 +91,9 @@ pub async fn set_up_call(
 	let value: BalanceVariant<<DefaultEnvironment as Environment>::Balance> =
 		parse_balance(&call_opts.value)?;
 
+	#[cfg(feature = "v5")]
+	let contract: <DefaultConfig as Config>::AccountId = parse_account(&call_opts.contract)?;
+	#[cfg(feature = "v6")]
 	let contract = parse_h160_account(&call_opts.contract)?;
 	// Process the provided argument values.
 	let args = process_function_args(
@@ -165,7 +180,11 @@ pub async fn call_smart_contract(
 	let token_metadata = TokenMetadata::query::<DefaultConfig>(url).await?;
 	let metadata = call_exec.client().metadata();
 	let events = call_exec
-		.call(Some(gas_limit), None) // TODO: storage_deposit_limit
+		.call(
+			Some(gas_limit),
+			#[cfg(feature = "v6")]
+			None,
+		) // TODO: storage_deposit_limit
 		.await
 		.map_err(|error_variant| Error::CallContractError(format!("{:?}", error_variant)))?;
 	let display_events =
@@ -205,6 +224,31 @@ pub async fn call_smart_contract_from_signed_payload(
 /// # Arguments
 /// * `call_exec` - A struct containing the details of the contract call.
 /// * `gas_limit` - The maximum amount of gas allocated for executing the contract call.
+#[cfg(feature = "v5")]
+pub fn get_call_payload(
+	call_exec: &CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
+	gas_limit: Weight,
+) -> anyhow::Result<Vec<u8>> {
+	let storage_deposit_limit: Option<u128> = call_exec.opts().storage_deposit_limit();
+	let mut encoded_data = Vec::<u8>::new();
+	Call::new(
+		call_exec.contract().into(),
+		call_exec.value(),
+		gas_limit,
+		storage_deposit_limit.as_ref(),
+		call_exec.call_data().clone(),
+	)
+	.build()
+	.encode_call_data_to(&call_exec.client().metadata(), &mut encoded_data)?;
+	Ok(encoded_data)
+}
+
+/// Generates the payload for executing a smart contract call.
+///
+/// # Arguments
+/// * `call_exec` - A struct containing the details of the contract call.
+/// * `gas_limit` - The maximum amount of gas allocated for executing the contract call.
+#[cfg(feature = "v6")]
 pub async fn get_call_payload(
 	call_exec: &CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
 	gas_limit: Weight,
@@ -232,11 +276,10 @@ mod tests {
 	use crate::{
 		contracts_node_generator, dry_run_gas_estimate_instantiate, errors::Error,
 		instantiate_smart_contract, mock_build_process, new_environment, run_contracts_node,
-		set_up_deployment, UpOpts,
+		set_up_deployment, Bytes, UpOpts,
 	};
 	use anyhow::Result;
 	use pop_common::{find_free_port, set_executable_permission};
-	use sp_core::Bytes;
 	use std::{env, process::Command, time::Duration};
 	use tokio::time::sleep;
 

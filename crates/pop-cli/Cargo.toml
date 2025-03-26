@@ -33,8 +33,7 @@ strum.workspace = true
 strum_macros.workspace = true
 
 # contracts
-pop-contracts = { path = "../pop-contracts", version = "0.6.0", optional = true }
-sp-weights = { workspace = true, optional = true }
+pop-contracts = { path = "../pop-contracts", version = "0.6.0", default-features = false, optional = true }
 
 # parachains
 pop-parachains = { path = "../pop-parachains", version = "0.6.0", optional = true }
@@ -57,10 +56,12 @@ assert_cmd.workspace = true
 contract-extrinsics.workspace = true
 subxt.workspace = true
 subxt-signer.workspace = true
-sp-weights.workspace = true
 
 [features]
-default = ["contract", "parachain", "telemetry"]
-contract = ["dep:pop-contracts", "dep:sp-weights", "dep:dirs"]
+default = ["parachain", "telemetry", "wasm-contracts"]
+contract = ["wasm-contracts"]
+contracts = ["polkavm-contracts"]
 parachain = ["dep:pop-parachains", "dep:dirs"]
+polkavm-contracts = ["pop-contracts/v6", "dep:dirs"]
 telemetry = ["dep:pop-telemetry"]
+wasm-contracts = ["pop-contracts/v5", "dep:dirs"]

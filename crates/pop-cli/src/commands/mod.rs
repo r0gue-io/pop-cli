@@ -2,6 +2,7 @@
 
 use crate::{cache, cli::Cli, common::builds::get_project_path};
 use clap::Subcommand;
+#[cfg(feature = "parachain")]
 use pop_common::templates::Template;
 use serde_json::{json, Value};
 
@@ -21,21 +22,21 @@ pub(crate) enum Command {
 	Install(install::InstallArgs),
 	/// Generate a new parachain, pallet or smart contract.
 	#[clap(alias = "n")]
-	#[cfg(any(feature = "parachain", feature = "contract"))]
+	#[cfg(any(feature = "parachain", feature = "polkavm-contracts", feature = "wasm-contracts"))]
 	New(new::NewArgs),
 	#[clap(alias = "b", about = about_build())]
-	#[cfg(any(feature = "parachain", feature = "contract"))]
+	#[cfg(any(feature = "parachain", feature = "polkavm-contracts", feature = "wasm-contracts"))]
 	Build(build::BuildArgs),
 	/// Call a chain or a smart contract.
 	#[clap(alias = "c")]
-	#[cfg(any(feature = "parachain", feature = "contract"))]
+	#[cfg(any(feature = "parachain", feature = "polkavm-contracts", feature = "wasm-contracts"))]
 	Call(call::CallArgs),
 	#[clap(alias = "u", about = about_up())]
-	#[cfg(any(feature = "parachain", feature = "contract"))]
+	#[cfg(any(feature = "parachain", feature = "polkavm-contracts", feature = "wasm-contracts"))]
 	Up(up::UpArgs),
 	/// Test a Rust project.
 	#[clap(alias = "t")]
-	#[cfg(any(feature = "parachain", feature = "contract"))]
+	#[cfg(any(feature = "parachain", feature = "polkavm-contracts", feature = "wasm-contracts"))]
 	Test(test::TestArgs),
 	/// Remove generated/cached artifacts.
 	#[clap(alias = "C")]
@@ -44,21 +45,39 @@ pub(crate) enum Command {
 
 /// Help message for the build command.
 fn about_build() -> &'static str {
-	#[cfg(all(feature = "parachain", feature = "contract"))]
+	#[cfg(all(
+		feature = "parachain",
+		any(feature = "polkavm-contracts", feature = "wasm-contracts")
+	))]
 	return "Build a parachain, chain specification, smart contract or Rust package.";
-	#[cfg(all(feature = "parachain", not(feature = "contract")))]
+	#[cfg(all(
+		feature = "parachain",
+		not(any(feature = "polkavm-contracts", feature = "wasm-contracts"))
+	))]
 	return "Build a parachain, chain specification or Rust package.";
-	#[cfg(all(feature = "contract", not(feature = "parachain")))]
+	#[cfg(all(
+		any(feature = "polkavm-contracts", feature = "wasm-contracts"),
+		not(feature = "parachain")
+	))]
 	return "Build a smart contract or Rust package.";
 }
 
 /// Help message for the `up` command.
 fn about_up() -> &'static str {
-	#[cfg(all(feature = "parachain", feature = "contract"))]
+	#[cfg(all(
+		feature = "parachain",
+		any(feature = "polkavm-contracts", feature = "wasm-contracts")
+	))]
 	return "Deploy a rollup(parachain), deploy a smart contract or launch a local network.";
-	#[cfg(all(feature = "parachain", not(feature = "contract")))]
+	#[cfg(all(
+		feature = "parachain",
+		not(any(feature = "polkavm-contracts", feature = "wasm-contracts"))
+	))]
 	return "Deploy a rollup(parachain) or launch a local network.";
-	#[cfg(all(feature = "contract", not(feature = "parachain")))]
+	#[cfg(all(
+		any(feature = "polkavm-contracts", feature = "wasm-contracts"),
+		not(feature = "parachain")
+	))]
 	return "Deploy a smart contract.";
 }
 
@@ -66,9 +85,17 @@ impl Command {
 	/// Executes the command.
 	pub(crate) async fn execute(self) -> anyhow::Result<Value> {
 		match self {
-			#[cfg(any(feature = "parachain", feature = "contract"))]
+			#[cfg(any(
+				feature = "parachain",
+				feature = "polkavm-contracts",
+				feature = "wasm-contracts"
+			))]
 			Self::Install(args) => install::Command.execute(args).await.map(|_| Value::Null),
-			#[cfg(any(feature = "parachain", feature = "contract"))]
+			#[cfg(any(
+				feature = "parachain",
+				feature = "polkavm-contracts",
+				feature = "wasm-contracts"
+			))]
 			Self::New(args) => match args.command {
 				#[cfg(feature = "parachain")]
 				new::Command::Parachain(cmd) => match cmd.execute().await {
@@ -86,14 +113,18 @@ impl Command {
 					// deeper in the stack
 					cmd.execute().await.map(|_| json!("template"))
 				},
-				#[cfg(feature = "contract")]
+				#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 				new::Command::Contract(cmd) => {
 					// When more contract selections are added, the tel data will likely need to go
 					// deeper in the stack
 					cmd.execute().await.map(|_| json!("default"))
 				},
 			},
-			#[cfg(any(feature = "parachain", feature = "contract"))]
+			#[cfg(any(
+				feature = "parachain",
+				feature = "polkavm-contracts",
+				feature = "wasm-contracts"
+			))]
 			Self::Build(args) => match args.command {
 				None => build::Command::execute(args).map(|t| json!(t)),
 				Some(cmd) => match cmd {
@@ -101,14 +132,22 @@ impl Command {
 					build::Command::Spec(cmd) => cmd.execute().await.map(|_| Value::Null),
 				},
 			},
-			#[cfg(any(feature = "parachain", feature = "contract"))]
+			#[cfg(any(
+				feature = "parachain",
+				feature = "polkavm-contracts",
+				feature = "wasm-contracts"
+			))]
 			Self::Call(args) => match args.command {
 				#[cfg(feature = "parachain")]
 				call::Command::Chain(cmd) => cmd.execute().await.map(|_| Value::Null),
-				#[cfg(feature = "contract")]
+				#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 				call::Command::Contract(cmd) => cmd.execute().await.map(|_| Value::Null),
 			},
-			#[cfg(any(feature = "parachain", feature = "contract"))]
+			#[cfg(any(
+				feature = "parachain",
+				feature = "polkavm-contracts",
+				feature = "wasm-contracts"
+			))]
 			Self::Up(args) => match args.command {
 				None => up::Command::execute(args).await.map(|t| json!(t)),
 				Some(cmd) => match cmd {
@@ -121,7 +160,7 @@ impl Command {
 					#[cfg(feature = "parachain")]
 					up::Command::Parachain(cmd) => cmd.execute().await.map(|_| Value::Null),
 					// TODO: Deprecated, will be removed in v0.8.0.
-					#[cfg(feature = "contract")]
+					#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 					up::Command::Contract(mut cmd) => {
 						cmd.path = get_project_path(args.path, args.path_pos);
 						cmd.execute().await.map(|_| Value::Null)
@@ -131,7 +170,7 @@ impl Command {
 			Self::Test(args) => match args.command {
 				None => test::Command::execute(args).await.map(|t| json!(t)),
 				Some(cmd) => match cmd {
-					#[cfg(feature = "contract")]
+					#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 					test::Command::Contract(cmd) => cmd.execute(&mut Cli).await.map(|t| json!(t)),
 				},
 			},

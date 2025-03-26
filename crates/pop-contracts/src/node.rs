@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
+#[cfg(feature = "v5")]
 use contract_extrinsics::{RawParams, RpcRequest};
+#[cfg(feature = "v6")]
+use contract_extrinsics_inkv6::{RawParams, RpcRequest};
 use pop_common::{
 	sourcing::{
 		traits::{Source as _, *},
@@ -51,11 +54,22 @@ pub(super) enum Chain {
 	/// Minimal Substrate node configured for smart contracts via pallet-contracts and
 	/// pallet-revive.
 	#[strum(props(
+		Repository = "https://github.com/paritytech/substrate-contracts-node",
+		Binary = "substrate-contracts-node",
+		TagFormat = "{tag}",
+		Fallback = "v0.41.0"
+	))]
+	#[cfg(feature = "v5")]
+	ContractsNode,
+	/// Minimal Substrate node configured for smart contracts via pallet-contracts and
+	/// pallet-revive.
+	#[strum(props(
 		Repository = "https://github.com/AlexD10S/substrate-contracts-node",
 		Binary = "substrate-contracts-node",
 		TagFormat = "{tag}",
 		Fallback = "v0.43.0"
 	))]
+	#[cfg(feature = "v6")]
 	ContractsNode,
 }
 

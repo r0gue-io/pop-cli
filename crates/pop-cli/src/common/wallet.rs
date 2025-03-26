@@ -4,14 +4,16 @@ use crate::{
 	cli::traits::Cli,
 	wallet_integration::{FrontendFromString, TransactionData, WalletIntegrationManager},
 };
-use anyhow::{anyhow, Result};
 use cliclack::{log, spinner};
 #[cfg(feature = "parachain")]
-use pop_parachains::{
-	parse_and_format_events, submit_signed_extrinsic, ExtrinsicEvents, OnlineClient,
-	SubstrateConfig,
+use {
+	anyhow::{anyhow, Result},
+	pop_parachains::{
+		parse_and_format_events, submit_signed_extrinsic, ExtrinsicEvents, OnlineClient,
+		SubstrateConfig,
+	},
+	url::Url,
 };
-use url::Url;
 
 /// The prompt to ask the user if they want to use the wallet for signing.
 pub const USE_WALLET_PROMPT: &str = "Do you want to use your browser wallet to sign the extrinsic? (Selecting 'No' will prompt you to manually enter the secret key URI for signing, e.g., '//Alice')";
