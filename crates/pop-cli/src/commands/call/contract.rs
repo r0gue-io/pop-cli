@@ -4,7 +4,7 @@ use crate::{
 	cli::{self, traits::*},
 	common::{
 		builds::get_project_path,
-		contracts::has_contract_been_built,
+		contracts::{has_contract_been_built, map_account},
 		prompt::display_message,
 		wallet::{prompt_to_use_wallet, request_signature},
 	},
@@ -412,6 +412,9 @@ impl CallContractCommand {
 				return Err(anyhow!(format!("{}", e.to_string())));
 			},
 		};
+		// Check if the account is already mapped, and prompt the user to perform the mapping if
+		// it's required.
+		map_account(call_exec.opts(), cli).await?;
 
 		// Perform signing steps with wallet integration, skipping secure signing for query-only
 		// operations.
