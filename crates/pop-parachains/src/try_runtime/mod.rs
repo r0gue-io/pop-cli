@@ -82,7 +82,7 @@ where
 	cmd_args.append(&mut args);
 
 	if let Err(e) = cmd(binary_path, cmd_args).stderr_capture().run() {
-		return Err(Error::BenchmarkingError(e.to_string()));
+		return Err(Error::TryRuntimeError(e.to_string()));
 	}
 	Ok(())
 }
