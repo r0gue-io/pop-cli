@@ -195,7 +195,7 @@ impl UpCommand {
 		cli: &mut impl Cli,
 	) -> Result<Proxy> {
 		if let Some(addr) = &self.proxied_address {
-			return Ok(parse_account(addr).map(|valid_addr| Some(format!("Id({valid_addr})")))?);
+			return Ok(Some(format!("Id({addr})")));
 		}
 		if let Some(api) = api {
 			if api.provider == DeploymentProvider::PDP {
