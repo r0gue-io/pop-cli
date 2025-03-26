@@ -145,6 +145,7 @@ pub struct DeployRequest {
 }
 impl DeployRequest {
 	/// Creates a new `DeployRequest` by parsing the chain specification file.
+	///
 	/// # Arguments
 	/// * `collator_file_id` - The identifier of the collator file.
 	/// * `genesis_artifacts` - Chain specification artifacts.

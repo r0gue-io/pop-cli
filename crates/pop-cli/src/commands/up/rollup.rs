@@ -96,10 +96,27 @@ impl UpCommand {
 					.dim()
 				))?,
 				Err(e) => {
-					cli.outro_cancel(format!("{}\n{}", e, style(format!(
-						"Retry registration without reserve or rebuilding the chain specs using: {}", style(format!("`pop up --id {}{} --skip-registration`",
-						config.id, if config.genesis_artifacts.chain_spec.display().to_string().is_empty() { "".to_string() } else { format!(" --chain-spec {}", config.genesis_artifacts.chain_spec.display())})).bold()
-					)).black()
+					let chain_spec_arg =
+						if config.genesis_artifacts.chain_spec.to_string_lossy().is_empty() {
+							String::new()
+						} else {
+							format!(
+								" --chain-spec {}",
+								config.genesis_artifacts.chain_spec.display()
+							)
+						};
+					let pop_command = style(format!(
+						"`pop up --id {}{} --skip-registration`",
+						config.id, chain_spec_arg
+					))
+					.bold();
+					cli.outro_cancel(format!(
+						"{}\n{}",
+						e,
+						style(format!(
+						"Retry registration without reserve or rebuilding the chain specs using: {}", pop_command
+					))
+						.black()
 					))?;
 					return Ok(());
 				},
@@ -508,7 +525,7 @@ fn warn_supported_templates(provider: &DeploymentProvider, cli: &mut impl Cli) -
 		.iter()
 		.filter_map(|variant| {
 			variant.deployment_name().map(|_| {
-				style(format!("{} {}", console::Emoji("●", ">"), variant.name().to_string()))
+				style(format!("{} {}", console::Emoji("●", ">"), variant.name()))
 					.dim()
 					.to_string()
 			})
@@ -569,15 +586,7 @@ mod tests {
 				Some(
 					DeploymentProvider::VARIANTS
 						.into_iter()
-						.map(|action| {
-							(
-								action.name().to_string(),
-								format!(
-									"{}",
-									style(action.base_url().to_string()).bold().underlined()
-								),
-							)
-						})
+						.map(|action| (action.name().to_string(), format_url(action.base_url())))
 						.collect::<Vec<_>>(),
 				),
 				DeploymentProvider::PDP as usize,
@@ -609,9 +618,9 @@ mod tests {
 
 		// Ensure a clean environment.
 		if let Some(original) = original_api_key {
-			env::set_var("PDP_API_KEY", original);
+			env::set_var(PDP_API_KEY, original);
 		} else {
-			env::remove_var("PDP_API_KEY");
+			env::remove_var(PDP_API_KEY);
 		}
 		cli.verify()
 	}
@@ -948,7 +957,7 @@ mod tests {
 		assert!(!UpCommand { id: Some(2000), skip_registration: true, ..Default::default() }
 			.should_show_deployment_steps(&deployment));
 		// No API provided, should not show steps.
-		assert!(!UpCommand { ..Default::default() }
+		assert!(!UpCommand::default()
 			.should_show_deployment_steps(&Deployment { api: None, ..Default::default() }));
 		Ok(())
 	}

@@ -1200,7 +1200,7 @@ mod tests {
 	fn read_genesis_state_works() -> anyhow::Result<()> {
 		let mut artifacts = GenesisArtifacts::default();
 		let temp_dir = tempdir()?;
-		// Expect failure when the genesis state is None.
+		// Expect failure when the genesis state is `None`.
 		assert!(matches!(
 			artifacts.read_genesis_state(),
 			Err(message) if message.to_string().contains("Missing genesis state file path")
