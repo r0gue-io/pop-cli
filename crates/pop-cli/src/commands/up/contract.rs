@@ -192,18 +192,6 @@ impl UpContractCommand {
 			None
 		};
 
-		let instantiate_exec = match set_up_deployment(self.clone().into()).await {
-			Ok(i) => i,
-			Err(e) => {
-				error(format!("An error occurred instantiating the contract: {e}"))?;
-				terminate_node(&mut Cli, process)?;
-				Cli.outro_cancel(FAILED)?;
-				return Ok(());
-			},
-		};
-		// Check if the account is already mapped, and prompt the user to perform the mapping if
-		// it's required.
-		map_account(instantiate_exec.opts(), &mut Cli).await?;
 		// Run steps for signing with wallet integration. Returns early.
 		if self.use_wallet {
 			let (call_data, hash) = match self.get_contract_data().await {
@@ -241,6 +229,18 @@ impl UpContractCommand {
 						},
 					};
 				} else {
+					let instantiate_exec = match set_up_deployment(self.clone().into()).await {
+						Ok(i) => i,
+						Err(e) => {
+							error(format!("An error occurred instantiating the contract: {e}"))?;
+							terminate_node(&mut Cli, process)?;
+							Cli.outro_cancel(FAILED)?;
+							return Ok(());
+						},
+					};
+					// Check if the account is already mapped, and prompt the user to perform the
+					// mapping if it's required.
+					map_account(instantiate_exec.opts(), &mut Cli).await?;
 					let contract_info = match instantiate_contract_signed(
 						instantiate_exec,
 						self.url.as_str(),
@@ -296,6 +296,18 @@ impl UpContractCommand {
 		}
 
 		// Otherwise instantiate.
+		let instantiate_exec = match set_up_deployment(self.clone().into()).await {
+			Ok(i) => i,
+			Err(e) => {
+				error(format!("An error occurred instantiating the contract: {e}"))?;
+				terminate_node(&mut Cli, process)?;
+				Cli.outro_cancel(FAILED)?;
+				return Ok(());
+			},
+		};
+		// Check if the account is already mapped, and prompt the user to perform the mapping if
+		// it's required.
+		map_account(instantiate_exec.opts(), &mut Cli).await?;
 		let weight_limit = if self.gas_limit.is_some() && self.proof_size.is_some() {
 			Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap())
 		} else {
@@ -433,7 +445,9 @@ fn display_contract_info(spinner: &ProgressBar, address: String, code_hash: Opti
 mod tests {
 	use super::*;
 	use pop_common::{find_free_port, set_executable_permission};
-	use pop_contracts::{contracts_node_generator, mock_build_process, new_environment};
+	use pop_contracts::{
+		contracts_node_generator, mock_build_process, new_environment, AccountMapper,
+	};
 	use std::{
 		env,
 		process::{Child, Command},
@@ -555,7 +569,8 @@ mod tests {
 
 		// Craft encoded call data for an upload code call.
 		let contract_code = get_contract_code(up_contract_opts.path.as_ref())?;
-		let storage_deposit_limit: Option<u128> = None;
+		let upload_exec = set_up_upload(up_contract_opts.into()).await?;
+		let storage_deposit_limit = upload_exec.opts().storage_deposit_limit().unwrap();
 		let upload_code = contract_extrinsics::extrinsic_calls::UploadCode::new(
 			contract_code,
 			storage_deposit_limit,
@@ -589,6 +604,10 @@ mod tests {
 			use_wallet: true,
 			valid: true,
 		};
+		// Map account
+		let instantiate_exec = set_up_deployment(up_contract_opts.clone().into()).await?;
+		let map = AccountMapper::new(&instantiate_exec.opts()).await?;
+		map.map_account().await?;
 
 		// Retrieve call data based on the above command options.
 		let (retrieved_call_data, _) = match up_contract_opts.get_contract_data().await {
@@ -603,9 +622,7 @@ mod tests {
 
 		// Craft instantiate call data.
 		let weight = Weight::from_parts(200_000_000, 30_000);
-		let expected_call_data =
-			get_instantiate_payload(set_up_deployment(up_contract_opts.into()).await?, weight)
-				.await?;
+		let expected_call_data = get_instantiate_payload(instantiate_exec, weight).await?;
 		// Retrieved call data matches the one crafted above.
 		assert_eq!(retrieved_call_data, expected_call_data);
 
