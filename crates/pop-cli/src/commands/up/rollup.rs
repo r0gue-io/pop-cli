@@ -34,7 +34,7 @@ type Proxy = Option<String>;
 const DEFAULT_URL: &str = "wss://paseo.rpc.amforc.com/";
 const HELP_HEADER: &str = "Chain deployment options";
 const PLACEHOLDER_ADDRESS: &str = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty";
-const POP_API_KEY: &str = "POP_API_KEY";
+const PDP_API_KEY: &str = "PDP_API_KEY";
 
 #[derive(Args, Clone, Default)]
 #[clap(next_help_heading = HELP_HEADER)]
@@ -141,7 +141,7 @@ impl UpCommand {
 		let relay_chain_name = relay_chain.to_string();
 		self.relay_chain_url = relay_chain.get_rpc_url().and_then(|url| Url::parse(&url).ok());
 
-		let api_key = prompt_api_key(POP_API_KEY, &provider, cli)?;
+		let api_key = prompt_api_key(PDP_API_KEY, &provider, cli)?;
 		let api = Some(DeploymentApi::new(api_key, provider, relay_chain_name)?);
 		Ok(Deployment { api, collator_file_id: None })
 	}
@@ -592,8 +592,8 @@ mod tests {
 			);
 
 		// A backup of the existing env variable to restore it at the end of the test.
-		let original_api_key = env::var(POP_API_KEY).ok();
-		env::set_var(POP_API_KEY, "test_api_key");
+		let original_api_key = env::var(PDP_API_KEY).ok();
+		env::set_var(PDP_API_KEY, "test_api_key");
 		let chain_config = UpCommand { skip_registration: true, ..Default::default() }
 			.prepare_for_deployment(&mut cli)?;
 		assert!(!chain_config.api.is_none());
@@ -603,9 +603,9 @@ mod tests {
 
 		// Ensure a clean environment.
 		if let Some(original) = original_api_key {
-			env::set_var("POP_API_KEY", original);
+			env::set_var("PDP_API_KEY", original);
 		} else {
-			env::remove_var("POP_API_KEY");
+			env::remove_var("PDP_API_KEY");
 		}
 		cli.verify()
 	}
@@ -856,7 +856,7 @@ mod tests {
 
 	#[test]
 	fn prompt_api_key_works() -> Result<()> {
-		let test_env_var = "TEST_POP_API_KEY";
+		let test_env_var = "TEST_PDP_API_KEY";
 		env::remove_var(test_env_var);
 		let provider = DeploymentProvider::PDP;
 
