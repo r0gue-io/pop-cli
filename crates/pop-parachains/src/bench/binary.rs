@@ -64,10 +64,11 @@ pub async fn omni_bencher_generator(
 	let name = cli.binary();
 	let releases = cli.releases().await?;
 	let tag = Binary::resolve_version(name, version, &releases, &cache);
+	// Only set latest when caller has not explicitly specified a version to use
+	let latest = version.is_none().then(|| releases.first().map(|v| v.to_string())).flatten();
 	let binary = Binary::Source {
 		name: name.to_string(),
-		// TODO: Update to only set latest when caller has not explicitly specified a version to use
-		source: TryInto::try_into(&cli, tag, Some("polkadot-stable2412".to_string()))?,
+		source: TryInto::try_into(&cli, tag, latest)?,
 		cache: cache.to_path_buf(),
 	};
 	Ok(binary)
