@@ -42,7 +42,7 @@ impl cliclack::Theme for Theme {
 	}
 }
 
-/// Formats an URL with bold and underlined style.
+/// Formats a URL with bold and underlined style.
 pub(crate) fn format_url(url: &str) -> String {
 	format!("{}", style(url).bold().underlined())
 }

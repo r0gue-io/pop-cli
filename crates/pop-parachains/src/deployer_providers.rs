@@ -55,7 +55,7 @@ impl DeploymentProvider {
 	/// # Arguments
 	/// * `relay_chain_name` - The name of the relay chain where deployment will occur.
 	/// * `id` - The ID for which collator keys are being requested.
-	pub fn get_collator_keys_path(&self, relay_chain_name: &str, id: u32) -> String {
+	pub fn get_collator_keys_uri(&self, relay_chain_name: &str, id: u32) -> String {
 		self.get_str("CollatorKeysURI")
 			.map(|template| {
 				template
@@ -69,7 +69,7 @@ impl DeploymentProvider {
 	///
 	/// # Arguments
 	/// * `id` - The ID that is being deployed.
-	pub fn get_deploy_path(&self, id: u32) -> String {
+	pub fn get_deploy_uri(&self, id: u32) -> String {
 		self.get_str("DeployURI")
 			.map(|template| template.replace("{para_id}", &id.to_string()))
 			.unwrap_or_default()
@@ -170,18 +170,18 @@ mod tests {
 	}
 
 	#[test]
-	fn get_collator_keys_path_works() {
+	fn get_collator_keys_uri_works() {
 		let provider = DeploymentProvider::PDP;
 		assert_eq!(
-			provider.get_collator_keys_path("paseo", 2000),
+			provider.get_collator_keys_uri("paseo", 2000),
 			"/api/public/v1/parachains/2000/collators/paseo"
 		);
 	}
 
 	#[test]
-	fn get_deploy_path_works() {
+	fn get_deploy_uri_works() {
 		let provider = DeploymentProvider::PDP;
-		assert_eq!(provider.get_deploy_path(2000), "/api/public/v1/parachains/2000/resources");
+		assert_eq!(provider.get_deploy_uri(2000), "/api/public/v1/parachains/2000/resources");
 	}
 
 	#[test]

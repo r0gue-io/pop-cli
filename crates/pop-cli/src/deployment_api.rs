@@ -63,7 +63,7 @@ impl DeploymentApi {
 	/// * `id` - The ID to be deployed.
 	/// * `request` - The deployment request containing the necessary parameters.
 	pub async fn deploy(&self, id: u32, request: DeployRequest) -> Result<DeployResponse> {
-		let url = format!("{}{}", self.base_url, self.provider.get_deploy_path(id));
+		let url = format!("{}{}", self.base_url, self.provider.get_deploy_uri(id));
 		let file_part = Part::file(request.chainspec).await?.mime_str("application/json")?;
 		let form = Form::new()
 			.text("parachainName", request.name)
@@ -114,7 +114,7 @@ impl DeploymentApi {
 		let url = format!(
 			"{}{}",
 			self.base_url,
-			self.provider.get_collator_keys_path(&self.relay_chain_name, id)
+			self.provider.get_collator_keys_uri(&self.relay_chain_name, id)
 		);
 		let res = self
 			.client
@@ -233,7 +233,7 @@ mod tests {
 		provider: DeploymentProvider,
 	) -> Mock {
 		mock_server
-			.mock("GET", format!("{}", provider.get_collator_keys_path(chain_name, id)).as_str())
+			.mock("GET", format!("{}", provider.get_collator_keys_uri(chain_name, id)).as_str())
 			.with_status(200)
 			.with_header("Content-Type", "application/json")
 			.with_body(payload)
@@ -248,7 +248,7 @@ mod tests {
 		provider: DeploymentProvider,
 	) -> Mock {
 		mock_server
-			.mock("POST", format!("{}", provider.get_deploy_path(para_id)).as_str())
+			.mock("POST", format!("{}", provider.get_deploy_uri(para_id)).as_str())
 			.with_status(200)
 			.with_header("Content-Type", "application/json")
 			.with_body(payload)
@@ -271,7 +271,7 @@ mod tests {
 		})
 		.to_string();
 		mock_server
-			.mock("POST", format!("{}", provider.get_deploy_path(para_id)).as_str())
+			.mock("POST", format!("{}", provider.get_deploy_uri(para_id)).as_str())
 			.with_status(400)
 			.with_header("Content-Type", "application/json")
 			.with_body(mocked_error_payload)
