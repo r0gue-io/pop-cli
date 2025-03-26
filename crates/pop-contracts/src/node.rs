@@ -22,7 +22,7 @@ use std::{
 use subxt::{dynamic::Value, SubstrateConfig};
 use tokio::time::sleep;
 
-const BIN_NAME: &str = "substrate-contracts-node";
+const BIN_NAME: &str = "ink-node";
 const STARTUP: Duration = Duration::from_millis(20_000);
 
 /// Checks if the specified node is alive and responsive.
@@ -51,8 +51,8 @@ pub(super) enum Chain {
 	/// Minimal Substrate node configured for smart contracts via pallet-contracts and
 	/// pallet-revive.
 	#[strum(props(
-		Repository = "https://github.com/AlexD10S/substrate-contracts-node",
-		Binary = "substrate-contracts-node",
+		Repository = "https://github.com/use-ink/ink-node",
+		Binary = "ink-node",
 		TagFormat = "{tag}",
 		Fallback = "v0.43.0"
 	))]
@@ -163,22 +163,10 @@ fn archive_name_by_target() -> Result<String, Error> {
 	}
 }
 
-fn release_directory_by_target(tag: Option<&str>) -> Result<&'static str, Error> {
-	// The structure of the binary changed in v0.42.0
-	let is_old_structure = matches!(tag, Some(tag) if tag < "v0.42.0");
+fn release_directory_by_target(_tag: Option<&str>) -> Result<&'static str, Error> {
 	match OS {
-		"macos" =>
-			if is_old_structure {
-				Ok("artifacts/substrate-contracts-node-mac/substrate-contracts-node")
-			} else {
-				Ok("substrate-contracts-node-mac/substrate-contracts-node")
-			},
-		"linux" =>
-			if is_old_structure {
-				Ok("artifacts/substrate-contracts-node-linux/substrate-contracts-node")
-			} else {
-				Ok("substrate-contracts-node-linux/substrate-contracts-node")
-			},
+		"macos" => Ok("ink-node-mac/ink-node"),
+		"linux" => Ok("ink-node-linux/ink-node"),
 		_ => Err(Error::UnsupportedPlatform { arch: ARCH, os: OS }),
 	}
 }
@@ -194,9 +182,9 @@ mod tests {
 	async fn directory_path_by_target() -> Result<()> {
 		let archive = archive_name_by_target();
 		if cfg!(target_os = "macos") {
-			assert_eq!(archive?, "substrate-contracts-node-mac-universal.tar.gz");
+			assert_eq!(archive?, "ink-node-mac-universal.tar.gz");
 		} else if cfg!(target_os = "linux") {
-			assert_eq!(archive?, "substrate-contracts-node-linux.tar.gz");
+			assert_eq!(archive?, "ink-node-linux.tar.gz");
 		} else {
 			assert!(archive.is_err())
 		}
@@ -224,8 +212,8 @@ mod tests {
 		assert!(matches!(binary, Binary::Source { name, source, cache}
 			if name == expected.binary()  &&
 				source == Source::GitHub(ReleaseArchive {
-					owner: "paritytech".to_string(),
-					repository: "substrate-contracts-node".to_string(),
+					owner: "use-ink".to_string(),
+					repository: "ink-node".to_string(),
 					tag: Some(version.to_string()),
 					tag_format: expected.tag_format().map(|t| t.into()),
 					archive: archive,
