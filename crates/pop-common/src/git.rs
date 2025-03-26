@@ -181,7 +181,11 @@ impl GitHub {
 		let client = reqwest::ClientBuilder::new().user_agent(APP_USER_AGENT).build()?;
 		let url = self.api_releases_url();
 		let response = client.get(url).send().await?.error_for_status()?;
-		Ok(response.json::<Vec<Release>>().await?)
+		let mut sorted_releases = response.json::<Vec<Release>>().await?;
+
+		// Sort releases by `published_at` in descending order
+		sorted_releases.sort_by(|a, b| b.published_at.cmp(&a.published_at));
+		Ok(sorted_releases)
 	}
 
 	/// Retrieves the commit hash associated with a specified tag in a GitHub repository.
@@ -265,6 +269,7 @@ pub struct Release {
 	pub name: String,
 	pub prerelease: bool,
 	pub commit: Option<String>,
+	pub published_at: String,
 }
 
 /// A descriptor of a remote repository.
@@ -347,19 +352,50 @@ mod tests {
 		let expected_payload = r#"[{
 			"tag_name": "polkadot-v1.10.0",
 			"name": "Polkadot v1.10.0",
-			"prerelease": false
-		  }]"#;
+			"prerelease": false,
+			"published_at": "2024-01-01T00:00:00Z"
+		  },
+		  {
+			"tag_name": "polkadot-v1.11.0",
+			"name": "Polkadot v1.11.0",
+			"prerelease": false,
+			"published_at": "2023-01-01T00:00:00Z"
+		  },
+		  {
+			"tag_name": "polkadot-v1.12.0",
+			"name": "Polkadot v1.12.0",
+			"prerelease": false,
+			"published_at": "2025-01-01T00:00:00Z"
+		  }
+		]"#;
 		let repo = GitHub::parse(BASE_PARACHAIN)?.with_api(&mock_server.url());
 		let mock = releases_mock(&mut mock_server, &repo, expected_payload).await;
 		let latest_release = repo.releases().await?;
 		assert_eq!(
-			latest_release[0],
-			Release {
-				tag_name: "polkadot-v1.10.0".to_string(),
-				name: "Polkadot v1.10.0".into(),
-				prerelease: false,
-				commit: None
-			}
+			latest_release,
+			vec![
+				Release {
+					tag_name: "polkadot-v1.12.0".to_string(),
+					name: "Polkadot v1.12.0".into(),
+					prerelease: false,
+					commit: None,
+					published_at: "2025-01-01T00:00:00Z".to_string()
+				},
+				Release {
+					tag_name: "polkadot-v1.10.0".to_string(),
+					name: "Polkadot v1.10.0".into(),
+					prerelease: false,
+					commit: None,
+					published_at: "2024-01-01T00:00:00Z".to_string()
+				},
+				Release {
+					tag_name: "polkadot-v1.11.0".to_string(),
+					name: "Polkadot v1.11.0".into(),
+					prerelease: false,
+					commit: None,
+					published_at: "2023-01-01T00:00:00Z".to_string()
+				}
+			]
 		);
 		mock.assert_async().await;
 		Ok(())
