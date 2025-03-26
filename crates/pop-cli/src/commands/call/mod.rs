@@ -4,7 +4,7 @@ use clap::{Args, Subcommand};
 
 #[cfg(feature = "parachain")]
 pub(crate) mod chain;
-#[cfg(feature = "contract")]
+#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 pub(crate) mod contract;
 
 /// Arguments for calling a smart contract.
@@ -23,7 +23,7 @@ pub(crate) enum Command {
 	#[clap(alias = "p", visible_aliases = ["parachain"])]
 	Chain(chain::CallChainCommand),
 	/// Call a contract
-	#[cfg(feature = "contract")]
+	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 	#[clap(alias = "c")]
 	Contract(contract::CallContractCommand),
 }

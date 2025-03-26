@@ -1,21 +1,26 @@
 // SPDX-License-Identifier: GPL-3.0
 
-#[cfg(not(any(feature = "contract", feature = "parachain")))]
-compile_error!("feature \"contract\" or feature \"parachain\" must be enabled");
+#[cfg(not(any(feature = "parachain", feature = "polkavm-contracts", feature = "wasm-contracts")))]
+compile_error!(
+	"feature \"parachain\", \"polkavm-contracts\" or \"wasm-contracts\" must be enabled"
+);
+
+#[cfg(all(feature = "polkavm-contracts", feature = "wasm-contracts"))]
+compile_error!("only feature \"polkavm-contracts\" OR \"wasm-contracts\" must be enabled");
 
 use anyhow::{anyhow, Result};
 use clap::Parser;
 use commands::*;
-use serde_json::json;
 use std::{fs::create_dir_all, path::PathBuf};
 #[cfg(feature = "telemetry")]
 use {
 	pop_telemetry::{config_file_path, record_cli_command, record_cli_used, Telemetry},
+	serde_json::json,
 	std::env::args,
 };
 
 mod cli;
-#[cfg(any(feature = "parachain", feature = "contract"))]
+#[cfg(any(feature = "parachain", feature = "polkavm-contracts", feature = "wasm-contracts"))]
 mod commands;
 mod common;
 #[cfg(feature = "parachain")]
@@ -134,6 +139,7 @@ mod tests {
 		Ok(())
 	}
 
+	#[cfg(feature = "telemetry")]
 	#[test]
 	fn parse_args_works() {
 		for args in vec![

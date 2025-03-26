@@ -26,6 +26,7 @@ pub(crate) mod traits {
 		/// Prints a footer of the prompt sequence with a failure style.
 		fn outro_cancel(&mut self, message: impl Display) -> Result<()>;
 		/// Constructs a new [`Password`] prompt.
+		#[allow(dead_code)]
 		fn password(&mut self, prompt: impl Display) -> impl Password;
 		/// Constructs a new [`Select`] prompt.
 		fn select<T: Clone + Eq>(&mut self, prompt: impl Display) -> impl Select<T>;
@@ -69,24 +70,28 @@ pub(crate) mod traits {
 		/// Sets whether the input is required.
 		fn required(self, required: bool) -> Self;
 		/// The filter mode allows to filter the items by typing.
+		#[allow(dead_code)]
 		fn filter_mode(self) -> Self;
 	}
 
 	/// A prompt that masks the input.
 	pub trait Password {
 		/// Starts the prompt interaction.
+		#[allow(dead_code)]
 		fn interact(&mut self) -> Result<String>;
 	}
 
 	/// A select prompt.
 	pub trait Select<T> {
 		/// Sets the initially selected value.
+		#[allow(dead_code)]
 		fn initial_value(self, initial_value: T) -> Self;
 		/// Starts the prompt interaction.
 		fn interact(&mut self) -> Result<T>;
 		/// Adds an item to the selection prompt.
 		fn item(self, value: T, label: impl Display, hint: impl Display) -> Self;
 		/// The filter mode allows to filter the items by typing.
+		#[allow(dead_code)]
 		fn filter_mode(self) -> Self;
 	}
 }
@@ -338,6 +343,7 @@ pub(crate) mod tests {
 			self
 		}
 
+		#[allow(dead_code)]
 		pub(crate) fn expect_password(mut self, prompt: impl Display, input: String) -> Self {
 			self.password_expectations.insert(0, (prompt.to_string(), input));
 			self

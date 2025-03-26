@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
+#[cfg(feature = "v5")]
 use contract_extrinsics::{RawParams, RpcRequest};
+#[cfg(feature = "v6")]
+use contract_extrinsics_inkv6::{RawParams, RpcRequest};
 use pop_common::{
 	sourcing::{
 		traits::{Source as _, *},
@@ -22,6 +25,9 @@ use std::{
 use subxt::{dynamic::Value, SubstrateConfig};
 use tokio::time::sleep;
 
+#[cfg(feature = "v5")]
+const BIN_NAME: &str = "substrate-contracts-node";
+#[cfg(feature = "v6")]
 const BIN_NAME: &str = "ink-node";
 const STARTUP: Duration = Duration::from_millis(20_000);
 
@@ -51,14 +57,26 @@ pub(super) enum Chain {
 	/// Minimal Substrate node configured for smart contracts via pallet-contracts and
 	/// pallet-revive.
 	#[strum(props(
+		Repository = "https://github.com/paritytech/substrate-contracts-node",
+		Binary = "substrate-contracts-node",
+		TagFormat = "{tag}",
+		Fallback = "v0.41.0"
+	))]
+	#[cfg(feature = "v5")]
+	ContractsNode,
+	/// Minimal Substrate node configured for smart contracts via pallet-contracts and
+	/// pallet-revive.
+	#[strum(props(
 		Repository = "https://github.com/use-ink/ink-node",
 		Binary = "ink-node",
 		TagFormat = "{tag}",
 		Fallback = "v0.43.0"
 	))]
+	#[cfg(feature = "v6")]
 	ContractsNode,
 }
 
+#[cfg(any(feature = "v5", feature = "v6"))]
 impl TryInto for Chain {
 	/// Attempt the conversion.
 	///
@@ -67,7 +85,7 @@ impl TryInto for Chain {
 	/// * `latest` - If applicable, some specifier used to determine the latest source.
 	fn try_into(&self, tag: Option<String>, latest: Option<String>) -> Result<Source, Error> {
 		let archive = archive_name_by_target()?;
-		let archive_bin_path = release_directory_by_target(tag.as_deref())?;
+		let archive_bin_path = release_directory_by_target(#[cfg(feature = "v5")] tag.as_deref())?;
 		Ok(match self {
 			&Chain::ContractsNode => {
 				// Source from GitHub release asset
@@ -106,6 +124,7 @@ pub async fn contracts_node_generator(
 	let latest = version.is_none().then(|| releases.first().map(|v| v.to_string())).flatten();
 	let contracts_node = Binary::Source {
 		name: name.to_string(),
+		#[cfg(any(feature = "v5", feature = "v6"))]
 		source: TryInto::try_into(chain, tag.clone(), latest)?,
 		cache: cache.to_path_buf(),
 	};
@@ -162,11 +181,31 @@ fn archive_name_by_target() -> Result<String, Error> {
 		_ => Err(Error::UnsupportedPlatform { arch: ARCH, os: OS }),
 	}
 }
-
-fn release_directory_by_target(_tag: Option<&str>) -> Result<&'static str, Error> {
+#[cfg(feature = "v6")]
+fn release_directory_by_target() -> Result<&'static str, Error> {
 	match OS {
 		"macos" => Ok("ink-node-mac/ink-node"),
 		"linux" => Ok("ink-node-linux/ink-node"),
+		_ => Err(Error::UnsupportedPlatform { arch: ARCH, os: OS }),
+	}
+}
+
+#[cfg(feature = "v5")]
+fn release_directory_by_target(tag: Option<&str>) -> Result<&'static str, Error> {
+	let is_old_structure = matches!(tag, Some(tag) if tag < "v0.42.0");
+	match OS {
+		"macos" =>
+			if is_old_structure {
+				Ok("artifacts/substrate-contracts-node-mac/substrate-contracts-node")
+			} else {
+				Ok("substrate-contracts-node-mac/substrate-contracts-node")
+			},
+		"linux" =>
+			if is_old_structure {
+				Ok("artifacts/substrate-contracts-node-linux/substrate-contracts-node")
+			} else {
+				Ok("substrate-contracts-node-linux/substrate-contracts-node")
+			},
 		_ => Err(Error::UnsupportedPlatform { arch: ARCH, os: OS }),
 	}
 }
@@ -182,9 +221,9 @@ mod tests {
 	async fn directory_path_by_target() -> Result<()> {
 		let archive = archive_name_by_target();
 		if cfg!(target_os = "macos") {
-			assert_eq!(archive?, "ink-node-mac-universal.tar.gz");
+			assert_eq!(archive?, format!("{BIN_NAME}-mac-universal.tar.gz"));
 		} else if cfg!(target_os = "linux") {
-			assert_eq!(archive?, "ink-node-linux.tar.gz");
+			assert_eq!(archive?, format!("{BIN_NAME}-linux.tar.gz"));
 		} else {
 			assert!(archive.is_err())
 		}
@@ -208,7 +247,7 @@ mod tests {
 		let version = "v0.40.0";
 		let binary = contracts_node_generator(cache.clone(), Some(version)).await?;
 		let archive = archive_name_by_target()?;
-		let archive_bin_path = release_directory_by_target(Some(version))?;
+		let archive_bin_path = release_directory_by_target(#[cfg(feature = "v5")] Some(version))?;
 		assert!(matches!(binary, Binary::Source { name, source, cache}
 			if name == expected.binary()  &&
 				source == Source::GitHub(ReleaseArchive {
