@@ -20,7 +20,7 @@ use try_runtime_core::common::{
 	state::{LiveState, State},
 };
 
-const DEFAULT_BLOCK_HASH: &str = "0x12345abcdef";
+const DEFAULT_BLOCK_HASH: &str = "0x1a2b3c4d5e6f7890";
 const DEFAULT_LIVE_NODE_URL: &str = "ws://localhost:9944/";
 const EXCLUDED_ARGS: [&str; 7] =
 	["--profile", "--migration", "-m", "--no-build", "-n", "--skip-confirm", "-y"];
@@ -81,7 +81,7 @@ pub struct Command {
 
 	/// The chain blocktime in milliseconds.
 	#[arg(long)]
-	pub blocktime: u64,
+	pub blocktime: Option<u64>,
 }
 
 #[derive(Args)]
@@ -119,12 +119,11 @@ impl TestOnRuntimeUpgradeCommand {
 
 		self.update_state(cli)?;
 
-		let result = self.run(cli).await;
-
 		// If the `checks` argument is not provided, prompt the user to select the upgrade checks.
 		if !has_argument("checks") {
 			self.command.command.checks = guide_user_to_select_upgrade_checks(cli)?;
 		}
+		let result = self.run(cli).await;
 
 		// Display the `on-runtime-upgrade` command.
 		cliclack::log::remark("\n")?;
@@ -182,12 +181,12 @@ impl TestOnRuntimeUpgradeCommand {
 		cli: &mut impl cli::traits::Cli,
 		mut path: Option<PathBuf>,
 	) -> anyhow::Result<()> {
-		if !has_argument("blocktime") {
-			let block_time = cli.input("Enter the block time").required(true).interact()?;
-			self.command.command.blocktime = block_time.parse()?;
+		if self.command.command.blocktime.is_none() {
+			let block_time = cli.input("Enter the block time:").required(true).interact()?;
+			self.command.command.blocktime = Some(block_time.parse()?);
 		}
 		if path.is_none() {
-			path = Some(cli.input("Enter your snapshot file").required(true).interact()?.into());
+			path = Some(cli.input("Enter your snapshot file:").required(true).interact()?.into());
 		}
 		self.command.command.state = Some(State::Snap { path });
 		Ok(())
@@ -200,14 +199,14 @@ impl TestOnRuntimeUpgradeCommand {
 	) -> anyhow::Result<()> {
 		if live_state.uri.is_empty() {
 			live_state.uri = cli
-				.input("Enter the live chain of your node")
+				.input("Enter the live chain of your node:")
 				.required(true)
 				.placeholder(DEFAULT_LIVE_NODE_URL)
 				.interact()?;
 		}
 		if live_state.at.is_none() {
 			let block_hash = cli
-				.input("Enter the block hash")
+				.input("Enter the block hash (optional):")
 				.required(false)
 				.placeholder(DEFAULT_BLOCK_HASH)
 				.interact()?;
@@ -220,12 +219,27 @@ impl TestOnRuntimeUpgradeCommand {
 	fn display(&self) -> String {
 		let mut args = vec!["pop test on-runtime-upgrade".to_string()];
 		let mut arguments: Vec<String> = std::env::args().skip(3).collect();
+
+		if !has_argument("runtime") {
+			arguments.push(format!(
+				"--runtime={}",
+				match self.command.shared_params.runtime {
+					Runtime::Path(ref path) => path.to_str().unwrap().to_string(),
+					Runtime::Existing => "existing".to_string(),
+				}
+			));
+		}
 		if let Some(ref profile) = self.profile {
 			arguments.push(format!("--profile={}", profile));
 		}
 		if let Some(ref state) = self.state {
 			arguments.push(format!("--state={}", state));
 		}
+		if !has_argument("checks") {
+			let check = parse_upgrade_checks(self.command.command.checks);
+			arguments.push(format!("--checks={}", check));
+		}
+
 		if self.no_build {
 			arguments.push("-n".to_string());
 		}
