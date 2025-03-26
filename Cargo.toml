@@ -96,3 +96,6 @@ strum_macros = "0.26"
 axum = "0.7.9"
 open = "5.3.1"
 tower-http = "0.6.2"
+
+[patch.crates-io]
+rustls-webpki = "0.102"
