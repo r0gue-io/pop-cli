@@ -29,9 +29,10 @@ pub use up::{
 	ContractInfo, UpOpts,
 };
 pub use utils::{
+	map_account::AccountMapper,
 	metadata::{get_message, get_messages, ContractFunction},
 	parse_hex_bytes,
 };
 // External exports
-pub use contract_extrinsics::CallExec;
+pub use contract_extrinsics::{CallExec, ExtrinsicOpts};
 pub use ink_env::DefaultEnvironment;

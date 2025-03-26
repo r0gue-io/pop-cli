@@ -10,6 +10,8 @@ use std::{
 	str::FromStr,
 };
 
+/// Module for account mapping functionality.
+pub mod map_account;
 pub mod metadata;
 
 /// Retrieves the manifest path for a contract project.

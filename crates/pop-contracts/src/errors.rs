@@ -39,6 +39,9 @@ pub enum Error {
 	IO(#[from] std::io::Error),
 	#[error("Failed to get manifest path: {0}")]
 	ManifestPath(String),
+	/// Error returned when mapping an account fails.
+	#[error("Failed to map account: {0}")]
+	MapAccountError(String),
 	#[error("Argument {0} is required")]
 	MissingArgument(String),
 	#[error("Failed to create new contract project: {0}")]
