@@ -5,7 +5,7 @@ use assert_cmd::Command;
 use pop_common::{find_free_port, set_executable_permission, templates::Template};
 use pop_contracts::{
 	contracts_node_generator, dry_run_gas_estimate_instantiate, instantiate_smart_contract,
-	run_contracts_node, set_up_deployment, Contract, UpOpts,
+	run_contracts_node, set_up_deployment, AccountMapper, Contract, UpOpts,
 };
 use serde::{Deserialize, Serialize};
 use std::{path::Path, process::Command as Cmd, time::Duration};
@@ -79,7 +79,7 @@ async fn contract_lifecycle() -> Result<()> {
 	assert!(temp_dir.join("test_contract/target").exists());
 	// Verify that all the artifacts has been generated
 	assert!(temp_dir.join("test_contract/target/ink/test_contract.contract").exists());
-	assert!(temp_dir.join("test_contract/target/ink/test_contract.wasm").exists());
+	assert!(temp_dir.join("test_contract/target/ink/test_contract.polkavm").exists());
 	assert!(temp_dir.join("test_contract/target/ink/test_contract.json").exists());
 
 	let binary = contracts_node_generator(temp_dir.to_path_buf().clone(), None).await?;
@@ -87,6 +87,22 @@ async fn contract_lifecycle() -> Result<()> {
 	set_executable_permission(binary.path())?;
 	let process = run_contracts_node(binary.path(), None, endpoint_port).await?;
 	sleep(Duration::from_secs(5)).await;
+
+	let instantiate_exec = set_up_deployment(UpOpts {
+		path: Some(temp_dir.join("test_contract")),
+		constructor: "new".to_string(),
+		args: ["false".to_string()].to_vec(),
+		value: "0".to_string(),
+		gas_limit: None,
+		proof_size: None,
+		salt: None,
+		url: Url::parse(default_endpoint)?,
+		suri: "//Alice".to_string(),
+	})
+	.await?;
+	// Map account
+	let map = AccountMapper::new(&instantiate_exec.opts()).await?;
+	map.map_account().await?;
 
 	// Only upload the contract
 	// pop up --path ./test_contract --upload-only
@@ -116,18 +132,6 @@ async fn contract_lifecycle() -> Result<()> {
 		.success();
 	// Using methods from the pop_contracts crate to instantiate it to get the Contract Address for
 	// the call
-	let instantiate_exec = set_up_deployment(UpOpts {
-		path: Some(temp_dir.join("test_contract")),
-		constructor: "new".to_string(),
-		args: ["false".to_string()].to_vec(),
-		value: "0".to_string(),
-		gas_limit: None,
-		proof_size: None,
-		salt: None,
-		url: Url::parse(default_endpoint)?,
-		suri: "//Alice".to_string(),
-	})
-	.await?;
 	let weight_limit = dry_run_gas_estimate_instantiate(&instantiate_exec).await?;
 	let contract_info = instantiate_smart_contract(instantiate_exec, weight_limit).await?;
 	// Call contract (only query)
