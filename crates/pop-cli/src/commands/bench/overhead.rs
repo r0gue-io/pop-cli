@@ -3,12 +3,10 @@
 use crate::{
 	cli::{self, traits::Input},
 	common::{
-		bench::{
-			check_omni_bencher_and_prompt, ensure_runtime_binary_exists,
-			guide_user_to_select_genesis_preset, overwrite_weight_dir_command,
-		},
+		bench::{check_omni_bencher_and_prompt, overwrite_weight_dir_command},
 		builds::guide_user_to_select_profile,
 		prompt::display_message,
+		runtime::{ensure_runtime_binary_exists, guide_user_to_select_genesis_preset},
 	},
 };
 use clap::{Args, Parser};
@@ -230,7 +228,10 @@ mod tests {
 	use super::*;
 	use crate::{
 		cli::MockCli,
-		common::bench::{get_mock_runtime, EXECUTED_COMMAND_COMMENT},
+		common::{
+			bench::EXECUTED_COMMAND_COMMENT,
+			runtime::{get_mock_runtime, RuntimeFeature},
+		},
 	};
 	use pop_parachains::get_preset_names;
 	use std::{
@@ -285,7 +286,7 @@ mod tests {
 		let cwd = current_dir().unwrap_or(PathBuf::from("./"));
 		let temp_dir = tempdir()?;
 		let output_path = temp_dir.path().to_str().unwrap();
-		let runtime_path = get_mock_runtime(true);
+		let runtime_path = get_mock_runtime(Some(RuntimeFeature::Benchmark));
 		let preset_names = get_preset_names(&runtime_path)?
 			.into_iter()
 			.map(|preset| (preset, String::default()))
@@ -348,7 +349,7 @@ mod tests {
 	#[tokio::test]
 	async fn benchmark_overhead_weight_file_works() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
-		let runtime_path = get_mock_runtime(true);
+		let runtime_path = get_mock_runtime(Some(RuntimeFeature::Benchmark));
 		let output_path = temp_dir.path().to_str().unwrap();
 		let preset_names = get_preset_names(&runtime_path)?
 			.into_iter()
@@ -402,7 +403,7 @@ mod tests {
 	#[tokio::test]
 	async fn benchmark_overhead_invalid_weight_path_fails() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
-		let runtime_path = get_mock_runtime(true);
+		let runtime_path = get_mock_runtime(Some(RuntimeFeature::Benchmark));
 		let preset_names = get_preset_names(&runtime_path)?
 			.into_iter()
 			.map(|preset| (preset, String::default()))
@@ -424,7 +425,7 @@ mod tests {
 		let cmd = OverheadCmd::try_parse_from([
 			"",
 			"--runtime",
-			get_mock_runtime(false).to_str().unwrap(),
+			get_mock_runtime(Some(RuntimeFeature::Benchmark)).to_str().unwrap(),
 			"--weight-path",
 			temp_dir.path().join("weights.rs").to_str().unwrap(),
 		])?;
