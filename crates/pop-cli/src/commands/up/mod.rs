@@ -94,7 +94,7 @@ impl Command {
 #[cfg(test)]
 mod tests {
 	use super::{contract::UpContractCommand, *};
-	use crate::style::{format_url, style};
+	use crate::style::format_url;
 	use cli::MockCli;
 	use duct::cmd;
 	use pop_contracts::{mock_build_process, new_environment};
