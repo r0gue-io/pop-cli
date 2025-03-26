@@ -506,12 +506,18 @@ fn prompt_template_used(cli: &mut impl Cli) -> Result<&str> {
 fn warn_supported_templates(provider: &DeploymentProvider, cli: &mut impl Cli) -> Result<()> {
 	let supported_templates: Vec<String> = Parachain::VARIANTS
 		.iter()
-		.filter_map(|variant| variant.deployment_name().map(|_| variant.name().to_string()))
+		.filter_map(|variant| {
+			variant.deployment_name().map(|_| {
+				style(format!("{} {}", console::Emoji("●", ">"), variant.name().to_string()))
+					.dim()
+					.to_string()
+			})
+		})
 		.collect();
 	cli.warning(format!(
-		"Currently {} only supports the following templates: {}.\n",
+		"Currently {} only supports the following templates:\n{}.",
 		provider.name(),
-		style(supported_templates.join(", ")).dim()
+		style(supported_templates.join("\n"))
 	))?;
 	Ok(())
 }
@@ -907,18 +913,20 @@ mod tests {
 	#[test]
 	fn warn_supported_templates_works() -> Result<()> {
 		let mut cli = MockCli::new().expect_warning(format!(
-			"Currently Polkadot Deployment Portal only supports the following templates: {}.\n",
-			style(format!(
-				"{}",
+			"Currently Polkadot Deployment Portal only supports the following templates:\n{}.",
+			style(
 				Parachain::VARIANTS
 					.iter()
-					.filter_map(|variant| variant
-						.deployment_name()
-						.map(|_| format!("{}", variant.name())))
+					.filter_map(|variant| variant.deployment_name().map(|_| style(format!(
+						"{} {}",
+						console::Emoji("●", ">"),
+						variant.name().to_string()
+					))
+					.dim()
+					.to_string()))
 					.collect::<Vec<String>>()
-					.join(", ")
-			))
-			.dim()
+					.join("\n")
+			)
 		));
 		warn_supported_templates(&DeploymentProvider::PDP, &mut cli)?;
 		cli.verify()
