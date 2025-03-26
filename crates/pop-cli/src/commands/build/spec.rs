@@ -553,10 +553,7 @@ impl BuildSpec {
 	// This function generates plain and raw chain spec files based on the provided configuration,
 	// optionally including genesis state and runtime artifacts. If the node binary is missing,
 	// it triggers a build process.
-	pub(crate) fn build(
-		self,
-		cli: &mut impl cli::traits::Cli,
-	) -> anyhow::Result<GenesisArtifacts> {
+	pub(crate) fn build(self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<GenesisArtifacts> {
 		cli.intro("Building your chain spec")?;
 		let cwd = current_dir().unwrap_or(PathBuf::from("./"));
 		let mut generated_files = vec![];
