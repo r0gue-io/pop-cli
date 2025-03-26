@@ -1,16 +1,12 @@
 {
   "source": {
-    "hash": "0xf4f0cafd08d8e362141b3c64e3c651ad6a38225dbf0b66f691c15bb0ea00eac3",
-    "language": "ink! 5.0.0",
-    "compiler": "rustc 1.78.0",
+    "hash": "0x7a4bd7cced932413a4ec054d3b13e88070fdea25cccdd4381e90a333444977a0",
+    "language": "ink! 6.0.0-alpha",
+    "compiler": "rustc 1.85.0",
     "build_info": {
       "rust_toolchain": "stable-aarch64-apple-darwin",
-      "cargo_contract_version": "5.0.0-alpha",
-      "build_mode": "Release",
-      "wasm_opt_settings": {
-        "optimization_passes": "Z",
-        "keep_debug_symbols": false
-      }
+      "cargo_contract_version": "6.0.0-alpha",
+      "build_mode": "Release"
     }
   },
   "contract": {
@@ -288,7 +284,7 @@
       "id": 14,
       "type": {
         "path": [
-          "ink_env",
+          "ink_primitives",
           "types",
           "NoChainExtension"
         ],
