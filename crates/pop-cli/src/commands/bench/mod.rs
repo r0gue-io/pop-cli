@@ -6,8 +6,10 @@ use crate::{
 };
 use clap::{Args, Subcommand};
 use pallet::BenchmarkPallet;
+use storage::BenchmarkStorage;
 
 mod pallet;
+mod storage;
 
 /// Arguments for benchmarking a project.
 #[derive(Args)]
@@ -23,6 +25,9 @@ pub enum Command {
 	/// Benchmark the extrinsic weight of FRAME Pallets
 	#[clap(alias = "p")]
 	Pallet(BenchmarkPallet),
+	/// Benchmark the storage speed of a chain snapshot.
+	#[clap(alias = "s")]
+	Storage(BenchmarkStorage),
 }
 
 impl Command {
@@ -31,6 +36,7 @@ impl Command {
 		let mut cli = cli::Cli;
 		match args.command {
 			Command::Pallet(mut cmd) => cmd.execute(&mut cli).await,
+			Command::Storage(mut cmd) => cmd.execute(&mut cli),
 		}
 	}
 }

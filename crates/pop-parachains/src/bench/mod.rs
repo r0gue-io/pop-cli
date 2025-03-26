@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use clap::Parser;
+use duct::cmd;
 use frame_benchmarking_cli::PalletCmd;
 use sc_chain_spec::GenesisConfigBuilderRuntimeCaller;
 use sp_runtime::traits::BlakeTwo256;
@@ -91,11 +92,39 @@ pub fn get_runtime_path(parent: &Path) -> anyhow::Result<PathBuf> {
 ///
 /// # Arguments
 /// * `args` - Arguments to pass to the benchmarking command.
-pub fn generate_benchmarks(args: Vec<String>) -> anyhow::Result<()> {
+pub fn generate_pallet_benchmarks(args: Vec<String>) -> anyhow::Result<()> {
 	let cmd = PalletCmd::try_parse_from([vec!["".to_string()], args].concat())
 		.map_err(|e| anyhow::anyhow!("Invalid command arguments: {}", e))?;
 	cmd.run_with_spec::<BlakeTwo256, HostFunctions>(None)
 		.map_err(|e| anyhow::anyhow!("Failed to run benchmarking: {}", e))
+}
+
+/// Generates binary benchmarks using `frame-benchmarking-cli`.
+///
+/// # Arguments
+/// * `binary_path` - Path to the binary of FRAME Omni Bencher.
+/// * `command` - Command to run for benchmarking.
+pub fn generate_binary_benchmarks(binary_path: &PathBuf, command: &str) -> anyhow::Result<()> {
+	let temp_file = NamedTempFile::new()?;
+	let temp_path = temp_file.path().to_owned();
+
+	// Get all arguments of the command and skip the program name.
+	let mut args = std::env::args().skip(3).collect::<Vec<String>>();
+	let mut cmd_args = vec!["benchmark".to_string(), command.to_string()];
+	cmd_args.append(&mut args);
+
+	if let Err(e) = cmd(binary_path, cmd_args).stderr_path(&temp_path).run() {
+		let mut error_output = String::new();
+		std::fs::File::open(&temp_path)
+			.unwrap()
+			.read_to_string(&mut error_output)
+			.unwrap();
+		return Err(anyhow::anyhow!(
+			"Failed to run benchmarking: {}",
+			if error_output.is_empty() { e.to_string() } else { error_output }
+		));
+	}
+	Ok(())
 }
 
 /// Loads a mapping of pallets and their associated extrinsics from the runtime binary.
@@ -135,7 +164,7 @@ fn process_pallet_extrinsics(output_file: PathBuf) -> anyhow::Result<PalletExtri
 
 	// Returns an error if the runtime is not built with `--features runtime-benchmarks`.
 	if output.contains("--features runtime-benchmarks") {
-		return Err(anyhow::anyhow!("Runtime is not built with `--features runtime-benchmarks`. Please rebuild it with the feature enabled."))
+		return Err(anyhow::anyhow!("Runtime is not built with `--features runtime-benchmarks`. Please rebuild it with the feature enabled."));
 	}
 
 	// Process the captured output and return the pallet extrinsics registry.
@@ -187,8 +216,8 @@ mod tests {
 	use tempfile::tempdir;
 
 	#[test]
-	fn generate_benchmarks_works() -> anyhow::Result<()> {
-		generate_benchmarks(vec![
+	fn generate_pallet_benchmarks_works() -> anyhow::Result<()> {
+		generate_pallet_benchmarks(vec![
 			"--pallet=pallet_timestamp".to_string(),
 			"--extrinsic=*".to_string(),
 			"--runtime".to_string(),

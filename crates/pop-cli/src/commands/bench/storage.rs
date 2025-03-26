@@ -1,25 +1,18 @@
-// SPDX-License-Identifier: GPL-3.0
-
 use crate::{
 	cli::{self},
 	common::{
-		bench::overwrite_weight_dir_command,
 		builds::{ensure_node_binary_exists, guide_user_to_select_profile},
 		prompt::display_message,
-		runtime::RuntimeFeature,
 	},
 };
 use clap::Args;
 use frame_benchmarking_cli::StorageCmd;
 use pop_common::Profile;
-use pop_parachains::{generate_binary_benchmarks, BenchmarkingCliCommand};
+use pop_parachains::generate_binary_benchmarks;
 use std::{
 	env::current_dir,
 	path::{Path, PathBuf},
 };
-use tempfile::tempdir;
-
-const EXCLUDED_ARGS: [&str; 1] = ["--profile"];
 
 #[derive(Args)]
 pub(crate) struct BenchmarkStorage {
@@ -50,13 +43,13 @@ impl BenchmarkStorage {
 			cli,
 			target_path,
 			self.profile.as_ref().ok_or_else(|| anyhow::anyhow!("No profile provided"))?,
-			vec![RuntimeFeature::Benchmark.as_ref()],
+			vec!["runtime-benchmarks"],
 		)?;
 
 		cli.warning("NOTE: this may take some time...")?;
 		cli.info("Benchmarking and generating weight file...")?;
 
-		let result = self.run(binary_path);
+		let result = generate_binary_benchmarks(&binary_path, "storage");
 
 		// Display the benchmarking command.
 		cliclack::log::remark("\n")?;
@@ -68,58 +61,14 @@ impl BenchmarkStorage {
 		Ok(())
 	}
 
-	fn run(&mut self, binary_path: PathBuf) -> anyhow::Result<()> {
-		let temp_dir = tempdir()?;
-		let original_weight_path = self
-			.command
-			.params
-			.weight_params
-			.weight_path
-			.clone()
-			.unwrap_or_else(|| PathBuf::from("."));
-		self.command.params.weight_params.weight_path = Some(temp_dir.path().to_path_buf());
-
-		// Run the benchmark with updated arguments.
-		generate_binary_benchmarks(
-			&binary_path,
-			BenchmarkingCliCommand::Storage,
-			|args| {
-				args.into_iter()
-					.map(|arg| {
-						if arg.starts_with("--weight-path") {
-							format!("--weight-path={}", temp_dir.path().display())
-						} else {
-							arg
-						}
-					})
-					.collect()
-			},
-			&EXCLUDED_ARGS,
-		)?;
-
-		// Restore the original weight path.
-		self.command.params.weight_params.weight_path = Some(original_weight_path.clone());
-		// Overwrite the weight files with the correct executed command.
-		overwrite_weight_dir_command(
-			temp_dir.path(),
-			&original_weight_path,
-			&self.collect_display_arguments(),
-		)?;
-		Ok(())
-	}
-
 	fn display(&self) -> String {
-		self.collect_display_arguments().join(" ")
-	}
-
-	fn collect_display_arguments(&self) -> Vec<String> {
-		let mut args = vec!["pop".to_string(), "bench".to_string(), "storage".to_string()];
+		let mut args = vec!["pop bench storage".to_string()];
 		let mut arguments: Vec<String> = std::env::args().skip(3).collect();
 		if let Some(ref profile) = self.profile {
 			arguments.push(format!("--profile={}", profile));
 		}
 		args.extend(arguments);
-		args
+		args.join(" ")
 	}
 }
 
@@ -131,6 +80,7 @@ mod tests {
 	use frame_benchmarking_cli::StorageCmd;
 	use pop_common::Profile;
 	use std::fs::{self, File};
+	use strum::{EnumMessage, VariantArray};
 	use tempfile::tempdir;
 
 	use super::BenchmarkStorage;
@@ -164,13 +114,23 @@ mod tests {
 		.benchmark(&mut cli, temp_dir.path())?;
 		cli.verify()?;
 
+		// Prompt user to select `profile` if not provided.
+		let profiles = Profile::VARIANTS
+			.iter()
+			.map(|profile| {
+				(
+					profile.get_message().unwrap_or(profile.as_ref()).to_string(),
+					profile.get_detailed_message().unwrap_or_default().to_string(),
+				)
+			})
+			.collect();
 		let mut cli = MockCli::new()
 			.expect_intro("Benchmarking the storage speed of a chain snapshot")
 			.expect_select(
 				"Choose the build profile of the binary that should be used: ",
 				Some(true),
 				true,
-				Some(Profile::get_variants()),
+				Some(profiles),
 				0,
 				None,
 			)
