@@ -41,6 +41,9 @@ pub(crate) struct BuildArgs {
 	/// Build profile [default: debug].
 	#[clap(long, value_enum)]
 	pub(crate) profile: Option<Profile>,
+	/// For benchmarking, always build with `runtime-benchmarks` feature.
+	#[clap(short, long)]
+	pub(crate) benchmark: bool,
 }
 
 /// Subcommand for building chain artifacts.
@@ -59,7 +62,7 @@ impl Command {
 		let project_path = get_project_path(args.path.clone(), args.path_pos.clone());
 
 		#[cfg(feature = "contract")]
-		if pop_contracts::is_supported(project_path.as_deref().map(|v| v))? {
+		if pop_contracts::is_supported(project_path.as_deref())? {
 			// All commands originating from root command are valid
 			let release = match args.profile {
 				Some(profile) => profile.into(),
@@ -71,16 +74,17 @@ impl Command {
 
 		// If only parachain feature enabled, build as parachain
 		#[cfg(feature = "parachain")]
-		if pop_parachains::is_supported(project_path.as_deref().map(|v| v))? {
+		if pop_parachains::is_supported(project_path.as_deref())? {
 			let profile = match args.profile {
 				Some(profile) => profile,
 				None => args.release.into(),
 			};
 			let temp_path = PathBuf::from("./");
 			BuildParachain {
-				path: project_path.unwrap_or_else(|| temp_path).to_path_buf(),
+				path: project_path.unwrap_or(temp_path).to_path_buf(),
 				package: args.package,
 				profile,
+				benchmark: args.benchmark,
 			}
 			.execute()?;
 			return Ok("parachain");
@@ -111,6 +115,10 @@ impl Command {
 		} else if profile == Profile::Production {
 			_args.push("--profile=production");
 		}
+		if args.benchmark {
+			_args.push("--features=runtime-benchmarks");
+		}
+
 		cmd("cargo", _args).dir(args.path.unwrap_or_else(|| "./".into())).run()?;
 
 		cli.info(format!("The {project} was built in {} mode.", profile))?;
@@ -123,7 +131,7 @@ impl Command {
 mod tests {
 	use super::*;
 	use cli::MockCli;
-	use pop_common::manifest::add_production_profile;
+	use pop_common::manifest::{add_feature, add_production_profile};
 	use strum::VariantArray;
 
 	#[test]
@@ -134,32 +142,36 @@ mod tests {
 		let project_path = path.join(name);
 		cmd("cargo", ["new", name, "--bin"]).dir(&path).run()?;
 		add_production_profile(&project_path)?;
+		add_feature(&project_path, ("runtime-benchmarks".to_string(), vec![]))?;
 
 		for package in [None, Some(name.to_string())] {
 			for release in [true, false] {
 				for profile in Profile::VARIANTS {
-					let profile = if release { Profile::Release } else { profile.clone() };
-					let project = if package.is_some() { "package" } else { "project" };
-					let mut cli = MockCli::new()
-						.expect_intro(format!("Building your {project}"))
-						.expect_info(format!("The {project} was built in {profile} mode."))
-						.expect_outro("Build completed successfully!");
+					for benchmark in [true, false] {
+						let profile = if release { Profile::Release } else { profile.clone() };
+						let project = if package.is_some() { "package" } else { "project" };
+						let mut cli = MockCli::new()
+							.expect_intro(format!("Building your {project}"))
+							.expect_info(format!("The {project} was built in {profile} mode."))
+							.expect_outro("Build completed successfully!");
 
-					assert_eq!(
-						Command::build(
-							BuildArgs {
-								command: None,
-								path: Some(project_path.clone()),
-								path_pos: Some(project_path.clone()),
-								package: package.clone(),
-								release,
-								profile: Some(profile.clone()),
-							},
-							&mut cli,
-						)?,
-						project
-					);
-					cli.verify()?;
+						assert_eq!(
+							Command::build(
+								BuildArgs {
+									command: None,
+									path: Some(project_path.clone()),
+									path_pos: Some(project_path.clone()),
+									package: package.clone(),
+									release,
+									profile: Some(profile.clone()),
+									benchmark
+								},
+								&mut cli,
+							)?,
+							project
+						);
+						cli.verify()?;
+					}
 				}
 			}
 		}

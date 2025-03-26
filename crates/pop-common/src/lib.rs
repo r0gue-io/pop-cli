@@ -2,10 +2,13 @@
 
 use std::net::TcpListener;
 
+pub use account_id::parse_account;
 pub use build::Profile;
 pub use errors::Error;
 pub use git::{Git, GitHub, Release};
-pub use helpers::{capitalize_str, get_project_name_from_path, replace_in_file};
+pub use helpers::{
+	capitalize_str, get_project_name_from_path, get_relative_or_absolute_path, replace_in_file,
+};
 pub use manifest::{add_crate_to_workspace, find_pallet_runtime_path};
 pub use metadata::format_type;
 pub use signer::create_signer;
@@ -13,7 +16,10 @@ pub use sourcing::set_executable_permission;
 pub use subxt::{Config, PolkadotConfig as DefaultConfig};
 pub use subxt_signer::sr25519::Keypair;
 pub use templates::extractor::extract_template_files;
+pub use test::test_project;
 
+/// Module for parsing and handling account IDs.
+pub mod account_id;
 pub mod build;
 pub mod errors;
 pub mod git;
@@ -27,6 +33,8 @@ pub mod rust_writer_helpers;
 pub mod signer;
 pub mod sourcing;
 pub mod templates;
+/// Module for testing utilities and functionality.
+pub mod test;
 
 static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 
@@ -93,7 +101,7 @@ pub mod call {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
 	use super::*;
 	use anyhow::Result;
 

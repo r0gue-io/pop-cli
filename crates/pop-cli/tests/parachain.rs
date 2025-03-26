@@ -48,7 +48,7 @@ async fn parachain_lifecycle() -> Result<()> {
 
 	let temp_parachain_dir = temp_dir.join("test_parachain");
 	// pop build spec --output ./target/pop/test-spec.json --id 2222 --type development --relay
-	// paseo-local --protocol-id pop-protocol" --chain local
+	// paseo-local --protocol-id pop-protocol" --chain local --skip-deterministic-build
 	Command::cargo_bin("pop")
 		.unwrap()
 		.current_dir(&temp_parachain_dir)
@@ -71,6 +71,7 @@ async fn parachain_lifecycle() -> Result<()> {
 			"--genesis-code",
 			"--protocol-id",
 			"pop-protocol",
+			"--skip-deterministic-build",
 		])
 		.assert()
 		.success();
@@ -123,10 +124,10 @@ name = "collator-01"
 		),
 	)?;
 
-	// `pop up parachain -f ./network.toml --skip-confirm`
+	// `pop up network -f ./network.toml --skip-confirm`
 	let mut cmd = Cmd::new(cargo_bin("pop"))
 		.current_dir(&temp_parachain_dir)
-		.args(&["up", "parachain", "-f", "./network.toml", "--skip-confirm"])
+		.args(&["up", "network", "-f", "./network.toml", "--skip-confirm"])
 		.spawn()
 		.unwrap();
 

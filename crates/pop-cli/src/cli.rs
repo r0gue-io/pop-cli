@@ -23,6 +23,8 @@ pub(crate) mod traits {
 		fn outro(&mut self, message: impl Display) -> Result<()>;
 		/// Prints a footer of the prompt sequence with a failure style.
 		fn outro_cancel(&mut self, message: impl Display) -> Result<()>;
+		/// Constructs a new [`Password`] prompt.
+		fn password(&mut self, prompt: impl Display) -> impl Password;
 		/// Constructs a new [`Select`] prompt.
 		fn select<T: Clone + Eq>(&mut self, prompt: impl Display) -> impl Select<T>;
 		/// Prints a success message.
@@ -64,6 +66,14 @@ pub(crate) mod traits {
 		fn item(self, value: T, label: impl Display, hint: impl Display) -> Self;
 		/// Sets whether the input is required.
 		fn required(self, required: bool) -> Self;
+		/// The filter mode allows to filter the items by typing.
+		fn filter_mode(self) -> Self;
+	}
+
+	/// A prompt that masks the input.
+	pub trait Password {
+		/// Starts the prompt interaction.
+		fn interact(&mut self) -> Result<String>;
 	}
 
 	/// A select prompt.
@@ -74,6 +84,8 @@ pub(crate) mod traits {
 		fn interact(&mut self) -> Result<T>;
 		/// Adds an item to the selection prompt.
 		fn item(self, value: T, label: impl Display, hint: impl Display) -> Self;
+		/// The filter mode allows to filter the items by typing.
+		fn filter_mode(self) -> Self;
 	}
 }
 
@@ -115,6 +127,11 @@ impl traits::Cli for Cli {
 	/// Prints a footer of the prompt sequence with a failure style.
 	fn outro_cancel(&mut self, message: impl Display) -> Result<()> {
 		cliclack::outro_cancel(message)
+	}
+
+	/// Constructs a new [`Password`] prompt.
+	fn password(&mut self, prompt: impl Display) -> impl traits::Password {
+		Password(cliclack::password(prompt))
 	}
 
 	/// Constructs a new [`Select`] prompt.
@@ -200,6 +217,21 @@ impl<T: Clone + Eq> traits::MultiSelect<T> for MultiSelect<T> {
 		self.0 = self.0.required(required);
 		self
 	}
+
+	/// The filter mode allows to filter the items by typing.
+	fn filter_mode(mut self) -> Self {
+		self.0 = self.0.filter_mode();
+		self
+	}
+}
+
+/// A password prompt using cliclack.
+struct Password(cliclack::Password);
+impl traits::Password for Password {
+	/// Starts the prompt interaction.
+	fn interact(&mut self) -> Result<String> {
+		self.0.interact()
+	}
 }
 
 /// A select prompt using cliclack.
@@ -222,6 +254,12 @@ impl<T: Clone + Eq> traits::Select<T> for Select<T> {
 		self.0 = self.0.item(value, label, hint);
 		self
 	}
+
+	/// The filter mode allows to filter the items by typing.
+	fn filter_mode(mut self) -> Self {
+		self.0 = self.0.filter_mode();
+		self
+	}
 }
 
 #[cfg(test)]
@@ -238,9 +276,11 @@ pub(crate) mod tests {
 		intro_expectation: Option<String>,
 		outro_expectation: Option<String>,
 		multiselect_expectation:
-			Option<(String, Option<bool>, bool, Option<Vec<(String, String)>>)>,
+			Option<(String, Option<bool>, bool, Option<Vec<(String, String)>>, Option<bool>)>,
 		outro_cancel_expectation: Option<String>,
-		select_expectation: Vec<(String, Option<bool>, bool, Option<Vec<(String, String)>>, usize)>,
+		password_expectations: Vec<(String, String)>,
+		select_expectation:
+			Vec<(String, Option<bool>, bool, Option<Vec<(String, String)>>, usize, Option<bool>)>,
 		success_expectations: Vec<String>,
 		warning_expectations: Vec<String>,
 	}
@@ -276,8 +316,10 @@ pub(crate) mod tests {
 			required: Option<bool>,
 			collect: bool,
 			items: Option<Vec<(String, String)>>,
+			filter_mode: Option<bool>,
 		) -> Self {
-			self.multiselect_expectation = Some((prompt.to_string(), required, collect, items));
+			self.multiselect_expectation =
+				Some((prompt.to_string(), required, collect, items, filter_mode));
 			self
 		}
 
@@ -291,6 +333,11 @@ pub(crate) mod tests {
 			self
 		}
 
+		pub(crate) fn expect_password(mut self, prompt: impl Display, input: String) -> Self {
+			self.password_expectations.insert(0, (prompt.to_string(), input));
+			self
+		}
+
 		pub(crate) fn expect_select(
 			mut self,
 			prompt: impl Display,
@@ -298,9 +345,10 @@ pub(crate) mod tests {
 			collect: bool,
 			items: Option<Vec<(String, String)>>,
 			item: usize,
+			filter_mode: Option<bool>,
 		) -> Self {
 			self.select_expectation
-				.insert(0, (prompt.to_string(), required, collect, items, item));
+				.insert(0, (prompt.to_string(), required, collect, items, item, filter_mode));
 			self
 		}
 
@@ -328,7 +376,7 @@ pub(crate) mod tests {
 			if let Some(expectation) = self.intro_expectation {
 				panic!("`{expectation}` intro expectation not satisfied")
 			}
-			if let Some((prompt, _, _, _)) = self.multiselect_expectation {
+			if let Some((prompt, _, _, _, _)) = self.multiselect_expectation {
 				panic!("`{prompt}` multiselect prompt expectation not satisfied")
 			}
 			if let Some(expectation) = self.outro_expectation {
@@ -337,12 +385,15 @@ pub(crate) mod tests {
 			if let Some(expectation) = self.outro_cancel_expectation {
 				panic!("`{expectation}` outro cancel expectation not satisfied")
 			}
+			if !self.password_expectations.is_empty() {
+				panic!("`{:?}` password expectation not satisfied", self.password_expectations)
+			}
 			if !self.select_expectation.is_empty() {
 				panic!(
 					"`{}` select prompt expectation not satisfied",
 					self.select_expectation
 						.iter()
-						.map(|(s, _, _, _, _)| s.clone()) // Extract the `String` part
+						.map(|(s, _, _, _, _, _)| s.clone()) // Extract the `String` part
 						.collect::<Vec<_>>()
 						.join(", ")
 				);
@@ -402,8 +453,13 @@ pub(crate) mod tests {
 
 		fn multiselect<T: Clone + Eq>(&mut self, prompt: impl Display) -> impl MultiSelect<T> {
 			let prompt = prompt.to_string();
-			if let Some((expectation, required_expectation, collect, items_expectation)) =
-				self.multiselect_expectation.take()
+			if let Some((
+				expectation,
+				required_expectation,
+				collect,
+				items_expectation,
+				filter_mode_expectation,
+			)) = self.multiselect_expectation.take()
 			{
 				assert_eq!(expectation, prompt, "prompt does not satisfy expectation");
 				return MockMultiSelect {
@@ -411,6 +467,7 @@ pub(crate) mod tests {
 					items_expectation,
 					collect,
 					items: vec![],
+					filter_mode_expectation,
 				};
 			}
 
@@ -439,10 +496,25 @@ pub(crate) mod tests {
 			Ok(())
 		}
 
+		fn password(&mut self, prompt: impl Display) -> impl Password {
+			let prompt = prompt.to_string();
+			if let Some((expectation, input)) = self.password_expectations.pop() {
+				assert_eq!(expectation, prompt, "prompt does not satisfy expectation");
+				return MockPassword { prompt: input.clone() };
+			}
+			MockPassword::default()
+		}
+
 		fn select<T: Clone + Eq>(&mut self, prompt: impl Display) -> impl Select<T> {
 			let prompt = prompt.to_string();
-			if let Some((expectation, _, collect, items_expectation, item)) =
-				self.select_expectation.pop()
+			if let Some((
+				expectation,
+				_,
+				collect,
+				items_expectation,
+				item,
+				filter_mode_expectation,
+			)) = self.select_expectation.pop()
 			{
 				assert_eq!(expectation, prompt, "prompt does not satisfy expectation");
 				return MockSelect {
@@ -451,6 +523,7 @@ pub(crate) mod tests {
 					items: vec![],
 					item,
 					initial_value: None,
+					filter_mode_expectation,
 				};
 			}
 
@@ -528,12 +601,14 @@ pub(crate) mod tests {
 		items_expectation: Option<Vec<(String, String)>>,
 		collect: bool,
 		items: Vec<T>,
+		filter_mode_expectation: Option<bool>,
 	}
 
 	impl<T> MockMultiSelect<T> {
 		pub(crate) fn default() -> Self {
 			Self {
 				required_expectation: None,
+				filter_mode_expectation: None,
 				items_expectation: None,
 				collect: false,
 				items: vec![],
@@ -568,6 +643,26 @@ pub(crate) mod tests {
 			}
 			self
 		}
+
+		fn filter_mode(mut self) -> Self {
+			if let Some(expectation) = self.filter_mode_expectation.as_ref() {
+				assert!(*expectation, "filter mode does not satisfy expectation");
+				self.filter_mode_expectation = None;
+			}
+			self
+		}
+	}
+
+	/// Mock password prompt
+	#[derive(Default)]
+	struct MockPassword {
+		prompt: String,
+	}
+
+	impl Password for MockPassword {
+		fn interact(&mut self) -> Result<String> {
+			Ok(self.prompt.clone())
+		}
 	}
 
 	/// Mock select prompt
@@ -577,6 +672,7 @@ pub(crate) mod tests {
 		items: Vec<T>,
 		item: usize,
 		initial_value: Option<T>,
+		filter_mode_expectation: Option<bool>,
 	}
 
 	impl<T> MockSelect<T> {
@@ -587,6 +683,7 @@ pub(crate) mod tests {
 				items: vec![],
 				item: 0,
 				initial_value: None,
+				filter_mode_expectation: None,
 			}
 		}
 	}
@@ -611,6 +708,14 @@ pub(crate) mod tests {
 			// Collect if specified
 			if self.collect {
 				self.items.push(value);
+			}
+			self
+		}
+
+		fn filter_mode(mut self) -> Self {
+			if let Some(expectation) = self.filter_mode_expectation.as_ref() {
+				assert!(*expectation, "filter mode does not satisfy expectation");
+				self.filter_mode_expectation = None;
 			}
 			self
 		}

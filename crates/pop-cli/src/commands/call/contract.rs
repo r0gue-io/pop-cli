@@ -5,17 +5,18 @@ use crate::{
 	common::{
 		builds::get_project_path,
 		contracts::has_contract_been_built,
+		prompt::display_message,
 		wallet::{prompt_to_use_wallet, request_signature},
 	},
 };
 use anyhow::{anyhow, Result};
 use clap::Args;
 use cliclack::spinner;
-use pop_common::{DefaultConfig, Keypair};
+use pop_common::{parse_account, DefaultConfig, Keypair};
 use pop_contracts::{
 	build_smart_contract, call_smart_contract, call_smart_contract_from_signed_payload,
 	dry_run_call, dry_run_gas_estimate_call, get_call_payload, get_message, get_messages,
-	parse_account, set_up_call, CallExec, CallOpts, DefaultEnvironment, Verbosity,
+	set_up_call, CallExec, CallOpts, DefaultEnvironment, Verbosity,
 };
 use sp_weights::Weight;
 use std::path::PathBuf;
@@ -549,15 +550,6 @@ impl CallContractCommand {
 	}
 }
 
-fn display_message(message: &str, success: bool, cli: &mut impl Cli) -> Result<()> {
-	if success {
-		cli.outro(message)?;
-	} else {
-		cli.outro_cancel(message)?;
-	}
-	Ok(())
-}
-
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -725,6 +717,7 @@ mod tests {
 				true,
 				Some(items),
 				1, // "get" message
+				None
 			)
 			.expect_info(format!(
 			    "pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message get --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice",
@@ -788,6 +781,7 @@ mod tests {
 				true,
 				Some(items),
 				1, // "get" message
+				None
 			)
 			.expect_input(
 				"Where is your contract deployed?",
@@ -874,6 +868,7 @@ mod tests {
 				true,
 				Some(items),
 				2, // "specific_flip" message
+				None
 			)
 			.expect_input("Enter the value for the parameter: new_value", "true".into()) // Args for specific_flip
 			.expect_input("Enter the value for the parameter: number", "2".into()) // Args for specific_flip
@@ -953,6 +948,7 @@ mod tests {
 				true,
 				Some(items),
 				2, // "specific_flip" message
+				None
 			)
 			.expect_input(
 				"Where is your contract deployed?",
@@ -1187,15 +1183,5 @@ mod tests {
 		)?;
 		assert!(!call_config.is_contract_build_required());
 		Ok(())
-	}
-
-	#[test]
-	fn display_message_works() -> Result<()> {
-		let mut cli = MockCli::new().expect_outro(&"Call completed successfully!");
-		display_message("Call completed successfully!", true, &mut cli)?;
-		cli.verify()?;
-		let mut cli = MockCli::new().expect_outro_cancel("Call failed.");
-		display_message("Call failed.", false, &mut cli)?;
-		cli.verify()
 	}
 }

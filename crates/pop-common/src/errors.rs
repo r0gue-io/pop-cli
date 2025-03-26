@@ -6,6 +6,9 @@ use thiserror::Error;
 /// Represents the various errors that can occur in the crate.
 #[derive(Error, Debug)]
 pub enum Error {
+	/// An error occurred while parsing the provided account address.
+	#[error("Failed to parse account address: {0}")]
+	AccountAddressParsing(String),
 	#[error("Anyhow error: {0}")]
 	AnyhowError(#[from] anyhow::Error),
 	#[error("Configuration error: {0}")]
@@ -37,6 +40,9 @@ pub enum Error {
 	SourceError(#[from] sourcing::Error),
 	#[error("TemplateError error: {0}")]
 	TemplateError(#[from] templates::Error),
+	/// An error occurred while executing a test command.
+	#[error("Failed to execute test command: {0}")]
+	TestCommand(String),
 	#[error("TomlError: {0}")]
 	TomlError(#[from] toml_edit::TomlError),
 	#[error("Unsupported command: {0}")]

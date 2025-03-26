@@ -50,6 +50,20 @@ pub fn capitalize_str(input: &str) -> String {
 	format!("{}{}", first_char, rest)
 }
 
+/// Returns the relative path from `base` to `full` if `full` is inside `base`.
+/// If `full` is outside `base`, returns the absolute path instead.
+///
+/// # Arguments
+/// * `base` - The base directory to compare against.
+/// * `full` - The full path to be shortened.
+pub fn get_relative_or_absolute_path(base: &Path, full: &Path) -> PathBuf {
+	match full.strip_prefix(base) {
+		Ok(relative) => relative.to_path_buf(),
+		// If prefix is different, return the full path
+		Err(_) => full.to_path_buf(),
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -83,5 +97,23 @@ mod tests {
 		let path = Path::new("./");
 		assert_eq!(get_project_name_from_path(path, "my-contract"), "my-contract");
 		Ok(())
+	}
+
+	#[test]
+	fn get_relative_or_absolute_path_works() {
+		[
+			("/path/to/project", "/path/to/project", ""),
+			("/path/to/project", "/path/to/src", "/path/to/src"),
+			("/path/to/project", "/path/to/project/main.rs", "main.rs"),
+			("/path/to/project", "/path/to/project/../main.rs", "../main.rs"),
+			("/path/to/project", "/path/to/project/src/main.rs", "src/main.rs"),
+		]
+		.into_iter()
+		.for_each(|(base, full, expected)| {
+			assert_eq!(
+				get_relative_or_absolute_path(Path::new(base), Path::new(full)),
+				Path::new(expected)
+			);
+		});
 	}
 }
