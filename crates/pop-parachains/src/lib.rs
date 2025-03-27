@@ -45,7 +45,8 @@ pub use new_pallet::{create_pallet_template, new_pallet_options::*, TemplatePall
 pub use new_parachain::instantiate_template_dir;
 pub use relay::{clear_dmpq, RelayChain, Reserved};
 pub use try_runtime::{
-	binary::*, generate_try_runtime, parse_upgrade_checks, StateExt, TryRuntimeCliCommand,
+	binary::*, generate_try_runtime, get_upgrade_checks_details, OnRuntimeUpgradeSubcommand,
+	TryRuntimeCliCommand,
 };
 // External export from subxt.
 pub use subxt::{

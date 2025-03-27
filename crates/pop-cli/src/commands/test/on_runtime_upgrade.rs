@@ -12,7 +12,10 @@ use crate::{
 use clap::Args;
 use frame_try_runtime::UpgradeCheckSelect;
 use pop_common::Profile;
-use pop_parachains::{generate_try_runtime, parse_upgrade_checks, StateExt, TryRuntimeCliCommand};
+use pop_parachains::{
+	generate_try_runtime, get_upgrade_checks_details, OnRuntimeUpgradeSubcommand,
+	TryRuntimeCliCommand,
+};
 use std::{env::current_dir, path::PathBuf, str::FromStr};
 use strum::{EnumMessage, VariantArray};
 use try_runtime_core::common::{
@@ -20,6 +23,7 @@ use try_runtime_core::common::{
 	state::{LiveState, State},
 };
 
+const DEFAULT_BLOCK_TIME: &str = "6000";
 const DEFAULT_BLOCK_HASH: &str = "0x1a2b3c4d5e6f7890";
 const DEFAULT_LIVE_NODE_URL: &str = "ws://localhost:9944/";
 const EXCLUDED_ARGS: [&str; 7] =
@@ -92,9 +96,6 @@ pub(crate) struct TestOnRuntimeUpgradeCommand {
 	/// Build profile.
 	#[clap(long, value_enum)]
 	profile: Option<Profile>,
-	/// Chain state option for testing the runtime migrations.
-	#[clap(long, value_enum, alias = "m")]
-	state: Option<StateExt>,
 	/// Avoid rebuilding the runtime if there is an existing runtime binary.
 	#[clap(short = 'n', long)]
 	no_build: bool,
@@ -108,7 +109,10 @@ impl TestOnRuntimeUpgradeCommand {
 	pub(crate) async fn execute(mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		cli.intro("Testing runtime migrations")?;
 		if self.profile.is_none() {
-			self.profile = Some(guide_user_to_select_profile(cli)?);
+			match guide_user_to_select_profile(cli) {
+				Ok(profile) => self.profile = Some(profile),
+				Err(e) => return display_message(&e.to_string(), false, cli),
+			}
 		};
 		self.command.shared_params.runtime = Runtime::Path(ensure_runtime_binary_exists(
 			cli,
@@ -117,16 +121,21 @@ impl TestOnRuntimeUpgradeCommand {
 			!self.no_build,
 		)?);
 
-		self.update_state(cli)?;
+		if let Err(e) = self.update_state(cli) {
+			return display_message(&e.to_string(), false, cli);
+		}
 
 		// If the `checks` argument is not provided, prompt the user to select the upgrade checks.
 		if !has_argument("checks") {
-			self.command.command.checks = guide_user_to_select_upgrade_checks(cli)?;
+			match guide_user_to_select_upgrade_checks(cli) {
+				Ok(checks) => self.command.command.checks = checks,
+				Err(e) => return display_message(&e.to_string(), false, cli),
+			}
 		}
+
 		let result = self.run(cli).await;
 
 		// Display the `on-runtime-upgrade` command.
-		cliclack::log::remark("\n")?;
 		cli.info(self.display())?;
 		if let Err(e) = result {
 			return display_message(&e.to_string(), false, cli);
@@ -147,6 +156,7 @@ impl TestOnRuntimeUpgradeCommand {
 	}
 
 	fn update_state(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+		let mut subcommand: Option<OnRuntimeUpgradeSubcommand> = None;
 		let mut path: Option<PathBuf> = None;
 		let mut live_state = default_live_state();
 
@@ -155,25 +165,31 @@ impl TestOnRuntimeUpgradeCommand {
 			Some(ref state) => match state {
 				State::Live(_state) => {
 					live_state = _state.clone();
-					self.state = Some(StateExt::Live);
+					subcommand = Some(OnRuntimeUpgradeSubcommand::Live);
 				},
 				State::Snap { path: _path } => {
 					path = _path.clone();
-					self.state = Some(StateExt::Snapshot);
+					subcommand = Some(OnRuntimeUpgradeSubcommand::Snapshot);
 				},
 			},
 			None => {},
 		}
 
 		// If there is no state, prompt the user to select one.
-		if self.state.is_none() {
-			self.state = Some(guide_user_to_select_chain_state(cli)?.clone());
+		if subcommand.is_none() {
+			subcommand = Some(guide_user_to_select_chain_state(cli)?.clone());
 		};
-		match self.chain_state()? {
-			StateExt::Live => self.update_live_state(cli, live_state)?,
-			StateExt::Snapshot => self.update_snapshot_state(cli, path)?,
+		match subcommand {
+			Some(state) => {
+				match state {
+					OnRuntimeUpgradeSubcommand::Live => self.update_live_state(cli, live_state)?,
+					OnRuntimeUpgradeSubcommand::Snapshot =>
+						self.update_snapshot_state(cli, path)?,
+				}
+				return Ok(());
+			},
+			None => return Err(anyhow::anyhow!("No chain state selected for migration.")),
 		}
-		Ok(())
 	}
 
 	fn update_snapshot_state(
@@ -181,12 +197,30 @@ impl TestOnRuntimeUpgradeCommand {
 		cli: &mut impl cli::traits::Cli,
 		mut path: Option<PathBuf>,
 	) -> anyhow::Result<()> {
-		if self.command.command.blocktime.is_none() {
-			let block_time = cli.input("Enter the block time:").required(true).interact()?;
-			self.command.command.blocktime = Some(block_time.parse()?);
-		}
 		if path.is_none() {
-			path = Some(cli.input("Enter your snapshot file:").required(true).interact()?.into());
+			let snapshot_file: PathBuf = cli
+				.input(format!(
+					"Enter path to your snapshot file?\n{}.",
+					console::style(
+						"Snapshot file can be generated using `pop test create-snapshot` command."
+					)
+					.dim()
+				))
+				.required(true)
+				.interact()?
+				.into();
+			if !snapshot_file.is_file() {
+				return Err(anyhow::anyhow!("Invalid path to the snapshot file."));
+			}
+			path = Some(snapshot_file);
+		}
+		if self.command.command.blocktime.is_none() {
+			let block_time = cli
+				.input("Enter the block time:")
+				.required(true)
+				.default_input(DEFAULT_BLOCK_TIME)
+				.interact()?;
+			self.command.command.blocktime = Some(block_time.parse()?);
 		}
 		self.command.command.state = Some(State::Snap { path });
 		Ok(())
@@ -232,12 +266,9 @@ impl TestOnRuntimeUpgradeCommand {
 		if let Some(ref profile) = self.profile {
 			arguments.push(format!("--profile={}", profile));
 		}
-		if let Some(ref state) = self.state {
-			arguments.push(format!("--state={}", state));
-		}
 		if !has_argument("checks") {
-			let check = parse_upgrade_checks(self.command.command.checks);
-			arguments.push(format!("--checks={}", check));
+			let (value, _) = get_upgrade_checks_details(self.command.command.checks);
+			arguments.push(format!("--checks={}", value));
 		}
 
 		if self.no_build {
@@ -248,10 +279,6 @@ impl TestOnRuntimeUpgradeCommand {
 		}
 		args.extend(arguments);
 		args.join(" ")
-	}
-
-	fn chain_state(&self) -> anyhow::Result<&StateExt> {
-		self.state.as_ref().ok_or_else(|| anyhow::anyhow!("No migration mode provided"))
 	}
 }
 
@@ -277,13 +304,15 @@ fn has_argument(arg: &str) -> bool {
 	args.iter().any(|a| a.contains(arg))
 }
 
-fn guide_user_to_select_chain_state(cli: &mut impl cli::traits::Cli) -> anyhow::Result<&StateExt> {
+fn guide_user_to_select_chain_state(
+	cli: &mut impl cli::traits::Cli,
+) -> anyhow::Result<&OnRuntimeUpgradeSubcommand> {
 	let mut prompt = cli.select("Run the migrations:");
-	for migration in StateExt::VARIANTS.iter() {
+	for subcommand in OnRuntimeUpgradeSubcommand::VARIANTS.iter() {
 		prompt = prompt.item(
-			migration,
-			migration.get_message().unwrap(),
-			migration.get_detailed_message().unwrap(),
+			subcommand,
+			subcommand.get_message().unwrap(),
+			subcommand.get_detailed_message().unwrap(),
 		);
 	}
 	prompt.interact().map_err(anyhow::Error::from)
@@ -292,16 +321,18 @@ fn guide_user_to_select_chain_state(cli: &mut impl cli::traits::Cli) -> anyhow::
 fn guide_user_to_select_upgrade_checks(
 	cli: &mut impl cli::traits::Cli,
 ) -> anyhow::Result<UpgradeCheckSelect> {
-	let mut prompt =
-		cli.select("Select which optional checks to perform. Selects all when no value is given.");
+	let default_upgrade_check = get_upgrade_checks_details(UpgradeCheckSelect::All);
+	let mut prompt = cli
+		.select("Select which optional checks to perform.")
+		.initial_value(default_upgrade_check.0);
 	for check in [
 		UpgradeCheckSelect::None,
 		UpgradeCheckSelect::All,
 		UpgradeCheckSelect::TryState,
 		UpgradeCheckSelect::PreAndPost,
 	] {
-		let parsed_check = parse_upgrade_checks(check);
-		prompt = prompt.item(parsed_check.clone(), parsed_check, "");
+		let (value, description) = get_upgrade_checks_details(check);
+		prompt = prompt.item(value.clone(), value, description);
 	}
 	let input = prompt.interact()?;
 	UpgradeCheckSelect::from_str(&input).map_err(|e| anyhow::anyhow!(e.to_string()))

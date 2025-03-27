@@ -1,4 +1,4 @@
-use crate::Error;
+use crate::{errors::handle_command_error, Error};
 use duct::cmd;
 use frame_try_runtime::UpgradeCheckSelect;
 use std::{fmt::Display, path::PathBuf};
@@ -25,7 +25,7 @@ impl Display for TryRuntimeCliCommand {
 
 /// Chain state options for testing the runtime migrations.
 #[derive(AsRefStr, Clone, Debug, EnumString, EnumMessage, VariantArray, Eq, PartialEq, Display)]
-pub enum StateExt {
+pub enum OnRuntimeUpgradeSubcommand {
 	/// Run the migrations of a given runtime on top of a live state.
 	#[strum(
 		serialize = "live",
@@ -42,18 +42,24 @@ pub enum StateExt {
 	Snapshot,
 }
 
-/// Parse the upgrade checks options for testing the runtime migrations to string.
+/// Get the details of upgrade checks options for testing the runtime migrations.
 ///
 /// # Arguments
 /// * `upgrade_check_select` - The selected upgrade check option.
-pub fn parse_upgrade_checks(upgrade_check_select: UpgradeCheckSelect) -> String {
+pub fn get_upgrade_checks_details(upgrade_check_select: UpgradeCheckSelect) -> (String, String) {
 	match upgrade_check_select {
-		UpgradeCheckSelect::All => "all",
-		UpgradeCheckSelect::None => "none",
-		UpgradeCheckSelect::TryState => "try-state",
-		UpgradeCheckSelect::PreAndPost => "pre-and-post",
+		UpgradeCheckSelect::None => ("none".to_string(), "Run no checks".to_string()),
+		UpgradeCheckSelect::All => (
+			"all".to_string(),
+			"Run the `try_state`, `pre_upgrade` and `post_upgrade` checks".to_string(),
+		),
+		UpgradeCheckSelect::TryState =>
+			("try-state".to_string(), "Run the `try_state` checks".to_string()),
+		UpgradeCheckSelect::PreAndPost => (
+			"pre-and-post".to_string(),
+			"Run the `pre_upgrade` and `post_upgrade` checks".to_string(),
+		),
 	}
-	.to_string()
 }
 
 /// Generates binary benchmarks using `try-runtime`.
@@ -78,11 +84,11 @@ where
 		.into_iter()
 		.filter(|arg| !excluded_args.iter().any(|a| arg.starts_with(a)))
 		.collect::<Vec<String>>();
-	let mut cmd_args = vec!["try-runtime".to_string(), command.to_string()];
+	let mut cmd_args = vec![command.to_string()];
 	cmd_args.append(&mut args);
 
-	if let Err(e) = cmd(binary_path, cmd_args).stderr_capture().run() {
-		return Err(Error::TryRuntimeError(e.to_string()));
-	}
+	let output = cmd(binary_path, cmd_args).stderr_capture().unchecked().run()?;
+	// Check if the command failed.
+	handle_command_error(&output, Error::TryRuntimeError)?;
 	Ok(())
 }
