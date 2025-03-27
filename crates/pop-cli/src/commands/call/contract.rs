@@ -527,10 +527,9 @@ impl CallContractCommand {
 			None => call_exec.estimate_gas().await?.1,
 		};
 		#[cfg(feature = "polkavm-contracts")]
-		let call_data =
-			self.get_contract_data(&call_exec, storage_deposit_limit).map_err(|err| {
-				anyhow!("An error occurred getting the call data: {}", err.to_string())
-			})?;
+		let call_data = self.get_contract_data(&call_exec, storage_deposit_limit).map_err(|err| {
+			anyhow!("An error occurred getting the call data: {}", err.to_string())
+		})?;
 		#[cfg(feature = "wasm-contracts")]
 		let call_data = self.get_contract_data(&call_exec).map_err(|err| {
 			anyhow!("An error occurred getting the call data: {}", err.to_string())
@@ -559,8 +558,7 @@ impl CallContractCommand {
 	fn get_contract_data(
 		&self,
 		call_exec: &CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
-		#[cfg(feature = "polkavm-contracts")]
-		storage_deposit_limit: u128,
+		#[cfg(feature = "polkavm-contracts")] storage_deposit_limit: u128,
 	) -> anyhow::Result<Vec<u8>> {
 		let weight_limit = if self.gas_limit.is_some() && self.proof_size.is_some() {
 			Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap())
@@ -592,7 +590,14 @@ mod tests {
 	use std::{env, fs::write};
 	use url::Url;
 
+	#[cfg(feature = "wasm-contracts")]
+	const CONTRACT_ADDRESS: &str = "15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm";
+	#[cfg(feature = "polkavm-contracts")]
 	const CONTRACT_ADDRESS: &str = "0x48550a4bb374727186c55365b7c9c0a1a31bdafe";
+	#[cfg(feature = "wasm-contracts")]
+	const CONTRACTS_NETWORK_URL: &str = "wss://rpc1.paseo.popnetwork.xyz/";
+	#[cfg(feature = "polkavm-contracts")]
+	const CONTRACTS_NETWORK_URL: &str = "wss://westend-asset-hub-rpc.polkadot.io/";
 
 	#[tokio::test]
 	async fn execute_query_works() -> Result<()> {
@@ -614,7 +619,7 @@ mod tests {
 			value: "0".to_string(),
 			gas_limit: None,
 			proof_size: None,
-			url: Url::parse("wss://rpc1.paseo.popnetwork.xyz")?,
+			url: Url::parse(CONTRACTS_NETWORK_URL)?,
 			suri: "//Alice".to_string(),
 			use_wallet: false,
 			dry_run: false,
@@ -651,7 +656,7 @@ mod tests {
 			value: "0".to_string(),
 			gas_limit: Some(100),
 			proof_size: Some(10),
-			url: Url::parse("wss://rpc1.paseo.popnetwork.xyz")?,
+			url: Url::parse(CONTRACTS_NETWORK_URL)?,
 			suri: "//Alice".to_string(),
 			use_wallet: false,
 			dry_run: true,
@@ -660,7 +665,7 @@ mod tests {
 		};
 		call_config.configure(&mut cli, false).await?;
 		assert_eq!(call_config.display(), format!(
-			"pop call contract --path {} --contract {CONTRACT_ADDRESS} --message flip --gas 100 --proof-size 10 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --dry-run",
+			"pop call contract --path {} --contract {CONTRACT_ADDRESS} --message flip --gas 100 --proof-size 10 --url {CONTRACTS_NETWORK_URL} --suri //Alice --dry-run",
 			temp_dir.path().join("testing").display().to_string(),
 		));
 		// Contract deployed on Pop Network testnet, test dry-run
@@ -689,7 +694,7 @@ mod tests {
 			value: "0".to_string(),
 			gas_limit: Some(100),
 			proof_size: Some(10),
-			url: Url::parse("wss://rpc1.paseo.popnetwork.xyz")?,
+			url: Url::parse(CONTRACTS_NETWORK_URL)?,
 			suri: "//Alice".to_string(),
 			use_wallet: false,
 			dry_run: true,
@@ -698,7 +703,7 @@ mod tests {
 		};
 		call_config.configure(&mut cli, false).await?;
 		assert_eq!(call_config.display(), format!(
-			"pop call contract --path {} --contract {CONTRACT_ADDRESS} --message flip --gas 100 --proof-size 10 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --dry-run",
+			"pop call contract --path {} --contract {CONTRACT_ADDRESS} --message flip --gas 100 --proof-size 10 --url {CONTRACTS_NETWORK_URL} --suri //Alice --dry-run",
 			current_dir.join("pop-contracts/tests/files/testing.contract").display().to_string(),
 		));
 		// Contract deployed on Pop Network testnet, test dry-run
@@ -708,16 +713,20 @@ mod tests {
 		call_config.path = Some(current_dir.join("pop-contracts/tests/files/testing.json"));
 		call_config.configure(&mut cli, false).await?;
 		assert_eq!(call_config.display(), format!(
-			"pop call contract --path {} --contract {CONTRACT_ADDRESS} --message flip --gas 100 --proof-size 10 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --dry-run",
+			"pop call contract --path {} --contract {CONTRACT_ADDRESS} --message flip --gas 100 --proof-size 10 --url {CONTRACTS_NETWORK_URL} --suri //Alice --dry-run",
 			current_dir.join("pop-contracts/tests/files/testing.json").display().to_string(),
 		));
 
-		// From .polkavm file
-		call_config.path = Some(current_dir.join("pop-contracts/tests/files/testing.polkavm"));
+		#[cfg(feature = "wasm-contracts")]
+		let binary_path = "pop-contracts/tests/files/testing.wasm";
+		#[cfg(feature = "polkavm-contracts")]
+		let binary_path = "pop-contracts/tests/files/testing.polkavm";
+		// From binary file
+		call_config.path = Some(current_dir.join(binary_path));
 		call_config.configure(&mut cli, false).await?;
 		assert_eq!(call_config.display(), format!(
-			"pop call contract --path {} --contract {CONTRACT_ADDRESS} --message flip --gas 100 --proof-size 10 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --dry-run",
-			current_dir.join("pop-contracts/tests/files/testing.polkavm").display().to_string(),
+			"pop call contract --path {} --contract {CONTRACT_ADDRESS} --message flip --gas 100 --proof-size 10 --url {CONTRACTS_NETWORK_URL} --suri //Alice --dry-run",
+			current_dir.join(binary_path).display().to_string(),
 		));
 		// Contract deployed on Pop Network testnet, test dry-run
 		call_config.execute_call(&mut cli, false).await?;
@@ -755,14 +764,14 @@ mod tests {
 			)
 			.expect_input(
 				"Where is your contract deployed?",
-				"wss://rpc1.paseo.popnetwork.xyz".into(),
+				CONTRACTS_NETWORK_URL.into(),
 			)
 			.expect_input(
 				"Provide the on-chain contract address:",
 				CONTRACT_ADDRESS.into(),
 			)
 			.expect_info(format!(
-	            "pop call contract --path {} --contract {CONTRACT_ADDRESS} --message get --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice",
+	            "pop call contract --path {} --contract {CONTRACT_ADDRESS} --message get --url {CONTRACTS_NETWORK_URL} --suri //Alice",
 	            temp_dir.path().join("testing").display().to_string(),
 	        ));
 
@@ -789,12 +798,12 @@ mod tests {
 		assert_eq!(call_config.value, "0".to_string());
 		assert_eq!(call_config.gas_limit, None);
 		assert_eq!(call_config.proof_size, None);
-		assert_eq!(call_config.url.to_string(), "wss://rpc1.paseo.popnetwork.xyz/");
+		assert_eq!(call_config.url.to_string(), CONTRACTS_NETWORK_URL);
 		assert_eq!(call_config.suri, "//Alice");
 		assert!(!call_config.execute);
 		assert!(!call_config.dry_run);
 		assert_eq!(call_config.display(), format!(
-			"pop call contract --path {} --contract {CONTRACT_ADDRESS} --message get --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice",
+			"pop call contract --path {} --contract {CONTRACT_ADDRESS} --message get --url {CONTRACTS_NETWORK_URL} --suri //Alice",
 			temp_dir.path().join("testing").display().to_string()
 		));
 
@@ -823,7 +832,7 @@ mod tests {
 		let mut cli = MockCli::new()
 			.expect_input(
 				"Where is your contract deployed?",
-				"wss://rpc1.paseo.popnetwork.xyz".into(),
+				CONTRACTS_NETWORK_URL.into(),
 			)
 			.expect_input(
 				"Provide the on-chain contract address:",
@@ -844,7 +853,7 @@ mod tests {
 			.expect_input("Enter the proof size limit:", "".into()) // Only if call
 			.expect_confirm(USE_WALLET_PROMPT, true)
 			.expect_info(format!(
-				"pop call contract --path {} --contract {CONTRACT_ADDRESS} --message specific_flip --args \"true\", \"2\" --value 50 --url wss://rpc1.paseo.popnetwork.xyz/ --use-wallet --execute",
+				"pop call contract --path {} --contract {CONTRACT_ADDRESS} --message specific_flip --args \"true\", \"2\" --value 50 --url {CONTRACTS_NETWORK_URL} --use-wallet --execute",
 				temp_dir.path().join("testing").display().to_string(),
 			));
 
@@ -873,13 +882,13 @@ mod tests {
 		assert_eq!(call_config.value, "50".to_string());
 		assert_eq!(call_config.gas_limit, None);
 		assert_eq!(call_config.proof_size, None);
-		assert_eq!(call_config.url.to_string(), "wss://rpc1.paseo.popnetwork.xyz/");
+		assert_eq!(call_config.url.to_string(), CONTRACTS_NETWORK_URL);
 		assert_eq!(call_config.suri, "//Alice");
 		assert!(call_config.use_wallet);
 		assert!(call_config.execute);
 		assert!(!call_config.dry_run);
 		assert_eq!(call_config.display(), format!(
-			"pop call contract --path {} --contract {CONTRACT_ADDRESS} --message specific_flip --args \"true\", \"2\" --value 50 --url wss://rpc1.paseo.popnetwork.xyz/ --use-wallet --execute",
+			"pop call contract --path {} --contract {CONTRACT_ADDRESS} --message specific_flip --args \"true\", \"2\" --value 50 --url {CONTRACTS_NETWORK_URL} --use-wallet --execute",
 			temp_dir.path().join("testing").display().to_string()
 		));
 
@@ -916,7 +925,7 @@ mod tests {
 			)
 			.expect_input(
 				"Where is your contract deployed?",
-				"wss://rpc1.paseo.popnetwork.xyz".into(),
+				CONTRACTS_NETWORK_URL.into(),
 			)
 			.expect_input(
 				"Provide the on-chain contract address:",
@@ -927,7 +936,7 @@ mod tests {
 			.expect_input("Value to transfer to the call:", "50".into()) // Only if payable
 			.expect_input("Signer calling the contract:", "//Alice".into())
 			.expect_info(format!(
-				"pop call contract --path {} --contract {CONTRACT_ADDRESS} --message specific_flip --args \"true\", \"2\" --value 50 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --execute",
+				"pop call contract --path {} --contract {CONTRACT_ADDRESS} --message specific_flip --args \"true\", \"2\" --value 50 --url {CONTRACTS_NETWORK_URL} --suri //Alice --execute",
 				temp_dir.path().join("testing").display().to_string(),
 			));
 
@@ -956,13 +965,13 @@ mod tests {
 		assert_eq!(call_config.value, "50".to_string());
 		assert_eq!(call_config.gas_limit, None);
 		assert_eq!(call_config.proof_size, None);
-		assert_eq!(call_config.url.to_string(), "wss://rpc1.paseo.popnetwork.xyz/");
+		assert_eq!(call_config.url.to_string(), CONTRACTS_NETWORK_URL);
 		assert_eq!(call_config.suri, "//Alice");
 		assert!(call_config.execute);
 		assert!(!call_config.dry_run);
 		assert!(call_config.dev_mode);
 		assert_eq!(call_config.display(), format!(
-			"pop call contract --path {} --contract {CONTRACT_ADDRESS} --message specific_flip --args \"true\", \"2\" --value 50 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --execute",
+			"pop call contract --path {} --contract {CONTRACT_ADDRESS} --message specific_flip --args \"true\", \"2\" --value 50 --url {CONTRACTS_NETWORK_URL} --suri //Alice --execute",
 			temp_dir.path().join("testing").display().to_string()
 		));
 
@@ -974,13 +983,16 @@ mod tests {
 		let temp_dir = new_environment("testing")?;
 		let mut current_dir = env::current_dir().expect("Failed to get current directory");
 		current_dir.pop();
-		// Create invalid `.json`, `.contract` and `.polkavm` files for testing
+		// Create invalid `.json`, `.contract` and binary files for testing
 		let invalid_contract_path = temp_dir.path().join("testing.contract");
 		let invalid_json_path = temp_dir.path().join("testing.json");
-		let invalid_wasm_path = temp_dir.path().join("testing.polkavm");
+		#[cfg(feature = "wasm-contracts")]
+		let invalid_binary_path = temp_dir.path().join("testing.wasm");
+		#[cfg(feature = "polkavm-contracts")]
+		let invalid_binary_path = temp_dir.path().join("testing.polkavm");
 		write(&invalid_contract_path, b"This is an invalid contract file")?;
 		write(&invalid_json_path, b"This is an invalid JSON file")?;
-		write(&invalid_wasm_path, b"This is an invalid WASM file")?;
+		write(&invalid_binary_path, b"This is an invalid WASM file")?;
 		// Mock the build process to simulate a scenario where the contract is not properly built.
 		mock_build_process(
 			temp_dir.path().join("testing"),
@@ -997,7 +1009,7 @@ mod tests {
 			value: "0".to_string(),
 			gas_limit: None,
 			proof_size: None,
-			url: Url::parse("wss://rpc1.paseo.popnetwork.xyz")?,
+			url: Url::parse(CONTRACTS_NETWORK_URL)?,
 			suri: "//Alice".to_string(),
 			use_wallet: false,
 			dry_run: false,
@@ -1018,8 +1030,8 @@ mod tests {
 		assert!(
 			matches!(command.configure(&mut cli, false).await, Err(message) if message.to_string().contains("Unable to fetch contract metadata"))
 		);
-		// Test the path is a file with invalid `.polkavm` file.
-		command.path = Some(invalid_wasm_path);
+		// Test the path is a file with invalid binary file.
+		command.path = Some(invalid_binary_path);
 		assert!(
 			matches!(command.configure(&mut cli, false).await, Err(message) if message.to_string().contains("Unable to fetch contract metadata"))
 		);
@@ -1048,7 +1060,7 @@ mod tests {
 				value: "0".to_string(),
 				gas_limit: None,
 				proof_size: None,
-				url: Url::parse("wss://rpc1.paseo.popnetwork.xyz")?,
+				url: Url::parse(CONTRACTS_NETWORK_URL)?,
 				suri: "//Alice".to_string(),
 				use_wallet: false,
 				dry_run: false,
@@ -1068,7 +1080,7 @@ mod tests {
 				value: "0".to_string(),
 				gas_limit: None,
 				proof_size: None,
-				url: Url::parse("wss://rpc1.paseo.popnetwork.xyz")?,
+				url: Url::parse(CONTRACTS_NETWORK_URL)?,
 				suri: "//Alice".to_string(),
 				use_wallet: false,
 				dry_run: false,
@@ -1093,7 +1105,7 @@ mod tests {
 			value: "0".to_string(),
 			gas_limit: None,
 			proof_size: None,
-			url: Url::parse("wss://rpc1.paseo.popnetwork.xyz")?,
+			url: Url::parse(CONTRACTS_NETWORK_URL)?,
 			suri: "//Alice".to_string(),
 			use_wallet: false,
 			dry_run: false,
@@ -1125,7 +1137,7 @@ mod tests {
 			value: "0".to_string(),
 			gas_limit: None,
 			proof_size: None,
-			url: Url::parse("wss://rpc1.paseo.popnetwork.xyz")?,
+			url: Url::parse(CONTRACTS_NETWORK_URL)?,
 			suri: "//Alice".to_string(),
 			use_wallet: false,
 			dry_run: false,

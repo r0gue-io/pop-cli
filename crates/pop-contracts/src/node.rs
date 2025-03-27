@@ -85,7 +85,10 @@ impl TryInto for Chain {
 	/// * `latest` - If applicable, some specifier used to determine the latest source.
 	fn try_into(&self, tag: Option<String>, latest: Option<String>) -> Result<Source, Error> {
 		let archive = archive_name_by_target()?;
-		let archive_bin_path = release_directory_by_target(#[cfg(feature = "v5")] tag.as_deref())?;
+		let archive_bin_path = release_directory_by_target(
+			#[cfg(feature = "v5")]
+			tag.as_deref(),
+		)?;
 		Ok(match self {
 			&Chain::ContractsNode => {
 				// Source from GitHub release asset
@@ -247,12 +250,19 @@ mod tests {
 		let version = "v0.40.0";
 		let binary = contracts_node_generator(cache.clone(), Some(version)).await?;
 		let archive = archive_name_by_target()?;
-		let archive_bin_path = release_directory_by_target(#[cfg(feature = "v5")] Some(version))?;
+		let archive_bin_path = release_directory_by_target(
+			#[cfg(feature = "v5")]
+			Some(version),
+		)?;
+		#[cfg(feature = "v5")]
+		let owner = "paritytech";
+		#[cfg(feature = "v6")]
+		let owner = "use-ink";
 		assert!(matches!(binary, Binary::Source { name, source, cache}
 			if name == expected.binary()  &&
 				source == Source::GitHub(ReleaseArchive {
-					owner: "use-ink".to_string(),
-					repository: "ink-node".to_string(),
+					owner: owner.to_string(),
+					repository: BIN_NAME.to_string(),
 					tag: Some(version.to_string()),
 					tag_format: expected.tag_format().map(|t| t.into()),
 					archive: archive,

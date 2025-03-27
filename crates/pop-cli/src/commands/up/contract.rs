@@ -471,11 +471,11 @@ fn display_contract_info(spinner: &ProgressBar, address: String, code_hash: Opti
 mod tests {
 	use super::*;
 	use pop_common::{find_free_port, set_executable_permission};
-	use pop_contracts::{
-		contracts_node_generator, mock_build_process, new_environment, UploadCode
-	};
 	#[cfg(feature = "polkavm-contracts")]
 	use pop_contracts::AccountMapper;
+	use pop_contracts::{
+		contracts_node_generator, mock_build_process, new_environment, UploadCode,
+	};
 	use std::{
 		env,
 		process::{Child, Command},
@@ -509,9 +509,13 @@ mod tests {
 		let random_port = find_free_port(None);
 		let temp_dir = new_environment("testing")?;
 		let current_dir = env::current_dir().expect("Failed to get current directory");
+		#[cfg(feature = "wasm-contracts")]
+		let contract_file = "../pop-contracts/tests/files/testing_wasm.contract";
+		#[cfg(feature = "polkavm-contracts")]
+		let contract_file = "../pop-contracts/tests/files/testing.contract";
 		mock_build_process(
 			temp_dir.path().join("testing"),
-			current_dir.join("../pop-contracts/tests/files/testing.contract"),
+			current_dir.join(contract_file),
 			current_dir.join("../pop-contracts/tests/files/testing.json"),
 		)?;
 		let cache = temp_dir.path().join("");
@@ -663,9 +667,7 @@ mod tests {
 		let expected_call_data =
 			get_instantiate_payload(set_up_deployment(up_contract_opts.into()).await?, weight)?;
 		#[cfg(feature = "polkavm-contracts")]
-		let expected_call_data =
-			get_instantiate_payload(set_up_deployment(instantiate_exec).await?, weight)
-				.await?;
+		let expected_call_data = get_instantiate_payload(instantiate_exec, weight).await?;
 		// Retrieved call data matches the one crafted above.
 		assert_eq!(retrieved_call_data, expected_call_data);
 

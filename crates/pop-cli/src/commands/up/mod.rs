@@ -99,7 +99,7 @@ mod tests {
 	use duct::cmd;
 	use pop_contracts::{mock_build_process, new_environment};
 	#[cfg(feature = "parachain")]
-	use pop_parachains::{instantiate_template_dir, DeploymentProvider, Config, Parachain};
+	use pop_parachains::{instantiate_template_dir, Config, DeploymentProvider, Parachain};
 	use std::env;
 	use strum::VariantArray;
 	use url::Url;
