@@ -14,6 +14,8 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow.workspace = true
+# Pin to solve dependencies conflics. See Cargo.toml for further info.
+deranged.workspace = true
 duct.workspace = true
 env_logger.workspace = true
 fs_rollback.workspace = true

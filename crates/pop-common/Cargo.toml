@@ -12,6 +12,8 @@ anyhow.workspace = true
 cargo_toml.workspace = true
 contract-build.workspace = true
 contract-extrinsics.workspace = true
+# Pin to solve dependencies conflics. See Cargo.toml for further info.
+deranged.workspace = true
 duct.workspace = true
 flate2.workspace = true
 fs_rollback.workspace = true

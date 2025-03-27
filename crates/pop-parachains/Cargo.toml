@@ -11,6 +11,8 @@ version.workspace = true
 [dependencies]
 anyhow.workspace = true
 clap.workspace = true
+# Pin to solve dependencies conflics. See Cargo.toml for further info.
+deranged.workspace = true
 duct.workspace = true
 glob.workspace = true
 serde_json.workspace = true

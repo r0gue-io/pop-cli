@@ -24,6 +24,12 @@ version = "0.6.0"
 anyhow = "1.0"
 assert_cmd = "2.0.14"
 cargo_toml = "0.20.3"
+# deranged 0.4.1 implements PartialOrd for some types leading to conflicts with core primitive types.
+# Some related discussion: 'https://github.com/jhpratt/deranged/issues/18'
+# This creates conflicts on the dependency tree of Pop-cli as deranged is somewhere there and some downstream crates 
+# are affected in the way described in the discussion. Til that's fixed, a pin to the version 0.4.0 is necessary as 
+# a workaround. Pinned in all pop-cli crates for this reason.
+deranged = { version = "=0.4.0", default-features = false }
 dirs = "5.0"
 duct = "0.13"
 env_logger = "0.11.7"
@@ -36,7 +42,6 @@ mockito = "1.4.0"
 pathdiff = "0.2.1"
 proc-macro2 = "1.0.86"
 rustilities = "2.1.0"
-rustls-webpki = "0.102"
 rust_writer = "1.0.4" 
 syn = "2.0.100"
 tar = "0.4.40"
