@@ -107,7 +107,7 @@ pub enum Contract {
 		serialize = "PSP34",
 		message = "Psp34",
 		detailed_message = "The implementation of the PSP34 standard in ink!",
-		props(Type = "PSP", Repository = "https://github.com/r0gue-io/PSP34") // TODO: Change the tag to v6.x
+		props(Type = "PSP", Repository = "https://github.com/r0gue-io/PSP34")
 	)]
 	PSP34,
 	/// Domain name service example implemented in ink!

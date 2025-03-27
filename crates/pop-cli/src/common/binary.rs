@@ -155,7 +155,6 @@ mod tests {
 			true,
 		)
 		.await?;
-		println!("{:?}", binary_path);
 		// Binary path is at least equal to the cache path + `binary_name`.
 		assert!(binary_path
 			.to_str()
