@@ -26,6 +26,9 @@ impl Git {
 		}
 		let mut repo = RepoBuilder::new();
 		repo.fetch_options(fo);
+		if let Some(reference) = reference {
+			repo.branch(reference);
+		}
 		let repo = match repo.clone(url.as_str(), working_dir) {
 			Ok(repository) => repository,
 			Err(e) => match Self::ssh_clone(url, working_dir) {
