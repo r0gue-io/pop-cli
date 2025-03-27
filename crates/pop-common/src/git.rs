@@ -33,16 +33,10 @@ impl Git {
 				Err(_) => return Err(e.into()),
 			},
 		};
+
 		if let Some(reference) = reference {
-			let mut remote = repo.find_remote("origin")?;
-			remote.fetch(&[reference], None, None)?; // <-- fetch the branch you want
-
-			let object = repo
-				.revparse_single(&format!("refs/remotes/origin/{}", reference))
-				.expect("Object not found");
-
+			let object = repo.revparse_single(reference).expect("Object not found");
 			repo.checkout_tree(&object, None).expect("Failed to checkout");
-			repo.set_head(&format!("refs/remotes/origin/{}", reference))?;
 		}
 		Ok(())
 	}
