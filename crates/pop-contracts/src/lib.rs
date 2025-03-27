@@ -2,6 +2,8 @@
 
 #![doc = include_str!("../README.md")]
 
+#![cfg(any(feature = "v5", feature = "v6"))]
+
 #[cfg(all(feature = "v5", feature = "v6"))]
 compile_error!("only feature \"v5\" OR \"v6\" must be enabled");
 
