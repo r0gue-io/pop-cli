@@ -3,9 +3,11 @@
 use anyhow::Result;
 use assert_cmd::Command;
 use pop_common::{find_free_port, set_executable_permission, templates::Template};
+#[cfg(feature = "polkavm-contracts")]
+use pop_contracts::AccountMapper;
 use pop_contracts::{
 	contracts_node_generator, dry_run_gas_estimate_instantiate, instantiate_smart_contract,
-	run_contracts_node, set_up_deployment, AccountMapper, Contract, UpOpts,
+	run_contracts_node, set_up_deployment, Contract, UpOpts,
 };
 use serde::{Deserialize, Serialize};
 use std::{path::Path, process::Command as Cmd, time::Duration};
@@ -79,6 +81,9 @@ async fn contract_lifecycle() -> Result<()> {
 	assert!(temp_dir.join("test_contract/target").exists());
 	// Verify that all the artifacts has been generated
 	assert!(temp_dir.join("test_contract/target/ink/test_contract.contract").exists());
+	#[cfg(feature = "wasm-contracts")]
+	assert!(temp_dir.join("test_contract/target/ink/test_contract.wasm").exists());
+	#[cfg(feature = "polkavm-contracts")]
 	assert!(temp_dir.join("test_contract/target/ink/test_contract.polkavm").exists());
 	assert!(temp_dir.join("test_contract/target/ink/test_contract.json").exists());
 
@@ -101,7 +106,9 @@ async fn contract_lifecycle() -> Result<()> {
 	})
 	.await?;
 	// Map account
+	#[cfg(feature = "polkavm-contracts")]
 	let map = AccountMapper::new(&instantiate_exec.opts()).await?;
+	#[cfg(feature = "polkavm-contracts")]
 	map.map_account().await?;
 
 	// Only upload the contract

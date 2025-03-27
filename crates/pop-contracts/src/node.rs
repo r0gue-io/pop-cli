@@ -254,11 +254,15 @@ mod tests {
 			#[cfg(feature = "v5")]
 			Some(version),
 		)?;
+		#[cfg(feature = "v5")]
+		let owner = "paritytech";
+		#[cfg(feature = "v6")]
+		let owner = "use-ink";
 		assert!(matches!(binary, Binary::Source { name, source, cache}
 			if name == expected.binary()  &&
 				source == Source::GitHub(ReleaseArchive {
-					owner: "use-ink".to_string(),
-					repository: "ink-node".to_string(),
+					owner: owner.to_string(),
+					repository: BIN_NAME.to_string(),
 					tag: Some(version.to_string()),
 					tag_format: expected.tag_format().map(|t| t.into()),
 					archive: archive,
