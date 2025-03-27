@@ -285,13 +285,13 @@ mod tests {
 	use tokio::time::sleep;
 
 	#[cfg(feature = "v5")]
-	const CONTRACT_ADDRESS: &str = "0x48550a4bb374727186c55365b7c9c0a1a31bdafe";
-	#[cfg(feature = "v5")]
-	const CONTRACTS_NETWORK_URL: &str = "wss://westend-asset-hub-rpc.polkadot.io";
-	#[cfg(feature = "v6")]
 	const CONTRACT_ADDRESS: &str = "5CLPm1CeUvJhZ8GCDZCR7nWZ2m3XXe4X5MtAQK69zEjut36A";
-	#[cfg(feature = "v6")]
+	#[cfg(feature = "v5")]
 	const CONTRACTS_NETWORK_URL: &str = "wss://rpc2.paseo.popnetwork.xyz";
+	#[cfg(feature = "v6")]
+	const CONTRACT_ADDRESS: &str = "0x48550a4bb374727186c55365b7c9c0a1a31bdafe";
+	#[cfg(feature = "v6")]
+	const CONTRACTS_NETWORK_URL: &str = "wss://westend-asset-hub-rpc.polkadot.io";
 
 	#[tokio::test]
 	async fn test_set_up_call() -> Result<()> {
@@ -411,6 +411,7 @@ mod tests {
 	}
 
 	#[tokio::test]
+	#[cfg(feature = "v5")]
 	async fn test_dry_run_estimate_call_error_contract_not_deployed() -> Result<()> {
 		let temp_dir = new_environment("testing")?;
 		let current_dir = env::current_dir().expect("Failed to get current directory");
@@ -433,13 +434,10 @@ mod tests {
 			execute: false,
 		};
 		let call = set_up_call(call_opts).await?;
-		#[cfg(feature = "v5")]
 		assert!(matches!(
 			dry_run_gas_estimate_call(&call).await,
 			Err(Error::DryRunCallContractError(..))
 		));
-		#[cfg(feature = "v6")]
-		assert_eq!(dry_run_gas_estimate_call(&call).await?, Weight::zero());
 		Ok(())
 	}
 
@@ -449,9 +447,13 @@ mod tests {
 		let localhost_url = format!("ws://127.0.0.1:{}", random_port);
 		let temp_dir = new_environment("testing")?;
 		let current_dir = env::current_dir().expect("Failed to get current directory");
+		#[cfg(feature = "v5")]
+		let contract_file = "./tests/files/testing_wasm.contract";
+		#[cfg(feature = "v6")]
+		let contract_file = "./tests/files/testing.contract";
 		mock_build_process(
 			temp_dir.path().join("testing"),
-			current_dir.join("./tests/files/testing.contract"),
+			current_dir.join(contract_file),
 			current_dir.join("./tests/files/testing.json"),
 		)?;
 

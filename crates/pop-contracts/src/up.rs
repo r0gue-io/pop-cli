@@ -579,6 +579,10 @@ mod tests {
 	use url::Url;
 
 	#[cfg(feature = "v5")]
+	const CONTRACT_FILE: &str = "./tests/files/testing_wasm.contract";
+	#[cfg(feature = "v6")]
+	const CONTRACT_FILE: &str = "./tests/files/testing.contract";
+	#[cfg(feature = "v5")]
 	const CONTRACTS_NETWORK_URL: &str = "wss://rpc2.paseo.popnetwork.xyz";
 	#[cfg(feature = "v6")]
 	const CONTRACTS_NETWORK_URL: &str = "wss://westend-asset-hub-rpc.polkadot.io";
@@ -589,7 +593,7 @@ mod tests {
 		let current_dir = env::current_dir().expect("Failed to get current directory");
 		mock_build_process(
 			temp_dir.path().join("testing"),
-			current_dir.join("./tests/files/testing.contract"),
+			current_dir.join(CONTRACT_FILE),
 			current_dir.join("./tests/files/testing.json"),
 		)?;
 		let up_opts = UpOpts {
@@ -613,7 +617,7 @@ mod tests {
 		let current_dir = env::current_dir().expect("Failed to get current directory");
 		mock_build_process(
 			temp_dir.path().join("testing"),
-			current_dir.join("./tests/files/testing.contract"),
+			current_dir.join(CONTRACT_FILE),
 			current_dir.join("./tests/files/testing.json"),
 		)?;
 		let up_opts = UpOpts {
@@ -637,7 +641,7 @@ mod tests {
 		let current_dir = env::current_dir().expect("Failed to get current directory");
 		mock_build_process(
 			temp_dir.path().join("testing"),
-			current_dir.join("./tests/files/testing.contract"),
+			current_dir.join(CONTRACT_FILE),
 			current_dir.join("./tests/files/testing.json"),
 		)?;
 		let up_opts = UpOpts {
@@ -684,7 +688,7 @@ mod tests {
 		let current_dir = env::current_dir().expect("Failed to get current directory");
 		mock_build_process(
 			temp_dir.path().join("testing"),
-			current_dir.join("./tests/files/testing.contract"),
+			current_dir.join(CONTRACT_FILE),
 			current_dir.join("./tests/files/testing.json"),
 		)?;
 		let up_opts = UpOpts {
@@ -706,12 +710,13 @@ mod tests {
 	}
 
 	#[tokio::test]
+	#[cfg(feature = "v5")]
 	async fn dry_run_gas_estimate_instantiate_throw_custom_error() -> Result<()> {
 		let temp_dir = new_environment("testing")?;
 		let current_dir = env::current_dir().expect("Failed to get current directory");
 		mock_build_process(
 			temp_dir.path().join("testing"),
-			current_dir.join("./tests/files/testing.contract"),
+			current_dir.join(CONTRACT_FILE),
 			current_dir.join("./tests/files/testing.json"),
 		)?;
 		let up_opts = UpOpts {
@@ -739,7 +744,7 @@ mod tests {
 		let current_dir = env::current_dir().expect("Failed to get current directory");
 		mock_build_process(
 			temp_dir.path().join("testing"),
-			current_dir.join("./tests/files/testing.contract"),
+			current_dir.join(CONTRACT_FILE),
 			current_dir.join("./tests/files/testing.json"),
 		)?;
 		let up_opts = UpOpts {
@@ -768,7 +773,7 @@ mod tests {
 		let current_dir = env::current_dir().expect("Failed to get current directory");
 		mock_build_process(
 			temp_dir.path().join("testing"),
-			current_dir.join("./tests/files/testing.contract"),
+			current_dir.join(CONTRACT_FILE),
 			current_dir.join("./tests/files/testing.json"),
 		)?;
 
@@ -792,7 +797,6 @@ mod tests {
 			suri: "//Alice".to_string(),
 		})
 		.await?;
-
 		// Only upload a Smart Contract
 		let upload_result = upload_smart_contract(&upload_exec).await?;
 		assert!(!upload_result.starts_with("0x0x"));

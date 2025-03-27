@@ -21,6 +21,9 @@ use {
 
 impl_binary_generator!(ContractsNodeGenerator, contracts_node_generator);
 
+#[cfg(feature = "wasm-contracts")]
+const CONTRACTS_NODE_BINARY: &str = "substrate-contracts-node";
+#[cfg(feature = "polkavm-contracts")]
 const CONTRACTS_NODE_BINARY: &str = "ink-node";
 
 ///  Checks the status of the contracts node binary, sources it if necessary, and

@@ -46,7 +46,7 @@ mod tests {
 	};
 	use anyhow::Result;
 	use contract_extrinsics_inkv6::ExtrinsicOptsBuilder;
-	use pop_common::{find_free_port, set_executable_permission};
+	use pop_common::{find_free_port, parse_h160_account, set_executable_permission};
 	use std::{env, process::Command};
 	use subxt_signer::sr25519::dev;
 	use url::Url;
@@ -79,7 +79,7 @@ mod tests {
 		assert!(map.needs_mapping().await?);
 
 		let address = map.map_account().await?;
-		assert_eq!(address.to_string(), "0x9621dde636de098b43efb0fa9b61facfe328f99d");
+		assert_eq!(address, parse_h160_account("0x9621dde636de098b43efb0fa9b61facfe328f99d")?);
 
 		assert!(!map.needs_mapping().await?);
 
