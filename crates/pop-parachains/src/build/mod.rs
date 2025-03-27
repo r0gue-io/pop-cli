@@ -3,7 +3,7 @@
 use crate::errors::{handle_command_error, Error};
 use anyhow::{anyhow, Result};
 use duct::cmd;
-use pop_common::{manifest::from_path, Profile};
+use pop_common::{account_id::convert_to_evm_accounts, manifest::from_path, Profile};
 use serde_json::{json, Value};
 use sp_core::bytes::to_hex;
 use std::{
@@ -295,9 +295,19 @@ impl ChainSpec {
 		self.0.get("chainType").and_then(|v| v.as_str())
 	}
 
+	/// Get the name from the chain specification.
+	pub fn get_name(&self) -> Option<&str> {
+		self.0.get("name").and_then(|v| v.as_str())
+	}
+
 	/// Get the parachain ID from the chain specification.
 	pub fn get_parachain_id(&self) -> Option<u64> {
 		self.0.get("para_id").and_then(|v| v.as_u64())
+	}
+
+	/// Get the property `basedOn` from the chain specification.
+	pub fn get_property_based_on(&self) -> Option<&str> {
+		self.0.get("properties").and_then(|v| v.get("basedOn")).and_then(|v| v.as_str())
 	}
 
 	/// Get the protocol ID from the chain specification.
@@ -308,6 +318,17 @@ impl ChainSpec {
 	/// Get the relay chain from the chain specification.
 	pub fn get_relay_chain(&self) -> Option<&str> {
 		self.0.get("relay_chain").and_then(|v| v.as_str())
+	}
+
+	/// Get the sudo key from the chain specification.
+	pub fn get_sudo_key(&self) -> Option<&str> {
+		self.0
+			.get("genesis")
+			.and_then(|genesis| genesis.get("runtimeGenesis"))
+			.and_then(|runtime_genesis| runtime_genesis.get("patch"))
+			.and_then(|patch| patch.get("sudo"))
+			.and_then(|sudo| sudo.get("key"))
+			.and_then(|key| key.as_str())
 	}
 
 	/// Replaces the parachain id with the provided `para_id`.
@@ -378,6 +399,70 @@ impl ChainSpec {
 			.get_mut("protocolId")
 			.ok_or_else(|| Error::Config("expected `protocolId`".into()))?;
 		*replace = json!(protocol_id);
+		Ok(())
+	}
+
+	/// Replaces the invulnerables session keys in the chain specification with the provided
+	/// `collator_keys`.
+	///
+	/// # Arguments
+	/// * `collator_keys` - A list of new collator keys.
+	pub fn replace_collator_keys(&mut self, collator_keys: Vec<String>) -> Result<(), Error> {
+		let uses_evm_keys = self
+			.0
+			.get("properties")
+			.and_then(|p| p.get("isEthereum"))
+			.and_then(|v| v.as_bool())
+			.unwrap_or(false);
+
+		let keys = if uses_evm_keys {
+			convert_to_evm_accounts(collator_keys.clone())?
+		} else {
+			collator_keys.clone()
+		};
+
+		let invulnerables = self
+			.0
+			.get_mut("genesis")
+			.ok_or_else(|| Error::Config("expected `genesis`".into()))?
+			.get_mut("runtimeGenesis")
+			.ok_or_else(|| Error::Config("expected `runtimeGenesis`".into()))?
+			.get_mut("patch")
+			.ok_or_else(|| Error::Config("expected `patch`".into()))?
+			.get_mut("collatorSelection")
+			.ok_or_else(|| Error::Config("expected `collatorSelection`".into()))?
+			.get_mut("invulnerables")
+			.ok_or_else(|| Error::Config("expected `invulnerables`".into()))?;
+
+		*invulnerables = json!(keys);
+
+		let session_keys = keys
+			.iter()
+			.zip(collator_keys.iter())
+			.map(|(address, original_address)| {
+				json!([
+					address,
+					address,
+					{ "aura": original_address } // Always the original address
+				])
+			})
+			.collect::<Vec<_>>();
+
+		let session_keys_field = self
+			.0
+			.get_mut("genesis")
+			.ok_or_else(|| Error::Config("expected `genesis`".into()))?
+			.get_mut("runtimeGenesis")
+			.ok_or_else(|| Error::Config("expected `runtimeGenesis`".into()))?
+			.get_mut("patch")
+			.ok_or_else(|| Error::Config("expected `patch`".into()))?
+			.get_mut("session")
+			.ok_or_else(|| Error::Config("expected `session`".into()))?
+			.get_mut("keys")
+			.ok_or_else(|| Error::Config("expected `session.keys`".into()))?;
+
+		*session_keys_field = json!(session_keys);
+
 		Ok(())
 	}
 
@@ -769,11 +854,33 @@ mod tests {
 	}
 
 	#[test]
+	fn get_chain_name_works() -> Result<()> {
+		assert_eq!(ChainSpec(json!({})).get_name(), None);
+		let chain_spec = ChainSpec(json!({
+			"name": "test",
+		}));
+		assert_eq!(chain_spec.get_name(), Some("test"));
+		Ok(())
+	}
+
+	#[test]
 	fn get_parachain_id_works() -> Result<()> {
 		let chain_spec = ChainSpec(json!({
 			"para_id": 2002,
 		}));
 		assert_eq!(chain_spec.get_parachain_id(), Some(2002));
+		Ok(())
+	}
+
+	#[test]
+	fn get_property_based_on_works() -> Result<()> {
+		assert_eq!(ChainSpec(json!({})).get_property_based_on(), None);
+		let chain_spec = ChainSpec(json!({
+			"properties": {
+				"basedOn": "test",
+			}
+		}));
+		assert_eq!(chain_spec.get_property_based_on(), Some("test"));
 		Ok(())
 	}
 
@@ -792,6 +899,25 @@ mod tests {
 			"relay_chain": "test",
 		}));
 		assert_eq!(chain_spec.get_relay_chain(), Some("test"));
+		Ok(())
+	}
+
+	#[test]
+	fn get_sudo_key_works() -> Result<()> {
+		assert_eq!(ChainSpec(json!({})).get_sudo_key(), None);
+		let chain_spec = ChainSpec(json!({
+			"para_id": 1000,
+			"genesis": {
+				"runtimeGenesis": {
+					"patch": {
+						"sudo": {
+							"key": "sudo-key"
+						}
+					}
+				}
+			},
+		}));
+		assert_eq!(chain_spec.get_sudo_key(), Some("sudo-key"));
 		Ok(())
 	}
 
@@ -968,6 +1094,142 @@ mod tests {
 		let mut chain_spec = ChainSpec(json!({"": "old-protocolId"}));
 		assert!(
 			matches!(chain_spec.replace_protocol_id("new-protocolId"), Err(Error::Config(error)) if error == "expected `protocolId`")
+		);
+		Ok(())
+	}
+
+	#[test]
+	fn replace_collator_keys_works() -> Result<()> {
+		let mut chain_spec = ChainSpec(json!({
+			"para_id": 1000,
+			"genesis": {
+				"runtimeGenesis": {
+					"patch": {
+						"collatorSelection": {
+							"invulnerables": [
+							  "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+							  "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
+							]
+						  },
+						  "session": {
+							"keys": [
+							  [
+								"5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+								"5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+								{
+								  "aura": "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"
+								}
+							  ],
+							  [
+								"5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty",
+								"5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty",
+								{
+								  "aura": "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
+								}
+							  ]
+							]
+						  },
+					}
+				}
+			},
+		}));
+		chain_spec.replace_collator_keys(vec![
+			"5Gw3s7q4QLkSWwknsi8jj5P1K79e5N4b6pfsNUzS97H1DXYF".to_string(),
+		])?;
+		assert_eq!(
+			chain_spec.0,
+			json!({
+				"para_id": 1000,
+				"genesis": {
+				"runtimeGenesis": {
+					"patch": {
+						"collatorSelection": {
+							"invulnerables": [
+							  "5Gw3s7q4QLkSWwknsi8jj5P1K79e5N4b6pfsNUzS97H1DXYF",
+							]
+						  },
+						  "session": {
+							"keys": [
+							  [
+								"5Gw3s7q4QLkSWwknsi8jj5P1K79e5N4b6pfsNUzS97H1DXYF",
+								"5Gw3s7q4QLkSWwknsi8jj5P1K79e5N4b6pfsNUzS97H1DXYF",
+								{
+								  "aura": "5Gw3s7q4QLkSWwknsi8jj5P1K79e5N4b6pfsNUzS97H1DXYF"
+								}
+							  ],
+							]
+						  },
+					}
+				}
+			},
+			})
+		);
+		Ok(())
+	}
+
+	#[test]
+	fn replace_use_evm_collator_keys_works() -> Result<()> {
+		let mut chain_spec = ChainSpec(json!({
+			"para_id": 1000,
+			"properties": {
+				"isEthereum": true
+			},
+			"genesis": {
+				"runtimeGenesis": {
+					"patch": {
+						"collatorSelection": {
+							"invulnerables": [
+							  "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
+							]
+						  },
+						  "session": {
+							"keys": [
+							  [
+								"5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty",
+								"5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty",
+								{
+								  "aura": "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
+								}
+							  ]
+							]
+						  },
+					}
+				}
+			},
+		}));
+		chain_spec.replace_collator_keys(vec![
+			"5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY".to_string(),
+		])?;
+		assert_eq!(
+			chain_spec.0,
+			json!({
+				"para_id": 1000,
+				"properties": {
+					"isEthereum": true
+				},
+				"genesis": {
+				"runtimeGenesis": {
+					"patch": {
+						"collatorSelection": {
+							"invulnerables": [
+							  "0x9621dde636de098b43efb0fa9b61facfe328f99d",
+							]
+						  },
+						  "session": {
+							"keys": [
+							  [
+								"0x9621dde636de098b43efb0fa9b61facfe328f99d",
+								"0x9621dde636de098b43efb0fa9b61facfe328f99d",
+								{
+								  "aura": "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"
+								}
+							  ],
+							]
+						  },
+					}
+				}
+			},
+			})
 		);
 		Ok(())
 	}

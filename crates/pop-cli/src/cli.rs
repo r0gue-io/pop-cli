@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use std::{fmt::Display, io::Result};
+#[cfg(not(test))]
+use std::{thread::sleep, time::Duration};
 #[cfg(test)]
 pub(crate) use tests::MockCli;
 
@@ -146,7 +148,10 @@ impl traits::Cli for Cli {
 
 	/// Prints a warning message.
 	fn warning(&mut self, message: impl Display) -> Result<()> {
-		cliclack::log::warning(message)
+		cliclack::log::warning(message)?;
+		#[cfg(not(test))]
+		sleep(Duration::from_secs(1));
+		Ok(())
 	}
 }
 

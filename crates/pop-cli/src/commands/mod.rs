@@ -36,7 +36,7 @@ pub(crate) enum Command {
 	#[clap(alias = "c")]
 	#[cfg(any(feature = "parachain", feature = "contract"))]
 	Call(call::CallArgs),
-	#[clap(alias = "u", about = about_up())]
+	#[clap(aliases = ["u", "deploy"], about = about_up())]
 	#[cfg(any(feature = "parachain", feature = "contract"))]
 	Up(up::UpArgs),
 	/// Test a Rust project.
