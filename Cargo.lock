@@ -2254,7 +2254,7 @@ dependencies = [
 [[package]]
 name = "contract-build"
 version = "6.0.0-alpha"
-source = "git+https://github.com/use-ink/cargo-contract?branch=alex%2Ffix-mod-visibility#7978f68e1eb62f5200068cf8e38d091739005e9c"
+source = "git+https://github.com/use-ink/cargo-contract?branch=master#4855f3436ca68c9196ecb10f2830c80dc59fcff7"
 dependencies = [
  "alloy-json-abi",
  "anyhow",
@@ -2329,7 +2329,7 @@ dependencies = [
 [[package]]
 name = "contract-extrinsics"
 version = "6.0.0-alpha"
-source = "git+https://github.com/use-ink/cargo-contract?branch=alex%2Ffix-mod-visibility#7978f68e1eb62f5200068cf8e38d091739005e9c"
+source = "git+https://github.com/use-ink/cargo-contract?branch=master#4855f3436ca68c9196ecb10f2830c80dc59fcff7"
 dependencies = [
  "anyhow",
  "blake2 0.10.6",
@@ -2376,7 +2376,7 @@ dependencies = [
 [[package]]
 name = "contract-metadata"
 version = "6.0.0-alpha"
-source = "git+https://github.com/use-ink/cargo-contract?branch=alex%2Ffix-mod-visibility#7978f68e1eb62f5200068cf8e38d091739005e9c"
+source = "git+https://github.com/use-ink/cargo-contract?branch=master#4855f3436ca68c9196ecb10f2830c80dc59fcff7"
 dependencies = [
  "anyhow",
  "impl-serde 0.5.0",
@@ -2417,7 +2417,7 @@ dependencies = [
 [[package]]
 name = "contract-transcode"
 version = "6.0.0-alpha"
-source = "git+https://github.com/use-ink/cargo-contract?branch=alex%2Ffix-mod-visibility#7978f68e1eb62f5200068cf8e38d091739005e9c"
+source = "git+https://github.com/use-ink/cargo-contract?branch=master#4855f3436ca68c9196ecb10f2830c80dc59fcff7"
 dependencies = [
  "anyhow",
  "base58",
