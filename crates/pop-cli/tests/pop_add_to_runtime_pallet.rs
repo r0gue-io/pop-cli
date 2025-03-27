@@ -11,7 +11,7 @@ fn pop_add_to_runtime_pallet_runtime_macro_v2_works() {
 	Command::cargo_bin("pop")
 		.unwrap()
 		.current_dir(&tempdir)
-		.args(&["new", "parachain", "test_parachain", "-t", "standard"])
+		.args(&["new", "parachain", "test_parachain", "-t", "r0gue-io/base-parachain"])
 		.assert()
 		.success();
 
@@ -208,7 +208,7 @@ fn pop_add_to_runtime_pallet_doesnt_modify_on_failure() {
 	Command::cargo_bin("pop")
 		.unwrap()
 		.current_dir(&tempdir)
-		.args(&["new", "parachain", "test_parachain3", "-t", "contracts"])
+		.args(&["new", "parachain", "test_parachain3", "-t", "r0gue-io/contracts-parachain"])
 		.assert()
 		.success();
 

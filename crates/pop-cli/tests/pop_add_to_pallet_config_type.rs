@@ -11,7 +11,7 @@ fn pop_add_to_pallet_config_type_works() {
 	Command::cargo_bin("pop")
 		.unwrap()
 		.current_dir(&tempdir)
-		.args(&["new", "parachain", "test_parachain", "-t", "standard"])
+		.args(&["new", "parachain", "test_parachain", "-t", "r0gue-io/base-parachain"])
 		.assert()
 		.success();
 
@@ -179,7 +179,7 @@ fn pop_add_to_pallet_config_type_doesnt_modify_on_fail() {
 	Command::cargo_bin("pop")
 		.unwrap()
 		.current_dir(&tempdir)
-		.args(&["new", "parachain", "test_parachain", "-t", "standard"])
+		.args(&["new", "parachain", "test_parachain", "-t", "r0gue-io/base-parachain"])
 		.assert()
 		.success();
 

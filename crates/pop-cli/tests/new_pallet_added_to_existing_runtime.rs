@@ -11,7 +11,7 @@ fn pop_new_pallet_modifies_runtime() {
 	Command::cargo_bin("pop")
 		.unwrap()
 		.current_dir(&tempdir)
-		.args(&["new", "parachain", "test_parachain", "-t", "standard"])
+		.args(&["new", "parachain", "test_parachain", "-t", "r0gue-io/base-parachain"])
 		.assert()
 		.success();
 
