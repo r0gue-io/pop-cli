@@ -42,6 +42,17 @@ pub enum OnRuntimeUpgradeSubcommand {
 	Snapshot,
 }
 
+impl OnRuntimeUpgradeSubcommand {
+	/// Get the command string for the `on-runtime-upgrade` subcommand.
+	pub fn command(&self) -> String {
+		match self {
+			OnRuntimeUpgradeSubcommand::Live => "live",
+			OnRuntimeUpgradeSubcommand::Snapshot => "snap",
+		}
+		.to_string()
+	}
+}
+
 /// Get the details of upgrade checks options for testing the runtime migrations.
 ///
 /// # Arguments
@@ -68,7 +79,7 @@ pub fn get_upgrade_checks_details(upgrade_check_select: UpgradeCheckSelect) -> (
 /// * `binary_path` - Path to the binary of `try-runtime-cli`.
 /// * `command` - Command to run for benchmarking.
 /// * `shared_params` - Shared parameters for the try-runtime command.
-/// * `update_args` - Function to update the arguments before running the benchmark.
+/// * `args` - Arguments to pass to the try-runtime command.
 /// * `excluded_args` - Arguments to exclude from the try-runtime command.
 pub fn generate_try_runtime(
 	binary_path: &PathBuf,
@@ -87,8 +98,15 @@ pub fn generate_try_runtime(
 			.filter(|arg| !excluded_args.iter().any(|a| arg.starts_with(a)))
 			.collect::<Vec<String>>(),
 	);
-	let output = cmd(binary_path, cmd_args).stderr_capture().unchecked().run()?;
+	let output = cmd(binary_path, cmd_args)
+		.env("RUST_LOG", "info")
+		.stderr_capture()
+		.unchecked()
+		.run()?;
 	// Check if the command failed.
 	handle_command_error(&output, Error::TryRuntimeError)?;
+	if output.status.success() {
+		println!("{}", String::from_utf8_lossy(&output.stderr));
+	}
 	Ok(())
 }
