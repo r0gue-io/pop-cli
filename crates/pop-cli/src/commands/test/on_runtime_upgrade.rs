@@ -16,18 +16,25 @@ use pop_parachains::{
 	generate_try_runtime, get_upgrade_checks_details, OnRuntimeUpgradeSubcommand,
 	TryRuntimeCliCommand,
 };
-use std::{env::current_dir, path::PathBuf, str::FromStr};
+use std::{collections::HashSet, env::current_dir, path::PathBuf, str::FromStr};
 use strum::{EnumMessage, VariantArray};
 use try_runtime_core::common::{
-	shared_parameters::Runtime,
+	shared_parameters::{Runtime, SharedParams},
 	state::{LiveState, State},
 };
 
 const DEFAULT_BLOCK_TIME: &str = "6000";
 const DEFAULT_BLOCK_HASH: &str = "0x1a2b3c4d5e6f7890";
 const DEFAULT_LIVE_NODE_URL: &str = "ws://localhost:9944/";
-const EXCLUDED_ARGS: [&str; 7] =
-	["--profile", "--migration", "-m", "--no-build", "-n", "--skip-confirm", "-y"];
+const CUSTOM_ARGS: [&str; 5] = ["--profile", "--no-build", "-n", "--skip-confirm", "-y"];
+const SHARED_PARAMS: [&str; 6] = [
+	"--runtime",
+	"--wasm-execution",
+	"--wasm-instantiation-strategy",
+	"--heap-pages",
+	"--export-proof",
+	"--overwrite-state-version",
+];
 
 /// Configuration for [`run`].
 #[derive(Debug, Clone, clap::Parser)]
@@ -108,25 +115,38 @@ impl TestOnRuntimeUpgradeCommand {
 	/// Executes the command.
 	pub(crate) async fn execute(mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		cli.intro("Testing runtime migrations")?;
+		let user_provided_args = std::env::args().collect::<Vec<String>>();
 		if self.profile.is_none() {
 			match guide_user_to_select_profile(cli) {
 				Ok(profile) => self.profile = Some(profile),
 				Err(e) => return display_message(&e.to_string(), false, cli),
 			}
 		};
-		self.command.shared_params.runtime = Runtime::Path(ensure_runtime_binary_exists(
-			cli,
-			&current_dir().unwrap_or(PathBuf::from("./")),
-			self.profile.as_ref().ok_or_else(|| anyhow::anyhow!("No profile provided"))?,
-			!self.no_build,
-		)?);
-
-		if let Err(e) = self.update_state(cli) {
-			return display_message(&e.to_string(), false, cli);
+		if !argument_exists(&user_provided_args, "--runtime") {
+			self.command.shared_params.runtime = Runtime::Path(ensure_runtime_binary_exists(
+				cli,
+				&current_dir().unwrap_or(PathBuf::from("./")),
+				self.profile.as_ref().ok_or_else(|| anyhow::anyhow!("No profile provided"))?,
+				!self.no_build,
+			)?);
 		}
 
+		if self.command().blocktime.is_none() {
+			let block_time = cli
+				.input("Enter the block time:")
+				.required(true)
+				.default_input(DEFAULT_BLOCK_TIME)
+				.interact()?;
+			self.command.command.blocktime = Some(block_time.parse()?);
+		}
+
+		match self.update_state(cli) {
+			Ok(subcommand) => subcommand,
+			Err(e) => return display_message(&e.to_string(), false, cli),
+		};
+
 		// If the `checks` argument is not provided, prompt the user to select the upgrade checks.
-		if !has_argument("checks") {
+		if !argument_exists(&user_provided_args, "--checks") {
 			match guide_user_to_select_upgrade_checks(cli) {
 				Ok(checks) => self.command.command.checks = checks,
 				Err(e) => return display_message(&e.to_string(), false, cli),
@@ -136,7 +156,7 @@ impl TestOnRuntimeUpgradeCommand {
 		let result = self.run(cli).await;
 
 		// Display the `on-runtime-upgrade` command.
-		cli.info(self.display())?;
+		cli.info(self.display()?)?;
 		if let Err(e) = result {
 			return display_message(&e.to_string(), false, cli);
 		}
@@ -146,13 +166,133 @@ impl TestOnRuntimeUpgradeCommand {
 
 	async fn run(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		let binary_path = check_try_runtime_and_prompt(cli, self.skip_confirm).await?;
+		let subcommand = self.subcommand()?;
+		let user_provided_args: Vec<String> = std::env::args().skip(3).collect();
+		let (command_arguments, shared_params, after_subcommand) =
+			partition_arguments(user_provided_args, &subcommand);
+
+		let mut shared_args = vec![];
+		self.collect_shared_arguments(&shared_params, &mut shared_args);
+
+		let mut args = vec![];
+		self.collect_arguments_before_subcommand(&command_arguments, &mut args);
+		args.push(self.subcommand()?);
+		self.collect_arguments_after_subcommand(&after_subcommand, &mut args);
+
 		generate_try_runtime(
 			&binary_path,
 			TryRuntimeCliCommand::OnRuntimeUpgrade,
-			|args| args,
-			&EXCLUDED_ARGS,
+			shared_args,
+			args,
+			&CUSTOM_ARGS,
 		)?;
 		Ok(())
+	}
+
+	fn collect_shared_arguments(&self, user_provided_args: &[String], args: &mut Vec<String>) {
+		let mut seen_args: HashSet<String> = HashSet::new();
+
+		if !argument_exists(user_provided_args, "--runtime") {
+			let runtime_arg = match self.shared_params().runtime {
+				Runtime::Path(ref path) => format!("--runtime={}", path.to_str().unwrap()),
+				Runtime::Existing => "--runtime=existing".to_string(),
+			};
+			args.push(runtime_arg.clone());
+			seen_args.insert("--runtime".to_string());
+		}
+
+		// Exclude arguments that are already included.
+		for arg in user_provided_args.iter() {
+			if !seen_args.contains(arg) {
+				args.push(arg.clone());
+				seen_args.insert(arg.clone());
+			}
+		}
+	}
+
+	// Handle arguments before the subcommand.
+	fn collect_arguments_before_subcommand(
+		&self,
+		user_provided_args: &[String],
+		args: &mut Vec<String>,
+	) {
+		let mut seen_args: HashSet<String> = HashSet::new();
+
+		if !argument_exists(user_provided_args, "--blocktime") {
+			if let Some(blocktime) = self.command().blocktime {
+				args.push(format!("--blocktime={}", blocktime));
+				seen_args.insert("--blocktime".to_string());
+			}
+		}
+		if !argument_exists(user_provided_args, "--checks") {
+			let (value, _) = get_upgrade_checks_details(self.command().checks);
+			args.push(format!("--checks={}", value));
+			seen_args.insert("--checks".to_string());
+		}
+		// These are custom arguments which not in `try-runtime-cli`.
+		if !argument_exists(user_provided_args, "--profile") {
+			if let Some(ref profile) = self.profile {
+				args.push(format!("--profile={}", profile));
+			}
+		}
+		if !argument_exists(user_provided_args, "-n") &&
+			!argument_exists(user_provided_args, "--no-build")
+		{
+			if self.no_build {
+				args.push("-n".to_string());
+			}
+		}
+		if !argument_exists(user_provided_args, "-y") &&
+			!argument_exists(user_provided_args, "--skip-confirm")
+		{
+			if self.skip_confirm {
+				args.push("-y".to_string());
+			}
+		}
+		// Exclude arguments that are already included.
+		for arg in user_provided_args.iter() {
+			if !seen_args.contains(arg) {
+				args.push(arg.clone());
+				seen_args.insert(arg.clone());
+			}
+		}
+	}
+
+	// Handle arguments after the subcommand.
+	fn collect_arguments_after_subcommand(
+		&self,
+		user_provided_args: &[String],
+		args: &mut Vec<String>,
+	) {
+		let mut seen_args: HashSet<String> = HashSet::new();
+		match self.command().state.as_ref().unwrap() {
+			State::Live(state) => {
+				if !argument_exists(user_provided_args, "--uri") {
+					args.push(format!("--uri={}", state.uri));
+					seen_args.insert("--uri".to_string());
+				}
+				if !argument_exists(user_provided_args, "--at") {
+					if let Some(ref at) = state.at {
+						args.push(format!("--at={}", at));
+						seen_args.insert("--at".to_string());
+					}
+				}
+			},
+			State::Snap { path } =>
+				if !argument_exists(user_provided_args, "--path") {
+					if let Some(ref path) = path {
+						args.push(format!("--path={}", path.display()));
+						seen_args.insert("--path".to_string());
+					};
+				},
+		}
+		// Exclude arguments that are already included.
+		for arg in user_provided_args.iter() {
+			if !seen_args.contains(arg) {
+				args.push(arg.clone());
+				seen_args.insert(arg.clone());
+			}
+		}
 	}
 
 	fn update_state(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
@@ -161,7 +301,7 @@ impl TestOnRuntimeUpgradeCommand {
 		let mut live_state = default_live_state();
 
 		// Read from state subcommand.
-		match self.command.command.state {
+		match self.command().state {
 			Some(ref state) => match state {
 				State::Live(_state) => {
 					live_state = _state.clone();
@@ -180,16 +320,13 @@ impl TestOnRuntimeUpgradeCommand {
 			subcommand = Some(guide_user_to_select_chain_state(cli)?.clone());
 		};
 		match subcommand {
-			Some(state) => {
-				match state {
-					OnRuntimeUpgradeSubcommand::Live => self.update_live_state(cli, live_state)?,
-					OnRuntimeUpgradeSubcommand::Snapshot =>
-						self.update_snapshot_state(cli, path)?,
-				}
-				return Ok(());
+			Some(state) => match state {
+				OnRuntimeUpgradeSubcommand::Live => self.update_live_state(cli, live_state)?,
+				OnRuntimeUpgradeSubcommand::Snapshot => self.update_snapshot_state(cli, path)?,
 			},
 			None => return Err(anyhow::anyhow!("No chain state selected for migration.")),
 		}
+		Ok(())
 	}
 
 	fn update_snapshot_state(
@@ -202,7 +339,7 @@ impl TestOnRuntimeUpgradeCommand {
 				.input(format!(
 					"Enter path to your snapshot file?\n{}.",
 					console::style(
-						"Snapshot file can be generated using `pop test create-snapshot` command."
+						"Snapshot file can be generated using `pop test create-snapshot` command"
 					)
 					.dim()
 				))
@@ -213,14 +350,6 @@ impl TestOnRuntimeUpgradeCommand {
 				return Err(anyhow::anyhow!("Invalid path to the snapshot file."));
 			}
 			path = Some(snapshot_file);
-		}
-		if self.command.command.blocktime.is_none() {
-			let block_time = cli
-				.input("Enter the block time:")
-				.required(true)
-				.default_input(DEFAULT_BLOCK_TIME)
-				.interact()?;
-			self.command.command.blocktime = Some(block_time.parse()?);
 		}
 		self.command.command.state = Some(State::Snap { path });
 		Ok(())
@@ -244,41 +373,46 @@ impl TestOnRuntimeUpgradeCommand {
 				.required(false)
 				.placeholder(DEFAULT_BLOCK_HASH)
 				.interact()?;
-			live_state.at = Some(check_block_hash(&block_hash)?);
+			if !block_hash.is_empty() {
+				live_state.at = Some(check_block_hash(&block_hash)?);
+			}
 		}
 		self.command.command.state = Some(State::Live(live_state.clone()));
 		Ok(())
 	}
 
-	fn display(&self) -> String {
-		let mut args = vec!["pop test on-runtime-upgrade".to_string()];
-		let mut arguments: Vec<String> = std::env::args().skip(3).collect();
+	fn display(&self) -> anyhow::Result<String> {
+		let mut cmd_args = vec!["pop test on-runtime-upgrade".to_string()];
+		let mut args = vec![];
+		let subcommand = self.subcommand()?;
+		let user_provided_args: Vec<String> = std::env::args().skip(3).collect();
 
-		if !has_argument("runtime") {
-			arguments.push(format!(
-				"--runtime={}",
-				match self.command.shared_params.runtime {
-					Runtime::Path(ref path) => path.to_str().unwrap().to_string(),
-					Runtime::Existing => "existing".to_string(),
-				}
-			));
-		}
-		if let Some(ref profile) = self.profile {
-			arguments.push(format!("--profile={}", profile));
-		}
-		if !has_argument("checks") {
-			let (value, _) = get_upgrade_checks_details(self.command.command.checks);
-			arguments.push(format!("--checks={}", value));
-		}
+		let (command_arguments, shared_params, after_subcommand) =
+			partition_arguments(user_provided_args, &subcommand);
 
-		if self.no_build {
-			arguments.push("-n".to_string());
+		self.collect_shared_arguments(&shared_params, &mut args);
+		self.collect_arguments_before_subcommand(&command_arguments, &mut args);
+		args.push(subcommand);
+		self.collect_arguments_after_subcommand(&after_subcommand, &mut args);
+		cmd_args.extend(args);
+		Ok(cmd_args.join(" "))
+	}
+
+	fn command(&self) -> &Command {
+		&self.command.command
+	}
+
+	fn shared_params(&self) -> &SharedParams {
+		&self.command.shared_params
+	}
+
+	fn subcommand(&self) -> anyhow::Result<String> {
+		Ok(match self.command().state {
+			Some(State::Live(..)) => "live",
+			Some(State::Snap { .. }) => "snap",
+			None => return Err(anyhow::anyhow!("No subcommand provided")),
 		}
-		if self.skip_confirm {
-			arguments.push("-y".to_string());
-		}
-		args.extend(arguments);
-		args.join(" ")
+		.to_string())
 	}
 }
 
@@ -299,8 +433,29 @@ fn check_block_hash(block_hash: &str) -> anyhow::Result<String> {
 	}
 }
 
-fn has_argument(arg: &str) -> bool {
-	let args: Vec<String> = std::env::args().collect();
+fn partition_arguments(
+	args: Vec<String>,
+	subcommand: &str,
+) -> (Vec<String>, Vec<String>, Vec<String>) {
+	let mut command_parts = args.split(|arg| arg == subcommand);
+	let (before_subcommand, after_subcommand) =
+		(command_parts.next().unwrap_or_default(), command_parts.next().unwrap_or_default());
+	let (mut command_arguments, mut shared_params): (Vec<String>, Vec<String>) = (vec![], vec![]);
+	for arg in before_subcommand.to_vec() {
+		if is_shared_params(&arg) {
+			shared_params.push(arg);
+		} else {
+			command_arguments.push(arg);
+		}
+	}
+	(command_arguments, shared_params, after_subcommand.to_vec())
+}
+
+fn is_shared_params(arg: &str) -> bool {
+	SHARED_PARAMS.iter().any(|a| arg.starts_with(a))
+}
+
+fn argument_exists(args: &[String], arg: &str) -> bool {
 	args.iter().any(|a| a.contains(arg))
 }
 
@@ -323,7 +478,7 @@ fn guide_user_to_select_upgrade_checks(
 ) -> anyhow::Result<UpgradeCheckSelect> {
 	let default_upgrade_check = get_upgrade_checks_details(UpgradeCheckSelect::All);
 	let mut prompt = cli
-		.select("Select which optional checks to perform.")
+		.select("Select upgrade checks to perform:")
 		.initial_value(default_upgrade_check.0);
 	for check in [
 		UpgradeCheckSelect::None,

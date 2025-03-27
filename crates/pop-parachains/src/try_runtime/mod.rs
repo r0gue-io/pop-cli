@@ -62,31 +62,31 @@ pub fn get_upgrade_checks_details(upgrade_check_select: UpgradeCheckSelect) -> (
 	}
 }
 
-/// Generates binary benchmarks using `try-runtime`.
+/// Generates Try Runtime tests with `try-runtime-cli` binary.
 ///
 /// # Arguments
-/// * `binary_path` - Path to the binary of Try Runtime CLI.
+/// * `binary_path` - Path to the binary of `try-runtime-cli`.
 /// * `command` - Command to run for benchmarking.
+/// * `shared_params` - Shared parameters for the try-runtime command.
 /// * `update_args` - Function to update the arguments before running the benchmark.
-/// * `excluded_args` - Arguments to exclude from the benchmarking command.
-pub fn generate_try_runtime<F>(
+/// * `excluded_args` - Arguments to exclude from the try-runtime command.
+pub fn generate_try_runtime(
 	binary_path: &PathBuf,
 	command: TryRuntimeCliCommand,
-	update_args: F,
+	shared_params: Vec<String>,
+	args: Vec<String>,
 	excluded_args: &[&str],
-) -> Result<(), Error>
-where
-	F: Fn(Vec<String>) -> Vec<String>,
-{
-	// Get all arguments of the command and skip the program name.
-	let mut args = update_args(std::env::args().skip(3).collect::<Vec<String>>());
-	args = args
+) -> Result<(), Error> {
+	let mut cmd_args = shared_params
 		.into_iter()
 		.filter(|arg| !excluded_args.iter().any(|a| arg.starts_with(a)))
 		.collect::<Vec<String>>();
-	let mut cmd_args = vec![command.to_string()];
-	cmd_args.append(&mut args);
-
+	cmd_args.extend(vec![command.to_string()]);
+	cmd_args.extend(
+		args.into_iter()
+			.filter(|arg| !excluded_args.iter().any(|a| arg.starts_with(a)))
+			.collect::<Vec<String>>(),
+	);
 	let output = cmd(binary_path, cmd_args).stderr_capture().unchecked().run()?;
 	// Check if the command failed.
 	handle_command_error(&output, Error::TryRuntimeError)?;
