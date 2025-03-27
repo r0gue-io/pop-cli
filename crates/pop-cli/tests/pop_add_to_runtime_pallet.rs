@@ -110,7 +110,7 @@ impl pallet_contracts::Config for Runtime {
 }
 
 #[test]
-fn pop_add_to_runtime_pallet_construct_runtime_specified_impl_path_works() {
+fn pop_add_to_runtime_pallet_construct_runtime_works() {
 	let temp = tempfile::tempdir().unwrap();
 	let tempdir = temp.path();
 
@@ -148,8 +148,6 @@ fn pop_add_to_runtime_pallet_construct_runtime_specified_impl_path_works() {
 			"pallet",
 			"-p",
 			"contracts",
-			"--pallet-impl-path",
-			runtime_lib_path.to_str().unwrap(),
 		])
 		.assert()
 		.success();
