@@ -33,7 +33,6 @@ impl Git {
 				Err(_) => return Err(e.into()),
 			},
 		};
-		println!("reference: {:?}", reference);
 		if let Some(reference) = reference {
 			let mut remote = repo.find_remote("origin")?;
 			remote.fetch(&[reference], None, None)?; // <-- fetch the branch you want
