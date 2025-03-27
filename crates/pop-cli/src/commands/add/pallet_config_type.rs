@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 
+#[cfg(test)]
+mod tests;
+
 mod common_types;
 
 use crate::{

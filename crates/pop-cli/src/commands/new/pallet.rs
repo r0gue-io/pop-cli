@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 
+#[cfg(test)]
+mod tests;
+
 use crate::{
 	cli::{traits::Cli as _, Cli},
 	multiselect_pick,
