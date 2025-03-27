@@ -142,13 +142,7 @@ fn pop_add_to_runtime_pallet_construct_runtime_works() {
 	Command::cargo_bin("pop")
 		.unwrap()
 		.current_dir(&test_parachain)
-		.args(&[
-			"add-to",
-			"runtime",
-			"pallet",
-			"-p",
-			"contracts",
-		])
+		.args(&["add-to", "runtime", "pallet", "-p", "contracts"])
 		.assert()
 		.success();
 
