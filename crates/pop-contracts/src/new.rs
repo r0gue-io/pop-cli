@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{errors::Error, utils::canonicalized_path, Contract};
+use crate::{errors::Error, templates::V6_CONTRACTS_BRANCH, utils::canonicalized_path, Contract};
 use anyhow::Result;
 use contract_build::new_contract_project;
 use heck::ToUpperCamelCase;
@@ -24,8 +24,7 @@ pub fn create_smart_contract(name: &str, target: &Path, template: &Contract) -> 
 	if matches!(template, Contract::Standard) {
 		return create_standard_contract(name, canonicalized_path);
 	}
-	let reference = Some("461ca2c5031370567afa600727b501a52fa6b338");
-	create_template_contract(name, canonicalized_path, template, reference)
+	create_template_contract(name, canonicalized_path, template)
 }
 
 pub fn is_valid_contract_name(name: &str) -> Result<(), Error> {
@@ -58,12 +57,11 @@ fn create_template_contract(
 	name: &str,
 	canonicalized_path: PathBuf,
 	template: &Contract,
-	reference: Option<&str>,
 ) -> Result<()> {
 	let template_repository = template.repository_url()?;
 	// Clone the repository into the temporary directory.
 	let temp_dir = ::tempfile::TempDir::new_in(std::env::temp_dir())?;
-	Git::clone(&Url::parse(template_repository)?, temp_dir.path(), reference)?;
+	Git::clone(&Url::parse(template_repository)?, temp_dir.path(), Some(V6_CONTRACTS_BRANCH))?;
 	// Retrieve only the template contract files.
 	if template == &Contract::PSP22 || template == &Contract::PSP34 {
 		// Different template structure requires extracting different path
