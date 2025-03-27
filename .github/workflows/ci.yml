@@ -146,6 +146,12 @@ jobs:
           default: true
           target: wasm32-unknown-unknown
           components: rust-src, clippy
+      
+      - name: Init (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        uses: ./.github/actions/init
+        with:
+          git-user: ${{ env.GITHUB_ACTOR }}
 
       - name: Install dependencies
         run: |
