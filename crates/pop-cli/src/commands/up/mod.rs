@@ -94,12 +94,13 @@ impl Command {
 #[cfg(test)]
 mod tests {
 	use super::{contract::UpContractCommand, *};
-
+	use crate::style::format_url;
 	use cli::MockCli;
 	use duct::cmd;
 	use pop_contracts::{mock_build_process, new_environment};
-	use pop_parachains::{instantiate_template_dir, Config, Parachain};
+	use pop_parachains::{instantiate_template_dir, Config, DeploymentProvider, Parachain};
 	use std::env;
+	use strum::VariantArray;
 	use url::Url;
 
 	fn create_up_args(project_path: PathBuf) -> anyhow::Result<UpArgs> {
@@ -160,7 +161,24 @@ mod tests {
 		args.rollup.id = Some(2000);
 		args.rollup.genesis_code = Some(PathBuf::from("path/to/genesis"));
 		args.rollup.genesis_state = Some(PathBuf::from("path/to/state"));
-		let mut cli = MockCli::new();
+		let mut cli = MockCli::new().expect_select(
+			"Select your deployment method:",
+			Some(false),
+			true,
+			Some(
+				DeploymentProvider::VARIANTS
+					.into_iter()
+					.map(|action| (action.name().to_string(), format_url(action.base_url())))
+					.chain(std::iter::once((
+						"Register".to_string(),
+						"Register the rollup on the relay chain without deploying with a provider"
+							.to_string(),
+					)))
+					.collect::<Vec<_>>(),
+			),
+			DeploymentProvider::VARIANTS.len(), // Register
+			None,
+		);
 		assert_eq!(Command::execute_project_deployment(args, &mut cli).await?, "parachain");
 		cli.verify()
 	}
