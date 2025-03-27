@@ -76,6 +76,7 @@ impl AccountIdMapper {
 }
 
 #[cfg(test)]
+mod tests {
 	use super::*;
 	use anyhow::Result;
 

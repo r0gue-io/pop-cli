@@ -24,7 +24,7 @@ pub fn create_smart_contract(name: &str, target: &Path, template: &Contract) -> 
 	if matches!(template, Contract::Standard) {
 		return create_standard_contract(name, canonicalized_path);
 	}
-	let reference = Some("v6.x");
+	let reference = Some("461ca2c5031370567afa600727b501a52fa6b338");
 	create_template_contract(name, canonicalized_path, template, reference)
 }
 
