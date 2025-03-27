@@ -72,12 +72,18 @@ impl BenchmarkBlock {
 	fn display(&self) -> String {
 		let mut args = vec!["pop bench block".to_string()];
 		let mut arguments: Vec<String> = std::env::args().skip(3).collect();
-		if let Some(ref profile) = self.profile {
-			arguments.push(format!("--profile={}", profile));
+		if !argument_exists(&arguments, "--profile") {
+			if let Some(ref profile) = self.profile {
+				arguments.push(format!("--profile={}", profile));
+			}
 		}
 		args.extend(arguments);
 		args.join(" ")
 	}
+}
+
+fn argument_exists(args: &[String], arg: &str) -> bool {
+	args.iter().any(|a| a.contains(arg))
 }
 
 #[cfg(test)]
@@ -111,7 +117,7 @@ mod tests {
 			.expect_outro_cancel(
 				// As we only mock the node to test the interactive flow, the returned error is
 				// expected.
-				"Failed to run benchmarking: Permission denied (os error 13)",
+				"IO error: Permission denied (os error 13)",
 			);
 		BenchmarkBlock {
 			command: BlockCmd::try_parse_from(vec!["", "--from=0", "--to=1"])?,
@@ -135,7 +141,7 @@ mod tests {
 			.expect_outro_cancel(
 				// As we only mock the node to test the interactive flow, the returned error is
 				// expected.
-				"Failed to run benchmarking: Permission denied (os error 13)",
+				"IO error: Permission denied (os error 13)",
 			);
 		BenchmarkBlock {
 			command: BlockCmd::try_parse_from(vec!["", "--from=0", "--to=1"])?,
