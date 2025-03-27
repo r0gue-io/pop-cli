@@ -5,7 +5,7 @@ use sp_core::keccak_256;
 use std::str::FromStr;
 use subxt::utils::{to_hex, H160};
 
-/// Parses a Substrate account ID from its string representation.
+/// Parses an account ID from its string representation.
 ///
 /// # Arguments
 /// * `account` - A string representing the account ID to parse.
@@ -33,6 +33,7 @@ pub fn parse_h160_account(account: &str) -> Result<H160, Error> {
 /// Converts a list of accounts into EVM-compatible `AccountId20`.
 ///
 /// # Arguments
+/// * `accounts` - A vector of `AccountId32` strings.
 pub fn convert_to_evm_accounts(accounts: Vec<String>) -> Result<Vec<String>, Error> {
 	accounts
 		.into_iter()

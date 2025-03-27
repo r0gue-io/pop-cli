@@ -507,9 +507,14 @@ impl CallContractCommand {
 		call_exec: CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
 		cli: &mut impl Cli,
 	) -> Result<()> {
-		let call_data = self.get_contract_data(&call_exec).await.map_err(|err| {
-			anyhow!("An error occurred getting the call data: {}", err.to_string())
-		})?;
+		let storage_deposit_limit = match call_exec.opts().storage_deposit_limit() {
+			Some(deposit_limit) => deposit_limit,
+			None => call_exec.estimate_gas().await?.1,
+		};
+		let call_data =
+			self.get_contract_data(&call_exec, storage_deposit_limit).map_err(|err| {
+				anyhow!("An error occurred getting the call data: {}", err.to_string())
+			})?;
 
 		let maybe_payload = request_signature(call_data, self.url.to_string()).await?;
 		if let Some(payload) = maybe_payload {
@@ -531,16 +536,17 @@ impl CallContractCommand {
 	}
 
 	// Get the call data.
-	async fn get_contract_data(
+	fn get_contract_data(
 		&self,
 		call_exec: &CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
+		storage_deposit_limit: u128,
 	) -> anyhow::Result<Vec<u8>> {
 		let weight_limit = if self.gas_limit.is_some() && self.proof_size.is_some() {
 			Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap())
 		} else {
 			Weight::zero()
 		};
-		let call_data = get_call_payload(call_exec, weight_limit).await?;
+		let call_data = get_call_payload(call_exec, weight_limit, storage_deposit_limit)?;
 		Ok(call_data)
 	}
 
