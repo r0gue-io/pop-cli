@@ -33,9 +33,9 @@ impl Git {
 
 		if let Some(reference) = reference {
 			let object = repo
-			.revparse_single(reference)
-			.or_else(|_| repo.revparse_single(&format!("refs/tags/{}", reference)))
-			.or_else(|_| repo.revparse_single(&format!("refs/remotes/origin/{}", reference)))?;
+				.revparse_single(reference)
+				.or_else(|_| repo.revparse_single(&format!("refs/tags/{}", reference)))
+				.or_else(|_| repo.revparse_single(&format!("refs/remotes/origin/{}", reference)))?;
 			repo.checkout_tree(&object, None)?;
 			repo.set_head_detached(object.id())?;
 		}
