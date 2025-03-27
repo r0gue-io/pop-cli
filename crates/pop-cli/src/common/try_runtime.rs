@@ -48,5 +48,5 @@ pub async fn source_try_runtime_binary(
 	cache_path: &Path,
 	skip_confirm: bool,
 ) -> anyhow::Result<PathBuf> {
-	Ok(check_and_prompt::<TryRuntimeGenerator>(cli, BINARY_NAME, cache_path, skip_confirm).await?)
+	check_and_prompt::<TryRuntimeGenerator>(cli, BINARY_NAME, cache_path, skip_confirm).await
 }

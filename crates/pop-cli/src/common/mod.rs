@@ -16,5 +16,6 @@ pub mod prompt;
 /// Contains runtime utilities.
 pub mod runtime;
 /// Contains try-runtime utilities.
+#[cfg(feature = "parachain")]
 pub mod try_runtime;
 pub mod wallet;
