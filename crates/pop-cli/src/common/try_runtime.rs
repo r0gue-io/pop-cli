@@ -10,10 +10,22 @@ use pop_common::sourcing::Binary;
 use pop_parachains::try_runtime_generator;
 use std::{
 	self,
+	collections::HashSet,
 	path::{Path, PathBuf},
 };
+use try_runtime_core::common::shared_parameters::{Runtime, SharedParams};
 
 const BINARY_NAME: &str = "try-runtime";
+
+/// Shared parameters derived from the fields of struct `SharedParams`.
+const SHARED_PARAMS: [&str; 6] = [
+	"--runtime",
+	"--wasm-execution",
+	"--wasm-instantiation-strategy",
+	"--heap-pages",
+	"--export-proof",
+	"--overwrite-state-version",
+];
 
 impl_binary_generator!(TryRuntimeGenerator, try_runtime_generator);
 
@@ -49,4 +61,147 @@ pub async fn source_try_runtime_binary(
 	skip_confirm: bool,
 ) -> anyhow::Result<PathBuf> {
 	check_and_prompt::<TryRuntimeGenerator>(cli, BINARY_NAME, cache_path, skip_confirm).await
+}
+
+/// Checks if an argument exists in the given list of arguments.
+///
+/// # Arguments
+/// * `args`: The list of arguments.
+/// * `arg`: The argument to check for.
+pub(crate) fn argument_exists(args: &[String], arg: &str) -> bool {
+	args.iter().any(|a| a.starts_with(arg))
+}
+
+/// Collect arguments shared across all `try-runtime-cli` commands.
+pub(crate) fn collect_shared_arguments(
+	shared_params: &SharedParams,
+	user_provided_args: &[String],
+	args: &mut Vec<String>,
+) {
+	let mut seen_args: HashSet<String> = HashSet::new();
+	let arg = "--runtime";
+	if !argument_exists(user_provided_args, arg) {
+		let runtime_arg = match shared_params.runtime {
+			Runtime::Path(ref path) => format!("{}={}", arg, path.to_str().unwrap()),
+			Runtime::Existing => format!("{}=existing", arg),
+		};
+		args.push(runtime_arg.clone());
+		seen_args.insert(arg.to_string());
+	}
+	// Exclude arguments that are already included.
+	for arg in user_provided_args.iter() {
+		if !seen_args.contains(arg) {
+			args.push(arg.clone());
+			seen_args.insert(arg.clone());
+		}
+	}
+}
+
+/// Partition arguments into command-specific arguments, shared arguments, and remaining arguments.
+///
+/// # Arguments
+///
+/// * `args` - A vector of arguments to be partitioned.
+/// * `subcommand` - The name of the subcommand.
+pub(crate) fn partition_arguments(
+	args: Vec<String>,
+	subcommand: &str,
+) -> (Vec<String>, Vec<String>, Vec<String>) {
+	let mut command_parts = args.split(|arg| arg == subcommand);
+	let (before_subcommand, after_subcommand) =
+		(command_parts.next().unwrap_or_default(), command_parts.next().unwrap_or_default());
+	let (mut command_arguments, mut shared_arguments): (Vec<String>, Vec<String>) =
+		(vec![], vec![]);
+	for arg in before_subcommand.iter().cloned() {
+		if is_shared_params(&arg) {
+			shared_arguments.push(arg);
+		} else {
+			command_arguments.push(arg);
+		}
+	}
+	(command_arguments, shared_arguments, after_subcommand.to_vec())
+}
+
+/// Check if an argument is a shared parameter.
+///
+/// # Arguments
+///
+/// * `arg` - The argument to check.
+pub(crate) fn is_shared_params(arg: &str) -> bool {
+	SHARED_PARAMS.iter().any(|a| arg.starts_with(a))
+}
+
+#[cfg(test)]
+mod tests {
+	use clap::Parser;
+
+	use super::*;
+
+	#[test]
+	fn argument_exists_works() {
+		let args = vec![
+			"--uri=http://example.com".to_string(),
+			"--at=block123".to_string(),
+			"--runtime".to_string(),
+			"mock-runtime".to_string(),
+		];
+		assert!(argument_exists(&args, "--runtime"));
+		assert!(argument_exists(&args, "--uri"));
+		assert!(argument_exists(&args, "--at"));
+		assert!(!argument_exists(&args, "--path"));
+		assert!(!argument_exists(&args, "--custom-arg"));
+	}
+
+	#[test]
+	fn collect_shared_arguments_works() -> anyhow::Result<()> {
+		// Keep the user-provided argument unchanged.
+		let user_provided_args = vec!["--runtime".to_string(), "dummy-runtime".to_string()];
+		let mut args = vec![];
+		collect_shared_arguments(
+			&SharedParams::try_parse_from(vec![""])?,
+			&user_provided_args,
+			&mut args,
+		);
+		assert_eq!(args, user_provided_args);
+
+		// If the user does not provide a URI argument, modify with the argument updated during
+		// runtime.
+		let shared_params = SharedParams::try_parse_from(vec!["", "--runtime=path-to-runtime"])?;
+		let mut args = vec![];
+		collect_shared_arguments(&shared_params, &vec![], &mut args);
+		assert_eq!(args, vec!["--runtime=path-to-runtime".to_string()]);
+		Ok(())
+	}
+
+	#[test]
+	fn partition_arguments_works() {
+		let subcommand = "run";
+		let (command_args, shared_params, after_subcommand) =
+			partition_arguments(vec![subcommand.to_string()], subcommand);
+
+		assert!(command_args.is_empty());
+		assert!(shared_params.is_empty());
+		assert!(after_subcommand.is_empty());
+
+		let args = vec![
+			"--runtime=runtime_name".to_string(),
+			"--wasm-execution=instantiate".to_string(),
+			"--command=command_name".to_string(),
+			"run".to_string(),
+			"--arg1".to_string(),
+			"--arg2".to_string(),
+		];
+		let (command_args, shared_params, after_subcommand) = partition_arguments(args, subcommand);
+		assert_eq!(command_args, vec!["--command=command_name".to_string()]);
+		assert_eq!(
+			shared_params,
+			vec!["--runtime=runtime_name".to_string(), "--wasm-execution=instantiate".to_string()]
+		);
+		assert_eq!(after_subcommand, vec!["--arg1".to_string(), "--arg2".to_string()]);
+	}
+
+	#[test]
+	fn is_shared_params_works() {
+		assert!(SHARED_PARAMS.into_iter().all(is_shared_params));
+	}
 }
