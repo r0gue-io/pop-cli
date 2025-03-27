@@ -22,6 +22,7 @@ reqwest.workspace = true
 scale-info.workspace = true
 serde_json.workspace = true
 serde.workspace = true
+sp-core.workspace = true
 strum.workspace = true
 strum_macros.workspace = true
 subxt.workspace = true
