@@ -3749,18 +3749,6 @@ dependencies = [
 [[package]]
 name = "frame-try-runtime"
 version = "0.45.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2224250e66348e71a952060f50b75bf02b7114241818602ccc46e0f905331193"
-dependencies = [
- "frame-support 39.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "parity-scale-codec",
- "sp-api 35.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-runtime 40.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "frame-try-runtime"
-version = "0.45.0"
 source = "git+https://github.com/paritytech/polkadot-sdk?tag=polkadot-v1.17.3#06158dd26ba5d75263fbe454a95b73abed6b06d2"
 dependencies = [
  "frame-support 39.0.0 (git+https://github.com/paritytech/polkadot-sdk?tag=polkadot-v1.17.3)",
@@ -8556,7 +8544,6 @@ dependencies = [
  "duct",
  "env_logger 0.11.7",
  "frame-benchmarking-cli",
- "frame-try-runtime 0.45.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "git2",
  "open",
  "os_info",
@@ -8651,7 +8638,6 @@ dependencies = [
  "cumulus-primitives-proof-size-hostfunction 0.10.0",
  "duct",
  "frame-benchmarking-cli",
- "frame-try-runtime 0.45.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "glob",
  "indexmap 2.8.0",
  "parity-scale-codec",
@@ -16233,7 +16219,7 @@ dependencies = [
  "frame-remote-externalities",
  "frame-support 39.0.0 (git+https://github.com/paritytech/polkadot-sdk?tag=polkadot-v1.17.3)",
  "frame-system 39.1.0 (git+https://github.com/paritytech/polkadot-sdk?tag=polkadot-v1.17.3)",
- "frame-try-runtime 0.45.0 (git+https://github.com/paritytech/polkadot-sdk?tag=polkadot-v1.17.3)",
+ "frame-try-runtime",
  "hex",
  "itertools 0.13.0",
  "log",
