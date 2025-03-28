@@ -101,7 +101,7 @@ jobs:
             cargo test --lib --bins -p ${{ matrix.crate }}
           fi
 
-  unit-tests-polkavm:
+  polkavm-unit-tests:
     needs: lint
     strategy:
       matrix:
@@ -117,7 +117,7 @@ jobs:
       - name: Run unit tests with polkavm-contracts for ${{ matrix.crate }}
         run: |
           if [[ "${{ matrix.crate }}" == "pop-cli" ]]; then
-            cargo test --bins --locked --no-default-features --features polkavm-contracts -p ${{ matrix.crate }}
+            cargo test --bins --locked --no-default-features --features "polkavm-contracts parachain" -p ${{ matrix.crate }}
           else
             cargo test -p ${{ matrix.crate }} --no-default-features --features v6 --lib --bins
           fi
@@ -136,7 +136,7 @@ jobs:
         uses: taiki-e/install-action@cargo-llvm-cov
 
       - name: Generate code coverage
-        run: cargo llvm-cov --all-features --workspace --lib --bins --codecov --output-path codecov.json
+        run: cargo llvm-cov --workspace --lib --bins --codecov --output-path codecov.json
 
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v4
