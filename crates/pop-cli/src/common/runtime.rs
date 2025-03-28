@@ -18,23 +18,23 @@ use strum::{EnumMessage, IntoEnumIterator};
 const DEFAULT_RUNTIME_DIR: &str = "./runtime";
 
 /// Runtime features.
-pub enum RuntimeFeature {
+pub enum Feature {
 	/// `runtime-benchmarks` feature.
 	Benchmark,
-	/// `try-runtime` feature
+	/// `try-runtime` feature.
 	TryRuntime,
 }
 
-impl AsRef<str> for RuntimeFeature {
+impl AsRef<str> for Feature {
 	fn as_ref(&self) -> &str {
 		match self {
-			RuntimeFeature::Benchmark => "runtime-benchmarks",
-			RuntimeFeature::TryRuntime => "try-runtime",
+			Feature::Benchmark => "runtime-benchmarks",
+			Feature::TryRuntime => "try-runtime",
 		}
 	}
 }
 
-/// Ensure the runtime binary exists. If the binary is not found, it triggers a build process.
+/// Ensures the runtime binary exists. If the binary is not found, it triggers a build process.
 ///
 /// # Arguments
 /// * `cli`: Command line interface.
@@ -79,7 +79,7 @@ fn build_runtime_benchmark(
 	mode: &Profile,
 ) -> anyhow::Result<PathBuf> {
 	cli.warning("NOTE: this may take some time...")?;
-	build_project(runtime_path, None, mode, vec![RuntimeFeature::Benchmark.as_ref()], None)?;
+	build_project(runtime_path, None, mode, vec![Feature::Benchmark.as_ref()], None)?;
 	runtime_binary_path(target_path, runtime_path).map_err(|e| e.into())
 }
 
@@ -111,8 +111,8 @@ pub fn guide_user_to_input_runtime_path(
 		},
 	};
 
-	// If a TOML file does not exist, list all directories in the "runtime" folder and prompt the
-	// user to select a runtime.
+	// If a TOML file does not exist, list all directories in the runtime folder and prompt the
+	// user to select one.
 	if project_path.is_dir() && !project_path.join("Cargo.toml").exists() {
 		let runtime = guide_user_to_select_runtime(cli, &project_path)?;
 		project_path = project_path.join(runtime);
@@ -199,12 +199,12 @@ pub fn guide_user_to_select_genesis_preset(
 
 /// Construct the path to the mock runtime WASM file.
 #[cfg(test)]
-pub(crate) fn get_mock_runtime(feature: Option<RuntimeFeature>) -> PathBuf {
+pub(crate) fn get_mock_runtime(feature: Option<Feature>) -> PathBuf {
 	let path = format!(
 		"../../tests/runtimes/{}.wasm",
 		match feature {
-			Some(RuntimeFeature::Benchmark) => "base_parachain_benchmark",
-			Some(RuntimeFeature::TryRuntime) => "base_parachain_try_runtime",
+			Some(Feature::Benchmark) => "base_parachain_benchmark",
+			Some(Feature::TryRuntime) => "base_parachain_try_runtime",
 			_ => "base_parachain",
 		}
 	);
@@ -222,8 +222,8 @@ mod tests {
 
 	#[test]
 	fn runtime_feature_ref_works() {
-		assert_eq!(RuntimeFeature::Benchmark.as_ref(), "runtime-benchmarks");
-		assert_eq!(RuntimeFeature::TryRuntime.as_ref(), "try-runtime");
+		assert_eq!(Feature::Benchmark.as_ref(), "runtime-benchmarks");
+		assert_eq!(Feature::TryRuntime.as_ref(), "try-runtime");
 	}
 
 	#[test]
@@ -319,7 +319,7 @@ mod tests {
 		cli.verify()?;
 
 		// Select genesis builder policy `runtime`.
-		let runtime_path = get_mock_runtime(Some(RuntimeFeature::Benchmark));
+		let runtime_path = get_mock_runtime(Some(Feature::Benchmark));
 		cli = MockCli::new();
 		cli = expect_select_genesis_policy(cli, 1);
 		cli = expect_select_genesis_preset(cli, &runtime_path, 0);

@@ -87,8 +87,8 @@ mod tests {
 					repository: "try-runtime-cli".to_string(),
 					tag: Some(version.to_string()),
 					tag_format: None,
-					archive: format!("try-runtime-cli-{}", target()?),
-					contents: ["try-runtime"].map(|b| (b, Some(b.to_string()))).to_vec(),
+					archive: format!("try-runtime-cli-{}.tar.gz", target()?),
+					contents: ["try-runtime-cli"].map(|b| (b, Some(b.to_string()))).to_vec(),
 					latest: binary.latest().map(|l| l.to_string()),
 				}) &&
 				cache == temp_dir.as_path()
