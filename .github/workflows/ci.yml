@@ -8,6 +8,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
   GITHUB_ACTOR: pop-cli
 
 jobs:
@@ -81,6 +82,9 @@ jobs:
 
   unit-tests:
     needs: lint
+    strategy:
+      matrix:
+        crate: [pop-cli, pop-contracts, pop-parachains, pop-common, pop-telemetry]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -89,8 +93,34 @@ jobs:
         with:
           git-user: ${{ env.GITHUB_ACTOR }}
 
-      - name: Run unit tests
-        run: cargo test --lib --bins
+      - name: Run unit tests for ${{ matrix.crate }}
+        run: |
+          if [[ "${{ matrix.crate }}" == "pop-cli" ]]; then
+            cargo test --bins -p ${{ matrix.crate }}
+          else
+            cargo test --lib --bins -p ${{ matrix.crate }}
+          fi
+
+  unit-tests-polkavm:
+    needs: lint
+    strategy:
+      matrix:
+        crate: [pop-cli, pop-contracts]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: "./.github/actions/init"
+        with:
+          git-user: ${{ env.GITHUB_ACTOR }}
+
+      - name: Run unit tests with polkavm-contracts for ${{ matrix.crate }}
+        run: |
+          if [[ "${{ matrix.crate }}" == "pop-cli" ]]; then
+            cargo test --bins --locked --no-default-features --features polkavm-contracts -p ${{ matrix.crate }}
+          else
+            cargo test -p ${{ matrix.crate }} --no-default-features --features v6 --lib --bins
+          fi
 
   coverage:
     needs: lint
