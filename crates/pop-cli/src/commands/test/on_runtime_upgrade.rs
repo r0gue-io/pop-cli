@@ -23,8 +23,8 @@ use pop_parachains::{
 	TryRuntimeCliCommand,
 };
 use std::{
-	collections::HashSet, env::current_dir, path::PathBuf, str::FromStr, thread::sleep,
-	time::Duration,
+	collections::HashSet, env::current_dir, fmt::Display, path::PathBuf, str::FromStr,
+	thread::sleep, time::Duration,
 };
 use strum::{EnumMessage, VariantArray};
 use try_runtime_core::common::{
@@ -32,12 +32,12 @@ use try_runtime_core::common::{
 	state::{LiveState, State},
 };
 
+const CUSTOM_ARGS: [&str; 5] = ["--profile", "--no-build", "-n", "--skip-confirm", "-y"];
 const DEFAULT_BLOCK_TIME: &str = "6000";
 const DEFAULT_BLOCK_HASH: &str =
 	"0xa1b16c1efd889a9f17375ec4dd5c1b4351a2be17fa069564fced10d23b9b3836";
 const DEFAULT_LIVE_NODE_URL: &str = "ws://127.0.0.1:9944";
 const DEFAULT_SNAPSHOT_PATH: &str = "your-parachain.snap";
-const CUSTOM_ARGS: [&str; 5] = ["--profile", "--no-build", "-n", "--skip-confirm", "-y"];
 
 #[derive(Debug, Clone, clap::Parser)]
 struct Command {
@@ -54,7 +54,6 @@ struct Command {
 	/// - `try-state`: Perform the try-state checks.
 	///
 	/// Performing any checks will potentially invalidate the measured PoV/Weight.
-	// NOTE: The clap attributes make it backwards compatible with the previous `--checks` flag.
 	#[clap(long,
 			default_value = "pre-and-post",
 			default_missing_value = "all",
@@ -102,7 +101,7 @@ pub(crate) struct TestOnRuntimeUpgradeCommand {
 	/// Command to test runtime migrations.
 	#[clap(flatten)]
 	command: TestTryRuntimeCommand<Command>,
-	/// Build profile.
+	/// Build profile [default: release].
 	#[clap(long, value_enum)]
 	profile: Option<Profile>,
 	/// Avoid rebuilding the runtime if there is an existing runtime binary.
@@ -166,6 +165,7 @@ impl TestOnRuntimeUpgradeCommand {
 			}
 		}
 
+		// Run migrations with `try-runtime-cli` binary.
 		let result = self.run(cli).await;
 
 		// Display the `on-runtime-upgrade` command.
@@ -196,7 +196,7 @@ impl TestOnRuntimeUpgradeCommand {
 			None => return Err(anyhow::anyhow!("No subcommand provided")),
 		}
 		cli.warning("NOTE: this may take some time...")?;
-		sleep(Duration::from_secs(2));
+		sleep(Duration::from_secs(1));
 
 		let binary_path = check_try_runtime_and_prompt(cli, self.skip_confirm).await?;
 		let subcommand = self.subcommand()?;
@@ -231,24 +231,24 @@ impl TestOnRuntimeUpgradeCommand {
 	) {
 		let mut seen_args: HashSet<String> = HashSet::new();
 
-		let command = "--blocktime";
-		if !argument_exists(user_provided_args, command) {
+		let arg = "--blocktime";
+		if !argument_exists(user_provided_args, arg) {
 			if let Some(blocktime) = self.command().blocktime {
-				args.push(format!("{}={}", command, blocktime));
-				seen_args.insert(command.to_string());
+				args.push(format_arg(arg, blocktime));
+				seen_args.insert(arg.to_string());
 			}
 		}
 		let arg = "--checks";
 		if !argument_exists(user_provided_args, arg) {
 			let (value, _) = get_upgrade_checks_details(self.command().checks);
-			args.push(format!("{}={}", arg, value));
+			args.push(format_arg(arg, value));
 			seen_args.insert(arg.to_string());
 		}
 		// These are custom arguments which not in `try-runtime-cli`.
 		let arg = "--profile";
 		if !argument_exists(user_provided_args, arg) {
 			if let Some(ref profile) = self.profile {
-				args.push(format!("{}={}", arg, profile));
+				args.push(format_arg(arg, profile));
 				seen_args.insert(arg.to_string());
 			}
 		}
@@ -288,13 +288,13 @@ impl TestOnRuntimeUpgradeCommand {
 			State::Live(state) => {
 				let arg = "--uri";
 				if !argument_exists(user_provided_args, arg) && !state.uri.is_empty() {
-					args.push(format!("{}={}", arg, state.uri));
+					args.push(format_arg(arg, &state.uri));
 					seen_args.insert(arg.to_string());
 				}
 				let arg = "--at";
 				if let Some(ref at) = state.at {
 					if !argument_exists(user_provided_args, arg) {
-						args.push(format!("{}={}", arg, at));
+						args.push(format_arg(arg, at));
 						seen_args.insert(arg.to_string());
 					}
 				}
@@ -303,7 +303,7 @@ impl TestOnRuntimeUpgradeCommand {
 				let arg = "--path";
 				if !argument_exists(user_provided_args, arg) {
 					if let Some(ref path) = path {
-						args.push(format!("{}={}", arg, path.display()));
+						args.push(format_arg(arg, path.display()));
 						seen_args.insert(arg.to_string());
 					};
 				}
@@ -501,14 +501,17 @@ fn default_live_state() -> LiveState {
 	}
 }
 
+fn format_arg<A: Display, V: Display>(arg: A, value: V) -> String {
+	format!("{}={}", arg, value)
+}
+
 #[cfg(test)]
 mod tests {
+	use super::*;
 	use crate::common::{
 		runtime::{get_mock_runtime, RuntimeFeature},
 		try_runtime::source_try_runtime_binary,
 	};
-
-	use super::*;
 	use clap::Parser;
 	use cli::MockCli;
 
@@ -955,6 +958,14 @@ mod tests {
 			no_build: false,
 			skip_confirm: false,
 		})
+	}
+
+	#[test]
+	fn format_arg_works() {
+		assert_eq!(format_arg("--number", 1), "--number=1");
+		assert_eq!(format_arg("--string", "value"), "--string=value");
+		assert_eq!(format_arg("--boolean", true), "--boolean=true");
+		assert_eq!(format_arg("--path", PathBuf::new().display()), "--path=");
 	}
 
 	fn get_subcommands() -> Vec<(String, String)> {
