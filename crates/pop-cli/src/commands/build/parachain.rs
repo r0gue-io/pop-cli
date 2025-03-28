@@ -1,11 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{cli, style::style};
+use crate::{
+	cli,
+	common::runtime::Feature::{Benchmark, TryRuntime},
+	style::style,
+};
 use pop_common::Profile;
 use pop_parachains::build_parachain;
 use std::path::PathBuf;
 
-use super::{PACKAGE, PARACHAIN, RUNTIME_BENCHMARKS_FEATURE, TRY_RUNTIME_FEATURE};
+use super::{PACKAGE, PARACHAIN};
 
 // Configuration for building a parachain.
 pub struct BuildParachain {
@@ -37,10 +41,10 @@ impl BuildParachain {
 		// Enable the features based on the user's input.
 		let mut features = vec![];
 		if self.benchmark {
-			features.push(RUNTIME_BENCHMARKS_FEATURE);
+			features.push(Benchmark.as_ref());
 		}
 		if self.try_runtime {
-			features.push(TRY_RUNTIME_FEATURE);
+			features.push(TryRuntime.as_ref());
 		}
 		cli.intro(if features.is_empty() {
 			format!("Building your {project}")
@@ -74,8 +78,6 @@ impl BuildParachain {
 
 #[cfg(test)]
 mod tests {
-	use crate::build::{RUNTIME_BENCHMARKS_FEATURE, TRY_RUNTIME_FEATURE};
-
 	use super::*;
 	use cli::MockCli;
 	use duct::cmd;
@@ -109,7 +111,7 @@ mod tests {
 		let temp_dir = tempfile::tempdir()?;
 		let path = temp_dir.path();
 		let project_path = path.join(name);
-		let features = &[RUNTIME_BENCHMARKS_FEATURE, TRY_RUNTIME_FEATURE];
+		let features = &[Benchmark.as_ref(), TryRuntime.as_ref()];
 		cmd("cargo", ["new", name, "--bin"]).dir(&path).run()?;
 		add_production_profile(&project_path)?;
 		for feature in features {
@@ -123,7 +125,7 @@ mod tests {
 				test_build(package.clone(), &project_path, profile, &[])?;
 
 				// Build with one feature.
-				test_build(package.clone(), &project_path, profile, &[RUNTIME_BENCHMARKS_FEATURE])?;
+				test_build(package.clone(), &project_path, profile, &[Benchmark.as_ref()])?;
 
 				// Build with multiple features.
 				test_build(package.clone(), &project_path, profile, features)?;
@@ -158,8 +160,8 @@ mod tests {
 				path: project_path.clone(),
 				package: package.clone(),
 				profile: profile.clone(),
-				benchmark: features.contains(&RUNTIME_BENCHMARKS_FEATURE),
-				try_runtime: features.contains(&TRY_RUNTIME_FEATURE)
+				benchmark: features.contains(&Benchmark.as_ref()),
+				try_runtime: features.contains(&TryRuntime.as_ref())
 			}
 			.build(&mut cli)?,
 			project
