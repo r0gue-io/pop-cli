@@ -624,42 +624,42 @@ mod tests {
 		let test_cases: Vec<(&str, Box<dyn Fn(&mut TestOnRuntimeUpgradeCommand)>, &str)> = vec![
 			(
 				"--blocktime=20",
-				Box::new(|cmd: &mut TestOnRuntimeUpgradeCommand| {
+				Box::new(|cmd| {
 					cmd.command.command.blocktime = Some(10);
 				}),
 				"--blocktime=10",
 			),
 			(
 				"--checks=pre-and-post",
-				Box::new(|cmd: &mut TestOnRuntimeUpgradeCommand| {
+				Box::new(|cmd| {
 					cmd.command.command.checks = UpgradeCheckSelect::All;
 				}),
 				"--checks=all",
 			),
 			(
 				"--profile=release",
-				Box::new(|cmd: &mut TestOnRuntimeUpgradeCommand| {
+				Box::new(|cmd| {
 					cmd.profile = Some(Profile::Debug);
 				}),
 				"--profile=debug",
 			),
 			(
 				"--no-build",
-				Box::new(|cmd: &mut TestOnRuntimeUpgradeCommand| {
+				Box::new(|cmd| {
 					cmd.no_build = true;
 				}),
 				"-n",
 			),
 			(
 				"-y",
-				Box::new(|cmd: &mut TestOnRuntimeUpgradeCommand| {
+				Box::new(|cmd| {
 					cmd.skip_confirm = true;
 				}),
 				"-y",
 			),
 			(
 				"--skip-confirm",
-				Box::new(|cmd: &mut TestOnRuntimeUpgradeCommand| {
+				Box::new(|cmd| {
 					cmd.skip_confirm = true;
 				}),
 				"-y",

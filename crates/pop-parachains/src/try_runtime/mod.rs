@@ -43,6 +43,7 @@ pub enum State {
 		detailed_message = "Run the migrations of a given runtime on top of a chain snapshot."
 	))]
 	Snap {
+		/// Path to the snapshot file.
 		#[clap(short = 'p', long = "path", alias = "snapshot-path")]
 		path: Option<PathBuf>,
 	},
