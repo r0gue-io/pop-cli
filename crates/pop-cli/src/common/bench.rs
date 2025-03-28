@@ -49,7 +49,7 @@ pub async fn source_omni_bencher_binary(
 	cache_path: &Path,
 	skip_confirm: bool,
 ) -> anyhow::Result<PathBuf> {
-	Ok(check_and_prompt::<OmniBencherGenerator>(cli, BINARY_NAME, cache_path, skip_confirm).await?)
+	check_and_prompt::<OmniBencherGenerator>(cli, BINARY_NAME, cache_path, skip_confirm).await
 }
 
 /// Overwrite the generated weight files' executed command in the destination directory.

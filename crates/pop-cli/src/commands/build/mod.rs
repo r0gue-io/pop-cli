@@ -2,7 +2,10 @@
 
 use crate::{
 	cli::{self, Cli},
-	common::{builds::get_project_path, runtime::RuntimeFeature},
+	common::{
+		builds::get_project_path,
+		runtime::Feature::{Benchmark, TryRuntime},
+	},
 };
 use clap::{Args, Subcommand};
 #[cfg(feature = "contract")]
@@ -94,19 +97,19 @@ impl Command {
 			let features = args.features.unwrap_or_default();
 			let mut feature_list: Vec<&str> = features.split(",").collect();
 
-			if args.benchmark && !feature_list.contains(&RuntimeFeature::Benchmark.as_ref()) {
-				feature_list.push(RuntimeFeature::Benchmark.as_ref());
+			if args.benchmark && !feature_list.contains(&Benchmark.as_ref()) {
+				feature_list.push(Benchmark.as_ref());
 			}
-			if args.try_runtime && !feature_list.contains(&RuntimeFeature::TryRuntime.as_ref()) {
-				feature_list.push(RuntimeFeature::TryRuntime.as_ref());
+			if args.try_runtime && !feature_list.contains(&TryRuntime.as_ref()) {
+				feature_list.push(TryRuntime.as_ref());
 			}
 
 			BuildParachain {
 				path: project_path.unwrap_or(temp_path).to_path_buf(),
 				package: args.package,
 				profile,
-				benchmark: feature_list.contains(&RuntimeFeature::Benchmark.as_ref()),
-				try_runtime: feature_list.contains(&RuntimeFeature::TryRuntime.as_ref()),
+				benchmark: feature_list.contains(&Benchmark.as_ref()),
+				try_runtime: feature_list.contains(&TryRuntime.as_ref()),
 			}
 			.execute()?;
 			return Ok("parachain");
@@ -140,11 +143,11 @@ impl Command {
 
 		let feature_input = args.features.unwrap_or_default();
 		let mut features: Vec<&str> = feature_input.split(',').filter(|s| !s.is_empty()).collect();
-		if args.benchmark && !features.contains(&RuntimeFeature::Benchmark.as_ref()) {
-			features.push(RuntimeFeature::Benchmark.as_ref());
+		if args.benchmark && !features.contains(&Benchmark.as_ref()) {
+			features.push(Benchmark.as_ref());
 		}
-		if args.try_runtime && !features.contains(&RuntimeFeature::TryRuntime.as_ref()) {
-			features.push(RuntimeFeature::TryRuntime.as_ref());
+		if args.try_runtime && !features.contains(&TryRuntime.as_ref()) {
+			features.push(TryRuntime.as_ref());
 		}
 		let feature_arg = format!("--features={}", features.join(","));
 		if !features.is_empty() {
@@ -178,8 +181,8 @@ mod tests {
 		let temp_dir = tempfile::tempdir()?;
 		let path = temp_dir.path();
 		let project_path = path.join(name);
-		let benchmark = RuntimeFeature::Benchmark.as_ref();
-		let try_runtime = RuntimeFeature::TryRuntime.as_ref();
+		let benchmark = Benchmark.as_ref();
+		let try_runtime = TryRuntime.as_ref();
 		let features = vec![benchmark, try_runtime];
 		cmd("cargo", ["new", name, "--bin"]).dir(&path).run()?;
 		add_production_profile(&project_path)?;
