@@ -46,7 +46,7 @@ pub use new_parachain::instantiate_template_dir;
 pub use relay::{clear_dmpq, RelayChain, Reserved};
 pub use try_runtime::{
 	binary::*, check_block_hash, check_url, generate_try_runtime, get_upgrade_checks_details,
-	LiveState, State, StateCommand, StateDiscriminants, TryRuntimeCliCommand,
+	LiveState, State, StateCommand, TryRuntimeCliCommand,
 };
 // External export from subxt.
 pub use subxt::{

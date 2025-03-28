@@ -23,26 +23,19 @@ impl Display for TryRuntimeCliCommand {
 	}
 }
 
-/// Commands that can be executed by the `on-runtime-upgrade`.
-pub enum StateCommand {
-	Live,
-	Snapshot,
-}
-
-impl Display for StateCommand {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		let s = match self {
-			StateCommand::Live => "live",
-			StateCommand::Snapshot => "snap",
-		};
-		write!(f, "{}", s)
-	}
-}
-
 /// The source of runtime *state* to use.
 #[derive(Clone, Debug, Display, clap::Subcommand, EnumDiscriminants)]
 #[strum_discriminants(derive(AsRefStr, EnumString, EnumMessage, VariantArray))]
+#[strum_discriminants(name(StateCommand))]
 pub enum State {
+	/// Use a live chain as the source of runtime state.
+	#[strum_discriminants(strum(
+		serialize = "live",
+		message = "Live",
+		detailed_message = "Run the migrations of a given runtime on top of a live state."
+	))]
+	Live(LiveState),
+
 	/// Use a state snapshot as the source of runtime state.
 	#[strum_discriminants(strum(
 		serialize = "snapshot",
@@ -53,14 +46,6 @@ pub enum State {
 		#[clap(short = 'p', long = "path", alias = "snapshot-path")]
 		path: Option<PathBuf>,
 	},
-
-	/// Use a live chain as the source of runtime state.
-	#[strum_discriminants(strum(
-		serialize = "live",
-		message = "Live",
-		detailed_message = "Run the migrations of a given runtime on top of a live state."
-	))]
-	Live(LiveState),
 }
 
 impl State {
@@ -68,9 +53,19 @@ impl State {
 	pub fn command(&self) -> String {
 		match self {
 			State::Live(..) => StateCommand::Live,
-			State::Snap { .. } => StateCommand::Snapshot,
+			State::Snap { .. } => StateCommand::Snap,
 		}
 		.to_string()
+	}
+}
+
+impl Display for StateCommand {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		let s = match self {
+			StateCommand::Live => "live",
+			StateCommand::Snap => "snap",
+		};
+		write!(f, "{}", s)
 	}
 }
 
