@@ -26,9 +26,6 @@ impl Git {
 		}
 		let mut repo = RepoBuilder::new();
 		repo.fetch_options(fo);
-		if let Some(reference) = reference {
-			repo.branch(reference);
-		}
 		let repo = match repo.clone(url.as_str(), working_dir) {
 			Ok(repository) => repository,
 			Err(e) => match Self::ssh_clone(url, working_dir) {
@@ -39,9 +36,9 @@ impl Git {
 
 		if let Some(reference) = reference {
 			let object = repo
-			.revparse_single(reference)
-			.or_else(|_| repo.revparse_single(&format!("refs/tags/{}", reference)))
-			.or_else(|_| repo.revparse_single(&format!("refs/remotes/origin/{}", reference)))?;
+				.revparse_single(reference)
+				.or_else(|_| repo.revparse_single(&format!("refs/tags/{}", reference)))
+				.or_else(|_| repo.revparse_single(&format!("refs/remotes/origin/{}", reference)))?;
 			repo.checkout_tree(&object, None)?;
 			repo.set_head_detached(object.id())?;
 		}

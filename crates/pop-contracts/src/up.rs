@@ -39,7 +39,6 @@ use {
 		TokenMetadata, UploadCommandBuilder, UploadExec, UploadResult,
 	},
 	sp_core_inkv6::bytes::{from_hex, to_hex},
-	subxt::backend::{legacy::LegacyRpcMethods, rpc::RpcClient},
 };
 
 /// Attributes for the `up` command
@@ -313,7 +312,7 @@ pub async fn upload_contract_signed(
 	#[cfg(feature = "v5")]
 	{
 		let code_stored = events.find_first::<CodeStored<subxt::config::substrate::H256>>()?;
-		return Ok(UploadResult { code_stored, events })
+		Ok(UploadResult { code_stored, events })
 	}
 	#[cfg(feature = "v6")]
 	Ok(UploadResult { events })
@@ -353,9 +352,7 @@ pub async fn instantiate_contract_signed(
 
 	#[cfg(feature = "v6")]
 	let (code_hash, contract_address) = {
-		// TODO: Replace instantiate_exec.rpc()
-		let rpc_cli = RpcClient::from_url(&url).await?;
-		let rpc = LegacyRpcMethods::new(rpc_cli);
+		let rpc = instantiate_exec.rpc();
 		let code = match instantiate_exec.args().code().clone() {
 			Code::Upload(code) => code.into(),
 			Code::Existing(hash) =>
@@ -534,7 +531,7 @@ pub async fn upload_smart_contract(
 	Ok(to_hex(&upload_exec.code().code_hash(), false))
 }
 
-// Get the code hash of a contract from the upload event.
+/// Get the code hash of a contract from the upload event.
 ///
 /// # Arguments
 /// * `upload_result` - the result of uploading the contract.
@@ -801,7 +798,7 @@ mod tests {
 		let upload_result = upload_smart_contract(&upload_exec).await?;
 		assert!(!upload_result.starts_with("0x0x"));
 		assert!(upload_result.starts_with("0x"));
-		//Error when Smart Contract has been already uploaded.
+		// Error when Smart Contract has been already uploaded, only for ink!v5.
 		#[cfg(feature = "v5")]
 		assert!(matches!(
 			upload_smart_contract(&upload_exec).await,
