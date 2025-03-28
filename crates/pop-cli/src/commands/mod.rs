@@ -5,6 +5,7 @@ use clap::Subcommand;
 use pop_common::templates::Template;
 use serde_json::{json, Value};
 
+pub(crate) mod add;
 #[cfg(feature = "parachain")]
 pub(crate) mod bench;
 pub(crate) mod build;
@@ -45,6 +46,9 @@ pub(crate) enum Command {
 	/// Remove generated/cached artifacts.
 	#[clap(alias = "C")]
 	Clean(clean::CleanArgs),
+	/// Add a new feature to your existing polkadot-sdk project
+	#[clap(name = "add-to", alias = "a")]
+	Add(add::AddArgs),
 }
 
 /// Help message for the build command.
@@ -148,6 +152,16 @@ impl Command {
 					clean::CleanCacheCommand { cli: &mut Cli, cache: cache()?, all: cmd_args.all }
 						.execute()
 						.map(|_| Value::Null)
+				},
+			},
+			Self::Add(args) => match args.command {
+				add::Command::Runtime(runtime_command) => match runtime_command {
+					add::RuntimeCommand::Pallet(cmd) =>
+						cmd.execute().await.map(|_| json!("default")),
+				},
+				add::Command::Pallet(pallet_command) => match pallet_command {
+					add::PalletCommand::ConfigType(cmd) =>
+						cmd.execute().await.map(|_| json!("default")),
 				},
 			},
 		}

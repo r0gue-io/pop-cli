@@ -13,6 +13,8 @@ pub enum Error {
 	AnyhowError(#[from] anyhow::Error),
 	#[error("Configuration error: {0}")]
 	Config(String),
+	#[error("{0}")]
+	Descriptive(String),
 	#[error("a git error occurred: {0}")]
 	Git(String),
 	#[error("IO error: {0}")]
@@ -30,6 +32,10 @@ pub enum Error {
 	/// An error occurred while parsing the provided secret URI.
 	#[error("Failed to parse secret URI: {0}")]
 	ParseSecretURI(String),
+	#[error("{0}")]
+	RollbackError(#[from] fs_rollback::Error),
+	#[error("Failed to update files: {0}")]
+	RustWriterError(#[from] rust_writer::Error),
 	#[error("SourceError error: {0}")]
 	SourceError(#[from] sourcing::Error),
 	#[error("TemplateError error: {0}")]
@@ -37,8 +43,12 @@ pub enum Error {
 	/// An error occurred while executing a test command.
 	#[error("Failed to execute test command: {0}")]
 	TestCommand(String),
+	#[error("TomlError: {0}")]
+	TomlError(#[from] toml_edit::TomlError),
 	#[error("Unsupported command: {0}")]
 	UnsupportedCommand(String),
 	#[error("Unsupported platform: {arch} {os}")]
 	UnsupportedPlatform { arch: &'static str, os: &'static str },
+	#[error("Unable to write to the introduced path. {0}")]
+	WriteError(String),
 }

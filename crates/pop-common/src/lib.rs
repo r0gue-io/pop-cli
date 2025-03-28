@@ -7,10 +7,9 @@ pub use build::Profile;
 pub use errors::Error;
 pub use git::{Git, GitHub, Release};
 pub use helpers::{
-	get_project_name_from_path, get_relative_or_absolute_path, prefix_with_current_dir_if_needed,
-	replace_in_file,
+	capitalize_str, get_project_name_from_path, get_relative_or_absolute_path, replace_in_file,
 };
-pub use manifest::{add_crate_to_workspace, find_workspace_toml};
+pub use manifest::{add_crate_to_workspace, find_pallet_runtime_path};
 pub use metadata::format_type;
 pub use signer::create_signer;
 pub use sourcing::set_executable_permission;
@@ -29,6 +28,7 @@ pub mod manifest;
 /// Provides functionality for formatting and resolving metadata types.
 pub mod metadata;
 pub mod polkadot_sdk;
+pub mod rust_writer_helpers;
 /// Provides functionality for creating a signer from a secret URI.
 pub mod signer;
 pub mod sourcing;

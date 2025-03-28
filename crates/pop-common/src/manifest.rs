@@ -29,33 +29,6 @@ pub fn from_path(path: Option<&Path>) -> Result<Manifest, Error> {
 	Ok(Manifest::from_path(path.canonicalize()?)?)
 }
 
-/// This function is used to determine if a Path is contained inside a workspace, and returns a
-/// PathBuf to the workspace Cargo.toml if found.
-///
-/// # Arguments
-/// * `target_dir` - A directory that may be contained inside a workspace
-pub fn find_workspace_toml(target_dir: &Path) -> Option<PathBuf> {
-	let mut dir = target_dir;
-	while let Some(parent) = dir.parent() {
-		// This condition is necessary to avoid that calling the function from a workspace using a
-		// path which isn't contained in a workspace returns `Some(Cargo.toml)` refering the
-		// workspace from where the function has been called instead of the expected `None`.
-		if parent.to_str() == Some("") {
-			return None;
-		}
-		let cargo_toml = parent.join("Cargo.toml");
-		if cargo_toml.exists() {
-			if let Ok(contents) = read_to_string(&cargo_toml) {
-				if contents.contains("[workspace]") {
-					return Some(cargo_toml);
-				}
-			}
-		}
-		dir = parent;
-	}
-	None
-}
-
 /// This function is used to add a crate to a workspace.
 /// # Arguments
 ///
@@ -96,6 +69,61 @@ pub fn add_crate_to_workspace(workspace_toml: &Path, crate_path: &Path) -> anyho
 
 	write(workspace_toml, doc.to_string())?;
 	Ok(())
+}
+
+pub fn is_runtime_crate(path: &Path) -> bool {
+	// Ideally the runtime would be contained inside a workspace
+	if let Some(workspace_toml) = rustilities::manifest::find_workspace_manifest(path) {
+		match Manifest::from_path(&workspace_toml)
+			.ok()
+			.map(|manifest| manifest.workspace.map(|workspace| workspace.members))
+		{
+			Some(Some(members))
+				if members.contains(&"runtime".to_owned()) &&
+					path.join("src").join("lib.rs").is_file() =>
+				return true,
+			_ => (),
+		}
+	}
+	// If not, at least it should be a lib crate
+	if path.join("src").join("lib.rs").is_file() {
+		true
+	} else {
+		false
+	}
+}
+
+pub fn find_pallet_runtime_path(pallet_path: &Path) -> Option<PathBuf> {
+	if let Some(mut workspace_toml) = rustilities::manifest::find_workspace_manifest(pallet_path) {
+		match Manifest::from_path(&workspace_toml)
+			.ok()
+			.map(|manifest| manifest.workspace.map(|workspace| workspace.members))
+		{
+			Some(Some(members)) if members.contains(&"runtime".to_string()) => {
+				workspace_toml.pop();
+				Some(workspace_toml.join("runtime"))
+			},
+			_ => None,
+		}
+	} else {
+		None
+	}
+}
+
+pub fn get_pallet_impl_path(runtime_path: &Path, pallet_name: &str) -> Result<PathBuf, Error> {
+	let pallet_config_path =
+		runtime_path.join("src").join("configs").join(format!("{}.rs", pallet_name));
+	if pallet_config_path.exists() {
+		return Ok(pallet_config_path);
+	}
+	let runtime_lib_path = runtime_path.join("src").join("lib.rs");
+	if read_to_string(&runtime_lib_path)?.contains(&format!("{} for Runtime", pallet_name)) {
+		return Ok(runtime_lib_path)
+	}
+	Err(Error::Descriptive(format!(
+		"Pop-CLI couldn't find the impl block for the pallet {}",
+		pallet_name
+	)))
 }
 
 /// Adds a "production" profile to the Cargo.toml manifest if it doesn't already exist.
@@ -237,49 +265,6 @@ mod tests {
 			Err(super::Error::ManifestPath(..))
 		));
 		Ok(())
-	}
-
-	#[test]
-	fn find_workspace_toml_works_well() {
-		let test_builder = TestBuilder::default()
-			.add_workspace()
-			.add_inside_workspace_dir()
-			.add_workspace_cargo_toml(
-				r#"[workspace]
-                resolver = "2"
-                members = ["member1"]
-                "#,
-			)
-			.add_outside_workspace_dir();
-		assert!(find_workspace_toml(
-			test_builder
-				.inside_workspace_dir
-				.as_ref()
-				.expect("Inside workspace dir should exist")
-				.path()
-		)
-		.is_some());
-		assert_eq!(
-			find_workspace_toml(
-				test_builder
-					.inside_workspace_dir
-					.as_ref()
-					.expect("Inside workspace dir should exist")
-					.path()
-			)
-			.expect("The Cargo.toml should exist at this point"),
-			test_builder.workspace_cargo_toml.expect("Cargo.toml should exist")
-		);
-		assert!(find_workspace_toml(
-			test_builder
-				.outside_workspace_dir
-				.as_ref()
-				.expect("Outside workspace dir should exist")
-				.path()
-		)
-		.is_none());
-		// Calling the function from a relative path which parent is "" returns None
-		assert!(find_workspace_toml(&PathBuf::from("..")).is_none());
 	}
 
 	#[test]
