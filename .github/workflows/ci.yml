@@ -136,7 +136,17 @@ jobs:
         uses: taiki-e/install-action@cargo-llvm-cov
 
       - name: Generate code coverage
-        run: cargo llvm-cov --workspace --lib --bins --codecov --output-path codecov.json
+        run: |
+          cargo llvm-cov \
+            --lib --bins \
+            -p pop-cli \
+            -p pop-contracts \
+            -p pop-common \
+            -p pop-parachains \
+            -p pop-telemetry \
+            --features wasm-contracts \
+            --codecov \
+            --output-path codecov.json
 
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v4
