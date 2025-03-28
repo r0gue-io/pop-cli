@@ -616,7 +616,7 @@ mod tests {
 	#[cfg(feature = "wasm-contracts")]
 	const CONTRACT_ADDRESS: &str = "15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm";
 	#[cfg(feature = "polkavm-contracts")]
-	const CONTRACT_ADDRESS: &str = "0x48550a4bb374727186c55365b7c9c0a1a31bdafe";
+	const CONTRACT_ADDRESS: &str = "0x4f04054746fb19d3b027f5fe1ca5e87a68b49bac";
 	#[cfg(feature = "wasm-contracts")]
 	const CONTRACTS_NETWORK_URL: &str = "wss://rpc1.paseo.popnetwork.xyz/";
 	#[cfg(feature = "polkavm-contracts")]
@@ -753,6 +753,73 @@ mod tests {
 		));
 		// Contract deployed on Pop Network testnet, test dry-run
 		call_config.execute_call(&mut cli, false).await?;
+
+		cli.verify()
+	}
+
+	#[tokio::test]
+	#[cfg(feature = "wasm-contracts")]
+	async fn call_contract_query_duplicate_call_works() -> Result<()> {
+		let temp_dir = new_environment("testing")?;
+		let mut current_dir = env::current_dir().expect("Failed to get current directory");
+		current_dir.pop();
+		mock_build_process(
+			temp_dir.path().join("testing"),
+			current_dir.join("pop-contracts/tests/files/testing.contract"),
+			current_dir.join("pop-contracts/tests/files/testing.json"),
+		)?;
+		let items = vec![
+			("flip\n".into(), " A message that can be called on instantiated contracts.  This one flips the value of the stored `bool` from `true`  to `false` and vice versa.".into()),
+			("get\n".into(), " Simply returns the current value of our `bool`.".into()),
+			("specific_flip\n".into(), " A message for testing, flips the value of the stored `bool` with `new_value`  and is payable".into())
+		];
+		let mut cli = MockCli::new()
+			.expect_intro(&"Call a contract")
+			.expect_warning("Your call has not been executed.")
+			.expect_confirm(
+				"Do you want to perform another call using the existing smart contract?",
+				true,
+			)
+			.expect_select(
+				"Select the message to call:",
+				Some(false),
+				true,
+				Some(items),
+				1, // "get" message
+				None
+			)
+			.expect_info(format!(
+			    "pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message get --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice",
+			    temp_dir.path().join("testing").display().to_string(),
+			))
+			.expect_warning("NOTE: Signing is not required for this read-only call. The '--use-wallet' flag will be ignored.")
+			.expect_warning("Your call has not been executed.")
+			.expect_confirm(
+				"Do you want to perform another call using the existing smart contract?",
+				false,
+			)
+			.expect_outro("Contract calling complete.");
+
+		// Contract deployed on Pop Network testnet, test get
+		let mut call_config = CallContractCommand {
+			path: Some(temp_dir.path().join("testing")),
+			path_pos: None,
+			contract: Some(CONTRACT_ADDRESS.to_string()),
+			message: Some("get".to_string()),
+			args: vec![].to_vec(),
+			value: "0".to_string(),
+			gas_limit: None,
+			proof_size: None,
+			url: Url::parse(CONTRACTS_NETWORK_URL)?,
+			suri: "//Alice".to_string(),
+			use_wallet: true,
+			dry_run: false,
+			execute: false,
+			dev_mode: false,
+		};
+		call_config.configure(&mut cli, false).await?;
+		// Test the query. With true, it will prompt for another call.
+		call_config.execute_call(&mut cli, true).await?;
 
 		cli.verify()
 	}

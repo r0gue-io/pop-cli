@@ -5,8 +5,6 @@
 use anyhow::Result;
 use assert_cmd::Command;
 use pop_common::{find_free_port, set_executable_permission, templates::Template};
-#[cfg(feature = "polkavm-contracts")]
-use pop_contracts::AccountMapper;
 use pop_contracts::{
 	contracts_node_generator, dry_run_gas_estimate_instantiate, instantiate_smart_contract,
 	run_contracts_node, set_up_deployment, Contract, UpOpts,
@@ -95,19 +93,6 @@ async fn contract_lifecycle() -> Result<()> {
 	let process = run_contracts_node(binary.path(), None, endpoint_port).await?;
 	sleep(Duration::from_secs(5)).await;
 
-	let instantiate_exec = set_up_deployment(UpOpts {
-		path: Some(temp_dir.join("test_contract")),
-		constructor: "new".to_string(),
-		args: ["false".to_string()].to_vec(),
-		value: "0".to_string(),
-		gas_limit: None,
-		proof_size: None,
-		salt: None,
-		url: Url::parse(default_endpoint)?,
-		suri: "//Alice".to_string(),
-	})
-	.await?;
-
 	// Only upload the contract
 	// pop up --path ./test_contract --upload-only
 	Command::cargo_bin("pop")
@@ -136,6 +121,18 @@ async fn contract_lifecycle() -> Result<()> {
 		.success();
 	// Using methods from the pop_contracts crate to instantiate it to get the Contract Address for
 	// the call
+	let instantiate_exec = set_up_deployment(UpOpts {
+		path: Some(temp_dir.join("test_contract")),
+		constructor: "new".to_string(),
+		args: ["false".to_string()].to_vec(),
+		value: "0".to_string(),
+		gas_limit: None,
+		proof_size: None,
+		salt: None,
+		url: Url::parse(default_endpoint)?,
+		suri: "//Alice".to_string(),
+	})
+	.await?;
 	let weight_limit = dry_run_gas_estimate_instantiate(&instantiate_exec).await?;
 	let contract_info = instantiate_smart_contract(instantiate_exec, weight_limit).await?;
 	// Call contract (only query)
