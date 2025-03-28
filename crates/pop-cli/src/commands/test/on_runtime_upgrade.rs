@@ -177,6 +177,8 @@ impl TestOnRuntimeUpgradeCommand {
 	}
 
 	async fn run(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+		let binary_path = check_try_runtime_and_prompt(cli, self.skip_confirm).await?;
+		cli.warning("NOTE: this may take some time...")?;
 		let spinner = spinner();
 		match self.command().state {
 			Some(State::Live(ref live_state)) =>
@@ -195,10 +197,8 @@ impl TestOnRuntimeUpgradeCommand {
 				},
 			None => return Err(anyhow::anyhow!("No subcommand provided")),
 		}
-		cli.warning("NOTE: this may take some time...")?;
 		sleep(Duration::from_secs(1));
 
-		let binary_path = check_try_runtime_and_prompt(cli, self.skip_confirm).await?;
 		let subcommand = self.subcommand()?;
 		let user_provided_args: Vec<String> = std::env::args().skip(3).collect();
 		let (command_arguments, shared_params, after_subcommand) =
