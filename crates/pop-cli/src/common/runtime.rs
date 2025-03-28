@@ -208,7 +208,7 @@ pub(crate) fn get_mock_runtime(feature: Option<RuntimeFeature>) -> PathBuf {
 			_ => "base_parachain",
 		}
 	);
-	std::env::current_dir()?.join(path).canonicalize()?
+	std::env::current_dir().unwrap().join(path).canonicalize().unwrap()
 }
 
 #[cfg(test)]
