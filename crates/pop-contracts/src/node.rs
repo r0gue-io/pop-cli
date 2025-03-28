@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 
+#[cfg(feature = "v6")]
+use crate::utils::map_account::MapAccount;
+
 #[cfg(feature = "v5")]
 use contract_extrinsics::{RawParams, RpcRequest};
 #[cfg(feature = "v6")]
@@ -157,8 +160,12 @@ pub async fn run_contracts_node(
 	// Wait until the node is ready
 	sleep(STARTUP).await;
 
+	#[cfg(feature = "v5")]
 	let data = Value::from_bytes(subxt::utils::to_hex("initialize contracts node"));
+	#[cfg(feature = "v5")]
 	let payload = subxt::dynamic::tx("System", "remark", [data].to_vec());
+	#[cfg(feature = "v6")]
+	let payload = MapAccount::new().build();
 
 	let client = subxt::client::OnlineClient::<SubstrateConfig>::from_url(format!(
 		"ws://127.0.0.1:{}",

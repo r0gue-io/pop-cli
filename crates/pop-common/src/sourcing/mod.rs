@@ -690,7 +690,6 @@ pub(super) mod tests {
 	}
 
 	#[tokio::test]
-	#[ignore]
 	async fn sourcing_from_latest_github_source_code_archive_works() -> anyhow::Result<()> {
 		let owner = "hpaluch".to_string();
 		let repository = "rust-hello-world".to_string();
@@ -792,7 +791,6 @@ pub(super) mod tests {
 	}
 
 	#[tokio::test]
-	#[ignore]
 	async fn from_latest_github_archive_works() -> anyhow::Result<()> {
 		let owner = "hpaluch";
 		let repository = "rust-hello-world";
