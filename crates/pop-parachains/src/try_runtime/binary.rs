@@ -16,8 +16,8 @@ use strum_macros::EnumProperty;
 #[derive(Debug, EnumProperty, PartialEq)]
 pub(super) enum TryRuntimeCli {
 	#[strum(props(
-		Repository = "https://github.com/paritytech/try-runtime-cli",
-		Binary = "try-runtime",
+		Repository = "https://github.com/r0gue-io/try-runtime-cli",
+		Binary = "try-runtime-cli",
 		Fallback = "v0.8.0"
 	))]
 	TryRuntime,
