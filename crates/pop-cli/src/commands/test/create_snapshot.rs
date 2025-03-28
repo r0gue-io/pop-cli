@@ -13,8 +13,10 @@ use console::style;
 use pop_parachains::{generate_try_runtime, LiveState, TryRuntimeCliCommand};
 
 const CUSTOM_ARGS: [&str; 2] = ["--skip-confirm", "-y"];
+const DEFAULT_REMOTE_NODE_URL: &str = "ws://127.0.0.1:9944";
+const DEFAULT_SNAPSHOT_PATH: &str = "example.snap";
 
-#[derive(Args)]
+#[derive(Args, Default)]
 pub(crate) struct TestCreateSnapshotCommand {
 	/// The source of the snapshot. Must be a remote node.
 	#[clap(flatten)]
@@ -47,6 +49,7 @@ impl TestCreateSnapshotCommand {
     				)
     				.dim()
     			))
+				.placeholder(DEFAULT_REMOTE_NODE_URL)
 				.required(true)
 				.interact()?,
 			);
@@ -57,7 +60,7 @@ impl TestCreateSnapshotCommand {
          			"Enter the path to write the snapshot to (optional):\n{}",
          			style("If not provided `<spec-name>-<spec-version>@<block-hash>.snap` will be used.").dim()
           		))
-				.required(false)
+				.required(false).placeholder(DEFAULT_SNAPSHOT_PATH)
 				.interact()?;
 			if !input.is_empty() {
 				self.snapshot_path = Some(input);
@@ -132,10 +135,10 @@ impl TestCreateSnapshotCommand {
 		// If the last argument is a snapshot path, remove it.
 		if let Some(arg) = args.last() {
 			if !arg.starts_with("--") && arg.ends_with(".snap") {
-				args.pop();
-			}
-			if let Some(ref path) = self.snapshot_path {
-				args.push(path.to_string());
+				if let Some(ref path) = self.snapshot_path {
+					args.pop();
+					args.push(path.to_string());
+				}
 			}
 		}
 		args
@@ -144,6 +147,8 @@ impl TestCreateSnapshotCommand {
 
 #[cfg(test)]
 mod tests {
+	use super::*;
+
 	#[tokio::test]
 	async fn test_create_snapshot_works() -> anyhow::Result<()> {
 		Ok(())
@@ -153,5 +158,35 @@ mod tests {
 	fn display_works() {}
 
 	#[test]
-	fn collect_arguments_works() {}
+	fn collect_arguments_works() {
+		let expected_uri = &format!("--uri={}", DEFAULT_REMOTE_NODE_URL);
+		let test_cases: Vec<(&str, Box<dyn Fn(&mut TestCreateSnapshotCommand)>, &str)> = vec![
+			(
+				"--uri=ws://localhost:8545",
+				Box::new(|cmd| cmd.from.uri = Some(DEFAULT_REMOTE_NODE_URL.to_string())),
+				expected_uri,
+			),
+			(
+				"predefined-example.snap",
+				Box::new(|cmd| cmd.snapshot_path = Some(DEFAULT_SNAPSHOT_PATH.to_string())),
+				"example.snap",
+			),
+			("--skip-confirm", Box::new(|cmd| cmd.skip_confirm = true), "-y"),
+			("-y", Box::new(|cmd| cmd.skip_confirm = true), "-y"),
+		];
+		for (provided_arg, update_fn, expected_arg) in test_cases {
+			let mut command = TestCreateSnapshotCommand::default();
+			println!("{}", provided_arg);
+			// Keep the user-provided argument unchanged.
+			let args = command.collect_arguments(&[provided_arg.to_string()]);
+			println!("{:?}", args);
+			assert!(args.contains(&provided_arg.to_string()));
+
+			// If the user does not provide an argument, modify with the argument updated during
+			// runtime.
+			update_fn(&mut command);
+			let args = command.collect_arguments(&[]);
+			assert!(args.contains(&expected_arg.to_string()));
+		}
+	}
 }
