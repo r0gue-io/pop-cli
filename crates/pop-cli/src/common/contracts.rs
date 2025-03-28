@@ -4,9 +4,10 @@ use crate::{
 	cli::traits::*,
 	common::binary::{check_and_prompt, BinaryGenerator},
 	impl_binary_generator,
+	style::style,
 };
-use pop_common::{manifest::from_path, sourcing::Binary};
-use pop_contracts::contracts_node_generator;
+use pop_common::{manifest::from_path, sourcing::Binary, DefaultConfig, Keypair};
+use pop_contracts::{contracts_node_generator, AccountMapper, DefaultEnvironment, ExtrinsicOpts};
 use std::{
 	path::{Path, PathBuf},
 	process::{Child, Command},
@@ -15,7 +16,9 @@ use tempfile::NamedTempFile;
 
 impl_binary_generator!(ContractsNodeGenerator, contracts_node_generator);
 
-///  Checks the status of the `substrate-contracts-node` binary, sources it if necessary, and
+const CONTRACTS_NODE_BINARY: &str = "ink-node";
+
+///  Checks the status of the contracts node binary, sources it if necessary, and
 /// prompts the user to update it if the existing binary is not the latest version.
 ///
 /// # Arguments
@@ -27,13 +30,8 @@ pub async fn check_contracts_node_and_prompt(
 	cache_path: &Path,
 	skip_confirm: bool,
 ) -> anyhow::Result<PathBuf> {
-	check_and_prompt::<ContractsNodeGenerator>(
-		cli,
-		"substrate-contracts-node",
-		cache_path,
-		skip_confirm,
-	)
-	.await
+	check_and_prompt::<ContractsNodeGenerator>(cli, CONTRACTS_NODE_BINARY, cache_path, skip_confirm)
+		.await
 }
 
 /// Handles the optional termination of a local running node.
@@ -83,6 +81,18 @@ pub fn has_contract_been_built(path: Option<&Path>) -> bool {
 		.unwrap_or_default()
 }
 
+pub(crate) async fn map_account(
+	extrinsic_opts: &ExtrinsicOpts<DefaultConfig, DefaultEnvironment, Keypair>,
+	cli: &mut impl Cli,
+) -> anyhow::Result<()> {
+	let mapper = AccountMapper::new(extrinsic_opts).await?;
+	if mapper.needs_mapping().await? && cli.confirm("The account you're submitting from is not yet mapped. Would you like to map your account?").initial_value(true).interact()? {
+		let address = mapper.map_account().await?;
+		cli.success(format!("Account mapped successfully.\n{}", style(format!("Address {:?}.", address)).dim()))?;
+	}
+	Ok(())
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -118,31 +128,31 @@ mod tests {
 	async fn check_contracts_node_and_prompt_works() -> anyhow::Result<()> {
 		let cache_path = tempfile::tempdir().expect("Could create temp dir");
 		let mut cli = MockCli::new()
-			.expect_warning("⚠️ The substrate-contracts-node binary is not found.")
+			.expect_warning(format!("⚠️ The {CONTRACTS_NODE_BINARY} binary is not found."))
 			.expect_confirm("📦 Would you like to source it automatically now?", true)
-			.expect_warning("⚠️ The substrate-contracts-node binary is not found.");
+			.expect_warning(format!("⚠️ The {CONTRACTS_NODE_BINARY} binary is not found."));
 
 		let node_path = check_contracts_node_and_prompt(&mut cli, cache_path.path(), false).await?;
-		// Binary path is at least equal to the cache path + "substrate-contracts-node".
+		// Binary path is at least equal to the cache path + the constracts node binary.
 		assert!(node_path
 			.to_str()
 			.unwrap()
-			.starts_with(&cache_path.path().join("substrate-contracts-node").to_str().unwrap()));
+			.starts_with(&cache_path.path().join(CONTRACTS_NODE_BINARY).to_str().unwrap()));
 		cli.verify()
 	}
 
 	#[tokio::test]
 	async fn check_contracts_node_and_prompt_handles_skip_confirm() -> anyhow::Result<()> {
 		let cache_path = tempfile::tempdir().expect("Could create temp dir");
-		let mut cli =
-			MockCli::new().expect_warning("⚠️ The substrate-contracts-node binary is not found.");
+		let mut cli = MockCli::new()
+			.expect_warning(format!("⚠️ The {CONTRACTS_NODE_BINARY} binary is not found."));
 
 		let node_path = check_contracts_node_and_prompt(&mut cli, cache_path.path(), true).await?;
-		// Binary path is at least equal to the cache path + "substrate-contracts-node".
+		// Binary path is at least equal to the cache path + the constracts node binary.
 		assert!(node_path
 			.to_str()
 			.unwrap()
-			.starts_with(&cache_path.path().join("substrate-contracts-node").to_str().unwrap()));
+			.starts_with(&cache_path.path().join(CONTRACTS_NODE_BINARY).to_str().unwrap()));
 		cli.verify()
 	}
 

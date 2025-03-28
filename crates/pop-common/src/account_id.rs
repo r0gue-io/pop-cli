@@ -14,6 +14,22 @@ pub fn parse_account(account: &str) -> Result<<DefaultConfig as Config>::Account
 		.map_err(|e| Error::AccountAddressParsing(format!("{}", e)))
 }
 
+/// Parses a H160 account from its string representation.
+///
+/// # Arguments
+pub fn parse_h160_account(account: &str) -> Result<H160, Error> {
+	let bytes = contract_build::util::decode_hex(account)
+		.map_err(|e| Error::AccountAddressParsing(format!("Invalid hex: {}", e)))?;
+
+	if bytes.len() != 20 {
+		return Err(Error::AccountAddressParsing(format!(
+			"H160 must be 20 bytes in length, got {}",
+			bytes.len()
+		)));
+	}
+	Ok(H160::from_slice(&bytes[..]))
+}
+
 /// Converts a list of accounts into EVM-compatible `AccountId20`.
 ///
 /// # Arguments

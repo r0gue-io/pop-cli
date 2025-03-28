@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{errors::Error, utils::canonicalized_path, Contract};
+use crate::{errors::Error, templates::V6_CONTRACTS_BRANCH, utils::canonicalized_path, Contract};
 use anyhow::Result;
 use contract_build::new_contract_project;
 use heck::ToUpperCamelCase;
@@ -61,7 +61,7 @@ fn create_template_contract(
 	let template_repository = template.repository_url()?;
 	// Clone the repository into the temporary directory.
 	let temp_dir = ::tempfile::TempDir::new_in(std::env::temp_dir())?;
-	Git::clone(&Url::parse(template_repository)?, temp_dir.path(), None)?;
+	Git::clone(&Url::parse(template_repository)?, temp_dir.path(), Some(V6_CONTRACTS_BRANCH))?;
 	// Retrieve only the template contract files.
 	if template == &Contract::PSP22 || template == &Contract::PSP34 {
 		// Different template structure requires extracting different path

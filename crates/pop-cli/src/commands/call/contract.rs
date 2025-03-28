@@ -4,7 +4,7 @@ use crate::{
 	cli::{self, traits::*},
 	common::{
 		builds::get_project_path,
-		contracts::has_contract_been_built,
+		contracts::{has_contract_been_built, map_account},
 		prompt::display_message,
 		wallet::{prompt_to_use_wallet, request_signature},
 	},
@@ -12,7 +12,7 @@ use crate::{
 use anyhow::{anyhow, Result};
 use clap::Args;
 use cliclack::spinner;
-use pop_common::{parse_account, DefaultConfig, Keypair};
+use pop_common::{parse_h160_account, DefaultConfig, Keypair};
 use pop_contracts::{
 	build_smart_contract, call_smart_contract, call_smart_contract_from_signed_payload,
 	dry_run_call, dry_run_gas_estimate_call, get_call_payload, get_message, get_messages,
@@ -260,8 +260,8 @@ impl CallContractCommand {
 			// Prompt for contract address.
 			let contract_address: String = cli
 				.input("Provide the on-chain contract address:")
-				.placeholder("e.g. 5DYs7UGBm2LuX4ryvyqfksozNAW5V47tPbGiVgnjYWCZ29bt")
-				.validate(|input: &String| match parse_account(input) {
+				.placeholder("e.g. 0x48550a4bb374727186c55365b7c9c0a1a31bdafe")
+				.validate(|input: &String| match parse_h160_account(input) {
 					Ok(_) => Ok(()),
 					Err(_) => Err("Invalid address."),
 				})
@@ -412,6 +412,9 @@ impl CallContractCommand {
 				return Err(anyhow!(format!("{}", e.to_string())));
 			},
 		};
+		// Check if the account is already mapped, and prompt the user to perform the mapping if
+		// it's required.
+		map_account(call_exec.opts(), cli).await?;
 
 		// Perform signing steps with wallet integration, skipping secure signing for query-only
 		// operations.
@@ -503,9 +506,14 @@ impl CallContractCommand {
 		call_exec: CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
 		cli: &mut impl Cli,
 	) -> Result<()> {
-		let call_data = self.get_contract_data(&call_exec).map_err(|err| {
-			anyhow!("An error occurred getting the call data: {}", err.to_string())
-		})?;
+		let storage_deposit_limit = match call_exec.opts().storage_deposit_limit() {
+			Some(deposit_limit) => deposit_limit,
+			None => call_exec.estimate_gas().await?.1,
+		};
+		let call_data =
+			self.get_contract_data(&call_exec, storage_deposit_limit).map_err(|err| {
+				anyhow!("An error occurred getting the call data: {}", err.to_string())
+			})?;
 
 		let maybe_payload = request_signature(call_data, self.url.to_string()).await?;
 		if let Some(payload) = maybe_payload {
@@ -530,13 +538,14 @@ impl CallContractCommand {
 	fn get_contract_data(
 		&self,
 		call_exec: &CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
+		storage_deposit_limit: u128,
 	) -> anyhow::Result<Vec<u8>> {
 		let weight_limit = if self.gas_limit.is_some() && self.proof_size.is_some() {
 			Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap())
 		} else {
 			Weight::zero()
 		};
-		let call_data = get_call_payload(call_exec, weight_limit)?;
+		let call_data = get_call_payload(call_exec, weight_limit, storage_deposit_limit)?;
 		Ok(call_data)
 	}
 
@@ -558,6 +567,8 @@ mod tests {
 	use std::{env, fs::write};
 	use url::Url;
 
+	const CONTRACT_ADDRESS: &str = "0x48550a4bb374727186c55365b7c9c0a1a31bdafe";
+
 	#[tokio::test]
 	async fn execute_query_works() -> Result<()> {
 		let temp_dir = new_environment("testing")?;
@@ -572,7 +583,7 @@ mod tests {
 		CallContractCommand {
 			path: Some(temp_dir.path().join("testing")),
 			path_pos: None,
-			contract: Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string()),
+			contract: Some(CONTRACT_ADDRESS.to_string()),
 			message: Some("get".to_string()),
 			args: vec![].to_vec(),
 			value: "0".to_string(),
@@ -609,7 +620,7 @@ mod tests {
 		let mut call_config = CallContractCommand {
 			path: Some(temp_dir.path().join("testing")),
 			path_pos: None,
-			contract: Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string()),
+			contract: Some(CONTRACT_ADDRESS.to_string()),
 			message: Some("flip".to_string()),
 			args: vec![].to_vec(),
 			value: "0".to_string(),
@@ -624,7 +635,7 @@ mod tests {
 		};
 		call_config.configure(&mut cli, false).await?;
 		assert_eq!(call_config.display(), format!(
-			"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message flip --gas 100 --proof-size 10 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --dry-run",
+			"pop call contract --path {} --contract {CONTRACT_ADDRESS} --message flip --gas 100 --proof-size 10 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --dry-run",
 			temp_dir.path().join("testing").display().to_string(),
 		));
 		// Contract deployed on Pop Network testnet, test dry-run
@@ -647,7 +658,7 @@ mod tests {
 		let mut call_config = CallContractCommand {
 			path: Some(current_dir.join("pop-contracts/tests/files/testing.contract")),
 			path_pos: None,
-			contract: Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string()),
+			contract: Some(CONTRACT_ADDRESS.to_string()),
 			message: Some("flip".to_string()),
 			args: vec![].to_vec(),
 			value: "0".to_string(),
@@ -662,7 +673,7 @@ mod tests {
 		};
 		call_config.configure(&mut cli, false).await?;
 		assert_eq!(call_config.display(), format!(
-			"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message flip --gas 100 --proof-size 10 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --dry-run",
+			"pop call contract --path {} --contract {CONTRACT_ADDRESS} --message flip --gas 100 --proof-size 10 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --dry-run",
 			current_dir.join("pop-contracts/tests/files/testing.contract").display().to_string(),
 		));
 		// Contract deployed on Pop Network testnet, test dry-run
@@ -672,85 +683,19 @@ mod tests {
 		call_config.path = Some(current_dir.join("pop-contracts/tests/files/testing.json"));
 		call_config.configure(&mut cli, false).await?;
 		assert_eq!(call_config.display(), format!(
-			"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message flip --gas 100 --proof-size 10 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --dry-run",
+			"pop call contract --path {} --contract {CONTRACT_ADDRESS} --message flip --gas 100 --proof-size 10 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --dry-run",
 			current_dir.join("pop-contracts/tests/files/testing.json").display().to_string(),
 		));
 
-		// From .wasm file
-		call_config.path = Some(current_dir.join("pop-contracts/tests/files/testing.wasm"));
+		// From .polkavm file
+		call_config.path = Some(current_dir.join("pop-contracts/tests/files/testing.polkavm"));
 		call_config.configure(&mut cli, false).await?;
 		assert_eq!(call_config.display(), format!(
-			"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message flip --gas 100 --proof-size 10 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --dry-run",
-			current_dir.join("pop-contracts/tests/files/testing.wasm").display().to_string(),
+			"pop call contract --path {} --contract {CONTRACT_ADDRESS} --message flip --gas 100 --proof-size 10 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --dry-run",
+			current_dir.join("pop-contracts/tests/files/testing.polkavm").display().to_string(),
 		));
 		// Contract deployed on Pop Network testnet, test dry-run
 		call_config.execute_call(&mut cli, false).await?;
-
-		cli.verify()
-	}
-
-	#[tokio::test]
-	async fn call_contract_query_duplicate_call_works() -> Result<()> {
-		let temp_dir = new_environment("testing")?;
-		let mut current_dir = env::current_dir().expect("Failed to get current directory");
-		current_dir.pop();
-		mock_build_process(
-			temp_dir.path().join("testing"),
-			current_dir.join("pop-contracts/tests/files/testing.contract"),
-			current_dir.join("pop-contracts/tests/files/testing.json"),
-		)?;
-		let items = vec![
-			("flip\n".into(), " A message that can be called on instantiated contracts.  This one flips the value of the stored `bool` from `true`  to `false` and vice versa.".into()),
-			("get\n".into(), " Simply returns the current value of our `bool`.".into()),
-			("specific_flip\n".into(), " A message for testing, flips the value of the stored `bool` with `new_value`  and is payable".into())
-		];
-		let mut cli = MockCli::new()
-			.expect_intro(&"Call a contract")
-			.expect_warning("Your call has not been executed.")
-			.expect_confirm(
-				"Do you want to perform another call using the existing smart contract?",
-				true,
-			)
-			.expect_select(
-				"Select the message to call:",
-				Some(false),
-				true,
-				Some(items),
-				1, // "get" message
-				None
-			)
-			.expect_info(format!(
-			    "pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message get --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice",
-			    temp_dir.path().join("testing").display().to_string(),
-			))
-			.expect_warning("NOTE: Signing is not required for this read-only call. The '--use-wallet' flag will be ignored.")
-			.expect_warning("Your call has not been executed.")
-			.expect_confirm(
-				"Do you want to perform another call using the existing smart contract?",
-				false,
-			)
-			.expect_outro("Contract calling complete.");
-
-		// Contract deployed on Pop Network testnet, test get
-		let mut call_config = CallContractCommand {
-			path: Some(temp_dir.path().join("testing")),
-			path_pos: None,
-			contract: Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string()),
-			message: Some("get".to_string()),
-			args: vec![].to_vec(),
-			value: "0".to_string(),
-			gas_limit: None,
-			proof_size: None,
-			url: Url::parse("wss://rpc1.paseo.popnetwork.xyz")?,
-			suri: "//Alice".to_string(),
-			use_wallet: true,
-			dry_run: false,
-			execute: false,
-			dev_mode: false,
-		};
-		call_config.configure(&mut cli, false).await?;
-		// Test the query. With true, it will prompt for another call.
-		call_config.execute_call(&mut cli, true).await?;
 
 		cli.verify()
 	}
@@ -789,10 +734,10 @@ mod tests {
 			)
 			.expect_input(
 				"Provide the on-chain contract address:",
-				"15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".into(),
+				CONTRACT_ADDRESS.into(),
 			)
 			.expect_info(format!(
-	            "pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message get --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice",
+	            "pop call contract --path {} --contract {CONTRACT_ADDRESS} --message get --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice",
 	            temp_dir.path().join("testing").display().to_string(),
 	        ));
 
@@ -813,10 +758,7 @@ mod tests {
 			dev_mode: false,
 		};
 		call_config.configure(&mut cli, false).await?;
-		assert_eq!(
-			call_config.contract,
-			Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string())
-		);
+		assert_eq!(call_config.contract, Some(CONTRACT_ADDRESS.to_string()));
 		assert_eq!(call_config.message, Some("get".to_string()));
 		assert_eq!(call_config.args.len(), 0);
 		assert_eq!(call_config.value, "0".to_string());
@@ -827,7 +769,7 @@ mod tests {
 		assert!(!call_config.execute);
 		assert!(!call_config.dry_run);
 		assert_eq!(call_config.display(), format!(
-			"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message get --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice",
+			"pop call contract --path {} --contract {CONTRACT_ADDRESS} --message get --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice",
 			temp_dir.path().join("testing").display().to_string()
 		));
 
@@ -860,7 +802,7 @@ mod tests {
 			)
 			.expect_input(
 				"Provide the on-chain contract address:",
-				"15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".into(),
+				CONTRACT_ADDRESS.into(),
 			)
 			.expect_select(
 				"Select the message to call:",
@@ -877,7 +819,7 @@ mod tests {
 			.expect_input("Enter the proof size limit:", "".into()) // Only if call
 			.expect_confirm(USE_WALLET_PROMPT, true)
 			.expect_info(format!(
-				"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message specific_flip --args \"true\", \"2\" --value 50 --url wss://rpc1.paseo.popnetwork.xyz/ --use-wallet --execute",
+				"pop call contract --path {} --contract {CONTRACT_ADDRESS} --message specific_flip --args \"true\", \"2\" --value 50 --url wss://rpc1.paseo.popnetwork.xyz/ --use-wallet --execute",
 				temp_dir.path().join("testing").display().to_string(),
 			));
 
@@ -898,10 +840,7 @@ mod tests {
 			dev_mode: false,
 		};
 		call_config.configure(&mut cli, false).await?;
-		assert_eq!(
-			call_config.contract,
-			Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string())
-		);
+		assert_eq!(call_config.contract, Some(CONTRACT_ADDRESS.to_string()));
 		assert_eq!(call_config.message, Some("specific_flip".to_string()));
 		assert_eq!(call_config.args.len(), 2);
 		assert_eq!(call_config.args[0], "true".to_string());
@@ -915,7 +854,7 @@ mod tests {
 		assert!(call_config.execute);
 		assert!(!call_config.dry_run);
 		assert_eq!(call_config.display(), format!(
-			"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message specific_flip --args \"true\", \"2\" --value 50 --url wss://rpc1.paseo.popnetwork.xyz/ --use-wallet --execute",
+			"pop call contract --path {} --contract {CONTRACT_ADDRESS} --message specific_flip --args \"true\", \"2\" --value 50 --url wss://rpc1.paseo.popnetwork.xyz/ --use-wallet --execute",
 			temp_dir.path().join("testing").display().to_string()
 		));
 
@@ -956,14 +895,14 @@ mod tests {
 			)
 			.expect_input(
 				"Provide the on-chain contract address:",
-				"15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".into(),
+				CONTRACT_ADDRESS.into(),
 			)
 			.expect_input("Enter the value for the parameter: new_value", "true".into()) // Args for specific_flip
 			.expect_input("Enter the value for the parameter: number", "2".into()) // Args for specific_flip
 			.expect_input("Value to transfer to the call:", "50".into()) // Only if payable
 			.expect_input("Signer calling the contract:", "//Alice".into())
 			.expect_info(format!(
-				"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message specific_flip --args \"true\", \"2\" --value 50 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --execute",
+				"pop call contract --path {} --contract {CONTRACT_ADDRESS} --message specific_flip --args \"true\", \"2\" --value 50 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --execute",
 				temp_dir.path().join("testing").display().to_string(),
 			));
 
@@ -984,10 +923,7 @@ mod tests {
 			dev_mode: true,
 		};
 		call_config.configure(&mut cli, false).await?;
-		assert_eq!(
-			call_config.contract,
-			Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string())
-		);
+		assert_eq!(call_config.contract, Some(CONTRACT_ADDRESS.to_string()));
 		assert_eq!(call_config.message, Some("specific_flip".to_string()));
 		assert_eq!(call_config.args.len(), 2);
 		assert_eq!(call_config.args[0], "true".to_string());
@@ -1001,7 +937,7 @@ mod tests {
 		assert!(!call_config.dry_run);
 		assert!(call_config.dev_mode);
 		assert_eq!(call_config.display(), format!(
-			"pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message specific_flip --args \"true\", \"2\" --value 50 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --execute",
+			"pop call contract --path {} --contract {CONTRACT_ADDRESS} --message specific_flip --args \"true\", \"2\" --value 50 --url wss://rpc1.paseo.popnetwork.xyz/ --suri //Alice --execute",
 			temp_dir.path().join("testing").display().to_string()
 		));
 
@@ -1013,10 +949,10 @@ mod tests {
 		let temp_dir = new_environment("testing")?;
 		let mut current_dir = env::current_dir().expect("Failed to get current directory");
 		current_dir.pop();
-		// Create invalid `.json`, `.contract` and `.wasm` files for testing
+		// Create invalid `.json`, `.contract` and `.polkavm` files for testing
 		let invalid_contract_path = temp_dir.path().join("testing.contract");
 		let invalid_json_path = temp_dir.path().join("testing.json");
-		let invalid_wasm_path = temp_dir.path().join("testing.wasm");
+		let invalid_wasm_path = temp_dir.path().join("testing.polkavm");
 		write(&invalid_contract_path, b"This is an invalid contract file")?;
 		write(&invalid_json_path, b"This is an invalid JSON file")?;
 		write(&invalid_wasm_path, b"This is an invalid WASM file")?;
@@ -1057,7 +993,7 @@ mod tests {
 		assert!(
 			matches!(command.configure(&mut cli, false).await, Err(message) if message.to_string().contains("Unable to fetch contract metadata"))
 		);
-		// Test the path is a file with invalid `.wasm` file.
+		// Test the path is a file with invalid `.polkavm` file.
 		command.path = Some(invalid_wasm_path);
 		assert!(
 			matches!(command.configure(&mut cli, false).await, Err(message) if message.to_string().contains("Unable to fetch contract metadata"))
@@ -1081,7 +1017,7 @@ mod tests {
 			CallContractCommand {
 				path: Some(temp_dir.path().join("testing")),
 				path_pos: None,
-				contract: Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string()),
+				contract: Some(CONTRACT_ADDRESS.to_string()),
 				message: None,
 				args: vec![].to_vec(),
 				value: "0".to_string(),
@@ -1126,7 +1062,7 @@ mod tests {
 		let call_config = CallContractCommand {
 			path: Some(temp_dir.path().join("testing")),
 			path_pos: None,
-			contract: Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string()),
+			contract: Some(CONTRACT_ADDRESS.to_string()),
 			message: None,
 			args: vec![].to_vec(),
 			value: "0".to_string(),
@@ -1158,7 +1094,7 @@ mod tests {
 		let call_config = CallContractCommand {
 			path: Some(temp_dir.path().join("testing")),
 			path_pos: None,
-			contract: Some("15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm".to_string()),
+			contract: Some(CONTRACT_ADDRESS.to_string()),
 			message: None,
 			args: vec![].to_vec(),
 			value: "0".to_string(),

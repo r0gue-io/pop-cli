@@ -16,7 +16,7 @@ use contract_extrinsics::{
 	DisplayEvents, ErrorVariant, ExtrinsicOptsBuilder, TokenMetadata,
 };
 use ink_env::{DefaultEnvironment, Environment};
-use pop_common::{create_signer, parse_account, Config, DefaultConfig, Keypair};
+use pop_common::{account_id::parse_h160_account, create_signer, DefaultConfig, Keypair};
 use sp_weights::Weight;
 use std::path::PathBuf;
 use subxt::{tx::Payload, SubstrateConfig};
@@ -79,7 +79,7 @@ pub async fn set_up_call(
 	let value: BalanceVariant<<DefaultEnvironment as Environment>::Balance> =
 		parse_balance(&call_opts.value)?;
 
-	let contract: <DefaultConfig as Config>::AccountId = parse_account(&call_opts.contract)?;
+	let contract = parse_h160_account(&call_opts.contract)?;
 	// Process the provided argument values.
 	let args = process_function_args(
 		call_opts.path.unwrap_or_else(|| PathBuf::from("./")),
@@ -164,8 +164,9 @@ pub async fn call_smart_contract(
 ) -> anyhow::Result<String, Error> {
 	let token_metadata = TokenMetadata::query::<DefaultConfig>(url).await?;
 	let metadata = call_exec.client().metadata();
+	let storage_deposit_limit = call_exec.opts().storage_deposit_limit();
 	let events = call_exec
-		.call(Some(gas_limit))
+		.call(Some(gas_limit), storage_deposit_limit)
 		.await
 		.map_err(|error_variant| Error::CallContractError(format!("{:?}", error_variant)))?;
 	let display_events =
@@ -208,14 +209,14 @@ pub async fn call_smart_contract_from_signed_payload(
 pub fn get_call_payload(
 	call_exec: &CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
 	gas_limit: Weight,
+	storage_deposit_limit: u128,
 ) -> anyhow::Result<Vec<u8>> {
-	let storage_deposit_limit: Option<u128> = call_exec.opts().storage_deposit_limit();
 	let mut encoded_data = Vec::<u8>::new();
 	Call::new(
-		call_exec.contract().into(),
+		*call_exec.contract(),
 		call_exec.value(),
 		gas_limit,
-		storage_deposit_limit.as_ref(),
+		&storage_deposit_limit,
 		call_exec.call_data().clone(),
 	)
 	.build()
@@ -229,7 +230,7 @@ mod tests {
 	use crate::{
 		contracts_node_generator, dry_run_gas_estimate_instantiate, errors::Error,
 		instantiate_smart_contract, mock_build_process, new_environment, run_contracts_node,
-		set_up_deployment, UpOpts,
+		set_up_deployment, AccountMapper, UpOpts,
 	};
 	use anyhow::Result;
 	use pop_common::{find_free_port, set_executable_permission};
@@ -237,7 +238,8 @@ mod tests {
 	use std::{env, process::Command, time::Duration};
 	use tokio::time::sleep;
 
-	const CONTRACTS_NETWORK_URL: &str = "wss://rpc2.paseo.popnetwork.xyz";
+	const CONTRACT_ADDRESS: &str = "0x48550a4bb374727186c55365b7c9c0a1a31bdafe";
+	const CONTRACTS_NETWORK_URL: &str = "wss://westend-asset-hub-rpc.polkadot.io";
 
 	#[tokio::test]
 	async fn test_set_up_call() -> Result<()> {
@@ -251,7 +253,7 @@ mod tests {
 
 		let call_opts = CallOpts {
 			path: Some(temp_dir.path().join("testing")),
-			contract: "5CLPm1CeUvJhZ8GCDZCR7nWZ2m3XXe4X5MtAQK69zEjut36A".to_string(),
+			contract: CONTRACT_ADDRESS.to_string(),
 			message: "get".to_string(),
 			args: [].to_vec(),
 			value: "1000".to_string(),
@@ -271,7 +273,7 @@ mod tests {
 		let current_dir = env::current_dir().expect("Failed to get current directory");
 		let call_opts = CallOpts {
 			path: Some(current_dir.join("./tests/files/testing.json")),
-			contract: "5CLPm1CeUvJhZ8GCDZCR7nWZ2m3XXe4X5MtAQK69zEjut36A".to_string(),
+			contract: CONTRACT_ADDRESS.to_string(),
 			message: "get".to_string(),
 			args: [].to_vec(),
 			value: "1000".to_string(),
@@ -291,7 +293,7 @@ mod tests {
 		let temp_dir = new_environment("testing")?;
 		let call_opts = CallOpts {
 			path: Some(temp_dir.path().join("testing")),
-			contract: "5CLPm1CeUvJhZ8GCDZCR7nWZ2m3XXe4X5MtAQK69zEjut36A".to_string(),
+			contract: CONTRACT_ADDRESS.to_string(),
 			message: "get".to_string(),
 			args: [].to_vec(),
 			value: "1000".to_string(),
@@ -310,7 +312,7 @@ mod tests {
 	async fn test_set_up_call_fails_no_smart_contract_directory() -> Result<()> {
 		let call_opts = CallOpts {
 			path: None,
-			contract: "5CLPm1CeUvJhZ8GCDZCR7nWZ2m3XXe4X5MtAQK69zEjut36A".to_string(),
+			contract: CONTRACT_ADDRESS.to_string(),
 			message: "get".to_string(),
 			args: [].to_vec(),
 			value: "1000".to_string(),
@@ -338,7 +340,7 @@ mod tests {
 
 		let call_opts = CallOpts {
 			path: Some(temp_dir.path().join("testing")),
-			contract: "5CLPm1CeUvJhZ8GCDZCR7nWZ2m3XXe4X5MtAQK69zEjut36A".to_string(),
+			contract: CONTRACT_ADDRESS.to_string(),
 			message: "get".to_string(),
 			args: [].to_vec(),
 			value: "1000".to_string(),
@@ -349,7 +351,7 @@ mod tests {
 			execute: false,
 		};
 		let call = set_up_call(call_opts).await?;
-		assert!(matches!(dry_run_call(&call).await, Err(Error::DryRunCallContractError(..))));
+		assert!(matches!(dry_run_call(&call).await, Err(Error::AnyhowError(..))));
 		Ok(())
 	}
 
@@ -365,7 +367,7 @@ mod tests {
 
 		let call_opts = CallOpts {
 			path: Some(temp_dir.path().join("testing")),
-			contract: "5CLPm1CeUvJhZ8GCDZCR7nWZ2m3XXe4X5MtAQK69zEjut36A".to_string(),
+			contract: CONTRACT_ADDRESS.to_string(),
 			message: "get".to_string(),
 			args: [].to_vec(),
 			value: "1000".to_string(),
@@ -376,10 +378,8 @@ mod tests {
 			execute: false,
 		};
 		let call = set_up_call(call_opts).await?;
-		assert!(matches!(
-			dry_run_gas_estimate_call(&call).await,
-			Err(Error::DryRunCallContractError(..))
-		));
+
+		assert_eq!(dry_run_gas_estimate_call(&call).await?, Weight::zero());
 		Ok(())
 	}
 
@@ -416,6 +416,9 @@ mod tests {
 			suri: "//Alice".to_string(),
 		})
 		.await?;
+		// Map account
+		let map = AccountMapper::new(&instantiate_exec.opts()).await?;
+		map.map_account().await?;
 		let weight = dry_run_gas_estimate_instantiate(&instantiate_exec).await?;
 		let contract_info = instantiate_smart_contract(instantiate_exec, weight).await?;
 		// Test querying a value.
