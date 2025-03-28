@@ -5,6 +5,7 @@ use crate::{
 	common::binary::{check_and_prompt, BinaryGenerator},
 	impl_binary_generator,
 };
+use clap::{self, Args, Parser};
 use duct::cmd;
 use pop_common::sourcing::Binary;
 use pop_parachains::try_runtime_generator;
@@ -28,6 +29,20 @@ const SHARED_PARAMS: [&str; 6] = [
 ];
 
 impl_binary_generator!(TryRuntimeGenerator, try_runtime_generator);
+
+/// Construct a Try Runtime command with shared parameters.
+#[derive(Args)]
+pub(crate) struct TryRuntimeCommand<T>
+where
+	T: Parser + Args,
+{
+	/// Subcommand of try-runtime.
+	#[clap(flatten)]
+	pub command: T,
+	/// Shared params of the try-runtime commands.
+	#[clap(flatten)]
+	pub shared_params: SharedParams,
+}
 
 /// Checks the status of the `try-runtime` binary, using the local version if available.
 /// If the binary is missing, it is sourced as needed, and if an outdated version exists in cache,

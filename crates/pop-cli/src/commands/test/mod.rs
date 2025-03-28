@@ -28,19 +28,6 @@ pub(crate) struct TestArgs {
 	pub(crate) contract: contract::TestContractCommand,
 }
 
-#[derive(Args)]
-pub(crate) struct TestTryRuntimeCommand<T>
-where
-	T: Parser + Args,
-{
-	/// Subcommand of try-runtime.
-	#[clap(flatten)]
-	pub command: T,
-	/// Shared params of the try-runtime commands.
-	#[clap(flatten)]
-	pub shared_params: SharedParams,
-}
-
 /// Test a Rust project.
 #[derive(Subcommand)]
 pub(crate) enum Command {
@@ -48,7 +35,7 @@ pub(crate) enum Command {
 	#[cfg(feature = "contract")]
 	#[clap(alias = "c")]
 	Contract(contract::TestContractCommand),
-	/// Execute the migrations of the given runtime.
+	/// Test a runtime migrations.
 	#[cfg(feature = "parachain")]
 	OnRuntimeUpgrade(on_runtime_upgrade::TestOnRuntimeUpgradeCommand),
 }

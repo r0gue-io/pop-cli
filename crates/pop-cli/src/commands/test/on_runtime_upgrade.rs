@@ -3,14 +3,13 @@ use crate::{
 		self,
 		traits::{Confirm, Input, Select},
 	},
-	commands::test::TestTryRuntimeCommand,
 	common::{
 		builds::guide_user_to_select_profile,
 		prompt::display_message,
 		runtime::ensure_runtime_binary_exists,
 		try_runtime::{
 			argument_exists, check_try_runtime_and_prompt, collect_shared_arguments,
-			partition_arguments,
+			partition_arguments, TryRuntimeCommand,
 		},
 	},
 };
@@ -100,7 +99,7 @@ struct Command {
 pub(crate) struct TestOnRuntimeUpgradeCommand {
 	/// Command to test runtime migrations.
 	#[clap(flatten)]
-	command: TestTryRuntimeCommand<Command>,
+	command: TryRuntimeCommand<Command>,
 	/// Build profile [default: release].
 	#[clap(long, value_enum)]
 	profile: Option<Profile>,
@@ -950,7 +949,7 @@ mod tests {
 	#[cfg(test)]
 	fn default_command() -> anyhow::Result<TestOnRuntimeUpgradeCommand> {
 		Ok(TestOnRuntimeUpgradeCommand {
-			command: TestTryRuntimeCommand {
+			command: TryRuntimeCommand {
 				command: Command::try_parse_from(vec![""])?,
 				shared_params: SharedParams::try_parse_from(vec![""])?,
 			},
