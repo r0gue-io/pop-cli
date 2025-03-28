@@ -12,6 +12,7 @@ use pop_parachains::try_runtime_generator;
 use std::{
 	self,
 	collections::HashSet,
+	fmt::Display,
 	path::{Path, PathBuf},
 };
 use try_runtime_core::common::shared_parameters::{Runtime, SharedParams};
@@ -144,6 +145,16 @@ pub(crate) fn partition_arguments(
 /// * `arg` - The argument to check.
 pub(crate) fn is_shared_params(arg: &str) -> bool {
 	SHARED_PARAMS.iter().any(|a| arg.starts_with(a))
+}
+
+/// Format the argument and its value.
+///
+/// # Arguments
+///
+/// * `arg` - The argument to format.
+/// * `value` - The value of the argument.
+pub(crate) fn format_arg<A: Display, V: Display>(arg: A, value: V) -> String {
+	format!("{}={}", arg, value)
 }
 
 #[cfg(test)]

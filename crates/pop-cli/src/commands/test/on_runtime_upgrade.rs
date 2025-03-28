@@ -10,7 +10,7 @@ use crate::{
 		prompt::display_message,
 		runtime::ensure_runtime_binary_exists,
 		try_runtime::{
-			argument_exists, check_try_runtime_and_prompt, collect_shared_arguments,
+			argument_exists, check_try_runtime_and_prompt, collect_shared_arguments, format_arg,
 			partition_arguments, TryRuntimeCommand,
 		},
 	},
@@ -24,8 +24,8 @@ use pop_parachains::{
 	StateCommand, TryRuntimeCliCommand,
 };
 use std::{
-	collections::HashSet, env::current_dir, fmt::Display, path::PathBuf, str::FromStr,
-	thread::sleep, time::Duration,
+	collections::HashSet, env::current_dir, path::PathBuf, str::FromStr, thread::sleep,
+	time::Duration,
 };
 use strum::{EnumMessage, VariantArray};
 use try_runtime_core::common::shared_parameters::{Runtime, SharedParams};
@@ -479,10 +479,6 @@ fn guide_user_to_select_upgrade_checks(
 
 fn default_live_state() -> LiveState {
 	LiveState { uri: None, at: None, pallet: vec![], hashed_prefixes: vec![], child_tree: false }
-}
-
-fn format_arg<A: Display, V: Display>(arg: A, value: V) -> String {
-	format!("{}={}", arg, value)
 }
 
 #[cfg(test)]
