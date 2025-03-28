@@ -3749,18 +3749,6 @@ dependencies = [
 [[package]]
 name = "frame-try-runtime"
 version = "0.45.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2224250e66348e71a952060f50b75bf02b7114241818602ccc46e0f905331193"
-dependencies = [
- "frame-support 39.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "parity-scale-codec",
- "sp-api 35.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-runtime 40.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "frame-try-runtime"
-version = "0.45.0"
 source = "git+https://github.com/paritytech/polkadot-sdk?tag=polkadot-v1.17.3#06158dd26ba5d75263fbe454a95b73abed6b06d2"
 dependencies = [
  "frame-support 39.0.0 (git+https://github.com/paritytech/polkadot-sdk?tag=polkadot-v1.17.3)",
@@ -5891,7 +5879,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc2f4eb4bc735547cfed7c0a4922cbd04a4655978c09b54f1f7b228750664c34"
 dependencies = [
  "cfg-if",
- "windows-targets 0.48.5",
+ "windows-targets 0.52.6",
 ]
 
 [[package]]
@@ -8556,7 +8544,6 @@ dependencies = [
  "duct",
  "env_logger 0.11.7",
  "frame-benchmarking-cli",
- "frame-try-runtime 0.45.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "git2",
  "open",
  "os_info",
@@ -8651,7 +8638,6 @@ dependencies = [
  "cumulus-primitives-proof-size-hostfunction 0.10.0",
  "duct",
  "frame-benchmarking-cli",
- "frame-try-runtime 0.45.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "glob",
  "indexmap 2.8.0",
  "parity-scale-codec",
@@ -9000,7 +8986,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "81bddcdb20abf9501610992b6759a4c888aef7d1a7247ef75e2404275ac24af1"
 dependencies = [
  "anyhow",
- "itertools 0.11.0",
+ "itertools 0.12.1",
  "proc-macro2",
  "quote",
  "syn 2.0.100",
@@ -16233,7 +16219,7 @@ dependencies = [
  "frame-remote-externalities",
  "frame-support 39.0.0 (git+https://github.com/paritytech/polkadot-sdk?tag=polkadot-v1.17.3)",
  "frame-system 39.1.0 (git+https://github.com/paritytech/polkadot-sdk?tag=polkadot-v1.17.3)",
- "frame-try-runtime 0.45.0 (git+https://github.com/paritytech/polkadot-sdk?tag=polkadot-v1.17.3)",
+ "frame-try-runtime",
  "hex",
  "itertools 0.13.0",
  "log",
@@ -18007,7 +17993,7 @@ version = "0.13.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e91ee311a569c327171651566e07972200e76fcfe2242a4fa446149a3881c08a"
 dependencies = [
- "zstd-safe 7.2.3",
+ "zstd-safe 7.2.4",
 ]
 
 [[package]]
@@ -18032,18 +18018,18 @@ dependencies = [
 
 [[package]]
 name = "zstd-safe"
-version = "7.2.3"
+version = "7.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f3051792fbdc2e1e143244dc28c60f73d8470e93f3f9cbd0ead44da5ed802722"
+checksum = "8f49c4d5f0abb602a93fb8736af2a4f4dd9512e36f7f570d66e65ff867ed3b9d"
 dependencies = [
  "zstd-sys",
 ]
 
 [[package]]
 name = "zstd-sys"
-version = "2.0.14+zstd.1.5.7"
+version = "2.0.15+zstd.1.5.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8fb060d4926e4ac3a3ad15d864e99ceb5f343c6b34f5bd6d81ae6ed417311be5"
+checksum = "eb81183ddd97d0c74cedf1d50d85c8d08c1b8b68ee863bdee9e706eedba1a237"
 dependencies = [
  "cc",
  "pkg-config",
