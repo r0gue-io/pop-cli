@@ -105,11 +105,6 @@ async fn contract_lifecycle() -> Result<()> {
 		suri: "//Alice".to_string(),
 	})
 	.await?;
-	// Map account
-	#[cfg(feature = "polkavm-contracts")]
-	let map = AccountMapper::new(&instantiate_exec.opts()).await?;
-	#[cfg(feature = "polkavm-contracts")]
-	map.map_account().await?;
 
 	// Only upload the contract
 	// pop up --path ./test_contract --upload-only

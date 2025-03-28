@@ -818,11 +818,6 @@ mod tests {
 			suri: "//Alice".to_string(),
 		})
 		.await?;
-		// Map account
-		#[cfg(feature = "v6")]
-		let map = AccountMapper::new(&instantiate_exec.opts()).await?;
-		#[cfg(feature = "v6")]
-		map.map_account().await?;
 		// First gas estimation
 		let weight = dry_run_gas_estimate_instantiate(&instantiate_exec).await?;
 		assert!(weight.ref_time() > 0);

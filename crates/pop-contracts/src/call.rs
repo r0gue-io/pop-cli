@@ -478,11 +478,6 @@ mod tests {
 			suri: "//Alice".to_string(),
 		})
 		.await?;
-		// Map account
-		#[cfg(feature = "v6")]
-		let map = AccountMapper::new(&instantiate_exec.opts()).await?;
-		#[cfg(feature = "v6")]
-		map.map_account().await?;
 		let weight = dry_run_gas_estimate_instantiate(&instantiate_exec).await?;
 		let contract_info = instantiate_smart_contract(instantiate_exec, weight).await?;
 		// Test querying a value.
