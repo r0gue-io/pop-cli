@@ -642,13 +642,6 @@ mod tests {
 			use_wallet: true,
 			valid: true,
 		};
-		// Map account
-		#[cfg(feature = "polkavm-contracts")]
-		let instantiate_exec = set_up_deployment(up_contract_opts.clone().into()).await?;
-		#[cfg(feature = "polkavm-contracts")]
-		let map = AccountMapper::new(&instantiate_exec.opts()).await?;
-		#[cfg(feature = "polkavm-contracts")]
-		map.map_account().await?;
 
 		// Retrieve call data based on the above command options.
 		let (retrieved_call_data, _) = match up_contract_opts.get_contract_data().await {
@@ -666,6 +659,9 @@ mod tests {
 		#[cfg(feature = "wasm-contracts")]
 		let expected_call_data =
 			get_instantiate_payload(set_up_deployment(up_contract_opts.into()).await?, weight)?;
+
+		#[cfg(feature = "polkavm-contracts")]
+		let instantiate_exec = set_up_deployment(up_contract_opts.clone().into()).await?;
 		#[cfg(feature = "polkavm-contracts")]
 		let expected_call_data = get_instantiate_payload(instantiate_exec, weight).await?;
 		// Retrieved call data matches the one crafted above.

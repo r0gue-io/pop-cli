@@ -4,6 +4,7 @@ use crate::{errors::Error, DefaultEnvironment};
 use contract_extrinsics_inkv6::{ExtrinsicOpts, MapAccountCommandBuilder, MapAccountExec};
 use pop_common::{DefaultConfig, Keypair};
 use sp_core_inkv6::H160;
+use subxt::ext::scale_encode::EncodeAsType;
 
 /// A helper struct for performing account mapping operations.
 pub struct AccountMapper {
@@ -38,6 +39,21 @@ impl AccountMapper {
 	}
 }
 
+/// A raw call to `pallet-revive`'s `map_account`.
+#[derive(Debug, EncodeAsType)]
+#[encode_as_type(crate_path = "subxt::ext::scale_encode")]
+pub(crate) struct MapAccount {}
+
+impl MapAccount {
+	pub fn new() -> Self {
+		Self {}
+	}
+
+	pub fn build(self) -> subxt::tx::DefaultPayload<Self> {
+		subxt::tx::DefaultPayload::new("Revive", "map_account", self)
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -68,8 +84,8 @@ mod tests {
 		binary.source(false, &(), true).await?;
 		set_executable_permission(binary.path())?;
 		let process = run_contracts_node(binary.path(), None, random_port).await?;
-
-		let signer = dev::alice();
+		// Alice is mapped when running the contracts-node.
+		let signer = dev::bob();
 		let extrinsic_opts: ExtrinsicOpts<DefaultConfig, DefaultEnvironment, Keypair> =
 			ExtrinsicOptsBuilder::new(signer)
 				.file(Some(current_dir.join("./tests/files/testing.contract")))
@@ -79,7 +95,7 @@ mod tests {
 		assert!(map.needs_mapping().await?);
 
 		let address = map.map_account().await?;
-		assert_eq!(address, parse_h160_account("0x9621dde636de098b43efb0fa9b61facfe328f99d")?);
+		assert_eq!(address, parse_h160_account("0x41dccbd49b26c50d34355ed86ff0fa9e489d1e01")?);
 
 		assert!(!map.needs_mapping().await?);
 
