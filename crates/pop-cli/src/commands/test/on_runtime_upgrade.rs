@@ -21,7 +21,7 @@ use frame_try_runtime::UpgradeCheckSelect;
 use pop_common::Profile;
 use pop_parachains::{
 	check_block_hash, generate_try_runtime, get_upgrade_checks_details, LiveState, State,
-	StateDiscriminants, TryRuntimeCliCommand,
+	StateCommand, TryRuntimeCliCommand,
 };
 use std::{
 	collections::HashSet, env::current_dir, fmt::Display, path::PathBuf, str::FromStr,
@@ -326,7 +326,7 @@ impl TestOnRuntimeUpgradeCommand {
 	}
 
 	fn update_state_source(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
-		let mut subcommand: Option<StateDiscriminants> = None;
+		let mut subcommand: Option<StateCommand> = None;
 		let mut path: Option<PathBuf> = None;
 		let mut live_state = default_live_state();
 
@@ -335,22 +335,22 @@ impl TestOnRuntimeUpgradeCommand {
 			match state {
 				State::Live(_state) => {
 					live_state = _state.clone();
-					subcommand = Some(StateDiscriminants::Live);
+					subcommand = Some(StateCommand::Live);
 				},
 				State::Snap { path: _path } => {
 					path = _path.clone();
-					subcommand = Some(StateDiscriminants::Snap);
+					subcommand = Some(StateCommand::Snap);
 				},
 			}
 		}
 		// If there is no state, prompt the user to select one.
 		if subcommand.is_none() {
-			subcommand = Some(*guide_user_to_select_chain_state(cli)?);
+			subcommand = Some(*guide_user_to_select_state_source(cli)?);
 		};
 		match subcommand {
 			Some(state) => match state {
-				StateDiscriminants::Live => self.update_live_state(cli, live_state)?,
-				StateDiscriminants::Snap => self.update_snapshot(cli, path)?,
+				StateCommand::Live => self.update_live_state(cli, live_state)?,
+				StateCommand::Snap => self.update_snapshot(cli, path)?,
 			},
 			None => return Err(anyhow::anyhow!("No state selected for testing migration.")),
 		}
@@ -443,11 +443,11 @@ impl TestOnRuntimeUpgradeCommand {
 	}
 }
 
-fn guide_user_to_select_chain_state(
+fn guide_user_to_select_state_source(
 	cli: &mut impl cli::traits::Cli,
-) -> anyhow::Result<&StateDiscriminants> {
+) -> anyhow::Result<&StateCommand> {
 	let mut prompt = cli.select("Select source of runtime state to run the migration with:");
-	for subcommand in StateDiscriminants::VARIANTS.iter() {
+	for subcommand in StateCommand::VARIANTS.iter() {
 		prompt = prompt.item(
 			subcommand,
 			subcommand.get_message().unwrap(),
@@ -892,12 +892,12 @@ mod tests {
 		command.command.command.state = Some(State::Live(default_live_state()));
 		assert_eq!(command.subcommand()?, StateCommand::Live.to_string());
 		command.command.command.state = Some(State::Snap { path: Some(PathBuf::default()) });
-		assert_eq!(command.subcommand()?, StateCommand::Snapshot.to_string());
+		assert_eq!(command.subcommand()?, StateCommand::Snap.to_string());
 		Ok(())
 	}
 
 	#[test]
-	fn guide_user_to_select_chain_state_works() -> anyhow::Result<()> {
+	fn guide_user_to_select_state_source_works() -> anyhow::Result<()> {
 		let mut cli = MockCli::new().expect_select(
 			"Select source of runtime state to run the migration with:",
 			Some(true),
@@ -906,7 +906,7 @@ mod tests {
 			0,
 			None,
 		);
-		assert_eq!(guide_user_to_select_chain_state(&mut cli)?, &StateDiscriminants::Live);
+		assert_eq!(guide_user_to_select_state_source(&mut cli)?, &StateCommand::Live);
 		Ok(())
 	}
 
@@ -945,7 +945,7 @@ mod tests {
 	}
 
 	fn get_subcommands() -> Vec<(String, String)> {
-		StateDiscriminants::VARIANTS
+		StateCommand::VARIANTS
 			.iter()
 			.map(|subcommand| {
 				(
