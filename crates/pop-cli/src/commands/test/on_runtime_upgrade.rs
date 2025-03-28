@@ -477,10 +477,6 @@ fn guide_user_to_select_upgrade_checks(
 	UpgradeCheckSelect::from_str(&input).map_err(|e| anyhow::anyhow!(e.to_string()))
 }
 
-fn format_arg<A: Display, V: Display>(arg: A, value: V) -> String {
-	format!("{}={}", arg, value)
-}
-
 #[cfg(test)]
 mod tests {
 	use super::*;

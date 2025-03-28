@@ -8,6 +8,8 @@ use std::path::PathBuf;
 #[cfg(feature = "contract")]
 pub mod contract;
 #[cfg(feature = "parachain")]
+pub mod create_snapshot;
+#[cfg(feature = "parachain")]
 pub mod on_runtime_upgrade;
 
 /// Arguments for testing.
@@ -37,6 +39,9 @@ pub(crate) enum Command {
 	/// Test a runtime migrations.
 	#[cfg(feature = "parachain")]
 	OnRuntimeUpgrade(on_runtime_upgrade::TestOnRuntimeUpgradeCommand),
+	/// Create a chain state snapshot.
+	#[cfg(feature = "parachain")]
+	CreateSnapshot(create_snapshot::TestCreateSnapshotCommand),
 }
 impl Command {
 	pub(crate) async fn execute(args: TestArgs) -> anyhow::Result<&'static str> {
