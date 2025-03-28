@@ -70,7 +70,7 @@ impl Display for StateCommand {
 }
 
 /// A `Live` variant for [`State`]
-#[derive(Debug, Clone, clap::Args)]
+#[derive(Debug, Default, Clone, clap::Args)]
 pub struct LiveState {
 	/// The url to connect to.
 	#[arg(

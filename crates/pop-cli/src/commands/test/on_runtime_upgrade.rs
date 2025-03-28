@@ -328,7 +328,7 @@ impl TestOnRuntimeUpgradeCommand {
 	fn update_state_source(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		let mut subcommand: Option<StateCommand> = None;
 		let mut path: Option<PathBuf> = None;
-		let mut live_state = default_live_state();
+		let mut live_state = LiveState::default();
 
 		// Read from state subcommand.
 		if let Some(ref state) = self.command().state {
@@ -477,10 +477,6 @@ fn guide_user_to_select_upgrade_checks(
 	UpgradeCheckSelect::from_str(&input).map_err(|e| anyhow::anyhow!(e.to_string()))
 }
 
-fn default_live_state() -> LiveState {
-	LiveState { uri: None, at: None, pallet: vec![], hashed_prefixes: vec![], child_tree: false }
-}
-
 fn format_arg<A: Display, V: Display>(arg: A, value: V) -> String {
 	format!("{}={}", arg, value)
 }
@@ -489,7 +485,7 @@ fn format_arg<A: Display, V: Display>(arg: A, value: V) -> String {
 mod tests {
 	use super::*;
 	use crate::common::{
-		runtime::{get_mock_runtime, RuntimeFeature},
+		runtime::{get_mock_runtime, Feature::TryRuntime},
 		try_runtime::source_try_runtime_binary,
 	};
 	use clap::Parser;
@@ -523,7 +519,7 @@ mod tests {
 			.expect_warning("NOTE: Make sure your runtime is built with `try-runtime` feature.")
 			.expect_input(
 				"Please specify the path to the runtime project or the runtime binary.",
-				get_mock_runtime(Some(RuntimeFeature::TryRuntime)).to_str().unwrap().to_string(),
+				get_mock_runtime(Some(TryRuntime)).to_str().unwrap().to_string(),
 			)
 			.expect_input("Enter the block time:", DEFAULT_BLOCK_TIME.to_string())
 			.expect_select(
@@ -548,7 +544,7 @@ mod tests {
 			.expect_info(format!(
 				"pop test on-runtime-upgrade --runtime={} --blocktime=6000 \
 			--checks=all --profile=debug live --uri={} --at={}",
-				get_mock_runtime(Some(RuntimeFeature::TryRuntime)).to_str().unwrap(),
+				get_mock_runtime(Some(TryRuntime)).to_str().unwrap(),
 				DEFAULT_LIVE_NODE_URL.to_string(),
 				DEFAULT_BLOCK_HASH.strip_prefix("0x").unwrap_or_default().to_string()
 			));
@@ -583,7 +579,7 @@ mod tests {
 			.expect_warning("NOTE: Make sure your runtime is built with `try-runtime` feature.")
 			.expect_input(
 				"Please specify the path to the runtime project or the runtime binary.",
-				get_mock_runtime(Some(RuntimeFeature::TryRuntime)).to_str().unwrap().to_string(),
+				get_mock_runtime(Some(TryRuntime)).to_str().unwrap().to_string(),
 			)
 			.expect_input("Enter the block time:", DEFAULT_BLOCK_TIME.to_string())
 			.expect_select(
@@ -616,7 +612,7 @@ mod tests {
 			.expect_info(format!(
 				"pop test on-runtime-upgrade --runtime={} --blocktime=6000 \
 				--checks=all --profile=debug snap --path={}",
-				get_mock_runtime(Some(RuntimeFeature::TryRuntime)).to_str().unwrap(),
+				get_mock_runtime(Some(TryRuntime)).to_str().unwrap(),
 				get_mock_snapshot().to_str().unwrap()
 			));
 		command.execute(&mut cli).await?;
@@ -688,14 +684,14 @@ mod tests {
 	#[test]
 	fn collect_arguments_after_live_subcommand_works() -> anyhow::Result<()> {
 		let mut command = default_command()?;
-		command.command.command.state = Some(State::Live(default_live_state()));
+		command.command.command.state = Some(State::Live(LiveState::default()));
 
 		// No arguments.
 		let mut args = vec![];
 		command.collect_arguments_after_subcommand(&vec![], &mut args);
 		assert!(args.is_empty());
 
-		let mut live_state = default_live_state();
+		let mut live_state = LiveState::default();
 		live_state.uri = Some(DEFAULT_LIVE_NODE_URL.to_string());
 		command.command.command.state = Some(State::Live(live_state.clone()));
 		// Keep the user-provided argument unchanged.
@@ -833,7 +829,7 @@ mod tests {
 	#[test]
 	fn update_live_state_works() -> anyhow::Result<()> {
 		// Prompt all inputs if not provided.
-		let live_state = default_live_state();
+		let live_state = LiveState::default();
 		let mut command = default_command()?;
 		let mut cli = MockCli::new()
 			.expect_input("Enter the live chain of your node:", DEFAULT_LIVE_NODE_URL.to_string())
@@ -852,7 +848,7 @@ mod tests {
 		cli.verify()?;
 
 		// Prompt for the URI if not provided.
-		let mut live_state = default_live_state();
+		let mut live_state = LiveState::default();
 		live_state.at = Some("1234567890abcdef".to_string());
 		let mut command = default_command()?;
 		let mut cli = MockCli::new()
@@ -868,7 +864,7 @@ mod tests {
 		cli.verify()?;
 
 		// Prompt for the block hash if not provided.
-		let mut live_state = default_live_state();
+		let mut live_state = LiveState::default();
 		live_state.uri = Some(DEFAULT_LIVE_NODE_URL.to_string());
 		let mut command = default_command()?;
 		// Provide the empty block hash.
@@ -889,7 +885,7 @@ mod tests {
 	#[test]
 	fn subcommand_works() -> anyhow::Result<()> {
 		let mut command = default_command()?;
-		command.command.command.state = Some(State::Live(default_live_state()));
+		command.command.command.state = Some(State::Live(LiveState::default()));
 		assert_eq!(command.subcommand()?, StateCommand::Live.to_string());
 		command.command.command.state = Some(State::Snap { path: Some(PathBuf::default()) });
 		assert_eq!(command.subcommand()?, StateCommand::Snap.to_string());
