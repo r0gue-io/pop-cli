@@ -8,13 +8,12 @@ use crate::{
 use clap::{self, Args, Parser};
 use duct::cmd;
 use pop_common::sourcing::Binary;
-use pop_parachains::try_runtime_generator;
+use pop_parachains::{try_runtime_generator, Runtime, SharedParams};
 use std::{
 	self,
 	collections::HashSet,
 	path::{Path, PathBuf},
 };
-use try_runtime_core::common::shared_parameters::{Runtime, SharedParams};
 
 const BINARY_NAME: &str = "try-runtime";
 

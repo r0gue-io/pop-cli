@@ -20,15 +20,15 @@ use cliclack::spinner;
 use frame_try_runtime::UpgradeCheckSelect;
 use pop_common::Profile;
 use pop_parachains::{
-	check_block_hash, generate_try_runtime, get_upgrade_checks_details, LiveState, State,
-	StateCommand, TryRuntimeCliCommand,
+	generate_try_runtime, get_upgrade_checks_details, parse,
+	state::{LiveState, State, StateCommand},
+	Runtime, SharedParams, TryRuntimeCliCommand,
 };
 use std::{
 	collections::HashSet, env::current_dir, fmt::Display, path::PathBuf, str::FromStr,
 	thread::sleep, time::Duration,
 };
 use strum::{EnumMessage, VariantArray};
-use try_runtime_core::common::shared_parameters::{Runtime, SharedParams};
 
 const CUSTOM_ARGS: [&str; 5] = ["--profile", "--no-build", "-n", "--skip-confirm", "-y"];
 const DEFAULT_BLOCK_TIME: &str = "6000";
@@ -404,7 +404,7 @@ impl TestOnRuntimeUpgradeCommand {
 				.placeholder(DEFAULT_BLOCK_HASH)
 				.interact()?;
 			if !block_hash.is_empty() {
-				live_state.at = Some(check_block_hash(&block_hash)?);
+				live_state.at = Some(parse::url(&block_hash)?);
 			}
 		}
 		self.command.command.state = Some(State::Live(live_state.clone()));
@@ -490,7 +490,6 @@ mod tests {
 	};
 	use clap::Parser;
 	use cli::MockCli;
-	use pop_parachains::StateCommand;
 
 	#[tokio::test]
 	async fn test_on_runtime_upgrade_live_state_works() -> anyhow::Result<()> {

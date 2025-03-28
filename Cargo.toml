@@ -80,7 +80,8 @@ sp-statement-store = "15.0.0"
 
 # try-runtime
 frame-try-runtime = "0.45.0"
-try-runtime-core = { git = "https://github.com/chungquantin/try-runtime-cli", branch = "chungquantin/chore-bump_stable2412" }
+sc-cli = "0.50.1"
+sp-version = "38.0.0"
 
 # pop-cli
 clap = { version = "4.5", features = ["derive"] }

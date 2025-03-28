@@ -46,6 +46,8 @@ sp-statement-store.workspace = true
 
 # Try Runtime
 frame-try-runtime = { workspace = true, features = ["try-runtime"] }
+sc-cli.workspace = true
+sp-version.workspace = true
 
 # Pop
 pop-common = { path = "../pop-common", version = "0.6.0" }
