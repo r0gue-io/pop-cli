@@ -20,18 +20,15 @@ use cliclack::spinner;
 use frame_try_runtime::UpgradeCheckSelect;
 use pop_common::Profile;
 use pop_parachains::{
-	generate_try_runtime, get_upgrade_checks_details, OnRuntimeUpgradeSubcommand,
-	TryRuntimeCliCommand,
+	check_block_hash, generate_try_runtime, get_upgrade_checks_details, LiveState, State,
+	StateDiscriminants, TryRuntimeCliCommand,
 };
 use std::{
 	collections::HashSet, env::current_dir, fmt::Display, path::PathBuf, str::FromStr,
 	thread::sleep, time::Duration,
 };
 use strum::{EnumMessage, VariantArray};
-use try_runtime_core::common::{
-	shared_parameters::{Runtime, SharedParams},
-	state::{LiveState, State},
-};
+use try_runtime_core::common::shared_parameters::{Runtime, SharedParams};
 
 const CUSTOM_ARGS: [&str; 5] = ["--profile", "--no-build", "-n", "--skip-confirm", "-y"];
 const DEFAULT_BLOCK_TIME: &str = "6000";
@@ -182,12 +179,13 @@ impl TestOnRuntimeUpgradeCommand {
 	async fn run(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		let spinner = spinner();
 		match self.command().state {
-			Some(State::Live(ref live_state)) => {
-				spinner.start(format!(
-					"Run the migrations of a given runtime on top of a live state at {}...",
-					console::style(&live_state.uri).magenta().underlined()
-				));
-			},
+			Some(State::Live(ref live_state)) =>
+				if let Some(ref uri) = live_state.uri {
+					spinner.start(format!(
+						"Run the migrations of a given runtime on top of a live state at {}...",
+						console::style(&uri).magenta().underlined()
+					));
+				},
 			Some(State::Snap { ref path }) =>
 				if let Some(p) = path {
 					spinner.start(format!(
@@ -289,9 +287,11 @@ impl TestOnRuntimeUpgradeCommand {
 		match self.command().state.as_ref().unwrap() {
 			State::Live(state) => {
 				let arg = "--uri";
-				if !argument_exists(user_provided_args, arg) && !state.uri.is_empty() {
-					args.push(format_arg(arg, &state.uri));
-					seen_args.insert(arg.to_string());
+				if let Some(ref uri) = state.uri {
+					if !argument_exists(user_provided_args, arg) {
+						args.push(format_arg(arg, uri));
+						seen_args.insert(arg.to_string());
+					}
 				}
 				let arg = "--at";
 				if let Some(ref at) = state.at {
@@ -326,7 +326,7 @@ impl TestOnRuntimeUpgradeCommand {
 	}
 
 	fn update_state_source(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
-		let mut subcommand: Option<OnRuntimeUpgradeSubcommand> = None;
+		let mut subcommand: Option<StateDiscriminants> = None;
 		let mut path: Option<PathBuf> = None;
 		let mut live_state = default_live_state();
 
@@ -335,22 +335,22 @@ impl TestOnRuntimeUpgradeCommand {
 			match state {
 				State::Live(_state) => {
 					live_state = _state.clone();
-					subcommand = Some(OnRuntimeUpgradeSubcommand::Live);
+					subcommand = Some(StateDiscriminants::Live);
 				},
 				State::Snap { path: _path } => {
 					path = _path.clone();
-					subcommand = Some(OnRuntimeUpgradeSubcommand::Snapshot);
+					subcommand = Some(StateDiscriminants::Snap);
 				},
 			}
 		}
 		// If there is no state, prompt the user to select one.
 		if subcommand.is_none() {
-			subcommand = Some(guide_user_to_select_chain_state(cli)?.clone());
+			subcommand = Some(*guide_user_to_select_chain_state(cli)?);
 		};
 		match subcommand {
 			Some(state) => match state {
-				OnRuntimeUpgradeSubcommand::Live => self.update_live_state(cli, live_state)?,
-				OnRuntimeUpgradeSubcommand::Snapshot => self.update_snapshot(cli, path)?,
+				StateDiscriminants::Live => self.update_live_state(cli, live_state)?,
+				StateDiscriminants::Snap => self.update_snapshot(cli, path)?,
 			},
 			None => return Err(anyhow::anyhow!("No state selected for testing migration.")),
 		}
@@ -389,12 +389,13 @@ impl TestOnRuntimeUpgradeCommand {
 		cli: &mut impl cli::traits::Cli,
 		mut live_state: LiveState,
 	) -> anyhow::Result<()> {
-		if live_state.uri.is_empty() {
-			live_state.uri = cli
-				.input("Enter the live chain of your node:")
-				.required(true)
-				.placeholder(DEFAULT_LIVE_NODE_URL)
-				.interact()?;
+		if live_state.uri.is_none() {
+			live_state.uri = Some(
+				cli.input("Enter the live chain of your node:")
+					.required(true)
+					.placeholder(DEFAULT_LIVE_NODE_URL)
+					.interact()?,
+			);
 		}
 		if live_state.at.is_none() {
 			let block_hash = cli
@@ -436,36 +437,17 @@ impl TestOnRuntimeUpgradeCommand {
 
 	fn subcommand(&self) -> anyhow::Result<String> {
 		Ok(match self.command().state {
-			Some(State::Live(..)) => OnRuntimeUpgradeSubcommand::Live.command(),
-			Some(State::Snap { .. }) => OnRuntimeUpgradeSubcommand::Snapshot.command(),
+			Some(ref state) => state.command(),
 			None => return Err(anyhow::anyhow!("No subcommand provided")),
-		}
-		.to_string())
-	}
-}
-
-fn check_block_hash(block_hash: &str) -> anyhow::Result<String> {
-	let (block_hash, offset) = if let Some(block_hash) = block_hash.strip_prefix("0x") {
-		(block_hash, 2)
-	} else {
-		(block_hash, 0)
-	};
-
-	if let Some(pos) = block_hash.chars().position(|c| !c.is_ascii_hexdigit()) {
-		Err(anyhow::anyhow!(
-			"Expected block hash, found illegal hex character at position: {}",
-			offset + pos,
-		))
-	} else {
-		Ok(block_hash.into())
+		})
 	}
 }
 
 fn guide_user_to_select_chain_state(
 	cli: &mut impl cli::traits::Cli,
-) -> anyhow::Result<&OnRuntimeUpgradeSubcommand> {
+) -> anyhow::Result<&StateDiscriminants> {
 	let mut prompt = cli.select("Select source of runtime state to run the migration with:");
-	for subcommand in OnRuntimeUpgradeSubcommand::VARIANTS.iter() {
+	for subcommand in StateDiscriminants::VARIANTS.iter() {
 		prompt = prompt.item(
 			subcommand,
 			subcommand.get_message().unwrap(),
@@ -496,13 +478,7 @@ fn guide_user_to_select_upgrade_checks(
 }
 
 fn default_live_state() -> LiveState {
-	LiveState {
-		uri: String::default(),
-		at: None,
-		pallet: vec![],
-		hashed_prefixes: vec![],
-		child_tree: false,
-	}
+	LiveState { uri: None, at: None, pallet: vec![], hashed_prefixes: vec![], child_tree: false }
 }
 
 fn format_arg<A: Display, V: Display>(arg: A, value: V) -> String {
@@ -518,6 +494,7 @@ mod tests {
 	};
 	use clap::Parser;
 	use cli::MockCli;
+	use pop_parachains::StateCommand;
 
 	#[tokio::test]
 	async fn test_on_runtime_upgrade_live_state_works() -> anyhow::Result<()> {
@@ -719,7 +696,7 @@ mod tests {
 		assert!(args.is_empty());
 
 		let mut live_state = default_live_state();
-		live_state.uri = DEFAULT_LIVE_NODE_URL.to_string();
+		live_state.uri = Some(DEFAULT_LIVE_NODE_URL.to_string());
 		command.command.command.state = Some(State::Live(live_state.clone()));
 		// Keep the user-provided argument unchanged.
 		let user_provided_args = &["--uri".to_string(), "http://localhost:9944".to_string()];
@@ -731,22 +708,26 @@ mod tests {
 		// runtime.
 		let mut args = vec![];
 		command.collect_arguments_after_subcommand(&vec![], &mut args);
-		assert_eq!(args, vec![format!("--uri={}", live_state.uri)]);
+		assert_eq!(args, vec![format!("--uri={}", live_state.uri.clone().unwrap_or_default())]);
 
 		live_state.at = Some(DEFAULT_BLOCK_HASH.to_string());
 		command.command.command.state = Some(State::Live(live_state.clone()));
 		// Keep the user-provided argument unchanged.
-		let user_provided_args =
-			&[format!("--uri={}", live_state.uri), "--at".to_string(), "0x1234567890".to_string()];
+		let user_provided_args = &[
+			format!("--uri={}", live_state.uri.clone().unwrap_or_default()),
+			"--at".to_string(),
+			"0x1234567890".to_string(),
+		];
 		let mut args = vec![];
 		command.collect_arguments_after_subcommand(user_provided_args, &mut args);
 		assert_eq!(args, user_provided_args);
 
 		// Not allow empty `--at`.
-		let user_provided_args = &[format!("--uri={}", live_state.uri), "--at=".to_string()];
+		let user_provided_args =
+			&[format!("--uri={}", live_state.uri.clone().unwrap_or_default()), "--at=".to_string()];
 		let mut args = vec![];
 		command.collect_arguments_after_subcommand(user_provided_args, &mut args);
-		assert_eq!(args, vec![format!("--uri={}", live_state.uri)]);
+		assert_eq!(args, vec![format!("--uri={}", live_state.uri.clone().unwrap_or_default())]);
 
 		// If the user does not provide a block hash `--at` argument, modify with the argument
 		// updated during runtime.
@@ -755,7 +736,7 @@ mod tests {
 		assert_eq!(
 			args,
 			vec![
-				format!("--uri={}", live_state.uri),
+				format!("--uri={}", live_state.uri.unwrap_or_default()),
 				format!("--at={}", live_state.at.unwrap_or_default())
 			]
 		);
@@ -860,7 +841,7 @@ mod tests {
 		command.update_live_state(&mut cli, live_state)?;
 		match command.command().state {
 			Some(State::Live(ref live_state)) => {
-				assert_eq!(live_state.uri, DEFAULT_LIVE_NODE_URL.to_string());
+				assert_eq!(live_state.uri, Some(DEFAULT_LIVE_NODE_URL.to_string()));
 				assert_eq!(
 					live_state.at,
 					Some(DEFAULT_BLOCK_HASH.strip_prefix("0x").unwrap_or_default().to_string())
@@ -879,7 +860,7 @@ mod tests {
 		command.update_live_state(&mut cli, live_state)?;
 		match command.command().state {
 			Some(State::Live(ref live_state)) => {
-				assert_eq!(live_state.uri, DEFAULT_LIVE_NODE_URL.to_string());
+				assert_eq!(live_state.uri, Some(DEFAULT_LIVE_NODE_URL.to_string()));
 				assert_eq!(live_state.at, Some("1234567890abcdef".to_string()));
 			},
 			_ => panic!("Expected live state"),
@@ -888,7 +869,7 @@ mod tests {
 
 		// Prompt for the block hash if not provided.
 		let mut live_state = default_live_state();
-		live_state.uri = DEFAULT_LIVE_NODE_URL.to_string();
+		live_state.uri = Some(DEFAULT_LIVE_NODE_URL.to_string());
 		let mut command = default_command()?;
 		// Provide the empty block hash.
 		let mut cli =
@@ -896,7 +877,7 @@ mod tests {
 		command.update_live_state(&mut cli, live_state)?;
 		match command.command().state {
 			Some(State::Live(ref live_state)) => {
-				assert_eq!(live_state.uri, DEFAULT_LIVE_NODE_URL.to_string());
+				assert_eq!(live_state.uri, Some(DEFAULT_LIVE_NODE_URL.to_string()));
 				assert_eq!(live_state.at, None);
 			},
 			_ => panic!("Expected live state"),
@@ -909,18 +890,10 @@ mod tests {
 	fn subcommand_works() -> anyhow::Result<()> {
 		let mut command = default_command()?;
 		command.command.command.state = Some(State::Live(default_live_state()));
-		assert_eq!(command.subcommand()?, OnRuntimeUpgradeSubcommand::Live.command());
+		assert_eq!(command.subcommand()?, StateCommand::Live.to_string());
 		command.command.command.state = Some(State::Snap { path: Some(PathBuf::default()) });
-		assert_eq!(command.subcommand()?, OnRuntimeUpgradeSubcommand::Snapshot.command());
+		assert_eq!(command.subcommand()?, StateCommand::Snapshot.to_string());
 		Ok(())
-	}
-
-	#[test]
-	fn check_block_hash_works() {
-		assert!(check_block_hash("0x1234567890abcdef").is_ok());
-		assert!(check_block_hash("1234567890abcdef").is_ok());
-		assert!(check_block_hash("0x1234567890abcdefg").is_err());
-		assert!(check_block_hash("1234567890abcdefg").is_err());
 	}
 
 	#[test]
@@ -933,7 +906,7 @@ mod tests {
 			0,
 			None,
 		);
-		assert_eq!(guide_user_to_select_chain_state(&mut cli)?, &OnRuntimeUpgradeSubcommand::Live);
+		assert_eq!(guide_user_to_select_chain_state(&mut cli)?, &StateDiscriminants::Live);
 		Ok(())
 	}
 
@@ -972,7 +945,7 @@ mod tests {
 	}
 
 	fn get_subcommands() -> Vec<(String, String)> {
-		OnRuntimeUpgradeSubcommand::VARIANTS
+		StateDiscriminants::VARIANTS
 			.iter()
 			.map(|subcommand| {
 				(
