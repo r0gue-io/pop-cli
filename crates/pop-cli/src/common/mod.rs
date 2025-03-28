@@ -13,4 +13,6 @@ pub mod contracts;
 pub mod helpers;
 /// Contains utilities for interacting with the CLI prompt.
 pub mod prompt;
+/// Contains runtime utilities.
+pub mod runtime;
 pub mod wallet;
