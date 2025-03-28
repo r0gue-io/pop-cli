@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0
+
 use crate::{
 	cli::{
 		self,
@@ -70,7 +72,7 @@ struct Command {
 	#[clap(long, default_value = "false", default_missing_value = "true")]
 	pub disable_spec_version_check: bool,
 
-	/// Whether to disable migration idempotency checks
+	/// Whether to disable migration idempotency checks.
 	#[clap(long, default_value = "false", default_missing_value = "true")]
 	pub disable_idempotency_checks: bool,
 
@@ -151,7 +153,8 @@ impl TestOnRuntimeUpgradeCommand {
 			self.command.command.blocktime = Some(block_time.parse()?);
 		}
 
-		match self.update_state(cli) {
+		// Prompt the user to select the source of runtime state.
+		match self.update_state_source(cli) {
 			Ok(subcommand) => subcommand,
 			Err(e) => return display_message(&e.to_string(), false, cli),
 		};
@@ -300,12 +303,14 @@ impl TestOnRuntimeUpgradeCommand {
 			},
 			State::Snap { path } => {
 				let arg = "--path";
-				if !argument_exists(user_provided_args, arg) {
-					if let Some(ref path) = path {
+				if let Some(ref path) = path {
+					if !argument_exists(user_provided_args, arg) &&
+						!path.to_str().unwrap().is_empty()
+					{
 						args.push(format_arg(arg, path.display()));
 						seen_args.insert(arg.to_string());
-					};
-				}
+					}
+				};
 			},
 		}
 		// Exclude arguments that are already included.
@@ -320,7 +325,7 @@ impl TestOnRuntimeUpgradeCommand {
 		}
 	}
 
-	fn update_state(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+	fn update_state_source(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		let mut subcommand: Option<OnRuntimeUpgradeSubcommand> = None;
 		let mut path: Option<PathBuf> = None;
 		let mut live_state = default_live_state();
@@ -345,14 +350,14 @@ impl TestOnRuntimeUpgradeCommand {
 		match subcommand {
 			Some(state) => match state {
 				OnRuntimeUpgradeSubcommand::Live => self.update_live_state(cli, live_state)?,
-				OnRuntimeUpgradeSubcommand::Snapshot => self.update_snapshot_state(cli, path)?,
+				OnRuntimeUpgradeSubcommand::Snapshot => self.update_snapshot(cli, path)?,
 			},
 			None => return Err(anyhow::anyhow!("No state selected for testing migration.")),
 		}
 		Ok(())
 	}
 
-	fn update_snapshot_state(
+	fn update_snapshot(
 		&mut self,
 		cli: &mut impl cli::traits::Cli,
 		mut path: Option<PathBuf>,
@@ -786,7 +791,7 @@ mod tests {
 	#[test]
 	fn update_snapshot_state_works() -> anyhow::Result<()> {
 		let snapshot_file = get_mock_snapshot();
-		// Prompt for snapshot path if not provided
+		// Prompt for snapshot path if not provided.
 		let mut command = default_command()?;
 		let mut cli = MockCli::new().expect_input(
 			format!(
@@ -798,7 +803,7 @@ mod tests {
 			),
 			snapshot_file.to_str().unwrap().to_string(),
 		);
-		command.update_snapshot_state(&mut cli, None)?;
+		command.update_snapshot(&mut cli, None)?;
 		match command.command().state {
 			Some(State::Snap { ref path }) => {
 				assert_eq!(path.as_ref().unwrap(), snapshot_file.as_path());
@@ -811,7 +816,7 @@ mod tests {
 		let mut command = default_command()?;
 		let snapshot_path = Some(snapshot_file);
 		let mut cli = MockCli::new(); // No prompt expected
-		command.update_snapshot_state(&mut cli, snapshot_path.clone())?;
+		command.update_snapshot(&mut cli, snapshot_path.clone())?;
 		match command.command().state {
 			Some(State::Snap { ref path }) => {
 				assert_eq!(path, &snapshot_path);
@@ -837,7 +842,7 @@ mod tests {
 			"invalid-path-to-file".to_string(),
 		);
 		assert!(matches!(
-			command.update_snapshot_state(&mut cli, None),
+			command.update_snapshot(&mut cli, None),
 			Err(message) if message.to_string().contains("Invalid path to the snapshot file.")
 		));
 		cli.verify()?;
@@ -921,7 +926,7 @@ mod tests {
 	#[test]
 	fn guide_user_to_select_chain_state_works() -> anyhow::Result<()> {
 		let mut cli = MockCli::new().expect_select(
-			"Select source of runtime state to test with:",
+			"Select source of runtime state to run the migration with:",
 			Some(true),
 			true,
 			Some(get_subcommands()),
@@ -946,7 +951,14 @@ mod tests {
 		cli.verify()
 	}
 
-	#[cfg(test)]
+	#[test]
+	fn format_arg_works() {
+		assert_eq!(format_arg("--number", 1), "--number=1");
+		assert_eq!(format_arg("--string", "value"), "--string=value");
+		assert_eq!(format_arg("--boolean", true), "--boolean=true");
+		assert_eq!(format_arg("--path", PathBuf::new().display()), "--path=");
+	}
+
 	fn default_command() -> anyhow::Result<TestOnRuntimeUpgradeCommand> {
 		Ok(TestOnRuntimeUpgradeCommand {
 			command: TryRuntimeCommand {
@@ -957,14 +969,6 @@ mod tests {
 			no_build: false,
 			skip_confirm: false,
 		})
-	}
-
-	#[test]
-	fn format_arg_works() {
-		assert_eq!(format_arg("--number", 1), "--number=1");
-		assert_eq!(format_arg("--string", "value"), "--string=value");
-		assert_eq!(format_arg("--boolean", true), "--boolean=true");
-		assert_eq!(format_arg("--path", PathBuf::new().display()), "--path=");
 	}
 
 	fn get_subcommands() -> Vec<(String, String)> {
