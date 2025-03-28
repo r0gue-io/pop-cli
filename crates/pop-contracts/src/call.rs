@@ -289,7 +289,7 @@ mod tests {
 	#[cfg(feature = "v5")]
 	const CONTRACTS_NETWORK_URL: &str = "wss://rpc2.paseo.popnetwork.xyz";
 	#[cfg(feature = "v6")]
-	const CONTRACT_ADDRESS: &str = "0x48550a4bb374727186c55365b7c9c0a1a31bdafe";
+	const CONTRACT_ADDRESS: &str = "0x4f04054746fb19d3b027f5fe1ca5e87a68b49bac";
 	#[cfg(feature = "v6")]
 	const CONTRACTS_NETWORK_URL: &str = "wss://westend-asset-hub-rpc.polkadot.io";
 
@@ -403,15 +403,11 @@ mod tests {
 			execute: false,
 		};
 		let call = set_up_call(call_opts).await?;
-		#[cfg(feature = "v5")]
 		assert!(matches!(dry_run_call(&call).await, Err(Error::DryRunCallContractError(..))));
-		#[cfg(feature = "v6")]
-		assert!(matches!(dry_run_call(&call).await, Err(Error::AnyhowError(..))));
 		Ok(())
 	}
 
 	#[tokio::test]
-	#[cfg(feature = "v5")]
 	async fn test_dry_run_estimate_call_error_contract_not_deployed() -> Result<()> {
 		let temp_dir = new_environment("testing")?;
 		let current_dir = env::current_dir().expect("Failed to get current directory");

@@ -39,17 +39,18 @@ impl AccountMapper {
 	}
 }
 
-/// A raw call to `pallet-revive`'s `map_account`.
+// Create a call to `Revive::map_account`.
 #[derive(Debug, EncodeAsType)]
 #[encode_as_type(crate_path = "subxt::ext::scale_encode")]
 pub(crate) struct MapAccount {}
 
 impl MapAccount {
-	pub fn new() -> Self {
+	// Construct an empty `MapAccount` payload.
+	pub(crate) fn new() -> Self {
 		Self {}
 	}
-
-	pub fn build(self) -> subxt::tx::DefaultPayload<Self> {
+	// Create a call to `Revive::map_account` with no arguments.
+	pub(crate) fn build(self) -> subxt::tx::DefaultPayload<Self> {
 		subxt::tx::DefaultPayload::new("Revive", "map_account", self)
 	}
 }
