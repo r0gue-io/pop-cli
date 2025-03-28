@@ -5,7 +5,7 @@ use crate::{
 	common::{
 		builds::{ensure_node_binary_exists, guide_user_to_select_profile},
 		prompt::display_message,
-		runtime::RuntimeFeature,
+		runtime::Feature::Benchmark,
 	},
 };
 use clap::Args;
@@ -48,7 +48,7 @@ impl BenchmarkMachine {
 			cli,
 			target_path,
 			self.profile.as_ref().ok_or_else(|| anyhow::anyhow!("No profile provided"))?,
-			vec![RuntimeFeature::Benchmark.as_ref()],
+			vec![Benchmark.as_ref()],
 		)?;
 
 		cli.warning("NOTE: this may take some time...")?;

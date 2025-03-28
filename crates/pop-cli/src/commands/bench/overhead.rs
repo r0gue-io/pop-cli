@@ -230,7 +230,7 @@ mod tests {
 		cli::MockCli,
 		common::{
 			bench::EXECUTED_COMMAND_COMMENT,
-			runtime::{get_mock_runtime, RuntimeFeature},
+			runtime::{get_mock_runtime, Feature::Benchmark},
 		},
 	};
 	use pop_parachains::get_preset_names;
@@ -286,7 +286,7 @@ mod tests {
 		let cwd = current_dir().unwrap_or(PathBuf::from("./"));
 		let temp_dir = tempdir()?;
 		let output_path = temp_dir.path().to_str().unwrap();
-		let runtime_path = get_mock_runtime(Some(RuntimeFeature::Benchmark));
+		let runtime_path = get_mock_runtime(Some(Benchmark));
 		let preset_names = get_preset_names(&runtime_path)?
 			.into_iter()
 			.map(|preset| (preset, String::default()))
@@ -349,7 +349,7 @@ mod tests {
 	#[tokio::test]
 	async fn benchmark_overhead_weight_file_works() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
-		let runtime_path = get_mock_runtime(Some(RuntimeFeature::Benchmark));
+		let runtime_path = get_mock_runtime(Some(Benchmark));
 		let output_path = temp_dir.path().to_str().unwrap();
 		let preset_names = get_preset_names(&runtime_path)?
 			.into_iter()
@@ -403,7 +403,7 @@ mod tests {
 	#[tokio::test]
 	async fn benchmark_overhead_invalid_weight_path_fails() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
-		let runtime_path = get_mock_runtime(Some(RuntimeFeature::Benchmark));
+		let runtime_path = get_mock_runtime(Some(Benchmark));
 		let preset_names = get_preset_names(&runtime_path)?
 			.into_iter()
 			.map(|preset| (preset, String::default()))
@@ -425,7 +425,7 @@ mod tests {
 		let cmd = OverheadCmd::try_parse_from([
 			"",
 			"--runtime",
-			get_mock_runtime(Some(RuntimeFeature::Benchmark)).to_str().unwrap(),
+			get_mock_runtime(None).to_str().unwrap(),
 			"--weight-path",
 			temp_dir.path().join("weights.rs").to_str().unwrap(),
 		])?;
