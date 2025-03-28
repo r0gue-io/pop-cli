@@ -80,6 +80,7 @@ fn build_runtime_benchmark(
 ) -> anyhow::Result<PathBuf> {
 	cli.warning("NOTE: this may take some time...")?;
 	build_project(runtime_path, None, mode, vec![Feature::Benchmark.as_ref()], None)?;
+	cli.info("\n✅ Runtime built successfully.\n")?;
 	runtime_binary_path(target_path, runtime_path).map_err(|e| e.into())
 }
 

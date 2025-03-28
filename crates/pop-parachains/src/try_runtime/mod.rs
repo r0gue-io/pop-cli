@@ -14,7 +14,7 @@ pub mod state;
 
 /// Commands that can be executed by the `try-runtime-cli`.
 pub enum TryRuntimeCliCommand {
-	/// Command to test runtime migrations.
+	/// Command to test runtime upgrades.
 	OnRuntimeUpgrade,
 }
 
@@ -27,11 +27,11 @@ impl Display for TryRuntimeCliCommand {
 	}
 }
 
-/// Get the details of upgrade checks options for testing the runtime migrations.
+/// Get the details of upgrade options for testing runtime upgrades.
 ///
 /// # Arguments
 /// * `upgrade_check_select` - The selected upgrade check option.
-pub fn get_upgrade_checks_details(upgrade_check_select: UpgradeCheckSelect) -> (String, String) {
+pub fn upgrade_checks_details(upgrade_check_select: UpgradeCheckSelect) -> (String, String) {
 	match upgrade_check_select {
 		UpgradeCheckSelect::None => ("none".to_string(), "Run no checks".to_string()),
 		UpgradeCheckSelect::All => (
@@ -47,15 +47,15 @@ pub fn get_upgrade_checks_details(upgrade_check_select: UpgradeCheckSelect) -> (
 	}
 }
 
-/// Generates Try Runtime tests with `try-runtime-cli` binary.
+/// Run `try-runtime-cli` binary.
 ///
 /// # Arguments
 /// * `binary_path` - Path to the binary.
-/// * `command` - Command to run by the binary.
+/// * `command` - Command to run.
 /// * `shared_params` - Shared parameters of the `try-runtime` command.
 /// * `args` - Arguments passed to the subcommand.
 /// * `excluded_args` - Arguments to exclude.
-pub fn generate_try_runtime(
+pub fn run_try_runtime(
 	binary_path: &PathBuf,
 	command: TryRuntimeCliCommand,
 	shared_params: Vec<String>,

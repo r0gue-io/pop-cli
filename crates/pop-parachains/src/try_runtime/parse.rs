@@ -40,7 +40,6 @@ pub fn hash(block_hash: &str) -> Result<String, Error> {
 /// Parse a URL from a string.
 pub fn url(s: &str) -> Result<String, Error> {
 	if s.starts_with("ws://") || s.starts_with("wss://") {
-		// could use Url crate as well, but lets keep it simple for now.
 		Ok(s.to_string())
 	} else {
 		Err(Error::ParamParsingError(
@@ -67,5 +66,21 @@ mod tests {
 		assert!(hash("1234567890abcdef").is_ok());
 		assert!(hash("0x1234567890abcdefg").is_err());
 		assert!(hash("1234567890abcdefg").is_err());
+	}
+
+	#[test]
+	fn parse_url_works() {
+		assert!(url("ws://localhost:9944").is_ok());
+		assert!(url("wss://localhost:9944").is_ok());
+		assert!(url("http://localhost:9944").is_err());
+		assert!(url("https://localhost:9944").is_err());
+	}
+
+	#[test]
+	fn parse_state_version_works() {
+		assert!(state_version("0").is_ok());
+		assert!(state_version("1").is_ok());
+		assert!(state_version("100").is_err());
+		assert!(state_version("200").is_err());
 	}
 }

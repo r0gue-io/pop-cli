@@ -34,10 +34,11 @@ pub(crate) enum Command {
 	#[cfg(feature = "contract")]
 	#[clap(alias = "c")]
 	Contract(contract::TestContractCommand),
-	/// Test a runtime migrations.
+	/// Test migrations.
 	#[cfg(feature = "parachain")]
 	OnRuntimeUpgrade(on_runtime_upgrade::TestOnRuntimeUpgradeCommand),
 }
+
 impl Command {
 	pub(crate) async fn execute(args: TestArgs) -> anyhow::Result<&'static str> {
 		Self::test(args, &mut cli::Cli).await
