@@ -5,7 +5,7 @@ use sp_core::keccak_256;
 use std::str::FromStr;
 use subxt::utils::{to_hex, H160};
 
-/// Parses a Substrate account ID from its string representation.
+/// Parses an account ID from its string representation.
 ///
 /// # Arguments
 /// * `account` - A string representing the account ID to parse.
@@ -98,6 +98,24 @@ mod tests {
 		assert!(matches!(
 			parse_account("wrongaccount"),
 			Err(super::Error::AccountAddressParsing(..))
+		));
+		Ok(())
+	}
+
+	#[test]
+	fn parse_h160_account_works() -> Result<(), Error> {
+		let addr = "0x48550a4bb374727186c55365b7c9c0a1a31bdafe";
+		let parsed = parse_h160_account(addr)?;
+		assert_eq!(to_hex(parsed), addr.to_lowercase());
+		Ok(())
+	}
+
+	#[test]
+	fn parse_h160_account_fails_on_invalid_hex() -> Result<(), Error> {
+		let invalid_hex = "wrongaccount";
+		assert!(matches!(
+			parse_h160_account(invalid_hex),
+			Err(Error::AccountAddressParsing(msg)) if msg.contains("Invalid hex")
 		));
 		Ok(())
 	}

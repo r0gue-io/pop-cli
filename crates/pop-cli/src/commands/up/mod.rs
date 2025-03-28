@@ -147,7 +147,7 @@ mod tests {
 	}
 
 	#[tokio::test]
-	#[cfg(any(feature = "parachain"))]
+	#[cfg(feature = "parachain")]
 	async fn detects_rollup_correctly() -> anyhow::Result<()> {
 		let temp_dir = tempfile::tempdir()?;
 		let name = "rollup";
