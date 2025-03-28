@@ -5,10 +5,10 @@ use std::{fmt::Display, path::PathBuf};
 use strum::Display;
 use strum_macros::{AsRefStr, EnumMessage, EnumString, VariantArray};
 
-/// Provides functionality for sourcing binaries of the try-runtime CLI.
+/// Provides functionality for sourcing binaries of the `try-runtime-cli`.
 pub mod binary;
 
-/// Commands that can be executed by the `frame-benchmarking-cli` CLI.
+/// Commands that can be executed by the `try-runtime-cli`.
 pub enum TryRuntimeCliCommand {
 	/// Command to test runtime migrations.
 	OnRuntimeUpgrade,
@@ -77,7 +77,7 @@ pub fn get_upgrade_checks_details(upgrade_check_select: UpgradeCheckSelect) -> (
 ///
 /// # Arguments
 /// * `binary_path` - Path to the binary of `try-runtime-cli`.
-/// * `command` - Command to run for benchmarking.
+/// * `command` - Command to run by `try-runtime-cli`.
 /// * `shared_params` - Shared parameters for the try-runtime command.
 /// * `args` - Arguments to pass to the try-runtime command.
 /// * `excluded_args` - Arguments to exclude from the try-runtime command.

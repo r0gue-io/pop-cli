@@ -77,17 +77,17 @@ mod tests {
 	use tempfile::tempdir;
 
 	#[tokio::test]
-	async fn omni_bencher_generator_works() -> Result<(), Error> {
+	async fn try_runtime_generator_works() -> Result<(), Error> {
 		let temp_dir = tempdir()?.into_path();
 		let version = "v0.8.0";
 		let binary = try_runtime_generator(temp_dir.clone(), None).await?;
 		assert!(matches!(binary, Binary::Source { name: _, source, cache }
 				if source == Source::GitHub(ReleaseArchive {
-					owner: "paritytech".to_string(),
+					owner: "r0gue-io".to_string(),
 					repository: "try-runtime-cli".to_string(),
 					tag: Some(version.to_string()),
 					tag_format: None,
-					archive: format!("try-runtime-{}", target()?),
+					archive: format!("try-runtime-cli-{}", target()?),
 					contents: ["try-runtime"].map(|b| (b, Some(b.to_string()))).to_vec(),
 					latest: binary.latest().map(|l| l.to_string()),
 				}) &&
