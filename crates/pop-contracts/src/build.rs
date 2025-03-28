@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{errors::Error, utils::get_manifest_path};
-#[cfg(feature = "v5")]
-use contract_build;
 pub use contract_build::Verbosity;
 use contract_build::{execute, BuildMode, BuildResult, ExecuteArgs};
 #[cfg(feature = "v6")]

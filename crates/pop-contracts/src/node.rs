@@ -54,8 +54,7 @@ pub async fn is_chain_alive(url: url::Url) -> Result<bool, Error> {
 /// A supported chain.
 #[derive(Debug, EnumProperty, PartialEq, VariantArray)]
 pub(super) enum Chain {
-	/// Minimal Substrate node configured for smart contracts via pallet-contracts and
-	/// pallet-revive.
+	/// Minimal Substrate node configured for smart contracts via pallet-contracts.
 	#[strum(props(
 		Repository = "https://github.com/paritytech/substrate-contracts-node",
 		Binary = "substrate-contracts-node",
@@ -64,8 +63,7 @@ pub(super) enum Chain {
 	))]
 	#[cfg(feature = "v5")]
 	ContractsNode,
-	/// Minimal Substrate node configured for smart contracts via pallet-contracts and
-	/// pallet-revive.
+	/// Minimal ink node configured for smart contracts via pallet-revive.
 	#[strum(props(
 		Repository = "https://github.com/use-ink/ink-node",
 		Binary = "ink-node",

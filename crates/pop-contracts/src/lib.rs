@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
 #![doc = include_str!("../README.md")]
-
 #![cfg(any(feature = "v5", feature = "v6"))]
 
 #[cfg(all(feature = "v5", feature = "v6"))]
