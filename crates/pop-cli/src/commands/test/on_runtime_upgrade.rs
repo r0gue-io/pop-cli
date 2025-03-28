@@ -36,11 +36,11 @@ const DEFAULT_BLOCK_TIME: &str = "6000";
 const DEFAULT_BLOCK_HASH: &str =
 	"0xa1b16c1efd889a9f17375ec4dd5c1b4351a2be17fa069564fced10d23b9b3836";
 const DEFAULT_LIVE_NODE_URL: &str = "ws://127.0.0.1:9944";
+const DEFAULT_SNAPSHOT_PATH: &str = "your-parachain.snap";
 const CUSTOM_ARGS: [&str; 5] = ["--profile", "--no-build", "-n", "--skip-confirm", "-y"];
 
-/// Configuration for [`run`].
 #[derive(Debug, Clone, clap::Parser)]
-pub struct Command {
+struct Command {
 	/// The state type to use.
 	#[command(subcommand)]
 	pub state: Option<State>,
@@ -368,6 +368,7 @@ impl TestOnRuntimeUpgradeCommand {
 					.dim()
 				))
 				.required(true)
+				.placeholder(DEFAULT_SNAPSHOT_PATH)
 				.interact()?
 				.into();
 			if !snapshot_file.is_file() {
@@ -459,7 +460,7 @@ fn check_block_hash(block_hash: &str) -> anyhow::Result<String> {
 fn guide_user_to_select_chain_state(
 	cli: &mut impl cli::traits::Cli,
 ) -> anyhow::Result<&OnRuntimeUpgradeSubcommand> {
-	let mut prompt = cli.select("Run the migrations:");
+	let mut prompt = cli.select("Select source of runtime state to run the migration with:");
 	for subcommand in OnRuntimeUpgradeSubcommand::VARIANTS.iter() {
 		prompt = prompt.item(
 			subcommand,
@@ -502,10 +503,203 @@ fn default_live_state() -> LiveState {
 
 #[cfg(test)]
 mod tests {
+	use crate::common::{
+		runtime::{get_mock_runtime, RuntimeFeature},
+		try_runtime::source_try_runtime_binary,
+	};
+
 	use super::*;
 	use clap::Parser;
 	use cli::MockCli;
-	use tempfile::NamedTempFile;
+
+	#[tokio::test]
+	async fn test_on_runtime_upgrade_live_state_works() -> anyhow::Result<()> {
+		let command = default_command()?;
+		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
+		let mut cli = MockCli::new()
+			.expect_intro("Testing runtime migrations")
+			.expect_select(
+				"Choose the build profile of the binary that should be used: ".to_string(),
+				Some(true),
+				true,
+				Some(Profile::get_variants()),
+				0,
+				None,
+			)
+			.expect_confirm(
+				format!(
+					"Do you want to run the migration on a runtime?\n{}",
+					console::style(
+						"If not provided, use the code of the remote node, or the snapshot."
+					)
+					.dim()
+				),
+				true,
+			)
+			.expect_warning("NOTE: Make sure your runtime is built with `try-runtime` feature.")
+			.expect_input(
+				"Please specify the path to the runtime project or the runtime binary.",
+				get_mock_runtime(Some(RuntimeFeature::TryRuntime)).to_str().unwrap().to_string(),
+			)
+			.expect_input("Enter the block time:", DEFAULT_BLOCK_TIME.to_string())
+			.expect_select(
+				"Select source of runtime state to run the migration with:",
+				Some(true),
+				true,
+				Some(get_subcommands()),
+				0, // live
+				None,
+			)
+			.expect_input("Enter the live chain of your node:", DEFAULT_LIVE_NODE_URL.to_string())
+			.expect_input("Enter the block hash (optional):", DEFAULT_BLOCK_HASH.to_string())
+			.expect_select(
+				"Select upgrade checks to perform:",
+				Some(true),
+				true,
+				Some(get_upgrade_checks_items()),
+				1, // all
+				None,
+			)
+			.expect_warning("NOTE: this may take some time...")
+			.expect_info(format!(
+				"pop test on-runtime-upgrade --runtime={} --blocktime=6000 \
+			--checks=all --profile=debug live --uri={} --at={}",
+				get_mock_runtime(Some(RuntimeFeature::TryRuntime)).to_str().unwrap(),
+				DEFAULT_LIVE_NODE_URL.to_string(),
+				DEFAULT_BLOCK_HASH.strip_prefix("0x").unwrap_or_default().to_string()
+			));
+		command.execute(&mut cli).await?;
+		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn test_on_runtime_upgrade_snapshot_works() -> anyhow::Result<()> {
+		let command = default_command()?;
+		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
+		let mut cli = MockCli::new()
+			.expect_intro("Testing runtime migrations")
+			.expect_select(
+				"Choose the build profile of the binary that should be used: ".to_string(),
+				Some(true),
+				true,
+				Some(Profile::get_variants()),
+				0,
+				None,
+			)
+			.expect_confirm(
+				format!(
+					"Do you want to run the migration on a runtime?\n{}",
+					console::style(
+						"If not provided, use the code of the remote node, or the snapshot."
+					)
+					.dim()
+				),
+				true,
+			)
+			.expect_warning("NOTE: Make sure your runtime is built with `try-runtime` feature.")
+			.expect_input(
+				"Please specify the path to the runtime project or the runtime binary.",
+				get_mock_runtime(Some(RuntimeFeature::TryRuntime)).to_str().unwrap().to_string(),
+			)
+			.expect_input("Enter the block time:", DEFAULT_BLOCK_TIME.to_string())
+			.expect_select(
+				"Select source of runtime state to run the migration with:",
+				Some(true),
+				true,
+				Some(get_subcommands()),
+				1, // snap
+				None,
+			)
+			.expect_input(
+				format!(
+					"Enter path to your snapshot file?\n{}.",
+					console::style(
+						"Snapshot file can be generated using `pop test create-snapshot` command"
+					)
+					.dim()
+				),
+				get_mock_snapshot().to_str().unwrap().to_string(),
+			)
+			.expect_select(
+				"Select upgrade checks to perform:",
+				Some(true),
+				true,
+				Some(get_upgrade_checks_items()),
+				1, // all
+				None,
+			)
+			.expect_warning("NOTE: this may take some time...")
+			.expect_info(format!(
+				"pop test on-runtime-upgrade --runtime={} --blocktime=6000 \
+				--checks=all --profile=debug snap --path={}",
+				get_mock_runtime(Some(RuntimeFeature::TryRuntime)).to_str().unwrap(),
+				get_mock_snapshot().to_str().unwrap()
+			));
+		command.execute(&mut cli).await?;
+		cli.verify()
+	}
+
+	#[test]
+	fn collect_arguments_before_subcommand_works() -> anyhow::Result<()> {
+		let test_cases: Vec<(&str, Box<dyn Fn(&mut TestOnRuntimeUpgradeCommand)>, &str)> = vec![
+			(
+				"--blocktime=20",
+				Box::new(|cmd: &mut TestOnRuntimeUpgradeCommand| {
+					cmd.command.command.blocktime = Some(10);
+				}),
+				"--blocktime=10",
+			),
+			(
+				"--checks=pre-and-post",
+				Box::new(|cmd: &mut TestOnRuntimeUpgradeCommand| {
+					cmd.command.command.checks = UpgradeCheckSelect::All;
+				}),
+				"--checks=all",
+			),
+			(
+				"--profile=release",
+				Box::new(|cmd: &mut TestOnRuntimeUpgradeCommand| {
+					cmd.profile = Some(Profile::Debug);
+				}),
+				"--profile=debug",
+			),
+			(
+				"--no-build",
+				Box::new(|cmd: &mut TestOnRuntimeUpgradeCommand| {
+					cmd.no_build = true;
+				}),
+				"-n",
+			),
+			(
+				"-y",
+				Box::new(|cmd: &mut TestOnRuntimeUpgradeCommand| {
+					cmd.skip_confirm = true;
+				}),
+				"-y",
+			),
+			(
+				"--skip-confirm",
+				Box::new(|cmd: &mut TestOnRuntimeUpgradeCommand| {
+					cmd.skip_confirm = true;
+				}),
+				"-y",
+			),
+		];
+		for (provided_arg, update_fn, expected_arg) in test_cases {
+			let mut command = default_command()?;
+			let mut args = vec![];
+			// Keep the user-provided argument unchanged.
+			command.collect_arguments_before_subcommand(&[provided_arg.to_string()], &mut args);
+			assert!(args.contains(&provided_arg.to_string()));
+
+			// If the user does not provide an argument, modify with the argument updated during
+			// runtime.
+			update_fn(&mut command);
+			command.collect_arguments_before_subcommand(&[], &mut args);
+			assert!(args.contains(&expected_arg.to_string()));
+		}
+		Ok(())
+	}
 
 	#[test]
 	fn collect_arguments_after_live_subcommand_works() -> anyhow::Result<()> {
@@ -521,9 +715,9 @@ mod tests {
 		live_state.uri = DEFAULT_LIVE_NODE_URL.to_string();
 		command.command.command.state = Some(State::Live(live_state.clone()));
 		// Keep the user-provided argument unchanged.
-		let user_provided_args = vec!["--uri".to_string(), "http://localhost:9944".to_string()];
+		let user_provided_args = &["--uri".to_string(), "http://localhost:9944".to_string()];
 		let mut args = vec![];
-		command.collect_arguments_after_subcommand(&user_provided_args, &mut args);
+		command.collect_arguments_after_subcommand(user_provided_args, &mut args);
 		assert_eq!(args, user_provided_args);
 
 		// If the user does not provide a `--uri` argument, modify with the argument updated during
@@ -535,19 +729,16 @@ mod tests {
 		live_state.at = Some(DEFAULT_BLOCK_HASH.to_string());
 		command.command.command.state = Some(State::Live(live_state.clone()));
 		// Keep the user-provided argument unchanged.
-		let user_provided_args = vec![
-			format!("--uri={}", live_state.uri),
-			"--at".to_string(),
-			"0x1234567890".to_string(),
-		];
+		let user_provided_args =
+			&[format!("--uri={}", live_state.uri), "--at".to_string(), "0x1234567890".to_string()];
 		let mut args = vec![];
-		command.collect_arguments_after_subcommand(&user_provided_args, &mut args);
+		command.collect_arguments_after_subcommand(user_provided_args, &mut args);
 		assert_eq!(args, user_provided_args);
 
 		// Not allow empty `--at`.
-		let user_provided_args = vec![format!("--uri={}", live_state.uri), "--at=".to_string()];
+		let user_provided_args = &[format!("--uri={}", live_state.uri), "--at=".to_string()];
 		let mut args = vec![];
-		command.collect_arguments_after_subcommand(&user_provided_args, &mut args);
+		command.collect_arguments_after_subcommand(user_provided_args, &mut args);
 		assert_eq!(args, vec![format!("--uri={}", live_state.uri)]);
 
 		// If the user does not provide a block hash `--at` argument, modify with the argument
@@ -577,9 +768,9 @@ mod tests {
 		let state = State::Snap { path: Some(PathBuf::from("./existing-file")) };
 		command.command.command.state = Some(state);
 		// Keep the user-provided argument unchanged.
-		let user_provided_args = vec!["--path".to_string(), "./path-to-file".to_string()];
+		let user_provided_args = &["--path".to_string(), "./path-to-file".to_string()];
 		let mut args = vec![];
-		command.collect_arguments_after_subcommand(&user_provided_args, &mut args);
+		command.collect_arguments_after_subcommand(user_provided_args, &mut args);
 		assert_eq!(args, user_provided_args);
 
 		// If the user does not provide a `--path` argument, modify with the argument updated during
@@ -592,8 +783,7 @@ mod tests {
 
 	#[test]
 	fn update_snapshot_state_works() -> anyhow::Result<()> {
-		let temp_file = NamedTempFile::new()?;
-
+		let snapshot_file = get_mock_snapshot();
 		// Prompt for snapshot path if not provided
 		let mut command = default_command()?;
 		let mut cli = MockCli::new().expect_input(
@@ -604,12 +794,12 @@ mod tests {
 				)
 				.dim()
 			),
-			temp_file.path().to_str().unwrap().to_string(),
+			snapshot_file.to_str().unwrap().to_string(),
 		);
 		command.update_snapshot_state(&mut cli, None)?;
 		match command.command().state {
 			Some(State::Snap { ref path }) => {
-				assert_eq!(path.as_ref().unwrap(), temp_file.path());
+				assert_eq!(path.as_ref().unwrap(), snapshot_file.as_path());
 			},
 			_ => panic!("Expected snapshot state"),
 		}
@@ -617,7 +807,7 @@ mod tests {
 
 		// Use provided path without prompting.
 		let mut command = default_command()?;
-		let snapshot_path = Some(temp_file.path().to_path_buf());
+		let snapshot_path = Some(snapshot_file);
 		let mut cli = MockCli::new(); // No prompt expected
 		command.update_snapshot_state(&mut cli, snapshot_path.clone())?;
 		match command.command().state {
@@ -728,20 +918,11 @@ mod tests {
 
 	#[test]
 	fn guide_user_to_select_chain_state_works() -> anyhow::Result<()> {
-		let items: Vec<(String, String)> = OnRuntimeUpgradeSubcommand::VARIANTS
-			.iter()
-			.map(|subcommand| {
-				(
-					subcommand.get_message().unwrap().to_string(),
-					subcommand.get_detailed_message().unwrap().to_string(),
-				)
-			})
-			.collect();
 		let mut cli = MockCli::new().expect_select(
-			"Run the migrations:",
+			"Select source of runtime state to test with:",
 			Some(true),
 			true,
-			Some(items),
+			Some(get_subcommands()),
 			0,
 			None,
 		);
@@ -751,20 +932,11 @@ mod tests {
 
 	#[test]
 	fn guide_user_to_select_upgrade_checks_works() -> anyhow::Result<()> {
-		let checks = [
-			UpgradeCheckSelect::None,
-			UpgradeCheckSelect::All,
-			UpgradeCheckSelect::TryState,
-			UpgradeCheckSelect::PreAndPost,
-		]
-		.iter()
-		.map(|check| get_upgrade_checks_details(*check))
-		.collect::<Vec<_>>();
 		let mut cli = MockCli::new().expect_select(
 			"Select upgrade checks to perform:",
 			Some(true),
 			true,
-			Some(checks),
+			Some(get_upgrade_checks_items()),
 			0,
 			None,
 		);
@@ -776,12 +948,44 @@ mod tests {
 	fn default_command() -> anyhow::Result<TestOnRuntimeUpgradeCommand> {
 		Ok(TestOnRuntimeUpgradeCommand {
 			command: TestTryRuntimeCommand {
-				command: Command::try_parse_from(vec!["", "--blocktime=0"])?,
+				command: Command::try_parse_from(vec![""])?,
 				shared_params: SharedParams::try_parse_from(vec![""])?,
 			},
 			profile: None,
 			no_build: false,
 			skip_confirm: false,
 		})
+	}
+
+	fn get_subcommands() -> Vec<(String, String)> {
+		OnRuntimeUpgradeSubcommand::VARIANTS
+			.iter()
+			.map(|subcommand| {
+				(
+					subcommand.get_message().unwrap().to_string(),
+					subcommand.get_detailed_message().unwrap().to_string(),
+				)
+			})
+			.collect()
+	}
+
+	fn get_upgrade_checks_items() -> Vec<(String, String)> {
+		[
+			UpgradeCheckSelect::None,
+			UpgradeCheckSelect::All,
+			UpgradeCheckSelect::TryState,
+			UpgradeCheckSelect::PreAndPost,
+		]
+		.iter()
+		.map(|check| get_upgrade_checks_details(*check))
+		.collect::<Vec<_>>()
+	}
+
+	fn get_mock_snapshot() -> PathBuf {
+		std::env::current_dir()
+			.unwrap()
+			.join("../../tests/snapshots/base_parachain.snap")
+			.canonicalize()
+			.unwrap()
 	}
 }

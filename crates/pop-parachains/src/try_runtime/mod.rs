@@ -23,7 +23,7 @@ impl Display for TryRuntimeCliCommand {
 	}
 }
 
-/// Chain state options for testing the runtime migrations.
+/// Subcommands for testing the runtime migrations.
 #[derive(AsRefStr, Clone, Debug, EnumString, EnumMessage, VariantArray, Eq, PartialEq, Display)]
 pub enum OnRuntimeUpgradeSubcommand {
 	/// Run the migrations of a given runtime on top of a live state.
