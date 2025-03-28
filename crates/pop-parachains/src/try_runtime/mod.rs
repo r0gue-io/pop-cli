@@ -76,11 +76,11 @@ pub fn get_upgrade_checks_details(upgrade_check_select: UpgradeCheckSelect) -> (
 /// Generates Try Runtime tests with `try-runtime-cli` binary.
 ///
 /// # Arguments
-/// * `binary_path` - Path to the binary of `try-runtime-cli`.
-/// * `command` - Command to run by `try-runtime-cli`.
-/// * `shared_params` - Shared parameters for the try-runtime command.
-/// * `args` - Arguments to pass to the try-runtime command.
-/// * `excluded_args` - Arguments to exclude from the try-runtime command.
+/// * `binary_path` - Path to the binary.
+/// * `command` - Command to run by the binary.
+/// * `shared_params` - Shared parameters of the `try-runtime` command.
+/// * `args` - Arguments passed to the subcommand.
+/// * `excluded_args` - Arguments to exclude.
 pub fn generate_try_runtime(
 	binary_path: &PathBuf,
 	command: TryRuntimeCliCommand,

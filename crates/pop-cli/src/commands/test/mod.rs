@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{cli, common::builds::get_project_path};
-use clap::{Args, Parser, Subcommand};
+use clap::{Args, Subcommand};
 use pop_common::test_project;
 use std::path::PathBuf;
-use try_runtime_core::common::shared_parameters::SharedParams;
 
 #[cfg(feature = "contract")]
 pub mod contract;
