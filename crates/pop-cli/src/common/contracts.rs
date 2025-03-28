@@ -142,7 +142,7 @@ mod tests {
 			.expect_warning(format!("⚠️ The {CONTRACTS_NODE_BINARY} binary is not found."));
 
 		let node_path = check_contracts_node_and_prompt(&mut cli, cache_path.path(), false).await?;
-		// Binary path is at least equal to the cache path + the constracts node binary.
+		// Binary path is at least equal to the cache path + the contracts node binary.
 		assert!(node_path
 			.to_str()
 			.unwrap()
@@ -157,7 +157,7 @@ mod tests {
 			.expect_warning(format!("⚠️ The {CONTRACTS_NODE_BINARY} binary is not found."));
 
 		let node_path = check_contracts_node_and_prompt(&mut cli, cache_path.path(), true).await?;
-		// Binary path is at least equal to the cache path + the constracts node binary.
+		// Binary path is at least equal to the cache path + the contracts node binary.
 		assert!(node_path
 			.to_str()
 			.unwrap()
