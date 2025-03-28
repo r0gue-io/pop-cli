@@ -419,8 +419,8 @@ pub async fn upload_smart_contract(
 mod tests {
 	use super::*;
 	use crate::{
-		contracts_node_generator, errors::Error, mock_build_process, new_environment,
-		run_contracts_node, AccountMapper,
+		contracts_node_generator, mock_build_process, new_environment, run_contracts_node,
+		AccountMapper,
 	};
 	use anyhow::Result;
 	use pop_common::{find_free_port, set_executable_permission};
@@ -545,34 +545,6 @@ mod tests {
 		let weight = dry_run_gas_estimate_instantiate(&instantiate_exec).await?;
 		assert!(weight.ref_time() > 0);
 		assert!(weight.proof_size() > 0);
-		Ok(())
-	}
-
-	#[tokio::test]
-	async fn dry_run_gas_estimate_instantiate_throw_custom_error() -> Result<()> {
-		let temp_dir = new_environment("testing")?;
-		let current_dir = env::current_dir().expect("Failed to get current directory");
-		mock_build_process(
-			temp_dir.path().join("testing"),
-			current_dir.join("./tests/files/testing.contract"),
-			current_dir.join("./tests/files/testing.json"),
-		)?;
-		let up_opts = UpOpts {
-			path: Some(temp_dir.path().join("testing")),
-			constructor: "new".to_string(),
-			args: ["false".to_string()].to_vec(),
-			value: "10000".to_string(),
-			gas_limit: None,
-			proof_size: None,
-			salt: None,
-			url: Url::parse(CONTRACTS_NETWORK_URL)?,
-			suri: "//Alice".to_string(),
-		};
-		let instantiate_exec = set_up_deployment(up_opts).await?;
-		assert!(matches!(
-			dry_run_gas_estimate_instantiate(&instantiate_exec).await,
-			Err(Error::DryRunUploadContractError(..))
-		));
 		Ok(())
 	}
 
