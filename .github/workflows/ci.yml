@@ -143,27 +143,30 @@ jobs:
       - name: Generate code coverage for ${{ matrix.crate }}
         run: |
           if [[ "${{ matrix.crate }}" == "pop-cli" ]]; then
-            cargo llvm-cov --lib --bins \
-              --features "parachain telemetry wasm-contracts" \
+            cargo llvm-cov --bins \
               -p ${{ matrix.crate }} \
-              --codecov --output-path codecov-${{ matrix.crate }}.json
+              --features "parachain telemetry wasm-contracts" \
+              --output-dir target/llvm-cov/${{ matrix.crate }} \
+              --persist --no-report
           elif [[ "${{ matrix.crate }}" == "pop-contracts" ]]; then
             cargo llvm-cov --lib --bins \
-              --features "v5" \
               -p ${{ matrix.crate }} \
-              --codecov --output-path codecov-${{ matrix.crate }}.json
+              --features "v5" \
+              --output-dir target/llvm-cov/${{ matrix.crate }} \
+              --persist --no-report
           else
             cargo llvm-cov --lib --bins \
               -p ${{ matrix.crate }} \
-              --codecov --output-path codecov-${{ matrix.crate }}.json
+              --output-dir target/llvm-cov/${{ matrix.crate }} \
+              --persist --no-report
           fi
 
-      - name: Save artifact
+      - name: Upload coverage data
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: coverage-data
-          path: target/llvm-cov-*
+          path: target/llvm-cov/${{ matrix.crate }}
 
   coverage-merge-upload:
     needs: coverage
@@ -175,17 +178,15 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: coverage-data
-          path: merged-coverage
+          path: target/llvm-cov
 
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
 
-      - name: Merge and upload final report
+      - name: Merge and generate report
         run: |
           cargo llvm-cov report \
-            --codecov \
-            --output-path codecov.json \
-            --ignore-filename-regex "tests/" \
+            --codecov --output-path codecov.json \
             --lcov --output-path lcov.info \
             --doctests
 
