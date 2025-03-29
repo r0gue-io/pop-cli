@@ -7,6 +7,8 @@ use std::path::PathBuf;
 
 #[cfg(feature = "contract")]
 pub mod contract;
+#[cfg(feature = "parachain")]
+pub mod on_runtime_upgrade;
 
 /// Arguments for testing.
 #[derive(Args, Default)]
@@ -15,10 +17,10 @@ pub(crate) struct TestArgs {
 	#[command(subcommand)]
 	pub(crate) command: Option<Command>,
 	/// Directory path for your project [default: current directory]
-	#[arg(short, long, global = true)]
+	#[arg(short, long)]
 	pub(crate) path: Option<PathBuf>,
 	/// Directory path without flag for your project [default: current directory]
-	#[arg(value_name = "PATH", index = 1, global = true, conflicts_with = "path")]
+	#[arg(value_name = "PATH", index = 1, conflicts_with = "path")]
 	pub(crate) path_pos: Option<PathBuf>,
 	#[command(flatten)]
 	#[cfg(feature = "contract")]
@@ -32,7 +34,11 @@ pub(crate) enum Command {
 	#[cfg(feature = "contract")]
 	#[clap(alias = "c")]
 	Contract(contract::TestContractCommand),
+	/// Test migrations.
+	#[cfg(feature = "parachain")]
+	OnRuntimeUpgrade(on_runtime_upgrade::TestOnRuntimeUpgradeCommand),
 }
+
 impl Command {
 	pub(crate) async fn execute(args: TestArgs) -> anyhow::Result<&'static str> {
 		Self::test(args, &mut cli::Cli).await

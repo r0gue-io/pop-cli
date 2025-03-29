@@ -11,7 +11,7 @@ use crate::{
 		prompt::display_message,
 		runtime::{
 			ensure_runtime_binary_exists, guide_user_to_select_genesis_policy,
-			guide_user_to_select_genesis_preset,
+			guide_user_to_select_genesis_preset, Feature,
 		},
 	},
 };
@@ -670,6 +670,7 @@ impl BenchmarkPallet {
 			cli,
 			&get_current_directory(),
 			&profile,
+			vec![Feature::Benchmark],
 			!self.no_build,
 		)?);
 		Ok(())

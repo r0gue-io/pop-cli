@@ -3509,6 +3509,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "frame-try-runtime"
+version = "0.45.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2224250e66348e71a952060f50b75bf02b7114241818602ccc46e0f905331193"
+dependencies = [
+ "frame-support",
+ "parity-scale-codec",
+ "sp-api 35.0.0",
+ "sp-runtime 40.1.0",
+]
+
+[[package]]
 name = "fs-err"
 version = "2.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5603,7 +5615,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc2f4eb4bc735547cfed7c0a4922cbd04a4655978c09b54f1f7b228750664c34"
 dependencies = [
  "cfg-if",
- "windows-targets 0.48.5",
+ "windows-targets 0.52.6",
 ]
 
 [[package]]
@@ -8069,6 +8081,7 @@ dependencies = [
  "duct",
  "env_logger 0.11.7",
  "frame-benchmarking-cli",
+ "frame-try-runtime",
  "git2",
  "open",
  "os_info",
@@ -8162,11 +8175,13 @@ dependencies = [
  "cumulus-primitives-proof-size-hostfunction 0.10.0",
  "duct",
  "frame-benchmarking-cli",
+ "frame-try-runtime",
  "glob",
  "indexmap 2.8.0",
  "parity-scale-codec",
  "pop-common",
  "sc-chain-spec",
+ "sc-cli",
  "scale-info",
  "scale-value 0.17.0",
  "serde",
@@ -8174,6 +8189,7 @@ dependencies = [
  "sp-core 32.0.0",
  "sp-runtime 40.1.0",
  "sp-statement-store 15.0.0",
+ "sp-version 38.0.0",
  "srtool-lib",
  "strum 0.26.3",
  "strum_macros 0.26.4",
@@ -8510,7 +8526,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "81bddcdb20abf9501610992b6759a4c888aef7d1a7247ef75e2404275ac24af1"
 dependencies = [
  "anyhow",
- "itertools 0.11.0",
+ "itertools 0.12.1",
  "proc-macro2",
  "quote",
  "syn 2.0.100",
@@ -9556,9 +9572,9 @@ dependencies = [
 
 [[package]]
 name = "sc-cli"
-version = "0.50.0"
+version = "0.50.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "60f818d5de5e2069bad34e3d3fb63e531728db7d7667ed02f82456e7f0e2c327"
+checksum = "792411fa02396d2fa8d932b92d4a2e936ef1c670a427820deb2832d75a2e7e4a"
 dependencies = [
  "array-bytes",
  "chrono",
@@ -9627,9 +9643,9 @@ dependencies = [
 
 [[package]]
 name = "sc-client-db"
-version = "0.45.0"
+version = "0.45.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3cfd3ac7c6d086ae3c5c4dc6e16c91d4a713618466d1ea3f5bec07eb19e0c6eb"
+checksum = "736e1b35283c2c2474c1fc15b1c0250550eef708ad2d2b67f225da0825275f6d"
 dependencies = [
  "hash-db",
  "kvdb",
@@ -9811,9 +9827,9 @@ dependencies = [
 
 [[package]]
 name = "sc-network"
-version = "0.48.2"
+version = "0.48.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3751a666e9e16c73bda5d2531b80e086392a66b6006214e2951e29747f2c5b06"
+checksum = "1b3e6927803b73e7f88fd36d428d3238e4e430c3c963fde0857338c768fe0fad"
 dependencies = [
  "array-bytes",
  "async-channel 1.9.0",
@@ -9961,9 +9977,9 @@ dependencies = [
 
 [[package]]
 name = "sc-network-types"
-version = "0.15.1"
+version = "0.15.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3001bb4db4dbad087e72c851d983c7b9618e37dce382d86355130f7ec7b79f20"
+checksum = "18b840c7ac0c8af7ab75137e75fe45f1319815ee9a4f5ff40924ea2c2cf36338"
 dependencies = [
  "bs58",
  "ed25519-dalek",
@@ -15845,9 +15861,9 @@ dependencies = [
 
 [[package]]
 name = "zstd-sys"
-version = "2.0.14+zstd.1.5.7"
+version = "2.0.15+zstd.1.5.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8fb060d4926e4ac3a3ad15d864e99ceb5f343c6b34f5bd6d81ae6ed417311be5"
+checksum = "eb81183ddd97d0c74cedf1d50d85c8d08c1b8b68ee863bdee9e706eedba1a237"
 dependencies = [
  "cc",
  "pkg-config",

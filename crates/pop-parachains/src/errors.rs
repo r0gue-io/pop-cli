@@ -88,6 +88,9 @@ pub enum Error {
 	SubXtError(#[from] subxt::Error),
 	#[error("Toml error: {0}")]
 	TomlError(#[from] toml_edit::de::Error),
+	/// An error occurred while testing with try-runtime.
+	#[error("Failed to test with try-runtime: {0}")]
+	TryRuntimeError(String),
 	#[error("Unsupported command: {0}")]
 	UnsupportedCommand(String),
 	#[error("Failed to locate the workspace")]

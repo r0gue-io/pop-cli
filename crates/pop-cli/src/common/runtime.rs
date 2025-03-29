@@ -46,6 +46,7 @@ pub fn ensure_runtime_binary_exists(
 	cli: &mut impl Cli,
 	project_path: &Path,
 	mode: &Profile,
+	features: Vec<Feature>,
 	force: bool,
 ) -> anyhow::Result<PathBuf> {
 	let target_path = mode.target_directory(project_path).join("wbuild");
@@ -59,27 +60,30 @@ pub fn ensure_runtime_binary_exists(
 	// Rebuild the runtime if the binary is not found or the user has forced the build process.
 	if force {
 		cli.info("Building your runtime...")?;
-		return build_runtime_benchmark(cli, &runtime_path, &target_path, mode);
+		return build_runtime(cli, &runtime_path, &target_path, mode, features);
 	}
 
 	match runtime_binary_path(&target_path, &runtime_path) {
 		Ok(binary_path) => Ok(binary_path),
 		_ => {
 			cli.info("📦 Runtime binary was not found. The runtime will be built locally.")?;
-			build_runtime_benchmark(cli, &runtime_path, &target_path, mode)
+			build_runtime(cli, &runtime_path, &target_path, mode, features)
 		},
 	}
 }
 
 #[cfg(feature = "parachain")]
-fn build_runtime_benchmark(
+fn build_runtime(
 	cli: &mut impl Cli,
 	runtime_path: &Path,
 	target_path: &Path,
 	mode: &Profile,
+	features: Vec<Feature>,
 ) -> anyhow::Result<PathBuf> {
 	cli.warning("NOTE: this may take some time...")?;
-	build_project(runtime_path, None, mode, vec![Feature::Benchmark.as_ref()], None)?;
+	let features = features.iter().map(|f| f.as_ref()).collect();
+	build_project(runtime_path, None, mode, features, None)?;
+	cli.info("\n✅ Runtime built successfully.\n")?;
 	runtime_binary_path(target_path, runtime_path).map_err(|e| e.into())
 }
 
@@ -241,7 +245,7 @@ mod tests {
 			let mut cli = expect_input_runtime_path(&temp_path, &binary_path);
 			File::create(binary_path.as_path())?;
 			assert_eq!(
-				ensure_runtime_binary_exists(&mut cli, &temp_path, profile, true)?,
+				ensure_runtime_binary_exists(&mut cli, &temp_path, profile, vec![], true)?,
 				binary_path.canonicalize()?
 			);
 			cli.verify()?;
