@@ -146,19 +146,16 @@ jobs:
             cargo llvm-cov --bins \
               -p ${{ matrix.crate }} \
               --features "parachain telemetry wasm-contracts" \
-              --output-dir target/llvm-cov/${{ matrix.crate }} \
-              --persist --no-report
+              --no-report
           elif [[ "${{ matrix.crate }}" == "pop-contracts" ]]; then
             cargo llvm-cov --lib --bins \
               -p ${{ matrix.crate }} \
               --features "v5" \
-              --output-dir target/llvm-cov/${{ matrix.crate }} \
-              --persist --no-report
+              --no-report
           else
             cargo llvm-cov --lib --bins \
               -p ${{ matrix.crate }} \
-              --output-dir target/llvm-cov/${{ matrix.crate }} \
-              --persist --no-report
+              --no-report
           fi
 
       - name: Upload coverage data
@@ -166,7 +163,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: coverage-data
-          path: target/llvm-cov/${{ matrix.crate }}
+          path: target-cov/llvm-cov-target
 
   coverage-merge-upload:
     needs: coverage
@@ -174,16 +171,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download all coverage artifacts
+      - name: Download coverage data
         uses: actions/download-artifact@v4
         with:
           name: coverage-data
-          path: target/llvm-cov
+          path: target/llvm-cov-target
 
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
 
-      - name: Merge and generate report
+      - name: Merge and generate final report
         run: |
           cargo llvm-cov report \
             --codecov --output-path codecov.json \
