@@ -215,7 +215,6 @@ impl TestOnRuntimeUpgradeCommand {
 		args.push(self.subcommand()?);
 		self.collect_arguments_after_subcommand(&after_subcommand, &mut args);
 
-		println!("display: {:?}", self.display()?);
 		run_try_runtime(
 			&binary_path,
 			TryRuntimeCliCommand::OnRuntimeUpgrade,
@@ -551,7 +550,8 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn test_on_runtime_upgrade_invalid_runtime_path() {
+	async fn test_on_runtime_upgrade_invalid_runtime_path() -> anyhow::Result<()> {
+		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
 		let mut cmd = TestOnRuntimeUpgradeCommand::default();
 		cmd.shared_params.runtime = Runtime::Path(PathBuf::from("./dummy-runtime-path"));
 		cmd.command.blocktime = Some(DEFAULT_BLOCK_TIME);
@@ -560,10 +560,12 @@ mod tests {
 		assert!(error.contains(
 			r#"Input("error while reading runtime file from \"./dummy-runtime-path\": Os { code: 2, kind: NotFound, message: \"No such file or directory\" }")"#,
 		));
+		Ok(())
 	}
 
 	#[tokio::test]
-	async fn test_on_runtime_upgrade_missing_try_runtime_feature() {
+	async fn test_on_runtime_upgrade_missing_try_runtime_feature() -> anyhow::Result<()> {
+		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
 		let mut cmd = TestOnRuntimeUpgradeCommand::default();
 		cmd.shared_params.runtime = Runtime::Path(get_mock_runtime(None));
 		cmd.command.blocktime = Some(DEFAULT_BLOCK_TIME);
@@ -573,10 +575,12 @@ mod tests {
 		let error = cmd.run(&mut MockCli::new()).await.unwrap_err().to_string();
 		assert!(error
 			.contains(r#"Input("Given runtime is not compiled with the try-runtime feature.")"#,));
+		Ok(())
 	}
 
 	#[tokio::test]
-	async fn test_on_runtime_upgrade_invalid_live_uri() {
+	async fn test_on_runtime_upgrade_invalid_live_uri() -> anyhow::Result<()> {
+		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
 		let mut cmd = TestOnRuntimeUpgradeCommand::default();
 		cmd.shared_params.runtime = Runtime::Path(PathBuf::from("./dummy-runtime-path"));
 		cmd.command.blocktime = Some(DEFAULT_BLOCK_TIME);
@@ -588,6 +592,7 @@ mod tests {
 		assert!(error.contains(
 			r#"Failed to test with try-runtime: error: invalid value 'https://example.com' for '--uri <URI>': not a valid WS(S) url: must start with 'ws://' or 'wss://'"#,
 		));
+		Ok(())
 	}
 
 	#[test]
