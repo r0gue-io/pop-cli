@@ -80,27 +80,6 @@ jobs:
 
       - uses: docker/build-push-action@v5
 
-  unit-tests:
-    needs: lint
-    strategy:
-      matrix:
-        crate: [pop-cli, pop-contracts, pop-parachains, pop-common, pop-telemetry]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: "./.github/actions/init"
-        with:
-          git-user: ${{ env.GITHUB_ACTOR }}
-
-      - name: Run unit tests for ${{ matrix.crate }}
-        run: |
-          if [[ "${{ matrix.crate }}" == "pop-cli" ]]; then
-            cargo test --bins -p ${{ matrix.crate }}
-          else
-            cargo test --lib --bins -p ${{ matrix.crate }}
-          fi
-
   polkavm-unit-tests:
     needs: lint
     strategy:
@@ -169,11 +148,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install GitHub CLI
+        run: sudo apt-get install -y gh
+
       - name: Download all coverage artifacts
-        uses: actions/download-artifact@v4
-        with:
-          pattern: coverage-data-*
-          path: target/llvm-cov-target
+        run: |
+          for crate in pop-cli pop-contracts pop-parachains pop-common pop-telemetry; do
+            echo "Downloading coverage-data-${crate}..."
+            gh run download --name coverage-data-${crate} -D target/llvm-cov-target || exit 1
+          done
 
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
