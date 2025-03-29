@@ -12,6 +12,7 @@ use pop_parachains::{try_runtime_generator, Runtime, SharedParams};
 use std::{
 	self,
 	collections::HashSet,
+	fmt::Display,
 	path::{Path, PathBuf},
 };
 
@@ -77,6 +78,85 @@ pub async fn source_try_runtime_binary(
 	check_and_prompt::<TryRuntimeGenerator>(cli, BINARY_NAME, cache_path, skip_confirm).await
 }
 
+/// Construct arguments based on provided conditions.
+///
+/// # Arguments
+///
+/// * `args` - A mutable reference to a vector of arguments.
+/// * `seen` - A set of arguments already seen.
+/// * `user_provided_args` - A slice of user-provided arguments.
+pub(crate) struct ArgumentConstructor<'a> {
+	args: &'a mut Vec<String>,
+	user_provided_args: &'a [String],
+	seen: HashSet<String>,
+	added: HashSet<String>,
+}
+
+impl<'a> ArgumentConstructor<'a> {
+	/// Creates a new instance of `ArgumentConstructor`.
+	pub fn new(args: &'a mut Vec<String>, user_provided_args: &'a [String]) -> Self {
+		let cloned_args = args.clone();
+		let mut constructor =
+			Self { args, user_provided_args, added: HashSet::default(), seen: HashSet::default() };
+		for arg in cloned_args.iter() {
+			constructor.mark_added(arg);
+			constructor.mark_seen(arg);
+		}
+		for arg in user_provided_args {
+			constructor.mark_seen(arg);
+		}
+		constructor
+	}
+
+	/// Adds an argument and mark it as seen.
+	pub fn add(
+		&mut self,
+		condition_args: &[&str],
+		external_condition: bool,
+		flag: &str,
+		value: Option<String>,
+	) {
+		if !self.seen.contains(flag) &&
+			condition_args.iter().all(|a| !self.seen.contains(*a)) &&
+			external_condition
+		{
+			if let Some(v) = value {
+				if !v.is_empty() {
+					self.args.push(format_arg(flag, v));
+				} else {
+					self.args.push(flag.to_string());
+				}
+				self.mark_added(flag);
+			}
+		}
+	}
+
+	/// Finalizes the argument construction process.
+	pub fn finalize(&mut self, skipped: &[&str]) -> Vec<String> {
+		// Exclude arguments that are already included.
+		for arg in self.user_provided_args.iter() {
+			if skipped.iter().any(|a| a == &arg) {
+				continue;
+			}
+			if !self.added.contains(arg) {
+				self.args.push(arg.clone());
+				self.mark_added(arg);
+			}
+		}
+		self.args.clone()
+	}
+
+	fn mark_seen(&mut self, arg: &str) {
+		let parts = arg.split("=").collect::<Vec<&str>>();
+		self.seen.insert(parts[0].to_string());
+	}
+
+	fn mark_added(&mut self, arg: &str) {
+		let parts = arg.split("=").collect::<Vec<&str>>();
+		self.added.insert(parts[0].to_string());
+	}
+}
+
 /// Checks if an argument exists in the given list of arguments.
 ///
 /// # Arguments
@@ -92,7 +172,7 @@ pub(crate) fn collect_shared_arguments(
 	user_provided_args: &[String],
 	args: &mut Vec<String>,
 ) {
-	let mut seen_args: HashSet<String> = HashSet::new();
+	let mut seen: HashSet<String> = HashSet::new();
 	let arg = "--runtime";
 	if !argument_exists(user_provided_args, arg) {
 		let runtime_arg = match shared_params.runtime {
@@ -100,13 +180,13 @@ pub(crate) fn collect_shared_arguments(
 			Runtime::Existing => format!("{}=existing", arg),
 		};
 		args.push(runtime_arg.clone());
-		seen_args.insert(arg.to_string());
+		seen.insert(arg.to_string());
 	}
 	// Exclude arguments that are already included.
 	for arg in user_provided_args.iter() {
-		if !seen_args.contains(arg) {
+		if !seen.contains(arg) {
 			args.push(arg.clone());
-			seen_args.insert(arg.clone());
+			seen.insert(arg.clone());
 		}
 	}
 }
@@ -145,11 +225,69 @@ pub(crate) fn is_shared_params(arg: &str) -> bool {
 	SHARED_PARAMS.iter().any(|a| arg.starts_with(a))
 }
 
+/// Formats an argument and its value into a string.
+pub(crate) fn format_arg<A: Display, V: Display>(arg: A, value: V) -> String {
+	format!("{}={}", arg, value)
+}
+
 #[cfg(test)]
 mod tests {
+	use super::*;
 	use clap::Parser;
 
-	use super::*;
+	#[test]
+	fn add_argument_without_value_works() {
+		let mut args = vec![];
+		let user_provided_args = vec![];
+		let mut constructor = ArgumentConstructor::new(&mut args, &user_provided_args);
+		constructor.add(&[], true, "--flag", Some(String::default()));
+		assert_eq!(constructor.finalize(&[]), vec!["--flag".to_string()]);
+		assert!(constructor.added.contains("--flag"));
+	}
+
+	#[test]
+	fn skip_argument_when_already_seen_works() {
+		let mut args = vec!["--existing".to_string()];
+		let user_provided_args = vec![];
+		ArgumentConstructor::new(&mut args, &user_provided_args).add(
+			&[],
+			true,
+			"--existing",
+			Some("ignored".to_string()),
+		);
+		// No duplicates added.
+		assert_eq!(args, vec!["--existing".to_string()]);
+	}
+
+	#[test]
+	fn skip_argument_based_on_condition_works() {
+		let mut args = vec![];
+		let user_provided_args = vec![];
+		let mut constructor = ArgumentConstructor::new(&mut args, &user_provided_args);
+		constructor.add(&["--skip"], false, "--flag", Some("value".to_string()));
+		// Condition is false, so it should not add.
+		assert!(args.is_empty());
+	}
+
+	#[test]
+	fn finalize_adds_missing_user_arguments_works() {
+		let mut args = vec![];
+		let user_provided_args = vec!["--user-arg".to_string(), "--another-arg".to_string()];
+		let mut constructor = ArgumentConstructor::new(&mut args, &user_provided_args);
+		constructor.finalize(&[]);
+		assert!(args.contains(&"--user-arg".to_string()));
+		assert!(args.contains(&"--another-arg".to_string()));
+	}
+
+	#[test]
+	fn finalize_skips_provided_arguments_works() {
+		let mut args = vec![];
+		let user_provided_args = vec!["--keep".to_string(), "--skip-me".to_string()];
+		let mut constructor = ArgumentConstructor::new(&mut args, &user_provided_args);
+		constructor.finalize(&["--skip-me"]);
+		assert!(args.contains(&"--keep".to_string()));
+		assert!(!args.contains(&"--skip-me".to_string())); // Skipped argument should not be added
+	}
 
 	#[test]
 	fn argument_exists_works() {
@@ -217,5 +355,13 @@ mod tests {
 	#[test]
 	fn is_shared_params_works() {
 		assert!(SHARED_PARAMS.into_iter().all(is_shared_params));
+	}
+
+	#[test]
+	fn format_arg_works() {
+		assert_eq!(format_arg("--number", 1), "--number=1");
+		assert_eq!(format_arg("--string", "value"), "--string=value");
+		assert_eq!(format_arg("--boolean", true), "--boolean=true");
+		assert_eq!(format_arg("--path", PathBuf::new().display()), "--path=");
 	}
 }
