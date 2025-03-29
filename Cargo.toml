@@ -41,21 +41,27 @@ tracing-subscriber = "0.3.19"
 
 # networking
 reqwest = { version = "0.12", features = ["json", "multipart", "stream"] }
-tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1.0", features = ["macros", "process", "rt-multi-thread"] }
 url = "2.5.4"
 
 # contracts
 subxt-signer = { version = "0.38.0", features = ["subxt", "sr25519"] }
 subxt = "0.38.0"
-ink_env = "5.0.0"
-sp-core = "32.0.0"
-sp-weights = "31.0.0"
-scale = { package = "parity-scale-codec", version = "3.0.0", features = ["derive"] }
-scale-info = { version = "2.11.4", default-features = false, features = ["derive"] }
+ink_env = { version = "5.0.0" }
+ink_env_v6 = { git = "https://github.com/use-ink/ink", package = "ink_env", branch = "master" }
+sp-core = { version = "32.0.0" }
+sp-core_inkv6 = { git = "https://github.com/paritytech/polkadot-sdk", package = "sp-core", rev = "f8c90b2a01ec77579bccd21ae17bd6ff2eeffd6a", default-features = false }
+sp-weights = { version = "31.0.0" }
+sp-weights_inkv6 = { git = "https://github.com/paritytech/polkadot-sdk", package = "sp-weights", rev = "f8c90b2a01ec77579bccd21ae17bd6ff2eeffd6a", default-features = false }
+scale = { package = "parity-scale-codec", version = "3.6.12", features = ["derive"] }
+scale-info = { version = "2.11.6", default-features = false, features = ["derive"] }
 scale-value = { version = "0.17.0", default-features = false, features = ["from-string", "parser-ss58"] }
-contract-build = "5.0.2"
-contract-extrinsics = "5.0.2"
-contract-transcode = "5.0.2"
+contract-build = { version = "5.0.2" }
+contract-build_inkv6 = { git = "https://github.com/use-ink/cargo-contract", package = "contract-build", version = "6.0.0-alpha", branch = "master" }
+contract-extrinsics = { version = "5.0.2" }
+contract-extrinsics_inkv6 = { git = "https://github.com/use-ink/cargo-contract", package = "contract-extrinsics", version = "6.0.0-alpha", branch = "master" }
+contract-transcode = { version = "5.0.2" }
+contract-transcode_inkv6 = { git = "https://github.com/use-ink/cargo-contract", package = "contract-transcode", version = "6.0.0-alpha", branch = "master" }
 heck = "0.5.0"
 
 # parachains
