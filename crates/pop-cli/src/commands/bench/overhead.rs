@@ -6,7 +6,7 @@ use crate::{
 		bench::{check_omni_bencher_and_prompt, overwrite_weight_dir_command},
 		builds::guide_user_to_select_profile,
 		prompt::display_message,
-		runtime::{ensure_runtime_binary_exists, guide_user_to_select_genesis_preset},
+		runtime::{ensure_runtime_binary_exists, guide_user_to_select_genesis_preset, Feature},
 	},
 };
 use clap::{Args, Parser};
@@ -72,6 +72,7 @@ impl BenchmarkOverhead {
 					cli,
 					&current_dir().unwrap_or(PathBuf::from("./")),
 					self.profile.as_ref().ok_or_else(|| anyhow::anyhow!("No profile provided"))?,
+					vec![Feature::Benchmark],
 					!self.no_build,
 				)?);
 			}

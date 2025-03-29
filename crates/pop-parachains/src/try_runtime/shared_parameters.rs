@@ -23,6 +23,17 @@ use sc_cli::{
 use sp_runtime::StateVersion;
 use std::{path::PathBuf, str::FromStr};
 
+/// Shared parameters derived from the fields of struct [SharedParams].
+const SHARED_PARAMS: [&str; 7] = [
+	"--runtime",
+	"--disable-spec-name-check",
+	"--wasm-execution",
+	"--wasm-instantiation-strategy",
+	"--heap-pages",
+	"--export-proof",
+	"--overwrite-state-version",
+];
+
 /// Shared parameters of the `try-runtime` commands
 #[derive(Debug, Clone, clap::Parser)]
 #[group(skip)]
@@ -81,6 +92,13 @@ pub struct SharedParams {
 	pub overwrite_state_version: Option<StateVersion>,
 }
 
+impl SharedParams {
+	/// Check if the given argument is a shared parameter.
+	pub fn has_argument(arg: &str) -> bool {
+		SHARED_PARAMS.iter().any(|a| arg.starts_with(a))
+	}
+}
+
 #[derive(Debug, Clone)]
 pub enum Runtime {
 	/// Use the given path to the wasm binary file.
@@ -103,5 +121,15 @@ impl FromStr for Runtime {
 			"existing" => Runtime::Existing,
 			x => Runtime::Path(x.into()),
 		})
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn is_shared_params_works() {
+		assert!(SHARED_PARAMS.into_iter().all(SharedParams::has_argument));
 	}
 }

@@ -18,16 +18,6 @@ use std::{
 
 const BINARY_NAME: &str = "try-runtime";
 
-/// Shared parameters derived from the fields of struct `SharedParams`.
-const SHARED_PARAMS: [&str; 6] = [
-	"--runtime",
-	"--wasm-execution",
-	"--wasm-instantiation-strategy",
-	"--heap-pages",
-	"--export-proof",
-	"--overwrite-state-version",
-];
-
 impl_binary_generator!(TryRuntimeGenerator, try_runtime_generator);
 
 /// Construct a Try Runtime command with shared parameters.
@@ -207,22 +197,13 @@ pub(crate) fn partition_arguments(
 	let (mut command_arguments, mut shared_arguments): (Vec<String>, Vec<String>) =
 		(vec![], vec![]);
 	for arg in before_subcommand.iter().cloned() {
-		if is_shared_params(&arg) {
+		if SharedParams::has_argument(&arg) {
 			shared_arguments.push(arg);
 		} else {
 			command_arguments.push(arg);
 		}
 	}
 	(command_arguments, shared_arguments, after_subcommand.to_vec())
-}
-
-/// Check if an argument is a shared parameter.
-///
-/// # Arguments
-///
-/// * `arg` - The argument to check.
-pub(crate) fn is_shared_params(arg: &str) -> bool {
-	SHARED_PARAMS.iter().any(|a| arg.starts_with(a))
 }
 
 /// Formats an argument and its value into a string.
@@ -350,11 +331,6 @@ mod tests {
 			vec!["--runtime=runtime_name".to_string(), "--wasm-execution=instantiate".to_string()]
 		);
 		assert_eq!(after_subcommand, vec!["--arg1".to_string(), "--arg2".to_string()]);
-	}
-
-	#[test]
-	fn is_shared_params_works() {
-		assert!(SHARED_PARAMS.into_iter().all(is_shared_params));
 	}
 
 	#[test]
