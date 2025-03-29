@@ -125,7 +125,7 @@ impl<'a> ArgumentConstructor<'a> {
 	pub fn finalize(&mut self, skipped: &[&str]) -> Vec<String> {
 		// Exclude arguments that are already included.
 		for arg in self.user_provided_args.iter() {
-			if skipped.iter().any(|a| a == &arg) {
+			if skipped.iter().any(|a| a == arg) {
 				continue;
 			}
 			if !self.added.contains(arg) {
@@ -162,23 +162,27 @@ pub(crate) fn collect_shared_arguments(
 	user_provided_args: &[String],
 	args: &mut Vec<String>,
 ) {
-	let mut seen: HashSet<String> = HashSet::new();
-	let arg = "--runtime";
-	if !argument_exists(user_provided_args, arg) {
-		let runtime_arg = match shared_params.runtime {
-			Runtime::Path(ref path) => format!("{}={}", arg, path.to_str().unwrap()),
-			Runtime::Existing => format!("{}=existing", arg),
-		};
-		args.push(runtime_arg.clone());
-		seen.insert(arg.to_string());
-	}
-	// Exclude arguments that are already included.
-	for arg in user_provided_args.iter() {
-		if !seen.contains(arg) {
-			args.push(arg.clone());
-			seen.insert(arg.clone());
-		}
-	}
+	let mut c = ArgumentConstructor::new(args, user_provided_args);
+	c.add(
+		&[],
+		true,
+		"--runtime",
+		Some(
+			match shared_params.runtime {
+				Runtime::Path(ref path) => path.to_str().unwrap(),
+				Runtime::Existing => "existing",
+			}
+			.to_string(),
+		),
+	);
+	// For testing.
+	c.add(
+		&[],
+		shared_params.disable_spec_name_check,
+		"--disable-spec-name-check",
+		Some(String::default()),
+	);
+	c.finalize(&[]);
 }
 
 /// Partition arguments into command-specific arguments, shared arguments, and remaining arguments.

@@ -30,7 +30,7 @@ use std::{env::current_dir, path::PathBuf, str::FromStr, thread::sleep, time::Du
 use strum::{EnumMessage, VariantArray};
 
 const CUSTOM_ARGS: [&str; 5] = ["--profile", "--no-build", "-n", "--skip-confirm", "-y"];
-const DEFAULT_BLOCK_TIME: &str = "6000";
+const DEFAULT_BLOCK_TIME: u64 = 6000;
 const DEFAULT_BLOCK_HASH: &str =
 	"0xa1b16c1efd889a9f17375ec4dd5c1b4351a2be17fa069564fced10d23b9b3836";
 const DEFAULT_LIVE_NODE_URL: &str = "ws://127.0.0.1:9944";
@@ -148,7 +148,7 @@ impl TestOnRuntimeUpgradeCommand {
 			let block_time = cli
 				.input("Enter the block time:")
 				.required(true)
-				.default_input(DEFAULT_BLOCK_TIME)
+				.default_input(&DEFAULT_BLOCK_TIME.to_string())
 				.interact()?;
 			self.command.blocktime = Some(block_time.parse()?);
 		}
@@ -215,6 +215,7 @@ impl TestOnRuntimeUpgradeCommand {
 		args.push(self.subcommand()?);
 		self.collect_arguments_after_subcommand(&after_subcommand, &mut args);
 
+		println!("display: {:?}", self.display()?);
 		run_try_runtime(
 			&binary_path,
 			TryRuntimeCliCommand::OnRuntimeUpgrade,
@@ -235,6 +236,13 @@ impl TestOnRuntimeUpgradeCommand {
 		let mut c = ArgumentConstructor::new(args, user_provided_args);
 		c.add(&[], true, "--blocktime", self.command.blocktime.map(|b| b.to_string()));
 		c.add(&[], true, "--checks", Some(upgrade_checks_details(self.command.checks).0));
+		// For testing.
+		c.add(
+			&[],
+			self.command.disable_spec_version_check,
+			"--disable-spec-version-check",
+			Some(String::default()),
+		);
 		// These are custom arguments which not in `try-runtime-cli`.
 		c.add(&[], true, "--profile", self.profile.clone().map(|p| p.to_string()));
 		c.add(&["--no-build"], self.no_build, "-n", Some(String::default()));
@@ -540,6 +548,46 @@ mod tests {
 			));
 		command.execute(&mut cli).await?;
 		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn test_on_runtime_upgrade_invalid_runtime_path() {
+		let mut cmd = TestOnRuntimeUpgradeCommand::default();
+		cmd.shared_params.runtime = Runtime::Path(PathBuf::from("./dummy-runtime-path"));
+		cmd.command.blocktime = Some(DEFAULT_BLOCK_TIME);
+		cmd.command.state = Some(State::Snap { path: Some(get_mock_snapshot()) });
+		let error = cmd.run(&mut MockCli::new()).await.unwrap_err().to_string();
+		assert!(error.contains(
+			r#"Input("error while reading runtime file from \"./dummy-runtime-path\": Os { code: 2, kind: NotFound, message: \"No such file or directory\" }")"#,
+		));
+	}
+
+	#[tokio::test]
+	async fn test_on_runtime_upgrade_missing_try_runtime_feature() {
+		let mut cmd = TestOnRuntimeUpgradeCommand::default();
+		cmd.shared_params.runtime = Runtime::Path(get_mock_runtime(None));
+		cmd.command.blocktime = Some(DEFAULT_BLOCK_TIME);
+		cmd.command.state = Some(State::Snap { path: Some(get_mock_snapshot()) });
+		cmd.shared_params.disable_spec_name_check = true;
+		cmd.command.disable_spec_version_check = true;
+		let error = cmd.run(&mut MockCli::new()).await.unwrap_err().to_string();
+		assert!(error
+			.contains(r#"Input("Given runtime is not compiled with the try-runtime feature.")"#,));
+	}
+
+	#[tokio::test]
+	async fn test_on_runtime_upgrade_invalid_live_uri() {
+		let mut cmd = TestOnRuntimeUpgradeCommand::default();
+		cmd.shared_params.runtime = Runtime::Path(PathBuf::from("./dummy-runtime-path"));
+		cmd.command.blocktime = Some(DEFAULT_BLOCK_TIME);
+		cmd.command.state = Some(State::Live(LiveState {
+			uri: Some("https://example.com".to_string()),
+			..Default::default()
+		}));
+		let error = cmd.run(&mut MockCli::new()).await.unwrap_err().to_string();
+		assert!(error.contains(
+			r#"Failed to test with try-runtime: error: invalid value 'https://example.com' for '--uri <URI>': not a valid WS(S) url: must start with 'ws://' or 'wss://'"#,
+		));
 	}
 
 	#[test]
