@@ -4,6 +4,9 @@
 pub use pop_common::templates::{Template, Type};
 use strum_macros::{AsRefStr, Display, EnumMessage, EnumProperty, EnumString, VariantArray};
 
+// Temporal branch name for v6 contracts templates.
+pub(crate) const V6_CONTRACTS_BRANCH: &str = "v6.x";
+
 /// Supported contract template providers.
 #[derive(
 	AsRefStr, Clone, Default, Debug, Display, EnumMessage, EnumString, Eq, PartialEq, VariantArray,
@@ -96,7 +99,7 @@ pub enum Contract {
 		serialize = "PSP22",
 		message = "Psp22",
 		detailed_message = "The implementation of the PSP22 standard in ink!",
-		props(Type = "PSP", Repository = "https://github.com/Cardinal-Cryptography/PSP22")
+		props(Type = "PSP", Repository = "https://github.com/r0gue-io/PSP22")
 	)]
 	PSP22,
 	/// The implementation of the PSP22 standard in ink!
@@ -161,7 +164,7 @@ mod tests {
 			("erc20".to_string(), "https://github.com/use-ink/ink-examples"),
 			("erc721".to_string(), "https://github.com/use-ink/ink-examples"),
 			("erc1155".to_string(), "https://github.com/use-ink/ink-examples"),
-			("PSP22".to_string(), "https://github.com/Cardinal-Cryptography/PSP22"),
+			("PSP22".to_string(), "https://github.com/r0gue-io/PSP22"),
 			("PSP34".to_string(), "https://github.com/r0gue-io/PSP34"),
 			("dns".to_string(), "https://github.com/use-ink/ink-examples"),
 			("cross-contract-calls".to_string(), "https://github.com/use-ink/ink-examples"),

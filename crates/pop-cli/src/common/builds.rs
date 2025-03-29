@@ -75,6 +75,7 @@ mod tests {
 	use tempfile::tempdir;
 
 	#[test]
+	#[cfg(feature = "parachain")]
 	fn guide_user_to_select_profile_works() -> anyhow::Result<()> {
 		let mut cli = MockCli::new().expect_select(
 			"Choose the build profile of the binary that should be used: ".to_string(),
@@ -89,6 +90,7 @@ mod tests {
 	}
 
 	#[test]
+	#[cfg(feature = "parachain")]
 	fn ensure_node_binary_exists_works() -> anyhow::Result<()> {
 		let mut cli = MockCli::new();
 		let name = "node";

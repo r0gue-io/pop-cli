@@ -118,7 +118,10 @@ mod tests {
 
 	#[tokio::test]
 	async fn check_binary_and_prompt_works() -> anyhow::Result<()> {
+		#[cfg(feature = "wasm-contracts")]
 		let binary_name = "substrate-contracts-node";
+		#[cfg(feature = "polkavm-contracts")]
+		let binary_name = "ink-node";
 		let cache_path = tempfile::tempdir().expect("Could create temp dir");
 		let mut cli = MockCli::new()
 			.expect_warning(format!("⚠️ The {binary_name} binary is not found."))
@@ -127,7 +130,7 @@ mod tests {
 
 		let binary_path = check_and_prompt::<ContractsNodeGenerator>(
 			&mut cli,
-			"substrate-contracts-node",
+			binary_name,
 			cache_path.path(),
 			false,
 		)
@@ -137,20 +140,23 @@ mod tests {
 		assert!(binary_path
 			.to_str()
 			.unwrap()
-			.starts_with(&cache_path.path().join("substrate-contracts-node").to_str().unwrap()));
+			.starts_with(&cache_path.path().join(binary_name).to_str().unwrap()));
 		cli.verify()
 	}
 
 	#[tokio::test]
 	async fn check_binary_and_prompt_handles_skip_confirm() -> anyhow::Result<()> {
+		#[cfg(feature = "wasm-contracts")]
 		let binary_name = "substrate-contracts-node";
+		#[cfg(feature = "polkavm-contracts")]
+		let binary_name = "ink-node";
 		let cache_path = tempfile::tempdir().expect("Could create temp dir");
 		let mut cli =
 			MockCli::new().expect_warning(format!("⚠️ The {binary_name} binary is not found."));
 
 		let binary_path = check_and_prompt::<ContractsNodeGenerator>(
 			&mut cli,
-			"substrate-contracts-node",
+			binary_name,
 			cache_path.path(),
 			true,
 		)

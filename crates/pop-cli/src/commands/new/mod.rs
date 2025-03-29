@@ -2,7 +2,7 @@
 
 use clap::{Args, Subcommand};
 
-#[cfg(feature = "contract")]
+#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 pub mod contract;
 #[cfg(feature = "parachain")]
 pub mod pallet;
@@ -42,7 +42,7 @@ pub enum Command {
 	#[clap(alias = "P")]
 	Pallet(pallet::NewPalletCommand),
 	/// Generate a new smart contract
-	#[cfg(feature = "contract")]
+	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 	#[clap(alias = "c")]
 	Contract(contract::NewContractCommand),
 }

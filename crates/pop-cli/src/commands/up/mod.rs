@@ -7,7 +7,7 @@ use crate::{
 use clap::{Args, Subcommand};
 use std::path::PathBuf;
 
-#[cfg(feature = "contract")]
+#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 mod contract;
 #[cfg(feature = "parachain")]
 mod network;
@@ -32,7 +32,7 @@ pub(crate) struct UpArgs {
 	pub(crate) rollup: rollup::UpCommand,
 
 	#[command(flatten)]
-	#[cfg(feature = "contract")]
+	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 	pub(crate) contract: contract::UpContractCommand,
 
 	#[command(subcommand)]
@@ -50,7 +50,7 @@ pub(crate) enum Command {
 	/// [DEPRECATED] Launch a local network (will be removed in v0.8.0).
 	#[clap(alias = "p", hide = true)]
 	Parachain(network::ZombienetCommand),
-	#[cfg(feature = "contract")]
+	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 	/// [DEPRECATED] Deploy a smart contract (will be removed in v0.8.0).
 	#[clap(alias = "c", hide = true)]
 	Contract(contract::UpContractCommand),
@@ -69,7 +69,7 @@ impl Command {
 	) -> anyhow::Result<&'static str> {
 		let project_path = get_project_path(args.path.clone(), args.path_pos.clone());
 		// If only contract feature enabled, deploy a contract
-		#[cfg(feature = "contract")]
+		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 		if pop_contracts::is_supported(project_path.as_deref())? {
 			let mut cmd = args.contract;
 			cmd.path = project_path;
@@ -98,6 +98,7 @@ mod tests {
 	use cli::MockCli;
 	use duct::cmd;
 	use pop_contracts::{mock_build_process, new_environment};
+	#[cfg(feature = "parachain")]
 	use pop_parachains::{instantiate_template_dir, Config, DeploymentProvider, Parachain};
 	use std::env;
 	use strum::VariantArray;
@@ -123,6 +124,7 @@ mod tests {
 				skip_confirm: false,
 				valid: false,
 			},
+			#[cfg(feature = "parachain")]
 			rollup: rollup::UpCommand::default(),
 			command: None,
 		})
@@ -145,6 +147,7 @@ mod tests {
 	}
 
 	#[tokio::test]
+	#[cfg(feature = "parachain")]
 	async fn detects_rollup_correctly() -> anyhow::Result<()> {
 		let temp_dir = tempfile::tempdir()?;
 		let name = "rollup";
