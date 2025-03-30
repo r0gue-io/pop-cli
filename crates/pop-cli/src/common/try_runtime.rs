@@ -215,16 +215,6 @@ pub(crate) fn format_arg<A: Display, V: Display>(arg: A, value: V) -> String {
 	format!("{}={}", arg, value)
 }
 
-/// Format the argument and its value.
-///
-/// # Arguments
-///
-/// * `arg` - The argument to format.
-/// * `value` - The value of the argument.
-pub(crate) fn format_arg<A: Display, V: Display>(arg: A, value: V) -> String {
-	format!("{}={}", arg, value)
-}
-
 #[cfg(test)]
 mod tests {
 	use super::*;
