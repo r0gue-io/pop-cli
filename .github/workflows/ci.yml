@@ -162,7 +162,7 @@ jobs:
       - name: Extract all coverage data
         run: |
           mkdir -p target/llvm-cov-target
-          for archive in artifacts/*.tar.gz; do
+          for archive in artifacts/**/*.tar.gz; do
             echo "Extracting $archive"
             tar -xzf "$archive" -C target/llvm-cov-target
           done
