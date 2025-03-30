@@ -135,12 +135,17 @@ jobs:
               --no-report
           fi
 
-      - name: Upload coverage data
+      - name: Archive coverage data
         if: always()
+        run: |
+          mkdir -p archive
+          tar -czf archive/coverage-data-${{ matrix.crate }}.tar.gz -C target/llvm-cov-target .
+
+      - name: Upload compressed coverage artifact
         uses: actions/upload-artifact@v4
         with:
           name: coverage-data-${{ matrix.crate }}
-          path: target/llvm-cov-target
+          path: archive/coverage-data-${{ matrix.crate }}.tar.gz
 
   coverage-merge-upload:
     needs: coverage
@@ -148,35 +153,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download coverage data - pop-cli
+      - name: Download all coverage artifacts
         uses: actions/download-artifact@v4
         with:
-          name: coverage-data-pop-cli
-          path: target/llvm-cov-target
+          pattern: coverage-data-*
+          path: artifacts
 
-      - name: Download coverage data - pop-contracts
-        uses: actions/download-artifact@v4
-        with:
-          name: coverage-data-pop-contracts
-          path: target/llvm-cov-target
-
-      - name: Download coverage data - pop-parachains
-        uses: actions/download-artifact@v4
-        with:
-          name: coverage-data-pop-parachains
-          path: target/llvm-cov-target
-
-      - name: Download coverage data - pop-common
-        uses: actions/download-artifact@v4
-        with:
-          name: coverage-data-pop-common
-          path: target/llvm-cov-target
-
-      - name: Download coverage data - pop-telemetry
-        uses: actions/download-artifact@v4
-        with:
-          name: coverage-data-pop-telemetry
-          path: target/llvm-cov-target
+      - name: Extract all coverage data
+        run: |
+          mkdir -p target/llvm-cov-target
+          for archive in artifacts/*.tar.gz; do
+            echo "Extracting $archive"
+            tar -xzf "$archive" -C target/llvm-cov-target
+          done
 
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
