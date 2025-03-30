@@ -147,6 +147,7 @@ impl TestCreateSnapshotCommand {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::common::try_runtime::source_try_runtime_binary;
 	use cli::MockCli;
 	use tempfile::tempdir;
 
@@ -155,6 +156,8 @@ mod tests {
 		let temp_dir = tempdir()?;
 		let temp_dir_path = temp_dir.path().join("example.snap");
 		let command = TestCreateSnapshotCommand::default();
+		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
+
 		let mut cli = MockCli::new()
 			.expect_intro("Creating a snapshot file")
 			.expect_warning(
@@ -197,6 +200,8 @@ mod tests {
 	async fn test_create_snapshot_invalid_uri() -> anyhow::Result<()> {
 		let mut command = TestCreateSnapshotCommand::default();
 		command.from.uri = Some(DEFAULT_REMOTE_NODE_URL.to_string());
+		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
+
 		let error = command.run(&mut MockCli::new()).await.unwrap_err().to_string();
 		assert!(error.contains("Connection refused"));
 		Ok(())
