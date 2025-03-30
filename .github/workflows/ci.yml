@@ -153,15 +153,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Free up disk space
+      - name: Clean workspace before merging
         run: |
-          echo "Cleaning up to free disk space..."
-          sudo rm -rf /usr/share/dotnet \
-                      /opt/ghc \
-                      /usr/local/share/boost \
-                      /usr/lib/jvm \
-                      "$AGENT_TOOLSDIRECTORY" || true
-          sudo docker system prune -af || true
+          echo "Freeing space before artifact extraction..."
+          sudo rm -rf target/
+          sudo rm -rf ~/.cargo/registry
+          sudo rm -rf ~/.cargo/git
           df -h
 
       - name: Download all coverage artifacts
@@ -194,6 +191,7 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: codecov.json
           fail_ci_if_error: true
+
 
   documentation-tests:
     needs: lint
