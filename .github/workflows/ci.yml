@@ -153,6 +153,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Free up disk space
+        run: |
+          echo "Cleaning up to free disk space..."
+          sudo rm -rf /usr/share/dotnet \
+                      /opt/ghc \
+                      /usr/local/share/boost \
+                      /usr/lib/jvm \
+                      "$AGENT_TOOLSDIRECTORY" || true
+          sudo docker system prune -af || true
+          df -h
+
       - name: Download all coverage artifacts
         uses: actions/download-artifact@v4
         with:
