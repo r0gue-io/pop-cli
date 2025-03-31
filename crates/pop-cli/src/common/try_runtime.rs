@@ -24,7 +24,7 @@ use strum::{EnumMessage, VariantArray};
 const BINARY_NAME: &str = "try-runtime";
 pub(crate) const DEFAULT_BLOCK_HASH: &str =
 	"0xa1b16c1efd889a9f17375ec4dd5c1b4351a2be17fa069564fced10d23b9b3836";
-pub(crate) const DEFAULT_LIVE_NODE_URL: &str = "ws://127.0.0.1:9944";
+pub(crate) const DEFAULT_LIVE_NODE_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";
 pub(crate) const DEFAULT_SNAPSHOT_PATH: &str = "your-parachain.snap";
 
 impl_binary_generator!(TryRuntimeGenerator, try_runtime_generator);
@@ -82,20 +82,29 @@ pub async fn source_try_runtime_binary(
 /// # Arguments
 /// * `cli`: Command line interface.
 /// * `state`: The state to update.
-pub fn update_state_source(cli: &mut impl Cli, state: &mut Option<State>) -> anyhow::Result<()> {
-	let (subcommand, path, live_state) = match state {
+pub(crate) fn update_state_source(
+	cli: &mut impl Cli,
+	state: &mut Option<State>,
+) -> anyhow::Result<()> {
+	let (subcommand, path, mut live_state) = match state {
 		Some(State::Live(ref state)) => (&StateCommand::Live, None, state.clone()),
 		Some(State::Snap { ref path }) => (&StateCommand::Snap, path.clone(), LiveState::default()),
 		None => (guide_user_to_select_state_source(cli)?, None, LiveState::default()),
 	};
 	match subcommand {
-		StateCommand::Live => update_live_state(cli, live_state, state)?,
+		StateCommand::Live => update_live_state(cli, &mut live_state, state)?,
 		StateCommand::Snap => update_snapshot(cli, path, state)?,
 	}
 	Ok(())
 }
 
-fn update_snapshot(
+/// Update the snapshot state.
+///
+/// # Arguments
+/// * `cli`: Command line interface.
+/// * `path`: The path to the snapshot file.
+/// * `state`: The state to update.
+pub(crate) fn update_snapshot(
 	cli: &mut impl Cli,
 	mut path: Option<PathBuf>,
 	state: &mut Option<State>,
@@ -120,9 +129,15 @@ fn update_snapshot(
 	Ok(())
 }
 
-fn update_live_state(
+/// Update the live state.
+///
+/// # Arguments
+/// * `cli`: Command line interface.
+/// * `live_state`: The live state to update.
+/// * `state`: The state to update.
+pub(crate) fn update_live_state(
 	cli: &mut impl Cli,
-	mut live_state: LiveState,
+	live_state: &mut LiveState,
 	state: &mut Option<State>,
 ) -> anyhow::Result<()> {
 	if live_state.uri.is_none() {
@@ -432,12 +447,12 @@ mod tests {
 	#[test]
 	fn update_live_state_works() -> anyhow::Result<()> {
 		// Prompt all inputs if not provided.
-		let live_state = LiveState::default();
+		let mut live_state = LiveState::default();
 		let mut cmd = MockCommand::default();
 		let mut cli = MockCli::new()
 			.expect_input("Enter the live chain of your node:", DEFAULT_LIVE_NODE_URL.to_string())
 			.expect_input("Enter the block hash (optional):", DEFAULT_BLOCK_HASH.to_string());
-		update_live_state(&mut cli, live_state, &mut cmd.state)?;
+		update_live_state(&mut cli, &mut live_state, &mut cmd.state)?;
 		match cmd.state {
 			Some(State::Live(ref live_state)) => {
 				assert_eq!(live_state.uri, Some(DEFAULT_LIVE_NODE_URL.to_string()));
@@ -456,7 +471,7 @@ mod tests {
 		let mut cmd = MockCommand::default();
 		let mut cli = MockCli::new()
 			.expect_input("Enter the live chain of your node:", DEFAULT_LIVE_NODE_URL.to_string());
-		update_live_state(&mut cli, live_state, &mut cmd.state)?;
+		update_live_state(&mut cli, &mut live_state, &mut cmd.state)?;
 		match cmd.state {
 			Some(State::Live(ref live_state)) => {
 				assert_eq!(live_state.uri, Some(DEFAULT_LIVE_NODE_URL.to_string()));
@@ -473,7 +488,7 @@ mod tests {
 		// Provide the empty block hash.
 		let mut cli =
 			MockCli::new().expect_input("Enter the block hash (optional):", String::default());
-		update_live_state(&mut cli, live_state, &mut cmd.state)?;
+		update_live_state(&mut cli, &mut live_state, &mut cmd.state)?;
 		match cmd.state {
 			Some(State::Live(ref live_state)) => {
 				assert_eq!(live_state.uri, Some(DEFAULT_LIVE_NODE_URL.to_string()));
