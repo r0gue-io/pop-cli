@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use std::{fmt::Display, path::PathBuf};
-
+use std::path::PathBuf;
 use strum::{Display, EnumDiscriminants};
 use strum_macros::{AsRefStr, EnumMessage, EnumString, VariantArray};
 
 /// The runtime *state*.
-#[derive(Clone, Debug, Display, clap::Subcommand, EnumDiscriminants)]
-#[strum_discriminants(derive(AsRefStr, EnumString, EnumMessage, VariantArray))]
+#[derive(Clone, Debug, clap::Subcommand, EnumDiscriminants)]
+#[strum_discriminants(derive(AsRefStr, EnumString, EnumMessage, VariantArray, Display))]
 #[strum_discriminants(name(StateCommand))]
 pub enum State {
 	/// A live chain.
@@ -20,7 +19,7 @@ pub enum State {
 
 	/// A state snapshot.
 	#[strum_discriminants(strum(
-		serialize = "snapshot",
+		serialize = "snap",
 		message = "Snapshot",
 		detailed_message = "Run the migrations on top of a chain snapshot."
 	))]
@@ -29,16 +28,6 @@ pub enum State {
 		#[clap(short = 'p', long = "path", alias = "snapshot-path")]
 		path: Option<PathBuf>,
 	},
-}
-
-impl Display for StateCommand {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		let s = match self {
-			StateCommand::Live => "live",
-			StateCommand::Snap => "snap",
-		};
-		write!(f, "{}", s)
-	}
 }
 
 /// A `Live` variant for [`State`]

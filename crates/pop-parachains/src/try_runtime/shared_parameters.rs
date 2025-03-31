@@ -99,6 +99,7 @@ impl SharedParams {
 	}
 }
 
+/// Source of the runtime.
 #[derive(Debug, Clone)]
 pub enum Runtime {
 	/// Use the given path to the wasm binary file.

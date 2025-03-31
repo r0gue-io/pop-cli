@@ -19,6 +19,7 @@ use clap::Args;
 #[cfg(test)]
 use clap::Parser;
 use cliclack::spinner;
+use console::style;
 use frame_try_runtime::UpgradeCheckSelect;
 use pop_common::Profile;
 use pop_parachains::{
@@ -35,6 +36,8 @@ const DEFAULT_BLOCK_HASH: &str =
 	"0xa1b16c1efd889a9f17375ec4dd5c1b4351a2be17fa069564fced10d23b9b3836";
 const DEFAULT_LIVE_NODE_URL: &str = "ws://127.0.0.1:9944";
 const DEFAULT_SNAPSHOT_PATH: &str = "your-parachain.snap";
+const DISABLE_SPEC_VERSION_CHECK: &str = "disable-spec-version-check";
+const DISABLE_SPEC_NAME_CHECK: &str = "disable-spec-name-check";
 
 #[derive(Debug, Clone, clap::Parser)]
 struct Command {
@@ -89,8 +92,8 @@ struct Command {
 	mbm_max_blocks: u32,
 
 	/// The chain blocktime in milliseconds.
-	#[arg(long)]
-	blocktime: Option<u64>,
+	#[clap(long, default_value = &DEFAULT_BLOCK_TIME.to_string())]
+	blocktime: u64,
 }
 
 #[derive(Args)]
@@ -123,14 +126,14 @@ impl TestOnRuntimeUpgradeCommand {
 				Err(e) => return display_message(&e.to_string(), false, cli),
 			}
 		};
-		if !argument_exists(&user_provided_args, "--runtime") &&
-			cli.confirm(format!(
-				"Do you want to specify which runtime to run the migration on?\n{}",
-				console::style("If not provided, use the code of the remote node, or a snapshot.")
-					.dim()
-			))
-			.initial_value(true)
-			.interact()?
+		if !argument_exists(&user_provided_args, "--runtime")
+			&& cli
+				.confirm(format!(
+					"Do you want to specify which runtime to run the migration on?\n{}",
+					style("If not provided, use the code of the remote node, or a snapshot.").dim()
+				))
+				.initial_value(true)
+				.interact()?
 		{
 			if self.no_build {
 				cli.warning("NOTE: Make sure your runtime is built with `try-runtime` feature.")?;
@@ -144,19 +147,9 @@ impl TestOnRuntimeUpgradeCommand {
 			)?);
 		}
 
-		if self.command.blocktime.is_none() {
-			let block_time = cli
-				.input("Enter the block time:")
-				.required(true)
-				.default_input(&DEFAULT_BLOCK_TIME.to_string())
-				.interact()?;
-			self.command.blocktime = Some(block_time.parse()?);
-		}
-
 		// Prompt the user to select the source of runtime state.
-		match self.update_state_source(cli) {
-			Ok(subcommand) => subcommand,
-			Err(e) => return display_message(&e.to_string(), false, cli),
+		if let Err(e) = self.update_state_source(cli) {
+			return display_message(&e.to_string(), false, cli);
 		};
 
 		// If the `checks` argument is not provided, prompt the user to select the upgrade checks.
@@ -168,15 +161,21 @@ impl TestOnRuntimeUpgradeCommand {
 		}
 
 		// Run migrations with `try-runtime-cli` binary.
-		let result = self.run(cli).await;
-
-		// Display the `on-runtime-upgrade` command.
-		cli.info(self.display()?)?;
-		if let Err(e) = result {
-			return display_message(&e.to_string(), false, cli);
+		loop {
+			let result = self.run(cli).await;
+			// Display the `on-runtime-upgrade` command.
+			if let Err(e) = result {
+				match self.handle_check_errors(e.to_string(), cli) {
+					Ok(()) => continue,
+					Err(e) => {
+						cli.info(self.display()?)?;
+						return display_message(&e.to_string(), false, cli);
+					},
+				}
+			}
+			cli.info(self.display()?)?;
+			return display_message("Tested migrations successfully!", true, cli);
 		}
-		display_message("Tested migrations successfully!", true, cli)?;
-		Ok(())
 	}
 
 	async fn run(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
@@ -184,20 +183,22 @@ impl TestOnRuntimeUpgradeCommand {
 		cli.warning("NOTE: this may take some time...")?;
 		let spinner = spinner();
 		match self.command.state {
-			Some(State::Live(ref live_state)) =>
+			Some(State::Live(ref live_state)) => {
 				if let Some(ref uri) = live_state.uri {
 					spinner.start(format!(
-						"Run the migrations on top of live state at {}...",
-						console::style(&uri).magenta().underlined()
+						"Running migrations against live state at {}...",
+						style(&uri).magenta().underlined()
 					));
-				},
-			Some(State::Snap { ref path }) =>
+				}
+			},
+			Some(State::Snap { ref path }) => {
 				if let Some(p) = path {
 					spinner.start(format!(
-						"Run the migrations using a snapshot file at {}...",
+						"Running migrations using a snapshot file at {}...",
 						p.display()
 					));
-				},
+				}
+			},
 			None => return Err(anyhow::anyhow!("No subcommand provided")),
 		}
 		sleep(Duration::from_secs(1));
@@ -222,7 +223,7 @@ impl TestOnRuntimeUpgradeCommand {
 			args,
 			&CUSTOM_ARGS,
 		)?;
-		spinner.clear();
+		spinner.stop("");
 		Ok(())
 	}
 
@@ -233,7 +234,7 @@ impl TestOnRuntimeUpgradeCommand {
 		args: &mut Vec<String>,
 	) {
 		let mut c = ArgumentConstructor::new(args, user_provided_args);
-		c.add(&[], true, "--blocktime", self.command.blocktime.map(|b| b.to_string()));
+		c.add(&[], true, "--blocktime", Some(self.command.blocktime.to_string()));
 		c.add(&[], true, "--checks", Some(upgrade_checks_details(self.command.checks).0));
 		// For testing.
 		c.add(
@@ -242,7 +243,7 @@ impl TestOnRuntimeUpgradeCommand {
 			"--disable-spec-version-check",
 			Some(String::default()),
 		);
-		// These are custom arguments which not in `try-runtime-cli`.
+		// These are custom arguments not used in `try-runtime-cli`.
 		c.add(&[], true, "--profile", self.profile.clone().map(|p| p.to_string()));
 		c.add(&["--no-build"], self.no_build, "-n", Some(String::default()));
 		c.add(&["--skip-confirm"], self.skip_confirm, "-y", Some(String::default()));
@@ -261,11 +262,12 @@ impl TestOnRuntimeUpgradeCommand {
 				c.add(&[], true, "--uri", state.uri.clone());
 				c.add(&[], true, "--at", state.at.clone());
 			},
-			State::Snap { path } =>
+			State::Snap { path } => {
 				if let Some(ref path) = path {
 					let path = path.to_str().unwrap().to_string();
 					c.add(&[], !path.is_empty(), "--path", Some(path));
-				},
+				}
+			},
 		}
 		c.finalize(&["--at="]);
 	}
@@ -273,8 +275,9 @@ impl TestOnRuntimeUpgradeCommand {
 	fn update_state_source(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		let (subcommand, path, live_state) = match self.command.state {
 			Some(State::Live(ref state)) => (&StateCommand::Live, None, state.clone()),
-			Some(State::Snap { ref path }) =>
-				(&StateCommand::Snap, path.clone(), LiveState::default()),
+			Some(State::Snap { ref path }) => {
+				(&StateCommand::Snap, path.clone(), LiveState::default())
+			},
 			None => (guide_user_to_select_state_source(cli)?, None, LiveState::default()),
 		};
 		match subcommand {
@@ -293,7 +296,7 @@ impl TestOnRuntimeUpgradeCommand {
 			let snapshot_file: PathBuf = cli
 				.input(format!(
 					"Enter path to your snapshot file?\n{}.",
-					console::style(
+					style(
 						"Snapshot file can be generated using `pop test create-snapshot` command"
 					)
 					.dim()
@@ -352,6 +355,46 @@ impl TestOnRuntimeUpgradeCommand {
 		self.collect_arguments_after_subcommand(&after_subcommand, &mut args);
 		cmd_args.extend(args);
 		Ok(cmd_args.join(" "))
+	}
+
+	fn handle_check_errors(
+		&mut self,
+		error: String,
+		cli: &mut impl cli::traits::Cli,
+	) -> anyhow::Result<()> {
+		if error.contains(DISABLE_SPEC_VERSION_CHECK) {
+			let disabled = cli.confirm(
+    			    "⚠️ New runtime spec version must be greater than the on-chain runtime spec version. \
+    				Do you want to disable the spec version check and try again?",
+    			).interact()?;
+			if !disabled {
+				return Err(anyhow::anyhow!(format!(
+					"Failed to run migrations: Invalid spec version. \
+					You can disable the check manually by adding the `--{}` flag.",
+					DISABLE_SPEC_VERSION_CHECK
+				)));
+			}
+			self.command.disable_spec_version_check = disabled;
+			return Ok(());
+		}
+		if error.contains(DISABLE_SPEC_NAME_CHECK) {
+			let disabled = cli
+				.confirm(
+					"⚠️ Runtime spec names must match. \
+       					Do you want to disable the spec name check and try again?",
+				)
+				.interact()?;
+			if !disabled {
+				return Err(anyhow::anyhow!(format!(
+					"Failed to run migrations: Invalid spec name. \
+					You can disable the check manually by adding the `--{}` flag.",
+					DISABLE_SPEC_NAME_CHECK
+				)));
+			}
+			self.shared_params.disable_spec_name_check = disabled;
+			return Ok(());
+		}
+		Err(anyhow::anyhow!(error))
 	}
 
 	fn subcommand(&self) -> anyhow::Result<String> {
@@ -437,10 +480,7 @@ mod tests {
 			.expect_confirm(
 				format!(
 					"Do you want to specify which runtime to run the migration on?\n{}",
-					console::style(
-						"If not provided, use the code of the remote node, or a snapshot."
-					)
-					.dim()
+					style("If not provided, use the code of the remote node, or a snapshot.").dim()
 				),
 				true,
 			)
@@ -449,7 +489,6 @@ mod tests {
 				"Please specify the path to the runtime project or the runtime binary.",
 				get_mock_runtime(Some(TryRuntime)).to_str().unwrap().to_string(),
 			)
-			.expect_input("Enter the block time:", DEFAULT_BLOCK_TIME.to_string())
 			.expect_select(
 				"Select source of runtime state to run the migration with:",
 				Some(true),
@@ -499,10 +538,7 @@ mod tests {
 			.expect_confirm(
 				format!(
 					"Do you want to specify which runtime to run the migration on?\n{}",
-					console::style(
-						"If not provided, use the code of the remote node, or a snapshot."
-					)
-					.dim()
+					style("If not provided, use the code of the remote node, or a snapshot.").dim()
 				),
 				true,
 			)
@@ -511,7 +547,6 @@ mod tests {
 				"Please specify the path to the runtime project or the runtime binary.",
 				get_mock_runtime(Some(TryRuntime)).to_str().unwrap().to_string(),
 			)
-			.expect_input("Enter the block time:", DEFAULT_BLOCK_TIME.to_string())
 			.expect_select(
 				"Select source of runtime state to run the migration with:",
 				Some(true),
@@ -523,7 +558,7 @@ mod tests {
 			.expect_input(
 				format!(
 					"Enter path to your snapshot file?\n{}.",
-					console::style(
+					style(
 						"Snapshot file can be generated using `pop test create-snapshot` command"
 					)
 					.dim()
@@ -550,11 +585,95 @@ mod tests {
 	}
 
 	#[tokio::test]
+	async fn test_on_runtime_disable_checks_works() -> anyhow::Result<()> {
+		let mut cmd = TestOnRuntimeUpgradeCommand::default();
+		cmd.no_build = true;
+		cmd.profile = Some(Profile::Release);
+		cmd.command.state = Some(State::Snap { path: Some(get_mock_snapshot()) });
+
+		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
+		let mut cli = MockCli::new()
+			.expect_intro("Testing migrations")
+			.expect_confirm(
+				format!(
+					"Do you want to specify which runtime to run the migration on?\n{}",
+					style("If not provided, use the code of the remote node, or a snapshot.").dim()
+				),
+				true,
+			)
+            .expect_warning("NOTE: Make sure your runtime is built with `try-runtime` feature.")
+			.expect_input(
+				"Please specify the path to the runtime project or the runtime binary.",
+				get_mock_runtime(None).to_str().unwrap().to_string(),
+			)
+			.expect_select(
+				"Select upgrade checks to perform:",
+				Some(true),
+				true,
+				Some(get_upgrade_checks_items()),
+				1, // all
+				None,
+			)
+            .expect_warning("NOTE: this may take some time...")
+            .expect_confirm("⚠️ Runtime spec names must match. Do you want to disable the spec name check and try again?", true)
+			.expect_warning("NOTE: this may take some time...")
+			.expect_confirm(
+			    "⚠️ New runtime spec version must be greater than the on-chain runtime spec version. \
+				Do you want to disable the spec version check and try again?",
+                true
+    		);
+		cmd.execute(&mut cli).await?;
+		cli.verify()
+	}
+
+	#[test]
+	fn handle_check_errors_works() -> anyhow::Result<()> {
+		let mut command = TestOnRuntimeUpgradeCommand::default();
+
+		// --disable-spec-version-check.
+		for (confirm, result) in [
+			(true, Ok(())),
+			(false, Err(anyhow::anyhow!("Failed to run migrations: Invalid spec version. You can disable the check manually by adding the `--disable-spec-version-check` flag.")))
+		] {
+			let mut cli = MockCli::new().expect_confirm(
+			    "⚠️ New runtime spec version must be greater than the on-chain runtime spec version. \
+				Do you want to disable the spec version check and try again?",
+                confirm
+    		);
+			let _result =
+				command.handle_check_errors(DISABLE_SPEC_VERSION_CHECK.to_string(), &mut cli);
+			if result.is_ok() {
+				assert!(_result.is_ok());
+			} else if let Err(error) = result {
+				assert_eq!(_result.unwrap_err().to_string(), error.to_string());
+			}
+		}
+
+		// --disable-spec-name-check.
+		for (confirm, result) in [
+			(true, Ok(())),
+			(false, Err(anyhow::anyhow!("Failed to run migrations: Invalid spec name. You can disable the check manually by adding the `--disable-spec-name-check` flag.")))
+		] {
+			let mut cli = MockCli::new().expect_confirm(
+    			"⚠️ Runtime spec names must match. Do you want to disable the spec name check and try again?",
+                confirm
+    		);
+			let _result =
+				command.handle_check_errors(DISABLE_SPEC_NAME_CHECK.to_string(), &mut cli);
+			if result.is_ok() {
+				assert!(_result.is_ok());
+			} else if let Err(error) = result {
+				assert_eq!(_result.unwrap_err().to_string(), error.to_string());
+			}
+		}
+		Ok(())
+	}
+
+	#[tokio::test]
 	async fn test_on_runtime_upgrade_invalid_runtime_path() -> anyhow::Result<()> {
 		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
 		let mut cmd = TestOnRuntimeUpgradeCommand::default();
 		cmd.shared_params.runtime = Runtime::Path(PathBuf::from("./dummy-runtime-path"));
-		cmd.command.blocktime = Some(DEFAULT_BLOCK_TIME);
 		cmd.command.state = Some(State::Snap { path: Some(get_mock_snapshot()) });
 		let error = cmd.run(&mut MockCli::new()).await.unwrap_err().to_string();
 		assert!(error.contains(
@@ -568,7 +687,6 @@ mod tests {
 		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
 		let mut cmd = TestOnRuntimeUpgradeCommand::default();
 		cmd.shared_params.runtime = Runtime::Path(get_mock_runtime(None));
-		cmd.command.blocktime = Some(DEFAULT_BLOCK_TIME);
 		cmd.command.state = Some(State::Snap { path: Some(get_mock_snapshot()) });
 		cmd.shared_params.disable_spec_name_check = true;
 		cmd.command.disable_spec_version_check = true;
@@ -583,7 +701,6 @@ mod tests {
 		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
 		let mut cmd = TestOnRuntimeUpgradeCommand::default();
 		cmd.shared_params.runtime = Runtime::Path(PathBuf::from("./dummy-runtime-path"));
-		cmd.command.blocktime = Some(DEFAULT_BLOCK_TIME);
 		cmd.command.state = Some(State::Live(LiveState {
 			uri: Some("https://example.com".to_string()),
 			..Default::default()
@@ -601,7 +718,7 @@ mod tests {
 			(
 				"--blocktime=20",
 				Box::new(|cmd| {
-					cmd.command.blocktime = Some(10);
+					cmd.command.blocktime = 10;
 				}),
 				"--blocktime=10",
 			),
@@ -754,10 +871,8 @@ mod tests {
 		let mut cli = MockCli::new().expect_input(
 			format!(
 				"Enter path to your snapshot file?\n{}.",
-				console::style(
-					"Snapshot file can be generated using `pop test create-snapshot` command"
-				)
-				.dim()
+				style("Snapshot file can be generated using `pop test create-snapshot` command")
+					.dim()
 			),
 			snapshot_file.to_str().unwrap().to_string(),
 		);
@@ -792,10 +907,8 @@ mod tests {
 		let mut cli = MockCli::new().expect_input(
 			format!(
 				"Enter path to your snapshot file?\n{}.",
-				console::style(
-					"Snapshot file can be generated using `pop test create-snapshot` command"
-				)
-				.dim()
+				style("Snapshot file can be generated using `pop test create-snapshot` command")
+					.dim()
 			),
 			"invalid-path-to-file".to_string(),
 		);
