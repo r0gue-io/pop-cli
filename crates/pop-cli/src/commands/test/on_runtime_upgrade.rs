@@ -11,7 +11,7 @@ use crate::{
 		runtime::{ensure_runtime_binary_exists, Feature},
 		try_runtime::{
 			argument_exists, check_try_runtime_and_prompt, collect_shared_arguments,
-			partition_arguments, update_state_source, ArgumentConstructor,
+			collect_state_arguments, partition_arguments, update_state_source, ArgumentConstructor,
 		},
 	},
 };
@@ -206,7 +206,7 @@ impl TestOnRuntimeUpgradeCommand {
 		let mut args = vec![];
 		self.collect_arguments_before_subcommand(&command_arguments, &mut args);
 		args.push(self.subcommand()?);
-		self.collect_arguments_after_subcommand(&after_subcommand, &mut args);
+		collect_state_arguments(&self.command.state, &after_subcommand, &mut args)?;
 
 		run_try_runtime(
 			&binary_path,
@@ -242,27 +242,6 @@ impl TestOnRuntimeUpgradeCommand {
 		c.finalize(&[]);
 	}
 
-	// Handle arguments after the subcommand.
-	fn collect_arguments_after_subcommand(
-		&self,
-		user_provided_args: &[String],
-		args: &mut Vec<String>,
-	) {
-		let mut c = ArgumentConstructor::new(args, user_provided_args);
-		match self.command.state.as_ref().unwrap() {
-			State::Live(ref state) => {
-				c.add(&[], true, "--uri", state.uri.clone());
-				c.add(&[], true, "--at", state.at.clone());
-			},
-			State::Snap { path } =>
-				if let Some(ref path) = path {
-					let path = path.to_str().unwrap().to_string();
-					c.add(&[], !path.is_empty(), "--path", Some(path));
-				},
-		}
-		c.finalize(&["--at="]);
-	}
-
 	fn display(&self) -> anyhow::Result<String> {
 		let mut cmd_args = vec!["pop test on-runtime-upgrade".to_string()];
 		let mut args = vec![];
@@ -274,7 +253,7 @@ impl TestOnRuntimeUpgradeCommand {
 		collect_shared_arguments(&self.shared_params, &shared_params, &mut args);
 		self.collect_arguments_before_subcommand(&command_arguments, &mut args);
 		args.push(subcommand);
-		self.collect_arguments_after_subcommand(&after_subcommand, &mut args);
+		collect_state_arguments(&self.command.state, &after_subcommand, &mut args)?;
 		cmd_args.extend(args);
 		Ok(cmd_args.join(" "))
 	}
@@ -688,90 +667,6 @@ mod tests {
 			command.collect_arguments_before_subcommand(&[], &mut args);
 			assert_eq!(args.iter().filter(|a| a.contains(&expected_arg.to_string())).count(), 1);
 		}
-		Ok(())
-	}
-
-	#[test]
-	fn collect_arguments_after_live_subcommand_works() -> anyhow::Result<()> {
-		let mut command = TestOnRuntimeUpgradeCommand::default();
-		command.command.state = Some(State::Live(LiveState::default()));
-
-		// No arguments.
-		let mut args = vec![];
-		command.collect_arguments_after_subcommand(&vec![], &mut args);
-		assert!(args.is_empty());
-
-		let mut live_state = LiveState::default();
-		live_state.uri = Some(DEFAULT_LIVE_NODE_URL.to_string());
-		command.command.state = Some(State::Live(live_state.clone()));
-		// Keep the user-provided argument unchanged.
-		let user_provided_args = &["--uri".to_string(), "ws://localhost:9944".to_string()];
-		let mut args = vec![];
-		command.collect_arguments_after_subcommand(user_provided_args, &mut args);
-		assert_eq!(args, user_provided_args);
-
-		// If the user does not provide a `--uri` argument, modify with the argument updated during
-		// runtime.
-		let mut args = vec![];
-		command.collect_arguments_after_subcommand(&vec![], &mut args);
-		assert_eq!(args, vec![format!("--uri={}", live_state.uri.clone().unwrap_or_default())]);
-
-		live_state.at = Some(DEFAULT_BLOCK_HASH.to_string());
-		command.command.state = Some(State::Live(live_state.clone()));
-		// Keep the user-provided argument unchanged.
-		let user_provided_args = &[
-			format!("--uri={}", live_state.uri.clone().unwrap_or_default()),
-			"--at".to_string(),
-			"0x1234567890".to_string(),
-		];
-		let mut args = vec![];
-		command.collect_arguments_after_subcommand(user_provided_args, &mut args);
-		assert_eq!(args, user_provided_args);
-
-		// Not allow empty `--at`.
-		let user_provided_args =
-			&[format!("--uri={}", live_state.uri.clone().unwrap_or_default()), "--at=".to_string()];
-		let mut args = vec![];
-		command.collect_arguments_after_subcommand(user_provided_args, &mut args);
-		assert_eq!(args, vec![format!("--uri={}", live_state.uri.clone().unwrap_or_default())]);
-
-		// If the user does not provide a block hash `--at` argument, modify with the argument
-		// updated during runtime.
-		let mut args = vec![];
-		command.collect_arguments_after_subcommand(&vec![], &mut args);
-		assert_eq!(
-			args,
-			vec![
-				format!("--uri={}", live_state.uri.unwrap_or_default()),
-				format!("--at={}", live_state.at.unwrap_or_default())
-			]
-		);
-		Ok(())
-	}
-
-	#[test]
-	fn collect_arguments_after_snap_subcommand_works() -> anyhow::Result<()> {
-		let mut command = TestOnRuntimeUpgradeCommand::default();
-		command.command.state = Some(State::Snap { path: Some(PathBuf::default()) });
-
-		// No arguments.
-		let mut args = vec![];
-		command.collect_arguments_after_subcommand(&vec![], &mut args);
-		assert!(args.is_empty());
-
-		let state = State::Snap { path: Some(PathBuf::from("./existing-file")) };
-		command.command.state = Some(state);
-		// Keep the user-provided argument unchanged.
-		let user_provided_args = &["--path".to_string(), "./path-to-file".to_string()];
-		let mut args = vec![];
-		command.collect_arguments_after_subcommand(user_provided_args, &mut args);
-		assert_eq!(args, user_provided_args);
-
-		// If the user does not provide a `--path` argument, modify with the argument updated during
-		// runtime.
-		let mut args = vec![];
-		command.collect_arguments_after_subcommand(&vec![], &mut args);
-		assert_eq!(args, vec!["--path=./existing-file"]);
 		Ok(())
 	}
 

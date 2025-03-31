@@ -248,6 +248,11 @@ pub(crate) fn argument_exists(args: &[String], arg: &str) -> bool {
 }
 
 /// Collect arguments shared across all `try-runtime-cli` commands.
+///
+/// # Arguments
+/// * `shared_params` - The shared parameters.
+/// * `user_provided_args` - The user-provided arguments.
+/// * `args` - The vector of arguments to be collected.
 pub(crate) fn collect_shared_arguments(
 	shared_params: &SharedParams,
 	user_provided_args: &[String],
@@ -274,6 +279,34 @@ pub(crate) fn collect_shared_arguments(
 		Some(String::default()),
 	);
 	c.finalize(&[]);
+}
+
+/// Collect arguments for the `state` command.
+///
+/// # Arguments
+///
+/// * `state` - The state of the runtime.
+/// * `user_provided_args` - The user-provided arguments.
+/// * `args` - The vector of arguments to be collected.
+pub(crate) fn collect_state_arguments(
+	state: &Option<State>,
+	user_provided_args: &[String],
+	args: &mut Vec<String>,
+) -> Result<(), anyhow::Error> {
+	let mut c = ArgumentConstructor::new(args, user_provided_args);
+	match state.as_ref().ok_or_else(|| anyhow::anyhow!("No state provided"))? {
+		State::Live(ref state) => {
+			c.add(&[], true, "--uri", state.uri.clone());
+			c.add(&[], true, "--at", state.at.clone());
+		},
+		State::Snap { path } =>
+			if let Some(ref path) = path {
+				let path = path.to_str().unwrap().to_string();
+				c.add(&[], !path.is_empty(), "--path", Some(path));
+			},
+	}
+	c.finalize(&["--at="]);
+	Ok(())
 }
 
 /// Partition arguments into command-specific arguments, shared arguments, and remaining arguments.
@@ -553,6 +586,90 @@ mod tests {
 		let mut args = vec![];
 		collect_shared_arguments(&shared_params, &vec![], &mut args);
 		assert_eq!(args, vec!["--runtime=path-to-runtime".to_string()]);
+		Ok(())
+	}
+
+	#[test]
+	fn collect_live_state_arguments_works() -> anyhow::Result<()> {
+		let mut cmd = MockCommand::default();
+		cmd.state = Some(State::Live(LiveState::default()));
+
+		// No arguments.
+		let mut args = vec![];
+		collect_state_arguments(&cmd.state, &vec![], &mut args)?;
+		assert!(args.is_empty());
+
+		let mut live_state = LiveState::default();
+		live_state.uri = Some(DEFAULT_LIVE_NODE_URL.to_string());
+		cmd.state = Some(State::Live(live_state.clone()));
+		// Keep the user-provided argument unchanged.
+		let user_provided_args = &["--uri".to_string(), "ws://localhost:9944".to_string()];
+		let mut args = vec![];
+		collect_state_arguments(&cmd.state, user_provided_args, &mut args)?;
+		assert_eq!(args, user_provided_args);
+
+		// If the user does not provide a `--uri` argument, modify with the argument updated during
+		// runtime.
+		let mut args = vec![];
+		collect_state_arguments(&cmd.state, &vec![], &mut args)?;
+		assert_eq!(args, vec![format!("--uri={}", live_state.uri.clone().unwrap_or_default())]);
+
+		live_state.at = Some(DEFAULT_BLOCK_HASH.to_string());
+		cmd.state = Some(State::Live(live_state.clone()));
+		// Keep the user-provided argument unchanged.
+		let user_provided_args = &[
+			format!("--uri={}", live_state.uri.clone().unwrap_or_default()),
+			"--at".to_string(),
+			"0x1234567890".to_string(),
+		];
+		let mut args = vec![];
+		collect_state_arguments(&cmd.state, user_provided_args, &mut args)?;
+		assert_eq!(args, user_provided_args);
+
+		// Not allow empty `--at`.
+		let user_provided_args =
+			&[format!("--uri={}", live_state.uri.clone().unwrap_or_default()), "--at=".to_string()];
+		let mut args = vec![];
+		collect_state_arguments(&cmd.state, user_provided_args, &mut args)?;
+		assert_eq!(args, vec![format!("--uri={}", live_state.uri.clone().unwrap_or_default())]);
+
+		// If the user does not provide a block hash `--at` argument, modify with the argument
+		// updated during runtime.
+		let mut args = vec![];
+		collect_state_arguments(&cmd.state, &vec![], &mut args)?;
+		assert_eq!(
+			args,
+			vec![
+				format!("--uri={}", live_state.uri.unwrap_or_default()),
+				format!("--at={}", live_state.at.unwrap_or_default())
+			]
+		);
+		Ok(())
+	}
+
+	#[test]
+	fn collect_snap_state_arguments_works() -> anyhow::Result<()> {
+		let mut cmd = MockCommand::default();
+		cmd.state = Some(State::Snap { path: Some(PathBuf::default()) });
+
+		// No arguments.
+		let mut args = vec![];
+		collect_state_arguments(&cmd.state, &vec![], &mut args)?;
+		assert!(args.is_empty());
+
+		let state = State::Snap { path: Some(PathBuf::from("./existing-file")) };
+		cmd.state = Some(state);
+		// Keep the user-provided argument unchanged.
+		let user_provided_args = &["--path".to_string(), "./path-to-file".to_string()];
+		let mut args = vec![];
+		collect_state_arguments(&cmd.state, user_provided_args, &mut args)?;
+		assert_eq!(args, user_provided_args);
+
+		// If the user does not provide a `--path` argument, modify with the argument updated during
+		// runtime.
+		let mut args = vec![];
+		collect_state_arguments(&cmd.state, &vec![], &mut args)?;
+		assert_eq!(args, vec!["--path=./existing-file"]);
 		Ok(())
 	}
 

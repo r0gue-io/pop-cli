@@ -1,6 +1,6 @@
 use crate::{errors::handle_command_error, Error};
 use duct::cmd;
-use frame_try_runtime::UpgradeCheckSelect;
+use frame_try_runtime::{TryStateSelect, UpgradeCheckSelect};
 use std::{fmt::Display, path::PathBuf};
 
 /// Provides functionality for sourcing binaries of the `try-runtime-cli`.
@@ -16,12 +16,15 @@ pub mod state;
 pub enum TryRuntimeCliCommand {
 	/// Command to test runtime upgrades.
 	OnRuntimeUpgrade,
+	/// Command to test block execution.
+	ExecuteBlock,
 }
 
 impl Display for TryRuntimeCliCommand {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		let s = match self {
 			TryRuntimeCliCommand::OnRuntimeUpgrade => "on-runtime-upgrade",
+			TryRuntimeCliCommand::ExecuteBlock => "execute-block",
 		};
 		write!(f, "{}", s)
 	}
@@ -45,6 +48,27 @@ pub fn upgrade_checks_details(upgrade_check_select: UpgradeCheckSelect) -> (Stri
 			"Run the `pre_upgrade` and `post_upgrade` checks".to_string(),
 		),
 	}
+}
+
+/// Parse the `try_state` to string.
+///
+/// # Arguments
+/// * `try_state` - The selected try state option.
+pub fn parse_try_state_string(try_state: TryStateSelect) -> Result<String, Error> {
+	Ok(match try_state {
+		TryStateSelect::All => "all".to_string(),
+		TryStateSelect::None => "none".to_string(),
+		TryStateSelect::RoundRobin(rounds) => format!("rr-{}", rounds),
+		TryStateSelect::Only(pallets) => {
+			let mut result = vec![];
+			for pallet in pallets {
+				result.push(String::from_utf8(pallet).map_err(|_| {
+					Error::ParamParsingError("Invalid pallet string in `try_state`".to_string())
+				})?);
+			}
+			result.join(",")
+		},
+	})
 }
 
 /// Run `try-runtime-cli` binary.
@@ -83,4 +107,24 @@ pub fn run_try_runtime(
 		println!("{}", String::from_utf8_lossy(&output.stderr));
 	}
 	Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn test_parse_try_state_string() {
+		assert_eq!(parse_try_state_string(TryStateSelect::All).unwrap(), "all");
+		assert_eq!(parse_try_state_string(TryStateSelect::None).unwrap(), "none");
+		assert_eq!(parse_try_state_string(TryStateSelect::RoundRobin(5)).unwrap(), "rr-5");
+		assert_eq!(
+			parse_try_state_string(TryStateSelect::Only(vec![
+				b"System".to_vec(),
+				b"Proxy".to_vec()
+			]))
+			.unwrap(),
+			"System,Proxy"
+		);
+	}
 }
