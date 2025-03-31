@@ -663,7 +663,7 @@ mod tests {
 			get_instantiate_payload(set_up_deployment(up_contract_opts.into()).await?, weight)?;
 
 		#[cfg(feature = "polkavm-contracts")]
-		let instantiate_exec = set_up_deployment(up_contract_opts.clone().into()).await?;
+		let instantiate_exec = set_up_deployment(up_contract_opts.into()).await?;
 		#[cfg(feature = "polkavm-contracts")]
 		let expected_call_data = get_instantiate_payload(instantiate_exec, weight).await?;
 		// Retrieved call data matches the one crafted above.

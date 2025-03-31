@@ -666,7 +666,6 @@ mod tests {
 		#[cfg(feature = "v5")]
 		let hex_bytes = from_hex("98c24584107b3a01d12e8e02c0bb634d15dc86123c44d186206813ede42f478d")
 			.expect("Invalid hex string");
-		// 0x1e971a1ba0f3fe41c9c162ab30bb0ab9300108ddf32c4c4cdd01adf01638a76f
 		#[cfg(feature = "v6")]
 		let hex_bytes = from_hex("1e971a1ba0f3fe41c9c162ab30bb0ab9300108ddf32c4c4cdd01adf01638a76f")
 			.expect("Invalid hex string");

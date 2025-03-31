@@ -95,9 +95,16 @@ pub(crate) async fn map_account(
 	cli: &mut impl Cli,
 ) -> anyhow::Result<()> {
 	let mapper = AccountMapper::new(extrinsic_opts).await?;
-	if mapper.needs_mapping().await? && cli.confirm("The account you're submitting from is not yet mapped. Would you like to map your account?").initial_value(true).interact()? {
+	if mapper.needs_mapping().await? &&
+		cli.confirm("Your account is not yet mapped. Would you like to map it?")
+			.initial_value(true)
+			.interact()?
+	{
 		let address = mapper.map_account().await?;
-		cli.success(format!("Account mapped successfully.\n{}", style(format!("Address {:?}.", address)).dim()))?;
+		cli.success(format!(
+			"Account mapped successfully.\n{}",
+			style(format!("Address {:?}.", address)).dim()
+		))?;
 	}
 	Ok(())
 }
