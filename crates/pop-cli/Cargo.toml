@@ -73,3 +73,4 @@ polkavm-contracts = ["pop-contracts/v6", "dep:dirs", "v6"]
 telemetry = ["dep:pop-telemetry"]
 v5 = [] 
 wasm-contracts = ["pop-contracts/v5", "dep:dirs", "v5"]
+
