@@ -16,12 +16,15 @@ pub mod state;
 pub enum TryRuntimeCliCommand {
 	/// Command to test runtime upgrades.
 	OnRuntimeUpgrade,
+	/// Command to create a snapshot.
+	CreateSnapshot,
 }
 
 impl Display for TryRuntimeCliCommand {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		let s = match self {
 			TryRuntimeCliCommand::OnRuntimeUpgrade => "on-runtime-upgrade",
+			TryRuntimeCliCommand::CreateSnapshot => "create-snapshot",
 		};
 		write!(f, "{}", s)
 	}

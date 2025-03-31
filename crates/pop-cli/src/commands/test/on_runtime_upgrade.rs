@@ -168,7 +168,7 @@ impl TestOnRuntimeUpgradeCommand {
 					Ok(()) => continue,
 					Err(e) => {
 						cli.info(self.display()?)?;
-						return display_message(&e.to_string(), false, cli)
+						return display_message(&e.to_string(), false, cli);
 					},
 				}
 			}
