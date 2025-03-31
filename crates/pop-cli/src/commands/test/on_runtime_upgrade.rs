@@ -126,14 +126,13 @@ impl TestOnRuntimeUpgradeCommand {
 				Err(e) => return display_message(&e.to_string(), false, cli),
 			}
 		};
-		if !argument_exists(&user_provided_args, "--runtime")
-			&& cli
-				.confirm(format!(
-					"Do you want to specify which runtime to run the migration on?\n{}",
-					style("If not provided, use the code of the remote node, or a snapshot.").dim()
-				))
-				.initial_value(true)
-				.interact()?
+		if !argument_exists(&user_provided_args, "--runtime") &&
+			cli.confirm(format!(
+				"Do you want to specify which runtime to run the migration on?\n{}",
+				style("If not provided, use the code of the remote node, or a snapshot.").dim()
+			))
+			.initial_value(true)
+			.interact()?
 		{
 			if self.no_build {
 				cli.warning("NOTE: Make sure your runtime is built with `try-runtime` feature.")?;
@@ -183,22 +182,20 @@ impl TestOnRuntimeUpgradeCommand {
 		cli.warning("NOTE: this may take some time...")?;
 		let spinner = spinner();
 		match self.command.state {
-			Some(State::Live(ref live_state)) => {
+			Some(State::Live(ref live_state)) =>
 				if let Some(ref uri) = live_state.uri {
 					spinner.start(format!(
 						"Running migrations against live state at {}...",
 						style(&uri).magenta().underlined()
 					));
-				}
-			},
-			Some(State::Snap { ref path }) => {
+				},
+			Some(State::Snap { ref path }) =>
 				if let Some(p) = path {
 					spinner.start(format!(
 						"Running migrations using a snapshot file at {}...",
 						p.display()
 					));
-				}
-			},
+				},
 			None => return Err(anyhow::anyhow!("No subcommand provided")),
 		}
 		sleep(Duration::from_secs(1));
@@ -262,12 +259,11 @@ impl TestOnRuntimeUpgradeCommand {
 				c.add(&[], true, "--uri", state.uri.clone());
 				c.add(&[], true, "--at", state.at.clone());
 			},
-			State::Snap { path } => {
+			State::Snap { path } =>
 				if let Some(ref path) = path {
 					let path = path.to_str().unwrap().to_string();
 					c.add(&[], !path.is_empty(), "--path", Some(path));
-				}
-			},
+				},
 		}
 		c.finalize(&["--at="]);
 	}
@@ -275,9 +271,8 @@ impl TestOnRuntimeUpgradeCommand {
 	fn update_state_source(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		let (subcommand, path, live_state) = match self.command.state {
 			Some(State::Live(ref state)) => (&StateCommand::Live, None, state.clone()),
-			Some(State::Snap { ref path }) => {
-				(&StateCommand::Snap, path.clone(), LiveState::default())
-			},
+			Some(State::Snap { ref path }) =>
+				(&StateCommand::Snap, path.clone(), LiveState::default()),
 			None => (guide_user_to_select_state_source(cli)?, None, LiveState::default()),
 		};
 		match subcommand {

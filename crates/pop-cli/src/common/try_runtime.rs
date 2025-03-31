@@ -105,9 +105,9 @@ impl<'a> ArgumentConstructor<'a> {
 		flag: &str,
 		value: Option<String>,
 	) {
-		if !self.seen.contains(flag)
-			&& condition_args.iter().all(|a| !self.seen.contains(*a))
-			&& external_condition
+		if !self.seen.contains(flag) &&
+			condition_args.iter().all(|a| !self.seen.contains(*a)) &&
+			external_condition
 		{
 			if let Some(v) = value {
 				if !v.is_empty() {
