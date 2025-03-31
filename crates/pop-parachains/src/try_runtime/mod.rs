@@ -41,8 +41,9 @@ pub fn upgrade_checks_details(upgrade_check_select: UpgradeCheckSelect) -> (Stri
 			"all".to_string(),
 			"Run the `try_state`, `pre_upgrade` and `post_upgrade` checks".to_string(),
 		),
-		UpgradeCheckSelect::TryState =>
-			("try-state".to_string(), "Run the `try_state` checks".to_string()),
+		UpgradeCheckSelect::TryState => {
+			("try-state".to_string(), "Run the `try_state` checks".to_string())
+		},
 		UpgradeCheckSelect::PreAndPost => (
 			"pre-and-post".to_string(),
 			"Run the `pre_upgrade` and `post_upgrade` checks".to_string(),

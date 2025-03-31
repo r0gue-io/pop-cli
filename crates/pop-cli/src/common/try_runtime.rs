@@ -212,9 +212,9 @@ impl<'a> ArgumentConstructor<'a> {
 		flag: &str,
 		value: Option<String>,
 	) {
-		if !self.seen.contains(flag) &&
-			condition_args.iter().all(|a| !self.seen.contains(*a)) &&
-			external_condition
+		if !self.seen.contains(flag)
+			&& condition_args.iter().all(|a| !self.seen.contains(*a))
+			&& external_condition
 		{
 			if let Some(v) = value {
 				if !v.is_empty() {
@@ -314,11 +314,12 @@ pub(crate) fn collect_state_arguments(
 			c.add(&[], true, "--uri", state.uri.clone());
 			c.add(&[], true, "--at", state.at.clone());
 		},
-		State::Snap { path } =>
+		State::Snap { path } => {
 			if let Some(ref path) = path {
 				let path = path.to_str().unwrap().to_string();
 				c.add(&[], !path.is_empty(), "--path", Some(path));
-			},
+			}
+		},
 	}
 	c.finalize(&["--at="]);
 	Ok(())
