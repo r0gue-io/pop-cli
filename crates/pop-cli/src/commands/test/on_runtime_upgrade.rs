@@ -121,14 +121,13 @@ impl TestOnRuntimeUpgradeCommand {
 				Err(e) => return display_message(&e.to_string(), false, cli),
 			}
 		};
-		if !argument_exists(&user_provided_args, "--runtime")
-			&& cli
-				.confirm(format!(
-					"Do you want to specify which runtime to run the migration on?\n{}",
-					style("If not provided, use the code of the remote node, or a snapshot.").dim()
-				))
-				.initial_value(true)
-				.interact()?
+		if !argument_exists(&user_provided_args, "--runtime") &&
+			cli.confirm(format!(
+				"Do you want to specify which runtime to run the migration on?\n{}",
+				style("If not provided, use the code of the remote node, or a snapshot.").dim()
+			))
+			.initial_value(true)
+			.interact()?
 		{
 			if self.no_build {
 				cli.warning("NOTE: Make sure your runtime is built with `try-runtime` feature.")?;
@@ -178,22 +177,20 @@ impl TestOnRuntimeUpgradeCommand {
 		cli.warning("NOTE: this may take some time...")?;
 		let spinner = spinner();
 		match self.command.state {
-			Some(State::Live(ref live_state)) => {
+			Some(State::Live(ref live_state)) =>
 				if let Some(ref uri) = live_state.uri {
 					spinner.start(format!(
 						"Running migrations against live state at {}...",
 						style(&uri).magenta().underlined()
 					));
-				}
-			},
-			Some(State::Snap { ref path }) => {
+				},
+			Some(State::Snap { ref path }) =>
 				if let Some(p) = path {
 					spinner.start(format!(
 						"Running migrations using a snapshot file at {}...",
 						p.display()
 					));
-				}
-			},
+				},
 			None => return Err(anyhow::anyhow!("No subcommand provided")),
 		}
 		sleep(Duration::from_secs(1));
