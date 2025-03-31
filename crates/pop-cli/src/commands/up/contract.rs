@@ -278,9 +278,16 @@ impl UpContractCommand {
 					};
 
 					let hash = contract_info.code_hash.map(|code_hash| format!("{:?}", code_hash));
+					#[cfg(feature = "wasm-contracts")]
 					display_contract_info(
 						&spinner,
 						contract_info.contract_address.to_string(),
+						hash,
+					);
+					#[cfg(feature = "polkavm-contracts")]
+					display_contract_info(
+						&spinner,
+						format!("{:?}",contract_info.contract_address),
 						hash,
 					);
 				};
