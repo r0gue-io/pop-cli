@@ -5,12 +5,11 @@ use crate::{
 	common::binary::{check_and_prompt, BinaryGenerator},
 	impl_binary_generator,
 };
-use clap::{self, Args, Parser};
+use clap::{Args, Parser};
 use duct::cmd;
 use pop_common::sourcing::Binary;
 use pop_parachains::{try_runtime_generator, Runtime, SharedParams};
 use std::{
-	self,
 	collections::HashSet,
 	fmt::Display,
 	path::{Path, PathBuf},

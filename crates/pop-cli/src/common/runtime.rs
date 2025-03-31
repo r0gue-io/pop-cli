@@ -83,7 +83,7 @@ fn build_runtime(
 	cli.warning("NOTE: this may take some time...")?;
 	let features = features.iter().map(|f| f.as_ref()).collect();
 	build_project(runtime_path, None, mode, features, None)?;
-	cli.info("\n✅ Runtime built successfully.\n")?;
+	cli.success("\n✅ Runtime built successfully.\n")?;
 	runtime_binary_path(target_path, runtime_path).map_err(|e| e.into())
 }
 
