@@ -123,75 +123,24 @@ jobs:
             cargo llvm-cov --bins \
               -p ${{ matrix.crate }} \
               --features "parachain telemetry wasm-contracts" \
-              --no-report
+              --codecov --output-path codecov-${{ matrix.crate }}.json
           elif [[ "${{ matrix.crate }}" == "pop-contracts" ]]; then
             cargo llvm-cov --lib --bins \
               -p ${{ matrix.crate }} \
               --features "v5" \
-              --no-report
+              --codecov --output-path codecov-${{ matrix.crate }}.json
           else
             cargo llvm-cov --lib --bins \
               -p ${{ matrix.crate }} \
-              --no-report
+              --codecov --output-path codecov-${{ matrix.crate }}.json
           fi
-
-      - name: Archive coverage data
-        if: always()
-        run: |
-          mkdir -p archive
-          tar -czf archive/coverage-data-${{ matrix.crate }}.tar.gz -C target/llvm-cov-target .
-
-      - name: Upload compressed coverage artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-data-${{ matrix.crate }}
-          path: archive/coverage-data-${{ matrix.crate }}.tar.gz
-
-  coverage-merge-upload:
-    needs: coverage
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Clean workspace before merging
-        run: |
-          echo "Freeing space before artifact extraction..."
-          sudo rm -rf target/
-          sudo rm -rf ~/.cargo/registry
-          sudo rm -rf ~/.cargo/git
-          df -h
-
-      - name: Download all coverage artifacts
-        uses: actions/download-artifact@v4
-        with:
-          pattern: coverage-data-*
-          path: artifacts
-
-      - name: Extract all coverage data
-        run: |
-          mkdir -p target/llvm-cov-target
-          for archive in artifacts/**/*.tar.gz; do
-            echo "Extracting $archive"
-            tar -xzf "$archive" -C target/llvm-cov-target
-          done
-
-      - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@cargo-llvm-cov
-
-      - name: Merge and generate final report
-        run: |
-          cargo llvm-cov report \
-            --codecov --output-path codecov.json \
-            --lcov --output-path lcov.info \
-            --doctests
 
       - name: Upload report to Codecov
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: codecov.json
+          files: codecov-${{ matrix.crate }}.json
           fail_ci_if_error: true
-
 
   documentation-tests:
     needs: lint
