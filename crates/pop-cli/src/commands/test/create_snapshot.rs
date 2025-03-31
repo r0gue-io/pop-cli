@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0
+
 use crate::{
 	cli::{self, traits::Input},
 	common::{
@@ -11,7 +13,7 @@ use console::style;
 use pop_parachains::{run_try_runtime, state::LiveState, TryRuntimeCliCommand};
 
 const CUSTOM_ARGS: [&str; 2] = ["--skip-confirm", "-y"];
-const DEFAULT_REMOTE_NODE_URL: &str = "ws://127.0.0.1:9944";
+const DEFAULT_REMOTE_NODE_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";
 const DEFAULT_SNAPSHOT_PATH: &str = "example.snap";
 
 #[derive(Args, Default)]
@@ -40,19 +42,12 @@ impl TestCreateSnapshotCommand {
 		)?;
 
 		if self.from.uri.is_none() {
-			self.from.uri = Some(
-				cli.input(format!(
-    				"Enter the URI of the remote node:\n{}",
-    				style(
-    					"Ensures your remote node is built with the `try-runtime` feature enabled. \
-    					If not, you can run `pop build --try-runtime` to rebuild your node."
-    				)
-    				.dim()
-    			))
+			let input = cli
+				.input("Enter the URI of the remote node:")
 				.placeholder(DEFAULT_REMOTE_NODE_URL)
 				.required(true)
-				.interact()?,
-			);
+				.interact()?;
+			self.from.uri = Some(input.trim().to_string());
 		}
 		if self.snapshot_path.is_none() {
 			let input = cli
@@ -79,13 +74,9 @@ impl TestCreateSnapshotCommand {
 			&format!(
 				"Snapshot is created successfully!{}",
 				if let Some(p) = self.snapshot_path {
-					style(format!(
-						"\n{} Generated snapshot file: {}",
-						console::Emoji("●", ">"),
-						p.to_string()
-					))
-					.dim()
-					.to_string()
+					style(format!("\n{} Generated snapshot file: {}", console::Emoji("●", ">"), p))
+						.dim()
+						.to_string()
 				} else {
 					String::default()
 				}
@@ -164,15 +155,8 @@ mod tests {
 				"NOTE: `create-snapshot` only works with the remote node. No runtime required.",
 			)
 			.expect_input(
-				format!(
-    				"Enter the URI of the remote node:\n{}",
-    				style(
-    					"Ensures your remote node is built with the `try-runtime` feature enabled. \
-       					If not, you can run `pop build --try-runtime` to rebuild your node."
-    				)
-    				.dim()
-    			),
-				"wss://rpc.ibp.network/paseo".to_string()
+				"Enter the URI of the remote node:",
+				DEFAULT_REMOTE_NODE_URL.to_string()
 			).expect_input(
 			    format!(
          			"Enter the path to write the snapshot to (optional):\n{}",
