@@ -287,7 +287,7 @@ impl UpContractCommand {
 					#[cfg(feature = "polkavm-contracts")]
 					display_contract_info(
 						&spinner,
-						format!("{:?}",contract_info.contract_address),
+						format!("{:?}", contract_info.contract_address),
 						hash,
 					);
 				};
