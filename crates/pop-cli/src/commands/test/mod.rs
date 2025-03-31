@@ -8,6 +8,8 @@ use std::path::PathBuf;
 #[cfg(feature = "contract")]
 pub mod contract;
 #[cfg(feature = "parachain")]
+pub mod execute_block;
+#[cfg(feature = "parachain")]
 pub mod on_runtime_upgrade;
 
 /// Arguments for testing.
@@ -37,6 +39,8 @@ pub(crate) enum Command {
 	/// Test migrations.
 	#[cfg(feature = "parachain")]
 	OnRuntimeUpgrade(on_runtime_upgrade::TestOnRuntimeUpgradeCommand),
+	#[cfg(feature = "parachain")]
+	ExecuteBlock(execute_block::TestExecuteBlockCommand),
 }
 
 impl Command {

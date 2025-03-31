@@ -6,16 +6,26 @@ use crate::{
 	impl_binary_generator,
 };
 use clap::{Args, Parser};
+use console::style;
 use duct::cmd;
 use pop_common::sourcing::Binary;
-use pop_parachains::{try_runtime_generator, Runtime, SharedParams};
+use pop_parachains::{
+	parse,
+	state::{LiveState, State, StateCommand},
+	try_runtime_generator, Runtime, SharedParams,
+};
 use std::{
 	collections::HashSet,
 	fmt::Display,
 	path::{Path, PathBuf},
 };
+use strum::{EnumMessage, VariantArray};
 
 const BINARY_NAME: &str = "try-runtime";
+pub(crate) const DEFAULT_BLOCK_HASH: &str =
+	"0xa1b16c1efd889a9f17375ec4dd5c1b4351a2be17fa069564fced10d23b9b3836";
+pub(crate) const DEFAULT_LIVE_NODE_URL: &str = "ws://127.0.0.1:9944";
+pub(crate) const DEFAULT_SNAPSHOT_PATH: &str = "your-parachain.snap";
 
 impl_binary_generator!(TryRuntimeGenerator, try_runtime_generator);
 
@@ -65,6 +75,88 @@ pub async fn source_try_runtime_binary(
 	skip_confirm: bool,
 ) -> anyhow::Result<PathBuf> {
 	check_and_prompt::<TryRuntimeGenerator>(cli, BINARY_NAME, cache_path, skip_confirm).await
+}
+
+/// Update the state source.
+///
+/// # Arguments
+/// * `cli`: Command line interface.
+/// * `state`: The state to update.
+pub fn update_state_source(cli: &mut impl Cli, state: &mut Option<State>) -> anyhow::Result<()> {
+	let (subcommand, path, live_state) = match state {
+		Some(State::Live(ref state)) => (&StateCommand::Live, None, state.clone()),
+		Some(State::Snap { ref path }) => (&StateCommand::Snap, path.clone(), LiveState::default()),
+		None => (guide_user_to_select_state_source(cli)?, None, LiveState::default()),
+	};
+	match subcommand {
+		StateCommand::Live => update_live_state(cli, live_state, state)?,
+		StateCommand::Snap => update_snapshot(cli, path, state)?,
+	}
+	Ok(())
+}
+
+fn update_snapshot(
+	cli: &mut impl Cli,
+	mut path: Option<PathBuf>,
+	state: &mut Option<State>,
+) -> anyhow::Result<()> {
+	if path.is_none() {
+		let snapshot_file: PathBuf = cli
+			.input(format!(
+				"Enter path to your snapshot file?\n{}.",
+				style("Snapshot file can be generated using `pop test create-snapshot` command")
+					.dim()
+			))
+			.required(true)
+			.placeholder(DEFAULT_SNAPSHOT_PATH)
+			.interact()?
+			.into();
+		if !snapshot_file.is_file() {
+			return Err(anyhow::anyhow!("Invalid path to the snapshot file."));
+		}
+		path = Some(snapshot_file);
+	}
+	*state = Some(State::Snap { path });
+	Ok(())
+}
+
+fn update_live_state(
+	cli: &mut impl Cli,
+	mut live_state: LiveState,
+	state: &mut Option<State>,
+) -> anyhow::Result<()> {
+	if live_state.uri.is_none() {
+		let uri = cli
+			.input("Enter the live chain of your node:")
+			.required(true)
+			.placeholder(DEFAULT_LIVE_NODE_URL)
+			.interact()?;
+		live_state.uri = Some(parse::url(&uri)?);
+	}
+	if live_state.at.is_none() {
+		let block_hash = cli
+			.input("Enter the block hash (optional):")
+			.required(false)
+			.placeholder(DEFAULT_BLOCK_HASH)
+			.interact()?;
+		if !block_hash.is_empty() {
+			live_state.at = Some(parse::hash(&block_hash)?);
+		}
+	}
+	*state = Some(State::Live(live_state.clone()));
+	Ok(())
+}
+
+fn guide_user_to_select_state_source(cli: &mut impl Cli) -> anyhow::Result<&StateCommand> {
+	let mut prompt = cli.select("Select source of runtime state to run the migration with:");
+	for subcommand in StateCommand::VARIANTS.iter() {
+		prompt = prompt.item(
+			subcommand,
+			subcommand.get_message().unwrap(),
+			subcommand.get_detailed_message().unwrap(),
+		);
+	}
+	prompt.interact().map_err(anyhow::Error::from)
 }
 
 /// Construct arguments based on provided conditions.
@@ -215,9 +307,164 @@ pub(crate) fn format_arg<A: Display, V: Display>(arg: A, value: V) -> String {
 }
 
 #[cfg(test)]
+pub(crate) fn get_mock_snapshot() -> PathBuf {
+	std::env::current_dir()
+		.unwrap()
+		.join("../../tests/snapshots/base_parachain.snap")
+		.canonicalize()
+		.unwrap()
+}
+
+#[cfg(test)]
+pub(crate) fn get_subcommands() -> Vec<(String, String)> {
+	StateCommand::VARIANTS
+		.iter()
+		.map(|subcommand| {
+			(
+				subcommand.get_message().unwrap().to_string(),
+				subcommand.get_detailed_message().unwrap().to_string(),
+			)
+		})
+		.collect()
+}
+
+#[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::cli::MockCli;
 	use clap::Parser;
+
+	#[derive(Default)]
+	struct MockCommand {
+		state: Option<State>,
+	}
+
+	#[test]
+	fn update_snapshot_state_works() -> anyhow::Result<()> {
+		let snapshot_file = get_mock_snapshot();
+		// Prompt for snapshot path if not provided.
+		let mut cmd = MockCommand::default();
+		let mut cli = MockCli::new().expect_input(
+			format!(
+				"Enter path to your snapshot file?\n{}.",
+				style("Snapshot file can be generated using `pop test create-snapshot` command")
+					.dim()
+			),
+			snapshot_file.to_str().unwrap().to_string(),
+		);
+		update_snapshot(&mut cli, None, &mut cmd.state)?;
+		match cmd.state {
+			Some(State::Snap { ref path }) => {
+				assert_eq!(path.as_ref().unwrap(), snapshot_file.as_path());
+			},
+			_ => panic!("Expected snapshot state"),
+		}
+		cli.verify()?;
+
+		// Use provided path without prompting.
+		let mut cmd = MockCommand::default();
+		let snapshot_path = Some(snapshot_file);
+		let mut cli = MockCli::new(); // No prompt expected
+		update_snapshot(&mut cli, snapshot_path.clone(), &mut cmd.state)?;
+		match cmd.state {
+			Some(State::Snap { ref path }) => {
+				assert_eq!(path, &snapshot_path);
+			},
+			_ => panic!("Expected snapshot state"),
+		}
+		cli.verify()?;
+
+		Ok(())
+	}
+
+	#[test]
+	fn update_snapshot_state_invalid_file_fails() -> anyhow::Result<()> {
+		let mut cmd = MockCommand::default();
+		let mut cli = MockCli::new().expect_input(
+			format!(
+				"Enter path to your snapshot file?\n{}.",
+				style("Snapshot file can be generated using `pop test create-snapshot` command")
+					.dim()
+			),
+			"invalid-path-to-file".to_string(),
+		);
+		assert!(matches!(
+			update_snapshot(&mut cli, None, &mut cmd.state),
+			Err(message) if message.to_string().contains("Invalid path to the snapshot file.")
+		));
+		cli.verify()?;
+		Ok(())
+	}
+
+	#[test]
+	fn update_live_state_works() -> anyhow::Result<()> {
+		// Prompt all inputs if not provided.
+		let live_state = LiveState::default();
+		let mut cmd = MockCommand::default();
+		let mut cli = MockCli::new()
+			.expect_input("Enter the live chain of your node:", DEFAULT_LIVE_NODE_URL.to_string())
+			.expect_input("Enter the block hash (optional):", DEFAULT_BLOCK_HASH.to_string());
+		update_live_state(&mut cli, live_state, &mut cmd.state)?;
+		match cmd.state {
+			Some(State::Live(ref live_state)) => {
+				assert_eq!(live_state.uri, Some(DEFAULT_LIVE_NODE_URL.to_string()));
+				assert_eq!(
+					live_state.at,
+					Some(DEFAULT_BLOCK_HASH.strip_prefix("0x").unwrap_or_default().to_string())
+				);
+			},
+			_ => panic!("Expected live state"),
+		}
+		cli.verify()?;
+
+		// Prompt for the URI if not provided.
+		let mut live_state = LiveState::default();
+		live_state.at = Some("1234567890abcdef".to_string());
+		let mut cmd = MockCommand::default();
+		let mut cli = MockCli::new()
+			.expect_input("Enter the live chain of your node:", DEFAULT_LIVE_NODE_URL.to_string());
+		update_live_state(&mut cli, live_state, &mut cmd.state)?;
+		match cmd.state {
+			Some(State::Live(ref live_state)) => {
+				assert_eq!(live_state.uri, Some(DEFAULT_LIVE_NODE_URL.to_string()));
+				assert_eq!(live_state.at, Some("1234567890abcdef".to_string()));
+			},
+			_ => panic!("Expected live state"),
+		}
+		cli.verify()?;
+
+		// Prompt for the block hash if not provided.
+		let mut live_state = LiveState::default();
+		live_state.uri = Some(DEFAULT_LIVE_NODE_URL.to_string());
+		let mut cmd = MockCommand::default();
+		// Provide the empty block hash.
+		let mut cli =
+			MockCli::new().expect_input("Enter the block hash (optional):", String::default());
+		update_live_state(&mut cli, live_state, &mut cmd.state)?;
+		match cmd.state {
+			Some(State::Live(ref live_state)) => {
+				assert_eq!(live_state.uri, Some(DEFAULT_LIVE_NODE_URL.to_string()));
+				assert_eq!(live_state.at, None);
+			},
+			_ => panic!("Expected live state"),
+		}
+		cli.verify()?;
+		Ok(())
+	}
+
+	#[test]
+	fn guide_user_to_select_state_source_works() -> anyhow::Result<()> {
+		let mut cli = MockCli::new().expect_select(
+			"Select source of runtime state to run the migration with:",
+			Some(true),
+			true,
+			Some(get_subcommands()),
+			0,
+			None,
+		);
+		assert_eq!(guide_user_to_select_state_source(&mut cli)?, &StateCommand::Live);
+		Ok(())
+	}
 
 	#[test]
 	fn add_argument_without_value_works() {

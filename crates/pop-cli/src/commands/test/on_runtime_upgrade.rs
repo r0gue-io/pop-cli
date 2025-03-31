@@ -3,7 +3,7 @@
 use crate::{
 	cli::{
 		self,
-		traits::{Confirm, Input, Select},
+		traits::{Confirm, Select},
 	},
 	common::{
 		builds::guide_user_to_select_profile,
@@ -11,7 +11,7 @@ use crate::{
 		runtime::{ensure_runtime_binary_exists, Feature},
 		try_runtime::{
 			argument_exists, check_try_runtime_and_prompt, collect_shared_arguments,
-			partition_arguments, ArgumentConstructor,
+			partition_arguments, update_state_source, ArgumentConstructor,
 		},
 	},
 };
@@ -23,19 +23,14 @@ use console::style;
 use frame_try_runtime::UpgradeCheckSelect;
 use pop_common::Profile;
 use pop_parachains::{
-	parse, run_try_runtime,
-	state::{LiveState, State, StateCommand},
+	run_try_runtime,
+	state::{State, StateCommand},
 	upgrade_checks_details, Runtime, SharedParams, TryRuntimeCliCommand,
 };
 use std::{env::current_dir, path::PathBuf, str::FromStr, thread::sleep, time::Duration};
-use strum::{EnumMessage, VariantArray};
 
 const CUSTOM_ARGS: [&str; 5] = ["--profile", "--no-build", "-n", "--skip-confirm", "-y"];
 const DEFAULT_BLOCK_TIME: u64 = 6000;
-const DEFAULT_BLOCK_HASH: &str =
-	"0xa1b16c1efd889a9f17375ec4dd5c1b4351a2be17fa069564fced10d23b9b3836";
-const DEFAULT_LIVE_NODE_URL: &str = "ws://127.0.0.1:9944";
-const DEFAULT_SNAPSHOT_PATH: &str = "your-parachain.snap";
 const DISABLE_SPEC_VERSION_CHECK: &str = "disable-spec-version-check";
 const DISABLE_SPEC_NAME_CHECK: &str = "disable-spec-name-check";
 
@@ -147,7 +142,7 @@ impl TestOnRuntimeUpgradeCommand {
 		}
 
 		// Prompt the user to select the source of runtime state.
-		if let Err(e) = self.update_state_source(cli) {
+		if let Err(e) = update_state_source(cli, &mut self.command.state) {
 			return display_message(&e.to_string(), false, cli);
 		};
 
@@ -268,74 +263,6 @@ impl TestOnRuntimeUpgradeCommand {
 		c.finalize(&["--at="]);
 	}
 
-	fn update_state_source(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
-		let (subcommand, path, live_state) = match self.command.state {
-			Some(State::Live(ref state)) => (&StateCommand::Live, None, state.clone()),
-			Some(State::Snap { ref path }) =>
-				(&StateCommand::Snap, path.clone(), LiveState::default()),
-			None => (guide_user_to_select_state_source(cli)?, None, LiveState::default()),
-		};
-		match subcommand {
-			StateCommand::Live => self.update_live_state(cli, live_state)?,
-			StateCommand::Snap => self.update_snapshot(cli, path)?,
-		}
-		Ok(())
-	}
-
-	fn update_snapshot(
-		&mut self,
-		cli: &mut impl cli::traits::Cli,
-		mut path: Option<PathBuf>,
-	) -> anyhow::Result<()> {
-		if path.is_none() {
-			let snapshot_file: PathBuf = cli
-				.input(format!(
-					"Enter path to your snapshot file?\n{}.",
-					style(
-						"Snapshot file can be generated using `pop test create-snapshot` command"
-					)
-					.dim()
-				))
-				.required(true)
-				.placeholder(DEFAULT_SNAPSHOT_PATH)
-				.interact()?
-				.into();
-			if !snapshot_file.is_file() {
-				return Err(anyhow::anyhow!("Invalid path to the snapshot file."));
-			}
-			path = Some(snapshot_file);
-		}
-		self.command.state = Some(State::Snap { path });
-		Ok(())
-	}
-
-	fn update_live_state(
-		&mut self,
-		cli: &mut impl cli::traits::Cli,
-		mut live_state: LiveState,
-	) -> anyhow::Result<()> {
-		if live_state.uri.is_none() {
-			let uri = cli
-				.input("Enter the live chain of your node:")
-				.required(true)
-				.placeholder(DEFAULT_LIVE_NODE_URL)
-				.interact()?;
-			live_state.uri = Some(parse::url(&uri)?);
-		}
-		if live_state.at.is_none() {
-			let block_hash = cli
-				.input("Enter the block hash (optional):")
-				.required(false)
-				.placeholder(DEFAULT_BLOCK_HASH)
-				.interact()?;
-			if !block_hash.is_empty() {
-				live_state.at = Some(parse::hash(&block_hash)?);
-			}
-		}
-		self.command.state = Some(State::Live(live_state.clone()));
-		Ok(())
-	}
-
 	fn display(&self) -> anyhow::Result<String> {
 		let mut cmd_args = vec!["pop test on-runtime-upgrade".to_string()];
 		let mut args = vec![];
@@ -413,20 +340,6 @@ impl Default for TestOnRuntimeUpgradeCommand {
 	}
 }
 
-fn guide_user_to_select_state_source(
-	cli: &mut impl cli::traits::Cli,
-) -> anyhow::Result<&StateCommand> {
-	let mut prompt = cli.select("Select source of runtime state to run the migration with:");
-	for subcommand in StateCommand::VARIANTS.iter() {
-		prompt = prompt.item(
-			subcommand,
-			subcommand.get_message().unwrap(),
-			subcommand.get_detailed_message().unwrap(),
-		);
-	}
-	prompt.interact().map_err(anyhow::Error::from)
-}
-
 fn guide_user_to_select_upgrade_checks(
 	cli: &mut impl cli::traits::Cli,
 ) -> anyhow::Result<UpgradeCheckSelect> {
@@ -452,9 +365,13 @@ mod tests {
 	use super::*;
 	use crate::common::{
 		runtime::{get_mock_runtime, Feature::TryRuntime},
-		try_runtime::source_try_runtime_binary,
+		try_runtime::{
+			get_mock_snapshot, get_subcommands, source_try_runtime_binary, DEFAULT_BLOCK_HASH,
+			DEFAULT_LIVE_NODE_URL,
+		},
 	};
 	use cli::MockCli;
+	use pop_parachains::state::LiveState;
 
 	#[tokio::test]
 	async fn test_on_runtime_upgrade_live_state_works() -> anyhow::Result<()> {
@@ -859,139 +776,12 @@ mod tests {
 	}
 
 	#[test]
-	fn update_snapshot_state_works() -> anyhow::Result<()> {
-		let snapshot_file = get_mock_snapshot();
-		// Prompt for snapshot path if not provided.
-		let mut cmd = TestOnRuntimeUpgradeCommand::default();
-		let mut cli = MockCli::new().expect_input(
-			format!(
-				"Enter path to your snapshot file?\n{}.",
-				style("Snapshot file can be generated using `pop test create-snapshot` command")
-					.dim()
-			),
-			snapshot_file.to_str().unwrap().to_string(),
-		);
-		cmd.update_snapshot(&mut cli, None)?;
-		match cmd.command.state {
-			Some(State::Snap { ref path }) => {
-				assert_eq!(path.as_ref().unwrap(), snapshot_file.as_path());
-			},
-			_ => panic!("Expected snapshot state"),
-		}
-		cli.verify()?;
-
-		// Use provided path without prompting.
-		let mut cmd = TestOnRuntimeUpgradeCommand::default();
-		let snapshot_path = Some(snapshot_file);
-		let mut cli = MockCli::new(); // No prompt expected
-		cmd.update_snapshot(&mut cli, snapshot_path.clone())?;
-		match cmd.command.state {
-			Some(State::Snap { ref path }) => {
-				assert_eq!(path, &snapshot_path);
-			},
-			_ => panic!("Expected snapshot state"),
-		}
-		cli.verify()?;
-
-		Ok(())
-	}
-
-	#[test]
-	fn update_snapshot_state_invalid_file_fails() -> anyhow::Result<()> {
-		let mut command = TestOnRuntimeUpgradeCommand::default();
-		let mut cli = MockCli::new().expect_input(
-			format!(
-				"Enter path to your snapshot file?\n{}.",
-				style("Snapshot file can be generated using `pop test create-snapshot` command")
-					.dim()
-			),
-			"invalid-path-to-file".to_string(),
-		);
-		assert!(matches!(
-			command.update_snapshot(&mut cli, None),
-			Err(message) if message.to_string().contains("Invalid path to the snapshot file.")
-		));
-		cli.verify()?;
-		Ok(())
-	}
-
-	#[test]
-	fn update_live_state_works() -> anyhow::Result<()> {
-		// Prompt all inputs if not provided.
-		let live_state = LiveState::default();
-		let mut cmd = TestOnRuntimeUpgradeCommand::default();
-		let mut cli = MockCli::new()
-			.expect_input("Enter the live chain of your node:", DEFAULT_LIVE_NODE_URL.to_string())
-			.expect_input("Enter the block hash (optional):", DEFAULT_BLOCK_HASH.to_string());
-		cmd.update_live_state(&mut cli, live_state)?;
-		match cmd.command.state {
-			Some(State::Live(ref live_state)) => {
-				assert_eq!(live_state.uri, Some(DEFAULT_LIVE_NODE_URL.to_string()));
-				assert_eq!(
-					live_state.at,
-					Some(DEFAULT_BLOCK_HASH.strip_prefix("0x").unwrap_or_default().to_string())
-				);
-			},
-			_ => panic!("Expected live state"),
-		}
-		cli.verify()?;
-
-		// Prompt for the URI if not provided.
-		let mut live_state = LiveState::default();
-		live_state.at = Some("1234567890abcdef".to_string());
-		let mut cmd = TestOnRuntimeUpgradeCommand::default();
-		let mut cli = MockCli::new()
-			.expect_input("Enter the live chain of your node:", DEFAULT_LIVE_NODE_URL.to_string());
-		cmd.update_live_state(&mut cli, live_state)?;
-		match cmd.command.state {
-			Some(State::Live(ref live_state)) => {
-				assert_eq!(live_state.uri, Some(DEFAULT_LIVE_NODE_URL.to_string()));
-				assert_eq!(live_state.at, Some("1234567890abcdef".to_string()));
-			},
-			_ => panic!("Expected live state"),
-		}
-		cli.verify()?;
-
-		// Prompt for the block hash if not provided.
-		let mut live_state = LiveState::default();
-		live_state.uri = Some(DEFAULT_LIVE_NODE_URL.to_string());
-		let mut cmd = TestOnRuntimeUpgradeCommand::default();
-		// Provide the empty block hash.
-		let mut cli =
-			MockCli::new().expect_input("Enter the block hash (optional):", String::default());
-		cmd.update_live_state(&mut cli, live_state)?;
-		match cmd.command.state {
-			Some(State::Live(ref live_state)) => {
-				assert_eq!(live_state.uri, Some(DEFAULT_LIVE_NODE_URL.to_string()));
-				assert_eq!(live_state.at, None);
-			},
-			_ => panic!("Expected live state"),
-		}
-		cli.verify()?;
-		Ok(())
-	}
-
-	#[test]
 	fn subcommand_works() -> anyhow::Result<()> {
 		let mut command = TestOnRuntimeUpgradeCommand::default();
 		command.command.state = Some(State::Live(LiveState::default()));
 		assert_eq!(command.subcommand()?, StateCommand::Live.to_string());
 		command.command.state = Some(State::Snap { path: Some(PathBuf::default()) });
 		assert_eq!(command.subcommand()?, StateCommand::Snap.to_string());
-		Ok(())
-	}
-
-	#[test]
-	fn guide_user_to_select_state_source_works() -> anyhow::Result<()> {
-		let mut cli = MockCli::new().expect_select(
-			"Select source of runtime state to run the migration with:",
-			Some(true),
-			true,
-			Some(get_subcommands()),
-			0,
-			None,
-		);
-		assert_eq!(guide_user_to_select_state_source(&mut cli)?, &StateCommand::Live);
 		Ok(())
 	}
 
@@ -1009,18 +799,6 @@ mod tests {
 		cli.verify()
 	}
 
-	fn get_subcommands() -> Vec<(String, String)> {
-		StateCommand::VARIANTS
-			.iter()
-			.map(|subcommand| {
-				(
-					subcommand.get_message().unwrap().to_string(),
-					subcommand.get_detailed_message().unwrap().to_string(),
-				)
-			})
-			.collect()
-	}
-
 	fn get_upgrade_checks_items() -> Vec<(String, String)> {
 		[
 			UpgradeCheckSelect::None,
@@ -1031,13 +809,5 @@ mod tests {
 		.iter()
 		.map(|check| upgrade_checks_details(*check))
 		.collect::<Vec<_>>()
-	}
-
-	fn get_mock_snapshot() -> PathBuf {
-		std::env::current_dir()
-			.unwrap()
-			.join("../../tests/snapshots/base_parachain.snap")
-			.canonicalize()
-			.unwrap()
 	}
 }
