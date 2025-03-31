@@ -117,7 +117,7 @@ impl Telemetry {
 /// There is explicitly no reqwest retries on failure to ensure overhead
 /// stays to a minimum.
 pub async fn record_cli_used(tel: Telemetry) -> Result<()> {
-	let payload = generate_payload("", json!({}));
+	let payload = generate_payload("", "");
 
 	let res = tel.send_json(payload).await;
 	log::debug!("send_cli_used result: {:?}", res);
@@ -131,7 +131,7 @@ pub async fn record_cli_used(tel: Telemetry) -> Result<()> {
 /// `command_name`: the name of the command entered (new, up, build, etc)
 /// `data`: the JSON representation of subcommands. This should never include any user inputted
 /// data like a file name.
-pub async fn record_cli_command(tel: Telemetry, command_name: &str, data: Value) -> Result<()> {
+pub async fn record_cli_command(tel: Telemetry, command_name: &str, data: &str) -> Result<()> {
 	let payload = generate_payload(command_name, data);
 
 	let res = tel.send_json(payload).await;
@@ -193,7 +193,7 @@ where
 	Ok(deserialized)
 }
 
-fn generate_payload(event_name: &str, data: Value) -> Value {
+fn generate_payload(event_name: &str, data: &str) -> Value {
 	json!({
 		"payload": {
 			"hostname": "cli",

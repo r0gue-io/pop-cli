@@ -426,6 +426,27 @@ fn display_contract_info(spinner: &ProgressBar, address: String, code_hash: Opti
 	));
 }
 
+impl Default for UpContractCommand {
+	fn default() -> Self {
+		Self {
+			path: None,
+			constructor: "new".to_string(),
+			args: vec![],
+			value: "0".to_string(),
+			gas_limit: None,
+			proof_size: None,
+			salt: None,
+			url: Url::parse("ws://localhost:9944").expect("default url is valid"),
+			suri: "//Alice".to_string(),
+			use_wallet: false,
+			dry_run: false,
+			upload_only: false,
+			skip_confirm: false,
+			valid: true,
+		}
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -440,25 +461,6 @@ mod tests {
 	use tempfile::TempDir;
 	use tokio::time::sleep;
 	use url::Url;
-
-	fn default_up_contract_command() -> UpContractCommand {
-		UpContractCommand {
-			path: None,
-			constructor: "new".to_string(),
-			args: vec![],
-			value: "0".to_string(),
-			gas_limit: None,
-			proof_size: None,
-			salt: None,
-			url: Url::parse("ws://localhost:9944").expect("default url is valid"),
-			suri: "//Alice".to_string(),
-			dry_run: false,
-			upload_only: false,
-			skip_confirm: false,
-			use_wallet: false,
-			valid: true,
-		}
-	}
 
 	async fn start_test_environment() -> anyhow::Result<(Child, u16, TempDir)> {
 		let random_port = find_free_port(None);
@@ -484,7 +486,7 @@ mod tests {
 
 	#[test]
 	fn conversion_up_contract_command_to_up_opts_works() -> anyhow::Result<()> {
-		let command = default_up_contract_command();
+		let command = UpContractCommand::default();
 		let opts: UpOpts = command.into();
 		assert_eq!(
 			opts,

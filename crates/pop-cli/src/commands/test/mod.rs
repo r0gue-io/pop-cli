@@ -1,6 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{cli, common::builds::get_project_path};
+use crate::{
+	cli,
+	common::{
+		builds::get_project_path,
+		Feature::{self, Unit},
+		Project::{self, *},
+	},
+};
 use clap::{Args, Subcommand};
 use pop_common::test_project;
 use std::path::PathBuf;
@@ -56,21 +63,30 @@ pub(crate) enum Command {
 }
 
 impl Command {
-	pub(crate) async fn execute(args: TestArgs) -> anyhow::Result<&'static str> {
+	pub(crate) async fn execute(args: TestArgs) -> anyhow::Result<(Project, Feature)> {
 		Self::test(args, &mut cli::Cli).await
 	}
 
-	async fn test(args: TestArgs, cli: &mut impl cli::traits::Cli) -> anyhow::Result<&'static str> {
+	async fn test(
+		args: TestArgs,
+		cli: &mut impl cli::traits::Cli,
+	) -> anyhow::Result<(Project, Feature)> {
 		let project_path = get_project_path(args.path.clone(), args.path_pos.clone());
 
 		#[cfg(feature = "contract")]
 		if pop_contracts::is_supported(project_path.as_deref())? {
 			let mut cmd = args.contract;
 			cmd.path = project_path;
-			return contract::TestContractCommand::execute(cmd, cli).await;
+			let feature = contract::TestContractCommand::execute(cmd, cli).await?;
+			return Ok((Contract, feature));
 		}
+
 		test_project(project_path.as_deref())?;
-		Ok("test")
+		Ok(if pop_parachains::is_supported(project_path.as_deref())? {
+			(Chain, Unit)
+		} else {
+			(Unknown, Unit)
+		})
 	}
 }
 
@@ -100,7 +116,7 @@ mod tests {
 		let mut cli = MockCli::new()
 			.expect_intro("Starting unit tests")
 			.expect_outro("Unit testing complete");
-		assert_eq!(Command::test(args, &mut cli).await?, "unit");
+		assert_eq!(Command::test(args, &mut cli).await?, (Contract, Unit));
 		cli.verify()
 	}
 
@@ -114,7 +130,7 @@ mod tests {
 
 		cmd("cargo", ["new", name, "--bin"]).dir(&path).run()?;
 		let mut cli = MockCli::new();
-		assert_eq!(Command::test(args, &mut cli).await?, "test");
+		assert_eq!(Command::test(args, &mut cli).await?, (Unknown, Unit));
 		cli.verify()
 	}
 }

@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::style::{style, Theme};
+use crate::{
+	common::Os::{self, *},
+	style::{style, Theme},
+};
 use anyhow::Context;
 use clap::Args;
 use cliclack::{clear_screen, confirm, intro, log, outro, set_theme};
@@ -50,11 +53,12 @@ pub enum Dependencies {
 
 /// Arguments for installing.
 #[derive(Args)]
+#[cfg_attr(test, derive(Default))]
 #[command(args_conflicts_with_subcommands = true)]
 pub(crate) struct InstallArgs {
 	/// Automatically install all dependencies required without prompting for confirmation.
 	#[clap(short = 'y', long)]
-	skip_confirm: bool,
+	pub(crate) skip_confirm: bool,
 }
 
 /// Setup user environment for development
@@ -62,16 +66,17 @@ pub(crate) struct Command;
 
 impl Command {
 	/// Executes the command.
-	pub(crate) async fn execute(self, args: InstallArgs) -> anyhow::Result<()> {
+	pub(crate) async fn execute(self, args: InstallArgs) -> anyhow::Result<Os> {
 		clear_screen()?;
 		set_theme(Theme);
 		intro(format!(
 			"{}: Install dependencies for development",
 			style(" Pop CLI ").black().on_magenta()
 		))?;
-		if cfg!(target_os = "macos") {
+		let os = if cfg!(target_os = "macos") {
 			log::info("ℹ️ Mac OS (Darwin) detected.")?;
 			install_mac(args.skip_confirm).await?;
+			Mac
 		} else if cfg!(target_os = "linux") {
 			match os_info::get().os_type() {
 				Type::Arch => {
@@ -90,14 +95,15 @@ impl Command {
 					log::info("ℹ️ Ubuntu detected.")?;
 					install_ubuntu(args.skip_confirm).await?;
 				},
-				_ => return not_supported_message(),
+				_ => return not_supported_message().map(|_| Unsupported),
 			}
+			Linux
 		} else {
-			return not_supported_message();
-		}
+			return not_supported_message().map(|_| Unsupported);
+		};
 		install_rustup().await?;
 		outro("✅ Installation complete.")?;
-		Ok(())
+		Ok(os)
 	}
 }
 
@@ -106,11 +112,7 @@ async fn install_mac(skip_confirm: bool) -> anyhow::Result<()> {
 	if !skip_confirm {
 		prompt_for_confirmation(&format!(
 			"{}, {}, {}, {} and {}",
-			Dependencies::Homebrew,
-			Dependencies::Protobuf,
-			Dependencies::Openssl,
-			Dependencies::Rustup,
-			Dependencies::Cmake,
+			Homebrew, Protobuf, Openssl, Rustup, Cmake,
 		))?
 	}
 	install_homebrew().await?;

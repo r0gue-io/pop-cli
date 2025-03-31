@@ -8,8 +8,11 @@ use clap::Parser;
 use commands::*;
 #[cfg(feature = "telemetry")]
 use pop_telemetry::{config_file_path, record_cli_command, record_cli_used, Telemetry};
-use serde_json::json;
-use std::{fs::create_dir_all, path::PathBuf};
+use std::{
+	fmt::{self, Display, Formatter},
+	fs::create_dir_all,
+	path::PathBuf,
+};
 
 mod cli;
 #[cfg(any(feature = "parachain", feature = "contract"))]
@@ -28,35 +31,19 @@ async fn main() -> Result<()> {
 	let maybe_tel = init().unwrap_or(None);
 
 	let cli = Cli::parse();
-
-	// Get the canonical command name before executing the command
 	#[cfg(feature = "telemetry")]
-	let canonical_command = get_canonical_command(&cli);
-
-	let res = cli.command.execute().await;
+	let command = cli.command.to_string();
+	let result = cli.command.execute().await;
+	let data = match result.as_ref() {
+		Ok(t) => t.to_string(),
+		Err(e) => e.to_string(),
+	};
 
 	#[cfg(feature = "telemetry")]
-	if let Some(tel) = maybe_tel.clone() {
-		// Record result
-		if let Ok(sub_data) = &res {
-			let _ = record_cli_command(
-				tel.clone(),
-				&canonical_command,
-				json!({"result": sub_data.to_string()}),
-			)
-			.await;
-		} else {
-			let _ = record_cli_command(
-				tel,
-				&canonical_command,
-				json!({"error": "command execution failed"}),
-			)
-			.await;
-		}
+	if let Some(tel) = maybe_tel {
+		let _ = record_cli_command(tel.clone(), &command, &data).await;
 	}
-
-	// map result from Result<Value> to Result<()>
-	res.map(|_| ())
+	result.map(|_| ())
 }
 
 #[derive(Parser)]
@@ -64,6 +51,12 @@ async fn main() -> Result<()> {
 pub struct Cli {
 	#[command(subcommand)]
 	command: Command,
+}
+
+impl Display for Cli {
+	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+		write!(f, "{}", self.command)
+	}
 }
 
 /// Determines the cache to be used.
@@ -109,51 +102,6 @@ fn init() -> Result<Option<Telemetry>> {
 	Ok(maybe_tel)
 }
 
-#[cfg(feature = "telemetry")]
-fn get_canonical_command(cli: &Cli) -> String {
-	match &cli.command {
-		#[cfg(any(feature = "parachain", feature = "contract"))]
-		Command::Build(args) => match &args.command {
-			Some(build::Command::Spec(_)) => "build_spec".to_string(),
-			None => "build".to_string(),
-		},
-		#[cfg(any(feature = "parachain", feature = "contract"))]
-		Command::Test(args) => match &args.command {
-			#[cfg(feature = "contract")]
-			Some(test::Command::Contract(_)) => "test_contract".to_string(),
-			None => "test".to_string(),
-		},
-		#[cfg(any(feature = "parachain", feature = "contract"))]
-		Command::New(args) => match &args.command {
-			#[cfg(feature = "parachain")]
-			new::Command::Parachain(_) => "new_parachain".to_string(),
-			#[cfg(feature = "contract")]
-			new::Command::Contract(_) => "new_contract".to_string(),
-			#[cfg(feature = "parachain")]
-			new::Command::Pallet(_) => "new_pallet".to_string(),
-		},
-		#[cfg(any(feature = "parachain", feature = "contract"))]
-		Command::Up(args) => match &args.command {
-			Some(up::Command::Network(_)) => "up_network".to_string(),
-			#[cfg(feature = "parachain")]
-			Some(up::Command::Parachain(_)) => "up_parachain".to_string(),
-			#[cfg(feature = "contract")]
-			Some(up::Command::Contract(_)) => "up_contract".to_string(),
-			None => "up".to_string(),
-		},
-		#[cfg(any(feature = "parachain", feature = "contract"))]
-		Command::Call(args) => match &args.command {
-			#[cfg(feature = "parachain")]
-			call::Command::Chain(_) => "call_chain".to_string(),
-			#[cfg(feature = "contract")]
-			call::Command::Contract(_) => "call_contract".to_string(),
-		},
-		Command::Clean(_) => "clean".to_string(),
-		#[cfg(any(feature = "parachain", feature = "contract"))]
-		Command::Install(_) => "install".to_string(),
-	}
-}
-
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -172,100 +120,210 @@ mod tests {
 		Ok(())
 	}
 
+	// Integration test that simulates the full command execution flow and replaces existing tests
 	#[cfg(feature = "telemetry")]
-	#[test]
-	fn test_get_canonical_command() {
-		use clap::Parser;
+	mod integration {
+		use super::*;
+		use anyhow::anyhow;
+		use common::{Feature::*, Project::*, Telemetry::*};
 
-		/// Helper function to parse command line arguments into a Cli struct
-		fn parse_cli(args: &[&str]) -> Option<Cli> {
-			let mut full_args = vec!["pop"];
-			full_args.extend(args);
+		// Helper function to simulate what happens in main()
+		fn simulate_command_flow<T: Display>(
+			command: Command,
+			result: Result<T>,
+		) -> (String, String) {
+			let cli = Cli { command };
+			let command_string = cli.to_string();
 
-			match Cli::try_parse_from(&full_args) {
-				Ok(cli) => Some(cli),
-				Err(_) => None,
-			}
+			let data = result.as_ref().map_or_else(|e| e.to_string(), |t| t.to_string());
+
+			(command_string, data)
 		}
 
-		// Command tests mapping
-		let test_cases = [
-			// Build commands
-			(vec!["build"], "build"),
-			(vec!["b"], "build"),
-			(vec!["build", "spec"], "build_spec"),
-			(vec!["b", "spec"], "build_spec"),
-			(vec!["build", "s"], "build_spec"),
-			(vec!["b", "s"], "build_spec"),
-			// Test commands
-			(vec!["test"], "test"),
-			(vec!["t"], "test"),
-			(vec!["test", "contract"], "test_contract"),
-			(vec!["t", "contract"], "test_contract"),
-			(vec!["test", "c"], "test_contract"),
-			(vec!["t", "c"], "test_contract"),
-			// New commands
-			(vec!["new"], "new"),
-			(vec!["n"], "new"),
-			(vec!["new", "parachain"], "new_parachain"),
-			(vec!["n", "parachain"], "new_parachain"),
-			(vec!["new", "contract"], "new_contract"),
-			(vec!["n", "contract"], "new_contract"),
-			(vec!["new", "pallet"], "new_pallet"),
-			(vec!["n", "pallet"], "new_pallet"),
-			// Up commands
-			(vec!["up"], "up"),
-			(vec!["u"], "up"),
-			(vec!["up", "network"], "up_network"),
-			(vec!["u", "network"], "up_network"),
-			(vec!["up", "n"], "up_network"),
-			(vec!["u", "n"], "up_network"),
-			(vec!["up", "parachain"], "up_parachain"),
-			(vec!["u", "parachain"], "up_parachain"),
-			(vec!["up", "p"], "up_parachain"),
-			(vec!["u", "p"], "up_parachain"),
-			(vec!["up", "contract"], "up_contract"),
-			(vec!["u", "contract"], "up_contract"),
-			(vec!["up", "c"], "up_contract"),
-			(vec!["u", "c"], "up_contract"),
-			// Call commands
-			(vec!["call"], "call"),
-			(vec!["c"], "call"),
-			(vec!["call", "chain"], "call_chain"),
-			(vec!["c", "chain"], "call_chain"),
-			(vec!["call", "p"], "call_chain"),
-			(vec!["c", "p"], "call_chain"),
-			(vec!["call", "parachain"], "call_chain"),
-			(vec!["c", "parachain"], "call_chain"),
-			(vec!["call", "contract"], "call_contract"),
-			(vec!["c", "contract"], "call_contract"),
-			(vec!["call", "c"], "call_contract"),
-			(vec!["c", "c"], "call_contract"),
-			// Clean and Install commands
-			(vec!["clean"], "clean"),
-			(vec!["C"], "clean"),
-			(vec!["install"], "install"),
-			(vec!["i"], "install"),
-		];
+		#[test]
+		fn test_command() {
+			assert_eq!(
+				Cli {
+					command: Command::Test(test::TestArgs {
+						command: None,
+						path: None,
+						path_pos: None,
+						#[cfg(feature = "contract")]
+						contract: Default::default(),
+					})
+				}
+				.to_string(),
+				"test"
+			);
+			// Test successful execution.
+			let (command, data) = simulate_command_flow(
+				Command::Test(Default::default()),
+				Ok(Test { project: Contract, feature: Unit }),
+			);
+			assert_eq!(command, "test");
+			assert_eq!(data, "contract unit");
+			// Test failed execution.
+			let error = "test failed: build error";
+			let (command, data) = simulate_command_flow(
+				Command::Test(Default::default()),
+				Err(anyhow!(error)) as Result<common::Telemetry>,
+			);
+			assert_eq!(command, "test");
+			assert_eq!(data, error);
+		}
 
-		// Test each command with all possible variations
-		for (args, expected_canonical) in &test_cases {
-			if let Some(cli) = parse_cli(args) {
-				assert_eq!(
-					get_canonical_command(&cli),
-					*expected_canonical,
-					"Command '{}' should return canonical name '{}'",
-					args.join(" "),
-					expected_canonical
-				);
-			} else {
-				// Some commands may require extra arguments, which is fine
-				// We can skip those for this test
-				println!(
-					"Skipping command '{}' as it requires additional arguments",
-					args.join(" ")
-				);
-			}
+		#[test]
+		fn build_command() {
+			// Build command with no subcommand.
+			assert_eq!(Cli { command: Command::Build(Default::default()) }.to_string(), "build");
+			// Build command with spec subcommand.
+			use crate::commands::build::Command as BuildCommand;
+			assert_eq!(
+				Cli {
+					command: Command::Build(build::BuildArgs {
+						command: Some(BuildCommand::Spec(Default::default())),
+						..Default::default()
+					})
+				}
+				.to_string(),
+				"build spec"
+			);
+			// Test successful execution.
+			let (command, data) =
+				simulate_command_flow(Command::Build(Default::default()), Ok(Build(Contract)));
+			assert_eq!(command, "build");
+			assert_eq!(data, "contract");
+			// Test failed execution.
+			let error = "build failed: compilation error";
+			let (command, data) = simulate_command_flow(
+				Command::Build(Default::default()),
+				Err(anyhow!(error)) as Result<common::Telemetry>,
+			);
+			assert_eq!(command, "build");
+			assert_eq!(data, error);
+		}
+
+		#[test]
+		fn up_command() {
+			// Up command display.
+			assert_eq!(Cli { command: Command::Up(Default::default()) }.to_string(), "up");
+			// Test up with different project types.
+			let (command, data) =
+				simulate_command_flow(Command::Up(Default::default()), Ok(Up(Contract)));
+			assert_eq!(command, "up");
+			assert_eq!(data, "contract");
+			// Test up error.
+			let error = "up failed: network error";
+			let (command, data) = simulate_command_flow(
+				Command::Up(Default::default()),
+				Err(anyhow!(error)) as Result<common::Telemetry>,
+			);
+			assert_eq!(command, "up");
+			assert_eq!(data, error);
+		}
+
+		#[test]
+		fn clean_command() {
+			// Clean command.
+			use clean::{CleanArgs, CleanCommandArgs, Command as CleanCommand};
+			assert_eq!(
+				Cli {
+					command: Command::Clean(CleanArgs {
+						command: CleanCommand::Cache(CleanCommandArgs { all: false }),
+					})
+				}
+				.to_string(),
+				"clean"
+			);
+			// Clean error case.
+			let error = "clean failed: permission denied";
+			let (command, data) = simulate_command_flow(
+				Command::Clean(Default::default()),
+				Err(anyhow!(error)) as Result<common::Telemetry>,
+			);
+			assert_eq!(command, "clean");
+			assert_eq!(data, error);
+		}
+
+		#[test]
+		fn install_command() {
+			// Install command.
+			use crate::commands::install::InstallArgs;
+			assert_eq!(
+				Cli { command: Command::Install(InstallArgs { skip_confirm: false }) }.to_string(),
+				"install"
+			);
+
+			// Install success.
+			let (command, data) = simulate_command_flow(
+				Command::Install(Default::default()),
+				Ok(Install(common::Os::Linux)),
+			);
+			assert_eq!(command, "install");
+			assert_eq!(data, "linux");
+
+			// Install error
+			let error = "install failed: download error";
+			let (command, data) = simulate_command_flow(
+				Command::Install(Default::default()),
+				Err(anyhow!(error)) as Result<common::Telemetry>,
+			);
+			assert_eq!(command, "install");
+			assert_eq!(data, error);
+		}
+
+		#[test]
+		fn new_command() {
+			use crate::{
+				commands::new::{Command as NewCommand, NewArgs},
+				common::Template,
+			};
+
+			assert_eq!(
+				Cli {
+					command: Command::New(NewArgs {
+						command: NewCommand::Parachain(Default::default())
+					})
+				}
+				.to_string(),
+				"new chain"
+			);
+			// Test new with template.
+			let (command, data) = simulate_command_flow(
+				Command::New(NewArgs { command: NewCommand::Contract(Default::default()) }),
+				Ok(New(Template::Contract(Default::default()))),
+			);
+			assert_eq!(command, "new contract");
+			assert_eq!(data, "Standard");
+			// New error
+			let error = "new failed: template error";
+			let (command, data) = simulate_command_flow(
+				Command::New(NewArgs { command: NewCommand::Contract(Default::default()) }),
+				Err(anyhow!(error)) as Result<common::Telemetry>,
+			);
+			assert_eq!(command, "new contract");
+			assert_eq!(data, error);
+		}
+
+		#[test]
+		fn bench_command() {
+			use crate::commands::bench::{BenchmarkArgs, Command::Pallet};
+
+			assert_eq!(
+				Cli {
+					command: Command::Bench(BenchmarkArgs { command: Pallet(Default::default()) })
+				}
+				.to_string(),
+				"bench pallet"
+			);
+			// Bench error.
+			let error = "bench failed: runtime error";
+			let (command, data) = simulate_command_flow(
+				Command::Bench(BenchmarkArgs { command: Pallet(Default::default()) }),
+				Err(anyhow!(error)) as Result<common::Telemetry>,
+			);
+			assert_eq!(command, "bench pallet");
+			assert_eq!(data, error);
 		}
 	}
 }

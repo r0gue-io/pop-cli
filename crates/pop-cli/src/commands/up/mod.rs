@@ -2,7 +2,10 @@
 
 use crate::{
 	cli::{self, Cli},
-	common::builds::get_project_path,
+	common::{
+		builds::get_project_path,
+		Project::{self, *},
+	},
 };
 use clap::{Args, Subcommand};
 use std::path::PathBuf;
@@ -16,6 +19,7 @@ mod rollup;
 
 /// Arguments for launching or deploying a project.
 #[derive(Args, Clone)]
+#[cfg_attr(test, derive(Default))]
 #[command(args_conflicts_with_subcommands = true)]
 pub(crate) struct UpArgs {
 	/// Path to the project directory.
@@ -58,7 +62,7 @@ pub(crate) enum Command {
 
 impl Command {
 	/// Executes the command.
-	pub(crate) async fn execute(args: UpArgs) -> anyhow::Result<&'static str> {
+	pub(crate) async fn execute(args: UpArgs) -> anyhow::Result<Project> {
 		Self::execute_project_deployment(args, &mut Cli).await
 	}
 
@@ -66,7 +70,7 @@ impl Command {
 	async fn execute_project_deployment(
 		args: UpArgs,
 		cli: &mut impl cli::traits::Cli,
-	) -> anyhow::Result<&'static str> {
+	) -> anyhow::Result<Project> {
 		let project_path = get_project_path(args.path.clone(), args.path_pos.clone());
 		// If only contract feature enabled, deploy a contract
 		#[cfg(feature = "contract")]
@@ -75,19 +79,19 @@ impl Command {
 			cmd.path = project_path;
 			cmd.valid = true; // To handle deprecated command, remove in v0.8.0.
 			cmd.execute().await?;
-			return Ok("contract");
+			return Ok(Contract);
 		}
 		#[cfg(feature = "parachain")]
 		if pop_parachains::is_supported(project_path.as_deref())? {
 			let mut cmd = args.rollup;
 			cmd.path = project_path;
 			cmd.execute(cli).await?;
-			return Ok("parachain");
+			return Ok(Chain);
 		}
 		cli.warning(
 			"No contract or rollup detected. Ensure you are in a valid project directory.",
 		)?;
-		Ok("")
+		Ok(Unknown)
 	}
 }
 
@@ -140,7 +144,7 @@ mod tests {
 		)?;
 		let args = create_up_args(temp_dir.path().join("testing"))?;
 		let mut cli = MockCli::new();
-		assert_eq!(Command::execute_project_deployment(args, &mut cli).await?, "contract");
+		assert_eq!(Command::execute_project_deployment(args, &mut cli).await?, Project::Contract);
 		cli.verify()
 	}
 
@@ -179,7 +183,7 @@ mod tests {
 			DeploymentProvider::VARIANTS.len(), // Register
 			None,
 		);
-		assert_eq!(Command::execute_project_deployment(args, &mut cli).await?, "parachain");
+		assert_eq!(Command::execute_project_deployment(args, &mut cli).await?, Project::Chain);
 		cli.verify()
 	}
 
@@ -195,7 +199,7 @@ mod tests {
 		let mut cli = MockCli::new().expect_warning(
 			"No contract or rollup detected. Ensure you are in a valid project directory.",
 		);
-		assert_eq!(Command::execute_project_deployment(args, &mut cli).await?, "");
+		assert_eq!(Command::execute_project_deployment(args, &mut cli).await?, Project::Unknown);
 		cli.verify()
 	}
 }
