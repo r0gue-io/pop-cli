@@ -17,7 +17,7 @@ pub fn parse_account(account: &str) -> Result<<DefaultConfig as Config>::Account
 /// Parses a H160 account from its string representation.
 ///
 /// # Arguments
-/// * `account` - A hex-encoded string representation to parse.
+/// * `account` - A hex-encoded string representation.
 pub fn parse_h160_account(account: &str) -> Result<H160, Error> {
 	let bytes = contract_build::util::decode_hex(account)
 		.map_err(|e| Error::AccountAddressParsing(format!("Invalid hex: {}", e)))?;
