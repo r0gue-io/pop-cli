@@ -217,7 +217,7 @@ mod tests {
 	async fn test_fast_forward_live_state_works() -> anyhow::Result<()> {
 		let cmd = TestFastForwardCommand::default();
 		let mut cli = MockCli::new()
-			.expect_intro("Testing fast-forward...")
+			.expect_intro("Performing try-state checks on simulated block execution...")
 			.expect_input("How many empty blocks should be processed?", "10".to_string())
 			.expect_confirm("Do you want to run pending migrations before fast-forwarding?", true)
 			.expect_select(
@@ -252,7 +252,7 @@ mod tests {
 	async fn test_fast_forward_snapshot_works() -> anyhow::Result<()> {
 		let cmd = TestFastForwardCommand::default();
 		let mut cli = MockCli::new()
-			.expect_intro("Testing fast-forward...")
+			.expect_intro("Performing try-state checks on simulated block execution...")
 			.expect_input("How many empty blocks should be processed?", "10".to_string())
 			.expect_confirm("Do you want to run pending migrations before fast-forwarding?", true)
 			.expect_select(
