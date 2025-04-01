@@ -3,8 +3,8 @@ use crate::{
 	common::{
 		prompt::display_message,
 		try_runtime::{
-			check_try_runtime_and_prompt, collect_state_arguments, update_live_state,
-			ArgumentConstructor,
+			argument_exists, check_try_runtime_and_prompt, collect_state_arguments,
+			guide_user_to_select_try_state, update_live_state, ArgumentConstructor,
 		},
 	},
 };
@@ -45,12 +45,17 @@ pub(crate) struct TestExecuteBlockCommand {
 impl TestExecuteBlockCommand {
 	pub(crate) async fn execute(mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		cli.intro("Testing a block execution.")?;
-		// Prompt the user to select the source of runtime state.
+		let user_provided_args: Vec<String> = std::env::args().skip(3).collect();
+		// Prompt the update the live state.
 		if let Err(e) = update_live_state(cli, &mut self.state, &mut None) {
 			return display_message(&e.to_string(), false, cli);
 		};
+		// Prompt the user to select the try state if no `--try-state` argument is provided.
+		if !argument_exists(&user_provided_args, "--try-state") {
+			self.try_state = guide_user_to_select_try_state(cli)?;
+		}
 		// Test block execution with `try-runtime-cli` binary.
-		let result = self.run(cli).await;
+		let result = self.run(cli, user_provided_args).await;
 
 		// Display the `execute-block` command.
 		cli.info(self.display()?)?;
@@ -60,13 +65,16 @@ impl TestExecuteBlockCommand {
 		display_message("Tested block execution successfully!", true, cli)
 	}
 
-	async fn run(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+	async fn run(
+		&mut self,
+		cli: &mut impl cli::traits::Cli,
+		user_provided_args: Vec<String>,
+	) -> anyhow::Result<()> {
 		let binary_path = check_try_runtime_and_prompt(cli, self.skip_confirm).await?;
 		cli.warning("NOTE: this may take some time...")?;
 
 		let spinner = spinner();
 		spinner.start("Executing block...");
-		let user_provided_args: Vec<String> = std::env::args().skip(3).collect();
 		let (before_subcommand, after_subcommand) = self.collect_arguments(user_provided_args)?;
 		run_try_runtime(
 			&binary_path,
@@ -131,7 +139,8 @@ mod tests {
 	use crate::{
 		cli::MockCli,
 		common::try_runtime::{
-			source_try_runtime_binary, DEFAULT_BLOCK_HASH, DEFAULT_LIVE_NODE_URL,
+			get_try_state_items, source_try_runtime_binary, DEFAULT_BLOCK_HASH,
+			DEFAULT_LIVE_NODE_URL,
 		},
 	};
 	use frame_try_runtime::TryStateSelect;
@@ -142,7 +151,15 @@ mod tests {
 		let mut cli = MockCli::new()
 			.expect_intro("Testing a block execution.")
 			.expect_input("Enter the live chain of your node:", DEFAULT_LIVE_NODE_URL.to_string())
-			.expect_input("Enter the block hash (optional):", String::default());
+			.expect_input("Enter the block hash (optional):", String::default())
+			.expect_select(
+				"Select state tests to execute:",
+				Some(true),
+				true,
+				Some(get_try_state_items()),
+				1,
+				None,
+			);
 		// The error happens because `pop-node` production runtime on Paseo is not compiled with
 		// the `try-runtime` feature.
 		TestExecuteBlockCommand::default().execute(&mut cli).await?;
@@ -155,7 +172,7 @@ mod tests {
 		let mut command = TestExecuteBlockCommand::default();
 		command.state.uri = Some(DEFAULT_LIVE_NODE_URL.to_string());
 		command.state.at = Some(DEFAULT_BLOCK_HASH.to_string());
-		let error = command.run(&mut MockCli::new()).await.unwrap_err();
+		let error = command.run(&mut MockCli::new(), vec![]).await.unwrap_err();
 		assert!(error.to_string().contains("header_not_found"));
 		Ok(())
 	}
@@ -165,7 +182,7 @@ mod tests {
 		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
 		let mut command = TestExecuteBlockCommand::default();
 		command.state.uri = Some("ws://localhost:9945".to_string());
-		let error = command.run(&mut MockCli::new()).await.unwrap_err();
+		let error = command.run(&mut MockCli::new(), vec![]).await.unwrap_err();
 		assert!(error.to_string().contains("Connection refused"));
 		Ok(())
 	}

@@ -40,8 +40,8 @@ impl Display for TryRuntimeCliCommand {
 ///
 /// # Arguments
 /// * `upgrade_check_select` - The selected upgrade check option.
-pub fn upgrade_checks_details(upgrade_check_select: UpgradeCheckSelect) -> (String, String) {
-	match upgrade_check_select {
+pub fn upgrade_checks_details(upgrade_check_select: &UpgradeCheckSelect) -> (String, String) {
+	match *upgrade_check_select {
 		UpgradeCheckSelect::None => ("none".to_string(), "Run no checks".to_string()),
 		UpgradeCheckSelect::All => (
 			"all".to_string(),
@@ -54,6 +54,37 @@ pub fn upgrade_checks_details(upgrade_check_select: UpgradeCheckSelect) -> (Stri
 			"Run the `pre_upgrade` and `post_upgrade` checks".to_string(),
 		),
 	}
+}
+
+/// Get the label of try state options.
+///
+/// # Arguments
+/// * `try_state_select` - The selected try state option.
+pub fn try_state_label(try_state_select: &TryStateSelect) -> String {
+	match *try_state_select {
+		TryStateSelect::None => "None".to_string(),
+		TryStateSelect::All => "All".to_string(),
+		TryStateSelect::RoundRobin(..) => "Round Robin".to_string(),
+		TryStateSelect::Only(..) => "Only Pallets".to_string(),
+	}
+}
+
+/// Get the details of try state options for testing runtime upgrades.
+///
+/// # Arguments
+/// * `try_state_select` - The selected try state option.
+pub fn try_state_details(try_state_select: &TryStateSelect) -> (String, String) {
+	(
+		try_state_label(try_state_select),
+		match *try_state_select {
+			TryStateSelect::None => "Run no tests".to_string(),
+			TryStateSelect::All => "Run all the state tests".to_string(),
+			TryStateSelect::RoundRobin(..) =>
+				"Run a fixed number of state tests in a round robin manner.".to_string(),
+			TryStateSelect::Only(..) =>
+				"Run only pallets who's name matches the given list.".to_string(),
+		},
+	)
 }
 
 /// Parse the `try_state` to string.

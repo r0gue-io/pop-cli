@@ -227,7 +227,7 @@ impl TestOnRuntimeUpgradeCommand {
 	) {
 		let mut c = ArgumentConstructor::new(args, user_provided_args);
 		c.add(&[], true, "--blocktime", Some(self.command.blocktime.to_string()));
-		c.add(&[], true, "--checks", Some(upgrade_checks_details(self.command.checks).0));
+		c.add(&[], true, "--checks", Some(upgrade_checks_details(&self.command.checks).0));
 		// For testing.
 		c.add(
 			&[],
@@ -322,7 +322,7 @@ impl Default for TestOnRuntimeUpgradeCommand {
 fn guide_user_to_select_upgrade_checks(
 	cli: &mut impl cli::traits::Cli,
 ) -> anyhow::Result<UpgradeCheckSelect> {
-	let default_upgrade_check = upgrade_checks_details(UpgradeCheckSelect::All);
+	let default_upgrade_check = upgrade_checks_details(&UpgradeCheckSelect::All);
 	let mut prompt = cli
 		.select("Select upgrade checks to perform:")
 		.initial_value(default_upgrade_check.0);
@@ -332,7 +332,7 @@ fn guide_user_to_select_upgrade_checks(
 		UpgradeCheckSelect::TryState,
 		UpgradeCheckSelect::PreAndPost,
 	] {
-		let (value, description) = upgrade_checks_details(check);
+		let (value, description) = upgrade_checks_details(&check);
 		prompt = prompt.item(value.clone(), value, description);
 	}
 	let input = prompt.interact()?;
@@ -702,7 +702,7 @@ mod tests {
 			UpgradeCheckSelect::PreAndPost,
 		]
 		.iter()
-		.map(|check| upgrade_checks_details(*check))
+		.map(|check| upgrade_checks_details(check))
 		.collect::<Vec<_>>()
 	}
 }
