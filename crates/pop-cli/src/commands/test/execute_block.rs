@@ -154,8 +154,11 @@ mod tests {
 			called `Result::unwrap()` on an `Err` value: Input(\"Given runtime is not compiled with the try-runtime feature.\")\n\
 			note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace");
 		let error = TestExecuteBlockCommand::default().execute(&mut cli).await.unwrap_err();
-		// The error is expected because `pop-node` production runtime on Paseo is not compiled with the `try-runtime` feature.
-		assert!(error.to_string().contains("Given runtime is not compiled with the try-runtime feature."));
+		// The error is expected because `pop-node` production runtime on Paseo is not compiled with
+		// the `try-runtime` feature.
+		assert!(error
+			.to_string()
+			.contains("Given runtime is not compiled with the try-runtime feature."));
 		cli.verify()
 	}
 
