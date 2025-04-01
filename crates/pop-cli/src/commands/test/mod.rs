@@ -43,7 +43,7 @@ pub(crate) enum Command {
 	/// Test migrations.
 	#[cfg(feature = "parachain")]
 	OnRuntimeUpgrade(on_runtime_upgrade::TestOnRuntimeUpgradeCommand),
-	/// Test a block execution.
+	/// Executes the given block against some state
 	#[cfg(feature = "parachain")]
 	ExecuteBlock(execute_block::TestExecuteBlockCommand),
 	/// Create a chain state snapshot.
