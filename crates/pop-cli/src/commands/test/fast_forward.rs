@@ -63,6 +63,7 @@ pub(crate) struct TestFastForwardCommand {
 	skip_confirm: bool,
 }
 
+#[cfg(test)]
 impl Default for TestFastForwardCommand {
 	fn default() -> Self {
 		Self {
@@ -78,7 +79,7 @@ impl Default for TestFastForwardCommand {
 
 impl TestFastForwardCommand {
 	pub(crate) async fn execute(mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
-		cli.intro("Testing fast-forward...")?;
+		cli.intro("Performing try-state checks on simulated block execution...")?;
 		let user_provided_args: Vec<String> = std::env::args().skip(3).collect();
 		if self.n_blocks.is_none() {
 			let input = cli
@@ -104,21 +105,20 @@ impl TestFastForwardCommand {
 		}
 
 		// Test fast-forward with `try-runtime-cli` binary.
-		let result = self.run(cli, user_provided_args.clone()).await;
+		let result = self.run(cli, &user_provided_args).await;
 
 		// Display the `fast-forward` command.
-		cli.info(self.display(user_provided_args)?)?;
+		cli.info(self.display(&user_provided_args)?)?;
 		if let Err(e) = result {
-			println!("error: {}", e);
 			return display_message(&e.to_string(), false, cli);
 		}
-		display_message("Tested fast-forwarding successfully!", true, cli)
+		display_message("Runtime upgrades and try-state checks completed successfully!", true, cli)
 	}
 
 	async fn run(
 		&mut self,
 		cli: &mut impl cli::traits::Cli,
-		user_provided_args: Vec<String>,
+		user_provided_args: &Vec<String>,
 	) -> anyhow::Result<()> {
 		let binary_path = check_try_runtime_and_prompt(cli, self.skip_confirm).await?;
 		cli.warning("NOTE: this may take some time...")?;
@@ -142,8 +142,6 @@ impl TestFastForwardCommand {
 				},
 			None => return Err(anyhow::anyhow!("No subcommand provided")),
 		}
-		sleep(Duration::from_secs(1));
-
 		let subcommand = self.subcommand()?;
 		let (command_arguments, _, after_subcommand) =
 			partition_arguments(user_provided_args, &subcommand);
@@ -164,7 +162,7 @@ impl TestFastForwardCommand {
 		Ok(())
 	}
 
-	fn display(&self, user_provided_args: Vec<String>) -> anyhow::Result<String> {
+	fn display(&self, user_provided_args: &Vec<String>) -> anyhow::Result<String> {
 		let mut cmd_args = vec!["pop test fast-forward".to_string()];
 		let mut args = vec![];
 		let subcommand = self.subcommand()?;
@@ -302,7 +300,7 @@ mod tests {
 			uri: Some("https://example.com".to_string()),
 			..Default::default()
 		}));
-		let error = cmd.run(&mut MockCli::new(), vec![]).await.unwrap_err().to_string();
+		let error = cmd.run(&mut MockCli::new(), &vec![]).await.unwrap_err().to_string();
 		assert!(error.contains(
 			r#"Failed to test with try-runtime: error: invalid value 'https://example.com' for '--uri <URI>': not a valid WS(S) url: must start with 'ws://' or 'wss://'"#,
 		));
@@ -314,12 +312,12 @@ mod tests {
 		let mut cmd = TestFastForwardCommand::default();
 		cmd.state = Some(State::Live(LiveState::default()));
 		assert_eq!(
-			cmd.display(vec!["--blocktime=20".to_string()])?,
+			cmd.display(&vec!["--blocktime=20".to_string()])?,
 			"pop test fast-forward --try-state=all --blocktime=20 live"
 		);
 		cmd.blocktime = DEFAULT_BLOCK_TIME;
 		assert_eq!(
-			cmd.display(vec![])?,
+			cmd.display(&vec![])?,
 			format!(
 				"pop test fast-forward --try-state=all --blocktime={} live",
 				DEFAULT_BLOCK_TIME
@@ -327,14 +325,14 @@ mod tests {
 		);
 		cmd.try_state = TryStateSelect::Only(vec!["System".as_bytes().to_vec()]);
 		assert_eq!(
-			cmd.display(vec![])?,
+			cmd.display(&vec![])?,
 			format!(
 				"pop test fast-forward --try-state=System --blocktime={} live",
 				DEFAULT_BLOCK_TIME
 			)
 		);
 		assert_eq!(
-			cmd.display(vec!["--try-state=rr-10".to_string()])?,
+			cmd.display(&vec!["--try-state=rr-10".to_string()])?,
 			format!(
 				"pop test fast-forward --blocktime={} --try-state=rr-10 live",
 				DEFAULT_BLOCK_TIME
@@ -345,7 +343,7 @@ mod tests {
 			..Default::default()
 		}));
 		assert_eq!(
-			cmd.display(vec![])?,
+			cmd.display(&vec![])?,
 			format!(
 				"pop test fast-forward --try-state=System --blocktime={} live --uri={}",
 				DEFAULT_BLOCK_TIME, DEFAULT_LIVE_NODE_URL

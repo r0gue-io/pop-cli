@@ -198,7 +198,7 @@ impl TestOnRuntimeUpgradeCommand {
 		let subcommand = self.subcommand()?;
 		let user_provided_args: Vec<String> = std::env::args().skip(3).collect();
 		let (command_arguments, shared_params, after_subcommand) =
-			partition_arguments(user_provided_args, &subcommand);
+			partition_arguments(&user_provided_args, &subcommand);
 
 		let mut shared_args = vec![];
 		collect_shared_arguments(&self.shared_params, &shared_params, &mut shared_args);
@@ -248,7 +248,7 @@ impl TestOnRuntimeUpgradeCommand {
 		let subcommand = self.subcommand()?;
 		let user_provided_args: Vec<String> = std::env::args().skip(3).collect();
 		let (command_arguments, shared_params, after_subcommand) =
-			partition_arguments(user_provided_args, &subcommand);
+			partition_arguments(&user_provided_args, &subcommand);
 
 		collect_shared_arguments(&self.shared_params, &shared_params, &mut args);
 		self.collect_arguments_before_subcommand(&command_arguments, &mut args);

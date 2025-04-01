@@ -383,7 +383,7 @@ pub(crate) fn collect_state_arguments(
 /// * `args` - A vector of arguments to be partitioned.
 /// * `subcommand` - The name of the subcommand.
 pub(crate) fn partition_arguments(
-	args: Vec<String>,
+	args: &Vec<String>,
 	subcommand: &str,
 ) -> (Vec<String>, Vec<String>, Vec<String>) {
 	let mut command_parts = args.split(|arg| arg == subcommand);
@@ -794,7 +794,7 @@ mod tests {
 	fn partition_arguments_works() {
 		let subcommand = "run";
 		let (command_args, shared_params, after_subcommand) =
-			partition_arguments(vec![subcommand.to_string()], subcommand);
+			partition_arguments(&vec![subcommand.to_string()], subcommand);
 
 		assert!(command_args.is_empty());
 		assert!(shared_params.is_empty());
@@ -808,7 +808,8 @@ mod tests {
 			"--arg1".to_string(),
 			"--arg2".to_string(),
 		];
-		let (command_args, shared_params, after_subcommand) = partition_arguments(args, subcommand);
+		let (command_args, shared_params, after_subcommand) =
+			partition_arguments(&args, subcommand);
 		assert_eq!(command_args, vec!["--command=command_name".to_string()]);
 		assert_eq!(
 			shared_params,

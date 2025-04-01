@@ -49,7 +49,8 @@ pub(crate) enum Command {
 	/// Create a chain state snapshot.
 	#[cfg(feature = "parachain")]
 	CreateSnapshot(create_snapshot::TestCreateSnapshotCommand),
-	/// Test fast-forwarding.
+	/// Executes a runtime upgrade (optional), then mines a number of blocks while performing
+	/// try-state checks
 	#[cfg(feature = "parachain")]
 	FastForward(fast_forward::TestFastForwardCommand),
 }
