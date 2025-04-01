@@ -28,6 +28,7 @@ use pop_parachains::{
 };
 use std::{str::FromStr, thread::sleep, time::Duration};
 
+// Custom arguments which are not in `try-runtime on-runtime-upgrade`.
 const CUSTOM_ARGS: [&str; 5] = ["--profile", "--no-build", "-n", "--skip-confirm", "-y"];
 const DISABLE_SPEC_VERSION_CHECK: &str = "disable-spec-version-check";
 const DISABLE_SPEC_NAME_CHECK: &str = "disable-spec-name-check";

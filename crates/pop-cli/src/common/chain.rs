@@ -39,7 +39,7 @@ pub(crate) async fn configure(
 // Get available pallets on the chain.
 pub(crate) async fn get_pallets(client: &OnlineClient<SubstrateConfig>) -> Result<Vec<Pallet>> {
 	// Parse metadata from chain url.
-	let mut pallets = parse_chain_metadata(&client)
+	let mut pallets = parse_chain_metadata(client)
 		.map_err(|e| anyhow!(format!("Unable to fetch the chain metadata: {}", e.to_string())))?;
 	// Sort by name for display.
 	pallets.sort_by_key(|pallet| pallet.name.clone());
