@@ -21,8 +21,6 @@ use std::{
 	fs::{self, create_dir_all},
 	path::{Path, PathBuf},
 };
-#[cfg(not(test))]
-use std::{thread::sleep, time::Duration};
 use strum::{EnumMessage, VariantArray};
 use strum_macros::{AsRefStr, Display, EnumString};
 
@@ -428,7 +426,7 @@ impl BuildSpecCommand {
 		};
 
 		// Prompt the user for deterministic build only if the profile is Production.
-		let deterministic = if skip_deterministic_build {
+		let deterministic = if skip_deterministic_build || !prompt {
 			false
 		} else {
 			deterministic || cli
@@ -474,8 +472,6 @@ impl BuildSpecCommand {
 
 		if release {
 			cli.warning("NOTE: release flag is deprecated. Use `--profile` instead.")?;
-			#[cfg(not(test))]
-			sleep(Duration::from_secs(3));
 			profile = Profile::Release;
 		}
 
@@ -493,12 +489,47 @@ impl BuildSpecCommand {
 			deterministic,
 			package,
 			runtime_dir,
+			use_existing_plain_spec: !prompt,
 		})
 	}
 }
 
+/// Represents the generated chain specification artifacts.
+#[derive(Debug, Default, Clone)]
+pub struct GenesisArtifacts {
+	/// Path to the plain text chain specification file.
+	pub chain_spec: PathBuf,
+	/// Path to the raw chain specification file.
+	pub raw_chain_spec: PathBuf,
+	/// Optional path to the genesis state file.
+	pub genesis_state_file: Option<CodePathBuf>,
+	/// Optional path to the genesis code file.
+	pub genesis_code_file: Option<StatePathBuf>,
+}
+impl GenesisArtifacts {
+	/// Reads the genesis state file as a string.
+	pub fn read_genesis_state(&self) -> anyhow::Result<String> {
+		std::fs::read_to_string(
+			self.genesis_state_file
+				.as_ref()
+				.ok_or_else(|| anyhow::anyhow!("Missing genesis state file path"))?,
+		)
+		.map_err(|e| anyhow::anyhow!("Failed to read genesis state file: {}", e))
+	}
+
+	/// Reads the genesis code file as a string.
+	pub fn read_genesis_code(&self) -> anyhow::Result<String> {
+		std::fs::read_to_string(
+			self.genesis_code_file
+				.as_ref()
+				.ok_or_else(|| anyhow::anyhow!("Missing genesis code file path"))?,
+		)
+		.map_err(|e| anyhow::anyhow!("Failed to read genesis code file: {}", e))
+	}
+}
+
 // Represents the configuration for building a chain specification.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub(crate) struct BuildSpec {
 	output_file: PathBuf,
 	profile: Profile,
@@ -513,6 +544,7 @@ pub(crate) struct BuildSpec {
 	deterministic: bool,
 	package: String,
 	runtime_dir: PathBuf,
+	use_existing_plain_spec: bool,
 }
 
 impl BuildSpec {
@@ -521,10 +553,7 @@ impl BuildSpec {
 	// This function generates plain and raw chain spec files based on the provided configuration,
 	// optionally including genesis state and runtime artifacts. If the node binary is missing,
 	// it triggers a build process.
-	pub(crate) fn build(
-		self,
-		cli: &mut impl cli::traits::Cli,
-	) -> anyhow::Result<(Option<CodePathBuf>, Option<StatePathBuf>)> {
+	pub(crate) fn build(self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<GenesisArtifacts> {
 		cli.intro("Building your chain spec")?;
 		let cwd = current_dir().unwrap_or(PathBuf::from("./"));
 		let mut generated_files = vec![];
@@ -536,33 +565,40 @@ impl BuildSpec {
 			ref chain,
 			genesis_state,
 			genesis_code,
+			use_existing_plain_spec,
 			..
 		} = self;
 		// Ensure binary is built.
 		let binary_path = ensure_node_binary_exists(cli, &cwd, profile, vec![])?;
 		let spinner = spinner();
-		spinner.start("Generating chain specification...");
+		if !use_existing_plain_spec {
+			spinner.start("Generating chain specification...");
+			// Generate chain spec.
+			generate_plain_chain_spec(&binary_path, output_file, default_bootnode, chain)?;
+			// Customize spec based on input.
+			self.customize()?;
+			// Deterministic build.
+			if self.deterministic {
+				spinner.set_message("Building deterministic runtime...");
+				let runtime_path =
+					self.build_deterministic_runtime(cli, &spinner).map_err(|e| {
+						anyhow::anyhow!(
+							"Failed to build the deterministic runtime: {}",
+							e.to_string()
+						)
+					})?;
+				let code = fs::read(&runtime_path).map_err(anyhow::Error::from)?;
+				cli.success("Runtime built successfully.")?;
+				generated_files
+					.push(format!("Runtime file generated at: {}", &runtime_path.display()));
+				self.update_code(&code)?;
+			}
 
-		// Generate chain spec.
-		generate_plain_chain_spec(&binary_path, output_file, default_bootnode, chain)?;
-		// Customize spec based on input.
-		self.customize()?;
-		// Deterministic build.
-		if self.deterministic {
-			spinner.set_message("Building deterministic runtime...");
-			let runtime_path = self.build_deterministic_runtime(cli, &spinner).map_err(|e| {
-				anyhow::anyhow!("Failed to build the deterministic runtime: {}", e.to_string())
-			})?;
-			let code = fs::read(&runtime_path).map_err(anyhow::Error::from)?;
-			cli.success("Runtime built successfully.")?;
-			generated_files.push(format!("Runtime file generated at: {}", &runtime_path.display()));
-			self.update_code(&code)?;
+			generated_files.push(format!(
+				"Plain text chain specification file generated at: {}",
+				&output_file.display()
+			));
 		}
-
-		generated_files.push(format!(
-			"Plain text chain specification file generated at: {}",
-			&output_file.display()
-		));
 
 		// Generate raw spec.
 		spinner.set_message("Generating raw chain specification...");
@@ -602,16 +638,46 @@ impl BuildSpec {
 		};
 
 		spinner.stop("Chain specification built successfully.");
-		let generated_files: Vec<_> = generated_files
-			.iter()
-			.map(|s| style(format!("{} {s}", console::Emoji("●", ">"))).dim().to_string())
-			.collect();
-		cli.success(format!("Generated files:\n{}", generated_files.join("\n")))?;
-		cli.outro(format!(
-			"Need help? Learn more at {}\n",
-			style("https://learn.onpop.io").magenta().underlined()
-		))?;
-		Ok((genesis_code_file, genesis_state_file))
+		if !use_existing_plain_spec {
+			let generated_files: Vec<_> = generated_files
+				.iter()
+				.map(|s| style(format!("{} {s}", console::Emoji("●", ">"))).dim().to_string())
+				.collect();
+			cli.success(format!("Generated files:\n{}", generated_files.join("\n")))?;
+			cli.outro(format!(
+				"Need help? Learn more at {}\n",
+				style("https://learn.onpop.io").magenta().underlined()
+			))?;
+		}
+		Ok(GenesisArtifacts {
+			chain_spec: output_file.clone(),
+			raw_chain_spec,
+			genesis_code_file,
+			genesis_state_file,
+		})
+	}
+
+	/// Enables the use of an existing plain chain spec, preventing unnecessary regeneration.
+	pub fn enable_existing_plain_spec(&mut self) {
+		self.use_existing_plain_spec = true;
+	}
+
+	/// Injects collator keys into the chain spec and updates the file.
+	///
+	/// # Arguments
+	/// * `collator_keys` - The list of collator keys to insert.
+	/// * `chain_spec_path` - The file path of the chain spec to be updated.
+	pub fn update_chain_spec_with_keys(
+		&mut self,
+		collator_keys: Vec<String>,
+		chain_spec_path: &Path,
+	) -> anyhow::Result<()> {
+		let mut chain_spec = ChainSpec::from(chain_spec_path)?;
+		chain_spec.replace_collator_keys(collator_keys)?;
+		chain_spec.to_file(chain_spec_path)?;
+
+		self.chain = chain_spec_path.display().to_string();
+		Ok(())
 	}
 
 	// Customize a chain specification.
@@ -928,13 +994,6 @@ mod tests {
 							genesis_code,
 						);
 					}
-					if !build_spec_cmd.deterministic {
-						cli = cli.expect_confirm(
-							"Would you like to build the runtime deterministically? This requires a containerization solution (Docker/Podman) and is recommended for production builds.",
-							deterministic,
-						).expect_input("Enter the directory path where the runtime is located:", runtime_dir.display().to_string())
-						.expect_input("Enter the runtime package name:", package.to_string());
-					}
 				}
 				let build_spec = build_spec_cmd.configure_build_spec(&mut cli).await?;
 				if !changes && no_flags_used {
@@ -944,9 +1003,9 @@ mod tests {
 					assert_eq!(build_spec.protocol_id, "my-protocol");
 					assert_eq!(build_spec.genesis_state, genesis_state);
 					assert_eq!(build_spec.genesis_code, genesis_code);
-					assert_eq!(build_spec.deterministic, deterministic);
-					assert_eq!(build_spec.package, package);
-					assert_eq!(build_spec.runtime_dir, runtime_dir);
+					assert_eq!(build_spec.deterministic, false);
+					assert_eq!(build_spec.package, DEFAULT_PACKAGE);
+					assert_eq!(build_spec.runtime_dir, PathBuf::from(DEFAULT_RUNTIME_DIR));
 				} else if changes && no_flags_used {
 					assert_eq!(build_spec.id, para_id);
 					assert_eq!(build_spec.profile, profile);
@@ -1027,6 +1086,78 @@ mod tests {
 	}
 
 	#[test]
+	fn update_chain_spec_with_keys_works() -> anyhow::Result<()> {
+		let temp_dir = tempdir()?;
+		let output_file = temp_dir.path().join("chain_spec.json");
+		std::fs::write(
+			&output_file,
+			json!({
+				"genesis": {
+					"runtimeGenesis": {
+						"patch": {
+						"collatorSelection": {
+							"invulnerables": [
+							  "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+							]
+						  },
+						  "session": {
+							"keys": [
+							  [
+								"5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+								"5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+								{
+								  "aura": "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"
+								}
+							  ],
+							]
+						}
+						}
+					}
+				}
+			})
+			.to_string(),
+		)?;
+		let mut build_spec = BuildSpec { output_file: output_file.clone(), ..Default::default() };
+		build_spec.update_chain_spec_with_keys(
+			vec!["5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty".to_string()],
+			&output_file,
+		)?;
+
+		let updated_output_file: serde_json::Value =
+			serde_json::from_str(&fs::read_to_string(&build_spec.chain)?)?;
+
+		assert_eq!(build_spec.chain, output_file.display().to_string());
+		assert_eq!(
+			updated_output_file,
+			json!({
+				"genesis": {
+					"runtimeGenesis": {
+						"patch": {
+						"collatorSelection": {
+							"invulnerables": [
+							  "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty",
+							]
+						  },
+						  "session": {
+							"keys": [
+							  [
+								"5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty",
+								"5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty",
+								{
+								  "aura": "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
+								}
+							  ],
+							]
+						},
+						}
+					}
+				}
+			})
+		);
+		Ok(())
+	}
+
+	#[test]
 	fn prepare_output_path_works() -> anyhow::Result<()> {
 		// Create a temporary directory for testing.
 		let temp_dir = TempDir::new()?;
@@ -1058,6 +1189,52 @@ mod tests {
 			// The directory should now exist.
 			assert!(result.parent().unwrap().exists());
 		}
+
+		Ok(())
+	}
+
+	#[test]
+	fn read_genesis_state_works() -> anyhow::Result<()> {
+		let mut artifacts = GenesisArtifacts::default();
+		let temp_dir = tempdir()?;
+		// Expect failure when the genesis state is `None`.
+		assert!(matches!(
+			artifacts.read_genesis_state(),
+			Err(message) if message.to_string().contains("Missing genesis state file path")
+		));
+		let genesis_state_path = temp_dir.path().join("genesis_state");
+		artifacts.genesis_state_file = Some(genesis_state_path.clone());
+		// Expect failure when the genesis state file cannot be read.
+		assert!(matches!(
+			artifacts.read_genesis_state(),
+			Err(message) if message.to_string().contains("Failed to read genesis state file")
+		));
+		// Successfully read the genesis state file.
+		std::fs::write(&genesis_state_path, "0x1234")?;
+		assert_eq!(artifacts.read_genesis_state()?, "0x1234");
+
+		Ok(())
+	}
+
+	#[test]
+	fn read_genesis_code_works() -> anyhow::Result<()> {
+		let mut artifacts = GenesisArtifacts::default();
+		let temp_dir = tempdir()?;
+		// Expect failure when the genesis code is None.
+		assert!(matches!(
+			artifacts.read_genesis_code(),
+			Err(message) if message.to_string().contains("Missing genesis code file path")
+		));
+		let genesis_code_path = temp_dir.path().join("genesis_code.wasm");
+		artifacts.genesis_code_file = Some(genesis_code_path.clone());
+		// Expect failure when the genesis code file cannot be read.
+		assert!(matches!(
+			artifacts.read_genesis_code(),
+			Err(message) if message.to_string().contains("Failed to read genesis code file")
+		));
+		// Successfully read the genesis code file.
+		std::fs::write(&genesis_code_path, "0x1234")?;
+		assert_eq!(artifacts.read_genesis_code()?, "0x1234");
 
 		Ok(())
 	}

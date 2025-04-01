@@ -8,6 +8,8 @@ pub(crate) struct ChainSpec {
 	pub(crate) token_symbol: String,
 	pub(crate) decimals: u8,
 	pub(crate) initial_endowment: String,
+	// Identifies the template used to generate the chain.
+	pub(crate) based_on: String,
 }
 
 #[derive(Template)]

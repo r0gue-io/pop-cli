@@ -63,6 +63,7 @@ frame-try-runtime = { workspace = true, features = ["try-runtime"] }
 [dev-dependencies]
 assert_cmd.workspace = true
 contract-extrinsics.workspace = true
+mockito.workspace = true
 subxt.workspace = true
 subxt-signer.workspace = true
 sp-weights.workspace = true
