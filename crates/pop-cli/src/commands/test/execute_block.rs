@@ -196,7 +196,6 @@ mod tests {
 		},
 	};
 	use console::style;
-	use frame_try_runtime::TryStateSelect;
 
 	#[tokio::test]
 	async fn execute_block_works() -> anyhow::Result<()> {
