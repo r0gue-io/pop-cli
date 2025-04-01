@@ -189,14 +189,15 @@ pub(crate) fn update_runtime_source(
 	if profile.is_none() {
 		*profile = Some(guide_user_to_select_profile(cli)?);
 	};
-	if !argument_exists(user_provided_args, "--runtime") &&
-		cli.confirm(format!(
-			"{}\n{}",
-			prompt,
-			style("If not provided, use the code of the remote node, or a snapshot.").dim()
-		))
-		.initial_value(true)
-		.interact()?
+	if !argument_exists(user_provided_args, "--runtime")
+		&& cli
+			.confirm(format!(
+				"{}\n{}",
+				prompt,
+				style("If not provided, use the code of the remote node, or a snapshot.").dim()
+			))
+			.initial_value(true)
+			.interact()?
 	{
 		if no_build {
 			cli.warning("NOTE: Make sure your runtime is built with `try-runtime` feature.")?;
@@ -320,9 +321,9 @@ impl<'a> ArgumentConstructor<'a> {
 		flag: &str,
 		value: Option<String>,
 	) {
-		if !self.seen.contains(flag) &&
-			condition_args.iter().all(|a| !self.seen.contains(*a)) &&
-			external_condition
+		if !self.seen.contains(flag)
+			&& condition_args.iter().all(|a| !self.seen.contains(*a))
+			&& external_condition
 		{
 			if let Some(v) = value {
 				if !v.is_empty() {
@@ -422,11 +423,12 @@ pub(crate) fn collect_state_arguments(
 			c.add(&[], true, "--uri", state.uri.clone());
 			c.add(&[], true, "--at", state.at.clone());
 		},
-		State::Snap { path } =>
+		State::Snap { path } => {
 			if let Some(ref path) = path {
 				let path = path.to_str().unwrap().to_string();
 				c.add(&[], !path.is_empty(), "--path", Some(path));
-			},
+			}
+		},
 	}
 	c.finalize(&["--at="]);
 	Ok(())
@@ -656,8 +658,9 @@ mod tests {
 		cli.verify()?;
 		match runtime {
 			Runtime::Existing => panic!("Unexpected runtime"),
-			Runtime::Path(ref path) =>
-				assert_eq!(path, &get_mock_runtime(Some(Feature::TryRuntime))),
+			Runtime::Path(ref path) => {
+				assert_eq!(path, &get_mock_runtime(Some(Feature::TryRuntime)))
+			},
 		}
 		assert_eq!(profile, Some(Profile::Debug));
 
