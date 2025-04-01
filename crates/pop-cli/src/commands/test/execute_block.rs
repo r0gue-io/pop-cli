@@ -24,9 +24,6 @@ use pop_parachains::{
 // Custom arguments which are not in `try-runtime execute-block`.
 const CUSTOM_ARGS: [&str; 5] = ["--profile", "--no-build", "-n", "--skip-confirm", "-y"];
 
-#[derive(clap::Parser, Default)]
-pub(crate) struct Command {}
-
 #[derive(Args, Default)]
 pub(crate) struct TestExecuteBlockCommand {
 	/// The state to use.
