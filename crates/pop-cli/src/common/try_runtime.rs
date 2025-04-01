@@ -189,14 +189,15 @@ pub(crate) fn update_runtime_source(
 	if profile.is_none() {
 		*profile = Some(guide_user_to_select_profile(cli)?);
 	};
-	if !argument_exists(user_provided_args, "--runtime") &&
-		cli.confirm(format!(
-			"{}\n{}",
-			prompt,
-			style("If not provided, use the code of the remote node, or a snapshot.").dim()
-		))
-		.initial_value(true)
-		.interact()?
+	if !argument_exists(user_provided_args, "--runtime")
+		&& cli
+			.confirm(format!(
+				"{}\n{}",
+				prompt,
+				style("If not provided, use the code of the remote node, or a snapshot.").dim()
+			))
+			.initial_value(true)
+			.interact()?
 	{
 		if no_build {
 			cli.warning("NOTE: Make sure your runtime is built with `try-runtime` feature.")?;
@@ -320,9 +321,9 @@ impl<'a> ArgumentConstructor<'a> {
 		flag: &str,
 		value: Option<String>,
 	) {
-		if !self.seen.contains(flag) &&
-			condition_args.iter().all(|a| !self.seen.contains(*a)) &&
-			external_condition
+		if !self.seen.contains(flag)
+			&& condition_args.iter().all(|a| !self.seen.contains(*a))
+			&& external_condition
 		{
 			if let Some(v) = value {
 				if !v.is_empty() {
@@ -422,11 +423,12 @@ pub(crate) fn collect_state_arguments(
 			c.add(&[], true, "--uri", state.uri.clone());
 			c.add(&[], true, "--at", state.at.clone());
 		},
-		State::Snap { path } =>
+		State::Snap { path } => {
 			if let Some(ref path) = path {
 				let path = path.to_str().unwrap().to_string();
 				c.add(&[], !path.is_empty(), "--path", Some(path));
-			},
+			}
+		},
 	}
 	c.finalize(&["--at="]);
 	Ok(())
@@ -781,11 +783,46 @@ mod tests {
 			(2, TryStateSelect::RoundRobin(10)),
 			(
 				3,
-				TryStateSelect::Only(vec![
-					"System".as_bytes().to_vec(),
-					"Balances".as_bytes().to_vec(),
-					"Proxy".as_bytes().to_vec(),
-				]),
+				TryStateSelect::Only(
+					vec![
+						"Assets",
+						"Aura",
+						"AuraExt",
+						"Authorship",
+						"Balances",
+						"CollatorSelection",
+						"Contracts",
+						"Council",
+						"CumulusXcm",
+						"Fungibles",
+						"Ismp",
+						"IsmpParachain",
+						"MessageQueue",
+						"Messaging",
+						"Motion",
+						"Multisig",
+						"NftFractionalization",
+						"Nfts",
+						"ParachainInfo",
+						"ParachainSystem",
+						"PolkadotXcm",
+						"Preimage",
+						"Proxy",
+						"Revive",
+						"Scheduler",
+						"Session",
+						"Sudo",
+						"System",
+						"Timestamp",
+						"TransactionPayment",
+						"Treasury",
+						"Utility",
+						"XcmpQueue",
+					]
+					.iter()
+					.map(|s| s.as_bytes().to_vec())
+					.collect(),
+				),
 			),
 		] {
 			let mut cli = MockCli::new().expect_select(
@@ -799,12 +836,18 @@ mod tests {
 			if let TryStateSelect::RoundRobin(..) = expected {
 				cli = cli.expect_input("Enter the number of rounds:", "10".to_string());
 			} else if let TryStateSelect::Only(..) = expected {
-				cli = cli.expect_input(
-					"Enter the pallet names separated by commas:",
-					"System, Balances, Proxy".to_string(),
+				cli = cli.expect_multiselect::<String>(
+					"Select pallets:",
+					Some(true),
+					true,
+					Some(pallet_items.clone()),
+					Some(true),
 				);
 			}
-			assert_eq!(guide_user_to_select_try_state(&mut cli)?, expected);
+			assert_eq!(
+				guide_user_to_select_try_state(&mut cli, DEFAULT_LIVE_NODE_URL).await?,
+				expected
+			);
 			cli.verify()?;
 		}
 		Ok(())
