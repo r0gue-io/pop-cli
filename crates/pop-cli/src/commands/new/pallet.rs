@@ -239,17 +239,23 @@ impl NewPalletCommand {
 
 			let mut rollback = Rollback::default();
 
-			if let Some(ref pallet_impl_path) = self.pallet_impl_path {
-				rollback.note_file(pallet_impl_path)?;
-			}
-
 			rollback.note_file(&runtime_manifest)?;
 			rollback.note_file(&runtime_lib_path)?;
+			if let Some(ref pallet_impl_path) = self.pallet_impl_path {
+				// The impl path may be the runtime lib, so the path may be already noted.
+				match rollback.note_file(pallet_impl_path) {
+					Ok(()) => (),
+					Err(fs_rollback::Error::AlreadyNoted(_)) => (),
+					Err(err) => return Err(err.into()),
+				}
+			}
 
 			let roll_pallet_impl_path = match self.pallet_impl_path {
-				Some(ref pallet_impl_path) => rollback
-					.get_noted_file(&pallet_impl_path)
-					.expect("The file has been noted above;qed;"),
+				Some(ref pallet_impl_path) => rollback.get_noted_file(pallet_impl_path).unwrap_or(
+					rollback
+						.get_noted_file(&runtime_lib_path)
+						.expect("The file has been noted above;qed;"),
+				),
 				None => {
 					rollback = rust_writer_helpers::compute_new_pallet_impl_path(
 						rollback,

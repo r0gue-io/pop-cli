@@ -107,7 +107,12 @@ impl AddPalletCommand {
 		rollback.note_file(&runtime_lib_path)?;
 		rollback.note_file(&runtime_manifest)?;
 		if let Some(ref pallet_impl_path) = self.pallet_impl_path {
-			rollback.note_file(pallet_impl_path)?;
+			// The impl path may be the runtime lib, so the path may be already noted.
+			match rollback.note_file(pallet_impl_path) {
+				Ok(()) => (),
+				Err(fs_rollback::Error::AlreadyNoted(_)) => (),
+				Err(err) => return Err(err.into()),
+			}
 		}
 
 		for (index, pallet) in pallets.iter().enumerate() {
@@ -117,9 +122,12 @@ impl AddPalletCommand {
 			let pallet_config_path = &precomputed_pallet_config_paths[index];
 
 			let roll_pallet_impl_path = match self.pallet_impl_path {
-				Some(ref pallet_impl_path) => rollback
-					.get_noted_file(pallet_impl_path)
-					.expect("The file has been noted above;qed;"),
+				// specified impl path, so get it.
+				Some(ref pallet_impl_path) => rollback.get_noted_file(pallet_impl_path).unwrap_or(
+					rollback
+						.get_noted_file(&runtime_lib_path)
+						.expect("The file has been noted above;qed;"),
+				),
 				None => {
 					rollback = rust_writer_helpers::compute_new_pallet_impl_path(
 						rollback,

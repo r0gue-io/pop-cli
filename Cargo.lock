@@ -3565,11 +3565,12 @@ dependencies = [
 
 [[package]]
 name = "fs_rollback"
-version = "2.0.0"
+version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3de930156615ed4eb3165da0bd81c0e5079d4e14a8a965bc56cfd7400f94f718"
+checksum = "110a7d453ac4dce499ec5a8da4267007fafef274c936cc60eb56f7ba162393f7"
 dependencies = [
- "rustilities 1.1.0",
+ "rustilities",
+ "same-file",
  "tempfile",
  "thiserror 2.0.12",
 ]
@@ -8157,7 +8158,7 @@ dependencies = [
  "proc-macro2",
  "reqwest",
  "rust_writer",
- "rustilities 2.2.0",
+ "rustilities",
  "serde",
  "serde_json",
  "similar",
@@ -8196,7 +8197,7 @@ dependencies = [
  "regex",
  "reqwest",
  "rust_writer",
- "rustilities 2.2.0",
+ "rustilities",
  "scale-info",
  "serde",
  "serde_json",
@@ -9253,7 +9254,7 @@ dependencies = [
  "proc-macro2",
  "regex",
  "rust_writer_proc",
- "rustilities 2.2.0",
+ "rustilities",
  "syn 2.0.100",
  "thiserror 2.0.12",
 ]
@@ -9266,7 +9267,7 @@ checksum = "54abd3b6b8f7e68143a45c862405827fc453433e46c5d892d59421607bea8074"
 dependencies = [
  "proc-macro2",
  "quote",
- "rustilities 2.2.0",
+ "rustilities",
  "syn 2.0.100",
 ]
 
@@ -9310,15 +9311,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "faf0c4a6ece9950b9abdb62b1cfcf2a68b3b67a10ba445b3bb85be2a293d0632"
 dependencies = [
  "nom",
-]
-
-[[package]]
-name = "rustilities"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1bfbd7c1a4f912953f84295e1a6119d3800d87a3555454241fbdaa1f48cfe344"
-dependencies = [
- "thiserror 2.0.12",
 ]
 
 [[package]]

@@ -142,7 +142,15 @@ fn pop_add_to_runtime_pallet_construct_runtime_works() {
 	Command::cargo_bin("pop")
 		.unwrap()
 		.current_dir(&test_parachain)
-		.args(&["add-to", "runtime", "pallet", "-p", "contracts"])
+		.args(&[
+			"add-to",
+			"runtime",
+			"pallet",
+			"-p",
+			"contracts",
+			"--pallet-impl-path",
+			runtime_lib_path.to_str().unwrap(),
+		])
 		.assert()
 		.success();
 
@@ -169,8 +177,12 @@ fn pop_add_to_runtime_pallet_construct_runtime_works() {
 	// Unparsing the AST with construct_runtime is a bit unpredictable due to the well-known issue
 	// of formatting a macro invocation AST, so the assertions we can do are limited. Let's just
 	// state that pallet_contracts have been added.
+	assert!(!runtime_lib_content_before.contains("Contracts"));
+	assert!(runtime_lib_content_after.contains("Contracts"));
 	assert!(!runtime_lib_content_before.contains("pallet_contracts"));
 	assert!(runtime_lib_content_after.contains("pallet_contracts"));
+	assert!(!runtime_lib_content_before.contains("type CallStack = Schedule;"));
+	assert!(runtime_lib_content_after.contains("type CallStack = Schedule;"));
 }
 
 #[test]
