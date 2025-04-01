@@ -8,11 +8,12 @@ use crate::{
 use clap::{Args, Parser};
 use console::style;
 use duct::cmd;
+use frame_try_runtime::TryStateSelect;
 use pop_common::sourcing::Binary;
 use pop_parachains::{
 	parse,
 	state::{LiveState, State, StateCommand},
-	try_runtime_generator, Runtime, SharedParams,
+	try_runtime_generator, try_state_details, try_state_label, Runtime, SharedParams,
 };
 use std::{
 	collections::HashSet,
@@ -172,6 +173,56 @@ fn guide_user_to_select_state_source(cli: &mut impl Cli) -> anyhow::Result<&Stat
 		);
 	}
 	prompt.interact().map_err(anyhow::Error::from)
+}
+
+/// Guides the user to select the state tests.
+///
+/// # Arguments
+/// * `cli`: Command line interface.
+pub(crate) fn guide_user_to_select_try_state(cli: &mut impl Cli) -> anyhow::Result<TryStateSelect> {
+	let default_try_state_select = try_state_details(&TryStateSelect::All);
+	let input = {
+		let mut prompt = cli
+			.select("Select state tests to execute:")
+			.initial_value(default_try_state_select.0);
+		for option in [
+			TryStateSelect::None,
+			TryStateSelect::All,
+			TryStateSelect::RoundRobin(0),
+			TryStateSelect::Only(vec![]),
+		] {
+			let (value, description) = try_state_details(&option);
+			prompt = prompt.item(value.clone(), value, description);
+		}
+		prompt.interact()?
+	};
+	Ok(match input.as_str() {
+		s if s == try_state_label(&TryStateSelect::None) => TryStateSelect::None,
+		s if s == try_state_label(&TryStateSelect::All) => TryStateSelect::All,
+		s if s == try_state_label(&TryStateSelect::RoundRobin(0)) => {
+			let input = cli
+				.input("Enter the number of rounds:")
+				.placeholder("10")
+				.required(true)
+				.interact()?;
+			let rounds = input.parse::<u32>();
+			if rounds.is_err() {
+				return Err(anyhow::anyhow!("Must be a positive integer"));
+			}
+			TryStateSelect::RoundRobin(rounds?)
+		},
+		s if s == try_state_label(&TryStateSelect::Only(vec![])) => {
+			let input = cli
+				.input("Enter the pallet names separated by commas:")
+				.placeholder("System, Balances, Proxy")
+				.required(true)
+				.interact()?;
+			let pallets: Vec<Vec<u8>> =
+				input.split(",").map(|pallet| pallet.trim().as_bytes().to_vec()).collect();
+			TryStateSelect::Only(pallets)
+		},
+		_ => TryStateSelect::All,
+	})
 }
 
 /// Construct arguments based on provided conditions.
@@ -377,6 +428,19 @@ pub(crate) fn get_subcommands() -> Vec<(String, String)> {
 }
 
 #[cfg(test)]
+pub(crate) fn get_try_state_items() -> Vec<(String, String)> {
+	[
+		TryStateSelect::All,
+		TryStateSelect::None,
+		TryStateSelect::RoundRobin(0),
+		TryStateSelect::Only(vec![]),
+	]
+	.iter()
+	.map(|try_state_select| try_state_details(&try_state_select))
+	.collect::<Vec<_>>()
+}
+
+#[cfg(test)]
 mod tests {
 	use super::*;
 	use crate::cli::MockCli;
@@ -511,6 +575,43 @@ mod tests {
 			None,
 		);
 		assert_eq!(guide_user_to_select_state_source(&mut cli)?, &StateCommand::Live);
+		Ok(())
+	}
+
+	#[test]
+	fn guide_user_to_select_try_state_works() -> anyhow::Result<()> {
+		for (option, expected) in [
+			(0, TryStateSelect::None),
+			(1, TryStateSelect::All),
+			(2, TryStateSelect::RoundRobin(10)),
+			(
+				3,
+				TryStateSelect::Only(vec![
+					"System".as_bytes().to_vec(),
+					"Balances".as_bytes().to_vec(),
+					"Proxy".as_bytes().to_vec(),
+				]),
+			),
+		] {
+			let mut cli = MockCli::new().expect_select(
+				"Select state tests to execute:",
+				Some(true),
+				true,
+				Some(get_try_state_items()),
+				option,
+				None,
+			);
+			if let TryStateSelect::RoundRobin(..) = expected {
+				cli = cli.expect_input("Enter the number of rounds:", "10".to_string());
+			} else if let TryStateSelect::Only(..) = expected {
+				cli = cli.expect_input(
+					"Enter the pallet names separated by commas:",
+					"System, Balances, Proxy".to_string(),
+				);
+			}
+			assert_eq!(guide_user_to_select_try_state(&mut cli)?, expected);
+			cli.verify()?;
+		}
 		Ok(())
 	}
 
