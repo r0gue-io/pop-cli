@@ -12,6 +12,8 @@ version.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+# Pin to solve dependencies conflics. See Cargo.toml for further info.
+deranged.workspace = true
 duct.workspace = true
 reqwest.workspace = true
 tempfile.workspace = true

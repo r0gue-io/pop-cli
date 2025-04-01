@@ -1,5 +1,6 @@
 use clap::ValueEnum;
 use strum_macros::{EnumIter, EnumMessage};
+use syn::{parse_quote, Type};
 
 /// This enum is used to register from the CLI which types that are kind of usual in config traits
 /// are included in the pallet
@@ -25,6 +26,16 @@ pub enum TemplatePalletConfigCommonTypes {
 		detailed_message = "This type will allow your pallet to interact with the native currency of the blockchain."
 	)]
 	Currency,
+}
+
+impl TemplatePalletConfigCommonTypes {
+	pub fn common_value(&self) -> Type {
+		match self {
+			TemplatePalletConfigCommonTypes::RuntimeEvent => parse_quote! {RuntimeEvent},
+			TemplatePalletConfigCommonTypes::RuntimeOrigin => parse_quote! {RuntimeOrigin},
+			TemplatePalletConfigCommonTypes::Currency => parse_quote! {Balances},
+		}
+	}
 }
 
 /// This enum is used to determine which storage shape has a storage item in the pallet

@@ -8,6 +8,8 @@ repository.workspace = true
 version.workspace = true
 
 [dependencies]
+# Pin to solve dependencies conflics. See Cargo.toml for further info.
+deranged.workspace = true
 dirs = { workspace = true }
 env_logger.workspace = true
 log.workspace = true
