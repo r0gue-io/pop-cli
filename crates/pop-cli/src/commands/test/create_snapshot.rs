@@ -12,6 +12,7 @@ use cliclack::spinner;
 use console::style;
 use pop_parachains::{run_try_runtime, state::LiveState, TryRuntimeCliCommand};
 
+// Custom arguments which are not in `try-runtime create-snapshot`.
 const CUSTOM_ARGS: [&str; 2] = ["--skip-confirm", "-y"];
 const DEFAULT_REMOTE_NODE_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";
 const DEFAULT_SNAPSHOT_PATH: &str = "example.snap";

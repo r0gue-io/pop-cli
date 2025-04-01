@@ -21,6 +21,7 @@ use pop_parachains::{
 	SharedParams, TryRuntimeCliCommand,
 };
 
+// Custom arguments which are not in `try-runtime execute-block`.
 const CUSTOM_ARGS: [&str; 5] = ["--profile", "--no-build", "-n", "--skip-confirm", "-y"];
 
 #[derive(clap::Parser, Default)]
@@ -83,7 +84,12 @@ impl TestExecuteBlockCommand {
 
 		// Prompt the user to select the try state if no `--try-state` argument is provided.
 		if self.try_state.is_none() {
-			self.try_state = Some(guide_user_to_select_try_state(cli)?);
+			let uri = self
+				.state
+				.uri
+				.as_ref()
+				.ok_or_else(|| anyhow::anyhow!("No live node URI is provided"))?;
+			self.try_state = Some(guide_user_to_select_try_state(cli, uri).await?);
 		}
 
 		// Test block execution with `try-runtime-cli` binary.
@@ -229,9 +235,9 @@ mod tests {
 				1,
 				None,
 			);
-		// The error happens because `pop-node` production runtime on Paseo is not compiled with
-		// the `try-runtime` feature.
-		TestExecuteBlockCommand::default().execute(&mut cli).await?;
+		let mut command = TestExecuteBlockCommand::default();
+		command.no_build = true;
+		command.execute(&mut cli).await?;
 		cli.verify()
 	}
 
