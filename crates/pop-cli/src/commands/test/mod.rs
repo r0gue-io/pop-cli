@@ -36,19 +36,19 @@ pub(crate) struct TestArgs {
 /// Test a Rust project.
 #[derive(Subcommand)]
 pub(crate) enum Command {
+	/// Create a chain state snapshot.
+	#[cfg(feature = "parachain")]
+	CreateSnapshot(create_snapshot::TestCreateSnapshotCommand),
 	/// [DEPRECATED] Test a smart contract (will be removed in v0.8.0).
 	#[cfg(feature = "contract")]
 	#[clap(alias = "c")]
 	Contract(contract::TestContractCommand),
-	/// Test migrations.
-	#[cfg(feature = "parachain")]
-	OnRuntimeUpgrade(on_runtime_upgrade::TestOnRuntimeUpgradeCommand),
 	/// Executes the given block against some state
 	#[cfg(feature = "parachain")]
 	ExecuteBlock(execute_block::TestExecuteBlockCommand),
-	/// Create a chain state snapshot.
+	/// Test migrations.
 	#[cfg(feature = "parachain")]
-	CreateSnapshot(create_snapshot::TestCreateSnapshotCommand),
+	OnRuntimeUpgrade(on_runtime_upgrade::TestOnRuntimeUpgradeCommand),
 	/// Executes a runtime upgrade (optional), then mines a number of blocks while performing
 	/// try-state checks
 	#[cfg(feature = "parachain")]

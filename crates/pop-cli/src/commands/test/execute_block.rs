@@ -24,9 +24,6 @@ use pop_parachains::{
 // Custom arguments which are not in `try-runtime execute-block`.
 const CUSTOM_ARGS: [&str; 5] = ["--profile", "--no-build", "-n", "--skip-confirm", "-y"];
 
-#[derive(clap::Parser, Default)]
-pub(crate) struct Command {}
-
 #[derive(Args, Default)]
 pub(crate) struct TestExecuteBlockCommand {
 	/// The state to use.
@@ -64,7 +61,7 @@ pub(crate) struct TestExecuteBlockCommand {
 
 impl TestExecuteBlockCommand {
 	pub(crate) async fn execute(mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
-		cli.intro("Testing block execution.")?;
+		cli.intro("Testing block execution")?;
 		let user_provided_args: Vec<String> = std::env::args().skip(3).collect();
 		if let Err(e) = update_runtime_source(
 			cli,
@@ -89,7 +86,7 @@ impl TestExecuteBlockCommand {
 				.uri
 				.as_ref()
 				.ok_or_else(|| anyhow::anyhow!("No live node URI is provided"))?;
-			self.try_state = Some(guide_user_to_select_try_state(cli, uri).await?);
+			self.try_state = Some(guide_user_to_select_try_state(cli, Some(uri.clone())).await?);
 		}
 
 		// Test block execution with `try-runtime-cli` binary.
@@ -205,7 +202,7 @@ mod tests {
 	async fn execute_block_works() -> anyhow::Result<()> {
 		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
 		let mut cli = MockCli::new()
-			.expect_intro("Testing block execution.")
+			.expect_intro("Testing block execution")
 			.expect_select(
 				"Choose the build profile of the binary that should be used: ".to_string(),
 				Some(true),

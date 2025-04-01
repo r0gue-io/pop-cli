@@ -31,6 +31,7 @@ use super::{
 
 const BINARY_NAME: &str = "try-runtime";
 pub(crate) const DEFAULT_BLOCK_HASH: &str = "0x0000000000";
+pub(crate) const DEFAULT_BLOCK_TIME: u64 = 6000;
 pub(crate) const DEFAULT_LIVE_NODE_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";
 pub(crate) const DEFAULT_SNAPSHOT_PATH: &str = "your-parachain.snap";
 
@@ -228,9 +229,10 @@ fn guide_user_to_select_state_source(cli: &mut impl Cli) -> anyhow::Result<&Stat
 ///
 /// # Arguments
 /// * `cli`: Command line interface.
+/// * `url`: URL of the live node.
 pub(crate) async fn guide_user_to_select_try_state(
 	cli: &mut impl Cli,
-	url: &str,
+	url: Option<String>,
 ) -> anyhow::Result<TryStateSelect> {
 	let default_try_state_select = try_state_details(&TryStateSelect::All);
 	let input = {
@@ -263,21 +265,38 @@ pub(crate) async fn guide_user_to_select_try_state(
 			}
 			TryStateSelect::RoundRobin(rounds?)
 		},
-		s if s == try_state_label(&TryStateSelect::Only(vec![])) => {
-			let client = set_up_client(url).await?;
-			let pallets = get_pallets(&client).await?;
-			let mut prompt = cli.multiselect("Select pallets:").required(true).filter_mode();
-			for pallet in pallets {
-				prompt = prompt.item(pallet.name.clone(), pallet.name, pallet.docs);
-			}
-			let selected_pallets = prompt.interact()?;
-			TryStateSelect::Only(
-				selected_pallets
-					.iter()
-					.map(|pallet| pallet.trim().as_bytes().to_vec())
-					.collect(),
-			)
-		},
+		s if s == try_state_label(&TryStateSelect::Only(vec![])) =>
+			match url {
+				Some(url) => {
+					let client = set_up_client(&url).await?;
+					let pallets = get_pallets(&client).await?;
+					let mut prompt =
+						cli.multiselect("Select pallets:").required(true).filter_mode();
+					for pallet in pallets {
+						prompt = prompt.item(pallet.name.clone(), pallet.name, pallet.docs);
+					}
+					let selected_pallets = prompt.interact()?;
+					TryStateSelect::Only(
+						selected_pallets
+							.iter()
+							.map(|pallet| pallet.trim().as_bytes().to_vec())
+							.collect(),
+					)
+				},
+				None => {
+					let input = cli
+						.input(format!(
+    						"Enter the pallet names separated by commas:\n{}",
+    						style("Pallet names must be capitalized exactly as defined in the runtime.").dim()
+    					))
+						.placeholder("System, Balances, Proxy")
+						.required(true)
+						.interact()?;
+					TryStateSelect::Only(
+						input.split(",").map(|pallet| pallet.trim().as_bytes().to_vec()).collect(),
+					)
+				},
+			},
 		_ => TryStateSelect::All,
 	})
 }
@@ -439,7 +458,7 @@ pub(crate) fn collect_state_arguments(
 /// * `args` - A vector of arguments to be partitioned.
 /// * `subcommand` - The name of the subcommand.
 pub(crate) fn partition_arguments(
-	args: &Vec<String>,
+	args: &[String],
 	subcommand: &str,
 ) -> (Vec<String>, Vec<String>, Vec<String>) {
 	let mut command_parts = args.split(|arg| arg == subcommand);
@@ -697,12 +716,23 @@ mod tests {
 		let pallet_items: Vec<(String, String)> =
 			pallets.into_iter().map(|pallet| (pallet.name, pallet.docs)).collect();
 
-		for (option, expected) in [
-			(0, TryStateSelect::None),
-			(1, TryStateSelect::All),
-			(2, TryStateSelect::RoundRobin(10)),
+		for (option, uri, expected) in [
+			(0, None, TryStateSelect::None),
+			(1, None, TryStateSelect::All),
+			(2, None, TryStateSelect::RoundRobin(10)),
 			(
 				3,
+				None,
+				TryStateSelect::Only(
+					vec!["System", "Balances", "Proxy"]
+						.iter()
+						.map(|s| s.as_bytes().to_vec())
+						.collect(),
+				),
+			),
+			(
+				3,
+				Some(DEFAULT_LIVE_NODE_URL.to_string()),
 				TryStateSelect::Only(
 					vec![
 						"Assets",
@@ -756,96 +786,25 @@ mod tests {
 			if let TryStateSelect::RoundRobin(..) = expected {
 				cli = cli.expect_input("Enter the number of rounds:", "10".to_string());
 			} else if let TryStateSelect::Only(..) = expected {
-				cli = cli.expect_multiselect::<String>(
-					"Select pallets:",
-					Some(true),
-					true,
-					Some(pallet_items.clone()),
-					Some(true),
-				);
+				if uri.is_some() {
+					cli = cli.expect_multiselect::<String>(
+						"Select pallets:",
+						Some(true),
+						true,
+						Some(pallet_items.clone()),
+						Some(true),
+					);
+				} else {
+					cli = cli.expect_input(
+						format!(
+    						"Enter the pallet names separated by commas:\n{}",
+    						style("Pallet names must be capitalized exactly as defined in the runtime.").dim()
+    					),
+						"System, Balances, Proxy".to_string(),
+					);
+				}
 			}
-			assert_eq!(
-				guide_user_to_select_try_state(&mut cli, DEFAULT_LIVE_NODE_URL).await?,
-				expected
-			);
-			cli.verify()?;
-		}
-		Ok(())
-	}
-
-	#[test]
-	fn guide_user_to_select_try_state_works() -> anyhow::Result<()> {
-		for (option, expected) in [
-			(0, TryStateSelect::None),
-			(1, TryStateSelect::All),
-			(2, TryStateSelect::RoundRobin(10)),
-			(
-				3,
-				TryStateSelect::Only(
-					vec![
-						"Assets",
-						"Aura",
-						"AuraExt",
-						"Authorship",
-						"Balances",
-						"CollatorSelection",
-						"Contracts",
-						"Council",
-						"CumulusXcm",
-						"Fungibles",
-						"Ismp",
-						"IsmpParachain",
-						"MessageQueue",
-						"Messaging",
-						"Motion",
-						"Multisig",
-						"NftFractionalization",
-						"Nfts",
-						"ParachainInfo",
-						"ParachainSystem",
-						"PolkadotXcm",
-						"Preimage",
-						"Proxy",
-						"Revive",
-						"Scheduler",
-						"Session",
-						"Sudo",
-						"System",
-						"Timestamp",
-						"TransactionPayment",
-						"Treasury",
-						"Utility",
-						"XcmpQueue",
-					]
-					.iter()
-					.map(|s| s.as_bytes().to_vec())
-					.collect(),
-				),
-			),
-		] {
-			let mut cli = MockCli::new().expect_select(
-				"Select state tests to execute:",
-				Some(true),
-				true,
-				Some(get_try_state_items()),
-				option,
-				None,
-			);
-			if let TryStateSelect::RoundRobin(..) = expected {
-				cli = cli.expect_input("Enter the number of rounds:", "10".to_string());
-			} else if let TryStateSelect::Only(..) = expected {
-				cli = cli.expect_multiselect::<String>(
-					"Select pallets:",
-					Some(true),
-					true,
-					Some(pallet_items.clone()),
-					Some(true),
-				);
-			}
-			assert_eq!(
-				guide_user_to_select_try_state(&mut cli, DEFAULT_LIVE_NODE_URL).await?,
-				expected
-			);
+			assert_eq!(guide_user_to_select_try_state(&mut cli, uri).await?, expected);
 			cli.verify()?;
 		}
 		Ok(())

@@ -20,7 +20,7 @@ pub enum TryRuntimeCliCommand {
 	ExecuteBlock,
 	/// Command to create a snapshot.
 	CreateSnapshot,
-	/// Command to test fast-forwarding.
+	/// Command to mine a series of blocks after executing a runtime upgrade.
 	FastForward,
 }
 
