@@ -23,7 +23,7 @@ pub mod wallet;
 use std::fmt::{Display, Formatter, Result};
 use strum::VariantArray;
 
-/// Data after command execution.
+/// Data returned after command execution.
 #[derive(Debug, PartialEq)]
 pub enum Data {
 	/// Project that was built.
@@ -41,7 +41,7 @@ pub enum Data {
 	Install(Os),
 	/// Template that was created.
 	New(Template),
-	/// No additional telemetry data.
+	/// No additional data.
 	Null,
 }
 

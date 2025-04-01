@@ -183,7 +183,7 @@ mod tests {
 			DeploymentProvider::VARIANTS.len(), // Register
 			None,
 		);
-		assert_eq!(Command::execute_project_deployment(args, &mut cli).await?, Project::Chain);
+		assert_eq!(Command::execute_project_deployment(args, &mut cli).await?, Chain);
 		cli.verify()
 	}
 
@@ -199,7 +199,7 @@ mod tests {
 		let mut cli = MockCli::new().expect_warning(
 			"No contract or rollup detected. Ensure you are in a valid project directory.",
 		);
-		assert_eq!(Command::execute_project_deployment(args, &mut cli).await?, Project::Unknown);
+		assert_eq!(Command::execute_project_deployment(args, &mut cli).await?, Unknown);
 		cli.verify()
 	}
 }

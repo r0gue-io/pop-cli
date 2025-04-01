@@ -191,7 +191,7 @@ pub struct BuildSpecCommand {
 
 impl BuildSpecCommand {
 	/// Executes the build spec command.
-	pub(crate) async fn execute(self) -> anyhow::Result<&'static str> {
+	pub(crate) async fn execute(self) -> anyhow::Result<()> {
 		let mut cli = Cli;
 		cli.intro("Generate your chain spec")?;
 		// Checks for appchain project in `./`.
@@ -205,7 +205,7 @@ impl BuildSpecCommand {
 				"🚫 Can't build a specification for target. Maybe not a chain project ?",
 			)?;
 		}
-		Ok("spec")
+		Ok(())
 	}
 
 	/// Configure chain specification requirements by prompting for missing inputs, validating

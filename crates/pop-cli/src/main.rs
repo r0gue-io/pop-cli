@@ -36,10 +36,7 @@ async fn main() -> Result<()> {
 	let result = cli.command.execute().await;
 	#[cfg(feature = "telemetry")]
 	if let Some(tel) = maybe_tel {
-		let data = match result.as_ref() {
-			Ok(t) => t.to_string(),
-			Err(e) => e.to_string(),
-		};
+		let data = result.as_ref().map_or_else(|e| e.to_string(), |t| t.to_string());
 		// Best effort to send on first try, no action if failure.
 		let _ = record_cli_command(tel.clone(), &event, &data).await;
 	}
@@ -120,12 +117,11 @@ mod tests {
 		Ok(())
 	}
 
-	// Integration test that simulates the full command execution flow and replaces existing tests
 	#[cfg(feature = "telemetry")]
-	mod integration {
+	mod telemetry {
 		use super::*;
 		use anyhow::anyhow;
-		use common::telemetry::{
+		use common::{
 			Data::{self, *},
 			Os::*,
 			Project::*,
@@ -133,17 +129,17 @@ mod tests {
 			TestFeature::*,
 		};
 
-		// Helper function to simulate what happens in main()
+		// Helper function to simulate what happens in main().
 		fn simulate_command_flow<T: Display>(
 			command: Command,
 			result: Result<T>,
 		) -> (String, String) {
 			let cli = Cli { command };
-			let command_string = cli.to_string();
+			let event = cli.to_string();
 
 			let data = result.as_ref().map_or_else(|e| e.to_string(), |t| t.to_string());
 
-			(command_string, data)
+			(event, data)
 		}
 
 		#[test]
@@ -172,10 +168,10 @@ mod tests {
 			// Error handling.
 			let (command, data) = simulate_command_flow(
 				Command::Test(Default::default()),
-				Err(anyhow!("test failed: build error")) as Result<Data>,
+				Err(anyhow!("build error")) as Result<Data>,
 			);
 			assert_eq!(command, "test");
-			assert_eq!(data, "test failed: build error");
+			assert_eq!(data, "build error");
 		}
 
 		#[test]
@@ -202,10 +198,10 @@ mod tests {
 			// Error handling.
 			let (command, data) = simulate_command_flow(
 				Command::Build(Default::default()),
-				Err(anyhow!("build failed: compilation error")) as Result<Data>,
+				Err(anyhow!("compilation error")) as Result<Data>,
 			);
 			assert_eq!(command, "build");
-			assert_eq!(data, "build failed: compilation error");
+			assert_eq!(data, "compilation error");
 		}
 
 		#[test]
@@ -220,10 +216,10 @@ mod tests {
 			// Error handling.
 			let (command, data) = simulate_command_flow(
 				Command::Up(Default::default()),
-				Err(anyhow!("up failed: network error")) as Result<Data>,
+				Err(anyhow!("network error")) as Result<Data>,
 			);
 			assert_eq!(command, "up");
-			assert_eq!(data, "up failed: network error");
+			assert_eq!(data, "network error");
 		}
 
 		#[test]
@@ -247,10 +243,10 @@ mod tests {
 			// Error handling.
 			let (command, data) = simulate_command_flow(
 				Command::Clean(Default::default()),
-				Err(anyhow!("clean failed: permission denied")) as Result<Data>,
+				Err(anyhow!("permission denied")) as Result<Data>,
 			);
 			assert_eq!(command, "clean");
-			assert_eq!(data, "clean failed: permission denied");
+			assert_eq!(data, "permission denied");
 		}
 
 		#[test]
@@ -268,10 +264,10 @@ mod tests {
 			// Error handling.
 			let (command, data) = simulate_command_flow(
 				Command::Install(Default::default()),
-				Err(anyhow!("install failed: download error")) as Result<Data>,
+				Err(anyhow!("download error")) as Result<Data>,
 			);
 			assert_eq!(command, "install");
-			assert_eq!(data, "install failed: download error");
+			assert_eq!(data, "download error");
 		}
 
 		#[test]
@@ -297,10 +293,10 @@ mod tests {
 			// Error handling.
 			let (command, data) = simulate_command_flow(
 				Command::New(NewArgs { command: NewCommand::Contract(Default::default()) }),
-				Err(anyhow!("new failed: template error")) as Result<Data>,
+				Err(anyhow!("template error")) as Result<Data>,
 			);
 			assert_eq!(command, "new contract");
-			assert_eq!(data, "new failed: template error");
+			assert_eq!(data, "template error");
 		}
 
 		#[test]
@@ -324,10 +320,10 @@ mod tests {
 			// Error handling.
 			let (command, data) = simulate_command_flow(
 				Command::Bench(BenchmarkArgs { command: Pallet(Default::default()) }),
-				Err(anyhow!("bench failed: runtime error")) as Result<Data>,
+				Err(anyhow!("runtime error")) as Result<Data>,
 			);
 			assert_eq!(command, "bench pallet");
-			assert_eq!(data, "bench failed: runtime error");
+			assert_eq!(data, "runtime error");
 		}
 
 		#[test]
@@ -363,10 +359,10 @@ mod tests {
 			// Error handling.
 			let (command, data) = simulate_command_flow(
 				Command::Call(CallArgs { command: CallCommand::Chain(Default::default()) }),
-				Err(anyhow!("call failed: connection error")) as Result<Data>,
+				Err(anyhow!("connection error")) as Result<Data>,
 			);
 			assert_eq!(command, "call chain");
-			assert_eq!(data, "call failed: connection error");
+			assert_eq!(data, "connection error");
 		}
 	}
 }
