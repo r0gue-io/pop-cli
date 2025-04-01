@@ -18,6 +18,8 @@ pub enum TryRuntimeCliCommand {
 	OnRuntimeUpgrade,
 	/// Command to test block execution.
 	ExecuteBlock,
+	/// Command to create a snapshot.
+	CreateSnapshot,
 }
 
 impl Display for TryRuntimeCliCommand {
@@ -25,6 +27,7 @@ impl Display for TryRuntimeCliCommand {
 		let s = match self {
 			TryRuntimeCliCommand::OnRuntimeUpgrade => "on-runtime-upgrade",
 			TryRuntimeCliCommand::ExecuteBlock => "execute-block",
+			TryRuntimeCliCommand::CreateSnapshot => "create-snapshot",
 		};
 		write!(f, "{}", s)
 	}

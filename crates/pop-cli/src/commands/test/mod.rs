@@ -8,6 +8,8 @@ use std::path::PathBuf;
 #[cfg(feature = "contract")]
 pub mod contract;
 #[cfg(feature = "parachain")]
+pub mod create_snapshot;
+#[cfg(feature = "parachain")]
 pub mod execute_block;
 #[cfg(feature = "parachain")]
 pub mod on_runtime_upgrade;
@@ -42,6 +44,9 @@ pub(crate) enum Command {
 	/// Test a block execution.
 	#[cfg(feature = "parachain")]
 	ExecuteBlock(execute_block::TestExecuteBlockCommand),
+	/// Create a chain state snapshot.
+	#[cfg(feature = "parachain")]
+	CreateSnapshot(create_snapshot::TestCreateSnapshotCommand),
 }
 
 impl Command {
