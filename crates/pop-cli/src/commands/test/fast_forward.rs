@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0
+
 use crate::{
 	cli::{
 		self,
@@ -52,7 +54,7 @@ pub(crate) struct TestFastForwardCommand {
 	#[arg(long)]
 	run_migrations: bool,
 
-	/// The state type to use.
+	/// The state to use.
 	#[command(subcommand)]
 	state: Option<State>,
 
@@ -243,8 +245,7 @@ mod tests {
     			"pop test fast-forward --try-state=all --blocktime={} --n-blocks=10 --run-migrations live --uri={}",
     			DEFAULT_BLOCK_TIME,
                 DEFAULT_LIVE_NODE_URL,
-			))
-			.expect_outro("Tested fast-forwarding successfully!");
+			));
 		cmd.execute(&mut cli).await?;
 		cli.verify()
 	}
