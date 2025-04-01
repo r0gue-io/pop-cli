@@ -143,7 +143,7 @@ mod tests {
 	use tempfile::tempdir;
 
 	#[tokio::test]
-	async fn test_create_snapshot_works() -> anyhow::Result<()> {
+	async fn create_snapshot_works() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
 		let temp_dir_path = temp_dir.path().join("example.snap");
 		let command = TestCreateSnapshotCommand::default();
@@ -181,7 +181,7 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn test_create_snapshot_invalid_uri() -> anyhow::Result<()> {
+	async fn create_snapshot_invalid_uri() -> anyhow::Result<()> {
 		let mut command = TestCreateSnapshotCommand::default();
 		command.from.uri = Some("ws://127.0.0.1:9945".to_string());
 		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;

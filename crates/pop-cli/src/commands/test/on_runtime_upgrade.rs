@@ -6,13 +6,11 @@ use crate::{
 		traits::{Confirm, Select},
 	},
 	common::{
-		builds::guide_user_to_select_profile,
 		prompt::display_message,
-		runtime::{ensure_runtime_binary_exists, Feature},
 		try_runtime::{
 			argument_exists, check_try_runtime_and_prompt, collect_shared_arguments,
-			collect_state_arguments, partition_arguments, update_state_source, ArgumentConstructor,
-			DEFAULT_BLOCK_TIME,
+			collect_state_arguments, partition_arguments, update_runtime_source,
+			update_state_source, ArgumentConstructor,
 		},
 	},
 };
@@ -26,9 +24,9 @@ use pop_common::Profile;
 use pop_parachains::{
 	run_try_runtime,
 	state::{State, StateCommand},
-	upgrade_checks_details, Runtime, SharedParams, TryRuntimeCliCommand,
+	upgrade_checks_details, SharedParams, TryRuntimeCliCommand,
 };
-use std::{env::current_dir, path::PathBuf, str::FromStr, thread::sleep, time::Duration};
+use std::{str::FromStr, thread::sleep, time::Duration};
 
 const CUSTOM_ARGS: [&str; 5] = ["--profile", "--no-build", "-n", "--skip-confirm", "-y"];
 const DISABLE_SPEC_VERSION_CHECK: &str = "disable-spec-version-check";
@@ -115,30 +113,15 @@ impl TestOnRuntimeUpgradeCommand {
 	pub(crate) async fn execute(mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		cli.intro("Testing migrations")?;
 		let user_provided_args = std::env::args().collect::<Vec<String>>();
-		if self.profile.is_none() {
-			match guide_user_to_select_profile(cli) {
-				Ok(profile) => self.profile = Some(profile),
-				Err(e) => return display_message(&e.to_string(), false, cli),
-			}
-		};
-		if !argument_exists(&user_provided_args, "--runtime") &&
-			cli.confirm(format!(
-				"Do you want to specify which runtime to run the migration on?\n{}",
-				style("If not provided, use the code of the remote node, or a snapshot.").dim()
-			))
-			.initial_value(true)
-			.interact()?
-		{
-			if self.no_build {
-				cli.warning("NOTE: Make sure your runtime is built with `try-runtime` feature.")?;
-			}
-			self.shared_params.runtime = Runtime::Path(ensure_runtime_binary_exists(
-				cli,
-				&current_dir().unwrap_or(PathBuf::from("./")),
-				self.profile.as_ref().ok_or_else(|| anyhow::anyhow!("No profile provided"))?,
-				vec![Feature::TryRuntime],
-				!self.no_build,
-			)?);
+		if let Err(e) = update_runtime_source(
+			cli,
+			"Do you want to specify which runtime to run the migration on?",
+			&user_provided_args,
+			&mut self.shared_params.runtime,
+			&mut self.profile,
+			self.no_build,
+		) {
+			return display_message(&e.to_string(), false, cli);
 		}
 
 		// Prompt the user to select the source of runtime state.
@@ -350,10 +333,11 @@ mod tests {
 		},
 	};
 	use cli::MockCli;
-	use pop_parachains::state::LiveState;
+	use pop_parachains::{state::LiveState, Runtime};
+	use std::path::PathBuf;
 
 	#[tokio::test]
-	async fn test_on_runtime_upgrade_live_state_works() -> anyhow::Result<()> {
+	async fn on_runtime_upgrade_live_state_works() -> anyhow::Result<()> {
 		let mut command = TestOnRuntimeUpgradeCommand::default();
 		command.no_build = true;
 
@@ -411,7 +395,7 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn test_on_runtime_upgrade_snapshot_works() -> anyhow::Result<()> {
+	async fn on_runtime_upgrade_snapshot_works() -> anyhow::Result<()> {
 		let mut command = TestOnRuntimeUpgradeCommand::default();
 		command.no_build = true;
 
@@ -476,7 +460,7 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn test_on_runtime_disable_checks_works() -> anyhow::Result<()> {
+	async fn on_runtime_disable_checks_works() -> anyhow::Result<()> {
 		let mut cmd = TestOnRuntimeUpgradeCommand::default();
 		cmd.no_build = true;
 		cmd.profile = Some(Profile::Release);
