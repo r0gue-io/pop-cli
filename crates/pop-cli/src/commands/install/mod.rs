@@ -58,7 +58,7 @@ pub enum Dependencies {
 pub(crate) struct InstallArgs {
 	/// Automatically install all dependencies required without prompting for confirmation.
 	#[clap(short = 'y', long)]
-	pub(crate) skip_confirm: bool,
+	skip_confirm: bool,
 }
 
 /// Setup user environment for development

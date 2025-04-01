@@ -5,8 +5,8 @@ use crate::{
 	cli::Cli,
 	common::{
 		builds::get_project_path,
+		Data::{self, *},
 		Project::{self, Network},
-		Telemetry::{self, *},
 		Template::*,
 	},
 };
@@ -76,7 +76,7 @@ fn about_up() -> &'static str {
 
 impl Command {
 	/// Executes the command.
-	pub(crate) async fn execute(self) -> anyhow::Result<Telemetry> {
+	pub(crate) async fn execute(self) -> anyhow::Result<Data> {
 		match self {
 			#[cfg(any(feature = "parachain", feature = "contract"))]
 			Self::Install(args) => install::Command.execute(args).await.map(|os| Install(os)),
@@ -93,7 +93,7 @@ impl Command {
 			Self::Bench(args) => bench::Command::execute(args).await.map(|_| Null),
 			#[cfg(any(feature = "parachain", feature = "contract"))]
 			Self::Build(args) => match args.command {
-				None => build::Command::execute(args).map(|project| Build(project)),
+				None => build::Command::execute(args).map(Build),
 				Some(cmd) => match cmd {
 					#[cfg(feature = "parachain")]
 					build::Command::Spec(cmd) => cmd.execute().await.map(|_| Null),
@@ -108,7 +108,7 @@ impl Command {
 			},
 			#[cfg(any(feature = "parachain", feature = "contract"))]
 			Self::Up(args) => match args.command {
-				None => up::Command::execute(args).await.map(|project| Up(project)),
+				None => up::Command::execute(args).await.map(Up),
 				Some(cmd) => match cmd {
 					#[cfg(feature = "parachain")]
 					up::Command::Network(mut cmd) => {
@@ -167,8 +167,11 @@ impl Display for Command {
 			#[cfg(any(feature = "parachain", feature = "contract"))]
 			Self::New(args) => {
 				let new = match &args.command {
+					#[cfg(feature = "parachain")]
 					new::Command::Parachain(_) => "new chain",
+					#[cfg(feature = "parachain")]
 					new::Command::Pallet(_) => "new pallet",
+					#[cfg(feature = "contract")]
 					new::Command::Contract(_) => "new contract",
 				};
 				write!(f, "{}", new)
@@ -176,15 +179,18 @@ impl Display for Command {
 			#[cfg(any(feature = "parachain", feature = "contract"))]
 			Self::Build(args) => {
 				let build = match &args.command {
+					#[cfg(feature = "parachain")]
 					Some(build::Command::Spec(_)) => "build spec",
-					None => "build",
+					_ => "build",
 				};
 				write!(f, "{}", build)
 			},
 			#[cfg(any(feature = "parachain", feature = "contract"))]
 			Self::Call(args) => {
 				let call = match &args.command {
+					#[cfg(feature = "parachain")]
 					call::Command::Chain(_) => "call chain",
+					#[cfg(feature = "contract")]
 					call::Command::Contract(_) => "call contract",
 				};
 				write!(f, "{}", call)
@@ -192,8 +198,11 @@ impl Display for Command {
 			#[cfg(any(feature = "parachain", feature = "contract"))]
 			Self::Up(args) => {
 				let up = match &args.command {
+					#[cfg(feature = "parachain")]
 					Some(up::Command::Network(_)) => "up network",
+					#[cfg(feature = "parachain")]
 					Some(up::Command::Parachain(_)) => "up chain",
+					#[cfg(feature = "contract")]
 					Some(up::Command::Contract(_)) => "up contract",
 					_ => "up",
 				};

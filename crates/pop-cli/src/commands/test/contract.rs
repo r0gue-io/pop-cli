@@ -4,7 +4,7 @@ use crate::{
 	cli,
 	common::{
 		contracts::check_contracts_node_and_prompt,
-		Feature::{self, *},
+		TestFeature::{self, *},
 	},
 };
 use clap::Args;
@@ -21,12 +21,12 @@ pub(crate) struct TestContractCommand {
 	pub(crate) path: Option<PathBuf>,
 	/// Run end-to-end tests
 	#[arg(short, long)]
-	pub(crate) e2e: bool,
+	e2e: bool,
 	#[arg(short, long, help = "Path to the contracts node to run e2e tests [default: none]")]
-	pub(crate) node: Option<PathBuf>,
+	node: Option<PathBuf>,
 	/// Automatically source the needed binary required without prompting for confirmation.
 	#[clap(short = 'y', long)]
-	pub(crate) skip_confirm: bool,
+	skip_confirm: bool,
 }
 
 impl TestContractCommand {
@@ -34,7 +34,7 @@ impl TestContractCommand {
 	pub(crate) async fn execute(
 		mut self,
 		cli: &mut impl cli::traits::Cli,
-	) -> anyhow::Result<Feature> {
+	) -> anyhow::Result<TestFeature> {
 		if self.e2e {
 			cli.intro("Starting end-to-end tests")?;
 

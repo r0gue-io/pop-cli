@@ -4,8 +4,8 @@ use crate::{
 	cli,
 	common::{
 		builds::get_project_path,
-		Feature::{self, Unit},
 		Project::{self, *},
+		TestFeature::{self, Unit},
 	},
 };
 use clap::{Args, Subcommand};
@@ -63,14 +63,14 @@ pub(crate) enum Command {
 }
 
 impl Command {
-	pub(crate) async fn execute(args: TestArgs) -> anyhow::Result<(Project, Feature)> {
+	pub(crate) async fn execute(args: TestArgs) -> anyhow::Result<(Project, TestFeature)> {
 		Self::test(args, &mut cli::Cli).await
 	}
 
 	async fn test(
 		args: TestArgs,
 		cli: &mut impl cli::traits::Cli,
-	) -> anyhow::Result<(Project, Feature)> {
+	) -> anyhow::Result<(Project, TestFeature)> {
 		let project_path = get_project_path(args.path.clone(), args.path_pos.clone());
 
 		#[cfg(feature = "contract")]
@@ -82,11 +82,12 @@ impl Command {
 		}
 
 		test_project(project_path.as_deref())?;
-		Ok(if pop_parachains::is_supported(project_path.as_deref())? {
-			(Chain, Unit)
-		} else {
-			(Unknown, Unit)
-		})
+
+		#[cfg(feature = "parachain")]
+		if pop_parachains::is_supported(project_path.as_deref())? {
+			return Ok((Chain, Unit));
+		}
+		Ok((Unknown, Unit))
 	}
 }
 

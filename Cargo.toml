@@ -41,7 +41,7 @@ tracing-subscriber = "0.3.19"
 
 # networking
 reqwest = { version = "0.12", features = ["json", "multipart", "stream"] }
-tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1.0", features = ["macros", "rt-multi-thread", "process"] }
 url = "2.5.4"
 
 # contracts
