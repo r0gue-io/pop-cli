@@ -9,7 +9,7 @@ use clap::{Args, Parser};
 use console::style;
 use duct::cmd;
 use frame_try_runtime::TryStateSelect;
-use pop_common::sourcing::Binary;
+use pop_common::{sourcing::Binary, Profile};
 use pop_parachains::{
 	parse,
 	state::{LiveState, State, StateCommand},
@@ -17,14 +17,19 @@ use pop_parachains::{
 };
 use std::{
 	collections::HashSet,
+	env::current_dir,
 	fmt::Display,
 	path::{Path, PathBuf},
 };
 use strum::{EnumMessage, VariantArray};
 
+use super::{
+	builds::guide_user_to_select_profile,
+	runtime::{ensure_runtime_binary_exists, Feature},
+};
+
 const BINARY_NAME: &str = "try-runtime";
-pub(crate) const DEFAULT_BLOCK_HASH: &str =
-	"0xa1b16c1efd889a9f17375ec4dd5c1b4351a2be17fa069564fced10d23b9b3836";
+pub(crate) const DEFAULT_BLOCK_HASH: &str = "0x0000000000";
 pub(crate) const DEFAULT_LIVE_NODE_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";
 pub(crate) const DEFAULT_SNAPSHOT_PATH: &str = "your-parachain.snap";
 
@@ -160,6 +165,49 @@ pub(crate) fn update_live_state(
 		}
 	}
 	*state = Some(State::Live(live_state.clone()));
+	Ok(())
+}
+
+/// Update the source of the runtime.
+///
+/// # Arguments
+///
+/// * `cli`: Command line interface.
+/// * `user_provided_args`: The user provided arguments.
+/// * `runtime`: The runtime to update.
+/// * `profile`: The build profile.
+/// * `no_build`: Whether to build the runtime.
+pub(crate) fn update_runtime_source(
+	cli: &mut impl Cli,
+	prompt: &str,
+	user_provided_args: &[String],
+	runtime: &mut Runtime,
+	profile: &mut Option<Profile>,
+	no_build: bool,
+) -> anyhow::Result<()> {
+	if profile.is_none() {
+		*profile = Some(guide_user_to_select_profile(cli)?);
+	};
+	if !argument_exists(&user_provided_args, "--runtime") &&
+		cli.confirm(format!(
+			"{}\n{}",
+			prompt,
+			style("If not provided, use the code of the remote node, or a snapshot.").dim()
+		))
+		.initial_value(true)
+		.interact()?
+	{
+		if no_build {
+			cli.warning("NOTE: Make sure your runtime is built with `try-runtime` feature.")?;
+		}
+		*runtime = Runtime::Path(ensure_runtime_binary_exists(
+			cli,
+			&current_dir().unwrap_or(PathBuf::from("./")),
+			profile.as_ref().ok_or_else(|| anyhow::anyhow!("No profile provided"))?,
+			vec![Feature::TryRuntime],
+			!no_build,
+		)?);
+	}
 	Ok(())
 }
 
@@ -443,7 +491,7 @@ pub(crate) fn get_try_state_items() -> Vec<(String, String)> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::cli::MockCli;
+	use crate::{cli::MockCli, common::runtime::get_mock_runtime};
 	use clap::Parser;
 
 	#[derive(Default)]
@@ -560,6 +608,61 @@ mod tests {
 			},
 			_ => panic!("Expected live state"),
 		}
+		cli.verify()?;
+		Ok(())
+	}
+
+	#[test]
+	fn update_runtime_source_works() -> anyhow::Result<()> {
+		let mut runtime = Runtime::Existing;
+		let mut profile = None;
+		let mut cli = MockCli::new()
+			.expect_select(
+				"Choose the build profile of the binary that should be used: ".to_string(),
+				Some(true),
+				true,
+				Some(Profile::get_variants()),
+				0,
+				None,
+			)
+			.expect_confirm(
+				format!(
+					"Do you want to specify a runtime?\n{}",
+					style("If not provided, use the code of the remote node, or a snapshot.").dim()
+				),
+				true,
+			)
+			.expect_warning("NOTE: Make sure your runtime is built with `try-runtime` feature.")
+			.expect_input(
+				"Please specify the path to the runtime project or the runtime binary.",
+				get_mock_runtime(Some(Feature::TryRuntime)).to_str().unwrap().to_string(),
+			);
+		update_runtime_source(
+			&mut cli,
+			"Do you want to specify a runtime?",
+			&[],
+			&mut runtime,
+			&mut profile,
+			true,
+		)?;
+		cli.verify()?;
+		match runtime {
+			Runtime::Existing => panic!("Unexpected runtime"),
+			Runtime::Path(ref path) =>
+				assert_eq!(path, &get_mock_runtime(Some(Feature::TryRuntime))),
+		}
+		assert_eq!(profile, Some(Profile::Debug));
+
+		// If `--runtime` is provided, don't prompt for runtime selection.
+		let mut cli = MockCli::new();
+		update_runtime_source(
+			&mut cli,
+			"",
+			&["--runtime=dummy-runtime-path".to_string()],
+			&mut runtime,
+			&mut profile,
+			true,
+		)?;
 		cli.verify()?;
 		Ok(())
 	}

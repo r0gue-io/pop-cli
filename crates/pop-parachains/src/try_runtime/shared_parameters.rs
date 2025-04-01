@@ -92,6 +92,20 @@ pub struct SharedParams {
 	pub overwrite_state_version: Option<StateVersion>,
 }
 
+impl Default for SharedParams {
+	fn default() -> Self {
+		SharedParams {
+			runtime: Runtime::Existing,
+			disable_spec_name_check: false,
+			wasm_method: DEFAULT_WASM_EXECUTION_METHOD,
+			wasmtime_instantiation_strategy: DEFAULT_WASMTIME_INSTANTIATION_STRATEGY,
+			heap_pages: None,
+			export_proof: None,
+			overwrite_state_version: None,
+		}
+	}
+}
+
 impl SharedParams {
 	/// Check if the given argument is a shared parameter.
 	pub fn has_argument(arg: &str) -> bool {

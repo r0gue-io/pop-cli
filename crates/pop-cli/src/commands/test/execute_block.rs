@@ -5,24 +5,33 @@ use crate::{
 	common::{
 		prompt::display_message,
 		try_runtime::{
-			argument_exists, check_try_runtime_and_prompt, collect_state_arguments,
-			guide_user_to_select_try_state, update_live_state, ArgumentConstructor,
+			check_try_runtime_and_prompt, collect_shared_arguments, collect_state_arguments,
+			guide_user_to_select_try_state, update_live_state, update_runtime_source,
+			ArgumentConstructor,
 		},
 	},
 };
 use clap::Args;
 use cliclack::spinner;
 use frame_try_runtime::TryStateSelect;
+use pop_common::Profile;
 use pop_parachains::{
 	parse_try_state_string, run_try_runtime,
 	state::{LiveState, State, StateCommand},
-	TryRuntimeCliCommand,
+	SharedParams, TryRuntimeCliCommand,
 };
 
-const CUSTOM_ARGS: [&str; 2] = ["--skip-confirm", "-y"];
+const CUSTOM_ARGS: [&str; 5] = ["--profile", "--no-build", "-n", "--skip-confirm", "-y"];
+
+#[derive(clap::Parser, Default)]
+pub(crate) struct Command {}
 
 #[derive(Args, Default)]
 pub(crate) struct TestExecuteBlockCommand {
+	/// The state to use.
+	#[command(flatten)]
+	state: LiveState,
+
 	/// Which try-state targets to execute when running this command.
 	///
 	/// Expected values:
@@ -32,12 +41,20 @@ pub(crate) struct TestExecuteBlockCommand {
 	///   `Staking, System`).
 	/// - `rr-[x]` where `[x]` is a number. Then, the given number of pallets are checked in a
 	///   round-robin fashion.
-	#[arg(long, default_value = "all")]
-	try_state: TryStateSelect,
+	#[arg(long)]
+	try_state: Option<TryStateSelect>,
 
-	/// The state to use.
-	#[command(flatten)]
-	state: LiveState,
+	/// Shared params of the try-runtime commands.
+	#[clap(flatten)]
+	shared_params: SharedParams,
+
+	/// Build profile [default: release].
+	#[clap(long, value_enum)]
+	profile: Option<Profile>,
+
+	/// Avoid rebuilding the runtime if there is an existing runtime binary.
+	#[clap(short = 'n', long)]
+	no_build: bool,
 
 	/// Automatically source the needed binary required without prompting for confirmation.
 	#[clap(short = 'y', long)]
@@ -46,16 +63,29 @@ pub(crate) struct TestExecuteBlockCommand {
 
 impl TestExecuteBlockCommand {
 	pub(crate) async fn execute(mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
-		cli.intro("Testing a block execution.")?;
+		cli.intro("Testing block execution.")?;
 		let user_provided_args: Vec<String> = std::env::args().skip(3).collect();
+		if let Err(e) = update_runtime_source(
+			cli,
+			"Do you want to specify which runtime to execute block on?",
+			&user_provided_args,
+			&mut self.shared_params.runtime,
+			&mut self.profile,
+			self.no_build,
+		) {
+			return display_message(&e.to_string(), false, cli);
+		}
+
 		// Prompt the update the live state.
 		if let Err(e) = update_live_state(cli, &mut self.state, &mut None) {
 			return display_message(&e.to_string(), false, cli);
 		};
+
 		// Prompt the user to select the try state if no `--try-state` argument is provided.
-		if !argument_exists(&user_provided_args, "--try-state") {
-			self.try_state = guide_user_to_select_try_state(cli)?;
+		if self.try_state.is_none() {
+			self.try_state = Some(guide_user_to_select_try_state(cli)?);
 		}
+
 		// Test block execution with `try-runtime-cli` binary.
 		let result = self.run(cli, user_provided_args).await;
 
@@ -64,7 +94,7 @@ impl TestExecuteBlockCommand {
 		if let Err(e) = result {
 			return display_message(&e.to_string(), false, cli);
 		}
-		display_message("Tested block execution successfully!", true, cli)
+		display_message("Block executed successfully!", true, cli)
 	}
 
 	async fn run(
@@ -77,11 +107,12 @@ impl TestExecuteBlockCommand {
 
 		let spinner = spinner();
 		spinner.start("Executing block...");
-		let (before_subcommand, after_subcommand) = self.collect_arguments(user_provided_args)?;
+		let (shared_params, before_subcommand, after_subcommand) =
+			self.collect_arguments(user_provided_args)?;
 		run_try_runtime(
 			&binary_path,
 			TryRuntimeCliCommand::ExecuteBlock,
-			vec![],
+			shared_params,
 			[before_subcommand, vec![StateCommand::Live.to_string()], after_subcommand].concat(),
 			&CUSTOM_ARGS,
 		)?;
@@ -92,8 +123,9 @@ impl TestExecuteBlockCommand {
 	fn display(&self) -> anyhow::Result<String> {
 		let mut cmd_args = vec!["pop test execute-block".to_string()];
 		let user_provided_args: Vec<String> = std::env::args().skip(3).collect();
-		let (before_command_args, after_subcommand_args) =
+		let (shared_params, before_command_args, after_subcommand_args) =
 			self.collect_arguments(user_provided_args)?;
+		cmd_args.extend(shared_params);
 		cmd_args.extend(before_command_args);
 		cmd_args.extend(after_subcommand_args);
 		Ok(cmd_args.join(" "))
@@ -103,55 +135,90 @@ impl TestExecuteBlockCommand {
 	fn collect_arguments(
 		&self,
 		user_provided_args: Vec<String>,
-	) -> anyhow::Result<(Vec<String>, Vec<String>)> {
-		let mut before_subcommand = vec![];
-		let mut after_subcommand = vec![];
+	) -> anyhow::Result<(Vec<String>, Vec<String>, Vec<String>)> {
+		let (mut shared_arguments, mut before_subcommand, mut after_subcommand) =
+			(vec![], vec![], vec![]);
 		for arg in user_provided_args.into_iter() {
-			if [vec!["--try-state"], CUSTOM_ARGS.to_vec()]
-				.concat()
-				.iter()
-				.any(|a| arg.starts_with(a))
-			{
+			if SharedParams::has_argument(&arg) {
+				shared_arguments.push(arg);
+			} else if is_before_subcommand(&arg) {
 				before_subcommand.push(arg);
 			} else {
 				after_subcommand.push(arg);
 			}
 		}
 
-		let mut before_command_args = vec![];
-		let mut c = ArgumentConstructor::new(&mut before_command_args, &before_subcommand);
-		c.add(&[], true, "--try-state", Some(parse_try_state_string(self.try_state.clone())?));
+		// Collect shared arguments.
+		let mut shared_args = vec![];
+		collect_shared_arguments(&self.shared_params, &shared_arguments, &mut shared_args);
+
+		// Collect before subcommand arguments.
+		let mut before_subcommand_args = vec![];
+		let mut c = ArgumentConstructor::new(&mut before_subcommand_args, &before_subcommand);
+		if let Some(ref try_state) = self.try_state {
+			c.add(&[], true, "--try-state", Some(parse_try_state_string(try_state)?));
+		}
 		// These are custom arguments not used in `try-runtime-cli`.
+		c.add(&[], true, "--profile", self.profile.clone().map(|p| p.to_string()));
+		c.add(&["--no-build"], self.no_build, "-n", Some(String::default()));
 		c.add(&["--skip-confirm"], self.skip_confirm, "-y", Some(String::default()));
 		c.finalize(&["--at="]);
 
+		// Collect after subcommand arguments.
 		let mut after_subcommand_args = vec![];
 		collect_state_arguments(
 			&Some(State::Live(self.state.clone())),
 			&after_subcommand,
 			&mut after_subcommand_args,
 		)?;
-		Ok((before_command_args, after_subcommand_args))
+		Ok((shared_args, before_subcommand_args, after_subcommand_args))
 	}
+}
+
+fn is_before_subcommand(arg: &str) -> bool {
+	[vec!["--try-state"], CUSTOM_ARGS.to_vec()]
+		.concat()
+		.iter()
+		.any(|a| arg.starts_with(a))
 }
 
 #[cfg(test)]
 mod tests {
-	use super::TestExecuteBlockCommand;
+	use super::*;
 	use crate::{
 		cli::MockCli,
-		common::try_runtime::{
-			get_try_state_items, source_try_runtime_binary, DEFAULT_BLOCK_HASH,
-			DEFAULT_LIVE_NODE_URL,
+		common::{
+			runtime::{get_mock_runtime, Feature},
+			try_runtime::{get_try_state_items, source_try_runtime_binary, DEFAULT_LIVE_NODE_URL},
 		},
 	};
-	use frame_try_runtime::TryStateSelect;
+	use console::style;
 
 	#[tokio::test]
-	async fn test_execute_block_works() -> anyhow::Result<()> {
+	async fn execute_block_works() -> anyhow::Result<()> {
 		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
 		let mut cli = MockCli::new()
-			.expect_intro("Testing a block execution.")
+			.expect_intro("Testing block execution.")
+			.expect_select(
+				"Choose the build profile of the binary that should be used: ".to_string(),
+				Some(true),
+				true,
+				Some(Profile::get_variants()),
+				0,
+				None,
+			)
+			.expect_confirm(
+				format!(
+					"Do you want to specify which runtime to execute block on?\n{}",
+					style("If not provided, use the code of the remote node, or a snapshot.").dim()
+				),
+				true,
+			)
+			.expect_warning("NOTE: Make sure your runtime is built with `try-runtime` feature.")
+			.expect_input(
+				"Please specify the path to the runtime project or the runtime binary.",
+				get_mock_runtime(Some(Feature::TryRuntime)).to_str().unwrap().to_string(),
+			)
 			.expect_input("Enter the live chain of your node:", DEFAULT_LIVE_NODE_URL.to_string())
 			.expect_input("Enter the block hash (optional):", String::default())
 			.expect_select(
@@ -169,36 +236,37 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn test_execute_block_invalid_header() -> anyhow::Result<()> {
+	async fn execute_block_invalid_header() -> anyhow::Result<()> {
 		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
-		let mut command = TestExecuteBlockCommand::default();
-		command.state.uri = Some(DEFAULT_LIVE_NODE_URL.to_string());
-		command.state.at = Some(DEFAULT_BLOCK_HASH.to_string());
-		let error = command.run(&mut MockCli::new(), vec![]).await.unwrap_err();
+		let mut cmd = TestExecuteBlockCommand::default();
+		cmd.state.uri = Some(DEFAULT_LIVE_NODE_URL.to_string());
+		cmd.state.at =
+			Some("0xa1b16c1efd889a9f17375ec4dd5c1b4351a2be17fa069564fced10d23b9b3836".to_string());
+		let error = cmd.run(&mut MockCli::new(), vec![]).await.unwrap_err();
 		assert!(error.to_string().contains("header_not_found"));
 		Ok(())
 	}
 
 	#[tokio::test]
-	async fn test_execute_block_invalid_uri() -> anyhow::Result<()> {
+	async fn execute_block_invalid_uri() -> anyhow::Result<()> {
 		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
-		let mut command = TestExecuteBlockCommand::default();
-		command.state.uri = Some("ws://localhost:9945".to_string());
-		let error = command.run(&mut MockCli::new(), vec![]).await.unwrap_err();
+		let mut cmd = TestExecuteBlockCommand::default();
+		cmd.state.uri = Some("ws://localhost:9945".to_string());
+		let error = cmd.run(&mut MockCli::new(), vec![]).await.unwrap_err();
 		assert!(error.to_string().contains("Connection refused"));
 		Ok(())
 	}
 
 	#[test]
 	fn display_works() -> anyhow::Result<()> {
-		let mut command = TestExecuteBlockCommand::default();
-		command.try_state = TryStateSelect::RoundRobin(10);
-		command.state.uri = Some(DEFAULT_LIVE_NODE_URL.to_string());
-		command.skip_confirm = true;
+		let mut cmd = TestExecuteBlockCommand::default();
+		cmd.try_state = Some(TryStateSelect::RoundRobin(10));
+		cmd.state.uri = Some(DEFAULT_LIVE_NODE_URL.to_string());
+		cmd.skip_confirm = true;
 		assert_eq!(
-			command.display()?,
+			cmd.display()?,
 			format!(
-				"pop test execute-block --try-state=rr-10 -y --uri={}",
+				"pop test execute-block --runtime=existing --try-state=rr-10 -y --uri={}",
 				DEFAULT_LIVE_NODE_URL.to_string()
 			)
 		);
@@ -212,7 +280,7 @@ mod tests {
 				true,
 				"--try-state=all",
 				Box::new(|cmd| {
-					cmd.try_state = TryStateSelect::RoundRobin(10);
+					cmd.try_state = Some(TryStateSelect::RoundRobin(10));
 				}),
 				"--try-state=rr-10",
 			),
@@ -248,7 +316,7 @@ mod tests {
 		for (test_before, provided_arg, update_fn, expected_arg) in test_cases {
 			let mut command = TestExecuteBlockCommand::default();
 			// Keep the user-provided argument unchanged.
-			let (before, after) = command.collect_arguments(vec![provided_arg.to_string()])?;
+			let (_, before, after) = command.collect_arguments(vec![provided_arg.to_string()])?;
 			assert_eq!(
 				if test_before { before.clone() } else { after.clone() }
 					.iter()
@@ -270,7 +338,7 @@ mod tests {
 			// If the user does not provide an argument, modify with the argument updated during
 			// runtime.
 			update_fn(&mut command);
-			let (before, after) = command.collect_arguments(vec![])?;
+			let (_, before, after) = command.collect_arguments(vec![])?;
 			assert_eq!(
 				if test_before { before } else { after }
 					.iter()

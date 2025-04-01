@@ -88,14 +88,14 @@ pub fn try_state_details(try_state_select: &TryStateSelect) -> (String, String) 
 ///
 /// # Arguments
 /// * `try_state` - The selected try state option.
-pub fn parse_try_state_string(try_state: TryStateSelect) -> Result<String, Error> {
+pub fn parse_try_state_string(try_state: &TryStateSelect) -> Result<String, Error> {
 	Ok(match try_state {
 		TryStateSelect::All => "all".to_string(),
 		TryStateSelect::None => "none".to_string(),
 		TryStateSelect::RoundRobin(rounds) => format!("rr-{}", rounds),
 		TryStateSelect::Only(pallets) => {
 			let mut result = vec![];
-			for pallet in pallets {
+			for pallet in pallets.clone() {
 				result.push(String::from_utf8(pallet).map_err(|_| {
 					Error::ParamParsingError("Invalid pallet string in `try_state`".to_string())
 				})?);
@@ -148,12 +148,12 @@ mod tests {
 	use super::*;
 
 	#[test]
-	fn test_parse_try_state_string() {
-		assert_eq!(parse_try_state_string(TryStateSelect::All).unwrap(), "all");
-		assert_eq!(parse_try_state_string(TryStateSelect::None).unwrap(), "none");
-		assert_eq!(parse_try_state_string(TryStateSelect::RoundRobin(5)).unwrap(), "rr-5");
+	fn parse_try_state_string_works() {
+		assert_eq!(parse_try_state_string(&TryStateSelect::All).unwrap(), "all");
+		assert_eq!(parse_try_state_string(&TryStateSelect::None).unwrap(), "none");
+		assert_eq!(parse_try_state_string(&TryStateSelect::RoundRobin(5)).unwrap(), "rr-5");
 		assert_eq!(
-			parse_try_state_string(TryStateSelect::Only(vec![
+			parse_try_state_string(&TryStateSelect::Only(vec![
 				b"System".to_vec(),
 				b"Proxy".to_vec()
 			]))
