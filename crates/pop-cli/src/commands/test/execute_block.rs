@@ -135,7 +135,6 @@ mod tests {
 		},
 	};
 	use frame_try_runtime::TryStateSelect;
-	use pop_parachains::parse_try_state_string;
 
 	#[tokio::test]
 	async fn test_execute_block_works() -> anyhow::Result<()> {

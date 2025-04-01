@@ -20,6 +20,8 @@ pub enum TryRuntimeCliCommand {
 	ExecuteBlock,
 	/// Command to create a snapshot.
 	CreateSnapshot,
+	/// Command to test fast-forwarding.
+	FastForward,
 }
 
 impl Display for TryRuntimeCliCommand {
@@ -28,6 +30,7 @@ impl Display for TryRuntimeCliCommand {
 			TryRuntimeCliCommand::OnRuntimeUpgrade => "on-runtime-upgrade",
 			TryRuntimeCliCommand::ExecuteBlock => "execute-block",
 			TryRuntimeCliCommand::CreateSnapshot => "create-snapshot",
+			TryRuntimeCliCommand::FastForward => "fast-forward",
 		};
 		write!(f, "{}", s)
 	}

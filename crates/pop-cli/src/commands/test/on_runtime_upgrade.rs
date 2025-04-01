@@ -12,6 +12,7 @@ use crate::{
 		try_runtime::{
 			argument_exists, check_try_runtime_and_prompt, collect_shared_arguments,
 			collect_state_arguments, partition_arguments, update_state_source, ArgumentConstructor,
+			DEFAULT_BLOCK_TIME,
 		},
 	},
 };
@@ -30,7 +31,6 @@ use pop_parachains::{
 use std::{env::current_dir, path::PathBuf, str::FromStr, thread::sleep, time::Duration};
 
 const CUSTOM_ARGS: [&str; 5] = ["--profile", "--no-build", "-n", "--skip-confirm", "-y"];
-const DEFAULT_BLOCK_TIME: u64 = 6000;
 const DISABLE_SPEC_VERSION_CHECK: &str = "disable-spec-version-check";
 const DISABLE_SPEC_NAME_CHECK: &str = "disable-spec-name-check";
 

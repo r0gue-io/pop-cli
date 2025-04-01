@@ -12,6 +12,8 @@ pub mod create_snapshot;
 #[cfg(feature = "parachain")]
 pub mod execute_block;
 #[cfg(feature = "parachain")]
+pub mod fast_forward;
+#[cfg(feature = "parachain")]
 pub mod on_runtime_upgrade;
 
 /// Arguments for testing.
@@ -47,6 +49,9 @@ pub(crate) enum Command {
 	/// Create a chain state snapshot.
 	#[cfg(feature = "parachain")]
 	CreateSnapshot(create_snapshot::TestCreateSnapshotCommand),
+	/// Test fast-forwarding.
+	#[cfg(feature = "parachain")]
+	FastForward(fast_forward::TestFastForwardCommand),
 }
 
 impl Command {
