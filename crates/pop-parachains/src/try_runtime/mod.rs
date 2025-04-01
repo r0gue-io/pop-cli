@@ -47,8 +47,9 @@ pub fn upgrade_checks_details(upgrade_check_select: &UpgradeCheckSelect) -> (Str
 			"all".to_string(),
 			"Run the `try_state`, `pre_upgrade` and `post_upgrade` checks".to_string(),
 		),
-		UpgradeCheckSelect::TryState =>
-			("try-state".to_string(), "Run the `try_state` checks".to_string()),
+		UpgradeCheckSelect::TryState => {
+			("try-state".to_string(), "Run the `try_state` checks".to_string())
+		},
 		UpgradeCheckSelect::PreAndPost => (
 			"pre-and-post".to_string(),
 			"Run the `pre_upgrade` and `post_upgrade` checks".to_string(),
@@ -79,10 +80,12 @@ pub fn try_state_details(try_state_select: &TryStateSelect) -> (String, String) 
 		match try_state_select {
 			TryStateSelect::None => "Run no tests".to_string(),
 			TryStateSelect::All => "Run all the state tests".to_string(),
-			TryStateSelect::RoundRobin(..) =>
-				"Run a fixed number of state tests in a round robin manner.".to_string(),
-			TryStateSelect::Only(..) =>
-				"Run only pallets who's name matches the given list.".to_string(),
+			TryStateSelect::RoundRobin(..) => {
+				"Run a fixed number of state tests in a round robin manner.".to_string()
+			},
+			TryStateSelect::Only(..) => {
+				"Run only pallets who's name matches the given list.".to_string()
+			},
 		},
 	)
 }

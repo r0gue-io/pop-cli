@@ -776,6 +776,43 @@ mod tests {
 	}
 
 	#[test]
+	fn guide_user_to_select_try_state_works() -> anyhow::Result<()> {
+		for (option, expected) in [
+			(0, TryStateSelect::None),
+			(1, TryStateSelect::All),
+			(2, TryStateSelect::RoundRobin(10)),
+			(
+				3,
+				TryStateSelect::Only(vec![
+					"System".as_bytes().to_vec(),
+					"Balances".as_bytes().to_vec(),
+					"Proxy".as_bytes().to_vec(),
+				]),
+			),
+		] {
+			let mut cli = MockCli::new().expect_select(
+				"Select state tests to execute:",
+				Some(true),
+				true,
+				Some(get_try_state_items()),
+				option,
+				None,
+			);
+			if let TryStateSelect::RoundRobin(..) = expected {
+				cli = cli.expect_input("Enter the number of rounds:", "10".to_string());
+			} else if let TryStateSelect::Only(..) = expected {
+				cli = cli.expect_input(
+					"Enter the pallet names separated by commas:",
+					"System, Balances, Proxy".to_string(),
+				);
+			}
+			assert_eq!(guide_user_to_select_try_state(&mut cli)?, expected);
+			cli.verify()?;
+		}
+		Ok(())
+	}
+
+	#[test]
 	fn add_argument_without_value_works() {
 		let mut args = vec![];
 		let user_provided_args = vec![];
