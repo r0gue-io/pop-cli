@@ -5,9 +5,9 @@ use crate::{
 	common::{
 		prompt::display_message,
 		try_runtime::{
-			check_try_runtime_and_prompt, collect_shared_arguments, collect_state_arguments,
-			guide_user_to_select_try_state, update_live_state, update_runtime_source,
-			ArgumentConstructor,
+			check_try_runtime_and_prompt, collect_args, collect_shared_arguments,
+			collect_state_arguments, guide_user_to_select_try_state, update_live_state,
+			update_runtime_source, ArgumentConstructor,
 		},
 	},
 };
@@ -60,9 +60,16 @@ pub(crate) struct TestExecuteBlockCommand {
 }
 
 impl TestExecuteBlockCommand {
-	pub(crate) async fn execute(mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+	pub(crate) async fn execute(self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+		self.execute_block(cli, std::env::args().skip(3).collect()).await
+	}
+
+	async fn execute_block(
+		mut self,
+		cli: &mut impl cli::traits::Cli,
+		user_provided_args: Vec<String>,
+	) -> anyhow::Result<()> {
 		cli.intro("Testing block execution.")?;
-		let user_provided_args: Vec<String> = std::env::args().skip(3).collect();
 		if let Err(e) = update_runtime_source(
 			cli,
 			"Do you want to specify which runtime to execute block on?",
@@ -90,10 +97,10 @@ impl TestExecuteBlockCommand {
 		}
 
 		// Test block execution with `try-runtime-cli` binary.
-		let result = self.run(cli, user_provided_args).await;
+		let result = self.run(cli, user_provided_args.clone()).await;
 
 		// Display the `execute-block` command.
-		cli.info(self.display()?)?;
+		cli.info(self.display(user_provided_args)?)?;
 		if let Err(e) = result {
 			return display_message(&e.to_string(), false, cli);
 		}
@@ -123,9 +130,8 @@ impl TestExecuteBlockCommand {
 		Ok(())
 	}
 
-	fn display(&self) -> anyhow::Result<String> {
+	fn display(&self, user_provided_args: Vec<String>) -> anyhow::Result<String> {
 		let mut cmd_args = vec!["pop test execute-block".to_string()];
-		let user_provided_args: Vec<String> = std::env::args().skip(3).collect();
 		let (shared_params, before_command_args, after_subcommand_args) =
 			self.collect_arguments(user_provided_args)?;
 		cmd_args.extend(shared_params);
@@ -141,7 +147,7 @@ impl TestExecuteBlockCommand {
 	) -> anyhow::Result<(Vec<String>, Vec<String>, Vec<String>)> {
 		let (mut shared_arguments, mut before_subcommand, mut after_subcommand) =
 			(vec![], vec![], vec![]);
-		for arg in user_provided_args.into_iter() {
+		for arg in collect_args(user_provided_args.into_iter()) {
 			if SharedParams::has_argument(&arg) {
 				shared_arguments.push(arg);
 			} else if is_before_subcommand(&arg) {
@@ -267,9 +273,22 @@ mod tests {
 		cmd.state.uri = Some(DEFAULT_LIVE_NODE_URL.to_string());
 		cmd.skip_confirm = true;
 		assert_eq!(
-			cmd.display()?,
+			cmd.display(vec![])?,
 			format!(
 				"pop test execute-block --runtime=existing --try-state=rr-10 -y --uri={}",
+				DEFAULT_LIVE_NODE_URL.to_string()
+			)
+		);
+		assert_eq!(
+			cmd.display(vec![
+				"--runtime".to_string(),
+				"existing".to_string(),
+				"--try-state".to_string(),
+				"rr-10".to_string(),
+				"-n".to_string()
+			])?,
+			format!(
+				"pop test execute-block --runtime=existing -y --try-state=rr-10 -n --uri={}",
 				DEFAULT_LIVE_NODE_URL.to_string()
 			)
 		);
