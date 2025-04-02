@@ -164,13 +164,14 @@ mod tests {
 
 	#[test]
 	fn try_state_label_works() {
-		assert_eq!(try_state_label(&TryStateSelect::All), "all");
-		assert_eq!(try_state_label(&TryStateSelect::None), "none");
-		assert_eq!(try_state_label(&TryStateSelect::RoundRobin(5)), "rr-5");
-		assert_eq!(
-			try_state_label(&TryStateSelect::Only(vec![b"System".to_vec(), b"Proxy".to_vec()])),
-			"System,Proxy"
-		);
+		for (select, label) in [
+			(TryStateSelect::All, "All"),
+			(TryStateSelect::None, "None"),
+			(TryStateSelect::RoundRobin(5), "Round Robin"),
+			(TryStateSelect::Only(vec![]), "Only Pallets"),
+		] {
+			assert_eq!(try_state_label(&select), label);
+		}
 	}
 
 	#[test]
