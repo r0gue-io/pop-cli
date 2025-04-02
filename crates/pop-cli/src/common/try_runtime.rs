@@ -6,6 +6,7 @@ use crate::{
 	impl_binary_generator,
 };
 use clap::Args;
+use cliclack::spinner;
 use console::style;
 use duct::cmd;
 use frame_try_runtime::TryStateSelect;
@@ -279,6 +280,8 @@ pub(crate) async fn guide_user_to_select_try_state(
 		s if s == try_state_label(&TryStateSelect::Only(vec![])) =>
 			match url {
 				Some(url) => {
+					let spinner = spinner();
+					spinner.start("Retrieving available pallets...");
 					let client = set_up_client(&url).await?;
 					let pallets = get_pallets(&client).await?;
 					let mut prompt = cli
@@ -288,6 +291,7 @@ pub(crate) async fn guide_user_to_select_try_state(
 					for pallet in pallets {
 						prompt = prompt.item(pallet.name.clone(), pallet.name, pallet.docs);
 					}
+					spinner.stop("");
 					let selected_pallets = prompt.interact()?;
 					TryStateSelect::Only(
 						selected_pallets
