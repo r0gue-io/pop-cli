@@ -199,14 +199,15 @@ pub(crate) fn update_runtime_source(
 	profile: &mut Option<Profile>,
 	no_build: bool,
 ) -> anyhow::Result<()> {
-	if !argument_exists(user_provided_args, "--runtime") &&
-		cli.confirm(format!(
-			"{}\n{}",
-			prompt,
-			style("If not provided, use the code of the remote node, or a snapshot.").dim()
-		))
-		.initial_value(true)
-		.interact()?
+	if !argument_exists(user_provided_args, "--runtime")
+		&& cli
+			.confirm(format!(
+				"{}\n{}",
+				prompt,
+				style("If not provided, use the code of the remote node, or a snapshot.").dim()
+			))
+			.initial_value(true)
+			.interact()?
 	{
 		if profile.is_none() {
 			*profile = Some(guide_user_to_select_profile(cli)?);
@@ -277,7 +278,7 @@ pub(crate) async fn guide_user_to_select_try_state(
 			}
 			TryStateSelect::RoundRobin(rounds?)
 		},
-		s if s == try_state_label(&TryStateSelect::Only(vec![])) =>
+		s if s == try_state_label(&TryStateSelect::Only(vec![])) => {
 			match url {
 				Some(url) => {
 					let spinner = spinner();
@@ -313,7 +314,8 @@ pub(crate) async fn guide_user_to_select_try_state(
 						input.split(",").map(|pallet| pallet.trim().as_bytes().to_vec()).collect(),
 					)
 				},
-			},
+			}
+		},
 		_ => TryStateSelect::All,
 	})
 }
@@ -356,9 +358,9 @@ impl<'a> ArgumentConstructor<'a> {
 		flag: &str,
 		value: Option<String>,
 	) {
-		if !self.seen.contains(flag) &&
-			condition_args.iter().all(|a| !self.seen.contains(*a)) &&
-			external_condition
+		if !self.seen.contains(flag)
+			&& condition_args.iter().all(|a| !self.seen.contains(*a))
+			&& external_condition
 		{
 			if let Some(v) = value {
 				if !v.is_empty() {
@@ -458,11 +460,12 @@ pub(crate) fn collect_state_arguments(
 			c.add(&[], true, "--uri", state.uri.clone());
 			c.add(&[], true, "--at", state.at.clone());
 		},
-		State::Snap { path } =>
+		State::Snap { path } => {
 			if let Some(ref path) = path {
 				let path = path.to_str().unwrap().to_string();
 				c.add(&[], !path.is_empty(), "--path", Some(path));
-			},
+			}
+		},
 	}
 	c.finalize(&["--at="]);
 	Ok(())
@@ -496,6 +499,25 @@ pub(crate) fn partition_arguments(
 /// Formats an argument and its value into a string.
 pub(crate) fn format_arg<A: Display, V: Display>(arg: A, value: V) -> String {
 	format!("{}={}", arg, value)
+}
+
+/// Collects arguments and returns a vector of formatted arguments.
+pub(crate) fn collect_args<A: Iterator<Item = String>>(args: A) -> Vec<String> {
+	let mut format_args = Vec::new();
+	let mut args = args.peekable();
+	while let Some(arg) = args.next() {
+		if (arg.starts_with("--") || arg.starts_with("-")) && !arg.contains("=") {
+			if let Some(value) = args.peek() {
+				if !value.starts_with("--") && !value.starts_with("-") {
+					let next_value = args.next().unwrap();
+					format_args.push(format_arg(arg, next_value));
+					continue;
+				}
+			}
+		}
+		format_args.push(arg);
+	}
+	format_args
 }
 
 #[cfg(test)]
@@ -1072,5 +1094,85 @@ mod tests {
 			params.add_arguments(&mut c);
 			assert_eq!(c.finalize(&[]), expected);
 		}
+	}
+
+	#[test]
+	fn args_works() {
+		// Empty input
+		assert!(collect_args(vec![].into_iter()).is_empty());
+		// Single standalone flag
+		assert_eq!(
+			collect_args(vec!["--flag".to_string()].into_iter()),
+			vec!["--flag".to_string()],
+		);
+		// Combining key-value pairs
+		assert_eq!(
+			collect_args(vec!["--runtime".to_string(), "runtime-path".to_string()].into_iter()),
+			vec!["--runtime=runtime-path".to_string()],
+		);
+		// Multiple standalone and key-value flags
+		assert_eq!(
+			collect_args(
+				vec!["--flag".to_string(), "--runtime".to_string(), "runtime-path".to_string()]
+					.into_iter()
+			),
+			vec!["--flag".to_string(), "--runtime=runtime-path".to_string()],
+		);
+		// Already formatted arguments remain unchanged
+		assert_eq!(
+			collect_args(
+				vec!["--arg=123".to_string(), "--flag-1".to_string(), "--flag-2".to_string()]
+					.into_iter()
+			),
+			vec!["--arg=123".to_string(), "--flag-1".to_string(), "--flag-2".to_string()],
+		);
+		// Short flag format (-r value -> -r=value)
+		assert_eq!(
+			collect_args(vec!["-r".to_string(), "123".to_string()].into_iter()),
+			vec!["-r=123".to_string()],
+		);
+		// Mixing short and long flags
+		assert_eq!(
+			collect_args(
+				vec!["-x".to_string(), "42".to_string(), "--long".to_string(), "foo".to_string(),]
+					.into_iter()
+			),
+			vec!["-x=42".to_string(), "--long=foo".to_string()],
+		);
+		// Ensures flags with equal signs remain unchanged
+		assert_eq!(
+			collect_args(
+				vec!["--key=value".to_string(), "-a=100".to_string(), "--other-flag".to_string()]
+					.into_iter()
+			),
+			vec!["--key=value".to_string(), "-a=100".to_string(), "--other-flag".to_string()],
+		);
+		// Edge case: multiple short flags and values
+		assert_eq!(
+			collect_args(
+				vec![
+					"-a".to_string(),
+					"1".to_string(),
+					"-b=3".to_string(),
+					"2".to_string(),
+					"--verbose".to_string()
+				]
+				.into_iter()
+			),
+			vec!["-a=1".to_string(), "-b=3".to_string(), "2".to_string(), "--verbose".to_string()],
+		);
+		// Edge case: argument without value remains unchanged
+		assert_eq!(
+			collect_args(
+				vec![
+					"--debug".to_string(),
+					"-v".to_string(),
+					"--output".to_string(),
+					"result.txt".to_string()
+				]
+				.into_iter()
+			),
+			vec!["--debug".to_string(), "-v".to_string(), "--output=result.txt".to_string()],
+		);
 	}
 }

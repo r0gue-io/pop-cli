@@ -1,7 +1,7 @@
 use crate::{errors::handle_command_error, Error};
 use duct::cmd;
 use frame_try_runtime::{TryStateSelect, UpgradeCheckSelect};
-use std::{fmt::Display, path::PathBuf};
+use std::{fmt::Display, path::PathBuf, str::from_utf8};
 
 /// Provides functionality for sourcing binaries of the `try-runtime-cli`.
 pub mod binary;
@@ -98,8 +98,8 @@ pub fn parse_try_state_string(try_state: &TryStateSelect) -> Result<String, Erro
 		TryStateSelect::RoundRobin(rounds) => format!("rr-{}", rounds),
 		TryStateSelect::Only(pallets) => {
 			let mut result = vec![];
-			for pallet in pallets.clone() {
-				result.push(String::from_utf8(pallet).map_err(|_| {
+			for pallet in pallets.iter() {
+				result.push(from_utf8(pallet).map_err(|_| {
 					Error::ParamParsingError("Invalid pallet string in `try_state`".to_string())
 				})?);
 			}

@@ -4,13 +4,13 @@ use crate::{
 	cli::{self, traits::Input},
 	common::{
 		prompt::display_message,
-		try_runtime::{check_try_runtime_and_prompt, ArgumentConstructor},
+		try_runtime::{check_try_runtime_and_prompt, collect_args, ArgumentConstructor},
 	},
 };
 use clap::Args;
 use cliclack::spinner;
 use console::style;
-use pop_parachains::{run_try_runtime, state::LiveState, TryRuntimeCliCommand};
+use pop_parachains::{parse::url, run_try_runtime, state::LiveState, TryRuntimeCliCommand};
 
 // Custom arguments which are not in `try-runtime create-snapshot`.
 const CUSTOM_ARGS: [&str; 2] = ["--skip-confirm", "-y"];
@@ -48,7 +48,7 @@ impl TestCreateSnapshotCommand {
 				.placeholder(DEFAULT_REMOTE_NODE_URL)
 				.required(true)
 				.interact()?;
-			self.from.uri = Some(input.trim().to_string());
+			self.from.uri = Some(url(input.trim())?);
 		}
 		if self.snapshot_path.is_none() {
 			let input = cli
@@ -117,19 +117,25 @@ impl TestCreateSnapshotCommand {
 	}
 
 	fn collect_arguments(&self, user_provided_args: &[String]) -> Vec<String> {
+		// Remove snapshot path from the provided arguments.
+		let mut provided_path = None;
+		let mut user_provided_args = user_provided_args.to_vec();
+		if let Some(arg) = user_provided_args.last() {
+			if !arg.starts_with("--") && arg.ends_with(".snap") {
+				provided_path = user_provided_args.pop();
+			}
+		}
+		let collected_args = collect_args(user_provided_args.into_iter());
 		let mut args = vec![];
-		let mut c = ArgumentConstructor::new(&mut args, user_provided_args);
+		let mut c = ArgumentConstructor::new(&mut args, &collected_args);
 		c.add(&[], true, "--uri", self.from.uri.clone());
 		c.add(&["--skip-confirm"], self.skip_confirm, "-y", Some(String::default()));
 		c.finalize(&[]);
 
 		// If the last argument is a snapshot path, remove it.
-		if let Some(ref path) = self.snapshot_path {
-			if let Some(arg) = args.last() {
-				if !arg.starts_with("--") && arg.ends_with(".snap") {
-					args.pop();
-				}
-			}
+		if let Some(path) = provided_path {
+			args.push(path);
+		} else if let Some(ref path) = self.snapshot_path {
 			args.push(path.to_string());
 		}
 		args
@@ -252,5 +258,23 @@ mod tests {
 			command.collect_arguments(&["example.snap".to_string(),]),
 			vec![&format!("--uri={}", DEFAULT_REMOTE_NODE_URL), "-y", "example.snap"]
 		);
+		assert_eq!(
+			command.collect_arguments(&[
+				"--skip-confirm".to_string(),
+				"--uri".to_string(),
+				DEFAULT_REMOTE_NODE_URL.to_string(),
+				"example.snap".to_string(),
+			]),
+			vec!["--skip-confirm", &format!("--uri={}", DEFAULT_REMOTE_NODE_URL), "example.snap"]
+		);
+		assert_eq!(
+			command.collect_arguments(&[
+				format!("--uri={}", DEFAULT_REMOTE_NODE_URL),
+				"--skip-confirm".to_string(),
+				"example.snap".to_string(),
+			]),
+			vec![&format!("--uri={}", DEFAULT_REMOTE_NODE_URL), "--skip-confirm", "example.snap"]
+		);
+		command.skip_confirm = true;
 	}
 }
