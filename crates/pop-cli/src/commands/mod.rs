@@ -143,6 +143,8 @@ impl Command {
 					#[cfg(feature = "parachain")]
 					test::Command::OnRuntimeUpgrade(cmd) => cmd.execute(&mut Cli).await.map(|t| json!(t)),
 					#[cfg(feature = "parachain")]
+					test::Command::ExecuteBlock(cmd) => cmd.execute(&mut Cli).await.map(|t| json!(t)),
+					#[cfg(feature = "parachain")]
 					test::Command::CreateSnapshot(cmd) => cmd.execute(&mut Cli).await.map(|t| json!(t)),
 				},
 			},

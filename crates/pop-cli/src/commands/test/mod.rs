@@ -10,6 +10,8 @@ pub mod contract;
 #[cfg(feature = "parachain")]
 pub mod create_snapshot;
 #[cfg(feature = "parachain")]
+pub mod execute_block;
+#[cfg(feature = "parachain")]
 pub mod on_runtime_upgrade;
 
 /// Arguments for testing.
@@ -39,6 +41,9 @@ pub(crate) enum Command {
 	/// Test migrations.
 	#[cfg(feature = "parachain")]
 	OnRuntimeUpgrade(on_runtime_upgrade::TestOnRuntimeUpgradeCommand),
+	/// Executes the given block against some state
+	#[cfg(feature = "parachain")]
+	ExecuteBlock(execute_block::TestExecuteBlockCommand),
 	/// Create a chain state snapshot.
 	#[cfg(feature = "parachain")]
 	CreateSnapshot(create_snapshot::TestCreateSnapshotCommand),
