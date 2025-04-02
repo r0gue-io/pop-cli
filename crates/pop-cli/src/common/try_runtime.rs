@@ -199,9 +199,6 @@ pub(crate) fn update_runtime_source(
 	profile: &mut Option<Profile>,
 	no_build: bool,
 ) -> anyhow::Result<()> {
-	if profile.is_none() {
-		*profile = Some(guide_user_to_select_profile(cli)?);
-	};
 	if !argument_exists(user_provided_args, "--runtime") &&
 		cli.confirm(format!(
 			"{}\n{}",
@@ -211,6 +208,9 @@ pub(crate) fn update_runtime_source(
 		.initial_value(true)
 		.interact()?
 	{
+		if profile.is_none() {
+			*profile = Some(guide_user_to_select_profile(cli)?);
+		};
 		if no_build {
 			cli.warning("NOTE: Make sure your runtime is built with `try-runtime` feature.")?;
 		}
@@ -662,6 +662,13 @@ mod tests {
 		let mut runtime = Runtime::Existing;
 		let mut profile = None;
 		let mut cli = MockCli::new()
+			.expect_confirm(
+				format!(
+					"Do you want to specify a runtime?\n{}",
+					style("If not provided, use the code of the remote node, or a snapshot.").dim()
+				),
+				true,
+			)
 			.expect_select(
 				"Choose the build profile of the binary that should be used: ".to_string(),
 				Some(true),
@@ -669,13 +676,6 @@ mod tests {
 				Some(Profile::get_variants()),
 				0,
 				None,
-			)
-			.expect_confirm(
-				format!(
-					"Do you want to specify a runtime?\n{}",
-					style("If not provided, use the code of the remote node, or a snapshot.").dim()
-				),
-				true,
 			)
 			.expect_warning("NOTE: Make sure your runtime is built with `try-runtime` feature.")
 			.expect_input(

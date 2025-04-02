@@ -191,6 +191,13 @@ mod tests {
 		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
 		let mut cli = MockCli::new()
 			.expect_intro("Testing block execution")
+			.expect_confirm(
+				format!(
+					"Do you want to specify which runtime to execute block on?\n{}",
+					style("If not provided, use the code of the remote node, or a snapshot.").dim()
+				),
+				true,
+			)
 			.expect_select(
 				"Choose the build profile of the binary that should be used: ".to_string(),
 				Some(true),
@@ -198,13 +205,6 @@ mod tests {
 				Some(Profile::get_variants()),
 				0,
 				None,
-			)
-			.expect_confirm(
-				format!(
-					"Do you want to specify which runtime to execute block on?\n{}",
-					style("If not provided, use the code of the remote node, or a snapshot.").dim()
-				),
-				true,
 			)
 			.expect_warning("NOTE: Make sure your runtime is built with `try-runtime` feature.")
 			.expect_input(
