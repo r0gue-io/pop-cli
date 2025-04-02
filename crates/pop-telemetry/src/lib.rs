@@ -128,11 +128,10 @@ pub async fn record_cli_used(tel: Telemetry) -> Result<()> {
 /// Reports what CLI command was called to telemetry.
 ///
 /// parameters:
-/// `command_name`: the name of the command entered (new, up, build, etc)
-/// `data`: the JSON representation of subcommands. This should never include any user inputted
-/// data like a file name.
-pub async fn record_cli_command(tel: Telemetry, command_name: &str, data: &str) -> Result<()> {
-	let payload = generate_payload(command_name, data);
+/// `event`: the name of the event to record (new, up, build, etc)
+/// `data`: additional data to record.
+pub async fn record_cli_command(tel: Telemetry, event: &str, data: &str) -> Result<()> {
+	let payload = generate_payload(event, data);
 
 	let res = tel.send_json(payload).await;
 	log::debug!("send_cli_used result: {:?}", res);
@@ -193,7 +192,7 @@ where
 	Ok(deserialized)
 }
 
-fn generate_payload(event_name: &str, data: &str) -> Value {
+fn generate_payload(event: &str, data: &str) -> Value {
 	json!({
 		"payload": {
 			"hostname": "cli",
@@ -203,7 +202,7 @@ fn generate_payload(event_name: &str, data: &str) -> Value {
 			"title": CARGO_PKG_VERSION,
 			"url": "/",
 			"website": WEBSITE_ID,
-			"name": event_name,
+			"name": event,
 			"data": data
 		},
 		"type": "event"
@@ -215,7 +214,6 @@ mod tests {
 
 	use super::*;
 	use mockito::{Matcher, Mock, Server};
-	use serde_json::json;
 	use tempfile::TempDir;
 
 	fn create_temp_config(temp_dir: &TempDir) -> Result<PathBuf> {
@@ -311,7 +309,7 @@ mod tests {
 		let temp_dir = TempDir::new().unwrap();
 		let config_path = temp_dir.path().join("config.json");
 
-		let expected_payload = generate_payload("", json!({})).to_string();
+		let expected_payload = generate_payload("", "").to_string();
 
 		let mock = default_mock(&mut mock_server, expected_payload).await;
 
@@ -336,14 +334,14 @@ mod tests {
 
 		let config_path = temp_dir.path().join("config.json");
 
-		let expected_payload = generate_payload("new", json!("parachain")).to_string();
+		let expected_payload = generate_payload("new", "parachain").to_string();
 
 		let mock = default_mock(&mut mock_server, expected_payload).await;
 
 		let mut tel = Telemetry::init(endpoint.clone(), &config_path);
 		tel.opt_out = false; // override as endpoint is mocked
 
-		record_cli_command(tel, "new", json!("parachain")).await?;
+		record_cli_command(tel, "new", "parachain").await?;
 		mock.assert_async().await;
 		Ok(())
 	}
@@ -364,7 +362,7 @@ mod tests {
 		assert!(matches!(tel.send_json(Value::Null).await, Err(TelemetryError::OptedOut)));
 		assert!(matches!(record_cli_used(tel.clone()).await, Err(TelemetryError::OptedOut)));
 		assert!(matches!(
-			record_cli_command(tel.clone(), "foo", Value::Null).await,
+			record_cli_command(tel.clone(), "foo", "").await,
 			Err(TelemetryError::OptedOut)
 		));
 		mock.assert_async().await;

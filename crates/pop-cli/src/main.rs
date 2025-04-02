@@ -38,7 +38,7 @@ async fn main() -> Result<()> {
 	if let Some(tel) = maybe_tel {
 		let data = result.as_ref().map_or_else(|e| e.to_string(), |t| t.to_string());
 		// Best effort to send on first try, no action if failure.
-		let _ = record_cli_command(tel.clone(), &event, &data).await;
+		let _ = record_cli_command(tel, &event, &data).await;
 	}
 	result.map(|_| ())
 }
