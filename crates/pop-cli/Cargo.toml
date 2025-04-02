@@ -57,6 +57,9 @@ tower-http = { workspace = true, features = ["fs", "cors"] }
 # benchmarking
 frame-benchmarking-cli.workspace = true
 
+# try-runtime
+frame-try-runtime = { workspace = true, features = ["try-runtime"] }
+
 [dev-dependencies]
 assert_cmd.workspace = true
 contract-extrinsics.workspace = true

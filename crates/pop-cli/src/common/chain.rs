@@ -31,15 +31,20 @@ pub(crate) async fn configure(
 			Url::parse(&url)?
 		},
 	};
-
-	// Parse metadata from chain url.
 	let client = set_up_client(url.as_str()).await?;
-	let mut pallets = parse_chain_metadata(&client)
+	let pallets = get_pallets(&client).await?;
+	Ok(Chain { url, client, pallets })
+}
+
+// Get available pallets on the chain.
+pub(crate) async fn get_pallets(client: &OnlineClient<SubstrateConfig>) -> Result<Vec<Pallet>> {
+	// Parse metadata from chain url.
+	let mut pallets = parse_chain_metadata(client)
 		.map_err(|e| anyhow!(format!("Unable to fetch the chain metadata: {}", e.to_string())))?;
 	// Sort by name for display.
 	pallets.sort_by_key(|pallet| pallet.name.clone());
 	pallets.iter_mut().for_each(|p| p.functions.sort_by_key(|f| f.name.clone()));
-	Ok(Chain { url, client, pallets })
+	Ok(pallets)
 }
 
 #[cfg(test)]
@@ -56,5 +61,13 @@ mod tests {
 		let chain = configure(message, POP_NETWORK_TESTNET_URL, &None, &mut cli).await?;
 		assert_eq!(chain.url, Url::parse(POP_NETWORK_TESTNET_URL)?);
 		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn get_pallets_works() -> Result<()> {
+		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
+		let pallets = get_pallets(&client).await?;
+		assert!(!pallets.is_empty());
+		Ok(())
 	}
 }
