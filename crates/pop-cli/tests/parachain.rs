@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
+#![cfg(feature = "parachain")]
+
 use anyhow::Result;
 use assert_cmd::{cargo::cargo_bin, Command};
 use pop_common::{find_free_port, templates::Template};

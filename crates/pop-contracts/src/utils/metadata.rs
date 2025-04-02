@@ -1,11 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::errors::Error;
-use contract_extrinsics::ContractArtifacts;
-use contract_transcode::ink_metadata::MessageParamSpec;
 use pop_common::format_type;
 use scale_info::{form::PortableForm, PortableRegistry};
 use std::path::Path;
+#[cfg(feature = "v5")]
+use {contract_extrinsics::ContractArtifacts, contract_transcode::ink_metadata::MessageParamSpec};
+#[cfg(feature = "v6")]
+use {
+	contract_extrinsics_inkv6::ContractArtifacts,
+	contract_transcode_inkv6::ink_metadata::MessageParamSpec,
+};
 
 /// Describes a parameter.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -93,7 +98,10 @@ fn get_contract_functions(
 				payable: message.payable(),
 				args: process_args(message.args(), metadata.registry()),
 				docs: message.docs().join(" "),
+				#[cfg(feature = "v5")]
 				default: *message.default(),
+				#[cfg(feature = "v6")]
+				default: message.default(),
 			})
 			.collect(),
 		FunctionType::Constructor => metadata
@@ -102,10 +110,16 @@ fn get_contract_functions(
 			.iter()
 			.map(|constructor| ContractFunction {
 				label: constructor.label().to_string(),
+				#[cfg(feature = "v5")]
 				payable: *constructor.payable(),
+				#[cfg(feature = "v6")]
+				payable: constructor.payable(),
 				args: process_args(constructor.args(), metadata.registry()),
 				docs: constructor.docs().join(" "),
+				#[cfg(feature = "v5")]
 				default: *constructor.default(),
+				#[cfg(feature = "v6")]
+				default: constructor.default(),
 				mutates: true,
 			})
 			.collect(),

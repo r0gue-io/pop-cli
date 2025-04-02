@@ -8,6 +8,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
   GITHUB_ACTOR: pop-cli
 
 jobs:
@@ -79,8 +80,11 @@ jobs:
 
       - uses: docker/build-push-action@v5
 
-  unit-tests:
+  polkavm-unit-tests:
     needs: lint
+    strategy:
+      matrix:
+        crate: [pop-cli, pop-contracts]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -89,11 +93,19 @@ jobs:
         with:
           git-user: ${{ env.GITHUB_ACTOR }}
 
-      - name: Run unit tests
-        run: cargo test --lib --bins
+      - name: Run unit tests with polkavm-contracts for ${{ matrix.crate }}
+        run: |
+          if [[ "${{ matrix.crate }}" == "pop-cli" ]]; then
+            cargo test --bins --locked --no-default-features --features "polkavm-contracts parachain" -p ${{ matrix.crate }}
+          else
+            cargo test -p ${{ matrix.crate }} --no-default-features --features v6 --lib --bins
+          fi
 
   coverage:
     needs: lint
+    strategy:
+      matrix:
+        crate: [pop-cli, pop-contracts, pop-parachains, pop-common, pop-telemetry]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -105,14 +117,29 @@ jobs:
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
 
-      - name: Generate code coverage
-        run: cargo llvm-cov --all-features --workspace --lib --bins --codecov --output-path codecov.json
+      - name: Generate code coverage for ${{ matrix.crate }}
+        run: |
+          if [[ "${{ matrix.crate }}" == "pop-cli" ]]; then
+            cargo llvm-cov --bins \
+              -p ${{ matrix.crate }} \
+              --features "parachain telemetry wasm-contracts" \
+              --codecov --output-path codecov-${{ matrix.crate }}.json
+          elif [[ "${{ matrix.crate }}" == "pop-contracts" ]]; then
+            cargo llvm-cov --lib --bins \
+              -p ${{ matrix.crate }} \
+              --features "v5" \
+              --codecov --output-path codecov-${{ matrix.crate }}.json
+          else
+            cargo llvm-cov --lib --bins \
+              -p ${{ matrix.crate }} \
+              --codecov --output-path codecov-${{ matrix.crate }}.json
+          fi
 
-      - name: Upload to codecov.io
+      - name: Upload report to Codecov
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: codecov.json
+          files: codecov-${{ matrix.crate }}.json
           fail_ci_if_error: true
 
   documentation-tests:

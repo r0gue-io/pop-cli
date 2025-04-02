@@ -2,7 +2,7 @@
 
 use std::net::TcpListener;
 
-pub use account_id::parse_account;
+pub use account_id::{parse_account, parse_h160_account};
 pub use build::Profile;
 pub use errors::Error;
 pub use git::{Git, GitHub, Release};

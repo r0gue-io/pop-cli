@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0
 
+#[cfg(feature = "v6")]
+use crate::utils::map_account::MapAccount;
+
+#[cfg(feature = "v5")]
 use contract_extrinsics::{RawParams, RpcRequest};
+#[cfg(feature = "v6")]
+use contract_extrinsics_inkv6::{RawParams, RpcRequest};
 use pop_common::{
 	sourcing::{
 		traits::{Source as _, *},
@@ -10,7 +16,7 @@ use pop_common::{
 	},
 	Error, GitHub,
 };
-use strum::{EnumProperty, VariantArray};
+use strum_macros::{EnumProperty, VariantArray};
 
 use std::{
 	env::consts::{ARCH, OS},
@@ -22,7 +28,10 @@ use std::{
 use subxt::{dynamic::Value, SubstrateConfig};
 use tokio::time::sleep;
 
+#[cfg(feature = "v5")]
 const BIN_NAME: &str = "substrate-contracts-node";
+#[cfg(feature = "v6")]
+const BIN_NAME: &str = "ink-node";
 const STARTUP: Duration = Duration::from_millis(20_000);
 
 /// Checks if the specified node is alive and responsive.
@@ -48,17 +57,27 @@ pub async fn is_chain_alive(url: url::Url) -> Result<bool, Error> {
 /// A supported chain.
 #[derive(Debug, EnumProperty, PartialEq, VariantArray)]
 pub(super) enum Chain {
-	/// Minimal Substrate node configured for smart contracts via pallet-contracts and
-	/// pallet-revive.
+	/// Minimal Substrate node configured for smart contracts via pallet-contracts.
 	#[strum(props(
 		Repository = "https://github.com/paritytech/substrate-contracts-node",
 		Binary = "substrate-contracts-node",
 		TagFormat = "{tag}",
 		Fallback = "v0.41.0"
 	))]
+	#[cfg(feature = "v5")]
+	ContractsNode,
+	/// Minimal ink node configured for smart contracts via pallet-revive.
+	#[strum(props(
+		Repository = "https://github.com/use-ink/ink-node",
+		Binary = "ink-node",
+		TagFormat = "{tag}",
+		Fallback = "v0.43.0"
+	))]
+	#[cfg(feature = "v6")]
 	ContractsNode,
 }
 
+#[cfg(any(feature = "v5", feature = "v6"))]
 impl TryInto for Chain {
 	/// Attempt the conversion.
 	///
@@ -67,7 +86,10 @@ impl TryInto for Chain {
 	/// * `latest` - If applicable, some specifier used to determine the latest source.
 	fn try_into(&self, tag: Option<String>, latest: Option<String>) -> Result<Source, Error> {
 		let archive = archive_name_by_target()?;
-		let archive_bin_path = release_directory_by_target(tag.as_deref())?;
+		let archive_bin_path = release_directory_by_target(
+			#[cfg(feature = "v5")]
+			tag.as_deref(),
+		)?;
 		Ok(match self {
 			&Chain::ContractsNode => {
 				// Source from GitHub release asset
@@ -106,6 +128,7 @@ pub async fn contracts_node_generator(
 	let latest = version.is_none().then(|| releases.first().map(|v| v.to_string())).flatten();
 	let contracts_node = Binary::Source {
 		name: name.to_string(),
+		#[cfg(any(feature = "v5", feature = "v6"))]
 		source: TryInto::try_into(chain, tag.clone(), latest)?,
 		cache: cache.to_path_buf(),
 	};
@@ -137,8 +160,12 @@ pub async fn run_contracts_node(
 	// Wait until the node is ready
 	sleep(STARTUP).await;
 
+	#[cfg(feature = "v5")]
 	let data = Value::from_bytes(subxt::utils::to_hex("initialize contracts node"));
+	#[cfg(feature = "v5")]
 	let payload = subxt::dynamic::tx("System", "remark", [data].to_vec());
+	#[cfg(feature = "v6")]
+	let payload = MapAccount::new().build();
 
 	let client = subxt::client::OnlineClient::<SubstrateConfig>::from_url(format!(
 		"ws://127.0.0.1:{}",
@@ -162,9 +189,17 @@ fn archive_name_by_target() -> Result<String, Error> {
 		_ => Err(Error::UnsupportedPlatform { arch: ARCH, os: OS }),
 	}
 }
+#[cfg(feature = "v6")]
+fn release_directory_by_target() -> Result<&'static str, Error> {
+	match OS {
+		"macos" => Ok("ink-node-mac/ink-node"),
+		"linux" => Ok("ink-node-linux/ink-node"),
+		_ => Err(Error::UnsupportedPlatform { arch: ARCH, os: OS }),
+	}
+}
 
+#[cfg(feature = "v5")]
 fn release_directory_by_target(tag: Option<&str>) -> Result<&'static str, Error> {
-	// The structure of the binary changed in v0.42.0
 	let is_old_structure = matches!(tag, Some(tag) if tag < "v0.42.0");
 	match OS {
 		"macos" =>
@@ -194,9 +229,9 @@ mod tests {
 	async fn directory_path_by_target() -> Result<()> {
 		let archive = archive_name_by_target();
 		if cfg!(target_os = "macos") {
-			assert_eq!(archive?, "substrate-contracts-node-mac-universal.tar.gz");
+			assert_eq!(archive?, format!("{BIN_NAME}-mac-universal.tar.gz"));
 		} else if cfg!(target_os = "linux") {
-			assert_eq!(archive?, "substrate-contracts-node-linux.tar.gz");
+			assert_eq!(archive?, format!("{BIN_NAME}-linux.tar.gz"));
 		} else {
 			assert!(archive.is_err())
 		}
@@ -220,12 +255,19 @@ mod tests {
 		let version = "v0.40.0";
 		let binary = contracts_node_generator(cache.clone(), Some(version)).await?;
 		let archive = archive_name_by_target()?;
-		let archive_bin_path = release_directory_by_target(Some(version))?;
+		let archive_bin_path = release_directory_by_target(
+			#[cfg(feature = "v5")]
+			Some(version),
+		)?;
+		#[cfg(feature = "v5")]
+		let owner = "paritytech";
+		#[cfg(feature = "v6")]
+		let owner = "use-ink";
 		assert!(matches!(binary, Binary::Source { name, source, cache}
 			if name == expected.binary()  &&
 				source == Source::GitHub(ReleaseArchive {
-					owner: "paritytech".to_string(),
-					repository: "substrate-contracts-node".to_string(),
+					owner: owner.to_string(),
+					repository: BIN_NAME.to_string(),
 					tag: Some(version.to_string()),
 					tag_format: expected.tag_format().map(|t| t.into()),
 					archive: archive,

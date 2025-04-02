@@ -8,19 +8,31 @@ use crate::{
 		metadata::{process_function_args, FunctionType},
 		parse_balance,
 	},
+	CallExec, DefaultEnvironment, Environment, Verbosity,
 };
 use anyhow::Context;
-use contract_build::Verbosity;
-use contract_extrinsics::{
-	extrinsic_calls::Call, BalanceVariant, CallCommandBuilder, CallExec, ContractArtifacts,
-	DisplayEvents, ErrorVariant, ExtrinsicOptsBuilder, TokenMetadata,
-};
-use ink_env::{DefaultEnvironment, Environment};
-use pop_common::{create_signer, parse_account, Config, DefaultConfig, Keypair};
-use sp_weights::Weight;
+use pop_common::{create_signer, DefaultConfig, Keypair};
 use std::path::PathBuf;
 use subxt::{tx::Payload, SubstrateConfig};
 use url::Url;
+#[cfg(feature = "v5")]
+use {
+	contract_extrinsics::{
+		extrinsic_calls::Call, BalanceVariant, CallCommandBuilder, ContractArtifacts,
+		DisplayEvents, ErrorVariant, ExtrinsicOptsBuilder, TokenMetadata,
+	},
+	pop_common::{parse_account, Config},
+	sp_weights::Weight,
+};
+#[cfg(feature = "v6")]
+use {
+	contract_extrinsics_inkv6::{
+		extrinsic_calls::Call, BalanceVariant, CallCommandBuilder, ContractArtifacts,
+		DisplayEvents, ErrorVariant, ExtrinsicOptsBuilder, TokenMetadata,
+	},
+	pop_common::account_id::parse_h160_account,
+	sp_weights_inkv6::Weight,
+};
 
 /// Attributes for the `call` command.
 #[derive(Clone, Debug, PartialEq)]
@@ -79,7 +91,10 @@ pub async fn set_up_call(
 	let value: BalanceVariant<<DefaultEnvironment as Environment>::Balance> =
 		parse_balance(&call_opts.value)?;
 
+	#[cfg(feature = "v5")]
 	let contract: <DefaultConfig as Config>::AccountId = parse_account(&call_opts.contract)?;
+	#[cfg(feature = "v6")]
+	let contract = parse_h160_account(&call_opts.contract)?;
 	// Process the provided argument values.
 	let args = process_function_args(
 		call_opts.path.unwrap_or_else(|| PathBuf::from("./")),
@@ -164,8 +179,14 @@ pub async fn call_smart_contract(
 ) -> anyhow::Result<String, Error> {
 	let token_metadata = TokenMetadata::query::<DefaultConfig>(url).await?;
 	let metadata = call_exec.client().metadata();
+	#[cfg(feature = "v6")]
+	let storage_deposit_limit = call_exec.opts().storage_deposit_limit();
 	let events = call_exec
-		.call(Some(gas_limit))
+		.call(
+			Some(gas_limit),
+			#[cfg(feature = "v6")]
+			storage_deposit_limit,
+		)
 		.await
 		.map_err(|error_variant| Error::CallContractError(format!("{:?}", error_variant)))?;
 	let display_events =
@@ -205,6 +226,7 @@ pub async fn call_smart_contract_from_signed_payload(
 /// # Arguments
 /// * `call_exec` - A struct containing the details of the contract call.
 /// * `gas_limit` - The maximum amount of gas allocated for executing the contract call.
+#[cfg(feature = "v5")]
 pub fn get_call_payload(
 	call_exec: &CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
 	gas_limit: Weight,
@@ -223,21 +245,53 @@ pub fn get_call_payload(
 	Ok(encoded_data)
 }
 
+/// Generates the payload for executing a smart contract call.
+///
+/// # Arguments
+/// * `call_exec` - A struct containing the details of the contract call.
+/// * `gas_limit` - The maximum amount of gas allocated for executing the contract call.
+#[cfg(feature = "v6")]
+pub fn get_call_payload(
+	call_exec: &CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
+	gas_limit: Weight,
+	storage_deposit_limit: u128,
+) -> anyhow::Result<Vec<u8>> {
+	let mut encoded_data = Vec::<u8>::new();
+	Call::new(
+		*call_exec.contract(),
+		call_exec.value(),
+		gas_limit,
+		&storage_deposit_limit,
+		call_exec.call_data().clone(),
+	)
+	.build()
+	.encode_call_data_to(&call_exec.client().metadata(), &mut encoded_data)?;
+	Ok(encoded_data)
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
+	#[cfg(feature = "v6")]
+	use crate::AccountMapper;
 	use crate::{
 		contracts_node_generator, dry_run_gas_estimate_instantiate, errors::Error,
 		instantiate_smart_contract, mock_build_process, new_environment, run_contracts_node,
-		set_up_deployment, UpOpts,
+		set_up_deployment, Bytes, UpOpts,
 	};
 	use anyhow::Result;
 	use pop_common::{find_free_port, set_executable_permission};
-	use sp_core::Bytes;
 	use std::{env, process::Command, time::Duration};
 	use tokio::time::sleep;
 
+	#[cfg(feature = "v5")]
+	const CONTRACT_ADDRESS: &str = "5CLPm1CeUvJhZ8GCDZCR7nWZ2m3XXe4X5MtAQK69zEjut36A";
+	#[cfg(feature = "v5")]
 	const CONTRACTS_NETWORK_URL: &str = "wss://rpc2.paseo.popnetwork.xyz";
+	#[cfg(feature = "v6")]
+	const CONTRACT_ADDRESS: &str = "0x4f04054746fb19d3b027f5fe1ca5e87a68b49bac";
+	#[cfg(feature = "v6")]
+	const CONTRACTS_NETWORK_URL: &str = "wss://westend-asset-hub-rpc.polkadot.io";
 
 	#[tokio::test]
 	async fn test_set_up_call() -> Result<()> {
@@ -251,7 +305,7 @@ mod tests {
 
 		let call_opts = CallOpts {
 			path: Some(temp_dir.path().join("testing")),
-			contract: "5CLPm1CeUvJhZ8GCDZCR7nWZ2m3XXe4X5MtAQK69zEjut36A".to_string(),
+			contract: CONTRACT_ADDRESS.to_string(),
 			message: "get".to_string(),
 			args: [].to_vec(),
 			value: "1000".to_string(),
@@ -271,7 +325,7 @@ mod tests {
 		let current_dir = env::current_dir().expect("Failed to get current directory");
 		let call_opts = CallOpts {
 			path: Some(current_dir.join("./tests/files/testing.json")),
-			contract: "5CLPm1CeUvJhZ8GCDZCR7nWZ2m3XXe4X5MtAQK69zEjut36A".to_string(),
+			contract: CONTRACT_ADDRESS.to_string(),
 			message: "get".to_string(),
 			args: [].to_vec(),
 			value: "1000".to_string(),
@@ -291,7 +345,7 @@ mod tests {
 		let temp_dir = new_environment("testing")?;
 		let call_opts = CallOpts {
 			path: Some(temp_dir.path().join("testing")),
-			contract: "5CLPm1CeUvJhZ8GCDZCR7nWZ2m3XXe4X5MtAQK69zEjut36A".to_string(),
+			contract: CONTRACT_ADDRESS.to_string(),
 			message: "get".to_string(),
 			args: [].to_vec(),
 			value: "1000".to_string(),
@@ -310,7 +364,7 @@ mod tests {
 	async fn test_set_up_call_fails_no_smart_contract_directory() -> Result<()> {
 		let call_opts = CallOpts {
 			path: None,
-			contract: "5CLPm1CeUvJhZ8GCDZCR7nWZ2m3XXe4X5MtAQK69zEjut36A".to_string(),
+			contract: CONTRACT_ADDRESS.to_string(),
 			message: "get".to_string(),
 			args: [].to_vec(),
 			value: "1000".to_string(),
@@ -338,7 +392,7 @@ mod tests {
 
 		let call_opts = CallOpts {
 			path: Some(temp_dir.path().join("testing")),
-			contract: "5CLPm1CeUvJhZ8GCDZCR7nWZ2m3XXe4X5MtAQK69zEjut36A".to_string(),
+			contract: CONTRACT_ADDRESS.to_string(),
 			message: "get".to_string(),
 			args: [].to_vec(),
 			value: "1000".to_string(),
@@ -365,7 +419,7 @@ mod tests {
 
 		let call_opts = CallOpts {
 			path: Some(temp_dir.path().join("testing")),
-			contract: "5CLPm1CeUvJhZ8GCDZCR7nWZ2m3XXe4X5MtAQK69zEjut36A".to_string(),
+			contract: CONTRACT_ADDRESS.to_string(),
 			message: "get".to_string(),
 			args: [].to_vec(),
 			value: "1000".to_string(),
@@ -389,9 +443,13 @@ mod tests {
 		let localhost_url = format!("ws://127.0.0.1:{}", random_port);
 		let temp_dir = new_environment("testing")?;
 		let current_dir = env::current_dir().expect("Failed to get current directory");
+		#[cfg(feature = "v5")]
+		let contract_file = "./tests/files/testing_wasm.contract";
+		#[cfg(feature = "v6")]
+		let contract_file = "./tests/files/testing.contract";
 		mock_build_process(
 			temp_dir.path().join("testing"),
-			current_dir.join("./tests/files/testing.contract"),
+			current_dir.join(contract_file),
 			current_dir.join("./tests/files/testing.json"),
 		)?;
 
