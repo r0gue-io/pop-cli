@@ -191,9 +191,9 @@ pub(crate) struct BenchmarkPallet {
 	#[arg(long)]
 	disable_proof_recording: bool,
 
-	/// If set to true, no additional configuration prompts will be shown.
-	#[arg(long = "skip")]
-	skip_configuration: bool,
+	/// If enabled, no prompt will be shown for updating additional parameters.
+	#[arg(long)]
+	skip_parameters: bool,
 
 	/// Automatically source the needed binary required without prompting for confirmation.
 	#[clap(short = 'y', long)]
@@ -242,7 +242,7 @@ impl Default for BenchmarkPallet {
 			worst_case_map_values: 1000000,
 			additional_trie_layers: 2,
 			disable_proof_recording: false,
-			skip_configuration: false,
+			skip_parameters: false,
 			skip_confirm: false,
 			no_build: false,
 			bench_file: None,
@@ -332,9 +332,9 @@ impl BenchmarkPallet {
 			self.update_extrinsics(cli, &mut registry).await?;
 		}
 
-		// Only prompt user to update additional configurations when `skip_configuration` is not
-		// provided.
-		if !self.skip_configuration &&
+		// Only prompt user to update additional parameter configuration when `skip_parameters` is
+		// not provided.
+		if !self.skip_parameters &&
 			cli.confirm("Would you like to update any additional configurations?")
 				.initial_value(false)
 				.interact()?
@@ -459,8 +459,8 @@ impl BenchmarkPallet {
 		let default_values = Self::default();
 		let mut args = vec!["pop".to_string(), "bench".to_string(), "pallet".to_string()];
 		let mut arguments = self.collect_arguments();
-		if self.skip_configuration && self.skip_configuration != default_values.skip_configuration {
-			arguments.push("--skip".to_string());
+		if self.skip_parameters && self.skip_parameters != default_values.skip_parameters {
+			arguments.push("--skip-parameters".to_string());
 		}
 		if self.skip_confirm {
 			arguments.push("-y".to_string());
@@ -1130,7 +1130,7 @@ fn guide_user_to_update_bench_file_path(
 		.interact()?
 	{
 		let input = cli
-			.input("Provide the output path for benchmark parameters")
+			.input("Provide the output path for benchmark parameter values")
 			.required(true)
 			.placeholder(DEFAULT_BENCH_FILE)
 			.default_input(DEFAULT_BENCH_FILE)
@@ -1243,7 +1243,7 @@ mod tests {
 				true,
 			)
 			.expect_input(
-				"Provide the output path for benchmark parameters",
+				"Provide the output path for benchmark parameter values",
 				bench_file_path.to_str().unwrap().to_string(),
 			)
 			.expect_info(format!(
@@ -1284,7 +1284,7 @@ mod tests {
 			runtime: Some(get_mock_runtime(Some(Benchmark))),
 			genesis_builder: Some(GenesisBuilderPolicy::Runtime),
 			genesis_builder_preset: "development".to_string(),
-			skip_configuration: true,
+			skip_parameters: true,
 			pallet: Some("pallet_timestamp".to_string()),
 			extrinsic: Some(ALL_SELECTED.to_string()),
 			output: Some(output_path.clone()),
@@ -1351,7 +1351,7 @@ mod tests {
 			.expect_outro("Benchmark completed successfully!");
 
 		let mut cmd = BenchmarkPallet {
-			skip_configuration: true,
+			skip_parameters: true,
 			skip_confirm: true,
 			runtime: Some(get_mock_runtime(Some(Benchmark))),
 			genesis_builder: Some(GenesisBuilderPolicy::Runtime),
@@ -1397,7 +1397,7 @@ mod tests {
 			.expect_outro("Benchmark completed successfully!");
 
 		let mut cmd = BenchmarkPallet {
-			skip_configuration: true,
+			skip_parameters: true,
 			skip_confirm: true,
 			runtime: Some(get_mock_runtime(Some(Benchmark))),
 			genesis_builder: Some(GenesisBuilderPolicy::Runtime),
@@ -1451,7 +1451,7 @@ mod tests {
 			runtime: Some(get_mock_runtime(None)),
 			pallet: Some("pallet_timestamp".to_string()),
 			extrinsic: Some(ALL_SELECTED.to_string()),
-			skip_configuration: true,
+			skip_parameters: true,
 			genesis_builder: Some(GenesisBuilderPolicy::None),
 			..Default::default()
 		}
@@ -1470,7 +1470,7 @@ mod tests {
 			runtime: Some(get_mock_runtime(Some(Benchmark))),
 			pallet: Some("unknown_pallet".to_string()),
 			extrinsic: Some(ALL_SELECTED.to_string()),
-			skip_configuration: true,
+			skip_parameters: true,
 			genesis_builder: Some(GenesisBuilderPolicy::None),
 			..Default::default()
 		}
@@ -1601,7 +1601,7 @@ mod tests {
 
 		// No bench file path provided.
 		let mut cli = MockCli::new().expect_confirm(&prompt, true).expect_input(
-			"Provide the output path for benchmark parameters",
+			"Provide the output path for benchmark parameter values",
 			file_path_str.clone(),
 		);
 		assert_eq!(
@@ -1620,7 +1620,7 @@ mod tests {
 
 		// Invalid file extension.
 		let mut cli = MockCli::new().expect_confirm(&prompt, true).expect_input(
-			"Provide the output path for benchmark parameters",
+			"Provide the output path for benchmark parameter values",
 			invalid_file_path.to_str().unwrap().to_string(),
 		);
 		assert_eq!(

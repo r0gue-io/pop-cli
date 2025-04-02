@@ -74,12 +74,18 @@ impl BenchmarkMachine {
 	fn display(&self) -> String {
 		let mut args = vec!["pop bench machine".to_string()];
 		let mut arguments: Vec<String> = std::env::args().skip(3).collect();
-		if let Some(ref profile) = self.profile {
-			arguments.push(format!("--profile={}", profile));
+		if !argument_exists(&arguments, "--profile") {
+			if let Some(ref profile) = self.profile {
+				arguments.push(format!("--profile={}", profile));
+			}
 		}
 		args.extend(arguments);
 		args.join(" ")
 	}
+}
+
+fn argument_exists(args: &[String], arg: &str) -> bool {
+	args.iter().any(|a| a.contains(arg))
 }
 
 #[cfg(test)]

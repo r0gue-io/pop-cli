@@ -128,12 +128,13 @@ impl BenchmarkOverhead {
 		self.command.params.weight.weight_path = Some(temp_dir.path().to_path_buf());
 
 		let binary_path = check_omni_bencher_and_prompt(cli, self.skip_confirm).await?;
-		generate_omni_bencher_benchmarks(
+		let output = generate_omni_bencher_benchmarks(
 			binary_path.as_path(),
 			BenchmarkingCliCommand::Overhead,
 			self.collect_arguments(),
 			false,
 		)?;
+		println!("{}", output);
 
 		// Restore the original weight path.
 		self.command.params.weight.weight_path = Some(original_weight_path.clone());
