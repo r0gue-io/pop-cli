@@ -355,7 +355,7 @@ mod tests {
 				get_mock_runtime(Some(TryRuntime)).to_str().unwrap().to_string(),
 			)
 			.expect_select(
-				"Select source of runtime state to run the migration with:",
+				"Select source of runtime state:",
 				Some(true),
 				true,
 				Some(get_subcommands()),
@@ -413,7 +413,7 @@ mod tests {
 				get_mock_runtime(Some(TryRuntime)).to_str().unwrap().to_string(),
 			)
 			.expect_select(
-				"Select source of runtime state to run the migration with:",
+				"Select source of runtime state:",
 				Some(true),
 				true,
 				Some(get_subcommands()),

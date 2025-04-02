@@ -270,7 +270,7 @@ mod tests {
 			.expect_input("How many empty blocks should be processed?", "10".to_string())
 			.expect_confirm("Do you want to run pending migrations before fast-forwarding?", true)
 			.expect_select(
-				"Select source of runtime state to run the migration with:",
+				"Select source of runtime state:",
 				Some(true),
 				true,
 				Some(get_subcommands()),
@@ -328,7 +328,7 @@ mod tests {
 			.expect_input("How many empty blocks should be processed?", "10".to_string())
 			.expect_confirm("Do you want to run pending migrations before fast-forwarding?", true)
 			.expect_select(
-				"Select source of runtime state to run the migration with:",
+				"Select source of runtime state:",
 				Some(true),
 				true,
 				Some(get_subcommands()),

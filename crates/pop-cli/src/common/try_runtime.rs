@@ -226,7 +226,7 @@ pub(crate) fn update_runtime_source(
 }
 
 fn guide_user_to_select_state_source(cli: &mut impl Cli) -> anyhow::Result<&StateCommand> {
-	let mut prompt = cli.select("Select source of runtime state to run the migration with:");
+	let mut prompt = cli.select("Select source of runtime state:");
 	for subcommand in StateCommand::VARIANTS.iter() {
 		prompt = prompt.item(
 			subcommand,
@@ -716,7 +716,7 @@ mod tests {
 	#[test]
 	fn guide_user_to_select_state_source_works() -> anyhow::Result<()> {
 		let mut cli = MockCli::new().expect_select(
-			"Select source of runtime state to run the migration with:",
+			"Select source of runtime state:",
 			Some(true),
 			true,
 			Some(get_subcommands()),
