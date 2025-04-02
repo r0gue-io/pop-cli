@@ -36,6 +36,16 @@ pub(crate) struct TestArgs {
 /// Test a Rust project.
 #[derive(Subcommand)]
 pub(crate) enum Command {
+	/// Test migrations.
+	#[cfg(feature = "parachain")]
+	OnRuntimeUpgrade(on_runtime_upgrade::TestOnRuntimeUpgradeCommand),
+	/// Executes the given block against some state
+	#[cfg(feature = "parachain")]
+	ExecuteBlock(execute_block::TestExecuteBlockCommand),
+	/// Executes a runtime upgrade (optional), then mines a number of blocks while performing
+	/// try-state checks
+	#[cfg(feature = "parachain")]
+	FastForward(fast_forward::TestFastForwardCommand),
 	/// Create a chain state snapshot.
 	#[cfg(feature = "parachain")]
 	CreateSnapshot(create_snapshot::TestCreateSnapshotCommand),
@@ -43,16 +53,6 @@ pub(crate) enum Command {
 	#[cfg(feature = "contract")]
 	#[clap(alias = "c")]
 	Contract(contract::TestContractCommand),
-	/// Executes the given block against some state
-	#[cfg(feature = "parachain")]
-	ExecuteBlock(execute_block::TestExecuteBlockCommand),
-	/// Test migrations.
-	#[cfg(feature = "parachain")]
-	OnRuntimeUpgrade(on_runtime_upgrade::TestOnRuntimeUpgradeCommand),
-	/// Executes a runtime upgrade (optional), then mines a number of blocks while performing
-	/// try-state checks
-	#[cfg(feature = "parachain")]
-	FastForward(fast_forward::TestFastForwardCommand),
 }
 
 impl Command {

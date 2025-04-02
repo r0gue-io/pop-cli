@@ -8,9 +8,10 @@ use crate::{
 	common::{
 		prompt::display_message,
 		try_runtime::{
-			check_try_runtime_and_prompt, collect_shared_arguments, collect_state_arguments,
-			guide_user_to_select_try_state, partition_arguments, update_runtime_source,
-			update_state_source, ArgumentConstructor, BuildRuntimeParams, DEFAULT_BLOCK_TIME,
+			check_try_runtime_and_prompt, collect_args, collect_shared_arguments,
+			collect_state_arguments, guide_user_to_select_try_state, partition_arguments,
+			update_runtime_source, update_state_source, ArgumentConstructor, BuildRuntimeParams,
+			DEFAULT_BLOCK_TIME,
 		},
 	},
 };
@@ -196,8 +197,10 @@ impl TestFastForwardCommand {
 		let mut cmd_args = vec!["pop test fast-forward".to_string()];
 		let mut args = vec![];
 		let subcommand = self.subcommand()?;
-		let (command_arguments, shared_params, after_subcommand) =
-			partition_arguments(user_provided_args, &subcommand);
+		let (command_arguments, shared_params, after_subcommand) = partition_arguments(
+			&collect_args(user_provided_args.to_vec().into_iter()),
+			&subcommand,
+		);
 
 		collect_shared_arguments(&self.shared_params, &shared_params, &mut args);
 		self.collect_arguments_before_subcommand(&command_arguments, &mut args)?;
@@ -213,7 +216,8 @@ impl TestFastForwardCommand {
 		user_provided_args: &[String],
 		args: &mut Vec<String>,
 	) -> anyhow::Result<()> {
-		let mut c = ArgumentConstructor::new(args, user_provided_args);
+		let collected_args = collect_args(user_provided_args.to_vec().into_iter());
+		let mut c = ArgumentConstructor::new(args, &collected_args);
 		if let Some(ref try_state) = self.try_state {
 			c.add(&[], true, "--try-state", Some(parse_try_state_string(try_state)?));
 		}
@@ -429,6 +433,21 @@ mod tests {
 			cmd.display(&[])?,
 			format!(
 				"pop test fast-forward --runtime={} --try-state=System --blocktime={} live --uri={}",
+				get_mock_runtime(Some(Feature::TryRuntime)).display(),
+				DEFAULT_BLOCK_TIME,
+				DEFAULT_LIVE_NODE_URL
+			)
+		);
+		assert_eq!(
+			cmd.display(&[
+				"--runtime".to_string(),
+				get_mock_runtime(Some(Feature::TryRuntime)).to_str().unwrap().to_string(),
+				"--try-state".to_string(),
+				"all".to_string(),
+				"live".to_string(),
+			])?,
+			format!(
+				"pop test fast-forward --runtime={} --blocktime={} --try-state=all live --uri={}",
 				get_mock_runtime(Some(Feature::TryRuntime)).display(),
 				DEFAULT_BLOCK_TIME,
 				DEFAULT_LIVE_NODE_URL

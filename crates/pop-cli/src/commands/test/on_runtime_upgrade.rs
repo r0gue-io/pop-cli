@@ -154,22 +154,20 @@ impl TestOnRuntimeUpgradeCommand {
 		cli.warning("NOTE: this may take some time...")?;
 		let spinner = spinner();
 		match self.command.state {
-			Some(State::Live(ref live_state)) => {
+			Some(State::Live(ref live_state)) =>
 				if let Some(ref uri) = live_state.uri {
 					spinner.start(format!(
 						"Running migrations against live state at {}...",
 						style(&uri).magenta().underlined()
 					));
-				}
-			},
-			Some(State::Snap { ref path }) => {
+				},
+			Some(State::Snap { ref path }) =>
 				if let Some(p) = path {
 					spinner.start(format!(
 						"Running migrations using a snapshot file at {}...",
 						p.display()
 					));
-				}
-			},
+				},
 			None => return Err(anyhow::anyhow!("No subcommand provided")),
 		}
 		sleep(Duration::from_secs(1));
@@ -223,7 +221,7 @@ impl TestOnRuntimeUpgradeCommand {
 		let mut args = vec![];
 		let subcommand = self.subcommand()?;
 		let (command_arguments, shared_params, after_subcommand) =
-			partition_arguments(collect_args(std::env::args().skip(3)), &subcommand);
+			partition_arguments(&collect_args(std::env::args().skip(3)), &subcommand);
 
 		collect_shared_arguments(&self.shared_params, &shared_params, &mut args);
 		self.collect_arguments_before_subcommand(&command_arguments, &mut args);
