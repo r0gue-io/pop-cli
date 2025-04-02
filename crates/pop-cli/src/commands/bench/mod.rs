@@ -76,6 +76,6 @@ mod tests {
 	// Others can not be tested yet due to private external types.
 	#[test]
 	fn command_display_works() {
-		assert_eq!(Command::Pallet(Default::default()).to_string(), "pallet");
+		assert_eq!(Command::Pallet(Default::default()).to_string(), "bench pallet");
 	}
 }

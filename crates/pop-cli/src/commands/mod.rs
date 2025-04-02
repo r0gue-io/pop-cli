@@ -79,7 +79,7 @@ impl Command {
 	pub(crate) async fn execute(self) -> anyhow::Result<Data> {
 		match self {
 			#[cfg(any(feature = "parachain", feature = "contract"))]
-			Self::Install(args) => install::Command.execute(args).await.map(|os| Install(os)),
+			Self::Install(args) => install::Command.execute(args).await.map(Install),
 			#[cfg(any(feature = "parachain", feature = "contract"))]
 			Self::New(args) => match args.command {
 				#[cfg(feature = "parachain")]
