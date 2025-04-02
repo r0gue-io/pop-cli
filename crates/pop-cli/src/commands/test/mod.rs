@@ -12,6 +12,8 @@ pub mod create_snapshot;
 #[cfg(feature = "parachain")]
 pub mod execute_block;
 #[cfg(feature = "parachain")]
+pub mod fast_forward;
+#[cfg(feature = "parachain")]
 pub mod on_runtime_upgrade;
 
 /// Arguments for testing.
@@ -34,19 +36,23 @@ pub(crate) struct TestArgs {
 /// Test a Rust project.
 #[derive(Subcommand)]
 pub(crate) enum Command {
-	/// [DEPRECATED] Test a smart contract (will be removed in v0.8.0).
-	#[cfg(feature = "contract")]
-	#[clap(alias = "c")]
-	Contract(contract::TestContractCommand),
 	/// Test migrations.
 	#[cfg(feature = "parachain")]
 	OnRuntimeUpgrade(on_runtime_upgrade::TestOnRuntimeUpgradeCommand),
 	/// Executes the given block against some state
 	#[cfg(feature = "parachain")]
 	ExecuteBlock(execute_block::TestExecuteBlockCommand),
+	/// Executes a runtime upgrade (optional), then mines a number of blocks while performing
+	/// try-state checks
+	#[cfg(feature = "parachain")]
+	FastForward(fast_forward::TestFastForwardCommand),
 	/// Create a chain state snapshot.
 	#[cfg(feature = "parachain")]
 	CreateSnapshot(create_snapshot::TestCreateSnapshotCommand),
+	/// [DEPRECATED] Test a smart contract (will be removed in v0.8.0).
+	#[cfg(feature = "contract")]
+	#[clap(alias = "c")]
+	Contract(contract::TestContractCommand),
 }
 
 impl Command {

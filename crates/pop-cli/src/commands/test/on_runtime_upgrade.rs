@@ -10,7 +10,7 @@ use crate::{
 		try_runtime::{
 			argument_exists, check_try_runtime_and_prompt, collect_args, collect_shared_arguments,
 			collect_state_arguments, partition_arguments, update_runtime_source,
-			update_state_source, ArgumentConstructor,
+			update_state_source, ArgumentConstructor, BuildRuntimeParams, DEFAULT_BLOCK_TIME,
 		},
 	},
 };
@@ -20,7 +20,6 @@ use clap::Parser;
 use cliclack::spinner;
 use console::style;
 use frame_try_runtime::UpgradeCheckSelect;
-use pop_common::Profile;
 use pop_parachains::{
 	run_try_runtime,
 	state::{State, StateCommand},
@@ -30,7 +29,6 @@ use std::{str::FromStr, thread::sleep, time::Duration};
 
 // Custom arguments which are not in `try-runtime on-runtime-upgrade`.
 const CUSTOM_ARGS: [&str; 5] = ["--profile", "--no-build", "-n", "--skip-confirm", "-y"];
-const DEFAULT_BLOCK_TIME: u64 = 6000;
 const DISABLE_SPEC_VERSION_CHECK: &str = "disable-spec-version-check";
 const DISABLE_SPEC_NAME_CHECK: &str = "disable-spec-name-check";
 
@@ -99,15 +97,9 @@ pub(crate) struct TestOnRuntimeUpgradeCommand {
 	/// Shared params of the try-runtime commands.
 	#[clap(flatten)]
 	shared_params: SharedParams,
-	/// Build profile [default: release].
-	#[clap(long, value_enum)]
-	profile: Option<Profile>,
-	/// Avoid rebuilding the runtime if there is an existing runtime binary.
-	#[clap(short = 'n', long)]
-	no_build: bool,
-	/// Automatically source the needed binary required without prompting for confirmation.
-	#[clap(short = 'y', long)]
-	skip_confirm: bool,
+	/// Build parameters for the runtime binary.
+	#[clap(flatten)]
+	build_params: BuildRuntimeParams,
 }
 
 impl TestOnRuntimeUpgradeCommand {
@@ -120,8 +112,8 @@ impl TestOnRuntimeUpgradeCommand {
 			"Do you want to specify which runtime to run the migration on?",
 			&user_provided_args,
 			&mut self.shared_params.runtime,
-			&mut self.profile,
-			self.no_build,
+			&mut self.build_params.profile,
+			self.build_params.no_build,
 		) {
 			return display_message(&e.to_string(), false, cli);
 		}
@@ -158,7 +150,7 @@ impl TestOnRuntimeUpgradeCommand {
 	}
 
 	async fn run(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
-		let binary_path = check_try_runtime_and_prompt(cli, self.skip_confirm).await?;
+		let binary_path = check_try_runtime_and_prompt(cli, self.build_params.skip_confirm).await?;
 		cli.warning("NOTE: this may take some time...")?;
 		let spinner = spinner();
 		match self.command.state {
@@ -183,7 +175,7 @@ impl TestOnRuntimeUpgradeCommand {
 		let subcommand = self.subcommand()?;
 		let user_provided_args: Vec<String> = std::env::args().skip(3).collect();
 		let (command_arguments, shared_params, after_subcommand) =
-			partition_arguments(user_provided_args, &subcommand);
+			partition_arguments(&user_provided_args, &subcommand);
 
 		let mut shared_args = vec![];
 		collect_shared_arguments(&self.shared_params, &shared_params, &mut shared_args);
@@ -220,10 +212,7 @@ impl TestOnRuntimeUpgradeCommand {
 			"--disable-spec-version-check",
 			Some(String::default()),
 		);
-		// These are custom arguments not used in `try-runtime-cli`.
-		c.add(&[], true, "--profile", self.profile.clone().map(|p| p.to_string()));
-		c.add(&["--no-build"], self.no_build, "-n", Some(String::default()));
-		c.add(&["--skip-confirm"], self.skip_confirm, "-y", Some(String::default()));
+		self.build_params.add_arguments(&mut c);
 		c.finalize(&[]);
 	}
 
@@ -232,7 +221,7 @@ impl TestOnRuntimeUpgradeCommand {
 		let mut args = vec![];
 		let subcommand = self.subcommand()?;
 		let (command_arguments, shared_params, after_subcommand) =
-			partition_arguments(collect_args(std::env::args().skip(3)), &subcommand);
+			partition_arguments(&collect_args(std::env::args().skip(3)), &subcommand);
 
 		collect_shared_arguments(&self.shared_params, &shared_params, &mut args);
 		self.collect_arguments_before_subcommand(&command_arguments, &mut args);
@@ -296,9 +285,7 @@ impl Default for TestOnRuntimeUpgradeCommand {
 		TestOnRuntimeUpgradeCommand {
 			command: Command::try_parse_from(vec![""]).unwrap(),
 			shared_params: SharedParams::try_parse_from(vec![""]).unwrap(),
-			profile: None,
-			no_build: false,
-			skip_confirm: false,
+			build_params: BuildRuntimeParams::default(),
 		}
 	}
 }
@@ -334,17 +321,25 @@ mod tests {
 		},
 	};
 	use cli::MockCli;
+	use pop_common::Profile;
 	use pop_parachains::{state::LiveState, Runtime};
 	use std::path::PathBuf;
 
 	#[tokio::test]
 	async fn on_runtime_upgrade_live_state_works() -> anyhow::Result<()> {
 		let mut command = TestOnRuntimeUpgradeCommand::default();
-		command.no_build = true;
+		command.build_params.no_build = true;
 
 		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
 		let mut cli = MockCli::new()
 			.expect_intro("Testing migrations")
+			.expect_confirm(
+				format!(
+					"Do you want to specify which runtime to run the migration on?\n{}",
+					style("If not provided, use the code of the remote node, or a snapshot.").dim()
+				),
+				true,
+			)
 			.expect_select(
 				"Choose the build profile of the binary that should be used: ".to_string(),
 				Some(true),
@@ -353,20 +348,13 @@ mod tests {
 				0,
 				None,
 			)
-			.expect_confirm(
-				format!(
-					"Do you want to specify which runtime to run the migration on?\n{}",
-					style("If not provided, use the code of the remote node, or a snapshot.").dim()
-				),
-				true,
-			)
 			.expect_warning("NOTE: Make sure your runtime is built with `try-runtime` feature.")
 			.expect_input(
 				"Please specify the path to the runtime project or the runtime binary.",
 				get_mock_runtime(Some(TryRuntime)).to_str().unwrap().to_string(),
 			)
 			.expect_select(
-				"Select source of runtime state to run the migration with:",
+				"Select source of runtime state:",
 				Some(true),
 				true,
 				Some(get_subcommands()),
@@ -398,11 +386,18 @@ mod tests {
 	#[tokio::test]
 	async fn on_runtime_upgrade_snapshot_works() -> anyhow::Result<()> {
 		let mut command = TestOnRuntimeUpgradeCommand::default();
-		command.no_build = true;
+		command.build_params.no_build = true;
 
 		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
 		let mut cli = MockCli::new()
 			.expect_intro("Testing migrations")
+			.expect_confirm(
+				format!(
+					"Do you want to specify which runtime to run the migration on?\n{}",
+					style("If not provided, use the code of the remote node, or a snapshot.").dim()
+				),
+				true,
+			)
 			.expect_select(
 				"Choose the build profile of the binary that should be used: ".to_string(),
 				Some(true),
@@ -411,20 +406,13 @@ mod tests {
 				0,
 				None,
 			)
-			.expect_confirm(
-				format!(
-					"Do you want to specify which runtime to run the migration on?\n{}",
-					style("If not provided, use the code of the remote node, or a snapshot.").dim()
-				),
-				true,
-			)
 			.expect_warning("NOTE: Make sure your runtime is built with `try-runtime` feature.")
 			.expect_input(
 				"Please specify the path to the runtime project or the runtime binary.",
 				get_mock_runtime(Some(TryRuntime)).to_str().unwrap().to_string(),
 			)
 			.expect_select(
-				"Select source of runtime state to run the migration with:",
+				"Select source of runtime state:",
 				Some(true),
 				true,
 				Some(get_subcommands()),
@@ -463,8 +451,8 @@ mod tests {
 	#[tokio::test]
 	async fn on_runtime_disable_checks_works() -> anyhow::Result<()> {
 		let mut cmd = TestOnRuntimeUpgradeCommand::default();
-		cmd.no_build = true;
-		cmd.profile = Some(Profile::Release);
+		cmd.build_params.no_build = true;
+		cmd.build_params.profile = Some(Profile::Release);
 		cmd.command.state = Some(State::Snap { path: Some(get_mock_snapshot()) });
 
 		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
@@ -608,28 +596,28 @@ mod tests {
 			(
 				"--profile=release",
 				Box::new(|cmd| {
-					cmd.profile = Some(Profile::Debug);
+					cmd.build_params.profile = Some(Profile::Debug);
 				}),
 				"--profile=debug",
 			),
 			(
 				"--no-build",
 				Box::new(|cmd| {
-					cmd.no_build = true;
+					cmd.build_params.no_build = true;
 				}),
 				"-n",
 			),
 			(
 				"-y",
 				Box::new(|cmd| {
-					cmd.skip_confirm = true;
+					cmd.build_params.skip_confirm = true;
 				}),
 				"-y",
 			),
 			(
 				"--skip-confirm",
 				Box::new(|cmd| {
-					cmd.skip_confirm = true;
+					cmd.build_params.skip_confirm = true;
 				}),
 				"-y",
 			),

@@ -32,7 +32,7 @@ pub fn extract_template_files(
 fn copy_dir_all(
 	src: impl AsRef<Path>,
 	dst: impl AsRef<Path>,
-	ignore_directories: &Vec<String>,
+	ignore_directories: &[String],
 ) -> io::Result<()> {
 	fs::create_dir_all(&dst)?;
 	for entry in fs::read_dir(src)? {

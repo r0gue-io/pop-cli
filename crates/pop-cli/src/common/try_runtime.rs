@@ -5,7 +5,7 @@ use crate::{
 	common::binary::{check_and_prompt, BinaryGenerator},
 	impl_binary_generator,
 };
-use clap::{Args, Parser};
+use clap::Args;
 use cliclack::spinner;
 use console::style;
 use duct::cmd;
@@ -32,23 +32,35 @@ use super::{
 
 const BINARY_NAME: &str = "try-runtime";
 pub(crate) const DEFAULT_BLOCK_HASH: &str = "0x0000000000";
+pub(crate) const DEFAULT_BLOCK_TIME: u64 = 6000;
 pub(crate) const DEFAULT_LIVE_NODE_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";
 pub(crate) const DEFAULT_SNAPSHOT_PATH: &str = "your-parachain.snap";
 
 impl_binary_generator!(TryRuntimeGenerator, try_runtime_generator);
 
-/// Construct a Try Runtime command with shared parameters.
-#[derive(Args)]
-pub(crate) struct TryRuntimeCommand<T>
-where
-	T: Parser + Args,
-{
-	/// Subcommand of try-runtime.
-	#[clap(flatten)]
-	pub command: T,
-	/// Shared params of the try-runtime commands.
-	#[clap(flatten)]
-	pub shared_params: SharedParams,
+/// Build parameters for the runtime binary.
+#[derive(Args, Clone, Debug, Default)]
+pub(crate) struct BuildRuntimeParams {
+	/// Build profile [default: release].
+	#[clap(long, value_enum)]
+	pub profile: Option<Profile>,
+
+	/// Avoid rebuilding the runtime if there is an existing runtime binary.
+	#[clap(short = 'n', long)]
+	pub no_build: bool,
+
+	/// Automatically source the needed binary required without prompting for confirmation.
+	#[clap(short = 'y', long)]
+	pub skip_confirm: bool,
+}
+
+impl BuildRuntimeParams {
+	/// Adds arguments to the argument constructor. These arguments are used by `try-runtime-cli`.
+	pub(crate) fn add_arguments(&self, c: &mut ArgumentConstructor) {
+		c.add(&[], true, "--profile", self.profile.clone().map(|p| p.to_string()));
+		c.add(&["--no-build"], self.no_build, "-n", Some(String::default()));
+		c.add(&["--skip-confirm"], self.skip_confirm, "-y", Some(String::default()));
+	}
 }
 
 /// Checks the status of the `try-runtime` binary, using the local version if available.
@@ -187,9 +199,6 @@ pub(crate) fn update_runtime_source(
 	profile: &mut Option<Profile>,
 	no_build: bool,
 ) -> anyhow::Result<()> {
-	if profile.is_none() {
-		*profile = Some(guide_user_to_select_profile(cli)?);
-	};
 	if !argument_exists(user_provided_args, "--runtime") &&
 		cli.confirm(format!(
 			"{}\n{}",
@@ -199,6 +208,9 @@ pub(crate) fn update_runtime_source(
 		.initial_value(true)
 		.interact()?
 	{
+		if profile.is_none() {
+			*profile = Some(guide_user_to_select_profile(cli)?);
+		};
 		if no_build {
 			cli.warning("NOTE: Make sure your runtime is built with `try-runtime` feature.")?;
 		}
@@ -214,7 +226,7 @@ pub(crate) fn update_runtime_source(
 }
 
 fn guide_user_to_select_state_source(cli: &mut impl Cli) -> anyhow::Result<&StateCommand> {
-	let mut prompt = cli.select("Select source of runtime state to run the migration with:");
+	let mut prompt = cli.select("Select source of runtime state:");
 	for subcommand in StateCommand::VARIANTS.iter() {
 		prompt = prompt.item(
 			subcommand,
@@ -229,9 +241,10 @@ fn guide_user_to_select_state_source(cli: &mut impl Cli) -> anyhow::Result<&Stat
 ///
 /// # Arguments
 /// * `cli`: Command line interface.
+/// * `url`: URL of the live node.
 pub(crate) async fn guide_user_to_select_try_state(
 	cli: &mut impl Cli,
-	url: &str,
+	url: Option<String>,
 ) -> anyhow::Result<TryStateSelect> {
 	let default_try_state_select = try_state_details(&TryStateSelect::All);
 	let input = {
@@ -264,27 +277,43 @@ pub(crate) async fn guide_user_to_select_try_state(
 			}
 			TryStateSelect::RoundRobin(rounds?)
 		},
-		s if s == try_state_label(&TryStateSelect::Only(vec![])) => {
-			let spinner = spinner();
-			spinner.start("Retrieving available pallets...");
-			let client = set_up_client(url).await?;
-			let pallets = get_pallets(&client).await?;
-			let mut prompt = cli
-				.multiselect("Select pallets (select with SPACE):")
-				.required(true)
-				.filter_mode();
-			for pallet in pallets {
-				prompt = prompt.item(pallet.name.clone(), pallet.name, pallet.docs);
-			}
-			spinner.stop("");
-			let selected_pallets = prompt.interact()?;
-			TryStateSelect::Only(
-				selected_pallets
-					.iter()
-					.map(|pallet| pallet.trim().as_bytes().to_vec())
-					.collect(),
-			)
-		},
+		s if s == try_state_label(&TryStateSelect::Only(vec![])) =>
+			match url {
+				Some(url) => {
+					let spinner = spinner();
+					spinner.start("Retrieving available pallets...");
+					let client = set_up_client(&url).await?;
+					let pallets = get_pallets(&client).await?;
+					let mut prompt = cli
+						.multiselect("Select pallets (select with SPACE):")
+						.required(true)
+						.filter_mode();
+					for pallet in pallets {
+						prompt = prompt.item(pallet.name.clone(), pallet.name, pallet.docs);
+					}
+					spinner.stop("");
+					let selected_pallets = prompt.interact()?;
+					TryStateSelect::Only(
+						selected_pallets
+							.iter()
+							.map(|pallet| pallet.trim().as_bytes().to_vec())
+							.collect(),
+					)
+				},
+				None => {
+					let input = cli
+						.input(format!(
+    						"Enter the pallet names separated by commas:\n{}",
+    						style("Pallet names must be capitalized exactly as defined in the runtime.").dim()
+    					))
+						.placeholder("System, Balances, Proxy")
+						.required(true)
+						.interact()?;
+					TryStateSelect::Only(
+						input.split(",").map(|pallet| pallet.trim().as_bytes().to_vec()).collect(),
+					)
+				},
+			},
 		_ => TryStateSelect::All,
 	})
 }
@@ -446,7 +475,7 @@ pub(crate) fn collect_state_arguments(
 /// * `args` - A vector of arguments to be partitioned.
 /// * `subcommand` - The name of the subcommand.
 pub(crate) fn partition_arguments(
-	args: Vec<String>,
+	args: &[String],
 	subcommand: &str,
 ) -> (Vec<String>, Vec<String>, Vec<String>) {
 	let mut command_parts = args.split(|arg| arg == subcommand);
@@ -527,6 +556,7 @@ pub(crate) fn get_try_state_items() -> Vec<(String, String)> {
 mod tests {
 	use super::*;
 	use crate::{cli::MockCli, common::runtime::get_mock_runtime};
+	use clap::Parser;
 
 	#[derive(Default)]
 	struct MockCommand {
@@ -651,6 +681,13 @@ mod tests {
 		let mut runtime = Runtime::Existing;
 		let mut profile = None;
 		let mut cli = MockCli::new()
+			.expect_confirm(
+				format!(
+					"Do you want to specify a runtime?\n{}",
+					style("If not provided, use the code of the remote node, or a snapshot.").dim()
+				),
+				true,
+			)
 			.expect_select(
 				"Choose the build profile of the binary that should be used: ".to_string(),
 				Some(true),
@@ -658,13 +695,6 @@ mod tests {
 				Some(Profile::get_variants()),
 				0,
 				None,
-			)
-			.expect_confirm(
-				format!(
-					"Do you want to specify a runtime?\n{}",
-					style("If not provided, use the code of the remote node, or a snapshot.").dim()
-				),
-				true,
 			)
 			.expect_warning("NOTE: Make sure your runtime is built with `try-runtime` feature.")
 			.expect_input(
@@ -682,8 +712,9 @@ mod tests {
 		cli.verify()?;
 		match runtime {
 			Runtime::Existing => panic!("Unexpected runtime"),
-			Runtime::Path(ref path) =>
-				assert_eq!(path, &get_mock_runtime(Some(Feature::TryRuntime))),
+			Runtime::Path(ref path) => {
+				assert_eq!(path, &get_mock_runtime(Some(Feature::TryRuntime)))
+			},
 		}
 		assert_eq!(profile, Some(Profile::Debug));
 
@@ -704,7 +735,7 @@ mod tests {
 	#[test]
 	fn guide_user_to_select_state_source_works() -> anyhow::Result<()> {
 		let mut cli = MockCli::new().expect_select(
-			"Select source of runtime state to run the migration with:",
+			"Select source of runtime state:",
 			Some(true),
 			true,
 			Some(get_subcommands()),
@@ -722,12 +753,23 @@ mod tests {
 		let pallet_items: Vec<(String, String)> =
 			pallets.into_iter().map(|pallet| (pallet.name, pallet.docs)).collect();
 
-		for (option, expected) in [
-			(0, TryStateSelect::None),
-			(1, TryStateSelect::All),
-			(2, TryStateSelect::RoundRobin(10)),
+		for (option, uri, expected) in [
+			(0, None, TryStateSelect::None),
+			(1, None, TryStateSelect::All),
+			(2, None, TryStateSelect::RoundRobin(10)),
 			(
 				3,
+				None,
+				TryStateSelect::Only(
+					vec!["System", "Balances", "Proxy"]
+						.iter()
+						.map(|s| s.as_bytes().to_vec())
+						.collect(),
+				),
+			),
+			(
+				3,
+				Some(DEFAULT_LIVE_NODE_URL.to_string()),
 				TryStateSelect::Only(
 					vec![
 						"Assets",
@@ -781,18 +823,25 @@ mod tests {
 			if let TryStateSelect::RoundRobin(..) = expected {
 				cli = cli.expect_input("Enter the number of rounds:", "10".to_string());
 			} else if let TryStateSelect::Only(..) = expected {
-				cli = cli.expect_multiselect::<String>(
-					"Select pallets (select with SPACE):",
-					Some(true),
-					true,
-					Some(pallet_items.clone()),
-					Some(true),
-				);
+				if uri.is_some() {
+					cli = cli.expect_multiselect::<String>(
+						"Select pallets (select with SPACE):",
+						Some(true),
+						true,
+						Some(pallet_items.clone()),
+						Some(true),
+					);
+				} else {
+					cli = cli.expect_input(
+						format!(
+    						"Enter the pallet names separated by commas:\n{}",
+    						style("Pallet names must be capitalized exactly as defined in the runtime.").dim()
+    					),
+						"System, Balances, Proxy".to_string(),
+					);
+				}
 			}
-			assert_eq!(
-				guide_user_to_select_try_state(&mut cli, DEFAULT_LIVE_NODE_URL).await?,
-				expected
-			);
+			assert_eq!(guide_user_to_select_try_state(&mut cli, uri).await?, expected);
 			cli.verify()?;
 		}
 		Ok(())
@@ -883,7 +932,7 @@ mod tests {
 		// runtime.
 		let shared_params = SharedParams::try_parse_from(vec!["", "--runtime=path-to-runtime"])?;
 		let mut args = vec![];
-		collect_shared_arguments(&shared_params, &vec![], &mut args);
+		collect_shared_arguments(&shared_params, &[], &mut args);
 		assert_eq!(args, vec!["--runtime=path-to-runtime".to_string()]);
 		Ok(())
 	}
@@ -895,7 +944,7 @@ mod tests {
 
 		// No arguments.
 		let mut args = vec![];
-		collect_state_arguments(&cmd.state, &vec![], &mut args)?;
+		collect_state_arguments(&cmd.state, &[], &mut args)?;
 		assert!(args.is_empty());
 
 		let mut live_state = LiveState::default();
@@ -910,7 +959,7 @@ mod tests {
 		// If the user does not provide a `--uri` argument, modify with the argument updated during
 		// runtime.
 		let mut args = vec![];
-		collect_state_arguments(&cmd.state, &vec![], &mut args)?;
+		collect_state_arguments(&cmd.state, &[], &mut args)?;
 		assert_eq!(args, vec![format!("--uri={}", live_state.uri.clone().unwrap_or_default())]);
 
 		live_state.at = Some(DEFAULT_BLOCK_HASH.to_string());
@@ -935,7 +984,7 @@ mod tests {
 		// If the user does not provide a block hash `--at` argument, modify with the argument
 		// updated during runtime.
 		let mut args = vec![];
-		collect_state_arguments(&cmd.state, &vec![], &mut args)?;
+		collect_state_arguments(&cmd.state, &[], &mut args)?;
 		assert_eq!(
 			args,
 			vec![
@@ -953,7 +1002,7 @@ mod tests {
 
 		// No arguments.
 		let mut args = vec![];
-		collect_state_arguments(&cmd.state, &vec![], &mut args)?;
+		collect_state_arguments(&cmd.state, &[], &mut args)?;
 		assert!(args.is_empty());
 
 		let state = State::Snap { path: Some(PathBuf::from("./existing-file")) };
@@ -967,7 +1016,7 @@ mod tests {
 		// If the user does not provide a `--path` argument, modify with the argument updated during
 		// runtime.
 		let mut args = vec![];
-		collect_state_arguments(&cmd.state, &vec![], &mut args)?;
+		collect_state_arguments(&cmd.state, &[], &mut args)?;
 		assert_eq!(args, vec!["--path=./existing-file"]);
 		Ok(())
 	}
@@ -976,7 +1025,7 @@ mod tests {
 	fn partition_arguments_works() {
 		let subcommand = "run";
 		let (command_args, shared_params, after_subcommand) =
-			partition_arguments(vec![subcommand.to_string()], subcommand);
+			partition_arguments(&[subcommand.to_string()], subcommand);
 
 		assert!(command_args.is_empty());
 		assert!(shared_params.is_empty());
@@ -990,7 +1039,8 @@ mod tests {
 			"--arg1".to_string(),
 			"--arg2".to_string(),
 		];
-		let (command_args, shared_params, after_subcommand) = partition_arguments(args, subcommand);
+		let (command_args, shared_params, after_subcommand) =
+			partition_arguments(&args, subcommand);
 		assert_eq!(command_args, vec!["--command=command_name".to_string()]);
 		assert_eq!(
 			shared_params,
@@ -1005,6 +1055,42 @@ mod tests {
 		assert_eq!(format_arg("--string", "value"), "--string=value");
 		assert_eq!(format_arg("--boolean", true), "--boolean=true");
 		assert_eq!(format_arg("--path", PathBuf::new().display()), "--path=");
+	}
+
+	#[test]
+	fn add_build_runtime_params_works() {
+		for (user_provided_args, params, expected) in [
+			(
+				vec![],
+				BuildRuntimeParams { no_build: true, profile: None, skip_confirm: true },
+				vec!["-n", "-y"],
+			),
+			(
+				vec!["--arg1", "--arg2"],
+				BuildRuntimeParams {
+					no_build: true,
+					profile: Some(Profile::Debug),
+					skip_confirm: true,
+				},
+				vec!["--profile=debug", "-n", "-y", "--arg1", "--arg2"],
+			),
+			(
+				vec!["--no-build", "--skip-confirm", "--arg1", "--arg2"],
+				BuildRuntimeParams {
+					no_build: true,
+					profile: Some(Profile::Debug),
+					skip_confirm: true,
+				},
+				vec!["--profile=debug", "--no-build", "--skip-confirm", "--arg1", "--arg2"],
+			),
+		] {
+			let args = &mut vec![];
+			let user_provided_args: Vec<String> =
+				user_provided_args.iter().map(|a| a.to_string()).collect();
+			let mut c = ArgumentConstructor::new(args, &user_provided_args);
+			params.add_arguments(&mut c);
+			assert_eq!(c.finalize(&[]), expected);
+		}
 	}
 
 	#[test]
