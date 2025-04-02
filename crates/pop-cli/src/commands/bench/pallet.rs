@@ -1601,7 +1601,7 @@ mod tests {
 
 		// No bench file path provided.
 		let mut cli = MockCli::new().expect_confirm(&prompt, true).expect_input(
-			"Provide the output path for benchmark parameters",
+			"Provide the output path for benchmark parameter values",
 			file_path_str.clone(),
 		);
 		assert_eq!(
@@ -1620,7 +1620,7 @@ mod tests {
 
 		// Invalid file extension.
 		let mut cli = MockCli::new().expect_confirm(&prompt, true).expect_input(
-			"Provide the output path for benchmark parameters",
+			"Provide the output path for benchmark parameter values",
 			invalid_file_path.to_str().unwrap().to_string(),
 		);
 		assert_eq!(
