@@ -5,7 +5,7 @@ use crate::{
 	common::binary::{check_and_prompt, BinaryGenerator},
 	impl_binary_generator,
 };
-use clap::{Args, Parser};
+use clap::Args;
 use console::style;
 use duct::cmd;
 use frame_try_runtime::TryStateSelect;
@@ -37,18 +37,29 @@ pub(crate) const DEFAULT_SNAPSHOT_PATH: &str = "your-parachain.snap";
 
 impl_binary_generator!(TryRuntimeGenerator, try_runtime_generator);
 
-/// Construct a Try Runtime command with shared parameters.
-#[derive(Args)]
-pub(crate) struct TryRuntimeCommand<T>
-where
-	T: Parser + Args,
-{
-	/// Subcommand of try-runtime.
-	#[clap(flatten)]
-	pub command: T,
-	/// Shared params of the try-runtime commands.
-	#[clap(flatten)]
-	pub shared_params: SharedParams,
+/// Build parameters for the runtime binary.
+#[derive(Args, Clone, Debug, Default)]
+pub(crate) struct BuildRuntimeParams {
+	/// Build profile [default: release].
+	#[clap(long, value_enum)]
+	pub profile: Option<Profile>,
+
+	/// Avoid rebuilding the runtime if there is an existing runtime binary.
+	#[clap(short = 'n', long)]
+	pub no_build: bool,
+
+	/// Automatically source the needed binary required without prompting for confirmation.
+	#[clap(short = 'y', long)]
+	pub skip_confirm: bool,
+}
+
+impl BuildRuntimeParams {
+	/// Adds arguments to the argument constructor. These arguments are used by `try-runtime-cli`.
+	pub(crate) fn add_arguments(&self, c: &mut ArgumentConstructor) {
+		c.add(&[], true, "--profile", self.profile.clone().map(|p| p.to_string()));
+		c.add(&["--no-build"], self.no_build, "-n", Some(String::default()));
+		c.add(&["--skip-confirm"], self.skip_confirm, "-y", Some(String::default()));
+	}
 }
 
 /// Checks the status of the `try-runtime` binary, using the local version if available.
@@ -520,6 +531,7 @@ pub(crate) fn get_try_state_items() -> Vec<(String, String)> {
 mod tests {
 	use super::*;
 	use crate::{cli::MockCli, common::runtime::get_mock_runtime};
+	use clap::Parser;
 
 	#[derive(Default)]
 	struct MockCommand {
@@ -895,7 +907,7 @@ mod tests {
 		// runtime.
 		let shared_params = SharedParams::try_parse_from(vec!["", "--runtime=path-to-runtime"])?;
 		let mut args = vec![];
-		collect_shared_arguments(&shared_params, &vec![], &mut args);
+		collect_shared_arguments(&shared_params, &[], &mut args);
 		assert_eq!(args, vec!["--runtime=path-to-runtime".to_string()]);
 		Ok(())
 	}
@@ -907,7 +919,7 @@ mod tests {
 
 		// No arguments.
 		let mut args = vec![];
-		collect_state_arguments(&cmd.state, &vec![], &mut args)?;
+		collect_state_arguments(&cmd.state, &[], &mut args)?;
 		assert!(args.is_empty());
 
 		let mut live_state = LiveState::default();
@@ -922,7 +934,7 @@ mod tests {
 		// If the user does not provide a `--uri` argument, modify with the argument updated during
 		// runtime.
 		let mut args = vec![];
-		collect_state_arguments(&cmd.state, &vec![], &mut args)?;
+		collect_state_arguments(&cmd.state, &[], &mut args)?;
 		assert_eq!(args, vec![format!("--uri={}", live_state.uri.clone().unwrap_or_default())]);
 
 		live_state.at = Some(DEFAULT_BLOCK_HASH.to_string());
@@ -947,7 +959,7 @@ mod tests {
 		// If the user does not provide a block hash `--at` argument, modify with the argument
 		// updated during runtime.
 		let mut args = vec![];
-		collect_state_arguments(&cmd.state, &vec![], &mut args)?;
+		collect_state_arguments(&cmd.state, &[], &mut args)?;
 		assert_eq!(
 			args,
 			vec![
@@ -965,7 +977,7 @@ mod tests {
 
 		// No arguments.
 		let mut args = vec![];
-		collect_state_arguments(&cmd.state, &vec![], &mut args)?;
+		collect_state_arguments(&cmd.state, &[], &mut args)?;
 		assert!(args.is_empty());
 
 		let state = State::Snap { path: Some(PathBuf::from("./existing-file")) };
@@ -979,7 +991,7 @@ mod tests {
 		// If the user does not provide a `--path` argument, modify with the argument updated during
 		// runtime.
 		let mut args = vec![];
-		collect_state_arguments(&cmd.state, &vec![], &mut args)?;
+		collect_state_arguments(&cmd.state, &[], &mut args)?;
 		assert_eq!(args, vec!["--path=./existing-file"]);
 		Ok(())
 	}
@@ -988,7 +1000,7 @@ mod tests {
 	fn partition_arguments_works() {
 		let subcommand = "run";
 		let (command_args, shared_params, after_subcommand) =
-			partition_arguments(&vec![subcommand.to_string()], subcommand);
+			partition_arguments(&[subcommand.to_string()], subcommand);
 
 		assert!(command_args.is_empty());
 		assert!(shared_params.is_empty());
@@ -1018,5 +1030,41 @@ mod tests {
 		assert_eq!(format_arg("--string", "value"), "--string=value");
 		assert_eq!(format_arg("--boolean", true), "--boolean=true");
 		assert_eq!(format_arg("--path", PathBuf::new().display()), "--path=");
+	}
+
+	#[test]
+	fn add_build_runtim_params_works() {
+		for (user_provided_args, params, expected) in [
+			(
+				vec![],
+				BuildRuntimeParams { no_build: true, profile: None, skip_confirm: true },
+				vec!["-n", "-y"],
+			),
+			(
+				vec!["--arg1", "--arg2"],
+				BuildRuntimeParams {
+					no_build: true,
+					profile: Some(Profile::Debug),
+					skip_confirm: true,
+				},
+				vec!["--profile=debug", "-n", "-y", "--arg1", "--arg2"],
+			),
+			(
+				vec!["--no-build", "--skip-confirm", "--arg1", "--arg2"],
+				BuildRuntimeParams {
+					no_build: true,
+					profile: Some(Profile::Debug),
+					skip_confirm: true,
+				},
+				vec!["--profile=debug", "--no-build", "--skip-confirm", "--arg1", "--arg2"],
+			),
+		] {
+			let args = &mut vec![];
+			let user_provided_args: Vec<String> =
+				user_provided_args.iter().map(|a| a.to_string()).collect();
+			let mut c = ArgumentConstructor::new(args, &user_provided_args);
+			params.add_arguments(&mut c);
+			assert_eq!(c.finalize(&[]), expected);
+		}
 	}
 }

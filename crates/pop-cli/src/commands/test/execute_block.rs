@@ -7,14 +7,13 @@ use crate::{
 		try_runtime::{
 			check_try_runtime_and_prompt, collect_shared_arguments, collect_state_arguments,
 			guide_user_to_select_try_state, update_live_state, update_runtime_source,
-			ArgumentConstructor,
+			ArgumentConstructor, BuildRuntimeParams,
 		},
 	},
 };
 use clap::Args;
 use cliclack::spinner;
 use frame_try_runtime::TryStateSelect;
-use pop_common::Profile;
 use pop_parachains::{
 	parse_try_state_string, run_try_runtime,
 	state::{LiveState, State, StateCommand},
@@ -46,17 +45,9 @@ pub(crate) struct TestExecuteBlockCommand {
 	#[clap(flatten)]
 	shared_params: SharedParams,
 
-	/// Build profile [default: release].
-	#[clap(long, value_enum)]
-	profile: Option<Profile>,
-
-	/// Avoid rebuilding the runtime if there is an existing runtime binary.
-	#[clap(short = 'n', long)]
-	no_build: bool,
-
-	/// Automatically source the needed binary required without prompting for confirmation.
-	#[clap(short = 'y', long)]
-	skip_confirm: bool,
+	/// Build parameters for the runtime binary.
+	#[command(flatten)]
+	build_params: BuildRuntimeParams,
 }
 
 impl TestExecuteBlockCommand {
@@ -68,8 +59,8 @@ impl TestExecuteBlockCommand {
 			"Do you want to specify which runtime to execute block on?",
 			&user_provided_args,
 			&mut self.shared_params.runtime,
-			&mut self.profile,
-			self.no_build,
+			&mut self.build_params.profile,
+			self.build_params.no_build,
 		) {
 			return display_message(&e.to_string(), false, cli);
 		}
@@ -105,7 +96,7 @@ impl TestExecuteBlockCommand {
 		cli: &mut impl cli::traits::Cli,
 		user_provided_args: Vec<String>,
 	) -> anyhow::Result<()> {
-		let binary_path = check_try_runtime_and_prompt(cli, self.skip_confirm).await?;
+		let binary_path = check_try_runtime_and_prompt(cli, self.build_params.skip_confirm).await?;
 		cli.warning("NOTE: this may take some time...")?;
 
 		let spinner = spinner();
@@ -161,10 +152,7 @@ impl TestExecuteBlockCommand {
 		if let Some(ref try_state) = self.try_state {
 			c.add(&[], true, "--try-state", Some(parse_try_state_string(try_state)?));
 		}
-		// These are custom arguments not used in `try-runtime-cli`.
-		c.add(&[], true, "--profile", self.profile.clone().map(|p| p.to_string()));
-		c.add(&["--no-build"], self.no_build, "-n", Some(String::default()));
-		c.add(&["--skip-confirm"], self.skip_confirm, "-y", Some(String::default()));
+		self.build_params.add_arguments(&mut c);
 		c.finalize(&["--at="]);
 
 		// Collect after subcommand arguments.
@@ -196,6 +184,7 @@ mod tests {
 		},
 	};
 	use console::style;
+	use pop_common::Profile;
 
 	#[tokio::test]
 	async fn execute_block_works() -> anyhow::Result<()> {
@@ -233,7 +222,7 @@ mod tests {
 				None,
 			);
 		let mut command = TestExecuteBlockCommand::default();
-		command.no_build = true;
+		command.build_params.no_build = true;
 		command.execute(&mut cli).await?;
 		cli.verify()
 	}
@@ -265,7 +254,7 @@ mod tests {
 		let mut cmd = TestExecuteBlockCommand::default();
 		cmd.try_state = Some(TryStateSelect::RoundRobin(10));
 		cmd.state.uri = Some(DEFAULT_LIVE_NODE_URL.to_string());
-		cmd.skip_confirm = true;
+		cmd.build_params.skip_confirm = true;
 		assert_eq!(
 			cmd.display()?,
 			format!(
@@ -291,7 +280,7 @@ mod tests {
 				true,
 				"-y",
 				Box::new(|cmd| {
-					cmd.skip_confirm = true;
+					cmd.build_params.skip_confirm = true;
 				}),
 				"-y",
 			),
@@ -299,7 +288,7 @@ mod tests {
 				true,
 				"--skip-confirm",
 				Box::new(|cmd| {
-					cmd.skip_confirm = true;
+					cmd.build_params.skip_confirm = true;
 				}),
 				"-y",
 			),

@@ -10,7 +10,7 @@ use crate::{
 		try_runtime::{
 			check_try_runtime_and_prompt, collect_shared_arguments, collect_state_arguments,
 			guide_user_to_select_try_state, partition_arguments, update_runtime_source,
-			update_state_source, ArgumentConstructor, DEFAULT_BLOCK_TIME,
+			update_state_source, ArgumentConstructor, BuildRuntimeParams, DEFAULT_BLOCK_TIME,
 		},
 	},
 };
@@ -18,7 +18,6 @@ use clap::Args;
 use cliclack::spinner;
 use console::style;
 use frame_try_runtime::TryStateSelect;
-use pop_common::Profile;
 use pop_parachains::{
 	parse_try_state_string, run_try_runtime,
 	state::{LiveState, State, StateCommand},
@@ -63,17 +62,9 @@ pub(crate) struct TestFastForwardCommand {
 	#[clap(flatten)]
 	shared_params: SharedParams,
 
-	/// Build profile [default: release].
-	#[clap(long, value_enum)]
-	profile: Option<Profile>,
-
-	/// Avoid rebuilding the runtime if there is an existing runtime binary.
-	#[clap(short = 'n', long)]
-	no_build: bool,
-
-	/// Automatically source the needed binary required without prompting for confirmation.
-	#[clap(short = 'y', long)]
-	skip_confirm: bool,
+	/// Build parameters for the runtime binary.
+	#[command(flatten)]
+	build_params: BuildRuntimeParams,
 }
 
 #[cfg(test)]
@@ -86,9 +77,7 @@ impl Default for TestFastForwardCommand {
 			try_state: None,
 			run_migrations: false,
 			shared_params: SharedParams::default(),
-			profile: None,
-			no_build: false,
-			skip_confirm: false,
+			build_params: BuildRuntimeParams::default(),
 		}
 	}
 }
@@ -102,8 +91,8 @@ impl TestFastForwardCommand {
 			"Do you want to specify which runtime to perform try-state checks on?",
 			&user_provided_args,
 			&mut self.shared_params.runtime,
-			&mut self.profile,
-			self.no_build,
+			&mut self.build_params.profile,
+			self.build_params.no_build,
 		) {
 			return display_message(&e.to_string(), false, cli);
 		}
@@ -137,7 +126,6 @@ impl TestFastForwardCommand {
 		// Test fast-forward with `try-runtime-cli` binary.
 		let result = self.run(cli, &user_provided_args).await;
 
-		println!("{}", self.display(&user_provided_args)?);
 		// Display the `fast-forward` command.
 		cli.info(self.display(&user_provided_args)?)?;
 		if let Err(e) = result {
@@ -151,7 +139,7 @@ impl TestFastForwardCommand {
 		cli: &mut impl cli::traits::Cli,
 		user_provided_args: &[String],
 	) -> anyhow::Result<()> {
-		let binary_path = check_try_runtime_and_prompt(cli, self.skip_confirm).await?;
+		let binary_path = check_try_runtime_and_prompt(cli, self.build_params.skip_confirm).await?;
 		cli.warning("NOTE: this may take some time...")?;
 		let spinner = spinner();
 		match self.state {
@@ -224,10 +212,7 @@ impl TestFastForwardCommand {
 		c.add(&[], true, "--blocktime", Some(self.blocktime.to_string()));
 		c.add(&[], true, "--n-blocks", self.n_blocks.map(|block| block.to_string()));
 		c.add(&[], self.run_migrations, "--run-migrations", Some(String::default()));
-		// These are custom arguments not used in `try-runtime-cli`.
-		c.add(&[], true, "--profile", self.profile.clone().map(|p| p.to_string()));
-		c.add(&["--no-build"], self.no_build, "-n", Some(String::default()));
-		c.add(&["--skip-confirm"], self.skip_confirm, "-y", Some(String::default()));
+		self.build_params.add_arguments(&mut c);
 		c.finalize(&[]);
 		Ok(())
 	}
@@ -253,12 +238,13 @@ mod tests {
 			},
 		},
 	};
+	use pop_common::Profile;
 	use pop_parachains::{state::LiveState, Runtime};
 
 	#[tokio::test]
 	async fn fast_forward_live_state_works() -> anyhow::Result<()> {
 		let mut cmd = TestFastForwardCommand::default();
-		cmd.no_build = true;
+		cmd.build_params.no_build = true;
 		let mut cli = MockCli::new()
 			.expect_intro("Performing try-state checks on simulated block execution")
 			.expect_select(
@@ -316,7 +302,7 @@ mod tests {
 	#[tokio::test]
 	async fn fast_forward_snapshot_works() -> anyhow::Result<()> {
 		let mut cmd = TestFastForwardCommand::default();
-		cmd.no_build = true;
+		cmd.build_params.no_build = true;
 		let mut cli = MockCli::new()
 			.expect_intro("Performing try-state checks on simulated block execution")
 			.expect_select(
@@ -388,7 +374,7 @@ mod tests {
 			uri: Some("https://example.com".to_string()),
 			..Default::default()
 		}));
-		let error = cmd.run(&mut MockCli::new(), &vec![]).await.unwrap_err().to_string();
+		let error = cmd.run(&mut MockCli::new(), &[]).await.unwrap_err().to_string();
 		assert!(error.contains(
 			r#"Failed to test with try-runtime: error: invalid value 'https://example.com' for '--uri <URI>': not a valid WS(S) url: must start with 'ws://' or 'wss://'"#,
 		));
@@ -400,12 +386,12 @@ mod tests {
 		let mut cmd = TestFastForwardCommand::default();
 		cmd.state = Some(State::Live(LiveState::default()));
 		assert_eq!(
-			cmd.display(&vec!["--blocktime=20".to_string()])?,
+			cmd.display(&["--blocktime=20".to_string()])?,
 			"pop test fast-forward --runtime=existing --blocktime=20 live"
 		);
 		cmd.blocktime = DEFAULT_BLOCK_TIME;
 		assert_eq!(
-			cmd.display(&vec![])?,
+			cmd.display(&[])?,
 			format!(
 				"pop test fast-forward --runtime=existing --blocktime={} live",
 				DEFAULT_BLOCK_TIME
@@ -413,14 +399,14 @@ mod tests {
 		);
 		cmd.try_state = Some(TryStateSelect::Only(vec!["System".as_bytes().to_vec()]));
 		assert_eq!(
-			cmd.display(&vec![])?,
+			cmd.display(&[])?,
 			format!(
 				"pop test fast-forward --runtime=existing --try-state=System --blocktime={} live",
 				DEFAULT_BLOCK_TIME
 			)
 		);
 		assert_eq!(
-			cmd.display(&vec!["--try-state=rr-10".to_string()])?,
+			cmd.display(&["--try-state=rr-10".to_string()])?,
 			format!(
 				"pop test fast-forward --runtime=existing --blocktime={} --try-state=rr-10 live",
 				DEFAULT_BLOCK_TIME
@@ -432,7 +418,7 @@ mod tests {
 			..Default::default()
 		}));
 		assert_eq!(
-			cmd.display(&vec![])?,
+			cmd.display(&[])?,
 			format!(
 				"pop test fast-forward --runtime={} --try-state=System --blocktime={} live --uri={}",
 				get_mock_runtime(Some(Feature::TryRuntime)).display(),
@@ -477,14 +463,14 @@ mod tests {
 			(
 				"-y",
 				Box::new(|cmd| {
-					cmd.skip_confirm = true;
+					cmd.build_params.skip_confirm = true;
 				}),
 				"-y",
 			),
 			(
 				"--skip-confirm",
 				Box::new(|cmd| {
-					cmd.skip_confirm = true;
+					cmd.build_params.skip_confirm = true;
 				}),
 				"-y",
 			),
