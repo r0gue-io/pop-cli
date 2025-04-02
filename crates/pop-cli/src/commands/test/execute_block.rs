@@ -60,7 +60,7 @@ impl TestExecuteBlockCommand {
 		cli: &mut impl cli::traits::Cli,
 		user_provided_args: Vec<String>,
 	) -> anyhow::Result<()> {
-		cli.intro("Testing block execution.")?;
+		cli.intro("Testing block execution")?;
 		if let Err(e) = update_runtime_source(
 			cli,
 			"Do you want to specify which runtime to execute block on?",
