@@ -83,9 +83,17 @@ impl Default for TestFastForwardCommand {
 }
 
 impl TestFastForwardCommand {
-	pub(crate) async fn execute(mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
-		cli.intro("Performing try-state checks on simulated block execution")?;
+	pub(crate) async fn execute(self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		let user_provided_args: Vec<String> = std::env::args().skip(3).collect();
+		self.fast_forward(cli, &user_provided_args).await
+	}
+
+	async fn fast_forward(
+		mut self,
+		cli: &mut impl cli::traits::Cli,
+		user_provided_args: &[String],
+	) -> anyhow::Result<()> {
+		cli.intro("Performing try-state checks on simulated block execution")?;
 		if let Err(e) = update_runtime_source(
 			cli,
 			"Do you want to specify which runtime to perform try-state checks on?",
@@ -295,7 +303,7 @@ mod tests {
                 Profile::Debug,
                 DEFAULT_LIVE_NODE_URL,
 			));
-		cmd.execute(&mut cli).await?;
+		cmd.fast_forward(&mut cli, &[]).await?;
 		cli.verify()
 	}
 
@@ -362,7 +370,7 @@ mod tests {
     			get_mock_snapshot().to_str().unwrap()
 			))
 			.expect_outro("Runtime upgrades and try-state checks completed successfully!");
-		cmd.execute(&mut cli).await?;
+		cmd.fast_forward(&mut cli, &[]).await?;
 		cli.verify()
 	}
 
