@@ -161,4 +161,33 @@ mod tests {
 			"System,Proxy"
 		);
 	}
+
+	#[test]
+	fn try_state_label_works() {
+		assert_eq!(try_state_label(&TryStateSelect::All), "all");
+		assert_eq!(try_state_label(&TryStateSelect::None), "none");
+		assert_eq!(try_state_label(&TryStateSelect::RoundRobin(5)), "rr-5");
+		assert_eq!(
+			try_state_label(&TryStateSelect::Only(vec![b"System".to_vec(), b"Proxy".to_vec()])),
+			"System,Proxy"
+		);
+	}
+
+	#[test]
+	fn try_state_details_works() {
+		for (select, description) in [
+			(TryStateSelect::None, "Run no tests"),
+			(TryStateSelect::All, "Run all the state tests"),
+			(
+				TryStateSelect::RoundRobin(0),
+				"Run a fixed number of state tests in a round robin manner.",
+			),
+			(TryStateSelect::Only(vec![]), "Run only pallets who's name matches the given list."),
+		] {
+			assert_eq!(
+				try_state_details(&select),
+				(try_state_label(&select), description.to_string())
+			);
+		}
+	}
 }

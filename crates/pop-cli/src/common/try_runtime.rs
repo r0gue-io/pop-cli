@@ -266,7 +266,10 @@ pub(crate) async fn guide_user_to_select_try_state(
 		s if s == try_state_label(&TryStateSelect::Only(vec![])) => {
 			let client = set_up_client(url).await?;
 			let pallets = get_pallets(&client).await?;
-			let mut prompt = cli.multiselect("Select pallets:").required(true).filter_mode();
+			let mut prompt = cli
+				.multiselect("Select pallets (select with SPACE):")
+				.required(true)
+				.filter_mode();
 			for pallet in pallets {
 				prompt = prompt.item(pallet.name.clone(), pallet.name, pallet.docs);
 			}
@@ -756,7 +759,7 @@ mod tests {
 				cli = cli.expect_input("Enter the number of rounds:", "10".to_string());
 			} else if let TryStateSelect::Only(..) = expected {
 				cli = cli.expect_multiselect::<String>(
-					"Select pallets:",
+					"Select pallets (select with SPACE):",
 					Some(true),
 					true,
 					Some(pallet_items.clone()),
