@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{errors::handle_command_error, Error};
+use crate::Error;
 use clap::Parser;
 use duct::cmd;
 use frame_benchmarking_cli::PalletCmd;
@@ -165,8 +165,10 @@ where
 	let mut cmd_args = vec!["benchmark".to_string(), command.to_string()];
 	cmd_args.append(&mut args);
 
-	let output = cmd(binary_path, cmd_args).stderr_capture().unchecked().run()?;
-	handle_command_error(&output, Error::BenchmarkingError)
+	if let Err(e) = cmd(binary_path, cmd_args).stderr_capture().run() {
+		return Err(Error::BenchmarkingError(e.to_string()));
+	}
+	Ok(())
 }
 
 /// Loads a mapping of pallets and their associated extrinsics from the runtime binary.
@@ -231,16 +233,19 @@ pub fn generate_omni_bencher_benchmarks(
 	let mut cmd_args = vec!["v1".to_string(), "benchmark".to_string(), command.to_string()];
 	cmd_args.extend(args);
 
-	let output = cmd(binary_path, cmd_args)
+	match cmd(binary_path, cmd_args)
 		.env("RUST_LOG", if log_enabled { "info" } else { "none" })
 		.stdout_path(&stdout_path)
 		.stderr_capture()
-		.run()?;
-	handle_command_error(&output, Error::BenchmarkingError)?;
-
-	let mut stdout_output = String::new();
-	std::fs::File::open(&stdout_path)?.read_to_string(&mut stdout_output)?;
-	Ok(stdout_output)
+		.run()
+	{
+		Ok(_) => {
+			let mut stdout_output = String::new();
+			std::fs::File::open(&stdout_path)?.read_to_string(&mut stdout_output)?;
+			Ok(stdout_output)
+		},
+		Err(e) => return Err(Error::BenchmarkingError(e.to_string())),
+	}
 }
 
 #[cfg(test)]

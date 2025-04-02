@@ -118,7 +118,7 @@ mod tests {
 			.expect_outro_cancel(
 				// As we only mock the node to test the interactive flow, the returned error is
 				// expected.
-				"IO error: Permission denied (os error 13)",
+				"Failed to run benchmarking: Permission denied (os error 13)",
 			);
 		BenchmarkBlock {
 			command: BlockCmd::try_parse_from(vec!["", "--from=0", "--to=1"])?,
@@ -142,7 +142,7 @@ mod tests {
 			.expect_outro_cancel(
 				// As we only mock the node to test the interactive flow, the returned error is
 				// expected.
-				"IO error: Permission denied (os error 13)",
+				"Failed to run benchmarking: Permission denied (os error 13)",
 			);
 		BenchmarkBlock {
 			command: BlockCmd::try_parse_from(vec!["", "--from=0", "--to=1"])?,
