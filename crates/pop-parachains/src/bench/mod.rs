@@ -230,22 +230,31 @@ pub fn generate_omni_bencher_benchmarks(
 ) -> Result<String, Error> {
 	let stdout_file = NamedTempFile::new()?;
 	let stdout_path = stdout_file.path().to_owned();
+
+	let stderror_file = NamedTempFile::new()?;
+	let stderror_path = stderror_file.path().to_owned();
+
 	let mut cmd_args = vec!["v1".to_string(), "benchmark".to_string(), command.to_string()];
 	cmd_args.extend(args);
 
-	match cmd(binary_path, cmd_args)
+	let cmd = cmd(binary_path, cmd_args)
 		.env("RUST_LOG", if log_enabled { "info" } else { "none" })
-		.stdout_path(&stdout_path)
-		.stderr_capture()
-		.run()
-	{
-		Ok(_) => {
-			let mut stdout_output = String::new();
-			std::fs::File::open(&stdout_path)?.read_to_string(&mut stdout_output)?;
-			Ok(stdout_output)
-		},
-		Err(e) => return Err(Error::BenchmarkingError(e.to_string())),
+		.stderr_path(&stderror_path)
+		.stdout_path(&stdout_path);
+
+	if let Err(e) = cmd.run() {
+		let mut error_output = String::new();
+		std::fs::File::open(&stderror_path)?.read_to_string(&mut error_output)?;
+		return Err(Error::BenchmarkingError(
+			if error_output.is_empty() { e.to_string() } else { error_output }
+				.trim()
+				.to_string(),
+		));
 	}
+
+	let mut stdout_output = String::new();
+	std::fs::File::open(&stdout_path)?.read_to_string(&mut stdout_output)?;
+	Ok(stdout_output)
 }
 
 #[cfg(test)]
