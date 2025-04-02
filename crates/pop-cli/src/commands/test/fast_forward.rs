@@ -98,7 +98,7 @@ impl TestFastForwardCommand {
 		if let Err(e) = update_runtime_source(
 			cli,
 			"Do you want to specify which runtime to perform try-state checks on?",
-			&user_provided_args,
+			user_provided_args,
 			&mut self.shared_params.runtime,
 			&mut self.build_params.profile,
 			self.build_params.no_build,
@@ -133,10 +133,10 @@ impl TestFastForwardCommand {
 		}
 
 		// Test fast-forward with `try-runtime-cli` binary.
-		let result = self.run(cli, &user_provided_args).await;
+		let result = self.run(cli, user_provided_args).await;
 
 		// Display the `fast-forward` command.
-		cli.info(self.display(&user_provided_args)?)?;
+		cli.info(self.display(user_provided_args)?)?;
 		if let Err(e) = result {
 			return display_message(&e.to_string(), false, cli);
 		}
@@ -197,10 +197,8 @@ impl TestFastForwardCommand {
 		let mut cmd_args = vec!["pop test fast-forward".to_string()];
 		let mut args = vec![];
 		let subcommand = self.subcommand()?;
-		let (command_arguments, shared_params, after_subcommand) = partition_arguments(
-			&collect_args(user_provided_args.to_vec().into_iter()),
-			&subcommand,
-		);
+		let (command_arguments, shared_params, after_subcommand) =
+			partition_arguments(&collect_args(user_provided_args.iter().cloned()), &subcommand);
 
 		collect_shared_arguments(&self.shared_params, &shared_params, &mut args);
 		self.collect_arguments_before_subcommand(&command_arguments, &mut args)?;
@@ -216,7 +214,7 @@ impl TestFastForwardCommand {
 		user_provided_args: &[String],
 		args: &mut Vec<String>,
 	) -> anyhow::Result<()> {
-		let collected_args = collect_args(user_provided_args.to_vec().into_iter());
+		let collected_args = collect_args(user_provided_args.iter().cloned());
 		let mut c = ArgumentConstructor::new(args, &collected_args);
 		if let Some(ref try_state) = self.try_state {
 			c.add(&[], true, "--try-state", Some(parse_try_state_string(try_state)?));
