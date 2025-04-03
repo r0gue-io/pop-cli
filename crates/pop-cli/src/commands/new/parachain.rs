@@ -28,6 +28,7 @@ use strum::VariantArray;
 const DEFAULT_INITIAL_ENDOWMENT: &str = "1u64 << 60";
 
 #[derive(Args, Clone)]
+#[cfg_attr(test, derive(Default))]
 pub struct NewParachainCommand {
 	#[arg(help = "Name of the project. If empty assistance in the process will be provided.")]
 	pub(crate) name: Option<String>,

@@ -14,6 +14,7 @@ use std::{path::Path, time::Duration};
 use tokio::time::sleep;
 
 #[derive(Args, Clone)]
+#[cfg_attr(test, derive(Default))]
 pub(crate) struct ZombienetCommand {
 	/// The Zombienet network configuration file to be used.
 	#[arg(short, long)]
