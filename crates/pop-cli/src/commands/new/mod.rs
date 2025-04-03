@@ -74,4 +74,3 @@ mod tests {
 		assert_eq!(Command::Contract(Default::default()).to_string(), "contract");
 	}
 }
-

@@ -8,7 +8,10 @@ use crate::{
 	},
 };
 use clap::{Args, Subcommand};
-use std::{fmt::{Display, Formatter, Result}, path::PathBuf};
+use std::{
+	fmt::{Display, Formatter, Result},
+	path::PathBuf,
+};
 
 #[cfg(feature = "contract")]
 mod contract;

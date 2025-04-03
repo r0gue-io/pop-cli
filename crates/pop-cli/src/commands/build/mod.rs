@@ -13,7 +13,10 @@ use clap::{Args, Subcommand};
 use contract::BuildContract;
 use duct::cmd;
 use pop_common::Profile;
-use std::{fmt::{Display, Formatter, Result}, path::PathBuf};
+use std::{
+	fmt::{Display, Formatter, Result},
+	path::PathBuf,
+};
 #[cfg(feature = "parachain")]
 use {parachain::BuildParachain, spec::BuildSpecCommand};
 

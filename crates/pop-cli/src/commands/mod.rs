@@ -204,11 +204,41 @@ mod tests {
 			(Command::Clean(Default::default()), "clean"),
 			// Test.
 			(Command::Test(test::TestArgs::default()), "test"),
-			(Command::Test(test::TestArgs { command: Some(test::Command::Contract(Default::default())), ..Default::default() }), "test contract"),
-			(Command::Test(test::TestArgs { command: Some(test::Command::OnRuntimeUpgrade(Default::default())), ..Default::default() }), "test on runtime upgrade"),
-			(Command::Test(test::TestArgs { command: Some(test::Command::ExecuteBlock(Default::default())), ..Default::default() }), "test execute block"),
-			(Command::Test(test::TestArgs { command: Some(test::Command::CreateSnapshot(Default::default())), ..Default::default() }), "test create snapshot"),
-			(Command::Test(test::TestArgs { command: Some(test::Command::FastForward(Default::default())), ..Default::default() }), "test fast forward"),
+			(
+				Command::Test(test::TestArgs {
+					command: Some(test::Command::Contract(Default::default())),
+					..Default::default()
+				}),
+				"test contract",
+			),
+			(
+				Command::Test(test::TestArgs {
+					command: Some(test::Command::OnRuntimeUpgrade(Default::default())),
+					..Default::default()
+				}),
+				"test on runtime upgrade",
+			),
+			(
+				Command::Test(test::TestArgs {
+					command: Some(test::Command::ExecuteBlock(Default::default())),
+					..Default::default()
+				}),
+				"test execute block",
+			),
+			(
+				Command::Test(test::TestArgs {
+					command: Some(test::Command::CreateSnapshot(Default::default())),
+					..Default::default()
+				}),
+				"test create snapshot",
+			),
+			(
+				Command::Test(test::TestArgs {
+					command: Some(test::Command::FastForward(Default::default())),
+					..Default::default()
+				}),
+				"test fast forward",
+			),
 			// Build.
 			(Command::Build(build::BuildArgs { command: None, ..Default::default() }), "build"),
 			(

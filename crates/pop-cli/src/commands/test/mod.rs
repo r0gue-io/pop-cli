@@ -10,7 +10,10 @@ use crate::{
 };
 use clap::{Args, Subcommand};
 use pop_common::test_project;
-use std::{fmt::{Display, Formatter, Result}, path::PathBuf};
+use std::{
+	fmt::{Display, Formatter, Result},
+	path::PathBuf,
+};
 
 #[cfg(feature = "contract")]
 pub mod contract;
