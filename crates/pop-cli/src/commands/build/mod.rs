@@ -13,6 +13,7 @@ use clap::{Args, Subcommand};
 use contract::BuildContract;
 use duct::cmd;
 use pop_common::Profile;
+#[cfg(feature = "parachain")]
 use runtime::BuildRuntime;
 use std::{
 	fmt::{Display, Formatter, Result},

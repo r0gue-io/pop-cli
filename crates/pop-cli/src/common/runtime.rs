@@ -5,9 +5,9 @@ use cliclack::{spinner, ProgressBar};
 use pop_common::{manifest::from_path, Profile};
 #[cfg(feature = "parachain")]
 use pop_parachains::{
-	build_project, get_preset_names, get_runtime_path, runtime_binary_path, GenesisBuilderPolicy,
+	build_project, get_preset_names, get_runtime_path, runtime_binary_path, ContainerEngine,
+	DeterministicBuilder, GenesisBuilderPolicy,
 };
-use pop_parachains::{ContainerEngine, DeterministicBuilder};
 use std::{
 	self,
 	ffi::OsStr,
