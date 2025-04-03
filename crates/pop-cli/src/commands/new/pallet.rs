@@ -64,7 +64,7 @@ pub struct NewPalletCommand {
 	pub(crate) description: Option<String>,
 	#[arg(
 		long,
-		help = "If your pallet is created in a workspace containing a runtime, Pop-Cli will place the impl blocks for your pallets' Config traits inside a dedicated file under configs directory. Use this argument to point to other path."
+		help = "If your pallet is created within a workspace that includes a runtime, the `impl` blocks will be generated for your pallet's `Config` traits in a dedicated file under the configs directory. Use this argument to specify a different path."
 	)]
 	pub(crate) pallet_impl_path: Option<PathBuf>,
 	#[command(subcommand)]
