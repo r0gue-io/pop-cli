@@ -12,6 +12,7 @@ use clap::{Args, Subcommand};
 use contract::BuildContract;
 use duct::cmd;
 use pop_common::Profile;
+use runtime::BuildRuntime;
 use std::path::PathBuf;
 #[cfg(feature = "parachain")]
 use {parachain::BuildParachain, spec::BuildSpecCommand};
@@ -21,9 +22,12 @@ pub(crate) mod contract;
 #[cfg(feature = "parachain")]
 pub(crate) mod parachain;
 #[cfg(feature = "parachain")]
+pub(crate) mod runtime;
+#[cfg(feature = "parachain")]
 pub(crate) mod spec;
 
 const CHAIN_HELP_HEADER: &str = "Chain options";
+const RUNTIME_HELP_HEADER: &str = "Runtime options";
 const PACKAGE: &str = "package";
 const PARACHAIN: &str = "parachain";
 const PROJECT: &str = "project";
@@ -58,6 +62,9 @@ pub(crate) struct BuildArgs {
 	/// For testing with `try-runtime`, always build with `try-runtime` feature.
 	#[clap(short, long, help_heading = CHAIN_HELP_HEADER)]
 	pub(crate) try_runtime: bool,
+	/// Whether to build a runtime deterministically.
+	#[clap(short, long, help_heading = RUNTIME_HELP_HEADER)]
+	pub(crate) deterministic: bool,
 }
 
 /// Subcommand for building chain artifacts.
@@ -67,6 +74,17 @@ pub(crate) enum Command {
 	#[cfg(feature = "parachain")]
 	#[clap(alias = "s")]
 	Spec(BuildSpecCommand),
+}
+
+fn collect_features(input: &str, benchmark: bool, try_runtime: bool) -> Vec<&str> {
+	let mut feature_list: Vec<&str> = input.split(",").collect();
+	if benchmark && !feature_list.contains(&Benchmark.as_ref()) {
+		feature_list.push(Benchmark.as_ref());
+	}
+	if try_runtime && !feature_list.contains(&TryRuntime.as_ref()) {
+		feature_list.push(TryRuntime.as_ref());
+	}
+	feature_list
 }
 
 impl Command {
@@ -95,14 +113,7 @@ impl Command {
 			};
 			let temp_path = PathBuf::from("./");
 			let features = args.features.unwrap_or_default();
-			let mut feature_list: Vec<&str> = features.split(",").collect();
-
-			if args.benchmark && !feature_list.contains(&Benchmark.as_ref()) {
-				feature_list.push(Benchmark.as_ref());
-			}
-			if args.try_runtime && !feature_list.contains(&TryRuntime.as_ref()) {
-				feature_list.push(TryRuntime.as_ref());
-			}
+			let feature_list = collect_features(&features, args.benchmark, args.try_runtime);
 
 			BuildParachain {
 				path: project_path.unwrap_or(temp_path).to_path_buf(),
@@ -113,6 +124,28 @@ impl Command {
 			}
 			.execute()?;
 			return Ok("parachain");
+		}
+
+		// If project is a parachain runtime, build as parachain runtime
+		#[cfg(feature = "parachain")]
+		if pop_parachains::runtime::is_supported(project_path.as_deref())? {
+			let profile = match args.profile {
+				Some(profile) => profile,
+				None => args.release.into(),
+			};
+			let temp_path = PathBuf::from("./");
+			let features = args.features.unwrap_or_default();
+			let feature_list = collect_features(&features, args.benchmark, args.try_runtime);
+
+			BuildRuntime {
+				path: project_path.unwrap_or(temp_path).to_path_buf(),
+				profile,
+				benchmark: feature_list.contains(&Benchmark.as_ref()),
+				try_runtime: feature_list.contains(&TryRuntime.as_ref()),
+				deterministic: args.deterministic,
+			}
+			.execute()?;
+			return Ok("runtime");
 		}
 
 		// Otherwise build as a normal Rust project
@@ -216,6 +249,7 @@ mod tests {
 							release,
 							benchmark_flag,
 							try_runtime_flag,
+							false,
 							features_flag,
 							expected_features,
 						)?;
@@ -233,6 +267,7 @@ mod tests {
 		release: bool,
 		benchmark: bool,
 		try_runtime: bool,
+		deterministic: bool,
 		features: &Vec<&str>,
 		expected_features: &Vec<&str>,
 	) -> anyhow::Result<()> {
@@ -258,6 +293,7 @@ mod tests {
 					profile: Some(profile.clone()),
 					benchmark,
 					try_runtime,
+					deterministic,
 					features: Some(features.join(","))
 				},
 				&mut cli,

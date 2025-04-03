@@ -6,19 +6,22 @@ use crate::{
 		traits::{Cli as _, *},
 		Cli,
 	},
-	common::builds::{ensure_node_binary_exists, guide_user_to_select_profile},
+	common::{
+		builds::{ensure_node_binary_exists, guide_user_to_select_profile},
+		runtime::build_deterministic_runtime,
+	},
 	style::style,
 };
 use clap::{Args, ValueEnum};
-use cliclack::{spinner, ProgressBar};
+use cliclack::spinner;
 use pop_common::{manifest::from_path, Profile};
 use pop_parachains::{
 	export_wasm_file, generate_genesis_state_file, generate_plain_chain_spec,
-	generate_raw_chain_spec, is_supported, Builder, ChainSpec, ContainerEngine,
+	generate_raw_chain_spec, is_supported, ChainSpec,
 };
 use std::{
 	env::current_dir,
-	fs::{self, create_dir_all},
+	fs::create_dir_all,
 	path::{Path, PathBuf},
 };
 use strum::{EnumMessage, VariantArray};
@@ -579,16 +582,16 @@ impl BuildSpec {
 			self.customize()?;
 			// Deterministic build.
 			if self.deterministic {
-				spinner.set_message("Building deterministic runtime...");
-				let runtime_path =
-					self.build_deterministic_runtime(cli, &spinner).map_err(|e| {
-						anyhow::anyhow!(
-							"Failed to build the deterministic runtime: {}",
-							e.to_string()
-						)
-					})?;
-				let code = fs::read(&runtime_path).map_err(anyhow::Error::from)?;
-				cli.success("Runtime built successfully.")?;
+				let (runtime_path, code) = build_deterministic_runtime(
+					cli,
+					&spinner,
+					self.package.clone(),
+					self.profile.clone(),
+					self.runtime_dir.clone(),
+				)
+				.map_err(|e| {
+					anyhow::anyhow!("Failed to build the deterministic runtime: {}", e.to_string())
+				})?;
 				generated_files
 					.push(format!("Runtime file generated at: {}", &runtime_path.display()));
 				self.update_code(&code)?;
@@ -691,33 +694,6 @@ impl BuildSpec {
 		Ok(())
 	}
 
-	fn build_deterministic_runtime(
-		&self,
-		cli: &mut impl cli::traits::Cli,
-		spinner: &ProgressBar,
-	) -> anyhow::Result<PathBuf> {
-		let engine = ContainerEngine::detect().map_err(|_| anyhow::anyhow!("No container engine detected. A supported containerization solution (Docker or Podman) is required."))?;
-		// Warning from srtool-cli: https://github.com/chevdor/srtool-cli/blob/master/cli/src/main.rs#L28).
-		if engine == ContainerEngine::Docker {
-			cli.warning("WARNING: You are using docker. It is recommend to use podman instead.")?;
-		}
-		spinner.set_message(
-			"NOTE: This process may take longer than 10-15 minutes. Please be patient...",
-		);
-		let builder = Builder::new(
-			engine,
-			None,
-			self.package.clone(),
-			self.profile.clone(),
-			self.runtime_dir.clone(),
-		)?;
-		let wasm_path = builder.build()?;
-		if !wasm_path.exists() {
-			return Err(anyhow::anyhow!("Can't find the generated runtime at {:?}", wasm_path));
-		}
-		Ok(wasm_path)
-	}
-
 	// Updates the chain specification with the runtime code.
 	fn update_code(&self, bytes: &[u8]) -> anyhow::Result<()> {
 		let mut chain_spec = ChainSpec::from(&self.output_file)?;
@@ -760,7 +736,10 @@ mod tests {
 	use crate::cli::MockCli;
 	use serde_json::json;
 	use sp_core::bytes::from_hex;
-	use std::{fs::create_dir_all, path::PathBuf};
+	use std::{
+		fs::{self, create_dir_all},
+		path::PathBuf,
+	};
 	use tempfile::{tempdir, TempDir};
 
 	#[tokio::test]

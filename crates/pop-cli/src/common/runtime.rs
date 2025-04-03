@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::cli::traits::*;
-use cliclack::spinner;
+use cliclack::{spinner, ProgressBar};
 use pop_common::{manifest::from_path, Profile};
 #[cfg(feature = "parachain")]
 use pop_parachains::{
 	build_project, get_preset_names, get_runtime_path, runtime_binary_path, GenesisBuilderPolicy,
 };
+use pop_parachains::{ContainerEngine, DeterministicBuilder};
 use std::{
 	self,
 	ffi::OsStr,
@@ -72,8 +73,9 @@ pub fn ensure_runtime_binary_exists(
 	}
 }
 
+/// Build a runtime.
 #[cfg(feature = "parachain")]
-fn build_runtime(
+pub(crate) fn build_runtime(
 	cli: &mut impl Cli,
 	runtime_path: &Path,
 	target_path: &Path,
@@ -83,8 +85,47 @@ fn build_runtime(
 	cli.warning("NOTE: this may take some time...")?;
 	let features = features.iter().map(|f| f.as_ref()).collect();
 	build_project(runtime_path, None, mode, features, None)?;
+	cli.info(format!("The runtime was built in {} mode.", mode))?;
 	cli.success("\n✅ Runtime built successfully.\n")?;
 	runtime_binary_path(target_path, runtime_path).map_err(|e| e.into())
+}
+
+/// Build a deterministic runtime.
+///
+/// # Arguments
+/// * `cli`: Command line interface.
+/// * `spinner`: The progress bar.
+/// * `package`: The package name.
+/// * `profile`: The build profile.
+/// * `runtime_dir`: The runtime directory.
+#[cfg(feature = "parachain")]
+pub(crate) fn build_deterministic_runtime(
+	cli: &mut impl Cli,
+	spinner: &ProgressBar,
+	package: String,
+	profile: Profile,
+	runtime_dir: PathBuf,
+) -> anyhow::Result<(PathBuf, Vec<u8>)> {
+	spinner.set_message("Building deterministic runtime...");
+	let runtime_path = {
+		let engine = ContainerEngine::detect().map_err(|_| anyhow::anyhow!("No container engine detected. A supported containerization solution (Docker or Podman) is required."))?;
+		// Warning from srtool-cli: https://github.com/chevdor/srtool-cli/blob/master/cli/src/main.rs#L28).
+		if engine == ContainerEngine::Docker {
+			cli.warning("WARNING: You are using docker. It is recommend to use podman instead.")?;
+		}
+		spinner.set_message(
+			"NOTE: This process may take longer than 10-15 minutes. Please be patient...",
+		);
+		let builder = DeterministicBuilder::new(engine, None, package, profile, runtime_dir)?;
+		let wasm_path = builder.build()?;
+		if !wasm_path.exists() {
+			return Err(anyhow::anyhow!("Can't find the generated runtime at {:?}", wasm_path));
+		};
+		Ok(wasm_path)
+	}.map_err(|e: anyhow::Error| anyhow::anyhow!("Failed to build the deterministic runtime: {}", e.to_string()))?;
+	let code = fs::read(&runtime_path).map_err(anyhow::Error::from)?;
+	cli.success("\n✅ Runtime built successfully.\n")?;
+	Ok((runtime_path, code))
 }
 
 /// Guide the user to input a runtime path.
