@@ -150,7 +150,7 @@ impl Command {
 				deterministic: args.deterministic,
 			}
 			.execute()?;
-			return Ok("runtime");
+			return Ok(Chain);
 		}
 
 		// Otherwise build as a normal Rust project
@@ -307,7 +307,7 @@ mod tests {
 				profile: Some(profile.clone()),
 				benchmark,
 				try_runtime,
-        deterministic,
+				deterministic,
 				features: Some(features.join(","))
 			},
 			&mut cli,
