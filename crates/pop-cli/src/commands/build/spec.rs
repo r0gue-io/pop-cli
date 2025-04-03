@@ -142,9 +142,6 @@ pub struct BuildSpecCommand {
 	/// the necessary directories will be created
 	#[arg(short, long = "output")]
 	pub(crate) output_file: Option<PathBuf>,
-	/// [DEPRECATED] and will be removed in v0.7.0, use `profile`.
-	#[arg(short = 'R', long, conflicts_with = "profile")]
-	pub(crate) release: bool,
 	/// Build profile for the binary to generate the chain specification.
 	#[arg(long, value_enum)]
 	pub(crate) profile: Option<Profile>,
@@ -220,7 +217,6 @@ impl BuildSpecCommand {
 		let BuildSpecCommand {
 			output_file,
 			profile,
-			release,
 			id,
 			default_bootnode,
 			chain_type,
@@ -362,11 +358,11 @@ impl BuildSpecCommand {
 		};
 
 		// Prompt user for build profile.
-		let mut profile = match profile {
+		let profile = match profile {
 			Some(profile) => profile,
 			None => {
 				let default = Profile::Release;
-				if prompt && !release {
+				if prompt {
 					guide_user_to_select_profile(cli)?
 				} else {
 					default
@@ -469,11 +465,6 @@ impl BuildSpecCommand {
 		} else {
 			DEFAULT_PACKAGE.to_string()
 		};
-
-		if release {
-			cli.warning("NOTE: release flag is deprecated. Use `--profile` instead.")?;
-			profile = Profile::Release;
-		}
 
 		Ok(BuildSpec {
 			output_file,
@@ -774,7 +765,6 @@ mod tests {
 		let para_id = 4242;
 		let protocol_id = "pop";
 		let relay = Polkadot;
-		let release = false;
 		let profile = Profile::Production;
 		let deterministic = true;
 		let package = "runtime-name";
@@ -787,7 +777,6 @@ mod tests {
 			BuildSpecCommand {
 				output_file: Some(PathBuf::from(output_file)),
 				profile: Some(profile.clone()),
-				release,
 				id: Some(para_id),
 				default_bootnode,
 				chain_type: Some(chain_type.clone()),
@@ -870,7 +859,6 @@ mod tests {
 		let para_id = 4242;
 		let protocol_id = "pop";
 		let relay = Polkadot;
-		let release = false;
 		let profile = Profile::Production;
 		let deterministic = true;
 		let package = "runtime-name";
@@ -893,7 +881,6 @@ mod tests {
 				BuildSpecCommand {
 					output_file: Some(PathBuf::from(output_file)),
 					profile: Some(profile.clone()),
-					release,
 					id: Some(para_id),
 					default_bootnode,
 					chain_type: Some(chain_type.clone()),
@@ -1025,30 +1012,6 @@ mod tests {
 				cli.verify()?;
 			}
 		}
-		Ok(())
-	}
-
-	#[tokio::test]
-	async fn configure_build_spec_release_deprecated_works() -> anyhow::Result<()> {
-		// Create a temporary file to act as the existing chain spec file.
-		let temp_dir = tempdir()?;
-		let chain_spec_path = temp_dir.path().join("existing-chain-spec.json");
-		std::fs::write(&chain_spec_path, "{}")?;
-		// Use the deprcrated release flag.
-		let release = true;
-		let build_spec_cmd = BuildSpecCommand {
-			release,
-			chain: Some(chain_spec_path.to_string_lossy().to_string()),
-			..Default::default()
-		};
-		let mut cli =
-			MockCli::new().expect_confirm(
-				"An existing chain spec file is provided. Do you want to make additional changes to it?",
-				false,
-			).expect_warning("NOTE: release flag is deprecated. Use `--profile` instead.");
-		let build_spec = build_spec_cmd.configure_build_spec(&mut cli).await?;
-		assert_eq!(build_spec.profile, release.into());
-		cli.verify()?;
 		Ok(())
 	}
 
