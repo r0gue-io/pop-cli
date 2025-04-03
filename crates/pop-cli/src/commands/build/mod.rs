@@ -13,7 +13,7 @@ use clap::{Args, Subcommand};
 use contract::BuildContract;
 use duct::cmd;
 use pop_common::Profile;
-use std::path::PathBuf;
+use std::{fmt::{Display, Formatter, Result}, path::PathBuf};
 #[cfg(feature = "parachain")]
 use {parachain::BuildParachain, spec::BuildSpecCommand};
 
@@ -170,6 +170,16 @@ impl Command {
 	}
 }
 
+impl Display for Command {
+	fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+		match self {
+			#[cfg(feature = "parachain")]
+			Command::Spec(_) => write!(f, "spec"),
+			_ => Ok(()),
+		}
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -265,5 +275,10 @@ mod tests {
 		)
 		.is_ok());
 		cli.verify()
+	}
+
+	#[test]
+	fn command_display_works() {
+		assert_eq!(Command::Spec(Default::default()).to_string(), "spec");
 	}
 }

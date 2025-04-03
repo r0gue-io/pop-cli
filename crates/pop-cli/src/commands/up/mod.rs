@@ -8,7 +8,7 @@ use crate::{
 	},
 };
 use clap::{Args, Subcommand};
-use std::path::PathBuf;
+use std::{fmt::{Display, Formatter, Result}, path::PathBuf};
 
 #[cfg(feature = "contract")]
 mod contract;
@@ -92,6 +92,19 @@ impl Command {
 			"No contract or rollup detected. Ensure you are in a valid project directory.",
 		)?;
 		Ok(Unknown)
+	}
+}
+
+impl Display for Command {
+	fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+		match self {
+			#[cfg(feature = "parachain")]
+			Command::Network(_) => write!(f, "network"),
+			#[cfg(feature = "parachain")]
+			Command::Parachain(_) => write!(f, "chain"),
+			#[cfg(feature = "contract")]
+			Command::Contract(_) => write!(f, "contract"),
+		}
 	}
 }
 
@@ -201,5 +214,12 @@ mod tests {
 		);
 		assert_eq!(Command::execute_project_deployment(args, &mut cli).await?, Unknown);
 		cli.verify()
+	}
+
+	#[test]
+	fn command_display_works() {
+		assert_eq!(Command::Network(Default::default()).to_string(), "network");
+		assert_eq!(Command::Parachain(Default::default()).to_string(), "chain");
+		assert_eq!(Command::Contract(Default::default()).to_string(), "contract");
 	}
 }

@@ -10,7 +10,7 @@ use crate::{
 };
 use clap::{Args, Subcommand};
 use pop_common::test_project;
-use std::path::PathBuf;
+use std::{fmt::{Display, Formatter, Result}, path::PathBuf};
 
 #[cfg(feature = "contract")]
 pub mod contract;
@@ -91,6 +91,23 @@ impl Command {
 	}
 }
 
+impl Display for Command {
+	fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+		match self {
+			#[cfg(feature = "parachain")]
+			Command::OnRuntimeUpgrade(_) => write!(f, "on runtime upgrade"),
+			#[cfg(feature = "parachain")]
+			Command::ExecuteBlock(_) => write!(f, "execute block"),
+			#[cfg(feature = "parachain")]
+			Command::FastForward(_) => write!(f, "fast forward"),
+			#[cfg(feature = "parachain")]
+			Command::CreateSnapshot(_) => write!(f, "create snapshot"),
+			#[cfg(feature = "contract")]
+			Command::Contract(_) => write!(f, "contract"),
+		}
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -133,5 +150,19 @@ mod tests {
 		let mut cli = MockCli::new();
 		assert_eq!(Command::test(args, &mut cli).await?, (Unknown, Unit));
 		cli.verify()
+	}
+
+	#[test]
+	fn command_display_works() {
+		#[cfg(feature = "parachain")]
+		assert_eq!(Command::OnRuntimeUpgrade(Default::default()).to_string(), "on runtime upgrade");
+		#[cfg(feature = "parachain")]
+		assert_eq!(Command::ExecuteBlock(Default::default()).to_string(), "execute block");
+		#[cfg(feature = "parachain")]
+		assert_eq!(Command::FastForward(Default::default()).to_string(), "fast forward");
+		#[cfg(feature = "parachain")]
+		assert_eq!(Command::CreateSnapshot(Default::default()).to_string(), "create snapshot");
+		#[cfg(feature = "contract")]
+		assert_eq!(Command::Contract(Default::default()).to_string(), "contract");
 	}
 }

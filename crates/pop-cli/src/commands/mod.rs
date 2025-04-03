@@ -130,21 +130,21 @@ impl Command {
 				None => test::Command::execute(args)
 					.await
 					.map(|(project, feature)| Test { project, feature }),
-				// TODO: Deprecated, will be removed in v0.8.0.
 				Some(cmd) => match cmd {
+					// TODO: Deprecated, will be removed in v0.8.0.
 					#[cfg(feature = "contract")]
 					test::Command::Contract(cmd) => cmd
 						.execute(&mut Cli)
 						.await
 						.map(|feature| Test { project: Project::Contract, feature }),
 					#[cfg(feature = "parachain")]
-					test::Command::OnRuntimeUpgrade(cmd) => cmd.execute(&mut Cli).await.map(|t| json!(t)),
+					test::Command::OnRuntimeUpgrade(cmd) => cmd.execute(&mut Cli).await.map(|_| Null),
 					#[cfg(feature = "parachain")]
-					test::Command::ExecuteBlock(cmd) => cmd.execute(&mut Cli).await.map(|t| json!(t)),
+					test::Command::ExecuteBlock(cmd) => cmd.execute(&mut Cli).await.map(|_| Null),
 					#[cfg(feature = "parachain")]
-					test::Command::CreateSnapshot(cmd) => cmd.execute(&mut Cli).await.map(|t| json!(t)),
+					test::Command::CreateSnapshot(cmd) => cmd.execute(&mut Cli).await.map(|_| Null),
 					#[cfg(feature = "parachain")]
-					test::Command::FastForward(cmd) => cmd.execute(&mut Cli).await.map(|t| json!(t)),
+					test::Command::FastForward(cmd) => cmd.execute(&mut Cli).await.map(|_| Null),
 				},
 			},
 			Self::Clean(args) => match args.command {
@@ -165,56 +165,27 @@ impl Display for Command {
 			#[cfg(any(feature = "parachain", feature = "contract"))]
 			Self::Install(_) => write!(f, "install"),
 			#[cfg(any(feature = "parachain", feature = "contract"))]
-			Self::New(args) => {
-				let new = match &args.command {
-					#[cfg(feature = "parachain")]
-					new::Command::Parachain(_) => "new chain",
-					#[cfg(feature = "parachain")]
-					new::Command::Pallet(_) => "new pallet",
-					#[cfg(feature = "contract")]
-					new::Command::Contract(_) => "new contract",
-				};
-				write!(f, "{}", new)
+			Self::New(args) => write!(f, "new {}", args.command),
+			#[cfg(any(feature = "parachain", feature = "contract"))]
+			Self::Build(args) => match &args.command {
+				Some(cmd) => write!(f, "build {}", cmd),
+				None => write!(f, "build"),
 			},
 			#[cfg(any(feature = "parachain", feature = "contract"))]
-			Self::Build(args) => {
-				let build = match &args.command {
-					#[cfg(feature = "parachain")]
-					Some(build::Command::Spec(_)) => "build spec",
-					_ => "build",
-				};
-				write!(f, "{}", build)
+			Self::Call(args) => write!(f, "call {}", args.command),
+			#[cfg(any(feature = "parachain", feature = "contract"))]
+			Self::Up(args) => match &args.command {
+				Some(cmd) => write!(f, "up {}", cmd),
+				None => write!(f, "up"),
 			},
 			#[cfg(any(feature = "parachain", feature = "contract"))]
-			Self::Call(args) => {
-				let call = match &args.command {
-					#[cfg(feature = "parachain")]
-					call::Command::Chain(_) => "call chain",
-					#[cfg(feature = "contract")]
-					call::Command::Contract(_) => "call contract",
-				};
-				write!(f, "{}", call)
+			Self::Test(args) => match &args.command {
+				Some(cmd) => write!(f, "test {}", cmd),
+				None => write!(f, "test"),
 			},
-			#[cfg(any(feature = "parachain", feature = "contract"))]
-			Self::Up(args) => {
-				let up = match &args.command {
-					#[cfg(feature = "parachain")]
-					Some(up::Command::Network(_)) => "up network",
-					#[cfg(feature = "parachain")]
-					Some(up::Command::Parachain(_)) => "up chain",
-					#[cfg(feature = "contract")]
-					Some(up::Command::Contract(_)) => "up contract",
-					_ => "up",
-				};
-				write!(f, "{}", up)
-			},
-			#[cfg(any(feature = "parachain", feature = "contract"))]
-			Self::Test(_) => write!(f, "test"),
 			Self::Clean(_) => write!(f, "clean"),
 			#[cfg(feature = "parachain")]
-			Self::Bench(args) => {
-				write!(f, "{}", args.command)
-			},
+			Self::Bench(args) => write!(f, "bench {}", args.command),
 		}
 	}
 }
@@ -233,6 +204,11 @@ mod tests {
 			(Command::Clean(Default::default()), "clean"),
 			// Test.
 			(Command::Test(test::TestArgs::default()), "test"),
+			(Command::Test(test::TestArgs { command: Some(test::Command::Contract(Default::default())), ..Default::default() }), "test contract"),
+			(Command::Test(test::TestArgs { command: Some(test::Command::OnRuntimeUpgrade(Default::default())), ..Default::default() }), "test on runtime upgrade"),
+			(Command::Test(test::TestArgs { command: Some(test::Command::ExecuteBlock(Default::default())), ..Default::default() }), "test execute block"),
+			(Command::Test(test::TestArgs { command: Some(test::Command::CreateSnapshot(Default::default())), ..Default::default() }), "test create snapshot"),
+			(Command::Test(test::TestArgs { command: Some(test::Command::FastForward(Default::default())), ..Default::default() }), "test fast forward"),
 			// Build.
 			(Command::Build(build::BuildArgs { command: None, ..Default::default() }), "build"),
 			(

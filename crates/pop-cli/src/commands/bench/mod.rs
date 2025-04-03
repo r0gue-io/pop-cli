@@ -6,7 +6,7 @@ use clap::{Args, Subcommand};
 use machine::BenchmarkMachine;
 use overhead::BenchmarkOverhead;
 use pallet::BenchmarkPallet;
-use std::fmt;
+use std::fmt::{Display, Formatter, Result};
 use storage::BenchmarkStorage;
 
 mod block;
@@ -56,15 +56,15 @@ impl Command {
 	}
 }
 
-impl fmt::Display for Command {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl Display for Command {
+	fn fmt(&self, f: &mut Formatter<'_>) -> Result {
 		use Command::*;
 		match self {
-			Block(_) => write!(f, "bench block"),
-			Machine(_) => write!(f, "bench machine"),
-			Overhead(_) => write!(f, "bench overhead"),
-			Pallet(_) => write!(f, "bench pallet"),
-			Storage(_) => write!(f, "bench storage"),
+			Block(_) => write!(f, "block"),
+			Machine(_) => write!(f, "machine"),
+			Overhead(_) => write!(f, "overhead"),
+			Pallet(_) => write!(f, "pallet"),
+			Storage(_) => write!(f, "storage"),
 		}
 	}
 }
@@ -76,6 +76,6 @@ mod tests {
 	// Others can not be tested yet due to private external types.
 	#[test]
 	fn command_display_works() {
-		assert_eq!(Command::Pallet(Default::default()).to_string(), "bench pallet");
+		assert_eq!(Command::Pallet(Default::default()).to_string(), "pallet");
 	}
 }

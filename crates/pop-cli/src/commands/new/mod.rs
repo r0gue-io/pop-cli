@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use clap::{Args, Subcommand};
-
+use std::fmt::{Display, Formatter, Result};
 #[cfg(feature = "contract")]
 pub mod contract;
 #[cfg(feature = "parachain")]
@@ -46,3 +46,32 @@ pub enum Command {
 	#[clap(alias = "c")]
 	Contract(contract::NewContractCommand),
 }
+
+impl Display for Command {
+	fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+		match self {
+			#[cfg(feature = "parachain")]
+			Command::Parachain(_) => write!(f, "chain"),
+			#[cfg(feature = "parachain")]
+			Command::Pallet(_) => write!(f, "pallet"),
+			#[cfg(feature = "contract")]
+			Command::Contract(_) => write!(f, "contract"),
+		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn command_display_works() {
+		#[cfg(feature = "parachain")]
+		assert_eq!(Command::Parachain(Default::default()).to_string(), "chain");
+		#[cfg(feature = "parachain")]
+		assert_eq!(Command::Pallet(Default::default()).to_string(), "pallet");
+		#[cfg(feature = "contract")]
+		assert_eq!(Command::Contract(Default::default()).to_string(), "contract");
+	}
+}
+
