@@ -5,6 +5,7 @@ use crate::{
 	common::{
 		builds::get_project_path,
 		runtime::Feature::{Benchmark, TryRuntime},
+		Project::{self, *},
 	},
 };
 use clap::{Args, Subcommand};
@@ -12,7 +13,10 @@ use clap::{Args, Subcommand};
 use contract::BuildContract;
 use duct::cmd;
 use pop_common::Profile;
-use std::path::PathBuf;
+use std::{
+	fmt::{Display, Formatter, Result},
+	path::PathBuf,
+};
 #[cfg(feature = "parachain")]
 use {parachain::BuildParachain, spec::BuildSpecCommand};
 
@@ -30,6 +34,7 @@ const PROJECT: &str = "project";
 
 /// Arguments for building a project.
 #[derive(Args)]
+#[cfg_attr(test, derive(Default))]
 #[command(args_conflicts_with_subcommands = true)]
 pub(crate) struct BuildArgs {
 	#[command(subcommand)]
@@ -71,7 +76,7 @@ pub(crate) enum Command {
 
 impl Command {
 	/// Executes the command.
-	pub(crate) fn execute(args: BuildArgs) -> anyhow::Result<&'static str> {
+	pub(crate) fn execute(args: BuildArgs) -> anyhow::Result<Project> {
 		// If only contract feature enabled, build as contract
 		let project_path = get_project_path(args.path.clone(), args.path_pos.clone());
 
@@ -83,7 +88,7 @@ impl Command {
 				None => args.release,
 			};
 			BuildContract { path: project_path, release }.execute()?;
-			return Ok("contract");
+			return Ok(Contract);
 		}
 
 		// If only parachain feature enabled, build as parachain
@@ -112,11 +117,11 @@ impl Command {
 				try_runtime: feature_list.contains(&TryRuntime.as_ref()),
 			}
 			.execute()?;
-			return Ok("parachain");
+			return Ok(Chain);
 		}
 
 		// Otherwise build as a normal Rust project
-		Self::build(args, &mut Cli)
+		Self::build(args, &mut Cli).map(|_| Unknown)
 	}
 
 	/// Builds a Rust project.
@@ -125,7 +130,7 @@ impl Command {
 	/// * `path` - The path to the project.
 	/// * `package` - A specific package to be built.
 	/// * `release` - Whether the release profile is to be used.
-	fn build(args: BuildArgs, cli: &mut impl cli::traits::Cli) -> anyhow::Result<&'static str> {
+	fn build(args: BuildArgs, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		let project = if args.package.is_some() { PACKAGE } else { PROJECT };
 		cli.intro(format!("Building your {project}"))?;
 
@@ -164,7 +169,17 @@ impl Command {
 				.unwrap_or_else(|| format!(" with the following features: {}", features.join(",")))
 		))?;
 		cli.outro("Build completed successfully!")?;
-		Ok(project)
+		Ok(())
+	}
+}
+
+impl Display for Command {
+	fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+		match self {
+			#[cfg(feature = "parachain")]
+			Command::Spec(_) => write!(f, "spec"),
+			_ => Ok(()),
+		}
 	}
 }
 
@@ -247,23 +262,26 @@ mod tests {
 			))
 		};
 		cli = cli.expect_outro("Build completed successfully!");
-		assert_eq!(
-			Command::build(
-				BuildArgs {
-					command: None,
-					path: Some(project_path.clone()),
-					path_pos: Some(project_path.clone()),
-					package: package.clone(),
-					release,
-					profile: Some(profile.clone()),
-					benchmark,
-					try_runtime,
-					features: Some(features.join(","))
-				},
-				&mut cli,
-			)?,
-			project
-		);
+		assert!(Command::build(
+			BuildArgs {
+				command: None,
+				path: Some(project_path.clone()),
+				path_pos: Some(project_path.clone()),
+				package: package.clone(),
+				release,
+				profile: Some(profile.clone()),
+				benchmark,
+				try_runtime,
+				features: Some(features.join(","))
+			},
+			&mut cli,
+		)
+		.is_ok());
 		cli.verify()
+	}
+
+	#[test]
+	fn command_display_works() {
+		assert_eq!(Command::Spec(Default::default()).to_string(), "spec");
 	}
 }

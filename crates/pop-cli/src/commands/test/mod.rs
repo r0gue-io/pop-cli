@@ -1,9 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{cli, common::builds::get_project_path};
+use crate::{
+	cli,
+	common::{
+		builds::get_project_path,
+		Project::{self, *},
+		TestFeature::{self, Unit},
+	},
+};
 use clap::{Args, Subcommand};
 use pop_common::test_project;
-use std::path::PathBuf;
+use std::{
+	fmt::{Display, Formatter, Result},
+	path::PathBuf,
+};
 
 #[cfg(feature = "contract")]
 pub mod contract;
@@ -56,21 +66,48 @@ pub(crate) enum Command {
 }
 
 impl Command {
-	pub(crate) async fn execute(args: TestArgs) -> anyhow::Result<&'static str> {
+	pub(crate) async fn execute(args: TestArgs) -> anyhow::Result<(Project, TestFeature)> {
 		Self::test(args, &mut cli::Cli).await
 	}
 
-	async fn test(args: TestArgs, cli: &mut impl cli::traits::Cli) -> anyhow::Result<&'static str> {
+	async fn test(
+		args: TestArgs,
+		cli: &mut impl cli::traits::Cli,
+	) -> anyhow::Result<(Project, TestFeature)> {
 		let project_path = get_project_path(args.path.clone(), args.path_pos.clone());
 
 		#[cfg(feature = "contract")]
 		if pop_contracts::is_supported(project_path.as_deref())? {
 			let mut cmd = args.contract;
 			cmd.path = project_path;
-			return contract::TestContractCommand::execute(cmd, cli).await;
+			let feature = contract::TestContractCommand::execute(cmd, cli).await?;
+			return Ok((Contract, feature));
 		}
+
 		test_project(project_path.as_deref())?;
-		Ok("test")
+
+		#[cfg(feature = "parachain")]
+		if pop_parachains::is_supported(project_path.as_deref())? {
+			return Ok((Chain, Unit));
+		}
+		Ok((Unknown, Unit))
+	}
+}
+
+impl Display for Command {
+	fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+		match self {
+			#[cfg(feature = "parachain")]
+			Command::OnRuntimeUpgrade(_) => write!(f, "on runtime upgrade"),
+			#[cfg(feature = "parachain")]
+			Command::ExecuteBlock(_) => write!(f, "execute block"),
+			#[cfg(feature = "parachain")]
+			Command::FastForward(_) => write!(f, "fast forward"),
+			#[cfg(feature = "parachain")]
+			Command::CreateSnapshot(_) => write!(f, "create snapshot"),
+			#[cfg(feature = "contract")]
+			Command::Contract(_) => write!(f, "contract"),
+		}
 	}
 }
 
@@ -100,7 +137,7 @@ mod tests {
 		let mut cli = MockCli::new()
 			.expect_intro("Starting unit tests")
 			.expect_outro("Unit testing complete");
-		assert_eq!(Command::test(args, &mut cli).await?, "unit");
+		assert_eq!(Command::test(args, &mut cli).await?, (Contract, Unit));
 		cli.verify()
 	}
 
@@ -114,7 +151,21 @@ mod tests {
 
 		cmd("cargo", ["new", name, "--bin"]).dir(&path).run()?;
 		let mut cli = MockCli::new();
-		assert_eq!(Command::test(args, &mut cli).await?, "test");
+		assert_eq!(Command::test(args, &mut cli).await?, (Unknown, Unit));
 		cli.verify()
+	}
+
+	#[test]
+	fn command_display_works() {
+		#[cfg(feature = "parachain")]
+		assert_eq!(Command::OnRuntimeUpgrade(Default::default()).to_string(), "on runtime upgrade");
+		#[cfg(feature = "parachain")]
+		assert_eq!(Command::ExecuteBlock(Default::default()).to_string(), "execute block");
+		#[cfg(feature = "parachain")]
+		assert_eq!(Command::FastForward(Default::default()).to_string(), "fast forward");
+		#[cfg(feature = "parachain")]
+		assert_eq!(Command::CreateSnapshot(Default::default()).to_string(), "create snapshot");
+		#[cfg(feature = "contract")]
+		assert_eq!(Command::Contract(Default::default()).to_string(), "contract");
 	}
 }

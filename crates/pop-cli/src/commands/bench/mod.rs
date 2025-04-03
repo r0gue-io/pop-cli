@@ -6,6 +6,7 @@ use clap::{Args, Subcommand};
 use machine::BenchmarkMachine;
 use overhead::BenchmarkOverhead;
 use pallet::BenchmarkPallet;
+use std::fmt::{Display, Formatter, Result};
 use storage::BenchmarkStorage;
 
 mod block;
@@ -16,7 +17,6 @@ mod storage;
 
 /// Arguments for benchmarking a project.
 #[derive(Args)]
-#[command(args_conflicts_with_subcommands = true)]
 pub struct BenchmarkArgs {
 	#[command(subcommand)]
 	pub command: Command,
@@ -53,5 +53,29 @@ impl Command {
 			Command::Pallet(mut cmd) => cmd.execute(&mut cli).await,
 			Command::Storage(mut cmd) => cmd.execute(&mut cli),
 		}
+	}
+}
+
+impl Display for Command {
+	fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+		use Command::*;
+		match self {
+			Block(_) => write!(f, "block"),
+			Machine(_) => write!(f, "machine"),
+			Overhead(_) => write!(f, "overhead"),
+			Pallet(_) => write!(f, "pallet"),
+			Storage(_) => write!(f, "storage"),
+		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	// Others can not be tested yet due to private external types.
+	#[test]
+	fn command_display_works() {
+		assert_eq!(Command::Pallet(Default::default()).to_string(), "pallet");
 	}
 }
