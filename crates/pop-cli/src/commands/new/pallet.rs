@@ -39,6 +39,7 @@ fn after_help_advanced() -> &'static str {
 }
 
 #[derive(Args)]
+#[cfg_attr(test, derive(Default))]
 #[command(after_help= after_help_simple())]
 pub struct NewPalletCommand {
 	#[arg(help = "Name of the pallet")]

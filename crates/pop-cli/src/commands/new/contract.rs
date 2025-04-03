@@ -26,6 +26,7 @@ use std::{
 use strum::VariantArray;
 
 #[derive(Args, Clone)]
+#[cfg_attr(test, derive(Default))]
 pub struct NewContractCommand {
 	/// The name of the contract.
 	pub(crate) name: Option<String>,
@@ -44,7 +45,7 @@ pub struct NewContractCommand {
 
 impl NewContractCommand {
 	/// Executes the command.
-	pub(crate) async fn execute(self) -> Result<()> {
+	pub(crate) async fn execute(self) -> Result<Contract> {
 		// If the user doesn't provide a name, guide them in generating a contract.
 		let contract_config = if self.name.is_none() {
 			guide_user_to_generate_contract().await?
@@ -62,7 +63,7 @@ impl NewContractCommand {
 		// Validate contract name.
 		if let Err(e) = is_valid_contract_name(name) {
 			Cli.outro_cancel(e)?;
-			return Ok(());
+			return Ok(Contract::Standard);
 		}
 
 		let contract_type = &contract_config.contract_type.clone().unwrap_or_default();
@@ -79,7 +80,7 @@ impl NewContractCommand {
 			add_crate_to_workspace(&workspace_toml, path)?;
 		}
 
-		Ok(())
+		Ok(template)
 	}
 }
 

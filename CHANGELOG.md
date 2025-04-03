@@ -2,6 +2,52 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.7.0] - 2025-04-02
+
+### 🚀 Features
+
+- Enable pop up without project type specification (#403)
+- Update parachain templates (#297)
+- Add the filter mode and password to `Cli` (#435)
+- Register parachain (#404)
+- Enable `pop test` without project type specification (#466)
+- Benchmarking feature (#424)
+- Build with try-runtime feature enabled (#476)
+- Integration with deployment provider (#459)
+- Try-runtime feature (#496)
+
+### 🐛 Fixes
+
+- Check_contracts_node handles skip_confirm (#396)
+- Increase `DefaultBodyLimit` to prevent large payload failures (#409)
+- Prevent recursion error with `pallet_collective` metadata (#412)
+- Remove onboard.rs empty file (#433)
+- Hardcoded test failing in the CI (#448)
+- Display events when wallet-signing (#463)
+- *(build spec)* Default bootnode prompt (#482)
+- Improve build spec error messaging (#477)
+- Sort releases by published_at (#489)
+- Argument exists in bench commands & skip parameters flag (#494)
+
+### 🚜 Refactor
+
+- Check binary and prompt (#429)
+- Runtime utilities & runtime feature enum (#490)
+
+### ⚙️ Miscellaneous Tasks
+
+- Support specify contract path input with or without -p flag (#361)
+- `profile` comment in `build_parachain` (#406)
+- Update cargo-deny-action@v2 (#439)
+- Resolve unmaintained crate & clippy warnings (#454)
+- Fix typo (#474)
+- Bump versions
+
+### Build
+
+- *(release)* Update upload-artifact to v4 (#398)
+- *(deps)* Bump openssl from 0.10.68 to 0.10.70 (#402)
+
 ## [0.6.0] - 2024-12-19
 
 ### 🚀 Features

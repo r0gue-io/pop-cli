@@ -84,6 +84,7 @@ pub struct CallContractCommand {
 	#[arg(name = "dev", short, long, default_value = "false")]
 	dev_mode: bool,
 }
+
 impl CallContractCommand {
 	/// Executes the command.
 	pub(crate) async fn execute(mut self) -> Result<()> {
@@ -547,6 +548,28 @@ impl CallContractCommand {
 		self.gas_limit = None;
 		self.proof_size = None;
 		self.use_wallet = false;
+	}
+}
+
+#[cfg(test)]
+impl Default for CallContractCommand {
+	fn default() -> Self {
+		Self {
+			path: None,
+			path_pos: None,
+			contract: None,
+			message: None,
+			args: vec![],
+			value: DEFAULT_PAYABLE_VALUE.to_string(),
+			gas_limit: None,
+			proof_size: None,
+			url: url::Url::parse("wss://rpc1.paseo.popnetwork.xyz").unwrap(),
+			suri: "//Alice".to_string(),
+			use_wallet: false,
+			execute: false,
+			dry_run: false,
+			dev_mode: false,
+		}
 	}
 }
 

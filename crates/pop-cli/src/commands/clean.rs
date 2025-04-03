@@ -151,6 +151,13 @@ fn contents(path: &PathBuf) -> Result<Vec<(String, PathBuf, u64)>> {
 }
 
 #[cfg(test)]
+impl Default for CleanArgs {
+	fn default() -> Self {
+		Self { command: Command::Cache(CleanCommandArgs { all: false }) }
+	}
+}
+
+#[cfg(test)]
 mod tests {
 	use super::*;
 	use crate::cli::MockCli;

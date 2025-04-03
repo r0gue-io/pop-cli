@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{cli, common::contracts::check_contracts_node_and_prompt};
+use crate::{
+	cli,
+	common::{
+		contracts::check_contracts_node_and_prompt,
+		TestFeature::{self, *},
+	},
+};
 use clap::Args;
 use pop_common::test_project;
 use pop_contracts::test_e2e_smart_contract;
@@ -28,7 +34,7 @@ impl TestContractCommand {
 	pub(crate) async fn execute(
 		mut self,
 		cli: &mut impl cli::traits::Cli,
-	) -> anyhow::Result<&'static str> {
+	) -> anyhow::Result<TestFeature> {
 		if self.e2e {
 			cli.intro("Starting end-to-end tests")?;
 
@@ -48,12 +54,12 @@ impl TestContractCommand {
 
 			test_e2e_smart_contract(self.path.as_deref(), self.node.as_deref())?;
 			cli.outro("End-to-end testing complete")?;
-			Ok("e2e")
+			Ok(E2e)
 		} else {
 			cli.intro("Starting unit tests")?;
 			test_project(self.path.as_deref())?;
 			cli.outro("Unit testing complete")?;
-			Ok("unit")
+			Ok(Unit)
 		}
 	}
 }
