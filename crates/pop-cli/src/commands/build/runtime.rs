@@ -7,7 +7,7 @@ use crate::{
 	style::style,
 };
 use cliclack::spinner;
-use pop_common::{manifest::from_path, Profile};
+use pop_common::{find_workspace_toml, manifest::from_path, Profile};
 use std::{
 	env::current_dir,
 	path::{Path, PathBuf},
@@ -32,7 +32,8 @@ impl BuildRuntime {
 	pub(crate) fn execute(self) -> anyhow::Result<()> {
 		let root = current_dir().unwrap_or(PathBuf::from("./"));
 		let target_path = self.profile.target_directory(root.as_path());
-		self.build(&mut cli::Cli, &target_path)
+		let workspace_root = find_workspace_toml(&target_path);
+		self.build(&mut cli::Cli, &workspace_root.unwrap_or(target_path))
 	}
 
 	fn build(self, cli: &mut impl cli::traits::Cli, project_root: &Path) -> anyhow::Result<()> {
@@ -62,10 +63,10 @@ impl BuildRuntime {
 		})?;
 		if self.deterministic {
 			spinner.start("Building runtime deterministically...");
-			build_deterministic_runtime(&mut cli::Cli, &spinner, name, self.profile, self.path)?;
+			build_deterministic_runtime(cli, &spinner, name, self.profile, self.path)?;
 			spinner.stop("");
 		} else {
-			self.build_non_determinisic(&mut cli::Cli, project_root, features)?;
+			self.build_non_determinisic(cli, project_root, features)?;
 		}
 		Ok(())
 	}
@@ -106,7 +107,7 @@ mod tests {
 	use strum::VariantArray;
 
 	#[test]
-	fn build_runtime_works() -> anyhow::Result<()> {
+	fn build_works() -> anyhow::Result<()> {
 		let temp_dir = tempfile::tempdir()?;
 		let path = temp_dir.path();
 		let runtime_name = "mock_runtime";
@@ -125,28 +126,28 @@ mod tests {
 		}
 
 		for profile in Profile::VARIANTS {
-			let target_path = profile
+			let binary_path = profile
 				.target_directory(&target_dir)
-				.join(format!("./wbuild/{}/{}.wasm", runtime_name, runtime_name));
-			fs::create_dir_all(target_path)?;
+				.join(format!("wbuild/{}/{}.wasm", runtime_name, runtime_name));
+			fs::create_dir_all(&binary_path)?;
 
 			// Build without features.
-			test_build(&project_path, profile, &[], false)?;
+			test_build(&project_path, &binary_path, profile, &[])?;
 
 			// Build with one feature.
-			test_build(&project_path, profile, &[Benchmark.as_ref()], false)?;
+			test_build(&project_path, &binary_path, profile, &[Benchmark.as_ref()])?;
 
 			// Build with multiple features.
-			test_build(&project_path, profile, features, false)?;
+			test_build(&project_path, &binary_path, profile, features)?;
 		}
 		Ok(())
 	}
 
 	fn test_build(
 		project_path: &PathBuf,
+		binary_path: &PathBuf,
 		profile: &Profile,
 		features: &[&str],
-		deterministic: bool,
 	) -> anyhow::Result<()> {
 		let manifest = from_path(Some(project_path.as_path()))?;
 		let package = manifest.package();
@@ -158,16 +159,23 @@ mod tests {
 			format!("Building {:?} runtime with features: {}", name, features.join(","))
 		});
 
-		if deterministic {
-		} else {
-			if profile == &Profile::Debug {
-				cli = cli.expect_warning("NOTE: this command now defaults to DEBUG builds. Please use `--release` (or simply `-r`) for a release build...");
-			}
-			cli = cli
-				.expect_warning("NOTE: this may take some time...")
-				.expect_info(format!("The rutnime was built in {profile} mode."))
-				.expect_outro("\n✅ Runtime built successfully.\n");
+		if profile == &Profile::Debug {
+			cli = cli.expect_warning("NOTE: this command now defaults to DEBUG builds. Please use `--release` (or simply `-r`) for a release build...");
 		}
+		let generated_files = [format!("Binary generated at: {}", binary_path.display())];
+		let generated_files: Vec<_> = generated_files
+			.iter()
+			.map(|s| style(format!("{} {s}", console::Emoji("●", ">"))).dim().to_string())
+			.collect();
+		cli = cli
+			.expect_warning("NOTE: this may take some time...")
+			.expect_info(format!("The runtime was built in {profile} mode."))
+			.expect_success("\n✅ Runtime built successfully.\n")
+			.expect_success(format!("Generated files:\n{}", generated_files.join("\n")))
+			.expect_outro(format!(
+				"Need help? Learn more at {}\n",
+				style("https://learn.onpop.io").magenta().underlined()
+			));
 
 		BuildRuntime {
 			path: project_path.clone(),
