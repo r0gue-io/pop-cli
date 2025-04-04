@@ -16,6 +16,7 @@ use std::{
 };
 use strum_macros::{EnumIter, EnumMessage as EnumMessageDerive};
 use tempfile::NamedTempFile;
+use tracing_subscriber::EnvFilter;
 
 /// Provides functionality for sourcing binaries of the benchmarking CLI.
 pub mod binary;
@@ -133,11 +134,36 @@ pub fn get_runtime_path(parent: &Path) -> Result<PathBuf, Error> {
 ///
 /// # Arguments
 /// * `args` - Arguments to pass to the benchmarking command.
-pub fn generate_pallet_benchmarks(args: Vec<String>) -> Result<(), Error> {
-	let cmd = PalletCmd::try_parse_from([vec!["".to_string()], args].concat())
-		.map_err(|e| Error::ParamParsingError(e.to_string()))?;
-	cmd.run_with_spec::<BlakeTwo256, HostFunctions>(None)
-		.map_err(|e| Error::BenchmarkingError(e.to_string()))
+pub async fn generate_pallet_benchmarks(args: Vec<String>) -> Result<(), Error> {
+	tokio::task::spawn_blocking(move || {
+		// Disable these log targets because they are spammy.
+		let unwanted_targets = [
+			"cranelift_codegen",
+			"wasm_cranelift",
+			"wasmtime_jit",
+			"wasmtime_cranelift",
+			"wasm_jit",
+		];
+
+		let env_filter = unwanted_targets.iter().fold(
+			EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
+			|filter, &target| filter.add_directive(format!("{target}=off").parse().unwrap()),
+		);
+
+		let _ = tracing_subscriber::fmt()
+			.with_env_filter(env_filter)
+			.with_writer(std::io::stderr)
+			.try_init();
+
+		let cmd =
+			PalletCmd::try_parse_from(std::iter::once("".to_string()).chain(args.into_iter()))
+				.map_err(|e| Error::ParamParsingError(e.to_string()))?;
+
+		cmd.run_with_spec::<BlakeTwo256, HostFunctions>(None)
+			.map_err(|e| Error::BenchmarkingError(e.to_string()))
+	})
+	.await
+	.map_err(|e| Error::BenchmarkingError(e.to_string()))?
 }
 
 /// Generates binary benchmarks using `frame-benchmarking-cli`.
@@ -263,14 +289,15 @@ mod tests {
 	use binary::omni_bencher_generator;
 	use tempfile::tempdir;
 
-	#[test]
-	fn generate_pallet_benchmarks_works() -> Result<(), Error> {
+	#[tokio::test]
+	async fn generate_pallet_benchmarks_works() -> Result<(), Error> {
 		generate_pallet_benchmarks(vec![
 			"--pallet=pallet_timestamp".to_string(),
 			"--extrinsic=*".to_string(),
 			"--runtime".to_string(),
 			get_mock_runtime_path(true).to_str().unwrap().to_string(),
 		])
+		.await
 	}
 
 	#[test]

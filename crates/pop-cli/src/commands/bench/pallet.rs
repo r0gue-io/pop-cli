@@ -293,7 +293,7 @@ impl BenchmarkPallet {
 			// Without overriding the genesis builder policy, listing will fail for a runtime
 			// that is not built with the `runtime-benchmarks` feature.
 			self.genesis_builder = Some(GenesisBuilderPolicy::None);
-			if let Err(e) = self.run(cli) {
+			if let Err(e) = self.run(cli).await {
 				return display_message(&e.to_string(), false, cli);
 			}
 			return display_message("All pallets and extrinsics listed!", true, cli);
@@ -371,7 +371,7 @@ impl BenchmarkPallet {
 
 		cli.warning("NOTE: this may take some time...")?;
 		cli.info("Benchmarking extrinsic weights of selected pallets...")?;
-		let result = self.run(cli);
+		let result = self.run(cli).await;
 
 		// Display the benchmarking command.
 		cli.info(self.display())?;
@@ -382,20 +382,20 @@ impl BenchmarkPallet {
 		Ok(())
 	}
 
-	fn run(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+	async fn run(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		if let Some(original_weight_path) = self.output.clone() {
 			if original_weight_path.extension().is_some() {
-				self.run_with_weight_file(cli, original_weight_path)?;
+				self.run_with_weight_file(cli, original_weight_path).await?;
 			} else {
-				self.run_with_weight_dir(cli, original_weight_path)?;
+				self.run_with_weight_dir(cli, original_weight_path).await?;
 			}
 		} else {
-			generate_pallet_benchmarks(self.collect_arguments())?;
+			generate_pallet_benchmarks(self.collect_arguments()).await?;
 		}
 		Ok(())
 	}
 
-	fn run_with_weight_file(
+	async fn run_with_weight_file(
 		&mut self,
 		cli: &mut impl cli::traits::Cli,
 		weight_path: PathBuf,
@@ -404,7 +404,7 @@ impl BenchmarkPallet {
 		let temp_file_path = temp_dir.path().join("temp_weights.rs");
 		self.output = Some(temp_file_path.clone());
 
-		generate_pallet_benchmarks(self.collect_arguments())?;
+		generate_pallet_benchmarks(self.collect_arguments()).await?;
 		console::Term::stderr().clear_last_lines(1)?;
 		cli.info(format!("Weight file is generated to {:?}", weight_path.display()))?;
 
@@ -419,7 +419,7 @@ impl BenchmarkPallet {
 		Ok(())
 	}
 
-	fn run_with_weight_dir(
+	async fn run_with_weight_dir(
 		&mut self,
 		cli: &mut impl cli::traits::Cli,
 		weight_path: PathBuf,
@@ -428,7 +428,7 @@ impl BenchmarkPallet {
 		let temp_dir_path = temp_dir.into_path();
 		self.output = Some(temp_dir_path.clone());
 
-		generate_pallet_benchmarks(self.collect_arguments())?;
+		generate_pallet_benchmarks(self.collect_arguments()).await?;
 		console::Term::stderr()
 			.clear_last_lines(fs::read_dir(temp_dir_path.clone()).iter().count() + 1)?;
 
