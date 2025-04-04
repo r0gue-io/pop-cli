@@ -71,6 +71,8 @@ pub(crate) struct BuildArgs {
 	/// Whether to build a runtime deterministically.
 	#[clap(short, long, help_heading = RUNTIME_HELP_HEADER)]
 	pub(crate) deterministic: bool,
+	#[clap(long, help_heading = RUNTIME_HELP_HEADER)]
+	pub(crate) only_runtime: bool,
 }
 
 /// Subcommand for building chain artifacts.
@@ -110,6 +112,28 @@ impl Command {
 			return Ok(Contract);
 		}
 
+		// If project is a parachain runtime, build as parachain runtime
+		#[cfg(feature = "parachain")]
+		if args.only_runtime || pop_parachains::runtime::is_supported(project_path.as_deref())? {
+			let profile = match args.profile {
+				Some(profile) => profile,
+				None => args.release.into(),
+			};
+			let temp_path = PathBuf::from("./");
+			let features = args.features.unwrap_or_default();
+			let feature_list = collect_features(&features, args.benchmark, args.try_runtime);
+
+			BuildRuntime {
+				path: project_path.unwrap_or(temp_path).to_path_buf(),
+				profile,
+				benchmark: feature_list.contains(&Benchmark.as_ref()),
+				try_runtime: feature_list.contains(&TryRuntime.as_ref()),
+				deterministic: args.deterministic,
+			}
+			.execute()?;
+			return Ok(Chain);
+		}
+
 		// If only parachain feature enabled, build as parachain
 		#[cfg(feature = "parachain")]
 		if pop_parachains::is_supported(project_path.as_deref())? {
@@ -127,28 +151,6 @@ impl Command {
 				profile,
 				benchmark: feature_list.contains(&Benchmark.as_ref()),
 				try_runtime: feature_list.contains(&TryRuntime.as_ref()),
-			}
-			.execute()?;
-			return Ok(Chain);
-		}
-
-		// If project is a parachain runtime, build as parachain runtime
-		#[cfg(feature = "parachain")]
-		if pop_parachains::runtime::is_supported(project_path.as_deref())? {
-			let profile = match args.profile {
-				Some(profile) => profile,
-				None => args.release.into(),
-			};
-			let temp_path = PathBuf::from("./");
-			let features = args.features.unwrap_or_default();
-			let feature_list = collect_features(&features, args.benchmark, args.try_runtime);
-
-			BuildRuntime {
-				path: project_path.unwrap_or(temp_path).to_path_buf(),
-				profile,
-				benchmark: feature_list.contains(&Benchmark.as_ref()),
-				try_runtime: feature_list.contains(&TryRuntime.as_ref()),
-				deterministic: args.deterministic,
 			}
 			.execute()?;
 			return Ok(Chain);
@@ -212,6 +214,7 @@ impl Display for Command {
 		match self {
 			#[cfg(feature = "parachain")]
 			Command::Spec(_) => write!(f, "spec"),
+			_ => Ok(()),
 		}
 	}
 }
@@ -308,7 +311,8 @@ mod tests {
 				benchmark,
 				try_runtime,
 				deterministic,
-				features: Some(features.join(","))
+				features: Some(features.join(",")),
+				only_runtime: false
 			},
 			&mut cli,
 		)

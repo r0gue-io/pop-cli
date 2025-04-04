@@ -1,13 +1,14 @@
 use crate::{
-	cli,
-	common::runtime::{
-		build_deterministic_runtime, build_runtime,
-		Feature::{self, Benchmark, TryRuntime},
+	cli::{self},
+	common::{
+		prompt::display_message,
+		runtime::{
+			build_runtime, ensure_runtime_binary_exists,
+			Feature::{Benchmark, TryRuntime},
+		},
 	},
-	style::style,
 };
-use cliclack::spinner;
-use pop_common::{find_workspace_toml, manifest::from_path, Profile};
+use pop_common::{find_workspace_toml, Profile};
 use std::{
 	env::current_dir,
 	path::{Path, PathBuf},
@@ -30,18 +31,27 @@ pub struct BuildRuntime {
 impl BuildRuntime {
 	/// Executes the build process.
 	pub(crate) fn execute(self) -> anyhow::Result<()> {
-		let root = current_dir().unwrap_or(PathBuf::from("./"));
-		let target_path = self.profile.target_directory(root.as_path());
-		let workspace_root = find_workspace_toml(&target_path);
-		self.build(&mut cli::Cli, &workspace_root.unwrap_or(target_path))
+		let cli = &mut cli::Cli;
+		let current_dir = current_dir().unwrap_or(PathBuf::from("./"));
+		let is_parachain = pop_parachains::is_supported(Some(&current_dir))?;
+		let is_runtime = pop_parachains::runtime::is_supported(Some(&current_dir))?;
+		// `pop build runtime` must be run inside a parachain project or a specific runtime folder.
+		if !is_parachain && !is_runtime {
+			return display_message(
+				"🚫 Can't build a runtime. Must be at the root of the chain project or a runtime.",
+				false,
+				cli,
+			)
+		}
+		self.build(cli, &current_dir, !is_runtime && is_parachain)
 	}
 
-	fn build(self, cli: &mut impl cli::traits::Cli, project_root: &Path) -> anyhow::Result<()> {
-		let spinner = spinner();
-		let manifest = from_path(Some(self.path.as_path()))?;
-		let package = manifest.package();
-		let name = package.clone().name;
-
+	fn build(
+		self,
+		cli: &mut impl cli::traits::Cli,
+		path: &Path,
+		is_parachain: bool,
+	) -> anyhow::Result<()> {
 		// Enable the features based on the user's input.
 		let mut features = vec![];
 		if self.benchmark {
@@ -52,47 +62,35 @@ impl BuildRuntime {
 		}
 
 		cli.intro(if features.is_empty() {
-			format!("Building {:?} runtime", name)
+			"Building your runtime".to_string()
 		} else {
 			let joined = features
 				.iter()
 				.map(|feat| feat.as_ref().to_string())
 				.collect::<Vec<String>>()
 				.join(",");
-			format!("Building {:?} runtime with features: {}", name, joined)
+			format!("Building your runtime with features: {}", joined)
 		})?;
-		if self.deterministic {
-			spinner.start("Building runtime deterministically...");
-			build_deterministic_runtime(cli, &spinner, name, self.profile, self.path)?;
-			spinner.stop("");
-		} else {
-			self.build_non_determinisic(cli, project_root, features)?;
-		}
-		Ok(())
-	}
 
-	fn build_non_determinisic(
-		self,
-		cli: &mut impl cli::traits::Cli,
-		project_root: &Path,
-		features: Vec<Feature>,
-	) -> anyhow::Result<()> {
+		if is_parachain {
+			ensure_runtime_binary_exists(
+				cli,
+				path,
+				&self.profile,
+				&features,
+				true,
+				self.deterministic,
+			)?;
+		}
 		if self.profile == Profile::Debug {
 			cli.warning("NOTE: this command now defaults to DEBUG builds. Please use `--release` (or simply `-r`) for a release build...")?;
 		}
-		// Build runtime.
-		let target_path = self.profile.target_directory(project_root).join("wbuild");
-		let binary = build_runtime(cli, &self.path, &target_path, &self.profile, features)?;
-		let generated_files = [format!("Binary generated at: {}", binary.display())];
-		let generated_files: Vec<_> = generated_files
-			.iter()
-			.map(|s| style(format!("{} {s}", console::Emoji("●", ">"))).dim().to_string())
-			.collect();
-		cli.success(format!("Generated files:\n{}", generated_files.join("\n")))?;
-		cli.outro(format!(
-			"Need help? Learn more at {}\n",
-			style("https://learn.onpop.io").magenta().underlined()
-		))?;
+		let workspace_root = find_workspace_toml(path);
+		let target_path = self
+			.profile
+			.target_directory(&workspace_root.unwrap_or(path.to_path_buf()))
+			.join("wbuild");
+		build_runtime(cli, &self.path, &target_path, &self.profile, &features, self.deterministic)?;
 		Ok(())
 	}
 }
@@ -100,7 +98,9 @@ impl BuildRuntime {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::common::runtime::Feature;
 	use cli::MockCli;
+	use console::style;
 	use duct::cmd;
 	use pop_common::manifest::{add_feature, add_production_profile};
 	use std::fs;
@@ -119,10 +119,10 @@ mod tests {
 		add_feature(target_dir.as_path(), ("runtime-benchmarks".to_string(), vec![]))?;
 
 		let project_path = path.join(runtime_name);
-		let features = &[Benchmark.as_ref(), TryRuntime.as_ref()];
+		let features = &[Benchmark, TryRuntime];
 		add_production_profile(&project_path)?;
 		for feature in features {
-			add_feature(&project_path, (feature.to_string(), vec![]))?;
+			add_feature(&project_path, (feature.as_ref().to_string(), vec![]))?;
 		}
 
 		for profile in Profile::VARIANTS {
@@ -135,7 +135,7 @@ mod tests {
 			test_build(&project_path, &binary_path, profile, &[])?;
 
 			// Build with one feature.
-			test_build(&project_path, &binary_path, profile, &[Benchmark.as_ref()])?;
+			test_build(&project_path, &binary_path, profile, &[Benchmark])?;
 
 			// Build with multiple features.
 			test_build(&project_path, &binary_path, profile, features)?;
@@ -144,21 +144,18 @@ mod tests {
 	}
 
 	fn test_build(
-		project_path: &PathBuf,
-		binary_path: &PathBuf,
+		project_path: &Path,
+		binary_path: &Path,
 		profile: &Profile,
-		features: &[&str],
+		features: &[Feature],
 	) -> anyhow::Result<()> {
-		let manifest = from_path(Some(project_path.as_path()))?;
-		let package = manifest.package();
-		let name = package.clone().name;
-
 		let mut cli = MockCli::new().expect_intro(if features.is_empty() {
-			format!("Building {:?} runtime", name)
+			"Building your runtime".to_string()
 		} else {
-			format!("Building {:?} runtime with features: {}", name, features.join(","))
+			let features: Vec<String> =
+				features.iter().map(|feat| feat.as_ref().to_string()).collect();
+			format!("Building your runtime with features: {}", features.join(","))
 		});
-
 		if profile == &Profile::Debug {
 			cli = cli.expect_warning("NOTE: this command now defaults to DEBUG builds. Please use `--release` (or simply `-r`) for a release build...");
 		}
@@ -169,6 +166,7 @@ mod tests {
 			.collect();
 		cli = cli
 			.expect_warning("NOTE: this may take some time...")
+			.expect_info(format!("Building your runtime in {profile} mode..."))
 			.expect_info(format!("The runtime was built in {profile} mode."))
 			.expect_success("\n✅ Runtime built successfully.\n")
 			.expect_success(format!("Generated files:\n{}", generated_files.join("\n")))
@@ -178,13 +176,13 @@ mod tests {
 			));
 
 		BuildRuntime {
-			path: project_path.clone(),
+			path: project_path.to_path_buf().clone(),
 			profile: profile.clone(),
-			benchmark: features.contains(&Benchmark.as_ref()),
-			try_runtime: features.contains(&TryRuntime.as_ref()),
+			benchmark: features.contains(&Benchmark),
+			try_runtime: features.contains(&TryRuntime),
 			deterministic: false,
 		}
-		.build(&mut cli, project_path)?;
+		.build(&mut cli, project_path, false)?;
 		cli.verify()
 	}
 }

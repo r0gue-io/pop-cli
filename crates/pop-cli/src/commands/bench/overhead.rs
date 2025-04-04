@@ -72,8 +72,9 @@ impl BenchmarkOverhead {
 					cli,
 					&current_dir().unwrap_or(PathBuf::from("./")),
 					self.profile.as_ref().ok_or_else(|| anyhow::anyhow!("No profile provided"))?,
-					vec![Feature::Benchmark],
+					&[Feature::Benchmark],
 					!self.no_build,
+					false,
 				)?);
 			}
 
