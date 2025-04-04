@@ -25,8 +25,8 @@ pub use bench::{
 };
 pub use build::{
 	binary_path, build_parachain, build_project, export_wasm_file, generate_genesis_state_file,
-	generate_plain_chain_spec, generate_raw_chain_spec, is_supported,
-	runtime::{Builder, ContainerEngine},
+	generate_plain_chain_spec, generate_raw_chain_spec, is_supported, runtime,
+	runtime::{ContainerEngine, DeterministicBuilder},
 	runtime_binary_path, ChainSpec,
 };
 pub use call::{

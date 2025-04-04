@@ -670,8 +670,9 @@ impl BenchmarkPallet {
 			cli,
 			&get_current_directory(),
 			&profile,
-			vec![Feature::Benchmark],
+			&[Feature::Benchmark],
 			!self.no_build,
+			false,
 		)?);
 		Ok(())
 	}
