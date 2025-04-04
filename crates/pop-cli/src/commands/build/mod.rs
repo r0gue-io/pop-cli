@@ -212,7 +212,6 @@ impl Display for Command {
 		match self {
 			#[cfg(feature = "parachain")]
 			Command::Spec(_) => write!(f, "spec"),
-			_ => Ok(()),
 		}
 	}
 }
@@ -320,5 +319,30 @@ mod tests {
 	#[test]
 	fn command_display_works() {
 		assert_eq!(Command::Spec(Default::default()).to_string(), "spec");
+	}
+
+	#[test]
+	fn collect_features_works() {
+		assert_eq!(
+			collect_features("runtime-benchmarks", false, false),
+			vec!["runtime-benchmarks"]
+		);
+		assert_eq!(collect_features("try-runtime", false, false), vec!["try-runtime"]);
+		assert_eq!(
+			collect_features("try-runtime", true, false),
+			vec!["try-runtime", "runtime-benchmarks"]
+		);
+		assert_eq!(
+			collect_features("runtime-benchmarks", false, true),
+			vec!["runtime-benchmarks", "try-runtime"]
+		);
+		assert_eq!(
+			collect_features("runtime-benchmarks,try-runtime", false, false),
+			vec!["runtime-benchmarks", "try-runtime"]
+		);
+		assert_eq!(
+			collect_features("runtime-benchmarks,try-runtime", true, true),
+			vec!["runtime-benchmarks", "try-runtime"]
+		);
 	}
 }
