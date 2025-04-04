@@ -8118,7 +8118,6 @@ dependencies = [
  "tokio",
  "toml 0.5.11",
  "tower-http 0.6.2",
- "tracing-subscriber",
  "url",
 ]
 
