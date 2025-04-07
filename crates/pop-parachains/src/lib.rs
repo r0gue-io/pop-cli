@@ -45,7 +45,9 @@ pub use deployer_providers::{DeploymentProvider, SupportedChains};
 pub use errors::Error;
 pub use indexmap::IndexSet;
 pub use new_pallet::{create_pallet_template, new_pallet_options::*, TemplatePalletConfig};
-pub use new_parachain::instantiate_template_dir;
+pub use new_parachain::{
+	instantiate_openzeppelin_template, instantiate_standard_template, instantiate_template_dir,
+};
 pub use relay::{clear_dmpq, RelayChain, Reserved};
 pub use try_runtime::{
 	binary::*, parse, parse_try_state_string, run_try_runtime, shared_parameters::*, state,

@@ -19,6 +19,7 @@ pub mod runtime;
 #[cfg(feature = "parachain")]
 pub mod try_runtime;
 pub mod wallet;
+pub(crate) mod writer;
 
 use std::fmt::{Display, Formatter, Result};
 use strum::VariantArray;

@@ -16,10 +16,14 @@ path = "src/main.rs"
 anyhow.workspace = true
 duct.workspace = true
 env_logger.workspace = true
+fs_rollback.workspace = true
 os_info.workspace = true
+proc-macro2.workspace = true
 reqwest.workspace = true
+rust_writer.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
+syn = { workspace = true, features = ["parsing"]}
 tempfile.workspace = true
 tokio.workspace = true
 toml.workspace = true
@@ -67,6 +71,7 @@ mockito.workspace = true
 subxt.workspace = true
 subxt-signer.workspace = true
 sp-weights.workspace = true
+similar = "2.7.0"
 
 [features]
 default = ["contract", "parachain", "telemetry"]

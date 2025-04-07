@@ -3546,6 +3546,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "fs_rollback"
+version = "3.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5d4f2ac32da3859259a7f1b24c86b1a40ca6671af078df6df254f25e9438b7e9"
+dependencies = [
+ "rustilities",
+ "same-file",
+ "tempfile",
+ "thiserror 2.0.11",
+]
+
+[[package]]
 name = "funty"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8097,6 +8109,7 @@ dependencies = [
  "env_logger 0.11.7",
  "frame-benchmarking-cli",
  "frame-try-runtime",
+ "fs_rollback",
  "git2",
  "mockito",
  "open",
@@ -8105,15 +8118,19 @@ dependencies = [
  "pop-contracts",
  "pop-parachains",
  "pop-telemetry",
+ "proc-macro2",
  "reqwest",
+ "rust_writer",
  "serde",
  "serde_json",
+ "similar",
  "sp-core 32.0.0",
  "sp-weights",
  "strum 0.26.3",
  "strum_macros 0.26.4",
  "subxt 0.38.0",
  "subxt-signer 0.38.0",
+ "syn 2.0.100",
  "tempfile",
  "tokio",
  "toml 0.5.11",
@@ -8312,9 +8329,9 @@ dependencies = [
 
 [[package]]
 name = "prettyplease"
-version = "0.2.25"
+version = "0.2.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "64d1ec885c64d0457d564db4ec299b2dae3f9c02808b8ad9c3a089c591b18033"
+checksum = "664ec5419c51e34154eec046ebcba56312d5a2fc3b09a06da188e1ad21afadf6"
 dependencies = [
  "proc-macro2",
  "syn 2.0.100",
@@ -8687,9 +8704,9 @@ dependencies = [
 
 [[package]]
 name = "quote"
-version = "1.0.39"
+version = "1.0.40"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c1f1914ce909e1658d9907913b4b91947430c7d9be598b15a1912935b8c04801"
+checksum = "1885c039570dc00dcb4ff087a89e185fd56bae234ddc7f056a945bf36467248d"
 dependencies = [
  "proc-macro2",
 ]
@@ -9178,6 +9195,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "rust_writer"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "baf4bb56f2de882403080044bd15dbafbdceb5437580638da25d257de8fbd86e"
+dependencies = [
+ "prettyplease",
+ "proc-macro2",
+ "regex",
+ "rust_writer_proc",
+ "rustilities",
+ "syn 2.0.100",
+ "thiserror 2.0.11",
+]
+
+[[package]]
+name = "rust_writer_proc"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "54abd3b6b8f7e68143a45c862405827fc453433e46c5d892d59421607bea8074"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "rustilities",
+ "syn 2.0.100",
+]
+
+[[package]]
 name = "rustc-demangle"
 version = "0.1.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9217,6 +9261,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "faf0c4a6ece9950b9abdb62b1cfcf2a68b3b67a10ba445b3bb85be2a293d0632"
 dependencies = [
  "nom",
+]
+
+[[package]]
+name = "rustilities"
+version = "2.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0d049a83871f271465eba32e54bc8b9342795ac9675015dd9891938e6fec7f75"
+dependencies = [
+ "proc-macro2",
+ "syn 2.0.100",
+ "thiserror 2.0.11",
 ]
 
 [[package]]
@@ -11187,9 +11242,9 @@ checksum = "e3a9fe34e3e7a50316060351f37187a3f546bce95496156754b601a5fa71b76e"
 
 [[package]]
 name = "similar"
-version = "2.6.0"
+version = "2.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1de1d4f81173b03af4c0cbed3c898f6bff5b870e4a7f5d6f4057d62a7a4b686e"
+checksum = "bbbb5d9659141646ae647b42fe094daf6c6192d1620870b449d9557f748b2daa"
 
 [[package]]
 name = "simple-dns"
@@ -13429,14 +13484,14 @@ checksum = "61c41af27dd6d1e27b1b16b489db798443478cef1f06a660c96db617ba5de3b1"
 
 [[package]]
 name = "tempfile"
-version = "3.14.0"
+version = "3.19.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "28cce251fcbc87fac86a866eeb0d6c2d536fc16d06f184bb61aeae11aa4cee0c"
+checksum = "7437ac7763b9b123ccf33c338a5cc1bac6f69b45a136c19bdd8a65e3916435bf"
 dependencies = [
- "cfg-if",
  "fastrand",
+ "getrandom 0.3.2",
  "once_cell",
- "rustix 0.38.42",
+ "rustix 1.0.3",
  "windows-sys 0.59.0",
 ]
 
