@@ -8,6 +8,7 @@ use overhead::BenchmarkOverhead;
 use pallet::BenchmarkPallet;
 use std::fmt::{Display, Formatter, Result};
 use storage::BenchmarkStorage;
+use tracing_subscriber::EnvFilter;
 
 mod block;
 mod machine;
@@ -45,6 +46,23 @@ pub enum Command {
 impl Command {
 	/// Executes the command.
 	pub(crate) async fn execute(args: BenchmarkArgs) -> anyhow::Result<()> {
+		// Disable these log targets because they are spammy.
+		let unwanted_targets = [
+			"cranelift_codegen",
+			"wasm_cranelift",
+			"wasmtime_jit",
+			"wasmtime_cranelift",
+			"wasm_jit",
+		];
+
+		let env_filter = unwanted_targets.iter().fold(
+			EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
+			|filter, &target| filter.add_directive(format!("{target}=off").parse().unwrap()),
+		);
+		tracing_subscriber::fmt()
+			.with_env_filter(env_filter)
+			.with_writer(std::io::stderr)
+			.init();
 		let mut cli = cli::Cli;
 		match args.command {
 			Command::Block(mut cmd) => cmd.execute(&mut cli),

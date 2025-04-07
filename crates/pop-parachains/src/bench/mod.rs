@@ -134,8 +134,9 @@ pub fn get_runtime_path(parent: &Path) -> Result<PathBuf, Error> {
 /// # Arguments
 /// * `args` - Arguments to pass to the benchmarking command.
 pub fn generate_pallet_benchmarks(args: Vec<String>) -> Result<(), Error> {
-	let cmd = PalletCmd::try_parse_from([vec!["".to_string()], args].concat())
+	let cmd = PalletCmd::try_parse_from(std::iter::once("".to_string()).chain(args.into_iter()))
 		.map_err(|e| Error::ParamParsingError(e.to_string()))?;
+
 	cmd.run_with_spec::<BlakeTwo256, HostFunctions>(None)
 		.map_err(|e| Error::BenchmarkingError(e.to_string()))
 }
