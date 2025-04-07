@@ -569,14 +569,14 @@ impl BuildSpec {
 			spinner.start("Generating chain specification...");
 			// Generate chain spec.
 			generate_plain_chain_spec(&binary_path, output_file, default_bootnode, chain)?;
-			spinner.stop("");
 			// Customize spec based on input.
 			self.customize()?;
 			// Deterministic build.
 			if self.deterministic {
 				let (runtime_path, code) = build_deterministic_runtime(
 					cli,
-					self.package.clone(),
+					&spinner,
+					&self.package,
 					self.profile.clone(),
 					self.runtime_dir.clone(),
 				)

@@ -49,7 +49,7 @@ impl DeterministicBuilder {
 	pub fn new(
 		engine: ContainerEngine,
 		path: Option<PathBuf>,
-		package: String,
+		package: &String,
 		profile: Profile,
 		runtime_dir: PathBuf,
 	) -> Result<Self, Error> {
@@ -69,7 +69,7 @@ impl DeterministicBuilder {
 			digest,
 			engine,
 			image: DEFAULT_IMAGE.to_string(),
-			package,
+			package: package.clone(),
 			path: dir,
 			profile,
 			runtime_dir,
@@ -153,7 +153,7 @@ mod tests {
 		let srtool_builer = DeterministicBuilder::new(
 			ContainerEngine::Docker,
 			None,
-			"parachain-template-runtime".to_string(),
+			&"parachain-template-runtime".to_string(),
 			Profile::Release,
 			PathBuf::from("./runtime"),
 		)?;
@@ -188,7 +188,7 @@ mod tests {
 			DeterministicBuilder::new(
 				ContainerEngine::Podman,
 				Some(path.to_path_buf()),
-				"parachain-template-runtime".to_string(),
+				&"parachain-template-runtime".to_string(),
 				Profile::Production,
 				PathBuf::from("./runtime"),
 			)?
@@ -218,7 +218,7 @@ mod tests {
 		let srtool_builder = DeterministicBuilder::new(
 			ContainerEngine::Podman,
 			None,
-			"template-runtime".to_string(),
+			&"template-runtime".to_string(),
 			Profile::Debug,
 			PathBuf::from("./runtime-folder"),
 		)?;

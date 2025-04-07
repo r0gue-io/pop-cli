@@ -71,6 +71,7 @@ pub(crate) struct BuildArgs {
 	/// Whether to build a runtime deterministically.
 	#[clap(short, long, help_heading = RUNTIME_HELP_HEADER)]
 	pub(crate) deterministic: bool,
+	/// Whether to build only the runtime.
 	#[clap(long, help_heading = RUNTIME_HELP_HEADER)]
 	pub(crate) only_runtime: bool,
 }
@@ -134,7 +135,7 @@ impl Command {
 			return Ok(Chain);
 		}
 
-		// If only parachain feature enabled, build as parachain
+		// If project is a parachain runtime, build as parachain runtime
 		#[cfg(feature = "parachain")]
 		if pop_parachains::is_supported(project_path.as_deref())? {
 			let profile = match args.profile {

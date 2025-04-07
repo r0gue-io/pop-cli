@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::cli::traits::*;
-use cliclack::spinner;
+use cliclack::{spinner, ProgressBar};
 use console::style;
 use pop_common::{manifest::from_path, Profile};
 #[cfg(feature = "parachain")]
@@ -85,10 +85,13 @@ pub(crate) fn build_runtime(
 ) -> anyhow::Result<PathBuf> {
 	cli.warning("NOTE: this may take some time...")?;
 	let binary_path = if deterministic {
+		let spinner = spinner();
 		let manifest = from_path(Some(runtime_path))?;
 		let package = manifest.package();
 		let name = package.clone().name;
-		build_deterministic_runtime(cli, name, mode.clone(), runtime_path.to_path_buf())?.0
+		spinner.start("Building deterministic runtime...");
+		build_deterministic_runtime(cli, &spinner, &name, mode.clone(), runtime_path.to_path_buf())?
+			.0
 	} else {
 		cli.info(format!("Building your runtime in {mode} mode..."))?;
 		let features = features.iter().map(|f| f.as_ref()).collect();
@@ -127,12 +130,11 @@ fn print_build_output(cli: &mut impl Cli, binary_path: &Path) -> anyhow::Result<
 #[cfg(feature = "parachain")]
 pub(crate) fn build_deterministic_runtime(
 	cli: &mut impl Cli,
-	package: String,
+	spinner: &ProgressBar,
+	package: &String,
 	profile: Profile,
 	runtime_dir: PathBuf,
 ) -> anyhow::Result<(PathBuf, Vec<u8>)> {
-	let spinner = spinner();
-	spinner.start("Building deterministic runtime...");
 	let runtime_path = {
 		let engine = ContainerEngine::detect().map_err(|_| anyhow::anyhow!("No container engine detected. A supported containerization solution (Docker or Podman) is required."))?;
 		// Warning from srtool-cli: https://github.com/chevdor/srtool-cli/blob/master/cli/src/main.rs#L28).
