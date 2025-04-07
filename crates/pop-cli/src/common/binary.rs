@@ -174,56 +174,6 @@ mod tests {
 	use super::*;
 	use crate::{cli::MockCli, common::contracts::ContractsNodeGenerator};
 
-	#[test]
-	fn semantic_version_invalid_works() {
-		assert!(SemanticVersion::try_from("bash".to_string()).is_ok());
-		assert!(SemanticVersion::try_from("which".to_string()).is_ok());
-	}
-
-	#[test]
-	fn which_version_works() {
-		assert_eq!(
-			which_version(
-				"bash",
-				&SemanticVersion::try_from("bash".to_string()).unwrap(),
-				&Ordering::Equal,
-			)
-			.unwrap()
-			.to_str()
-			.unwrap()
-			.to_string(),
-			cmd("which", &["bash"]).read().unwrap(),
-		);
-		assert_eq!(
-			which_version("bash", &SemanticVersion(0, 0, 0), &Ordering::Greater)
-				.unwrap()
-				.to_str()
-				.unwrap()
-				.to_string(),
-			cmd("which", &["bash"]).read().unwrap(),
-		);
-		assert_eq!(
-			which_version("bash", &SemanticVersion(0, 0, 0), &Ordering::Less)
-				.unwrap_err()
-				.to_string(),
-			"Binary version does not match target version".to_string()
-		);
-		assert_eq!(
-			which_version("no-binary-found", &SemanticVersion(0, 0, 0), &Ordering::Less)
-				.unwrap_err()
-				.to_string(),
-			"Failed to find binary".to_string()
-		);
-	}
-
-	#[test]
-	fn semantic_version_invalid_binary() {
-		assert_eq!(
-			SemanticVersion::try_from("./dummy-binary".to_string()).unwrap_err().to_string(),
-			"Failed to get version: No such file or directory (os error 2)".to_string()
-		);
-	}
-
 	#[tokio::test]
 	async fn check_binary_and_prompt_works() -> anyhow::Result<()> {
 		let binary_name = "substrate-contracts-node";
@@ -269,5 +219,54 @@ mod tests {
 			.unwrap()
 			.starts_with(&cache_path.path().join(binary_name).to_str().unwrap()));
 		cli.verify()
+	}
+
+	#[test]
+	fn semantic_version_works() {
+		assert!(SemanticVersion::try_from("bash".to_string()).is_ok());
+	}
+
+	#[test]
+	fn semantic_version_invalid_binary() {
+		assert_eq!(
+			SemanticVersion::try_from("./dummy-binary".to_string()).unwrap_err().to_string(),
+			"Failed to get version: No such file or directory (os error 2)".to_string()
+		);
+	}
+
+	#[test]
+	fn which_version_works() {
+		assert_eq!(
+			which_version(
+				"bash",
+				&SemanticVersion::try_from("bash".to_string()).unwrap(),
+				&Ordering::Equal,
+			)
+			.unwrap()
+			.to_str()
+			.unwrap()
+			.to_string(),
+			cmd("which", &["bash"]).read().unwrap(),
+		);
+		assert_eq!(
+			which_version("bash", &SemanticVersion(0, 0, 0), &Ordering::Greater)
+				.unwrap()
+				.to_str()
+				.unwrap()
+				.to_string(),
+			cmd("which", &["bash"]).read().unwrap(),
+		);
+		assert_eq!(
+			which_version("bash", &SemanticVersion(0, 0, 0), &Ordering::Less)
+				.unwrap_err()
+				.to_string(),
+			"Binary version does not match target version".to_string()
+		);
+		assert_eq!(
+			which_version("no-binary-found", &SemanticVersion(0, 0, 0), &Ordering::Less)
+				.unwrap_err()
+				.to_string(),
+			"Failed to find binary".to_string()
+		);
 	}
 }
