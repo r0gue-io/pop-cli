@@ -2,8 +2,12 @@
 
 use crate::cli::traits::*;
 use cliclack::spinner;
+use duct::cmd;
 use pop_common::sourcing::{set_executable_permission, Binary};
-use std::path::{Path, PathBuf};
+use std::{
+	cmp::Ordering,
+	path::{Path, PathBuf},
+};
 
 /// A trait for binary generator.
 pub(crate) trait BinaryGenerator {
@@ -111,10 +115,114 @@ macro_rules! impl_binary_generator {
 	};
 }
 
+/// Represents a semantic version (major.minor.patch).
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct SemanticVersion(pub u8, pub u8, pub u8);
+
+impl TryFrom<String> for SemanticVersion {
+	type Error = anyhow::Error;
+	fn try_from(binary: String) -> Result<Self, Self::Error> {
+		match cmd(binary, vec!["--version"])
+			.pipe(cmd("grep", vec!["-oE", r"[0-9]+\.[0-9]+\.[0-9]+"]))
+			.read()
+		{
+			Ok(version) => {
+				let version = version.trim();
+				let parts: Vec<&str> = version.split('.').collect();
+				if parts.len() == 3 {
+					let major = parts[0].parse::<u8>()?;
+					let minor = parts[1].parse::<u8>()?;
+					let patch = parts[2].parse::<u8>()?;
+					Ok(SemanticVersion(major, minor, patch))
+				} else {
+					Err(anyhow::anyhow!("Invalid version format"))
+				}
+			},
+			Err(e) => Err(anyhow::anyhow!("Failed to get version: {}", e)),
+		}
+	}
+}
+
+/// Finds the path to a binary matches a specific version.
+///
+/// # Arguments
+///
+/// * `binary` - The name of the binary to find.
+/// * `target_version` - The version to match.
+/// * `order` - The ordering to use when matching versions.
+pub(crate) fn which_version(
+	binary: &str,
+	target_version: &SemanticVersion,
+	order: &Ordering,
+) -> anyhow::Result<PathBuf> {
+	match cmd("which", &[binary]).read() {
+		Ok(path) => {
+			let path = path.trim();
+			let version = SemanticVersion::try_from(path.to_string().clone())?;
+			if version.cmp(target_version) == *order {
+				Ok(PathBuf::from(path))
+			} else {
+				Err(anyhow::anyhow!("Binary version does not match target version"))
+			}
+		},
+		Err(_) => return Err(anyhow::anyhow!("Failed to find binary")),
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
 	use crate::{cli::MockCli, common::contracts::ContractsNodeGenerator};
+
+	#[test]
+	fn semantic_version_invalid_works() {
+		assert!(SemanticVersion::try_from("bash".to_string()).is_ok());
+		assert!(SemanticVersion::try_from("which".to_string()).is_ok());
+	}
+
+	#[test]
+	fn which_version_works() {
+		assert_eq!(
+			which_version(
+				"bash",
+				&SemanticVersion::try_from("bash".to_string()).unwrap(),
+				&Ordering::Equal,
+			)
+			.unwrap()
+			.to_str()
+			.unwrap()
+			.to_string(),
+			cmd("which", &["bash"]).read().unwrap(),
+		);
+		assert_eq!(
+			which_version("bash", &SemanticVersion(0, 0, 0), &Ordering::Greater)
+				.unwrap()
+				.to_str()
+				.unwrap()
+				.to_string(),
+			cmd("which", &["bash"]).read().unwrap(),
+		);
+		assert_eq!(
+			which_version("bash", &SemanticVersion(0, 0, 0), &Ordering::Less)
+				.unwrap_err()
+				.to_string(),
+			"Binary version does not match target version".to_string()
+		);
+		assert_eq!(
+			which_version("no-binary-found", &SemanticVersion(0, 0, 0), &Ordering::Less)
+				.unwrap_err()
+				.to_string(),
+			"Failed to find binary".to_string()
+		);
+	}
+
+	#[test]
+	fn semantic_version_invalid_binary() {
+		assert_eq!(
+			SemanticVersion::try_from("./dummy-binary".to_string()).unwrap_err().to_string(),
+			"Failed to get version: No such file or directory (os error 2)".to_string()
+		);
+	}
 
 	#[tokio::test]
 	async fn check_binary_and_prompt_works() -> anyhow::Result<()> {
