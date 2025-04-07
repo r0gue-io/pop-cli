@@ -74,8 +74,6 @@ fn cache() -> Result<PathBuf> {
 /// Initializes telemetry.
 #[cfg(feature = "telemetry")]
 fn init() -> Result<Option<Telemetry>> {
-	env_logger::init();
-
 	let maybe_config_path = config_file_path();
 
 	let maybe_tel = maybe_config_path.ok().map(|path| Telemetry::new(&path));

@@ -72,91 +72,116 @@ impl Command {
 	pub(crate) async fn execute(self) -> anyhow::Result<Value> {
 		match self {
 			#[cfg(any(feature = "parachain", feature = "contract"))]
-			Self::Install(args) => install::Command.execute(args).await.map(|_| Value::Null),
+			Self::Install(args) => {
+				env_logger::init();
+				install::Command.execute(args).await.map(|_| Value::Null)
+			},
 			#[cfg(any(feature = "parachain", feature = "contract"))]
-			Self::New(args) => match args.command {
-				#[cfg(feature = "parachain")]
-				new::Command::Parachain(cmd) => match cmd.execute().await {
-					Ok(template) => {
-						// telemetry should never cause a panic or early exit
-						Ok(
-							json!({template.template_type().unwrap_or("provider-missing"): template.name()}),
-						)
+			Self::New(args) => {
+				env_logger::init();
+				match args.command {
+					#[cfg(feature = "parachain")]
+					new::Command::Parachain(cmd) => match cmd.execute().await {
+						Ok(template) => {
+							// telemetry should never cause a panic or early exit
+							Ok(
+								json!({template.template_type().unwrap_or("provider-missing"): template.name()}),
+							)
+						},
+						Err(e) => Err(e),
 					},
-					Err(e) => Err(e),
-				},
-				#[cfg(feature = "parachain")]
-				new::Command::Pallet(cmd) => {
-					// When more contract selections are added the tel data will likely need to go
-					// deeper in the stack
-					cmd.execute().await.map(|_| json!("template"))
-				},
-				#[cfg(feature = "contract")]
-				new::Command::Contract(cmd) => {
-					// When more contract selections are added, the tel data will likely need to go
-					// deeper in the stack
-					cmd.execute().await.map(|_| json!("default"))
-				},
+					#[cfg(feature = "parachain")]
+					new::Command::Pallet(cmd) => {
+						// When more contract selections are added the tel data will likely need to
+						// go deeper in the stack
+						cmd.execute().await.map(|_| json!("template"))
+					},
+					#[cfg(feature = "contract")]
+					new::Command::Contract(cmd) => {
+						// When more contract selections are added, the tel data will likely need to
+						// go deeper in the stack
+						cmd.execute().await.map(|_| json!("default"))
+					},
+				}
 			},
 			#[cfg(feature = "parachain")]
 			Self::Bench(args) => bench::Command::execute(args).await.map(|_| Value::Null),
 			#[cfg(any(feature = "parachain", feature = "contract"))]
-			Self::Build(args) => match args.command {
-				None => build::Command::execute(args).map(|t| json!(t)),
-				Some(cmd) => match cmd {
-					#[cfg(feature = "parachain")]
-					build::Command::Spec(cmd) => cmd.execute().await.map(|_| Value::Null),
-				},
+			Self::Build(args) => {
+				env_logger::init();
+				match args.command {
+					None => build::Command::execute(args).map(|t| json!(t)),
+					Some(cmd) => match cmd {
+						#[cfg(feature = "parachain")]
+						build::Command::Spec(cmd) => cmd.execute().await.map(|_| Value::Null),
+					},
+				}
 			},
 			#[cfg(any(feature = "parachain", feature = "contract"))]
-			Self::Call(args) => match args.command {
-				#[cfg(feature = "parachain")]
-				call::Command::Chain(cmd) => cmd.execute().await.map(|_| Value::Null),
-				#[cfg(feature = "contract")]
-				call::Command::Contract(cmd) => cmd.execute().await.map(|_| Value::Null),
+			Self::Call(args) => {
+				env_logger::init();
+				match args.command {
+					#[cfg(feature = "parachain")]
+					call::Command::Chain(cmd) => cmd.execute().await.map(|_| Value::Null),
+					#[cfg(feature = "contract")]
+					call::Command::Contract(cmd) => cmd.execute().await.map(|_| Value::Null),
+				}
 			},
 			#[cfg(any(feature = "parachain", feature = "contract"))]
-			Self::Up(args) => match args.command {
-				None => up::Command::execute(args).await.map(|t| json!(t)),
-				Some(cmd) => match cmd {
-					#[cfg(feature = "parachain")]
-					up::Command::Network(mut cmd) => {
-						cmd.valid = true;
-						cmd.execute().await.map(|_| Value::Null)
+			Self::Up(args) => {
+				env_logger::init();
+				match args.command {
+					None => up::Command::execute(args).await.map(|t| json!(t)),
+					Some(cmd) => match cmd {
+						#[cfg(feature = "parachain")]
+						up::Command::Network(mut cmd) => {
+							cmd.valid = true;
+							cmd.execute().await.map(|_| Value::Null)
+						},
+						// TODO: Deprecated, will be removed in v0.8.0.
+						#[cfg(feature = "parachain")]
+						up::Command::Parachain(cmd) => cmd.execute().await.map(|_| Value::Null),
+						// TODO: Deprecated, will be removed in v0.8.0.
+						#[cfg(feature = "contract")]
+						up::Command::Contract(mut cmd) => {
+							cmd.path = get_project_path(args.path, args.path_pos);
+							cmd.execute().await.map(|_| Value::Null)
+						},
 					},
-					// TODO: Deprecated, will be removed in v0.8.0.
-					#[cfg(feature = "parachain")]
-					up::Command::Parachain(cmd) => cmd.execute().await.map(|_| Value::Null),
-					// TODO: Deprecated, will be removed in v0.8.0.
-					#[cfg(feature = "contract")]
-					up::Command::Contract(mut cmd) => {
-						cmd.path = get_project_path(args.path, args.path_pos);
-						cmd.execute().await.map(|_| Value::Null)
+				}
+			},
+			Self::Test(args) => {
+				env_logger::init();
+				match args.command {
+					None => test::Command::execute(args).await.map(|t| json!(t)),
+					Some(cmd) => match cmd {
+						#[cfg(feature = "contract")]
+						test::Command::Contract(cmd) => cmd.execute(&mut Cli).await.map(|t| json!(t)),
+						#[cfg(feature = "parachain")]
+						test::Command::OnRuntimeUpgrade(cmd) => cmd.execute(&mut Cli).await.map(|t| json!(t)),
+						#[cfg(feature = "parachain")]
+						test::Command::ExecuteBlock(cmd) => cmd.execute(&mut Cli).await.map(|t| json!(t)),
+						#[cfg(feature = "parachain")]
+						test::Command::CreateSnapshot(cmd) => cmd.execute(&mut Cli).await.map(|t| json!(t)),
+						#[cfg(feature = "parachain")]
+						test::Command::FastForward(cmd) => cmd.execute(&mut Cli).await.map(|t| json!(t)),
 					},
-				},
+				}
 			},
-			Self::Test(args) => match args.command {
-				None => test::Command::execute(args).await.map(|t| json!(t)),
-				Some(cmd) => match cmd {
-					#[cfg(feature = "contract")]
-					test::Command::Contract(cmd) => cmd.execute(&mut Cli).await.map(|t| json!(t)),
-					#[cfg(feature = "parachain")]
-					test::Command::OnRuntimeUpgrade(cmd) => cmd.execute(&mut Cli).await.map(|t| json!(t)),
-					#[cfg(feature = "parachain")]
-					test::Command::ExecuteBlock(cmd) => cmd.execute(&mut Cli).await.map(|t| json!(t)),
-					#[cfg(feature = "parachain")]
-					test::Command::CreateSnapshot(cmd) => cmd.execute(&mut Cli).await.map(|t| json!(t)),
-					#[cfg(feature = "parachain")]
-					test::Command::FastForward(cmd) => cmd.execute(&mut Cli).await.map(|t| json!(t)),
-				},
-			},
-			Self::Clean(args) => match args.command {
-				clean::Command::Cache(cmd_args) => {
-					// Initialize command and execute
-					clean::CleanCacheCommand { cli: &mut Cli, cache: cache()?, all: cmd_args.all }
+			Self::Clean(args) => {
+				env_logger::init();
+				match args.command {
+					clean::Command::Cache(cmd_args) => {
+						// Initialize command and execute
+						clean::CleanCacheCommand {
+							cli: &mut Cli,
+							cache: cache()?,
+							all: cmd_args.all,
+						}
 						.execute()
 						.map(|_| Value::Null)
-				},
+					},
+				}
 			},
 		}
 	}

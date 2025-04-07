@@ -43,7 +43,6 @@ sc-chain-spec.workspace = true
 serde.workspace = true
 sp-runtime.workspace = true
 sp-statement-store.workspace = true
-tracing-subscriber.workspace = true
 
 # Try Runtime
 frame-try-runtime = { workspace = true, features = ["try-runtime"] }

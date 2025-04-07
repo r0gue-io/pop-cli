@@ -8118,6 +8118,8 @@ dependencies = [
  "tokio",
  "toml 0.5.11",
  "tower-http 0.6.2",
+ "tracing",
+ "tracing-subscriber",
  "url",
 ]
 
@@ -8217,7 +8219,6 @@ dependencies = [
  "tokio",
  "tokio-test",
  "toml_edit",
- "tracing-subscriber",
  "url",
  "walkdir",
  "zombienet-sdk",
