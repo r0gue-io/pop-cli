@@ -5,15 +5,19 @@ use crate::{
 	common::binary::{check_and_prompt, BinaryGenerator},
 	impl_binary_generator,
 };
-use duct::cmd;
 use pop_common::sourcing::Binary;
 use pop_parachains::omni_bencher_generator;
 use std::{
-	self, fs,
+	self,
+	cmp::Ordering,
+	fs,
 	path::{Path, PathBuf},
 };
 
+use super::binary::{which_version, SemanticVersion};
+
 pub(crate) const EXECUTED_COMMAND_COMMENT: &str = "// Executed Command:";
+const TARGET_BINARY_VERSION: SemanticVersion = SemanticVersion(0, 1, 0);
 const BINARY_NAME: &str = "frame-omni-bencher";
 
 impl_binary_generator!(OmniBencherGenerator, omni_bencher_generator);
@@ -29,12 +33,10 @@ pub async fn check_omni_bencher_and_prompt(
 	cli: &mut impl Cli,
 	skip_confirm: bool,
 ) -> anyhow::Result<PathBuf> {
-	Ok(match cmd("which", &[BINARY_NAME]).stdout_capture().run() {
-		Ok(output) => {
-			let path = String::from_utf8(output.stdout)?;
-			PathBuf::from(path.trim())
-		},
-		Err(_) => source_omni_bencher_binary(cli, &crate::cache()?, skip_confirm).await?,
+	Ok(if let Ok(path) = which_version(BINARY_NAME, &TARGET_BINARY_VERSION, &Ordering::Greater) {
+		path
+	} else {
+		source_omni_bencher_binary(cli, &crate::cache()?, skip_confirm).await?
 	})
 }
 
@@ -130,7 +132,7 @@ pub(crate) fn overwrite_weight_file_command(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::cli::MockCli;
+	use crate::{cli::MockCli, common::binary::SemanticVersion};
 	use fs::File;
 	use tempfile::tempdir;
 
@@ -231,6 +233,17 @@ mod tests {
     			expected
     		);
 		}
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn omni_bencher_version_works() -> anyhow::Result<()> {
+		let cache_path = tempdir().expect("Could create temp dir");
+		let path = source_omni_bencher_binary(&mut MockCli::new(), cache_path.path(), true).await?;
+		assert_eq!(
+			SemanticVersion::try_from(path.to_str().unwrap().to_string())?,
+			SemanticVersion(0, 1, 0)
+		);
 		Ok(())
 	}
 }
