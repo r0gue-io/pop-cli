@@ -216,7 +216,7 @@ mod tests {
 	}
 
 	#[test]
-	fn from_path_works() -> anyhow::Result<(), anyhow::Error> {
+	fn from_path_works() -> anyhow::Result<()> {
 		// Workspace manifest from directory
 		from_path(Some(Path::new("../../")))?;
 		// Workspace manifest from path

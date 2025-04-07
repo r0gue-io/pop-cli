@@ -218,8 +218,9 @@ pub(crate) fn update_runtime_source(
 			cli,
 			&current_dir().unwrap_or(PathBuf::from("./")),
 			profile.as_ref().ok_or_else(|| anyhow::anyhow!("No profile provided"))?,
-			vec![Feature::TryRuntime],
+			&[Feature::TryRuntime],
 			!no_build,
+			false,
 		)?);
 	}
 	Ok(())
