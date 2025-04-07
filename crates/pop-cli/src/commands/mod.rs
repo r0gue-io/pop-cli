@@ -12,6 +12,8 @@ use crate::{
 };
 use clap::Subcommand;
 use std::fmt::{Display, Formatter, Result};
+
+pub(crate) mod add;
 #[cfg(feature = "parachain")]
 pub(crate) mod bench;
 pub(crate) mod build;
@@ -52,6 +54,9 @@ pub(crate) enum Command {
 	/// Remove generated/cached artifacts.
 	#[clap(alias = "C")]
 	Clean(clean::CleanArgs),
+	/// Add a new feature to your existing polkadot-sdk project
+	#[clap(name = "add", alias = "a")]
+	Add(add::AddArgs),
 }
 
 /// Help message for the build command.
@@ -180,6 +185,9 @@ impl Command {
 					},
 				}
 			},
+			Self::Add(args) => match args.command {
+				add::Command::Pallet(cmd) => cmd.execute().await.map(|_| Null),
+			},
 		}
 	}
 }
@@ -211,6 +219,7 @@ impl Display for Command {
 			Self::Clean(_) => write!(f, "clean"),
 			#[cfg(feature = "parachain")]
 			Self::Bench(args) => write!(f, "bench {}", args.command),
+      Self::Add(args) => write!(f, "new {}", args.command)
 		}
 	}
 }
