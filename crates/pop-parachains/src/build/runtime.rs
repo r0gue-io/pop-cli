@@ -49,7 +49,7 @@ impl DeterministicBuilder {
 	pub fn new(
 		engine: ContainerEngine,
 		path: Option<PathBuf>,
-		package: &String,
+		package: &str,
 		profile: Profile,
 		runtime_dir: PathBuf,
 	) -> Result<Self, Error> {
@@ -69,7 +69,7 @@ impl DeterministicBuilder {
 			digest,
 			engine,
 			image: DEFAULT_IMAGE.to_string(),
-			package: package.clone(),
+			package: package.to_owned(),
 			path: dir,
 			profile,
 			runtime_dir,

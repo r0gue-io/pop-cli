@@ -131,7 +131,7 @@ fn print_build_output(cli: &mut impl Cli, binary_path: &Path) -> anyhow::Result<
 pub(crate) fn build_deterministic_runtime(
 	cli: &mut impl Cli,
 	spinner: &ProgressBar,
-	package: &String,
+	package: &str,
 	profile: Profile,
 	runtime_dir: PathBuf,
 ) -> anyhow::Result<(PathBuf, Vec<u8>)> {
