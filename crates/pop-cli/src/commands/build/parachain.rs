@@ -161,7 +161,7 @@ mod tests {
 				package: package.clone(),
 				profile: profile.clone(),
 				benchmark: features.contains(&Benchmark.as_ref()),
-				try_runtime: features.contains(&TryRuntime.as_ref())
+				try_runtime: features.contains(&TryRuntime.as_ref()),
 			}
 			.build(&mut cli)?,
 			project
