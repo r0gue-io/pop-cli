@@ -2,16 +2,19 @@
 
 use crate::Error;
 use duct::cmd;
-use pop_common::Profile;
+use pop_common::{manifest::from_path, Profile};
 pub use srtool_lib::{get_image_digest, get_image_tag, ContainerEngine};
-use std::{env, fs, path::PathBuf};
+use std::{
+	env, fs,
+	path::{Path, PathBuf},
+};
 
 const DEFAULT_IMAGE: &str = "docker.io/paritytech/srtool";
 const TIMEOUT: u64 = 60 * 60;
 
 /// Builds and executes the command for running a deterministic runtime build process using
 /// srtool.
-pub struct Builder {
+pub struct DeterministicBuilder {
 	/// Mount point for cargo cache.
 	cache_mount: String,
 	/// List of default features to enable during the build process.
@@ -34,7 +37,7 @@ pub struct Builder {
 	tag: String,
 }
 
-impl Builder {
+impl DeterministicBuilder {
 	/// Creates a new instance of `Builder`.
 	///
 	/// # Arguments
@@ -46,7 +49,7 @@ impl Builder {
 	pub fn new(
 		engine: ContainerEngine,
 		path: Option<PathBuf>,
-		package: String,
+		package: &str,
 		profile: Profile,
 		runtime_dir: PathBuf,
 	) -> Result<Self, Error> {
@@ -66,7 +69,7 @@ impl Builder {
 			digest,
 			engine,
 			image: DEFAULT_IMAGE.to_string(),
-			package,
+			package: package.to_owned(),
 			path: dir,
 			profile,
 			runtime_dir,
@@ -119,17 +122,38 @@ impl Builder {
 	}
 }
 
+/// Determines whether the manifest at the supplied path is a supported Substrate runtime project.
+///
+/// # Arguments
+/// * `path` - The optional path to the manifest, defaulting to the current directory if not
+///   specified.
+pub fn is_supported(path: Option<&Path>) -> Result<bool, Error> {
+	let manifest = from_path(path)?;
+	// Simply check for a parachain dependency
+	const DEPENDENCIES: [&str; 3] = ["frame-system", "frame-support", "substrate-wasm-builder"];
+	let has_dependencies = DEPENDENCIES.into_iter().any(|d| {
+		manifest.dependencies.contains_key(d) ||
+			manifest.workspace.as_ref().is_some_and(|w| w.dependencies.contains_key(d))
+	});
+	let has_features = manifest.features.contains_key("runtime-benchmarks") ||
+		manifest.features.contains_key("try-runtime");
+	Ok(has_dependencies && has_features)
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
 	use anyhow::Result;
+	use fs::write;
+	use pop_common::manifest::Dependency;
+	use tempfile::tempdir;
 
 	#[test]
 	fn srtool_builder_new_works() -> Result<()> {
-		let srtool_builer = Builder::new(
+		let srtool_builer = DeterministicBuilder::new(
 			ContainerEngine::Docker,
 			None,
-			"parachain-template-runtime".to_string(),
+			&"parachain-template-runtime".to_string(),
 			Profile::Release,
 			PathBuf::from("./runtime"),
 		)?;
@@ -161,10 +185,10 @@ mod tests {
 		let tag = get_image_tag(Some(TIMEOUT))?;
 		let digest = get_image_digest(DEFAULT_IMAGE, &tag).unwrap_or_default();
 		assert_eq!(
-			Builder::new(
+			DeterministicBuilder::new(
 				ContainerEngine::Podman,
 				Some(path.to_path_buf()),
-				"parachain-template-runtime".to_string(),
+				&"parachain-template-runtime".to_string(),
 				Profile::Production,
 				PathBuf::from("./runtime"),
 			)?
@@ -191,14 +215,36 @@ mod tests {
 
 	#[test]
 	fn get_output_path_works() -> Result<()> {
-		let srtool_builder = Builder::new(
+		let srtool_builder = DeterministicBuilder::new(
 			ContainerEngine::Podman,
 			None,
-			"template-runtime".to_string(),
+			&"template-runtime".to_string(),
 			Profile::Debug,
 			PathBuf::from("./runtime-folder"),
 		)?;
 		assert_eq!(srtool_builder.get_output_path().display().to_string(), "./runtime-folder/target/srtool/debug/wbuild/template-runtime/template_runtime.compact.compressed.wasm");
+		Ok(())
+	}
+
+	#[test]
+	fn is_supported_works() -> Result<()> {
+		let temp_dir = tempdir()?;
+		let path = temp_dir.path();
+
+		// Standard rust project
+		let name = "hello_world";
+		cmd("cargo", ["new", name]).dir(&path).run()?;
+		assert!(!is_supported(Some(&path.join(name)))?);
+
+		// Parachain runtime with dependency
+		let mut manifest = from_path(Some(&path.join(name)))?;
+		manifest
+			.dependencies
+			.insert("substrate-wasm-builder".into(), Dependency::Simple("^0.14.0".into()));
+		manifest.features.insert("try-runtime".into(), vec![]);
+		let manifest = toml_edit::ser::to_string_pretty(&manifest)?;
+		write(path.join(name).join("Cargo.toml"), manifest)?;
+		assert!(is_supported(Some(&path.join(name)))?);
 		Ok(())
 	}
 }

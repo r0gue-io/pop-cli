@@ -1,14 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0
 
+use super::{
+	binary::which_version,
+	builds::guide_user_to_select_profile,
+	chain::get_pallets,
+	runtime::{ensure_runtime_binary_exists, Feature},
+};
 use crate::{
 	cli::traits::*,
-	common::binary::{check_and_prompt, BinaryGenerator},
+	common::binary::{check_and_prompt, BinaryGenerator, SemanticVersion},
 	impl_binary_generator,
 };
 use clap::Args;
 use cliclack::spinner;
 use console::style;
-use duct::cmd;
 use frame_try_runtime::TryStateSelect;
 use pop_common::{sourcing::Binary, Profile};
 use pop_parachains::{
@@ -17,6 +22,7 @@ use pop_parachains::{
 	try_runtime_generator, try_state_details, try_state_label, Runtime, SharedParams,
 };
 use std::{
+	cmp::Ordering,
 	collections::HashSet,
 	env::current_dir,
 	fmt::Display,
@@ -24,17 +30,12 @@ use std::{
 };
 use strum::{EnumMessage, VariantArray};
 
-use super::{
-	builds::guide_user_to_select_profile,
-	chain::get_pallets,
-	runtime::{ensure_runtime_binary_exists, Feature},
-};
-
 const BINARY_NAME: &str = "try-runtime";
 pub(crate) const DEFAULT_BLOCK_HASH: &str = "0x0000000000";
 pub(crate) const DEFAULT_BLOCK_TIME: u64 = 6000;
 pub(crate) const DEFAULT_LIVE_NODE_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";
 pub(crate) const DEFAULT_SNAPSHOT_PATH: &str = "your-parachain.snap";
+const TARGET_BINARY_VERSION: SemanticVersion = SemanticVersion(0, 8, 0);
 
 impl_binary_generator!(TryRuntimeGenerator, try_runtime_generator);
 
@@ -74,12 +75,10 @@ pub async fn check_try_runtime_and_prompt(
 	cli: &mut impl Cli,
 	skip_confirm: bool,
 ) -> anyhow::Result<PathBuf> {
-	Ok(match cmd("which", &[BINARY_NAME]).stdout_capture().run() {
-		Ok(output) => {
-			let path = String::from_utf8(output.stdout)?;
-			PathBuf::from(path.trim())
-		},
-		Err(_) => source_try_runtime_binary(cli, &crate::cache()?, skip_confirm).await?,
+	Ok(if let Ok(path) = which_version(BINARY_NAME, &TARGET_BINARY_VERSION, &Ordering::Greater) {
+		path
+	} else {
+		source_try_runtime_binary(cli, &crate::cache()?, skip_confirm).await?
 	})
 }
 
@@ -218,8 +217,9 @@ pub(crate) fn update_runtime_source(
 			cli,
 			&current_dir().unwrap_or(PathBuf::from("./")),
 			profile.as_ref().ok_or_else(|| anyhow::anyhow!("No profile provided"))?,
-			vec![Feature::TryRuntime],
+			&[Feature::TryRuntime],
 			!no_build,
+			false,
 		)?);
 	}
 	Ok(())
@@ -555,8 +555,12 @@ pub(crate) fn get_try_state_items() -> Vec<(String, String)> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::{cli::MockCli, common::runtime::get_mock_runtime};
+	use crate::{
+		cli::MockCli,
+		common::{binary::SemanticVersion, runtime::get_mock_runtime},
+	};
 	use clap::Parser;
+	use tempfile::tempdir;
 
 	#[derive(Default)]
 	struct MockCommand {
@@ -1171,5 +1175,16 @@ mod tests {
 			),
 			vec!["--debug".to_string(), "-v".to_string(), "--output=result.txt".to_string()],
 		);
+	}
+
+	#[tokio::test]
+	async fn try_runtime_version_works() -> anyhow::Result<()> {
+		let cache_path = tempdir().expect("Could create temp dir");
+		let path = source_try_runtime_binary(&mut MockCli::new(), cache_path.path(), true).await?;
+		assert_eq!(
+			SemanticVersion::try_from(path.to_str().unwrap().to_string())?,
+			SemanticVersion(0, 8, 0)
+		);
+		Ok(())
 	}
 }
