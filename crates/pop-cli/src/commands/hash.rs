@@ -108,7 +108,11 @@ impl Command {
 			},
 		};
 
-		println!("{} {}", to_hex(&hash, false), console::style(format!("(Source: {data})")).dim());
+		println!(
+			"{} {}",
+			to_hex(&hash, false),
+			console::style(format!("(Source: {data}, Output: {} bytes)", hash.len())).dim()
+		);
 		Ok(())
 	}
 }
