@@ -21,6 +21,7 @@ mod common;
 #[cfg(feature = "parachain")]
 mod deployment_api;
 mod style;
+#[cfg(feature = "wallet-integration")]
 mod wallet_integration;
 
 #[tokio::main]

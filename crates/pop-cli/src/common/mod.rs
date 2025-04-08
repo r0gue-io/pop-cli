@@ -18,6 +18,7 @@ pub mod runtime;
 /// Contains try-runtime utilities.
 #[cfg(feature = "parachain")]
 pub mod try_runtime;
+#[cfg(feature = "wallet-integration")]
 pub mod wallet;
 
 use std::fmt::{Display, Formatter, Result};
