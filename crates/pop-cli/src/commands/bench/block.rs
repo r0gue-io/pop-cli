@@ -9,9 +9,8 @@ use crate::{
 	},
 };
 use clap::Args;
-use frame_benchmarking_cli::BlockCmd;
 use pop_common::Profile;
-use pop_parachains::{generate_binary_benchmarks, BenchmarkingCliCommand};
+use pop_parachains::{bench::BlockCmd, generate_binary_benchmarks, BenchmarkingCliCommand};
 use std::{
 	env::current_dir,
 	path::{Path, PathBuf},
@@ -92,12 +91,11 @@ mod tests {
 	use crate::cli::MockCli;
 	use clap::Parser;
 	use duct::cmd;
-	use frame_benchmarking_cli::BlockCmd;
 	use pop_common::Profile;
 	use std::fs::{self, File};
 	use tempfile::tempdir;
 
-	use super::BenchmarkBlock;
+	use super::*;
 
 	#[test]
 	fn benchmark_block_works() -> anyhow::Result<()> {
