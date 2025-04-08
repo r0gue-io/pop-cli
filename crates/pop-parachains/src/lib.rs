@@ -13,7 +13,7 @@ mod new_pallet;
 mod new_parachain;
 mod relay;
 mod templates;
-mod try_runtime;
+pub mod try_runtime;
 mod up;
 mod utils;
 

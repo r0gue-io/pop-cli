@@ -58,9 +58,6 @@ frame-benchmarking-cli.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 
-# try-runtime
-frame-try-runtime = { workspace = true, features = ["try-runtime"] }
-
 [dev-dependencies]
 assert_cmd.workspace = true
 contract-extrinsics.workspace = true

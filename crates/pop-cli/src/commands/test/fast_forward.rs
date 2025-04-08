@@ -18,10 +18,10 @@ use crate::{
 use clap::Args;
 use cliclack::spinner;
 use console::style;
-use frame_try_runtime::TryStateSelect;
 use pop_parachains::{
 	parse_try_state_string, run_try_runtime,
 	state::{LiveState, State, StateCommand},
+	try_runtime::TryStateSelect,
 	SharedParams, TryRuntimeCliCommand,
 };
 
