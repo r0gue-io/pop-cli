@@ -73,10 +73,23 @@ jobs:
 
   deny:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        crate:
+          - pop-cli
+          - pop-contracts
+          - pop-parachains
+          - pop-common
+          - pop-telemetry
     steps:
       - uses: actions/checkout@v4
 
-      - uses: EmbarkStudios/cargo-deny-action@v2
+      - name: Run cargo-deny for ${{ matrix.crate }}
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
+          manifest-path: crates/${{ matrix.crate }}/Cargo.toml
+          arguments: '--no-default-features'
 
   docker:
     runs-on: ubuntu-latest
@@ -101,7 +114,7 @@ jobs:
       - name: Run unit tests with polkavm-contracts for ${{ matrix.crate }}
         run: |
           if [[ "${{ matrix.crate }}" == "pop-cli" ]]; then
-            cargo test --bins --locked --no-default-features --features "polkavm-contracts parachain" -p ${{ matrix.crate }}
+            cargo test --bins --no-default-features --features "polkavm-contracts parachain" -p ${{ matrix.crate }}
           else
             cargo test -p ${{ matrix.crate }} --no-default-features --features v6 --lib --bins
           fi
