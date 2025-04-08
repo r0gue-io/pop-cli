@@ -39,6 +39,8 @@ sp-weights = { workspace = true, optional = true }
 
 # parachains
 pop-parachains = { path = "../pop-parachains", version = "0.7.0", optional = true }
+tracing-subscriber = { workspace = true, optional = true }
+
 dirs = { workspace = true, optional = true }
 git2.workspace = true
 
@@ -53,10 +55,6 @@ axum.workspace = true
 open.workspace = true
 tower-http = { workspace = true, features = ["fs", "cors"] }
 
-
-tracing.workspace = true
-tracing-subscriber.workspace = true
-
 [dev-dependencies]
 assert_cmd.workspace = true
 contract-extrinsics.workspace = true
@@ -68,5 +66,5 @@ sp-weights.workspace = true
 [features]
 default = ["contract", "parachain", "telemetry"]
 contract = ["dep:pop-contracts", "dep:sp-weights", "dep:dirs"]
-parachain = ["dep:pop-parachains", "dep:dirs"]
+parachain = ["dep:pop-parachains", "dep:dirs", "dep:tracing-subscriber"]
 telemetry = ["dep:pop-telemetry"]
