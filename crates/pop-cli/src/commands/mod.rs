@@ -332,6 +332,7 @@ impl Display for Command {
 mod tests {
 	use super::*;
 
+	#[cfg(all(feature = "parachain", feature = "wasm-contracts"))]
 	#[test]
 	fn command_display_works() {
 		let test_cases = vec![
