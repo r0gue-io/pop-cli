@@ -10,6 +10,7 @@ pub(crate) mod traits {
 	use std::{fmt::Display, io::Result};
 
 	/// A command line interface.
+	#[allow(dead_code)]
 	pub trait Cli {
 		/// Constructs a new [`Confirm`] prompt.
 		fn confirm(&mut self, prompt: impl Display) -> impl Confirm;
@@ -26,6 +27,7 @@ pub(crate) mod traits {
 		/// Prints a footer of the prompt sequence with a failure style.
 		fn outro_cancel(&mut self, message: impl Display) -> Result<()>;
 		/// Constructs a new [`Password`] prompt.
+		#[allow(dead_code)]
 		fn password(&mut self, prompt: impl Display) -> impl Password;
 		/// Constructs a new [`Select`] prompt.
 		fn select<T: Clone + Eq>(&mut self, prompt: impl Display) -> impl Select<T>;
@@ -36,6 +38,7 @@ pub(crate) mod traits {
 	}
 
 	/// A confirmation prompt.
+	#[allow(dead_code)]
 	pub trait Confirm {
 		/// Sets the initially selected value.
 		fn initial_value(self, initial_value: bool) -> Self;
@@ -44,6 +47,7 @@ pub(crate) mod traits {
 	}
 
 	/// A text input prompt.
+	#[allow(dead_code)]
 	pub trait Input {
 		/// Sets the default value for the input.
 		fn default_input(self, value: &str) -> Self;
@@ -61,6 +65,7 @@ pub(crate) mod traits {
 	}
 
 	/// A multi-select prompt.
+	#[allow(dead_code)]
 	pub trait MultiSelect<T> {
 		/// Starts the prompt interaction.
 		fn interact(&mut self) -> Result<Vec<T>>;
@@ -73,12 +78,14 @@ pub(crate) mod traits {
 	}
 
 	/// A prompt that masks the input.
+	#[allow(dead_code)]
 	pub trait Password {
 		/// Starts the prompt interaction.
 		fn interact(&mut self) -> Result<String>;
 	}
 
 	/// A select prompt.
+	#[allow(dead_code)]
 	pub trait Select<T> {
 		/// Sets the initially selected value.
 		fn initial_value(self, initial_value: T) -> Self;

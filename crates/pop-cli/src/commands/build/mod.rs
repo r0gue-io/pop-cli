@@ -2,25 +2,21 @@
 
 use crate::{
 	cli::{self, Cli},
-	common::{
-		builds::get_project_path,
-		runtime::Feature::{Benchmark, TryRuntime},
-		Project::{self, *},
-	},
+	common::Project::{self, *},
 };
 use clap::{Args, Subcommand};
 #[cfg(feature = "contract")]
 use contract::BuildContract;
 use duct::cmd;
 use pop_common::Profile;
+use std::path::PathBuf;
 #[cfg(feature = "parachain")]
-use runtime::BuildRuntime;
-use std::{
-	fmt::{Display, Formatter, Result},
-	path::PathBuf,
+use {
+	parachain::BuildParachain,
+	runtime::{BuildRuntime, Feature::*},
+	spec::BuildSpecCommand,
+	std::fmt::{Display, Formatter, Result},
 };
-#[cfg(feature = "parachain")]
-use {parachain::BuildParachain, spec::BuildSpecCommand};
 
 #[cfg(feature = "contract")]
 pub(crate) mod contract;
@@ -31,9 +27,12 @@ pub(crate) mod runtime;
 #[cfg(feature = "parachain")]
 pub(crate) mod spec;
 
+#[cfg(feature = "parachain")]
 const CHAIN_HELP_HEADER: &str = "Chain options";
+#[cfg(feature = "parachain")]
 const RUNTIME_HELP_HEADER: &str = "Runtime options";
 const PACKAGE: &str = "package";
+#[cfg(feature = "parachain")]
 const PARACHAIN: &str = "parachain";
 const PROJECT: &str = "project";
 
@@ -43,6 +42,7 @@ const PROJECT: &str = "project";
 #[command(args_conflicts_with_subcommands = true)]
 pub(crate) struct BuildArgs {
 	#[command(subcommand)]
+	#[cfg(feature = "parachain")]
 	pub command: Option<Command>,
 	/// Directory path with flag for your project [default: current directory]
 	#[arg(long)]
@@ -64,15 +64,19 @@ pub(crate) struct BuildArgs {
 	pub(crate) features: Option<String>,
 	/// For benchmarking, always build with `runtime-benchmarks` feature.
 	#[clap(short, long, help_heading = CHAIN_HELP_HEADER)]
+	#[cfg(feature = "parachain")]
 	pub(crate) benchmark: bool,
 	/// For testing with `try-runtime`, always build with `try-runtime` feature.
 	#[clap(short, long, help_heading = CHAIN_HELP_HEADER)]
+	#[cfg(feature = "parachain")]
 	pub(crate) try_runtime: bool,
 	/// Whether to build a runtime deterministically.
 	#[clap(short, long, help_heading = RUNTIME_HELP_HEADER)]
+	#[cfg(feature = "parachain")]
 	pub(crate) deterministic: bool,
 	/// Whether to build only the runtime.
 	#[clap(long, help_heading = RUNTIME_HELP_HEADER)]
+	#[cfg(feature = "parachain")]
 	pub(crate) only_runtime: bool,
 }
 
@@ -80,11 +84,12 @@ pub(crate) struct BuildArgs {
 #[derive(Subcommand)]
 pub(crate) enum Command {
 	/// Build a chain specification and its genesis artifacts.
-	#[cfg(feature = "parachain")]
 	#[clap(alias = "s")]
+	#[cfg(feature = "parachain")]
 	Spec(BuildSpecCommand),
 }
 
+#[cfg(feature = "parachain")]
 fn collect_features(input: &str, benchmark: bool, try_runtime: bool) -> Vec<&str> {
 	let mut feature_list: Vec<&str> = input.split(",").collect();
 	if benchmark && !feature_list.contains(&Benchmark.as_ref()) {
@@ -99,8 +104,10 @@ fn collect_features(input: &str, benchmark: bool, try_runtime: bool) -> Vec<&str
 impl Command {
 	/// Executes the command.
 	pub(crate) fn execute(args: BuildArgs) -> anyhow::Result<Project> {
+		#[cfg(any(feature = "contract", feature = "parachain"))]
 		// If only contract feature enabled, build as contract
-		let project_path = get_project_path(args.path.clone(), args.path_pos.clone());
+		let project_path =
+			crate::common::builds::get_project_path(args.path.clone(), args.path_pos.clone());
 
 		#[cfg(feature = "contract")]
 		if pop_contracts::is_supported(project_path.as_deref())? {
@@ -184,10 +191,13 @@ impl Command {
 		}
 
 		let feature_input = args.features.unwrap_or_default();
+		#[allow(unused_mut)]
 		let mut features: Vec<&str> = feature_input.split(',').filter(|s| !s.is_empty()).collect();
+		#[cfg(feature = "parachain")]
 		if args.benchmark && !features.contains(&Benchmark.as_ref()) {
 			features.push(Benchmark.as_ref());
 		}
+		#[cfg(feature = "parachain")]
 		if args.try_runtime && !features.contains(&TryRuntime.as_ref()) {
 			features.push(TryRuntime.as_ref());
 		}
@@ -210,12 +220,11 @@ impl Command {
 	}
 }
 
+#[cfg(feature = "parachain")]
 impl Display for Command {
 	fn fmt(&self, f: &mut Formatter<'_>) -> Result {
 		match self {
-			#[cfg(feature = "parachain")]
 			Command::Spec(_) => write!(f, "spec"),
-			_ => Ok(()),
 		}
 	}
 }

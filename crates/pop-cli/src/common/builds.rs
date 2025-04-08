@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::cli::traits::{Cli, Select};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 #[cfg(feature = "parachain")]
-use pop_common::Profile;
-#[cfg(feature = "parachain")]
-use pop_parachains::{binary_path, build_parachain};
-#[cfg(feature = "parachain")]
-use strum::{EnumMessage, VariantArray};
+use {
+	crate::cli::traits::{Cli, Select},
+	pop_common::Profile,
+	pop_parachains::{binary_path, build_parachain},
+	std::path::Path,
+	strum::{EnumMessage, VariantArray},
+};
 
 /// This method is used to get the proper project path format (with or without cli flag)
 pub fn get_project_path(path_flag: Option<PathBuf>, path_pos: Option<PathBuf>) -> Option<PathBuf> {
