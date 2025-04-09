@@ -57,7 +57,7 @@ pub(crate) enum Command {
 	/// Hashes data using the non-cryptographic xxHash hash algorithm.
 	#[clap(alias = "xx", name = "twox")]
 	TwoX {
-		#[arg(help = LENGTH, value_parser = PossibleValuesParser::new(["64", "128"]))]
+		#[arg(help = LENGTH, value_parser = PossibleValuesParser::new(["64", "128", "256"]))]
 		length: String,
 		#[arg(help = DATA)]
 		data: Data,
@@ -69,55 +69,65 @@ pub(crate) enum Command {
 impl Command {
 	/// Executes the command.
 	pub(crate) fn execute(&self) -> Result<()> {
-		let (hash, data) = match self {
+		let hash = to_hex(&self.hash()?, false);
+		let additional_info = format!("(Source: {}, Output: {} bytes)", self.data(), hash.len());
+		let output = format!("{hash} {}", console::style(additional_info).dim());
+		println!("{output}");
+		Ok(())
+	}
+
+	fn data(&self) -> &Data {
+		match self {
+			Command::Blake2 { data, .. } => data,
+			Command::Keccak { data, .. } => data,
+			Command::Sha2 { data, .. } => data,
+			Command::TwoX { data, .. } => data,
+		}
+	}
+
+	fn hash(&self) -> Result<Vec<u8>> {
+		match self {
 			Command::Blake2 { length, data, concat } => {
 				let mut hash = match length.parse::<u16>()? {
 					64 => blake2_64(data).to_vec(),
 					128 => blake2_128(data).to_vec(),
 					256 => blake2_256(data).to_vec(),
 					512 => blake2_512(data).to_vec(),
-					_ => unreachable!("args validated by clap"),
+					_ => return Err(anyhow!("unsupported length: {}", length)),
 				};
 				if *concat {
 					hash.extend_from_slice(data)
 				}
-				(hash, data)
+				Ok(hash)
 			},
 			Command::Keccak { length, data } => {
 				let hash = match length.parse::<u16>()? {
 					256 => keccak_256(data).to_vec(),
 					512 => keccak_512(data).to_vec(),
-					_ => unreachable!("args validated by clap"),
+					_ => return Err(anyhow!("unsupported length: {}", length)),
 				};
-				(hash, data)
+				Ok(hash)
 			},
 			Command::Sha2 { length, data } => {
 				let hash = match length.parse::<u16>()? {
 					256 => sha2_256(data).to_vec(),
-					_ => unreachable!("args validated by clap"),
+					_ => return Err(anyhow!("unsupported length: {}", length)),
 				};
-				(hash, data)
+				Ok(hash)
 			},
 			Command::TwoX { length, data, concat } => {
 				let mut hash = match length.parse::<u16>()? {
 					64 => twox_64(data).to_vec(),
 					128 => twox_128(data).to_vec(),
 					256 => twox_256(data).to_vec(),
-					_ => unreachable!("args validated by clap"),
+					_ => return Err(anyhow!("unsupported length: {}", length)),
 				};
 				if *concat {
 					hash.extend_from_slice(data)
 				}
-				(hash, data)
+				Ok(hash)
 			},
-		};
-
-		println!(
-			"{} {}",
-			to_hex(&hash, false),
-			console::style(format!("(Source: {data}, Output: {} bytes)", hash.len())).dim()
-		);
-		Ok(())
+		}
 	}
 }
 
@@ -186,6 +196,134 @@ impl Deref for Data {
 mod tests {
 	use super::*;
 	use std::io::Write;
+	use Command::*;
+	use Data::*;
+
+	#[test]
+	fn blake2_works() -> Result<()> {
+		let data = "test".as_bytes();
+		for (len, expected) in [
+			(64u16, &blake2_64(&data)[..]),
+			(128, &blake2_128(&data)[..]),
+			(256, &blake2_256(&data)[..]),
+			(512, &blake2_512(&data)[..]),
+		] {
+			for data in [File(data.to_vec()), Hex(data.to_vec()), String(data.to_vec())] {
+				for concat in [false, true] {
+					let expected = match concat {
+						true => [expected, data.as_ref()].concat(),
+						false => expected.to_vec(),
+					};
+					let command = Blake2 { length: len.to_string(), data: data.clone(), concat };
+					assert_eq!(command.hash()?, expected, "hash using {} failed", command);
+				}
+			}
+		}
+		Ok(())
+	}
+
+	#[test]
+	fn blake2_unsupported_length_fails() {
+		for len in [0, 8, 16, 32, 1024, u16::MAX] {
+			let command = Blake2 { length: len.to_string(), data: None, concat: false };
+			assert_eq!(
+				format!("{}", command.hash().unwrap_err().root_cause()),
+				format!("unsupported length: {len}")
+			);
+		}
+	}
+
+	#[test]
+	fn keccak_works() -> Result<()> {
+		let data = "test".as_bytes();
+		for (len, expected) in [(256, &keccak_256(&data)[..]), (512, &keccak_512(&data)[..])] {
+			for data in [File(data.to_vec()), Hex(data.to_vec()), String(data.to_vec())] {
+				let command = Keccak { length: len.to_string(), data: data.clone() };
+				assert_eq!(command.hash()?, expected, "hash using {} failed", command);
+			}
+		}
+		Ok(())
+	}
+
+	#[test]
+	fn keccak_unsupported_length_fails() {
+		for len in [0, 8, 16, 32, 64, 128, 1024, u16::MAX] {
+			let command = Keccak { length: len.to_string(), data: None };
+			assert_eq!(
+				format!("{}", command.hash().unwrap_err().root_cause()),
+				format!("unsupported length: {len}")
+			);
+		}
+	}
+
+	#[test]
+	fn sha2_works() -> Result<()> {
+		let data = "test".as_bytes();
+		for (len, expected) in [(256, sha2_256(&data))] {
+			for data in [File(data.to_vec()), Hex(data.to_vec()), String(data.to_vec())] {
+				let command = Sha2 { length: len.to_string(), data: data.clone() };
+				assert_eq!(command.hash()?, expected, "hash using {} failed", command);
+			}
+		}
+		Ok(())
+	}
+
+	#[test]
+	fn sha2_unsupported_length_fails() {
+		for len in [0, 8, 16, 32, 64, 128, 512, 1024, u16::MAX] {
+			let command = Sha2 { length: len.to_string(), data: None };
+			assert_eq!(
+				format!("{}", command.hash().unwrap_err().root_cause()),
+				format!("unsupported length: {len}")
+			);
+		}
+	}
+
+	#[test]
+	fn twox_works() -> Result<()> {
+		let data = "test".as_bytes();
+		for (len, expected) in
+			[(64u16, &twox_64(&data)[..]), (128, &twox_128(&data)[..]), (256, &twox_256(&data)[..])]
+		{
+			for data in [File(data.to_vec()), Hex(data.to_vec()), String(data.to_vec())] {
+				for concat in [false, true] {
+					let expected = match concat {
+						true => [expected, data.as_ref()].concat(),
+						false => expected.to_vec(),
+					};
+					let command = TwoX { length: len.to_string(), data: data.clone(), concat };
+					assert_eq!(command.hash()?, expected, "hash using {} failed", command);
+				}
+			}
+		}
+		Ok(())
+	}
+
+	#[test]
+	fn twox_unsupported_length_fails() {
+		for len in [0, 8, 16, 32, 512, 1024, u16::MAX] {
+			let command = TwoX { length: len.to_string(), data: None, concat: false };
+			assert_eq!(
+				format!("{}", command.hash().unwrap_err().root_cause()),
+				format!("unsupported length: {len}")
+			);
+		}
+	}
+
+	#[test]
+	fn data_works() {
+		let data = "test".as_bytes();
+		for data in [File(data.to_vec()), Hex(data.to_vec()), String(data.to_vec())] {
+			for command in [
+				Blake2 { length: Default::default(), data: data.clone(), concat: false },
+				Keccak { length: Default::default(), data: data.clone() },
+				Sha2 { length: Default::default(), data: data.clone() },
+				TwoX { length: Default::default(), data: data.clone(), concat: false },
+			] {
+				assert_eq!(command.data(), &data);
+			}
+		}
+	}
 
 	#[test]
 	fn command_display_works() {
