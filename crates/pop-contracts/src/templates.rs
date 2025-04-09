@@ -46,7 +46,7 @@ impl Type<Contract> for ContractType {
 	}
 }
 
-/// a smart contract template.
+/// A smart contract template.
 #[derive(
 	AsRefStr,
 	Clone,
