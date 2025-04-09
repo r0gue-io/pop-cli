@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use super::*;
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use clap::{builder::PossibleValuesParser, Args};
 use sp_core::{
 	bytes::{from_hex, to_hex},
 	hashing::*,
 };
-use std::ops::Deref;
+use std::{ops::Deref, str::FromStr};
 use strum_macros::Display;
 
 const CONCAT: &'static str = "Whether to append the source data to the hash.";
@@ -132,7 +132,7 @@ impl Display for Command {
 	}
 }
 
-#[derive(Clone, Debug, Display)]
+#[derive(Clone, Debug, Display, Eq, PartialEq)]
 #[cfg_attr(test, derive(Default))]
 pub(crate) enum Data {
 	File(Vec<u8>),
@@ -143,26 +143,27 @@ pub(crate) enum Data {
 	None,
 }
 
-impl From<&str> for Data {
-	fn from(value: &str) -> Self {
+impl FromStr for Data {
+	type Err = anyhow::Error;
+
+	fn from_str(value: &str) -> std::result::Result<Self, Self::Err> {
 		// Check if value is specifying a file
 		if let Ok(metadata) = std::fs::metadata(value) {
 			if !metadata.is_file() {
-				panic!("specified path is not a file");
+				return Err(anyhow!("specified path is not a file"));
 			}
 			// Limit the size to that of the max code size for a runtime
 			if metadata.len() > MAX_CODE_SIZE {
-				panic!("file size exceeds maximum code size");
+				return Err(anyhow!("file size exceeds maximum code size"));
 			}
 
-			let data = std::fs::read(value).expect("failed to read from file");
-			return Self::File(data);
+			return Ok(Self::File(std::fs::read(value)?));
 		}
 		// Otherwise check if hex via prefix or just hash as string
 		if value.starts_with("0x") {
-			Self::Hex(from_hex(value).unwrap())
+			Ok(Self::Hex(from_hex(value)?))
 		} else {
-			Self::String(value.as_bytes().into())
+			Ok(Self::String(value.as_bytes().into()))
 		}
 	}
 }
@@ -175,6 +176,7 @@ impl Deref for Data {
 			Data::File(data) => data,
 			Data::Hex(data) => data,
 			Data::String(data) => data,
+			#[cfg(test)]
 			Data::None => Default::default(),
 		}
 	}
@@ -216,21 +218,27 @@ mod tests {
 	#[test]
 	fn data_from_invalid_path_treated_as_string() {
 		let file = "./path/to/file";
-		assert!(matches!(Data::from(file), Data::String(bytes) if bytes == file.as_bytes()));
+		assert!(
+			matches!(Data::from_str(file), Ok(Data::String(bytes)) if bytes == file.as_bytes())
+		);
 	}
 
 	#[test]
-	#[should_panic(expected = "specified path is not a file")]
-	fn data_from_file_panics_when_directory_specified() {
-		let _ = Data::from("./");
+	fn data_from_file_returns_error_when_directory_specified() {
+		assert_eq!(
+			format!("{}", Data::from_str("./").unwrap_err().root_cause()),
+			"specified path is not a file"
+		);
 	}
 
 	#[test]
-	#[should_panic(expected = "file size exceeds maximum code size")]
-	fn data_from_file_panics_when_limit_exceeded() {
+	fn data_from_file_returns_error_when_limit_exceeded() {
 		let mut file = tempfile::NamedTempFile::new().unwrap();
 		file.write_all(&[0u8; MAX_CODE_SIZE as usize + 1]).unwrap();
-		let _ = Data::from(file.path().to_str().unwrap());
+		assert_eq!(
+			format!("{}", Data::from_str(file.path().to_str().unwrap()).unwrap_err().root_cause()),
+			"file size exceeds maximum code size"
+		);
 	}
 
 	#[test]
@@ -239,7 +247,7 @@ mod tests {
 		let mut file = tempfile::NamedTempFile::new()?;
 		file.write(value)?;
 		assert!(
-			matches!(Data::from(file.path().to_str().unwrap()), Data::File(bytes) if bytes == value)
+			matches!(Data::from_str(file.path().to_str().unwrap()), Ok(Data::File(bytes)) if bytes == value)
 		);
 		Ok(())
 	}
@@ -248,12 +256,14 @@ mod tests {
 	fn data_from_hex_string_works() {
 		let value = "test".as_bytes();
 		let hex = to_hex(value, true);
-		assert!(matches!(Data::from(hex.as_str()), Data::Hex(bytes) if bytes == value));
+		assert!(matches!(Data::from_str(hex.as_str()), Ok(Data::Hex(bytes)) if bytes == value));
 	}
 
 	#[test]
 	fn data_from_string_works() {
 		let value = "test";
-		assert!(matches!(Data::from(value), Data::String(bytes) if bytes == value.as_bytes()));
+		assert!(
+			matches!(Data::from_str(value), Ok(Data::String(bytes)) if bytes == value.as_bytes())
+		);
 	}
 }
