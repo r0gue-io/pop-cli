@@ -104,15 +104,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Clear Rust cache (debug only)
-        run: |
-          rm -rf ~/.cargo ~/.rustup target || true
-
       - uses: "./.github/actions/init"
         with:
           git-user: ${{ env.GITHUB_ACTOR }}
 
-      - name: Run unit tests with polkavm-contracts for ${{ matrix.crate }}
+      - name: Run unit tests with polkavm-contracts
         run: cargo test --lib --bins --locked --no-default-features --features "polkavm-contracts parachain v6"
 
   coverage:
