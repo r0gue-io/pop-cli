@@ -9,6 +9,7 @@ use strum_macros::{AsRefStr, Display, EnumMessage, EnumProperty, EnumString};
 	AsRefStr, Clone, Default, Debug, Display, EnumMessage, EnumString, Eq, PartialEq, VariantArray,
 )]
 pub enum Provider {
+	/// Pop: An all-in-one tool for Polkadot development.
 	#[default]
 	#[strum(
 		ascii_case_insensitive,
@@ -17,6 +18,7 @@ pub enum Provider {
 		detailed_message = "An all-in-one tool for Polkadot development."
 	)]
 	Pop,
+	/// OpenZeppelin: The standard for secure blockchain applications.
 	#[strum(
 		ascii_case_insensitive,
 		serialize = "openzeppelin",
@@ -24,6 +26,7 @@ pub enum Provider {
 		detailed_message = "The standard for secure blockchain applications."
 	)]
 	OpenZeppelin,
+	/// Parity: Solutions for a trust-free world.
 	#[strum(
 		ascii_case_insensitive,
 		serialize = "parity",
@@ -46,8 +49,11 @@ impl Type<Parachain> for Provider {
 /// Configurable settings for parachain generation.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Config {
+	/// The token symbol.
 	pub symbol: String,
+	/// The number of decimals used for the token.
 	pub decimals: u8,
+	/// The initial endowment amount.
 	pub initial_endowment: String,
 }
 
@@ -67,7 +73,7 @@ pub struct Config {
 	VariantArray,
 )]
 pub enum Parachain {
-	/// Minimalist parachain template.
+	/// Pop Standard Template: Minimalist parachain template.
 	#[default]
 	#[strum(
 		serialize = "r0gue-io/base-parachain",
@@ -82,7 +88,8 @@ pub enum Parachain {
 		)
 	)]
 	Standard,
-	/// Parachain configured with fungible and non-fungible asset functionalities.
+	/// Pop Assets Template: Parachain configured with fungible and non-fungible asset
+	/// functionalities.
 	#[strum(
 		serialize = "r0gue-io/assets-parachain",
 		message = "Assets",
@@ -96,7 +103,7 @@ pub enum Parachain {
 		)
 	)]
 	Assets,
-	/// Parachain configured to support WebAssembly smart contracts.
+	/// Pop Contracts Template: Parachain configured to support WebAssembly smart contracts.
 	#[strum(
 		serialize = "r0gue-io/contracts-parachain",
 		message = "Contracts",
@@ -110,8 +117,8 @@ pub enum Parachain {
 		)
 	)]
 	Contracts,
-	/// Parachain configured with Frontier, enabling compatibility with the Ethereum Virtual
-	/// Machine (EVM).
+	/// Pop EVM Template: Parachain configured with Frontier, enabling compatibility with the
+	/// Ethereum Virtual Machine (EVM).
 	#[strum(
 		serialize = "r0gue-io/evm-parachain",
 		message = "EVM",
@@ -125,7 +132,7 @@ pub enum Parachain {
 		)
 	)]
 	EVM,
-	// OpenZeppelin
+	/// OpenZeppelin Generic Runtime Template: A generic template for Substrate Runtime.
 	#[strum(
 		serialize = "openzeppelin/generic-template",
 		message = "Generic Runtime Template",
@@ -141,7 +148,7 @@ pub enum Parachain {
 		)
 	)]
 	OpenZeppelinGeneric,
-	// OpenZeppelin EVM
+	/// OpenZeppelin EVM Template: Parachain with EVM compatibility out of the box.
 	#[strum(
 		serialize = "openzeppelin/evm-template",
 		message = "EVM Template",
@@ -157,7 +164,7 @@ pub enum Parachain {
 		)
 	)]
 	OpenZeppelinEVM,
-	/// The Parachain-Ready Template From Polkadot SDK.
+	/// Parity Generic Template: The Parachain-Ready Template From Polkadot SDK.
 	#[strum(
 		serialize = "paritytech/polkadot-sdk-parachain-template",
 		message = "Polkadot SDK's Parachain Template",
@@ -171,8 +178,8 @@ pub enum Parachain {
 		)
 	)]
 	ParityGeneric,
-	/// Minimal Substrate node configured for smart contracts via pallet-contracts and
-	/// pallet-revive.
+	/// Parity Contracts Template: Minimal Substrate node configured for smart contracts via
+	/// pallet-contracts and pallet-revive.
 	#[strum(
 		serialize = "paritytech/substrate-contracts-node",
 		message = "Contracts",
@@ -223,20 +230,27 @@ impl Parachain {
 		self.get_str("Network")
 	}
 
+	/// The supported versions of the template.
 	pub fn supported_versions(&self) -> Option<Vec<&str>> {
 		self.get_str("SupportedVersions").map(|s| s.split(',').collect())
 	}
 
+	/// Whether the specified version is supported.
+	///
+	/// # Arguments
+	/// * `version`: The version to be checked.
 	pub fn is_supported_version(&self, version: &str) -> bool {
 		// if `SupportedVersion` is None, then all versions are supported. Otherwise, ensure version
 		// is present.
 		self.supported_versions().is_none_or(|versions| versions.contains(&version))
 	}
 
+	/// Whether the template has been audited.
 	pub fn is_audited(&self) -> bool {
 		self.get_str("IsAudited") == Some("true")
 	}
 
+	/// The license used.
 	pub fn license(&self) -> Option<&str> {
 		self.get_str("License")
 	}
