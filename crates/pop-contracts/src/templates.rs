@@ -9,6 +9,7 @@ use strum_macros::{AsRefStr, Display, EnumMessage, EnumProperty, EnumString, Var
 	AsRefStr, Clone, Default, Debug, Display, EnumMessage, EnumString, Eq, PartialEq, VariantArray,
 )]
 pub enum ContractType {
+	/// Contract examples for ink!.
 	#[default]
 	#[strum(
 		ascii_case_insensitive,
@@ -17,6 +18,7 @@ pub enum ContractType {
 		detailed_message = "Contract examples for ink!."
 	)]
 	Examples,
+	/// ERC-based contracts in ink!.
 	#[strum(
 		ascii_case_insensitive,
 		serialize = "erc",
@@ -24,6 +26,7 @@ pub enum ContractType {
 		detailed_message = "ERC-based contracts in ink!."
 	)]
 	Erc,
+	/// PSP-based contracts in ink!.
 	#[strum(
 		ascii_case_insensitive,
 		serialize = "psp",
@@ -43,6 +46,7 @@ impl Type<Contract> for ContractType {
 	}
 }
 
+/// a smart contract template.
 #[derive(
 	AsRefStr,
 	Clone,
