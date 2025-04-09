@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
+use self::Command::*;
 use super::*;
 use anyhow::{anyhow, Result};
 use clap::{
@@ -82,16 +83,14 @@ impl Command {
 
 	fn data(&self) -> &Data {
 		match self {
-			Command::Blake2 { data, .. } => data,
-			Command::Keccak { data, .. } => data,
-			Command::Sha2 { data, .. } => data,
-			Command::TwoX { data, .. } => data,
+			Blake2 { data, .. } | Keccak { data, .. } | Sha2 { data, .. } | TwoX { data, .. } =>
+				data,
 		}
 	}
 
 	fn hash(&self) -> Result<Vec<u8>> {
 		match self {
-			Command::Blake2 { length, data, concat } => {
+			Blake2 { length, data, concat } => {
 				let mut hash = match length {
 					64 => blake2_64(data).to_vec(),
 					128 => blake2_128(data).to_vec(),
@@ -104,7 +103,7 @@ impl Command {
 				}
 				Ok(hash)
 			},
-			Command::Keccak { length, data } => {
+			Keccak { length, data } => {
 				let hash = match length {
 					256 => keccak_256(data).to_vec(),
 					512 => keccak_512(data).to_vec(),
@@ -112,14 +111,14 @@ impl Command {
 				};
 				Ok(hash)
 			},
-			Command::Sha2 { length, data } => {
+			Sha2 { length, data } => {
 				let hash = match length {
 					256 => sha2_256(data).to_vec(),
 					_ => return Err(anyhow!("unsupported length: {}", length)),
 				};
 				Ok(hash)
 			},
-			Command::TwoX { length, data, concat } => {
+			TwoX { length, data, concat } => {
 				let mut hash = match length {
 					64 => twox_64(data).to_vec(),
 					128 => twox_128(data).to_vec(),
@@ -138,10 +137,10 @@ impl Command {
 impl Display for Command {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
 		match self {
-			Command::Blake2 { length, .. } => write!(f, "blake2 {length}"),
-			Command::Keccak { length, .. } => write!(f, "keccak {length}"),
-			Command::Sha2 { length, .. } => write!(f, "sha2 {length}"),
-			Command::TwoX { length, .. } => write!(f, "twox {length}"),
+			Blake2 { length, .. } => write!(f, "blake2 {length}"),
+			Keccak { length, .. } => write!(f, "keccak {length}"),
+			Sha2 { length, .. } => write!(f, "sha2 {length}"),
+			TwoX { length, .. } => write!(f, "twox {length}"),
 		}
 	}
 }
