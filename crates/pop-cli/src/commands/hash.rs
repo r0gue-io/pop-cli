@@ -147,16 +147,16 @@ impl From<&str> for Data {
 	fn from(value: &str) -> Self {
 		// Check if value is specifying a file
 		if let Ok(metadata) = std::fs::metadata(value) {
-			if metadata.is_file() {
-				// Limit the size to that of the max code size for a runtime
-				if metadata.len() > MAX_CODE_SIZE {
-					panic!("file size exceeds maximum code size");
-				}
-
-				if let Ok(data) = std::fs::read(value) {
-					return Self::File(data);
-				}
+			if !metadata.is_file() {
+				panic!("specified path is not a file");
 			}
+			// Limit the size to that of the max code size for a runtime
+			if metadata.len() > MAX_CODE_SIZE {
+				panic!("file size exceeds maximum code size");
+			}
+
+			let data = std::fs::read(value).expect("failed to read from file");
+			return Self::File(data);
 		}
 		// Otherwise check if hex via prefix or just hash as string
 		if value.starts_with("0x") {
@@ -183,6 +183,7 @@ impl Deref for Data {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use std::io::Write;
 
 	#[test]
 	fn command_display_works() {
@@ -210,5 +211,49 @@ mod tests {
 		for (command, expected) in blake2.chain(keccak).chain(sha2).chain(twox) {
 			assert_eq!(command.to_string(), expected);
 		}
+	}
+
+	#[test]
+	fn data_from_invalid_path_treated_as_string() {
+		let file = "./path/to/file";
+		assert!(matches!(Data::from(file), Data::String(bytes) if bytes == file.as_bytes()));
+	}
+
+	#[test]
+	#[should_panic(expected = "specified path is not a file")]
+	fn data_from_file_panics_when_directory_specified() {
+		let _ = Data::from("./");
+	}
+
+	#[test]
+	#[should_panic(expected = "file size exceeds maximum code size")]
+	fn data_from_file_panics_when_limit_exceeded() {
+		let mut file = tempfile::NamedTempFile::new().unwrap();
+		file.write_all(&[0u8; MAX_CODE_SIZE as usize + 1]).unwrap();
+		let _ = Data::from(file.path().to_str().unwrap());
+	}
+
+	#[test]
+	fn data_from_file_works() -> Result<(), Box<dyn std::error::Error>> {
+		let value = "test".as_bytes();
+		let mut file = tempfile::NamedTempFile::new()?;
+		file.write(value)?;
+		assert!(
+			matches!(Data::from(file.path().to_str().unwrap()), Data::File(bytes) if bytes == value)
+		);
+		Ok(())
+	}
+
+	#[test]
+	fn data_from_hex_string_works() {
+		let value = "test".as_bytes();
+		let hex = to_hex(value, true);
+		assert!(matches!(Data::from(hex.as_str()), Data::Hex(bytes) if bytes == value));
+	}
+
+	#[test]
+	fn data_from_string_works() {
+		let value = "test";
+		assert!(matches!(Data::from(value), Data::String(bytes) if bytes == value.as_bytes()));
 	}
 }
