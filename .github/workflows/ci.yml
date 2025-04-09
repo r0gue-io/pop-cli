@@ -91,6 +91,7 @@ jobs:
       checks: write
     env:
       RUSTDOCFLAGS: "-Dwarnings"
+      RUSTFLAGS: "-Dmissing_docs"
     steps:
       - uses: actions/checkout@v4
 
