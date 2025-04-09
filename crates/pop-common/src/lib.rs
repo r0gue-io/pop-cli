@@ -23,17 +23,25 @@ pub use test::test_project;
 
 /// Module for parsing and handling account IDs.
 pub mod account_id;
+/// Provides build profiles for usage when building Rust projects.
 pub mod build;
+/// Represents the various errors that can occur in the crate.
 pub mod errors;
+/// Provides functionality for interacting with Git, GitHub, repositories and releases.
 pub mod git;
+/// Provides general purpose file and path helpers.
 pub mod helpers;
+/// Provides functionality for resolving and managing Cargo manifests.
 pub mod manifest;
 /// Provides functionality for formatting and resolving metadata types.
 pub mod metadata;
+/// Provides parsers for determining Polkadot SDK versions.
 pub mod polkadot_sdk;
 /// Provides functionality for creating a signer from a secret URI.
 pub mod signer;
+/// Provides functionality for sourcing binaries from a variety of different sources.
 pub mod sourcing;
+/// Provides traits and functions used for templates and template extraction.
 pub mod templates;
 /// Module for testing utilities and functionality.
 pub mod test;

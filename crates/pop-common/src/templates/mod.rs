@@ -3,13 +3,16 @@
 use strum::{EnumMessage, EnumProperty, VariantArray};
 pub use thiserror::Error;
 
+/// Functions for extracting a template's files.
 pub mod extractor;
 
+/// An error relating to templates or template variants.
 #[derive(Error, Debug)]
 pub enum Error {
+	/// The `Repository` property is missing from the template variant.
 	#[error("The `Repository` property is missing from the template variant")]
 	RepositoryMissing,
-
+	/// The `TypeMissing` property is missing from the template variant.
 	#[error("The `TypeMissing` property is missing from the template variant")]
 	TypeMissing,
 }
@@ -18,7 +21,7 @@ pub enum Error {
 pub trait Template:
 	Clone + Default + EnumMessage + EnumProperty + Eq + PartialEq + VariantArray
 {
-	// What is the template's type strum property identifier.
+	/// The template's type property identifier.
 	const PROPERTY: &'static str = "Type";
 
 	/// Get the template's name.
@@ -97,6 +100,7 @@ pub trait Type<T: Template>: Clone + Default + EnumMessage + Eq + PartialEq + Va
 	}
 }
 
+/// The possible values from the variants of an enum.
 #[macro_export]
 macro_rules! enum_variants {
 	($e: ty) => {{
@@ -110,6 +114,7 @@ macro_rules! enum_variants {
 	}};
 }
 
+/// The possible values from the variants of an enum which are not deprecated.
 #[macro_export]
 macro_rules! enum_variants_without_deprecated {
 	($e:ty) => {{

@@ -13,6 +13,12 @@ use url::Url;
 /// A helper for handling Git operations.
 pub struct Git;
 impl Git {
+	/// Clone a Git repository.
+	///
+	/// # Arguments
+	/// * `url` - the URL of the repository to clone.
+	/// * `working_dir` - the target working directory.
+	/// * `reference` - an optional reference (revision/tag).
 	pub fn clone(url: &Url, working_dir: &Path, reference: Option<&str>) -> Result<()> {
 		let mut fo = FetchOptions::new();
 		if reference.is_none() {
@@ -147,7 +153,9 @@ impl Git {
 
 /// A helper for handling GitHub operations.
 pub struct GitHub {
+	/// The organization name.
 	pub org: String,
+	/// The repository name
 	pub name: String,
 	api: String,
 }
@@ -206,6 +214,7 @@ impl GitHub {
 		Ok(commit)
 	}
 
+	/// Retrieves the license from the repository.
 	pub async fn get_repo_license(&self) -> Result<String> {
 		let client = reqwest::ClientBuilder::new().user_agent(APP_USER_AGENT).build()?;
 		let url = self.api_license_url();
@@ -242,6 +251,10 @@ impl GitHub {
 		))?)
 	}
 
+	/// Determines the name of a repository from a URL.
+	///
+	/// # Arguments
+	/// * `repo` - the URL of the repository.
 	pub fn name(repo: &Url) -> Result<&str> {
 		let path_segments = repo
 			.path_segments()
@@ -265,10 +278,15 @@ impl GitHub {
 /// Represents the data of a GitHub release.
 #[derive(Debug, PartialEq, serde::Deserialize)]
 pub struct Release {
+	/// The name of the tag.
 	pub tag_name: String,
+	/// The name of the release.
 	pub name: String,
+	/// Whether to identify the release as a prerelease or a full release.
 	pub prerelease: bool,
+	/// The commit hash for the release.
 	pub commit: Option<String>,
+	/// When the release was published.
 	pub published_at: String,
 }
 
