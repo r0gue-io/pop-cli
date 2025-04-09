@@ -284,7 +284,7 @@ pub struct Repository {
 }
 
 impl Repository {
-	/// Parses a url in the form of https://github.com/org/repository?package#tag into its component parts.
+	/// Parses a url in the form of <https://github.com/org/repository?package#tag> into its component parts.
 	///
 	/// # Arguments
 	/// * `url` - The url to be parsed.

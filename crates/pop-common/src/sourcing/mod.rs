@@ -126,9 +126,9 @@ impl Source {
 pub enum GitHub {
 	/// An archive for download from a GitHub release.
 	ReleaseArchive {
-		/// The owner of the repository - i.e. https://github.com/{owner}/repository.
+		/// The owner of the repository - i.e. <https://github.com/{owner}/repository>.
 		owner: String,
-		/// The name of the repository - i.e. https://github.com/owner/{repository}.
+		/// The name of the repository - i.e. <https://github.com/owner/{repository}>.
 		repository: String,
 		/// The release tag to be used, where `None` is latest.
 		tag: Option<String>,
@@ -144,9 +144,9 @@ pub enum GitHub {
 	},
 	/// A source code archive for download from GitHub.
 	SourceCodeArchive {
-		/// The owner of the repository - i.e. https://github.com/{owner}/repository.
+		/// The owner of the repository - i.e. <https://github.com/{owner}/repository>.
 		owner: String,
-		/// The name of the repository - i.e. https://github.com/owner/{repository}.
+		/// The name of the repository - i.e. <https://github.com/owner/{repository}>.
 		repository: String,
 		/// If applicable, the branch, tag or commit.
 		reference: Option<String>,
