@@ -9,6 +9,7 @@ pub mod pallet;
 #[cfg(feature = "parachain")]
 pub mod parachain;
 
+/// The possible values from the variants of an enum.
 #[macro_export]
 macro_rules! enum_variants {
 	($e: ty) => {{

@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
+#![doc = include_str!("../README.md")]
+
 use anyhow::{anyhow, Result};
 use clap::Parser;
 use commands::*;
@@ -38,6 +40,7 @@ async fn main() -> Result<()> {
 	result.map(|_| ())
 }
 
+/// An all-in-one tool for Polkadot development.
 #[derive(Parser)]
 #[command(author, version, about, styles=style::get_styles())]
 pub struct Cli {
