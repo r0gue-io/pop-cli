@@ -16,13 +16,16 @@ const DATA: &'static str =
 const LENGTH: &'static str = "The length of the resulting hash, in bits.";
 const MAX_CODE_SIZE: u64 = 3 * 1024 * 1024;
 
+/// Arguments for hashing.
 #[derive(Args)]
 #[command(args_conflicts_with_subcommands = true)]
 pub(crate) struct HashArgs {
+	/// Hash data using a supported hash algorithm.
 	#[command(subcommand)]
 	pub(crate) command: Command,
 }
 
+/// Hash data using a supported hash algorithm.
 #[derive(Subcommand)]
 pub(crate) enum Command {
 	/// Hashes data using the BLAKE2b cryptographic hash algorithm.
@@ -64,6 +67,7 @@ pub(crate) enum Command {
 }
 
 impl Command {
+	/// Executes the command.
 	pub(crate) fn execute(&self) -> Result<()> {
 		let (hash, data) = match self {
 			Command::Blake2 { length, data, concat } => {
