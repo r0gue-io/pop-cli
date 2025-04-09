@@ -100,24 +100,20 @@ jobs:
 
   polkavm-unit-tests:
     needs: lint
-    strategy:
-      matrix:
-        crate: [pop-cli, pop-contracts]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Clear Rust cache (debug only)
+        run: |
+          rm -rf ~/.cargo ~/.rustup target || true
 
       - uses: "./.github/actions/init"
         with:
           git-user: ${{ env.GITHUB_ACTOR }}
 
       - name: Run unit tests with polkavm-contracts for ${{ matrix.crate }}
-        run: |
-          if [[ "${{ matrix.crate }}" == "pop-cli" ]]; then
-            cargo test --bins --no-default-features --features "polkavm-contracts parachain" -p ${{ matrix.crate }}
-          else
-            cargo test -p ${{ matrix.crate }} --no-default-features --features v6 --lib --bins
-          fi
+        run: cargo test --lib --bins --locked --no-default-features --features "polkavm-contracts parachain v6"
 
   coverage:
     needs: lint
