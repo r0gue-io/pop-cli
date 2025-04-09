@@ -49,7 +49,6 @@ subxt-signer = { version = "0.38.0", default-features = false, features = ["subx
 subxt = { version = "0.38.0", default-features = false }
 ink_env = { version = "5.0.0", default-features = false }
 ink_env_v6 = { git = "https://github.com/use-ink/ink", package = "ink_env", branch = "alex/update-dependencies" }
-sp-core = { version = "32.0.0", default-features = false }
 sp-core_inkv6 = { version = "36.1.0", package = "sp-core", default-features = false }
 sp-weights = { version = "31.0.0", default-features = false }
 sp-weights_inkv6 = { version = "31.1.0",  package = "sp-weights", default-features = false }

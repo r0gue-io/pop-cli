@@ -33,7 +33,7 @@ url.workspace = true
 
 # contracts
 pop-contracts = { path = "../pop-contracts", version = "0.7.0", default-features = false, optional = true }
-sp-core = { workspace = true, optional = true }
+sp-core = { version = "36.1.0", default-features = false, optional = true }
 sp-weights = { workspace = true, optional = true }
 
 # parachains

@@ -22,7 +22,7 @@ url.workspace = true
 heck.workspace = true
 ink_env = { workspace = true, optional = true }
 ink_env_v6 = { workspace = true, optional = true }
-sp-core = { workspace = true, optional = true }
+sp-core = { version = "32.0.0", default-features = false, optional = true }
 sp-core_inkv6 = { workspace = true, optional = true }
 sp-weights = { workspace = true, optional = true }
 sp-weights_inkv6 = { workspace = true, optional = true }
