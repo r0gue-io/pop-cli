@@ -380,7 +380,7 @@ mod tests {
 	#[test]
 	fn hash_command_display_works() {
 		use hash::{Command::*, Data, HashArgs};
-		let command = Blake2 { length: "256".to_string(), data: Data::default(), concat: false };
+		let command = Blake2 { length: 256, data: Data::default(), concat: false };
 		assert_eq!(format!("hash {command}"), Command::Hash(HashArgs { command }).to_string());
 	}
 }
