@@ -2,6 +2,7 @@
 
 #![doc = include_str!("../README.md")]
 
+/// Provides functionality for benchmarking.
 pub mod bench;
 mod build;
 /// Provides functionality to construct, encode, sign, and submit chain extrinsics.
@@ -14,6 +15,7 @@ mod new_pallet;
 mod new_parachain;
 mod relay;
 mod templates;
+/// Provides functionality for testing runtime upgrades.
 pub mod try_runtime;
 mod up;
 mod utils;

@@ -19,18 +19,25 @@ use tempfile::{tempdir, tempfile};
 use thiserror::Error;
 use url::Url;
 
+/// An error relating to the sourcing of binaries.
 #[derive(Error, Debug)]
 pub enum Error {
+	/// An error occurred.
 	#[error("Anyhow error: {0}")]
 	AnyhowError(#[from] anyhow::Error),
+	/// An error occurred sourcing a binary from an archive.
 	#[error("Archive error: {0}")]
 	ArchiveError(String),
+	/// A HTTP error occurred.
 	#[error("HTTP error: {0}")]
 	HttpError(#[from] reqwest::Error),
+	/// An IO error occurred.
 	#[error("IO error: {0}")]
 	IO(#[from] std::io::Error),
+	/// A binary cannot be sourced.
 	#[error("Missing binary: {0}")]
 	MissingBinary(String),
+	/// An error occurred during parsing.
 	#[error("ParseError error: {0}")]
 	ParseError(#[from] url::ParseError),
 }
@@ -126,9 +133,9 @@ impl Source {
 pub enum GitHub {
 	/// An archive for download from a GitHub release.
 	ReleaseArchive {
-		/// The owner of the repository - i.e. https://github.com/{owner}/repository.
+		/// The owner of the repository - i.e. <https://github.com/{owner}/repository>.
 		owner: String,
-		/// The name of the repository - i.e. https://github.com/owner/{repository}.
+		/// The name of the repository - i.e. <https://github.com/owner/{repository}>.
 		repository: String,
 		/// The release tag to be used, where `None` is latest.
 		tag: Option<String>,
@@ -144,9 +151,9 @@ pub enum GitHub {
 	},
 	/// A source code archive for download from GitHub.
 	SourceCodeArchive {
-		/// The owner of the repository - i.e. https://github.com/{owner}/repository.
+		/// The owner of the repository - i.e. <https://github.com/{owner}/repository>.
 		owner: String,
-		/// The name of the repository - i.e. https://github.com/owner/{repository}.
+		/// The name of the repository - i.e. <https://github.com/owner/{repository}>.
 		repository: String,
 		/// If applicable, the branch, tag or commit.
 		reference: Option<String>,
@@ -837,6 +844,7 @@ pub(super) mod tests {
 	}
 }
 
+/// Traits for the sourcing of a binary.
 pub mod traits {
 	use crate::{sourcing::Error, GitHub};
 	use strum::EnumProperty;

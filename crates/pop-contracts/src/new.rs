@@ -27,6 +27,10 @@ pub fn create_smart_contract(name: &str, target: &Path, template: &Contract) -> 
 	create_template_contract(name, canonicalized_path, template)
 }
 
+/// Determines whether the provided name is valid for a smart contract.
+///
+/// # Arguments
+/// * `name` - potential name of a smart contract.
 pub fn is_valid_contract_name(name: &str) -> Result<(), Error> {
 	if !name.chars().all(|c| c.is_alphanumeric() || c == '_') {
 		return Err(Error::InvalidName(

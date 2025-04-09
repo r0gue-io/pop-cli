@@ -61,6 +61,8 @@ pub(crate) enum Command {
 	/// [DEPRECATED] Test a smart contract (will be removed in v0.8.0).
 	#[cfg(feature = "contract")]
 	#[clap(alias = "c")]
+	#[deprecated(since = "0.7.0", note = "will be removed in v0.8.0")]
+	#[allow(rustdoc::broken_intra_doc_links)]
 	Contract(contract::TestContractCommand),
 }
 
@@ -111,6 +113,7 @@ impl Display for Command {
 			#[cfg(feature = "parachain")]
 			Command::CreateSnapshot(_) => write!(f, "create snapshot"),
 			#[cfg(feature = "contract")]
+			#[allow(deprecated)]
 			Command::Contract(_) => write!(f, "contract"),
 		}
 	}

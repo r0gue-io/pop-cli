@@ -15,7 +15,7 @@ pub fn parse_latest_tag(tags: Vec<&str>) -> Option<String> {
 	}
 }
 
-/// Retrieves the latest stable release ta
+/// Retrieves the latest stable release tag.
 fn parse_latest_stable(tags: &[&str]) -> Option<String> {
 	// Regex for polkadot-stableYYMM and polkadot-stableYYMM-X
 	let stable_reg = Regex::new(

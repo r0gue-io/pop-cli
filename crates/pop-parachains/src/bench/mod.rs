@@ -22,7 +22,7 @@ use tempfile::NamedTempFile;
 pub mod binary;
 
 /// The default `development` preset used to communicate with the runtime via
-/// [`GenesisBuilder`] interface.
+/// [`GenesisBuilder`](https://docs.rs/sp-genesis-builder/latest/sp_genesis_builder/trait.GenesisBuilder.html) interface.
 ///
 /// (Recommended for testing with a single node, e.g., for benchmarking)
 pub const GENESIS_BUILDER_DEV_PRESET: &str = "development";

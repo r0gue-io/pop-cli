@@ -1,10 +1,12 @@
 # pop-contracts
 
-A crate for generating, building, deploying, and calling [`ink!`](https://github.com/paritytech/ink) Smart Contracts. Used by [`pop-cli`](https://github.com/r0gue-io/pop-cli).
+A crate for generating, building, deploying, and calling [`ink!`](https://github.com/paritytech/ink) Smart Contracts.
+Used by [`pop-cli`](https://github.com/r0gue-io/pop-cli).
 
 ## Usage
 
 Generate a new Smart Contract:
+
 ```rust,no_run
 use pop_contracts::{create_smart_contract, Contract};
 use std::path::Path;
@@ -14,6 +16,7 @@ create_smart_contract("my_contract", &contract_path, &Contract::Standard);
 ```
 
 Build an existing Smart Contract:
+
 ```rust,no_run
 use pop_contracts::build_smart_contract;
 use std::path::Path;
@@ -25,6 +28,7 @@ let result = build_smart_contract(Some(&contract_path), build_release, Verbosity
 ```
 
 Test an existing Smart Contract:
+
 ```rust,no_run
 use pop_common::test_project;
 use pop_contracts::test_e2e_smart_contract;
@@ -40,6 +44,7 @@ test_e2e_smart_contract(Some(contract_path), Some(contracts_node_path));
 ```
 
 Deploy and instantiate an existing Smart Contract:
+
 ```rust,no_run
 use pop_contracts::{ dry_run_gas_estimate_instantiate, instantiate_smart_contract, set_up_deployment, UpOpts};
 use std::path::PathBuf;
@@ -70,6 +75,7 @@ tokio_test::block_on(async {
 ```
 
 Upload a Smart Contract only:
+
 ```rust,no_run
 use pop_contracts::{ dry_run_upload, set_up_upload, upload_smart_contract, UpOpts};
 use std::path::PathBuf;
@@ -99,6 +105,7 @@ tokio_test::block_on(async {
 ```
 
 Call a deployed (and instantiated) Smart Contract:
+
 ```rust,no_run
 use pop_contracts::{call_smart_contract, dry_run_call, dry_run_gas_estimate_call, set_up_call,CallOpts};
 use std::path::PathBuf;
@@ -147,4 +154,6 @@ tokio_test::block_on(async {
 ```
 
 ## Acknowledgements
-`pop-contracts` would not be possible without the awesome crate: [`cargo-contract`](https://github.com/paritytech/cargo-contract).
+
+`pop-contracts` would not be possible without the awesome crate: [
+`cargo-contract`](https://github.com/use-ink/cargo-contract).

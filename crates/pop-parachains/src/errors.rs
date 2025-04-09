@@ -6,8 +6,10 @@ use zombienet_sdk::OrchestratorError;
 /// Represents the various errors that can occur in the crate.
 #[derive(Error, Debug)]
 pub enum Error {
+	/// The operation has been aborted due to an existing target directory.
 	#[error("User aborted due to existing target directory.")]
 	Aborted,
+	/// An error occurred.
 	#[error("Anyhow error: {0}")]
 	AnyhowError(#[from] anyhow::Error),
 	/// An error occurred while generating the chain specification.
@@ -22,15 +24,19 @@ pub enum Error {
 	/// An error occurred while encoding the call data.
 	#[error("Failed to encode call data. {0}")]
 	CallDataEncodingError(String),
+	/// An error occurred.
 	#[error("{0}")]
 	CommonError(#[from] pop_common::Error),
 	/// An error occurred while attempting to establish a connection to the endpoint.
 	#[error("Failed to establish a connection to: {0}")]
 	ConnectionFailure(String),
+	/// A configuration error occurred.
 	#[error("Configuration error: {0}")]
 	Config(String),
+	/// The current directory could not be accessed.
 	#[error("Failed to access the current directory")]
 	CurrentDirAccess,
+	/// The endowment value could not be parsed.
 	#[error("Failed to parse the endowment value")]
 	EndowmentError,
 	/// The specified event was not found.
@@ -48,21 +54,33 @@ pub enum Error {
 	/// Failed to retrieve the image tag.
 	#[error("Failed to retrieve image tag.")]
 	ImageTagRetrievalFailed,
+	/// An IO error occurred.
 	#[error("IO error: {0}")]
 	IO(#[from] std::io::Error),
+	/// A JSON error occurred.
 	#[error("JSON error: {0}")]
 	JsonError(#[from] serde_json::Error),
 	/// An error occurred while parsing metadata of a parameter.
 	#[error("Error parsing metadata for parameter {0}")]
 	MetadataParsingError(String),
+	/// A binary is missing.
 	#[error("Missing binary: {0}")]
 	MissingBinary(String),
+	/// A chain spec is missing.
 	#[error("Missing chain spec file at: {0}")]
 	MissingChainSpec(String),
+	/// A required command does not exist.
 	#[error("Command {command} doesn't exist in binary {binary}")]
-	MissingCommand { command: String, binary: String },
+	MissingCommand {
+		/// The required command.
+		command: String,
+		/// The binary used.
+		binary: String,
+	},
+	/// An orchestrator error occurred.
 	#[error("Orchestrator error: {0}")]
 	OrchestratorError(#[from] OrchestratorError),
+	/// The attempt to create a pallet directory failed.
 	#[error("Failed to create pallet directory")]
 	PalletDirCreation,
 	/// The specified pallet could not be found.
@@ -74,25 +92,31 @@ pub enum Error {
 	/// An error occurred while parsing the arguments provided by the user.
 	#[error("Failed to parse the arguments provided by the user: {0}")]
 	ParamParsingError(String),
+	/// The path is invalid.
 	#[error("Invalid path")]
 	PathError,
+	/// Failed to execute `rustfmt`.
 	#[error("Failed to execute rustfmt")]
 	RustfmtError(std::io::Error),
 	/// The specified runtime could not be found.
 	#[error("Failed to find the runtime {0}")]
 	RuntimeNotFound(String),
+	/// An error occurred sourcing a binary.
 	#[error("Template error: {0}")]
 	SourcingError(#[from] pop_common::sourcing::Error),
 	/// An error occurred whilst interacting with a chain using `subxt`.
 	#[error("Subxt error: {0}")]
 	SubXtError(#[from] subxt::Error),
+	/// A TOML error occurred.
 	#[error("Toml error: {0}")]
 	TomlError(#[from] toml_edit::de::Error),
 	/// An error occurred while testing with try-runtime.
 	#[error("Failed to test with try-runtime: {0}")]
 	TryRuntimeError(String),
+	/// The command is not supported.
 	#[error("Unsupported command: {0}")]
 	UnsupportedCommand(String),
+	/// The workspace could not be located.
 	#[error("Failed to locate the workspace")]
 	WorkspaceLocate,
 }

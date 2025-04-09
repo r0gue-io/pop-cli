@@ -137,9 +137,11 @@ impl Command {
 						},
 						// TODO: Deprecated, will be removed in v0.8.0.
 						#[cfg(feature = "parachain")]
+						#[allow(deprecated)]
 						up::Command::Parachain(cmd) => cmd.execute().await.map(|_| Null),
 						// TODO: Deprecated, will be removed in v0.8.0.
 						#[cfg(feature = "contract")]
+						#[allow(deprecated)]
 						up::Command::Contract(mut cmd) => {
 							cmd.path =
 								crate::common::builds::get_project_path(args.path, args.path_pos);
@@ -159,6 +161,7 @@ impl Command {
 					Some(cmd) => match cmd {
 						// TODO: Deprecated, will be removed in v0.8.0.
 						#[cfg(feature = "contract")]
+						#[allow(deprecated)]
 						test::Command::Contract(cmd) => cmd.execute(&mut Cli).await.map(|feature| Test {
 							project: crate::common::Project::Contract,
 							feature,
