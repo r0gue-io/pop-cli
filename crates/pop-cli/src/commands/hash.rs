@@ -216,6 +216,10 @@ impl TypedValueParser for SupportedLengths {
 			.parse_ref(cmd, arg, value)
 			.map(|v| v.parse::<u16>().expect("only u16 values supported"))
 	}
+
+	fn possible_values(&self) -> Option<Box<dyn Iterator<Item = PossibleValue> + '_>> {
+		self.0.possible_values()
+	}
 }
 
 #[cfg(test)]
@@ -419,5 +423,23 @@ mod tests {
 	fn data_from_string_works() {
 		let value = "test";
 		assert!(matches!(Data::from_str(value), Ok(String(bytes)) if bytes == value.as_bytes()));
+	}
+
+	#[test]
+	fn supported_lengths_works() {
+		let values = [8, 16, 32, 64];
+		let supported_lengths = SupportedLengths::new(values);
+		for value in values {
+			assert_eq!(
+				supported_lengths
+					.parse_ref(&Default::default(), Option::None, &OsStr::new(&value.to_string()))
+					.unwrap(),
+				value
+			);
+		}
+		assert!(supported_lengths
+			.possible_values()
+			.unwrap()
+			.eq(values.map(|v| PossibleValue::new(v.to_string())),))
 	}
 }
