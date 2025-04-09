@@ -72,6 +72,6 @@ If you have any questions or concerns regarding our telemetry practices, please 
 hesitate to contact us:
 
 - Contact form: [r0gue.io/contact](https://r0gue.io/contact)
-- Telegram: [Pop_Network](https://t.me/onpopio)
+- Telegram: [Pop](https://t.me/onpopio)
 
 Thank you for your support and understanding.
