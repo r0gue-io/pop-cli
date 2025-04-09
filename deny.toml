@@ -1,5 +1,5 @@
 [graph]
-all-features = true
+all-features = false
 
 # This section is considered when running `cargo deny check advisories`
 [advisories]
