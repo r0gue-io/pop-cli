@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
+#![doc = include_str!("../README.md")]
+
 use std::net::TcpListener;
 
 pub use account_id::parse_account;
