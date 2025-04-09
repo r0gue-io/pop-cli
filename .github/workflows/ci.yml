@@ -84,6 +84,23 @@ jobs:
 
       - uses: docker/build-push-action@v5
 
+  docs:
+    needs: lint
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+    env:
+      RUSTDOCFLAGS: "-Dwarnings"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: "./.github/actions/init"
+        with:
+          git-user: ${{ env.GITHUB_ACTOR }}
+
+      - name: Check no default features
+        run: cargo doc --no-deps
+
   unit-tests:
     needs: lint
     runs-on: ubuntu-latest
