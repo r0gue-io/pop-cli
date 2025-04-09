@@ -56,10 +56,14 @@ pub(crate) enum Command {
 	#[cfg(feature = "parachain")]
 	/// [DEPRECATED] Launch a local network (will be removed in v0.8.0).
 	#[clap(alias = "p", hide = true)]
+	#[deprecated(since = "0.7.0", note = "will be removed in v0.8.0")]
+	#[allow(rustdoc::broken_intra_doc_links)]
 	Parachain(network::ZombienetCommand),
 	#[cfg(feature = "contract")]
 	/// [DEPRECATED] Deploy a smart contract (will be removed in v0.8.0).
 	#[clap(alias = "c", hide = true)]
+	#[deprecated(since = "0.7.0", note = "will be removed in v0.8.0")]
+	#[allow(rustdoc::broken_intra_doc_links)]
 	Contract(contract::UpContractCommand),
 }
 
@@ -104,8 +108,10 @@ impl Display for Command {
 			#[cfg(feature = "parachain")]
 			Command::Network(_) => write!(f, "network"),
 			#[cfg(feature = "parachain")]
+			#[allow(deprecated)]
 			Command::Parachain(_) => write!(f, "chain"),
 			#[cfg(feature = "contract")]
+			#[allow(deprecated)]
 			Command::Contract(_) => write!(f, "contract"),
 		}
 	}
