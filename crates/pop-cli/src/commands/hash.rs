@@ -2,7 +2,7 @@
 
 use super::*;
 use anyhow::Result;
-use clap::builder::PossibleValuesParser;
+use clap::{builder::PossibleValuesParser, Args};
 use sp_core::{
 	bytes::{from_hex, to_hex},
 	hashing::*,
@@ -117,11 +117,26 @@ impl Command {
 	}
 }
 
+impl Display for Command {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		match self {
+			Command::Blake2 { length, .. } => write!(f, "blake2 {length}"),
+			Command::Keccak { length, .. } => write!(f, "keccak {length}"),
+			Command::Sha2 { length, .. } => write!(f, "sha2 {length}"),
+			Command::TwoX { length, .. } => write!(f, "twox {length}"),
+		}
+	}
+}
+
 #[derive(Clone, Debug, Display)]
+#[cfg_attr(test, derive(Default))]
 pub(crate) enum Data {
 	File(Vec<u8>),
 	Hex(Vec<u8>),
 	String(Vec<u8>),
+	#[cfg(test)]
+	#[default]
+	None,
 }
 
 impl From<&str> for Data {
@@ -135,7 +150,7 @@ impl From<&str> for Data {
 				}
 
 				if let Ok(data) = std::fs::read(value) {
-					return Self::File(data)
+					return Self::File(data);
 				}
 			}
 		}
@@ -156,6 +171,40 @@ impl Deref for Data {
 			Data::File(data) => data,
 			Data::Hex(data) => data,
 			Data::String(data) => data,
+			Data::None => Default::default(),
+		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn command_display_works() {
+		use Command::*;
+
+		let blake2 = ["64", "128", "256", "512"].iter().map(|len| {
+			(
+				Blake2 { length: len.to_string(), data: Data::default(), concat: false },
+				format!("blake2 {len}"),
+			)
+		});
+		let keccak = ["256", "512"].iter().map(|len| {
+			(Keccak { length: len.to_string(), data: Data::default() }, format!("keccak {len}"))
+		});
+		let sha2 = ["256"].iter().map(|len| {
+			(Sha2 { length: len.to_string(), data: Data::default() }, format!("sha2 {len}"))
+		});
+		let twox = ["64", "128"].iter().map(|len| {
+			(
+				TwoX { length: len.to_string(), data: Data::default(), concat: false },
+				format!("twox {len}"),
+			)
+		});
+
+		for (command, expected) in blake2.chain(keccak).chain(sha2).chain(twox) {
+			assert_eq!(command.to_string(), expected);
 		}
 	}
 }

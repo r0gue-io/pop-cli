@@ -5,7 +5,7 @@ use crate::{
 	cli::Cli,
 	common::Data::{self, *},
 };
-use clap::{Args, Subcommand};
+use clap::Subcommand;
 use std::fmt::{Display, Formatter, Result};
 
 #[cfg(feature = "parachain")]
@@ -252,7 +252,7 @@ impl Display for Command {
 			#[cfg(feature = "parachain")]
 			Self::Bench(args) => write!(f, "bench {}", args.command),
 			#[cfg(feature = "hashing")]
-			Command::Hash(_) => write!(f, "hash"),
+			Command::Hash(args) => write!(f, "hash {}", args.command),
 		}
 	}
 }
@@ -374,5 +374,13 @@ mod tests {
 		for (command, expected) in test_cases {
 			assert_eq!(command.to_string(), expected);
 		}
+	}
+
+	#[cfg(feature = "hashing")]
+	#[test]
+	fn hash_command_display_works() {
+		use hash::{Command::*, Data, HashArgs};
+		let command = Blake2 { length: "256".to_string(), data: Data::default(), concat: false };
+		assert_eq!(format!("hash {command}"), Command::Hash(HashArgs { command }).to_string());
 	}
 }
