@@ -1,6 +1,6 @@
 use crate::{errors::handle_command_error, Error};
 use duct::cmd;
-use frame_try_runtime::{TryStateSelect, UpgradeCheckSelect};
+pub use frame_try_runtime::{TryStateSelect, UpgradeCheckSelect};
 use std::{fmt::Display, path::PathBuf, str::from_utf8};
 
 /// Provides functionality for sourcing binaries of the `try-runtime-cli`.

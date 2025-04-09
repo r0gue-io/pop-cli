@@ -3,23 +3,23 @@
 use crate::{
 	cache,
 	cli::Cli,
-	common::{
-		builds::get_project_path,
-		Data::{self, *},
-		Project::{self, Network},
-		Template::*,
-	},
+	common::Data::{self, *},
 };
 use clap::Subcommand;
 use std::fmt::{Display, Formatter, Result};
+
 #[cfg(feature = "parachain")]
 pub(crate) mod bench;
 pub(crate) mod build;
+#[cfg(any(feature = "parachain", feature = "contract"))]
 pub(crate) mod call;
 pub(crate) mod clean;
+#[cfg(any(feature = "parachain", feature = "contract"))]
 pub(crate) mod install;
+#[cfg(any(feature = "parachain", feature = "contract"))]
 pub(crate) mod new;
 pub(crate) mod test;
+#[cfg(any(feature = "parachain", feature = "contract"))]
 pub(crate) mod up;
 
 #[derive(Subcommand)]
@@ -27,6 +27,7 @@ pub(crate) mod up;
 pub(crate) enum Command {
 	/// Set up the environment for development by installing required packages.
 	#[clap(alias = "i")]
+	#[cfg(any(feature = "parachain", feature = "contract"))]
 	Install(install::InstallArgs),
 	/// Generate a new parachain, pallet or smart contract.
 	#[clap(alias = "n")]
@@ -36,7 +37,6 @@ pub(crate) enum Command {
 	#[cfg(feature = "parachain")]
 	Bench(bench::BenchmarkArgs),
 	#[clap(alias = "b", about = about_build())]
-	#[cfg(any(feature = "parachain", feature = "contract"))]
 	Build(build::BuildArgs),
 	/// Call a chain or a smart contract.
 	#[clap(alias = "c")]
@@ -47,7 +47,6 @@ pub(crate) enum Command {
 	Up(up::UpArgs),
 	/// Test a Rust project.
 	#[clap(alias = "t")]
-	#[cfg(any(feature = "parachain", feature = "contract"))]
 	Test(test::TestArgs),
 	/// Remove generated/cached artifacts.
 	#[clap(alias = "C")]
@@ -62,9 +61,12 @@ fn about_build() -> &'static str {
 	return "Build a parachain, chain specification or Rust package.";
 	#[cfg(all(feature = "contract", not(feature = "parachain")))]
 	return "Build a smart contract or Rust package.";
+	#[cfg(all(not(feature = "contract"), not(feature = "parachain")))]
+	return "Build a Rust package.";
 }
 
 /// Help message for the `up` command.
+#[cfg(any(feature = "contract", feature = "parachain"))]
 fn about_up() -> &'static str {
 	#[cfg(all(feature = "parachain", feature = "contract"))]
 	return "Deploy a rollup(parachain), deploy a smart contract or launch a local network.";
@@ -86,6 +88,7 @@ impl Command {
 			#[cfg(any(feature = "parachain", feature = "contract"))]
 			Self::New(args) => {
 				env_logger::init();
+				use crate::common::Template::*;
 				match args.command {
 					#[cfg(feature = "parachain")]
 					new::Command::Parachain(cmd) => cmd.execute().await.map(|p| New(Chain(p))),
@@ -97,9 +100,9 @@ impl Command {
 			},
 			#[cfg(feature = "parachain")]
 			Self::Bench(args) => bench::Command::execute(args).await.map(|_| Null),
-			#[cfg(any(feature = "parachain", feature = "contract"))]
 			Self::Build(args) => {
 				env_logger::init();
+				#[cfg(feature = "parachain")]
 				match args.command {
 					None => build::Command::execute(args).map(Build),
 					Some(cmd) => match cmd {
@@ -107,6 +110,9 @@ impl Command {
 						build::Command::Spec(cmd) => cmd.execute().await.map(|_| Null),
 					},
 				}
+
+				#[cfg(not(feature = "parachain"))]
+				build::Command::execute(args).map(Build)
 			},
 			#[cfg(any(feature = "parachain", feature = "contract"))]
 			Self::Call(args) => {
@@ -127,7 +133,7 @@ impl Command {
 						#[cfg(feature = "parachain")]
 						up::Command::Network(mut cmd) => {
 							cmd.valid = true;
-							cmd.execute().await.map(|_| Up(Network))
+							cmd.execute().await.map(|_| Up(crate::common::Project::Network))
 						},
 						// TODO: Deprecated, will be removed in v0.8.0.
 						#[cfg(feature = "parachain")]
@@ -135,7 +141,8 @@ impl Command {
 						// TODO: Deprecated, will be removed in v0.8.0.
 						#[cfg(feature = "contract")]
 						up::Command::Contract(mut cmd) => {
-							cmd.path = get_project_path(args.path, args.path_pos);
+							cmd.path =
+								crate::common::builds::get_project_path(args.path, args.path_pos);
 							cmd.execute().await.map(|_| Null)
 						},
 					},
@@ -143,6 +150,8 @@ impl Command {
 			},
 			Self::Test(args) => {
 				env_logger::init();
+
+				#[cfg(any(feature = "contract", feature = "parachain"))]
 				match args.command {
 					None => test::Command::execute(args)
 						.await
@@ -150,10 +159,10 @@ impl Command {
 					Some(cmd) => match cmd {
 						// TODO: Deprecated, will be removed in v0.8.0.
 						#[cfg(feature = "contract")]
-						test::Command::Contract(cmd) => cmd
-							.execute(&mut Cli)
-							.await
-							.map(|feature| Test { project: Project::Contract, feature }),
+						test::Command::Contract(cmd) => cmd.execute(&mut Cli).await.map(|feature| Test {
+							project: crate::common::Project::Contract,
+							feature,
+						}),
 						#[cfg(feature = "parachain")]
 						test::Command::OnRuntimeUpgrade(cmd) => cmd.execute(&mut Cli).await.map(|_| Null),
 						#[cfg(feature = "parachain")]
@@ -164,6 +173,11 @@ impl Command {
 						test::Command::FastForward(cmd) => cmd.execute(&mut Cli).await.map(|_| Null),
 					},
 				}
+
+				#[cfg(not(any(feature = "contract", feature = "parachain")))]
+				test::Command::execute(args)
+					.await
+					.map(|(project, feature)| Test { project, feature })
 			},
 			Self::Clean(args) => {
 				env_logger::init();
@@ -191,10 +205,16 @@ impl Display for Command {
 			Self::Install(_) => write!(f, "install"),
 			#[cfg(any(feature = "parachain", feature = "contract"))]
 			Self::New(args) => write!(f, "new {}", args.command),
-			#[cfg(any(feature = "parachain", feature = "contract"))]
-			Self::Build(args) => match &args.command {
-				Some(cmd) => write!(f, "build {}", cmd),
-				None => write!(f, "build"),
+			#[allow(unused_variables)]
+			Self::Build(args) => {
+				#[cfg(feature = "parachain")]
+				match &args.command {
+					Some(cmd) => write!(f, "build {}", cmd),
+					None => write!(f, "build"),
+				}
+
+				#[cfg(not(feature = "parachain"))]
+				write!(f, "build")
 			},
 			#[cfg(any(feature = "parachain", feature = "contract"))]
 			Self::Call(args) => write!(f, "call {}", args.command),
@@ -203,10 +223,16 @@ impl Display for Command {
 				Some(cmd) => write!(f, "up {}", cmd),
 				None => write!(f, "up"),
 			},
-			#[cfg(any(feature = "parachain", feature = "contract"))]
-			Self::Test(args) => match &args.command {
-				Some(cmd) => write!(f, "test {}", cmd),
-				None => write!(f, "test"),
+			#[allow(unused_variables)]
+			Self::Test(args) => {
+				#[cfg(any(feature = "contract", feature = "parachain"))]
+				match &args.command {
+					Some(cmd) => write!(f, "test {}", cmd),
+					None => write!(f, "test"),
+				}
+
+				#[cfg(not(any(feature = "contract", feature = "parachain")))]
+				write!(f, "test")
 			},
 			Self::Clean(_) => write!(f, "clean"),
 			#[cfg(feature = "parachain")]

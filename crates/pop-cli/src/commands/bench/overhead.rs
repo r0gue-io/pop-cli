@@ -11,9 +11,10 @@ use crate::{
 };
 use clap::{Args, Parser};
 use cliclack::spinner;
-use frame_benchmarking_cli::OverheadCmd;
 use pop_common::Profile;
-use pop_parachains::{generate_omni_bencher_benchmarks, BenchmarkingCliCommand};
+use pop_parachains::{
+	bench::OverheadCmd, generate_omni_bencher_benchmarks, BenchmarkingCliCommand,
+};
 use std::{env::current_dir, path::PathBuf};
 use tempfile::tempdir;
 

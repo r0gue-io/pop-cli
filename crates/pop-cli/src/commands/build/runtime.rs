@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0
 
+pub use crate::common::runtime::Feature::{self, *};
 use crate::{
 	cli::{self},
 	common::{
 		prompt::display_message,
-		runtime::{
-			build_runtime, ensure_runtime_binary_exists,
-			Feature::{Benchmark, TryRuntime},
-		},
+		runtime::{build_runtime, ensure_runtime_binary_exists},
 	},
 };
 use pop_common::{find_workspace_toml, Profile};

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use cliclack::ThemeState;
-#[cfg(any(feature = "parachain", feature = "contract"))]
 pub(crate) use console::style;
 use console::Style;
 
@@ -43,11 +42,13 @@ impl cliclack::Theme for Theme {
 }
 
 /// Formats a URL with bold and underlined style.
+#[cfg(feature = "parachain")]
 pub(crate) fn format_url(url: &str) -> String {
 	format!("{}", style(url).bold().underlined())
 }
 
 /// Formats the step label if steps should be shown.
+#[cfg(feature = "parachain")]
 pub(crate) fn format_step_prefix(current: usize, total: usize, show: bool) -> String {
 	show.then(|| format!("[{}/{}]: ", current, total)).unwrap_or_default()
 }

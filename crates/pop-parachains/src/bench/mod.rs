@@ -4,6 +4,7 @@ use crate::Error;
 use clap::Parser;
 use duct::cmd;
 use frame_benchmarking_cli::PalletCmd;
+pub use frame_benchmarking_cli::{BlockCmd, MachineCmd, OverheadCmd, StorageCmd};
 use sc_chain_spec::GenesisConfigBuilderRuntimeCaller;
 use serde::{Deserialize, Serialize};
 use sp_runtime::traits::BlakeTwo256;

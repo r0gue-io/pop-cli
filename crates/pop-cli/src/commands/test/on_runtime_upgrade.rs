@@ -19,10 +19,10 @@ use clap::Args;
 use clap::Parser;
 use cliclack::spinner;
 use console::style;
-use frame_try_runtime::UpgradeCheckSelect;
 use pop_parachains::{
 	run_try_runtime,
 	state::{State, StateCommand},
+	try_runtime::UpgradeCheckSelect,
 	upgrade_checks_details, SharedParams, TryRuntimeCliCommand,
 };
 use std::{str::FromStr, thread::sleep, time::Duration};

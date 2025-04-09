@@ -4,6 +4,7 @@ use crate::cli::traits::Cli;
 use anyhow::Result;
 
 // Displays a message to the user, with formatting based on the success status.
+#[allow(dead_code)]
 pub(crate) fn display_message(message: &str, success: bool, cli: &mut impl Cli) -> Result<()> {
 	if success {
 		cli.outro(message)?;

@@ -14,10 +14,12 @@ pub mod helpers;
 /// Contains utilities for interacting with the CLI prompt.
 pub mod prompt;
 /// Contains runtime utilities.
+#[cfg(feature = "parachain")]
 pub mod runtime;
 /// Contains try-runtime utilities.
 #[cfg(feature = "parachain")]
 pub mod try_runtime;
+#[cfg(feature = "wallet-integration")]
 pub mod wallet;
 
 use std::fmt::{Display, Formatter, Result};
@@ -36,10 +38,13 @@ pub enum Data {
 		feature: TestFeature,
 	},
 	/// Project that was started.
+	#[cfg(any(feature = "contract", feature = "parachain"))]
 	Up(Project),
 	/// OS where installation occurred.
+	#[cfg(any(feature = "contract", feature = "parachain"))]
 	Install(Os),
 	/// Template that was created.
+	#[cfg(any(feature = "contract", feature = "parachain"))]
 	New(Template),
 	/// No additional data.
 	Null,
@@ -69,6 +74,7 @@ pub enum TestFeature {
 
 /// Project templates.
 #[derive(Debug, PartialEq, Clone)]
+#[cfg(any(feature = "contract", feature = "parachain"))]
 pub enum Template {
 	/// Smart contract template.
 	#[cfg(feature = "contract")]
@@ -77,6 +83,7 @@ pub enum Template {
 	#[cfg(feature = "parachain")]
 	Chain(pop_parachains::Parachain),
 	/// Pallet template.
+	#[cfg(feature = "parachain")]
 	Pallet,
 }
 
@@ -95,21 +102,25 @@ pub enum Os {
 // double display.
 impl Display for Data {
 	fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-		use strum::EnumMessage;
 		use Data::*;
-		use Template::*;
+		#[cfg(any(feature = "contract", feature = "parachain"))]
+		use {strum::EnumMessage, Template::*};
 
 		match self {
 			Null => write!(f, ""),
 			Build(project) => write!(f, "{}", project),
 			Test { project, feature } => write!(f, "{} {}", project, feature),
+			#[cfg(any(feature = "contract", feature = "parachain"))]
 			Install(os) => write!(f, "{}", os),
+			#[cfg(any(feature = "contract", feature = "parachain"))]
 			Up(project) => write!(f, "{}", project),
+			#[cfg(any(feature = "contract", feature = "parachain"))]
 			New(template) => match template {
 				#[cfg(feature = "parachain")]
 				Chain(chain) => write!(f, "{}", chain.get_message().unwrap_or("")),
 				#[cfg(feature = "contract")]
 				Contract(contract) => write!(f, "{}", contract.get_message().unwrap_or("")),
+				#[cfg(feature = "parachain")]
 				Pallet => write!(f, "pallet"),
 			},
 		}
@@ -128,6 +139,7 @@ impl Display for Project {
 	}
 }
 
+#[cfg(any(feature = "contract", feature = "parachain"))]
 impl Display for Template {
 	fn fmt(&self, f: &mut Formatter<'_>) -> Result {
 		use Template::*;
@@ -136,6 +148,7 @@ impl Display for Template {
 			Chain(chain) => write!(f, "{}", chain),
 			#[cfg(feature = "contract")]
 			Contract(contract) => write!(f, "{}", contract),
+			#[cfg(feature = "parachain")]
 			Pallet => write!(f, "pallet"),
 		}
 	}
