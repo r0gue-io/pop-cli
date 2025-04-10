@@ -23,6 +23,7 @@ pub(crate) struct ZombienetCommand {
 	/// v0.9.0).
 	#[arg(short = 'f', long = "file")]
 	#[deprecated(since = "0.8.0", note = "will be removed in v0.9.0")]
+	#[allow(rustdoc::broken_intra_doc_links)]
 	file: Option<PathBuf>,
 	/// The version of the binary to be used for the relay chain, as per the release tag (e.g.
 	/// "v1.13.0"). See <https://github.com/paritytech/polkadot-sdk/releases> for more details.
