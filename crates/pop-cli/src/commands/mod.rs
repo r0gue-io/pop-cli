@@ -245,10 +245,10 @@ impl Display for Command {
 }
 
 #[cfg(test)]
+#[cfg(all(feature = "parachain", feature = "contract"))]
 mod tests {
 	use super::*;
 
-	#[cfg(all(feature = "parachain", feature = "contract"))]
 	#[test]
 	fn command_display_works() {
 		let test_cases = vec![
@@ -260,6 +260,7 @@ mod tests {
 			(Command::Test(test::TestArgs::default()), "test"),
 			(
 				Command::Test(test::TestArgs {
+					#[allow(deprecated)]
 					command: Some(test::Command::Contract(Default::default())),
 					..Default::default()
 				}),
@@ -313,6 +314,7 @@ mod tests {
 			),
 			(
 				Command::Up(up::UpArgs {
+					#[allow(deprecated)]
 					command: Some(up::Command::Parachain(Default::default())),
 					..Default::default()
 				}),
@@ -320,6 +322,7 @@ mod tests {
 			),
 			(
 				Command::Up(up::UpArgs {
+					#[allow(deprecated)]
 					command: Some(up::Command::Contract(Default::default())),
 					..Default::default()
 				}),

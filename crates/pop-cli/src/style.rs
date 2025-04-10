@@ -54,6 +54,7 @@ pub(crate) fn format_step_prefix(current: usize, total: usize, show: bool) -> St
 }
 
 #[cfg(test)]
+#[cfg(feature = "parachain")]
 mod tests {
 	use super::*;
 	use console::Style;

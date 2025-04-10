@@ -297,6 +297,7 @@ pub(crate) mod tests {
 		warning_expectations: Vec<String>,
 	}
 
+	#[allow(dead_code)]
 	impl MockCli {
 		pub(crate) fn new() -> Self {
 			Self::default()
