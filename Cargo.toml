@@ -74,7 +74,7 @@ symlink = { version = "0.1", default-features = false }
 serde_json = { version = "1.0", default-features = false, features = ["preserve_order"] }
 serde = { version = "1.0", default-features = false, features = ["derive"] }
 srtool-lib = { version = "0.13.2", default-features = false }
-zombienet-sdk = { version = "0.2.26", default-features = false }
+zombienet-sdk = { version = "0.2.30", default-features = false }
 git2_credentials = "0.13.0"
 
 # benchmarking
