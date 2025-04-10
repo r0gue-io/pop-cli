@@ -596,7 +596,7 @@ mod tests {
 		)?;
 		let mut zombienet = Zombienet::new(
 			&cache,
-			config.path().to_str().unwrap(),
+			config.path(),
 			None,
 			None,
 			None,
