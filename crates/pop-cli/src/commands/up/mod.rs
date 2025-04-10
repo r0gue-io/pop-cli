@@ -226,6 +226,7 @@ mod tests {
 	}
 
 	#[test]
+	#[allow(deprecated)]
 	fn command_display_works() {
 		assert_eq!(Command::Network(Default::default()).to_string(), "network");
 		assert_eq!(Command::Parachain(Default::default()).to_string(), "chain");

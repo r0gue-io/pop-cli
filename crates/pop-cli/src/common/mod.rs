@@ -200,24 +200,28 @@ mod tests {
 		}
 
 		// Install.
+		#[cfg(any(feature = "contract", feature = "parachain"))]
 		for os in Os::VARIANTS {
 			let telemetry = Data::Install(os.clone());
 			assert_eq!(telemetry.to_string(), os.to_string());
 		}
 
 		// Up.
+		#[cfg(any(feature = "contract", feature = "parachain"))]
 		for project in Project::VARIANTS {
 			let telemetry = Data::Up(project.clone());
 			assert_eq!(telemetry.to_string(), project.to_string());
 		}
 
 		// New.
+		#[cfg(feature = "parachain")]
 		assert_eq!(Data::New(Template::Pallet).to_string(), "pallet");
-
+		#[cfg(feature = "parachain")]
 		assert_eq!(
 			Data::New(Template::Chain(pop_parachains::Parachain::Contracts)).to_string(),
 			"Contracts"
 		);
+		#[cfg(feature = "contract")]
 		assert_eq!(
 			Data::New(Template::Contract(pop_contracts::Contract::ERC20)).to_string(),
 			"Erc20"
@@ -262,15 +266,16 @@ mod tests {
 
 	#[test]
 	fn template_display_works() {
-		assert_eq!(Template::Pallet.to_string(), "pallet");
 		#[cfg(feature = "parachain")]
+		assert_eq!(Template::Pallet.to_string(), "pallet");
 		// Test Chain variant with all Parachain types.
+		#[cfg(feature = "parachain")]
 		for parachain in pop_parachains::Parachain::VARIANTS {
 			let template = Template::Chain(parachain.clone());
 			assert_eq!(template.to_string(), parachain.to_string());
 		}
-		#[cfg(feature = "contract")]
 		// Test Contract variant with all Contract types.
+		#[cfg(feature = "contract")]
 		for contract in pop_contracts::Contract::VARIANTS {
 			let template = Template::Contract(contract.clone());
 			assert_eq!(template.to_string(), contract.to_string());
