@@ -67,6 +67,7 @@ pub fn guide_user_to_select_profile(cli: &mut impl Cli) -> anyhow::Result<Profil
 }
 
 #[cfg(test)]
+#[cfg(feature = "parachain")]
 mod tests {
 	use std::fs::{self, File};
 

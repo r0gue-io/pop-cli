@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use duct::cmd;
-#[cfg(feature = "parachain")]
+#[cfg(any(feature = "parachain", test))]
 use std::cmp::Ordering;
+#[cfg(any(feature = "contract", feature = "parachain", test))]
+use std::path::PathBuf;
 #[cfg(any(feature = "contract", feature = "parachain"))]
 use {
 	crate::cli::traits::*,
 	cliclack::spinner,
 	pop_common::sourcing::{set_executable_permission, Binary},
-	std::path::{Path, PathBuf},
+	std::path::Path,
 };
 
 /// A trait for binary generator.
@@ -154,7 +156,7 @@ impl TryFrom<String> for SemanticVersion {
 /// * `binary` - The name of the binary to find.
 /// * `target_version` - The version to match.
 /// * `order` - The ordering to use when matching versions.
-#[cfg(feature = "parachain")]
+#[cfg(any(feature = "parachain", test))]
 pub(crate) fn which_version(
 	binary: &str,
 	target_version: &SemanticVersion,
@@ -177,9 +179,12 @@ pub(crate) fn which_version(
 #[cfg(test)]
 mod tests {
 	use super::*;
+	#[cfg(feature = "contract")]
 	use crate::{cli::MockCli, common::contracts::ContractsNodeGenerator};
+	use std::cmp::Ordering;
 
 	#[tokio::test]
+	#[cfg(feature = "contract")]
 	async fn check_binary_and_prompt_works() -> anyhow::Result<()> {
 		let binary_name = "substrate-contracts-node";
 		let cache_path = tempfile::tempdir().expect("Could create temp dir");
@@ -205,6 +210,7 @@ mod tests {
 	}
 
 	#[tokio::test]
+	#[cfg(feature = "contract")]
 	async fn check_binary_and_prompt_handles_skip_confirm() -> anyhow::Result<()> {
 		let binary_name = "substrate-contracts-node";
 		let cache_path = tempfile::tempdir().expect("Could create temp dir");
