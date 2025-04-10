@@ -10,15 +10,20 @@ use console::{Emoji, Style, Term};
 use duct::cmd;
 use pop_common::Status;
 use pop_parachains::{clear_dmpq, Error, IndexSet, NetworkNode, RelayChain, Zombienet};
-use std::{path::Path, time::Duration};
+use std::{
+	path::{Path, PathBuf},
+	time::Duration,
+};
 use tokio::time::sleep;
 
 #[derive(Args, Clone)]
 #[cfg_attr(test, derive(Default))]
 pub(crate) struct ZombienetCommand {
-	/// The Zombienet network configuration file to be used.
-	#[arg(short, long)]
-	file: String,
+	/// [DEPRECATED] The Zombienet network configuration file to be used (will be removed in
+	/// v0.9.0).
+	#[arg(short = 'f', long = "file")]
+	#[deprecated(since = "0.8.0", note = "will be removed in v0.9.0")]
+	file: Option<PathBuf>,
 	/// The version of the binary to be used for the relay chain, as per the release tag (e.g.
 	/// "v1.13.0"). See <https://github.com/paritytech/polkadot-sdk/releases> for more details.
 	#[arg(short, long)]
@@ -53,16 +58,37 @@ pub(crate) struct ZombienetCommand {
 
 impl ZombienetCommand {
 	/// Executes the command.
-	pub(crate) async fn execute(self) -> anyhow::Result<()> {
+	pub(crate) async fn execute(self, path: Option<&Path>) -> anyhow::Result<()> {
 		clear_screen()?;
 		intro(format!("{}: Launch a local network", style(" Pop CLI ").black().on_magenta()))?;
 		set_theme(Theme);
+
+		// Show warning if file argument provided.
+		#[allow(deprecated)]
+		if self.file.is_some() {
+			log::warning(
+				"DEPRECATION: Please use `pop up network [PATH]` (or simply `pop u n [PATH]`) in the future...",
+			)?;
+		}
+
+		// Determine network config from args.
+		let file = match path {
+			Some(path) => path,
+			#[allow(deprecated)]
+			None => match self.file.as_deref() {
+				None => {
+					outro_cancel("🚫 A network configuration file must be specified. See `pop up network --help` for usage.".to_string())?;
+					return Ok(())
+				},
+				Some(path) => path,
+			},
+		};
 
 		// Parse arguments
 		let cache = crate::cache()?;
 		let mut zombienet = match Zombienet::new(
 			&cache,
-			&self.file,
+			&file,
 			self.relay_chain.as_deref(),
 			self.relay_chain_runtime.as_deref(),
 			self.system_parachain.as_deref(),

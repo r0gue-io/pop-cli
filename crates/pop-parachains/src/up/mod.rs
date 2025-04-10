@@ -53,7 +53,7 @@ impl Zombienet {
 	/// * `parachains` - The parachain(s) specified.
 	pub async fn new(
 		cache: &Path,
-		network_config: &str,
+		network_config: impl AsRef<Path>,
 		relay_chain_version: Option<&str>,
 		relay_chain_runtime_version: Option<&str>,
 		system_parachain_version: Option<&str>,
@@ -737,16 +737,9 @@ chain = "paseo-local"
 "#
 			)?;
 
-			let zombienet = Zombienet::new(
-				&cache,
-				config.path().to_str().unwrap(),
-				Some(VERSION),
-				None,
-				None,
-				None,
-				None,
-			)
-			.await?;
+			let zombienet =
+				Zombienet::new(&cache, config.path(), Some(VERSION), None, None, None, None)
+					.await?;
 
 			let relay_chain = &zombienet.relay_chain.binary;
 			assert_eq!(relay_chain.name(), "polkadot");
@@ -777,16 +770,9 @@ chain = "paseo-local"
 			)?;
 			let version = "v1.3.3";
 
-			let zombienet = Zombienet::new(
-				&cache,
-				config.path().to_str().unwrap(),
-				None,
-				Some(version),
-				None,
-				None,
-				None,
-			)
-			.await?;
+			let zombienet =
+				Zombienet::new(&cache, config.path(), None, Some(version), None, None, None)
+					.await?;
 
 			assert_eq!(zombienet.relay_chain.chain, "paseo-local");
 			let chain_spec_generator = &zombienet.relay_chain.chain_spec_generator.unwrap();
@@ -819,16 +805,9 @@ default_command = "./bin-stable2409/polkadot"
 "#
 			)?;
 
-			let zombienet = Zombienet::new(
-				&cache,
-				config.path().to_str().unwrap(),
-				Some(VERSION),
-				None,
-				None,
-				None,
-				None,
-			)
-			.await?;
+			let zombienet =
+				Zombienet::new(&cache, config.path(), Some(VERSION), None, None, None, None)
+					.await?;
 
 			let relay_chain = &zombienet.relay_chain.binary;
 			assert_eq!(relay_chain.name(), "polkadot");
@@ -861,16 +840,9 @@ command = "polkadot"
 "#
 			)?;
 
-			let zombienet = Zombienet::new(
-				&cache,
-				config.path().to_str().unwrap(),
-				Some(VERSION),
-				None,
-				None,
-				None,
-				None,
-			)
-			.await?;
+			let zombienet =
+				Zombienet::new(&cache, config.path(), Some(VERSION), None, None, None, None)
+					.await?;
 
 			let relay_chain = &zombienet.relay_chain.binary;
 			assert_eq!(relay_chain.name(), "polkadot");
@@ -909,7 +881,7 @@ command = "polkadot-stable2409"
 			)?;
 
 			assert!(matches!(
-				Zombienet::new(&cache, config.path().to_str().unwrap(), None, None, None, None, None).await,
+				Zombienet::new(&cache, config.path(), None, None, None, None, None).await,
 				Err(Error::UnsupportedCommand(error))
 				if error == "the relay chain command is unsupported: polkadot-stable2409"
 			));
@@ -936,7 +908,7 @@ command = "polkadot-stable2409"
 			)?;
 
 			assert!(matches!(
-				Zombienet::new(&cache, config.path().to_str().unwrap(), None, None, None, None, None).await,
+				Zombienet::new(&cache, config.path(), None, None, None, None, None).await,
 				Err(Error::UnsupportedCommand(error))
 				if error == "the relay chain command is unsupported: polkadot-stable2409"
 			));
@@ -963,7 +935,7 @@ chain = "asset-hub-paseo-local"
 
 			let zombienet = Zombienet::new(
 				&cache,
-				config.path().to_str().unwrap(),
+				config.path(),
 				Some(VERSION),
 				None,
 				Some(system_parachain_version),
@@ -1005,16 +977,9 @@ chain = "asset-hub-paseo-local"
 "#
 			)?;
 
-			let zombienet = Zombienet::new(
-				&cache,
-				config.path().to_str().unwrap(),
-				None,
-				None,
-				None,
-				Some(VERSION),
-				None,
-			)
-			.await?;
+			let zombienet =
+				Zombienet::new(&cache, config.path(), None, None, None, Some(VERSION), None)
+					.await?;
 
 			assert_eq!(zombienet.parachains.len(), 1);
 			let system_parachain = &zombienet.parachains.get(&1000).unwrap();
@@ -1051,16 +1016,8 @@ default_command = "pop-node"
 "#
 			)?;
 
-			let zombienet = Zombienet::new(
-				&cache,
-				config.path().to_str().unwrap(),
-				None,
-				None,
-				None,
-				None,
-				None,
-			)
-			.await?;
+			let zombienet =
+				Zombienet::new(&cache, config.path(), None, None, None, None, None).await?;
 
 			assert_eq!(zombienet.parachains.len(), 1);
 			let pop = &zombienet.parachains.get(&4385).unwrap().binary;
@@ -1096,7 +1053,7 @@ default_command = "pop-node"
 
 			let zombienet = Zombienet::new(
 				&cache,
-				config.path().to_str().unwrap(),
+				config.path(),
 				None,
 				None,
 				None,
@@ -1135,16 +1092,8 @@ default_command = "./target/release/parachain-template-node"
 "#
 			)?;
 
-			let zombienet = Zombienet::new(
-				&cache,
-				config.path().to_str().unwrap(),
-				None,
-				None,
-				None,
-				None,
-				None,
-			)
-			.await?;
+			let zombienet =
+				Zombienet::new(&cache, config.path(), None, None, None, None, None).await?;
 
 			assert_eq!(zombienet.parachains.len(), 1);
 			let pop = &zombienet.parachains.get(&2000).unwrap().binary;
@@ -1184,7 +1133,7 @@ command = "substrate-contracts-node"
 			// Expecting failure since no custom path is provided and binaries don't exist in the
 			// default build directory.
 			assert!(matches!(
-				Zombienet::new(&cache, config.path().to_str().unwrap(), None, None, None, None, None).await,
+				Zombienet::new(&cache, config.path(), None, None, None, None, None).await,
 				Err(Error::MissingBinary(command))
 				if command == "parachain-template-node"
 			));
@@ -1198,16 +1147,8 @@ command = "substrate-contracts-node"
 			create_dir_all(parachain_contracts_template.parent().unwrap())?;
 			File::create(&parachain_contracts_template)?;
 
-			let zombienet = Zombienet::new(
-				&cache,
-				config.path().to_str().unwrap(),
-				None,
-				None,
-				None,
-				None,
-				None,
-			)
-			.await?;
+			let zombienet =
+				Zombienet::new(&cache, config.path(), None, None, None, None, None).await?;
 			// Remove the binaries created above after Zombienet initialization, as they are no
 			// longer needed.
 			remove_file(&parachain_template)?;
@@ -1252,16 +1193,8 @@ command = "./target/release/parachain-template-node"
 "#
 			)?;
 
-			let zombienet = Zombienet::new(
-				&cache,
-				config.path().to_str().unwrap(),
-				None,
-				None,
-				None,
-				None,
-				None,
-			)
-			.await?;
+			let zombienet =
+				Zombienet::new(&cache, config.path(), None, None, None, None, None).await?;
 
 			assert_eq!(zombienet.parachains.len(), 1);
 			let pop = &zombienet.parachains.get(&2000).unwrap().binary;
@@ -1292,7 +1225,7 @@ default_command = "moonbeam"
 
 			let zombienet = Zombienet::new(
 				&cache,
-				config.path().to_str().unwrap(),
+				config.path(),
 				None,
 				None,
 				None,
@@ -1341,16 +1274,8 @@ max_message_size = 8000
 "#
 			)?;
 
-			let zombienet = Zombienet::new(
-				&cache,
-				config.path().to_str().unwrap(),
-				None,
-				None,
-				None,
-				None,
-				None,
-			)
-			.await?;
+			let zombienet =
+				Zombienet::new(&cache, config.path(), None, None, None, None, None).await?;
 
 			assert!(zombienet.hrmp_channels());
 			Ok(())
@@ -1372,7 +1297,7 @@ chain = "paseo-local"
 			)?;
 
 			assert!(matches!(
-				Zombienet::new(&cache, config.path().to_str().unwrap(), None, None, None, None, None).await,
+				Zombienet::new(&cache, config.path(), None, None, None, None, None).await,
 				Err(Error::Config(error))
 				if error == "expected `parachain` to have `id`"
 			));
@@ -1397,7 +1322,7 @@ default_command = "missing-binary"
 			)?;
 
 			assert!(matches!(
-				Zombienet::new(&cache, config.path().to_str().unwrap(), None, None, None, None, None).await,
+				Zombienet::new(&cache, config.path(), None, None, None, None, None).await,
 				Err(Error::MissingBinary(command))
 				if command == "missing-binary"
 			));
@@ -1429,16 +1354,8 @@ default_command = "pop-node"
 "#
 			)?;
 
-			let mut zombienet = Zombienet::new(
-				&cache,
-				config.path().to_str().unwrap(),
-				None,
-				None,
-				None,
-				None,
-				None,
-			)
-			.await?;
+			let mut zombienet =
+				Zombienet::new(&cache, config.path(), None, None, None, None, None).await?;
 			assert_eq!(zombienet.binaries().count(), 6);
 			Ok(())
 		}
@@ -1460,16 +1377,8 @@ chain = "asset-hub-paseo-local"
 "#
 			)?;
 
-			let mut zombienet = Zombienet::new(
-				&cache,
-				config.path().to_str().unwrap(),
-				None,
-				None,
-				None,
-				None,
-				None,
-			)
-			.await?;
+			let mut zombienet =
+				Zombienet::new(&cache, config.path(), None, None, None, None, None).await?;
 			assert_eq!(zombienet.binaries().count(), 4);
 			Ok(())
 		}
@@ -1487,16 +1396,8 @@ chain = "paseo-local"
 "#
 			)?;
 
-			let mut zombienet = Zombienet::new(
-				&cache,
-				config.path().to_str().unwrap(),
-				None,
-				None,
-				None,
-				None,
-				None,
-			)
-			.await?;
+			let mut zombienet =
+				Zombienet::new(&cache, config.path(), None, None, None, None, None).await?;
 			assert!(matches!(
 				zombienet.spawn().await,
 				Err(Error::MissingBinary(error))
@@ -1519,16 +1420,8 @@ chain = "paseo-local"
 			)?;
 			File::create(cache.join("polkadot"))?;
 
-			let mut zombienet = Zombienet::new(
-				&cache,
-				config.path().to_str().unwrap(),
-				None,
-				None,
-				None,
-				None,
-				None,
-			)
-			.await?;
+			let mut zombienet =
+				Zombienet::new(&cache, config.path(), None, None, None, None, None).await?;
 			if let Binary::Source { source: Source::GitHub(ReleaseArchive { tag, .. }), .. } =
 				&mut zombienet.relay_chain.binary
 			{
@@ -1558,16 +1451,8 @@ chain = "paseo-local"
 			File::create(cache.join(format!("polkadot-execute-worker-{VERSION}")))?;
 			File::create(cache.join(format!("polkadot-prepare-worker-{VERSION}")))?;
 
-			let mut zombienet = Zombienet::new(
-				&cache,
-				config.path().to_str().unwrap(),
-				None,
-				None,
-				None,
-				None,
-				None,
-			)
-			.await?;
+			let mut zombienet =
+				Zombienet::new(&cache, config.path(), None, None, None, None, None).await?;
 			assert!(!cache.join("polkadot-execute-worker").exists());
 			assert!(!cache.join("polkadot-prepare-worker").exists());
 			let _ = zombienet.spawn().await;
@@ -1594,16 +1479,8 @@ validator = true
 "#
 			)?;
 
-			let mut zombienet = Zombienet::new(
-				&cache,
-				config.path().to_str().unwrap(),
-				None,
-				None,
-				None,
-				None,
-				None,
-			)
-			.await?;
+			let mut zombienet =
+				Zombienet::new(&cache, config.path(), None, None, None, None, None).await?;
 			for b in zombienet.binaries() {
 				b.source(true, &Output, true).await?;
 			}
