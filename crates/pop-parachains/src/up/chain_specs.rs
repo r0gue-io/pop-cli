@@ -22,7 +22,7 @@ pub(super) enum Runtime {
 		Repository = "https://github.com/r0gue-io/polkadot-runtimes",
 		Binary = "chain-spec-generator",
 		Chain = "kusama-local",
-		Fallback = "v1.3.3"
+		Fallback = "v1.4.1"
 	))]
 	Kusama,
 	/// Paseo.
@@ -30,7 +30,7 @@ pub(super) enum Runtime {
 		Repository = "https://github.com/r0gue-io/paseo-runtimes",
 		Binary = "chain-spec-generator",
 		Chain = "paseo-local",
-		Fallback = "v1.3.4"
+		Fallback = "v1.4.1"
 	))]
 	Paseo,
 	/// Polkadot.
@@ -38,7 +38,7 @@ pub(super) enum Runtime {
 		Repository = "https://github.com/r0gue-io/polkadot-runtimes",
 		Binary = "chain-spec-generator",
 		Chain = "polkadot-local",
-		Fallback = "v1.3.3"
+		Fallback = "v1.4.1"
 	))]
 	Polkadot,
 }

@@ -22,7 +22,7 @@ pub(super) enum Parachain {
 		Repository = "https://github.com/r0gue-io/polkadot",
 		Binary = "polkadot-parachain",
 		TagFormat = "polkadot-{tag}",
-		Fallback = "stable2409"
+		Fallback = "stable2503"
 	))]
 	System,
 	/// Pop Network makes it easy for smart contract developers to use the power of Polkadot.
@@ -30,7 +30,7 @@ pub(super) enum Parachain {
 		Repository = "https://github.com/r0gue-io/pop-node",
 		Binary = "pop-node",
 		Prerelease = "false",
-		Fallback = "testnet-v0.4.2"
+		Fallback = "testnet-v0.5.1"
 	))]
 	Pop,
 }
