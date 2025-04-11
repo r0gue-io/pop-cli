@@ -89,7 +89,7 @@ impl ZombienetCommand {
 		let cache = crate::cache()?;
 		let mut zombienet = match Zombienet::new(
 			&cache,
-			&file,
+			file,
 			self.relay_chain.as_deref(),
 			self.relay_chain_runtime.as_deref(),
 			self.system_parachain.as_deref(),
