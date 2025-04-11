@@ -1,4 +1,4 @@
-# pop up parachain -f ./tests/networks/paseo+coretime.toml
+# pop up network ./tests/networks/paseo+coretime.toml
 
 [relaychain]
 chain = "paseo-local"
@@ -16,4 +16,5 @@ id = 1005
 chain = "coretime-paseo-local"
 
 [[parachains.collators]]
-name = "coretime-01"
+name = "coretime"
+args = ["-lxcm=trace,lsystem::events=trace,lruntime=trace"]
