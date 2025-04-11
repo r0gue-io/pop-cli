@@ -1,4 +1,4 @@
-# pop up network ./tests/networks/template.toml
+# pop up network ./tests/networks/paseo+bridge-hub.toml
 
 [relaychain]
 chain = "paseo-local"
@@ -12,8 +12,9 @@ name = "bob"
 validator = true
 
 [[parachains]]
-id = 2000
-default_command = "./target/release/parachain-template-node"
+id = 1000
+chain = "bridge-hub-paseo-local"
 
 [[parachains.collators]]
-name = "collator-01"
+name = "bridge-hub"
+args = ["-lxcm=trace,lsystem::events=trace,lruntime=trace"]
