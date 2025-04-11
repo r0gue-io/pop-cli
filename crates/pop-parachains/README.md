@@ -94,7 +94,7 @@ use tokio_test;
 
 tokio_test::block_on(async {
     let cache = Path::new("./cache"); // The cache location, used for caching binaries.
-    let network_config = "network.toml"; // The configuration file to be used to launch a network.
+    let network_config = Path::new("network.toml"); // The configuration file to be used to launch a network.
     let relay_chain_version = None; // Latest
     let relay_chain_runtime_version = None; // Latest
     let system_parachain_version = None; // Latest
@@ -103,7 +103,7 @@ tokio_test::block_on(async {
 
     let mut zombienet = Zombienet::new(
         &cache,
-        &network_config,
+        network_config,
         relay_chain_version,
         relay_chain_runtime_version,
         system_parachain_version,
