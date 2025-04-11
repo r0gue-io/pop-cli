@@ -129,7 +129,7 @@ name = "collator-01"
 	// `pop up network -f ./network.toml --skip-confirm`
 	let mut cmd = Cmd::new(cargo_bin("pop"))
 		.current_dir(&temp_parachain_dir)
-		.args(&["up", "network", "-f", "./network.toml", "--skip-confirm"])
+		.args(&["up", "network", "./network.toml", "--skip-confirm"])
 		.spawn()
 		.unwrap();
 
