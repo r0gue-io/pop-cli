@@ -24,7 +24,7 @@ pub(super) enum RelayChain {
 		Repository = "https://github.com/r0gue-io/polkadot",
 		Binary = "polkadot",
 		TagFormat = "polkadot-{tag}",
-		Fallback = "stable2409"
+		Fallback = "stable2503"
 	))]
 	Polkadot,
 }
@@ -130,7 +130,7 @@ mod tests {
 	use super::*;
 	use tempfile::tempdir;
 
-	const VERSION: &str = "stable2409";
+	const VERSION: &str = "stable2503";
 
 	#[tokio::test]
 	async fn default_works() -> anyhow::Result<()> {
@@ -187,7 +187,7 @@ mod tests {
 		let expected = RelayChain::Polkadot;
 		let temp_dir = tempdir()?;
 		let relay =
-			from("./bin-stable2409/polkadot", Some(VERSION), None, "paseo-local", temp_dir.path())
+			from("./bin-stable2503/polkadot", Some(VERSION), None, "paseo-local", temp_dir.path())
 				.await?;
 		assert!(matches!(relay.binary, Binary::Source { name, source, cache }
 			if name == expected.binary() && source == Source::GitHub(ReleaseArchive {
