@@ -9,15 +9,15 @@ pub use pop_common::{
 	Profile,
 };
 use std::{
+	collections::BTreeSet,
 	fmt::Debug,
-	fs::write,
 	iter::once,
 	path::{Path, PathBuf},
 };
 use strum::VariantArray;
 use symlink::{remove_symlink_file, symlink_file};
-use tempfile::{Builder, NamedTempFile};
-use toml_edit::{value, ArrayOfTables, DocumentMut, Formatted, Item, Table, Value};
+use toml_edit::DocumentMut;
+pub use zombienet_sdk::NetworkConfigBuilder;
 use zombienet_sdk::{LocalFileSystem, Network, NetworkConfig, NetworkConfigExt};
 
 mod chain_specs;
@@ -41,7 +41,8 @@ impl Zombienet {
 	///
 	/// # Arguments
 	/// * `cache` - The location used for caching binaries.
-	/// * `network_config` - The configuration file to be used to launch a network.
+	/// * `network_config` - The configuration to be used to launch a network. This can be a [Path]
+	///   or the result of [NetworkConfigBuilder].
 	/// * `relay_chain_version` - The specific binary version used for the relay chain (`None` will
 	///   use the latest available version).
 	/// * `relay_chain_runtime_version` - The specific runtime version used for the relay chain
@@ -53,15 +54,15 @@ impl Zombienet {
 	/// * `parachains` - The parachain(s) specified.
 	pub async fn new(
 		cache: &Path,
-		network_config: impl AsRef<Path>,
+		network_config: impl TryInto<NetworkConfiguration, Error: Into<Error>>,
 		relay_chain_version: Option<&str>,
 		relay_chain_runtime_version: Option<&str>,
 		system_parachain_version: Option<&str>,
 		system_parachain_runtime_version: Option<&str>,
 		parachains: Option<&Vec<String>>,
 	) -> Result<Self, Error> {
-		// Parse network config
-		let network_config = NetworkConfiguration::from(network_config)?;
+		// Determine network config
+		let network_config = network_config.try_into().map_err(|e| e.into())?;
 		// Determine relay and parachain requirements based on arguments and config
 		let relay_chain = Self::init_relay_chain(
 			relay_chain_version,
@@ -88,8 +89,7 @@ impl Zombienet {
 			cache,
 		)
 		.await?;
-		let hrmp_channels =
-			network_config.hrmp_channels().map(|c| !c.is_empty()).unwrap_or_default();
+		let hrmp_channels = !network_config.0.hrmp_channels().is_empty();
 		Ok(Self { network_config, relay_chain, parachains, hrmp_channels })
 	}
 
@@ -124,52 +124,26 @@ impl Zombienet {
 		network_config: &NetworkConfiguration,
 		cache: &Path,
 	) -> Result<IndexMap<u32, Parachain>, Error> {
-		let Some(tables) = network_config.parachains() else {
-			return Ok(IndexMap::default());
-		};
-
 		let mut paras: IndexMap<u32, Parachain> = IndexMap::new();
-		'outer: for table in tables {
-			let id = table
-				.get("id")
-				.and_then(|i| i.as_integer())
-				.ok_or_else(|| Error::Config("expected `parachain` to have `id`".into()))?
-				as u32;
+		'outer: for parachain in network_config.0.parachains() {
+			let id = parachain.id();
+			let chain = parachain.chain().map(|c| c.as_str());
 
-			let chain = table.get("chain").and_then(|i| i.as_str());
-
-			let command = NetworkConfiguration::default_command(table)
-				.cloned()
+			let command = parachain
+				.default_command()
+				.map(|c| c.as_str())
 				.or_else(|| {
 					// Check if any collators define command
-					if let Some(collators) =
-						table.get("collators").and_then(|p| p.as_array_of_tables())
-					{
-						for collator in collators.iter() {
-							if let Some(command) =
-								NetworkConfiguration::command(collator).and_then(|i| i.as_str())
-							{
-								return Some(Item::Value(Value::String(Formatted::new(
-									command.into(),
-								))));
-							}
-						}
-					}
-					// Check if the collator defines a custom launch command
-					if let Some(collator) = table.get("collator").and_then(|i| i.as_table()) {
-						if let Some(command) =
-							NetworkConfiguration::command(collator).and_then(|i| i.as_str())
-						{
-							return Some(Item::Value(Value::String(Formatted::new(command.into()))));
+					for collator in parachain.collators() {
+						if let Some(command) = collator.command().map(|i| i.as_str()) {
+							return Some(command);
 						}
 					}
 
 					// Otherwise default to polkadot-parachain
-					Some(Item::Value(Value::String(Formatted::new("polkadot-parachain".into()))))
+					Some("polkadot-parachain")
 				})
 				.expect("missing default_command set above")
-				.as_str()
-				.expect("expected parachain command to be a string")
 				.to_lowercase();
 
 			// Check if system parachain
@@ -249,54 +223,44 @@ impl Zombienet {
 		cache: &Path,
 	) -> Result<RelayChain, Error> {
 		// Attempt to determine relay from configuration
-		let relay_chain = network_config.relay_chain()?;
-		let chain = relay_chain.get("chain").and_then(|i| i.as_str());
-		if let Some(default_command) =
-			NetworkConfiguration::default_command(relay_chain).and_then(|c| c.as_str())
-		{
+		let relay_chain = network_config.0.relaychain();
+		let chain = relay_chain.chain().as_str();
+		if let Some(default_command) = relay_chain.default_command().map(|c| c.as_str()) {
 			let relay =
 				relay::from(default_command, version, runtime_version, chain, cache).await?;
 			// Validate any node config is supported
-			if let Some(nodes) = NetworkConfiguration::nodes(relay_chain) {
-				for node in nodes {
-					if let Some(command) =
-						NetworkConfiguration::command(node).and_then(|c| c.as_str())
-					{
-						if command.to_lowercase() != relay.binary.name() {
-							return Err(Error::UnsupportedCommand(format!(
-								"the relay chain command is unsupported: {command}",
-							)));
-						}
+			for node in relay_chain.nodes() {
+				if let Some(command) = node.command().map(|c| c.as_str()) {
+					if command.to_lowercase() != relay.binary.name() {
+						return Err(Error::UnsupportedCommand(format!(
+							"the relay chain command is unsupported: {command}",
+						)));
 					}
 				}
 			}
 			return Ok(relay);
 		}
 		// Attempt to determine from nodes
-		if let Some(nodes) = NetworkConfiguration::nodes(relay_chain) {
-			let mut relay: Option<RelayChain> = None;
-			for node in nodes {
-				if let Some(command) = NetworkConfiguration::command(node).and_then(|c| c.as_str())
-				{
-					match &relay {
-						Some(relay) =>
-							if command.to_lowercase() != relay.binary.name() {
-								return Err(Error::UnsupportedCommand(format!(
-									"the relay chain command is unsupported: {command}",
-								)));
-							},
-						None => {
-							relay = Some(
-								relay::from(command, version, runtime_version, chain, cache)
-									.await?,
-							);
+		let mut relay: Option<RelayChain> = None;
+		for node in relay_chain.nodes() {
+			if let Some(command) = node.command().map(|c| c.as_str()) {
+				match &relay {
+					Some(relay) =>
+						if command.to_lowercase() != relay.binary.name() {
+							return Err(Error::UnsupportedCommand(format!(
+								"the relay chain command is unsupported: {command}",
+							)));
 						},
-					}
+					None => {
+						relay = Some(
+							relay::from(command, version, runtime_version, chain, cache).await?,
+						);
+					},
 				}
 			}
-			if let Some(relay) = relay {
-				return Ok(relay);
-			}
+		}
+		if let Some(relay) = relay {
+			return Ok(relay);
 		}
 		// Otherwise use default
 		Ok(relay::default(version, runtime_version, chain, cache).await?)
@@ -337,187 +301,170 @@ impl Zombienet {
 		}
 
 		// Load from config and spawn network
-		let config = self.network_config.configure(&self.relay_chain, &self.parachains)?;
-		let path = config.path().to_str().expect("temp config file should have a path");
-		let network_config = NetworkConfig::load_from_toml(path)?;
+		let network_config = self.network_config.adapt(&self.relay_chain, &self.parachains)?;
 		Ok(network_config.spawn_native().await?)
 	}
 }
 
 /// The network configuration.
-struct NetworkConfiguration(DocumentMut);
+///
+/// Network configuration can be provided via [Path] or by using the [NetworkConfigBuilder].
+pub struct NetworkConfiguration(NetworkConfig, BTreeSet<u32>);
 
 impl NetworkConfiguration {
-	/// Initializes the network configuration from the specified file.
-	///
-	/// # Arguments
-	/// * `file` - The network configuration file.
-	fn from(file: impl AsRef<Path>) -> Result<Self, Error> {
-		let file = file.as_ref();
-		if !file.exists() {
-			return Err(Error::Config(format!("The {file:?} configuration file was not found")));
-		}
-		let contents = std::fs::read_to_string(file)?;
-		let config = contents.parse::<DocumentMut>().map_err(|err| Error::TomlError(err.into()))?;
-		let network_config = NetworkConfiguration(config);
-		network_config.relay_chain()?;
-		Ok(network_config)
-	}
-
-	/// Returns the `relaychain` configuration.
-	fn relay_chain(&self) -> Result<&Table, Error> {
-		self.0
-			.get("relaychain")
-			.and_then(|i| i.as_table())
-			.ok_or_else(|| Error::Config("expected `relaychain`".into()))
-	}
-
-	/// Returns the `relaychain` configuration.
-	fn relay_chain_mut(&mut self) -> Result<&mut Table, Error> {
-		self.0
-			.get_mut("relaychain")
-			.and_then(|i| i.as_table_mut())
-			.ok_or_else(|| Error::Config("expected `relaychain`".into()))
-	}
-
-	/// Returns the `parachains` configuration.
-	fn parachains(&self) -> Option<&ArrayOfTables> {
-		self.0.get("parachains").and_then(|p| p.as_array_of_tables())
-	}
-
-	/// Returns the `parachains` configuration.
-	fn parachains_mut(&mut self) -> Option<&mut ArrayOfTables> {
-		self.0.get_mut("parachains").and_then(|p| p.as_array_of_tables_mut())
-	}
-
-	/// Returns the `hrmp_channels` configuration.
-	fn hrmp_channels(&self) -> Option<&ArrayOfTables> {
-		self.0.get("hrmp_channels").and_then(|p| p.as_array_of_tables())
-	}
-
-	/// Returns the `command` configuration.
-	fn command(config: &Table) -> Option<&Item> {
-		config.get("command")
-	}
-
-	/// Returns the `command` configuration.
-	fn command_mut(config: &mut Table) -> Option<&mut Item> {
-		config.get_mut("command")
-	}
-
-	/// Returns the `default_command` configuration.
-	fn default_command(config: &Table) -> Option<&Item> {
-		config.get("default_command")
-	}
-
-	/// Returns the `nodes` configuration.
-	fn nodes(relay_chain: &Table) -> Option<&ArrayOfTables> {
-		relay_chain.get("nodes").and_then(|i| i.as_array_of_tables())
-	}
-
-	/// Returns the `nodes` configuration.
-	fn nodes_mut(relay_chain: &mut Table) -> Option<&mut ArrayOfTables> {
-		relay_chain.get_mut("nodes").and_then(|i| i.as_array_of_tables_mut())
-	}
-
-	/// Adapts user provided configuration file to one with resolved binary paths and which is
-	/// compatible with current zombienet-sdk requirements.
+	/// Adapts user provided configuration to one with resolved binary paths and which is compatible
+	/// with [zombienet-sdk](zombienet_sdk) requirements.
 	///
 	/// # Arguments
 	/// * `relay_chain` - The configuration required to launch the relay chain.
 	/// * `parachains` - The configuration required to launch the parachain(s).
-	fn configure(
-		&mut self,
+	fn adapt(
+		&self,
 		relay_chain: &RelayChain,
 		parachains: &IndexMap<u32, Parachain>,
-	) -> Result<NamedTempFile, Error> {
-		// Add zombienet-sdk specific settings if missing
-		let settings = self
-			.0
-			.entry("settings")
-			.or_insert(Item::Table(Table::new()))
-			.as_table_mut()
-			.expect("settings created if missing");
-		settings
-			.entry("timeout")
-			.or_insert(Item::Value(Value::Integer(Formatted::new(1_000))));
-		settings
-			.entry("node_spawn_timeout")
-			.or_insert(Item::Value(Value::Integer(Formatted::new(300))));
+	) -> Result<NetworkConfig, Error> {
+		// Resolve paths to relay binary and chain spec generator
+		let binary_path = NetworkConfiguration::resolve_path(&relay_chain.binary.path())?;
+		let chain_spec_generator = match &relay_chain.chain_spec_generator {
+			None => None,
+			Some(path) => Some(format!(
+				"{} {}",
+				NetworkConfiguration::resolve_path(&path.path())?,
+				"{{chainName}}"
+			)),
+		};
 
-		// Update relay chain config
-		let relay_chain_config = self.relay_chain_mut()?;
-		let relay_chain_binary_path = Self::resolve_path(&relay_chain.binary.path())?;
-		*relay_chain_config
-			.entry("default_command")
-			.or_insert(value(&relay_chain_binary_path)) = value(&relay_chain_binary_path);
-		if let Some(nodes) = Self::nodes_mut(relay_chain_config) {
-			for node in nodes.iter_mut() {
-				if let Some(command) = NetworkConfiguration::command_mut(node) {
-					*command = value(&relay_chain_binary_path)
+		// Use builder to clone network config, adapting binary paths as necessary
+		let mut builder = NetworkConfigBuilder::new()
+			.with_relaychain(|relay| {
+				let source = self.0.relaychain();
+				let nodes = source.nodes();
+
+				let mut builder = relay
+					.with_chain(source.chain().as_str())
+					.with_default_args(source.default_args().into_iter().cloned().collect())
+					// Replace default command with resolved binary path
+					.with_default_command(binary_path.as_str());
+
+				// Chain spec
+				if let Some(command) = source.chain_spec_command() {
+					builder = builder.with_chain_spec_command(command);
 				}
-			}
-		}
-		// Configure chain spec generator
-		if let Some(path) = relay_chain.chain_spec_generator.as_ref().map(|b| b.path()) {
-			let command = format!("{} {}", Self::resolve_path(&path)?, "{{chainName}}");
-			*relay_chain_config.entry("chain_spec_command").or_insert(value(&command)) =
-				value(&command);
-		}
-
-		// Update parachain config
-		if let Some(tables) = self.parachains_mut() {
-			for table in tables.iter_mut() {
-				let id = table
-					.get("id")
-					.and_then(|i| i.as_integer())
-					.ok_or_else(|| Error::Config("expected `parachain` to have `id`".into()))?
-					as u32;
-				let para =
-					parachains.get(&id).expect("expected parachain existence due to preprocessing");
-
-				// Resolve default_command to binary
-				let path = Self::resolve_path(&para.binary.path())?;
-				table.insert("default_command", value(&path));
-
+				if source.chain_spec_command_is_local() {
+					builder = builder.chain_spec_command_is_local(true);
+				}
+				if let Some(location) = source.chain_spec_path() {
+					builder = builder.with_chain_spec_path(location.clone());
+				}
 				// Configure chain spec generator
-				if let Some(path) = para.chain_spec_generator.as_ref().map(|b| b.path()) {
-					let command = format!("{} {}", Self::resolve_path(&path)?, "{{chainName}}");
-					*table.entry("chain_spec_command").or_insert(value(&command)) = value(&command);
+				if let Some(command) = chain_spec_generator {
+					builder = builder.with_chain_spec_command(command);
 				}
-				// Check if EVM based parachain and insert evm_based for zombienet-sdk
-				let force_decorator = table.get("force_decorator").and_then(|i| i.as_str());
-				if force_decorator.is_some() && force_decorator.unwrap() == "generic-evm" {
-					table.insert("evm_based", value(true));
+				// Overrides: genesis/wasm
+				if let Some(genesis) = source.runtime_genesis_patch() {
+					builder = builder.with_genesis_overrides(genesis.clone());
+				}
+				if let Some(location) = source.wasm_override() {
+					builder = builder.with_wasm_override(location.clone());
 				}
 
-				// Resolve individual collator command to binary
-				if let Some(collators) =
-					table.get_mut("collators").and_then(|p| p.as_array_of_tables_mut())
-				{
-					for collator in collators.iter_mut() {
-						if let Some(command) = NetworkConfiguration::command_mut(collator) {
-							*command = value(&path)
-						}
-					}
+				// Add nodes from source
+				let mut builder = builder.with_node(|node| {
+					let source = nodes.first().expect("expected at least one node");
+					node.with_name(source.name()).with_command(binary_path.as_str())
+				});
+				for source in nodes.iter().skip(1) {
+					builder = builder.with_node(|node| {
+						node.with_name(source.name()).with_command(binary_path.as_str())
+					});
 				}
-				// Resolve individual collator command to binary
-				if let Some(collator) = table.get_mut("collator").and_then(|p| p.as_table_mut()) {
-					if let Some(command) = NetworkConfiguration::command_mut(collator) {
-						*command = value(&path)
-					}
+
+				builder
+			})
+			// Add global settings
+			.with_global_settings(|settings| {
+				settings.with_network_spawn_timeout(1_000).with_node_spawn_timeout(300)
+			});
+
+		// Process parachains
+		let parachains = &parachains;
+		for source in self.0.parachains() {
+			let id = source.id();
+			let collators = source.collators();
+			let para =
+				parachains.get(&id).expect("expected parachain existence due to preprocessing");
+
+			// Resolve paths to parachain binary and chain spec generator
+			let binary_path = NetworkConfiguration::resolve_path(&para.binary.path())?;
+			let chain_spec_generator = match &para.chain_spec_generator {
+				None => None,
+				Some(path) => Some(format!(
+					"{} {}",
+					NetworkConfiguration::resolve_path(&path.path())?,
+					"{{chainName}}"
+				)),
+			};
+
+			builder = builder.with_parachain(|builder| {
+				let mut builder = builder
+					.with_id(id)
+					.with_default_args(source.default_args().into_iter().cloned().collect())
+					// Replace default command with resolved binary path
+					.with_default_command(binary_path.as_str());
+
+				// Chain spec
+				if let Some(chain) = source.chain() {
+					builder = builder.with_chain(chain.as_str());
 				}
-			}
+				if source.chain_spec_command_is_local() {
+					builder = builder.chain_spec_command_is_local(true);
+				}
+				if let Some(location) = source.chain_spec_path() {
+					builder = builder.with_chain_spec_path(location.clone());
+				}
+				// Configure chain spec generator
+				if let Some(command) = chain_spec_generator {
+					builder = builder.with_chain_spec_command(command);
+				}
+				// Overrides: genesis/wasm
+				if let Some(genesis) = source.genesis_overrides() {
+					builder = builder.with_genesis_overrides(genesis.clone());
+				}
+				if let Some(location) = source.wasm_override() {
+					builder = builder.with_wasm_override(location.clone());
+				}
+				// Configure whether EVM based
+				builder = builder.evm_based(self.1.contains(&id) || source.is_evm_based());
+
+				// Add collators from source
+				let mut builder = builder.with_collator(|builder| {
+					let source = collators.first().expect("expected at least one collator");
+					builder.with_name(source.name()).with_command(binary_path.as_str())
+				});
+				for source in collators.iter().skip(1) {
+					builder = builder.with_collator(|builder| {
+						builder.with_name(source.name()).with_command(binary_path.as_str())
+					});
+				}
+
+				builder
+			});
 		}
 
-		// Write adapted zombienet config to temp file
-		let network_config_file = Builder::new().suffix(".toml").tempfile()?;
-		let path = network_config_file
-			.path()
-			.to_str()
-			.ok_or_else(|| Error::Config("temp config file should have a path".into()))?;
-		write(path, self.0.to_string())?;
-		Ok(network_config_file)
+		// Process HRMP channels
+		for source in self.0.hrmp_channels() {
+			builder = builder.with_hrmp_channel(|channel| {
+				channel
+					.with_sender(source.sender())
+					.with_recipient(source.recipient())
+					.with_max_capacity(source.max_capacity())
+					.with_max_message_size(source.max_message_size())
+			})
+		}
+
+		builder
+			.build()
+			.map_err(|e| Error::Config(format!("could not configure network {:?}", e)))
 	}
 
 	/// Resolves the canonical path of a command specified within a network configuration file.
@@ -531,6 +478,54 @@ impl NetworkConfiguration {
 			})
 			.map(|p| p.to_str().map(|p| p.to_string()))?
 			.ok_or_else(|| Error::Config("the path is invalid".into()))
+	}
+}
+
+impl TryFrom<&Path> for NetworkConfiguration {
+	type Error = Error;
+
+	fn try_from(file: &Path) -> Result<Self, Self::Error> {
+		if !file.exists() {
+			return Err(Error::Config(format!("The {file:?} configuration file was not found")));
+		}
+
+		// Parse the file to determine if there are any parachains using `force_decorator`
+		let contents = std::fs::read_to_string(file)?;
+		let config = contents.parse::<DocumentMut>().map_err(|err| Error::TomlError(err.into()))?;
+		let evm_based = config
+			.get("parachains")
+			.and_then(|p| p.as_array_of_tables())
+			.map(|tables| {
+				tables
+					.iter()
+					.filter_map(|table| {
+						table
+							.get("force_decorator")
+							.and_then(|i| i.as_str())
+							.filter(|v| *v == "generic-evm")
+							.and_then(|_| table.get("id"))
+							.and_then(|i| i.as_integer())
+							.map(|id| id as u32)
+					})
+					.collect()
+			})
+			.unwrap_or_default();
+
+		Ok(NetworkConfiguration(
+			NetworkConfig::load_from_toml(
+				file.to_str().expect("expected file path to be convertible to string"),
+			)
+			.map_err(|e| Error::Config(e.to_string()))?,
+			evm_based,
+		))
+	}
+}
+
+impl TryFrom<NetworkConfig> for NetworkConfiguration {
+	type Error = ();
+
+	fn try_from(value: NetworkConfig) -> Result<Self, Self::Error> {
+		Ok(NetworkConfiguration(value, Default::default()))
 	}
 }
 
@@ -709,7 +704,7 @@ mod tests {
 		fs::{create_dir_all, remove_dir, remove_file, File},
 		io::Write,
 	};
-	use tempfile::tempdir;
+	use tempfile::{tempdir, Builder};
 
 	pub(crate) const VERSION: &str = "stable2409";
 
@@ -1299,7 +1294,7 @@ chain = "paseo-local"
 			assert!(matches!(
 				Zombienet::new(&cache, config.path(), None, None, None, None, None).await,
 				Err(Error::Config(error))
-				if error == "expected `parachain` to have `id`"
+				if error == "TOML parse error at line 5, column 1\n  |\n5 | [[parachains]]\n  | ^^^^^^^^^^^^^^\nmissing field `id`\n"
 			));
 			Ok(())
 		}
@@ -1494,28 +1489,34 @@ validator = true
 		use super::*;
 		use std::{
 			fs::{create_dir_all, File},
-			io::{Read, Write},
+			io::Write,
 			path::PathBuf,
 		};
 		use tempfile::{tempdir, Builder};
 
 		#[test]
 		fn initialising_from_file_fails_when_missing() {
-			assert!(NetworkConfiguration::from(PathBuf::new()).is_err());
+			assert!(NetworkConfiguration::try_from(PathBuf::new().as_path()).is_err());
 		}
 
 		#[test]
 		fn initialising_from_file_fails_when_malformed() -> Result<(), Error> {
 			let config = Builder::new().suffix(".toml").tempfile()?;
 			writeln!(config.as_file(), "[")?;
-			assert!(matches!(NetworkConfiguration::from(config.path()), Err(Error::TomlError(..))));
+			assert!(matches!(
+				NetworkConfiguration::try_from(config.path()),
+				Err(Error::TomlError(..))
+			));
 			Ok(())
 		}
 
 		#[test]
 		fn initialising_from_file_fails_when_relaychain_missing() -> Result<(), Error> {
 			let config = Builder::new().suffix(".toml").tempfile()?;
-			assert!(matches!(NetworkConfiguration::from(config.path()), Err(Error::Config(..))));
+			assert!(matches!(
+				NetworkConfiguration::try_from(config.path()),
+				Err(Error::Config(error)) if error == "Relay chain does not exist."
+			));
 			Ok(())
 		}
 
@@ -1532,16 +1533,13 @@ validator = true
 				name = "alice"
 			"#
 			)?;
-			let network_config = NetworkConfiguration::from(config.path())?;
-			let relay_chain = network_config.relay_chain()?;
-			assert_eq!("paseo-local", relay_chain["chain"].as_str().unwrap());
-			assert_eq!(
-				"polkadot",
-				NetworkConfiguration::default_command(relay_chain).unwrap().as_str().unwrap()
-			);
-			let nodes = NetworkConfiguration::nodes(relay_chain).unwrap();
-			assert_eq!("alice", nodes.get(0).unwrap()["name"].as_str().unwrap());
-			assert!(network_config.parachains().is_none());
+			let network_config = NetworkConfiguration::try_from(config.path())?;
+			let relay_chain = network_config.0.relaychain();
+			assert_eq!("paseo-local", relay_chain.chain().as_str());
+			assert_eq!(Some("polkadot"), relay_chain.default_command().map(|c| c.as_str()));
+			let nodes = relay_chain.nodes();
+			assert_eq!("alice", nodes.get(0).unwrap().name());
+			assert!(network_config.0.parachains().is_empty());
 			Ok(())
 		}
 
@@ -1558,19 +1556,16 @@ validator = true
 				default_command = "node"
 			"#
 			)?;
-			let network_config = NetworkConfiguration::from(config.path())?;
-			let parachains = network_config.parachains().unwrap();
+			let network_config = NetworkConfiguration::try_from(config.path())?;
+			let parachains = network_config.0.parachains();
 			let para_2000 = parachains.get(0).unwrap();
-			assert_eq!(2000, para_2000["id"].as_integer().unwrap());
-			assert_eq!(
-				"node",
-				NetworkConfiguration::default_command(para_2000).unwrap().as_str().unwrap()
-			);
+			assert_eq!(2000, para_2000.id());
+			assert_eq!(Some("node"), para_2000.default_command().map(|c| c.as_str()));
 			Ok(())
 		}
 
 		#[test]
-		fn configure_works() -> Result<(), Error> {
+		fn adapt_works() -> Result<(), Error> {
 			let config = Builder::new().suffix(".toml").tempfile()?;
 			writeln!(
 				config.as_file(),
@@ -1603,7 +1598,7 @@ id = 2001
 default_command = "./target/release/parachain-template-node"
 
 [[parachains.collators]]
-name = "collator"
+name = "collator-2001"
 command = "./target/release/parachain-template-node"
 
 [[parachains]]
@@ -1611,11 +1606,11 @@ id = 2002
 default_command = "./target/release/parachain-template-node"
 
 [parachains.collator]
-name = "collator"
+name = "collator-2002"
 command = "./target/release/parachain-template-node"
 "#
 			)?;
-			let mut network_config = NetworkConfiguration::from(config.path())?;
+			let network_config = NetworkConfiguration::try_from(config.path())?;
 
 			let relay_chain_binary = Builder::new().tempfile()?;
 			let relay_chain = relay_chain_binary.path();
@@ -1631,7 +1626,7 @@ command = "./target/release/parachain-template-node"
 			create_dir_all(parachain_template.parent().unwrap())?;
 			File::create(&parachain_template)?;
 
-			let mut configured = network_config.configure(
+			let adapted = network_config.adapt(
 				&RelayChain {
 					binary: Binary::Local {
 						name: "polkadot".to_string(),
@@ -1698,60 +1693,87 @@ command = "./target/release/parachain-template-node"
 				]
 				.into(),
 			)?;
-			assert_eq!("toml", configured.path().extension().unwrap());
 
-			let mut contents = String::new();
-			configured.read_to_string(&mut contents)?;
+			let contents = adapted.dump_to_toml().unwrap();
 			println!("{contents}");
 			assert_eq!(
 				contents,
 				format!(
-					r#"
+					r#"[settings]
+timeout = 1000
+node_spawn_timeout = 300
+
 [relaychain]
 chain = "paseo-local"
 default_command = "{0}"
 
 [[relaychain.nodes]]
 name = "alice"
-command = "{0}"
+validator = true
+invulnerable = true
+bootnode = false
+balance = 2000000000000
 
 [[parachains]]
 id = 1000
 chain = "asset-hub-paseo-local"
+add_to_genesis = true
+balance = 2000000000000
 default_command = "{1}"
+cumulus_based = true
+evm_based = false
 
 [[parachains.collators]]
 name = "asset-hub"
-command = "{1}"
+validator = true
+invulnerable = true
+bootnode = false
+balance = 2000000000000
 
 [[parachains]]
 id = 2000
+add_to_genesis = true
+balance = 2000000000000
 default_command = "{2}"
+cumulus_based = true
+evm_based = false
 
 [[parachains.collators]]
 name = "pop"
-command = "{2}"
+validator = true
+invulnerable = true
+bootnode = false
+balance = 2000000000000
 
 [[parachains]]
 id = 2001
+add_to_genesis = true
+balance = 2000000000000
 default_command = "{3}"
+cumulus_based = true
+evm_based = false
 
 [[parachains.collators]]
-name = "collator"
-command = "{3}"
+name = "collator-2001"
+validator = true
+invulnerable = true
+bootnode = false
+balance = 2000000000000
 
 [[parachains]]
 id = 2002
+add_to_genesis = true
+balance = 2000000000000
 default_command = "{3}"
+cumulus_based = true
+evm_based = false
 
-[parachains.collator]
-name = "collator"
-command = "{3}"
-
-[settings]
-timeout = 1000
-node_spawn_timeout = 300
-
+[[parachains.collators]]
+name = "collator-2002"
+validator = true
+invulnerable = true
+bootnode = false
+balance = 2000000000000
 "#,
 					relay_chain.canonicalize()?.to_str().unwrap(),
 					system_chain.canonicalize()?.to_str().unwrap(),
@@ -1763,7 +1785,7 @@ node_spawn_timeout = 300
 		}
 
 		#[test]
-		fn configure_with_chain_spec_generator_works() -> Result<(), Error> {
+		fn adapt_with_chain_spec_generator_works() -> Result<(), Error> {
 			let config = Builder::new().suffix(".toml").tempfile()?;
 			writeln!(
 				config.as_file(),
@@ -1785,7 +1807,7 @@ command = "polkadot-parachain"
 
 "#
 			)?;
-			let mut network_config = NetworkConfiguration::from(config.path())?;
+			let network_config = NetworkConfiguration::try_from(config.path())?;
 
 			let relay_chain_binary = Builder::new().tempfile()?;
 			let relay_chain = relay_chain_binary.path();
@@ -1800,7 +1822,7 @@ command = "polkadot-parachain"
 			let system_chain_spec_generator = system_chain_spec_generator.path();
 			File::create(&system_chain_spec_generator)?;
 
-			let mut configured = network_config.configure(
+			let adapted = network_config.adapt(
 				&RelayChain {
 					binary: Binary::Local {
 						name: "polkadot".to_string(),
@@ -1834,15 +1856,16 @@ command = "polkadot-parachain"
 				)]
 				.into(),
 			)?;
-			assert_eq!("toml", configured.path().extension().unwrap());
 
-			let mut contents = String::new();
-			configured.read_to_string(&mut contents)?;
+			let contents = adapted.dump_to_toml().unwrap();
 			println!("{contents}");
 			assert_eq!(
 				contents,
 				format!(
-					r#"
+					r#"[settings]
+timeout = 1000
+node_spawn_timeout = 300
+
 [relaychain]
 chain = "paseo-local"
 default_command = "{0}"
@@ -1850,23 +1873,27 @@ chain_spec_command = "{1} {2}"
 
 [[relaychain.nodes]]
 name = "alice"
-command = "{0}"
+validator = true
+invulnerable = true
+bootnode = false
+balance = 2000000000000
 
 [[parachains]]
 id = 1000
 chain = "asset-hub-paseo-local"
+add_to_genesis = true
+balance = 2000000000000
 default_command = "{3}"
 chain_spec_command = "{4} {2}"
+cumulus_based = true
+evm_based = false
 
 [[parachains.collators]]
 name = "asset-hub"
-command = "{3}"
-
-[settings]
-timeout = 1000
-node_spawn_timeout = 300
-
-
+validator = true
+invulnerable = true
+bootnode = false
+balance = 2000000000000
 "#,
 					relay_chain.canonicalize()?.to_str().unwrap(),
 					relay_chain_spec_generator.canonicalize()?.to_str().unwrap(),
