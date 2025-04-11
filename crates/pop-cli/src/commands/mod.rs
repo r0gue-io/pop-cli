@@ -133,12 +133,14 @@ impl Command {
 						#[cfg(feature = "parachain")]
 						up::Command::Network(mut cmd) => {
 							cmd.valid = true;
-							cmd.execute().await.map(|_| Up(crate::common::Project::Network))
+							cmd.execute(args.path_pos.as_deref())
+								.await
+								.map(|_| Up(crate::common::Project::Network))
 						},
 						// TODO: Deprecated, will be removed in v0.8.0.
 						#[cfg(feature = "parachain")]
 						#[allow(deprecated)]
-						up::Command::Parachain(cmd) => cmd.execute().await.map(|_| Null),
+						up::Command::Parachain(cmd) => cmd.execute(args.path_pos.as_deref()).await.map(|_| Null),
 						// TODO: Deprecated, will be removed in v0.8.0.
 						#[cfg(feature = "contract")]
 						#[allow(deprecated)]
