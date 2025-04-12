@@ -4,10 +4,10 @@ use anyhow::Result;
 use assert_cmd::{cargo::cargo_bin, Command};
 use pop_common::{find_free_port, templates::Template};
 use pop_parachains::Parachain;
+use similar::{ChangeTag, TextDiff};
 use std::{fs, path::Path, process::Command as Cmd};
 use strum::VariantArray;
 use tokio::time::{sleep, Duration};
-use similar::{TextDiff, ChangeTag};
 
 /// Test the parachain lifecycle: new, add,build, up, call.
 #[tokio::test]
