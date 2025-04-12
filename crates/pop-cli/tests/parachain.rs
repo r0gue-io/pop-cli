@@ -60,7 +60,7 @@ async fn parachain_lifecycle() -> Result<()> {
 	Command::cargo_bin("pop")
 		.unwrap()
 		.current_dir(&test_parachain)
-		.args(&["add", "pallet", "-p", "contracts=40.0.1"])
+		.args(&["add", "pallet", "-p", "contracts=40.0.0"])
 		.assert()
 		.success();
 
@@ -89,7 +89,7 @@ async fn parachain_lifecycle() -> Result<()> {
 	];
 	let expected_inserted_lines_configs_mod = vec!["mod contracts;\n"];
 	let expected_inserted_lines_workspace_manifest =
-		vec!["pallet-contracts = { version = \"40.0.1\", default-features = false }\n"];
+		vec!["pallet-contracts = { version = \"40.0.0\", default-features = false }\n"];
 	let expected_inserted_lines_runtime_manifest =
 		vec!["pallet-contracts = { workspace = true, default-features = false }\n"];
 
