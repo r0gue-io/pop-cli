@@ -1,19 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{
-	cli,
-	common::{
-		builds::get_project_path,
-		Project::{self, *},
-		TestFeature::{self, Unit},
-	},
+#[cfg(feature = "contract")]
+use crate::cli;
+use crate::common::{
+	builds::get_project_path,
+	Project::{self, *},
+	TestFeature::{self, Unit},
 };
 use clap::{Args, Subcommand};
 use pop_common::test_project;
-use std::{
-	fmt::{Display, Formatter, Result},
-	path::PathBuf,
-};
+#[cfg(any(feature = "parachain", feature = "contract"))]
+use std::fmt::{Display, Formatter, Result};
+use std::path::PathBuf;
 
 #[cfg(feature = "contract")]
 pub mod contract;
@@ -30,6 +28,7 @@ pub mod on_runtime_upgrade;
 #[derive(Args, Default)]
 #[command(args_conflicts_with_subcommands = true)]
 pub(crate) struct TestArgs {
+	#[cfg(any(feature = "contract", feature = "parachain"))]
 	#[command(subcommand)]
 	pub(crate) command: Option<Command>,
 	/// Directory path for your project [default: current directory]
@@ -62,17 +61,24 @@ pub(crate) enum Command {
 	/// [DEPRECATED] Test a smart contract (will be removed in v0.8.0).
 	#[cfg(feature = "contract")]
 	#[clap(alias = "c")]
+	#[deprecated(since = "0.7.0", note = "will be removed in v0.8.0")]
+	#[allow(rustdoc::broken_intra_doc_links)]
 	Contract(contract::TestContractCommand),
 }
 
 impl Command {
 	pub(crate) async fn execute(args: TestArgs) -> anyhow::Result<(Project, TestFeature)> {
-		Self::test(args, &mut cli::Cli).await
+		Self::test(
+			args,
+			#[cfg(feature = "contract")]
+			&mut cli::Cli,
+		)
+		.await
 	}
 
 	async fn test(
 		args: TestArgs,
-		cli: &mut impl cli::traits::Cli,
+		#[cfg(feature = "contract")] cli: &mut impl cli::traits::Cli,
 	) -> anyhow::Result<(Project, TestFeature)> {
 		let project_path = get_project_path(args.path.clone(), args.path_pos.clone());
 
@@ -94,6 +100,7 @@ impl Command {
 	}
 }
 
+#[cfg(any(feature = "parachain", feature = "contract"))]
 impl Display for Command {
 	fn fmt(&self, f: &mut Formatter<'_>) -> Result {
 		match self {
@@ -106,6 +113,7 @@ impl Display for Command {
 			#[cfg(feature = "parachain")]
 			Command::CreateSnapshot(_) => write!(f, "create snapshot"),
 			#[cfg(feature = "contract")]
+			#[allow(deprecated)]
 			Command::Contract(_) => write!(f, "contract"),
 		}
 	}

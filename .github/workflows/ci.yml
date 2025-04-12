@@ -2,9 +2,9 @@ name: ci
 
 on:
   push:
-    branches: ["main"]
+    branches: [ "main" ]
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [ opened, synchronize, reopened, ready_for_review ]
 
 env:
   CARGO_TERM_COLOR: always
@@ -30,6 +30,8 @@ jobs:
   build:
     needs: lint
     runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: "-Dwarnings"
     steps:
       - uses: actions/checkout@v4
 
@@ -37,10 +39,13 @@ jobs:
         with:
           git-user: ${{ env.GITHUB_ACTOR }}
 
-      - name: Check Feature Contracts Excl.
+      - name: Check no default features
+        run: cargo check --no-default-features
+
+      - name: Check contracts feature
         run: cargo check --no-default-features --features contract
 
-      - name: Check Features Parachain Excl.
+      - name: Check parachain feature
         run: cargo check --no-default-features --features parachain
 
       - name: Build default features
@@ -78,6 +83,24 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: docker/build-push-action@v5
+
+  docs:
+    needs: lint
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+    env:
+      RUSTDOCFLAGS: "-Dwarnings"
+      RUSTFLAGS: "-Dmissing_docs"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: "./.github/actions/init"
+        with:
+          git-user: ${{ env.GITHUB_ACTOR }}
+
+      - name: Check no default features
+        run: cargo doc --no-deps
 
   unit-tests:
     needs: lint
@@ -132,7 +155,7 @@ jobs:
     needs: lint
     strategy:
       matrix:
-        os: ["ubuntu-latest", "macos-latest"]
+        os: [ "ubuntu-latest", "macos-latest" ]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
@@ -167,7 +190,7 @@ jobs:
     needs: lint
     strategy:
       matrix:
-        os: ["ubuntu-latest", "macos-latest"]
+        os: [ "ubuntu-latest", "macos-latest" ]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout

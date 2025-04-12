@@ -31,7 +31,7 @@ cargo install --locked --git https://github.com/r0gue-io/pop-cli
 ```
 
 > :information_source: For detailed instructions on how to install Pop CLI, please refer to our
-> documentation: https://learn.onpop.io/v/cli/installing-pop-cli
+> documentation: <https://learn.onpop.io/v/cli/installing-pop-cli>
 
 ### Telemetry
 
@@ -106,6 +106,6 @@ Pop CLI would not be possible without these awesome crates!
 
 ## License
 
-The entire code within this repository is licensed under the [GPLv3](LICENSE).
+The entire code within this repository is licensed under the [GPLv3](./LICENSE).
 
 Please [contact us](https://r0gue.io/contact) if you have questions about the licensing of our products.

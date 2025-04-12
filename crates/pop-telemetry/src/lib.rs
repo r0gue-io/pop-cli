@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
+#![doc = include_str!("../README.md")]
+
 use reqwest::Client;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -16,22 +18,30 @@ const ENDPOINT: &str = "https://insights.onpop.io/api/send";
 const WEBSITE_ID: &str = "0cbea0ba-4752-45aa-b3cd-8fd11fa722f7";
 const CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// A telemetry error.
 #[derive(Error, Debug)]
 pub enum TelemetryError {
+	/// A network error occurred.
 	#[error("a reqwest error occurred: {0}")]
 	NetworkError(reqwest::Error),
+	/// An IO error occurred.
 	#[error("io error occurred: {0}")]
 	IO(io::Error),
+	/// The user has opted out and metrics cannot be reported.
 	#[error("opt-out has been set, can not report metrics")]
 	OptedOut,
+	/// The configuration file cannot be found.
 	#[error("unable to find config file")]
 	ConfigFileNotFound,
+	/// The configuration could not be serialized.
 	#[error("serialization failed: {0}")]
 	SerializeFailed(String),
 }
 
+/// A result that represents either success ([`Ok`]) or failure ([`TelemetryError`]).
 pub type Result<T> = std::result::Result<T, TelemetryError>;
 
+/// Anonymous collection of usage metrics.
 #[derive(Debug, Clone)]
 pub struct Telemetry {
 	// Endpoint to the telemetry API.
@@ -44,7 +54,7 @@ pub struct Telemetry {
 }
 
 impl Telemetry {
-	/// Create a new Telemetry instance.
+	/// Create a new [Telemetry] instance.
 	///
 	/// parameters:
 	/// `config_path`: the path to the configuration file (used for opt-out checks)
@@ -52,7 +62,7 @@ impl Telemetry {
 		Self::init(ENDPOINT.to_string(), config_path)
 	}
 
-	/// Initialize a new Telemetry instance with parameters.
+	/// Initialize a new [Telemetry] instance with parameters.
 	/// Can be used in tests to provide mock endpoints.
 	/// parameters:
 	/// `endpoint`: the API endpoint that telemetry will call

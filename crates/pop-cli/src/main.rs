@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-#[cfg(not(any(feature = "contract", feature = "parachain")))]
-compile_error!("feature \"contract\" or feature \"parachain\" must be enabled");
+#![doc = include_str!("../README.md")]
 
 use anyhow::{anyhow, Result};
 use clap::Parser;
@@ -15,12 +14,12 @@ use std::{
 };
 
 mod cli;
-#[cfg(any(feature = "parachain", feature = "contract"))]
 mod commands;
 mod common;
 #[cfg(feature = "parachain")]
 mod deployment_api;
 mod style;
+#[cfg(feature = "wallet-integration")]
 mod wallet_integration;
 
 #[tokio::main]
@@ -41,6 +40,7 @@ async fn main() -> Result<()> {
 	result.map(|_| ())
 }
 
+/// An all-in-one tool for Polkadot development.
 #[derive(Parser)]
 #[command(author, version, about, styles=style::get_styles())]
 pub struct Cli {

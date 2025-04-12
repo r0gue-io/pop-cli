@@ -67,7 +67,7 @@ pub fn terminate_node(
 }
 
 /// Checks if a contract has been built by verifying the existence of the build directory and the
-/// <name>.contract file.
+/// {name}.contract file.
 ///
 /// # Arguments
 /// * `path` - An optional path to the project directory. If no path is provided, the current

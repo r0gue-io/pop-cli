@@ -1,15 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::cli::traits::*;
-use cliclack::spinner;
 use duct::cmd;
-use pop_common::sourcing::{set_executable_permission, Binary};
-use std::{
-	cmp::Ordering,
-	path::{Path, PathBuf},
+#[cfg(feature = "parachain")]
+use std::cmp::Ordering;
+#[cfg(any(feature = "contract", feature = "parachain"))]
+use {
+	crate::cli::traits::*,
+	cliclack::spinner,
+	pop_common::sourcing::{set_executable_permission, Binary},
+	std::path::{Path, PathBuf},
 };
 
 /// A trait for binary generator.
+#[cfg(any(feature = "contract", feature = "parachain"))]
 pub(crate) trait BinaryGenerator {
 	/// Generates a binary.
 	///
@@ -31,6 +34,7 @@ pub(crate) trait BinaryGenerator {
 /// * `cache_path` - The cache directory path where the binary is stored.
 /// * `skip_confirm` - If `true`, skips confirmation prompts and automatically sources the binary if
 ///   needed.
+#[cfg(any(feature = "contract", feature = "parachain"))]
 pub async fn check_and_prompt<Generator: BinaryGenerator>(
 	cli: &mut impl Cli,
 	binary_name: &'static str,
@@ -150,6 +154,7 @@ impl TryFrom<String> for SemanticVersion {
 /// * `binary` - The name of the binary to find.
 /// * `target_version` - The version to match.
 /// * `order` - The ordering to use when matching versions.
+#[cfg(feature = "parachain")]
 pub(crate) fn which_version(
 	binary: &str,
 	target_version: &SemanticVersion,

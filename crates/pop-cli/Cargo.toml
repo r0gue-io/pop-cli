@@ -14,6 +14,10 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow.workspace = true
+clap.workspace = true
+cliclack.workspace = true
+console.workspace = true
+dirs.workspace = true
 duct.workspace = true
 env_logger.workspace = true
 fs_rollback.workspace = true
@@ -25,28 +29,26 @@ rustilities = { workspace = true, features = ["fmt", "manifest"]}
 rust_writer.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
+<<<<<<< HEAD
 syn = { workspace = true, features = ["parsing"]}
+=======
+strum.workspace = true
+strum_macros.workspace = true
+>>>>>>> origin/main
 tempfile.workspace = true
 tokio.workspace = true
 toml.workspace = true
 url.workspace = true
 
-# pop-cli
-clap.workspace = true
-cliclack.workspace = true
-console.workspace = true
-sp-core.workspace = true
-strum.workspace = true
-strum_macros.workspace = true
-
 # contracts
 pop-contracts = { path = "../pop-contracts", version = "0.7.0", optional = true }
+sp-core = { workspace = true, optional = true }
 sp-weights = { workspace = true, optional = true }
 
 # parachains
 pop-parachains = { path = "../pop-parachains", version = "0.7.0", optional = true }
-dirs = { workspace = true, optional = true }
-git2.workspace = true
+git2 = { workspace = true, optional = true }
+tracing-subscriber = { workspace = true, optional = true }
 
 # telemetry
 pop-telemetry = { path = "../pop-telemetry", version = "0.7.0", optional = true }
@@ -55,17 +57,9 @@ pop-telemetry = { path = "../pop-telemetry", version = "0.7.0", optional = true 
 pop-common = { path = "../pop-common", version = "0.7.0" }
 
 # wallet-integration
-axum.workspace = true
-open.workspace = true
-tower-http = { workspace = true, features = ["fs", "cors"] }
-
-# benchmarking
-frame-benchmarking-cli.workspace = true
-tracing.workspace = true
-tracing-subscriber.workspace = true
-
-# try-runtime
-frame-try-runtime = { workspace = true, features = ["try-runtime"] }
+axum = { workspace = true, optional = true }
+open = { workspace = true, optional = true }
+tower-http = { workspace = true, features = ["fs", "cors"], optional = true }
 
 [dev-dependencies]
 assert_cmd.workspace = true
@@ -79,6 +73,7 @@ similar = "2.7.0"
 
 [features]
 default = ["contract", "parachain", "telemetry"]
-contract = ["dep:pop-contracts", "dep:sp-weights", "dep:dirs"]
-parachain = ["dep:pop-parachains", "dep:dirs"]
+contract = ["dep:pop-contracts", "dep:sp-core", "dep:sp-weights", "wallet-integration"]
+parachain = ["dep:pop-parachains", "dep:git2", "dep:tracing-subscriber", "wallet-integration"]
 telemetry = ["dep:pop-telemetry"]
+wallet-integration = ["dep:axum", "dep:open", "dep:tower-http"]

@@ -75,13 +75,16 @@ pub enum TemplatePalletStorageTypes {
 /// in the pallet.
 #[derive(Debug, Copy, Clone, PartialEq, EnumIter, EnumMessage)]
 pub enum TemplatePalletOptions {
+	/// Uses a default configuration for the pallet's config trait.
 	#[strum(
 		message = "DefaultConfig",
 		detailed_message = "Use a default configuration for your config trait."
 	)]
 	DefaultConfig,
+	/// Adds a genesis config to the pallet.
 	#[strum(message = "GenesisConfig", detailed_message = "Add a genesis config to your pallet.")]
 	GenesisConfig,
+	/// Adds a custom origin to the pallet.
 	#[strum(message = "Custom Origin", detailed_message = "Add a custom origin to your pallet.")]
 	CustomOrigin,
 }

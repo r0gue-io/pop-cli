@@ -4,6 +4,7 @@ use crate::Error;
 use clap::Parser;
 use duct::cmd;
 use frame_benchmarking_cli::PalletCmd;
+pub use frame_benchmarking_cli::{BlockCmd, MachineCmd, OverheadCmd, StorageCmd};
 use sc_chain_spec::GenesisConfigBuilderRuntimeCaller;
 use serde::{Deserialize, Serialize};
 use sp_runtime::traits::BlakeTwo256;
@@ -21,7 +22,7 @@ use tempfile::NamedTempFile;
 pub mod binary;
 
 /// The default `development` preset used to communicate with the runtime via
-/// [`GenesisBuilder`] interface.
+/// [`GenesisBuilder`](https://docs.rs/sp-genesis-builder/latest/sp_genesis_builder/trait.GenesisBuilder.html) interface.
 ///
 /// (Recommended for testing with a single node, e.g., for benchmarking)
 pub const GENESIS_BUILDER_DEV_PRESET: &str = "development";

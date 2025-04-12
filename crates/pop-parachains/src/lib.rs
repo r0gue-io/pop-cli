@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
 #![doc = include_str!("../README.md")]
-mod bench;
+
+/// Provides functionality for benchmarking.
+pub mod bench;
 mod build;
 /// Provides functionality to construct, encode, sign, and submit chain extrinsics.
 mod call;
@@ -13,7 +15,8 @@ mod new_pallet;
 mod new_parachain;
 mod relay;
 mod templates;
-mod try_runtime;
+/// Provides functionality for testing runtime upgrades.
+pub mod try_runtime;
 mod up;
 mod utils;
 
