@@ -8,7 +8,7 @@ use std::{fs, path::Path, process::Command as Cmd};
 use strum::VariantArray;
 use tokio::time::{sleep, Duration};
 
-/// Test the parachain lifecycle: new, build, up, call.
+/// Test the parachain lifecycle: new, add,build, up, call.
 #[tokio::test]
 async fn parachain_lifecycle() -> Result<()> {
 	let temp = tempfile::tempdir().unwrap();
@@ -35,6 +35,120 @@ async fn parachain_lifecycle() -> Result<()> {
 		.assert()
 		.success();
 	assert!(temp_dir.join("test_parachain").exists());
+
+	// pop add correctly adds pallet-contracts to the template
+	let test_parachain = tempdir.join("test_parachain");
+	let runtime_path = test_parachain.join("runtime");
+
+	let workspace_manifest_path = test_parachain.join("Cargo.toml");
+	let runtime_manifest_path = runtime_path.join("Cargo.toml");
+	let runtime_lib_path = runtime_path.join("src").join("lib.rs");
+	let pallet_configs_path = runtime_path.join("src").join("configs");
+	let pallet_configs_mod_path = pallet_configs_path.join("mod.rs");
+	let contracts_pallet_config_path = pallet_configs_path.join("contracts.rs");
+
+	assert!(!contracts_pallet_config_path.exists());
+
+	let runtime_lib_content_before = std::fs::read_to_string(&runtime_lib_path).unwrap();
+	let pallet_configs_mod_content_before =
+		std::fs::read_to_string(&pallet_configs_mod_path).unwrap();
+	let workspace_manifest_content_before =
+		std::fs::read_to_string(&workspace_manifest_path).unwrap();
+	let runtime_manifest_content_before = std::fs::read_to_string(&runtime_manifest_path).unwrap();
+
+	Command::cargo_bin("pop")
+		.unwrap()
+		.current_dir(&test_parachain)
+		.args(&["add", "pallet", "-p", "contracts=40.0.1"])
+		.assert()
+		.success();
+
+	let runtime_lib_content_after = std::fs::read_to_string(&runtime_lib_path).unwrap();
+	let pallet_configs_mod_content_after =
+		std::fs::read_to_string(&pallet_configs_mod_path).unwrap();
+	let workspace_manifest_content_after =
+		std::fs::read_to_string(&workspace_manifest_path).unwrap();
+	let runtime_manifest_content_after = std::fs::read_to_string(&runtime_manifest_path).unwrap();
+	let contracts_pallet_config_content =
+		std::fs::read_to_string(&contracts_pallet_config_path).unwrap();
+
+	let runtime_lib_diff =
+		TextDiff::from_lines(&runtime_lib_content_before, &runtime_lib_content_after);
+	let pallet_configs_mod_diff =
+		TextDiff::from_lines(&pallet_configs_mod_content_before, &pallet_configs_mod_content_after);
+	let workspace_manifest_diff =
+		TextDiff::from_lines(&workspace_manifest_content_before, &workspace_manifest_content_after);
+	let runtime_manifest_diff =
+		TextDiff::from_lines(&runtime_manifest_content_before, &runtime_manifest_content_after);
+
+	let expected_inserted_lines_runtime_lib = vec![
+		"\n",
+		"    #[runtime::pallet_index(34)]\n",
+		"    pub type Contracts = pallet_contracts;\n",
+	];
+	let expected_inserted_lines_configs_mod = vec!["mod contracts;\n"];
+	let expected_inserted_lines_workspace_manifest =
+		vec!["pallet-contracts = { version = \"40.0.1\", default-features = false }\n"];
+	let expected_inserted_lines_runtime_manifest =
+		vec!["pallet-contracts = { workspace = true, default-features = false }\n"];
+
+	let mut inserted_lines_runtime_lib = Vec::with_capacity(3);
+	let mut inserted_lines_configs_mod = Vec::with_capacity(1);
+	let mut inserted_lines_workspace_manifest = Vec::with_capacity(1);
+	let mut inserted_lines_runtime_manifest = Vec::with_capacity(1);
+
+	for change in runtime_lib_diff.iter_all_changes() {
+		match change.tag() {
+			ChangeTag::Delete => panic!("no deletion expected"),
+			ChangeTag::Insert => inserted_lines_runtime_lib.push(change.value()),
+			_ => (),
+		}
+	}
+
+	for change in pallet_configs_mod_diff.iter_all_changes() {
+		match change.tag() {
+			ChangeTag::Delete => panic!("no deletion expected"),
+			ChangeTag::Insert => inserted_lines_configs_mod.push(change.value()),
+			_ => (),
+		}
+	}
+
+	for change in workspace_manifest_diff.iter_all_changes() {
+		match change.tag() {
+			ChangeTag::Delete => panic!("no deletion expected"),
+			ChangeTag::Insert => inserted_lines_workspace_manifest.push(change.value()),
+			_ => (),
+		}
+	}
+
+	for change in runtime_manifest_diff.iter_all_changes() {
+		match change.tag() {
+			ChangeTag::Delete => panic!("no deletion expected"),
+			ChangeTag::Insert => inserted_lines_runtime_manifest.push(change.value()),
+			_ => (),
+		}
+	}
+
+	assert_eq!(expected_inserted_lines_runtime_lib, inserted_lines_runtime_lib);
+	assert_eq!(expected_inserted_lines_configs_mod, inserted_lines_configs_mod);
+	assert_eq!(expected_inserted_lines_workspace_manifest, inserted_lines_workspace_manifest);
+	assert_eq!(expected_inserted_lines_runtime_manifest, inserted_lines_runtime_manifest);
+
+	assert_eq!(
+		contracts_pallet_config_content,
+		r#"use crate::Balances;
+parameter_types! {
+    pub Schedule : pallet_contracts::Schedule < Runtime > = Default::default();
+}
+
+#[derive_impl(pallet_contracts::config_preludes::TestDefaultConfig)]
+impl pallet_contracts::Config for Runtime {
+    type Currency = Balances;
+    type Schedule = [pallet_contracts::Frame<Self>; 5];
+    type CallStack = Schedule;
+}
+"#
+	);
 
 	// pop build --release --path "./test_parachain"
 	Command::cargo_bin("pop")

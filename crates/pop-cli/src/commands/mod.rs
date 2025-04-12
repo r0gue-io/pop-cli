@@ -219,7 +219,7 @@ impl Display for Command {
 			Self::Clean(_) => write!(f, "clean"),
 			#[cfg(feature = "parachain")]
 			Self::Bench(args) => write!(f, "bench {}", args.command),
-      Self::Add(args) => write!(f, "new {}", args.command)
+			Self::Add(args) => write!(f, "add {:?}", args.command),
 		}
 	}
 }

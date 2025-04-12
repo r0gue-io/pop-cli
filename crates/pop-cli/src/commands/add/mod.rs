@@ -12,7 +12,7 @@ pub struct AddArgs {
 	pub command: Command,
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Debug)]
 pub enum Command {
 	/// Add a new pallet to an existing runtime
 	#[clap(alias = "P")]
