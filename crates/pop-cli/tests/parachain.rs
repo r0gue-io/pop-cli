@@ -138,7 +138,7 @@ async fn parachain_lifecycle() -> Result<()> {
 	assert_eq!(
 		contracts_pallet_config_content,
 		r#"use crate::Balances;
-		
+
 parameter_types! {
     pub Schedule : pallet_contracts::Schedule < Runtime > = Default::default();
 }
