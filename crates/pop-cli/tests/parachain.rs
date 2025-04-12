@@ -7,6 +7,7 @@ use pop_parachains::Parachain;
 use std::{fs, path::Path, process::Command as Cmd};
 use strum::VariantArray;
 use tokio::time::{sleep, Duration};
+use similar::{TextDiff, ChangeTag};
 
 /// Test the parachain lifecycle: new, add,build, up, call.
 #[tokio::test]
@@ -37,7 +38,7 @@ async fn parachain_lifecycle() -> Result<()> {
 	assert!(temp_dir.join("test_parachain").exists());
 
 	// pop add correctly adds pallet-contracts to the template
-	let test_parachain = tempdir.join("test_parachain");
+	let test_parachain = temp_dir.join("test_parachain");
 	let runtime_path = test_parachain.join("runtime");
 
 	let workspace_manifest_path = test_parachain.join("Cargo.toml");
