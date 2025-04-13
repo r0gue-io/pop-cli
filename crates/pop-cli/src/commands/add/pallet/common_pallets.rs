@@ -22,8 +22,8 @@ pub(crate) enum CommonPallets {
 impl CommonPallets {
 	pub(crate) fn get_crate_name(&self) -> String {
 		match self {
-			CommonPallets::Balances => "pallet-balances".to_string(),
-			CommonPallets::Contracts => "pallet-contracts".to_string(),
+			CommonPallets::Balances => "pallet-balances".to_owned(),
+			CommonPallets::Contracts => "pallet-contracts".to_owned(),
 		}
 	}
 

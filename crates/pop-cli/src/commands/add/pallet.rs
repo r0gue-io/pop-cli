@@ -278,6 +278,11 @@ impl AddPalletCommand {
 					false,
 				),
 			)?;
+
+			pop_common::manifest::add_pallet_features_to_manifest(
+				roll_runtime_manifest,
+				pallet.get_crate_name(),
+			)?;
 		}
 
 		rollback.commit()?;

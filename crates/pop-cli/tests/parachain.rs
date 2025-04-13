@@ -60,7 +60,7 @@ async fn parachain_lifecycle() -> Result<()> {
 	Command::cargo_bin("pop")
 		.unwrap()
 		.current_dir(&test_parachain)
-		.args(&["add", "pallet", "-p", "contracts=39.0.0"])
+		.args(&["add", "pallet", "-p", "contracts=39.1.0"])
 		.assert()
 		.success();
 
@@ -89,9 +89,14 @@ async fn parachain_lifecycle() -> Result<()> {
 	];
 	let expected_inserted_lines_configs_mod = vec!["mod contracts;\n"];
 	let expected_inserted_lines_workspace_manifest =
-		vec!["pallet-contracts = { version = \"39.0.0\", default-features = false }\n"];
-	let expected_inserted_lines_runtime_manifest =
-		vec!["pallet-contracts = { workspace = true, default-features = false }\n"];
+		vec!["pallet-contracts = { version = \"39.1.0\", default-features = false }\n"];
+
+	let expected_inserted_lines_runtime_manifest = vec![
+		"pallet-contracts = { workspace = true, default-features = false }\n",
+		"  \"xcm/std\", \"pallet-contracts/std\",\n",
+		"  \"xcm-executor/runtime-benchmarks\", \"pallet-contracts/runtime-benchmarks\",\n",
+		"  \"sp-runtime/try-runtime\", \"pallet-contracts/try-runtime\",\n",
+	];
 
 	let mut inserted_lines_runtime_lib = Vec::with_capacity(3);
 	let mut inserted_lines_configs_mod = Vec::with_capacity(1);
@@ -124,7 +129,6 @@ async fn parachain_lifecycle() -> Result<()> {
 
 	for change in runtime_manifest_diff.iter_all_changes() {
 		match change.tag() {
-			ChangeTag::Delete => panic!("no deletion expected"),
 			ChangeTag::Insert => inserted_lines_runtime_manifest.push(change.value()),
 			_ => (),
 		}
