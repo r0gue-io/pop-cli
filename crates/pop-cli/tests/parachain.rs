@@ -141,19 +141,21 @@ async fn parachain_lifecycle() -> Result<()> {
 
 	assert_eq!(
 		contracts_pallet_config_content,
-		r#"use crate::Balances;
-
-parameter_types! {
-    pub Schedule : pallet_contracts::Schedule < Runtime > = Default::default();
-}
-
-#[derive_impl(pallet_contracts::config_preludes::TestDefaultConfig)]
-impl pallet_contracts::Config for Runtime {
-    type Currency = Balances;
-    type Schedule = [pallet_contracts::Frame<Self>; 5];
-    type CallStack = Schedule;
-}
-"#
+		r#"use crate::{Balances, Runtime, RuntimeCall, RuntimeEvent, RuntimeHoldReason, System};
+	use frame_support::{derive_impl, parameter_types};
+		
+	parameter_types! {
+		pub Schedule : pallet_contracts::Schedule < Runtime > = < pallet_contracts::Schedule
+		< Runtime >> ::default();
+	}
+		
+	#[derive_impl(pallet_contracts::config_preludes::TestDefaultConfig)]
+	impl pallet_contracts::Config for Runtime {
+		type Currency = Balances;
+		type Schedule = Schedule;
+		type CallStack = [pallet_contracts::Frame<Self>; 5];
+	}
+	"#
 	);
 
 	// pop build --release --path "./test_parachain"
