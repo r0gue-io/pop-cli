@@ -157,9 +157,67 @@ pub fn add_feature(project: &Path, (key, items): (String, Vec<String>)) -> anyho
 	Ok(())
 }
 
+/// Add pallet features (std, runtime-benchmarks, try-runtime) to manifest.
+pub fn add_pallet_features_to_manifest<P: AsRef<Path>>(
+	manifest_path: P,
+	pallet_crate_name: String,
+) -> anyhow::Result<()> {
+	fn do_add_pallet_features_to_manifest(
+		manifest_path: &Path,
+		pallet_crate_name: String,
+	) -> anyhow::Result<()> {
+		let cargo_toml_content = std::fs::read_to_string(manifest_path)?;
+		let mut doc = cargo_toml_content.parse::<DocumentMut>()?;
+
+		if !doc.as_table().contains_key("features") {
+			return Err(anyhow::anyhow!(
+				"The runtime manifest does not contain a [features] section"
+			));
+		}
+
+		let features_to_add = vec![
+			("std", format!("{}/std", pallet_crate_name)),
+			("runtime-benchmarks", format!("{}/runtime-benchmarks", pallet_crate_name)),
+			("try-runtime", format!("{}/try-runtime", pallet_crate_name)),
+		];
+
+		let features_table =
+			doc.get_mut("features").and_then(|item| item.as_table_mut()).ok_or_else(|| {
+				anyhow::anyhow!("The runtime manifest does not contain a valid [features] table")
+			})?;
+
+		for (feature, dep_feature) in features_to_add {
+			let feature_item = features_table.get_mut(feature).ok_or_else(|| {
+				anyhow::anyhow!(format!(
+					"Feature `{}` does not exist in the runtime manifest",
+					feature
+				))
+			})?;
+
+			if feature_item.is_array() {
+				let array = feature_item.as_array_mut().unwrap();
+				if !array.iter().any(|v| v.as_str() == Some(&dep_feature)) {
+					array.push(dep_feature);
+				}
+			} else {
+				return Err(anyhow::anyhow!(format!(
+					"Feature `{}` is not an array in the runtime manifest",
+					feature
+				)));
+			}
+		}
+
+		std::fs::write(manifest_path, doc.to_string())?;
+		Ok(())
+	}
+
+	do_add_pallet_features_to_manifest(manifest_path.as_ref(), pallet_crate_name)
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use similar::{ChangeTag, TextDiff};
 	use std::fs::{write, File};
 	use tempfile::TempDir;
 
@@ -560,5 +618,162 @@ mod tests {
 		let final_toml_content =
 			read_to_string(&cargo_toml_path).expect("Cargo.toml should be readable");
 		assert_eq!(initial_toml_content, final_toml_content);
+	}
+
+	#[test]
+	fn add_pallet_features_to_manifest_works() {
+		let test_builder = TestBuilder::default().add_workspace().add_workspace_cargo_toml(
+			r#"[workspace]
+resolver = "2"
+members = ["member1"]
+
+[features]
+default = ["std"]
+
+std = [
+"pallet-balances/std",
+"pallet-aura/std"
+]
+
+runtime-benchmarks = [
+"pallet-balances/runtime-benchmarks",
+"pallet-aura/runtime-benchmarks"
+]
+
+try-runtime = [
+"pallet-balances/try-runtime",
+"pallet-aura/try-runtime"
+]
+"#,
+		);
+
+		let manifest_path = test_builder.workspace_cargo_toml.clone().unwrap();
+
+		let manifest_content_before = std::fs::read_to_string(&manifest_path).unwrap();
+
+		assert!(
+			add_pallet_features_to_manifest(&manifest_path, "pallet-contracts".to_owned()).is_ok()
+		);
+
+		let manifest_content_after = std::fs::read_to_string(&manifest_path).unwrap();
+
+		let manifest_diff = TextDiff::from_lines(&manifest_content_before, &manifest_content_after);
+
+		let expected_inserted_lines = vec![
+			", \"pallet-contracts/std\"]\n",
+			", \"pallet-contracts/runtime-benchmarks\"]\n",
+			", \"pallet-contracts/try-runtime\"]\n",
+		];
+
+		let mut inserted_lines = Vec::with_capacity(3);
+
+		for change in manifest_diff.iter_all_changes() {
+			match change.tag() {
+				ChangeTag::Insert => inserted_lines.push(change.value()),
+				_ => (),
+			}
+		}
+
+		assert_eq!(inserted_lines, expected_inserted_lines);
+	}
+
+	#[test]
+	fn add_pallet_features_to_manifest_missing_features_section_should_fail() {
+		let test_builder = TestBuilder::default().add_workspace().add_workspace_cargo_toml(
+			r#"[workspace]
+resolver = "2"
+members = ["member1"]
+
+[package]
+name = "dummy"
+version = "0.1.0"
+"#,
+		);
+		let manifest_path = test_builder.workspace_cargo_toml.clone().unwrap();
+
+		let res = add_pallet_features_to_manifest(&manifest_path, "pallet-contracts".to_owned());
+		assert!(
+			res.is_err(),
+			"Expected error because the manifest does not contain a [features] section"
+		);
+		let err_msg = format!("{}", res.unwrap_err());
+		assert!(
+			err_msg.contains("does not contain a [features] section"),
+			"Error message did not contain the expected text, got: {}",
+			err_msg
+		);
+	}
+
+	#[test]
+	fn add_pallet_features_to_manifest_missing_feature_key_should_fail() {
+		// Here, we purposefully omit the "std" feature.
+		let test_builder = TestBuilder::default().add_workspace().add_workspace_cargo_toml(
+			r#"[workspace]
+resolver = "2"
+members = ["member1"]
+
+[features]
+default = ["std"]
+
+runtime-benchmarks = [
+    "pallet-balances/runtime-benchmarks",
+    "pallet-aura/runtime-benchmarks"
+]
+
+try-runtime = [
+    "pallet-balances/try-runtime",
+    "pallet-aura/try-runtime"
+]
+"#,
+		);
+		let manifest_path = test_builder.workspace_cargo_toml.clone().unwrap();
+
+		let res = add_pallet_features_to_manifest(&manifest_path, "pallet-contracts".to_owned());
+		assert!(
+			res.is_err(),
+			"Expected error because the 'std' feature key is missing in the manifest"
+		);
+		let err_msg = format!("{}", res.unwrap_err());
+		assert!(
+			err_msg.contains("Feature `std` does not exist"),
+			"Error message did not contain the expected text, got: {}",
+			err_msg
+		);
+	}
+
+	#[test]
+	fn add_pallet_features_to_manifest_non_array_feature_should_fail() {
+		// Here, the "std" feature is defined as a string instead of an array.
+		let test_builder = TestBuilder::default().add_workspace().add_workspace_cargo_toml(
+			r#"[workspace]
+resolver = "2"
+members = ["member1"]
+
+[features]
+default = ["std"]
+
+std = "pallet-balances/std"
+
+runtime-benchmarks = [
+    "pallet-balances/runtime-benchmarks",
+    "pallet-aura/runtime-benchmarks"
+]
+
+try-runtime = [
+    "pallet-balances/try-runtime",
+    "pallet-aura/try-runtime"
+]
+"#,
+		);
+		let manifest_path = test_builder.workspace_cargo_toml.clone().unwrap();
+
+		let res = add_pallet_features_to_manifest(&manifest_path, "pallet-contracts".to_owned());
+		assert!(res.is_err(), "Expected error because the 'std' feature is not an array");
+		let err_msg = format!("{}", res.unwrap_err());
+		assert!(
+			err_msg.contains("Feature `std` is not an array"),
+			"Error message did not contain the expected text, got: {}",
+			err_msg
+		);
 	}
 }

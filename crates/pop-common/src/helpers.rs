@@ -44,15 +44,18 @@ pub fn get_project_name_from_path<'a>(path: &'a Path, default: &'a str) -> &'a s
 ///
 /// # Arguments
 /// * `path` - The path to be prefixed if needed.
-pub fn prefix_with_current_dir_if_needed(path: PathBuf) -> PathBuf {
-	let components = &path.components().collect::<Vec<Component>>();
-	if !components.is_empty() {
-		// If the first component is a normal component, we prefix the path with the current dir
-		if let Component::Normal(_) = components[0] {
-			return <Component<'_> as AsRef<Path>>::as_ref(&Component::CurDir).join(path);
+pub fn prefix_with_current_dir_if_needed<P: AsRef<Path>>(path: P) -> PathBuf {
+	fn do_prefix_with_current_dir(path: &Path) -> PathBuf {
+		let components = path.components().collect::<Vec<Component>>();
+		if !components.is_empty() {
+			// If the first component is a normal component, we prefix the path with the current dir
+			if let Component::Normal(_) = components[0] {
+				return <Component<'_> as AsRef<Path>>::as_ref(&Component::CurDir).join(path);
+			}
 		}
+		path.to_path_buf()
 	}
-	path
+	do_prefix_with_current_dir(path.as_ref())
 }
 
 /// Returns the relative path from `base` to `full` if `full` is inside `base`.
