@@ -64,7 +64,7 @@ impl CommonPallets {
 				parse_quote!(
 					///TEMP_DOC
 					use crate::{
-						System, Runtime, Balances, RuntimeEvent, RuntimeHoldReason, RuntimeCall
+						System, Runtime, Balances, RuntimeEvent, RuntimeHoldReason, RuntimeCall,
 					};
 				),
 				parse_quote!(
