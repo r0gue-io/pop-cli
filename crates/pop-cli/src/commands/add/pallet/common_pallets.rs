@@ -51,14 +51,24 @@ impl CommonPallets {
 
 	pub(crate) fn get_impl_needed_use_statements(&self) -> Vec<Item> {
 		match self {
-			CommonPallets::Balances => vec![parse_quote!(
-				///TEMP_DOC
-				use crate::System;
-			)],
-			CommonPallets::Contracts => vec![parse_quote!(
-				///TEMP_DOC
-				use crate::Balances;
-			)],
+			CommonPallets::Balances => vec![
+				parse_quote!(
+					///TEMP_DOC
+					use crate::{System, Runtime, RuntimeEvent, RuntimeHoldReason, RuntimeCall};
+				),
+				parse_quote!(
+					use frame_support::{parameter_types, derive_impl};
+				),
+			],
+			CommonPallets::Contracts => vec![
+				parse_quote!(
+					///TEMP_DOC
+					use crate::{System, Runtime, Balances. RuntimeEvent, RuntimeHoldReason, RuntimeCall};
+				),
+				parse_quote!(
+					use frame_support::{parameter_types, derive_impl};
+				),
+			],
 		}
 	}
 
@@ -68,7 +78,7 @@ impl CommonPallets {
 			CommonPallets::Contracts => parse_quote! {
 			  ///TEMP_DOC
 			  parameter_types!{
-				  pub Schedule: pallet_contracts::Schedule<Runtime> = Default::default();
+				  pub Schedule: pallet_contracts::Schedule<Runtime> = <pallet_contracts::Schedule<Runtime>>::default();
 			  }
 			},
 		}
@@ -88,8 +98,8 @@ impl CommonPallets {
 			  #[derive_impl(pallet_contracts::config_preludes::TestDefaultConfig)]
 			  impl pallet_contracts::Config for Runtime{
 				type Currency = Balances;
-				type Schedule = [pallet_contracts::Frame<Self>; 5];
-				type CallStack = Schedule;
+				type Schedule = Schedule;
+				type CallStack = [pallet_contracts::Frame<Self>; 5];
 			  }
 			},
 		}
@@ -209,18 +219,28 @@ mod tests {
 	#[test]
 	fn get_impl_needed_use_statements_works() {
 		assert_eq!(
-			CommonPallets::Balances.get_impl_needed_use_statements()[0],
-			parse_quote! {
-				///TEMP_DOC
-				use crate::System;
-			}
+			CommonPallets::Balances.get_impl_needed_use_statements(),
+			vec![
+				parse_quote! {
+					///TEMP_DOC
+					use crate::{System, Runtime, RuntimeEvent, RuntimeHoldReason, RuntimeCall};
+				},
+				parse_quote!(
+					use frame_support::{parameter_types, derive_impl};
+				)
+			]
 		);
 		assert_eq!(
-			CommonPallets::Contracts.get_impl_needed_use_statements()[0],
-			parse_quote! {
-				///TEMP_DOC
-				use crate::Balances;
-			}
+			CommonPallets::Contracts.get_impl_needed_use_statements(),
+			vec![
+				parse_quote! {
+					///TEMP_DOC
+					use crate::{System, Runtime, Balances. RuntimeEvent, RuntimeHoldReason, RuntimeCall};
+				},
+				parse_quote!(
+					use frame_support::{parameter_types, derive_impl};
+				)
+			]
 		);
 	}
 
@@ -236,7 +256,7 @@ mod tests {
 			parse_quote! {
 				///TEMP_DOC
 				parameter_types!{
-					pub Schedule: pallet_contracts::Schedule<Runtime> = Default::default();
+				  pub Schedule: pallet_contracts::Schedule<Runtime> = <pallet_contracts::Schedule<Runtime>>::default();
 				}
 			}
 		);
@@ -259,11 +279,11 @@ mod tests {
 			CommonPallets::Contracts.get_needed_impl_block(),
 			parse_quote! {
 				///TEMP_DOC
-				#[derive_impl(pallet_contracts::config_preludes::TestDefaultConfig)]
-				impl pallet_contracts::Config for Runtime {
-					type Currency = Balances;
-					type Schedule = [pallet_contracts::Frame<Self>; 5];
-					type CallStack = Schedule;
+			  #[derive_impl(pallet_contracts::config_preludes::TestDefaultConfig)]
+			  impl pallet_contracts::Config for Runtime{
+				type Currency = Balances;
+				type Schedule = Schedule;
+				type CallStack = [pallet_contracts::Frame<Self>; 5];
 				}
 			}
 		);
