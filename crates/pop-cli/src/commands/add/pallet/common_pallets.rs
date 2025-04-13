@@ -63,7 +63,9 @@ impl CommonPallets {
 			CommonPallets::Contracts => vec![
 				parse_quote!(
 					///TEMP_DOC
-					use crate::{System, Runtime, Balances, RuntimeEvent, RuntimeHoldReason, RuntimeCall};
+					use crate::{
+						System, Runtime, Balances, RuntimeEvent, RuntimeHoldReason, RuntimeCall
+					};
 				),
 				parse_quote!(
 					use frame_support::{parameter_types, derive_impl};
