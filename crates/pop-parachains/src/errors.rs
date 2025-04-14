@@ -77,6 +77,9 @@ pub enum Error {
 		/// The binary used.
 		binary: String,
 	},
+	/// A network configuration error occurred.
+	#[error("Configuration error: {0:?}")]
+	NetworkConfigurationError(Vec<anyhow::Error>),
 	/// An orchestrator error occurred.
 	#[error("Orchestrator error: {0}")]
 	OrchestratorError(#[from] OrchestratorError),
