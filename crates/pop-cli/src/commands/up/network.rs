@@ -30,6 +30,9 @@ use tokio::time::sleep;
 #[derive(Args, Clone)]
 #[cfg_attr(test, derive(Default))]
 pub(crate) struct ConfigFileCommand {
+	/// The Zombienet network configuration file to be used.
+	#[arg(value_name = "FILE", conflicts_with = "file")]
+	pub path: Option<PathBuf>,
 	/// [DEPRECATED] The Zombienet network configuration file to be used (will be removed in
 	/// v0.9.0).
 	#[arg(short = 'f', long = "file")]
@@ -70,7 +73,7 @@ pub(crate) struct ConfigFileCommand {
 
 impl ConfigFileCommand {
 	/// Executes the command.
-	pub(crate) async fn execute(self, path: Option<&Path>) -> anyhow::Result<()> {
+	pub(crate) async fn execute(self) -> anyhow::Result<()> {
 		clear_screen()?;
 		intro(format!("{}: Launch a local network", style(" Pop CLI ").black().on_magenta()))?;
 		set_theme(Theme);
@@ -84,7 +87,7 @@ impl ConfigFileCommand {
 		}
 
 		// Determine network config from args.
-		let network_config = match path {
+		let network_config = match self.path.as_ref() {
 			Some(path) => path,
 			#[allow(deprecated)]
 			None => match self.file.as_deref() {

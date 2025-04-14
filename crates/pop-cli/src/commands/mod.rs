@@ -179,7 +179,7 @@ impl Command {
 						#[cfg(feature = "parachain")]
 						up::Command::Network(mut cmd) => {
 							cmd.valid = true;
-							cmd.execute(args.path_pos.as_deref()).await.map(|_| Up(Network))
+							cmd.execute().await.map(|_| Up(Network))
 						},
 						#[cfg(feature = "parachain")]
 						up::Command::Paseo(cmd) => cmd.execute(Paseo).await.map(|_| Up(Network)),
