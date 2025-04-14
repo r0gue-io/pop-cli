@@ -45,13 +45,12 @@ pub(crate) struct UpArgs {
 }
 
 /// Launch a local network or deploy a smart contract.
+#[cfg(feature = "parachain")]
 #[derive(Subcommand, Clone)]
 pub(crate) enum Command {
-	#[cfg(feature = "parachain")]
     /// Launch a local network by specifying a network configuration file.
     #[clap(aliases = ["n", "parachain"])]
     Network(network::ConfigFileCommand),
-    #[cfg(feature = "parachain")]
     /// Launch a local Paseo network.
     #[clap()]
     Paseo(network::BuildCommand),

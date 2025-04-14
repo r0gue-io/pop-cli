@@ -3,14 +3,12 @@
 use crate::{
 	cache,
 	cli::Cli,
-	common::{
-		Data::{self, *},
-		Project::Network,
-	},
+	common::Data::{self, *},
 };
 use clap::Subcommand;
 use std::fmt::{Display, Formatter, Result};
-use up::network::Relay::*;
+#[cfg(feature = "parachain")]
+use {crate::common::Project::Network, up::network::Relay::*};
 
 #[cfg(feature = "parachain")]
 pub(crate) mod bench;
