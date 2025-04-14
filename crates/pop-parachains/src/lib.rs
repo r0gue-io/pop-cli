@@ -17,7 +17,7 @@ mod relay;
 mod templates;
 /// Provides functionality for testing runtime upgrades.
 pub mod try_runtime;
-// Provides functionality for launching a local network.
+/// Provides functionality for launching a local network.
 pub mod up;
 mod utils;
 
