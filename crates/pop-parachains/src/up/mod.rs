@@ -23,7 +23,7 @@ pub use zombienet_sdk::NetworkConfigBuilder;
 use zombienet_sdk::{LocalFileSystem, Network, NetworkConfig, NetworkConfigExt};
 
 mod chain_specs;
-// Configuration for supported parachains.
+/// Configuration for supported parachains.
 pub mod parachains;
 mod relay;
 
