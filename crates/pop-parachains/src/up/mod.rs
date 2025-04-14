@@ -325,7 +325,7 @@ impl NetworkConfiguration {
 	) -> Result<Self, Error> {
 		let validators = VALIDATORS
 			.into_iter()
-			.take(parachains.as_ref().map(|v| v.len().max(2)).unwrap_or_default())
+			.take(parachains.as_ref().map(|v| v.len()).unwrap_or_default().max(2))
 			.map(String::from)
 			.collect();
 
@@ -1554,7 +1554,7 @@ validator = true
 	}
 
 	mod network_config {
-		use super::*;
+		use super::{Relay::*, *};
 		use std::{
 			fs::{create_dir_all, File},
 			io::Write,
@@ -1651,6 +1651,21 @@ chain = "paseo-local"
 			assert_eq!(2000, para_2000.id());
 			assert_eq!(Some("node"), para_2000.default_command().map(|c| c.as_str()));
 			Ok(())
+		}
+
+		#[test]
+		fn build_paseo_works() -> Result<(), Error> {
+			NetworkConfiguration::build(Paseo, None).map(|_| ())
+		}
+
+		#[test]
+		fn build_kusama_works() -> Result<(), Error> {
+			NetworkConfiguration::build(Kusama, None).map(|_| ())
+		}
+
+		#[test]
+		fn build_polkadot_works() -> Result<(), Error> {
+			NetworkConfiguration::build(Polkadot, None).map(|_| ())
 		}
 
 		#[test]
