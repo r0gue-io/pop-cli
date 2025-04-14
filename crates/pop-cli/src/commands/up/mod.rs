@@ -15,7 +15,7 @@ use std::path::PathBuf;
 #[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 mod contract;
 #[cfg(feature = "parachain")]
-mod network;
+pub(super) mod network;
 #[cfg(feature = "parachain")]
 mod rollup;
 
@@ -25,11 +25,11 @@ mod rollup;
 #[command(args_conflicts_with_subcommands = true)]
 pub(crate) struct UpArgs {
 	/// Path to the project directory.
-	#[arg(long, global = true)]
+	#[arg(long)]
 	pub path: Option<PathBuf>,
 
 	/// Directory path without flag for your project [default: current directory]
-	#[arg(value_name = "PATH", index = 1, global = true, conflicts_with = "path")]
+	#[arg(value_name = "PATH", index = 1, conflicts_with = "path")]
 	pub path_pos: Option<PathBuf>,
 
 	#[command(flatten)]
@@ -48,9 +48,19 @@ pub(crate) struct UpArgs {
 #[derive(Subcommand, Clone)]
 pub(crate) enum Command {
 	#[cfg(feature = "parachain")]
-	/// Launch a local network.
-	#[clap(aliases = ["n", "parachain"])]
-	Network(network::ZombienetCommand),
+    /// Launch a local network by specifying a network configuration file.
+    #[clap(aliases = ["n", "parachain"])]
+    Network(network::ConfigFileCommand),
+    #[cfg(feature = "parachain")]
+    /// Launch a local Paseo network.
+    #[clap()]
+    Paseo(network::BuildCommand),
+    /// Launch a local Kusama network.
+    #[clap()]
+    Kusama(network::BuildCommand),
+    /// Launch a local Polkadot network.
+    #[clap()]
+    Polkadot(network::BuildCommand),
 }
 
 impl Command {
@@ -92,6 +102,9 @@ impl Display for Command {
 	fn fmt(&self, f: &mut Formatter<'_>) -> Result {
 		match self {
 			Command::Network(_) => write!(f, "network"),
+            Command::Paseo(_) => write!(f, "paseo"),
+            Command::Kusama(_) => write!(f, "kusama"),
+            Command::Polkadot(_) => write!(f, "polkadot"),
 		}
 	}
 }

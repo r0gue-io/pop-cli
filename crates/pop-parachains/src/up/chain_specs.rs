@@ -16,7 +16,7 @@ use strum_macros::{AsRefStr, EnumProperty, VariantArray};
 
 /// A supported runtime.
 #[derive(AsRefStr, Debug, EnumProperty, PartialEq, VariantArray)]
-pub(super) enum Runtime {
+pub enum Runtime {
 	/// Kusama.
 	#[strum(props(
 		Repository = "https://github.com/r0gue-io/polkadot-runtimes",
@@ -68,12 +68,12 @@ impl TryInto for &Runtime {
 
 impl Runtime {
 	/// The chain spec identifier.
-	fn chain(&self) -> &'static str {
+	pub(crate) fn chain(&self) -> &'static str {
 		self.get_str("Chain").expect("expected specification of `Chain`")
 	}
 
 	/// The name of the runtime.
-	fn name(&self) -> &str {
+	pub fn name(&self) -> &str {
 		self.as_ref()
 	}
 }

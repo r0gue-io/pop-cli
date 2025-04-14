@@ -504,8 +504,8 @@ impl ChainSpec {
 mod tests {
 	use super::*;
 	use crate::{
-		new_parachain::instantiate_standard_template, templates::Parachain, Config, Error,
-		Zombienet,
+		new_parachain::instantiate_standard_template, templates::Parachain, up::Zombienet, Config,
+		Error,
 	};
 	use anyhow::Result;
 	use pop_common::{
@@ -596,7 +596,7 @@ mod tests {
 		)?;
 		let mut zombienet = Zombienet::new(
 			&cache,
-			config.path(),
+			config.path().try_into()?,
 			None,
 			None,
 			None,

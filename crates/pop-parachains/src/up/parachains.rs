@@ -11,31 +11,96 @@ use pop_common::{
 	target, Error, GitHub,
 };
 use std::path::Path;
-use strum::VariantArray as _;
-use strum_macros::{EnumProperty, VariantArray};
+use strum::{EnumProperty as _, VariantArray as _};
+use strum_macros::{AsRefStr, EnumDiscriminants, EnumProperty, EnumString, VariantArray};
 
 /// A supported parachain.
-#[derive(Debug, EnumProperty, PartialEq, VariantArray)]
-pub(super) enum Parachain {
+#[derive(AsRefStr, Clone, Debug, EnumDiscriminants, PartialEq)]
+#[strum_discriminants(
+	derive(EnumProperty, EnumString, VariantArray),
+	name(ParachainDiscriminant),
+	vis(pub(crate))
+)]
+pub enum Parachain {
 	/// Parachain containing core Polkadot protocol features.
-	#[strum(props(
+	#[strum(serialize = "system")]
+	#[strum_discriminants(strum(props(
 		Repository = "https://github.com/r0gue-io/polkadot",
 		Binary = "polkadot-parachain",
 		TagFormat = "polkadot-{tag}",
 		Fallback = "stable2503"
-	))]
-	System,
+	)))]
+	System {
+		/// The parachain identifier.
+		id: u32,
+		/// The chain name.
+		chain: String,
+	},
 	/// Pop Network makes it easy for smart contract developers to use the power of Polkadot.
-	#[strum(props(
+	#[strum(serialize = "pop")]
+	#[strum_discriminants(strum(props(
 		Repository = "https://github.com/r0gue-io/pop-node",
 		Binary = "pop-node",
 		Prerelease = "false",
-		Fallback = "testnet-v0.5.1"
-	))]
-	Pop,
+		Fallback = "testnet-v0.5.1",
+		Id = "4001",
+		Chain = "pop-devnet-dev"
+	)))]
+	Pop {
+		/// The parachain identifier.
+		id: u32,
+		/// The chain name.
+		chain: String,
+	},
 }
 
-impl TryInto for Parachain {
+impl Parachain {
+	/// All supported parachains.
+	pub fn supported() -> [Self; 6] {
+		[
+			// System chains
+			Self::System { id: 1_000, chain: "asset-hub".to_string() },
+			Self::System { id: 1_001, chain: "collectives".to_string() },
+			Self::System { id: 1_002, chain: "bridge-hub".to_string() },
+			Self::System { id: 1_004, chain: "people".to_string() },
+			Self::System { id: 1_005, chain: "coretime".to_string() },
+			// Others
+			Self::Pop {
+				id: ParachainDiscriminant::Pop
+					.id()
+					.expect("expected `Pop` to have default para id defined"),
+				chain: ParachainDiscriminant::Pop
+					.chain()
+					.expect("expected `Pop` to have default chain defined")
+					.to_string(),
+			},
+		]
+	}
+
+	/// The parachain identifier.
+	pub(crate) fn id(&self) -> u32 {
+		match self {
+			Self::System { id, .. } | Self::Pop { id, .. } => *id,
+		}
+	}
+
+	/// The chain name.
+	pub fn chain(&self) -> &str {
+		match self {
+			Self::System { chain, .. } | Self::Pop { chain, .. } => chain.as_str(),
+		}
+	}
+
+	/// The name of the parachain.
+	pub fn name(&self) -> &str {
+		match self {
+			Self::System { chain, .. } => chain.as_str(),
+			_ => self.as_ref(),
+		}
+	}
+}
+
+impl TryInto for ParachainDiscriminant {
 	/// Attempt the conversion.
 	///
 	/// # Arguments
@@ -43,7 +108,7 @@ impl TryInto for Parachain {
 	/// * `latest` - If applicable, some specifier used to determine the latest source.
 	fn try_into(&self, tag: Option<String>, latest: Option<String>) -> Result<Source, Error> {
 		Ok(match self {
-			Parachain::System | Parachain::Pop => {
+			Self::System | Self::Pop => {
 				// Source from GitHub release asset
 				let repo = GitHub::parse(self.repository())?;
 				Source::GitHub(ReleaseArchive {
@@ -60,7 +125,20 @@ impl TryInto for Parachain {
 	}
 }
 
-impl pop_common::sourcing::traits::Source for Parachain {}
+impl pop_common::sourcing::traits::Source for ParachainDiscriminant {}
+
+impl ParachainDiscriminant {
+	/// The chain name.
+	fn chain(&self) -> Option<&str> {
+		self.get_str("Chain")
+	}
+
+	/// The parachain identifier.
+	fn id(&self) -> Option<u32> {
+		self.get_str("Id")
+			.map(|v| v.parse().expect("expected parachain identifier value to be u32"))
+	}
+}
 
 /// Initialises the configuration required to launch a system parachain.
 ///
@@ -81,7 +159,7 @@ pub(super) async fn system(
 	chain: Option<&str>,
 	cache: &Path,
 ) -> Result<Option<super::Parachain>, Error> {
-	let para = &Parachain::System;
+	let para = &ParachainDiscriminant::System;
 	let name = para.binary();
 	if command != name {
 		return Ok(None);
@@ -126,7 +204,7 @@ pub(super) async fn from(
 	chain: Option<&str>,
 	cache: &Path,
 ) -> Result<Option<super::Parachain>, Error> {
-	if let Some(para) = Parachain::VARIANTS.iter().find(|p| p.binary() == command) {
+	if let Some(para) = ParachainDiscriminant::VARIANTS.iter().find(|p| p.binary() == command) {
 		let releases = para.releases().await?;
 		let tag = Binary::resolve_version(command, version, &releases, cache);
 		// Only set latest when caller has not explicitly specified a version to use
@@ -151,6 +229,7 @@ mod tests {
 	use super::{super::tests::VERSION, *};
 	use std::path::PathBuf;
 	use tempfile::tempdir;
+	use ParachainDiscriminant::*;
 
 	#[tokio::test]
 	async fn system_matches_command() -> anyhow::Result<()> {
@@ -170,7 +249,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn system_using_relay_version() -> anyhow::Result<()> {
-		let expected = Parachain::System;
+		let expected = System;
 		let para_id = 1000;
 
 		let temp_dir = tempdir()?;
@@ -195,7 +274,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn system_works() -> anyhow::Result<()> {
-		let expected = Parachain::System;
+		let expected = System;
 		let para_id = 1000;
 
 		let temp_dir = tempdir()?;
@@ -220,7 +299,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn system_with_chain_spec_generator_works() -> anyhow::Result<()> {
-		let expected = Parachain::System;
+		let expected = System;
 		let runtime_version = "v1.3.3";
 		let para_id = 1000;
 
@@ -256,7 +335,7 @@ mod tests {
 	#[tokio::test]
 	async fn pop_works() -> anyhow::Result<()> {
 		let version = "v1.0";
-		let expected = Parachain::Pop;
+		let expected = Pop;
 		let para_id = 2000;
 
 		let temp_dir = tempdir()?;
