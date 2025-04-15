@@ -6,53 +6,81 @@ use anyhow::Result;
 use assert_cmd::{cargo::cargo_bin, Command};
 use pop_common::{find_free_port, templates::Template};
 use pop_parachains::Parachain;
-use std::{fs, path::Path, process::Command as Cmd};
+use std::{fs, path::Path, process::Command as Cmd, thread::sleep, time::Duration};
 use strum::VariantArray;
-use tokio::time::{sleep, Duration};
+
+// Test that all templates are generated correctly
+#[test]
+fn generate_all_the_templates() -> Result<()> {
+	let temp = tempfile::tempdir()?;
+	let temp_dir = temp.path();
+
+	for template in Parachain::VARIANTS {
+		let parachain_name = format!("test_parachain_{}", template);
+		let provider = template.template_type()?.to_lowercase();
+		// pop new parachain test_parachain --verify
+		Command::cargo_bin("pop")?
+			.current_dir(&temp_dir)
+			.args(&[
+				"new",
+				"parachain",
+				&parachain_name,
+				&provider,
+				"--template",
+				&template.to_string(),
+				"--verify",
+			])
+			.assert()
+			.success();
+		assert!(temp_dir.join(parachain_name).exists());
+	}
+	Ok(())
+}
 
 /// Test the parachain lifecycle: new, build, up, call.
-#[tokio::test]
-async fn parachain_lifecycle() -> Result<()> {
-	let temp = tempfile::tempdir().unwrap();
-	let temp_dir = temp.path();
-	// let temp_dir = Path::new("./"); //For testing locally
-	// Test that all templates are generated correctly
-	generate_all_the_templates(&temp_dir)?;
+#[test]
+fn parachain_lifecycle() -> Result<()> {
+	const LOCAL_TESTING: bool = true;
+
+	let temp = tempfile::tempdir()?;
+	let temp_dir = match LOCAL_TESTING {
+		true => Path::new("./"),
+		false => temp.path(),
+	};
+
 	// pop new parachain test_parachain --verify (default)
-	Command::cargo_bin("pop")
-		.unwrap()
-		.current_dir(&temp_dir)
-		.args(&[
-			"new",
-			"parachain",
-			"test_parachain",
-			"--symbol",
-			"POP",
-			"--decimals",
-			"6",
-			"--endowment",
-			"1u64 << 60",
-			"--verify",
-		])
-		.assert()
-		.success();
-	assert!(temp_dir.join("test_parachain").exists());
+	let temp_parachain_dir = temp_dir.join("test_parachain");
+	if !temp_parachain_dir.exists() {
+		Command::cargo_bin("pop")?
+			.current_dir(&temp_dir)
+			.args(&[
+				"new",
+				"parachain",
+				"test_parachain",
+				"--symbol",
+				"POP",
+				"--decimals",
+				"6",
+				"--endowment",
+				"1u64 << 60",
+				"--verify",
+			])
+			.assert()
+			.success();
+		assert!(temp_parachain_dir.exists());
+	}
 
 	// pop build --release --path "./test_parachain"
-	Command::cargo_bin("pop")
-		.unwrap()
+	Command::cargo_bin("pop")?
 		.current_dir(&temp_dir)
 		.args(&["build", "--release", "--path", "./test_parachain"])
 		.assert()
 		.success();
+	assert!(temp_dir.join("test_parachain/target/release").exists());
 
-	assert!(temp_dir.join("test_parachain/target").exists());
-
-	let temp_parachain_dir = temp_dir.join("test_parachain");
 	// pop build spec --output ./target/pop/test-spec.json --id 2222 --type development --relay
 	// paseo-local --protocol-id pop-protocol" --chain local --skip-deterministic-build
-	Command::cargo_bin("pop")
-		.unwrap()
+	Command::cargo_bin("pop")?
 		.current_dir(&temp_parachain_dir)
 		.args(&[
 			"build",
@@ -87,7 +115,7 @@ async fn parachain_lifecycle() -> Result<()> {
 
 	let content = fs::read_to_string(temp_parachain_dir.join("target/pop/test-spec-raw.json"))
 		.expect("Could not read file");
-	// Assert custom values has been set propertly
+	// Assert custom values have been set properly
 	assert!(content.contains("\"para_id\": 2222"));
 	assert!(content.contains("\"tokenDecimals\": 6"));
 	assert!(content.contains("\"tokenSymbol\": \"POP\""));
@@ -108,7 +136,6 @@ chain = "paseo-local"
 
 [[relaychain.nodes]]
 name = "alice"
-rpc_port = {}
 validator = true
 
 [[relaychain.nodes]]
@@ -121,25 +148,23 @@ default_command = "./target/release/parachain-template-node"
 
 [[parachains.collators]]
 name = "collator-01"
-"#,
-			random_port
+rpc_port = {random_port}
+"#
 		),
 	)?;
 
 	// `pop up network -f ./network.toml --skip-confirm`
-	let mut cmd = Cmd::new(cargo_bin("pop"))
+	let mut up = Cmd::new(cargo_bin("pop"))
 		.current_dir(&temp_parachain_dir)
 		.args(&["up", "network", "./network.toml", "--skip-confirm"])
-		.spawn()
-		.unwrap();
+		.spawn()?;
 
 	// Wait for the networks to initialize. Increased timeout to accommodate CI environment delays.
-	sleep(Duration::from_secs(50)).await;
+	sleep(Duration::from_secs(50));
 
 	// `pop call chain --pallet System --function remark --args "0x11" --url
 	// ws://127.0.0.1:random_port --suri //Alice --skip-confirm`
-	Command::cargo_bin("pop")
-		.unwrap()
+	Command::cargo_bin("pop")?
 		.args(&[
 			"call",
 			"chain",
@@ -160,8 +185,7 @@ name = "collator-01"
 
 	// pop call chain --call 0x00000411 --url ws://127.0.0.1:random_port --suri //Alice
 	// --skip-confirm
-	Command::cargo_bin("pop")
-		.unwrap()
+	Command::cargo_bin("pop")?
 		.args(&[
 			"call",
 			"chain",
@@ -176,33 +200,9 @@ name = "collator-01"
 		.assert()
 		.success();
 
-	assert!(cmd.try_wait().unwrap().is_none(), "the process should still be running");
+	assert!(up.try_wait()?.is_none(), "the process should still be running");
 	// Stop the process
-	Cmd::new("kill").args(["-s", "TERM", &cmd.id().to_string()]).spawn()?;
+	Cmd::new("kill").args(["-s", "SIGINT", &up.id().to_string()]).spawn()?;
 
-	Ok(())
-}
-
-fn generate_all_the_templates(temp_dir: &Path) -> Result<()> {
-	for template in Parachain::VARIANTS {
-		let parachain_name = format!("test_parachain_{}", template);
-		let provider = template.template_type()?.to_lowercase();
-		// pop new parachain test_parachain --verify
-		Command::cargo_bin("pop")
-			.unwrap()
-			.current_dir(&temp_dir)
-			.args(&[
-				"new",
-				"parachain",
-				&parachain_name,
-				&provider,
-				"--template",
-				&template.to_string(),
-				"--verify",
-			])
-			.assert()
-			.success();
-		assert!(temp_dir.join(parachain_name).exists());
-	}
 	Ok(())
 }
