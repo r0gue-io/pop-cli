@@ -8059,6 +8059,7 @@ dependencies = [
  "pop-contracts",
  "pop-parachains",
  "pop-telemetry",
+ "regex",
  "reqwest",
  "serde",
  "serde_json",
