@@ -364,8 +364,16 @@ impl NetworkConfiguration {
 						.with_chain(chain.as_str())
 						.with_default_command(ParachainDiscriminant::from(parachain).binary())
 						.with_collator(|builder| {
-							let mut builder =
-								builder.with_name(&format!("{}-collator", parachain.name()));
+							let mut builder = builder
+								.with_name(&format!("{}-collator", parachain.name()))
+								.with_args(
+									ParachainDiscriminant::from(parachain)
+										.args()
+										.map(|args| {
+											args.into_iter().map(|arg| arg.into()).collect()
+										})
+										.unwrap_or_default(),
+								);
 							if let Some(port) = parachain.port() {
 								builder = builder.with_rpc_port(*port)
 							}
