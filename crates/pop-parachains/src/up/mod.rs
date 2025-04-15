@@ -373,6 +373,20 @@ impl NetworkConfiguration {
 						})
 				})
 			}
+
+			// Open HRMP channels between all chains
+			let parachains = || parachains.iter().map(|p| p.id());
+			for (sender, recipient) in parachains()
+				.flat_map(|s| parachains().filter(move |r| s != *r).map(move |r| (s, r)))
+			{
+				builder = builder.with_hrmp_channel(|channel| {
+					channel
+						.with_sender(sender)
+						.with_recipient(recipient)
+						.with_max_capacity(1_000)
+						.with_max_message_size(8_000)
+				})
+			}
 		}
 
 		Ok(NetworkConfiguration(
