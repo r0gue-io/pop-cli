@@ -34,6 +34,7 @@ symlink.workspace = true
 toml_edit.workspace = true
 walkdir.workspace = true
 # Zombienet
+zombienet-configuration.workspace = true
 zombienet-sdk.workspace = true
 
 # Benchmarking

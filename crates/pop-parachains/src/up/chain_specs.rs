@@ -16,13 +16,13 @@ use strum_macros::{AsRefStr, EnumProperty, VariantArray};
 
 /// A supported runtime.
 #[derive(AsRefStr, Debug, EnumProperty, PartialEq, VariantArray)]
-pub(super) enum Runtime {
+pub enum Runtime {
 	/// Kusama.
 	#[strum(props(
 		Repository = "https://github.com/r0gue-io/polkadot-runtimes",
 		Binary = "chain-spec-generator",
 		Chain = "kusama-local",
-		Fallback = "v1.3.3"
+		Fallback = "v1.4.1"
 	))]
 	Kusama,
 	/// Paseo.
@@ -30,7 +30,7 @@ pub(super) enum Runtime {
 		Repository = "https://github.com/r0gue-io/paseo-runtimes",
 		Binary = "chain-spec-generator",
 		Chain = "paseo-local",
-		Fallback = "v1.3.4"
+		Fallback = "v1.4.1"
 	))]
 	Paseo,
 	/// Polkadot.
@@ -38,7 +38,7 @@ pub(super) enum Runtime {
 		Repository = "https://github.com/r0gue-io/polkadot-runtimes",
 		Binary = "chain-spec-generator",
 		Chain = "polkadot-local",
-		Fallback = "v1.3.3"
+		Fallback = "v1.4.1"
 	))]
 	Polkadot,
 }
@@ -68,12 +68,12 @@ impl TryInto for &Runtime {
 
 impl Runtime {
 	/// The chain spec identifier.
-	fn chain(&self) -> &'static str {
+	pub(crate) fn chain(&self) -> &'static str {
 		self.get_str("Chain").expect("expected specification of `Chain`")
 	}
 
 	/// The name of the runtime.
-	fn name(&self) -> &str {
+	pub fn name(&self) -> &str {
 		self.as_ref()
 	}
 }

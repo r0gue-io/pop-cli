@@ -24,7 +24,7 @@ pub(super) enum RelayChain {
 		Repository = "https://github.com/r0gue-io/polkadot",
 		Binary = "polkadot",
 		TagFormat = "polkadot-{tag}",
-		Fallback = "stable2409"
+		Fallback = "stable2503"
 	))]
 	Polkadot,
 }
@@ -76,7 +76,7 @@ impl pop_common::sourcing::traits::Source for RelayChain {}
 pub(super) async fn default(
 	version: Option<&str>,
 	runtime_version: Option<&str>,
-	chain: Option<&str>,
+	chain: &str,
 	cache: &Path,
 ) -> Result<super::RelayChain, Error> {
 	from(RelayChain::Polkadot.binary(), version, runtime_version, chain, cache).await
@@ -94,7 +94,7 @@ pub(super) async fn from(
 	command: &str,
 	version: Option<&str>,
 	runtime_version: Option<&str>,
-	chain: Option<&str>,
+	chain: &str,
 	cache: &Path,
 ) -> Result<super::RelayChain, Error> {
 	if let Some(relay) = RelayChain::VARIANTS
@@ -114,7 +114,6 @@ pub(super) async fn from(
 			source: TryInto::try_into(&relay, tag, latest)?,
 			cache: cache.to_path_buf(),
 		};
-		let chain = chain.unwrap_or("paseo-local");
 		return Ok(super::RelayChain {
 			binary,
 			workers: relay.workers(),
@@ -131,13 +130,13 @@ mod tests {
 	use super::*;
 	use tempfile::tempdir;
 
-	const VERSION: &str = "stable2409";
+	const VERSION: &str = "stable2503";
 
 	#[tokio::test]
 	async fn default_works() -> anyhow::Result<()> {
 		let expected = RelayChain::Polkadot;
 		let temp_dir = tempdir()?;
-		let relay = default(Some(VERSION), None, None, temp_dir.path()).await?;
+		let relay = default(Some(VERSION), None, "paseo-local", temp_dir.path()).await?;
 		assert!(matches!(relay.binary, Binary::Source { name, source, cache }
 			if name == expected.binary() && source == Source::GitHub(ReleaseArchive {
 					owner: "r0gue-io".to_string(),
@@ -157,8 +156,7 @@ mod tests {
 	async fn default_with_chain_spec_generator_works() -> anyhow::Result<()> {
 		let runtime_version = "v1.3.3";
 		let temp_dir = tempdir()?;
-		let relay =
-			default(None, Some(runtime_version), Some("paseo-local"), temp_dir.path()).await?;
+		let relay = default(None, Some(runtime_version), "paseo-local", temp_dir.path()).await?;
 		assert_eq!(relay.chain, "paseo-local");
 		let chain_spec_generator = relay.chain_spec_generator.unwrap();
 		assert!(matches!(chain_spec_generator, Binary::Source { name, source, cache }
@@ -178,7 +176,7 @@ mod tests {
 	#[tokio::test]
 	async fn from_handles_unsupported_command() -> anyhow::Result<()> {
 		assert!(
-			matches!(from("none", None, None, None, tempdir()?.path()).await, Err(Error::UnsupportedCommand(e))
+			matches!(from("none", None, None, "paseo-local", tempdir()?.path()).await, Err(Error::UnsupportedCommand(e))
 			if e == "the relay chain command is unsupported: none")
 		);
 		Ok(())
@@ -189,7 +187,8 @@ mod tests {
 		let expected = RelayChain::Polkadot;
 		let temp_dir = tempdir()?;
 		let relay =
-			from("./bin-stable2409/polkadot", Some(VERSION), None, None, temp_dir.path()).await?;
+			from("./bin-stable2503/polkadot", Some(VERSION), None, "paseo-local", temp_dir.path())
+				.await?;
 		assert!(matches!(relay.binary, Binary::Source { name, source, cache }
 			if name == expected.binary() && source == Source::GitHub(ReleaseArchive {
 					owner: "r0gue-io".to_string(),

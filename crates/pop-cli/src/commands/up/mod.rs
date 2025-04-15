@@ -16,7 +16,7 @@ use std::{
 #[cfg(feature = "contract")]
 mod contract;
 #[cfg(feature = "parachain")]
-mod network;
+pub(super) mod network;
 #[cfg(feature = "parachain")]
 mod rollup;
 
@@ -27,11 +27,11 @@ mod rollup;
 pub(crate) struct UpArgs {
 	/// Path to the project directory.
 	// TODO: Introduce the short option in v0.8.0 once deprecated parachain command is removed.
-	#[arg(long, global = true)]
+	#[arg(long)]
 	pub path: Option<PathBuf>,
 
 	/// Directory path without flag for your project [default: current directory]
-	#[arg(value_name = "PATH", index = 1, global = true, conflicts_with = "path")]
+	#[arg(value_name = "PATH", index = 1, conflicts_with = "path")]
 	pub path_pos: Option<PathBuf>,
 
 	#[command(flatten)]
@@ -49,16 +49,28 @@ pub(crate) struct UpArgs {
 /// Launch a local network or deploy a smart contract.
 #[derive(Subcommand, Clone)]
 pub(crate) enum Command {
+	/// Launch a local network by specifying a network configuration file.
 	#[cfg(feature = "parachain")]
-	/// Launch a local network.
 	#[clap(alias = "n")]
-	Network(network::ZombienetCommand),
+	Network(network::ConfigFileCommand),
+	/// Launch a local Paseo network.
+	#[cfg(feature = "parachain")]
+	#[clap()]
+	Paseo(network::BuildCommand),
+	/// Launch a local Kusama network.
+	#[cfg(feature = "parachain")]
+	#[clap()]
+	Kusama(network::BuildCommand),
+	/// Launch a local Polkadot network.
+	#[cfg(feature = "parachain")]
+	#[clap()]
+	Polkadot(network::BuildCommand),
 	#[cfg(feature = "parachain")]
 	/// [DEPRECATED] Launch a local network (will be removed in v0.8.0).
 	#[clap(alias = "p", hide = true)]
 	#[deprecated(since = "0.7.0", note = "will be removed in v0.8.0")]
 	#[allow(rustdoc::broken_intra_doc_links)]
-	Parachain(network::ZombienetCommand),
+	Parachain(network::ConfigFileCommand),
 	#[cfg(feature = "contract")]
 	/// [DEPRECATED] Deploy a smart contract (will be removed in v0.8.0).
 	#[clap(alias = "c", hide = true)]
@@ -107,6 +119,12 @@ impl Display for Command {
 		match self {
 			#[cfg(feature = "parachain")]
 			Command::Network(_) => write!(f, "network"),
+			#[cfg(feature = "parachain")]
+			Command::Paseo(_) => write!(f, "paseo"),
+			#[cfg(feature = "parachain")]
+			Command::Kusama(_) => write!(f, "kusama"),
+			#[cfg(feature = "parachain")]
+			Command::Polkadot(_) => write!(f, "polkadot"),
 			#[cfg(feature = "parachain")]
 			#[allow(deprecated)]
 			Command::Parachain(_) => write!(f, "chain"),

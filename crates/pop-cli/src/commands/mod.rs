@@ -7,6 +7,8 @@ use crate::{
 };
 use clap::Subcommand;
 use std::fmt::{Display, Formatter, Result};
+#[cfg(feature = "parachain")]
+use {crate::common::Project::Network, up::network::Relay::*};
 
 #[cfg(feature = "parachain")]
 pub(crate) mod bench;
@@ -133,8 +135,14 @@ impl Command {
 						#[cfg(feature = "parachain")]
 						up::Command::Network(mut cmd) => {
 							cmd.valid = true;
-							cmd.execute().await.map(|_| Up(crate::common::Project::Network))
+							cmd.execute().await.map(|_| Up(Network))
 						},
+						#[cfg(feature = "parachain")]
+						up::Command::Paseo(cmd) => cmd.execute(Paseo).await.map(|_| Up(Network)),
+						#[cfg(feature = "parachain")]
+						up::Command::Kusama(cmd) => cmd.execute(Kusama).await.map(|_| Up(Network)),
+						#[cfg(feature = "parachain")]
+						up::Command::Polkadot(cmd) => cmd.execute(Polkadot).await.map(|_| Up(Network)),
 						// TODO: Deprecated, will be removed in v0.8.0.
 						#[cfg(feature = "parachain")]
 						#[allow(deprecated)]
