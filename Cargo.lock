@@ -8986,6 +8986,7 @@ dependencies = [
  "toml_edit",
  "url",
  "walkdir",
+ "zombienet-configuration",
  "zombienet-sdk",
 ]
 
