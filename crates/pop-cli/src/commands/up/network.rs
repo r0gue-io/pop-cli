@@ -12,6 +12,7 @@ use cliclack::{
 };
 use console::{Emoji, Style, Term};
 use duct::cmd;
+use log::info;
 use pop_common::Status;
 pub(crate) use pop_parachains::up::Relay;
 use pop_parachains::{
@@ -286,6 +287,26 @@ pub(crate) async fn spawn(
 		return Ok(());
 	}
 
+	// Output the binaries and versions used if verbose logging enabled.
+	if verbose {
+		let binaries = zombienet
+			.binaries()
+			.map(|b| {
+				format!(
+					"{}{}",
+					b.name(),
+					b.version().map(|v| format!(" ({v})")).unwrap_or_default()
+				)
+			})
+			.fold(Vec::new(), |mut set, binary| {
+				if !set.contains(&binary) {
+					set.push(binary);
+				}
+				set
+			});
+		info(format!("Binaries used: {}", binaries.join(", ")))?;
+	}
+
 	// Finally spawn network and wait for signal to terminate
 	let progress = spinner();
 	progress.start("🚀 Launching local network...");
@@ -389,7 +410,15 @@ async fn source_binaries(
 	skip_confirm: bool,
 ) -> anyhow::Result<bool> {
 	// Check for any missing or stale binaries
-	let binaries: Vec<_> = zombienet.binaries().filter(|b| !b.exists() || b.stale()).collect();
+	let binaries = zombienet.binaries().filter(|b| !b.exists() || b.stale()).fold(
+		Vec::new(),
+		|mut set, binary| {
+			if !set.contains(&binary) {
+				set.push(binary);
+			}
+			set
+		},
+	);
 	if binaries.is_empty() {
 		return Ok(false);
 	}
