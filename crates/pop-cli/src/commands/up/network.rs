@@ -141,7 +141,7 @@ pub(crate) struct BuildCommand {
 	#[arg(short, long, value_delimiter = ',', value_parser = SupportedParachains::new())]
 	parachain: Option<Vec<Parachain>>,
 	/// The port to be used for the first relay chain validator.
-	#[clap(long)]
+	#[clap(short = 'P', long)]
 	port: Option<u16>,
 	/// The command to run after the network has been launched.
 	#[clap(name = "cmd", short, long)]
