@@ -28,7 +28,8 @@ pub enum Parachain {
 		Repository = "https://github.com/r0gue-io/polkadot",
 		Binary = "polkadot-parachain",
 		TagFormat = "polkadot-{tag}",
-		Fallback = "stable2503"
+		Fallback = "stable2503",
+		Args = "-lxcm=trace"
 	)))]
 	System {
 		/// The parachain identifier.
@@ -46,7 +47,8 @@ pub enum Parachain {
 		Prerelease = "false",
 		Fallback = "testnet-v0.5.1",
 		Id = "4001",
-		Chain = "pop-devnet-dev"
+		Chain = "pop-devnet-dev",
+		Args = "-lpopapi::extension=debug,-lruntime::contracts=debug,-lruntime::revive=trace,-lruntime::revive::strace=trace,-lxcm=trace,--enable-offchain-indexing=true"
 	)))]
 	Pop {
 		/// The parachain identifier.
@@ -156,6 +158,11 @@ impl TryInto for ParachainDiscriminant {
 impl pop_common::sourcing::traits::Source for ParachainDiscriminant {}
 
 impl ParachainDiscriminant {
+	/// The arguments to be used when launching a node.
+	pub(super) fn args(&self) -> Option<Vec<&str>> {
+		self.get_str("Args").map(|v| v.split(',').collect())
+	}
+
 	/// The chain name.
 	fn chain(&self) -> Option<&str> {
 		self.get_str("Chain")
