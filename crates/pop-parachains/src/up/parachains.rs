@@ -35,6 +35,8 @@ pub enum Parachain {
 		id: u32,
 		/// The chain name.
 		chain: String,
+		/// The port to be used.
+		port: Option<u16>,
 	},
 	/// Pop Network makes it easy for smart contract developers to use the power of Polkadot.
 	#[strum(serialize = "pop")]
@@ -51,6 +53,8 @@ pub enum Parachain {
 		id: u32,
 		/// The chain name.
 		chain: String,
+		/// The port to be used.
+		port: Option<u16>,
 	},
 }
 
@@ -59,11 +63,11 @@ impl Parachain {
 	pub fn supported() -> [Self; 6] {
 		[
 			// System chains
-			Self::System { id: 1_000, chain: "asset-hub".to_string() },
-			Self::System { id: 1_001, chain: "collectives".to_string() },
-			Self::System { id: 1_002, chain: "bridge-hub".to_string() },
-			Self::System { id: 1_004, chain: "people".to_string() },
-			Self::System { id: 1_005, chain: "coretime".to_string() },
+			Self::System { id: 1_000, chain: "asset-hub".to_string(), port: None },
+			Self::System { id: 1_001, chain: "collectives".to_string(), port: None },
+			Self::System { id: 1_002, chain: "bridge-hub".to_string(), port: None },
+			Self::System { id: 1_004, chain: "people".to_string(), port: None },
+			Self::System { id: 1_005, chain: "coretime".to_string(), port: None },
 			// Others
 			Self::Pop {
 				id: ParachainDiscriminant::Pop
@@ -73,6 +77,7 @@ impl Parachain {
 					.chain()
 					.expect("expected `Pop` to have default chain defined")
 					.to_string(),
+				port: None,
 			},
 		]
 	}
@@ -96,6 +101,29 @@ impl Parachain {
 		match self {
 			Self::System { chain, .. } => chain.as_str(),
 			_ => self.as_ref(),
+		}
+	}
+
+	/// The port to be used.
+	pub fn port(&self) -> Option<&u16> {
+		match self {
+			Self::System { port, .. } | Self::Pop { port, .. } => port.as_ref(),
+		}
+	}
+
+	/// Returns a clone of the current instance with provided values.
+	pub fn with_overrides(&self, id: Option<u32>, port: Option<u16>) -> Self {
+		match self {
+			Self::System { id: current_id, chain, port: current_port } => Self::System {
+				id: id.unwrap_or(*current_id),
+				chain: chain.clone(),
+				port: port.or(*current_port),
+			},
+			Self::Pop { id: default_id, chain, port: current_port } => Self::Pop {
+				id: id.unwrap_or(*default_id),
+				chain: chain.clone(),
+				port: port.or(*current_port),
+			},
 		}
 	}
 }

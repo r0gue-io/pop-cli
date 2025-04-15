@@ -322,19 +322,34 @@ impl NetworkConfiguration {
 	///
 	/// # Arguments
 	/// * `relay_chain` - The relay chain runtime to be used.
+	/// * `port` - The port to be used for the first relay chain validator.
 	/// * `parachains` - The optional parachains to be included.
 	pub fn build(
 		relay_chain: Relay,
+		port: Option<u16>,
 		parachains: Option<&[parachains::Parachain]>,
 	) -> Result<Self, Error> {
-		let validators = VALIDATORS
+		let validators: Vec<_> = VALIDATORS
 			.into_iter()
 			.take(parachains.as_ref().map(|v| v.len()).unwrap_or_default().max(2))
 			.map(String::from)
 			.collect();
 
-		let mut builder =
-			NetworkConfigBuilder::with_chain_and_nodes(relay_chain.chain(), validators);
+		let mut builder = NetworkConfigBuilder::new().with_relaychain(|builder| {
+			let mut builder = builder.with_chain(relay_chain.chain()).with_node(|builder| {
+				let mut builder = builder
+					.with_name(validators.first().expect("at least two validators defined above"));
+				if let Some(port) = port {
+					builder = builder.with_rpc_port(port)
+				}
+				builder
+			});
+
+			for validator in validators.iter().skip(1) {
+				builder = builder.with_node(|builder| builder.with_name(validator))
+			}
+			builder
+		});
 
 		if let Some(parachains) = parachains {
 			for parachain in parachains {
@@ -349,7 +364,12 @@ impl NetworkConfiguration {
 						.with_chain(chain.as_str())
 						.with_default_command(ParachainDiscriminant::from(parachain).binary())
 						.with_collator(|builder| {
-							builder.with_name(&format!("{}-collator", parachain.name()))
+							let mut builder =
+								builder.with_name(&format!("{}-collator", parachain.name()));
+							if let Some(port) = parachain.port() {
+								builder = builder.with_rpc_port(*port)
+							}
+							builder
 						})
 				})
 			}
@@ -1685,17 +1705,17 @@ chain = "paseo-local"
 
 		#[test]
 		fn build_paseo_works() -> Result<(), Error> {
-			NetworkConfiguration::build(Paseo, None).map(|_| ())
+			NetworkConfiguration::build(Paseo, None, None).map(|_| ())
 		}
 
 		#[test]
 		fn build_kusama_works() -> Result<(), Error> {
-			NetworkConfiguration::build(Kusama, None).map(|_| ())
+			NetworkConfiguration::build(Kusama, None, None).map(|_| ())
 		}
 
 		#[test]
 		fn build_polkadot_works() -> Result<(), Error> {
-			NetworkConfiguration::build(Polkadot, None).map(|_| ())
+			NetworkConfiguration::build(Polkadot, None, None).map(|_| ())
 		}
 
 		#[test]

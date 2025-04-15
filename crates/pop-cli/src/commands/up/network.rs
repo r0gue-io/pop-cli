@@ -136,10 +136,13 @@ pub(crate) struct BuildCommand {
 	/// "v1.4.1"). See <https://github.com/polkadot-fellows/runtimes/releases> for more details.
 	#[arg(short = 'S', long)]
 	system_parachain_runtime: Option<String>,
-	/// The parachain(s) to be included. An optional parachain identifier can be affixed via :id
-	/// (e.g. `asset-hub:1000`).
+	/// The parachain(s) to be included. An optional parachain identifier and/or port can be
+	/// affixed via #id and :port specifiers (e.g. `asset-hub#1000:9944`).
 	#[arg(short, long, value_delimiter = ',', value_parser = SupportedParachains::new())]
 	parachain: Option<Vec<Parachain>>,
+	/// The port to be used for the first relay chain validator.
+	#[clap(long)]
+	port: Option<u16>,
 	/// The command to run after the network has been launched.
 	#[clap(name = "cmd", short, long)]
 	command: Option<String>,
@@ -162,7 +165,8 @@ impl BuildCommand {
 		))?;
 		set_theme(Theme);
 
-		let network_config = NetworkConfiguration::build(relay, self.parachain.as_deref())?;
+		let network_config =
+			NetworkConfiguration::build(relay, self.port, self.parachain.as_deref())?;
 
 		spawn(
 			network_config,
@@ -200,39 +204,28 @@ impl TypedValueParser for SupportedParachains {
 		value: &OsStr,
 	) -> Result<Self::Value, clap::Error> {
 		// Parse value as string with optional para id specifier
-		let (value, id) = match self.0.parse_ref(cmd, arg, value) {
-			Ok(value) => (value, None),
+		let (value, id, port) = match self.0.parse_ref(cmd, arg, value) {
+			Ok(value) => (value, None, None),
 			// Check if failure due to para id being specified
 			Err(e) if e.kind() == ErrorKind::InvalidValue => {
 				let value = StringValueParser::new().parse_ref(cmd, arg, value)?;
-				if !value.contains(":") {
-					return Err(e)
-				}
-				let mut split = value.split(":");
-				(
-					split.next().expect("checked above").into(),
-					split.next().and_then(|v| v.parse::<u32>().ok()),
-				)
+				// Attempt to parse name and optional id, port from entered value
+				const SPECIFIER: &str = "^([a-z0-9_-]+)(?:#([0-9]+))?(?::([0-9]+))?$";
+				let pattern = regex::Regex::new(SPECIFIER).expect("expected valid regex");
+				let Some(captures) = pattern.captures(&value) else { return Err(e) };
+				let name = captures.get(1).map(|m| m.as_str()).expect("checked above").into();
+				let id = captures.get(2).map(|m| m.as_str()).and_then(|id| id.parse().ok());
+				let port = captures.get(3).map(|m| m.as_str()).and_then(|id| id.parse().ok());
+				(name, id, port)
 			},
 			Err(e) => return Err(e),
 		};
 
-		// Check if system chain
-		let supported = Parachain::supported();
-		if let Some(para) = supported.iter().find_map(|p| match p {
-			Parachain::System { id: default_id, chain } if chain == value.as_str() => {
-				// Override id if specified
-				Some(Parachain::System { id: id.unwrap_or(*default_id), chain: value.clone() })
-			},
-			_ => None,
-		}) {
-			return Ok(para);
-		}
-
-		// Otherwise attempt to parse from supported parachains
-		supported
+		// Attempt to resolve from supported parachains
+		Parachain::supported()
 			.into_iter()
-			.find(|p| p.as_ref() == value.as_str())
+			.find(|p| p.as_ref() == value.as_str() || p.chain() == value.as_str())
+			.map(|p| p.with_overrides(id, port))
 			.ok_or(clap::Error::new(ErrorKind::InvalidValue).with_cmd(cmd))
 	}
 
