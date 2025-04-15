@@ -19,6 +19,10 @@ use std::{
 use strum::VariantArray;
 use symlink::{remove_symlink_file, symlink_file};
 use toml_edit::DocumentMut;
+use zombienet_configuration::{
+	shared::node::{Buildable, Initial, NodeConfigBuilder},
+	NodeConfig,
+};
 pub use zombienet_sdk::NetworkConfigBuilder;
 use zombienet_sdk::{LocalFileSystem, Network, NetworkConfig, NetworkConfigExt};
 
@@ -414,13 +418,13 @@ impl NetworkConfiguration {
 				}
 
 				// Add nodes from source
-				let mut builder = builder.with_node(|node| {
+				let mut builder = builder.with_node(|builder| {
 					let source = nodes.first().expect("expected at least one node");
-					node.with_name(source.name()).with_command(binary_path.as_str())
+					Self::build_node_from_source(builder, source, binary_path.as_str())
 				});
 				for source in nodes.iter().skip(1) {
-					builder = builder.with_node(|node| {
-						node.with_name(source.name()).with_command(binary_path.as_str())
+					builder = builder.with_node(|builder| {
+						Self::build_node_from_source(builder, source, binary_path.as_str())
 					});
 				}
 
@@ -484,11 +488,11 @@ impl NetworkConfiguration {
 				// Add collators from source
 				let mut builder = builder.with_collator(|builder| {
 					let source = collators.first().expect("expected at least one collator");
-					builder.with_name(source.name()).with_command(binary_path.as_str())
+					Self::build_node_from_source(builder, source, binary_path.as_str())
 				});
 				for source in collators.iter().skip(1) {
 					builder = builder.with_collator(|builder| {
-						builder.with_name(source.name()).with_command(binary_path.as_str())
+						Self::build_node_from_source(builder, source, binary_path.as_str())
 					});
 				}
 
@@ -510,6 +514,32 @@ impl NetworkConfiguration {
 		builder
 			.build()
 			.map_err(|e| Error::Config(format!("could not configure network {:?}", e)))
+	}
+
+	// Build a node using the provided builder and source config.
+	fn build_node_from_source(
+		builder: NodeConfigBuilder<Initial>,
+		source: &NodeConfig,
+		binary_path: &str,
+	) -> NodeConfigBuilder<Buildable> {
+		let mut builder = builder
+			.with_name(source.name())
+			.bootnode(source.is_bootnode())
+			.invulnerable(source.is_invulnerable())
+			.validator(source.is_validator())
+			.with_args(source.args().into_iter().cloned().collect())
+			.with_command(binary_path)
+			.with_env(source.env().into_iter().cloned().collect());
+		if let Some(command) = source.subcommand() {
+			builder = builder.with_subcommand(command.clone())
+		}
+		if let Some(port) = source.rpc_port() {
+			builder = builder.with_rpc_port(port)
+		}
+		if let Some(port) = source.ws_port() {
+			builder = builder.with_ws_port(port)
+		}
+		builder
 	}
 
 	/// Resolves the canonical path of a command specified within a network configuration file.
