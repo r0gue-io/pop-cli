@@ -85,7 +85,7 @@ impl Zombienet {
 		let parachains = Self::parachains(
 			&relay_chain,
 			system_parachain_version,
-			system_parachain_runtime_version,
+			system_parachain_runtime_version.or(relay_chain_runtime_version),
 			parachains,
 			&network_config,
 			cache,
