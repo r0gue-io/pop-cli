@@ -45,7 +45,7 @@ pub(crate) struct TestArgs {
 /// Test a Rust project.
 #[derive(Subcommand)]
 pub(crate) enum Command {
-	/// Test migrations.
+	/// Test Runtime Upgrade.
 	#[cfg(feature = "parachain")]
 	OnRuntimeUpgrade(on_runtime_upgrade::TestOnRuntimeUpgradeCommand),
 	/// Executes the given block against some state
