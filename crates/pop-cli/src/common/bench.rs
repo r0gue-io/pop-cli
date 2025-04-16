@@ -17,7 +17,7 @@ use std::{
 use super::binary::{which_version, SemanticVersion};
 
 pub(crate) const EXECUTED_COMMAND_COMMENT: &str = "// Executed Command:";
-const TARGET_BINARY_VERSION: SemanticVersion = SemanticVersion(0, 1, 0);
+const TARGET_BINARY_VERSION: SemanticVersion = SemanticVersion(0, 10, 0);
 const BINARY_NAME: &str = "frame-omni-bencher";
 
 impl_binary_generator!(OmniBencherGenerator, omni_bencher_generator);
