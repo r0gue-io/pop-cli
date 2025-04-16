@@ -287,8 +287,8 @@ mod tests {
 				0, // live
 				None,
 			)
-			.expect_input("Enter the live chain of your node:", DEFAULT_LIVE_NODE_URL.to_string())
-			.expect_input("Enter the block hash (optional):", String::default())
+			.expect_input("Enter the endpoint of the live chain:", DEFAULT_LIVE_NODE_URL.to_string())
+			.expect_input("Enter the block hash (if not provided, the latest finalised block is used):", String::default())
 			.expect_select(
 				"Select state tests to execute:",
 				Some(true),
