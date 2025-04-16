@@ -83,7 +83,7 @@ mod tests {
 	async fn omni_bencher_generator_works() -> Result<(), Error> {
 		let temp_dir = tempdir()?;
 		let temp_dir_path = temp_dir.into_path();
-		let version = "polkadot-stable2412";
+		let version = "polkadot-stable2412-4";
 		let binary = omni_bencher_generator(temp_dir_path.clone(), None).await?;
 		assert!(matches!(binary, Binary::Source { name: _, source, cache }
 				if source == Source::GitHub(ReleaseArchive {

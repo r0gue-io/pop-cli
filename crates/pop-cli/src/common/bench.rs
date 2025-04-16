@@ -240,9 +240,8 @@ mod tests {
 	async fn omni_bencher_version_works() -> anyhow::Result<()> {
 		let cache_path = tempdir().expect("Could create temp dir");
 		let path = source_omni_bencher_binary(&mut MockCli::new(), cache_path.path(), true).await?;
-		assert_eq!(
-			SemanticVersion::try_from(path.to_str().unwrap().to_string())?,
-			SemanticVersion(0, 1, 0)
+		assert!(
+			SemanticVersion::try_from(path.to_str().unwrap().to_string())? >= TARGET_BINARY_VERSION
 		);
 		Ok(())
 	}
