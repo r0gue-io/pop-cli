@@ -78,10 +78,23 @@ jobs:
 
   deny:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        crate:
+          - pop-cli
+          - pop-contracts
+          - pop-parachains
+          - pop-common
+          - pop-telemetry
     steps:
       - uses: actions/checkout@v4
 
-      - uses: EmbarkStudios/cargo-deny-action@v2
+      - name: Run cargo-deny for ${{ matrix.crate }}
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
+          manifest-path: crates/${{ matrix.crate }}/Cargo.toml
+          arguments: '--no-default-features'
 
   docker:
     runs-on: ubuntu-latest
