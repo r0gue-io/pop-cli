@@ -126,7 +126,9 @@ jobs:
         run: cargo test --lib --bins --all-features
 
       - name: Run unit tests
-        run: cargo test --lib --bins
+        run: |
+          cargo test --lib --bins --no-default-features --features contract
+          cargo test --lib --bins --no-default-features --features parachain
 
   coverage:
     needs: lint
