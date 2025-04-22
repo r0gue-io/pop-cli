@@ -119,20 +119,28 @@ impl Display for Command {
 
 #[cfg(test)]
 mod tests {
-	use super::{contract::UpContractCommand, *};
-	use crate::style::format_url;
+	use super::*;
 	use cli::MockCli;
 	use duct::cmd;
-	use pop_contracts::{mock_build_process, new_environment};
-	use pop_parachains::{instantiate_template_dir, Config, DeploymentProvider, Parachain};
-	use std::env;
-	use strum::VariantArray;
 	use url::Url;
+	#[cfg(feature = "contract")]
+	use {
+		super::contract::UpContractCommand,
+		pop_contracts::{mock_build_process, new_environment},
+		std::env,
+	};
+	#[cfg(feature = "parachain")]
+	use {
+		crate::style::format_url,
+		pop_parachains::{instantiate_template_dir, Config, DeploymentProvider, Parachain},
+		strum::VariantArray,
+	};
 
 	fn create_up_args(project_path: PathBuf) -> anyhow::Result<UpArgs> {
 		Ok(UpArgs {
 			path: Some(project_path),
 			path_pos: None,
+			#[cfg(feature = "contract")]
 			contract: UpContractCommand {
 				path: None,
 				constructor: "new".to_string(),
@@ -149,12 +157,14 @@ mod tests {
 				skip_confirm: false,
 				valid: false,
 			},
+			#[cfg(feature = "parachain")]
 			rollup: rollup::UpCommand::default(),
 			command: None,
 		})
 	}
 
 	#[tokio::test]
+	#[cfg(feature = "contract")]
 	async fn detects_contract_correctly() -> anyhow::Result<()> {
 		let temp_dir = new_environment("testing")?;
 		let mut current_dir = env::current_dir().expect("Failed to get current directory");
@@ -171,6 +181,7 @@ mod tests {
 	}
 
 	#[tokio::test]
+	#[cfg(feature = "parachain")]
 	async fn detects_rollup_correctly() -> anyhow::Result<()> {
 		let temp_dir = tempfile::tempdir()?;
 		let name = "rollup";
@@ -228,8 +239,11 @@ mod tests {
 	#[test]
 	#[allow(deprecated)]
 	fn command_display_works() {
+		#[cfg(feature = "parachain")]
 		assert_eq!(Command::Network(Default::default()).to_string(), "network");
+		#[cfg(feature = "parachain")]
 		assert_eq!(Command::Parachain(Default::default()).to_string(), "chain");
+		#[cfg(feature = "contract")]
 		assert_eq!(Command::Contract(Default::default()).to_string(), "contract");
 	}
 }
