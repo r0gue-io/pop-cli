@@ -191,7 +191,7 @@ impl Command {
 			#[cfg(feature = "hashing")]
 			Self::Hash(args) => {
 				env_logger::init();
-				args.command.execute().map(|_| Null)
+				args.command.execute(&mut Cli).map(|_| Null)
 			},
 			Self::Clean(args) => {
 				env_logger::init();

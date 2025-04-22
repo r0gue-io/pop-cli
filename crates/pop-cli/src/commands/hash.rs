@@ -2,6 +2,7 @@
 
 use self::Command::*;
 use super::*;
+use crate::cli::traits::Cli;
 use anyhow::{anyhow, Result};
 use clap::{
 	builder::{PossibleValue, PossibleValuesParser, TypedValueParser},
@@ -72,12 +73,13 @@ pub(crate) enum Command {
 
 impl Command {
 	/// Executes the command.
-	pub(crate) fn execute(&self) -> Result<()> {
+	pub(crate) fn execute(&self, cli: &mut impl Cli) -> Result<()> {
 		let hash = self.hash()?;
 		let additional_info = format!("(Source: {}, Output: {} bytes)", self.data(), hash.len());
 		let output =
 			format!("{} {}", to_hex(&self.hash()?, false), console::style(additional_info).dim());
-		println!("{output}");
+		cli.success(&output)?;
+		console::Term::stderr().clear_last_lines(1)?;
 		Ok(())
 	}
 
