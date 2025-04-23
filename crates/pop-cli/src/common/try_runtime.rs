@@ -213,14 +213,16 @@ pub(crate) fn update_runtime_source(
 		if no_build {
 			cli.warning("NOTE: Make sure your runtime is built with `try-runtime` feature.")?;
 		}
-		*runtime = Runtime::Path(ensure_runtime_binary_exists(
+		let (binary_path, _) = ensure_runtime_binary_exists(
 			cli,
 			&current_dir().unwrap_or(PathBuf::from("./")),
 			profile.as_ref().ok_or_else(|| anyhow::anyhow!("No profile provided"))?,
 			&[Feature::TryRuntime],
 			!no_build,
 			false,
-		)?);
+			&None,
+		)?;
+		*runtime = Runtime::Path(binary_path);
 	}
 	Ok(())
 }

@@ -69,14 +69,16 @@ impl BenchmarkOverhead {
 				if self.profile.is_none() {
 					self.profile = Some(guide_user_to_select_profile(cli)?);
 				};
-				cmd.params.runtime = Some(ensure_runtime_binary_exists(
+				let (binary_path, _) = ensure_runtime_binary_exists(
 					cli,
 					&current_dir().unwrap_or(PathBuf::from("./")),
 					self.profile.as_ref().ok_or_else(|| anyhow::anyhow!("No profile provided"))?,
 					&[Feature::Benchmark],
 					!self.no_build,
 					false,
-				)?);
+					&None,
+				)?;
+				cmd.params.runtime = Some(binary_path);
 			}
 
 			let runtime_policy = parse_genesis_builder_policy("runtime")?.params.genesis_builder;

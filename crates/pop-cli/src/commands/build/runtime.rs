@@ -80,6 +80,7 @@ impl BuildRuntime {
 				&features,
 				true,
 				self.deterministic,
+				&None,
 			)?;
 		}
 		if self.profile == Profile::Debug {

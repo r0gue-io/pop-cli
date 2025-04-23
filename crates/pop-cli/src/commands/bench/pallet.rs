@@ -42,126 +42,131 @@ const ARGUMENT_NO_VALUE: &str = "None";
 pub(crate) struct BenchmarkPallet {
 	/// Select a pallet to benchmark, or `*` for all (in which case `extrinsic` must be `*`).
 	#[arg(short, long, value_parser = parse_pallet_name, default_value_if("all", "true", Some("*".into())))]
-	pub pallet: Option<String>,
+	pallet: Option<String>,
 
 	/// Select an extrinsic inside the pallet to benchmark, or `*` for all.
 	#[arg(short, long, default_value_if("all", "true", Some("*".into())))]
-	pub extrinsic: Option<String>,
+	extrinsic: Option<String>,
 
 	/// Comma separated list of pallets that should be excluded from the benchmark.
 	#[arg(long, value_parser, num_args = 1.., value_delimiter = ',')]
-	pub exclude_pallets: Vec<String>,
+	exclude_pallets: Vec<String>,
 
 	/// Run benchmarks for all pallets and extrinsics.
 	///
 	/// This is equivalent to running `--pallet * --extrinsic *`.
 	#[arg(long)]
-	pub all: bool,
+	all: bool,
 
 	/// Select how many samples we should take across the variable components.
 	#[arg(short, long, default_value_t = 50)]
-	pub steps: u32,
+	steps: u32,
 
 	/// Indicates lowest values for each of the component ranges.
 	#[arg(long = "low", value_delimiter = ',')]
-	pub lowest_range_values: Vec<u32>,
+	lowest_range_values: Vec<u32>,
 
 	/// Indicates highest values for each of the component ranges.
 	#[arg(long = "high", value_delimiter = ',')]
-	pub highest_range_values: Vec<u32>,
+	highest_range_values: Vec<u32>,
 
 	/// Select how many repetitions of this benchmark should run from within the wasm.
 	#[arg(short, long, default_value_t = 20)]
-	pub repeat: u32,
+	repeat: u32,
 
 	/// Select how many repetitions of this benchmark should run from the client.
 	///
 	/// NOTE: Using this alone may give slower results, but will afford you maximum Wasm memory.
 	#[arg(long, default_value_t = 1)]
-	pub external_repeat: u32,
+	external_repeat: u32,
 
 	/// Print the raw results in JSON format.
 	#[arg(long = "json")]
-	pub json_output: bool,
+	json_output: bool,
 
 	/// Write the raw results in JSON format into the given file.
 	#[arg(long, conflicts_with = "json_output")]
-	pub json_file: Option<PathBuf>,
+	json_file: Option<PathBuf>,
 
 	/// Don't print the median-slopes linear regression analysis.
 	#[arg(long)]
-	pub no_median_slopes: bool,
+	no_median_slopes: bool,
 
 	/// Don't print the min-squares linear regression analysis.
 	#[arg(long)]
-	pub no_min_squares: bool,
+	no_min_squares: bool,
 
 	/// Output the benchmarks to a Rust file at the given path.
 	#[arg(long)]
-	pub output: Option<PathBuf>,
+	output: Option<PathBuf>,
 
 	/// Path to Handlebars template file used for outputting benchmark results. (Optional)
 	#[arg(long)]
-	pub template: Option<PathBuf>,
+	template: Option<PathBuf>,
 
 	/// Which analysis function to use when outputting benchmarks:
 	/// * min-squares (default)
 	/// * median-slopes
 	/// * max (max of min squares and median slopes for each value)
 	#[arg(long)]
-	pub output_analysis: Option<String>,
+	output_analysis: Option<String>,
 
 	/// Which analysis function to use when analyzing measured proof sizes.
 	#[arg(long, default_value("median-slopes"))]
-	pub output_pov_analysis: Option<String>,
+	output_pov_analysis: Option<String>,
 
 	/// Set the heap pages while running benchmarks. If not set, the default value from the client
 	/// is used.
 	#[arg(long)]
-	pub heap_pages: Option<u64>,
+	heap_pages: Option<u64>,
 
 	/// Disable verification logic when running benchmarks.
 	#[arg(long)]
-	pub no_verify: bool,
+	no_verify: bool,
 
 	/// Display and run extra benchmarks that would otherwise not be needed for weight
 	/// construction.
 	#[arg(long)]
-	pub extra: bool,
+	extra: bool,
 
-	/// Optional runtime blob to use instead of the one from the genesis config.
+	/// Path to the runtime project or binary.
 	#[arg(long)]
-	pub runtime: Option<PathBuf>,
+	runtime: Option<PathBuf>,
+
+	// Only used internally to save the runtime binary path.
+	#[clap(skip)]
+	#[serde(skip_serializing)]
+	runtime_binary: Option<PathBuf>,
 
 	/// Do not fail if there are unknown but also unused host functions in the runtime.
 	#[arg(long)]
-	pub allow_missing_host_functions: bool,
+	allow_missing_host_functions: bool,
 
 	/// How to construct the genesis state.
 	#[arg(long, alias = "genesis-builder-policy")]
-	pub genesis_builder: Option<GenesisBuilderPolicy>,
+	genesis_builder: Option<GenesisBuilderPolicy>,
 
 	/// The preset that we expect to find in the GenesisBuilder runtime API.
 	///
 	/// This can be useful when a runtime has a dedicated benchmarking preset instead of using the
 	/// default one.
 	#[arg(long, default_value = GENESIS_BUILDER_DEV_PRESET)]
-	pub genesis_builder_preset: String,
+	genesis_builder_preset: String,
 
 	/// Limit the memory the database cache can use.
 	#[arg(long = "db-cache", value_name = "MiB", default_value_t = 1024)]
-	pub database_cache_size: u32,
+	database_cache_size: u32,
 
 	/// List and print available benchmarks in a csv-friendly format.
 	#[arg(long)]
-	pub list: bool,
+	list: bool,
 
 	/// If enabled, the storage info is not displayed in the output next to the analysis.
 	///
 	/// This is independent of the storage info appearing in the *output file*. Use a Handlebar
 	/// template for that purpose.
 	#[arg(long)]
-	pub no_storage_info: bool,
+	no_storage_info: bool,
 
 	/// The assumed default maximum size of any `StorageMap`.
 	///
@@ -170,7 +175,7 @@ pub(crate) struct BenchmarkPallet {
 	/// PoV size for accessing a value in a map, since the PoV will need to include the trie
 	/// nodes down to the underlying value.
 	#[clap(long = "map-size", default_value = "1000000")]
-	pub worst_case_map_values: u32,
+	worst_case_map_values: u32,
 
 	/// Adjust the PoV estimation by adding additional trie layers to it.
 	///
@@ -180,7 +185,7 @@ pub(crate) struct BenchmarkPallet {
 	/// Therefore, multiple `StorageMap` accesses only suffer from this increase once. The exact
 	/// number of storage items depends on the runtime and the deployed pallets.
 	#[clap(long, default_value = "2")]
-	pub additional_trie_layers: u8,
+	additional_trie_layers: u8,
 
 	/// Do not enable proof recording during time benchmarking.
 	///
@@ -233,6 +238,7 @@ impl Default for BenchmarkPallet {
 			no_verify: false,
 			extra: false,
 			runtime: None,
+			runtime_binary: None,
 			allow_missing_host_functions: false,
 			genesis_builder: None,
 			genesis_builder_preset: GENESIS_BUILDER_DEV_PRESET.to_string(),
@@ -282,8 +288,17 @@ impl BenchmarkPallet {
 		let original_cmd = self.clone();
 
 		// No runtime path provided, auto-detect the runtime WASM binary. If not found, build
-		// the runtime.
-		if self.runtime.is_none() {
+		// the runtime. If the runtime path is a directory, it rebuilds the runtime.
+		let invalid_runtime = match self.runtime {
+			Some(ref r) => {
+				if r.is_file() {
+					self.runtime_binary = Some(r.clone());
+				}
+				r.is_dir()
+			},
+			None => true,
+		};
+		if invalid_runtime {
 			if let Err(e) = self.update_runtime_path(cli) {
 				return display_message(&e.to_string(), false, cli);
 			}
@@ -301,7 +316,7 @@ impl BenchmarkPallet {
 
 		// No genesis builder, prompts user to select the genesis builder policy.
 		if self.genesis_builder.is_none() {
-			let runtime_path = self.runtime()?.clone();
+			let runtime_path = self.runtime_binary()?.clone();
 			let preset_names = get_preset_names(&runtime_path).unwrap_or_default();
 			// Determine policy based on preset availability.
 			let policy = if preset_names.is_empty() {
@@ -390,7 +405,7 @@ impl BenchmarkPallet {
 				self.run_with_weight_dir(cli, original_weight_path)?;
 			}
 		} else {
-			generate_pallet_benchmarks(self.collect_arguments())?;
+			generate_pallet_benchmarks(self.collect_run_arguments())?;
 		}
 		Ok(())
 	}
@@ -404,7 +419,7 @@ impl BenchmarkPallet {
 		let temp_file_path = temp_dir.path().join("temp_weights.rs");
 		self.output = Some(temp_file_path.clone());
 
-		generate_pallet_benchmarks(self.collect_arguments())?;
+		generate_pallet_benchmarks(self.collect_run_arguments())?;
 		console::Term::stderr().clear_last_lines(1)?;
 		cli.info(format!("Weight file is generated to {:?}", weight_path.display()))?;
 
@@ -428,7 +443,7 @@ impl BenchmarkPallet {
 		let temp_dir_path = temp_dir.into_path();
 		self.output = Some(temp_dir_path.clone());
 
-		generate_pallet_benchmarks(self.collect_arguments())?;
+		generate_pallet_benchmarks(self.collect_run_arguments())?;
 		console::Term::stderr()
 			.clear_last_lines(fs::read_dir(temp_dir_path.clone()).iter().count() + 1)?;
 
@@ -468,8 +483,19 @@ impl BenchmarkPallet {
 		if self.no_build {
 			arguments.push("-n".to_string());
 		}
+		if let Some(ref runtime) = self.runtime {
+			args.push(format!("--runtime={}", runtime.display()));
+		}
 		args.extend(arguments);
 		args
+	}
+
+	fn collect_run_arguments(&self) -> Vec<String> {
+		let mut arguments = self.collect_arguments();
+		if let Some(ref binary) = self.runtime_binary {
+			arguments.push(format!("--runtime={}", binary.display()));
+		}
+		arguments
 	}
 
 	fn collect_arguments(&self) -> Vec<String> {
@@ -551,7 +577,7 @@ impl BenchmarkPallet {
 		}
 		if let Some(ref output) = self.output {
 			let relative_output_path = get_relative_path(output.as_path());
-			args.push(format!("--output={}", relative_output_path));
+			args.push(format!("--output={}", relative_output_path.display()));
 		}
 		if let Some(ref template) = self.template {
 			args.push(format!("--template={}", template.display()));
@@ -575,9 +601,7 @@ impl BenchmarkPallet {
 		if self.extra && self.extra != default_values.extra {
 			args.push("--extra".to_string());
 		}
-		if let Some(ref runtime) = self.runtime {
-			args.push(format!("--runtime={}", runtime.display()));
-		}
+
 		if self.allow_missing_host_functions &&
 			self.allow_missing_host_functions != default_values.allow_missing_host_functions
 		{
@@ -603,7 +627,7 @@ impl BenchmarkPallet {
 		registry: &mut PalletExtrinsicsRegistry,
 	) -> anyhow::Result<()> {
 		if registry.is_empty() {
-			let runtime_path = self.runtime()?;
+			let runtime_path = self.runtime_binary()?;
 			let binary_path = check_omni_bencher_and_prompt(cli, self.skip_confirm).await?;
 
 			let spinner = spinner();
@@ -666,14 +690,17 @@ impl BenchmarkPallet {
 
 	fn update_runtime_path(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		let profile = guide_user_to_select_profile(cli)?;
-		self.runtime = Some(ensure_runtime_binary_exists(
+		let (binary_path, project_path) = ensure_runtime_binary_exists(
 			cli,
 			&get_current_directory(),
 			&profile,
 			&[Feature::Benchmark],
 			!self.no_build,
 			false,
-		)?);
+			&self.runtime,
+		)?;
+		self.runtime_binary = Some(binary_path);
+		self.runtime = Some(get_relative_path(project_path.as_path()));
 		Ok(())
 	}
 
@@ -692,6 +719,12 @@ impl BenchmarkPallet {
 
 	fn runtime(&self) -> anyhow::Result<&PathBuf> {
 		self.runtime.as_ref().ok_or_else(|| anyhow::anyhow!("No runtime found"))
+	}
+
+	fn runtime_binary(&self) -> anyhow::Result<&PathBuf> {
+		self.runtime_binary
+			.as_ref()
+			.ok_or_else(|| anyhow::anyhow!("No runtime binary found"))
 	}
 
 	fn pallet(&self) -> anyhow::Result<&String> {
@@ -778,7 +811,7 @@ impl BenchmarkPalletMenuOption {
 			// Only allow excluding pallets if all pallets are selected.
 			ExcludedPallets => Ok(!is_selected_all(cmd.pallet()?)),
 			GenesisBuilder | GenesisBuilderPreset => {
-				let presets = get_preset_names(cmd.runtime()?)?;
+				let presets = get_preset_names(cmd.runtime_binary()?)?;
 				// If there are no presets available, disable the preset builder options.
 				if presets.is_empty() {
 					return Ok(true);
@@ -808,7 +841,7 @@ impl BenchmarkPalletMenuOption {
 				} else {
 					cmd.exclude_pallets.join(",")
 				},
-			Runtime => get_relative_path(cmd.runtime()?),
+			Runtime => format!("{}", get_relative_path(cmd.runtime()?).display()),
 			GenesisBuilder => cmd.genesis_builder.unwrap_or(GenesisBuilderPolicy::None).to_string(),
 			GenesisBuilderPreset => cmd.genesis_builder_preset.clone(),
 			Steps => cmd.steps.to_string(),
@@ -823,7 +856,7 @@ impl BenchmarkPalletMenuOption {
 			NoStorageInfo => cmd.no_storage_info.to_string(),
 			WeightFileTemplate =>
 				if let Some(ref template) = cmd.template {
-					get_relative_path(template)
+					format!("{}", get_relative_path(template).display())
 				} else {
 					ARGUMENT_NO_VALUE.to_string()
 				},
@@ -850,7 +883,7 @@ impl BenchmarkPalletMenuOption {
 			GenesisBuilderPreset => {
 				cmd.genesis_builder_preset = guide_user_to_select_genesis_preset(
 					cli,
-					cmd.runtime()?,
+					cmd.runtime_binary()?,
 					&cmd.genesis_builder_preset,
 				)?;
 			},
@@ -1170,10 +1203,9 @@ fn parse_pallet_name(pallet: &str) -> Result<String, String> {
 }
 
 // Get relative path. Returns absolute path if the path is not relative.
-fn get_relative_path(path: &Path) -> String {
+fn get_relative_path(path: &Path) -> PathBuf {
 	let cwd = current_dir().unwrap_or(PathBuf::from("./"));
-	let path = get_relative_or_absolute_path(cwd.as_path(), path);
-	path.as_path().to_str().expect("No path provided").to_string()
+	get_relative_or_absolute_path(cwd.as_path(), path)
 }
 
 fn get_current_directory() -> PathBuf {
@@ -1269,9 +1301,11 @@ mod tests {
 		cmd.execute(&mut cli).await?;
 
 		// Verify the content of the benchmarking parameter file.
-		let versioned = VersionedBenchmarkPallet::try_from(bench_file_path.as_path())?;
 		cmd.bench_file = None;
-		assert_eq!(versioned.parameters(), cmd.clone());
+		let versioned = VersionedBenchmarkPallet::try_from(bench_file_path.as_path())?;
+		let mut parameters = versioned.parameters();
+		parameters.runtime_binary = parameters.runtime.clone();
+		assert_eq!(parameters, cmd.clone());
 		cli.verify()
 	}
 
@@ -1333,8 +1367,7 @@ mod tests {
 		BenchmarkPallet { bench_file: Some(bench_file_path.clone()), ..Default::default() }
 			.execute(&mut cli)
 			.await?;
-		cli.verify()?;
-		Ok(())
+		cli.verify()
 	}
 
 	#[tokio::test]
@@ -1580,6 +1613,7 @@ mod tests {
 		let mut cmd = BenchmarkPallet {
 			skip_confirm: false,
 			runtime: Some(get_mock_runtime(Some(Benchmark))),
+			runtime_binary: Some(get_mock_runtime(Some(Benchmark))),
 			pallet: Some(ALL_SELECTED.to_string()),
 			..Default::default()
 		};
@@ -1670,7 +1704,7 @@ mod tests {
 		let registry = load_pallet_extrinsics(&runtime_path, binary_path.as_path()).await?;
 
 		let cmd = BenchmarkPallet {
-			runtime: Some(get_mock_runtime(None)),
+			runtime_binary: Some(get_mock_runtime(None)),
 			pallet: Some(ALL_SELECTED.to_string()),
 			extrinsic: Some(ALL_SELECTED.to_string()),
 			genesis_builder: Some(GenesisBuilderPolicy::None),
@@ -1797,7 +1831,7 @@ mod tests {
 	async fn ensure_pallet_registry_works() -> anyhow::Result<()> {
 		let mut cli = MockCli::new();
 		let runtime_path = get_mock_runtime(Some(Benchmark));
-		let cmd = BenchmarkPallet { runtime: Some(runtime_path), ..Default::default() };
+		let cmd = BenchmarkPallet { runtime_binary: Some(runtime_path), ..Default::default() };
 		let mut registry = PalletExtrinsicsRegistry::default();
 
 		// Load pallet registry if the cached registry is empty.
@@ -1837,6 +1871,19 @@ mod tests {
 		);
 		assert!(matches!(BenchmarkPallet::default().runtime(), Err(message)
 			if message.to_string().contains("No runtime found")
+		));
+		Ok(())
+	}
+
+	#[test]
+	fn get_runtime_binary_works() -> anyhow::Result<()> {
+		assert_eq!(
+			BenchmarkPallet { runtime_binary: Some(get_mock_runtime(None)), ..Default::default() }
+				.runtime_binary()?,
+			&get_mock_runtime(None)
+		);
+		assert!(matches!(BenchmarkPallet::default().runtime_binary(), Err(message)
+			if message.to_string().contains("No runtime binary found")
 		));
 		Ok(())
 	}
@@ -1931,9 +1978,12 @@ mod tests {
 		let mut cli =
 			MockCli::new().expect_confirm("Would you like to benchmark all pallets?", true);
 		let mut registry = PalletExtrinsicsRegistry::default();
-		BenchmarkPallet { runtime: Some(get_mock_runtime(Some(Benchmark))), ..Default::default() }
-			.update_pallets(&mut cli, &mut registry)
-			.await?;
+		BenchmarkPallet {
+			runtime_binary: Some(get_mock_runtime(Some(Benchmark))),
+			..Default::default()
+		}
+		.update_pallets(&mut cli, &mut registry)
+		.await?;
 		assert!(!registry.is_empty());
 
 		let pallet_items: Vec<(String, String)> = pallets(&registry, &[])
@@ -1998,7 +2048,7 @@ mod tests {
 		// Load pallet registry if the registry is empty.
 		let mut registry = PalletExtrinsicsRegistry::default();
 		BenchmarkPallet {
-			runtime: Some(get_mock_runtime(Some(Benchmark))),
+			runtime_binary: Some(get_mock_runtime(Some(Benchmark))),
 			pallet: Some(ALL_SELECTED.to_string()),
 			..Default::default()
 		}
@@ -2039,7 +2089,7 @@ mod tests {
 
 		// Load pallet registry if the registry is empty.
 		let mut cmd = BenchmarkPallet {
-			runtime: Some(get_mock_runtime(Some(Benchmark))),
+			runtime_binary: Some(get_mock_runtime(Some(Benchmark))),
 			..Default::default()
 		};
 		let mut registry = PalletExtrinsicsRegistry::default();
