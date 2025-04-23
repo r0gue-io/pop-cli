@@ -51,9 +51,9 @@ subxt = { version = "0.38.0", default-features = false }
 ink_env = { version = "5.0.0", default-features = false }
 ink_env_v6 = { git = "https://github.com/use-ink/ink", package = "ink_env", branch = "master" }
 sp-core = { version = "32.0.0", default-features = false }
-sp-core_inkv6 = { version = "36.1.0", package = "sp-core", default-features = false }
+sp-core_inkv6 = { git = "https://github.com/paritytech/polkadot-sdk", package = "sp-core", rev = "f8c90b2a01ec77579bccd21ae17bd6ff2eeffd6a", default-features = false }
 sp-weights = { version = "31.0.0", default-features = false }
-sp-weights_inkv6 = { version = "31.1.0", package = "sp-weights", default-features = false }
+sp-weights_inkv6 = { git = "https://github.com/paritytech/polkadot-sdk", package = "sp-weights", rev = "f8c90b2a01ec77579bccd21ae17bd6ff2eeffd6a", default-features = false }
 scale = { package = "parity-scale-codec", version = "3.0.0", features = ["derive"] }
 scale-info = { version = "2.11.4", default-features = false, features = ["derive"] }
 scale-value = { version = "0.17.0", default-features = false, features = ["from-string", "parser-ss58"] }

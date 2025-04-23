@@ -9860,8 +9860,9 @@ dependencies = [
  "pop-common",
  "reqwest",
  "scale-info",
+ "sp-core 28.0.0 (git+https://github.com/paritytech/polkadot-sdk?rev=f8c90b2a01ec77579bccd21ae17bd6ff2eeffd6a)",
  "sp-core 32.0.0",
- "sp-core 36.1.0",
+ "sp-weights 27.0.0 (git+https://github.com/paritytech/polkadot-sdk?rev=f8c90b2a01ec77579bccd21ae17bd6ff2eeffd6a)",
  "sp-weights 31.1.0",
  "strum 0.26.3",
  "strum_macros 0.26.4",
@@ -14107,39 +14108,6 @@ dependencies = [
  "thiserror 1.0.69",
  "tracing",
  "w3f-bls",
- "zeroize",
-]
-
-[[package]]
-name = "sp-core"
-version = "36.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1cdbb58c21e6b27f2aadf3ff0c8b20a8ead13b9dfe63f46717fd59334517f3b4"
-dependencies = [
- "array-bytes",
- "bitflags 1.3.2",
- "bounded-collections",
- "ed25519-zebra 4.0.3",
- "hash-db",
- "hash256-std-hasher",
- "k256",
- "libsecp256k1",
- "log",
- "merlin",
- "parity-bip39",
- "parity-scale-codec",
- "paste",
- "primitive-types 0.13.1",
- "scale-info",
- "schnorrkel",
- "secrecy 0.8.0",
- "sp-crypto-hashing 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-debug-derive 14.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-runtime-interface 29.0.1",
- "sp-std 14.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-storage 22.0.0",
- "ss58-registry",
- "substrate-bip39 0.6.0",
  "zeroize",
 ]
 

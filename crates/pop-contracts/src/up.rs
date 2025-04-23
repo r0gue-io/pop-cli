@@ -10,6 +10,8 @@ use crate::{
 	Bytes, DefaultEnvironment, Environment, UploadCode, Weight,
 };
 use pop_common::{create_signer, DefaultConfig, Keypair};
+#[cfg(feature = "v6")]
+use pop_common::account_id::parse_h160_account;
 use std::path::{Path, PathBuf};
 use subxt::{
 	blocks::ExtrinsicEvents,
@@ -329,6 +331,7 @@ pub async fn instantiate_contract_signed(
 		DefaultEnvironment,
 		Keypair,
 	>,
+	#[cfg(feature = "v6")] maybe_contract_address: Option<String>,
 	url: &str,
 	payload: String,
 ) -> anyhow::Result<InstantiateExecResult<SubstrateConfig>> {
@@ -352,22 +355,26 @@ pub async fn instantiate_contract_signed(
 
 	#[cfg(feature = "v6")]
 	let (code_hash, contract_address) = {
-		let rpc = instantiate_exec.rpc();
-		let code = match instantiate_exec.args().code().clone() {
-			Code::Upload(code) => code.into(),
-			Code::Existing(hash) =>
-				fetch_contract_binary(&instantiate_exec.client(), &rpc, &hash).await?,
+		let contract_address = match maybe_contract_address {
+			Some(addr) => parse_h160_account(&addr)?,
+			None => {
+				let rpc = instantiate_exec.rpc();
+				let code = match instantiate_exec.args().code().clone() {
+					Code::Upload(code) => code.into(),
+					Code::Existing(hash) =>
+						fetch_contract_binary(&instantiate_exec.client(), &rpc, &hash).await?,
+				};
+				let data = instantiate_exec.args().data();
+				contract_address(
+						instantiate_exec.client(),
+						&rpc,
+						instantiate_exec.opts().signer(),
+						&instantiate_exec.args().salt().cloned(),
+						&code[..],
+						&data[..],
+					).await?
+				}
 		};
-		let data = instantiate_exec.args().data();
-		let contract_address = contract_address(
-			instantiate_exec.client(),
-			&rpc,
-			instantiate_exec.opts().signer(),
-			&instantiate_exec.args().salt().cloned(),
-			&code[..],
-			&data[..],
-		)
-		.await?;
 		(None, contract_address)
 	};
 

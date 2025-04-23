@@ -205,8 +205,8 @@ impl UpContractCommand {
 				},
 			};
 
-			let maybe_payload = request_signature(call_data, self.url.to_string()).await?;
-			if let Some(payload) = maybe_payload {
+			let maybe_signature_request = request_signature(call_data, self.url.to_string()).await?;
+			if let Some(payload) = maybe_signature_request.signed_payload {
 				log::success("Signed payload received.")?;
 				let spinner = spinner();
 				spinner.start(
@@ -262,6 +262,8 @@ impl UpContractCommand {
 					let contract_info = match instantiate_contract_signed(
 						#[cfg(feature = "polkavm-contracts")]
 						instantiate_exec,
+						#[cfg(feature = "polkavm-contracts")]
+						maybe_signature_request.contract_address,
 						self.url.as_str(),
 						payload,
 					)
