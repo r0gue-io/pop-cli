@@ -227,7 +227,6 @@ impl TypedValueParser for SupportedLengths {
 mod tests {
 	use super::*;
 	use std::io::Write;
-	use Command::*;
 	use Data::*;
 
 	#[test]
@@ -358,8 +357,6 @@ mod tests {
 
 	#[test]
 	fn command_display_works() {
-		use Command::*;
-
 		let blake2 = [64, 128, 256, 512].into_iter().map(|length| {
 			(Blake2 { length, data: Data::default(), concat: false }, format!("blake2 {length}"))
 		});
