@@ -18,6 +18,7 @@ use tokio::{
 	time::{Duration, Instant},
 };
 
+/// An API client.
 pub(crate) struct ApiClient {
 	permits: Arc<Semaphore>,
 	token: Option<String>,
@@ -26,6 +27,12 @@ pub(crate) struct ApiClient {
 	cache: Arc<Mutex<HashMap<String, ApiResponse>>>,
 }
 impl ApiClient {
+	/// A new API Client.
+	///
+	/// # Arguments
+	/// * `max_concurrent` - The maximum number of concurrent requests.
+	/// * `token` - An optional API token. If provided, the client will include an `Authorization`
+	///   header with the value `token <token>`
 	pub(crate) fn new(max_concurrent: usize, token: Option<String>) -> Self {
 		Self {
 			permits: Arc::new(Semaphore::new(max_concurrent)),
@@ -36,6 +43,10 @@ impl ApiClient {
 		}
 	}
 
+	/// Sends a GET request to the provided URL.
+	///
+	/// # Arguments
+	/// * `url` - The URL of the API endpoint to request.
 	pub(crate) async fn get(&self, url: impl IntoUrl) -> Result<ApiResponse, Error> {
 		let url = url.into_url()?;
 
@@ -113,10 +124,12 @@ impl ApiClient {
 	}
 }
 
+/// An API response.
 #[derive(Clone)]
 pub(crate) struct ApiResponse(Bytes);
 
 impl ApiResponse {
+	/// Attempts to deserialize the API response as JSON.
 	pub(crate) async fn json<T: DeserializeOwned>(&self) -> Result<T, Error> {
 		serde_json::from_slice(&self.0).map_err(|e| e.into())
 	}
@@ -156,6 +169,7 @@ impl From<&RateLimits> for Error {
 	}
 }
 
+/// An error returned by the API client.
 #[derive(Error, Debug)]
 pub enum Error {
 	/// A decoding error occurred.
@@ -170,13 +184,19 @@ pub enum Error {
 	/// An API call failed due to rate limiting.
 	#[error("Rate limited: limit {limit:?}, remaining {remaining:?}, reset {reset:?}, retry after {retry_after:?}")]
 	RateLimited {
+		/// If present, the maximum number of requests allowed in the current time window.
 		limit: Option<u64>,
+		/// If present, the number of requests remaining in the current time window.
 		remaining: Option<u64>,
+		/// If present, the time (in UTC epoch seconds) at which the rate limit will reset.
 		reset: Option<u64>,
+		/// If present, the time at which the rate limit will reset.
 		retry_after: Option<Instant>,
 	},
+	/// An error occurred while attempting to convert a time.
 	#[error("Time error: {0}")]
 	TimeError(#[from] SystemTimeError),
+	/// A synchronization error occurred.
 	#[error("Synchronization error: {0}")]
 	SynchronizationError(#[from] AcquireError),
 }
