@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::APP_USER_AGENT;
-use reqwest::{IntoUrl, Response};
+use bytes::Bytes;
+use reqwest::IntoUrl;
+use serde::de::DeserializeOwned;
+#[cfg(test)]
+use std::collections::HashMap;
 use std::{
 	error::Error as _,
 	ops::Deref,
@@ -18,6 +22,8 @@ pub(crate) struct ApiClient {
 	permits: Arc<Semaphore>,
 	token: Option<String>,
 	rate_limits: Arc<Mutex<RateLimits>>,
+	#[cfg(test)]
+	cache: Arc<Mutex<HashMap<String, ApiResponse>>>,
 }
 impl ApiClient {
 	pub(crate) fn new(max_concurrent: usize, token: Option<String>) -> Self {
@@ -25,15 +31,28 @@ impl ApiClient {
 			permits: Arc::new(Semaphore::new(max_concurrent)),
 			token,
 			rate_limits: Arc::new(Mutex::new(RateLimits::default())),
+			#[cfg(test)]
+			cache: Arc::new(Mutex::new(HashMap::new())),
 		}
 	}
 
-	pub(crate) async fn get<U: IntoUrl>(&self, url: U) -> Result<Response, Error> {
+	pub(crate) async fn get(&self, url: impl IntoUrl) -> Result<ApiResponse, Error> {
+		let url = url.into_url()?;
+
+		#[cfg(test)]
+		// Check if a request for url already cached
+		if let Some(response) =
+			&self.cache.lock().map_err(|_| Error::LockAcquisitionError)?.get(url.as_str())
+		{
+			return Ok((*response).clone())
+		}
+
+		// Acquire a permit based on the concurrency control
 		let _permit = self.permits.acquire().await?;
-		let mut rate_limits = self.rate_limits.lock().map_err(|_| Error::LockAcquisitionError)?;
 
 		// Check if prior evidence of being rate limited
 		// Note: only applies if multiple attempts within the same process (e.g., tests)
+		let mut rate_limits = self.rate_limits.lock().map_err(|_| Error::LockAcquisitionError)?;
 		if let Some(0) = rate_limits.remaining {
 			if let Some(reset) = rate_limits.reset {
 				let now = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)?.as_secs();
@@ -43,17 +62,15 @@ impl ApiClient {
 			}
 		}
 
-		// Build request
+		// Build request, adding any token if present
 		let client = reqwest::Client::builder().user_agent(APP_USER_AGENT).build()?;
-		let mut request = client.get(url);
+		let mut request = client.get(url.clone());
 		if let Some(token) = &self.token {
 			request = request.header("Authorization", format!("token {}", token));
 		}
 
-		// Send request
+		// Send request, updating rate limits from response headers
 		let response = request.send().await?;
-
-		// Update rate limits from response headers
 		let headers = response.headers();
 		rate_limits.limit = headers
 			.get("x-ratelimit-limit")
@@ -74,10 +91,49 @@ impl ApiClient {
 			.map(|v| Instant::now() + Duration::from_secs(v));
 
 		// Check if the response indicates rate limiting
-		match rate_limits.remaining {
-			Some(0) => Err(rate_limits.deref().into()),
-			_ => response.error_for_status().map_err(Error::HttpError),
+		if let Some(0) = rate_limits.remaining {
+			return Err(rate_limits.deref().into());
 		}
+
+		match response.error_for_status() {
+			Ok(response) => {
+				let response = ApiResponse(response.bytes().await?);
+
+				// Cache response for any later requests for the same url
+				#[cfg(test)]
+				self.cache
+					.lock()
+					.map_err(|_| Error::LockAcquisitionError)?
+					.insert(url.to_string(), response.clone());
+
+				Ok(response)
+			},
+			Err(e) => Err(e.into()),
+		}
+	}
+}
+
+#[derive(Clone)]
+pub(crate) struct ApiResponse(Bytes);
+
+impl ApiResponse {
+	pub(crate) async fn json<T: DeserializeOwned>(&self) -> Result<T, Error> {
+		serde_json::from_slice(&self.0).map_err(|e| e.into())
+	}
+}
+
+impl AsRef<[u8]> for ApiResponse {
+	fn as_ref(&self) -> &[u8] {
+		self.0.as_ref()
+	}
+}
+
+impl Deref for ApiResponse {
+	type Target = [u8];
+
+	#[inline]
+	fn deref(&self) -> &[u8] {
+		&self.0.deref()
 	}
 }
 
@@ -102,6 +158,9 @@ impl From<&RateLimits> for Error {
 
 #[derive(Error, Debug)]
 pub enum Error {
+	/// A decoding error occurred.
+	#[error("Decoding error: {0}")]
+	DecodeError(#[from] serde_json::Error),
 	/// A HTTP error occurred.
 	#[error("HTTP error: {0} caused by {:?}", reqwest::Error::source(.0))]
 	HttpError(#[from] reqwest::Error),

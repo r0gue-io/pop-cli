@@ -272,7 +272,7 @@ async fn from_archive(
 		if src.exists() {
 			if let Err(_e) = rename(&src, dest) {
 				// If rename fails (e.g., due to cross-device linking), fallback to copy and remove
-				std::fs::copy(&src, dest)?;
+				copy(&src, dest)?;
 				std::fs::remove_file(&src)?;
 			}
 		} else {
@@ -378,7 +378,7 @@ async fn from_github_archive(
 			},
 		};
 	let mut file = tempfile()?;
-	file.write_all(&response.bytes().await?)?;
+	file.write_all(&response)?;
 	file.seek(SeekFrom::Start(0))?;
 	// Extract contents
 	status.update("Extracting from archive...");
