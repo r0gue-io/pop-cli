@@ -14,6 +14,8 @@ pub(crate) mod build;
 #[cfg(any(feature = "parachain", feature = "contract"))]
 pub(crate) mod call;
 pub(crate) mod clean;
+#[cfg(feature = "hashing")]
+mod hash;
 #[cfg(any(feature = "parachain", feature = "contract"))]
 pub(crate) mod install;
 #[cfg(any(feature = "parachain", feature = "contract"))]
@@ -48,6 +50,10 @@ pub(crate) enum Command {
 	/// Test a Rust project.
 	#[clap(alias = "t")]
 	Test(test::TestArgs),
+	/// Hash data using a supported hash algorithm.
+	#[clap(alias = "h")]
+	#[cfg(feature = "hashing")]
+	Hash(hash::HashArgs),
 	/// Remove generated/cached artifacts.
 	#[clap(alias = "C")]
 	Clean(clean::CleanArgs),
@@ -182,6 +188,11 @@ impl Command {
 					.await
 					.map(|(project, feature)| Test { project, feature })
 			},
+			#[cfg(feature = "hashing")]
+			Self::Hash(args) => {
+				env_logger::init();
+				args.command.execute(&mut Cli).map(|_| Null)
+			},
 			Self::Clean(args) => {
 				env_logger::init();
 				match args.command {
@@ -240,6 +251,8 @@ impl Display for Command {
 			Self::Clean(_) => write!(f, "clean"),
 			#[cfg(feature = "parachain")]
 			Self::Bench(args) => write!(f, "bench {}", args.command),
+			#[cfg(feature = "hashing")]
+			Command::Hash(args) => write!(f, "hash {}", args.command),
 		}
 	}
 }
@@ -361,5 +374,13 @@ mod tests {
 		for (command, expected) in test_cases {
 			assert_eq!(command.to_string(), expected);
 		}
+	}
+
+	#[cfg(feature = "hashing")]
+	#[test]
+	fn hash_command_display_works() {
+		use hash::{Command::*, Data, HashArgs};
+		let command = Blake2 { length: 256, data: Data::default(), concat: false };
+		assert_eq!(format!("hash {command}"), Command::Hash(HashArgs { command }).to_string());
 	}
 }
