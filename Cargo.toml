@@ -40,7 +40,7 @@ toml = { version = "0.5.0", default-features = false }
 tracing-subscriber = { version = "0.3.19", default-features = false }
 
 # networking
-reqwest = { version = "0.12", default-features = false, features = ["json", "multipart", "stream"] }
+reqwest = { version = "0.12", default-features = false, features = ["default-tls", "json", "multipart", "stream"] }
 tokio = { version = "1.0", default-features = false, features = ["macros", "process", "rt-multi-thread"] }
 url = "2.5.4"
 

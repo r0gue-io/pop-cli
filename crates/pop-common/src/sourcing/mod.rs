@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0
 
-mod binary;
+use crate::{api, git::GITHUB_API_CLIENT, Git, Status};
 pub use binary::*;
-
-use crate::{Git, Status, APP_USER_AGENT};
 use duct::cmd;
 use flate2::read::GzDecoder;
 use reqwest::StatusCode;
 use std::{
+	error::Error as _,
 	fs::{copy, metadata, read_dir, rename, File},
 	io::{BufRead, Seek, SeekFrom, Write},
 	os::unix::fs::PermissionsExt,
@@ -19,17 +18,22 @@ use tempfile::{tempdir, tempfile};
 use thiserror::Error;
 use url::Url;
 
+mod binary;
+
 /// An error relating to the sourcing of binaries.
 #[derive(Error, Debug)]
 pub enum Error {
 	/// An error occurred.
 	#[error("Anyhow error: {0}")]
 	AnyhowError(#[from] anyhow::Error),
+	/// An API error occurred.
+	#[error("API error: {0}")]
+	ApiError(#[from] api::Error),
 	/// An error occurred sourcing a binary from an archive.
 	#[error("Archive error: {0}")]
 	ArchiveError(String),
 	/// A HTTP error occurred.
-	#[error("HTTP error: {0}")]
+	#[error("HTTP error: {0} caused by {:?}", reqwest::Error::source(.0))]
 	HttpError(#[from] reqwest::Error),
 	/// An IO error occurred.
 	#[error("IO error: {0}")]
@@ -325,7 +329,7 @@ async fn from_git(
 /// * `owner` - The owner of the repository.
 /// * `repository` - The name of the repository.
 /// * `reference` - If applicable, the branch, tag or commit.
-/// * `manifest` -If applicable, a specification of the path to the manifest.
+/// * `manifest` - If applicable, a specification of the path to the manifest.
 /// * `package` - The name of the package to be built.
 /// * `artifacts` - Any additional artifacts which are required.
 /// * `release` - Whether to build optimized artifacts using the release profile.
@@ -344,7 +348,6 @@ async fn from_github_archive(
 	verbose: bool,
 ) -> Result<(), Error> {
 	// User agent required when using GitHub API
-	let client = reqwest::ClientBuilder::new().user_agent(APP_USER_AGENT).build()?;
 	let response =
 		match reference {
 			Some(reference) => {
@@ -357,8 +360,8 @@ async fn from_github_archive(
 				let mut response = None;
 				for url in urls {
 					status.update(&format!("Downloading from {url}..."));
-					response = Some(client.get(url).send().await?.error_for_status());
-					if let Some(Err(e)) = &response {
+					response = Some(GITHUB_API_CLIENT.get(url).await);
+					if let Some(Err(api::Error::HttpError(e))) = &response {
 						if e.status() == Some(StatusCode::NOT_FOUND) {
 							tokio::time::sleep(Duration::from_secs(1)).await;
 							continue;
@@ -371,7 +374,7 @@ async fn from_github_archive(
 			None => {
 				let url = format!("https://api.github.com/repos/{owner}/{repository}/tarball");
 				status.update(&format!("Downloading from {url}..."));
-				client.get(url).send().await?.error_for_status()?
+				GITHUB_API_CLIENT.get(url).await?
 			},
 		};
 	let mut file = tempfile()?;

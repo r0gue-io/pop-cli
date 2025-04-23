@@ -23,6 +23,8 @@ pub use test::test_project;
 
 /// Module for parsing and handling account IDs.
 pub mod account_id;
+/// Provides functionality for accessing rate-limited APIs.
+pub(crate) mod api;
 /// Provides build profiles for usage when building Rust projects.
 pub mod build;
 /// Represents the various errors that can occur in the crate.
