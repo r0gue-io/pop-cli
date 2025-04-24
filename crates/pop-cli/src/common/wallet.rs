@@ -2,7 +2,9 @@
 
 use crate::{
 	cli::traits::Cli,
-	wallet_integration::{FrontendFromString, TransactionData, WalletIntegrationManager, SubmitRequest},
+	wallet_integration::{
+		FrontendFromString, SubmitRequest, TransactionData, WalletIntegrationManager,
+	},
 };
 use cliclack::{log, spinner};
 #[cfg(feature = "parachain")]
@@ -59,7 +61,7 @@ pub async fn request_signature(call_data: Vec<u8>, rpc: String) -> anyhow::Resul
 	let signed_payload = wallet.state.lock().await.signed_payload.take();
 	let contract_address = wallet.state.lock().await.contract_address.take();
 
-	Ok(SubmitRequest {signed_payload, contract_address})
+	Ok(SubmitRequest { signed_payload, contract_address })
 }
 
 /// Prompts the user to use the wallet for signing.

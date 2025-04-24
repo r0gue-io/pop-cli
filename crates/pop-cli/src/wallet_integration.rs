@@ -52,7 +52,7 @@ pub struct StateHandler {
 	/// Received from UI.
 	pub signed_payload: Option<String>,
 	/// Contract address received from UI.
-    pub contract_address: Option<String>,
+	pub contract_address: Option<String>,
 	/// Holds a single error message.
 	/// Only method for consuming error removes (takes) it from state.
 	error: Option<String>,
@@ -169,7 +169,7 @@ impl WalletIntegrationManager {
 }
 
 mod routes {
-	use super::{terminate_helper, Arc, Mutex, StateHandler, TransactionData, SubmitRequest};
+	use super::{terminate_helper, Arc, Mutex, StateHandler, SubmitRequest, TransactionData};
 	use anyhow::Error;
 	use axum::{
 		extract::State,
@@ -218,7 +218,7 @@ mod routes {
 
 		let mut state_locked = state.lock().await;
 		state_locked.signed_payload = data.signed_payload;
-    	state_locked.contract_address = data.contract_address;
+		state_locked.contract_address = data.contract_address;
 
 		res?;
 
@@ -569,10 +569,8 @@ mod tests {
 		assert_eq!(actual_payload.call_data, call_data_5mb);
 
 		let encoded_payload: String = call_data_5mb.iter().map(|b| format!("{:02x}", b)).collect();
-		let mut submit_request = SubmitRequest {
-			signed_payload: Some(encoded_payload),
-			contract_address: None,
-		};
+		let mut submit_request =
+			SubmitRequest { signed_payload: Some(encoded_payload), contract_address: None };
 		let client = reqwest::Client::new();
 		let response = client
 			.post(&format!("{}/submit", addr))
@@ -589,11 +587,7 @@ mod tests {
 		let encoded_oversized_payload: String =
 			call_data_15mb.iter().map(|b| format!("{:02x}", b)).collect();
 		submit_request.signed_payload = Some(encoded_oversized_payload);
-		let response = client
-			.post(&format!("{}/submit", addr))
-			.json(&submit_request)
-			.send()
-			.await;
+		let response = client.post(&format!("{}/submit", addr)).json(&submit_request).send().await;
 
 		assert!(
 			response.is_err() ||

@@ -9,9 +9,9 @@ use crate::{
 	},
 	Bytes, DefaultEnvironment, Environment, UploadCode, Weight,
 };
-use pop_common::{create_signer, DefaultConfig, Keypair};
 #[cfg(feature = "v6")]
 use pop_common::account_id::parse_h160_account;
+use pop_common::{create_signer, DefaultConfig, Keypair};
 use std::path::{Path, PathBuf};
 use subxt::{
 	blocks::ExtrinsicEvents,
@@ -366,14 +366,15 @@ pub async fn instantiate_contract_signed(
 				};
 				let data = instantiate_exec.args().data();
 				contract_address(
-						instantiate_exec.client(),
-						&rpc,
-						instantiate_exec.opts().signer(),
-						&instantiate_exec.args().salt().cloned(),
-						&code[..],
-						&data[..],
-					).await?
-				}
+					instantiate_exec.client(),
+					&rpc,
+					instantiate_exec.opts().signer(),
+					&instantiate_exec.args().salt().cloned(),
+					&code[..],
+					&data[..],
+				)
+				.await?
+			},
 		};
 		(None, contract_address)
 	};

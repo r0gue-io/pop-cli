@@ -205,7 +205,8 @@ impl UpContractCommand {
 				},
 			};
 
-			let maybe_signature_request = request_signature(call_data, self.url.to_string()).await?;
+			let maybe_signature_request =
+				request_signature(call_data, self.url.to_string()).await?;
 			if let Some(payload) = maybe_signature_request.signed_payload {
 				log::success("Signed payload received.")?;
 				let spinner = spinner();
