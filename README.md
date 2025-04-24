@@ -95,6 +95,11 @@ Run all tests (unit + integration):
 cargo test
 ```
 
+> Running tests may result in rate limits being exhausted due to the reliance on the GitHub REST API for determining
+> releases. As
+> per <https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#getting-a-higher-rate-limit>, a
+> personal access token can be used via the `GITHUB_TOKEN` environment variable.
+
 ## Acknowledgements
 
 Pop CLI would not be possible without these awesome crates!
