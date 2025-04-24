@@ -13,10 +13,7 @@ use std::{
 	time::{SystemTime, SystemTimeError},
 };
 use thiserror::Error;
-use tokio::{
-	sync::{AcquireError, Semaphore},
-	time::{Duration, Instant},
-};
+use tokio::sync::{AcquireError, Semaphore};
 
 /// An API client.
 pub(crate) struct ApiClient {
@@ -98,8 +95,7 @@ impl ApiClient {
 		rate_limits.retry_after = headers
 			.get("retry-after")
 			.and_then(|v| v.to_str().ok())
-			.and_then(|v| v.parse::<u64>().ok())
-			.map(|v| Instant::now() + Duration::from_secs(v));
+			.and_then(|v| v.parse::<u64>().ok());
 
 		// Check if the response indicates rate limiting
 		if let Some(0) = rate_limits.remaining {
@@ -125,7 +121,7 @@ impl ApiClient {
 }
 
 /// An API response.
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct ApiResponse(Bytes);
 
 impl ApiResponse {
@@ -135,27 +131,21 @@ impl ApiResponse {
 	}
 }
 
-impl AsRef<[u8]> for ApiResponse {
-	fn as_ref(&self) -> &[u8] {
-		self.0.as_ref()
-	}
-}
-
 impl Deref for ApiResponse {
 	type Target = [u8];
 
 	#[inline]
 	fn deref(&self) -> &[u8] {
-		&self.0.deref()
+		self.0.deref()
 	}
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq)]
 struct RateLimits {
 	limit: Option<u64>,
 	remaining: Option<u64>,
 	reset: Option<u64>,
-	retry_after: Option<Instant>,
+	retry_after: Option<u64>,
 }
 
 impl From<&RateLimits> for Error {
@@ -171,6 +161,7 @@ impl From<&RateLimits> for Error {
 
 /// An error returned by the API client.
 #[derive(Error, Debug)]
+#[allow(clippy::enum_variant_names)]
 pub enum Error {
 	/// A decoding error occurred.
 	#[error("Decoding error: {0}")]
@@ -190,8 +181,8 @@ pub enum Error {
 		remaining: Option<u64>,
 		/// If present, the time (in UTC epoch seconds) at which the rate limit will reset.
 		reset: Option<u64>,
-		/// If present, the time at which the rate limit will reset.
-		retry_after: Option<Instant>,
+		/// If present, the number of seconds to wait until retrying the request.
+		retry_after: Option<u64>,
 	},
 	/// An error occurred while attempting to convert a time.
 	#[error("Time error: {0}")]
@@ -199,4 +190,192 @@ pub enum Error {
 	/// A synchronization error occurred.
 	#[error("Synchronization error: {0}")]
 	SynchronizationError(#[from] AcquireError),
+}
+
+#[cfg(test)]
+mod tests {
+	use super::{Error::*, *};
+	use mockito::Server;
+	use reqwest::StatusCode;
+	use std::error::Error;
+
+	const LIMIT: u64 = 60;
+	const REMAINING: u64 = 10;
+	const RETRY_AFTER: u64 = 60;
+	const TOKEN: &str = "<TOKEN>";
+
+	#[tokio::test]
+	async fn token_authorization_works() -> Result<(), Box<dyn Error>> {
+		let mut server = Server::new_async().await;
+		let mock = server
+			.mock("GET", "/auth")
+			.with_status(StatusCode::OK.as_u16().into())
+			.match_header("Authorization", format!("token {TOKEN}").as_str())
+			.create_async()
+			.await;
+
+		let client = ApiClient::new(1, Some(TOKEN.into()));
+		client.get(format!("{}/auth", server.url())).await?;
+
+		mock.assert_async().await;
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn extracts_rate_limits_from_response_headers() -> Result<(), Box<dyn Error>> {
+		let reset =
+			SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)?.as_secs() + RETRY_AFTER;
+
+		let mut server = Server::new_async().await;
+		let mock = server
+			.mock("GET", "/rate-limits")
+			.with_header("x-ratelimit-limit", LIMIT.to_string().as_str())
+			.with_header("x-ratelimit-remaining", REMAINING.to_string().as_str())
+			.with_header("x-ratelimit-reset", reset.to_string().as_str())
+			.with_header("retry-after", RETRY_AFTER.to_string().as_str())
+			.with_status(StatusCode::OK.as_u16().into())
+			.create_async()
+			.await;
+
+		let client = ApiClient::new(1, Some(TOKEN.into()));
+		client.get(format!("{}/rate-limits", server.url())).await?;
+
+		assert_eq!(
+			*client.rate_limits.lock().unwrap(),
+			RateLimits {
+				limit: Some(LIMIT),
+				remaining: Some(REMAINING),
+				reset: Some(reset),
+				retry_after: Some(RETRY_AFTER),
+			}
+		);
+
+		mock.assert_async().await;
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn returns_rate_limited_error_when_no_requests_remaining() -> Result<(), Box<dyn Error>> {
+		let reset =
+			SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)?.as_secs() + RETRY_AFTER;
+
+		let mut server = Server::new_async().await;
+		let mock = server
+			.mock("GET", "/rate-limited")
+			.with_header("x-ratelimit-limit", LIMIT.to_string().as_str())
+			.with_header("x-ratelimit-remaining", "0")
+			.with_header("x-ratelimit-reset", reset.to_string().as_str())
+			.with_header("retry-after", RETRY_AFTER.to_string().as_str())
+			.with_status(StatusCode::OK.as_u16().into())
+			.expect_at_least(1)
+			.expect_at_most(1)
+			.create_async()
+			.await;
+
+		let client = ApiClient::new(1, Some(TOKEN.into()));
+		for _ in 0..5 {
+			assert!(
+				matches!(client.get(format!("{}/rate-limited", server.url())).await, Err(RateLimited {
+				limit,
+				remaining,
+				reset: _reset,
+				retry_after
+			}) if limit == Some(LIMIT) && remaining == Some(0) && _reset == Some(reset) && retry_after == Some(RETRY_AFTER) )
+			);
+		}
+
+		mock.assert_async().await;
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn returns_underlying_error_otherwise() -> Result<(), Box<dyn Error>> {
+		const STATUS_CODE: StatusCode = StatusCode::FORBIDDEN;
+
+		let mut server = Server::new_async().await;
+		let mock = server
+			.mock("GET", "/error")
+			.with_status(STATUS_CODE.as_u16().into())
+			.create_async()
+			.await;
+
+		let client = ApiClient::new(1, None);
+		assert!(matches!(
+				client.get(format!("{}/error", server.url())).await, 
+				Err(HttpError(e)) if e.status() == Some(STATUS_CODE)));
+
+		mock.assert_async().await;
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn returns_bytes() -> Result<(), Box<dyn Error>> {
+		let payload = b"<API_RESPONSE>";
+
+		let mut server = Server::new_async().await;
+		let mock = server
+			.mock("GET", "/bytes")
+			.with_status(StatusCode::OK.as_u16().into())
+			.with_body(payload)
+			.create_async()
+			.await;
+
+		let client = ApiClient::new(1, None);
+		let response = client.get(format!("{}/bytes", server.url())).await?;
+		assert_eq!(*response, *payload);
+
+		mock.assert_async().await;
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn returns_json() -> Result<(), Box<dyn Error>> {
+		let payload = b"{\"key\": \"value\"}";
+
+		let mut server = Server::new_async().await;
+		let mock = server
+			.mock("GET", "/json")
+			.with_status(StatusCode::OK.as_u16().into())
+			.with_body(payload)
+			.create_async()
+			.await;
+
+		let client = ApiClient::new(1, None);
+		let response = client
+			.get(format!("{}/json", server.url()))
+			.await?
+			.json::<serde_json::Value>()
+			.await?;
+		assert_eq!(response, serde_json::json!({ "key": "value" }));
+
+		mock.assert_async().await;
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn test_caching_works() -> Result<(), Box<dyn Error>> {
+		let payload = b"<API_RESPONSE>";
+
+		let mut server = Server::new_async().await;
+		let mock = server
+			.mock("GET", "/cache")
+			.with_status(StatusCode::OK.as_u16().into())
+			.with_body(payload)
+			.expect_at_least(1)
+			.expect_at_most(1)
+			.create_async()
+			.await;
+
+		let client = ApiClient::new(1, None);
+		let url = format!("{}/cache", server.url());
+
+		for _ in 0..5 {
+			let response = client.get(url.clone()).await?;
+			assert_eq!(*response, *payload);
+			assert_eq!(client.cache.lock().unwrap().get(&url), Some(&response));
+		}
+
+		mock.assert_async().await;
+		Ok(())
+	}
 }
