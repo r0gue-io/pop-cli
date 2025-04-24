@@ -12,15 +12,18 @@ runs:
   steps:
     - name: Setup Ubuntu dependencies
       shell: bash
-      run: sudo apt update && sudo apt install -y protobuf-compiler
+      run: |
+        sudo apt update
+        sudo apt install -y protobuf-compiler
 
     - name: Free up space on runner
       shell: bash
       run: |
-        sudo rm -rf /usr/share/dotnet
-        sudo rm -rf /opt/ghc
-        sudo rm -rf "/usr/local/share/boost"
-        sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+        sudo rm -rf "$AGENT_TOOLSDIRECTORY" /opt/ghc /usr/local/lib/android /usr/local/share/boost 
+        sudo rm -rf /usr/local/share/chromium /usr/share/dotnet /usr/share/swift
+        sudo docker image prune -af
+        sudo apt-get clean
+        sudo rm -rf /var/cache/apt/archives /var/lib/apt/lists/*
 
     - name: Setup git config
       shell: bash
@@ -29,7 +32,7 @@ runs:
         git config --global user.email ${{ inputs.git-user }}@users.noreply.github.com
 
     - name: Rust Cache
-      uses: Swatinem/rust-cache@v2.7.3
+      uses: Swatinem/rust-cache@v2.7.8
       with:
         cache-on-failure: true
         cache-all-crates: true
