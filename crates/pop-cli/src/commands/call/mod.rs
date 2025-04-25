@@ -47,7 +47,7 @@ mod tests {
 	fn command_display_works() {
 		#[cfg(feature = "parachain")]
 		assert_eq!(Command::Chain(Default::default()).to_string(), "chain");
-		#[cfg(feature = "contract")]
+		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 		assert_eq!(Command::Contract(Default::default()).to_string(), "contract");
 	}
 }

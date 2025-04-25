@@ -237,7 +237,7 @@ mod tests {
 			Data::New(Template::Chain(pop_parachains::Parachain::Contracts)).to_string(),
 			"Contracts"
 		);
-		#[cfg(feature = "contract")]
+		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 		assert_eq!(
 			Data::New(Template::Contract(pop_contracts::Contract::ERC20)).to_string(),
 			"Erc20"

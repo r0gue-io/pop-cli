@@ -140,7 +140,7 @@ mod tests {
 		Ok(UpArgs {
 			path: Some(project_path),
 			path_pos: None,
-			#[cfg(feature = "contract")]
+			#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 			contract: UpContractCommand {
 				path: None,
 				constructor: "new".to_string(),
@@ -164,7 +164,7 @@ mod tests {
 	}
 
 	#[tokio::test]
-	#[cfg(feature = "contract")]
+	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 	async fn detects_contract_correctly() -> anyhow::Result<()> {
 		let temp_dir = new_environment("testing")?;
 		let mut current_dir = env::current_dir().expect("Failed to get current directory");
@@ -243,7 +243,7 @@ mod tests {
 		assert_eq!(Command::Network(Default::default()).to_string(), "network");
 		#[cfg(feature = "parachain")]
 		assert_eq!(Command::Parachain(Default::default()).to_string(), "chain");
-		#[cfg(feature = "contract")]
+		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 		assert_eq!(Command::Contract(Default::default()).to_string(), "contract");
 	}
 }

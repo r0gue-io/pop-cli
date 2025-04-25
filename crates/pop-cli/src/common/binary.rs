@@ -184,12 +184,12 @@ pub(crate) fn which_version(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	#[cfg(feature = "contract")]
+	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 	use crate::{cli::MockCli, common::contracts::ContractsNodeGenerator};
 	use std::cmp::Ordering;
 
 	#[tokio::test]
-	#[cfg(feature = "contract")]
+	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 	async fn check_binary_and_prompt_works() -> anyhow::Result<()> {
 		#[cfg(feature = "wasm-contracts")]
 		let binary_name = "substrate-contracts-node";
@@ -218,7 +218,7 @@ mod tests {
 	}
 
 	#[tokio::test]
-	#[cfg(feature = "contract")]
+	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 	async fn check_binary_and_prompt_handles_skip_confirm() -> anyhow::Result<()> {
 		#[cfg(feature = "wasm-contracts")]
 		let binary_name = "substrate-contracts-node";
