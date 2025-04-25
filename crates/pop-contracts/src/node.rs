@@ -25,7 +25,9 @@ use std::{
 	process::{Child, Command, Stdio},
 	time::Duration,
 };
-use subxt::{dynamic::Value, SubstrateConfig};
+#[cfg(feature = "v5")]
+use subxt::dynamic::Value;
+use subxt::SubstrateConfig;
 use tokio::time::sleep;
 
 #[cfg(feature = "v5")]

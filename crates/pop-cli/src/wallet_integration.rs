@@ -58,9 +58,13 @@ pub struct StateHandler {
 	error: Option<String>,
 }
 
+/// Payload submitted by the wallet after signing a transaction.
 #[derive(serde::Deserialize, serde::Serialize, Debug)]
 pub struct SubmitRequest {
+	/// Signed transaction returned from the wallet.
 	pub signed_payload: Option<String>,
+	/// Address of the deployed contract, included only when the transaction is a contract
+	/// deployment.
 	pub contract_address: Option<String>,
 }
 

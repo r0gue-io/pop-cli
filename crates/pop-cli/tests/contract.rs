@@ -10,7 +10,7 @@ use pop_contracts::{
 	run_contracts_node, set_up_deployment, Contract, UpOpts,
 };
 use serde::{Deserialize, Serialize};
-use std::{path::Path, process::Command as Cmd, time::Duration};
+use std::{path::Path, println, process::Command as Cmd, time::Duration};
 use strum::VariantArray;
 use subxt::{config::DefaultExtrinsicParamsBuilder as Params, tx::Payload, utils::to_hex};
 use subxt_signer::sr25519::dev;
@@ -46,6 +46,17 @@ impl TransactionData {
 	pub fn call_data(&self) -> Vec<u8> {
 		self.call_data.clone()
 	}
+}
+
+// SubmitRequest has been copied from wallet_integration.rs
+/// Payload submitted by the wallet after signing a transaction.
+#[derive(serde::Deserialize, serde::Serialize, Debug)]
+pub struct SubmitRequest {
+	/// Signed transaction returned from the wallet.
+	pub signed_payload: Option<String>,
+	/// Address of the deployed contract, included only when the transaction is a contract
+	/// deployment.
+	pub contract_address: Option<String>,
 }
 
 /// Test the contract lifecycle: new, build, up, call
@@ -217,10 +228,12 @@ async fn contract_lifecycle() -> Result<()> {
 	let ext_params = Params::new().build();
 	let signed = client.tx().create_signed(&payload, &signer, ext_params).await?;
 
+	let submit_request =
+		SubmitRequest { signed_payload: Some(to_hex(signed.encoded())), contract_address: None };
 	// Submit signed payload. This kills the wallet integration server.
 	let _ = reqwest::Client::new()
 		.post(&format!("{}/submit", WALLET_INT_URI))
-		.json(&to_hex(signed.encoded()))
+		.json(&submit_request)
 		.send()
 		.await
 		.expect("Failed to submit payload")

@@ -159,6 +159,8 @@ jobs:
           git-user: ${{ env.GITHUB_ACTOR }}
 
       - name: Run unit tests with polkavm-contracts for ${{ matrix.crate }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run:  cargo test --lib --bins --no-default-features --features "polkavm-contracts, v6"
 
   coverage:
