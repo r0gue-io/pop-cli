@@ -124,14 +124,18 @@ mod tests {
 	use super::*;
 	use crate::cli::MockCli;
 	use duct::cmd;
-	use pop_contracts::{mock_build_process, new_environment};
-	use std::env;
+	#[cfg(feature = "contract")]
+	use {
+		pop_contracts::{mock_build_process, new_environment},
+		std::env,
+	};
 
 	fn create_test_args(project_path: PathBuf) -> anyhow::Result<TestArgs> {
 		Ok(TestArgs { path: Some(project_path), ..Default::default() })
 	}
 
 	#[tokio::test]
+	#[cfg(feature = "contract")]
 	async fn detects_contract_correctly() -> anyhow::Result<()> {
 		let temp_dir = new_environment("testing")?;
 		let mut current_dir = env::current_dir().expect("Failed to get current directory");
@@ -158,12 +162,22 @@ mod tests {
 		let args = create_test_args(project_path)?;
 
 		cmd("cargo", ["new", name, "--bin"]).dir(&path).run()?;
+		#[allow(unused_mut)]
 		let mut cli = MockCli::new();
-		assert_eq!(Command::test(args, &mut cli).await?, (Unknown, Unit));
+		assert_eq!(
+			Command::test(
+				args,
+				#[cfg(feature = "contract")]
+				&mut cli
+			)
+			.await?,
+			(Unknown, Unit)
+		);
 		cli.verify()
 	}
 
 	#[test]
+	#[allow(deprecated)]
 	fn command_display_works() {
 		#[cfg(feature = "parachain")]
 		assert_eq!(Command::OnRuntimeUpgrade(Default::default()).to_string(), "on runtime upgrade");

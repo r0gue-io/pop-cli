@@ -110,6 +110,8 @@ jobs:
   unit-tests:
     needs: lint
     runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: "-Dwarnings"
     steps:
       - uses: actions/checkout@v4
 
@@ -117,8 +119,22 @@ jobs:
         with:
           git-user: ${{ env.GITHUB_ACTOR }}
 
+      - name: Run unit tests (no default features)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: cargo test --lib --bins --no-default-features
+
+      - name: Run unit tests (all features)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: cargo test --lib --bins --all-features
+
       - name: Run unit tests
-        run: cargo test --lib --bins
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cargo test --lib --bins --no-default-features --features contract
+          cargo test --lib --bins --no-default-features --features parachain
 
   coverage:
     needs: lint
@@ -189,6 +205,8 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Run integration tests
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: cargo test --no-default-features --features contract --test contract
 
   parachain-integration-tests:
@@ -226,4 +244,6 @@ jobs:
           protoc --version
 
       - name: Run integration tests
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: cargo test --no-default-features --features parachain --test parachain

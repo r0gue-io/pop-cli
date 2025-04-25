@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
+#![cfg(feature = "contract")]
+
 use anyhow::Result;
 use assert_cmd::Command;
 use pop_common::{find_free_port, set_executable_permission, templates::Template};

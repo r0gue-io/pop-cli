@@ -45,7 +45,9 @@ mod tests {
 
 	#[test]
 	fn command_display_works() {
+		#[cfg(feature = "parachain")]
 		assert_eq!(Command::Chain(Default::default()).to_string(), "chain");
+		#[cfg(feature = "contract")]
 		assert_eq!(Command::Contract(Default::default()).to_string(), "contract");
 	}
 }
