@@ -139,7 +139,7 @@ impl FromStr for InputPallet {
 
 		// Not interested in using the Version type at all, just need to know if this &str can be
 		// parsed as Version
-		let _ = parts[1]
+		parts[1]
 			.parse::<Version>()
 			.map_err(|e| format!("Invalid version '{}': {}", parts[1], e))?;
 
