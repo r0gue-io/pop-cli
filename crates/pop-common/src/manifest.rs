@@ -195,7 +195,7 @@ pub fn add_pallet_features_to_manifest<P: AsRef<Path>>(
 			})?;
 
 			if feature_item.is_array() {
-				let array = feature_item.as_array_mut().unwrap();
+				let array = feature_item.as_array_mut()?;
 				if !array.iter().any(|v| v.as_str() == Some(&dep_feature)) {
 					array.push(dep_feature);
 				}
