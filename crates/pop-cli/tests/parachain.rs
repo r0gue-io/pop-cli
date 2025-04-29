@@ -9,7 +9,7 @@ use std::{fs, path::Path, process::Command as Cmd};
 use strum::VariantArray;
 use tokio::time::{sleep, Duration};
 
-/// Test the parachain lifecycle: new, add,build, up, call.
+/// Test the parachain lifecycle: new, add pallet ,build, up, call.
 #[tokio::test]
 async fn parachain_lifecycle() -> Result<()> {
 	let temp = tempfile::tempdir().unwrap();
