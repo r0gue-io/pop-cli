@@ -21,6 +21,7 @@ pub mod runtime;
 pub mod try_runtime;
 #[cfg(feature = "wallet-integration")]
 pub mod wallet;
+#[cfg(feature = "parachain")]
 pub(crate) mod writer;
 
 use std::fmt::{Display, Formatter, Result};
