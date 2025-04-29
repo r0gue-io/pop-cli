@@ -174,7 +174,6 @@ impl TypedValueParser for InputPalletParser {
 
 #[cfg(test)]
 mod tests {
-
 	use super::*;
 
 	#[test]
