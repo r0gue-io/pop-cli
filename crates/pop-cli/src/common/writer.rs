@@ -28,6 +28,14 @@ pub(crate) enum RuntimeUsedMacro {
 	ConstructRuntime,
 }
 
+#[derive(Debug, Clone)]
+pub(crate) struct PalletConfigRelatedPaths {
+	pub(crate) runtime_lib_path: PathBuf,
+	pub(crate) configs_rs_path: PathBuf,
+	pub(crate) configs_folder_path: PathBuf,
+	pub(crate) configs_mod_path: PathBuf,
+}
+
 // Not more than 256 pallets are included in a runtime
 pub(crate) type PalletIndex = u8;
 
@@ -110,28 +118,34 @@ pub(crate) fn find_used_runtime_macro(ast: &File) -> anyhow::Result<RuntimeUsedM
 	Err(anyhow::anyhow!(format!("Unable to find a runtime declaration in runtime file")))
 }
 
-pub(crate) fn compute_pallet_related_paths(
-	runtime_path: &Path,
-) -> (PathBuf, PathBuf, PathBuf, PathBuf) {
+pub(crate) fn compute_pallet_related_paths(runtime_path: &Path) -> PalletConfigRelatedPaths {
 	let runtime_src_path = runtime_path.join("src");
 	let runtime_lib_path = runtime_src_path.join("lib.rs");
 	let configs_rs_path = runtime_src_path.join("configs.rs");
 	let configs_folder_path = runtime_src_path.join("configs");
 	let configs_mod_path = configs_folder_path.join("mod.rs");
-	(runtime_lib_path, configs_rs_path, configs_folder_path, configs_mod_path)
+	PalletConfigRelatedPaths {
+		runtime_lib_path,
+		configs_rs_path,
+		configs_folder_path,
+		configs_mod_path,
+	}
 }
 
 // Creates the structure for the path to the file when the new impl block will be added and add it
 // to an existing rollback.
 pub(crate) fn create_new_pallet_impl_path_structure<'a>(
 	mut rollback: Rollback<'a>,
-	runtime_lib_path: &'a Path,
-	configs_rs_path: &'a Path,
-	configs_folder_path: &'a Path,
-	configs_mod_path: &'a Path,
+	pallet_config_related_paths: &'a PalletConfigRelatedPaths,
 	pallet_config_path: &'a Path,
 	pallet_name: &str,
 ) -> anyhow::Result<Rollback<'a>> {
+	let PalletConfigRelatedPaths {
+		runtime_lib_path,
+		configs_rs_path,
+		configs_folder_path,
+		configs_mod_path,
+	} = pallet_config_related_paths;
 	let pallet_name_ident = Ident::new(pallet_name, Span::call_site());
 
 	let mod_preserver = Preserver::new("mod");
@@ -142,12 +156,12 @@ pub(crate) fn create_new_pallet_impl_path_structure<'a>(
 	match (configs_rs_path.is_file(), configs_mod_path.is_file()) {
 		// The runtime is using a configs module without the mod.rs sintax
 		(true, false) => {
-			if rollback.get_noted_file(&configs_rs_path).is_none() {
-				rollback.note_file(&configs_rs_path)?;
+			if rollback.get_noted_file(configs_rs_path).is_none() {
+				rollback.note_file(configs_rs_path)?;
 			}
 
 			let roll_configs_rs_path = rollback
-				.get_noted_file(&configs_rs_path)
+				.get_noted_file(configs_rs_path)
 				.expect("This file has been noted above; qed;");
 			let mut preserved_ast = rust_writer::preserver::preserve_and_parse(
 				roll_configs_rs_path,
@@ -162,17 +176,17 @@ pub(crate) fn create_new_pallet_impl_path_structure<'a>(
 				rust_writer::preserver::resolve_preserved(&preserved_ast, roll_configs_rs_path)?;
 			}
 
-			rollback.new_file(&pallet_config_path)?;
+			rollback.new_file(pallet_config_path)?;
 			Ok(rollback)
 		},
 		// The runtime is using a configs module with the mod.rs syntax
 		(false, true) => {
-			if rollback.get_noted_file(&configs_mod_path).is_none() {
-				rollback.note_file(&configs_mod_path)?;
+			if rollback.get_noted_file(configs_mod_path).is_none() {
+				rollback.note_file(configs_mod_path)?;
 			}
 
 			let roll_configs_mod_path = rollback
-				.get_noted_file(&configs_mod_path)
+				.get_noted_file(configs_mod_path)
 				.expect("This file has been noted above; qed;");
 			let mut preserved_ast = rust_writer::preserver::preserve_and_parse(
 				roll_configs_mod_path,
@@ -187,7 +201,7 @@ pub(crate) fn create_new_pallet_impl_path_structure<'a>(
 				rust_writer::preserver::resolve_preserved(&preserved_ast, roll_configs_mod_path)?;
 			}
 
-			rollback.new_file(&pallet_config_path)?;
+			rollback.new_file(pallet_config_path)?;
 			Ok(rollback)
 		},
 		// The runtime isn't using a configs module yet, we opt for the configs.rs
@@ -198,12 +212,12 @@ pub(crate) fn create_new_pallet_impl_path_structure<'a>(
 					pub mod configs;
 				),
 			};
-			if rollback.get_noted_file(&runtime_lib_path).is_none() {
-				rollback.note_file(&runtime_lib_path)?;
+			if rollback.get_noted_file(runtime_lib_path).is_none() {
+				rollback.note_file(runtime_lib_path)?;
 			}
 
 			let roll_runtime_lib_path = rollback
-				.get_noted_file(&runtime_lib_path)
+				.get_noted_file(runtime_lib_path)
 				.expect("This file has been noted above; qed;");
 			let mut preserved_ast = rust_writer::preserver::preserve_and_parse(
 				roll_runtime_lib_path,
@@ -218,12 +232,12 @@ pub(crate) fn create_new_pallet_impl_path_structure<'a>(
 				rust_writer::preserver::resolve_preserved(&preserved_ast, roll_runtime_lib_path)?;
 			}
 
-			rollback.new_file(&configs_rs_path)?;
-			rollback.new_dir(&configs_folder_path)?;
-			rollback.new_file(&pallet_config_path)?;
+			rollback.new_file(configs_rs_path)?;
+			rollback.new_dir(configs_folder_path)?;
+			rollback.new_file(pallet_config_path)?;
 
 			let roll_configs_rs_path = rollback
-				.get_new_file(&configs_rs_path)
+				.get_new_file(configs_rs_path)
 				.expect("The new file has been noted above; qed");
 
 			// New file so we can mutate it directly.
@@ -364,13 +378,12 @@ mod tests {
 	#[test]
 	fn compute_pallet_related_paths_works() {
 		let original_path = PathBuf::from("test");
-		let (runtime_lib_path, configs_rs_path, configs_folder_path, configs_mod_path) =
-			compute_pallet_related_paths(&original_path);
+		let paths = compute_pallet_related_paths(&original_path);
 
-		assert_eq!(runtime_lib_path, PathBuf::from("test/src/lib.rs"));
-		assert_eq!(configs_rs_path, PathBuf::from("test/src/configs.rs"));
-		assert_eq!(configs_folder_path, PathBuf::from("test/src/configs"));
-		assert_eq!(configs_mod_path, PathBuf::from("test/src/configs/mod.rs"));
+		assert_eq!(paths.runtime_lib_path, PathBuf::from("test/src/lib.rs"));
+		assert_eq!(paths.configs_rs_path, PathBuf::from("test/src/configs.rs"));
+		assert_eq!(paths.configs_folder_path, PathBuf::from("test/src/configs"));
+		assert_eq!(paths.configs_mod_path, PathBuf::from("test/src/configs/mod.rs"));
 	}
 
 	#[test]
@@ -378,23 +391,19 @@ mod tests {
 		let temp_dir = setup_template_construct_runtime_macro()
 			.expect("Failed to setup template and instantiate");
 
-		let (runtime_lib_path, configs_rs_path, configs_folder_path, configs_mod_path) =
-			compute_pallet_related_paths(&temp_dir.path().join("runtime"));
+		let paths = compute_pallet_related_paths(&temp_dir.path().join("runtime"));
 
-		let pallet_config_path = configs_folder_path.join("test.rs");
+		let pallet_config_path = paths.configs_folder_path.join("test.rs");
 		let pallet_name = "test";
 
 		let mut rollback = Rollback::default();
 
 		assert!(!pallet_config_path.exists());
-		let configs_mod_before = std::fs::read_to_string(&configs_mod_path).unwrap();
+		let configs_mod_before = std::fs::read_to_string(&paths.configs_mod_path).unwrap();
 
 		rollback = create_new_pallet_impl_path_structure(
 			rollback,
-			&runtime_lib_path,
-			&configs_rs_path,
-			&configs_folder_path,
-			&configs_mod_path,
+			&paths,
 			&pallet_config_path,
 			pallet_name,
 		)
@@ -402,7 +411,7 @@ mod tests {
 
 		rollback.commit().expect("Failed to commit changes");
 
-		let configs_mod_after = std::fs::read_to_string(&configs_mod_path).unwrap();
+		let configs_mod_after = std::fs::read_to_string(&paths.configs_mod_path).unwrap();
 
 		let configs_mod_diff = TextDiff::from_lines(&configs_mod_before, &configs_mod_after);
 
@@ -426,28 +435,24 @@ mod tests {
 		let temp_dir = setup_template_construct_runtime_macro()
 			.expect("Failed to setup template and instantiate");
 
-		let (runtime_lib_path, configs_rs_path, configs_folder_path, configs_mod_path) =
-			compute_pallet_related_paths(&temp_dir.path().join("runtime"));
+		let paths = compute_pallet_related_paths(&temp_dir.path().join("runtime"));
 
-		let pallet_config_path = configs_folder_path.join("test.rs");
+		let pallet_config_path = &paths.configs_folder_path.join("test.rs");
 		let pallet_name = "test";
 
 		let mut rollback = Rollback::default();
 
 		// Create a configs.rs file at the runtime level and delete the mod.rs file, to get a
 		// template where the file configs.rs exists and then is used as the configs module root
-		std::fs::remove_file(&configs_mod_path).unwrap();
-		std::fs::File::create(&configs_rs_path).unwrap();
+		std::fs::remove_file(&paths.configs_mod_path).unwrap();
+		std::fs::File::create(&paths.configs_rs_path).unwrap();
 
 		assert!(!pallet_config_path.exists());
-		let configs_rs_before = std::fs::read_to_string(&configs_rs_path).unwrap();
+		let configs_rs_before = std::fs::read_to_string(&paths.configs_rs_path).unwrap();
 
 		rollback = create_new_pallet_impl_path_structure(
 			rollback,
-			&runtime_lib_path,
-			&configs_rs_path,
-			&configs_folder_path,
-			&configs_mod_path,
+			&paths,
 			&pallet_config_path,
 			pallet_name,
 		)
@@ -455,7 +460,7 @@ mod tests {
 
 		rollback.commit().expect("Failed to commit changes");
 
-		let configs_rs_after = std::fs::read_to_string(&configs_rs_path).unwrap();
+		let configs_rs_after = std::fs::read_to_string(&paths.configs_rs_path).unwrap();
 
 		let configs_rs_diff = TextDiff::from_lines(&configs_rs_before, &configs_rs_after);
 
@@ -479,28 +484,24 @@ mod tests {
 		let temp_dir = setup_template_construct_runtime_macro()
 			.expect("Failed to setup template and instantiate");
 
-		let (runtime_lib_path, configs_rs_path, configs_folder_path, configs_mod_path) =
-			compute_pallet_related_paths(&temp_dir.path().join("runtime"));
+		let paths = compute_pallet_related_paths(&temp_dir.path().join("runtime"));
 
-		let pallet_config_path = configs_folder_path.join("test.rs");
+		let pallet_config_path = &paths.configs_folder_path.join("test.rs");
 		let pallet_name = "test";
 
 		let mut rollback = Rollback::default();
 
 		// Remove configs from the template and clean the lib path (the only interesting thing here
 		// is that pub mod configs; is added to that file).
-		std::fs::remove_dir_all(&configs_folder_path).unwrap();
-		std::fs::File::create(&runtime_lib_path).unwrap();
+		std::fs::remove_dir_all(&paths.configs_folder_path).unwrap();
+		std::fs::File::create(&paths.runtime_lib_path).unwrap();
 
 		assert!(!pallet_config_path.exists());
-		let runtime_lib_before = std::fs::read_to_string(&runtime_lib_path).unwrap();
+		let runtime_lib_before = std::fs::read_to_string(&paths.runtime_lib_path).unwrap();
 
 		rollback = create_new_pallet_impl_path_structure(
 			rollback,
-			&runtime_lib_path,
-			&configs_rs_path,
-			&configs_folder_path,
-			&configs_mod_path,
+			&paths,
 			&pallet_config_path,
 			pallet_name,
 		)
@@ -508,7 +509,7 @@ mod tests {
 
 		rollback.commit().expect("Failed to commit changes");
 
-		let runtime_lib_after = std::fs::read_to_string(&runtime_lib_path).unwrap();
+		let runtime_lib_after = std::fs::read_to_string(&paths.runtime_lib_path).unwrap();
 
 		let runtime_lib_diff = TextDiff::from_lines(&runtime_lib_before, &runtime_lib_after);
 
@@ -524,8 +525,8 @@ mod tests {
 		}
 
 		assert!(pallet_config_path.exists());
-		assert!(configs_folder_path.is_dir());
-		assert_eq!(std::fs::read_to_string(&configs_rs_path).unwrap(), "mod test;\n");
+		assert!(&paths.configs_folder_path.is_dir());
+		assert_eq!(std::fs::read_to_string(&paths.configs_rs_path).unwrap(), "mod test;\n");
 		assert_eq!(expected_inserted_lines, inserted_lines);
 	}
 }

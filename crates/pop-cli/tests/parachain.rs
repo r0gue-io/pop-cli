@@ -25,6 +25,8 @@ async fn parachain_lifecycle() -> Result<()> {
 			"new",
 			"parachain",
 			"test_parachain",
+			"--release-tag",
+			"polkadot-stable2412",
 			"--symbol",
 			"POP",
 			"--decimals",
@@ -60,7 +62,7 @@ async fn parachain_lifecycle() -> Result<()> {
 	Command::cargo_bin("pop")
 		.unwrap()
 		.current_dir(&test_parachain)
-		.args(&["add", "pallet", "-p", "contracts=39.0.0"])
+		.args(&["add", "pallet", "-p", "contracts", "-v", "39.0.0"])
 		.assert()
 		.success();
 
@@ -168,12 +170,11 @@ impl pallet_contracts::Config for Runtime {
 
 	assert!(temp_dir.join("test_parachain/target").exists());
 
-	let temp_parachain_dir = temp_dir.join("test_parachain");
 	// pop build spec --output ./target/pop/test-spec.json --id 2222 --type development --relay
 	// paseo-local --protocol-id pop-protocol" --chain local --skip-deterministic-build
 	Command::cargo_bin("pop")
 		.unwrap()
-		.current_dir(&temp_parachain_dir)
+		.current_dir(&test_parachain)
 		.args(&[
 			"build",
 			"spec",
@@ -199,13 +200,13 @@ impl pallet_contracts::Config for Runtime {
 		.success();
 
 	// Assert build files have been generated
-	assert!(temp_parachain_dir.join("target").exists());
-	assert!(temp_parachain_dir.join("target/pop/test-spec.json").exists());
-	assert!(temp_parachain_dir.join("target/pop/test-spec-raw.json").exists());
-	assert!(temp_parachain_dir.join("target/pop/para-2222.wasm").exists());
-	assert!(temp_parachain_dir.join("target/pop/para-2222-genesis-state").exists());
+	assert!(test_parachain.join("target").exists());
+	assert!(test_parachain.join("target/pop/test-spec.json").exists());
+	assert!(test_parachain.join("target/pop/test-spec-raw.json").exists());
+	assert!(test_parachain.join("target/pop/para-2222.wasm").exists());
+	assert!(test_parachain.join("target/pop/para-2222-genesis-state").exists());
 
-	let content = fs::read_to_string(temp_parachain_dir.join("target/pop/test-spec-raw.json"))
+	let content = fs::read_to_string(test_parachain.join("target/pop/test-spec-raw.json"))
 		.expect("Could not read file");
 	// Assert custom values has been set propertly
 	assert!(content.contains("\"para_id\": 2222"));
@@ -216,8 +217,8 @@ impl pallet_contracts::Config for Runtime {
 	assert!(content.contains("\"id\": \"local_testnet\""));
 
 	// Overwrite the config file to manually set the port to test pop call parachain.
-	let network_toml_path = temp_parachain_dir.join("network.toml");
-	fs::create_dir_all(&temp_parachain_dir)?;
+	let network_toml_path = test_parachain.join("network.toml");
+	fs::create_dir_all(&test_parachain)?;
 	let random_port = find_free_port(None);
 	let localhost_url = format!("ws://127.0.0.1:{}", random_port);
 	fs::write(
@@ -248,7 +249,7 @@ name = "collator-01"
 
 	// `pop up network -f ./network.toml --skip-confirm`
 	let mut cmd = Cmd::new(cargo_bin("pop"))
-		.current_dir(&temp_parachain_dir)
+		.current_dir(&test_parachain)
 		.args(&["up", "network", "-f", "./network.toml", "--skip-confirm"])
 		.spawn()
 		.unwrap();

@@ -8086,7 +8086,6 @@ dependencies = [
  "reqwest",
  "rust_writer",
  "rustilities",
- "semver",
  "serde",
  "serde_json",
  "similar",

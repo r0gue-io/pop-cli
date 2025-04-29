@@ -36,7 +36,7 @@ mockito = { version = "1.4.0", default-features = false }
 proc-macro2 = "1.0.86"
 rustilities = "2.2.1"
 rust_writer = "1.0.4"
-semver = "1.0.26"
+similar = "2.7.0"
 syn = "2.0.100"
 tar = { version = "0.4.40", default-features = false }
 tempfile = { version = "3.10", default-features = false }

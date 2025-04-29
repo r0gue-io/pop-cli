@@ -161,17 +161,17 @@ pub fn add_feature(project: &Path, (key, items): (String, Vec<String>)) -> anyho
 pub fn add_pallet_features_to_manifest<P: AsRef<Path>>(
 	manifest_path: P,
 	pallet_crate_name: String,
-) -> anyhow::Result<()> {
+) -> Result<(), Error> {
 	fn do_add_pallet_features_to_manifest(
 		manifest_path: &Path,
 		pallet_crate_name: String,
-	) -> anyhow::Result<()> {
+	) -> Result<(), Error> {
 		let cargo_toml_content = std::fs::read_to_string(manifest_path)?;
 		let mut doc = cargo_toml_content.parse::<DocumentMut>()?;
 
 		if !doc.as_table().contains_key("features") {
-			return Err(anyhow::anyhow!(
-				"The runtime manifest does not contain a [features] section"
+			return Err(Error::Config(
+				"The runtime manifest does not contain a [features] section".to_owned(),
 			));
 		}
 
@@ -183,24 +183,28 @@ pub fn add_pallet_features_to_manifest<P: AsRef<Path>>(
 
 		let features_table =
 			doc.get_mut("features").and_then(|item| item.as_table_mut()).ok_or_else(|| {
-				anyhow::anyhow!("The runtime manifest does not contain a valid [features] table")
+				Error::Config(
+					"The runtime manifest does not contain a valid [features] table".to_owned(),
+				)
 			})?;
 
 		for (feature, dep_feature) in features_to_add {
 			let feature_item = features_table.get_mut(feature).ok_or_else(|| {
-				anyhow::anyhow!(format!(
+				Error::Config(format!(
 					"Feature `{}` does not exist in the runtime manifest",
 					feature
 				))
 			})?;
 
 			if feature_item.is_array() {
-				let array = feature_item.as_array_mut()?;
+				let array = feature_item
+					.as_array_mut()
+					.expect("feature_item is an array, so as_array_mut is always some; qed");
 				if !array.iter().any(|v| v.as_str() == Some(&dep_feature)) {
 					array.push(dep_feature);
 				}
 			} else {
-				return Err(anyhow::anyhow!(format!(
+				return Err(Error::Config(format!(
 					"Feature `{}` is not an array in the runtime manifest",
 					feature
 				)));
