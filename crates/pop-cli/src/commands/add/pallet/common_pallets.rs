@@ -167,7 +167,7 @@ impl TypedValueParser for InputPalletParser {
 	fn possible_values(&self) -> Option<Box<dyn Iterator<Item = PossibleValue> + '_>> {
 		let iter = CommonPallets::value_variants()
 			.iter()
-			.map(|variant| variant.to_possible_value().expect("value should be possible"));
+			.map(|variant| variant.to_possible_value()?);
 		Some(Box::new(iter))
 	}
 }
