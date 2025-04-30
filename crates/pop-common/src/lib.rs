@@ -105,13 +105,13 @@ pub fn find_free_port(preferred_port: Option<u16>) -> u16 {
 		.port()
 }
 
-/// A slice of [T] items which have been sorted.
+/// A slice of `T` items which have been sorted.
 pub struct SortedSlice<'a, T>(&'a mut [T]);
 impl<'a, T> SortedSlice<'a, T> {
 	/// Sorts a slice with a comparison function, preserving the initial order of equal elements.
 	///
 	/// # Arguments
-	/// * `slice`: A mutable slice of [T] items.
+	/// * `slice`: A mutable slice of `T` items.
 	/// * `f`: A comparison function which returns an [Ordering].
 	pub fn by(slice: &'a mut [T], f: impl FnMut(&T, &T) -> Ordering) -> Self {
 		slice.sort_by(f);
@@ -122,7 +122,7 @@ impl<'a, T> SortedSlice<'a, T> {
 	/// elements.
 	///
 	/// # Arguments
-	/// * `slice`: A mutable slice of [T] items.
+	/// * `slice`: A mutable slice of `T` items.
 	/// * `f`: A comparison function which returns a key.
 	pub fn by_key<K: Ord>(slice: &'a mut [T], f: impl FnMut(&T) -> K) -> Self {
 		slice.sort_by_key(f);
