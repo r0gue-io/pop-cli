@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0
 
-pub use pop_common::{
+use pop_common::{
 	git::GitHub,
+	polkadot_sdk::sort_by_latest_semantic_version,
 	sourcing::{
-		traits::{Source as _, *},
+		traits::{
+			enums::{Source as _, *},
+			Source as SourceT,
+		},
 		Binary,
 		GitHub::*,
 		Source,
@@ -15,7 +19,8 @@ use strum::{EnumProperty as _, VariantArray as _};
 use strum_macros::{AsRefStr, EnumProperty, VariantArray};
 
 /// A supported runtime.
-#[derive(AsRefStr, Debug, EnumProperty, PartialEq, VariantArray)]
+#[repr(u8)]
+#[derive(AsRefStr, Clone, Debug, EnumProperty, Eq, Hash, PartialEq, VariantArray)]
 pub enum Runtime {
 	/// Kusama.
 	#[strum(props(
@@ -24,7 +29,7 @@ pub enum Runtime {
 		Chain = "kusama-local",
 		Fallback = "v1.4.1"
 	))]
-	Kusama,
+	Kusama = 0,
 	/// Paseo.
 	#[strum(props(
 		Repository = "https://github.com/r0gue-io/paseo-runtimes",
@@ -32,7 +37,7 @@ pub enum Runtime {
 		Chain = "paseo-local",
 		Fallback = "v1.4.1"
 	))]
-	Paseo,
+	Paseo = 1,
 	/// Polkadot.
 	#[strum(props(
 		Repository = "https://github.com/r0gue-io/polkadot-runtimes",
@@ -40,16 +45,12 @@ pub enum Runtime {
 		Chain = "polkadot-local",
 		Fallback = "v1.4.1"
 	))]
-	Polkadot,
+	Polkadot = 2,
 }
 
-impl TryInto for &Runtime {
-	/// Attempt the conversion.
-	///
-	/// # Arguments
-	/// * `tag` - If applicable, a tag used to determine a specific release.
-	/// * `latest` - If applicable, some specifier used to determine the latest source.
-	fn try_into(&self, tag: Option<String>, latest: Option<String>) -> Result<Source, Error> {
+impl SourceT for Runtime {
+	/// Defines the source of the binary required for generating chain specifications.
+	fn source(&self) -> Result<Source, Error> {
 		// Source from GitHub release asset
 		let repo = GitHub::parse(self.repository())?;
 		let name = self.name().to_lowercase();
@@ -57,16 +58,43 @@ impl TryInto for &Runtime {
 		Ok(Source::GitHub(ReleaseArchive {
 			owner: repo.org,
 			repository: repo.name,
-			tag,
-			tag_format: self.tag_format().map(|t| t.into()),
+			tag: None,
+			tag_pattern: self.tag_pattern().map(|t| t.into()),
+			prerelease: false,
+			version_comparator: sort_by_latest_semantic_version,
+			fallback: self.fallback().into(),
 			archive: format!("{binary}-{}.tar.gz", target()?),
-			contents: vec![(binary, Some(format!("{name}-{binary}")))],
-			latest,
+			contents: vec![(binary, Some(format!("{name}-{binary}")), true)],
+			latest: None,
 		}))
 	}
 }
 
 impl Runtime {
+	/// Converts an underlying discriminator value to a relay chain [Runtime].
+	///
+	/// # Arguments
+	/// * `value` - The discriminator value to be converted.
+	pub fn from(value: u8) -> Option<Self> {
+		match value {
+			0 => Some(Self::Kusama),
+			1 => Some(Self::Paseo),
+			2 => Some(Self::Polkadot),
+			_ => None,
+		}
+	}
+
+	/// Parses a [Runtime] from its chain identifier.
+	///
+	/// # Arguments
+	/// * `chain` - The chain identifier.
+	pub fn from_chain(chain: &str) -> Option<Self> {
+		Runtime::VARIANTS
+			.into_iter()
+			.find(|r| chain.to_lowercase().ends_with(r.chain()))
+			.map(|r| r.clone())
+	}
+
 	/// The chain spec identifier.
 	pub(crate) fn chain(&self) -> &'static str {
 		self.get_str("Chain").expect("expected specification of `Chain`")
@@ -78,26 +106,15 @@ impl Runtime {
 	}
 }
 
-impl pop_common::sourcing::traits::Source for Runtime {}
-
 pub(super) async fn chain_spec_generator(
 	chain: &str,
 	version: Option<&str>,
 	cache: &Path,
 ) -> Result<Option<Binary>, Error> {
-	if let Some(runtime) =
-		Runtime::VARIANTS.iter().find(|r| chain.to_lowercase().ends_with(r.chain()))
-	{
+	if let Some(runtime) = Runtime::from_chain(chain) {
 		let name = format!("{}-{}", runtime.name().to_lowercase(), runtime.binary());
-		let releases = runtime.releases().await?;
-		let tag = Binary::resolve_version(&name, version, &releases, cache);
-		// Only set latest when caller has not explicitly specified a version to use
-		let latest = version.is_none().then(|| releases.first().map(|v| v.to_string())).flatten();
-		let binary = Binary::Source {
-			name: name.to_string(),
-			source: TryInto::try_into(&runtime, tag, latest)?,
-			cache: cache.to_path_buf(),
-		};
+		let source = runtime.source()?.resolve(&name, version, cache).await;
+		let binary = Binary::Source { name, source, cache: cache.to_path_buf() };
 		return Ok(Some(binary));
 	}
 	Ok(None)
@@ -111,7 +128,7 @@ mod tests {
 	#[tokio::test]
 	async fn kusama_works() -> anyhow::Result<()> {
 		let expected = Runtime::Kusama;
-		let version = "v1.3.3";
+		let version = "v1.4.1";
 		let temp_dir = tempdir()?;
 		let binary = chain_spec_generator("kusama-local", Some(version), temp_dir.path())
 			.await?
@@ -122,9 +139,12 @@ mod tests {
 					owner: "r0gue-io".to_string(),
 					repository: "polkadot-runtimes".to_string(),
 					tag: Some(version.to_string()),
-					tag_format: None,
+					tag_pattern: None,
+					prerelease: false,
+					version_comparator: sort_by_latest_semantic_version,
+					fallback: expected.fallback().to_string(),
 					archive: format!("chain-spec-generator-{}.tar.gz", target()?),
-					contents: ["chain-spec-generator"].map(|b| (b, Some(format!("kusama-{b}").to_string()))).to_vec(),
+					contents: ["chain-spec-generator"].map(|b| (b, Some(format!("kusama-{b}").to_string()), true)).to_vec(),
 					latest: binary.latest().map(|l| l.to_string()),
 				}) &&
 				cache == temp_dir.path()
@@ -135,7 +155,7 @@ mod tests {
 	#[tokio::test]
 	async fn paseo_works() -> anyhow::Result<()> {
 		let expected = Runtime::Paseo;
-		let version = "v1.3.4";
+		let version = "v1.4.1";
 		let temp_dir = tempdir()?;
 		let binary = chain_spec_generator("paseo-local", Some(version), temp_dir.path())
 			.await?
@@ -146,9 +166,12 @@ mod tests {
 					owner: "r0gue-io".to_string(),
 					repository: "paseo-runtimes".to_string(),
 					tag: Some(version.to_string()),
-					tag_format: None,
+					tag_pattern: None,
+					prerelease: false,
+					version_comparator: sort_by_latest_semantic_version,
+					fallback: expected.fallback().to_string(),
 					archive: format!("chain-spec-generator-{}.tar.gz", target()?),
-					contents: ["chain-spec-generator"].map(|b| (b, Some(format!("paseo-{b}").to_string()))).to_vec(),
+					contents: ["chain-spec-generator"].map(|b| (b, Some(format!("paseo-{b}").to_string()), true)).to_vec(),
 					latest: binary.latest().map(|l| l.to_string()),
 				}) &&
 				cache == temp_dir.path()
@@ -159,7 +182,7 @@ mod tests {
 	#[tokio::test]
 	async fn polkadot_works() -> anyhow::Result<()> {
 		let expected = Runtime::Polkadot;
-		let version = "v1.3.3";
+		let version = "v1.4.1";
 		let temp_dir = tempdir()?;
 		let binary = chain_spec_generator("polkadot-local", Some(version), temp_dir.path())
 			.await?
@@ -170,9 +193,12 @@ mod tests {
 					owner: "r0gue-io".to_string(),
 					repository: "polkadot-runtimes".to_string(),
 					tag: Some(version.to_string()),
-					tag_format: None,
+					tag_pattern: None,
+					prerelease: false,
+					version_comparator: sort_by_latest_semantic_version,
+					fallback: expected.fallback().to_string(),
 					archive: format!("chain-spec-generator-{}.tar.gz", target()?),
-					contents: ["chain-spec-generator"].map(|b| (b, Some(format!("polkadot-{b}").to_string()))).to_vec(),
+					contents: ["chain-spec-generator"].map(|b| (b, Some(format!("polkadot-{b}").to_string()), true)).to_vec(),
 					latest: binary.latest().map(|l| l.to_string()),
 				}) &&
 				cache == temp_dir.path()

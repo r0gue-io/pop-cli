@@ -601,7 +601,7 @@ mod tests {
 			None,
 			None,
 			None,
-			Some(&vec!["https://github.com/r0gue-io/pop-node#testnet-v0.4.2".to_string()]),
+			Some(&vec!["https://github.com/r0gue-io/pop-node#node-v0.3.0".to_string()]),
 		)
 		.await?;
 		let mut binary_name: String = "".to_string();

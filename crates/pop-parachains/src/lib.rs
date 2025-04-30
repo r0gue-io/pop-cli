@@ -2,6 +2,7 @@
 
 #![doc = include_str!("../README.md")]
 
+mod accounts;
 /// Provides functionality for benchmarking.
 pub mod bench;
 mod build;
@@ -13,8 +14,11 @@ mod errors;
 mod generator;
 mod new_pallet;
 mod new_parachain;
+/// A registry of parachains.
+pub mod registry;
 mod relay;
 mod templates;
+mod traits;
 /// Provides functionality for testing runtime upgrades.
 pub mod try_runtime;
 /// Provides functionality for launching a local network.

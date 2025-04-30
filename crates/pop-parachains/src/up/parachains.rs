@@ -1,181 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use super::{chain_specs::chain_spec_generator, Binary};
-use pop_common::{
-	polkadot_sdk::parse_latest_tag,
-	sourcing::{
-		traits::{Source as _, *},
-		GitHub::ReleaseArchive,
-		Source,
-	},
-	target, Error, GitHub,
-};
+use super::{chain_specs::chain_spec_generator, Binary, Relay};
+use crate::{registry, registry::System, traits::Binary as BinaryT};
+use pop_common::{sourcing::traits::*, Error};
 use std::path::Path;
-use strum::{EnumProperty as _, VariantArray as _};
-use strum_macros::{AsRefStr, EnumDiscriminants, EnumProperty, EnumString, VariantArray};
 
-/// A supported parachain.
-#[derive(AsRefStr, Clone, Debug, EnumDiscriminants, PartialEq)]
-#[strum_discriminants(
-	derive(EnumProperty, EnumString, VariantArray),
-	name(ParachainDiscriminant),
-	vis(pub(crate))
-)]
-pub enum Parachain {
-	/// Parachain containing core Polkadot protocol features.
-	#[strum(serialize = "system")]
-	#[strum_discriminants(strum(props(
-		Repository = "https://github.com/r0gue-io/polkadot",
-		Binary = "polkadot-parachain",
-		TagFormat = "polkadot-{tag}",
-		Fallback = "stable2503",
-		Args = "-lxcm=trace"
-	)))]
-	System {
-		/// The parachain identifier.
-		id: u32,
-		/// The chain name.
-		chain: String,
-		/// The port to be used.
-		port: Option<u16>,
-	},
-	/// Pop Network makes it easy for smart contract developers to use the power of Polkadot.
-	#[strum(serialize = "pop")]
-	#[strum_discriminants(strum(props(
-		Repository = "https://github.com/r0gue-io/pop-node",
-		Binary = "pop-node",
-		Prerelease = "false",
-		Fallback = "testnet-v0.5.1",
-		Id = "4001",
-		Chain = "pop-devnet-dev",
-		Args = "-lpopapi::extension=debug,-lruntime::contracts=debug,-lruntime::revive=trace,-lruntime::revive::strace=trace,-lxcm=trace,--enable-offchain-indexing=true"
-	)))]
-	Pop {
-		/// The parachain identifier.
-		id: u32,
-		/// The chain name.
-		chain: String,
-		/// The port to be used.
-		port: Option<u16>,
-	},
-}
-
-impl Parachain {
-	/// All supported parachains.
-	pub fn supported() -> [Self; 6] {
-		[
-			// System chains
-			Self::System { id: 1_000, chain: "asset-hub".to_string(), port: None },
-			Self::System { id: 1_001, chain: "collectives".to_string(), port: None },
-			Self::System { id: 1_002, chain: "bridge-hub".to_string(), port: None },
-			Self::System { id: 1_004, chain: "people".to_string(), port: None },
-			Self::System { id: 1_005, chain: "coretime".to_string(), port: None },
-			// Others
-			Self::Pop {
-				id: ParachainDiscriminant::Pop
-					.id()
-					.expect("expected `Pop` to have default para id defined"),
-				chain: ParachainDiscriminant::Pop
-					.chain()
-					.expect("expected `Pop` to have default chain defined")
-					.to_string(),
-				port: None,
-			},
-		]
-	}
-
-	/// The parachain identifier.
-	pub(crate) fn id(&self) -> u32 {
-		match self {
-			Self::System { id, .. } | Self::Pop { id, .. } => *id,
-		}
-	}
-
-	/// The chain name.
-	pub fn chain(&self) -> &str {
-		match self {
-			Self::System { chain, .. } | Self::Pop { chain, .. } => chain.as_str(),
-		}
-	}
-
-	/// The name of the parachain.
-	pub fn name(&self) -> &str {
-		match self {
-			Self::System { chain, .. } => chain.as_str(),
-			_ => self.as_ref(),
-		}
-	}
-
-	/// The port to be used.
-	pub fn port(&self) -> Option<&u16> {
-		match self {
-			Self::System { port, .. } | Self::Pop { port, .. } => port.as_ref(),
-		}
-	}
-
-	/// Returns a clone of the current instance with provided values.
-	pub fn with_overrides(&self, id: Option<u32>, port: Option<u16>) -> Self {
-		match self {
-			Self::System { id: current_id, chain, port: current_port } => Self::System {
-				id: id.unwrap_or(*current_id),
-				chain: chain.clone(),
-				port: port.or(*current_port),
-			},
-			Self::Pop { id: default_id, chain, port: current_port } => Self::Pop {
-				id: id.unwrap_or(*default_id),
-				chain: chain.clone(),
-				port: port.or(*current_port),
-			},
-		}
-	}
-}
-
-impl TryInto for ParachainDiscriminant {
-	/// Attempt the conversion.
-	///
-	/// # Arguments
-	/// * `tag` - If applicable, a tag used to determine a specific release.
-	/// * `latest` - If applicable, some specifier used to determine the latest source.
-	fn try_into(&self, tag: Option<String>, latest: Option<String>) -> Result<Source, Error> {
-		Ok(match self {
-			Self::System | Self::Pop => {
-				// Source from GitHub release asset
-				let repo = GitHub::parse(self.repository())?;
-				Source::GitHub(ReleaseArchive {
-					owner: repo.org,
-					repository: repo.name,
-					tag,
-					tag_format: self.tag_format().map(|t| t.into()),
-					archive: format!("{}-{}.tar.gz", self.binary(), target()?),
-					contents: vec![(self.binary(), None)],
-					latest,
-				})
-			},
-		})
-	}
-}
-
-impl pop_common::sourcing::traits::Source for ParachainDiscriminant {}
-
-impl ParachainDiscriminant {
-	/// The arguments to be used when launching a node.
-	pub(super) fn args(&self) -> Option<Vec<&str>> {
-		self.get_str("Args").map(|v| v.split(',').collect())
-	}
-
-	/// The chain name.
-	fn chain(&self) -> Option<&str> {
-		self.get_str("Chain")
-	}
-
-	/// The parachain identifier.
-	fn id(&self) -> Option<u32> {
-		self.get_str("Id")
-			.map(|v| v.parse().expect("expected parachain identifier value to be u32"))
-	}
-}
-
-/// Initialises the configuration required to launch a system parachain.
+/// Initializes the configuration required to launch a system parachain.
 ///
 /// # Arguments
 /// * `id` - The parachain identifier.
@@ -194,24 +24,17 @@ pub(super) async fn system(
 	chain: Option<&str>,
 	cache: &Path,
 ) -> Result<Option<super::Parachain>, Error> {
-	let para = &ParachainDiscriminant::System;
-	let name = para.binary();
+	let para = &System;
+	let name = para.binary().to_string();
 	if command != name {
 		return Ok(None);
 	}
-	let (tag, latest) = match version {
-		Some(version) => (Some(version.to_string()), None),
-		None => {
-			// Default to same version as relay chain when not explicitly specified
-			// Only set latest when caller has not explicitly specified a version to use
-			(
-				Some(relay_chain_version.to_string()),
-				parse_latest_tag(para.releases().await?.iter().map(|s| s.as_str()).collect()),
-			)
-		},
-	};
-	let source = TryInto::try_into(para, tag, latest)?;
-	let binary = Binary::Source { name: name.to_string(), source, cache: cache.to_path_buf() };
+	// Default to the same version as the relay chain when not explicitly specified
+	let source = para
+		.source()?
+		.resolve(&name, version.or(Some(relay_chain_version)), cache)
+		.await;
+	let binary = Binary::Source { name, source, cache: cache.to_path_buf() };
 	let chain_spec_generator = match chain {
 		Some(chain) => chain_spec_generator(chain, runtime_version, cache).await?,
 		None => None,
@@ -224,7 +47,7 @@ pub(super) async fn system(
 	}))
 }
 
-/// Initialises the configuration required to launch a parachain.
+/// Initializes the configuration required to launch a parachain.
 ///
 /// # Arguments
 /// * `id` - The parachain identifier.
@@ -233,22 +56,17 @@ pub(super) async fn system(
 /// * `chain` - The chain specified.
 /// * `cache` - The cache to be used.
 pub(super) async fn from(
+	relay: &Relay,
 	id: u32,
 	command: &str,
 	version: Option<&str>,
 	chain: Option<&str>,
 	cache: &Path,
 ) -> Result<Option<super::Parachain>, Error> {
-	if let Some(para) = ParachainDiscriminant::VARIANTS.iter().find(|p| p.binary() == command) {
-		let releases = para.releases().await?;
-		let tag = Binary::resolve_version(command, version, &releases, cache);
-		// Only set latest when caller has not explicitly specified a version to use
-		let latest = version.is_none().then(|| releases.first().map(|v| v.to_string())).flatten();
-		let binary = Binary::Source {
-			name: para.binary().to_string(),
-			source: TryInto::try_into(para, tag, latest)?,
-			cache: cache.to_path_buf(),
-		};
+	if let Some(para) = registry::parachains(relay).iter().find(|p| p.binary() == command) {
+		let name = para.binary().to_string();
+		let source = para.source()?.resolve(&name, version, cache).await;
+		let binary = Binary::Source { name, source, cache: cache.to_path_buf() };
 		return Ok(Some(super::Parachain {
 			id,
 			binary,
@@ -261,10 +79,15 @@ pub(super) async fn from(
 
 #[cfg(test)]
 mod tests {
-	use super::{super::tests::VERSION, *};
+	use super::*;
+	use crate::up::tests::{FALLBACK, RELAY_BINARY_VERSION, SYSTEM_PARA_BINARY_VERSION};
+	use pop_common::{
+		polkadot_sdk::{sort_by_latest_semantic_version, sort_by_latest_stable_version},
+		sourcing::{GitHub::ReleaseArchive, Source},
+		target,
+	};
 	use std::path::PathBuf;
 	use tempfile::tempdir;
-	use ParachainDiscriminant::*;
 
 	#[tokio::test]
 	async fn system_matches_command() -> anyhow::Result<()> {
@@ -273,7 +96,7 @@ mod tests {
 			"polkadot",
 			None,
 			None,
-			VERSION,
+			RELAY_BINARY_VERSION,
 			Some("asset-hub-paseo-local"),
 			tempdir()?.path()
 		)
@@ -284,23 +107,33 @@ mod tests {
 
 	#[tokio::test]
 	async fn system_using_relay_version() -> anyhow::Result<()> {
-		let expected = System;
+		let expected = &System;
 		let para_id = 1000;
 
 		let temp_dir = tempdir()?;
-		let parachain =
-			system(para_id, expected.binary(), None, None, VERSION, None, temp_dir.path())
-				.await?
-				.unwrap();
+		let parachain = system(
+			para_id,
+			expected.binary(),
+			None,
+			None,
+			RELAY_BINARY_VERSION,
+			None,
+			temp_dir.path(),
+		)
+		.await?
+		.unwrap();
 		assert_eq!(para_id, parachain.id);
 		assert!(matches!(parachain.binary, Binary::Source { name, source, cache }
 			if name == expected.binary() && source == Source::GitHub(ReleaseArchive {
 					owner: "r0gue-io".to_string(),
 					repository: "polkadot".to_string(),
-					tag: Some(VERSION.to_string()),
-					tag_format: Some("polkadot-{tag}".to_string()),
+					tag: Some(format!("polkadot-{RELAY_BINARY_VERSION}")),
+					tag_pattern: Some("polkadot-{version}".into()),
+					prerelease: false,
+					version_comparator: sort_by_latest_stable_version,
+					fallback: FALLBACK.into(),
 					archive: format!("{name}-{}.tar.gz", target()?),
-					contents: vec![(expected.binary(), None)],
+					contents: vec![(expected.binary(), None, true)],
 					latest: parachain.binary.latest().map(|l| l.to_string()),
 				}) && cache == temp_dir.path()
 		));
@@ -309,23 +142,33 @@ mod tests {
 
 	#[tokio::test]
 	async fn system_works() -> anyhow::Result<()> {
-		let expected = System;
+		let expected = &System;
 		let para_id = 1000;
 
 		let temp_dir = tempdir()?;
-		let parachain =
-			system(para_id, expected.binary(), Some(VERSION), None, VERSION, None, temp_dir.path())
-				.await?
-				.unwrap();
+		let parachain = system(
+			para_id,
+			expected.binary(),
+			Some(SYSTEM_PARA_BINARY_VERSION),
+			None,
+			RELAY_BINARY_VERSION,
+			None,
+			temp_dir.path(),
+		)
+		.await?
+		.unwrap();
 		assert_eq!(para_id, parachain.id);
 		assert!(matches!(parachain.binary, Binary::Source { name, source, cache }
 			if name == expected.binary() && source == Source::GitHub(ReleaseArchive {
 					owner: "r0gue-io".to_string(),
 					repository: "polkadot".to_string(),
-					tag: Some(VERSION.to_string()),
-					tag_format: Some("polkadot-{tag}".to_string()),
+					tag: Some(format!("polkadot-{SYSTEM_PARA_BINARY_VERSION}")),
+					tag_pattern: Some("polkadot-{version}".into()),
+					prerelease: false,
+					version_comparator: sort_by_latest_stable_version,
+					fallback: FALLBACK.into(),
 					archive: format!("{name}-{}.tar.gz", target()?),
-					contents: vec![(expected.binary(), None)],
+					contents: vec![(expected.binary(), None, true)],
 					latest: parachain.binary.latest().map(|l| l.to_string()),
 				}) && cache == temp_dir.path()
 		));
@@ -344,7 +187,7 @@ mod tests {
 			expected.binary(),
 			None,
 			Some(runtime_version),
-			"v.13.0",
+			RELAY_BINARY_VERSION,
 			Some("asset-hub-paseo-local"),
 			temp_dir.path(),
 		)
@@ -358,9 +201,12 @@ mod tests {
 					owner: "r0gue-io".to_string(),
 					repository: "paseo-runtimes".to_string(),
 					tag: Some(runtime_version.to_string()),
-					tag_format: None,
+					tag_pattern: None,
+					prerelease: false,
+					version_comparator: sort_by_latest_semantic_version,
+					fallback: "v1.4.1".into(),
 					archive: format!("chain-spec-generator-{}.tar.gz", target()?),
-					contents: [("chain-spec-generator", Some("paseo-chain-spec-generator".to_string()))].to_vec(),
+					contents: [("chain-spec-generator", Some("paseo-chain-spec-generator".to_string()), true)].to_vec(),
 					latest: chain_spec_generator.latest().map(|l| l.to_string()),
 				}) && cache == temp_dir.path()
 		));
@@ -369,23 +215,27 @@ mod tests {
 
 	#[tokio::test]
 	async fn pop_works() -> anyhow::Result<()> {
-		let version = "v1.0";
-		let expected = Pop;
+		let version = "v0.3.0";
+		let expected = "pop-node";
 		let para_id = 2000;
 
 		let temp_dir = tempdir()?;
-		let parachain = from(para_id, expected.binary(), Some(version), None, temp_dir.path())
-			.await?
-			.unwrap();
+		let parachain =
+			from(&Relay::Paseo, para_id, expected, Some(version), None, temp_dir.path())
+				.await?
+				.unwrap();
 		assert_eq!(para_id, parachain.id);
 		assert!(matches!(parachain.binary, Binary::Source { name, source, cache }
-			if name == expected.binary() && source == Source::GitHub(ReleaseArchive {
+			if name == expected && source == Source::GitHub(ReleaseArchive {
 					owner: "r0gue-io".to_string(),
 					repository: "pop-node".to_string(),
-					tag: Some(version.to_string()),
-					tag_format: None,
+					tag: Some(format!("node-{version}")),
+					tag_pattern: Some("node-{version}".into()),
+					prerelease: false,
+					version_comparator: sort_by_latest_semantic_version,
+					fallback: "v0.3.0".into(),
 					archive: format!("{name}-{}.tar.gz", target()?),
-					contents: vec![(expected.binary(), None)],
+					contents: vec![(expected, None, true)],
 					latest: parachain.binary.latest().map(|l| l.to_string()),
 				}) && cache == temp_dir.path()
 		));
@@ -394,7 +244,9 @@ mod tests {
 
 	#[tokio::test]
 	async fn from_handles_unsupported_command() -> anyhow::Result<()> {
-		assert!(from(2000, "none", None, None, &PathBuf::default()).await?.is_none());
+		assert!(from(&Relay::Paseo, 2000, "none", None, None, &PathBuf::default())
+			.await?
+			.is_none());
 		Ok(())
 	}
 }

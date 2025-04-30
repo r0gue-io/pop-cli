@@ -4,7 +4,7 @@ use anyhow::Result;
 use pop_parachains::up::Zombienet;
 use std::path::Path;
 
-const BINARY_VERSION: &str = "v1.13.0";
+const BINARY_VERSION: &str = "stable2412";
 
 #[tokio::test]
 async fn launch_kusama() -> Result<()> {
@@ -138,7 +138,7 @@ async fn launch_paseo_and_two_parachains() -> Result<()> {
 		None,
 		Some(BINARY_VERSION),
 		None,
-		Some(&vec!["https://github.com/r0gue-io/pop-node#testnet-v0.4.2".to_string()]),
+		Some(&vec!["https://github.com/r0gue-io/pop-node#node-v0.3.0".to_string()]),
 	)
 	.await?;
 

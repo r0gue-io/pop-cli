@@ -9,6 +9,8 @@ use crate::{
 };
 use clap::{Args, Subcommand};
 #[cfg(feature = "parachain")]
+use pop_parachains::up::Relay;
+#[cfg(feature = "parachain")]
 use std::fmt::{Display, Formatter, Result};
 use std::path::PathBuf;
 
@@ -18,6 +20,13 @@ mod contract;
 pub(super) mod network;
 #[cfg(feature = "parachain")]
 mod rollup;
+
+#[cfg(feature = "parachain")]
+const KUSAMA: u8 = Relay::Kusama as u8;
+#[cfg(feature = "parachain")]
+const PASEO: u8 = Relay::Paseo as u8;
+#[cfg(feature = "parachain")]
+const POLKADOT: u8 = Relay::Polkadot as u8;
 
 /// Arguments for launching or deploying a project.
 #[derive(Args, Clone)]
@@ -53,13 +62,13 @@ pub(crate) enum Command {
     Network(network::ConfigFileCommand),
     /// Launch a local Paseo network.
     #[clap()]
-    Paseo(network::BuildCommand),
+	Paseo(network::BuildCommand<PASEO>),
     /// Launch a local Kusama network.
     #[clap()]
-    Kusama(network::BuildCommand),
+	Kusama(network::BuildCommand<KUSAMA>),
     /// Launch a local Polkadot network.
     #[clap()]
-    Polkadot(network::BuildCommand),
+    Polkadot(network::BuildCommand<POLKADOT>),
 }
 
 impl Command {

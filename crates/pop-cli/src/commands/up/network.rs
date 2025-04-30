@@ -17,7 +17,8 @@ use pop_common::Status;
 pub(crate) use pop_parachains::up::Relay;
 use pop_parachains::{
 	clear_dmpq,
-	up::{parachains::Parachain, NetworkConfiguration, Zombienet},
+	registry::{self, Para},
+	up::{NetworkConfiguration, Zombienet},
 	Error, IndexSet, NetworkNode, RelayChain,
 };
 use std::{
@@ -118,7 +119,7 @@ impl ConfigFileCommand {
 /// Launch a local network with supported parachains.
 #[derive(Args, Clone)]
 #[cfg_attr(test, derive(Default))]
-pub(crate) struct BuildCommand {
+pub(crate) struct BuildCommand<const FILTER: u8> {
 	/// The version of the binary to be used for the relay chain, as per the release tag (e.g.
 	/// "stable2503"). See <https://github.com/paritytech/polkadot-sdk/releases> for more details.
 	#[arg(short, long)]
@@ -138,8 +139,8 @@ pub(crate) struct BuildCommand {
 	system_parachain_runtime: Option<String>,
 	/// The parachain(s) to be included. An optional parachain identifier and/or port can be
 	/// affixed via #id and :port specifiers (e.g. `asset-hub#1000:9944`).
-	#[arg(short, long, value_delimiter = ',', value_parser = SupportedParachains::new())]
-	parachain: Option<Vec<Parachain>>,
+	#[arg(short, long, value_delimiter = ',', value_parser = SupportedParachains::<FILTER>::new())]
+	parachain: Option<Vec<Box<dyn Para>>>,
 	/// The port to be used for the first relay chain validator.
 	#[clap(short = 'P', long)]
 	port: Option<u16>,
@@ -149,12 +150,12 @@ pub(crate) struct BuildCommand {
 	/// Whether the output should be verbose.
 	#[arg(short, long, action)]
 	verbose: bool,
-	/// Automatically source all needed binaries required without prompting for confirmation.
+	/// Automatically source all necessary binaries required without prompting for confirmation.
 	#[clap(short = 'y', long)]
 	skip_confirm: bool,
 }
 
-impl BuildCommand {
+impl<const FILTER: u8> BuildCommand<FILTER> {
 	/// Executes the command.
 	pub(crate) async fn execute(self, relay: Relay) -> anyhow::Result<()> {
 		clear_screen()?;
@@ -184,18 +185,21 @@ impl BuildCommand {
 }
 
 #[derive(Clone)]
-struct SupportedParachains(PossibleValuesParser);
+struct SupportedParachains<const FILTER: u8>(PossibleValuesParser);
 
-impl SupportedParachains {
+impl<const FILTER: u8> SupportedParachains<FILTER> {
 	fn new() -> Self {
+		let relay = Relay::from(FILTER).expect("expected valid relay variant index as filter");
 		Self(PossibleValuesParser::new(
-			Parachain::supported().map(|p| PossibleValue::new(p.name().to_string())),
+			registry::parachains(&relay)
+				.into_iter()
+				.map(|p| PossibleValue::new(p.name().to_string())),
 		))
 	}
 }
 
-impl TypedValueParser for SupportedParachains {
-	type Value = Parachain;
+impl<const FILTER: u8> TypedValueParser for SupportedParachains<FILTER> {
+	type Value = Box<dyn Para>;
 
 	fn parse_ref(
 		&self,
@@ -203,8 +207,8 @@ impl TypedValueParser for SupportedParachains {
 		arg: Option<&Arg>,
 		value: &OsStr,
 	) -> Result<Self::Value, clap::Error> {
-		// Parse value as string with optional para id specifier
-		let (value, id, port) = match self.0.parse_ref(cmd, arg, value) {
+		// Parse value as chain with optional para id and port specifiers
+		let (chain, id, port) = match self.0.parse_ref(cmd, arg, value) {
 			Ok(value) => (value, None, None),
 			// Check if failure due to para id being specified
 			Err(e) if e.kind() == ErrorKind::InvalidValue => {
@@ -222,10 +226,24 @@ impl TypedValueParser for SupportedParachains {
 		};
 
 		// Attempt to resolve from supported parachains
-		Parachain::supported()
+		let relay = Relay::from(FILTER).expect("expected valid relay variant index as filter");
+		registry::parachains(&relay)
 			.into_iter()
-			.find(|p| p.as_ref() == value.as_str() || p.chain() == value.as_str())
-			.map(|p| p.with_overrides(id, port))
+			.find(|p| {
+				let chain = chain.as_str();
+				p.name() == chain || p.chain() == chain
+			})
+			.map(|p| {
+				let mut para = p.clone();
+				// Override para id and/or port if provided
+				if let Some(id) = id {
+					para.set_id(id);
+				}
+				if let Some(port) = port {
+					para.set_port(port);
+				}
+				para
+			})
 			.ok_or(clap::Error::new(ErrorKind::InvalidValue).with_cmd(cmd))
 	}
 
