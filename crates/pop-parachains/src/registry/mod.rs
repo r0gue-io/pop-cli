@@ -79,6 +79,17 @@ const REGISTRAR: fn(Registry) -> Registry = |mut registry| {
 			Pop::new(3_395, "pop-local").into(),
 		],
 	);
+	registry.insert(
+		Westend,
+		vec![
+			// System chains
+			AssetHub::new(1_000, Westend).into(),
+			BridgeHub::new(1_002, Westend).into(),
+			Collectives::new(1_001, Westend).into(),
+			Coretime::new(1_004, Westend).into(),
+			People::new(1_005, Westend).into(),
+		],
+	);
 	registry
 };
 
