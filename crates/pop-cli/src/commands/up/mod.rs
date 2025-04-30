@@ -27,6 +27,8 @@ const KUSAMA: u8 = Relay::Kusama as u8;
 const PASEO: u8 = Relay::Paseo as u8;
 #[cfg(feature = "parachain")]
 const POLKADOT: u8 = Relay::Polkadot as u8;
+#[cfg(feature = "parachain")]
+const WESTEND: u8 = Relay::Westend as u8;
 
 /// Arguments for launching or deploying a project.
 #[derive(Args, Clone)]
@@ -69,6 +71,10 @@ pub(crate) enum Command {
     /// Launch a local Polkadot network.
     #[clap()]
     Polkadot(network::BuildCommand<POLKADOT>),
+    /// Launch a local Westend network.
+    #[cfg(feature = "parachain")]
+    #[clap()]
+    Westend(network::BuildCommand<WESTEND>),
 }
 
 impl Command {
@@ -113,6 +119,7 @@ impl Display for Command {
             Command::Paseo(_) => write!(f, "paseo"),
             Command::Kusama(_) => write!(f, "kusama"),
             Command::Polkadot(_) => write!(f, "polkadot"),
+            Command::Westend(_) => write!(f, "westend"),
 		}
 	}
 }

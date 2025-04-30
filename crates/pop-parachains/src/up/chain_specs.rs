@@ -46,6 +46,9 @@ pub enum Runtime {
 		Fallback = "v1.4.1"
 	))]
 	Polkadot = 2,
+	/// Westend.
+	#[strum(props(Repository = "https://github.com/r0gue-io/polkadot", Chain = "westend-local",))]
+	Westend = 3,
 }
 
 impl SourceT for Runtime {
@@ -80,6 +83,7 @@ impl Runtime {
 			0 => Some(Self::Kusama),
 			1 => Some(Self::Paseo),
 			2 => Some(Self::Polkadot),
+			3 => Some(Self::Westend),
 			_ => None,
 		}
 	}
@@ -112,6 +116,10 @@ pub(super) async fn chain_spec_generator(
 	cache: &Path,
 ) -> Result<Option<Binary>, Error> {
 	if let Some(runtime) = Runtime::from_chain(chain) {
+		if runtime == Runtime::Westend {
+			// Westend runtimes included with binary.
+			return Ok(None);
+		}
 		let name = format!("{}-{}", runtime.name().to_lowercase(), runtime.binary());
 		let source = runtime.source()?.resolve(&name, version, cache).await;
 		let binary = Binary::Source { name, source, cache: cache.to_path_buf() };
