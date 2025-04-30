@@ -187,6 +187,8 @@ impl Command {
 						up::Command::Kusama(cmd) => cmd.execute(Kusama).await.map(|_| Up(Network)),
 						#[cfg(feature = "parachain")]
 						up::Command::Polkadot(cmd) => cmd.execute(Polkadot).await.map(|_| Up(Network)),
+                        #[cfg(feature = "parachain")]
+                        up::Command::Westend(cmd) => cmd.execute(Westend).await.map(|_| Up(Network)),
 					},
 				}
 			},
