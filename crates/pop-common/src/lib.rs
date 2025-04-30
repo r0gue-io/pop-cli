@@ -2,8 +2,6 @@
 
 #![doc = include_str!("../README.md")]
 
-use std::net::TcpListener;
-
 pub use account_id::{parse_account, parse_h160_account};
 pub use build::Profile;
 pub use errors::Error;
@@ -16,6 +14,11 @@ pub use manifest::{add_crate_to_workspace, find_workspace_toml};
 pub use metadata::format_type;
 pub use signer::create_signer;
 pub use sourcing::set_executable_permission;
+use std::{
+	cmp::Ordering,
+	net::TcpListener,
+	ops::{Deref, DerefMut},
+};
 pub use subxt::{Config, PolkadotConfig as DefaultConfig};
 pub use subxt_signer::sr25519::Keypair;
 pub use templates::extractor::extract_template_files;
@@ -100,6 +103,45 @@ pub fn find_free_port(preferred_port: Option<u16>) -> u16 {
 		.local_addr()
 		.expect("Failed to retrieve local address. This should never occur.")
 		.port()
+}
+
+/// A slice of [T] items which have been sorted.
+pub struct SortedSlice<'a, T>(&'a mut [T]);
+impl<'a, T> SortedSlice<'a, T> {
+	/// Sorts a slice with a comparison function, preserving the initial order of equal elements.
+	///
+	/// # Arguments
+	/// * `slice`: A mutable slice of [T] items.
+	/// * `f`: A comparison function which returns an [Ordering].
+	pub fn by(slice: &'a mut [T], f: impl FnMut(&T, &T) -> Ordering) -> Self {
+		slice.sort_by(f);
+		Self(slice)
+	}
+
+	/// Sorts a slice with a key extraction function, preserving the initial order of equal
+	/// elements.
+	///
+	/// # Arguments
+	/// * `slice`: A mutable slice of [T] items.
+	/// * `f`: A comparison function which returns a key.
+	pub fn by_key<K: Ord>(slice: &'a mut [T], f: impl FnMut(&T) -> K) -> Self {
+		slice.sort_by_key(f);
+		Self(slice)
+	}
+}
+
+impl<'a, T> Deref for SortedSlice<'a, T> {
+	type Target = [T];
+
+	fn deref(&self) -> &Self::Target {
+		&self.0[..]
+	}
+}
+
+impl<'a, T> DerefMut for SortedSlice<'a, T> {
+	fn deref_mut(&mut self) -> &mut Self::Target {
+		&mut self.0[..]
+	}
 }
 
 /// Provides functionality for making calls to parachains or smart contracts.
