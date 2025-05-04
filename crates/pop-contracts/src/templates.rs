@@ -4,7 +4,7 @@
 pub use pop_common::templates::{Template, Type};
 use strum_macros::{AsRefStr, Display, EnumMessage, EnumProperty, EnumString, VariantArray};
 
-// Temporal branch name for v6 contract templates.
+// Temporary branch name for v6 contract templates.
 pub(crate) const V6_CONTRACTS_BRANCH: &str = "v6.x";
 
 /// Supported contract template providers.

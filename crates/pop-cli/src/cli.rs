@@ -27,6 +27,7 @@ pub(crate) mod traits {
 		/// Prints a footer of the prompt sequence with a failure style.
 		fn outro_cancel(&mut self, message: impl Display) -> Result<()>;
 		/// Constructs a new [`Password`] prompt.
+		#[allow(dead_code)]
 		fn password(&mut self, prompt: impl Display) -> impl Password;
 		/// Constructs a new [`Select`] prompt.
 		fn select<T: Clone + Eq>(&mut self, prompt: impl Display) -> impl Select<T>;
