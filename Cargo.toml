@@ -87,7 +87,7 @@ sp-statement-store = "15.0.0"
 
 # try-runtime
 frame-try-runtime = "0.45.0"
-sc-cli = { version = "0.51.0", default-features = false }
+sc-cli = { version = "0.50.1", default-features = false }
 sp-version = { version = "38.0.0", default-features = false }
 
 # pop-cli
