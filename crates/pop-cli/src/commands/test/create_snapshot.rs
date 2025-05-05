@@ -163,7 +163,7 @@ mod tests {
 			)
 			.expect_input(
 				"Enter the URI of the remote node:",
-				DEFAULT_REMOTE_NODE_URL.to_string()
+				"wss://paseo-rpc.dwellir.com".to_string()
 			).expect_input(
 			    format!(
          			"Enter the path to write the snapshot to (optional):\n{}",
