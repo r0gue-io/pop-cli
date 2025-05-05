@@ -272,8 +272,6 @@ pub fn get_call_payload(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	#[cfg(feature = "v6")]
-	use crate::AccountMapper;
 	use crate::{
 		contracts_node_generator, dry_run_gas_estimate_instantiate, errors::Error,
 		instantiate_smart_contract, mock_build_process, new_environment, run_contracts_node,

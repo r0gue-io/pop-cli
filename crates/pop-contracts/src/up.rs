@@ -567,8 +567,6 @@ pub fn get_code_hash_from_event<C: Config>(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	#[cfg(feature = "v6")]
-	use crate::AccountMapper;
 	use crate::{
 		contracts_node_generator, errors::Error, mock_build_process, new_environment,
 		run_contracts_node,
