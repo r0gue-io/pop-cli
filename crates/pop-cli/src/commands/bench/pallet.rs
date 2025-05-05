@@ -1443,10 +1443,7 @@ mod tests {
 		let mut cli = MockCli::new();
 		cli = expect_pallet_benchmarking_intro(cli);
 		cli = cli.expect_outro_cancel(
-	        "Failed to run benchmarking: Invalid input: Could not call runtime API to Did not find the benchmarking metadata. \
-	        This could mean that you either did not build the node correctly with the `--features runtime-benchmarks` flag, \
-			or the chain spec that you are using was not created by a node that was compiled with the flag: \
-			Other: Exported method Benchmark_benchmark_metadata is not found"
+	        "Failed to run benchmarking: Invalid input: Did not find the benchmarking runtime api. This could mean that you either did not build the node correctly with the `--features runtime-benchmarks` flag, or the chain spec that you are using was not created by a node that was compiled with the flag"
 		);
 
 		BenchmarkPallet {
