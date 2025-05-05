@@ -137,21 +137,7 @@ jobs:
         run: |
           cargo test --lib --bins --no-default-features --features contract
           cargo test --lib --bins --no-default-features --features parachain
-
-  polkavm-unit-tests:
-    needs: lint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: "./.github/actions/init"
-        with:
-          git-user: ${{ env.GITHUB_ACTOR }}
-
-      - name: Run unit tests with polkavm-contracts for ${{ matrix.crate }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run:  cargo test --lib --bins --no-default-features --features "polkavm-contracts, v6"
+          cargo test --lib --bins --no-default-features --features "polkavm-contracts, v6"
 
   coverage:
     needs: lint

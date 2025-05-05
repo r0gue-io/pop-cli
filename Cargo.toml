@@ -79,15 +79,15 @@ zombienet-sdk = { version = "0.2.26", default-features = false }
 git2_credentials = "0.13.0"
 
 # benchmarking
-cumulus-primitives-proof-size-hostfunction = "0.10.0"
-frame-benchmarking-cli = { version = "46.0.0", default-features = false }
-sc-chain-spec = { version = "41.0.0", default-features = false }
-sp-runtime = { version = "40.0.1", default-features = false }
-sp-statement-store = "15.0.0"
+cumulus-primitives-proof-size-hostfunction = "0.12.0"
+frame-benchmarking-cli = { version = "47.0.0", default-features = false }
+sc-chain-spec = { version = "42.0.0", default-features = false }
+sp-runtime = { version = "41.1.0", default-features = false }
+sp-statement-store = "20.1.0"
 
 # try-runtime
 frame-try-runtime = "0.45.0"
-sc-cli = { version = "0.50.1", default-features = false }
+sc-cli = { version = "0.51.0", default-features = false }
 sp-version = { version = "38.0.0", default-features = false }
 
 # pop-cli
