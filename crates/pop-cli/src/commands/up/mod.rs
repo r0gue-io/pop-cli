@@ -8,9 +8,9 @@ use crate::{
 	},
 };
 use clap::{Args, Subcommand};
-use std::path::PathBuf;
 #[cfg(feature = "parachain")]
 use std::fmt::{Display, Formatter, Result};
+use std::path::PathBuf;
 
 #[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 mod contract;
