@@ -90,20 +90,12 @@ pub struct UpContractCommand {
 	/// confirmation.
 	#[clap(short = 'y', long)]
 	pub(crate) skip_confirm: bool,
-	// Deprecation flag, used to specify whether the deprecation warning is shown (will be removed
-	// in v0.8.0).
-	#[clap(skip)]
-	pub(crate) valid: bool,
 }
 
 impl UpContractCommand {
 	/// Executes the command.
 	pub(crate) async fn execute(mut self) -> anyhow::Result<()> {
 		Cli.intro("Deploy a smart contract")?;
-		// Show warning if specified as deprecated.
-		if !self.valid {
-			Cli.warning("DEPRECATION: Please use `pop up` (or simply `pop u`) in the future...")?;
-		}
 		// Check if build exists in the specified "Contract build directory"
 		if !has_contract_been_built(self.path.as_deref()) {
 			// Build the contract in release mode
@@ -493,7 +485,6 @@ impl Default for UpContractCommand {
 			dry_run: false,
 			upload_only: false,
 			skip_confirm: false,
-			valid: true,
 		}
 	}
 }
@@ -594,7 +585,6 @@ mod tests {
 			upload_only: true,
 			skip_confirm: true,
 			use_wallet: true,
-			valid: true,
 		};
 
 		let rpc_client = subxt::backend::rpc::RpcClient::from_url(&up_contract_opts.url).await?;
@@ -652,7 +642,6 @@ mod tests {
 			upload_only: false,
 			skip_confirm: true,
 			use_wallet: true,
-			valid: true,
 		};
 
 		// Retrieve call data based on the above command options.

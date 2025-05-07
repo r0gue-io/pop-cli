@@ -175,22 +175,7 @@ impl Command {
 					None => up::Command::execute(args).await.map(Up),
 					Some(cmd) => match cmd {
 						#[cfg(feature = "parachain")]
-						up::Command::Network(mut cmd) => {
-							cmd.valid = true;
-							cmd.execute().await.map(|_| Up(crate::common::Project::Network))
-						},
-						// TODO: Deprecated, will be removed in v0.8.0.
-						#[cfg(feature = "parachain")]
-						#[allow(deprecated)]
-						up::Command::Parachain(cmd) => cmd.execute().await.map(|_| Null),
-						// TODO: Deprecated, will be removed in v0.8.0.
-						#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
-						#[allow(deprecated)]
-						up::Command::Contract(mut cmd) => {
-							cmd.path =
-								crate::common::builds::get_project_path(args.path, args.path_pos);
-							cmd.execute().await.map(|_| Null)
-						},
+						up::Command::Network(cmd) => cmd.execute().await.map(|_| Up(crate::common::Project::Network)),
 					},
 				}
 			},
@@ -207,13 +192,6 @@ impl Command {
 						.await
 						.map(|(project, feature)| Test { project, feature }),
 					Some(cmd) => match cmd {
-						// TODO: Deprecated, will be removed in v0.8.0.
-						#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
-						#[allow(deprecated)]
-						test::Command::Contract(cmd) => cmd.execute(&mut Cli).await.map(|feature| Test {
-							project: crate::common::Project::Contract,
-							feature,
-						}),
 						#[cfg(feature = "parachain")]
 						test::Command::OnRuntimeUpgrade(cmd) => cmd.execute(&mut Cli).await.map(|_| Null),
 						#[cfg(feature = "parachain")]

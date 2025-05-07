@@ -58,12 +58,6 @@ pub(crate) enum Command {
 	/// Create a chain state snapshot.
 	#[cfg(feature = "parachain")]
 	CreateSnapshot(create_snapshot::TestCreateSnapshotCommand),
-	/// [DEPRECATED] Test a smart contract (will be removed in v0.8.0).
-	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
-	#[clap(alias = "c")]
-	#[deprecated(since = "0.7.0", note = "will be removed in v0.8.0")]
-	#[allow(rustdoc::broken_intra_doc_links)]
-	Contract(contract::TestContractCommand),
 }
 
 impl Command {
@@ -113,9 +107,6 @@ impl Display for Command {
 			Command::FastForward(_) => write!(f, "fast forward"),
 			#[cfg(feature = "parachain")]
 			Command::CreateSnapshot(_) => write!(f, "create snapshot"),
-			#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
-			#[allow(deprecated)]
-			Command::Contract(_) => write!(f, "contract"),
 		}
 	}
 }
@@ -188,7 +179,5 @@ mod tests {
 		assert_eq!(Command::FastForward(Default::default()).to_string(), "fast forward");
 		#[cfg(feature = "parachain")]
 		assert_eq!(Command::CreateSnapshot(Default::default()).to_string(), "create snapshot");
-		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
-		assert_eq!(Command::Contract(Default::default()).to_string(), "contract");
 	}
 }
