@@ -790,7 +790,7 @@ mod tests {
 				None
 			)
 			.expect_info(format!(
-			    "pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message get --url {CONTRACTS_NETWORK_URL}/ --suri //Alice",
+			    "pop call contract --path {} --contract 15XausWjFLBBFLDXUSBRfSfZk25warm4wZRV4ZxhZbfvjrJm --message get --url {CONTRACTS_NETWORK_URL} --suri //Alice",
 			    temp_dir.path().join("testing").display().to_string(),
 			))
 			.expect_warning("NOTE: Signing is not required for this read-only call. The '--use-wallet' flag will be ignored.")
