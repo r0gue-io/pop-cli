@@ -2,6 +2,40 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.8.0] - 2025-05-07
+
+### 🚀 Features
+
+- `pop build runtime` and `pop build --deterministic` (#510)
+- Hashing (#517)
+- Revive compatibility with feature flag (#500)
+
+### 🐛 Fixes
+
+- Benchmarking logger (#513)
+- Wrap github rest api access in an apiclient (#530)
+- Separate runtime binary path and runtime path (#531)
+
+### 📚 Documentation
+
+- Improve project documentation (#521)
+
+### 🧪 Testing
+
+- No default features (#522)
+
+### ⚙️ Miscellaneous Tasks
+
+- Source remote binary if version not matches (#516)
+- Update required version of the frame-omni-bencher binary (#527)
+- Update init to use latest rust-cache action (#533)
+- Enable concurrency controls (#532)
+- Bump versions
+
+### Build
+
+- *(deps)* Eliminate unnecessary dependencies (#520)
+
 ## [0.7.0] - 2025-04-02
 
 ### 🚀 Features
