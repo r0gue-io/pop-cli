@@ -9,7 +9,7 @@ use crate::common::{
 };
 use clap::{Args, Subcommand};
 use pop_common::test_project;
-#[cfg(any(feature = "parachain", feature = "polkavm-contracts", feature = "wasm-contracts"))]
+#[cfg(feature = "parachain")]
 use std::fmt::{Display, Formatter, Result};
 use std::path::PathBuf;
 
@@ -95,17 +95,13 @@ impl Command {
 	}
 }
 
-#[cfg(any(feature = "parachain", feature = "polkavm-contracts", feature = "wasm-contracts"))]
+#[cfg(feature = "parachain")]
 impl Display for Command {
 	fn fmt(&self, f: &mut Formatter<'_>) -> Result {
 		match self {
-			#[cfg(feature = "parachain")]
 			Command::OnRuntimeUpgrade(_) => write!(f, "on runtime upgrade"),
-			#[cfg(feature = "parachain")]
 			Command::ExecuteBlock(_) => write!(f, "execute block"),
-			#[cfg(feature = "parachain")]
 			Command::FastForward(_) => write!(f, "fast forward"),
-			#[cfg(feature = "parachain")]
 			Command::CreateSnapshot(_) => write!(f, "create snapshot"),
 		}
 	}

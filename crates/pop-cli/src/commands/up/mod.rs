@@ -8,10 +8,9 @@ use crate::{
 	},
 };
 use clap::{Args, Subcommand};
-use std::{
-	fmt::{Display, Formatter, Result},
-	path::PathBuf,
-};
+use std::path::PathBuf;
+#[cfg(feature = "parachain")]
+use std::fmt::{Display, Formatter, Result};
 
 #[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 mod contract;
@@ -88,10 +87,10 @@ impl Command {
 	}
 }
 
+#[cfg(feature = "parachain")]
 impl Display for Command {
 	fn fmt(&self, f: &mut Formatter<'_>) -> Result {
 		match self {
-			#[cfg(feature = "parachain")]
 			Command::Network(_) => write!(f, "network"),
 		}
 	}

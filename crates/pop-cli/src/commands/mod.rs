@@ -273,27 +273,26 @@ impl Display for Command {
 				feature = "polkavm-contracts",
 				feature = "wasm-contracts"
 			))]
-			Self::Up(args) => match &args.command {
-				Some(cmd) => write!(f, "up {}", cmd),
-				None => write!(f, "up"),
+			#[allow(unused_variables)]
+			Self::Up(args) => {
+				#[cfg(feature = "parachain")]
+				match &args.command {
+					Some(cmd) => write!(f, "up {}", cmd),
+					None => write!(f, "up"),
+				}
+
+				#[cfg(not(feature = "parachain"))]
+				write!(f, "up")
 			},
 			#[allow(unused_variables)]
 			Self::Test(args) => {
-				#[cfg(any(
-					feature = "polkavm-contracts",
-					feature = "wasm-contracts",
-					feature = "parachain"
-				))]
+				#[cfg(feature = "parachain")]
 				match &args.command {
 					Some(cmd) => write!(f, "test {}", cmd),
 					None => write!(f, "test"),
 				}
 
-				#[cfg(not(any(
-					feature = "polkavm-contracts",
-					feature = "wasm-contracts",
-					feature = "parachain"
-				)))]
+				#[cfg(not(feature = "parachain"))]
 				write!(f, "test")
 			},
 			Self::Clean(_) => write!(f, "clean"),
