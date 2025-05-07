@@ -17,3 +17,4 @@ chain = "asset-hub-westend-local"
 
 [[parachains.collators]]
 name = "asset-hub"
+args = ["-lruntime::revive=debug"]
