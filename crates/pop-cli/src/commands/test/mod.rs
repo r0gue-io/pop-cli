@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-#[cfg(feature = "contract")]
+#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 use crate::cli;
 use crate::common::{
 	builds::get_project_path,
@@ -9,11 +9,11 @@ use crate::common::{
 };
 use clap::{Args, Subcommand};
 use pop_common::test_project;
-#[cfg(any(feature = "parachain", feature = "contract"))]
+#[cfg(any(feature = "parachain", feature = "polkavm-contracts", feature = "wasm-contracts"))]
 use std::fmt::{Display, Formatter, Result};
 use std::path::PathBuf;
 
-#[cfg(feature = "contract")]
+#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 pub mod contract;
 #[cfg(feature = "parachain")]
 pub mod create_snapshot;
@@ -28,7 +28,7 @@ pub mod on_runtime_upgrade;
 #[derive(Args, Default)]
 #[command(args_conflicts_with_subcommands = true)]
 pub(crate) struct TestArgs {
-	#[cfg(any(feature = "contract", feature = "parachain"))]
+	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "parachain"))]
 	#[command(subcommand)]
 	pub(crate) command: Option<Command>,
 	/// Directory path for your project [default: current directory]
@@ -38,7 +38,7 @@ pub(crate) struct TestArgs {
 	#[arg(value_name = "PATH", index = 1, conflicts_with = "path")]
 	pub(crate) path_pos: Option<PathBuf>,
 	#[command(flatten)]
-	#[cfg(feature = "contract")]
+	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 	pub(crate) contract: contract::TestContractCommand,
 }
 
@@ -59,7 +59,7 @@ pub(crate) enum Command {
 	#[cfg(feature = "parachain")]
 	CreateSnapshot(create_snapshot::TestCreateSnapshotCommand),
 	/// [DEPRECATED] Test a smart contract (will be removed in v0.8.0).
-	#[cfg(feature = "contract")]
+	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 	#[clap(alias = "c")]
 	#[deprecated(since = "0.7.0", note = "will be removed in v0.8.0")]
 	#[allow(rustdoc::broken_intra_doc_links)]
@@ -70,7 +70,7 @@ impl Command {
 	pub(crate) async fn execute(args: TestArgs) -> anyhow::Result<(Project, TestFeature)> {
 		Self::test(
 			args,
-			#[cfg(feature = "contract")]
+			#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 			&mut cli::Cli,
 		)
 		.await
@@ -78,11 +78,12 @@ impl Command {
 
 	async fn test(
 		args: TestArgs,
-		#[cfg(feature = "contract")] cli: &mut impl cli::traits::Cli,
+		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
+		cli: &mut impl cli::traits::Cli,
 	) -> anyhow::Result<(Project, TestFeature)> {
 		let project_path = get_project_path(args.path.clone(), args.path_pos.clone());
 
-		#[cfg(feature = "contract")]
+		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 		if pop_contracts::is_supported(project_path.as_deref())? {
 			let mut cmd = args.contract;
 			cmd.path = project_path;
@@ -100,7 +101,7 @@ impl Command {
 	}
 }
 
-#[cfg(any(feature = "parachain", feature = "contract"))]
+#[cfg(any(feature = "parachain", feature = "polkavm-contracts", feature = "wasm-contracts"))]
 impl Display for Command {
 	fn fmt(&self, f: &mut Formatter<'_>) -> Result {
 		match self {
@@ -112,7 +113,7 @@ impl Display for Command {
 			Command::FastForward(_) => write!(f, "fast forward"),
 			#[cfg(feature = "parachain")]
 			Command::CreateSnapshot(_) => write!(f, "create snapshot"),
-			#[cfg(feature = "contract")]
+			#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 			#[allow(deprecated)]
 			Command::Contract(_) => write!(f, "contract"),
 		}
@@ -124,7 +125,7 @@ mod tests {
 	use super::*;
 	use crate::cli::MockCli;
 	use duct::cmd;
-	#[cfg(feature = "contract")]
+	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 	use {
 		pop_contracts::{mock_build_process, new_environment},
 		std::env,
@@ -135,7 +136,7 @@ mod tests {
 	}
 
 	#[tokio::test]
-	#[cfg(feature = "contract")]
+	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 	async fn detects_contract_correctly() -> anyhow::Result<()> {
 		let temp_dir = new_environment("testing")?;
 		let mut current_dir = env::current_dir().expect("Failed to get current directory");
@@ -167,7 +168,7 @@ mod tests {
 		assert_eq!(
 			Command::test(
 				args,
-				#[cfg(feature = "contract")]
+				#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 				&mut cli
 			)
 			.await?,
@@ -187,7 +188,7 @@ mod tests {
 		assert_eq!(Command::FastForward(Default::default()).to_string(), "fast forward");
 		#[cfg(feature = "parachain")]
 		assert_eq!(Command::CreateSnapshot(Default::default()).to_string(), "create snapshot");
-		#[cfg(feature = "contract")]
+		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 		assert_eq!(Command::Contract(Default::default()).to_string(), "contract");
 	}
 }

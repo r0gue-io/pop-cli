@@ -14,6 +14,23 @@ pub fn parse_account(account: &str) -> Result<<DefaultConfig as Config>::Account
 		.map_err(|e| Error::AccountAddressParsing(format!("{}", e)))
 }
 
+/// Parses a H160 account from its string representation.
+///
+/// # Arguments
+/// * `account` - A hex-encoded string representation.
+pub fn parse_h160_account(account: &str) -> Result<H160, Error> {
+	let bytes = contract_build::util::decode_hex(account)
+		.map_err(|e| Error::AccountAddressParsing(format!("Invalid hex: {}", e)))?;
+
+	if bytes.len() != 20 {
+		return Err(Error::AccountAddressParsing(format!(
+			"H160 must be 20 bytes in length, got {}",
+			bytes.len()
+		)));
+	}
+	Ok(H160::from_slice(&bytes[..]))
+}
+
 /// Converts a list of accounts into EVM-compatible `AccountId20`.
 ///
 /// # Arguments
@@ -81,6 +98,24 @@ mod tests {
 		assert!(matches!(
 			parse_account("wrongaccount"),
 			Err(super::Error::AccountAddressParsing(..))
+		));
+		Ok(())
+	}
+
+	#[test]
+	fn parse_h160_account_works() -> Result<(), Error> {
+		let addr = "0x48550a4bb374727186c55365b7c9c0a1a31bdafe";
+		let parsed = parse_h160_account(addr)?;
+		assert_eq!(to_hex(parsed), addr.to_lowercase());
+		Ok(())
+	}
+
+	#[test]
+	fn parse_h160_account_fails_on_invalid_hex() -> Result<(), Error> {
+		let invalid_hex = "wrongaccount";
+		assert!(matches!(
+			parse_h160_account(invalid_hex),
+			Err(Error::AccountAddressParsing(msg)) if msg.contains("Invalid hex")
 		));
 		Ok(())
 	}

@@ -2,6 +2,9 @@
 
 #![doc = include_str!("../README.md")]
 
+#[cfg(all(feature = "polkavm-contracts", feature = "wasm-contracts"))]
+compile_error!("only feature \"polkavm-contracts\" OR \"wasm-contracts\" must be enabled");
+
 use anyhow::{anyhow, Result};
 use clap::Parser;
 use commands::*;
@@ -133,7 +136,7 @@ mod tests {
 						command: None,
 						path: None,
 						path_pos: None,
-						#[cfg(feature = "contract")]
+						#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 						contract: Default::default(),
 					})
 				}

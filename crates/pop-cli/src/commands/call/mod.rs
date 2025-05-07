@@ -4,7 +4,7 @@ use clap::{Args, Subcommand};
 use std::fmt::{Display, Formatter, Result};
 #[cfg(feature = "parachain")]
 pub(crate) mod chain;
-#[cfg(feature = "contract")]
+#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 pub(crate) mod contract;
 
 /// Arguments for calling a smart contract.
@@ -23,7 +23,7 @@ pub(crate) enum Command {
 	#[clap(alias = "p", visible_aliases = ["parachain"])]
 	Chain(chain::CallChainCommand),
 	/// Call a contract
-	#[cfg(feature = "contract")]
+	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 	#[clap(alias = "c")]
 	Contract(contract::CallContractCommand),
 }
@@ -33,7 +33,7 @@ impl Display for Command {
 		match self {
 			#[cfg(feature = "parachain")]
 			Command::Chain(_) => write!(f, "chain"),
-			#[cfg(feature = "contract")]
+			#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 			Command::Contract(_) => write!(f, "contract"),
 		}
 	}
@@ -47,7 +47,7 @@ mod tests {
 	fn command_display_works() {
 		#[cfg(feature = "parachain")]
 		assert_eq!(Command::Chain(Default::default()).to_string(), "chain");
-		#[cfg(feature = "contract")]
+		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 		assert_eq!(Command::Contract(Default::default()).to_string(), "contract");
 	}
 }
