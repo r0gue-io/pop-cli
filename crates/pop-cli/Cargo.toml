@@ -32,20 +32,20 @@ toml.workspace = true
 url.workspace = true
 
 # contracts
-pop-contracts = { path = "../pop-contracts", version = "0.7.0", default-features = false, optional = true }
+pop-contracts = { path = "../pop-contracts", version = "0.8.0", default-features = false, optional = true }
 sp-core = { workspace = true, optional = true }
 sp-weights = { workspace = true, optional = true }
 
 # parachains
-pop-parachains = { path = "../pop-parachains", version = "0.7.0", optional = true }
+pop-parachains = { path = "../pop-parachains", version = "0.8.0", optional = true }
 git2 = { workspace = true, optional = true }
 tracing-subscriber = { workspace = true, optional = true }
 
 # telemetry
-pop-telemetry = { path = "../pop-telemetry", version = "0.7.0", optional = true }
+pop-telemetry = { path = "../pop-telemetry", version = "0.8.0", optional = true }
 
 # common
-pop-common = { path = "../pop-common", version = "0.7.0" }
+pop-common = { path = "../pop-common", version = "0.8.0" }
 
 # wallet-integration
 axum = { workspace = true, optional = true }
