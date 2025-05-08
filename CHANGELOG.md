@@ -28,11 +28,16 @@ All notable changes to this project will be documented in this file.
 
 - Source remote binary if version does not match (#516)
 - Update required version of the frame-omni-bencher binary (#527)
-- Bump versions
 
 ### Build
 
 - *(deps)* Eliminate unnecessary dependencies (#520)
+
+### Removed
+
+- Removed deprecated `pop test contract`, functionality is now covered by `pop test`.
+- Removed deprecated `pop up contract`, functionality is now covered by `pop up`.
+- Removed deprecated `pop test parachain`, functionality is now covered by `pop up`.
 
 ## [0.7.0] - 2025-04-02
 
