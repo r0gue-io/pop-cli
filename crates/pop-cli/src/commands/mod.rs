@@ -305,7 +305,7 @@ impl Display for Command {
 }
 
 #[cfg(test)]
-#[cfg(all(feature = "parachain", feature = "polkavm-contracts", feature = "wasm-contracts"))]
+#[cfg(all(feature = "parachain", feature = "wasm-contracts"))]
 mod tests {
 	use super::*;
 
@@ -319,14 +319,6 @@ mod tests {
 			(Command::Clean(Default::default()), "clean"),
 			// Test.
 			(Command::Test(test::TestArgs::default()), "test"),
-			(
-				Command::Test(test::TestArgs {
-					#[allow(deprecated)]
-					command: Some(test::Command::Contract(Default::default())),
-					..Default::default()
-				}),
-				"test contract",
-			),
 			(
 				Command::Test(test::TestArgs {
 					command: Some(test::Command::OnRuntimeUpgrade(Default::default())),
@@ -372,22 +364,6 @@ mod tests {
 					..Default::default()
 				}),
 				"up network",
-			),
-			(
-				Command::Up(up::UpArgs {
-					#[allow(deprecated)]
-					command: Some(up::Command::Parachain(Default::default())),
-					..Default::default()
-				}),
-				"up chain",
-			),
-			(
-				Command::Up(up::UpArgs {
-					#[allow(deprecated)]
-					command: Some(up::Command::Contract(Default::default())),
-					..Default::default()
-				}),
-				"up contract",
 			),
 			// Call.
 			(
