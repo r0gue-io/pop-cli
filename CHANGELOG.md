@@ -8,13 +8,13 @@ All notable changes to this project will be documented in this file.
 
 - `pop build runtime` and `pop build --deterministic` (#510)
 - Add experimental hashing command (#517)
-- Contracts: Revive compatibility with feature flag (#500)
+- *(contracts)* Revive compatibility with feature flag (#500)
 
 ### 🐛 Fixes
 
 - Benchmarking logger (#513)
 - Wrap github rest api access in an apiclient (#530)
-- Benchmarking: Separate runtime binary path and runtime path (#531)
+- *(bench)* Separate runtime binary path and runtime path (#531)
 
 ### 📚 Documentation
 
