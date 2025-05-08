@@ -9,7 +9,7 @@ use crate::common::{
 };
 use clap::{Args, Subcommand};
 use pop_common::test_project;
-#[cfg(any(feature = "parachain", feature = "polkavm-contracts", feature = "wasm-contracts"))]
+#[cfg(feature = "parachain")]
 use std::fmt::{Display, Formatter, Result};
 use std::path::PathBuf;
 
@@ -58,12 +58,6 @@ pub(crate) enum Command {
 	/// Create a chain state snapshot.
 	#[cfg(feature = "parachain")]
 	CreateSnapshot(create_snapshot::TestCreateSnapshotCommand),
-	/// [DEPRECATED] Test a smart contract (will be removed in v0.8.0).
-	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
-	#[clap(alias = "c")]
-	#[deprecated(since = "0.7.0", note = "will be removed in v0.8.0")]
-	#[allow(rustdoc::broken_intra_doc_links)]
-	Contract(contract::TestContractCommand),
 }
 
 impl Command {
@@ -101,21 +95,14 @@ impl Command {
 	}
 }
 
-#[cfg(any(feature = "parachain", feature = "polkavm-contracts", feature = "wasm-contracts"))]
+#[cfg(feature = "parachain")]
 impl Display for Command {
 	fn fmt(&self, f: &mut Formatter<'_>) -> Result {
 		match self {
-			#[cfg(feature = "parachain")]
 			Command::OnRuntimeUpgrade(_) => write!(f, "on runtime upgrade"),
-			#[cfg(feature = "parachain")]
 			Command::ExecuteBlock(_) => write!(f, "execute block"),
-			#[cfg(feature = "parachain")]
 			Command::FastForward(_) => write!(f, "fast forward"),
-			#[cfg(feature = "parachain")]
 			Command::CreateSnapshot(_) => write!(f, "create snapshot"),
-			#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
-			#[allow(deprecated)]
-			Command::Contract(_) => write!(f, "contract"),
 		}
 	}
 }
@@ -188,7 +175,5 @@ mod tests {
 		assert_eq!(Command::FastForward(Default::default()).to_string(), "fast forward");
 		#[cfg(feature = "parachain")]
 		assert_eq!(Command::CreateSnapshot(Default::default()).to_string(), "create snapshot");
-		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
-		assert_eq!(Command::Contract(Default::default()).to_string(), "contract");
 	}
 }
