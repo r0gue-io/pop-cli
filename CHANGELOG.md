@@ -7,14 +7,14 @@ All notable changes to this project will be documented in this file.
 ### 🚀 Features
 
 - `pop build runtime` and `pop build --deterministic` (#510)
-- Hashing (#517)
-- Revive compatibility with feature flag (#500)
+- Add experimental hashing command (#517)
+- Contracts: Revive compatibility with feature flag (#500)
 
 ### 🐛 Fixes
 
 - Benchmarking logger (#513)
 - Wrap github rest api access in an apiclient (#530)
-- Separate runtime binary path and runtime path (#531)
+- Benchmarking: Separate runtime binary path and runtime path (#531)
 
 ### 📚 Documentation
 
@@ -26,10 +26,8 @@ All notable changes to this project will be documented in this file.
 
 ### ⚙️ Miscellaneous Tasks
 
-- Source remote binary if version not matches (#516)
+- Source remote binary if version does not match (#516)
 - Update required version of the frame-omni-bencher binary (#527)
-- Update init to use latest rust-cache action (#533)
-- Enable concurrency controls (#532)
 - Bump versions
 
 ### Build
