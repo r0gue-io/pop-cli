@@ -585,28 +585,6 @@ impl CallContractCommand {
 }
 
 #[cfg(test)]
-impl Default for CallContractCommand {
-	fn default() -> Self {
-		Self {
-			path: None,
-			path_pos: None,
-			contract: None,
-			message: None,
-			args: vec![],
-			value: DEFAULT_PAYABLE_VALUE.to_string(),
-			gas_limit: None,
-			proof_size: None,
-			url: url::Url::parse("wss://rpc2.paseo.popnetwork.xyz").unwrap(),
-			suri: "//Alice".to_string(),
-			use_wallet: false,
-			execute: false,
-			dry_run: false,
-			dev_mode: false,
-		}
-	}
-}
-
-#[cfg(test)]
 mod tests {
 	use super::*;
 	use crate::{cli::MockCli, common::wallet::USE_WALLET_PROMPT};
@@ -622,6 +600,27 @@ mod tests {
 	const CONTRACTS_NETWORK_URL: &str = "wss://rpc2.paseo.popnetwork.xyz/";
 	#[cfg(feature = "polkavm-contracts")]
 	const CONTRACTS_NETWORK_URL: &str = "wss://westend-asset-hub-rpc.polkadot.io/";
+
+	impl Default for CallContractCommand {
+		fn default() -> Self {
+			Self {
+				path: None,
+				path_pos: None,
+				contract: None,
+				message: None,
+				args: vec![],
+				value: DEFAULT_PAYABLE_VALUE.to_string(),
+				gas_limit: None,
+				proof_size: None,
+				url: url::Url::parse(CONTRACTS_NETWORK_URL).unwrap(),
+				suri: "//Alice".to_string(),
+				use_wallet: false,
+				execute: false,
+				dry_run: false,
+				dev_mode: false,
+			}
+		}
+	}
 
 	#[tokio::test]
 	async fn execute_query_works() -> Result<()> {
