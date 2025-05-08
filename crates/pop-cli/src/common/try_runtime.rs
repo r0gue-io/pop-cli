@@ -161,7 +161,7 @@ pub(crate) fn update_live_state(
 ) -> anyhow::Result<()> {
 	if live_state.uri.is_none() {
 		let uri = cli
-			.input("Enter the live chain of your node:")
+			.input("Enter the endpoint of the live chain:")
 			.required(true)
 			.placeholder(DEFAULT_LIVE_NODE_URL)
 			.interact()?;
@@ -169,7 +169,7 @@ pub(crate) fn update_live_state(
 	}
 	if live_state.at.is_none() {
 		let block_hash = cli
-			.input("Enter the block hash (optional):")
+			.input("Enter the block hash (if not provided, the latest finalised block is used):")
 			.required(false)
 			.placeholder(DEFAULT_BLOCK_HASH)
 			.interact()?;
@@ -198,15 +198,7 @@ pub(crate) fn update_runtime_source(
 	profile: &mut Option<Profile>,
 	no_build: bool,
 ) -> anyhow::Result<()> {
-	if !argument_exists(user_provided_args, "--runtime") &&
-		cli.confirm(format!(
-			"{}\n{}",
-			prompt,
-			style("If not provided, use the code of the remote node, or a snapshot.").dim()
-		))
-		.initial_value(true)
-		.interact()?
-	{
+	if !argument_exists(user_provided_args, "--runtime") {
 		if profile.is_none() {
 			*profile = Some(guide_user_to_select_profile(cli)?);
 		};
@@ -632,8 +624,14 @@ mod tests {
 		let mut live_state = LiveState::default();
 		let mut cmd = MockCommand::default();
 		let mut cli = MockCli::new()
-			.expect_input("Enter the live chain of your node:", DEFAULT_LIVE_NODE_URL.to_string())
-			.expect_input("Enter the block hash (optional):", DEFAULT_BLOCK_HASH.to_string());
+			.expect_input(
+				"Enter the endpoint of the live chain:",
+				DEFAULT_LIVE_NODE_URL.to_string(),
+			)
+			.expect_input(
+				"Enter the block hash (if not provided, the latest finalised block is used):",
+				DEFAULT_BLOCK_HASH.to_string(),
+			);
 		update_live_state(&mut cli, &mut live_state, &mut cmd.state)?;
 		match cmd.state {
 			Some(State::Live(ref live_state)) => {
@@ -651,8 +649,10 @@ mod tests {
 		let mut live_state = LiveState::default();
 		live_state.at = Some("1234567890abcdef".to_string());
 		let mut cmd = MockCommand::default();
-		let mut cli = MockCli::new()
-			.expect_input("Enter the live chain of your node:", DEFAULT_LIVE_NODE_URL.to_string());
+		let mut cli = MockCli::new().expect_input(
+			"Enter the endpoint of the live chain:",
+			DEFAULT_LIVE_NODE_URL.to_string(),
+		);
 		update_live_state(&mut cli, &mut live_state, &mut cmd.state)?;
 		match cmd.state {
 			Some(State::Live(ref live_state)) => {
@@ -668,8 +668,10 @@ mod tests {
 		live_state.uri = Some(DEFAULT_LIVE_NODE_URL.to_string());
 		let mut cmd = MockCommand::default();
 		// Provide the empty block hash.
-		let mut cli =
-			MockCli::new().expect_input("Enter the block hash (optional):", String::default());
+		let mut cli = MockCli::new().expect_input(
+			"Enter the block hash (if not provided, the latest finalised block is used):",
+			String::default(),
+		);
 		update_live_state(&mut cli, &mut live_state, &mut cmd.state)?;
 		match cmd.state {
 			Some(State::Live(ref live_state)) => {

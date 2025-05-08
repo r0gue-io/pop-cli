@@ -178,7 +178,7 @@ pub fn guide_user_to_input_runtime_path(
 				target_path.display()
 			))?;
 			let input: PathBuf = cli
-				.input("Please specify the path to the runtime project or the runtime binary.")
+				.input("Please specify the path to the runtime folder or binary.")
 				.required(true)
 				.default_input(DEFAULT_RUNTIME_DIR)
 				.placeholder(DEFAULT_RUNTIME_DIR)

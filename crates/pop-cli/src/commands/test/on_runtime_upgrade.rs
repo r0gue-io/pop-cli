@@ -91,7 +91,7 @@ struct Command {
 
 #[derive(Args)]
 pub(crate) struct TestOnRuntimeUpgradeCommand {
-	/// Command to test migrations.
+	/// Command to test a runtime upgrade.
 	#[clap(flatten)]
 	command: Command,
 	/// Shared params of the try-runtime commands.
@@ -105,11 +105,11 @@ pub(crate) struct TestOnRuntimeUpgradeCommand {
 impl TestOnRuntimeUpgradeCommand {
 	/// Executes the command.
 	pub(crate) async fn execute(mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
-		cli.intro("Testing migrations")?;
+		cli.intro("Testing Runtime Upgrade")?;
 		let user_provided_args = std::env::args().collect::<Vec<String>>();
 		if let Err(e) = update_runtime_source(
 			cli,
-			"Do you want to specify which runtime to run the migration on?",
+			"Which runtime do you want to upgrade?",
 			&user_provided_args,
 			&mut self.shared_params.runtime,
 			&mut self.build_params.profile,
@@ -131,7 +131,7 @@ impl TestOnRuntimeUpgradeCommand {
 			}
 		}
 
-		// Run migrations with `try-runtime-cli` binary.
+		// Execute runtime upgrade with `try-runtime-cli` binary.
 		loop {
 			let result = self.run(cli).await;
 			// Display the `on-runtime-upgrade` command.
@@ -145,7 +145,7 @@ impl TestOnRuntimeUpgradeCommand {
 				}
 			}
 			cli.info(self.display()?)?;
-			return display_message("Tested migrations successfully!", true, cli);
+			return display_message("Tested Runtime Upgrade successfully!", true, cli);
 		}
 	}
 
@@ -157,14 +157,14 @@ impl TestOnRuntimeUpgradeCommand {
 			Some(State::Live(ref live_state)) =>
 				if let Some(ref uri) = live_state.uri {
 					spinner.start(format!(
-						"Running migrations against live state at {}...",
+						"Executing Runtime Upgrade against live state at {}...",
 						style(&uri).magenta().underlined()
 					));
 				},
 			Some(State::Snap { ref path }) =>
 				if let Some(p) = path {
 					spinner.start(format!(
-						"Running migrations using a snapshot file at {}...",
+						"Executing Runtime Upgrade against a snapshot file at {}...",
 						p.display()
 					));
 				},
@@ -243,7 +243,7 @@ impl TestOnRuntimeUpgradeCommand {
     			).interact()?;
 			if !disabled {
 				return Err(anyhow::anyhow!(format!(
-					"Failed to run migrations: Invalid spec version. \
+					"Failed to execute runtime upgrade: Invalid spec version. \
 					You can disable the check manually by adding the `--{}` flag.",
 					DISABLE_SPEC_VERSION_CHECK
 				)));
@@ -260,7 +260,7 @@ impl TestOnRuntimeUpgradeCommand {
 				.interact()?;
 			if !disabled {
 				return Err(anyhow::anyhow!(format!(
-					"Failed to run migrations: Invalid spec name. \
+					"Failed to execute runtime upgrade: Invalid spec name. \
 					You can disable the check manually by adding the `--{}` flag.",
 					DISABLE_SPEC_NAME_CHECK
 				)));
@@ -332,11 +332,11 @@ mod tests {
 
 		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
 		let mut cli = MockCli::new()
-			.expect_intro("Testing migrations")
+			.expect_intro("Testing Runtime Upgrade")
 			.expect_confirm(
 				format!(
-					"Do you want to specify which runtime to run the migration on?\n{}",
-					style("If not provided, use the code of the remote node, or a snapshot.").dim()
+					"Which runtime do you want to upgrade?\n{}",
+					style("If not provided, the runtime of the remote node is used.").dim()
 				),
 				true,
 			)
@@ -350,7 +350,7 @@ mod tests {
 			)
 			.expect_warning("NOTE: Make sure your runtime is built with `try-runtime` feature.")
 			.expect_input(
-				"Please specify the path to the runtime project or the runtime binary.",
+				"Please specify the path to the runtime folder or binary.",
 				get_mock_runtime(Some(TryRuntime)).to_str().unwrap().to_string(),
 			)
 			.expect_select(
@@ -361,8 +361,14 @@ mod tests {
 				0, // live
 				None,
 			)
-			.expect_input("Enter the live chain of your node:", DEFAULT_LIVE_NODE_URL.to_string())
-			.expect_input("Enter the block hash (optional):", DEFAULT_BLOCK_HASH.to_string())
+			.expect_input(
+				"Enter the endpoint of the live chain:",
+				DEFAULT_LIVE_NODE_URL.to_string(),
+			)
+			.expect_input(
+				"Enter the block hash (if not provided, the latest finalised block is used):",
+				DEFAULT_BLOCK_HASH.to_string(),
+			)
 			.expect_select(
 				"Select upgrade checks to perform:",
 				Some(true),
@@ -390,14 +396,14 @@ mod tests {
 
 		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
 		let mut cli = MockCli::new()
-			.expect_intro("Testing migrations")
-			.expect_confirm(
-				format!(
-					"Do you want to specify which runtime to run the migration on?\n{}",
-					style("If not provided, use the code of the remote node, or a snapshot.").dim()
-				),
-				true,
-			)
+			.expect_intro("Testing Runtime Upgrade")
+			// .expect_confirm(
+			// 	format!(
+			// 		"Which runtime do you want to upgrade?\n{}",
+			// 		style("If not provided, the runtime of the remote node is used.").dim()
+			// 	),
+			// 	true,
+			// )
 			.expect_select(
 				"Choose the build profile of the binary that should be used: ".to_string(),
 				Some(true),
@@ -408,7 +414,7 @@ mod tests {
 			)
 			.expect_warning("NOTE: Make sure your runtime is built with `try-runtime` feature.")
 			.expect_input(
-				"Please specify the path to the runtime project or the runtime binary.",
+				"Please specify the path to the runtime folder or binary.",
 				get_mock_runtime(Some(TryRuntime)).to_str().unwrap().to_string(),
 			)
 			.expect_select(
@@ -457,17 +463,17 @@ mod tests {
 
 		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
 		let mut cli = MockCli::new()
-			.expect_intro("Testing migrations")
-			.expect_confirm(
-				format!(
-					"Do you want to specify which runtime to run the migration on?\n{}",
-					style("If not provided, use the code of the remote node, or a snapshot.").dim()
-				),
-				true,
-			)
+			.expect_intro("Testing Runtime Upgrade")
+			// .expect_confirm(
+			// 	format!(
+			// 		"Which runtime do you want to upgrade?\n{}",
+			// 		style("If not provided, the runtime of the remote node is used.").dim()
+			// 	),
+			// 	true,
+			// )
             .expect_warning("NOTE: Make sure your runtime is built with `try-runtime` feature.")
 			.expect_input(
-				"Please specify the path to the runtime project or the runtime binary.",
+				"Please specify the path to the runtime folder or binary.",
 				get_mock_runtime(None).to_str().unwrap().to_string(),
 			)
 			.expect_select(
@@ -497,7 +503,7 @@ mod tests {
 		// --disable-spec-version-check.
 		for (confirm, result) in [
 			(true, Ok(())),
-			(false, Err(anyhow::anyhow!("Failed to run migrations: Invalid spec version. You can disable the check manually by adding the `--disable-spec-version-check` flag.")))
+			(false, Err(anyhow::anyhow!("Failed to execute runtime upgrade: Invalid spec version. You can disable the check manually by adding the `--disable-spec-version-check` flag.")))
 		] {
 			let mut cli = MockCli::new().expect_confirm(
 			    "⚠️ New runtime spec version must be greater than the on-chain runtime spec version. \
@@ -516,7 +522,7 @@ mod tests {
 		// --disable-spec-name-check.
 		for (confirm, result) in [
 			(true, Ok(())),
-			(false, Err(anyhow::anyhow!("Failed to run migrations: Invalid spec name. You can disable the check manually by adding the `--disable-spec-name-check` flag.")))
+			(false, Err(anyhow::anyhow!("Failed to execute runtime upgrade: Invalid spec name. You can disable the check manually by adding the `--disable-spec-name-check` flag.")))
 		] {
 			let mut cli = MockCli::new().expect_confirm(
     			"⚠️ Runtime spec names must match. Do you want to disable the spec name check and try again?",
