@@ -319,7 +319,7 @@ impl GitHub {
 
 				// Select versions from release tags, used for resolving the candidate versions and
 				// local binary versioning.
-				let releases: HashMap<_, _> = releases
+				let mut binaries: HashMap<_, _> = releases
 					.into_iter()
 					.map(|r| {
 						let version = tag_pattern
@@ -340,8 +340,31 @@ impl GitHub {
 						.to_string()
 				});
 
+				// Extract versions from any cached binaries - e.g., offline or rate-limited.
+				for file in read_dir(cache).into_iter().flatten().filter_map(|f| {
+					f.ok().and_then(|f| f.file_name().into_string().ok()).filter(|n| {
+						n.starts_with(name) &&
+							// TODO: improve hacky workaround for naming clashes
+							(name != "polkadot" ||
+								![
+									"polkadot-execute-worker",
+									"polkadot-prepare-worker",
+									"polkadot-parachain",
+								]
+								.iter()
+								.any(|i| n.starts_with(i)))
+					})
+				}) {
+					let version = file.replace(&format!("{name}-"), "");
+					let tag = tag_pattern.as_ref().map_or_else(
+						|| version.to_string(),
+						|pattern| pattern.resolve_tag(&version),
+					);
+					binaries.insert(version, tag);
+				}
+
 				// Prepare for version resolution by sorting by configured version comparator.
-				let mut versions: Vec<_> = releases.keys().cloned().collect();
+				let mut versions: Vec<_> = binaries.keys().cloned().collect();
 				let versions = version_comparator(versions.as_mut_slice());
 
 				// Define the tag to be used as either a specified version or the latest available
@@ -351,7 +374,7 @@ impl GitHub {
 						// Resolve the version to be used
 						let resolved_version =
 							Binary::resolve_version(name, None, &versions, cache);
-						resolved_version.and_then(|v| releases.get(v)).map(|v| v.clone())
+						resolved_version.and_then(|v| binaries.get(v)).map(|v| v.clone())
 					},
 					|v| {
 						// Ensure any specified version is a tag
@@ -370,7 +393,7 @@ impl GitHub {
 						versions
 							.iter()
 							.nth(0)
-							.and_then(|v| releases.get(v.as_str()).map(|v| v.clone()))
+							.and_then(|v| binaries.get(v.as_str()).map(|v| v.clone()))
 					})
 					.flatten();
 
