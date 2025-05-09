@@ -75,7 +75,6 @@ pub(super) enum Chain {
 	#[strum(props(
 		Repository = "https://github.com/use-ink/ink-node",
 		Binary = "ink-node",
-		TagFormat = "{tag}",
 		Fallback = "v0.43.0"
 	))]
 	#[cfg(feature = "v6")]
@@ -84,8 +83,8 @@ pub(super) enum Chain {
 
 #[cfg(any(feature = "v5", feature = "v6"))]
 impl SourceT for Chain {
-    /// Defines the source of a binary for the chain.
-    fn source(&self) -> Result<Source, Error> {
+	/// Defines the source of a binary for the chain.
+	fn source(&self) -> Result<Source, Error> {
 		Ok(match self {
 			&Chain::ContractsNode => {
 				// Source from GitHub release asset
@@ -119,9 +118,9 @@ pub async fn contracts_node_generator(
 	version: Option<&str>,
 ) -> Result<Binary, Error> {
 	let chain = &Chain::ContractsNode;
-    let name = chain.binary().to_string();
-    let source = chain.source()?.resolve(&name, version, &cache).await;
-    Ok(Binary::Source { name, source, cache })
+	let name = chain.binary().to_string();
+	let source = chain.source()?.resolve(&name, version, &cache).await;
+	Ok(Binary::Source { name, source, cache })
 }
 
 /// Runs the latest version of the `substrate-contracts-node` in the background.
@@ -179,14 +178,18 @@ fn archive_name_by_target() -> Result<String, Error> {
 	}
 }
 #[cfg(feature = "v6")]
-fn release_directory_by_target() -> Result<&'static str, Error> {
+fn release_directory_by_target(
+	binary: &str,
+) -> Result<Vec<(&'static str, Option<String>, bool)>, Error> {
 	match OS {
 		"macos" => Ok("ink-node-mac/ink-node"),
 		"linux" => Ok("ink-node-linux/ink-node"),
 		_ => Err(Error::UnsupportedPlatform { arch: ARCH, os: OS }),
 	}
+	.map(|name| vec![(name, Some(binary.into()), true)])
 }
 
+#[cfg(feature = "v5")]
 fn release_directory_by_target(
 	binary: &str,
 ) -> Result<Vec<(&'static str, Option<String>, bool)>, Error> {
@@ -249,7 +252,15 @@ mod tests {
 		let expected = Chain::ContractsNode;
 		let archive = archive_name_by_target()?;
 		let contents = release_directory_by_target(BIN_NAME)?;
-		for version in ["v0.41.0", "v0.42.0"] {
+		#[cfg(feature = "v5")]
+		let owner = "paritytech";
+		#[cfg(feature = "v5")]
+		let versions = ["v0.41.0", "v0.42.0"];
+		#[cfg(feature = "v6")]
+		let owner = "use-ink";
+		#[cfg(feature = "v6")]
+		let versions = ["v0.43.0"];
+		for version in versions {
 			let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
 			let cache = temp_dir.path().join("cache");
 			let binary = contracts_node_generator(cache.clone(), Some(version)).await?;
@@ -284,14 +295,20 @@ mod tests {
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
 		let cache = temp_dir.path().join("");
 
+		#[cfg(feature = "v5")]
 		let version = "v0.42.0";
+		#[cfg(feature = "v6")]
+		let version = "v0.43.0";
 		let binary = contracts_node_generator(cache.clone(), Some(version)).await?;
 		binary.source(false, &(), true).await?;
 		let process = run_contracts_node(binary.path(), None, random_port).await?;
 
 		// Check if the node is alive
 		assert!(is_chain_alive(local_url).await?);
+		#[cfg(feature = "v5")]
 		assert!(cache.join("substrate-contracts-node-v0.42.0").exists());
+		#[cfg(feature = "v6")]
+		assert!(cache.join("ink-node-v0.43.0").exists());
 		assert!(!cache.join("artifacts").exists());
 		// Stop the process contracts-node
 		Command::new("kill")

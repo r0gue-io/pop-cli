@@ -56,25 +56,28 @@ pub(crate) struct UpArgs {
 }
 
 /// Launch a local network or deploy a smart contract.
-#[cfg(feature = "parachain")]
 #[derive(Subcommand, Clone)]
 pub(crate) enum Command {
-    /// Launch a local network by specifying a network configuration file.
-    #[clap(aliases = ["n", "parachain"])]
-    Network(network::ConfigFileCommand),
-    /// Launch a local Paseo network.
-    #[clap()]
+	/// Launch a local network by specifying a network configuration file.
+	#[cfg(feature = "parachain")]
+	#[clap(aliases = ["n", "parachain"])]
+	Network(network::ConfigFileCommand),
+	/// Launch a local Paseo network.
+	#[cfg(feature = "parachain")]
+	#[clap()]
 	Paseo(network::BuildCommand<PASEO>),
-    /// Launch a local Kusama network.
-    #[clap()]
+	/// Launch a local Kusama network.
+	#[cfg(feature = "parachain")]
+	#[clap()]
 	Kusama(network::BuildCommand<KUSAMA>),
-    /// Launch a local Polkadot network.
-    #[clap()]
-    Polkadot(network::BuildCommand<POLKADOT>),
-    /// Launch a local Westend network.
-    #[cfg(feature = "parachain")]
-    #[clap()]
-    Westend(network::BuildCommand<WESTEND>),
+	/// Launch a local Polkadot network.
+	#[cfg(feature = "parachain")]
+	#[clap()]
+	Polkadot(network::BuildCommand<POLKADOT>),
+	/// Launch a local Westend network.
+	#[cfg(feature = "parachain")]
+	#[clap()]
+	Westend(network::BuildCommand<WESTEND>),
 }
 
 impl Command {
@@ -116,10 +119,10 @@ impl Display for Command {
 	fn fmt(&self, f: &mut Formatter<'_>) -> Result {
 		match self {
 			Command::Network(_) => write!(f, "network"),
-            Command::Paseo(_) => write!(f, "paseo"),
-            Command::Kusama(_) => write!(f, "kusama"),
-            Command::Polkadot(_) => write!(f, "polkadot"),
-            Command::Westend(_) => write!(f, "westend"),
+			Command::Paseo(_) => write!(f, "paseo"),
+			Command::Kusama(_) => write!(f, "kusama"),
+			Command::Polkadot(_) => write!(f, "polkadot"),
+			Command::Westend(_) => write!(f, "westend"),
 		}
 	}
 }
