@@ -331,7 +331,8 @@ pub(crate) async fn spawn(
 				let name = node.name();
 				let mut output = format!(
 					"\n{bar}       {name}:
-{bar}         portal: https://polkadot.js.org/apps/?rpc={}#/explorer
+{bar}         endpoint: {0}
+{bar}         portal: https://polkadot.js.org/apps/?rpc={0}#/explorer / https://dev.papi.how/explorer#networkId=custom&endpoint={0}
 {bar}         logs: tail -f {base_dir}/{name}/{name}.log",
 					node.ws_uri(),
 				);
