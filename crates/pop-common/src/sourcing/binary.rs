@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{
-	polkadot_sdk::parse_latest_tag,
 	sourcing::{
 		from_local_package, Error,
 		GitHub::{ReleaseArchive, SourceCodeArchive},
 		Source::{self, Archive, Git, GitHub},
 	},
-	Status,
+	SortedSlice, Status,
 };
 use std::path::{Path, PathBuf};
 
@@ -46,8 +45,14 @@ impl Binary {
 		match self {
 			Self::Local { .. } => None,
 			Self::Source { source, .. } =>
-				if let GitHub(ReleaseArchive { latest, .. }) = source {
-					latest.as_deref()
+				if let GitHub(ReleaseArchive { latest, tag_pattern, .. }) = source {
+					{
+						// Extract the version from `latest`, provided it is a tag and that a tag
+						// pattern exists
+						latest.as_deref().and_then(|tag| {
+							tag_pattern.as_ref().map_or(Some(tag), |pattern| pattern.version(tag))
+						})
+					}
 				} else {
 					None
 				},
@@ -71,17 +76,10 @@ impl Binary {
 	pub fn path(&self) -> PathBuf {
 		match self {
 			Self::Local { path, .. } => path.to_path_buf(),
-			Self::Source { name, source, cache, .. } => {
+			Self::Source { name, cache, .. } => {
 				// Determine whether a specific version is specified
-				let version = match source {
-					Git { reference, .. } => reference.as_ref(),
-					GitHub(source) => match source {
-						ReleaseArchive { tag, .. } => tag.as_ref(),
-						SourceCodeArchive { reference, .. } => reference.as_ref(),
-					},
-					Archive { .. } | Source::Url { .. } => None,
-				};
-				version.map_or_else(|| cache.join(name), |v| cache.join(format!("{name}-{v}")))
+				self.version()
+					.map_or_else(|| cache.join(name), |v| cache.join(format!("{name}-{v}")))
 			},
 		}
 	}
@@ -92,31 +90,28 @@ impl Binary {
 	/// # Arguments
 	/// * `name` - The name of the binary.
 	/// * `specified` - If available, a version explicitly specified.
-	/// * `available` - The available versions, used to check for those cached locally or the latest
-	///   otherwise.
+	/// * `available` - The available versions, which are used to check for existing matches already
+	///   cached locally or the latest otherwise.
 	/// * `cache` - The location used for caching binaries.
-	pub fn resolve_version(
+	pub(super) fn resolve_version<'a>(
 		name: &str,
-		specified: Option<&str>,
-		available: &[impl AsRef<str>],
+		specified: Option<&'a str>,
+		available: &'a SortedSlice<impl AsRef<str>>,
 		cache: &Path,
-	) -> Option<String> {
+	) -> Option<&'a str> {
 		match specified {
-			Some(version) => Some(version.to_string()),
+			Some(version) => Some(version),
 			None => available
 				.iter()
-				.map(|v| v.as_ref())
 				// Default to latest version available locally
 				.filter_map(|version| {
+					let version = version.as_ref();
 					let path = cache.join(format!("{name}-{version}"));
-					path.exists().then_some(Some(version.to_string()))
+					path.exists().then_some(Some(version))
 				})
 				.nth(0)
-				.unwrap_or_else(|| {
-					// Default to latest version
-					let versions = available.iter().map(|v| v.as_ref()).collect::<Vec<&str>>();
-					parse_latest_tag(versions)
-				}),
+				// Default to latest version
+				.unwrap_or_else(|| available.first().map(|version| version.as_ref())),
 		}
 	}
 
@@ -171,22 +166,31 @@ impl Binary {
 		match self {
 			Self::Local { .. } => None,
 			Self::Source { source, .. } => match source {
-				Git { reference, .. } => reference.as_ref(),
+				Git { reference, .. } => reference.as_ref().map(|r| r.as_str()),
 				GitHub(source) => match source {
-					ReleaseArchive { tag, .. } => tag.as_ref(),
-					SourceCodeArchive { reference, .. } => reference.as_ref(),
+					ReleaseArchive { tag, tag_pattern, .. } => tag.as_ref().map(|tag| {
+						// Use any tag pattern defined to extract a version, otherwise use the tag.
+						tag_pattern
+							.as_ref()
+							.and_then(|pattern| pattern.version(&tag))
+							.unwrap_or(tag)
+					}),
+					SourceCodeArchive { reference, .. } => reference.as_ref().map(|r| r.as_str()),
 				},
 				Archive { .. } | Source::Url { .. } => None,
 			},
 		}
-		.map(|r| r.as_str())
 	}
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::{sourcing::tests::Output, target};
+	use crate::{
+		polkadot_sdk::{sort_by_latest_semantic_version, sort_by_latest_version},
+		sourcing::tests::Output,
+		target,
+	};
 	use anyhow::Result;
 	use duct::cmd;
 	use std::fs::{create_dir_all, File};
@@ -238,7 +242,8 @@ mod tests {
 		let name = "polkadot";
 		let temp_dir = tempdir()?;
 
-		let available = vec!["v1.13.0", "v1.12.0", "v1.11.0", "stable2409"];
+		let mut available = vec!["v1.13.0", "v1.12.0", "v1.11.0", "stable2409"];
+		let available = sort_by_latest_version(available.as_mut_slice());
 
 		// Specified
 		let specified = Some("v1.12.0");
@@ -334,30 +339,36 @@ mod tests {
 	fn sourced_from_github_release_archive_works() -> Result<()> {
 		let owner = "r0gue-io";
 		let repository = "polkadot";
-		let tag_format = "polkadot-{tag}";
+		let tag_pattern = "polkadot-{version}";
 		let name = "polkadot";
 		let archive = format!("{name}-{}.tar.gz", target()?);
+		let fallback = "stable2412-4".to_string();
 		let contents = ["polkadot", "polkadot-execute-worker", "polkadot-prepare-worker"];
 		let temp_dir = tempdir()?;
-		for tag in [None, Some("v1.12.0".to_string())] {
+		for tag in [None, Some("stable2412".to_string())] {
 			let path = temp_dir
 				.path()
 				.join(tag.as_ref().map_or(name.to_string(), |t| format!("{name}-{t}")));
 			File::create(&path)?;
-			for latest in [None, Some("v2.0.0".to_string())] {
+			for latest in [None, Some("polkadot-stable2503".to_string())] {
 				let mut binary = Binary::Source {
 					name: name.to_string(),
 					source: GitHub(ReleaseArchive {
 						owner: owner.into(),
 						repository: repository.into(),
 						tag: tag.clone(),
-						tag_format: Some(tag_format.to_string()),
+						tag_pattern: Some(tag_pattern.into()),
+						prerelease: false,
+						version_comparator: sort_by_latest_semantic_version,
+						fallback: fallback.clone(),
 						archive: archive.clone(),
-						contents: contents.into_iter().map(|b| (b, None)).collect(),
+						contents: contents.into_iter().map(|b| (b, None, true)).collect(),
 						latest: latest.clone(),
 					}),
 					cache: temp_dir.path().to_path_buf(),
 				};
+
+				let latest = latest.as_ref().map(|l| l.replace("polkadot-", ""));
 
 				assert!(binary.exists());
 				assert_eq!(binary.latest(), latest.as_ref().map(|l| l.as_str()));

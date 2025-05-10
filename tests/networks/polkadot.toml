@@ -1,4 +1,4 @@
-# pop up parachain -f ./tests/networks/polkadot.toml
+# pop up network ./tests/networks/polkadot.toml
 
 [relaychain]
 chain = "polkadot-local"

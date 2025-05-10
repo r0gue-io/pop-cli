@@ -1,4 +1,4 @@
-# pop up parachain -f ./tests/networks/paseo+asset-hub.toml
+# pop up network ./tests/networks/paseo+asset-hub.toml -S v1.3.4
 
 [relaychain]
 chain = "paseo-local"
@@ -17,3 +17,4 @@ chain = "asset-hub-paseo-local"
 
 [[parachains.collators]]
 name = "asset-hub"
+args = ["-lxcm=trace,lsystem::events=trace,lruntime=trace"]

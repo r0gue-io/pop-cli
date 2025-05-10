@@ -7,6 +7,8 @@ use crate::{
 };
 use clap::Subcommand;
 use std::fmt::{Display, Formatter, Result};
+#[cfg(feature = "parachain")]
+use {crate::common::Project::Network, up::network::Relay::*};
 
 #[cfg(feature = "parachain")]
 pub(crate) mod bench;
@@ -175,7 +177,15 @@ impl Command {
 					None => up::Command::execute(args).await.map(Up),
 					Some(cmd) => match cmd {
 						#[cfg(feature = "parachain")]
-						up::Command::Network(cmd) => cmd.execute().await.map(|_| Up(crate::common::Project::Network)),
+						up::Command::Network(cmd) => cmd.execute().await.map(|_| Up(Network)),
+						#[cfg(feature = "parachain")]
+						up::Command::Paseo(mut cmd) => cmd.execute(Paseo).await.map(|_| Up(Network)),
+						#[cfg(feature = "parachain")]
+						up::Command::Kusama(mut cmd) => cmd.execute(Kusama).await.map(|_| Up(Network)),
+						#[cfg(feature = "parachain")]
+						up::Command::Polkadot(mut cmd) => cmd.execute(Polkadot).await.map(|_| Up(Network)),
+						#[cfg(feature = "parachain")]
+						up::Command::Westend(mut cmd) => cmd.execute(Westend).await.map(|_| Up(Network)),
 					},
 				}
 			},
