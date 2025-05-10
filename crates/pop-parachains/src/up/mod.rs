@@ -353,10 +353,8 @@ impl NetworkConfiguration {
 		});
 
 		if let Some(parachains) = parachains {
-			let mut requirements =
+			let mut dependencies =
 				parachains.iter().filter_map(|p| p.requires()).flatten().collect::<Vec<_>>();
-
-			// TODO: check for any missing parachains in requirements and error
 
 			for parachain in parachains {
 				builder = builder.with_parachain(|builder| {
@@ -367,8 +365,11 @@ impl NetworkConfiguration {
 
 					// Apply any genesis overrides
 					let mut genesis_overrides = serde_json::Map::new();
+					if let Some(mut r#override) = parachain.genesis_overrides() {
+						r#override(&mut genesis_overrides);
+					}
 					for (_, r#override) in
-						requirements.iter_mut().filter(|(t, _)| t == &parachain.as_any().type_id())
+						dependencies.iter_mut().filter(|(t, _)| t == &parachain.as_any().type_id())
 					{
 						r#override(&mut genesis_overrides);
 					}

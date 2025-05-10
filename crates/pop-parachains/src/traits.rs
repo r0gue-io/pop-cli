@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0
 
-/// A communication endpoint.
-pub type Port = u16;
+use serde_json::{Map, Value};
+
 /// A parachain identifier.
 pub type Id = u32;
+/// A function for providing genesis overrides.
+pub type Override = Box<dyn FnMut(&mut Map<String, Value>)>;
+/// A communication endpoint.
+pub type Port = u16;
 
 /// The arguments used when launching a node.
 pub trait Args {
@@ -22,6 +26,14 @@ pub trait Binary {
 pub trait ChainSpec {
 	/// The identifier of the chain, as used by the chain specification.
 	fn chain(&self) -> &str;
+}
+
+/// Any overrides to genesis state.
+pub trait GenesisOverrides {
+	/// Any overrides to genesis state.
+	fn genesis_overrides(&self) -> Option<Override> {
+		None
+	}
 }
 
 /// A node.
