@@ -179,13 +179,13 @@ impl Command {
 						#[cfg(feature = "parachain")]
 						up::Command::Network(cmd) => cmd.execute().await.map(|_| Up(Network)),
 						#[cfg(feature = "parachain")]
-						up::Command::Paseo(cmd) => cmd.execute(Paseo).await.map(|_| Up(Network)),
+						up::Command::Paseo(mut cmd) => cmd.execute(Paseo).await.map(|_| Up(Network)),
 						#[cfg(feature = "parachain")]
-						up::Command::Kusama(cmd) => cmd.execute(Kusama).await.map(|_| Up(Network)),
+						up::Command::Kusama(mut cmd) => cmd.execute(Kusama).await.map(|_| Up(Network)),
 						#[cfg(feature = "parachain")]
-						up::Command::Polkadot(cmd) => cmd.execute(Polkadot).await.map(|_| Up(Network)),
+						up::Command::Polkadot(mut cmd) => cmd.execute(Polkadot).await.map(|_| Up(Network)),
 						#[cfg(feature = "parachain")]
-						up::Command::Westend(cmd) => cmd.execute(Westend).await.map(|_| Up(Network)),
+						up::Command::Westend(mut cmd) => cmd.execute(Westend).await.map(|_| Up(Network)),
 					},
 				}
 			},
