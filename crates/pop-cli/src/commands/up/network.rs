@@ -375,7 +375,11 @@ pub(crate) async fn spawn(
 			// Add relay info
 			let mut validators = network.relaychain().nodes();
 			validators.sort_by_key(|n| n.name());
-			result.push_str(&format!("\n{bar}  ⛓️ {}", network.relaychain().chain()));
+			result.push_str(&format!(
+				"\n{bar}  ⛓️ {} (⌛️epoch/session duration: {})️",
+				network.relaychain().chain(),
+				if network.relaychain().chain().contains("paseo") { "1 min" } else { "2 mins" }
+			));
 			for node in validators {
 				result.push_str(&output(node));
 			}
