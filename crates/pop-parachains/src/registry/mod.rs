@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{
-	traits::{Args, Binary, ChainSpec, Id, Node, Parachain as ParachainT, Port},
+	traits::{
+		Args, Binary, ChainSpec, GenesisOverrides, Id, Node, Override, Parachain as ParachainT,
+		Port,
+	},
 	up::Relay,
 };
 pub use pop::*;
 use pop_common::sourcing::traits::Source;
-use serde_json::{Map, Value};
 use std::{
 	any::{Any, TypeId},
 	collections::HashMap,
@@ -37,7 +39,6 @@ macro_rules! impl_parachain {
 mod pop;
 mod system;
 
-pub(crate) type Override = Box<dyn FnMut(&mut Map<String, Value>)>;
 pub(crate) type ParaTypeId = TypeId;
 type Registry = HashMap<Relay, Vec<Box<dyn Para>>>;
 
@@ -106,7 +107,18 @@ pub fn parachains(relay: &Relay) -> &'static [Box<dyn Para>] {
 
 /// A meta-trait used specifically for trait objects.
 pub trait Para:
-	Any + Args + Binary + ChainSpec + ParachainT + ParaClone + Node + Requires + Send + Source + Sync
+	Any
+	+ Args
+	+ Binary
+	+ ChainSpec
+	+ GenesisOverrides
+	+ ParachainT
+	+ ParaClone
+	+ Node
+	+ Requires
+	+ Send
+	+ Source
+	+ Sync
 {
 	/// Allows casting to [`Any`].
 	fn as_any(&self) -> &dyn Any;

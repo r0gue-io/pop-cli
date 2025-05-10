@@ -62,6 +62,8 @@ macro_rules! impl_system_parachain {
 				Some(vec!["-lxcm=trace"])
 			}
 		}
+
+		impl GenesisOverrides for $name {}
 	};
 }
 
