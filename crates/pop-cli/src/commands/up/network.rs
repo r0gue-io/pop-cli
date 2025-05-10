@@ -22,6 +22,7 @@ use pop_parachains::{
 	Error, IndexSet, NetworkNode, RelayChain,
 };
 use std::{
+	collections::HashMap,
 	ffi::OsStr,
 	path::{Path, PathBuf},
 	time::Duration,
@@ -157,7 +158,7 @@ pub(crate) struct BuildCommand<const FILTER: u8> {
 
 impl<const FILTER: u8> BuildCommand<FILTER> {
 	/// Executes the command.
-	pub(crate) async fn execute(self, relay: Relay) -> anyhow::Result<()> {
+	pub(crate) async fn execute(&mut self, relay: Relay) -> anyhow::Result<()> {
 		clear_screen()?;
 		intro(format!(
 			"{}: Launch a local {} network",
@@ -166,8 +167,34 @@ impl<const FILTER: u8> BuildCommand<FILTER> {
 		))?;
 		set_theme(Theme);
 
-		let network_config =
-			NetworkConfiguration::build(relay, self.port, self.parachain.as_deref())?;
+		let mut parachains = self.parachain.take();
+
+		// Check for any missing dependencies, auto-adding as required.
+		if let Some(ref mut parachains) = parachains {
+			let provided: Vec<_> = parachains.iter().map(|p| p.as_any().type_id()).collect();
+			let dependencies: HashMap<_, _> =
+				parachains.iter().filter_map(|p| p.requires()).flatten().collect();
+			let all: HashMap<_, _> =
+				registry::parachains(&relay).iter().map(|p| (p.as_any().type_id(), p)).collect();
+
+			let missing: Vec<_> = dependencies
+				.keys()
+				.filter_map(|k| {
+					(!provided.contains(k)).then(|| all.get(k)).flatten().map(|p| {
+						parachains.push((*p).clone());
+						p.name()
+					})
+				})
+				.collect();
+			if !missing.is_empty() {
+				info(format!(
+					"The following dependencies are required for the provided parachain(s) and have automatically been added: {}",
+					missing.join(", ")
+				))?;
+			}
+		}
+
+		let network_config = NetworkConfiguration::build(relay, self.port, parachains.as_deref())?;
 
 		spawn(
 			network_config,
