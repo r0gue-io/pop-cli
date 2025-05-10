@@ -102,4 +102,6 @@ impl Args for Pop {
 	}
 }
 
+impl GenesisOverrides for Pop {}
+
 impl_parachain!(Pop);
