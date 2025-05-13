@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{errors::Error, utils::canonicalized_path, Contract};
 #[cfg(feature = "v6")]
 use crate::templates::V6_CONTRACTS_BRANCH;
+use crate::{errors::Error, utils::canonicalized_path, Contract};
 use anyhow::Result;
 #[cfg(feature = "v5")]
 use contract_build::new_contract_project;
@@ -170,7 +170,6 @@ mod tests {
 		let generated_cargo = fs::read_to_string(temp_dir.path().join("test_contract/Cargo.toml"))
 			.expect("Could not read file");
 		assert!(generated_cargo.contains("name = \"test_contract\""));
-		println!("Generated Cargo.toml: {}", generated_cargo);
 		#[cfg(feature = "v5")]
 		assert!(generated_cargo.contains("ink = { version = \"5."));
 		#[cfg(feature = "v6")]
