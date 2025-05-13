@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.8.1] - 2025-05-13
+
+### 🐛 Fixes
+- Fixed template fetching for ink! v5 contracts by pointing to the correct branch.
+
 ## [0.8.0] - 2025-05-07
 
 ### 🚀 Features

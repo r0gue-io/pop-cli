@@ -4,6 +4,7 @@
 pub use pop_common::templates::{Template, Type};
 use strum_macros::{AsRefStr, Display, EnumMessage, EnumProperty, EnumString, VariantArray};
 
+#[cfg(feature = "v6")]
 // Temporary branch name for v6 contract templates.
 pub(crate) const V6_CONTRACTS_BRANCH: &str = "v6.x";
 
