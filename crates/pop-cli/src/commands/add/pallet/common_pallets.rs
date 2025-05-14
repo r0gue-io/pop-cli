@@ -6,35 +6,35 @@ use syn::{parse_quote, Item};
 
 #[derive(Debug, Copy, Clone, PartialEq, EnumIter, EnumMessage, ValueEnum, Eq)]
 pub(crate) enum CommonPallets {
-	/// Add pallet-balances to your runtime.
-	#[strum(message = "balances", detailed_message = "Add pallet-balances to your runtime.")]
-	Balances,
-	/// Add pallet-contracts to your runtime.
-	#[strum(message = "contracts", detailed_message = "Add pallet-contracts to your runtime.")]
+	/// A simple, secure module for dealing with fungible assets.
+	#[strum(message = "assets", detailed_message = "A simple, secure module for dealing with fungible assets..")]
+	Assets,
+	/// The Contracts module provides functionality for the runtime to deploy and execute WebAssembly smart-contracts.
+	#[strum(message = "contracts", detailed_message = "The Contracts module provides functionality for the runtime to deploy and execute WebAssembly smart-contracts.")]
 	Contracts,
 }
 
 impl CommonPallets {
 	pub(crate) fn get_crate_name(&self) -> String {
 		match self {
-			CommonPallets::Balances => "pallet-balances".to_owned(),
+			CommonPallets::Assets => "pallet-assets".to_owned(),
 			CommonPallets::Contracts => "pallet-contracts".to_owned(),
 		}
 	}
 
 	pub(crate) fn get_pallet_declaration_construct_runtime(&self) -> TokenStream {
 		match self {
-			CommonPallets::Balances => parse_quote! { Balances: pallet_balances, },
+			CommonPallets::Assets => parse_quote! { Assets: pallet_assets, },
 			CommonPallets::Contracts => parse_quote! { Contracts: pallet_contracts, },
 		}
 	}
 
 	pub(crate) fn get_pallet_declaration_runtime_module(&self, highest_index: Literal) -> Item {
 		match self {
-			CommonPallets::Balances => parse_quote! {
+			CommonPallets::Assets => parse_quote! {
 			  ///TEMP_DOC
 				#[runtime::pallet_index(#highest_index)]
-				pub type Balances = pallet_balances;
+				pub type Assets = pallet_assets;
 			},
 			CommonPallets::Contracts => parse_quote! {
 			  ///TEMP_DOC
@@ -46,13 +46,16 @@ impl CommonPallets {
 
 	pub(crate) fn get_impl_needed_use_statements(&self) -> Vec<Item> {
 		match self {
-			CommonPallets::Balances => vec![
+			CommonPallets::Assets => vec![
 				parse_quote!(
 					///TEMP_DOC
-					use crate::{System, Runtime, RuntimeEvent, RuntimeHoldReason, RuntimeCall};
+					use crate::{AccountId, Balances, Runtime, RuntimeEvent, RuntimeHoldReason, RuntimeCall};
 				),
 				parse_quote!(
-					use frame_support::{parameter_types, derive_impl};
+					use frame_support::{parameter_types, derive_impl, traits::AsEnsureOriginWithArg};
+				),
+				parse_quote!(
+					use frame_system::{EnsureRoot, EnsureSigned};
 				),
 			],
 			CommonPallets::Contracts => vec![
@@ -69,7 +72,7 @@ impl CommonPallets {
 
 	pub(crate) fn get_needed_parameter_types(&self) -> Item {
 		match self {
-			CommonPallets::Balances => Item::Verbatim(TokenStream::new()),
+			CommonPallets::Assets => Item::Verbatim(TokenStream::new()),
 			CommonPallets::Contracts => parse_quote! {
 			  ///TEMP_DOC
 			  parameter_types!{
@@ -81,11 +84,13 @@ impl CommonPallets {
 
 	pub(crate) fn get_needed_impl_block(&self) -> Item {
 		match self {
-			CommonPallets::Balances => parse_quote! {
+			CommonPallets::Assets => parse_quote! {
 			  ///TEMP_DOC
-			  #[derive_impl(pallet_balances::config_preludes::TestDefaultConfig)]
-			  impl pallet_balances::Config for Runtime{
-				type AccountStore = System;
+			  #[derive_impl(pallet_assets::config_preludes::TestDefaultConfig)]
+			  impl pallet_assets::Config for Runtime{
+				type Currency = Balances;
+				type CreateOrigin = AsEnsureOriginWithArg<EnsureSigned<AccountId>>;
+				type ForceOrigin = EnsureRoot<AccountId>;
 			  }
 			},
 			CommonPallets::Contracts => parse_quote! {
@@ -107,15 +112,15 @@ mod tests {
 
 	#[test]
 	fn get_crate_name_works() {
-		assert_eq!(CommonPallets::Balances.get_crate_name(), "pallet-balances");
+		assert_eq!(CommonPallets::Assets.get_crate_name(), "pallet-assets");
 		assert_eq!(CommonPallets::Contracts.get_crate_name(), "pallet-contracts");
 	}
 
 	#[test]
 	fn get_pallet_declaration_construct_runtime_works() {
 		assert!(rustilities::parsing::syntactic_token_stream_compare(
-			CommonPallets::Balances.get_pallet_declaration_construct_runtime(),
-			parse_quote! { Balances: pallet_balances, }
+			CommonPallets::Assets.get_pallet_declaration_construct_runtime(),
+			parse_quote! { Assets: pallet_assets, }
 		));
 
 		assert!(rustilities::parsing::syntactic_token_stream_compare(
@@ -127,11 +132,11 @@ mod tests {
 	#[test]
 	fn get_pallet_declaration_runtime_module_works() {
 		assert_eq!(
-			CommonPallets::Balances.get_pallet_declaration_runtime_module(parse_quote!(1)),
+			CommonPallets::Assets.get_pallet_declaration_runtime_module(parse_quote!(1)),
 			parse_quote! {
 				///TEMP_DOC
 				#[runtime::pallet_index(1)]
-				pub type Balances = pallet_balances;
+				pub type Assets = pallet_assets;
 			}
 		);
 		assert_eq!(
@@ -147,14 +152,17 @@ mod tests {
 	#[test]
 	fn get_impl_needed_use_statements_works() {
 		assert_eq!(
-			CommonPallets::Balances.get_impl_needed_use_statements(),
+			CommonPallets::Assets.get_impl_needed_use_statements(),
 			vec![
 				parse_quote! {
 					///TEMP_DOC
-					use crate::{System, Runtime, RuntimeEvent, RuntimeHoldReason, RuntimeCall};
+					use crate::{AccountId, Balances, Runtime, RuntimeEvent, RuntimeHoldReason, RuntimeCall};
 				},
 				parse_quote!(
-					use frame_support::{parameter_types, derive_impl};
+					use frame_support::{parameter_types, derive_impl, traits::AsEnsureOriginWithArg};
+				),
+				parse_quote!(
+					use frame_system::{EnsureRoot, EnsureSigned};
 				)
 			]
 		);
@@ -175,7 +183,7 @@ mod tests {
 	#[test]
 	fn get_needed_parameter_types_works() {
 		assert_eq!(
-			CommonPallets::Balances.get_needed_parameter_types(),
+			CommonPallets::Assets.get_needed_parameter_types(),
 			Item::Verbatim(TokenStream::new())
 		);
 
@@ -193,12 +201,14 @@ mod tests {
 	#[test]
 	fn get_needed_impl_block_works() {
 		assert_eq!(
-			CommonPallets::Balances.get_needed_impl_block(),
+			CommonPallets::Assets.get_needed_impl_block(),
 			parse_quote! {
 				///TEMP_DOC
-				#[derive_impl(pallet_balances::config_preludes::TestDefaultConfig)]
-				impl pallet_balances::Config for Runtime {
-					type AccountStore = System;
+				#[derive_impl(pallet_assets::config_preludes::TestDefaultConfig)]
+				impl pallet_assets::Config for Runtime {
+					type Currency = Balances;
+					type CreateOrigin = AsEnsureOriginWithArg<EnsureSigned<AccountId>>;
+					type ForceOrigin = EnsureRoot<AccountId>;
 				}
 			}
 		);
