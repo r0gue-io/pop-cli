@@ -8,11 +8,12 @@ use crate::{
 	},
 };
 use clap::{Args, Subcommand};
-#[cfg(feature = "parachain")]
-use pop_parachains::up::Relay;
-#[cfg(feature = "parachain")]
-use std::fmt::{Display, Formatter, Result};
 use std::path::PathBuf;
+#[cfg(feature = "parachain")]
+use {
+	pop_parachains::up::Relay,
+	std::fmt::{Display, Formatter, Result},
+};
 
 #[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 mod contract;
