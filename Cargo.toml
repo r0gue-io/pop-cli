@@ -53,7 +53,6 @@ ink_env_v6 = { version = "6.0.0-alpha", package = "ink_env", default-features = 
 sp-core = { version = "32.0.0", default-features = false }
 sp-core_inkv6 = { version = "36.1.0", package = "sp-core", default-features = false }
 sp-weights = { version = "31.0.0", default-features = false }
-sp-weights_inkv6 = { version = "31.1.0", package = "sp-weights", default-features = false }
 scale = { package = "parity-scale-codec", version = "3.0.0", features = ["derive"] }
 scale-info = { version = "2.11.4", default-features = false, features = ["derive"] }
 scale-value = { version = "0.17.0", default-features = false, features = ["from-string", "parser-ss58"] }
