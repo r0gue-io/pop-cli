@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use super::*;
+use super::{traits::Requires, *};
 use crate::{
 	accounts,
 	traits::{Args, Binary},
@@ -16,15 +16,15 @@ use std::collections::HashMap;
 
 /// Pop Network makes it easy for smart contract developers to use the power of Polkadot.
 #[derive(Clone)]
-pub struct Pop(Parachain);
+pub struct Pop(Rollup);
 impl Pop {
 	/// A new instance of Pop.
 	///
 	/// # Arguments
-	/// * `id` - The parachain identifier.
+	/// * `id` - The rollup identifier.
 	/// * `chain` - The identifier of the chain, as used by the chain specification.
 	pub fn new(id: Id, chain: impl Into<String>) -> Self {
-		Self(Parachain::new("pop", id, chain))
+		Self(Rollup::new("pop", id, chain))
 	}
 }
 
@@ -55,16 +55,16 @@ impl Binary for Pop {
 }
 
 impl Requires for Pop {
-	/// Defines the requirements of a parachain, namely which other chains it depends on and any
+	/// Defines the requirements of a rollup, namely which other chains it depends on and any
 	/// corresponding overrides to genesis state.
-	fn requires(&self) -> Option<HashMap<ParaTypeId, Override>> {
-		let para_id = self.id();
+	fn requires(&self) -> Option<HashMap<RollupTypeId, Override>> {
+		let id = self.id();
 		let amount: u128 = 1_200_000_000_000_000_000;
 
 		Some(HashMap::from([(
-			ParaTypeId::of::<AssetHub>(),
+			RollupTypeId::of::<AssetHub>(),
 			Box::new(move |genesis_overrides: &mut Map<String, Value>| {
-				let sovereign_account = accounts::sibl(para_id).to_ss58check();
+				let sovereign_account = accounts::sibl(id).to_ss58check();
 				let endowment = json!([sovereign_account, amount]);
 				// Add sovereign account endowment
 				genesis_overrides
@@ -104,4 +104,4 @@ impl Args for Pop {
 
 impl GenesisOverrides for Pop {}
 
-impl_parachain!(Pop);
+impl_rollup!(Pop);

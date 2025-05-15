@@ -63,7 +63,7 @@ pub(super) async fn from(
 	chain: Option<&str>,
 	cache: &Path,
 ) -> Result<Option<super::Parachain>, Error> {
-	if let Some(para) = registry::parachains(relay).iter().find(|p| p.binary() == command) {
+	if let Some(para) = registry::rollups(relay).iter().find(|p| p.binary() == command) {
 		let name = para.binary().to_string();
 		let source = para.source()?.resolve(&name, version, cache).await;
 		let binary = Binary::Source { name, source, cache: cache.to_path_buf() };

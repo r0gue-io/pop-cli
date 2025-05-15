@@ -2,8 +2,7 @@
 
 use crate::{
 	traits::{
-		Args, Binary, ChainSpec, GenesisOverrides, Id, Node, Override, Parachain as ParachainT,
-		Port,
+		Args, Binary, ChainSpec, GenesisOverrides, Id, Node, Override, Port, Rollup as RollupT,
 	},
 	up::Relay,
 };
@@ -17,18 +16,18 @@ use std::{
 pub use system::*;
 
 // Macro for reducing boilerplate code.
-macro_rules! impl_parachain {
+macro_rules! impl_rollup {
 	($name:ty) => {
-		impl AsPara for $name {
-			fn as_para(&self) -> &Parachain {
+		impl AsRollup for $name {
+			fn as_rollup(&self) -> &Rollup {
 				&self.0
 			}
-			fn as_para_mut(&mut self) -> &mut Parachain {
+			fn as_rollup_mut(&mut self) -> &mut Rollup {
 				&mut self.0
 			}
 		}
 
-		impl Para for $name {
+		impl traits::Rollup for $name {
 			fn as_any(&self) -> &dyn std::any::Any {
 				self
 			}
@@ -39,8 +38,8 @@ macro_rules! impl_parachain {
 mod pop;
 mod system;
 
-pub(crate) type ParaTypeId = TypeId;
-type Registry = HashMap<Relay, Vec<Box<dyn Para>>>;
+pub(crate) type RollupTypeId = TypeId;
+type Registry = HashMap<Relay, Vec<Box<dyn traits::Rollup>>>;
 
 const REGISTRAR: fn(Registry) -> Registry = |mut registry| {
 	use Relay::*;
@@ -94,85 +93,39 @@ const REGISTRAR: fn(Registry) -> Registry = |mut registry| {
 	registry
 };
 
-/// Returns the parachains registered for the provided relay chain.
+/// Returns the rollups registered for the provided relay chain.
 ///
 /// # Arguments
 /// * `relay` - The relay chain.
-pub fn parachains(relay: &Relay) -> &'static [Box<dyn Para>] {
-	static REGISTRY: OnceLock<HashMap<Relay, Vec<Box<dyn Para>>>> = OnceLock::new();
-	static EMPTY: Vec<Box<dyn Para>> = Vec::new();
+pub fn rollups(relay: &Relay) -> &'static [Box<dyn traits::Rollup>] {
+	static REGISTRY: OnceLock<HashMap<Relay, Vec<Box<dyn traits::Rollup>>>> = OnceLock::new();
+	static EMPTY: Vec<Box<dyn traits::Rollup>> = Vec::new();
 
 	REGISTRY.get_or_init(|| REGISTRAR(HashMap::new())).get(relay).unwrap_or(&EMPTY)
 }
 
-/// A meta-trait used specifically for trait objects.
-pub trait Para:
-	Any
-	+ Args
-	+ Binary
-	+ ChainSpec
-	+ GenesisOverrides
-	+ ParachainT
-	+ ParaClone
-	+ Node
-	+ Requires
-	+ Send
-	+ Source
-	+ Sync
-{
-	/// Allows casting to [`Any`].
-	fn as_any(&self) -> &dyn Any;
-}
-
-/// A helper trait for ensuring [Para] trait objects can be cloned.
-pub trait ParaClone {
-	/// Returns a copy of the value.
-	fn clone_box(&self) -> Box<dyn Para>;
-}
-
-impl<T: 'static + Para + Clone> ParaClone for T {
-	fn clone_box(&self) -> Box<dyn Para> {
-		Box::new(self.clone())
-	}
-}
-
-impl Clone for Box<dyn Para> {
-	fn clone(&self) -> Self {
-		ParaClone::clone_box(self.as_ref())
-	}
-}
-
-/// The requirements of a parachain.
-pub trait Requires {
-	/// Defines the requirements of a parachain, namely which other chains it depends on and any
-	/// corresponding overrides to genesis state.
-	fn requires(&self) -> Option<HashMap<ParaTypeId, Override>> {
-		None
-	}
-}
-
-// A base type, used by parachain implementations to reduce boilerplate code.
+// A base type, used by rollup implementations to reduce boilerplate code.
 #[derive(Clone)]
-struct Parachain {
+struct Rollup {
 	name: String,
 	id: Id,
 	chain: String,
 	port: Option<Port>,
 }
 
-impl Parachain {
+impl Rollup {
 	fn new(name: impl Into<String>, id: Id, chain: impl Into<String>) -> Self {
 		Self { name: name.into(), id, chain: chain.into(), port: None }
 	}
 }
 
-impl ChainSpec for Parachain {
+impl ChainSpec for Rollup {
 	fn chain(&self) -> &str {
 		self.chain.as_str()
 	}
 }
 
-impl ParachainT for Parachain {
+impl RollupT for Rollup {
 	fn id(&self) -> Id {
 		self.id
 	}
@@ -186,7 +139,7 @@ impl ParachainT for Parachain {
 	}
 }
 
-impl Node for Parachain {
+impl Node for Rollup {
 	fn port(&self) -> Option<&Port> {
 		self.port.as_ref()
 	}
@@ -196,58 +149,110 @@ impl Node for Parachain {
 	}
 }
 
-trait AsPara {
-	fn as_para(&self) -> &Parachain;
-	fn as_para_mut(&mut self) -> &mut Parachain;
+trait AsRollup {
+	fn as_rollup(&self) -> &Rollup;
+	fn as_rollup_mut(&mut self) -> &mut Rollup;
 }
 
-impl<T: AsPara + 'static> ChainSpec for T {
+impl<T: AsRollup + 'static> ChainSpec for T {
 	fn chain(&self) -> &str {
-		self.as_para().chain()
+		self.as_rollup().chain()
 	}
 }
 
-impl<T: AsPara + 'static> ParachainT for T {
+impl<T: AsRollup + 'static> RollupT for T {
 	fn id(&self) -> Id {
-		self.as_para().id()
+		self.as_rollup().id()
 	}
 
 	fn name(&self) -> &str {
-		self.as_para().name()
+		self.as_rollup().name()
 	}
 
 	fn set_id(&mut self, id: Id) {
-		self.as_para_mut().set_id(id);
+		self.as_rollup_mut().set_id(id);
 	}
 }
 
-impl<T: AsPara + 'static> Node for T {
+impl<T: AsRollup + 'static> Node for T {
 	fn port(&self) -> Option<&Port> {
-		self.as_para().port()
+		self.as_rollup().port()
 	}
 
 	fn set_port(&mut self, port: Port) {
-		self.as_para_mut().set_port(port);
+		self.as_rollup_mut().set_port(port);
 	}
 }
 
-impl<T: Para> From<T> for Box<dyn Para> {
+impl<T: traits::Rollup> From<T> for Box<dyn traits::Rollup> {
 	fn from(value: T) -> Self {
 		Box::new(value)
+	}
+}
+
+/// Traits used by the rollup registry.
+pub mod traits {
+	use super::*;
+
+	/// A meta-trait used specifically for trait objects.
+	pub trait Rollup:
+		Any
+		+ Args
+		+ Binary
+		+ ChainSpec
+		+ GenesisOverrides
+		+ Node
+		+ Requires
+		+ crate::traits::Rollup
+		+ RollupClone
+		+ Send
+		+ Source
+		+ Sync
+	{
+		/// Allows casting to [`Any`].
+		fn as_any(&self) -> &dyn Any;
+	}
+
+	/// A helper trait for ensuring [crate::registry::Rollup] trait objects can be cloned.
+	pub trait RollupClone {
+		/// Returns a copy of the value.
+		fn clone_box(&self) -> Box<dyn Rollup>;
+	}
+
+	impl<T: 'static + Rollup + Clone> RollupClone for T {
+		fn clone_box(&self) -> Box<dyn Rollup> {
+			Box::new(self.clone())
+		}
+	}
+
+	impl Clone for Box<dyn Rollup> {
+		fn clone(&self) -> Self {
+			RollupClone::clone_box(self.as_ref())
+		}
+	}
+
+	/// The requirements of a rollup.
+	pub trait Requires {
+		/// Defines the requirements of a rollup, namely which other rollup it depends on and any
+		/// corresponding overrides to genesis state.
+		fn requires(&self) -> Option<HashMap<RollupTypeId, Override>> {
+			None
+		}
 	}
 }
 
 #[test]
 fn check() {
 	use std::any::{Any, TypeId};
+	use traits::Rollup;
 
 	let asset_hub = AssetHub::new(1_000, Relay::Paseo);
 	let bridge_hub = BridgeHub::new(1_002, Relay::Polkadot);
 
 	assert_ne!(asset_hub.type_id(), bridge_hub.type_id());
 
-	let asset_hub: Box<dyn Para> = Box::new(asset_hub);
-	let bridge_hub: Box<dyn Para> = Box::new(bridge_hub);
+	let asset_hub: Box<dyn Rollup> = Box::new(asset_hub);
+	let bridge_hub: Box<dyn Rollup> = Box::new(bridge_hub);
 
 	assert_ne!(asset_hub.as_any().type_id(), bridge_hub.as_any().type_id());
 

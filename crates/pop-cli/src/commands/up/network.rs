@@ -16,7 +16,7 @@ use pop_common::Status;
 pub(crate) use pop_parachains::up::Relay;
 use pop_parachains::{
 	clear_dmpq,
-	registry::{self, Para},
+	registry::{self, traits::Rollup},
 	up::{NetworkConfiguration, Zombienet},
 	Error, IndexSet, NetworkNode, RelayChain,
 };
@@ -138,8 +138,8 @@ pub(crate) struct BuildCommand<const FILTER: u8> {
 	system_parachain_runtime: Option<String>,
 	/// The parachain(s) to be included. An optional parachain identifier and/or port can be
 	/// affixed via #id and :port specifiers (e.g. `asset-hub#1000:9944`).
-	#[arg(short, long, value_delimiter = ',', value_parser = SupportedParachains::<FILTER>::new())]
-	parachain: Option<Vec<Box<dyn Para>>>,
+	#[arg(short, long, value_delimiter = ',', value_parser = SupportedRollups::<FILTER>::new())]
+	parachain: Option<Vec<Box<dyn Rollup>>>,
 	/// The port to be used for the first relay chain validator.
 	#[clap(short = 'P', long)]
 	port: Option<u16>,
@@ -163,21 +163,21 @@ impl<const FILTER: u8> BuildCommand<FILTER> {
 	) -> anyhow::Result<()> {
 		cli.intro(format!("Launch a local {} network", relay.name()))?;
 
-		let mut parachains = self.parachain.take();
+		let mut rollups = self.parachain.take();
 
 		// Check for any missing dependencies, auto-adding as required.
-		if let Some(ref mut parachains) = parachains {
-			let provided: Vec<_> = parachains.iter().map(|p| p.as_any().type_id()).collect();
+		if let Some(ref mut rollups) = rollups {
+			let provided: Vec<_> = rollups.iter().map(|p| p.as_any().type_id()).collect();
 			let dependencies: HashMap<_, _> =
-				parachains.iter().filter_map(|p| p.requires()).flatten().collect();
+				rollups.iter().filter_map(|p| p.requires()).flatten().collect();
 			let all: HashMap<_, _> =
-				registry::parachains(&relay).iter().map(|p| (p.as_any().type_id(), p)).collect();
+				registry::rollups(&relay).iter().map(|p| (p.as_any().type_id(), p)).collect();
 
 			let missing: Vec<_> = dependencies
 				.keys()
 				.filter_map(|k| {
 					(!provided.contains(k)).then(|| all.get(k)).flatten().map(|p| {
-						parachains.push((*p).clone());
+						rollups.push((*p).clone());
 						p.name()
 					})
 				})
@@ -190,7 +190,7 @@ impl<const FILTER: u8> BuildCommand<FILTER> {
 			}
 		}
 
-		let network_config = NetworkConfiguration::build(relay, self.port, parachains.as_deref())?;
+		let network_config = NetworkConfiguration::build(relay, self.port, rollups.as_deref())?;
 
 		spawn(
 			network_config,
@@ -209,21 +209,21 @@ impl<const FILTER: u8> BuildCommand<FILTER> {
 }
 
 #[derive(Clone)]
-struct SupportedParachains<const FILTER: u8>(PossibleValuesParser);
+struct SupportedRollups<const FILTER: u8>(PossibleValuesParser);
 
-impl<const FILTER: u8> SupportedParachains<FILTER> {
+impl<const FILTER: u8> SupportedRollups<FILTER> {
 	fn new() -> Self {
 		let relay = Relay::from(FILTER).expect("expected valid relay variant index as filter");
 		Self(PossibleValuesParser::new(
-			registry::parachains(&relay)
+			registry::rollups(&relay)
 				.into_iter()
 				.map(|p| PossibleValue::new(p.name().to_string())),
 		))
 	}
 }
 
-impl<const FILTER: u8> TypedValueParser for SupportedParachains<FILTER> {
-	type Value = Box<dyn Para>;
+impl<const FILTER: u8> TypedValueParser for SupportedRollups<FILTER> {
+	type Value = Box<dyn Rollup>;
 
 	fn parse_ref(
 		&self,
@@ -231,10 +231,10 @@ impl<const FILTER: u8> TypedValueParser for SupportedParachains<FILTER> {
 		arg: Option<&Arg>,
 		value: &OsStr,
 	) -> Result<Self::Value, clap::Error> {
-		// Parse value as chain with optional para id and port specifiers
+		// Parse value as chain with optional rollup id and port specifiers
 		let (chain, id, port) = match self.0.parse_ref(cmd, arg, value) {
 			Ok(value) => (value, None, None),
-			// Check if failure due to para id being specified
+			// Check if failure due to rollup id being specified
 			Err(e) if e.kind() == ErrorKind::InvalidValue => {
 				let value = StringValueParser::new().parse_ref(cmd, arg, value)?;
 				// Attempt to parse name and optional id, port from the entered value
@@ -249,24 +249,24 @@ impl<const FILTER: u8> TypedValueParser for SupportedParachains<FILTER> {
 			Err(e) => return Err(e),
 		};
 
-		// Attempt to resolve from supported parachains
+		// Attempt to resolve from supported rollups
 		let relay = Relay::from(FILTER).expect("expected valid relay variant index as filter");
-		registry::parachains(&relay)
+		registry::rollups(&relay)
 			.into_iter()
 			.find(|p| {
 				let chain = chain.as_str();
 				p.name() == chain || p.chain() == chain
 			})
 			.map(|p| {
-				let mut para = p.clone();
-				// Override para id and/or port if provided
+				let mut rollup = p.clone();
+				// Override id and/or port if provided
 				if let Some(id) = id {
-					para.set_id(id);
+					rollup.set_id(id);
 				}
 				if let Some(port) = port {
-					para.set_port(port);
+					rollup.set_port(port);
 				}
-				para
+				rollup
 			})
 			.ok_or(clap::Error::new(ErrorKind::InvalidValue).with_cmd(cmd))
 	}
@@ -381,18 +381,18 @@ pub(crate) async fn spawn(
 			for node in validators {
 				result.push_str(&output(node));
 			}
-			// Add parachain info
-			let mut parachains = network.parachains();
-			parachains.sort_by_key(|p| p.para_id());
-			for parachain in parachains {
+			// Add rollup info
+			let mut rollups = network.parachains();
+			rollups.sort_by_key(|p| p.para_id());
+			for rollup in rollups {
 				result.push_str(&format!(
 					"\n{bar}  ⛓️ {}",
-					parachain.chain_id().map_or(
-						format!("para_id: {}", parachain.para_id()),
-						|chain| format!("{chain}: {}", parachain.para_id())
-					)
+					rollup.chain_id().map_or(format!("id: {}", rollup.para_id()), |chain| format!(
+						"{chain}: {}",
+						rollup.para_id()
+					))
 				));
-				let mut collators = parachain.collators();
+				let mut collators = rollup.collators();
 				collators.sort_by_key(|n| n.name());
 				for node in collators {
 					result.push_str(&output(node));
@@ -419,10 +419,10 @@ pub(crate) async fn spawn(
 						sleep(Duration::from_secs(10)).await;
 						progress.set_message("Preparing channels...");
 						let relay_endpoint = network.relaychain().nodes()[0].wait_client().await?;
-						let para_ids: Vec<_> =
+						let ids: Vec<_> =
 							network.parachains().iter().map(|p| p.para_id()).collect();
 						tokio::spawn(async move {
-							if let Err(e) = clear_dmpq(relay_endpoint, &para_ids).await {
+							if let Err(e) = clear_dmpq(relay_endpoint, &ids).await {
 								progress.stop(format!("🚫 Could not prepare channels: {e}"));
 								return Ok::<(), Error>(());
 							}
