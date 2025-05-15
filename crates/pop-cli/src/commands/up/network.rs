@@ -36,7 +36,7 @@ pub(crate) struct ConfigFileCommand {
 	#[arg(value_name = "FILE", conflicts_with = "file")]
 	pub path: Option<PathBuf>,
 	/// [DEPRECATED] The Zombienet network configuration file to be used (will be removed in
-	/// v0.9.0).
+	/// v0.10.0).
 	#[arg(short = 'f', long = "file")]
 	#[deprecated(since = "0.9.0", note = "will be removed in v0.10.0")]
 	#[allow(rustdoc::broken_intra_doc_links)]
