@@ -177,15 +177,15 @@ impl Command {
 					None => up::Command::execute(args).await.map(Up),
 					Some(cmd) => match cmd {
 						#[cfg(feature = "parachain")]
-						up::Command::Network(cmd) => cmd.execute().await.map(|_| Up(Network)),
+						up::Command::Network(cmd) => cmd.execute(&mut Cli).await.map(|_| Up(Network)),
 						#[cfg(feature = "parachain")]
-						up::Command::Paseo(mut cmd) => cmd.execute(Paseo).await.map(|_| Up(Network)),
+						up::Command::Paseo(mut cmd) => cmd.execute(Paseo, &mut Cli).await.map(|_| Up(Network)),
 						#[cfg(feature = "parachain")]
-						up::Command::Kusama(mut cmd) => cmd.execute(Kusama).await.map(|_| Up(Network)),
+						up::Command::Kusama(mut cmd) => cmd.execute(Kusama, &mut Cli).await.map(|_| Up(Network)),
 						#[cfg(feature = "parachain")]
-						up::Command::Polkadot(mut cmd) => cmd.execute(Polkadot).await.map(|_| Up(Network)),
+						up::Command::Polkadot(mut cmd) => cmd.execute(Polkadot, &mut Cli).await.map(|_| Up(Network)),
 						#[cfg(feature = "parachain")]
-						up::Command::Westend(mut cmd) => cmd.execute(Westend).await.map(|_| Up(Network)),
+						up::Command::Westend(mut cmd) => cmd.execute(Westend, &mut Cli).await.map(|_| Up(Network)),
 					},
 				}
 			},

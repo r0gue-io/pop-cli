@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::style::{style, Theme};
+use crate::{
+	cli::{self, traits::Confirm},
+	style::{style, Theme},
+};
 use clap::{
 	builder::{PossibleValue, PossibleValuesParser, StringValueParser, TypedValueParser},
 	error::ErrorKind,
 	Arg, Args, Command,
 };
-use cliclack::{
-	clear_screen, confirm, intro, log, multi_progress, outro, outro_cancel, set_theme, spinner,
-	ProgressBar, Theme as _, ThemeState,
-};
+use cliclack::{multi_progress, spinner, ProgressBar};
 use console::{Emoji, Style, Term};
 use duct::cmd;
 use pop_common::Status;
@@ -75,15 +75,13 @@ pub(crate) struct ConfigFileCommand {
 
 impl ConfigFileCommand {
 	/// Executes the command.
-	pub(crate) async fn execute(self) -> anyhow::Result<()> {
-		clear_screen()?;
-		intro(format!("{}: Launch a local network", style(" Pop CLI ").black().on_magenta()))?;
-		set_theme(Theme);
+	pub(crate) async fn execute(self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+		cli.intro("Launch a local network")?;
 
 		// Show warning if file argument provided.
 		#[allow(deprecated)]
 		if self.file.is_some() {
-			log::warning(
+			cli.warning(
 				"DEPRECATION: Please use `pop up network [PATH]` (or simply `pop u n [PATH]`) in the future...",
 			)?;
 		}
@@ -94,7 +92,7 @@ impl ConfigFileCommand {
 			#[allow(deprecated)]
 			None => match self.file.as_deref() {
 				None => {
-					outro_cancel("🚫 A network configuration file must be specified. See `pop up network --help` for usage.".to_string())?;
+					cli.outro_cancel("🚫 A network configuration file must be specified. See `pop up network --help` for usage.".to_string())?;
 					return Ok(())
 				},
 				Some(path) => path,
@@ -111,6 +109,7 @@ impl ConfigFileCommand {
 			self.verbose,
 			self.skip_confirm,
 			self.command.as_deref(),
+			cli,
 		)
 		.await
 	}
@@ -157,14 +156,12 @@ pub(crate) struct BuildCommand<const FILTER: u8> {
 
 impl<const FILTER: u8> BuildCommand<FILTER> {
 	/// Executes the command.
-	pub(crate) async fn execute(&mut self, relay: Relay) -> anyhow::Result<()> {
-		clear_screen()?;
-		intro(format!(
-			"{}: Launch a local {} network",
-			style(" Pop CLI ").black().on_magenta(),
-			relay.name()
-		))?;
-		set_theme(Theme);
+	pub(crate) async fn execute(
+		&mut self,
+		relay: Relay,
+		cli: &mut impl cli::traits::Cli,
+	) -> anyhow::Result<()> {
+		cli.intro(format!("Launch a local {} network", relay.name()))?;
 
 		let mut parachains = self.parachain.take();
 
@@ -186,7 +183,7 @@ impl<const FILTER: u8> BuildCommand<FILTER> {
 				})
 				.collect();
 			if !missing.is_empty() {
-				log::info(format!(
+				cli.info(format!(
 					"The following dependencies are required for the provided parachain(s) and have automatically been added: {}",
 					missing.join(", ")
 				))?;
@@ -205,6 +202,7 @@ impl<const FILTER: u8> BuildCommand<FILTER> {
 			self.verbose,
 			self.skip_confirm,
 			self.command.as_deref(),
+			cli,
 		)
 		.await
 	}
@@ -289,6 +287,7 @@ pub(crate) async fn spawn(
 	verbose: bool,
 	skip_confirm: bool,
 	command: Option<&str>,
+	cli: &mut impl cli::traits::Cli,
 ) -> anyhow::Result<()> {
 	// Initialize from arguments
 	let cache = crate::cache()?;
@@ -308,11 +307,11 @@ pub(crate) async fn spawn(
 		Err(e) =>
 			return match e {
 				Error::Config(message) => {
-					outro_cancel(format!("🚫 A configuration error occurred: `{message}`"))?;
+					cli.outro_cancel(format!("🚫 A configuration error occurred: `{message}`"))?;
 					Ok(())
 				},
 				Error::MissingBinary(name) => {
-					outro_cancel(format!("🚫 The `{name}` binary is specified in the network configuration file, but cannot be resolved to a source. Are you missing a `--parachain` argument?"))?;
+					cli.outro_cancel(format!("🚫 The `{name}` binary is specified in the network configuration file, but cannot be resolved to a source. Are you missing a `--parachain` argument?"))?;
 					Ok(())
 				},
 				_ => Err(e.into()),
@@ -320,7 +319,7 @@ pub(crate) async fn spawn(
 	};
 
 	// Source any missing/stale binaries
-	if source_binaries(&mut zombienet, &cache, verbose, skip_confirm).await? {
+	if source_binaries(&mut zombienet, &cache, verbose, skip_confirm, cli).await? {
 		return Ok(());
 	}
 
@@ -341,7 +340,7 @@ pub(crate) async fn spawn(
 				}
 				set
 			});
-		log::info(format!("Binaries used: {}", binaries.join(", ")))?;
+		cli.info(format!("Binaries used: {}", binaries.join(", ")))?;
 	}
 
 	// Finally, spawn the network and wait for a signal to terminate
@@ -411,7 +410,7 @@ pub(crate) async fn spawn(
 				let relay_chain = zombienet.relay_chain();
 				match RelayChain::from(relay_chain) {
 					None => {
-						log::error(format!("🚫 Using `{relay_chain}` with HRMP channels is currently unsupported. Please use `paseo-local` or `westend-local`."))?;
+						cli.error(format!("🚫 Using `{relay_chain}` with HRMP channels is currently unsupported. Please use `paseo-local` or `westend-local`."))?;
 					},
 					Some(_) => {
 						let progress = spinner();
@@ -435,10 +434,10 @@ pub(crate) async fn spawn(
 			}
 
 			tokio::signal::ctrl_c().await?;
-			outro("Done")?;
+			cli.outro("Done")?;
 		},
 		Err(e) => {
-			outro_cancel(format!("🚫 Could not launch local network: {e}"))?;
+			cli.outro_cancel(format!("🚫 Could not launch local network: {e}"))?;
 		},
 	}
 
@@ -450,6 +449,7 @@ async fn source_binaries(
 	cache: &Path,
 	verbose: bool,
 	skip_confirm: bool,
+	cli: &mut impl cli::traits::Cli,
 ) -> anyhow::Result<bool> {
 	// Check for any missing or stale binaries
 	let binaries = zombienet.binaries().filter(|b| !b.exists() || b.stale()).fold(
@@ -477,7 +477,7 @@ async fn source_binaries(
 		))
 		.dim()
 		.to_string();
-		log::warning(format!("⚠️ The following binaries required to launch the network cannot be found locally:\n   {list}"))?;
+		cli.warning(format!("⚠️ The following binaries required to launch the network cannot be found locally:\n   {list}"))?;
 
 		// Prompt for automatic sourcing of binaries
 		let list = style(format!(
@@ -497,12 +497,12 @@ async fn source_binaries(
 		.dim()
 		.to_string();
 		if !skip_confirm &&
-			!confirm(format!(
+			!cli.confirm(format!(
 				"📦 Would you like to source them automatically now? It may take some time...\n   {list}"))
-			.initial_value(true)
-			.interact()?
+				.initial_value(true)
+				.interact()?
 		{
-			outro_cancel(
+			cli.outro_cancel(
 				"🚫 Cannot launch the specified network until all required binaries are available.",
 			)?;
 			return Ok(true);
@@ -528,16 +528,17 @@ async fn source_binaries(
 		))
 		.dim()
 		.to_string();
-		log::warning(format!(
+		cli.warning(format!(
 			"ℹ️ The following binaries have newer versions available:\n   {list}"
 		))?;
 		if !skip_confirm {
-			latest = confirm(
-				"📦 Would you like to source them automatically now? It may take some time..."
-					.to_string(),
-			)
-			.initial_value(true)
-			.interact()?;
+			latest = cli
+				.confirm(
+					"📦 Would you like to source them automatically now? It may take some time..."
+						.to_string(),
+				)
+				.initial_value(true)
+				.interact()?;
 		} else {
 			latest = true;
 		}
@@ -559,7 +560,7 @@ async fn source_binaries(
 	}
 
 	if binaries.iter().any(|b| !b.local()) {
-		log::info(format!(
+		cli.info(format!(
 			"ℹ️ Binaries will be cached at {}",
 			&cache.to_str().expect("expected local cache is invalid")
 		))?;
@@ -571,11 +572,11 @@ async fn source_binaries(
 		true => {
 			let reporter = VerboseReporter;
 			for binary in binaries {
-				log::info(format!("📦 Sourcing {}...", binary.name()))?;
+				cli.info(format!("📦 Sourcing {}...", binary.name()))?;
 				Term::stderr().clear_last_lines(1)?;
 				if let Err(e) = binary.source(release, &reporter, verbose).await {
 					reporter.update(&format!("Sourcing failed: {e}"));
-					outro_cancel(
+					cli.outro_cancel(
 						"🚫 Cannot launch the network until all required binaries are available.",
 					)?;
 					return Ok(true);
@@ -605,7 +606,7 @@ async fn source_binaries(
 			}
 			multi.stop();
 			if error {
-				outro_cancel(
+				cli.outro_cancel(
 					"🚫 Cannot launch the network until all required binaries are available.",
 				)?;
 				return Ok(true);
@@ -648,6 +649,7 @@ struct VerboseReporter;
 
 impl Status for VerboseReporter {
 	fn update(&self, status: &str) {
+		use cliclack::{Theme, ThemeState};
 		const S_BAR: Emoji = Emoji("│", "|");
 		let message = format!(
 			"{bar}  {status}",
