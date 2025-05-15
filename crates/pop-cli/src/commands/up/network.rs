@@ -12,7 +12,6 @@ use cliclack::{
 };
 use console::{Emoji, Style, Term};
 use duct::cmd;
-use log::info;
 use pop_common::Status;
 pub(crate) use pop_parachains::up::Relay;
 use pop_parachains::{
@@ -69,7 +68,7 @@ pub(crate) struct ConfigFileCommand {
 	/// Whether the output should be verbose.
 	#[arg(short, long, action)]
 	verbose: bool,
-	/// Automatically source all needed binaries required without prompting for confirmation.
+	/// Automatically source all necessary binaries required without prompting for confirmation.
 	#[clap(short = 'y', long)]
 	skip_confirm: bool,
 }
@@ -187,7 +186,7 @@ impl<const FILTER: u8> BuildCommand<FILTER> {
 				})
 				.collect();
 			if !missing.is_empty() {
-				info(format!(
+				log::info(format!(
 					"The following dependencies are required for the provided parachain(s) and have automatically been added: {}",
 					missing.join(", ")
 				))?;
@@ -240,7 +239,7 @@ impl<const FILTER: u8> TypedValueParser for SupportedParachains<FILTER> {
 			// Check if failure due to para id being specified
 			Err(e) if e.kind() == ErrorKind::InvalidValue => {
 				let value = StringValueParser::new().parse_ref(cmd, arg, value)?;
-				// Attempt to parse name and optional id, port from entered value
+				// Attempt to parse name and optional id, port from the entered value
 				const SPECIFIER: &str = "^([a-z0-9_-]+)(?:#([0-9]+))?(?::([0-9]+))?$";
 				let pattern = regex::Regex::new(SPECIFIER).expect("expected valid regex");
 				let Some(captures) = pattern.captures(&value) else { return Err(e) };
@@ -342,10 +341,10 @@ pub(crate) async fn spawn(
 				}
 				set
 			});
-		info(format!("Binaries used: {}", binaries.join(", ")))?;
+		log::info(format!("Binaries used: {}", binaries.join(", ")))?;
 	}
 
-	// Finally spawn network and wait for signal to terminate
+	// Finally, spawn the network and wait for a signal to terminate
 	let progress = spinner();
 	progress.start("🚀 Launching local network...");
 	match zombienet.spawn().await {
@@ -513,7 +512,7 @@ async fn source_binaries(
 	// Check if any stale binaries
 	let stale: IndexSet<_> = binaries
 		.iter()
-		.filter_map(|b| (b.stale()).then_some((b.name(), b.version(), b.latest())))
+		.filter_map(|b| b.stale().then_some((b.name(), b.version(), b.latest())))
 		.collect();
 	let mut latest = false;
 	if !stale.is_empty() {
@@ -589,7 +588,7 @@ async fn source_binaries(
 			let queue: Vec<_> = binaries
 				.into_iter()
 				.map(|binary| {
-					let progress = multi.add(cliclack::spinner());
+					let progress = multi.add(spinner());
 					progress.start(format!("{}: waiting...", binary.name()));
 					(binary, progress)
 				})
