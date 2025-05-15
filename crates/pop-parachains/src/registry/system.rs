@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use super::*;
+use super::{traits::Requires, *};
 use crate::traits::{Args, Binary};
 use pop_common::{
 	polkadot_sdk::sort_by_latest_stable_version,
@@ -8,7 +8,7 @@ use pop_common::{
 	target,
 };
 
-/// A parachain containing core Polkadot protocol features.
+/// A rollup containing core Polkadot protocol features.
 ///
 /// See <https://docs.polkadot.com/polkadot-protocol/architecture/system-chains/overview/> for more details.
 #[derive(Clone)]
@@ -40,9 +40,9 @@ impl Binary for System {
 }
 
 // Macro for reducing boilerplate code.
-macro_rules! impl_system_parachain {
+macro_rules! impl_system_rollup {
 	($name:ident) => {
-		impl_parachain!($name);
+		impl_rollup!($name);
 		impl Requires for $name {}
 
 		impl SourceT for $name {
@@ -71,89 +71,89 @@ macro_rules! impl_system_parachain {
 ///
 /// See <https://docs.polkadot.com/polkadot-protocol/architecture/system-chains/asset-hub/> for more details.
 #[derive(Clone)]
-pub struct AssetHub(Parachain);
+pub struct AssetHub(Rollup);
 impl AssetHub {
 	/// A new instance of the Asset Hub.
 	///
 	/// # Arguments
-	/// * `id` - The parachain identifier.
+	/// * `id` - The rollup identifier.
 	/// * `relay` - The relay chain.
 	pub fn new(id: Id, relay: Relay) -> Self {
-		Self(Parachain::new("asset-hub", id, format!("asset-hub-{}", relay.chain())))
+		Self(Rollup::new("asset-hub", id, format!("asset-hub-{}", relay.chain())))
 	}
 }
-impl_system_parachain!(AssetHub);
+impl_system_rollup!(AssetHub);
 
 /// The Bridge Hub facilitates trustless interactions between Polkadot, Kusama, Ethereum, and
 /// other blockchain ecosystems.
 ///
 /// See <https://docs.polkadot.com/polkadot-protocol/architecture/system-chains/bridge-hub/> for more details.
 #[derive(Clone)]
-pub struct BridgeHub(Parachain);
+pub struct BridgeHub(Rollup);
 impl BridgeHub {
 	/// A new instance of the Bridge Hub.
 	///
 	/// # Arguments
-	/// * `id` - The parachain identifier.
+	/// * `id` - The rollup identifier.
 	/// * `relay` - The relay chain.
 	pub fn new(id: Id, relay: Relay) -> Self {
-		Self(Parachain::new("bridge-hub", id, format!("bridge-hub-{}", relay.chain())))
+		Self(Rollup::new("bridge-hub", id, format!("bridge-hub-{}", relay.chain())))
 	}
 }
-impl_system_parachain!(BridgeHub);
+impl_system_rollup!(BridgeHub);
 
-/// The Collectives chain operates as a dedicated parachain exclusive to the Polkadot network.
+/// The Collectives chain operates as a dedicated rollup exclusive to the Polkadot network.
 /// This specialized infrastructure provides a foundation for various on-chain governance groups
 /// essential to Polkadot's ecosystem.
 ///
 /// See <https://docs.polkadot.com/polkadot-protocol/architecture/system-chains/collectives/> for more details.
 #[derive(Clone)]
-pub struct Collectives(Parachain);
+pub struct Collectives(Rollup);
 impl Collectives {
 	/// A new instance of the Collectives chain.
 	///
 	/// # Arguments
-	/// * `id` - The parachain identifier.
+	/// * `id` - The rollup identifier.
 	/// * `relay` - The relay chain.
 	pub fn new(id: Id, relay: Relay) -> Self {
-		Self(Parachain::new("coretime", id, format!("coretime-{}", relay.chain())))
+		Self(Rollup::new("coretime", id, format!("coretime-{}", relay.chain())))
 	}
 }
-impl_system_parachain!(Collectives);
+impl_system_rollup!(Collectives);
 
 /// The Coretime system chain facilitates the allocation, procurement, sale, and scheduling of
-/// bulk coretime, enabling tasks (such as parachains) to utilize the computation and security
+/// bulk coretime, enabling tasks (such as rollups) to utilize the computation and security
 /// provided by Polkadot.
 ///
 /// See <https://docs.polkadot.com/polkadot-protocol/architecture/system-chains/coretime/> for more details.
 #[derive(Clone)]
-pub struct Coretime(Parachain);
+pub struct Coretime(Rollup);
 impl Coretime {
 	/// A new instance of the Coretime chain.
 	///
 	/// # Arguments
-	/// * `id` - The parachain identifier.
+	/// * `id` - The rollup identifier.
 	/// * `relay` - The relay chain.
 	pub fn new(id: Id, relay: Relay) -> Self {
-		Self(Parachain::new("coretime", id, format!("coretime-{}", relay.chain())))
+		Self(Rollup::new("coretime", id, format!("coretime-{}", relay.chain())))
 	}
 }
-impl_system_parachain!(Coretime);
+impl_system_rollup!(Coretime);
 
-/// The People system chain is a specialized parachain within the Polkadot ecosystem dedicated
+/// The People system chain is a specialized rollup within the Polkadot ecosystem dedicated
 /// to secure, decentralized identity management.
 ///
 /// See <https://docs.polkadot.com/polkadot-protocol/architecture/system-chains/people/> for more details.
 #[derive(Clone)]
-pub struct People(Parachain);
+pub struct People(Rollup);
 impl People {
 	/// A new instance of the People chain.
 	///
 	/// # Arguments
-	/// * `id` - The parachain identifier.
+	/// * `id` - The rollup identifier.
 	/// * `relay` - The relay chain.
 	pub fn new(id: Id, relay: Relay) -> Self {
-		Self(Parachain::new("people", id, format!("people-{}", relay.chain())))
+		Self(Rollup::new("people", id, format!("people-{}", relay.chain())))
 	}
 }
-impl_system_parachain!(People);
+impl_system_rollup!(People);

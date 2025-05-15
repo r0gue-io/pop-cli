@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{errors::Error, registry::Para, up::chain_specs::Runtime};
+use crate::{errors::Error, registry::traits::Rollup, up::chain_specs::Runtime};
 pub use chain_specs::Runtime as Relay;
 use glob::glob;
 use indexmap::IndexMap;
@@ -328,7 +328,7 @@ impl NetworkConfiguration {
 	pub fn build(
 		relay_chain: Relay,
 		port: Option<u16>,
-		parachains: Option<&[Box<dyn Para>]>,
+		parachains: Option<&[Box<dyn Rollup>]>,
 	) -> Result<Self, Error> {
 		let validators: Vec<_> = VALIDATORS
 			.into_iter()
