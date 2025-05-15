@@ -14,11 +14,7 @@ pub use manifest::{add_crate_to_workspace, find_workspace_toml};
 pub use metadata::format_type;
 pub use signer::create_signer;
 pub use sourcing::set_executable_permission;
-use std::{
-	cmp::Ordering,
-	net::TcpListener,
-	ops::{Deref, DerefMut},
-};
+use std::{cmp::Ordering, net::TcpListener, ops::Deref};
 pub use subxt::{Config, PolkadotConfig as DefaultConfig};
 pub use subxt_signer::sr25519::Keypair;
 pub use templates::extractor::extract_template_files;
@@ -138,12 +134,6 @@ impl<'a, T> Deref for SortedSlice<'a, T> {
 	}
 }
 
-impl<'a, T> DerefMut for SortedSlice<'a, T> {
-	fn deref_mut(&mut self) -> &mut Self::Target {
-		&mut self.0[..]
-	}
-}
-
 /// Provides functionality for making calls to parachains or smart contracts.
 pub mod call {
 	// Note: cargo contract logic is used for parsing events after calling a chain. This could be
@@ -182,5 +172,19 @@ mod tests {
 		let listener = TcpListener::bind(&addr);
 		assert!(listener.is_ok());
 		Ok(())
+	}
+
+	#[test]
+	fn sorted_slice_sorts_by_function() {
+		let mut values = ["one", "two", "three"];
+		let sorted = SortedSlice::by(values.as_mut_slice(), |a, b| a.cmp(b));
+		assert_eq!(*sorted, ["one", "three", "two"]);
+	}
+
+	#[test]
+	fn sorted_slice_sorts_by_key() {
+		let mut values = ['c', 'b', 'a'];
+		let sorted = SortedSlice::by_key(values.as_mut_slice(), |v| *v as u8);
+		assert_eq!(*sorted, ['a', 'b', 'c']);
 	}
 }
