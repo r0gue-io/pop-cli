@@ -38,7 +38,7 @@ pub(crate) struct ConfigFileCommand {
 	/// [DEPRECATED] The Zombienet network configuration file to be used (will be removed in
 	/// v0.9.0).
 	#[arg(short = 'f', long = "file")]
-	#[deprecated(since = "0.8.0", note = "will be removed in v0.9.0")]
+	#[deprecated(since = "0.9.0", note = "will be removed in v0.10.0")]
 	#[allow(rustdoc::broken_intra_doc_links)]
 	file: Option<PathBuf>,
 	/// The version of the binary to be used for the relay chain, as per the release tag (e.g.
