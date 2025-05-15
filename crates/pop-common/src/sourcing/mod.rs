@@ -753,7 +753,7 @@ pub fn set_executable_permission<P: AsRef<Path>>(path: P) -> Result<(), Error> {
 #[cfg(test)]
 pub(super) mod tests {
 	use super::{GitHub::*, Status, *};
-	use crate::target;
+	use crate::{polkadot_sdk::parse_version, target};
 	use tempfile::tempdir;
 
 	#[tokio::test]
@@ -774,6 +774,19 @@ pub(super) mod tests {
 	}
 
 	#[tokio::test]
+	async fn resolve_from_archive_is_noop() -> anyhow::Result<()> {
+		let url = "https://github.com/r0gue-io/polkadot/releases/latest/download/polkadot-aarch64-apple-darwin.tar.gz".to_string();
+		let name = "polkadot".to_string();
+		let contents =
+			vec![name.clone(), "polkadot-execute-worker".into(), "polkadot-prepare-worker".into()];
+		let temp_dir = tempdir()?;
+
+		let source = Source::Archive { url, contents: contents.clone() };
+		assert_eq!(source.clone().resolve(&name, None, temp_dir.path()).await, source);
+		Ok(())
+	}
+
+	#[tokio::test]
 	async fn sourcing_from_git_works() -> anyhow::Result<()> {
 		let url = Url::parse("https://github.com/hpaluch/rust-hello-world")?;
 		let package = "hello_world".to_string();
@@ -789,6 +802,23 @@ pub(super) mod tests {
 		.source(temp_dir.path(), true, &Output, true)
 		.await?;
 		assert!(temp_dir.path().join(package).exists());
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn resolve_from_git_is_noop() -> anyhow::Result<()> {
+		let url = Url::parse("https://github.com/hpaluch/rust-hello-world")?;
+		let package = "hello_world".to_string();
+		let temp_dir = tempdir()?;
+
+		let source = Source::Git {
+			url,
+			reference: None,
+			manifest: None,
+			package: package.clone(),
+			artifacts: vec![package.clone()],
+		};
+		assert_eq!(source.clone().resolve(&package, None, temp_dir.path()).await, source);
 		Ok(())
 	}
 
@@ -840,6 +870,75 @@ pub(super) mod tests {
 		for item in contents {
 			assert!(temp_dir.path().join(format!("{item}-{version}")).exists());
 		}
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn resolve_from_github_release_archive_works() -> anyhow::Result<()> {
+		let owner = "r0gue-io".to_string();
+		let repository = "polkadot".to_string();
+		let version = "stable2503";
+		let tag_pattern = Some("polkadot-{version}".into());
+		let fallback = "stable2412-4".into();
+		let archive = format!("polkadot-{}.tar.gz", target()?);
+		let contents = ["polkadot", "polkadot-execute-worker", "polkadot-prepare-worker"];
+		let temp_dir = tempdir()?;
+
+		// Determine release for comparison
+		let mut releases: Vec<_> = crate::GitHub::new(owner.as_str(), repository.as_str())
+			.releases(false)
+			.await?
+			.into_iter()
+			.map(|r| r.tag_name)
+			.collect();
+		let sorted_releases = version_comparator(releases.as_mut_slice());
+
+		let source = Source::GitHub(ReleaseArchive {
+			owner,
+			repository,
+			tag: None,
+			tag_pattern,
+			prerelease: false,
+			version_comparator,
+			fallback,
+			archive,
+			contents: contents.map(|n| (n, None, true)).to_vec(),
+			latest: None,
+		});
+
+		// Check results for a specified/unspecified version
+		for version in [Some(version), None] {
+			let source =
+				source.clone().resolve(&"polkadot".to_string(), version, temp_dir.path()).await;
+			let expected_tag = version.map_or_else(
+				|| sorted_releases.0.first().unwrap().into(),
+				|v| format!("polkadot-{v}"),
+			);
+			let expected_latest = version.map_or_else(|| sorted_releases.0.first(), |_| None);
+			assert!(matches!(
+				source,
+				Source::GitHub(ReleaseArchive { tag, latest, .. } )
+					if tag == Some(expected_tag) && latest.as_ref() == expected_latest
+			));
+		}
+
+		// Create a later version as a cached binary
+		let cached_version = "polkadot-stable2612";
+		File::create(temp_dir.path().join(cached_version))?;
+		for version in [Some(version), None] {
+			let source =
+				source.clone().resolve(&"polkadot".to_string(), version, temp_dir.path()).await;
+			let expected_tag =
+				version.map_or_else(|| cached_version.to_string(), |v| format!("polkadot-{v}"));
+			let expected_latest =
+				version.map_or_else(|| Some(cached_version.to_string()), |_| None);
+			assert!(matches!(
+				source,
+				Source::GitHub(ReleaseArchive { tag, latest, .. } )
+					if tag == Some(expected_tag) && latest == expected_latest
+			));
+		}
+
 		Ok(())
 	}
 
@@ -931,6 +1030,27 @@ pub(super) mod tests {
 	}
 
 	#[tokio::test]
+	async fn resolve_from_github_source_code_archive_is_noop() -> anyhow::Result<()> {
+		let owner = "paritytech".to_string();
+		let repository = "polkadot-sdk".to_string();
+		let package = "polkadot".to_string();
+		let temp_dir = tempdir()?;
+		let initial_commit = "72dba98250a6267c61772cd55f8caf193141050f";
+		let manifest = PathBuf::from("substrate/Cargo.toml");
+
+		let source = Source::GitHub(SourceCodeArchive {
+			owner,
+			repository,
+			reference: Some(initial_commit.to_string()),
+			manifest: Some(manifest),
+			package: package.clone(),
+			artifacts: vec![package.clone()],
+		});
+		assert_eq!(source.clone().resolve(&package, None, temp_dir.path()).await, source);
+		Ok(())
+	}
+
+	#[tokio::test]
 	async fn sourcing_from_latest_github_source_code_archive_works() -> anyhow::Result<()> {
 		let owner = "hpaluch".to_string();
 		let repository = "rust-hello-world".to_string();
@@ -963,6 +1083,19 @@ pub(super) mod tests {
 			.source(temp_dir.path(), false, &Output, true)
 			.await?;
 		assert!(temp_dir.path().join(&name).exists());
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn resolve_from_url_is_noop() -> anyhow::Result<()> {
+		let url =
+			"https://github.com/paritytech/polkadot-sdk/releases/latest/download/polkadot.asc"
+				.to_string();
+		let name = "polkadot";
+		let temp_dir = tempdir()?;
+
+		let source = Source::Url { url, name: name.into() };
+		assert_eq!(source.clone().resolve(&name, None, temp_dir.path()).await, source);
 		Ok(())
 	}
 
@@ -1094,7 +1227,7 @@ pub(super) mod tests {
 	}
 
 	fn version_comparator<T: AsRef<str> + Ord>(versions: &mut [T]) -> SortedSlice<T> {
-		SortedSlice::by(versions, |a, b| b.cmp(a))
+		SortedSlice::by(versions, |a, b| parse_version(b.as_ref()).cmp(&parse_version(a.as_ref())))
 	}
 
 	pub(crate) struct Output;
