@@ -213,7 +213,7 @@ pub mod traits {
 		fn as_any(&self) -> &dyn Any;
 	}
 
-	/// A helper trait for ensuring [crate::registry::Rollup] trait objects can be cloned.
+	/// A helper trait for ensuring [Rollup] trait objects can be cloned.
 	pub trait RollupClone {
 		/// Returns a copy of the value.
 		fn clone_box(&self) -> Box<dyn Rollup>;
