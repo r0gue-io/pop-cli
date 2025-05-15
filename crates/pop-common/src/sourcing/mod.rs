@@ -1080,6 +1080,19 @@ pub(super) mod tests {
 		Ok(())
 	}
 
+	#[test]
+	fn tag_pattern_works() {
+		let pattern: TagPattern = "polkadot-{version}".into();
+		assert_eq!(pattern.regex.as_str(), "^polkadot-(?P<version>.+)$");
+		assert_eq!(pattern.pattern, "polkadot-{version}");
+		assert_eq!(pattern, pattern.clone());
+
+		for value in ["polkadot-stable2503", "stable2503"] {
+			assert_eq!(pattern.resolve_tag(value).as_str(), "polkadot-stable2503");
+		}
+		assert_eq!(pattern.version("polkadot-stable2503"), Some("stable2503"));
+	}
+
 	fn version_comparator<T: AsRef<str> + Ord>(versions: &mut [T]) -> SortedSlice<T> {
 		SortedSlice::by(versions, |a, b| b.cmp(a))
 	}
