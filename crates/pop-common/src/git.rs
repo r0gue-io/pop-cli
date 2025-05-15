@@ -127,7 +127,7 @@ impl Git {
 	/// Fetch the latest release from a repository
 	fn fetch_latest_tag(repo: &GitRepository) -> Option<String> {
 		let tags = repo.tag_names(None).ok()?;
-		parse_latest_tag(&tags.iter().flatten().collect::<Vec<_>>())
+		parse_latest_tag(&tags.iter().flatten().collect::<Vec<_>>()).map(|t| t.to_string())
 	}
 
 	/// Init a new git repository.

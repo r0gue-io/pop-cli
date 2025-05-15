@@ -26,17 +26,17 @@ pub type Version = (u32, u32, u32);
 ///
 /// # Arguments
 /// * `tags` - A vector of tags to parse and evaluate.
-pub fn parse_latest_tag(tags: &[impl AsRef<str>]) -> Option<String> {
+pub fn parse_latest_tag(tags: &[impl AsRef<str>]) -> Option<&str> {
 	match parse_latest_stable_tag(&tags) {
-		Some(last_stable_tag) => Some(last_stable_tag),
+		Some(last_stable_tag) => Some(last_stable_tag.as_ref()),
 		None => parse_latest_semantic_version(&tags),
 	}
 }
 
 /// Identifies the latest `stableYYMM-X` release tag. Prerelease versions are omitted.
-fn parse_latest_stable_tag(tags: &[impl AsRef<str>]) -> Option<String> {
+fn parse_latest_stable_tag(tags: &[impl AsRef<str>]) -> Option<&str> {
 	tags.iter()
-		.filter_map(|tag| parse_stable_version(tag.as_ref()))
+		.filter_map(|tag| parse_stable_version(tag.as_ref()).map(|version| (tag, version)))
 		.max_by(|a, b| {
 			let (_, (year_a, month_a, patch_a)) = a;
 			let (_, (year_b, month_b, patch_b)) = b;
@@ -46,7 +46,7 @@ fn parse_latest_stable_tag(tags: &[impl AsRef<str>]) -> Option<String> {
 				.then_with(|| month_a.cmp(month_b))
 				.then_with(|| patch_a.cmp(patch_b))
 		})
-		.map(|(tag_str, _)| tag_str.to_string())
+		.map(|(tag, _)| tag.as_ref())
 }
 
 /// Identifies the latest version based on semantic versioning - e.g. `v1.2.3-rc`. Prerelease
@@ -54,20 +54,21 @@ fn parse_latest_stable_tag(tags: &[impl AsRef<str>]) -> Option<String> {
 ///
 /// # Arguments
 /// * `items` - A vector of items to parse and evaluate.
-pub fn parse_latest_semantic_version(items: &[impl AsRef<str>]) -> Option<String> {
+pub fn parse_latest_semantic_version(items: &[impl AsRef<str>]) -> Option<&str> {
 	items
 		.iter()
-		.filter_map(|tag| parse_semantic_version(tag.as_ref()))
+		.filter_map(|tag| parse_semantic_version(tag.as_ref()).map(|version| (tag, version)))
 		.max_by_key(|&(_, version)| version)
-		.map(|(tag_str, _)| tag_str.to_string())
+		.map(|(tag, _)| tag.as_ref())
 }
 
 /// Parses a semantic version - e.g. `v1.2.3-rc`. Prerelease versions are omitted.
 ///
 /// # Arguments
 /// * `value` - The value to parse and evaluate.
-pub fn parse_semantic_version(value: &str) -> Option<(&str, Version)> {
+pub fn parse_semantic_version(value: impl AsRef<str>) -> Option<Version> {
 	// Skip the pre-release label
+	let value = value.as_ref();
 	if value.contains("-rc") {
 		return None;
 	}
@@ -75,7 +76,7 @@ pub fn parse_semantic_version(value: &str) -> Option<(&str, Version)> {
 		let major = v.name("major")?.as_str().parse::<u32>().ok()?;
 		let minor = v.name("minor")?.as_str().parse::<u32>().ok()?;
 		let patch = v.name("patch")?.as_str().parse::<u32>().ok()?;
-		Some((value, (major, minor, patch)))
+		Some((major, minor, patch))
 	})
 }
 
@@ -83,7 +84,7 @@ pub fn parse_semantic_version(value: &str) -> Option<(&str, Version)> {
 ///
 /// # Arguments
 /// * `value` - The value to parse and evaluate.
-pub fn parse_stable_version(value: &str) -> Option<(&str, Version)> {
+pub fn parse_stable_version(value: &str) -> Option<Version> {
 	// Skip the pre-release label
 	if value.contains("-rc") {
 		return None;
@@ -92,7 +93,7 @@ pub fn parse_stable_version(value: &str) -> Option<(&str, Version)> {
 		let year = v.name("year")?.as_str().parse::<u32>().ok()?;
 		let month = v.name("month")?.as_str().parse::<u32>().ok()?;
 		let patch = v.name("patch").and_then(|m| m.as_str().parse::<u32>().ok()).unwrap_or(0);
-		Some((value, (year, month, patch)))
+		Some((year, month, patch))
 	})
 }
 
@@ -101,7 +102,7 @@ pub fn parse_stable_version(value: &str) -> Option<(&str, Version)> {
 ///
 /// # Arguments
 /// * `value` - The value to parse and evaluate.
-pub fn parse_version(value: &str) -> Option<(&str, Version)> {
+pub fn parse_version(value: &str) -> Option<Version> {
 	match parse_stable_version(value) {
 		Some(stable_version) => Some(stable_version),
 		None => parse_semantic_version(value),
@@ -116,7 +117,7 @@ pub fn parse_version(value: &str) -> Option<(&str, Version)> {
 pub fn sort_by_latest_semantic_version<T: AsRef<str>>(versions: &mut [T]) -> SortedSlice<T> {
 	SortedSlice::by_key(versions, |tag| {
 		parse_semantic_version(tag.as_ref())
-			.map(|(_, version)| Reverse(Some(version)))
+			.map(|version| Reverse(Some(version)))
 			.unwrap_or(Reverse(None))
 	})
 }
@@ -129,7 +130,7 @@ pub fn sort_by_latest_semantic_version<T: AsRef<str>>(versions: &mut [T]) -> Sor
 pub fn sort_by_latest_stable_version<T: AsRef<str>>(versions: &mut [T]) -> SortedSlice<T> {
 	SortedSlice::by_key(versions, |tag| {
 		parse_stable_version(tag.as_ref())
-			.map(|(_, version)| Reverse(Some(version)))
+			.map(|version| Reverse(Some(version)))
 			.unwrap_or(Reverse(None))
 	})
 }
@@ -142,7 +143,7 @@ pub fn sort_by_latest_stable_version<T: AsRef<str>>(versions: &mut [T]) -> Sorte
 pub fn sort_by_latest_version<T: AsRef<str>>(versions: &mut [T]) -> SortedSlice<T> {
 	SortedSlice::by_key(versions, |tag| {
 		parse_version(tag.as_ref())
-			.map(|(_, version)| Reverse(Some(version)))
+			.map(|version| Reverse(Some(version)))
 			.unwrap_or(Reverse(None))
 	})
 }
@@ -167,7 +168,7 @@ mod tests {
 			"polkadot-v1.9.0",
 			"v1.15.1-rc2",
 		];
-		assert_eq!(parse_latest_tag(&tags), Some("polkadot-stable2409-1".to_string()));
+		assert_eq!(parse_latest_tag(&tags), Some("polkadot-stable2409-1"));
 	}
 
 	#[test]
@@ -175,12 +176,12 @@ mod tests {
 		let mut tags = vec![];
 		assert_eq!(parse_latest_stable_tag(&tags), None);
 		tags = vec!["polkadot-stable2407", "polkadot-stable2408"];
-		assert_eq!(parse_latest_stable_tag(&tags), Some("polkadot-stable2408".to_string()));
+		assert_eq!(parse_latest_stable_tag(&tags), Some("polkadot-stable2408"));
 		tags = vec!["polkadot-stable2407", "polkadot-stable2501"];
-		assert_eq!(parse_latest_stable_tag(&tags), Some("polkadot-stable2501".to_string()));
+		assert_eq!(parse_latest_stable_tag(&tags), Some("polkadot-stable2501"));
 		// Skip the pre-release label
 		tags = vec!["polkadot-stable2407", "polkadot-stable2407-1", "polkadot-stable2407-1-rc1"];
-		assert_eq!(parse_latest_stable_tag(&tags), Some("polkadot-stable2407-1".to_string()));
+		assert_eq!(parse_latest_stable_tag(&tags), Some("polkadot-stable2407-1"));
 	}
 
 	#[test]
@@ -195,11 +196,123 @@ mod tests {
 			"polkadot-v1.8.0",
 			"polkadot-v1.9.0",
 		];
-		assert_eq!(parse_latest_semantic_version(&tags), Some("polkadot-v1.12.0".to_string()));
+		assert_eq!(parse_latest_semantic_version(&tags), Some("polkadot-v1.12.0"));
 		tags = vec!["v1.0.0", "v2.0.0", "v3.0.0"];
-		assert_eq!(parse_latest_semantic_version(&tags), Some("v3.0.0".to_string()));
+		assert_eq!(parse_latest_semantic_version(&tags), Some("v3.0.0"));
 		// Skip the pre-release label
 		tags = vec!["polkadot-v1.12.0", "v1.15.1-rc2"];
-		assert_eq!(parse_latest_semantic_version(&tags), Some("polkadot-v1.12.0".to_string()));
+		assert_eq!(parse_latest_semantic_version(&tags), Some("polkadot-v1.12.0"));
+	}
+
+	#[test]
+	fn parse_version_works() {
+		for (tag, expected) in vec![
+			("polkadot-stable2409", Some((24, 9, 0))),
+			("polkadot-stable2409-1", Some((24, 9, 1))),
+			("polkadot-v1.18.0", Some((1, 18, 0))),
+			("polkadot-v1.18.1", Some((1, 18, 1))),
+			("v1.15.1", Some((1, 15, 1))),
+			("v1.15.1-rc2", None),
+		] {
+			assert_eq!(parse_version(tag), expected);
+		}
+	}
+
+	#[test]
+	fn sort_by_latest_semantic_version_works() {
+		assert_eq!(
+			sort_by_latest_semantic_version(
+				[
+					"polkadot-v1.10.0",
+					"polkadot-v1.11.0",
+					"v1.17.0",
+					"polkadot-v1.12.0",
+					"polkadot-v1.7.0",
+					"v1.18.0",
+					"polkadot-v1.8.0",
+					"polkadot-v1.9.0",
+					"v1.18.1",
+				]
+				.as_mut_slice()
+			)
+			.0,
+			[
+				"v1.18.1",
+				"v1.18.0",
+				"v1.17.0",
+				"polkadot-v1.12.0",
+				"polkadot-v1.11.0",
+				"polkadot-v1.10.0",
+				"polkadot-v1.9.0",
+				"polkadot-v1.8.0",
+				"polkadot-v1.7.0",
+			]
+		);
+	}
+
+	#[test]
+	fn sort_by_latest_stable_version_works() {
+		assert_eq!(
+			sort_by_latest_stable_version(
+				[
+					"polkadot-stable2409",
+					"polkadot-stable2409-1",
+					"polkadot-stable2407",
+					"polkadot-stable2503",
+					"polkadot-stable2503-1"
+				]
+				.as_mut_slice()
+			)
+			.0,
+			[
+				"polkadot-stable2503-1",
+				"polkadot-stable2503",
+				"polkadot-stable2409-1",
+				"polkadot-stable2409",
+				"polkadot-stable2407",
+			]
+		);
+	}
+
+	#[test]
+	fn sort_by_latest_version_works() {
+		assert_eq!(
+			sort_by_latest_version(
+				[
+					"polkadot-v1.10.0",
+					"polkadot-v1.11.0",
+					"v1.17.0",
+					"polkadot-v1.12.0",
+					"polkadot-v1.7.0",
+					"v1.18.0",
+					"polkadot-v1.8.0",
+					"polkadot-v1.9.0",
+					"v1.18.1",
+					"polkadot-stable2409",
+					"polkadot-stable2409-1",
+					"polkadot-stable2407",
+					"polkadot-stable2503",
+					"polkadot-stable2503-1"
+				]
+				.as_mut_slice()
+			)
+			.0,
+			[
+				"polkadot-stable2503-1",
+				"polkadot-stable2503",
+				"polkadot-stable2409-1",
+				"polkadot-stable2409",
+				"polkadot-stable2407",
+				"v1.18.1",
+				"v1.18.0",
+				"v1.17.0",
+				"polkadot-v1.12.0",
+				"polkadot-v1.11.0",
+				"polkadot-v1.10.0",
+				"polkadot-v1.9.0",
+				"polkadot-v1.8.0",
+				"polkadot-v1.7.0",
+			]
+		);
 	}
 }
