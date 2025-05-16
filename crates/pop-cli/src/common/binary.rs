@@ -177,7 +177,7 @@ pub(crate) fn which_version(
 				Err(anyhow::anyhow!("Binary version does not match target version"))
 			}
 		},
-		Err(_) => return Err(anyhow::anyhow!("Failed to find binary")),
+		Err(_) => Err(anyhow::anyhow!("Failed to find binary")),
 	}
 }
 

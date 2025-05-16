@@ -40,6 +40,8 @@ const BIN_NAME: &str = "substrate-contracts-node";
 const BIN_NAME: &str = "ink-node";
 const STARTUP: Duration = Duration::from_millis(20_000);
 
+type ArchiveItem = (&'static str, Option<String>, bool);
+
 /// Checks if the specified node is alive and responsive.
 ///
 /// # Arguments
@@ -119,7 +121,7 @@ pub async fn contracts_node_generator(
 ) -> Result<Binary, Error> {
 	let chain = &Chain::ContractsNode;
 	let name = chain.binary().to_string();
-	let source = chain.source()?.resolve(&name, version, &cache).await;
+	let source = chain.source()?.resolve(&name, version, &cache).await.into();
 	Ok(Binary::Source { name, source, cache })
 }
 
@@ -178,9 +180,7 @@ fn archive_name_by_target() -> Result<String, Error> {
 	}
 }
 #[cfg(feature = "v6")]
-fn release_directory_by_target(
-	binary: &str,
-) -> Result<Vec<(&'static str, Option<String>, bool)>, Error> {
+fn release_directory_by_target(binary: &str) -> Result<Vec<ArchiveItem>, Error> {
 	match OS {
 		"macos" => Ok("ink-node-mac/ink-node"),
 		"linux" => Ok("ink-node-linux/ink-node"),
@@ -190,9 +190,7 @@ fn release_directory_by_target(
 }
 
 #[cfg(feature = "v5")]
-fn release_directory_by_target(
-	binary: &str,
-) -> Result<Vec<(&'static str, Option<String>, bool)>, Error> {
+fn release_directory_by_target(binary: &str) -> Result<Vec<ArchiveItem>, Error> {
 	match OS {
 		"macos" => Ok(vec![
 			// < v0.42.0
@@ -266,19 +264,19 @@ mod tests {
 			let binary = contracts_node_generator(cache.clone(), Some(version)).await?;
 
 			assert!(matches!(binary, Binary::Source { name, source, cache}
-				if name == expected.binary()  &&
-					source == Source::GitHub(ReleaseArchive {
-					owner: owner.to_string(),
-					repository: BIN_NAME.to_string(),
-						tag: Some(version.to_string()),
-						tag_pattern: expected.tag_pattern().map(|t| t.into()),
-						prerelease: false,
-						version_comparator: sort_by_latest_semantic_version,
-						fallback: expected.fallback().into(),
-						archive: archive.clone(),
-						contents: contents.clone(),
-						latest: None,
-					})
+				if name == expected.binary() &&
+					*source == Source::GitHub(ReleaseArchive {
+						owner: owner.to_string(),
+						repository: BIN_NAME.to_string(),
+							tag: Some(version.to_string()),
+							tag_pattern: expected.tag_pattern().map(|t| t.into()),
+							prerelease: false,
+							version_comparator: sort_by_latest_semantic_version,
+							fallback: expected.fallback().into(),
+							archive: archive.clone(),
+							contents: contents.clone(),
+							latest: None,
+						})
 					&&
 				cache == cache
 			));

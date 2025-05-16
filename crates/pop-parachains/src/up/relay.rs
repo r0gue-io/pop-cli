@@ -103,7 +103,7 @@ pub(super) async fn from(
 		.find(|r| command.to_lowercase().ends_with(r.binary()))
 	{
 		let name = relay.binary().to_string();
-		let source = relay.source()?.resolve(&name, version, cache).await;
+		let source = relay.source()?.resolve(&name, version, cache).await.into();
 		let binary = Binary::Source { name, source, cache: cache.to_path_buf() };
 		let runtime = chain_specs::Runtime::from_chain(chain)
 			.ok_or(Error::UnsupportedCommand(format!("the relay chain is unsupported: {chain}")))?;
@@ -146,7 +146,7 @@ mod tests {
 					archive: format!("{name}-{}.tar.gz", target()?),
 					contents: ["polkadot", "polkadot-execute-worker", "polkadot-prepare-worker"].map(|b| (b, None, true)).to_vec(),
 					latest: relay.binary.latest().map(|l| l.to_string()),
-				}) && cache == temp_dir.path()
+				}).into() && cache == temp_dir.path()
 		));
 		assert_eq!(relay.workers, expected.workers());
 		Ok(())
@@ -171,7 +171,7 @@ mod tests {
 					archive: format!("chain-spec-generator-{}.tar.gz", target()?),
 					contents: [("chain-spec-generator", Some("paseo-chain-spec-generator".to_string()), true)].to_vec(),
 					latest: chain_spec_generator.latest().map(|l| l.to_string()),
-				}) && cache == temp_dir.path()
+				}).into() && cache == temp_dir.path()
 		));
 		Ok(())
 	}
@@ -209,7 +209,7 @@ mod tests {
 					archive: format!("{name}-{}.tar.gz", target()?),
 					contents: ["polkadot", "polkadot-execute-worker", "polkadot-prepare-worker"].map(|b| (b, None, true)).to_vec(),
 					latest: relay.binary.latest().map(|l| l.to_string()),
-				}) && cache == temp_dir.path()
+				}).into() && cache == temp_dir.path()
 		));
 		assert_eq!(relay.workers, expected.workers());
 		Ok(())

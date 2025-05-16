@@ -409,7 +409,7 @@ impl NetworkConfiguration {
 		}
 
 		Ok(NetworkConfiguration(
-			builder.build().map_err(|e| Error::NetworkConfigurationError(e))?,
+			builder.build().map_err(Error::NetworkConfigurationError)?,
 			Default::default(),
 		))
 	}
@@ -732,7 +732,8 @@ impl Parachain {
 				manifest: None,
 				package: repo.package.clone(),
 				artifacts: vec![repo.package.clone()],
-			});
+			})
+			.into();
 			Ok(Parachain {
 				id,
 				binary: Binary::Source {
@@ -754,7 +755,8 @@ impl Parachain {
 						manifest: None,
 						package: repo.package.clone(),
 						artifacts: vec![repo.package.clone()],
-					},
+					}
+					.into(),
 					cache: cache.to_path_buf(),
 				},
 				chain: chain.map(|c| c.to_string()),
@@ -885,8 +887,10 @@ chain = "paseo-local"
 			assert_eq!(relay_chain.version().unwrap(), RELAY_BINARY_VERSION);
 			assert!(matches!(
 				relay_chain,
-				Binary::Source { source: Source::GitHub(ReleaseArchive { tag, .. }), .. }
-				if *tag == Some(format!("polkadot-{RELAY_BINARY_VERSION}"))
+				Binary::Source { source, .. }
+					if matches!(source.as_ref(), Source::GitHub(ReleaseArchive { tag, .. })
+						if *tag == Some(format!("polkadot-{RELAY_BINARY_VERSION}"))
+					)
 			));
 			assert!(zombienet.parachains.is_empty());
 			assert_eq!(zombienet.relay_chain(), "paseo-local");
@@ -929,8 +933,10 @@ chain = "paseo-local"
 			assert_eq!(chain_spec_generator.version().unwrap(), version);
 			assert!(matches!(
 				chain_spec_generator,
-				Binary::Source { source: Source::GitHub(ReleaseArchive { tag, .. }), .. }
-				if *tag == Some(version.to_string())
+				Binary::Source { source, .. }
+					if matches!(source.as_ref(), Source::GitHub(ReleaseArchive { tag, .. })
+						if *tag == Some(version.to_string())
+					)
 			));
 			assert!(zombienet.parachains.is_empty());
 			Ok(())
@@ -970,8 +976,10 @@ default_command = "./bin-stable2503/polkadot"
 			assert_eq!(relay_chain.version().unwrap(), RELAY_BINARY_VERSION);
 			assert!(matches!(
 				relay_chain,
-				Binary::Source { source: Source::GitHub(ReleaseArchive { tag, .. }), .. }
-				if *tag == Some(format!("polkadot-{RELAY_BINARY_VERSION}"))
+				Binary::Source { source, ..}
+					if matches!(source.as_ref(), Source::GitHub(ReleaseArchive { tag, .. })
+						if *tag == Some(format!("polkadot-{RELAY_BINARY_VERSION}"))
+					)
 			));
 			assert!(zombienet.parachains.is_empty());
 			Ok(())
@@ -1015,8 +1023,10 @@ command = "polkadot"
 			assert_eq!(relay_chain.version().unwrap(), RELAY_BINARY_VERSION);
 			assert!(matches!(
 				relay_chain,
-				Binary::Source { source: Source::GitHub(ReleaseArchive { tag, .. }), .. }
-				if *tag == Some(format!("polkadot-{RELAY_BINARY_VERSION}"))
+				Binary::Source { source, .. }
+					if matches!(source.as_ref(), Source::GitHub(ReleaseArchive { tag, .. })
+						if *tag == Some(format!("polkadot-{RELAY_BINARY_VERSION}"))
+					)
 			));
 			assert!(zombienet.parachains.is_empty());
 			Ok(())
@@ -1118,8 +1128,10 @@ chain = "asset-hub-paseo-local"
 			assert_eq!(system_parachain.version().unwrap(), SYSTEM_PARA_BINARY_VERSION);
 			assert!(matches!(
 				system_parachain,
-				Binary::Source { source: Source::GitHub(ReleaseArchive { tag, .. }), .. }
-				if *tag == Some(format!("polkadot-{SYSTEM_PARA_BINARY_VERSION}"))
+				Binary::Source { source, .. }
+					if matches!(source.as_ref(), Source::GitHub(ReleaseArchive { tag, .. })
+						if *tag == Some(format!("polkadot-{SYSTEM_PARA_BINARY_VERSION}"))
+					)
 			));
 			Ok(())
 		}
@@ -1166,8 +1178,10 @@ chain = "asset-hub-paseo-local"
 			assert_eq!(chain_spec_generator.version().unwrap(), SYSTEM_PARA_RUNTIME_VERSION);
 			assert!(matches!(
 				chain_spec_generator,
-				Binary::Source { source: Source::GitHub(ReleaseArchive { tag, .. }), .. }
-				if *tag == Some(SYSTEM_PARA_RUNTIME_VERSION.to_string())
+				Binary::Source { source, .. }
+					if matches!(source.as_ref(), Source::GitHub(ReleaseArchive { tag, .. })
+						if *tag == Some(SYSTEM_PARA_RUNTIME_VERSION.to_string())
+					)
 			));
 			Ok(())
 		}
@@ -1201,8 +1215,10 @@ default_command = "pop-node"
 			assert_eq!(pop.version().unwrap(), version);
 			assert!(matches!(
 				pop,
-				Binary::Source { source: Source::GitHub(ReleaseArchive { tag, .. }), .. }
-				if *tag == Some(format!("node-{version}"))
+				Binary::Source { source, .. }
+					if matches!(source.as_ref(), Source::GitHub(ReleaseArchive { tag, .. })
+						if *tag == Some(format!("node-{version}"))
+					)
 			));
 			Ok(())
 		}
@@ -1243,8 +1259,10 @@ default_command = "pop-node"
 			assert_eq!(pop.version().unwrap(), version);
 			assert!(matches!(
 				pop,
-				Binary::Source { source: Source::GitHub(ReleaseArchive { tag, .. }), .. }
-				if *tag == Some(format!("node-{version}"))
+				Binary::Source { source, .. }
+					if matches!(source.as_ref(), Source::GitHub(ReleaseArchive { tag, .. })
+						if *tag == Some(format!("node-{version}"))
+					)
 			));
 			Ok(())
 		}
@@ -1418,8 +1436,10 @@ default_command = "moonbeam"
 			assert_eq!(pop.version().unwrap(), version);
 			assert!(matches!(
 				pop,
-				Binary::Source { source: Source::GitHub(SourceCodeArchive { reference, .. }), .. }
-				if *reference == Some(version.to_string())
+				Binary::Source { source, .. }
+					if matches!(source.as_ref(), Source::GitHub(SourceCodeArchive { reference, .. })
+						if *reference == Some(version.to_string())
+					)
 			));
 			Ok(())
 		}
@@ -1581,9 +1601,10 @@ chain = "paseo-local"
 			let mut zombienet =
 				Zombienet::new(&cache, config.path().try_into()?, None, None, None, None, None)
 					.await?;
-			if let Binary::Source { source: Source::GitHub(ReleaseArchive { tag, .. }), .. } =
-				&mut zombienet.relay_chain.binary
-			{
+			let Binary::Source { source, .. } = &mut zombienet.relay_chain.binary else {
+				panic!("expected binary which needs to be sourced")
+			};
+			if let Source::GitHub(ReleaseArchive { tag, .. }) = source.as_mut() {
 				*tag = None
 			}
 			assert!(matches!(
@@ -2193,7 +2214,8 @@ balance = 2000000000000
 							manifest: None,
 							package: "pop-node".to_string(),
 							artifacts: vec!["pop-node".to_string()],
-						},
+						}
+						.into(),
 						cache: cache.path().to_path_buf(),
 					},
 					chain: Some("dev".to_string()),
@@ -2220,7 +2242,8 @@ balance = 2000000000000
 							manifest: None,
 							package: "pop-node".to_string(),
 							artifacts: vec!["pop-node".to_string()],
-						}),
+						})
+						.into(),
 						cache: cache.path().to_path_buf(),
 					},
 					chain: Some("dev".to_string()),

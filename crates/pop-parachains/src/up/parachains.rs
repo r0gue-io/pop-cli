@@ -33,7 +33,8 @@ pub(super) async fn system(
 	let source = para
 		.source()?
 		.resolve(&name, version.or(Some(relay_chain_version)), cache)
-		.await;
+		.await
+		.into();
 	let binary = Binary::Source { name, source, cache: cache.to_path_buf() };
 	let chain_spec_generator = match chain {
 		Some(chain) => chain_spec_generator(chain, runtime_version, cache).await?,
@@ -65,7 +66,7 @@ pub(super) async fn from(
 ) -> Result<Option<super::Parachain>, Error> {
 	if let Some(para) = registry::rollups(relay).iter().find(|p| p.binary() == command) {
 		let name = para.binary().to_string();
-		let source = para.source()?.resolve(&name, version, cache).await;
+		let source = para.source()?.resolve(&name, version, cache).await.into();
 		let binary = Binary::Source { name, source, cache: cache.to_path_buf() };
 		return Ok(Some(super::Parachain {
 			id,
@@ -135,7 +136,7 @@ mod tests {
 					archive: format!("{name}-{}.tar.gz", target()?),
 					contents: vec![(expected.binary(), None, true)],
 					latest: parachain.binary.latest().map(|l| l.to_string()),
-				}) && cache == temp_dir.path()
+				}).into() && cache == temp_dir.path()
 		));
 		Ok(())
 	}
@@ -170,7 +171,7 @@ mod tests {
 					archive: format!("{name}-{}.tar.gz", target()?),
 					contents: vec![(expected.binary(), None, true)],
 					latest: parachain.binary.latest().map(|l| l.to_string()),
-				}) && cache == temp_dir.path()
+				}).into() && cache == temp_dir.path()
 		));
 		Ok(())
 	}
@@ -208,7 +209,7 @@ mod tests {
 					archive: format!("chain-spec-generator-{}.tar.gz", target()?),
 					contents: [("chain-spec-generator", Some("paseo-chain-spec-generator".to_string()), true)].to_vec(),
 					latest: chain_spec_generator.latest().map(|l| l.to_string()),
-				}) && cache == temp_dir.path()
+				}).into() && cache == temp_dir.path()
 		));
 		Ok(())
 	}
@@ -237,7 +238,7 @@ mod tests {
 					archive: format!("{name}-{}.tar.gz", target()?),
 					contents: vec![(expected, None, true)],
 					latest: parachain.binary.latest().map(|l| l.to_string()),
-				}) && cache == temp_dir.path()
+				}).into() && cache == temp_dir.path()
 		));
 		Ok(())
 	}

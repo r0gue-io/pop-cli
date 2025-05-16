@@ -121,7 +121,7 @@ pub(super) async fn chain_spec_generator(
 			return Ok(None);
 		}
 		let name = format!("{}-{}", runtime.name().to_lowercase(), runtime.binary());
-		let source = runtime.source()?.resolve(&name, version, cache).await;
+		let source = runtime.source()?.resolve(&name, version, cache).await.into();
 		let binary = Binary::Source { name, source, cache: cache.to_path_buf() };
 		return Ok(Some(binary));
 	}
@@ -155,7 +155,7 @@ mod tests {
 					archive: format!("chain-spec-generator-{}.tar.gz", target()?),
 					contents: ["chain-spec-generator"].map(|b| (b, Some(format!("kusama-{b}").to_string()), true)).to_vec(),
 					latest: binary.latest().map(|l| l.to_string()),
-				}) &&
+				}).into() &&
 				cache == temp_dir.path()
 		));
 		Ok(())
@@ -182,7 +182,7 @@ mod tests {
 					archive: format!("chain-spec-generator-{}.tar.gz", target()?),
 					contents: ["chain-spec-generator"].map(|b| (b, Some(format!("paseo-{b}").to_string()), true)).to_vec(),
 					latest: binary.latest().map(|l| l.to_string()),
-				}) &&
+				}).into() &&
 				cache == temp_dir.path()
 		));
 		Ok(())
@@ -209,7 +209,7 @@ mod tests {
 					archive: format!("chain-spec-generator-{}.tar.gz", target()?),
 					contents: ["chain-spec-generator"].map(|b| (b, Some(format!("polkadot-{b}").to_string()), true)).to_vec(),
 					latest: binary.latest().map(|l| l.to_string()),
-				}) &&
+				}).into() &&
 				cache == temp_dir.path()
 		));
 		Ok(())

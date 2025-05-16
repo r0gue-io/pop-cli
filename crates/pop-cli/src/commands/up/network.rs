@@ -216,7 +216,7 @@ impl<const FILTER: u8> SupportedRollups<FILTER> {
 		let relay = Relay::from(FILTER).expect("expected valid relay variant index as filter");
 		Self(PossibleValuesParser::new(
 			registry::rollups(&relay)
-				.into_iter()
+				.iter()
 				.map(|p| PossibleValue::new(p.name().to_string())),
 		))
 	}
@@ -252,7 +252,7 @@ impl<const FILTER: u8> TypedValueParser for SupportedRollups<FILTER> {
 		// Attempt to resolve from supported rollups
 		let relay = Relay::from(FILTER).expect("expected valid relay variant index as filter");
 		registry::rollups(&relay)
-			.into_iter()
+			.iter()
 			.find(|p| {
 				let chain = chain.as_str();
 				p.name() == chain || p.chain() == chain
@@ -277,6 +277,7 @@ impl<const FILTER: u8> TypedValueParser for SupportedRollups<FILTER> {
 }
 
 /// Executes the command.
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn spawn(
 	config: NetworkConfiguration,
 	relay_chain_version: Option<&str>,
@@ -291,10 +292,9 @@ pub(crate) async fn spawn(
 ) -> anyhow::Result<()> {
 	// Initialize from arguments
 	let cache = crate::cache()?;
-	let network_config = config.try_into()?;
 	let mut zombienet = match Zombienet::new(
 		&cache,
-		network_config,
+		config,
 		relay_chain_version,
 		relay_chain_runtime_version,
 		system_parachain_version,
@@ -544,6 +544,7 @@ async fn source_binaries(
 		}
 	}
 
+	#[allow(clippy::manual_inspect)]
 	let binaries: Vec<_> = binaries
 		.into_iter()
 		.filter(|b| !b.exists() || (latest && b.stale()))
