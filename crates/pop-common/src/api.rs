@@ -9,11 +9,11 @@ use std::collections::HashMap;
 use std::{
 	error::Error as _,
 	ops::Deref,
-	sync::{Arc, Mutex},
+	sync::Arc,
 	time::{SystemTime, SystemTimeError},
 };
 use thiserror::Error;
-use tokio::sync::{AcquireError, Semaphore};
+use tokio::sync::{AcquireError, Mutex, Semaphore};
 
 /// An API client.
 pub(crate) struct ApiClient {
@@ -49,9 +49,7 @@ impl ApiClient {
 
 		#[cfg(test)]
 		// Check if a request for url already cached
-		if let Some(response) =
-			&self.cache.lock().map_err(|_| Error::LockAcquisitionError)?.get(url.as_str())
-		{
+		if let Some(response) = &self.cache.lock().await.get(url.as_str()) {
 			return Ok((*response).clone())
 		}
 
@@ -60,7 +58,7 @@ impl ApiClient {
 
 		// Check if prior evidence of being rate limited
 		// Note: only applies if multiple attempts within the same process (e.g., tests)
-		let mut rate_limits = self.rate_limits.lock().map_err(|_| Error::LockAcquisitionError)?;
+		let mut rate_limits = self.rate_limits.lock().await;
 		if let Some(0) = rate_limits.remaining {
 			if let Some(reset) = rate_limits.reset {
 				let now = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)?.as_secs();
@@ -108,10 +106,7 @@ impl ApiClient {
 
 				// Cache response for any later requests for the same url
 				#[cfg(test)]
-				self.cache
-					.lock()
-					.map_err(|_| Error::LockAcquisitionError)?
-					.insert(url.to_string(), response.clone());
+				self.cache.lock().await.insert(url.to_string(), response.clone());
 
 				Ok(response)
 			},
@@ -169,9 +164,6 @@ pub enum Error {
 	/// A HTTP error occurred.
 	#[error("HTTP error: {0} caused by {:?}", reqwest::Error::source(.0))]
 	HttpError(#[from] reqwest::Error),
-	/// An error occurred acquiring a lock.
-	#[error("Lock acquisition error")]
-	LockAcquisitionError,
 	/// An API call failed due to rate limiting.
 	#[error("Rate limited: limit {limit:?}, remaining {remaining:?}, reset {reset:?}, retry after {retry_after:?}")]
 	RateLimited {
@@ -241,7 +233,7 @@ mod tests {
 		client.get(format!("{}/rate-limits", server.url())).await?;
 
 		assert_eq!(
-			*client.rate_limits.lock().unwrap(),
+			*client.rate_limits.lock().await,
 			RateLimits {
 				limit: Some(LIMIT),
 				remaining: Some(REMAINING),
@@ -372,7 +364,7 @@ mod tests {
 		for _ in 0..5 {
 			let response = client.get(url.clone()).await?;
 			assert_eq!(*response, *payload);
-			assert_eq!(client.cache.lock().unwrap().get(&url), Some(&response));
+			assert_eq!(client.cache.lock().await.get(&url), Some(&response));
 		}
 
 		mock.assert_async().await;
