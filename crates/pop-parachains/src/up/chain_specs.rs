@@ -94,9 +94,9 @@ impl Runtime {
 	/// * `chain` - The chain identifier.
 	pub fn from_chain(chain: &str) -> Option<Self> {
 		Runtime::VARIANTS
-			.into_iter()
+			.iter()
 			.find(|r| chain.to_lowercase().ends_with(r.chain()))
-			.map(|r| r.clone())
+			.cloned()
 	}
 
 	/// The chain spec identifier.
@@ -132,6 +132,7 @@ pub(super) async fn chain_spec_generator(
 mod tests {
 	use super::*;
 	use tempfile::tempdir;
+	use Runtime::*;
 
 	#[tokio::test]
 	async fn kusama_works() -> anyhow::Result<()> {
@@ -219,5 +220,33 @@ mod tests {
 		let temp_dir = tempdir()?;
 		assert_eq!(chain_spec_generator("rococo-local", None, temp_dir.path()).await?, None);
 		Ok(())
+	}
+
+	#[tokio::test]
+	async fn chain_spec_generator_returns_none_when_westend() -> anyhow::Result<()> {
+		let temp_dir = tempdir()?;
+		assert_eq!(chain_spec_generator("westend-local", None, temp_dir.path()).await?, None);
+		Ok(())
+	}
+
+	#[test]
+	fn from_u8_works() {
+		for i in 0u8..4 {
+			assert_eq!(Runtime::from(i).unwrap() as u8, i);
+		}
+		assert_eq!(Runtime::from(4), None);
+	}
+
+	#[test]
+	fn from_chain_works() {
+		for (chain, expected) in [
+			("kusama-local", Kusama),
+			("paseo-local", Paseo),
+			("polkadot-local", Polkadot),
+			("westend-local", Westend),
+		] {
+			assert_eq!(Runtime::from_chain(chain).unwrap(), expected);
+		}
+		assert_eq!(Runtime::from_chain("pop"), None);
 	}
 }
