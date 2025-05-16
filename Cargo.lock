@@ -8865,6 +8865,7 @@ dependencies = [
  "pop-contracts",
  "pop-parachains",
  "pop-telemetry",
+ "regex",
  "reqwest",
  "serde",
  "serde_json",
@@ -8986,6 +8987,7 @@ dependencies = [
  "toml_edit",
  "url",
  "walkdir",
+ "zombienet-configuration",
  "zombienet-sdk",
 ]
 
@@ -16239,9 +16241,9 @@ dependencies = [
 
 [[package]]
 name = "zombienet-configuration"
-version = "0.2.29"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f4e0e7e93b56f7fdea2e732399caff7f773a1ef4c19a98a24514b390f832504e"
+checksum = "9aabc9bb61ba954616b2d480a1a42eae0fdc6322c701f7b61a3836796eeed178"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -16260,9 +16262,9 @@ dependencies = [
 
 [[package]]
 name = "zombienet-orchestrator"
-version = "0.2.29"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a36a3983d7c06e30f585ba99e983c5d28b9622b44d8e5ba11a9718d2712c418"
+checksum = "006806f36101abc07822b55513e3009f00f7a48a3e708de909aad4749a6cfe70"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -16293,9 +16295,9 @@ dependencies = [
 
 [[package]]
 name = "zombienet-prom-metrics-parser"
-version = "0.2.29"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "70f596e81ddcd8c6d70abcd8f6b336dac6bfdd7a94f1fce3696b8889231084b0"
+checksum = "48f1646c6c0968033d3808bfa91674f6a31f149491020bdbff3ad7e1d9ad0237"
 dependencies = [
  "pest",
  "pest_derive",
@@ -16304,9 +16306,9 @@ dependencies = [
 
 [[package]]
 name = "zombienet-provider"
-version = "0.2.29"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0431363423a2a378a24d4148056e80cdf45911f238a2e597d4eb2b8a3b2ae334"
+checksum = "3feea6d1ac0e3e4f2724e386c3034ee10af2afc7168dde9f091337ad2218ace5"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -16335,9 +16337,9 @@ dependencies = [
 
 [[package]]
 name = "zombienet-sdk"
-version = "0.2.29"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f725d029b34acea1e5de4df09835de70594d828db57338c528dea52753be9343"
+checksum = "4fc3ec1a08203cf2b96c5ecc84ae8c850ec0c744f4e682abd79b2846f981e5c2"
 dependencies = [
  "async-trait",
  "futures",
@@ -16353,17 +16355,19 @@ dependencies = [
 
 [[package]]
 name = "zombienet-support"
-version = "0.2.29"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e3cfa5555e6725c65e1dfbec6fcd49ef2799ac1a89d4fe56255ed21882275cee"
+checksum = "3e057e2debab330e5a1a7d37bec91c260fd1486666a926074919c222c364ed67"
 dependencies = [
  "anyhow",
  "async-trait",
  "futures",
+ "lazy_static",
  "nix 0.29.0",
  "rand 0.8.5",
  "regex",
  "reqwest",
+ "serde_json",
  "thiserror 1.0.69",
  "tokio",
  "tracing",

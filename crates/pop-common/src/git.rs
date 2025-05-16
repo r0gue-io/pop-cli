@@ -127,7 +127,7 @@ impl Git {
 	/// Fetch the latest release from a repository
 	fn fetch_latest_tag(repo: &GitRepository) -> Option<String> {
 		let tags = repo.tag_names(None).ok()?;
-		parse_latest_tag(tags.iter().flatten().collect::<Vec<_>>())
+		parse_latest_tag(&tags.iter().flatten().collect::<Vec<_>>()).map(|t| t.to_string())
 	}
 
 	/// Init a new git repository.
@@ -200,11 +200,14 @@ impl GitHub {
 	}
 
 	/// Fetch the latest releases of the GitHub repository.
-	pub async fn releases(&self) -> Result<Vec<Release>> {
+	///
+	/// # Arguments
+	/// * `prerelease` - Whether to include prereleases.
+	pub async fn releases(&self, prerelease: bool) -> Result<Vec<Release>> {
 		let url = self.api_releases_url();
 		let response = GITHUB_API_CLIENT.get(url).await?;
 		let mut releases = response.json::<Vec<Release>>().await?;
-
+		releases.retain(|r| prerelease || !r.prerelease);
 		// Sort releases by `published_at` in descending order
 		releases.sort_by(|a, b| b.published_at.cmp(&a.published_at));
 		Ok(releases)
@@ -396,7 +399,7 @@ mod tests {
 		]"#;
 		let repo = GitHub::parse(BASE_PARACHAIN)?.with_api(&mock_server.url());
 		let mock = releases_mock(&mut mock_server, &repo, expected_payload).await;
-		let latest_release = repo.releases().await?;
+		let latest_release = repo.releases(false).await?;
 		assert_eq!(
 			latest_release,
 			vec![

@@ -1,4 +1,4 @@
-# pop up parachain -f ./tests/networks/kusama+asset-hub.toml
+# pop up network ./tests/networks/kusama+asset-hub.toml
 
 [relaychain]
 chain = "kusama-local"

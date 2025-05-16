@@ -567,9 +567,10 @@ pub fn get_code_hash_from_event<C: Config>(
 #[cfg(test)]
 mod tests {
 	use super::*;
+	#[cfg(feature = "v5")]
+	use crate::errors::Error;
 	use crate::{
-		contracts_node_generator, errors::Error, mock_build_process, new_environment,
-		run_contracts_node,
+		contracts_node_generator, mock_build_process, new_environment, run_contracts_node,
 	};
 	use anyhow::Result;
 	use pop_common::{find_free_port, set_executable_permission};

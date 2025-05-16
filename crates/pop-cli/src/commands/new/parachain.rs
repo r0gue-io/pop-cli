@@ -344,16 +344,16 @@ async fn choose_release(template: &Parachain, verify: bool) -> Result<Option<Str
 }
 
 async fn get_latest_3_releases(repo: &GitHub, verify: bool) -> Result<Vec<Release>> {
-	let mut latest_3_releases: Vec<Release> =
-		repo.releases().await?.into_iter().filter(|r| !r.prerelease).take(3).collect();
+	let mut releases: Vec<Release> = repo.releases(false).await?;
+	releases.truncate(3);
 	if verify {
 		// Get the commit sha for the releases
-		for release in latest_3_releases.iter_mut() {
+		for release in releases.iter_mut() {
 			let commit = repo.get_commit_sha_from_release(&release.tag_name).await?;
 			release.commit = Some(commit);
 		}
 	}
-	Ok(latest_3_releases)
+	Ok(releases)
 }
 
 fn display_release_versions_to_user(releases: Vec<Release>) -> Result<String> {
