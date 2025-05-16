@@ -27,9 +27,9 @@ pub type Version = (u32, u32, u32);
 /// # Arguments
 /// * `tags` - A vector of tags to parse and evaluate.
 pub fn parse_latest_tag(tags: &[impl AsRef<str>]) -> Option<&str> {
-	match parse_latest_stable_tag(&tags) {
-		Some(last_stable_tag) => Some(last_stable_tag.as_ref()),
-		None => parse_latest_semantic_version(&tags),
+	match parse_latest_stable_tag(tags) {
+		Some(last_stable_tag) => Some(last_stable_tag),
+		None => parse_latest_semantic_version(tags),
 	}
 }
 

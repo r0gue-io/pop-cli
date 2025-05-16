@@ -60,7 +60,7 @@ pub async fn omni_bencher_generator(
 ) -> Result<Binary, Error> {
 	let cli = BenchmarkingCli::OmniBencher;
 	let name = cli.binary().to_string();
-	let source = cli.source()?.resolve(&name, version, cache.as_path()).await;
+	let source = cli.source()?.resolve(&name, version, cache.as_path()).await.into();
 	let binary = Binary::Source { name, source, cache: cache.to_path_buf() };
 	Ok(binary)
 }
@@ -88,7 +88,7 @@ mod tests {
 					archive: format!("frame-omni-bencher-{}.tar.gz", target()?),
 					contents: ["frame-omni-bencher"].map(|b| (b, Some(b.to_string()), true)).to_vec(),
 					latest: binary.latest().map(|l| l.to_string()),
-				}) &&
+				}).into() &&
 				cache == temp_dir_path.as_path()
 		));
 		Ok(())

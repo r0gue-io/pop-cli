@@ -109,7 +109,7 @@ pub enum Error {
 	SourcingError(#[from] pop_common::sourcing::Error),
 	/// An error occurred whilst interacting with a chain using `subxt`.
 	#[error("Subxt error: {0}")]
-	SubXtError(#[from] subxt::Error),
+	SubXtError(#[from] Box<subxt::Error>),
 	/// A TOML error occurred.
 	#[error("Toml error: {0}")]
 	TomlError(#[from] toml_edit::de::Error),

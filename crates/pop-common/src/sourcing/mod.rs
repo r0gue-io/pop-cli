@@ -374,14 +374,14 @@ impl GitHub {
 						// Resolve the version to be used
 						let resolved_version =
 							Binary::resolve_version(name, None, &versions, cache);
-						resolved_version.and_then(|v| binaries.get(v)).map(|v| v.clone())
+						resolved_version.and_then(|v| binaries.get(v)).cloned()
 					},
 					|v| {
 						// Ensure any specified version is a tag
 						Some(
 							tag_pattern
 								.as_ref()
-								.map_or_else(|| v.to_string(), |pattern| pattern.resolve_tag(&v)),
+								.map_or_else(|| v.to_string(), |pattern| pattern.resolve_tag(v)),
 						)
 					},
 				);
@@ -389,12 +389,7 @@ impl GitHub {
 				// Only set latest when the caller has not explicitly specified a version to use
 				let latest: Option<String> = version
 					.is_none()
-					.then(|| {
-						versions
-							.iter()
-							.nth(0)
-							.and_then(|v| binaries.get(v.as_str()).map(|v| v.clone()))
-					})
+					.then(|| versions.first().and_then(|v| binaries.get(v.as_str()).cloned()))
 					.flatten();
 
 				Self::ReleaseArchive {

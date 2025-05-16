@@ -56,7 +56,7 @@ impl SourceT for TryRuntimeCli {
 pub async fn try_runtime_generator(cache: PathBuf, version: Option<&str>) -> Result<Binary, Error> {
 	let cli = TryRuntimeCli::TryRuntime;
 	let name = cli.binary().to_string();
-	let source = cli.source()?.resolve(&name, version, cache.as_path()).await;
+	let source = cli.source()?.resolve(&name, version, cache.as_path()).await.into();
 	let binary = Binary::Source { name, source, cache: cache.to_path_buf() };
 	Ok(binary)
 }
@@ -83,7 +83,7 @@ mod tests {
 					archive: format!("try-runtime-cli-{}.tar.gz", target()?),
 					contents: ["try-runtime-cli"].map(|b| (b, Some(b.to_string()), true)).to_vec(),
 					latest: binary.latest().map(|l| l.to_string()),
-				}) &&
+				}).into() &&
 				cache == temp_dir.as_path()
 		));
 		Ok(())

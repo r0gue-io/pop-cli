@@ -28,7 +28,7 @@ pub enum Binary {
 		name: String,
 		/// The source of the binary.
 		#[allow(private_interfaces)]
-		source: Source,
+		source: Box<Source>,
 		/// The cache to be used to store the binary.
 		cache: PathBuf,
 	},
@@ -45,7 +45,7 @@ impl Binary {
 		match self {
 			Self::Local { .. } => None,
 			Self::Source { source, .. } =>
-				if let GitHub(ReleaseArchive { latest, tag_pattern, .. }) = source {
+				if let GitHub(ReleaseArchive { latest, tag_pattern, .. }) = source.as_ref() {
 					{
 						// Extract the version from `latest`, provided it is a tag and that a tag
 						// pattern exists
@@ -144,7 +144,10 @@ impl Binary {
 	/// Whether any locally cached version can be replaced with a newer version.
 	pub fn stale(&self) -> bool {
 		// Only binaries sourced from GitHub release archives can currently be determined as stale
-		let Self::Source { source: GitHub(ReleaseArchive { tag, latest, .. }), .. } = self else {
+		let Self::Source { source, .. } = self else {
+			return false;
+		};
+		let GitHub(ReleaseArchive { tag, latest, .. }) = source.as_ref() else {
 			return false;
 		};
 		latest.as_ref().is_some_and(|l| tag.as_ref() != Some(l))
@@ -152,11 +155,10 @@ impl Binary {
 
 	/// Specifies that the latest available versions are to be used (where possible).
 	pub fn use_latest(&mut self) {
-		if let Self::Source {
-			source: GitHub(ReleaseArchive { tag, latest: Some(latest), .. }),
-			..
-		} = self
-		{
+		let Self::Source { source, .. } = self else {
+			return;
+		};
+		if let GitHub(ReleaseArchive { tag, latest: Some(latest), .. }) = source.as_mut() {
 			*tag = Some(latest.clone())
 		};
 	}
@@ -165,15 +167,12 @@ impl Binary {
 	pub fn version(&self) -> Option<&str> {
 		match self {
 			Self::Local { .. } => None,
-			Self::Source { source, .. } => match source {
+			Self::Source { source, .. } => match source.as_ref() {
 				Git { reference, .. } => reference.as_ref().map(|r| r.as_str()),
 				GitHub(source) => match source {
 					ReleaseArchive { tag, tag_pattern, .. } => tag.as_ref().map(|tag| {
 						// Use any tag pattern defined to extract a version, otherwise use the tag.
-						tag_pattern
-							.as_ref()
-							.and_then(|pattern| pattern.version(&tag))
-							.unwrap_or(tag)
+						tag_pattern.as_ref().and_then(|pattern| pattern.version(tag)).unwrap_or(tag)
 					}),
 					SourceCodeArchive { reference, .. } => reference.as_ref().map(|r| r.as_str()),
 				},
@@ -280,7 +279,7 @@ mod tests {
 
 		let mut binary = Binary::Source {
 			name: name.to_string(),
-			source: Archive { url: url.to_string(), contents },
+			source: Archive { url: url.to_string(), contents }.into(),
 			cache: temp_dir.path().to_path_buf(),
 		};
 
@@ -317,7 +316,8 @@ mod tests {
 					manifest: None,
 					package: package.to_string(),
 					artifacts: vec![package.to_string()],
-				},
+				}
+				.into(),
 				cache: temp_dir.path().to_path_buf(),
 			};
 
@@ -364,7 +364,8 @@ mod tests {
 						archive: archive.clone(),
 						contents: contents.into_iter().map(|b| (b, None, true)).collect(),
 						latest: latest.clone(),
-					}),
+					})
+					.into(),
 					cache: temp_dir.path().to_path_buf(),
 				};
 
@@ -407,7 +408,8 @@ mod tests {
 					manifest: Some(PathBuf::from(manifest)),
 					package: package.to_string(),
 					artifacts: vec![package.to_string()],
-				}),
+				})
+				.into(),
 				cache: temp_dir.path().to_path_buf(),
 			};
 
@@ -435,7 +437,7 @@ mod tests {
 
 		let mut binary = Binary::Source {
 			name: name.to_string(),
-			source: Source::Url { url: url.to_string(), name: name.to_string() },
+			source: Source::Url { url: url.to_string(), name: name.to_string() }.into(),
 			cache: temp_dir.path().to_path_buf(),
 		};
 
@@ -488,7 +490,7 @@ mod tests {
 
 		Binary::Source {
 			name: name.to_string(),
-			source: Source::Url { url: url.to_string(), name: name.to_string() },
+			source: Source::Url { url: url.to_string(), name: name.to_string() }.into(),
 			cache: temp_dir.path().to_path_buf(),
 		}
 		.source(true, &Output, true)

@@ -126,7 +126,7 @@ impl<'a, T> SortedSlice<'a, T> {
 	}
 }
 
-impl<'a, T> Deref for SortedSlice<'a, T> {
+impl<T> Deref for SortedSlice<'_, T> {
 	type Target = [T];
 
 	fn deref(&self) -> &Self::Target {
