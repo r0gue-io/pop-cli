@@ -105,3 +105,76 @@ impl Args for Pop {
 impl GenesisOverrides for Pop {}
 
 impl_rollup!(Pop);
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use pop_common::SortedSlice;
+	use std::ptr::fn_addr_eq;
+
+	#[test]
+	fn source_works() {
+		let pop = Pop::new(3395, "pop");
+		assert!(matches!(
+			pop.source().unwrap(),
+			Source::GitHub(ReleaseArchive { owner, repository, tag, tag_pattern, prerelease, version_comparator, fallback, archive, contents, latest })
+				if owner == "r0gue-io" &&
+					repository == "pop-node" &&
+					tag == None &&
+					tag_pattern == Some("node-{version}".into()) &&
+					!prerelease &&
+					fn_addr_eq(version_comparator, sort_by_latest_semantic_version as for<'a> fn(&'a mut [String]) -> SortedSlice<'a, String>) &&
+					fallback == "v0.3.0" &&
+					archive == format!("pop-node-{}.tar.gz", target().unwrap()) &&
+					contents == vec![("pop-node", None, true)] &&
+					latest == None
+		));
+	}
+
+	#[test]
+	fn binary_works() {
+		let pop = Pop::new(3395, "pop");
+		assert_eq!(pop.binary(), "pop-node");
+	}
+
+	#[test]
+	fn requires_asset_hub() {
+		let pop = Pop::new(3395, "pop");
+		let mut requires = pop.requires().unwrap();
+		let r#override = requires.get_mut(&RollupTypeId::of::<AssetHub>()).unwrap();
+		let expected = json!({
+			"balances": {
+				"balances": [["5Eg2fnsomjubNiqxnqSSeVwcmQYQzsHdyr79YhcJDKRYfPCL", 1200000000000000000u64]]
+		}});
+		// Empty
+		let mut overrides = Map::new();
+		r#override(&mut overrides);
+		assert_eq!(Value::Object(overrides), expected);
+		// Inserts
+		let mut overrides = Map::new();
+		overrides.insert("balances".to_string(), json!({}));
+		r#override(&mut overrides);
+		assert_eq!(Value::Object(overrides), expected);
+		// Updates
+		let mut overrides = Map::new();
+		overrides.insert("balances".to_string(), json!({ "balances": []}));
+		r#override(&mut overrides);
+		assert_eq!(Value::Object(overrides), expected);
+	}
+
+	#[test]
+	fn args_works() {
+		let pop = Pop::new(3395, "pop");
+		assert_eq!(
+			pop.args().unwrap(),
+			vec![
+				"-lpop-api::extension=debug",
+				"-lruntime::contracts=trace",
+				"-lruntime::revive=trace",
+				"-lruntime::revive::strace=trace",
+				"-lxcm=trace",
+				"--enable-offchain-indexing=true",
+			]
+		);
+	}
+}

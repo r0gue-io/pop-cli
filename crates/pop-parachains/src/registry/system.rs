@@ -21,7 +21,7 @@ impl SourceT for System {
 		Ok(Source::GitHub(ReleaseArchive {
 			owner: "r0gue-io".into(),
 			repository: "polkadot".into(),
-			tag: Some("polkadot-{tag}".into()),
+			tag: None,
 			tag_pattern: Some("polkadot-{version}".into()),
 			prerelease: false,
 			version_comparator: sort_by_latest_stable_version,
@@ -36,6 +36,12 @@ impl SourceT for System {
 impl Binary for System {
 	fn binary(&self) -> &'static str {
 		"polkadot-parachain"
+	}
+}
+
+impl Args for System {
+	fn args(&self) -> Option<Vec<&str>> {
+		Some(vec!["-lxcm=trace"])
 	}
 }
 
@@ -59,7 +65,7 @@ macro_rules! impl_system_rollup {
 
 		impl Args for $name {
 			fn args(&self) -> Option<Vec<&str>> {
-				Some(vec!["-lxcm=trace"])
+				System.args()
 			}
 		}
 
@@ -70,8 +76,8 @@ macro_rules! impl_system_rollup {
 /// The Asset Hub enables the management of fungible and non-fungible assets across the network.
 ///
 /// See <https://docs.polkadot.com/polkadot-protocol/architecture/system-chains/asset-hub/> for more details.
-#[derive(Clone)]
-pub struct AssetHub(Rollup);
+#[derive(Clone, Debug, PartialEq)]
+pub struct AssetHub(pub(super) Rollup);
 impl AssetHub {
 	/// A new instance of the Asset Hub.
 	///
@@ -116,7 +122,7 @@ impl Collectives {
 	/// * `id` - The rollup identifier.
 	/// * `relay` - The relay chain.
 	pub fn new(id: Id, relay: Relay) -> Self {
-		Self(Rollup::new("coretime", id, format!("coretime-{}", relay.chain())))
+		Self(Rollup::new("collectives", id, format!("collectives-{}", relay.chain())))
 	}
 }
 impl_system_rollup!(Collectives);
@@ -157,3 +163,94 @@ impl People {
 	}
 }
 impl_system_rollup!(People);
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use pop_common::SortedSlice;
+	use std::ptr::fn_addr_eq;
+
+	#[test]
+	fn source_works() {
+		let system = System;
+		assert!(matches!(
+			system.source().unwrap(),
+			Source::GitHub(ReleaseArchive { owner, repository, tag, tag_pattern, prerelease, version_comparator, fallback, archive, contents, latest })
+				if owner == "r0gue-io" &&
+					repository == "polkadot" &&
+					tag == None &&
+					tag_pattern == Some("polkadot-{version}".into()) &&
+					!prerelease &&
+					fn_addr_eq(version_comparator, sort_by_latest_stable_version as for<'a> fn(&'a mut [String]) -> SortedSlice<'a, String>) &&
+					fallback == "stable2412" &&
+					archive == format!("polkadot-parachain-{}.tar.gz", target().unwrap()) &&
+					contents == vec![("polkadot-parachain", None, true)] &&
+					latest == None
+		));
+	}
+
+	#[test]
+	fn binary_works() {
+		assert_eq!(System.binary(), "polkadot-parachain");
+	}
+
+	#[test]
+	fn args_works() {
+		assert_eq!(System.args().unwrap(), vec!["-lxcm=trace",]);
+	}
+
+	#[test]
+	fn asset_hub_works() {
+		let asset_hub = AssetHub::new(1_000, Relay::Paseo);
+		assert_eq!(asset_hub.args(), System.args());
+		assert_eq!(asset_hub.binary(), "polkadot-parachain");
+		assert_eq!(asset_hub.chain(), "asset-hub-paseo-local");
+		assert!(asset_hub.genesis_overrides().is_none());
+		assert_eq!(asset_hub.name(), "asset-hub");
+		assert_eq!(asset_hub.source().unwrap(), System.source().unwrap());
+	}
+
+	#[test]
+	fn bridge_hub_works() {
+		let bridge_hub = BridgeHub::new(1_002, Relay::Paseo);
+		assert_eq!(bridge_hub.args(), System.args());
+		assert_eq!(bridge_hub.binary(), "polkadot-parachain");
+		assert_eq!(bridge_hub.chain(), "bridge-hub-paseo-local");
+		assert!(bridge_hub.genesis_overrides().is_none());
+		assert_eq!(bridge_hub.name(), "bridge-hub");
+		assert_eq!(bridge_hub.source().unwrap(), System.source().unwrap());
+	}
+
+	#[test]
+	fn collectives_works() {
+		let collectives = Collectives::new(1_001, Relay::Paseo);
+		assert_eq!(collectives.args(), System.args());
+		assert_eq!(collectives.binary(), "polkadot-parachain");
+		assert_eq!(collectives.chain(), "collectives-paseo-local");
+		assert!(collectives.genesis_overrides().is_none());
+		assert_eq!(collectives.name(), "collectives");
+		assert_eq!(collectives.source().unwrap(), System.source().unwrap());
+	}
+
+	#[test]
+	fn coretime_works() {
+		let coretime = Coretime::new(1_001, Relay::Paseo);
+		assert_eq!(coretime.args(), System.args());
+		assert_eq!(coretime.binary(), "polkadot-parachain");
+		assert_eq!(coretime.chain(), "coretime-paseo-local");
+		assert!(coretime.genesis_overrides().is_none());
+		assert_eq!(coretime.name(), "coretime");
+		assert_eq!(coretime.source().unwrap(), System.source().unwrap());
+	}
+
+	#[test]
+	fn people_works() {
+		let people = People::new(1_001, Relay::Paseo);
+		assert_eq!(people.args(), System.args());
+		assert_eq!(people.binary(), "polkadot-parachain");
+		assert_eq!(people.chain(), "people-paseo-local");
+		assert!(people.genesis_overrides().is_none());
+		assert_eq!(people.name(), "people");
+		assert_eq!(people.source().unwrap(), System.source().unwrap());
+	}
+}
