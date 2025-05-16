@@ -22,6 +22,7 @@ macro_rules! impl_rollup {
 			fn as_rollup(&self) -> &Rollup {
 				&self.0
 			}
+
 			fn as_rollup_mut(&mut self) -> &mut Rollup {
 				&mut self.0
 			}
@@ -58,8 +59,8 @@ const REGISTRAR: fn(Registry) -> Registry = |mut registry| {
 		vec![
 			// System chains
 			AssetHub::new(1_000, Paseo).into(),
-			BridgeHub::new(1_002, Paseo).into(),
 			Collectives::new(1_001, Paseo).into(),
+			BridgeHub::new(1_002, Paseo).into(),
 			Coretime::new(1_004, Paseo).into(),
 			People::new(1_005, Paseo).into(),
 			// Others
@@ -71,8 +72,8 @@ const REGISTRAR: fn(Registry) -> Registry = |mut registry| {
 		vec![
 			// System chains
 			AssetHub::new(1_000, Polkadot).into(),
-			BridgeHub::new(1_002, Polkadot).into(),
 			Collectives::new(1_001, Polkadot).into(),
+			BridgeHub::new(1_002, Polkadot).into(),
 			Coretime::new(1_004, Polkadot).into(),
 			People::new(1_005, Polkadot).into(),
 			// Others
@@ -84,8 +85,8 @@ const REGISTRAR: fn(Registry) -> Registry = |mut registry| {
 		vec![
 			// System chains
 			AssetHub::new(1_000, Westend).into(),
-			BridgeHub::new(1_002, Westend).into(),
 			Collectives::new(1_001, Westend).into(),
+			BridgeHub::new(1_002, Westend).into(),
 			Coretime::new(1_004, Westend).into(),
 			People::new(1_005, Westend).into(),
 		],
@@ -105,7 +106,7 @@ pub fn rollups(relay: &Relay) -> &'static [Box<dyn traits::Rollup>] {
 }
 
 // A base type, used by rollup implementations to reduce boilerplate code.
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 struct Rollup {
 	name: String,
 	id: Id,
@@ -241,21 +242,113 @@ pub mod traits {
 	}
 }
 
-#[test]
-fn check() {
-	use std::any::{Any, TypeId};
-	use traits::Rollup;
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::registry::traits::{Requires, Rollup as _};
+	use Relay::*;
 
-	let asset_hub = AssetHub::new(1_000, Relay::Paseo);
-	let bridge_hub = BridgeHub::new(1_002, Relay::Polkadot);
+	#[test]
+	fn rollup_works() {
+		let mut rollup = Rollup::new("test-rollup", 2_000, "test-local");
+		assert_eq!(rollup.name(), "test-rollup");
+		assert_eq!(rollup.id(), 2_000);
+		assert_eq!(rollup.chain(), "test-local");
+		assert!(rollup.port().is_none());
 
-	assert_ne!(asset_hub.type_id(), bridge_hub.type_id());
+		rollup.set_id(2_002);
+		assert_eq!(rollup.id(), 2_002);
 
-	let asset_hub: Box<dyn Rollup> = Box::new(asset_hub);
-	let bridge_hub: Box<dyn Rollup> = Box::new(bridge_hub);
+		rollup.set_port(9_944);
+		assert_eq!(rollup.port().unwrap(), &9_944u16);
+	}
 
-	assert_ne!(asset_hub.as_any().type_id(), bridge_hub.as_any().type_id());
+	#[test]
+	fn impl_rollup_works() {
+		let mut asset_hub = AssetHub::new(1_000, Paseo);
+		asset_hub.as_rollup_mut().id = 0_001;
+		assert_eq!(asset_hub.id(), 0_001);
+		assert_eq!(asset_hub.as_rollup(), &asset_hub.0);
+		assert_eq!(asset_hub.as_any().type_id(), asset_hub.type_id());
+		asset_hub.set_id(1_000);
+		assert_eq!(asset_hub.id(), 1_000);
+		asset_hub.set_port(9_944);
+		assert_eq!(asset_hub.port().unwrap(), &9_944u16);
+		assert!(asset_hub.requires().is_none());
+	}
 
-	assert_eq!(asset_hub.as_any().type_id(), TypeId::of::<AssetHub>());
-	assert_eq!(bridge_hub.as_any().type_id(), TypeId::of::<BridgeHub>());
+	#[test]
+	fn clone_works() {
+		let asset_hub: Box<dyn traits::Rollup> = Box::new(AssetHub::new(1_000, Paseo));
+		assert_eq!(
+			asset_hub.clone().as_any().downcast_ref::<AssetHub>(),
+			asset_hub.as_any().downcast_ref::<AssetHub>()
+		);
+	}
+
+	#[test]
+	fn kusama_registry_works() {
+		let registry = rollups(&Kusama);
+		assert!(contains::<AssetHub>(registry, 1_000));
+		assert!(contains::<BridgeHub>(registry, 1_002));
+		assert!(contains::<Coretime>(registry, 1_004));
+		assert!(contains::<People>(registry, 1_005));
+	}
+
+	#[test]
+	fn paseo_registry_works() {
+		let registry = rollups(&Paseo);
+		assert!(contains::<AssetHub>(registry, 1_000));
+		assert!(contains::<Collectives>(registry, 1_001));
+		assert!(contains::<BridgeHub>(registry, 1_002));
+		assert!(contains::<Coretime>(registry, 1_004));
+		assert!(contains::<People>(registry, 1_005));
+		assert!(contains::<Pop>(registry, 4_001));
+	}
+
+	#[test]
+	fn polkadot_registry_works() {
+		let registry = rollups(&Polkadot);
+		assert!(contains::<AssetHub>(registry, 1_000));
+		assert!(contains::<Collectives>(registry, 1_001));
+		assert!(contains::<BridgeHub>(registry, 1_002));
+		assert!(contains::<Coretime>(registry, 1_004));
+		assert!(contains::<People>(registry, 1_005));
+		assert!(contains::<Pop>(registry, 3_395));
+	}
+
+	#[test]
+	fn westend_registry_works() {
+		let registry = rollups(&Westend);
+		assert!(contains::<AssetHub>(registry, 1_000));
+		assert!(contains::<Collectives>(registry, 1_001));
+		assert!(contains::<BridgeHub>(registry, 1_002));
+		assert!(contains::<Coretime>(registry, 1_004));
+		assert!(contains::<People>(registry, 1_005));
+	}
+
+	#[test]
+	fn type_checks() {
+		use std::any::{Any, TypeId};
+		use traits::Rollup;
+
+		let asset_hub = AssetHub::new(1_000, Paseo);
+		let bridge_hub = BridgeHub::new(1_002, Polkadot);
+
+		assert_ne!(asset_hub.type_id(), bridge_hub.type_id());
+
+		let asset_hub: Box<dyn Rollup> = Box::new(asset_hub);
+		let bridge_hub: Box<dyn Rollup> = Box::new(bridge_hub);
+
+		assert_ne!(asset_hub.as_any().type_id(), bridge_hub.as_any().type_id());
+
+		assert_eq!(asset_hub.as_any().type_id(), TypeId::of::<AssetHub>());
+		assert_eq!(bridge_hub.as_any().type_id(), TypeId::of::<BridgeHub>());
+	}
+
+	fn contains<T: 'static>(registry: &[Box<dyn traits::Rollup>], id: Id) -> bool {
+		registry
+			.iter()
+			.any(|r| r.as_any().type_id() == TypeId::of::<T>() && r.id() == id)
+	}
 }
