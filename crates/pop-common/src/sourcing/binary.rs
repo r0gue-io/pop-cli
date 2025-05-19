@@ -12,7 +12,7 @@ use crate::{
 use std::path::{Path, PathBuf};
 
 /// A binary used to launch a node.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Binary {
 	/// A local binary.
 	Local {

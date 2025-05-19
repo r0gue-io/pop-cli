@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::style::{style, Theme};
+use crate::{
+	cli::traits::{Cli, MultiSelect},
+	style::{style, Theme},
+};
 use clap::Args;
 use cliclack::{
 	clear_screen, confirm, intro, log, multi_progress, outro, outro_cancel, set_theme, spinner,
@@ -9,8 +12,8 @@ use cliclack::{
 use console::{Emoji, Style, Term};
 use duct::cmd;
 use pop_common::Status;
-use pop_parachains::{clear_dmpq, Error, IndexSet, NetworkNode, RelayChain, Zombienet};
-use std::{path::Path, time::Duration};
+use pop_parachains::{clear_dmpq, Binary, Error, IndexSet, NetworkNode, RelayChain, Zombienet};
+use std::{collections::HashSet, path::Path, time::Duration};
 use tokio::time::sleep;
 
 #[derive(Args, Clone)]
@@ -57,7 +60,7 @@ pub(crate) struct ZombienetCommand {
 
 impl ZombienetCommand {
 	/// Executes the command.
-	pub(crate) async fn execute(self) -> anyhow::Result<()> {
+	pub(crate) async fn execute(self, cli: &mut crate::cli::Cli) -> anyhow::Result<()> {
 		clear_screen()?;
 		intro(format!("{}: Launch a local network", style(" Pop CLI ").black().on_magenta()))?;
 		set_theme(Theme);
@@ -96,6 +99,8 @@ impl ZombienetCommand {
 					_ => Err(e.into()),
 				},
 		};
+
+		Self::build_local_binaries(&mut zombienet, cli).await;
 
 		// Source any missing/stale binaries
 		if Self::source_binaries(&mut zombienet, &cache, self.verbose, self.skip_confirm).await? {
@@ -195,6 +200,33 @@ impl ZombienetCommand {
 			Err(e) => {
 				outro_cancel(format!("🚫 Could not launch local network: {e}"))?;
 			},
+		}
+
+		Ok(())
+	}
+
+	async fn build_local_binaries(
+		zombienet: &mut Zombienet,
+		cli: &mut crate::cli::Cli,
+	) -> anyhow::Result<()> {
+		let mut prompt =
+			cli.multiselect(r#"Select local runtime binaries to rebuild"#).required(false);
+		let binaries: Vec<Binary> = zombienet.binaries().map(|b| b.clone()).collect();
+		for binary in binaries.iter() {
+			if binary.local() && ["./", "../", "/"].iter().any(|p| binary.path().starts_with(p)) {
+				let binary_name = binary.name();
+				prompt = prompt.item(
+					binary_name.to_string(),
+					binary_name,
+					binary.path().to_str().unwrap(),
+				);
+			}
+		}
+		let binary_names = prompt.interact()?;
+		for binary in binaries {
+			if binary_names.contains(&binary.name().to_string()) {
+				// Build the binary.
+			}
 		}
 
 		Ok(())
