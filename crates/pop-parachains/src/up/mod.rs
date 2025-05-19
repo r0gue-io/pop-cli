@@ -903,6 +903,48 @@ chain = "paseo-local"
 		}
 
 		#[tokio::test]
+		async fn new_with_relay_only_from_network_config_works() -> Result<()> {
+			let temp_dir = tempdir()?;
+			let cache = PathBuf::from(temp_dir.path());
+			let config = NetworkConfigBuilder::new()
+				.with_relaychain(|b| {
+					b.with_chain("paseo-local").with_node(|b| b.with_name("alice"))
+				})
+				.build()
+				.unwrap();
+
+			let zombienet = Zombienet::new(
+				&cache,
+				config.try_into().unwrap(),
+				Some(RELAY_BINARY_VERSION),
+				None,
+				None,
+				None,
+				None,
+			)
+			.await?;
+
+			let relay_chain = &zombienet.relay_chain.binary;
+			assert_eq!(relay_chain.name(), "polkadot");
+			assert_eq!(
+				relay_chain.path(),
+				temp_dir.path().join(format!("polkadot-{RELAY_BINARY_VERSION}"))
+			);
+			assert_eq!(relay_chain.version().unwrap(), RELAY_BINARY_VERSION);
+			assert!(matches!(
+				relay_chain,
+				Binary::Source { source, .. }
+					if matches!(source.as_ref(), Source::GitHub(ReleaseArchive { tag, .. })
+						if *tag == Some(format!("polkadot-{RELAY_BINARY_VERSION}"))
+					)
+			));
+			assert!(zombienet.parachains.is_empty());
+			assert_eq!(zombienet.relay_chain(), "paseo-local");
+			assert!(!zombienet.hrmp_channels());
+			Ok(())
+		}
+
+		#[tokio::test]
 		async fn new_with_relay_chain_spec_generator_works() -> Result<()> {
 			let temp_dir = tempdir()?;
 			let cache = PathBuf::from(temp_dir.path());
@@ -1037,6 +1079,47 @@ command = "polkadot"
 		}
 
 		#[tokio::test]
+		async fn new_with_node_command_from_network_config_works() -> Result<()> {
+			let temp_dir = tempdir()?;
+			let cache = PathBuf::from(temp_dir.path());
+			let config = NetworkConfigBuilder::new()
+				.with_relaychain(|b| {
+					b.with_chain("paseo-local")
+						.with_node(|b| b.with_name("alice").with_command("polkadot"))
+				})
+				.build()
+				.unwrap();
+
+			let zombienet = Zombienet::new(
+				&cache,
+				config.try_into().unwrap(),
+				Some(RELAY_BINARY_VERSION),
+				None,
+				None,
+				None,
+				None,
+			)
+			.await?;
+
+			let relay_chain = &zombienet.relay_chain.binary;
+			assert_eq!(relay_chain.name(), "polkadot");
+			assert_eq!(
+				relay_chain.path(),
+				temp_dir.path().join(format!("polkadot-{RELAY_BINARY_VERSION}"))
+			);
+			assert_eq!(relay_chain.version().unwrap(), RELAY_BINARY_VERSION);
+			assert!(matches!(
+				relay_chain,
+				Binary::Source { source, .. }
+					if matches!(source.as_ref(), Source::GitHub(ReleaseArchive { tag, .. })
+						if *tag == Some(format!("polkadot-{RELAY_BINARY_VERSION}"))
+					)
+			));
+			assert!(zombienet.parachains.is_empty());
+			Ok(())
+		}
+
+		#[tokio::test]
 		async fn new_ensures_node_commands_valid() -> Result<()> {
 			let temp_dir = tempdir()?;
 			let cache = PathBuf::from(temp_dir.path());
@@ -1090,6 +1173,28 @@ command = "polkadot-stable2503"
 				Zombienet::new(&cache, config.path().try_into()?, None, None, None, None, None).await,
 				Err(Error::UnsupportedCommand(error))
 				if error == "the relay chain command is unsupported: polkadot-stable2503"
+			));
+			Ok(())
+		}
+
+		#[tokio::test]
+		async fn new_ensures_node_command_from_network_config_valid() -> Result<()> {
+			let temp_dir = tempdir()?;
+			let cache = PathBuf::from(temp_dir.path());
+			let config = NetworkConfigBuilder::new()
+				.with_relaychain(|b| {
+					b.with_chain("paseo-local")
+						.with_node(|b| b.with_name("alice").with_command("polkadot"))
+						.with_node(|b| b.with_name("bob").with_command("polkadot"))
+						.with_node(|b| b.with_name("charlie").with_command("p0lk4d0t"))
+				})
+				.build()
+				.unwrap();
+
+			assert!(matches!(
+				Zombienet::new(&cache, config.try_into().unwrap(), None, None, None, None,None).await,
+				Err(Error::UnsupportedCommand(error))
+					if error == "the relay chain command is unsupported: p0lk4d0t"
 			));
 			Ok(())
 		}
