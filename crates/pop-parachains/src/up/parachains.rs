@@ -2,7 +2,7 @@
 
 use super::{chain_specs::chain_spec_generator, Binary, Relay};
 use crate::{registry, registry::System, traits::Binary as BinaryT, Error};
-use pop_common::sourcing::traits::*;
+use pop_common::sourcing::{filters::prefix, traits::*};
 use std::path::Path;
 
 /// Initializes the configuration required to launch a system parachain.
@@ -32,7 +32,7 @@ pub(super) async fn system(
 	// Default to the same version as the relay chain when not explicitly specified
 	let source = para
 		.source()?
-		.resolve(&name, version.or(Some(relay_chain_version)), cache)
+		.resolve(&name, version.or(Some(relay_chain_version)), cache, |f| prefix(f, &name))
 		.await
 		.into();
 	let binary = Binary::Source { name, source, cache: cache.to_path_buf() };
@@ -66,7 +66,8 @@ pub(super) async fn from(
 ) -> Result<Option<super::Parachain>, Error> {
 	if let Some(para) = registry::rollups(relay).iter().find(|p| p.binary() == command) {
 		let name = para.binary().to_string();
-		let source = para.source()?.resolve(&name, version, cache).await.into();
+		let source =
+			para.source()?.resolve(&name, version, cache, |f| prefix(f, &name)).await.into();
 		let binary = Binary::Source { name, source, cache: cache.to_path_buf() };
 		return Ok(Some(super::Parachain {
 			id,

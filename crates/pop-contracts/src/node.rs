@@ -22,6 +22,7 @@ use pop_common::{
 };
 use strum_macros::{EnumProperty, VariantArray};
 
+use pop_common::sourcing::filters::prefix;
 use std::{
 	env::consts::{ARCH, OS},
 	fs::File,
@@ -122,7 +123,11 @@ pub async fn contracts_node_generator(
 ) -> Result<Binary, Error> {
 	let chain = &Chain::ContractsNode;
 	let name = chain.binary().to_string();
-	let source = chain.source()?.resolve(&name, version, &cache).await.into();
+	let source = chain
+		.source()?
+		.resolve(&name, version, &cache, |f| prefix(f, &name))
+		.await
+		.into();
 	Ok(Binary::Source { name, source, cache })
 }
 

@@ -6,6 +6,7 @@ use pop_common::{
 	git::GitHub,
 	polkadot_sdk::sort_by_latest_stable_version,
 	sourcing::{
+		filters::prefix,
 		traits::{
 			enums::{Source as _, *},
 			Source as SourceT,
@@ -104,7 +105,11 @@ pub(super) async fn from(
 		.find(|r| command.to_lowercase().ends_with(r.binary()))
 	{
 		let name = relay.binary().to_string();
-		let source = relay.source()?.resolve(&name, version, cache).await.into();
+		let source = relay
+			.source()?
+			.resolve(&name, version, cache, |f| prefix(f, &name))
+			.await
+			.into();
 		let binary = Binary::Source { name, source, cache: cache.to_path_buf() };
 		let runtime = chain_specs::Runtime::from_chain(chain)
 			.ok_or(Error::UnsupportedCommand(format!("the relay chain is unsupported: {chain}")))?;

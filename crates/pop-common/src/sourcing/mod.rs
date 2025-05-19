@@ -141,9 +141,17 @@ impl Source {
 	/// * `name` - the name of the binary.
 	/// * `version` - a specific version of the binary required.
 	/// * `cache` - the cache being used.
-	pub async fn resolve(self, name: &str, version: Option<&str>, cache: &Path) -> Self {
+	/// * `cache_filter` - a filter to be used to determine whether a cached binary is eligible.
+	pub async fn resolve(
+		self,
+		name: &str,
+		version: Option<&str>,
+		cache: &Path,
+		cache_filter: impl for<'a> FnOnce(&'a str) -> bool + Copy,
+	) -> Self {
 		match self {
-			Source::GitHub(github) => Source::GitHub(github.resolve(name, version, cache).await),
+			Source::GitHub(github) =>
+				Source::GitHub(github.resolve(name, version, cache, cache_filter).await),
 			_ => self,
 		}
 	}
@@ -281,7 +289,14 @@ impl GitHub {
 	/// * `name` - the name of the binary.
 	/// * `version` - a specific version of the binary required.
 	/// * `cache` - the cache being used.
-	async fn resolve(self, name: &str, version: Option<&str>, cache: &Path) -> Self {
+	/// * `cache_filter` - a filter to be used to determine whether a cached binary is eligible.
+	async fn resolve(
+		self,
+		name: &str,
+		version: Option<&str>,
+		cache: &Path,
+		cache_filter: impl FnOnce(&str) -> bool + Copy,
+	) -> Self {
 		match self {
 			Self::ReleaseArchive {
 				owner,
@@ -342,18 +357,9 @@ impl GitHub {
 
 				// Extract versions from any cached binaries - e.g., offline or rate-limited.
 				for file in read_dir(cache).into_iter().flatten().filter_map(|f| {
-					f.ok().and_then(|f| f.file_name().into_string().ok()).filter(|n| {
-						n.starts_with(name) &&
-							// TODO: improve hacky workaround for naming clashes
-							(name != "polkadot" ||
-								![
-									"polkadot-execute-worker",
-									"polkadot-prepare-worker",
-									"polkadot-parachain",
-								]
-								.iter()
-								.any(|i| n.starts_with(i)))
-					})
+					f.ok()
+						.and_then(|f| f.file_name().into_string().ok())
+						.filter(|f| cache_filter(&f))
 				}) {
 					let version = file.replace(&format!("{name}-"), "");
 					let tag = tag_pattern.as_ref().map_or_else(
@@ -777,7 +783,10 @@ pub(super) mod tests {
 		let temp_dir = tempdir()?;
 
 		let source = Source::Archive { url, contents: contents.clone() };
-		assert_eq!(source.clone().resolve(&name, None, temp_dir.path()).await, source);
+		assert_eq!(
+			source.clone().resolve(&name, None, temp_dir.path(), filters::polkadot).await,
+			source
+		);
 		Ok(())
 	}
 
@@ -813,7 +822,13 @@ pub(super) mod tests {
 			package: package.clone(),
 			artifacts: vec![package.clone()],
 		};
-		assert_eq!(source.clone().resolve(&package, None, temp_dir.path()).await, source);
+		assert_eq!(
+			source
+				.clone()
+				.resolve(&package, None, temp_dir.path(), |f| filters::prefix(f, &package))
+				.await,
+			source
+		);
 		Ok(())
 	}
 
@@ -903,8 +918,10 @@ pub(super) mod tests {
 
 		// Check results for a specified/unspecified version
 		for version in [Some(version), None] {
-			let source =
-				source.clone().resolve(&"polkadot".to_string(), version, temp_dir.path()).await;
+			let source = source
+				.clone()
+				.resolve(&"polkadot".to_string(), version, temp_dir.path(), filters::polkadot)
+				.await;
 			let expected_tag = version.map_or_else(
 				|| sorted_releases.0.first().unwrap().into(),
 				|v| format!("polkadot-{v}"),
@@ -921,8 +938,10 @@ pub(super) mod tests {
 		let cached_version = "polkadot-stable2612";
 		File::create(temp_dir.path().join(cached_version))?;
 		for version in [Some(version), None] {
-			let source =
-				source.clone().resolve(&"polkadot".to_string(), version, temp_dir.path()).await;
+			let source = source
+				.clone()
+				.resolve(&"polkadot".to_string(), version, temp_dir.path(), filters::polkadot)
+				.await;
 			let expected_tag =
 				version.map_or_else(|| cached_version.to_string(), |v| format!("polkadot-{v}"));
 			let expected_latest =
@@ -1041,7 +1060,10 @@ pub(super) mod tests {
 			package: package.clone(),
 			artifacts: vec![package.clone()],
 		});
-		assert_eq!(source.clone().resolve(&package, None, temp_dir.path()).await, source);
+		assert_eq!(
+			source.clone().resolve(&package, None, temp_dir.path(), filters::polkadot).await,
+			source
+		);
 		Ok(())
 	}
 
@@ -1090,7 +1112,10 @@ pub(super) mod tests {
 		let temp_dir = tempdir()?;
 
 		let source = Source::Url { url, name: name.into() };
-		assert_eq!(source.clone().resolve(&name, None, temp_dir.path()).await, source);
+		assert_eq!(
+			source.clone().resolve(&name, None, temp_dir.path(), filters::polkadot).await,
+			source
+		);
 		Ok(())
 	}
 
@@ -1344,5 +1369,27 @@ pub mod traits {
 		fn tag_pattern_works() {
 			assert_eq!("polkadot-{version}", Chain::Polkadot.tag_pattern().unwrap())
 		}
+	}
+}
+
+/// Filters which can be used when resolving a binary.
+pub mod filters {
+	/// A filter which ensures a candidate file name starts with a prefix.
+	///
+	/// # Arguments
+	/// * `candidate` - the candidate to be evaluated.
+	/// * `prefix` - the specified prefix.
+	pub fn prefix(candidate: &str, prefix: &str) -> bool {
+		candidate.starts_with(prefix) &&
+			// Ignore any known related `polkadot`-prefixed binaries when `polkadot` only.
+			(prefix != "polkadot" ||
+				!["polkadot-execute-worker", "polkadot-prepare-worker", "polkadot-parachain"]
+					.iter()
+					.any(|i| candidate.starts_with(i)))
+	}
+
+	#[cfg(test)]
+	pub(crate) fn polkadot(file: &str) -> bool {
+		prefix(file, "polkadot")
 	}
 }

@@ -4,6 +4,7 @@ use pop_common::{
 	git::GitHub,
 	polkadot_sdk::sort_by_latest_semantic_version,
 	sourcing::{
+		filters::prefix,
 		traits::{
 			enums::{Source as _, *},
 			Source as SourceT,
@@ -57,7 +58,11 @@ impl SourceT for TryRuntimeCli {
 pub async fn try_runtime_generator(cache: PathBuf, version: Option<&str>) -> Result<Binary, Error> {
 	let cli = TryRuntimeCli::TryRuntime;
 	let name = cli.binary().to_string();
-	let source = cli.source()?.resolve(&name, version, cache.as_path()).await.into();
+	let source = cli
+		.source()?
+		.resolve(&name, version, cache.as_path(), |f| prefix(f, &name))
+		.await
+		.into();
 	let binary = Binary::Source { name, source, cache: cache.to_path_buf() };
 	Ok(binary)
 }

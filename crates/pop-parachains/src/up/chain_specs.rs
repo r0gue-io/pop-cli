@@ -5,6 +5,7 @@ use pop_common::{
 	git::GitHub,
 	polkadot_sdk::sort_by_latest_semantic_version,
 	sourcing::{
+		filters::prefix,
 		traits::{
 			enums::{Source as _, *},
 			Source as SourceT,
@@ -123,7 +124,11 @@ pub(super) async fn chain_spec_generator(
 			return Ok(None);
 		}
 		let name = format!("{}-{}", runtime.name().to_lowercase(), runtime.binary());
-		let source = runtime.source()?.resolve(&name, version, cache).await.into();
+		let source = runtime
+			.source()?
+			.resolve(&name, version, cache, |f| prefix(f, &name))
+			.await
+			.into();
 		let binary = Binary::Source { name, source, cache: cache.to_path_buf() };
 		return Ok(Some(binary));
 	}
