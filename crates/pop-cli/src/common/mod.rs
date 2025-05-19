@@ -8,7 +8,7 @@ pub mod binary;
 pub mod builds;
 #[cfg(feature = "parachain")]
 pub mod chain;
-#[cfg(feature = "contract")]
+#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 pub mod contracts;
 pub mod helpers;
 /// Contains utilities for interacting with the CLI prompt.
@@ -38,13 +38,13 @@ pub enum Data {
 		feature: TestFeature,
 	},
 	/// Project that was started.
-	#[cfg(any(feature = "contract", feature = "parachain"))]
+	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "parachain"))]
 	Up(Project),
 	/// OS where installation occurred.
-	#[cfg(any(feature = "contract", feature = "parachain"))]
+	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "parachain"))]
 	Install(Os),
 	/// Template that was created.
-	#[cfg(any(feature = "contract", feature = "parachain"))]
+	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "parachain"))]
 	New(Template),
 	/// No additional data.
 	Null,
@@ -74,10 +74,10 @@ pub enum TestFeature {
 
 /// Project templates.
 #[derive(Debug, PartialEq, Clone)]
-#[cfg(any(feature = "contract", feature = "parachain"))]
+#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "parachain"))]
 pub enum Template {
 	/// Smart contract template.
-	#[cfg(feature = "contract")]
+	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 	Contract(pop_contracts::Contract),
 	/// Chain template.
 	#[cfg(feature = "parachain")]
@@ -103,22 +103,38 @@ pub enum Os {
 impl Display for Data {
 	fn fmt(&self, f: &mut Formatter<'_>) -> Result {
 		use Data::*;
-		#[cfg(any(feature = "contract", feature = "parachain"))]
+		#[cfg(any(
+			feature = "polkavm-contracts",
+			feature = "wasm-contracts",
+			feature = "parachain"
+		))]
 		use {strum::EnumMessage, Template::*};
 
 		match self {
 			Null => write!(f, ""),
 			Build(project) => write!(f, "{}", project),
 			Test { project, feature } => write!(f, "{} {}", project, feature),
-			#[cfg(any(feature = "contract", feature = "parachain"))]
+			#[cfg(any(
+				feature = "polkavm-contracts",
+				feature = "wasm-contracts",
+				feature = "parachain"
+			))]
 			Install(os) => write!(f, "{}", os),
-			#[cfg(any(feature = "contract", feature = "parachain"))]
+			#[cfg(any(
+				feature = "polkavm-contracts",
+				feature = "wasm-contracts",
+				feature = "parachain"
+			))]
 			Up(project) => write!(f, "{}", project),
-			#[cfg(any(feature = "contract", feature = "parachain"))]
+			#[cfg(any(
+				feature = "polkavm-contracts",
+				feature = "wasm-contracts",
+				feature = "parachain"
+			))]
 			New(template) => match template {
 				#[cfg(feature = "parachain")]
 				Chain(chain) => write!(f, "{}", chain.get_message().unwrap_or("")),
-				#[cfg(feature = "contract")]
+				#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 				Contract(contract) => write!(f, "{}", contract.get_message().unwrap_or("")),
 				#[cfg(feature = "parachain")]
 				Pallet => write!(f, "pallet"),
@@ -139,14 +155,14 @@ impl Display for Project {
 	}
 }
 
-#[cfg(any(feature = "contract", feature = "parachain"))]
+#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "parachain"))]
 impl Display for Template {
 	fn fmt(&self, f: &mut Formatter<'_>) -> Result {
 		use Template::*;
 		match self {
 			#[cfg(feature = "parachain")]
 			Chain(chain) => write!(f, "{}", chain),
-			#[cfg(feature = "contract")]
+			#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 			Contract(contract) => write!(f, "{}", contract),
 			#[cfg(feature = "parachain")]
 			Pallet => write!(f, "pallet"),
@@ -221,7 +237,7 @@ mod tests {
 			Data::New(Template::Chain(pop_parachains::Parachain::Contracts)).to_string(),
 			"Contracts"
 		);
-		#[cfg(feature = "contract")]
+		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 		assert_eq!(
 			Data::New(Template::Contract(pop_contracts::Contract::ERC20)).to_string(),
 			"Erc20"
@@ -275,7 +291,7 @@ mod tests {
 			assert_eq!(template.to_string(), parachain.to_string());
 		}
 		// Test Contract variant with all Contract types.
-		#[cfg(feature = "contract")]
+		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 		for contract in pop_contracts::Contract::VARIANTS {
 			let template = Template::Contract(contract.clone());
 			assert_eq!(template.to_string(), contract.to_string());

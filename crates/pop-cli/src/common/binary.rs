@@ -3,9 +3,14 @@
 use duct::cmd;
 #[cfg(any(feature = "parachain", test))]
 use std::cmp::Ordering;
-#[cfg(any(feature = "contract", feature = "parachain", test))]
+#[cfg(any(
+	feature = "polkavm-contracts",
+	feature = "wasm-contracts",
+	feature = "parachain",
+	test
+))]
 use std::path::PathBuf;
-#[cfg(any(feature = "contract", feature = "parachain"))]
+#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "parachain"))]
 use {
 	crate::cli::traits::*,
 	cliclack::spinner,
@@ -14,7 +19,7 @@ use {
 };
 
 /// A trait for binary generator.
-#[cfg(any(feature = "contract", feature = "parachain"))]
+#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "parachain"))]
 pub(crate) trait BinaryGenerator {
 	/// Generates a binary.
 	///
@@ -36,7 +41,7 @@ pub(crate) trait BinaryGenerator {
 /// * `cache_path` - The cache directory path where the binary is stored.
 /// * `skip_confirm` - If `true`, skips confirmation prompts and automatically sources the binary if
 ///   needed.
-#[cfg(any(feature = "contract", feature = "parachain"))]
+#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "parachain"))]
 pub async fn check_and_prompt<Generator: BinaryGenerator>(
 	cli: &mut impl Cli,
 	binary_name: &'static str,
@@ -179,14 +184,17 @@ pub(crate) fn which_version(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	#[cfg(feature = "contract")]
+	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 	use crate::{cli::MockCli, common::contracts::ContractsNodeGenerator};
 	use std::cmp::Ordering;
 
 	#[tokio::test]
-	#[cfg(feature = "contract")]
+	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 	async fn check_binary_and_prompt_works() -> anyhow::Result<()> {
+		#[cfg(feature = "wasm-contracts")]
 		let binary_name = "substrate-contracts-node";
+		#[cfg(feature = "polkavm-contracts")]
+		let binary_name = "ink-node";
 		let cache_path = tempfile::tempdir().expect("Could create temp dir");
 		let mut cli = MockCli::new()
 			.expect_warning(format!("⚠️ The {binary_name} binary is not found."))
@@ -195,7 +203,7 @@ mod tests {
 
 		let binary_path = check_and_prompt::<ContractsNodeGenerator>(
 			&mut cli,
-			"substrate-contracts-node",
+			binary_name,
 			cache_path.path(),
 			false,
 		)
@@ -205,21 +213,24 @@ mod tests {
 		assert!(binary_path
 			.to_str()
 			.unwrap()
-			.starts_with(&cache_path.path().join("substrate-contracts-node").to_str().unwrap()));
+			.starts_with(&cache_path.path().join(binary_name).to_str().unwrap()));
 		cli.verify()
 	}
 
 	#[tokio::test]
-	#[cfg(feature = "contract")]
+	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 	async fn check_binary_and_prompt_handles_skip_confirm() -> anyhow::Result<()> {
+		#[cfg(feature = "wasm-contracts")]
 		let binary_name = "substrate-contracts-node";
+		#[cfg(feature = "polkavm-contracts")]
+		let binary_name = "ink-node";
 		let cache_path = tempfile::tempdir().expect("Could create temp dir");
 		let mut cli =
 			MockCli::new().expect_warning(format!("⚠️ The {binary_name} binary is not found."));
 
 		let binary_path = check_and_prompt::<ContractsNodeGenerator>(
 			&mut cli,
-			"substrate-contracts-node",
+			binary_name,
 			cache_path.path(),
 			true,
 		)

@@ -3,6 +3,8 @@
 use crate::{errors::Error, utils::get_manifest_path};
 pub use contract_build::Verbosity;
 use contract_build::{execute, BuildMode, BuildResult, ExecuteArgs};
+#[cfg(feature = "v6")]
+use contract_build_inkv6 as contract_build;
 use std::path::Path;
 
 /// Build the smart contract located at the specified `path` in `build_release` mode.

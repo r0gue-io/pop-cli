@@ -1,5 +1,5 @@
 [graph]
-all-features = true
+all-features = false
 
 # This section is considered when running `cargo deny check advisories`
 [advisories]
@@ -10,14 +10,11 @@ ignore = [
     { id = "RUSTSEC-2020-0163", reason = "No upgrade available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/438" },
     { id = "RUSTSEC-2024-0436", reason = "No upgrade available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/450" },
     { id = "RUSTSEC-2025-0012", reason = "No upgrade available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/451" },
-    { id = "RUSTSEC-2024-0336", reason = "No upgrade available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/458" },
-    { id = "RUSTSEC-2024-0421", reason = "No upgrade available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/458" },
-    { id = "RUSTSEC-2025-0009", reason = "No upgrade available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/458" },
-    { id = "RUSTSEC-2025-0010", reason = "No upgrade available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/458" },
     { id = "RUSTSEC-2024-0370", reason = "No upgrade available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/458" },
     { id = "RUSTSEC-2022-0061", reason = "No upgrade available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/458" },
     { id = "RUSTSEC-2020-0168", reason = "No upgrade available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/458" },
-    { id = "RUSTSEC-2025-0017", reason = "No upgrade available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/458" },
+    { id = "RUSTSEC-2024-0438", reason = "No upgrade available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/458" },
+    { id = "RUSTSEC-2023-0091", reason = "No upgrade available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/458" },
 ]
 
 [licenses]

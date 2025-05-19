@@ -33,7 +33,7 @@ use strum::{EnumMessage, VariantArray};
 const BINARY_NAME: &str = "try-runtime";
 pub(crate) const DEFAULT_BLOCK_HASH: &str = "0x0000000000";
 pub(crate) const DEFAULT_BLOCK_TIME: u64 = 6000;
-pub(crate) const DEFAULT_LIVE_NODE_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";
+pub(crate) const DEFAULT_LIVE_NODE_URL: &str = "wss://rpc2.paseo.popnetwork.xyz";
 pub(crate) const DEFAULT_SNAPSHOT_PATH: &str = "your-parachain.snap";
 const TARGET_BINARY_VERSION: SemanticVersion = SemanticVersion(0, 8, 0);
 

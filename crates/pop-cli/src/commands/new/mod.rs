@@ -2,7 +2,8 @@
 
 use clap::{Args, Subcommand};
 use std::fmt::{Display, Formatter, Result};
-#[cfg(feature = "contract")]
+
+#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 pub mod contract;
 #[cfg(feature = "parachain")]
 pub mod pallet;
@@ -43,7 +44,7 @@ pub enum Command {
 	#[clap(alias = "P")]
 	Pallet(pallet::NewPalletCommand),
 	/// Generate a new smart contract
-	#[cfg(feature = "contract")]
+	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 	#[clap(alias = "c")]
 	Contract(contract::NewContractCommand),
 }
@@ -55,7 +56,7 @@ impl Display for Command {
 			Command::Parachain(_) => write!(f, "chain"),
 			#[cfg(feature = "parachain")]
 			Command::Pallet(_) => write!(f, "pallet"),
-			#[cfg(feature = "contract")]
+			#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 			Command::Contract(_) => write!(f, "contract"),
 		}
 	}
@@ -71,7 +72,7 @@ mod tests {
 		assert_eq!(Command::Parachain(Default::default()).to_string(), "chain");
 		#[cfg(feature = "parachain")]
 		assert_eq!(Command::Pallet(Default::default()).to_string(), "pallet");
-		#[cfg(feature = "contract")]
+		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 		assert_eq!(Command::Contract(Default::default()).to_string(), "contract");
 	}
 }

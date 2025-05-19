@@ -615,7 +615,7 @@ mod tests {
 	use url::Url;
 
 	const BOB_SURI: &str = "//Bob";
-	const POP_NETWORK_TESTNET_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";
+	const POP_NETWORK_TESTNET_URL: &str = "wss://rpc2.paseo.popnetwork.xyz";
 	const POLKADOT_NETWORK_URL: &str = "wss://polkadot-rpc.publicnode.com";
 
 	#[tokio::test]
@@ -668,7 +668,7 @@ mod tests {
 		assert_eq!(call_chain.suri, "//Alice"); // Default value
 		assert!(call_chain.use_wallet);
 		assert!(call_chain.sudo);
-		assert_eq!(call_chain.display(&chain), "pop call chain --pallet System --function remark --args \"0x11\" --url wss://rpc1.paseo.popnetwork.xyz/ --use-wallet --sudo");
+		assert_eq!(call_chain.display(&chain), format!("pop call chain --pallet System --function remark --args \"0x11\" --url {POP_NETWORK_TESTNET_URL}/ --use-wallet --sudo"));
 		cli.verify()
 	}
 

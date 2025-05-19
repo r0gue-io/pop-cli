@@ -5,7 +5,7 @@ use crate::{
 	common::Project::{self, *},
 };
 use clap::{Args, Subcommand};
-#[cfg(feature = "contract")]
+#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 use contract::BuildContract;
 use duct::cmd;
 use pop_common::Profile;
@@ -18,7 +18,7 @@ use {
 	std::fmt::{Display, Formatter, Result},
 };
 
-#[cfg(feature = "contract")]
+#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 pub(crate) mod contract;
 #[cfg(feature = "parachain")]
 pub(crate) mod parachain;
@@ -104,12 +104,16 @@ fn collect_features(input: &str, benchmark: bool, try_runtime: bool) -> Vec<&str
 impl Command {
 	/// Executes the command.
 	pub(crate) fn execute(args: BuildArgs) -> anyhow::Result<Project> {
-		#[cfg(any(feature = "contract", feature = "parachain"))]
+		#[cfg(any(
+			feature = "polkavm-contracts",
+			feature = "wasm-contracts",
+			feature = "parachain"
+		))]
 		// If only contract feature enabled, build as contract
 		let project_path =
 			crate::common::builds::get_project_path(args.path.clone(), args.path_pos.clone());
 
-		#[cfg(feature = "contract")]
+		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 		if pop_contracts::is_supported(project_path.as_deref())? {
 			// All commands originating from root command are valid
 			let release = match args.profile {
