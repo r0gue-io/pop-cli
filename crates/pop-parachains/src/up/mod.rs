@@ -316,23 +316,24 @@ impl Zombienet {
 /// The network configuration.
 ///
 /// Network configuration can be provided via [Path] or by using the [NetworkConfigBuilder].
+#[derive(Debug, PartialEq)]
 pub struct NetworkConfiguration(NetworkConfig, BTreeSet<u32>);
 
 impl NetworkConfiguration {
-	/// Build a network configuration for the specified relay chain and parachains.
+	/// Build a network configuration for the specified relay chain and rollups.
 	///
 	/// # Arguments
 	/// * `relay_chain` - The relay chain runtime to be used.
 	/// * `port` - The port to be used for the first relay chain validator.
-	/// * `parachains` - The optional parachains to be included.
+	/// * `rollups` - The optional rollups to be included.
 	pub fn build(
 		relay_chain: Relay,
 		port: Option<u16>,
-		parachains: Option<&[Box<dyn Rollup>]>,
+		rollups: Option<&[Box<dyn Rollup>]>,
 	) -> Result<Self, Error> {
 		let validators: Vec<_> = VALIDATORS
 			.into_iter()
-			.take(parachains.as_ref().map(|v| v.len()).unwrap_or_default().max(2))
+			.take(rollups.as_ref().map(|v| v.len()).unwrap_or_default().max(2))
 			.map(String::from)
 			.collect();
 
@@ -352,24 +353,24 @@ impl NetworkConfiguration {
 			builder
 		});
 
-		if let Some(parachains) = parachains {
+		if let Some(rollups) = rollups {
 			let mut dependencies =
-				parachains.iter().filter_map(|p| p.requires()).flatten().collect::<Vec<_>>();
+				rollups.iter().filter_map(|p| p.requires()).flatten().collect::<Vec<_>>();
 
-			for parachain in parachains {
+			for rollup in rollups {
 				builder = builder.with_parachain(|builder| {
 					let mut builder = builder
-						.with_id(parachain.id())
-						.with_chain(parachain.chain())
-						.with_default_command(parachain.binary());
+						.with_id(rollup.id())
+						.with_chain(rollup.chain())
+						.with_default_command(rollup.binary());
 
 					// Apply any genesis overrides
 					let mut genesis_overrides = serde_json::Map::new();
-					if let Some(mut r#override) = parachain.genesis_overrides() {
+					if let Some(mut r#override) = rollup.genesis_overrides() {
 						r#override(&mut genesis_overrides);
 					}
 					for (_, r#override) in
-						dependencies.iter_mut().filter(|(t, _)| t == &parachain.as_any().type_id())
+						dependencies.iter_mut().filter(|(t, _)| t == &rollup.as_any().type_id())
 					{
 						r#override(&mut genesis_overrides);
 					}
@@ -379,13 +380,13 @@ impl NetworkConfiguration {
 
 					builder.with_collator(|builder| {
 						let mut builder =
-							builder.with_name(&format!("{}-collator", parachain.name())).with_args(
-								parachain
+							builder.with_name(&format!("{}-collator", rollup.name())).with_args(
+								rollup
 									.args()
 									.map(|args| args.into_iter().map(|arg| arg.into()).collect())
 									.unwrap_or_default(),
 							);
-						if let Some(port) = parachain.port() {
+						if let Some(port) = rollup.port() {
 							builder = builder.with_rpc_port(*port)
 						}
 						builder
@@ -393,10 +394,10 @@ impl NetworkConfiguration {
 				})
 			}
 
-			// Open HRMP channels between all chains
-			let parachains = || parachains.iter().map(|p| p.id());
-			for (sender, recipient) in parachains()
-				.flat_map(|s| parachains().filter(move |r| s != *r).map(move |r| (s, r)))
+			// Open HRMP channels between all rollups
+			let rollups = || rollups.iter().map(|p| p.id());
+			for (sender, recipient) in
+				rollups().flat_map(|s| rollups().filter(move |r| s != *r).map(move |r| (s, r)))
 			{
 				builder = builder.with_hrmp_channel(|channel| {
 					channel
@@ -414,7 +415,7 @@ impl NetworkConfiguration {
 		))
 	}
 
-	/// Adapts user provided configuration to one with resolved binary paths and which is compatible
+	/// Adapts user-provided configuration to one with resolved binary paths and which is compatible
 	/// with [zombienet-sdk](zombienet_sdk) requirements.
 	///
 	/// # Arguments
@@ -517,6 +518,9 @@ impl NetworkConfiguration {
 				// Chain spec
 				if let Some(chain) = source.chain() {
 					builder = builder.with_chain(chain.as_str());
+				}
+				if let Some(command) = source.chain_spec_command() {
+					builder = builder.with_chain_spec_command(command);
 				}
 				if source.chain_spec_command_is_local() {
 					builder = builder.chain_spec_command_is_local(true);
@@ -1681,6 +1685,7 @@ validator = true
 
 	mod network_config {
 		use super::{Relay::*, *};
+		use crate::registry::rollups;
 		use std::{
 			fs::{create_dir_all, File},
 			io::Write,
@@ -1689,12 +1694,12 @@ validator = true
 		use tempfile::{tempdir, Builder};
 
 		#[test]
-		fn initialising_from_file_fails_when_missing() {
+		fn initializing_from_file_fails_when_missing() {
 			assert!(NetworkConfiguration::try_from(PathBuf::new().as_path()).is_err());
 		}
 
 		#[test]
-		fn initialising_from_file_fails_when_malformed() -> Result<(), Error> {
+		fn initializing_from_file_fails_when_malformed() -> Result<(), Error> {
 			let config = Builder::new().suffix(".toml").tempfile()?;
 			writeln!(config.as_file(), "[")?;
 			assert!(matches!(
@@ -1705,7 +1710,7 @@ validator = true
 		}
 
 		#[test]
-		fn initialising_from_file_fails_when_relaychain_missing() -> Result<(), Error> {
+		fn initializing_from_file_fails_when_relaychain_missing() -> Result<(), Error> {
 			let config = Builder::new().suffix(".toml").tempfile()?;
 			assert!(matches!(
 				NetworkConfiguration::try_from(config.path()),
@@ -1715,7 +1720,7 @@ validator = true
 		}
 
 		#[tokio::test]
-		async fn initialising_from_file_fails_when_parachain_id_missing() -> Result<()> {
+		async fn initializing_from_file_fails_when_parachain_id_missing() -> Result<()> {
 			let config = Builder::new().suffix(".toml").tempfile()?;
 			writeln!(
 				config.as_file(),
@@ -1780,18 +1785,85 @@ chain = "paseo-local"
 		}
 
 		#[test]
-		fn build_paseo_works() -> Result<(), Error> {
-			NetworkConfiguration::build(Paseo, None, None).map(|_| ())
+		fn initializing_from_network_config_works() -> Result<(), Error> {
+			let network_config = NetworkConfigBuilder::new()
+				.with_relaychain(|b| {
+					b.with_chain("paseo-local").with_node(|b| b.with_name("alice"))
+				})
+				.build()
+				.unwrap();
+			let config = NetworkConfiguration::try_from(network_config.clone()).unwrap();
+			assert_eq!(config, NetworkConfiguration(network_config, Default::default()));
+			Ok(())
 		}
 
 		#[test]
-		fn build_kusama_works() -> Result<(), Error> {
-			NetworkConfiguration::build(Kusama, None, None).map(|_| ())
-		}
+		fn build_works() -> Result<(), Error> {
+			let port = 9944;
+			for relay in [Paseo, Kusama, Polkadot, Westend] {
+				let mut rollups: Vec<_> = rollups(&relay).iter().cloned().collect();
+				rollups
+					.iter_mut()
+					.enumerate()
+					.for_each(|(i, rollup)| rollup.set_port(port + i as u16 + 1));
+				let relay_chain = relay.chain();
 
-		#[test]
-		fn build_polkadot_works() -> Result<(), Error> {
-			NetworkConfiguration::build(Polkadot, None, None).map(|_| ())
+				let config =
+					NetworkConfiguration::build(relay, Some(port), Some(rollups.as_slice()))?;
+
+				let relay_config = config.0.relaychain();
+				assert_eq!(relay_config.chain().as_str(), relay_chain);
+				assert_eq!(relay_config.nodes().len(), rollups.len().max(2));
+				assert_eq!(
+					relay_config.nodes().iter().map(|n| n.name()).collect::<Vec<_>>(),
+					VALIDATORS.into_iter().take(relay_config.nodes().len()).collect::<Vec<_>>()
+				);
+				assert_eq!(relay_config.nodes().first().unwrap().rpc_port().unwrap(), port);
+
+				let parachains = config.0.parachains();
+				assert_eq!(parachains.len(), rollups.len());
+				for (i, rollup) in rollups.iter().enumerate() {
+					let parachain = parachains.iter().find(|p| p.id() == rollup.id()).unwrap();
+					assert_eq!(parachain.chain().unwrap().as_str(), rollup.chain());
+					assert_eq!(parachain.default_command().unwrap().as_str(), rollup.binary());
+					println!("{} {}", relay_chain, rollup.name());
+					assert_eq!(
+						parachain.genesis_overrides().is_some(),
+						rollup.genesis_overrides().is_some() ||
+							rollups.iter().any(|r| r
+								.requires()
+								.map(|r| r.contains_key(&rollup.as_any().type_id()))
+								.unwrap_or_default())
+					);
+					let collators = parachain.collators();
+					assert_eq!(collators.len(), 1);
+					let collator = collators.first().unwrap();
+					assert_eq!(collator.name(), &format!("{}-collator", rollup.name()));
+					assert_eq!(
+						collator.args().len(),
+						rollup.args().map(|a| a.len()).unwrap_or_default()
+					);
+					assert_eq!(collator.rpc_port(), Some(port + i as u16 + 1));
+				}
+
+				// Ensure channels open between all rollups
+				let channels = config.0.hrmp_channels();
+				assert_eq!(channels.len(), rollups.len() * (rollups.len() - 1));
+				for rollup in rollups.iter() {
+					for other in rollups.iter().filter(|r| r.id() != rollup.id()) {
+						assert!(channels
+							.iter()
+							.any(|c| c.sender() == rollup.id() && c.recipient() == other.id()));
+						assert!(channels
+							.iter()
+							.any(|c| c.sender() == other.id() && c.recipient() == rollup.id()));
+					}
+				}
+				assert!(channels
+					.iter()
+					.all(|c| c.max_capacity() == 1000 && c.max_message_size() == 8000));
+			}
+			Ok(())
 		}
 
 		#[test]
@@ -1807,13 +1879,19 @@ chain = "paseo-local"
 name = "alice"
 command = "polkadot"
 
+[[relaychain.nodes]]
+name = "bob"
+
 [[parachains]]
 id = 1000
 chain = "asset-hub-paseo-local"
 
 [[parachains.collators]]
-name = "asset-hub"
+name = "asset-hub-1"
 command = "polkadot-parachain"
+
+[[parachains.collators]]
+name = "asset-hub-2"
 
 [[parachains]]
 id = 2000
@@ -1838,6 +1916,9 @@ default_command = "./target/release/parachain-template-node"
 [parachains.collator]
 name = "collator-2002"
 command = "./target/release/parachain-template-node"
+subcommand = "test"
+ws_port = 9945
+rpc_port = 9944
 "#
 			)?;
 			let network_config = NetworkConfiguration::try_from(config.path())?;
@@ -1945,6 +2026,13 @@ invulnerable = true
 bootnode = false
 balance = 2000000000000
 
+[[relaychain.nodes]]
+name = "bob"
+validator = true
+invulnerable = true
+bootnode = false
+balance = 2000000000000
+
 [[parachains]]
 id = 1000
 chain = "asset-hub-paseo-local"
@@ -1955,7 +2043,15 @@ cumulus_based = true
 evm_based = false
 
 [[parachains.collators]]
-name = "asset-hub"
+name = "asset-hub-1"
+validator = true
+invulnerable = true
+bootnode = false
+balance = 2000000000000
+
+[[parachains.collators]]
+name = "asset-hub-2"
+command = "{1}"
 validator = true
 invulnerable = true
 bootnode = false
@@ -2001,10 +2097,13 @@ evm_based = false
 
 [[parachains.collators]]
 name = "collator-2002"
+subcommand = "test"
 validator = true
 invulnerable = true
 bootnode = false
 balance = 2000000000000
+ws_port = 9945
+rpc_port = 9944
 "#,
 					relay_chain.canonicalize()?.to_str().unwrap(),
 					system_chain.canonicalize()?.to_str().unwrap(),
@@ -2132,6 +2231,413 @@ balance = 2000000000000
 					"{{chainName}}",
 					system_chain.canonicalize()?.to_str().unwrap(),
 					system_chain_spec_generator.canonicalize()?.to_str().unwrap(),
+				)
+			);
+			Ok(())
+		}
+
+		#[test]
+		fn adapt_with_hrmp_channels_works() -> Result<(), Error> {
+			let config = Builder::new().suffix(".toml").tempfile()?;
+			writeln!(
+				config.as_file(),
+				r#"
+[relaychain]
+chain = "paseo-local"
+
+[[relaychain.nodes]]
+name = "alice"
+
+[[parachains]]
+id = 1000
+chain = "asset-hub-paseo-local"
+
+[[parachains.collators]]
+name = "asset-hub"
+
+[[parachains]]
+id = 2000
+default_command = "pop-node"
+
+[[parachains.collators]]
+name = "pop"
+
+[[hrmp_channels]]
+sender = 1000
+recipient = 2000
+max_capacity = 1000
+max_message_size = 5000
+
+[[hrmp_channels]]
+sender = 2000
+recipient = 1000
+max_capacity = 1000
+max_message_size = 8000
+
+"#
+			)?;
+			let network_config = NetworkConfiguration::try_from(config.path())?;
+
+			let relay_chain_binary = Builder::new().tempfile()?;
+			let relay_chain = relay_chain_binary.path();
+			File::create(&relay_chain)?;
+			let system_chain_binary = Builder::new().tempfile()?;
+			let system_chain = system_chain_binary.path();
+			File::create(&system_chain)?;
+			let pop_binary = Builder::new().tempfile()?;
+			let pop = pop_binary.path();
+			File::create(&pop)?;
+
+			let adapted = network_config.adapt(
+				&RelayChain {
+					runtime: Paseo,
+					binary: Binary::Local {
+						name: "polkadot".to_string(),
+						path: relay_chain.to_path_buf(),
+						manifest: None,
+					},
+					workers: ["polkadot-execute-worker", ""],
+					chain: "paseo-local".to_string(),
+					chain_spec_generator: None,
+				},
+				&[
+					(
+						1000,
+						Parachain {
+							id: 1000,
+							binary: Binary::Local {
+								name: "polkadot-parachain".to_string(),
+								path: system_chain.to_path_buf(),
+								manifest: None,
+							},
+							chain: Some("asset-hub-paseo-local".to_string()),
+							chain_spec_generator: None,
+						},
+					),
+					(
+						2000,
+						Parachain {
+							id: 2000,
+							binary: Binary::Local {
+								name: "pop-node".to_string(),
+								path: pop.to_path_buf(),
+								manifest: None,
+							},
+							chain: None,
+							chain_spec_generator: None,
+						},
+					),
+				]
+				.into(),
+			)?;
+
+			let contents = adapted.dump_to_toml().unwrap();
+			println!("{contents}");
+			assert_eq!(
+				contents,
+				format!(
+					r#"[settings]
+timeout = 1000
+node_spawn_timeout = 300
+
+[relaychain]
+chain = "paseo-local"
+default_command = "{0}"
+
+[[relaychain.nodes]]
+name = "alice"
+validator = true
+invulnerable = true
+bootnode = false
+balance = 2000000000000
+
+[[parachains]]
+id = 1000
+chain = "asset-hub-paseo-local"
+add_to_genesis = true
+balance = 2000000000000
+default_command = "{1}"
+cumulus_based = true
+evm_based = false
+
+[[parachains.collators]]
+name = "asset-hub"
+validator = true
+invulnerable = true
+bootnode = false
+balance = 2000000000000
+
+[[parachains]]
+id = 2000
+add_to_genesis = true
+balance = 2000000000000
+default_command = "{2}"
+cumulus_based = true
+evm_based = false
+
+[[parachains.collators]]
+name = "pop"
+validator = true
+invulnerable = true
+bootnode = false
+balance = 2000000000000
+
+[[hrmp_channels]]
+sender = 1000
+recipient = 2000
+max_capacity = 1000
+max_message_size = 5000
+
+[[hrmp_channels]]
+sender = 2000
+recipient = 1000
+max_capacity = 1000
+max_message_size = 8000
+"#,
+					relay_chain.canonicalize()?.to_str().unwrap(),
+					system_chain.canonicalize()?.to_str().unwrap(),
+					pop.canonicalize()?.to_str().unwrap(),
+				)
+			);
+			Ok(())
+		}
+
+		#[test]
+		fn adapt_with_chain_spec_works() -> Result<(), Error> {
+			let config = Builder::new().suffix(".toml").tempfile()?;
+			writeln!(
+				config.as_file(),
+				r#"
+[relaychain]
+chain = "paseo-local"
+chain_spec_command = "cmd_template"
+chain_spec_command_is_local = true
+chain_spec_path = "./path/to/paseo-local.spec.json"
+
+[[relaychain.nodes]]
+name = "alice"
+
+[[parachains]]
+id = 1000
+chain = "asset-hub-paseo-local"
+chain_spec_command = "cmd_template"
+chain_spec_command_is_local = true
+chain_spec_path = "./path/to/asset-hub-paseo-local.spec.json"
+
+[[parachains.collators]]
+name = "asset-hub"
+"#
+			)?;
+			let network_config = NetworkConfiguration::try_from(config.path())?;
+
+			let relay_chain_binary = Builder::new().tempfile()?;
+			let relay_chain = relay_chain_binary.path();
+			File::create(&relay_chain)?;
+			let system_chain_binary = Builder::new().tempfile()?;
+			let system_chain = system_chain_binary.path();
+			File::create(&system_chain)?;
+			let pop_binary = Builder::new().tempfile()?;
+			let pop = pop_binary.path();
+			File::create(&pop)?;
+
+			let adapted = network_config.adapt(
+				&RelayChain {
+					runtime: Paseo,
+					binary: Binary::Local {
+						name: "polkadot".to_string(),
+						path: relay_chain.to_path_buf(),
+						manifest: None,
+					},
+					workers: ["polkadot-execute-worker", ""],
+					chain: "paseo-local".to_string(),
+					chain_spec_generator: None,
+				},
+				&[(
+					1000,
+					Parachain {
+						id: 1000,
+						binary: Binary::Local {
+							name: "polkadot-parachain".to_string(),
+							path: system_chain.to_path_buf(),
+							manifest: None,
+						},
+						chain: Some("asset-hub-paseo-local".to_string()),
+						chain_spec_generator: None,
+					},
+				)]
+				.into(),
+			)?;
+
+			let contents = adapted.dump_to_toml().unwrap();
+			println!("{contents}");
+			assert_eq!(
+				contents,
+				format!(
+					r#"[settings]
+timeout = 1000
+node_spawn_timeout = 300
+
+[relaychain]
+chain = "paseo-local"
+default_command = "{0}"
+chain_spec_path = "./path/to/paseo-local.spec.json"
+chain_spec_command = "cmd_template"
+chain_spec_command_is_local = true
+
+[[relaychain.nodes]]
+name = "alice"
+validator = true
+invulnerable = true
+bootnode = false
+balance = 2000000000000
+
+[[parachains]]
+id = 1000
+chain = "asset-hub-paseo-local"
+add_to_genesis = true
+balance = 2000000000000
+default_command = "{1}"
+chain_spec_path = "./path/to/asset-hub-paseo-local.spec.json"
+chain_spec_command = "cmd_template"
+chain_spec_command_is_local = true
+cumulus_based = true
+evm_based = false
+
+[[parachains.collators]]
+name = "asset-hub"
+validator = true
+invulnerable = true
+bootnode = false
+balance = 2000000000000
+"#,
+					relay_chain.canonicalize()?.to_str().unwrap(),
+					system_chain.canonicalize()?.to_str().unwrap(),
+				)
+			);
+			Ok(())
+		}
+
+		#[test]
+		fn adapt_with_overrides_works() -> Result<(), Error> {
+			let config = Builder::new().suffix(".toml").tempfile()?;
+			writeln!(
+				config.as_file(),
+				r#"
+[relaychain]
+chain = "paseo-local"
+wasm_override = "./path/to/paseo-local.wasm"
+
+[[relaychain.nodes]]
+name = "alice"
+
+[relaychain.genesis.balances]
+balances = [["5Ec4AhPKXY9B4ayGshkz2wFMh7N8gP7XKfAvtt1cigpG9FkJ", 420000000000]]
+
+[[parachains]]
+id = 1000
+chain = "asset-hub-paseo-local"
+wasm_override = "./path/to/asset-hub-paseo-local.wasm"
+
+[[parachains.collators]]
+name = "asset-hub"
+
+[parachains.genesis.balances]
+balances = [["5Ec4AhPKXY9B4ayGshkz2wFMh7N8gP7XKfAvtt1cigpG9FkJ", 420000000000]]
+
+"#
+			)?;
+			let network_config = NetworkConfiguration::try_from(config.path())?;
+
+			let relay_chain_binary = Builder::new().tempfile()?;
+			let relay_chain = relay_chain_binary.path();
+			File::create(&relay_chain)?;
+			let system_chain_binary = Builder::new().tempfile()?;
+			let system_chain = system_chain_binary.path();
+			File::create(&system_chain)?;
+			let pop_binary = Builder::new().tempfile()?;
+			let pop = pop_binary.path();
+			File::create(&pop)?;
+
+			let adapted = network_config.adapt(
+				&RelayChain {
+					runtime: Paseo,
+					binary: Binary::Local {
+						name: "polkadot".to_string(),
+						path: relay_chain.to_path_buf(),
+						manifest: None,
+					},
+					workers: ["polkadot-execute-worker", ""],
+					chain: "paseo-local".to_string(),
+					chain_spec_generator: None,
+				},
+				&[(
+					1000,
+					Parachain {
+						id: 1000,
+						binary: Binary::Local {
+							name: "polkadot-parachain".to_string(),
+							path: system_chain.to_path_buf(),
+							manifest: None,
+						},
+						chain: Some("asset-hub-paseo-local".to_string()),
+						chain_spec_generator: None,
+					},
+				)]
+				.into(),
+			)?;
+
+			let contents = adapted.dump_to_toml().unwrap();
+			println!("{contents}");
+			assert_eq!(
+				contents,
+				format!(
+					r#"[settings]
+timeout = 1000
+node_spawn_timeout = 300
+
+[relaychain]
+chain = "paseo-local"
+default_command = "{0}"
+wasm_override = "./path/to/paseo-local.wasm"
+
+[[relaychain.nodes]]
+name = "alice"
+validator = true
+invulnerable = true
+bootnode = false
+balance = 2000000000000
+
+[relaychain.genesis.balances]
+balances = [[
+    "5Ec4AhPKXY9B4ayGshkz2wFMh7N8gP7XKfAvtt1cigpG9FkJ",
+    {{ "$serde_json::private::Number" = "420000000000" }},
+]]
+
+[[parachains]]
+id = 1000
+chain = "asset-hub-paseo-local"
+add_to_genesis = true
+balance = 2000000000000
+default_command = "{1}"
+wasm_override = "./path/to/asset-hub-paseo-local.wasm"
+cumulus_based = true
+evm_based = false
+
+[parachains.genesis.balances]
+balances = [[
+    "5Ec4AhPKXY9B4ayGshkz2wFMh7N8gP7XKfAvtt1cigpG9FkJ",
+    {{ "$serde_json::private::Number" = "420000000000" }},
+]]
+
+[[parachains.collators]]
+name = "asset-hub"
+validator = true
+invulnerable = true
+bootnode = false
+balance = 2000000000000
+"#,
+					relay_chain.canonicalize()?.to_str().unwrap(),
+					system_chain.canonicalize()?.to_str().unwrap(),
 				)
 			);
 			Ok(())
