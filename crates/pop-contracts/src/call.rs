@@ -12,6 +12,7 @@ use crate::{
 };
 use anyhow::Context;
 use pop_common::{create_signer, DefaultConfig, Keypair};
+use sp_weights::Weight;
 use std::path::PathBuf;
 use subxt::{tx::Payload, SubstrateConfig};
 use url::Url;
@@ -22,7 +23,6 @@ use {
 		DisplayEvents, ErrorVariant, ExtrinsicOptsBuilder, TokenMetadata,
 	},
 	pop_common::{parse_account, Config},
-	sp_weights::Weight,
 };
 #[cfg(feature = "v6")]
 use {
@@ -31,7 +31,6 @@ use {
 		DisplayEvents, ErrorVariant, ExtrinsicOptsBuilder, TokenMetadata,
 	},
 	pop_common::account_id::parse_h160_account,
-	sp_weights_inkv6::Weight,
 };
 
 /// Attributes for the `call` command.
