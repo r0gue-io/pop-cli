@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use super::chain_specs::chain_spec_generator;
-use crate::up::chain_specs;
+use crate::{up::chain_specs, Error};
 use pop_common::{
 	git::GitHub,
 	polkadot_sdk::sort_by_latest_stable_version,
@@ -14,7 +14,7 @@ use pop_common::{
 		GitHub::*,
 		Source,
 	},
-	target, Error,
+	target,
 };
 use std::{iter::once, path::Path};
 use strum::VariantArray as _;
@@ -34,6 +34,7 @@ pub(super) enum RelayChain {
 }
 
 impl SourceT for &RelayChain {
+	type Error = Error;
 	/// Defines the source of the binary required for relay chain validators.
 	fn source(&self) -> Result<Source, Error> {
 		Ok(match self {

@@ -1237,8 +1237,11 @@ pub(super) mod tests {
 pub mod traits {
 	/// The source of a binary.
 	pub trait Source {
+		/// The type returned in the event of an error.
+		type Error;
+
 		/// Defines the source of a binary.
-		fn source(&self) -> Result<super::Source, crate::Error>;
+		fn source(&self) -> Result<super::Source, Self::Error>;
 	}
 
 	/// Traits for the sourcing of a binary using [strum]-based configuration.

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use super::{chain_specs::chain_spec_generator, Binary, Relay};
-use crate::{registry, registry::System, traits::Binary as BinaryT};
-use pop_common::{sourcing::traits::*, Error};
+use crate::{registry, registry::System, traits::Binary as BinaryT, Error};
+use pop_common::sourcing::traits::*;
 use std::path::Path;
 
 /// Initializes the configuration required to launch a system parachain.

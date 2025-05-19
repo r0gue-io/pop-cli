@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
+use crate::Error;
 use pop_common::{
 	git::GitHub,
 	polkadot_sdk::sort_by_latest_semantic_version,
@@ -12,7 +13,7 @@ use pop_common::{
 		GitHub::*,
 		Source,
 	},
-	target, Error,
+	target,
 };
 use std::path::Path;
 use strum::{EnumProperty as _, VariantArray as _};
@@ -52,6 +53,7 @@ pub enum Runtime {
 }
 
 impl SourceT for Runtime {
+	type Error = Error;
 	/// Defines the source of the binary required for generating chain specifications.
 	fn source(&self) -> Result<Source, Error> {
 		// Source from GitHub release asset

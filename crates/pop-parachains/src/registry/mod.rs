@@ -207,7 +207,7 @@ pub mod traits {
 		+ crate::traits::Rollup
 		+ RollupClone
 		+ Send
-		+ Source
+		+ Source<Error = crate::Error>
 		+ Sync
 	{
 		/// Allows casting to [`Any`].

@@ -28,6 +28,7 @@ pub(super) enum TryRuntimeCli {
 }
 
 impl SourceT for TryRuntimeCli {
+	type Error = Error;
 	/// Defines the source of the binary required for testing runtime upgrades.
 	fn source(&self) -> Result<Source, Error> {
 		// Source from GitHub release asset

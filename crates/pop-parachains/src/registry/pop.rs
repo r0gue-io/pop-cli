@@ -4,6 +4,7 @@ use super::{traits::Requires, *};
 use crate::{
 	accounts,
 	traits::{Args, Binary},
+	Error,
 };
 use pop_common::{
 	polkadot_sdk::sort_by_latest_semantic_version,
@@ -29,8 +30,9 @@ impl Pop {
 }
 
 impl SourceT for Pop {
+	type Error = Error;
 	/// Defines the source of a binary.
-	fn source(&self) -> Result<Source, pop_common::Error> {
+	fn source(&self) -> Result<Source, Error> {
 		// Source from GitHub release asset
 		let binary = self.binary();
 		Ok(Source::GitHub(ReleaseArchive {

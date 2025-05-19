@@ -85,6 +85,7 @@ pub(super) enum Chain {
 
 #[cfg(any(feature = "v5", feature = "v6"))]
 impl SourceT for Chain {
+	type Error = Error;
 	/// Defines the source of a binary for the chain.
 	fn source(&self) -> Result<Source, Error> {
 		Ok(match self {

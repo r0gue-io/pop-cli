@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use super::{traits::Requires, *};
-use crate::traits::{Args, Binary};
+use crate::{
+	traits::{Args, Binary},
+	Error,
+};
 use pop_common::{
 	polkadot_sdk::sort_by_latest_stable_version,
 	sourcing::{traits::Source as SourceT, GitHub::ReleaseArchive, Source},
@@ -15,7 +18,8 @@ use pop_common::{
 pub(crate) struct System;
 
 impl SourceT for System {
-	fn source(&self) -> Result<Source, pop_common::Error> {
+	type Error = Error;
+	fn source(&self) -> Result<Source, Error> {
 		// Source from GitHub release asset
 		let binary = self.binary();
 		Ok(Source::GitHub(ReleaseArchive {
@@ -52,7 +56,8 @@ macro_rules! impl_system_rollup {
 		impl Requires for $name {}
 
 		impl SourceT for $name {
-			fn source(&self) -> Result<Source, pop_common::Error> {
+			type Error = Error;
+			fn source(&self) -> Result<Source, Error> {
 				SourceT::source(&System)
 			}
 		}

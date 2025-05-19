@@ -29,6 +29,7 @@ pub(super) enum BenchmarkingCli {
 }
 
 impl SourceT for BenchmarkingCli {
+	type Error = Error;
 	/// Defines the source of the binary required for benchmarking.
 	fn source(&self) -> Result<Source, Error> {
 		// Source from GitHub release asset
