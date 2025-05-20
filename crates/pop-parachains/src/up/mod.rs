@@ -2112,7 +2112,6 @@ rpc_port = 9944
 			)?;
 
 			let contents = adapted.dump_to_toml().unwrap();
-			println!("{contents}");
 			assert_eq!(
 				contents,
 				format!(
@@ -2294,7 +2293,6 @@ command = "polkadot-parachain"
 			)?;
 
 			let contents = adapted.dump_to_toml().unwrap();
-			println!("{contents}");
 			assert_eq!(
 				contents,
 				format!(
@@ -2437,7 +2435,6 @@ max_message_size = 8000
 			)?;
 
 			let contents = adapted.dump_to_toml().unwrap();
-			println!("{contents}");
 			assert_eq!(
 				contents,
 				format!(
@@ -2574,7 +2571,6 @@ name = "asset-hub"
 			)?;
 
 			let contents = adapted.dump_to_toml().unwrap();
-			println!("{contents}");
 			assert_eq!(
 				contents,
 				format!(
@@ -2692,7 +2688,6 @@ balances = [["5Ec4AhPKXY9B4ayGshkz2wFMh7N8gP7XKfAvtt1cigpG9FkJ", 420000000000]]
 			)?;
 
 			let contents = adapted.dump_to_toml().unwrap();
-			println!("{contents}");
 			assert_eq!(
 				contents,
 				format!(
