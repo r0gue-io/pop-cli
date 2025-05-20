@@ -359,7 +359,7 @@ impl GitHub {
 				for file in read_dir(cache).into_iter().flatten().filter_map(|f| {
 					f.ok()
 						.and_then(|f| f.file_name().into_string().ok())
-						.filter(|f| cache_filter(&f))
+						.filter(|f| cache_filter(f))
 				}) {
 					let version = file.replace(&format!("{name}-"), "");
 					let tag = tag_pattern.as_ref().map_or_else(
