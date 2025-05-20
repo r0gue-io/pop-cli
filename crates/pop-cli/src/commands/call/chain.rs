@@ -200,7 +200,9 @@ impl CallChainCommand {
 
 			// If chain has sudo prompt the user to confirm if they want to execute the call via
 			// sudo.
-			self.configure_sudo(chain, cli)?;
+			if !self.skip_confirm {
+				self.configure_sudo(chain, cli)?;
+			}
 
 			let (use_wallet, suri) = self.determine_signing_method(cli)?;
 			self.use_wallet = use_wallet;
