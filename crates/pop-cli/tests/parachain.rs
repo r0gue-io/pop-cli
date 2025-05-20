@@ -40,8 +40,14 @@ fn generate_all_the_templates() -> Result<()> {
 /// Test the parachain lifecycle: new, build, up, call.
 #[test]
 fn parachain_lifecycle() -> Result<()> {
-	// Always use the same directory to ensure effective caching
-	let temp_dir = Path::new("./");
+	// For testing locally: set to `true`
+	const LOCAL_TESTING: bool = false;
+
+	let temp = tempfile::tempdir()?;
+	let temp_dir = match LOCAL_TESTING {
+		true => Path::new("./"),
+		false => temp.path(),
+	};
 
 	// pop new parachain test_parachain --verify (default)
 	let working_dir = temp_dir.join("test_parachain");
