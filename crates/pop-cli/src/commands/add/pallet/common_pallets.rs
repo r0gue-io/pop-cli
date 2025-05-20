@@ -7,11 +7,25 @@ use syn::{parse_quote, Item};
 #[derive(Debug, Copy, Clone, PartialEq, EnumIter, EnumMessage, ValueEnum, Eq)]
 pub(crate) enum CommonPallets {
 	/// A simple, secure module for dealing with fungible assets.
-	#[strum(message = "assets", detailed_message = "A simple, secure module for dealing with fungible assets..")]
+	#[strum(
+		message = "assets",
+		detailed_message = "A simple, secure module for dealing with fungible assets.."
+	)]
 	Assets,
-	/// The Contracts module provides functionality for the runtime to deploy and execute WebAssembly smart-contracts.
-	#[strum(message = "contracts", detailed_message = "The Contracts module provides functionality for the runtime to deploy and execute WebAssembly smart-contracts.")]
+	/// The Contracts module provides functionality for the runtime to deploy and execute
+	/// WebAssembly smart-contracts.
+	#[strum(
+		message = "contracts",
+		detailed_message = "The Contracts module provides functionality for the runtime to deploy and execute WebAssembly smart-contracts."
+	)]
 	Contracts,
+	/// Experimental module that provides functionality for the runtime to deploy and execute
+	/// PolkaVM smart-contracts.
+	#[strum(
+		message = "revive",
+		detailed_message = "Experimental module that provides functionality for the runtime to deploy and execute PolkaVM smart-contracts."
+	)]
+	Revive,
 }
 
 impl CommonPallets {
@@ -19,6 +33,7 @@ impl CommonPallets {
 		match self {
 			CommonPallets::Assets => "pallet-assets".to_owned(),
 			CommonPallets::Contracts => "pallet-contracts".to_owned(),
+			CommonPallets::Revive => "pallet-revive".to_owned(),
 		}
 	}
 
@@ -26,6 +41,7 @@ impl CommonPallets {
 		match self {
 			CommonPallets::Assets => parse_quote! { Assets: pallet_assets, },
 			CommonPallets::Contracts => parse_quote! { Contracts: pallet_contracts, },
+			CommonPallets::Revive => parse_quote! { Revive: pallet_revive, },
 		}
 	}
 
@@ -40,6 +56,11 @@ impl CommonPallets {
 			  ///TEMP_DOC
 				#[runtime::pallet_index(#highest_index)]
 				pub type Contracts = pallet_contracts;
+			},
+			CommonPallets::Revive => parse_quote! {
+			  ///TEMP_DOC
+				#[runtime::pallet_index(#highest_index)]
+				pub type Revive = pallet_revive;
 			},
 		}
 	}
@@ -67,6 +88,15 @@ impl CommonPallets {
 					use frame_support::{parameter_types, derive_impl};
 				),
 			],
+			CommonPallets::Revive => vec![
+				parse_quote!(
+					///TEMP_DOC
+					use crate::{Runtime, Balances, RuntimeEvent, RuntimeHoldReason, RuntimeCall};
+				),
+				parse_quote!(
+					use frame_support::{parameter_types, derive_impl};
+				),
+			],
 		}
 	}
 
@@ -79,6 +109,7 @@ impl CommonPallets {
 				  pub Schedule: pallet_contracts::Schedule<Runtime> = <pallet_contracts::Schedule<Runtime>>::default();
 			  }
 			},
+			CommonPallets::Revive => Item::Verbatim(TokenStream::new()),
 		}
 	}
 
@@ -102,6 +133,14 @@ impl CommonPallets {
 				type CallStack = [pallet_contracts::Frame<Self>; 5];
 			  }
 			},
+			CommonPallets::Revive => parse_quote! {
+				///TEMP_DOC
+				#[derive_impl(pallet_revive::config_preludes::TestDefaultConfig)]
+				impl pallet_revive::Config for Runtime{
+				  type Currency = Balances;
+				  type AddressMapper = pallet_revive::AccountId32Mapper<Self>;
+				}
+			},
 		}
 	}
 }
@@ -114,6 +153,7 @@ mod tests {
 	fn get_crate_name_works() {
 		assert_eq!(CommonPallets::Assets.get_crate_name(), "pallet-assets");
 		assert_eq!(CommonPallets::Contracts.get_crate_name(), "pallet-contracts");
+		assert_eq!(CommonPallets::Revive.get_crate_name(), "pallet-revive");
 	}
 
 	#[test]
@@ -126,6 +166,11 @@ mod tests {
 		assert!(rustilities::parsing::syntactic_token_stream_compare(
 			CommonPallets::Contracts.get_pallet_declaration_construct_runtime(),
 			parse_quote! { Contracts: pallet_contracts, }
+		));
+
+		assert!(rustilities::parsing::syntactic_token_stream_compare(
+			CommonPallets::Revive.get_pallet_declaration_construct_runtime(),
+			parse_quote! { Revive: pallet_revive, }
 		));
 	}
 
@@ -145,6 +190,14 @@ mod tests {
 				///TEMP_DOC
 				#[runtime::pallet_index(1)]
 				pub type Contracts = pallet_contracts;
+			}
+		);
+		assert_eq!(
+			CommonPallets::Revive.get_pallet_declaration_runtime_module(parse_quote!(1)),
+			parse_quote! {
+				///TEMP_DOC
+				#[runtime::pallet_index(1)]
+				pub type Revive = pallet_revive;
 			}
 		);
 	}
@@ -178,6 +231,18 @@ mod tests {
 				)
 			]
 		);
+		assert_eq!(
+			CommonPallets::Revive.get_impl_needed_use_statements(),
+			vec![
+				parse_quote! {
+					///TEMP_DOC
+					use crate::{Runtime, Balances, RuntimeEvent, RuntimeHoldReason, RuntimeCall};
+				},
+				parse_quote!(
+					use frame_support::{parameter_types, derive_impl};
+				)
+			]
+		);
 	}
 
 	#[test]
@@ -186,7 +251,6 @@ mod tests {
 			CommonPallets::Assets.get_needed_parameter_types(),
 			Item::Verbatim(TokenStream::new())
 		);
-
 		assert_eq!(
 			CommonPallets::Contracts.get_needed_parameter_types(),
 			parse_quote! {
@@ -195,6 +259,10 @@ mod tests {
 				  pub Schedule: pallet_contracts::Schedule<Runtime> = <pallet_contracts::Schedule<Runtime>>::default();
 				}
 			}
+		);
+		assert_eq!(
+			CommonPallets::Revive.get_needed_parameter_types(),
+			Item::Verbatim(TokenStream::new())
 		);
 	}
 
@@ -212,7 +280,6 @@ mod tests {
 				}
 			}
 		);
-
 		assert_eq!(
 			CommonPallets::Contracts.get_needed_impl_block(),
 			parse_quote! {
@@ -222,6 +289,17 @@ mod tests {
 				type Currency = Balances;
 				type Schedule = Schedule;
 				type CallStack = [pallet_contracts::Frame<Self>; 5];
+				}
+			}
+		);
+		assert_eq!(
+			CommonPallets::Revive.get_needed_impl_block(),
+			parse_quote! {
+				///TEMP_DOC
+			  #[derive_impl(pallet_revive::config_preludes::TestDefaultConfig)]
+			  impl pallet_revive::Config for Runtime{
+				type Currency = Balances;
+				type AddressMapper = pallet_revive::AccountId32Mapper<Self>;
 				}
 			}
 		);
