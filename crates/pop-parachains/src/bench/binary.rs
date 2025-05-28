@@ -9,7 +9,7 @@ use pop_common::{
 			enums::{Source as _, *},
 			Source as SourceT,
 		},
-		Binary,
+		ArchiveFileSpec, Binary,
 		GitHub::*,
 		Source,
 	},
@@ -45,7 +45,7 @@ impl SourceT for BenchmarkingCli {
 			version_comparator: sort_by_latest_stable_version,
 			fallback: self.fallback().into(),
 			archive: format!("{binary}-{}.tar.gz", target()?),
-			contents: vec![(binary, Some(binary.to_string()), true)],
+			contents: vec![ArchiveFileSpec::new(binary.into(), Some(binary.into()), true)],
 			latest: None,
 		}))
 	}
@@ -92,7 +92,7 @@ mod tests {
 					version_comparator: sort_by_latest_stable_version,
 					fallback: "stable2412".to_string(),
 					archive: format!("frame-omni-bencher-{}.tar.gz", target()?),
-					contents: ["frame-omni-bencher"].map(|b| (b, Some(b.to_string()), true)).to_vec(),
+					contents: ["frame-omni-bencher"].map(|b| ArchiveFileSpec::new(b.into(), Some(b.into()), true)).to_vec(),
 					latest: binary.latest().map(|l| l.to_string()),
 				}).into() &&
 				cache == temp_dir_path.as_path()

@@ -103,8 +103,10 @@ impl Source {
 		use Source::*;
 		match self {
 			Archive { url, contents } => {
-				let contents: Vec<_> =
-					contents.iter().map(|name| (name.as_str(), cache.join(name), true)).collect();
+				let contents: Vec<_> = contents
+					.iter()
+					.map(|name| ArchiveFileSpec::new(name.into(), Some(cache.join(name)), true))
+					.collect();
 				from_archive(url, &contents, status).await
 			},
 			Git { url, reference, manifest, package, artifacts } => {
@@ -179,10 +181,8 @@ pub enum GitHub {
 		fallback: String,
 		/// The name of the archive (asset) to download.
 		archive: String,
-		/// The archive contents required, including the binary name.
-		/// The second parameter can be used to specify another name for the binary once extracted
-		/// and the third to specify whether the item is required.
-		contents: Vec<(&'static str, Option<String>, bool)>,
+		/// The archive contents required.
+		contents: Vec<ArchiveFileSpec>,
 		/// If applicable, the latest release tag available.
 		latest: Option<String>,
 	},
@@ -233,22 +233,26 @@ impl GitHub {
 				};
 				let contents: Vec<_> = contents
 					.iter()
-					.map(|(name, target, required)| match tag.as_ref() {
-						Some(tag) => (
-							*name,
-							cache.join(format!(
-								"{}-{}",
-								target.as_ref().map_or(*name, |t| t.as_str()),
-								tag_pattern
-									.as_ref()
-									.and_then(|pattern| pattern.version(tag))
-									.unwrap_or(tag)
-							)),
+					.map(|ArchiveFileSpec { name, target, required }| match tag.as_ref() {
+						Some(tag) => ArchiveFileSpec::new(
+							name.into(),
+							Some(cache.join(format!(
+									"{}-{}",
+									target.as_ref().map_or(name.as_str(), |t| t
+										.to_str()
+										.expect("expected target file name to be valid utf-8")),
+									tag_pattern
+										.as_ref()
+										.and_then(|pattern| pattern.version(tag))
+										.unwrap_or(tag)
+								))),
 							*required,
 						),
-						None => (
-							*name,
-							cache.join(target.as_ref().map_or(*name, |t| t.as_str())),
+						None => ArchiveFileSpec::new(
+							name.into(),
+							Some(cache.join(target.as_ref().map_or(name.as_str(), |t| {
+								t.to_str().expect("expected target file name to be valid utf-8")
+							}))),
 							*required,
 						),
 					})
@@ -416,6 +420,29 @@ impl GitHub {
 	}
 }
 
+/// A specification of a file within an archive.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ArchiveFileSpec {
+	/// The name of the file within the archive.
+	name: String,
+	/// An optional file name to be used for the file once extracted.
+	target: Option<PathBuf>,
+	/// Whether the file is required.
+	required: bool,
+}
+
+impl ArchiveFileSpec {
+	/// A specification of a file within an archive.
+	///
+	/// # Arguments
+	/// * `name` - The name of the file within the archive.
+	/// * `target` - An optional file name to be used for the file once extracted.
+	/// * `required` - Whether the file is required.
+	pub fn new(name: String, target: Option<PathBuf>, required: bool) -> Self {
+		Self { name: name.into(), target: target.into(), required }
+	}
+}
+
 /// A pattern used to determine captures from a release tag.
 ///
 /// Only `{version}` is currently supported, used to determine a version from a release tag.
@@ -481,7 +508,7 @@ impl From<&str> for TagPattern {
 /// * `status` - Used to observe status updates.
 async fn from_archive(
 	url: &str,
-	contents: &[(&str, PathBuf, bool)],
+	contents: &[ArchiveFileSpec],
 	status: &impl Status,
 ) -> Result<(), Error> {
 	// Download archive
@@ -497,14 +524,17 @@ async fn from_archive(
 	let temp_dir = tempdir()?;
 	let working_dir = temp_dir.path();
 	archive.unpack(working_dir)?;
-	for (name, dest, required) in contents {
+	for ArchiveFileSpec { name, target, required } in contents {
 		let src = working_dir.join(name);
 		if src.exists() {
 			set_executable_permission(&src)?;
-			if let Err(_e) = rename(&src, dest) {
-				// If rename fails (e.g., due to cross-device linking), fallback to copy and remove
-				copy(&src, dest)?;
-				std::fs::remove_file(&src)?;
+			if let Some(target) = target {
+				if let Err(_e) = rename(&src, target) {
+					// If rename fails (e.g., due to cross-device linking), fallback to copy and
+					// remove
+					copy(&src, target)?;
+					std::fs::remove_file(&src)?;
+				}
 			}
 		} else if *required {
 			return Err(Error::ArchiveError(format!(
@@ -872,7 +902,7 @@ pub(super) mod tests {
 			version_comparator,
 			fallback,
 			archive,
-			contents: contents.map(|n| (n, None, true)).to_vec(),
+			contents: contents.map(|n| ArchiveFileSpec::new(n.into(), None, true)).to_vec(),
 			latest: None,
 		})
 		.source(temp_dir.path(), true, &Output, true)
@@ -912,7 +942,7 @@ pub(super) mod tests {
 			version_comparator,
 			fallback,
 			archive,
-			contents: contents.map(|n| (n, None, true)).to_vec(),
+			contents: contents.map(|n| ArchiveFileSpec::new(n.into(), None, true)).to_vec(),
 			latest: None,
 		});
 
@@ -978,7 +1008,9 @@ pub(super) mod tests {
 			version_comparator,
 			fallback,
 			archive,
-			contents: contents.map(|n| (n, Some(format!("{prefix}-{n}")), true)).to_vec(),
+			contents: contents
+				.map(|n| ArchiveFileSpec::new(n.into(), Some(format!("{prefix}-{n}").into()), true))
+				.to_vec(),
 			latest: None,
 		})
 		.source(temp_dir.path(), true, &Output, true)
@@ -1009,7 +1041,7 @@ pub(super) mod tests {
 			version_comparator,
 			fallback,
 			archive,
-			contents: contents.map(|n| (n, None, true)).to_vec(),
+			contents: contents.map(|n| ArchiveFileSpec::new(n.into(), None, true)).to_vec(),
 			latest: None,
 		})
 		.source(temp_dir.path(), true, &Output, true)
@@ -1125,12 +1157,12 @@ pub(super) mod tests {
 		let url = "https://github.com/r0gue-io/polkadot/releases/latest/download/polkadot-aarch64-apple-darwin.tar.gz";
 		let contents: Vec<_> = ["polkadot", "polkadot-execute-worker", "polkadot-prepare-worker"]
 			.into_iter()
-			.map(|b| (b, temp_dir.path().join(b), true))
+			.map(|b| ArchiveFileSpec::new(b.into(), Some(temp_dir.path().join(b)), true))
 			.collect();
 
 		from_archive(url, &contents, &Output).await?;
-		for (_, file, _) in contents {
-			assert!(file.exists());
+		for ArchiveFileSpec { target, .. } in contents {
+			assert!(target.unwrap().exists());
 		}
 		Ok(())
 	}

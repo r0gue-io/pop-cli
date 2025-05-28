@@ -22,7 +22,7 @@ use pop_common::{
 };
 use strum_macros::{EnumProperty, VariantArray};
 
-use pop_common::sourcing::filters::prefix;
+use pop_common::sourcing::{filters::prefix, ArchiveFileSpec};
 use std::{
 	env::consts::{ARCH, OS},
 	fs::File,
@@ -40,8 +40,6 @@ const BIN_NAME: &str = "substrate-contracts-node";
 #[cfg(feature = "v6")]
 const BIN_NAME: &str = "ink-node";
 const STARTUP: Duration = Duration::from_millis(20_000);
-
-type ArchiveItem = (&'static str, Option<String>, bool);
 
 /// Checks if the specified node is alive and responsive.
 ///
@@ -186,37 +184,45 @@ fn archive_name_by_target() -> Result<String, Error> {
 	}
 }
 #[cfg(feature = "v6")]
-fn release_directory_by_target(binary: &str) -> Result<Vec<ArchiveItem>, Error> {
+fn release_directory_by_target(binary: &str) -> Result<Vec<ArchiveFileSpec>, Error> {
 	match OS {
 		"macos" => Ok("ink-node-mac/ink-node"),
 		"linux" => Ok("ink-node-linux/ink-node"),
 		_ => Err(Error::UnsupportedPlatform { arch: ARCH, os: OS }),
 	}
-	.map(|name| vec![(name, Some(binary.into()), true)])
+	.map(|name| vec![ArchiveFileSpec::new(name.into(), Some(binary.into()), true)])
 }
 
 #[cfg(feature = "v5")]
-fn release_directory_by_target(binary: &str) -> Result<Vec<ArchiveItem>, Error> {
+fn release_directory_by_target(binary: &str) -> Result<Vec<ArchiveFileSpec>, Error> {
 	match OS {
 		"macos" => Ok(vec![
 			// < v0.42.0
-			(
-				"artifacts/substrate-contracts-node-mac/substrate-contracts-node",
+			ArchiveFileSpec::new(
+				"artifacts/substrate-contracts-node-mac/substrate-contracts-node".into(),
 				Some(binary.into()),
 				false,
 			),
 			// >=v0.42.0
-			("substrate-contracts-node-mac/substrate-contracts-node", Some(binary.into()), false),
+			ArchiveFileSpec::new(
+				"substrate-contracts-node-mac/substrate-contracts-node".into(),
+				Some(binary.into()),
+				false,
+			),
 		]),
 		"linux" => Ok(vec![
 			// < v0.42.0
-			(
-				"artifacts/substrate-contracts-node-linux/substrate-contracts-node",
+			ArchiveFileSpec::new(
+				"artifacts/substrate-contracts-node-linux/substrate-contracts-node".into(),
 				Some(binary.into()),
 				false,
 			),
 			// >=v0.42.0
-			("substrate-contracts-node-linux/substrate-contracts-node", Some(binary.into()), false),
+			ArchiveFileSpec::new(
+				"substrate-contracts-node-linux/substrate-contracts-node".into(),
+				Some(binary.into()),
+				false,
+			),
 		]),
 		_ => Err(Error::UnsupportedPlatform { arch: ARCH, os: OS }),
 	}

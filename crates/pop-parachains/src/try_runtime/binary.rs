@@ -9,7 +9,7 @@ use pop_common::{
 			enums::{Source as _, *},
 			Source as SourceT,
 		},
-		Binary,
+		ArchiveFileSpec, Binary,
 		GitHub::*,
 		Source,
 	},
@@ -44,7 +44,7 @@ impl SourceT for TryRuntimeCli {
 			version_comparator: sort_by_latest_semantic_version,
 			fallback: self.fallback().into(),
 			archive: format!("{binary}-{}.tar.gz", target()?),
-			contents: vec![(binary, Some(binary.to_string()), true)],
+			contents: vec![ArchiveFileSpec::new(binary.into(), Some(binary.into()), true)],
 			latest: None,
 		}))
 	}
@@ -87,7 +87,7 @@ mod tests {
 					version_comparator: sort_by_latest_semantic_version,
 					fallback: version.into(),
 					archive: format!("try-runtime-cli-{}.tar.gz", target()?),
-					contents: ["try-runtime-cli"].map(|b| (b, Some(b.to_string()), true)).to_vec(),
+					contents: ["try-runtime-cli"].map(|b| ArchiveFileSpec::new(b.into(), Some(b.into()), true)).to_vec(),
 					latest: binary.latest().map(|l| l.to_string()),
 				}).into() &&
 				cache == temp_dir.as_path()

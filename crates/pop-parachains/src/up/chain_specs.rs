@@ -10,7 +10,7 @@ use pop_common::{
 			enums::{Source as _, *},
 			Source as SourceT,
 		},
-		Binary,
+		ArchiveFileSpec, Binary,
 		GitHub::*,
 		Source,
 	},
@@ -70,7 +70,11 @@ impl SourceT for Runtime {
 			version_comparator: sort_by_latest_semantic_version,
 			fallback: self.fallback().into(),
 			archive: format!("{binary}-{}.tar.gz", target()?),
-			contents: vec![(binary, Some(format!("{name}-{binary}")), true)],
+			contents: vec![ArchiveFileSpec::new(
+				binary.into(),
+				Some(format!("{name}-{binary}").into()),
+				true,
+			)],
 			latest: None,
 		}))
 	}
@@ -165,7 +169,7 @@ mod tests {
 					version_comparator: sort_by_latest_semantic_version,
 					fallback: expected.fallback().to_string(),
 					archive: format!("chain-spec-generator-{}.tar.gz", target()?),
-					contents: ["chain-spec-generator"].map(|b| (b, Some(format!("kusama-{b}").to_string()), true)).to_vec(),
+					contents: ["chain-spec-generator"].map(|b| ArchiveFileSpec::new(b.into(), Some(format!("kusama-{b}").into()), true)).to_vec(),
 					latest: binary.latest().map(|l| l.to_string()),
 				}).into() &&
 				cache == temp_dir.path()
@@ -192,7 +196,7 @@ mod tests {
 					version_comparator: sort_by_latest_semantic_version,
 					fallback: expected.fallback().to_string(),
 					archive: format!("chain-spec-generator-{}.tar.gz", target()?),
-					contents: ["chain-spec-generator"].map(|b| (b, Some(format!("paseo-{b}").to_string()), true)).to_vec(),
+					contents: ["chain-spec-generator"].map(|b| ArchiveFileSpec::new(b.into(), Some(format!("paseo-{b}").into()), true)).to_vec(),
 					latest: binary.latest().map(|l| l.to_string()),
 				}).into() &&
 				cache == temp_dir.path()
@@ -219,7 +223,7 @@ mod tests {
 					version_comparator: sort_by_latest_semantic_version,
 					fallback: expected.fallback().to_string(),
 					archive: format!("chain-spec-generator-{}.tar.gz", target()?),
-					contents: ["chain-spec-generator"].map(|b| (b, Some(format!("polkadot-{b}").to_string()), true)).to_vec(),
+					contents: ["chain-spec-generator"].map(|b| ArchiveFileSpec::new(b.into(), Some(format!("polkadot-{b}").into()), true)).to_vec(),
 					latest: binary.latest().map(|l| l.to_string()),
 				}).into() &&
 				cache == temp_dir.path()

@@ -8,7 +8,7 @@ use crate::{
 };
 use pop_common::{
 	polkadot_sdk::sort_by_latest_semantic_version,
-	sourcing::{traits::Source as SourceT, GitHub::ReleaseArchive, Source},
+	sourcing::{traits::Source as SourceT, ArchiveFileSpec, GitHub::ReleaseArchive, Source},
 	target,
 };
 use serde_json::{json, Map, Value};
@@ -44,7 +44,7 @@ impl SourceT for Pop {
 			version_comparator: sort_by_latest_semantic_version,
 			fallback: "v0.3.0".into(),
 			archive: format!("{binary}-{}.tar.gz", target()?),
-			contents: vec![(binary, None, true)],
+			contents: vec![ArchiveFileSpec::new(binary.into(), None, true)],
 			latest: None,
 		}))
 	}
@@ -128,7 +128,7 @@ mod tests {
 					fn_addr_eq(version_comparator, sort_by_latest_semantic_version as for<'a> fn(&'a mut [String]) -> SortedSlice<'a, String>) &&
 					fallback == "v0.3.0" &&
 					archive == format!("pop-node-{}.tar.gz", target().unwrap()) &&
-					contents == vec![("pop-node", None, true)] &&
+					contents == vec![ArchiveFileSpec::new("pop-node".into(), None, true)] &&
 					latest == None
 		));
 	}

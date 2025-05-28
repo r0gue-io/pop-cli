@@ -11,7 +11,7 @@ use pop_common::{
 			enums::{Source as _, *},
 			Source as SourceT,
 		},
-		Binary,
+		ArchiveFileSpec, Binary,
 		GitHub::*,
 		Source,
 	},
@@ -53,7 +53,7 @@ impl SourceT for &RelayChain {
 					archive: format!("{}-{}.tar.gz", self.binary(), target()?),
 					contents: once(self.binary())
 						.chain(self.workers())
-						.map(|n| (n, None, true))
+						.map(|n| ArchiveFileSpec::new(n.into(), None, true))
 						.collect(),
 					latest: None,
 				})
@@ -150,7 +150,7 @@ mod tests {
 					version_comparator: sort_by_latest_stable_version,
 					fallback: FALLBACK.into(),
 					archive: format!("{name}-{}.tar.gz", target()?),
-					contents: ["polkadot", "polkadot-execute-worker", "polkadot-prepare-worker"].map(|b| (b, None, true)).to_vec(),
+					contents: ["polkadot", "polkadot-execute-worker", "polkadot-prepare-worker"].map(|b| ArchiveFileSpec::new(b.into(), None, true)).to_vec(),
 					latest: relay.binary.latest().map(|l| l.to_string()),
 				}).into() && cache == temp_dir.path()
 		));
@@ -175,7 +175,7 @@ mod tests {
 					version_comparator: sort_by_latest_semantic_version,
 					fallback: "v1.4.1".into(),
 					archive: format!("chain-spec-generator-{}.tar.gz", target()?),
-					contents: [("chain-spec-generator", Some("paseo-chain-spec-generator".to_string()), true)].to_vec(),
+					contents: [ArchiveFileSpec::new("chain-spec-generator".into(), Some("paseo-chain-spec-generator".into()), true)].to_vec(),
 					latest: chain_spec_generator.latest().map(|l| l.to_string()),
 				}).into() && cache == temp_dir.path()
 		));
@@ -213,7 +213,7 @@ mod tests {
 					version_comparator: sort_by_latest_stable_version,
 					fallback: FALLBACK.into(),
 					archive: format!("{name}-{}.tar.gz", target()?),
-					contents: ["polkadot", "polkadot-execute-worker", "polkadot-prepare-worker"].map(|b| (b, None, true)).to_vec(),
+					contents: ["polkadot", "polkadot-execute-worker", "polkadot-prepare-worker"].map(|b| ArchiveFileSpec::new(b.into(), None, true)).to_vec(),
 					latest: relay.binary.latest().map(|l| l.to_string()),
 				}).into() && cache == temp_dir.path()
 		));

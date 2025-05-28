@@ -187,7 +187,7 @@ mod tests {
 	use super::*;
 	use crate::{
 		polkadot_sdk::{sort_by_latest_semantic_version, sort_by_latest_version},
-		sourcing::tests::Output,
+		sourcing::{tests::Output, ArchiveFileSpec},
 		target,
 	};
 	use anyhow::Result;
@@ -362,7 +362,10 @@ mod tests {
 						version_comparator: sort_by_latest_semantic_version,
 						fallback: fallback.clone(),
 						archive: archive.clone(),
-						contents: contents.into_iter().map(|b| (b, None, true)).collect(),
+						contents: contents
+							.into_iter()
+							.map(|b| ArchiveFileSpec::new(b.into(), None, true))
+							.collect(),
 						latest: latest.clone(),
 					})
 					.into(),

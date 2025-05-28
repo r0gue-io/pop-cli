@@ -7,7 +7,7 @@ use crate::{
 };
 use pop_common::{
 	polkadot_sdk::sort_by_latest_stable_version,
-	sourcing::{traits::Source as SourceT, GitHub::ReleaseArchive, Source},
+	sourcing::{traits::Source as SourceT, ArchiveFileSpec, GitHub::ReleaseArchive, Source},
 	target,
 };
 
@@ -31,7 +31,7 @@ impl SourceT for System {
 			version_comparator: sort_by_latest_stable_version,
 			fallback: "stable2412".into(),
 			archive: format!("{binary}-{}.tar.gz", target()?),
-			contents: vec![(binary, None, true)],
+			contents: vec![ArchiveFileSpec::new(binary.into(), None, true)],
 			latest: None,
 		}))
 	}
@@ -189,7 +189,7 @@ mod tests {
 					fn_addr_eq(version_comparator, sort_by_latest_stable_version as for<'a> fn(&'a mut [String]) -> SortedSlice<'a, String>) &&
 					fallback == "stable2412" &&
 					archive == format!("polkadot-parachain-{}.tar.gz", target().unwrap()) &&
-					contents == vec![("polkadot-parachain", None, true)] &&
+					contents == vec![ArchiveFileSpec::new("polkadot-parachain".into(), None, true)] &&
 					latest == None
 		));
 	}

@@ -85,7 +85,7 @@ mod tests {
 	use crate::up::tests::{FALLBACK, RELAY_BINARY_VERSION, SYSTEM_PARA_BINARY_VERSION};
 	use pop_common::{
 		polkadot_sdk::{sort_by_latest_semantic_version, sort_by_latest_stable_version},
-		sourcing::{GitHub::ReleaseArchive, Source},
+		sourcing::{ArchiveFileSpec, GitHub::ReleaseArchive, Source},
 		target,
 	};
 	use std::path::PathBuf;
@@ -135,7 +135,7 @@ mod tests {
 					version_comparator: sort_by_latest_stable_version,
 					fallback: FALLBACK.into(),
 					archive: format!("{name}-{}.tar.gz", target()?),
-					contents: vec![(expected.binary(), None, true)],
+					contents: vec![ArchiveFileSpec::new(expected.binary().into(), None, true)],
 					latest: parachain.binary.latest().map(|l| l.to_string()),
 				}).into() && cache == temp_dir.path()
 		));
@@ -170,7 +170,7 @@ mod tests {
 					version_comparator: sort_by_latest_stable_version,
 					fallback: FALLBACK.into(),
 					archive: format!("{name}-{}.tar.gz", target()?),
-					contents: vec![(expected.binary(), None, true)],
+					contents: vec![ArchiveFileSpec::new(expected.binary().into(), None, true)],
 					latest: parachain.binary.latest().map(|l| l.to_string()),
 				}).into() && cache == temp_dir.path()
 		));
@@ -208,7 +208,7 @@ mod tests {
 					version_comparator: sort_by_latest_semantic_version,
 					fallback: "v1.4.1".into(),
 					archive: format!("chain-spec-generator-{}.tar.gz", target()?),
-					contents: [("chain-spec-generator", Some("paseo-chain-spec-generator".to_string()), true)].to_vec(),
+					contents: [ArchiveFileSpec::new("chain-spec-generator".into(), Some("paseo-chain-spec-generator".into()), true)].to_vec(),
 					latest: chain_spec_generator.latest().map(|l| l.to_string()),
 				}).into() && cache == temp_dir.path()
 		));
@@ -237,7 +237,7 @@ mod tests {
 					version_comparator: sort_by_latest_semantic_version,
 					fallback: "v0.3.0".into(),
 					archive: format!("{name}-{}.tar.gz", target()?),
-					contents: vec![(expected, None, true)],
+					contents: vec![ArchiveFileSpec::new(expected.into(), None, true)],
 					latest: parachain.binary.latest().map(|l| l.to_string()),
 				}).into() && cache == temp_dir.path()
 		));
