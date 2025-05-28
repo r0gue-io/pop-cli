@@ -348,7 +348,7 @@ pub(crate) async fn spawn(
 	progress.start("🚀 Launching local network...");
 	match zombienet.spawn().await {
 		Ok(network) => {
-			let mut result = "🚀 Network launched successfully - ctrl-c to terminate".to_string();
+			let mut result = "🚀 Network launched successfully - Ctrl+C to terminate".to_string();
 			let base_dir = network.base_dir().expect("base_dir expected to exist");
 			let bar = Style::new().magenta().dim().apply_to(Emoji("│", "|"));
 
