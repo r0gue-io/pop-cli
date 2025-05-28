@@ -383,7 +383,7 @@ impl GitHub {
 						resolved_version.and_then(|v| binaries.get(v)).cloned()
 					},
 					|v| {
-						// Ensure any specified version is a tag
+						// Ensure any specified version is a tag.
 						Some(
 							tag_pattern
 								.as_ref()
