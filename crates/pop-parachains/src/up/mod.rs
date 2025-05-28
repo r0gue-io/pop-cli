@@ -270,7 +270,7 @@ impl Zombienet {
 			return Ok(relay);
 		}
 		// Otherwise use default
-		Ok(relay::default(version, runtime_version, chain, cache).await?)
+		relay::default(version, runtime_version, chain, cache).await
 	}
 
 	/// The name of the relay chain.
