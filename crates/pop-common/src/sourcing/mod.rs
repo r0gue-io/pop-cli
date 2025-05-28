@@ -377,7 +377,7 @@ impl GitHub {
 				// locally.
 				let tag = version.as_ref().map_or_else(
 					|| {
-						// Resolve the version to be used
+						// Resolve the version to be used.
 						let resolved_version =
 							Binary::resolve_version(name, None, &versions, cache);
 						resolved_version.and_then(|v| binaries.get(v)).cloned()
