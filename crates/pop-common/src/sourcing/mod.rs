@@ -356,11 +356,10 @@ impl GitHub {
 				});
 
 				// Extract versions from any cached binaries - e.g., offline or rate-limited.
-				for file in read_dir(cache).into_iter().flatten().filter_map(|f| {
-					f.ok()
-						.and_then(|f| f.file_name().into_string().ok())
-						.filter(|f| cache_filter(f))
-				}) {
+				let cached_files = read_dir(cache).into_iter().flatten();
+				let cached_file_names = cached_files
+					.filter_map(|f| f.ok().and_then(|f| f.file_name().into_string().ok()));
+				for file in cached_file_names.filter(|f| cache_filter(f)) {
 					let version = file.replace(&format!("{name}-"), "");
 					let tag = tag_pattern.as_ref().map_or_else(
 						|| version.to_string(),
@@ -392,7 +391,8 @@ impl GitHub {
 					},
 				);
 
-				// // Default to the latest version when no specific version is provided by the caller.
+				// // Default to the latest version when no specific version is provided by the
+				// caller.
 				let latest: Option<String> = version
 					.is_none()
 					.then(|| versions.first().and_then(|v| binaries.get(v.as_str()).cloned()))
