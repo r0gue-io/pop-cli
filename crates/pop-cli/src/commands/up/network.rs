@@ -133,7 +133,7 @@ pub(crate) struct BuildCommand<const FILTER: u8> {
 	#[arg(short, long)]
 	system_parachain: Option<String>,
 	/// The version of the runtime to be used for system parachains, as per the release tag (e.g.
-	/// "v1.4.1"). See <https://github.com/polkadot-fellows/runtimes/releases> for more details.
+	/// "v1.5.1"). See <https://github.com/polkadot-fellows/runtimes/releases> for more details.
 	#[arg(short = 'S', long)]
 	system_parachain_runtime: Option<String>,
 	/// The parachain(s) to be included. An optional parachain identifier and/or port can be
