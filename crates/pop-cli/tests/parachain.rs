@@ -151,7 +151,7 @@ rpc_port = {random_port}
 		),
 	)?;
 
-	// `pop up network -f ./network.toml --skip-confirm`
+	// `pop up network ./network.toml --skip-confirm`
 	let mut command = pop(
 		&working_dir,
 		&["up", "network", "./network.toml", "-r", "stable2412", "--verbose", "--skip-confirm"],
