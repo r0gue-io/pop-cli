@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::Error;
+use crate::{registry::traits, Error};
 use pop_common::{
 	git::GitHub,
 	polkadot_sdk::sort_by_latest_semantic_version,
@@ -110,6 +110,11 @@ impl Runtime {
 	/// The name of the runtime.
 	pub fn name(&self) -> &str {
 		self.as_ref()
+	}
+
+	/// Returns the rollups registered for the relay chain.
+	pub fn rollups(&self) -> &'static [Box<dyn traits::Rollup>] {
+		crate::registry::rollups(self)
 	}
 }
 
@@ -255,5 +260,22 @@ mod tests {
 			assert_eq!(Runtime::from_chain(chain).unwrap(), expected);
 		}
 		assert_eq!(Runtime::from_chain("pop"), None);
+	}
+
+	#[test]
+	fn rollups_works() {
+		let comparator = |rollups: &[Box<dyn traits::Rollup>]| {
+			rollups
+				.iter()
+				.map(|r| (r.id(), r.chain().to_string(), r.name().to_string()))
+				.collect::<Vec<_>>()
+		};
+		{};
+		for runtime in Runtime::VARIANTS {
+			assert_eq!(
+				comparator(runtime.rollups()),
+				comparator(crate::registry::rollups(runtime))
+			);
+		}
 	}
 }
