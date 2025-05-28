@@ -1,4 +1,4 @@
-# pop up network -f ./tests/networks/paseo+people.toml
+# pop up network ./tests/networks/paseo+people.toml
 
 [relaychain]
 chain = "paseo-local"
