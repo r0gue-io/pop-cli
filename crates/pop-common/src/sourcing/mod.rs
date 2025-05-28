@@ -310,7 +310,7 @@ impl GitHub {
 				contents,
 				latest: _,
 			} => {
-				// Get releases, defaulting to the specified fallback version if an error.
+				// Get releases, defaulting to the specified fallback version if there's an error.
 				let repo = crate::GitHub::new(owner.as_str(), repository.as_str());
 				let mut releases = repo.releases(prerelease).await.unwrap_or_else(|_e| {
 					// Use any specified version or fall back to the last known version.
