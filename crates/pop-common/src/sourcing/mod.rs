@@ -392,7 +392,7 @@ impl GitHub {
 					},
 				);
 
-				// Only set latest when the caller has not explicitly specified a version to use
+				// // Default to the latest version when no specific version is provided by the caller.
 				let latest: Option<String> = version
 					.is_none()
 					.then(|| versions.first().and_then(|v| binaries.get(v.as_str()).cloned()))
