@@ -520,6 +520,10 @@ pub fn set_executable_permission<P: AsRef<Path>>(path: P) -> Result<(), Error> {
 	Ok(())
 }
 
+pub fn github_binary_url(repo: &str, tag: &str, binary: &str) -> String {
+	format!("https://github.com/{repo}/releases/download/{tag}/{binary}")
+}
+
 #[cfg(test)]
 pub(super) mod tests {
 	use super::{GitHub::*, Status, *};
@@ -837,6 +841,14 @@ pub(super) mod tests {
 		assert!(path.exists());
 		assert_ne!(metadata(path)?.permissions().mode() & 0o755, 0);
 		Ok(())
+	}
+
+	#[test]
+	fn github_binary_url_works() {
+		assert_eq!(
+    		github_binary_url("r0gue-io/polkadot", "v0.9.28", "polkadot-aarch64-apple-darwin"),
+    		"https://github.com/r0gue-io/polkadot/releases/download/v0.9.28/polkadot-aarch64-apple-darwin"
+    	);
 	}
 
 	pub(crate) struct Output;

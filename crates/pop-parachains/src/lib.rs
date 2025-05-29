@@ -13,6 +13,8 @@ mod errors;
 mod generator;
 mod new_pallet;
 mod new_parachain;
+/// Provides functionality for sourcing a node.
+pub mod node;
 mod relay;
 mod templates;
 /// Provides functionality for testing runtime upgrades.
