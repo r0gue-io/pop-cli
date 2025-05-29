@@ -793,6 +793,7 @@ mod tests {
 						"MessageQueue",
 						"Messaging",
 						"Motion",
+						"MultiBlockMigrations",
 						"Multisig",
 						"NftFractionalization",
 						"Nfts",
@@ -810,6 +811,7 @@ mod tests {
 						"TransactionPayment",
 						"Treasury",
 						"Utility",
+						"WeightReclaim",
 						"XcmpQueue",
 					]
 					.iter()
