@@ -175,7 +175,7 @@ impl Command {
 					None => up::Command::execute(args).await.map(Up),
 					Some(cmd) => match cmd {
 						#[cfg(feature = "parachain")]
-						up::Command::Network(cmd) => cmd.execute().await.map(|_| Up(crate::common::Project::Network)),
+						up::Command::Network(cmd) => cmd.execute(&mut Cli).await.map(|_| Up(crate::common::Project::Network)),
 					},
 				}
 			},
