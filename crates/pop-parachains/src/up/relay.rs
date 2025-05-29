@@ -1,16 +1,21 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use super::chain_specs::chain_spec_generator;
-pub use pop_common::{
+use crate::{up::chain_specs, Error};
+use pop_common::{
 	git::GitHub,
-	polkadot_sdk::parse_latest_tag,
+	polkadot_sdk::sort_by_latest_stable_version,
 	sourcing::{
-		traits::{Source as _, *},
-		Binary,
+		filters::prefix,
+		traits::{
+			enums::{Source as _, *},
+			Source as SourceT,
+		},
+		ArchiveFileSpec, Binary,
 		GitHub::*,
 		Source,
 	},
-	target, Error,
+	target,
 };
 use std::{iter::once, path::Path};
 use strum::VariantArray as _;
@@ -23,19 +28,16 @@ pub(super) enum RelayChain {
 	#[strum(props(
 		Repository = "https://github.com/r0gue-io/polkadot",
 		Binary = "polkadot",
-		TagFormat = "polkadot-{tag}",
-		Fallback = "stable2409"
+		TagPattern = "polkadot-{version}",
+		Fallback = "stable2412"
 	))]
 	Polkadot,
 }
 
-impl TryInto for &RelayChain {
-	/// Attempt the conversion.
-	///
-	/// # Arguments
-	/// * `tag` - If applicable, a tag used to determine a specific release.
-	/// * `latest` - If applicable, some specifier used to determine the latest source.
-	fn try_into(&self, tag: Option<String>, latest: Option<String>) -> Result<Source, Error> {
+impl SourceT for &RelayChain {
+	type Error = Error;
+	/// Defines the source of the binary required for relay chain validators.
+	fn source(&self) -> Result<Source, Error> {
 		Ok(match self {
 			RelayChain::Polkadot => {
 				// Source from GitHub release asset
@@ -43,14 +45,17 @@ impl TryInto for &RelayChain {
 				Source::GitHub(ReleaseArchive {
 					owner: repo.org,
 					repository: repo.name,
-					tag,
-					tag_format: self.tag_format().map(|t| t.into()),
+					tag: None,
+					tag_pattern: self.tag_pattern().map(|t| t.into()),
+					prerelease: false,
+					version_comparator: sort_by_latest_stable_version,
+					fallback: self.fallback().into(),
 					archive: format!("{}-{}.tar.gz", self.binary(), target()?),
 					contents: once(self.binary())
 						.chain(self.workers())
-						.map(|n| (n, None))
+						.map(|n| ArchiveFileSpec::new(n.into(), None, true))
 						.collect(),
-					latest,
+					latest: None,
 				})
 			},
 		})
@@ -64,9 +69,7 @@ impl RelayChain {
 	}
 }
 
-impl pop_common::sourcing::traits::Source for RelayChain {}
-
-/// Initialises the configuration required to launch the relay chain.
+/// Initializes the configuration required to launch the relay chain.
 ///
 /// # Arguments
 /// * `version` - The version of the relay chain binary to be used.
@@ -76,13 +79,13 @@ impl pop_common::sourcing::traits::Source for RelayChain {}
 pub(super) async fn default(
 	version: Option<&str>,
 	runtime_version: Option<&str>,
-	chain: Option<&str>,
+	chain: &str,
 	cache: &Path,
 ) -> Result<super::RelayChain, Error> {
 	from(RelayChain::Polkadot.binary(), version, runtime_version, chain, cache).await
 }
 
-/// Initialises the configuration required to launch the relay chain using the specified command.
+/// Initializes the configuration required to launch the relay chain using the specified command.
 ///
 /// # Arguments
 /// * `command` - The command specified.
@@ -94,28 +97,24 @@ pub(super) async fn from(
 	command: &str,
 	version: Option<&str>,
 	runtime_version: Option<&str>,
-	chain: Option<&str>,
+	chain: &str,
 	cache: &Path,
 ) -> Result<super::RelayChain, Error> {
 	if let Some(relay) = RelayChain::VARIANTS
 		.iter()
 		.find(|r| command.to_lowercase().ends_with(r.binary()))
 	{
-		let name = relay.binary();
-		let releases = relay.releases().await?;
-		let tag = Binary::resolve_version(name, version, &releases, cache);
-		// Only set latest when caller has not explicitly specified a version to use
-		let latest = version
-			.is_none()
-			.then(|| parse_latest_tag(releases.iter().map(|s| s.as_str()).collect()))
-			.flatten();
-		let binary = Binary::Source {
-			name: name.to_string(),
-			source: TryInto::try_into(&relay, tag, latest)?,
-			cache: cache.to_path_buf(),
-		};
-		let chain = chain.unwrap_or("paseo-local");
+		let name = relay.binary().to_string();
+		let source = relay
+			.source()?
+			.resolve(&name, version, cache, |f| prefix(f, &name))
+			.await
+			.into();
+		let binary = Binary::Source { name, source, cache: cache.to_path_buf() };
+		let runtime = chain_specs::Runtime::from_chain(chain)
+			.ok_or(Error::UnsupportedCommand(format!("the relay chain is unsupported: {chain}")))?;
 		return Ok(super::RelayChain {
+			runtime,
 			binary,
 			workers: relay.workers(),
 			chain: chain.into(),
@@ -128,26 +127,32 @@ pub(super) async fn from(
 
 #[cfg(test)]
 mod tests {
-	use super::*;
+	use super::{
+		super::tests::{FALLBACK, RELAY_BINARY_VERSION},
+		*,
+	};
+	use pop_common::polkadot_sdk::sort_by_latest_semantic_version;
 	use tempfile::tempdir;
-
-	const VERSION: &str = "stable2409";
 
 	#[tokio::test]
 	async fn default_works() -> anyhow::Result<()> {
 		let expected = RelayChain::Polkadot;
 		let temp_dir = tempdir()?;
-		let relay = default(Some(VERSION), None, None, temp_dir.path()).await?;
+		let relay =
+			default(Some(RELAY_BINARY_VERSION), None, "paseo-local", temp_dir.path()).await?;
 		assert!(matches!(relay.binary, Binary::Source { name, source, cache }
 			if name == expected.binary() && source == Source::GitHub(ReleaseArchive {
 					owner: "r0gue-io".to_string(),
 					repository: "polkadot".to_string(),
-					tag: Some(VERSION.to_string()),
-					tag_format: Some("polkadot-{tag}".to_string()),
+					tag: Some(format!("polkadot-{RELAY_BINARY_VERSION}")),
+					tag_pattern: Some("polkadot-{version}".into()),
+					prerelease: false,
+					version_comparator: sort_by_latest_stable_version,
+					fallback: FALLBACK.into(),
 					archive: format!("{name}-{}.tar.gz", target()?),
-					contents: ["polkadot", "polkadot-execute-worker", "polkadot-prepare-worker"].map(|b| (b, None)).to_vec(),
+					contents: ["polkadot", "polkadot-execute-worker", "polkadot-prepare-worker"].map(|b| ArchiveFileSpec::new(b.into(), None, true)).to_vec(),
 					latest: relay.binary.latest().map(|l| l.to_string()),
-				}) && cache == temp_dir.path()
+				}).into() && cache == temp_dir.path()
 		));
 		assert_eq!(relay.workers, expected.workers());
 		Ok(())
@@ -157,8 +162,7 @@ mod tests {
 	async fn default_with_chain_spec_generator_works() -> anyhow::Result<()> {
 		let runtime_version = "v1.3.3";
 		let temp_dir = tempdir()?;
-		let relay =
-			default(None, Some(runtime_version), Some("paseo-local"), temp_dir.path()).await?;
+		let relay = default(None, Some(runtime_version), "paseo-local", temp_dir.path()).await?;
 		assert_eq!(relay.chain, "paseo-local");
 		let chain_spec_generator = relay.chain_spec_generator.unwrap();
 		assert!(matches!(chain_spec_generator, Binary::Source { name, source, cache }
@@ -166,11 +170,14 @@ mod tests {
 					owner: "r0gue-io".to_string(),
 					repository: "paseo-runtimes".to_string(),
 					tag: Some(runtime_version.to_string()),
-					tag_format: None,
+					tag_pattern: None,
+					prerelease: false,
+					version_comparator: sort_by_latest_semantic_version,
+					fallback: "v1.4.1".into(),
 					archive: format!("chain-spec-generator-{}.tar.gz", target()?),
-					contents: [("chain-spec-generator", Some("paseo-chain-spec-generator".to_string()))].to_vec(),
+					contents: [ArchiveFileSpec::new("chain-spec-generator".into(), Some("paseo-chain-spec-generator".into()), true)].to_vec(),
 					latest: chain_spec_generator.latest().map(|l| l.to_string()),
-				}) && cache == temp_dir.path()
+				}).into() && cache == temp_dir.path()
 		));
 		Ok(())
 	}
@@ -178,7 +185,7 @@ mod tests {
 	#[tokio::test]
 	async fn from_handles_unsupported_command() -> anyhow::Result<()> {
 		assert!(
-			matches!(from("none", None, None, None, tempdir()?.path()).await, Err(Error::UnsupportedCommand(e))
+			matches!(from("none", None, None, "paseo-local", tempdir()?.path()).await, Err(Error::UnsupportedCommand(e))
 			if e == "the relay chain command is unsupported: none")
 		);
 		Ok(())
@@ -188,18 +195,27 @@ mod tests {
 	async fn from_handles_local_command() -> anyhow::Result<()> {
 		let expected = RelayChain::Polkadot;
 		let temp_dir = tempdir()?;
-		let relay =
-			from("./bin-stable2409/polkadot", Some(VERSION), None, None, temp_dir.path()).await?;
+		let relay = from(
+			"./bin-stable2503/polkadot",
+			Some(RELAY_BINARY_VERSION),
+			None,
+			"paseo-local",
+			temp_dir.path(),
+		)
+		.await?;
 		assert!(matches!(relay.binary, Binary::Source { name, source, cache }
 			if name == expected.binary() && source == Source::GitHub(ReleaseArchive {
 					owner: "r0gue-io".to_string(),
 					repository: "polkadot".to_string(),
-					tag: Some(VERSION.to_string()),
-					tag_format: Some("polkadot-{tag}".to_string()),
+					tag: Some(format!("polkadot-{RELAY_BINARY_VERSION}")),
+					tag_pattern: Some("polkadot-{version}".into()),
+					prerelease: false,
+					version_comparator: sort_by_latest_stable_version,
+					fallback: FALLBACK.into(),
 					archive: format!("{name}-{}.tar.gz", target()?),
-					contents: ["polkadot", "polkadot-execute-worker", "polkadot-prepare-worker"].map(|b| (b, None)).to_vec(),
+					contents: ["polkadot", "polkadot-execute-worker", "polkadot-prepare-worker"].map(|b| ArchiveFileSpec::new(b.into(), None, true)).to_vec(),
 					latest: relay.binary.latest().map(|l| l.to_string()),
-				}) && cache == temp_dir.path()
+				}).into() && cache == temp_dir.path()
 		));
 		assert_eq!(relay.workers, expected.workers());
 		Ok(())

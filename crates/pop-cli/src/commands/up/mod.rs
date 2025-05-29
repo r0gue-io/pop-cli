@@ -8,16 +8,28 @@ use crate::{
 	},
 };
 use clap::{Args, Subcommand};
-#[cfg(feature = "parachain")]
-use std::fmt::{Display, Formatter, Result};
 use std::path::PathBuf;
+#[cfg(feature = "parachain")]
+use {
+	pop_parachains::up::Relay,
+	std::fmt::{Display, Formatter, Result},
+};
 
 #[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 mod contract;
 #[cfg(feature = "parachain")]
-mod network;
+pub(super) mod network;
 #[cfg(feature = "parachain")]
 mod rollup;
+
+#[cfg(feature = "parachain")]
+const KUSAMA: u8 = Relay::Kusama as u8;
+#[cfg(feature = "parachain")]
+const PASEO: u8 = Relay::Paseo as u8;
+#[cfg(feature = "parachain")]
+const POLKADOT: u8 = Relay::Polkadot as u8;
+#[cfg(feature = "parachain")]
+const WESTEND: u8 = Relay::Westend as u8;
 
 /// Arguments for launching or deploying a project.
 #[derive(Args, Clone)]
@@ -25,11 +37,11 @@ mod rollup;
 #[command(args_conflicts_with_subcommands = true)]
 pub(crate) struct UpArgs {
 	/// Path to the project directory.
-	#[arg(long, global = true)]
+	#[arg(long)]
 	pub path: Option<PathBuf>,
 
 	/// Directory path without flag for your project [default: current directory]
-	#[arg(value_name = "PATH", index = 1, global = true, conflicts_with = "path")]
+	#[arg(value_name = "PATH", index = 1, conflicts_with = "path")]
 	pub path_pos: Option<PathBuf>,
 
 	#[command(flatten)]
@@ -47,10 +59,26 @@ pub(crate) struct UpArgs {
 /// Launch a local network or deploy a smart contract.
 #[derive(Subcommand, Clone)]
 pub(crate) enum Command {
+	/// Launch a local network by specifying a network configuration file.
 	#[cfg(feature = "parachain")]
-	/// Launch a local network.
 	#[clap(aliases = ["n", "parachain"])]
-	Network(network::ZombienetCommand),
+	Network(network::ConfigFileCommand),
+	/// Launch a local Paseo network.
+	#[cfg(feature = "parachain")]
+	#[clap()]
+	Paseo(network::BuildCommand<PASEO>),
+	/// Launch a local Kusama network.
+	#[cfg(feature = "parachain")]
+	#[clap()]
+	Kusama(network::BuildCommand<KUSAMA>),
+	/// Launch a local Polkadot network.
+	#[cfg(feature = "parachain")]
+	#[clap()]
+	Polkadot(network::BuildCommand<POLKADOT>),
+	/// Launch a local Westend network.
+	#[cfg(feature = "parachain")]
+	#[clap()]
+	Westend(network::BuildCommand<WESTEND>),
 }
 
 impl Command {
@@ -92,6 +120,10 @@ impl Display for Command {
 	fn fmt(&self, f: &mut Formatter<'_>) -> Result {
 		match self {
 			Command::Network(_) => write!(f, "network"),
+			Command::Paseo(_) => write!(f, "paseo"),
+			Command::Kusama(_) => write!(f, "kusama"),
+			Command::Polkadot(_) => write!(f, "polkadot"),
+			Command::Westend(_) => write!(f, "westend"),
 		}
 	}
 }

@@ -7,6 +7,8 @@ use crate::{
 };
 use clap::Subcommand;
 use std::fmt::{Display, Formatter, Result};
+#[cfg(feature = "parachain")]
+use {crate::common::Project::Network, up::network::Relay::*};
 
 #[cfg(feature = "parachain")]
 pub(crate) mod bench;
@@ -46,7 +48,7 @@ pub(crate) enum Command {
 	Call(call::CallArgs),
 	#[clap(aliases = ["u", "deploy"], about = about_up())]
 	#[cfg(any(feature = "parachain", feature = "polkavm-contracts", feature = "wasm-contracts"))]
-	Up(up::UpArgs),
+	Up(Box<up::UpArgs>),
 	/// Test a Rust project.
 	#[clap(alias = "t")]
 	Test(test::TestArgs),
@@ -172,10 +174,18 @@ impl Command {
 			Self::Up(args) => {
 				env_logger::init();
 				match args.command {
-					None => up::Command::execute(args).await.map(Up),
+					None => up::Command::execute(*args).await.map(Up),
 					Some(cmd) => match cmd {
 						#[cfg(feature = "parachain")]
-						up::Command::Network(cmd) => cmd.execute().await.map(|_| Up(crate::common::Project::Network)),
+						up::Command::Network(cmd) => cmd.execute(&mut Cli).await.map(|_| Up(Network)),
+						#[cfg(feature = "parachain")]
+						up::Command::Paseo(mut cmd) => cmd.execute(Paseo, &mut Cli).await.map(|_| Up(Network)),
+						#[cfg(feature = "parachain")]
+						up::Command::Kusama(mut cmd) => cmd.execute(Kusama, &mut Cli).await.map(|_| Up(Network)),
+						#[cfg(feature = "parachain")]
+						up::Command::Polkadot(mut cmd) => cmd.execute(Polkadot, &mut Cli).await.map(|_| Up(Network)),
+						#[cfg(feature = "parachain")]
+						up::Command::Westend(mut cmd) => cmd.execute(Westend, &mut Cli).await.map(|_| Up(Network)),
 					},
 				}
 			},
@@ -357,12 +367,15 @@ mod tests {
 				"build spec",
 			),
 			// Up.
-			(Command::Up(up::UpArgs { command: None, ..Default::default() }), "up"),
+			(Command::Up(up::UpArgs { command: None, ..Default::default() }.into()), "up"),
 			(
-				Command::Up(up::UpArgs {
-					command: Some(up::Command::Network(Default::default())),
-					..Default::default()
-				}),
+				Command::Up(
+					up::UpArgs {
+						command: Some(up::Command::Network(Default::default())),
+						..Default::default()
+					}
+					.into(),
+				),
 				"up network",
 			),
 			// Call.
