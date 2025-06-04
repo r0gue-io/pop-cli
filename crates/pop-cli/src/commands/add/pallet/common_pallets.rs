@@ -6,53 +6,106 @@ use syn::{parse_quote, Item};
 
 #[derive(Debug, Copy, Clone, PartialEq, EnumIter, EnumMessage, ValueEnum, Eq)]
 pub(crate) enum CommonPallets {
-	/// Add pallet-balances to your runtime.
-	#[strum(message = "balances", detailed_message = "Add pallet-balances to your runtime.")]
-	Balances,
-	/// Add pallet-contracts to your runtime.
-	#[strum(message = "contracts", detailed_message = "Add pallet-contracts to your runtime.")]
+	/// A simple, secure module for dealing with fungible assets.
+	#[strum(
+		message = "assets",
+		detailed_message = "A simple, secure module for dealing with fungible assets.."
+	)]
+	Assets,
+	/// The Contracts module provides functionality for the runtime to deploy and execute
+	/// WebAssembly smart-contracts.
+	#[strum(
+		message = "contracts",
+		detailed_message = "The Contracts module provides functionality for the runtime to deploy and execute WebAssembly smart-contracts."
+	)]
 	Contracts,
+	/// Experimental module that provides functionality for the runtime to deploy and execute
+	/// PolkaVM smart-contracts.
+	#[strum(
+		message = "revive",
+		detailed_message = "Experimental module that provides functionality for the runtime to deploy and execute PolkaVM smart-contracts."
+	)]
+	Revive,
+	///  allows for a single account (called the "sudo key") to execute dispatchable functions that
+	/// require a Root call or designate a new account to replace them as the sudo key.
+	#[strum(
+		message = "sudo",
+		detailed_message = " allows for a single account (called the \"sudo key\") to execute dispatchable functions that require a Root call or designate a new account to replace them as the sudo key."
+	)]
+	Sudo,
+	/// A stateless module with helpers for dispatch management which does no re-authentication.
+	#[strum(
+		message = "utility",
+		detailed_message = "A stateless module with helpers for dispatch management which does no re-authentication."
+	)]
+	Utility,
 }
 
 impl CommonPallets {
 	pub(crate) fn get_crate_name(&self) -> String {
 		match self {
-			CommonPallets::Balances => "pallet-balances".to_owned(),
+			CommonPallets::Assets => "pallet-assets".to_owned(),
 			CommonPallets::Contracts => "pallet-contracts".to_owned(),
+			CommonPallets::Revive => "pallet-revive".to_owned(),
+			CommonPallets::Sudo => "pallet-sudo".to_owned(),
+			CommonPallets::Utility => "pallet-utility".to_owned(),
 		}
 	}
 
 	pub(crate) fn get_pallet_declaration_construct_runtime(&self) -> TokenStream {
 		match self {
-			CommonPallets::Balances => parse_quote! { Balances: pallet_balances, },
+			CommonPallets::Assets => parse_quote! { Assets: pallet_assets, },
 			CommonPallets::Contracts => parse_quote! { Contracts: pallet_contracts, },
+			CommonPallets::Revive => parse_quote! { Revive: pallet_revive, },
+			CommonPallets::Sudo => parse_quote! { Sudo: pallet_sudo, },
+			CommonPallets::Utility => parse_quote! { Utility: pallet_utility, },
 		}
 	}
 
 	pub(crate) fn get_pallet_declaration_runtime_module(&self, highest_index: Literal) -> Item {
 		match self {
-			CommonPallets::Balances => parse_quote! {
+			CommonPallets::Assets => parse_quote! {
 			  ///TEMP_DOC
 				#[runtime::pallet_index(#highest_index)]
-				pub type Balances = pallet_balances;
+				pub type Assets = pallet_assets;
 			},
 			CommonPallets::Contracts => parse_quote! {
 			  ///TEMP_DOC
 				#[runtime::pallet_index(#highest_index)]
 				pub type Contracts = pallet_contracts;
 			},
+			CommonPallets::Revive => parse_quote! {
+			  ///TEMP_DOC
+				#[runtime::pallet_index(#highest_index)]
+				pub type Revive = pallet_revive;
+			},
+			CommonPallets::Sudo => parse_quote! {
+				///TEMP_DOC
+				  #[runtime::pallet_index(#highest_index)]
+				  pub type Sudo = pallet_sudo;
+			},
+			CommonPallets::Utility => parse_quote! {
+				///TEMP_DOC
+				#[runtime::pallet_index(#highest_index)]
+				pub type Utility = pallet_utility;
+			},
 		}
 	}
 
 	pub(crate) fn get_impl_needed_use_statements(&self) -> Vec<Item> {
 		match self {
-			CommonPallets::Balances => vec![
+			CommonPallets::Assets => vec![
 				parse_quote!(
 					///TEMP_DOC
-					use crate::{System, Runtime, RuntimeEvent, RuntimeHoldReason, RuntimeCall};
+					use crate::{
+						AccountId, Balances, Runtime, RuntimeEvent, RuntimeHoldReason, RuntimeCall,
+					};
 				),
 				parse_quote!(
-					use frame_support::{parameter_types, derive_impl};
+					use frame_support::{parameter_types, derive_impl, traits::AsEnsureOriginWithArg};
+				),
+				parse_quote!(
+					use frame_system::{EnsureRoot, EnsureSigned};
 				),
 			],
 			CommonPallets::Contracts => vec![
@@ -64,28 +117,47 @@ impl CommonPallets {
 					use frame_support::{parameter_types, derive_impl};
 				),
 			],
+			CommonPallets::Revive => vec![
+				parse_quote!(
+					///TEMP_DOC
+					use crate::{Runtime, Balances, RuntimeEvent, RuntimeHoldReason, RuntimeCall};
+				),
+				parse_quote!(
+					use frame_support::{parameter_types, derive_impl};
+				),
+			],
+			CommonPallets::Utility => vec![parse_quote!(
+				///TEMP_DOC
+				use crate::{OriginCaller, RuntimeCall, RuntimeEvent};
+			)],
+			CommonPallets::Sudo => vec![],
 		}
 	}
 
 	pub(crate) fn get_needed_parameter_types(&self) -> Item {
 		match self {
-			CommonPallets::Balances => Item::Verbatim(TokenStream::new()),
+			CommonPallets::Assets => Item::Verbatim(TokenStream::new()),
 			CommonPallets::Contracts => parse_quote! {
 			  ///TEMP_DOC
 			  parameter_types!{
 				  pub Schedule: pallet_contracts::Schedule<Runtime> = <pallet_contracts::Schedule<Runtime>>::default();
 			  }
 			},
+			CommonPallets::Revive => Item::Verbatim(TokenStream::new()),
+			CommonPallets::Sudo => Item::Verbatim(TokenStream::new()),
+			CommonPallets::Utility => Item::Verbatim(TokenStream::new()),
 		}
 	}
 
 	pub(crate) fn get_needed_impl_block(&self) -> Item {
 		match self {
-			CommonPallets::Balances => parse_quote! {
+			CommonPallets::Assets => parse_quote! {
 			  ///TEMP_DOC
-			  #[derive_impl(pallet_balances::config_preludes::TestDefaultConfig)]
-			  impl pallet_balances::Config for Runtime{
-				type AccountStore = System;
+			  #[derive_impl(pallet_assets::config_preludes::TestDefaultConfig)]
+			  impl pallet_assets::Config for Runtime{
+				type Currency = Balances;
+				type CreateOrigin = AsEnsureOriginWithArg<EnsureSigned<AccountId>>;
+				type ForceOrigin = EnsureRoot<AccountId>;
 			  }
 			},
 			CommonPallets::Contracts => parse_quote! {
@@ -97,6 +169,28 @@ impl CommonPallets {
 				type CallStack = [pallet_contracts::Frame<Self>; 5];
 			  }
 			},
+			CommonPallets::Revive => parse_quote! {
+				///TEMP_DOC
+				#[derive_impl(pallet_revive::config_preludes::TestDefaultConfig)]
+				impl pallet_revive::Config for Runtime{
+				  type Currency = Balances;
+				  type AddressMapper = pallet_revive::AccountId32Mapper<Self>;
+				}
+			},
+			CommonPallets::Sudo => parse_quote! {
+				///TEMP_DOC
+				#[derive_impl(pallet_sudo::config_preludes::TestDefaultConfig)]
+				impl pallet::Config for Runtime{}
+			},
+			CommonPallets::Utility => parse_quote! {
+				///TEMP_DOC
+				impl pallet_utility::Config for Runtime{
+					type PalletsOrigin = OriginCaller;
+					type RuntimeCall = RuntimeCall;
+					type RuntimeEvent = RuntimeEvent;
+					type WeightInfo = pallet_utility::weights::SubstrateWeight<Runtime>;
+				}
+			},
 		}
 	}
 }
@@ -107,31 +201,45 @@ mod tests {
 
 	#[test]
 	fn get_crate_name_works() {
-		assert_eq!(CommonPallets::Balances.get_crate_name(), "pallet-balances");
+		assert_eq!(CommonPallets::Assets.get_crate_name(), "pallet-assets");
 		assert_eq!(CommonPallets::Contracts.get_crate_name(), "pallet-contracts");
+		assert_eq!(CommonPallets::Revive.get_crate_name(), "pallet-revive");
+		assert_eq!(CommonPallets::Sudo.get_crate_name(), "pallet-sudo");
+		assert_eq!(CommonPallets::Utility.get_crate_name(), "pallet-utility");
 	}
 
 	#[test]
 	fn get_pallet_declaration_construct_runtime_works() {
 		assert!(rustilities::parsing::syntactic_token_stream_compare(
-			CommonPallets::Balances.get_pallet_declaration_construct_runtime(),
-			parse_quote! { Balances: pallet_balances, }
+			CommonPallets::Assets.get_pallet_declaration_construct_runtime(),
+			parse_quote! { Assets: pallet_assets, }
 		));
-
 		assert!(rustilities::parsing::syntactic_token_stream_compare(
 			CommonPallets::Contracts.get_pallet_declaration_construct_runtime(),
 			parse_quote! { Contracts: pallet_contracts, }
+		));
+		assert!(rustilities::parsing::syntactic_token_stream_compare(
+			CommonPallets::Revive.get_pallet_declaration_construct_runtime(),
+			parse_quote! { Revive: pallet_revive, }
+		));
+		assert!(rustilities::parsing::syntactic_token_stream_compare(
+			CommonPallets::Sudo.get_pallet_declaration_construct_runtime(),
+			parse_quote! { Sudo: pallet_sudo, }
+		));
+		assert!(rustilities::parsing::syntactic_token_stream_compare(
+			CommonPallets::Utility.get_pallet_declaration_construct_runtime(),
+			parse_quote! { Utility: pallet_utility, }
 		));
 	}
 
 	#[test]
 	fn get_pallet_declaration_runtime_module_works() {
 		assert_eq!(
-			CommonPallets::Balances.get_pallet_declaration_runtime_module(parse_quote!(1)),
+			CommonPallets::Assets.get_pallet_declaration_runtime_module(parse_quote!(1)),
 			parse_quote! {
 				///TEMP_DOC
 				#[runtime::pallet_index(1)]
-				pub type Balances = pallet_balances;
+				pub type Assets = pallet_assets;
 			}
 		);
 		assert_eq!(
@@ -142,19 +250,48 @@ mod tests {
 				pub type Contracts = pallet_contracts;
 			}
 		);
+		assert_eq!(
+			CommonPallets::Revive.get_pallet_declaration_runtime_module(parse_quote!(1)),
+			parse_quote! {
+				///TEMP_DOC
+				#[runtime::pallet_index(1)]
+				pub type Revive = pallet_revive;
+			}
+		);
+		assert_eq!(
+			CommonPallets::Sudo.get_pallet_declaration_runtime_module(parse_quote!(1)),
+			parse_quote! {
+				///TEMP_DOC
+				#[runtime::pallet_index(1)]
+				pub type Sudo = pallet_sudo;
+			}
+		);
+		assert_eq!(
+			CommonPallets::Utility.get_pallet_declaration_runtime_module(parse_quote!(1)),
+			parse_quote! {
+				///TEMP_DOC
+				#[runtime::pallet_index(1)]
+				pub type Utility = pallet_utility;
+			}
+		);
 	}
 
 	#[test]
 	fn get_impl_needed_use_statements_works() {
 		assert_eq!(
-			CommonPallets::Balances.get_impl_needed_use_statements(),
+			CommonPallets::Assets.get_impl_needed_use_statements(),
 			vec![
 				parse_quote! {
 					///TEMP_DOC
-					use crate::{System, Runtime, RuntimeEvent, RuntimeHoldReason, RuntimeCall};
+					use crate::{
+						AccountId, Balances, Runtime, RuntimeEvent, RuntimeHoldReason, RuntimeCall,
+					};
 				},
 				parse_quote!(
-					use frame_support::{parameter_types, derive_impl};
+					use frame_support::{parameter_types, derive_impl, traits::AsEnsureOriginWithArg};
+				),
+				parse_quote!(
+					use frame_system::{EnsureRoot, EnsureSigned};
 				)
 			]
 		);
@@ -170,15 +307,34 @@ mod tests {
 				)
 			]
 		);
+		assert_eq!(
+			CommonPallets::Revive.get_impl_needed_use_statements(),
+			vec![
+				parse_quote! {
+					///TEMP_DOC
+					use crate::{Runtime, Balances, RuntimeEvent, RuntimeHoldReason, RuntimeCall};
+				},
+				parse_quote!(
+					use frame_support::{parameter_types, derive_impl};
+				)
+			]
+		);
+		assert_eq!(CommonPallets::Sudo.get_impl_needed_use_statements(), vec![]);
+		assert_eq!(
+			CommonPallets::Utility.get_impl_needed_use_statements(),
+			vec![parse_quote!(
+				///TEMP_DOC
+				use crate::{OriginCaller, RuntimeCall, RuntimeEvent};
+			),]
+		);
 	}
 
 	#[test]
 	fn get_needed_parameter_types_works() {
 		assert_eq!(
-			CommonPallets::Balances.get_needed_parameter_types(),
+			CommonPallets::Assets.get_needed_parameter_types(),
 			Item::Verbatim(TokenStream::new())
 		);
-
 		assert_eq!(
 			CommonPallets::Contracts.get_needed_parameter_types(),
 			parse_quote! {
@@ -188,21 +344,34 @@ mod tests {
 				}
 			}
 		);
+		assert_eq!(
+			CommonPallets::Revive.get_needed_parameter_types(),
+			Item::Verbatim(TokenStream::new())
+		);
+		assert_eq!(
+			CommonPallets::Sudo.get_needed_parameter_types(),
+			Item::Verbatim(TokenStream::new())
+		);
+		assert_eq!(
+			CommonPallets::Utility.get_needed_parameter_types(),
+			Item::Verbatim(TokenStream::new())
+		);
 	}
 
 	#[test]
 	fn get_needed_impl_block_works() {
 		assert_eq!(
-			CommonPallets::Balances.get_needed_impl_block(),
+			CommonPallets::Assets.get_needed_impl_block(),
 			parse_quote! {
 				///TEMP_DOC
-				#[derive_impl(pallet_balances::config_preludes::TestDefaultConfig)]
-				impl pallet_balances::Config for Runtime {
-					type AccountStore = System;
+				#[derive_impl(pallet_assets::config_preludes::TestDefaultConfig)]
+				impl pallet_assets::Config for Runtime {
+					type Currency = Balances;
+					type CreateOrigin = AsEnsureOriginWithArg<EnsureSigned<AccountId>>;
+					type ForceOrigin = EnsureRoot<AccountId>;
 				}
 			}
 		);
-
 		assert_eq!(
 			CommonPallets::Contracts.get_needed_impl_block(),
 			parse_quote! {
@@ -212,6 +381,37 @@ mod tests {
 				type Currency = Balances;
 				type Schedule = Schedule;
 				type CallStack = [pallet_contracts::Frame<Self>; 5];
+				}
+			}
+		);
+		assert_eq!(
+			CommonPallets::Revive.get_needed_impl_block(),
+			parse_quote! {
+				///TEMP_DOC
+			  #[derive_impl(pallet_revive::config_preludes::TestDefaultConfig)]
+			  impl pallet_revive::Config for Runtime{
+				type Currency = Balances;
+				type AddressMapper = pallet_revive::AccountId32Mapper<Self>;
+				}
+			}
+		);
+		assert_eq!(
+			CommonPallets::Sudo.get_needed_impl_block(),
+			parse_quote! {
+				///TEMP_DOC
+				#[derive_impl(pallet_sudo::config_preludes::TestDefaultConfig)]
+				impl pallet::Config for Runtime{}
+			}
+		);
+		assert_eq!(
+			CommonPallets::Utility.get_needed_impl_block(),
+			parse_quote! {
+				///TEMP_DOC
+			  impl pallet_utility::Config for Runtime{
+				type PalletsOrigin = OriginCaller;
+				type RuntimeCall = RuntimeCall;
+				type RuntimeEvent = RuntimeEvent;
+				type WeightInfo = pallet_utility::weights::SubstrateWeight<Runtime>;
 				}
 			}
 		);
