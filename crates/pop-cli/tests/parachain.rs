@@ -38,7 +38,6 @@ fn generate_all_the_templates() -> Result<()> {
 	Ok(())
 }
 
-<<<<<<< HEAD
 /// Test the parachain lifecycle: new, add pallet ,build, up, call.
 #[tokio::test]
 async fn parachain_lifecycle() -> Result<()> {
