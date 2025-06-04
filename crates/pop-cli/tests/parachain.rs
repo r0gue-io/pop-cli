@@ -94,7 +94,7 @@ async fn parachain_lifecycle() -> Result<()> {
 	let runtime_manifest_content_before = std::fs::read_to_string(&runtime_manifest_path).unwrap();
 
 	let mut command =
-		pop(&temp_dir, &["add", "pallet", "-p", "contracts", "--release-tag", "stable2412"]);
+		pop(&working_dir, &["add", "pallet", "-p", "contracts", "--release-tag", "stable2412"]);
 	assert!(command.spawn()?.wait()?.success());
 
 	let runtime_lib_content_after = std::fs::read_to_string(&runtime_lib_path).unwrap();
