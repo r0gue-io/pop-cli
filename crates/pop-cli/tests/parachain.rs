@@ -7,7 +7,7 @@ use assert_cmd::cargo::cargo_bin;
 use pop_common::{find_free_port, templates::Template};
 use pop_parachains::Parachain;
 use similar::{ChangeTag, TextDiff};
-use std::{fs, path::Path, process::Command, ffi::OsStr, thread::sleep, time::Duration};
+use std::{ffi::OsStr, fs, path::Path, process::Command, thread::sleep, time::Duration};
 use strum::VariantArray;
 
 // Test that all templates are generated correctly
@@ -56,18 +56,18 @@ async fn parachain_lifecycle() -> Result<()> {
 		let mut command = pop(
 			&temp_dir,
 			&[
-			"new",
-			"parachain",
-			"test_parachain",
-			"--release-tag",
-			"polkadot-stable2412",
-			"--symbol",
-			"POP",
-			"--decimals",
-			"6",
-			"--endowment",
-			"1u64 << 60",
-			"--verify",
+				"new",
+				"parachain",
+				"test_parachain",
+				"--release-tag",
+				"polkadot-stable2412",
+				"--symbol",
+				"POP",
+				"--decimals",
+				"6",
+				"--endowment",
+				"1u64 << 60",
+				"--verify",
 			],
 		);
 		assert!(command.spawn()?.wait()?.success());
