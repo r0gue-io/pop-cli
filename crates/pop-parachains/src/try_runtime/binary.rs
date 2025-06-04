@@ -1,10 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0
 
-pub use pop_common::{
+use pop_common::{
 	git::GitHub,
+	polkadot_sdk::sort_by_latest_semantic_version,
 	sourcing::{
-		traits::{Source as _, *},
-		Binary,
+		filters::prefix,
+		traits::{
+			enums::{Source as _, *},
+			Source as SourceT,
+		},
+		ArchiveFileSpec, Binary,
 		GitHub::*,
 		Source,
 	},
@@ -23,33 +28,27 @@ pub(super) enum TryRuntimeCli {
 	TryRuntime,
 }
 
-impl TryInto for TryRuntimeCli {
-	/// Attempt the conversion.
-	///
-	/// # Arguments
-	/// * `tag` - If applicable, a tag used to determine a specific release.
-	/// * `latest` - If applicable, some specifier used to determine the latest source.
-	fn try_into(
-		&self,
-		tag: Option<String>,
-		latest: Option<String>,
-	) -> Result<pop_common::sourcing::Source, Error> {
+impl SourceT for TryRuntimeCli {
+	type Error = Error;
+	/// Defines the source of the binary required for testing runtime upgrades.
+	fn source(&self) -> Result<Source, Error> {
 		// Source from GitHub release asset
 		let repo = GitHub::parse(self.repository())?;
 		let binary = self.binary();
 		Ok(Source::GitHub(ReleaseArchive {
 			owner: repo.org,
 			repository: repo.name,
-			tag,
-			tag_format: self.tag_format().map(|t| t.into()),
+			tag: None,
+			tag_pattern: self.tag_pattern().map(|t| t.into()),
+			prerelease: false,
+			version_comparator: sort_by_latest_semantic_version,
+			fallback: self.fallback().into(),
 			archive: format!("{binary}-{}.tar.gz", target()?),
-			contents: vec![(binary, Some(binary.to_string()))],
-			latest,
+			contents: vec![ArchiveFileSpec::new(binary.into(), Some(binary.into()), true)],
+			latest: None,
 		}))
 	}
 }
-
-impl pop_common::sourcing::traits::Source for TryRuntimeCli {}
 
 /// Generate the source of the `try-runtime` binary on the remote repository.
 ///
@@ -58,16 +57,13 @@ impl pop_common::sourcing::traits::Source for TryRuntimeCli {}
 /// * `version` - An optional version string. If `None`, the latest available version is used.
 pub async fn try_runtime_generator(cache: PathBuf, version: Option<&str>) -> Result<Binary, Error> {
 	let cli = TryRuntimeCli::TryRuntime;
-	let name = cli.binary();
-	let releases = cli.releases().await?;
-	let tag = Binary::resolve_version(name, version, &releases, &cache);
-	// Only set latest when caller has not explicitly specified a version to use
-	let latest = version.is_none().then(|| releases.first().map(|v| v.to_string())).flatten();
-	let binary = Binary::Source {
-		name: name.to_string(),
-		source: TryInto::try_into(&cli, tag, latest)?,
-		cache: cache.to_path_buf(),
-	};
+	let name = cli.binary().to_string();
+	let source = cli
+		.source()?
+		.resolve(&name, version, cache.as_path(), |f| prefix(f, &name))
+		.await
+		.into();
+	let binary = Binary::Source { name, source, cache: cache.to_path_buf() };
 	Ok(binary)
 }
 
@@ -86,11 +82,14 @@ mod tests {
 					owner: "r0gue-io".to_string(),
 					repository: "try-runtime-cli".to_string(),
 					tag: Some(version.to_string()),
-					tag_format: None,
+					tag_pattern: None,
+					prerelease: false,
+					version_comparator: sort_by_latest_semantic_version,
+					fallback: version.into(),
 					archive: format!("try-runtime-cli-{}.tar.gz", target()?),
-					contents: ["try-runtime-cli"].map(|b| (b, Some(b.to_string()))).to_vec(),
+					contents: ["try-runtime-cli"].map(|b| ArchiveFileSpec::new(b.into(), Some(b.into()), true)).to_vec(),
 					latest: binary.latest().map(|l| l.to_string()),
-				}) &&
+				}).into() &&
 				cache == temp_dir.as_path()
 		));
 		Ok(())

@@ -14,6 +14,8 @@ pub(crate) mod traits {
 	pub trait Cli {
 		/// Constructs a new [`Confirm`] prompt.
 		fn confirm(&mut self, prompt: impl Display) -> impl Confirm;
+		/// Prints an error message.
+		fn error(&mut self, text: impl Display) -> Result<()>;
 		/// Prints an info message.
 		fn info(&mut self, text: impl Display) -> Result<()>;
 		/// Constructs a new [`Input`] prompt.
@@ -104,6 +106,11 @@ impl traits::Cli for Cli {
 	/// Constructs a new [`Confirm`] prompt.
 	fn confirm(&mut self, prompt: impl Display) -> impl traits::Confirm {
 		Confirm(cliclack::confirm(prompt))
+	}
+
+	/// Prints an error message.
+	fn error(&mut self, text: impl Display) -> Result<()> {
+		cliclack::log::error(text)
 	}
 
 	/// Prints an info message.
@@ -283,6 +290,7 @@ pub(crate) mod tests {
 	#[derive(Default)]
 	pub(crate) struct MockCli {
 		confirm_expectation: Vec<(String, bool)>,
+		error_expectations: Vec<String>,
 		info_expectations: Vec<String>,
 		input_expectations: Vec<(String, String)>,
 		intro_expectation: Option<String>,
@@ -297,6 +305,7 @@ pub(crate) mod tests {
 		warning_expectations: Vec<String>,
 	}
 
+	#[allow(dead_code)]
 	impl MockCli {
 		pub(crate) fn new() -> Self {
 			Self::default()
@@ -304,6 +313,11 @@ pub(crate) mod tests {
 
 		pub(crate) fn expect_confirm(mut self, prompt: impl Display, confirm: bool) -> Self {
 			self.confirm_expectation.insert(0, (prompt.to_string(), confirm));
+			self
+		}
+
+		pub(crate) fn expect_error(mut self, message: impl Display) -> Self {
+			self.error_expectations.insert(0, message.to_string());
 			self
 		}
 
@@ -379,6 +393,12 @@ pub(crate) mod tests {
 			if !self.confirm_expectation.is_empty() {
 				panic!("`{:?}` confirm expectations not satisfied", self.confirm_expectation)
 			}
+			if !self.error_expectations.is_empty() {
+				panic!(
+					"`{}` error log expectations not satisfied",
+					self.error_expectations.join(",")
+				)
+			}
 			if !self.info_expectations.is_empty() {
 				panic!("`{}` info log expectations not satisfied", self.info_expectations.join(","))
 			}
@@ -434,6 +454,12 @@ pub(crate) mod tests {
 				return MockConfirm { confirm };
 			}
 			MockConfirm::default()
+		}
+
+		fn error(&mut self, message: impl Display) -> Result<()> {
+			let message = message.to_string();
+			self.error_expectations.retain(|x| *x != message);
+			Ok(())
 		}
 
 		fn info(&mut self, message: impl Display) -> Result<()> {

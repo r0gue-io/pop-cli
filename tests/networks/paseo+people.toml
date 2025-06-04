@@ -1,0 +1,20 @@
+# pop up network ./tests/networks/paseo+people.toml
+
+[relaychain]
+chain = "paseo-local"
+
+[[relaychain.nodes]]
+name = "alice"
+validator = true
+
+[[relaychain.nodes]]
+name = "bob"
+validator = true
+
+[[parachains]]
+id = 1004
+chain = "people-paseo-local"
+
+[[parachains.collators]]
+name = "people"
+args = ["-lxcm=trace,lsystem::events=trace,lruntime=trace"]

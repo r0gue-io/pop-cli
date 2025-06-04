@@ -1,18 +1,25 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use duct::cmd;
-#[cfg(feature = "parachain")]
+#[cfg(any(feature = "parachain", test))]
 use std::cmp::Ordering;
-#[cfg(any(feature = "contract", feature = "parachain"))]
+#[cfg(any(
+	feature = "polkavm-contracts",
+	feature = "wasm-contracts",
+	feature = "parachain",
+	test
+))]
+use std::path::PathBuf;
+#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "parachain"))]
 use {
 	crate::cli::traits::*,
 	cliclack::spinner,
 	pop_common::sourcing::{set_executable_permission, Binary},
-	std::path::{Path, PathBuf},
+	std::path::Path,
 };
 
 /// A trait for binary generator.
-#[cfg(any(feature = "contract", feature = "parachain"))]
+#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "parachain"))]
 pub(crate) trait BinaryGenerator {
 	/// Generates a binary.
 	///
@@ -34,7 +41,7 @@ pub(crate) trait BinaryGenerator {
 /// * `cache_path` - The cache directory path where the binary is stored.
 /// * `skip_confirm` - If `true`, skips confirmation prompts and automatically sources the binary if
 ///   needed.
-#[cfg(any(feature = "contract", feature = "parachain"))]
+#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "parachain"))]
 pub async fn check_and_prompt<Generator: BinaryGenerator>(
 	cli: &mut impl Cli,
 	binary_name: &'static str,
@@ -154,7 +161,7 @@ impl TryFrom<String> for SemanticVersion {
 /// * `binary` - The name of the binary to find.
 /// * `target_version` - The version to match.
 /// * `order` - The ordering to use when matching versions.
-#[cfg(feature = "parachain")]
+#[cfg(any(feature = "parachain", test))]
 pub(crate) fn which_version(
 	binary: &str,
 	target_version: &SemanticVersion,
@@ -170,18 +177,24 @@ pub(crate) fn which_version(
 				Err(anyhow::anyhow!("Binary version does not match target version"))
 			}
 		},
-		Err(_) => return Err(anyhow::anyhow!("Failed to find binary")),
+		Err(_) => Err(anyhow::anyhow!("Failed to find binary")),
 	}
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
+	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 	use crate::{cli::MockCli, common::contracts::ContractsNodeGenerator};
+	use std::cmp::Ordering;
 
 	#[tokio::test]
+	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 	async fn check_binary_and_prompt_works() -> anyhow::Result<()> {
+		#[cfg(feature = "wasm-contracts")]
 		let binary_name = "substrate-contracts-node";
+		#[cfg(feature = "polkavm-contracts")]
+		let binary_name = "ink-node";
 		let cache_path = tempfile::tempdir().expect("Could create temp dir");
 		let mut cli = MockCli::new()
 			.expect_warning(format!("⚠️ The {binary_name} binary is not found."))
@@ -190,7 +203,7 @@ mod tests {
 
 		let binary_path = check_and_prompt::<ContractsNodeGenerator>(
 			&mut cli,
-			"substrate-contracts-node",
+			binary_name,
 			cache_path.path(),
 			false,
 		)
@@ -200,20 +213,24 @@ mod tests {
 		assert!(binary_path
 			.to_str()
 			.unwrap()
-			.starts_with(&cache_path.path().join("substrate-contracts-node").to_str().unwrap()));
+			.starts_with(&cache_path.path().join(binary_name).to_str().unwrap()));
 		cli.verify()
 	}
 
 	#[tokio::test]
+	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 	async fn check_binary_and_prompt_handles_skip_confirm() -> anyhow::Result<()> {
+		#[cfg(feature = "wasm-contracts")]
 		let binary_name = "substrate-contracts-node";
+		#[cfg(feature = "polkavm-contracts")]
+		let binary_name = "ink-node";
 		let cache_path = tempfile::tempdir().expect("Could create temp dir");
 		let mut cli =
 			MockCli::new().expect_warning(format!("⚠️ The {binary_name} binary is not found."));
 
 		let binary_path = check_and_prompt::<ContractsNodeGenerator>(
 			&mut cli,
-			"substrate-contracts-node",
+			binary_name,
 			cache_path.path(),
 			true,
 		)

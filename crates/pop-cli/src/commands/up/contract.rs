@@ -11,18 +11,21 @@ use crate::{
 use clap::Args;
 use cliclack::{confirm, log, log::error, spinner, ProgressBar};
 use console::{Emoji, Style};
+#[cfg(feature = "wasm-contracts")]
+use pop_contracts::get_code_hash_from_event;
+#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 use pop_contracts::{
-	build_smart_contract, dry_run_gas_estimate_instantiate, dry_run_upload,
-	get_code_hash_from_event, get_contract_code, get_instantiate_payload, get_upload_payload,
-	instantiate_contract_signed, instantiate_smart_contract, is_chain_alive, parse_hex_bytes,
-	run_contracts_node, set_up_deployment, set_up_upload, upload_contract_signed,
-	upload_smart_contract, UpOpts, Verbosity,
+	build_smart_contract, dry_run_gas_estimate_instantiate, dry_run_upload, get_contract_code,
+	get_instantiate_payload, get_upload_payload, instantiate_contract_signed,
+	instantiate_smart_contract, is_chain_alive, parse_hex_bytes, run_contracts_node,
+	set_up_deployment, set_up_upload, upload_contract_signed, upload_smart_contract, Bytes, UpOpts,
+	Verbosity, Weight,
 };
-use sp_core::Bytes;
-use sp_weights::Weight;
 use std::path::PathBuf;
 use tempfile::NamedTempFile;
 use url::Url;
+#[cfg(feature = "polkavm-contracts")]
+use {crate::common::contracts::map_account, sp_core::bytes::to_hex};
 
 const COMPLETE: &str = "🚀 Deployment complete";
 const DEFAULT_URL: &str = "ws://localhost:9944/";
@@ -87,20 +90,12 @@ pub struct UpContractCommand {
 	/// confirmation.
 	#[clap(short = 'y', long)]
 	pub(crate) skip_confirm: bool,
-	// Deprecation flag, used to specify whether the deprecation warning is shown (will be removed
-	// in v0.8.0).
-	#[clap(skip)]
-	pub(crate) valid: bool,
 }
 
 impl UpContractCommand {
 	/// Executes the command.
 	pub(crate) async fn execute(mut self) -> anyhow::Result<()> {
 		Cli.intro("Deploy a smart contract")?;
-		// Show warning if specified as deprecated.
-		if !self.valid {
-			Cli.warning("DEPRECATION: Please use `pop up` (or simply `pop u`) in the future...")?;
-		}
 		// Check if build exists in the specified "Contract build directory"
 		if !has_contract_been_built(self.path.as_deref()) {
 			// Build the contract in release mode
@@ -202,8 +197,9 @@ impl UpContractCommand {
 				},
 			};
 
-			let maybe_payload = request_signature(call_data, self.url.to_string()).await?;
-			if let Some(payload) = maybe_payload {
+			let maybe_signature_request =
+				request_signature(call_data, self.url.to_string()).await?;
+			if let Some(payload) = maybe_signature_request.signed_payload {
 				log::success("Signed payload received.")?;
 				let spinner = spinner();
 				spinner.start(
@@ -211,8 +207,60 @@ impl UpContractCommand {
 				);
 
 				if self.upload_only {
-					let upload_result = match upload_contract_signed(self.url.as_str(), payload)
-						.await
+					#[allow(unused_variables)]
+					let upload_result = match upload_contract_signed(self.url.as_str(), payload).await {
+						Err(e) => {
+							spinner
+								.error(format!("An error occurred uploading your contract: {e}"));
+							terminate_node(&mut Cli, process)?;
+							Cli.outro_cancel(FAILED)?;
+							return Ok(());
+						},
+						#[cfg(feature = "wasm-contracts")]
+						Ok(result) => result,
+						#[cfg(feature = "polkavm-contracts")]
+						Ok(_) => {
+							spinner.stop(format!(
+								"Contract uploaded: The code hash is {:?}",
+								to_hex(&hash, false)
+							));
+						},
+					};
+
+					#[cfg(feature = "wasm-contracts")]
+					match get_code_hash_from_event(&upload_result, hash) {
+						Ok(r) => {
+							spinner.stop(format!("Contract uploaded: The code hash is {:?}", r));
+						},
+						Err(e) => {
+							spinner
+								.error(format!("An error occurred uploading your contract: {e}"));
+						},
+					};
+				} else {
+					#[cfg(feature = "polkavm-contracts")]
+					let instantiate_exec = match set_up_deployment(self.clone().into()).await {
+						Ok(i) => i,
+						Err(e) => {
+							error(format!("An error occurred instantiating the contract: {e}"))?;
+							terminate_node(&mut Cli, process)?;
+							Cli.outro_cancel(FAILED)?;
+							return Ok(());
+						},
+					};
+					// Check if the account is already mapped, and prompt the user to perform the
+					// mapping if it's required.
+					#[cfg(feature = "polkavm-contracts")]
+					map_account(instantiate_exec.opts(), &mut Cli).await?;
+					let contract_info = match instantiate_contract_signed(
+						#[cfg(feature = "polkavm-contracts")]
+						instantiate_exec,
+						#[cfg(feature = "polkavm-contracts")]
+						maybe_signature_request.contract_address,
+						self.url.as_str(),
+						payload,
+					)
+					.await
 					{
 						Err(e) => {
 							spinner
@@ -224,33 +272,17 @@ impl UpContractCommand {
 						Ok(result) => result,
 					};
 
-					match get_code_hash_from_event(&upload_result, hash) {
-						Ok(r) => {
-							spinner.stop(format!("Contract uploaded: The code hash is {:?}", r));
-						},
-						Err(e) => {
-							spinner
-								.error(format!("An error occurred uploading your contract: {e}"));
-						},
-					};
-				} else {
-					let contract_info =
-						match instantiate_contract_signed(self.url.as_str(), payload).await {
-							Err(e) => {
-								spinner.error(format!(
-									"An error occurred uploading your contract: {e}"
-								));
-								terminate_node(&mut Cli, process)?;
-								Cli.outro_cancel(FAILED)?;
-								return Ok(());
-							},
-							Ok(result) => result,
-						};
-
 					let hash = contract_info.code_hash.map(|code_hash| format!("{:?}", code_hash));
+					#[cfg(feature = "wasm-contracts")]
 					display_contract_info(
 						&spinner,
 						contract_info.contract_address.to_string(),
+						hash,
+					);
+					#[cfg(feature = "polkavm-contracts")]
+					display_contract_info(
+						&spinner,
+						format!("{:?}", contract_info.contract_address),
 						hash,
 					);
 				};
@@ -294,7 +326,10 @@ impl UpContractCommand {
 				return Ok(());
 			},
 		};
-
+		// Check if the account is already mapped, and prompt the user to perform the mapping if
+		// it's required.
+		#[cfg(feature = "polkavm-contracts")]
+		map_account(instantiate_exec.opts(), &mut Cli).await?;
 		let weight_limit = if self.gas_limit.is_some() && self.proof_size.is_some() {
 			Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap())
 		} else {
@@ -372,7 +407,12 @@ impl UpContractCommand {
 		let contract_code = get_contract_code(self.path.as_ref())?;
 		let hash = contract_code.code_hash();
 		if self.upload_only {
+			#[cfg(feature = "wasm-contracts")]
 			let call_data = get_upload_payload(contract_code, self.url.as_str()).await?;
+			#[cfg(feature = "polkavm-contracts")]
+			let upload_exec = set_up_upload(self.clone().into()).await?;
+			#[cfg(feature = "polkavm-contracts")]
+			let call_data = get_upload_payload(upload_exec, contract_code, self.url.as_str()).await?;
 			Ok((call_data, hash))
 		} else {
 			let instantiate_exec = set_up_deployment(self.clone().into()).await?;
@@ -383,7 +423,10 @@ impl UpContractCommand {
 				// Frontend will do dry run and update call data.
 				Weight::zero()
 			};
+			#[cfg(feature = "wasm-contracts")]
 			let call_data = get_instantiate_payload(instantiate_exec, weight_limit)?;
+			#[cfg(feature = "polkavm-contracts")]
+			let call_data = get_instantiate_payload(instantiate_exec, weight_limit).await?;
 			Ok((call_data, hash))
 		}
 	}
@@ -442,7 +485,6 @@ impl Default for UpContractCommand {
 			dry_run: false,
 			upload_only: false,
 			skip_confirm: false,
-			valid: true,
 		}
 	}
 }
@@ -451,7 +493,11 @@ impl Default for UpContractCommand {
 mod tests {
 	use super::*;
 	use pop_common::{find_free_port, set_executable_permission};
-	use pop_contracts::{contracts_node_generator, mock_build_process, new_environment};
+	#[cfg(feature = "polkavm-contracts")]
+	use pop_contracts::AccountMapper;
+	use pop_contracts::{
+		contracts_node_generator, mock_build_process, new_environment, UploadCode,
+	};
 	use std::{
 		env,
 		process::{Child, Command},
@@ -466,9 +512,13 @@ mod tests {
 		let random_port = find_free_port(None);
 		let temp_dir = new_environment("testing")?;
 		let current_dir = env::current_dir().expect("Failed to get current directory");
+		#[cfg(feature = "wasm-contracts")]
+		let contract_file = "../pop-contracts/tests/files/testing_wasm.contract";
+		#[cfg(feature = "polkavm-contracts")]
+		let contract_file = "../pop-contracts/tests/files/testing.contract";
 		mock_build_process(
 			temp_dir.path().join("testing"),
-			current_dir.join("../pop-contracts/tests/files/testing.contract"),
+			current_dir.join(contract_file),
 			current_dir.join("../pop-contracts/tests/files/testing.json"),
 		)?;
 		let cache = temp_dir.path().join("");
@@ -535,7 +585,6 @@ mod tests {
 			upload_only: true,
 			skip_confirm: true,
 			use_wallet: true,
-			valid: true,
 		};
 
 		let rpc_client = subxt::backend::rpc::RpcClient::from_url(&up_contract_opts.url).await?;
@@ -554,10 +603,16 @@ mod tests {
 
 		// Craft encoded call data for an upload code call.
 		let contract_code = get_contract_code(up_contract_opts.path.as_ref())?;
+		#[cfg(feature = "polkavm-contracts")]
+		let upload_exec = set_up_upload(up_contract_opts.into()).await?;
+		#[cfg(feature = "polkavm-contracts")]
+		let storage_deposit_limit = upload_exec.opts().storage_deposit_limit().unwrap();
+		#[cfg(feature = "wasm-contracts")]
 		let storage_deposit_limit: Option<u128> = None;
-		let upload_code = contract_extrinsics::extrinsic_calls::UploadCode::new(
+		let upload_code = UploadCode::new(
 			contract_code,
 			storage_deposit_limit,
+			#[cfg(feature = "wasm-contracts")]
 			contract_extrinsics::upload::Determinism::Enforced,
 		);
 		let expected_call_data = upload_code.build();
@@ -587,7 +642,6 @@ mod tests {
 			upload_only: false,
 			skip_confirm: true,
 			use_wallet: true,
-			valid: true,
 		};
 
 		// Retrieve call data based on the above command options.
@@ -603,8 +657,14 @@ mod tests {
 
 		// Craft instantiate call data.
 		let weight = Weight::from_parts(200_000_000, 30_000);
+		#[cfg(feature = "wasm-contracts")]
 		let expected_call_data =
 			get_instantiate_payload(set_up_deployment(up_contract_opts.into()).await?, weight)?;
+
+		#[cfg(feature = "polkavm-contracts")]
+		let instantiate_exec = set_up_deployment(up_contract_opts.into()).await?;
+		#[cfg(feature = "polkavm-contracts")]
+		let expected_call_data = get_instantiate_payload(instantiate_exec, weight).await?;
 		// Retrieved call data matches the one crafted above.
 		assert_eq!(retrieved_call_data, expected_call_data);
 

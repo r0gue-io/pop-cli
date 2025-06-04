@@ -18,11 +18,12 @@ documentation = "https://learn.onpop.io/"
 license = "GPL-3.0"
 repository = "https://github.com/r0gue-io/pop-cli"
 rust-version = "1.81.0"
-version = "0.7.0"
+version = "0.8.1"
 
 [workspace.dependencies]
 anyhow = { version = "1.0", default-features = false }
 assert_cmd = { version = "2.0.14", default-features = false }
+bytes = { version = "1.10.1", default-features = false }
 cargo_toml = { version = "0.20.3", default-features = false }
 dirs = { version = "5.0", default-features = false }
 duct = { version = "0.13", default-features = false }
@@ -46,7 +47,7 @@ toml = { version = "0.5.0", default-features = false }
 tracing-subscriber = { version = "0.3.19", default-features = false }
 
 # networking
-reqwest = { version = "0.12", default-features = false, features = ["json", "multipart", "stream"] }
+reqwest = { version = "0.12", default-features = false, features = ["default-tls", "json", "multipart", "stream"] }
 tokio = { version = "1.0", default-features = false, features = ["macros", "process", "rt-multi-thread"] }
 url = "2.5.4"
 
@@ -54,14 +55,19 @@ url = "2.5.4"
 subxt-signer = { version = "0.38.0", default-features = false, features = ["subxt", "sr25519"] }
 subxt = { version = "0.38.0", default-features = false }
 ink_env = { version = "5.0.0", default-features = false }
+ink_env_v6 = { version = "6.0.0-alpha", package = "ink_env", default-features = false }
 sp-core = { version = "32.0.0", default-features = false }
+sp-core_inkv6 = { version = "36.1.0", package = "sp-core", default-features = false }
 sp-weights = { version = "31.0.0", default-features = false }
 scale = { package = "parity-scale-codec", version = "3.0.0", features = ["derive"] }
 scale-info = { version = "2.11.4", default-features = false, features = ["derive"] }
 scale-value = { version = "0.17.0", default-features = false, features = ["from-string", "parser-ss58"] }
 contract-build = { version = "5.0.2", default-features = false }
+contract-build_inkv6 = { version = "6.0.0-alpha", package = "contract-build", default-features = false }
 contract-extrinsics = { version = "5.0.2", default-features = false }
+contract-extrinsics_inkv6 = { version = "6.0.0-alpha", package = "contract-extrinsics", default-features = false }
 contract-transcode = { version = "5.0.2", default-features = false }
+contract-transcode_inkv6 = { version = "6.0.0-alpha", package = "contract-transcode", default-features = false }
 heck = { version = "0.5.0", default-features = false }
 
 # parachains
@@ -74,23 +80,24 @@ symlink = { version = "0.1", default-features = false }
 serde_json = { version = "1.0", default-features = false, features = ["preserve_order"] }
 serde = { version = "1.0", default-features = false, features = ["derive"] }
 srtool-lib = { version = "0.13.2", default-features = false }
-zombienet-sdk = { version = "0.2.26", default-features = false }
+zombienet-configuration = { version = "0.3.1", default-features = false }
+zombienet-sdk = { version = "0.3.1", default-features = false }
 git2_credentials = "0.13.0"
 
 # benchmarking
-cumulus-primitives-proof-size-hostfunction = "0.10.0"
-frame-benchmarking-cli = { version = "46.0.0", default-features = false }
-sc-chain-spec = { version = "41.0.0", default-features = false }
-sp-runtime = { version = "40.0.1", default-features = false }
-sp-statement-store = "15.0.0"
+cumulus-primitives-proof-size-hostfunction = "0.12.0"
+frame-benchmarking-cli = { version = "47.0.0", default-features = false }
+sc-chain-spec = { version = "42.0.0", default-features = false }
+sp-runtime = { version = "41.1.0", default-features = false }
+sp-statement-store = "20.1.0"
 
 # try-runtime
 frame-try-runtime = "0.45.0"
-sc-cli = { version = "0.50.1", default-features = false }
+sc-cli = { version = "0.51.0", default-features = false }
 sp-version = { version = "38.0.0", default-features = false }
 
 # pop-cli
-clap = { version = "4.5", default-features = false, features = ["derive"] }
+clap = { version = "4.5", default-features = false, features = ["derive", "string"] }
 cliclack = { version = "0.3.1", default-features = false }
 console = { version = "0.15", default-features = false }
 os_info = { version = "3", default-features = false }

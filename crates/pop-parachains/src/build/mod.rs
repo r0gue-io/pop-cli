@@ -504,8 +504,8 @@ impl ChainSpec {
 mod tests {
 	use super::*;
 	use crate::{
-		new_parachain::instantiate_standard_template, templates::Parachain, Config, Error,
-		Zombienet,
+		new_parachain::instantiate_standard_template, templates::Parachain, up::Zombienet, Config,
+		Error,
 	};
 	use anyhow::Result;
 	use pop_common::{
@@ -596,12 +596,12 @@ mod tests {
 		)?;
 		let mut zombienet = Zombienet::new(
 			&cache,
-			config.path().to_str().unwrap(),
+			config.path().try_into()?,
 			None,
 			None,
 			None,
 			None,
-			Some(&vec!["https://github.com/r0gue-io/pop-node#testnet-v0.4.2".to_string()]),
+			Some(&vec!["https://github.com/r0gue-io/pop-node#node-v0.3.0".to_string()]),
 		)
 		.await?;
 		let mut binary_name: String = "".to_string();

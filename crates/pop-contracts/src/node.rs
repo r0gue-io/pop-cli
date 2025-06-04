@@ -1,17 +1,28 @@
 // SPDX-License-Identifier: GPL-3.0
 
+#[cfg(feature = "v6")]
+use crate::utils::map_account::MapAccount;
+
+#[cfg(feature = "v5")]
 use contract_extrinsics::{RawParams, RpcRequest};
+#[cfg(feature = "v6")]
+use contract_extrinsics_inkv6::{RawParams, RpcRequest};
 use pop_common::{
+	polkadot_sdk::sort_by_latest_semantic_version,
 	sourcing::{
-		traits::{Source as _, *},
+		traits::{
+			enums::{Source as _, *},
+			Source as SourceT,
+		},
 		Binary,
 		GitHub::ReleaseArchive,
 		Source,
 	},
 	Error, GitHub,
 };
-use strum::{EnumProperty, VariantArray};
+use strum_macros::{EnumProperty, VariantArray};
 
+use pop_common::sourcing::{filters::prefix, ArchiveFileSpec};
 use std::{
 	env::consts::{ARCH, OS},
 	fs::File,
@@ -19,10 +30,15 @@ use std::{
 	process::{Child, Command, Stdio},
 	time::Duration,
 };
-use subxt::{dynamic::Value, SubstrateConfig};
+#[cfg(feature = "v5")]
+use subxt::dynamic::Value;
+use subxt::SubstrateConfig;
 use tokio::time::sleep;
 
+#[cfg(feature = "v5")]
 const BIN_NAME: &str = "substrate-contracts-node";
+#[cfg(feature = "v6")]
+const BIN_NAME: &str = "ink-node";
 const STARTUP: Duration = Duration::from_millis(20_000);
 
 /// Checks if the specified node is alive and responsive.
@@ -48,26 +64,29 @@ pub async fn is_chain_alive(url: url::Url) -> Result<bool, Error> {
 /// A supported chain.
 #[derive(Debug, EnumProperty, PartialEq, VariantArray)]
 pub(super) enum Chain {
-	/// Minimal Substrate node configured for smart contracts via pallet-contracts and
-	/// pallet-revive.
+	/// Minimal Substrate node configured for smart contracts via pallet-contracts.
 	#[strum(props(
 		Repository = "https://github.com/paritytech/substrate-contracts-node",
 		Binary = "substrate-contracts-node",
-		TagFormat = "{tag}",
 		Fallback = "v0.41.0"
 	))]
+	#[cfg(feature = "v5")]
+	ContractsNode,
+	/// Minimal ink node configured for smart contracts via pallet-revive.
+	#[strum(props(
+		Repository = "https://github.com/use-ink/ink-node",
+		Binary = "ink-node",
+		Fallback = "v0.43.0"
+	))]
+	#[cfg(feature = "v6")]
 	ContractsNode,
 }
 
-impl TryInto for Chain {
-	/// Attempt the conversion.
-	///
-	/// # Arguments
-	/// * `tag` - If applicable, a tag used to determine a specific release.
-	/// * `latest` - If applicable, some specifier used to determine the latest source.
-	fn try_into(&self, tag: Option<String>, latest: Option<String>) -> Result<Source, Error> {
-		let archive = archive_name_by_target()?;
-		let archive_bin_path = release_directory_by_target(tag.as_deref())?;
+#[cfg(any(feature = "v5", feature = "v6"))]
+impl SourceT for Chain {
+	type Error = Error;
+	/// Defines the source of a binary for the chain.
+	fn source(&self) -> Result<Source, Error> {
 		Ok(match self {
 			&Chain::ContractsNode => {
 				// Source from GitHub release asset
@@ -75,24 +94,25 @@ impl TryInto for Chain {
 				Source::GitHub(ReleaseArchive {
 					owner: repo.org,
 					repository: repo.name,
-					tag,
-					tag_format: self.tag_format().map(|t| t.into()),
-					archive,
-					contents: vec![(archive_bin_path, Some(self.binary().to_string()))],
-					latest,
+					tag: None,
+					tag_pattern: self.tag_pattern().map(|t| t.into()),
+					prerelease: false,
+					version_comparator: sort_by_latest_semantic_version,
+					fallback: self.fallback().into(),
+					archive: archive_name_by_target()?,
+					contents: release_directory_by_target(self.binary())?,
+					latest: None,
 				})
 			},
 		})
 	}
 }
 
-impl pop_common::sourcing::traits::Source for Chain {}
-
 /// Retrieves the latest release of the contracts node binary, resolves its version, and constructs
 /// a `Binary::Source` with the specified cache path.
 ///
 /// # Arguments
-/// * `cache` -  The cache directory path.
+/// * `cache` - The cache directory path.
 /// * `version` - The specific version used for the substrate-contracts-node (`None` will use the
 ///   latest available version).
 pub async fn contracts_node_generator(
@@ -100,16 +120,13 @@ pub async fn contracts_node_generator(
 	version: Option<&str>,
 ) -> Result<Binary, Error> {
 	let chain = &Chain::ContractsNode;
-	let name = chain.binary();
-	let releases = chain.releases().await?;
-	let tag = Binary::resolve_version(name, version, &releases, &cache);
-	let latest = version.is_none().then(|| releases.first().map(|v| v.to_string())).flatten();
-	let contracts_node = Binary::Source {
-		name: name.to_string(),
-		source: TryInto::try_into(chain, tag.clone(), latest)?,
-		cache: cache.to_path_buf(),
-	};
-	Ok(contracts_node)
+	let name = chain.binary().to_string();
+	let source = chain
+		.source()?
+		.resolve(&name, version, &cache, |f| prefix(f, &name))
+		.await
+		.into();
+	Ok(Binary::Source { name, source, cache })
 }
 
 /// Runs the latest version of the `substrate-contracts-node` in the background.
@@ -137,8 +154,12 @@ pub async fn run_contracts_node(
 	// Wait until the node is ready
 	sleep(STARTUP).await;
 
+	#[cfg(feature = "v5")]
 	let data = Value::from_bytes(subxt::utils::to_hex("initialize contracts node"));
+	#[cfg(feature = "v5")]
 	let payload = subxt::dynamic::tx("System", "remark", [data].to_vec());
+	#[cfg(feature = "v6")]
+	let payload = MapAccount::new().build();
 
 	let client = subxt::client::OnlineClient::<SubstrateConfig>::from_url(format!(
 		"ws://127.0.0.1:{}",
@@ -162,23 +183,47 @@ fn archive_name_by_target() -> Result<String, Error> {
 		_ => Err(Error::UnsupportedPlatform { arch: ARCH, os: OS }),
 	}
 }
-
-fn release_directory_by_target(tag: Option<&str>) -> Result<&'static str, Error> {
-	// The structure of the binary changed in v0.42.0
-	let is_old_structure = matches!(tag, Some(tag) if tag < "v0.42.0");
+#[cfg(feature = "v6")]
+fn release_directory_by_target(binary: &str) -> Result<Vec<ArchiveFileSpec>, Error> {
 	match OS {
-		"macos" =>
-			if is_old_structure {
-				Ok("artifacts/substrate-contracts-node-mac/substrate-contracts-node")
-			} else {
-				Ok("substrate-contracts-node-mac/substrate-contracts-node")
-			},
-		"linux" =>
-			if is_old_structure {
-				Ok("artifacts/substrate-contracts-node-linux/substrate-contracts-node")
-			} else {
-				Ok("substrate-contracts-node-linux/substrate-contracts-node")
-			},
+		"macos" => Ok("ink-node-mac/ink-node"),
+		"linux" => Ok("ink-node-linux/ink-node"),
+		_ => Err(Error::UnsupportedPlatform { arch: ARCH, os: OS }),
+	}
+	.map(|name| vec![ArchiveFileSpec::new(name.into(), Some(binary.into()), true)])
+}
+
+#[cfg(feature = "v5")]
+fn release_directory_by_target(binary: &str) -> Result<Vec<ArchiveFileSpec>, Error> {
+	match OS {
+		"macos" => Ok(vec![
+			// < v0.42.0
+			ArchiveFileSpec::new(
+				"artifacts/substrate-contracts-node-mac/substrate-contracts-node".into(),
+				Some(binary.into()),
+				false,
+			),
+			// >=v0.42.0
+			ArchiveFileSpec::new(
+				"substrate-contracts-node-mac/substrate-contracts-node".into(),
+				Some(binary.into()),
+				false,
+			),
+		]),
+		"linux" => Ok(vec![
+			// < v0.42.0
+			ArchiveFileSpec::new(
+				"artifacts/substrate-contracts-node-linux/substrate-contracts-node".into(),
+				Some(binary.into()),
+				false,
+			),
+			// >=v0.42.0
+			ArchiveFileSpec::new(
+				"substrate-contracts-node-linux/substrate-contracts-node".into(),
+				Some(binary.into()),
+				false,
+			),
+		]),
 		_ => Err(Error::UnsupportedPlatform { arch: ARCH, os: OS }),
 	}
 }
@@ -194,9 +239,9 @@ mod tests {
 	async fn directory_path_by_target() -> Result<()> {
 		let archive = archive_name_by_target();
 		if cfg!(target_os = "macos") {
-			assert_eq!(archive?, "substrate-contracts-node-mac-universal.tar.gz");
+			assert_eq!(archive?, format!("{BIN_NAME}-mac-universal.tar.gz"));
 		} else if cfg!(target_os = "linux") {
-			assert_eq!(archive?, "substrate-contracts-node-linux.tar.gz");
+			assert_eq!(archive?, format!("{BIN_NAME}-linux.tar.gz"));
 		} else {
 			assert!(archive.is_err())
 		}
@@ -215,30 +260,42 @@ mod tests {
 	#[tokio::test]
 	async fn contracts_node_generator_works() -> anyhow::Result<()> {
 		let expected = Chain::ContractsNode;
-		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
-		let cache = temp_dir.path().join("cache");
-		let version = "v0.40.0";
-		let binary = contracts_node_generator(cache.clone(), Some(version)).await?;
 		let archive = archive_name_by_target()?;
-		let archive_bin_path = release_directory_by_target(Some(version))?;
-		assert!(matches!(binary, Binary::Source { name, source, cache}
-			if name == expected.binary()  &&
-				source == Source::GitHub(ReleaseArchive {
-					owner: "paritytech".to_string(),
-					repository: "substrate-contracts-node".to_string(),
-					tag: Some(version.to_string()),
-					tag_format: expected.tag_format().map(|t| t.into()),
-					archive: archive,
-					contents: vec![(archive_bin_path, Some(binary.name().to_string()))],
-					latest: None,
-				})
-				&&
-			cache == cache
-		));
+		let contents = release_directory_by_target(BIN_NAME)?;
+		#[cfg(feature = "v5")]
+		let owner = "paritytech";
+		#[cfg(feature = "v5")]
+		let versions = ["v0.41.0", "v0.42.0"];
+		#[cfg(feature = "v6")]
+		let owner = "use-ink";
+		#[cfg(feature = "v6")]
+		let versions = ["v0.43.0"];
+		for version in versions {
+			let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
+			let cache = temp_dir.path().join("cache");
+			let binary = contracts_node_generator(cache.clone(), Some(version)).await?;
+
+			assert!(matches!(binary, Binary::Source { name, source, cache}
+				if name == expected.binary() &&
+					*source == Source::GitHub(ReleaseArchive {
+						owner: owner.to_string(),
+						repository: BIN_NAME.to_string(),
+							tag: Some(version.to_string()),
+							tag_pattern: expected.tag_pattern().map(|t| t.into()),
+							prerelease: false,
+							version_comparator: sort_by_latest_semantic_version,
+							fallback: expected.fallback().into(),
+							archive: archive.clone(),
+							contents: contents.clone(),
+							latest: None,
+						})
+					&&
+				cache == cache
+			));
+		}
 		Ok(())
 	}
 
-	#[ignore = "Works fine locally but is causing issues when running tests in parallel in the CI environment."]
 	#[tokio::test]
 	async fn run_contracts_node_works() -> Result<(), Error> {
 		let random_port = find_free_port(None);
@@ -248,14 +305,20 @@ mod tests {
 		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
 		let cache = temp_dir.path().join("");
 
-		let version = "v0.40.0";
+		#[cfg(feature = "v5")]
+		let version = "v0.42.0";
+		#[cfg(feature = "v6")]
+		let version = "v0.43.0";
 		let binary = contracts_node_generator(cache.clone(), Some(version)).await?;
 		binary.source(false, &(), true).await?;
-		let process = run_contracts_node(binary.path(), None, 9947).await?;
+		let process = run_contracts_node(binary.path(), None, random_port).await?;
 
 		// Check if the node is alive
 		assert!(is_chain_alive(local_url).await?);
-		assert!(cache.join("substrate-contracts-node-v0.40.0").exists());
+		#[cfg(feature = "v5")]
+		assert!(cache.join("substrate-contracts-node-v0.42.0").exists());
+		#[cfg(feature = "v6")]
+		assert!(cache.join("ink-node-v0.43.0").exists());
 		assert!(!cache.join("artifacts").exists());
 		// Stop the process contracts-node
 		Command::new("kill")

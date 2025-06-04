@@ -1,10 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0
 
-pub use pop_common::{
+use pop_common::{
 	git::GitHub,
+	polkadot_sdk::sort_by_latest_stable_version,
 	sourcing::{
-		traits::{Source as _, *},
-		Binary,
+		filters::prefix,
+		traits::{
+			enums::{Source as _, *},
+			Source as SourceT,
+		},
+		ArchiveFileSpec, Binary,
 		GitHub::*,
 		Source,
 	},
@@ -18,38 +23,33 @@ pub(super) enum BenchmarkingCli {
 	#[strum(props(
 		Repository = "https://github.com/r0gue-io/polkadot",
 		Binary = "frame-omni-bencher",
-		Fallback = "polkadot-stable2412"
+		TagPattern = "polkadot-{version}",
+		Fallback = "stable2412"
 	))]
 	OmniBencher,
 }
 
-impl TryInto for BenchmarkingCli {
-	/// Attempt the conversion.
-	///
-	/// # Arguments
-	/// * `tag` - If applicable, a tag used to determine a specific release.
-	/// * `latest` - If applicable, some specifier used to determine the latest source.
-	fn try_into(
-		&self,
-		tag: Option<String>,
-		latest: Option<String>,
-	) -> Result<pop_common::sourcing::Source, Error> {
+impl SourceT for BenchmarkingCli {
+	type Error = Error;
+	/// Defines the source of the binary required for benchmarking.
+	fn source(&self) -> Result<Source, Error> {
 		// Source from GitHub release asset
 		let repo = GitHub::parse(self.repository())?;
 		let binary = self.binary();
 		Ok(Source::GitHub(ReleaseArchive {
 			owner: repo.org,
 			repository: repo.name,
-			tag,
-			tag_format: self.tag_format().map(|t| t.into()),
+			tag: None,
+			tag_pattern: self.tag_pattern().map(|t| t.into()),
+			prerelease: false,
+			version_comparator: sort_by_latest_stable_version,
+			fallback: self.fallback().into(),
 			archive: format!("{binary}-{}.tar.gz", target()?),
-			contents: vec![(binary, Some(binary.to_string()))],
-			latest,
+			contents: vec![ArchiveFileSpec::new(binary.into(), Some(binary.into()), true)],
+			latest: None,
 		}))
 	}
 }
-
-impl pop_common::sourcing::traits::Source for BenchmarkingCli {}
 
 /// Generate the source of the `frame-omni-bencher` binary on the remote repository.
 ///
@@ -61,16 +61,13 @@ pub async fn omni_bencher_generator(
 	version: Option<&str>,
 ) -> Result<Binary, Error> {
 	let cli = BenchmarkingCli::OmniBencher;
-	let name = cli.binary();
-	let releases = cli.releases().await?;
-	let tag = Binary::resolve_version(name, version, &releases, &cache);
-	// Only set latest when caller has not explicitly specified a version to use
-	let latest = version.is_none().then(|| releases.first().map(|v| v.to_string())).flatten();
-	let binary = Binary::Source {
-		name: name.to_string(),
-		source: TryInto::try_into(&cli, tag, latest)?,
-		cache: cache.to_path_buf(),
-	};
+	let name = cli.binary().to_string();
+	let source = cli
+		.source()?
+		.resolve(&name, version, cache.as_path(), |f| prefix(f, &name))
+		.await
+		.into();
+	let binary = Binary::Source { name, source, cache: cache.to_path_buf() };
 	Ok(binary)
 }
 
@@ -83,18 +80,21 @@ mod tests {
 	async fn omni_bencher_generator_works() -> Result<(), Error> {
 		let temp_dir = tempdir()?;
 		let temp_dir_path = temp_dir.into_path();
-		let version = "polkadot-stable2412";
-		let binary = omni_bencher_generator(temp_dir_path.clone(), None).await?;
+		let version = "polkadot-stable2412-4";
+		let binary = omni_bencher_generator(temp_dir_path.clone(), Some(version)).await?;
 		assert!(matches!(binary, Binary::Source { name: _, source, cache }
 				if source == Source::GitHub(ReleaseArchive {
 					owner: "r0gue-io".to_string(),
 					repository: "polkadot".to_string(),
 					tag: Some(version.to_string()),
-					tag_format: None,
+					tag_pattern: Some("polkadot-{version}".into()),
+					prerelease: false,
+					version_comparator: sort_by_latest_stable_version,
+					fallback: "stable2412".to_string(),
 					archive: format!("frame-omni-bencher-{}.tar.gz", target()?),
-					contents: ["frame-omni-bencher"].map(|b| (b, Some(b.to_string()))).to_vec(),
+					contents: ["frame-omni-bencher"].map(|b| ArchiveFileSpec::new(b.into(), Some(b.into()), true)).to_vec(),
 					latest: binary.latest().map(|l| l.to_string()),
-				}) &&
+				}).into() &&
 				cache == temp_dir_path.as_path()
 		));
 		Ok(())

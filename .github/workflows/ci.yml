@@ -10,6 +10,11 @@ env:
   CARGO_TERM_COLOR: always
   GITHUB_ACTOR: pop-cli
 
+concurrency:
+  # Cancel any in-progress jobs for the same pull request
+  group: ${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -45,6 +50,9 @@ jobs:
       - name: Check contracts feature
         run: cargo check --no-default-features --features contract
 
+      - name: Check polkavm-contracts feature
+        run: cargo check --no-default-features --features "polkavm-contracts, v6" -p pop-cli -p pop-contracts
+
       - name: Check parachain feature
         run: cargo check --no-default-features --features parachain
 
@@ -75,7 +83,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: EmbarkStudios/cargo-deny-action@v2
+      - name: Run cargo-deny
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
+          arguments: '--no-default-features'
 
   docker:
     runs-on: ubuntu-latest
@@ -105,6 +117,8 @@ jobs:
   unit-tests:
     needs: lint
     runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: "-Dwarnings"
     steps:
       - uses: actions/checkout@v4
 
@@ -112,8 +126,32 @@ jobs:
         with:
           git-user: ${{ env.GITHUB_ACTOR }}
 
+      - name: Run unit tests (no default features)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: cargo test --lib --bins --no-default-features
+
       - name: Run unit tests
-        run: cargo test --lib --bins
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cargo test --lib --bins --no-default-features --features contract
+          cargo test --lib --bins --no-default-features --features parachain
+  
+  polkavm-unit-tests:
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: "./.github/actions/init"
+        with:
+          git-user: ${{ env.GITHUB_ACTOR }}
+
+      - name: Run unit tests for polkavm-contracts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: cargo test --lib --bins --no-default-features --features "polkavm-contracts, v6" -p pop-cli -p pop-contracts
 
   coverage:
     needs: lint
@@ -129,7 +167,7 @@ jobs:
         uses: taiki-e/install-action@cargo-llvm-cov
 
       - name: Generate code coverage
-        run: cargo llvm-cov --all-features --workspace --lib --bins --codecov --output-path codecov.json
+        run: cargo llvm-cov --workspace --lib --bins --no-default-features --features "default experimental parachain telemetry v5 wasm-contracts wallet-integration" --codecov --output-path codecov.json
 
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v4
@@ -184,6 +222,8 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Run integration tests
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: cargo test --no-default-features --features contract --test contract
 
   parachain-integration-tests:
@@ -221,4 +261,6 @@ jobs:
           protoc --version
 
       - name: Run integration tests
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: cargo test --no-default-features --features parachain --test parachain

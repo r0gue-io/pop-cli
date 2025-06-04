@@ -33,7 +33,7 @@ use strum::{EnumMessage, VariantArray};
 const BINARY_NAME: &str = "try-runtime";
 pub(crate) const DEFAULT_BLOCK_HASH: &str = "0x0000000000";
 pub(crate) const DEFAULT_BLOCK_TIME: u64 = 6000;
-pub(crate) const DEFAULT_LIVE_NODE_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";
+pub(crate) const DEFAULT_LIVE_NODE_URL: &str = "wss://rpc2.paseo.popnetwork.xyz";
 pub(crate) const DEFAULT_SNAPSHOT_PATH: &str = "your-parachain.snap";
 const TARGET_BINARY_VERSION: SemanticVersion = SemanticVersion(0, 8, 0);
 
@@ -213,14 +213,16 @@ pub(crate) fn update_runtime_source(
 		if no_build {
 			cli.warning("NOTE: Make sure your runtime is built with `try-runtime` feature.")?;
 		}
-		*runtime = Runtime::Path(ensure_runtime_binary_exists(
+		let (binary_path, _) = ensure_runtime_binary_exists(
 			cli,
 			&current_dir().unwrap_or(PathBuf::from("./")),
 			profile.as_ref().ok_or_else(|| anyhow::anyhow!("No profile provided"))?,
 			&[Feature::TryRuntime],
 			!no_build,
 			false,
-		)?);
+			&None,
+		)?;
+		*runtime = Runtime::Path(binary_path);
 	}
 	Ok(())
 }
@@ -791,6 +793,7 @@ mod tests {
 						"MessageQueue",
 						"Messaging",
 						"Motion",
+						"MultiBlockMigrations",
 						"Multisig",
 						"NftFractionalization",
 						"Nfts",
@@ -808,6 +811,7 @@ mod tests {
 						"TransactionPayment",
 						"Treasury",
 						"Utility",
+						"WeightReclaim",
 						"XcmpQueue",
 					]
 					.iter()
@@ -1181,9 +1185,8 @@ mod tests {
 	async fn try_runtime_version_works() -> anyhow::Result<()> {
 		let cache_path = tempdir().expect("Could create temp dir");
 		let path = source_try_runtime_binary(&mut MockCli::new(), cache_path.path(), true).await?;
-		assert_eq!(
-			SemanticVersion::try_from(path.to_str().unwrap().to_string())?,
-			SemanticVersion(0, 8, 0)
+		assert!(
+			SemanticVersion::try_from(path.to_str().unwrap().to_string())? >= TARGET_BINARY_VERSION
 		);
 		Ok(())
 	}

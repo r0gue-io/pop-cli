@@ -52,20 +52,24 @@ pub fn ensure_runtime_binary_exists(
 	features: &[Feature],
 	force: bool,
 	deterministic: bool,
-) -> anyhow::Result<PathBuf> {
+	default_runtime_path: &Option<PathBuf>,
+) -> anyhow::Result<(PathBuf, PathBuf)> {
 	let target_path = mode.target_directory(project_path).join("wbuild");
-	let runtime_path = guide_user_to_input_runtime_path(cli, project_path)?;
+	let runtime_path = match default_runtime_path {
+		Some(path) => path.clone(),
+		None => guide_user_to_input_runtime_path(cli, project_path)?,
+	};
 
 	// Return if the user has specified a path to the runtime binary.
 	if runtime_path.extension() == Some(OsStr::new("wasm")) {
-		return Ok(runtime_path);
+		return Ok((runtime_path.clone(), runtime_path));
 	}
 	// Rebuild the runtime if the binary is not found or the user has forced the build process.
 	if force {
 		return build_runtime(cli, &runtime_path, &target_path, mode, features, deterministic);
 	}
 	match runtime_binary_path(&target_path, &runtime_path) {
-		Ok(binary_path) => Ok(binary_path),
+		Ok(binary_path) => Ok((binary_path, runtime_path)),
 		_ => {
 			cli.info("📦 Runtime binary was not found. The runtime will be built locally.")?;
 			build_runtime(cli, &runtime_path, &target_path, mode, features, deterministic)
@@ -73,7 +77,7 @@ pub fn ensure_runtime_binary_exists(
 	}
 }
 
-/// Build a runtime.
+/// Build a runtime. Returns the path to the runtime binary and the path to the runtime source.
 #[cfg(feature = "parachain")]
 pub(crate) fn build_runtime(
 	cli: &mut impl Cli,
@@ -82,7 +86,7 @@ pub(crate) fn build_runtime(
 	mode: &Profile,
 	features: &[Feature],
 	deterministic: bool,
-) -> anyhow::Result<PathBuf> {
+) -> anyhow::Result<(PathBuf, PathBuf)> {
 	cli.warning("NOTE: this may take some time...")?;
 	let binary_path = if deterministic {
 		let spinner = spinner();
@@ -101,7 +105,7 @@ pub(crate) fn build_runtime(
 	cli.info(format!("The runtime was built in {mode} mode."))?;
 	cli.success("\n✅ Runtime built successfully.\n")?;
 	print_build_output(cli, &binary_path)?;
-	Ok(binary_path)
+	Ok((binary_path, runtime_path.into()))
 }
 
 #[cfg(feature = "parachain")]
@@ -315,17 +319,40 @@ mod tests {
 			let mut cli = expect_input_runtime_path(&temp_path, &binary_path);
 			File::create(binary_path.as_path())?;
 			assert_eq!(
-				ensure_runtime_binary_exists(&mut cli, &temp_path, profile, &[], true, false)?,
-				binary_path.canonicalize()?
+				ensure_runtime_binary_exists(
+					&mut cli,
+					&temp_path,
+					profile,
+					&[],
+					true,
+					false,
+					&None
+				)?,
+				(binary_path.canonicalize()?, binary_path.canonicalize()?)
 			);
 			cli.verify()?;
+
+			// Provide a path to a runtime binary.
+			assert_eq!(
+				ensure_runtime_binary_exists(
+					&mut MockCli::new(),
+					&temp_path,
+					profile,
+					&[],
+					true,
+					false,
+					&Some(binary_path.canonicalize()?)
+				)?,
+				(binary_path.canonicalize()?, binary_path.canonicalize()?)
+			);
 		}
+
 		Ok(())
 	}
 
 	#[test]
 	fn build_runtime_works() -> anyhow::Result<()> {
-		let temp_dir = tempfile::tempdir()?;
+		let temp_dir = tempdir()?;
 		let path = temp_dir.path();
 		let runtime_name = "mock_runtime";
 		cmd("cargo", ["new", "--lib", runtime_name]).dir(&path).run()?;

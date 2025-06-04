@@ -1,4 +1,4 @@
-# pop up parachain -f ./tests/networks/westend+asset-hub.toml
+# pop up network ./tests/networks/westend+asset-hub.toml
 
 [relaychain]
 chain = "westend-local"

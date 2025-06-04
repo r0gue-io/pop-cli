@@ -8,17 +8,28 @@ use crate::{
 	},
 };
 use clap::{Args, Subcommand};
-use std::{
-	fmt::{Display, Formatter, Result},
-	path::PathBuf,
+use std::path::PathBuf;
+#[cfg(feature = "parachain")]
+use {
+	pop_parachains::up::Relay,
+	std::fmt::{Display, Formatter, Result},
 };
 
-#[cfg(feature = "contract")]
+#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 mod contract;
 #[cfg(feature = "parachain")]
-mod network;
+pub(super) mod network;
 #[cfg(feature = "parachain")]
 mod rollup;
+
+#[cfg(feature = "parachain")]
+const KUSAMA: u8 = Relay::Kusama as u8;
+#[cfg(feature = "parachain")]
+const PASEO: u8 = Relay::Paseo as u8;
+#[cfg(feature = "parachain")]
+const POLKADOT: u8 = Relay::Polkadot as u8;
+#[cfg(feature = "parachain")]
+const WESTEND: u8 = Relay::Westend as u8;
 
 /// Arguments for launching or deploying a project.
 #[derive(Args, Clone)]
@@ -26,12 +37,11 @@ mod rollup;
 #[command(args_conflicts_with_subcommands = true)]
 pub(crate) struct UpArgs {
 	/// Path to the project directory.
-	// TODO: Introduce the short option in v0.8.0 once deprecated parachain command is removed.
-	#[arg(long, global = true)]
+	#[arg(long)]
 	pub path: Option<PathBuf>,
 
 	/// Directory path without flag for your project [default: current directory]
-	#[arg(value_name = "PATH", index = 1, global = true, conflicts_with = "path")]
+	#[arg(value_name = "PATH", index = 1, conflicts_with = "path")]
 	pub path_pos: Option<PathBuf>,
 
 	#[command(flatten)]
@@ -39,7 +49,7 @@ pub(crate) struct UpArgs {
 	pub(crate) rollup: rollup::UpCommand,
 
 	#[command(flatten)]
-	#[cfg(feature = "contract")]
+	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 	pub(crate) contract: contract::UpContractCommand,
 
 	#[command(subcommand)]
@@ -49,22 +59,26 @@ pub(crate) struct UpArgs {
 /// Launch a local network or deploy a smart contract.
 #[derive(Subcommand, Clone)]
 pub(crate) enum Command {
+	/// Launch a local network by specifying a network configuration file.
 	#[cfg(feature = "parachain")]
-	/// Launch a local network.
-	#[clap(alias = "n")]
-	Network(network::ZombienetCommand),
+	#[clap(aliases = ["n", "parachain"])]
+	Network(network::ConfigFileCommand),
+	/// Launch a local Paseo network.
 	#[cfg(feature = "parachain")]
-	/// [DEPRECATED] Launch a local network (will be removed in v0.8.0).
-	#[clap(alias = "p", hide = true)]
-	#[deprecated(since = "0.7.0", note = "will be removed in v0.8.0")]
-	#[allow(rustdoc::broken_intra_doc_links)]
-	Parachain(network::ZombienetCommand),
-	#[cfg(feature = "contract")]
-	/// [DEPRECATED] Deploy a smart contract (will be removed in v0.8.0).
-	#[clap(alias = "c", hide = true)]
-	#[deprecated(since = "0.7.0", note = "will be removed in v0.8.0")]
-	#[allow(rustdoc::broken_intra_doc_links)]
-	Contract(contract::UpContractCommand),
+	#[clap()]
+	Paseo(network::BuildCommand<PASEO>),
+	/// Launch a local Kusama network.
+	#[cfg(feature = "parachain")]
+	#[clap()]
+	Kusama(network::BuildCommand<KUSAMA>),
+	/// Launch a local Polkadot network.
+	#[cfg(feature = "parachain")]
+	#[clap()]
+	Polkadot(network::BuildCommand<POLKADOT>),
+	/// Launch a local Westend network.
+	#[cfg(feature = "parachain")]
+	#[clap()]
+	Westend(network::BuildCommand<WESTEND>),
 }
 
 impl Command {
@@ -80,11 +94,10 @@ impl Command {
 	) -> anyhow::Result<Project> {
 		let project_path = get_project_path(args.path.clone(), args.path_pos.clone());
 		// If only contract feature enabled, deploy a contract
-		#[cfg(feature = "contract")]
+		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 		if pop_contracts::is_supported(project_path.as_deref())? {
 			let mut cmd = args.contract;
 			cmd.path = project_path;
-			cmd.valid = true; // To handle deprecated command, remove in v0.8.0.
 			cmd.execute().await?;
 			return Ok(Contract);
 		}
@@ -102,37 +115,43 @@ impl Command {
 	}
 }
 
+#[cfg(feature = "parachain")]
 impl Display for Command {
 	fn fmt(&self, f: &mut Formatter<'_>) -> Result {
 		match self {
-			#[cfg(feature = "parachain")]
 			Command::Network(_) => write!(f, "network"),
-			#[cfg(feature = "parachain")]
-			#[allow(deprecated)]
-			Command::Parachain(_) => write!(f, "chain"),
-			#[cfg(feature = "contract")]
-			#[allow(deprecated)]
-			Command::Contract(_) => write!(f, "contract"),
+			Command::Paseo(_) => write!(f, "paseo"),
+			Command::Kusama(_) => write!(f, "kusama"),
+			Command::Polkadot(_) => write!(f, "polkadot"),
+			Command::Westend(_) => write!(f, "westend"),
 		}
 	}
 }
 
 #[cfg(test)]
 mod tests {
-	use super::{contract::UpContractCommand, *};
-	use crate::style::format_url;
+	use super::*;
 	use cli::MockCli;
 	use duct::cmd;
-	use pop_contracts::{mock_build_process, new_environment};
-	use pop_parachains::{instantiate_template_dir, Config, DeploymentProvider, Parachain};
-	use std::env;
-	use strum::VariantArray;
 	use url::Url;
+	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
+	use {
+		super::contract::UpContractCommand,
+		pop_contracts::{mock_build_process, new_environment},
+		std::env,
+	};
+	#[cfg(feature = "parachain")]
+	use {
+		crate::style::format_url,
+		pop_parachains::{instantiate_template_dir, Config, DeploymentProvider, Parachain},
+		strum::VariantArray,
+	};
 
 	fn create_up_args(project_path: PathBuf) -> anyhow::Result<UpArgs> {
 		Ok(UpArgs {
 			path: Some(project_path),
 			path_pos: None,
+			#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 			contract: UpContractCommand {
 				path: None,
 				constructor: "new".to_string(),
@@ -147,14 +166,15 @@ mod tests {
 				dry_run: true,
 				upload_only: true,
 				skip_confirm: false,
-				valid: false,
 			},
+			#[cfg(feature = "parachain")]
 			rollup: rollup::UpCommand::default(),
 			command: None,
 		})
 	}
 
 	#[tokio::test]
+	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 	async fn detects_contract_correctly() -> anyhow::Result<()> {
 		let temp_dir = new_environment("testing")?;
 		let mut current_dir = env::current_dir().expect("Failed to get current directory");
@@ -171,6 +191,7 @@ mod tests {
 	}
 
 	#[tokio::test]
+	#[cfg(feature = "parachain")]
 	async fn detects_rollup_correctly() -> anyhow::Result<()> {
 		let temp_dir = tempfile::tempdir()?;
 		let name = "rollup";
@@ -226,9 +247,9 @@ mod tests {
 	}
 
 	#[test]
+	#[allow(deprecated)]
 	fn command_display_works() {
+		#[cfg(feature = "parachain")]
 		assert_eq!(Command::Network(Default::default()).to_string(), "network");
-		assert_eq!(Command::Parachain(Default::default()).to_string(), "chain");
-		assert_eq!(Command::Contract(Default::default()).to_string(), "contract");
 	}
 }

@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0
 
-mod binary;
+use crate::{api, git::GITHUB_API_CLIENT, Git, Release, SortedSlice, Status};
 pub use binary::*;
-
-use crate::{Git, Status, APP_USER_AGENT};
 use duct::cmd;
 use flate2::read::GzDecoder;
+use regex::Regex;
 use reqwest::StatusCode;
 use std::{
+	collections::HashMap,
+	error::Error as _,
 	fs::{copy, metadata, read_dir, rename, File},
 	io::{BufRead, Seek, SeekFrom, Write},
 	os::unix::fs::PermissionsExt,
@@ -19,17 +20,22 @@ use tempfile::{tempdir, tempfile};
 use thiserror::Error;
 use url::Url;
 
+mod binary;
+
 /// An error relating to the sourcing of binaries.
 #[derive(Error, Debug)]
 pub enum Error {
 	/// An error occurred.
 	#[error("Anyhow error: {0}")]
 	AnyhowError(#[from] anyhow::Error),
+	/// An API error occurred.
+	#[error("API error: {0}")]
+	ApiError(#[from] api::Error),
 	/// An error occurred sourcing a binary from an archive.
 	#[error("Archive error: {0}")]
 	ArchiveError(String),
 	/// A HTTP error occurred.
-	#[error("HTTP error: {0}")]
+	#[error("HTTP error: {0} caused by {:?}", reqwest::Error::source(.0))]
 	HttpError(#[from] reqwest::Error),
 	/// An IO error occurred.
 	#[error("IO error: {0}")]
@@ -63,7 +69,7 @@ pub enum Source {
 		manifest: Option<PathBuf>,
 		/// The name of the package to be built.
 		package: String,
-		/// Any additional build artifacts which are required.
+		/// Any additional build artifacts that are required.
 		artifacts: Vec<String>,
 	},
 	/// A GitHub repository.
@@ -82,7 +88,6 @@ impl Source {
 	/// Sources the binary.
 	///
 	/// # Arguments
-	///
 	/// * `cache` - the cache to be used.
 	/// * `release` - whether any binaries needing to be built should be done so using the release
 	///   profile.
@@ -98,8 +103,10 @@ impl Source {
 		use Source::*;
 		match self {
 			Archive { url, contents } => {
-				let contents: Vec<_> =
-					contents.iter().map(|name| (name.as_str(), cache.join(name))).collect();
+				let contents: Vec<_> = contents
+					.iter()
+					.map(|name| ArchiveFileSpec::new(name.into(), Some(cache.join(name)), true))
+					.collect();
 				from_archive(url, &contents, status).await
 			},
 			Git { url, reference, manifest, package, artifacts } => {
@@ -126,6 +133,30 @@ impl Source {
 			Url { url, name } => from_url(url, &cache.join(name), status).await,
 		}
 	}
+
+	/// Performs any additional processing required to resolve the binary from a source.
+	///
+	/// Determines whether the binary already exists locally, using the latest version available,
+	/// and whether there are any newer versions available
+	///
+	/// # Arguments
+	/// * `name` - the name of the binary.
+	/// * `version` - a specific version of the binary required.
+	/// * `cache` - the cache being used.
+	/// * `cache_filter` - a filter to be used to determine whether a cached binary is eligible.
+	pub async fn resolve(
+		self,
+		name: &str,
+		version: Option<&str>,
+		cache: &Path,
+		cache_filter: impl for<'a> FnOnce(&'a str) -> bool + Copy,
+	) -> Self {
+		match self {
+			Source::GitHub(github) =>
+				Source::GitHub(github.resolve(name, version, cache, cache_filter).await),
+			_ => self,
+		}
+	}
 }
 
 /// A binary sourced from GitHub.
@@ -139,13 +170,19 @@ pub enum GitHub {
 		repository: String,
 		/// The release tag to be used, where `None` is latest.
 		tag: Option<String>,
-		/// If applicable, any formatting for the release tag.
-		tag_format: Option<String>,
+		/// If applicable, a pattern to be used to determine applicable releases along with
+		/// determining subcomponents from a release tag - e.g. `polkadot-{version}`.
+		tag_pattern: Option<TagPattern>,
+		/// Whether pre-releases are to be used.
+		prerelease: bool,
+		/// A function that orders candidates for selection when multiple versions are available.
+		version_comparator: for<'a> fn(&'a mut [String]) -> SortedSlice<'a, String>,
+		/// The version to use if an appropriate version cannot be resolved.
+		fallback: String,
 		/// The name of the archive (asset) to download.
 		archive: String,
-		/// The archive contents required, including the binary name.
-		/// The second parameter can be used to specify another name for the binary once extracted.
-		contents: Vec<(&'static str, Option<String>)>,
+		/// The archive contents required.
+		contents: Vec<ArchiveFileSpec>,
 		/// If applicable, the latest release tag available.
 		latest: Option<String>,
 	},
@@ -161,7 +198,7 @@ pub enum GitHub {
 		manifest: Option<PathBuf>,
 		/// The name of the package to be built.
 		package: String,
-		/// Any additional artifacts which are required.
+		/// Any additional artifacts that are required.
 		artifacts: Vec<String>,
 	},
 }
@@ -185,30 +222,39 @@ impl GitHub {
 	) -> Result<(), Error> {
 		use GitHub::*;
 		match self {
-			ReleaseArchive { owner, repository, tag, tag_format, archive, contents, .. } => {
-				// Complete url and contents based on tag
+			ReleaseArchive { owner, repository, tag, tag_pattern, archive, contents, .. } => {
+				// Complete url and contents based on the tag
 				let base_url = format!("https://github.com/{owner}/{repository}/releases");
 				let url = match tag.as_ref() {
 					Some(tag) => {
-						let tag = tag_format.as_ref().map_or_else(
-							|| tag.to_string(),
-							|tag_format| tag_format.replace("{tag}", tag),
-						);
 						format!("{base_url}/download/{tag}/{archive}")
 					},
 					None => format!("{base_url}/latest/download/{archive}"),
 				};
 				let contents: Vec<_> = contents
 					.iter()
-					.map(|(name, target)| match tag.as_ref() {
-						Some(tag) => (
-							*name,
-							cache.join(format!(
-								"{}-{tag}",
-								target.as_ref().map_or(*name, |t| t.as_str())
-							)),
+					.map(|ArchiveFileSpec { name, target, required }| match tag.as_ref() {
+						Some(tag) => ArchiveFileSpec::new(
+							name.into(),
+							Some(cache.join(format!(
+									"{}-{}",
+									target.as_ref().map_or(name.as_str(), |t| t
+										.to_str()
+										.expect("expected target file name to be valid utf-8")),
+									tag_pattern
+										.as_ref()
+										.and_then(|pattern| pattern.version(tag))
+										.unwrap_or(tag)
+								))),
+							*required,
 						),
-						None => (*name, cache.join(target.as_ref().map_or(*name, |t| t.as_str()))),
+						None => ArchiveFileSpec::new(
+							name.into(),
+							Some(cache.join(target.as_ref().map_or(name.as_str(), |t| {
+								t.to_str().expect("expected target file name to be valid utf-8")
+							}))),
+							*required,
+						),
 					})
 					.collect();
 				from_archive(&url, &contents, status).await
@@ -237,6 +283,221 @@ impl GitHub {
 			},
 		}
 	}
+
+	/// Performs any additional processing required to resolve the binary from a source.
+	///
+	/// Determines whether the binary already exists locally, using the latest version available,
+	/// and whether there are any newer versions available
+	///
+	/// # Arguments
+	/// * `name` - the name of the binary.
+	/// * `version` - a specific version of the binary required.
+	/// * `cache` - the cache being used.
+	/// * `cache_filter` - a filter to be used to determine whether a cached binary is eligible.
+	async fn resolve(
+		self,
+		name: &str,
+		version: Option<&str>,
+		cache: &Path,
+		cache_filter: impl FnOnce(&str) -> bool + Copy,
+	) -> Self {
+		match self {
+			Self::ReleaseArchive {
+				owner,
+				repository,
+				tag: _,
+				tag_pattern,
+				prerelease,
+				version_comparator,
+				fallback,
+				archive,
+				contents,
+				latest: _,
+			} => {
+				// Get releases, defaulting to the specified fallback version if there's an error.
+				let repo = crate::GitHub::new(owner.as_str(), repository.as_str());
+				let mut releases = repo.releases(prerelease).await.unwrap_or_else(|_e| {
+					// Use any specified version or fall back to the last known version.
+					let version = version.unwrap_or(fallback.as_str());
+					vec![Release {
+						tag_name: tag_pattern.as_ref().map_or_else(
+							|| version.to_string(),
+							|pattern| pattern.resolve_tag(version),
+						),
+						name: String::default(),
+						prerelease,
+						commit: None,
+						published_at: String::default(),
+					}]
+				});
+
+				// Filter releases if a tag pattern specified
+				if let Some(pattern) = tag_pattern.as_ref() {
+					releases.retain(|r| pattern.regex.is_match(&r.tag_name));
+				}
+
+				// Select versions from release tags, used for resolving the candidate versions and
+				// local binary versioning.
+				let mut binaries: HashMap<_, _> = releases
+					.into_iter()
+					.map(|r| {
+						let version = tag_pattern
+							.as_ref()
+							.and_then(|pattern| pattern.version(&r.tag_name).map(|v| v.to_string()))
+							.unwrap_or_else(|| r.tag_name.clone());
+						(version, r.tag_name)
+					})
+					.collect();
+
+				// Resolve any specified version - i.e., the version could be provided as a concrete
+				// version or just a tag.
+				let version = version.map(|v| {
+					tag_pattern
+						.as_ref()
+						.and_then(|pattern| pattern.version(v))
+						.unwrap_or(v)
+						.to_string()
+				});
+
+				// Extract versions from any cached binaries - e.g., offline or rate-limited.
+				let cached_files = read_dir(cache).into_iter().flatten();
+				let cached_file_names = cached_files
+					.filter_map(|f| f.ok().and_then(|f| f.file_name().into_string().ok()));
+				for file in cached_file_names.filter(|f| cache_filter(f)) {
+					let version = file.replace(&format!("{name}-"), "");
+					let tag = tag_pattern.as_ref().map_or_else(
+						|| version.to_string(),
+						|pattern| pattern.resolve_tag(&version),
+					);
+					binaries.insert(version, tag);
+				}
+
+				// Prepare for version resolution by sorting by configured version comparator.
+				let mut versions: Vec<_> = binaries.keys().cloned().collect();
+				let versions = version_comparator(versions.as_mut_slice());
+
+				// Define the tag to be used as either a specified version or the latest available
+				// locally.
+				let tag = version.as_ref().map_or_else(
+					|| {
+						// Resolve the version to be used.
+						let resolved_version =
+							Binary::resolve_version(name, None, &versions, cache);
+						resolved_version.and_then(|v| binaries.get(v)).cloned()
+					},
+					|v| {
+						// Ensure any specified version is a tag.
+						Some(
+							tag_pattern
+								.as_ref()
+								.map_or_else(|| v.to_string(), |pattern| pattern.resolve_tag(v)),
+						)
+					},
+				);
+
+				// // Default to the latest version when no specific version is provided by the
+				// caller.
+				let latest: Option<String> = version
+					.is_none()
+					.then(|| versions.first().and_then(|v| binaries.get(v.as_str()).cloned()))
+					.flatten();
+
+				Self::ReleaseArchive {
+					owner,
+					repository,
+					tag,
+					tag_pattern,
+					prerelease,
+					version_comparator,
+					fallback,
+					archive,
+					contents,
+					latest,
+				}
+			},
+			_ => self,
+		}
+	}
+}
+
+/// A specification of a file within an archive.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ArchiveFileSpec {
+	/// The name of the file within the archive.
+	name: String,
+	/// An optional file name to be used for the file once extracted.
+	target: Option<PathBuf>,
+	/// Whether the file is required.
+	required: bool,
+}
+
+impl ArchiveFileSpec {
+	/// A specification of a file within an archive.
+	///
+	/// # Arguments
+	/// * `name` - The name of the file within the archive.
+	/// * `target` - An optional file name to be used for the file once extracted.
+	/// * `required` - Whether the file is required.
+	pub fn new(name: String, target: Option<PathBuf>, required: bool) -> Self {
+		Self { name: name.into(), target: target.into(), required }
+	}
+}
+
+/// A pattern used to determine captures from a release tag.
+///
+/// Only `{version}` is currently supported, used to determine a version from a release tag.
+/// Examples: `polkadot-{version}`, `node-{version}`.
+#[derive(Clone, Debug)]
+pub struct TagPattern {
+	regex: Regex,
+	pattern: String,
+}
+
+impl TagPattern {
+	/// A new pattern used to determine captures from a release tag.
+	///
+	/// # Arguments
+	/// * `pattern` - the pattern to be used.
+	pub fn new(pattern: &str) -> Self {
+		Self {
+			regex: Regex::new(&format!("^{}$", pattern.replace("{version}", "(?P<version>.+)")))
+				.expect("expected valid regex"),
+			pattern: pattern.into(),
+		}
+	}
+
+	/// Resolves a tag for the specified value.
+	///
+	/// # Arguments
+	/// * `value` - the value to resolve into a tag using the inner tag pattern.
+	pub fn resolve_tag(&self, value: &str) -> String {
+		// If input already in expected tag format, return as-is.
+		if self.regex.is_match(value) {
+			return value.to_string();
+		}
+
+		self.pattern.replace("{version}", value)
+	}
+
+	/// Extracts a version from the specified value.
+	///
+	/// # Arguments
+	/// * `value` - the value to parse.
+	pub fn version<'a>(&self, value: &'a str) -> Option<&'a str> {
+		self.regex.captures(value).and_then(|c| c.name("version").map(|v| v.as_str()))
+	}
+}
+
+impl PartialEq for TagPattern {
+	fn eq(&self, other: &Self) -> bool {
+		self.regex.as_str() == other.regex.as_str() && self.pattern == other.pattern
+	}
+}
+
+impl From<&str> for TagPattern {
+	fn from(value: &str) -> Self {
+		Self::new(value)
+	}
 }
 
 /// Source binary by downloading and extracting from an archive.
@@ -247,7 +508,7 @@ impl GitHub {
 /// * `status` - Used to observe status updates.
 async fn from_archive(
 	url: &str,
-	contents: &[(&str, PathBuf)],
+	contents: &[ArchiveFileSpec],
 	status: &impl Status,
 ) -> Result<(), Error> {
 	// Download archive
@@ -263,15 +524,19 @@ async fn from_archive(
 	let temp_dir = tempdir()?;
 	let working_dir = temp_dir.path();
 	archive.unpack(working_dir)?;
-	for (name, dest) in contents {
+	for ArchiveFileSpec { name, target, required } in contents {
 		let src = working_dir.join(name);
 		if src.exists() {
-			if let Err(_e) = rename(&src, dest) {
-				// If rename fails (e.g., due to cross-device linking), fallback to copy and remove
-				std::fs::copy(&src, dest)?;
-				std::fs::remove_file(&src)?;
+			set_executable_permission(&src)?;
+			if let Some(target) = target {
+				if let Err(_e) = rename(&src, target) {
+					// If rename fails (e.g., due to cross-device linking), fallback to copy and
+					// remove
+					copy(&src, target)?;
+					std::fs::remove_file(&src)?;
+				}
 			}
-		} else {
+		} else if *required {
 			return Err(Error::ArchiveError(format!(
 				"Expected file '{}' in archive, but it was not found.",
 				name
@@ -289,7 +554,7 @@ async fn from_archive(
 /// * `reference` - If applicable, the branch, tag or commit.
 /// * `manifest` - If applicable, a specification of the path to the manifest.
 /// * `package` - The name of the package to be built.
-/// * `artifacts` - Any additional artifacts which are required.
+/// * `artifacts` - Any additional artifacts that are required.
 /// * `release` - Whether to build optimized artifacts using the release profile.
 /// * `status` - Used to observe status updates.
 /// * `verbose` - Whether verbose output is required.
@@ -325,9 +590,9 @@ async fn from_git(
 /// * `owner` - The owner of the repository.
 /// * `repository` - The name of the repository.
 /// * `reference` - If applicable, the branch, tag or commit.
-/// * `manifest` -If applicable, a specification of the path to the manifest.
+/// * `manifest` - If applicable, a specification of the path to the manifest.
 /// * `package` - The name of the package to be built.
-/// * `artifacts` - Any additional artifacts which are required.
+/// * `artifacts` - Any additional artifacts that are required.
 /// * `release` - Whether to build optimized artifacts using the release profile.
 /// * `status` - Used to observe status updates.
 /// * `verbose` - Whether verbose output is required.
@@ -344,7 +609,6 @@ async fn from_github_archive(
 	verbose: bool,
 ) -> Result<(), Error> {
 	// User agent required when using GitHub API
-	let client = reqwest::ClientBuilder::new().user_agent(APP_USER_AGENT).build()?;
 	let response =
 		match reference {
 			Some(reference) => {
@@ -357,8 +621,8 @@ async fn from_github_archive(
 				let mut response = None;
 				for url in urls {
 					status.update(&format!("Downloading from {url}..."));
-					response = Some(client.get(url).send().await?.error_for_status());
-					if let Some(Err(e)) = &response {
+					response = Some(GITHUB_API_CLIENT.get(url).await);
+					if let Some(Err(api::Error::HttpError(e))) = &response {
 						if e.status() == Some(StatusCode::NOT_FOUND) {
 							tokio::time::sleep(Duration::from_secs(1)).await;
 							continue;
@@ -371,11 +635,11 @@ async fn from_github_archive(
 			None => {
 				let url = format!("https://api.github.com/repos/{owner}/{repository}/tarball");
 				status.update(&format!("Downloading from {url}..."));
-				client.get(url).send().await?.error_for_status()?
+				GITHUB_API_CLIENT.get(url).await?
 			},
 		};
 	let mut file = tempfile()?;
-	file.write_all(&response.bytes().await?)?;
+	file.write_all(&response)?;
 	file.seek(SeekFrom::Start(0))?;
 	// Extract contents
 	status.update("Extracting from archive...");
@@ -428,14 +692,14 @@ pub(crate) async fn from_local_package(
 	Ok(())
 }
 
-/// Source binary by downloading from a url.
+/// Source binary by downloading from a URL.
 ///
 /// # Arguments
 /// * `url` - The url of the binary.
 /// * `path` - The (local) destination path.
 /// * `status` - Used to observe status updates.
 async fn from_url(url: &str, path: &Path, status: &impl Status) -> Result<(), Error> {
-	// Download required version of binaries
+	// Download the binary
 	status.update(&format!("Downloading from {url}..."));
 	download(url, path).await?;
 	status.update("Sourcing complete.");
@@ -447,7 +711,7 @@ async fn from_url(url: &str, path: &Path, status: &impl Status) -> Result<(), Er
 /// # Arguments
 /// * `manifest` - The path to the manifest.
 /// * `package` - The name of the package to be built.
-/// * `artifacts` - Any additional artifacts which are required.
+/// * `artifacts` - Any additional artifacts that are required.
 /// * `release` - Whether to build optimized artifacts using the release profile.
 /// * `status` - Used to observe status updates.
 /// * `verbose` - Whether verbose output is required.
@@ -479,11 +743,11 @@ async fn build(
 			command.run()?;
 		},
 	}
-	// Copy required artifacts to destination path
+	// Copy required artifacts to the destination path
 	let target = manifest
 		.as_ref()
 		.parent()
-		.expect("")
+		.expect("expected parent directory to be valid")
 		.join(format!("target/{}", if release { "release" } else { "debug" }));
 	for (name, dest) in artifacts {
 		copy(target.join(name), dest)?;
@@ -497,7 +761,7 @@ async fn build(
 /// * `url` - The url of the file.
 /// * `path` - The (local) destination path.
 async fn download(url: &str, dest: &Path) -> Result<(), Error> {
-	// Download to destination path
+	// Download to the destination path
 	let response = reqwest::get(url).await?.error_for_status()?;
 	let mut file = File::create(dest)?;
 	file.write_all(&response.bytes().await?)?;
@@ -520,7 +784,7 @@ pub fn set_executable_permission<P: AsRef<Path>>(path: P) -> Result<(), Error> {
 #[cfg(test)]
 pub(super) mod tests {
 	use super::{GitHub::*, Status, *};
-	use crate::target;
+	use crate::{polkadot_sdk::parse_version, target};
 	use tempfile::tempdir;
 
 	#[tokio::test]
@@ -541,6 +805,22 @@ pub(super) mod tests {
 	}
 
 	#[tokio::test]
+	async fn resolve_from_archive_is_noop() -> anyhow::Result<()> {
+		let url = "https://github.com/r0gue-io/polkadot/releases/latest/download/polkadot-aarch64-apple-darwin.tar.gz".to_string();
+		let name = "polkadot".to_string();
+		let contents =
+			vec![name.clone(), "polkadot-execute-worker".into(), "polkadot-prepare-worker".into()];
+		let temp_dir = tempdir()?;
+
+		let source = Source::Archive { url, contents: contents.clone() };
+		assert_eq!(
+			source.clone().resolve(&name, None, temp_dir.path(), filters::polkadot).await,
+			source
+		);
+		Ok(())
+	}
+
+	#[tokio::test]
 	async fn sourcing_from_git_works() -> anyhow::Result<()> {
 		let url = Url::parse("https://github.com/hpaluch/rust-hello-world")?;
 		let package = "hello_world".to_string();
@@ -556,6 +836,29 @@ pub(super) mod tests {
 		.source(temp_dir.path(), true, &Output, true)
 		.await?;
 		assert!(temp_dir.path().join(package).exists());
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn resolve_from_git_is_noop() -> anyhow::Result<()> {
+		let url = Url::parse("https://github.com/hpaluch/rust-hello-world")?;
+		let package = "hello_world".to_string();
+		let temp_dir = tempdir()?;
+
+		let source = Source::Git {
+			url,
+			reference: None,
+			manifest: None,
+			package: package.clone(),
+			artifacts: vec![package.clone()],
+		};
+		assert_eq!(
+			source
+				.clone()
+				.resolve(&package, None, temp_dir.path(), |f| filters::prefix(f, &package))
+				.await,
+			source
+		);
 		Ok(())
 	}
 
@@ -583,27 +886,103 @@ pub(super) mod tests {
 	async fn sourcing_from_github_release_archive_works() -> anyhow::Result<()> {
 		let owner = "r0gue-io".to_string();
 		let repository = "polkadot".to_string();
-		let tag = "v1.12.0";
-		let tag_format = Some("polkadot-{tag}".to_string());
-		let name = "polkadot".to_string();
-		let archive = format!("{name}-{}.tar.gz", target()?);
+		let version = "stable2503";
+		let tag_pattern = Some("polkadot-{version}".into());
+		let fallback = "stable2412-4".into();
+		let archive = format!("polkadot-{}.tar.gz", target()?);
 		let contents = ["polkadot", "polkadot-execute-worker", "polkadot-prepare-worker"];
 		let temp_dir = tempdir()?;
 
 		Source::GitHub(ReleaseArchive {
 			owner,
 			repository,
-			tag: Some(tag.to_string()),
-			tag_format,
+			tag: Some(format!("polkadot-{version}")),
+			tag_pattern,
+			prerelease: false,
+			version_comparator,
+			fallback,
 			archive,
-			contents: contents.map(|n| (n, None)).to_vec(),
+			contents: contents.map(|n| ArchiveFileSpec::new(n.into(), None, true)).to_vec(),
 			latest: None,
 		})
 		.source(temp_dir.path(), true, &Output, true)
 		.await?;
 		for item in contents {
-			assert!(temp_dir.path().join(format!("{item}-{tag}")).exists());
+			assert!(temp_dir.path().join(format!("{item}-{version}")).exists());
 		}
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn resolve_from_github_release_archive_works() -> anyhow::Result<()> {
+		let owner = "r0gue-io".to_string();
+		let repository = "polkadot".to_string();
+		let version = "stable2503";
+		let tag_pattern = Some("polkadot-{version}".into());
+		let fallback = "stable2412-4".into();
+		let archive = format!("polkadot-{}.tar.gz", target()?);
+		let contents = ["polkadot", "polkadot-execute-worker", "polkadot-prepare-worker"];
+		let temp_dir = tempdir()?;
+
+		// Determine release for comparison
+		let mut releases: Vec<_> = crate::GitHub::new(owner.as_str(), repository.as_str())
+			.releases(false)
+			.await?
+			.into_iter()
+			.map(|r| r.tag_name)
+			.collect();
+		let sorted_releases = version_comparator(releases.as_mut_slice());
+
+		let source = Source::GitHub(ReleaseArchive {
+			owner,
+			repository,
+			tag: None,
+			tag_pattern,
+			prerelease: false,
+			version_comparator,
+			fallback,
+			archive,
+			contents: contents.map(|n| ArchiveFileSpec::new(n.into(), None, true)).to_vec(),
+			latest: None,
+		});
+
+		// Check results for a specified/unspecified version
+		for version in [Some(version), None] {
+			let source = source
+				.clone()
+				.resolve(&"polkadot".to_string(), version, temp_dir.path(), filters::polkadot)
+				.await;
+			let expected_tag = version.map_or_else(
+				|| sorted_releases.0.first().unwrap().into(),
+				|v| format!("polkadot-{v}"),
+			);
+			let expected_latest = version.map_or_else(|| sorted_releases.0.first(), |_| None);
+			assert!(matches!(
+				source,
+				Source::GitHub(ReleaseArchive { tag, latest, .. } )
+					if tag == Some(expected_tag) && latest.as_ref() == expected_latest
+			));
+		}
+
+		// Create a later version as a cached binary
+		let cached_version = "polkadot-stable2612";
+		File::create(temp_dir.path().join(cached_version))?;
+		for version in [Some(version), None] {
+			let source = source
+				.clone()
+				.resolve(&"polkadot".to_string(), version, temp_dir.path(), filters::polkadot)
+				.await;
+			let expected_tag =
+				version.map_or_else(|| cached_version.to_string(), |v| format!("polkadot-{v}"));
+			let expected_latest =
+				version.map_or_else(|| Some(cached_version.to_string()), |_| None);
+			assert!(matches!(
+				source,
+				Source::GitHub(ReleaseArchive { tag, latest, .. } )
+					if tag == Some(expected_tag) && latest == expected_latest
+			));
+		}
+
 		Ok(())
 	}
 
@@ -611,9 +990,10 @@ pub(super) mod tests {
 	async fn sourcing_from_github_release_archive_maps_contents() -> anyhow::Result<()> {
 		let owner = "r0gue-io".to_string();
 		let repository = "polkadot".to_string();
-		let tag = "v1.12.0";
-		let tag_format = Some("polkadot-{tag}".to_string());
+		let version = "stable2503";
+		let tag_pattern = Some("polkadot-{version}".into());
 		let name = "polkadot".to_string();
+		let fallback = "stable2412-4".into();
 		let archive = format!("{name}-{}.tar.gz", target()?);
 		let contents = ["polkadot", "polkadot-execute-worker", "polkadot-prepare-worker"];
 		let temp_dir = tempdir()?;
@@ -622,16 +1002,21 @@ pub(super) mod tests {
 		Source::GitHub(ReleaseArchive {
 			owner,
 			repository,
-			tag: Some(tag.to_string()),
-			tag_format,
+			tag: Some(format!("polkadot-{version}")),
+			tag_pattern,
+			prerelease: false,
+			version_comparator,
+			fallback,
 			archive,
-			contents: contents.map(|n| (n, Some(format!("{prefix}-{n}")))).to_vec(),
+			contents: contents
+				.map(|n| ArchiveFileSpec::new(n.into(), Some(format!("{prefix}-{n}").into()), true))
+				.to_vec(),
 			latest: None,
 		})
 		.source(temp_dir.path(), true, &Output, true)
 		.await?;
 		for item in contents {
-			assert!(temp_dir.path().join(format!("{prefix}-{item}-{tag}")).exists());
+			assert!(temp_dir.path().join(format!("{prefix}-{item}-{version}")).exists());
 		}
 		Ok(())
 	}
@@ -640,8 +1025,9 @@ pub(super) mod tests {
 	async fn sourcing_from_latest_github_release_archive_works() -> anyhow::Result<()> {
 		let owner = "r0gue-io".to_string();
 		let repository = "polkadot".to_string();
-		let tag_format = Some("polkadot-{tag}".to_string());
+		let tag_pattern = Some("polkadot-{version}".into());
 		let name = "polkadot".to_string();
+		let fallback = "stable2412-4".into();
 		let archive = format!("{name}-{}.tar.gz", target()?);
 		let contents = ["polkadot", "polkadot-execute-worker", "polkadot-prepare-worker"];
 		let temp_dir = tempdir()?;
@@ -650,9 +1036,12 @@ pub(super) mod tests {
 			owner,
 			repository,
 			tag: None,
-			tag_format,
+			tag_pattern,
+			prerelease: false,
+			version_comparator,
+			fallback,
 			archive,
-			contents: contents.map(|n| (n, None)).to_vec(),
+			contents: contents.map(|n| ArchiveFileSpec::new(n.into(), None, true)).to_vec(),
 			latest: None,
 		})
 		.source(temp_dir.path(), true, &Output, true)
@@ -683,6 +1072,30 @@ pub(super) mod tests {
 		.source(temp_dir.path(), true, &Output, true)
 		.await?;
 		assert!(temp_dir.path().join(format!("{package}-{initial_commit}")).exists());
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn resolve_from_github_source_code_archive_is_noop() -> anyhow::Result<()> {
+		let owner = "paritytech".to_string();
+		let repository = "polkadot-sdk".to_string();
+		let package = "polkadot".to_string();
+		let temp_dir = tempdir()?;
+		let initial_commit = "72dba98250a6267c61772cd55f8caf193141050f";
+		let manifest = PathBuf::from("substrate/Cargo.toml");
+
+		let source = Source::GitHub(SourceCodeArchive {
+			owner,
+			repository,
+			reference: Some(initial_commit.to_string()),
+			manifest: Some(manifest),
+			package: package.clone(),
+			artifacts: vec![package.clone()],
+		});
+		assert_eq!(
+			source.clone().resolve(&package, None, temp_dir.path(), filters::polkadot).await,
+			source
+		);
 		Ok(())
 	}
 
@@ -723,17 +1136,33 @@ pub(super) mod tests {
 	}
 
 	#[tokio::test]
+	async fn resolve_from_url_is_noop() -> anyhow::Result<()> {
+		let url =
+			"https://github.com/paritytech/polkadot-sdk/releases/latest/download/polkadot.asc"
+				.to_string();
+		let name = "polkadot";
+		let temp_dir = tempdir()?;
+
+		let source = Source::Url { url, name: name.into() };
+		assert_eq!(
+			source.clone().resolve(&name, None, temp_dir.path(), filters::polkadot).await,
+			source
+		);
+		Ok(())
+	}
+
+	#[tokio::test]
 	async fn from_archive_works() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
 		let url = "https://github.com/r0gue-io/polkadot/releases/latest/download/polkadot-aarch64-apple-darwin.tar.gz";
 		let contents: Vec<_> = ["polkadot", "polkadot-execute-worker", "polkadot-prepare-worker"]
 			.into_iter()
-			.map(|b| (b, temp_dir.path().join(b)))
+			.map(|b| ArchiveFileSpec::new(b.into(), Some(temp_dir.path().join(b)), true))
 			.collect();
 
 		from_archive(url, &contents, &Output).await?;
-		for (_, file) in contents {
-			assert!(file.exists());
+		for ArchiveFileSpec { target, .. } in contents {
+			assert!(target.unwrap().exists());
 		}
 		Ok(())
 	}
@@ -836,6 +1265,23 @@ pub(super) mod tests {
 		Ok(())
 	}
 
+	#[test]
+	fn tag_pattern_works() {
+		let pattern: TagPattern = "polkadot-{version}".into();
+		assert_eq!(pattern.regex.as_str(), "^polkadot-(?P<version>.+)$");
+		assert_eq!(pattern.pattern, "polkadot-{version}");
+		assert_eq!(pattern, pattern.clone());
+
+		for value in ["polkadot-stable2503", "stable2503"] {
+			assert_eq!(pattern.resolve_tag(value).as_str(), "polkadot-stable2503");
+		}
+		assert_eq!(pattern.version("polkadot-stable2503"), Some("stable2503"));
+	}
+
+	fn version_comparator<T: AsRef<str> + Ord>(versions: &mut [T]) -> SortedSlice<T> {
+		SortedSlice::by(versions, |a, b| parse_version(b.as_ref()).cmp(&parse_version(a.as_ref())))
+	}
+
 	pub(crate) struct Output;
 	impl Status for Output {
 		fn update(&self, status: &str) {
@@ -846,84 +1292,72 @@ pub(super) mod tests {
 
 /// Traits for the sourcing of a binary.
 pub mod traits {
-	use crate::{sourcing::Error, GitHub};
-	use strum::EnumProperty;
-
 	/// The source of a binary.
-	pub trait Source: EnumProperty {
-		/// The name of the binary.
-		fn binary(&self) -> &'static str {
-			self.get_str("Binary").expect("expected specification of `Binary` name")
-		}
+	pub trait Source {
+		/// The type returned in the event of an error.
+		type Error;
 
-		/// The fallback version to be used when the latest version cannot be determined.
-		fn fallback(&self) -> &str {
-			self.get_str("Fallback")
-				.expect("expected specification of `Fallback` release tag")
-		}
-
-		/// Whether pre-releases are to be used.
-		fn prerelease(&self) -> Option<bool> {
-			self.get_str("Prerelease")
-				.map(|v| v.parse().expect("expected parachain prerelease value to be true/false"))
-		}
-
-		/// Determine the available releases from the source.
-		#[allow(async_fn_in_trait)]
-		async fn releases(&self) -> Result<Vec<String>, Error> {
-			let repo = GitHub::parse(self.repository())?;
-			let releases = match repo.releases().await {
-				Ok(releases) => releases,
-				Err(_) => return Ok(vec![self.fallback().to_string()]),
-			};
-			let prerelease = self.prerelease();
-			let tag_format = self.tag_format();
-			Ok(releases
-				.iter()
-				.filter(|r| match prerelease {
-					None => !r.prerelease, // Exclude pre-releases by default
-					Some(prerelease) => r.prerelease == prerelease,
-				})
-				.map(|r| {
-					if let Some(tag_format) = tag_format {
-						// simple for now, could be regex in future
-						let tag_format = tag_format.replace("{tag}", "");
-						r.tag_name.replace(&tag_format, "")
-					} else {
-						r.tag_name.clone()
-					}
-				})
-				.collect())
-		}
-
-		/// The repository to be used.
-		fn repository(&self) -> &str {
-			self.get_str("Repository").expect("expected specification of `Repository` url")
-		}
-
-		/// If applicable, any tag format to be used - e.g. `polkadot-{tag}`.
-		fn tag_format(&self) -> Option<&str> {
-			self.get_str("TagFormat")
-		}
+		/// Defines the source of a binary.
+		fn source(&self) -> Result<super::Source, Self::Error>;
 	}
 
-	/// An attempted conversion into a Source.
-	pub trait TryInto {
-		/// Attempt the conversion.
-		///
-		/// # Arguments
-		/// * `specifier` - If applicable, some specifier used to determine a specific source.
-		/// * `latest` - If applicable, some specifier used to determine the latest source.
-		fn try_into(
-			&self,
-			specifier: Option<String>,
-			latest: Option<String>,
-		) -> Result<super::Source, crate::Error>;
+	/// Traits for the sourcing of a binary using [strum]-based configuration.
+	pub mod enums {
+		use strum::EnumProperty;
+
+		/// The source of a binary.
+		pub trait Source {
+			/// The name of the binary.
+			fn binary(&self) -> &'static str;
+
+			/// The fallback version to be used when the latest version cannot be determined.
+			fn fallback(&self) -> &str;
+
+			/// Whether pre-releases are to be used.
+			fn prerelease(&self) -> Option<bool>;
+		}
+
+		/// The source of a binary.
+		pub trait Repository: Source {
+			/// The repository to be used.
+			fn repository(&self) -> &str;
+
+			/// If applicable, a pattern to be used to determine applicable releases along with
+			/// subcomponents from a release tag - e.g. `polkadot-{version}`.
+			fn tag_pattern(&self) -> Option<&str>;
+		}
+
+		impl<T: EnumProperty> Source for T {
+			fn binary(&self) -> &'static str {
+				self.get_str("Binary").expect("expected specification of `Binary` name")
+			}
+
+			fn fallback(&self) -> &str {
+				self.get_str("Fallback")
+					.expect("expected specification of `Fallback` release tag")
+			}
+
+			fn prerelease(&self) -> Option<bool> {
+				self.get_str("Prerelease").map(|v| {
+					v.parse().expect("expected parachain prerelease value to be true/false")
+				})
+			}
+		}
+
+		impl<T: EnumProperty> Repository for T {
+			fn repository(&self) -> &str {
+				self.get_str("Repository").expect("expected specification of `Repository` url")
+			}
+
+			fn tag_pattern(&self) -> Option<&str> {
+				self.get_str("TagPattern")
+			}
+		}
 	}
 
 	#[cfg(test)]
 	mod tests {
-		use super::Source;
+		use super::enums::{Repository, Source};
 		use strum_macros::{EnumProperty, VariantArray};
 
 		#[derive(EnumProperty, VariantArray)]
@@ -933,7 +1367,7 @@ pub mod traits {
 				Binary = "polkadot",
 				Prerelease = "false",
 				Fallback = "v1.12.0",
-				TagFormat = "polkadot-{tag}"
+				TagPattern = "polkadot-{version}"
 			))]
 			Polkadot,
 			#[strum(props(
@@ -942,8 +1376,6 @@ pub mod traits {
 			))]
 			Fallback,
 		}
-
-		impl Source for Chain {}
 
 		#[test]
 		fn binary_works() {
@@ -960,27 +1392,36 @@ pub mod traits {
 			assert!(!Chain::Polkadot.prerelease().unwrap())
 		}
 
-		#[tokio::test]
-		async fn releases_works() -> anyhow::Result<()> {
-			assert!(!Chain::Polkadot.releases().await?.is_empty());
-			Ok(())
-		}
-
-		#[tokio::test]
-		async fn releases_uses_fallback() -> anyhow::Result<()> {
-			let chain = Chain::Fallback;
-			assert_eq!(chain.fallback(), chain.releases().await?[0]);
-			Ok(())
-		}
-
 		#[test]
 		fn repository_works() {
 			assert_eq!("https://github.com/paritytech/polkadot-sdk", Chain::Polkadot.repository())
 		}
 
 		#[test]
-		fn tag_format_works() {
-			assert_eq!("polkadot-{tag}", Chain::Polkadot.tag_format().unwrap())
+		fn tag_pattern_works() {
+			assert_eq!("polkadot-{version}", Chain::Polkadot.tag_pattern().unwrap())
 		}
+	}
+}
+
+/// Filters which can be used when resolving a binary.
+pub mod filters {
+	/// A filter which ensures a candidate file name starts with a prefix.
+	///
+	/// # Arguments
+	/// * `candidate` - the candidate to be evaluated.
+	/// * `prefix` - the specified prefix.
+	pub fn prefix(candidate: &str, prefix: &str) -> bool {
+		candidate.starts_with(prefix) &&
+			// Ignore any known related `polkadot`-prefixed binaries when `polkadot` only.
+			(prefix != "polkadot" ||
+				!["polkadot-execute-worker", "polkadot-prepare-worker", "polkadot-parachain"]
+					.iter()
+					.any(|i| candidate.starts_with(i)))
+	}
+
+	#[cfg(test)]
+	pub(crate) fn polkadot(file: &str) -> bool {
+		prefix(file, "polkadot")
 	}
 }

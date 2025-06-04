@@ -5,7 +5,7 @@ use crate::{
 	common::Project::{self, *},
 };
 use clap::{Args, Subcommand};
-#[cfg(feature = "contract")]
+#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 use contract::BuildContract;
 use duct::cmd;
 use pop_common::Profile;
@@ -18,7 +18,7 @@ use {
 	std::fmt::{Display, Formatter, Result},
 };
 
-#[cfg(feature = "contract")]
+#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 pub(crate) mod contract;
 #[cfg(feature = "parachain")]
 pub(crate) mod parachain;
@@ -104,12 +104,16 @@ fn collect_features(input: &str, benchmark: bool, try_runtime: bool) -> Vec<&str
 impl Command {
 	/// Executes the command.
 	pub(crate) fn execute(args: BuildArgs) -> anyhow::Result<Project> {
-		#[cfg(any(feature = "contract", feature = "parachain"))]
+		#[cfg(any(
+			feature = "polkavm-contracts",
+			feature = "wasm-contracts",
+			feature = "parachain"
+		))]
 		// If only contract feature enabled, build as contract
 		let project_path =
 			crate::common::builds::get_project_path(args.path.clone(), args.path_pos.clone());
 
-		#[cfg(feature = "contract")]
+		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 		if pop_contracts::is_supported(project_path.as_deref())? {
 			// All commands originating from root command are valid
 			let release = match args.profile {
@@ -233,7 +237,9 @@ impl Display for Command {
 mod tests {
 	use super::*;
 	use cli::MockCli;
-	use pop_common::manifest::{add_feature, add_production_profile};
+	#[cfg(feature = "parachain")]
+	use pop_common::manifest::add_feature;
+	use pop_common::manifest::add_production_profile;
 	use strum::VariantArray;
 
 	#[test]
@@ -242,11 +248,15 @@ mod tests {
 		let temp_dir = tempfile::tempdir()?;
 		let path = temp_dir.path();
 		let project_path = path.join(name);
+		#[cfg(feature = "parachain")]
 		let benchmark = Benchmark.as_ref();
+		#[cfg(feature = "parachain")]
 		let try_runtime = TryRuntime.as_ref();
+		#[cfg(feature = "parachain")]
 		let features = vec![benchmark, try_runtime];
 		cmd("cargo", ["new", name, "--bin"]).dir(&path).run()?;
 		add_production_profile(&project_path)?;
+		#[cfg(feature = "parachain")]
 		for feature in features.to_vec() {
 			add_feature(&project_path, (feature.to_string(), vec![]))?;
 		}
@@ -254,19 +264,26 @@ mod tests {
 			for release in [true, false] {
 				for profile in Profile::VARIANTS {
 					let profile = if release { Profile::Release } else { profile.clone() };
+					#[allow(unused_variables)]
 					for &(benchmark_flag, try_runtime_flag, features_flag, expected_features) in &[
 						// No features
 						(false, false, &vec![], &vec![]),
 						// --features runtime-benchmarks
+						#[cfg(feature = "parachain")]
 						(false, false, &vec![benchmark], &vec![benchmark]),
 						// --benchmark
+						#[cfg(feature = "parachain")]
 						(true, false, &vec![], &vec![benchmark]),
 						// --features try-runtime
+						#[cfg(feature = "parachain")]
 						(false, false, &vec![try_runtime], &vec![try_runtime]),
 						// --try-runtime
+						#[cfg(feature = "parachain")]
 						(false, true, &vec![], &vec![try_runtime]),
 						// --features runtime-benchmarks,try-runtime
+						#[cfg(feature = "parachain")]
 						(false, false, &features, &features),
+						#[cfg(feature = "parachain")]
 						// --benchmark --try-runtime
 						(true, true, &vec![], &features),
 					] {
@@ -275,8 +292,11 @@ mod tests {
 							&project_path,
 							&profile,
 							release,
+							#[cfg(feature = "parachain")]
 							benchmark_flag,
+							#[cfg(feature = "parachain")]
 							try_runtime_flag,
+							#[cfg(feature = "parachain")]
 							false,
 							features_flag,
 							expected_features,
@@ -293,9 +313,9 @@ mod tests {
 		project_path: &PathBuf,
 		profile: &Profile,
 		release: bool,
-		benchmark: bool,
-		try_runtime: bool,
-		deterministic: bool,
+		#[cfg(feature = "parachain")] benchmark: bool,
+		#[cfg(feature = "parachain")] try_runtime: bool,
+		#[cfg(feature = "parachain")] deterministic: bool,
 		features: &Vec<&str>,
 		expected_features: &Vec<&str>,
 	) -> anyhow::Result<()> {
@@ -312,16 +332,21 @@ mod tests {
 		cli = cli.expect_outro("Build completed successfully!");
 		assert!(Command::build(
 			BuildArgs {
+				#[cfg(feature = "parachain")]
 				command: None,
 				path: Some(project_path.clone()),
 				path_pos: Some(project_path.clone()),
 				package: package.clone(),
 				release,
 				profile: Some(profile.clone()),
+				#[cfg(feature = "parachain")]
 				benchmark,
+				#[cfg(feature = "parachain")]
 				try_runtime,
+				#[cfg(feature = "parachain")]
 				deterministic,
 				features: Some(features.join(",")),
+				#[cfg(feature = "parachain")]
 				only_runtime: false
 			},
 			&mut cli,
@@ -332,10 +357,12 @@ mod tests {
 
 	#[test]
 	fn command_display_works() {
+		#[cfg(feature = "parachain")]
 		assert_eq!(Command::Spec(Default::default()).to_string(), "spec");
 	}
 
 	#[test]
+	#[cfg(feature = "parachain")]
 	fn collect_features_works() {
 		assert_eq!(
 			collect_features("runtime-benchmarks", false, false),

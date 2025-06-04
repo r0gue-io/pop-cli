@@ -34,6 +34,7 @@ symlink.workspace = true
 toml_edit.workspace = true
 walkdir.workspace = true
 # Zombienet
+zombienet-configuration.workspace = true
 zombienet-sdk.workspace = true
 
 # Benchmarking
@@ -50,7 +51,7 @@ sc-cli.workspace = true
 sp-version.workspace = true
 
 # Pop
-pop-common = { path = "../pop-common", version = "0.7.0" }
+pop-common = { path = "../pop-common", version = "0.8.1" }
 
 [dev-dependencies]
 # Used in doc tests.

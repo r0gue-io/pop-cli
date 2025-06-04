@@ -88,13 +88,13 @@ let genesis_state_file = generate_genesis_state_file(&binary_path, &chain_spec, 
 Run a Parachain:
 
 ```rust,no_run
-use pop_parachains::Zombienet;
+use pop_parachains::up::Zombienet;
 use std::path::Path;
 use tokio_test;
 
 tokio_test::block_on(async {
     let cache = Path::new("./cache"); // The cache location, used for caching binaries.
-    let network_config = "network.toml"; // The configuration file to be used to launch a network.
+    let network_config = Path::new("network.toml").try_into().unwrap(); // The configuration file to be used to launch a network.
     let relay_chain_version = None; // Latest
     let relay_chain_runtime_version = None; // Latest
     let system_parachain_version = None; // Latest
@@ -103,7 +103,7 @@ tokio_test::block_on(async {
 
     let mut zombienet = Zombienet::new(
         &cache,
-        &network_config,
+        network_config,
         relay_chain_version,
         relay_chain_runtime_version,
         system_parachain_version,

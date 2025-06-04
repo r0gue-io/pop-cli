@@ -2,6 +2,48 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.8.1] - 2025-05-13
+
+### 🐛 Fixes
+- Fixed template fetching for ink! v5 contracts by pointing to the correct branch.
+
+## [0.8.0] - 2025-05-07
+
+### 🚀 Features
+
+- `pop build runtime` and `pop build --deterministic` (#510)
+- Add experimental hashing command (#517)
+- *(contracts)* Revive compatibility with feature flag (#500)
+
+### 🐛 Fixes
+
+- Benchmarking logger (#513)
+- Wrap github rest api access in an apiclient (#530)
+- *(bench)* Separate runtime binary path and runtime path (#531)
+
+### 📚 Documentation
+
+- Improve project documentation (#521)
+
+### 🧪 Testing
+
+- No default features (#522)
+
+### ⚙️ Miscellaneous Tasks
+
+- Source remote binary if version does not match (#516)
+- Update required version of the frame-omni-bencher binary (#527)
+
+### Build
+
+- *(deps)* Eliminate unnecessary dependencies (#520)
+
+### Removed
+
+- Removed deprecated `pop test contract`, functionality is now covered by `pop test`.
+- Removed deprecated `pop up contract`, functionality is now covered by `pop up`.
+- Removed deprecated `pop test parachain`, functionality is now covered by `pop up`.
+
 ## [0.7.0] - 2025-04-02
 
 ### 🚀 Features

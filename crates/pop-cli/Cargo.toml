@@ -37,20 +37,21 @@ toml.workspace = true
 url.workspace = true
 
 # contracts
-pop-contracts = { path = "../pop-contracts", version = "0.7.0", optional = true }
+pop-contracts = { path = "../pop-contracts", version = "0.8.1", default-features = false, optional = true }
 sp-core = { workspace = true, optional = true }
 sp-weights = { workspace = true, optional = true }
 
 # parachains
-pop-parachains = { path = "../pop-parachains", version = "0.7.0", optional = true }
+pop-parachains = { path = "../pop-parachains", version = "0.8.1", optional = true }
 git2 = { workspace = true, optional = true }
+regex = { workspace = true, optional = true }
 tracing-subscriber = { workspace = true, optional = true }
 
 # telemetry
-pop-telemetry = { path = "../pop-telemetry", version = "0.7.0", optional = true }
+pop-telemetry = { path = "../pop-telemetry", version = "0.8.1", optional = true }
 
 # common
-pop-common = { path = "../pop-common", version = "0.7.0" }
+pop-common = { path = "../pop-common", version = "0.8.1" }
 
 # wallet-integration
 axum = { workspace = true, optional = true }
@@ -64,12 +65,18 @@ mockito.workspace = true
 rustilities = { workspace = true, features = ["fmt", "manifest", "parsing"]}
 subxt.workspace = true
 subxt-signer.workspace = true
-sp-weights.workspace = true
 similar.workspace = true
 
 [features]
-default = ["contract", "parachain", "telemetry"]
-contract = ["dep:pop-contracts", "dep:sp-core", "dep:sp-weights", "wallet-integration"]
-parachain = ["dep:pop-parachains", "dep:git2", "dep:tracing-subscriber", "wallet-integration"]
+default = ["parachain", "telemetry", "wasm-contracts"]
+contract = ["wasm-contracts"]
+contracts = ["polkavm-contracts"]
+experimental = ["hashing"]
+hashing = ["dep:sp-core"]
+parachain = ["dep:pop-parachains", "dep:git2", "dep:regex", "dep:sp-core", "dep:tracing-subscriber", "wallet-integration"]
+v6 = []
+polkavm-contracts = ["pop-contracts/v6", "dep:pop-contracts", "dep:sp-core", "dep:sp-weights", "wallet-integration"]
 telemetry = ["dep:pop-telemetry"]
+v5 = []
+wasm-contracts = ["pop-contracts/v5", "dep:pop-contracts", "dep:sp-core", "dep:sp-weights", "wallet-integration", "v5"]
 wallet-integration = ["dep:axum", "dep:open", "dep:tower-http"]

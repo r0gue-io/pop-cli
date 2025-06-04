@@ -1,4 +1,4 @@
-# pop up parachain -f ./tests/networks/template.toml
+# pop up network ./tests/networks/template.toml
 
 [relaychain]
 chain = "paseo-local"

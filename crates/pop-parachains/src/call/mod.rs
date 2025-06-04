@@ -199,7 +199,7 @@ mod tests {
 	use url::Url;
 
 	const ALICE_SURI: &str = "//Alice";
-	pub(crate) const POP_NETWORK_TESTNET_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";
+	pub(crate) const POP_NETWORK_TESTNET_URL: &str = "wss://rpc2.paseo.popnetwork.xyz";
 
 	#[tokio::test]
 	async fn set_up_client_works() -> Result<()> {

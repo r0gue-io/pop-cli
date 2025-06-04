@@ -21,7 +21,11 @@ pub async fn clear_dmpq(
 	para_ids: &[u32],
 ) -> Result<impl BlockHash, Error> {
 	// Wait for blocks to be produced.
-	let mut sub = client.blocks().subscribe_finalized().await?;
+	let mut sub = client
+		.blocks()
+		.subscribe_finalized()
+		.await
+		.map_err(|e| Error::SubXtError(e.into()))?;
 	for _ in 0..2 {
 		sub.next().await;
 	}
@@ -33,7 +37,11 @@ pub async fn clear_dmpq(
 	let kill_storage = construct_kill_storage_call(clear_dmq_keys);
 	let sudo = subxt_signer::sr25519::dev::alice();
 	let sudo_call = call::construct_sudo_extrinsic(kill_storage);
-	Ok(client.tx().sign_and_submit_default(&sudo_call, &sudo).await?)
+	client
+		.tx()
+		.sign_and_submit_default(&sudo_call, &sudo)
+		.await
+		.map_err(|e| Error::SubXtError(e.into()))
 }
 
 fn construct_kill_storage_call(keys: Vec<Vec<u8>>) -> DynamicPayload {

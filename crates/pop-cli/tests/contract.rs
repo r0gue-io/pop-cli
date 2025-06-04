@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
+#![cfg(feature = "contract")]
+
 use anyhow::Result;
 use assert_cmd::Command;
 use pop_common::{find_free_port, set_executable_permission, templates::Template};
@@ -8,7 +10,7 @@ use pop_contracts::{
 	run_contracts_node, set_up_deployment, Contract, UpOpts,
 };
 use serde::{Deserialize, Serialize};
-use std::{path::Path, process::Command as Cmd, time::Duration};
+use std::{path::Path, println, process::Command as Cmd, time::Duration};
 use strum::VariantArray;
 use subxt::{config::DefaultExtrinsicParamsBuilder as Params, tx::Payload, utils::to_hex};
 use subxt_signer::sr25519::dev;
@@ -46,6 +48,17 @@ impl TransactionData {
 	}
 }
 
+// SubmitRequest has been copied from wallet_integration.rs
+/// Payload submitted by the wallet after signing a transaction.
+#[derive(serde::Deserialize, serde::Serialize, Debug)]
+pub struct SubmitRequest {
+	/// Signed transaction returned from the wallet.
+	pub signed_payload: Option<String>,
+	/// Address of the deployed contract, included only when the transaction is a contract
+	/// deployment.
+	pub contract_address: Option<String>,
+}
+
 /// Test the contract lifecycle: new, build, up, call
 #[tokio::test]
 async fn contract_lifecycle() -> Result<()> {
@@ -79,7 +92,10 @@ async fn contract_lifecycle() -> Result<()> {
 	assert!(temp_dir.join("test_contract/target").exists());
 	// Verify that all the artifacts has been generated
 	assert!(temp_dir.join("test_contract/target/ink/test_contract.contract").exists());
+	#[cfg(feature = "wasm-contracts")]
 	assert!(temp_dir.join("test_contract/target/ink/test_contract.wasm").exists());
+	#[cfg(feature = "polkavm-contracts")]
+	assert!(temp_dir.join("test_contract/target/ink/test_contract.polkavm").exists());
 	assert!(temp_dir.join("test_contract/target/ink/test_contract.json").exists());
 
 	let binary = contracts_node_generator(temp_dir.to_path_buf().clone(), None).await?;
@@ -212,10 +228,12 @@ async fn contract_lifecycle() -> Result<()> {
 	let ext_params = Params::new().build();
 	let signed = client.tx().create_signed(&payload, &signer, ext_params).await?;
 
+	let submit_request =
+		SubmitRequest { signed_payload: Some(to_hex(signed.encoded())), contract_address: None };
 	// Submit signed payload. This kills the wallet integration server.
 	let _ = reqwest::Client::new()
 		.post(&format!("{}/submit", WALLET_INT_URI))
-		.json(&to_hex(signed.encoded()))
+		.json(&submit_request)
 		.send()
 		.await
 		.expect("Failed to submit payload")
