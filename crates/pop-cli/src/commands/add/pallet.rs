@@ -44,9 +44,11 @@ pub struct AddPalletCommand {
 		help = "pop add pallet will place the impl blocks for your pallets' Config traits inside a dedicated file under the configs directory. Use this argument to place them somewhere else."
 	)]
 	pub(crate) pallet_impl_path: Option<PathBuf>,
-	#[arg(long, short, help = "The pallet version.")]
-	pub(crate) version: Option<String>,
+	#[arg(long, help = "The release of the polkadot-sdk used by your project.")]
+	pub(crate) release_tag: Option<String>,
 }
+
+const POLKADOT_SDK_URL: &str = "https://github.com/paritytech/polkadot-sdk";
 
 const INVALID_DIR_MSG: &str = "Make sure to run this command either in a runtime crate contained in a workspace, in the workspace itself or to specify the path to the runtime crate using -r.";
 
@@ -55,8 +57,8 @@ impl AddPalletCommand {
 		Cli.intro("Add a new pallet to your runtime")?;
 		let mut cmd = Command::new("");
 
-		let (pallet, version) = match (self.pallet, self.version) {
-			(Some(pallet), Some(version)) => (pallet, version),
+		let (pallet, release_tag) = match (self.pallet, self.release_tag) {
+			(Some(pallet), Some(release_tag)) => (pallet, release_tag),
 			(None, None) => {
 				let mut pallet_prompt =
 					cliclack::select("Select a pallet to add to your runtime: ".to_owned());
@@ -70,15 +72,14 @@ impl AddPalletCommand {
 						pallet.get_detailed_message().expect("all variants of CommonPallets have detailed_message; qed;"),
 					);
 				}
-				let mut version_prompt = cliclack::input("Which version should use your pallet?")
-					.placeholder("1.0.0")
-					.default_input("1.0.0");
-		    (pallet_prompt.interact()?, version_prompt.interact()?)
+				let mut release_tag_prompt = cliclack::input("Which release_tag should use your pallet?")
+					.placeholder("stable2412");
+		    (pallet_prompt.interact()?, release_tag_prompt.interact()?)
 			},
 			_ => cmd
             .error(
                 ErrorKind::Io,
-                "If you specify pallet/version via the command line, both fields must be specified"
+                "If you specify pallet/release_tag via the command line, both fields must be specified"
             )
             .exit(),
 		};
@@ -268,7 +269,7 @@ impl AddPalletCommand {
 			roll_workspace_manifest,
 			&pallet.get_crate_name(),
 			ManifestDependencyConfig::new(
-				ManifestDependencyOrigin::crates_io(&version),
+				ManifestDependencyOrigin::git(POLKADOT_SDK_URL, &release_tag),
 				false,
 				vec![],
 				false,

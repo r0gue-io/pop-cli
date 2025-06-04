@@ -93,12 +93,9 @@ async fn parachain_lifecycle() -> Result<()> {
 		std::fs::read_to_string(&workspace_manifest_path).unwrap();
 	let runtime_manifest_content_before = std::fs::read_to_string(&runtime_manifest_path).unwrap();
 
-	Command::cargo_bin("pop")
-		.unwrap()
-		.current_dir(&test_parachain)
-		.args(&["add", "pallet", "-p", "contracts", "-v", "39.0.0"])
-		.assert()
-		.success();
+	let mut command =
+		pop(&temp_dir, &["add", "pallet", "-p", "contracts", "--release-tag", "stable2412"]);
+	assert!(command.spawn()?.wait()?.success());
 
 	let runtime_lib_content_after = std::fs::read_to_string(&runtime_lib_path).unwrap();
 	let pallet_configs_mod_content_after =
@@ -125,7 +122,7 @@ async fn parachain_lifecycle() -> Result<()> {
 	];
 	let expected_inserted_lines_configs_mod = vec!["mod contracts;\n"];
 	let expected_inserted_lines_workspace_manifest =
-		vec!["pallet-contracts = { version = \"39.0.0\", default-features = false }\n"];
+		vec!["pallet-contracts = { git = \"https://github.com/paritytech/polkadot-sdk\", branch = \"stable2412\", default-features = false }\n"];
 
 	let expected_inserted_lines_runtime_manifest = vec![
 		"pallet-contracts = { workspace = true, default-features = false }\n",
