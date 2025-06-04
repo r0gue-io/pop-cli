@@ -10,7 +10,7 @@ use std::fmt::{Display, Formatter, Result};
 #[cfg(feature = "parachain")]
 use {crate::common::Project::Network, up::network::Relay::*};
 
-#[cfg(feature = "parachain")]
+#[cfg(all(feature = "parachain", feature = "experimental"))]
 pub(crate) mod add;
 #[cfg(feature = "parachain")]
 pub(crate) mod bench;
@@ -62,7 +62,7 @@ pub(crate) enum Command {
 	#[clap(alias = "C")]
 	Clean(clean::CleanArgs),
 	/// Add a new feature to your existing polkadot-sdk project
-	#[cfg(feature = "parachain")]
+	#[cfg(all(feature = "parachain", feature = "experimental"))]
 	#[clap(name = "add", alias = "a")]
 	Add(add::AddArgs),
 }
@@ -248,7 +248,7 @@ impl Command {
 					},
 				}
 			},
-			#[cfg(feature = "parachain")]
+			#[cfg(all(feature = "parachain", feature = "experimental"))]
 			Self::Add(args) => match args.command {
 				add::Command::Pallet(cmd) => cmd.execute().await.map(|_| Null),
 			},
@@ -318,7 +318,7 @@ impl Display for Command {
 			Self::Clean(_) => write!(f, "clean"),
 			#[cfg(feature = "parachain")]
 			Self::Bench(args) => write!(f, "bench {}", args.command),
-			#[cfg(feature = "parachain")]
+			#[cfg(all(feature = "parachain", feature = "experimental"))]
 			Self::Add(args) => write!(f, "add {:?}", args.command),
 			#[cfg(feature = "hashing")]
 			Command::Hash(args) => write!(f, "hash {}", args.command),

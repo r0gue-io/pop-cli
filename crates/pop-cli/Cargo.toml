@@ -20,15 +20,15 @@ console.workspace = true
 dirs.workspace = true
 duct.workspace = true
 env_logger.workspace = true
-fs_rollback.workspace = true
+fs_rollback = { workspace = true, optional = true }
 os_info.workspace = true
-proc-macro2.workspace = true
+proc-macro2 = { workspace = true, optional = true}
 reqwest.workspace = true
-rustilities = { workspace = true, features = ["fmt", "manifest"]}
-rust_writer.workspace = true
+rustilities = { workspace = true, features = ["fmt", "manifest"], optional = true }
+rust_writer = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
-syn = { workspace = true, features = ["parsing"]}
+syn = { workspace = true, features = ["parsing"], optional = true }
 strum.workspace = true
 strum_macros.workspace = true
 tempfile.workspace = true
@@ -71,7 +71,7 @@ similar.workspace = true
 default = ["parachain", "telemetry", "wasm-contracts"]
 contract = ["wasm-contracts"]
 contracts = ["polkavm-contracts"]
-experimental = ["hashing"]
+experimental = ["hashing", "syn", "rust_writer", "rustilities", "proc-macro2", "fs_rollback"]
 hashing = ["dep:sp-core"]
 parachain = ["dep:pop-parachains", "dep:git2", "dep:regex", "dep:sp-core", "dep:tracing-subscriber", "wallet-integration"]
 v6 = []

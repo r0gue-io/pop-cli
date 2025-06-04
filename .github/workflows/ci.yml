@@ -263,4 +263,4 @@ jobs:
       - name: Run integration tests
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: cargo test --no-default-features --features parachain --test parachain
+        run: cargo test --no-default-features --features parachain,experimental --test parachain
