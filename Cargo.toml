@@ -80,7 +80,7 @@ git2_credentials = "0.13.0"
 
 # benchmarking
 cumulus-primitives-proof-size-hostfunction = "0.12.0"
-frame-benchmarking-cli = { version = "47.0.0", default-features = false }
+frame-benchmarking-cli = { version = "47.2.0", default-features = false }
 sc-chain-spec = { version = "42.0.0", default-features = false }
 sp-runtime = { version = "41.1.0", default-features = false }
 sp-statement-store = "20.1.0"
