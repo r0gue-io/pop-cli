@@ -2036,7 +2036,7 @@ mod tests {
 			(
 				false,
 				BenchmarkPallet {
-					pallet: Some("dummy_pallet".to_string()),
+					pallets: vec!["dummy_pallet".to_string()],
 					extrinsic: Some("dummy_extrinsic".to_string()),
 					..Default::default()
 				},
