@@ -360,9 +360,8 @@ impl BenchmarkPallet {
 
 		// Only prompt user to update additional parameter configuration when `skip_parameters` is
 		// not provided.
-		if !self.skip_parameters
-			&& cli
-				.confirm("Would you like to update any additional configurations?")
+		if !self.skip_parameters &&
+			cli.confirm("Would you like to update any additional configurations?")
 				.initial_value(false)
 				.interact()?
 		{
@@ -615,16 +614,16 @@ impl BenchmarkPallet {
 			args.push("--extra".to_string());
 		}
 
-		if self.allow_missing_host_functions
-			&& self.allow_missing_host_functions != default_values.allow_missing_host_functions
+		if self.allow_missing_host_functions &&
+			self.allow_missing_host_functions != default_values.allow_missing_host_functions
 		{
 			args.push("--allow-missing-host-functions".to_string());
 		}
 		if self.genesis_builder != default_values.genesis_builder {
 			if let Some(ref genesis_builder) = self.genesis_builder {
 				args.push(format!("--genesis-builder={}", genesis_builder));
-				if genesis_builder == &GenesisBuilderPolicy::Runtime
-					&& self.genesis_builder_preset != default_values.genesis_builder_preset
+				if genesis_builder == &GenesisBuilderPolicy::Runtime &&
+					self.genesis_builder_preset != default_values.genesis_builder_preset
 				{
 					args.push(format!("--genesis-builder-preset={}", self.genesis_builder_preset));
 				}
@@ -704,7 +703,7 @@ impl BenchmarkPallet {
 		self.ensure_pallet_registry(cli, registry).await?;
 		let excluded_pallet_extrinsics =
 			guide_user_to_exclude_extrinsics(registry, &self.pallets, &self.exclude_pallets, cli)?;
-		self.exclude_pallets =
+		self.exclude_extrinsics =
 			excluded_pallet_extrinsics.into_iter().filter(|s| !s.is_empty()).collect();
 		Ok(())
 	}
@@ -841,6 +840,8 @@ impl BenchmarkPalletMenuOption {
 				}
 				Ok(false)
 			},
+			// If there are multiple pallets provided, disable the weight file template.
+			WeightFileTemplate => Ok(cmd.pallets.len() > 1),
 			_ => Ok(false),
 		}
 	}
@@ -853,29 +854,26 @@ impl BenchmarkPalletMenuOption {
 	fn read_command(self, cmd: &BenchmarkPallet) -> anyhow::Result<String> {
 		use BenchmarkPalletMenuOption::*;
 		Ok(match self {
-			Pallets => {
+			Pallets =>
 				if pallet_selected(&cmd.pallets, &cmd.exclude_pallets, ALL_SELECTED) {
 					ALL_SELECTED_TEXT.to_string()
 				} else {
 					cmd.pallets.join(",")
-				}
-			},
+				},
 			Extrinsics => self.get_joined_string(cmd.extrinsic()?),
-			ExcludedPallets => {
+			ExcludedPallets =>
 				if cmd.exclude_pallets.is_empty() {
 					ARGUMENT_NO_VALUE.to_string()
 				} else {
 					cmd.check_excluded_extrinsics()?;
 					cmd.exclude_pallets.join(",")
-				}
-			},
-			ExcludedExtrinsics => {
+				},
+			ExcludedExtrinsics =>
 				if cmd.exclude_extrinsics.is_empty() {
 					ARGUMENT_NO_VALUE.to_string()
 				} else {
 					cmd.exclude_extrinsics.join(",")
-				}
-			},
+				},
 			Runtime => format!("{}", get_relative_path(cmd.runtime()?).display()),
 			GenesisBuilder => cmd.genesis_builder.unwrap_or(GenesisBuilderPolicy::None).to_string(),
 			GenesisBuilderPreset => cmd.genesis_builder_preset.clone(),
@@ -889,13 +887,12 @@ impl BenchmarkPalletMenuOption {
 			NoMedianSlope => cmd.no_median_slopes.to_string(),
 			NoMinSquare => cmd.no_min_squares.to_string(),
 			NoStorageInfo => cmd.no_storage_info.to_string(),
-			WeightFileTemplate => {
+			WeightFileTemplate =>
 				if let Some(ref template) = cmd.template {
 					format!("{}", get_relative_path(template).display())
 				} else {
 					ARGUMENT_NO_VALUE.to_string()
-				}
-			},
+				},
 			SaveAndContinue => String::default(),
 		})
 	}
@@ -914,10 +911,9 @@ impl BenchmarkPalletMenuOption {
 			ExcludedPallets => cmd.update_excluded_pallets(cli, registry).await?,
 			ExcludedExtrinsics => cmd.update_excluded_extrinsics(cli, registry).await?,
 			Runtime => cmd.update_runtime_path(cli)?,
-			GenesisBuilder => {
+			GenesisBuilder =>
 				cmd.genesis_builder =
-					Some(guide_user_to_select_genesis_policy(cli, &cmd.genesis_builder)?)
-			},
+					Some(guide_user_to_select_genesis_policy(cli, &cmd.genesis_builder)?),
 			GenesisBuilderPreset => {
 				cmd.genesis_builder_preset = guide_user_to_select_genesis_preset(
 					cli,
@@ -930,12 +926,10 @@ impl BenchmarkPalletMenuOption {
 			High => cmd.highest_range_values = self.input_range_values(cmd, cli, true)?,
 			Low => cmd.lowest_range_values = self.input_range_values(cmd, cli, true)?,
 			MapSize => cmd.worst_case_map_values = self.input_parameter(cmd, cli, true)?.parse()?,
-			DatabaseCacheSize => {
-				cmd.database_cache_size = self.input_parameter(cmd, cli, true)?.parse()?
-			},
-			AdditionalTrieLayer => {
-				cmd.additional_trie_layers = self.input_parameter(cmd, cli, true)?.parse()?
-			},
+			DatabaseCacheSize =>
+				cmd.database_cache_size = self.input_parameter(cmd, cli, true)?.parse()?,
+			AdditionalTrieLayer =>
+				cmd.additional_trie_layers = self.input_parameter(cmd, cli, true)?.parse()?,
 			NoMedianSlope => cmd.no_median_slopes = self.confirm(cmd, cli)?,
 			NoMinSquare => cmd.no_min_squares = self.confirm(cmd, cli)?,
 			NoStorageInfo => cmd.no_storage_info = self.confirm(cmd, cli)?,
@@ -1212,14 +1206,13 @@ fn guide_user_to_update_bench_file_path(
 	params_updated: bool,
 ) -> anyhow::Result<Option<PathBuf>> {
 	if let Some(ref bench_file) = cmd.bench_file {
-		if params_updated
-			&& cli
-				.confirm(format!(
-					"Do you want to overwrite {:?} with the updated parameters?",
-					bench_file.display()
-				))
-				.initial_value(true)
-				.interact()?
+		if params_updated &&
+			cli.confirm(format!(
+				"Do you want to overwrite {:?} with the updated parameters?",
+				bench_file.display()
+			))
+			.initial_value(true)
+			.interact()?
 		{
 			return Ok(Some(bench_file.clone()));
 		}
@@ -1254,10 +1247,10 @@ fn is_selected_all(s: &String) -> bool {
 
 // Referenced from `substrate/utils/frame/benchmarking-cli/src/pallet/command.rs`.
 fn pallet_selected(pallets: &[String], excluded_pallets: &[String], pallet: &str) -> bool {
-	let included = pallets.is_empty()
-		|| pallets.iter().any(|p| p == pallet)
-		|| pallets.iter().any(|p| p == ALL_SELECTED)
-		|| pallets.iter().any(|p| p == "all");
+	let included = pallets.is_empty() ||
+		pallets.iter().any(|p| p == pallet) ||
+		pallets.iter().any(|p| p == ALL_SELECTED) ||
+		pallets.iter().any(|p| p == "all");
 
 	let excluded = excluded_pallets.iter().any(|p| p == pallet);
 
@@ -1881,13 +1874,14 @@ mod tests {
 		use BenchmarkPalletMenuOption::*;
 		let cmd = BenchmarkPallet {
 			runtime_binary: Some(get_mock_runtime(None)),
-			pallets: vec![ALL_SELECTED.to_string()],
+			pallets: vec!["pallet_timestamp".to_string(), "pallet_sudo".to_string()],
 			extrinsic: Some(ALL_SELECTED.to_string()),
 			genesis_builder: Some(GenesisBuilderPolicy::None),
 			..Default::default()
 		};
 		assert!(!GenesisBuilder.is_disabled(&cmd)?);
 		assert!(GenesisBuilderPreset.is_disabled(&cmd)?);
+		assert!(WeightFileTemplate.is_disabled(&cmd)?);
 		Ok(())
 	}
 
