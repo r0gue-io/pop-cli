@@ -2124,6 +2124,58 @@ mod tests {
 	}
 
 	#[tokio::test]
+	async fn update_pallets_works() -> anyhow::Result<()> {
+		// Load pallet registry if the registry is empty.
+		let mut cli =
+			MockCli::new().expect_confirm("Would you like to benchmark all pallets?", true);
+		let mut registry = PalletExtrinsicsRegistry::default();
+		BenchmarkPallet {
+			runtime_binary: Some(get_mock_runtime(Some(Benchmark))),
+			..Default::default()
+		}
+		.update_pallets(&mut cli, &mut registry)
+		.await?;
+		assert!(!registry.is_empty());
+
+		let pallets: Vec<String> = pallets(&registry, &[]).into_iter().collect();
+		let pallet_items: Vec<(String, String)> = pallets
+			.clone()
+			.iter()
+			.map(|pallet| (pallet.clone(), String::default()))
+			.collect();
+		for (select_all, mut cmd, expected_pallets) in [
+			// Select all pallets
+			(
+				true,
+				BenchmarkPallet { pallets: vec![ALL_SELECTED.to_string()], ..Default::default() },
+				vec![ALL_SELECTED.to_string()],
+			),
+			(
+				false,
+				BenchmarkPallet { pallets: pallets.clone(), ..Default::default() },
+				pallets.clone(),
+			),
+		] {
+			let mut cli = MockCli::new()
+				.expect_confirm("Would you like to benchmark all pallets?", select_all);
+			if !select_all {
+				cli = cli.expect_multiselect::<String>(
+					r#"🔎 Search for pallets to benchmark"#,
+					None,
+					true,
+					Some(pallet_items.clone()),
+					Some(true),
+				);
+			}
+			cmd.update_pallets(&mut cli, &mut registry).await?;
+			assert_eq!(cmd.pallets, expected_pallets);
+			cli.verify()?;
+		}
+
+		Ok(())
+	}
+
+	#[tokio::test]
 	async fn update_extrinsic_works() -> anyhow::Result<()> {
 		let pallet = "pallet_timestamp";
 
