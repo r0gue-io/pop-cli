@@ -15,7 +15,7 @@ RUN apt-get update && apt-get install -y \
     libgcc-s1 \
     libstdc++6 \
     && apt-get clean
-
+ 
 COPY --from=builder /pop/target/release/pop /usr/bin/pop
-RUN /usr/bin/pop install -y
-CMD ["/usr/bin/pop"]
+ENTRYPOINT ["/usr/bin/pop"]
+CMD ["install", "-y"]
