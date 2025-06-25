@@ -587,7 +587,7 @@ mod tests {
 	#[cfg(feature = "v6")]
 	const CONTRACT_FILE: &str = "./tests/files/testing.contract";
 	#[cfg(feature = "v5")]
-	const CONTRACTS_NETWORK_URL: &str = "wss://rpc2.paseo.popnetwork.xyz";
+	const CONTRACTS_NETWORK_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";
 	#[cfg(feature = "v6")]
 	const CONTRACTS_NETWORK_URL: &str = "wss://westend-asset-hub-rpc.polkadot.io";
 

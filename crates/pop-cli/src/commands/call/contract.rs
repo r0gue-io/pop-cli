@@ -597,7 +597,7 @@ mod tests {
 	#[cfg(feature = "polkavm-contracts")]
 	const CONTRACT_ADDRESS: &str = "0x4f04054746fb19d3b027f5fe1ca5e87a68b49bac";
 	#[cfg(feature = "wasm-contracts")]
-	const CONTRACTS_NETWORK_URL: &str = "wss://rpc2.paseo.popnetwork.xyz/";
+	const CONTRACTS_NETWORK_URL: &str = "wss://rpc1.paseo.popnetwork.xyz/";
 	#[cfg(feature = "polkavm-contracts")]
 	const CONTRACTS_NETWORK_URL: &str = "wss://westend-asset-hub-rpc.polkadot.io/";
 
