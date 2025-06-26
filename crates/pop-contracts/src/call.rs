@@ -284,7 +284,7 @@ mod tests {
 	#[cfg(feature = "v5")]
 	const CONTRACT_ADDRESS: &str = "5CLPm1CeUvJhZ8GCDZCR7nWZ2m3XXe4X5MtAQK69zEjut36A";
 	#[cfg(feature = "v5")]
-	const CONTRACTS_NETWORK_URL: &str = "wss://rpc2.paseo.popnetwork.xyz";
+	const CONTRACTS_NETWORK_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";
 	#[cfg(feature = "v6")]
 	const CONTRACT_ADDRESS: &str = "0x4f04054746fb19d3b027f5fe1ca5e87a68b49bac";
 	#[cfg(feature = "v6")]

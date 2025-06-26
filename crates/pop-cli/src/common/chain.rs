@@ -52,7 +52,7 @@ mod tests {
 	use super::*;
 	use crate::cli::MockCli;
 
-	const POP_NETWORK_TESTNET_URL: &str = "wss://rpc2.paseo.popnetwork.xyz";
+	const POP_NETWORK_TESTNET_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";
 
 	#[tokio::test]
 	async fn configure_works() -> Result<()> {

@@ -617,7 +617,7 @@ mod tests {
 	use url::Url;
 
 	const BOB_SURI: &str = "//Bob";
-	const POP_NETWORK_TESTNET_URL: &str = "wss://rpc2.paseo.popnetwork.xyz";
+	const POP_NETWORK_TESTNET_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";
 	const POLKADOT_NETWORK_URL: &str = "wss://polkadot-rpc.publicnode.com";
 
 	#[tokio::test]

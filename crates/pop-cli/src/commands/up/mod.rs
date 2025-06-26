@@ -160,7 +160,7 @@ mod tests {
 				gas_limit: None,
 				proof_size: None,
 				salt: None,
-				url: Url::parse("wss://rpc2.paseo.popnetwork.xyz")?,
+				url: Url::parse("wss://rpc1.paseo.popnetwork.xyz")?,
 				suri: "//Alice".to_string(),
 				use_wallet: false,
 				dry_run: true,
