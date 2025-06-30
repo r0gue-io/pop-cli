@@ -2264,12 +2264,12 @@ mod tests {
 		cmd.update_excluded_extrinsics(&mut cli, &mut registry).await?;
 		assert!(!registry.is_empty());
 
-		// Update the `exclude_pallets`.
-		let excluded_pallets: Vec<String> = all_pallet_extrinsics(&registry, &[], &[], &[])
+		// Update the `exclude_extrinsics`.
+		let excluded_extrinsics: Vec<String> = all_pallet_extrinsics(&registry, &[], &[], &[])
 			.into_iter()
 			.map(|pallet_extrinsic| format_pallet_extrinsic_item(pallet_extrinsic))
 			.collect();
-		assert_eq!(cmd.exclude_pallets, excluded_pallets);
+		assert_eq!(cmd.exclude_extrinsics, excluded_extrinsics);
 
 		Ok(())
 	}
