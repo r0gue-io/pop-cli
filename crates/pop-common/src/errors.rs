@@ -45,6 +45,9 @@ pub enum Error {
 	/// An error occurred while executing a test command.
 	#[error("Failed to execute test command: {0}")]
 	TestCommand(String),
+	/// An error coming from the toml_edit crate
+	#[error("toml_edit: {0}")]
+	TomlEdit(#[from] toml_edit::TomlError),
 	/// The command is unsupported.
 	#[error("Unsupported command: {0}")]
 	UnsupportedCommand(String),

@@ -39,6 +39,7 @@ pub fn instantiate_template_dir(
 	Ok(tag)
 }
 
+/// Instantiate a standard template.
 pub fn instantiate_standard_template(
 	template: &Parachain,
 	target: &Path,
@@ -79,6 +80,7 @@ pub fn instantiate_standard_template(
 	Ok(tag)
 }
 
+/// Instantiate open zeppelin template.
 pub fn instantiate_openzeppelin_template(
 	template: &Parachain,
 	target: &Path,
