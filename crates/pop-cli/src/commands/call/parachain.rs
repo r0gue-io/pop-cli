@@ -27,7 +27,7 @@ const ENCODED_CALL_DATA_MAX_LEN: usize = 500; // Maximum length of encoded call 
 /// Command to construct and execute extrinsics with configurable pallets, functions, arguments, and
 /// signing options.
 #[derive(Args, Clone, Default)]
-pub struct CallChainCommand {
+pub struct CallParachainCommand {
 	/// The pallet containing the dispatchable function to execute.
 	#[arg(short, long, value_parser = parse_pallet_name)]
 	pallet: Option<String>,
@@ -67,16 +67,16 @@ pub struct CallChainCommand {
 	skip_confirm: bool,
 }
 
-impl CallChainCommand {
+impl CallParachainCommand {
 	/// Executes the command.
 	pub(crate) async fn execute(mut self) -> Result<()> {
 		let mut cli = cli::Cli;
-		cli.intro("Call a chain")?;
+		cli.intro("Call a parachain")?;
 		// Check if all fields are specified via the command line.
 		let prompt_to_repeat_call = self.requires_user_input();
-		// Configure the chain.
-		let chain = chain::configure(
-			"Which chain would you like to interact with?",
+		// Configure the parachain.
+		let parachain = chain::configure(
+			"Which parachain would you like to interact with?",
 			DEFAULT_URL,
 			&self.url,
 			&mut cli,
@@ -86,8 +86,8 @@ impl CallChainCommand {
 		if let Some(call_data) = self.call_data.as_ref() {
 			if let Err(e) = self
 				.submit_extrinsic_from_call_data(
-					&chain.client,
-					&chain.url,
+					&parachain.client,
+					&parachain.url,
 					call_data,
 					&mut cli::Cli,
 				)
@@ -99,7 +99,7 @@ impl CallChainCommand {
 		}
 		loop {
 			// Configure the call based on command line arguments/call UI.
-			let mut call = match self.configure_call(&chain, &mut cli) {
+			let mut call = match self.configure_call(&parachain, &mut cli) {
 				Ok(call) => call,
 				Err(e) => {
 					display_message(&e.to_string(), false, &mut cli)?;
@@ -107,9 +107,9 @@ impl CallChainCommand {
 				},
 			};
 			// Display the configured call.
-			cli.info(call.display(&chain))?;
+			cli.info(call.display(&parachain))?;
 			// Prepare the extrinsic.
-			let xt = match call.prepare_extrinsic(&chain.client, &mut cli) {
+			let xt = match call.prepare_extrinsic(&parachain.client, &mut cli) {
 				Ok(payload) => payload,
 				Err(e) => {
 					display_message(&e.to_string(), false, &mut cli)?;
@@ -119,12 +119,12 @@ impl CallChainCommand {
 
 			// Sign and submit the extrinsic.
 			let result = if self.use_wallet {
-				let call_data = xt.encode_call_data(&chain.client.metadata())?;
-				wallet::submit_extrinsic(&chain.client, &chain.url, call_data, &mut cli)
+				let call_data = xt.encode_call_data(&parachain.client.metadata())?;
+				wallet::submit_extrinsic(&parachain.client, &parachain.url, call_data, &mut cli)
 					.await
 					.map(|_| ()) // Mapping to `()` since we don't need events returned
 			} else {
-				call.submit_extrinsic(&chain.client, &chain.url, xt, &mut cli).await
+				call.submit_extrinsic(&parachain.client, &parachain.url, xt, &mut cli).await
 			};
 
 			if let Err(e) = result {
@@ -146,19 +146,19 @@ impl CallChainCommand {
 	}
 
 	// Configure the call based on command line arguments/call UI.
-	fn configure_call(&mut self, chain: &Chain, cli: &mut impl Cli) -> Result<Call> {
+	fn configure_call(&mut self, parachain: &Chain, cli: &mut impl Cli) -> Result<Call> {
 		loop {
 			// Resolve pallet.
 			let pallet = match self.pallet {
-				Some(ref pallet_name) => find_pallet_by_name(&chain.pallets, pallet_name)?,
+				Some(ref pallet_name) => find_pallet_by_name(&parachain.pallets, pallet_name)?,
 				None => {
 					// Specific predefined actions first.
-					if let Some(action) = prompt_predefined_actions(&chain.pallets, cli)? {
+					if let Some(action) = prompt_predefined_actions(&parachain.pallets, cli)? {
 						self.function = Some(action.function_name().to_string());
-						find_pallet_by_name(&chain.pallets, action.pallet_name())?
+						find_pallet_by_name(&parachain.pallets, action.pallet_name())?
 					} else {
 						let mut prompt = cli.select("Select the pallet to call:");
-						for pallet_item in &chain.pallets {
+						for pallet_item in &parachain.pallets {
 							prompt = prompt.item(pallet_item, &pallet_item.name, &pallet_item.docs);
 						}
 						prompt.interact()?
@@ -168,7 +168,8 @@ impl CallChainCommand {
 
 			// Resolve dispatchable function.
 			let function = match self.function {
-				Some(ref name) => find_dispatchable_by_name(&chain.pallets, &pallet.name, name)?,
+				Some(ref name) =>
+					find_dispatchable_by_name(&parachain.pallets, &pallet.name, name)?,
 				None => {
 					let mut prompt = cli.select("Select the function to call:");
 					for function in &pallet.functions {
@@ -198,10 +199,10 @@ impl CallChainCommand {
 				self.expand_file_arguments()?
 			};
 
-			// If chain has sudo prompt the user to confirm if they want to execute the call via
+			// If parachain has sudo prompt the user to confirm if they want to execute the call via
 			// sudo.
 			if !self.skip_confirm {
-				self.configure_sudo(chain, cli)?;
+				self.configure_sudo(parachain, cli)?;
 			}
 
 			let (use_wallet, suri) = self.determine_signing_method(cli)?;
@@ -218,7 +219,7 @@ impl CallChainCommand {
 		}
 	}
 
-	// Submits an extrinsic to the chain using the provided encoded call data.
+	// Submits an extrinsic to the parachain using the provided encoded call data.
 	async fn submit_extrinsic_from_call_data(
 		&self,
 		client: &OnlineClient<SubstrateConfig>,
@@ -287,10 +288,10 @@ impl CallChainCommand {
 		Ok((use_wallet, suri))
 	}
 
-	// Checks if the chain has the Sudo pallet and prompts the user to confirm if they want to
+	// Checks if the parachain has the Sudo pallet and prompts the user to confirm if they want to
 	// execute the call via `sudo`.
-	fn configure_sudo(&mut self, chain: &Chain, cli: &mut impl Cli) -> Result<()> {
-		match find_dispatchable_by_name(&chain.pallets, "Sudo", "sudo") {
+	fn configure_sudo(&mut self, parachain: &Chain, cli: &mut impl Cli) -> Result<()> {
+		match find_dispatchable_by_name(&parachain.pallets, "Sudo", "sudo") {
 			Ok(_) =>
 				if !self.sudo {
 					self.sudo = cli
@@ -303,7 +304,7 @@ impl CallChainCommand {
 			Err(_) =>
 				if self.sudo {
 					cli.warning(
-						"NOTE: sudo is not supported by the chain. Ignoring `--sudo` flag.",
+						"NOTE: sudo is not supported by the parachain. Ignoring `--sudo` flag.",
 					)?;
 					self.sudo = false;
 				},
@@ -419,8 +420,8 @@ impl Call {
 		Ok(())
 	}
 
-	fn display(&self, chain: &Chain) -> String {
-		let mut full_message = "pop call chain".to_string();
+	fn display(&self, parachain: &Chain) -> String {
+		let mut full_message = "pop call parachain".to_string();
 		full_message.push_str(&format!(" --pallet {}", self.function.pallet));
 		full_message.push_str(&format!(" --function {}", self.function));
 		if !self.args.is_empty() {
@@ -438,7 +439,7 @@ impl Call {
 				.collect();
 			full_message.push_str(&format!(" --args {}", args.join(" ")));
 		}
-		full_message.push_str(&format!(" --url {}", chain.url));
+		full_message.push_str(&format!(" --url {}", parachain.url));
 		if self.use_wallet {
 			full_message.push_str(" --use-wallet");
 		} else {
@@ -621,12 +622,12 @@ mod tests {
 	const POLKADOT_NETWORK_URL: &str = "wss://polkadot-rpc.publicnode.com";
 
 	#[tokio::test]
-	async fn guide_user_to_call_chain_works() -> Result<()> {
+	async fn guide_user_to_call_parachain_works() -> Result<()> {
 		let mut call_config =
-			CallChainCommand { pallet: Some("System".to_string()), ..Default::default() };
+			CallParachainCommand { pallet: Some("System".to_string()), ..Default::default() };
 
 		let mut cli = MockCli::new()
-		.expect_input("Which chain would you like to interact with?", POP_NETWORK_TESTNET_URL.into())
+		.expect_input("Which parachain would you like to interact with?", POP_NETWORK_TESTNET_URL.into())
 		.expect_select(
 			"Select the function to call:",
 			Some(true),
@@ -654,42 +655,42 @@ mod tests {
 		.expect_confirm("Would you like to dispatch this function call with `Root` origin?", true)
 		.expect_confirm(USE_WALLET_PROMPT, true);
 
-		let chain = chain::configure(
-			"Which chain would you like to interact with?",
+		let parachain = chain::configure(
+			"Which parachain would you like to interact with?",
 			POP_NETWORK_TESTNET_URL,
 			&None,
 			&mut cli,
 		)
 		.await?;
-		assert_eq!(chain.url, Url::parse(POP_NETWORK_TESTNET_URL)?);
+		assert_eq!(parachain.url, Url::parse(POP_NETWORK_TESTNET_URL)?);
 
-		let call_chain = call_config.configure_call(&chain, &mut cli)?;
-		assert_eq!(call_chain.function.pallet, "System");
-		assert_eq!(call_chain.function.name, "remark");
-		assert_eq!(call_chain.args, ["0x11".to_string()].to_vec());
-		assert_eq!(call_chain.suri, "//Alice"); // Default value
-		assert!(call_chain.use_wallet);
-		assert!(call_chain.sudo);
-		assert_eq!(call_chain.display(&chain), format!("pop call chain --pallet System --function remark --args \"0x11\" --url {POP_NETWORK_TESTNET_URL}/ --use-wallet --sudo"));
+		let call_parachain = call_config.configure_call(&parachain, &mut cli)?;
+		assert_eq!(call_parachain.function.pallet, "System");
+		assert_eq!(call_parachain.function.name, "remark");
+		assert_eq!(call_parachain.args, ["0x11".to_string()].to_vec());
+		assert_eq!(call_parachain.suri, "//Alice"); // Default value
+		assert!(call_parachain.use_wallet);
+		assert!(call_parachain.sudo);
+		assert_eq!(call_parachain.display(&parachain), format!("pop call parachain --pallet System --function remark --args \"0x11\" --url {POP_NETWORK_TESTNET_URL}/ --use-wallet --sudo"));
 		cli.verify()
 	}
 
 	#[tokio::test]
 	async fn guide_user_to_configure_predefined_action_works() -> Result<()> {
-		let mut call_config = CallChainCommand::default();
+		let mut call_config = CallParachainCommand::default();
 
 		let mut cli = MockCli::new().expect_input(
-			"Which chain would you like to interact with?",
+			"Which parachain would you like to interact with?",
 			POLKADOT_NETWORK_URL.into(),
 		);
-		let chain = chain::configure(
-			"Which chain would you like to interact with?",
+		let parachain = chain::configure(
+			"Which parachain would you like to interact with?",
 			POP_NETWORK_TESTNET_URL,
 			&None,
 			&mut cli,
 		)
 		.await?;
-		assert_eq!(chain.url, Url::parse(POLKADOT_NETWORK_URL)?);
+		assert_eq!(parachain.url, Url::parse(POLKADOT_NETWORK_URL)?);
 		cli.verify()?;
 
 		let mut cli = MockCli::new()
@@ -698,7 +699,7 @@ mod tests {
 				Some(true),
 				true,
 				Some(
-					supported_actions(&chain.pallets)
+					supported_actions(&parachain.pallets)
 						.into_iter()
 						.map(|action| {
 							(action.description().to_string(), action.pallet_name().to_string())
@@ -716,14 +717,14 @@ mod tests {
 			.expect_input("Enter the value for the parameter: para_id", "2000".into())
 			.expect_input("Signer of the extrinsic:", BOB_SURI.into());
 
-		let call_chain = call_config.configure_call(&chain, &mut cli)?;
+		let call_parachain = call_config.configure_call(&parachain, &mut cli)?;
 
-		assert_eq!(call_chain.function.pallet, "OnDemand");
-		assert_eq!(call_chain.function.name, "place_order_allow_death");
-		assert_eq!(call_chain.args, ["10000".to_string(), "2000".to_string()].to_vec());
-		assert_eq!(call_chain.suri, "//Bob");
-		assert!(!call_chain.sudo);
-		assert_eq!(call_chain.display(&chain), "pop call chain --pallet OnDemand --function place_order_allow_death --args \"10000\" \"2000\" --url wss://polkadot-rpc.publicnode.com/ --suri //Bob");
+		assert_eq!(call_parachain.function.pallet, "OnDemand");
+		assert_eq!(call_parachain.function.name, "place_order_allow_death");
+		assert_eq!(call_parachain.args, ["10000".to_string(), "2000".to_string()].to_vec());
+		assert_eq!(call_parachain.suri, "//Bob");
+		assert!(!call_parachain.sudo);
+		assert_eq!(call_parachain.display(&parachain), "pop call parachain --pallet OnDemand --function place_order_allow_death --args \"10000\" \"2000\" --url wss://polkadot-rpc.publicnode.com/ --suri //Bob");
 		cli.verify()
 	}
 
@@ -796,7 +797,7 @@ mod tests {
 	#[tokio::test]
 	async fn user_cancel_submit_extrinsic_from_call_data_works() -> Result<()> {
 		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
-		let call_config = CallChainCommand {
+		let call_config = CallParachainCommand {
 			pallet: None,
 			function: None,
 			args: vec![].to_vec(),
@@ -827,7 +828,7 @@ mod tests {
 	#[tokio::test]
 	async fn configure_sudo_works() -> Result<()> {
 		// Test when sudo pallet doesn't exist.
-		let mut call_config = CallChainCommand {
+		let mut call_config = CallParachainCommand {
 			pallet: None,
 			function: None,
 			args: vec![].to_vec(),
@@ -838,10 +839,11 @@ mod tests {
 			call_data: Some("0x00000411".to_string()),
 			sudo: true,
 		};
-		let mut cli = MockCli::new()
-			.expect_warning("NOTE: sudo is not supported by the chain. Ignoring `--sudo` flag.");
-		let chain = chain::configure(
-			"Which chain would you like to interact with?",
+		let mut cli = MockCli::new().expect_warning(
+			"NOTE: sudo is not supported by the parachain. Ignoring `--sudo` flag.",
+		);
+		let parachain = chain::configure(
+			"Which parachain would you like to interact with?",
 			POP_NETWORK_TESTNET_URL,
 			&Some(Url::parse(POLKADOT_NETWORK_URL)?),
 			&mut cli,
@@ -856,21 +858,21 @@ mod tests {
 			"Would you like to dispatch this function call with `Root` origin?",
 			true,
 		);
-		let chain = chain::configure(
-			"Which chain would you like to interact with?",
+		let parachain = chain::configure(
+			"Which parachain would you like to interact with?",
 			POP_NETWORK_TESTNET_URL,
 			&Some(Url::parse(POP_NETWORK_TESTNET_URL)?),
 			&mut cli,
 		)
 		.await?;
-		call_config.configure_sudo(&chain, &mut cli)?;
+		call_config.configure_sudo(&parachain, &mut cli)?;
 		assert!(call_config.sudo);
 		cli.verify()
 	}
 
 	#[test]
 	fn reset_for_new_call_works() -> Result<()> {
-		let mut call_config = CallChainCommand {
+		let mut call_config = CallParachainCommand {
 			pallet: Some("System".to_string()),
 			function: Some("remark".to_string()),
 			args: vec!["0x11".to_string()].to_vec(),
@@ -892,7 +894,7 @@ mod tests {
 
 	#[test]
 	fn requires_user_input_works() -> Result<()> {
-		let mut call_config = CallChainCommand {
+		let mut call_config = CallParachainCommand {
 			pallet: Some("System".to_string()),
 			function: Some("remark".to_string()),
 			args: vec!["0x11".to_string()].to_vec(),
@@ -911,7 +913,7 @@ mod tests {
 
 	#[test]
 	fn expand_file_arguments_works() -> Result<()> {
-		let mut call_config = CallChainCommand {
+		let mut call_config = CallParachainCommand {
 			pallet: Some("Registrar".to_string()),
 			function: Some("register".to_string()),
 			args: vec!["2000".to_string(), "0x1".to_string(), "0x12".to_string()].to_vec(),
