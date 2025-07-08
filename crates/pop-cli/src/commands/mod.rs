@@ -42,7 +42,7 @@ pub(crate) enum Command {
 	Bench(bench::BenchmarkArgs),
 	#[clap(alias = "b", about = about_build())]
 	Build(build::BuildArgs),
-	/// Call a chain or a smart contract.
+	/// Call a parachain or a smart contract.
 	#[clap(alias = "c")]
 	#[cfg(any(feature = "parachain", feature = "polkavm-contracts", feature = "wasm-contracts"))]
 	Call(call::CallArgs),
@@ -168,7 +168,7 @@ impl Command {
 				env_logger::init();
 				match args.command {
 					#[cfg(feature = "parachain")]
-					call::Command::Chain(cmd) => cmd.execute().await.map(|_| Null),
+					call::Command::Parachain(cmd) => cmd.execute().await.map(|_| Null),
 					#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 					call::Command::Contract(cmd) => cmd.execute().await.map(|_| Null),
 				}
@@ -390,7 +390,9 @@ mod tests {
 			),
 			// Call.
 			(
-				Command::Call(call::CallArgs { command: call::Command::Chain(Default::default()) }),
+				Command::Call(call::CallArgs {
+					command: call::Command::Parachain(Default::default()),
+				}),
 				"call chain",
 			),
 			(
