@@ -2,6 +2,8 @@
 
 use crate::cli;
 use pop_contracts::{Verbosity, build_smart_contract};
+#[cfg(feature = "polkavm-contracts")]
+use pop_contracts::MetadataSpec;
 use std::path::PathBuf;
 
 /// Configuration for building a smart contract.
@@ -10,6 +12,9 @@ pub struct BuildContract {
 	pub(crate) path: Option<PathBuf>,
 	/// Build profile: `true` for release mode, `false` for debug mode.
 	pub(crate) release: bool,
+	#[cfg(feature = "polkavm-contracts")]
+	/// Which specification specification to use for contract metadata.
+    pub(crate)metadata: Option<MetadataSpec>,
 }
 
 impl BuildContract {
@@ -26,7 +31,13 @@ impl BuildContract {
 		cli.intro("Building your contract")?;
 		// Build contract.
 		let build_result =
-			build_smart_contract(self.path.as_deref(), self.release, Verbosity::Default)?;
+			build_smart_contract(
+				self.path.as_deref(),
+				self.release,
+				Verbosity::Default,
+				#[cfg(feature = "polkavm-contracts")]
+				self.metadata,
+			)?;
 		cli.success(build_result.display())?;
 		cli.outro("Build completed successfully!")?;
 		Ok("contract")

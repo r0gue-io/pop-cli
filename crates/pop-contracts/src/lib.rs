@@ -50,6 +50,7 @@ pub use {
 };
 #[cfg(feature = "v6")]
 pub use {
+	contract_build_inkv6::MetadataSpec,
 	contract_extrinsics_inkv6::{CallExec, ExtrinsicOpts, UploadCode},
 	ink_env_v6::{DefaultEnvironment, Environment},
 	sp_core_inkv6::Bytes,
