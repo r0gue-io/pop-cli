@@ -84,8 +84,8 @@ pub(crate) struct BuildArgs {
 	pub(crate) only_runtime: bool,
 	#[cfg(feature = "polkavm-contracts")]
 	/// Which specification to use for contract metadata.
-    #[clap(long, help_heading = CONTRACT_HELP_HEADER)]
-    metadata: Option<MetadataSpec>,
+	#[clap(long, help_heading = CONTRACT_HELP_HEADER)]
+	metadata: Option<MetadataSpec>,
 }
 
 /// Subcommand for building chain artifacts.
