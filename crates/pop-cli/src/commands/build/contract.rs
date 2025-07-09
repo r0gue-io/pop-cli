@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::cli;
-use pop_contracts::{Verbosity, build_smart_contract};
 #[cfg(feature = "polkavm-contracts")]
 use pop_contracts::MetadataSpec;
+use pop_contracts::{build_smart_contract, Verbosity};
 use std::path::PathBuf;
 
 /// Configuration for building a smart contract.
@@ -14,7 +14,7 @@ pub struct BuildContract {
 	pub(crate) release: bool,
 	#[cfg(feature = "polkavm-contracts")]
 	/// Which specification specification to use for contract metadata.
-    pub(crate)metadata: Option<MetadataSpec>,
+	pub(crate) metadata: Option<MetadataSpec>,
 }
 
 impl BuildContract {
@@ -30,14 +30,13 @@ impl BuildContract {
 	fn build(self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<&'static str> {
 		cli.intro("Building your contract")?;
 		// Build contract.
-		let build_result =
-			build_smart_contract(
-				self.path.as_deref(),
-				self.release,
-				Verbosity::Default,
-				#[cfg(feature = "polkavm-contracts")]
-				self.metadata,
-			)?;
+		let build_result = build_smart_contract(
+			self.path.as_deref(),
+			self.release,
+			Verbosity::Default,
+			#[cfg(feature = "polkavm-contracts")]
+			self.metadata,
+		)?;
 		cli.success(build_result.display())?;
 		cli.outro("Build completed successfully!")?;
 		Ok("contract")
