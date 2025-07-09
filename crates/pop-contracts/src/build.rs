@@ -14,10 +14,13 @@ use std::path::Path;
 ///   if not specified.
 /// * `release` - Whether the smart contract should be built without any debugging functionality.
 /// * `verbosity` - The build output verbosity.
+/// * `metadata_spec` - *(v6 only)* Optionally specify the contract metadata format/version.
 pub fn build_smart_contract(
-	path: Option<&Path>,
-	release: bool,
-	verbosity: Verbosity,
+    path: Option<&Path>,
+    release: bool,
+    verbosity: Verbosity,
+    #[cfg(feature = "v6")]
+    metadata_spec: Option<crate::MetadataSpec>,
 ) -> anyhow::Result<BuildResult> {
 	let manifest_path = get_manifest_path(path)?;
 
@@ -26,11 +29,24 @@ pub fn build_smart_contract(
 		false => BuildMode::Debug,
 	};
 
-	// Default values
-	let args = ExecuteArgs { manifest_path, build_mode, verbosity, ..Default::default() };
+    #[cfg(feature = "v6")]
+    let args = ExecuteArgs {
+        manifest_path,
+        build_mode,
+        verbosity,
+        metadata_spec: metadata_spec.unwrap_or_default(),
+        ..Default::default()
+    };
+    #[cfg(not(feature = "v6"))]
+    let args = ExecuteArgs {
+        manifest_path,
+        build_mode,
+        verbosity,
+        ..Default::default()
+    };
 
-	// Execute the build and log the output of the build
-	execute(args)
+    // Execute the build and log the output of the build
+    execute(args)
 }
 
 /// Determines whether the manifest at the supplied path is a supported smart contract project.
