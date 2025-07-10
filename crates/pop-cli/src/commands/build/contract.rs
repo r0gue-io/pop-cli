@@ -63,8 +63,19 @@ mod tests {
 				.expect_intro("Building your contract")
 				.expect_outro("Build completed successfully!");
 
+			#[cfg(not(feature = "polkavm-contracts"))]
 			assert_eq!(
 				BuildContract { path: Some(path.join(name)), release }.build(&mut cli)?,
+				"contract"
+			);
+			#[cfg(feature = "polkavm-contracts")]
+			assert_eq!(
+				BuildContract {
+					path: Some(path.join(name)),
+					release,
+					metadata: Some(MetadataSpec::Solidity)
+				}
+				.build(&mut cli)?,
 				"contract"
 			);
 

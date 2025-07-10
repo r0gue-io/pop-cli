@@ -358,7 +358,9 @@ mod tests {
 				deterministic,
 				features: Some(features.join(",")),
 				#[cfg(feature = "parachain")]
-				only_runtime: false
+				only_runtime: false,
+				#[cfg(feature = "polkavm-contracts")]
+				metadata: None,
 			},
 			&mut cli,
 		)
