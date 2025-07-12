@@ -262,7 +262,7 @@ mod tests {
 			assert_eq!(
 				Cli {
 					command: Command::New(NewArgs {
-						command: Some(NewCommand::Parachain(Default::default()))
+						command: Some(NewCommand::Chain(Default::default()))
 					})
 				}
 				.to_string(),

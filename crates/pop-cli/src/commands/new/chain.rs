@@ -29,7 +29,7 @@ const DEFAULT_INITIAL_ENDOWMENT: &str = "1u64 << 60";
 
 #[derive(Args, Clone)]
 #[cfg_attr(test, derive(Default))]
-pub struct NewParachainCommand {
+pub struct NewChainCommand {
 	#[arg(help = "Name of the project. If empty assistance in the process will be provided.")]
 	pub(crate) name: Option<String>,
 	#[arg(
@@ -71,7 +71,7 @@ pub struct NewParachainCommand {
 	pub(crate) verify: bool,
 }
 
-impl NewParachainCommand {
+impl NewChainCommand {
 	/// Executes the command.
 	pub(crate) async fn execute(self) -> Result<Parachain> {
 		// If user doesn't select the name guide them to generate a parachain.
@@ -115,7 +115,7 @@ impl NewParachainCommand {
 }
 
 /// Guide the user to generate a parachain from available templates.
-async fn guide_user_to_generate_parachain(verify: bool) -> Result<NewParachainCommand> {
+async fn guide_user_to_generate_parachain(verify: bool) -> Result<NewChainCommand> {
 	Cli.intro("Generate a parachain")?;
 
 	// Prompt for template selection.
@@ -154,7 +154,7 @@ async fn guide_user_to_generate_parachain(verify: bool) -> Result<NewParachainCo
 		customizable_options = prompt_customizable_options()?;
 	}
 
-	Ok(NewParachainCommand {
+	Ok(NewChainCommand {
 		name: Some(name),
 		provider: Some(provider.clone()),
 		template: Some(template.clone()),
@@ -221,7 +221,7 @@ async fn generate_parachain_from_template(
 	];
 	if let Some(network_config) = template.network_config() {
 		next_steps.push(format!(
-			"Use `pop up parachain -f {network_config}` to launch your parachain on a local network."
+			"Use `pop up chain -f {network_config}` to launch your parachain on a local network."
 		))
 	}
 	let next_steps: Vec<_> = next_steps
@@ -412,7 +412,7 @@ mod tests {
 
 	use super::*;
 	use crate::{
-		commands::new::{Command::Parachain as ParachainCommand, NewArgs},
+		commands::new::{Command::Chain as ParachainCommand, NewArgs},
 		Cli,
 		Command::New,
 	};
@@ -426,7 +426,7 @@ mod tests {
 		let cli = Cli::parse_from([
 			"pop",
 			"new",
-			"parachain",
+			"chain",
 			dir.path().join("test_parachain").to_str().unwrap(),
 		]);
 
@@ -447,7 +447,7 @@ mod tests {
 	async fn test_new_parachain_command_execute() -> Result<()> {
 		let dir = tempdir()?;
 		let name = dir.path().join("test_parachain").to_str().unwrap().to_string();
-		let command = NewParachainCommand {
+		let command = NewChainCommand {
 			name: Some(name.clone()),
 			provider: Some(Provider::Pop),
 			template: Some(Parachain::Standard),

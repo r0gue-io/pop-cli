@@ -18,12 +18,12 @@ fn generate_all_the_templates() -> Result<()> {
 	for template in Parachain::VARIANTS {
 		let parachain_name = format!("test_parachain_{}", template);
 		let provider = template.template_type()?.to_lowercase();
-		// pop new parachain test_parachain --verify
+		// pop new chain test_parachain --verify
 		let mut command = pop(
 			&temp_dir,
 			&[
 				"new",
-				"parachain",
+				"chain",
 				&parachain_name,
 				&provider,
 				"--template",
@@ -49,14 +49,14 @@ fn parachain_lifecycle() -> Result<()> {
 		false => temp.path(),
 	};
 
-	// pop new parachain test_parachain --verify (default)
+	// pop new chain test_parachain --verify (default)
 	let working_dir = temp_dir.join("test_parachain");
 	if !working_dir.exists() {
 		let mut command = pop(
 			&temp_dir,
 			&[
 				"new",
-				"parachain",
+				"chain",
 				"test_parachain",
 				"--symbol",
 				"POP",

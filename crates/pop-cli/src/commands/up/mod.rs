@@ -61,7 +61,7 @@ pub(crate) struct UpArgs {
 pub(crate) enum Command {
 	/// Launch a local network by specifying a network configuration file.
 	#[cfg(feature = "parachain")]
-	#[clap(aliases = ["n", "parachain"])]
+	#[clap(aliases = ["n", "chain"])]
 	Network(network::ConfigFileCommand),
 	/// Launch a local Paseo network.
 	#[cfg(feature = "parachain")]

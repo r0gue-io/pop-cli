@@ -259,7 +259,7 @@ fn generate_all_the_templates(temp_dir: &Path) -> Result<()> {
 	for template in Contract::VARIANTS {
 		let contract_name = format!("test_contract_{}", template).replace("-", "_");
 		let contract_type = template.template_type()?.to_lowercase();
-		// pop new parachain test_parachain
+		// pop new chain test_parachain
 		Command::cargo_bin("pop")
 			.unwrap()
 			.current_dir(&temp_dir)
