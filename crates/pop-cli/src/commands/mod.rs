@@ -129,7 +129,7 @@ impl Command {
 				use crate::common::Template::*;
 				match args.command {
 					#[cfg(feature = "parachain")]
-					new::Command::Parachain(cmd) => cmd.execute().await.map(|p| New(Chain(p))),
+					new::Command::Chain(cmd) => cmd.execute().await.map(|p| New(Chain(p))),
 					#[cfg(feature = "parachain")]
 					new::Command::Pallet(cmd) => cmd.execute().await.map(|_| New(Pallet)),
 					#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]

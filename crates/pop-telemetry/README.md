@@ -31,7 +31,7 @@ that is potentially sensitive. We do not even try to collect and sanitize this d
 Here is what we do collect, anonymously:
 
 1. **Command Usage**: We collect information about the commands that are executed using our CLI tool. This includes
-   the type of command and options used. For example, we may report that `pop new parachain` was executed with the Pop
+   the type of command and options used. For example, we may report that `pop new chain` was executed with the Pop
    Standard template.
 2. **CLI Usage**: We collect information about how often the CLI tool is used.
 
