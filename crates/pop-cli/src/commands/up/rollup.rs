@@ -4,7 +4,7 @@ use crate::{
 	build::spec::{
 		BuildSpecCommand, ChainType, CodePathBuf, GenesisArtifacts, RelayChain, StatePathBuf,
 	},
-	call::parachain::Call,
+	call::chain::Call,
 	cli::traits::*,
 	common::{
 		chain::{configure, Chain},
@@ -439,7 +439,7 @@ fn prompt_for_proxy_address(
 	if !skip_registration {
 		cli.info(format!(
 			"Don't have a pure proxy?\n{}",
-			style(format!("Create a proxy account using `pop call parachain --pallet Proxy --function create_pure --args \"Any()\" \"0\" \"0\" --url {relay_chain_url} --use-wallet` and fund it with enough balance for the registration.")).dim()
+			style(format!("Create a proxy account using `pop call chain --pallet Proxy --function create_pure --args \"Any()\" \"0\" \"0\" --url {relay_chain_url} --use-wallet` and fund it with enough balance for the registration.")).dim()
 		))?;
 	}
 	let prompt_message = if skip_registration {
@@ -680,7 +680,7 @@ mod tests {
             .expect_confirm("Would you like to use a pure proxy for registration? This is considered a best practice.", true)
             .expect_info(format!(
                 "Don't have a pure proxy?\n{}",
-                style(format!("Create a proxy account using `pop call parachain --pallet Proxy --function create_pure --args \"Any()\" \"0\" \"0\" --url {relay_chain_url} --use-wallet` and fund it with enough balance for the registration.")).dim()
+                style(format!("Create a proxy account using `pop call chain --pallet Proxy --function create_pure --args \"Any()\" \"0\" \"0\" --url {relay_chain_url} --use-wallet` and fund it with enough balance for the registration.")).dim()
             ))
             .expect_input(
                 "Enter your pure proxy account or the account that the proxy will make a call on behalf of",

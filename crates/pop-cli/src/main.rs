@@ -320,11 +320,11 @@ mod tests {
 			assert_eq!(
 				Cli {
 					command: Command::Call(CallArgs {
-						command: CallCommand::Parachain(Default::default())
+						command: CallCommand::Chain(Default::default())
 					})
 				}
 				.to_string(),
-				"call parachain"
+				"call chain"
 			);
 			// Call contract command display.
 			assert_eq!(
@@ -338,17 +338,17 @@ mod tests {
 			);
 			// Successful execution.
 			let (command, data) = simulate_command_flow(
-				Command::Call(CallArgs { command: CallCommand::Parachain(Default::default()) }),
+				Command::Call(CallArgs { command: CallCommand::Chain(Default::default()) }),
 				Ok(Null),
 			);
-			assert_eq!(command, "call parachain");
+			assert_eq!(command, "call chain");
 			assert_eq!(data, "");
 			// Error handling.
 			let (command, data) = simulate_command_flow(
-				Command::Call(CallArgs { command: CallCommand::Parachain(Default::default()) }),
+				Command::Call(CallArgs { command: CallCommand::Chain(Default::default()) }),
 				Err(anyhow!("connection error")) as Result<Data>,
 			);
-			assert_eq!(command, "call parachain");
+			assert_eq!(command, "call chain");
 			assert_eq!(data, "connection error");
 		}
 	}

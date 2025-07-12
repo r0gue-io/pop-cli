@@ -163,13 +163,13 @@ rpc_port = {random_port}
 	println!("waiting for {wait:?} for network to initialize...");
 	sleep(wait);
 
-	// `pop call parachain --pallet System --function remark --args "0x11" --url
+	// `pop call chain --pallet System --function remark --args "0x11" --url
 	// ws://127.0.0.1:random_port --suri //Alice --skip-confirm`
 	let mut command = pop(
 		&working_dir,
 		&[
 			"call",
-			"parachain",
+			"chain",
 			"--pallet",
 			"System",
 			"--function",
@@ -185,13 +185,13 @@ rpc_port = {random_port}
 	);
 	assert!(command.spawn()?.wait()?.success());
 
-	// pop call parachain --call 0x00000411 --url ws://127.0.0.1:random_port --suri //Alice
+	// pop call chain --call 0x00000411 --url ws://127.0.0.1:random_port --suri //Alice
 	// --skip-confirm
 	let mut command = pop(
 		&working_dir,
 		&[
 			"call",
-			"parachain",
+			"chain",
 			"--call",
 			"0x00000411",
 			"--url",
