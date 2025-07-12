@@ -39,7 +39,7 @@ pub struct NewArgs {
 pub enum Command {
 	/// Generate a new parachain
 	#[cfg(feature = "parachain")]
-	#[clap(alias = "c")]
+	#[clap(alias = "C")]
 	Chain(chain::NewChainCommand),
 	/// Generate a new pallet
 	#[cfg(feature = "parachain")]
