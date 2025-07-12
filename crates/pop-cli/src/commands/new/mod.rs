@@ -3,12 +3,12 @@
 use clap::{Args, Subcommand};
 use std::fmt::{Display, Formatter, Result};
 
+#[cfg(feature = "parachain")]
+pub mod chain;
 #[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 pub mod contract;
 #[cfg(feature = "parachain")]
 pub mod pallet;
-#[cfg(feature = "parachain")]
-pub mod parachain;
 
 /// The possible values from the variants of an enum.
 #[macro_export]
@@ -37,8 +37,8 @@ pub struct NewArgs {
 pub enum Command {
 	/// Generate a new parachain
 	#[cfg(feature = "parachain")]
-	#[clap(alias = "p")]
-	Parachain(parachain::NewParachainCommand),
+	#[clap(alias = "c")]
+	Chain(chain::NewChainCommand),
 	/// Generate a new pallet
 	#[cfg(feature = "parachain")]
 	#[clap(alias = "P")]
@@ -53,7 +53,7 @@ impl Display for Command {
 	fn fmt(&self, f: &mut Formatter<'_>) -> Result {
 		match self {
 			#[cfg(feature = "parachain")]
-			Command::Parachain(_) => write!(f, "chain"),
+			Command::Chain(_) => write!(f, "chain"),
 			#[cfg(feature = "parachain")]
 			Command::Pallet(_) => write!(f, "pallet"),
 			#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
@@ -69,7 +69,7 @@ mod tests {
 	#[test]
 	fn command_display_works() {
 		#[cfg(feature = "parachain")]
-		assert_eq!(Command::Parachain(Default::default()).to_string(), "chain");
+		assert_eq!(Command::Chain(Default::default()).to_string(), "chain");
 		#[cfg(feature = "parachain")]
 		assert_eq!(Command::Pallet(Default::default()).to_string(), "pallet");
 		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
