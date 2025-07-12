@@ -2,10 +2,10 @@
 
 use clap::{Args, Subcommand};
 use std::fmt::{Display, Formatter, Result};
+#[cfg(feature = "parachain")]
+pub(crate) mod chain;
 #[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 pub(crate) mod contract;
-#[cfg(feature = "parachain")]
-pub(crate) mod parachain;
 
 /// Arguments for calling a smart contract.
 #[derive(Args)]
@@ -15,13 +15,13 @@ pub(crate) struct CallArgs {
 	pub command: Command,
 }
 
-/// Call a parachain or a smart contract.
+/// Call a chain or a smart contract.
 #[derive(Subcommand)]
 pub(crate) enum Command {
-	/// Call a parachain
+	/// Call a chain
 	#[cfg(feature = "parachain")]
-	#[clap(alias = "p")]
-	Parachain(parachain::CallParachainCommand),
+	#[clap(alias = "p", visible_aliases = ["parachain"])]
+	Chain(chain::CallChainCommand),
 	/// Call a contract
 	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 	#[clap(alias = "c")]
@@ -32,7 +32,7 @@ impl Display for Command {
 	fn fmt(&self, f: &mut Formatter<'_>) -> Result {
 		match self {
 			#[cfg(feature = "parachain")]
-			Command::Parachain(_) => write!(f, "parachain"),
+			Command::Chain(_) => write!(f, "chain"),
 			#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 			Command::Contract(_) => write!(f, "contract"),
 		}
