@@ -391,7 +391,7 @@ mod tests {
 			),
 			// New.
 			(
-				Command::New(new::NewArgs { command: new::Command::Parachain(Default::default()) }),
+				Command::New(new::NewArgs { command: new::Command::Chain(Default::default()) }),
 				"new chain",
 			),
 			(
