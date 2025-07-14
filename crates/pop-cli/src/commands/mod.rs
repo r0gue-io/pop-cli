@@ -402,7 +402,7 @@ mod tests {
 			// New.
 			(
 				Command::New(new::NewArgs {
-					command: Some(new::Command::Parachain(Default::default())),
+					command: Some(new::Command::Chain(Default::default())),
 				}),
 				"new chain",
 			),
