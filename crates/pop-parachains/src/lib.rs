@@ -71,6 +71,6 @@ pub use utils::helpers::is_initial_endowment_valid;
 pub use zombienet_sdk::NetworkNode;
 
 const PASSET_HUB_SPEC_JSON: &str = include_str!("../artifacts/passet-hub-spec.json");
-pub fn get_passet_hub_spec_content() -> &'static str {
+fn get_passet_hub_spec_content() -> &'static str {
 	PASSET_HUB_SPEC_JSON
 }
