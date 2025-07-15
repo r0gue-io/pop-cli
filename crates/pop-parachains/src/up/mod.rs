@@ -521,8 +521,12 @@ impl NetworkConfiguration {
 					// TODO: Just a temporary fix, once Paseo chain-spec-generator supports
 					// passet-hub just remove this.
 					if chain.as_str().contains("passet-hub") {
-						let path = PathBuf::from("./artifacts/passet-hub-spec.json");
-						builder = builder.with_chain_spec_path(path);
+						let chain_spec = crate::get_passet_hub_spec_content();
+						let temp_dir = std::env::temp_dir();
+						let spec_path = temp_dir.join("passet-hub-spec.json");
+						std::fs::write(&spec_path, chain_spec)
+							.expect("Failed to write passet-hub chain spec");
+						builder = builder.with_chain_spec_path(spec_path);
 						chain_spec_generator = None;
 					}
 				}
