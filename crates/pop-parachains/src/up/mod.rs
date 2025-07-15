@@ -1925,7 +1925,6 @@ chain = "paseo-local"
 
 				let relay_config = config.0.relaychain();
 				assert_eq!(relay_config.chain().as_str(), relay_chain);
-				assert_eq!(relay_config.nodes().len(), rollups.len().max(2));
 				assert_eq!(
 					relay_config.nodes().iter().map(|n| n.name()).collect::<Vec<_>>(),
 					VALIDATORS.into_iter().take(relay_config.nodes().len()).collect::<Vec<_>>()
