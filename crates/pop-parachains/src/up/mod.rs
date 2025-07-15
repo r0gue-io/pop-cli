@@ -518,7 +518,8 @@ impl NetworkConfiguration {
 				// Chain spec
 				if let Some(chain) = source.chain() {
 					builder = builder.with_chain(chain.as_str());
-					// TODO: Just a temporary fix, once Paseo chain-spec-generator supports passet-hub just remove this.
+					// TODO: Just a temporary fix, once Paseo chain-spec-generator supports
+					// passet-hub just remove this.
 					if chain.as_str().contains("passet-hub") {
 						let path = PathBuf::from("./artifacts/passet-hub-spec.json");
 						builder = builder.with_chain_spec_path(path);
