@@ -169,6 +169,24 @@ impl People {
 }
 impl_system_rollup!(People);
 
+/// The PassetHub system chain is a temporary rollup within the Polkadot ecosystem dedicated
+/// to deploy smart contracts..
+///
+/// See <https://docs.polkadot.com/polkadot-protocol/smart-contract-basics/networks/#passet-hub> for more details.
+#[derive(Clone)]
+pub struct PassetHub(Rollup);
+impl PassetHub {
+	/// A new instance of the PassetHub chain.
+	///
+	/// # Arguments
+	/// * `id` - The rollup identifier.
+	/// * `relay` - The relay chain.
+	pub fn new(id: Id, relay: Relay) -> Self {
+		Self(Rollup::new("passet-hub", id, format!("passet-hub-{}", relay.chain())))
+	}
+}
+impl_system_rollup!(PassetHub);
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -257,5 +275,16 @@ mod tests {
 		assert!(people.genesis_overrides().is_none());
 		assert_eq!(people.name(), "people");
 		assert_eq!(people.source().unwrap(), System.source().unwrap());
+	}
+
+	#[test]
+	fn passet_hub_works() {
+		let passethub = PassetHub::new(1_111, Relay::Paseo);
+		assert_eq!(passethub.args(), System.args());
+		assert_eq!(passethub.binary(), "polkadot-parachain");
+		assert_eq!(passethub.chain(), "passet-hub-paseo-local");
+		assert!(passethub.genesis_overrides().is_none());
+		assert_eq!(passethub.name(), "passet-hub");
+		assert_eq!(passethub.source().unwrap(), System.source().unwrap());
 	}
 }

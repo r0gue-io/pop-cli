@@ -499,7 +499,7 @@ impl NetworkConfiguration {
 
 			// Resolve paths to parachain binary and chain spec generator
 			let binary_path = NetworkConfiguration::resolve_path(&para.binary.path())?;
-			let chain_spec_generator = match &para.chain_spec_generator {
+			let mut chain_spec_generator = match &para.chain_spec_generator {
 				None => None,
 				Some(path) => Some(format!(
 					"{} {}",
@@ -518,6 +518,12 @@ impl NetworkConfiguration {
 				// Chain spec
 				if let Some(chain) = source.chain() {
 					builder = builder.with_chain(chain.as_str());
+					// TODO: Just a temporary fix, once Paseo chain-spec-generator supports passet-hub just remove this.
+					if chain.as_str().contains("passet-hub") {
+						let path = PathBuf::from("./artifacts/passet-hub-spec.json");
+						builder = builder.with_chain_spec_path(path);
+						chain_spec_generator = None;
+					}
 				}
 				if let Some(command) = source.chain_spec_command() {
 					builder = builder.with_chain_spec_command(command);
