@@ -32,7 +32,7 @@ toml.workspace = true
 url.workspace = true
 
 # contracts
-pop-contracts = { path = "../pop-contracts", version = "0.8.1", default-features = false, optional = true }
+pop-contracts = { path = "../pop-contracts", version = "0.9.0", default-features = false, optional = true }
 sp-core = { workspace = true, optional = true }
 sp-weights = { workspace = true, optional = true }
 
@@ -43,10 +43,10 @@ regex = { workspace = true, optional = true }
 tracing-subscriber = { workspace = true, optional = true }
 
 # telemetry
-pop-telemetry = { path = "../pop-telemetry", version = "0.8.1", optional = true }
+pop-telemetry = { path = "../pop-telemetry", version = "0.9.0", optional = true }
 
 # common
-pop-common = { path = "../pop-common", version = "0.8.1" }
+pop-common = { path = "../pop-common", version = "0.9.0" }
 
 # wallet-integration
 axum = { workspace = true, optional = true }
