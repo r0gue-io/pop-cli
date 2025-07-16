@@ -19,6 +19,8 @@ use {
 };
 #[cfg(feature = "polkavm-contracts")]
 use subxt_inkv6::{Config, PolkadotConfig as DefaultConfig};
+#[cfg(feature = "polkavm-contracts")]
+use subxt_signer_inkv6::sr25519::Keypair;
 
 impl_binary_generator!(ContractsNodeGenerator, contracts_node_generator);
 
