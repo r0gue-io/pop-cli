@@ -15,7 +15,6 @@ use clap::Args;
 use cliclack::spinner;
 #[cfg(feature = "wasm-contracts")]
 use pop_common::parse_account;
-use pop_common::{DefaultConfig, Keypair};
 use pop_contracts::{
 	build_smart_contract, call_smart_contract, call_smart_contract_from_signed_payload,
 	dry_run_call, dry_run_gas_estimate_call, get_call_payload, get_message, get_messages,
@@ -25,6 +24,13 @@ use std::path::PathBuf;
 #[cfg(feature = "polkavm-contracts")]
 use {crate::common::contracts::map_account, pop_common::parse_h160_account};
 
+#[cfg(feature = "wasm-contracts")]
+use subxt::{Config, PolkadotConfig as DefaultConfig};
+#[cfg(feature = "polkavm-contracts")]
+use subxt_inkv6::{Config, PolkadotConfig as DefaultConfig};
+
+
+const DEFAULT_URL: &str = "ws://localhost:9944/";
 const DEFAULT_URI: &str = "//Alice";
 const DEFAULT_PAYABLE_VALUE: &str = "0";
 
