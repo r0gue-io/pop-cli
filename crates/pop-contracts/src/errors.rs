@@ -37,6 +37,9 @@ pub enum Error {
 	InvalidName(String),
 	#[error("IO error: {0}")]
 	IO(#[from] std::io::Error),
+	/// An error occurred while attempting to create a keypair from the provided URI.
+	#[error("Failed to create keypair from URI: {0}")]
+	KeyPairCreation(String),
 	#[error("Failed to get manifest path: {0}")]
 	ManifestPath(String),
 	/// Error returned when mapping an account fails.
@@ -48,6 +51,9 @@ pub enum Error {
 	NewContract(String),
 	#[error("ParseError error: {0}")]
 	ParseError(#[from] url::ParseError),
+	/// An error occurred while parsing the provided secret URI.
+	#[error("Failed to parse secret URI: {0}")]
+	ParseSecretURI(String),
 	#[error("The `Repository` property is missing from the template variant")]
 	RepositoryMissing,
 	#[error("Sourcing error {0}")]
@@ -58,10 +64,4 @@ pub enum Error {
 	UnsupportedPlatform { os: &'static str },
 	#[error("{0}")]
 	UploadContractError(String),
-	/// An error occurred while attempting to create a keypair from the provided URI.
-	#[error("Failed to create keypair from URI: {0}")]
-	KeyPairCreation(String),
-	/// An error occurred while parsing the provided secret URI.
-	#[error("Failed to parse secret URI: {0}")]
-	ParseSecretURI(String),
 }
