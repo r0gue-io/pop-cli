@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
+#[cfg(feature = "v6")]
+use crate::utils::map_account::create_signer;
 use crate::{
 	errors::Error,
 	utils::{
@@ -13,20 +15,22 @@ use crate::{
 use pop_common::account_id::parse_h160_account;
 #[cfg(feature = "v5")]
 use pop_common::create_signer;
-#[cfg(feature = "v6")]
-use crate::utils::map_account::create_signer;
 use std::path::{Path, PathBuf};
 #[cfg(feature = "v5")]
 use subxt::{
+	backend,
 	blocks::ExtrinsicEvents,
+	config,
 	tx::{Payload, SubmittableExtrinsic},
-	SubstrateConfig, OnlineClient, backend, config, Config, PolkadotConfig as DefaultConfig
+	Config, OnlineClient, PolkadotConfig as DefaultConfig, SubstrateConfig,
 };
 #[cfg(feature = "v6")]
 use subxt_inkv6::{
+	backend,
 	blocks::ExtrinsicEvents,
+	config,
 	tx::{Payload, SubmittableTransaction},
-	SubstrateConfig, OnlineClient, Config, PolkadotConfig as DefaultConfig, backend, config
+	Config, OnlineClient, PolkadotConfig as DefaultConfig, SubstrateConfig,
 };
 #[cfg(feature = "v5")]
 pub use subxt_signer::sr25519::Keypair;

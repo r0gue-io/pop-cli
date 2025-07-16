@@ -51,7 +51,7 @@ pub use {
 	ink_env_v6::{DefaultEnvironment, Environment},
 	sp_core_inkv6::Bytes,
 	up::{get_instantiate_payload, get_upload_payload},
-	utils::map_account::{AccountMapper, create_signer},
+	utils::map_account::{create_signer, AccountMapper},
 };
 #[cfg(feature = "v5")]
 pub use {

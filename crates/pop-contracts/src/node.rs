@@ -31,9 +31,13 @@ use std::{
 	time::Duration,
 };
 #[cfg(feature = "v5")]
-use subxt::{dynamic::{tx, Value}, SubstrateConfig, utils, client};
+use subxt::{
+	client,
+	dynamic::{tx, Value},
+	utils, SubstrateConfig,
+};
 #[cfg(feature = "v6")]
-use subxt_inkv6::{dynamic::tx,SubstrateConfig, utils, client};
+use subxt_inkv6::{client, dynamic::tx, utils, SubstrateConfig};
 use tokio::time::sleep;
 
 #[cfg(feature = "v5")]
@@ -162,12 +166,10 @@ pub async fn run_contracts_node(
 	#[cfg(feature = "v6")]
 	let payload = MapAccount::new().build();
 
-	let client = client::OnlineClient::<SubstrateConfig>::from_url(format!(
-		"ws://127.0.0.1:{}",
-		port
-	))
-	.await
-	.map_err(|e| Error::AnyhowError(e.into()))?;
+	let client =
+		client::OnlineClient::<SubstrateConfig>::from_url(format!("ws://127.0.0.1:{}", port))
+			.await
+			.map_err(|e| Error::AnyhowError(e.into()))?;
 	#[cfg(feature = "v5")]
 	client
 		.tx()

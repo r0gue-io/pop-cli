@@ -3,7 +3,7 @@
 use crate::{errors::Error, DefaultEnvironment};
 use contract_extrinsics_inkv6::{ExtrinsicOpts, MapAccountCommandBuilder, MapAccountExec};
 use subxt_inkv6::{ext::scale_encode::EncodeAsType, utils::H160, PolkadotConfig as DefaultConfig};
-use subxt_signer_inkv6::{SecretUri, sr25519::Keypair};
+use subxt_signer_inkv6::{sr25519::Keypair, SecretUri};
 
 /// A helper struct for performing account mapping operations.
 pub struct AccountMapper {
@@ -54,7 +54,8 @@ impl MapAccount {
 	}
 }
 
-/// Create a keypair from a secret URI.
+/// TODO: Duplicated function with the one in pop-common, temporary function due to dependency
+/// issues. Create a keypair from a secret URI.
 ///
 /// # Arguments
 /// `suri` - Secret URI string used to generate the `Keypair`.
