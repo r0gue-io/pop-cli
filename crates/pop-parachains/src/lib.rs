@@ -69,3 +69,8 @@ pub use templates::{Config, Parachain, Provider};
 pub use utils::helpers::is_initial_endowment_valid;
 /// Information about the Node. External export from Zombienet-SDK.
 pub use zombienet_sdk::NetworkNode;
+
+const PASSET_HUB_SPEC_JSON: &str = include_str!("../artifacts/passet-hub-spec.json");
+fn get_passet_hub_spec_content() -> &'static str {
+	PASSET_HUB_SPEC_JSON
+}
