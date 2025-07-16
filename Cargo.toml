@@ -55,6 +55,7 @@ ink_env_v6 = { git = "https://github.com/use-ink/ink", branch = "master", packag
 sp-core = { version = "32.0.0", default-features = false }
 sp-core_inkv6 = { version = "37.0.0", package = "sp-core", default-features = false }
 sp-weights = { version = "31.0.0", default-features = false }
+sp-weights_inkv6 = { version = "32.0.0", package = "sp-weights", default-features = false }
 scale = { package = "parity-scale-codec", version = "3.7.5", features = ["derive"] }
 scale-info = { version = "2.11.4", default-features = false, features = ["derive"] }
 scale-value = { version = "0.17.0", default-features = false, features = ["from-string", "parser-ss58"] }
