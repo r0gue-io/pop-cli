@@ -9192,6 +9192,7 @@ dependencies = [
  "sp-core 32.0.0",
  "sp-core 37.0.0",
  "sp-weights 31.1.0",
+ "sp-weights 32.0.0",
  "strum 0.26.3",
  "strum_macros 0.26.4",
  "subxt 0.38.1",
@@ -12775,6 +12776,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp-arithmetic"
+version = "27.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2929fd12ac6ca3cfac7f62885866810ba4e9464814dbaa87592b5b5681b29aee"
+dependencies = [
+ "docify",
+ "integer-sqrt",
+ "num-traits",
+ "parity-scale-codec",
+ "scale-info",
+ "static_assertions",
+]
+
+[[package]]
 name = "sp-authority-discovery"
 version = "36.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -14355,6 +14370,20 @@ dependencies = [
  "serde",
  "smallvec",
  "sp-arithmetic 26.1.0",
+ "sp-debug-derive 14.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "sp-weights"
+version = "32.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c8a1d448faceb064bb114df31fc45ff86ea2ee8fd17810c4357a578d081f7732"
+dependencies = [
+ "bounded-collections 0.2.4",
+ "parity-scale-codec",
+ "scale-info",
+ "smallvec",
+ "sp-arithmetic 27.0.0",
  "sp-debug-derive 14.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
