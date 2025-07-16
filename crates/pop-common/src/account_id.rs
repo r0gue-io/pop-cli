@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{Error};
-use subxt::{Config, PolkadotConfig as DefaultConfig};
+use crate::Error;
 use sp_core::keccak_256;
 use std::str::FromStr;
-use subxt::utils::{to_hex, H160};
+use subxt::{
+	utils::{to_hex, H160},
+	Config, PolkadotConfig as DefaultConfig,
+};
 
 /// Parses an account ID from its string representation.
 ///
