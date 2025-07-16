@@ -90,4 +90,10 @@ pub enum Error {
 	/// An error occurred while uploading the contract.
 	#[error("{0}")]
 	UploadContractError(String),
+	/// An error occurred while attempting to create a keypair from the provided URI.
+	#[error("Failed to create keypair from URI: {0}")]
+	KeyPairCreation(String),
+	/// An error occurred while parsing the provided secret URI.
+	#[error("Failed to parse secret URI: {0}")]
+	ParseSecretURI(String),
 }

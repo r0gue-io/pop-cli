@@ -43,7 +43,7 @@ pub use utils::{
 #[cfg(feature = "v5")]
 pub use sp_weights::Weight;
 #[cfg(feature = "v6")]
-pub use sp_weights_inkv6::weight_v2::Weight;
+pub use sp_weights_inkv6::Weight;
 #[cfg(feature = "v6")]
 pub use {
 	contract_build_inkv6::MetadataSpec,
@@ -51,7 +51,7 @@ pub use {
 	ink_env_v6::{DefaultEnvironment, Environment},
 	sp_core_inkv6::Bytes,
 	up::{get_instantiate_payload, get_upload_payload},
-	utils::map_account::AccountMapper,
+	utils::map_account::{AccountMapper, create_signer},
 };
 #[cfg(feature = "v5")]
 pub use {
