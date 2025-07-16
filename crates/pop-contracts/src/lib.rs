@@ -40,7 +40,10 @@ pub use utils::{
 	parse_hex_bytes,
 };
 // External exports
+#[cfg(feature = "v5")]
 pub use sp_weights::Weight;
+#[cfg(feature = "v6")]
+pub use sp_weights_inkv6::weight_v2::Weight;
 #[cfg(feature = "v6")]
 pub use {
 	contract_build_inkv6::MetadataSpec,

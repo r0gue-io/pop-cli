@@ -12,7 +12,11 @@ use crate::{
 };
 use anyhow::Context;
 use pop_common::{create_signer};
+#[cfg(feature = "v5")]
 use sp_weights::Weight;
+#[cfg(feature = "v6")]
+use sp_weights_inkv6::weight_v2::Weight;
+
 use std::path::PathBuf;
 #[cfg(feature = "v5")]
 use subxt::{tx::Payload, SubstrateConfig, Config, PolkadotConfig as DefaultConfig};
