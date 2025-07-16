@@ -14,7 +14,10 @@ use anyhow::Context;
 use pop_common::{create_signer, DefaultConfig, Keypair};
 use sp_weights::Weight;
 use std::path::PathBuf;
+#[cfg(feature = "v5")]
 use subxt::{tx::Payload, SubstrateConfig};
+#[cfg(feature = "v6")]
+use subxt_inkv6::{tx::Payload, SubstrateConfig};
 use url::Url;
 #[cfg(feature = "v5")]
 use {

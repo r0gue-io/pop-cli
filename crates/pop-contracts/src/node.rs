@@ -31,8 +31,9 @@ use std::{
 	time::Duration,
 };
 #[cfg(feature = "v5")]
-use subxt::dynamic::Value;
-use subxt::SubstrateConfig;
+use subxt::{dynamic::{tx, Value}, SubstrateConfig, utils, client};
+#[cfg(feature = "v6")]
+use subxt_inkv6::{dynamic::tx,SubstrateConfig, utils, client};
 use tokio::time::sleep;
 
 #[cfg(feature = "v5")]
@@ -155,13 +156,13 @@ pub async fn run_contracts_node(
 	sleep(STARTUP).await;
 
 	#[cfg(feature = "v5")]
-	let data = Value::from_bytes(subxt::utils::to_hex("initialize contracts node"));
+	let data = Value::from_bytes(utils::to_hex("initialize contracts node"));
 	#[cfg(feature = "v5")]
-	let payload = subxt::dynamic::tx("System", "remark", [data].to_vec());
+	let payload = tx("System", "remark", [data].to_vec());
 	#[cfg(feature = "v6")]
 	let payload = MapAccount::new().build();
 
-	let client = subxt::client::OnlineClient::<SubstrateConfig>::from_url(format!(
+	let client = client::OnlineClient::<SubstrateConfig>::from_url(format!(
 		"ws://127.0.0.1:{}",
 		port
 	))
