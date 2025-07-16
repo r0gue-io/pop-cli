@@ -12,8 +12,14 @@ use pop_contracts::{
 use serde::{Deserialize, Serialize};
 use std::{path::Path, println, process::Command as Cmd, time::Duration};
 use strum::VariantArray;
-use subxt::{config::DefaultExtrinsicParamsBuilder as Params, tx::Payload, utils::to_hex};
+#[cfg(feature = "wasm-contracts")]
+use subxt::{config::DefaultExtrinsicParamsBuilder as Params, tx::Payload, utils::to_hex, Metadata, ext::subxt_core, backend::rpc::RpcClient, OnlineClient, SubstrateConfig};
+#[cfg(feature = "polkavm-contracts")]
+use subxt_inkv6::{config::DefaultExtrinsicParamsBuilder as Params, tx::Payload, utils::to_hex, Metadata, ext::subxt_core, backend::rpc::RpcClient, OnlineClient, SubstrateConfig};
+#[cfg(feature = "wasm-contracts")]
 use subxt_signer::sr25519::dev;
+#[cfg(feature = "polkavm-contracts")]
+use subxt_signer_inkv6::sr25519::dev;
 use tokio::time::sleep;
 use url::Url;
 
@@ -23,9 +29,9 @@ struct CallData(Vec<u8>);
 impl Payload for CallData {
 	fn encode_call_data_to(
 		&self,
-		_: &subxt::Metadata,
+		_: &Metadata,
 		out: &mut Vec<u8>,
-	) -> Result<(), subxt::ext::subxt_core::Error> {
+	) -> Result<(), subxt_core::Error> {
 		out.extend_from_slice(&self.0);
 		Ok(())
 	}
@@ -219,8 +225,8 @@ async fn contract_lifecycle() -> Result<()> {
 	// We have received some payload.
 	assert!(!response.call_data().is_empty());
 
-	let rpc_client = subxt::backend::rpc::RpcClient::from_url(default_endpoint).await?;
-	let client = subxt::OnlineClient::<subxt::SubstrateConfig>::from_rpc_client(rpc_client).await?;
+	let rpc_client = RpcClient::from_url(default_endpoint).await?;
+	let client = OnlineClient::<SubstrateConfig>::from_rpc_client(rpc_client).await?;
 
 	// Sign payload.
 	let signer = dev::alice();

@@ -3,7 +3,7 @@
 use crate::{errors::Error, DefaultEnvironment};
 use contract_extrinsics_inkv6::{ExtrinsicOpts, MapAccountCommandBuilder, MapAccountExec};
 use pop_common::{DefaultConfig, Keypair};
-use subxt::{ext::scale_encode::EncodeAsType, utils::H160};
+use subxt_inkv6::{ext::scale_encode::EncodeAsType, utils::H160};
 
 /// A helper struct for performing account mapping operations.
 pub struct AccountMapper {
