@@ -16,9 +16,15 @@ use serde::{Deserialize, Serialize};
 use std::{path::Path, process::Command as Cmd, time::Duration};
 use strum::VariantArray;
 #[cfg(feature = "wasm-contracts")]
-use subxt::{config::DefaultExtrinsicParamsBuilder as Params, tx::Payload, utils::to_hex, Metadata, ext::subxt_core, backend::rpc::RpcClient, OnlineClient, SubstrateConfig};
+use subxt::{
+	backend::rpc::RpcClient, config::DefaultExtrinsicParamsBuilder as Params, ext::subxt_core,
+	tx::Payload, utils::to_hex, Metadata, OnlineClient, SubstrateConfig,
+};
 #[cfg(feature = "polkavm-contracts")]
-use subxt_inkv6::{config::DefaultExtrinsicParamsBuilder as Params, tx::Payload, utils::to_hex, Metadata, ext::subxt_core, backend::rpc::RpcClient, OnlineClient, SubstrateConfig};
+use subxt_inkv6::{
+	backend::rpc::RpcClient, config::DefaultExtrinsicParamsBuilder as Params, ext::subxt_core,
+	tx::Payload, utils::to_hex, Metadata, OnlineClient, SubstrateConfig,
+};
 #[cfg(feature = "wasm-contracts")]
 use subxt_signer::sr25519::dev;
 #[cfg(feature = "polkavm-contracts")]
