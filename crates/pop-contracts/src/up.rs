@@ -11,7 +11,10 @@ use crate::{
 };
 #[cfg(feature = "v6")]
 use pop_common::account_id::parse_h160_account;
-use pop_common::{create_signer};
+#[cfg(feature = "v5")]
+use pop_common::create_signer;
+#[cfg(feature = "v6")]
+use crate::utils::map_account::create_signer;
 use std::path::{Path, PathBuf};
 #[cfg(feature = "v5")]
 use subxt::{
@@ -22,7 +25,7 @@ use subxt::{
 #[cfg(feature = "v6")]
 use subxt_inkv6::{
 	blocks::ExtrinsicEvents,
-	tx::{Payload, SubmittableExtrinsic},
+	tx::{Payload, SubmittableTransaction},
 	SubstrateConfig, OnlineClient, Config, PolkadotConfig as DefaultConfig, backend, config
 };
 #[cfg(feature = "v5")]
@@ -406,8 +409,10 @@ pub async fn submit_signed_payload(
 
 	let hex_encoded = from_hex(&payload)?;
 
+	#[cfg(feature = "v5")]
 	let extrinsic = SubmittableExtrinsic::from_bytes(client, hex_encoded);
-
+	#[cfg(feature = "v6")]
+	let extrinsic = SubmittableTransaction::from_bytes(client, hex_encoded);
 	// src: https://github.com/use-ink/cargo-contract/blob/68691b9b6cdb7c6ec52ea441b3dc31fcb1ce08e0/crates/extrinsics/src/lib.rs#L143
 
 	#[cfg(feature = "v5")]

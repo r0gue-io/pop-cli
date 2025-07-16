@@ -168,9 +168,16 @@ pub async fn run_contracts_node(
 	))
 	.await
 	.map_err(|e| Error::AnyhowError(e.into()))?;
+	#[cfg(feature = "v5")]
 	client
 		.tx()
 		.sign_and_submit_default(&payload, &subxt_signer::sr25519::dev::alice())
+		.await
+		.map_err(|e| Error::AnyhowError(e.into()))?;
+	#[cfg(feature = "v6")]
+	client
+		.tx()
+		.sign_and_submit_default(&payload, &subxt_signer_inkv6::sr25519::dev::alice())
 		.await
 		.map_err(|e| Error::AnyhowError(e.into()))?;
 
