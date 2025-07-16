@@ -70,7 +70,10 @@ mod tests {
 
 		// Contract
 		let name = "flipper";
+		#[cfg(feature = "v5")]
 		new_contract_project(name, Some(&path))?;
+		#[cfg(feature = "v6")]
+		new_contract_project(name, Some(&path), None)?;
 		assert!(is_supported(Some(&path.join(name)))?);
 		Ok(())
 	}
