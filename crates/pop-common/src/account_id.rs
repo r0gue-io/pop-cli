@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{Config, DefaultConfig, Error};
+use crate::{Error};
+use subxt::{Config, PolkadotConfig as DefaultConfig};
 use sp_core::keccak_256;
 use std::str::FromStr;
 use subxt::utils::{to_hex, H160};

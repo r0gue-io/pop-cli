@@ -8112,12 +8112,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "overload"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b15813163c1d831bf4a13c3610c05c0d03b39feb07f7e09fa234dac9b15aaf39"
-
-[[package]]
 name = "pallet-contracts-uapi"
 version = "9.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9060,17 +9054,17 @@ dependencies = [
  "askama",
  "clap",
  "cumulus-primitives-proof-size-hostfunction",
- "duct",
+ "duct 0.13.7",
  "frame-benchmarking-cli",
  "frame-try-runtime",
  "glob",
- "indexmap 2.9.0",
+ "indexmap 2.10.0",
  "parity-scale-codec",
  "pop-common",
  "sc-chain-spec",
  "sc-cli",
  "scale-info",
- "scale-value",
+ "scale-value 0.17.0",
  "serde",
  "serde_json",
  "sp-core 32.0.0",
@@ -9080,8 +9074,8 @@ dependencies = [
  "srtool-lib",
  "strum 0.26.3",
  "strum_macros 0.26.4",
- "subxt",
- "subxt-signer",
+ "subxt 0.38.1",
+ "subxt-signer 0.38.1",
  "symlink",
  "tempfile",
  "thiserror 1.0.69",
@@ -9202,48 +9196,6 @@ dependencies = [
  "tokio",
  "tokio-test",
  "url",
-]
-
-[[package]]
-name = "pop-parachains"
-version = "0.8.1"
-dependencies = [
- "anyhow",
- "askama",
- "clap",
- "cumulus-primitives-proof-size-hostfunction",
- "duct 0.13.7",
- "frame-benchmarking-cli",
- "frame-try-runtime",
- "glob",
- "indexmap 2.10.0",
- "parity-scale-codec",
- "pop-common",
- "sc-chain-spec",
- "sc-cli",
- "scale-info",
- "scale-value 0.17.0",
- "serde",
- "serde_json",
- "sp-core 32.0.0",
- "sp-runtime 41.1.0",
- "sp-statement-store",
- "sp-version 38.0.0",
- "srtool-lib",
- "strum 0.26.3",
- "strum_macros 0.26.4",
- "subxt 0.38.1",
- "subxt-signer 0.38.1",
- "symlink",
- "tempfile",
- "thiserror 1.0.69",
- "tokio",
- "tokio-test",
- "toml_edit",
- "url",
- "walkdir",
- "zombienet-configuration",
- "zombienet-sdk",
 ]
 
 [[package]]

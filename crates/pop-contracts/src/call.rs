@@ -11,13 +11,13 @@ use crate::{
 	CallExec, DefaultEnvironment, Environment, Verbosity,
 };
 use anyhow::Context;
-use pop_common::{create_signer, DefaultConfig, Keypair};
+use pop_common::{create_signer};
 use sp_weights::Weight;
 use std::path::PathBuf;
 #[cfg(feature = "v5")]
-use subxt::{tx::Payload, SubstrateConfig};
+use subxt::{tx::Payload, SubstrateConfig, Config, PolkadotConfig as DefaultConfig};
 #[cfg(feature = "v6")]
-use subxt_inkv6::{tx::Payload, SubstrateConfig};
+use subxt_inkv6::{tx::Payload, SubstrateConfig, Config, PolkadotConfig as DefaultConfig};
 use url::Url;
 #[cfg(feature = "v5")]
 use {
@@ -267,6 +267,6 @@ pub fn get_call_payload(
 		call_exec.call_data().clone(),
 	)
 	.build()
-	.encode_call_data_to(&call_exec.client().metadata(), &mut encoded_data)?;
+	.call_data(&call_exec.client().metadata(), &mut encoded_data)?;
 	Ok(encoded_data)
 }
