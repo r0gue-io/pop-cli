@@ -16,8 +16,12 @@ use sp_weights::Weight;
 use std::path::PathBuf;
 #[cfg(feature = "v5")]
 use subxt::{tx::Payload, SubstrateConfig, Config, PolkadotConfig as DefaultConfig};
+#[cfg(feature = "v5")]
+pub use subxt_signer::sr25519::Keypair;
 #[cfg(feature = "v6")]
 use subxt_inkv6::{tx::Payload, SubstrateConfig, Config, PolkadotConfig as DefaultConfig};
+#[cfg(feature = "v6")]
+pub use subxt_signer_inkv6::sr25519::Keypair;
 use url::Url;
 #[cfg(feature = "v5")]
 use {
@@ -25,7 +29,7 @@ use {
 		extrinsic_calls::Call, BalanceVariant, CallCommandBuilder, ContractArtifacts,
 		DisplayEvents, ErrorVariant, ExtrinsicOptsBuilder, TokenMetadata,
 	},
-	pop_common::{parse_account, Config},
+	pop_common::{parse_account},
 };
 #[cfg(feature = "v6")]
 use {
