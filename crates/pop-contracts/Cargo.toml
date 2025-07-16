@@ -40,7 +40,7 @@ contract-transcode_inkv6 = { workspace = true, optional = true }
 scale-info = { workspace = true }
 
 # pop
-pop-common = { path = "../pop-common", version = "0.8.1" }
+pop-common = { path = "../pop-common", version = "0.9.0" }
 
 [dev-dependencies]
 # Used in doc tests.
