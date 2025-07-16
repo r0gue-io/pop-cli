@@ -17,14 +17,18 @@ use std::path::{Path, PathBuf};
 use subxt::{
 	blocks::ExtrinsicEvents,
 	tx::{Payload, SubmittableExtrinsic},
-	SubstrateConfig, OnlineClient, backend, config, Config, PolkadotConfig as DefaultConfig, Keypair
+	SubstrateConfig, OnlineClient, backend, config, Config, PolkadotConfig as DefaultConfig
 };
 #[cfg(feature = "v6")]
 use subxt_inkv6::{
 	blocks::ExtrinsicEvents,
 	tx::{Payload, SubmittableExtrinsic},
-	SubstrateConfig, OnlineClient, Config, PolkadotConfig as DefaultConfig, Keypair backend, config
+	SubstrateConfig, OnlineClient, Config, PolkadotConfig as DefaultConfig, backend, config
 };
+#[cfg(feature = "v5")]
+pub use subxt_signer::sr25519::Keypair;
+#[cfg(feature = "v6")]
+pub use subxt_signer_inkv6::sr25519::Keypair;
 #[cfg(feature = "v5")]
 use {
 	contract_extrinsics::{
@@ -36,7 +40,6 @@ use {
 		UploadResult, WasmCode as ContractBinary,
 	},
 	sp_core::bytes::from_hex,
-	subxt::Config,
 };
 #[cfg(feature = "v6")]
 use {
