@@ -11,19 +11,19 @@ use crate::{
 };
 #[cfg(feature = "v6")]
 use pop_common::account_id::parse_h160_account;
-use pop_common::{create_signer, DefaultConfig, Keypair};
+use pop_common::{create_signer};
 use std::path::{Path, PathBuf};
 #[cfg(feature = "v5")]
 use subxt::{
 	blocks::ExtrinsicEvents,
 	tx::{Payload, SubmittableExtrinsic},
-	SubstrateConfig, OnlineClient, backend, config
+	SubstrateConfig, OnlineClient, backend, config, Config, PolkadotConfig as DefaultConfig, Keypair
 };
 #[cfg(feature = "v6")]
 use subxt_inkv6::{
 	blocks::ExtrinsicEvents,
 	tx::{Payload, SubmittableExtrinsic},
-	SubstrateConfig, OnlineClient, backend, config
+	SubstrateConfig, OnlineClient, Config, PolkadotConfig as DefaultConfig, Keypair backend, config
 };
 #[cfg(feature = "v5")]
 use {
