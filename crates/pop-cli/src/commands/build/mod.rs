@@ -12,16 +12,16 @@ use pop_common::Profile;
 use std::path::PathBuf;
 #[cfg(feature = "parachain")]
 use {
-	parachain::BuildParachain,
+	chain::BuildParachain,
 	runtime::{BuildRuntime, Feature::*},
 	spec::BuildSpecCommand,
 	std::fmt::{Display, Formatter, Result},
 };
 
+#[cfg(feature = "parachain")]
+pub(crate) mod chain;
 #[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 pub(crate) mod contract;
-#[cfg(feature = "parachain")]
-pub(crate) mod parachain;
 #[cfg(feature = "parachain")]
 pub(crate) mod runtime;
 #[cfg(feature = "parachain")]
