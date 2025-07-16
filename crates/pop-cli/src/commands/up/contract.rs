@@ -510,9 +510,9 @@ mod tests {
 		time::Duration,
 	};
 	#[cfg(feature = "wasm-contracts")]
-	use subxt::{tx::Payload, SubstrateConfig, backend::rpc::RpcClient, OnlineClient};
+	use subxt::{backend::rpc::RpcClient, tx::Payload, OnlineClient, SubstrateConfig};
 	#[cfg(feature = "polkavm-contracts")]
-	use subxt_inkv6::{tx::Payload, SubstrateConfig, backend::rpc::RpcClient, OnlineClient};
+	use subxt_inkv6::{backend::rpc::RpcClient, tx::Payload, OnlineClient, SubstrateConfig};
 	use tempfile::TempDir;
 	use tokio::time::sleep;
 	use url::Url;

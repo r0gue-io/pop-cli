@@ -29,13 +29,8 @@ pub fn build_smart_contract(
 	};
 
 	#[cfg(feature = "v6")]
-	let args = ExecuteArgs {
-		manifest_path,
-		build_mode,
-		verbosity,
-		metadata_spec,
-		..Default::default()
-	};
+	let args =
+		ExecuteArgs { manifest_path, build_mode, verbosity, metadata_spec, ..Default::default() };
 	#[cfg(not(feature = "v6"))]
 	let args = ExecuteArgs { manifest_path, build_mode, verbosity, ..Default::default() };
 
