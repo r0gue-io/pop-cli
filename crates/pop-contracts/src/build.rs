@@ -33,7 +33,7 @@ pub fn build_smart_contract(
 		manifest_path,
 		build_mode,
 		verbosity,
-		metadata_spec: metadata_spec.unwrap_or_default(),
+		metadata_spec,
 		..Default::default()
 	};
 	#[cfg(not(feature = "v6"))]

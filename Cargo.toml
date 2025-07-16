@@ -47,21 +47,23 @@ url = "2.5.4"
 
 # contracts
 subxt-signer = { version = "0.38.0", default-features = false, features = ["subxt", "sr25519"] }
+subxt-signer_inkv6 = { version = "0.42.1", package = "subxt-signer", default-features = false, features = ["subxt", "sr25519"] }
 subxt = { version = "0.38.0", default-features = false }
+subxt_inkv6 = { version = "0.42.1", package = "subxt", default-features = false }
 ink_env = { version = "5.0.0", default-features = false }
-ink_env_v6 = { version = "6.0.0-alpha", package = "ink_env", default-features = false }
+ink_env_v6 = { git = "https://github.com/use-ink/ink", branch = "master", package = "ink_env", default-features = false }
 sp-core = { version = "32.0.0", default-features = false }
-sp-core_inkv6 = { version = "36.1.0", package = "sp-core", default-features = false }
+sp-core_inkv6 = { version = "37.0.0", package = "sp-core", default-features = false }
 sp-weights = { version = "31.0.0", default-features = false }
-scale = { package = "parity-scale-codec", version = "3.0.0", features = ["derive"] }
+scale = { package = "parity-scale-codec", version = "3.7.5", features = ["derive"] }
 scale-info = { version = "2.11.4", default-features = false, features = ["derive"] }
 scale-value = { version = "0.17.0", default-features = false, features = ["from-string", "parser-ss58"] }
 contract-build = { version = "5.0.2", default-features = false }
-contract-build_inkv6 = { version = "6.0.0-alpha", package = "contract-build", default-features = false }
+contract-build_inkv6 = { git = "https://github.com/use-ink/cargo-contract", branch = "master", package = "contract-build", default-features = false }
 contract-extrinsics = { version = "5.0.2", default-features = false }
-contract-extrinsics_inkv6 = { version = "6.0.0-alpha", package = "contract-extrinsics", default-features = false }
+contract-extrinsics_inkv6 = { git = "https://github.com/use-ink/cargo-contract", branch = "master", package = "contract-extrinsics", default-features = false }
 contract-transcode = { version = "5.0.2", default-features = false }
-contract-transcode_inkv6 = { version = "6.0.0-alpha", package = "contract-transcode", default-features = false }
+contract-transcode_inkv6 = { git = "https://github.com/use-ink/cargo-contract", branch = "master", package = "contract-transcode", default-features = false }
 heck = { version = "0.5.0", default-features = false }
 
 # parachains
