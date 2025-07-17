@@ -28,9 +28,8 @@ use subxt::{
 use subxt_inkv6::{
 	backend,
 	blocks::ExtrinsicEvents,
-	config,
 	tx::{Payload, SubmittableTransaction},
-	Config, OnlineClient, PolkadotConfig as DefaultConfig, SubstrateConfig,
+	OnlineClient, PolkadotConfig as DefaultConfig, SubstrateConfig,
 };
 #[cfg(feature = "v5")]
 pub use subxt_signer::sr25519::Keypair;
