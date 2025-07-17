@@ -24,7 +24,7 @@ use std::path::PathBuf;
 #[cfg(feature = "v5")]
 use subxt::{tx::Payload, Config, PolkadotConfig as DefaultConfig, SubstrateConfig};
 #[cfg(feature = "v6")]
-use subxt_inkv6::{tx::Payload, Config, PolkadotConfig as DefaultConfig, SubstrateConfig};
+use subxt_inkv6::{tx::Payload, PolkadotConfig as DefaultConfig, SubstrateConfig};
 #[cfg(feature = "v5")]
 pub use subxt_signer::sr25519::Keypair;
 #[cfg(feature = "v6")]

@@ -26,7 +26,7 @@ use {crate::common::contracts::map_account, pop_common::parse_h160_account};
 #[cfg(feature = "wasm-contracts")]
 use subxt::PolkadotConfig as DefaultConfig;
 #[cfg(feature = "polkavm-contracts")]
-use subxt_inkv6::{Config, PolkadotConfig as DefaultConfig};
+use subxt_inkv6::{PolkadotConfig as DefaultConfig};
 #[cfg(feature = "wasm-contracts")]
 pub use subxt_signer::sr25519::Keypair;
 #[cfg(feature = "polkavm-contracts")]
