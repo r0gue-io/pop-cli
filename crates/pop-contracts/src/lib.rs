@@ -37,19 +37,23 @@ pub use utils::{
 	parse_hex_bytes,
 };
 // External exports
+#[cfg(feature = "v5")]
 pub use sp_weights::Weight;
+#[cfg(feature = "v6")]
+pub use sp_weights_inkv6::Weight;
+#[cfg(feature = "v6")]
+pub use {
+	contract_build_inkv6::MetadataSpec,
+	contract_extrinsics_inkv6::{CallExec, ExtrinsicOpts, UploadCode},
+	ink_env_v6::{DefaultEnvironment, Environment},
+	sp_core_inkv6::Bytes,
+	up::{get_instantiate_payload, get_upload_payload},
+	utils::map_account::{create_signer, AccountMapper},
+};
 #[cfg(feature = "v5")]
 pub use {
 	contract_extrinsics::{extrinsic_calls::UploadCode, CallExec},
 	ink_env::{DefaultEnvironment, Environment},
 	sp_core::Bytes,
 	up::{get_code_hash_from_event, get_instantiate_payload, get_upload_payload},
-};
-#[cfg(feature = "v6")]
-pub use {
-	contract_extrinsics_inkv6::{CallExec, ExtrinsicOpts, UploadCode},
-	ink_env_v6::{DefaultEnvironment, Environment},
-	sp_core_inkv6::Bytes,
-	up::{get_instantiate_payload, get_upload_payload},
-	utils::map_account::AccountMapper,
 };

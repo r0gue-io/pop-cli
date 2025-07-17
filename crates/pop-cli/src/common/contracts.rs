@@ -11,11 +11,14 @@ use std::{
 	path::{Path, PathBuf},
 	process::{Child, Command},
 };
+#[cfg(feature = "polkavm-contracts")]
+use subxt_inkv6::{PolkadotConfig as DefaultConfig};
+#[cfg(feature = "polkavm-contracts")]
+use subxt_signer_inkv6::sr25519::Keypair;
 use tempfile::NamedTempFile;
 #[cfg(feature = "polkavm-contracts")]
 use {
 	crate::style::style,
-	pop_common::{DefaultConfig, Keypair},
 	pop_contracts::{AccountMapper, DefaultEnvironment, ExtrinsicOpts},
 };
 

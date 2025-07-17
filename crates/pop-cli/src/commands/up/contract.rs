@@ -102,7 +102,13 @@ impl UpContractCommand {
 			Cli.warning("NOTE: contract has not yet been built.")?;
 			let spinner = spinner();
 			spinner.start("Building contract in RELEASE mode...");
-			let result = match build_smart_contract(self.path.as_deref(), true, Verbosity::Quiet) {
+			let result = match build_smart_contract(
+				self.path.as_deref(),
+				true,
+				Verbosity::Quiet,
+				#[cfg(feature = "polkavm-contracts")]
+				None,
+			) {
 				Ok(result) => result,
 				Err(e) => {
 					Cli.outro_cancel(format!("🚫 An error occurred building your contract: {e}\nUse `pop build` to retry with build output."))?;
@@ -503,7 +509,10 @@ mod tests {
 		process::{Child, Command},
 		time::Duration,
 	};
-	use subxt::{tx::Payload, SubstrateConfig};
+	#[cfg(feature = "wasm-contracts")]
+	use subxt::{backend::rpc::RpcClient, tx::Payload, OnlineClient, SubstrateConfig};
+	#[cfg(feature = "polkavm-contracts")]
+	use subxt_inkv6::{backend::rpc::RpcClient, tx::Payload, OnlineClient, SubstrateConfig};
 	use tempfile::TempDir;
 	use tokio::time::sleep;
 	use url::Url;
@@ -587,8 +596,8 @@ mod tests {
 			use_wallet: true,
 		};
 
-		let rpc_client = subxt::backend::rpc::RpcClient::from_url(&up_contract_opts.url).await?;
-		let client = subxt::OnlineClient::<SubstrateConfig>::from_rpc_client(rpc_client).await?;
+		let rpc_client = RpcClient::from_url(&up_contract_opts.url).await?;
+		let client = OnlineClient::<SubstrateConfig>::from_rpc_client(rpc_client).await?;
 
 		// Retrieve call data based on the above command options.
 		let (retrieved_call_data, _) = match up_contract_opts.get_contract_data().await {
