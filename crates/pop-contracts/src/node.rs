@@ -37,7 +37,7 @@ use subxt::{
 	utils, SubstrateConfig,
 };
 #[cfg(feature = "v6")]
-use subxt_inkv6::{client, dynamic::tx, utils, SubstrateConfig};
+use subxt_inkv6::{client, SubstrateConfig};
 use tokio::time::sleep;
 
 #[cfg(feature = "v5")]
