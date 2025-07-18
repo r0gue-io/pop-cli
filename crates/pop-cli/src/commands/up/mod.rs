@@ -11,7 +11,7 @@ use clap::{Args, Subcommand};
 use std::path::PathBuf;
 #[cfg(feature = "parachain")]
 use {
-	pop_parachains::up::Relay,
+	pop_chains::up::Relay,
 	std::fmt::{Display, Formatter, Result},
 };
 
@@ -102,7 +102,7 @@ impl Command {
 			return Ok(Contract);
 		}
 		#[cfg(feature = "parachain")]
-		if pop_parachains::is_supported(project_path.as_deref())? {
+		if pop_chains::is_supported(project_path.as_deref())? {
 			let mut cmd = args.rollup;
 			cmd.path = project_path;
 			cmd.execute(cli).await?;
@@ -143,7 +143,7 @@ mod tests {
 	#[cfg(feature = "parachain")]
 	use {
 		crate::style::format_url,
-		pop_parachains::{instantiate_template_dir, Config, DeploymentProvider, Parachain},
+		pop_chains::{instantiate_template_dir, Config, DeploymentProvider, Parachain},
 		strum::VariantArray,
 	};
 

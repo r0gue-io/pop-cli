@@ -9,8 +9,8 @@ use crate::{
 	},
 };
 use clap::Args;
+use pop_chains::{bench::MachineCmd, generate_binary_benchmarks, BenchmarkingCliCommand};
 use pop_common::Profile;
-use pop_parachains::{bench::MachineCmd, generate_binary_benchmarks, BenchmarkingCliCommand};
 use std::{
 	env::current_dir,
 	path::{Path, PathBuf},

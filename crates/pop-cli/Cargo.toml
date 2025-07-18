@@ -37,7 +37,7 @@ sp-core = { workspace = true, optional = true }
 sp-weights = { workspace = true, optional = true }
 
 # parachains
-pop-parachains = { path = "../pop-parachains", version = "0.8.1", optional = true }
+pop-chains = { path = "../pop-chains", version = "0.8.1", optional = true }
 git2 = { workspace = true, optional = true }
 regex = { workspace = true, optional = true }
 tracing-subscriber = { workspace = true, optional = true }
@@ -66,7 +66,7 @@ contract = ["wasm-contracts"]
 contracts = ["polkavm-contracts"]
 experimental = ["hashing"]
 hashing = ["dep:sp-core"]
-parachain = ["dep:pop-parachains", "dep:git2", "dep:regex", "dep:sp-core", "dep:tracing-subscriber", "wallet-integration"]
+parachain = ["dep:pop-chains", "dep:git2", "dep:regex", "dep:sp-core", "dep:tracing-subscriber", "wallet-integration"]
 v6 = []
 polkavm-contracts = ["pop-contracts/v6", "dep:pop-contracts", "dep:sp-core", "dep:sp-weights", "wallet-integration"]
 telemetry = ["dep:pop-telemetry"]

@@ -2,7 +2,7 @@
 
 use crate::build::spec::GenesisArtifacts;
 use anyhow::Result;
-use pop_parachains::{ChainSpec, DeploymentProvider, Parachain};
+use pop_chains::{Chain, ChainSpec, DeploymentProvider};
 use reqwest::{
 	multipart::{Form, Part},
 	Client,
@@ -165,7 +165,7 @@ impl DeployRequest {
 			.to_string();
 		let template = chain_spec
 			.get_property_based_on()
-			.and_then(Parachain::deployment_name_from_based_on);
+			.and_then(Chain::deployment_name_from_based_on);
 		let sudo_address = chain_spec.get_sudo_key().ok_or_else(|| {
 			anyhow::anyhow!("Failed to retrieve the sudo address from the chain spec")
 		})?;
@@ -222,7 +222,7 @@ where
 mod tests {
 	use super::*;
 	use mockito::{Mock, Server};
-	use pop_parachains::SupportedChains;
+	use pop_chains::SupportedChains;
 	use serde_json::json;
 
 	async fn mock_deploy(

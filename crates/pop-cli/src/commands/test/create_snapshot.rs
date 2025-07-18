@@ -10,7 +10,7 @@ use crate::{
 use clap::Args;
 use cliclack::spinner;
 use console::style;
-use pop_parachains::{parse::url, run_try_runtime, state::LiveState, TryRuntimeCliCommand};
+use pop_chains::{parse::url, run_try_runtime, state::LiveState, TryRuntimeCliCommand};
 
 // Custom arguments which are not in `try-runtime create-snapshot`.
 const CUSTOM_ARGS: [&str; 2] = ["--skip-confirm", "-y"];

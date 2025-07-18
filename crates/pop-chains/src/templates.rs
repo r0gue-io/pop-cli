@@ -36,12 +36,12 @@ pub enum Provider {
 	Parity,
 }
 
-impl Type<Parachain> for Provider {
-	fn default_template(&self) -> Option<Parachain> {
+impl Type<Chain> for Provider {
+	fn default_template(&self) -> Option<Chain> {
 		match &self {
-			Provider::Pop => Some(Parachain::Standard),
-			Provider::OpenZeppelin => Some(Parachain::OpenZeppelinGeneric),
-			Provider::Parity => Some(Parachain::ParityGeneric),
+			Provider::Pop => Some(Chain::Standard),
+			Provider::OpenZeppelin => Some(Chain::OpenZeppelinGeneric),
+			Provider::Parity => Some(Chain::ParityGeneric),
 		}
 	}
 }
@@ -72,7 +72,7 @@ pub struct Config {
 	PartialEq,
 	VariantArray,
 )]
-pub enum Parachain {
+pub enum Chain {
 	/// Pop Standard Template: Minimalist parachain template.
 	#[default]
 	#[strum(
@@ -220,11 +220,11 @@ pub enum Parachain {
 	TestTemplate02,
 }
 
-impl Template for Parachain {
+impl Template for Chain {
 	const PROPERTY: &'static str = "Provider";
 }
 
-impl Parachain {
+impl Chain {
 	/// Returns the relative path to the default network configuration file to be used, if defined.
 	pub fn network_config(&self) -> Option<&str> {
 		self.get_str("Network")
@@ -264,14 +264,14 @@ impl Parachain {
 	pub fn deployment_name_from_based_on(based_on: &str) -> Option<String> {
 		// OpenZeppelin special cases first (https://github.com/OpenZeppelin/polkadot-runtime-templates/pull/406)
 		let mapped_based_on = match based_on {
-			"OpenZeppelin EVM Template" => Some(Parachain::OpenZeppelinEVM),
-			"OpenZeppelin Generic Template" => Some(Parachain::OpenZeppelinGeneric),
+			"OpenZeppelin EVM Template" => Some(Chain::OpenZeppelinEVM),
+			"OpenZeppelin Generic Template" => Some(Chain::OpenZeppelinGeneric),
 			_ => None,
 		};
 		if let Some(variant) = mapped_based_on {
 			return variant.deployment_name().map(String::from);
 		}
-		Parachain::VARIANTS
+		Chain::VARIANTS
 			.iter()
 			.find(|variant| variant.as_ref() == based_on)
 			.and_then(|variant| variant.deployment_name().map(String::from))
@@ -288,9 +288,9 @@ impl Parachain {
 mod tests {
 	use super::*;
 	use std::{collections::HashMap, str::FromStr};
-	use Parachain::*;
+	use Chain::*;
 
-	fn templates_names() -> HashMap<String, Parachain> {
+	fn templates_names() -> HashMap<String, Chain> {
 		HashMap::from([
 			("r0gue-io/base-parachain".to_string(), Standard),
 			("r0gue-io/assets-parachain".to_string(), Assets),
@@ -307,7 +307,7 @@ mod tests {
 		])
 	}
 
-	fn templates_names_without_providers() -> HashMap<Parachain, String> {
+	fn templates_names_without_providers() -> HashMap<Chain, String> {
 		HashMap::from([
 			(Standard, "base-parachain".to_string()),
 			(Assets, "assets-parachain".to_string()),
@@ -361,7 +361,7 @@ mod tests {
 		])
 	}
 
-	fn template_network_configs() -> HashMap<Parachain, Option<&'static str>> {
+	fn template_network_configs() -> HashMap<Chain, Option<&'static str>> {
 		[
 			(Standard, Some("./network.toml")),
 			(Assets, Some("./network.toml")),
@@ -377,7 +377,7 @@ mod tests {
 		.into()
 	}
 
-	fn template_license() -> HashMap<Parachain, Option<&'static str>> {
+	fn template_license() -> HashMap<Chain, Option<&'static str>> {
 		[
 			(Standard, Some("Unlicense")),
 			(Assets, Some("Unlicense")),
@@ -393,7 +393,7 @@ mod tests {
 		.into()
 	}
 
-	fn template_deployment_name() -> HashMap<Parachain, Option<&'static str>> {
+	fn template_deployment_name() -> HashMap<Chain, Option<&'static str>> {
 		[
 			(Standard, Some("POP_STANDARD")),
 			(Assets, Some("POP_ASSETS")),
@@ -411,7 +411,7 @@ mod tests {
 
 	#[test]
 	fn test_is_template_correct() {
-		for template in Parachain::VARIANTS {
+		for template in Chain::VARIANTS {
 			if matches!(template, Standard | Assets | Contracts | EVM) {
 				assert_eq!(Provider::Pop.provides(&template), true);
 				assert_eq!(Provider::Parity.provides(&template), false);
@@ -427,11 +427,11 @@ mod tests {
 	fn test_convert_string_to_template() {
 		let template_names = templates_names();
 		// Test the default
-		assert_eq!(Parachain::from_str("").unwrap_or_default(), Standard);
+		assert_eq!(Chain::from_str("").unwrap_or_default(), Standard);
 		// Test the rest
-		for template in Parachain::VARIANTS {
+		for template in Chain::VARIANTS {
 			assert_eq!(
-				&Parachain::from_str(&template.to_string()).unwrap(),
+				&Chain::from_str(&template.to_string()).unwrap(),
 				template_names.get(&template.to_string()).unwrap()
 			);
 		}
@@ -440,7 +440,7 @@ mod tests {
 	#[test]
 	fn test_repository_url() {
 		let template_urls = templates_urls();
-		for template in Parachain::VARIANTS {
+		for template in Chain::VARIANTS {
 			assert_eq!(
 				&template.repository_url().unwrap(),
 				template_urls.get(&template.to_string()).unwrap()
@@ -451,7 +451,7 @@ mod tests {
 	#[test]
 	fn test_network_config() {
 		let network_configs = template_network_configs();
-		for template in Parachain::VARIANTS {
+		for template in Chain::VARIANTS {
 			println!("{:?}", template.name());
 			assert_eq!(template.network_config(), network_configs[template]);
 		}
@@ -460,7 +460,7 @@ mod tests {
 	#[test]
 	fn test_license() {
 		let licenses = template_license();
-		for template in Parachain::VARIANTS {
+		for template in Chain::VARIANTS {
 			assert_eq!(template.license(), licenses[template]);
 		}
 	}
@@ -468,26 +468,26 @@ mod tests {
 	#[test]
 	fn deployment_name_works() {
 		let deployment_name = template_deployment_name();
-		for template in Parachain::VARIANTS {
+		for template in Chain::VARIANTS {
 			assert_eq!(template.deployment_name(), deployment_name[template]);
 		}
 	}
 
 	#[test]
 	fn deployment_name_from_based_on_works() {
-		for template in Parachain::VARIANTS {
+		for template in Chain::VARIANTS {
 			assert_eq!(
-				Parachain::deployment_name_from_based_on(&template.to_string()),
+				Chain::deployment_name_from_based_on(&template.to_string()),
 				template.deployment_name().map(String::from),
 			);
 		}
 		// test special cases
 		assert_eq!(
-			Parachain::deployment_name_from_based_on("OpenZeppelin EVM Template"),
+			Chain::deployment_name_from_based_on("OpenZeppelin EVM Template"),
 			Some(OpenZeppelinEVM.deployment_name().unwrap().to_string())
 		);
 		assert_eq!(
-			Parachain::deployment_name_from_based_on("OpenZeppelin Generic Template"),
+			Chain::deployment_name_from_based_on("OpenZeppelin Generic Template"),
 			Some(OpenZeppelinGeneric.deployment_name().unwrap().to_string())
 		);
 	}
@@ -517,7 +517,7 @@ mod tests {
 
 	#[test]
 	fn supported_versions_have_no_whitespace() {
-		for template in Parachain::VARIANTS {
+		for template in Chain::VARIANTS {
 			if let Some(versions) = template.supported_versions() {
 				for version in versions {
 					assert!(!version.contains(' '));
@@ -573,7 +573,7 @@ mod tests {
 	#[test]
 	fn template_name_without_provider() {
 		let template_names = templates_names_without_providers();
-		for template in Parachain::VARIANTS {
+		for template in Chain::VARIANTS {
 			assert_eq!(
 				template.template_name_without_provider(),
 				template_names.get(template).unwrap()

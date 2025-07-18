@@ -4,8 +4,8 @@
 
 use anyhow::Result;
 use assert_cmd::cargo::cargo_bin;
+use pop_chains::Parachain;
 use pop_common::{find_free_port, templates::Template};
-use pop_parachains::Parachain;
 use std::{ffi::OsStr, fs, path::Path, process::Command, thread::sleep, time::Duration};
 use strum::VariantArray;
 

@@ -27,7 +27,7 @@ use zombienet_sdk::{LocalFileSystem, Network, NetworkConfig, NetworkConfigExt};
 
 mod chain_specs;
 /// Configuration for supported parachains.
-pub mod parachains;
+pub mod chains;
 mod relay;
 
 const VALIDATORS: [&str; 6] = ["alice", "bob", "charlie", "dave", "eve", "ferdie"];
@@ -39,7 +39,7 @@ pub struct Zombienet {
 	/// The configuration required to launch the relay chain.
 	relay_chain: RelayChain,
 	/// The configuration required to launch parachains.
-	parachains: IndexMap<u32, Parachain>,
+	parachains: IndexMap<u32, Chain>,
 	/// Whether any HRMP channels are to be pre-opened.
 	hrmp_channels: bool,
 }
@@ -128,8 +128,8 @@ impl Zombienet {
 		parachains: Option<Vec<Repository>>,
 		network_config: &NetworkConfiguration,
 		cache: &Path,
-	) -> Result<IndexMap<u32, Parachain>, Error> {
-		let mut paras: IndexMap<u32, Parachain> = IndexMap::new();
+	) -> Result<IndexMap<u32, Chain>, Error> {
+		let mut paras: IndexMap<u32, Chain> = IndexMap::new();
 		'outer: for parachain in network_config.0.parachains() {
 			let id = parachain.id();
 			let chain = parachain.chain().map(|c| c.as_str());
@@ -152,7 +152,7 @@ impl Zombienet {
 				.to_lowercase();
 
 			// Check if system parachain
-			if let Some(parachain) = parachains::system(
+			if let Some(parachain) = chains::system(
 				id,
 				&command,
 				system_parachain_version,
@@ -177,7 +177,7 @@ impl Zombienet {
 					.map(|v| v.as_str())
 			});
 			if let Some(parachain) =
-				parachains::from(&relay_chain.runtime, id, &command, version, chain, cache).await?
+				chains::from(&relay_chain.runtime, id, &command, version, chain, cache).await?
 			{
 				paras.insert(id, parachain);
 				continue;
@@ -186,14 +186,14 @@ impl Zombienet {
 			// Check if parachain binary source specified as an argument
 			if let Some(parachains) = parachains.as_ref() {
 				if let Some(repo) = parachains.iter().find(|r| command == r.package) {
-					paras.insert(id, Parachain::from_repository(id, repo, chain, cache)?);
+					paras.insert(id, Chain::from_repository(id, repo, chain, cache)?);
 					continue 'outer;
 				}
 			}
 
 			// Check if command references a local binary
 			if ["./", "../", "/"].iter().any(|p| command.starts_with(p)) {
-				paras.insert(id, Parachain::from_local(id, command.into(), chain)?);
+				paras.insert(id, Chain::from_local(id, command.into(), chain)?);
 				continue;
 			}
 
@@ -203,7 +203,7 @@ impl Zombienet {
 				for profile in Profile::VARIANTS {
 					let binary_path = profile.target_directory(Path::new("./")).join(&command);
 					if binary_path.exists() {
-						paras.insert(id, Parachain::from_local(id, binary_path, chain)?);
+						paras.insert(id, Chain::from_local(id, binary_path, chain)?);
 						continue 'outer;
 					}
 				}
@@ -424,7 +424,7 @@ impl NetworkConfiguration {
 	fn adapt(
 		&self,
 		relay_chain: &RelayChain,
-		parachains: &IndexMap<u32, Parachain>,
+		parachains: &IndexMap<u32, Chain>,
 	) -> Result<NetworkConfig, Error> {
 		// Resolve paths to relay binary and chain spec generator
 		let binary_path = NetworkConfiguration::resolve_path(&relay_chain.binary.path())?;
@@ -689,7 +689,7 @@ struct RelayChain {
 
 /// The configuration required to launch a parachain.
 #[derive(Debug, PartialEq)]
-struct Parachain {
+struct Chain {
 	/// The parachain identifier on the local network.
 	id: u32,
 	/// The binary used to launch a parachain node.
@@ -700,14 +700,14 @@ struct Parachain {
 	chain_spec_generator: Option<Binary>,
 }
 
-impl Parachain {
+impl Chain {
 	/// Initializes the configuration required to launch a parachain using a local binary.
 	///
 	/// # Arguments
 	/// * `id` - The parachain identifier on the local network.
 	/// * `path` - The path to the local binary.
 	/// * `chain` - The chain specified.
-	fn from_local(id: u32, path: PathBuf, chain: Option<&str>) -> Result<Parachain, Error> {
+	fn from_local(id: u32, path: PathBuf, chain: Option<&str>) -> Result<Chain, Error> {
 		let name = path
 			.file_name()
 			.and_then(|f| f.to_str())
@@ -715,7 +715,7 @@ impl Parachain {
 			.to_string();
 		// Check if package manifest can be found within path
 		let manifest = resolve_manifest(&name, &path)?;
-		Ok(Parachain {
+		Ok(Chain {
 			id,
 			binary: Binary::Local { name, path, manifest },
 			chain: chain.map(|c| c.to_string()),
@@ -736,7 +736,7 @@ impl Parachain {
 		repo: &Repository,
 		chain: Option<&str>,
 		cache: &Path,
-	) -> Result<Parachain, Error> {
+	) -> Result<Chain, Error> {
 		// Check for GitHub repository to be able to download source as an archive
 		if repo.url.host_str().is_some_and(|h| h.to_lowercase() == "github.com") {
 			let github = GitHub::parse(repo.url.as_str())?;
@@ -749,7 +749,7 @@ impl Parachain {
 				artifacts: vec![repo.package.clone()],
 			})
 			.into();
-			Ok(Parachain {
+			Ok(Chain {
 				id,
 				binary: Binary::Source {
 					name: repo.package.clone(),
@@ -760,7 +760,7 @@ impl Parachain {
 				chain_spec_generator: None,
 			})
 		} else {
-			Ok(Parachain {
+			Ok(Chain {
 				id,
 				binary: Binary::Source {
 					name: repo.package.clone(),
@@ -2070,7 +2070,7 @@ rpc_port = 9944
 				&[
 					(
 						1000,
-						Parachain {
+						Chain {
 							id: 1000,
 							binary: Binary::Local {
 								name: "polkadot-parachain".to_string(),
@@ -2083,7 +2083,7 @@ rpc_port = 9944
 					),
 					(
 						2000,
-						Parachain {
+						Chain {
 							id: 2000,
 							binary: Binary::Local {
 								name: "pop-node".to_string(),
@@ -2096,7 +2096,7 @@ rpc_port = 9944
 					),
 					(
 						2001,
-						Parachain {
+						Chain {
 							id: 2001,
 							binary: Binary::Local {
 								name: "parachain-template-node".to_string(),
@@ -2109,7 +2109,7 @@ rpc_port = 9944
 					),
 					(
 						2002,
-						Parachain {
+						Chain {
 							id: 2002,
 							binary: Binary::Local {
 								name: "parachain-template-node".to_string(),
@@ -2287,7 +2287,7 @@ command = "polkadot-parachain"
 				},
 				&[(
 					1000,
-					Parachain {
+					Chain {
 						id: 1000,
 						binary: Binary::Local {
 							name: "polkadot-parachain".to_string(),
@@ -2419,7 +2419,7 @@ max_message_size = 8000
 				&[
 					(
 						1000,
-						Parachain {
+						Chain {
 							id: 1000,
 							binary: Binary::Local {
 								name: "polkadot-parachain".to_string(),
@@ -2432,7 +2432,7 @@ max_message_size = 8000
 					),
 					(
 						2000,
-						Parachain {
+						Chain {
 							id: 2000,
 							binary: Binary::Local {
 								name: "pop-node".to_string(),
@@ -2569,7 +2569,7 @@ name = "asset-hub"
 				},
 				&[(
 					1000,
-					Parachain {
+					Chain {
 						id: 1000,
 						binary: Binary::Local {
 							name: "polkadot-parachain".to_string(),
@@ -2686,7 +2686,7 @@ balances = [["5Ec4AhPKXY9B4ayGshkz2wFMh7N8gP7XKfAvtt1cigpG9FkJ", 420000000000]]
 				},
 				&[(
 					1000,
-					Parachain {
+					Chain {
 						id: 1000,
 						binary: Binary::Local {
 							name: "polkadot-parachain".to_string(),
@@ -2786,8 +2786,8 @@ balance = 2000000000000
 			let name = "parachain-template-node";
 			let command = PathBuf::from("./target/release").join(&name);
 			assert_eq!(
-				Parachain::from_local(2000, command.clone(), Some("dev"))?,
-				Parachain {
+				Chain::from_local(2000, command.clone(), Some("dev"))?,
+				Chain {
 					id: 2000,
 					binary: Binary::Local { name: name.to_string(), path: command, manifest: None },
 					chain: Some("dev".to_string()),
@@ -2799,11 +2799,11 @@ balance = 2000000000000
 
 		#[test]
 		fn initializes_from_local_package() -> Result<(), Error> {
-			let name = "pop-parachains";
+			let name = "pop-chains";
 			let command = PathBuf::from("./target/release").join(&name);
 			assert_eq!(
-				Parachain::from_local(2000, command.clone(), Some("dev"))?,
-				Parachain {
+				Chain::from_local(2000, command.clone(), Some("dev"))?,
+				Chain {
 					id: 2000,
 					binary: Binary::Local {
 						name: name.to_string(),
@@ -2822,8 +2822,8 @@ balance = 2000000000000
 			let repo = Repository::parse("https://git.com/r0gue-io/pop-node#v1.0")?;
 			let cache = tempdir()?;
 			assert_eq!(
-				Parachain::from_repository(2000, &repo, Some("dev"), cache.path())?,
-				Parachain {
+				Chain::from_repository(2000, &repo, Some("dev"), cache.path())?,
+				Chain {
 					id: 2000,
 					binary: Binary::Source {
 						name: "pop-node".to_string(),
@@ -2849,8 +2849,8 @@ balance = 2000000000000
 			let repo = Repository::parse("https://github.com/r0gue-io/pop-node#v1.0")?;
 			let cache = tempdir()?;
 			assert_eq!(
-				Parachain::from_repository(2000, &repo, Some("dev"), cache.path())?,
-				Parachain {
+				Chain::from_repository(2000, &repo, Some("dev"), cache.path())?,
+				Chain {
 					id: 2000,
 					binary: Binary::Source {
 						name: "pop-node".to_string(),
@@ -2879,7 +2879,7 @@ balance = 2000000000000
 		// Crate
 		assert_eq!(
 			current_dir.join("Cargo.toml"),
-			resolve_manifest("pop-parachains", &current_dir)?.unwrap()
+			resolve_manifest("pop-chains", &current_dir)?.unwrap()
 		);
 		// Workspace
 		assert_eq!(

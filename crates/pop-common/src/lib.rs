@@ -138,7 +138,7 @@ impl<T> Deref for SortedSlice<'_, T> {
 pub mod call {
 	// Note: cargo contract logic is used for parsing events after calling a chain. This could be
 	// refactored in the future so that we don't have to use cargo contract code in
-	// `pop-parachains`.
+	// `pop-chains`.
 	pub use contract_build::Verbosity;
 	pub use contract_extrinsics::{DisplayEvents, TokenMetadata};
 	pub use ink_env::DefaultEnvironment;

@@ -81,7 +81,7 @@ pub enum Template {
 	Contract(pop_contracts::Contract),
 	/// Chain template.
 	#[cfg(feature = "parachain")]
-	Chain(pop_parachains::Parachain),
+	Chain(pop_chains::Chain),
 	/// Pallet template.
 	#[cfg(feature = "parachain")]
 	Pallet,
@@ -234,7 +234,7 @@ mod tests {
 		assert_eq!(Data::New(Template::Pallet).to_string(), "pallet");
 		#[cfg(feature = "parachain")]
 		assert_eq!(
-			Data::New(Template::Chain(pop_parachains::Parachain::Contracts)).to_string(),
+			Data::New(Template::Chain(pop_chains::Chain::Contracts)).to_string(),
 			"Contracts"
 		);
 		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
@@ -286,9 +286,9 @@ mod tests {
 		assert_eq!(Template::Pallet.to_string(), "pallet");
 		// Test Chain variant with all Parachain types.
 		#[cfg(feature = "parachain")]
-		for parachain in pop_parachains::Parachain::VARIANTS {
-			let template = Template::Chain(parachain.clone());
-			assert_eq!(template.to_string(), parachain.to_string());
+		for chain in pop_chains::Chain::VARIANTS {
+			let template = Template::Chain(chain.clone());
+			assert_eq!(template.to_string(), chain.to_string());
 		}
 		// Test Contract variant with all Contract types.
 		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
