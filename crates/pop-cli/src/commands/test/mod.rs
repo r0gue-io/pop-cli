@@ -88,7 +88,7 @@ impl Command {
 		test_project(project_path.as_deref())?;
 
 		#[cfg(feature = "parachain")]
-		if pop_parachains::is_supported(project_path.as_deref())? {
+		if pop_chains::is_supported(project_path.as_deref())? {
 			return Ok((Chain, Unit));
 		}
 		Ok((Unknown, Unit))

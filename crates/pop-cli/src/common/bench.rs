@@ -5,8 +5,8 @@ use crate::{
 	common::binary::{check_and_prompt, BinaryGenerator},
 	impl_binary_generator,
 };
+use pop_chains::omni_bencher_generator;
 use pop_common::sourcing::Binary;
-use pop_parachains::omni_bencher_generator;
 use std::{
 	self,
 	cmp::Ordering,

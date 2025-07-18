@@ -10,7 +10,7 @@ use cliclack::{log, spinner};
 #[cfg(feature = "parachain")]
 use {
 	anyhow::{anyhow, Result},
-	pop_parachains::{
+	pop_chains::{
 		parse_and_format_events, submit_signed_extrinsic, ExtrinsicEvents, OnlineClient,
 		SubstrateConfig,
 	},

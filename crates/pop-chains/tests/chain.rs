@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use anyhow::Result;
-use pop_parachains::up::Zombienet;
+use pop_chains::up::Zombienet;
 use std::path::Path;
 
 const BINARY_VERSION: &str = "stable2412";

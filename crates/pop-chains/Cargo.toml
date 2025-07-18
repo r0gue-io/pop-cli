@@ -1,8 +1,8 @@
 [package]
-name = "pop-parachains"
+name = "pop-chains"
 description = "Library for generating, building and running parachains."
 license = "Apache-2.0"
-documentation = "https://docs.rs/pop-parachains/latest/pop_parachains"
+documentation = "https://docs.rs/pop-chains/latest/pop_chains"
 edition.workspace = true
 readme = "README.md"
 repository.workspace = true

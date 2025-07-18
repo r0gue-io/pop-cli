@@ -5,8 +5,8 @@ use std::path::PathBuf;
 #[cfg(feature = "parachain")]
 use {
 	crate::cli::traits::{Cli, Select},
+	pop_chains::{binary_path, build_chain},
 	pop_common::Profile,
-	pop_parachains::{binary_path, build_parachain},
 	std::path::Path,
 	strum::{EnumMessage, VariantArray},
 };
@@ -40,7 +40,7 @@ pub fn ensure_node_binary_exists(
 		_ => {
 			cli.info("Node was not found. The project will be built locally.".to_string())?;
 			cli.warning("NOTE: this may take some time...")?;
-			build_parachain(project_path, None, mode, None, features).map_err(|e| e.into())
+			build_chain(project_path, None, mode, None, features).map_err(|e| e.into())
 		},
 	}
 }

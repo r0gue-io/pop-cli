@@ -25,7 +25,7 @@ pub mod runtime;
 /// * `node_path` - An optional path to the node directory. Defaults to the `node` subdirectory of
 ///   the project path if not provided.
 /// * `features` - A set of features the project is built with.
-pub fn build_parachain(
+pub fn build_chain(
 	path: &Path,
 	package: Option<String>,
 	profile: &Profile,
@@ -504,8 +504,7 @@ impl ChainSpec {
 mod tests {
 	use super::*;
 	use crate::{
-		new_parachain::instantiate_standard_template, templates::Parachain, up::Zombienet, Config,
-		Error,
+		new_chain::instantiate_standard_template, templates::Chain, up::Zombienet, Config, Error,
 	};
 	use anyhow::Result;
 	use pop_common::{
@@ -528,7 +527,7 @@ mod tests {
 			decimals: 18,
 			initial_endowment: "1000000".to_string(),
 		};
-		instantiate_standard_template(&Parachain::Standard, temp_dir.path(), config, None)?;
+		instantiate_standard_template(&Chain::Standard, temp_dir.path(), config, None)?;
 		Ok(temp_dir)
 	}
 
@@ -651,7 +650,7 @@ mod tests {
 			for package in vec![None, Some(String::from("parachain_template_node"))] {
 				for profile in Profile::VARIANTS {
 					let node_path = node.map(|_| node_path.as_path());
-					let binary = build_parachain(
+					let binary = build_chain(
 						&project,
 						package.clone(),
 						&profile,

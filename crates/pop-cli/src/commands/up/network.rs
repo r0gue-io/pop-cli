@@ -12,14 +12,14 @@ use clap::{
 use cliclack::{multi_progress, spinner, ProgressBar};
 use console::{Emoji, Style, Term};
 use duct::cmd;
-use pop_common::Status;
-pub(crate) use pop_parachains::up::Relay;
-use pop_parachains::{
+pub(crate) use pop_chains::up::Relay;
+use pop_chains::{
 	clear_dmpq,
 	registry::{self, traits::Rollup},
 	up::{NetworkConfiguration, Zombienet},
 	Error, IndexSet, NetworkNode, RelayChain,
 };
+use pop_common::Status;
 use std::{
 	collections::HashMap,
 	ffi::OsStr,

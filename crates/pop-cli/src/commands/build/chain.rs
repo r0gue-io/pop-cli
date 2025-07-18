@@ -5,14 +5,14 @@ use crate::{
 	common::runtime::Feature::{Benchmark, TryRuntime},
 	style::style,
 };
+use pop_chains::build_chain;
 use pop_common::Profile;
-use pop_parachains::build_parachain;
 use std::path::PathBuf;
 
 use super::{PACKAGE, PARACHAIN};
 
 // Configuration for building a parachain.
-pub struct BuildParachain {
+pub struct BuildChain {
 	/// Directory path for your project.
 	pub(crate) path: PathBuf,
 	/// The package to be built.
@@ -25,13 +25,13 @@ pub struct BuildParachain {
 	pub(crate) try_runtime: bool,
 }
 
-impl BuildParachain {
+impl BuildChain {
 	/// Executes the build process.
 	pub(crate) fn execute(self) -> anyhow::Result<&'static str> {
 		self.build(&mut cli::Cli)
 	}
 
-	/// Builds a parachain.
+	/// Builds a chain.
 	///
 	/// # Arguments
 	/// * `cli` - The CLI implementation to be used.
@@ -156,7 +156,7 @@ mod tests {
 		}
 
 		assert_eq!(
-			BuildParachain {
+			BuildChain {
 				path: project_path.clone(),
 				package: package.clone(),
 				profile: profile.clone(),

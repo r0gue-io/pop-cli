@@ -19,7 +19,7 @@ use clap::Args;
 use clap::Parser;
 use cliclack::spinner;
 use console::style;
-use pop_parachains::{
+use pop_chains::{
 	run_try_runtime,
 	state::{State, StateCommand},
 	try_runtime::UpgradeCheckSelect,
@@ -321,8 +321,8 @@ mod tests {
 		},
 	};
 	use cli::MockCli;
+	use pop_chains::{state::LiveState, Runtime};
 	use pop_common::Profile;
-	use pop_parachains::{state::LiveState, Runtime};
 	use std::path::PathBuf;
 
 	#[tokio::test]

@@ -12,7 +12,7 @@ use pop_common::Profile;
 use std::path::PathBuf;
 #[cfg(feature = "parachain")]
 use {
-	chain::BuildParachain,
+	chain::BuildChain,
 	runtime::{BuildRuntime, Feature::*},
 	spec::BuildSpecCommand,
 	std::fmt::{Display, Formatter, Result},
@@ -126,7 +126,7 @@ impl Command {
 
 		// If project is a parachain runtime, build as parachain runtime
 		#[cfg(feature = "parachain")]
-		if args.only_runtime || pop_parachains::runtime::is_supported(project_path.as_deref())? {
+		if args.only_runtime || pop_chains::runtime::is_supported(project_path.as_deref())? {
 			let profile = match args.profile {
 				Some(profile) => profile,
 				None => args.release.into(),
@@ -148,7 +148,7 @@ impl Command {
 
 		// If project is a parachain runtime, build as parachain runtime
 		#[cfg(feature = "parachain")]
-		if pop_parachains::is_supported(project_path.as_deref())? {
+		if pop_chains::is_supported(project_path.as_deref())? {
 			let profile = match args.profile {
 				Some(profile) => profile,
 				None => args.release.into(),
@@ -157,7 +157,7 @@ impl Command {
 			let features = args.features.unwrap_or_default();
 			let feature_list = collect_features(&features, args.benchmark, args.try_runtime);
 
-			BuildParachain {
+			BuildChain {
 				path: project_path.unwrap_or(temp_path).to_path_buf(),
 				package: args.package,
 				profile,

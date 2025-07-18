@@ -7,11 +7,11 @@ use crate::{
 
 use clap::{Args, Subcommand};
 use cliclack::{confirm, input, multiselect, outro, outro_cancel};
-use pop_common::{add_crate_to_workspace, find_workspace_toml, prefix_with_current_dir_if_needed};
-use pop_parachains::{
+use pop_chains::{
 	create_pallet_template, TemplatePalletConfig, TemplatePalletConfigCommonTypes,
 	TemplatePalletOptions, TemplatePalletStorageTypes,
 };
+use pop_common::{add_crate_to_workspace, find_workspace_toml, prefix_with_current_dir_if_needed};
 use std::{fs, path::PathBuf, process::Command};
 use strum::{EnumMessage, IntoEnumIterator};
 
