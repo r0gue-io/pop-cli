@@ -65,7 +65,7 @@ pub use subxt::{
 	tx::{DynamicPayload, Payload},
 	OnlineClient, SubstrateConfig,
 };
-pub use templates::{Chain, Config, Provider};
+pub use templates::{ChainTemplate, Config, Provider};
 pub use utils::helpers::is_initial_endowment_valid;
 /// Information about the Node. External export from Zombienet-SDK.
 pub use zombienet_sdk::NetworkNode;

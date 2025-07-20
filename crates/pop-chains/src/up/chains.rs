@@ -23,7 +23,7 @@ pub(super) async fn system(
 	relay_chain_version: &str,
 	chain: Option<&str>,
 	cache: &Path,
-) -> Result<Option<super::Parachain>, Error> {
+) -> Result<Option<super::Chain>, Error> {
 	let para = &System;
 	let name = para.binary().to_string();
 	if command != name {
@@ -40,12 +40,7 @@ pub(super) async fn system(
 		Some(chain) => chain_spec_generator(chain, runtime_version, cache).await?,
 		None => None,
 	};
-	Ok(Some(super::Parachain {
-		id,
-		binary,
-		chain: chain.map(|c| c.to_string()),
-		chain_spec_generator,
-	}))
+	Ok(Some(super::Chain { id, binary, chain: chain.map(|c| c.to_string()), chain_spec_generator }))
 }
 
 /// Initializes the configuration required to launch a parachain.
@@ -63,13 +58,13 @@ pub(super) async fn from(
 	version: Option<&str>,
 	chain: Option<&str>,
 	cache: &Path,
-) -> Result<Option<super::Parachain>, Error> {
+) -> Result<Option<super::Chain>, Error> {
 	if let Some(para) = registry::rollups(relay).iter().find(|p| p.binary() == command) {
 		let name = para.binary().to_string();
 		let source =
 			para.source()?.resolve(&name, version, cache, |f| prefix(f, &name)).await.into();
 		let binary = Binary::Source { name, source, cache: cache.to_path_buf() };
-		return Ok(Some(super::Parachain {
+		return Ok(Some(super::Chain {
 			id,
 			binary,
 			chain: chain.map(|c| c.to_string()),

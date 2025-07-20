@@ -15,7 +15,7 @@ use clap::Args;
 use cliclack::spinner;
 use console::style;
 use pop_common::{sourcing::Binary, Profile};
-use pop_parachains::{
+use pop_chains::{
 	parse, set_up_client,
 	state::{LiveState, State, StateCommand},
 	try_runtime::TryStateSelect,

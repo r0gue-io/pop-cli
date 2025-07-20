@@ -58,7 +58,7 @@ impl BuildChain {
 
 		// Build parachain.
 		cli.warning("NOTE: this may take some time...")?;
-		let binary = build_parachain(&self.path, self.package, &self.profile, None, features)?;
+		let binary = build_chain(&self.path, self.package, &self.profile, None, features)?;
 		cli.info(format!("The {project} was built in {} mode.", self.profile))?;
 		cli.outro("Build completed successfully!")?;
 		let generated_files = [format!("Binary generated at: {}", binary.display())];

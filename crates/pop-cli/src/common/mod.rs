@@ -81,7 +81,7 @@ pub enum Template {
 	Contract(pop_contracts::Contract),
 	/// Chain template.
 	#[cfg(feature = "chain")]
-	Chain(pop_chains::Chain),
+	Chain(pop_chains::ChainTemplate),
 	/// Pallet template.
 	#[cfg(feature = "chain")]
 	Pallet,

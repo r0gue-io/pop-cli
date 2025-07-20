@@ -8,7 +8,7 @@ A crate for generating, building and running parachains and pallets. Used by
 Generate a new parachain:
 
 ```rust,no_run
-use pop_chains::{instantiate_template_dir, Config, Chain};
+use pop_chains::{instantiate_template_dir, Config, ChainTemplate};
 use std::path::Path;
 
 let destination_path = Path::new("./");
@@ -18,7 +18,7 @@ let config = Config {
     decimals: 12,
     initial_endowment: "1u64 << 60".to_string()
 };
-let tag = instantiate_template_dir(&Chain::Standard, &destination_path, tag_version, config);
+let tag = instantiate_template_dir(&ChainTemplate::Standard, &destination_path, tag_version, config);
 ```
 
 Build a Parachain:

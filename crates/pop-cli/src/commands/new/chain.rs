@@ -14,7 +14,9 @@ use cliclack::{
 	log::{self, success, warning},
 	outro, outro_cancel,
 };
-use pop_chains::{instantiate_template_dir, is_initial_endowment_valid, Chain, Config, Provider};
+use pop_chains::{
+	instantiate_template_dir, is_initial_endowment_valid, ChainTemplate, Config, Provider,
+};
 use pop_common::{
 	enum_variants, enum_variants_without_deprecated,
 	templates::{Template, Type},
@@ -39,11 +41,11 @@ pub struct NewChainCommand {
 	#[arg(
 		short = 't',
 		long,
-		help = format!("Template to use. [possible values: {}]", enum_variants_without_deprecated!(Chain)),
-		value_parser = enum_variants!(Chain),
+		help = format!("Template to use. [possible values: {}]", enum_variants_without_deprecated!(ChainTemplate)),
+		value_parser = enum_variants!(ChainTemplate),
 		hide_possible_values = true // Hide the deprecated templates
 	)]
-	pub(crate) template: Option<Chain>,
+	pub(crate) template: Option<ChainTemplate>,
 	#[arg(
 		short = 'r',
 		long,
@@ -71,7 +73,7 @@ pub struct NewChainCommand {
 
 impl NewChainCommand {
 	/// Executes the command.
-	pub(crate) async fn execute(self) -> Result<Chain> {
+	pub(crate) async fn execute(self) -> Result<ChainTemplate> {
 		// If user doesn't select the name guide them to generate a parachain.
 		let parachain_config = if self.name.is_none() {
 			guide_user_to_generate_parachain(self.verify).await?
@@ -167,7 +169,7 @@ async fn guide_user_to_generate_parachain(verify: bool) -> Result<NewChainComman
 async fn generate_parachain_from_template(
 	name_template: &String,
 	provider: &Provider,
-	template: &Chain,
+	template: &ChainTemplate,
 	tag_version: Option<String>,
 	config: Config,
 	verify: bool,
@@ -236,7 +238,7 @@ async fn generate_parachain_from_template(
 }
 
 /// Determines whether the specified template is supported by the provider.
-fn is_template_supported(provider: &Provider, template: &Chain) -> Result<()> {
+fn is_template_supported(provider: &Provider, template: &ChainTemplate) -> Result<()> {
 	if !provider.provides(template) {
 		return Err(anyhow::anyhow!(format!(
 			"The provider \"{:?}\" doesn't support the {:?} template.",
@@ -249,7 +251,7 @@ fn is_template_supported(provider: &Provider, template: &Chain) -> Result<()> {
 	Ok(())
 }
 
-fn display_select_options(provider: &Provider) -> Result<&Chain> {
+fn display_select_options(provider: &Provider) -> Result<&ChainTemplate> {
 	let mut prompt = cliclack::select("Select the type of parachain:".to_string());
 	for (i, template) in provider.templates().into_iter().enumerate() {
 		if i == 0 {
@@ -261,12 +263,12 @@ fn display_select_options(provider: &Provider) -> Result<&Chain> {
 }
 
 fn get_customization_value(
-	template: &Chain,
+	template: &ChainTemplate,
 	symbol: Option<String>,
 	decimals: Option<u8>,
 	initial_endowment: Option<String>,
 ) -> Result<Config> {
-	if (Provider::Pop.provides(template) || template == &Chain::ParityGeneric) &&
+	if (Provider::Pop.provides(template) || template == &ChainTemplate::ParityGeneric) &&
 		(symbol.is_some() || decimals.is_some() || initial_endowment.is_some())
 	{
 		log::warning("Customization options are not available for this template")?;
@@ -306,7 +308,7 @@ fn check_destination_path(name_template: &String) -> Result<&Path> {
 /// Otherwise, the default release is used.
 ///
 /// return: `Option<String>` - The release name selected by the user or None if no releases found.
-async fn choose_release(template: &Chain, verify: bool) -> Result<Option<String>> {
+async fn choose_release(template: &ChainTemplate, verify: bool) -> Result<Option<String>> {
 	let url = url::Url::parse(template.repository_url()?).expect("valid repository url");
 	let repo = GitHub::parse(url.as_str())?;
 
@@ -448,7 +450,7 @@ mod tests {
 		let command = NewChainCommand {
 			name: Some(name.clone()),
 			provider: Some(Provider::Pop),
-			template: Some(Chain::Standard),
+			template: Some(ChainTemplate::Standard),
 			release_tag: None,
 			symbol: Some("UNIT".to_string()),
 			decimals: Some(12),

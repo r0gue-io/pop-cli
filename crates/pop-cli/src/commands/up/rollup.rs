@@ -17,8 +17,8 @@ use anyhow::Result;
 use clap::Args;
 use cliclack::spinner;
 use pop_chains::{
-	construct_proxy_extrinsic, find_dispatchable_by_name, Action, DeploymentProvider, Payload,
-	Reserved, SupportedChains,
+	construct_proxy_extrinsic, find_dispatchable_by_name, Action, ChainTemplate,
+	DeploymentProvider, Payload, Reserved, SupportedChains,
 };
 use pop_common::{parse_account, templates::Template, Profile};
 use std::{
@@ -509,7 +509,7 @@ fn prompt_api_key(
 fn prompt_template_used(cli: &mut impl Cli) -> Result<&str> {
 	cli.warning("We could not automatically detect which template was used to build your rollup.")?;
 	let mut template = cli.select("Select the template used:");
-	for supported_template in Chain::VARIANTS.iter().filter_map(|variant| {
+	for supported_template in ChainTemplate::VARIANTS.iter().filter_map(|variant| {
 		variant
 			.deployment_name()
 			.map(|name| (name, variant.name(), variant.description().trim()))
@@ -521,7 +521,7 @@ fn prompt_template_used(cli: &mut impl Cli) -> Result<&str> {
 
 // Warns user about which templates are supported for the given provider.
 fn warn_supported_templates(provider: &DeploymentProvider, cli: &mut impl Cli) -> Result<()> {
-	let supported_templates: Vec<String> = Chain::VARIANTS
+	let supported_templates: Vec<String> = ChainTemplate::VARIANTS
 		.iter()
 		.filter_map(|variant| {
 			variant.deployment_name().map(|_| {
@@ -925,7 +925,7 @@ mod tests {
 				Some(false),
 				true,
 				Some(
-					Chain::VARIANTS
+					ChainTemplate::VARIANTS
 						.iter()
 						.filter(|variant| variant.deployment_name().is_some())
 						.map(|template| {
@@ -933,7 +933,7 @@ mod tests {
 						})
 						.collect::<Vec<_>>(),
 				),
-				Chain::Standard as usize,
+				ChainTemplate::Standard as usize,
 				None,
 			);
 		assert_eq!(prompt_template_used(&mut cli)?, "POP_STANDARD");
@@ -945,7 +945,7 @@ mod tests {
 		let mut cli = MockCli::new().expect_warning(format!(
 			"Currently Polkadot Deployment Portal only supports the following templates:\n{}.",
 			style(
-				Chain::VARIANTS
+				ChainTemplate::VARIANTS
 					.iter()
 					.filter_map(|variant| variant.deployment_name().map(|_| style(format!(
 						"{} {}",

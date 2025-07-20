@@ -4,7 +4,7 @@
 
 use anyhow::Result;
 use assert_cmd::cargo::cargo_bin;
-use pop_chains::Parachain;
+use pop_chains::ChainTemplate;
 use pop_common::{find_free_port, templates::Template};
 use std::{ffi::OsStr, fs, path::Path, process::Command, thread::sleep, time::Duration};
 use strum::VariantArray;
@@ -15,7 +15,7 @@ fn generate_all_the_templates() -> Result<()> {
 	let temp = tempfile::tempdir()?;
 	let temp_dir = temp.path();
 
-	for template in Parachain::VARIANTS {
+	for template in ChainTemplate::VARIANTS {
 		let parachain_name = format!("test_parachain_{}", template);
 		let provider = template.template_type()?.to_lowercase();
 		// pop new chain test_parachain --verify
