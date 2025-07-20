@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-#![cfg(feature = "parachain")]
+#![cfg(feature = "chain")]
 
 use anyhow::Result;
 use assert_cmd::cargo::cargo_bin;

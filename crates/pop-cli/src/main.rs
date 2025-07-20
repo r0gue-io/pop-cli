@@ -19,7 +19,7 @@ use std::{
 mod cli;
 mod commands;
 mod common;
-#[cfg(feature = "parachain")]
+#[cfg(feature = "chain")]
 mod deployment_api;
 mod style;
 #[cfg(feature = "wallet-integration")]

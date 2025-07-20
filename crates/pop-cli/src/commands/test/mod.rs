@@ -9,26 +9,26 @@ use crate::common::{
 };
 use clap::{Args, Subcommand};
 use pop_common::test_project;
-#[cfg(feature = "parachain")]
+#[cfg(feature = "chain")]
 use std::fmt::{Display, Formatter, Result};
 use std::path::PathBuf;
 
 #[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 pub mod contract;
-#[cfg(feature = "parachain")]
+#[cfg(feature = "chain")]
 pub mod create_snapshot;
-#[cfg(feature = "parachain")]
+#[cfg(feature = "chain")]
 pub mod execute_block;
-#[cfg(feature = "parachain")]
+#[cfg(feature = "chain")]
 pub mod fast_forward;
-#[cfg(feature = "parachain")]
+#[cfg(feature = "chain")]
 pub mod on_runtime_upgrade;
 
 /// Arguments for testing.
 #[derive(Args, Default)]
 #[command(args_conflicts_with_subcommands = true)]
 pub(crate) struct TestArgs {
-	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "parachain"))]
+	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "chain"))]
 	#[command(subcommand)]
 	pub(crate) command: Option<Command>,
 	/// Directory path for your project [default: current directory]
@@ -46,17 +46,17 @@ pub(crate) struct TestArgs {
 #[derive(Subcommand)]
 pub(crate) enum Command {
 	/// Test migrations.
-	#[cfg(feature = "parachain")]
+	#[cfg(feature = "chain")]
 	OnRuntimeUpgrade(on_runtime_upgrade::TestOnRuntimeUpgradeCommand),
 	/// Executes the given block against some state
-	#[cfg(feature = "parachain")]
+	#[cfg(feature = "chain")]
 	ExecuteBlock(execute_block::TestExecuteBlockCommand),
 	/// Executes a runtime upgrade (optional), then mines a number of blocks while performing
 	/// try-state checks
-	#[cfg(feature = "parachain")]
+	#[cfg(feature = "chain")]
 	FastForward(fast_forward::TestFastForwardCommand),
 	/// Create a chain state snapshot.
-	#[cfg(feature = "parachain")]
+	#[cfg(feature = "chain")]
 	CreateSnapshot(create_snapshot::TestCreateSnapshotCommand),
 }
 
@@ -87,7 +87,7 @@ impl Command {
 
 		test_project(project_path.as_deref())?;
 
-		#[cfg(feature = "parachain")]
+		#[cfg(feature = "chain")]
 		if pop_chains::is_supported(project_path.as_deref())? {
 			return Ok((Chain, Unit));
 		}
@@ -95,7 +95,7 @@ impl Command {
 	}
 }
 
-#[cfg(feature = "parachain")]
+#[cfg(feature = "chain")]
 impl Display for Command {
 	fn fmt(&self, f: &mut Formatter<'_>) -> Result {
 		match self {
@@ -167,13 +167,13 @@ mod tests {
 	#[test]
 	#[allow(deprecated)]
 	fn command_display_works() {
-		#[cfg(feature = "parachain")]
+		#[cfg(feature = "chain")]
 		assert_eq!(Command::OnRuntimeUpgrade(Default::default()).to_string(), "on runtime upgrade");
-		#[cfg(feature = "parachain")]
+		#[cfg(feature = "chain")]
 		assert_eq!(Command::ExecuteBlock(Default::default()).to_string(), "execute block");
-		#[cfg(feature = "parachain")]
+		#[cfg(feature = "chain")]
 		assert_eq!(Command::FastForward(Default::default()).to_string(), "fast forward");
-		#[cfg(feature = "parachain")]
+		#[cfg(feature = "chain")]
 		assert_eq!(Command::CreateSnapshot(Default::default()).to_string(), "create snapshot");
 	}
 }

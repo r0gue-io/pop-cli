@@ -5,11 +5,11 @@ use anyhow::Result as AnyhowResult;
 use clap::{Args, Subcommand};
 use std::fmt::{Display, Formatter, Result};
 
-#[cfg(feature = "parachain")]
+#[cfg(feature = "chain")]
 pub mod chain;
 #[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 pub mod contract;
-#[cfg(feature = "parachain")]
+#[cfg(feature = "chain")]
 pub mod pallet;
 
 /// The possible values from the variants of an enum.
@@ -38,11 +38,11 @@ pub struct NewArgs {
 #[derive(Subcommand)]
 pub enum Command {
 	/// Generate a new parachain
-	#[cfg(feature = "parachain")]
+	#[cfg(feature = "chain")]
 	#[clap(alias = "C")]
 	Chain(chain::NewChainCommand),
 	/// Generate a new pallet
-	#[cfg(feature = "parachain")]
+	#[cfg(feature = "chain")]
 	#[clap(alias = "P")]
 	Pallet(pallet::NewPalletCommand),
 	/// Generate a new smart contract
@@ -54,9 +54,9 @@ pub enum Command {
 impl Display for Command {
 	fn fmt(&self, f: &mut Formatter<'_>) -> Result {
 		match self {
-			#[cfg(feature = "parachain")]
+			#[cfg(feature = "chain")]
 			Command::Chain(_) => write!(f, "chain"),
-			#[cfg(feature = "parachain")]
+			#[cfg(feature = "chain")]
 			Command::Pallet(_) => write!(f, "pallet"),
 			#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 			Command::Contract(_) => write!(f, "contract"),
@@ -132,9 +132,9 @@ mod tests {
 
 	#[test]
 	fn command_display_works() {
-		#[cfg(feature = "parachain")]
+		#[cfg(feature = "chain")]
 		assert_eq!(Command::Chain(Default::default()).to_string(), "chain");
-		#[cfg(feature = "parachain")]
+		#[cfg(feature = "chain")]
 		assert_eq!(Command::Pallet(Default::default()).to_string(), "pallet");
 		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 		assert_eq!(Command::Contract(Default::default()).to_string(), "contract");

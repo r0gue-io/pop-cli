@@ -7,23 +7,23 @@ use crate::{
 };
 use clap::Subcommand;
 use std::fmt::{Display, Formatter, Result};
-#[cfg(feature = "parachain")]
+#[cfg(feature = "chain")]
 use {crate::common::Project::Network, up::network::Relay::*};
 
-#[cfg(feature = "parachain")]
+#[cfg(feature = "chain")]
 pub(crate) mod bench;
 pub(crate) mod build;
-#[cfg(any(feature = "parachain", feature = "polkavm-contracts", feature = "wasm-contracts"))]
+#[cfg(any(feature = "chain", feature = "polkavm-contracts", feature = "wasm-contracts"))]
 pub(crate) mod call;
 pub(crate) mod clean;
 #[cfg(feature = "hashing")]
 mod hash;
-#[cfg(any(feature = "parachain", feature = "polkavm-contracts", feature = "wasm-contracts"))]
+#[cfg(any(feature = "chain", feature = "polkavm-contracts", feature = "wasm-contracts"))]
 pub(crate) mod install;
-#[cfg(any(feature = "parachain", feature = "polkavm-contracts", feature = "wasm-contracts"))]
+#[cfg(any(feature = "chain", feature = "polkavm-contracts", feature = "wasm-contracts"))]
 pub(crate) mod new;
 pub(crate) mod test;
-#[cfg(any(feature = "parachain", feature = "polkavm-contracts", feature = "wasm-contracts"))]
+#[cfg(any(feature = "chain", feature = "polkavm-contracts", feature = "wasm-contracts"))]
 pub(crate) mod up;
 
 #[derive(Subcommand)]
@@ -31,23 +31,23 @@ pub(crate) mod up;
 pub(crate) enum Command {
 	/// Set up the environment for development by installing required packages.
 	#[clap(alias = "i")]
-	#[cfg(any(feature = "parachain", feature = "polkavm-contracts", feature = "wasm-contracts"))]
+	#[cfg(any(feature = "chain", feature = "polkavm-contracts", feature = "wasm-contracts"))]
 	Install(install::InstallArgs),
 	/// Generate a new parachain, pallet or smart contract.
 	#[clap(alias = "n")]
-	#[cfg(any(feature = "parachain", feature = "polkavm-contracts", feature = "wasm-contracts"))]
+	#[cfg(any(feature = "chain", feature = "polkavm-contracts", feature = "wasm-contracts"))]
 	New(new::NewArgs),
 	/// Benchmark a pallet or parachain.
-	#[cfg(feature = "parachain")]
+	#[cfg(feature = "chain")]
 	Bench(bench::BenchmarkArgs),
 	#[clap(alias = "b", about = about_build())]
 	Build(build::BuildArgs),
 	/// Call a chain or a smart contract.
 	#[clap(alias = "c")]
-	#[cfg(any(feature = "parachain", feature = "polkavm-contracts", feature = "wasm-contracts"))]
+	#[cfg(any(feature = "chain", feature = "polkavm-contracts", feature = "wasm-contracts"))]
 	Call(call::CallArgs),
 	#[clap(aliases = ["u", "deploy"], about = about_up())]
-	#[cfg(any(feature = "parachain", feature = "polkavm-contracts", feature = "wasm-contracts"))]
+	#[cfg(any(feature = "chain", feature = "polkavm-contracts", feature = "wasm-contracts"))]
 	Up(Box<up::UpArgs>),
 	/// Test a Rust project.
 	#[clap(alias = "t")]
@@ -64,44 +64,44 @@ pub(crate) enum Command {
 /// Help message for the build command.
 fn about_build() -> &'static str {
 	#[cfg(all(
-		feature = "parachain",
+		feature = "chain",
 		any(feature = "polkavm-contracts", feature = "wasm-contracts")
 	))]
 	return "Build a parachain, chain specification, smart contract or Rust package.";
 	#[cfg(all(
-		feature = "parachain",
+		feature = "chain",
 		not(any(feature = "polkavm-contracts", feature = "wasm-contracts"))
 	))]
 	return "Build a parachain, chain specification or Rust package.";
 	#[cfg(all(
 		any(feature = "polkavm-contracts", feature = "wasm-contracts"),
-		not(feature = "parachain")
+		not(feature = "chain")
 	))]
 	return "Build a smart contract or Rust package.";
 	#[cfg(all(
 		not(feature = "polkavm-contracts"),
 		not(feature = "wasm-contracts"),
-		not(feature = "parachain")
+		not(feature = "chain")
 	))]
 	return "Build a Rust package.";
 }
 
 /// Help message for the `up` command.
-#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "parachain"))]
+#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "chain"))]
 fn about_up() -> &'static str {
 	#[cfg(all(
-		feature = "parachain",
+		feature = "chain",
 		any(feature = "polkavm-contracts", feature = "wasm-contracts")
 	))]
 	return "Deploy a rollup(parachain), deploy a smart contract or launch a local network.";
 	#[cfg(all(
-		feature = "parachain",
+		feature = "chain",
 		not(any(feature = "polkavm-contracts", feature = "wasm-contracts"))
 	))]
 	return "Deploy a rollup(parachain) or launch a local network.";
 	#[cfg(all(
 		any(feature = "polkavm-contracts", feature = "wasm-contracts"),
-		not(feature = "parachain")
+		not(feature = "chain")
 	))]
 	return "Deploy a smart contract.";
 }
@@ -111,7 +111,7 @@ impl Command {
 	pub(crate) async fn execute(self) -> anyhow::Result<Data> {
 		match self {
 			#[cfg(any(
-				feature = "parachain",
+				feature = "chain",
 				feature = "polkavm-contracts",
 				feature = "wasm-contracts"
 			))]
@@ -120,7 +120,7 @@ impl Command {
 				install::Command.execute(args).await.map(Install)
 			},
 			#[cfg(any(
-				feature = "parachain",
+				feature = "chain",
 				feature = "polkavm-contracts",
 				feature = "wasm-contracts"
 			))]
@@ -135,46 +135,46 @@ impl Command {
 				};
 
 				match command {
-					#[cfg(feature = "parachain")]
+					#[cfg(feature = "chain")]
 					new::Command::Chain(cmd) => cmd.execute().await.map(|p| New(Chain(p))),
-					#[cfg(feature = "parachain")]
+					#[cfg(feature = "chain")]
 					new::Command::Pallet(cmd) => cmd.execute().await.map(|_| New(Pallet)),
 					#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 					new::Command::Contract(cmd) => cmd.execute().await.map(|c| New(Contract(c))),
 				}
 			},
-			#[cfg(feature = "parachain")]
+			#[cfg(feature = "chain")]
 			Self::Bench(args) => bench::Command::execute(args).await.map(|_| Null),
 			Self::Build(args) => {
 				env_logger::init();
-				#[cfg(feature = "parachain")]
+				#[cfg(feature = "chain")]
 				match args.command {
 					None => build::Command::execute(args).map(Build),
 					Some(cmd) => match cmd {
-						#[cfg(feature = "parachain")]
+						#[cfg(feature = "chain")]
 						build::Command::Spec(cmd) => cmd.execute().await.map(|_| Null),
 					},
 				}
 
-				#[cfg(not(feature = "parachain"))]
+				#[cfg(not(feature = "chain"))]
 				build::Command::execute(args).map(Build)
 			},
 			#[cfg(any(
-				feature = "parachain",
+				feature = "chain",
 				feature = "polkavm-contracts",
 				feature = "wasm-contracts"
 			))]
 			Self::Call(args) => {
 				env_logger::init();
 				match args.command {
-					#[cfg(feature = "parachain")]
+					#[cfg(feature = "chain")]
 					call::Command::Chain(cmd) => cmd.execute().await.map(|_| Null),
 					#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 					call::Command::Contract(cmd) => cmd.execute().await.map(|_| Null),
 				}
 			},
 			#[cfg(any(
-				feature = "parachain",
+				feature = "chain",
 				feature = "polkavm-contracts",
 				feature = "wasm-contracts"
 			))]
@@ -183,15 +183,15 @@ impl Command {
 				match args.command {
 					None => up::Command::execute(*args).await.map(Up),
 					Some(cmd) => match cmd {
-						#[cfg(feature = "parachain")]
+						#[cfg(feature = "chain")]
 						up::Command::Network(cmd) => cmd.execute(&mut Cli).await.map(|_| Up(Network)),
-						#[cfg(feature = "parachain")]
+						#[cfg(feature = "chain")]
 						up::Command::Paseo(mut cmd) => cmd.execute(Paseo, &mut Cli).await.map(|_| Up(Network)),
-						#[cfg(feature = "parachain")]
+						#[cfg(feature = "chain")]
 						up::Command::Kusama(mut cmd) => cmd.execute(Kusama, &mut Cli).await.map(|_| Up(Network)),
-						#[cfg(feature = "parachain")]
+						#[cfg(feature = "chain")]
 						up::Command::Polkadot(mut cmd) => cmd.execute(Polkadot, &mut Cli).await.map(|_| Up(Network)),
-						#[cfg(feature = "parachain")]
+						#[cfg(feature = "chain")]
 						up::Command::Westend(mut cmd) => cmd.execute(Westend, &mut Cli).await.map(|_| Up(Network)),
 					},
 				}
@@ -202,20 +202,20 @@ impl Command {
 				#[cfg(any(
 					feature = "polkavm-contracts",
 					feature = "wasm-contracts",
-					feature = "parachain"
+					feature = "chain"
 				))]
 				match args.command {
 					None => test::Command::execute(args)
 						.await
 						.map(|(project, feature)| Test { project, feature }),
 					Some(cmd) => match cmd {
-						#[cfg(feature = "parachain")]
+						#[cfg(feature = "chain")]
 						test::Command::OnRuntimeUpgrade(cmd) => cmd.execute(&mut Cli).await.map(|_| Null),
-						#[cfg(feature = "parachain")]
+						#[cfg(feature = "chain")]
 						test::Command::ExecuteBlock(cmd) => cmd.execute(&mut Cli).await.map(|_| Null),
-						#[cfg(feature = "parachain")]
+						#[cfg(feature = "chain")]
 						test::Command::CreateSnapshot(cmd) => cmd.execute(&mut Cli).await.map(|_| Null),
-						#[cfg(feature = "parachain")]
+						#[cfg(feature = "chain")]
 						test::Command::FastForward(cmd) => cmd.execute(&mut Cli).await.map(|_| Null),
 					},
 				}
@@ -223,7 +223,7 @@ impl Command {
 				#[cfg(not(any(
 					feature = "polkavm-contracts",
 					feature = "wasm-contracts",
-					feature = "parachain"
+					feature = "chain"
 				)))]
 				test::Command::execute(args)
 					.await
@@ -257,13 +257,13 @@ impl Display for Command {
 	fn fmt(&self, f: &mut Formatter<'_>) -> Result {
 		match self {
 			#[cfg(any(
-				feature = "parachain",
+				feature = "chain",
 				feature = "polkavm-contracts",
 				feature = "wasm-contracts"
 			))]
 			Self::Install(_) => write!(f, "install"),
 			#[cfg(any(
-				feature = "parachain",
+				feature = "chain",
 				feature = "polkavm-contracts",
 				feature = "wasm-contracts"
 			))]
@@ -273,50 +273,50 @@ impl Display for Command {
 			},
 			#[allow(unused_variables)]
 			Self::Build(args) => {
-				#[cfg(feature = "parachain")]
+				#[cfg(feature = "chain")]
 				match &args.command {
 					Some(cmd) => write!(f, "build {}", cmd),
 					None => write!(f, "build"),
 				}
 
-				#[cfg(not(feature = "parachain"))]
+				#[cfg(not(feature = "chain"))]
 				write!(f, "build")
 			},
 			#[cfg(any(
-				feature = "parachain",
+				feature = "chain",
 				feature = "polkavm-contracts",
 				feature = "wasm-contracts"
 			))]
 			Self::Call(args) => write!(f, "call {}", args.command),
 			#[cfg(any(
-				feature = "parachain",
+				feature = "chain",
 				feature = "polkavm-contracts",
 				feature = "wasm-contracts"
 			))]
 			#[allow(unused_variables)]
 			Self::Up(args) => {
-				#[cfg(feature = "parachain")]
+				#[cfg(feature = "chain")]
 				match &args.command {
 					Some(cmd) => write!(f, "up {}", cmd),
 					None => write!(f, "up"),
 				}
 
-				#[cfg(not(feature = "parachain"))]
+				#[cfg(not(feature = "chain"))]
 				write!(f, "up")
 			},
 			#[allow(unused_variables)]
 			Self::Test(args) => {
-				#[cfg(feature = "parachain")]
+				#[cfg(feature = "chain")]
 				match &args.command {
 					Some(cmd) => write!(f, "test {}", cmd),
 					None => write!(f, "test"),
 				}
 
-				#[cfg(not(feature = "parachain"))]
+				#[cfg(not(feature = "chain"))]
 				write!(f, "test")
 			},
 			Self::Clean(_) => write!(f, "clean"),
-			#[cfg(feature = "parachain")]
+			#[cfg(feature = "chain")]
 			Self::Bench(args) => write!(f, "bench {}", args.command),
 			#[cfg(feature = "hashing")]
 			Command::Hash(args) => write!(f, "hash {}", args.command),
@@ -325,11 +325,11 @@ impl Display for Command {
 }
 
 #[cfg(test)]
-#[cfg(all(feature = "parachain", feature = "wasm-contracts"))]
+#[cfg(all(feature = "chain", feature = "wasm-contracts"))]
 mod tests {
 	use super::*;
 
-	#[cfg(all(feature = "parachain", feature = "wasm-contracts"))]
+	#[cfg(all(feature = "chain", feature = "wasm-contracts"))]
 	#[test]
 	fn command_display_works() {
 		let test_cases = vec![

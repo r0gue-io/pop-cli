@@ -57,7 +57,7 @@ cargo build --all-features
 Build the tool only for Parachain functionality:
 
 ```sh
-cargo build --no-default-features --features parachain
+cargo build --no-default-features --features chain
 ```
 
 Build the tool only for Smart Contracts functionality:
@@ -86,7 +86,7 @@ cargo test --test contract
 To run the integration tests relating to Parachains:
 
 ```sh
-cargo test --test parachain
+cargo test --test chain
 ```
 
 Run all tests (unit + integration):

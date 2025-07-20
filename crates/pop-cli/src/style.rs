@@ -42,19 +42,19 @@ impl cliclack::Theme for Theme {
 }
 
 /// Formats a URL with bold and underlined style.
-#[cfg(feature = "parachain")]
+#[cfg(feature = "chain")]
 pub(crate) fn format_url(url: &str) -> String {
 	format!("{}", style(url).bold().underlined())
 }
 
 /// Formats the step label if steps should be shown.
-#[cfg(feature = "parachain")]
+#[cfg(feature = "chain")]
 pub(crate) fn format_step_prefix(current: usize, total: usize, show: bool) -> String {
 	show.then(|| format!("[{}/{}]: ", current, total)).unwrap_or_default()
 }
 
 #[cfg(test)]
-#[cfg(feature = "parachain")]
+#[cfg(feature = "chain")]
 mod tests {
 	use super::*;
 	use console::Style;
