@@ -54,7 +54,7 @@ jobs:
         run: cargo check --no-default-features --features "polkavm-contracts, v6" -p pop-cli -p pop-contracts
 
       - name: Check parachain feature
-        run: cargo check --no-default-features --features parachain
+        run: cargo check --no-default-features --features chain
 
       - name: Build default features
         run: cargo build
@@ -136,7 +136,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cargo test --lib --bins --no-default-features --features contract
-          cargo test --lib --bins --no-default-features --features parachain
+          cargo test --lib --bins --no-default-features --features chain
   
   polkavm-unit-tests:
     needs: lint
@@ -167,7 +167,7 @@ jobs:
         uses: taiki-e/install-action@cargo-llvm-cov
 
       - name: Generate code coverage
-        run: cargo llvm-cov --workspace --lib --bins --no-default-features --features "default experimental parachain telemetry v5 wasm-contracts wallet-integration" --codecov --output-path codecov.json
+        run: cargo llvm-cov --workspace --lib --bins --no-default-features --features "default experimental chain telemetry v5 wasm-contracts wallet-integration" --codecov --output-path codecov.json
 
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v4
@@ -263,4 +263,4 @@ jobs:
       - name: Run integration tests
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: cargo test --no-default-features --features parachain --test parachain
+        run: cargo test --no-default-features --features chain --test chain

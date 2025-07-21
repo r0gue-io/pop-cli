@@ -143,7 +143,7 @@ mod tests {
 	#[cfg(feature = "chain")]
 	use {
 		crate::style::format_url,
-		pop_chains::{instantiate_template_dir, Config, DeploymentProvider, Parachain},
+		pop_chains::{instantiate_template_dir, ChainTemplate, Config, DeploymentProvider},
 		strum::VariantArray,
 	};
 
@@ -201,7 +201,7 @@ mod tests {
 			decimals: 18,
 			initial_endowment: "1000000".to_string(),
 		};
-		instantiate_template_dir(&Parachain::Standard, &project_path, None, config)?;
+		instantiate_template_dir(&ChainTemplate::Standard, &project_path, None, config)?;
 
 		let mut args = create_up_args(project_path)?;
 		args.rollup.relay_chain_url = Some(Url::parse("wss://polkadot-rpc.publicnode.com")?);

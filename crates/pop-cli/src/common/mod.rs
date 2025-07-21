@@ -286,7 +286,7 @@ mod tests {
 		assert_eq!(Template::Pallet.to_string(), "pallet");
 		// Test Chain variant with all Parachain types.
 		#[cfg(feature = "chain")]
-		for chain in pop_chains::Chain::VARIANTS {
+		for chain in pop_chains::ChainTemplate::VARIANTS {
 			let template = Template::Chain(chain.clone());
 			assert_eq!(template.to_string(), chain.to_string());
 		}

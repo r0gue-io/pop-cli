@@ -63,7 +63,7 @@ standards.
 3. Completely disable telemetry, by installing with telemetry compiled out:
 
     ```bash
-    cargo install --locked --no-default-features --features contract,parachain --git "https://github.com/r0gue-io/pop-cli"
+    cargo install --locked --no-default-features --features contract,chain --git "https://github.com/r0gue-io/pop-cli"
     ```
 
 ## Questions or Concerns?
