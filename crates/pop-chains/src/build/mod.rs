@@ -504,7 +504,8 @@ impl ChainSpec {
 mod tests {
 	use super::*;
 	use crate::{
-		new_chain::instantiate_standard_template, templates::Chain, up::Zombienet, Config, Error,
+		new_chain::instantiate_standard_template, templates::ChainTemplate, up::Zombienet, Config,
+		Error,
 	};
 	use anyhow::Result;
 	use pop_common::{
@@ -527,7 +528,7 @@ mod tests {
 			decimals: 18,
 			initial_endowment: "1000000".to_string(),
 		};
-		instantiate_standard_template(&Chain::Standard, temp_dir.path(), config, None)?;
+		instantiate_standard_template(&ChainTemplate::Standard, temp_dir.path(), config, None)?;
 		Ok(temp_dir)
 	}
 
