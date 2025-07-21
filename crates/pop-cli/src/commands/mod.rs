@@ -63,10 +63,7 @@ pub(crate) enum Command {
 
 /// Help message for the build command.
 fn about_build() -> &'static str {
-	#[cfg(all(
-		feature = "chain",
-		any(feature = "polkavm-contracts", feature = "wasm-contracts")
-	))]
+	#[cfg(all(feature = "chain", any(feature = "polkavm-contracts", feature = "wasm-contracts")))]
 	return "Build a parachain, chain specification, smart contract or Rust package.";
 	#[cfg(all(
 		feature = "chain",
@@ -89,10 +86,7 @@ fn about_build() -> &'static str {
 /// Help message for the `up` command.
 #[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "chain"))]
 fn about_up() -> &'static str {
-	#[cfg(all(
-		feature = "chain",
-		any(feature = "polkavm-contracts", feature = "wasm-contracts")
-	))]
+	#[cfg(all(feature = "chain", any(feature = "polkavm-contracts", feature = "wasm-contracts")))]
 	return "Deploy a rollup(parachain), deploy a smart contract or launch a local network.";
 	#[cfg(all(
 		feature = "chain",

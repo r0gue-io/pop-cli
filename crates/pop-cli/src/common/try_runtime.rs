@@ -14,13 +14,13 @@ use crate::{
 use clap::Args;
 use cliclack::spinner;
 use console::style;
-use pop_common::{sourcing::Binary, Profile};
 use pop_chains::{
 	parse, set_up_client,
 	state::{LiveState, State, StateCommand},
 	try_runtime::TryStateSelect,
 	try_runtime_generator, try_state_details, try_state_label, Runtime, SharedParams,
 };
+use pop_common::{sourcing::Binary, Profile};
 use std::{
 	cmp::Ordering,
 	collections::HashSet,

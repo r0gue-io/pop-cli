@@ -17,11 +17,11 @@ use crate::{
 };
 use clap::Args;
 use cliclack::spinner;
-use pop_common::get_relative_or_absolute_path;
 use pop_chains::{
 	generate_pallet_benchmarks, get_preset_names, load_pallet_extrinsics, GenesisBuilderPolicy,
 	PalletExtrinsicsRegistry, GENESIS_BUILDER_DEV_PRESET,
 };
+use pop_common::{get_relative_or_absolute_path, manifest::from_path, Profile};
 use serde::{Deserialize, Serialize};
 use std::{
 	collections::BTreeMap,

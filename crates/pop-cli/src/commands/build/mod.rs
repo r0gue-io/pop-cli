@@ -104,11 +104,7 @@ fn collect_features(input: &str, benchmark: bool, try_runtime: bool) -> Vec<&str
 impl Command {
 	/// Executes the command.
 	pub(crate) fn execute(args: BuildArgs) -> anyhow::Result<Project> {
-		#[cfg(any(
-			feature = "polkavm-contracts",
-			feature = "wasm-contracts",
-			feature = "chain"
-		))]
+		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "chain"))]
 		// If only contract feature enabled, build as contract
 		let project_path =
 			crate::common::builds::get_project_path(args.path.clone(), args.path_pos.clone());

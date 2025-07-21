@@ -248,8 +248,8 @@ mod tests {
 			},
 		},
 	};
-	use pop_common::Profile;
 	use pop_chains::{state::LiveState, Runtime};
+	use pop_common::Profile;
 
 	#[tokio::test]
 	async fn fast_forward_live_state_works() -> anyhow::Result<()> {

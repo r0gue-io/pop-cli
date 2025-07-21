@@ -14,11 +14,11 @@ use crate::{
 };
 use clap::{Args, ValueEnum};
 use cliclack::spinner;
-use pop_common::{manifest::from_path, Profile};
 use pop_chains::{
 	export_wasm_file, generate_genesis_state_file, generate_plain_chain_spec,
 	generate_raw_chain_spec, is_supported, ChainSpec,
 };
+use pop_common::{manifest::from_path, Profile};
 use std::{
 	env::current_dir,
 	fs::create_dir_all,
