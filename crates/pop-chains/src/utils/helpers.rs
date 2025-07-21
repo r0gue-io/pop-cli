@@ -86,7 +86,7 @@ pub(crate) fn write_to_file(path: &Path, contents: &str) -> Result<(), Error> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::{generator::chain::ChainSpec, Chain};
+	use crate::{generator::chain::ChainSpec, ChainTemplate};
 	use askama::Template;
 	use tempfile::tempdir;
 
@@ -97,7 +97,7 @@ mod tests {
 			token_symbol: "DOT".to_string(),
 			decimals: 6,
 			initial_endowment: "1000000".to_string(),
-			based_on: Chain::Standard.to_string(),
+			based_on: ChainTemplate::Standard.to_string(),
 		};
 		let file_path = temp_dir.path().join("file.rs");
 		let _ = fs::write(&file_path, "");

@@ -127,7 +127,7 @@ tokio_test::block_on(async {
 Generate a new Pallet:
 
 ```rust,no_run
-use pop_chains
+use pop_chains::{create_pallet_template, TemplatePalletConfig};
 use std::path::PathBuf;
 
 let path = "./";
