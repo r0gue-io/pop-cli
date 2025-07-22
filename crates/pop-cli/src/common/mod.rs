@@ -234,7 +234,7 @@ mod tests {
 		assert_eq!(Data::New(Template::Pallet).to_string(), "pallet");
 		#[cfg(feature = "chain")]
 		assert_eq!(
-			Data::New(Template::Chain(pop_chains::Chain::Contracts)).to_string(),
+			Data::New(Template::Chain(pop_chains::ChainTemplate::Contracts)).to_string(),
 			"Contracts"
 		);
 		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]

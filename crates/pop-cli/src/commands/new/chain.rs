@@ -469,19 +469,19 @@ mod tests {
 
 	#[test]
 	fn test_is_template_supported() -> Result<()> {
-		is_template_supported(&Provider::Pop, &Chain::Standard)?;
-		assert!(is_template_supported(&Provider::Pop, &Chain::ParityContracts).is_err());
-		assert!(is_template_supported(&Provider::Pop, &Chain::ParityGeneric).is_err());
+		is_template_supported(&Provider::Pop, &ChainTemplate::Standard)?;
+		assert!(is_template_supported(&Provider::Pop, &ChainTemplate::ParityContracts).is_err());
+		assert!(is_template_supported(&Provider::Pop, &ChainTemplate::ParityGeneric).is_err());
 
-		assert!(is_template_supported(&Provider::Parity, &Chain::Standard).is_err());
-		is_template_supported(&Provider::Parity, &Chain::ParityContracts)?;
-		is_template_supported(&Provider::Parity, &Chain::ParityGeneric)
+		assert!(is_template_supported(&Provider::Parity, &ChainTemplate::Standard).is_err());
+		is_template_supported(&Provider::Parity, &ChainTemplate::ParityContracts)?;
+		is_template_supported(&Provider::Parity, &ChainTemplate::ParityGeneric)
 	}
 
 	#[test]
 	fn test_get_customization_values() -> Result<()> {
 		let config = get_customization_value(
-			&Chain::Standard,
+			&ChainTemplate::Standard,
 			Some("DOT".to_string()),
 			Some(6),
 			Some("10000".to_string()),
