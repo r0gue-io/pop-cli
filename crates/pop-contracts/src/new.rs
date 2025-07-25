@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{errors::Error, templates::V5_CONTRACTS_BRANCH, utils::canonicalized_path, Contract};
+#[cfg(feature = "v5")]
+use crate::templates::V5_CONTRACTS_BRANCH;
+use crate::{errors::Error, utils::canonicalized_path, Contract};
 use anyhow::Result;
 #[cfg(feature = "v5")]
 use contract_build::new_contract_project;
