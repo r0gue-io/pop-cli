@@ -697,7 +697,10 @@ mod tests {
 			let upload_exec = set_up_upload(up_opts).await?;
 			get_upload_payload(upload_exec, contract_code, CONTRACTS_NETWORK_URL).await?
 		};
+		#[cfg(feature = "v5")]
 		let payload_hash = BlakeTwo256::hash(&call_data);
+		#[cfg(feature = "v6")]
+		let payload_hash = BlakeTwo256::hash(&BlakeTwo256, &call_data);
 		// We know that for the above opts the payload hash should be:
 		// 0x98c24584107b3a01d12e8e02c0bb634d15dc86123c44d186206813ede42f478d
 		#[cfg(feature = "v5")]

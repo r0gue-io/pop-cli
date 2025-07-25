@@ -499,8 +499,6 @@ impl Default for UpContractCommand {
 mod tests {
 	use super::*;
 	use pop_common::{find_free_port, set_executable_permission};
-	#[cfg(feature = "polkavm-contracts")]
-	use pop_contracts::AccountMapper;
 	use pop_contracts::{
 		contracts_node_generator, mock_build_process, new_environment, UploadCode,
 	};
