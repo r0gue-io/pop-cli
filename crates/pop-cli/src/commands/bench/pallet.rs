@@ -451,7 +451,7 @@ impl BenchmarkPallet {
 		weight_path: PathBuf,
 	) -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
-		let temp_dir_path = temp_dir.into_path();
+		let temp_dir_path = temp_dir.keep();
 		self.output = Some(temp_dir_path.clone());
 
 		generate_pallet_benchmarks(self.collect_run_arguments())?;
@@ -2283,7 +2283,7 @@ mod tests {
 	#[test]
 	fn update_runtime_path_works() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
-		let temp_path = temp_dir.into_path();
+		let temp_path = temp_dir.keep();
 		fs::create_dir(temp_path.join("target"))?;
 
 		let target_path = Profile::Debug.target_directory(temp_path.as_path());
