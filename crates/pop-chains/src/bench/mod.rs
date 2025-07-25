@@ -286,7 +286,7 @@ mod tests {
 	async fn load_pallet_extrinsics_works() -> Result<(), Error> {
 		let temp_dir = tempdir()?;
 		let runtime_path = get_mock_runtime_path(true);
-		let binary = omni_bencher_generator(temp_dir.into_path(), None).await?;
+		let binary = omni_bencher_generator(temp_dir.keep(), None).await?;
 		binary.source(false, &(), true).await?;
 
 		let registry = load_pallet_extrinsics(&runtime_path, &binary.path()).await?;
@@ -320,7 +320,7 @@ mod tests {
 	async fn load_pallet_extrinsics_missing_runtime_benchmarks_fails() -> Result<(), Error> {
 		let temp_dir = tempdir()?;
 		let runtime_path = get_mock_runtime_path(false);
-		let binary = omni_bencher_generator(temp_dir.into_path(), None).await?;
+		let binary = omni_bencher_generator(temp_dir.keep(), None).await?;
 		binary.source(false, &(), true).await?;
 
 		assert_eq!(
