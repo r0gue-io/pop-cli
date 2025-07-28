@@ -224,7 +224,7 @@ mod tests {
 		let dir_path = format!("{}/test_contract", dir.path().display().to_string());
 		let cli = Cli::parse_from(["pop", "new", "contract", &dir_path]);
 
-		let New(NewArgs { command: Contract(command) }) = cli.command else {
+		let New(NewArgs { command: Some(Contract(command)) }) = cli.command else {
 			panic!("unable to parse command")
 		};
 		// Execute
@@ -239,7 +239,7 @@ mod tests {
 		let cli =
 			Cli::parse_from(["pop", "new", "contract", &dir_path, "-c", "erc", "-t", "erc20"]);
 
-		let New(NewArgs { command: Contract(command) }) = cli.command else {
+		let New(NewArgs { command: Some(Contract(command)) }) = cli.command else {
 			panic!("unable to parse command")
 		};
 		// Execute

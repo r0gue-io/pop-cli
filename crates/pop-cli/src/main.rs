@@ -262,22 +262,32 @@ mod tests {
 			assert_eq!(
 				Cli {
 					command: Command::New(NewArgs {
-						command: NewCommand::Parachain(Default::default())
+						command: Some(NewCommand::Parachain(Default::default()))
 					})
 				}
 				.to_string(),
 				"new chain"
 			);
+			// New command display without subcommand.
+			assert_eq!(
+				Cli {
+					command: Command::New(NewArgs {
+						command: None
+					})
+				}
+				.to_string(),
+				"new"
+			);
 			// Successful execution.
 			let (command, data) = simulate_command_flow(
-				Command::New(NewArgs { command: NewCommand::Contract(Default::default()) }),
+				Command::New(NewArgs { command: Some(NewCommand::Contract(Default::default())) }),
 				Ok(New(Template::Contract(Default::default()))),
 			);
 			assert_eq!(command, "new contract");
 			assert_eq!(data, "Standard");
 			// Error handling.
 			let (command, data) = simulate_command_flow(
-				Command::New(NewArgs { command: NewCommand::Contract(Default::default()) }),
+				Command::New(NewArgs { command: Some(NewCommand::Contract(Default::default())) }),
 				Err(anyhow!("template error")) as Result<Data>,
 			);
 			assert_eq!(command, "new contract");
