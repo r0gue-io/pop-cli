@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use clap::{Args, Subcommand};
-use std::fmt::{Display, Formatter, Result};
 use crate::cli::{traits::Cli as _, Cli};
 use anyhow::Result as AnyhowResult;
+use clap::{Args, Subcommand};
+use std::fmt::{Display, Formatter, Result};
 
 #[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 pub mod contract;
@@ -66,34 +66,22 @@ impl Display for Command {
 
 /// Guide the user to select what type of project to create
 pub async fn guide_user_to_select_command() -> AnyhowResult<Command> {
-	Cli.intro("🚀 Welcome to Pop CLI!")?;
-	
+	Cli.intro("Welcome to Pop CLI!")?;
+
 	let mut prompt = cliclack::select("What would you like to create?".to_string());
-	
+
 	// Add available options based on features
 	#[cfg(feature = "parachain")]
 	{
-		prompt = prompt.item(
-			"parachain", 
-			"🌐 Parachain", 
-			"Build your own blockchain with custom logic, token economics, and governance"
-		);
-		prompt = prompt.item(
-			"pallet", 
-			"🧩 Pallet", 
-			"Create reusable blockchain modules to add features like tokens, voting, or custom logic"
-		);
+		prompt = prompt.item("parachain", "Chain", "Build your own custom chain");
+		prompt = prompt.item("pallet", "Pallet", "Create reusable and customizable chain modules");
 	}
-	
+
 	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 	{
-		prompt = prompt.item(
-			"contract", 
-			"📝 Smart Contract", 
-			"Write decentralized applications with ink! for the Polkadot ecosystem"
-		);
+		prompt = prompt.item("contract", "Smart Contract", "Write ink! smart contracts");
 	}
-	
+
 	// Set initial selection to the first available option
 	#[cfg(feature = "parachain")]
 	{
@@ -106,9 +94,9 @@ pub async fn guide_user_to_select_command() -> AnyhowResult<Command> {
 	{
 		prompt = prompt.initial_value("contract");
 	}
-	
+
 	let selection = prompt.interact()?;
-	
+
 	match selection {
 		#[cfg(feature = "parachain")]
 		"parachain" => Ok(Command::Parachain(parachain::NewParachainCommand {

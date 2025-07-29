@@ -127,13 +127,13 @@ impl Command {
 			Self::New(args) => {
 				env_logger::init();
 				use crate::common::Template::*;
-				
+
 				// If no command is provided, guide the user to select one interactively
 				let command = match args.command {
 					Some(cmd) => cmd,
 					None => new::guide_user_to_select_command().await?,
 				};
-				
+
 				match command {
 					#[cfg(feature = "parachain")]
 					new::Command::Parachain(cmd) => cmd.execute().await.map(|p| New(Chain(p))),
@@ -267,11 +267,9 @@ impl Display for Command {
 				feature = "polkavm-contracts",
 				feature = "wasm-contracts"
 			))]
-			Self::New(args) => {
-				match &args.command {
-					Some(cmd) => write!(f, "new {}", cmd),
-					None => write!(f, "new"),
-				}
+			Self::New(args) => match &args.command {
+				Some(cmd) => write!(f, "new {}", cmd),
+				None => write!(f, "new"),
 			},
 			#[allow(unused_variables)]
 			Self::Build(args) => {
@@ -403,15 +401,21 @@ mod tests {
 			),
 			// New.
 			(
-				Command::New(new::NewArgs { command: Some(new::Command::Parachain(Default::default())) }),
+				Command::New(new::NewArgs {
+					command: Some(new::Command::Parachain(Default::default())),
+				}),
 				"new chain",
 			),
 			(
-				Command::New(new::NewArgs { command: Some(new::Command::Pallet(Default::default())) }),
+				Command::New(new::NewArgs {
+					command: Some(new::Command::Pallet(Default::default())),
+				}),
 				"new pallet",
 			),
 			(
-				Command::New(new::NewArgs { command: Some(new::Command::Contract(Default::default())) }),
+				Command::New(new::NewArgs {
+					command: Some(new::Command::Contract(Default::default())),
+				}),
 				"new contract",
 			),
 			// Bench.

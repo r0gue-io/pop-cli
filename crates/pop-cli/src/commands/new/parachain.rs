@@ -25,7 +25,6 @@ use pop_parachains::{
 use std::{fs, path::Path, str::FromStr, thread::sleep, time::Duration};
 use strum::VariantArray;
 
-
 const DEFAULT_INITIAL_ENDOWMENT: &str = "1u64 << 60";
 
 #[derive(Args, Clone)]
