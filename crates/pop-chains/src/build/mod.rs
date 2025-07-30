@@ -18,8 +18,8 @@ pub mod runtime;
 /// Build the chain and returns the path to the binary.
 ///
 /// # Arguments
-/// * `path` - The optional path to the chain manifest, defaulting to the current directory if
-///   not specified.
+/// * `path` - The optional path to the chain manifest, defaulting to the current directory if not
+///   specified.
 /// * `package` - The optional package to be built.
 /// * `profile` - Whether the chain should be built without any debugging functionality.
 /// * `node_path` - An optional path to the node directory. Defaults to the `node` subdirectory of
