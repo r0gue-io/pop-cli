@@ -74,7 +74,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn try_runtime_generator_works() -> Result<(), Error> {
-		let temp_dir = tempdir()?.into_path();
+		let temp_dir = tempdir()?.keep();
 		let version = "v0.8.0";
 		let binary = try_runtime_generator(temp_dir.clone(), None).await?;
 		assert!(matches!(binary, Binary::Source { name: _, source, cache }

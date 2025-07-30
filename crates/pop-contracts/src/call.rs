@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
+#[cfg(feature = "v6")]
+use crate::utils::map_account::create_signer;
 use crate::{
 	errors::Error,
 	submit_signed_payload,
@@ -11,10 +13,22 @@ use crate::{
 	CallExec, DefaultEnvironment, Environment, Verbosity,
 };
 use anyhow::Context;
-use pop_common::{create_signer, DefaultConfig, Keypair};
+#[cfg(feature = "v5")]
+use pop_common::create_signer;
+#[cfg(feature = "v5")]
 use sp_weights::Weight;
+#[cfg(feature = "v6")]
+use sp_weights_inkv6::Weight;
+
 use std::path::PathBuf;
-use subxt::{tx::Payload, SubstrateConfig};
+#[cfg(feature = "v5")]
+use subxt::{tx::Payload, Config, PolkadotConfig as DefaultConfig, SubstrateConfig};
+#[cfg(feature = "v6")]
+use subxt_inkv6::{tx::Payload, PolkadotConfig as DefaultConfig, SubstrateConfig};
+#[cfg(feature = "v5")]
+pub use subxt_signer::sr25519::Keypair;
+#[cfg(feature = "v6")]
+pub use subxt_signer_inkv6::sr25519::Keypair;
 use url::Url;
 #[cfg(feature = "v5")]
 use {
@@ -22,7 +36,7 @@ use {
 		extrinsic_calls::Call, BalanceVariant, CallCommandBuilder, ContractArtifacts,
 		DisplayEvents, ErrorVariant, ExtrinsicOptsBuilder, TokenMetadata,
 	},
-	pop_common::{parse_account, Config},
+	pop_common::parse_account,
 };
 #[cfg(feature = "v6")]
 use {
