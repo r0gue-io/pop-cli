@@ -1,11 +1,11 @@
 # pop-chains
 
-A crate for generating, building and running parachains and pallets. Used by
+A crate for generating, building and running chains and pallets. Used by
 [`pop-cli`](https://github.com/r0gue-io/pop-cli).
 
 ## Usage
 
-Generate a new parachain:
+Generate a new chain:
 
 ```rust,no_run
 use pop_chains::{instantiate_template_dir, Config, ChainTemplate};
@@ -21,7 +21,7 @@ let config = Config {
 let tag = instantiate_template_dir(&ChainTemplate::Standard, &destination_path, tag_version, config);
 ```
 
-Build a Parachain:
+Build a chain:
 
 ```rust,no_run
 use pop_common::Profile;
@@ -33,13 +33,13 @@ let package = None;  // The optional package to be built.
 let binary_path = build_chain(&path, package, &Profile::Release, None, vec![]).unwrap();
 ```
 
-Build a Parachain with `runtime-benchmarks` feature:
+Build a chain with `runtime-benchmarks` feature:
 
 ```rs
 let binary_path = build_chain(&path, package, &Profile::Release, None, vec!["runtime-benchmarks"]).unwrap();
 ```
 
-Generate a plain chain specification file and customize it with your specific parachain values:
+Generate a plain chain specification file and customize it with your specific chain values:
 
 ```rust,no_run
 use pop_common::Profile;
@@ -85,7 +85,7 @@ let wasm_file = export_wasm_file(&binary_path, &chain_spec, "para-2000-wasm").un
 let genesis_state_file = generate_genesis_state_file(&binary_path, &chain_spec, "para-2000-genesis-state").unwrap();
 ```
 
-Run a Parachain:
+Run a chain:
 
 ```rust,no_run
 use pop_chains::up::Zombienet;
