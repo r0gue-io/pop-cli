@@ -288,7 +288,7 @@ impl BuildSpecCommand {
 			None => {
 				let default = chain_spec
 					.as_ref()
-					.and_then(|cs| cs.get_parachain_id().map(|id| id as u32))
+					.and_then(|cs| cs.get_chain_id().map(|id| id as u32))
 					.unwrap_or(DEFAULT_PARA_ID);
 				if prompt {
 					// Prompt for para id.

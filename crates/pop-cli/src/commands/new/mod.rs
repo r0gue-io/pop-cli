@@ -71,9 +71,9 @@ pub async fn guide_user_to_select_command() -> AnyhowResult<Command> {
 	let mut prompt = cliclack::select("What would you like to create?".to_string());
 
 	// Add available options based on features
-	#[cfg(feature = "parachain")]
+	#[cfg(feature = "chain")]
 	{
-		prompt = prompt.item("parachain", "Chain", "Build your own custom chain");
+		prompt = prompt.item("chain", "Chain", "Build your own custom chain");
 		prompt = prompt.item("pallet", "Pallet", "Create reusable and customizable chain modules");
 	}
 
@@ -83,13 +83,13 @@ pub async fn guide_user_to_select_command() -> AnyhowResult<Command> {
 	}
 
 	// Set initial selection to the first available option
-	#[cfg(feature = "parachain")]
+	#[cfg(feature = "chain")]
 	{
-		prompt = prompt.initial_value("parachain");
+		prompt = prompt.initial_value("chain");
 	}
 	#[cfg(all(
 		any(feature = "polkavm-contracts", feature = "wasm-contracts"),
-		not(feature = "parachain")
+		not(feature = "chain")
 	))]
 	{
 		prompt = prompt.initial_value("contract");
@@ -98,8 +98,8 @@ pub async fn guide_user_to_select_command() -> AnyhowResult<Command> {
 	let selection = prompt.interact()?;
 
 	match selection {
-		#[cfg(feature = "parachain")]
-		"parachain" => Ok(Command::Parachain(parachain::NewParachainCommand {
+		#[cfg(feature = "chain")]
+		"chain" => Ok(Command::Chain(chain::NewChainCommand {
 			name: None,
 			provider: None,
 			template: None,
@@ -109,7 +109,7 @@ pub async fn guide_user_to_select_command() -> AnyhowResult<Command> {
 			initial_endowment: None,
 			verify: false,
 		})),
-		#[cfg(feature = "parachain")]
+		#[cfg(feature = "chain")]
 		"pallet" => Ok(Command::Pallet(pallet::NewPalletCommand {
 			name: None,
 			authors: None,
