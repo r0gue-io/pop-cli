@@ -13,14 +13,14 @@ use pop_common::{
 use std::{fs, path::Path};
 use walkdir::WalkDir;
 
-/// Create a new parachain.
+/// Create a new chain.
 ///
 /// # Arguments
 ///
-/// * `template` - template to generate the parachain from.
-/// * `target` - location where the parachain will be created.
+/// * `template` - template to generate the chain from.
+/// * `target` - location where the chain will be created.
 /// * `tag_version` - version to use (`None` to use latest).
-/// * `config` - customization values to include in the new parachain.
+/// * `config` - customization values to include in the new chain.
 pub fn instantiate_template_dir(
 	template: &ChainTemplate,
 	target: &Path,
@@ -111,7 +111,7 @@ mod tests {
 	}
 
 	#[test]
-	fn test_parachain_instantiate_standard_template() -> Result<()> {
+	fn test_chain_instantiate_standard_template() -> Result<()> {
 		let temp_dir =
 			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
 
@@ -140,7 +140,7 @@ mod tests {
 	}
 
 	#[test]
-	fn test_parachain_instantiate_openzeppelin_template() -> Result<()> {
+	fn test_chain_instantiate_openzeppelin_template() -> Result<()> {
 		let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
 		instantiate_openzeppelin_template(&ChainTemplate::OpenZeppelinEVM, temp_dir.path(), None)?;
 
