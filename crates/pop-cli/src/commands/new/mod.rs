@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
+use crate::cli::{traits::Cli as _, Cli};
+use anyhow::Result as AnyhowResult;
 use clap::{Args, Subcommand};
 use std::fmt::{Display, Formatter, Result};
 
@@ -29,7 +31,7 @@ macro_rules! enum_variants {
 #[command(args_conflicts_with_subcommands = true)]
 pub struct NewArgs {
 	#[command(subcommand)]
-	pub command: Command,
+	pub command: Option<Command>,
 }
 
 /// Generate a new parachain, pallet or smart contract.
@@ -59,6 +61,68 @@ impl Display for Command {
 			#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 			Command::Contract(_) => write!(f, "contract"),
 		}
+	}
+}
+
+/// Guide the user to select what type of project to create
+pub async fn guide_user_to_select_command() -> AnyhowResult<Command> {
+	Cli.intro("Welcome to Pop CLI!")?;
+
+	let mut prompt = cliclack::select("What would you like to create?".to_string());
+
+	// Add available options based on features
+	#[cfg(feature = "parachain")]
+	{
+		prompt = prompt.item("parachain", "Chain", "Build your own custom chain");
+		prompt = prompt.item("pallet", "Pallet", "Create reusable and customizable chain modules");
+	}
+
+	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
+	{
+		prompt = prompt.item("contract", "Smart Contract", "Write ink! smart contracts");
+	}
+
+	// Set initial selection to the first available option
+	#[cfg(feature = "parachain")]
+	{
+		prompt = prompt.initial_value("parachain");
+	}
+	#[cfg(all(
+		any(feature = "polkavm-contracts", feature = "wasm-contracts"),
+		not(feature = "parachain")
+	))]
+	{
+		prompt = prompt.initial_value("contract");
+	}
+
+	let selection = prompt.interact()?;
+
+	match selection {
+		#[cfg(feature = "parachain")]
+		"parachain" => Ok(Command::Parachain(parachain::NewParachainCommand {
+			name: None,
+			provider: None,
+			template: None,
+			release_tag: None,
+			symbol: None,
+			decimals: None,
+			initial_endowment: None,
+			verify: false,
+		})),
+		#[cfg(feature = "parachain")]
+		"pallet" => Ok(Command::Pallet(pallet::NewPalletCommand {
+			name: None,
+			authors: None,
+			description: None,
+			mode: None,
+		})),
+		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
+		"contract" => Ok(Command::Contract(contract::NewContractCommand {
+			name: None,
+			contract_type: None,
+			template: None,
+		})),
+		_ => Err(anyhow::anyhow!("Invalid selection")),
 	}
 }
 

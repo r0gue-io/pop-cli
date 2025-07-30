@@ -430,7 +430,7 @@ mod tests {
 			dir.path().join("test_parachain").to_str().unwrap(),
 		]);
 
-		let New(NewArgs { command: ParachainCommand(command) }) = cli.command else {
+		let New(NewArgs { command: Some(ParachainCommand(command)) }) = cli.command else {
 			panic!("unable to parse command")
 		};
 		// Execute
