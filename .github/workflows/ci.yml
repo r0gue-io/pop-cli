@@ -53,7 +53,7 @@ jobs:
       - name: Check polkavm-contracts feature
         run: cargo check --no-default-features --features "polkavm-contracts, v6" -p pop-cli -p pop-contracts
 
-      - name: Check parachain feature
+      - name: Check chain feature
         run: cargo check --no-default-features --features chain
 
       - name: Build default features
@@ -226,7 +226,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: cargo test --no-default-features --features contract --test contract
 
-  parachain-integration-tests:
+  chain-integration-tests:
     needs: lint
     strategy:
       matrix:
