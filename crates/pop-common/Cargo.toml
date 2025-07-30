@@ -39,3 +39,4 @@ url.workspace = true
 [dev-dependencies]
 mockito.workspace = true
 tempfile.workspace = true
+similar.workspace = true

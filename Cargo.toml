@@ -29,10 +29,16 @@ dirs = { version = "5.0", default-features = false }
 duct = { version = "0.13", default-features = false }
 env_logger = { version = "0.11.7", default-features = false }
 flate2 = "1.0.30"
+fs_rollback = "3.0.1"
 git2 = { version = "0.18", default-features = true, features = ["vendored-openssl"] }
 glob = { version = "0.3.1", default-features = false }
 log = { version = "0.4.20", default-features = false }
 mockito = { version = "1.4.0", default-features = false }
+proc-macro2 = "1.0.86"
+rustilities = "2.2.1"
+rust_writer = "1.0.4"
+similar = "2.7.0"
+syn = "2.0.100"
 tar = { version = "0.4.40", default-features = false }
 tempfile = { version = "3.10", default-features = false }
 thiserror = { version = "1.0.58", default-features = false }

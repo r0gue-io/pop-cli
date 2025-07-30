@@ -1815,6 +1815,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "cargo_toml"
+version = "0.21.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5fbd1fe9db3ebf71b89060adaf7b0504c2d6a425cf061313099547e382c2e472"
+dependencies = [
+ "serde",
+ "toml 0.8.20",
+]
+
+[[package]]
 name = "cc"
 version = "1.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4274,6 +4284,18 @@ checksum = "9564fc758e15025b46aa6643b1b77d047d1a56a1aea6e01002ac0c7026876213"
 dependencies = [
  "libc",
  "winapi",
+]
+
+[[package]]
+name = "fs_rollback"
+version = "3.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5d4f2ac32da3859259a7f1b24c86b1a40ca6671af078df6df254f25e9438b7e9"
+dependencies = [
+ "rustilities",
+ "same-file",
+ "tempfile",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -8857,6 +8879,7 @@ dependencies = [
  "dirs",
  "duct",
  "env_logger 0.11.7",
+ "fs_rollback",
  "git2",
  "mockito",
  "open",
@@ -8865,16 +8888,21 @@ dependencies = [
  "pop-contracts",
  "pop-parachains",
  "pop-telemetry",
+ "proc-macro2",
  "regex",
  "reqwest",
+ "rust_writer",
+ "rustilities",
  "serde",
  "serde_json",
+ "similar",
  "sp-core 32.0.0",
  "sp-weights",
  "strum 0.26.3",
  "strum_macros 0.26.4",
  "subxt",
  "subxt-signer",
+ "syn 2.0.100",
  "tempfile",
  "tokio",
  "toml 0.5.11",
@@ -8889,7 +8917,7 @@ version = "0.8.1"
 dependencies = [
  "anyhow",
  "bytes",
- "cargo_toml",
+ "cargo_toml 0.20.5",
  "contract-build 5.0.3",
  "contract-extrinsics 5.0.3",
  "duct",
@@ -8903,6 +8931,7 @@ dependencies = [
  "scale-info",
  "serde",
  "serde_json",
+ "similar",
  "sp-core 32.0.0",
  "strum 0.26.3",
  "strum_macros 0.26.4",
@@ -9999,6 +10028,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "rust_writer"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "baf4bb56f2de882403080044bd15dbafbdceb5437580638da25d257de8fbd86e"
+dependencies = [
+ "prettyplease",
+ "proc-macro2",
+ "regex",
+ "rust_writer_proc",
+ "rustilities",
+ "syn 2.0.100",
+ "thiserror 2.0.12",
+]
+
+[[package]]
+name = "rust_writer_proc"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "54abd3b6b8f7e68143a45c862405827fc453433e46c5d892d59421607bea8074"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "rustilities",
+ "syn 2.0.100",
+]
+
+[[package]]
 name = "rustc-demangle"
 version = "0.1.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10047,6 +10103,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "faf0c4a6ece9950b9abdb62b1cfcf2a68b3b67a10ba445b3bb85be2a293d0632"
 dependencies = [
  "nom",
+]
+
+[[package]]
+name = "rustilities"
+version = "2.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f6c4a622609b034008b203bd62d1500f1e03889758aed046ddd68337a98c8cbf"
+dependencies = [
+ "cargo_toml 0.21.0",
+ "proc-macro2",
+ "syn 2.0.100",
+ "thiserror 2.0.12",
+ "toml_edit",
 ]
 
 [[package]]

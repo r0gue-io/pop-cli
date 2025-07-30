@@ -6,6 +6,7 @@ use anyhow::Result;
 use assert_cmd::cargo::cargo_bin;
 use pop_common::{find_free_port, templates::Template};
 use pop_parachains::Parachain;
+use similar::{ChangeTag, TextDiff};
 use std::{ffi::OsStr, fs, path::Path, process::Command, thread::sleep, time::Duration};
 use strum::VariantArray;
 
@@ -37,9 +38,9 @@ fn generate_all_the_templates() -> Result<()> {
 	Ok(())
 }
 
-/// Test the parachain lifecycle: new, build, up, call.
-#[test]
-fn parachain_lifecycle() -> Result<()> {
+/// Test the parachain lifecycle: new, add pallet ,build, up, call.
+#[tokio::test]
+async fn parachain_lifecycle() -> Result<()> {
 	// For testing locally: set to `true`
 	const LOCAL_TESTING: bool = false;
 
@@ -58,6 +59,8 @@ fn parachain_lifecycle() -> Result<()> {
 				"new",
 				"parachain",
 				"test_parachain",
+				"--release-tag",
+				"polkadot-stable2412",
 				"--symbol",
 				"POP",
 				"--decimals",
@@ -70,6 +73,123 @@ fn parachain_lifecycle() -> Result<()> {
 		assert!(command.spawn()?.wait()?.success());
 		assert!(working_dir.exists());
 	}
+
+	// pop add correctly adds pallet-contracts to the template
+	let runtime_path = working_dir.join("runtime");
+
+	let workspace_manifest_path = working_dir.join("Cargo.toml");
+	let runtime_manifest_path = runtime_path.join("Cargo.toml");
+	let runtime_lib_path = runtime_path.join("src").join("lib.rs");
+	let pallet_configs_path = runtime_path.join("src").join("configs");
+	let pallet_configs_mod_path = pallet_configs_path.join("mod.rs");
+	let contracts_pallet_config_path = pallet_configs_path.join("contracts.rs");
+
+	assert!(!contracts_pallet_config_path.exists());
+
+	let runtime_lib_content_before = std::fs::read_to_string(&runtime_lib_path).unwrap();
+	let pallet_configs_mod_content_before =
+		std::fs::read_to_string(&pallet_configs_mod_path).unwrap();
+	let workspace_manifest_content_before =
+		std::fs::read_to_string(&workspace_manifest_path).unwrap();
+	let runtime_manifest_content_before = std::fs::read_to_string(&runtime_manifest_path).unwrap();
+
+	let mut command =
+		pop(&working_dir, &["add", "pallet", "-p", "contracts", "--release-tag", "stable2412"]);
+	assert!(command.spawn()?.wait()?.success());
+
+	let runtime_lib_content_after = std::fs::read_to_string(&runtime_lib_path).unwrap();
+	let pallet_configs_mod_content_after =
+		std::fs::read_to_string(&pallet_configs_mod_path).unwrap();
+	let workspace_manifest_content_after =
+		std::fs::read_to_string(&workspace_manifest_path).unwrap();
+	let runtime_manifest_content_after = std::fs::read_to_string(&runtime_manifest_path).unwrap();
+	let contracts_pallet_config_content =
+		std::fs::read_to_string(&contracts_pallet_config_path).unwrap();
+
+	let runtime_lib_diff =
+		TextDiff::from_lines(&runtime_lib_content_before, &runtime_lib_content_after);
+	let pallet_configs_mod_diff =
+		TextDiff::from_lines(&pallet_configs_mod_content_before, &pallet_configs_mod_content_after);
+	let workspace_manifest_diff =
+		TextDiff::from_lines(&workspace_manifest_content_before, &workspace_manifest_content_after);
+	let runtime_manifest_diff =
+		TextDiff::from_lines(&runtime_manifest_content_before, &runtime_manifest_content_after);
+
+	let expected_inserted_lines_runtime_lib = vec![
+		"\n",
+		"    #[runtime::pallet_index(34)]\n",
+		"    pub type Contracts = pallet_contracts;\n",
+	];
+	let expected_inserted_lines_configs_mod = vec!["mod contracts;\n"];
+	let expected_inserted_lines_workspace_manifest =
+		vec!["pallet-contracts = { git = \"https://github.com/paritytech/polkadot-sdk\", branch = \"stable2412\", default-features = false }\n"];
+
+	let expected_inserted_lines_runtime_manifest = vec![
+		"pallet-contracts = { workspace = true, default-features = false }\n",
+		"  \"xcm/std\", \"pallet-contracts/std\",\n",
+		"  \"xcm-executor/runtime-benchmarks\", \"pallet-contracts/runtime-benchmarks\",\n",
+		"  \"sp-runtime/try-runtime\", \"pallet-contracts/try-runtime\",\n",
+	];
+
+	let mut inserted_lines_runtime_lib = Vec::with_capacity(3);
+	let mut inserted_lines_configs_mod = Vec::with_capacity(1);
+	let mut inserted_lines_workspace_manifest = Vec::with_capacity(1);
+	let mut inserted_lines_runtime_manifest = Vec::with_capacity(1);
+
+	for change in runtime_lib_diff.iter_all_changes() {
+		match change.tag() {
+			ChangeTag::Delete => panic!("no deletion expected"),
+			ChangeTag::Insert => inserted_lines_runtime_lib.push(change.value()),
+			_ => (),
+		}
+	}
+
+	for change in pallet_configs_mod_diff.iter_all_changes() {
+		match change.tag() {
+			ChangeTag::Delete => panic!("no deletion expected"),
+			ChangeTag::Insert => inserted_lines_configs_mod.push(change.value()),
+			_ => (),
+		}
+	}
+
+	for change in workspace_manifest_diff.iter_all_changes() {
+		match change.tag() {
+			ChangeTag::Delete => panic!("no deletion expected"),
+			ChangeTag::Insert => inserted_lines_workspace_manifest.push(change.value()),
+			_ => (),
+		}
+	}
+
+	for change in runtime_manifest_diff.iter_all_changes() {
+		match change.tag() {
+			ChangeTag::Insert => inserted_lines_runtime_manifest.push(change.value()),
+			_ => (),
+		}
+	}
+
+	assert_eq!(expected_inserted_lines_runtime_lib, inserted_lines_runtime_lib);
+	assert_eq!(expected_inserted_lines_configs_mod, inserted_lines_configs_mod);
+	assert_eq!(expected_inserted_lines_workspace_manifest, inserted_lines_workspace_manifest);
+	assert_eq!(expected_inserted_lines_runtime_manifest, inserted_lines_runtime_manifest);
+
+	assert_eq!(
+		contracts_pallet_config_content,
+		r#"use crate::{Balances, Runtime, RuntimeCall, RuntimeEvent, RuntimeHoldReason};
+use frame_support::{derive_impl, parameter_types};
+
+parameter_types! {
+    pub Schedule : pallet_contracts::Schedule < Runtime > = < pallet_contracts::Schedule
+    < Runtime >> ::default();
+}
+
+#[derive_impl(pallet_contracts::config_preludes::TestDefaultConfig)]
+impl pallet_contracts::Config for Runtime {
+    type Currency = Balances;
+    type Schedule = Schedule;
+    type CallStack = [pallet_contracts::Frame<Self>; 5];
+}
+"#
+	);
 
 	// pop build --release
 	let mut command = pop(&working_dir, &["build", "--release"]);
