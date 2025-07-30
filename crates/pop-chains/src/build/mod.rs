@@ -15,13 +15,13 @@ use std::{
 /// Build the deterministic runtime.
 pub mod runtime;
 
-/// Build the parachain and returns the path to the binary.
+/// Build the chain and returns the path to the binary.
 ///
 /// # Arguments
-/// * `path` - The optional path to the parachain manifest, defaulting to the current directory if
+/// * `path` - The optional path to the chain manifest, defaulting to the current directory if
 ///   not specified.
 /// * `package` - The optional package to be built.
-/// * `profile` - Whether the parachain should be built without any debugging functionality.
+/// * `profile` - Whether the chain should be built without any debugging functionality.
 /// * `node_path` - An optional path to the node directory. Defaults to the `node` subdirectory of
 ///   the project path if not provided.
 /// * `features` - A set of features the project is built with.
@@ -78,14 +78,14 @@ pub fn build_project(
 	Ok(())
 }
 
-/// Determines whether the manifest at the supplied path is a supported parachain project.
+/// Determines whether the manifest at the supplied path is a supported chain project.
 ///
 /// # Arguments
 /// * `path` - The optional path to the manifest, defaulting to the current directory if not
 ///   specified.
 pub fn is_supported(path: Option<&Path>) -> Result<bool, Error> {
 	let manifest = from_path(path)?;
-	// Simply check for a parachain dependency
+	// Simply check for a chain dependency
 	const DEPENDENCIES: [&str; 4] =
 		["cumulus-client-collator", "cumulus-primitives-core", "parachains-common", "polkadot-sdk"];
 	Ok(DEPENDENCIES.into_iter().any(|d| {
@@ -127,11 +127,11 @@ where
 	Ok(release)
 }
 
-/// Generates the plain text chain specification for a parachain.
+/// Generates the plain text chain specification for a chain.
 ///
 /// # Arguments
 /// * `binary_path` - The path to the node binary executable that contains the `build-spec` command.
-/// * `plain_chain_spec` - Location of the plain_parachain_spec file to be generated.
+/// * `plain_chain_spec` - Location of the plain_chain_spec file to be generated.
 /// * `default_bootnode` - Whether to include localhost as a bootnode.
 /// * `chain` - The chain specification. It can be one of the predefined ones (e.g. dev, local or a
 ///   custom one) or the path to an existing chain spec.
@@ -166,7 +166,7 @@ pub fn generate_plain_chain_spec(
 	Ok(())
 }
 
-/// Generates a raw chain specification file for a parachain.
+/// Generates a raw chain specification file for a chain.
 ///
 /// # Arguments
 /// * `binary_path` - The path to the node binary executable that contains the `build-spec` command.
@@ -200,7 +200,7 @@ pub fn generate_raw_chain_spec(
 	Ok(raw_chain_spec)
 }
 
-/// Export the WebAssembly runtime for the parachain.
+/// Export the WebAssembly runtime for the chain.
 ///
 /// # Arguments
 /// * `binary_path` - The path to the node binary executable that contains the `export-genesis-wasm`
@@ -234,7 +234,7 @@ pub fn export_wasm_file(
 	Ok(wasm_file)
 }
 
-/// Generate the parachain genesis state.
+/// Generate the chain genesis state.
 ///
 /// # Arguments
 /// * `binary_path` - The path to the node binary executable that contains the
@@ -300,8 +300,8 @@ impl ChainSpec {
 		self.0.get("name").and_then(|v| v.as_str())
 	}
 
-	/// Get the parachain ID from the chain specification.
-	pub fn get_parachain_id(&self) -> Option<u64> {
+	/// Get the chain ID from the chain specification.
+	pub fn get_chain_id(&self) -> Option<u64> {
 		self.0.get("para_id").and_then(|v| v.as_u64())
 	}
 
@@ -331,7 +331,7 @@ impl ChainSpec {
 			.and_then(|key| key.as_str())
 	}
 
-	/// Replaces the parachain id with the provided `para_id`.
+	/// Replaces the chain id with the provided `para_id`.
 	///
 	/// # Arguments
 	/// * `para_id` - The new value for the para_id.
@@ -639,7 +639,7 @@ mod tests {
 	}
 
 	#[test]
-	fn build_parachain_works() -> Result<()> {
+	fn build_chain_works() -> Result<()> {
 		let name = "parachain_template_node";
 		let temp_dir = tempdir()?;
 		cmd("cargo", ["new", name, "--bin"]).dir(temp_dir.path()).run()?;
@@ -778,7 +778,7 @@ mod tests {
 		// Test export wasm file
 		let wasm_file = export_wasm_file(&binary_path, &raw_chain_spec, "para-2001-wasm")?;
 		assert!(wasm_file.exists());
-		// Test generate parachain state file
+		// Test generate chain state file
 		let genesis_file =
 			generate_genesis_state_file(&binary_path, &raw_chain_spec, "para-2001-genesis-state")?;
 		assert!(genesis_file.exists());
@@ -864,11 +864,11 @@ mod tests {
 	}
 
 	#[test]
-	fn get_parachain_id_works() -> Result<()> {
+	fn get_chain_id_works() -> Result<()> {
 		let chain_spec = ChainSpec(json!({
 			"para_id": 2002,
 		}));
-		assert_eq!(chain_spec.get_parachain_id(), Some(2002));
+		assert_eq!(chain_spec.get_chain_id(), Some(2002));
 		Ok(())
 	}
 
@@ -1286,7 +1286,7 @@ mod tests {
 		cmd("cargo", ["new", name]).dir(&path).run()?;
 		assert!(!is_supported(Some(&path.join(name)))?);
 
-		// Parachain
+		// Chain
 		let mut manifest = from_path(Some(&path.join(name)))?;
 		manifest
 			.dependencies
