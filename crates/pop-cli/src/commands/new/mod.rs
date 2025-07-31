@@ -5,12 +5,12 @@ use anyhow::Result as AnyhowResult;
 use clap::{Args, Subcommand};
 use std::fmt::{Display, Formatter, Result};
 
+#[cfg(feature = "chain")]
+pub mod chain;
 #[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 pub mod contract;
-#[cfg(feature = "parachain")]
+#[cfg(feature = "chain")]
 pub mod pallet;
-#[cfg(feature = "parachain")]
-pub mod parachain;
 
 /// The possible values from the variants of an enum.
 #[macro_export]
@@ -38,11 +38,11 @@ pub struct NewArgs {
 #[derive(Subcommand)]
 pub enum Command {
 	/// Generate a new parachain
-	#[cfg(feature = "parachain")]
-	#[clap(alias = "p")]
-	Parachain(parachain::NewParachainCommand),
+	#[cfg(feature = "chain")]
+	#[clap(aliases = ["C", "p", "parachain"])]
+	Chain(chain::NewChainCommand),
 	/// Generate a new pallet
-	#[cfg(feature = "parachain")]
+	#[cfg(feature = "chain")]
 	#[clap(alias = "P")]
 	Pallet(pallet::NewPalletCommand),
 	/// Generate a new smart contract
@@ -54,9 +54,9 @@ pub enum Command {
 impl Display for Command {
 	fn fmt(&self, f: &mut Formatter<'_>) -> Result {
 		match self {
-			#[cfg(feature = "parachain")]
-			Command::Parachain(_) => write!(f, "chain"),
-			#[cfg(feature = "parachain")]
+			#[cfg(feature = "chain")]
+			Command::Chain(_) => write!(f, "chain"),
+			#[cfg(feature = "chain")]
 			Command::Pallet(_) => write!(f, "pallet"),
 			#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 			Command::Contract(_) => write!(f, "contract"),
@@ -71,9 +71,9 @@ pub async fn guide_user_to_select_command() -> AnyhowResult<Command> {
 	let mut prompt = cliclack::select("What would you like to create?".to_string());
 
 	// Add available options based on features
-	#[cfg(feature = "parachain")]
+	#[cfg(feature = "chain")]
 	{
-		prompt = prompt.item("parachain", "Chain", "Build your own custom chain");
+		prompt = prompt.item("chain", "Chain", "Build your own custom chain");
 		prompt = prompt.item("pallet", "Pallet", "Create reusable and customizable chain modules");
 	}
 
@@ -83,13 +83,13 @@ pub async fn guide_user_to_select_command() -> AnyhowResult<Command> {
 	}
 
 	// Set initial selection to the first available option
-	#[cfg(feature = "parachain")]
+	#[cfg(feature = "chain")]
 	{
-		prompt = prompt.initial_value("parachain");
+		prompt = prompt.initial_value("chain");
 	}
 	#[cfg(all(
 		any(feature = "polkavm-contracts", feature = "wasm-contracts"),
-		not(feature = "parachain")
+		not(feature = "chain")
 	))]
 	{
 		prompt = prompt.initial_value("contract");
@@ -98,8 +98,8 @@ pub async fn guide_user_to_select_command() -> AnyhowResult<Command> {
 	let selection = prompt.interact()?;
 
 	match selection {
-		#[cfg(feature = "parachain")]
-		"parachain" => Ok(Command::Parachain(parachain::NewParachainCommand {
+		#[cfg(feature = "chain")]
+		"chain" => Ok(Command::Chain(chain::NewChainCommand {
 			name: None,
 			provider: None,
 			template: None,
@@ -109,7 +109,7 @@ pub async fn guide_user_to_select_command() -> AnyhowResult<Command> {
 			initial_endowment: None,
 			verify: false,
 		})),
-		#[cfg(feature = "parachain")]
+		#[cfg(feature = "chain")]
 		"pallet" => Ok(Command::Pallet(pallet::NewPalletCommand {
 			name: None,
 			authors: None,
@@ -132,9 +132,9 @@ mod tests {
 
 	#[test]
 	fn command_display_works() {
-		#[cfg(feature = "parachain")]
-		assert_eq!(Command::Parachain(Default::default()).to_string(), "chain");
-		#[cfg(feature = "parachain")]
+		#[cfg(feature = "chain")]
+		assert_eq!(Command::Chain(Default::default()).to_string(), "chain");
+		#[cfg(feature = "chain")]
 		assert_eq!(Command::Pallet(Default::default()).to_string(), "pallet");
 		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 		assert_eq!(Command::Contract(Default::default()).to_string(), "contract");

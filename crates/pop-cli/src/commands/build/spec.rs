@@ -14,11 +14,11 @@ use crate::{
 };
 use clap::{Args, ValueEnum};
 use cliclack::spinner;
-use pop_common::{manifest::from_path, Profile};
-use pop_parachains::{
+use pop_chains::{
 	export_wasm_file, generate_genesis_state_file, generate_plain_chain_spec,
 	generate_raw_chain_spec, is_supported, ChainSpec,
 };
+use pop_common::{manifest::from_path, Profile};
 use std::{
 	env::current_dir,
 	fs::create_dir_all,
@@ -288,7 +288,7 @@ impl BuildSpecCommand {
 			None => {
 				let default = chain_spec
 					.as_ref()
-					.and_then(|cs| cs.get_parachain_id().map(|id| id as u32))
+					.and_then(|cs| cs.get_chain_id().map(|id| id as u32))
 					.unwrap_or(DEFAULT_PARA_ID);
 				if prompt {
 					// Prompt for para id.

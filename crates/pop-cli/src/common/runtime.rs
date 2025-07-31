@@ -3,12 +3,12 @@
 use crate::cli::traits::*;
 use cliclack::{spinner, ProgressBar};
 use console::style;
-use pop_common::{manifest::from_path, Profile};
-#[cfg(feature = "parachain")]
-use pop_parachains::{
+#[cfg(feature = "chain")]
+use pop_chains::{
 	build_project, get_preset_names, get_runtime_path, runtime_binary_path, ContainerEngine,
 	DeterministicBuilder, GenesisBuilderPolicy,
 };
+use pop_common::{manifest::from_path, Profile};
 use std::{
 	self,
 	ffi::OsStr,
@@ -44,7 +44,7 @@ impl AsRef<str> for Feature {
 /// * `project_path`: The path to the project that contains the runtime.
 /// * `mode`: The build profile.
 /// * `force`: Whether to force the build process.
-#[cfg(feature = "parachain")]
+#[cfg(feature = "chain")]
 pub fn ensure_runtime_binary_exists(
 	cli: &mut impl Cli,
 	project_path: &Path,
@@ -78,7 +78,7 @@ pub fn ensure_runtime_binary_exists(
 }
 
 /// Build a runtime. Returns the path to the runtime binary and the path to the runtime source.
-#[cfg(feature = "parachain")]
+#[cfg(feature = "chain")]
 pub(crate) fn build_runtime(
 	cli: &mut impl Cli,
 	runtime_path: &Path,
@@ -108,7 +108,7 @@ pub(crate) fn build_runtime(
 	Ok((binary_path, runtime_path.into()))
 }
 
-#[cfg(feature = "parachain")]
+#[cfg(feature = "chain")]
 fn print_build_output(cli: &mut impl Cli, binary_path: &Path) -> anyhow::Result<()> {
 	let generated_files = [format!("Binary generated at: {}", binary_path.display())];
 	let generated_files: Vec<_> = generated_files
@@ -131,7 +131,7 @@ fn print_build_output(cli: &mut impl Cli, binary_path: &Path) -> anyhow::Result<
 /// * `package`: The package name.
 /// * `profile`: The build profile.
 /// * `runtime_dir`: The runtime directory.
-#[cfg(feature = "parachain")]
+#[cfg(feature = "chain")]
 pub(crate) fn build_deterministic_runtime(
 	cli: &mut impl Cli,
 	spinner: &ProgressBar,
@@ -165,7 +165,7 @@ pub(crate) fn build_deterministic_runtime(
 /// # Arguments
 /// * `cli`: Command line interface.
 /// * `target_path`: The target path.
-#[cfg(feature = "parachain")]
+#[cfg(feature = "chain")]
 pub fn guide_user_to_input_runtime_path(
 	cli: &mut impl Cli,
 	target_path: &Path,
@@ -202,7 +202,7 @@ pub fn guide_user_to_input_runtime_path(
 /// # Arguments
 /// * `cli`: Command line interface.
 /// * `project_path`: Path to the project containing runtimes.
-#[cfg(feature = "parachain")]
+#[cfg(feature = "chain")]
 pub fn guide_user_to_select_runtime(
 	cli: &mut impl Cli,
 	project_path: &PathBuf,
@@ -227,7 +227,7 @@ pub fn guide_user_to_select_runtime(
 ///
 /// # Arguments
 /// * `cli`: Command line interface.
-#[cfg(feature = "parachain")]
+#[cfg(feature = "chain")]
 pub fn guide_user_to_select_genesis_policy(
 	cli: &mut impl Cli,
 	default_value: &Option<GenesisBuilderPolicy>,
@@ -252,7 +252,7 @@ pub fn guide_user_to_select_genesis_policy(
 /// * `cli`: Command line interface.
 /// * `runtime_path`: Path to the runtime binary.
 /// * `default_value`: Default value of the genesis builder preset.
-#[cfg(feature = "parachain")]
+#[cfg(feature = "chain")]
 pub fn guide_user_to_select_genesis_preset(
 	cli: &mut impl Cli,
 	runtime_path: &PathBuf,

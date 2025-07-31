@@ -2,11 +2,11 @@
 
 use std::path::PathBuf;
 
-#[cfg(feature = "parachain")]
+#[cfg(feature = "chain")]
 use {
 	crate::cli::traits::{Cli, Select},
+	pop_chains::{binary_path, build_chain},
 	pop_common::Profile,
-	pop_parachains::{binary_path, build_parachain},
 	std::path::Path,
 	strum::{EnumMessage, VariantArray},
 };
@@ -28,7 +28,7 @@ pub fn get_project_path(path_flag: Option<PathBuf>, path_pos: Option<PathBuf>) -
 /// * `project_path`: The project path.
 /// * `mode`: The profile to use for building.
 /// * `features`: The features that node is built with.
-#[cfg(feature = "parachain")]
+#[cfg(feature = "chain")]
 pub fn ensure_node_binary_exists(
 	cli: &mut impl Cli,
 	project_path: &Path,
@@ -40,7 +40,7 @@ pub fn ensure_node_binary_exists(
 		_ => {
 			cli.info("Node was not found. The project will be built locally.".to_string())?;
 			cli.warning("NOTE: this may take some time...")?;
-			build_parachain(project_path, None, mode, None, features).map_err(|e| e.into())
+			build_chain(project_path, None, mode, None, features).map_err(|e| e.into())
 		},
 	}
 }
@@ -49,7 +49,7 @@ pub fn ensure_node_binary_exists(
 ///
 /// # Arguments
 /// * `cli`: Command line interface.
-#[cfg(feature = "parachain")]
+#[cfg(feature = "chain")]
 pub fn guide_user_to_select_profile(cli: &mut impl Cli) -> anyhow::Result<Profile> {
 	let default = Profile::Release;
 	// Prompt for build profile.
@@ -67,7 +67,7 @@ pub fn guide_user_to_select_profile(cli: &mut impl Cli) -> anyhow::Result<Profil
 }
 
 #[cfg(test)]
-#[cfg(feature = "parachain")]
+#[cfg(feature = "chain")]
 mod tests {
 	use std::fs::{self, File};
 
@@ -77,7 +77,7 @@ mod tests {
 	use tempfile::tempdir;
 
 	#[test]
-	#[cfg(feature = "parachain")]
+	#[cfg(feature = "chain")]
 	fn guide_user_to_select_profile_works() -> anyhow::Result<()> {
 		let mut cli = MockCli::new().expect_select(
 			"Choose the build profile of the binary that should be used: ".to_string(),
@@ -92,7 +92,7 @@ mod tests {
 	}
 
 	#[test]
-	#[cfg(feature = "parachain")]
+	#[cfg(feature = "chain")]
 	fn ensure_node_binary_exists_works() -> anyhow::Result<()> {
 		let mut cli = MockCli::new();
 		let name = "node";

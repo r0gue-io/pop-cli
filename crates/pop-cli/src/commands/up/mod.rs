@@ -9,26 +9,26 @@ use crate::{
 };
 use clap::{Args, Subcommand};
 use std::path::PathBuf;
-#[cfg(feature = "parachain")]
+#[cfg(feature = "chain")]
 use {
-	pop_parachains::up::Relay,
+	pop_chains::up::Relay,
 	std::fmt::{Display, Formatter, Result},
 };
 
 #[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 mod contract;
-#[cfg(feature = "parachain")]
+#[cfg(feature = "chain")]
 pub(super) mod network;
-#[cfg(feature = "parachain")]
+#[cfg(feature = "chain")]
 mod rollup;
 
-#[cfg(feature = "parachain")]
+#[cfg(feature = "chain")]
 const KUSAMA: u8 = Relay::Kusama as u8;
-#[cfg(feature = "parachain")]
+#[cfg(feature = "chain")]
 const PASEO: u8 = Relay::Paseo as u8;
-#[cfg(feature = "parachain")]
+#[cfg(feature = "chain")]
 const POLKADOT: u8 = Relay::Polkadot as u8;
-#[cfg(feature = "parachain")]
+#[cfg(feature = "chain")]
 const WESTEND: u8 = Relay::Westend as u8;
 
 /// Arguments for launching or deploying a project.
@@ -45,7 +45,7 @@ pub(crate) struct UpArgs {
 	pub path_pos: Option<PathBuf>,
 
 	#[command(flatten)]
-	#[cfg(feature = "parachain")]
+	#[cfg(feature = "chain")]
 	pub(crate) rollup: rollup::UpCommand,
 
 	#[command(flatten)]
@@ -60,23 +60,23 @@ pub(crate) struct UpArgs {
 #[derive(Subcommand, Clone)]
 pub(crate) enum Command {
 	/// Launch a local network by specifying a network configuration file.
-	#[cfg(feature = "parachain")]
-	#[clap(aliases = ["n", "parachain"])]
+	#[cfg(feature = "chain")]
+	#[clap(aliases = ["n", "chain"])]
 	Network(network::ConfigFileCommand),
 	/// Launch a local Paseo network.
-	#[cfg(feature = "parachain")]
+	#[cfg(feature = "chain")]
 	#[clap()]
 	Paseo(network::BuildCommand<PASEO>),
 	/// Launch a local Kusama network.
-	#[cfg(feature = "parachain")]
+	#[cfg(feature = "chain")]
 	#[clap()]
 	Kusama(network::BuildCommand<KUSAMA>),
 	/// Launch a local Polkadot network.
-	#[cfg(feature = "parachain")]
+	#[cfg(feature = "chain")]
 	#[clap()]
 	Polkadot(network::BuildCommand<POLKADOT>),
 	/// Launch a local Westend network.
-	#[cfg(feature = "parachain")]
+	#[cfg(feature = "chain")]
 	#[clap()]
 	Westend(network::BuildCommand<WESTEND>),
 }
@@ -101,8 +101,8 @@ impl Command {
 			cmd.execute().await?;
 			return Ok(Contract);
 		}
-		#[cfg(feature = "parachain")]
-		if pop_parachains::is_supported(project_path.as_deref())? {
+		#[cfg(feature = "chain")]
+		if pop_chains::is_supported(project_path.as_deref())? {
 			let mut cmd = args.rollup;
 			cmd.path = project_path;
 			cmd.execute(cli).await?;
@@ -115,7 +115,7 @@ impl Command {
 	}
 }
 
-#[cfg(feature = "parachain")]
+#[cfg(feature = "chain")]
 impl Display for Command {
 	fn fmt(&self, f: &mut Formatter<'_>) -> Result {
 		match self {
@@ -140,10 +140,10 @@ mod tests {
 		pop_contracts::{mock_build_process, new_environment},
 		std::env,
 	};
-	#[cfg(feature = "parachain")]
+	#[cfg(feature = "chain")]
 	use {
 		crate::style::format_url,
-		pop_parachains::{instantiate_template_dir, Config, DeploymentProvider, Parachain},
+		pop_chains::{instantiate_template_dir, ChainTemplate, Config, DeploymentProvider},
 		strum::VariantArray,
 	};
 
@@ -167,7 +167,7 @@ mod tests {
 				upload_only: true,
 				skip_confirm: false,
 			},
-			#[cfg(feature = "parachain")]
+			#[cfg(feature = "chain")]
 			rollup: rollup::UpCommand::default(),
 			command: None,
 		})
@@ -191,7 +191,7 @@ mod tests {
 	}
 
 	#[tokio::test]
-	#[cfg(feature = "parachain")]
+	#[cfg(feature = "chain")]
 	async fn detects_rollup_correctly() -> anyhow::Result<()> {
 		let temp_dir = tempfile::tempdir()?;
 		let name = "rollup";
@@ -201,7 +201,7 @@ mod tests {
 			decimals: 18,
 			initial_endowment: "1000000".to_string(),
 		};
-		instantiate_template_dir(&Parachain::Standard, &project_path, None, config)?;
+		instantiate_template_dir(&ChainTemplate::Standard, &project_path, None, config)?;
 
 		let mut args = create_up_args(project_path)?;
 		args.rollup.relay_chain_url = Some(Url::parse("wss://polkadot-rpc.publicnode.com")?);
@@ -249,7 +249,7 @@ mod tests {
 	#[test]
 	#[allow(deprecated)]
 	fn command_display_works() {
-		#[cfg(feature = "parachain")]
+		#[cfg(feature = "chain")]
 		assert_eq!(Command::Network(Default::default()).to_string(), "network");
 	}
 }

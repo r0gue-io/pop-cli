@@ -12,7 +12,7 @@ use crate::{
 };
 use anyhow::{anyhow, Result};
 use clap::Args;
-use pop_parachains::{
+use pop_chains::{
 	construct_extrinsic, construct_sudo_extrinsic, decode_call_data, encode_call_data,
 	find_dispatchable_by_name, find_pallet_by_name, sign_and_submit_extrinsic, supported_actions,
 	Action, CallData, DynamicPayload, Function, OnlineClient, Pallet, Param, Payload,
@@ -612,7 +612,7 @@ fn parse_function_name(name: &str) -> Result<String, String> {
 mod tests {
 	use super::*;
 	use crate::{cli::MockCli, common::wallet::USE_WALLET_PROMPT};
-	use pop_parachains::{parse_chain_metadata, set_up_client};
+	use pop_chains::{parse_chain_metadata, set_up_client};
 	use tempfile::tempdir;
 	use url::Url;
 

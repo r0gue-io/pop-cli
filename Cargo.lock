@@ -8844,6 +8844,48 @@ dependencies = [
 ]
 
 [[package]]
+name = "pop-chains"
+version = "0.8.1"
+dependencies = [
+ "anyhow",
+ "askama",
+ "clap",
+ "cumulus-primitives-proof-size-hostfunction",
+ "duct",
+ "frame-benchmarking-cli",
+ "frame-try-runtime",
+ "glob",
+ "indexmap 2.9.0",
+ "parity-scale-codec",
+ "pop-common",
+ "sc-chain-spec",
+ "sc-cli",
+ "scale-info",
+ "scale-value",
+ "serde",
+ "serde_json",
+ "sp-core 32.0.0",
+ "sp-runtime 41.1.0",
+ "sp-statement-store",
+ "sp-version 38.0.0",
+ "srtool-lib",
+ "strum 0.26.3",
+ "strum_macros 0.26.4",
+ "subxt",
+ "subxt-signer",
+ "symlink",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tokio",
+ "tokio-test",
+ "toml_edit",
+ "url",
+ "walkdir",
+ "zombienet-configuration",
+ "zombienet-sdk",
+]
+
+[[package]]
 name = "pop-cli"
 version = "0.8.1"
 dependencies = [
@@ -8861,9 +8903,9 @@ dependencies = [
  "mockito",
  "open",
  "os_info",
+ "pop-chains",
  "pop-common",
  "pop-contracts",
- "pop-parachains",
  "pop-telemetry",
  "regex",
  "reqwest",
@@ -8947,48 +8989,6 @@ dependencies = [
  "tokio",
  "tokio-test",
  "url",
-]
-
-[[package]]
-name = "pop-parachains"
-version = "0.8.1"
-dependencies = [
- "anyhow",
- "askama",
- "clap",
- "cumulus-primitives-proof-size-hostfunction",
- "duct",
- "frame-benchmarking-cli",
- "frame-try-runtime",
- "glob",
- "indexmap 2.9.0",
- "parity-scale-codec",
- "pop-common",
- "sc-chain-spec",
- "sc-cli",
- "scale-info",
- "scale-value",
- "serde",
- "serde_json",
- "sp-core 32.0.0",
- "sp-runtime 41.1.0",
- "sp-statement-store",
- "sp-version 38.0.0",
- "srtool-lib",
- "strum 0.26.3",
- "strum_macros 0.26.4",
- "subxt",
- "subxt-signer",
- "symlink",
- "tempfile",
- "thiserror 1.0.69",
- "tokio",
- "tokio-test",
- "toml_edit",
- "url",
- "walkdir",
- "zombienet-configuration",
- "zombienet-sdk",
 ]
 
 [[package]]

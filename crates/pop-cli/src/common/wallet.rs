@@ -7,10 +7,10 @@ use crate::{
 	},
 };
 use cliclack::{log, spinner};
-#[cfg(feature = "parachain")]
+#[cfg(feature = "chain")]
 use {
 	anyhow::{anyhow, Result},
-	pop_parachains::{
+	pop_chains::{
 		parse_and_format_events, submit_signed_extrinsic, ExtrinsicEvents, OnlineClient,
 		SubstrateConfig,
 	},
@@ -80,7 +80,7 @@ pub fn prompt_to_use_wallet(cli: &mut impl Cli) -> anyhow::Result<bool> {
 }
 
 // Sign and submit an extrinsic using wallet integration.
-#[cfg(feature = "parachain")]
+#[cfg(feature = "chain")]
 pub(crate) async fn submit_extrinsic(
 	client: &OnlineClient<SubstrateConfig>,
 	url: &Url,

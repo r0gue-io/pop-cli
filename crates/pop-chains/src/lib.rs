@@ -12,8 +12,8 @@ mod call;
 mod deployer_providers;
 mod errors;
 mod generator;
+mod new_chain;
 mod new_pallet;
-mod new_parachain;
 /// A registry of parachains.
 pub mod registry;
 mod relay;
@@ -32,7 +32,7 @@ pub use bench::{
 	GENESIS_BUILDER_DEV_PRESET,
 };
 pub use build::{
-	binary_path, build_parachain, build_project, export_wasm_file, generate_genesis_state_file,
+	binary_path, build_chain, build_project, export_wasm_file, generate_genesis_state_file,
 	generate_plain_chain_spec, generate_raw_chain_spec, is_supported, runtime,
 	runtime::{ContainerEngine, DeterministicBuilder},
 	runtime_binary_path, ChainSpec,
@@ -52,8 +52,8 @@ pub use call::{
 pub use deployer_providers::{DeploymentProvider, SupportedChains};
 pub use errors::Error;
 pub use indexmap::IndexSet;
+pub use new_chain::instantiate_template_dir;
 pub use new_pallet::{create_pallet_template, new_pallet_options::*, TemplatePalletConfig};
-pub use new_parachain::instantiate_template_dir;
 pub use relay::{clear_dmpq, RelayChain, Reserved};
 pub use try_runtime::{
 	binary::*, parse, parse_try_state_string, run_try_runtime, shared_parameters::*, state,
@@ -65,7 +65,7 @@ pub use subxt::{
 	tx::{DynamicPayload, Payload},
 	OnlineClient, SubstrateConfig,
 };
-pub use templates::{Config, Parachain, Provider};
+pub use templates::{ChainTemplate, Config, Provider};
 pub use utils::helpers::is_initial_endowment_valid;
 /// Information about the Node. External export from Zombienet-SDK.
 pub use zombienet_sdk::NetworkNode;

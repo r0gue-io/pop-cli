@@ -18,7 +18,7 @@ use crate::{
 use clap::Args;
 use cliclack::spinner;
 use console::style;
-use pop_parachains::{
+use pop_chains::{
 	parse_try_state_string, run_try_runtime,
 	state::{LiveState, State, StateCommand},
 	try_runtime::TryStateSelect,
@@ -248,8 +248,8 @@ mod tests {
 			},
 		},
 	};
+	use pop_chains::{state::LiveState, Runtime};
 	use pop_common::Profile;
-	use pop_parachains::{state::LiveState, Runtime};
 
 	#[tokio::test]
 	async fn fast_forward_live_state_works() -> anyhow::Result<()> {

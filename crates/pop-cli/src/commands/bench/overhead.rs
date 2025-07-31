@@ -11,10 +11,8 @@ use crate::{
 };
 use clap::{Args, Parser};
 use cliclack::spinner;
+use pop_chains::{bench::OverheadCmd, generate_omni_bencher_benchmarks, BenchmarkingCliCommand};
 use pop_common::Profile;
-use pop_parachains::{
-	bench::OverheadCmd, generate_omni_bencher_benchmarks, BenchmarkingCliCommand,
-};
 use std::{env::current_dir, path::PathBuf};
 use tempfile::tempdir;
 
@@ -239,7 +237,7 @@ mod tests {
 			runtime::{get_mock_runtime, Feature::Benchmark},
 		},
 	};
-	use pop_parachains::get_preset_names;
+	use pop_chains::get_preset_names;
 	use std::{
 		env::current_dir,
 		fs::{self, File},

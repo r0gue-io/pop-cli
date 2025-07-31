@@ -344,14 +344,14 @@ mod tests {
 
 		let config_path = temp_dir.path().join("config.json");
 
-		let expected_payload = generate_payload("new", "parachain").to_string();
+		let expected_payload = generate_payload("new", "chain").to_string();
 
 		let mock = default_mock(&mut mock_server, expected_payload).await;
 
 		let mut tel = Telemetry::init(endpoint.clone(), &config_path);
 		tel.opt_out = false; // override as endpoint is mocked
 
-		record_cli_command(tel, "new", "parachain").await?;
+		record_cli_command(tel, "new", "chain").await?;
 		mock.assert_async().await;
 		Ok(())
 	}

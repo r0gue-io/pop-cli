@@ -2,7 +2,7 @@
 
 use clap::{Args, Subcommand};
 use std::fmt::{Display, Formatter, Result};
-#[cfg(feature = "parachain")]
+#[cfg(feature = "chain")]
 pub(crate) mod chain;
 #[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 pub(crate) mod contract;
@@ -19,8 +19,8 @@ pub(crate) struct CallArgs {
 #[derive(Subcommand)]
 pub(crate) enum Command {
 	/// Call a chain
-	#[cfg(feature = "parachain")]
-	#[clap(alias = "p", visible_aliases = ["parachain"])]
+	#[cfg(feature = "chain")]
+	#[clap(aliases = ["C", "p", "parachain"])]
 	Chain(chain::CallChainCommand),
 	/// Call a contract
 	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
@@ -31,7 +31,7 @@ pub(crate) enum Command {
 impl Display for Command {
 	fn fmt(&self, f: &mut Formatter<'_>) -> Result {
 		match self {
-			#[cfg(feature = "parachain")]
+			#[cfg(feature = "chain")]
 			Command::Chain(_) => write!(f, "chain"),
 			#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 			Command::Contract(_) => write!(f, "contract"),
@@ -45,7 +45,7 @@ mod tests {
 
 	#[test]
 	fn command_display_works() {
-		#[cfg(feature = "parachain")]
+		#[cfg(feature = "chain")]
 		assert_eq!(Command::Chain(Default::default()).to_string(), "chain");
 		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 		assert_eq!(Command::Contract(Default::default()).to_string(), "contract");

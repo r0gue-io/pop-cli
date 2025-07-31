@@ -19,7 +19,7 @@ use std::{
 mod cli;
 mod commands;
 mod common;
-#[cfg(feature = "parachain")]
+#[cfg(feature = "chain")]
 mod deployment_api;
 mod style;
 #[cfg(feature = "wallet-integration")]
@@ -262,7 +262,7 @@ mod tests {
 			assert_eq!(
 				Cli {
 					command: Command::New(NewArgs {
-						command: Some(NewCommand::Parachain(Default::default()))
+						command: Some(NewCommand::Chain(Default::default()))
 					})
 				}
 				.to_string(),

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{
-	generator::parachain::{ChainSpec, Network},
+	generator::chain::{ChainSpec, Network},
 	utils::helpers::{sanitize, write_to_file},
-	Config, Parachain, Provider,
+	ChainTemplate, Config, Provider,
 };
 use anyhow::Result;
 use pop_common::{
@@ -13,23 +13,23 @@ use pop_common::{
 use std::{fs, path::Path};
 use walkdir::WalkDir;
 
-/// Create a new parachain.
+/// Create a new chain.
 ///
 /// # Arguments
 ///
-/// * `template` - template to generate the parachain from.
-/// * `target` - location where the parachain will be created.
+/// * `template` - template to generate the chain from.
+/// * `target` - location where the chain will be created.
 /// * `tag_version` - version to use (`None` to use latest).
-/// * `config` - customization values to include in the new parachain.
+/// * `config` - customization values to include in the new chain.
 pub fn instantiate_template_dir(
-	template: &Parachain,
+	template: &ChainTemplate,
 	target: &Path,
 	tag_version: Option<String>,
 	config: Config,
 ) -> Result<Option<String>> {
 	sanitize(target)?;
 
-	if Provider::Pop.provides(template) || template == &Parachain::ParityGeneric {
+	if Provider::Pop.provides(template) || template == &ChainTemplate::ParityGeneric {
 		return instantiate_standard_template(template, target, config, tag_version);
 	}
 	if Provider::OpenZeppelin.provides(template) {
@@ -40,7 +40,7 @@ pub fn instantiate_template_dir(
 }
 
 pub fn instantiate_standard_template(
-	template: &Parachain,
+	template: &ChainTemplate,
 	target: &Path,
 	config: Config,
 	tag_version: Option<String>,
@@ -80,7 +80,7 @@ pub fn instantiate_standard_template(
 }
 
 pub fn instantiate_openzeppelin_template(
-	template: &Parachain,
+	template: &ChainTemplate,
 	target: &Path,
 	tag_version: Option<String>,
 ) -> Result<Option<String>> {
@@ -106,12 +106,12 @@ mod tests {
 			decimals: 18,
 			initial_endowment: "1000000".to_string(),
 		};
-		instantiate_standard_template(&Parachain::Standard, temp_dir.path(), config, None)?;
+		instantiate_standard_template(&ChainTemplate::Standard, temp_dir.path(), config, None)?;
 		Ok(temp_dir)
 	}
 
 	#[test]
-	fn test_parachain_instantiate_standard_template() -> Result<()> {
+	fn test_chain_instantiate_standard_template() -> Result<()> {
 		let temp_dir =
 			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
 
@@ -140,9 +140,9 @@ mod tests {
 	}
 
 	#[test]
-	fn test_parachain_instantiate_openzeppelin_template() -> Result<()> {
+	fn test_chain_instantiate_openzeppelin_template() -> Result<()> {
 		let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
-		instantiate_openzeppelin_template(&Parachain::OpenZeppelinEVM, temp_dir.path(), None)?;
+		instantiate_openzeppelin_template(&ChainTemplate::OpenZeppelinEVM, temp_dir.path(), None)?;
 
 		let node_manifest =
 			pop_common::manifest::from_path(Some(&temp_dir.path().join("node/Cargo.toml")))

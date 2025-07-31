@@ -13,7 +13,7 @@ use crate::{
 };
 use clap::Args;
 use cliclack::spinner;
-use pop_parachains::{
+use pop_chains::{
 	parse_try_state_string, run_try_runtime,
 	state::{LiveState, State, StateCommand},
 	try_runtime::TryStateSelect,

@@ -1,14 +1,14 @@
-# pop-parachains
+# pop-chains
 
-A crate for generating, building and running parachains and pallets. Used by
+A crate for generating, building and running chains and pallets. Used by
 [`pop-cli`](https://github.com/r0gue-io/pop-cli).
 
 ## Usage
 
-Generate a new parachain:
+Generate a new chain:
 
 ```rust,no_run
-use pop_parachains::{instantiate_template_dir, Config, Parachain};
+use pop_chains::{instantiate_template_dir, Config, ChainTemplate};
 use std::path::Path;
 
 let destination_path = Path::new("./");
@@ -18,38 +18,38 @@ let config = Config {
     decimals: 12,
     initial_endowment: "1u64 << 60".to_string()
 };
-let tag = instantiate_template_dir(&Parachain::Standard, &destination_path, tag_version, config);
+let tag = instantiate_template_dir(&ChainTemplate::Standard, &destination_path, tag_version, config);
 ```
 
-Build a Parachain:
+Build a chain:
 
 ```rust,no_run
 use pop_common::Profile;
-use pop_parachains::build_parachain;
+use pop_chains::build_chain;
 use std::path::Path;
 
 let path = Path::new("./");
 let package = None;  // The optional package to be built.
-let binary_path = build_parachain(&path, package, &Profile::Release, None, vec![]).unwrap();
+let binary_path = build_chain(&path, package, &Profile::Release, None, vec![]).unwrap();
 ```
 
-Build a Parachain with `runtime-benchmarks` feature:
+Build a chain with `runtime-benchmarks` feature:
 
 ```rs
-let binary_path = build_parachain(&path, package, &Profile::Release, None, vec!["runtime-benchmarks"]).unwrap();
+let binary_path = build_chain(&path, package, &Profile::Release, None, vec!["runtime-benchmarks"]).unwrap();
 ```
 
-Generate a plain chain specification file and customize it with your specific parachain values:
+Generate a plain chain specification file and customize it with your specific chain values:
 
 ```rust,no_run
 use pop_common::Profile;
-use pop_parachains::{build_parachain, export_wasm_file, generate_plain_chain_spec, generate_raw_chain_spec, generate_genesis_state_file, ChainSpec};
+use pop_chains::{build_chain, export_wasm_file, generate_plain_chain_spec, generate_raw_chain_spec, generate_genesis_state_file, ChainSpec};
 use std::path::Path;
 
 let path = Path::new("./"); // Location of the parachain project.
 let package = None;  // The optional package to be built.
 // The path to the node binary executable.
-let binary_path = build_parachain(&path, package, &Profile::Release, None, vec![]).unwrap();;
+let binary_path = build_chain(&path, package, &Profile::Release, None, vec![]).unwrap();;
 // Generate a plain chain specification file of a parachain
 let plain_chain_spec_path = path.join("plain-parachain-chainspec.json");
 generate_plain_chain_spec(&binary_path, &plain_chain_spec_path, true, "dev");
@@ -67,13 +67,13 @@ Generate a raw chain specification file and export the WASM and genesis state fi
 
 ```rust,no_run
 use pop_common::Profile;
-use pop_parachains::{build_parachain, export_wasm_file, generate_plain_chain_spec, generate_raw_chain_spec, generate_genesis_state_file};
+use pop_chains::{build_chain, export_wasm_file, generate_plain_chain_spec, generate_raw_chain_spec, generate_genesis_state_file};
 use std::path::Path;
 
 let path = Path::new("./"); // Location of the parachain project.
 let package = None;  // The optional package to be built.
 // The path to the node binary executable.
-let binary_path = build_parachain(&path, package, &Profile::Release, None, vec![]).unwrap();;
+let binary_path = build_chain(&path, package, &Profile::Release, None, vec![]).unwrap();;
 // Generate a plain chain specification file of a parachain
 let plain_chain_spec_path = path.join("plain-parachain-chainspec.json");
 generate_plain_chain_spec(&binary_path, &plain_chain_spec_path, true, "dev");
@@ -85,10 +85,10 @@ let wasm_file = export_wasm_file(&binary_path, &chain_spec, "para-2000-wasm").un
 let genesis_state_file = generate_genesis_state_file(&binary_path, &chain_spec, "para-2000-genesis-state").unwrap();
 ```
 
-Run a Parachain:
+Run a chain:
 
 ```rust,no_run
-use pop_parachains::up::Zombienet;
+use pop_chains::up::Zombienet;
 use std::path::Path;
 use tokio_test;
 
@@ -127,7 +127,7 @@ tokio_test::block_on(async {
 Generate a new Pallet:
 
 ```rust,no_run
-use pop_parachains::{create_pallet_template, TemplatePalletConfig};
+use pop_chains::{create_pallet_template, TemplatePalletConfig};
 use std::path::PathBuf;
 
 let path = "./";
@@ -148,5 +148,5 @@ create_pallet_template(PathBuf::from(path),pallet_config);
 
 ## Acknowledgements
 
-`pop-parachains` would not be possible without the awesome
+`pop-chains` would not be possible without the awesome
 crate: [zombienet-sdk](https://github.com/paritytech/zombienet-sdk).

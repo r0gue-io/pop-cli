@@ -2,7 +2,7 @@
 
 use crate::cli::traits::*;
 use anyhow::{anyhow, Result};
-use pop_parachains::{parse_chain_metadata, set_up_client, OnlineClient, Pallet, SubstrateConfig};
+use pop_chains::{parse_chain_metadata, set_up_client, OnlineClient, Pallet, SubstrateConfig};
 use url::Url;
 
 // Represents a chain and its associated metadata.
