@@ -13,22 +13,26 @@ use std::{
 	process::{Child, Command, Stdio},
 	time::Duration,
 };
-use tempfile::TempDir;
-use tokio::{sync::OnceCell as AsyncOnceCell, time::sleep};
+use tokio::time::sleep;
 
 const STARTUP: Duration = Duration::from_millis(20_000);
 
 pub struct TestNode {
-	_child: Child,
-	_temp_dir: TempDir,
+	child: Child,
 	ws_url: String,
 }
 
+impl Drop for TestNode {
+	fn drop(&mut self) {
+		let _ = self.child.kill();
+	}
+}
+
 impl TestNode {
-	pub async fn new() -> anyhow::Result<Self> {
-		let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
+	pub async fn spawn() -> anyhow::Result<Self> {
+		let temp_dir = tempfile::tempdir()?;
 		let random_port = find_free_port(None);
-		let cache = temp_dir.path().join("");
+		let cache = temp_dir.path().to_path_buf();
 
 		let binary = Binary::Source {
 			name: "ink-node".to_string(),
@@ -51,18 +55,19 @@ impl TestNode {
 		set_executable_permission(binary.path())?;
 
 		let mut command = Command::new(binary.path());
-		command.arg("-linfo,runtime::contracts=debug");
+		command.arg("--dev");
 		command.arg(format!("--rpc-port={}", random_port));
-		let child = command.spawn()?;
 		command.stderr(Stdio::null());
+		command.stdout(Stdio::null());
+
+		let child = command.spawn()?;
 
 		// Wait until the node is ready
 		sleep(STARTUP).await;
 
 		let ws_url = format!("ws://127.0.0.1:{random_port}");
-		println!("{:?}", ws_url);
 
-		Ok(Self { _child: child, _temp_dir: temp_dir, ws_url })
+		Ok(Self { child, ws_url })
 	}
 
 	pub fn ws_url(&self) -> &str {
@@ -85,14 +90,4 @@ fn release_directory_by_target(binary: &str) -> Result<Vec<ArchiveFileSpec>, Err
 		_ => Err(Error::UnsupportedPlatform { arch: ARCH, os: OS }),
 	}
 	.map(|name| vec![ArchiveFileSpec::new(name.into(), Some(binary.into()), true)])
-}
-
-static TEST_NODE: AsyncOnceCell<TestNode> = AsyncOnceCell::const_new();
-
-/// Spawns and caches a single test node instance for all tests.
-pub async fn ensure_test_node() -> &'static TestNode {
-	TEST_NODE
-		.get_or_try_init(TestNode::new)
-		.await
-		.expect("Failed to initialize test node")
 }

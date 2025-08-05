@@ -8939,7 +8939,6 @@ dependencies = [
  "git2_credentials",
  "ink_env 5.1.1",
  "mockito",
- "once_cell",
  "regex",
  "reqwest",
  "scale-info",
