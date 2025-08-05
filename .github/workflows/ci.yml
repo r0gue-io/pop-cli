@@ -263,4 +263,6 @@ jobs:
       - name: Run integration tests
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: cargo test --no-default-features --features chain --test chain
+        run: |
+          cargo test --no-default-features --features chain --test chain
+          cargo test -p pop-common --test metadata
