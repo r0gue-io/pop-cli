@@ -626,6 +626,7 @@ mod tests {
 		Ok(())
 	}
 
+	// TODO: Integration
 	#[test]
 	fn update_live_state_works() -> anyhow::Result<()> {
 		// Prompt all inputs if not provided.
@@ -752,6 +753,7 @@ mod tests {
 		Ok(())
 	}
 
+	// TODO: Integration
 	#[tokio::test]
 	async fn guide_user_to_select_try_state_works() -> anyhow::Result<()> {
 		let client = set_up_client(DEFAULT_LIVE_NODE_URL).await?;
@@ -945,6 +947,7 @@ mod tests {
 		Ok(())
 	}
 
+	// TODO: Integration
 	#[test]
 	fn collect_live_state_arguments_works() -> anyhow::Result<()> {
 		let mut cmd = MockCommand::default();
@@ -1181,6 +1184,7 @@ mod tests {
 		);
 	}
 
+	// TODO: Integration
 	#[tokio::test]
 	async fn try_runtime_version_works() -> anyhow::Result<()> {
 		let cache_path = tempdir().expect("Could create temp dir");

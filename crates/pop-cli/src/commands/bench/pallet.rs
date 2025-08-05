@@ -1322,6 +1322,7 @@ mod tests {
 	use strum::EnumMessage;
 	use tempfile::tempdir;
 
+	// TODO: Slow
 	#[tokio::test]
 	async fn benchmark_pallet_works() -> anyhow::Result<()> {
 		let mut cli = MockCli::new();
@@ -1400,6 +1401,7 @@ mod tests {
 		cli.verify()
 	}
 
+	// TODO: Slow
 	#[tokio::test]
 	async fn benchmark_multi_pallets_works() -> anyhow::Result<()> {
 		let mut cli = MockCli::new();
@@ -1471,6 +1473,7 @@ mod tests {
 		cli.verify()
 	}
 
+	// TODO: Slow
 	#[tokio::test]
 	async fn benchmark_pallet_with_provided_bench_file_works() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
@@ -1532,6 +1535,7 @@ mod tests {
 		cli.verify()
 	}
 
+	// TODO: Slow
 	#[tokio::test]
 	async fn benchmark_pallet_weight_dir_works() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
@@ -1580,6 +1584,7 @@ mod tests {
 		cli.verify()
 	}
 
+	// TODO: Slow
 	#[tokio::test]
 	async fn benchmark_pallet_weight_file_works() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
@@ -1781,6 +1786,7 @@ mod tests {
 		cli.verify()
 	}
 
+	// TODO: Slow
 	#[tokio::test]
 	async fn guide_user_to_select_menu_option_works() -> anyhow::Result<()> {
 		let mut cmd = BenchmarkPallet {

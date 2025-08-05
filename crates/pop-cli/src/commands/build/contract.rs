@@ -40,6 +40,7 @@ mod tests {
 	use pop_contracts::{create_smart_contract, Contract::Standard};
 	use std::fs::create_dir_all;
 
+	// TODO: Slow
 	#[test]
 	fn build_works() -> anyhow::Result<()> {
 		let name = "flipper";
