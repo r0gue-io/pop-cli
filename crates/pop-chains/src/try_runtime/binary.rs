@@ -72,6 +72,7 @@ mod tests {
 	use super::*;
 	use tempfile::tempdir;
 
+	// TODO: integration test?
 	#[tokio::test]
 	async fn try_runtime_generator_works() -> Result<(), Error> {
 		let temp_dir = tempdir()?.into_path();

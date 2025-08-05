@@ -165,6 +165,7 @@ mod tests {
 	use crate::{call::tests::POP_NETWORK_TESTNET_URL, set_up_client};
 	use anyhow::Result;
 
+	// TODO: Integration test, parsing metadata
 	#[tokio::test]
 	async fn field_to_param_works() -> Result<()> {
 		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
