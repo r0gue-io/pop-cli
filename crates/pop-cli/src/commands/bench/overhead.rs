@@ -285,6 +285,7 @@ mod tests {
 		);
 	}
 
+	// TODO: Slow
 	#[tokio::test]
 	async fn benchmark_overhead_works() -> anyhow::Result<()> {
 		let cwd = current_dir().unwrap_or(PathBuf::from("./"));
@@ -350,6 +351,7 @@ mod tests {
 		cli.verify()
 	}
 
+	// TODO: Slow
 	#[tokio::test]
 	async fn benchmark_overhead_weight_file_works() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
@@ -404,6 +406,7 @@ mod tests {
 		cli.verify()
 	}
 
+	// TODO: Slow
 	#[tokio::test]
 	async fn benchmark_overhead_invalid_weight_path_fails() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
