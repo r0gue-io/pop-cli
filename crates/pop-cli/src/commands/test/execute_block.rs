@@ -192,6 +192,8 @@ mod tests {
 	use console::style;
 	use pop_common::Profile;
 
+	const LOCAL_NODE_URL: &str = "ws://localhost:9944";
+
 	#[tokio::test]
 	async fn execute_block_works() -> anyhow::Result<()> {
 		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
@@ -217,7 +219,7 @@ mod tests {
 				"Please specify the path to the runtime project or the runtime binary.",
 				get_mock_runtime(Some(Feature::TryRuntime)).to_str().unwrap().to_string(),
 			)
-			.expect_input("Enter the live chain of your node:", DEFAULT_LIVE_NODE_URL.to_string())
+			.expect_input("Enter the live chain of your node:", LOCAL_NODE_URL.to_string())
 			.expect_input("Enter the block hash (optional):", String::default())
 			.expect_select(
 				"Select state tests to execute:",
@@ -233,6 +235,7 @@ mod tests {
 		cli.verify()
 	}
 
+	// TODO: Integration test
 	#[tokio::test]
 	async fn execute_block_invalid_header() -> anyhow::Result<()> {
 		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
@@ -259,13 +262,13 @@ mod tests {
 	fn display_works() -> anyhow::Result<()> {
 		let mut cmd = TestExecuteBlockCommand::default();
 		cmd.try_state = Some(TryStateSelect::RoundRobin(10));
-		cmd.state.uri = Some(DEFAULT_LIVE_NODE_URL.to_string());
+		cmd.state.uri = Some(LOCAL_NODE_URL.to_string());
 		cmd.build_params.skip_confirm = true;
 		assert_eq!(
 			cmd.display(vec![])?,
 			format!(
 				"pop test execute-block --runtime=existing --try-state=rr-10 -y --uri={}",
-				DEFAULT_LIVE_NODE_URL.to_string()
+				LOCAL_NODE_URL.to_string()
 			)
 		);
 		assert_eq!(
@@ -278,7 +281,7 @@ mod tests {
 			])?,
 			format!(
 				"pop test execute-block --runtime=existing -y --try-state=rr-10 -n --uri={}",
-				DEFAULT_LIVE_NODE_URL.to_string()
+				LOCAL_NODE_URL.to_string()
 			)
 		);
 		Ok(())

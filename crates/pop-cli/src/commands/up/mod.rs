@@ -190,6 +190,7 @@ mod tests {
 		cli.verify()
 	}
 
+	// TODO: Integration test
 	#[tokio::test]
 	#[cfg(feature = "chain")]
 	async fn detects_rollup_correctly() -> anyhow::Result<()> {

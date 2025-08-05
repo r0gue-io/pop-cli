@@ -244,12 +244,14 @@ mod tests {
 			runtime::{get_mock_runtime, Feature},
 			try_runtime::{
 				get_mock_snapshot, get_subcommands, get_try_state_items, source_try_runtime_binary,
-				DEFAULT_BLOCK_TIME, DEFAULT_LIVE_NODE_URL,
+				DEFAULT_BLOCK_TIME,
 			},
 		},
 	};
 	use pop_chains::{state::LiveState, Runtime};
 	use pop_common::Profile;
+
+	const LOCAL_NODE_URL: &str = "ws://localhost:9944";
 
 	#[tokio::test]
 	async fn fast_forward_live_state_works() -> anyhow::Result<()> {
@@ -287,7 +289,7 @@ mod tests {
 				0, // live
 				None,
 			)
-			.expect_input("Enter the live chain of your node:", DEFAULT_LIVE_NODE_URL.to_string())
+			.expect_input("Enter the live chain of your node:", LOCAL_NODE_URL.to_string())
 			.expect_input("Enter the block hash (optional):", String::default())
 			.expect_select(
 				"Select state tests to execute:",
@@ -303,7 +305,7 @@ mod tests {
     			get_mock_runtime(Some(Feature::TryRuntime)).to_str().unwrap().to_string(),
     			DEFAULT_BLOCK_TIME,
                 Profile::Debug,
-                DEFAULT_LIVE_NODE_URL,
+                LOCAL_NODE_URL,
 			));
 		cmd.fast_forward(&mut cli, &[]).await?;
 		cli.verify()
@@ -424,7 +426,7 @@ mod tests {
 		);
 		cmd.shared_params.runtime = Runtime::Path(get_mock_runtime(Some(Feature::TryRuntime)));
 		cmd.state = Some(State::Live(LiveState {
-			uri: Some(DEFAULT_LIVE_NODE_URL.to_string()),
+			uri: Some(LOCAL_NODE_URL.to_string()),
 			..Default::default()
 		}));
 		assert_eq!(
@@ -433,7 +435,7 @@ mod tests {
 				"pop test fast-forward --runtime={} --try-state=System --blocktime={} live --uri={}",
 				get_mock_runtime(Some(Feature::TryRuntime)).display(),
 				DEFAULT_BLOCK_TIME,
-				DEFAULT_LIVE_NODE_URL
+				LOCAL_NODE_URL
 			)
 		);
 		assert_eq!(
@@ -448,7 +450,7 @@ mod tests {
 				"pop test fast-forward --runtime={} --blocktime={} --try-state=all live --uri={}",
 				get_mock_runtime(Some(Feature::TryRuntime)).display(),
 				DEFAULT_BLOCK_TIME,
-				DEFAULT_LIVE_NODE_URL
+				LOCAL_NODE_URL
 			)
 		);
 		Ok(())

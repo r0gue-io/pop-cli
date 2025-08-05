@@ -555,6 +555,7 @@ mod tests {
 		Ok(())
 	}
 
+	// TODO: Integration test
 	#[tokio::test]
 	async fn get_upload_and_instantiate_call_data_works() -> anyhow::Result<()> {
 		let (contracts_node_process, port, temp_dir) = start_test_environment().await?;
