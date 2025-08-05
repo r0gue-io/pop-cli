@@ -139,6 +139,7 @@ mod tests {
 		Ok(())
 	}
 
+	// TODO: Integration test?
 	#[test]
 	fn test_chain_instantiate_openzeppelin_template() -> Result<()> {
 		let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");

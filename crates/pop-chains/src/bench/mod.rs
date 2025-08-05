@@ -265,6 +265,7 @@ mod tests {
 	use binary::omni_bencher_generator;
 	use tempfile::tempdir;
 
+	// TODO: Slow
 	#[test]
 	fn generate_pallet_benchmarks_works() -> Result<(), Error> {
 		generate_pallet_benchmarks(vec![
@@ -275,6 +276,7 @@ mod tests {
 		])
 	}
 
+	// TODO: Slow
 	#[test]
 	fn get_preset_names_works() -> Result<(), Error> {
 		assert_eq!(
@@ -335,6 +337,7 @@ mod tests {
 		Ok(())
 	}
 
+	// TODO: Failing message
 	#[tokio::test]
 	async fn load_pallet_extrinsics_missing_runtime_benchmarks_fails() -> Result<(), Error> {
 		let temp_dir = tempdir()?;

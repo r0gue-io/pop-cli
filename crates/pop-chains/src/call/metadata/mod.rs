@@ -195,15 +195,17 @@ pub fn parse_dispatchable_arguments(
 #[cfg(test)]
 mod tests {
 	use super::*;
-
-	use crate::{call::tests::POP_NETWORK_TESTNET_URL, set_up_client};
+	use crate::set_up_client;
 	use anyhow::Result;
+	use pop_common::test_env::TestNode;
 	use sp_core::bytes::from_hex;
 	use subxt::ext::scale_bits;
 
+	// TODO: Integration tests, metadata
 	#[tokio::test]
 	async fn parse_chain_metadata_works() -> Result<()> {
-		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
+		let node = TestNode::spawn().await?;
+		let client = set_up_client(node.ws_url()).await?;
 		let pallets = parse_chain_metadata(&client)?;
 		// Test the first pallet is parsed correctly
 		let first_pallet = pallets.first().unwrap();
@@ -231,7 +233,9 @@ mod tests {
 
 	#[tokio::test]
 	async fn find_pallet_by_name_works() -> Result<()> {
-		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
+		// TODO: Integration tests, metadata
+		let node = TestNode::spawn().await?;
+		let client = set_up_client(node.ws_url()).await?;
 		let pallets = parse_chain_metadata(&client)?;
 		assert!(matches!(
 			find_pallet_by_name(&pallets, "WrongName"),
@@ -242,9 +246,11 @@ mod tests {
 		Ok(())
 	}
 
+	// TODO: Integration tests, metadata
 	#[tokio::test]
 	async fn find_dispatchable_by_name_works() -> Result<()> {
-		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
+		let node = TestNode::spawn().await?;
+		let client = set_up_client(node.ws_url()).await?;
 		let pallets = parse_chain_metadata(&client)?;
 		assert!(matches!(
 			find_dispatchable_by_name(&pallets, "WrongName", "wrong_name"),
