@@ -53,7 +53,7 @@ impl MapAccount {
 		subxt::tx::DefaultPayload::new("Revive", "map_account", self)
 	}
 }
-
+// TODO: Integration test, v6
 #[cfg(test)]
 mod tests {
 	use super::*;

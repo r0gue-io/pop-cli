@@ -290,6 +290,8 @@ mod tests {
 	#[cfg(feature = "v6")]
 	const CONTRACTS_NETWORK_URL: &str = "wss://westend-asset-hub-rpc.polkadot.io";
 
+	const LOCAL_NODE: &str = "ws://localhost:9944";
+	// TODO: Integration test
 	#[tokio::test]
 	async fn test_set_up_call() -> Result<()> {
 		let temp_dir = new_environment("testing")?;
@@ -317,6 +319,7 @@ mod tests {
 		Ok(())
 	}
 
+	// TODO: Integration test
 	#[tokio::test]
 	async fn test_set_up_call_from_artifact_file() -> Result<()> {
 		let current_dir = env::current_dir().expect("Failed to get current directory");
@@ -337,6 +340,7 @@ mod tests {
 		Ok(())
 	}
 
+	// TODO: Integration test
 	#[tokio::test]
 	async fn test_set_up_call_error_contract_not_build() -> Result<()> {
 		let temp_dir = new_environment("testing")?;
@@ -357,6 +361,7 @@ mod tests {
 		);
 		Ok(())
 	}
+	// TODO: Integration test
 	#[tokio::test]
 	async fn test_set_up_call_fails_no_smart_contract_directory() -> Result<()> {
 		let call_opts = CallOpts {
@@ -376,7 +381,7 @@ mod tests {
 		);
 		Ok(())
 	}
-
+	// TODO: Integration test
 	#[tokio::test]
 	async fn test_dry_run_call_error_contract_not_deployed() -> Result<()> {
 		let temp_dir = new_environment("testing")?;
@@ -404,6 +409,7 @@ mod tests {
 		Ok(())
 	}
 
+	// TODO: Integration test
 	#[tokio::test]
 	async fn test_dry_run_estimate_call_error_contract_not_deployed() -> Result<()> {
 		let temp_dir = new_environment("testing")?;
@@ -433,7 +439,7 @@ mod tests {
 		));
 		Ok(())
 	}
-
+	// TODO: Integration test, running local node
 	#[tokio::test]
 	async fn call_works() -> Result<()> {
 		let random_port = find_free_port(None);
