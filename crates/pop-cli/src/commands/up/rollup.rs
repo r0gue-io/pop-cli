@@ -544,6 +544,7 @@ mod tests {
 	use super::*;
 	use crate::cli::MockCli;
 	use pop_chains::decode_call_data;
+	use pop_common::test_env::TestNode;
 	use std::fs;
 	use tempfile::tempdir;
 	use url::Url;
@@ -650,10 +651,13 @@ mod tests {
 		Ok(())
 	}
 
+	// TODO: Integration test
 	#[tokio::test]
 	async fn prepare_for_registration_works() -> Result<()> {
-		let mut cli = MockCli::new()
-			.expect_input("Enter the relay chain node URL", POLKADOT_NETWORK_URL.into());
+		let node = TestNode::spawn().await?;
+		let node_url = node.ws_url();
+		let mut cli =
+			MockCli::new().expect_input("Enter the relay chain node URL", node_url.into());
 		let (genesis_state, genesis_code) = create_temp_genesis_files()?;
 		let chain_config = UpCommand {
 			id: Some(2000),
@@ -668,7 +672,7 @@ mod tests {
 		assert_eq!(chain_config.id, 2000);
 		assert_eq!(chain_config.genesis_artifacts.genesis_code_file, Some(genesis_code));
 		assert_eq!(chain_config.genesis_artifacts.genesis_state_file, Some(genesis_state));
-		assert_eq!(chain_config.chain.url, Url::parse(POLKADOT_NETWORK_URL)?);
+		assert_eq!(chain_config.chain.url, Url::parse(node_url)?);
 		assert_eq!(chain_config.proxy, Some(format!("Id({})", MOCK_PROXIED_ADDRESS.to_string())));
 		cli.verify()
 	}
@@ -737,6 +741,7 @@ mod tests {
 		cli.verify()
 	}
 
+	// TODO: Integration test. Querying Polokadot
 	#[tokio::test]
 	async fn register_fails_wrong_chain() -> Result<()> {
 		let mut cli = MockCli::new()
@@ -779,6 +784,7 @@ mod tests {
 		cli.verify()
 	}
 
+	// TODO: Integration test. Querying Polokadot
 	#[tokio::test]
 	async fn prepare_register_call_data_works() -> Result<()> {
 		let mut cli = MockCli::new();
@@ -824,6 +830,7 @@ mod tests {
 		Ok(())
 	}
 
+	// TODO: Integration test. Querying Polokadot
 	#[tokio::test]
 	async fn reserve_id_fails_wrong_chain() -> Result<()> {
 		let mut cli = MockCli::new()
@@ -863,6 +870,7 @@ mod tests {
 		cli.verify()
 	}
 
+	// TODO: Integration test. Querying Polokadot
 	#[tokio::test]
 	async fn prepare_reserve_call_data_works() -> Result<()> {
 		let mut cli = MockCli::new();
