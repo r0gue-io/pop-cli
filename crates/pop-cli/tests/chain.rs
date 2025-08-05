@@ -4,11 +4,28 @@
 
 use anyhow::Result;
 use assert_cmd::cargo::cargo_bin;
-use pop_chains::{up::{Binary, Source::{GitHub}}, ChainTemplate};
-use pop_common::{find_free_port, polkadot_sdk::sort_by_latest_semantic_version, set_executable_permission, sourcing::{ArchiveFileSpec, GitHub::ReleaseArchive}, target, templates::Template};
-use std::{ffi::OsStr, fs, path::{Path, PathBuf}, process::Command, thread::sleep, time::Duration};
+use pop_chains::{
+	up::{Binary, Source::GitHub},
+	ChainTemplate,
+};
+use pop_common::{
+	find_free_port,
+	polkadot_sdk::sort_by_latest_semantic_version,
+	set_executable_permission,
+	sourcing::{ArchiveFileSpec, GitHub::ReleaseArchive},
+	target,
+	templates::Template,
+};
+use std::{
+	ffi::OsStr,
+	fs,
+	fs::write,
+	path::{Path, PathBuf},
+	process::Command,
+	thread::sleep,
+	time::Duration,
+};
 use strum::VariantArray;
-use std::fs::write;
 
 // Test that all templates are generated correctly
 #[test]
@@ -220,7 +237,6 @@ fn pop(dir: &Path, args: impl IntoIterator<Item = impl AsRef<OsStr>>) -> Command
 	command
 }
 
-
 // Function that mocks the build process generating the target dir and release.
 fn mock_build_process(temp_dir: &Path) -> Result<()> {
 	// Create a target directory
@@ -236,7 +252,7 @@ fn mock_build_process(temp_dir: &Path) -> Result<()> {
 async fn fetch_binary(cache: &Path) -> Result<String> {
 	let name = "parachain-template-node";
 	let contents = ["parachain-template-node"];
-	
+
 	let binary = Binary::Source {
 		name: name.to_string(),
 		source: GitHub(ReleaseArchive {

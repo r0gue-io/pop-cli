@@ -167,7 +167,7 @@ mod tests {
 		assert!(
 			SemanticVersion::try_from(path.to_str().unwrap().to_string())? >= TARGET_BINARY_VERSION
 		);
-		
+
 		cli.verify()
 	}
 
