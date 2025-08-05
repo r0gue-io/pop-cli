@@ -591,6 +591,7 @@ mod tests {
 	#[cfg(feature = "v6")]
 	const CONTRACTS_NETWORK_URL: &str = "wss://westend-asset-hub-rpc.polkadot.io";
 
+	// TODO: Integration test
 	#[tokio::test]
 	async fn set_up_deployment_works() -> Result<()> {
 		let temp_dir = new_environment("testing")?;
@@ -615,6 +616,7 @@ mod tests {
 		Ok(())
 	}
 
+	// TODO: Integration test
 	#[tokio::test]
 	async fn set_up_upload_works() -> Result<()> {
 		let temp_dir = new_environment("testing")?;
@@ -639,6 +641,7 @@ mod tests {
 		Ok(())
 	}
 
+	// TODO: Integration test
 	#[tokio::test]
 	async fn get_payload_works() -> Result<()> {
 		let temp_dir = new_environment("testing")?;
@@ -685,6 +688,7 @@ mod tests {
 		Ok(())
 	}
 
+	// TODO: Integration test
 	#[tokio::test]
 	async fn dry_run_gas_estimate_instantiate_works() -> Result<()> {
 		let temp_dir = new_environment("testing")?;
@@ -712,6 +716,7 @@ mod tests {
 		Ok(())
 	}
 
+	// TODO: Integration test
 	#[tokio::test]
 	#[cfg(feature = "v5")]
 	async fn dry_run_gas_estimate_instantiate_throw_custom_error() -> Result<()> {
@@ -741,6 +746,7 @@ mod tests {
 		Ok(())
 	}
 
+	// TODO: Integration test
 	#[tokio::test]
 	async fn dry_run_upload_throw_custom_error() -> Result<()> {
 		let temp_dir = new_environment("testing")?;
@@ -768,6 +774,7 @@ mod tests {
 		Ok(())
 	}
 
+	// TODO: Integration test, running local node
 	#[tokio::test]
 	async fn instantiate_and_upload() -> Result<()> {
 		let random_port = find_free_port(None);
