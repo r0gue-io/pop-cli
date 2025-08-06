@@ -17,6 +17,7 @@ use tokio::time::sleep;
 
 const STARTUP: Duration = Duration::from_millis(20_000);
 
+/// Represents a temporary test node process, running locally for testing.
 pub struct TestNode {
 	child: Child,
 	ws_url: String,
@@ -29,6 +30,7 @@ impl Drop for TestNode {
 }
 
 impl TestNode {
+	/// Spawns a local ink! node and waits until it's ready.
 	pub async fn spawn() -> anyhow::Result<Self> {
 		let temp_dir = tempfile::tempdir()?;
 		let random_port = find_free_port(None);
@@ -70,6 +72,7 @@ impl TestNode {
 		Ok(Self { child, ws_url })
 	}
 
+	/// Returns the WebSocket URL of the running test node.
 	pub fn ws_url(&self) -> &str {
 		&self.ws_url
 	}

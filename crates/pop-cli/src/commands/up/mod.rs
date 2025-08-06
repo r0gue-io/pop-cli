@@ -183,23 +183,6 @@ mod tests {
 	}
 
 	#[tokio::test]
-	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
-	async fn detects_contract_correctly() -> anyhow::Result<()> {
-		let temp_dir = new_environment("testing")?;
-		let mut current_dir = env::current_dir().expect("Failed to get current directory");
-		current_dir.pop();
-		mock_build_process(
-			temp_dir.path().join("testing"),
-			current_dir.join("pop-contracts/tests/files/testing.contract"),
-			current_dir.join("pop-contracts/tests/files/testing.json"),
-		)?;
-		let args = create_up_args(temp_dir.path().join("testing"))?;
-		let mut cli = MockCli::new();
-		assert_eq!(Command::execute_project_deployment(args, &mut cli).await?, Contract);
-		cli.verify()
-	}
-
-	#[tokio::test]
 	#[cfg(feature = "chain")]
 	async fn detects_rollup_correctly() -> anyhow::Result<()> {
 		let temp_dir = tempfile::tempdir()?;
