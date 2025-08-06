@@ -619,7 +619,7 @@ mod tests {
 
 	const BOB_SURI: &str = "//Bob";
 
-	// TODO: Integration test
+	// TODO: Slow
 	#[tokio::test]
 	async fn guide_user_to_call_chain_works() -> Result<()> {
 		let node = TestNode::spawn().await?;
@@ -676,7 +676,7 @@ mod tests {
 		cli.verify()
 	}
 
-	// TODO: Integration test
+	// TODO: Slow
 	#[tokio::test]
 	async fn guide_user_to_configure_predefined_action_works() -> Result<()> {
 		let node = TestNode::spawn().await?;
@@ -759,7 +759,7 @@ mod tests {
 		cli.verify()
 	}
 
-	// TODO: Integration test
+	// TODO: Slow
 	#[tokio::test]
 	async fn prepare_extrinsic_works() -> Result<()> {
 		let node = TestNode::spawn().await?;
@@ -805,7 +805,7 @@ mod tests {
 		cli.verify()
 	}
 
-	// TODO: Integration test
+	// TODO: Slow
 	#[tokio::test]
 	async fn user_cancel_submit_extrinsic_works() -> Result<()> {
 		let node = TestNode::spawn().await?;
@@ -831,7 +831,7 @@ mod tests {
 		cli.verify()
 	}
 
-	// TODO: Integration test
+	// TODO: Slow
 	#[tokio::test]
 	async fn user_cancel_submit_extrinsic_from_call_data_works() -> Result<()> {
 		let node = TestNode::spawn().await?;

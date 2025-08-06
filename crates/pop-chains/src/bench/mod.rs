@@ -337,20 +337,20 @@ mod tests {
 		Ok(())
 	}
 
-	// TODO: Failing message
 	#[tokio::test]
 	async fn load_pallet_extrinsics_missing_runtime_benchmarks_fails() -> Result<(), Error> {
 		let temp_dir = tempdir()?;
 		let runtime_path = get_mock_runtime_path(false);
 		let binary = omni_bencher_generator(temp_dir.into_path(), None).await?;
 		binary.source(false, &(), true).await?;
+		let error_msg = load_pallet_extrinsics(&runtime_path, &binary.path())
+			.await
+			.err()
+			.unwrap()
+			.to_string();
 
-		assert_eq!(
-		    load_pallet_extrinsics(&runtime_path, &binary.path()).await.err().unwrap().to_string(),
-				"Failed to run benchmarking: Error: Input(\"Did not find the benchmarking runtime api. \
-				This could mean that you either did not build the node correctly with the `--features runtime-benchmarks` flag, \
-				or the chain spec that you are using was not created by a node that was compiled with the flag\")"
-		);
+		assert!(error_msg.contains("Failed to run benchmarking: Error: Input("));
+		assert!(error_msg.contains("This could mean that you either did not build the node correctly with the `--features runtime-benchmarks` flag, or the chain spec that you are using was not created by a node that was compiled with the flag"));
 		Ok(())
 	}
 

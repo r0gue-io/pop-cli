@@ -651,7 +651,7 @@ mod tests {
 		Ok(())
 	}
 
-	// TODO: Integration test
+	// TODO: Slow
 	#[tokio::test]
 	async fn prepare_for_registration_works() -> Result<()> {
 		let node = TestNode::spawn().await?;
@@ -741,7 +741,7 @@ mod tests {
 		cli.verify()
 	}
 
-	// TODO: Integration test. Querying Polokadot
+	// TODO: Integration test. Querying Polkadot
 	#[tokio::test]
 	async fn register_fails_wrong_chain() -> Result<()> {
 		let mut cli = MockCli::new()
@@ -784,7 +784,7 @@ mod tests {
 		cli.verify()
 	}
 
-	// TODO: Integration test. Querying Polokadot
+	// TODO: Integration test. Querying Polkadot
 	#[tokio::test]
 	async fn prepare_register_call_data_works() -> Result<()> {
 		let mut cli = MockCli::new();
@@ -830,7 +830,7 @@ mod tests {
 		Ok(())
 	}
 
-	// TODO: Integration test. Querying Polokadot
+	// TODO: Integration test. Querying Polkadot
 	#[tokio::test]
 	async fn reserve_id_fails_wrong_chain() -> Result<()> {
 		let mut cli = MockCli::new()
@@ -870,7 +870,7 @@ mod tests {
 		cli.verify()
 	}
 
-	// TODO: Integration test. Querying Polokadot
+	// TODO: Integration test. Querying Polkadot
 	#[tokio::test]
 	async fn prepare_reserve_call_data_works() -> Result<()> {
 		let mut cli = MockCli::new();
