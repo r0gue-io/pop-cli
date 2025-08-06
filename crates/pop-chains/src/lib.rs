@@ -43,7 +43,7 @@ pub use call::{
 	metadata::{
 		action::{supported_actions, Action},
 		find_dispatchable_by_name, find_pallet_by_name,
-		params::Param,
+		params::{field_to_param, Param},
 		parse_chain_metadata, Function, Pallet,
 	},
 	parse_and_format_events, set_up_client, sign_and_submit_extrinsic, submit_signed_extrinsic,
