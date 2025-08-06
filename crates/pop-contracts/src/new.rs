@@ -155,7 +155,6 @@ mod tests {
 		Ok(())
 	}
 
-	// TODO: In integration test?
 	#[test]
 	fn test_create_template_smart_contract_success() -> Result<(), Error> {
 		let temp_dir = setup_test_environment(Contract::ERC20)?;

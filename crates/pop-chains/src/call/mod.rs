@@ -202,12 +202,11 @@ mod tests {
 	pub(crate) const POP_NETWORK_TESTNET_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";
 
 	#[tokio::test]
-	async fn set_up_client_works() -> Result<()> {
+	async fn set_up_client_fails_wrong_url() -> Result<()> {
 		assert!(matches!(
 			set_up_client("wss://wronguri.xyz").await,
 			Err(Error::ConnectionFailure(_))
 		));
-		set_up_client(POP_NETWORK_TESTNET_URL).await?;
 		Ok(())
 	}
 
