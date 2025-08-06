@@ -169,7 +169,7 @@ mod tests {
 				gas_limit: None,
 				proof_size: None,
 				salt: None,
-				url: Url::parse("wss://rpc1.paseo.popnetwork.xyz")?,
+				url: Url::parse("ws://127.0.0.1:9944")?,
 				suri: "//Alice".to_string(),
 				use_wallet: false,
 				dry_run: true,
