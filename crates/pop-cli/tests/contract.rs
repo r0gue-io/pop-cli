@@ -6,11 +6,12 @@ use anyhow::Result;
 use assert_cmd::Command;
 use pop_common::{find_free_port, set_executable_permission, templates::Template};
 use pop_contracts::{
-	contracts_node_generator, dry_run_gas_estimate_instantiate, instantiate_smart_contract,
-	run_contracts_node, set_up_deployment, Contract, UpOpts,
+	contracts_node_generator, dry_run_call, dry_run_gas_estimate_call,
+	dry_run_gas_estimate_instantiate, instantiate_smart_contract, run_contracts_node, set_up_call,
+	set_up_deployment, CallOpts, Contract, UpOpts, Weight,
 };
 use serde::{Deserialize, Serialize};
-use std::{path::Path, println, process::Command as Cmd, time::Duration};
+use std::{path::Path, process::Command as Cmd, time::Duration};
 use strum::VariantArray;
 use subxt::{config::DefaultExtrinsicParamsBuilder as Params, tx::Payload, utils::to_hex};
 use subxt_signer::sr25519::dev;
@@ -146,6 +147,25 @@ async fn contract_lifecycle() -> Result<()> {
 	.await?;
 	let weight_limit = dry_run_gas_estimate_instantiate(&instantiate_exec).await?;
 	let contract_info = instantiate_smart_contract(instantiate_exec, weight_limit).await?;
+
+	// Dry runs
+	let call_opts = CallOpts {
+		path: Some(temp_dir.join("test_contract")),
+		contract: contract_info.address.clone(),
+		message: "get".to_string(),
+		args: vec![].to_vec(),
+		value: "0".to_string(),
+		gas_limit: None,
+		proof_size: None,
+		url: Url::parse(default_endpoint)?,
+		suri: "//Alice".to_string(),
+		execute: false,
+	};
+	let call_exec = set_up_call(call_opts).await?;
+	let weight_limit = dry_run_gas_estimate_call(&call_exec).await?;
+	assert!(weight_limit.all_gt(Weight::zero()));
+	assert_eq!(dry_run_call(&call_exec).await?, "Ok(false)");
+
 	// Call contract (only query)
 	// pop call contract --contract $INSTANTIATED_CONTRACT_ADDRESS --message get --suri //Alice
 	Command::cargo_bin("pop")
@@ -186,6 +206,9 @@ async fn contract_lifecycle() -> Result<()> {
 		])
 		.assert()
 		.success();
+
+	// Dry runs after changing the value
+	assert_eq!(dry_run_call(&call_exec).await?, "Ok(true)");
 
 	// pop up --upload-only --use-wallet
 	// Will run http server for wallet integration.
