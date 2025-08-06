@@ -199,7 +199,6 @@ mod tests {
 		cli.verify()
 	}
 
-	// TODO: Integration test
 	#[tokio::test]
 	#[cfg(feature = "chain")]
 	async fn detects_rollup_correctly() -> anyhow::Result<()> {
@@ -214,7 +213,6 @@ mod tests {
 		instantiate_template_dir(&ChainTemplate::Standard, &project_path, None, config)?;
 
 		let mut args = create_up_args(project_path)?;
-		args.rollup.relay_chain_url = Some(Url::parse("wss://polkadot-rpc.publicnode.com")?);
 		args.rollup.id = Some(2000);
 		args.rollup.genesis_code = Some(PathBuf::from("path/to/genesis"));
 		args.rollup.genesis_state = Some(PathBuf::from("path/to/state"));

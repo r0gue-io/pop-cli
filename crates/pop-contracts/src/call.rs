@@ -290,7 +290,6 @@ mod tests {
 	#[cfg(feature = "v6")]
 	const CONTRACTS_NETWORK_URL: &str = "wss://westend-asset-hub-rpc.polkadot.io";
 
-	const LOCAL_NODE: &str = "ws://localhost:9944";
 	// TODO: Integration test
 	#[tokio::test]
 	async fn test_set_up_call() -> Result<()> {

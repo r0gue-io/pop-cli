@@ -186,7 +186,7 @@ mod tests {
 		cli::MockCli,
 		common::{
 			runtime::{get_mock_runtime, Feature},
-			try_runtime::{get_try_state_items, source_try_runtime_binary, DEFAULT_LIVE_NODE_URL},
+			try_runtime::{get_try_state_items, source_try_runtime_binary},
 		},
 	};
 	use console::style;
@@ -233,19 +233,6 @@ mod tests {
 		command.build_params.no_build = true;
 		command.execute(&mut cli).await?;
 		cli.verify()
-	}
-
-	// TODO: Integration test
-	#[tokio::test]
-	async fn execute_block_invalid_header() -> anyhow::Result<()> {
-		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
-		let mut cmd = TestExecuteBlockCommand::default();
-		cmd.state.uri = Some(DEFAULT_LIVE_NODE_URL.to_string());
-		cmd.state.at =
-			Some("0xa1b16c1efd889a9f17375ec4dd5c1b4351a2be17fa069564fced10d23b9b3836".to_string());
-		let error = cmd.run(&mut MockCli::new(), vec![]).await.unwrap_err();
-		assert!(error.to_string().contains("header_not_found"));
-		Ok(())
 	}
 
 	#[tokio::test]
