@@ -38,8 +38,8 @@ const CONTRACT_FILE: &str = "./tests/files/testing.contract";
 //full_contract_lifecycle_on_local_node
 #[tokio::test]
 async fn run_contracts_node_works() -> Result<()> {
-	// TODO: Once remove the v5, replace the way to initialize the node with let node =
-	// TestNode::spawn().await?;
+	// TODO: Once remove the v5, replace the way to initialize the node with:
+	// let node = TestNode::spawn().await?;
 	let random_port = find_free_port(None);
 	let localhost_url = format!("ws://127.0.0.1:{}", random_port);
 	let local_url = url::Url::parse(&localhost_url)?;

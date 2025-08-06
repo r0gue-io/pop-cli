@@ -139,16 +139,12 @@ impl Display for Command {
 
 #[cfg(test)]
 mod tests {
+	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
+	use super::contract::UpContractCommand;
 	use super::*;
 	use cli::MockCli;
 	use duct::cmd;
 	use url::Url;
-	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
-	use {
-		super::contract::UpContractCommand,
-		pop_contracts::{mock_build_process, new_environment},
-		std::env,
-	};
 	#[cfg(feature = "chain")]
 	use {
 		crate::style::format_url,

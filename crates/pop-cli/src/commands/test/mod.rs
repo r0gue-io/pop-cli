@@ -112,7 +112,7 @@ mod tests {
 	use super::*;
 	use crate::cli::MockCli;
 	use duct::cmd;
-	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
+	#[cfg(feature = "wasm-contracts")]
 	use {
 		pop_contracts::{mock_build_process, new_environment},
 		std::env,
@@ -123,7 +123,7 @@ mod tests {
 	}
 
 	#[tokio::test]
-	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
+	#[cfg(feature = "wasm-contracts")]
 	async fn detects_contract_correctly() -> anyhow::Result<()> {
 		let temp_dir = new_environment("testing")?;
 		let mut current_dir = env::current_dir().expect("Failed to get current directory");
