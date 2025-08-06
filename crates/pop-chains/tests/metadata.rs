@@ -2,7 +2,9 @@
 
 use anyhow::Result;
 use pop_chains::{
-	construct_extrinsic, construct_proxy_extrinsic, decode_call_data, encode_call_data, field_to_param, find_dispatchable_by_name, find_pallet_by_name, parse_chain_metadata, set_up_client, sign_and_submit_extrinsic, Error, Function, Payload
+	construct_extrinsic, construct_proxy_extrinsic, decode_call_data, encode_call_data,
+	field_to_param, find_dispatchable_by_name, find_pallet_by_name, parse_chain_metadata,
+	set_up_client, sign_and_submit_extrinsic, Error, Function, Payload,
 };
 use pop_common::test_env::TestNode;
 use url::Url;
