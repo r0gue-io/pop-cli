@@ -785,7 +785,6 @@ mod tests {
 		Ok(())
 	}
 
-	// TODO: Slow
 	#[tokio::test]
 	async fn fails_to_generate_plain_chain_spec_when_file_missing() -> Result<()> {
 		let temp_dir =

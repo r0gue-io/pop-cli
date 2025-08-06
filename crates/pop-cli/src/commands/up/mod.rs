@@ -144,6 +144,7 @@ mod tests {
 	use super::*;
 	use cli::MockCli;
 	use duct::cmd;
+	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 	use url::Url;
 	#[cfg(feature = "chain")]
 	use {

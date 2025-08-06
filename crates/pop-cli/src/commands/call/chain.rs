@@ -619,7 +619,7 @@ mod tests {
 
 	const BOB_SURI: &str = "//Bob";
 
-	// TODO: Slow
+	// TODO: Slow -> All in 45s
 	#[tokio::test]
 	async fn guide_user_to_call_chain_works() -> Result<()> {
 		let node = TestNode::spawn().await?;

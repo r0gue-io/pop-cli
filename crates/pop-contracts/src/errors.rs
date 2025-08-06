@@ -25,7 +25,7 @@ pub enum Error {
 	/// Dry-run contract call failed.
 	#[error("Pre-submission dry-run failed: {0}")]
 	DryRunCallContractError(String),
-	// Failed to parse hex-encoded bytes.
+	/// Failed to parse hex-encoded bytes.
 	#[error("Failed to parse hex encoded bytes: {0}")]
 	HexParsing(String),
 	/// An HTTP request failed.
