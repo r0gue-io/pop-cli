@@ -265,7 +265,7 @@ mod tests {
 	use binary::omni_bencher_generator;
 	use tempfile::tempdir;
 
-	// TODO: Slow
+	// TODO: Slow -> 22s
 	#[test]
 	fn generate_pallet_benchmarks_works() -> Result<(), Error> {
 		generate_pallet_benchmarks(vec![
@@ -276,7 +276,7 @@ mod tests {
 		])
 	}
 
-	// TODO: Slow
+	// TODO: Slow -> 12s
 	#[test]
 	fn get_preset_names_works() -> Result<(), Error> {
 		assert_eq!(

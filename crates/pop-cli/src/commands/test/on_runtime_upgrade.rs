@@ -331,6 +331,8 @@ mod tests {
 	async fn on_runtime_upgrade_live_state_works() -> anyhow::Result<()> {
 		let mut command = TestOnRuntimeUpgradeCommand::default();
 		command.build_params.no_build = true;
+		// command.shared_params.disable_spec_name_check = true;
+		// command.command.disable_spec_version_check = true;
 
 		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
 		let mut cli = MockCli::new()

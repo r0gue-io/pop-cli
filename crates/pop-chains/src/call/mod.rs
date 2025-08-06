@@ -191,7 +191,6 @@ impl Payload for CallData {
 	}
 }
 
-// TODO: Integration tests
 #[cfg(test)]
 mod tests {
 	use super::*;
