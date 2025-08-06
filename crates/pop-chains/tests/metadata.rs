@@ -2,10 +2,71 @@
 
 use anyhow::Result;
 use pop_chains::{
-	field_to_param, find_dispatchable_by_name, find_pallet_by_name, parse_chain_metadata,
-	set_up_client, Error,
+	construct_extrinsic, construct_proxy_extrinsic, decode_call_data, encode_call_data, field_to_param, find_dispatchable_by_name, find_pallet_by_name, parse_chain_metadata, set_up_client, sign_and_submit_extrinsic, Error, Function, Payload
 };
 use pop_common::test_env::TestNode;
+use url::Url;
+
+const ALICE_SURI: &str = "//Alice";
+const POLKADOT_NETWORK_URL: &str = "wss://polkadot-rpc.publicnode.com";
+
+#[tokio::test]
+async fn construct_proxy_extrinsic_work() -> Result<()> {
+	let client = set_up_client(POLKADOT_NETWORK_URL).await?;
+	let pallets = parse_chain_metadata(&client)?;
+	let remark_dispatchable = find_dispatchable_by_name(&pallets, "System", "remark")?;
+	let remark = construct_extrinsic(remark_dispatchable, ["0x11".to_string()].to_vec())?;
+	let xt = construct_proxy_extrinsic(
+		&pallets,
+		"Id(13czcAAt6xgLwZ8k6ZpkrRL5V2pjKEui3v9gHAN9PoxYZDbf)".to_string(),
+		remark,
+	)?;
+	// Encoded call data for a proxy extrinsic with remark as the call.
+	// Reference: https://polkadot.js.org/apps/?rpc=wss%3A%2F%2Fpolkadot-rpc.publicnode.com#/extrinsics/decode/0x1d000073ebf9c947490b9170ea4fd3031ae039452e428531317f76bf0a02124f8166de0000000411
+	assert_eq!(
+		encode_call_data(&client, &xt)?,
+		"0x1d000073ebf9c947490b9170ea4fd3031ae039452e428531317f76bf0a02124f8166de0000000411"
+	);
+	Ok(())
+}
+
+#[tokio::test]
+async fn encode_and_decode_call_data_works() -> Result<()> {
+	let node = TestNode::spawn().await?;
+	let client = set_up_client(node.ws_url()).await?;
+	let pallets = parse_chain_metadata(&client)?;
+	let remark = find_dispatchable_by_name(&pallets, "System", "remark")?;
+	let xt = construct_extrinsic(&remark, vec!["0x11".to_string()])?;
+	assert_eq!(encode_call_data(&client, &xt)?, "0x00000411");
+	assert_eq!(decode_call_data("0x00000411")?, xt.encode_call_data(&client.metadata())?);
+	let xt = construct_extrinsic(&remark, vec!["123".to_string()])?;
+	assert_eq!(encode_call_data(&client, &xt)?, "0x00000c313233");
+	assert_eq!(decode_call_data("0x00000c313233")?, xt.encode_call_data(&client.metadata())?);
+	let xt = construct_extrinsic(&remark, vec!["test".to_string()])?;
+	assert_eq!(encode_call_data(&client, &xt)?, "0x00001074657374");
+	assert_eq!(decode_call_data("0x00001074657374")?, xt.encode_call_data(&client.metadata())?);
+	Ok(())
+}
+
+#[tokio::test]
+async fn sign_and_submit_wrong_extrinsic_fails() -> Result<()> {
+	let node = TestNode::spawn().await?;
+	let client = set_up_client(node.ws_url()).await?;
+	let function = Function {
+		pallet: "WrongPallet".to_string(),
+		name: "wrong_extrinsic".to_string(),
+		index: 0,
+		docs: "documentation".to_string(),
+		is_supported: true,
+		..Default::default()
+	};
+	let xt = construct_extrinsic(&function, vec!["0x11".to_string()])?;
+	assert!(matches!(
+		sign_and_submit_extrinsic(&client, &Url::parse(node.ws_url())?, xt, ALICE_SURI).await,
+		Err(Error::ExtrinsicSubmissionError(message)) if message.contains("PalletNameNotFound(\"WrongPallet\"))")
+	));
+	Ok(())
+}
 
 #[tokio::test]
 async fn parse_chain_metadata_works() -> Result<()> {
