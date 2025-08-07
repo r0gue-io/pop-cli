@@ -267,6 +267,7 @@ mod tests {
 
 	// TODO: Slow -> 22s
 	#[test]
+	#[ignore]
 	fn generate_pallet_benchmarks_works() -> Result<(), Error> {
 		generate_pallet_benchmarks(vec![
 			"--pallet=pallet_timestamp".to_string(),
@@ -278,6 +279,7 @@ mod tests {
 
 	// TODO: Slow -> 12s
 	#[test]
+	#[ignore]
 	fn get_preset_names_works() -> Result<(), Error> {
 		assert_eq!(
 			get_preset_names(&get_mock_runtime_path(true))?,

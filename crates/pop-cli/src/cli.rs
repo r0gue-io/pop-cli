@@ -288,7 +288,7 @@ pub(crate) mod tests {
 
 	/// Mock Cli with optional expectations
 	#[derive(Default)]
-	pub(crate) struct MockCli {
+	pub struct MockCli {
 		confirm_expectation: Vec<(String, bool)>,
 		error_expectations: Vec<String>,
 		info_expectations: Vec<String>,

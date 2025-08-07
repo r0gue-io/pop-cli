@@ -627,8 +627,9 @@ mod tests {
 		Ok(())
 	}
 
-	// TODO: Slow
+	// TODO: Slow -> 45s
 	#[tokio::test]
+	#[ignore]
 	async fn update_live_state_works() -> anyhow::Result<()> {
 		let node = TestNode::spawn().await?;
 		let node_url = node.ws_url();
@@ -756,8 +757,9 @@ mod tests {
 		Ok(())
 	}
 
-	// TODO: Slow
+	// TODO: Slow -> 45.9s
 	#[tokio::test]
+	#[ignore]
 	async fn guide_user_to_select_try_state_works() -> anyhow::Result<()> {
 		let node = TestNode::spawn().await?;
 		let node_url = node.ws_url();
