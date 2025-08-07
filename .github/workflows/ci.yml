@@ -21,6 +21,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: Swatinem/rust-cache@v2
+
       - name: Install Rust nightly
         uses: actions-rs/toolchain@v1
         with:
@@ -39,6 +41,8 @@ jobs:
       RUSTFLAGS: "-Dwarnings"
     steps:
       - uses: actions/checkout@v4
+
+      - uses: Swatinem/rust-cache@v2
 
       - uses: "./.github/actions/init"
         with:
@@ -69,6 +73,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: Swatinem/rust-cache@v2
+
       - uses: "./.github/actions/init"
         with:
           git-user: ${{ env.GITHUB_ACTOR }}
@@ -82,6 +88,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - uses: Swatinem/rust-cache@v2
 
       - name: Run cargo-deny
         uses: EmbarkStudios/cargo-deny-action@v2
@@ -122,6 +130,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: Swatinem/rust-cache@v2
+
       - uses: "./.github/actions/init"
         with:
           git-user: ${{ env.GITHUB_ACTOR }}
@@ -139,9 +149,7 @@ jobs:
       - name: Run unit tests (with features)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          cargo nextest run --lib --bins --no-default-features --features contract
-          cargo nextest run --lib --bins --no-default-features --features chain
+        run: cargo nextest run --lib --bins --no-default-features --features "contract,chain"
   
   polkavm-unit-tests:
     needs: lint
@@ -168,6 +176,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - uses: Swatinem/rust-cache@v2
 
       - uses: "./.github/actions/init"
         with:
@@ -206,8 +216,9 @@ jobs:
         os: [ "ubuntu-latest", "macos-latest" ]
     runs-on: ${{ matrix.os }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+
+      - uses: Swatinem/rust-cache@v2
 
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
@@ -248,8 +259,9 @@ jobs:
         os: [ "ubuntu-latest", "macos-latest" ]
     runs-on: ${{ matrix.os }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+
+      - uses: Swatinem/rust-cache@v2
 
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
