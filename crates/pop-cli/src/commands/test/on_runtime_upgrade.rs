@@ -184,7 +184,10 @@ impl TestOnRuntimeUpgradeCommand {
 		self.collect_arguments_before_subcommand(&command_arguments, &mut args);
 		args.push(self.subcommand()?);
 		collect_state_arguments(&self.command.state, &after_subcommand, &mut args)?;
-
+		#[cfg(test)]
+		{
+			args.retain(|arg| arg != "--show-output" && arg != "--nocapture");
+		}
 		run_try_runtime(
 			&binary_path,
 			TryRuntimeCliCommand::OnRuntimeUpgrade,
@@ -228,6 +231,10 @@ impl TestOnRuntimeUpgradeCommand {
 		args.push(subcommand);
 		collect_state_arguments(&self.command.state, &after_subcommand, &mut args)?;
 		cmd_args.extend(args);
+		#[cfg(test)]
+		{
+			cmd_args.retain(|arg| arg != "--show-output" && arg != "--nocapture");
+		}
 		Ok(cmd_args.join(" "))
 	}
 
@@ -494,6 +501,7 @@ mod tests {
 		cmd.shared_params.disable_spec_name_check = true;
 		cmd.command.disable_spec_version_check = true;
 		let error = cmd.run(&mut MockCli::new()).await.unwrap_err().to_string();
+		println!("{:?}", error);
 		assert!(error
 			.contains(r#"Input("Given runtime is not compiled with the try-runtime feature.")"#,));
 		Ok(())

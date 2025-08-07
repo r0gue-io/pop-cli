@@ -120,6 +120,10 @@ impl TestCreateSnapshotCommand {
 		// Remove snapshot path from the provided arguments.
 		let mut provided_path = None;
 		let mut user_provided_args = user_provided_args.to_vec();
+		#[cfg(test)]
+		{
+			user_provided_args.retain(|arg| arg != "--show-output" && arg != "--nocapture");
+		}
 		if let Some(arg) = user_provided_args.last() {
 			if !arg.starts_with("--") && arg.ends_with(".snap") {
 				provided_path = user_provided_args.pop();
