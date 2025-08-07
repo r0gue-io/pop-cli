@@ -619,9 +619,7 @@ mod tests {
 
 	const BOB_SURI: &str = "//Bob";
 
-	// TODO: Slow -> All in 45s
 	#[tokio::test]
-	#[ignore]
 	async fn guide_user_to_call_chain_works() -> Result<()> {
 		let node = TestNode::spawn().await?;
 		let node_url = node.ws_url();
@@ -677,9 +675,7 @@ mod tests {
 		cli.verify()
 	}
 
-	// TODO: Slow
 	#[tokio::test]
-	#[ignore]
 	async fn guide_user_to_configure_predefined_action_works() -> Result<()> {
 		let node = TestNode::spawn().await?;
 		let node_url = node.ws_url();
@@ -761,9 +757,7 @@ mod tests {
 		cli.verify()
 	}
 
-	// TODO: Slow
 	#[tokio::test]
-	#[ignore]
 	async fn prepare_extrinsic_works() -> Result<()> {
 		let node = TestNode::spawn().await?;
 		let node_url = node.ws_url();
@@ -808,36 +802,7 @@ mod tests {
 		cli.verify()
 	}
 
-	// TODO: Slow
 	#[tokio::test]
-	#[ignore]
-	async fn user_cancel_submit_extrinsic_works() -> Result<()> {
-		let node = TestNode::spawn().await?;
-		let node_url = node.ws_url();
-		let client = set_up_client(node_url).await?;
-		let pallets = parse_chain_metadata(&client)?;
-		let mut call_config = Call {
-			function: find_dispatchable_by_name(&pallets, "System", "remark")?.clone(),
-			args: vec!["0x11".to_string()].to_vec(),
-			suri: DEFAULT_URI.to_string(),
-			use_wallet: false,
-			skip_confirm: false,
-			sudo: false,
-		};
-		let mut cli = MockCli::new()
-			.expect_confirm("Do you want to submit the extrinsic?", false)
-			.expect_outro_cancel("Extrinsic for `remark` was not submitted.");
-		let xt = call_config.prepare_extrinsic(&client, &mut cli)?;
-		call_config
-			.submit_extrinsic(&client, &Url::parse(node_url)?, xt, &mut cli)
-			.await?;
-
-		cli.verify()
-	}
-
-	// TODO: Slow
-	#[tokio::test]
-	#[ignore]
 	async fn user_cancel_submit_extrinsic_from_call_data_works() -> Result<()> {
 		let node = TestNode::spawn().await?;
 		let node_url = node.ws_url();
