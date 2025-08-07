@@ -783,7 +783,6 @@ mod tests {
 		cli.verify()
 	}
 
-	// TODO: Integration test. Querying Polkadot
 	#[tokio::test]
 	async fn prepare_register_call_data_works() -> Result<()> {
 		let mut cli = MockCli::new();
@@ -870,7 +869,6 @@ mod tests {
 		cli.verify()
 	}
 
-	// TODO: Integration test. Querying Polkadot
 	#[tokio::test]
 	async fn prepare_reserve_call_data_works() -> Result<()> {
 		let mut cli = MockCli::new();

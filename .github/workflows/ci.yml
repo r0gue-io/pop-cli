@@ -153,6 +153,11 @@ jobs:
         with:
           git-user: ${{ env.GITHUB_ACTOR }}
 
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+
       - name: Run unit tests for polkavm-contracts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -234,7 +239,7 @@ jobs:
       - name: Run integration tests
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: cargo nextest run --no-default-features --features contract --run-type tests --test-filter contract
+        run: cargo nextest run --no-default-features --features contract --test contract
 
   chain-integration-tests:
     needs: lint
@@ -279,5 +284,5 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          cargo nextest run --no-default-features --features chain --run-type tests --test-filter chain
-          cargo nextest run --no-default-features --features chain --run-type tests --test-filter metadata
+          cargo nextest run --no-default-features --features chain --test chain
+          cargo nextest run --no-default-features --features chain --test metadata

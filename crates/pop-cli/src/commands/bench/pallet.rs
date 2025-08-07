@@ -1322,9 +1322,7 @@ mod tests {
 	use strum::EnumMessage;
 	use tempfile::tempdir;
 
-	// TODO: Slow -> 20s
 	#[tokio::test]
-	#[ignore]
 	async fn benchmark_pallet_works() -> anyhow::Result<()> {
 		let mut cli = MockCli::new();
 		let temp_dir = tempdir()?;
@@ -1402,9 +1400,7 @@ mod tests {
 		cli.verify()
 	}
 
-	// TODO: Slow -> 22s
 	#[tokio::test]
-	#[ignore]
 	async fn benchmark_multi_pallets_works() -> anyhow::Result<()> {
 		let mut cli = MockCli::new();
 		let temp_dir = tempdir()?;
@@ -1475,9 +1471,7 @@ mod tests {
 		cli.verify()
 	}
 
-	// TODO: Slow -> 45s
 	#[tokio::test]
-	#[ignore]
 	async fn benchmark_pallet_with_provided_bench_file_works() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
 		let output_path = temp_dir.path().join("weights.rs");
@@ -1538,9 +1532,7 @@ mod tests {
 		cli.verify()
 	}
 
-	// TODO: Slow -> 22s
 	#[tokio::test]
-	#[ignore]
 	async fn benchmark_pallet_weight_dir_works() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
 		let output_path = temp_dir.path();
@@ -1588,9 +1580,7 @@ mod tests {
 		cli.verify()
 	}
 
-	// TODO: Slow -> 24s
 	#[tokio::test]
-	#[ignore]
 	async fn benchmark_pallet_weight_file_works() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
 		let output_path = temp_dir.path().join("weights.rs");
@@ -1791,9 +1781,7 @@ mod tests {
 		cli.verify()
 	}
 
-	// TODO: Slow -> 46s
 	#[tokio::test]
-	#[ignore]
 	async fn guide_user_to_select_menu_option_works() -> anyhow::Result<()> {
 		let mut cmd = BenchmarkPallet {
 			skip_confirm: false,
