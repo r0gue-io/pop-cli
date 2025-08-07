@@ -233,6 +233,8 @@ mod tests {
 	use super::*;
 	use anyhow::{Error, Result};
 
+	const POLKADOT_NETWORK_URL: &str = "wss://polkadot-rpc.publicnode.com";
+
 	#[tokio::test]
 	async fn directory_path_by_target() -> Result<()> {
 		let archive = archive_name_by_target();
@@ -250,7 +252,7 @@ mod tests {
 	async fn is_chain_alive_works() -> Result<(), Error> {
 		let local_url = url::Url::parse("ws://wrong")?;
 		assert!(!is_chain_alive(local_url).await?);
-		let polkadot_url = url::Url::parse("wss://polkadot-rpc.dwellir.com")?;
+		let polkadot_url = url::Url::parse(POLKADOT_NETWORK_URL)?;
 		assert!(is_chain_alive(polkadot_url).await?);
 		Ok(())
 	}
