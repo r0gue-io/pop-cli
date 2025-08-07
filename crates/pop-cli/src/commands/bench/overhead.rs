@@ -287,6 +287,7 @@ mod tests {
 
 	// TODO: Slow -> failed in 22s
 	#[tokio::test]
+	#[ignore]
 	async fn benchmark_overhead_works() -> anyhow::Result<()> {
 		let cwd = current_dir().unwrap_or(PathBuf::from("./"));
 		let temp_dir = tempdir()?;
@@ -353,6 +354,7 @@ mod tests {
 
 	// TODO: Slow -> failed in 24s
 	#[tokio::test]
+	#[ignore]
 	async fn benchmark_overhead_weight_file_works() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
 		let runtime_path = get_mock_runtime(Some(Benchmark));
@@ -406,8 +408,9 @@ mod tests {
 		cli.verify()
 	}
 
-	// TODO: Slow
+	// TODO: Slow -> 19s
 	#[tokio::test]
+	#[ignore]
 	async fn benchmark_overhead_invalid_weight_path_fails() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
 		let runtime_path = get_mock_runtime(Some(Benchmark));

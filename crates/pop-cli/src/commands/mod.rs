@@ -11,7 +11,7 @@ use std::fmt::{Display, Formatter, Result};
 use {crate::common::Project::Network, up::network::Relay::*};
 
 #[cfg(feature = "chain")]
-pub(crate) mod bench;
+pub mod bench;
 pub(crate) mod build;
 #[cfg(any(feature = "chain", feature = "polkavm-contracts", feature = "wasm-contracts"))]
 pub(crate) mod call;

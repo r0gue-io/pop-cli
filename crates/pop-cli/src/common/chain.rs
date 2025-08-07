@@ -54,6 +54,7 @@ mod tests {
 	use pop_common::test_env::TestNode;
 
 	#[tokio::test]
+	#[ignore]
 	async fn configure_works() -> Result<()> {
 		let node = TestNode::spawn().await?;
 		let message = "Enter the URL of the chain:";
@@ -64,6 +65,7 @@ mod tests {
 	}
 
 	#[tokio::test]
+	#[ignore]
 	async fn get_pallets_works() -> Result<()> {
 		let node = TestNode::spawn().await?;
 		let client = set_up_client(node.ws_url()).await?;

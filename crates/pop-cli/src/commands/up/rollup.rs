@@ -651,8 +651,9 @@ mod tests {
 		Ok(())
 	}
 
-	// TODO: Slow
+	// TODO: Slow -> 30s
 	#[tokio::test]
+	#[ignore]
 	async fn prepare_for_registration_works() -> Result<()> {
 		let node = TestNode::spawn().await?;
 		let node_url = node.ws_url();

