@@ -15,7 +15,7 @@ use std::{
 };
 use tokio::time::sleep;
 
-const STARTUP: Duration = Duration::from_millis(5_000);
+const STARTUP: Duration = Duration::from_millis(10_000);
 
 /// Represents a temporary test node process, running locally for testing.
 pub struct TestNode {
