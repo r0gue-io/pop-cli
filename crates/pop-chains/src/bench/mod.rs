@@ -265,29 +265,6 @@ mod tests {
 	use binary::omni_bencher_generator;
 	use tempfile::tempdir;
 
-	// TODO: Slow -> 22s
-	#[test]
-	#[ignore]
-	fn generate_pallet_benchmarks_works() -> Result<(), Error> {
-		generate_pallet_benchmarks(vec![
-			"--pallet=pallet_timestamp".to_string(),
-			"--extrinsic=*".to_string(),
-			"--runtime".to_string(),
-			get_mock_runtime_path(true).to_str().unwrap().to_string(),
-		])
-	}
-
-	// TODO: Slow -> 12s
-	#[test]
-	#[ignore]
-	fn get_preset_names_works() -> Result<(), Error> {
-		assert_eq!(
-			get_preset_names(&get_mock_runtime_path(true))?,
-			vec!["development", "local_testnet"]
-		);
-		Ok(())
-	}
-
 	#[test]
 	fn get_runtime_path_works() -> Result<(), Error> {
 		let temp_dir = tempdir()?;

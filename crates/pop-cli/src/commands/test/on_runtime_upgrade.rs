@@ -315,78 +315,12 @@ mod tests {
 	use super::*;
 	use crate::common::{
 		runtime::{get_mock_runtime, Feature::TryRuntime},
-		try_runtime::{
-			get_mock_snapshot, get_subcommands, source_try_runtime_binary, DEFAULT_BLOCK_HASH,
-			DEFAULT_LIVE_NODE_URL,
-		},
+		try_runtime::{get_mock_snapshot, get_subcommands, source_try_runtime_binary},
 	};
 	use cli::MockCli;
 	use pop_chains::{state::LiveState, Runtime};
 	use pop_common::Profile;
 	use std::path::PathBuf;
-
-	// TODO: Integration test. Can not run to local node because error:
-	// replacing ws:// in uri with http://: "http://localhost:9944" (ws is currently unstable for fetching remote storage, for more see https://github.com/paritytech/jsonrpsee/issues/1086)
-	#[tokio::test]
-	#[ignore]
-	async fn on_runtime_upgrade_live_state_works() -> anyhow::Result<()> {
-		let mut command = TestOnRuntimeUpgradeCommand::default();
-		command.build_params.no_build = true;
-		// command.shared_params.disable_spec_name_check = true;
-		// command.command.disable_spec_version_check = true;
-
-		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
-		let mut cli = MockCli::new()
-			.expect_intro("Testing migrations")
-			.expect_confirm(
-				format!(
-					"Do you want to specify which runtime to run the migration on?\n{}",
-					style("If not provided, use the code of the remote node, or a snapshot.").dim()
-				),
-				true,
-			)
-			.expect_select(
-				"Choose the build profile of the binary that should be used: ".to_string(),
-				Some(true),
-				true,
-				Some(Profile::get_variants()),
-				0,
-				None,
-			)
-			.expect_warning("NOTE: Make sure your runtime is built with `try-runtime` feature.")
-			.expect_input(
-				"Please specify the path to the runtime project or the runtime binary.",
-				get_mock_runtime(Some(TryRuntime)).to_str().unwrap().to_string(),
-			)
-			.expect_select(
-				"Select source of runtime state:",
-				Some(true),
-				true,
-				Some(get_subcommands()),
-				0, // live
-				None,
-			)
-			.expect_input("Enter the live chain of your node:", DEFAULT_LIVE_NODE_URL.to_string())
-			.expect_input("Enter the block hash (optional):", DEFAULT_BLOCK_HASH.to_string())
-			.expect_select(
-				"Select upgrade checks to perform:",
-				Some(true),
-				true,
-				Some(get_upgrade_checks_items()),
-				1, // all
-				None,
-			)
-			.expect_warning("NOTE: this may take some time...")
-			.expect_info(format!(
-				"pop test on-runtime-upgrade --runtime={} --blocktime=6000 \
-			--checks=all --profile=debug -n live --uri={} --at={}",
-				get_mock_runtime(Some(TryRuntime)).to_str().unwrap(),
-				DEFAULT_LIVE_NODE_URL.to_string(),
-				DEFAULT_BLOCK_HASH.strip_prefix("0x").unwrap_or_default().to_string()
-			));
-		command.execute(&mut cli).await?;
-		cli.verify()
-	}
 
 	#[tokio::test]
 	async fn on_runtime_upgrade_snapshot_works() -> anyhow::Result<()> {

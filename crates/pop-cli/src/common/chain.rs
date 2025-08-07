@@ -54,23 +54,16 @@ mod tests {
 	use pop_common::test_env::TestNode;
 
 	#[tokio::test]
-	#[ignore]
 	async fn configure_works() -> Result<()> {
 		let node = TestNode::spawn().await?;
 		let message = "Enter the URL of the chain:";
 		let mut cli = MockCli::new().expect_input(message, node.ws_url().into());
 		let chain = configure(message, node.ws_url(), &None, &mut cli).await?;
 		assert_eq!(chain.url, Url::parse(node.ws_url())?);
-		cli.verify()
-	}
-
-	#[tokio::test]
-	#[ignore]
-	async fn get_pallets_works() -> Result<()> {
-		let node = TestNode::spawn().await?;
-		let client = set_up_client(node.ws_url()).await?;
-		let pallets = get_pallets(&client).await?;
+		// Get pallets
+		let pallets = get_pallets(&chain.client).await?;
 		assert!(!pallets.is_empty());
-		Ok(())
+
+		cli.verify()
 	}
 }
