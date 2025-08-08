@@ -184,7 +184,10 @@ impl TestOnRuntimeUpgradeCommand {
 		self.collect_arguments_before_subcommand(&command_arguments, &mut args);
 		args.push(self.subcommand()?);
 		collect_state_arguments(&self.command.state, &after_subcommand, &mut args)?;
-
+		#[cfg(test)]
+		{
+			args.retain(|arg| arg != "--show-output" && arg != "--nocapture");
+		}
 		run_try_runtime(
 			&binary_path,
 			TryRuntimeCliCommand::OnRuntimeUpgrade,
@@ -228,6 +231,10 @@ impl TestOnRuntimeUpgradeCommand {
 		args.push(subcommand);
 		collect_state_arguments(&self.command.state, &after_subcommand, &mut args)?;
 		cmd_args.extend(args);
+		#[cfg(test)]
+		{
+			cmd_args.retain(|arg| arg != "--show-output" && arg != "--nocapture");
+		}
 		Ok(cmd_args.join(" "))
 	}
 
@@ -317,7 +324,6 @@ mod tests {
 		runtime::{get_mock_runtime, Feature::TryRuntime},
 		try_runtime::{
 			get_mock_snapshot, get_subcommands, source_try_runtime_binary, DEFAULT_BLOCK_HASH,
-			DEFAULT_LIVE_NODE_URL,
 		},
 	};
 	use cli::MockCli;
@@ -361,7 +367,7 @@ mod tests {
 				0, // live
 				None,
 			)
-			.expect_input("Enter the live chain of your node:", DEFAULT_LIVE_NODE_URL.to_string())
+			.expect_input("Enter the live chain of your node:", "ws://localhost:9944".to_string())
 			.expect_input("Enter the block hash (optional):", DEFAULT_BLOCK_HASH.to_string())
 			.expect_select(
 				"Select upgrade checks to perform:",
@@ -376,7 +382,7 @@ mod tests {
 				"pop test on-runtime-upgrade --runtime={} --blocktime=6000 \
 			--checks=all --profile=debug -n live --uri={} --at={}",
 				get_mock_runtime(Some(TryRuntime)).to_str().unwrap(),
-				DEFAULT_LIVE_NODE_URL.to_string(),
+				"ws://localhost:9944".to_string(),
 				DEFAULT_BLOCK_HASH.strip_prefix("0x").unwrap_or_default().to_string()
 			));
 		command.execute(&mut cli).await?;

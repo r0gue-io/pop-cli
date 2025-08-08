@@ -51,23 +51,19 @@ pub(crate) async fn get_pallets(client: &OnlineClient<SubstrateConfig>) -> Resul
 mod tests {
 	use super::*;
 	use crate::cli::MockCli;
-
-	const POP_NETWORK_TESTNET_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";
+	use pop_common::test_env::TestNode;
 
 	#[tokio::test]
 	async fn configure_works() -> Result<()> {
+		let node = TestNode::spawn().await?;
 		let message = "Enter the URL of the chain:";
-		let mut cli = MockCli::new().expect_input(message, POP_NETWORK_TESTNET_URL.into());
-		let chain = configure(message, POP_NETWORK_TESTNET_URL, &None, &mut cli).await?;
-		assert_eq!(chain.url, Url::parse(POP_NETWORK_TESTNET_URL)?);
-		cli.verify()
-	}
-
-	#[tokio::test]
-	async fn get_pallets_works() -> Result<()> {
-		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
-		let pallets = get_pallets(&client).await?;
+		let mut cli = MockCli::new().expect_input(message, node.ws_url().into());
+		let chain = configure(message, node.ws_url(), &None, &mut cli).await?;
+		assert_eq!(chain.url, Url::parse(node.ws_url())?);
+		// Get pallets
+		let pallets = get_pallets(&chain.client).await?;
 		assert!(!pallets.is_empty());
-		Ok(())
+
+		cli.verify()
 	}
 }

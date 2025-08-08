@@ -177,6 +177,10 @@ impl BenchmarkOverhead {
 			.filter(|arg| !EXCLUDED_ARGS.iter().any(|a| arg.starts_with(a)))
 			.collect();
 
+		#[cfg(test)]
+		{
+			arguments.retain(|arg| arg != "--show-output" && arg != "--nocapture");
+		}
 		// Check if the arguments are provided by the user.
 		let mut print_runtime = true;
 		let mut print_genesis_builder = true;

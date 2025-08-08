@@ -186,11 +186,13 @@ mod tests {
 		cli::MockCli,
 		common::{
 			runtime::{get_mock_runtime, Feature},
-			try_runtime::{get_try_state_items, source_try_runtime_binary, DEFAULT_LIVE_NODE_URL},
+			try_runtime::{get_try_state_items, source_try_runtime_binary},
 		},
 	};
 	use console::style;
 	use pop_common::Profile;
+
+	const LOCAL_NODE_URL: &str = "ws://localhost:9944";
 
 	#[tokio::test]
 	async fn execute_block_works() -> anyhow::Result<()> {
@@ -217,7 +219,7 @@ mod tests {
 				"Please specify the path to the runtime project or the runtime binary.",
 				get_mock_runtime(Some(Feature::TryRuntime)).to_str().unwrap().to_string(),
 			)
-			.expect_input("Enter the live chain of your node:", DEFAULT_LIVE_NODE_URL.to_string())
+			.expect_input("Enter the live chain of your node:", LOCAL_NODE_URL.to_string())
 			.expect_input("Enter the block hash (optional):", String::default())
 			.expect_select(
 				"Select state tests to execute:",
@@ -234,18 +236,6 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn execute_block_invalid_header() -> anyhow::Result<()> {
-		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
-		let mut cmd = TestExecuteBlockCommand::default();
-		cmd.state.uri = Some(DEFAULT_LIVE_NODE_URL.to_string());
-		cmd.state.at =
-			Some("0xa1b16c1efd889a9f17375ec4dd5c1b4351a2be17fa069564fced10d23b9b3836".to_string());
-		let error = cmd.run(&mut MockCli::new(), vec![]).await.unwrap_err();
-		assert!(error.to_string().contains("header_not_found"));
-		Ok(())
-	}
-
-	#[tokio::test]
 	async fn execute_block_invalid_uri() -> anyhow::Result<()> {
 		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
 		let mut cmd = TestExecuteBlockCommand::default();
@@ -259,13 +249,13 @@ mod tests {
 	fn display_works() -> anyhow::Result<()> {
 		let mut cmd = TestExecuteBlockCommand::default();
 		cmd.try_state = Some(TryStateSelect::RoundRobin(10));
-		cmd.state.uri = Some(DEFAULT_LIVE_NODE_URL.to_string());
+		cmd.state.uri = Some(LOCAL_NODE_URL.to_string());
 		cmd.build_params.skip_confirm = true;
 		assert_eq!(
 			cmd.display(vec![])?,
 			format!(
 				"pop test execute-block --runtime=existing --try-state=rr-10 -y --uri={}",
-				DEFAULT_LIVE_NODE_URL.to_string()
+				LOCAL_NODE_URL.to_string()
 			)
 		);
 		assert_eq!(
@@ -278,7 +268,7 @@ mod tests {
 			])?,
 			format!(
 				"pop test execute-block --runtime=existing -y --try-state=rr-10 -n --uri={}",
-				DEFAULT_LIVE_NODE_URL.to_string()
+				LOCAL_NODE_URL.to_string()
 			)
 		);
 		Ok(())
