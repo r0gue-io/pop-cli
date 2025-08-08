@@ -71,28 +71,37 @@ cargo build --no-default-features --features contract
 To test the tool locally. Due to the time it can take to build a Parachain or a Smart Contract, some tests have been
 separated from the normal testing flow into integration tests.
 
+We use `cargo nextest` for faster test runs.
+```sh
+cargo install cargo-nextest
+```
+
 Run the unit tests only:
 
 ```sh
-cargo test --lib
+# Recommended
+cargo nextest run --lib --bins
+# If you don't have nextest installed
+cargo test --lib --bins
 ```
 
 To run the integration tests relating to Smart Contracts:
 
 ```sh
-cargo test --test contract
+cargo nextest run --no-default-features --features contract --test contract
 ```
 
 To run the integration tests relating to Parachains:
 
 ```sh
-cargo test --test chain
+cargo nextest run --no-default-features --features chain --test chain
+cargo nextest run --no-default-features --features chain --test metadata
 ```
 
 Run all tests (unit + integration):
 
 ```sh
-cargo test
+cargo nextest run
 ```
 
 > Running tests may result in rate limits being exhausted due to the reliance on the GitHub REST API for determining

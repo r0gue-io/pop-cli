@@ -9,6 +9,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   GITHUB_ACTOR: pop-cli
+  CARGO_INCREMENTAL: 0
 
 concurrency:
   # Cancel any in-progress jobs for the same pull request
