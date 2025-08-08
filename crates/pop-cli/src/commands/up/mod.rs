@@ -139,13 +139,11 @@ impl Display for Command {
 
 #[cfg(test)]
 mod tests {
-	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
-	use super::contract::UpContractCommand;
 	use super::*;
 	use cli::MockCli;
 	use duct::cmd;
 	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
-	use url::Url;
+	use {super::contract::UpContractCommand, url::Url};
 	#[cfg(feature = "chain")]
 	use {
 		crate::style::format_url,
@@ -194,6 +192,7 @@ mod tests {
 
 		let mut args = create_up_args(project_path)?;
 		args.rollup.id = Some(2000);
+		args.rollup.relay_chain_url = Some(Url::parse("ws://127.0.0.1:9944")?);
 		args.rollup.genesis_code = Some(PathBuf::from("path/to/genesis"));
 		args.rollup.genesis_state = Some(PathBuf::from("path/to/state"));
 		let mut cli = MockCli::new().expect_select(
