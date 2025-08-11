@@ -2188,7 +2188,7 @@ dependencies = [
 [[package]]
 name = "contract-build"
 version = "6.0.0-alpha.1"
-source = "git+https://github.com/use-ink/cargo-contract?branch=master#297b8ff9422f24d54b2e70562541bde6b311821e"
+source = "git+https://github.com/use-ink/cargo-contract?tag=v6.0.0-alpha.1#6a5a37a8ff51e380a184a2ebc1993d9b437b6812"
 dependencies = [
  "alloy-json-abi",
  "anyhow",
@@ -2263,7 +2263,7 @@ dependencies = [
 [[package]]
 name = "contract-extrinsics"
 version = "6.0.0-alpha.1"
-source = "git+https://github.com/use-ink/cargo-contract?branch=master#297b8ff9422f24d54b2e70562541bde6b311821e"
+source = "git+https://github.com/use-ink/cargo-contract?tag=v6.0.0-alpha.1#6a5a37a8ff51e380a184a2ebc1993d9b437b6812"
 dependencies = [
  "anyhow",
  "blake2 0.10.6",
@@ -2310,7 +2310,7 @@ dependencies = [
 [[package]]
 name = "contract-metadata"
 version = "6.0.0-alpha.1"
-source = "git+https://github.com/use-ink/cargo-contract?branch=master#297b8ff9422f24d54b2e70562541bde6b311821e"
+source = "git+https://github.com/use-ink/cargo-contract?tag=v6.0.0-alpha.1#6a5a37a8ff51e380a184a2ebc1993d9b437b6812"
 dependencies = [
  "anyhow",
  "impl-serde 0.5.0",
@@ -2351,7 +2351,7 @@ dependencies = [
 [[package]]
 name = "contract-transcode"
 version = "6.0.0-alpha.1"
-source = "git+https://github.com/use-ink/cargo-contract?branch=master#297b8ff9422f24d54b2e70562541bde6b311821e"
+source = "git+https://github.com/use-ink/cargo-contract?tag=v6.0.0-alpha.1#6a5a37a8ff51e380a184a2ebc1993d9b437b6812"
 dependencies = [
  "anyhow",
  "base58",
@@ -9024,17 +9024,17 @@ dependencies = [
  "askama",
  "clap",
  "cumulus-primitives-proof-size-hostfunction",
- "duct",
+ "duct 0.13.7",
  "frame-benchmarking-cli",
  "frame-try-runtime",
  "glob",
- "indexmap 2.9.0",
+ "indexmap 2.10.0",
  "parity-scale-codec",
  "pop-common",
  "sc-chain-spec",
  "sc-cli",
  "scale-info",
- "scale-value",
+ "scale-value 0.17.0",
  "serde",
  "serde_json",
  "sp-core 32.0.0",
@@ -9044,8 +9044,8 @@ dependencies = [
  "srtool-lib",
  "strum 0.26.3",
  "strum_macros 0.26.4",
- "subxt",
- "subxt-signer",
+ "subxt 0.38.1",
+ "subxt-signer 0.38.1",
  "symlink",
  "tempfile",
  "thiserror 1.0.69",
@@ -9167,48 +9167,6 @@ dependencies = [
  "tokio",
  "tokio-test",
  "url",
-]
-
-[[package]]
-name = "pop-parachains"
-version = "0.8.1"
-dependencies = [
- "anyhow",
- "askama",
- "clap",
- "cumulus-primitives-proof-size-hostfunction",
- "duct 0.13.7",
- "frame-benchmarking-cli",
- "frame-try-runtime",
- "glob",
- "indexmap 2.10.0",
- "parity-scale-codec",
- "pop-common",
- "sc-chain-spec",
- "sc-cli",
- "scale-info",
- "scale-value 0.17.0",
- "serde",
- "serde_json",
- "sp-core 32.0.0",
- "sp-runtime 41.1.0",
- "sp-statement-store",
- "sp-version 38.0.0",
- "srtool-lib",
- "strum 0.26.3",
- "strum_macros 0.26.4",
- "subxt 0.38.1",
- "subxt-signer 0.38.1",
- "symlink",
- "tempfile",
- "thiserror 1.0.69",
- "tokio",
- "tokio-test",
- "toml_edit",
- "url",
- "walkdir",
- "zombienet-configuration",
- "zombienet-sdk",
 ]
 
 [[package]]
