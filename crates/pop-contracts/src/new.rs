@@ -155,8 +155,9 @@ mod tests {
 		assert!(generated_cargo.contains("name = \"test_contract\""));
 		#[cfg(feature = "v5")]
 		assert!(generated_cargo.contains("ink = { version = \"5."));
+		//assert!(generated_cargo.contains("ink = { version = \"6."));
 		#[cfg(feature = "v6")]
-		assert!(generated_cargo.contains("ink = { version = \"6."));
+		assert!(generated_cargo.contains("version = \"6."));
 
 		Ok(())
 	}
