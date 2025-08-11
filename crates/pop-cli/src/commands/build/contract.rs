@@ -73,7 +73,7 @@ mod tests {
 				BuildContract {
 					path: Some(path.join(name)),
 					release,
-					metadata: Some(MetadataSpec::Solidity)
+					metadata: Some(MetadataSpec::Ink)
 				}
 				.build(&mut cli)?,
 				"contract"
