@@ -24,7 +24,7 @@ pub(super) enum BenchmarkingCli {
 		Repository = "https://github.com/r0gue-io/polkadot",
 		Binary = "frame-omni-bencher",
 		TagPattern = "polkadot-{version}",
-		Fallback = "stable2412"
+		Fallback = "stable2503-7"
 	))]
 	OmniBencher,
 }
@@ -90,7 +90,7 @@ mod tests {
 					tag_pattern: Some("polkadot-{version}".into()),
 					prerelease: false,
 					version_comparator: sort_by_latest_stable_version,
-					fallback: "stable2412".to_string(),
+					fallback: "stable2503-7".to_string(),
 					archive: format!("frame-omni-bencher-{}.tar.gz", target()?),
 					contents: ["frame-omni-bencher"].map(|b| ArchiveFileSpec::new(b.into(), Some(b.into()), true)).to_vec(),
 					latest: binary.latest().map(|l| l.to_string()),

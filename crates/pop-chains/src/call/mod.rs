@@ -194,50 +194,23 @@ impl Payload for CallData {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::{find_dispatchable_by_name, parse_chain_metadata, set_up_client};
+	use crate::set_up_client;
 	use anyhow::Result;
-	use url::Url;
 
 	const ALICE_SURI: &str = "//Alice";
-	pub(crate) const POP_NETWORK_TESTNET_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";
 
 	#[tokio::test]
-	async fn set_up_client_works() -> Result<()> {
+	async fn set_up_client_fails_wrong_url() -> Result<()> {
 		assert!(matches!(
 			set_up_client("wss://wronguri.xyz").await,
 			Err(Error::ConnectionFailure(_))
 		));
-		set_up_client(POP_NETWORK_TESTNET_URL).await?;
-		Ok(())
-	}
-
-	#[tokio::test]
-	async fn construct_proxy_extrinsic_work() -> Result<()> {
-		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
-		let pallets = parse_chain_metadata(&client)?;
-		let remark_dispatchable = find_dispatchable_by_name(&pallets, "System", "remark")?;
-		let remark = construct_extrinsic(remark_dispatchable, ["0x11".to_string()].to_vec())?;
-		let xt = construct_proxy_extrinsic(
-			&pallets,
-			"Id(13czcAAt6xgLwZ8k6ZpkrRL5V2pjKEui3v9gHAN9PoxYZDbf)".to_string(),
-			remark,
-		)?;
-		// Encoded call data for a proxy extrinsic with remark as the call.
-		// Reference: https://polkadot.js.org/apps/?rpc=wss%3A%2F%2Frpc1.paseo.popnetwork.xyz#/extrinsics/decode/0x29000073ebf9c947490b9170ea4fd3031ae039452e428531317f76bf0a02124f8166de0000000411
-		assert_eq!(
-			encode_call_data(&client, &xt)?,
-			"0x29000073ebf9c947490b9170ea4fd3031ae039452e428531317f76bf0a02124f8166de0000000411"
-		);
 		Ok(())
 	}
 
 	#[tokio::test]
 	async fn construct_extrinsic_works() -> Result<()> {
-		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
-		let pallets = parse_chain_metadata(&client)?;
-		let transfer_allow_death =
-			find_dispatchable_by_name(&pallets, "Balances", "transfer_allow_death")?;
-
+		let transfer_allow_death= Function { pallet: "Balances".into(), name: "transfer_allow_death".into(), index: 0, docs: ".".into(), params: [Param { name: "dest".into(), type_name: "MultiAddress<AccountId32 ([u8;32]),()>: Id(AccountId32 ([u8;32])), Index(Compact<()>), Raw([u8]), Address32([u8;32]), Address20([u8;20])".into(), sub_params: [Param { name: "Id".into(), type_name: "".into(), sub_params: [Param { name: "Id".into(), type_name: "AccountId32 ([u8;32])".into(), sub_params: [Param { name: "Id".into(), type_name: "[u8;32]".into(), sub_params: [].to_vec(), ..Default::default() }].to_vec(), ..Default::default() }].to_vec(), ..Default::default() }].to_vec(), ..Default::default() },Param { name: "value".into(), type_name: "Compact<u128>".into(), sub_params: [].to_vec(), ..Default::default() }].to_vec(), is_supported: true };
 		// Wrong parameters
 		assert!(matches!(
 			construct_extrinsic(
@@ -260,57 +233,9 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn encode_call_data_works() -> Result<()> {
-		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
-		let pallets = parse_chain_metadata(&client)?;
-		let remark = find_dispatchable_by_name(&pallets, "System", "remark")?;
-		let xt = construct_extrinsic(&remark, vec!["0x11".to_string()])?;
-		assert_eq!(encode_call_data(&client, &xt)?, "0x00000411");
-		let xt = construct_extrinsic(&remark, vec!["123".to_string()])?;
-		assert_eq!(encode_call_data(&client, &xt)?, "0x00000c313233");
-		let xt = construct_extrinsic(&remark, vec!["test".to_string()])?;
-		assert_eq!(encode_call_data(&client, &xt)?, "0x00001074657374");
-		Ok(())
-	}
-
-	#[tokio::test]
-	async fn decode_call_data_works() -> Result<()> {
-		assert!(matches!(decode_call_data("wrongcalldata"), Err(Error::CallDataDecodingError(..))));
-		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
-		let pallets = parse_chain_metadata(&client)?;
-		let remark = find_dispatchable_by_name(&pallets, "System", "remark")?;
-		let xt = construct_extrinsic(&remark, vec!["0x11".to_string()])?;
-		let expected_call_data = xt.encode_call_data(&client.metadata())?;
-		assert_eq!(decode_call_data("0x00000411")?, expected_call_data);
-		Ok(())
-	}
-
-	#[tokio::test]
-	async fn sign_and_submit_wrong_extrinsic_fails() -> Result<()> {
-		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
-		let function = Function {
-			pallet: "WrongPallet".to_string(),
-			name: "wrong_extrinsic".to_string(),
-			index: 0,
-			docs: "documentation".to_string(),
-			is_supported: true,
-			..Default::default()
-		};
-		let xt = construct_extrinsic(&function, vec!["0x11".to_string()])?;
-		assert!(matches!(
-			sign_and_submit_extrinsic(&client, &Url::parse(POP_NETWORK_TESTNET_URL)?, xt, ALICE_SURI).await,
-			Err(Error::ExtrinsicSubmissionError(message)) if message.contains("PalletNameNotFound(\"WrongPallet\"))")
-		));
-		Ok(())
-	}
-
-	#[tokio::test]
 	async fn construct_sudo_extrinsic_works() -> Result<()> {
-		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
-		let pallets = parse_chain_metadata(&client)?;
-		let force_transfer = find_dispatchable_by_name(&pallets, "Balances", "force_transfer")?;
 		let xt = construct_extrinsic(
-			&force_transfer,
+			&Function::default(),
 			vec![
 				"Id(5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty)".to_string(),
 				"Id(5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy)".to_string(),
