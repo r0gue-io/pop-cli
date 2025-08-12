@@ -249,8 +249,6 @@ impl CallContractCommand {
 		};
 
 		// Resolve url.
-		println!("{}", self.url.as_str());
-		println!("{}", urls::LOCAL);
 		if !repeat && self.url.as_str() == urls::LOCAL {
 			// Prompt for url.
 			let url: String = cli
