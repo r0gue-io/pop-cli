@@ -8,6 +8,7 @@ use crate::{
 	cli::traits::*,
 	common::{
 		chain::{configure, Chain},
+		urls,
 		wallet::submit_extrinsic,
 	},
 	deployment_api::{DeployRequest, DeployResponse, DeploymentApi},
@@ -31,7 +32,6 @@ use url::Url;
 
 type Proxy = Option<String>;
 
-const DEFAULT_URL: &str = "wss://paseo.rpc.amforc.com/";
 const HELP_HEADER: &str = "Chain deployment options";
 const PLACEHOLDER_ADDRESS: &str = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty";
 const PDP_API_KEY: &str = "PDP_API_KEY";
@@ -171,7 +171,7 @@ impl UpCommand {
 		cli: &mut impl Cli,
 	) -> Result<Registration> {
 		let chain =
-			configure("Enter the relay chain node URL", DEFAULT_URL, &self.relay_chain_url, cli)
+			configure("Enter the relay chain node URL", urls::LOCAL, &self.relay_chain_url, cli)
 				.await?;
 		let proxy = self.resolve_proxied_address(
 			&deployment_config.api,
@@ -542,7 +542,7 @@ fn warn_supported_templates(provider: &DeploymentProvider, cli: &mut impl Cli) -
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::cli::MockCli;
+	use crate::{cli::MockCli, common::urls};
 	use pop_chains::decode_call_data;
 	use pop_common::test_env::TestNode;
 	use std::fs;
@@ -551,7 +551,6 @@ mod tests {
 
 	const MOCK_PROXIED_ADDRESS: &str = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty";
 	const MOCK_PROXY_ADDRESS_ID: &str = "Id(13czcAAt6xgLwZ8k6ZpkrRL5V2pjKEui3v9gHAN9PoxYZDbf)";
-	const POLKADOT_NETWORK_URL: &str = "wss://polkadot-rpc.publicnode.com";
 
 	#[tokio::test]
 	async fn prepare_for_deployment_works() -> Result<()> {
@@ -677,7 +676,7 @@ mod tests {
 
 	#[test]
 	fn resolve_proxied_address_works() -> Result<()> {
-		let relay_chain_url = "ws://127.0.0.1:9944";
+		let relay_chain_url = urls::LOCAL;
 		let mut cli = MockCli::new()
             .expect_confirm("Would you like to use a pure proxy for registration? This is considered a best practice.", true)
             .expect_info(format!(
@@ -788,8 +787,8 @@ mod tests {
 		let mut cli = MockCli::new();
 		let chain = configure(
 			"Enter the relay chain node URL",
-			DEFAULT_URL,
-			&Some(Url::parse(POLKADOT_NETWORK_URL)?),
+			urls::LOCAL,
+			&Some(Url::parse(urls::POLKADOT)?),
 			&mut cli,
 		)
 		.await?;
@@ -874,8 +873,8 @@ mod tests {
 		let mut cli = MockCli::new();
 		let chain = configure(
 			"Enter the relay chain node URL",
-			DEFAULT_URL,
-			&Some(Url::parse(POLKADOT_NETWORK_URL)?),
+			urls::LOCAL,
+			&Some(Url::parse(urls::POLKADOT)?),
 			&mut cli,
 		)
 		.await?;

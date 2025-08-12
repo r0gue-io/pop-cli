@@ -7,6 +7,7 @@ use crate::{
 	common::{
 		chain::{self, Chain},
 		prompt::display_message,
+		urls,
 		wallet::{self, prompt_to_use_wallet},
 	},
 };
@@ -20,7 +21,6 @@ use pop_chains::{
 };
 use url::Url;
 
-const DEFAULT_URL: &str = "ws://localhost:9944/";
 const DEFAULT_URI: &str = "//Alice";
 const ENCODED_CALL_DATA_MAX_LEN: usize = 500; // Maximum length of encoded call data to display.
 
@@ -77,7 +77,7 @@ impl CallChainCommand {
 		// Configure the chain.
 		let chain = chain::configure(
 			"Which chain would you like to interact with?",
-			DEFAULT_URL,
+			urls::LOCAL,
 			&self.url,
 			&mut cli,
 		)
@@ -841,7 +841,7 @@ mod tests {
 			pallet: Some("System".to_string()),
 			function: Some("remark".to_string()),
 			args: vec!["0x11".to_string()].to_vec(),
-			url: Some(Url::parse(DEFAULT_URL)?),
+			url: Some(Url::parse(urls::LOCAL)?),
 			use_wallet: true,
 			suri: Some(DEFAULT_URI.to_string()),
 			skip_confirm: false,
@@ -863,7 +863,7 @@ mod tests {
 			pallet: Some("System".to_string()),
 			function: Some("remark".to_string()),
 			args: vec!["0x11".to_string()].to_vec(),
-			url: Some(Url::parse(DEFAULT_URL)?),
+			url: Some(Url::parse(urls::LOCAL)?),
 			suri: Some(DEFAULT_URI.to_string()),
 			use_wallet: false,
 			skip_confirm: false,
@@ -882,7 +882,7 @@ mod tests {
 			pallet: Some("Registrar".to_string()),
 			function: Some("register".to_string()),
 			args: vec!["2000".to_string(), "0x1".to_string(), "0x12".to_string()].to_vec(),
-			url: Some(Url::parse(DEFAULT_URL)?),
+			url: Some(Url::parse(urls::LOCAL)?),
 			suri: Some(DEFAULT_URI.to_string()),
 			use_wallet: false,
 			call_data: None,

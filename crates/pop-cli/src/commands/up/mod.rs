@@ -140,6 +140,7 @@ impl Display for Command {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::common::urls;
 	use cli::MockCli;
 	use duct::cmd;
 	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
@@ -164,7 +165,7 @@ mod tests {
 				gas_limit: None,
 				proof_size: None,
 				salt: None,
-				url: Url::parse("ws://127.0.0.1:9944")?,
+				url: Url::parse(urls::LOCAL)?,
 				suri: "//Alice".to_string(),
 				use_wallet: false,
 				dry_run: true,
