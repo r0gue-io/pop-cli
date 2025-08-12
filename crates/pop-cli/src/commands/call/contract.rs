@@ -6,6 +6,7 @@ use crate::{
 		builds::get_project_path,
 		contracts::has_contract_been_built,
 		prompt::display_message,
+		urls,
 		wallet::{prompt_to_use_wallet, request_signature},
 	},
 };
@@ -24,7 +25,6 @@ use std::path::PathBuf;
 #[cfg(feature = "polkavm-contracts")]
 use {crate::common::contracts::map_account, pop_common::parse_h160_account};
 
-const DEFAULT_URL: &str = "ws://localhost:9944/";
 const DEFAULT_URI: &str = "//Alice";
 const DEFAULT_PAYABLE_VALUE: &str = "0";
 
@@ -58,7 +58,7 @@ pub struct CallContractCommand {
 	#[arg(short = 'P', long)]
 	proof_size: Option<u64>,
 	/// Websocket endpoint of a node.
-	#[arg(short, long, value_parser, default_value = DEFAULT_URL)]
+	#[arg(short, long, value_parser, default_value = urls::LOCAL)]
 	url: url::Url,
 	/// Secret key URI for the account calling the contract.
 	///
@@ -249,12 +249,14 @@ impl CallContractCommand {
 		};
 
 		// Resolve url.
-		if !repeat && self.url.as_str() == DEFAULT_URL {
+		println!("{}", self.url.as_str());
+		println!("{}", urls::LOCAL);
+		if !repeat && self.url.as_str() == urls::LOCAL {
 			// Prompt for url.
 			let url: String = cli
 				.input("Where is your contract deployed?")
-				.placeholder("ws://localhost:9944")
-				.default_input("ws://localhost:9944")
+				.placeholder(urls::LOCAL)
+				.default_input(urls::LOCAL)
 				.interact()?;
 			self.url = url::Url::parse(&url)?
 		};
@@ -587,7 +589,10 @@ impl CallContractCommand {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::{cli::MockCli, common::wallet::USE_WALLET_PROMPT};
+	use crate::{
+		cli::MockCli,
+		common::{urls, wallet::USE_WALLET_PROMPT},
+	};
 	use pop_contracts::{mock_build_process, new_environment};
 	use std::{env, fs::write};
 	use url::Url;
@@ -603,7 +608,7 @@ mod tests {
 				value: DEFAULT_PAYABLE_VALUE.to_string(),
 				gas_limit: None,
 				proof_size: None,
-				url: url::Url::parse(DEFAULT_URL).unwrap(),
+				url: url::Url::parse(urls::LOCAL).unwrap(),
 				suri: "//Alice".to_string(),
 				use_wallet: false,
 				execute: false,
@@ -643,15 +648,15 @@ mod tests {
 			)
 			.expect_input(
 				"Where is your contract deployed?",
-				DEFAULT_URL.into(),
+				urls::LOCAL.into(),
 			)
 			.expect_input(
 				"Provide the on-chain contract address:",
 				"CONTRACT_ADDRESS".into(),
 			)
 			.expect_info(format!(
-	            "pop call contract --path {} --contract CONTRACT_ADDRESS --message get --url {DEFAULT_URL} --suri //Alice",
-	            temp_dir.path().join("testing").display().to_string(),
+	            "pop call contract --path {} --contract CONTRACT_ADDRESS --message get --url {} --suri //Alice",
+	            temp_dir.path().join("testing").display().to_string(), urls::LOCAL
 	        ));
 
 		let mut call_config = CallContractCommand {
@@ -663,7 +668,7 @@ mod tests {
 			value: DEFAULT_PAYABLE_VALUE.to_string(),
 			gas_limit: None,
 			proof_size: None,
-			url: Url::parse(DEFAULT_URL)?,
+			url: Url::parse(urls::LOCAL)?,
 			suri: DEFAULT_URI.to_string(),
 			use_wallet: false,
 			dry_run: false,
@@ -677,14 +682,17 @@ mod tests {
 		assert_eq!(call_config.value, "0".to_string());
 		assert_eq!(call_config.gas_limit, None);
 		assert_eq!(call_config.proof_size, None);
-		assert_eq!(call_config.url.to_string(), DEFAULT_URL);
+		assert_eq!(call_config.url.to_string(), urls::LOCAL);
 		assert_eq!(call_config.suri, "//Alice");
 		assert!(!call_config.execute);
 		assert!(!call_config.dry_run);
-		assert_eq!(call_config.display(), format!(
-			"pop call contract --path {} --contract CONTRACT_ADDRESS --message get --url {DEFAULT_URL} --suri //Alice",
-			temp_dir.path().join("testing").display().to_string()
-		));
+		assert_eq!(
+			call_config.display(),
+			format!(
+			"pop call contract --path {} --contract CONTRACT_ADDRESS --message get --url {} --suri //Alice",
+			temp_dir.path().join("testing").display().to_string(), urls::LOCAL
+		)
+		);
 
 		cli.verify()
 	}
@@ -711,7 +719,7 @@ mod tests {
 		let mut cli = MockCli::new()
 			.expect_input(
 				"Where is your contract deployed?",
-				DEFAULT_URL.into(),
+				urls::LOCAL.into(),
 			)
 			.expect_input(
 				"Provide the on-chain contract address:",
@@ -732,8 +740,8 @@ mod tests {
 			.expect_input("Enter the proof size limit:", "".into()) // Only if call
 			.expect_confirm(USE_WALLET_PROMPT, true)
 			.expect_info(format!(
-				"pop call contract --path {} --contract CONTRACT_ADDRESS --message specific_flip --args \"true\", \"2\" --value 50 --url {DEFAULT_URL} --use-wallet --execute",
-				temp_dir.path().join("testing").display().to_string(),
+				"pop call contract --path {} --contract CONTRACT_ADDRESS --message specific_flip --args \"true\", \"2\" --value 50 --url {} --use-wallet --execute",
+				temp_dir.path().join("testing").display().to_string(), urls::LOCAL
 			));
 
 		let mut call_config = CallContractCommand {
@@ -745,7 +753,7 @@ mod tests {
 			value: DEFAULT_PAYABLE_VALUE.to_string(),
 			gas_limit: None,
 			proof_size: None,
-			url: Url::parse(DEFAULT_URL)?,
+			url: Url::parse(urls::LOCAL)?,
 			suri: DEFAULT_URI.to_string(),
 			use_wallet: false,
 			dry_run: false,
@@ -761,14 +769,14 @@ mod tests {
 		assert_eq!(call_config.value, "50".to_string());
 		assert_eq!(call_config.gas_limit, None);
 		assert_eq!(call_config.proof_size, None);
-		assert_eq!(call_config.url.to_string(), DEFAULT_URL);
+		assert_eq!(call_config.url.to_string(), urls::LOCAL);
 		assert_eq!(call_config.suri, "//Alice");
 		assert!(call_config.use_wallet);
 		assert!(call_config.execute);
 		assert!(!call_config.dry_run);
 		assert_eq!(call_config.display(), format!(
-			"pop call contract --path {} --contract CONTRACT_ADDRESS --message specific_flip --args \"true\", \"2\" --value 50 --url {DEFAULT_URL} --use-wallet --execute",
-			temp_dir.path().join("testing").display().to_string()
+			"pop call contract --path {} --contract CONTRACT_ADDRESS --message specific_flip --args \"true\", \"2\" --value 50 --url {} --use-wallet --execute",
+			temp_dir.path().join("testing").display().to_string(), urls::LOCAL
 		));
 
 		cli.verify()
@@ -804,7 +812,7 @@ mod tests {
 			)
 			.expect_input(
 				"Where is your contract deployed?",
-				DEFAULT_URL.into(),
+				urls::LOCAL.into(),
 			)
 			.expect_input(
 				"Provide the on-chain contract address:",
@@ -815,8 +823,8 @@ mod tests {
 			.expect_input("Value to transfer to the call:", "50".into()) // Only if payable
 			.expect_input("Signer calling the contract:", "//Alice".into())
 			.expect_info(format!(
-				"pop call contract --path {} --contract CONTRACT_ADDRESS --message specific_flip --args \"true\", \"2\" --value 50 --url {DEFAULT_URL} --suri //Alice --execute",
-				temp_dir.path().join("testing").display().to_string(),
+				"pop call contract --path {} --contract CONTRACT_ADDRESS --message specific_flip --args \"true\", \"2\" --value 50 --url {} --suri //Alice --execute",
+				temp_dir.path().join("testing").display().to_string(), urls::LOCAL
 			));
 
 		let mut call_config = CallContractCommand {
@@ -828,7 +836,7 @@ mod tests {
 			value: DEFAULT_PAYABLE_VALUE.to_string(),
 			gas_limit: None,
 			proof_size: None,
-			url: Url::parse(DEFAULT_URL)?,
+			url: Url::parse(urls::LOCAL)?,
 			suri: DEFAULT_URI.to_string(),
 			use_wallet: false,
 			dry_run: false,
@@ -844,14 +852,14 @@ mod tests {
 		assert_eq!(call_config.value, "50".to_string());
 		assert_eq!(call_config.gas_limit, None);
 		assert_eq!(call_config.proof_size, None);
-		assert_eq!(call_config.url.to_string(), DEFAULT_URL);
+		assert_eq!(call_config.url.to_string(), urls::LOCAL);
 		assert_eq!(call_config.suri, "//Alice");
 		assert!(call_config.execute);
 		assert!(!call_config.dry_run);
 		assert!(call_config.dev_mode);
 		assert_eq!(call_config.display(), format!(
-			"pop call contract --path {} --contract CONTRACT_ADDRESS --message specific_flip --args \"true\", \"2\" --value 50 --url {DEFAULT_URL} --suri //Alice --execute",
-			temp_dir.path().join("testing").display().to_string()
+			"pop call contract --path {} --contract CONTRACT_ADDRESS --message specific_flip --args \"true\", \"2\" --value 50 --url {} --suri //Alice --execute",
+			temp_dir.path().join("testing").display().to_string(), urls::LOCAL
 		));
 
 		cli.verify()
@@ -888,7 +896,7 @@ mod tests {
 			value: "0".to_string(),
 			gas_limit: None,
 			proof_size: None,
-			url: Url::parse(DEFAULT_URL)?,
+			url: Url::parse(urls::LOCAL)?,
 			suri: "//Alice".to_string(),
 			use_wallet: false,
 			dry_run: false,
@@ -939,7 +947,7 @@ mod tests {
 				value: "0".to_string(),
 				gas_limit: None,
 				proof_size: None,
-				url: Url::parse(DEFAULT_URL)?,
+				url: Url::parse(urls::LOCAL)?,
 				suri: "//Alice".to_string(),
 				use_wallet: false,
 				dry_run: false,
@@ -959,7 +967,7 @@ mod tests {
 				value: "0".to_string(),
 				gas_limit: None,
 				proof_size: None,
-				url: Url::parse(DEFAULT_URL)?,
+				url: Url::parse(urls::LOCAL)?,
 				suri: "//Alice".to_string(),
 				use_wallet: false,
 				dry_run: false,
@@ -984,7 +992,7 @@ mod tests {
 			value: "0".to_string(),
 			gas_limit: None,
 			proof_size: None,
-			url: Url::parse(DEFAULT_URL)?,
+			url: Url::parse(urls::LOCAL)?,
 			suri: "//Alice".to_string(),
 			use_wallet: false,
 			dry_run: false,
@@ -1016,7 +1024,7 @@ mod tests {
 			value: "0".to_string(),
 			gas_limit: None,
 			proof_size: None,
-			url: Url::parse(DEFAULT_URL)?,
+			url: Url::parse(urls::LOCAL)?,
 			suri: "//Alice".to_string(),
 			use_wallet: false,
 			dry_run: false,

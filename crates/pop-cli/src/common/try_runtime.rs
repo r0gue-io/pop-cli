@@ -8,7 +8,10 @@ use super::{
 };
 use crate::{
 	cli::traits::*,
-	common::binary::{check_and_prompt, BinaryGenerator, SemanticVersion},
+	common::{
+		binary::{check_and_prompt, BinaryGenerator, SemanticVersion},
+		urls,
+	},
 	impl_binary_generator,
 };
 use clap::Args;
@@ -33,7 +36,6 @@ use strum::{EnumMessage, VariantArray};
 const BINARY_NAME: &str = "try-runtime";
 pub(crate) const DEFAULT_BLOCK_HASH: &str = "0x0000000000";
 pub(crate) const DEFAULT_BLOCK_TIME: u64 = 6000;
-pub(crate) const DEFAULT_LIVE_NODE_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";
 pub(crate) const DEFAULT_SNAPSHOT_PATH: &str = "your-parachain.snap";
 const TARGET_BINARY_VERSION: SemanticVersion = SemanticVersion(0, 8, 0);
 
@@ -163,7 +165,7 @@ pub(crate) fn update_live_state(
 		let uri = cli
 			.input("Enter the live chain of your node:")
 			.required(true)
-			.placeholder(DEFAULT_LIVE_NODE_URL)
+			.placeholder(urls::PASEO)
 			.interact()?;
 		live_state.uri = Some(parse::url(&uri)?);
 	}
@@ -936,10 +938,10 @@ mod tests {
 		assert!(args.is_empty());
 
 		let mut live_state = LiveState::default();
-		live_state.uri = Some("ws://localhost:9944".to_string());
+		live_state.uri = Some(urls::LOCAL.to_string());
 		cmd.state = Some(State::Live(live_state.clone()));
 		// Keep the user-provided argument unchanged.
-		let user_provided_args = &["--uri".to_string(), "ws://localhost:9944".to_string()];
+		let user_provided_args = &["--uri".to_string(), urls::LOCAL.to_string()];
 		let mut args = vec![];
 		collect_state_arguments(&cmd.state, user_provided_args, &mut args)?;
 		assert_eq!(args, user_provided_args);

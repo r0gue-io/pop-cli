@@ -325,6 +325,7 @@ mod tests {
 		try_runtime::{
 			get_mock_snapshot, get_subcommands, source_try_runtime_binary, DEFAULT_BLOCK_HASH,
 		},
+		urls,
 	};
 	use cli::MockCli;
 	use pop_chains::{state::LiveState, Runtime};
@@ -367,7 +368,7 @@ mod tests {
 				0, // live
 				None,
 			)
-			.expect_input("Enter the live chain of your node:", "ws://localhost:9944".to_string())
+			.expect_input("Enter the live chain of your node:", urls::LOCAL.to_string())
 			.expect_input("Enter the block hash (optional):", DEFAULT_BLOCK_HASH.to_string())
 			.expect_select(
 				"Select upgrade checks to perform:",
@@ -382,7 +383,7 @@ mod tests {
 				"pop test on-runtime-upgrade --runtime={} --blocktime=6000 \
 			--checks=all --profile=debug -n live --uri={} --at={}",
 				get_mock_runtime(Some(TryRuntime)).to_str().unwrap(),
-				"ws://localhost:9944".to_string(),
+				urls::LOCAL.to_string(),
 				DEFAULT_BLOCK_HASH.strip_prefix("0x").unwrap_or_default().to_string()
 			));
 		command.execute(&mut cli).await?;

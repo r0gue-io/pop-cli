@@ -5,6 +5,7 @@ use crate::{
 	common::{
 		prompt::display_message,
 		try_runtime::{check_try_runtime_and_prompt, collect_args, ArgumentConstructor},
+		urls,
 	},
 };
 use clap::Args;
@@ -14,7 +15,6 @@ use pop_chains::{parse::url, run_try_runtime, state::LiveState, TryRuntimeCliCom
 
 // Custom arguments which are not in `try-runtime create-snapshot`.
 const CUSTOM_ARGS: [&str; 2] = ["--skip-confirm", "-y"];
-const DEFAULT_REMOTE_NODE_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";
 const DEFAULT_SNAPSHOT_PATH: &str = "example.snap";
 
 #[derive(Args, Default)]
@@ -45,7 +45,7 @@ impl TestCreateSnapshotCommand {
 		if self.from.uri.is_none() {
 			let input = cli
 				.input("Enter the URI of the remote node:")
-				.placeholder(DEFAULT_REMOTE_NODE_URL)
+				.placeholder(urls::PASEO)
 				.required(true)
 				.interact()?;
 			self.from.uri = Some(url(input.trim())?);
@@ -166,25 +166,22 @@ mod tests {
 	#[test]
 	fn display_works() {
 		let mut command = TestCreateSnapshotCommand::default();
-		command.from.uri = Some("ws://localhost:9944".to_string());
+		command.from.uri = Some(urls::LOCAL.to_string());
 		command.snapshot_path = Some(DEFAULT_SNAPSHOT_PATH.to_string());
 		command.skip_confirm = true;
 		assert_eq!(
 			command.display(),
-			format!(
-				"pop test create-snapshot --uri=ws://localhost:9944 -y {}",
-				DEFAULT_SNAPSHOT_PATH
-			)
+			format!("pop test create-snapshot --uri={} -y {}", urls::LOCAL, DEFAULT_SNAPSHOT_PATH)
 		);
 	}
 
 	#[test]
 	fn collect_arguments_works() {
-		let expected_uri = "--uri=ws://localhost:9944";
+		let expected_uri = &format!("--uri={}", urls::LOCAL);
 		let test_cases: Vec<(&str, Box<dyn Fn(&mut TestCreateSnapshotCommand)>, &str)> = vec![
 			(
 				"--uri=ws://localhost:8545",
-				Box::new(|cmd| cmd.from.uri = Some("ws://localhost:9944".to_string())),
+				Box::new(|cmd| cmd.from.uri = Some(urls::LOCAL.to_string())),
 				expected_uri,
 			),
 			(
@@ -213,32 +210,32 @@ mod tests {
 		}
 
 		let mut command = TestCreateSnapshotCommand::default();
-		command.from.uri = Some("ws://localhost:9944".to_string());
+		command.from.uri = Some(urls::LOCAL.to_string());
 		assert_eq!(
 			command.collect_arguments(&["--skip-confirm".to_string(), "example.snap".to_string(),]),
-			vec![&format!("--uri={}", "ws://localhost:9944"), "--skip-confirm", "example.snap"]
+			vec![&format!("--uri={}", urls::LOCAL), "--skip-confirm", "example.snap"]
 		);
 		command.skip_confirm = true;
 		assert_eq!(
 			command.collect_arguments(&["example.snap".to_string(),]),
-			vec![&format!("--uri={}", "ws://localhost:9944"), "-y", "example.snap"]
+			vec![&format!("--uri={}", urls::LOCAL), "-y", "example.snap"]
 		);
 		assert_eq!(
 			command.collect_arguments(&[
 				"--skip-confirm".to_string(),
 				"--uri".to_string(),
-				"ws://localhost:9944".to_string(),
+				urls::LOCAL.to_string(),
 				"example.snap".to_string(),
 			]),
-			vec!["--skip-confirm", &format!("--uri={}", "ws://localhost:9944"), "example.snap"]
+			vec!["--skip-confirm", &format!("--uri={}", urls::LOCAL), "example.snap"]
 		);
 		assert_eq!(
 			command.collect_arguments(&[
-				format!("--uri={}", "ws://localhost:9944"),
+				format!("--uri={}", urls::LOCAL),
 				"--skip-confirm".to_string(),
 				"example.snap".to_string(),
 			]),
-			vec![&format!("--uri={}", "ws://localhost:9944"), "--skip-confirm", "example.snap"]
+			vec![&format!("--uri={}", urls::LOCAL), "--skip-confirm", "example.snap"]
 		);
 		command.skip_confirm = true;
 	}

@@ -4,6 +4,7 @@ use crate::{
 	cli::{traits::Cli as _, Cli},
 	common::{
 		contracts::{check_contracts_node_and_prompt, has_contract_been_built, terminate_node},
+		urls,
 		wallet::request_signature,
 	},
 	style::style,
@@ -28,7 +29,6 @@ use url::Url;
 use {crate::common::contracts::map_account, sp_core::bytes::to_hex};
 
 const COMPLETE: &str = "🚀 Deployment complete";
-const DEFAULT_URL: &str = "ws://localhost:9944/";
 const DEFAULT_PORT: u16 = 9944;
 const FAILED: &str = "🚫 Deployment failed.";
 const HELP_HEADER: &str = "Smart contract deployment options";
@@ -62,7 +62,7 @@ pub struct UpContractCommand {
 	#[clap(short = 'S', long, value_parser = parse_hex_bytes)]
 	pub(crate) salt: Option<Bytes>,
 	/// Websocket endpoint of a chain.
-	#[clap(short, long, value_parser, default_value = DEFAULT_URL)]
+	#[clap(short, long, value_parser, default_value = urls::LOCAL)]
 	pub(crate) url: Url,
 	/// Secret key URI for the account deploying the contract.
 	///
@@ -118,7 +118,7 @@ impl UpContractCommand {
 		// Check if specified chain is accessible
 		let process = if !is_chain_alive(self.url.clone()).await? {
 			if !self.skip_confirm {
-				let chain = if self.url.as_str() == DEFAULT_URL {
+				let chain = if self.url.as_str() == urls::LOCAL {
 					"No endpoint was specified.".into()
 				} else {
 					format!("The specified endpoint of {} is inaccessible.", self.url)
@@ -138,7 +138,7 @@ impl UpContractCommand {
 			}
 
 			// Update url to that of the launched node
-			self.url = Url::parse(DEFAULT_URL).expect("default url is valid");
+			self.url = Url::parse(urls::LOCAL).expect("default url is valid");
 
 			let log = NamedTempFile::new()?;
 
@@ -479,7 +479,7 @@ impl Default for UpContractCommand {
 			gas_limit: None,
 			proof_size: None,
 			salt: None,
-			url: Url::parse("ws://localhost:9944").expect("default url is valid"),
+			url: Url::parse(urls::LOCAL).expect("default url is valid"),
 			suri: "//Alice".to_string(),
 			use_wallet: false,
 			dry_run: false,
@@ -508,7 +508,7 @@ mod tests {
 				gas_limit: None,
 				proof_size: None,
 				salt: None,
-				url: Url::parse("ws://localhost:9944")?,
+				url: Url::parse(urls::LOCAL)?,
 				suri: "//Alice".to_string(),
 			}
 		);
