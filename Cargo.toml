@@ -17,7 +17,7 @@ edition = "2021"
 documentation = "https://learn.onpop.io/"
 license = "GPL-3.0"
 repository = "https://github.com/r0gue-io/pop-cli"
-rust-version = "1.81.0"
+rust-version = "1.87.0"
 version = "0.8.1"
 
 [workspace.dependencies]
@@ -42,26 +42,29 @@ tracing-subscriber = { version = "0.3.19", default-features = false }
 
 # networking
 reqwest = { version = "0.12", default-features = false, features = ["default-tls", "json", "multipart", "stream"] }
-tokio = { version = "1.0", default-features = false, features = ["macros", "process", "rt-multi-thread"] }
+tokio = { version = "1.0", default-features = false, features = ["macros", "process", "rt-multi-thread", "net"] }
 url = "2.5.4"
 
 # contracts
 subxt-signer = { version = "0.38.0", default-features = false, features = ["subxt", "sr25519"] }
+subxt-signer_inkv6 = { version = "0.42.1", package = "subxt-signer", default-features = false, features = ["subxt", "sr25519"] }
 subxt = { version = "0.38.0", default-features = false }
+subxt_inkv6 = { version = "0.42.1", package = "subxt", default-features = false }
 ink_env = { version = "5.0.0", default-features = false }
-ink_env_v6 = { version = "6.0.0-alpha", package = "ink_env", default-features = false }
+ink_env_v6 = { git = "https://github.com/use-ink/ink", branch = "master", package = "ink_env", default-features = false }
 sp-core = { version = "32.0.0", default-features = false }
-sp-core_inkv6 = { version = "36.1.0", package = "sp-core", default-features = false }
+sp-core_inkv6 = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "cb629d46ebf00aa65624013a61f9c69ebf02b0b4", package = "sp-core", default-features = false }
 sp-weights = { version = "31.0.0", default-features = false }
-scale = { package = "parity-scale-codec", version = "3.0.0", features = ["derive"] }
+sp-weights_inkv6 = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "cb629d46ebf00aa65624013a61f9c69ebf02b0b4", package = "sp-weights", default-features = false }
+scale = { package = "parity-scale-codec", version = "3.7.5", features = ["derive"] }
 scale-info = { version = "2.11.4", default-features = false, features = ["derive"] }
 scale-value = { version = "0.17.0", default-features = false, features = ["from-string", "parser-ss58"] }
 contract-build = { version = "5.0.2", default-features = false }
-contract-build_inkv6 = { version = "6.0.0-alpha", package = "contract-build", default-features = false }
+contract-build_inkv6 = { git = "https://github.com/use-ink/cargo-contract", tag = "v6.0.0-alpha.1", package = "contract-build", default-features = false }
 contract-extrinsics = { version = "5.0.2", default-features = false }
-contract-extrinsics_inkv6 = { version = "6.0.0-alpha", package = "contract-extrinsics", default-features = false }
+contract-extrinsics_inkv6 = { git = "https://github.com/use-ink/cargo-contract", tag = "v6.0.0-alpha.1", package = "contract-extrinsics", default-features = false }
 contract-transcode = { version = "5.0.2", default-features = false }
-contract-transcode_inkv6 = { version = "6.0.0-alpha", package = "contract-transcode", default-features = false }
+contract-transcode_inkv6 = { git = "https://github.com/use-ink/cargo-contract", tag = "v6.0.0-alpha.1", package = "contract-transcode", default-features = false }
 heck = { version = "0.5.0", default-features = false }
 
 # parachains

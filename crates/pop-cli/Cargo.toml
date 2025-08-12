@@ -35,6 +35,10 @@ url.workspace = true
 pop-contracts = { path = "../pop-contracts", version = "0.8.1", default-features = false, optional = true }
 sp-core = { workspace = true, optional = true }
 sp-weights = { workspace = true, optional = true }
+subxt-signer = { workspace = true, optional = true }
+subxt-signer_inkv6 = { workspace = true, optional = true }
+subxt = { workspace = true, optional = true }
+subxt_inkv6 = { workspace = true, optional = true }
 
 # parachains
 pop-chains = { path = "../pop-chains", version = "0.8.1", optional = true }
@@ -57,8 +61,6 @@ tower-http = { workspace = true, features = ["fs", "cors"], optional = true }
 assert_cmd.workspace = true
 contract-extrinsics.workspace = true
 mockito.workspace = true
-subxt.workspace = true
-subxt-signer.workspace = true
 
 [features]
 default = ["chain", "telemetry", "wasm-contracts"]
@@ -68,8 +70,8 @@ experimental = ["hashing"]
 hashing = ["dep:sp-core"]
 chain = ["dep:pop-chains", "dep:git2", "dep:regex", "dep:sp-core", "dep:tracing-subscriber", "wallet-integration"]
 v6 = []
-polkavm-contracts = ["pop-contracts/v6", "dep:pop-contracts", "dep:sp-core", "dep:sp-weights", "wallet-integration"]
+polkavm-contracts = ["pop-contracts/v6", "dep:pop-contracts", "dep:sp-core", "dep:sp-weights", "dep:subxt_inkv6", "dep:subxt-signer_inkv6", "wallet-integration"]
 telemetry = ["dep:pop-telemetry"]
 v5 = []
-wasm-contracts = ["pop-contracts/v5", "dep:pop-contracts", "dep:sp-core", "dep:sp-weights", "wallet-integration", "v5"]
+wasm-contracts = ["pop-contracts/v5", "dep:pop-contracts", "dep:sp-core", "dep:sp-weights", "dep:subxt", "dep:subxt-signer", "wallet-integration", "v5"]
 wallet-integration = ["dep:axum", "dep:open", "dep:tower-http"]
