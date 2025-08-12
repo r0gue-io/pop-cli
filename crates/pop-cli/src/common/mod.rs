@@ -191,6 +191,7 @@ impl Display for TestFeature {
 	}
 }
 
+#[cfg(any(feature = "chain", feature = "polkavm-contracts", feature = "wasm-contracts"))]
 pub mod urls {
 	/// Local dev node (Substrate default port 9944).
 	pub const LOCAL: &str = "ws://localhost:9944/";
