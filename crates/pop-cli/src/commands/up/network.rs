@@ -70,6 +70,9 @@ pub(crate) struct ConfigFileCommand {
 	/// Automatically source all necessary binaries required without prompting for confirmation.
 	#[clap(short = 'y', long)]
 	pub(crate) skip_confirm: bool,
+	/// Automatically remove the state upon tearing down the network.
+	#[clap(long = "rm")]
+	pub(crate) auto_remove: bool,
 }
 
 impl ConfigFileCommand {
@@ -107,6 +110,7 @@ impl ConfigFileCommand {
 			self.parachain.as_ref(),
 			self.verbose,
 			self.skip_confirm,
+			self.auto_remove,
 			self.command.as_deref(),
 			cli,
 		)
@@ -151,6 +155,9 @@ pub(crate) struct BuildCommand<const FILTER: u8> {
 	/// Automatically source all necessary binaries required without prompting for confirmation.
 	#[clap(short = 'y', long)]
 	skip_confirm: bool,
+	/// Automatically remove the state upon tearing down the network.
+	#[clap(long = "rm")]
+	auto_remove: bool,
 }
 
 impl<const FILTER: u8> BuildCommand<FILTER> {
@@ -200,6 +207,7 @@ impl<const FILTER: u8> BuildCommand<FILTER> {
 			None,
 			self.verbose,
 			self.skip_confirm,
+			self.auto_remove,
 			self.command.as_deref(),
 			cli,
 		)
@@ -286,6 +294,7 @@ pub(crate) async fn spawn(
 	parachains: Option<&Vec<String>>,
 	verbose: bool,
 	skip_confirm: bool,
+	auto_remove: bool,
 	command: Option<&str>,
 	cli: &mut impl cli::traits::Cli,
 ) -> anyhow::Result<()> {
@@ -433,6 +442,14 @@ pub(crate) async fn spawn(
 			}
 
 			tokio::signal::ctrl_c().await?;
+
+			if auto_remove {
+				// Remove cache directory after network is terminated
+				if let Err(e) = std::fs::remove_dir_all(&base_dir) {
+					cli.warning(format!("Failed to remove cache directory: {e}"))?;
+				}
+			}
+
 			cli.outro("Done")?;
 		},
 		Err(e) => {
