@@ -446,7 +446,7 @@ pub(crate) async fn spawn(
 			if auto_remove {
 				// Remove cache directory after network is terminated
 				if let Err(e) = std::fs::remove_dir_all(&base_dir) {
-					cli.warning(format!("Failed to remove cache directory: {e}"))?;
+					cli.warning(format!("🚫 Failed to remove cache directory: {e}"))?;
 				}
 			}
 
