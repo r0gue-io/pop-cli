@@ -20,7 +20,7 @@ console.workspace = true
 dirs.workspace = true
 duct.workspace = true
 env_logger.workspace = true
-hex.workspace = true
+hex = { workspace = true, optional = true }
 os_info.workspace = true
 reqwest.workspace = true
 serde = { workspace = true, features = ["derive"] }
