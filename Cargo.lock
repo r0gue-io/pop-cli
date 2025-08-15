@@ -8893,6 +8893,7 @@ dependencies = [
  "duct",
  "env_logger 0.11.7",
  "git2",
+ "hex",
  "mockito",
  "open",
  "os_info",
