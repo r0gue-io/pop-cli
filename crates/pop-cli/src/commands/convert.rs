@@ -54,12 +54,12 @@ pub(crate) struct ConvertArgs {
 /// Entrypoint for several utility commands.
 #[derive(Subcommand)]
 pub(crate) enum Command {
-	/// Convert an Ethereum address to a Substrate address and vice versa.
+	/// Convert an Ethereum address into a Substrate address and vice versa.
 	#[clap(alias = "a")]
 	Address {
 		#[arg(help = "The Substrate or Ethereum address")]
 		address: String,
-        #[arg(help = "The Substrate prefix")]
+        #[arg(help = "The SS58 prefix. Defaults to 0 (Polkadot).")]
         prefix: Option<u16>,
 	},
 }
