@@ -106,10 +106,8 @@ mod tests {
         assert!(convert_address("0x742d35Cc6634C0532925a3b844Bc454e4438f44g", None).is_err()); // Invalid hex
 
         // Test SS58 to ETH conversion with different formats
-        let ss58_default = "13dKz82CEiU7fKfhfQ5aLpdbXHApLfJH5Z6y2RTZpRwKiNhX";
-        let ss58_kusama = "5Eh2qnm8NwCeDnfBhm2aCfoSffBAeMk914NUs8UDGLuoY6qg";
-        assert_eq!(convert_address(ss58_default, None).unwrap(), "0x742d35cc6634c0532925a3b844bc454e4438f44e");
-        assert_eq!(convert_address(ss58_kusama, None).unwrap(), "0x742d35cc6634c0532925a3b844bc454e4438f44e");
+        assert_eq!(convert_address("13dKz82CEiU7fKfhfQ5aLpdbXHApLfJH5Z6y2RTZpRwKiNhX", None).unwrap(), "0x742d35cc6634c0532925a3b844bc454e4438f44e");
+        assert_eq!(convert_address("5Eh2qnm8NwCeDnfBhm2aCfoSffBAeMk914NUs8UDGLuoY6qg", None).unwrap(), "0x742d35cc6634c0532925a3b844bc454e4438f44e");
 
         // Test invalid SS58 addresses
         let invalid_ss58 = "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"; // Not originally from ETH
