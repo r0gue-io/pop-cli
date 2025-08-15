@@ -58,9 +58,9 @@ pub(crate) enum Command {
 	/// Remove generated/cached artifacts.
 	#[clap(alias = "C")]
 	Clean(clean::CleanArgs),
-    /// Convert between different formats.
-    #[clap(alias = "cv")]
-    Convert(convert::ConvertArgs),
+	/// Convert between different formats.
+	#[clap(alias = "cv")]
+	Convert(convert::ConvertArgs),
 }
 
 /// Help message for the build command.
@@ -244,11 +244,11 @@ impl Command {
 					},
 				}
 			},
-            Command::Convert(args) => {
-                env_logger::init();
-                args.command.execute(&mut Cli).map(|_| Null)
-            },
-        }
+			Command::Convert(args) => {
+				env_logger::init();
+				args.command.execute(&mut Cli).map(|_| Null)
+			},
+		}
 	}
 }
 
@@ -318,8 +318,8 @@ impl Display for Command {
 			#[cfg(feature = "chain")]
 			Self::Bench(args) => write!(f, "bench {}", args.command),
 			Command::Hash(args) => write!(f, "hash {}", args.command),
-            Command::Convert(args) => write!(f, "convert {}", args.command)
-        }
+			Command::Convert(args) => write!(f, "convert {}", args.command),
+		}
 	}
 }
 
