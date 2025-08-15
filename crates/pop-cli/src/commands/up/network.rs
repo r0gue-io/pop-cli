@@ -444,9 +444,9 @@ pub(crate) async fn spawn(
 			tokio::signal::ctrl_c().await?;
 
 			if auto_remove {
-				// Remove cache directory after network is terminated
+				// Remove zombienet directory after network is terminated
 				if let Err(e) = std::fs::remove_dir_all(&base_dir) {
-					cli.warning(format!("🚫 Failed to remove cache directory: {e}"))?;
+					cli.warning(format!("🚫 Failed to remove zombienet directory: {e}"))?;
 				}
 			}
 
