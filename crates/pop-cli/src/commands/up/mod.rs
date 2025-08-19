@@ -2,7 +2,6 @@
 
 use crate::{
 	cli::{self, Cli},
-	commands::up::network::ConfigFileCommand,
 	common::{
 		builds::get_project_path,
 		Project::{self, *},
@@ -63,7 +62,7 @@ pub(crate) enum Command {
 	/// Launch a local network by specifying a network configuration file.
 	#[cfg(feature = "chain")]
 	#[clap(aliases = ["n", "chain"])]
-	Network(ConfigFileCommand),
+	Network(network::ConfigFileCommand),
 	/// Launch a local Paseo network.
 	#[cfg(feature = "chain")]
 	#[clap()]
@@ -97,7 +96,8 @@ impl Command {
 		#[cfg(feature = "chain")]
 		if let Some(path) = project_path.as_deref() {
 			if path.is_file() {
-				let cmd = ConfigFileCommand { path: Some(path.into()), ..Default::default() };
+				let cmd =
+					network::ConfigFileCommand { path: Some(path.into()), ..Default::default() };
 				cmd.execute(cli).await?;
 				return Ok(Network);
 			}
