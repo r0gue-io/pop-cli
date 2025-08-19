@@ -733,7 +733,13 @@ pub(crate) mod tests {
 		}
 
 		fn interact(&mut self) -> Result<T> {
-			Ok(self.items[self.item].clone())
+			let item = self.items.get(self.item).ok_or_else(|| {
+				std::io::Error::new(
+					std::io::ErrorKind::NotFound,
+					format!("Missing item at position {}", self.item),
+				)
+			})?;
+			Ok(item.clone())
 		}
 
 		fn item(mut self, value: T, label: impl Display, hint: impl Display) -> Self {

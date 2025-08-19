@@ -226,6 +226,7 @@ impl CallContractCommand {
 				.default_input("./")
 				.interact()?;
 			project_path = Some(PathBuf::from(input_path));
+			self.path = project_path.clone();
 		}
 		let contract_path = project_path
 			.as_ref()
@@ -754,6 +755,71 @@ mod tests {
 		// Contract deployed on Pop Network testnet, test dry-run
 		call_config.execute_call(&mut cli, false).await?;
 
+		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn call_contract_twice_maintains_build_directory() -> Result<()> {
+		let mut current_dir = env::current_dir().expect("Failed to get current directory");
+		current_dir.pop();
+
+		let items = vec![
+            ("flip\n".into(), " A message that can be called on instantiated contracts.  This one flips the value of the stored `bool` from `true`  to `false` and vice versa.".into()),
+            ("get\n".into(), " Simply returns the current value of our `bool`.".into()),
+            ("specific_flip\n".into(), " A message for testing, flips the value of the stored `bool` with `new_value`  and is payable".into())
+        ];
+		let mut cli = MockCli::new()
+			.expect_intro(&"Call a contract")
+			.expect_input(
+				"Where is your project or contract artifact located?",
+				current_dir
+					.join("pop-contracts/tests/files/testing.contract")
+					.into_os_string()
+					.into_string()
+					.unwrap(),
+			)
+			.expect_select(
+				"Select the message to call:",
+				Some(false),
+				true,
+				Some(items.clone()),
+				1, // "get" message
+				None,
+			);
+		// From .contract file
+		let mut call_config = CallContractCommand {
+			path: None,
+			path_pos: None,
+			contract: Some(CONTRACT_ADDRESS.to_string()),
+			message: None,
+			args: vec![].to_vec(),
+			value: "".to_string(),
+			gas_limit: Some(100),
+			proof_size: Some(10),
+			url: Url::parse(CONTRACTS_NETWORK_URL)?,
+			suri: "//Alice".to_string(),
+			use_wallet: false,
+			dry_run: true,
+			execute: false,
+			dev_mode: false,
+		};
+		assert_eq!(call_config.path, None);
+
+		call_config.configure(&mut cli, false).await?;
+		assert_ne!(call_config.path, None);
+
+		// If we try again, it should not ask for the contract artifact location
+		cli.verify()?;
+		call_config.message = None;
+		let mut cli = MockCli::new().expect_intro(&"Call a contract").expect_select(
+			"Select the message to call:",
+			Some(false),
+			true,
+			Some(items),
+			1, // "get" message
+			None,
+		);
+		call_config.configure(&mut cli, false).await?;
 		cli.verify()
 	}
 
