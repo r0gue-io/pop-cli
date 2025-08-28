@@ -20,7 +20,6 @@ console.workspace = true
 dirs.workspace = true
 duct.workspace = true
 env_logger.workspace = true
-hex = { workspace = true, optional = true }
 os_info.workspace = true
 reqwest.workspace = true
 serde = { workspace = true, features = ["derive"] }
@@ -67,7 +66,7 @@ contract = ["wasm-contracts"]
 contracts = ["polkavm-contracts"]
 experimental = ["hashing", "convert"]
 hashing = ["dep:sp-core"]
-convert = ["dep:sp-core", "dep:hex", "dep:regex"]
+convert = ["dep:sp-core", "dep:regex"]
 chain = ["dep:pop-chains", "dep:git2", "dep:regex", "dep:sp-core", "dep:tracing-subscriber", "wallet-integration"]
 v6 = []
 polkavm-contracts = ["pop-contracts/v6", "dep:pop-contracts", "dep:sp-core", "dep:sp-weights", "wallet-integration"]

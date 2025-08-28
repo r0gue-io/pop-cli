@@ -5,9 +5,11 @@ use super::*;
 use crate::cli::traits::Cli;
 use anyhow::Result;
 use clap::Args;
-use hex;
 use regex::Regex;
-use sp_core::crypto::{AccountId32, Ss58Codec};
+use sp_core::{
+	bytes::{from_hex, to_hex},
+	crypto::{AccountId32, Ss58Codec},
+};
 
 const ETHEREUM_ADDRESS_REGEX: &str = "^0x[0-9a-fA-F]{40}$";
 const EE_BYTE: u8 = 0xEE;
@@ -17,7 +19,7 @@ fn convert_address(address: &str, ss58_prefix: Option<u16>) -> Result<String> {
 	let eth_regex = Regex::new(ETHEREUM_ADDRESS_REGEX)?;
 
 	if eth_regex.is_match(address) {
-		let mut raw_bytes = hex::decode(&address[2..])?;
+		let mut raw_bytes = from_hex(&address[2..])?;
 		raw_bytes.extend_from_slice(&[EE_BYTE; 12]);
 
 		// Convert H256 to AccountId32 first
@@ -36,7 +38,7 @@ fn convert_address(address: &str, ss58_prefix: Option<u16>) -> Result<String> {
 		}
 
 		// Take first 20 bytes and format as hex
-		let eth_address = format!("0x{}", hex::encode(&bytes[..20]));
+		let eth_address = format!("0x{}", to_hex(&bytes[..20], false));
 		Ok(eth_address)
 	}
 }
