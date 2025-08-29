@@ -2,6 +2,40 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.0] - 2025-08-01
+
+### 🚀 Features
+
+- *(up)* Add support for launching networks without network config files (#523)
+- *(bench/pallet)* Support benchmarking multiple pallets (#547)
+- Launch passet hub locally (#570)
+- Add interactive mode to 'pop new' command (#578)
+
+### 🐛 Fixes
+
+- *(ci)* Address failing unit tests and cargo-deny issues (#548)
+- *(dockerfile)* Could not launch local network (#546)
+- *(contracts)* Update branch for contract template retrieval (#577)
+
+### 🚜 Refactor
+
+- *(common/api)* Use async-aware mutex (#541)
+- Change `parachain` to `chain` for consistency (#564)
+
+### 🧪 Testing
+
+- *(parachains/bench)* Fix expected error in load_pallet_extrinsics test (#539)
+- *(cli/try-runtime)* Update pallets in try-state test after runtime upgrade (#543)
+
+### ⚙️ Miscellaneous Tasks
+
+- Optimize polkavm contract jobs (#540)
+- Bump version
+
+### Build
+
+- *(deps)* Consolidate sp-weights dependency (#538)
+
 ## [0.8.1] - 2025-05-13
 
 ### 🐛 Fixes
