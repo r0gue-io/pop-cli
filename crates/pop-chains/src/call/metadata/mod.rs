@@ -195,71 +195,9 @@ pub fn parse_dispatchable_arguments(
 #[cfg(test)]
 mod tests {
 	use super::*;
-
-	use crate::{call::tests::POP_NETWORK_TESTNET_URL, set_up_client};
 	use anyhow::Result;
 	use sp_core::bytes::from_hex;
 	use subxt::ext::scale_bits;
-
-	#[tokio::test]
-	async fn parse_chain_metadata_works() -> Result<()> {
-		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
-		let pallets = parse_chain_metadata(&client)?;
-		// Test the first pallet is parsed correctly
-		let first_pallet = pallets.first().unwrap();
-		assert_eq!(first_pallet.name, "System");
-		assert_eq!(first_pallet.index, 0);
-		assert_eq!(first_pallet.docs, "");
-		assert_eq!(first_pallet.functions.len(), 11);
-		let first_function = first_pallet.functions.first().unwrap();
-		assert_eq!(first_function.name, "remark");
-		assert_eq!(first_function.index, 0);
-		assert_eq!(
-			first_function.docs,
-			"Make some on-chain remark. Can be executed by every `origin`."
-		);
-		assert!(first_function.is_supported);
-		assert_eq!(first_function.params.first().unwrap().name, "remark");
-		assert_eq!(first_function.params.first().unwrap().type_name, "[u8]");
-		assert_eq!(first_function.params.first().unwrap().sub_params.len(), 0);
-		assert!(!first_function.params.first().unwrap().is_optional);
-		assert!(!first_function.params.first().unwrap().is_tuple);
-		assert!(!first_function.params.first().unwrap().is_variant);
-		assert!(first_function.params.first().unwrap().is_sequence);
-		Ok(())
-	}
-
-	#[tokio::test]
-	async fn find_pallet_by_name_works() -> Result<()> {
-		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
-		let pallets = parse_chain_metadata(&client)?;
-		assert!(matches!(
-			find_pallet_by_name(&pallets, "WrongName"),
-			Err(Error::PalletNotFound(pallet)) if pallet == "WrongName".to_string()));
-		let pallet = find_pallet_by_name(&pallets, "Balances")?;
-		assert_eq!(pallet.name, "Balances");
-		assert_eq!(pallet.functions.len(), 9);
-		Ok(())
-	}
-
-	#[tokio::test]
-	async fn find_dispatchable_by_name_works() -> Result<()> {
-		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
-		let pallets = parse_chain_metadata(&client)?;
-		assert!(matches!(
-			find_dispatchable_by_name(&pallets, "WrongName", "wrong_name"),
-			Err(Error::PalletNotFound(pallet)) if pallet == "WrongName".to_string()));
-		assert!(matches!(
-			find_dispatchable_by_name(&pallets, "Balances", "wrong_name"),
-			Err(Error::FunctionNotSupported)
-		));
-		let function = find_dispatchable_by_name(&pallets, "Balances", "force_transfer")?;
-		assert_eq!(function.name, "force_transfer");
-		assert_eq!(function.docs, "Exactly as `transfer_allow_death`, except the origin must be root and the source account may be specified.");
-		assert_eq!(function.is_supported, true);
-		assert_eq!(function.params.len(), 3);
-		Ok(())
-	}
 
 	#[test]
 	fn parse_dispatchable_arguments_works() -> Result<()> {

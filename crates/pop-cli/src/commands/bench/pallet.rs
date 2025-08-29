@@ -1998,6 +1998,7 @@ mod tests {
 	async fn ensure_pallet_registry_works() -> anyhow::Result<()> {
 		let mut cli = MockCli::new();
 		let runtime_path = get_mock_runtime(Some(Benchmark));
+		check_omni_bencher_and_prompt(&mut cli, true).await?;
 		let cmd = BenchmarkPallet { runtime_binary: Some(runtime_path), ..Default::default() };
 		let mut registry = PalletExtrinsicsRegistry::default();
 

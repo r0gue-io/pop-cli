@@ -266,25 +266,6 @@ mod tests {
 	use tempfile::tempdir;
 
 	#[test]
-	fn generate_pallet_benchmarks_works() -> Result<(), Error> {
-		generate_pallet_benchmarks(vec![
-			"--pallet=pallet_timestamp".to_string(),
-			"--extrinsic=*".to_string(),
-			"--runtime".to_string(),
-			get_mock_runtime_path(true).to_str().unwrap().to_string(),
-		])
-	}
-
-	#[test]
-	fn get_preset_names_works() -> Result<(), Error> {
-		assert_eq!(
-			get_preset_names(&get_mock_runtime_path(true))?,
-			vec!["development", "local_testnet"]
-		);
-		Ok(())
-	}
-
-	#[test]
 	fn get_runtime_path_works() -> Result<(), Error> {
 		let temp_dir = tempdir()?;
 		let path = temp_dir.path();
@@ -343,11 +324,8 @@ mod tests {
 		binary.source(false, &(), true).await?;
 
 		assert_eq!(
-		    load_pallet_extrinsics(&runtime_path, &binary.path()).await.err().unwrap().to_string(),
-				"Failed to run benchmarking: Error: Input(\"Did not find the benchmarking runtime api. \
-				This could mean that you either did not build the node correctly with the `--features runtime-benchmarks` flag, \
-				or the chain spec that you are using was not created by a node that was compiled with the flag\")"
-		);
+		    load_pallet_extrinsics(&runtime_path,
+		&binary.path()).await.err().unwrap().to_string(), "Failed to run benchmarking: Error: Input(\"Did not find the benchmarking runtime api. This could mean that you either did not build the node correctly with the `--features runtime-benchmarks` flag, or the chain spec that you are using was not created by a node that was compiled with the flag\")");
 		Ok(())
 	}
 

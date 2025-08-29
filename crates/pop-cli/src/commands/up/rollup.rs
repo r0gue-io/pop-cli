@@ -8,6 +8,7 @@ use crate::{
 	cli::traits::*,
 	common::{
 		chain::{configure, Chain},
+		urls,
 		wallet::submit_extrinsic,
 	},
 	deployment_api::{DeployRequest, DeployResponse, DeploymentApi},
@@ -31,7 +32,6 @@ use url::Url;
 
 type Proxy = Option<String>;
 
-const DEFAULT_URL: &str = "wss://paseo.rpc.amforc.com/";
 const HELP_HEADER: &str = "Chain deployment options";
 const PLACEHOLDER_ADDRESS: &str = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty";
 const PDP_API_KEY: &str = "PDP_API_KEY";
@@ -171,7 +171,7 @@ impl UpCommand {
 		cli: &mut impl Cli,
 	) -> Result<Registration> {
 		let chain =
-			configure("Enter the relay chain node URL", DEFAULT_URL, &self.relay_chain_url, cli)
+			configure("Enter the relay chain node URL", urls::LOCAL, &self.relay_chain_url, cli)
 				.await?;
 		let proxy = self.resolve_proxied_address(
 			&deployment_config.api,
@@ -542,16 +542,15 @@ fn warn_supported_templates(provider: &DeploymentProvider, cli: &mut impl Cli) -
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::cli::MockCli;
+	use crate::{cli::MockCli, common::urls};
 	use pop_chains::decode_call_data;
+	use pop_common::test_env::TestNode;
 	use std::fs;
 	use tempfile::tempdir;
 	use url::Url;
 
 	const MOCK_PROXIED_ADDRESS: &str = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty";
 	const MOCK_PROXY_ADDRESS_ID: &str = "Id(13czcAAt6xgLwZ8k6ZpkrRL5V2pjKEui3v9gHAN9PoxYZDbf)";
-	const POLKADOT_NETWORK_URL: &str = "wss://polkadot-rpc.publicnode.com";
-	const POP_NETWORK_TESTNET_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";
 
 	#[tokio::test]
 	async fn prepare_for_deployment_works() -> Result<()> {
@@ -652,8 +651,10 @@ mod tests {
 
 	#[tokio::test]
 	async fn prepare_for_registration_works() -> Result<()> {
-		let mut cli = MockCli::new()
-			.expect_input("Enter the relay chain node URL", POLKADOT_NETWORK_URL.into());
+		let node = TestNode::spawn().await?;
+		let node_url = node.ws_url();
+		let mut cli =
+			MockCli::new().expect_input("Enter the relay chain node URL", node_url.into());
 		let (genesis_state, genesis_code) = create_temp_genesis_files()?;
 		let chain_config = UpCommand {
 			id: Some(2000),
@@ -668,14 +669,14 @@ mod tests {
 		assert_eq!(chain_config.id, 2000);
 		assert_eq!(chain_config.genesis_artifacts.genesis_code_file, Some(genesis_code));
 		assert_eq!(chain_config.genesis_artifacts.genesis_state_file, Some(genesis_state));
-		assert_eq!(chain_config.chain.url, Url::parse(POLKADOT_NETWORK_URL)?);
+		assert_eq!(chain_config.chain.url, Url::parse(node_url)?);
 		assert_eq!(chain_config.proxy, Some(format!("Id({})", MOCK_PROXIED_ADDRESS.to_string())));
 		cli.verify()
 	}
 
 	#[test]
 	fn resolve_proxied_address_works() -> Result<()> {
-		let relay_chain_url = "ws://127.0.0.1:9944";
+		let relay_chain_url = urls::LOCAL;
 		let mut cli = MockCli::new()
             .expect_confirm("Would you like to use a pure proxy for registration? This is considered a best practice.", true)
             .expect_info(format!(
@@ -739,6 +740,8 @@ mod tests {
 
 	#[tokio::test]
 	async fn register_fails_wrong_chain() -> Result<()> {
+		let node = TestNode::spawn().await?;
+		let node_url = node.ws_url();
 		let mut cli = MockCli::new()
             .expect_intro("Deploy a rollup")
             .expect_select(
@@ -758,7 +761,7 @@ mod tests {
                 DeploymentProvider::VARIANTS.len(), // Register
                 None,
             )
-            .expect_info(format!("You will need to sign a transaction to register on {}, using the `Registrar::register` function.", Url::parse(POP_NETWORK_TESTNET_URL)?.as_str()))
+            .expect_info(format!("You will need to sign a transaction to register on {}, using the `Registrar::register` function.", Url::parse(node_url)?.as_str()))
             .expect_outro_cancel(format!("Failed to find the pallet Registrar\n{}", style(format!(
 				"Retry registration without reserve or rebuilding the chain specs using: {}", style("`pop up --id 2000 --skip-registration`").bold()
 			)).black()
@@ -768,7 +771,7 @@ mod tests {
 			id: Some(2000),
 			genesis_state: Some(genesis_state.clone()),
 			genesis_code: Some(genesis_code.clone()),
-			relay_chain_url: Some(Url::parse(POP_NETWORK_TESTNET_URL)?),
+			relay_chain_url: Some(Url::parse(node_url)?),
 			path: None,
 			proxied_address: None,
 			..Default::default()
@@ -784,8 +787,8 @@ mod tests {
 		let mut cli = MockCli::new();
 		let chain = configure(
 			"Enter the relay chain node URL",
-			DEFAULT_URL,
-			&Some(Url::parse(POLKADOT_NETWORK_URL)?),
+			urls::LOCAL,
+			&Some(Url::parse(urls::POLKADOT)?),
 			&mut cli,
 		)
 		.await?;
@@ -826,6 +829,8 @@ mod tests {
 
 	#[tokio::test]
 	async fn reserve_id_fails_wrong_chain() -> Result<()> {
+		let node = TestNode::spawn().await?;
+		let node_url = node.ws_url();
 		let mut cli = MockCli::new()
             .expect_intro("Deploy a rollup")
             .expect_select(
@@ -845,14 +850,14 @@ mod tests {
                 DeploymentProvider::VARIANTS.len(), // Register
                 None,
             )
-            .expect_info(format!("You will need to sign a transaction to reserve an ID on {} using the `Registrar::reserve` function.", Url::parse(POP_NETWORK_TESTNET_URL)?.as_str()))
+            .expect_info(format!("You will need to sign a transaction to reserve an ID on {} using the `Registrar::reserve` function.", Url::parse(node_url)?.as_str()))
             .expect_outro_cancel("Failed to find the pallet Registrar");
 		let (genesis_state, genesis_code) = create_temp_genesis_files()?;
 		UpCommand {
 			id: None,
 			genesis_state: Some(genesis_state.clone()),
 			genesis_code: Some(genesis_code.clone()),
-			relay_chain_url: Some(Url::parse(POP_NETWORK_TESTNET_URL)?),
+			relay_chain_url: Some(Url::parse(node_url)?),
 			path: None,
 			proxied_address: None,
 			..Default::default()
@@ -868,8 +873,8 @@ mod tests {
 		let mut cli = MockCli::new();
 		let chain = configure(
 			"Enter the relay chain node URL",
-			DEFAULT_URL,
-			&Some(Url::parse(POLKADOT_NETWORK_URL)?),
+			urls::LOCAL,
+			&Some(Url::parse(urls::POLKADOT)?),
 			&mut cli,
 		)
 		.await?;

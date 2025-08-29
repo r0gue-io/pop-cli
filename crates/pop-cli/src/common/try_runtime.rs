@@ -8,7 +8,10 @@ use super::{
 };
 use crate::{
 	cli::traits::*,
-	common::binary::{check_and_prompt, BinaryGenerator, SemanticVersion},
+	common::{
+		binary::{check_and_prompt, BinaryGenerator, SemanticVersion},
+		urls,
+	},
 	impl_binary_generator,
 };
 use clap::Args;
@@ -33,7 +36,6 @@ use strum::{EnumMessage, VariantArray};
 const BINARY_NAME: &str = "try-runtime";
 pub(crate) const DEFAULT_BLOCK_HASH: &str = "0x0000000000";
 pub(crate) const DEFAULT_BLOCK_TIME: u64 = 6000;
-pub(crate) const DEFAULT_LIVE_NODE_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";
 pub(crate) const DEFAULT_SNAPSHOT_PATH: &str = "your-parachain.snap";
 const TARGET_BINARY_VERSION: SemanticVersion = SemanticVersion(0, 8, 0);
 
@@ -163,7 +165,7 @@ pub(crate) fn update_live_state(
 		let uri = cli
 			.input("Enter the live chain of your node:")
 			.required(true)
-			.placeholder(DEFAULT_LIVE_NODE_URL)
+			.placeholder(urls::PASEO)
 			.interact()?;
 		live_state.uri = Some(parse::url(&uri)?);
 	}
@@ -562,6 +564,7 @@ mod tests {
 		common::{binary::SemanticVersion, runtime::get_mock_runtime},
 	};
 	use clap::Parser;
+	use pop_common::test_env::TestNode;
 	use tempfile::tempdir;
 
 	#[derive(Default)]
@@ -626,18 +629,20 @@ mod tests {
 		Ok(())
 	}
 
-	#[test]
-	fn update_live_state_works() -> anyhow::Result<()> {
+	#[tokio::test]
+	async fn update_live_state_works() -> anyhow::Result<()> {
+		let node = TestNode::spawn().await?;
+		let node_url = node.ws_url();
 		// Prompt all inputs if not provided.
 		let mut live_state = LiveState::default();
 		let mut cmd = MockCommand::default();
 		let mut cli = MockCli::new()
-			.expect_input("Enter the live chain of your node:", DEFAULT_LIVE_NODE_URL.to_string())
+			.expect_input("Enter the live chain of your node:", node_url.to_string())
 			.expect_input("Enter the block hash (optional):", DEFAULT_BLOCK_HASH.to_string());
 		update_live_state(&mut cli, &mut live_state, &mut cmd.state)?;
 		match cmd.state {
 			Some(State::Live(ref live_state)) => {
-				assert_eq!(live_state.uri, Some(DEFAULT_LIVE_NODE_URL.to_string()));
+				assert_eq!(live_state.uri, Some(node_url.to_string()));
 				assert_eq!(
 					live_state.at,
 					Some(DEFAULT_BLOCK_HASH.strip_prefix("0x").unwrap_or_default().to_string())
@@ -651,12 +656,12 @@ mod tests {
 		let mut live_state = LiveState::default();
 		live_state.at = Some("1234567890abcdef".to_string());
 		let mut cmd = MockCommand::default();
-		let mut cli = MockCli::new()
-			.expect_input("Enter the live chain of your node:", DEFAULT_LIVE_NODE_URL.to_string());
+		let mut cli =
+			MockCli::new().expect_input("Enter the live chain of your node:", node_url.to_string());
 		update_live_state(&mut cli, &mut live_state, &mut cmd.state)?;
 		match cmd.state {
 			Some(State::Live(ref live_state)) => {
-				assert_eq!(live_state.uri, Some(DEFAULT_LIVE_NODE_URL.to_string()));
+				assert_eq!(live_state.uri, Some(node_url.to_string()));
 				assert_eq!(live_state.at, Some("1234567890abcdef".to_string()));
 			},
 			_ => panic!("Expected live state"),
@@ -665,7 +670,7 @@ mod tests {
 
 		// Prompt for the block hash if not provided.
 		let mut live_state = LiveState::default();
-		live_state.uri = Some(DEFAULT_LIVE_NODE_URL.to_string());
+		live_state.uri = Some(node_url.to_string());
 		let mut cmd = MockCommand::default();
 		// Provide the empty block hash.
 		let mut cli =
@@ -673,7 +678,7 @@ mod tests {
 		update_live_state(&mut cli, &mut live_state, &mut cmd.state)?;
 		match cmd.state {
 			Some(State::Live(ref live_state)) => {
-				assert_eq!(live_state.uri, Some(DEFAULT_LIVE_NODE_URL.to_string()));
+				assert_eq!(live_state.uri, Some(node_url.to_string()));
 				assert_eq!(live_state.at, None);
 			},
 			_ => panic!("Expected live state"),
@@ -754,7 +759,9 @@ mod tests {
 
 	#[tokio::test]
 	async fn guide_user_to_select_try_state_works() -> anyhow::Result<()> {
-		let client = set_up_client(DEFAULT_LIVE_NODE_URL).await?;
+		let node = TestNode::spawn().await?;
+		let node_url = node.ws_url();
+		let client = set_up_client(node_url).await?;
 		let pallets = get_pallets(&client).await?;
 		let pallet_items: Vec<(String, String)> =
 			pallets.into_iter().map(|pallet| (pallet.name, pallet.docs)).collect();
@@ -775,44 +782,19 @@ mod tests {
 			),
 			(
 				3,
-				Some(DEFAULT_LIVE_NODE_URL.to_string()),
+				Some(node_url.to_string()),
 				TryStateSelect::Only(
 					vec![
 						"Assets",
-						"Aura",
-						"AuraExt",
 						"Authorship",
 						"Balances",
-						"CollatorSelection",
-						"Contracts",
-						"Council",
-						"CumulusXcm",
-						"Fungibles",
-						"Ismp",
-						"IsmpParachain",
-						"MessageQueue",
-						"Messaging",
-						"Motion",
-						"MultiBlockMigrations",
-						"Multisig",
-						"NftFractionalization",
-						"Nfts",
-						"ParachainInfo",
-						"ParachainSystem",
-						"PolkadotXcm",
-						"Preimage",
-						"Proxy",
+						"RandomnessCollectiveFlip",
 						"Revive",
-						"Scheduler",
-						"Session",
 						"Sudo",
 						"System",
 						"Timestamp",
 						"TransactionPayment",
-						"Treasury",
 						"Utility",
-						"WeightReclaim",
-						"XcmpQueue",
 					]
 					.iter()
 					.map(|s| s.as_bytes().to_vec())
@@ -956,10 +938,10 @@ mod tests {
 		assert!(args.is_empty());
 
 		let mut live_state = LiveState::default();
-		live_state.uri = Some(DEFAULT_LIVE_NODE_URL.to_string());
+		live_state.uri = Some(urls::LOCAL.to_string());
 		cmd.state = Some(State::Live(live_state.clone()));
 		// Keep the user-provided argument unchanged.
-		let user_provided_args = &["--uri".to_string(), "ws://localhost:9944".to_string()];
+		let user_provided_args = &["--uri".to_string(), urls::LOCAL.to_string()];
 		let mut args = vec![];
 		collect_state_arguments(&cmd.state, user_provided_args, &mut args)?;
 		assert_eq!(args, user_provided_args);

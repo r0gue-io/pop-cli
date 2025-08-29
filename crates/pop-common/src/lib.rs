@@ -46,6 +46,8 @@ pub mod sourcing;
 pub mod templates;
 /// Module for testing utilities and functionality.
 pub mod test;
+/// Contains utilities for setting up a local test environment.
+pub mod test_env;
 
 static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 

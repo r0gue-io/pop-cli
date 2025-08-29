@@ -5,6 +5,7 @@ use crate::{
 	common::{
 		prompt::display_message,
 		try_runtime::{check_try_runtime_and_prompt, collect_args, ArgumentConstructor},
+		urls,
 	},
 };
 use clap::Args;
@@ -14,7 +15,6 @@ use pop_chains::{parse::url, run_try_runtime, state::LiveState, TryRuntimeCliCom
 
 // Custom arguments which are not in `try-runtime create-snapshot`.
 const CUSTOM_ARGS: [&str; 2] = ["--skip-confirm", "-y"];
-const DEFAULT_REMOTE_NODE_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";
 const DEFAULT_SNAPSHOT_PATH: &str = "example.snap";
 
 #[derive(Args, Default)]
@@ -45,7 +45,7 @@ impl TestCreateSnapshotCommand {
 		if self.from.uri.is_none() {
 			let input = cli
 				.input("Enter the URI of the remote node:")
-				.placeholder(DEFAULT_REMOTE_NODE_URL)
+				.placeholder(urls::PASEO)
 				.required(true)
 				.interact()?;
 			self.from.uri = Some(url(input.trim())?);
@@ -120,6 +120,10 @@ impl TestCreateSnapshotCommand {
 		// Remove snapshot path from the provided arguments.
 		let mut provided_path = None;
 		let mut user_provided_args = user_provided_args.to_vec();
+		#[cfg(test)]
+		{
+			user_provided_args.retain(|arg| arg != "--show-output" && arg != "--nocapture");
+		}
 		if let Some(arg) = user_provided_args.last() {
 			if !arg.starts_with("--") && arg.ends_with(".snap") {
 				provided_path = user_provided_args.pop();
@@ -147,46 +151,6 @@ mod tests {
 	use super::*;
 	use crate::common::try_runtime::source_try_runtime_binary;
 	use cli::MockCli;
-	use tempfile::tempdir;
-
-	#[ignore = "Issue creating the snapshot in the provided URL."]
-	#[tokio::test]
-	async fn create_snapshot_works() -> anyhow::Result<()> {
-		let temp_dir = tempdir()?;
-		let temp_dir_path = temp_dir.path().join("example.snap");
-		let command = TestCreateSnapshotCommand::default();
-		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
-
-		let mut cli = MockCli::new()
-			.expect_intro("Creating a snapshot file")
-			.expect_warning(
-				"NOTE: `create-snapshot` only works with the remote node. No runtime required.",
-			)
-			.expect_input(
-				"Enter the URI of the remote node:",
-				DEFAULT_REMOTE_NODE_URL.to_string()
-			).expect_input(
-			    format!(
-         			"Enter the path to write the snapshot to (optional):\n{}",
-         			style("If not provided `<spec-name>-<spec-version>@<block-hash>.snap` will be used.").dim()
-          		),
-                temp_dir_path.to_str().unwrap().to_string()
-			).expect_outro(
-    			format!(
-    				"Snapshot is created successfully!{}",
-    				style(
-                        format!(
-                            "\n{} Generated snapshot file: {}",
-                            console::Emoji("●", ">"),
-                            temp_dir_path.to_str().unwrap().to_string()
-                        )
-                    ).dim().to_string()
-    			)
-			);
-		command.execute(&mut cli).await?;
-		assert!(temp_dir_path.exists());
-		cli.verify()
-	}
 
 	#[tokio::test]
 	async fn create_snapshot_invalid_uri() -> anyhow::Result<()> {
@@ -202,25 +166,22 @@ mod tests {
 	#[test]
 	fn display_works() {
 		let mut command = TestCreateSnapshotCommand::default();
-		command.from.uri = Some(DEFAULT_REMOTE_NODE_URL.to_string());
+		command.from.uri = Some(urls::LOCAL.to_string());
 		command.snapshot_path = Some(DEFAULT_SNAPSHOT_PATH.to_string());
 		command.skip_confirm = true;
 		assert_eq!(
 			command.display(),
-			format!(
-				"pop test create-snapshot --uri={} -y {}",
-				DEFAULT_REMOTE_NODE_URL, DEFAULT_SNAPSHOT_PATH
-			)
+			format!("pop test create-snapshot --uri={} -y {}", urls::LOCAL, DEFAULT_SNAPSHOT_PATH)
 		);
 	}
 
 	#[test]
 	fn collect_arguments_works() {
-		let expected_uri = &format!("--uri={}", DEFAULT_REMOTE_NODE_URL);
+		let expected_uri = &format!("--uri={}", urls::LOCAL);
 		let test_cases: Vec<(&str, Box<dyn Fn(&mut TestCreateSnapshotCommand)>, &str)> = vec![
 			(
 				"--uri=ws://localhost:8545",
-				Box::new(|cmd| cmd.from.uri = Some(DEFAULT_REMOTE_NODE_URL.to_string())),
+				Box::new(|cmd| cmd.from.uri = Some(urls::LOCAL.to_string())),
 				expected_uri,
 			),
 			(
@@ -249,32 +210,32 @@ mod tests {
 		}
 
 		let mut command = TestCreateSnapshotCommand::default();
-		command.from.uri = Some(DEFAULT_REMOTE_NODE_URL.to_string());
+		command.from.uri = Some(urls::LOCAL.to_string());
 		assert_eq!(
 			command.collect_arguments(&["--skip-confirm".to_string(), "example.snap".to_string(),]),
-			vec![&format!("--uri={}", DEFAULT_REMOTE_NODE_URL), "--skip-confirm", "example.snap"]
+			vec![&format!("--uri={}", urls::LOCAL), "--skip-confirm", "example.snap"]
 		);
 		command.skip_confirm = true;
 		assert_eq!(
 			command.collect_arguments(&["example.snap".to_string(),]),
-			vec![&format!("--uri={}", DEFAULT_REMOTE_NODE_URL), "-y", "example.snap"]
+			vec![&format!("--uri={}", urls::LOCAL), "-y", "example.snap"]
 		);
 		assert_eq!(
 			command.collect_arguments(&[
 				"--skip-confirm".to_string(),
 				"--uri".to_string(),
-				DEFAULT_REMOTE_NODE_URL.to_string(),
+				urls::LOCAL.to_string(),
 				"example.snap".to_string(),
 			]),
-			vec!["--skip-confirm", &format!("--uri={}", DEFAULT_REMOTE_NODE_URL), "example.snap"]
+			vec!["--skip-confirm", &format!("--uri={}", urls::LOCAL), "example.snap"]
 		);
 		assert_eq!(
 			command.collect_arguments(&[
-				format!("--uri={}", DEFAULT_REMOTE_NODE_URL),
+				format!("--uri={}", urls::LOCAL),
 				"--skip-confirm".to_string(),
 				"example.snap".to_string(),
 			]),
-			vec![&format!("--uri={}", DEFAULT_REMOTE_NODE_URL), "--skip-confirm", "example.snap"]
+			vec![&format!("--uri={}", urls::LOCAL), "--skip-confirm", "example.snap"]
 		);
 		command.skip_confirm = true;
 	}

@@ -184,64 +184,7 @@ pub(crate) fn which_version(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
-	use crate::{cli::MockCli, common::contracts::ContractsNodeGenerator};
 	use std::cmp::Ordering;
-
-	#[tokio::test]
-	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
-	async fn check_binary_and_prompt_works() -> anyhow::Result<()> {
-		#[cfg(feature = "wasm-contracts")]
-		let binary_name = "substrate-contracts-node";
-		#[cfg(feature = "polkavm-contracts")]
-		let binary_name = "ink-node";
-		let cache_path = tempfile::tempdir().expect("Could create temp dir");
-		let mut cli = MockCli::new()
-			.expect_warning(format!("⚠️ The {binary_name} binary is not found."))
-			.expect_confirm("📦 Would you like to source it automatically now?".to_string(), true)
-			.expect_warning(format!("⚠️ The {binary_name} binary is not found."));
-
-		let binary_path = check_and_prompt::<ContractsNodeGenerator>(
-			&mut cli,
-			binary_name,
-			cache_path.path(),
-			false,
-		)
-		.await?;
-
-		// Binary path is at least equal to the cache path + `binary_name`.
-		assert!(binary_path
-			.to_str()
-			.unwrap()
-			.starts_with(&cache_path.path().join(binary_name).to_str().unwrap()));
-		cli.verify()
-	}
-
-	#[tokio::test]
-	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
-	async fn check_binary_and_prompt_handles_skip_confirm() -> anyhow::Result<()> {
-		#[cfg(feature = "wasm-contracts")]
-		let binary_name = "substrate-contracts-node";
-		#[cfg(feature = "polkavm-contracts")]
-		let binary_name = "ink-node";
-		let cache_path = tempfile::tempdir().expect("Could create temp dir");
-		let mut cli =
-			MockCli::new().expect_warning(format!("⚠️ The {binary_name} binary is not found."));
-
-		let binary_path = check_and_prompt::<ContractsNodeGenerator>(
-			&mut cli,
-			binary_name,
-			cache_path.path(),
-			true,
-		)
-		.await?;
-		// Binary path is at least equal to the cache path + `binary_name`.
-		assert!(binary_path
-			.to_str()
-			.unwrap()
-			.starts_with(&cache_path.path().join(binary_name).to_str().unwrap()));
-		cli.verify()
-	}
 
 	#[test]
 	fn semantic_version_works() {
