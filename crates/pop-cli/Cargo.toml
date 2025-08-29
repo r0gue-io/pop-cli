@@ -34,7 +34,6 @@ url.workspace = true
 # contracts
 pop-contracts = { path = "../pop-contracts", version = "0.9.0", default-features = false, optional = true }
 sp-core = { workspace = true, optional = true }
-sp-weights = { workspace = true, optional = true }
 
 # parachains
 pop-chains = { path = "../pop-chains", version = "0.9.0", optional = true }
@@ -68,8 +67,8 @@ experimental = ["hashing"]
 hashing = ["dep:sp-core"]
 chain = ["dep:pop-chains", "dep:git2", "dep:regex", "dep:sp-core", "dep:tracing-subscriber", "wallet-integration"]
 v6 = []
-polkavm-contracts = ["pop-contracts/v6", "dep:pop-contracts", "dep:sp-core", "dep:sp-weights", "wallet-integration"]
+polkavm-contracts = ["pop-contracts/v6", "dep:pop-contracts", "dep:sp-core", "wallet-integration"]
 telemetry = ["dep:pop-telemetry"]
 v5 = []
-wasm-contracts = ["pop-contracts/v5", "dep:pop-contracts", "dep:sp-core", "dep:sp-weights", "wallet-integration", "v5"]
+wasm-contracts = ["pop-contracts/v5", "dep:pop-contracts", "dep:sp-core", "wallet-integration", "v5"]
 wallet-integration = ["dep:axum", "dep:open", "dep:tower-http"]
