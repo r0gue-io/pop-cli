@@ -38,7 +38,7 @@ tempfile = { version = "3.10", default-features = false }
 thiserror = { version = "1.0.58", default-features = false }
 tokio-test = { version = "0.4.4", default-features = false }
 toml = { version = "0.5.0", default-features = false }
-tracing-subscriber = { version = "0.3.19", default-features = false }
+tracing-subscriber = { version = "0.3.20", default-features = false }
 
 # networking
 reqwest = { version = "0.12", default-features = false, features = ["default-tls", "json", "multipart", "stream"] }
