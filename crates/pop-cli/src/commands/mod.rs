@@ -16,8 +16,7 @@ pub(crate) mod build;
 #[cfg(any(feature = "chain", feature = "polkavm-contracts", feature = "wasm-contracts"))]
 pub(crate) mod call;
 pub(crate) mod clean;
-#[cfg(feature = "hashing")]
-mod hash;
+pub(crate) mod hash;
 #[cfg(any(feature = "chain", feature = "polkavm-contracts", feature = "wasm-contracts"))]
 pub(crate) mod install;
 #[cfg(any(feature = "chain", feature = "polkavm-contracts", feature = "wasm-contracts"))]
@@ -54,7 +53,6 @@ pub(crate) enum Command {
 	Test(test::TestArgs),
 	/// Hash data using a supported hash algorithm.
 	#[clap(alias = "h")]
-	#[cfg(feature = "hashing")]
 	Hash(hash::HashArgs),
 	/// Remove generated/cached artifacts.
 	#[clap(alias = "C")]
@@ -223,7 +221,6 @@ impl Command {
 					.await
 					.map(|(project, feature)| Test { project, feature })
 			},
-			#[cfg(feature = "hashing")]
 			Self::Hash(args) => {
 				env_logger::init();
 				args.command.execute(&mut Cli).map(|_| Null)
@@ -312,7 +309,6 @@ impl Display for Command {
 			Self::Clean(_) => write!(f, "clean"),
 			#[cfg(feature = "chain")]
 			Self::Bench(args) => write!(f, "bench {}", args.command),
-			#[cfg(feature = "hashing")]
 			Command::Hash(args) => write!(f, "hash {}", args.command),
 		}
 	}
@@ -426,7 +422,6 @@ mod tests {
 		}
 	}
 
-	#[cfg(feature = "hashing")]
 	#[test]
 	fn hash_command_display_works() {
 		use hash::{Command::*, Data, HashArgs};
