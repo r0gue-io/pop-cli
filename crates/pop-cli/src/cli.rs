@@ -37,6 +37,8 @@ pub(crate) mod traits {
 		fn success(&mut self, message: impl Display) -> Result<()>;
 		/// Prints a warning message.
 		fn warning(&mut self, message: impl Display) -> Result<()>;
+		/// Prints a plaikn message.
+		fn plain(&mut self, message: impl Display) -> Result<()>;
 	}
 
 	/// A confirmation prompt.
@@ -165,6 +167,11 @@ impl traits::Cli for Cli {
 		cliclack::log::warning(message)?;
 		#[cfg(not(test))]
 		sleep(Duration::from_secs(1));
+		Ok(())
+	}
+
+	fn plain(&mut self, message: impl Display) -> Result<()> {
+		println!("{message}");
 		Ok(())
 	}
 }
@@ -577,6 +584,11 @@ pub(crate) mod tests {
 		fn warning(&mut self, message: impl Display) -> Result<()> {
 			let message = message.to_string();
 			self.warning_expectations.retain(|x| *x != message);
+			Ok(())
+		}
+
+		fn plain(&mut self, message: impl Display) -> Result<()> {
+			println!("{message}");
 			Ok(())
 		}
 	}
