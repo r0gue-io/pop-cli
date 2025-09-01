@@ -29,8 +29,7 @@ use std::{
 use tokio::time::sleep;
 
 /// Launch a local network by specifying a network configuration file.
-#[derive(Args, Clone)]
-#[cfg_attr(test, derive(Default))]
+#[derive(Args, Clone, Default)]
 pub(crate) struct ConfigFileCommand {
 	/// The Zombienet network configuration file to be used.
 	#[arg(value_name = "FILE", conflicts_with = "file")]
@@ -40,37 +39,37 @@ pub(crate) struct ConfigFileCommand {
 	#[arg(short = 'f', long = "file")]
 	#[deprecated(since = "0.9.0", note = "will be removed in v0.10.0")]
 	#[allow(rustdoc::broken_intra_doc_links)]
-	file: Option<PathBuf>,
+	pub(crate) file: Option<PathBuf>,
 	/// The version of the binary to be used for the relay chain, as per the release tag (e.g.
 	/// "stable2503"). See <https://github.com/paritytech/polkadot-sdk/releases> for more details.
 	#[arg(short, long)]
-	relay_chain: Option<String>,
+	pub(crate) relay_chain: Option<String>,
 	/// The version of the runtime to be used for the relay chain, as per the release tag (e.g.
 	/// "v1.4.1"). See <https://github.com/polkadot-fellows/runtimes/releases> for more details.
 	#[arg(short = 'R', long)]
-	relay_chain_runtime: Option<String>,
+	pub(crate) relay_chain_runtime: Option<String>,
 	/// The version of the binary to be used for system parachains, as per the release tag (e.g.
 	/// "stable2503"). Defaults to the relay chain version if not specified.
 	/// See <https://github.com/paritytech/polkadot-sdk/releases> for more details.
 	#[arg(short, long)]
-	system_parachain: Option<String>,
+	pub(crate) system_parachain: Option<String>,
 	/// The version of the runtime to be used for system parachains, as per the release tag (e.g.
 	/// "v1.4.1"). See <https://github.com/polkadot-fellows/runtimes/releases> for more details.
 	#[arg(short = 'S', long)]
-	system_parachain_runtime: Option<String>,
+	pub(crate) system_parachain_runtime: Option<String>,
 	/// The url of the git repository of a parachain to be used, with branch/release tag/commit specified as #fragment (e.g. <https://github.com/org/repository#ref>).
 	/// A specific binary name can also be optionally specified via query string parameter (e.g. <https://github.com/org/repository?binaryname#ref>), defaulting to the name of the repository when not specified.
 	#[arg(short, long)]
-	parachain: Option<Vec<String>>,
+	pub(crate) parachain: Option<Vec<String>>,
 	/// The command to run after the network has been launched.
 	#[clap(name = "cmd", short, long)]
-	command: Option<String>,
+	pub(crate) command: Option<String>,
 	/// Whether the output should be verbose.
 	#[arg(short, long, action)]
-	verbose: bool,
+	pub(crate) verbose: bool,
 	/// Automatically source all necessary binaries required without prompting for confirmation.
 	#[clap(short = 'y', long)]
-	skip_confirm: bool,
+	pub(crate) skip_confirm: bool,
 }
 
 impl ConfigFileCommand {

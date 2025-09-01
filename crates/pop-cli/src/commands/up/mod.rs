@@ -93,6 +93,15 @@ impl Command {
 		cli: &mut impl cli::traits::Cli,
 	) -> anyhow::Result<Project> {
 		let project_path = get_project_path(args.path.clone(), args.path_pos.clone());
+		#[cfg(feature = "chain")]
+		if let Some(path) = project_path.as_deref() {
+			if path.is_file() {
+				let cmd =
+					network::ConfigFileCommand { path: Some(path.into()), ..Default::default() };
+				cmd.execute(cli).await?;
+				return Ok(Network);
+			}
+		}
 		// If only contract feature enabled, deploy a contract
 		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 		if pop_contracts::is_supported(project_path.as_deref())? {
@@ -186,7 +195,7 @@ mod tests {
 		)?;
 		let args = create_up_args(temp_dir.path().join("testing"))?;
 		let mut cli = MockCli::new();
-		assert_eq!(Command::execute_project_deployment(args, &mut cli).await?, Project::Contract);
+		assert_eq!(Command::execute_project_deployment(args, &mut cli).await?, Contract);
 		cli.verify()
 	}
 
