@@ -43,7 +43,7 @@ jobs:
         run: cargo +nightly fmt --all -- --check
 
   build:
-    runs-on: ${{ runner.os }}
+    runs-on: ubuntu-latest
     env:
       RUSTFLAGS: "-Dwarnings"
     steps:
