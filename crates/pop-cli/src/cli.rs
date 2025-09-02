@@ -37,7 +37,7 @@ pub(crate) mod traits {
 		fn success(&mut self, message: impl Display) -> Result<()>;
 		/// Prints a warning message.
 		fn warning(&mut self, message: impl Display) -> Result<()>;
-		/// Prints a plaikn message.
+		/// Prints a plain message.
 		fn plain(&mut self, message: impl Display) -> Result<()>;
 	}
 
@@ -310,6 +310,7 @@ pub(crate) mod tests {
 			Vec<(String, Option<bool>, bool, Option<Vec<(String, String)>>, usize, Option<bool>)>,
 		success_expectations: Vec<String>,
 		warning_expectations: Vec<String>,
+		plain_expectations: Vec<String>,
 	}
 
 	#[allow(dead_code)]
@@ -396,6 +397,11 @@ pub(crate) mod tests {
 			self
 		}
 
+		pub(crate) fn expect_plain(mut self, message: impl Display) -> Self {
+			self.plain_expectations.push(message.to_string());
+			self
+		}
+
 		pub(crate) fn verify(self) -> anyhow::Result<()> {
 			if !self.confirm_expectation.is_empty() {
 				panic!("`{:?}` confirm expectations not satisfied", self.confirm_expectation)
@@ -447,6 +453,12 @@ pub(crate) mod tests {
 				panic!(
 					"`{}` warning log expectations not satisfied",
 					self.warning_expectations.join(",")
+				)
+			}
+			if !self.plain_expectations.is_empty() {
+				panic!(
+					"`{}` plain log expectations not satisfied",
+					self.plain_expectations.join(",")
 				)
 			}
 			Ok(())
@@ -588,7 +600,8 @@ pub(crate) mod tests {
 		}
 
 		fn plain(&mut self, message: impl Display) -> Result<()> {
-			println!("{message}");
+			let message = message.to_string();
+			self.plain_expectations.retain(|x| *x != message);
 			Ok(())
 		}
 	}
