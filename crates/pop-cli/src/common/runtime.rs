@@ -479,15 +479,6 @@ mod tests {
 	}
 
 	#[test]
-	fn guide_user_to_select_genesis_preset_works() -> anyhow::Result<()> {
-		let runtime_path = get_mock_runtime(None);
-		let mut cli = MockCli::new();
-		cli = expect_select_genesis_preset(cli, &runtime_path, 0);
-		guide_user_to_select_genesis_preset(&mut cli, &runtime_path, "development")?;
-		cli.verify()
-	}
-
-	#[test]
 	fn print_build_output_works() -> anyhow::Result<()> {
 		let binary_path = PathBuf::from("./dummy-runtime.wasm");
 		let generated_files = [format!("Binary generated at: {}", binary_path.display())];

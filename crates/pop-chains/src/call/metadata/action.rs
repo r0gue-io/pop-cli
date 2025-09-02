@@ -136,11 +136,10 @@ pub fn supported_actions(pallets: &[Pallet]) -> Vec<Action> {
 #[cfg(test)]
 mod tests {
 	use super::{Action::*, *};
-	use crate::{call::tests::POP_NETWORK_TESTNET_URL, parse_chain_metadata, set_up_client};
+	use crate::{parse_chain_metadata, set_up_client};
 	use anyhow::Result;
+	use pop_common::test_env::TestNode;
 	use std::collections::HashMap;
-
-	const POLKADOT_NETWORK_URL: &str = "wss://polkadot-rpc.publicnode.com";
 
 	#[test]
 	fn action_descriptions_are_correct() {
@@ -204,22 +203,12 @@ mod tests {
 
 	#[tokio::test]
 	async fn supported_actions_works() -> Result<()> {
-		// Test Pop Parachain.
-		let mut client: subxt::OnlineClient<subxt::SubstrateConfig> =
-			set_up_client(POP_NETWORK_TESTNET_URL).await?;
+		let node = TestNode::spawn().await?;
+		// Test Local Node.
+		let client: subxt::OnlineClient<subxt::SubstrateConfig> =
+			set_up_client(node.ws_url()).await?;
 		let actions = supported_actions(&parse_chain_metadata(&client)?);
-		assert_eq!(
-			actions,
-			vec![Transfer, CreateAsset, MintAsset, CreateCollection, MintNFT, PureProxy, Remark]
-		);
-
-		// Test Polkadot Relay Chain.
-		client = set_up_client(POLKADOT_NETWORK_URL).await?;
-		let actions = supported_actions(&parse_chain_metadata(&client)?);
-		assert_eq!(
-			actions,
-			vec![Transfer, PurchaseOnDemandCoretime, PureProxy, Reserve, Register, Remark]
-		);
+		assert_eq!(actions, vec![Transfer, CreateAsset, MintAsset, Remark]);
 		Ok(())
 	}
 }

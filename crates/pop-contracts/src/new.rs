@@ -173,7 +173,10 @@ mod tests {
 		#[cfg(feature = "v5")]
 		assert!(generated_cargo.contains("ink = { version = \"5."));
 		#[cfg(feature = "v6")]
-		assert!(generated_cargo.contains("ink = { version = \"6."));
+		// TODO: v6 still not published.
+		// assert!(generated_cargo.contains("ink = { version = \"6."));
+		assert!(generated_cargo
+			.contains("ink = { git = \"https://github.com/use-ink/ink\", tag = \"v6."));
 		Ok(())
 	}
 

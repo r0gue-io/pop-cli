@@ -150,21 +150,22 @@ mod tests {
 			.to_str()
 			.unwrap()
 			.starts_with(&cache_path.path().join(BINARY_NAME).to_str().unwrap()));
-		cli.verify()
-	}
+		cli.verify()?;
 
-	#[tokio::test]
-	async fn source_omni_bencher_binary_handles_skip_confirm() -> anyhow::Result<()> {
-		let cache_path = tempdir().expect("Could create temp dir");
-		let mut cli =
-			MockCli::new().expect_warning(format!("⚠️ The {} binary is not found.", BINARY_NAME));
+		// Test binary sourcing with skip_confirm = true (no user interaction)
+		cli = MockCli::new();
 
 		let path = source_omni_bencher_binary(&mut cli, cache_path.path(), true).await?;
-		// Binary path is at least equal to the cache path + "frame-omni-bencher".
 		assert!(path
 			.to_str()
 			.unwrap()
 			.starts_with(&cache_path.path().join(BINARY_NAME).to_str().unwrap()));
+
+		// Verify the downloaded binary version meets the target version requirement
+		assert!(
+			SemanticVersion::try_from(path.to_str().unwrap().to_string())? >= TARGET_BINARY_VERSION
+		);
+
 		cli.verify()
 	}
 
@@ -233,16 +234,6 @@ mod tests {
     			expected
     		);
 		}
-		Ok(())
-	}
-
-	#[tokio::test]
-	async fn omni_bencher_version_works() -> anyhow::Result<()> {
-		let cache_path = tempdir().expect("Could create temp dir");
-		let path = source_omni_bencher_binary(&mut MockCli::new(), cache_path.path(), true).await?;
-		assert!(
-			SemanticVersion::try_from(path.to_str().unwrap().to_string())? >= TARGET_BINARY_VERSION
-		);
 		Ok(())
 	}
 }

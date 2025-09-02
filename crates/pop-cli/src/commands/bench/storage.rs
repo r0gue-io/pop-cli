@@ -114,6 +114,10 @@ impl BenchmarkStorage {
 	fn collect_display_arguments(&self) -> Vec<String> {
 		let mut args = vec!["pop".to_string(), "bench".to_string(), "storage".to_string()];
 		let mut arguments: Vec<String> = std::env::args().skip(3).collect();
+		#[cfg(test)]
+		{
+			arguments.retain(|arg| arg != "--show-output" && arg != "--nocapture");
+		}
 		if !argument_exists(&arguments, "--profile") {
 			if let Some(ref profile) = self.profile {
 				arguments.push(format!("--profile={}", profile));

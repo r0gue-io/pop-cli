@@ -2,13 +2,19 @@ name: ci
 
 on:
   push:
-    branches: [ "main" ]
+    branches:
+      - main
   pull_request:
-    types: [ opened, synchronize, reopened, ready_for_review ]
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
 
 env:
   CARGO_TERM_COLOR: always
   GITHUB_ACTOR: pop-cli
+  CARGO_INCREMENTAL: 0
 
 concurrency:
   # Cancel any in-progress jobs for the same pull request
@@ -20,6 +26,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ runner.os }}
 
       - name: Install Rust nightly
         uses: actions-rs/toolchain@v1
@@ -33,12 +43,15 @@ jobs:
         run: cargo +nightly fmt --all -- --check
 
   build:
-    needs: lint
     runs-on: ubuntu-latest
     env:
       RUSTFLAGS: "-Dwarnings"
     steps:
       - uses: actions/checkout@v4
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ runner.os }}
 
       - uses: "./.github/actions/init"
         with:
@@ -60,7 +73,7 @@ jobs:
         run: cargo build
 
   clippy:
-    needs: lint
+    needs: build
     runs-on: ubuntu-latest
     permissions:
       checks: write
@@ -68,6 +81,10 @@ jobs:
       RUSTFLAGS: "-Wmissing_docs"
     steps:
       - uses: actions/checkout@v4
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ runner.os }}
 
       - uses: "./.github/actions/init"
         with:
@@ -83,6 +100,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ runner.os }}
+
       - name: Run cargo-deny
         uses: EmbarkStudios/cargo-deny-action@v2
         with:
@@ -97,7 +118,7 @@ jobs:
       - uses: docker/build-push-action@v5
 
   docs:
-    needs: lint
+    needs: build
     runs-on: ubuntu-latest
     permissions:
       checks: write
@@ -107,6 +128,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ runner.os }}
+
       - uses: "./.github/actions/init"
         with:
           git-user: ${{ env.GITHUB_ACTOR }}
@@ -115,49 +140,69 @@ jobs:
         run: cargo doc --no-deps
 
   unit-tests:
-    needs: lint
+    needs: build
     runs-on: ubuntu-latest
     env:
       RUSTFLAGS: "-Dwarnings"
     steps:
       - uses: actions/checkout@v4
 
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ runner.os }}
+
       - uses: "./.github/actions/init"
         with:
           git-user: ${{ env.GITHUB_ACTOR }}
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
 
       - name: Run unit tests (no default features)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: cargo test --lib --bins --no-default-features
+        run: cargo nextest run --lib --bins --no-default-features
 
       - name: Run unit tests
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          cargo test --lib --bins --no-default-features --features contract
-          cargo test --lib --bins --no-default-features --features chain
-  
+        run: cargo nextest run --lib --bins --no-default-features --features "contract,chain"
+
   polkavm-unit-tests:
-    needs: lint
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ runner.os }}
 
       - uses: "./.github/actions/init"
         with:
           git-user: ${{ env.GITHUB_ACTOR }}
 
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+
       - name: Run unit tests for polkavm-contracts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: cargo test --lib --bins --no-default-features --features "polkavm-contracts, v6" -p pop-cli -p pop-contracts
+        run: cargo nextest run --lib --bins --no-default-features --features "polkavm-contracts, v6" -p pop-cli -p pop-contracts
 
   coverage:
-    needs: lint
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ runner.os }}
 
       - uses: "./.github/actions/init"
         with:
@@ -177,10 +222,14 @@ jobs:
           fail_ci_if_error: true
 
   documentation-tests:
-    needs: lint
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ runner.os }}
 
       - uses: "./.github/actions/init"
         with:
@@ -190,14 +239,19 @@ jobs:
         run: cargo test --doc
 
   contract-integration-tests:
-    needs: lint
+    needs: build
     strategy:
       matrix:
-        os: [ "ubuntu-latest", "macos-latest" ]
+        os:
+          - ubuntu-latest
+          - macos-latest
     runs-on: ${{ matrix.os }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ runner.os }}
 
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
@@ -218,23 +272,30 @@ jobs:
           fi
           protoc --version
 
-      - name: Cache
-        uses: Swatinem/rust-cache@v2
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
 
       - name: Run integration tests
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: cargo test --no-default-features --features contract --test contract
+        run: cargo nextest run --no-default-features --features contract --test contract
 
   chain-integration-tests:
-    needs: lint
+    needs: build
     strategy:
       matrix:
-        os: [ "ubuntu-latest", "macos-latest" ]
+        os:
+          - ubuntu-latest
+          - macos-latest
     runs-on: ${{ matrix.os }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ runner.os }}
 
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
@@ -244,9 +305,6 @@ jobs:
           default: true
           target: wasm32-unknown-unknown
           components: rust-src, clippy
-
-      - name: Cache
-        uses: Swatinem/rust-cache@v2
 
       - name: Install packages (Linux)
         if: matrix.os == 'ubuntu-latest'
@@ -260,7 +318,14 @@ jobs:
           brew install protobuf
           protoc --version
 
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+
       - name: Run integration tests
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: cargo test --no-default-features --features chain --test chain
+        run: |
+          cargo nextest run --no-default-features --features chain --test chain
+          cargo nextest run --no-default-features --features chain --test metadata

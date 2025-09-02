@@ -191,6 +191,18 @@ impl Display for TestFeature {
 	}
 }
 
+pub mod urls {
+	/// Local dev node (Substrate default port 9944).
+	#[cfg(any(feature = "chain", feature = "polkavm-contracts", feature = "wasm-contracts"))]
+	pub const LOCAL: &str = "ws://localhost:9944/";
+	/// Polkadot mainnet public RPC.
+	#[cfg(all(feature = "chain", test))]
+	pub const POLKADOT: &str = "wss://polkadot-rpc.publicnode.com/";
+	/// Paseo testnet public RPC.
+	#[cfg(feature = "chain")]
+	pub const PASEO: &str = "wss://paseo.rpc.amforc.com/";
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;

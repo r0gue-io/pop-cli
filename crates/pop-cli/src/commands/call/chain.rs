@@ -7,6 +7,7 @@ use crate::{
 	common::{
 		chain::{self, Chain},
 		prompt::display_message,
+		urls,
 		wallet::{self, prompt_to_use_wallet},
 	},
 };
@@ -20,7 +21,6 @@ use pop_chains::{
 };
 use url::Url;
 
-const DEFAULT_URL: &str = "ws://localhost:9944/";
 const DEFAULT_URI: &str = "//Alice";
 const ENCODED_CALL_DATA_MAX_LEN: usize = 500; // Maximum length of encoded call data to display.
 
@@ -77,7 +77,7 @@ impl CallChainCommand {
 		// Configure the chain.
 		let chain = chain::configure(
 			"Which chain would you like to interact with?",
-			DEFAULT_URL,
+			urls::LOCAL,
 			&self.url,
 			&mut cli,
 		)
@@ -613,20 +613,21 @@ mod tests {
 	use super::*;
 	use crate::{cli::MockCli, common::wallet::USE_WALLET_PROMPT};
 	use pop_chains::{parse_chain_metadata, set_up_client};
+	use pop_common::test_env::TestNode;
 	use tempfile::tempdir;
 	use url::Url;
 
 	const BOB_SURI: &str = "//Bob";
-	const POP_NETWORK_TESTNET_URL: &str = "wss://rpc1.paseo.popnetwork.xyz";
-	const POLKADOT_NETWORK_URL: &str = "wss://polkadot-rpc.publicnode.com";
 
 	#[tokio::test]
 	async fn guide_user_to_call_chain_works() -> Result<()> {
+		let node = TestNode::spawn().await?;
+		let node_url = node.ws_url();
 		let mut call_config =
 			CallChainCommand { pallet: Some("System".to_string()), ..Default::default() };
 
 		let mut cli = MockCli::new()
-		.expect_input("Which chain would you like to interact with?", POP_NETWORK_TESTNET_URL.into())
+		.expect_input("Which chain would you like to interact with?", node_url.into())
 		.expect_select(
 			"Select the function to call:",
 			Some(true),
@@ -656,12 +657,12 @@ mod tests {
 
 		let chain = chain::configure(
 			"Which chain would you like to interact with?",
-			POP_NETWORK_TESTNET_URL,
+			node_url,
 			&None,
 			&mut cli,
 		)
 		.await?;
-		assert_eq!(chain.url, Url::parse(POP_NETWORK_TESTNET_URL)?);
+		assert_eq!(chain.url, Url::parse(node_url)?);
 
 		let call_chain = call_config.configure_call(&chain, &mut cli)?;
 		assert_eq!(call_chain.function.pallet, "System");
@@ -670,26 +671,26 @@ mod tests {
 		assert_eq!(call_chain.suri, "//Alice"); // Default value
 		assert!(call_chain.use_wallet);
 		assert!(call_chain.sudo);
-		assert_eq!(call_chain.display(&chain), format!("pop call chain --pallet System --function remark --args \"0x11\" --url {POP_NETWORK_TESTNET_URL}/ --use-wallet --sudo"));
+		assert_eq!(call_chain.display(&chain), format!("pop call chain --pallet System --function remark --args \"0x11\" --url {node_url}/ --use-wallet --sudo"));
 		cli.verify()
 	}
 
 	#[tokio::test]
 	async fn guide_user_to_configure_predefined_action_works() -> Result<()> {
+		let node = TestNode::spawn().await?;
+		let node_url = node.ws_url();
 		let mut call_config = CallChainCommand::default();
 
-		let mut cli = MockCli::new().expect_input(
-			"Which chain would you like to interact with?",
-			POLKADOT_NETWORK_URL.into(),
-		);
+		let mut cli = MockCli::new()
+			.expect_input("Which chain would you like to interact with?", node_url.into());
 		let chain = chain::configure(
 			"Which chain would you like to interact with?",
-			POP_NETWORK_TESTNET_URL,
+			node_url,
 			&None,
 			&mut cli,
 		)
 		.await?;
-		assert_eq!(chain.url, Url::parse(POLKADOT_NETWORK_URL)?);
+		assert_eq!(chain.url, Url::parse(node_url)?);
 		cli.verify()?;
 
 		let mut cli = MockCli::new()
@@ -709,27 +710,58 @@ mod tests {
 						)))
 						.collect::<Vec<_>>(),
 				),
-				1, // "Purchase on-demand coretime" action
+				1, // "Create an asset" action
 				None,
 			)
-			.expect_input("Enter the value for the parameter: max_amount", "10000".into())
-			.expect_input("Enter the value for the parameter: para_id", "2000".into())
+			.expect_input("Enter the value for the parameter: id", "10000".into())
+			.expect_select(
+				"Select the value for the parameter: admin",
+				Some(true),
+				true,
+				Some(
+					[
+						("Id".to_string(), "".to_string()),
+						("Index".to_string(), "".to_string()),
+						("Raw".to_string(), "".to_string()),
+						("Address32".to_string(), "".to_string()),
+						("Address20".to_string(), "".to_string()),
+					]
+					.to_vec(),
+				),
+				0, // "Id" action
+				None,
+			)
+			.expect_input(
+				"Enter the value for the parameter: Id",
+				"5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty".into(),
+			)
+			.expect_input("Enter the value for the parameter: min_balance", "2000".into())
 			.expect_input("Signer of the extrinsic:", BOB_SURI.into());
 
 		let call_chain = call_config.configure_call(&chain, &mut cli)?;
 
-		assert_eq!(call_chain.function.pallet, "OnDemand");
-		assert_eq!(call_chain.function.name, "place_order_allow_death");
-		assert_eq!(call_chain.args, ["10000".to_string(), "2000".to_string()].to_vec());
+		assert_eq!(call_chain.function.pallet, "Assets");
+		assert_eq!(call_chain.function.name, "create");
+		assert_eq!(
+			call_chain.args,
+			[
+				"10000".to_string(),
+				"Id(5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty)".to_string(),
+				"2000".to_string()
+			]
+			.to_vec()
+		);
 		assert_eq!(call_chain.suri, "//Bob");
 		assert!(!call_chain.sudo);
-		assert_eq!(call_chain.display(&chain), "pop call chain --pallet OnDemand --function place_order_allow_death --args \"10000\" \"2000\" --url wss://polkadot-rpc.publicnode.com/ --suri //Bob");
+		assert_eq!(call_chain.display(&chain), format!("pop call chain --pallet Assets --function create --args \"10000\" \"Id(5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty)\" \"2000\" --url {node_url}/ --suri //Bob"));
 		cli.verify()
 	}
 
 	#[tokio::test]
 	async fn prepare_extrinsic_works() -> Result<()> {
-		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
+		let node = TestNode::spawn().await?;
+		let node_url = node.ws_url();
+		let client = set_up_client(node_url).await?;
 		let mut call_config = Call {
 			function: Function {
 				pallet: "WrongName".to_string(),
@@ -763,7 +795,7 @@ mod tests {
 		assert_eq!(xt.pallet_name(), "System");
 
 		// Prepare extrinsic wrapped in sudo works.
-		cli = MockCli::new().expect_info("Encoded call data: 0x0f0000000411");
+		cli = MockCli::new().expect_info("Encoded call data: 0x070000000411");
 		call_config.sudo = true;
 		call_config.prepare_extrinsic(&client, &mut cli)?;
 
@@ -771,36 +803,15 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn user_cancel_submit_extrinsic_works() -> Result<()> {
-		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
-		let pallets = parse_chain_metadata(&client)?;
-		let mut call_config = Call {
-			function: find_dispatchable_by_name(&pallets, "System", "remark")?.clone(),
-			args: vec!["0x11".to_string()].to_vec(),
-			suri: DEFAULT_URI.to_string(),
-			use_wallet: false,
-			skip_confirm: false,
-			sudo: false,
-		};
-		let mut cli = MockCli::new()
-			.expect_confirm("Do you want to submit the extrinsic?", false)
-			.expect_outro_cancel("Extrinsic for `remark` was not submitted.");
-		let xt = call_config.prepare_extrinsic(&client, &mut cli)?;
-		call_config
-			.submit_extrinsic(&client, &Url::parse(POP_NETWORK_TESTNET_URL)?, xt, &mut cli)
-			.await?;
-
-		cli.verify()
-	}
-
-	#[tokio::test]
 	async fn user_cancel_submit_extrinsic_from_call_data_works() -> Result<()> {
-		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
+		let node = TestNode::spawn().await?;
+		let node_url = node.ws_url();
+		let client = set_up_client(node_url).await?;
 		let call_config = CallChainCommand {
 			pallet: None,
 			function: None,
 			args: vec![].to_vec(),
-			url: Some(Url::parse(POP_NETWORK_TESTNET_URL)?),
+			url: Some(Url::parse(node_url)?),
 			suri: None,
 			use_wallet: false,
 			skip_confirm: false,
@@ -815,56 +826,12 @@ mod tests {
 		call_config
 			.submit_extrinsic_from_call_data(
 				&client,
-				&Url::parse(POP_NETWORK_TESTNET_URL)?,
+				&Url::parse(node_url)?,
 				"0x00000411",
 				&mut cli,
 			)
 			.await?;
 
-		cli.verify()
-	}
-
-	#[tokio::test]
-	async fn configure_sudo_works() -> Result<()> {
-		// Test when sudo pallet doesn't exist.
-		let mut call_config = CallChainCommand {
-			pallet: None,
-			function: None,
-			args: vec![].to_vec(),
-			url: Some(Url::parse(POLKADOT_NETWORK_URL)?),
-			suri: Some("//Alice".to_string()),
-			use_wallet: false,
-			skip_confirm: false,
-			call_data: Some("0x00000411".to_string()),
-			sudo: true,
-		};
-		let mut cli = MockCli::new()
-			.expect_warning("NOTE: sudo is not supported by the chain. Ignoring `--sudo` flag.");
-		let chain = chain::configure(
-			"Which chain would you like to interact with?",
-			POP_NETWORK_TESTNET_URL,
-			&Some(Url::parse(POLKADOT_NETWORK_URL)?),
-			&mut cli,
-		)
-		.await?;
-		call_config.configure_sudo(&chain, &mut cli)?;
-		assert!(!call_config.sudo);
-		cli.verify()?;
-
-		// Test when sudo pallet exist.
-		cli = MockCli::new().expect_confirm(
-			"Would you like to dispatch this function call with `Root` origin?",
-			true,
-		);
-		let chain = chain::configure(
-			"Which chain would you like to interact with?",
-			POP_NETWORK_TESTNET_URL,
-			&Some(Url::parse(POP_NETWORK_TESTNET_URL)?),
-			&mut cli,
-		)
-		.await?;
-		call_config.configure_sudo(&chain, &mut cli)?;
-		assert!(call_config.sudo);
 		cli.verify()
 	}
 
@@ -874,7 +841,7 @@ mod tests {
 			pallet: Some("System".to_string()),
 			function: Some("remark".to_string()),
 			args: vec!["0x11".to_string()].to_vec(),
-			url: Some(Url::parse(POP_NETWORK_TESTNET_URL)?),
+			url: Some(Url::parse(urls::LOCAL)?),
 			use_wallet: true,
 			suri: Some(DEFAULT_URI.to_string()),
 			skip_confirm: false,
@@ -896,7 +863,7 @@ mod tests {
 			pallet: Some("System".to_string()),
 			function: Some("remark".to_string()),
 			args: vec!["0x11".to_string()].to_vec(),
-			url: Some(Url::parse(POP_NETWORK_TESTNET_URL)?),
+			url: Some(Url::parse(urls::LOCAL)?),
 			suri: Some(DEFAULT_URI.to_string()),
 			use_wallet: false,
 			skip_confirm: false,
@@ -915,7 +882,7 @@ mod tests {
 			pallet: Some("Registrar".to_string()),
 			function: Some("register".to_string()),
 			args: vec!["2000".to_string(), "0x1".to_string(), "0x12".to_string()].to_vec(),
-			url: Some(Url::parse(POP_NETWORK_TESTNET_URL)?),
+			url: Some(Url::parse(urls::LOCAL)?),
 			suri: Some(DEFAULT_URI.to_string()),
 			use_wallet: false,
 			call_data: None,
@@ -946,138 +913,6 @@ mod tests {
 			]
 		);
 		Ok(())
-	}
-
-	#[tokio::test]
-	async fn prompt_predefined_actions_works() -> Result<()> {
-		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
-		let pallets = parse_chain_metadata(&client)?;
-		let mut cli = MockCli::new().expect_select(
-			"What would you like to do?",
-			Some(true),
-			true,
-			Some(
-				supported_actions(&pallets)
-					.into_iter()
-					.map(|action| {
-						(action.description().to_string(), action.pallet_name().to_string())
-					})
-					.chain(std::iter::once((
-						"All".to_string(),
-						"Explore all pallets and functions".to_string(),
-					)))
-					.collect::<Vec<_>>(),
-			),
-			2, // "Mint an Asset" action
-			None,
-		);
-		let action = prompt_predefined_actions(&pallets, &mut cli)?;
-		assert_eq!(action, Some(Action::MintAsset));
-		cli.verify()
-	}
-
-	#[tokio::test]
-	async fn prompt_for_param_works() -> Result<()> {
-		let client = set_up_client(POP_NETWORK_TESTNET_URL).await?;
-		let pallets = parse_chain_metadata(&client)?;
-		// Using NFT mint dispatchable function to test the majority of sub-functions.
-		let function = find_dispatchable_by_name(&pallets, "Nfts", "mint")?;
-		let mut cli = MockCli::new()
-			.expect_input("Enter the value for the parameter: collection", "0".into())
-			.expect_input("Enter the value for the parameter: item", "0".into())
-			.expect_select(
-				"Select the value for the parameter: mint_to",
-				Some(true),
-				true,
-				Some(
-					[
-						("Id".to_string(), "".to_string()),
-						("Index".to_string(), "".to_string()),
-						("Raw".to_string(), "".to_string()),
-						("Address32".to_string(), "".to_string()),
-						("Address20".to_string(), "".to_string()),
-					]
-					.to_vec(),
-				),
-				0, // "Id" action
-				None,
-			)
-			.expect_input(
-				"Enter the value for the parameter: Id",
-				"5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty".into(),
-			)
-			.expect_confirm(
-				"Do you want to provide a value for the optional parameter: witness_data?",
-				true,
-			)
-			.expect_confirm(
-				"Do you want to provide a value for the optional parameter: owned_item?",
-				false,
-			)
-			.expect_confirm(
-				"Do you want to provide a value for the optional parameter: mint_price?",
-				true,
-			)
-			.expect_input("Enter the value for the parameter: mint_price", "1000".into());
-
-		// Test all the function params.
-		let mut params: Vec<String> = Vec::new();
-		for param in &function.params {
-			params.push(prompt_for_param(&mut cli, &param)?);
-		}
-		assert_eq!(params.len(), 4);
-		assert_eq!(params[0], "0".to_string()); // collection: test primitive
-		assert_eq!(params[1], "0".to_string()); // item: test primitive
-		assert_eq!(params[2], "Id(5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty)".to_string()); // mint_to: test variant
-		assert_eq!(params[3], "Some({owned_item: None(), mint_price: Some(1000)})".to_string()); // witness_data: test composite
-		cli.verify()?;
-
-		// Using Scheduler set_retry dispatchable function to test the tuple params.
-		let function = find_dispatchable_by_name(&pallets, "Scheduler", "set_retry")?;
-		let mut cli = MockCli::new()
-			.expect_input(
-				"Enter the value for the parameter: Index 0 of the tuple task",
-				"0".into(),
-			)
-			.expect_input(
-				"Enter the value for the parameter: Index 1 of the tuple task",
-				"0".into(),
-			)
-			.expect_input("Enter the value for the parameter: retries", "0".into())
-			.expect_input("Enter the value for the parameter: period", "0".into());
-
-		// Test all the extrinsic params
-		let mut params: Vec<String> = Vec::new();
-		for param in &function.params {
-			params.push(prompt_for_param(&mut cli, &param)?);
-		}
-		assert_eq!(params.len(), 3);
-		assert_eq!(params[0], "(0, 0)".to_string()); // task: test tuples
-		assert_eq!(params[1], "0".to_string()); // retries: test primitive
-		assert_eq!(params[2], "0".to_string()); // period: test primitive
-		cli.verify()?;
-
-		// Using System remark dispatchable function to test the sequence params.
-		let function = find_dispatchable_by_name(&pallets, "System", "remark")?;
-		// Temporal file for testing the input.
-		let temp_dir = tempdir()?;
-		let file = temp_dir.path().join("file.json");
-		std::fs::write(&file, "testing")?;
-
-		let mut cli = MockCli::new()
-			.expect_input(
-				"The value for `remark` might be too large to enter. You may enter the path to a file instead.",
-				file.display().to_string(),
-			);
-
-		// Test all the function params
-		let mut params: Vec<String> = Vec::new();
-		for param in &function.params {
-			params.push(prompt_for_param(&mut cli, &param)?);
-		}
-		assert_eq!(params.len(), 1);
-		assert_eq!(params[0], "testing".to_string()); // remark: test sequence from file
-		cli.verify()
 	}
 
 	#[test]

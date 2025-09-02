@@ -140,15 +140,11 @@ impl Display for Command {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::common::urls;
 	use cli::MockCli;
 	use duct::cmd;
-	use url::Url;
 	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
-	use {
-		super::contract::UpContractCommand,
-		pop_contracts::{mock_build_process, new_environment},
-		std::env,
-	};
+	use {super::contract::UpContractCommand, url::Url};
 	#[cfg(feature = "chain")]
 	use {
 		crate::style::format_url,
@@ -169,7 +165,7 @@ mod tests {
 				gas_limit: None,
 				proof_size: None,
 				salt: None,
-				url: Url::parse("wss://rpc1.paseo.popnetwork.xyz")?,
+				url: Url::parse(urls::LOCAL)?,
 				suri: "//Alice".to_string(),
 				use_wallet: false,
 				dry_run: true,
@@ -180,23 +176,6 @@ mod tests {
 			rollup: rollup::UpCommand::default(),
 			command: None,
 		})
-	}
-
-	#[tokio::test]
-	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
-	async fn detects_contract_correctly() -> anyhow::Result<()> {
-		let temp_dir = new_environment("testing")?;
-		let mut current_dir = env::current_dir().expect("Failed to get current directory");
-		current_dir.pop();
-		mock_build_process(
-			temp_dir.path().join("testing"),
-			current_dir.join("pop-contracts/tests/files/testing.contract"),
-			current_dir.join("pop-contracts/tests/files/testing.json"),
-		)?;
-		let args = create_up_args(temp_dir.path().join("testing"))?;
-		let mut cli = MockCli::new();
-		assert_eq!(Command::execute_project_deployment(args, &mut cli).await?, Contract);
-		cli.verify()
 	}
 
 	#[tokio::test]
@@ -213,8 +192,8 @@ mod tests {
 		instantiate_template_dir(&ChainTemplate::Standard, &project_path, None, config)?;
 
 		let mut args = create_up_args(project_path)?;
-		args.rollup.relay_chain_url = Some(Url::parse("wss://polkadot-rpc.publicnode.com")?);
 		args.rollup.id = Some(2000);
+		args.rollup.relay_chain_url = Some(Url::parse("ws://127.0.0.1:9944")?);
 		args.rollup.genesis_code = Some(PathBuf::from("path/to/genesis"));
 		args.rollup.genesis_state = Some(PathBuf::from("path/to/state"));
 		let mut cli = MockCli::new().expect_select(

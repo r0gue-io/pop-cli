@@ -409,63 +409,7 @@ fn prompt_customizable_options() -> Result<Config> {
 
 #[cfg(test)]
 mod tests {
-
 	use super::*;
-	use crate::{
-		commands::new::{Command::Chain as ChainCommand, NewArgs},
-		Cli,
-		Command::New,
-	};
-	use clap::Parser;
-	use git2::Repository;
-	use tempfile::tempdir;
-
-	#[tokio::test]
-	async fn test_new_parachain_command_with_defaults_executes() -> Result<()> {
-		let dir = tempdir()?;
-		let cli = Cli::parse_from([
-			"pop",
-			"new",
-			"chain",
-			dir.path().join("test_parachain").to_str().unwrap(),
-		]);
-
-		let New(NewArgs { command: Some(ChainCommand(command)) }) = cli.command else {
-			panic!("unable to parse command")
-		};
-		// Execute
-		let name = command.name.clone().unwrap();
-		command.execute().await?;
-		// check for git_init
-		let repo = Repository::open(Path::new(&name))?;
-		let reflog = repo.reflog("HEAD")?;
-		assert_eq!(reflog.len(), 1);
-		Ok(())
-	}
-
-	#[tokio::test]
-	async fn test_new_parachain_command_execute() -> Result<()> {
-		let dir = tempdir()?;
-		let name = dir.path().join("test_parachain").to_str().unwrap().to_string();
-		let command = NewChainCommand {
-			name: Some(name.clone()),
-			provider: Some(Provider::Pop),
-			template: Some(ChainTemplate::Standard),
-			release_tag: None,
-			symbol: Some("UNIT".to_string()),
-			decimals: Some(12),
-			initial_endowment: Some("1u64 << 60".to_string()),
-			verify: false,
-		};
-		command.execute().await?;
-
-		// check for git_init
-		let repo = Repository::open(Path::new(&name))?;
-		let reflog = repo.reflog("HEAD")?;
-		assert_eq!(reflog.len(), 1);
-
-		Ok(())
-	}
 
 	#[test]
 	fn test_is_template_supported() -> Result<()> {

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use anyhow::Result;
-use pop_chains::up::Zombienet;
+use pop_chains::{generate_pallet_benchmarks, get_preset_names, up::Zombienet};
 use std::path::Path;
 
 const BINARY_VERSION: &str = "stable2412";
@@ -147,5 +147,31 @@ async fn launch_paseo_and_two_parachains() -> Result<()> {
 	}
 
 	zombienet.spawn().await?;
+	Ok(())
+}
+
+#[test]
+fn generate_pallet_benchmarks_works() -> Result<()> {
+	let binary_path = "../../tests/runtimes/base_parachain_benchmark.wasm";
+	generate_pallet_benchmarks(vec![
+		"--pallet=pallet_timestamp".to_string(),
+		"--extrinsic=*".to_string(),
+		"--runtime".to_string(),
+		binary_path.to_string(),
+	])?;
+	Ok(())
+}
+
+#[test]
+fn get_preset_names_works() -> Result<()> {
+	assert_eq!(
+		get_preset_names(
+			&std::env::current_dir()
+				.unwrap()
+				.join("../../tests/runtimes/base_parachain_benchmark.wasm")
+				.canonicalize()?
+		)?,
+		vec!["development", "local_testnet"]
+	);
 	Ok(())
 }

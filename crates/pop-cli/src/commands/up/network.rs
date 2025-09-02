@@ -619,6 +619,7 @@ async fn source_binaries(
 
 async fn run_custom_command(spinner: &ProgressBar, command: &str) -> Result<(), anyhow::Error> {
 	spinner.set_message(format!("Spinning up network & running command: {}", command));
+	#[cfg(not(test))]
 	sleep(Duration::from_secs(15)).await;
 
 	// Split the command into the base command and arguments

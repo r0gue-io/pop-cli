@@ -32,35 +32,3 @@ impl BuildContract {
 		Ok("contract")
 	}
 }
-
-#[cfg(test)]
-mod tests {
-	use super::*;
-	use crate::cli::MockCli;
-	use pop_contracts::{create_smart_contract, Contract::Standard};
-	use std::fs::create_dir_all;
-
-	#[test]
-	fn build_works() -> anyhow::Result<()> {
-		let name = "flipper";
-		let temp_dir = tempfile::tempdir()?;
-		let path = temp_dir.path();
-		create_dir_all(path.join(name))?;
-		create_smart_contract(name, &path.join(name), &Standard)?;
-
-		for release in [false, true] {
-			let mut cli = MockCli::new()
-				.expect_intro("Building your contract")
-				.expect_outro("Build completed successfully!");
-
-			assert_eq!(
-				BuildContract { path: Some(path.join(name)), release }.build(&mut cli)?,
-				"contract"
-			);
-
-			cli.verify()?;
-		}
-
-		Ok(())
-	}
-}

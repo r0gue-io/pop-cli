@@ -29,6 +29,8 @@ allow = [
     "ISC",
     "GPL-3.0",
     "GPL-3.0 WITH Classpath-exception-2.0", # For Substrate crates
+    "GPL-3.0-or-later WITH Classpath-exception-2.0", # For Substrate crates
+    "GPL-3.0-only",
     "MIT",
     "MPL-2.0",
     "Unicode-3.0",
