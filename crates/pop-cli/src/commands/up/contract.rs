@@ -3,7 +3,10 @@
 use crate::{
 	cli::{traits::Cli as _, Cli},
 	common::{
-		contracts::{check_contracts_node_and_prompt, has_contract_been_built, terminate_node},
+		contracts::{
+			check_contracts_node_and_prompt, has_contract_been_built,
+			request_contract_function_args, terminate_node,
+		},
 		urls,
 		wallet::request_signature,
 	},
@@ -22,6 +25,7 @@ use pop_contracts::{
 	set_up_deployment, set_up_upload, upload_contract_signed, upload_smart_contract, Bytes, UpOpts,
 	Verbosity, Weight,
 };
+use pop_contracts::{extract_function, FunctionType};
 use std::path::PathBuf;
 use tempfile::NamedTempFile;
 use url::Url;
@@ -316,6 +320,14 @@ impl UpContractCommand {
 			return Ok(());
 		}
 
+		let function = extract_function(
+			&self.path.clone().unwrap_or_else(|| PathBuf::from("./")),
+			&self.constructor,
+			FunctionType::Constructor,
+		)?;
+		if self.args.is_empty() && !function.args.is_empty() {
+			self.args = request_contract_function_args(&function, &mut Cli)?;
+		}
 		// Otherwise instantiate.
 		let instantiate_exec = match set_up_deployment(self.clone().into()).await {
 			Ok(i) => i,

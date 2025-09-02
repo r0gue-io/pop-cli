@@ -4,7 +4,7 @@ use crate::{
 	cli::{self, traits::*},
 	common::{
 		builds::get_project_path,
-		contracts::has_contract_been_built,
+		contracts::{has_contract_been_built, request_contract_function_args},
 		prompt::display_message,
 		urls,
 		wallet::{prompt_to_use_wallet, request_signature},
@@ -300,19 +300,7 @@ impl CallContractCommand {
 		};
 
 		// Resolve message arguments.
-		let mut contract_args = Vec::new();
-		for arg in &message.args {
-			let mut input = cli
-				.input(format!("Enter the value for the parameter: {}", arg.label))
-				.placeholder(&format!("Type required: {}", arg.type_name));
-
-			// Set default input only if the parameter type is `Option` (Not mandatory)
-			if arg.type_name.starts_with("Option<") {
-				input = input.default_input("");
-			}
-			contract_args.push(input.interact()?);
-		}
-		self.args = contract_args;
+		self.args = request_contract_function_args(&message, cli)?;
 
 		// Resolve value.
 		if message.payable && self.value == DEFAULT_PAYABLE_VALUE {

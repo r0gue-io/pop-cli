@@ -5,7 +5,7 @@ use crate::{
 	submit_signed_payload,
 	utils::{
 		get_manifest_path,
-		metadata::{process_function_args, FunctionType},
+		metadata::{extract_function, process_function_args, FunctionType},
 		parse_balance,
 	},
 	CallExec, DefaultEnvironment, Environment, Verbosity,
@@ -95,12 +95,12 @@ pub async fn set_up_call(
 	#[cfg(feature = "v6")]
 	let contract = parse_h160_account(&call_opts.contract)?;
 	// Process the provided argument values.
-	let args = process_function_args(
-		call_opts.path.unwrap_or_else(|| PathBuf::from("./")),
+	let function = extract_function(
+		&call_opts.path.unwrap_or_else(|| PathBuf::from("./")),
 		&call_opts.message,
-		call_opts.args,
 		FunctionType::Message,
 	)?;
+	let args = process_function_args(&function, call_opts.args)?;
 
 	let call_exec: CallExec<DefaultConfig, DefaultEnvironment, Keypair> =
 		CallCommandBuilder::new(contract.clone(), &call_opts.message, extrinsic_opts)

@@ -131,11 +131,8 @@ fn get_contract_functions(
 /// # Arguments
 /// * `path` -  Location path of the project or contract artifact.
 /// * `message` - The label of the contract message.
-pub fn get_message<P>(path: P, message: &str) -> Result<ContractFunction, Error>
-where
-	P: AsRef<Path>,
-{
-	get_messages(path.as_ref())?
+pub fn get_message(path: &Path, message: &str) -> Result<ContractFunction, Error> {
+	get_messages(path)?
 		.into_iter()
 		.find(|msg| msg.label == message)
 		.ok_or_else(|| Error::InvalidMessageName(message.to_string()))
@@ -171,27 +168,34 @@ fn process_args(
 	args
 }
 
+/// Extracts the information of a smart contract function (message or constructor) parsing the
+/// contract artifact.
+///
+/// # Arguments
+/// * `path` - Location path of the project or contract artifact.
+/// * `label` - The label of the contract function.
+/// * `function_type` - Specifies whether to extract a message or constructor.
+pub fn extract_function(
+	path: &Path,
+	label: &str,
+	function_type: FunctionType,
+) -> Result<ContractFunction, Error> {
+	match function_type {
+		FunctionType::Message => get_message(path, label),
+		FunctionType::Constructor => get_constructor(path, label),
+	}
+}
+
 /// Processes a list of argument values for a specified contract function,
 /// wrapping each value in `Some(...)` or replacing it with `None` if the argument is optional.
 ///
 /// # Arguments
-/// * `path` -  Location path of the project or contract artifact.
-/// * `label` - Label of the contract message to retrieve.
+/// * `function` - The contract function to process.
 /// * `args` - Argument values provided by the user.
-/// * `function_type` - Specifies whether to process arguments of messages or constructors.
-pub fn process_function_args<P>(
-	path: P,
-	label: &str,
+pub fn process_function_args(
+	function: &ContractFunction,
 	args: Vec<String>,
-	function_type: FunctionType,
-) -> Result<Vec<String>, Error>
-where
-	P: AsRef<Path>,
-{
-	let function = match function_type {
-		FunctionType::Message => get_message(path, label)?,
-		FunctionType::Constructor => get_constructor(path, label)?,
-	};
+) -> Result<Vec<String>, Error> {
 	if args.len() != function.args.len() {
 		return Err(Error::IncorrectArguments {
 			expected: function.args.len(),
@@ -209,7 +213,7 @@ where
 			// If the argument is not Option, return it as is
 			_ => arg,
 		})
-		.collect::<Vec<String>>())
+		.collect())
 }
 
 #[cfg(test)]
@@ -353,65 +357,60 @@ mod tests {
 			current_dir.join("./tests/files/testing.contract"),
 			current_dir.join("./tests/files/testing.json"),
 		)?;
+
+		// Test messages
 		assert!(matches!(
-			process_function_args(temp_dir.path().join("testing"),"wrong_flip", Vec::new(), FunctionType::Message),
+			extract_function(&temp_dir.path().join("testing"), "wrong_flip", FunctionType::Message),
 			Err(Error::InvalidMessageName(error)) if error == "wrong_flip".to_string()));
+
+		let specific_flip = extract_function(
+			&temp_dir.path().join("testing"),
+			"specific_flip",
+			FunctionType::Message,
+		)?;
+
 		assert!(matches!(
-			process_function_args(
-				temp_dir.path().join("testing"),
-				"specific_flip",
-				Vec::new(),
-				FunctionType::Message
-			),
+			process_function_args(&specific_flip, Vec::new()),
 			Err(Error::IncorrectArguments {expected, provided }) if expected == 2 && provided == 0
 		));
+
 		assert_eq!(
-			process_function_args(
-				temp_dir.path().join("testing"),
-				"specific_flip",
-				["true".to_string(), "2".to_string()].to_vec(),
-				FunctionType::Message
-			)?,
+			process_function_args(&specific_flip, ["true".to_string(), "2".to_string()].to_vec())?,
 			["true".to_string(), "Some(2)".to_string()]
 		);
+
 		assert_eq!(
-			process_function_args(
-				temp_dir.path().join("testing"),
-				"specific_flip",
-				["true".to_string(), "".to_string()].to_vec(),
-				FunctionType::Message
-			)?,
+			process_function_args(&specific_flip, ["true".to_string(), "".to_string()].to_vec())?,
 			["true".to_string(), "None".to_string()]
 		);
 
 		// Test constructors
 		assert!(matches!(
-			process_function_args(temp_dir.path().join("testing"),"wrong_constructor", Vec::new(), FunctionType::Constructor),
+			extract_function(&temp_dir.path().join("testing"), "wrong_constructor", FunctionType::Constructor),
 			Err(Error::InvalidConstructorName(error)) if error == "wrong_constructor".to_string()));
+
+		let default_constructor = extract_function(
+			&temp_dir.path().join("testing"),
+			"default",
+			FunctionType::Constructor,
+		)?;
 		assert!(matches!(
-			process_function_args(
-				temp_dir.path().join("testing"),
-				"default",
-				Vec::new(),
-				FunctionType::Constructor
-			),
+			process_function_args(&default_constructor, Vec::new()),
 			Err(Error::IncorrectArguments {expected, provided }) if expected == 2 && provided == 0
 		));
+
 		assert_eq!(
 			process_function_args(
-				temp_dir.path().join("testing"),
-				"default",
-				["true".to_string(), "2".to_string()].to_vec(),
-				FunctionType::Constructor
+				&default_constructor,
+				["true".to_string(), "2".to_string()].to_vec()
 			)?,
 			["true".to_string(), "Some(2)".to_string()]
 		);
+
 		assert_eq!(
 			process_function_args(
-				temp_dir.path().join("testing"),
-				"default",
-				["true".to_string(), "".to_string()].to_vec(),
-				FunctionType::Constructor
+				&default_constructor,
+				["true".to_string(), "".to_string()].to_vec()
 			)?,
 			["true".to_string(), "None".to_string()]
 		);

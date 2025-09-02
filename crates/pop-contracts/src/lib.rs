@@ -34,7 +34,7 @@ pub use up::{
 	submit_signed_payload, upload_contract_signed, upload_smart_contract, ContractInfo, UpOpts,
 };
 pub use utils::{
-	metadata::{get_message, get_messages, ContractFunction},
+	metadata::{extract_function, get_message, get_messages, ContractFunction, FunctionType},
 	parse_hex_bytes,
 };
 // External exports

@@ -6,7 +6,7 @@ use crate::{
 	impl_binary_generator,
 };
 use pop_common::{manifest::from_path, sourcing::Binary};
-use pop_contracts::contracts_node_generator;
+use pop_contracts::{contracts_node_generator, ContractFunction};
 use std::{
 	path::{Path, PathBuf},
 	process::{Child, Command},
@@ -87,6 +87,33 @@ pub fn has_contract_been_built(path: Option<&Path>) -> bool {
 		.package
 		.map(|p| project_path.join(format!("target/ink/{}.contract", p.name())).exists())
 		.unwrap_or_default()
+}
+
+/// Requests and collects function arguments from the user via CLI interaction.
+///
+/// # Arguments
+/// * `function` - The contract function containing argument definitions.
+/// * `cli` - Command line interface implementation for user interaction.
+///
+/// # Returns
+/// A vector of strings containing the user-provided argument values.
+pub fn request_contract_function_args(
+	function: &ContractFunction,
+	cli: &mut impl Cli,
+) -> anyhow::Result<Vec<String>> {
+	let mut user_provided_args = Vec::new();
+	for arg in &function.args {
+		let mut input = cli
+			.input(format!("Enter the value for the parameter: {}", arg.label))
+			.placeholder(&format!("Type required: {}", arg.type_name));
+
+		// Set default input only if the parameter type is `Option` (Not mandatory)
+		if arg.type_name.starts_with("Option<") {
+			input = input.default_input("");
+		}
+		user_provided_args.push(input.interact()?);
+	}
+	Ok(user_provided_args)
 }
 
 #[cfg(feature = "polkavm-contracts")]
