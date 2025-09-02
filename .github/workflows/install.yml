@@ -53,8 +53,7 @@ jobs:
         run: |
           brew update
           brew uninstall --force cmake || true
-          brew install cmake 
-          brew install openssl protobuf
+          brew install cmake openssl protobuf
       - name: Install Rust
         run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
       - name: Install Pop
@@ -63,7 +62,7 @@ jobs:
           cargo install --locked --no-default-features --features contract,chain --path ./crates/pop-cli
       - name: Run Pop Install
         env:
-          HOMEBREW_NO_AUTO_UPDATE: 1 
+          HOMEBREW_NO_AUTO_UPDATE: 1
         run: |
           . "$HOME/.cargo/env"
           pop install -y
