@@ -210,7 +210,47 @@ mod tests {
 
 	#[tokio::test]
 	async fn construct_extrinsic_works() -> Result<()> {
-		let transfer_allow_death= Function { pallet: "Balances".into(), name: "transfer_allow_death".into(), index: 0, docs: ".".into(), params: [Param { name: "dest".into(), type_name: "MultiAddress<AccountId32 ([u8;32]),()>: Id(AccountId32 ([u8;32])), Index(Compact<()>), Raw([u8]), Address32([u8;32]), Address20([u8;20])".into(), sub_params: [Param { name: "Id".into(), type_name: "".into(), sub_params: [Param { name: "Id".into(), type_name: "AccountId32 ([u8;32])".into(), sub_params: [Param { name: "Id".into(), type_name: "[u8;32]".into(), sub_params: [].to_vec(), ..Default::default() }].to_vec(), ..Default::default() }].to_vec(), ..Default::default() }].to_vec(), ..Default::default() },Param { name: "value".into(), type_name: "Compact<u128>".into(), sub_params: [].to_vec(), ..Default::default() }].to_vec(), is_supported: true };
+		let transfer_allow_death = Function {
+            pallet: "Balances".into(),
+            name: "transfer_allow_death".into(),
+            index: 0,
+            docs: ".".into(),
+            params: vec![
+                Param {
+                    name: "dest".into(),
+                    type_name: "MultiAddress<AccountId32 ([u8;32]),()>: Id(AccountId32 ([u8;32])), Index(Compact<()>), Raw([u8]), Address32([u8;32]), Address20([u8;20])".into(),
+                    sub_params: vec![
+                        Param {
+                            name: "Id".into(),
+                            type_name: "".into(),
+                            sub_params: vec![
+                                Param {
+                                    name: "Id".into(),
+                                    type_name: "AccountId32 ([u8;32])".into(),
+                                    sub_params: vec![
+                                        Param {
+                                            name: "Id".into(),
+                                            type_name: "[u8;32]".into(),
+                                            sub_params: vec![],
+                                            ..Default::default()
+                                        }
+                                    ],
+                                    ..Default::default()
+                                }
+                            ],
+                            ..Default::default()
+                        }],
+                    ..Default::default()
+                },
+                Param {
+                    name: "value".into(),
+                    type_name: "Compact<u128>".into(),
+                    sub_params: vec![],
+                    ..Default::default()
+                }
+            ],
+            is_supported: true,
+        };
 		// Wrong parameters
 		assert!(matches!(
 			construct_extrinsic(
