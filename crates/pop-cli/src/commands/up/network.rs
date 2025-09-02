@@ -662,3 +662,22 @@ impl Status for VerboseReporter {
 		}
 	}
 }
+
+// Write a test for run_custom_command
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[tokio::test]
+	async fn test_run_custom_command() -> Result<(), anyhow::Error> {
+		let spinner = ProgressBar::new(1);
+
+		// Define the command to be executed
+		let command = "echo 2 + 2";
+
+		// Call the run_custom_command function
+		run_custom_command(&spinner, command).await?;
+
+		Ok(())
+	}
+}
