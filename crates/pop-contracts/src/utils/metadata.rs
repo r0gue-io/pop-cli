@@ -38,10 +38,12 @@ pub struct ContractFunction {
 	pub mutates: bool,
 }
 
-/// Specifies the type of contract funtion, either a constructor or a message.
+/// Specifies the type of contract function, either a constructor or a message.
 #[derive(Clone, PartialEq, Eq)]
 pub enum FunctionType {
+	/// Function that initializes and creates a new contract instance.
 	Constructor,
+	/// Function that can be called on an instantiated contract.
 	Message,
 }
 
