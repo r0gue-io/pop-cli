@@ -32,13 +32,13 @@ fn convert_address(address: &str, ss58_prefix: Option<u16>) -> Result<String> {
 		let account_id = AccountId32::from_ss58check(address)?;
 		let bytes: [u8; 32] = account_id.into();
 
-		// Verify last 12 bytes are 0xEE
+		// Verify the last 12 bytes are 0xEE
 		if !bytes[20..].iter().all(|&b| b == EE_BYTE) {
 			return Err(anyhow::anyhow!("Invalid address: last 12 bytes must be 0xEE"));
 		}
 
-		// Take first 20 bytes and format as hex
-		let eth_address = format!("0x{}", to_hex(&bytes[..20], false));
+		// Take the first 20 bytes and format as hex
+		let eth_address = to_hex(&bytes[..20], false);
 		Ok(eth_address)
 	}
 }
