@@ -99,7 +99,7 @@ pub enum Action {
 		props(Pallet = "System")
 	)]
 	Remark,
-	/// Register the callers account id so that it can be used in contract interactions.
+	/// Register the callers account so that it can be used in contract interactions.
 	#[strum(
 		serialize = "map_account",
 		message = "map_account",
