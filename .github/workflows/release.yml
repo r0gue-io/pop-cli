@@ -73,7 +73,7 @@ jobs:
       - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
-          name: binaries
+          name: binaries-${{ strategy.job-index }}
           path: ${{ env.path }}/${{ env.package }}
 
       - name: Add binary to release
