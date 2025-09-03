@@ -16,6 +16,7 @@ pub(crate) mod build;
 #[cfg(any(feature = "chain", feature = "polkavm-contracts", feature = "wasm-contracts"))]
 pub(crate) mod call;
 pub(crate) mod clean;
+pub(crate) mod convert;
 pub(crate) mod hash;
 #[cfg(any(feature = "chain", feature = "polkavm-contracts", feature = "wasm-contracts"))]
 pub(crate) mod install;
@@ -57,6 +58,9 @@ pub(crate) enum Command {
 	/// Remove generated/cached artifacts.
 	#[clap(alias = "C")]
 	Clean(clean::CleanArgs),
+	/// Convert between different formats.
+	#[clap(alias = "cv")]
+	Convert(convert::ConvertArgs),
 }
 
 /// Help message for the build command.
@@ -240,6 +244,10 @@ impl Command {
 					},
 				}
 			},
+			Command::Convert(args) => {
+				env_logger::init();
+				args.command.execute(&mut Cli).map(|_| Null)
+			},
 		}
 	}
 }
@@ -310,6 +318,7 @@ impl Display for Command {
 			#[cfg(feature = "chain")]
 			Self::Bench(args) => write!(f, "bench {}", args.command),
 			Command::Hash(args) => write!(f, "hash {}", args.command),
+			Command::Convert(args) => write!(f, "convert {}", args.command),
 		}
 	}
 }
@@ -427,5 +436,18 @@ mod tests {
 		use hash::{Command::*, Data, HashArgs};
 		let command = Blake2 { length: 256, data: Data::default(), concat: false };
 		assert_eq!(format!("hash {command}"), Command::Hash(HashArgs { command }).to_string());
+	}
+
+	#[test]
+	fn convert_command_display_works() {
+		use convert::{Command::*, ConvertArgs};
+		let command = Address {
+			address: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e".to_string(),
+			prefix: None,
+		};
+		assert_eq!(
+			format!("convert {command}"),
+			Command::Convert(ConvertArgs { command }).to_string()
+		);
 	}
 }
