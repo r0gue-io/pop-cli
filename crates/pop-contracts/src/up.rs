@@ -90,7 +90,7 @@ pub async fn set_up_deployment(
 
 	// Process the provided argument values.
 	let function = extract_function(
-		&up_opts.path.unwrap_or_else(|| PathBuf::from("./")),
+		up_opts.path.unwrap_or_else(|| PathBuf::from("./")),
 		&up_opts.constructor,
 		FunctionType::Constructor,
 	)?;

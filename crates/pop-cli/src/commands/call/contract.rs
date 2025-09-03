@@ -300,7 +300,7 @@ impl CallContractCommand {
 		};
 
 		// Resolve message arguments.
-		self.args = request_contract_function_args(&message, cli)?;
+		self.args = request_contract_function_args(message, cli)?;
 
 		// Resolve value.
 		if message.payable && self.value == DEFAULT_PAYABLE_VALUE {

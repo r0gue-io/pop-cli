@@ -321,7 +321,7 @@ impl UpContractCommand {
 		}
 
 		let function = extract_function(
-			&self.path.clone().unwrap_or_else(|| PathBuf::from("./")),
+			self.path.clone().unwrap_or_else(|| PathBuf::from("./")),
 			&self.constructor,
 			FunctionType::Constructor,
 		)?;

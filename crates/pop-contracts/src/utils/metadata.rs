@@ -133,8 +133,11 @@ fn get_contract_functions(
 /// # Arguments
 /// * `path` -  Location path of the project or contract artifact.
 /// * `message` - The label of the contract message.
-pub fn get_message(path: &Path, message: &str) -> Result<ContractFunction, Error> {
-	get_messages(path)?
+pub fn get_message<P>(path: P, message: &str) -> Result<ContractFunction, Error>
+where
+	P: AsRef<Path>,
+{
+	get_messages(path.as_ref())?
 		.into_iter()
 		.find(|msg| msg.label == message)
 		.ok_or_else(|| Error::InvalidMessageName(message.to_string()))
@@ -177,14 +180,17 @@ fn process_args(
 /// * `path` - Location path of the project or contract artifact.
 /// * `label` - The label of the contract function.
 /// * `function_type` - Specifies whether to extract a message or constructor.
-pub fn extract_function(
-	path: &Path,
+pub fn extract_function<P>(
+	path: P,
 	label: &str,
 	function_type: FunctionType,
-) -> Result<ContractFunction, Error> {
+) -> Result<ContractFunction, Error>
+where
+	P: AsRef<Path>,
+{
 	match function_type {
-		FunctionType::Message => get_message(path, label),
-		FunctionType::Constructor => get_constructor(path, label),
+		FunctionType::Message => get_message(path.as_ref(), label),
+		FunctionType::Constructor => get_constructor(path.as_ref(), label),
 	}
 }
 
@@ -256,11 +262,11 @@ mod tests {
 		)?;
 
 		// Test with a directory path
-		let message = get_messages(&temp_dir.path().join("testing"))?;
+		let message = get_messages(temp_dir.path().join("testing"))?;
 		assert_contract_metadata_parsed(message)?;
 
 		// Test with a metadata file path
-		let message = get_messages(&current_dir.join("./tests/files/testing.contract"))?;
+		let message = get_messages(current_dir.join("./tests/files/testing.contract"))?;
 		assert_contract_metadata_parsed(message)?;
 
 		Ok(())
@@ -276,9 +282,9 @@ mod tests {
 			current_dir.join("./tests/files/testing.json"),
 		)?;
 		assert!(matches!(
-			get_message(&temp_dir.path().join("testing"), "wrong_flip"),
-			Err(Error::InvalidMessageName(name)) if name == "wrong_flip".to_string()));
-		let message = get_message(&temp_dir.path().join("testing"), "specific_flip")?;
+			get_message(temp_dir.path().join("testing"), "wrong_flip"),
+			Err(Error::InvalidMessageName(name)) if name == *"wrong_flip"));
+		let message = get_message(temp_dir.path().join("testing"), "specific_flip")?;
 		assert_eq!(message.label, "specific_flip");
 		assert_eq!(message.docs, " A message for testing, flips the value of the stored `bool` with `new_value`  and is payable");
 		// assert parsed arguments
@@ -299,7 +305,7 @@ mod tests {
 			current_dir.join("./tests/files/testing.contract"),
 			current_dir.join("./tests/files/testing.json"),
 		)?;
-		let constructor = get_constructors(&temp_dir.path().join("testing"))?;
+		let constructor = get_constructors(temp_dir.path().join("testing"))?;
 		assert_eq!(constructor.len(), 2);
 		assert_eq!(constructor[0].label, "new");
 		assert_eq!(
@@ -333,9 +339,9 @@ mod tests {
 			current_dir.join("./tests/files/testing.json"),
 		)?;
 		assert!(matches!(
-			get_constructor(&temp_dir.path().join("testing"), "wrong_constructor"),
-			Err(Error::InvalidConstructorName(name)) if name == "wrong_constructor".to_string()));
-		let constructor = get_constructor(&temp_dir.path().join("testing"), "default")?;
+			get_constructor(temp_dir.path().join("testing"), "wrong_constructor"),
+			Err(Error::InvalidConstructorName(name)) if name == *"wrong_constructor"));
+		let constructor = get_constructor(temp_dir.path().join("testing"), "default")?;
 		assert_eq!(constructor.label, "default");
 		assert_eq!(
 			constructor.docs,
@@ -362,11 +368,11 @@ mod tests {
 
 		// Test messages
 		assert!(matches!(
-			extract_function(&temp_dir.path().join("testing"), "wrong_flip", FunctionType::Message),
-			Err(Error::InvalidMessageName(error)) if error == "wrong_flip".to_string()));
+			extract_function(temp_dir.path().join("testing"), "wrong_flip", FunctionType::Message),
+			Err(Error::InvalidMessageName(error)) if error == *"wrong_flip"));
 
 		let specific_flip = extract_function(
-			&temp_dir.path().join("testing"),
+			temp_dir.path().join("testing"),
 			"specific_flip",
 			FunctionType::Message,
 		)?;
@@ -388,11 +394,11 @@ mod tests {
 
 		// Test constructors
 		assert!(matches!(
-			extract_function(&temp_dir.path().join("testing"), "wrong_constructor", FunctionType::Constructor),
-			Err(Error::InvalidConstructorName(error)) if error == "wrong_constructor".to_string()));
+			extract_function(temp_dir.path().join("testing"), "wrong_constructor", FunctionType::Constructor),
+			Err(Error::InvalidConstructorName(error)) if error == *"wrong_constructor"));
 
 		let default_constructor = extract_function(
-			&temp_dir.path().join("testing"),
+			temp_dir.path().join("testing"),
 			"default",
 			FunctionType::Constructor,
 		)?;
