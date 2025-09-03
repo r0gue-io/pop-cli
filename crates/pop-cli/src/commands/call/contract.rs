@@ -226,6 +226,7 @@ impl CallContractCommand {
 				.default_input("./")
 				.interact()?;
 			project_path = Some(PathBuf::from(input_path));
+			self.path = project_path.clone();
 		}
 		let contract_path = project_path
 			.as_ref()
