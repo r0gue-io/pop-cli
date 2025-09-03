@@ -16,8 +16,8 @@ pub(crate) mod build;
 #[cfg(any(feature = "chain", feature = "polkavm-contracts", feature = "wasm-contracts"))]
 pub(crate) mod call;
 pub(crate) mod clean;
-pub(crate) mod hash;
 pub(crate) mod convert;
+pub(crate) mod hash;
 #[cfg(any(feature = "chain", feature = "polkavm-contracts", feature = "wasm-contracts"))]
 pub(crate) mod install;
 #[cfg(any(feature = "chain", feature = "polkavm-contracts", feature = "wasm-contracts"))]
@@ -438,16 +438,16 @@ mod tests {
 		assert_eq!(format!("hash {command}"), Command::Hash(HashArgs { command }).to_string());
 	}
 
-    #[test]
-    fn convert_command_display_works() {
-        use convert::{Command::*, ConvertArgs};
-        let command = Address {
-            address: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e".to_string(),
-            prefix: None,
-        };
-        assert_eq!(
-            format!("convert {command}"),
-            Command::Convert(ConvertArgs { command }).to_string()
-        );
-    }
+	#[test]
+	fn convert_command_display_works() {
+		use convert::{Command::*, ConvertArgs};
+		let command = Address {
+			address: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e".to_string(),
+			prefix: None,
+		};
+		assert_eq!(
+			format!("convert {command}"),
+			Command::Convert(ConvertArgs { command }).to_string()
+		);
+	}
 }
