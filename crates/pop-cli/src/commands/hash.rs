@@ -74,20 +74,9 @@ pub(crate) enum Command {
 impl Command {
 	/// Executes the command.
 	pub(crate) fn execute(&self, cli: &mut impl Cli) -> Result<()> {
-		let hash = self.hash()?;
-		let additional_info = format!("(Source: {}, Output: {} bytes)", self.data(), hash.len());
-		let output =
-			format!("{} {}", to_hex(&self.hash()?, false), console::style(additional_info).dim());
-		cli.success(&output)?;
-		console::Term::stderr().clear_last_lines(1)?;
+		let output = &to_hex(&self.hash()?, false)[2..];
+		cli.plain(output)?;
 		Ok(())
-	}
-
-	fn data(&self) -> &Data {
-		match self {
-			Blake2 { data, .. } | Keccak { data, .. } | Sha2 { data, .. } | TwoX { data, .. } =>
-				data,
-		}
 	}
 
 	fn hash(&self) -> Result<Vec<u8>> {
@@ -337,21 +326,6 @@ mod tests {
 				format!("{}", command.hash().unwrap_err().root_cause()),
 				format!("unsupported length: {length}")
 			);
-		}
-	}
-
-	#[test]
-	fn data_works() {
-		let data = "test".as_bytes();
-		for data in [File(data.to_vec()), Hex(data.to_vec()), String(data.to_vec())] {
-			for command in [
-				Blake2 { length: Default::default(), data: data.clone(), concat: false },
-				Keccak { length: Default::default(), data: data.clone() },
-				Sha2 { length: Default::default(), data: data.clone() },
-				TwoX { length: Default::default(), data: data.clone(), concat: false },
-			] {
-				assert_eq!(command.data(), &data);
-			}
 		}
 	}
 
