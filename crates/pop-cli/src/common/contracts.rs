@@ -142,8 +142,11 @@ mod tests {
 	use crate::cli::MockCli;
 	use duct::cmd;
 	use pop_common::{find_free_port, set_executable_permission};
-	use pop_contracts::{is_chain_alive, run_contracts_node};
-	use std::fs::{self, File};
+	use pop_contracts::{extract_function, is_chain_alive, run_contracts_node, FunctionType};
+	use std::{
+		env,
+		fs::{self, File},
+	};
 	use url::Url;
 
 	#[test]
@@ -165,6 +168,21 @@ mod tests {
 		File::create(contract_path.join(format!("target/ink/{}.contract", name)))?;
 		assert!(has_contract_been_built(Some(&path.join(name))));
 		Ok(())
+	}
+
+	#[tokio::test]
+	async fn request_contract_function_args_works() -> anyhow::Result<()> {
+		let mut current_dir = env::current_dir().expect("Failed to get current directory");
+		current_dir.pop();
+		let mut cli = MockCli::new()
+			.expect_input("Enter the value for the parameter: init_value", "true".into());
+		let function = extract_function(
+			current_dir.join("pop-contracts/tests/files/testing.json"),
+			"new",
+			FunctionType::Constructor,
+		)?;
+		assert_eq!(request_contract_function_args(&function, &mut cli)?, vec!["true"]);
+		cli.verify()
 	}
 
 	#[tokio::test]
