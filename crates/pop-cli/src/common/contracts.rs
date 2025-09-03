@@ -6,7 +6,7 @@ use crate::{
 	impl_binary_generator,
 };
 use pop_common::{manifest::from_path, sourcing::Binary};
-use pop_contracts::contracts_node_generator;
+use pop_contracts::{contracts_node_generator, ContractFunction};
 use std::{
 	path::{Path, PathBuf},
 	process::{Child, Command},
@@ -89,6 +89,33 @@ pub fn has_contract_been_built(path: Option<&Path>) -> bool {
 		.unwrap_or_default()
 }
 
+/// Requests and collects function arguments from the user via CLI interaction.
+///
+/// # Arguments
+/// * `function` - The contract function containing argument definitions.
+/// * `cli` - Command line interface implementation for user interaction.
+///
+/// # Returns
+/// A vector of strings containing the user-provided argument values.
+pub fn request_contract_function_args(
+	function: &ContractFunction,
+	cli: &mut impl Cli,
+) -> anyhow::Result<Vec<String>> {
+	let mut user_provided_args = Vec::new();
+	for arg in &function.args {
+		let mut input = cli
+			.input(format!("Enter the value for the parameter: {}", arg.label))
+			.placeholder(&format!("Type required: {}", arg.type_name));
+
+		// Set default input only if the parameter type is `Option` (Not mandatory)
+		if arg.type_name.starts_with("Option<") {
+			input = input.default_input("");
+		}
+		user_provided_args.push(input.interact()?);
+	}
+	Ok(user_provided_args)
+}
+
 #[cfg(feature = "polkavm-contracts")]
 pub(crate) async fn map_account(
 	extrinsic_opts: &ExtrinsicOpts<DefaultConfig, DefaultEnvironment, Keypair>,
@@ -115,8 +142,11 @@ mod tests {
 	use crate::cli::MockCli;
 	use duct::cmd;
 	use pop_common::{find_free_port, set_executable_permission};
-	use pop_contracts::{is_chain_alive, run_contracts_node};
-	use std::fs::{self, File};
+	use pop_contracts::{extract_function, is_chain_alive, run_contracts_node, FunctionType};
+	use std::{
+		env,
+		fs::{self, File},
+	};
 	use url::Url;
 
 	#[test]
@@ -138,6 +168,21 @@ mod tests {
 		File::create(contract_path.join(format!("target/ink/{}.contract", name)))?;
 		assert!(has_contract_been_built(Some(&path.join(name))));
 		Ok(())
+	}
+
+	#[tokio::test]
+	async fn request_contract_function_args_works() -> anyhow::Result<()> {
+		let mut current_dir = env::current_dir().expect("Failed to get current directory");
+		current_dir.pop();
+		let mut cli = MockCli::new()
+			.expect_input("Enter the value for the parameter: init_value", "true".into());
+		let function = extract_function(
+			current_dir.join("pop-contracts/tests/files/testing.json"),
+			"new",
+			FunctionType::Constructor,
+		)?;
+		assert_eq!(request_contract_function_args(&function, &mut cli)?, vec!["true"]);
+		cli.verify()
 	}
 
 	#[tokio::test]

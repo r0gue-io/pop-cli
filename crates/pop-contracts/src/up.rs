@@ -4,7 +4,7 @@ use crate::{
 	errors::Error,
 	utils::{
 		get_manifest_path,
-		metadata::{process_function_args, FunctionType},
+		metadata::{extract_function, process_function_args, FunctionType},
 		parse_balance,
 	},
 	Bytes, DefaultEnvironment, Environment, UploadCode, Weight,
@@ -89,12 +89,12 @@ pub async fn set_up_deployment(
 		parse_balance(&up_opts.value)?;
 
 	// Process the provided argument values.
-	let args = process_function_args(
+	let function = extract_function(
 		up_opts.path.unwrap_or_else(|| PathBuf::from("./")),
 		&up_opts.constructor,
-		up_opts.args,
 		FunctionType::Constructor,
 	)?;
+	let args = process_function_args(&function, up_opts.args)?;
 	let instantiate_exec: InstantiateExec<DefaultConfig, DefaultEnvironment, Keypair> =
 		InstantiateCommandBuilder::new(extrinsic_opts)
 			.constructor(up_opts.constructor.clone())
