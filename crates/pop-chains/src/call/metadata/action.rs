@@ -99,6 +99,14 @@ pub enum Action {
 		props(Pallet = "System")
 	)]
 	Remark,
+	/// Register the callers account so that it can be used in contract interactions.
+	#[strum(
+		serialize = "map_account",
+		message = "map_account",
+		detailed_message = "Map account",
+		props(Pallet = "Revive")
+	)]
+	MapAccount,
 }
 
 impl Action {
@@ -154,6 +162,7 @@ mod tests {
 			(Register, "Register a parachain ID with genesis state and code"),
 			(Reserve, "Reserve a parachain ID"),
 			(Remark, "Make a remark"),
+			(MapAccount, "Map account"),
 		]);
 
 		for action in Action::VARIANTS.iter() {
@@ -174,6 +183,7 @@ mod tests {
 			(Register, "Registrar"),
 			(Reserve, "Registrar"),
 			(Remark, "System"),
+			(MapAccount, "Revive"),
 		]);
 
 		for action in Action::VARIANTS.iter() {
@@ -194,6 +204,7 @@ mod tests {
 			(Register, "register"),
 			(Reserve, "reserve"),
 			(Remark, "remark_with_event"),
+			(MapAccount, "map_account"),
 		]);
 
 		for action in Action::VARIANTS.iter() {
@@ -208,7 +219,7 @@ mod tests {
 		let client: subxt::OnlineClient<subxt::SubstrateConfig> =
 			set_up_client(node.ws_url()).await?;
 		let actions = supported_actions(&parse_chain_metadata(&client)?);
-		assert_eq!(actions, vec![Transfer, CreateAsset, MintAsset, Remark]);
+		assert_eq!(actions, vec![Transfer, CreateAsset, MintAsset, Remark, MapAccount]);
 		Ok(())
 	}
 }
