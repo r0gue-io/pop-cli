@@ -69,9 +69,9 @@ impl Command {
 	/// Executes the command.
 	pub(crate) fn execute(&self, cli: &mut impl Cli) -> Result<()> {
 		let output = match self {
-			Command::Address { address, prefix } => convert_address(address.as_str(), *prefix)?,
+			Address { address, prefix } => convert_address(address.as_str(), *prefix)?,
 		};
-		cli.success(&output)?;
+		cli.plain(&output)?;
 		Ok(())
 	}
 }
