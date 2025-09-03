@@ -162,7 +162,7 @@ impl Command {
 			))]
 			Self::Call(args) => {
 				env_logger::init();
-				match args.command {
+				match args.resolve_command()? {
 					#[cfg(feature = "chain")]
 					call::Command::Chain(cmd) => cmd.execute().await.map(|_| Null),
 					#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
@@ -286,7 +286,10 @@ impl Display for Command {
 				feature = "polkavm-contracts",
 				feature = "wasm-contracts"
 			))]
-			Self::Call(args) => write!(f, "call {}", args.command),
+			Self::Call(args) => match &args.command {
+				Some(cmd) => write!(f, "call {}", cmd),
+				None => write!(f, "call unknown"),
+			},
 			#[cfg(any(
 				feature = "chain",
 				feature = "polkavm-contracts",
@@ -389,12 +392,14 @@ mod tests {
 			),
 			// Call.
 			(
-				Command::Call(call::CallArgs { command: call::Command::Chain(Default::default()) }),
+				Command::Call(call::CallArgs {
+					command: Some(call::Command::Chain(Default::default())),
+				}),
 				"call chain",
 			),
 			(
 				Command::Call(call::CallArgs {
-					command: call::Command::Contract(Default::default()),
+					command: Some(call::Command::Contract(Default::default())),
 				}),
 				"call contract",
 			),
