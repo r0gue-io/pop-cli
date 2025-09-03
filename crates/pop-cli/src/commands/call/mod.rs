@@ -141,20 +141,20 @@ ink = "5.1.1"
 	fn resolve_command_in_directory_with_nothing_should_work() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
 
-        // Try without Cargo.toml file
+		// Try without Cargo.toml file
 		std::env::set_current_dir(temp_dir.path())?;
 		assert!(CallArgs { command: None }.resolve_command().is_err());
 
-        // Try with Cargo.toml file but without any relevant dependencies
-        let cargo_toml = r#"[package]
+		// Try with Cargo.toml file but without any relevant dependencies
+		let cargo_toml = r#"[package]
 name = "other-project"
 version = "0.1.0"
 
 [dependencies]
 regex = "1.10"
 "#;
-        fs::write(temp_dir.path().join("Cargo.toml"), cargo_toml)?;
-        assert!(CallArgs { command: None }.resolve_command().is_err());
+		fs::write(temp_dir.path().join("Cargo.toml"), cargo_toml)?;
+		assert!(CallArgs { command: None }.resolve_command().is_err());
 		Ok(())
 	}
 }
