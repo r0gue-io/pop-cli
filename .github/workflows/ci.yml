@@ -1,10 +1,13 @@
 name: ci
 
+permissions:
+  contents: read
+  packages: read
+
 on:
   push:
     branches:
       - main
-      - fix/ci
   pull_request:
     types:
       - opened
@@ -15,14 +18,47 @@ on:
 env:
   CARGO_TERM_COLOR: always
   GITHUB_ACTOR: pop-cli
-  CARGO_INCREMENTAL: 0
+  CARGO_INCREMENTAL: 1
+  RUST_VERSION: 1.68
 
 concurrency:
   # Cancel any in-progress jobs for the same pull request
-  group: ${{ github.head_ref || github.run_id }}
+  group: ${{ github.event.pull_request.number || github.head_ref }}
   cancel-in-progress: true
 
 jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      image_base: ${{ steps.out.outputs.image_base }}
+      image: ${{ steps.out.outputs.image }}
+      exists: ${{ steps.out.outputs.exists }}
+    steps:
+      - name: Set environment variables
+        id: out
+        run: |
+          set -euo pipefail
+          image_base="ghcr.io/${GITHUB_REPOSITORY,,}"
+          image="${image_base}:latest"
+          echo "image_base=${image_base}" >> "$GITHUB_OUTPUT"
+          echo "image=${image}" >> "$GITHUB_OUTPUT"
+          # Try to fetch manifest; exit code 0 means exists
+          if docker buildx imagetools inspect "${image}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  prepare-ci-image:
+    needs: setup
+    if: ${{ needs.setup.outputs.exists == 'true' }}
+    uses: ./.github/workflows/docker-ci.yml
+    permissions:
+      contents: read
+      packages: write
+    with:
+      docker_image: ${{ needs.setup.outputs.image_base }}
+
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -40,43 +76,66 @@ jobs:
         run: cargo +nightly fmt --all -- --check
 
   build:
-    needs: lint
+    needs:
+      - lint
+      - setup
     runs-on: ubuntu-latest
-    env:
-      RUSTFLAGS: "-Dwarnings"
+    container:
+      image: ${{ needs.setup.outputs.image }}
     steps:
       - uses: actions/checkout@v4
 
-      - uses: "./.github/actions/init"
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2.7.8
         with:
-          git-user: ${{ env.GITHUB_ACTOR }}
+          cache-on-failure: true
+          cache-all-crates: true
+          shared-key: shared-${{ github.head_ref || github.ref_name }}
 
       - name: Check no default features
         run: cargo check --no-default-features
+        env:
+          RUSTFLAGS: "-Dwarnings"
 
       - name: Check contracts feature
         run: cargo check --no-default-features --features contract
+        env:
+          RUSTFLAGS: "-Dwarnings"
 
       - name: Check polkavm-contracts feature
         run: cargo check --no-default-features --features "polkavm-contracts, v6" -p pop-cli -p pop-contracts
+        env:
+          RUSTFLAGS: "-Dwarnings"
 
       - name: Check chain feature
         run: cargo check --no-default-features --features chain
+        env:
+          RUSTFLAGS: "-Dwarnings"
 
-      - name: Build default features
-        run: cargo build
+      - name: Check default features
+        run: cargo check
+        env:
+          RUSTFLAGS: "-Dwarnings"
 
   clippy:
-    needs: build
+    needs:
+      - build
+      - setup
     runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.setup.outputs.image }}
     permissions:
       checks: write
+      packages: read
     steps:
       - uses: actions/checkout@v4
 
-      - uses: "./.github/actions/init"
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2.7.8
         with:
-          git-user: ${{ env.GITHUB_ACTOR }}
+          cache-on-failure: true
+          cache-all-crates: true
+          shared-key: shared-${{ github.head_ref || github.ref_name }}
 
       - name: Annotate with Clippy warnings
         uses: actions-rs/clippy-check@v1
@@ -92,64 +151,76 @@ jobs:
       - uses: docker/build-push-action@v5
 
   docs:
-    needs: build
+    needs:
+      - setup
+      - build
     runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.setup.outputs.image }}
     permissions:
       checks: write
-    env:
-      RUSTDOCFLAGS: "-Dwarnings"
-      RUSTFLAGS: "-Dmissing_docs"
+      packages: read
     steps:
       - uses: actions/checkout@v4
 
-      - uses: "./.github/actions/init"
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2.7.8
         with:
-          git-user: ${{ env.GITHUB_ACTOR }}
+          cache-on-failure: true
+          cache-all-crates: true
+          shared-key: shared-${{ github.head_ref || github.ref_name }}
 
       - name: Check no default features
         run: cargo doc --no-deps
+        env:
+          RUSTDOCFLAGS: "-Dwarnings"
+          RUSTFLAGS: "-Dmissing_docs"
 
   unit-tests:
-    needs: build
+    needs:
+      - setup
+      - build
     runs-on: ubuntu-latest
-    env:
-      RUSTFLAGS: "-Dwarnings"
+    container:
+      image: ${{ needs.setup.outputs.image }}
     steps:
       - uses: actions/checkout@v4
 
-      - uses: "./.github/actions/init"
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2.7.8
         with:
-          git-user: ${{ env.GITHUB_ACTOR }}
-
-      - name: Install cargo-nextest
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-nextest
+          cache-on-failure: true
+          cache-all-crates: true
+          shared-key: shared-${{ github.head_ref || github.ref_name }}
 
       - name: Run unit tests (no default features)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUSTFLAGS: "-Dwarnings"
         run: cargo nextest run --lib --bins --no-default-features
 
       - name: Run unit tests
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUSTFLAGS: "-Dwarnings"
         run: cargo nextest run --lib --bins --no-default-features --features "contract,chain"
 
   polkavm-unit-tests:
-    needs: build
+    needs:
+      - setup
+      - build
     runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.setup.outputs.image }}
     steps:
       - uses: actions/checkout@v4
 
-      - uses: "./.github/actions/init"
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2.7.8
         with:
-          git-user: ${{ env.GITHUB_ACTOR }}
-
-      - name: Install cargo-nextest
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-nextest
+          cache-on-failure: true
+          cache-all-crates: true
+          shared-key: shared-${{ github.head_ref || github.ref_name }}
 
       - name: Run unit tests for polkavm-contracts
         env:
@@ -157,17 +228,21 @@ jobs:
         run: cargo nextest run --lib --bins --no-default-features --features "polkavm-contracts, v6" -p pop-cli -p pop-contracts
 
   coverage:
-    needs: build
+    needs:
+      - setup
+      - build
     runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.setup.outputs.image }}
     steps:
       - uses: actions/checkout@v4
 
-      - uses: "./.github/actions/init"
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2.7.8
         with:
-          git-user: ${{ env.GITHUB_ACTOR }}
-
-      - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@cargo-llvm-cov
+          cache-on-failure: true
+          cache-all-crates: true
+          shared-key: shared-${{ github.head_ref || github.ref_name }}
 
       - name: Generate code coverage
         run: cargo llvm-cov --workspace --lib --bins --no-default-features --features "default chain telemetry v5 wasm-contracts wallet-integration" --codecov --output-path codecov.json
@@ -180,14 +255,21 @@ jobs:
           fail_ci_if_error: true
 
   documentation-tests:
-    needs: build
+    needs:
+      - setup
+      - build
     runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.setup.outputs.image }}
     steps:
       - uses: actions/checkout@v4
 
-      - uses: "./.github/actions/init"
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2.7.8
         with:
-          git-user: ${{ env.GITHUB_ACTOR }}
+          cache-on-failure: true
+          cache-all-crates: true
+          shared-key: shared-${{ github.head_ref || github.ref_name }}
 
       - name: Run doc tests
         run: cargo test --doc
@@ -212,11 +294,28 @@ jobs:
           target: wasm32-unknown-unknown
           components: rust-src, clippy
 
+      - name: Rust Cache Linux
+        if: matrix.os == 'ubuntu-latest'
+        uses: Swatinem/rust-cache@v2.7.8
+        with:
+          cache-on-failure: true
+          cache-all-crates: true
+          shared-key: shared-${{ github.head_ref || github.ref_name }}
+
+      - name: Rust Cache MacOS
+        if: matrix.os == 'macos-latest'
+        uses: Swatinem/rust-cache@v2.7.8
+        with:
+          cache-on-failure: true
+          cache-all-crates: true
+          shared-key: shared-${{ github.head_ref || github.ref_name }}-macos
+
       - name: Install packages (Linux)
         if: matrix.os == 'ubuntu-latest'
-        uses: "./.github/actions/init"
-        with:
-          git-user: ${{ env.GITHUB_ACTOR }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+          protoc --version
 
       - name: Install packages (macOS)
         if: matrix.os == 'macos-latest'
@@ -252,13 +351,30 @@ jobs:
           toolchain: stable
           default: true
           target: wasm32-unknown-unknown
-          components: rust-src, clippy
+          components: rust-src
+
+      - name: Rust Cache Linux
+        if: matrix.os == 'ubuntu-latest'
+        uses: Swatinem/rust-cache@v2.7.8
+        with:
+          cache-on-failure: true
+          cache-all-crates: true
+          shared-key: shared-${{ github.head_ref || github.ref_name }}
+
+      - name: Rust Cache MacOS
+        if: matrix.os == 'macos-latest'
+        uses: Swatinem/rust-cache@v2.7.8
+        with:
+          cache-on-failure: true
+          cache-all-crates: true
+          shared-key: shared-${{ github.head_ref || github.ref_name }}-macos
 
       - name: Install packages (Linux)
         if: matrix.os == 'ubuntu-latest'
-        uses: "./.github/actions/init"
-        with:
-          git-user: ${{ env.GITHUB_ACTOR }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+          protoc --version
 
       - name: Install packages (macOS)
         if: matrix.os == 'macos-latest'
