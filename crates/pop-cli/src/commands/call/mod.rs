@@ -36,8 +36,7 @@ impl CallArgs {
 		}
 
 		// Auto-detect project type based on current directory
-		let current_dir = std::env::current_dir()
-			.map_err(|_| anyhow::anyhow!("Failed to get current directory"))?;
+		let current_dir = std::env::current_dir()?;
 
 		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 		if pop_contracts::is_supported(Some(&current_dir))? {
@@ -72,8 +71,23 @@ impl Display for Command {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use std::fs;
+	use std::{
+		env::{current_dir, set_current_dir},
+		fs,
+		path::Path,
+	};
 	use tempfile::tempdir;
+
+	fn with_current_dir<F, R>(dir: &Path, f: F) -> anyhow::Result<R>
+	where
+		F: FnOnce() -> anyhow::Result<R>,
+	{
+		let original_dir = current_dir()?;
+		set_current_dir(dir)?;
+		let result = f();
+		set_current_dir(original_dir)?;
+		result
+	}
 
 	#[test]
 	fn command_display_works() {
@@ -114,10 +128,10 @@ substrate-frame-rpc-system = "4.0.0"
 parity-scale-codec = "3.0.0"
 "#;
 		fs::write(temp_dir.path().join("Cargo.toml"), cargo_toml)?;
-		std::env::set_current_dir(temp_dir.path())?;
-
-		matches!(CallArgs { command: None }.resolve_command(), Ok(Command::Chain(..)));
-		Ok(())
+		with_current_dir(temp_dir.as_ref(), || {
+			matches!(CallArgs { command: None }.resolve_command(), Ok(Command::Chain(..)));
+			Ok(())
+		})
 	}
 
 	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
@@ -132,9 +146,10 @@ version = "0.1.0"
 ink = "5.1.1"
 "#;
 		fs::write(temp_dir.path().join("Cargo.toml"), cargo_toml)?;
-		std::env::set_current_dir(temp_dir.path())?;
-		matches!(CallArgs { command: None }.resolve_command(), Ok(Command::Contract(..)));
-		Ok(())
+		with_current_dir(temp_dir.as_ref(), || {
+			matches!(CallArgs { command: None }.resolve_command(), Ok(Command::Contract(..)));
+			Ok(())
+		})
 	}
 
 	#[test]
@@ -142,19 +157,21 @@ ink = "5.1.1"
 		let temp_dir = tempdir()?;
 
 		// Try without Cargo.toml file
-		std::env::set_current_dir(temp_dir.path())?;
-		assert!(CallArgs { command: None }.resolve_command().is_err());
+		with_current_dir(temp_dir.as_ref(), || {
+			set_current_dir(temp_dir.path())?;
+			assert!(CallArgs { command: None }.resolve_command().is_err());
 
-		// Try with Cargo.toml file but without any relevant dependencies
-		let cargo_toml = r#"[package]
+			// Try with Cargo.toml file but without any relevant dependencies
+			let cargo_toml = r#"[package]
 name = "other-project"
 version = "0.1.0"
 
 [dependencies]
 regex = "1.10"
 "#;
-		fs::write(temp_dir.path().join("Cargo.toml"), cargo_toml)?;
-		assert!(CallArgs { command: None }.resolve_command().is_err());
-		Ok(())
+			fs::write(temp_dir.path().join("Cargo.toml"), cargo_toml)?;
+			assert!(CallArgs { command: None }.resolve_command().is_err());
+			Ok(())
+		})
 	}
 }
