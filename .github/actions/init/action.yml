@@ -1,8 +1,6 @@
 name: Initialize
 description: This action initializes a runner for use in other actions.
 inputs:
-  cache-key:
-    description: "The key to be used for the cache"
   git-user:
     required: true
     description: "The user name to be used for git config"
@@ -32,8 +30,8 @@ runs:
         git config --global user.email ${{ inputs.git-user }}@users.noreply.github.com
 
     - name: Rust Cache
-      uses: Swatinem/rust-cache@v2.7.8
+      uses: Swatinem/rust-cache@v2
       with:
         cache-on-failure: true
         cache-all-crates: true
-        key: ${{ inputs.cache-key }}
+        key: ${{ runner.os }}
