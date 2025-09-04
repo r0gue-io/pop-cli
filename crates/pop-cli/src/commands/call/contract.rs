@@ -88,6 +88,27 @@ pub struct CallContractCommand {
 	dev_mode: bool,
 }
 
+impl Default for CallContractCommand {
+	fn default() -> Self {
+		Self {
+			path: None,
+			path_pos: None,
+			contract: None,
+			message: None,
+			args: vec![],
+			value: DEFAULT_PAYABLE_VALUE.to_string(),
+			gas_limit: None,
+			proof_size: None,
+			url: url::Url::parse(urls::LOCAL).unwrap(),
+			suri: "//Alice".to_string(),
+			use_wallet: false,
+			execute: false,
+			dry_run: false,
+			dev_mode: false,
+		}
+	}
+}
+
 impl CallContractCommand {
 	/// Executes the command.
 	pub(crate) async fn execute(mut self) -> Result<()> {
@@ -583,27 +604,6 @@ mod tests {
 	use pop_contracts::{mock_build_process, new_environment};
 	use std::{env, fs::write};
 	use url::Url;
-
-	impl Default for CallContractCommand {
-		fn default() -> Self {
-			Self {
-				path: None,
-				path_pos: None,
-				contract: None,
-				message: None,
-				args: vec![],
-				value: DEFAULT_PAYABLE_VALUE.to_string(),
-				gas_limit: None,
-				proof_size: None,
-				url: url::Url::parse(urls::LOCAL).unwrap(),
-				suri: "//Alice".to_string(),
-				use_wallet: false,
-				execute: false,
-				dry_run: false,
-				dev_mode: false,
-			}
-		}
-	}
 
 	// This test only covers the interactive portion of the call contract command, without actually
 	// calling the contract.
