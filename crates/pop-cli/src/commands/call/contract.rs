@@ -310,10 +310,12 @@ impl CallContractCommand {
 		let message = {
 			let mut prompt = cli.select("Select the message to call:");
 			for select_message in &messages {
+				let (icon, clarification) =
+					if select_message.mutates { ("📝 ", "[MUTATES]") } else { ("", "") };
 				prompt = prompt.item(
 					select_message,
-					format!("{}\n", &select_message.label),
-					&select_message.docs,
+					format!("{}{}\n", icon, &select_message.label),
+					format!("{}{}", clarification, &select_message.docs),
 				);
 			}
 			let message = prompt.interact()?;
