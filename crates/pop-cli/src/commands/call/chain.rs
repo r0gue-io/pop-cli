@@ -200,8 +200,8 @@ impl CallChainCommand {
 
 			// If chain has sudo prompt the user to confirm if they want to execute the call via
 			// sudo.
-			if !self.skip_confirm {
-				self.configure_sudo(chain, cli)?;
+			if self.sudo {
+				self.check_sudo(chain, cli)?;
 			}
 
 			let (use_wallet, suri) = self.determine_signing_method(cli)?;
@@ -289,26 +289,22 @@ impl CallChainCommand {
 
 	// Checks if the chain has the Sudo pallet and prompts the user to confirm if they want to
 	// execute the call via `sudo`.
-	fn configure_sudo(&mut self, chain: &Chain, cli: &mut impl Cli) -> Result<()> {
+	fn check_sudo(&mut self, chain: &Chain, cli: &mut impl Cli) -> Result<()> {
 		match find_dispatchable_by_name(&chain.pallets, "Sudo", "sudo") {
-			Ok(_) =>
-				if !self.sudo {
+			Ok(_) => {
+				if !self.skip_confirm {
 					self.sudo = cli
-						.confirm(
-							"Would you like to dispatch this function call with `Root` origin?",
-						)
-						.initial_value(false)
-						.interact()?;
-				},
+                        .confirm(
+                            "Are you sure you want to dispatch this function call with `Root` origin?",
+                        )
+                        .initial_value(true)
+                        .interact()?;
+				}
+				Ok(())
+			},
 			Err(_) =>
-				if self.sudo {
-					cli.warning(
-						"NOTE: sudo is not supported by the chain. Ignoring `--sudo` flag.",
-					)?;
-					self.sudo = false;
-				},
+				Err(anyhow::anyhow!("The sudo pallet is not supported by the chain. Aborting...")),
 		}
-		Ok(())
 	}
 
 	// Resets specific fields to default values for a new call.
@@ -623,8 +619,11 @@ mod tests {
 	async fn guide_user_to_call_chain_works() -> Result<()> {
 		let node = TestNode::spawn().await?;
 		let node_url = node.ws_url();
-		let mut call_config =
-			CallChainCommand { pallet: Some("System".to_string()), ..Default::default() };
+		let mut call_config = CallChainCommand {
+			pallet: Some("System".to_string()),
+			sudo: true,
+			..Default::default()
+		};
 
 		let mut cli = MockCli::new()
 		.expect_input("Which chain would you like to interact with?", node_url.into())
@@ -649,11 +648,11 @@ mod tests {
 				.to_vec(),
 			),
 			5, // "remark" dispatchable function
-			None,
-		)
-		.expect_input("The value for `remark` might be too large to enter. You may enter the path to a file instead.", "0x11".into())
-		.expect_confirm("Would you like to dispatch this function call with `Root` origin?", true)
-		.expect_confirm(USE_WALLET_PROMPT, true);
+            None,
+        )
+            .expect_input("The value for `remark` might be too large to enter. You may enter the path to a file instead.", "0x11".into())
+            .expect_confirm("Are you sure you want to dispatch this function call with `Root` origin?", true)
+            .expect_confirm(USE_WALLET_PROMPT, true);
 
 		let chain = chain::configure(
 			"Which chain would you like to interact with?",
