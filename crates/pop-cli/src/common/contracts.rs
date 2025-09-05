@@ -122,7 +122,6 @@ pub fn request_contract_function_args(
 /// * `args` - The mutable list of argument values provided by the user.
 /// * `function` - The contract function containing argument definitions.
 pub(crate) fn normalize_call_args(args: &mut [String], function: &ContractFunction) {
-	println!("{:?}", function.args);
 	for (arg, param) in args.iter_mut().zip(&function.args) {
 		// If "None" return empty string
 		if param.type_name.starts_with("Option<") && arg == "None" {
