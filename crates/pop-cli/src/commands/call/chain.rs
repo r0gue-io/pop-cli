@@ -292,12 +292,14 @@ impl CallChainCommand {
 	fn check_sudo(&mut self, chain: &Chain, cli: &mut impl Cli) -> Result<()> {
 		match find_dispatchable_by_name(&chain.pallets, "Sudo", "sudo") {
 			Ok(_) => {
-				self.sudo = cli
-					.confirm(
-						"Are you sure you want to dispatch this function call with `Root` origin?",
-					)
-					.initial_value(false)
-					.interact()?;
+				if !self.skip_confirm {
+					self.sudo = cli
+                        .confirm(
+                            "Are you sure you want to dispatch this function call with `Root` origin?",
+                        )
+                        .initial_value(true)
+                        .interact()?;
+				}
 				Ok(())
 			},
 			Err(_) =>
