@@ -310,10 +310,12 @@ impl CallContractCommand {
 		let message = {
 			let mut prompt = cli.select("Select the message to call:");
 			for select_message in &messages {
+				let (icon, clarification) =
+					if select_message.mutates { ("📝 ", "[MUTATES]") } else { ("", "") };
 				prompt = prompt.item(
 					select_message,
-					format!("{}\n", &select_message.label),
-					&select_message.docs,
+					format!("{}{}\n", icon, &select_message.label),
+					format!("{}{}", clarification, &select_message.docs),
 				);
 			}
 			let message = prompt.interact()?;
@@ -619,9 +621,9 @@ mod tests {
 		)?;
 
 		let items = vec![
-			("flip\n".into(), " A message that can be called on instantiated contracts.  This one flips the value of the stored `bool` from `true`  to `false` and vice versa.".into()),
+            ("📝 flip\n".into(), "[MUTATES] A message that can be called on instantiated contracts.  This one flips the value of the stored `bool` from `true`  to `false` and vice versa.".into()),
 			("get\n".into(), " Simply returns the current value of our `bool`.".into()),
-			("specific_flip\n".into(), " A message for testing, flips the value of the stored `bool` with `new_value`  and is payable".into())
+            ("📝 specific_flip\n".into(), "[MUTATES] A message for testing, flips the value of the stored `bool` with `new_value`  and is payable".into())
 		];
 		// The inputs are processed in reverse order.
 		let mut cli = MockCli::new()
@@ -698,9 +700,9 @@ mod tests {
 		)?;
 
 		let items = vec![
-			("flip\n".into(), " A message that can be called on instantiated contracts.  This one flips the value of the stored `bool` from `true`  to `false` and vice versa.".into()),
+            ("📝 flip\n".into(), "[MUTATES] A message that can be called on instantiated contracts.  This one flips the value of the stored `bool` from `true`  to `false` and vice versa.".into()),
 			("get\n".into(), " Simply returns the current value of our `bool`.".into()),
-			("specific_flip\n".into(), " A message for testing, flips the value of the stored `bool` with `new_value`  and is payable".into())
+            ("📝 specific_flip\n".into(), "[MUTATES] A message for testing, flips the value of the stored `bool` with `new_value`  and is payable".into())
 		];
 		// The inputs are processed in reverse order.
 		let mut cli = MockCli::new()
@@ -783,9 +785,9 @@ mod tests {
 		)?;
 
 		let items = vec![
-			("flip\n".into(), " A message that can be called on instantiated contracts.  This one flips the value of the stored `bool` from `true`  to `false` and vice versa.".into()),
+            ("📝 flip\n".into(), "[MUTATES] A message that can be called on instantiated contracts.  This one flips the value of the stored `bool` from `true`  to `false` and vice versa.".into()),
 			("get\n".into(), " Simply returns the current value of our `bool`.".into()),
-			("specific_flip\n".into(), " A message for testing, flips the value of the stored `bool` with `new_value`  and is payable".into())
+            ("📝 specific_flip\n".into(), "[MUTATES] A message for testing, flips the value of the stored `bool` with `new_value`  and is payable".into())
 		];
 		// The inputs are processed in reverse order.
 		let mut cli = MockCli::new()
