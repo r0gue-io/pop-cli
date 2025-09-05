@@ -10,6 +10,11 @@ defaults:
   run:
     shell: bash
 
+concurrency:
+  # Cancel any in-progress jobs for the same pull request
+  group: ${{ github.event.pull_request.number || github.head_ref }}
+  cancel-in-progress: true
+
 jobs:
   arch:
     runs-on: ubuntu-latest
