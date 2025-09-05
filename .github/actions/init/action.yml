@@ -34,4 +34,4 @@ runs:
       with:
         cache-on-failure: true
         cache-all-crates: true
-        key: ${{ runner.os }}
+        shared-key: ${{ github.head_ref || github.ref_name }}
