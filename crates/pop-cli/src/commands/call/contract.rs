@@ -4,7 +4,7 @@ use crate::{
 	cli::{self, traits::*},
 	common::{
 		builds::get_project_path,
-		contracts::{has_contract_been_built, request_contract_function_args},
+		contracts::{has_contract_been_built, normalize_call_args, request_contract_function_args},
 		prompt::display_message,
 		urls,
 		wallet::{prompt_to_use_wallet, request_signature},
@@ -418,6 +418,7 @@ impl CallContractCommand {
 				return Err(anyhow!("Please specify the contract address."));
 			},
 		};
+		normalize_call_args(&mut self.args, &message_metadata);
 		let call_exec = match set_up_call(CallOpts {
 			path: project_path,
 			contract,
