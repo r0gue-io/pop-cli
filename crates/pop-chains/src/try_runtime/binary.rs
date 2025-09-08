@@ -74,9 +74,10 @@ mod tests {
 
 	#[tokio::test]
 	async fn try_runtime_generator_works() -> Result<(), Error> {
-		let temp_dir = tempdir()?.into_path();
+		let temp_dir = tempdir()?;
+		let path = temp_dir.path().to_path_buf();
 		let version = "v0.8.0";
-		let binary = try_runtime_generator(temp_dir.clone(), None).await?;
+		let binary = try_runtime_generator(path.clone(), None).await?;
 		assert!(matches!(binary, Binary::Source { name: _, source, cache }
 				if source == Source::GitHub(ReleaseArchive {
 					owner: "r0gue-io".to_string(),
@@ -90,7 +91,7 @@ mod tests {
 					contents: ["try-runtime-cli"].map(|b| ArchiveFileSpec::new(b.into(), Some(b.into()), true)).to_vec(),
 					latest: binary.latest().map(|l| l.to_string()),
 				}).into() &&
-				cache == temp_dir.as_path()
+				cache == path
 		));
 		Ok(())
 	}

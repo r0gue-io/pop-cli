@@ -180,7 +180,7 @@ mod tests {
 
 	#[test]
 	fn build_command_works() -> Result<()> {
-		let temp_dir = tempfile::tempdir()?;
+		let temp_dir = tempdir()?;
 		let path = temp_dir.path();
 		let tag = get_image_tag(Some(TIMEOUT))?;
 		let digest = get_image_digest(DEFAULT_IMAGE, &tag).unwrap_or_default();
