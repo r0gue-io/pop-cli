@@ -9,7 +9,7 @@ use pop_common::{manifest::from_path, sourcing::Binary};
 use pop_contracts::{contracts_node_generator, ContractFunction};
 use std::{
 	path::{Path, PathBuf},
-	process::{Child, Command, Stdio},
+	process::{Child, Command},
 };
 use tempfile::NamedTempFile;
 #[cfg(feature = "polkavm-contracts")]
@@ -66,14 +66,10 @@ pub async fn terminate_node(
 			.wait()?;
 	} else {
 		cli.warning("You can finish the process by pressing Ctrl+C.")?;
-		let _ = Command::new("tail")
-			.args(["-F", &log.path().to_string_lossy()])
-			.stdout(Stdio::inherit())
-			.stderr(Stdio::inherit())
-			.spawn()?
-			.wait();
+		Command::new("tail").args(["-F", &log.path().to_string_lossy()]).spawn()?;
 		tokio::signal::ctrl_c().await?;
-		cli.success("Local node terminated.")?;
+		cli.plain("\n")?;
+		cli.success("✅ Local node terminated.")?;
 	}
 
 	Ok(())
