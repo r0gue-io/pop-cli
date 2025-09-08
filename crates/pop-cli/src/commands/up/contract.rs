@@ -195,7 +195,7 @@ impl UpContractCommand {
 				Ok(data) => data,
 				Err(e) => {
 					error(format!("An error occurred getting the call data: {e}"))?;
-					terminate_node(&mut Cli, process)?;
+					terminate_node(&mut Cli, process).await?;
 					Cli.outro_cancel(FAILED)?;
 					return Ok(());
 				},
@@ -216,7 +216,7 @@ impl UpContractCommand {
 						Err(e) => {
 							spinner
 								.error(format!("An error occurred uploading your contract: {e}"));
-							terminate_node(&mut Cli, process)?;
+							terminate_node(&mut Cli, process).await?;
 							Cli.outro_cancel(FAILED)?;
 							return Ok(());
 						},
@@ -269,7 +269,7 @@ impl UpContractCommand {
 						Err(e) => {
 							spinner
 								.error(format!("An error occurred uploading your contract: {e}"));
-							terminate_node(&mut Cli, process)?;
+							terminate_node(&mut Cli, process).await?;
 							Cli.outro_cancel(FAILED)?;
 							return Ok(());
 						},
@@ -296,11 +296,11 @@ impl UpContractCommand {
 				}
 			} else {
 				Cli.outro_cancel("Signed payload doesn't exist.")?;
-				terminate_node(&mut Cli, process)?;
+				terminate_node(&mut Cli, process).await?;
 				return Ok(());
 			}
 
-			terminate_node(&mut Cli, process)?;
+			terminate_node(&mut Cli, process).await?;
 			Cli.outro(COMPLETE)?;
 			return Ok(());
 		}
@@ -308,7 +308,7 @@ impl UpContractCommand {
 		// Check for upload only.
 		if self.upload_only {
 			let result = self.upload_contract().await;
-			terminate_node(&mut Cli, process)?;
+			terminate_node(&mut Cli, process).await?;
 			match result {
 				Ok(_) => {
 					Cli.outro(COMPLETE)?;
@@ -334,7 +334,7 @@ impl UpContractCommand {
 			Ok(i) => i,
 			Err(e) => {
 				error(format!("An error occurred instantiating the contract: {e}"))?;
-				terminate_node(&mut Cli, process)?;
+				terminate_node(&mut Cli, process).await?;
 				Cli.outro_cancel(FAILED)?;
 				return Ok(());
 			},
@@ -355,7 +355,7 @@ impl UpContractCommand {
 				},
 				Err(e) => {
 					spinner.error(format!("{e}"));
-					terminate_node(&mut Cli, process)?;
+					terminate_node(&mut Cli, process).await?;
 					Cli.outro_cancel(FAILED)?;
 					return Ok(());
 				},
@@ -373,7 +373,7 @@ impl UpContractCommand {
 				contract_info.code_hash,
 			);
 
-			terminate_node(&mut Cli, process)?;
+			terminate_node(&mut Cli, process).await?;
 			Cli.outro(COMPLETE)?;
 		}
 
