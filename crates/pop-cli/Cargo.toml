@@ -37,8 +37,7 @@ url.workspace = true
 
 # contracts
 pop-contracts = { path = "../pop-contracts", version = "0.9.0", default-features = false, optional = true }
-sp-core = { workspace = true, optional = true }
-sp-weights = { workspace = true, optional = true }
+sp-core = { workspace = true }
 subxt-signer = { workspace = true, optional = true }
 subxt-signer_inkv6 = { workspace = true, optional = true }
 subxt = { workspace = true, optional = true }
@@ -72,8 +71,8 @@ contract = ["wasm-contracts"]
 contracts = ["polkavm-contracts"]
 chain = ["dep:pop-chains", "dep:git2", "dep:tracing-subscriber", "wallet-integration"]
 v6 = []
-polkavm-contracts = ["pop-contracts/v6", "dep:pop-contracts", "dep:sp-core", "dep:sp-weights", "dep:subxt_inkv6", "dep:subxt-signer_inkv6", "wallet-integration"]
+polkavm-contracts = ["pop-contracts/v6", "dep:pop-contracts", "dep:subxt_inkv6", "dep:subxt-signer_inkv6", "wallet-integration"]
 telemetry = ["dep:pop-telemetry"]
 v5 = []
-wasm-contracts = ["pop-contracts/v5", "dep:pop-contracts", "dep:sp-core", "dep:sp-weights", "dep:subxt", "dep:subxt-signer", "wallet-integration", "v5"]
+wasm-contracts = ["pop-contracts/v5", "dep:pop-contracts", "dep:subxt", "dep:subxt-signer", "wallet-integration", "v5"]
 wallet-integration = ["dep:axum", "dep:open", "dep:tower-http"]
