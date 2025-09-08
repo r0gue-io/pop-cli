@@ -53,18 +53,18 @@ subxt_inkv6 = { version = "0.42.1", package = "subxt", default-features = false 
 ink_env = { version = "5.0.0", default-features = false }
 ink_env_v6 = { git = "https://github.com/use-ink/ink", branch = "master", package = "ink_env", default-features = false }
 sp-core = { version = "32.0.0", default-features = false }
-sp-core_inkv6 = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "cb629d46ebf00aa65624013a61f9c69ebf02b0b4", package = "sp-core", default-features = false }
+sp-core_inkv6 = { git = "https://github.com/use-ink/polkadot-sdk.git", rev = "a71ec19a94702ea71767ba5ac97603ea6c6305c1", package = "sp-core", default-features = false }
 sp-weights = { version = "31.0.0", default-features = false }
-sp-weights_inkv6 = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "cb629d46ebf00aa65624013a61f9c69ebf02b0b4", package = "sp-weights", default-features = false }
+sp-weights_inkv6 = { git = "https://github.com/use-ink/polkadot-sdk.git", rev = "a71ec19a94702ea71767ba5ac97603ea6c6305c1", package = "sp-weights", default-features = false }
 scale = { package = "parity-scale-codec", version = "3.7.5", features = ["derive"] }
 scale-info = { version = "2.11.4", default-features = false, features = ["derive"] }
 scale-value = { version = "0.17.0", default-features = false, features = ["from-string", "parser-ss58"] }
 contract-build = { version = "5.0.2", default-features = false }
-contract-build_inkv6 = { git = "https://github.com/use-ink/cargo-contract", tag = "v6.0.0-alpha.1", package = "contract-build", default-features = false }
+contract-build_inkv6 = { git = "https://github.com/use-ink/cargo-contract", branch = "master", package = "contract-build", default-features = false }
 contract-extrinsics = { version = "5.0.2", default-features = false }
-contract-extrinsics_inkv6 = { git = "https://github.com/use-ink/cargo-contract", tag = "v6.0.0-alpha.1", package = "contract-extrinsics", default-features = false }
+contract-extrinsics_inkv6 = { git = "https://github.com/use-ink/cargo-contract", branch = "master", package = "contract-extrinsics", default-features = false }
 contract-transcode = { version = "5.0.2", default-features = false }
-contract-transcode_inkv6 = { git = "https://github.com/use-ink/cargo-contract", tag = "v6.0.0-alpha.1", package = "contract-transcode", default-features = false }
+contract-transcode_inkv6 = { git = "https://github.com/use-ink/cargo-contract", branch = "master", package = "contract-transcode", default-features = false }
 heck = { version = "0.5.0", default-features = false }
 
 # parachains
@@ -82,16 +82,16 @@ zombienet-sdk = { version = "0.3.1", default-features = false }
 git2_credentials = "0.13.0"
 
 # benchmarking
-cumulus-primitives-proof-size-hostfunction = "0.12.0"
-frame-benchmarking-cli = { version = "47.2.0", default-features = false }
-sc-chain-spec = { version = "42.0.0", default-features = false }
-sp-runtime = { version = "41.1.0", default-features = false }
-sp-statement-store = "20.1.0"
+cumulus-primitives-proof-size-hostfunction = "0.14.0"
+frame-benchmarking-cli = { version = "50.0.0", default-features = false }
+sc-chain-spec = { version = "45.0.0", default-features = false }
+sp-runtime = { version = "43.0.0", default-features = false }
+sp-statement-store = "22.0.0"
 
 # try-runtime
-frame-try-runtime = "0.45.0"
-sc-cli = { version = "0.51.0", default-features = false }
-sp-version = { version = "38.0.0", default-features = false }
+frame-try-runtime = "0.48.0"
+sc-cli = { version = "0.54.0", default-features = false }
+sp-version = { version = "41.0.0", default-features = false }
 
 # pop-cli
 clap = { version = "4.5", default-features = false, features = ["derive", "string"] }

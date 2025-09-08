@@ -17,9 +17,14 @@ use subxt::{
 /// * `client` - Client for the network which state is to be modified.
 /// * `para_ids` - List of ids to build the keys that will be mutated.
 pub async fn clear_dmpq(
-	client: OnlineClient<PolkadotConfig>,
+	// TODO: Different subxt versions: client: OnlineClient<PolkadotConfig>,
+	endpoint: &str,
 	para_ids: &[u32],
 ) -> Result<impl BlockHash, Error> {
+	// TODO: Different subxt versions
+	let client = OnlineClient::<PolkadotConfig>::from_url(endpoint)
+		.await
+		.map_err(|e| Error::SubXtError(e.into()))?;
 	// Wait for blocks to be produced.
 	let mut sub = client
 		.blocks()
