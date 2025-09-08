@@ -4,7 +4,7 @@ use crate::{
 	cli::{traits::Cli as _, Cli},
 	common::{
 		contracts::{
-			check_contracts_node_and_prompt, has_contract_been_built,
+			check_contracts_node_and_prompt, has_contract_been_built, normalize_call_args,
 			request_contract_function_args, terminate_node,
 		},
 		urls,
@@ -328,6 +328,7 @@ impl UpContractCommand {
 		if self.args.is_empty() && !function.args.is_empty() {
 			self.args = request_contract_function_args(&function, &mut Cli)?;
 		}
+		normalize_call_args(&mut self.args, &function);
 		// Otherwise instantiate.
 		let instantiate_exec = match set_up_deployment(self.clone().into()).await {
 			Ok(i) => i,

@@ -116,6 +116,34 @@ pub fn request_contract_function_args(
 	Ok(user_provided_args)
 }
 
+/// Normalizes contract arguments before execution.
+///
+/// # Arguments
+/// * `args` - The mutable list of argument values provided by the user.
+/// * `function` - The contract function containing argument definitions.
+pub(crate) fn normalize_call_args(args: &mut [String], function: &ContractFunction) {
+	for (arg, param) in args.iter_mut().zip(&function.args) {
+		// If "None" return empty string
+		if param.type_name.starts_with("Option<") && arg == "None" {
+			*arg = "".to_string();
+		}
+		// For `str` params, ensure the value is wrapped in double quotes.
+		else if param.type_name == "str" {
+			*arg = ensure_double_quoted(arg);
+		}
+	}
+}
+
+/// Ensures a string is wrapped in double quotes.
+fn ensure_double_quoted(s: &str) -> String {
+	let trimmed = s.trim();
+	if trimmed.starts_with('"') && trimmed.ends_with('"') && trimmed.len() >= 2 {
+		trimmed.to_string()
+	} else {
+		format!("\"{}\"", trimmed)
+	}
+}
+
 #[cfg(feature = "polkavm-contracts")]
 pub(crate) async fn map_account(
 	extrinsic_opts: &ExtrinsicOpts<DefaultConfig, DefaultEnvironment, Keypair>,
@@ -142,7 +170,9 @@ mod tests {
 	use crate::cli::MockCli;
 	use duct::cmd;
 	use pop_common::{find_free_port, set_executable_permission};
-	use pop_contracts::{extract_function, is_chain_alive, run_contracts_node, FunctionType};
+	use pop_contracts::{
+		extract_function, is_chain_alive, run_contracts_node, FunctionType, Param,
+	};
 	use std::{
 		env,
 		fs::{self, File},
@@ -232,5 +262,30 @@ mod tests {
 		assert!(terminate_node(&mut cli, Some((process, log))).is_ok());
 		assert_eq!(is_chain_alive(Url::parse(&format!("ws://localhost:{}", port))?).await?, false);
 		cli.verify()
+	}
+
+	#[test]
+	fn normalize_call_args_works() {
+		let function = ContractFunction {
+			label: "test".to_string(),
+			payable: false,
+			args: vec![
+				Param { label: "test_string".to_string(), type_name: "str".to_string() },
+				Param { label: "test_none".to_string(), type_name: "Option<str>".to_string() },
+			],
+			docs: "test".to_string(),
+			default: false,
+			mutates: false,
+		};
+		let mut args = vec!["test".to_string(), "None".to_string()];
+		normalize_call_args(&mut args, &function);
+		assert_eq!(args, vec!["\"test\"", ""]);
+	}
+
+	#[test]
+	fn ensure_double_quoted_works() {
+		assert_eq!(ensure_double_quoted("hello"), "\"hello\"");
+		assert_eq!(ensure_double_quoted("  hello  "), "\"hello\"");
+		assert_eq!(ensure_double_quoted("\"hello\""), "\"hello\"");
 	}
 }
