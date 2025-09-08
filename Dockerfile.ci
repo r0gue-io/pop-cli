@@ -2,6 +2,7 @@ FROM ubuntu:latest
 
 ARG RUST_TOOLCHAIN
 
+ENV CARGO_INCREMENTAL=0
 ENV DEBIAN_FRONTEND=noninteractive
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 ENV PATH="/root/.cargo/bin:${PATH}"
@@ -21,6 +22,8 @@ RUN rustup toolchain install ${RUST_TOOLCHAIN} \
  && rustup target add wasm32-unknown-unknown
 
 RUN cargo install --locked cargo-nextest cargo-llvm-cov \
-    && rm -rf /root/.cargo/registry /root/.cargo/git
+    && rm -rf /root/.cargo/registry /root/.cargo/git \
+    && rm -rf /root/.rustup/tmp \
+    && rm -rf /usr/share/doc /usr/share/man /usr/share/locales /var/cache/*
 
 WORKDIR /workdir
