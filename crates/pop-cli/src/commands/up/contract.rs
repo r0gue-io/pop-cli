@@ -247,7 +247,7 @@ impl UpContractCommand {
 						Ok(i) => i,
 						Err(e) => {
 							error(format!("An error occurred instantiating the contract: {e}"))?;
-							terminate_node(&mut Cli, process)?;
+							terminate_node(&mut Cli, process).await?;
 							Cli.outro_cancel(FAILED)?;
 							return Ok(());
 						},
