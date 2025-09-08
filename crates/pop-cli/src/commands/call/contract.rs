@@ -33,7 +33,6 @@ pub use subxt_signer::sr25519::Keypair;
 #[cfg(feature = "polkavm-contracts")]
 pub use subxt_signer_inkv6::sr25519::Keypair;
 
-const DEFAULT_URL: &str = "ws://localhost:9944/";
 const DEFAULT_URI: &str = "//Alice";
 const DEFAULT_PAYABLE_VALUE: &str = "0";
 
