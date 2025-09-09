@@ -1,11 +1,11 @@
 {
   "source": {
-    "hash": "0x7a4bd7cced932413a4ec054d3b13e88070fdea25cccdd4381e90a333444977a0",
-    "language": "ink! 6.0.0-alpha",
-    "compiler": "rustc 1.85.0",
+    "hash": "0xaf8e21b9f596f7fae98086e7867d50ae047d2a45f147e96dd8e004ba507ef73a",
+    "language": "ink! 6.0.0-alpha.1",
+    "compiler": "rustc 1.89.0",
     "build_info": {
       "rust_toolchain": "stable-aarch64-apple-darwin",
-      "cargo_contract_version": "6.0.0-alpha",
+      "cargo_contract_version": "6.0.0-alpha.1",
       "build_mode": "Release"
     }
   },
@@ -17,7 +17,7 @@
     ]
   },
   "image": null,
-  "version": 5,
+  "version": 6,
   "types": [
     {
       "id": 0,
@@ -279,19 +279,6 @@
           "primitive": "u64"
         }
       }
-    },
-    {
-      "id": 14,
-      "type": {
-        "path": [
-          "ink_primitives",
-          "types",
-          "NoChainExtension"
-        ],
-        "def": {
-          "variant": {}
-        }
-      }
     }
   ],
   "storage": {
@@ -387,8 +374,7 @@
         },
         "docs": [
           "Constructor that initializes the `bool` value to `false`.",
-          "",
-          "Constructors can delegate to other constructors."
+          " Constructors can delegate to other constructors."
         ],
         "default": false
       }
@@ -511,13 +497,7 @@
           "BlockNumber"
         ]
       },
-      "chainExtension": {
-        "type": 14,
-        "displayName": [
-          "ChainExtension"
-        ]
-      },
-      "maxEventTopics": 4,
+      "nativeToEthRatio": 100000000,
       "staticBufferSize": 16384
     }
   }
