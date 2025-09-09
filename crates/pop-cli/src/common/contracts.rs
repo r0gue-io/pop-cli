@@ -46,7 +46,7 @@ pub async fn check_contracts_node_and_prompt(
 /// # Arguments
 /// * `cli`: Command line interface.
 /// * `process`: Tuple identifying the child process to terminate and its log file.
-pub fn terminate_node(
+pub async fn terminate_node(
 	cli: &mut impl Cli,
 	process: Option<(Child, NamedTempFile)>,
 ) -> anyhow::Result<()> {
@@ -65,8 +65,11 @@ pub fn terminate_node(
 			.spawn()?
 			.wait()?;
 	} else {
-		log.keep()?;
-		cli.warning(format!("NOTE: The node is running in the background with process ID {}. Please terminate it manually when done.", process.id()))?;
+		cli.warning("You can terminate the process by pressing Ctrl+C.")?;
+		Command::new("tail").args(["-F", &log.path().to_string_lossy()]).spawn()?;
+		tokio::signal::ctrl_c().await?;
+		cli.plain("\n")?;
+		cli.success("✅ Local node terminated.")?;
 	}
 
 	Ok(())
@@ -259,7 +262,7 @@ mod tests {
 		// Terminate the process.
 		let mut cli =
 			MockCli::new().expect_confirm("Would you like to terminate the local node?", true);
-		assert!(terminate_node(&mut cli, Some((process, log))).is_ok());
+		assert!(terminate_node(&mut cli, Some((process, log))).await.is_ok());
 		assert_eq!(is_chain_alive(Url::parse(&format!("ws://localhost:{}", port))?).await?, false);
 		cli.verify()
 	}
