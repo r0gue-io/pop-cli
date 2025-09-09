@@ -25,7 +25,7 @@ use pop_chains::{
 	try_runtime::UpgradeCheckSelect,
 	upgrade_checks_details, SharedParams, TryRuntimeCliCommand,
 };
-use std::{str::FromStr, thread::sleep, time::Duration};
+use std::{str::FromStr, time::Duration};
 
 // Custom arguments which are not in `try-runtime on-runtime-upgrade`.
 const CUSTOM_ARGS: [&str; 5] = ["--profile", "--no-build", "-n", "--skip-confirm", "-y"];
@@ -170,7 +170,7 @@ impl TestOnRuntimeUpgradeCommand {
 				},
 			None => return Err(anyhow::anyhow!("No subcommand provided")),
 		}
-		sleep(Duration::from_secs(1));
+		tokio::time::sleep(Duration::from_secs(1)).await;
 
 		let subcommand = self.subcommand()?;
 		let user_provided_args: Vec<String> = std::env::args().skip(3).collect();

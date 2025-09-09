@@ -24,7 +24,6 @@ use std::{
 	fs::write,
 	path::{Path, PathBuf},
 	process::Command,
-	thread::sleep,
 	time::Duration,
 };
 use strum::VariantArray;
@@ -183,7 +182,7 @@ rpc_port = {random_port}
 	// Wait for the networks to initialize. Increased timeout to accommodate CI environment delays.
 	let wait = Duration::from_secs(50);
 	println!("waiting for {wait:?} for network to initialize...");
-	sleep(wait);
+	tokio::time::sleep(wait).await;
 
 	// `pop call chain --pallet System --function remark --args "0x11" --url
 	// ws://127.0.0.1:random_port --suri //Alice --skip-confirm`
