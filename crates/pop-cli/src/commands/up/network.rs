@@ -445,7 +445,7 @@ pub(crate) async fn spawn(
 
 			if auto_remove {
 				// Remove zombienet directory after network is terminated
-				if let Err(e) = std::fs::remove_dir_all(&base_dir) {
+				if let Err(e) = std::fs::remove_dir_all(base_dir) {
 					cli.warning(format!("🚫 Failed to remove zombienet directory: {e}"))?;
 				}
 			}

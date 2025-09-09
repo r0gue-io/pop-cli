@@ -96,14 +96,14 @@ pub async fn set_up_call(
 	let contract = parse_h160_account(&call_opts.contract)?;
 	// Process the provided argument values.
 	let function = extract_function(
-		&call_opts.path.unwrap_or_else(|| PathBuf::from("./")),
+		call_opts.path.unwrap_or_else(|| PathBuf::from("./")),
 		&call_opts.message,
 		FunctionType::Message,
 	)?;
 	let args = process_function_args(&function, call_opts.args)?;
 
 	let call_exec: CallExec<DefaultConfig, DefaultEnvironment, Keypair> =
-		CallCommandBuilder::new(contract.clone(), &call_opts.message, extrinsic_opts)
+		CallCommandBuilder::new(contract, &call_opts.message, extrinsic_opts)
 			.args(args)
 			.value(value.denominate_balance(&token_metadata)?)
 			.gas_limit(call_opts.gas_limit)

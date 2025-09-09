@@ -38,14 +38,14 @@ fn generate_all_the_templates() -> Result<()> {
 		let provider = template.template_type()?.to_lowercase();
 		// pop new chain test_parachain --verify
 		let mut command = pop(
-			&temp_dir,
-			&[
+			temp_dir,
+			[
 				"new",
 				"chain",
 				&parachain_name,
 				&provider,
 				"--template",
-				&template.to_string(),
+				template.as_ref(),
 				"--verify",
 			],
 		);
@@ -71,8 +71,8 @@ async fn parachain_lifecycle() -> Result<()> {
 	let working_dir = temp_dir.join("test_parachain");
 	if !working_dir.exists() {
 		let mut command = pop(
-			&temp_dir,
-			&[
+			temp_dir,
+			[
 				"new",
 				"chain",
 				"test_parachain",
@@ -100,7 +100,7 @@ async fn parachain_lifecycle() -> Result<()> {
 	// paseo-local --protocol-id pop-protocol" --chain local --skip-deterministic-build
 	let mut command = pop(
 		&working_dir,
-		&[
+		[
 			"build",
 			"spec",
 			"--output",
@@ -174,7 +174,7 @@ rpc_port = {random_port}
 	// `pop up network ./network.toml --skip-confirm`
 	let mut command = pop(
 		&working_dir,
-		&["up", "network", "./network.toml", "-r", "stable2412", "--verbose", "--skip-confirm"],
+		["up", "network", "./network.toml", "-r", "stable2412", "--verbose", "--skip-confirm"],
 	);
 	let mut up = command.spawn()?;
 
@@ -187,7 +187,7 @@ rpc_port = {random_port}
 	// ws://127.0.0.1:random_port --suri //Alice --skip-confirm`
 	let mut command = pop(
 		&working_dir,
-		&[
+		[
 			"call",
 			"chain",
 			"--pallet",
@@ -209,7 +209,7 @@ rpc_port = {random_port}
 	// --skip-confirm
 	let mut command = pop(
 		&working_dir,
-		&[
+		[
 			"call",
 			"chain",
 			"--call",
@@ -242,7 +242,7 @@ fn mock_build_process(temp_dir: &Path) -> Result<()> {
 	// Create a target directory
 	let target_dir = temp_dir.join("target");
 	fs::create_dir(&target_dir)?;
-	fs::create_dir(&target_dir.join("release"))?;
+	fs::create_dir(target_dir.join("release"))?;
 	// Create a release file
 	fs::File::create(target_dir.join("release/parachain-template-node"))?;
 	Ok(())

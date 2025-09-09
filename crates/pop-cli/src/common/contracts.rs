@@ -189,13 +189,13 @@ mod tests {
 
 		// Standard rust project
 		let name = "hello_world";
-		cmd("cargo", ["new", name]).dir(&path).run()?;
+		cmd("cargo", ["new", name]).dir(path).run()?;
 		let contract_path = path.join(name);
 		assert!(!has_contract_been_built(Some(&contract_path)));
 
 		cmd("cargo", ["build"]).dir(&contract_path).run()?;
 		// Mock build directory
-		fs::create_dir(&contract_path.join("target/ink"))?;
+		fs::create_dir(contract_path.join("target/ink"))?;
 		assert!(!has_contract_been_built(Some(&path.join(name))));
 		// Create a mocked .contract file inside the target directory
 		File::create(contract_path.join(format!("target/ink/{}.contract", name)))?;
@@ -231,7 +231,7 @@ mod tests {
 		assert!(node_path
 			.to_str()
 			.unwrap()
-			.starts_with(&cache_path.path().join(CONTRACTS_NODE_BINARY).to_str().unwrap()));
+			.starts_with(cache_path.path().join(CONTRACTS_NODE_BINARY).to_str().unwrap()));
 		cli.verify()
 	}
 
@@ -246,7 +246,7 @@ mod tests {
 		assert!(node_path
 			.to_str()
 			.unwrap()
-			.starts_with(&cache_path.path().join(CONTRACTS_NODE_BINARY).to_str().unwrap()));
+			.starts_with(cache_path.path().join(CONTRACTS_NODE_BINARY).to_str().unwrap()));
 		cli.verify()
 	}
 
@@ -263,7 +263,7 @@ mod tests {
 		let mut cli =
 			MockCli::new().expect_confirm("Would you like to terminate the local node?", true);
 		assert!(terminate_node(&mut cli, Some((process, log))).await.is_ok());
-		assert_eq!(is_chain_alive(Url::parse(&format!("ws://localhost:{}", port))?).await?, false);
+		assert!(!is_chain_alive(Url::parse(&format!("ws://localhost:{port}"))?).await?);
 		cli.verify()
 	}
 

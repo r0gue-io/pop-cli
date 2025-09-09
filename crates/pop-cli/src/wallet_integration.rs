@@ -321,7 +321,7 @@ mod tests {
 		let mut wim = WalletIntegrationManager::new(frontend, default_payload(), Some(9190));
 
 		assert_eq!(wim.server_url, "127.0.0.1:9190");
-		assert_eq!(wim.is_running(), true);
+		assert!(wim.is_running());
 		assert!(wim.state.lock().await.shutdown_tx.is_some());
 		assert!(wim.state.lock().await.signed_payload.is_none());
 		assert!(wim.state.lock().await.contract_address.is_none());
@@ -419,7 +419,7 @@ mod tests {
 			contract_address: Some("0x1234567890abcdef".to_string()),
 		};
 		let response = reqwest::Client::new()
-			.post(&format!("{}/submit", addr))
+			.post(format!("{addr}/submit"))
 			.json(&request)
 			.send()
 			.await
@@ -431,7 +431,7 @@ mod tests {
 		assert_eq!(response, json!({"status": "success"}).to_string());
 		assert_eq!(wim.state.lock().await.signed_payload, Some("0xDEADBEEF".to_string()));
 		assert_eq!(wim.state.lock().await.contract_address, Some("0x1234567890abcdef".to_string()));
-		assert_eq!(wim.is_running(), false);
+		assert!(!wim.is_running());
 
 		wim.terminate().await.expect("Termination should not fail");
 		assert!(wim.task_handle.await.is_ok());
@@ -445,7 +445,7 @@ mod tests {
 
 		let addr = format!("http://{}", wim.server_url);
 		let response = reqwest::Client::new()
-			.post(&format!("{}/error", addr))
+			.post(format!("{addr}/error"))
 			.json(&"an error occurred")
 			.send()
 			.await
@@ -457,7 +457,7 @@ mod tests {
 		// no response expected
 		assert_eq!(response.len(), 0);
 		assert_eq!(wim.state.lock().await.error, Some("an error occurred".to_string()));
-		assert_eq!(wim.is_running(), true);
+		assert!(wim.is_running());
 
 		wim.terminate().await.expect("Termination should not fail");
 		assert!(wim.task_handle.await.is_ok());
@@ -472,7 +472,7 @@ mod tests {
 
 		let addr = format!("http://{}", wim.server_url);
 		let response = reqwest::Client::new()
-			.post(&format!("{}/terminate", addr))
+			.post(format!("{addr}/terminate"))
 			.send()
 			.await
 			.expect("Failed to terminate")
@@ -482,7 +482,7 @@ mod tests {
 
 		// No response expected.
 		assert_eq!(response.len(), 0);
-		assert_eq!(wim.is_running(), false);
+		assert!(!wim.is_running());
 
 		assert!(wim.task_handle.await.is_ok());
 	}
@@ -492,10 +492,10 @@ mod tests {
 		let frontend = FrontendFromString::new(TEST_HTML.to_string());
 
 		let mut wim = WalletIntegrationManager::new(frontend, default_payload(), None);
-		assert_eq!(wim.is_running(), true);
+		assert!(wim.is_running());
 		wim.terminate().await.expect("Termination should not fail");
 		wait().await;
-		assert_eq!(wim.is_running(), false);
+		assert!(!wim.is_running());
 
 		wim.terminate().await.expect("Termination should not fail");
 		assert!(wim.task_handle.await.is_ok());
@@ -577,7 +577,7 @@ mod tests {
 			SubmitRequest { signed_payload: Some(encoded_payload), contract_address: None };
 		let client = reqwest::Client::new();
 		let response = client
-			.post(&format!("{}/submit", addr))
+			.post(format!("{addr}/submit"))
 			.json(&submit_request)
 			.send()
 			.await
@@ -591,7 +591,7 @@ mod tests {
 		let encoded_oversized_payload: String =
 			call_data_15mb.iter().map(|b| format!("{:02x}", b)).collect();
 		submit_request.signed_payload = Some(encoded_oversized_payload);
-		let response = client.post(&format!("{}/submit", addr)).json(&submit_request).send().await;
+		let response = client.post(format!("{addr}/submit")).json(&submit_request).send().await;
 
 		assert!(
 			response.is_err() ||
@@ -612,14 +612,14 @@ mod tests {
 			WalletIntegrationManager::new_with_address(frontend, default_payload(), addr.clone());
 		wait().await;
 
-		assert_eq!(wim.is_running(), true);
+		assert!(wim.is_running());
 
 		let frontend = FrontendFromString::new(TEST_HTML.to_string());
 		let wim_conflict =
 			WalletIntegrationManager::new_with_address(frontend, default_payload(), addr.clone());
 		wait().await;
 
-		assert_eq!(wim_conflict.is_running(), false);
+		assert!(!wim_conflict.is_running());
 		let task_result = wim_conflict.task_handle.await.unwrap();
 		match task_result {
 			Err(e) => assert!(e

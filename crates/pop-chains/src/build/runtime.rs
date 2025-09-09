@@ -153,7 +153,7 @@ mod tests {
 		let srtool_builer = DeterministicBuilder::new(
 			ContainerEngine::Docker,
 			None,
-			&"parachain-template-runtime".to_string(),
+			"parachain-template-runtime",
 			Profile::Release,
 			PathBuf::from("./runtime"),
 		)?;
@@ -188,7 +188,7 @@ mod tests {
 			DeterministicBuilder::new(
 				ContainerEngine::Podman,
 				Some(path.to_path_buf()),
-				&"parachain-template-runtime".to_string(),
+				"parachain-template-runtime",
 				Profile::Production,
 				PathBuf::from("./runtime"),
 			)?
@@ -218,7 +218,7 @@ mod tests {
 		let srtool_builder = DeterministicBuilder::new(
 			ContainerEngine::Podman,
 			None,
-			&"template-runtime".to_string(),
+			"template-runtime",
 			Profile::Debug,
 			PathBuf::from("./runtime-folder"),
 		)?;
@@ -233,7 +233,7 @@ mod tests {
 
 		// Standard rust project
 		let name = "hello_world";
-		cmd("cargo", ["new", name]).dir(&path).run()?;
+		cmd("cargo", ["new", name]).dir(path).run()?;
 		assert!(!is_supported(Some(&path.join(name)))?);
 
 		// Parachain runtime with dependency

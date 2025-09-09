@@ -383,8 +383,8 @@ mod tests {
 				"pop test on-runtime-upgrade --runtime={} --blocktime=6000 \
 			--checks=all --profile=debug -n live --uri={} --at={}",
 				get_mock_runtime(Some(TryRuntime)).to_str().unwrap(),
-				urls::LOCAL.to_string(),
-				DEFAULT_BLOCK_HASH.strip_prefix("0x").unwrap_or_default().to_string()
+				urls::LOCAL,
+				DEFAULT_BLOCK_HASH.strip_prefix("0x").unwrap_or_default()
 			));
 		command.execute(&mut cli).await?;
 		cli.verify()
@@ -682,7 +682,7 @@ mod tests {
 			UpgradeCheckSelect::PreAndPost,
 		]
 		.iter()
-		.map(|check| upgrade_checks_details(check))
+		.map(upgrade_checks_details)
 		.collect::<Vec<_>>()
 	}
 }

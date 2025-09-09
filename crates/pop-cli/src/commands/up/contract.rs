@@ -212,7 +212,7 @@ impl UpContractCommand {
 
 				if self.upload_only {
 					#[allow(unused_variables)]
-					let upload_result = match upload_contract_signed(self.url.as_str(), payload).await {
+					match upload_contract_signed(self.url.as_str(), payload).await {
 						Err(e) => {
 							spinner
 								.error(format!("An error occurred uploading your contract: {e}"));
@@ -516,7 +516,7 @@ mod tests {
 			UpOpts {
 				path: None,
 				constructor: "new".to_string(),
-				args: vec![].to_vec(),
+				args: vec![],
 				value: "0".to_string(),
 				gas_limit: None,
 				proof_size: None,

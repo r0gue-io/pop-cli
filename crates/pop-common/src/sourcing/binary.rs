@@ -44,7 +44,7 @@ impl Binary {
 	pub fn latest(&self) -> Option<&str> {
 		match self {
 			Self::Local { .. } => None,
-			Self::Source { source, .. } =>
+			Self::Source { source, .. } => {
 				if let GitHub(ReleaseArchive { latest, tag_pattern, .. }) = source.as_ref() {
 					{
 						// Extract the version from `latest`, provided it is a tag and that a tag
@@ -55,7 +55,8 @@ impl Binary {
 					}
 				} else {
 					None
-				},
+				}
+			},
 		}
 	}
 
@@ -220,7 +221,7 @@ mod tests {
 		let name = "polkadot";
 		let temp_dir = tempdir()?;
 		let path = temp_dir.path().join("target/release").join(name);
-		create_dir_all(&path.parent().unwrap())?;
+		create_dir_all(path.parent().unwrap())?;
 		File::create(&path)?;
 		let manifest = Some(temp_dir.path().join("Cargo.toml"));
 
@@ -247,8 +248,8 @@ mod tests {
 		// Specified
 		let specified = Some("v1.12.0");
 		assert_eq!(
-			Binary::resolve_version(name, specified, &available, temp_dir.path()).unwrap(),
-			specified.unwrap()
+			Binary::resolve_version(name, specified, &available, temp_dir.path()),
+			specified
 		);
 		// Latest
 		assert_eq!(
@@ -327,9 +328,9 @@ mod tests {
 			assert_eq!(binary.name(), package);
 			assert_eq!(binary.path(), path);
 			assert!(!binary.stale());
-			assert_eq!(binary.version(), reference.as_ref().map(|r| r.as_str()));
+			assert_eq!(binary.version(), reference.as_deref());
 			binary.use_latest();
-			assert_eq!(binary.version(), reference.as_ref().map(|r| r.as_str()));
+			assert_eq!(binary.version(), reference.as_deref());
 		}
 
 		Ok(())
@@ -375,15 +376,15 @@ mod tests {
 				let latest = latest.as_ref().map(|l| l.replace("polkadot-", ""));
 
 				assert!(binary.exists());
-				assert_eq!(binary.latest(), latest.as_ref().map(|l| l.as_str()));
+				assert_eq!(binary.latest(), latest.as_deref());
 				assert!(!binary.local());
 				assert_eq!(binary.name(), name);
 				assert_eq!(binary.path(), path);
 				assert_eq!(binary.stale(), latest.is_some());
-				assert_eq!(binary.version(), tag.as_ref().map(|t| t.as_str()));
+				assert_eq!(binary.version(), tag.as_deref());
 				binary.use_latest();
 				if latest.is_some() {
-					assert_eq!(binary.version(), latest.as_ref().map(|l| l.as_str()));
+					assert_eq!(binary.version(), latest.as_deref());
 				}
 			}
 		}
@@ -421,10 +422,10 @@ mod tests {
 			assert!(!binary.local());
 			assert_eq!(binary.name(), package);
 			assert_eq!(binary.path(), path);
-			assert_eq!(binary.stale(), false);
-			assert_eq!(binary.version(), reference.as_ref().map(|r| r.as_str()));
+			assert!(!binary.stale());
+			assert_eq!(binary.version(), reference.as_deref());
 			binary.use_latest();
-			assert_eq!(binary.version(), reference.as_ref().map(|l| l.as_str()));
+			assert_eq!(binary.version(), reference.as_deref());
 		}
 		Ok(())
 	}

@@ -206,7 +206,7 @@ mod tests {
 
 	#[test]
 	fn parse_version_works() {
-		for (tag, expected) in vec![
+		for (tag, expected) in [
 			("polkadot-stable2409", Some((24, 9, 0))),
 			("polkadot-stable2409-1", Some((24, 9, 1))),
 			("polkadot-v1.18.0", Some((1, 18, 0))),

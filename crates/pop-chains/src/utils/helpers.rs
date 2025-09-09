@@ -118,10 +118,10 @@ mod tests {
 
 	#[test]
 	fn test_is_initial_endowment_valid() {
-		assert_eq!(is_initial_endowment_valid("100000"), true);
-		assert_eq!(is_initial_endowment_valid("1u64 << 60"), true);
-		assert_eq!(is_initial_endowment_valid("wrong"), false);
-		assert_eq!(is_initial_endowment_valid(" "), false);
+		assert!(is_initial_endowment_valid("100000"));
+		assert!(is_initial_endowment_valid("1u64 << 60"));
+		assert!(!is_initial_endowment_valid("wrong"));
+		assert!(!is_initial_endowment_valid(" "));
 	}
 
 	#[test]

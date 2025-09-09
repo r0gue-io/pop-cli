@@ -149,7 +149,7 @@ mod tests {
 		let project_path = path.join(name);
 		let args = create_test_args(project_path)?;
 
-		cmd("cargo", ["new", name, "--bin"]).dir(&path).run()?;
+		cmd("cargo", ["new", name, "--bin"]).dir(path).run()?;
 		#[allow(unused_mut)]
 		let mut cli = MockCli::new();
 		assert_eq!(

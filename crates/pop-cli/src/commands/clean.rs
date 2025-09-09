@@ -166,7 +166,7 @@ mod tests {
 	#[test]
 	fn clean_cache_has_intro() -> Result<()> {
 		let cache = PathBuf::new();
-		let mut cli = MockCli::new().expect_intro(&"Remove cached artifacts");
+		let mut cli = MockCli::new().expect_intro("Remove cached artifacts");
 
 		CleanCacheCommand { cli: &mut cli, cache, all: false }.execute()?;
 
@@ -176,7 +176,7 @@ mod tests {
 	#[test]
 	fn clean_cache_handles_missing_cache() -> Result<()> {
 		let cache = PathBuf::new();
-		let mut cli = MockCli::new().expect_outro_cancel(&"🚫 The cache does not exist.");
+		let mut cli = MockCli::new().expect_outro_cancel("🚫 The cache does not exist.");
 
 		CleanCacheCommand { cli: &mut cli, cache, all: false }.execute()?;
 
@@ -188,7 +188,7 @@ mod tests {
 		let temp = tempfile::tempdir()?;
 		let cache = temp.path().to_path_buf();
 		let mut cli = MockCli::new()
-			.expect_outro(&format!("ℹ️ The cache at {} is empty.", cache.to_str().unwrap()));
+			.expect_outro(format!("ℹ️ The cache at {} is empty.", cache.to_str().unwrap()));
 
 		CleanCacheCommand { cli: &mut cli, cache, all: false }.execute()?;
 
@@ -199,7 +199,8 @@ mod tests {
 	fn clean_cache_outputs_cache_location() -> Result<()> {
 		let temp = tempfile::tempdir()?;
 		let cache = temp.path().to_path_buf();
-		for artifact in ["polkadot"] {
+		{
+			let artifact = "polkadot";
 			File::create(cache.join(artifact))?;
 		}
 		let mut cli = MockCli::new()
@@ -219,7 +220,7 @@ mod tests {
 			File::create(cache.join(artifact))?;
 			items.push((artifact.to_string(), "0MiB".to_string()))
 		}
-		let mut cli = MockCli::new().expect_multiselect::<PathBuf>(
+		let mut cli = MockCli::new().expect_multiselect(
 			"Select the artifacts you wish to remove:",
 			Some(false),
 			true,
@@ -242,7 +243,7 @@ mod tests {
 			File::create(artifact)?;
 		}
 		let mut cli = MockCli::new()
-			.expect_multiselect::<PathBuf>(
+			.expect_multiselect(
 				"Select the artifacts you wish to remove:",
 				Some(false),
 				false,
@@ -268,13 +269,7 @@ mod tests {
 			File::create(cache.join(artifact))?;
 		}
 		let mut cli = MockCli::new()
-			.expect_multiselect::<PathBuf>(
-				"Select the artifacts you wish to remove:",
-				None,
-				true,
-				None,
-				None,
-			)
+			.expect_multiselect("Select the artifacts you wish to remove:", None, true, None, None)
 			.expect_confirm("Are you sure you want to remove the selected artifact?", false)
 			.expect_outro("ℹ️ No artifacts removed");
 
@@ -359,13 +354,7 @@ mod tests {
 			File::create(artifact)?;
 		}
 		let mut cli = MockCli::new()
-			.expect_multiselect::<PathBuf>(
-				"Select the artifacts you wish to remove:",
-				None,
-				true,
-				None,
-				None,
-			)
+			.expect_multiselect("Select the artifacts you wish to remove:", None, true, None, None)
 			.expect_confirm("Are you sure you want to remove the 3 selected artifacts?", true)
 			.expect_outro("ℹ️ 3 artifacts removed");
 

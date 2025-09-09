@@ -232,7 +232,7 @@ mod tests {
 		provider: DeploymentProvider,
 	) -> Mock {
 		mock_server
-			.mock("POST", format!("{}", provider.get_deploy_uri(para_id)).as_str())
+			.mock("POST", provider.get_deploy_uri(para_id).to_string().as_str())
 			.with_status(200)
 			.with_header("Content-Type", "application/json")
 			.with_body(payload)
@@ -255,7 +255,7 @@ mod tests {
 		})
 		.to_string();
 		mock_server
-			.mock("POST", format!("{}", provider.get_deploy_uri(para_id)).as_str())
+			.mock("POST", provider.get_deploy_uri(para_id).to_string().as_str())
 			.with_status(400)
 			.with_header("Content-Type", "application/json")
 			.with_body(mocked_error_payload)
@@ -271,7 +271,7 @@ mod tests {
 		provider: DeploymentProvider,
 	) -> Mock {
 		mock_server
-			.mock("GET", format!("{}", provider.get_collator_keys_uri(chain_name, id)).as_str())
+			.mock("GET", provider.get_collator_keys_uri(chain_name, id).to_string().as_str())
 			.with_status(200)
 			.with_header("Content-Type", "application/json")
 			.with_body(payload)

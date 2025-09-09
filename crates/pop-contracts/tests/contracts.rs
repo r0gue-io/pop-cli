@@ -116,7 +116,7 @@ async fn map_account_works(localhost_url: &str) -> Result<()> {
 	let extrinsic_opts: ExtrinsicOpts<DefaultConfig, DefaultEnvironment, Keypair> =
 		ExtrinsicOptsBuilder::new(signer)
 			.file(Some(current_dir.join(CONTRACT_FILE)))
-			.url(Url::parse(&localhost_url)?)
+			.url(Url::parse(localhost_url)?)
 			.done();
 	let map = AccountMapper::new(&extrinsic_opts).await?;
 	assert!(map.needs_mapping().await?);
@@ -272,7 +272,7 @@ async fn instantiate_and_upload(temp_dir: &TempDir, localhost_url: &str) -> Resu
 		gas_limit: None,
 		proof_size: None,
 		salt: None,
-		url: Url::parse(&localhost_url)?,
+		url: Url::parse(localhost_url)?,
 		suri: "//Alice".to_string(),
 	})
 	.await?;
@@ -296,7 +296,7 @@ async fn instantiate_and_upload(temp_dir: &TempDir, localhost_url: &str) -> Resu
 		gas_limit: None,
 		proof_size: None,
 		salt: Some(Bytes::from(vec![0x00])),
-		url: Url::parse(&localhost_url)?,
+		url: Url::parse(localhost_url)?,
 		suri: "//Alice".to_string(),
 	})
 	.await?;
@@ -462,7 +462,7 @@ async fn call_works(temp_dir: &TempDir, localhost_url: &str, contract_address: &
 		value: "0".to_string(),
 		gas_limit: None,
 		proof_size: None,
-		url: Url::parse(&localhost_url)?,
+		url: Url::parse(localhost_url)?,
 		suri: "//Alice".to_string(),
 		execute: false,
 	})
@@ -478,7 +478,7 @@ async fn call_works(temp_dir: &TempDir, localhost_url: &str, contract_address: &
 		value: "0".to_string(),
 		gas_limit: None,
 		proof_size: None,
-		url: Url::parse(&localhost_url)?,
+		url: Url::parse(localhost_url)?,
 		suri: "//Alice".to_string(),
 		execute: false,
 	})
@@ -486,7 +486,7 @@ async fn call_works(temp_dir: &TempDir, localhost_url: &str, contract_address: &
 	let weight = dry_run_gas_estimate_call(&call_exec).await?;
 	assert!(weight.ref_time() > 0);
 	assert!(weight.proof_size() > 0);
-	call_smart_contract(call_exec, weight, &Url::parse(&localhost_url)?).await?;
+	call_smart_contract(call_exec, weight, &Url::parse(localhost_url)?).await?;
 	// Assert that the value has been flipped.
 	query = dry_run_call(&query_exec).await?;
 	assert_eq!(query, "Ok(true)");

@@ -439,7 +439,7 @@ impl ArchiveFileSpec {
 	/// * `target` - An optional file name to be used for the file once extracted.
 	/// * `required` - Whether the file is required.
 	pub fn new(name: String, target: Option<PathBuf>, required: bool) -> Self {
-		Self { name: name.into(), target: target.into(), required }
+		Self { name, target, required }
 	}
 }
 
@@ -950,7 +950,7 @@ pub(super) mod tests {
 		for version in [Some(version), None] {
 			let source = source
 				.clone()
-				.resolve(&"polkadot".to_string(), version, temp_dir.path(), filters::polkadot)
+				.resolve("polkadot", version, temp_dir.path(), filters::polkadot)
 				.await;
 			let expected_tag = version.map_or_else(
 				|| sorted_releases.0.first().unwrap().into(),
@@ -970,7 +970,7 @@ pub(super) mod tests {
 		for version in [Some(version), None] {
 			let source = source
 				.clone()
-				.resolve(&"polkadot".to_string(), version, temp_dir.path(), filters::polkadot)
+				.resolve("polkadot", version, temp_dir.path(), filters::polkadot)
 				.await;
 			let expected_tag =
 				version.map_or_else(|| cached_version.to_string(), |v| format!("polkadot-{v}"));
@@ -1131,7 +1131,7 @@ pub(super) mod tests {
 		Source::Url { url, name: name.into() }
 			.source(temp_dir.path(), false, &Output, true)
 			.await?;
-		assert!(temp_dir.path().join(&name).exists());
+		assert!(temp_dir.path().join(name).exists());
 		Ok(())
 	}
 
@@ -1145,7 +1145,7 @@ pub(super) mod tests {
 
 		let source = Source::Url { url, name: name.into() };
 		assert_eq!(
-			source.clone().resolve(&name, None, temp_dir.path(), filters::polkadot).await,
+			source.clone().resolve(name, None, temp_dir.path(), filters::polkadot).await,
 			source
 		);
 		Ok(())
@@ -1179,8 +1179,8 @@ pub(super) mod tests {
 			url,
 			Some(initial_commit),
 			None::<&Path>,
-			&package,
-			&[(&package, &path)],
+			package,
+			&[(package, &path)],
 			true,
 			&Output,
 			false,

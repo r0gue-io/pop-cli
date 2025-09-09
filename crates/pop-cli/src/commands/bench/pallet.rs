@@ -1557,8 +1557,8 @@ mod tests {
 			extrinsic: Some(ALL_SELECTED.to_string()),
 			exclude_pallets: registry
 				.keys()
+				.filter(|&p| *p != "pallet_timestamp" && *p != "pallet_proxy")
 				.cloned()
-				.filter(|p| *p != "pallet_timestamp" && *p != "pallet_proxy")
 				.collect(),
 			repeat: 2,
 			steps: 2,
@@ -1691,7 +1691,7 @@ mod tests {
 		cli.verify()?;
 
 		// Not exclude pallets.
-		cli = MockCli::new().expect_confirm(prompt, false).expect_multiselect::<String>(
+		cli = MockCli::new().expect_confirm(prompt, false).expect_multiselect(
 			r#"🔎 Search for pallets to benchmark"#,
 			None,
 			true,
@@ -1702,7 +1702,7 @@ mod tests {
 		cli.verify()?;
 
 		// Exclude pallets
-		cli = MockCli::new().expect_confirm(prompt, false).expect_multiselect::<String>(
+		cli = MockCli::new().expect_confirm(prompt, false).expect_multiselect(
 			r#"🔎 Search for pallets to benchmark"#,
 			None,
 			true,
@@ -1720,7 +1720,7 @@ mod tests {
 			.into_iter()
 			.map(|pallet| (pallet, Default::default()))
 			.collect();
-		let mut cli = MockCli::new().expect_multiselect::<String>(
+		let mut cli = MockCli::new().expect_multiselect(
 			r#"🔎 Search for pallets to exclude (Press ENTER to skip)"#,
 			Some(false),
 			true,
@@ -1757,7 +1757,7 @@ mod tests {
 				r#"Would you like to benchmark all extrinsics of "pallet_timestamp"?"#,
 				false,
 			)
-			.expect_multiselect::<String>(
+			.expect_multiselect(
 				r#"🔎 Search for extrinsics to benchmark (select with space)"#,
 				Some(true),
 				true,
@@ -1843,8 +1843,7 @@ mod tests {
 		cli.verify()?;
 
 		// Provide bench file path but reject to overwrite.
-		let mut cmd = BenchmarkPallet::default();
-		cmd.bench_file = Some(file_path.clone());
+		let mut cmd = BenchmarkPallet { bench_file: Some(file_path.clone()), ..Default::default() };
 		let mut cli = MockCli::new().expect_confirm(
 			format!("Do you want to overwrite {:?} with the updated parameters?", file_path_str),
 			false,
@@ -1940,7 +1939,7 @@ mod tests {
 			(DatabaseCacheSize, "2048"),
 			(AdditionalTrieLayer, "4"),
 		];
-		for (option, value) in options.to_vec().into_iter() {
+		for (option, value) in options.into_iter() {
 			cli = cli.expect_input(
 				format!(
 					r#"Provide value to the parameter "{}""#,
@@ -1949,7 +1948,7 @@ mod tests {
 				value.to_string(),
 			);
 		}
-		for (option, _) in options.to_vec() {
+		for (option, _) in options {
 			option.input_parameter(&cmd, &mut cli, true)?;
 		}
 		cli.verify()
@@ -1963,7 +1962,7 @@ mod tests {
 		let options = [High, Low];
 		for option in options.into_iter() {
 			cli = cli.expect_input(
-				&format!(
+				format!(
 					r#"Provide range values to the parameter "{}" (numbers separated by commas)"#,
 					option.get_message().unwrap_or_default()
 				),
@@ -2005,7 +2004,7 @@ mod tests {
 		// Load pallet registry if the cached registry is empty.
 		cmd.ensure_pallet_registry(&mut cli, &mut registry).await?;
 		let mut pallet_names: Vec<String> = registry.keys().map(String::from).collect();
-		pallet_names.sort_by(|a, b| a.cmp(b));
+		pallet_names.sort();
 		assert_eq!(
 			pallet_names,
 			vec![
@@ -2163,7 +2162,7 @@ mod tests {
 			let mut cli = MockCli::new()
 				.expect_confirm("Would you like to benchmark all pallets?", select_all);
 			if !select_all {
-				cli = cli.expect_multiselect::<String>(
+				cli = cli.expect_multiselect(
 					r#"🔎 Search for pallets to benchmark"#,
 					None,
 					true,
@@ -2217,7 +2216,7 @@ mod tests {
 			.into_iter()
 			.map(|pallet| (pallet, Default::default()))
 			.collect();
-		let mut cli = MockCli::new().expect_multiselect::<String>(
+		let mut cli = MockCli::new().expect_multiselect(
 			r#"🔎 Search for pallets to exclude (Press ENTER to skip)"#,
 			Some(false),
 			true,
@@ -2248,7 +2247,7 @@ mod tests {
 			.into_iter()
 			.map(|pallet| (format_pallet_extrinsic_item(pallet), Default::default()))
 			.collect();
-		let mut cli = MockCli::new().expect_multiselect::<String>(
+		let mut cli = MockCli::new().expect_multiselect(
 			r#"🔎 Search for extrinsics to exclude (Press ENTER to skip)"#,
 			Some(false),
 			true,
@@ -2268,7 +2267,7 @@ mod tests {
 		// Update the `exclude_extrinsics`.
 		let excluded_extrinsics: Vec<String> = all_pallet_extrinsics(&registry, &[], &[], &[])
 			.into_iter()
-			.map(|pallet_extrinsic| format_pallet_extrinsic_item(pallet_extrinsic))
+			.map(format_pallet_extrinsic_item)
 			.collect();
 		assert_eq!(cmd.exclude_extrinsics, excluded_extrinsics);
 
@@ -2279,7 +2278,7 @@ mod tests {
 	fn update_runtime_path_works() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
 		let temp_path = temp_dir.into_path();
-		fs::create_dir(&temp_path.join("target"))?;
+		fs::create_dir(temp_path.join("target"))?;
 
 		let target_path = Profile::Debug.target_directory(temp_path.as_path());
 		fs::create_dir(target_path.clone())?;

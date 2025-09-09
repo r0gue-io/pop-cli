@@ -153,7 +153,7 @@ async fn contract_lifecycle() -> Result<()> {
 		path: Some(temp_dir.join("test_contract")),
 		contract: contract_info.address.clone(),
 		message: "get".to_string(),
-		args: vec![].to_vec(),
+		args: vec![],
 		value: "0".to_string(),
 		gas_limit: None,
 		proof_size: None,

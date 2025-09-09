@@ -201,14 +201,14 @@ mod tests {
 			Source::GitHub(ReleaseArchive { owner, repository, tag, tag_pattern, prerelease, version_comparator, fallback, archive, contents, latest })
 				if owner == "r0gue-io" &&
 					repository == "polkadot" &&
-					tag == None &&
+					tag.is_none() &&
 					tag_pattern == Some("polkadot-{version}".into()) &&
 					!prerelease &&
 					fn_addr_eq(version_comparator, sort_by_latest_stable_version as for<'a> fn(&'a mut [String]) -> SortedSlice<'a, String>) &&
 					fallback == "stable2412" &&
 					archive == format!("polkadot-parachain-{}.tar.gz", target().unwrap()) &&
 					contents == vec![ArchiveFileSpec::new("polkadot-parachain".into(), None, true)] &&
-					latest == None
+					latest.is_none()
 		));
 	}
 

@@ -88,7 +88,7 @@ mod tests {
 	#[test]
 	fn test_get_manifest_path() -> Result<(), Error> {
 		let temp_dir = setup_test_environment()?;
-		get_manifest_path(Some(&PathBuf::from(temp_dir.path().join("test_contract"))))?;
+		get_manifest_path(Some(&temp_dir.path().join("test_contract")))?;
 		Ok(())
 	}
 

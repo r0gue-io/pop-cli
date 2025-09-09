@@ -122,14 +122,14 @@ mod tests {
 			Source::GitHub(ReleaseArchive { owner, repository, tag, tag_pattern, prerelease, version_comparator, fallback, archive, contents, latest })
 				if owner == "r0gue-io" &&
 					repository == "pop-node" &&
-					tag == None &&
+					tag.is_none() &&
 					tag_pattern == Some("node-{version}".into()) &&
 					!prerelease &&
 					fn_addr_eq(version_comparator, sort_by_latest_semantic_version as for<'a> fn(&'a mut [String]) -> SortedSlice<'a, String>) &&
 					fallback == "v0.3.0" &&
 					archive == format!("pop-node-{}.tar.gz", target().unwrap()) &&
 					contents == vec![ArchiveFileSpec::new("pop-node".into(), None, true)] &&
-					latest == None
+					latest.is_none()
 		));
 	}
 

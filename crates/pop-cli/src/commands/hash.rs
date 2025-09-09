@@ -15,10 +15,9 @@ use sp_core::{
 use std::{ffi::OsStr, ops::Deref, str::FromStr};
 use strum_macros::Display;
 
-const CONCAT: &'static str = "Whether to append the source data to the hash.";
-const DATA: &'static str =
-	"The data to be hashed: input directly or specified as a path to a file.";
-const LENGTH: &'static str = "The length of the resulting hash, in bits.";
+const CONCAT: &str = "Whether to append the source data to the hash.";
+const DATA: &str = "The data to be hashed: input directly or specified as a path to a file.";
+const LENGTH: &str = "The length of the resulting hash, in bits.";
 const MAX_CODE_SIZE: u64 = 3 * 1024 * 1024;
 
 /// Arguments for hashing.
@@ -222,10 +221,10 @@ mod tests {
 	fn blake2_works() -> Result<()> {
 		let data = "test".as_bytes();
 		for (length, expected) in [
-			(64u16, &blake2_64(&data)[..]),
-			(128, &blake2_128(&data)[..]),
-			(256, &blake2_256(&data)[..]),
-			(512, &blake2_512(&data)[..]),
+			(64u16, &blake2_64(data)[..]),
+			(128, &blake2_128(data)[..]),
+			(256, &blake2_256(data)[..]),
+			(512, &blake2_512(data)[..]),
 		] {
 			for data in [File(data.to_vec()), Hex(data.to_vec()), String(data.to_vec())] {
 				for concat in [false, true] {
@@ -255,7 +254,7 @@ mod tests {
 	#[test]
 	fn keccak_works() -> Result<()> {
 		let data = "test".as_bytes();
-		for (length, expected) in [(256, &keccak_256(&data)[..]), (512, &keccak_512(&data)[..])] {
+		for (length, expected) in [(256, &keccak_256(data)[..]), (512, &keccak_512(data)[..])] {
 			for data in [File(data.to_vec()), Hex(data.to_vec()), String(data.to_vec())] {
 				let command = Keccak { length, data: data.clone() };
 				assert_eq!(command.hash()?, expected, "hash using {} failed", command);
@@ -278,7 +277,7 @@ mod tests {
 	#[test]
 	fn sha2_works() -> Result<()> {
 		let data = "test".as_bytes();
-		for (length, expected) in [(256, sha2_256(&data))] {
+		for (length, expected) in [(256, sha2_256(data))] {
 			for data in [File(data.to_vec()), Hex(data.to_vec()), String(data.to_vec())] {
 				let command = Sha2 { length, data: data.clone() };
 				assert_eq!(command.hash()?, expected, "hash using {} failed", command);
@@ -302,7 +301,7 @@ mod tests {
 	fn twox_works() -> Result<()> {
 		let data = "test".as_bytes();
 		for (length, expected) in
-			[(64u16, &twox_64(&data)[..]), (128, &twox_128(&data)[..]), (256, &twox_256(&data)[..])]
+			[(64u16, &twox_64(data)[..]), (128, &twox_128(data)[..]), (256, &twox_256(data)[..])]
 		{
 			for data in [File(data.to_vec()), Hex(data.to_vec()), String(data.to_vec())] {
 				for concat in [false, true] {
@@ -377,7 +376,8 @@ mod tests {
 	fn data_from_file_works() -> Result<(), Box<dyn std::error::Error>> {
 		let value = "test".as_bytes();
 		let mut file = tempfile::NamedTempFile::new()?;
-		file.write(value)?;
+		let bytes_written = file.write(value)?;
+		assert_eq!(bytes_written, value.len());
 		assert!(
 			matches!(Data::from_str(file.path().to_str().unwrap()), Ok(File(bytes)) if bytes == value)
 		);
@@ -404,7 +404,7 @@ mod tests {
 		for value in values {
 			assert_eq!(
 				supported_lengths
-					.parse_ref(&Default::default(), Option::None, &OsStr::new(&value.to_string()))
+					.parse_ref(&Default::default(), Option::None, OsStr::new(&value.to_string()))
 					.unwrap(),
 				value
 			);

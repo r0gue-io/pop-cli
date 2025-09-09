@@ -623,38 +623,38 @@ mod tests {
 
 		let items = vec![
             ("📝 flip\n".into(), "[MUTATES] A message that can be called on instantiated contracts.  This one flips the value of the stored `bool` from `true`  to `false` and vice versa.".into()),
-			("get\n".into(), " Simply returns the current value of our `bool`.".into()),
+            ("get\n".into(), " Simply returns the current value of our `bool`.".into()),
             ("📝 specific_flip\n".into(), "[MUTATES] A message for testing, flips the value of the stored `bool` with `new_value`  and is payable".into())
-		];
+        ];
 		// The inputs are processed in reverse order.
 		let mut cli = MockCli::new()
-			.expect_select(
-				"Select the message to call:",
-				Some(false),
-				true,
-				Some(items),
-				1, // "get" message
-				None
-			)
-			.expect_input(
-				"Where is your contract deployed?",
-				urls::LOCAL.into(),
-			)
-			.expect_input(
-				"Provide the on-chain contract address:",
-				"CONTRACT_ADDRESS".into(),
-			)
-			.expect_info(format!(
-	            "pop call contract --path {} --contract CONTRACT_ADDRESS --message get --url {} --suri //Alice",
-	            temp_dir.path().join("testing").display().to_string(), urls::LOCAL
-	        ));
+            .expect_select(
+                "Select the message to call:",
+                Some(false),
+                true,
+                Some(items),
+                1, // "get" message
+                None,
+            )
+            .expect_input(
+                "Where is your contract deployed?",
+                urls::LOCAL.into(),
+            )
+            .expect_input(
+                "Provide the on-chain contract address:",
+                "CONTRACT_ADDRESS".into(),
+            )
+            .expect_info(format!(
+                "pop call contract --path {} --contract CONTRACT_ADDRESS --message get --url {} --suri //Alice",
+                temp_dir.path().join("testing").display(), urls::LOCAL
+            ));
 
 		let mut call_config = CallContractCommand {
 			path: None,
 			path_pos: Some(temp_dir.path().join("testing")),
 			contract: None,
 			message: None,
-			args: vec![].to_vec(),
+			args: vec![],
 			value: DEFAULT_PAYABLE_VALUE.to_string(),
 			gas_limit: None,
 			proof_size: None,
@@ -677,12 +677,12 @@ mod tests {
 		assert!(!call_config.execute);
 		assert!(!call_config.dry_run);
 		assert_eq!(
-			call_config.display(),
-			format!(
-			"pop call contract --path {} --contract CONTRACT_ADDRESS --message get --url {} --suri //Alice",
-			temp_dir.path().join("testing").display().to_string(), urls::LOCAL
-		)
-		);
+            call_config.display(),
+            format!(
+                "pop call contract --path {} --contract CONTRACT_ADDRESS --message get --url {} --suri //Alice",
+                temp_dir.path().join("testing").display(), urls::LOCAL
+            )
+        );
 
 		cli.verify()
 	}
@@ -702,44 +702,44 @@ mod tests {
 
 		let items = vec![
             ("📝 flip\n".into(), "[MUTATES] A message that can be called on instantiated contracts.  This one flips the value of the stored `bool` from `true`  to `false` and vice versa.".into()),
-			("get\n".into(), " Simply returns the current value of our `bool`.".into()),
+            ("get\n".into(), " Simply returns the current value of our `bool`.".into()),
             ("📝 specific_flip\n".into(), "[MUTATES] A message for testing, flips the value of the stored `bool` with `new_value`  and is payable".into())
-		];
+        ];
 		// The inputs are processed in reverse order.
 		let mut cli = MockCli::new()
-			.expect_input(
-				"Where is your contract deployed?",
-				urls::LOCAL.into(),
-			)
-			.expect_input(
-				"Provide the on-chain contract address:",
-				"CONTRACT_ADDRESS".into(),
-			)
-			.expect_select(
-				"Select the message to call:",
-				Some(false),
-				true,
-				Some(items),
-				2, // "specific_flip" message
-				None
-			)
-			.expect_input("Enter the value for the parameter: new_value", "true".into()) // Args for specific_flip
-			.expect_input("Enter the value for the parameter: number", "2".into()) // Args for specific_flip
-			.expect_input("Value to transfer to the call:", "50".into()) // Only if payable
-			.expect_input("Enter the gas limit:", "".into()) // Only if call
-			.expect_input("Enter the proof size limit:", "".into()) // Only if call
-			.expect_confirm(USE_WALLET_PROMPT, true)
-			.expect_info(format!(
-				"pop call contract --path {} --contract CONTRACT_ADDRESS --message specific_flip --args \"true\", \"2\" --value 50 --url {} --use-wallet --execute",
-				temp_dir.path().join("testing").display().to_string(), urls::LOCAL
-			));
+            .expect_input(
+                "Where is your contract deployed?",
+                urls::LOCAL.into(),
+            )
+            .expect_input(
+                "Provide the on-chain contract address:",
+                "CONTRACT_ADDRESS".into(),
+            )
+            .expect_select(
+                "Select the message to call:",
+                Some(false),
+                true,
+                Some(items),
+                2, // "specific_flip" message
+                None,
+            )
+            .expect_input("Enter the value for the parameter: new_value", "true".into()) // Args for specific_flip
+            .expect_input("Enter the value for the parameter: number", "2".into()) // Args for specific_flip
+            .expect_input("Value to transfer to the call:", "50".into()) // Only if payable
+            .expect_input("Enter the gas limit:", "".into()) // Only if call
+            .expect_input("Enter the proof size limit:", "".into()) // Only if call
+            .expect_confirm(USE_WALLET_PROMPT, true)
+            .expect_info(format!(
+                "pop call contract --path {} --contract CONTRACT_ADDRESS --message specific_flip --args \"true\", \"2\" --value 50 --url {} --use-wallet --execute",
+                temp_dir.path().join("testing").display(), urls::LOCAL
+            ));
 
 		let mut call_config = CallContractCommand {
 			path: None,
 			path_pos: Some(temp_dir.path().join("testing")),
 			contract: None,
 			message: None,
-			args: vec![].to_vec(),
+			args: vec![],
 			value: DEFAULT_PAYABLE_VALUE.to_string(),
 			gas_limit: None,
 			proof_size: None,
@@ -765,9 +765,9 @@ mod tests {
 		assert!(call_config.execute);
 		assert!(!call_config.dry_run);
 		assert_eq!(call_config.display(), format!(
-			"pop call contract --path {} --contract CONTRACT_ADDRESS --message specific_flip --args \"true\", \"2\" --value 50 --url {} --use-wallet --execute",
-			temp_dir.path().join("testing").display().to_string(), urls::LOCAL
-		));
+            "pop call contract --path {} --contract CONTRACT_ADDRESS --message specific_flip --args \"true\", \"2\" --value 50 --url {} --use-wallet --execute",
+            temp_dir.path().join("testing").display(), urls::LOCAL
+        ));
 
 		cli.verify()
 	}
@@ -787,42 +787,42 @@ mod tests {
 
 		let items = vec![
             ("📝 flip\n".into(), "[MUTATES] A message that can be called on instantiated contracts.  This one flips the value of the stored `bool` from `true`  to `false` and vice versa.".into()),
-			("get\n".into(), " Simply returns the current value of our `bool`.".into()),
+            ("get\n".into(), " Simply returns the current value of our `bool`.".into()),
             ("📝 specific_flip\n".into(), "[MUTATES] A message for testing, flips the value of the stored `bool` with `new_value`  and is payable".into())
-		];
+        ];
 		// The inputs are processed in reverse order.
 		let mut cli = MockCli::new()
-			.expect_select(
-				"Select the message to call:",
-				Some(false),
-				true,
-				Some(items),
-				2, // "specific_flip" message
-				None
-			)
-			.expect_input(
-				"Where is your contract deployed?",
-				urls::LOCAL.into(),
-			)
-			.expect_input(
-				"Provide the on-chain contract address:",
-				"CONTRACT_ADDRESS".into(),
-			)
-			.expect_input("Enter the value for the parameter: new_value", "true".into()) // Args for specific_flip
-			.expect_input("Enter the value for the parameter: number", "2".into()) // Args for specific_flip
-			.expect_input("Value to transfer to the call:", "50".into()) // Only if payable
-			.expect_input("Signer calling the contract:", "//Alice".into())
-			.expect_info(format!(
-				"pop call contract --path {} --contract CONTRACT_ADDRESS --message specific_flip --args \"true\", \"2\" --value 50 --url {} --suri //Alice --execute",
-				temp_dir.path().join("testing").display().to_string(), urls::LOCAL
-			));
+            .expect_select(
+                "Select the message to call:",
+                Some(false),
+                true,
+                Some(items),
+                2, // "specific_flip" message
+                None,
+            )
+            .expect_input(
+                "Where is your contract deployed?",
+                urls::LOCAL.into(),
+            )
+            .expect_input(
+                "Provide the on-chain contract address:",
+                "CONTRACT_ADDRESS".into(),
+            )
+            .expect_input("Enter the value for the parameter: new_value", "true".into()) // Args for specific_flip
+            .expect_input("Enter the value for the parameter: number", "2".into()) // Args for specific_flip
+            .expect_input("Value to transfer to the call:", "50".into()) // Only if payable
+            .expect_input("Signer calling the contract:", "//Alice".into())
+            .expect_info(format!(
+                "pop call contract --path {} --contract CONTRACT_ADDRESS --message specific_flip --args \"true\", \"2\" --value 50 --url {} --suri //Alice --execute",
+                temp_dir.path().join("testing").display(), urls::LOCAL
+            ));
 
 		let mut call_config = CallContractCommand {
 			path: None,
 			path_pos: Some(temp_dir.path().join("testing")),
 			contract: None,
 			message: None,
-			args: vec![].to_vec(),
+			args: vec![],
 			value: DEFAULT_PAYABLE_VALUE.to_string(),
 			gas_limit: None,
 			proof_size: None,
@@ -848,9 +848,9 @@ mod tests {
 		assert!(!call_config.dry_run);
 		assert!(call_config.dev_mode);
 		assert_eq!(call_config.display(), format!(
-			"pop call contract --path {} --contract CONTRACT_ADDRESS --message specific_flip --args \"true\", \"2\" --value 50 --url {} --suri //Alice --execute",
-			temp_dir.path().join("testing").display().to_string(), urls::LOCAL
-		));
+            "pop call contract --path {} --contract CONTRACT_ADDRESS --message specific_flip --args \"true\", \"2\" --value 50 --url {} --suri //Alice --execute",
+            temp_dir.path().join("testing").display(), urls::LOCAL
+        ));
 
 		cli.verify()
 	}
@@ -882,7 +882,7 @@ mod tests {
 			path_pos: None,
 			contract: None,
 			message: None,
-			args: vec![].to_vec(),
+			args: vec![],
 			value: "0".to_string(),
 			gas_limit: None,
 			proof_size: None,
@@ -933,7 +933,7 @@ mod tests {
 				path_pos: None,
 				contract: None,
 				message: None,
-				args: vec![].to_vec(),
+				args: vec![],
 				value: "0".to_string(),
 				gas_limit: None,
 				proof_size: None,
@@ -953,7 +953,7 @@ mod tests {
 				path_pos: None,
 				contract: None,
 				message: Some("get".to_string()),
-				args: vec![].to_vec(),
+				args: vec![],
 				value: "0".to_string(),
 				gas_limit: None,
 				proof_size: None,
@@ -978,7 +978,7 @@ mod tests {
 			path_pos: None,
 			contract: None,
 			message: None,
-			args: vec![].to_vec(),
+			args: vec![],
 			value: "0".to_string(),
 			gas_limit: None,
 			proof_size: None,
@@ -1010,7 +1010,7 @@ mod tests {
 			path_pos: None,
 			contract: None,
 			message: None,
-			args: vec![].to_vec(),
+			args: vec![],
 			value: "0".to_string(),
 			gas_limit: None,
 			proof_size: None,

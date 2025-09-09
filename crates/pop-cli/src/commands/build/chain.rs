@@ -112,7 +112,7 @@ mod tests {
 		let path = temp_dir.path();
 		let project_path = path.join(name);
 		let features = &[Benchmark.as_ref(), TryRuntime.as_ref()];
-		cmd("cargo", ["new", name, "--bin"]).dir(&path).run()?;
+		cmd("cargo", ["new", name, "--bin"]).dir(path).run()?;
 		add_production_profile(&project_path)?;
 		for feature in features {
 			add_feature(&project_path, (feature.to_string(), vec![]))?;
@@ -136,7 +136,7 @@ mod tests {
 
 	fn test_build(
 		package: Option<String>,
-		project_path: &PathBuf,
+		project_path: &Path,
 		profile: &Profile,
 		features: &[&str],
 	) -> anyhow::Result<()> {
@@ -157,7 +157,7 @@ mod tests {
 
 		assert_eq!(
 			BuildChain {
-				path: project_path.clone(),
+				path: project_path.to_path_buf(),
 				package: package.clone(),
 				profile: profile.clone(),
 				benchmark: features.contains(&Benchmark.as_ref()),

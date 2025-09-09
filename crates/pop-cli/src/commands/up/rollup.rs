@@ -561,7 +561,7 @@ mod tests {
 				true,
 				Some(
 					DeploymentProvider::VARIANTS
-						.into_iter()
+						.iter()
 						.map(|action| (action.name().to_string(), format_url(action.base_url())))
 						.collect::<Vec<_>>(),
 				),
@@ -574,7 +574,7 @@ mod tests {
 				true,
 				Some(
 					SupportedChains::VARIANTS
-						.into_iter()
+						.iter()
 						.map(|chain| (chain.to_string(), "".to_string()))
 						.collect::<Vec<_>>(),
 				),
@@ -587,7 +587,7 @@ mod tests {
 		env::set_var(PDP_API_KEY, "test_api_key");
 		let chain_config = UpCommand { skip_registration: true, ..Default::default() }
 			.prepare_for_deployment(&mut cli)?;
-		assert!(!chain_config.api.is_none());
+		assert!(chain_config.api.is_some());
 		let api = chain_config.api.unwrap();
 		assert_eq!(api.api_key, "test_api_key");
 		assert_eq!(api.relay_chain_name, "PASEO");
@@ -609,7 +609,7 @@ mod tests {
 			true,
 			Some(
 				DeploymentProvider::VARIANTS
-					.into_iter()
+					.iter()
 					.map(|action| (action.name().to_string(), format_url(action.base_url())))
 					.chain(std::iter::once((
 						"Register".to_string(),
@@ -670,7 +670,7 @@ mod tests {
 		assert_eq!(chain_config.genesis_artifacts.genesis_code_file, Some(genesis_code));
 		assert_eq!(chain_config.genesis_artifacts.genesis_state_file, Some(genesis_state));
 		assert_eq!(chain_config.chain.url, Url::parse(node_url)?);
-		assert_eq!(chain_config.proxy, Some(format!("Id({})", MOCK_PROXIED_ADDRESS.to_string())));
+		assert_eq!(chain_config.proxy, Some(format!("Id({})", MOCK_PROXIED_ADDRESS)));
 		cli.verify()
 	}
 
@@ -750,7 +750,7 @@ mod tests {
                 true,
                 Some(
                     DeploymentProvider::VARIANTS
-                        .into_iter()
+                        .iter()
                         .map(|action| (action.name().to_string(), format_url(action.base_url())))
                         .chain(std::iter::once((
                             "Register".to_string(),
@@ -839,7 +839,7 @@ mod tests {
                 true,
                 Some(
                     DeploymentProvider::VARIANTS
-                        .into_iter()
+                        .iter()
                         .map(|action| (action.name().to_string(), format_url(action.base_url())))
                         .chain(std::iter::once((
                             "Register".to_string(),
@@ -955,7 +955,7 @@ mod tests {
 					.filter_map(|variant| variant.deployment_name().map(|_| style(format!(
 						"{} {}",
 						console::Emoji("●", ">"),
-						variant.name().to_string()
+						variant.name()
 					))
 					.dim()
 					.to_string()))

@@ -236,6 +236,7 @@ mod tests {
 	#[cfg(feature = "chain")]
 	use pop_common::manifest::add_feature;
 	use pop_common::manifest::add_production_profile;
+	use std::path::Path;
 	use strum::VariantArray;
 
 	#[test]
@@ -250,10 +251,10 @@ mod tests {
 		let try_runtime = TryRuntime.as_ref();
 		#[cfg(feature = "chain")]
 		let features = vec![benchmark, try_runtime];
-		cmd("cargo", ["new", name, "--bin"]).dir(&path).run()?;
+		cmd("cargo", ["new", name, "--bin"]).dir(path).run()?;
 		add_production_profile(&project_path)?;
 		#[cfg(feature = "chain")]
-		for feature in features.to_vec() {
+		for feature in &features {
 			add_feature(&project_path, (feature.to_string(), vec![]))?;
 		}
 		for package in [None, Some(name.to_string())] {
@@ -306,7 +307,7 @@ mod tests {
 
 	fn test_build(
 		package: Option<String>,
-		project_path: &PathBuf,
+		project_path: &Path,
 		profile: &Profile,
 		release: bool,
 		#[cfg(feature = "chain")] benchmark: bool,
@@ -330,8 +331,8 @@ mod tests {
 			BuildArgs {
 				#[cfg(feature = "chain")]
 				command: None,
-				path: Some(project_path.clone()),
-				path_pos: Some(project_path.clone()),
+				path: Some(project_path.to_path_buf()),
+				path_pos: Some(project_path.to_path_buf()),
 				package: package.clone(),
 				release,
 				profile: Some(profile.clone()),

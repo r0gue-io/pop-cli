@@ -55,7 +55,7 @@ mod tests {
 
 		// Standard rust project
 		let name = "hello_world";
-		cmd("cargo", ["new", name]).dir(&path).run()?;
+		cmd("cargo", ["new", name]).dir(path).run()?;
 		assert!(!is_supported(Some(&path.join(name)))?);
 
 		// Contract

@@ -26,7 +26,6 @@ pub fn test_e2e_smart_contract(path: Option<&Path>, node: Option<&Path>) -> Resu
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use tempfile;
 
 	#[test]
 	fn test_e2e_smart_contract_set_env_variable() -> Result<(), Error> {
@@ -40,7 +39,7 @@ mod tests {
 		assert!(env::var("CONTRACTS_NODE").is_err());
 		let err = test_e2e_smart_contract(
 			Some(&temp_dir.path().join("test_contract")),
-			Some(&Path::new("/path/to/contracts-node")),
+			Some(Path::new("/path/to/contracts-node")),
 		);
 		assert!(err.is_err());
 		// The environment variable `CONTRACTS_NODE` should has been set.

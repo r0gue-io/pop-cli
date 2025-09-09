@@ -969,7 +969,7 @@ mod tests {
 					assert_eq!(build_spec.protocol_id, "my-protocol");
 					assert_eq!(build_spec.genesis_state, genesis_state);
 					assert_eq!(build_spec.genesis_code, genesis_code);
-					assert_eq!(build_spec.deterministic, false);
+					assert!(!build_spec.deterministic);
 					assert_eq!(build_spec.package, DEFAULT_PACKAGE);
 					assert_eq!(build_spec.runtime_dir, PathBuf::from(DEFAULT_RUNTIME_DIR));
 				} else if changes && no_flags_used {
