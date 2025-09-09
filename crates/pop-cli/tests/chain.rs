@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
+//! Integration tests for chain-related functionality.
+
 #![cfg(feature = "chain")]
 
 use anyhow::Result;

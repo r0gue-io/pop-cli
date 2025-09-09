@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: GPL-3.0
+
+//! Metadata tests for validating type formatting functionality.
+
 use anyhow::Result;
 use pop_common::{format_type, test_env::TestNode};
 use subxt::{OnlineClient, SubstrateConfig};

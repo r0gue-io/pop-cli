@@ -1,5 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0
 
+//! Chain template definitions and configurations.
+//!
+//! This module provides template definitions for different parachain configurations,
+//! including providers like Pop, OpenZeppelin and Parity. It includes template metadata,
+//! configuration options and utility functions for template management.
+
 use pop_common::templates::{Template, Type};
 use strum::{EnumProperty as _, VariantArray};
 use strum_macros::{AsRefStr, Display, EnumMessage, EnumProperty, EnumString};
@@ -192,7 +198,7 @@ pub enum ChainTemplate {
 		)
 	)]
 	ParityContracts,
-	// templates for unit tests below
+	/// Test template 01 used for unit testing.
 	#[cfg(test)]
 	#[strum(
 		serialize = "test_01",
@@ -210,6 +216,7 @@ pub enum ChainTemplate {
 		)
 	)]
 	TestTemplate01,
+	/// Test template 02 used for unit testing.
 	#[cfg(test)]
 	#[strum(
 		serialize = "test_02",

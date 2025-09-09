@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
+//! Integration tests for smart contract deployment and interaction functionality.
+
 use anyhow::Result;
 use pop_common::find_free_port;
 use pop_contracts::{

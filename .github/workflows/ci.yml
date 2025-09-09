@@ -77,8 +77,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       checks: write
-    env:
-      RUSTFLAGS: "-Wmissing_docs"
     steps:
       - uses: actions/checkout@v4
 

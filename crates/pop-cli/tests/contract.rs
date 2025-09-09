@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
+//! Contract integration tests for validating contract lifecycle functionality.
+
 #![cfg(feature = "contract")]
 
 use anyhow::Result;
