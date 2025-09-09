@@ -212,7 +212,7 @@ impl UpContractCommand {
 
 				if self.upload_only {
 					#[allow(unused_variables)]
-					match upload_contract_signed(self.url.as_str(), payload).await {
+					let upload_result = match upload_contract_signed(self.url.as_str(), payload).await {
 						Err(e) => {
 							spinner
 								.error(format!("An error occurred uploading your contract: {e}"));
@@ -220,14 +220,13 @@ impl UpContractCommand {
 							Cli.outro_cancel(FAILED)?;
 							return Ok(());
 						},
-						#[cfg(feature = "wasm-contracts")]
-						Ok(result) => result,
-						#[cfg(feature = "polkavm-contracts")]
-						Ok(_) => {
+						Ok(result) => {
+							#[cfg(feature = "polkavm-contracts")]
 							spinner.stop(format!(
 								"Contract uploaded: The code hash is {:?}",
 								to_hex(&hash, false)
 							));
+							result
 						},
 					};
 
