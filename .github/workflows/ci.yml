@@ -95,21 +95,6 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-  deny:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: ${{ runner.os }}
-
-      - name: Run cargo-deny
-        uses: EmbarkStudios/cargo-deny-action@v2
-        with:
-          command: check
-          arguments: '--no-default-features'
-
   docker:
     runs-on: ubuntu-latest
     steps:

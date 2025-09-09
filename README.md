@@ -109,6 +109,20 @@ cargo nextest run
 > per <https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#getting-a-higher-rate-limit>, a
 > personal access token can be used via the `GITHUB_TOKEN` environment variable.
 
+## Security/advisory checks
+
+We use `cargo-deny` locally to check advisories and licenses.
+
+```bash
+cargo install cargo-deny
+cargo deny check
+
+# Advisories only
+cargo deny check advisories
+# Licenses only
+cargo deny check licenses
+```
+
 ## Acknowledgements
 
 Pop CLI would not be possible without these awesome crates!
