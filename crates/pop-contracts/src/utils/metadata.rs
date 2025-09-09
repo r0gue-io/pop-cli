@@ -232,6 +232,11 @@ mod tests {
 	use crate::{mock_build_process, new_environment};
 	use anyhow::Result;
 
+	#[cfg(feature = "v5")]
+	const CONTRACT_FILE: &str = "./tests/files/testing_wasm.contract";
+	#[cfg(feature = "v6")]
+	const CONTRACT_FILE: &str = "./tests/files/testing.contract";
+
 	#[test]
 	fn get_messages_work() -> Result<()> {
 		let temp_dir = new_environment("testing")?;
@@ -257,7 +262,7 @@ mod tests {
 
 		mock_build_process(
 			temp_dir.path().join("testing"),
-			current_dir.join("./tests/files/testing.contract"),
+			current_dir.join(CONTRACT_FILE),
 			current_dir.join("./tests/files/testing.json"),
 		)?;
 
@@ -266,7 +271,7 @@ mod tests {
 		assert_contract_metadata_parsed(message)?;
 
 		// Test with a metadata file path
-		let message = get_messages(current_dir.join("./tests/files/testing.contract"))?;
+		let message = get_messages(current_dir.join(CONTRACT_FILE))?;
 		assert_contract_metadata_parsed(message)?;
 
 		Ok(())
@@ -278,7 +283,7 @@ mod tests {
 		let current_dir = env::current_dir().expect("Failed to get current directory");
 		mock_build_process(
 			temp_dir.path().join("testing"),
-			current_dir.join("./tests/files/testing.contract"),
+			current_dir.join(CONTRACT_FILE),
 			current_dir.join("./tests/files/testing.json"),
 		)?;
 		assert!(matches!(
@@ -302,7 +307,7 @@ mod tests {
 		let current_dir = env::current_dir().expect("Failed to get current directory");
 		mock_build_process(
 			temp_dir.path().join("testing"),
-			current_dir.join("./tests/files/testing.contract"),
+			current_dir.join(CONTRACT_FILE),
 			current_dir.join("./tests/files/testing.json"),
 		)?;
 		let constructor = get_constructors(temp_dir.path().join("testing"))?;
@@ -335,7 +340,7 @@ mod tests {
 		let current_dir = env::current_dir().expect("Failed to get current directory");
 		mock_build_process(
 			temp_dir.path().join("testing"),
-			current_dir.join("./tests/files/testing.contract"),
+			current_dir.join(CONTRACT_FILE),
 			current_dir.join("./tests/files/testing.json"),
 		)?;
 		assert!(matches!(
@@ -362,7 +367,7 @@ mod tests {
 		let current_dir = env::current_dir().expect("Failed to get current directory");
 		mock_build_process(
 			temp_dir.path().join("testing"),
-			current_dir.join("./tests/files/testing.contract"),
+			current_dir.join(CONTRACT_FILE),
 			current_dir.join("./tests/files/testing.json"),
 		)?;
 
