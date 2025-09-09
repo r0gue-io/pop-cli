@@ -16,6 +16,8 @@ ignore = [
     { id = "RUSTSEC-2024-0438", reason = "No upgrade available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/458" },
     { id = "RUSTSEC-2023-0091", reason = "No upgrade available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/458" },
     { id = "RUSTSEC-2024-0442", reason = "No upgrade available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/458" },
+    { id = "RUSTSEC-2025-0056", reason = "No upgrade available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/458" },
+    { id = "RUSTSEC-2025-0057", reason = "No upgrade available. Tracking the vulnerability: https://github.com/r0gue-io/pop-cli/issues/458" },
 ]
 
 [licenses]
