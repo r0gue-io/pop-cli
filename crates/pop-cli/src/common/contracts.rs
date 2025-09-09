@@ -65,7 +65,7 @@ pub async fn terminate_node(
 			.spawn()?
 			.wait()?;
 	} else {
-		cli.warning("You can finish the process by pressing Ctrl+C.")?;
+		cli.warning("You can terminate the process by pressing Ctrl+C.")?;
 		Command::new("tail").args(["-F", &log.path().to_string_lossy()]).spawn()?;
 		tokio::signal::ctrl_c().await?;
 		cli.plain("\n")?;

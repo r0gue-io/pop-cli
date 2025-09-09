@@ -300,8 +300,8 @@ impl UpContractCommand {
 				return Ok(());
 			}
 
-			terminate_node(&mut Cli, process).await?;
 			Cli.outro(COMPLETE)?;
+			terminate_node(&mut Cli, process).await?;
 			return Ok(());
 		}
 
@@ -373,8 +373,8 @@ impl UpContractCommand {
 				contract_info.code_hash,
 			);
 
-			terminate_node(&mut Cli, process).await?;
 			Cli.outro(COMPLETE)?;
+			terminate_node(&mut Cli, process).await?;
 		}
 
 		Ok(())
