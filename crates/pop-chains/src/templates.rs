@@ -134,9 +134,11 @@ pub enum ChainTemplate {
 			Repository = "https://github.com/r0gue-io/evm-parachain",
 			Network = "./network.toml",
 			License = "Unlicense",
-			DeploymentName = "POP_EVM"
+			DeploymentName = "POP_EVM",
+			IsDeprecated = "true",
 		)
 	)]
+	#[deprecated(since = "0.10.0", note = "will be removed in v0.11.0")]
 	EVM,
 	/// OpenZeppelin Generic Runtime Template: A generic template for Substrate Runtime.
 	#[strum(
@@ -194,9 +196,11 @@ pub enum ChainTemplate {
 			Provider = "Parity",
 			Repository = "https://github.com/paritytech/substrate-contracts-node",
 			Network = "./zombienet.toml",
-			License = "Unlicense"
+			License = "Unlicense",
+			IsDeprecated = "true",
 		)
 	)]
+	#[deprecated(since = "0.10.0", note = "will be removed in v0.11.0")]
 	ParityContracts,
 	/// Test template 01 used for unit testing.
 	#[cfg(test)]
@@ -510,9 +514,9 @@ mod tests {
 	#[test]
 	fn test_templates_of_provider() {
 		let mut provider = Provider::Pop;
-		assert_eq!(provider.templates(), [&Standard, &Assets, &Contracts, &EVM]);
+		assert_eq!(provider.templates(), [&Standard, &Assets, &Contracts]);
 		provider = Provider::Parity;
-		assert_eq!(provider.templates(), [&ParityGeneric, &ParityContracts]);
+		assert_eq!(provider.templates(), [&ParityGeneric]);
 	}
 
 	#[test]
