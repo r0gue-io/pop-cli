@@ -20,6 +20,7 @@ env:
   GITHUB_ACTOR: pop-cli
   CARGO_INCREMENTAL: 1
   RUST_VERSION: 1.68
+  RUST_BACKTRACE: 1
 
 concurrency:
   # Cancel any in-progress jobs for the same pull request
