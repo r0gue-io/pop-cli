@@ -160,6 +160,7 @@ impl Source {
 }
 
 /// A binary sourced from GitHub.
+#[allow(unpredictable_function_pointer_comparisons)]
 #[derive(Clone, Debug, PartialEq)]
 pub enum GitHub {
 	/// An archive for download from a GitHub release.
@@ -1278,6 +1279,7 @@ pub(super) mod tests {
 		assert_eq!(pattern.version("polkadot-stable2503"), Some("stable2503"));
 	}
 
+	#[allow(mismatched_lifetime_syntaxes)]
 	fn version_comparator<T: AsRef<str> + Ord>(versions: &mut [T]) -> SortedSlice<T> {
 		SortedSlice::by(versions, |a, b| parse_version(b.as_ref()).cmp(&parse_version(a.as_ref())))
 	}
