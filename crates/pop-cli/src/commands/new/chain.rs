@@ -446,8 +446,6 @@ mod tests {
 	fn test_is_template_supported() -> Result<()> {
 		let mut cli = MockCli::new();
 		is_template_supported(&Provider::Pop, &ChainTemplate::Standard, &mut cli)?;
-		assert!(is_template_supported(&Provider::Pop, &ChainTemplate::ParityContracts, &mut cli)
-			.is_err());
 		assert!(
 			is_template_supported(&Provider::Pop, &ChainTemplate::ParityGeneric, &mut cli).is_err()
 		);
@@ -455,7 +453,6 @@ mod tests {
 		assert!(
 			is_template_supported(&Provider::Parity, &ChainTemplate::Standard, &mut cli).is_err()
 		);
-		is_template_supported(&Provider::Parity, &ChainTemplate::ParityContracts, &mut cli)?;
 		is_template_supported(&Provider::Parity, &ChainTemplate::ParityGeneric, &mut cli)
 	}
 
