@@ -38,7 +38,7 @@ pub struct CallContractCommand {
 	pub(crate) path_pos: Option<PathBuf>,
 	/// The address of the contract to call.
 	#[arg(short, long, env = "CONTRACT")]
-	contract: Option<String>,
+	pub(crate) contract: Option<String>,
 	/// The name of the contract message to call.
 	#[arg(short, long)]
 	message: Option<String>,
@@ -59,7 +59,7 @@ pub struct CallContractCommand {
 	proof_size: Option<u64>,
 	/// Websocket endpoint of a node.
 	#[arg(short, long, value_parser, default_value = urls::LOCAL)]
-	url: url::Url,
+	pub(crate) url: url::Url,
 	/// Secret key URI for the account calling the contract.
 	///
 	/// e.g.
@@ -86,6 +86,8 @@ pub struct CallContractCommand {
 	/// Recommended for testing and local development only.
 	#[arg(name = "dev", short, long, default_value = "false")]
 	dev_mode: bool,
+	/// Whether the contract was just deployed or not.
+	pub(crate) deployed: bool,
 }
 
 impl Default for CallContractCommand {
@@ -105,6 +107,7 @@ impl Default for CallContractCommand {
 			execute: false,
 			dry_run: false,
 			dev_mode: false,
+			deployed: false,
 		}
 	}
 }
@@ -271,7 +274,7 @@ impl CallContractCommand {
 		};
 
 		// Resolve url.
-		if !repeat && self.url.as_str() == urls::LOCAL {
+		if !repeat && !self.deployed && self.url.as_str() == urls::LOCAL {
 			// Prompt for url.
 			let url: String = cli
 				.input("Where is your contract deployed?")
@@ -664,6 +667,7 @@ mod tests {
 			dry_run: false,
 			execute: false,
 			dev_mode: false,
+			deployed: false,
 		};
 		call_config.configure(&mut cli, false).await?;
 		assert_eq!(call_config.contract, Some("CONTRACT_ADDRESS".to_string()));
@@ -749,6 +753,7 @@ mod tests {
 			dry_run: false,
 			execute: false,
 			dev_mode: false,
+			deployed: false,
 		};
 		call_config.configure(&mut cli, false).await?;
 		assert_eq!(call_config.contract, Some("CONTRACT_ADDRESS".to_string()));
@@ -832,6 +837,7 @@ mod tests {
 			dry_run: false,
 			execute: false,
 			dev_mode: true,
+			deployed: false,
 		};
 		call_config.configure(&mut cli, false).await?;
 		assert_eq!(call_config.contract, Some("CONTRACT_ADDRESS".to_string()));
@@ -892,6 +898,7 @@ mod tests {
 			dry_run: false,
 			execute: false,
 			dev_mode: false,
+			deployed: false,
 		};
 		let mut cli = MockCli::new();
 		assert!(
@@ -943,6 +950,7 @@ mod tests {
 				dry_run: false,
 				execute: false,
 				dev_mode: false,
+				deployed: false,
 			}.execute_call(&mut cli, false).await,
 			anyhow::Result::Err(message) if message.to_string() == "Please specify the message to call."
 		));
@@ -963,6 +971,7 @@ mod tests {
 				dry_run: false,
 				execute: false,
 				dev_mode: false,
+				deployed: false,
 			}.execute_call(&mut cli, false).await,
 			anyhow::Result::Err(message) if message.to_string() == "Please specify the contract address."
 		));
@@ -988,6 +997,7 @@ mod tests {
 			dry_run: false,
 			execute: false,
 			dev_mode: false,
+			deployed: false,
 		};
 		// Contract is not deployed.
 		let mut cli =
@@ -1020,6 +1030,7 @@ mod tests {
 			dry_run: false,
 			execute: false,
 			dev_mode: false,
+			deployed: false,
 		};
 		// Contract not build. Build is required.
 		assert!(call_config.is_contract_build_required());

@@ -65,7 +65,7 @@ pub async fn terminate_node(
 			tokio::signal::ctrl_c().await?;
 			cli.plain("\n")?;
 		}
-		cli.success("✅ Local node terminated.")?;
+		cli.outro("✅ Local node terminated.")?;
 	}
 	Ok(())
 }
