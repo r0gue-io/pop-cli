@@ -5,6 +5,7 @@
 //! This module provides template definitions for different parachain configurations,
 //! including providers like Pop, OpenZeppelin and Parity. It includes template metadata,
 //! configuration options and utility functions for template management.
+#![expect(deprecated, reason = "Keep EVM and ParityContracts templates until v0.11.0")]
 
 use pop_common::templates::{Template, Type};
 use strum::{EnumProperty as _, VariantArray};
