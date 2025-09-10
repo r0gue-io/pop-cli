@@ -246,15 +246,17 @@ mod tests {
 
 	#[test]
 	fn display_works() -> anyhow::Result<()> {
-		let mut cmd = TestExecuteBlockCommand::default();
-		cmd.try_state = Some(TryStateSelect::RoundRobin(10));
+		let mut cmd = TestExecuteBlockCommand {
+			try_state: Some(TryStateSelect::RoundRobin(10)),
+			..Default::default()
+		};
 		cmd.state.uri = Some(urls::LOCAL.to_string());
 		cmd.build_params.skip_confirm = true;
 		assert_eq!(
 			cmd.display(vec![])?,
 			format!(
 				"pop test execute-block --runtime=existing --try-state=rr-10 -y --uri={}",
-				urls::LOCAL.to_string()
+				urls::LOCAL
 			)
 		);
 		assert_eq!(
@@ -267,7 +269,7 @@ mod tests {
 			])?,
 			format!(
 				"pop test execute-block --runtime=existing -y --try-state=rr-10 -n --uri={}",
-				urls::LOCAL.to_string()
+				urls::LOCAL
 			)
 		);
 		Ok(())

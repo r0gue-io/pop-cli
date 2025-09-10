@@ -22,7 +22,7 @@ mod tests {
 
 	#[test]
 	fn display_message_works() -> Result<()> {
-		let mut cli = MockCli::new().expect_outro(&"Call completed successfully!");
+		let mut cli = MockCli::new().expect_outro("Call completed successfully!");
 		display_message("Call completed successfully!", true, &mut cli)?;
 		cli.verify()?;
 		let mut cli = MockCli::new().expect_outro_cancel("Call failed.");

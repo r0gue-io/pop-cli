@@ -41,7 +41,7 @@ impl BuildRuntime {
 				"🚫 Can't build a runtime. Must be at the root of the chain project or a runtime.",
 				false,
 				cli,
-			)
+			);
 		}
 		self.build(cli, &current_dir, !is_runtime && is_parachain)
 	}
@@ -112,7 +112,7 @@ mod tests {
 		let temp_dir = tempfile::tempdir()?;
 		let path = temp_dir.path();
 		let runtime_name = "mock_runtime";
-		cmd("cargo", ["new", "--lib", runtime_name]).dir(&path).run()?;
+		cmd("cargo", ["new", "--lib", runtime_name]).dir(path).run()?;
 
 		// Create a runtime directory
 		let target_dir = path.join(runtime_name);

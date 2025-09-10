@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
+//! Integration tests for the pop-chains crate functionality.
+
 use anyhow::Result;
 use pop_chains::{
 	construct_extrinsic, construct_proxy_extrinsic, decode_call_data, encode_call_data,
@@ -38,13 +40,13 @@ async fn encode_and_decode_call_data_works() -> Result<()> {
 	let client = set_up_client(node.ws_url()).await?;
 	let pallets = parse_chain_metadata(&client)?;
 	let remark = find_dispatchable_by_name(&pallets, "System", "remark")?;
-	let xt = construct_extrinsic(&remark, vec!["0x11".to_string()])?;
+	let xt = construct_extrinsic(remark, vec!["0x11".to_string()])?;
 	assert_eq!(encode_call_data(&client, &xt)?, "0x00000411");
 	assert_eq!(decode_call_data("0x00000411")?, xt.encode_call_data(&client.metadata())?);
-	let xt = construct_extrinsic(&remark, vec!["123".to_string()])?;
+	let xt = construct_extrinsic(remark, vec!["123".to_string()])?;
 	assert_eq!(encode_call_data(&client, &xt)?, "0x00000c313233");
 	assert_eq!(decode_call_data("0x00000c313233")?, xt.encode_call_data(&client.metadata())?);
-	let xt = construct_extrinsic(&remark, vec!["test".to_string()])?;
+	let xt = construct_extrinsic(remark, vec!["test".to_string()])?;
 	assert_eq!(encode_call_data(&client, &xt)?, "0x00001074657374");
 	assert_eq!(decode_call_data("0x00001074657374")?, xt.encode_call_data(&client.metadata())?);
 	Ok(())
@@ -106,7 +108,7 @@ async fn find_pallet_by_name_works() -> Result<()> {
 	let pallets = parse_chain_metadata(&client)?;
 	assert!(matches!(
         find_pallet_by_name(&pallets, "WrongName"),
-        Err(Error::PalletNotFound(pallet)) if pallet == "WrongName".to_string()));
+        Err(Error::PalletNotFound(pallet)) if pallet == *"WrongName"));
 	let pallet = find_pallet_by_name(&pallets, "Balances")?;
 	assert_eq!(pallet.name, "Balances");
 	assert_eq!(pallet.functions.len(), 9);
@@ -120,7 +122,7 @@ async fn find_dispatchable_by_name_works() -> Result<()> {
 	let pallets = parse_chain_metadata(&client)?;
 	assert!(matches!(
         find_dispatchable_by_name(&pallets, "WrongName", "wrong_name"),
-        Err(Error::PalletNotFound(pallet)) if pallet == "WrongName".to_string()));
+        Err(Error::PalletNotFound(pallet)) if pallet == *"WrongName"));
 	assert!(matches!(
 		find_dispatchable_by_name(&pallets, "Balances", "wrong_name"),
 		Err(Error::FunctionNotSupported)
@@ -128,7 +130,7 @@ async fn find_dispatchable_by_name_works() -> Result<()> {
 	let function = find_dispatchable_by_name(&pallets, "Balances", "force_transfer")?;
 	assert_eq!(function.name, "force_transfer");
 	assert_eq!(function.docs, "Exactly as `transfer_allow_death`, except the origin must be root and the source account may be specified.");
-	assert_eq!(function.is_supported, true);
+	assert!(function.is_supported);
 	assert_eq!(function.params.len(), 3);
 	Ok(())
 }
@@ -183,7 +185,7 @@ async fn field_to_param_works() -> Result<()> {
 	// Test some dispatchable functions that are not supported.
 	let function = metadata.pallet_by_name("Sudo").unwrap().call_variant_by_name("sudo").unwrap();
 	assert!(matches!(
-		field_to_param(&metadata, &function.fields.first().unwrap()),
+		field_to_param(&metadata, function.fields.first().unwrap()),
 		Err(Error::FunctionNotSupported)
 	));
 	let function = metadata
@@ -192,7 +194,7 @@ async fn field_to_param_works() -> Result<()> {
 		.call_variant_by_name("batch")
 		.unwrap();
 	assert!(matches!(
-		field_to_param(&metadata, &function.fields.first().unwrap()),
+		field_to_param(&metadata, function.fields.first().unwrap()),
 		Err(Error::FunctionNotSupported)
 	));
 

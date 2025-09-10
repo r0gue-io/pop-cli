@@ -59,12 +59,12 @@ mod tests {
 
 	fn generate_testing_contract(template: &str) -> Result<tempfile::TempDir, Error> {
 		let temp_dir = tempfile::tempdir()?;
-		let template_directory = temp_dir.path().join(template.to_string());
+		let template_directory = temp_dir.path().join(template);
 		fs::create_dir(&template_directory)?;
-		fs::File::create(&template_directory.join("lib.rs"))?;
-		fs::File::create(&template_directory.join("Cargo.toml"))?;
-		fs::create_dir(&temp_dir.path().join("noise_directory"))?;
-		fs::create_dir(&template_directory.join("frontend"))?;
+		fs::File::create(template_directory.join("lib.rs"))?;
+		fs::File::create(template_directory.join("Cargo.toml"))?;
+		fs::create_dir(temp_dir.path().join("noise_directory"))?;
+		fs::create_dir(template_directory.join("frontend"))?;
 		Ok(temp_dir)
 	}
 	#[test]

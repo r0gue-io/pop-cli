@@ -498,15 +498,15 @@ fn get_param_value(cli: &mut impl Cli, param: &Param) -> Result<String> {
 // Prompt for the value when it is a sequence.
 fn prompt_for_sequence_param(cli: &mut impl Cli, param: &Param) -> Result<String> {
 	let input_value = cli
-		.input(format!(
-		"The value for `{}` might be too large to enter. You may enter the path to a file instead.",
-		param.name
-	))
-		.placeholder(&format!(
-			"Enter a value of type {} or provide a file path (e.g. /path/to/your/file)",
-			param.type_name
-		))
-		.interact()?;
+        .input(format!(
+            "The value for `{}` might be too large to enter. You may enter the path to a file instead.",
+            param.name
+        ))
+        .placeholder(&format!(
+            "Enter a value of type {} or provide a file path (e.g. /path/to/your/file)",
+            param.type_name
+        ))
+        .interact()?;
 	if Path::new(&input_value).is_file() {
 		return std::fs::read_to_string(&input_value)
 			.map_err(|err| anyhow!("Failed to read file {}", err.to_string()));
@@ -626,30 +626,29 @@ mod tests {
 		};
 
 		let mut cli = MockCli::new()
-		.expect_input("Which chain would you like to interact with?", node_url.into())
-		.expect_select(
-			"Select the function to call:",
-			Some(true),
-			true,
-			Some(
-				[
-					("apply_authorized_upgrade".to_string(), "Provide the preimage (runtime binary) `code` for an upgrade that has been authorized. If the authorization required a version check, this call will ensure the spec name remains unchanged and that the spec version has increased. Depending on the runtime's `OnSetCode` configuration, this function may directly apply the new `code` in the same block or attempt to schedule the upgrade. All origins are allowed.".to_string()),
-					("authorize_upgrade".to_string(), "Authorize an upgrade to a given `code_hash` for the runtime. The runtime can be supplied later. This call requires Root origin.".to_string()),
-					("authorize_upgrade_without_checks".to_string(), "Authorize an upgrade to a given `code_hash` for the runtime. The runtime can be supplied later. WARNING: This authorizes an upgrade that will take place without any safety checks, for example that the spec name remains the same and that the version number increases. Not recommended for normal use. Use `authorize_upgrade` instead. This call requires Root origin.".to_string()),
-					("kill_prefix".to_string(), "Kill all storage items with a key that starts with the given prefix. **NOTE:** We rely on the Root origin to provide us the number of subkeys under the prefix we are removing to accurately calculate the weight of this function.".to_string()),
-					("kill_storage".to_string(), "Kill some items from storage.".to_string()),
-					("remark".to_string(), "Make some on-chain remark. Can be executed by every `origin`.".to_string()),
-					("remark_with_event".to_string(), "Make some on-chain remark and emit event.".to_string()),
-					("set_code".to_string(), "Set the new runtime code.".to_string()),
-					("set_code_without_checks".to_string(), "Set the new runtime code without doing any checks of the given `code`. Note that runtime upgrades will not run if this is called with a not-increasing spec version!".to_string()),
-					("set_heap_pages".to_string(), "Set the number of pages in the WebAssembly environment's heap.".to_string()),
-					("set_storage".to_string(), "Set some items of storage.".to_string()),
-				]
-				.to_vec(),
-			),
-			5, // "remark" dispatchable function
-            None,
-        )
+            .expect_input("Which chain would you like to interact with?", node_url.into())
+            .expect_select(
+                "Select the function to call:",
+                Some(true),
+                true,
+                Some(
+                    vec![
+                        ("apply_authorized_upgrade".to_string(), "Provide the preimage (runtime binary) `code` for an upgrade that has been authorized. If the authorization required a version check, this call will ensure the spec name remains unchanged and that the spec version has increased. Depending on the runtime's `OnSetCode` configuration, this function may directly apply the new `code` in the same block or attempt to schedule the upgrade. All origins are allowed.".to_string()),
+                        ("authorize_upgrade".to_string(), "Authorize an upgrade to a given `code_hash` for the runtime. The runtime can be supplied later. This call requires Root origin.".to_string()),
+                        ("authorize_upgrade_without_checks".to_string(), "Authorize an upgrade to a given `code_hash` for the runtime. The runtime can be supplied later. WARNING: This authorizes an upgrade that will take place without any safety checks, for example that the spec name remains the same and that the version number increases. Not recommended for normal use. Use `authorize_upgrade` instead. This call requires Root origin.".to_string()),
+                        ("kill_prefix".to_string(), "Kill all storage items with a key that starts with the given prefix. **NOTE:** We rely on the Root origin to provide us the number of subkeys under the prefix we are removing to accurately calculate the weight of this function.".to_string()),
+                        ("kill_storage".to_string(), "Kill some items from storage.".to_string()),
+                        ("remark".to_string(), "Make some on-chain remark. Can be executed by every `origin`.".to_string()),
+                        ("remark_with_event".to_string(), "Make some on-chain remark and emit event.".to_string()),
+                        ("set_code".to_string(), "Set the new runtime code.".to_string()),
+                        ("set_code_without_checks".to_string(), "Set the new runtime code without doing any checks of the given `code`. Note that runtime upgrades will not run if this is called with a not-increasing spec version!".to_string()),
+                        ("set_heap_pages".to_string(), "Set the number of pages in the WebAssembly environment's heap.".to_string()),
+                        ("set_storage".to_string(), "Set some items of storage.".to_string()),
+                    ],
+                ),
+                5, // "remark" dispatchable function
+                None,
+            )
             .expect_input("The value for `remark` might be too large to enter. You may enter the path to a file instead.", "0x11".into())
             .expect_confirm("Are you sure you want to dispatch this function call with `Root` origin?", true)
             .expect_confirm(USE_WALLET_PROMPT, true);
@@ -666,7 +665,7 @@ mod tests {
 		let call_chain = call_config.configure_call(&chain, &mut cli)?;
 		assert_eq!(call_chain.function.pallet, "System");
 		assert_eq!(call_chain.function.name, "remark");
-		assert_eq!(call_chain.args, ["0x11".to_string()].to_vec());
+		assert_eq!(call_chain.args, vec!["0x11".to_string()]);
 		assert_eq!(call_chain.suri, "//Alice"); // Default value
 		assert!(call_chain.use_wallet);
 		assert!(call_chain.sudo);
@@ -717,16 +716,13 @@ mod tests {
 				"Select the value for the parameter: admin",
 				Some(true),
 				true,
-				Some(
-					[
-						("Id".to_string(), "".to_string()),
-						("Index".to_string(), "".to_string()),
-						("Raw".to_string(), "".to_string()),
-						("Address32".to_string(), "".to_string()),
-						("Address20".to_string(), "".to_string()),
-					]
-					.to_vec(),
-				),
+				Some(vec![
+					("Id".to_string(), "".to_string()),
+					("Index".to_string(), "".to_string()),
+					("Raw".to_string(), "".to_string()),
+					("Address32".to_string(), "".to_string()),
+					("Address20".to_string(), "".to_string()),
+				]),
 				0, // "Id" action
 				None,
 			)
@@ -748,7 +744,6 @@ mod tests {
 				"Id(5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty)".to_string(),
 				"2000".to_string()
 			]
-			.to_vec()
 		);
 		assert_eq!(call_chain.suri, "//Bob");
 		assert!(!call_chain.sudo);
@@ -767,7 +762,7 @@ mod tests {
 				name: "WrongName".to_string(),
 				..Default::default()
 			},
-			args: vec!["0x11".to_string()].to_vec(),
+			args: vec!["0x11".to_string()],
 			suri: DEFAULT_URI.to_string(),
 			use_wallet: false,
 			skip_confirm: false,
@@ -809,7 +804,7 @@ mod tests {
 		let call_config = CallChainCommand {
 			pallet: None,
 			function: None,
-			args: vec![].to_vec(),
+			args: vec![],
 			url: Some(Url::parse(node_url)?),
 			suri: None,
 			use_wallet: false,
@@ -839,7 +834,7 @@ mod tests {
 		let mut call_config = CallChainCommand {
 			pallet: Some("System".to_string()),
 			function: Some("remark".to_string()),
-			args: vec!["0x11".to_string()].to_vec(),
+			args: vec!["0x11".to_string()],
 			url: Some(Url::parse(urls::LOCAL)?),
 			use_wallet: true,
 			suri: Some(DEFAULT_URI.to_string()),
@@ -861,7 +856,7 @@ mod tests {
 		let mut call_config = CallChainCommand {
 			pallet: Some("System".to_string()),
 			function: Some("remark".to_string()),
-			args: vec!["0x11".to_string()].to_vec(),
+			args: vec!["0x11".to_string()],
 			url: Some(Url::parse(urls::LOCAL)?),
 			suri: Some(DEFAULT_URI.to_string()),
 			use_wallet: false,
@@ -880,7 +875,7 @@ mod tests {
 		let mut call_config = CallChainCommand {
 			pallet: Some("Registrar".to_string()),
 			function: Some("register".to_string()),
-			args: vec!["2000".to_string(), "0x1".to_string(), "0x12".to_string()].to_vec(),
+			args: vec!["2000".to_string(), "0x1".to_string(), "0x12".to_string()],
 			url: Some(Url::parse(urls::LOCAL)?),
 			suri: Some(DEFAULT_URI.to_string()),
 			use_wallet: false,

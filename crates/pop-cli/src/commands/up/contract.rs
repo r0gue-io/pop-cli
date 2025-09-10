@@ -220,14 +220,13 @@ impl UpContractCommand {
 							Cli.outro_cancel(FAILED)?;
 							return Ok(());
 						},
-						#[cfg(feature = "wasm-contracts")]
-						Ok(result) => result,
-						#[cfg(feature = "polkavm-contracts")]
-						Ok(_) => {
+						Ok(result) => {
+							#[cfg(feature = "polkavm-contracts")]
 							spinner.stop(format!(
 								"Contract uploaded: The code hash is {:?}",
 								to_hex(&hash, false)
 							));
+							result
 						},
 					};
 
@@ -516,7 +515,7 @@ mod tests {
 			UpOpts {
 				path: None,
 				constructor: "new".to_string(),
-				args: vec![].to_vec(),
+				args: vec![],
 				value: "0".to_string(),
 				gas_limit: None,
 				proof_size: None,

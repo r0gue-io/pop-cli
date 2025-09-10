@@ -202,7 +202,7 @@ mod tests {
 			true,
 			Some(
 				DeploymentProvider::VARIANTS
-					.into_iter()
+					.iter()
 					.map(|action| (action.name().to_string(), format_url(action.base_url())))
 					.chain(std::iter::once((
 						"Register".to_string(),
@@ -226,7 +226,7 @@ mod tests {
 		let project_path = path.join(name);
 		let args = create_up_args(project_path)?;
 
-		cmd("cargo", ["new", name, "--bin"]).dir(&path).run()?;
+		cmd("cargo", ["new", name, "--bin"]).dir(path).run()?;
 		let mut cli = MockCli::new().expect_warning(
 			"No contract or rollup detected. Ensure you are in a valid project directory.",
 		);

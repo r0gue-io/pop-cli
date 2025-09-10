@@ -195,19 +195,19 @@ mod tests {
 	fn test_is_template_correct() {
 		for template in Contract::VARIANTS {
 			if matches!(template, Standard | DNS | CrossContract | Multisig) {
-				assert_eq!(ContractType::Examples.provides(template), true);
-				assert_eq!(ContractType::Erc.provides(template), false);
-				assert_eq!(ContractType::Psp.provides(template), false);
+				assert!(ContractType::Examples.provides(template));
+				assert!(!ContractType::Erc.provides(template));
+				assert!(!ContractType::Psp.provides(template));
 			}
 			if matches!(template, ERC20 | ERC721 | ERC1155) {
-				assert_eq!(ContractType::Examples.provides(template), false);
-				assert_eq!(ContractType::Erc.provides(template), true);
-				assert_eq!(ContractType::Psp.provides(template), false);
+				assert!(!ContractType::Examples.provides(template));
+				assert!(ContractType::Erc.provides(template));
+				assert!(!ContractType::Psp.provides(template));
 			}
 			if matches!(template, PSP22 | PSP34) {
-				assert_eq!(ContractType::Examples.provides(template), false);
-				assert_eq!(ContractType::Erc.provides(template), false);
-				assert_eq!(ContractType::Psp.provides(template), true);
+				assert!(!ContractType::Examples.provides(template));
+				assert!(!ContractType::Erc.provides(template));
+				assert!(ContractType::Psp.provides(template));
 			}
 		}
 	}
@@ -220,7 +220,7 @@ mod tests {
 		// Test the rest
 		for template in Contract::VARIANTS {
 			assert_eq!(
-				&Contract::from_str(&template.to_string()).unwrap(),
+				&Contract::from_str(template.as_ref()).unwrap(),
 				template_names.get(&template.to_string()).unwrap()
 			);
 		}

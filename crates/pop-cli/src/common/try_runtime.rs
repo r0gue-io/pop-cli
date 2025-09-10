@@ -552,7 +552,7 @@ pub(crate) fn get_try_state_items() -> Vec<(String, String)> {
 		TryStateSelect::Only(vec![]),
 	]
 	.iter()
-	.map(|try_state_select| try_state_details(&try_state_select))
+	.map(try_state_details)
 	.collect::<Vec<_>>()
 }
 
@@ -653,8 +653,8 @@ mod tests {
 		cli.verify()?;
 
 		// Prompt for the URI if not provided.
-		let mut live_state = LiveState::default();
-		live_state.at = Some("1234567890abcdef".to_string());
+		let mut live_state =
+			LiveState { at: Some("1234567890abcdef".to_string()), ..Default::default() };
 		let mut cmd = MockCommand::default();
 		let mut cli =
 			MockCli::new().expect_input("Enter the live chain of your node:", node_url.to_string());
@@ -669,8 +669,7 @@ mod tests {
 		cli.verify()?;
 
 		// Prompt for the block hash if not provided.
-		let mut live_state = LiveState::default();
-		live_state.uri = Some(node_url.to_string());
+		let mut live_state = LiveState { uri: Some(node_url.to_string()), ..Default::default() };
 		let mut cmd = MockCommand::default();
 		// Provide the empty block hash.
 		let mut cli =
@@ -774,17 +773,14 @@ mod tests {
 				3,
 				None,
 				TryStateSelect::Only(
-					vec!["System", "Balances", "Proxy"]
-						.iter()
-						.map(|s| s.as_bytes().to_vec())
-						.collect(),
+					["System", "Balances", "Proxy"].iter().map(|s| s.as_bytes().to_vec()).collect(),
 				),
 			),
 			(
 				3,
 				Some(node_url.to_string()),
 				TryStateSelect::Only(
-					vec![
+					[
 						"Assets",
 						"Authorship",
 						"Balances",
@@ -814,7 +810,7 @@ mod tests {
 				cli = cli.expect_input("Enter the number of rounds:", "10".to_string());
 			} else if let TryStateSelect::Only(..) = expected {
 				if uri.is_some() {
-					cli = cli.expect_multiselect::<String>(
+					cli = cli.expect_multiselect(
 						"Select pallets (select with SPACE):",
 						Some(true),
 						true,
@@ -929,16 +925,14 @@ mod tests {
 
 	#[test]
 	fn collect_live_state_arguments_works() -> anyhow::Result<()> {
-		let mut cmd = MockCommand::default();
-		cmd.state = Some(State::Live(LiveState::default()));
+		let mut cmd = MockCommand { state: Some(State::Live(LiveState::default())) };
 
 		// No arguments.
 		let mut args = vec![];
 		collect_state_arguments(&cmd.state, &[], &mut args)?;
 		assert!(args.is_empty());
 
-		let mut live_state = LiveState::default();
-		live_state.uri = Some(urls::LOCAL.to_string());
+		let mut live_state = LiveState { uri: Some(urls::LOCAL.to_string()), ..Default::default() };
 		cmd.state = Some(State::Live(live_state.clone()));
 		// Keep the user-provided argument unchanged.
 		let user_provided_args = &["--uri".to_string(), urls::LOCAL.to_string()];
@@ -987,8 +981,7 @@ mod tests {
 
 	#[test]
 	fn collect_snap_state_arguments_works() -> anyhow::Result<()> {
-		let mut cmd = MockCommand::default();
-		cmd.state = Some(State::Snap { path: Some(PathBuf::default()) });
+		let mut cmd = MockCommand { state: Some(State::Snap { path: Some(PathBuf::default()) }) };
 
 		// No arguments.
 		let mut args = vec![];

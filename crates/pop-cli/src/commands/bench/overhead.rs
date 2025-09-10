@@ -337,7 +337,7 @@ mod tests {
 				"pop bench overhead --runtime={} --genesis-builder=runtime \
 				--genesis-builder-preset=development --weight-path={} --profile=debug -y",
 				runtime_path.display(),
-				output_path.to_string(),
+				output_path,
 			))
 			.expect_outro("Benchmark completed successfully!");
 

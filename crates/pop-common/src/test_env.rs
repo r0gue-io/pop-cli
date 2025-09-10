@@ -8,6 +8,7 @@ use crate::{
 	Error,
 };
 
+use serde_json::json;
 use std::{
 	env::consts::{ARCH, OS},
 	process::{Child, Command, Stdio},
@@ -15,12 +16,12 @@ use std::{
 };
 use tokio::time::sleep;
 
-const STARTUP: Duration = Duration::from_millis(12_000);
-
 /// Represents a temporary test node process, running locally for testing.
 pub struct TestNode {
 	child: Child,
 	ws_url: String,
+	// Needed to be kept alive to avoid deleting the temporaory directory.
+	_temp_dir: tempfile::TempDir,
 }
 
 impl Drop for TestNode {
@@ -30,6 +31,36 @@ impl Drop for TestNode {
 }
 
 impl TestNode {
+	async fn wait_for_node_availability(host: &str, port: u16) -> anyhow::Result<()> {
+		let mut attempts = 0;
+		let url = format!("http://{host}:{port}");
+		let client = reqwest::Client::new();
+		let payload = json!({
+			"jsonrpc": "2.0",
+			"id": 1,
+			"method": "system_health",
+			"params": []
+		});
+
+		loop {
+			sleep(Duration::from_secs(2)).await;
+			match client.post(&url).json(&payload).send().await {
+				Ok(resp) => {
+					let text = resp.text().await?;
+					if !text.is_empty() {
+						return Ok(());
+					}
+				},
+				Err(_) => {
+					attempts += 1;
+					if attempts > 10 {
+						return Err(anyhow::anyhow!("Node could not be started"));
+					}
+				},
+			}
+		}
+	}
+
 	/// Spawns a local ink! node and waits until it's ready.
 	pub async fn spawn() -> anyhow::Result<Self> {
 		let temp_dir = tempfile::tempdir()?;
@@ -63,13 +94,14 @@ impl TestNode {
 		command.stdout(Stdio::null());
 
 		let child = command.spawn()?;
+		let host = "127.0.0.1";
 
 		// Wait until the node is ready
-		sleep(STARTUP).await;
+		Self::wait_for_node_availability(host, random_port).await?;
 
-		let ws_url = format!("ws://127.0.0.1:{random_port}");
+		let ws_url = format!("ws://{host}:{random_port}");
 
-		Ok(Self { child, ws_url })
+		Ok(Self { child, ws_url, _temp_dir: temp_dir })
 	}
 
 	/// Returns the WebSocket URL of the running test node.

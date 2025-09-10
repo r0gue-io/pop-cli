@@ -149,7 +149,7 @@ mod tests {
 		assert!(path
 			.to_str()
 			.unwrap()
-			.starts_with(&cache_path.path().join(BINARY_NAME).to_str().unwrap()));
+			.starts_with(cache_path.path().join(BINARY_NAME).to_str().unwrap()));
 		cli.verify()?;
 
 		// Test binary sourcing with skip_confirm = true (no user interaction)
@@ -159,7 +159,7 @@ mod tests {
 		assert!(path
 			.to_str()
 			.unwrap()
-			.starts_with(&cache_path.path().join(BINARY_NAME).to_str().unwrap()));
+			.starts_with(cache_path.path().join(BINARY_NAME).to_str().unwrap()));
 
 		// Verify the downloaded binary version meets the target version requirement
 		assert!(
@@ -183,7 +183,7 @@ mod tests {
 		overwrite_weight_dir_command(
 			temp_dir.path(),
 			dest_dir.path(),
-			&vec!["new".to_string(), "command".to_string(), "replaced".to_string()],
+			&["new".to_string(), "command".to_string(), "replaced".to_string()],
 		)?;
 
 		for file in files {
@@ -225,7 +225,7 @@ mod tests {
 			overwrite_weight_file_command(
 				&temp_file,
 				dest_file.as_path(),
-				&vec!["new".to_string(), "command".to_string(), "replaced".to_string()],
+				&["new".to_string(), "command".to_string(), "replaced".to_string()],
 			)?;
 
 			let content = fs::read_to_string(dest_file)?;

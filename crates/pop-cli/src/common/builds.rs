@@ -100,7 +100,7 @@ mod tests {
 		cmd("cargo", ["new", name, "--bin"]).dir(temp_dir.path()).run()?;
 		let target_path = Profile::Release.target_directory(temp_dir.path());
 
-		fs::create_dir(&temp_dir.path().join("target"))?;
+		fs::create_dir(temp_dir.path().join("target"))?;
 		fs::create_dir(&target_path)?;
 		File::create(target_path.join("node"))?;
 

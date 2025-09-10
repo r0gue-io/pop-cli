@@ -301,7 +301,7 @@ mod tests {
 			.expect_warning("NOTE: this may take some time...")
 			.expect_info(format!(
     			"pop test fast-forward --runtime={} --try-state=all --blocktime={} --n-blocks=10 --run-migrations --profile={} -n live --uri={}",
-    			get_mock_runtime(Some(Feature::TryRuntime)).to_str().unwrap().to_string(),
+    			get_mock_runtime(Some(Feature::TryRuntime)).to_str().unwrap(),
     			DEFAULT_BLOCK_TIME,
                 Profile::Debug,
                 urls::LOCAL,
@@ -367,7 +367,7 @@ mod tests {
 			.expect_warning("NOTE: this may take some time...")
 			.expect_info(format!(
     			"pop test fast-forward --runtime={} --try-state=all --blocktime={} --n-blocks=10 --run-migrations --profile={} -n snap --path={}",
-                get_mock_runtime(Some(Feature::TryRuntime)).to_str().unwrap().to_string(),
+                get_mock_runtime(Some(Feature::TryRuntime)).to_str().unwrap(),
     			DEFAULT_BLOCK_TIME,
                 Profile::Debug,
     			get_mock_snapshot().to_str().unwrap()
@@ -380,11 +380,13 @@ mod tests {
 	#[tokio::test]
 	async fn fast_forward_invalid_live_uri() -> anyhow::Result<()> {
 		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
-		let mut cmd = TestFastForwardCommand::default();
-		cmd.state = Some(State::Live(LiveState {
-			uri: Some("https://example.com".to_string()),
+		let mut cmd = TestFastForwardCommand {
+			state: Some(State::Live(LiveState {
+				uri: Some("https://example.com".to_string()),
+				..Default::default()
+			})),
 			..Default::default()
-		}));
+		};
 		let error = cmd.run(&mut MockCli::new(), &[]).await.unwrap_err().to_string();
 		assert!(error.contains(
 			r#"Failed to test with try-runtime: error: invalid value 'https://example.com' for '--uri <URI>': not a valid WS(S) url: must start with 'ws://' or 'wss://'"#,
@@ -394,8 +396,10 @@ mod tests {
 
 	#[test]
 	fn display_works() -> anyhow::Result<()> {
-		let mut cmd = TestFastForwardCommand::default();
-		cmd.state = Some(State::Live(LiveState::default()));
+		let mut cmd = TestFastForwardCommand {
+			state: Some(State::Live(LiveState::default())),
+			..Default::default()
+		};
 		assert_eq!(
 			cmd.display(&["--blocktime=20".to_string()])?,
 			"pop test fast-forward --runtime=existing --blocktime=20 live"
@@ -524,8 +528,10 @@ mod tests {
 
 	#[test]
 	fn subcommand_works() -> anyhow::Result<()> {
-		let mut command = TestFastForwardCommand::default();
-		command.state = Some(State::Live(LiveState::default()));
+		let mut command = TestFastForwardCommand {
+			state: Some(State::Live(LiveState::default())),
+			..Default::default()
+		};
 		assert_eq!(command.subcommand()?, String::from("live"));
 		command.state = Some(State::Snap { path: None });
 		assert_eq!(command.subcommand()?, String::from("snap"));

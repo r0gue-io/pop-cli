@@ -291,7 +291,7 @@ impl<T: Clone + Eq> traits::Select<T> for Select<T> {
 #[cfg(test)]
 pub(crate) mod tests {
 	use super::traits::*;
-	use std::{fmt::Display, io::Result, usize};
+	use std::{fmt::Display, io::Result};
 
 	/// Mock Cli with optional expectations
 	#[derive(Default)]
@@ -344,7 +344,7 @@ pub(crate) mod tests {
 			self
 		}
 
-		pub(crate) fn expect_multiselect<T>(
+		pub(crate) fn expect_multiselect(
 			mut self,
 			prompt: impl Display,
 			required: Option<bool>,
@@ -613,8 +613,8 @@ pub(crate) mod tests {
 	}
 
 	impl Confirm for MockConfirm {
-		fn initial_value(mut self, _initial_value: bool) -> Self {
-			self.confirm = self.confirm; // Ignore initial value and always return mock value
+		fn initial_value(self, _initial_value: bool) -> Self {
+			// Ignore initial value and always return mock value
 			self
 		}
 		fn interact(&mut self) -> Result<bool> {

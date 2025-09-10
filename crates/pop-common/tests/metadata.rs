@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: GPL-3.0
+
+//! Metadata tests for validating type formatting functionality.
+
 use anyhow::Result;
 use pop_common::{format_type, test_env::TestNode};
 use subxt::{OnlineClient, SubstrateConfig};
@@ -20,7 +24,7 @@ async fn format_type_works() -> Result<()> {
 		.iter()
 		.map(|field| {
 			let type_info = registry.resolve(field.ty.id).unwrap();
-			format_type(&type_info, registry)
+			format_type(type_info, registry)
 		})
 		.collect();
 	assert_eq!(assets_create_types.len(), 3);
@@ -39,7 +43,7 @@ async fn format_type_works() -> Result<()> {
 		.iter()
 		.map(|field| {
 			let type_info = registry.resolve(field.ty.id).unwrap();
-			format_type(&type_info, registry)
+			format_type(type_info, registry)
 		})
 		.collect();
 	assert_eq!(system_remark_types.len(), 1);
@@ -56,7 +60,7 @@ async fn format_type_works() -> Result<()> {
 		.iter()
 		.map(|field| {
 			let type_info = registry.resolve(field.ty.id).unwrap();
-			format_type(&type_info, registry)
+			format_type(type_info, registry)
 		})
 		.collect();
 	assert_eq!(system_set_storage_types.len(), 1);

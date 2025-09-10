@@ -308,7 +308,7 @@ mod tests {
 	fn ensure_runtime_binary_exists_works() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
 		let temp_path = temp_dir.into_path();
-		fs::create_dir(&temp_path.join("target"))?;
+		fs::create_dir(temp_path.join("target"))?;
 
 		for profile in Profile::VARIANTS {
 			let target_path = profile.target_directory(temp_path.as_path());
@@ -355,7 +355,7 @@ mod tests {
 		let temp_dir = tempdir()?;
 		let path = temp_dir.path();
 		let runtime_name = "mock_runtime";
-		cmd("cargo", ["new", "--lib", runtime_name]).dir(&path).run()?;
+		cmd("cargo", ["new", "--lib", runtime_name]).dir(path).run()?;
 
 		// Create a runtime directory
 		let target_dir = path.join(runtime_name);
@@ -497,7 +497,7 @@ mod tests {
 		Ok(())
 	}
 
-	fn expect_input_runtime_path(project_path: &PathBuf, binary_path: &PathBuf) -> MockCli {
+	fn expect_input_runtime_path(project_path: &Path, binary_path: &Path) -> MockCli {
 		MockCli::new()
 			.expect_warning(format!(
 				"No runtime folder found at {}. Please input the runtime path manually.",

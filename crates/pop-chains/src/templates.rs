@@ -1,5 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0
 
+//! Chain template definitions and configurations.
+//!
+//! This module provides template definitions for different parachain configurations,
+//! including providers like Pop, OpenZeppelin and Parity. It includes template metadata,
+//! configuration options and utility functions for template management.
+
 use pop_common::templates::{Template, Type};
 use strum::{EnumProperty as _, VariantArray};
 use strum_macros::{AsRefStr, Display, EnumMessage, EnumProperty, EnumString};
@@ -192,7 +198,7 @@ pub enum ChainTemplate {
 		)
 	)]
 	ParityContracts,
-	// templates for unit tests below
+	/// Test template 01 used for unit testing.
 	#[cfg(test)]
 	#[strum(
 		serialize = "test_01",
@@ -210,6 +216,7 @@ pub enum ChainTemplate {
 		)
 	)]
 	TestTemplate01,
+	/// Test template 02 used for unit testing.
 	#[cfg(test)]
 	#[strum(
 		serialize = "test_02",
@@ -413,12 +420,12 @@ mod tests {
 	fn test_is_template_correct() {
 		for template in ChainTemplate::VARIANTS {
 			if matches!(template, Standard | Assets | Contracts | EVM) {
-				assert_eq!(Provider::Pop.provides(&template), true);
-				assert_eq!(Provider::Parity.provides(&template), false);
+				assert!(Provider::Pop.provides(template));
+				assert!(!Provider::Parity.provides(template));
 			}
 			if matches!(template, ParityContracts | ParityGeneric) {
-				assert_eq!(Provider::Pop.provides(&template), false);
-				assert_eq!(Provider::Parity.provides(&template), true)
+				assert!(!Provider::Pop.provides(template));
+				assert!(Provider::Parity.provides(template))
 			}
 		}
 	}
@@ -431,7 +438,7 @@ mod tests {
 		// Test the rest
 		for template in ChainTemplate::VARIANTS {
 			assert_eq!(
-				&ChainTemplate::from_str(&template.to_string()).unwrap(),
+				&ChainTemplate::from_str(template.as_ref()).unwrap(),
 				template_names.get(&template.to_string()).unwrap()
 			);
 		}
@@ -477,7 +484,7 @@ mod tests {
 	fn deployment_name_from_based_on_works() {
 		for template in ChainTemplate::VARIANTS {
 			assert_eq!(
-				ChainTemplate::deployment_name_from_based_on(&template.to_string()),
+				ChainTemplate::deployment_name_from_based_on(template.as_ref()),
 				template.deployment_name().map(String::from),
 			);
 		}
@@ -530,32 +537,32 @@ mod tests {
 	fn test_supported_versions_works() {
 		let template = TestTemplate01;
 		assert_eq!(template.supported_versions(), Some(vec!["v1.0.0", "v2.0.0"]));
-		assert_eq!(template.is_supported_version("v1.0.0"), true);
-		assert_eq!(template.is_supported_version("v2.0.0"), true);
-		assert_eq!(template.is_supported_version("v3.0.0"), false);
+		assert!(template.is_supported_version("v1.0.0"));
+		assert!(template.is_supported_version("v2.0.0"));
+		assert!(!template.is_supported_version("v3.0.0"));
 
 		let template = TestTemplate02;
 		assert_eq!(template.supported_versions(), None);
 		// will be true because an empty SupportedVersions defaults to all
-		assert_eq!(template.is_supported_version("v1.0.0"), true);
+		assert!(template.is_supported_version("v1.0.0"));
 	}
 
 	#[test]
 	fn test_is_audited() {
 		let template = TestTemplate01;
-		assert_eq!(template.is_audited(), true);
+		assert!(template.is_audited());
 
 		let template = TestTemplate02;
-		assert_eq!(template.is_audited(), false);
+		assert!(!template.is_audited());
 	}
 
 	#[test]
 	fn is_deprecated_works() {
 		let template = TestTemplate01;
-		assert_eq!(template.is_deprecated(), true);
+		assert!(template.is_deprecated());
 
 		let template = TestTemplate02;
-		assert_eq!(template.is_deprecated(), false);
+		assert!(!template.is_deprecated());
 	}
 
 	#[test]

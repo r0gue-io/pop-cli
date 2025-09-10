@@ -138,8 +138,8 @@ mod tests {
 
 	#[test]
 	fn profile_into_bool() {
-		assert_eq!(bool::from(Profile::Debug), false);
-		assert_eq!(bool::from(Profile::Release), true);
-		assert_eq!(bool::from(Profile::Production), true);
+		assert!(!bool::from(Profile::Debug));
+		assert!(bool::from(Profile::Release));
+		assert!(bool::from(Profile::Production));
 	}
 }

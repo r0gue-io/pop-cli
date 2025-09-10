@@ -136,10 +136,10 @@ pub async fn set_up_upload(
 				upload_exec
 					.upload_code_rpc()
 					.await?
-					.or_else(|_| {
-						Err(Error::DryRunUploadContractError(
+					.map_err(|_| {
+						Error::DryRunUploadContractError(
 							"No storage limit returned from dry-run".to_string(),
-						))
+						)
 					})?
 					.deposit,
 		};
@@ -182,7 +182,7 @@ pub async fn get_upload_payload(
 		upload_exec
 			.upload_code_rpc()
 			.await?
-			.or_else(|_| Err(Error::DryRunUploadContractError("No storage limit returned".into())))?
+			.map_err(|_| Error::DryRunUploadContractError("No storage limit returned".into()))?
 			.deposit
 	};
 	let upload_code = UploadCode::new(code, storage_deposit_limit);
@@ -360,18 +360,18 @@ pub async fn instantiate_contract_signed(
 			None => {
 				let rpc = instantiate_exec.rpc();
 				let code = match instantiate_exec.args().code().clone() {
-					Code::Upload(code) => code.into(),
+					Code::Upload(code) => code,
 					Code::Existing(hash) =>
-						fetch_contract_binary(&instantiate_exec.client(), &rpc, &hash).await?,
+						fetch_contract_binary(instantiate_exec.client(), rpc, &hash).await?,
 				};
 				let data = instantiate_exec.args().data();
 				contract_address(
 					instantiate_exec.client(),
-					&rpc,
+					rpc,
 					instantiate_exec.opts().signer(),
 					&instantiate_exec.args().salt().cloned(),
 					&code[..],
-					&data[..],
+					data,
 				)
 				.await?
 			},
@@ -411,7 +411,7 @@ pub async fn submit_signed_payload(
 		match status? {
 			TxStatus::InFinalizedBlock(tx_in_block) => {
 				let events = tx_in_block.wait_for_success().await?;
-				return Ok(events)
+				return Ok(events);
 			},
 			TxStatus::Error { message } => return Err(TransactionError::Error(message).into()),
 			TxStatus::Invalid { message } => return Err(TransactionError::Invalid(message).into()),

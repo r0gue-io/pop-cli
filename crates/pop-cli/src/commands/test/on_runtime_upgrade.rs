@@ -25,7 +25,7 @@ use pop_chains::{
 	try_runtime::UpgradeCheckSelect,
 	upgrade_checks_details, SharedParams, TryRuntimeCliCommand,
 };
-use std::{str::FromStr, thread::sleep, time::Duration};
+use std::{str::FromStr, time::Duration};
 
 // Custom arguments which are not in `try-runtime on-runtime-upgrade`.
 const CUSTOM_ARGS: [&str; 5] = ["--profile", "--no-build", "-n", "--skip-confirm", "-y"];
@@ -170,7 +170,7 @@ impl TestOnRuntimeUpgradeCommand {
 				},
 			None => return Err(anyhow::anyhow!("No subcommand provided")),
 		}
-		sleep(Duration::from_secs(1));
+		tokio::time::sleep(Duration::from_secs(1)).await;
 
 		let subcommand = self.subcommand()?;
 		let user_provided_args: Vec<String> = std::env::args().skip(3).collect();
@@ -383,8 +383,8 @@ mod tests {
 				"pop test on-runtime-upgrade --runtime={} --blocktime=6000 \
 			--checks=all --profile=debug -n live --uri={} --at={}",
 				get_mock_runtime(Some(TryRuntime)).to_str().unwrap(),
-				urls::LOCAL.to_string(),
-				DEFAULT_BLOCK_HASH.strip_prefix("0x").unwrap_or_default().to_string()
+				urls::LOCAL,
+				DEFAULT_BLOCK_HASH.strip_prefix("0x").unwrap_or_default()
 			));
 		command.execute(&mut cli).await?;
 		cli.verify()
@@ -682,7 +682,7 @@ mod tests {
 			UpgradeCheckSelect::PreAndPost,
 		]
 		.iter()
-		.map(|check| upgrade_checks_details(check))
+		.map(upgrade_checks_details)
 		.collect::<Vec<_>>()
 	}
 }

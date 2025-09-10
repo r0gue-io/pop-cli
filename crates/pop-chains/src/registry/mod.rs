@@ -267,8 +267,8 @@ mod tests {
 	#[test]
 	fn impl_rollup_works() {
 		let mut asset_hub = AssetHub::new(1_000, Paseo);
-		asset_hub.as_rollup_mut().id = 0_001;
-		assert_eq!(asset_hub.id(), 0_001);
+		asset_hub.as_rollup_mut().id = 1;
+		assert_eq!(asset_hub.id(), 1);
 		assert_eq!(asset_hub.as_rollup(), &asset_hub.0);
 		assert_eq!(asset_hub.as_any().type_id(), asset_hub.type_id());
 		asset_hub.set_id(1_000);

@@ -272,13 +272,13 @@ mod tests {
 		let path_str = path.to_str().unwrap().to_string();
 
 		assert_eq!(
-			get_runtime_path(&path).unwrap_err().to_string(),
+			get_runtime_path(path).unwrap_err().to_string(),
 			format!("Failed to find the runtime {}", path_str)
 		);
 		for name in ["runtime", "runtimes"] {
-			fs::create_dir(&path.join(name))?;
+			fs::create_dir(path.join(name))?;
 		}
-		assert!(get_runtime_path(&path).is_ok());
+		assert!(get_runtime_path(path).is_ok());
 		Ok(())
 	}
 
@@ -290,7 +290,7 @@ mod tests {
 		binary.source(false, &(), true).await?;
 
 		let registry = load_pallet_extrinsics(&runtime_path, &binary.path()).await?;
-		let pallets: Vec<String> = registry.keys().map(|k| k.clone()).collect();
+		let pallets: Vec<String> = registry.keys().cloned().collect();
 		assert_eq!(
 			pallets,
 			vec![

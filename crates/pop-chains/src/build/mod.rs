@@ -537,7 +537,7 @@ mod tests {
 		// Create a target directory
 		let target_dir = temp_dir.join("target");
 		fs::create_dir(&target_dir)?;
-		fs::create_dir(&target_dir.join("release"))?;
+		fs::create_dir(target_dir.join("release"))?;
 		// Create a release file
 		fs::File::create(target_dir.join("release/parachain-template-node"))?;
 		Ok(())
@@ -549,9 +549,9 @@ mod tests {
 		// Create a target directory
 		let target_dir = temp_dir.join("target");
 		fs::create_dir(&target_dir)?;
-		fs::create_dir(&target_dir.join("release"))?;
-		fs::create_dir(&target_dir.join("release/wbuild"))?;
-		fs::create_dir(&target_dir.join(format!("release/wbuild/{runtime}")))?;
+		fs::create_dir(target_dir.join("release"))?;
+		fs::create_dir(target_dir.join("release/wbuild"))?;
+		fs::create_dir(target_dir.join(format!("release/wbuild/{runtime}")))?;
 		// Create a WASM binary file
 		fs::File::create(
 			target_dir.join(format!("release/wbuild/{runtime}/{}.wasm", runtime.replace("-", "_"))),
@@ -595,7 +595,7 @@ mod tests {
 			"#
 		)?;
 		let mut zombienet = Zombienet::new(
-			&cache,
+			cache,
 			config.path().try_into()?,
 			None,
 			None,
@@ -646,15 +646,15 @@ mod tests {
 		let project = temp_dir.path().join(name);
 		add_production_profile(&project)?;
 		add_feature(&project, ("dummy-feature".to_string(), vec![]))?;
-		for node in vec![None, Some("custom_node")] {
+		for node in [None, Some("custom_node")] {
 			let node_path = generate_mock_node(&project, node)?;
-			for package in vec![None, Some(String::from("parachain_template_node"))] {
+			for package in [None, Some(String::from("parachain_template_node"))] {
 				for profile in Profile::VARIANTS {
 					let node_path = node.map(|_| node_path.as_path());
 					let binary = build_chain(
 						&project,
 						package.clone(),
-						&profile,
+						profile,
 						node_path,
 						vec!["dummy-feature"],
 					)?;
@@ -679,9 +679,9 @@ mod tests {
 		let project = temp_dir.path().join(name);
 		add_production_profile(&project)?;
 		add_feature(&project, ("dummy-feature".to_string(), vec![]))?;
-		for package in vec![None, Some(String::from(name))] {
+		for package in [None, Some(String::from(name))] {
 			for profile in Profile::VARIANTS {
-				build_project(&project, package.clone(), &profile, vec!["dummy-feature"], None)?;
+				build_project(&project, package.clone(), profile, vec!["dummy-feature"], None)?;
 				let target_directory = profile.target_directory(&project);
 				let binary = build_binary_path(&project, |runtime_name| {
 					target_directory.join(runtime_name)
@@ -719,7 +719,7 @@ mod tests {
 		let runtime = "parachain-template-runtime";
 		mock_build_runtime_process(temp_dir.path())?;
 		let release_path = runtime_binary_path(
-			&temp_dir.path().join(format!("target/release/wbuild")),
+			&temp_dir.path().join("target/release/wbuild"),
 			&temp_dir.path().join("runtime"),
 		)?;
 		assert_eq!(
@@ -762,13 +762,13 @@ mod tests {
 		)?;
 		assert!(plain_chain_spec.exists());
 		{
-			let mut chain_spec = ChainSpec::from(&plain_chain_spec)?;
+			let mut chain_spec = ChainSpec::from(plain_chain_spec)?;
 			chain_spec.replace_para_id(2001)?;
-			chain_spec.to_file(&plain_chain_spec)?;
+			chain_spec.to_file(plain_chain_spec)?;
 		}
 		let raw_chain_spec = generate_raw_chain_spec(
 			&binary_path,
-			&plain_chain_spec,
+			plain_chain_spec,
 			"raw-parachain-chainspec.json",
 		)?;
 		assert!(raw_chain_spec.exists());
@@ -1283,7 +1283,7 @@ mod tests {
 
 		// Standard rust project
 		let name = "hello_world";
-		cmd("cargo", ["new", name]).dir(&path).run()?;
+		cmd("cargo", ["new", name]).dir(path).run()?;
 		assert!(!is_supported(Some(&path.join(name)))?);
 
 		// Chain

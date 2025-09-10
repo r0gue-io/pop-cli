@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
+//! Integration tests for pop-chains functionality.
+
 use anyhow::Result;
 use pop_chains::{generate_pallet_benchmarks, get_preset_names, up::Zombienet};
 use std::path::Path;

@@ -397,7 +397,7 @@ mod tests {
 			"published_at": "2025-01-01T00:00:00Z"
 		  }
 		]"#;
-		let repo = GitHub::parse(BASE_PARACHAIN)?.with_api(&mock_server.url());
+		let repo = GitHub::parse(BASE_PARACHAIN)?.with_api(mock_server.url());
 		let mock = releases_mock(&mut mock_server, &repo, expected_payload).await;
 		let latest_release = repo.releases(false).await?;
 		assert_eq!(
@@ -444,7 +444,7 @@ mod tests {
 				"url": "https://api.github.com/repos/paritytech/polkadot-sdk/git/commits/0bb6249268c0b77d2834640b84cb52fdd3d7e860"
 			}
 		  }"#;
-		let repo = GitHub::parse(BASE_PARACHAIN)?.with_api(&mock_server.url());
+		let repo = GitHub::parse(BASE_PARACHAIN)?.with_api(mock_server.url());
 		let mock = tag_mock(&mut mock_server, &repo, "polkadot-v1.11.0", expected_payload).await;
 		let hash = repo.get_commit_sha_from_release("polkadot-v1.11.0").await?;
 		assert_eq!(hash, "0bb6249268c0b77d2834640b84cb52fdd3d7e860");
@@ -465,7 +465,7 @@ mod tests {
 			"node_id":"MDc6TGljZW5zZTE1"
 			}
 		}"#;
-		let repo = GitHub::parse(BASE_PARACHAIN)?.with_api(&mock_server.url());
+		let repo = GitHub::parse(BASE_PARACHAIN)?.with_api(mock_server.url());
 		let mock = license_mock(&mut mock_server, &repo, expected_payload).await;
 		let license = repo.get_repo_license().await?;
 		assert_eq!(license, "Unlicense".to_string());

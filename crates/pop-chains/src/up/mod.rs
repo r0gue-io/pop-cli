@@ -1874,7 +1874,7 @@ chain = "paseo-local"
 			assert_eq!("paseo-local", relay_chain.chain().as_str());
 			assert_eq!(Some("polkadot"), relay_chain.default_command().map(|c| c.as_str()));
 			let nodes = relay_chain.nodes();
-			assert_eq!("alice", nodes.get(0).unwrap().name());
+			assert_eq!("alice", nodes.first().unwrap().name());
 			assert!(network_config.0.parachains().is_empty());
 			Ok(())
 		}
@@ -1894,7 +1894,7 @@ chain = "paseo-local"
 			)?;
 			let network_config = NetworkConfiguration::try_from(config.path())?;
 			let parachains = network_config.0.parachains();
-			let para_2000 = parachains.get(0).unwrap();
+			let para_2000 = parachains.first().unwrap();
 			assert_eq!(2000, para_2000.id());
 			assert_eq!(Some("node"), para_2000.default_command().map(|c| c.as_str()));
 			Ok(())
@@ -1917,7 +1917,7 @@ chain = "paseo-local"
 		fn build_works() -> Result<(), Error> {
 			let port = 9944;
 			for relay in [Paseo, Kusama, Polkadot, Westend] {
-				let mut rollups: Vec<_> = rollups(&relay).iter().cloned().collect();
+				let mut rollups: Vec<_> = rollups(&relay).to_vec();
 				rollups
 					.iter_mut()
 					.enumerate()
@@ -2043,17 +2043,17 @@ rpc_port = 9944
 
 			let relay_chain_binary = Builder::new().tempfile()?;
 			let relay_chain = relay_chain_binary.path();
-			File::create(&relay_chain)?;
+			File::create(relay_chain)?;
 			let system_chain_binary = Builder::new().tempfile()?;
 			let system_chain = system_chain_binary.path();
-			File::create(&system_chain)?;
+			File::create(system_chain)?;
 			let pop_binary = Builder::new().tempfile()?;
 			let pop = pop_binary.path();
-			File::create(&pop)?;
+			File::create(pop)?;
 			let parachain_template_node = Builder::new().tempfile()?;
 			let parachain_template = parachain_template_node.path();
 			create_dir_all(parachain_template.parent().unwrap())?;
-			File::create(&parachain_template)?;
+			File::create(parachain_template)?;
 
 			let adapted = network_config.adapt(
 				&RelayChain {
@@ -2258,16 +2258,16 @@ command = "polkadot-parachain"
 
 			let relay_chain_binary = Builder::new().tempfile()?;
 			let relay_chain = relay_chain_binary.path();
-			File::create(&relay_chain)?;
+			File::create(relay_chain)?;
 			let relay_chain_spec_generator = Builder::new().tempfile()?;
 			let relay_chain_spec_generator = relay_chain_spec_generator.path();
-			File::create(&relay_chain_spec_generator)?;
+			File::create(relay_chain_spec_generator)?;
 			let system_chain_binary = Builder::new().tempfile()?;
 			let system_chain = system_chain_binary.path();
-			File::create(&system_chain)?;
+			File::create(system_chain)?;
 			let system_chain_spec_generator = Builder::new().tempfile()?;
 			let system_chain_spec_generator = system_chain_spec_generator.path();
-			File::create(&system_chain_spec_generator)?;
+			File::create(system_chain_spec_generator)?;
 
 			let adapted = network_config.adapt(
 				&RelayChain {
@@ -2396,13 +2396,13 @@ max_message_size = 8000
 
 			let relay_chain_binary = Builder::new().tempfile()?;
 			let relay_chain = relay_chain_binary.path();
-			File::create(&relay_chain)?;
+			File::create(relay_chain)?;
 			let system_chain_binary = Builder::new().tempfile()?;
 			let system_chain = system_chain_binary.path();
-			File::create(&system_chain)?;
+			File::create(system_chain)?;
 			let pop_binary = Builder::new().tempfile()?;
 			let pop = pop_binary.path();
-			File::create(&pop)?;
+			File::create(pop)?;
 
 			let adapted = network_config.adapt(
 				&RelayChain {
@@ -2547,13 +2547,13 @@ name = "asset-hub"
 
 			let relay_chain_binary = Builder::new().tempfile()?;
 			let relay_chain = relay_chain_binary.path();
-			File::create(&relay_chain)?;
+			File::create(relay_chain)?;
 			let system_chain_binary = Builder::new().tempfile()?;
 			let system_chain = system_chain_binary.path();
-			File::create(&system_chain)?;
+			File::create(system_chain)?;
 			let pop_binary = Builder::new().tempfile()?;
 			let pop = pop_binary.path();
-			File::create(&pop)?;
+			File::create(pop)?;
 
 			let adapted = network_config.adapt(
 				&RelayChain {
@@ -2664,13 +2664,13 @@ balances = [["5Ec4AhPKXY9B4ayGshkz2wFMh7N8gP7XKfAvtt1cigpG9FkJ", 420000000000]]
 
 			let relay_chain_binary = Builder::new().tempfile()?;
 			let relay_chain = relay_chain_binary.path();
-			File::create(&relay_chain)?;
+			File::create(relay_chain)?;
 			let system_chain_binary = Builder::new().tempfile()?;
 			let system_chain = system_chain_binary.path();
-			File::create(&system_chain)?;
+			File::create(system_chain)?;
 			let pop_binary = Builder::new().tempfile()?;
 			let pop = pop_binary.path();
-			File::create(&pop)?;
+			File::create(pop)?;
 
 			let adapted = network_config.adapt(
 				&RelayChain {
@@ -2784,7 +2784,7 @@ balance = 2000000000000
 		#[test]
 		fn initializes_from_local_binary() -> Result<(), Error> {
 			let name = "parachain-template-node";
-			let command = PathBuf::from("./target/release").join(&name);
+			let command = PathBuf::from("./target/release").join(name);
 			assert_eq!(
 				Chain::from_local(2000, command.clone(), Some("dev"))?,
 				Chain {
@@ -2800,7 +2800,7 @@ balance = 2000000000000
 		#[test]
 		fn initializes_from_local_package() -> Result<(), Error> {
 			let name = "pop-chains";
-			let command = PathBuf::from("./target/release").join(&name);
+			let command = PathBuf::from("./target/release").join(name);
 			assert_eq!(
 				Chain::from_local(2000, command.clone(), Some("dev"))?,
 				Chain {
