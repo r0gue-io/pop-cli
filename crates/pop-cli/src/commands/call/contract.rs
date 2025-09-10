@@ -87,6 +87,7 @@ pub struct CallContractCommand {
 	#[arg(name = "dev", short, long, default_value = "false")]
 	dev_mode: bool,
 	/// Whether the contract was just deployed or not.
+	#[arg(hide = true, long, default_value = "false")]
 	pub(crate) deployed: bool,
 }
 
