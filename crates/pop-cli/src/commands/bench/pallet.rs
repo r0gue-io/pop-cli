@@ -1320,7 +1320,7 @@ mod tests {
 		fs::{self, File},
 	};
 	use strum::EnumMessage;
-	use tempfile::tempdir;
+	use tempfile::{tempdir, TempDir};
 
 	#[tokio::test]
 	async fn benchmark_pallet_works() -> anyhow::Result<()> {
@@ -1532,13 +1532,12 @@ mod tests {
 		cli.verify()
 	}
 
-	// TODO: fix this test at some point.
-	#[ignore]
 	#[tokio::test]
 	async fn benchmark_pallet_weight_dir_works() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
+		let temp_cache = tempdir()?;
 		let output_path = temp_dir.path();
-		let registry = get_registry().await?;
+		let registry = get_registry(temp_cache.path()).await?;
 
 		let mut cli = expect_pallet_benchmarking_intro(MockCli::new())
 			.expect_warning("NOTE: this may take some time...")
@@ -1677,7 +1676,8 @@ mod tests {
 
 	#[tokio::test]
 	async fn guide_user_to_select_pallet_works() -> anyhow::Result<()> {
-		let registry = get_registry().await?;
+		let temp_cache = tempdir()?;
+		let registry = get_registry(temp_cache.path()).await?;
 		let pallet_items: Vec<(String, String)> = pallets(&registry, &[])
 			.into_iter()
 			.map(|pallet| (pallet, Default::default()))
@@ -1717,7 +1717,8 @@ mod tests {
 
 	#[tokio::test]
 	async fn guide_user_to_exclude_pallets_works() -> anyhow::Result<()> {
-		let registry = get_registry().await?;
+		let temp_cache = tempdir()?;
+		let registry = get_registry(temp_cache.path()).await?;
 		let pallet_items = pallets(&registry, &[])
 			.into_iter()
 			.map(|pallet| (pallet, Default::default()))
@@ -1735,7 +1736,8 @@ mod tests {
 
 	#[tokio::test]
 	async fn guide_user_to_select_extrinsics_works() -> anyhow::Result<()> {
-		let registry = get_registry().await?;
+		let temp_cache = tempdir()?;
+		let registry = get_registry(temp_cache.path()).await?;
 
 		let mut cli = MockCli::new().expect_confirm(
 			r#"Would you like to benchmark all extrinsics of "pallet_timestamp"?"#,
@@ -2213,7 +2215,8 @@ mod tests {
 
 	#[tokio::test]
 	async fn update_excluded_pallets_works() -> anyhow::Result<()> {
-		let registry = get_registry().await?;
+		let temp_cache = tempdir()?;
+		let registry = get_registry(temp_cache.path()).await?;
 		let pallet_items = pallets(&registry, &[])
 			.into_iter()
 			.map(|pallet| (pallet, Default::default()))
@@ -2244,7 +2247,8 @@ mod tests {
 
 	#[tokio::test]
 	async fn update_excluded_extrinsics_works() -> anyhow::Result<()> {
-		let registry = get_registry().await?;
+		let temp_cache = tempdir()?;
+		let registry = get_registry(temp_cache.path()).await?;
 		let pallet_extrinsics = all_pallet_extrinsics(&registry, &[], &[], &[])
 			.into_iter()
 			.map(|pallet| (format_pallet_extrinsic_item(pallet), Default::default()))
@@ -2385,10 +2389,9 @@ mod tests {
 		))
 	}
 
-	async fn get_registry() -> anyhow::Result<PalletExtrinsicsRegistry> {
+	async fn get_registry(cache_dir: &Path) -> anyhow::Result<PalletExtrinsicsRegistry> {
 		let runtime_path = get_mock_runtime(Some(Benchmark));
-		let binary_path =
-			source_omni_bencher_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
+		let binary_path = source_omni_bencher_binary(&mut MockCli::new(), cache_dir, true).await?;
 		Ok(load_pallet_extrinsics(&runtime_path, binary_path.as_path()).await?)
 	}
 
