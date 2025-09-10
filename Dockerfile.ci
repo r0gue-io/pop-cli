@@ -11,8 +11,15 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl git \
     build-essential pkg-config libssl-dev \
-    protobuf-compiler \
+    protobuf-compiler clang lld \
  && rm -rf /var/lib/apt/lists/*
+
+# Make rustc use clang + lld for linking and trim debug info to reduce memory usage.
+# You can tweak these further if needed.
+ENV CC=clang
+ENV CXX=clang++
+ENV RUSTFLAGS="-C linker=clang -C link-arg=-fuse-ld=lld -C debuginfo=0 -C lto=off -C codegen-units=1"
+
 
 # Install Rust (minimal profile)
 RUN curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
