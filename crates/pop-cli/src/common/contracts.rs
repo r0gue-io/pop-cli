@@ -51,27 +51,22 @@ pub async fn terminate_node(
 	process: Option<(Child, NamedTempFile)>,
 ) -> anyhow::Result<()> {
 	// Prompt to close any launched node
-	let Some((process, log)) = process else {
-		return Ok(());
-	};
-	if cli
-		.confirm("Would you like to terminate the local node?")
-		.initial_value(true)
-		.interact()?
-	{
-		// Stop the process contracts-node
-		Command::new("kill")
-			.args(["-s", "TERM", &process.id().to_string()])
-			.spawn()?
-			.wait()?;
-	} else {
-		cli.warning("You can terminate the process by pressing Ctrl+C.")?;
-		Command::new("tail").args(["-F", &log.path().to_string_lossy()]).spawn()?;
-		tokio::signal::ctrl_c().await?;
-		cli.plain("\n")?;
+	if let Some((mut process, log)) = process {
+		if cli
+			.confirm("Would you like to terminate the local node?")
+			.initial_value(true)
+			.interact()?
+		{
+			process.kill()?;
+			process.wait()?;
+		} else {
+			cli.warning("You can terminate the process by pressing Ctrl+C.")?;
+			Command::new("tail").args(["-F", &log.path().to_string_lossy()]).spawn()?;
+			tokio::signal::ctrl_c().await?;
+			cli.plain("\n")?;
+		}
 		cli.success("✅ Local node terminated.")?;
 	}
-
 	Ok(())
 }
 

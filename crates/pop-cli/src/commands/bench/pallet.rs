@@ -1320,7 +1320,7 @@ mod tests {
 		fs::{self, File},
 	};
 	use strum::EnumMessage;
-	use tempfile::{tempdir, TempDir};
+	use tempfile::tempdir;
 
 	#[tokio::test]
 	async fn benchmark_pallet_works() -> anyhow::Result<()> {
