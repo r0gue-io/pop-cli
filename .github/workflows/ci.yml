@@ -37,7 +37,7 @@ jobs:
       - name: Set environment variables
         id: out
         run: |
-          set -euo pipefail
+          set -xeuo pipefail
           image_base="ghcr.io/${GITHUB_REPOSITORY,,}"
           image="${image_base}:latest"
           echo "image_base=${image_base}" >> "$GITHUB_OUTPUT"
