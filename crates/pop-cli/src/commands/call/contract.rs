@@ -622,6 +622,11 @@ mod tests {
 	use std::{env, fs::write};
 	use url::Url;
 
+	#[cfg(feature = "v5")]
+	const CONTRACT_FILE: &str = "pop-contracts/tests/files/testing_wasm.contract";
+	#[cfg(feature = "v6")]
+	const CONTRACT_FILE: &str = "pop-contracts/tests/files/testing.contract";
+
 	// This test only covers the interactive portion of the call contract command, without actually
 	// calling the contract.
 	#[tokio::test]
@@ -631,7 +636,7 @@ mod tests {
 		current_dir.pop();
 		mock_build_process(
 			temp_dir.path().join("testing"),
-			current_dir.join("pop-contracts/tests/files/testing.contract"),
+			current_dir.join(CONTRACT_FILE),
 			current_dir.join("pop-contracts/tests/files/testing.json"),
 		)?;
 
@@ -710,7 +715,7 @@ mod tests {
 		current_dir.pop();
 		mock_build_process(
 			temp_dir.path().join("testing"),
-			current_dir.join("pop-contracts/tests/files/testing.contract"),
+			current_dir.join(CONTRACT_FILE),
 			current_dir.join("pop-contracts/tests/files/testing.json"),
 		)?;
 
@@ -795,7 +800,7 @@ mod tests {
 		current_dir.pop();
 		mock_build_process(
 			temp_dir.path().join("testing"),
-			current_dir.join("pop-contracts/tests/files/testing.contract"),
+			current_dir.join(CONTRACT_FILE),
 			current_dir.join("pop-contracts/tests/files/testing.json"),
 		)?;
 
@@ -936,7 +941,7 @@ mod tests {
 		current_dir.pop();
 		mock_build_process(
 			temp_dir.path().join("testing"),
-			current_dir.join("pop-contracts/tests/files/testing.contract"),
+			current_dir.join(CONTRACT_FILE),
 			current_dir.join("pop-contracts/tests/files/testing.json"),
 		)?;
 
@@ -1042,7 +1047,7 @@ mod tests {
 		current_dir.pop();
 		mock_build_process(
 			temp_dir.path().join("testing"),
-			current_dir.join("pop-contracts/tests/files/testing.contract"),
+			current_dir.join(CONTRACT_FILE),
 			current_dir.join("pop-contracts/tests/files/testing.json"),
 		)?;
 		assert!(!call_config.is_contract_build_required());
