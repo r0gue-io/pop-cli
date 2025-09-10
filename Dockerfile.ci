@@ -14,13 +14,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     protobuf-compiler clang lld \
  && rm -rf /var/lib/apt/lists/*
 
-# Make rustc use clang + lld for linking and trim debug info to reduce memory usage.
-# You can tweak these further if needed.
-ENV CC=clang
-ENV CXX=clang++
-ENV RUSTFLAGS="-C linker=clang -C link-arg=-fuse-ld=lld -C debuginfo=0 -C lto=off -C codegen-units=1"
-
-
 # Install Rust (minimal profile)
 RUN curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
 RUN rustup toolchain install ${RUST_TOOLCHAIN} \
@@ -32,5 +25,10 @@ RUN cargo install --locked cargo-nextest cargo-llvm-cov \
     && rm -rf /root/.cargo/registry /root/.cargo/git \
     && rm -rf /root/.rustup/tmp \
     && rm -rf /usr/share/doc /usr/share/man /usr/share/locales /var/cache/*
+
+# Make rustc use clang + lld for linking.
+ENV CC=clang
+ENV CXX=clang++
+ENV RUSTFLAGS="-C linker=clang -C link-arg=-fuse-ld=lld"
 
 WORKDIR /workdir
