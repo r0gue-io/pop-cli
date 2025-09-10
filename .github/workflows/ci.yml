@@ -51,7 +51,7 @@ jobs:
 
   prepare-ci-image:
     needs: setup
-    if: ${{ needs.setup.outputs.exists == 'true' }}
+    if: ${{ needs.setup.outputs.exists == 'false' }}
     uses: ./.github/workflows/docker-ci.yml
     permissions:
       contents: read
