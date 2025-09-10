@@ -12,7 +12,7 @@ defaults:
 
 concurrency:
   # Cancel any in-progress jobs for the same pull request
-  group: ${{ github.event.pull_request.number || github.head_ref }}
+  group: ${{ github.event.pull_request.number || github.head_ref || github.ref }}
   cancel-in-progress: true
 
 jobs:
