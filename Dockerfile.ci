@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl git \
     build-essential pkg-config libssl-dev \
     protobuf-compiler clang lld \
+    gnupg dirmngr pinentry-curses \
  && rm -rf /var/lib/apt/lists/*
 
 # Install Rust (minimal profile)
