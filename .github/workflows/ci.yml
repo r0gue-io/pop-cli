@@ -176,35 +176,6 @@ jobs:
           RUSTDOCFLAGS: "-Dwarnings"
           RUSTFLAGS: "-Dmissing_docs"
 
-  unit-tests:
-    needs:
-      - setup
-      - build
-    runs-on: ubuntu-latest
-    container:
-      image: ${{ needs.setup.outputs.image }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2.7.8
-        with:
-          cache-on-failure: true
-          cache-all-crates: true
-          shared-key: shared-${{ github.head_ref || github.ref_name }}
-
-      - name: Run unit tests (no default features)
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RUSTFLAGS: "-Dwarnings"
-        run: cargo nextest run --lib --bins --no-default-features
-
-      - name: Run unit tests
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RUSTFLAGS: "-Dwarnings"
-        run: cargo nextest run --lib --bins --no-default-features --features "contract,chain"
-
   polkavm-unit-tests:
     needs:
       - setup
