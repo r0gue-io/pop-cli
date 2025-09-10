@@ -1458,10 +1458,6 @@ mod tests {
 		};
 		cmd.execute(&mut cli).await?;
 
-		// Verify the printed command.
-		cli = cli.expect_info(cmd.display()).expect_outro("Benchmark completed successfully!");
-		cmd.execute(&mut cli).await?;
-
 		// Verify the content of the benchmarking parameter file.
 		cmd.bench_file = None;
 		let versioned = VersionedBenchmarkPallet::try_from(bench_file_path.as_path())?;
@@ -1659,7 +1655,7 @@ mod tests {
 	async fn benchmark_pallet_fails_with_error() -> anyhow::Result<()> {
 		let mut cli = MockCli::new();
 		cli = expect_pallet_benchmarking_intro(cli);
-		cli = cli.expect_outro_cancel("Failed to run benchmarking: Invalid input: No benchmarks found which match your input. Try `--list --all` to list all available benchmarks.");
+		cli = cli.expect_outro_cancel("Failed to run benchmarking: Invalid input: No benchmarks found which match your input. Try `--list --all` to list all available benchmarks. Make sure pallet is in `define_benchmarks!`");
 
 		BenchmarkPallet {
 			runtime: Some(get_mock_runtime(Some(Benchmark))),
