@@ -1475,7 +1475,7 @@ mod tests {
 
 		// Prepare the benchmarking parameter files.
 		let bench_file_path = temp_dir.path().join(DEFAULT_BENCH_FILE);
-		let mut cmd = BenchmarkPallet {
+		let cmd = BenchmarkPallet {
 			runtime: Some(get_mock_runtime(Some(Benchmark))),
 			genesis_builder: Some(GenesisBuilderPolicy::Runtime),
 			genesis_builder_preset: "development".to_string(),
