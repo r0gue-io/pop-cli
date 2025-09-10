@@ -149,7 +149,7 @@ pub enum ChainTemplate {
 			Provider = "OpenZeppelin",
 			Repository = "https://github.com/OpenZeppelin/polkadot-runtime-templates",
 			Network = "./zombienet-config/devnet.toml",
-			SupportedVersions = "v1.0.0,v2.0.1,v2.0.3,v3.0.0",
+			SupportedVersions = "v1.0.0,v2.0.1,v2.0.3,v3.0.0,v4.0.0",
 			IsAudited = "true",
 			License = "GPL-3.0",
 			DeploymentName = "OZ_GENERIC"
@@ -165,7 +165,7 @@ pub enum ChainTemplate {
 			Provider = "OpenZeppelin",
 			Repository = "https://github.com/OpenZeppelin/polkadot-runtime-templates",
 			Network = "./zombienet-config/devnet.toml",
-			SupportedVersions = "v2.0.3,v3.0.0",
+			SupportedVersions = "v2.0.3,v3.0.0,v4.0.0",
 			IsAudited = "true",
 			License = "GPL-3.0",
 			DeploymentName = "OZ_EVM"
