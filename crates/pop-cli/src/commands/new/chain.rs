@@ -14,7 +14,7 @@ use pop_chains::{
 	instantiate_template_dir, is_initial_endowment_valid, ChainTemplate, Config, Provider,
 };
 use pop_common::{
-	enum_variants, enum_variants_without_deprecated, get_project_name_from_path,
+	enum_variants, enum_variants_without_deprecated,
 	templates::{Template, Type},
 	Git, GitHub, Release,
 };
@@ -173,7 +173,7 @@ async fn guide_user_to_generate_parachain(
 }
 
 async fn generate_parachain_from_template(
-	path_template: &String,
+	name_template: &String,
 	provider: &Provider,
 	template: &ChainTemplate,
 	tag_version: Option<String>,
@@ -181,8 +181,6 @@ async fn generate_parachain_from_template(
 	verify: bool,
 	cli: &mut impl cli::traits::Cli,
 ) -> Result<()> {
-	let destination_path = check_destination_path(Path::new(path_template), cli)?;
-	let name_template = get_project_name_from_path(&destination_path, "my-parachain");
 	cli.intro(format!(
 		"Generating \"{name_template}\" using {} from {}!",
 		template.name(),

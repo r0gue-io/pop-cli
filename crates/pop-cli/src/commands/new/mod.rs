@@ -143,19 +143,35 @@ mod tests {
 
 	#[test]
 	fn guide_user_to_select_command_works() -> anyhow::Result<()> {
+		let mut options = Vec::new();
+		#[cfg(feature = "chain")]
+		{
+			options.push(("Chain".into(), "Build your own custom chain".into()));
+			options
+				.push(("Pallet".into(), "Create reusable and customizable chain modules".into()));
+		}
+
+		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
+		{
+			options.push(("Smart Contract".into(), "Write ink! smart contracts".into()));
+		}
 		let mut cli = MockCli::new().expect_select(
 			"What would you like to create?",
 			Some(false),
 			true,
-			Some(vec![
-				("Chain".into(), "Build your own custom chain".into()),
-				("Pallet".into(), "Create reusable and customizable chain modules".into()),
-				("Smart Contract".into(), "Write ink! smart contracts".into()),
-			]),
+			Some(options),
 			0,
 			None,
 		);
-		assert_eq!(guide_user_to_select_command(&mut cli)?.to_string(), "chain");
+		let cmd = guide_user_to_select_command(&mut cli)?;
+		#[cfg(feature = "chain")]
+		assert_eq!(cmd.to_string(), "chain");
+
+		#[cfg(all(
+			not(feature = "chain"),
+			any(feature = "polkavm-contracts", feature = "wasm-contracts")
+		))]
+		assert_eq!(cmd.to_string(), "contract");
 		cli.verify()
 	}
 }
