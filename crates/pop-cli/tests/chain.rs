@@ -226,6 +226,8 @@ rpc_port = {random_port}
 
 	assert!(up.try_wait()?.is_none(), "the process should still be running");
 	// Stop the process
+	up.kill()?;
+	up.wait()?;
 	Command::new("kill").args(["-s", "SIGINT", &up.id().to_string()]).spawn()?;
 
 	Ok(())

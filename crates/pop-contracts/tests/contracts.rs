@@ -15,7 +15,7 @@ use pop_contracts::{
 use sp_core::bytes::from_hex;
 #[cfg(feature = "v6")]
 use sp_core_inkv6::bytes::from_hex;
-use std::{env, process::Command};
+use std::env;
 use subxt::{
 	config::{substrate::BlakeTwo256, Hasher},
 	utils::H256,
@@ -55,7 +55,7 @@ async fn run_contracts_node_works() -> Result<()> {
 	let version = "v0.43.0";
 	let binary = contracts_node_generator(cache.clone(), Some(version)).await?;
 	binary.source(false, &(), true).await?;
-	let process = run_contracts_node(binary.path(), None, random_port).await?;
+	let mut process = run_contracts_node(binary.path(), None, random_port).await?;
 
 	// Check if the node is alive
 	assert!(is_chain_alive(local_url).await?);
@@ -101,11 +101,9 @@ async fn run_contracts_node_works() -> Result<()> {
 	.await?;
 	call_works(&temp_dir, &localhost_url, &contract_address).await?;
 
-	//Stop the process contracts-node
-	Command::new("kill")
-		.args(["-s", "TERM", &process.id().to_string()])
-		.spawn()?
-		.wait()?;
+	// Stop the process contracts-node
+	process.kill()?;
+	process.wait()?;
 
 	Ok(())
 }

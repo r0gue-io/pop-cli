@@ -447,7 +447,8 @@ mod tests {
 
 	#[test]
 	fn test_pallet_create_template_invalid_path() {
-		let invalid_path = "/invalid/path/that/does/not/exist";
+		// Use invalid characters that are not allowed in paths on any OS
+		let invalid_path = "\0/\0"; // NULL byte is invalid in all filesystems
 		let config = TemplatePalletConfig {
 			authors: "Alice".to_string(),
 			description: "A sample pallet".to_string(),
