@@ -203,7 +203,8 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
-          save-if: false
+          cache-all-crates: true
+          cache-on-failure: true
           shared-key: shared-coverage-${{ github.head_ref || github.ref_name }}
 
       - name: Generate code coverage
