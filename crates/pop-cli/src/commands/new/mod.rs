@@ -152,7 +152,7 @@ mod tests {
 				("Pallet".into(), "Create reusable and customizable chain modules".into()),
 				("Smart Contract".into(), "Write ink! smart contracts".into()),
 			]),
-			0, // "Chain"
+			0,
 			None,
 		);
 		assert_eq!(guide_user_to_select_command(&mut cli)?.to_string(), "chain");

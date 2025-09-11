@@ -150,7 +150,7 @@ mod tests {
 		let mut cli = MockCli::new().expect_confirm(
 			format!(
 				"\"{}\" directory already exists. Would you like to remove it?",
-				parachain_path.display().to_string()
+				parachain_path.display()
 			),
 			true,
 		);
@@ -163,7 +163,7 @@ mod tests {
 			.expect_confirm(
 				format!(
 					"\"{}\" directory already exists. Would you like to remove it?",
-					parachain_path.display().to_string()
+					parachain_path.display()
 				),
 				false,
 			)
@@ -176,7 +176,7 @@ mod tests {
 			check_destination_path(&parachain_path, &mut cli),
 			anyhow::Result::Err(message) if message.to_string() == format!(
 				"\"{}\" directory already exists.",
-				parachain_path.display().to_string()
+				parachain_path.display()
 			)
 		));
 

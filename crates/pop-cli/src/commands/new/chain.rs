@@ -465,7 +465,7 @@ mod tests {
 	fn test_get_customization_values() -> Result<()> {
 		for template in Provider::Pop.templates() {
 			let mut cli = MockCli::new();
-			let config = get_customization_value(&template, None, None, None, &mut cli)?;
+			let config = get_customization_value(template, None, None, None, &mut cli)?;
 			assert_eq!(
 				config,
 				Config {
@@ -479,13 +479,13 @@ mod tests {
 		let templates: Vec<&ChainTemplate> = Provider::OpenZeppelin
 			.templates()
 			.into_iter()
-			.chain(Provider::Parity.templates().into_iter())
+			.chain(Provider::Parity.templates())
 			.collect();
 		for template in templates {
 			let mut cli = MockCli::new()
 				.expect_warning("Customization options are not available for this template");
 			let config =
-				get_customization_value(&template, Some("DOT".into()), Some(6), None, &mut cli)?;
+				get_customization_value(template, Some("DOT".into()), Some(6), None, &mut cli)?;
 			assert_eq!(
 				config,
 				Config {

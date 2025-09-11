@@ -277,7 +277,7 @@ mod tests {
 	fn generate_contract_from_template_works() -> anyhow::Result<()> {
 		let dir = tempdir()?;
 		let contract_path = dir.path().join("test_contract");
-		let next_steps: Vec<_> = vec![
+		let next_steps: Vec<_> = [
 			format!("cd into {:?} and enjoy hacking! 🚀", contract_path.display()),
 			"Use `pop build` to build your contract.".into(),
 			"Use `pop up contract` to deploy your contract to a live network.".into(),
