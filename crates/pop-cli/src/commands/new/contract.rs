@@ -119,16 +119,7 @@ async fn guide_user_to_generate_contract(
 		}
 		contract_type_prompt.interact()?
 	};
-	let template = {
-		let mut prompt = cli.select("Select the contract:".to_string());
-		for (i, template) in contract_type.templates().into_iter().enumerate() {
-			if i == 0 {
-				prompt = prompt.initial_value(template);
-			}
-			prompt = prompt.item(template, template.name(), template.description());
-		}
-		prompt.interact()?
-	};
+	let template = display_select_options(contract_type, cli)?;
 
 	// Prompt for location.
 	let name: String = cli
@@ -140,8 +131,22 @@ async fn guide_user_to_generate_contract(
 	Ok(NewContractCommand {
 		name: Some(name),
 		contract_type: Some(contract_type.clone()),
-		template: Some(template.clone()),
+		template: Some(template),
 	})
+}
+
+fn display_select_options(
+	contract_type: &ContractType,
+	cli: &mut impl cli::traits::Cli,
+) -> Result<Contract> {
+	let mut prompt = cli.select("Select the contract:".to_string());
+	for (i, template) in contract_type.templates().into_iter().enumerate() {
+		if i == 0 {
+			prompt = prompt.initial_value(template);
+		}
+		prompt = prompt.item(template, template.name(), template.description());
+	}
+	Ok(prompt.interact()?.clone())
 }
 
 fn generate_contract_from_template(
