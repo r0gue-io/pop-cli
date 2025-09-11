@@ -28,7 +28,7 @@ jobs:
       - name: Setup
         run: |
           echo "RUST_VERSION=$(yq -r '.toolchain.channel' rust-toolchain.toml)" >> $GITHUB_ENV
-          echo "DOCKER_IMAGE=${{ inputs.docker_image != '' && inputs.docker_image || format('ghcr.io/{0}', github.repository) }}" >> $GITHUB_ENV
+          echo "DOCKER_IMAGE=${{ inputs.docker_image != '' && inputs.docker_image || format('ghcr.io/{0}:{1}', github.repository, github.sha) }}" >> $GITHUB_ENV
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -46,9 +46,7 @@ jobs:
           context: .
           file: Dockerfile.ci
           push: true
-          tags: |
-            ${{ env.DOCKER_IMAGE }}:latest
-            ${{ env.DOCKER_IMAGE }}:${{ env.RUST_VERSION }}
+          tags: ${{ env.DOCKER_IMAGE }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: RUST_TOOLCHAIN=${{ env.RUST_VERSION }}
