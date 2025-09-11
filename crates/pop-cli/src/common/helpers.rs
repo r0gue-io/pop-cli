@@ -99,6 +99,11 @@ macro_rules! multiselect_pick {
 	}};
 }
 
+/// Validate the destination directory and prompt to remove it if it already exists
+///
+/// # Arguments
+/// * `destination_path`: Path to the target output directory.
+/// * `cli` - Command-line interface for user interaction.
 pub fn check_destination_path(
 	destination_path: &Path,
 	cli: &mut impl cli::traits::Cli,

@@ -127,7 +127,7 @@ impl Command {
 				// If no command is provided, guide the user to select one interactively
 				let command = match args.command {
 					Some(cmd) => cmd,
-					None => new::guide_user_to_select_command().await?,
+					None => new::guide_user_to_select_command(&mut Cli)?,
 				};
 
 				match command {

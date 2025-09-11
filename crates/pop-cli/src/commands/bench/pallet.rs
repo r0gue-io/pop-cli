@@ -371,7 +371,7 @@ impl BenchmarkPallet {
 				match option.update_arguments(self, &mut registry, cli).await {
 					Ok(true) => break,
 					Ok(false) => continue,
-					Err(e) => cliclack::log::error(e)?,
+					Err(e) => cli.error(e)?,
 				}
 			}
 		}

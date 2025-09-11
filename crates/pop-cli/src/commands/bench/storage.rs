@@ -58,7 +58,7 @@ impl BenchmarkStorage {
 		let result = self.run(binary_path);
 
 		// Display the benchmarking command.
-		cliclack::log::remark("\n")?;
+		cli.plain("\n")?;
 		cli.info(self.display())?;
 		if let Err(e) = result {
 			return display_message(&e.to_string(), false, cli);
