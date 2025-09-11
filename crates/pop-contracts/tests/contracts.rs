@@ -15,7 +15,7 @@ use pop_contracts::{
 use sp_core::bytes::from_hex;
 #[cfg(feature = "v6")]
 use sp_core_inkv6::bytes::from_hex;
-use std::{env, process::Command};
+use std::env;
 use subxt::{
 	config::{substrate::BlakeTwo256, Hasher},
 	utils::H256,
