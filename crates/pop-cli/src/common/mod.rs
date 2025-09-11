@@ -10,6 +10,7 @@ pub mod builds;
 pub mod chain;
 #[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 pub mod contracts;
+#[cfg(any(feature = "chain", feature = "wasm-contracts", feature = "polkavm-contracts"))]
 pub mod helpers;
 /// Contains utilities for interacting with the CLI prompt.
 pub mod prompt;
