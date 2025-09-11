@@ -249,7 +249,9 @@ impl UpContractCommand {
 					let instantiate_exec = match set_up_deployment(self.clone().into()).await {
 						Ok(i) => i,
 						Err(e) => {
-							error(format!("An error occurred instantiating the contract: {e}"))?;
+							Cli.error(format!(
+								"An error occurred instantiating the contract: {e}"
+							))?;
 							terminate_node(&mut Cli, process).await?;
 							Cli.outro_cancel(FAILED)?;
 							return Ok(());
