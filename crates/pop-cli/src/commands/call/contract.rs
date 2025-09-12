@@ -15,7 +15,6 @@ use clap::Args;
 use cliclack::spinner;
 #[cfg(feature = "wasm-contracts")]
 use pop_common::parse_account;
-use pop_common::{DefaultConfig, Keypair};
 use pop_contracts::{
 	build_smart_contract, call_smart_contract, call_smart_contract_from_signed_payload,
 	dry_run_call, dry_run_gas_estimate_call, get_call_payload, get_message, get_messages,
@@ -24,6 +23,15 @@ use pop_contracts::{
 use std::path::PathBuf;
 #[cfg(feature = "polkavm-contracts")]
 use {crate::common::contracts::map_account, pop_common::parse_h160_account};
+
+#[cfg(feature = "wasm-contracts")]
+use subxt::PolkadotConfig as DefaultConfig;
+#[cfg(feature = "polkavm-contracts")]
+use subxt_inkv6::PolkadotConfig as DefaultConfig;
+#[cfg(feature = "wasm-contracts")]
+pub use subxt_signer::sr25519::Keypair;
+#[cfg(feature = "polkavm-contracts")]
+pub use subxt_signer_inkv6::sr25519::Keypair;
 
 const DEFAULT_URI: &str = "//Alice";
 const DEFAULT_PAYABLE_VALUE: &str = "0";
@@ -187,7 +195,13 @@ impl CallContractCommand {
 		cli.warning("NOTE: contract has not yet been built.")?;
 		let spinner = spinner();
 		spinner.start("Building contract in RELEASE mode...");
-		let result = match build_smart_contract(project_path.as_deref(), true, Verbosity::Quiet) {
+		let result = match build_smart_contract(
+			project_path.as_deref(),
+			true,
+			Verbosity::Quiet,
+			#[cfg(feature = "polkavm-contracts")]
+			None,
+		) {
 			Ok(result) => result,
 			Err(e) => {
 				return Err(anyhow!(format!(
@@ -608,6 +622,11 @@ mod tests {
 	use std::{env, fs::write};
 	use url::Url;
 
+	#[cfg(feature = "v5")]
+	const CONTRACT_FILE: &str = "pop-contracts/tests/files/testing_wasm.contract";
+	#[cfg(feature = "v6")]
+	const CONTRACT_FILE: &str = "pop-contracts/tests/files/testing.contract";
+
 	// This test only covers the interactive portion of the call contract command, without actually
 	// calling the contract.
 	#[tokio::test]
@@ -617,7 +636,7 @@ mod tests {
 		current_dir.pop();
 		mock_build_process(
 			temp_dir.path().join("testing"),
-			current_dir.join("pop-contracts/tests/files/testing.contract"),
+			current_dir.join(CONTRACT_FILE),
 			current_dir.join("pop-contracts/tests/files/testing.json"),
 		)?;
 
@@ -696,7 +715,7 @@ mod tests {
 		current_dir.pop();
 		mock_build_process(
 			temp_dir.path().join("testing"),
-			current_dir.join("pop-contracts/tests/files/testing.contract"),
+			current_dir.join(CONTRACT_FILE),
 			current_dir.join("pop-contracts/tests/files/testing.json"),
 		)?;
 
@@ -781,7 +800,7 @@ mod tests {
 		current_dir.pop();
 		mock_build_process(
 			temp_dir.path().join("testing"),
-			current_dir.join("pop-contracts/tests/files/testing.contract"),
+			current_dir.join(CONTRACT_FILE),
 			current_dir.join("pop-contracts/tests/files/testing.json"),
 		)?;
 
@@ -922,7 +941,7 @@ mod tests {
 		current_dir.pop();
 		mock_build_process(
 			temp_dir.path().join("testing"),
-			current_dir.join("pop-contracts/tests/files/testing.contract"),
+			current_dir.join(CONTRACT_FILE),
 			current_dir.join("pop-contracts/tests/files/testing.json"),
 		)?;
 
@@ -1028,7 +1047,7 @@ mod tests {
 		current_dir.pop();
 		mock_build_process(
 			temp_dir.path().join("testing"),
-			current_dir.join("pop-contracts/tests/files/testing.contract"),
+			current_dir.join(CONTRACT_FILE),
 			current_dir.join("pop-contracts/tests/files/testing.json"),
 		)?;
 		assert!(!call_config.is_contract_build_required());

@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
+#[cfg(feature = "v6")]
+use crate::utils::map_account::create_signer;
 use crate::{
 	errors::Error,
 	utils::{
@@ -11,13 +13,28 @@ use crate::{
 };
 #[cfg(feature = "v6")]
 use pop_common::account_id::parse_h160_account;
-use pop_common::{create_signer, DefaultConfig, Keypair};
+#[cfg(feature = "v5")]
+use pop_common::create_signer;
 use std::path::{Path, PathBuf};
+#[cfg(feature = "v5")]
 use subxt::{
+	backend,
 	blocks::ExtrinsicEvents,
+	config,
 	tx::{Payload, SubmittableExtrinsic},
-	SubstrateConfig,
+	Config, OnlineClient, PolkadotConfig as DefaultConfig, SubstrateConfig,
 };
+#[cfg(feature = "v6")]
+use subxt_inkv6::{
+	backend,
+	blocks::ExtrinsicEvents,
+	tx::{Payload, SubmittableTransaction},
+	OnlineClient, PolkadotConfig as DefaultConfig, SubstrateConfig,
+};
+#[cfg(feature = "v5")]
+pub use subxt_signer::sr25519::Keypair;
+#[cfg(feature = "v6")]
+pub use subxt_signer_inkv6::sr25519::Keypair;
 #[cfg(feature = "v5")]
 use {
 	contract_extrinsics::{
@@ -29,7 +46,6 @@ use {
 		UploadResult, WasmCode as ContractBinary,
 	},
 	sp_core::bytes::from_hex,
-	subxt::Config,
 };
 #[cfg(feature = "v6")]
 use {
@@ -157,8 +173,8 @@ pub async fn get_upload_payload(code: ContractBinary, url: &str) -> anyhow::Resu
 	let storage_deposit_limit: Option<u128> = None;
 	let upload_code = UploadCode::new(code, storage_deposit_limit, Determinism::Enforced);
 
-	let rpc_client = subxt::backend::rpc::RpcClient::from_url(url).await?;
-	let client = subxt::OnlineClient::<SubstrateConfig>::from_rpc_client(rpc_client).await?;
+	let rpc_client = backend::rpc::RpcClient::from_url(url).await?;
+	let client = OnlineClient::<SubstrateConfig>::from_rpc_client(rpc_client).await?;
 	let call_data = upload_code.build();
 	let mut encoded_data = Vec::<u8>::new();
 	call_data.encode_call_data_to(&client.metadata(), &mut encoded_data)?;
@@ -187,8 +203,8 @@ pub async fn get_upload_payload(
 	};
 	let upload_code = UploadCode::new(code, storage_deposit_limit);
 
-	let rpc_client = subxt::backend::rpc::RpcClient::from_url(url).await?;
-	let client = subxt::OnlineClient::<SubstrateConfig>::from_rpc_client(rpc_client).await?;
+	let rpc_client = backend::rpc::RpcClient::from_url(url).await?;
+	let client = OnlineClient::<SubstrateConfig>::from_rpc_client(rpc_client).await?;
 
 	let call_data = upload_code.build();
 	let mut encoded_data = Vec::<u8>::new();
@@ -313,7 +329,7 @@ pub async fn upload_contract_signed(
 	let events = submit_signed_payload(url, payload).await?;
 	#[cfg(feature = "v5")]
 	{
-		let code_stored = events.find_first::<CodeStored<subxt::config::substrate::H256>>()?;
+		let code_stored = events.find_first::<CodeStored<config::substrate::H256>>()?;
 		Ok(UploadResult { code_stored, events })
 	}
 	#[cfg(feature = "v6")]
@@ -342,11 +358,11 @@ pub async fn instantiate_contract_signed(
 		// The CodeStored event is only raised if the contract has not already been
 		// uploaded.
 		let code_hash = events
-			.find_first::<CodeStored<subxt::config::substrate::H256>>()?
+			.find_first::<CodeStored<config::substrate::H256>>()?
 			.map(|code_stored| code_stored.code_hash);
 
 		let instantiated = events
-			.find_first::<ContractInstantiated<subxt::config::substrate::AccountId32>>()?
+			.find_first::<ContractInstantiated<config::substrate::AccountId32>>()?
 			.ok_or_else(|| {
 				Error::InstantiateContractError("Failed to find Instantiated event".to_string())
 			})?;
@@ -391,16 +407,24 @@ pub async fn submit_signed_payload(
 	url: &str,
 	payload: String,
 ) -> anyhow::Result<ExtrinsicEvents<SubstrateConfig>> {
-	let rpc_client = subxt::backend::rpc::RpcClient::from_url(url).await?;
-	let client = subxt::OnlineClient::<SubstrateConfig>::from_rpc_client(rpc_client).await?;
+	let rpc_client = backend::rpc::RpcClient::from_url(url).await?;
+	let client = OnlineClient::<SubstrateConfig>::from_rpc_client(rpc_client).await?;
 
 	let hex_encoded = from_hex(&payload)?;
 
+	#[cfg(feature = "v5")]
 	let extrinsic = SubmittableExtrinsic::from_bytes(client, hex_encoded);
-
+	#[cfg(feature = "v6")]
+	let extrinsic = SubmittableTransaction::from_bytes(client, hex_encoded);
 	// src: https://github.com/use-ink/cargo-contract/blob/68691b9b6cdb7c6ec52ea441b3dc31fcb1ce08e0/crates/extrinsics/src/lib.rs#L143
 
+	#[cfg(feature = "v5")]
 	use subxt::{
+		error::{RpcError, TransactionError},
+		tx::TxStatus,
+	};
+	#[cfg(feature = "v6")]
+	use subxt_inkv6::{
 		error::{RpcError, TransactionError},
 		tx::TxStatus,
 	};

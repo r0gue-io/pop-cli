@@ -735,6 +735,7 @@ pub(crate) mod tests {
 		items: Vec<T>,
 		item: usize,
 		initial_value: Option<T>,
+		#[allow(dead_code)]
 		filter_mode_expectation: Option<bool>,
 	}
 
