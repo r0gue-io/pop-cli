@@ -5,6 +5,7 @@
 //! This module provides template definitions for different parachain configurations,
 //! including providers like Pop, OpenZeppelin and Parity. It includes template metadata,
 //! configuration options and utility functions for template management.
+#![expect(deprecated, reason = "Keep EVM and ParityContracts templates until v0.11.0")]
 
 use pop_common::templates::{Template, Type};
 use strum::{EnumProperty as _, VariantArray};
@@ -134,9 +135,11 @@ pub enum ChainTemplate {
 			Repository = "https://github.com/r0gue-io/evm-parachain",
 			Network = "./network.toml",
 			License = "Unlicense",
-			DeploymentName = "POP_EVM"
+			DeploymentName = "POP_EVM",
+			IsDeprecated = "true",
 		)
 	)]
+	#[deprecated(since = "0.10.0", note = "will be removed in v0.11.0")]
 	EVM,
 	/// OpenZeppelin Generic Runtime Template: A generic template for Substrate Runtime.
 	#[strum(
@@ -147,7 +150,7 @@ pub enum ChainTemplate {
 			Provider = "OpenZeppelin",
 			Repository = "https://github.com/OpenZeppelin/polkadot-runtime-templates",
 			Network = "./zombienet-config/devnet.toml",
-			SupportedVersions = "v1.0.0,v2.0.1,v2.0.3,v3.0.0",
+			SupportedVersions = "v1.0.0,v2.0.1,v2.0.3,v3.0.0,v4.0.0",
 			IsAudited = "true",
 			License = "GPL-3.0",
 			DeploymentName = "OZ_GENERIC"
@@ -163,7 +166,7 @@ pub enum ChainTemplate {
 			Provider = "OpenZeppelin",
 			Repository = "https://github.com/OpenZeppelin/polkadot-runtime-templates",
 			Network = "./zombienet-config/devnet.toml",
-			SupportedVersions = "v2.0.3,v3.0.0",
+			SupportedVersions = "v2.0.3,v3.0.0,v4.0.0",
 			IsAudited = "true",
 			License = "GPL-3.0",
 			DeploymentName = "OZ_EVM"
@@ -194,9 +197,11 @@ pub enum ChainTemplate {
 			Provider = "Parity",
 			Repository = "https://github.com/paritytech/substrate-contracts-node",
 			Network = "./zombienet.toml",
-			License = "Unlicense"
+			License = "Unlicense",
+			IsDeprecated = "true",
 		)
 	)]
+	#[deprecated(since = "0.10.0", note = "will be removed in v0.11.0")]
 	ParityContracts,
 	/// Test template 01 used for unit testing.
 	#[cfg(test)]
@@ -510,9 +515,9 @@ mod tests {
 	#[test]
 	fn test_templates_of_provider() {
 		let mut provider = Provider::Pop;
-		assert_eq!(provider.templates(), [&Standard, &Assets, &Contracts, &EVM]);
+		assert_eq!(provider.templates(), [&Standard, &Assets, &Contracts]);
 		provider = Provider::Parity;
-		assert_eq!(provider.templates(), [&ParityGeneric, &ParityContracts]);
+		assert_eq!(provider.templates(), [&ParityGeneric]);
 	}
 
 	#[test]
