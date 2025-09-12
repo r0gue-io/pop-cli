@@ -51,7 +51,7 @@ subxt-signer_inkv6 = { version = "0.44.0", package = "subxt-signer", default-fea
 subxt = { version = "0.38.0", default-features = false }
 subxt_inkv6 = { version = "0.44.0", package = "subxt", default-features = false }
 ink_env = { version = "5.0.0", default-features = false }
-ink_env_v6 = { git = "https://github.com/use-ink/ink", branch = "master", version = "6.0.0-alpha.1", package = "ink_env", features = ["unstable-hostfn"] }
+ink_env_v6 = { git = "https://github.com/use-ink/ink", tag = "v6.0.0-alpha.3", version = "6.0.0-alpha.3", package = "ink_env", features = ["unstable-hostfn"] }
 sp-core = { version = "32.0.0", default-features = false }
 sp-core_inkv6 = { git = "https://github.com/use-ink/polkadot-sdk.git", rev = "a71ec19a94702ea71767ba5ac97603ea6c6305c1", package = "sp-core", default-features = false }
 sp-weights = { version = "31.0.0", default-features = false }
@@ -60,11 +60,11 @@ scale = { package = "parity-scale-codec", version = "3.7.5", features = ["derive
 scale-info = { version = "2.11.4", default-features = false, features = ["derive"] }
 scale-value = { version = "0.17.0", default-features = false, features = ["from-string", "parser-ss58"] }
 contract-build = { version = "5.0.2", default-features = false }
-contract-build_inkv6 = { git = "https://github.com/use-ink/cargo-contract", branch = "master", package = "contract-build", default-features = false }
+contract-build_inkv6 = { git = "https://github.com/use-ink/cargo-contract", tag = "v6.0.0-alpha.3", version = "6.0.0-alpha.3", package = "contract-build", default-features = false }
 contract-extrinsics = { version = "5.0.2", default-features = false }
-contract-extrinsics_inkv6 = { git = "https://github.com/use-ink/cargo-contract", branch = "master", package = "contract-extrinsics", default-features = false }
+contract-extrinsics_inkv6 = { git = "https://github.com/use-ink/cargo-contract", tag = "v6.0.0-alpha.3", version = "6.0.0-alpha.3", package = "contract-extrinsics", default-features = false }
 contract-transcode = { version = "5.0.2", default-features = false }
-contract-transcode_inkv6 = { git = "https://github.com/use-ink/cargo-contract", branch = "master", package = "contract-transcode", default-features = false }
+contract-transcode_inkv6 = { git = "https://github.com/use-ink/cargo-contract", tag = "v6.0.0-alpha.3", version = "6.0.0-alpha.3", package = "contract-transcode", default-features = false }
 heck = { version = "0.5.0", default-features = false }
 
 # parachains
