@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::cli::{traits::Cli as _, Cli};
+use crate::cli::{self, traits::*};
 use anyhow::Result as AnyhowResult;
 use clap::{Args, Subcommand};
 use std::fmt::{Display, Formatter, Result};
@@ -65,10 +65,10 @@ impl Display for Command {
 }
 
 /// Guide the user to select what type of project to create
-pub async fn guide_user_to_select_command() -> AnyhowResult<Command> {
-	Cli.intro("Welcome to Pop CLI!")?;
+pub fn guide_user_to_select_command(cli: &mut impl cli::traits::Cli) -> AnyhowResult<Command> {
+	cli.intro("Welcome to Pop CLI!")?;
 
-	let mut prompt = cliclack::select("What would you like to create?".to_string());
+	let mut prompt = cli.select("What would you like to create?".to_string());
 
 	// Add available options based on features
 	#[cfg(feature = "chain")]
@@ -129,6 +129,7 @@ pub async fn guide_user_to_select_command() -> AnyhowResult<Command> {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::cli::MockCli;
 
 	#[test]
 	fn command_display_works() {
@@ -138,5 +139,39 @@ mod tests {
 		assert_eq!(Command::Pallet(Default::default()).to_string(), "pallet");
 		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 		assert_eq!(Command::Contract(Default::default()).to_string(), "contract");
+	}
+
+	#[test]
+	fn guide_user_to_select_command_works() -> anyhow::Result<()> {
+		let mut options = Vec::new();
+		#[cfg(feature = "chain")]
+		{
+			options.push(("Chain".into(), "Build your own custom chain".into()));
+			options
+				.push(("Pallet".into(), "Create reusable and customizable chain modules".into()));
+		}
+
+		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
+		{
+			options.push(("Smart Contract".into(), "Write ink! smart contracts".into()));
+		}
+		let mut cli = MockCli::new().expect_select(
+			"What would you like to create?",
+			Some(false),
+			true,
+			Some(options),
+			0,
+			None,
+		);
+		let cmd = guide_user_to_select_command(&mut cli)?;
+		#[cfg(feature = "chain")]
+		assert_eq!(cmd.to_string(), "chain");
+
+		#[cfg(all(
+			not(feature = "chain"),
+			any(feature = "polkavm-contracts", feature = "wasm-contracts")
+		))]
+		assert_eq!(cmd.to_string(), "contract");
+		cli.verify()
 	}
 }

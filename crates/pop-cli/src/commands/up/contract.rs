@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{
-	cli::{traits::Cli as _, Cli},
+	cli::{
+		traits::{Cli as _, *},
+		Cli,
+	},
 	common::{
 		contracts::{
 			check_contracts_node_and_prompt, has_contract_been_built, normalize_call_args,
@@ -13,7 +16,7 @@ use crate::{
 	style::style,
 };
 use clap::Args;
-use cliclack::{confirm, log, log::error, spinner, ProgressBar};
+use cliclack::{spinner, ProgressBar};
 use console::{Emoji, Style};
 #[cfg(feature = "wasm-contracts")]
 use pop_contracts::get_code_hash_from_event;
@@ -128,11 +131,12 @@ impl UpContractCommand {
 					format!("The specified endpoint of {} is inaccessible.", self.url)
 				};
 
-				if !confirm(format!(
+				if !Cli
+					.confirm(format!(
 					"{chain} Would you like to start a local node in the background for testing?",
 				))
-				.initial_value(true)
-				.interact()?
+					.initial_value(true)
+					.interact()?
 				{
 					Cli.outro_cancel(
 						"🚫 You need to specify an accessible endpoint to deploy the contract.",
@@ -194,7 +198,7 @@ impl UpContractCommand {
 			let (call_data, hash) = match self.get_contract_data().await {
 				Ok(data) => data,
 				Err(e) => {
-					error(format!("An error occurred getting the call data: {e}"))?;
+					Cli.error(format!("An error occurred getting the call data: {e}"))?;
 					terminate_node(&mut Cli, process).await?;
 					Cli.outro_cancel(FAILED)?;
 					return Ok(());
@@ -204,7 +208,7 @@ impl UpContractCommand {
 			let maybe_signature_request =
 				request_signature(call_data, self.url.to_string()).await?;
 			if let Some(payload) = maybe_signature_request.signed_payload {
-				log::success("Signed payload received.")?;
+				Cli.success("Signed payload received.")?;
 				let spinner = spinner();
 				spinner.start(
 					"Uploading the contract and waiting for finalization, please be patient...",
@@ -245,7 +249,9 @@ impl UpContractCommand {
 					let instantiate_exec = match set_up_deployment(self.clone().into()).await {
 						Ok(i) => i,
 						Err(e) => {
-							error(format!("An error occurred instantiating the contract: {e}"))?;
+							Cli.error(format!(
+								"An error occurred instantiating the contract: {e}"
+							))?;
 							terminate_node(&mut Cli, process).await?;
 							Cli.outro_cancel(FAILED)?;
 							return Ok(());
@@ -291,7 +297,7 @@ impl UpContractCommand {
 				};
 
 				if self.upload_only {
-					log::warning("NOTE: The contract has not been instantiated.")?;
+					Cli.warning("NOTE: The contract has not been instantiated.")?;
 				}
 			} else {
 				Cli.outro_cancel("Signed payload doesn't exist.")?;
@@ -332,7 +338,7 @@ impl UpContractCommand {
 		let instantiate_exec = match set_up_deployment(self.clone().into()).await {
 			Ok(i) => i,
 			Err(e) => {
-				error(format!("An error occurred instantiating the contract: {e}"))?;
+				Cli.error(format!("An error occurred instantiating the contract: {e}"))?;
 				terminate_node(&mut Cli, process).await?;
 				Cli.outro_cancel(FAILED)?;
 				return Ok(());
@@ -409,7 +415,7 @@ impl UpContractCommand {
 				},
 			};
 			spinner.stop(format!("Contract uploaded: The code hash is {:?}", code_hash));
-			log::warning("NOTE: The contract has not been instantiated.")?;
+			Cli.warning("NOTE: The contract has not been instantiated.")?;
 		}
 		Ok(())
 	}

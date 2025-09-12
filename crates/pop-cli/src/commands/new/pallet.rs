@@ -1,18 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{
-	cli::{traits::Cli as _, Cli},
+	cli::{self, traits::*},
+	common::helpers::check_destination_path,
 	multiselect_pick,
 };
 
 use clap::{Args, Subcommand};
-use cliclack::{confirm, input, multiselect, outro, outro_cancel};
+use cliclack::multiselect;
 use pop_chains::{
 	create_pallet_template, TemplatePalletConfig, TemplatePalletConfigCommonTypes,
 	TemplatePalletOptions, TemplatePalletStorageTypes,
 };
 use pop_common::{add_crate_to_workspace, find_workspace_toml, prefix_with_current_dir_if_needed};
-use std::{fs, path::PathBuf, process::Command};
+use std::{path::PathBuf, process::Command};
 use strum::{EnumMessage, IntoEnumIterator};
 
 fn after_help_simple() -> &'static str {
@@ -76,7 +77,12 @@ pub struct AdvancedMode {
 impl NewPalletCommand {
 	/// Executes the command.
 	pub(crate) async fn execute(self) -> anyhow::Result<()> {
-		Cli.intro("Generate a pallet")?;
+		self.generate_pallet(&mut cli::Cli).await
+	}
+
+	/// Generates a pallet
+	async fn generate_pallet(self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+		cli.intro("Generate a pallet")?;
 
 		let mut pallet_default_config = false;
 		let mut pallet_common_types = Vec::new();
@@ -91,10 +97,10 @@ impl NewPalletCommand {
 					advanced_mode_args.default_config ||
 					advanced_mode_args.custom_origin)
 			{
-				Cli.info("Generate the pallet's config trait.")?;
+				cli.info("Generate the pallet's config trait.")?;
 
 				pallet_common_types = multiselect_pick!(TemplatePalletConfigCommonTypes, "Are you interested in adding one of these types and their usual configuration to your pallet?");
-				Cli.info("Generate the pallet's storage.")?;
+				cli.info("Generate the pallet's storage.")?;
 
 				pallet_storage = multiselect_pick!(
 					TemplatePalletStorageTypes,
@@ -137,7 +143,8 @@ impl NewPalletCommand {
 		let pallet_path = if let Some(path) = self.name {
 			PathBuf::from(path)
 		} else {
-			let path: String = input("Where should your project be created?")
+			let path: String = cli
+				.input("Where should your project be created?")
 				.placeholder("./template")
 				.default_input("./template")
 				.interact()?;
@@ -151,22 +158,8 @@ impl NewPalletCommand {
 
 		// Determine if the pallet is being created inside a workspace
 		let workspace_toml = find_workspace_toml(&pallet_path);
+		check_destination_path(&pallet_path, cli)?;
 
-		if pallet_path.exists() {
-			if !confirm(format!(
-				"\"{}\" directory already exists. Would you like to remove it?",
-				pallet_path.display()
-			))
-			.interact()?
-			{
-				outro_cancel(format!(
-					"Cannot generate pallet until \"{}\" directory is removed.",
-					pallet_path.display()
-				))?;
-				return Ok(());
-			}
-			fs::remove_dir_all(pallet_path.clone())?;
-		}
 		let spinner = cliclack::spinner();
 		spinner.start("Generating pallet...");
 		create_pallet_template(
@@ -197,12 +190,90 @@ impl NewPalletCommand {
 			.output()?;
 
 		spinner.stop("Generation complete");
-		outro(format!(
+		cli.outro(format!(
 			"cd into \"{}\" and enjoy hacking! 🚀",
 			pallet_path
 				.to_str()
 				.expect("If the path isn't valid, create_pallet_template detects it; qed")
 		))?;
 		Ok(())
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::cli::MockCli;
+	use tempfile::tempdir;
+
+	#[tokio::test]
+	async fn generate_simple_pallet_works() -> anyhow::Result<()> {
+		let dir = tempdir()?;
+		let pallet_path = dir.path().join("my-pallet");
+		let mut cli = MockCli::new()
+			.expect_intro("Generate a pallet")
+			.expect_input(
+				"Where should your project be created?",
+				pallet_path.display().to_string(),
+			)
+			.expect_outro(format!("cd into {:?} and enjoy hacking! 🚀", pallet_path.display()));
+
+		NewPalletCommand {
+			name: None,
+			authors: Some("Anonymous".into()),
+			description: Some("Frame Pallet".into()),
+			mode: None,
+		}
+		.generate_pallet(&mut cli)
+		.await?;
+		cli.verify()
+	}
+	#[tokio::test]
+	async fn generate_advanced_pallet_works() -> anyhow::Result<()> {
+		let dir = tempdir()?;
+		let pallet_path = dir.path().join("my-pallet");
+
+		let mut cli = MockCli::new()
+			.expect_intro("Generate a pallet")
+			.expect_input(
+				"Where should your project be created?",
+				pallet_path.display().to_string(),
+			)
+			.expect_outro(format!("cd into {:?} and enjoy hacking! 🚀", pallet_path.display()));
+		NewPalletCommand {
+			name: None,
+			authors: Some("Anonymous".into()),
+			description: Some("Frame Pallet".into()),
+			mode: Some(Mode::Advanced(AdvancedMode {
+				config_common_types: vec![TemplatePalletConfigCommonTypes::RuntimeEvent],
+				default_config: false,
+				storage: vec![TemplatePalletStorageTypes::StorageValue],
+				genesis_config: false,
+				custom_origin: false,
+			})),
+		}
+		.generate_pallet(&mut cli)
+		.await?;
+		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn generate_advanced_pallet_fails_needs_config_common_type() -> anyhow::Result<()> {
+		let mut cli = MockCli::new().expect_intro("Generate a pallet");
+		assert!(matches!(NewPalletCommand {
+			name: None,
+			authors: Some("Anonymous".into()),
+			description: Some("Frame Pallet".into()),
+			mode: Some(Mode::Advanced(AdvancedMode {
+				config_common_types: vec![],
+				default_config: true,
+				storage: vec![TemplatePalletStorageTypes::StorageValue],
+				genesis_config: false,
+				custom_origin: false,
+			})),
+		}
+		.generate_pallet(&mut cli)
+		.await, anyhow::Result::Err(message) if message.to_string() == "Specify at least a config common type to use default config."));
+		cli.verify()
 	}
 }
