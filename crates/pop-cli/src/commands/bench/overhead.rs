@@ -342,20 +342,12 @@ mod tests {
 			.expect_outro("Benchmark completed successfully!");
 
 		let cmd = OverheadCmd::try_parse_from(["", "--warmup=1", "--repeat=1"])?;
-		assert!(BenchmarkOverhead {
-			command: cmd,
-			skip_confirm: true,
-			profile: None,
-			no_build: false
-		}
-		.execute(&mut cli)
-		.await
-		.is_ok());
+		BenchmarkOverhead { command: cmd, skip_confirm: true, profile: None, no_build: false }
+			.execute(&mut cli)
+			.await?;
 		cli.verify()
 	}
 
-	// TODO: reenable at some point when we figure out what breaks the CI
-	#[ignore]
 	#[tokio::test]
 	async fn benchmark_overhead_weight_file_works() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
@@ -392,7 +384,7 @@ mod tests {
 			profile: None,
 			no_build: false,
 		};
-		assert!(cmd.execute(&mut cli).await.is_ok());
+		cmd.execute(&mut cli).await?;
 
 		for entry in temp_dir.path().read_dir()? {
 			let path = entry?.path();
@@ -439,15 +431,14 @@ mod tests {
 			"--weight-path",
 			temp_dir.path().join("weights.rs").to_str().unwrap(),
 		])?;
-		assert!(BenchmarkOverhead {
+		BenchmarkOverhead {
 			command: cmd,
 			skip_confirm: true,
 			profile: Some(Profile::Debug),
-			no_build: false
+			no_build: false,
 		}
 		.execute(&mut cli)
-		.await
-		.is_ok());
+		.await?;
 		cli.verify()
 	}
 }
