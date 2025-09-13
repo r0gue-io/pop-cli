@@ -21,14 +21,11 @@ on:
 
 jobs:
   build-ci-image:
+    outputs:
+      exists: ${{ steps.setup.outputs.exists }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup
-        run: |
-          echo "RUST_VERSION=$(yq -r '.toolchain.channel' rust-toolchain.toml)" >> $GITHUB_ENV
-          echo "DOCKER_IMAGE=${{ inputs.docker_image != '' && inputs.docker_image || format('ghcr.io/{0}:{1}', github.repository, github.sha) }}" >> $GITHUB_ENV
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -40,8 +37,22 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Set environment variables
+        id: setup
+        run: |
+          set -xeuo pipefail
+          echo "RUST_VERSION=$(yq -r '.toolchain.channel' rust-toolchain.toml)" >> $GITHUB_ENV
+          DOCKER_IMAGE="${{ inputs.docker_image != '' && inputs.docker_image || format('ghcr.io/{0}:{1}', github.repository, github.sha) }}"
+          echo "DOCKER_IMAGE=${DOCKER_IMAGE}" >> $GITHUB_ENV
+          if docker manifest inspect "${DOCKER_IMAGE}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build and push CI image
         uses: docker/build-push-action@v5
+        if: ${{ steps.setup.outputs.exists == 'false' }}
         with:
           context: .
           file: Dockerfile.ci

@@ -77,7 +77,7 @@ pub async fn check_and_prompt<Generator: BinaryGenerator>(
 			let spinner = spinner();
 			spinner.start(format!("📦 Sourcing {binary_name}..."));
 
-			safe_fetch_binary(&binary).await?;
+			safe_fetch_binary::<Generator>(&binary).await?;
 			set_executable_permission(binary.path())?;
 
 			spinner.stop(format!(
@@ -109,7 +109,7 @@ pub async fn check_and_prompt<Generator: BinaryGenerator>(
 			spinner.start(format!("📦 Sourcing {binary_name}..."));
 
 			binary = Generator::generate(crate::cache()?, binary.latest()).await?;
-			safe_fetch_binary(&binary).await?;
+			safe_fetch_binary::<Generator>(&binary).await?;
 			set_executable_permission(binary.path())?;
 
 			spinner.stop(format!(
