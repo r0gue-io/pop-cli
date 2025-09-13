@@ -46,7 +46,6 @@ jobs:
   prepare-ci-image:
     needs:
       - setup
-      - lint
     uses: ./.github/workflows/docker-ci.yml
     permissions:
       contents: read
@@ -203,9 +202,9 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
+          shared-key: shared-coverage-${{ github.head_ref || github.ref_name }}
           cache-all-crates: true
           cache-on-failure: true
-          shared-key: shared-coverage-${{ github.head_ref || github.ref_name }}
 
       - name: Generate code coverage
         run: cargo llvm-cov --workspace --lib --bins --no-default-features --features "default chain telemetry v5 wasm-contracts wallet-integration" --codecov --output-path codecov.json
