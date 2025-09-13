@@ -11,8 +11,8 @@ defaults:
     shell: bash
 
 concurrency:
-  # Cancel any in-progress jobs for the same pull request
-  group: ${{ github.event.pull_request.number || github.head_ref || github.ref }}
+  # Cancel any in-progress jobs for the same pull request or branch
+  group: install-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 
 jobs:

@@ -2,9 +2,10 @@
 
 use crate::{
 	cli::{
-		traits::{Cli as _, *},
+		traits::{Cli as _, Confirm},
 		Cli,
 	},
+	commands::call::contract::CallContractCommand,
 	common::{
 		contracts::{
 			check_contracts_node_and_prompt, has_contract_been_built, normalize_call_args,
@@ -372,16 +373,34 @@ impl UpContractCommand {
 			let spinner = spinner();
 			spinner.start("Uploading and instantiating the contract...");
 			let contract_info = instantiate_smart_contract(instantiate_exec, weight_limit).await?;
-			display_contract_info(
-				&spinner,
-				contract_info.address.to_string(),
-				contract_info.code_hash,
-			);
+			let contract_address = contract_info.address.to_string();
+			display_contract_info(&spinner, contract_address.clone(), contract_info.code_hash);
 
-			Cli.outro(COMPLETE)?;
+			Cli.success(COMPLETE)?;
+			self.keep_interacting_with_node(&mut Cli, contract_address).await?;
 			terminate_node(&mut Cli, process).await?;
 		}
 
+		Ok(())
+	}
+
+	async fn keep_interacting_with_node(
+		self,
+		cli: &mut Cli,
+		address: String,
+	) -> anyhow::Result<()> {
+		if cli
+			.confirm("Do you want to keep making calls to the contract?")
+			.initial_value(false)
+			.interact()?
+		{
+			let mut cmd = CallContractCommand::default();
+			cmd.path_pos = self.path.clone();
+			cmd.contract = Some(address);
+			cmd.url = self.url;
+			cmd.deployed = true;
+			cmd.execute().await?;
+		}
 		Ok(())
 	}
 
