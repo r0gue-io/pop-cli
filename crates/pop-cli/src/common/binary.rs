@@ -32,6 +32,20 @@ pub(crate) trait BinaryGenerator {
 	) -> Result<Binary, pop_common::Error>;
 }
 
+/// Fetches the binary in a temporary directory to avoid conflicts with the cache directory.
+///
+/// Especially useful for tests that concurrently fetch the same binary.
+async fn safe_fetch_binary<Generator: BinaryGenerator>(binary: &Binary) -> anyhow::Result<()> {
+	let temp_dir = tempfile::tempdir()?;
+	let temp_binary = Generator::generate(temp_dir.path().to_path_buf(), None).await?;
+	temp_binary.source(false, &(), true).await?;
+	set_executable_permission(temp_binary.path())?;
+	if std::fs::rename(temp_binary.path(), binary.path()).is_err() {
+		let _ = std::fs::copy(temp_binary.path(), binary.path());
+	}
+	Ok(())
+}
+
 /// Checks the status of the provided binary, sources it if necessary, and
 /// prompts the user to update it if the existing binary is not the latest version.
 ///
@@ -63,7 +77,7 @@ pub async fn check_and_prompt<Generator: BinaryGenerator>(
 			let spinner = spinner();
 			spinner.start(format!("📦 Sourcing {binary_name}..."));
 
-			binary.source(false, &(), true).await?;
+			safe_fetch_binary(&binary).await?;
 			set_executable_permission(binary.path())?;
 
 			spinner.stop(format!(
@@ -95,7 +109,7 @@ pub async fn check_and_prompt<Generator: BinaryGenerator>(
 			spinner.start(format!("📦 Sourcing {binary_name}..."));
 
 			binary = Generator::generate(crate::cache()?, binary.latest()).await?;
-			binary.source(false, &(), true).await?;
+			safe_fetch_binary(&binary).await?;
 			set_executable_permission(binary.path())?;
 
 			spinner.stop(format!(
