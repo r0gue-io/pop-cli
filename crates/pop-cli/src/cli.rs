@@ -192,6 +192,7 @@ impl traits::Confirm for Confirm {
 }
 
 /// A input prompt using cliclack.
+#[allow(dead_code)]
 struct Input(cliclack::Input);
 impl traits::Input for Input {
 	/// Sets the default value for the input.
@@ -252,6 +253,7 @@ impl<T: Clone + Eq> traits::MultiSelect<T> for MultiSelect<T> {
 }
 
 /// A password prompt using cliclack.
+#[allow(dead_code)]
 struct Password(cliclack::Password);
 impl traits::Password for Password {
 	/// Starts the prompt interaction.
@@ -261,6 +263,7 @@ impl traits::Password for Password {
 }
 
 /// A select prompt using cliclack.
+#[allow(dead_code)]
 struct Select<T: Clone + Eq>(cliclack::Select<T>);
 
 impl<T: Clone + Eq> traits::Select<T> for Select<T> {
