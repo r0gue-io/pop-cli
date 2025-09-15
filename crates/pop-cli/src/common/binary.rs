@@ -128,6 +128,7 @@ macro_rules! impl_binary_generator {
 
 /// Represents a semantic version (major.minor.patch).
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[allow(dead_code)]
 pub(crate) struct SemanticVersion(pub u8, pub u8, pub u8);
 
 impl TryFrom<String> for SemanticVersion {
