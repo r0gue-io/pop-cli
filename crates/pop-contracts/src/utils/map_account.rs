@@ -2,8 +2,8 @@
 
 use crate::{errors::Error, DefaultEnvironment};
 use contract_extrinsics_inkv6::{ExtrinsicOpts, MapAccountCommandBuilder, MapAccountExec};
-use pop_common::{DefaultConfig, Keypair};
-use subxt::{ext::scale_encode::EncodeAsType, utils::H160};
+use subxt_inkv6::{ext::scale_encode::EncodeAsType, utils::H160, PolkadotConfig as DefaultConfig};
+use subxt_signer_inkv6::{sr25519::Keypair, SecretUri};
 
 /// A helper struct for performing account mapping operations.
 pub struct AccountMapper {
@@ -40,7 +40,7 @@ impl AccountMapper {
 
 // Create a call to `Revive::map_account`.
 #[derive(Debug, EncodeAsType)]
-#[encode_as_type(crate_path = "subxt::ext::scale_encode")]
+#[encode_as_type(crate_path = "subxt_inkv6::ext::scale_encode")]
 pub(crate) struct MapAccount {}
 
 impl MapAccount {
@@ -49,7 +49,19 @@ impl MapAccount {
 		Self {}
 	}
 	// Create a call to `Revive::map_account` with no arguments.
-	pub(crate) fn build(self) -> subxt::tx::DefaultPayload<Self> {
-		subxt::tx::DefaultPayload::new("Revive", "map_account", self)
+	pub(crate) fn build(self) -> subxt_inkv6::tx::DefaultPayload<Self> {
+		subxt_inkv6::tx::DefaultPayload::new("Revive", "map_account", self)
 	}
+}
+
+/// TODO: Duplicated function with the one in pop-common, temporary function due to dependency
+/// issues. Create a keypair from a secret URI.
+///
+/// # Arguments
+/// `suri` - Secret URI string used to generate the `Keypair`.
+pub fn create_signer(suri: &str) -> Result<Keypair, Error> {
+	let uri = <SecretUri as std::str::FromStr>::from_str(suri)
+		.map_err(|e| Error::ParseSecretURI(format!("{}", e)))?;
+	let keypair = Keypair::from_uri(&uri).map_err(|e| Error::KeyPairCreation(format!("{}", e)))?;
+	Ok(keypair)
 }
