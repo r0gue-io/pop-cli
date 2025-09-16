@@ -67,12 +67,18 @@ fn cache() -> Result<PathBuf> {
 	Ok(cache_path)
 }
 
+
 /// Initializes telemetry.
 #[cfg(feature = "telemetry")]
 fn init() -> Result<Option<Telemetry>> {
 	let maybe_config_path = config_file_path();
 
-	let maybe_tel = maybe_config_path.ok().map(|path| Telemetry::new(&path));
+	let maybe_tel = if let Some(endpoint) = std::env::var("POP_TELEMETRY_ENDPOINT").ok() {
+		// This is used in tests to set a mock endpoint.
+		maybe_config_path.ok().map(|path| Telemetry::init(endpoint, &path))
+	} else {
+		maybe_config_path.ok().map(|path| Telemetry::new(&path))
+	};
 
 	// Handle for await not used here as telemetry should complete before any of the commands do.
 	// Sends a generic ping saying the CLI was used.

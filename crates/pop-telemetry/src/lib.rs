@@ -56,7 +56,7 @@ pub struct Telemetry {
 impl Telemetry {
 	/// Create a new [Telemetry] instance.
 	///
-	/// parameters:
+	/// Arguments:
 	/// `config_path`: the path to the configuration file (used for opt-out checks)
 	pub fn new(config_path: &PathBuf) -> Self {
 		Self::init(ENDPOINT.to_string(), config_path)
@@ -64,10 +64,11 @@ impl Telemetry {
 
 	/// Initialize a new [Telemetry] instance with parameters.
 	/// Can be used in tests to provide mock endpoints.
-	/// parameters:
+	///
+	/// Arguments:
 	/// `endpoint`: the API endpoint that telemetry will call
 	/// `config_path`: the path to the configuration file (used for opt-out checks)
-	fn init(endpoint: String, config_path: &PathBuf) -> Self {
+	pub fn init(endpoint: String, config_path: &PathBuf) -> Self {
 		let opt_out = Self::is_opt_out(config_path);
 
 		Telemetry { endpoint, opt_out, client: Client::new() }
@@ -94,18 +95,18 @@ impl Telemetry {
 		ci == "true" || ci == "1" || do_not_track == "true" || do_not_track == "1"
 	}
 
-	/// Check if the user has opted out of telemetry through two methods:
-	/// 1. Check environment variable DO_NOT_TRACK. If not set check...
-	/// 2. Configuration file
+	// Check if the user has opted out of telemetry through two methods:
+	// 1. Check environment variable DO_NOT_TRACK. If not set check...
+	// 2. Configuration file
 	fn is_opt_out(config_file_path: &PathBuf) -> bool {
 		Self::is_opt_out_from_env() || Self::is_opt_out_from_config(config_file_path)
 	}
 
-	/// Send JSON payload to saved api endpoint.
-	/// Returns error and will not send anything if opt-out is true.
-	/// Returns error from reqwest if the sending fails.
-	/// It sends message only once as "best effort". There is no retry on error
-	/// in order to keep overhead to a minimal.
+	// Send JSON payload to saved api endpoint.
+	// Returns error and will not send anything if opt-out is true.
+	// Returns error from reqwest if the sending fails.
+	// It sends message only once as "best effort". There is no retry on error
+	// in order to keep overhead to a minimal.
 	async fn send_json(&self, payload: Value) -> Result<()> {
 		if self.opt_out {
 			return Err(TelemetryError::OptedOut);
@@ -124,7 +125,7 @@ impl Telemetry {
 }
 
 /// Generically reports that the CLI was used to the telemetry endpoint.
-/// There is explicitly no reqwest retries on failure to ensure overhead
+/// There is explicitly no request retries on failure to ensure overhead
 /// stays to a minimum.
 pub async fn record_cli_used(tel: Telemetry) -> Result<()> {
 	let payload = generate_payload("", "");
@@ -137,7 +138,7 @@ pub async fn record_cli_used(tel: Telemetry) -> Result<()> {
 
 /// Reports what CLI command was called to telemetry.
 ///
-/// parameters:
+/// Arguments:
 /// `event`: the name of the event to record (new, up, build, etc)
 /// `data`: additional data to record.
 pub async fn record_cli_command(tel: Telemetry, event: &str, data: &str) -> Result<()> {
@@ -173,7 +174,7 @@ pub fn config_file_path() -> Result<PathBuf> {
 /// Writes opt-out to the configuration file at the specified path.
 /// opt-out is currently the only config type. Hence, if the file exists, it will be overwritten.
 ///
-/// parameters:
+/// Arguments:
 /// `config_path`: the path to write the config file to
 pub fn write_config_opt_out(config_path: &PathBuf) -> Result<()> {
 	let config = Config { opt_out: OptOut { version: CARGO_PKG_VERSION.to_string() } };
