@@ -81,7 +81,7 @@ pub(super) enum Chain {
 	#[strum(props(
 		Repository = "https://github.com/use-ink/ink-node",
 		Binary = "ink-node",
-		Fallback = "v0.43.0"
+		Fallback = "v0.45.1"
 	))]
 	#[cfg(feature = "v6")]
 	ContractsNode,
