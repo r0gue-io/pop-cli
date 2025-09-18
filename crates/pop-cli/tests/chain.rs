@@ -5,9 +5,7 @@
 #![cfg(feature = "chain")]
 
 use anyhow::Result;
-use assert_cmd::cargo::cargo_bin;
-use crate::telemetry_helper::{TelemetryCapture, cleanup_telemetry_env};
-use strum::EnumMessage;
+use common::{cleanup_telemetry_env, pop, TelemetryCapture};
 use pop_chains::{
 	up::{Binary, Source::GitHub},
 	ChainTemplate,
@@ -21,16 +19,15 @@ use pop_common::{
 	templates::Template,
 };
 use std::{
-	ffi::OsStr,
 	fs,
 	fs::write,
 	path::{Path, PathBuf},
 	process::Command,
 	time::Duration,
 };
-use strum::VariantArray;
+use strum::{EnumMessage, VariantArray};
 
-mod telemetry_helper;
+mod common;
 
 // Test that all templates are generated correctly
 #[tokio::test]
@@ -57,8 +54,10 @@ async fn generate_all_the_templates() -> Result<()> {
 				"--verify",
 			],
 		);
-        assert!(command.spawn()?.wait()?.success());
-        telemetry_capture.assert_latest_payload_structure("new chain", template.get_message().unwrap_or("")).await?;
+		assert!(command.spawn()?.wait()?.success());
+		telemetry_capture
+			.assert_latest_payload_structure("new chain", template.get_message().unwrap_or(""))
+			.await?;
 		assert!(temp_dir.join(parachain_name).exists());
 	}
 	cleanup_telemetry_env();
@@ -99,7 +98,9 @@ async fn parachain_lifecycle() -> Result<()> {
 			],
 		);
 		assert!(command.spawn()?.wait()?.success());
-        telemetry_capture.assert_latest_payload_structure("new chain", "Standard").await?;
+		telemetry_capture
+			.assert_latest_payload_structure("new chain", "Standard")
+			.await?;
 		assert!(working_dir.exists());
 	}
 
@@ -137,7 +138,7 @@ async fn parachain_lifecycle() -> Result<()> {
 		],
 	);
 	assert!(command.spawn()?.wait()?.success());
-    telemetry_capture.assert_latest_payload_structure("build spec", "").await?;
+	telemetry_capture.assert_latest_payload_structure("build spec", "").await?;
 
 	// Assert build files have been generated
 	assert!(working_dir.join("target").exists());
@@ -248,13 +249,6 @@ rpc_port = {random_port}
 
 	cleanup_telemetry_env();
 	Ok(())
-}
-
-fn pop(dir: &Path, args: impl IntoIterator<Item = impl AsRef<OsStr>>) -> Command {
-	let mut command = Command::new(cargo_bin("pop"));
-	command.current_dir(dir).args(args);
-	println!("{command:?}");
-	command
 }
 
 // Function that mocks the build process generating the target dir and release.

@@ -67,7 +67,6 @@ fn cache() -> Result<PathBuf> {
 	Ok(cache_path)
 }
 
-
 /// Initializes telemetry.
 #[cfg(feature = "telemetry")]
 fn init() -> Result<Option<Telemetry>> {
