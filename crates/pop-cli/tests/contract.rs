@@ -5,16 +5,15 @@
 #![cfg(feature = "contract")]
 
 use anyhow::Result;
-use assert_cmd::Command;
-use common::{cleanup_telemetry_env, pop, TelemetryCapture};
+use common::{cleanup_telemetry_env, pop, MockTelemetry};
 use pop_common::{find_free_port, set_executable_permission, templates::Template};
 use pop_contracts::{
 	contracts_node_generator, dry_run_call, dry_run_gas_estimate_call,
 	dry_run_gas_estimate_instantiate, instantiate_smart_contract, run_contracts_node, set_up_call,
-	set_up_deployment, CallOpts, Contract, UpOpts, Weight,
+	set_up_deployment, CallOpts, UpOpts, Weight,
 };
 use serde::{Deserialize, Serialize};
-use std::{path::Path, process::Command as Cmd, time::Duration};
+use std::{process::Command as Cmd, time::Duration};
 use strum::{EnumMessage, VariantArray};
 use subxt::{config::DefaultExtrinsicParamsBuilder as Params, tx::Payload, utils::to_hex};
 use subxt_signer::sr25519::dev;
@@ -57,7 +56,7 @@ impl TransactionData {
 #[tokio::test]
 async fn generate_all_contract_templates() -> Result<()> {
 	// Setup wiremock server and telemetry environment
-	let telemetry_capture = TelemetryCapture::new().await?;
+	let telemetry = MockTelemetry::new().await?;
 
 	let temp = tempfile::tempdir()?;
 	let temp_dir = temp.path();
@@ -82,7 +81,7 @@ async fn generate_all_contract_templates() -> Result<()> {
 		assert!(command.spawn()?.wait()?.success());
 
 		// Assert telemetry for this command (like chain.rs)
-		telemetry_capture
+		telemetry
 			.assert_latest_payload_structure("new contract", template.get_message().unwrap_or(""))
 			.await?;
 
@@ -116,7 +115,7 @@ async fn contract_lifecycle() -> Result<()> {
 	//let temp_dir = Path::new("./"); //For testing locally
 
 	// Setup wiremock server and telemetry environment
-	let telemetry_capture = TelemetryCapture::new().await?;
+	let telemetry = MockTelemetry::new().await?;
 
 	// pop new contract test_contract (default)
 	let mut command = pop(temp_dir, ["new", "contract", "test_contract"]);

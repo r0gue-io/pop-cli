@@ -5,7 +5,7 @@
 #![cfg(feature = "chain")]
 
 use anyhow::Result;
-use common::{cleanup_telemetry_env, pop, TelemetryCapture};
+use common::{cleanup_telemetry_env, pop, MockTelemetry};
 use pop_chains::{
 	up::{Binary, Source::GitHub},
 	ChainTemplate,
@@ -33,7 +33,7 @@ mod common;
 #[tokio::test]
 async fn generate_all_the_templates() -> Result<()> {
 	// Setup wiremock server and telemetry environment
-	let telemetry_capture = TelemetryCapture::new().await?;
+	let telemetry = MockTelemetry::new().await?;
 
 	let temp = tempfile::tempdir()?;
 	let temp_dir = temp.path();
@@ -55,7 +55,7 @@ async fn generate_all_the_templates() -> Result<()> {
 			],
 		);
 		assert!(command.spawn()?.wait()?.success());
-		telemetry_capture
+		telemetry
 			.assert_latest_payload_structure("new chain", template.get_message().unwrap_or(""))
 			.await?;
 		assert!(temp_dir.join(parachain_name).exists());
@@ -71,7 +71,7 @@ async fn parachain_lifecycle() -> Result<()> {
 	const LOCAL_TESTING: bool = false;
 
 	// Setup wiremock server and telemetry environment
-	let telemetry_capture = TelemetryCapture::new().await?;
+	let telemetry = MockTelemetry::new().await?;
 
 	let temp = tempfile::tempdir()?;
 	let temp_dir = match LOCAL_TESTING {
@@ -98,7 +98,7 @@ async fn parachain_lifecycle() -> Result<()> {
 			],
 		);
 		assert!(command.spawn()?.wait()?.success());
-		telemetry_capture
+		telemetry
 			.assert_latest_payload_structure("new chain", "Standard")
 			.await?;
 		assert!(working_dir.exists());
@@ -138,7 +138,7 @@ async fn parachain_lifecycle() -> Result<()> {
 		],
 	);
 	assert!(command.spawn()?.wait()?.success());
-	telemetry_capture.assert_latest_payload_structure("build spec", "").await?;
+	telemetry.assert_latest_payload_structure("build spec", "").await?;
 
 	// Assert build files have been generated
 	assert!(working_dir.join("target").exists());
@@ -220,7 +220,7 @@ rpc_port = {random_port}
 		],
 	);
 	assert!(command.spawn()?.wait()?.success());
-	telemetry_capture.assert_latest_payload_structure("call", "chain").await?;
+	telemetry.assert_latest_payload_structure("call", "chain").await?;
 
 	// pop call chain --call 0x00000411 --url ws://127.0.0.1:random_port --suri //Alice
 	// --skip-confirm
@@ -239,7 +239,7 @@ rpc_port = {random_port}
 		],
 	);
 	assert!(command.spawn()?.wait()?.success());
-	telemetry_capture.assert_latest_payload_structure("call", "chain").await?;
+	telemetry.assert_latest_payload_structure("call", "chain").await?;
 
 	assert!(up.try_wait()?.is_none(), "the process should still be running");
 	// Stop the process

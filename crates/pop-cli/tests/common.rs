@@ -6,11 +6,11 @@ use wiremock::{
 	Mock, MockGuard, MockServer, ResponseTemplate,
 };
 
-pub struct TelemetryCapture {
+pub struct MockTelemetry {
 	pub telemetry_mock: MockGuard,
 }
 
-impl TelemetryCapture {
+impl MockTelemetry {
 	pub async fn new() -> Result<Self> {
 		// Create a wiremock server
 		let mock_server = MockServer::start().await;
