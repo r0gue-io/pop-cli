@@ -6,6 +6,7 @@
 
 use anyhow::Result;
 use assert_cmd::Command;
+use common::{cleanup_telemetry_env, pop, TelemetryCapture};
 use pop_common::{find_free_port, set_executable_permission, templates::Template};
 use pop_contracts::{
 	contracts_node_generator, dry_run_call, dry_run_gas_estimate_call,
@@ -14,11 +15,13 @@ use pop_contracts::{
 };
 use serde::{Deserialize, Serialize};
 use std::{path::Path, process::Command as Cmd, time::Duration};
-use strum::VariantArray;
+use strum::{EnumMessage, VariantArray};
 use subxt::{config::DefaultExtrinsicParamsBuilder as Params, tx::Payload, utils::to_hex};
 use subxt_signer::sr25519::dev;
 use tokio::time::sleep;
 use url::Url;
+
+mod common;
 
 // This struct implements the [`Payload`] trait and is used to submit
 // pre-encoded SCALE call data directly, without the dynamic construction of transactions.
@@ -51,6 +54,45 @@ impl TransactionData {
 	}
 }
 
+#[tokio::test]
+async fn generate_all_contract_templates() -> Result<()> {
+	// Setup wiremock server and telemetry environment
+	let telemetry_capture = TelemetryCapture::new().await?;
+
+	let temp = tempfile::tempdir()?;
+	let temp_dir = temp.path();
+
+	for template in pop_contracts::Contract::VARIANTS {
+		let contract_name = format!("test_contract_{}", template).replace("-", "_");
+		let contract_type = template.template_type()?.to_lowercase();
+
+		// pop new contract ...
+		let mut command = pop(
+			temp_dir,
+			[
+				"new",
+				"contract",
+				&contract_name,
+				"--contract-type",
+				&contract_type,
+				"--template",
+				&template.to_string(),
+			],
+		);
+		assert!(command.spawn()?.wait()?.success());
+
+		// Assert telemetry for this command (like chain.rs)
+		telemetry_capture
+			.assert_latest_payload_structure("new contract", template.get_message().unwrap_or(""))
+			.await?;
+
+		assert!(temp_dir.join(&contract_name).exists());
+	}
+
+	cleanup_telemetry_env();
+	Ok(())
+}
+
 // SubmitRequest has been copied from wallet_integration.rs
 /// Payload submitted by the wallet after signing a transaction.
 #[derive(serde::Deserialize, serde::Serialize, Debug)]
@@ -72,24 +114,18 @@ async fn contract_lifecycle() -> Result<()> {
 	let temp = tempfile::tempdir().unwrap();
 	let temp_dir = temp.path();
 	//let temp_dir = Path::new("./"); //For testing locally
-	// Test that all templates are generated correctly
-	generate_all_the_templates(&temp_dir)?;
+
+	// Setup wiremock server and telemetry environment
+	let telemetry_capture = TelemetryCapture::new().await?;
+
 	// pop new contract test_contract (default)
-	Command::cargo_bin("pop")
-		.unwrap()
-		.current_dir(&temp_dir)
-		.args(&["new", "contract", "test_contract"])
-		.assert()
-		.success();
+	let mut command = pop(temp_dir, ["new", "contract", "test_contract"]);
+	assert!(command.spawn()?.wait()?.success());
 	assert!(temp_dir.join("test_contract").exists());
 
 	// pop build --path ./test_contract --release
-	Command::cargo_bin("pop")
-		.unwrap()
-		.current_dir(&temp_dir)
-		.args(&["build", "--path", "./test_contract", "--release"])
-		.assert()
-		.success();
+	let mut command = pop(temp_dir, ["build", "--path", "./test_contract", "--release"]);
+	assert!(command.spawn()?.wait()?.success());
 
 	// Verify that the directory target has been created
 	assert!(temp_dir.join("test_contract/target").exists());
@@ -109,17 +145,15 @@ async fn contract_lifecycle() -> Result<()> {
 
 	// Only upload the contract
 	// pop up --path ./test_contract --upload-only
-	Command::cargo_bin("pop")
-		.unwrap()
-		.current_dir(&temp_dir)
-		.args(&["up", "--path", "./test_contract", "--upload-only", "--url", default_endpoint])
-		.assert()
-		.success();
+	let mut command = pop(
+		temp_dir,
+		["up", "--path", "./test_contract", "--upload-only", "--url", default_endpoint],
+	);
+	assert!(command.spawn()?.wait()?.success());
 	// Instantiate contract, only dry-run
-	Command::cargo_bin("pop")
-		.unwrap()
-		.current_dir(&temp_dir.join("test_contract"))
-		.args(&[
+	let mut command = pop(
+		&temp_dir.join("test_contract"),
+		[
 			"up",
 			"--constructor",
 			"new",
@@ -130,9 +164,9 @@ async fn contract_lifecycle() -> Result<()> {
 			"--dry-run",
 			"--url",
 			default_endpoint,
-		])
-		.assert()
-		.success();
+		],
+	);
+	assert!(command.spawn()?.wait()?.success());
 	// Using methods from the pop_contracts crate to instantiate it to get the Contract Address for
 	// the call
 	let instantiate_exec = set_up_deployment(UpOpts {
@@ -170,10 +204,9 @@ async fn contract_lifecycle() -> Result<()> {
 
 	// Call contract (only query)
 	// pop call contract --contract $INSTANTIATED_CONTRACT_ADDRESS --message get --suri //Alice
-	Command::cargo_bin("pop")
-		.unwrap()
-		.current_dir(&temp_dir.join("test_contract"))
-		.args(&[
+	let mut command = pop(
+		&temp_dir.join("test_contract"),
+		[
 			"call",
 			"contract",
 			"--contract",
@@ -184,16 +217,15 @@ async fn contract_lifecycle() -> Result<()> {
 			"//Alice",
 			"--url",
 			default_endpoint,
-		])
-		.assert()
-		.success();
+		],
+	);
+	assert!(command.spawn()?.wait()?.success());
 
 	// Call contract (execute extrinsic)
 	// pop call contract --contract $INSTANTIATED_CONTRACT_ADDRESS --message flip --suri //Alice -x
-	Command::cargo_bin("pop")
-		.unwrap()
-		.current_dir(&temp_dir.join("test_contract"))
-		.args(&[
+	let mut command = pop(
+		&temp_dir.join("test_contract"),
+		[
 			"call",
 			"contract",
 			"--contract",
@@ -205,9 +237,9 @@ async fn contract_lifecycle() -> Result<()> {
 			"-x",
 			"--url",
 			default_endpoint,
-		])
-		.assert()
-		.success();
+		],
+	);
+	assert!(command.spawn()?.wait()?.success());
 
 	// Dry runs after changing the value
 	assert_eq!(dry_run_call(&call_exec).await?, "Ok(true)");
@@ -277,29 +309,6 @@ async fn contract_lifecycle() -> Result<()> {
 		.spawn()?
 		.wait()?;
 
-	Ok(())
-}
-
-fn generate_all_the_templates(temp_dir: &Path) -> Result<()> {
-	for template in Contract::VARIANTS {
-		let contract_name = format!("test_contract_{}", template).replace("-", "_");
-		let contract_type = template.template_type()?.to_lowercase();
-		// pop new chain test_parachain
-		Command::cargo_bin("pop")
-			.unwrap()
-			.current_dir(&temp_dir)
-			.args(&[
-				"new",
-				"contract",
-				&contract_name,
-				"--contract-type",
-				&contract_type,
-				"--template",
-				&template.to_string(),
-			])
-			.assert()
-			.success();
-		assert!(temp_dir.join(contract_name).exists());
-	}
+	cleanup_telemetry_env();
 	Ok(())
 }
