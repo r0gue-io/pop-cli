@@ -48,12 +48,6 @@ On the [Pop Docs website](https://learn.onpop.io) you will find:
 
 ## Building Pop CLI locally
 
-Build the tool locally with all the features:
-
-```sh
-cargo build --all-features
-```
-
 Build the tool only for Parachain functionality:
 
 ```sh
