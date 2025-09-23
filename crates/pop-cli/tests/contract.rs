@@ -314,7 +314,6 @@ async fn test_wallet_integration() -> Result<()> {
 
 	let telemetry = MockTelemetry::new().await?;
 
-	// Setup: create, build, upload contract
 	let mut command = pop(temp_dir, ["new", "contract", "test_contract"]);
 	assert!(command.spawn()?.wait()?.success());
 	let mut command = pop(temp_dir, ["build", "--path", "./test_contract", "--release"]);
@@ -325,12 +324,6 @@ async fn test_wallet_integration() -> Result<()> {
 	set_executable_permission(binary.path())?;
 	let process = run_contracts_node(binary.path(), None, endpoint_port).await?;
 	sleep(Duration::from_secs(5)).await;
-
-	let mut command = pop(
-		temp_dir,
-		["up", "--path", "./test_contract", "--upload-only", "--url", default_endpoint],
-	);
-	assert!(command.spawn()?.wait()?.success());
 
 	// Start wallet integration server
 	let _ = tokio::process::Command::new("cargo")

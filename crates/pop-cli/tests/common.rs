@@ -35,12 +35,6 @@ impl MockTelemetry {
 		Ok(Self { telemetry_mock })
 	}
 
-	// pub async fn wait_for_calls(&self) -> Result<()> {
-	//     // Wait for telemetry calls to complete
-	//     tokio::time::sleep(tokio::time::Duration::from_millis(2000)).await;
-	//     Ok(())
-	// }
-
 	async fn parse_payload_from_request(
 		&self,
 		request_index: Option<usize>,
