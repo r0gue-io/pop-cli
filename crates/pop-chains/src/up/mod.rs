@@ -1,12 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{errors::Error, registry::traits::Rollup, up::chain_specs::Runtime};
+use crate::{
+	errors::Error,
+	registry::traits::Rollup,
+	up::{chain_specs::Runtime, omni_node::OmniNode},
+};
 pub use chain_specs::Runtime as Relay;
 use glob::glob;
 use indexmap::IndexMap;
 pub use pop_common::{
 	git::{GitHub, Repository},
-	sourcing::{Binary, GitHub::*, Source, Source::*},
+	sourcing::{traits::Source as SourceT, Binary, GitHub::*, Source, Source::*},
 	Profile,
 };
 use std::{
@@ -28,6 +32,7 @@ use zombienet_sdk::{LocalFileSystem, Network, NetworkConfig, NetworkConfigExt};
 mod chain_specs;
 /// Configuration for supported parachains.
 pub mod chains;
+mod omni_node;
 mod relay;
 
 const VALIDATORS: [&str; 6] = ["alice", "bob", "charlie", "dave", "eve", "ferdie"];
@@ -209,6 +214,12 @@ impl Zombienet {
 				}
 				return Err(Error::MissingBinary(command));
 			}
+
+			if ["polkadot-omni-node", "chain-spec-builder"].contains(&command.as_str()) {
+				paras.insert(id, Chain::from_omni_node(id, cache.to_path_buf())?);
+				continue 'outer;
+			}
+
 			return Err(Error::MissingBinary(command));
 		}
 		Ok(paras)
@@ -531,7 +542,18 @@ impl NetworkConfiguration {
 					}
 				}
 				if let Some(command) = source.chain_spec_command() {
-					builder = builder.with_chain_spec_command(command);
+					// TODO: think of a better way to expose the chain-spec-builder binary.
+					let final_command = if command.starts_with("chain-spec-builder") {
+						PathBuf::from(binary_path.as_str())
+							.parent()
+							.expect("cache directory should exist")
+							.join(command)
+							.to_string_lossy()
+							.to_string()
+					} else {
+						command.to_string()
+					};
+					builder = builder.with_chain_spec_command(final_command.as_str());
 				}
 				if source.chain_spec_command_is_local() {
 					builder = builder.chain_spec_command_is_local(true);
@@ -719,6 +741,19 @@ impl Chain {
 			id,
 			binary: Binary::Local { name, path, manifest },
 			chain: chain.map(|c| c.to_string()),
+			chain_spec_generator: None,
+		})
+	}
+
+	fn from_omni_node(id: u32, cache: PathBuf) -> Result<Chain, Error> {
+		Ok(Chain {
+			id,
+			binary: Binary::Source {
+				name: OmniNode::PolkadotOmniNode.name().to_string(),
+				source: Box::new(OmniNode::PolkadotOmniNode.source()?),
+				cache: cache.clone(),
+			},
+			chain: None,
 			chain_spec_generator: None,
 		})
 	}
