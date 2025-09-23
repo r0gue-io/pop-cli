@@ -67,17 +67,11 @@ async fn generate_all_the_templates() -> Result<()> {
 /// Test the parachain lifecycle: new, build, up, call.
 #[tokio::test]
 async fn parachain_lifecycle() -> Result<()> {
-	// For testing locally: set to `true`
-	const LOCAL_TESTING: bool = false;
-
 	// Setup wiremock server and telemetry environment
 	let telemetry = MockTelemetry::new().await?;
 
 	let temp = tempfile::tempdir()?;
-	let temp_dir = match LOCAL_TESTING {
-		true => Path::new("./"),
-		false => temp.path(),
-	};
+	let temp_dir = temp.path();
 
 	// pop new chain test_parachain --verify (default)
 	let working_dir = temp_dir.join("test_parachain");
@@ -98,9 +92,7 @@ async fn parachain_lifecycle() -> Result<()> {
 			],
 		);
 		assert!(command.spawn()?.wait()?.success());
-		telemetry
-			.assert_latest_payload_structure("new chain", "Standard")
-			.await?;
+		telemetry.assert_latest_payload_structure("new chain", "Standard").await?;
 		assert!(working_dir.exists());
 	}
 
@@ -220,7 +212,7 @@ rpc_port = {random_port}
 		],
 	);
 	assert!(command.spawn()?.wait()?.success());
-	telemetry.assert_latest_payload_structure("call", "chain").await?;
+	telemetry.assert_latest_payload_structure("call chain", "").await?;
 
 	// pop call chain --call 0x00000411 --url ws://127.0.0.1:random_port --suri //Alice
 	// --skip-confirm
@@ -239,7 +231,7 @@ rpc_port = {random_port}
 		],
 	);
 	assert!(command.spawn()?.wait()?.success());
-	telemetry.assert_latest_payload_structure("call", "chain").await?;
+	telemetry.assert_latest_payload_structure("call chain", "").await?;
 
 	assert!(up.try_wait()?.is_none(), "the process should still be running");
 	// Stop the process

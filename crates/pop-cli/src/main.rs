@@ -72,7 +72,7 @@ fn cache() -> Result<PathBuf> {
 fn init() -> Result<Option<Telemetry>> {
 	let maybe_config_path = config_file_path();
 
-	let maybe_tel = if let Some(endpoint) = std::env::var("POP_TELEMETRY_ENDPOINT").ok() {
+	let maybe_tel = if let Ok(endpoint) = std::env::var("POP_TELEMETRY_ENDPOINT") {
 		// This is used in tests to set a mock endpoint.
 		maybe_config_path.ok().map(|path| Telemetry::init(endpoint, &path))
 	} else {
