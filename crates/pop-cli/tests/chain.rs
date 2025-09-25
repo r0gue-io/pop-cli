@@ -98,7 +98,7 @@ async fn parachain_lifecycle() -> Result<()> {
 	assert!(binary_path.exists());
 
 	// pop build spec --output ./target/pop/test-spec.json --id 2222 --type development --relay
-	// paseo-local --protocol-id pop-protocol" --chain local --skip-deterministic-build
+	// paseo-local --protocol-id pop-protocol --chain local --deterministic=true
 	let mut command = pop(
 		&working_dir,
 		[
@@ -116,11 +116,12 @@ async fn parachain_lifecycle() -> Result<()> {
 			"paseo-local",
 			"--profile",
 			"release",
-			"--genesis-state",
-			"--genesis-code",
+			"--genesis-state=true",
+			"--genesis-code=true",
 			"--protocol-id",
 			"pop-protocol",
-			"--skip-deterministic-build",
+			"--deterministic=false",
+			"--default-bootnode=false",
 		],
 	);
 	assert!(command.spawn()?.wait()?.success());
