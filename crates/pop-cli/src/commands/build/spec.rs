@@ -20,7 +20,6 @@ use pop_chains::{
 };
 use pop_common::{manifest::from_path, Profile};
 use std::{
-	env::current_dir,
 	fs::create_dir_all,
 	path::{Path, PathBuf},
 };
@@ -141,6 +140,9 @@ pub(crate) enum RelayChain {
 /// Command for generating a chain specification.
 #[derive(Args, Default)]
 pub struct BuildSpecCommand {
+	/// Directory path for your project [default: current directory]
+	#[arg(long)]
+	pub(crate) path: Option<PathBuf>,
 	/// File name for the resulting spec. If a path is given,
 	/// the necessary directories will be created
 	#[arg(short, long = "output")]
@@ -191,8 +193,8 @@ impl BuildSpecCommand {
 	pub(crate) async fn execute(self) -> anyhow::Result<()> {
 		let mut cli = Cli;
 		cli.intro("Generate your chain spec")?;
-		// Checks for appchain project in `./`.
-		if is_supported(None)? {
+		// Checks for appchain project.
+		if is_supported(self.path.as_deref())? {
 			let build_spec = self.configure_build_spec(&mut cli).await?;
 			if let Err(e) = build_spec.build(&mut cli) {
 				cli.outro_cancel(e.to_string())?;
@@ -215,6 +217,7 @@ impl BuildSpecCommand {
 		cli: &mut impl cli::traits::Cli,
 	) -> anyhow::Result<BuildSpec> {
 		let BuildSpecCommand {
+			path,
 			output_file,
 			profile,
 			id,
@@ -228,7 +231,11 @@ impl BuildSpecCommand {
 			deterministic,
 			package,
 			runtime_dir,
+			..
 		} = self;
+
+		// Project path.
+		let path = path.unwrap_or(PathBuf::from("./"));
 
 		// Chain.
 		let chain = match chain {
@@ -459,6 +466,7 @@ impl BuildSpecCommand {
 		};
 
 		Ok(BuildSpec {
+			path,
 			output_file,
 			profile,
 			id,
@@ -514,6 +522,7 @@ impl GenesisArtifacts {
 // Represents the configuration for building a chain specification.
 #[derive(Debug, Default, Clone)]
 pub(crate) struct BuildSpec {
+	path: PathBuf,
 	output_file: PathBuf,
 	profile: Profile,
 	id: u32,
@@ -538,7 +547,6 @@ impl BuildSpec {
 	// it triggers a build process.
 	pub(crate) fn build(self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<GenesisArtifacts> {
 		cli.intro("Building your chain spec")?;
-		let cwd = current_dir().unwrap_or(PathBuf::from("./"));
 		let mut generated_files = vec![];
 		let BuildSpec {
 			ref output_file,
@@ -552,7 +560,7 @@ impl BuildSpec {
 			..
 		} = self;
 		// Ensure binary is built.
-		let binary_path = ensure_node_binary_exists(cli, &cwd, profile, vec![])?;
+		let binary_path = ensure_node_binary_exists(cli, self.path.as_path(), profile, vec![])?;
 		let spinner = spinner();
 		if !use_existing_plain_spec {
 			spinner.start("Generating chain specification...");
@@ -743,6 +751,7 @@ mod tests {
 			BuildSpecCommand::default(),
 			// All flags used.
 			BuildSpecCommand {
+				path: None,
 				output_file: Some(PathBuf::from(output_file)),
 				profile: Some(profile.clone()),
 				id: Some(para_id),
@@ -846,6 +855,7 @@ mod tests {
 				},
 				// All flags used.
 				BuildSpecCommand {
+					path: None,
 					output_file: Some(PathBuf::from(output_file)),
 					profile: Some(profile.clone()),
 					id: Some(para_id),
