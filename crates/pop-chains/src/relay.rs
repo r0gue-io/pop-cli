@@ -4,10 +4,10 @@ use crate::{call, DynamicPayload, Error};
 use scale::{Decode, Encode};
 use sp_core::twox_128;
 use subxt::{
-	config::BlockHash,
 	dynamic::{self, Value},
 	events::StaticEvent,
 	ext::{scale_decode::DecodeAsType, scale_encode::EncodeAsType},
+	utils::H256,
 	OnlineClient, PolkadotConfig,
 };
 
@@ -20,7 +20,7 @@ pub async fn clear_dmpq(
 	// TODO: Different subxt versions: client: OnlineClient<PolkadotConfig>,
 	endpoint: &str,
 	para_ids: &[u32],
-) -> Result<impl BlockHash, Error> {
+) -> Result<H256, Error> {
 	// TODO: Different subxt versions
 	let client = OnlineClient::<PolkadotConfig>::from_url(endpoint)
 		.await

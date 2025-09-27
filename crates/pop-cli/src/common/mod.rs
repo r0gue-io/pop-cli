@@ -8,9 +8,9 @@ pub mod binary;
 pub mod builds;
 #[cfg(feature = "chain")]
 pub mod chain;
-#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
+#[cfg(feature = "chain")]
 pub mod contracts;
-#[cfg(any(feature = "chain", feature = "wasm-contracts", feature = "polkavm-contracts"))]
+#[cfg(any(feature = "chain", feature = "contracts"))]
 pub mod helpers;
 /// Contains utilities for interacting with the CLI prompt.
 pub mod prompt;
@@ -39,13 +39,13 @@ pub enum Data {
 		feature: TestFeature,
 	},
 	/// Project that was started.
-	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "chain"))]
+	#[cfg(any(feature = "contracts", feature = "chain"))]
 	Up(Project),
 	/// OS where installation occurred.
-	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "chain"))]
+	#[cfg(any(feature = "contracts", feature = "chain"))]
 	Install(Os),
 	/// Template that was created.
-	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "chain"))]
+	#[cfg(any(feature = "contracts", feature = "chain"))]
 	New(Template),
 	/// No additional data.
 	Null,
@@ -75,10 +75,10 @@ pub enum TestFeature {
 
 /// Project templates.
 #[derive(Debug, PartialEq, Clone)]
-#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "chain"))]
+#[cfg(any(feature = "contracts", feature = "chain"))]
 pub enum Template {
 	/// Smart contract template.
-	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
+	#[cfg(feature = "chain")]
 	Contract(pop_contracts::Contract),
 	/// Chain template.
 	#[cfg(feature = "chain")]
@@ -104,38 +104,22 @@ pub enum Os {
 impl Display for Data {
 	fn fmt(&self, f: &mut Formatter<'_>) -> Result {
 		use Data::*;
-		#[cfg(any(
-			feature = "polkavm-contracts",
-			feature = "wasm-contracts",
-			feature = "chain"
-		))]
+		#[cfg(any(feature = "contracts", feature = "chain"))]
 		use {strum::EnumMessage, Template::*};
 
 		match self {
 			Null => write!(f, ""),
 			Build(project) => write!(f, "{}", project),
 			Test { project, feature } => write!(f, "{} {}", project, feature),
-			#[cfg(any(
-				feature = "polkavm-contracts",
-				feature = "wasm-contracts",
-				feature = "chain"
-			))]
+			#[cfg(any(feature = "contracts", feature = "chain"))]
 			Install(os) => write!(f, "{}", os),
-			#[cfg(any(
-				feature = "polkavm-contracts",
-				feature = "wasm-contracts",
-				feature = "chain"
-			))]
+			#[cfg(any(feature = "contracts", feature = "chain"))]
 			Up(project) => write!(f, "{}", project),
-			#[cfg(any(
-				feature = "polkavm-contracts",
-				feature = "wasm-contracts",
-				feature = "chain"
-			))]
+			#[cfg(any(feature = "contracts", feature = "chain"))]
 			New(template) => match template {
 				#[cfg(feature = "chain")]
 				Chain(chain) => write!(f, "{}", chain.get_message().unwrap_or("")),
-				#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
+				#[cfg(feature = "chain")]
 				Contract(contract) => write!(f, "{}", contract.get_message().unwrap_or("")),
 				#[cfg(feature = "chain")]
 				Pallet => write!(f, "pallet"),
@@ -156,14 +140,14 @@ impl Display for Project {
 	}
 }
 
-#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "chain"))]
+#[cfg(any(feature = "contracts", feature = "chain"))]
 impl Display for Template {
 	fn fmt(&self, f: &mut Formatter<'_>) -> Result {
 		use Template::*;
 		match self {
 			#[cfg(feature = "chain")]
 			Chain(chain) => write!(f, "{}", chain),
-			#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
+			#[cfg(feature = "chain")]
 			Contract(contract) => write!(f, "{}", contract),
 			#[cfg(feature = "chain")]
 			Pallet => write!(f, "pallet"),
@@ -194,7 +178,7 @@ impl Display for TestFeature {
 
 pub mod urls {
 	/// Local dev node (Substrate default port 9944).
-	#[cfg(any(feature = "chain", feature = "polkavm-contracts", feature = "wasm-contracts"))]
+	#[cfg(any(feature = "chain", feature = "contracts"))]
 	pub const LOCAL: &str = "ws://localhost:9944/";
 	/// Polkadot mainnet public RPC.
 	#[cfg(all(feature = "chain", test))]
@@ -229,14 +213,14 @@ mod tests {
 		}
 
 		// Install.
-		#[cfg(any(feature = "contract", feature = "chain"))]
+		#[cfg(any(feature = "contracts", feature = "chain"))]
 		for os in Os::VARIANTS {
 			let telemetry = Data::Install(os.clone());
 			assert_eq!(telemetry.to_string(), os.to_string());
 		}
 
 		// Up.
-		#[cfg(any(feature = "contract", feature = "chain"))]
+		#[cfg(any(feature = "contracts", feature = "chain"))]
 		for project in Project::VARIANTS {
 			let telemetry = Data::Up(project.clone());
 			assert_eq!(telemetry.to_string(), project.to_string());
@@ -250,7 +234,7 @@ mod tests {
 			Data::New(Template::Chain(pop_chains::ChainTemplate::Contracts)).to_string(),
 			"Contracts"
 		);
-		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
+		#[cfg(feature = "chain")]
 		assert_eq!(
 			Data::New(Template::Contract(pop_contracts::Contract::ERC20)).to_string(),
 			"Erc20"
@@ -304,7 +288,7 @@ mod tests {
 			assert_eq!(template.to_string(), chain.to_string());
 		}
 		// Test Contract variant with all Contract types.
-		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
+		#[cfg(feature = "chain")]
 		for contract in pop_contracts::Contract::VARIANTS {
 			let template = Template::Contract(contract.clone());
 			assert_eq!(template.to_string(), contract.to_string());

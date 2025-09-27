@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::cli;
-#[cfg(feature = "polkavm-contracts")]
-use pop_contracts::MetadataSpec;
-use pop_contracts::{build_smart_contract, Verbosity};
+use pop_contracts::{build_smart_contract, MetadataSpec, Verbosity};
 use std::path::PathBuf;
 
 /// Configuration for building a smart contract.
@@ -12,7 +10,6 @@ pub struct BuildContract {
 	pub(crate) path: Option<PathBuf>,
 	/// Build profile: `true` for release mode, `false` for debug mode.
 	pub(crate) release: bool,
-	#[cfg(feature = "polkavm-contracts")]
 	/// Which specification specification to use for contract metadata.
 	pub(crate) metadata: Option<MetadataSpec>,
 }
@@ -34,7 +31,6 @@ impl BuildContract {
 			self.path.as_deref(),
 			self.release,
 			Verbosity::Default,
-			#[cfg(feature = "polkavm-contracts")]
 			self.metadata,
 		)?;
 		cli.success(build_result.display())?;

@@ -773,14 +773,14 @@ mod tests {
 		assert!(matches!(
 				call_config.prepare_extrinsic(&client, &mut cli),
 				Err(message)
-					if message.to_string().contains("Failed to encode call data. Metadata Error: Pallet with name WrongName not found")));
+					if message.to_string().contains("Failed to encode call data. Pallet with name WrongName not found")));
 		let pallets = parse_chain_metadata(&client)?;
 		call_config.function.pallet = "System".to_string();
 		// Error, wrong name of the function.
 		assert!(matches!(
 				call_config.prepare_extrinsic(&client, &mut cli),
 				Err(message)
-					if message.to_string().contains("Failed to encode call data. Metadata Error: Call with name WrongName not found")));
+					if message.to_string().contains("Failed to encode call data. Call with name WrongName not found")));
 		// Success, pallet and dispatchable function specified.
 		cli = MockCli::new().expect_info("Encoded call data: 0x00000411");
 		call_config.function = find_dispatchable_by_name(&pallets, "System", "remark")?.clone();

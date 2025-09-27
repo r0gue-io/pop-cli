@@ -4,7 +4,7 @@ use clap::{Args, Subcommand};
 use std::fmt::{Display, Formatter, Result};
 #[cfg(feature = "chain")]
 pub(crate) mod chain;
-#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
+#[cfg(feature = "contracts")]
 pub(crate) mod contract;
 
 /// Arguments for calling a smart contract.
@@ -23,7 +23,7 @@ pub(crate) enum Command {
 	#[clap(aliases = ["C", "p", "parachain"])]
 	Chain(chain::CallChainCommand),
 	/// Call a contract
-	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
+	#[cfg(feature = "contracts")]
 	#[clap(alias = "c")]
 	Contract(contract::CallContractCommand),
 }
@@ -38,7 +38,7 @@ impl CallArgs {
 		// Auto-detect project type based on current directory
 		let current_dir = std::env::current_dir()?;
 
-		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
+		#[cfg(feature = "contracts")]
 		if pop_contracts::is_supported(Some(&current_dir))? {
 			let mut cmd = contract::CallContractCommand::default();
 			cmd.path_pos = Some(current_dir);
@@ -62,7 +62,7 @@ impl Display for Command {
 		match self {
 			#[cfg(feature = "chain")]
 			Command::Chain(_) => write!(f, "chain"),
-			#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
+			#[cfg(feature = "contracts")]
 			Command::Contract(_) => write!(f, "contract"),
 		}
 	}
@@ -93,7 +93,7 @@ mod tests {
 	fn command_display_works() {
 		#[cfg(feature = "chain")]
 		assert_eq!(Command::Chain(Default::default()).to_string(), "chain");
-		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
+		#[cfg(feature = "contracts")]
 		assert_eq!(Command::Contract(Default::default()).to_string(), "contract");
 	}
 
@@ -106,7 +106,7 @@ mod tests {
 		);
 	}
 
-	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
+	#[cfg(feature = "contracts")]
 	#[test]
 	fn resolve_command_with_inner_contract_command_should_work() {
 		matches!(
@@ -134,7 +134,7 @@ parity-scale-codec = "3.0.0"
 		})
 	}
 
-	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
+	#[cfg(feature = "contracts")]
 	#[test]
 	fn resolve_command_in_directory_with_contract_should_work() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;

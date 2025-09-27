@@ -4,29 +4,22 @@ use crate::{
 	cli::traits::*,
 	common::binary::{check_and_prompt, BinaryGenerator},
 	impl_binary_generator,
+	style::style,
 };
 use pop_common::{manifest::from_path, sourcing::Binary};
-use pop_contracts::{contracts_node_generator, ContractFunction};
+use pop_contracts::{
+	contracts_node_generator, AccountMapper, ContractFunction, DefaultEnvironment, ExtrinsicOpts,
+};
 use std::{
 	path::{Path, PathBuf},
 	process::{Child, Command},
 };
-#[cfg(feature = "polkavm-contracts")]
-use subxt_inkv6::PolkadotConfig as DefaultConfig;
-#[cfg(feature = "polkavm-contracts")]
-use subxt_signer_inkv6::sr25519::Keypair;
+use subxt::PolkadotConfig as DefaultConfig;
+use subxt_signer::sr25519::Keypair;
 use tempfile::NamedTempFile;
-#[cfg(feature = "polkavm-contracts")]
-use {
-	crate::style::style,
-	pop_contracts::{AccountMapper, DefaultEnvironment, ExtrinsicOpts},
-};
 
 impl_binary_generator!(ContractsNodeGenerator, contracts_node_generator);
 
-#[cfg(feature = "wasm-contracts")]
-const CONTRACTS_NODE_BINARY: &str = "substrate-contracts-node";
-#[cfg(feature = "polkavm-contracts")]
 const CONTRACTS_NODE_BINARY: &str = "ink-node";
 
 ///  Checks the status of the contracts node binary, sources it if necessary, and
@@ -145,7 +138,6 @@ fn ensure_double_quoted(s: &str) -> String {
 	}
 }
 
-#[cfg(feature = "polkavm-contracts")]
 pub(crate) async fn map_account(
 	extrinsic_opts: &ExtrinsicOpts<DefaultConfig, DefaultEnvironment, Keypair>,
 	cli: &mut impl Cli,

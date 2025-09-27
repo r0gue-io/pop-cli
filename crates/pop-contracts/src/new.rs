@@ -1,13 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 
-#[cfg(feature = "v5")]
-use crate::templates::V5_CONTRACTS_BRANCH;
 use crate::{errors::Error, utils::canonicalized_path, Contract};
 use anyhow::Result;
-#[cfg(feature = "v5")]
 use contract_build::new_contract_project;
-#[cfg(feature = "v6")]
-use contract_build_inkv6::new_contract_project;
 use heck::ToUpperCamelCase;
 use pop_common::{extract_template_files, replace_in_file, templates::Template, Git};
 use std::{
@@ -56,12 +51,6 @@ fn create_standard_contract(name: &str, canonicalized_path: PathBuf) -> Result<(
 		// If the parent directory cannot be retrieved (e.g. if the path has no parent),
 		// return a NewContract variant indicating the failure.
 		.ok_or(Error::NewContract("Failed to get parent directory".to_string()))?;
-	#[cfg(feature = "v5")]
-	new_contract_project(name, Some(parent_path))
-		// If an error occurs during the creation of the contract project,
-		// convert it into a NewContract variant with a formatted error message.
-		.map_err(|e| Error::NewContract(format!("{}", e)))?;
-	#[cfg(feature = "v6")]
 	new_contract_project(name, Some(parent_path), None)
 		// If an error occurs during the creation of the contract project,
 		// convert it into a NewContract variant with a formatted error message.
@@ -76,9 +65,6 @@ fn create_template_contract(
 	let template_repository = template.repository_url()?;
 	// Clone the repository into the temporary directory.
 	let temp_dir = ::tempfile::TempDir::new_in(std::env::temp_dir())?;
-	#[cfg(feature = "v5")]
-	Git::clone(&Url::parse(template_repository)?, temp_dir.path(), Some(V5_CONTRACTS_BRANCH))?;
-	#[cfg(feature = "v6")]
 	Git::clone(&Url::parse(template_repository)?, temp_dir.path(), None)?;
 	// Retrieve only the template contract files.
 	if template == &Contract::PSP22 || template == &Contract::PSP34 {
@@ -153,10 +139,7 @@ mod tests {
 		let generated_cargo = fs::read_to_string(temp_dir.path().join("test_contract/Cargo.toml"))
 			.expect("Could not read file");
 		assert!(generated_cargo.contains("name = \"test_contract\""));
-		#[cfg(feature = "v5")]
-		assert!(generated_cargo.contains("ink = { version = \"5."));
 		//assert!(generated_cargo.contains("ink = { version = \"6."));
-		#[cfg(feature = "v6")]
 		assert!(generated_cargo.contains("version = \"6."));
 
 		Ok(())
@@ -177,9 +160,6 @@ mod tests {
 		let generated_cargo = fs::read_to_string(temp_dir.path().join("test_contract/Cargo.toml"))
 			.expect("Could not read file");
 		assert!(generated_cargo.contains("name = \"test_contract\""));
-		#[cfg(feature = "v5")]
-		assert!(generated_cargo.contains("ink = { version = \"5."));
-		#[cfg(feature = "v6")]
 		// TODO: v6 still not published.
 		// assert!(generated_cargo.contains("ink = { version = \"6."));
 		assert!(generated_cargo

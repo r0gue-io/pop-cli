@@ -1,12 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
-#[cfg(feature = "v6")]
 use crate::utils::map_account::MapAccount;
-
-#[cfg(feature = "v5")]
 use contract_extrinsics::{RawParams, RpcRequest};
-#[cfg(feature = "v6")]
-use contract_extrinsics_inkv6::{RawParams, RpcRequest};
 use pop_common::{
 	polkadot_sdk::sort_by_latest_semantic_version,
 	sourcing::{
@@ -30,19 +25,9 @@ use std::{
 	process::{Child, Command, Stdio},
 	time::Duration,
 };
-#[cfg(feature = "v5")]
-use subxt::{
-	client,
-	dynamic::{tx, Value},
-	utils, SubstrateConfig,
-};
-#[cfg(feature = "v6")]
-use subxt_inkv6::{client, SubstrateConfig};
+use subxt::{client, SubstrateConfig};
 use tokio::time::sleep;
 
-#[cfg(feature = "v5")]
-const BIN_NAME: &str = "substrate-contracts-node";
-#[cfg(feature = "v6")]
 const BIN_NAME: &str = "ink-node";
 const STARTUP: Duration = Duration::from_millis(20_000);
 
@@ -69,25 +54,15 @@ pub async fn is_chain_alive(url: url::Url) -> Result<bool, Error> {
 /// A supported chain.
 #[derive(Debug, EnumProperty, PartialEq, VariantArray)]
 pub(super) enum Chain {
-	/// Minimal Substrate node configured for smart contracts via pallet-contracts.
-	#[strum(props(
-		Repository = "https://github.com/paritytech/substrate-contracts-node",
-		Binary = "substrate-contracts-node",
-		Fallback = "v0.41.0"
-	))]
-	#[cfg(feature = "v5")]
-	ContractsNode,
 	/// Minimal ink node configured for smart contracts via pallet-revive.
 	#[strum(props(
 		Repository = "https://github.com/use-ink/ink-node",
 		Binary = "ink-node",
 		Fallback = "v0.45.1"
 	))]
-	#[cfg(feature = "v6")]
 	ContractsNode,
 }
 
-#[cfg(any(feature = "v5", feature = "v6"))]
 impl SourceT for Chain {
 	type Error = Error;
 	/// Defines the source of a binary for the chain.
@@ -159,27 +134,15 @@ pub async fn run_contracts_node(
 	// Wait until the node is ready
 	sleep(STARTUP).await;
 
-	#[cfg(feature = "v5")]
-	let data = Value::from_bytes(utils::to_hex("initialize contracts node"));
-	#[cfg(feature = "v5")]
-	let payload = tx("System", "remark", [data].to_vec());
-	#[cfg(feature = "v6")]
 	let payload = MapAccount::new().build();
 
 	let client =
 		client::OnlineClient::<SubstrateConfig>::from_url(format!("ws://127.0.0.1:{}", port))
 			.await
 			.map_err(|e| Error::AnyhowError(e.into()))?;
-	#[cfg(feature = "v5")]
 	client
 		.tx()
 		.sign_and_submit_default(&payload, &subxt_signer::sr25519::dev::alice())
-		.await
-		.map_err(|e| Error::AnyhowError(e.into()))?;
-	#[cfg(feature = "v6")]
-	client
-		.tx()
-		.sign_and_submit_default(&payload, &subxt_signer_inkv6::sr25519::dev::alice())
 		.await
 		.map_err(|e| Error::AnyhowError(e.into()))?;
 
@@ -193,7 +156,6 @@ fn archive_name_by_target() -> Result<String, Error> {
 		_ => Err(Error::UnsupportedPlatform { arch: ARCH, os: OS }),
 	}
 }
-#[cfg(feature = "v6")]
 fn release_directory_by_target(binary: &str) -> Result<Vec<ArchiveFileSpec>, Error> {
 	match OS {
 		"macos" => Ok("ink-node-mac/ink-node"),
@@ -201,41 +163,6 @@ fn release_directory_by_target(binary: &str) -> Result<Vec<ArchiveFileSpec>, Err
 		_ => Err(Error::UnsupportedPlatform { arch: ARCH, os: OS }),
 	}
 	.map(|name| vec![ArchiveFileSpec::new(name.into(), Some(binary.into()), true)])
-}
-
-#[cfg(feature = "v5")]
-fn release_directory_by_target(binary: &str) -> Result<Vec<ArchiveFileSpec>, Error> {
-	match OS {
-		"macos" => Ok(vec![
-			// < v0.42.0
-			ArchiveFileSpec::new(
-				"artifacts/substrate-contracts-node-mac/substrate-contracts-node".into(),
-				Some(binary.into()),
-				false,
-			),
-			// >=v0.42.0
-			ArchiveFileSpec::new(
-				"substrate-contracts-node-mac/substrate-contracts-node".into(),
-				Some(binary.into()),
-				false,
-			),
-		]),
-		"linux" => Ok(vec![
-			// < v0.42.0
-			ArchiveFileSpec::new(
-				"artifacts/substrate-contracts-node-linux/substrate-contracts-node".into(),
-				Some(binary.into()),
-				false,
-			),
-			// >=v0.42.0
-			ArchiveFileSpec::new(
-				"substrate-contracts-node-linux/substrate-contracts-node".into(),
-				Some(binary.into()),
-				false,
-			),
-		]),
-		_ => Err(Error::UnsupportedPlatform { arch: ARCH, os: OS }),
-	}
 }
 
 #[cfg(test)]
@@ -272,13 +199,7 @@ mod tests {
 		let expected = Chain::ContractsNode;
 		let archive = archive_name_by_target()?;
 		let contents = release_directory_by_target(BIN_NAME)?;
-		#[cfg(feature = "v5")]
-		let owner = "paritytech";
-		#[cfg(feature = "v5")]
-		let versions = ["v0.41.0", "v0.42.0"];
-		#[cfg(feature = "v6")]
 		let owner = "use-ink";
-		#[cfg(feature = "v6")]
 		let versions = ["v0.43.0"];
 		for version in versions {
 			let temp_dir = tempfile::tempdir().expect("Could not create temp dir");

@@ -96,11 +96,6 @@ jobs:
         env:
           RUSTFLAGS: "-Dwarnings"
 
-      - name: Check polkavm-contracts feature
-        run: cargo check --no-default-features --features "polkavm-contracts, v6" -p pop-cli -p pop-contracts
-        env:
-          RUSTFLAGS: "-Dwarnings"
-
       - name: Check chain feature
         run: cargo check --no-default-features --features chain
         env:
@@ -168,27 +163,6 @@ jobs:
           RUSTDOCFLAGS: "-Dwarnings"
           RUSTFLAGS: "-Dmissing_docs"
 
-  polkavm-unit-tests:
-    needs:
-      - setup
-      - build
-    runs-on: ubuntu-latest
-    container:
-      image: ${{ needs.setup.outputs.image }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          save-if: false
-          shared-key: shared-${{ github.head_ref || github.ref_name }}
-
-      - name: Run unit tests for polkavm-contracts
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: cargo nextest run --lib --bins --no-default-features --features "polkavm-contracts, v6" -p pop-cli -p pop-contracts
-
   coverage:
     needs:
       - setup
@@ -207,7 +181,7 @@ jobs:
           shared-key: shared-coverage-${{ github.head_ref || github.ref_name }}
 
       - name: Generate code coverage
-        run: cargo llvm-cov --workspace --lib --bins --no-default-features --features "default chain telemetry v5 wasm-contracts wallet-integration" --codecov --output-path codecov.json
+        run: cargo llvm-cov --workspace --lib --bins --no-default-features --features "default chain telemetry contracts wallet-integration" --codecov --output-path codecov.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

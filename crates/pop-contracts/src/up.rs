@@ -1,63 +1,32 @@
 // SPDX-License-Identifier: GPL-3.0
 
-#[cfg(feature = "v6")]
-use crate::utils::map_account::create_signer;
 use crate::{
 	errors::Error,
 	utils::{
 		get_manifest_path,
+		map_account::create_signer,
 		metadata::{extract_function, process_function_args, FunctionType},
 		parse_balance,
 	},
 	Bytes, DefaultEnvironment, Environment, UploadCode, Weight,
 };
-#[cfg(feature = "v6")]
-use pop_common::account_id::parse_h160_account;
-#[cfg(feature = "v5")]
-use pop_common::create_signer;
-use std::path::{Path, PathBuf};
-#[cfg(feature = "v5")]
-use subxt::{
-	backend,
-	blocks::ExtrinsicEvents,
-	config,
-	tx::{Payload, SubmittableExtrinsic},
-	Config, OnlineClient, PolkadotConfig as DefaultConfig, SubstrateConfig,
+use contract_extrinsics::{
+	contract_address,
+	extrinsic_calls::{Instantiate, InstantiateWithCode},
+	fetch_contract_binary, BalanceVariant, Code, ContractBinary, ErrorVariant,
+	ExtrinsicOptsBuilder, InstantiateCommandBuilder, InstantiateExec, InstantiateExecResult,
+	TokenMetadata, UploadCommandBuilder, UploadExec, UploadResult,
 };
-#[cfg(feature = "v6")]
-use subxt_inkv6::{
+use pop_common::account_id::parse_h160_account;
+use sp_core::bytes::{from_hex, to_hex};
+use std::path::{Path, PathBuf};
+use subxt::{
 	backend,
 	blocks::ExtrinsicEvents,
 	tx::{Payload, SubmittableTransaction},
 	OnlineClient, PolkadotConfig as DefaultConfig, SubstrateConfig,
 };
-#[cfg(feature = "v5")]
 pub use subxt_signer::sr25519::Keypair;
-#[cfg(feature = "v6")]
-pub use subxt_signer_inkv6::sr25519::Keypair;
-#[cfg(feature = "v5")]
-use {
-	contract_extrinsics::{
-		events::{CodeStored, ContractInstantiated},
-		extrinsic_calls::{Instantiate, InstantiateWithCode},
-		upload::Determinism,
-		BalanceVariant, Code, ErrorVariant, ExtrinsicOptsBuilder, InstantiateCommandBuilder,
-		InstantiateExec, InstantiateExecResult, TokenMetadata, UploadCommandBuilder, UploadExec,
-		UploadResult, WasmCode as ContractBinary,
-	},
-	sp_core::bytes::from_hex,
-};
-#[cfg(feature = "v6")]
-use {
-	contract_extrinsics_inkv6::{
-		contract_address,
-		extrinsic_calls::{Instantiate, InstantiateWithCode},
-		fetch_contract_binary, BalanceVariant, Code, ContractBinary, ErrorVariant,
-		ExtrinsicOptsBuilder, InstantiateCommandBuilder, InstantiateExec, InstantiateExecResult,
-		TokenMetadata, UploadCommandBuilder, UploadExec, UploadResult,
-	},
-	sp_core_inkv6::bytes::{from_hex, to_hex},
-};
 
 /// Attributes for the `up` command
 #[derive(Clone, Debug, PartialEq)]
@@ -144,7 +113,6 @@ pub async fn set_up_upload(
 	let mut upload_exec: UploadExec<DefaultConfig, DefaultEnvironment, Keypair> =
 		UploadCommandBuilder::new(extrinsic_opts).done().await?;
 
-	#[cfg(feature = "v6")]
 	{
 		let storage_deposit_limit = match upload_exec.opts().storage_deposit_limit() {
 			Some(deposit_limit) => deposit_limit,
@@ -165,28 +133,11 @@ pub async fn set_up_upload(
 	Ok(upload_exec)
 }
 
-/// # Arguments
-/// * `code` - contract code to upload.
-/// * `url` - the rpc of the chain node.
-#[cfg(feature = "v5")]
-pub async fn get_upload_payload(code: ContractBinary, url: &str) -> anyhow::Result<Vec<u8>> {
-	let storage_deposit_limit: Option<u128> = None;
-	let upload_code = UploadCode::new(code, storage_deposit_limit, Determinism::Enforced);
-
-	let rpc_client = backend::rpc::RpcClient::from_url(url).await?;
-	let client = OnlineClient::<SubstrateConfig>::from_rpc_client(rpc_client).await?;
-	let call_data = upload_code.build();
-	let mut encoded_data = Vec::<u8>::new();
-	call_data.encode_call_data_to(&client.metadata(), &mut encoded_data)?;
-	Ok(encoded_data)
-}
-
 /// Gets the encoded payload call data for contract upload (not instantiate).
 ///
 /// # Arguments
 /// * `code` - contract code to upload.
 /// * `url` - the rpc of the chain node.
-#[cfg(feature = "v6")]
 pub async fn get_upload_payload(
 	upload_exec: UploadExec<DefaultConfig, DefaultEnvironment, Keypair>,
 	code: ContractBinary,
@@ -217,45 +168,6 @@ pub async fn get_upload_payload(
 /// # Arguments
 /// * `instantiate_exec` - arguments for contract instantiate.
 /// * `gas_limit` - max amount of gas to be used for instantiation.
-#[cfg(feature = "v5")]
-pub fn get_instantiate_payload(
-	instantiate_exec: InstantiateExec<DefaultConfig, DefaultEnvironment, Keypair>,
-	gas_limit: Weight,
-) -> anyhow::Result<Vec<u8>> {
-	let storage_deposit_limit: Option<u128> = None;
-	let mut encoded_data = Vec::<u8>::new();
-	let args = instantiate_exec.args();
-	match args.code() {
-		Code::Upload(code) => InstantiateWithCode::new(
-			args.value(),
-			gas_limit,
-			storage_deposit_limit,
-			code.clone(),
-			args.data().into(),
-			args.salt().into(),
-		)
-		.build()
-		.encode_call_data_to(&instantiate_exec.client().metadata(), &mut encoded_data),
-		Code::Existing(hash) => Instantiate::new(
-			args.value(),
-			gas_limit,
-			storage_deposit_limit,
-			hash,
-			args.data().into(),
-			args.salt().into(),
-		)
-		.build()
-		.encode_call_data_to(&instantiate_exec.client().metadata(), &mut encoded_data),
-	}?;
-	Ok(encoded_data)
-}
-
-/// Gets the encoded payload call data for a contract instantiation.
-///
-/// # Arguments
-/// * `instantiate_exec` - arguments for contract instantiate.
-/// * `gas_limit` - max amount of gas to be used for instantiation.
-#[cfg(feature = "v6")]
 pub async fn get_instantiate_payload(
 	instantiate_exec: InstantiateExec<DefaultConfig, DefaultEnvironment, Keypair>,
 	gas_limit: Weight,
@@ -305,9 +217,6 @@ pub fn get_contract_code(path: Option<&PathBuf>) -> anyhow::Result<ContractBinar
 	let artifacts = extrinsic_opts.contract_artifacts()?;
 
 	let artifacts_path = artifacts.artifact_path().to_path_buf();
-	#[cfg(feature = "v5")]
-	let binary = artifacts.code;
-	#[cfg(feature = "v6")]
 	let binary = artifacts.contract_binary;
 	Ok(binary.ok_or_else(|| {
 		Error::UploadContractError(format!(
@@ -327,12 +236,6 @@ pub async fn upload_contract_signed(
 	payload: String,
 ) -> anyhow::Result<UploadResult<SubstrateConfig>> {
 	let events = submit_signed_payload(url, payload).await?;
-	#[cfg(feature = "v5")]
-	{
-		let code_stored = events.find_first::<CodeStored<config::substrate::H256>>()?;
-		Ok(UploadResult { code_stored, events })
-	}
-	#[cfg(feature = "v6")]
 	Ok(UploadResult { events })
 }
 
@@ -342,34 +245,13 @@ pub async fn upload_contract_signed(
 /// * `url` - rpc for chain.
 /// * `payload` - the signed payload to submit (encoded call data).
 pub async fn instantiate_contract_signed(
-	#[cfg(feature = "v6")] instantiate_exec: InstantiateExec<
-		DefaultConfig,
-		DefaultEnvironment,
-		Keypair,
-	>,
-	#[cfg(feature = "v6")] maybe_contract_address: Option<String>,
+	instantiate_exec: InstantiateExec<DefaultConfig, DefaultEnvironment, Keypair>,
+	maybe_contract_address: Option<String>,
 	url: &str,
 	payload: String,
 ) -> anyhow::Result<InstantiateExecResult<SubstrateConfig>> {
 	let events = submit_signed_payload(url, payload).await?;
 
-	#[cfg(feature = "v5")]
-	let (code_hash, contract_address) = {
-		// The CodeStored event is only raised if the contract has not already been
-		// uploaded.
-		let code_hash = events
-			.find_first::<CodeStored<config::substrate::H256>>()?
-			.map(|code_stored| code_stored.code_hash);
-
-		let instantiated = events
-			.find_first::<ContractInstantiated<config::substrate::AccountId32>>()?
-			.ok_or_else(|| {
-				Error::InstantiateContractError("Failed to find Instantiated event".to_string())
-			})?;
-		(code_hash, instantiated.contract)
-	};
-
-	#[cfg(feature = "v6")]
 	let (code_hash, contract_address) = {
 		let contract_address = match maybe_contract_address {
 			Some(addr) => parse_h160_account(&addr)?,
@@ -411,20 +293,9 @@ pub async fn submit_signed_payload(
 	let client = OnlineClient::<SubstrateConfig>::from_rpc_client(rpc_client).await?;
 
 	let hex_encoded = from_hex(&payload)?;
-
-	#[cfg(feature = "v5")]
-	let extrinsic = SubmittableExtrinsic::from_bytes(client, hex_encoded);
-	#[cfg(feature = "v6")]
 	let extrinsic = SubmittableTransaction::from_bytes(client, hex_encoded);
-	// src: https://github.com/use-ink/cargo-contract/blob/68691b9b6cdb7c6ec52ea441b3dc31fcb1ce08e0/crates/extrinsics/src/lib.rs#L143
 
-	#[cfg(feature = "v5")]
 	use subxt::{
-		error::{RpcError, TransactionError},
-		tx::TxStatus,
-	};
-	#[cfg(feature = "v6")]
-	use subxt_inkv6::{
 		error::{RpcError, TransactionError},
 		tx::TxStatus,
 	};
@@ -525,19 +396,12 @@ pub async fn instantiate_smart_contract(
 	gas_limit: Weight,
 ) -> anyhow::Result<ContractInfo, Error> {
 	let instantiate_result = instantiate_exec
-		.instantiate(
-			Some(gas_limit),
-			#[cfg(feature = "v6")]
-			instantiate_exec.opts().storage_deposit_limit(),
-		)
+		.instantiate(Some(gas_limit), instantiate_exec.opts().storage_deposit_limit())
 		.await
 		.map_err(|error_variant| Error::InstantiateContractError(format!("{:?}", error_variant)))?;
 	// If is upload + instantiate, return the code hash.
 	let hash = instantiate_result.code_hash.map(|code_hash| format!("{:?}", code_hash));
 
-	#[cfg(feature = "v5")]
-	let address = instantiate_result.contract_address.to_string();
-	#[cfg(feature = "v6")]
 	let address = format!("{:?}", instantiate_result.contract_address);
 
 	Ok(ContractInfo { address, code_hash: hash })
@@ -556,34 +420,5 @@ pub async fn upload_smart_contract(
 		.await
 		.map_err(|error_variant| Error::UploadContractError(format!("{:?}", error_variant)))?;
 
-	#[cfg(feature = "v5")]
-	return get_code_hash_from_event(&upload_result, upload_exec.code().code_hash());
-
-	#[cfg(feature = "v6")]
 	Ok(to_hex(&upload_exec.code().code_hash(), false))
-}
-
-/// Get the code hash of a contract from the upload event.
-///
-/// # Arguments
-/// * `upload_result` - the result of uploading the contract.
-/// * `metadata_code_hash` - the code hash from the metadata Used only for error reporting.
-#[cfg(feature = "v5")]
-pub fn get_code_hash_from_event<C: Config>(
-	upload_result: &UploadResult<C>,
-	// used for error reporting
-	metadata_code_hash: [u8; 32],
-) -> Result<String, Error> {
-	if let Some(code_stored) = upload_result.code_stored.as_ref() {
-		Ok(format!("{:?}", code_stored.code_hash))
-	} else {
-		let code_hash: String = metadata_code_hash.iter().fold(String::new(), |mut output, b| {
-			use std::fmt::Write;
-			write!(output, "{:02x}", b).expect("expected to write to string");
-			output
-		});
-		Err(Error::UploadContractError(format!(
-			"This contract has already been uploaded with code hash: 0x{code_hash}"
-		)))
-	}
 }

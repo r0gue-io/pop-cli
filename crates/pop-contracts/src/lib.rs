@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
 #![doc = include_str!("../README.md")]
-#![cfg(any(feature = "v5", feature = "v6"))]
-
-#[cfg(all(feature = "v5", feature = "v6"))]
-compile_error!("only feature \"v5\" OR \"v6\" must be enabled");
 
 mod build;
 mod call;
@@ -40,23 +36,10 @@ pub use utils::{
 	parse_hex_bytes,
 };
 // External exports
-#[cfg(feature = "v5")]
+pub use contract_build::MetadataSpec;
+pub use contract_extrinsics::{CallExec, ExtrinsicOpts, UploadCode};
+pub use ink_env::{DefaultEnvironment, Environment};
+pub use sp_core::Bytes;
 pub use sp_weights::Weight;
-#[cfg(feature = "v6")]
-pub use sp_weights_inkv6::Weight;
-#[cfg(feature = "v6")]
-pub use {
-	contract_build_inkv6::MetadataSpec,
-	contract_extrinsics_inkv6::{CallExec, ExtrinsicOpts, UploadCode},
-	ink_env_v6::{DefaultEnvironment, Environment},
-	sp_core_inkv6::Bytes,
-	up::{get_instantiate_payload, get_upload_payload},
-	utils::map_account::{create_signer, AccountMapper},
-};
-#[cfg(feature = "v5")]
-pub use {
-	contract_extrinsics::{extrinsic_calls::UploadCode, CallExec},
-	ink_env::{DefaultEnvironment, Environment},
-	sp_core::Bytes,
-	up::{get_code_hash_from_event, get_instantiate_payload, get_upload_payload},
-};
+pub use up::{get_instantiate_payload, get_upload_payload};
+pub use utils::map_account::{create_signer, AccountMapper};

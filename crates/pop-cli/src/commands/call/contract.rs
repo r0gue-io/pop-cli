@@ -4,7 +4,10 @@ use crate::{
 	cli::{self, traits::*},
 	common::{
 		builds::get_project_path,
-		contracts::{has_contract_been_built, normalize_call_args, request_contract_function_args},
+		contracts::{
+			has_contract_been_built, map_account, normalize_call_args,
+			request_contract_function_args,
+		},
 		prompt::display_message,
 		urls,
 		wallet::{prompt_to_use_wallet, request_signature},
@@ -13,25 +16,16 @@ use crate::{
 use anyhow::{anyhow, Result};
 use clap::Args;
 use cliclack::spinner;
-#[cfg(feature = "wasm-contracts")]
-use pop_common::parse_account;
+use pop_common::parse_h160_account;
 use pop_contracts::{
 	build_smart_contract, call_smart_contract, call_smart_contract_from_signed_payload,
 	dry_run_call, dry_run_gas_estimate_call, get_call_payload, get_message, get_messages,
 	set_up_call, CallExec, CallOpts, DefaultEnvironment, Verbosity, Weight,
 };
 use std::path::PathBuf;
-#[cfg(feature = "polkavm-contracts")]
-use {crate::common::contracts::map_account, pop_common::parse_h160_account};
 
-#[cfg(feature = "wasm-contracts")]
 use subxt::PolkadotConfig as DefaultConfig;
-#[cfg(feature = "polkavm-contracts")]
-use subxt_inkv6::PolkadotConfig as DefaultConfig;
-#[cfg(feature = "wasm-contracts")]
 pub use subxt_signer::sr25519::Keypair;
-#[cfg(feature = "polkavm-contracts")]
-pub use subxt_signer_inkv6::sr25519::Keypair;
 
 const DEFAULT_URI: &str = "//Alice";
 const DEFAULT_PAYABLE_VALUE: &str = "0";
@@ -203,7 +197,6 @@ impl CallContractCommand {
 			project_path.as_deref(),
 			true,
 			Verbosity::Quiet,
-			#[cfg(feature = "polkavm-contracts")]
 			None,
 		) {
 			Ok(result) => result,
@@ -304,16 +297,8 @@ impl CallContractCommand {
 			// Prompt for contract address.
 			let contract_address: String = cli
 				.input("Provide the on-chain contract address:")
-				.placeholder(
-					#[cfg(feature = "wasm-contracts")]
-					"e.g. 5DYs7UGBm2LuX4ryvyqfksozNAW5V47tPbGiVgnjYWCZ29bt",
-					#[cfg(feature = "polkavm-contracts")]
-					"e.g. 0x48550a4bb374727186c55365b7c9c0a1a31bdafe",
-				)
+				.placeholder("e.g. 0x48550a4bb374727186c55365b7c9c0a1a31bdafe")
 				.validate(|input: &String| {
-					#[cfg(feature = "wasm-contracts")]
-					let account = parse_account(input);
-					#[cfg(feature = "polkavm-contracts")]
 					let account = parse_h160_account(input);
 					match account {
 						Ok(_) => Ok(()),
@@ -460,7 +445,6 @@ impl CallContractCommand {
 		};
 		// Check if the account is already mapped, and prompt the user to perform the mapping if
 		// it's required.
-		#[cfg(feature = "polkavm-contracts")]
 		map_account(call_exec.opts(), cli).await?;
 
 		// Perform signing steps with wallet integration, skipping secure signing for query-only
@@ -553,19 +537,14 @@ impl CallContractCommand {
 		call_exec: CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
 		cli: &mut impl Cli,
 	) -> Result<()> {
-		#[cfg(feature = "polkavm-contracts")]
 		let storage_deposit_limit = match call_exec.opts().storage_deposit_limit() {
 			Some(deposit_limit) => deposit_limit,
 			None => call_exec.estimate_gas().await?.1,
 		};
-		#[cfg(feature = "polkavm-contracts")]
-		let call_data = self.get_contract_data(&call_exec, storage_deposit_limit).map_err(|err| {
-			anyhow!("An error occurred getting the call data: {}", err.to_string())
-		})?;
-		#[cfg(feature = "wasm-contracts")]
-		let call_data = self.get_contract_data(&call_exec).map_err(|err| {
-			anyhow!("An error occurred getting the call data: {}", err.to_string())
-		})?;
+		let call_data =
+			self.get_contract_data(&call_exec, storage_deposit_limit).map_err(|err| {
+				anyhow!("An error occurred getting the call data: {}", err.to_string())
+			})?;
 
 		let maybe_payload =
 			request_signature(call_data, self.url.to_string()).await?.signed_payload;
@@ -591,16 +570,13 @@ impl CallContractCommand {
 	fn get_contract_data(
 		&self,
 		call_exec: &CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
-		#[cfg(feature = "polkavm-contracts")] storage_deposit_limit: u128,
+		storage_deposit_limit: u128,
 	) -> anyhow::Result<Vec<u8>> {
 		let weight_limit = if self.gas_limit.is_some() && self.proof_size.is_some() {
 			Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap())
 		} else {
 			Weight::zero()
 		};
-		#[cfg(feature = "wasm-contracts")]
-		let call_data = get_call_payload(call_exec, weight_limit)?;
-		#[cfg(feature = "polkavm-contracts")]
 		let call_data = get_call_payload(call_exec, weight_limit, storage_deposit_limit)?;
 		Ok(call_data)
 	}
@@ -626,9 +602,6 @@ mod tests {
 	use std::{env, fs::write};
 	use url::Url;
 
-	#[cfg(feature = "v5")]
-	const CONTRACT_FILE: &str = "pop-contracts/tests/files/testing_wasm.contract";
-	#[cfg(feature = "v6")]
 	const CONTRACT_FILE: &str = "pop-contracts/tests/files/testing.contract";
 
 	// This test only covers the interactive portion of the call contract command, without actually
@@ -889,9 +862,6 @@ mod tests {
 		// Create invalid `.json`, `.contract` and binary files for testing
 		let invalid_contract_path = temp_dir.path().join("testing.contract");
 		let invalid_json_path = temp_dir.path().join("testing.json");
-		#[cfg(feature = "wasm-contracts")]
-		let invalid_binary_path = temp_dir.path().join("testing.wasm");
-		#[cfg(feature = "polkavm-contracts")]
 		let invalid_binary_path = temp_dir.path().join("testing.polkavm");
 		write(&invalid_contract_path, b"This is an invalid contract file")?;
 		write(&invalid_json_path, b"This is an invalid JSON file")?;

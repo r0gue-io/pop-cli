@@ -1,51 +1,28 @@
 // SPDX-License-Identifier: GPL-3.0
 
-#[cfg(feature = "v6")]
-use crate::utils::map_account::create_signer;
 use crate::{
 	errors::Error,
 	submit_signed_payload,
 	utils::{
 		get_manifest_path,
+		map_account::create_signer,
 		metadata::{extract_function, process_function_args, FunctionType},
 		parse_balance,
 	},
 	CallExec, DefaultEnvironment, Environment, Verbosity,
 };
 use anyhow::Context;
-#[cfg(feature = "v5")]
-use pop_common::create_signer;
-#[cfg(feature = "v5")]
 use sp_weights::Weight;
-#[cfg(feature = "v6")]
-use sp_weights_inkv6::Weight;
 
+use contract_extrinsics::{
+	extrinsic_calls::Call, BalanceVariant, CallCommandBuilder, ContractArtifacts, DisplayEvents,
+	ErrorVariant, ExtrinsicOptsBuilder, TokenMetadata,
+};
+use pop_common::account_id::parse_h160_account;
 use std::path::PathBuf;
-#[cfg(feature = "v5")]
-use subxt::{tx::Payload, Config, PolkadotConfig as DefaultConfig, SubstrateConfig};
-#[cfg(feature = "v6")]
-use subxt_inkv6::{tx::Payload, PolkadotConfig as DefaultConfig, SubstrateConfig};
-#[cfg(feature = "v5")]
+use subxt::{tx::Payload, PolkadotConfig as DefaultConfig, SubstrateConfig};
 pub use subxt_signer::sr25519::Keypair;
-#[cfg(feature = "v6")]
-pub use subxt_signer_inkv6::sr25519::Keypair;
 use url::Url;
-#[cfg(feature = "v5")]
-use {
-	contract_extrinsics::{
-		extrinsic_calls::Call, BalanceVariant, CallCommandBuilder, ContractArtifacts,
-		DisplayEvents, ErrorVariant, ExtrinsicOptsBuilder, TokenMetadata,
-	},
-	pop_common::parse_account,
-};
-#[cfg(feature = "v6")]
-use {
-	contract_extrinsics_inkv6::{
-		extrinsic_calls::Call, BalanceVariant, CallCommandBuilder, ContractArtifacts,
-		DisplayEvents, ErrorVariant, ExtrinsicOptsBuilder, TokenMetadata,
-	},
-	pop_common::account_id::parse_h160_account,
-};
 
 /// Attributes for the `call` command.
 #[derive(Clone, Debug, PartialEq)]
@@ -104,9 +81,6 @@ pub async fn set_up_call(
 	let value: BalanceVariant<<DefaultEnvironment as Environment>::Balance> =
 		parse_balance(&call_opts.value)?;
 
-	#[cfg(feature = "v5")]
-	let contract: <DefaultConfig as Config>::AccountId = parse_account(&call_opts.contract)?;
-	#[cfg(feature = "v6")]
 	let contract = parse_h160_account(&call_opts.contract)?;
 	// Process the provided argument values.
 	let function = extract_function(
@@ -192,14 +166,9 @@ pub async fn call_smart_contract(
 ) -> anyhow::Result<String, Error> {
 	let token_metadata = TokenMetadata::query::<DefaultConfig>(url).await?;
 	let metadata = call_exec.client().metadata();
-	#[cfg(feature = "v6")]
 	let storage_deposit_limit = call_exec.opts().storage_deposit_limit();
 	let events = call_exec
-		.call(
-			Some(gas_limit),
-			#[cfg(feature = "v6")]
-			storage_deposit_limit,
-		)
+		.call(Some(gas_limit), storage_deposit_limit)
 		.await
 		.map_err(|error_variant| Error::CallContractError(format!("{:?}", error_variant)))?;
 	let display_events =
@@ -239,31 +208,6 @@ pub async fn call_smart_contract_from_signed_payload(
 /// # Arguments
 /// * `call_exec` - A struct containing the details of the contract call.
 /// * `gas_limit` - The maximum amount of gas allocated for executing the contract call.
-#[cfg(feature = "v5")]
-pub fn get_call_payload(
-	call_exec: &CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
-	gas_limit: Weight,
-) -> anyhow::Result<Vec<u8>> {
-	let storage_deposit_limit: Option<u128> = call_exec.opts().storage_deposit_limit();
-	let mut encoded_data = Vec::<u8>::new();
-	Call::new(
-		call_exec.contract().into(),
-		call_exec.value(),
-		gas_limit,
-		storage_deposit_limit.as_ref(),
-		call_exec.call_data().clone(),
-	)
-	.build()
-	.encode_call_data_to(&call_exec.client().metadata(), &mut encoded_data)?;
-	Ok(encoded_data)
-}
-
-/// Generates the payload for executing a smart contract call.
-///
-/// # Arguments
-/// * `call_exec` - A struct containing the details of the contract call.
-/// * `gas_limit` - The maximum amount of gas allocated for executing the contract call.
-#[cfg(feature = "v6")]
 pub fn get_call_payload(
 	call_exec: &CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
 	gas_limit: Weight,

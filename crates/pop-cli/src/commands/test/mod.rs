@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
+#[cfg(feature = "chain")]
 use crate::cli;
 use crate::common::{
 	builds::get_project_path,
@@ -13,7 +13,7 @@ use pop_common::test_project;
 use std::fmt::{Display, Formatter, Result};
 use std::path::PathBuf;
 
-#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
+#[cfg(feature = "chain")]
 pub mod contract;
 #[cfg(feature = "chain")]
 pub mod create_snapshot;
@@ -28,7 +28,7 @@ pub mod on_runtime_upgrade;
 #[derive(Args, Default)]
 #[command(args_conflicts_with_subcommands = true)]
 pub(crate) struct TestArgs {
-	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "chain"))]
+	#[cfg(any(feature = "contracts", feature = "chain"))]
 	#[command(subcommand)]
 	pub(crate) command: Option<Command>,
 	/// Directory path for your project [default: current directory]
@@ -38,7 +38,7 @@ pub(crate) struct TestArgs {
 	#[arg(value_name = "PATH", index = 1, conflicts_with = "path")]
 	pub(crate) path_pos: Option<PathBuf>,
 	#[command(flatten)]
-	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
+	#[cfg(feature = "chain")]
 	pub(crate) contract: contract::TestContractCommand,
 }
 
@@ -64,7 +64,7 @@ impl Command {
 	pub(crate) async fn execute(args: TestArgs) -> anyhow::Result<(Project, TestFeature)> {
 		Self::test(
 			args,
-			#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
+			#[cfg(feature = "chain")]
 			&mut cli::Cli,
 		)
 		.await
@@ -72,12 +72,11 @@ impl Command {
 
 	async fn test(
 		args: TestArgs,
-		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
-		cli: &mut impl cli::traits::Cli,
+		#[cfg(feature = "chain")] cli: &mut impl cli::traits::Cli,
 	) -> anyhow::Result<(Project, TestFeature)> {
 		let project_path = get_project_path(args.path.clone(), args.path_pos.clone());
 
-		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
+		#[cfg(feature = "chain")]
 		if pop_contracts::is_supported(project_path.as_deref())? {
 			let mut cmd = args.contract;
 			cmd.path = project_path;
@@ -112,33 +111,9 @@ mod tests {
 	use super::*;
 	use crate::cli::MockCli;
 	use duct::cmd;
-	#[cfg(feature = "wasm-contracts")]
-	use {
-		pop_contracts::{mock_build_process, new_environment},
-		std::env,
-	};
 
 	fn create_test_args(project_path: PathBuf) -> anyhow::Result<TestArgs> {
 		Ok(TestArgs { path: Some(project_path), ..Default::default() })
-	}
-
-	#[tokio::test]
-	#[cfg(feature = "wasm-contracts")]
-	async fn detects_contract_correctly() -> anyhow::Result<()> {
-		let temp_dir = new_environment("testing")?;
-		let mut current_dir = env::current_dir().expect("Failed to get current directory");
-		current_dir.pop();
-		mock_build_process(
-			temp_dir.path().join("testing"),
-			current_dir.join("pop-contracts/tests/files/testing.contract"),
-			current_dir.join("pop-contracts/tests/files/testing.json"),
-		)?;
-		let args = create_test_args(temp_dir.path().join("testing"))?;
-		let mut cli = MockCli::new()
-			.expect_intro("Starting unit tests")
-			.expect_outro("Unit testing complete");
-		assert_eq!(Command::test(args, &mut cli).await?, (Contract, Unit));
-		cli.verify()
 	}
 
 	#[tokio::test]
@@ -155,7 +130,7 @@ mod tests {
 		assert_eq!(
 			Command::test(
 				args,
-				#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
+				#[cfg(feature = "chain")]
 				&mut cli
 			)
 			.await?,

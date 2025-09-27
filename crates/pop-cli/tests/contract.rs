@@ -2,7 +2,7 @@
 
 //! Contract integration tests for validating contract lifecycle functionality.
 
-#![cfg(feature = "contract")]
+#![cfg(feature = "contracts")]
 
 use anyhow::Result;
 use assert_cmd::Command;
@@ -15,20 +15,11 @@ use pop_contracts::{
 use serde::{Deserialize, Serialize};
 use std::{path::Path, process::Command as Cmd, time::Duration};
 use strum::VariantArray;
-#[cfg(feature = "wasm-contracts")]
 use subxt::{
 	backend::rpc::RpcClient, config::DefaultExtrinsicParamsBuilder as Params, ext::subxt_core,
 	tx::Payload, utils::to_hex, Metadata, OnlineClient, SubstrateConfig,
 };
-#[cfg(feature = "polkavm-contracts")]
-use subxt_inkv6::{
-	backend::rpc::RpcClient, config::DefaultExtrinsicParamsBuilder as Params, ext::subxt_core,
-	tx::Payload, utils::to_hex, Metadata, OnlineClient, SubstrateConfig,
-};
-#[cfg(feature = "wasm-contracts")]
 use subxt_signer::sr25519::dev;
-#[cfg(feature = "polkavm-contracts")]
-use subxt_signer_inkv6::sr25519::dev;
 use tokio::time::sleep;
 use url::Url;
 
@@ -107,9 +98,6 @@ async fn contract_lifecycle() -> Result<()> {
 	assert!(temp_dir.join("test_contract/target").exists());
 	// Verify that all the artifacts has been generated
 	assert!(temp_dir.join("test_contract/target/ink/test_contract.contract").exists());
-	#[cfg(feature = "wasm-contracts")]
-	assert!(temp_dir.join("test_contract/target/ink/test_contract.wasm").exists());
-	#[cfg(feature = "polkavm-contracts")]
 	assert!(temp_dir.join("test_contract/target/ink/test_contract.polkavm").exists());
 	assert!(temp_dir.join("test_contract/target/ink/test_contract.json").exists());
 
