@@ -48,15 +48,15 @@ url = "2.5.4"
 # contracts
 subxt-signer = { version = "0.44.0", default-features = false, features = ["subxt", "sr25519"] }
 subxt = { version = "0.44.0", default-features = false }
-ink_env = { git = "https://github.com/use-ink/ink", tag = "v6.0.0-alpha.3", version = "6.0.0-alpha.3", features = ["unstable-hostfn"] }
+ink_env = { git = "https://github.com/use-ink/ink", tag = "v6.0.0-alpha.4", version = "6.0.0-alpha.4", features = ["unstable-hostfn"] }
 sp-core= { git = "https://github.com/use-ink/polkadot-sdk.git", rev = "a71ec19a94702ea71767ba5ac97603ea6c6305c1", default-features = false }
 sp-weights = { git = "https://github.com/use-ink/polkadot-sdk.git", rev = "a71ec19a94702ea71767ba5ac97603ea6c6305c1", default-features = false }
 scale = { package = "parity-scale-codec", version = "3.7.5", features = ["derive"] }
 scale-info = { version = "2.11.6", default-features = false, features = ["derive"] }
 scale-value = { version = "0.18.0", default-features = false, features = ["from-string", "parser-ss58"] }
-contract-build = { git = "https://github.com/use-ink/cargo-contract", tag = "v6.0.0-alpha.3", version = "6.0.0-alpha.3", default-features = false }
-contract-extrinsics = { git = "https://github.com/use-ink/cargo-contract", tag = "v6.0.0-alpha.3", version = "6.0.0-alpha.3", default-features = false }
-contract-transcode = { git = "https://github.com/use-ink/cargo-contract", tag = "v6.0.0-alpha.3", version = "6.0.0-alpha.3", default-features = false }
+contract-build = { git = "https://github.com/use-ink/cargo-contract", tag = "v6.0.0-alpha.4", version = "6.0.0-alpha.4", default-features = false }
+contract-extrinsics = { git = "https://github.com/use-ink/cargo-contract", tag = "v6.0.0-alpha.4", version = "6.0.0-alpha.4", default-features = false }
+contract-transcode = { git = "https://github.com/use-ink/cargo-contract", tag = "v6.0.0-alpha.4", version = "6.0.0-alpha.4", default-features = false }
 heck = { version = "0.5.0", default-features = false }
 
 # parachains

@@ -251,7 +251,6 @@ impl UpContractCommand {
 					// mapping if it's required.
 					map_account(instantiate_exec.opts(), &mut Cli).await?;
 					let contract_info = match instantiate_contract_signed(
-						instantiate_exec,
 						maybe_signature_request.contract_address,
 						self.url.as_str(),
 						payload,

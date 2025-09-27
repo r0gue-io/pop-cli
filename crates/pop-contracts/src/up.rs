@@ -11,11 +11,11 @@ use crate::{
 	Bytes, DefaultEnvironment, Environment, UploadCode, Weight,
 };
 use contract_extrinsics::{
-	contract_address,
+	events::ContractInstantiated,
 	extrinsic_calls::{Instantiate, InstantiateWithCode},
-	fetch_contract_binary, BalanceVariant, Code, ContractBinary, ErrorVariant,
-	ExtrinsicOptsBuilder, InstantiateCommandBuilder, InstantiateExec, InstantiateExecResult,
-	TokenMetadata, UploadCommandBuilder, UploadExec, UploadResult,
+	BalanceVariant, Code, ContractBinary, ErrorVariant, ExtrinsicOptsBuilder,
+	InstantiateCommandBuilder, InstantiateExec, InstantiateExecResult, TokenMetadata,
+	UploadCommandBuilder, UploadExec, UploadResult,
 };
 use pop_common::account_id::parse_h160_account;
 use sp_core::bytes::{from_hex, to_hex};
@@ -245,7 +245,6 @@ pub async fn upload_contract_signed(
 /// * `url` - rpc for chain.
 /// * `payload` - the signed payload to submit (encoded call data).
 pub async fn instantiate_contract_signed(
-	instantiate_exec: InstantiateExec<DefaultConfig, DefaultEnvironment, Keypair>,
 	maybe_contract_address: Option<String>,
 	url: &str,
 	payload: String,
@@ -256,22 +255,13 @@ pub async fn instantiate_contract_signed(
 		let contract_address = match maybe_contract_address {
 			Some(addr) => parse_h160_account(&addr)?,
 			None => {
-				let rpc = instantiate_exec.rpc();
-				let code = match instantiate_exec.args().code().clone() {
-					Code::Upload(code) => code,
-					Code::Existing(hash) =>
-						fetch_contract_binary(instantiate_exec.client(), rpc, &hash).await?,
-				};
-				let data = instantiate_exec.args().data();
-				contract_address(
-					instantiate_exec.client(),
-					rpc,
-					instantiate_exec.opts().signer(),
-					&instantiate_exec.args().salt().cloned(),
-					&code[..],
-					data,
-				)
-				.await?
+				let instantiated =
+					events.find_first::<ContractInstantiated>()?.ok_or_else(|| {
+						Error::InstantiateContractError(
+							"Failed to find Instantiated event".to_string(),
+						)
+					})?;
+				instantiated.contract
 			},
 		};
 		(None, contract_address)
