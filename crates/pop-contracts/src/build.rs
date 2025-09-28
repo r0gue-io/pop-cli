@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{errors::Error, utils::get_manifest_path};
-pub use contract_build::Verbosity;
 use contract_build::{execute, BuildMode, BuildResult, ExecuteArgs};
+pub use contract_build::{MetadataSpec, Verbosity};
 use std::path::Path;
 
 /// Build the smart contract located at the specified `path` in `build_release` mode.
@@ -12,12 +12,12 @@ use std::path::Path;
 ///   if not specified.
 /// * `release` - Whether the smart contract should be built without any debugging functionality.
 /// * `verbosity` - The build output verbosity.
-/// * `metadata_spec` - *(v6 only)* Optionally specify the contract metadata format/version.
+/// * `metadata_spec` - Optionally specify the contract metadata format/version.
 pub fn build_smart_contract(
 	path: Option<&Path>,
 	release: bool,
 	verbosity: Verbosity,
-	metadata_spec: Option<crate::MetadataSpec>,
+	metadata_spec: Option<MetadataSpec>,
 ) -> anyhow::Result<BuildResult> {
 	let manifest_path = get_manifest_path(path)?;
 
