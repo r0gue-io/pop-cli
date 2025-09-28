@@ -15,6 +15,8 @@ pub use metadata::format_type;
 pub use signer::create_signer;
 pub use sourcing::set_executable_permission;
 use std::{cmp::Ordering, net::TcpListener, ops::Deref};
+pub use subxt::{Config, PolkadotConfig as DefaultConfig};
+pub use subxt_signer::sr25519::Keypair;
 pub use templates::extractor::extract_template_files;
 pub use test::test_project;
 

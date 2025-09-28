@@ -133,7 +133,7 @@ mod tests {
 						command: None,
 						path: None,
 						path_pos: None,
-						#[cfg(any(feature = "contracts"))]
+						#[cfg(any(feature = "contract"))]
 						contract: Default::default(),
 					})
 				}

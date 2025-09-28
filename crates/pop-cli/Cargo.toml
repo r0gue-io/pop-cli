@@ -64,8 +64,8 @@ contract-extrinsics.workspace = true
 mockito.workspace = true
 
 [features]
-default = ["chain", "telemetry", "contracts"]
+default = ["chain", "telemetry", "contract"]
 chain = ["dep:pop-chains", "dep:git2", "dep:tracing-subscriber", "wallet-integration"]
-contracts = ["dep:pop-contracts", "wallet-integration"]
+contract = ["dep:pop-contracts", "wallet-integration"]
 telemetry = ["dep:pop-telemetry"]
 wallet-integration = ["dep:axum", "dep:open", "dep:tower-http"]

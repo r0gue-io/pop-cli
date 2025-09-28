@@ -19,7 +19,7 @@ use crate::{
 use clap::Args;
 use cliclack::{spinner, ProgressBar};
 use console::{Emoji, Style};
-#[cfg(feature = "chain")]
+#[cfg(feature = "contract")]
 use pop_contracts::{
 	build_smart_contract, dry_run_gas_estimate_instantiate, dry_run_upload, get_contract_code,
 	get_instantiate_payload, get_upload_payload, instantiate_contract_signed,

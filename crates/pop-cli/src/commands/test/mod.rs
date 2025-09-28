@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-#[cfg(feature = "chain")]
+#[cfg(feature = "contract")]
 use crate::cli;
 use crate::common::{
 	builds::get_project_path,
@@ -13,7 +13,7 @@ use pop_common::test_project;
 use std::fmt::{Display, Formatter, Result};
 use std::path::PathBuf;
 
-#[cfg(feature = "chain")]
+#[cfg(feature = "contract")]
 pub mod contract;
 #[cfg(feature = "chain")]
 pub mod create_snapshot;
@@ -28,7 +28,7 @@ pub mod on_runtime_upgrade;
 #[derive(Args, Default)]
 #[command(args_conflicts_with_subcommands = true)]
 pub(crate) struct TestArgs {
-	#[cfg(any(feature = "contracts", feature = "chain"))]
+	#[cfg(any(feature = "contract", feature = "chain"))]
 	#[command(subcommand)]
 	pub(crate) command: Option<Command>,
 	/// Directory path for your project [default: current directory]
@@ -38,7 +38,7 @@ pub(crate) struct TestArgs {
 	#[arg(value_name = "PATH", index = 1, conflicts_with = "path")]
 	pub(crate) path_pos: Option<PathBuf>,
 	#[command(flatten)]
-	#[cfg(feature = "chain")]
+	#[cfg(feature = "contract")]
 	pub(crate) contract: contract::TestContractCommand,
 }
 
@@ -64,7 +64,7 @@ impl Command {
 	pub(crate) async fn execute(args: TestArgs) -> anyhow::Result<(Project, TestFeature)> {
 		Self::test(
 			args,
-			#[cfg(feature = "chain")]
+			#[cfg(feature = "contract")]
 			&mut cli::Cli,
 		)
 		.await
@@ -72,11 +72,11 @@ impl Command {
 
 	async fn test(
 		args: TestArgs,
-		#[cfg(feature = "chain")] cli: &mut impl cli::traits::Cli,
+		#[cfg(feature = "contract")] cli: &mut impl cli::traits::Cli,
 	) -> anyhow::Result<(Project, TestFeature)> {
 		let project_path = get_project_path(args.path.clone(), args.path_pos.clone());
 
-		#[cfg(feature = "chain")]
+		#[cfg(feature = "contract")]
 		if pop_contracts::is_supported(project_path.as_deref())? {
 			let mut cmd = args.contract;
 			cmd.path = project_path;
@@ -130,7 +130,7 @@ mod tests {
 		assert_eq!(
 			Command::test(
 				args,
-				#[cfg(feature = "chain")]
+				#[cfg(feature = "contract")]
 				&mut cli
 			)
 			.await?,

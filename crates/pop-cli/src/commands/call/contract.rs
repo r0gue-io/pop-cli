@@ -17,6 +17,7 @@ use anyhow::{anyhow, Result};
 use clap::Args;
 use cliclack::spinner;
 use pop_common::parse_h160_account;
+#[cfg(feature = "contract")]
 use pop_contracts::{
 	build_smart_contract, call_smart_contract, call_smart_contract_from_signed_payload,
 	dry_run_call, dry_run_gas_estimate_call, get_call_payload, get_message, get_messages,

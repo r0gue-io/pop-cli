@@ -7,7 +7,7 @@ use std::fmt::{Display, Formatter, Result};
 
 #[cfg(feature = "chain")]
 pub mod chain;
-#[cfg(feature = "contracts")]
+#[cfg(feature = "contract")]
 pub mod contract;
 #[cfg(feature = "chain")]
 pub mod pallet;
@@ -46,7 +46,7 @@ pub enum Command {
 	#[clap(alias = "P")]
 	Pallet(pallet::NewPalletCommand),
 	/// Generate a new smart contract
-	#[cfg(feature = "chain")]
+	#[cfg(feature = "contract")]
 	#[clap(alias = "c")]
 	Contract(contract::NewContractCommand),
 }
@@ -58,7 +58,7 @@ impl Display for Command {
 			Command::Chain(_) => write!(f, "chain"),
 			#[cfg(feature = "chain")]
 			Command::Pallet(_) => write!(f, "pallet"),
-			#[cfg(feature = "chain")]
+			#[cfg(feature = "contract")]
 			Command::Contract(_) => write!(f, "contract"),
 		}
 	}
@@ -77,7 +77,7 @@ pub fn guide_user_to_select_command(cli: &mut impl cli::traits::Cli) -> AnyhowRe
 		prompt = prompt.item("pallet", "Pallet", "Create reusable and customizable chain modules");
 	}
 
-	#[cfg(feature = "chain")]
+	#[cfg(feature = "contract")]
 	{
 		prompt = prompt.item("contract", "Smart Contract", "Write ink! smart contracts");
 	}
@@ -87,7 +87,7 @@ pub fn guide_user_to_select_command(cli: &mut impl cli::traits::Cli) -> AnyhowRe
 	{
 		prompt = prompt.initial_value("chain");
 	}
-	#[cfg(all(feature = "contracts", not(feature = "chain")))]
+	#[cfg(all(feature = "contract", not(feature = "chain")))]
 	{
 		prompt = prompt.initial_value("contract");
 	}
@@ -113,7 +113,7 @@ pub fn guide_user_to_select_command(cli: &mut impl cli::traits::Cli) -> AnyhowRe
 			description: None,
 			mode: None,
 		})),
-		#[cfg(feature = "chain")]
+		#[cfg(feature = "contract")]
 		"contract" => Ok(Command::Contract(contract::NewContractCommand {
 			name: None,
 			contract_type: None,
@@ -134,7 +134,7 @@ mod tests {
 		assert_eq!(Command::Chain(Default::default()).to_string(), "chain");
 		#[cfg(feature = "chain")]
 		assert_eq!(Command::Pallet(Default::default()).to_string(), "pallet");
-		#[cfg(feature = "chain")]
+		#[cfg(feature = "contract")]
 		assert_eq!(Command::Contract(Default::default()).to_string(), "contract");
 	}
 
@@ -148,7 +148,7 @@ mod tests {
 				.push(("Pallet".into(), "Create reusable and customizable chain modules".into()));
 		}
 
-		#[cfg(feature = "chain")]
+		#[cfg(feature = "contract")]
 		{
 			options.push(("Smart Contract".into(), "Write ink! smart contracts".into()));
 		}
@@ -164,7 +164,7 @@ mod tests {
 		#[cfg(feature = "chain")]
 		assert_eq!(cmd.to_string(), "chain");
 
-		#[cfg(all(not(feature = "chain"), feature = "contracts"))]
+		#[cfg(all(not(feature = "chain"), feature = "contract"))]
 		assert_eq!(cmd.to_string(), "contract");
 		cli.verify()
 	}

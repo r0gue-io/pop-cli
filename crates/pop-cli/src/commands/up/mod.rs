@@ -15,7 +15,7 @@ use {
 	std::fmt::{Display, Formatter, Result},
 };
 
-#[cfg(feature = "chain")]
+#[cfg(feature = "contract")]
 mod contract;
 #[cfg(feature = "chain")]
 pub(super) mod network;
@@ -49,7 +49,7 @@ pub(crate) struct UpArgs {
 	pub(crate) rollup: rollup::UpCommand,
 
 	#[command(flatten)]
-	#[cfg(feature = "chain")]
+	#[cfg(feature = "contract")]
 	pub(crate) contract: contract::UpContractCommand,
 
 	#[command(subcommand)]
@@ -103,7 +103,7 @@ impl Command {
 			}
 		}
 		// If only contract feature enabled, deploy a contract
-		#[cfg(feature = "chain")]
+		#[cfg(feature = "contract")]
 		if pop_contracts::is_supported(project_path.as_deref())? {
 			let mut cmd = args.contract;
 			cmd.path = project_path;
@@ -139,12 +139,13 @@ impl Display for Command {
 
 #[cfg(test)]
 mod tests {
+	#[cfg(feature = "contract")]
+	use super::contract::UpContractCommand;
 	use super::*;
 	use crate::common::urls;
 	use cli::MockCli;
 	use duct::cmd;
-	#[cfg(feature = "chain")]
-	use {super::contract::UpContractCommand, url::Url};
+	use url::Url;
 	#[cfg(feature = "chain")]
 	use {
 		crate::style::format_url,
@@ -156,7 +157,7 @@ mod tests {
 		Ok(UpArgs {
 			path: Some(project_path),
 			path_pos: None,
-			#[cfg(feature = "chain")]
+			#[cfg(feature = "contract")]
 			contract: UpContractCommand {
 				path: None,
 				constructor: "new".to_string(),
