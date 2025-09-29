@@ -10,14 +10,14 @@ use std::{env, path::Path};
 ///
 /// * `path` - location of the smart contract.
 /// * `node` - location of the contracts node binary.
-pub fn test_e2e_smart_contract(path: Option<&Path>, node: Option<&Path>) -> Result<(), Error> {
+pub fn test_e2e_smart_contract(path: &Path, node: Option<&Path>) -> Result<(), Error> {
 	// Set the environment variable `CONTRACTS_NODE` to the path of the contracts node.
 	if let Some(node) = node {
 		env::set_var("CONTRACTS_NODE", node);
 	}
 	// Execute `cargo test --features=e2e-tests` command in the specified directory.
 	cmd("cargo", vec!["test", "--features=e2e-tests"])
-		.dir(path.unwrap_or_else(|| Path::new("./")))
+		.dir(path)
 		.run()
 		.map_err(|e| Error::TestCommand(format!("Cargo test command failed: {}", e)))?;
 	Ok(())
@@ -33,12 +33,12 @@ mod tests {
 		cmd("cargo", ["new", "test_contract", "--bin"]).dir(temp_dir.path()).run()?;
 		// Ignore 2e2 testing in this scenario, will fail. Only test if the environment variable
 		// CONTRACTS_NODE is set.
-		let err = test_e2e_smart_contract(Some(&temp_dir.path().join("test_contract")), None);
+		let err = test_e2e_smart_contract(&temp_dir.path().join("test_contract"), None);
 		assert!(err.is_err());
 		// The environment variable `CONTRACTS_NODE` should not be set.
 		assert!(env::var("CONTRACTS_NODE").is_err());
 		let err = test_e2e_smart_contract(
-			Some(&temp_dir.path().join("test_contract")),
+			&temp_dir.path().join("test_contract"),
 			Some(Path::new("/path/to/contracts-node")),
 		);
 		assert!(err.is_err());
@@ -55,7 +55,7 @@ mod tests {
 		let temp_dir = tempfile::tempdir()?;
 		cmd("cargo", ["new", "test_contract", "--bin"]).dir(temp_dir.path()).run()?;
 		assert!(matches!(
-			test_e2e_smart_contract(Some(&temp_dir.path().join("test_contract")), None),
+			test_e2e_smart_contract(&temp_dir.path().join("test_contract"), None),
 			Err(Error::TestCommand(..))
 		));
 		Ok(())

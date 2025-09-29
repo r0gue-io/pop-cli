@@ -83,7 +83,7 @@ pub fn build_project(
 /// # Arguments
 /// * `path` - The optional path to the manifest, defaulting to the current directory if not
 ///   specified.
-pub fn is_supported(path: Option<&Path>) -> Result<bool, Error> {
+pub fn is_supported(path: &Path) -> Result<bool, Error> {
 	let manifest = from_path(path)?;
 	// Simply check for a chain dependency
 	const DEPENDENCIES: [&str; 4] =
@@ -118,7 +118,7 @@ fn build_binary_path<F>(project_path: &Path, path_builder: F) -> Result<PathBuf,
 where
 	F: Fn(&str) -> PathBuf,
 {
-	let manifest = from_path(Some(project_path))?;
+	let manifest = from_path(project_path)?;
 	let project_name = manifest.package().name();
 	let release = path_builder(project_name);
 	if !release.exists() {
@@ -1284,16 +1284,16 @@ mod tests {
 		// Standard rust project
 		let name = "hello_world";
 		cmd("cargo", ["new", name]).dir(path).run()?;
-		assert!(!is_supported(Some(&path.join(name)))?);
+		assert!(!is_supported(&path.join(name))?);
 
 		// Chain
-		let mut manifest = from_path(Some(&path.join(name)))?;
+		let mut manifest = from_path(&path.join(name))?;
 		manifest
 			.dependencies
 			.insert("cumulus-client-collator".into(), Dependency::Simple("^0.14.0".into()));
 		let manifest = toml_edit::ser::to_string_pretty(&manifest)?;
 		write(path.join(name).join("Cargo.toml"), manifest)?;
-		assert!(is_supported(Some(&path.join(name)))?);
+		assert!(is_supported(&path.join(name))?);
 		Ok(())
 	}
 }

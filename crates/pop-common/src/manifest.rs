@@ -14,19 +14,17 @@ use toml_edit::{value, Array, DocumentMut, Item, Value};
 /// # Arguments
 /// * `path` - The optional path to the manifest, defaulting to the current directory if not
 ///   specified.
-pub fn from_path(path: Option<&Path>) -> Result<Manifest, Error> {
+pub fn from_path(path: &Path) -> Result<Manifest, Error> {
 	// Resolve manifest path
-	let path = match path {
-		Some(path) => match path.ends_with("Cargo.toml") {
-			true => path.to_path_buf(),
-			false => path.join("Cargo.toml"),
-		},
-		None => PathBuf::from("./Cargo.toml"),
-	};
-	if !path.exists() {
+	let path = match path.ends_with("Cargo.toml") {
+		true => path.to_path_buf(),
+		false => path.join("Cargo.toml"),
+	}
+	.canonicalize()?;
+	if !path.is_file() {
 		return Err(Error::ManifestPath(path.display().to_string()));
 	}
-	Ok(Manifest::from_path(path.canonicalize()?)?)
+	Ok(Manifest::from_path(path)?)
 }
 
 /// This function is used to determine if a Path is contained inside a workspace, and returns a
@@ -218,24 +216,19 @@ mod tests {
 	#[test]
 	fn from_path_works() -> anyhow::Result<()> {
 		// Workspace manifest from directory
-		from_path(Some(Path::new("../../")))?;
+		from_path(Path::new("../../"))?;
 		// Workspace manifest from path
-		from_path(Some(Path::new("../../Cargo.toml")))?;
+		from_path(Path::new("../../Cargo.toml"))?;
 		// Package manifest from directory
-		from_path(Some(Path::new(".")))?;
+		from_path(Path::new("."))?;
 		// Package manifest from path
-		from_path(Some(Path::new("./Cargo.toml")))?;
-		// None
-		from_path(None)?;
+		from_path(Path::new("./Cargo.toml"))?;
 		Ok(())
 	}
 
 	#[test]
 	fn from_path_ensures_manifest_exists() -> Result<(), Error> {
-		assert!(matches!(
-			from_path(Some(Path::new("./none.toml"))),
-			Err(super::Error::ManifestPath(..))
-		));
+		assert!(matches!(from_path(Path::new("./none.toml")), Err(super::Error::ManifestPath(..))));
 		Ok(())
 	}
 

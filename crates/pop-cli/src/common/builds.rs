@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use std::path::PathBuf;
+use std::{env::current_dir, path::PathBuf};
 
 #[cfg(feature = "chain")]
 use {
@@ -19,6 +19,13 @@ pub fn get_project_path(path_flag: Option<PathBuf>, path_pos: Option<PathBuf>) -
 		path_flag.as_ref() // Otherwise, use the named path
 	};
 	project_path.cloned()
+}
+
+/// This method is used to get the proper project path format (with or without cli flag). Defaults
+/// to the current directory.
+pub fn ensure_project_path(path_flag: Option<PathBuf>, path_pos: Option<PathBuf>) -> PathBuf {
+	get_project_path(path_flag, path_pos)
+		.unwrap_or_else(|| current_dir().expect("Unable to get current directory"))
 }
 
 /// Locate node binary, if it doesn't exist trigger build.

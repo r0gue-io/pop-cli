@@ -33,8 +33,8 @@ impl BuildRuntime {
 	pub(crate) fn execute(self) -> anyhow::Result<()> {
 		let cli = &mut cli::Cli;
 		let current_dir = current_dir().unwrap_or(PathBuf::from("./"));
-		let is_parachain = pop_chains::is_supported(Some(&current_dir))?;
-		let is_runtime = pop_chains::runtime::is_supported(Some(&current_dir))?;
+		let is_parachain = pop_chains::is_supported(&current_dir)?;
+		let is_runtime = pop_chains::runtime::is_supported(&current_dir)?;
 		// `pop build runtime` must be run inside a parachain project or a specific runtime folder.
 		if !is_parachain && !is_runtime {
 			return display_message(

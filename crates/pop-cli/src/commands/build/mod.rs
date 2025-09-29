@@ -107,10 +107,10 @@ impl Command {
 		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "chain"))]
 		// If only contract feature enabled, build as contract
 		let project_path =
-			crate::common::builds::get_project_path(args.path.clone(), args.path_pos.clone());
+			crate::common::builds::ensure_project_path(args.path.clone(), args.path_pos.clone());
 
 		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
-		if pop_contracts::is_supported(project_path.as_deref())? {
+		if pop_contracts::is_supported(&project_path)? {
 			// All commands originating from root command are valid
 			let release = match args.profile {
 				Some(profile) => profile.into(),
@@ -122,17 +122,16 @@ impl Command {
 
 		// If project is a parachain runtime, build as parachain runtime
 		#[cfg(feature = "chain")]
-		if args.only_runtime || pop_chains::runtime::is_supported(project_path.as_deref())? {
+		if args.only_runtime || pop_chains::runtime::is_supported(&project_path)? {
 			let profile = match args.profile {
 				Some(profile) => profile,
 				None => args.release.into(),
 			};
-			let temp_path = PathBuf::from("./");
 			let features = args.features.unwrap_or_default();
 			let feature_list = collect_features(&features, args.benchmark, args.try_runtime);
 
 			BuildRuntime {
-				path: project_path.unwrap_or(temp_path).to_path_buf(),
+				path: project_path,
 				profile,
 				benchmark: feature_list.contains(&Benchmark.as_ref()),
 				try_runtime: feature_list.contains(&TryRuntime.as_ref()),
@@ -144,17 +143,16 @@ impl Command {
 
 		// If project is a parachain runtime, build as parachain runtime
 		#[cfg(feature = "chain")]
-		if pop_chains::is_supported(project_path.as_deref())? {
+		if pop_chains::is_supported(&project_path)? {
 			let profile = match args.profile {
 				Some(profile) => profile,
 				None => args.release.into(),
 			};
-			let temp_path = PathBuf::from("./");
 			let features = args.features.unwrap_or_default();
 			let feature_list = collect_features(&features, args.benchmark, args.try_runtime);
 
 			BuildChain {
-				path: project_path.unwrap_or(temp_path).to_path_buf(),
+				path: project_path,
 				package: args.package,
 				profile,
 				benchmark: feature_list.contains(&Benchmark.as_ref()),

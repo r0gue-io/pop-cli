@@ -141,8 +141,8 @@ pub(crate) enum RelayChain {
 #[derive(Args, Default)]
 pub struct BuildSpecCommand {
 	/// Directory path for your project [default: current directory]
-	#[arg(long)]
-	pub(crate) path: Option<PathBuf>,
+	#[arg(long, default_value = "./")]
+	pub(crate) path: PathBuf,
 	/// File name for the resulting spec. If a path is given,
 	/// the necessary directories will be created
 	#[arg(short, long = "output")]
@@ -194,7 +194,7 @@ impl BuildSpecCommand {
 		let mut cli = Cli;
 		cli.intro("Generate your chain spec")?;
 		// Checks for appchain project.
-		if is_supported(self.path.as_deref())? {
+		if is_supported(&self.path)? {
 			let build_spec = self.configure_build_spec(&mut cli).await?;
 			if let Err(e) = build_spec.build(&mut cli) {
 				cli.outro_cancel(e.to_string())?;
@@ -234,9 +234,6 @@ impl BuildSpecCommand {
 			..
 		} = self;
 
-		// Project path.
-		let path = path.unwrap_or(PathBuf::from("./"));
-
 		// Chain.
 		let chain = match chain {
 			Some(chain) => chain,
@@ -252,9 +249,7 @@ impl BuildSpecCommand {
 		// Output file.
 		let maybe_chain_spec_file = PathBuf::from(&chain);
 		// Check if the provided chain specification is a file.
-		let (output_file, prompt) = if maybe_chain_spec_file.exists() &&
-			maybe_chain_spec_file.is_file()
-		{
+		let (output_file, prompt) = if maybe_chain_spec_file.is_file() {
 			if output_file.is_some() {
 				cli.warning("NOTE: If an existing chain spec file is provided it will be used for the output path.")?;
 			}
@@ -398,8 +393,8 @@ impl BuildSpecCommand {
 		};
 
 		// Prompt for default bootnode if not provided and chain type is Local or Live.
-		let default_bootnode = prompt &&
-			default_bootnode.unwrap_or_else(|| match chain_type {
+		let default_bootnode = prompt
+			&& default_bootnode.unwrap_or_else(|| match chain_type {
 				ChainType::Development => true,
 				_ => cli
 					.confirm("Would you like to use local host as a bootnode ?".to_string())
@@ -450,7 +445,7 @@ impl BuildSpecCommand {
 		let package = if deterministic {
 			package
 				.or_else(|| {
-					from_path(Some(&runtime_dir))
+					from_path(&runtime_dir)
 						.ok()
 						.and_then(|manifest| manifest.package.map(|pkg| pkg.name))
 				})
@@ -745,13 +740,14 @@ mod tests {
 		let deterministic = true;
 		let package = "runtime-name";
 		let runtime_dir = PathBuf::from("./new-runtime-dir");
+		let path = PathBuf::from("./");
 
 		for build_spec_cmd in [
 			// No flags used.
 			BuildSpecCommand::default(),
 			// All flags used.
 			BuildSpecCommand {
-				path: None,
+				path,
 				output_file: Some(PathBuf::from(output_file)),
 				profile: Some(profile.clone()),
 				id: Some(para_id),
@@ -839,6 +835,7 @@ mod tests {
 		let deterministic = true;
 		let package = "runtime-name";
 		let runtime_dir = PathBuf::from("./new-runtime-dir");
+		let path = PathBuf::from("./");
 
 		// Create a temporary file to act as the existing chain spec file.
 		let temp_dir = tempdir()?;
@@ -855,7 +852,7 @@ mod tests {
 				},
 				// All flags used.
 				BuildSpecCommand {
-					path: None,
+					path: path.clone(),
 					output_file: Some(PathBuf::from(output_file)),
 					profile: Some(profile.clone()),
 					id: Some(para_id),

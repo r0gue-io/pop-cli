@@ -41,7 +41,7 @@ const PDP_API_KEY: &str = "PDP_API_KEY";
 pub struct UpCommand {
 	/// Path to the project.
 	#[clap(skip)]
-	pub(crate) path: Option<PathBuf>,
+	pub(crate) path: PathBuf,
 	/// ID to use. If not specified, a new ID will be reserved.
 	#[arg(short, long)]
 	pub(crate) id: Option<u32>,
@@ -239,9 +239,9 @@ impl UpCommand {
 	) -> Result<GenesisArtifacts> {
 		// If the API is unavailable and both genesis code & state exist, there's no need to
 		// generate the chain spec.
-		if deployment_config.api.is_none() &&
-			self.genesis_code.is_some() &&
-			self.genesis_state.is_some()
+		if deployment_config.api.is_none()
+			&& self.genesis_code.is_some()
+			&& self.genesis_state.is_some()
 		{
 			return Ok(GenesisArtifacts {
 				genesis_code_file: self.genesis_code.clone(),
@@ -257,7 +257,7 @@ impl UpCommand {
 			self.chain_spec.as_deref(),
 			deployment_config,
 			id,
-			self.path.as_deref(),
+			&self.path,
 			self.profile.clone(),
 			cli,
 		)
@@ -265,10 +265,10 @@ impl UpCommand {
 	}
 
 	fn should_show_deployment_steps(&self, deployment: &Deployment) -> bool {
-		deployment.api.is_some() &&
-			self.id.is_none() &&
-			!self.skip_registration &&
-			self.chain_spec.is_none()
+		deployment.api.is_some()
+			&& self.id.is_none()
+			&& !self.skip_registration
+			&& self.chain_spec.is_none()
 	}
 }
 
@@ -387,7 +387,7 @@ async fn generate_spec_files(
 	chain_spec: Option<&Path>,
 	deployment_config: &mut Deployment,
 	id: u32,
-	path: Option<&Path>,
+	path: &Path,
 	profile: Option<Profile>,
 	cli: &mut impl Cli,
 ) -> anyhow::Result<GenesisArtifacts> {
@@ -395,9 +395,10 @@ async fn generate_spec_files(
 		.map(|p| p.canonicalize().unwrap_or_else(|_| p.to_path_buf()).display().to_string());
 	// Changes the working directory if a path is provided to ensure the build spec process runs in
 	// the correct context.
-	if let Some(path) = path {
-		std::env::set_current_dir(path)?;
+	if !path.as_os_str().is_empty() {
+		env::set_current_dir(path)?;
 	}
+
 	let mut build_spec = BuildSpecCommand {
 		id: Some(id),
 		genesis_code: Some(true),
@@ -772,7 +773,7 @@ mod tests {
 			genesis_state: Some(genesis_state.clone()),
 			genesis_code: Some(genesis_code.clone()),
 			relay_chain_url: Some(Url::parse(node_url)?),
-			path: None,
+			path: PathBuf::from("./"),
 			proxied_address: None,
 			..Default::default()
 		}
@@ -858,7 +859,7 @@ mod tests {
 			genesis_state: Some(genesis_state.clone()),
 			genesis_code: Some(genesis_code.clone()),
 			relay_chain_url: Some(Url::parse(node_url)?),
-			path: None,
+			path: PathBuf::from("./"),
 			proxied_address: None,
 			..Default::default()
 		}

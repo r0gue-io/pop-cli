@@ -90,7 +90,7 @@ pub(crate) fn build_runtime(
 	cli.warning("NOTE: this may take some time...")?;
 	let binary_path = if deterministic {
 		let spinner = spinner();
-		let manifest = from_path(Some(runtime_path))?;
+		let manifest = from_path(runtime_path)?;
 		let package = manifest.package();
 		let name = package.clone().name;
 		spinner.start("Building deterministic runtime...");
@@ -214,7 +214,7 @@ pub fn guide_user_to_select_runtime(
 		if !path.is_dir() {
 			continue;
 		}
-		let manifest = from_path(Some(path.as_path()))?;
+		let manifest = from_path(&path)?;
 		let package = manifest.package();
 		let name = package.clone().name;
 		let description = package.description().unwrap_or_default().to_string();

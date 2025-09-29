@@ -39,14 +39,14 @@ impl CallArgs {
 		let current_dir = std::env::current_dir()?;
 
 		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
-		if pop_contracts::is_supported(Some(&current_dir))? {
+		if pop_contracts::is_supported(&current_dir)? {
 			let mut cmd = contract::CallContractCommand::default();
 			cmd.path_pos = Some(current_dir);
 			return Ok(Command::Contract(cmd));
 		}
 
 		#[cfg(feature = "chain")]
-		if pop_chains::is_supported(Some(&current_dir))? {
+		if pop_chains::is_supported(&current_dir)? {
 			return Ok(Command::Chain(Default::default()));
 		}
 
