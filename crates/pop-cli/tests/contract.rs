@@ -2,7 +2,7 @@
 
 //! Contract integration tests for validating contract lifecycle functionality.
 
-#![cfg(feature = "contract")]
+#![cfg(all(feature = "contract", feature = "integration-tests"))]
 
 use anyhow::Result;
 use assert_cmd::Command;

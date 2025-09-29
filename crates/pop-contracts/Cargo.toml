@@ -50,3 +50,4 @@ tokio-test.workspace = true
 default = ["v5"]
 v5 = ["dep:contract-build", "dep:contract-extrinsics", "dep:contract-transcode", "dep:ink_env", "dep:sp-core"]
 v6 = ["dep:contract-build_inkv6", "dep:contract-extrinsics_inkv6", "dep:contract-transcode_inkv6", "dep:ink_env_v6", "dep:sp-core_inkv6"]
+integration-tests = []
