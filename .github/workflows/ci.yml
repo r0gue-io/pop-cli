@@ -212,7 +212,6 @@ jobs:
       - name: Generate code coverage
         env:
           TMPDIR: ${{ github.workspace }}/.tmp-coverage
-          CARGO_TARGET_DIR: ${{ github.workspace }}/target-coverage
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RUSTFLAGS: "-C debuginfo=1"
           CARGO_INCREMENTAL: "0"
@@ -222,7 +221,6 @@ jobs:
           cargo llvm-cov clean --workspace
           cargo llvm-cov --locked --workspace --lib --bins --no-default-features --features "default chain telemetry v5 wasm-contracts wallet-integration" --codecov --output-path codecov.json
           df -h
-          du -sh "$CARGO_TARGET_DIR" "$TMPDIR" || true
 
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v4
