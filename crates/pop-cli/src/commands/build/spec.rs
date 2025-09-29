@@ -393,8 +393,8 @@ impl BuildSpecCommand {
 		};
 
 		// Prompt for default bootnode if not provided and chain type is Local or Live.
-		let default_bootnode = prompt
-			&& default_bootnode.unwrap_or_else(|| match chain_type {
+		let default_bootnode = prompt &&
+			default_bootnode.unwrap_or_else(|| match chain_type {
 				ChainType::Development => true,
 				_ => cli
 					.confirm("Would you like to use local host as a bootnode ?".to_string())

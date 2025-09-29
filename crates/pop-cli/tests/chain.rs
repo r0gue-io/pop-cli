@@ -23,10 +23,21 @@ use std::{
 	fs,
 	fs::write,
 	path::{Path, PathBuf},
-	process::Command,
+	process::{Child, Command},
 	time::Duration,
 };
 use strum::VariantArray;
+
+/// Utility child process wrapper to kill the child process on drop.
+///
+/// To be used exclusively for tests.
+struct TestChildProcess(pub(crate) Child);
+
+impl Drop for TestChildProcess {
+	fn drop(&mut self) {
+		self.0.kill().expect("Child process failed to kill");
+	}
+}
 
 // Test that all templates are generated correctly
 #[test]
@@ -178,7 +189,7 @@ rpc_port = {random_port}
 		&working_dir,
 		["up", "network", "./network.toml", "-r", "stable2412", "--verbose", "--skip-confirm"],
 	);
-	let mut up = command.spawn()?;
+	let mut up = TestChildProcess(command.spawn()?);
 
 	// Wait for the networks to initialize. Increased timeout to accommodate CI environment delays.
 	let wait = Duration::from_secs(50);
@@ -225,11 +236,10 @@ rpc_port = {random_port}
 	);
 	assert!(command.spawn()?.wait()?.success());
 
-	assert!(up.try_wait()?.is_none(), "the process should still be running");
+	assert!(up.0.try_wait()?.is_none(), "the process should still be running");
 	// Stop the process
-	up.kill()?;
-	up.wait()?;
-	Command::new("kill").args(["-s", "SIGINT", &up.id().to_string()]).spawn()?;
+	up.0.kill()?;
+	up.0.wait()?;
 
 	Ok(())
 }

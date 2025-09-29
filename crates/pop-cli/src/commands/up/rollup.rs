@@ -239,9 +239,9 @@ impl UpCommand {
 	) -> Result<GenesisArtifacts> {
 		// If the API is unavailable and both genesis code & state exist, there's no need to
 		// generate the chain spec.
-		if deployment_config.api.is_none()
-			&& self.genesis_code.is_some()
-			&& self.genesis_state.is_some()
+		if deployment_config.api.is_none() &&
+			self.genesis_code.is_some() &&
+			self.genesis_state.is_some()
 		{
 			return Ok(GenesisArtifacts {
 				genesis_code_file: self.genesis_code.clone(),
@@ -265,10 +265,10 @@ impl UpCommand {
 	}
 
 	fn should_show_deployment_steps(&self, deployment: &Deployment) -> bool {
-		deployment.api.is_some()
-			&& self.id.is_none()
-			&& !self.skip_registration
-			&& self.chain_spec.is_none()
+		deployment.api.is_some() &&
+			self.id.is_none() &&
+			!self.skip_registration &&
+			self.chain_spec.is_none()
 	}
 }
 
