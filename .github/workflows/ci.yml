@@ -189,38 +189,26 @@ jobs:
         run: cargo nextest run --lib --bins --no-default-features --features "polkavm-contracts, v6" -p pop-cli -p pop-contracts
 
   coverage:
-    needs: [setup, prepare-ci-image]
+    needs: 
+      - setup
+      - prepare-ci-image
     runs-on: ubuntu-latest
     container:
       image: ${{ needs.setup.outputs.image }}
-    defaults:
-      run:
-        shell: bash
     steps:
       - uses: actions/checkout@v4
-        with: { fetch-depth: 1 }
+        with: 
+          fetch-depth: 1
 
-      # no rust-cache in coverage
+      - name: Clean previous coverage artifacts
+        run: |
+          cargo llvm-cov clean --workspace || true
+          find . -type d -name 'llvm-cov-target' -prune -exec rm -rf {} +
 
       - name: Generate code coverage
+        run: cargo llvm-cov --workspace --lib --bins --no-default-features --features "default chain telemetry v5 wasm-contracts wallet-integration" --codecov --output-path codecov.json
         env:
-          TMPDIR: ${{ github.workspace }}/.tmp-coverage
-          CARGO_INCREMENTAL: "0"
-          CARGO_BUILD_JOBS: "2"
-          RUSTFLAGS: "-C debuginfo=1"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euxo pipefail
-          mkdir -p "$TMPDIR"
-          cargo llvm-cov \
-            --locked \
-            --workspace --lib --bins \
-            --no-default-features \
-            --features "default chain telemetry v5 wasm-contracts wallet-integration" \
-            --codecov --output-path codecov.json \
-            -- \
-            --skip build::tests::build_chain_works \
-            --skip build::tests::build_project_works
 
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v4
@@ -228,25 +216,7 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: codecov.json
           fail_ci_if_error: true
-          
-  spawn-cargo-tests:
-    needs: [setup, prepare-ci-image]
-    runs-on: ubuntu-latest
-    container:
-      image: ${{ needs.setup.outputs.image }}
-    steps:
-      - uses: actions/checkout@v4
-        with: { fetch-depth: 1 }
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          save-if: false
-          shared-key: shared-${{ github.head_ref || github.ref_name }}
-      - name: Run the skipped tests (no coverage)
-        run: |
-          cargo test -p pop-chains --lib -- --exact \
-            build::tests::build_chain_works \
-            build::tests::build_project_works
+
 
   documentation-tests:
     needs:
