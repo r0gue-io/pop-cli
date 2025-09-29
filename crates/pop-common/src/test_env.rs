@@ -53,7 +53,7 @@ impl TestNode {
 				},
 				Err(_) => {
 					attempts += 1;
-					if attempts > 10 {
+					if attempts > 25 {
 						return Err(anyhow::anyhow!("Node could not be started"));
 					}
 				},
