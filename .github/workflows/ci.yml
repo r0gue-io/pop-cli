@@ -210,7 +210,10 @@ jobs:
           shared-key: shared-coverage-${{ github.head_ref || github.ref_name }}
 
       - name: Generate code coverage
-        run: cargo llvm-cov --workspace --lib --bins --no-default-features --features "default chain telemetry v5 wasm-contracts wallet-integration" --codecov --verbose --output-path codecov.json --no-fail-fast nextest
+        run: |
+          cargo llvm-cov nextest --workspace --lib --bins --no-default-features       \
+          --features "default chain telemetry v5 wasm-contracts wallet-integration"   \
+          --codecov --output-path codecov.json --no-fail-fast
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
