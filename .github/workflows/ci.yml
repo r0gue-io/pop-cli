@@ -197,7 +197,19 @@ jobs:
     container:
       image: ${{ needs.setup.outputs.image }}
     steps:
+      - name: Free disk space
+        run: |
+          set -euxo pipefail
+          df -h
+          sudo rm -rf /usr/local/lib/android || true
+          sudo rm -rf /opt/ghc || true
+          sudo rm -rf /usr/share/dotnet || true
+          sudo docker system prune -af || true
+          df -h
+
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
@@ -206,17 +218,18 @@ jobs:
           cache-on-failure: true
           shared-key: shared-coverage-${{ github.head_ref || github.ref_name }}
 
-      - name: Clean before coverage
-        run: |
-          cargo llvm-cov clean --workspace || true
-          rm -rf target || true
-
       - name: Generate code coverage
         env:
+          TMPDIR: ${{ github.workspace }}/.tmp
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target-coverage
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RUSTFLAGS: "-C debuginfo=1"
           CARGO_INCREMENTAL: "0"
-        run: cargo llvm-cov --workspace --lib --bins --no-default-features --features "default chain telemetry v5 wasm-contracts wallet-integration" --codecov --output-path codecov.json
+        run: |
+          set -euxo pipefail
+          mkdir -p "$TMPDIR"
+          cargo llvm-cov clean --workspace
+          cargo llvm-cov --locked --workspace --lib --bins --no-default-features --features "default chain telemetry v5 wasm-contracts wallet-integration" --codecov --output-path codecov.json
 
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v4
