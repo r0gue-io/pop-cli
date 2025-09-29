@@ -189,9 +189,7 @@ jobs:
         run: cargo nextest run --lib --bins --no-default-features --features "polkavm-contracts, v6" -p pop-cli -p pop-contracts
 
   coverage:
-    needs:
-      - setup
-      - prepare-ci-image
+    needs: [setup, prepare-ci-image]
     runs-on: ubuntu-latest
     container:
       image: ${{ needs.setup.outputs.image }}
@@ -200,27 +198,29 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
+        with: { fetch-depth: 1 }
 
-      - name: Pre-clean coverage outputs
-        run: |
-          set -euxo pipefail
-          rm -rf "$GITHUB_WORKSPACE/.tmp-coverage" "$GITHUB_WORKSPACE/target-coverage" || true
-          mkdir -p "$GITHUB_WORKSPACE/.tmp-coverage"
+      # no rust-cache in coverage
 
       - name: Generate code coverage
         env:
           TMPDIR: ${{ github.workspace }}/.tmp-coverage
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RUSTFLAGS: "-C debuginfo=1"
           CARGO_INCREMENTAL: "0"
-          CARGO_BUILD_JOBS: "2" 
+          CARGO_BUILD_JOBS: "2"
+          RUSTFLAGS: "-C debuginfo=1"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euxo pipefail
-          cargo llvm-cov clean --workspace
-          cargo llvm-cov --locked --workspace --lib --bins --no-default-features --features "default chain telemetry v5 wasm-contracts wallet-integration" --codecov --output-path codecov.json
-          df -h
+          mkdir -p "$TMPDIR"
+          cargo llvm-cov \
+            --locked \
+            --workspace --lib --bins \
+            --no-default-features \
+            --features "default chain telemetry v5 wasm-contracts wallet-integration" \
+            --codecov --output-path codecov.json \
+            -- \
+            --skip build::tests::build_chain_works \
+            --skip build::tests::build_project_works
 
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v4
@@ -229,8 +229,24 @@ jobs:
           files: codecov.json
           fail_ci_if_error: true
           
-      - name: Post-clean
-        run: rm -rf "$GITHUB_WORKSPACE/.tmp-coverage" "$GITHUB_WORKSPACE/target-coverage" || true
+  spawn-cargo-tests:
+    needs: [setup, prepare-ci-image]
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.setup.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 1 }
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          save-if: false
+          shared-key: shared-${{ github.head_ref || github.ref_name }}
+      - name: Run the skipped tests (no coverage)
+        run: |
+          cargo test -p pop-chains --lib -- --exact \
+            build::tests::build_chain_works \
+            build::tests::build_project_works
 
   documentation-tests:
     needs:
