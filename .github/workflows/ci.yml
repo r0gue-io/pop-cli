@@ -13,13 +13,12 @@ on:
       - opened
       - synchronize
       - reopened
-      - ready_for_review
 
 env:
   CARGO_TERM_COLOR: always
   GITHUB_ACTOR: pop-cli
   CARGO_INCREMENTAL: 1
-  RUST_VERSION: 1.68
+  RUST_VERSION: 1.89
   RUST_BACKTRACE: 1
 
 concurrency:
@@ -196,40 +195,34 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: ${{ needs.setup.outputs.image }}
+    defaults:
+      run:
+        shell: bash
     steps:
-      - name: Free disk space
-        run: |
-          set -euxo pipefail
-          df -h
-          sudo rm -rf /usr/local/lib/android || true
-          sudo rm -rf /opt/ghc || true
-          sudo rm -rf /usr/share/dotnet || true
-          sudo docker system prune -af || true
-          df -h
-
       - uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          cache-all-crates: true
-          cache-on-failure: true
-          shared-key: shared-coverage-${{ github.head_ref || github.ref_name }}
+      - name: Pre-clean coverage outputs
+        run: |
+          set -euxo pipefail
+          rm -rf "$GITHUB_WORKSPACE/.tmp-coverage" "$GITHUB_WORKSPACE/target-coverage" || true
+          mkdir -p "$GITHUB_WORKSPACE/.tmp-coverage"
 
       - name: Generate code coverage
         env:
-          TMPDIR: ${{ github.workspace }}/.tmp
+          TMPDIR: ${{ github.workspace }}/.tmp-coverage
           CARGO_TARGET_DIR: ${{ github.workspace }}/target-coverage
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RUSTFLAGS: "-C debuginfo=1"
           CARGO_INCREMENTAL: "0"
+          CARGO_BUILD_JOBS: "2" 
         run: |
           set -euxo pipefail
-          mkdir -p "$TMPDIR"
           cargo llvm-cov clean --workspace
           cargo llvm-cov --locked --workspace --lib --bins --no-default-features --features "default chain telemetry v5 wasm-contracts wallet-integration" --codecov --output-path codecov.json
+          df -h
+          du -sh "$CARGO_TARGET_DIR" "$TMPDIR" || true
 
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v4
@@ -237,6 +230,9 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: codecov.json
           fail_ci_if_error: true
+          
+      - name: Post-clean
+        run: rm -rf "$GITHUB_WORKSPACE/.tmp-coverage" "$GITHUB_WORKSPACE/target-coverage" || true
 
   documentation-tests:
     needs:
