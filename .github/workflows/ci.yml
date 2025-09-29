@@ -206,10 +206,17 @@ jobs:
           cache-on-failure: true
           shared-key: shared-coverage-${{ github.head_ref || github.ref_name }}
 
+      - name: Clean before coverage
+        run: |
+          cargo llvm-cov clean --workspace || true
+          rm -rf target || true
+
       - name: Generate code coverage
-        run: cargo llvm-cov --workspace --lib --bins --no-default-features --features "default chain telemetry v5 wasm-contracts wallet-integration" --codecov --output-path codecov.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUSTFLAGS: "-C debuginfo=1"
+          CARGO_INCREMENTAL: "0"
+        run: cargo llvm-cov --workspace --lib --bins --no-default-features --features "default chain telemetry v5 wasm-contracts wallet-integration" --codecov --output-path codecov.json
 
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v4
