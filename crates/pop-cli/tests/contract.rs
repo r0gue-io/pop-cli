@@ -136,7 +136,7 @@ async fn contract_lifecycle() -> Result<()> {
 	// Using methods from the pop_contracts crate to instantiate it to get the Contract Address for
 	// the call
 	let instantiate_exec = set_up_deployment(UpOpts {
-		path: Some(temp_dir.join("test_contract")),
+		path: temp_dir.join("test_contract"),
 		constructor: "new".to_string(),
 		args: ["false".to_string()].to_vec(),
 		value: "0".to_string(),
@@ -152,7 +152,7 @@ async fn contract_lifecycle() -> Result<()> {
 
 	// Dry runs
 	let call_opts = CallOpts {
-		path: Some(temp_dir.join("test_contract")),
+		path: temp_dir.join("test_contract"),
 		contract: contract_info.address.clone(),
 		message: "get".to_string(),
 		args: vec![],
