@@ -197,7 +197,7 @@ mod tests {
 	#[tokio::test]
 	async fn execute_block_works() -> anyhow::Result<()> {
 		let cache_path = tempdir().expect("Could create temp dir");
-		source_try_runtime_binary(&mut MockCli::new(), &cache_path.path(), true).await?;
+		source_try_runtime_binary(&mut MockCli::new(), cache_path.path(), true).await?;
 
 		let mut cli = MockCli::new()
 			.expect_intro("Testing block execution")

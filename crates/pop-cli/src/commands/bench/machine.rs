@@ -106,7 +106,6 @@ mod tests {
 			profile: Some(Profile::Debug),
 		}
 		.display();
-		// TODO: Bug, display should show all args: --allow-fail
 		assert_eq!(command_info, "pop bench machine --profile=debug");
 
 		command_info = BenchmarkMachine {
