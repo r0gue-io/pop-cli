@@ -40,8 +40,12 @@ jobs:
         shell: bash
         run: |
           set -xeuo pipefail
-          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /usr/share/swift &
-          sudo docker image prune -af &
+          sudo rm -rf /usr/local/lib/android &
+          sudo rm -rf /usr/share/dotnet &
+          sudo rm -rf /usr/share/swift &
+          if command -v docker &> /dev/null; then
+            sudo docker image prune -af &
+          fi
           sudo apt-get clean &
           wait
 
