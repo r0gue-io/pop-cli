@@ -240,7 +240,7 @@ mod tests {
 		let mut cmd = TestExecuteBlockCommand::default();
 		cmd.state.uri = Some("ws://127.0.0.1:9999".to_string());
 		let error = cmd.run(&mut MockCli::new(), vec![]).await.unwrap_err();
-		assert!(error.to_string().contains("Connection refused"));
+		assert!(error.to_string().contains("Connection refused"), "Unexpected error: {}", error);
 		Ok(())
 	}
 
