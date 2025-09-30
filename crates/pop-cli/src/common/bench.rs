@@ -169,7 +169,6 @@ mod tests {
 		cli.verify()
 	}
 
-	#[ignore]
 	#[test]
 	fn overwrite_weight_dir_command_works() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
@@ -195,7 +194,6 @@ mod tests {
 		Ok(())
 	}
 
-	#[ignore]
 	#[test]
 	fn overwrite_weight_file_command_works() -> anyhow::Result<()> {
 		for (original, expected) in [
