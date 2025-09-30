@@ -20,6 +20,9 @@ env:
   GITHUB_ACTOR: pop-cli
   CARGO_INCREMENTAL: 1
   RUST_BACKTRACE: 1
+  # It is important to always use the same flags. Otherwise, the cache will not work.
+  RUSTFLAGS: "-Dwarnings"
+  RUSTDOCFLAGS: "-Dwarnings"
 
 concurrency:
   # Cancel any in-progress jobs for the same pull request or branch
@@ -91,28 +94,18 @@ jobs:
 
       - name: Check no default features
         run: cargo check --no-default-features
-        env:
-          RUSTFLAGS: "-Dwarnings"
 
       - name: Check contracts feature
         run: cargo check --no-default-features --features contract
-        env:
-          RUSTFLAGS: "-Dwarnings"
 
       - name: Check polkavm-contracts feature
         run: cargo check --no-default-features --features "polkavm-contracts, v6" -p pop-cli -p pop-contracts
-        env:
-          RUSTFLAGS: "-Dwarnings"
 
       - name: Check chain feature
         run: cargo check --no-default-features --features chain
-        env:
-          RUSTFLAGS: "-Dwarnings"
 
       - name: Check default features
         run: cargo check
-        env:
-          RUSTFLAGS: "-Dwarnings"
 
   clippy:
     needs:
@@ -168,8 +161,8 @@ jobs:
       - name: Check no default features
         run: cargo doc --no-deps
         env:
-          RUSTDOCFLAGS: "-Dwarnings"
-          RUSTFLAGS: "-Dmissing_docs"
+          # We cannot propagate the "mising_docs" flag, as otherwise other tests fail.
+          RUSTFLAGS: "-Dwarnings -Dmissing_docs"
 
   polkavm-unit-tests:
     needs:

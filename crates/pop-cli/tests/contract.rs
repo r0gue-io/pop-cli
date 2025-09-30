@@ -43,9 +43,12 @@ pub struct TransactionData {
 	call_data: Vec<u8>,
 }
 impl TransactionData {
+	/// Create a new TransactionData instance with the given chain RPC and call data.
 	pub fn new(chain_rpc: String, call_data: Vec<u8>) -> Self {
 		Self { chain_rpc, call_data }
 	}
+
+	/// Get the call data.
 	pub fn call_data(&self) -> Vec<u8> {
 		self.call_data.clone()
 	}
