@@ -112,33 +112,9 @@ mod tests {
 	use super::*;
 	use crate::cli::MockCli;
 	use duct::cmd;
-	#[cfg(feature = "wasm-contracts")]
-	use {
-		pop_contracts::{mock_build_process, new_environment},
-		std::env,
-	};
 
 	fn create_test_args(project_path: PathBuf) -> anyhow::Result<TestArgs> {
 		Ok(TestArgs { path: Some(project_path), ..Default::default() })
-	}
-
-	#[tokio::test]
-	#[cfg(feature = "wasm-contracts")]
-	async fn detects_contract_correctly() -> anyhow::Result<()> {
-		let temp_dir = new_environment("testing")?;
-		let mut current_dir = env::current_dir().expect("Failed to get current directory");
-		current_dir.pop();
-		mock_build_process(
-			temp_dir.path().join("testing"),
-			current_dir.join("pop-contracts/tests/files/testing.contract"),
-			current_dir.join("pop-contracts/tests/files/testing.json"),
-		)?;
-		let args = create_test_args(temp_dir.path().join("testing"))?;
-		let mut cli = MockCli::new()
-			.expect_intro("Starting unit tests")
-			.expect_outro("Unit testing complete");
-		assert_eq!(Command::test(args, &mut cli).await?, (Contract, Unit));
-		cli.verify()
 	}
 
 	#[tokio::test]

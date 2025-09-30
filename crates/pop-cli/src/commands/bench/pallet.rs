@@ -1496,7 +1496,6 @@ mod tests {
 		cli.verify()
 	}
 
-	#[ignore = "slow (46s)"]
 	#[tokio::test]
 	async fn guide_user_to_select_menu_option_works() -> anyhow::Result<()> {
 		let mut cmd = BenchmarkPallet {
