@@ -19,12 +19,11 @@ pub fn from_path(path: &Path) -> Result<Manifest, Error> {
 	let path = match path.ends_with("Cargo.toml") {
 		true => path.to_path_buf(),
 		false => path.join("Cargo.toml"),
-	}
-	.canonicalize()?;
+	};
 	if !path.is_file() {
 		return Err(Error::ManifestPath(path.display().to_string()));
 	}
-	Ok(Manifest::from_path(path)?)
+	Ok(Manifest::from_path(path.canonicalize()?)?)
 }
 
 /// This function is used to determine if a Path is contained inside a workspace, and returns a
