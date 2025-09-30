@@ -238,7 +238,7 @@ mod tests {
 	async fn execute_block_invalid_uri() -> anyhow::Result<()> {
 		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
 		let mut cmd = TestExecuteBlockCommand::default();
-		cmd.state.uri = Some("ws://127.0.0.1:9945".to_string());
+		cmd.state.uri = Some("ws://127.0.0.1:9999".to_string());
 		let error = cmd.run(&mut MockCli::new(), vec![]).await.unwrap_err();
 		assert!(error.to_string().contains("Connection refused"), "Unexpected error: {}", error);
 		Ok(())
