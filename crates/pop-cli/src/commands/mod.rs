@@ -15,6 +15,7 @@ pub(crate) mod build;
 pub(crate) mod call;
 pub(crate) mod clean;
 pub(crate) mod convert;
+#[cfg(any(feature = "chain", feature = "polkavm-contracts", feature = "wasm-contracts"))]
 pub(crate) mod fork;
 pub(crate) mod hash;
 #[cfg(any(feature = "chain", feature = "contract"))]
@@ -66,6 +67,7 @@ pub(crate) enum Command {
 	Convert(convert::ConvertArgs),
 	/// Create local forks of live chains or contracts.
 	#[clap(alias = "f")]
+	#[cfg(any(feature = "chain", feature = "polkavm-contracts", feature = "wasm-contracts"))]
 	Fork(fork::ForkArgs),
 }
 
@@ -225,6 +227,11 @@ impl Command {
 				env_logger::init();
 				args.command.execute(&mut Cli)
 			},
+			#[cfg(any(
+				feature = "chain",
+				feature = "polkavm-contracts",
+				feature = "wasm-contracts"
+			))]
 			Self::Fork(args) => {
 				env_logger::init();
 				match args.command {
@@ -292,6 +299,11 @@ impl Display for Command {
 			Self::Bench(args) => write!(f, "bench {}", args.command),
 			Command::Hash(args) => write!(f, "hash {}", args.command),
 			Command::Convert(args) => write!(f, "convert {}", args.command),
+			#[cfg(any(
+				feature = "chain",
+				feature = "polkavm-contracts",
+				feature = "wasm-contracts"
+			))]
 			Command::Fork(args) => write!(f, "fork {}", args.command),
 			Command::Upgrade(_) => write!(f, "upgrade"),
 		}
