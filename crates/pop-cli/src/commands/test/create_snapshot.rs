@@ -155,7 +155,7 @@ mod tests {
 	#[tokio::test]
 	async fn create_snapshot_invalid_uri() -> anyhow::Result<()> {
 		let mut command = TestCreateSnapshotCommand::default();
-		command.from.uri = Some("ws://127.0.0.1:9945".to_string());
+		command.from.uri = Some("ws://127.0.0.1:9999".to_string());
 		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
 
 		let error = command.run(&mut MockCli::new()).await.unwrap_err().to_string();

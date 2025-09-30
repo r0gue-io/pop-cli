@@ -10,3 +10,4 @@ debug
 # IDEs
 .idea
 .vscode
+.envrc

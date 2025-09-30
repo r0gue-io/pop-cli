@@ -2,7 +2,7 @@
 
 //! Integration tests for chain-related functionality.
 
-#![cfg(feature = "chain")]
+#![cfg(all(feature = "chain", feature = "integration-tests"))]
 
 use anyhow::Result;
 use assert_cmd::cargo::cargo_bin;

@@ -1,0 +1,87 @@
+name: coverage
+
+permissions:
+  contents: read
+  packages: read
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+
+env:
+  CARGO_TERM_COLOR: always
+  GITHUB_ACTOR: pop-cli
+  CARGO_INCREMENTAL: 1
+  RUST_BACKTRACE: 1
+  RUSTFLAGS: "-Dwarnings"
+
+concurrency:
+  # Cancel any in-progress jobs for the same pull request or branch
+  group: coverage-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Ubuntu dependencies
+        shell: bash
+        run: |
+          sudo apt update
+          sudo apt install -y protobuf-compiler
+
+      - name: Free up space on runner
+        shell: bash
+        run: |
+          set -xeuo pipefail
+          sudo rm -rf /usr/local/lib/android &
+          sudo rm -rf /usr/share/dotnet &
+          sudo rm -rf /usr/share/swift &
+          if command -v docker &> /dev/null; then
+            sudo docker image prune -af &
+          fi
+          sudo apt-get clean &
+          wait
+
+      - uses: actions/checkout@v4
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-all-crates: true
+          cache-on-failure: true
+          shared-key: shared-coverage-${{ github.head_ref || github.ref_name }}
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@cargo-nextest
+
+      - name: Generate code coverage
+        run: |
+          cargo llvm-cov nextest --workspace --lib --bins --no-default-features       \
+          --features "default chain telemetry v5 wasm-contracts wallet-integration"   \
+          --codecov --output-path codecov.json --no-fail-fast --nocapture --status-level all
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload to codecov.io
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: codecov.json
+          fail_ci_if_error: true
+
+      - name: Clean up
+        shell: bash
+        if: always()
+        run: |
+          cargo llvm-cov clean --workspace --profraw-only

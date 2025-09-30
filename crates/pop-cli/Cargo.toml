@@ -58,7 +58,6 @@ tower-http = { workspace = true, features = ["fs", "cors"], optional = true }
 
 [dev-dependencies]
 assert_cmd.workspace = true
-contract-extrinsics.workspace = true
 mockito.workspace = true
 subxt.workspace = true
 subxt-signer.workspace = true
@@ -74,3 +73,4 @@ telemetry = ["dep:pop-telemetry"]
 v5 = []
 wasm-contracts = ["pop-contracts/v5", "dep:pop-contracts", "wallet-integration", "v5"]
 wallet-integration = ["dep:axum", "dep:open", "dep:tower-http"]
+integration-tests = []
