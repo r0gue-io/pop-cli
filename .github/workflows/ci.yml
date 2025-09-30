@@ -192,39 +192,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: cargo nextest run --lib --bins --no-default-features --features "polkavm-contracts, v6" -p pop-cli -p pop-contracts
 
-  coverage:
-    needs:
-      - setup
-      - prepare-ci-image
-    runs-on: ubuntu-latest
-    container:
-      image: ${{ needs.setup.outputs.image }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          cache-all-crates: true
-          cache-on-failure: true
-          shared-key: shared-coverage-${{ github.head_ref || github.ref_name }}
-
-      - name: Generate code coverage
-        run: |
-          cargo llvm-cov --workspace --lib --bins --no-default-features       \
-          --features "default chain telemetry v5 wasm-contracts wallet-integration"   \
-          --codecov --output-path codecov.json --no-fail-fast --jobs 1
-          cargo llvm-cov clean
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload to codecov.io
-        uses: codecov/codecov-action@v4
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: codecov.json
-          fail_ci_if_error: true
-
   documentation-tests:
     needs:
       - setup
