@@ -2,6 +2,8 @@
 
 //! Metadata tests for validating type formatting functionality.
 
+#![cfg(feature = "integration-tests")]
+
 use anyhow::Result;
 use pop_common::{format_type, test_env::TestNode};
 use subxt::{OnlineClient, SubstrateConfig};

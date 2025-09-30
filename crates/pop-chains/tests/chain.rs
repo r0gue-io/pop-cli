@@ -2,6 +2,8 @@
 
 //! Integration tests for pop-chains functionality.
 
+#![cfg(feature = "integration-tests")]
+
 use anyhow::Result;
 use pop_chains::{generate_pallet_benchmarks, get_preset_names, up::Zombienet};
 use std::path::Path;

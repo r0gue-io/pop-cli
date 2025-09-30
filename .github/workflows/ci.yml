@@ -19,8 +19,10 @@ env:
   CARGO_TERM_COLOR: always
   GITHUB_ACTOR: pop-cli
   CARGO_INCREMENTAL: 1
-  RUST_VERSION: 1.68
   RUST_BACKTRACE: 1
+  # It is important to always use the same flags. Otherwise, the cache will not work.
+  RUSTFLAGS: "-Dwarnings"
+  RUSTDOCFLAGS: "-Dwarnings"
 
 concurrency:
   # Cancel any in-progress jobs for the same pull request or branch
@@ -32,6 +34,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       image: ${{ steps.out.outputs.image }}
+      rust_version: ${{ steps.out.outputs.rust_version }}
     steps:
       - uses: actions/checkout@v4
 
@@ -41,7 +44,9 @@ jobs:
           HASH: ${{ hashFiles('Dockerfile.ci') }}
         run: |
           set -xeuo pipefail
-          echo "image=ghcr.io/${GITHUB_REPOSITORY,,}:${HASH}" >> "$GITHUB_OUTPUT"
+          RUST_VERSION=$(yq -r '.toolchain.channel' rust-toolchain.toml)
+          echo "rust_version=$RUST_VERSION" >> "$GITHUB_OUTPUT"
+          echo "image=ghcr.io/${GITHUB_REPOSITORY,,}:${RUST_VERSION}-${HASH}" >> "$GITHUB_OUTPUT"
 
   prepare-ci-image:
     needs:
@@ -52,6 +57,7 @@ jobs:
       packages: write
     with:
       docker_image: ${{ needs.setup.outputs.image }}
+      rust_version: ${{ needs.setup.outputs.rust_version }}
 
   lint:
     runs-on: ubuntu-latest
@@ -88,28 +94,18 @@ jobs:
 
       - name: Check no default features
         run: cargo check --no-default-features
-        env:
-          RUSTFLAGS: "-Dwarnings"
 
       - name: Check contracts feature
         run: cargo check --no-default-features --features contract
-        env:
-          RUSTFLAGS: "-Dwarnings"
 
       - name: Check polkavm-contracts feature
         run: cargo check --no-default-features --features "polkavm-contracts, v6" -p pop-cli -p pop-contracts
-        env:
-          RUSTFLAGS: "-Dwarnings"
 
       - name: Check chain feature
         run: cargo check --no-default-features --features chain
-        env:
-          RUSTFLAGS: "-Dwarnings"
 
       - name: Check default features
         run: cargo check
-        env:
-          RUSTFLAGS: "-Dwarnings"
 
   clippy:
     needs:
@@ -165,8 +161,8 @@ jobs:
       - name: Check no default features
         run: cargo doc --no-deps
         env:
-          RUSTDOCFLAGS: "-Dwarnings"
-          RUSTFLAGS: "-Dmissing_docs"
+          # We cannot propagate the "mising_docs" flag, as otherwise other tests fail.
+          RUSTFLAGS: "-Dwarnings -Dmissing_docs"
 
   polkavm-unit-tests:
     needs:
@@ -188,35 +184,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: cargo nextest run --lib --bins --no-default-features --features "polkavm-contracts, v6" -p pop-cli -p pop-contracts
-
-  coverage:
-    needs:
-      - setup
-      - prepare-ci-image
-    runs-on: ubuntu-latest
-    container:
-      image: ${{ needs.setup.outputs.image }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          cache-all-crates: true
-          cache-on-failure: true
-          shared-key: shared-coverage-${{ github.head_ref || github.ref_name }}
-
-      - name: Generate code coverage
-        run: cargo llvm-cov --workspace --lib --bins --no-default-features --features "default chain telemetry v5 wasm-contracts wallet-integration" --codecov --output-path codecov.json
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload to codecov.io
-        uses: codecov/codecov-action@v4
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: codecov.json
-          fail_ci_if_error: true
 
   documentation-tests:
     needs:
@@ -293,7 +260,7 @@ jobs:
       - name: Run integration tests
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: cargo nextest run --no-default-features --features contract --test contract
+        run: cargo nextest run --no-default-features --features "contract,integration-tests" --test contract
 
   chain-integration-tests:
     needs: build
@@ -352,5 +319,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          cargo nextest run --no-default-features --features chain --test chain
-          cargo nextest run --no-default-features --features chain --test metadata
+          cargo nextest run --no-default-features --features "chain,integration-tests" --test chain --test metadata
