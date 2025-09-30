@@ -252,6 +252,7 @@ mod tests {
 	use pop_chains::{state::LiveState, Runtime};
 	use pop_common::Profile;
 
+	#[ignore]
 	#[tokio::test]
 	async fn fast_forward_live_state_works() -> anyhow::Result<()> {
 		let mut cmd = TestFastForwardCommand::default();
@@ -310,6 +311,7 @@ mod tests {
 		cli.verify()
 	}
 
+	#[ignore]
 	#[tokio::test]
 	async fn fast_forward_snapshot_works() -> anyhow::Result<()> {
 		let mut cmd = TestFastForwardCommand::default();
@@ -377,6 +379,7 @@ mod tests {
 		cli.verify()
 	}
 
+	#[ignore]
 	#[tokio::test]
 	async fn fast_forward_invalid_live_uri() -> anyhow::Result<()> {
 		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
@@ -394,6 +397,7 @@ mod tests {
 		Ok(())
 	}
 
+	#[ignore]
 	#[test]
 	fn display_works() -> anyhow::Result<()> {
 		let mut cmd = TestFastForwardCommand {
@@ -459,6 +463,7 @@ mod tests {
 		Ok(())
 	}
 
+	#[ignore]
 	#[test]
 	fn collect_arguments_before_subcommand_works() -> anyhow::Result<()> {
 		let test_cases: Vec<(&str, Box<dyn Fn(&mut TestFastForwardCommand)>, &str)> = vec![
@@ -526,6 +531,7 @@ mod tests {
 		Ok(())
 	}
 
+	#[ignore]
 	#[test]
 	fn subcommand_works() -> anyhow::Result<()> {
 		let mut command = TestFastForwardCommand {

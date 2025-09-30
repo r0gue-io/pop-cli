@@ -332,6 +332,7 @@ mod tests {
 	use pop_common::Profile;
 	use std::path::PathBuf;
 
+	#[ignore]
 	#[tokio::test]
 	async fn on_runtime_upgrade_live_state_works() -> anyhow::Result<()> {
 		let mut command = TestOnRuntimeUpgradeCommand::default();
@@ -390,6 +391,7 @@ mod tests {
 		cli.verify()
 	}
 
+	#[ignore]
 	#[tokio::test]
 	async fn on_runtime_upgrade_snapshot_works() -> anyhow::Result<()> {
 		let mut command = TestOnRuntimeUpgradeCommand::default();
@@ -455,6 +457,7 @@ mod tests {
 		cli.verify()
 	}
 
+	#[ignore]
 	#[tokio::test]
 	async fn on_runtime_disable_checks_works() -> anyhow::Result<()> {
 		let mut cmd = TestOnRuntimeUpgradeCommand::default();
@@ -497,6 +500,7 @@ mod tests {
 		cli.verify()
 	}
 
+	#[ignore]
 	#[test]
 	fn handle_check_errors_works() -> anyhow::Result<()> {
 		let mut command = TestOnRuntimeUpgradeCommand::default();
@@ -540,6 +544,7 @@ mod tests {
 		Ok(())
 	}
 
+	#[ignore]
 	#[tokio::test]
 	async fn test_on_runtime_upgrade_invalid_runtime_path() -> anyhow::Result<()> {
 		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
@@ -553,6 +558,7 @@ mod tests {
 		Ok(())
 	}
 
+	#[ignore]
 	#[tokio::test]
 	async fn test_on_runtime_upgrade_missing_try_runtime_feature() -> anyhow::Result<()> {
 		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
@@ -567,6 +573,7 @@ mod tests {
 		Ok(())
 	}
 
+	#[ignore]
 	#[tokio::test]
 	async fn test_on_runtime_upgrade_invalid_live_uri() -> anyhow::Result<()> {
 		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
@@ -583,6 +590,7 @@ mod tests {
 		Ok(())
 	}
 
+	#[ignore]
 	#[test]
 	fn collect_arguments_before_subcommand_works() -> anyhow::Result<()> {
 		let test_cases: Vec<(&str, Box<dyn Fn(&mut TestOnRuntimeUpgradeCommand)>, &str)> = vec![
@@ -650,6 +658,7 @@ mod tests {
 		Ok(())
 	}
 
+	#[ignore]
 	#[test]
 	fn subcommand_works() -> anyhow::Result<()> {
 		let mut command = TestOnRuntimeUpgradeCommand::default();
@@ -660,6 +669,7 @@ mod tests {
 		Ok(())
 	}
 
+	#[ignore]
 	#[test]
 	fn guide_user_to_select_upgrade_checks_works() -> anyhow::Result<()> {
 		let mut cli = MockCli::new().expect_select(

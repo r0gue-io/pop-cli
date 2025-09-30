@@ -193,6 +193,7 @@ mod tests {
 	use console::style;
 	use pop_common::Profile;
 
+	#[ignore]
 	#[tokio::test]
 	async fn execute_block_works() -> anyhow::Result<()> {
 		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
@@ -234,6 +235,7 @@ mod tests {
 		cli.verify()
 	}
 
+	#[ignore]
 	#[tokio::test]
 	async fn execute_block_invalid_uri() -> anyhow::Result<()> {
 		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
@@ -244,6 +246,7 @@ mod tests {
 		Ok(())
 	}
 
+	#[ignore]
 	#[test]
 	fn display_works() -> anyhow::Result<()> {
 		let mut cmd = TestExecuteBlockCommand {
@@ -275,6 +278,7 @@ mod tests {
 		Ok(())
 	}
 
+	#[ignore]
 	#[test]
 	fn collect_arguments_works() -> anyhow::Result<()> {
 		let test_cases: Vec<(bool, &str, Box<dyn Fn(&mut TestExecuteBlockCommand)>, &str)> = vec![

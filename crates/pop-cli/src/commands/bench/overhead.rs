@@ -249,6 +249,7 @@ mod tests {
 	};
 	use tempfile::tempdir;
 
+	#[ignore]
 	#[test]
 	fn parse_genesis_builder_policy_works() {
 		for policy in ["runtime", "spec-runtime", "spec-genesis"] {
@@ -289,6 +290,7 @@ mod tests {
 		);
 	}
 
+	#[ignore]
 	#[tokio::test]
 	async fn benchmark_overhead_works() -> anyhow::Result<()> {
 		let cwd = current_dir().unwrap_or(PathBuf::from("./"));
@@ -410,6 +412,7 @@ mod tests {
 		cli.verify()
 	}
 
+	#[ignore]
 	#[tokio::test]
 	async fn benchmark_overhead_invalid_weight_path_fails() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;

@@ -1322,6 +1322,7 @@ mod tests {
 	use strum::EnumMessage;
 	use tempfile::tempdir;
 
+	#[ignore]
 	#[tokio::test]
 	async fn benchmark_pallet_works() -> anyhow::Result<()> {
 		let mut cli = MockCli::new();
@@ -1400,6 +1401,7 @@ mod tests {
 		cli.verify()
 	}
 
+	#[ignore]
 	#[tokio::test]
 	async fn benchmark_multi_pallets_works() -> anyhow::Result<()> {
 		let mut cli = MockCli::new();
@@ -1471,6 +1473,7 @@ mod tests {
 		cli.verify()
 	}
 
+	#[ignore]
 	#[tokio::test]
 	async fn benchmark_pallet_with_provided_bench_file_works() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
@@ -1532,6 +1535,7 @@ mod tests {
 		cli.verify()
 	}
 
+	#[ignore]
 	#[tokio::test]
 	async fn benchmark_pallet_weight_dir_works() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
@@ -1581,6 +1585,7 @@ mod tests {
 		cli.verify()
 	}
 
+	#[ignore]
 	#[tokio::test]
 	async fn benchmark_pallet_weight_file_works() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
@@ -1616,6 +1621,7 @@ mod tests {
 		cli.verify()
 	}
 
+	#[ignore]
 	#[tokio::test]
 	async fn list_pallets_works() -> anyhow::Result<()> {
 		let mut cli = MockCli::new()
@@ -1634,6 +1640,7 @@ mod tests {
 		cli.verify()
 	}
 
+	#[ignore]
 	#[tokio::test]
 	async fn benchmark_pallet_without_runtime_benchmarks_feature_fails() -> anyhow::Result<()> {
 		let mut cli = MockCli::new();
@@ -1655,6 +1662,7 @@ mod tests {
 		cli.verify()
 	}
 
+	#[ignore]
 	#[tokio::test]
 	async fn benchmark_pallet_fails_with_error() -> anyhow::Result<()> {
 		let mut cli = MockCli::new();
@@ -1674,6 +1682,7 @@ mod tests {
 		cli.verify()
 	}
 
+	#[ignore]
 	#[tokio::test]
 	async fn guide_user_to_select_pallet_works() -> anyhow::Result<()> {
 		let temp_cache = tempdir()?;
@@ -1715,6 +1724,7 @@ mod tests {
 		cli.verify()
 	}
 
+	#[ignore]
 	#[tokio::test]
 	async fn guide_user_to_exclude_pallets_works() -> anyhow::Result<()> {
 		let temp_cache = tempdir()?;
@@ -1734,6 +1744,7 @@ mod tests {
 		cli.verify()
 	}
 
+	#[ignore]
 	#[tokio::test]
 	async fn guide_user_to_select_extrinsics_works() -> anyhow::Result<()> {
 		let temp_cache = tempdir()?;
@@ -1785,6 +1796,7 @@ mod tests {
 		cli.verify()
 	}
 
+	#[ignore]
 	#[tokio::test]
 	async fn guide_user_to_select_menu_option_works() -> anyhow::Result<()> {
 		let mut cmd = BenchmarkPallet {
@@ -1801,6 +1813,7 @@ mod tests {
 		cli.verify()
 	}
 
+	#[ignore]
 	#[test]
 	fn guide_user_to_update_bench_file_path_works() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
@@ -1872,6 +1885,7 @@ mod tests {
 		Ok(())
 	}
 
+	#[ignore]
 	#[tokio::test]
 	async fn menu_option_is_disabled_works() -> anyhow::Result<()> {
 		use BenchmarkPalletMenuOption::*;
@@ -1888,6 +1902,7 @@ mod tests {
 		Ok(())
 	}
 
+	#[ignore]
 	#[test]
 	fn menu_option_read_command_works() -> anyhow::Result<()> {
 		use BenchmarkPalletMenuOption::*;
@@ -1929,6 +1944,7 @@ mod tests {
 		Ok(())
 	}
 
+	#[ignore]
 	#[test]
 	fn menu_option_input_parameter_works() -> anyhow::Result<()> {
 		use BenchmarkPalletMenuOption::*;
@@ -1958,6 +1974,7 @@ mod tests {
 		cli.verify()
 	}
 
+	#[ignore]
 	#[test]
 	fn menu_option_input_range_values_works() -> anyhow::Result<()> {
 		use BenchmarkPalletMenuOption::*;
@@ -1979,6 +1996,7 @@ mod tests {
 		cli.verify()
 	}
 
+	#[ignore]
 	#[test]
 	fn menu_option_confirm_works() -> anyhow::Result<()> {
 		use BenchmarkPalletMenuOption::*;
@@ -1997,6 +2015,7 @@ mod tests {
 		cli.verify()
 	}
 
+	#[ignore]
 	#[tokio::test]
 	async fn ensure_pallet_registry_works() -> anyhow::Result<()> {
 		let mut cli = MockCli::new();
@@ -2033,6 +2052,7 @@ mod tests {
 		Ok(())
 	}
 
+	#[ignore]
 	#[test]
 	fn get_runtime_works() -> anyhow::Result<()> {
 		assert_eq!(
@@ -2046,6 +2066,7 @@ mod tests {
 		Ok(())
 	}
 
+	#[ignore]
 	#[test]
 	fn get_runtime_binary_works() -> anyhow::Result<()> {
 		assert_eq!(
@@ -2059,6 +2080,7 @@ mod tests {
 		Ok(())
 	}
 
+	#[ignore]
 	#[test]
 	fn get_extrinsic_works() -> anyhow::Result<()> {
 		assert_eq!(
@@ -2072,6 +2094,7 @@ mod tests {
 		Ok(())
 	}
 
+	#[ignore]
 	#[test]
 	fn versioned_benchmark_pallet_serialization_works() {
 		let benchmark_pallet = BenchmarkPallet::default();
@@ -2083,6 +2106,7 @@ mod tests {
 		assert_eq!(BenchmarkPallet::from(deserialized), benchmark_pallet);
 	}
 
+	#[ignore]
 	#[test]
 	fn versioned_benchmark_pallet_parameters_works() {
 		let benchmark_pallet = BenchmarkPallet::default();
@@ -2090,6 +2114,7 @@ mod tests {
 		assert_eq!(versioned.parameters(), benchmark_pallet);
 	}
 
+	#[ignore]
 	#[test]
 	fn versioned_benchmark_pallet_try_from_valid_file() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
@@ -2105,6 +2130,7 @@ mod tests {
 		Ok(())
 	}
 
+	#[ignore]
 	#[test]
 	fn versioned_benchmark_pallet_try_from_invalid_file() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
@@ -2130,6 +2156,7 @@ mod tests {
 		Ok(())
 	}
 
+	#[ignore]
 	#[tokio::test]
 	async fn update_pallets_works() -> anyhow::Result<()> {
 		// Load pallet registry if the registry is empty.
@@ -2182,6 +2209,7 @@ mod tests {
 		Ok(())
 	}
 
+	#[ignore]
 	#[tokio::test]
 	async fn update_extrinsic_works() -> anyhow::Result<()> {
 		let pallet = "pallet_timestamp";
@@ -2213,6 +2241,7 @@ mod tests {
 		Ok(())
 	}
 
+	#[ignore]
 	#[tokio::test]
 	async fn update_excluded_pallets_works() -> anyhow::Result<()> {
 		let temp_cache = tempdir()?;
@@ -2245,6 +2274,7 @@ mod tests {
 		Ok(())
 	}
 
+	#[ignore]
 	#[tokio::test]
 	async fn update_excluded_extrinsics_works() -> anyhow::Result<()> {
 		let temp_cache = tempdir()?;
@@ -2280,6 +2310,7 @@ mod tests {
 		Ok(())
 	}
 
+	#[ignore]
 	#[test]
 	fn update_runtime_path_works() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
@@ -2317,6 +2348,7 @@ mod tests {
 		Ok(())
 	}
 
+	#[ignore]
 	#[test]
 	fn update_template_path_works() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;

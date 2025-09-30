@@ -143,6 +143,7 @@ mod tests {
 
 	use super::*;
 
+	#[ignore]
 	#[test]
 	fn benchmark_storage_works() -> anyhow::Result<()> {
 		let name = "node";

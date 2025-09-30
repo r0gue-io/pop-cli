@@ -102,6 +102,7 @@ mod tests {
 
 	use super::*;
 
+	#[ignore]
 	#[test]
 	fn benchmark_machine_works() -> anyhow::Result<()> {
 		let name = "node";

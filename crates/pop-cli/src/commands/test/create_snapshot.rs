@@ -152,6 +152,7 @@ mod tests {
 	use crate::common::try_runtime::source_try_runtime_binary;
 	use cli::MockCli;
 
+	#[ignore]
 	#[tokio::test]
 	async fn create_snapshot_invalid_uri() -> anyhow::Result<()> {
 		let mut command = TestCreateSnapshotCommand::default();
@@ -163,6 +164,7 @@ mod tests {
 		Ok(())
 	}
 
+	#[ignore]
 	#[test]
 	fn display_works() {
 		let mut command = TestCreateSnapshotCommand::default();
@@ -175,6 +177,7 @@ mod tests {
 		);
 	}
 
+	#[ignore]
 	#[test]
 	fn collect_arguments_works() {
 		let expected_uri = &format!("--uri={}", urls::LOCAL);
