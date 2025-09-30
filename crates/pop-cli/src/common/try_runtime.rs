@@ -572,7 +572,6 @@ mod tests {
 		state: Option<State>,
 	}
 
-	#[ignore]
 	#[test]
 	fn update_snapshot_state_works() -> anyhow::Result<()> {
 		let snapshot_file = get_mock_snapshot();
@@ -611,7 +610,6 @@ mod tests {
 		Ok(())
 	}
 
-	#[ignore]
 	#[test]
 	fn update_snapshot_state_invalid_file_fails() -> anyhow::Result<()> {
 		let mut cmd = MockCommand::default();
@@ -631,7 +629,6 @@ mod tests {
 		Ok(())
 	}
 
-	#[ignore]
 	#[tokio::test]
 	async fn update_live_state_works() -> anyhow::Result<()> {
 		let node = TestNode::spawn().await?;
@@ -689,7 +686,6 @@ mod tests {
 		Ok(())
 	}
 
-	#[ignore]
 	#[test]
 	fn update_runtime_source_works() -> anyhow::Result<()> {
 		let mut runtime = Runtime::Existing;
@@ -746,7 +742,6 @@ mod tests {
 		Ok(())
 	}
 
-	#[ignore]
 	#[test]
 	fn guide_user_to_select_state_source_works() -> anyhow::Result<()> {
 		let mut cli = MockCli::new().expect_select(
@@ -761,7 +756,6 @@ mod tests {
 		Ok(())
 	}
 
-	#[ignore]
 	#[tokio::test]
 	async fn guide_user_to_select_try_state_works() -> anyhow::Result<()> {
 		let node = TestNode::spawn().await?;
@@ -839,7 +833,6 @@ mod tests {
 		Ok(())
 	}
 
-	#[ignore]
 	#[test]
 	fn add_argument_without_value_works() {
 		let mut args = vec![];
@@ -850,7 +843,6 @@ mod tests {
 		assert!(constructor.added.contains("--flag"));
 	}
 
-	#[ignore]
 	#[test]
 	fn skip_argument_when_already_seen_works() {
 		let mut args = vec!["--existing".to_string()];
@@ -865,7 +857,6 @@ mod tests {
 		assert_eq!(args, vec!["--existing".to_string()]);
 	}
 
-	#[ignore]
 	#[test]
 	fn skip_argument_based_on_condition_works() {
 		let mut args = vec![];
@@ -876,7 +867,6 @@ mod tests {
 		assert!(args.is_empty());
 	}
 
-	#[ignore]
 	#[test]
 	fn finalize_adds_missing_user_arguments_works() {
 		let mut args = vec![];
@@ -887,7 +877,6 @@ mod tests {
 		assert!(args.contains(&"--another-arg".to_string()));
 	}
 
-	#[ignore]
 	#[test]
 	fn finalize_skips_provided_arguments_works() {
 		let mut args = vec![];
@@ -898,7 +887,6 @@ mod tests {
 		assert!(!args.contains(&"--skip-me".to_string())); // Skipped argument should not be added
 	}
 
-	#[ignore]
 	#[test]
 	fn argument_exists_works() {
 		let args = vec![
@@ -914,7 +902,6 @@ mod tests {
 		assert!(!argument_exists(&args, "--custom-arg"));
 	}
 
-	#[ignore]
 	#[test]
 	fn collect_shared_arguments_works() -> anyhow::Result<()> {
 		// Keep the user-provided argument unchanged.
@@ -936,7 +923,6 @@ mod tests {
 		Ok(())
 	}
 
-	#[ignore]
 	#[test]
 	fn collect_live_state_arguments_works() -> anyhow::Result<()> {
 		let mut cmd = MockCommand { state: Some(State::Live(LiveState::default())) };
@@ -993,7 +979,6 @@ mod tests {
 		Ok(())
 	}
 
-	#[ignore]
 	#[test]
 	fn collect_snap_state_arguments_works() -> anyhow::Result<()> {
 		let mut cmd = MockCommand { state: Some(State::Snap { path: Some(PathBuf::default()) }) };
@@ -1019,7 +1004,6 @@ mod tests {
 		Ok(())
 	}
 
-	#[ignore]
 	#[test]
 	fn partition_arguments_works() {
 		let subcommand = "run";
@@ -1048,7 +1032,6 @@ mod tests {
 		assert_eq!(after_subcommand, vec!["--arg1".to_string(), "--arg2".to_string()]);
 	}
 
-	#[ignore]
 	#[test]
 	fn format_arg_works() {
 		assert_eq!(format_arg("--number", 1), "--number=1");
@@ -1057,7 +1040,6 @@ mod tests {
 		assert_eq!(format_arg("--path", PathBuf::new().display()), "--path=");
 	}
 
-	#[ignore]
 	#[test]
 	fn add_build_runtime_params_works() {
 		for (user_provided_args, params, expected) in [
@@ -1094,7 +1076,6 @@ mod tests {
 		}
 	}
 
-	#[ignore]
 	#[test]
 	fn args_works() {
 		// Empty input
@@ -1175,7 +1156,6 @@ mod tests {
 		);
 	}
 
-	#[ignore]
 	#[tokio::test]
 	async fn try_runtime_version_works() -> anyhow::Result<()> {
 		let cache_path = tempdir().expect("Could create temp dir");
