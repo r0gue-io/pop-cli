@@ -1842,12 +1842,12 @@ mod tests {
 		Ok(())
 	}
 
-	#[ignore = "fails without frame-omni-bencher in cache"]
 	#[tokio::test]
 	async fn update_pallets_works() -> anyhow::Result<()> {
 		// Load pallet registry if the registry is empty.
 		let mut cli =
 			MockCli::new().expect_confirm("Would you like to benchmark all pallets?", true);
+		check_omni_bencher_and_prompt(&mut cli, true).await?;
 		let mut registry = PalletExtrinsicsRegistry::default();
 		BenchmarkPallet {
 			runtime_binary: Some(get_mock_runtime(Some(Benchmark))),
@@ -1895,11 +1895,10 @@ mod tests {
 		Ok(())
 	}
 
-	#[ignore = "fails without frame-omni-bencher in cache"]
 	#[tokio::test]
 	async fn update_extrinsic_works() -> anyhow::Result<()> {
 		let pallet = "pallet_timestamp";
-
+		check_omni_bencher_and_prompt(&mut MockCli::new(), true).await?;
 		// Load pallet registry if the registry is empty.
 		let mut registry = PalletExtrinsicsRegistry::default();
 		BenchmarkPallet {
@@ -1927,10 +1926,10 @@ mod tests {
 		Ok(())
 	}
 
-	#[ignore = "fails without frame-omni-bencher in cache"]
 	#[tokio::test]
 	async fn update_excluded_pallets_works() -> anyhow::Result<()> {
 		let temp_cache = tempdir()?;
+
 		let registry = get_registry(temp_cache.path()).await?;
 		let pallet_items = pallets(&registry, &[])
 			.into_iter()
@@ -1949,6 +1948,7 @@ mod tests {
 			runtime_binary: Some(get_mock_runtime(Some(Benchmark))),
 			..Default::default()
 		};
+		check_omni_bencher_and_prompt(&mut cli, true).await?;
 		let mut registry = PalletExtrinsicsRegistry::default();
 		cmd.update_excluded_pallets(&mut cli, &mut registry).await?;
 		assert!(!registry.is_empty());
@@ -1960,7 +1960,6 @@ mod tests {
 		Ok(())
 	}
 
-	#[ignore = "fails without frame-omni-bencher in cache"]
 	#[tokio::test]
 	async fn update_excluded_extrinsics_works() -> anyhow::Result<()> {
 		let temp_cache = tempdir()?;
@@ -1982,6 +1981,7 @@ mod tests {
 			runtime_binary: Some(get_mock_runtime(Some(Benchmark))),
 			..Default::default()
 		};
+		check_omni_bencher_and_prompt(&mut cli, true).await?;
 		let mut registry = PalletExtrinsicsRegistry::default();
 		cmd.update_excluded_extrinsics(&mut cli, &mut registry).await?;
 		assert!(!registry.is_empty());
