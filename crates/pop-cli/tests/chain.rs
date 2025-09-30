@@ -144,7 +144,7 @@ async fn parachain_lifecycle() -> Result<()> {
 	assert!(content.contains("\"protocolId\": \"pop-protocol\""));
 	assert!(content.contains("\"id\": \"local_testnet\""));
 
-	// Test the pop bench feature
+	// Test the `pop bench` feature
 	test_benchmarking(&working_dir)?;
 
 	// Overwrite the config file to manually set the port to test pop call parachain.
@@ -184,7 +184,7 @@ rpc_port = {random_port}
 	);
 	let mut up = command.spawn()?;
 
-	// Wait for the networks to initialize. Increased timeout to accommodate CI environmen delays.
+	// Wait for the networks to initialize. Increased timeout to accommodate CI environment delays.
 	let wait = Duration::from_secs(50);
 	println!("waiting for {wait:?} for network to initialize...");
 	tokio::time::sleep(wait).await;

@@ -118,15 +118,6 @@ async fn contract_lifecycle() -> Result<()> {
 		.assert()
 		.success();
 
-	// TODO: Fix https://github.com/r0gue-io/pop-cli/issues/621
-	// pop test --e2e --path ./test_contract
-	// Command::cargo_bin("pop")
-	// 	.unwrap()
-	// 	.current_dir(&temp_dir)
-	// 	.args(&["test", "--e2e", "--path", "./test_contract"])
-	// 	.assert()
-	// 	.success();
-
 	// Only upload the contract
 	// pop up --path ./test_contract --upload-only
 	Command::cargo_bin("pop")
