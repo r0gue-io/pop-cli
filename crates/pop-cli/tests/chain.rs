@@ -5,7 +5,6 @@
 #![cfg(all(feature = "chain", feature = "integration-tests"))]
 
 use anyhow::Result;
-use assert_cmd::cargo::cargo_bin;
 use pop_chains::{
 	up::{Binary, Source::GitHub},
 	ChainTemplate,
@@ -13,7 +12,7 @@ use pop_chains::{
 use pop_common::{
 	find_free_port,
 	polkadot_sdk::sort_by_latest_semantic_version,
-	set_executable_permission,
+	pop, set_executable_permission,
 	sourcing::{ArchiveFileSpec, GitHub::ReleaseArchive},
 	target,
 	templates::Template,
