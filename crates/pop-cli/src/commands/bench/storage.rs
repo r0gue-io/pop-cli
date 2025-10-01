@@ -116,8 +116,9 @@ impl BenchmarkStorage {
 		let mut arguments: Vec<String> = std::env::args().skip(3).collect();
 		#[cfg(test)]
 		{
-			arguments
-				.retain(|arg| arg != "--show-output" && arg != "--nocapture" && arg != "--ignored");
+			arguments.retain(|arg| {
+				!matches!(arg.as_str(), "--show-output" | "--nocapture" | "--ignored")
+			});
 		}
 		if !argument_exists(&arguments, "--profile") {
 			if let Some(ref profile) = self.profile {

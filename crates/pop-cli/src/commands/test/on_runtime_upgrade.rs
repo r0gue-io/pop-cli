@@ -186,7 +186,9 @@ impl TestOnRuntimeUpgradeCommand {
 		collect_state_arguments(&self.command.state, &after_subcommand, &mut args)?;
 		#[cfg(test)]
 		{
-			args.retain(|arg| arg != "--show-output" && arg != "--nocapture" && arg != "--ignored");
+			args.retain(|arg| {
+				!matches!(arg.as_str(), "--show-output" | "--nocapture" | "--ignored")
+			});
 		}
 		run_try_runtime(
 			&binary_path,
@@ -233,8 +235,9 @@ impl TestOnRuntimeUpgradeCommand {
 		cmd_args.extend(args);
 		#[cfg(test)]
 		{
-			cmd_args
-				.retain(|arg| arg != "--show-output" && arg != "--nocapture" && arg != "--ignored");
+			cmd_args.retain(|arg| {
+				!matches!(arg.as_str(), "--show-output" | "--nocapture" | "--ignored")
+			});
 		}
 		Ok(cmd_args.join(" "))
 	}
