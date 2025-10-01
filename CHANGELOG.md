@@ -2,6 +2,52 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.10.0] - 2025-10-01
+
+### 🚀 Features
+
+- Allow to run a network by specifying its configuration (#594)
+- Autoremove the network's base directory upon tearing down (#591)
+- Add command to convert from/to Ethereum addresses (#592)
+- *(cli)* Autodetect target when invoking pop call without subcommand (#609)
+- *(cli)* Clearly highlight writing operations when calling smart contracts (#614)
+- *(cli)* Do not ask to run with sudo for every call (#620)
+- *(cli)* Follow logs of contracts node before termination (#622)
+- *(cli)* Keep making calls to contract after deployment (#629)
+
+### 🐛 Fixes
+
+- Skip redundant question when calling a contract (#593)
+- Release binary build doesn't generate all binaries (#605)
+- *(cli)* Use plain output in address conversion (#608)
+- Process user input for Strings and None values (#618)
+- All clippy warnings (#625)
+- *(ci)* Do not build docker image if exists (#638)
+
+### 🚜 Refactor
+
+- Clean up and speed up test suite with `nextest` (#582)
+- All commands to use the CLI module (#631)
+
+### 📚 Documentation
+
+- Remove build command from readme that doesn't build (#637)
+
+### 🧪 Testing
+
+- Move some tests to integration tests (#649)
+
+### ⚙ Miscellaneous Tasks
+
+- Remove sp-weights from the list of dependencies (#599)
+- Improve the hashing command (#603)
+- Include map account as one of the quick actions in pop call (#569)
+- Remove cargo deny from the CI (#627)
+- Deprecate pop_evm and parity substrate-contracts-node template (#628)
+- Several improvements (#648)
+- `pop build spec` improvements (#640)
+- Update packages to be installed (#644)
+
 ## [0.9.0] - 2025-08-01
 
 ### 🚀 Features
