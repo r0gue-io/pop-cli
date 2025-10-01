@@ -16,7 +16,7 @@ pub use manifest::{add_crate_to_workspace, find_workspace_toml};
 pub use metadata::format_type;
 pub use signer::create_signer;
 pub use sourcing::set_executable_permission;
-use std::{cmp::Ordering, net::TcpListener, ops::Deref, path::Path};
+use std::{cmp::Ordering, net::TcpListener, ops::Deref};
 #[cfg(feature = "integration-tests")]
 use std::{ffi::OsStr, process::Command};
 pub use subxt::{Config, PolkadotConfig as DefaultConfig};
