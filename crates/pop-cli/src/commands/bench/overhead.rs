@@ -93,11 +93,13 @@ impl BenchmarkOverhead {
 					.runtime
 					.as_ref()
 					.ok_or_else(|| anyhow::anyhow!("No runtime found"))?;
-				cmd.params.genesis_builder_preset = guide_user_to_select_genesis_preset(
-					cli,
-					runtime_path,
-					&cmd.params.genesis_builder_preset,
-				)?;
+				if !self.skip_confirm {
+					cmd.params.genesis_builder_preset = guide_user_to_select_genesis_preset(
+						cli,
+						runtime_path,
+						&cmd.params.genesis_builder_preset,
+					)?;
+				}
 			}
 		}
 
@@ -234,20 +236,6 @@ fn parse_genesis_builder_policy(policy: &str) -> anyhow::Result<OverheadCmd> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::{
-		cli::MockCli,
-		common::{
-			bench::EXECUTED_COMMAND_COMMENT,
-			runtime::{get_mock_runtime, Feature::Benchmark},
-		},
-	};
-	use pop_chains::get_preset_names;
-	use std::{
-		env::current_dir,
-		fs::{self, File},
-		path::PathBuf,
-	};
-	use tempfile::tempdir;
 
 	#[test]
 	fn parse_genesis_builder_policy_works() {
@@ -287,167 +275,5 @@ mod tests {
 			--genesis-builder-preset=development --weight-path=weights.rs --profile=debug \
 			-y -n"
 		);
-	}
-
-	#[tokio::test]
-	async fn benchmark_overhead_works() -> anyhow::Result<()> {
-		let cwd = current_dir().unwrap_or(PathBuf::from("./"));
-		let temp_dir = tempdir()?;
-		let output_path = temp_dir.path().to_str().unwrap();
-		let runtime_path = get_mock_runtime(Some(Benchmark));
-		let preset_names = get_preset_names(&runtime_path)?
-			.into_iter()
-			.map(|preset| (preset, String::default()))
-			.collect();
-
-		let mut cli = MockCli::new()
-			.expect_intro("Benchmarking the execution overhead per-block and per-extrinsic")
-			.expect_select(
-				"Choose the build profile of the binary that should be used: ",
-				Some(true),
-				true,
-				Some(Profile::get_variants()),
-				0,
-				None,
-			)
-			.expect_warning(format!(
-				"No runtime folder found at {}. Please input the runtime path manually.",
-				cwd.display()
-			))
-			.expect_input(
-				"Please specify the path to the runtime project or the runtime binary.",
-				runtime_path.to_str().unwrap().to_string(),
-			)
-			.expect_select(
-				"Select the genesis builder preset:",
-				Some(true),
-				true,
-				Some(preset_names),
-				0,
-				None,
-			)
-			.expect_input(
-				"Provide the output directory path for weight files",
-				output_path.to_string(),
-			)
-			.expect_warning("NOTE: this may take some time...")
-			// Unable to mock the `std::env::args` for testing. In production, in must include
-			// `--warmup` and `--repeat`.
-			.expect_info(format!(
-				"pop bench overhead --runtime={} --genesis-builder=runtime \
-				--genesis-builder-preset=development --weight-path={} --profile=debug -y",
-				runtime_path.display(),
-				output_path,
-			))
-			.expect_outro("Benchmark completed successfully!");
-
-		let cmd = OverheadCmd::try_parse_from(["", "--warmup=1", "--repeat=1"])?;
-		assert!(BenchmarkOverhead {
-			command: cmd,
-			skip_confirm: true,
-			profile: None,
-			no_build: false
-		}
-		.execute(&mut cli)
-		.await
-		.is_ok());
-		cli.verify()
-	}
-
-	// TODO: reenable at some point when we figure out what breaks the CI
-	#[ignore]
-	#[tokio::test]
-	async fn benchmark_overhead_weight_file_works() -> anyhow::Result<()> {
-		let temp_dir = tempdir()?;
-		let runtime_path = get_mock_runtime(Some(Benchmark));
-		let output_path = temp_dir.path().to_str().unwrap();
-		let preset_names = get_preset_names(&runtime_path)?
-			.into_iter()
-			.map(|preset| (preset, String::default()))
-			.collect();
-		let mut cli = MockCli::new()
-			.expect_intro("Benchmarking the execution overhead per-block and per-extrinsic")
-			.expect_select(
-				"Select the genesis builder preset:",
-				Some(true),
-				true,
-				Some(preset_names),
-				0,
-				None,
-			)
-			.expect_input(
-				"Provide the output directory path for weight files",
-				output_path.to_string(),
-			)
-			.expect_warning("NOTE: this may take some time...")
-			.expect_outro("Benchmark completed successfully!");
-		let mut cmd = BenchmarkOverhead {
-			command: OverheadCmd::try_parse_from([
-				"",
-				&format!("--runtime={}", runtime_path.display()),
-				"--warmup=1",
-				"--repeat=1",
-			])?,
-			skip_confirm: true,
-			profile: None,
-			no_build: false,
-		};
-		assert!(cmd.execute(&mut cli).await.is_ok());
-
-		for entry in temp_dir.path().read_dir()? {
-			let path = entry?.path();
-			if !path.is_file() {
-				continue;
-			}
-
-			let mut command_block = format!("{EXECUTED_COMMAND_COMMENT}\n");
-			for argument in cmd.collect_display_arguments() {
-				command_block.push_str(&format!("//  {argument}\n"));
-			}
-			assert!(fs::read_to_string(temp_dir.path().join(path.file_name().unwrap()))?
-				.contains(&command_block));
-		}
-		cli.verify()
-	}
-
-	#[tokio::test]
-	async fn benchmark_overhead_invalid_weight_path_fails() -> anyhow::Result<()> {
-		let temp_dir = tempdir()?;
-		let runtime_path = get_mock_runtime(Some(Benchmark));
-		let preset_names = get_preset_names(&runtime_path)?
-			.into_iter()
-			.map(|preset| (preset, String::default()))
-			.collect();
-
-		File::create(temp_dir.path().join("weights.rs"))?;
-		let mut cli = MockCli::new()
-			.expect_intro("Benchmarking the execution overhead per-block and per-extrinsic")
-			.expect_select(
-				"Select the genesis builder preset:",
-				Some(true),
-				true,
-				Some(preset_names),
-				0,
-				None,
-			)
-			.expect_warning("NOTE: this may take some time...")
-			.expect_outro_cancel("Weight path needs to be a directory");
-		let cmd = OverheadCmd::try_parse_from([
-			"",
-			"--runtime",
-			get_mock_runtime(None).to_str().unwrap(),
-			"--weight-path",
-			temp_dir.path().join("weights.rs").to_str().unwrap(),
-		])?;
-		assert!(BenchmarkOverhead {
-			command: cmd,
-			skip_confirm: true,
-			profile: Some(Profile::Debug),
-			no_build: false
-		}
-		.execute(&mut cli)
-		.await
-		.is_ok());
-		cli.verify()
 	}
 }

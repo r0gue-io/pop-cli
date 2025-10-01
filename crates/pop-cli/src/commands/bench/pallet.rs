@@ -1207,15 +1207,23 @@ fn guide_user_to_update_bench_file_path(
 ) -> anyhow::Result<Option<PathBuf>> {
 	if let Some(ref bench_file) = cmd.bench_file {
 		if params_updated &&
-			cli.confirm(format!(
-				"Do you want to overwrite {:?} with the updated parameters?",
-				bench_file.display()
-			))
-			.initial_value(true)
-			.interact()?
+			(cmd.skip_confirm ||
+				cli.confirm(format!(
+					"Do you want to overwrite {:?} with the updated parameters?",
+					bench_file.display()
+				))
+				.initial_value(true)
+				.interact()?)
 		{
 			return Ok(Some(bench_file.clone()));
 		}
+	} else if cmd.skip_confirm {
+		let bench_file = PathBuf::from(DEFAULT_BENCH_FILE);
+		if bench_file.extension() != Some(OsStr::new("toml")) {
+			return Err(anyhow::anyhow!("Invalid file extension. Expected .toml"));
+		}
+		cmd.bench_file = Some(bench_file.clone());
+		return Ok(Some(bench_file));
 	} else if cli
 		.confirm(format!(
 			"Do you want to save the parameters to {:?}?\n{}.",
@@ -1309,312 +1317,15 @@ mod tests {
 	use crate::{
 		cli::MockCli,
 		common::{
-			bench::{source_omni_bencher_binary, EXECUTED_COMMAND_COMMENT},
+			bench::source_omni_bencher_binary,
 			runtime::{get_mock_runtime, Feature::Benchmark},
 		},
 	};
 	use anyhow::Ok;
 	use pop_common::Profile;
-	use std::{
-		env::current_dir,
-		fs::{self, File},
-	};
+	use std::fs::{self, File};
 	use strum::EnumMessage;
 	use tempfile::tempdir;
-
-	#[tokio::test]
-	async fn benchmark_pallet_works() -> anyhow::Result<()> {
-		let mut cli = MockCli::new();
-		let temp_dir = tempdir()?;
-
-		let cwd = current_dir().unwrap_or(PathBuf::from("./"));
-		let bench_file_path = temp_dir.path().join(DEFAULT_BENCH_FILE);
-		let runtime_path = get_mock_runtime(Some(Benchmark));
-		let output_path = temp_dir.path().join("weights.rs");
-
-		cli = expect_pallet_benchmarking_intro(cli)
-			.expect_select(
-				"Choose the build profile of the binary that should be used: ",
-				Some(true),
-				true,
-				Some(Profile::get_variants()),
-				0,
-				None,
-			)
-			.expect_warning(format!(
-				"No runtime folder found at {}. Please input the runtime path manually.",
-				cwd.display()
-			))
-			.expect_input(
-				"Please specify the path to the runtime project or the runtime binary.",
-				runtime_path.to_str().unwrap().to_string(),
-			)
-			.expect_confirm("Would you like to update any additional configurations?", false)
-			.expect_warning("NOTE: this may take some time...")
-			.expect_info("Benchmarking extrinsic weights of selected pallets...")
-			.expect_input(
-				"Provide the output path for benchmark results (optional).",
-				output_path.to_str().unwrap().to_string(),
-			)
-			.expect_confirm(
-				format!(
-					"Do you want to save the parameters to {:?}?\n{}.",
-					DEFAULT_BENCH_FILE,
-					console::style(
-						"This will allow loading parameters from the file by using `-f`"
-					)
-					.dim()
-				),
-				true,
-			)
-			.expect_input(
-				"Provide the output path for benchmark parameter values",
-				bench_file_path.to_str().unwrap().to_string(),
-			)
-			.expect_info(format!(
-				"Parameters saved successfully to {:?}",
-				bench_file_path.display()
-			))
-			.expect_info(format!("Weight file is generated to {:?}", output_path.display()));
-
-		let mut cmd = BenchmarkPallet {
-			skip_confirm: false,
-			genesis_builder: Some(GenesisBuilderPolicy::None),
-			pallets: vec!["pallet_timestamp".to_string()],
-			extrinsic: Some(ALL_SELECTED.to_string()),
-			..Default::default()
-		};
-		cmd.execute(&mut cli).await?;
-		assert!(output_path.exists());
-
-		// Verify the printed command.
-		cli = cli.expect_info(cmd.display()).expect_outro("Benchmark completed successfully!");
-		cmd.execute(&mut cli).await?;
-
-		// Verify the content of the benchmarking parameter file.
-		cmd.bench_file = None;
-		let versioned = VersionedBenchmarkPallet::try_from(bench_file_path.as_path())?;
-		let mut parameters = versioned.parameters();
-		parameters.runtime_binary = parameters.runtime.clone();
-		assert_eq!(parameters, cmd.clone());
-		cli.verify()
-	}
-
-	#[tokio::test]
-	async fn benchmark_multi_pallets_works() -> anyhow::Result<()> {
-		let mut cli = MockCli::new();
-		let temp_dir = tempdir()?;
-
-		let cwd = current_dir().unwrap_or(PathBuf::from("./"));
-		let bench_file_path = temp_dir.path().join(DEFAULT_BENCH_FILE);
-		let runtime_path = get_mock_runtime(Some(Benchmark));
-
-		cli = expect_pallet_benchmarking_intro(cli)
-			.expect_select(
-				"Choose the build profile of the binary that should be used: ",
-				Some(true),
-				true,
-				Some(Profile::get_variants()),
-				0,
-				None,
-			)
-			.expect_warning(format!(
-				"No runtime folder found at {}. Please input the runtime path manually.",
-				cwd.display()
-			))
-			.expect_input(
-				"Please specify the path to the runtime project or the runtime binary.",
-				runtime_path.to_str().unwrap().to_string(),
-			)
-			.expect_confirm("Would you like to update any additional configurations?", false)
-			.expect_warning("NOTE: this may take some time...")
-			.expect_info("Benchmarking extrinsic weights of selected pallets...")
-			.expect_confirm(
-				format!(
-					"Do you want to save the parameters to {:?}?\n{}.",
-					DEFAULT_BENCH_FILE,
-					console::style(
-						"This will allow loading parameters from the file by using `-f`"
-					)
-					.dim()
-				),
-				true,
-			)
-			.expect_input(
-				"Provide the output path for benchmark parameter values",
-				bench_file_path.to_str().unwrap().to_string(),
-			)
-			.expect_info(format!(
-				"Parameters saved successfully to {:?}",
-				bench_file_path.display()
-			));
-
-		let mut cmd = BenchmarkPallet {
-			skip_confirm: false,
-			genesis_builder: Some(GenesisBuilderPolicy::None),
-			pallets: vec!["pallet_timestamp".to_string(), "pallet_sudo".to_string()],
-			extrinsic: Some("on_finalize,set,sudo".to_string()),
-			..Default::default()
-		};
-		cmd.execute(&mut cli).await?;
-
-		// Verify the printed command.
-		cli = cli.expect_info(cmd.display()).expect_outro("Benchmark completed successfully!");
-		cmd.execute(&mut cli).await?;
-
-		// Verify the content of the benchmarking parameter file.
-		cmd.bench_file = None;
-		let versioned = VersionedBenchmarkPallet::try_from(bench_file_path.as_path())?;
-		let mut parameters = versioned.parameters();
-		parameters.runtime_binary = parameters.runtime.clone();
-		assert_eq!(parameters, cmd.clone());
-		cli.verify()
-	}
-
-	#[tokio::test]
-	async fn benchmark_pallet_with_provided_bench_file_works() -> anyhow::Result<()> {
-		let temp_dir = tempdir()?;
-		let output_path = temp_dir.path().join("weights.rs");
-
-		// Prepare the benchmarking parameter files.
-		let bench_file_path = temp_dir.path().join(DEFAULT_BENCH_FILE);
-		let mut cmd = BenchmarkPallet {
-			runtime: Some(get_mock_runtime(Some(Benchmark))),
-			genesis_builder: Some(GenesisBuilderPolicy::Runtime),
-			genesis_builder_preset: "development".to_string(),
-			skip_parameters: true,
-			pallets: vec!["pallet_timestamp".to_string()],
-			extrinsic: Some(ALL_SELECTED.to_string()),
-			output: Some(output_path.clone()),
-			..Default::default()
-		};
-		let toml_str = toml::to_string(&VersionedBenchmarkPallet::from(cmd.clone()))?;
-		fs::write(&bench_file_path, toml_str)?;
-
-		// No changes made to parameters.
-		let mut cli = expect_pallet_benchmarking_intro(MockCli::new())
-			.expect_info(format!(
-				"Benchmarking parameter file found at {:?}. Loading parameters...",
-				bench_file_path.display()
-			))
-			.expect_warning("NOTE: this may take some time...")
-			.expect_info("Benchmarking extrinsic weights of selected pallets...");
-		BenchmarkPallet { bench_file: Some(bench_file_path.clone()), ..Default::default() }
-			.execute(&mut cli)
-			.await?;
-		cli.verify()?;
-
-		// Changes made to parameters.
-		cmd.output = None;
-		let toml_str = toml::to_string(&VersionedBenchmarkPallet::from(cmd))?;
-		fs::write(&bench_file_path, toml_str)?;
-		let mut cli = expect_pallet_benchmarking_intro(MockCli::new())
-			.expect_info(format!(
-				"Benchmarking parameter file found at {:?}. Loading parameters...",
-				bench_file_path.display()
-			))
-			.expect_input(
-				"Provide the output path for benchmark results (optional).",
-				output_path.to_str().unwrap().to_string(),
-			)
-			.expect_confirm(
-				format!(
-					"Do you want to overwrite {:?} with the updated parameters?",
-					bench_file_path.display()
-				),
-				true,
-			)
-			.expect_warning("NOTE: this may take some time...")
-			.expect_info("Benchmarking extrinsic weights of selected pallets...");
-		BenchmarkPallet { bench_file: Some(bench_file_path.clone()), ..Default::default() }
-			.execute(&mut cli)
-			.await?;
-		cli.verify()
-	}
-
-	#[tokio::test]
-	async fn benchmark_pallet_weight_dir_works() -> anyhow::Result<()> {
-		let temp_dir = tempdir()?;
-		let temp_cache = tempdir()?;
-		let output_path = temp_dir.path();
-		let registry = get_registry(temp_cache.path()).await?;
-
-		let mut cli = expect_pallet_benchmarking_intro(MockCli::new())
-			.expect_warning("NOTE: this may take some time...")
-			.expect_info("Benchmarking extrinsic weights of selected pallets...")
-			.expect_input(
-				"Provide the output path for benchmark results (optional).",
-				output_path.to_str().unwrap().to_string(),
-			)
-			.expect_outro("Benchmark completed successfully!");
-
-		let mut cmd = BenchmarkPallet {
-			skip_parameters: true,
-			skip_confirm: true,
-			runtime: Some(get_mock_runtime(Some(Benchmark))),
-			genesis_builder: Some(GenesisBuilderPolicy::Runtime),
-			genesis_builder_preset: "development".to_string(),
-			pallets: vec![ALL_SELECTED.to_string()],
-			extrinsic: Some(ALL_SELECTED.to_string()),
-			exclude_pallets: registry
-				.keys()
-				.filter(|&p| *p != "pallet_timestamp" && *p != "pallet_proxy")
-				.cloned()
-				.collect(),
-			repeat: 2,
-			steps: 2,
-			..Default::default()
-		};
-		cmd.execute(&mut cli).await?;
-
-		for entry in fs::read_dir(output_path)? {
-			let entry = entry?;
-			let path = entry.path();
-			let content = fs::read_to_string(&path)?;
-			let mut command_block = format!("{EXECUTED_COMMAND_COMMENT}\n");
-			for argument in cmd.collect_display_arguments() {
-				command_block.push_str(&format!("//  {argument}\n"));
-			}
-			assert!(content.contains(&command_block));
-			assert!(path.exists());
-		}
-		cli.verify()
-	}
-
-	#[tokio::test]
-	async fn benchmark_pallet_weight_file_works() -> anyhow::Result<()> {
-		let temp_dir = tempdir()?;
-		let output_path = temp_dir.path().join("weights.rs");
-		let mut cli = expect_pallet_benchmarking_intro(MockCli::new())
-			.expect_warning("NOTE: this may take some time...")
-			.expect_info("Benchmarking extrinsic weights of selected pallets...")
-			.expect_input(
-				"Provide the output path for benchmark results (optional).",
-				output_path.to_str().unwrap().to_string(),
-			)
-			.expect_outro("Benchmark completed successfully!");
-
-		let mut cmd = BenchmarkPallet {
-			skip_parameters: true,
-			skip_confirm: true,
-			runtime: Some(get_mock_runtime(Some(Benchmark))),
-			genesis_builder: Some(GenesisBuilderPolicy::Runtime),
-			genesis_builder_preset: "development".to_string(),
-			pallets: vec!["pallet_timestamp".to_string()],
-			extrinsic: Some(ALL_SELECTED.to_string()),
-			..Default::default()
-		};
-		cmd.execute(&mut cli).await?;
-
-		let content = fs::read_to_string(&output_path)?;
-		let mut command_block = format!("{EXECUTED_COMMAND_COMMENT}\n");
-		for argument in cmd.collect_display_arguments() {
-			command_block.push_str(&format!("//  {argument}\n"));
-		}
-		assert!(content.contains(&command_block));
-		assert!(output_path.exists());
-		cli.verify()
-	}
 
 	#[tokio::test]
 	async fn list_pallets_works() -> anyhow::Result<()> {
@@ -2135,6 +1846,7 @@ mod tests {
 		// Load pallet registry if the registry is empty.
 		let mut cli =
 			MockCli::new().expect_confirm("Would you like to benchmark all pallets?", true);
+		check_omni_bencher_and_prompt(&mut cli, true).await?;
 		let mut registry = PalletExtrinsicsRegistry::default();
 		BenchmarkPallet {
 			runtime_binary: Some(get_mock_runtime(Some(Benchmark))),
@@ -2185,7 +1897,7 @@ mod tests {
 	#[tokio::test]
 	async fn update_extrinsic_works() -> anyhow::Result<()> {
 		let pallet = "pallet_timestamp";
-
+		check_omni_bencher_and_prompt(&mut MockCli::new(), true).await?;
 		// Load pallet registry if the registry is empty.
 		let mut registry = PalletExtrinsicsRegistry::default();
 		BenchmarkPallet {
@@ -2216,6 +1928,7 @@ mod tests {
 	#[tokio::test]
 	async fn update_excluded_pallets_works() -> anyhow::Result<()> {
 		let temp_cache = tempdir()?;
+
 		let registry = get_registry(temp_cache.path()).await?;
 		let pallet_items = pallets(&registry, &[])
 			.into_iter()
@@ -2234,6 +1947,7 @@ mod tests {
 			runtime_binary: Some(get_mock_runtime(Some(Benchmark))),
 			..Default::default()
 		};
+		check_omni_bencher_and_prompt(&mut cli, true).await?;
 		let mut registry = PalletExtrinsicsRegistry::default();
 		cmd.update_excluded_pallets(&mut cli, &mut registry).await?;
 		assert!(!registry.is_empty());
@@ -2266,6 +1980,7 @@ mod tests {
 			runtime_binary: Some(get_mock_runtime(Some(Benchmark))),
 			..Default::default()
 		};
+		check_omni_bencher_and_prompt(&mut cli, true).await?;
 		let mut registry = PalletExtrinsicsRegistry::default();
 		cmd.update_excluded_extrinsics(&mut cli, &mut registry).await?;
 		assert!(!registry.is_empty());

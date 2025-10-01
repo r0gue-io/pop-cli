@@ -196,6 +196,7 @@ mod tests {
 	#[tokio::test]
 	async fn execute_block_works() -> anyhow::Result<()> {
 		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
+
 		let mut cli = MockCli::new()
 			.expect_intro("Testing block execution")
 			.expect_confirm(
