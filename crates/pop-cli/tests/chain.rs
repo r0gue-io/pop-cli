@@ -5,7 +5,7 @@
 #![cfg(all(feature = "chain", feature = "integration-tests"))]
 
 use anyhow::Result;
-use assert_cmd::cargo::cargo_bin;
+use common::{cleanup_telemetry_env, pop, MockTelemetry};
 use pop_chains::{
 	up::{Binary, Source::GitHub},
 	ChainTemplate,
@@ -19,18 +19,22 @@ use pop_common::{
 	templates::Template,
 };
 use std::{
-	ffi::OsStr,
 	fs,
 	fs::write,
 	path::{Path, PathBuf},
 	process::Command,
 	time::Duration,
 };
-use strum::VariantArray;
+use strum::{EnumMessage, VariantArray};
+
+mod common;
 
 // Test that all templates are generated correctly
-#[test]
-fn generate_all_the_templates() -> Result<()> {
+#[tokio::test]
+async fn generate_all_the_templates() -> Result<()> {
+	// Setup wiremock server and telemetry environment
+	let telemetry = MockTelemetry::new().await?;
+
 	let temp = tempfile::tempdir()?;
 	let temp_dir = temp.path();
 
@@ -51,22 +55,23 @@ fn generate_all_the_templates() -> Result<()> {
 			],
 		);
 		assert!(command.spawn()?.wait()?.success());
+		telemetry
+			.assert_latest_payload_structure("new chain", template.get_message().unwrap_or(""))
+			.await?;
 		assert!(temp_dir.join(parachain_name).exists());
 	}
+	cleanup_telemetry_env();
 	Ok(())
 }
 
 /// Test the parachain lifecycle: new, build, up, call.
 #[tokio::test]
 async fn parachain_lifecycle() -> Result<()> {
-	// For testing locally: set to `true`
-	const LOCAL_TESTING: bool = false;
+	// Setup wiremock server and telemetry environment
+	let telemetry = MockTelemetry::new().await?;
 
 	let temp = tempfile::tempdir()?;
-	let temp_dir = match LOCAL_TESTING {
-		true => Path::new("./"),
-		false => temp.path(),
-	};
+	let temp_dir = temp.path();
 
 	// pop new chain test_parachain --verify (default)
 	let working_dir = temp_dir.join("test_parachain");
@@ -87,6 +92,7 @@ async fn parachain_lifecycle() -> Result<()> {
 			],
 		);
 		assert!(command.spawn()?.wait()?.success());
+		telemetry.assert_latest_payload_structure("new chain", "Standard").await?;
 		assert!(working_dir.exists());
 	}
 
@@ -125,6 +131,7 @@ async fn parachain_lifecycle() -> Result<()> {
 		],
 	);
 	assert!(command.spawn()?.wait()?.success());
+	telemetry.assert_latest_payload_structure("build spec", "").await?;
 
 	// Assert build files have been generated
 	assert!(working_dir.join("target").exists());
@@ -206,6 +213,7 @@ rpc_port = {random_port}
 		],
 	);
 	assert!(command.spawn()?.wait()?.success());
+	telemetry.assert_latest_payload_structure("call chain", "").await?;
 
 	// pop call chain --call 0x00000411 --url ws://127.0.0.1:random_port --suri //Alice
 	// --skip-confirm
@@ -224,6 +232,7 @@ rpc_port = {random_port}
 		],
 	);
 	assert!(command.spawn()?.wait()?.success());
+	telemetry.assert_latest_payload_structure("call chain", "").await?;
 
 	assert!(up.try_wait()?.is_none(), "the process should still be running");
 	// Stop the process
@@ -231,14 +240,8 @@ rpc_port = {random_port}
 	up.wait()?;
 	Command::new("kill").args(["-s", "SIGINT", &up.id().to_string()]).spawn()?;
 
+	cleanup_telemetry_env();
 	Ok(())
-}
-
-fn pop(dir: &Path, args: impl IntoIterator<Item = impl AsRef<OsStr>>) -> Command {
-	let mut command = Command::new(cargo_bin("pop"));
-	command.current_dir(dir).args(args);
-	println!("{command:?}");
-	command
 }
 
 // Function that mocks the build process generating the target dir and release.

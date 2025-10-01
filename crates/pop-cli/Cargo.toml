@@ -61,6 +61,7 @@ assert_cmd.workspace = true
 mockito.workspace = true
 subxt.workspace = true
 subxt-signer.workspace = true
+wiremock.workspace = true
 
 [features]
 default = ["chain", "telemetry", "wasm-contracts"]

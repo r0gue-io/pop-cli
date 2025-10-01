@@ -5,20 +5,22 @@
 #![cfg(all(feature = "contract", feature = "integration-tests"))]
 
 use anyhow::Result;
-use assert_cmd::Command;
+use common::{cleanup_telemetry_env, pop, MockTelemetry};
 use pop_common::{find_free_port, set_executable_permission, templates::Template};
 use pop_contracts::{
 	contracts_node_generator, dry_run_call, dry_run_gas_estimate_call,
 	dry_run_gas_estimate_instantiate, instantiate_smart_contract, run_contracts_node, set_up_call,
-	set_up_deployment, CallOpts, Contract, UpOpts, Weight,
+	set_up_deployment, CallOpts, UpOpts, Weight,
 };
 use serde::{Deserialize, Serialize};
-use std::{path::Path, process::Command as Cmd, time::Duration};
-use strum::VariantArray;
+use std::{process::Command as Cmd, time::Duration};
+use strum::{EnumMessage, VariantArray};
 use subxt::{config::DefaultExtrinsicParamsBuilder as Params, tx::Payload, utils::to_hex};
 use subxt_signer::sr25519::dev;
 use tokio::time::sleep;
 use url::Url;
+
+mod common;
 
 // This struct implements the [`Payload`] trait and is used to submit
 // pre-encoded SCALE call data directly, without the dynamic construction of transactions.
@@ -54,6 +56,41 @@ impl TransactionData {
 	}
 }
 
+#[tokio::test]
+async fn generate_all_contract_templates() -> Result<()> {
+	// Setup wiremock server and telemetry environment
+	let telemetry = MockTelemetry::new().await?;
+
+	let temp = tempfile::tempdir()?;
+	let temp_dir = temp.path();
+
+	for template in pop_contracts::Contract::VARIANTS {
+		let contract_name = format!("test_contract_{}", template).replace("-", "_");
+		let contract_type = template.template_type()?.to_lowercase();
+
+		let mut command = pop(
+			temp_dir,
+			[
+				"new",
+				"contract",
+				&contract_name,
+				"--contract-type",
+				&contract_type,
+				"--template",
+				&template.to_string(),
+			],
+		);
+		assert!(command.spawn()?.wait()?.success());
+		telemetry
+			.assert_latest_payload_structure("new contract", template.get_message().unwrap_or(""))
+			.await?;
+		assert!(temp_dir.join(&contract_name).exists());
+	}
+
+	cleanup_telemetry_env();
+	Ok(())
+}
+
 // SubmitRequest has been copied from wallet_integration.rs
 /// Payload submitted by the wallet after signing a transaction.
 #[derive(serde::Deserialize, serde::Serialize, Debug)]
@@ -65,34 +102,23 @@ pub struct SubmitRequest {
 	pub contract_address: Option<String>,
 }
 
-/// Test the contract lifecycle: new, build, up, call
+/// Test contract creation and building
 #[tokio::test]
-async fn contract_lifecycle() -> Result<()> {
-	const WALLET_INT_URI: &str = "http://127.0.0.1:9090";
-	const WAIT_SECS: u64 = 10 * 60;
-	let endpoint_port = find_free_port(None);
-	let default_endpoint: &str = &format!("ws://127.0.0.1:{}", endpoint_port);
-	let temp = tempfile::tempdir().unwrap();
+async fn test_contract_creation_and_build() -> Result<()> {
+	let telemetry = MockTelemetry::new().await?;
+	let temp = tempfile::tempdir()?;
 	let temp_dir = temp.path();
-	//let temp_dir = Path::new("./"); //For testing locally
-	// Test that all templates are generated correctly
-	generate_all_the_templates(&temp_dir)?;
+
 	// pop new contract test_contract (default)
-	Command::cargo_bin("pop")
-		.unwrap()
-		.current_dir(&temp_dir)
-		.args(&["new", "contract", "test_contract"])
-		.assert()
-		.success();
+	let mut command = pop(temp_dir, ["new", "contract", "test_contract"]);
+	assert!(command.spawn()?.wait()?.success());
+	telemetry.assert_latest_payload_structure("new contract", "Standard").await?;
 	assert!(temp_dir.join("test_contract").exists());
 
 	// pop build --path ./test_contract --release
-	Command::cargo_bin("pop")
-		.unwrap()
-		.current_dir(&temp_dir)
-		.args(&["build", "--path", "./test_contract", "--release"])
-		.assert()
-		.success();
+	let mut command = pop(temp_dir, ["build", "--path", "./test_contract", "--release"]);
+	assert!(command.spawn()?.wait()?.success());
+	telemetry.assert_latest_payload_structure("build", "contract").await?;
 
 	// Verify that the directory target has been created
 	assert!(temp_dir.join("test_contract/target").exists());
@@ -104,25 +130,44 @@ async fn contract_lifecycle() -> Result<()> {
 	assert!(temp_dir.join("test_contract/target/ink/test_contract.polkavm").exists());
 	assert!(temp_dir.join("test_contract/target/ink/test_contract.json").exists());
 
+	cleanup_telemetry_env();
+	Ok(())
+}
+
+/// Test contract upload and instantiation - requires built contract.
+#[tokio::test]
+async fn test_contract_upload_and_instantiation() -> Result<()> {
+	let telemetry = MockTelemetry::new().await?;
+	let temp = tempfile::tempdir()?;
+	let temp_dir = temp.path();
+	let endpoint_port = find_free_port(None);
+	let default_endpoint: &str = &format!("ws://127.0.0.1:{}", endpoint_port);
+
+	// Setup: create and build the contract
+	let mut command = pop(temp_dir, ["new", "contract", "test_contract"]);
+	assert!(command.spawn()?.wait()?.success());
+	let mut command = pop(temp_dir, ["build", "--path", "./test_contract", "--release"]);
+	assert!(command.spawn()?.wait()?.success());
+
+	// Start contracts node
 	let binary = contracts_node_generator(temp_dir.to_path_buf().clone(), None).await?;
 	binary.source(false, &(), true).await?;
 	set_executable_permission(binary.path())?;
 	let process = run_contracts_node(binary.path(), None, endpoint_port).await?;
 	sleep(Duration::from_secs(5)).await;
 
-	// Only upload the contract
-	// pop up --path ./test_contract --upload-only
-	Command::cargo_bin("pop")
-		.unwrap()
-		.current_dir(&temp_dir)
-		.args(&["up", "--path", "./test_contract", "--upload-only", "--url", default_endpoint])
-		.assert()
-		.success();
-	// Instantiate contract, only dry-run
-	Command::cargo_bin("pop")
-		.unwrap()
-		.current_dir(&temp_dir.join("test_contract"))
-		.args(&[
+	// Upload the contract
+	let mut command = pop(
+		temp_dir,
+		["up", "--path", "./test_contract", "--upload-only", "--url", default_endpoint],
+	);
+	assert!(command.spawn()?.wait()?.success());
+	telemetry.assert_latest_payload_structure("up", "contract").await?;
+
+	// Test instantiation dry-run
+	let mut command = pop(
+		&temp_dir.join("test_contract"),
+		[
 			"up",
 			"--constructor",
 			"new",
@@ -133,11 +178,48 @@ async fn contract_lifecycle() -> Result<()> {
 			"--dry-run",
 			"--url",
 			default_endpoint,
-		])
-		.assert()
-		.success();
-	// Using methods from the pop_contracts crate to instantiate it to get the Contract Address for
-	// the call
+		],
+	);
+	assert!(command.spawn()?.wait()?.success());
+	telemetry.assert_latest_payload_structure("up", "contract").await?;
+
+	// Cleanup
+	Cmd::new("kill")
+		.args(["-s", "TERM", &process.id().to_string()])
+		.spawn()?
+		.wait()?;
+
+	cleanup_telemetry_env();
+	Ok(())
+}
+
+/// Test contract calls.
+#[tokio::test]
+async fn test_contract_calls() -> Result<()> {
+	let telemetry = MockTelemetry::new().await?;
+	let temp = tempfile::tempdir()?;
+	let temp_dir = temp.path();
+	let endpoint_port = find_free_port(None);
+	let default_endpoint: &str = &format!("ws://127.0.0.1:{}", endpoint_port);
+
+	// Setup: create, build, upload, instantiate contract
+	let mut command = pop(temp_dir, ["new", "contract", "test_contract"]);
+	assert!(command.spawn()?.wait()?.success());
+	let mut command = pop(temp_dir, ["build", "--path", "./test_contract", "--release"]);
+	assert!(command.spawn()?.wait()?.success());
+
+	let binary = contracts_node_generator(temp_dir.to_path_buf().clone(), None).await?;
+	binary.source(false, &(), true).await?;
+	set_executable_permission(binary.path())?;
+	let process = run_contracts_node(binary.path(), None, endpoint_port).await?;
+	sleep(Duration::from_secs(5)).await;
+
+	let mut command = pop(
+		temp_dir,
+		["up", "--path", "./test_contract", "--upload-only", "--url", default_endpoint],
+	);
+	assert!(command.spawn()?.wait()?.success());
+
 	let instantiate_exec = set_up_deployment(UpOpts {
 		path: Some(temp_dir.join("test_contract")),
 		constructor: "new".to_string(),
@@ -153,7 +235,7 @@ async fn contract_lifecycle() -> Result<()> {
 	let weight_limit = dry_run_gas_estimate_instantiate(&instantiate_exec).await?;
 	let contract_info = instantiate_smart_contract(instantiate_exec, weight_limit).await?;
 
-	// Dry runs
+	// Test dry-run calls
 	let call_opts = CallOpts {
 		path: Some(temp_dir.join("test_contract")),
 		contract: contract_info.address.clone(),
@@ -171,12 +253,10 @@ async fn contract_lifecycle() -> Result<()> {
 	assert!(weight_limit.all_gt(Weight::zero()));
 	assert_eq!(dry_run_call(&call_exec).await?, "Ok(false)");
 
-	// Call contract (only query)
-	// pop call contract --contract $INSTANTIATED_CONTRACT_ADDRESS --message get --suri //Alice
-	Command::cargo_bin("pop")
-		.unwrap()
-		.current_dir(&temp_dir.join("test_contract"))
-		.args(&[
+	// Test query call via pop
+	let mut command = pop(
+		&temp_dir.join("test_contract"),
+		[
 			"call",
 			"contract",
 			"--contract",
@@ -187,16 +267,15 @@ async fn contract_lifecycle() -> Result<()> {
 			"//Alice",
 			"--url",
 			default_endpoint,
-		])
-		.assert()
-		.success();
+		],
+	);
+	assert!(command.spawn()?.wait()?.success());
+	telemetry.assert_latest_payload_structure("call contract", "").await?;
 
-	// Call contract (execute extrinsic)
-	// pop call contract --contract $INSTANTIATED_CONTRACT_ADDRESS --message flip --suri //Alice -x
-	Command::cargo_bin("pop")
-		.unwrap()
-		.current_dir(&temp_dir.join("test_contract"))
-		.args(&[
+	// Test execute call via pop
+	let mut command = pop(
+		&temp_dir.join("test_contract"),
+		[
 			"call",
 			"contract",
 			"--contract",
@@ -208,17 +287,48 @@ async fn contract_lifecycle() -> Result<()> {
 			"-x",
 			"--url",
 			default_endpoint,
-		])
-		.assert()
-		.success();
+		],
+	);
+	assert!(command.spawn()?.wait()?.success());
+	telemetry.assert_latest_payload_structure("call contract", "").await?;
 
-	// Dry runs after changing the value
+	// Verify state changed
 	assert_eq!(dry_run_call(&call_exec).await?, "Ok(true)");
 
-	// pop up --upload-only --use-wallet
-	// Will run http server for wallet integration.
-	// Using `cargo run --` as means for the CI to pass.
-	// Possibly there's room for improvement here.
+	// Cleanup
+	Cmd::new("kill")
+		.args(["-s", "TERM", &process.id().to_string()])
+		.spawn()?
+		.wait()?;
+
+	cleanup_telemetry_env();
+	Ok(())
+}
+
+/// Test wallet integration - requires working contract setup.
+#[tokio::test]
+async fn test_wallet_integration() -> Result<()> {
+	const WALLET_INT_URI: &str = "http://127.0.0.1:9090";
+	const WAIT_SECS: u64 = 10 * 60;
+	let endpoint_port = find_free_port(None);
+	let default_endpoint: &str = &format!("ws://127.0.0.1:{}", endpoint_port);
+	let temp = tempfile::tempdir()?;
+	let temp_dir = temp.path();
+
+	let telemetry = MockTelemetry::new().await?;
+
+	let mut command = pop(temp_dir, ["new", "contract", "test_contract"]);
+	assert!(command.spawn()?.wait()?.success());
+	let mut command = pop(temp_dir, ["build", "--path", "./test_contract", "--release"]);
+	assert!(command.spawn()?.wait()?.success());
+
+	let binary = contracts_node_generator(temp_dir.to_path_buf().clone(), None).await?;
+	binary.source(false, &(), true).await?;
+	set_executable_permission(binary.path())?;
+	let process = run_contracts_node(binary.path(), None, endpoint_port).await?;
+	sleep(Duration::from_secs(5)).await;
+
+	// Start wallet integration server
 	let _ = tokio::process::Command::new("cargo")
 		.args(&[
 			"run",
@@ -234,23 +344,20 @@ async fn contract_lifecycle() -> Result<()> {
 			default_endpoint,
 		])
 		.spawn()?;
-	// Wait a moment for node and server to be up.
 	sleep(Duration::from_secs(WAIT_SECS)).await;
 
-	// Request payload from server.
+	// Test wallet integration flow
 	let response = reqwest::get(&format!("{}/payload", WALLET_INT_URI))
 		.await
 		.expect("Failed to get payload")
 		.json::<TransactionData>()
 		.await
 		.expect("Failed to parse payload");
-	// We have received some payload.
 	assert!(!response.call_data().is_empty());
 
 	let rpc_client = subxt::backend::rpc::RpcClient::from_url(default_endpoint).await?;
 	let client = subxt::OnlineClient::<subxt::SubstrateConfig>::from_rpc_client(rpc_client).await?;
 
-	// Sign payload.
 	let signer = dev::alice();
 	let payload = CallData(response.call_data());
 	let ext_params = Params::new().build();
@@ -258,7 +365,6 @@ async fn contract_lifecycle() -> Result<()> {
 
 	let submit_request =
 		SubmitRequest { signed_payload: Some(to_hex(signed.encoded())), contract_address: None };
-	// Submit signed payload. This kills the wallet integration server.
 	let _ = reqwest::Client::new()
 		.post(&format!("{}/submit", WALLET_INT_URI))
 		.json(&submit_request)
@@ -269,40 +375,16 @@ async fn contract_lifecycle() -> Result<()> {
 		.await
 		.expect("Failed to parse JSON response");
 
-	// Request payload from server after signed payload has been sent.
-	// Server should not be running!
+	// Verify server shuts down
 	let response = reqwest::get(&format!("{}/payload", WALLET_INT_URI)).await;
 	assert!(response.is_err());
 
-	// Stop the process contracts-node
+	// Cleanup
 	Cmd::new("kill")
 		.args(["-s", "TERM", &process.id().to_string()])
 		.spawn()?
 		.wait()?;
 
-	Ok(())
-}
-
-fn generate_all_the_templates(temp_dir: &Path) -> Result<()> {
-	for template in Contract::VARIANTS {
-		let contract_name = format!("test_contract_{}", template).replace("-", "_");
-		let contract_type = template.template_type()?.to_lowercase();
-		// pop new chain test_parachain
-		Command::cargo_bin("pop")
-			.unwrap()
-			.current_dir(&temp_dir)
-			.args(&[
-				"new",
-				"contract",
-				&contract_name,
-				"--contract-type",
-				&contract_type,
-				"--template",
-				&template.to_string(),
-			])
-			.assert()
-			.success();
-		assert!(temp_dir.join(contract_name).exists());
-	}
+	cleanup_telemetry_env();
 	Ok(())
 }
