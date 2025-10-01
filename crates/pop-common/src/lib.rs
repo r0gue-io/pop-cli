@@ -3,6 +3,8 @@
 #![doc = include_str!("../README.md")]
 
 pub use account_id::{parse_account, parse_h160_account};
+#[cfg(feature = "integration-tests")]
+use assert_cmd::cargo::cargo_bin;
 pub use build::Profile;
 pub use errors::Error;
 pub use git::{Git, GitHub, Release};
@@ -15,6 +17,8 @@ pub use metadata::format_type;
 pub use signer::create_signer;
 pub use sourcing::set_executable_permission;
 use std::{cmp::Ordering, net::TcpListener, ops::Deref};
+#[cfg(feature = "integration-tests")]
+use std::{ffi::OsStr, path::Path, process::Command};
 pub use subxt::{Config, PolkadotConfig as DefaultConfig};
 pub use subxt_signer::sr25519::Keypair;
 pub use templates::extractor::extract_template_files;
@@ -84,6 +88,14 @@ pub fn target() -> Result<&'static str, Error> {
 		&_ => {},
 	}
 	Err(Error::UnsupportedPlatform { arch: ARCH, os: OS })
+}
+
+#[cfg(feature = "integration-tests")]
+pub fn pop(dir: &Path, args: impl IntoIterator<Item = impl AsRef<OsStr>>) -> Command {
+	let mut command = Command::new(cargo_bin("pop"));
+	command.current_dir(dir).args(args);
+	println!("{command:?}");
+	command
 }
 
 /// Checks if preferred port is available, otherwise returns a random available port.
