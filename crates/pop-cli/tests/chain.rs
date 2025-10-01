@@ -18,7 +18,6 @@ use pop_common::{
 	templates::Template,
 };
 use std::{
-	ffi::OsStr,
 	fs,
 	fs::write,
 	path::{Path, PathBuf},
@@ -331,13 +330,6 @@ fn test_benchmarking(working_dir: &Path) -> Result<()> {
 	);
 	assert!(command.spawn()?.wait()?.success());
 	Ok(())
-}
-
-fn pop(dir: &Path, args: impl IntoIterator<Item = impl AsRef<OsStr>>) -> Command {
-	let mut command = Command::new(cargo_bin("pop"));
-	command.current_dir(dir).args(args);
-	println!("{command:?}");
-	command
 }
 
 // Function that mocks the build process generating the target dir and release.

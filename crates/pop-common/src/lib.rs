@@ -18,7 +18,7 @@ pub use signer::create_signer;
 pub use sourcing::set_executable_permission;
 use std::{cmp::Ordering, net::TcpListener, ops::Deref};
 #[cfg(feature = "integration-tests")]
-use std::{ffi::OsStr, process::Command};
+use std::{ffi::OsStr, path::Path, process::Command};
 pub use subxt::{Config, PolkadotConfig as DefaultConfig};
 pub use subxt_signer::sr25519::Keypair;
 pub use templates::extractor::extract_template_files;
@@ -97,6 +97,7 @@ pub fn pop(dir: &Path, args: impl IntoIterator<Item = impl AsRef<OsStr>>) -> Com
 	println!("{command:?}");
 	command
 }
+
 /// Checks if preferred port is available, otherwise returns a random available port.
 pub fn find_free_port(preferred_port: Option<u16>) -> u16 {
 	// Try to bind to preferred port if provided.
