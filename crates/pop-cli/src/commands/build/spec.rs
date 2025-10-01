@@ -194,7 +194,7 @@ impl BuildSpecCommand {
 		let mut cli = Cli;
 		cli.intro("Generate your chain spec")?;
 		// Checks for appchain project.
-		if is_supported(&self.path)? {
+		if is_supported(&self.path) {
 			let build_spec = self.configure_build_spec(&mut cli).await?;
 			if let Err(e) = build_spec.build(&mut cli) {
 				cli.outro_cancel(e.to_string())?;
@@ -555,7 +555,7 @@ impl BuildSpec {
 			..
 		} = self;
 		// Ensure binary is built.
-		let binary_path = ensure_node_binary_exists(cli, self.path.as_path(), profile, vec![])?;
+		let binary_path = ensure_node_binary_exists(cli, &self.path, profile, vec![])?;
 		let spinner = spinner();
 		if !use_existing_plain_spec {
 			spinner.start("Generating chain specification...");

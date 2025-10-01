@@ -109,7 +109,7 @@ impl Command {
 			return Ok(Contract);
 		}
 		#[cfg(feature = "chain")]
-		if pop_chains::is_supported(&project_path)? {
+		if pop_chains::is_supported(&project_path) {
 			let mut cmd = args.rollup;
 			cmd.path = project_path.clone();
 			cmd.execute(cli).await?;

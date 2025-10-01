@@ -88,7 +88,7 @@ impl Command {
 		test_project(&project_path)?;
 
 		#[cfg(feature = "chain")]
-		if pop_chains::is_supported(&project_path)? {
+		if pop_chains::is_supported(&project_path) {
 			return Ok((Chain, Unit));
 		}
 		Ok((Unknown, Unit))

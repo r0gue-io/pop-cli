@@ -21,7 +21,7 @@ use std::{
 	fs,
 	fs::write,
 	path::{Path, PathBuf},
-	process::{Child, Command},
+	process::Child,
 	time::Duration,
 };
 use strum::VariantArray;

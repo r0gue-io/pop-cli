@@ -83,15 +83,27 @@ pub fn build_project(
 /// # Arguments
 /// * `path` - The optional path to the manifest, defaulting to the current directory if not
 ///   specified.
-pub fn is_supported(path: &Path) -> Result<bool, Error> {
-	let manifest = from_path(path)?;
+pub fn is_supported(path: &Path) -> bool {
+	let manifest = match from_path(path) {
+		Ok(m) => m,
+		Err(_) => return false,
+	};
 	// Simply check for a chain dependency
 	const DEPENDENCIES: [&str; 4] =
 		["cumulus-client-collator", "cumulus-primitives-core", "parachains-common", "polkadot-sdk"];
-	Ok(DEPENDENCIES.into_iter().any(|d| {
+	DEPENDENCIES.into_iter().any(|d| {
 		manifest.dependencies.contains_key(d) ||
 			manifest.workspace.as_ref().is_some_and(|w| w.dependencies.contains_key(d))
-	}))
+	})
+}
+
+pub fn get_node_path(project_path: &Path) -> Option<PathBuf> {
+	let node_default_path = project_path.join("node");
+	if node_default_path.is_dir() {
+		Some(node_default_path)
+	} else {
+		None
+	}
 }
 
 /// Constructs the node binary path based on the target path and the node directory path.
@@ -1284,7 +1296,7 @@ mod tests {
 		// Standard rust project
 		let name = "hello_world";
 		cmd("cargo", ["new", name]).dir(path).run()?;
-		assert!(!is_supported(&path.join(name))?);
+		assert!(!is_supported(&path.join(name)));
 
 		// Chain
 		let mut manifest = from_path(&path.join(name))?;
@@ -1293,7 +1305,7 @@ mod tests {
 			.insert("cumulus-client-collator".into(), Dependency::Simple("^0.14.0".into()));
 		let manifest = toml_edit::ser::to_string_pretty(&manifest)?;
 		write(path.join(name).join("Cargo.toml"), manifest)?;
-		assert!(is_supported(&path.join(name))?);
+		assert!(is_supported(&path.join(name)));
 		Ok(())
 	}
 }

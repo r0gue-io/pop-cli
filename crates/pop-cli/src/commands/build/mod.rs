@@ -122,7 +122,7 @@ impl Command {
 
 		// If project is a parachain runtime, build as parachain runtime
 		#[cfg(feature = "chain")]
-		if args.only_runtime || pop_chains::runtime::is_supported(&project_path)? {
+		if args.only_runtime || pop_chains::runtime::is_supported(&project_path) {
 			let profile = match args.profile {
 				Some(profile) => profile,
 				None => args.release.into(),
@@ -143,7 +143,7 @@ impl Command {
 
 		// If project is a parachain runtime, build as parachain runtime
 		#[cfg(feature = "chain")]
-		if pop_chains::is_supported(&project_path)? {
+		if pop_chains::is_supported(&project_path) {
 			let profile = match args.profile {
 				Some(profile) => profile,
 				None => args.release.into(),

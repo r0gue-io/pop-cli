@@ -46,7 +46,7 @@ impl CallArgs {
 		}
 
 		#[cfg(feature = "chain")]
-		if pop_chains::is_supported(&current_dir)? {
+		if pop_chains::is_supported(&current_dir) {
 			return Ok(Command::Chain(Default::default()));
 		}
 
