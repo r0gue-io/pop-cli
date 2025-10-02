@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{errors::Error, DefaultEnvironment};
-use contract_extrinsics_inkv6::{ExtrinsicOpts, MapAccountCommandBuilder, MapAccountExec};
-use pop_common::{DefaultConfig, Keypair};
-use subxt::{ext::scale_encode::EncodeAsType, utils::H160};
+use contract_extrinsics::{ExtrinsicOpts, MapAccountCommandBuilder, MapAccountExec};
+use subxt::{ext::scale_encode::EncodeAsType, utils::H160, PolkadotConfig as DefaultConfig};
+use subxt_signer::{sr25519::Keypair, SecretUri};
 
 /// A helper struct for performing account mapping operations.
 pub struct AccountMapper {
@@ -52,4 +52,16 @@ impl MapAccount {
 	pub(crate) fn build(self) -> subxt::tx::DefaultPayload<Self> {
 		subxt::tx::DefaultPayload::new("Revive", "map_account", self)
 	}
+}
+
+/// TODO: Duplicated function with the one in pop-common, temporary function due to dependency
+/// issues. Create a keypair from a secret URI.
+///
+/// # Arguments
+/// `suri` - Secret URI string used to generate the `Keypair`.
+pub fn create_signer(suri: &str) -> Result<Keypair, Error> {
+	let uri = <SecretUri as std::str::FromStr>::from_str(suri)
+		.map_err(|e| Error::ParseSecretURI(format!("{}", e)))?;
+	let keypair = Keypair::from_uri(&uri).map_err(|e| Error::KeyPairCreation(format!("{}", e)))?;
+	Ok(keypair)
 }

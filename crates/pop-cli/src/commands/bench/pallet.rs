@@ -451,7 +451,7 @@ impl BenchmarkPallet {
 		weight_path: PathBuf,
 	) -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
-		let temp_dir_path = temp_dir.into_path();
+		let temp_dir_path = temp_dir.keep();
 		self.output = Some(temp_dir_path.clone());
 
 		generate_pallet_benchmarks(self.collect_run_arguments())?;
@@ -1370,7 +1370,7 @@ mod tests {
 	async fn benchmark_pallet_fails_with_error() -> anyhow::Result<()> {
 		let mut cli = MockCli::new();
 		cli = expect_pallet_benchmarking_intro(cli);
-		cli = cli.expect_outro_cancel("Failed to run benchmarking: Invalid input: No benchmarks found which match your input. Try `--list --all` to list all available benchmarks.");
+		cli = cli.expect_outro_cancel("Failed to run benchmarking: Invalid input: No benchmarks found which match your input. Try `--list --all` to list all available benchmarks. Make sure pallet is in `define_benchmarks!`");
 
 		BenchmarkPallet {
 			runtime: Some(get_mock_runtime(Some(Benchmark))),
@@ -1998,7 +1998,7 @@ mod tests {
 	#[test]
 	fn update_runtime_path_works() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
-		let temp_path = temp_dir.into_path();
+		let temp_path = temp_dir.keep();
 		fs::create_dir(temp_path.join("target"))?;
 
 		let target_path = Profile::Debug.target_directory(temp_path.as_path());

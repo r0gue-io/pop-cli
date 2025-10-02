@@ -231,10 +231,10 @@ impl CallChainCommand {
 		// Perform signing steps with wallet integration and return early.
 		if use_wallet {
 			let call_data_bytes =
-				decode_call_data(call_data).map_err(|err| anyhow!("{}", format!("{err:?}")))?;
+				decode_call_data(call_data).map_err(|err| anyhow!("{:?}", format!("{err:?}")))?;
 			wallet::submit_extrinsic(client, url, call_data_bytes, cli)
 				.await
-				.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
+				.map_err(|err| anyhow!("{:?}", format!("{err:?}")))?;
 			display_message("Call complete.", true, cli)?;
 			return Ok(());
 		}
@@ -254,10 +254,10 @@ impl CallChainCommand {
 		let spinner = cliclack::spinner();
 		spinner.start("Signing and submitting the extrinsic and then waiting for finalization, please be patient...");
 		let call_data_bytes =
-			decode_call_data(call_data).map_err(|err| anyhow!("{}", format!("{err:?}")))?;
+			decode_call_data(call_data).map_err(|err| anyhow!("{:?}", format!("{err:?}")))?;
 		let result = sign_and_submit_extrinsic(client, url, CallData::new(call_data_bytes), &suri)
 			.await
-			.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
+			.map_err(|err| anyhow!("{:?}", format!("{err:?}")))?;
 
 		spinner.stop(result);
 		display_message("Call complete.", true, cli)?;
@@ -332,7 +332,7 @@ impl CallChainCommand {
 			.map(|arg| {
 				if std::fs::metadata(arg).map(|m| m.is_file()).unwrap_or(false) {
 					std::fs::read_to_string(arg)
-						.map_err(|err| anyhow!("Failed to read file {}", err.to_string()))
+						.map_err(|err| anyhow!("Failed to read file {:?}", err.to_string()))
 				} else {
 					Ok(arg.clone())
 				}
@@ -410,7 +410,7 @@ impl Call {
 		spinner.start("Signing and submitting the extrinsic and then waiting for finalization, please be patient...");
 		let result = sign_and_submit_extrinsic(client, url, tx, &self.suri)
 			.await
-			.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
+			.map_err(|err| anyhow!("{:?}", format!("{err:?}")))?;
 		spinner.stop(result);
 		Ok(())
 	}
@@ -509,7 +509,7 @@ fn prompt_for_sequence_param(cli: &mut impl Cli, param: &Param) -> Result<String
         .interact()?;
 	if Path::new(&input_value).is_file() {
 		return std::fs::read_to_string(&input_value)
-			.map_err(|err| anyhow!("Failed to read file {}", err.to_string()));
+			.map_err(|err| anyhow!("Failed to read file {:?}", err.to_string()));
 	}
 	Ok(input_value)
 }
@@ -773,14 +773,14 @@ mod tests {
 		assert!(matches!(
 				call_config.prepare_extrinsic(&client, &mut cli),
 				Err(message)
-					if message.to_string().contains("Failed to encode call data. Metadata Error: Pallet with name WrongName not found")));
+					if message.to_string().contains("Failed to encode call data. Pallet with name WrongName not found")));
 		let pallets = parse_chain_metadata(&client)?;
 		call_config.function.pallet = "System".to_string();
 		// Error, wrong name of the function.
 		assert!(matches!(
 				call_config.prepare_extrinsic(&client, &mut cli),
 				Err(message)
-					if message.to_string().contains("Failed to encode call data. Metadata Error: Call with name WrongName not found")));
+					if message.to_string().contains("Failed to encode call data. Call with name WrongName not found")));
 		// Success, pallet and dispatchable function specified.
 		cli = MockCli::new().expect_info("Encoded call data: 0x00000411");
 		call_config.function = find_dispatchable_by_name(&pallets, "System", "remark")?.clone();

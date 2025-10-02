@@ -15,7 +15,10 @@ use pop_contracts::{
 use serde::{Deserialize, Serialize};
 use std::{path::Path, process::Command as Cmd, time::Duration};
 use strum::VariantArray;
-use subxt::{config::DefaultExtrinsicParamsBuilder as Params, tx::Payload, utils::to_hex};
+use subxt::{
+	backend::rpc::RpcClient, config::DefaultExtrinsicParamsBuilder as Params, ext::subxt_core,
+	tx::Payload, utils::to_hex, Metadata, OnlineClient, SubstrateConfig,
+};
 use subxt_signer::sr25519::dev;
 use tokio::time::sleep;
 use url::Url;
@@ -26,9 +29,9 @@ struct CallData(Vec<u8>);
 impl Payload for CallData {
 	fn encode_call_data_to(
 		&self,
-		_: &subxt::Metadata,
+		_: &Metadata,
 		out: &mut Vec<u8>,
-	) -> Result<(), subxt::ext::subxt_core::Error> {
+	) -> Result<(), subxt_core::Error> {
 		out.extend_from_slice(&self.0);
 		Ok(())
 	}
@@ -69,7 +72,7 @@ pub struct SubmitRequest {
 #[tokio::test]
 async fn contract_lifecycle() -> Result<()> {
 	const WALLET_INT_URI: &str = "http://127.0.0.1:9090";
-	const WAIT_SECS: u64 = 10 * 60;
+	const WAIT_SECS: u64 = 20 * 60;
 	let endpoint_port = find_free_port(None);
 	let default_endpoint: &str = &format!("ws://127.0.0.1:{}", endpoint_port);
 	let temp = tempfile::tempdir().unwrap();
@@ -90,9 +93,6 @@ async fn contract_lifecycle() -> Result<()> {
 	assert!(temp_dir.join("test_contract/target").exists());
 	// Verify that all the artifacts has been generated
 	assert!(temp_dir.join("test_contract/target/ink/test_contract.contract").exists());
-	#[cfg(feature = "wasm-contracts")]
-	assert!(temp_dir.join("test_contract/target/ink/test_contract.wasm").exists());
-	#[cfg(feature = "polkavm-contracts")]
 	assert!(temp_dir.join("test_contract/target/ink/test_contract.polkavm").exists());
 	assert!(temp_dir.join("test_contract/target/ink/test_contract.json").exists());
 
@@ -239,8 +239,8 @@ async fn contract_lifecycle() -> Result<()> {
 	// We have received some payload.
 	assert!(!response.call_data().is_empty());
 
-	let rpc_client = subxt::backend::rpc::RpcClient::from_url(default_endpoint).await?;
-	let client = subxt::OnlineClient::<subxt::SubstrateConfig>::from_rpc_client(rpc_client).await?;
+	let rpc_client = RpcClient::from_url(default_endpoint).await?;
+	let client = OnlineClient::<SubstrateConfig>::from_rpc_client(rpc_client).await?;
 
 	// Sign payload.
 	let signer = dev::alice();

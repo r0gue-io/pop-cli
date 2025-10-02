@@ -229,7 +229,7 @@ fn parse_genesis_builder_policy(policy: &str) -> anyhow::Result<OverheadCmd> {
 		policy,
 	])
 	.map_err(|e| {
-		anyhow::anyhow!(format!(r#"Invalid genesis builder option {policy}: {}"#, e.to_string()))
+		anyhow::anyhow!(format!(r#"Invalid genesis builder option {policy}: {:?}"#, e.to_string()))
 	})
 }
 

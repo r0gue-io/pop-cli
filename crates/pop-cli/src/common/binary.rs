@@ -3,14 +3,9 @@
 use duct::cmd;
 #[cfg(any(feature = "chain", test))]
 use std::cmp::Ordering;
-#[cfg(any(
-	feature = "polkavm-contracts",
-	feature = "wasm-contracts",
-	feature = "chain",
-	test
-))]
+#[cfg(any(feature = "contract", feature = "chain", test))]
 use std::path::PathBuf;
-#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "chain"))]
+#[cfg(any(feature = "contract", feature = "chain"))]
 use {
 	crate::cli::traits::*,
 	cliclack::spinner,
@@ -19,7 +14,7 @@ use {
 };
 
 /// A trait for binary generator.
-#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "chain"))]
+#[cfg(any(feature = "contract", feature = "chain"))]
 pub(crate) trait BinaryGenerator {
 	/// Generates a binary.
 	///
@@ -41,7 +36,7 @@ pub(crate) trait BinaryGenerator {
 /// * `cache_path` - The cache directory path where the binary is stored.
 /// * `skip_confirm` - If `true`, skips confirmation prompts and automatically sources the binary if
 ///   needed.
-#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "chain"))]
+#[cfg(any(feature = "contract", feature = "chain"))]
 pub async fn check_and_prompt<Generator: BinaryGenerator>(
 	cli: &mut impl Cli,
 	binary_name: &'static str,
@@ -128,6 +123,7 @@ macro_rules! impl_binary_generator {
 
 /// Represents a semantic version (major.minor.patch).
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[allow(dead_code)]
 pub(crate) struct SemanticVersion(pub u8, pub u8, pub u8);
 
 impl TryFrom<String> for SemanticVersion {

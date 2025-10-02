@@ -2168,7 +2168,6 @@ balance = 2000000000000
 
 [[parachains.collators]]
 name = "asset-hub-2"
-command = "{1}"
 validator = true
 invulnerable = true
 bootnode = false

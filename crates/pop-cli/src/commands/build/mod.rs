@@ -5,10 +5,12 @@ use crate::{
 	common::Project::{self, *},
 };
 use clap::{Args, Subcommand};
-#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
+#[cfg(feature = "contract")]
 use contract::BuildContract;
 use duct::cmd;
 use pop_common::Profile;
+#[cfg(feature = "contract")]
+use pop_contracts::MetadataSpec;
 use std::path::PathBuf;
 #[cfg(feature = "chain")]
 use {
@@ -20,7 +22,7 @@ use {
 
 #[cfg(feature = "chain")]
 pub(crate) mod chain;
-#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
+#[cfg(feature = "contract")]
 pub(crate) mod contract;
 #[cfg(feature = "chain")]
 pub(crate) mod runtime;
@@ -31,6 +33,8 @@ pub(crate) mod spec;
 const CHAIN_HELP_HEADER: &str = "Chain options";
 #[cfg(feature = "chain")]
 const RUNTIME_HELP_HEADER: &str = "Runtime options";
+#[cfg(feature = "contract")]
+const CONTRACT_HELP_HEADER: &str = "Contract options";
 const PACKAGE: &str = "package";
 #[cfg(feature = "chain")]
 const PARACHAIN: &str = "parachain";
@@ -78,6 +82,10 @@ pub(crate) struct BuildArgs {
 	#[clap(long, help_heading = RUNTIME_HELP_HEADER)]
 	#[cfg(feature = "chain")]
 	pub(crate) only_runtime: bool,
+	/// Which specification to use for contract metadata.
+	#[clap(long, help_heading = CONTRACT_HELP_HEADER)]
+	#[cfg(feature = "contract")]
+	pub(crate) metadata: Option<MetadataSpec>,
 }
 
 /// Subcommand for building chain artifacts.
@@ -104,19 +112,19 @@ fn collect_features(input: &str, benchmark: bool, try_runtime: bool) -> Vec<&str
 impl Command {
 	/// Executes the command.
 	pub(crate) fn execute(args: BuildArgs) -> anyhow::Result<Project> {
-		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "chain"))]
+		#[cfg(any(feature = "contract", feature = "chain"))]
 		// If only contract feature enabled, build as contract
 		let project_path =
 			crate::common::builds::get_project_path(args.path.clone(), args.path_pos.clone());
 
-		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
+		#[cfg(feature = "contract")]
 		if pop_contracts::is_supported(project_path.as_deref())? {
 			// All commands originating from root command are valid
 			let release = match args.profile {
 				Some(profile) => profile.into(),
 				None => args.release,
 			};
-			BuildContract { path: project_path, release }.execute()?;
+			BuildContract { path: project_path, release, metadata: args.metadata }.execute()?;
 			return Ok(Contract);
 		}
 
@@ -344,7 +352,9 @@ mod tests {
 				deterministic,
 				features: Some(features.join(",")),
 				#[cfg(feature = "chain")]
-				only_runtime: false
+				only_runtime: false,
+				#[cfg(feature = "contract")]
+				metadata: None,
 			},
 			&mut cli,
 		)
