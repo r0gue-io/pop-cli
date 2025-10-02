@@ -68,7 +68,7 @@ jobs:
       - name: Generate code coverage
         run: |
           cargo llvm-cov nextest --workspace --lib --bins --no-default-features       \
-          --features "default chain telemetry contracts wallet-integration"   \
+          --features "default chain telemetry contract wallet-integration"   \
           --codecov --output-path codecov.json --no-fail-fast --nocapture --status-level all
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
