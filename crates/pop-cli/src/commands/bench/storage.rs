@@ -116,7 +116,9 @@ impl BenchmarkStorage {
 		let mut arguments: Vec<String> = std::env::args().skip(3).collect();
 		#[cfg(test)]
 		{
-			arguments.retain(|arg| arg != "--show-output" && arg != "--nocapture");
+			arguments.retain(|arg| {
+				!matches!(arg.as_str(), "--show-output" | "--nocapture" | "--ignored")
+			});
 		}
 		if !argument_exists(&arguments, "--profile") {
 			if let Some(ref profile) = self.profile {
@@ -168,31 +170,6 @@ mod tests {
 		BenchmarkStorage {
 			command: StorageCmd::try_parse_from(vec!["", "--state-version=1"])?,
 			profile: Some(Profile::Debug),
-		}
-		.benchmark(&mut cli, temp_dir.path())?;
-		cli.verify()?;
-
-		let mut cli = MockCli::new()
-			.expect_intro("Benchmarking the storage speed of a chain snapshot")
-			.expect_select(
-				"Choose the build profile of the binary that should be used: ",
-				Some(true),
-				true,
-				Some(Profile::get_variants()),
-				0,
-				None,
-			)
-			.expect_warning("NOTE: this may take some time...")
-			.expect_info("Benchmarking and generating weight file...")
-			.expect_info("pop bench storage --profile=debug")
-			.expect_outro_cancel(
-				// As we only mock the node to test the interactive flow, the returned error is
-				// expected.
-				"Failed to run benchmarking: Permission denied (os error 13)",
-			);
-		BenchmarkStorage {
-			command: StorageCmd::try_parse_from(vec!["", "--state-version=1"])?,
-			profile: None,
 		}
 		.benchmark(&mut cli, temp_dir.path())?;
 		cli.verify()

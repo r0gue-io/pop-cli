@@ -312,6 +312,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn fast_forward_snapshot_works() -> anyhow::Result<()> {
+		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
 		let mut cmd = TestFastForwardCommand::default();
 		cmd.build_params.no_build = true;
 		let mut cli = MockCli::new()

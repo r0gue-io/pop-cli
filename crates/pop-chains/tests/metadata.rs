@@ -2,6 +2,8 @@
 
 //! Integration tests for the pop-chains crate functionality.
 
+#![cfg(feature = "integration-tests")]
+
 use anyhow::Result;
 use pop_chains::{
 	construct_extrinsic, construct_proxy_extrinsic, decode_call_data, encode_call_data,

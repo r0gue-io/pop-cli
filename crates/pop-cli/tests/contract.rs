@@ -2,11 +2,11 @@
 
 //! Contract integration tests for validating contract lifecycle functionality.
 
-#![cfg(feature = "contract")]
+#![cfg(all(feature = "contract", feature = "integration-tests"))]
 
 use anyhow::Result;
 use assert_cmd::Command;
-use pop_common::{find_free_port, set_executable_permission, templates::Template};
+use pop_common::{find_free_port, pop, set_executable_permission, templates::Template};
 use pop_contracts::{
 	contracts_node_generator, dry_run_call, dry_run_gas_estimate_call,
 	dry_run_gas_estimate_instantiate, instantiate_smart_contract, run_contracts_node, set_up_call,
@@ -46,9 +46,12 @@ pub struct TransactionData {
 	call_data: Vec<u8>,
 }
 impl TransactionData {
+	/// Create a new TransactionData instance with the given chain RPC and call data.
 	pub fn new(chain_rpc: String, call_data: Vec<u8>) -> Self {
 		Self { chain_rpc, call_data }
 	}
+
+	/// Get the call data.
 	pub fn call_data(&self) -> Vec<u8> {
 		self.call_data.clone()
 	}
@@ -78,21 +81,13 @@ async fn contract_lifecycle() -> Result<()> {
 	// Test that all templates are generated correctly
 	generate_all_the_templates(&temp_dir)?;
 	// pop new contract test_contract (default)
-	Command::cargo_bin("pop")
-		.unwrap()
-		.current_dir(&temp_dir)
-		.args(&["new", "contract", "test_contract"])
-		.assert()
-		.success();
+	let mut command = pop(&temp_dir, ["new", "contract", "test_contract"]);
+	assert!(command.spawn()?.wait()?.success());
 	assert!(temp_dir.join("test_contract").exists());
 
 	// pop build --path ./test_contract --release
-	Command::cargo_bin("pop")
-		.unwrap()
-		.current_dir(&temp_dir)
-		.args(&["build", "--path", "./test_contract", "--release"])
-		.assert()
-		.success();
+	command = pop(&temp_dir, ["build", "--path", "./test_contract", "--release"]);
+	assert!(command.spawn()?.wait()?.success());
 
 	// Verify that the directory target has been created
 	assert!(temp_dir.join("test_contract/target").exists());
@@ -107,19 +102,20 @@ async fn contract_lifecycle() -> Result<()> {
 	let process = run_contracts_node(binary.path(), None, endpoint_port).await?;
 	sleep(Duration::from_secs(5)).await;
 
+	// pop test --path ./test_contract
+	command = pop(&temp_dir, ["test", "--path", "./test_contract"]);
+	assert!(command.spawn()?.wait()?.success());
 	// Only upload the contract
 	// pop up --path ./test_contract --upload-only
-	Command::cargo_bin("pop")
-		.unwrap()
-		.current_dir(&temp_dir)
-		.args(&["up", "--path", "./test_contract", "--upload-only", "--url", default_endpoint])
-		.assert()
-		.success();
+	command = pop(
+		&temp_dir,
+		["up", "--path", "./test_contract", "--upload-only", "--url", default_endpoint],
+	);
+	assert!(command.spawn()?.wait()?.success());
 	// Instantiate contract, only dry-run
-	Command::cargo_bin("pop")
-		.unwrap()
-		.current_dir(&temp_dir.join("test_contract"))
-		.args(&[
+	command = pop(
+		&temp_dir.join("test_contract"),
+		[
 			"up",
 			"--constructor",
 			"new",
@@ -130,9 +126,10 @@ async fn contract_lifecycle() -> Result<()> {
 			"--dry-run",
 			"--url",
 			default_endpoint,
-		])
-		.assert()
-		.success();
+		],
+	);
+	assert!(command.spawn()?.wait()?.success());
+
 	// Using methods from the pop_contracts crate to instantiate it to get the Contract Address for
 	// the call
 	let instantiate_exec = set_up_deployment(UpOpts {
@@ -170,10 +167,9 @@ async fn contract_lifecycle() -> Result<()> {
 
 	// Call contract (only query)
 	// pop call contract --contract $INSTANTIATED_CONTRACT_ADDRESS --message get --suri //Alice
-	Command::cargo_bin("pop")
-		.unwrap()
-		.current_dir(&temp_dir.join("test_contract"))
-		.args(&[
+	command = pop(
+		&temp_dir.join("test_contract"),
+		[
 			"call",
 			"contract",
 			"--contract",
@@ -184,16 +180,15 @@ async fn contract_lifecycle() -> Result<()> {
 			"//Alice",
 			"--url",
 			default_endpoint,
-		])
-		.assert()
-		.success();
+		],
+	);
+	assert!(command.spawn()?.wait()?.success());
 
 	// Call contract (execute extrinsic)
 	// pop call contract --contract $INSTANTIATED_CONTRACT_ADDRESS --message flip --suri //Alice -x
-	Command::cargo_bin("pop")
-		.unwrap()
-		.current_dir(&temp_dir.join("test_contract"))
-		.args(&[
+	command = pop(
+		&temp_dir.join("test_contract"),
+		[
 			"call",
 			"contract",
 			"--contract",
@@ -205,9 +200,9 @@ async fn contract_lifecycle() -> Result<()> {
 			"-x",
 			"--url",
 			default_endpoint,
-		])
-		.assert()
-		.success();
+		],
+	);
+	assert!(command.spawn()?.wait()?.success());
 
 	// Dry runs after changing the value
 	assert_eq!(dry_run_call(&call_exec).await?, "Ok(true)");

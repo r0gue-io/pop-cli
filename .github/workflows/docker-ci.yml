@@ -10,14 +10,21 @@ on:
       docker_image:
         description: Docker image to build
         required: false
-        default: ""
+        type: string
+      rust_version:
+        description: Rust version to use
+        required: true
+        type: string
   workflow_call:
     inputs:
       docker_image:
         description: Docker image to build
         required: true
         type: string
-
+      rust_version:
+        description: Rust version to use
+        required: true
+        type: string
 
 jobs:
   build-ci-image:
@@ -39,8 +46,7 @@ jobs:
         id: setup
         run: |
           set -xeuo pipefail
-          DOCKER_IMAGE="${{ inputs.docker_image != '' && inputs.docker_image || format('ghcr.io/{0}:{1}', github.repository, github.sha) }}"
-          echo "RUST_VERSION=$(yq -r '.toolchain.channel' rust-toolchain.toml)" >> $GITHUB_ENV
+          DOCKER_IMAGE="${{ inputs.docker_image }}"
           echo "DOCKER_IMAGE=$DOCKER_IMAGE" >> $GITHUB_ENV
           if docker manifest inspect "$DOCKER_IMAGE" > /dev/null 2>&1; then
             echo "exists=true" >> $GITHUB_OUTPUT
@@ -58,4 +64,4 @@ jobs:
           tags: ${{ env.DOCKER_IMAGE }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          build-args: RUST_TOOLCHAIN=${{ env.RUST_VERSION }}
+          build-args: RUST_TOOLCHAIN=${{ inputs.rust_version }}

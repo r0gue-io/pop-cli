@@ -2881,7 +2881,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8d162beedaa69905488a8da94f5ac3edb4dd4788b732fadb7bd120b2625c1976"
 dependencies = [
  "data-encoding",
- "syn 2.0.106",
+ "syn 1.0.109",
 ]
 
 [[package]]
@@ -8898,7 +8898,7 @@ dependencies = [
 
 [[package]]
 name = "pop-chains"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "anyhow",
  "askama",
@@ -8940,7 +8940,7 @@ dependencies = [
 
 [[package]]
 name = "pop-cli"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -8948,7 +8948,6 @@ dependencies = [
  "clap",
  "cliclack",
  "console",
- "contract-extrinsics",
  "dirs",
  "duct 0.13.7",
  "env_logger 0.11.8",
@@ -8979,9 +8978,10 @@ dependencies = [
 
 [[package]]
 name = "pop-common"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "anyhow",
+ "assert_cmd",
  "bytes",
  "cargo_toml",
  "contract-build",
@@ -9013,7 +9013,7 @@ dependencies = [
 
 [[package]]
 name = "pop-contracts"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "anyhow",
  "contract-build",
@@ -9040,7 +9040,7 @@ dependencies = [
 
 [[package]]
 name = "pop-telemetry"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "dirs",
  "env_logger 0.11.8",

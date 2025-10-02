@@ -2,6 +2,8 @@
 
 //! Integration tests for smart contract deployment and interaction functionality.
 
+#![cfg(feature = "integration-tests")]
+
 use anyhow::Result;
 use pop_common::{find_free_port, parse_h160_account, DefaultConfig, Keypair};
 use pop_contracts::{

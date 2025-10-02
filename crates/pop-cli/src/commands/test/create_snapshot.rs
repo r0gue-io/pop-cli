@@ -122,7 +122,9 @@ impl TestCreateSnapshotCommand {
 		let mut user_provided_args = user_provided_args.to_vec();
 		#[cfg(test)]
 		{
-			user_provided_args.retain(|arg| arg != "--show-output" && arg != "--nocapture");
+			user_provided_args.retain(|arg| {
+				!matches!(arg.as_str(), "--show-output" | "--nocapture" | "--ignored")
+			});
 		}
 		if let Some(arg) = user_provided_args.last() {
 			if !arg.starts_with("--") && arg.ends_with(".snap") {
@@ -155,7 +157,7 @@ mod tests {
 	#[tokio::test]
 	async fn create_snapshot_invalid_uri() -> anyhow::Result<()> {
 		let mut command = TestCreateSnapshotCommand::default();
-		command.from.uri = Some("ws://127.0.0.1:9945".to_string());
+		command.from.uri = Some("ws://127.0.0.1:9999".to_string());
 		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
 
 		let error = command.run(&mut MockCli::new()).await.unwrap_err().to_string();

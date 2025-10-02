@@ -131,6 +131,7 @@ impl TryFrom<String> for SemanticVersion {
 	fn try_from(binary: String) -> Result<Self, Self::Error> {
 		match cmd(binary, vec!["--version"])
 			.pipe(cmd("grep", vec!["-oE", r"[0-9]+\.[0-9]+\.[0-9]+"]))
+			.pipe(cmd("head", vec!["-n", "1"]))
 			.read()
 		{
 			Ok(version) => {

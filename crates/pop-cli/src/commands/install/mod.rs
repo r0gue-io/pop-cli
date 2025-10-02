@@ -16,20 +16,16 @@ use strum_macros::Display;
 use tokio::fs;
 use Dependencies::*;
 
+const DOCS_URL: &str = "https://docs.polkadot.com/develop/parachains/install-polkadot-sdk/";
+
 #[derive(Display)]
 pub enum Dependencies {
-	#[strum(serialize = "build-essential")]
-	BuildEssential,
 	#[strum(serialize = "clang")]
 	Clang,
-	#[strum(serialize = "clang-devel")]
-	ClangDevel,
 	#[strum(serialize = "cmake")]
 	Cmake,
 	#[strum(serialize = "curl")]
 	Curl,
-	#[strum(serialize = "gcc")]
-	Gcc,
 	#[strum(serialize = "git")]
 	Git,
 	#[strum(serialize = "homebrew")]
@@ -38,14 +34,16 @@ pub enum Dependencies {
 	LibClang,
 	#[strum(serialize = "libssl-dev")]
 	Libssl,
+	#[strum(serialize = "libudev-dev")]
+	LibUdevDev,
+	#[strum(serialize = "llvm")]
+	Llvm,
 	#[strum(serialize = "make")]
 	Make,
 	#[strum(serialize = "openssl")]
 	Openssl,
 	#[strum(serialize = "openssl-devel")]
 	OpenSslDevel,
-	#[strum(serialize = "pkg-config")]
-	PkgConfig,
 	#[strum(serialize = "protobuf")]
 	Protobuf,
 	#[strum(serialize = "protobuf-compiler")]
@@ -107,10 +105,12 @@ impl Command {
 }
 
 async fn install_mac(skip_confirm: bool, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
-	cli.info("More information about the packages to be installed here: https://docs.substrate.io/install/macos/")?;
+	cli.info(format!(
+		"More information about the packages to be installed here: {DOCS_URL}#macos"
+	))?;
 	if !skip_confirm {
 		prompt_for_confirmation(
-			&format!("{}, {}, {}, {} and {}", Homebrew, Protobuf, Openssl, Rustup, Cmake,),
+			&format!("{}, {}, {}, {} and {}", Homebrew, Protobuf, Openssl, Rustup, Cmake),
 			cli,
 		)?
 	}
@@ -123,10 +123,12 @@ async fn install_mac(skip_confirm: bool, cli: &mut impl cli::traits::Cli) -> any
 }
 
 async fn install_arch(skip_confirm: bool, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
-	cli.info("More information about the packages to be installed here: https://docs.substrate.io/install/linux/")?;
+	cli.info(format!(
+		"More information about the packages to be installed here: {DOCS_URL}#linux"
+	))?;
 	if !skip_confirm {
 		prompt_for_confirmation(
-			&format!("{}, {}, {}, {}, {} and {}", Curl, Git, Clang, Make, Openssl, Rustup,),
+			&format!("{}, {}, {}, {}, {} and {}", Curl, Git, Clang, Make, Protobuf, Rustup,),
 			cli,
 		)?
 	}
@@ -140,7 +142,7 @@ async fn install_arch(skip_confirm: bool, cli: &mut impl cli::traits::Cli) -> an
 			&Git.to_string(),
 			&Clang.to_string(),
 			&Make.to_string(),
-			&Openssl.to_string(),
+			&Protobuf.to_string(),
 		],
 	)
 	.run()?;
@@ -149,7 +151,9 @@ async fn install_arch(skip_confirm: bool, cli: &mut impl cli::traits::Cli) -> an
 }
 
 async fn install_ubuntu(skip_confirm: bool, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
-	cli.info("More information about the packages to be installed here: https://docs.substrate.io/install/linux/")?;
+	cli.info(format!(
+		"More information about the packages to be installed here: {DOCS_URL}#linux"
+	))?;
 	if !skip_confirm {
 		prompt_for_confirmation(
 			&format!(
@@ -177,21 +181,14 @@ async fn install_ubuntu(skip_confirm: bool, cli: &mut impl cli::traits::Cli) -> 
 }
 
 async fn install_debian(skip_confirm: bool, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
-	cli.info("More information about the packages to be installed here: https://docs.substrate.io/install/linux/")?;
+	cli.info(format!(
+		"More information about the packages to be installed here: {DOCS_URL}#linux"
+	))?;
 	if !skip_confirm {
 		prompt_for_confirmation(
 			&format!(
-				"{}, {}, {}, {}, {}, {}, {}, {}, {} and {}",
-				Cmake,
-				PkgConfig,
-				Libssl,
-				Git,
-				Gcc,
-				BuildEssential,
-				ProtobufCompiler,
-				Clang,
-				LibClang,
-				Rustup,
+				"{}, {}, {}, {}, {}, {}, {}, {} and {}",
+				Git, Clang, Curl, Libssl, Llvm, LibUdevDev, Make, ProtobufCompiler, Rustup,
 			),
 			cli,
 		)?
@@ -201,15 +198,15 @@ async fn install_debian(skip_confirm: bool, cli: &mut impl cli::traits::Cli) -> 
 		vec![
 			"install",
 			"-y",
-			&Cmake.to_string(),
-			&PkgConfig.to_string(),
 			&Libssl.to_string(),
 			&Git.to_string(),
-			&Gcc.to_string(),
-			&BuildEssential.to_string(),
 			&ProtobufCompiler.to_string(),
 			&Clang.to_string(),
 			&LibClang.to_string(),
+			&Curl.to_string(),
+			&Llvm.to_string(),
+			&LibUdevDev.to_string(),
+			&Make.to_string(),
 		],
 	)
 	.run()?;
@@ -218,30 +215,31 @@ async fn install_debian(skip_confirm: bool, cli: &mut impl cli::traits::Cli) -> 
 }
 
 async fn install_redhat(skip_confirm: bool, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
-	cli.info("More information about the packages to be installed here: https://docs.substrate.io/install/linux/")?;
+	cli.info(format!(
+		"More information about the packages to be installed here: {DOCS_URL}#linux"
+	))?;
 	if !skip_confirm {
 		prompt_for_confirmation(
 			&format!(
-				"{}, {}, {}, {}, {}, {}, {} and {}",
-				Cmake, OpenSslDevel, Git, Protobuf, ProtobufCompiler, Clang, ClangDevel, Rustup,
+				"{}, {}, {}, {}, {}, {} and {}",
+				Clang, Curl, Git, OpenSslDevel, Make, ProtobufCompiler, Rustup,
 			),
 			cli,
 		)?
 	}
 	cmd("yum", vec!["update", "-y"]).run()?;
-	cmd("yum", vec!["groupinstall", "-y", "'Development Tool"]).run()?;
+	cmd("yum", vec!["groupinstall", "-y", "'Development Tools"]).run()?;
 	cmd(
 		"yum",
 		vec![
 			"install",
 			"-y",
-			&Cmake.to_string(),
-			&OpenSslDevel.to_string(),
-			&Git.to_string(),
-			&Protobuf.to_string(),
-			&ProtobufCompiler.to_string(),
 			&Clang.to_string(),
-			&ClangDevel.to_string(),
+			&Curl.to_string(),
+			&Git.to_string(),
+			&ProtobufCompiler.to_string(),
+			&OpenSslDevel.to_string(),
+			&Make.to_string(),
 		],
 	)
 	.run()?;
@@ -265,7 +263,7 @@ fn prompt_for_confirmation(message: &str, cli: &mut impl cli::traits::Cli) -> an
 
 fn not_supported_message(cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 	cli.error("This OS is not supported at present")?;
-	cli.warning("⚠️ Please refer to https://docs.substrate.io/install/ for setup information.")?;
+	cli.warning(format!("⚠️ Please refer to {} for setup information.", DOCS_URL))?;
 	Ok(())
 }
 
@@ -284,10 +282,8 @@ async fn install_rustup(cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		},
 	}
 	cmd("rustup", vec!["default", "stable"]).run()?;
+	cmd("rustup", vec!["update"]).run()?;
 	cmd("rustup", vec!["target", "add", "wasm32-unknown-unknown"]).run()?;
-	cmd("rustup", vec!["update", "nightly"]).run()?;
-	cmd("rustup", vec!["target", "add", "wasm32-unknown-unknown", "--toolchain", "nightly"])
-		.run()?;
 	cmd(
 		"rustup",
 		vec![
@@ -344,7 +340,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn install_mac_works() -> anyhow::Result<()> {
-		let mut cli = MockCli::new().expect_info("More information about the packages to be installed here: https://docs.substrate.io/install/macos/").expect_confirm("📦 Do you want to proceed with the installation of the following packages: homebrew, protobuf, openssl, rustup and cmake ?", false);
+		let mut cli = MockCli::new().expect_info("More information about the packages to be installed here: https://docs.polkadot.com/develop/parachains/install-polkadot-sdk/#macos").expect_confirm("📦 Do you want to proceed with the installation of the following packages: homebrew, protobuf, openssl, rustup and cmake ?", false);
 		assert!(matches!(
 			install_mac(false, &mut cli)
 				.await,
@@ -354,7 +350,7 @@ mod tests {
 	}
 	#[tokio::test]
 	async fn install_arch_works() -> anyhow::Result<()> {
-		let mut cli = MockCli::new().expect_info("More information about the packages to be installed here: https://docs.substrate.io/install/linux/").expect_confirm("📦 Do you want to proceed with the installation of the following packages: curl, git, clang, make, openssl and rustup ?", false);
+		let mut cli = MockCli::new().expect_info("More information about the packages to be installed here: https://docs.polkadot.com/develop/parachains/install-polkadot-sdk/#linux").expect_confirm("📦 Do you want to proceed with the installation of the following packages: curl, git, clang, make, protobuf and rustup ?", false);
 		assert!(matches!(
 			install_arch(false, &mut cli)
 				.await,
@@ -364,7 +360,7 @@ mod tests {
 	}
 	#[tokio::test]
 	async fn install_ubuntu_works() -> anyhow::Result<()> {
-		let mut cli = MockCli::new().expect_info("More information about the packages to be installed here: https://docs.substrate.io/install/linux/").expect_confirm("📦 Do you want to proceed with the installation of the following packages: git, clang, curl, libssl-dev, protobuf-compiler and rustup ?", false);
+		let mut cli = MockCli::new().expect_info("More information about the packages to be installed here: https://docs.polkadot.com/develop/parachains/install-polkadot-sdk/#linux").expect_confirm("📦 Do you want to proceed with the installation of the following packages: git, clang, curl, libssl-dev, protobuf-compiler and rustup ?", false);
 		assert!(matches!(
 			install_ubuntu(false, &mut cli)
 				.await,
@@ -374,7 +370,7 @@ mod tests {
 	}
 	#[tokio::test]
 	async fn install_debian_works() -> anyhow::Result<()> {
-		let mut cli = MockCli::new().expect_info("More information about the packages to be installed here: https://docs.substrate.io/install/linux/").expect_confirm("📦 Do you want to proceed with the installation of the following packages: cmake, pkg-config, libssl-dev, git, gcc, build-essential, protobuf-compiler, clang, libclang-dev and rustup ?", false);
+		let mut cli = MockCli::new().expect_info("More information about the packages to be installed here: https://docs.polkadot.com/develop/parachains/install-polkadot-sdk/#linux").expect_confirm("📦 Do you want to proceed with the installation of the following packages: git, clang, curl, libssl-dev, llvm, libudev-dev, make, protobuf-compiler and rustup ?", false);
 		assert!(matches!(
 			install_debian(false, &mut cli)
 				.await,
@@ -384,7 +380,7 @@ mod tests {
 	}
 	#[tokio::test]
 	async fn install_redhat_works() -> anyhow::Result<()> {
-		let mut cli = MockCli::new().expect_info("More information about the packages to be installed here: https://docs.substrate.io/install/linux/").expect_confirm("📦 Do you want to proceed with the installation of the following packages: cmake, openssl-devel, git, protobuf, protobuf-compiler, clang, clang-devel and rustup ?", false);
+		let mut cli = MockCli::new().expect_info("More information about the packages to be installed here: https://docs.polkadot.com/develop/parachains/install-polkadot-sdk/#linux").expect_confirm("📦 Do you want to proceed with the installation of the following packages: clang, curl, git, openssl-devel, make, protobuf-compiler and rustup ?", false);
 		assert!(matches!(
 			install_redhat(false, &mut cli)
 				.await,
@@ -412,7 +408,7 @@ mod tests {
 		let mut cli = MockCli::new()
 			.expect_error("This OS is not supported at present")
 			.expect_warning(
-				"⚠️ Please refer to https://docs.substrate.io/install/ for setup information.",
+				"⚠️ Please refer to https://docs.polkadot.com/develop/parachains/install-polkadot-sdk/ for setup information.",
 			);
 		not_supported_message(&mut cli)?;
 		cli.verify()

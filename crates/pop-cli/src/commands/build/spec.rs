@@ -20,7 +20,6 @@ use pop_chains::{
 };
 use pop_common::{manifest::from_path, Profile};
 use std::{
-	env::current_dir,
 	fs::create_dir_all,
 	path::{Path, PathBuf},
 };
@@ -141,6 +140,9 @@ pub(crate) enum RelayChain {
 /// Command for generating a chain specification.
 #[derive(Args, Default)]
 pub struct BuildSpecCommand {
+	/// Directory path for your project [default: current directory]
+	#[arg(long)]
+	pub(crate) path: Option<PathBuf>,
 	/// File name for the resulting spec. If a path is given,
 	/// the necessary directories will be created
 	#[arg(short, long = "output")]
@@ -153,7 +155,7 @@ pub struct BuildSpecCommand {
 	pub(crate) id: Option<u32>,
 	/// Whether to keep localhost as a bootnode.
 	#[arg(short = 'b', long)]
-	pub(crate) default_bootnode: bool,
+	pub(crate) default_bootnode: Option<bool>,
 	/// Type of the chain.
 	#[arg(short = 't', long = "type", value_enum)]
 	pub(crate) chain_type: Option<ChainType>,
@@ -169,17 +171,14 @@ pub struct BuildSpecCommand {
 	pub(crate) protocol_id: Option<String>,
 	/// Whether the genesis state file should be generated.
 	#[arg(short = 'S', long = "genesis-state")]
-	pub(crate) genesis_state: bool,
+	pub(crate) genesis_state: Option<bool>,
 	/// Whether the genesis code file should be generated.
 	#[arg(short = 'C', long = "genesis-code")]
-	pub(crate) genesis_code: bool,
+	pub(crate) genesis_code: Option<bool>,
 	/// Whether to build the runtime deterministically. This requires a containerization solution
 	/// (Docker/Podman).
 	#[arg(short, long)]
-	pub(crate) deterministic: bool,
-	/// Skips the confirmation prompt for deterministic build.
-	#[arg(long, conflicts_with = "deterministic")]
-	pub(crate) skip_deterministic_build: bool,
+	pub(crate) deterministic: Option<bool>,
 	/// Define the directory path where the runtime is located.
 	#[clap(name = "runtime", long, requires = "deterministic")]
 	pub runtime_dir: Option<PathBuf>,
@@ -194,8 +193,8 @@ impl BuildSpecCommand {
 	pub(crate) async fn execute(self) -> anyhow::Result<()> {
 		let mut cli = Cli;
 		cli.intro("Generate your chain spec")?;
-		// Checks for appchain project in `./`.
-		if is_supported(None)? {
+		// Checks for appchain project.
+		if is_supported(self.path.as_deref())? {
 			let build_spec = self.configure_build_spec(&mut cli).await?;
 			if let Err(e) = build_spec.build(&mut cli) {
 				cli.outro_cancel(e.to_string())?;
@@ -218,6 +217,7 @@ impl BuildSpecCommand {
 		cli: &mut impl cli::traits::Cli,
 	) -> anyhow::Result<BuildSpec> {
 		let BuildSpecCommand {
+			path,
 			output_file,
 			profile,
 			id,
@@ -229,10 +229,13 @@ impl BuildSpecCommand {
 			genesis_state,
 			genesis_code,
 			deterministic,
-			skip_deterministic_build,
 			package,
 			runtime_dir,
+			..
 		} = self;
+
+		// Project path.
+		let path = path.unwrap_or(PathBuf::from("./"));
 
 		// Chain.
 		let chain = match chain {
@@ -395,45 +398,38 @@ impl BuildSpecCommand {
 		};
 
 		// Prompt for default bootnode if not provided and chain type is Local or Live.
-		let default_bootnode = if !default_bootnode && prompt {
-			match chain_type {
+		let default_bootnode = prompt &&
+			default_bootnode.unwrap_or_else(|| match chain_type {
 				ChainType::Development => true,
 				_ => cli
 					.confirm("Would you like to use local host as a bootnode ?".to_string())
-					.interact()?,
-			}
-		} else {
-			true
-		};
+					.initial_value(true)
+					.interact()
+					.unwrap_or(true),
+			});
 
 		// Prompt for genesis state if not provided.
-		let genesis_state = if !genesis_state {
+		let genesis_state = genesis_state.unwrap_or_else(|| {
 			cli.confirm("Should the genesis state file be generated ?".to_string())
 				.initial_value(true)
-				.interact()?
-		} else {
-			true
-		};
+				.interact()
+				.unwrap_or(true)
+		});
 
 		// Prompt for genesis code if not provided.
-		let genesis_code = if !genesis_code {
+		let genesis_code = genesis_code.unwrap_or_else(|| {
 			cli.confirm("Should the genesis code file be generated ?".to_string())
 				.initial_value(true)
-				.interact()?
-		} else {
-			true
-		};
+				.interact()
+				.unwrap_or(true)
+		});
 
 		// Prompt the user for deterministic build only if the profile is Production.
-		let deterministic = if skip_deterministic_build || !prompt {
-			false
-		} else {
-			deterministic || cli
-				.confirm("Would you like to build the runtime deterministically? This requires a containerization solution (Docker/Podman) and is recommended for production builds.")
-				.initial_value(profile == Profile::Production)
-				.interact()?
-		};
-
+		let deterministic = prompt && deterministic.unwrap_or_else(|| cli
+            .confirm("Would you like to build the runtime deterministically? This requires a containerization solution (Docker/Podman) and is recommended for production builds.")
+            .initial_value(profile == Profile::Production)
+            .interact()
+            .unwrap_or(false));
 		// If deterministic build is selected, use the provided runtime path or prompt the user if
 		// missing.
 		let runtime_dir = if deterministic {
@@ -470,6 +466,7 @@ impl BuildSpecCommand {
 		};
 
 		Ok(BuildSpec {
+			path,
 			output_file,
 			profile,
 			id,
@@ -525,6 +522,7 @@ impl GenesisArtifacts {
 // Represents the configuration for building a chain specification.
 #[derive(Debug, Default, Clone)]
 pub(crate) struct BuildSpec {
+	path: PathBuf,
 	output_file: PathBuf,
 	profile: Profile,
 	id: u32,
@@ -549,7 +547,6 @@ impl BuildSpec {
 	// it triggers a build process.
 	pub(crate) fn build(self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<GenesisArtifacts> {
 		cli.intro("Building your chain spec")?;
-		let cwd = current_dir().unwrap_or(PathBuf::from("./"));
 		let mut generated_files = vec![];
 		let BuildSpec {
 			ref output_file,
@@ -563,7 +560,7 @@ impl BuildSpec {
 			..
 		} = self;
 		// Ensure binary is built.
-		let binary_path = ensure_node_binary_exists(cli, &cwd, profile, vec![])?;
+		let binary_path = ensure_node_binary_exists(cli, self.path.as_path(), profile, vec![])?;
 		let spinner = spinner();
 		if !use_existing_plain_spec {
 			spinner.start("Generating chain specification...");
@@ -754,18 +751,18 @@ mod tests {
 			BuildSpecCommand::default(),
 			// All flags used.
 			BuildSpecCommand {
+				path: None,
 				output_file: Some(PathBuf::from(output_file)),
 				profile: Some(profile.clone()),
 				id: Some(para_id),
-				default_bootnode,
+				default_bootnode: Some(default_bootnode),
 				chain_type: Some(chain_type.clone()),
 				chain: Some(chain.to_string()),
 				relay: Some(relay.clone()),
 				protocol_id: Some(protocol_id.to_string()),
-				genesis_state,
-				genesis_code,
-				deterministic,
-				skip_deterministic_build: false,
+				genesis_state: Some(genesis_state),
+				genesis_code: Some(genesis_code),
+				deterministic: Some(deterministic),
 				package: Some(package.to_string()),
 				runtime_dir: Some(runtime_dir.clone()),
 			},
@@ -846,7 +843,7 @@ mod tests {
 		// Create a temporary file to act as the existing chain spec file.
 		let temp_dir = tempdir()?;
 		let chain_spec_path = temp_dir.path().join("existing-chain-spec.json");
-		std::fs::write(&chain_spec_path, "{}")?; // Write a dummy JSON to the file.
+		fs::write(&chain_spec_path, "{}")?; // Write a dummy JSON to the file.
 
 		// Whether to make changes to the provided chain spec file.
 		for changes in [true, false] {
@@ -858,18 +855,18 @@ mod tests {
 				},
 				// All flags used.
 				BuildSpecCommand {
+					path: None,
 					output_file: Some(PathBuf::from(output_file)),
 					profile: Some(profile.clone()),
 					id: Some(para_id),
-					default_bootnode,
+					default_bootnode: None,
 					chain_type: Some(chain_type.clone()),
 					chain: Some(chain_spec_path.to_string_lossy().to_string()),
 					relay: Some(relay.clone()),
 					protocol_id: Some(protocol_id.to_string()),
-					genesis_state,
-					genesis_code,
-					deterministic,
-					skip_deterministic_build: false,
+					genesis_state: None,
+					genesis_code: None,
+					deterministic: None,
 					package: Some(package.to_string()),
 					runtime_dir: Some(runtime_dir.clone()),
 				},
@@ -922,43 +919,35 @@ mod tests {
 							None,
 						);
 					}
-					if !build_spec_cmd.default_bootnode {
+					if build_spec_cmd.default_bootnode.is_none() {
 						cli = cli.expect_confirm(
 							"Would you like to use local host as a bootnode ?",
 							default_bootnode,
 						);
 					}
-					if !build_spec_cmd.genesis_state {
-						cli = cli.expect_confirm(
-							"Should the genesis state file be generated ?",
-							genesis_state,
-						);
+					if build_spec_cmd.genesis_state.is_none() {
+						cli = cli
+							.expect_confirm("Should the genesis state file be generated ?", true);
 					}
-					if !build_spec_cmd.genesis_code {
-						cli = cli.expect_confirm(
-							"Should the genesis code file be generated ?",
-							genesis_code,
-						);
+					if build_spec_cmd.genesis_code.is_none() {
+						cli =
+							cli.expect_confirm("Should the genesis code file be generated ?", true);
 					}
-					if !build_spec_cmd.deterministic {
+					if build_spec_cmd.deterministic.is_none() {
 						cli = cli.expect_confirm(
 							"Would you like to build the runtime deterministically? This requires a containerization solution (Docker/Podman) and is recommended for production builds.",
-							deterministic,
+							true,
 						).expect_input("Enter the directory path where the runtime is located:", runtime_dir.display().to_string())
 						.expect_input("Enter the runtime package name:", package.to_string());
 					}
 				} else if !changes && no_flags_used {
-					if !build_spec_cmd.genesis_state {
-						cli = cli.expect_confirm(
-							"Should the genesis state file be generated ?",
-							genesis_state,
-						);
+					if build_spec_cmd.genesis_state.is_none() {
+						cli = cli
+							.expect_confirm("Should the genesis state file be generated ?", true);
 					}
-					if !build_spec_cmd.genesis_code {
-						cli = cli.expect_confirm(
-							"Should the genesis code file be generated ?",
-							genesis_code,
-						);
+					if build_spec_cmd.genesis_code.is_none() {
+						cli =
+							cli.expect_confirm("Should the genesis code file be generated ?", true);
 					}
 				}
 				let build_spec = build_spec_cmd.configure_build_spec(&mut cli).await?;
@@ -998,7 +987,7 @@ mod tests {
 	fn update_code_works() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
 		let output_file = temp_dir.path().join("chain_spec.json");
-		std::fs::write(
+		fs::write(
 			&output_file,
 			json!({
 				"genesis": {
@@ -1031,7 +1020,7 @@ mod tests {
 	fn update_chain_spec_with_keys_works() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
 		let output_file = temp_dir.path().join("chain_spec.json");
-		std::fs::write(
+		fs::write(
 			&output_file,
 			json!({
 				"genesis": {
@@ -1152,7 +1141,7 @@ mod tests {
 			Err(message) if message.to_string().contains("Failed to read genesis state file")
 		));
 		// Successfully read the genesis state file.
-		std::fs::write(&genesis_state_path, "0x1234")?;
+		fs::write(&genesis_state_path, "0x1234")?;
 		assert_eq!(artifacts.read_genesis_state()?, "0x1234");
 
 		Ok(())
@@ -1175,7 +1164,7 @@ mod tests {
 			Err(message) if message.to_string().contains("Failed to read genesis code file")
 		));
 		// Successfully read the genesis code file.
-		std::fs::write(&genesis_code_path, "0x1234")?;
+		fs::write(&genesis_code_path, "0x1234")?;
 		assert_eq!(artifacts.read_genesis_code()?, "0x1234");
 
 		Ok(())
