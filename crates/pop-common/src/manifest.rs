@@ -3,6 +3,7 @@
 use crate::Error;
 use anyhow;
 pub use cargo_toml::{Dependency, LtoSetting, Manifest, Profile, Profiles};
+use glob::glob;
 use std::{
 	fs::{read_to_string, write},
 	path::{Path, PathBuf},
@@ -93,6 +94,51 @@ pub fn add_crate_to_workspace(workspace_toml: &Path, crate_path: &Path) -> anyho
 
 	write(workspace_toml, doc.to_string())?;
 	Ok(())
+}
+
+/// Get the names and paths of all cargo projects that are associated with a workspace manifest.
+///
+/// # Arguments
+/// * `manifest` - Path to the workspace manifest root folder.
+pub fn get_workspace_project_names(project_path: &Path) -> Result<Vec<(String, PathBuf)>, Error> {
+	let mut result = Vec::new();
+
+	// Check if this is actually a workspace manifest
+	let manifest = from_path(project_path)?;
+	let workspace = manifest
+		.workspace
+		.as_ref()
+		.ok_or_else(|| Error::Config("Manifest is not a workspace manifest".into()))?;
+
+	// Get workspace members
+	for member in &workspace.members {
+		// Handle glob patterns in member paths
+		for entry in glob(&project_path.join(member).to_string_lossy())
+			.map_err(|e| Error::Config(format!("Invalid glob pattern '{}': {}", member, e)))?
+			.filter_map(Result::ok)
+		{
+			let member_manifest_path = entry.join("Cargo.toml");
+			if member_manifest_path.is_file() {
+				// Parse the member's manifest to get its name
+				match from_path(&member_manifest_path) {
+					Ok(member_manifest) =>
+						if let Some(package) = &member_manifest.package {
+							result.push((package.name.clone(), entry));
+						},
+					Err(e) => {
+						// Log warning but continue processing other members
+						eprintln!(
+							"Warning: Failed to parse manifest at {}: {}",
+							member_manifest_path.display(),
+							e
+						);
+					},
+				}
+			}
+		}
+	}
+
+	Ok(result)
 }
 
 /// Adds a "production" profile to the Cargo.toml manifest if it doesn't already exist.

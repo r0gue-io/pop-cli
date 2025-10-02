@@ -32,10 +32,11 @@ pub use bench::{
 	GENESIS_BUILDER_DEV_PRESET,
 };
 pub use build::{
-	binary_path, build_chain, build_project, export_wasm_file, generate_genesis_state_file,
-	generate_plain_chain_spec, generate_raw_chain_spec, is_supported, runtime,
+	binary_path, build_chain, build_project, export_wasm_file_with_node,
+	generate_genesis_state_file_with_node, generate_plain_chain_spec_with_node,
+	generate_raw_chain_spec_with_node, is_supported, runtime,
 	runtime::{ContainerEngine, DeterministicBuilder},
-	runtime_binary_path, ChainSpec,
+	runtime_binary_path, ChainSpec, ChainSpecBuilder,
 };
 pub use call::{
 	construct_extrinsic, construct_proxy_extrinsic, construct_sudo_extrinsic, decode_call_data,

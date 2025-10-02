@@ -12,6 +12,7 @@ pub mod chain;
 pub mod contracts;
 #[cfg(any(feature = "chain", feature = "wasm-contracts", feature = "polkavm-contracts"))]
 pub mod helpers;
+pub mod omni_node;
 /// Contains utilities for interacting with the CLI prompt.
 pub mod prompt;
 /// Contains runtime utilities.
