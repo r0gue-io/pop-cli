@@ -573,9 +573,9 @@ impl BuildSpec {
 		let builder = self.builder(cli)?;
 		let spinner = spinner();
 		if !self.use_existing_plain_spec {
-			spinner.start("Generating chain specification...");
 			// Generate chain spec.
 			builder.build(&self.profile, Default::default())?;
+			spinner.start("Generating chain specification...");
 			builder.generate_plain_chain_spec(&self.output_file, &self.profile)?;
 			// Customize spec based on input.
 			self.customize()?;

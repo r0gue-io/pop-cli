@@ -2,12 +2,11 @@
 
 use std::{env::current_dir, path::PathBuf};
 
-use pop_common::manifest::get_workspace_project_names;
 #[cfg(feature = "chain")]
 use {
 	crate::cli::traits::{Cli, Select},
 	pop_chains::{binary_path, build_chain},
-	pop_common::Profile,
+	pop_common::{manifest::get_workspace_project_names, Profile},
 	std::path::Path,
 	strum::{EnumMessage, VariantArray},
 };
