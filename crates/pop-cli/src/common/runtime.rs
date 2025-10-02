@@ -154,7 +154,7 @@ pub(crate) fn build_deterministic_runtime(
 			return Err(anyhow::anyhow!("Can't find the generated runtime at {:?}", wasm_path));
 		};
 		Ok(wasm_path)
-	}.map_err(|e: anyhow::Error| anyhow::anyhow!("Failed to build the deterministic runtime: {}", e.to_string()))?;
+	}.map_err(|e: anyhow::Error| anyhow::anyhow!("Failed to build the deterministic runtime: {:?}", e.to_string()))?;
 	let code = fs::read(&runtime_path).map_err(anyhow::Error::from)?;
 	cli.success("\n✅ Runtime built successfully.\n")?;
 	Ok((runtime_path, code))

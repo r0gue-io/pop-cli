@@ -203,7 +203,7 @@ impl CallContractCommand {
 			Ok(result) => result,
 			Err(e) => {
 				return Err(anyhow!(format!(
-                        "🚫 An error occurred building your contract: {}\nUse `pop build` to retry with build output.",
+                        "🚫 An error occurred building your contract: {:?}\nUse `pop build` to retry with build output.",
                         e.to_string()
                     )));
 			},
@@ -441,7 +441,7 @@ impl CallContractCommand {
 		{
 			Ok(call_exec) => call_exec,
 			Err(e) => {
-				return Err(anyhow!(format!("{}", e.to_string())));
+				return Err(anyhow!(format!("{:?}", e.to_string())));
 			},
 		};
 		// Check if the account is already mapped, and prompt the user to perform the mapping if
@@ -499,7 +499,7 @@ impl CallContractCommand {
 
 			let call_result = call_smart_contract(call_exec, weight_limit, &self.url)
 				.await
-				.map_err(|err| anyhow!("{} {}", "ERROR:", format!("{err:?}")))?;
+				.map_err(|err| anyhow!("{} {:?}", "ERROR:", format!("{err:?}")))?;
 
 			cli.info(call_result)?;
 		}
@@ -544,7 +544,7 @@ impl CallContractCommand {
 		};
 		let call_data =
 			self.get_contract_data(&call_exec, storage_deposit_limit).map_err(|err| {
-				anyhow!("An error occurred getting the call data: {}", err.to_string())
+				anyhow!("An error occurred getting the call data: {:?}", err.to_string())
 			})?;
 
 		let maybe_payload =
@@ -558,7 +558,7 @@ impl CallContractCommand {
 			let call_result =
 				call_smart_contract_from_signed_payload(call_exec, payload, &self.url)
 					.await
-					.map_err(|err| anyhow!("{} {}", "ERROR:", format!("{err:?}")))?;
+					.map_err(|err| anyhow!("{} {:?}", "ERROR:", format!("{err:?}")))?;
 
 			cli.info(call_result)?;
 		} else {
