@@ -120,19 +120,10 @@ pub fn get_workspace_project_names(project_path: &Path) -> Result<Vec<(String, P
 			let member_manifest_path = entry.join("Cargo.toml");
 			if member_manifest_path.is_file() {
 				// Parse the member's manifest to get its name
-				match from_path(&member_manifest_path) {
-					Ok(member_manifest) =>
-						if let Some(package) = &member_manifest.package {
-							result.push((package.name.clone(), entry));
-						},
-					Err(e) => {
-						// Log warning but continue processing other members
-						eprintln!(
-							"Warning: Failed to parse manifest at {}: {}",
-							member_manifest_path.display(),
-							e
-						);
-					},
+				if let Ok(member_manifest) = from_path(&member_manifest_path) {
+					if let Some(package) = &member_manifest.package {
+						result.push((package.name.clone(), entry));
+					}
 				}
 			}
 		}
