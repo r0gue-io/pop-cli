@@ -30,13 +30,13 @@ use std::path::Path;
 
 let path = Path::new("./");
 let package = None;  // The optional package to be built.
-let binary_path = build_chain(&path, package, &Profile::Release, None, vec![]).unwrap();
+let binary_path = build_chain(&path, package, &Profile::Release, None, &[]).unwrap();
 ```
 
 Build a chain with `runtime-benchmarks` feature:
 
 ```rs
-let binary_path = build_chain(&path, package, &Profile::Release, None, vec!["runtime-benchmarks"]).unwrap();
+let binary_path = build_chain(&path, package, &Profile::Release, None, &["runtime-benchmarks".to_string()]).unwrap();
 ```
 
 Generate a plain chain specification file and customize it with your specific chain values:
@@ -49,7 +49,7 @@ use std::path::Path;
 let path = Path::new("./"); // Location of the parachain project.
 let package = None;  // The optional package to be built.
 // The path to the node binary executable.
-let binary_path = build_chain(&path, package, &Profile::Release, None, vec![]).unwrap();;
+let binary_path = build_chain(&path, package, &Profile::Release, None, &[]).unwrap();
 // Generate a plain chain specification file of a parachain
 let plain_chain_spec_path = path.join("plain-parachain-chainspec.json");
 generate_plain_chain_spec_with_node(&binary_path, &plain_chain_spec_path, true, "dev");
@@ -73,7 +73,7 @@ use std::path::Path;
 let path = Path::new("./"); // Location of the parachain project.
 let package = None;  // The optional package to be built.
 // The path to the node binary executable.
-let binary_path = build_chain(&path, package, &Profile::Release, None, vec![]).unwrap();;
+let binary_path = build_chain(&path, package, &Profile::Release, None, &[]).unwrap();;
 // Generate a plain chain specification file of a parachain
 let plain_chain_spec_path = path.join("plain-parachain-chainspec.json");
 generate_plain_chain_spec_with_node(&binary_path, &plain_chain_spec_path, true, "dev");
