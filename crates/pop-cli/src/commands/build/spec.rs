@@ -545,17 +545,17 @@ impl BuildSpec {
 	fn builder(
 		&mut self,
 		cli: &mut impl cli::traits::Cli,
-	) -> anyhow::Result<pop_chains::ChainSpecBuilder> {
+	) -> anyhow::Result<ChainSpecBuilder> {
 		let default_node_path = self.path.join("node");
 		if default_node_path.is_dir() {
-			Ok(pop_chains::ChainSpecBuilder::Node {
+			Ok(ChainSpecBuilder::Node {
 				node_path: default_node_path,
 				default_bootnode: self.default_bootnode,
 				chain: self.chain.clone(),
 			})
 		} else {
 			let runtime_path = find_runtime_dir(&self.path, cli)?;
-			Ok(pop_chains::ChainSpecBuilder::Runtime { runtime_path, preset: self.chain.clone() })
+			Ok(ChainSpecBuilder::Runtime { runtime_path, preset: self.chain.clone() })
 		}
 	}
 
