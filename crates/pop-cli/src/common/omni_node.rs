@@ -26,7 +26,7 @@ pub(super) enum PolkadotOmniNodeCli {
 	#[strum(props(
 		Repository = "https://github.com/r0gue-io/polkadot",
 		Binary = "polkadot-omni-node",
-		Fallback = "v0.9.0"
+		Fallback = "polkadot-stable2503-7"
 	))]
 	PolkadotOmniNode,
 }
@@ -93,7 +93,7 @@ pub async fn source_polkadot_omni_node_binary(
 ) -> anyhow::Result<PathBuf> {
 	check_and_prompt::<PolkadotOmniNodeGenerator>(
 		cli,
-		"polkadot-omni-node",
+		PolkadotOmniNodeCli::PolkadotOmniNode.binary(),
 		cache_path,
 		skip_confirm,
 	)

@@ -114,14 +114,13 @@ impl ChainSpecBuilder {
 		profile: &Profile,
 	) -> Result<(), Error> {
 		match self {
-			ChainSpecBuilder::Node { node_path, default_bootnode, chain } => {
+			ChainSpecBuilder::Node { node_path, default_bootnode, chain } =>
 				generate_plain_chain_spec_with_node(
 					node_path.as_path(),
 					output_file,
 					*default_bootnode,
 					chain,
-				)
-			},
+				),
 			ChainSpecBuilder::Runtime { preset, .. } => generate_plain_chain_spec_with_runtime(
 				fs::read(self.artifact_path(profile)?)?,
 				output_file,
@@ -149,9 +148,8 @@ impl ChainSpecBuilder {
 				plain_chain_spec,
 				raw_chain_spec_name,
 			),
-			ChainSpecBuilder::Runtime { .. } => {
-				generate_raw_chain_spec_with_runtime(plain_chain_spec, raw_chain_spec_name)
-			},
+			ChainSpecBuilder::Runtime { .. } =>
+				generate_raw_chain_spec_with_runtime(plain_chain_spec, raw_chain_spec_name),
 		}
 	}
 
@@ -175,12 +173,10 @@ impl ChainSpecBuilder {
 		wasm_file_name: &str,
 	) -> Result<PathBuf, Error> {
 		match self {
-			ChainSpecBuilder::Node { node_path, .. } => {
-				export_wasm_file_with_node(node_path.as_path(), raw_chain_spec, wasm_file_name)
-			},
-			ChainSpecBuilder::Runtime { .. } => {
-				export_wasm_file_with_runtime(raw_chain_spec, wasm_file_name)
-			},
+			ChainSpecBuilder::Node { node_path, .. } =>
+				export_wasm_file_with_node(node_path.as_path(), raw_chain_spec, wasm_file_name),
+			ChainSpecBuilder::Runtime { .. } =>
+				export_wasm_file_with_runtime(raw_chain_spec, wasm_file_name),
 		}
 	}
 }
@@ -261,8 +257,8 @@ pub fn is_supported(path: &Path) -> bool {
 	const DEPENDENCIES: [&str; 4] =
 		["cumulus-client-collator", "cumulus-primitives-core", "parachains-common", "polkadot-sdk"];
 	DEPENDENCIES.into_iter().any(|d| {
-		manifest.dependencies.contains_key(d)
-			|| manifest.workspace.as_ref().is_some_and(|w| w.dependencies.contains_key(d))
+		manifest.dependencies.contains_key(d) ||
+			manifest.workspace.as_ref().is_some_and(|w| w.dependencies.contains_key(d))
 	})
 }
 

@@ -568,9 +568,9 @@ impl BuildSpec {
 		mut self,
 		cli: &mut impl cli::traits::Cli,
 	) -> anyhow::Result<GenesisArtifacts> {
-		cli.intro("Building your chain spec")?;
 		let mut generated_files = vec![];
 		let builder = self.builder(cli)?;
+		let is_runtime_build = matches!(builder, ChainSpecBuilder::Runtime { .. });
 		let spinner = spinner();
 		if !self.use_existing_plain_spec {
 			// Generate chain spec.
@@ -578,7 +578,7 @@ impl BuildSpec {
 			spinner.start("Generating chain specification...");
 			builder.generate_plain_chain_spec(&self.output_file, &self.profile)?;
 			// Customize spec based on input.
-			self.customize()?;
+			self.customize(&self.output_file)?;
 			// Deterministic build.
 			if self.deterministic {
 				let (runtime_path, code) = build_deterministic_runtime(
@@ -617,6 +617,12 @@ impl BuildSpec {
 			raw_chain_spec.display()
 		));
 
+		if is_runtime_build {
+			// The runtime version of the raw chain spec does not include certain parameters, like
+			// the relay chain, so we have to overwrite them again.
+			self.customize(&raw_chain_spec)?;
+		}
+
 		// Generate genesis artifacts.
 		let genesis_code_file = if self.genesis_code {
 			spinner.set_message("Generating genesis code...");
@@ -633,7 +639,7 @@ impl BuildSpec {
 			let genesis_file_name = format!("para-{}-genesis-state", self.id);
 			let binary_path = match builder {
 				ChainSpecBuilder::Runtime { .. } =>
-					source_polkadot_omni_node_binary(cli, &crate::cache()?, false).await?,
+					source_polkadot_omni_node_binary(cli, &crate::cache()?, true).await?,
 				ChainSpecBuilder::Node { node_path, .. } => node_path,
 			};
 			let genesis_state_file = generate_genesis_state_file_with_node(
@@ -692,8 +698,8 @@ impl BuildSpec {
 	}
 
 	// Customize a chain specification.
-	fn customize(&self) -> anyhow::Result<()> {
-		let mut chain_spec = ChainSpec::from(&self.output_file)?;
+	fn customize(&self, path: &Path) -> anyhow::Result<()> {
+		let mut chain_spec = ChainSpec::from(path)?;
 		chain_spec.replace_para_id(self.id)?;
 		chain_spec.replace_relay_chain(self.relay.as_ref())?;
 		chain_spec.replace_chain_type(self.chain_type.as_ref())?;
@@ -701,7 +707,7 @@ impl BuildSpec {
 		if let Some(properties) = &self.properties {
 			chain_spec.replace_properties(properties)?;
 		}
-		chain_spec.to_file(&self.output_file)?;
+		chain_spec.to_file(path)?;
 		Ok(())
 	}
 
