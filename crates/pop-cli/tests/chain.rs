@@ -132,6 +132,7 @@ async fn parachain_lifecycle() -> Result<()> {
 			"pop-protocol",
 			"--deterministic=false",
 			"--default-bootnode=false",
+			"--skip-build",
 		],
 	);
 	assert!(command.spawn()?.wait()?.success());

@@ -162,6 +162,10 @@ pub struct BuildSpecCommand {
 	/// Comma-separated list of features to build the node or runtime with.
 	#[arg(long, default_value = "")]
 	pub(crate) features: String,
+	/// Whether to skip the build step or not. If artifacts are not found, the build will be
+	/// performed regardless.
+	#[arg(long = "skip-build")]
+	pub(crate) skip_build: bool,
 	/// Provide the chain specification to use (e.g. dev, local, custom or a path to an existing
 	/// file).
 	#[arg(short, long)]
@@ -235,6 +239,7 @@ impl BuildSpecCommand {
 			protocol_id,
 			properties,
 			features,
+			skip_build,
 			genesis_state,
 			genesis_code,
 			deterministic,
@@ -484,6 +489,7 @@ impl BuildSpecCommand {
 			protocol_id,
 			properties,
 			features,
+			skip_build,
 			genesis_state,
 			genesis_code,
 			deterministic,
@@ -542,6 +548,7 @@ pub(crate) struct BuildSpec {
 	protocol_id: String,
 	properties: Option<String>,
 	features: Vec<String>,
+	skip_build: bool,
 	genesis_state: bool,
 	genesis_code: bool,
 	deterministic: bool,
@@ -585,10 +592,17 @@ impl BuildSpec {
 		let mut generated_files = vec![];
 		let builder = self.builder(cli)?;
 		let is_runtime_build = matches!(builder, ChainSpecBuilder::Runtime { .. });
+		let artifact_exists = builder.artifact_path().is_ok();
+		if self.skip_build && builder.artifact_path().is_err() {
+			cli.warning("The node or runtime artifacts are missing. Ignoring the --skip-build flag and performing the build")?;
+		}
+		if !self.skip_build || !artifact_exists {
+			builder.build(&self.profile, &self.features)?;
+		}
+
+		// Generate chain spec.
 		let spinner = spinner();
 		if !self.use_existing_plain_spec {
-			// Generate chain spec.
-			builder.build(&self.profile, &self.features)?;
 			spinner.start("Generating chain specification...");
 			builder.generate_plain_chain_spec(&self.output_file)?;
 			// Customize spec based on input.
@@ -807,6 +821,7 @@ mod tests {
 				relay: Some(relay.clone()),
 				protocol_id: Some(protocol_id.to_string()),
 				properties: Some(properties.to_string()),
+				skip_build: true,
 				genesis_state: Some(genesis_state),
 				genesis_code: Some(genesis_code),
 				deterministic: Some(deterministic),
@@ -915,6 +930,7 @@ mod tests {
 					relay: Some(relay.clone()),
 					protocol_id: Some(protocol_id.to_string()),
 					properties: Some(properties.to_string()),
+					skip_build: true,
 					genesis_state: None,
 					genesis_code: None,
 					deterministic: None,
