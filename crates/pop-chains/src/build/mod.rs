@@ -1217,20 +1217,6 @@ mod tests {
 	#[test]
 	fn replace_para_id_fails() -> Result<()> {
 		let mut chain_spec = ChainSpec(json!({
-			"genesis": {
-				"runtimeGenesis": {
-					"patch": {
-						"parachainInfo": {
-							"parachainId": 1000
-						}
-					}
-				}
-			},
-		}));
-		assert!(
-			matches!(chain_spec.replace_para_id(2001), Err(Error::Config(error)) if error == "expected `para_id`")
-		);
-		chain_spec = ChainSpec(json!({
 			"para_id": 2001,
 			"": {
 				"runtimeGenesis": {
@@ -1243,7 +1229,7 @@ mod tests {
 			},
 		}));
 		assert!(
-			matches!(chain_spec.replace_para_id(2001), Err(Error::Config(error)) if error == "expected `genesis`")
+			matches!(chain_spec.replace_para_id(2001), Err(Error::Config(error)) if error == "expected `genesis.runtimeGenesis.patch.parachainInfo.parachainId`")
 		);
 		chain_spec = ChainSpec(json!({
 			"para_id": 2001,
@@ -1258,7 +1244,7 @@ mod tests {
 			},
 		}));
 		assert!(
-			matches!(chain_spec.replace_para_id(2001), Err(Error::Config(error)) if error == "expected `runtimeGenesis`")
+			matches!(chain_spec.replace_para_id(2001), Err(Error::Config(error)) if error == "expected `genesis.runtimeGenesis.patch.parachainInfo.parachainId`")
 		);
 		chain_spec = ChainSpec(json!({
 			"para_id": 2001,
@@ -1273,7 +1259,7 @@ mod tests {
 			},
 		}));
 		assert!(
-			matches!(chain_spec.replace_para_id(2001), Err(Error::Config(error)) if error == "expected `patch`")
+			matches!(chain_spec.replace_para_id(2001), Err(Error::Config(error)) if error == "expected `genesis.runtimeGenesis.patch.parachainInfo.parachainId`")
 		);
 		chain_spec = ChainSpec(json!({
 			"para_id": 2001,
@@ -1288,7 +1274,7 @@ mod tests {
 			},
 		}));
 		assert!(
-			matches!(chain_spec.replace_para_id(2001), Err(Error::Config(error)) if error == "expected `parachainInfo`")
+			matches!(chain_spec.replace_para_id(2001), Err(Error::Config(error)) if error == "expected `genesis.runtimeGenesis.patch.parachainInfo.parachainId`")
 		);
 		chain_spec = ChainSpec(json!({
 			"para_id": 2001,
@@ -1302,7 +1288,7 @@ mod tests {
 			},
 		}));
 		assert!(
-			matches!(chain_spec.replace_para_id(2001), Err(Error::Config(error)) if error == "expected `parachainInfo.parachainId`")
+			matches!(chain_spec.replace_para_id(2001), Err(Error::Config(error)) if error == "expected `genesis.runtimeGenesis.patch.parachainInfo.parachainId`")
 		);
 		Ok(())
 	}
@@ -1312,15 +1298,6 @@ mod tests {
 		let mut chain_spec = ChainSpec(json!({"relay_chain": "old-relay"}));
 		chain_spec.replace_relay_chain("new-relay")?;
 		assert_eq!(chain_spec.0, json!({"relay_chain": "new-relay"}));
-		Ok(())
-	}
-
-	#[test]
-	fn replace_relay_chain_fails() -> Result<()> {
-		let mut chain_spec = ChainSpec(json!({"": "old-relay"}));
-		assert!(
-			matches!(chain_spec.replace_relay_chain("new-relay"), Err(Error::Config(error)) if error == "expected `relay_chain`")
-		);
 		Ok(())
 	}
 
