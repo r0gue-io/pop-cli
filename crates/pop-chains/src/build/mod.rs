@@ -55,7 +55,7 @@ impl ChainSpecBuilder {
 	///
 	/// # Returns
 	/// The path to the built artifact
-	pub fn build(&self, profile: &Profile, features: &Vec<String>) -> Result<PathBuf> {
+	pub fn build(&self, profile: &Profile, features: &[String]) -> Result<PathBuf> {
 		build_project(&self.path(), None, profile, features, None)?;
 		// Check the artifact is found after being built
 		self.artifact_path()
@@ -193,9 +193,9 @@ pub fn build_chain(
 	package: Option<String>,
 	profile: &Profile,
 	node_path: Option<&Path>,
-	features: &Vec<String>,
+	features: &[String],
 ) -> Result<PathBuf, Error> {
-	build_project(path, package, profile, &features, None)?;
+	build_project(path, package, profile, features, None)?;
 	binary_path(&profile.target_directory(path), node_path.unwrap_or(&path.join("node")))
 }
 
@@ -212,7 +212,7 @@ pub fn build_project(
 	path: &Path,
 	package: Option<String>,
 	profile: &Profile,
-	features: &Vec<String>,
+	features: &[String],
 	target: Option<&str>,
 ) -> Result<(), Error> {
 	let mut args = vec!["build"];
@@ -910,7 +910,7 @@ mod tests {
 						package.clone(),
 						profile,
 						node_path,
-						vec!["dummy-feature"],
+						&["dummy-feature".to_string()],
 					)?;
 					let target_directory = profile.target_directory(&project);
 					assert!(target_directory.exists());
@@ -935,7 +935,13 @@ mod tests {
 		add_feature(&project, ("dummy-feature".to_string(), vec![]))?;
 		for package in [None, Some(String::from(name))] {
 			for profile in Profile::VARIANTS {
-				build_project(&project, package.clone(), profile, vec!["dummy-feature"], None)?;
+				build_project(
+					&project,
+					package.clone(),
+					profile,
+					&["dummy-feature".to_string()],
+					None,
+				)?;
 				let target_directory = profile.target_directory(&project);
 				let binary = build_binary_path(&project, |runtime_name| {
 					target_directory.join(runtime_name)

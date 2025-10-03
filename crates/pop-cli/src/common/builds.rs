@@ -40,7 +40,7 @@ pub fn ensure_node_binary_exists(
 	cli: &mut impl Cli,
 	project_path: &Path,
 	mode: &Profile,
-	features: &Vec<String>,
+	features: &[String],
 ) -> anyhow::Result<PathBuf> {
 	match binary_path(&mode.target_directory(project_path), &project_path.join("node")) {
 		Ok(binary_path) => Ok(binary_path),
@@ -147,7 +147,7 @@ mod tests {
 		File::create(target_path.join("node"))?;
 
 		let binary_path =
-			ensure_node_binary_exists(&mut cli, temp_dir.path(), &Profile::Release, vec![])?;
+			ensure_node_binary_exists(&mut cli, temp_dir.path(), &Profile::Release, &vec![])?;
 		assert_eq!(binary_path, target_path.join("node"));
 		cli.verify()
 	}

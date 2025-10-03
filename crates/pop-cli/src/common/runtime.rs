@@ -98,7 +98,7 @@ pub(crate) fn build_runtime(
 			.0
 	} else {
 		cli.info(format!("Building your runtime in {mode} mode..."))?;
-		let features = features.iter().map(|f| f.as_ref().to_string()).collect();
+		let features: Vec<String> = features.iter().map(|f| f.as_ref().to_string()).collect();
 		build_project(runtime_path, None, mode, &features, None)?;
 		runtime_binary_path(target_path, runtime_path)?
 	};
