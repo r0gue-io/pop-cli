@@ -159,9 +159,9 @@ pub struct BuildSpecCommand {
 	/// Type of the chain.
 	#[arg(short = 't', long = "type", value_enum)]
 	pub(crate) chain_type: Option<ChainType>,
-	/// Features to build the node or runtime with.
-	#[arg(long, value_enum)]
-	pub(crate) features: Vec<String>,
+	/// Comma-separated list of features to build the node or runtime with.
+	#[arg(long)]
+	pub(crate) features: String,
 	/// Provide the chain specification to use (e.g. dev, local, custom or a path to an existing
 	/// file).
 	#[arg(short, long)]
@@ -254,6 +254,9 @@ impl BuildSpecCommand {
 					.interact()?
 			},
 		};
+
+		// Features
+		let features = features.split(",").map(|s| s.trim().to_string()).collect();
 
 		// Output file.
 		let maybe_chain_spec_file = PathBuf::from(&chain);
@@ -799,7 +802,7 @@ mod tests {
 				id: Some(para_id),
 				default_bootnode: Some(default_bootnode),
 				chain_type: Some(chain_type.clone()),
-				features: Vec::new(),
+				features: "".to_string(),
 				chain: Some(chain.to_string()),
 				relay: Some(relay.clone()),
 				protocol_id: Some(protocol_id.to_string()),
@@ -907,7 +910,7 @@ mod tests {
 					id: Some(para_id),
 					default_bootnode: None,
 					chain_type: Some(chain_type.clone()),
-					features: Vec::new(),
+					features: "".to_string(),
 					chain: Some(chain_spec_path.to_string_lossy().to_string()),
 					relay: Some(relay.clone()),
 					protocol_id: Some(protocol_id.to_string()),
