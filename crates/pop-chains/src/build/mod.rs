@@ -26,12 +26,14 @@ pub mod runtime;
 pub enum ChainSpecBuilder {
 	/// A node-based chain specification builder.
 	Node {
-		/// Path to the node binary.
+		/// Path to the node directory.
 		node_path: PathBuf,
 		/// Whether to include a default bootnode in the specification.
 		default_bootnode: bool,
 		/// The chain specification name or path to use.
 		chain: String,
+		/// The build profile to use (debug, release, production, etc).
+		profile: Profile,
 	},
 	/// A runtime-based chain specification builder.
 	Runtime {
@@ -39,6 +41,8 @@ pub enum ChainSpecBuilder {
 		runtime_path: PathBuf,
 		/// The genesis configuration preset name to use.
 		preset: String,
+		/// The build profile to use (debug, release, production, etc).
+		profile: Profile,
 	},
 }
 
@@ -54,7 +58,7 @@ impl ChainSpecBuilder {
 	pub fn build(&self, profile: &Profile, features: Vec<&str>) -> Result<PathBuf> {
 		build_project(&self.path(), None, profile, features, None)?;
 		// Check the artifact is found after being built
-		self.artifact_path(profile)
+		self.artifact_path()
 	}
 
 	/// Gets the path associated with this chain specification builder.
@@ -71,12 +75,9 @@ impl ChainSpecBuilder {
 
 	/// Gets the path to the built artifact.
 	///
-	/// # Arguments
-	/// * `profile` - The build profile used.
-	///
 	/// # Returns
 	/// The path to the built artifact (node binary or runtime WASM).
-	pub fn artifact_path(&self, profile: &Profile) -> Result<PathBuf> {
+	pub fn artifact_path(&self) -> Result<PathBuf> {
 		let manifest = from_path(&self.path())?;
 		let package = manifest.package().name();
 		let root_folder = find_workspace_toml(&self.path())
@@ -85,8 +86,9 @@ impl ChainSpecBuilder {
 			.expect("Path to Cargo.toml workspace root folder must exist")
 			.to_path_buf();
 		let path = match self {
-			ChainSpecBuilder::Node { .. } => profile.target_directory(&root_folder).join(package),
-			ChainSpecBuilder::Runtime { .. } => {
+			ChainSpecBuilder::Node { profile, .. } =>
+				profile.target_directory(&root_folder).join(package),
+			ChainSpecBuilder::Runtime { profile, .. } => {
 				let base = profile.target_directory(&root_folder).join("wbuild").join(package);
 				let wasm_file = package.replace("-", "_");
 				let compact_compressed = base.join(format!("{wasm_file}.compact.compressed.wasm"));
@@ -108,21 +110,17 @@ impl ChainSpecBuilder {
 	/// # Arguments
 	/// * `output_file` - The path where the chain spec should be written.
 	/// * `profile` - The build profile to use.
-	pub fn generate_plain_chain_spec(
-		&self,
-		output_file: &Path,
-		profile: &Profile,
-	) -> Result<(), Error> {
+	pub fn generate_plain_chain_spec(&self, output_file: &Path) -> Result<(), Error> {
 		match self {
-			ChainSpecBuilder::Node { node_path, default_bootnode, chain } =>
+			ChainSpecBuilder::Node { default_bootnode, chain, .. } =>
 				generate_plain_chain_spec_with_node(
-					node_path.as_path(),
+					&self.artifact_path()?,
 					output_file,
 					*default_bootnode,
 					chain,
 				),
 			ChainSpecBuilder::Runtime { preset, .. } => generate_plain_chain_spec_with_runtime(
-				fs::read(self.artifact_path(profile)?)?,
+				fs::read(self.artifact_path()?)?,
 				output_file,
 				preset,
 			),
@@ -143,8 +141,8 @@ impl ChainSpecBuilder {
 		raw_chain_spec_name: &str,
 	) -> Result<PathBuf, Error> {
 		match self {
-			ChainSpecBuilder::Node { node_path, .. } => generate_raw_chain_spec_with_node(
-				node_path.as_path(),
+			ChainSpecBuilder::Node { .. } => generate_raw_chain_spec_with_node(
+				&self.artifact_path()?,
 				plain_chain_spec,
 				raw_chain_spec_name,
 			),
@@ -173,8 +171,8 @@ impl ChainSpecBuilder {
 		wasm_file_name: &str,
 	) -> Result<PathBuf, Error> {
 		match self {
-			ChainSpecBuilder::Node { node_path, .. } =>
-				export_wasm_file_with_node(node_path.as_path(), raw_chain_spec, wasm_file_name),
+			ChainSpecBuilder::Node { .. } =>
+				export_wasm_file_with_node(&self.artifact_path()?, raw_chain_spec, wasm_file_name),
 			ChainSpecBuilder::Runtime { .. } =>
 				export_wasm_file_with_runtime(raw_chain_spec, wasm_file_name),
 		}

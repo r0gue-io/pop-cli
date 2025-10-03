@@ -551,11 +551,16 @@ impl BuildSpec {
 				node_path,
 				default_bootnode: self.default_bootnode,
 				chain: self.chain.clone(),
+				profile: self.profile.clone(),
 			})
 		} else {
 			let runtime_path = find_runtime_dir(&self.path, cli)?;
 			cli.info(format!("Using runtime at {}", runtime_path.display()))?;
-			Ok(ChainSpecBuilder::Runtime { runtime_path, preset: self.chain.clone() })
+			Ok(ChainSpecBuilder::Runtime {
+				runtime_path,
+				preset: self.chain.clone(),
+				profile: self.profile.clone(),
+			})
 		}
 	}
 
@@ -576,7 +581,7 @@ impl BuildSpec {
 			// Generate chain spec.
 			builder.build(&self.profile, Default::default())?;
 			spinner.start("Generating chain specification...");
-			builder.generate_plain_chain_spec(&self.output_file, &self.profile)?;
+			builder.generate_plain_chain_spec(&self.output_file)?;
 			// Customize spec based on input.
 			self.customize(&self.output_file)?;
 			// Deterministic build.
@@ -640,7 +645,7 @@ impl BuildSpec {
 			let binary_path = match builder {
 				ChainSpecBuilder::Runtime { .. } =>
 					source_polkadot_omni_node_binary(cli, &crate::cache()?, true).await?,
-				ChainSpecBuilder::Node { node_path, .. } => node_path,
+				ChainSpecBuilder::Node { .. } => builder.artifact_path()?,
 			};
 			let genesis_state_file = generate_genesis_state_file_with_node(
 				&binary_path,
