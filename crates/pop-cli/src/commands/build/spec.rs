@@ -160,7 +160,7 @@ pub struct BuildSpecCommand {
 	#[arg(short = 't', long = "type", value_enum)]
 	pub(crate) chain_type: Option<ChainType>,
 	/// Comma-separated list of features to build the node or runtime with.
-	#[arg(long)]
+	#[arg(long, default_value = "")]
 	pub(crate) features: String,
 	/// Provide the chain specification to use (e.g. dev, local, custom or a path to an existing
 	/// file).
