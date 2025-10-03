@@ -3,6 +3,7 @@
 use crate::Error;
 use anyhow;
 pub use cargo_toml::{Dependency, LtoSetting, Manifest, Profile, Profiles};
+use glob::glob;
 use std::{
 	fs::{read_to_string, write},
 	path::{Path, PathBuf},
@@ -14,16 +15,13 @@ use toml_edit::{value, Array, DocumentMut, Item, Value};
 /// # Arguments
 /// * `path` - The optional path to the manifest, defaulting to the current directory if not
 ///   specified.
-pub fn from_path(path: Option<&Path>) -> Result<Manifest, Error> {
+pub fn from_path(path: &Path) -> Result<Manifest, Error> {
 	// Resolve manifest path
-	let path = match path {
-		Some(path) => match path.ends_with("Cargo.toml") {
-			true => path.to_path_buf(),
-			false => path.join("Cargo.toml"),
-		},
-		None => PathBuf::from("./Cargo.toml"),
+	let path = match path.ends_with("Cargo.toml") {
+		true => path.to_path_buf(),
+		false => path.join("Cargo.toml"),
 	};
-	if !path.exists() {
+	if !path.is_file() {
 		return Err(Error::ManifestPath(path.display().to_string()));
 	}
 	Ok(Manifest::from_path(path.canonicalize()?)?)
@@ -96,6 +94,42 @@ pub fn add_crate_to_workspace(workspace_toml: &Path, crate_path: &Path) -> anyho
 
 	write(workspace_toml, doc.to_string())?;
 	Ok(())
+}
+
+/// Get the names and paths of all cargo projects that are associated with a workspace manifest.
+///
+/// # Arguments
+/// * `manifest` - Path to the workspace manifest root folder.
+pub fn get_workspace_project_names(project_path: &Path) -> Result<Vec<(String, PathBuf)>, Error> {
+	let mut result = Vec::new();
+
+	// Check if this is actually a workspace manifest
+	let manifest = from_path(project_path)?;
+	let workspace = manifest
+		.workspace
+		.as_ref()
+		.ok_or_else(|| Error::Config("Manifest is not a workspace manifest".into()))?;
+
+	// Get workspace members
+	for member in &workspace.members {
+		// Handle glob patterns in member paths
+		for entry in glob(&project_path.join(member).to_string_lossy())
+			.map_err(|e| Error::Config(format!("Invalid glob pattern '{}': {}", member, e)))?
+			.filter_map(Result::ok)
+		{
+			let member_manifest_path = entry.join("Cargo.toml");
+			if member_manifest_path.is_file() {
+				// Parse the member's manifest to get its name
+				if let Ok(member_manifest) = from_path(&member_manifest_path) {
+					if let Some(package) = &member_manifest.package {
+						result.push((package.name.clone(), entry));
+					}
+				}
+			}
+		}
+	}
+
+	Ok(result)
 }
 
 /// Adds a "production" profile to the Cargo.toml manifest if it doesn't already exist.
@@ -218,24 +252,19 @@ mod tests {
 	#[test]
 	fn from_path_works() -> anyhow::Result<()> {
 		// Workspace manifest from directory
-		from_path(Some(Path::new("../../")))?;
+		from_path(Path::new("../../"))?;
 		// Workspace manifest from path
-		from_path(Some(Path::new("../../Cargo.toml")))?;
+		from_path(Path::new("../../Cargo.toml"))?;
 		// Package manifest from directory
-		from_path(Some(Path::new(".")))?;
+		from_path(Path::new("."))?;
 		// Package manifest from path
-		from_path(Some(Path::new("./Cargo.toml")))?;
-		// None
-		from_path(None)?;
+		from_path(Path::new("./Cargo.toml"))?;
 		Ok(())
 	}
 
 	#[test]
 	fn from_path_ensures_manifest_exists() -> Result<(), Error> {
-		assert!(matches!(
-			from_path(Some(Path::new("./none.toml"))),
-			Err(super::Error::ManifestPath(..))
-		));
+		assert!(matches!(from_path(Path::new("./none.toml")), Err(super::Error::ManifestPath(..))));
 		Ok(())
 	}
 

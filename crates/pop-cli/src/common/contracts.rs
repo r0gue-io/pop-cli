@@ -76,14 +76,13 @@ pub async fn terminate_node(
 /// # Arguments
 /// * `path` - An optional path to the project directory. If no path is provided, the current
 ///   directory is used.
-pub fn has_contract_been_built(path: Option<&Path>) -> bool {
-	let project_path = path.unwrap_or_else(|| Path::new("./"));
-	let Ok(manifest) = from_path(Some(project_path)) else {
+pub fn has_contract_been_built(path: &Path) -> bool {
+	let Ok(manifest) = from_path(path) else {
 		return false;
 	};
 	manifest
 		.package
-		.map(|p| project_path.join(format!("target/ink/{}.contract", p.name())).exists())
+		.map(|p| path.join(format!("target/ink/{}.contract", p.name())).exists())
 		.unwrap_or_default()
 }
 
@@ -186,15 +185,15 @@ mod tests {
 		let name = "hello_world";
 		cmd("cargo", ["new", name]).dir(path).run()?;
 		let contract_path = path.join(name);
-		assert!(!has_contract_been_built(Some(&contract_path)));
+		assert!(!has_contract_been_built(&contract_path));
 
 		cmd("cargo", ["build"]).dir(&contract_path).run()?;
 		// Mock build directory
 		fs::create_dir(contract_path.join("target/ink"))?;
-		assert!(!has_contract_been_built(Some(&path.join(name))));
+		assert!(!has_contract_been_built(&path.join(name)));
 		// Create a mocked .contract file inside the target directory
 		File::create(contract_path.join(format!("target/ink/{}.contract", name)))?;
-		assert!(has_contract_been_built(Some(&path.join(name))));
+		assert!(has_contract_been_built(&path.join(name)));
 		Ok(())
 	}
 

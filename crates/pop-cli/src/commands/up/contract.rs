@@ -46,7 +46,7 @@ const HELP_HEADER: &str = "Smart contract deployment options";
 pub struct UpContractCommand {
 	/// Path to the contract build directory.
 	#[clap(skip)]
-	pub(crate) path: Option<PathBuf>,
+	pub(crate) path: PathBuf,
 	/// The name of the contract constructor to call.
 	#[clap(short, long, default_value = "new")]
 	pub(crate) constructor: String,
@@ -105,12 +105,12 @@ impl UpContractCommand {
 	pub(crate) async fn execute(mut self) -> anyhow::Result<()> {
 		Cli.intro("Deploy a smart contract")?;
 		// Check if build exists in the specified "Contract build directory"
-		if !has_contract_been_built(self.path.as_deref()) {
+		if !has_contract_been_built(&self.path) {
 			// Build the contract in release mode
 			Cli.warning("NOTE: contract has not yet been built.")?;
 			let spinner = spinner();
 			spinner.start("Building contract in RELEASE mode...");
-			let result = match build_smart_contract(self.path.as_deref(), true, Verbosity::Quiet) {
+			let result = match build_smart_contract(&self.path, true, Verbosity::Quiet) {
 				Ok(result) => result,
 				Err(e) => {
 					Cli.outro_cancel(format!("🚫 An error occurred building your contract: {e}\nUse `pop build` to retry with build output."))?;
@@ -326,11 +326,8 @@ impl UpContractCommand {
 			return Ok(());
 		}
 
-		let function = extract_function(
-			self.path.clone().unwrap_or_else(|| PathBuf::from("./")),
-			&self.constructor,
-			FunctionType::Constructor,
-		)?;
+		let function =
+			extract_function(self.path.clone(), &self.constructor, FunctionType::Constructor)?;
 		if self.args.is_empty() && !function.args.is_empty() {
 			self.args = request_contract_function_args(&function, &mut Cli)?;
 		}
@@ -395,7 +392,7 @@ impl UpContractCommand {
 			.interact()?
 		{
 			let mut cmd = CallContractCommand::default();
-			cmd.path_pos = self.path.clone();
+			cmd.path_pos = Some(self.path.clone());
 			cmd.contract = Some(address);
 			cmd.url = self.url;
 			cmd.deployed = true;
@@ -441,7 +438,7 @@ impl UpContractCommand {
 
 	// get the call data and contract code hash
 	async fn get_contract_data(&self) -> anyhow::Result<(Vec<u8>, [u8; 32])> {
-		let contract_code = get_contract_code(self.path.as_ref())?;
+		let contract_code = get_contract_code(&self.path)?;
 		let hash = contract_code.code_hash();
 		if self.upload_only {
 			#[cfg(feature = "wasm-contracts")]
@@ -509,7 +506,7 @@ fn display_contract_info(spinner: &ProgressBar, address: String, code_hash: Opti
 impl Default for UpContractCommand {
 	fn default() -> Self {
 		Self {
-			path: None,
+			path: PathBuf::from("./"),
 			constructor: "new".to_string(),
 			args: vec![],
 			value: "0".to_string(),
@@ -538,7 +535,7 @@ mod tests {
 		assert_eq!(
 			opts,
 			UpOpts {
-				path: None,
+				path: PathBuf::from("./"),
 				constructor: "new".to_string(),
 				args: vec![],
 				value: "0".to_string(),

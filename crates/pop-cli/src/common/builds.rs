@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use std::path::PathBuf;
+use std::{env::current_dir, path::PathBuf};
 
 #[cfg(feature = "chain")]
 use {
 	crate::cli::traits::{Cli, Select},
 	pop_chains::{binary_path, build_chain},
-	pop_common::Profile,
+	pop_common::{manifest::get_workspace_project_names, Profile},
 	std::path::Path,
 	strum::{EnumMessage, VariantArray},
 };
@@ -21,6 +21,13 @@ pub fn get_project_path(path_flag: Option<PathBuf>, path_pos: Option<PathBuf>) -
 	project_path.cloned()
 }
 
+/// This method is used to get the proper project path format (with or without cli flag). Defaults
+/// to the current directory.
+pub fn ensure_project_path(path_flag: Option<PathBuf>, path_pos: Option<PathBuf>) -> PathBuf {
+	get_project_path(path_flag, path_pos)
+		.unwrap_or_else(|| current_dir().expect("Unable to get current directory"))
+}
+
 /// Locate node binary, if it doesn't exist trigger build.
 ///
 /// # Arguments
@@ -33,7 +40,7 @@ pub fn ensure_node_binary_exists(
 	cli: &mut impl Cli,
 	project_path: &Path,
 	mode: &Profile,
-	features: Vec<&str>,
+	features: &[String],
 ) -> anyhow::Result<PathBuf> {
 	match binary_path(&mode.target_directory(project_path), &project_path.join("node")) {
 		Ok(binary_path) => Ok(binary_path),
@@ -43,6 +50,41 @@ pub fn ensure_node_binary_exists(
 			build_chain(project_path, None, mode, None, features).map_err(|e| e.into())
 		},
 	}
+}
+
+#[cfg(feature = "chain")]
+pub fn find_runtime_dir(project_path: &Path, cli: &mut impl Cli) -> anyhow::Result<PathBuf> {
+	let default_runtime_path = project_path.join("runtime");
+	let runtime_path = if default_runtime_path.is_dir() {
+		default_runtime_path
+	} else {
+		let projects = get_workspace_project_names(project_path)?
+			.into_iter()
+			.filter(|(name, path)| {
+				name.contains("runtime") || path.to_string_lossy().contains("runtime")
+			})
+			.collect::<Vec<_>>();
+		if projects.is_empty() {
+			return Err(anyhow::anyhow!("No runtime project found in the workspace"));
+		} else if projects.len() == 1 {
+			// If there is only one runtime project, use it.
+			projects[0].1.clone()
+		} else {
+			// Ask the user where is the runtime if needed
+			let mut prompt = cli.select("Choose the runtime project:".to_string());
+			for (name, path) in &projects {
+				prompt = prompt.item(name.as_str(), name.clone(), path.to_string_lossy());
+			}
+			let selected = prompt.interact()?;
+			projects
+				.iter()
+				.find(|(name, _)| name == selected)
+				.expect("Selected path must exist")
+				.to_owned()
+				.1
+		}
+	};
+	Ok(runtime_path.canonicalize()?)
 }
 
 /// Guide the user to select a build profile.
@@ -105,7 +147,7 @@ mod tests {
 		File::create(target_path.join("node"))?;
 
 		let binary_path =
-			ensure_node_binary_exists(&mut cli, temp_dir.path(), &Profile::Release, vec![])?;
+			ensure_node_binary_exists(&mut cli, temp_dir.path(), &Profile::Release, &[])?;
 		assert_eq!(binary_path, target_path.join("node"));
 		cli.verify()
 	}

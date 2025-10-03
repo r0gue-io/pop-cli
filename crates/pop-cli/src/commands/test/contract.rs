@@ -18,7 +18,7 @@ const HELP_HEADER: &str = "Smart contract testing options";
 #[clap(next_help_heading = HELP_HEADER)]
 pub(crate) struct TestContractCommand {
 	#[clap(skip)]
-	pub(crate) path: Option<PathBuf>,
+	pub(crate) path: PathBuf,
 	/// Run end-to-end tests
 	#[arg(short, long)]
 	e2e: bool,
@@ -52,12 +52,12 @@ impl TestContractCommand {
 				},
 			};
 
-			test_e2e_smart_contract(self.path.as_deref(), self.node.as_deref())?;
+			test_e2e_smart_contract(&self.path, self.node.as_deref())?;
 			cli.outro("End-to-end testing complete")?;
 			Ok(E2e)
 		} else {
 			cli.intro("Starting unit tests")?;
-			test_project(self.path.as_deref())?;
+			test_project(&self.path)?;
 			cli.outro("Unit testing complete")?;
 			Ok(Unit)
 		}
