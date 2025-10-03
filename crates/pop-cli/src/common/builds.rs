@@ -40,7 +40,7 @@ pub fn ensure_node_binary_exists(
 	cli: &mut impl Cli,
 	project_path: &Path,
 	mode: &Profile,
-	features: Vec<&str>,
+	features: &Vec<String>,
 ) -> anyhow::Result<PathBuf> {
 	match binary_path(&mode.target_directory(project_path), &project_path.join("node")) {
 		Ok(binary_path) => Ok(binary_path),

@@ -159,6 +159,9 @@ pub struct BuildSpecCommand {
 	/// Type of the chain.
 	#[arg(short = 't', long = "type", value_enum)]
 	pub(crate) chain_type: Option<ChainType>,
+	/// Features to build the node or runtime with.
+	#[arg(long, value_enum)]
+	pub(crate) features: Vec<String>,
 	/// Provide the chain specification to use (e.g. dev, local, custom or a path to an existing
 	/// file).
 	#[arg(short, long)]
@@ -231,6 +234,7 @@ impl BuildSpecCommand {
 			relay,
 			protocol_id,
 			properties,
+			features,
 			genesis_state,
 			genesis_code,
 			deterministic,
@@ -476,6 +480,7 @@ impl BuildSpecCommand {
 			relay,
 			protocol_id,
 			properties,
+			features,
 			genesis_state,
 			genesis_code,
 			deterministic,
@@ -533,6 +538,7 @@ pub(crate) struct BuildSpec {
 	relay: RelayChain,
 	protocol_id: String,
 	properties: Option<String>,
+	features: Vec<String>,
 	genesis_state: bool,
 	genesis_code: bool,
 	deterministic: bool,
@@ -579,7 +585,7 @@ impl BuildSpec {
 		let spinner = spinner();
 		if !self.use_existing_plain_spec {
 			// Generate chain spec.
-			builder.build(&self.profile, Default::default())?;
+			builder.build(&self.profile, &self.features)?;
 			spinner.start("Generating chain specification...");
 			builder.generate_plain_chain_spec(&self.output_file)?;
 			// Customize spec based on input.
@@ -793,6 +799,7 @@ mod tests {
 				id: Some(para_id),
 				default_bootnode: Some(default_bootnode),
 				chain_type: Some(chain_type.clone()),
+				features: Vec::new(),
 				chain: Some(chain.to_string()),
 				relay: Some(relay.clone()),
 				protocol_id: Some(protocol_id.to_string()),
@@ -900,6 +907,7 @@ mod tests {
 					id: Some(para_id),
 					default_bootnode: None,
 					chain_type: Some(chain_type.clone()),
+					features: Vec::new(),
 					chain: Some(chain_spec_path.to_string_lossy().to_string()),
 					relay: Some(relay.clone()),
 					protocol_id: Some(protocol_id.to_string()),

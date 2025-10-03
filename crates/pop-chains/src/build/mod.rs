@@ -55,7 +55,7 @@ impl ChainSpecBuilder {
 	///
 	/// # Returns
 	/// The path to the built artifact
-	pub fn build(&self, profile: &Profile, features: Vec<&str>) -> Result<PathBuf> {
+	pub fn build(&self, profile: &Profile, features: &Vec<String>) -> Result<PathBuf> {
 		build_project(&self.path(), None, profile, features, None)?;
 		// Check the artifact is found after being built
 		self.artifact_path()
@@ -193,9 +193,9 @@ pub fn build_chain(
 	package: Option<String>,
 	profile: &Profile,
 	node_path: Option<&Path>,
-	features: Vec<&str>,
+	features: &Vec<String>,
 ) -> Result<PathBuf, Error> {
-	build_project(path, package, profile, features, None)?;
+	build_project(path, package, profile, &features, None)?;
 	binary_path(&profile.target_directory(path), node_path.unwrap_or(&path.join("node")))
 }
 
@@ -212,7 +212,7 @@ pub fn build_project(
 	path: &Path,
 	package: Option<String>,
 	profile: &Profile,
-	features: Vec<&str>,
+	features: &Vec<String>,
 	target: Option<&str>,
 ) -> Result<(), Error> {
 	let mut args = vec!["build"];
