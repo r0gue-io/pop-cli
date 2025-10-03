@@ -147,7 +147,7 @@ mod tests {
 		File::create(target_path.join("node"))?;
 
 		let binary_path =
-			ensure_node_binary_exists(&mut cli, temp_dir.path(), &Profile::Release, &vec![])?;
+			ensure_node_binary_exists(&mut cli, temp_dir.path(), &Profile::Release, &[])?;
 		assert_eq!(binary_path, target_path.join("node"));
 		cli.verify()
 	}
