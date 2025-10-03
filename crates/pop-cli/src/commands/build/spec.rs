@@ -542,19 +542,19 @@ pub(crate) struct BuildSpec {
 }
 
 impl BuildSpec {
-	fn builder(
-		&mut self,
-		cli: &mut impl cli::traits::Cli,
-	) -> anyhow::Result<ChainSpecBuilder> {
+	fn builder(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<ChainSpecBuilder> {
 		let default_node_path = self.path.join("node");
 		if default_node_path.is_dir() {
+			let node_path = default_node_path.canonicalize()?;
+			cli.info(format!("Using node at {}", node_path.display()))?;
 			Ok(ChainSpecBuilder::Node {
-				node_path: default_node_path,
+				node_path,
 				default_bootnode: self.default_bootnode,
 				chain: self.chain.clone(),
 			})
 		} else {
 			let runtime_path = find_runtime_dir(&self.path, cli)?;
+			cli.info(format!("Using runtime at {}", runtime_path.display()))?;
 			Ok(ChainSpecBuilder::Runtime { runtime_path, preset: self.chain.clone() })
 		}
 	}

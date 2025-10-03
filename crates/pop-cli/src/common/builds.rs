@@ -84,7 +84,7 @@ pub fn find_runtime_dir(project_path: &Path, cli: &mut impl Cli) -> anyhow::Resu
 				.1
 		}
 	};
-	Ok(runtime_path)
+	Ok(runtime_path.canonicalize()?)
 }
 
 /// Guide the user to select a build profile.
