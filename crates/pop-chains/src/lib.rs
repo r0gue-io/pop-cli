@@ -2,27 +2,37 @@
 
 #![doc = include_str!("../README.md")]
 
+/// Account management and utility functions.
 mod accounts;
 /// Provides functionality for benchmarking.
 pub mod bench;
+/// Provides functionality for building chain binaries and runtime artifacts.
 mod build;
 /// Provides functionality to construct, encode, sign, and submit chain extrinsics.
 mod call;
 /// Deployment providers' metadata and utility functions.
 mod deployer_providers;
+/// Error types and handling for the crate.
 mod errors;
+/// Code generation utilities.
 mod generator;
+/// Functionality for creating new blockchain implementations.
 mod new_chain;
+/// Tools for creating new runtime pallets.
 mod new_pallet;
 /// A registry of parachains.
 pub mod registry;
+/// Relay chain interaction and management.
 mod relay;
+/// Template definitions and processing.
 mod templates;
+/// Common traits used throughout the crate.
 mod traits;
 /// Provides functionality for testing runtime upgrades.
 pub mod try_runtime;
 /// Provides functionality for launching a local network.
 pub mod up;
+/// General utility functions and helpers.
 pub mod utils;
 
 pub use bench::{

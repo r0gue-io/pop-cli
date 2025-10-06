@@ -589,21 +589,19 @@ impl BuildSpec {
 		if !self.use_existing_plain_spec {
 			let chain_or_preset = if let Some(chain) = self.chain.clone() {
 				chain
-			} else {
-				if is_runtime_build {
-					cli.info("Fetching runtime presets...")?;
-					let preset_names = get_preset_names(&builder.artifact_path()?)?;
-					let mut prompt = cli.select("Select the preset");
-					for preset_name in preset_names {
-						prompt = prompt.item(preset_name.clone(), preset_name, "");
-					}
-					prompt.interact()?
-				} else {
-					cli.input("Provide the chain specification to use (e.g. dev, local, custom or a path to an existing file)")
-                        .placeholder(DEFAULT_CHAIN)
-                        .default_input(DEFAULT_CHAIN)
-                        .interact()?
+			} else if is_runtime_build {
+				cli.info("Fetching runtime presets...")?;
+				let preset_names = get_preset_names(&builder.artifact_path()?)?;
+				let mut prompt = cli.select("Select the preset");
+				for preset_name in preset_names {
+					prompt = prompt.item(preset_name.clone(), preset_name, "");
 				}
+				prompt.interact()?
+			} else {
+				cli.input("Provide the chain specification to use (e.g. dev, local, custom or a path to an existing file)")
+                           .placeholder(DEFAULT_CHAIN)
+                           .default_input(DEFAULT_CHAIN)
+                           .interact()?
 			};
 			spinner.start("Generating chain specification...");
 			builder.generate_plain_chain_spec(&chain_or_preset, &self.output_file)?;
@@ -1125,7 +1123,7 @@ mod tests {
 		)?;
 
 		let updated_output_file: serde_json::Value =
-			serde_json::from_str(&fs::read_to_string(&build_spec.chain.clone().unwrap())?)?;
+			serde_json::from_str(&fs::read_to_string(build_spec.chain.clone().unwrap())?)?;
 
 		assert_eq!(build_spec.chain, Some(output_file.display().to_string()));
 		assert_eq!(
