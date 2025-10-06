@@ -55,8 +55,8 @@ impl ChainSpecBuilder {
 	///
 	/// # Returns
 	/// The path to the built artifact
-	pub fn build(&self, profile: &Profile, features: &[String]) -> Result<PathBuf> {
-		build_project(&self.path(), None, profile, features, None)?;
+	pub fn build(&self, features: &[String]) -> Result<PathBuf> {
+		build_project(&self.path(), None, &self.profile(), features, None)?;
 		// Check the artifact is found after being built
 		self.artifact_path()
 	}
@@ -69,6 +69,18 @@ impl ChainSpecBuilder {
 		match self {
 			ChainSpecBuilder::Node { node_path, .. } => node_path,
 			ChainSpecBuilder::Runtime { runtime_path, .. } => runtime_path,
+		}
+		.clone()
+	}
+
+	/// Gets the build profile associated with this chain specification builder.
+	///
+	/// # Returns
+	/// The build profile (debug, release, production, etc.) to use when building the chain.
+	pub fn profile(&self) -> Profile {
+		match self {
+			ChainSpecBuilder::Node { profile, .. } => profile,
+			ChainSpecBuilder::Runtime { profile, .. } => profile,
 		}
 		.clone()
 	}
@@ -307,7 +319,7 @@ pub fn generate_raw_chain_spec_with_runtime(
 ) -> Result<PathBuf, Error> {
 	let chain_spec = GenericChainSpec::<Option<()>>::from_json_file(plain_chain_spec.to_path_buf())
 		.map_err(|e| anyhow::anyhow!(e))?;
-	let raw_chain_spec = chain_spec.as_json(false).map_err(|e| anyhow::anyhow!(e))?;
+	let raw_chain_spec = chain_spec.as_json(true).map_err(|e| anyhow::anyhow!(e))?;
 	let raw_chain_spec_file = plain_chain_spec.with_file_name(raw_chain_spec_name);
 	fs::write(&raw_chain_spec_file, raw_chain_spec)?;
 	Ok(raw_chain_spec_file)
@@ -1535,6 +1547,177 @@ mod tests {
 		let manifest = toml_edit::ser::to_string_pretty(&manifest)?;
 		write(path.join(name).join("Cargo.toml"), manifest)?;
 		assert!(is_supported(&path.join(name)));
+		Ok(())
+	}
+
+	#[test]
+	fn chain_spec_builder_node_path_works() -> Result<()> {
+		let node_path = PathBuf::from("/test/node");
+		let builder = ChainSpecBuilder::Node {
+			node_path: node_path.clone(),
+			default_bootnode: true,
+			chain: "dev".to_string(),
+			profile: Profile::Release,
+		};
+		assert_eq!(builder.path(), node_path);
+		Ok(())
+	}
+
+	#[test]
+	fn chain_spec_builder_runtime_path_works() -> Result<()> {
+		let runtime_path = PathBuf::from("/test/runtime");
+		let builder = ChainSpecBuilder::Runtime {
+			runtime_path: runtime_path.clone(),
+			preset: "dev".to_string(),
+			profile: Profile::Release,
+		};
+		assert_eq!(builder.path(), runtime_path);
+		Ok(())
+	}
+
+	#[test]
+	fn chain_spec_builder_node_profile_works() -> Result<()> {
+		for profile in Profile::VARIANTS {
+			let builder = ChainSpecBuilder::Node {
+				node_path: PathBuf::from("/test/node"),
+				default_bootnode: true,
+				chain: "dev".to_string(),
+				profile: profile.clone(),
+			};
+			assert_eq!(builder.profile(), *profile);
+		}
+		Ok(())
+	}
+
+	#[test]
+	fn chain_spec_builder_runtime_profile_works() -> Result<()> {
+		for profile in Profile::VARIANTS {
+			let builder = ChainSpecBuilder::Runtime {
+				runtime_path: PathBuf::from("/test/runtime"),
+				preset: "dev".to_string(),
+				profile: profile.clone(),
+			};
+			assert_eq!(builder.profile(), *profile);
+		}
+		Ok(())
+	}
+
+	#[test]
+	fn chain_spec_builder_node_artifact_path_works() -> Result<()> {
+		let temp_dir =
+			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
+		mock_build_process(temp_dir.path())?;
+
+		let builder = ChainSpecBuilder::Node {
+			node_path: temp_dir.path().join("node"),
+			default_bootnode: true,
+			chain: "dev".to_string(),
+			profile: Profile::Release,
+		};
+		let artifact_path = builder.artifact_path()?;
+		assert!(artifact_path.exists());
+		assert!(artifact_path.ends_with("parachain-template-node"));
+		Ok(())
+	}
+
+	#[test]
+	fn chain_spec_builder_runtime_artifact_path_works() -> Result<()> {
+		let temp_dir =
+			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
+		mock_build_runtime_process(temp_dir.path())?;
+
+		let builder = ChainSpecBuilder::Runtime {
+			runtime_path: temp_dir.path().join("runtime"),
+			preset: "dev".to_string(),
+			profile: Profile::Release,
+		};
+		let artifact_path = builder.artifact_path()?;
+		assert!(artifact_path.is_file());
+		assert!(artifact_path.ends_with("parachain_template_runtime.wasm"));
+		Ok(())
+	}
+
+	#[test]
+	fn chain_spec_builder_node_artifact_path_fails() -> Result<()> {
+		let temp_dir =
+			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
+
+		let builder = ChainSpecBuilder::Node {
+			node_path: temp_dir.path().join("node"),
+			default_bootnode: true,
+			chain: "dev".to_string(),
+			profile: Profile::Release,
+		};
+		assert!(builder.artifact_path().is_err());
+		Ok(())
+	}
+
+	#[test]
+	fn chain_spec_builder_runtime_artifact_path_fails() -> Result<()> {
+		let temp_dir =
+			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
+
+		let builder = ChainSpecBuilder::Runtime {
+			runtime_path: temp_dir.path().join("runtime"),
+			preset: "dev".to_string(),
+			profile: Profile::Release,
+		};
+		let result = builder.artifact_path();
+		assert!(result.is_err());
+		assert!(matches!(result, Err(e) if e.to_string().contains("No runtime found")));
+		Ok(())
+	}
+
+	#[test]
+	fn chain_spec_builder_generate_raw_chain_spec_works() -> Result<()> {
+		let temp_dir = tempdir()?;
+		let builder = ChainSpecBuilder::Runtime {
+			runtime_path: temp_dir.path().join("runtime"),
+			preset: "dev".to_string(),
+			profile: Profile::Release,
+		};
+		let original_chain_spec_path =
+			PathBuf::from("artifacts/passet-hub-spec.json").canonicalize()?;
+		assert!(original_chain_spec_path.exists());
+		let chain_spec_path = temp_dir.path().join(original_chain_spec_path.file_name().unwrap());
+		fs::copy(&original_chain_spec_path, &chain_spec_path)?;
+		let raw_chain_spec_path = temp_dir.path().join("raw.json");
+		let final_raw_path = builder.generate_raw_chain_spec(
+			&chain_spec_path,
+			raw_chain_spec_path.file_name().unwrap().to_str().unwrap(),
+		)?;
+		assert!(final_raw_path.is_file());
+		assert_eq!(final_raw_path, raw_chain_spec_path);
+
+		// Check raw chain spec contains expected fields
+		let raw_content = fs::read_to_string(&raw_chain_spec_path)?;
+		let raw_json: Value = serde_json::from_str(&raw_content)?;
+		assert!(raw_json.get("genesis").is_some());
+		assert!(raw_json.get("genesis").unwrap().get("raw").is_some());
+		assert!(raw_json.get("genesis").unwrap().get("raw").unwrap().get("top").is_some());
+		Ok(())
+	}
+
+	#[test]
+	fn chain_spec_builder_export_wasm_works() -> Result<()> {
+		let temp_dir = tempdir()?;
+		let builder = ChainSpecBuilder::Runtime {
+			runtime_path: temp_dir.path().join("runtime"),
+			preset: "dev".to_string(),
+			profile: Profile::Release,
+		};
+		let original_chain_spec_path =
+			PathBuf::from("artifacts/passet-hub-spec.json").canonicalize()?;
+		let chain_spec_path = temp_dir.path().join(original_chain_spec_path.file_name().unwrap());
+		fs::copy(&original_chain_spec_path, &chain_spec_path)?;
+		let final_wasm_path = temp_dir.path().join("runtime.wasm");
+		let final_raw_path = builder.generate_raw_chain_spec(&chain_spec_path, "raw.json")?;
+		let wasm_path = builder.export_wasm_file(
+			&final_raw_path,
+			final_wasm_path.file_name().unwrap().to_str().unwrap(),
+		)?;
+		assert!(wasm_path.is_file());
+		assert_eq!(final_wasm_path, wasm_path);
 		Ok(())
 	}
 }

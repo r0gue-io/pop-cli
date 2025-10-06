@@ -597,7 +597,7 @@ impl BuildSpec {
 			cli.warning("The node or runtime artifacts are missing. Ignoring the --skip-build flag and performing the build")?;
 		}
 		if !self.skip_build || !artifact_exists {
-			builder.build(&self.profile, &self.features)?;
+			builder.build(&self.features)?;
 		}
 
 		// Generate chain spec.
