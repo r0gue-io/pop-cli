@@ -16,7 +16,8 @@ use crate::{
 use clap::{Args, ValueEnum};
 use cliclack::spinner;
 use pop_chains::{
-	generate_genesis_state_file_with_node, is_supported, ChainSpec, ChainSpecBuilder,
+	generate_genesis_state_file_with_node, is_supported, utils::helpers::get_preset_names,
+	ChainSpec, ChainSpecBuilder,
 };
 use pop_common::{manifest::from_path, Profile};
 use std::{
@@ -248,25 +249,13 @@ impl BuildSpecCommand {
 			..
 		} = self;
 
-		// Chain.
-		let chain = match chain {
-			Some(chain) => chain,
-			_ => {
-				// Prompt for chain if not provided.
-				cli.input("Provide the chain specification to use (e.g. dev, local, custom or a path to an existing file)")
-					.placeholder(DEFAULT_CHAIN)
-					.default_input(DEFAULT_CHAIN)
-					.interact()?
-			},
-		};
-
 		// Features
 		let features = features.split(",").map(|s| s.trim().to_string()).collect();
 
-		// Output file.
-		let maybe_chain_spec_file = PathBuf::from(&chain);
 		// Check if the provided chain specification is a file.
-		let (output_file, prompt) = if maybe_chain_spec_file.is_file() {
+		let (output_file, prompt) = if chain.is_some() &&
+			PathBuf::from(&chain.clone().unwrap()).is_file()
+		{
 			if output_file.is_some() {
 				cli.warning("NOTE: If an existing chain spec file is provided it will be used for the output path.")?;
 			}
@@ -277,7 +266,7 @@ impl BuildSpecCommand {
 				.interact()?;
 			// Set the provided chain specification file as output file and whether to prompt the
 			// user for additional changes to the provided spec.
-			(maybe_chain_spec_file, prompt)
+			(PathBuf::from(&chain.clone().unwrap()), prompt)
 		} else {
 			let output_file = match output_file {
 				Some(output) => output,
@@ -543,7 +532,7 @@ pub(crate) struct BuildSpec {
 	id: u32,
 	default_bootnode: bool,
 	chain_type: ChainType,
-	chain: String,
+	chain: Option<String>,
 	relay: RelayChain,
 	protocol_id: String,
 	properties: Option<String>,
@@ -566,17 +555,12 @@ impl BuildSpec {
 			Ok(ChainSpecBuilder::Node {
 				node_path,
 				default_bootnode: self.default_bootnode,
-				chain: self.chain.clone(),
 				profile: self.profile.clone(),
 			})
 		} else {
 			let runtime_path = find_runtime_dir(&self.path, cli)?;
 			cli.info(format!("Using runtime at {}", runtime_path.display()))?;
-			Ok(ChainSpecBuilder::Runtime {
-				runtime_path,
-				preset: self.chain.clone(),
-				profile: self.profile.clone(),
-			})
+			Ok(ChainSpecBuilder::Runtime { runtime_path, profile: self.profile.clone() })
 		}
 	}
 
@@ -603,8 +587,25 @@ impl BuildSpec {
 		// Generate chain spec.
 		let spinner = spinner();
 		if !self.use_existing_plain_spec {
-			spinner.start("Generating chain specification...");
-			builder.generate_plain_chain_spec(&self.output_file)?;
+			let chain_or_preset = if let Some(chain) = self.chain.clone() {
+				chain
+			} else {
+				if is_runtime_build {
+					let preset_names = get_preset_names(&builder.artifact_path()?)?;
+					let mut prompt = cli.select("Select the preset");
+					for preset_name in preset_names {
+						prompt = prompt.item(preset_name.clone(), preset_name, "");
+					}
+					prompt.interact()?
+				} else {
+					cli.input("Provide the chain specification to use (e.g. dev, local, custom or a path to an existing file)")
+                        .placeholder(DEFAULT_CHAIN)
+                        .default_input(DEFAULT_CHAIN)
+                        .interact()?
+				}
+			};
+            spinner.start("Generating chain specification...");
+            builder.generate_plain_chain_spec(&chain_or_preset, &self.output_file)?;
 			// Customize spec based on input.
 			self.customize(&self.output_file)?;
 			// Deterministic build.
@@ -721,7 +722,7 @@ impl BuildSpec {
 		chain_spec.replace_collator_keys(collator_keys)?;
 		chain_spec.to_file(chain_spec_path)?;
 
-		self.chain = chain_spec_path.display().to_string();
+		self.chain = Some(chain_spec_path.display().to_string());
 		Ok(())
 	}
 
@@ -789,7 +790,6 @@ mod tests {
 
 	#[tokio::test]
 	async fn configure_build_spec_works() -> anyhow::Result<()> {
-		let chain = "local";
 		let chain_type = Live;
 		let default_bootnode = true;
 		let genesis_code = true;
@@ -805,35 +805,37 @@ mod tests {
 		let path = PathBuf::from("./");
 		let properties = "tokenSymbol=UNIT,decimals=12,isEthereum=false";
 
-		for build_spec_cmd in [
+		for (build_spec_cmd, chain) in [
 			// No flags used.
-			BuildSpecCommand::default(),
+			(BuildSpecCommand::default(), None),
 			// All flags used.
-			BuildSpecCommand {
-				path,
-				output_file: Some(PathBuf::from(output_file)),
-				profile: Some(profile.clone()),
-				id: Some(para_id),
-				default_bootnode: Some(default_bootnode),
-				chain_type: Some(chain_type.clone()),
-				features: "".to_string(),
-				chain: Some(chain.to_string()),
-				relay: Some(relay.clone()),
-				protocol_id: Some(protocol_id.to_string()),
-				properties: Some(properties.to_string()),
-				skip_build: true,
-				genesis_state: Some(genesis_state),
-				genesis_code: Some(genesis_code),
-				deterministic: Some(deterministic),
-				package: Some(package.to_string()),
-				runtime_dir: Some(runtime_dir.clone()),
-			},
+			(
+				BuildSpecCommand {
+					path,
+					output_file: Some(PathBuf::from(output_file)),
+					profile: Some(profile.clone()),
+					id: Some(para_id),
+					default_bootnode: Some(default_bootnode),
+					chain_type: Some(chain_type.clone()),
+					features: "".to_string(),
+					chain: Some("local".to_string()),
+					relay: Some(relay.clone()),
+					protocol_id: Some(protocol_id.to_string()),
+					properties: Some(properties.to_string()),
+					skip_build: true,
+					genesis_state: Some(genesis_state),
+					genesis_code: Some(genesis_code),
+					deterministic: Some(deterministic),
+					package: Some(package.to_string()),
+					runtime_dir: Some(runtime_dir.clone()),
+				},
+				Some("local".to_string()),
+			),
 		] {
 			let mut cli = MockCli::new();
 			// If no flags are provided.
 			if build_spec_cmd.chain.is_none() {
 				cli = cli
-					.expect_input("Provide the chain specification to use (e.g. dev, local, custom or a path to an existing file)", chain.to_string())
 					.expect_input(
 						"Name or path for the plain chain spec file:", output_file.to_string())
 					.expect_input(
@@ -1042,7 +1044,7 @@ mod tests {
 					assert_eq!(build_spec.runtime_dir, runtime_dir);
 				}
 				// Assert that the chain spec file is correctly detected and used.
-				assert_eq!(build_spec.chain, chain_spec_path.to_string_lossy());
+				assert_eq!(build_spec.chain, Some(chain_spec_path.to_string_lossy().to_string()));
 				assert_eq!(build_spec.output_file, chain_spec_path);
 				cli.verify()?;
 			}
@@ -1122,9 +1124,9 @@ mod tests {
 		)?;
 
 		let updated_output_file: serde_json::Value =
-			serde_json::from_str(&fs::read_to_string(&build_spec.chain)?)?;
+			serde_json::from_str(&fs::read_to_string(&build_spec.chain.clone().unwrap())?)?;
 
-		assert_eq!(build_spec.chain, output_file.display().to_string());
+		assert_eq!(build_spec.chain, Some(output_file.display().to_string()));
 		assert_eq!(
 			updated_output_file,
 			json!({

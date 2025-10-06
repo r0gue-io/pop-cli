@@ -23,13 +23,12 @@ mod traits;
 pub mod try_runtime;
 /// Provides functionality for launching a local network.
 pub mod up;
-mod utils;
+pub mod utils;
 
 pub use bench::{
 	binary::*, generate_binary_benchmarks, generate_omni_bencher_benchmarks,
-	generate_pallet_benchmarks, get_preset_names, get_runtime_path, load_pallet_extrinsics,
-	BenchmarkingCliCommand, GenesisBuilderPolicy, PalletExtrinsicsRegistry,
-	GENESIS_BUILDER_DEV_PRESET,
+	generate_pallet_benchmarks, get_runtime_path, load_pallet_extrinsics, BenchmarkingCliCommand,
+	GenesisBuilderPolicy, PalletExtrinsicsRegistry, GENESIS_BUILDER_DEV_PRESET,
 };
 pub use build::{
 	binary_path, build_chain, build_project, export_wasm_file_with_node,

@@ -30,8 +30,6 @@ pub enum ChainSpecBuilder {
 		node_path: PathBuf,
 		/// Whether to include a default bootnode in the specification.
 		default_bootnode: bool,
-		/// The chain specification name or path to use.
-		chain: String,
 		/// The build profile to use (debug, release, production, etc).
 		profile: Profile,
 	},
@@ -39,8 +37,6 @@ pub enum ChainSpecBuilder {
 	Runtime {
 		/// Path to the runtime directory.
 		runtime_path: PathBuf,
-		/// The genesis configuration preset name to use.
-		preset: String,
 		/// The build profile to use (debug, release, production, etc).
 		profile: Profile,
 	},
@@ -122,19 +118,22 @@ impl ChainSpecBuilder {
 	/// # Arguments
 	/// * `output_file` - The path where the chain spec should be written.
 	/// * `profile` - The build profile to use.
-	pub fn generate_plain_chain_spec(&self, output_file: &Path) -> Result<(), Error> {
+	pub fn generate_plain_chain_spec(
+		&self,
+		chain_or_preset: &str,
+		output_file: &Path,
+	) -> Result<(), Error> {
 		match self {
-			ChainSpecBuilder::Node { default_bootnode, chain, .. } =>
-				generate_plain_chain_spec_with_node(
-					&self.artifact_path()?,
-					output_file,
-					*default_bootnode,
-					chain,
-				),
-			ChainSpecBuilder::Runtime { preset, .. } => generate_plain_chain_spec_with_runtime(
+			ChainSpecBuilder::Node { default_bootnode, .. } => generate_plain_chain_spec_with_node(
+				&self.artifact_path()?,
+				output_file,
+				*default_bootnode,
+				chain_or_preset,
+			),
+			ChainSpecBuilder::Runtime { .. } => generate_plain_chain_spec_with_runtime(
 				fs::read(self.artifact_path()?)?,
 				output_file,
-				preset,
+				chain_or_preset,
 			),
 		}
 	}
@@ -1556,7 +1555,6 @@ mod tests {
 		let builder = ChainSpecBuilder::Node {
 			node_path: node_path.clone(),
 			default_bootnode: true,
-			chain: "dev".to_string(),
 			profile: Profile::Release,
 		};
 		assert_eq!(builder.path(), node_path);
@@ -1568,7 +1566,6 @@ mod tests {
 		let runtime_path = PathBuf::from("/test/runtime");
 		let builder = ChainSpecBuilder::Runtime {
 			runtime_path: runtime_path.clone(),
-			preset: "dev".to_string(),
 			profile: Profile::Release,
 		};
 		assert_eq!(builder.path(), runtime_path);
@@ -1581,7 +1578,6 @@ mod tests {
 			let builder = ChainSpecBuilder::Node {
 				node_path: PathBuf::from("/test/node"),
 				default_bootnode: true,
-				chain: "dev".to_string(),
 				profile: profile.clone(),
 			};
 			assert_eq!(builder.profile(), *profile);
@@ -1594,7 +1590,6 @@ mod tests {
 		for profile in Profile::VARIANTS {
 			let builder = ChainSpecBuilder::Runtime {
 				runtime_path: PathBuf::from("/test/runtime"),
-				preset: "dev".to_string(),
 				profile: profile.clone(),
 			};
 			assert_eq!(builder.profile(), *profile);
@@ -1611,7 +1606,6 @@ mod tests {
 		let builder = ChainSpecBuilder::Node {
 			node_path: temp_dir.path().join("node"),
 			default_bootnode: true,
-			chain: "dev".to_string(),
 			profile: Profile::Release,
 		};
 		let artifact_path = builder.artifact_path()?;
@@ -1628,7 +1622,6 @@ mod tests {
 
 		let builder = ChainSpecBuilder::Runtime {
 			runtime_path: temp_dir.path().join("runtime"),
-			preset: "dev".to_string(),
 			profile: Profile::Release,
 		};
 		let artifact_path = builder.artifact_path()?;
@@ -1645,7 +1638,6 @@ mod tests {
 		let builder = ChainSpecBuilder::Node {
 			node_path: temp_dir.path().join("node"),
 			default_bootnode: true,
-			chain: "dev".to_string(),
 			profile: Profile::Release,
 		};
 		assert!(builder.artifact_path().is_err());
@@ -1659,7 +1651,6 @@ mod tests {
 
 		let builder = ChainSpecBuilder::Runtime {
 			runtime_path: temp_dir.path().join("runtime"),
-			preset: "dev".to_string(),
 			profile: Profile::Release,
 		};
 		let result = builder.artifact_path();
@@ -1673,7 +1664,6 @@ mod tests {
 		let temp_dir = tempdir()?;
 		let builder = ChainSpecBuilder::Runtime {
 			runtime_path: temp_dir.path().join("runtime"),
-			preset: "dev".to_string(),
 			profile: Profile::Release,
 		};
 		let original_chain_spec_path =
@@ -1703,7 +1693,6 @@ mod tests {
 		let temp_dir = tempdir()?;
 		let builder = ChainSpecBuilder::Runtime {
 			runtime_path: temp_dir.path().join("runtime"),
-			preset: "dev".to_string(),
 			profile: Profile::Release,
 		};
 		let original_chain_spec_path =

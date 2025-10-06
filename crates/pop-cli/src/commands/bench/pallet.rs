@@ -18,8 +18,8 @@ use crate::{
 use clap::Args;
 use cliclack::spinner;
 use pop_chains::{
-	generate_pallet_benchmarks, get_preset_names, load_pallet_extrinsics, GenesisBuilderPolicy,
-	PalletExtrinsicsRegistry, GENESIS_BUILDER_DEV_PRESET,
+	generate_pallet_benchmarks, load_pallet_extrinsics, utils::helpers::get_preset_names,
+	GenesisBuilderPolicy, PalletExtrinsicsRegistry, GENESIS_BUILDER_DEV_PRESET,
 };
 use pop_common::get_relative_or_absolute_path;
 use serde::{Deserialize, Serialize};
