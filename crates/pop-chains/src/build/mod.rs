@@ -46,7 +46,6 @@ impl ChainSpecBuilder {
 	/// Builds the chain specification using the provided profile and features.
 	///
 	/// # Arguments
-	/// * `profile` - The build profile to use (debug, release, etc.)
 	/// * `features` - A list of cargo features to enable during the build
 	///
 	/// # Returns
@@ -116,8 +115,8 @@ impl ChainSpecBuilder {
 	/// Generates a plain (human readable) chain specification file.
 	///
 	/// # Arguments
+	/// * `chain_or_preset` - The chain (when using a node) or preset (when using a runtime) name.
 	/// * `output_file` - The path where the chain spec should be written.
-	/// * `profile` - The build profile to use.
 	pub fn generate_plain_chain_spec(
 		&self,
 		chain_or_preset: &str,
@@ -329,7 +328,7 @@ pub fn generate_raw_chain_spec_with_runtime(
 /// # Arguments
 /// * `wasm` - The WebAssembly runtime bytes.
 /// * `plain_chain_spec` - The path where the plain chain specification should be written.
-/// * `maybe_preset` - Optional preset name for genesis configuration.
+/// * `preset` - Preset name for genesis configuration.
 pub fn generate_plain_chain_spec_with_runtime(
 	wasm: Vec<u8>,
 	plain_chain_spec: &Path,
@@ -450,7 +449,7 @@ pub fn generate_raw_chain_spec_with_node(
 /// # Arguments
 /// * `binary_path` - The path to the node binary executable that contains the `export-genesis-wasm`
 ///   command.
-/// * `chain_spec` - Location of the raw chain specification file.
+/// * `raw_chain_spec` - Location of the raw chain specification file.
 /// * `wasm_file_name` - The name of the wasm runtime file to be generated.
 pub fn export_wasm_file_with_node(
 	binary_path: &Path,
@@ -484,7 +483,7 @@ pub fn export_wasm_file_with_node(
 /// # Arguments
 /// * `binary_path` - The path to the node binary executable that contains the
 ///   `export-genesis-state` command.
-/// * `chain_spec` - Location of the raw chain specification file.
+/// * `raw_chain_spec` - Location of the raw chain specification file.
 /// * `genesis_file_name` - The name of the genesis state file to be generated.
 pub fn generate_genesis_state_file_with_node(
 	binary_path: &Path,
@@ -642,7 +641,7 @@ impl ChainSpec {
 	/// Replaces the properties with the given ones.
 	///
 	/// # Arguments
-	/// * `properties` - Comma-separated, key-value pairs. Example: "KEY1=VALUE1,KEY2=VALUE2"
+	/// * `raw_properties` - Comma-separated, key-value pairs. Example: "KEY1=VALUE1,KEY2=VALUE2".
 	pub fn replace_properties(&mut self, raw_properties: &str) -> Result<(), Error> {
 		// Replace properties
 		let replace = self
