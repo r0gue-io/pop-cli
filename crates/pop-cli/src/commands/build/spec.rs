@@ -604,8 +604,8 @@ impl BuildSpec {
                         .interact()?
 				}
 			};
-            spinner.start("Generating chain specification...");
-            builder.generate_plain_chain_spec(&chain_or_preset, &self.output_file)?;
+			spinner.start("Generating chain specification...");
+			builder.generate_plain_chain_spec(&chain_or_preset, &self.output_file)?;
 			// Customize spec based on input.
 			self.customize(&self.output_file)?;
 			// Deterministic build.

@@ -589,15 +589,11 @@ impl ChainSpec {
 		root.insert("para_id".to_string(), json!(para_id));
 
 		// Replace genesis.runtimeGenesis.patch.parachainInfo.parachainId
-		let replace = self
-			.0
-			.pointer_mut("/genesis/runtimeGenesis/patch/parachainInfo/parachainId")
-			.ok_or_else(|| {
-				Error::Config(
-					"expected `genesis.runtimeGenesis.patch.parachainInfo.parachainId`".into(),
-				)
-			})?;
-		*replace = json!(para_id);
+		let replace = self.0.pointer_mut("/genesis/runtimeGenesis/patch/parachainInfo/parachainId");
+		// If this fails, it means it is a raw chainspec
+		if let Some(replace) = replace {
+			*replace = json!(para_id);
+		}
 		Ok(())
 	}
 
