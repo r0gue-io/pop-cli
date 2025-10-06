@@ -5,7 +5,7 @@
 #![cfg(feature = "integration-tests")]
 
 use anyhow::Result;
-use pop_chains::{generate_pallet_benchmarks, get_preset_names, up::Zombienet};
+use pop_chains::{generate_pallet_benchmarks, up::Zombienet, utils::helpers::get_preset_names};
 use std::path::Path;
 
 const BINARY_VERSION: &str = "stable2412";
