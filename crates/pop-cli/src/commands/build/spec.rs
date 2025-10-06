@@ -591,6 +591,7 @@ impl BuildSpec {
 				chain
 			} else {
 				if is_runtime_build {
+					cli.info("Fetching runtime presets...")?;
 					let preset_names = get_preset_names(&builder.artifact_path()?)?;
 					let mut prompt = cli.select("Select the preset");
 					for preset_name in preset_names {
