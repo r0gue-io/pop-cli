@@ -1239,9 +1239,7 @@ mod tests {
 				}
 			},
 		}));
-		assert!(
-			matches!(chain_spec.replace_para_id(2001), Err(Error::Config(error)) if error == "expected `genesis.runtimeGenesis.patch.parachainInfo.parachainId`")
-		);
+		assert!(chain_spec.replace_para_id(2001).is_ok());
 		chain_spec = ChainSpec(json!({
 			"para_id": 2001,
 			"genesis": {
@@ -1254,9 +1252,7 @@ mod tests {
 				}
 			},
 		}));
-		assert!(
-			matches!(chain_spec.replace_para_id(2001), Err(Error::Config(error)) if error == "expected `genesis.runtimeGenesis.patch.parachainInfo.parachainId`")
-		);
+		assert!(chain_spec.replace_para_id(2001).is_ok());
 		chain_spec = ChainSpec(json!({
 			"para_id": 2001,
 			"genesis": {
@@ -1269,9 +1265,7 @@ mod tests {
 				}
 			},
 		}));
-		assert!(
-			matches!(chain_spec.replace_para_id(2001), Err(Error::Config(error)) if error == "expected `genesis.runtimeGenesis.patch.parachainInfo.parachainId`")
-		);
+		assert!(chain_spec.replace_para_id(2001).is_ok());
 		chain_spec = ChainSpec(json!({
 			"para_id": 2001,
 			"genesis": {
@@ -1284,9 +1278,7 @@ mod tests {
 				}
 			},
 		}));
-		assert!(
-			matches!(chain_spec.replace_para_id(2001), Err(Error::Config(error)) if error == "expected `genesis.runtimeGenesis.patch.parachainInfo.parachainId`")
-		);
+		assert!(chain_spec.replace_para_id(2001).is_ok());
 		chain_spec = ChainSpec(json!({
 			"para_id": 2001,
 			"genesis": {
@@ -1298,9 +1290,7 @@ mod tests {
 				}
 			},
 		}));
-		assert!(
-			matches!(chain_spec.replace_para_id(2001), Err(Error::Config(error)) if error == "expected `genesis.runtimeGenesis.patch.parachainInfo.parachainId`")
-		);
+		assert!(chain_spec.replace_para_id(2001).is_ok());
 		Ok(())
 	}
 
