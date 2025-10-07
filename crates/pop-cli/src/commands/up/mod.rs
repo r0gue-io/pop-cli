@@ -169,6 +169,7 @@ mod tests {
 				dry_run: true,
 				upload_only: true,
 				skip_confirm: false,
+				skip_build: true,
 			},
 			#[cfg(feature = "chain")]
 			rollup: rollup::UpCommand::default(),
