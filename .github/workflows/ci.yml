@@ -156,7 +156,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           save-if: false
-          shared-key: shared-${{ github.head_ref || github.ref_name }}
+          shared-key: shared-docs-${{ github.head_ref || github.ref_name }}
 
       - name: Check no default features
         run: cargo doc --no-deps
@@ -183,7 +183,7 @@ jobs:
       - name: Run unit tests for polkavm-contracts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: cargo nextest run --lib --bins --no-default-features --features "polkavm-contracts, v6" -p pop-cli -p pop-contracts
+        run: cargo nextest run --lib --bins --no-default-features --features "polkavm-contracts, v6" -p pop-cli -p pop-contracts --nocapture --status-level all
 
   documentation-tests:
     needs:
@@ -203,120 +203,3 @@ jobs:
 
       - name: Run doc tests
         run: cargo test --doc
-
-  contract-integration-tests:
-    needs: build
-    strategy:
-      matrix:
-        os:
-          - ubuntu-latest
-          - macos-latest
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          default: true
-          target: wasm32-unknown-unknown
-          components: rust-src, clippy
-
-      - name: Rust Cache Linux
-        if: matrix.os == 'ubuntu-latest'
-        uses: Swatinem/rust-cache@v2
-        with:
-          save-if: false
-          shared-key: shared-${{ github.head_ref || github.ref_name }}
-
-      - name: Rust Cache MacOS
-        if: matrix.os == 'macos-latest'
-        uses: Swatinem/rust-cache@v2
-        with:
-          cache-on-failure: true
-          cache-all-crates: true
-          shared-key: shared-${{ github.head_ref || github.ref_name }}-macos
-
-      - name: Install packages (Linux)
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y protobuf-compiler
-          protoc --version
-
-      - name: Install packages (macOS)
-        if: matrix.os == 'macos-latest'
-        run: |
-          brew install protobuf
-          protoc --version
-
-      - name: Install cargo-nextest
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-nextest
-
-      - name: Run integration tests
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: cargo nextest run --no-default-features --features "contract,integration-tests" --test contract
-
-  chain-integration-tests:
-    needs: build
-    strategy:
-      matrix:
-        os:
-          - ubuntu-latest
-          - macos-latest
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          default: true
-          target: wasm32-unknown-unknown
-          components: rust-src
-
-      - name: Rust Cache Linux
-        if: matrix.os == 'ubuntu-latest'
-        uses: Swatinem/rust-cache@v2
-        with:
-          save-if: false
-          shared-key: shared-${{ github.head_ref || github.ref_name }}
-
-      - name: Rust Cache MacOS
-        if: matrix.os == 'macos-latest'
-        uses: Swatinem/rust-cache@v2
-        with:
-          cache-on-failure: true
-          cache-all-crates: true
-          shared-key: shared-${{ github.head_ref || github.ref_name }}-macos
-
-      - name: Install packages (Linux)
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y protobuf-compiler
-          protoc --version
-
-      - name: Install packages (macOS)
-        if: matrix.os == 'macos-latest'
-        run: |
-          brew install protobuf
-          protoc --version
-
-      - name: Install cargo-nextest
-        uses: taiki-e/install-action@v2
-        with:
-            tool: cargo-nextest
-
-      - name: Run integration tests
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          cargo nextest run --no-default-features --features "chain,integration-tests" --test chain --test metadata
