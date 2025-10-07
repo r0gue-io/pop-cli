@@ -83,6 +83,7 @@ impl CallChainCommand {
 			"Which chain would you like to interact with?",
 			urls::LOCAL,
 			&self.url,
+			|_, _, _| true,
 			&mut cli,
 		)
 		.await?;
@@ -612,19 +613,21 @@ fn parse_function_name(name: &str) -> Result<String, String> {
 	Ok(name.to_ascii_lowercase())
 }
 
+pub(crate) struct RPCNode {
+	pub name: String,
+	pub providers: Vec<String>,
+	pub is_relay: bool,
+	pub relay_name: Option<String>,
+}
+
 // Get the RPC endpoints from the maintained source.
-pub(crate) async fn extract_chain_endpoints() -> Result<Vec<(String, Vec<String>)>> {
-	// Fetch the JSON from the URL
+pub(crate) async fn extract_chain_endpoints() -> Result<Vec<RPCNode>> {
 	let response = reqwest::get(CHAIN_ENDPOINTS_URL).await?;
 	let json_text = response.text().await?;
-
-	// Parse the JSON
 	let json: HashMap<String, Value> = serde_json::from_str(&json_text)?;
 
-	// Get the first entry (chain name and its data)
 	let mut result = Vec::with_capacity(json.len());
 	for (chain_name, chain_data) in json.into_iter() {
-		// Extract the providers field
 		let providers = chain_data
 			.get("providers")
 			.and_then(|v| v.as_array())
@@ -632,7 +635,13 @@ pub(crate) async fn extract_chain_endpoints() -> Result<Vec<(String, Vec<String>
 			.iter()
 			.filter_map(|v| v.as_str().map(|s| s.to_string()))
 			.collect::<Vec<String>>();
-		result.push((chain_name, providers));
+		let is_relay = chain_data.get("isRelay").map(|r| r.as_bool().unwrap()).unwrap_or(false);
+		let relay_name = chain_data
+			.get("relay")
+			.map(|r| r.as_str())
+			.unwrap_or_default()
+			.map(|r| r.to_string());
+		result.push(RPCNode { name: chain_name, providers, is_relay, relay_name });
 	}
 	Ok(result)
 }
@@ -659,6 +668,7 @@ mod tests {
 		};
 
 		let mut cli = MockCli::new()
+            .expect_confirm("Do you want to enter the node URL manually?", true)
             .expect_input("Which chain would you like to interact with?", node_url.into())
             .expect_select(
                 "Select the function to call:",
@@ -690,6 +700,7 @@ mod tests {
 			"Which chain would you like to interact with?",
 			node_url,
 			&None,
+			|_, _, _| true,
 			&mut cli,
 		)
 		.await?;
@@ -718,11 +729,13 @@ mod tests {
 		let mut call_config = CallChainCommand::default();
 
 		let mut cli = MockCli::new()
+			.expect_confirm("Do you want to enter the node URL manually?", true)
 			.expect_input("Which chain would you like to interact with?", node_url.into());
 		let chain = chain::configure(
 			"Which chain would you like to interact with?",
 			node_url,
 			&None,
+			|_, _, _| true,
 			&mut cli,
 		)
 		.await?;

@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{cli::traits::*, commands::call::chain::extract_chain_endpoints};
+use crate::{
+	cli::traits::*,
+	commands::call::chain::{RPCNode, extract_chain_endpoints},
+};
 use anyhow::{Result, anyhow};
 use pop_chains::{OnlineClient, Pallet, SubstrateConfig, parse_chain_metadata, set_up_client};
 use rand::prelude::IndexedRandom;
@@ -21,6 +24,7 @@ pub(crate) async fn configure(
 	input_message: &str,
 	default_input: &str,
 	url: &Option<Url>,
+	filter_fn: fn(&str, Option<&str>, bool) -> bool,
 	cli: &mut impl Cli,
 ) -> Result<Chain> {
 	// Resolve url.
@@ -30,7 +34,7 @@ pub(crate) async fn configure(
 			// Ask the user if they want to enter URL manually or select from a list of well-known
 			// endpoints.
 			let manual = cli
-				.confirm("Do you want to enter the URL manually?")
+				.confirm("Do you want to enter the node URL manually?")
 				.initial_value(false)
 				.interact()?;
 			let url = if manual {
@@ -40,11 +44,13 @@ pub(crate) async fn configure(
 				// Select from available endpoints
 				let chains = extract_chain_endpoints().await?;
 				let mut prompt = cli.select("Select a chain (type to filter):");
-				for (pos, (name, _)) in chains.iter().enumerate() {
-					prompt = prompt.item(pos, name, "");
+				for (pos, RPCNode { name, is_relay, relay_name, .. }) in chains.iter().enumerate() {
+					if filter_fn(name, relay_name.as_deref(), *is_relay) {
+						prompt = prompt.item(pos, name, "");
+					}
 				}
 				let selected = prompt.filter_mode().interact()?;
-				let providers = &chains[selected].1;
+				let providers = &chains[selected].providers;
 				providers
 					.choose(&mut rand::rng())
 					.ok_or_else(|| anyhow!("No providers available for selected chain"))?
@@ -79,8 +85,10 @@ mod tests {
 	async fn configure_works() -> Result<()> {
 		let node = TestNode::spawn().await?;
 		let message = "Enter the URL of the chain:";
-		let mut cli = MockCli::new().expect_input(message, node.ws_url().into());
-		let chain = configure(message, node.ws_url(), &None, &mut cli).await?;
+		let mut cli = MockCli::new()
+			.expect_confirm("Do you want to enter the node URL manually?", true)
+			.expect_input(message, node.ws_url().into());
+		let chain = configure(message, node.ws_url(), &None, |_, _, _| true, &mut cli).await?;
 		assert_eq!(chain.url, Url::parse(node.ws_url())?);
 		// Get pallets
 		let pallets = get_pallets(&chain.client).await?;
