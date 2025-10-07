@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use scale_info::{form::PortableForm, PortableRegistry, Type, TypeDef, TypeDefPrimitive};
+use scale_info::{PortableRegistry, Type, TypeDef, TypeDefPrimitive, form::PortableForm};
 
 /// Formats a specified type, using the registry to output its full type representation.
 ///

@@ -7,11 +7,11 @@
 use anyhow::Result;
 use pop_common::find_free_port;
 use pop_contracts::{
-	call_smart_contract, contracts_node_generator, dry_run_call, dry_run_gas_estimate_call,
-	dry_run_gas_estimate_instantiate, dry_run_upload, get_contract_code, get_upload_payload,
-	instantiate_smart_contract, is_chain_alive, mock_build_process, new_environment,
-	run_contracts_node, set_up_call, set_up_deployment, set_up_upload, upload_smart_contract,
-	Bytes, CallOpts, Error, UpOpts,
+	Bytes, CallOpts, Error, UpOpts, call_smart_contract, contracts_node_generator, dry_run_call,
+	dry_run_gas_estimate_call, dry_run_gas_estimate_instantiate, dry_run_upload, get_contract_code,
+	get_upload_payload, instantiate_smart_contract, is_chain_alive, mock_build_process,
+	new_environment, run_contracts_node, set_up_call, set_up_deployment, set_up_upload,
+	upload_smart_contract,
 };
 #[cfg(feature = "v5")]
 use sp_core::bytes::from_hex;
@@ -19,7 +19,7 @@ use sp_core::bytes::from_hex;
 use sp_core_inkv6::bytes::from_hex;
 use std::env;
 use subxt::{
-	config::{substrate::BlakeTwo256, Hasher},
+	config::{Hasher, substrate::BlakeTwo256},
 	utils::H256,
 };
 use tempfile::TempDir;
@@ -28,7 +28,7 @@ use url::Url;
 #[cfg(feature = "v6")]
 use contract_extrinsics_inkv6::{ExtrinsicOpts, ExtrinsicOptsBuilder};
 #[cfg(feature = "v6")]
-use pop_common::{parse_h160_account, DefaultConfig, Keypair};
+use pop_common::{DefaultConfig, Keypair, parse_h160_account};
 #[cfg(feature = "v6")]
 use pop_contracts::{AccountMapper, DefaultEnvironment};
 #[cfg(feature = "v6")]

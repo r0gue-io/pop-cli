@@ -9,7 +9,7 @@ use crate::{
 	},
 };
 use clap::Args;
-use pop_chains::{bench::BlockCmd, generate_binary_benchmarks, BenchmarkingCliCommand};
+use pop_chains::{BenchmarkingCliCommand, bench::BlockCmd, generate_binary_benchmarks};
 use pop_common::Profile;
 use std::{
 	env::current_dir,

@@ -7,7 +7,7 @@ use std::{
 	fs::{read_to_string, write},
 	path::{Path, PathBuf},
 };
-use toml_edit::{value, Array, DocumentMut, Item, Value};
+use toml_edit::{Array, DocumentMut, Item, Value, value};
 
 /// Parses the contents of a `Cargo.toml` manifest.
 ///
@@ -160,7 +160,7 @@ pub fn add_feature(project: &Path, (key, items): (String, Vec<String>)) -> anyho
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use std::fs::{write, File};
+	use std::fs::{File, write};
 	use tempfile::TempDir;
 
 	struct TestBuilder {
@@ -251,14 +251,16 @@ mod tests {
                 "#,
 			)
 			.add_outside_workspace_dir();
-		assert!(find_workspace_toml(
-			test_builder
-				.inside_workspace_dir
-				.as_ref()
-				.expect("Inside workspace dir should exist")
-				.path()
-		)
-		.is_some());
+		assert!(
+			find_workspace_toml(
+				test_builder
+					.inside_workspace_dir
+					.as_ref()
+					.expect("Inside workspace dir should exist")
+					.path()
+			)
+			.is_some()
+		);
 		assert_eq!(
 			find_workspace_toml(
 				test_builder
@@ -270,14 +272,16 @@ mod tests {
 			.expect("The Cargo.toml should exist at this point"),
 			test_builder.workspace_cargo_toml.expect("Cargo.toml should exist")
 		);
-		assert!(find_workspace_toml(
-			test_builder
-				.outside_workspace_dir
-				.as_ref()
-				.expect("Outside workspace dir should exist")
-				.path()
-		)
-		.is_none());
+		assert!(
+			find_workspace_toml(
+				test_builder
+					.outside_workspace_dir
+					.as_ref()
+					.expect("Outside workspace dir should exist")
+					.path()
+			)
+			.is_none()
+		);
 		// Calling the function from a relative path which parent is "" returns None
 		assert!(find_workspace_toml(&PathBuf::from("..")).is_none());
 	}

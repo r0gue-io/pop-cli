@@ -2,7 +2,7 @@
 
 use crate::errors::Error;
 use pop_common::format_type;
-use scale_info::{form::PortableForm, Field, PortableRegistry, TypeDef};
+use scale_info::{Field, PortableRegistry, TypeDef, form::PortableForm};
 use subxt::Metadata;
 
 /// Describes a parameter of a dispatchable function.

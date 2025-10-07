@@ -3,7 +3,7 @@
 use std::path::Path;
 
 use crate::{
-	utils::helpers::write_to_file, TemplatePalletConfigCommonTypes, TemplatePalletStorageTypes,
+	TemplatePalletConfigCommonTypes, TemplatePalletStorageTypes, utils::helpers::write_to_file,
 };
 use askama::Template;
 

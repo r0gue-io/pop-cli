@@ -771,7 +771,10 @@ pub(crate) mod tests {
 			// Check expectations
 			if let Some(items) = self.items_expectation.as_mut() {
 				let item = (label.to_string(), hint.to_string());
-				assert!(items.contains(&item), "`{item:?}` item does not satisfy any expectations.\nAvailable expectations:\n{items:#?}");
+				assert!(
+					items.contains(&item),
+					"`{item:?}` item does not satisfy any expectations.\nAvailable expectations:\n{items:#?}"
+				);
 				items.retain(|x| *x != item);
 			}
 			// Collect if specified

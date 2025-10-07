@@ -165,7 +165,9 @@ pub enum Error {
 	#[error("HTTP error: {0} caused by {:?}", reqwest::Error::source(.0))]
 	HttpError(#[from] reqwest::Error),
 	/// An API call failed due to rate limiting.
-	#[error("Rate limited: limit {limit:?}, remaining {remaining:?}, reset {reset:?}, retry after {retry_after:?}")]
+	#[error(
+		"Rate limited: limit {limit:?}, remaining {remaining:?}, reset {reset:?}, retry after {retry_after:?}"
+	)]
 	RateLimited {
 		/// If present, the maximum number of requests allowed in the current time window.
 		limit: Option<u64>,

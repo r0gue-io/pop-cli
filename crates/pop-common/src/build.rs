@@ -62,11 +62,7 @@ impl From<Profile> for bool {
 
 impl From<bool> for Profile {
 	fn from(value: bool) -> Self {
-		if value {
-			Profile::Release
-		} else {
-			Profile::Debug
-		}
+		if value { Profile::Release } else { Profile::Debug }
 	}
 }
 

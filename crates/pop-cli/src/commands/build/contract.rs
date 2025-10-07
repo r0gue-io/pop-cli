@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::cli;
-use pop_contracts::{build_smart_contract, Verbosity};
+use pop_contracts::{Verbosity, build_smart_contract};
 use std::path::PathBuf;
 
 /// Configuration for building a smart contract.

@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use super::chain_specs::chain_spec_generator;
-use crate::{up::chain_specs, Error};
+use crate::{Error, up::chain_specs};
 use pop_common::{
 	git::GitHub,
 	polkadot_sdk::sort_by_latest_stable_version,
 	sourcing::{
-		filters::prefix,
-		traits::{
-			enums::{Source as _, *},
-			Source as SourceT,
-		},
 		ArchiveFileSpec, Binary,
 		GitHub::*,
 		Source,
+		filters::prefix,
+		traits::{
+			Source as SourceT,
+			enums::{Source as _, *},
+		},
 	},
 	target,
 };

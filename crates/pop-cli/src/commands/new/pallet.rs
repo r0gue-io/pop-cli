@@ -9,8 +9,8 @@ use crate::{
 use clap::{Args, Subcommand};
 use cliclack::multiselect;
 use pop_chains::{
-	create_pallet_template, TemplatePalletConfig, TemplatePalletConfigCommonTypes,
-	TemplatePalletOptions, TemplatePalletStorageTypes,
+	TemplatePalletConfig, TemplatePalletConfigCommonTypes, TemplatePalletOptions,
+	TemplatePalletStorageTypes, create_pallet_template,
 };
 use pop_common::{add_crate_to_workspace, find_workspace_toml, prefix_with_current_dir_if_needed};
 use std::{path::PathBuf, process::Command};
@@ -99,7 +99,10 @@ impl NewPalletCommand {
 			{
 				cli.info("Generate the pallet's config trait.")?;
 
-				pallet_common_types = multiselect_pick!(TemplatePalletConfigCommonTypes, "Are you interested in adding one of these types and their usual configuration to your pallet?");
+				pallet_common_types = multiselect_pick!(
+					TemplatePalletConfigCommonTypes,
+					"Are you interested in adding one of these types and their usual configuration to your pallet?"
+				);
 				cli.info("Generate the pallet's storage.")?;
 
 				pallet_storage = multiselect_pick!(
@@ -110,15 +113,15 @@ impl NewPalletCommand {
 				// If there's no common types, default_config is excluded from the multiselect
 				let boolean_options = if pallet_common_types.is_empty() {
 					multiselect_pick!(
-                        TemplatePalletOptions,
-                        "Are you interested in adding one of these types and their usual configuration to your pallet?",
-                        [TemplatePalletOptions::DefaultConfig]
-				    )
+						TemplatePalletOptions,
+						"Are you interested in adding one of these types and their usual configuration to your pallet?",
+						[TemplatePalletOptions::DefaultConfig]
+					)
 				} else {
 					multiselect_pick!(
-                        TemplatePalletOptions,
-                        "Are you interested in adding one of these types and their usual configuration to your pallet?"
-                    )
+						TemplatePalletOptions,
+						"Are you interested in adding one of these types and their usual configuration to your pallet?"
+					)
 				};
 
 				pallet_default_config =

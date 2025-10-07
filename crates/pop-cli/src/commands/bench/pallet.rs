@@ -10,16 +10,16 @@ use crate::{
 		builds::guide_user_to_select_profile,
 		prompt::display_message,
 		runtime::{
-			ensure_runtime_binary_exists, guide_user_to_select_genesis_policy,
-			guide_user_to_select_genesis_preset, Feature,
+			Feature, ensure_runtime_binary_exists, guide_user_to_select_genesis_policy,
+			guide_user_to_select_genesis_preset,
 		},
 	},
 };
 use clap::Args;
 use cliclack::spinner;
 use pop_chains::{
-	generate_pallet_benchmarks, get_preset_names, load_pallet_extrinsics, GenesisBuilderPolicy,
-	PalletExtrinsicsRegistry, GENESIS_BUILDER_DEV_PRESET,
+	GENESIS_BUILDER_DEV_PRESET, GenesisBuilderPolicy, PalletExtrinsicsRegistry,
+	generate_pallet_benchmarks, get_preset_names, load_pallet_extrinsics,
 };
 use pop_common::get_relative_or_absolute_path;
 use serde::{Deserialize, Serialize};
@@ -756,7 +756,10 @@ impl BenchmarkPallet {
 		for e in &self.exclude_extrinsics {
 			let splits = e.split("::").collect::<Vec<_>>();
 			if splits.len() != 2 {
-				return Err(anyhow::anyhow!("Invalid argument for '--exclude-extrinsics'. Expected format: 'pallet::extrinsic' but got '{}'", e));
+				return Err(anyhow::anyhow!(
+					"Invalid argument for '--exclude-extrinsics'. Expected format: 'pallet::extrinsic' but got '{}'",
+					e
+				));
 			}
 		}
 		Ok(())
@@ -1318,7 +1321,7 @@ mod tests {
 		cli::MockCli,
 		common::{
 			bench::source_omni_bencher_binary,
-			runtime::{get_mock_runtime, Feature::Benchmark},
+			runtime::{Feature::Benchmark, get_mock_runtime},
 		},
 	};
 	use anyhow::Ok;

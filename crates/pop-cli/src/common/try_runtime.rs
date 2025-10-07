@@ -4,12 +4,12 @@ use super::{
 	binary::which_version,
 	builds::guide_user_to_select_profile,
 	chain::get_pallets,
-	runtime::{ensure_runtime_binary_exists, Feature},
+	runtime::{Feature, ensure_runtime_binary_exists},
 };
 use crate::{
 	cli::traits::*,
 	common::{
-		binary::{check_and_prompt, BinaryGenerator, SemanticVersion},
+		binary::{BinaryGenerator, SemanticVersion, check_and_prompt},
 		urls,
 	},
 	impl_binary_generator,
@@ -18,12 +18,12 @@ use clap::Args;
 use cliclack::spinner;
 use console::style;
 use pop_chains::{
-	parse, set_up_client,
+	Runtime, SharedParams, parse, set_up_client,
 	state::{LiveState, State, StateCommand},
 	try_runtime::TryStateSelect,
-	try_runtime_generator, try_state_details, try_state_label, Runtime, SharedParams,
+	try_runtime_generator, try_state_details, try_state_label,
 };
-use pop_common::{sourcing::Binary, Profile};
+use pop_common::{Profile, sourcing::Binary};
 use std::{
 	cmp::Ordering,
 	collections::HashSet,
@@ -108,8 +108,9 @@ pub(crate) fn update_state_source(
 	state: &mut Option<State>,
 ) -> anyhow::Result<()> {
 	let (subcommand, path, mut live_state) = match state {
-		Some(State::Live(ref state)) => (&StateCommand::Live, None, state.clone()),
-		Some(State::Snap { ref path }) => (&StateCommand::Snap, path.clone(), LiveState::default()),
+		&mut Some(State::Live(ref state)) => (&StateCommand::Live, None, state.clone()),
+		&mut Some(State::Snap { ref path }) =>
+			(&StateCommand::Snap, path.clone(), LiveState::default()),
 		None => (guide_user_to_select_state_source(cli)?, None, LiveState::default()),
 	};
 	match subcommand {
@@ -281,43 +282,45 @@ pub(crate) async fn guide_user_to_select_try_state(
 			}
 			TryStateSelect::RoundRobin(rounds?)
 		},
-		s if s == try_state_label(&TryStateSelect::Only(vec![])) =>
-			match url {
-				Some(url) => {
-					let spinner = spinner();
-					spinner.start("Retrieving available pallets...");
-					let client = set_up_client(&url).await?;
-					let pallets = get_pallets(&client).await?;
-					let mut prompt = cli
-						.multiselect("Select pallets (select with SPACE):")
-						.required(true)
-						.filter_mode();
-					for pallet in pallets {
-						prompt = prompt.item(pallet.name.clone(), pallet.name, pallet.docs);
-					}
-					spinner.stop("");
-					let selected_pallets = prompt.interact()?;
-					TryStateSelect::Only(
-						selected_pallets
-							.iter()
-							.map(|pallet| pallet.trim().as_bytes().to_vec())
-							.collect(),
-					)
-				},
-				None => {
-					let input = cli
-						.input(format!(
-    						"Enter the pallet names separated by commas:\n{}",
-    						style("Pallet names must be capitalized exactly as defined in the runtime.").dim()
-    					))
-						.placeholder("System, Balances, Proxy")
-						.required(true)
-						.interact()?;
-					TryStateSelect::Only(
-						input.split(",").map(|pallet| pallet.trim().as_bytes().to_vec()).collect(),
-					)
-				},
+		s if s == try_state_label(&TryStateSelect::Only(vec![])) => match url {
+			Some(url) => {
+				let spinner = spinner();
+				spinner.start("Retrieving available pallets...");
+				let client = set_up_client(&url).await?;
+				let pallets = get_pallets(&client).await?;
+				let mut prompt = cli
+					.multiselect("Select pallets (select with SPACE):")
+					.required(true)
+					.filter_mode();
+				for pallet in pallets {
+					prompt = prompt.item(pallet.name.clone(), pallet.name, pallet.docs);
+				}
+				spinner.stop("");
+				let selected_pallets = prompt.interact()?;
+				TryStateSelect::Only(
+					selected_pallets
+						.iter()
+						.map(|pallet| pallet.trim().as_bytes().to_vec())
+						.collect(),
+				)
 			},
+			None => {
+				let input = cli
+					.input(format!(
+						"Enter the pallet names separated by commas:\n{}",
+						style(
+							"Pallet names must be capitalized exactly as defined in the runtime."
+						)
+						.dim()
+					))
+					.placeholder("System, Balances, Proxy")
+					.required(true)
+					.interact()?;
+				TryStateSelect::Only(
+					input.split(",").map(|pallet| pallet.trim().as_bytes().to_vec()).collect(),
+				)
+			},
+		},
 		_ => TryStateSelect::All,
 	})
 }
@@ -458,12 +461,12 @@ pub(crate) fn collect_state_arguments(
 ) -> Result<(), anyhow::Error> {
 	let mut c = ArgumentConstructor::new(args, user_provided_args);
 	match state.as_ref().ok_or_else(|| anyhow::anyhow!("No state provided"))? {
-		State::Live(ref state) => {
+		State::Live(state) => {
 			c.add(&[], true, "--uri", state.uri.clone());
 			c.add(&[], true, "--at", state.at.clone());
 		},
 		State::Snap { path } =>
-			if let Some(ref path) = path {
+			if let Some(path) = path {
 				let path = path.to_str().unwrap().to_string();
 				c.add(&[], !path.is_empty(), "--path", Some(path));
 			},
@@ -820,9 +823,12 @@ mod tests {
 				} else {
 					cli = cli.expect_input(
 						format!(
-    						"Enter the pallet names separated by commas:\n{}",
-    						style("Pallet names must be capitalized exactly as defined in the runtime.").dim()
-    					),
+							"Enter the pallet names separated by commas:\n{}",
+							style(
+								"Pallet names must be capitalized exactly as defined in the runtime."
+							)
+							.dim()
+						),
 						"System, Balances, Proxy".to_string(),
 					);
 				}

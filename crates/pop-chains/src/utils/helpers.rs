@@ -3,7 +3,7 @@
 use crate::errors::Error;
 use std::{
 	fs::{self, OpenOptions},
-	io::{self, stdin, stdout, Write},
+	io::{self, Write, stdin, stdout},
 	path::Path,
 };
 
@@ -86,7 +86,7 @@ pub(crate) fn write_to_file(path: &Path, contents: &str) -> Result<(), Error> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::{generator::chain::ChainSpec, ChainTemplate};
+	use crate::{ChainTemplate, generator::chain::ChainSpec};
 	use askama::Template;
 	use tempfile::tempdir;
 
@@ -104,10 +104,14 @@ mod tests {
 		write_to_file(&file_path, chainspec.render().expect("infallible").as_ref())?;
 		let generated_file_content =
 			fs::read_to_string(temp_dir.path().join("file.rs")).expect("Failed to read file");
-		assert!(generated_file_content
-			.contains("properties.insert(\"tokenSymbol\".into(), \"DOT\".into());"));
-		assert!(generated_file_content
-			.contains("properties.insert(\"tokenDecimals\".into(), 6.into());"));
+		assert!(
+			generated_file_content
+				.contains("properties.insert(\"tokenSymbol\".into(), \"DOT\".into());")
+		);
+		assert!(
+			generated_file_content
+				.contains("properties.insert(\"tokenDecimals\".into(), 6.into());")
+		);
 		assert!(generated_file_content.contains("1000000"));
 		assert!(generated_file_content.contains(
 			"properties.insert(\"basedOn\".into(), \"r0gue-io/base-parachain\".into());"

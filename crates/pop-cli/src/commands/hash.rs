@@ -3,10 +3,10 @@
 use self::Command::*;
 use super::*;
 use crate::cli::traits::Cli;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use clap::{
-	builder::{PossibleValue, PossibleValuesParser, TypedValueParser},
 	Arg, Args, Error,
+	builder::{PossibleValue, PossibleValuesParser, TypedValueParser},
 };
 use sp_core::{
 	bytes::{from_hex, to_hex},
@@ -214,8 +214,8 @@ impl TypedValueParser for SupportedLengths {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use std::io::Write;
 	use Data::*;
+	use std::io::Write;
 
 	#[test]
 	fn blake2_works() -> Result<()> {
@@ -409,9 +409,11 @@ mod tests {
 				value
 			);
 		}
-		assert!(supported_lengths
-			.possible_values()
-			.unwrap()
-			.eq(values.map(|v| PossibleValue::new(v.to_string())),))
+		assert!(
+			supported_lengths
+				.possible_values()
+				.unwrap()
+				.eq(values.map(|v| PossibleValue::new(v.to_string())),)
+		)
 	}
 }

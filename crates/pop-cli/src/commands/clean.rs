@@ -141,7 +141,7 @@ fn contents(path: &PathBuf) -> Result<Vec<(String, PathBuf, u64)>> {
 					.to_str()
 					.map(|f| (f.to_string(), e.path()))
 					.zip(e.metadata().ok())
-					.map(|f| (f.0 .0, f.0 .1, f.1.len()))
+					.map(|f| (f.0.0, f.0.1, f.1.len()))
 			})
 		})
 		.filter(|(name, _, _)| !name.starts_with('.'))

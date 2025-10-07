@@ -3,8 +3,8 @@
 use crate::{
 	cli,
 	common::{
-		contracts::check_contracts_node_and_prompt,
 		TestFeature::{self, *},
+		contracts::check_contracts_node_and_prompt,
 	},
 };
 use clap::Args;
@@ -38,19 +38,18 @@ impl TestContractCommand {
 		if self.e2e {
 			cli.intro("Starting end-to-end tests")?;
 
-			self.node = match check_contracts_node_and_prompt(
-				cli,
-				&crate::cache()?,
-				self.skip_confirm,
-			)
-			.await
-			{
-				Ok(binary_path) => Some(binary_path),
-				Err(_) => {
-					cli.warning("🚫 substrate-contracts-node is necessary to run e2e tests. Will try to run tests anyway...")?;
-					Some(PathBuf::new())
-				},
-			};
+			self.node =
+				match check_contracts_node_and_prompt(cli, &crate::cache()?, self.skip_confirm)
+					.await
+				{
+					Ok(binary_path) => Some(binary_path),
+					Err(_) => {
+						cli.warning(
+							"🚫 substrate-contracts-node is necessary to run e2e tests. Will try to run tests anyway...",
+						)?;
+						Some(PathBuf::new())
+					},
+				};
 
 			test_e2e_smart_contract(self.path.as_deref(), self.node.as_deref())?;
 			cli.outro("End-to-end testing complete")?;

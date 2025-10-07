@@ -2,7 +2,7 @@
 
 use crate::errors::Error;
 use pop_common::format_type;
-use scale_info::{form::PortableForm, PortableRegistry};
+use scale_info::{PortableRegistry, form::PortableForm};
 use std::path::Path;
 #[cfg(feature = "v5")]
 use {contract_extrinsics::ContractArtifacts, contract_transcode::ink_metadata::MessageParamSpec};
@@ -241,11 +241,17 @@ mod tests {
 		fn assert_contract_metadata_parsed(message: Vec<ContractFunction>) -> Result<()> {
 			assert_eq!(message.len(), 3);
 			assert_eq!(message[0].label, "flip");
-			assert_eq!(message[0].docs, " A message that can be called on instantiated contracts.  This one flips the value of the stored `bool` from `true`  to `false` and vice versa.");
+			assert_eq!(
+				message[0].docs,
+				" A message that can be called on instantiated contracts.  This one flips the value of the stored `bool` from `true`  to `false` and vice versa."
+			);
 			assert_eq!(message[1].label, "get");
 			assert_eq!(message[1].docs, " Simply returns the current value of our `bool`.");
 			assert_eq!(message[2].label, "specific_flip");
-			assert_eq!(message[2].docs, " A message for testing, flips the value of the stored `bool` with `new_value`  and is payable");
+			assert_eq!(
+				message[2].docs,
+				" A message for testing, flips the value of the stored `bool` with `new_value`  and is payable"
+			);
 			// assert parsed arguments
 			assert_eq!(message[2].args.len(), 2);
 			assert_eq!(message[2].args[0].label, "new_value".to_string());
@@ -286,7 +292,10 @@ mod tests {
 			Err(Error::InvalidMessageName(name)) if name == *"wrong_flip"));
 		let message = get_message(temp_dir.path().join("testing"), "specific_flip")?;
 		assert_eq!(message.label, "specific_flip");
-		assert_eq!(message.docs, " A message for testing, flips the value of the stored `bool` with `new_value`  and is payable");
+		assert_eq!(
+			message.docs,
+			" A message for testing, flips the value of the stored `bool` with `new_value`  and is payable"
+		);
 		// assert parsed arguments
 		assert_eq!(message.args.len(), 2);
 		assert_eq!(message.args[0].label, "new_value".to_string());

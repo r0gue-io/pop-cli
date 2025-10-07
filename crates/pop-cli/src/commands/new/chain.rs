@@ -6,17 +6,16 @@ use crate::{
 };
 use anyhow::Result;
 use clap::{
-	builder::{PossibleValue, PossibleValuesParser, TypedValueParser},
 	Args,
+	builder::{PossibleValue, PossibleValuesParser, TypedValueParser},
 };
 use console::style;
 use pop_chains::{
-	instantiate_template_dir, is_initial_endowment_valid, ChainTemplate, Config, Provider,
+	ChainTemplate, Config, Provider, instantiate_template_dir, is_initial_endowment_valid,
 };
 use pop_common::{
-	enum_variants, enum_variants_without_deprecated,
+	Git, GitHub, Release, enum_variants, enum_variants_without_deprecated,
 	templates::{Template, Type},
-	Git, GitHub, Release,
 };
 use std::{path::Path, str::FromStr, thread::sleep, time::Duration};
 use strum::VariantArray;
@@ -194,7 +193,9 @@ async fn generate_parachain_from_template(
 	let tag = instantiate_template_dir(template, &destination_path, tag_version, config)?;
 	if let Err(err) = Git::git_init(&destination_path, "initialized parachain") {
 		if err.class() == git2::ErrorClass::Config && err.code() == git2::ErrorCode::NotFound {
-			cli.outro_cancel("git signature could not be found. Please configure your git config with your name and email")?;
+			cli.outro_cancel(
+				"git signature could not be found. Please configure your git config with your name and email",
+			)?;
 		}
 	}
 	spinner.clear();
@@ -206,7 +207,10 @@ async fn generate_parachain_from_template(
 		let url = url::Url::parse(template.repository_url()?).expect("valid repository url");
 		let repo = GitHub::parse(url.as_str())?;
 		let commit = repo.get_commit_sha_from_release(&tag.clone().unwrap()).await;
-		verify_note = format!(" ✅ Fetched the latest release of the template along with its license based on the commit SHA for the release ({}).", commit.unwrap_or_default());
+		verify_note = format!(
+			" ✅ Fetched the latest release of the template along with its license based on the commit SHA for the release ({}).",
+			commit.unwrap_or_default()
+		);
 	}
 	cli.success(format!(
 		"Generation complete{}",
@@ -333,8 +337,8 @@ async fn choose_release(
 	} else {
 		// If supported_versions exists and no other releases are found,
 		// then the default branch is not supported and an error is returned
-		let _ = template.supported_versions().is_some()
-			&& Err(anyhow::anyhow!(
+		let _ = template.supported_versions().is_some() &&
+			Err(anyhow::anyhow!(
 				"No supported versions found for this template. Please open an issue here: https://github.com/r0gue-io/pop-cli/issues "
 			))?;
 

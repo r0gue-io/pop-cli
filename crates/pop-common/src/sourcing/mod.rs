@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{api, git::GITHUB_API_CLIENT, Git, Release, SortedSlice, Status};
+use crate::{Git, Release, SortedSlice, Status, api, git::GITHUB_API_CLIENT};
 pub use binary::*;
 use duct::cmd;
 use flate2::read::GzDecoder;
@@ -9,7 +9,7 @@ use reqwest::StatusCode;
 use std::{
 	collections::HashMap,
 	error::Error as _,
-	fs::{copy, metadata, read_dir, rename, File},
+	fs::{File, copy, metadata, read_dir, rename},
 	io::{BufRead, Seek, SeekFrom, Write},
 	os::unix::fs::PermissionsExt,
 	path::{Path, PathBuf},
@@ -609,35 +609,38 @@ async fn from_github_archive(
 	verbose: bool,
 ) -> Result<(), Error> {
 	// User agent required when using GitHub API
-	let response =
-		match reference {
-			Some(reference) => {
-				// Various potential urls to try based on not knowing the type of ref
-				let urls = [
-					format!("https://github.com/{owner}/{repository}/archive/refs/heads/{reference}.tar.gz"),
-					format!("https://github.com/{owner}/{repository}/archive/refs/tags/{reference}.tar.gz"),
-					format!("https://github.com/{owner}/{repository}/archive/{reference}.tar.gz"),
-				];
-				let mut response = None;
-				for url in urls {
-					status.update(&format!("Downloading from {url}..."));
-					response = Some(GITHUB_API_CLIENT.get(url).await);
-					if let Some(Err(api::Error::HttpError(e))) = &response {
-						if e.status() == Some(StatusCode::NOT_FOUND) {
-							tokio::time::sleep(Duration::from_secs(1)).await;
-							continue;
-						}
-					}
-					break;
-				}
-				response.expect("value set above")?
-			},
-			None => {
-				let url = format!("https://api.github.com/repos/{owner}/{repository}/tarball");
+	let response = match reference {
+		Some(reference) => {
+			// Various potential urls to try based on not knowing the type of ref
+			let urls = [
+				format!(
+					"https://github.com/{owner}/{repository}/archive/refs/heads/{reference}.tar.gz"
+				),
+				format!(
+					"https://github.com/{owner}/{repository}/archive/refs/tags/{reference}.tar.gz"
+				),
+				format!("https://github.com/{owner}/{repository}/archive/{reference}.tar.gz"),
+			];
+			let mut response = None;
+			for url in urls {
 				status.update(&format!("Downloading from {url}..."));
-				GITHUB_API_CLIENT.get(url).await?
-			},
-		};
+				response = Some(GITHUB_API_CLIENT.get(url).await);
+				if let Some(Err(api::Error::HttpError(e))) = &response {
+					if e.status() == Some(StatusCode::NOT_FOUND) {
+						tokio::time::sleep(Duration::from_secs(1)).await;
+						continue;
+					}
+				}
+				break;
+			}
+			response.expect("value set above")?
+		},
+		None => {
+			let url = format!("https://api.github.com/repos/{owner}/{repository}/tarball");
+			status.update(&format!("Downloading from {url}..."));
+			GITHUB_API_CLIENT.get(url).await?
+		},
+	};
 	let mut file = tempfile()?;
 	file.write_all(&response)?;
 	file.seek(SeekFrom::Start(0))?;
@@ -1370,10 +1373,7 @@ pub mod traits {
 				TagPattern = "polkadot-{version}"
 			))]
 			Polkadot,
-			#[strum(props(
-				Repository = "https://github.com/r0gue-io/fallback",
-				Fallback = "v1.0"
-			))]
+			#[strum(props(Repository = "https://github.com/r0gue-io/fallback", Fallback = "v1.0"))]
 			Fallback,
 		}
 

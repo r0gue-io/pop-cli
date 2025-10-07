@@ -136,6 +136,8 @@ mod tests {
 		assert!(convert_address(invalid_ss58, None).is_err());
 		assert!(convert_address("invalid_format", None).is_err()); // Completely invalid format
 		assert!(convert_address("5Eh2qnm8NwCeDnfBhm2aCfoSffBAeMk914NUs8UDGLuoY6q", None).is_err()); // Too short
-		assert!(convert_address("5Eh2qnm8NwCeDnfBhm2aCfoSffBAeMk914NUs8UDGLuoY6qgg", None).is_err()); // Too long
+		assert!(
+			convert_address("5Eh2qnm8NwCeDnfBhm2aCfoSffBAeMk914NUs8UDGLuoY6qgg", None).is_err()
+		); // Too long
 	}
 }
