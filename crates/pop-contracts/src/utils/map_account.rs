@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{errors::Error, DefaultEnvironment};
+use crate::{DefaultEnvironment, errors::Error};
 use contract_extrinsics_inkv6::{ExtrinsicOpts, MapAccountCommandBuilder, MapAccountExec};
 use pop_common::{DefaultConfig, Keypair};
 use subxt::{ext::scale_encode::EncodeAsType, utils::H160};

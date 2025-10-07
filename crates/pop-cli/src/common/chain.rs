@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::cli::traits::*;
-use anyhow::{anyhow, Result};
-use pop_chains::{parse_chain_metadata, set_up_client, OnlineClient, Pallet, SubstrateConfig};
+use anyhow::{Result, anyhow};
+use pop_chains::{OnlineClient, Pallet, SubstrateConfig, parse_chain_metadata, set_up_client};
 use url::Url;
 
 // Represents a chain and its associated metadata.

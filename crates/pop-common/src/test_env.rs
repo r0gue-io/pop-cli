@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{
-	find_free_port,
+	Error, find_free_port,
 	polkadot_sdk::sort_by_latest_semantic_version,
 	set_executable_permission,
 	sourcing::{ArchiveFileSpec, Binary, GitHub::ReleaseArchive, Source::GitHub},
-	Error,
 };
 
 use serde_json::json;

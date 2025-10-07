@@ -2,8 +2,8 @@
 
 use crate::{
 	cli::{
-		traits::{Cli as _, Confirm},
 		Cli,
+		traits::{Cli as _, Confirm},
 	},
 	commands::call::contract::CallContractCommand,
 	common::{
@@ -17,19 +17,19 @@ use crate::{
 	style::style,
 };
 use clap::Args;
-use cliclack::{spinner, ProgressBar};
+use cliclack::{ProgressBar, spinner};
 use console::{Emoji, Style};
 #[cfg(feature = "wasm-contracts")]
 use pop_contracts::get_code_hash_from_event;
 #[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 use pop_contracts::{
-	build_smart_contract, dry_run_gas_estimate_instantiate, dry_run_upload, get_contract_code,
-	get_instantiate_payload, get_upload_payload, instantiate_contract_signed,
-	instantiate_smart_contract, is_chain_alive, parse_hex_bytes, run_contracts_node,
-	set_up_deployment, set_up_upload, upload_contract_signed, upload_smart_contract, Bytes, UpOpts,
-	Verbosity, Weight,
+	Bytes, UpOpts, Verbosity, Weight, build_smart_contract, dry_run_gas_estimate_instantiate,
+	dry_run_upload, get_contract_code, get_instantiate_payload, get_upload_payload,
+	instantiate_contract_signed, instantiate_smart_contract, is_chain_alive, parse_hex_bytes,
+	run_contracts_node, set_up_deployment, set_up_upload, upload_contract_signed,
+	upload_smart_contract,
 };
-use pop_contracts::{extract_function, FunctionType};
+use pop_contracts::{FunctionType, extract_function};
 use std::path::PathBuf;
 use tempfile::NamedTempFile;
 use url::Url;
@@ -141,8 +141,8 @@ impl UpContractCommand {
 
 				if !Cli
 					.confirm(format!(
-					"{chain} Would you like to start a local node in the background for testing?",
-				))
+						"{chain} Would you like to start a local node in the background for testing?",
+					))
 					.initial_value(true)
 					.interact()?
 				{

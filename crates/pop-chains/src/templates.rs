@@ -299,8 +299,8 @@ impl ChainTemplate {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use std::{collections::HashMap, str::FromStr};
 	use ChainTemplate::*;
+	use std::{collections::HashMap, str::FromStr};
 
 	fn templates_names() -> HashMap<String, ChainTemplate> {
 		HashMap::from([

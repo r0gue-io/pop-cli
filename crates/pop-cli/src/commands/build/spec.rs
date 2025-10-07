@@ -2,9 +2,8 @@
 
 use crate::{
 	cli::{
-		self,
+		self, Cli,
 		traits::{Cli as _, *},
-		Cli,
 	},
 	common::{
 		builds::{ensure_node_binary_exists, guide_user_to_select_profile},
@@ -15,10 +14,10 @@ use crate::{
 use clap::{Args, ValueEnum};
 use cliclack::spinner;
 use pop_chains::{
-	export_wasm_file, generate_genesis_state_file, generate_plain_chain_spec,
-	generate_raw_chain_spec, is_supported, ChainSpec,
+	ChainSpec, export_wasm_file, generate_genesis_state_file, generate_plain_chain_spec,
+	generate_raw_chain_spec, is_supported,
 };
-use pop_common::{manifest::from_path, Profile};
+use pop_common::{Profile, manifest::from_path};
 use std::{
 	fs::create_dir_all,
 	path::{Path, PathBuf},
@@ -256,7 +255,9 @@ impl BuildSpecCommand {
 			maybe_chain_spec_file.is_file()
 		{
 			if output_file.is_some() {
-				cli.warning("NOTE: If an existing chain spec file is provided it will be used for the output path.")?;
+				cli.warning(
+					"NOTE: If an existing chain spec file is provided it will be used for the output path.",
+				)?;
 			}
 			// Prompt whether the user wants to make additional changes to the provided chain spec
 			// file.
@@ -368,11 +369,7 @@ impl BuildSpecCommand {
 			Some(profile) => profile,
 			None => {
 				let default = Profile::Release;
-				if prompt {
-					guide_user_to_select_profile(cli)?
-				} else {
-					default
-				}
+				if prompt { guide_user_to_select_profile(cli)? } else { default }
 			},
 		};
 
@@ -728,7 +725,7 @@ mod tests {
 		fs::{self, create_dir_all},
 		path::PathBuf,
 	};
-	use tempfile::{tempdir, TempDir};
+	use tempfile::{TempDir, tempdir};
 
 	#[tokio::test]
 	async fn configure_build_spec_works() -> anyhow::Result<()> {

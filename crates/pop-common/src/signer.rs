@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::errors::Error;
-use subxt_signer::{sr25519::Keypair, SecretUri};
+use subxt_signer::{SecretUri, sr25519::Keypair};
 
 /// Create a keypair from a secret URI.
 ///

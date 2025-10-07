@@ -8,21 +8,21 @@ use contract_extrinsics::{RawParams, RpcRequest};
 #[cfg(feature = "v6")]
 use contract_extrinsics_inkv6::{RawParams, RpcRequest};
 use pop_common::{
+	Error, GitHub,
 	polkadot_sdk::sort_by_latest_semantic_version,
 	sourcing::{
-		traits::{
-			enums::{Source as _, *},
-			Source as SourceT,
-		},
 		Binary,
 		GitHub::ReleaseArchive,
 		Source,
+		traits::{
+			Source as SourceT,
+			enums::{Source as _, *},
+		},
 	},
-	Error, GitHub,
 };
 use strum_macros::{EnumProperty, VariantArray};
 
-use pop_common::sourcing::{filters::prefix, ArchiveFileSpec};
+use pop_common::sourcing::{ArchiveFileSpec, filters::prefix};
 use std::{
 	env::consts::{ARCH, OS},
 	fs::File,
@@ -30,9 +30,9 @@ use std::{
 	process::{Child, Command, Stdio},
 	time::Duration,
 };
+use subxt::SubstrateConfig;
 #[cfg(feature = "v5")]
 use subxt::dynamic::Value;
-use subxt::SubstrateConfig;
 use tokio::time::sleep;
 
 #[cfg(feature = "v5")]

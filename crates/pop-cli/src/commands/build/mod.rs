@@ -327,28 +327,30 @@ mod tests {
 			))
 		};
 		cli = cli.expect_outro("Build completed successfully!");
-		assert!(Command::build(
-			BuildArgs {
-				#[cfg(feature = "chain")]
-				command: None,
-				path: Some(project_path.to_path_buf()),
-				path_pos: Some(project_path.to_path_buf()),
-				package: package.clone(),
-				release,
-				profile: Some(profile.clone()),
-				#[cfg(feature = "chain")]
-				benchmark,
-				#[cfg(feature = "chain")]
-				try_runtime,
-				#[cfg(feature = "chain")]
-				deterministic,
-				features: Some(features.join(",")),
-				#[cfg(feature = "chain")]
-				only_runtime: false
-			},
-			&mut cli,
-		)
-		.is_ok());
+		assert!(
+			Command::build(
+				BuildArgs {
+					#[cfg(feature = "chain")]
+					command: None,
+					path: Some(project_path.to_path_buf()),
+					path_pos: Some(project_path.to_path_buf()),
+					package: package.clone(),
+					release,
+					profile: Some(profile.clone()),
+					#[cfg(feature = "chain")]
+					benchmark,
+					#[cfg(feature = "chain")]
+					try_runtime,
+					#[cfg(feature = "chain")]
+					deterministic,
+					features: Some(features.join(",")),
+					#[cfg(feature = "chain")]
+					only_runtime: false
+				},
+				&mut cli,
+			)
+			.is_ok()
+		);
 		cli.verify()
 	}
 

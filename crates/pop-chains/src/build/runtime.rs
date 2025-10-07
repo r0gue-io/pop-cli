@@ -2,8 +2,8 @@
 
 use crate::Error;
 use duct::cmd;
-use pop_common::{manifest::from_path, Profile};
-pub use srtool_lib::{get_image_digest, get_image_tag, ContainerEngine};
+use pop_common::{Profile, manifest::from_path};
+pub use srtool_lib::{ContainerEngine, get_image_digest, get_image_tag};
 use std::{
 	env, fs,
 	path::{Path, PathBuf},
@@ -222,7 +222,10 @@ mod tests {
 			Profile::Debug,
 			PathBuf::from("./runtime-folder"),
 		)?;
-		assert_eq!(srtool_builder.get_output_path().display().to_string(), "./runtime-folder/target/srtool/debug/wbuild/template-runtime/template_runtime.compact.compressed.wasm");
+		assert_eq!(
+			srtool_builder.get_output_path().display().to_string(),
+			"./runtime-folder/target/srtool/debug/wbuild/template-runtime/template_runtime.compact.compressed.wasm"
+		);
 		Ok(())
 	}
 

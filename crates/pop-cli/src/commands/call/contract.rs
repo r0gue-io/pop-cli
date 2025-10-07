@@ -10,16 +10,16 @@ use crate::{
 		wallet::{prompt_to_use_wallet, request_signature},
 	},
 };
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use clap::Args;
 use cliclack::spinner;
 #[cfg(feature = "wasm-contracts")]
 use pop_common::parse_account;
 use pop_common::{DefaultConfig, Keypair};
 use pop_contracts::{
-	build_smart_contract, call_smart_contract, call_smart_contract_from_signed_payload,
-	dry_run_call, dry_run_gas_estimate_call, get_call_payload, get_message, get_messages,
-	set_up_call, CallExec, CallOpts, DefaultEnvironment, Verbosity, Weight,
+	CallExec, CallOpts, DefaultEnvironment, Verbosity, Weight, build_smart_contract,
+	call_smart_contract, call_smart_contract_from_signed_payload, dry_run_call,
+	dry_run_gas_estimate_call, get_call_payload, get_message, get_messages, set_up_call,
 };
 use std::path::PathBuf;
 #[cfg(feature = "polkavm-contracts")]
@@ -195,9 +195,9 @@ impl CallContractCommand {
 			Ok(result) => result,
 			Err(e) => {
 				return Err(anyhow!(format!(
-                        "🚫 An error occurred building your contract: {}\nUse `pop build` to retry with build output.",
-                        e.to_string()
-                    )));
+					"🚫 An error occurred building your contract: {}\nUse `pop build` to retry with build output.",
+					e.to_string()
+				)));
 			},
 		};
 		spinner.stop(format!(
@@ -632,26 +632,21 @@ mod tests {
         ];
 		// The inputs are processed in reverse order.
 		let mut cli = MockCli::new()
-            .expect_select(
-                "Select the message to call:",
-                Some(false),
-                true,
-                Some(items),
-                1, // "get" message
-                None,
-            )
-            .expect_input(
-                "Where is your contract deployed?",
-                urls::LOCAL.into(),
-            )
-            .expect_input(
-                "Provide the on-chain contract address:",
-                "CONTRACT_ADDRESS".into(),
-            )
-            .expect_info(format!(
-                "pop call contract --path {} --contract CONTRACT_ADDRESS --message get --url {} --suri //Alice",
-                temp_dir.path().join("testing").display(), urls::LOCAL
-            ));
+			.expect_select(
+				"Select the message to call:",
+				Some(false),
+				true,
+				Some(items),
+				1, // "get" message
+				None,
+			)
+			.expect_input("Where is your contract deployed?", urls::LOCAL.into())
+			.expect_input("Provide the on-chain contract address:", "CONTRACT_ADDRESS".into())
+			.expect_info(format!(
+				"pop call contract --path {} --contract CONTRACT_ADDRESS --message get --url {} --suri //Alice",
+				temp_dir.path().join("testing").display(),
+				urls::LOCAL
+			));
 
 		let mut call_config = CallContractCommand {
 			path: None,
@@ -682,12 +677,13 @@ mod tests {
 		assert!(!call_config.execute);
 		assert!(!call_config.dry_run);
 		assert_eq!(
-            call_config.display(),
-            format!(
-                "pop call contract --path {} --contract CONTRACT_ADDRESS --message get --url {} --suri //Alice",
-                temp_dir.path().join("testing").display(), urls::LOCAL
-            )
-        );
+			call_config.display(),
+			format!(
+				"pop call contract --path {} --contract CONTRACT_ADDRESS --message get --url {} --suri //Alice",
+				temp_dir.path().join("testing").display(),
+				urls::LOCAL
+			)
+		);
 
 		cli.verify()
 	}
@@ -770,10 +766,14 @@ mod tests {
 		assert!(call_config.use_wallet);
 		assert!(call_config.execute);
 		assert!(!call_config.dry_run);
-		assert_eq!(call_config.display(), format!(
-            "pop call contract --path {} --contract CONTRACT_ADDRESS --message specific_flip --args \"true\", \"2\" --value 50 --url {} --use-wallet --execute",
-            temp_dir.path().join("testing").display(), urls::LOCAL
-        ));
+		assert_eq!(
+			call_config.display(),
+			format!(
+				"pop call contract --path {} --contract CONTRACT_ADDRESS --message specific_flip --args \"true\", \"2\" --value 50 --url {} --use-wallet --execute",
+				temp_dir.path().join("testing").display(),
+				urls::LOCAL
+			)
+		);
 
 		cli.verify()
 	}
@@ -854,10 +854,14 @@ mod tests {
 		assert!(call_config.execute);
 		assert!(!call_config.dry_run);
 		assert!(call_config.dev_mode);
-		assert_eq!(call_config.display(), format!(
-            "pop call contract --path {} --contract CONTRACT_ADDRESS --message specific_flip --args \"true\", \"2\" --value 50 --url {} --suri //Alice --execute",
-            temp_dir.path().join("testing").display(), urls::LOCAL
-        ));
+		assert_eq!(
+			call_config.display(),
+			format!(
+				"pop call contract --path {} --contract CONTRACT_ADDRESS --message specific_flip --args \"true\", \"2\" --value 50 --url {} --suri //Alice --execute",
+				temp_dir.path().join("testing").display(),
+				urls::LOCAL
+			)
+		);
 
 		cli.verify()
 	}

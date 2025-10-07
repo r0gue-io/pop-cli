@@ -14,7 +14,7 @@ use std::path::PathBuf;
 use {
 	crate::cli::traits::*,
 	cliclack::spinner,
-	pop_common::sourcing::{set_executable_permission, Binary},
+	pop_common::sourcing::{Binary, set_executable_permission},
 	std::path::Path,
 };
 

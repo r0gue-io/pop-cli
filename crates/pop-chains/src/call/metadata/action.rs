@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use super::{find_dispatchable_by_name, Pallet};
+use super::{Pallet, find_dispatchable_by_name};
 use strum::{EnumMessage as _, EnumProperty as _, VariantArray as _};
 use strum_macros::{AsRefStr, Display, EnumMessage, EnumProperty, EnumString, VariantArray};
 

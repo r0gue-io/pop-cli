@@ -13,7 +13,9 @@ use std::{env, path::Path};
 pub fn test_e2e_smart_contract(path: Option<&Path>, node: Option<&Path>) -> Result<(), Error> {
 	// Set the environment variable `CONTRACTS_NODE` to the path of the contracts node.
 	if let Some(node) = node {
-		env::set_var("CONTRACTS_NODE", node);
+		unsafe {
+			env::set_var("CONTRACTS_NODE", node);
+		}
 	}
 	// Execute `cargo test --features=e2e-tests` command in the specified directory.
 	cmd("cargo", vec!["test", "--features=e2e-tests"])

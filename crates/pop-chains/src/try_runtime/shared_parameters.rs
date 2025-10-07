@@ -17,8 +17,8 @@
 
 use super::parse::state_version;
 use sc_cli::{
-	WasmExecutionMethod, WasmtimeInstantiationStrategy, DEFAULT_WASMTIME_INSTANTIATION_STRATEGY,
-	DEFAULT_WASM_EXECUTION_METHOD,
+	DEFAULT_WASM_EXECUTION_METHOD, DEFAULT_WASMTIME_INSTANTIATION_STRATEGY, WasmExecutionMethod,
+	WasmtimeInstantiationStrategy,
 };
 use sp_runtime::StateVersion;
 use std::{path::PathBuf, str::FromStr};

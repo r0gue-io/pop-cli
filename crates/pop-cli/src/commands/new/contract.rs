@@ -2,9 +2,8 @@
 
 use crate::{
 	cli::{
-		self,
+		self, Cli,
 		traits::{Cli as _, *},
-		Cli,
 	},
 	common::helpers::check_destination_path,
 };
@@ -12,15 +11,15 @@ use pop_common::manifest::{add_crate_to_workspace, find_workspace_toml};
 
 use anyhow::Result;
 use clap::{
-	builder::{PossibleValue, PossibleValuesParser, TypedValueParser},
 	Args,
+	builder::{PossibleValue, PossibleValuesParser, TypedValueParser},
 };
 use console::style;
 use pop_common::{
 	enum_variants, get_project_name_from_path,
 	templates::{Template, Type},
 };
-use pop_contracts::{create_smart_contract, is_valid_contract_name, Contract, ContractType};
+use pop_contracts::{Contract, ContractType, create_smart_contract, is_valid_contract_name};
 use std::{fs, path::Path, str::FromStr};
 use strum::VariantArray;
 
@@ -197,11 +196,11 @@ fn generate_contract_from_template(
 mod tests {
 	use super::*;
 	use crate::{
+		Cli,
+		Command::New,
 		cli::MockCli,
 		commands::new::{Command::Contract, NewArgs},
 		new::contract::{guide_user_to_generate_contract, is_template_supported},
-		Cli,
-		Command::New,
 	};
 	use anyhow::Result;
 	use clap::Parser;

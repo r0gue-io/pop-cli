@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use cliclack::ThemeState;
-pub(crate) use console::style;
 use console::Style;
+pub(crate) use console::style;
 
 pub(crate) fn get_styles() -> clap::builder::Styles {
 	use clap::builder::styling::{AnsiColor, Color, Style};

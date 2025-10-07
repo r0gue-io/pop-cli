@@ -4,14 +4,14 @@ use crate::{
 	cli::{self, traits::Input},
 	common::{
 		prompt::display_message,
-		try_runtime::{check_try_runtime_and_prompt, collect_args, ArgumentConstructor},
+		try_runtime::{ArgumentConstructor, check_try_runtime_and_prompt, collect_args},
 		urls,
 	},
 };
 use clap::Args;
 use cliclack::spinner;
 use console::style;
-use pop_chains::{parse::url, run_try_runtime, state::LiveState, TryRuntimeCliCommand};
+use pop_chains::{TryRuntimeCliCommand, parse::url, run_try_runtime, state::LiveState};
 
 // Custom arguments which are not in `try-runtime create-snapshot`.
 const CUSTOM_ARGS: [&str; 2] = ["--skip-confirm", "-y"];
@@ -53,10 +53,14 @@ impl TestCreateSnapshotCommand {
 		if self.snapshot_path.is_none() {
 			let input = cli
 				.input(format!(
-         			"Enter the path to write the snapshot to (optional):\n{}",
-         			style("If not provided `<spec-name>-<spec-version>@<block-hash>.snap` will be used.").dim()
-          		))
-				.required(false).placeholder(DEFAULT_SNAPSHOT_PATH)
+					"Enter the path to write the snapshot to (optional):\n{}",
+					style(
+						"If not provided `<spec-name>-<spec-version>@<block-hash>.snap` will be used."
+					)
+					.dim()
+				))
+				.required(false)
+				.placeholder(DEFAULT_SNAPSHOT_PATH)
 				.interact()?;
 			if !input.is_empty() {
 				self.snapshot_path = Some(input);

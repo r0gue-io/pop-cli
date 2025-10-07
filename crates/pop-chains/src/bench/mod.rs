@@ -324,8 +324,13 @@ mod tests {
 		binary.source(false, &(), true).await?;
 
 		assert_eq!(
-		    load_pallet_extrinsics(&runtime_path,
-		&binary.path()).await.err().unwrap().to_string(), "Failed to run benchmarking: Error: Input(\"Did not find the benchmarking runtime api. This could mean that you either did not build the node correctly with the `--features runtime-benchmarks` flag, or the chain spec that you are using was not created by a node that was compiled with the flag\")");
+			load_pallet_extrinsics(&runtime_path, &binary.path())
+				.await
+				.err()
+				.unwrap()
+				.to_string(),
+			"Failed to run benchmarking: Error: Input(\"Did not find the benchmarking runtime api. This could mean that you either did not build the node correctly with the `--features runtime-benchmarks` flag, or the chain spec that you are using was not created by a node that was compiled with the flag\")"
+		);
 		Ok(())
 	}
 

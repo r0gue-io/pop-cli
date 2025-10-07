@@ -1,34 +1,34 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{
+	CallExec, DefaultEnvironment, Environment, Verbosity,
 	errors::Error,
 	submit_signed_payload,
 	utils::{
 		get_manifest_path,
-		metadata::{extract_function, process_function_args, FunctionType},
+		metadata::{FunctionType, extract_function, process_function_args},
 		parse_balance,
 	},
-	CallExec, DefaultEnvironment, Environment, Verbosity,
 };
 use anyhow::Context;
-use pop_common::{create_signer, DefaultConfig, Keypair};
+use pop_common::{DefaultConfig, Keypair, create_signer};
 use sp_weights::Weight;
 use std::path::PathBuf;
-use subxt::{tx::Payload, SubstrateConfig};
+use subxt::{SubstrateConfig, tx::Payload};
 use url::Url;
 #[cfg(feature = "v5")]
 use {
 	contract_extrinsics::{
-		extrinsic_calls::Call, BalanceVariant, CallCommandBuilder, ContractArtifacts,
-		DisplayEvents, ErrorVariant, ExtrinsicOptsBuilder, TokenMetadata,
+		BalanceVariant, CallCommandBuilder, ContractArtifacts, DisplayEvents, ErrorVariant,
+		ExtrinsicOptsBuilder, TokenMetadata, extrinsic_calls::Call,
 	},
-	pop_common::{parse_account, Config},
+	pop_common::{Config, parse_account},
 };
 #[cfg(feature = "v6")]
 use {
 	contract_extrinsics_inkv6::{
-		extrinsic_calls::Call, BalanceVariant, CallCommandBuilder, ContractArtifacts,
-		DisplayEvents, ErrorVariant, ExtrinsicOptsBuilder, TokenMetadata,
+		BalanceVariant, CallCommandBuilder, ContractArtifacts, DisplayEvents, ErrorVariant,
+		ExtrinsicOptsBuilder, TokenMetadata, extrinsic_calls::Call,
 	},
 	pop_common::account_id::parse_h160_account,
 };

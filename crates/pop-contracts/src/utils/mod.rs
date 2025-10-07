@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{errors::Error, Bytes, DefaultEnvironment, Environment};
+use crate::{Bytes, DefaultEnvironment, Environment, errors::Error};
 use std::{
 	path::{Path, PathBuf},
 	str::FromStr,
 };
 #[cfg(feature = "v5")]
 use {
-	contract_build::{util::decode_hex, ManifestPath},
+	contract_build::{ManifestPath, util::decode_hex},
 	contract_extrinsics::BalanceVariant,
 };
 #[cfg(feature = "v6")]
 use {
-	contract_build_inkv6::{util::decode_hex, ManifestPath},
+	contract_build_inkv6::{ManifestPath, util::decode_hex},
 	contract_extrinsics_inkv6::BalanceVariant,
 };
 

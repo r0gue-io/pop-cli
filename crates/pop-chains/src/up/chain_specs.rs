@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{registry::traits, Error};
+use crate::{Error, registry::traits};
 use pop_common::{
 	git::GitHub,
 	polkadot_sdk::sort_by_latest_semantic_version,
 	sourcing::{
-		filters::prefix,
-		traits::{
-			enums::{Source as _, *},
-			Source as SourceT,
-		},
 		ArchiveFileSpec, Binary,
 		GitHub::*,
 		Source,
+		filters::prefix,
+		traits::{
+			Source as SourceT,
+			enums::{Source as _, *},
+		},
 	},
 	target,
 };
@@ -147,8 +147,8 @@ pub(super) async fn chain_spec_generator(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use tempfile::tempdir;
 	use Runtime::*;
+	use tempfile::tempdir;
 
 	#[tokio::test]
 	async fn kusama_works() -> anyhow::Result<()> {
