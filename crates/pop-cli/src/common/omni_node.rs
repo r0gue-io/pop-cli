@@ -26,7 +26,7 @@ pub(super) enum PolkadotOmniNodeCli {
 	#[strum(props(
 		Repository = "https://github.com/r0gue-io/polkadot",
 		Binary = "polkadot-omni-node",
-		Fallback = "polkadot-stable2503-7"
+		Fallback = "polkadot-stable2506-2"
 	))]
 	PolkadotOmniNode,
 }
