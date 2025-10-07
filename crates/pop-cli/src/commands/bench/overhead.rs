@@ -6,12 +6,12 @@ use crate::{
 		bench::{check_omni_bencher_and_prompt, overwrite_weight_dir_command},
 		builds::guide_user_to_select_profile,
 		prompt::display_message,
-		runtime::{ensure_runtime_binary_exists, guide_user_to_select_genesis_preset, Feature},
+		runtime::{Feature, ensure_runtime_binary_exists, guide_user_to_select_genesis_preset},
 	},
 };
 use clap::{Args, Parser};
 use cliclack::spinner;
-use pop_chains::{bench::OverheadCmd, generate_omni_bencher_benchmarks, BenchmarkingCliCommand};
+use pop_chains::{BenchmarkingCliCommand, bench::OverheadCmd, generate_omni_bencher_benchmarks};
 use pop_common::Profile;
 use std::{env::current_dir, path::PathBuf};
 use tempfile::tempdir;

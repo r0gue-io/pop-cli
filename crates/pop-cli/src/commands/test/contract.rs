@@ -3,8 +3,8 @@
 use crate::{
 	cli,
 	common::{
-		contracts::check_contracts_node_and_prompt,
 		TestFeature::{self, *},
+		contracts::check_contracts_node_and_prompt,
 	},
 };
 use clap::Args;
@@ -49,7 +49,9 @@ impl TestContractCommand {
 			{
 				Ok(binary_path) => Some(binary_path),
 				Err(_) => {
-					cli.warning("🚫 substrate-contracts-node is necessary to run e2e tests. Will try to run tests anyway...")?;
+					cli.warning(
+						"🚫 substrate-contracts-node is necessary to run e2e tests. Will try to run tests anyway...",
+					)?;
 					Some(PathBuf::new())
 				},
 			};

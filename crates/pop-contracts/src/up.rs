@@ -1,32 +1,32 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{
+	Bytes, DefaultEnvironment, Environment, UploadCode, Weight,
 	errors::Error,
 	utils::{
 		get_manifest_path,
-		metadata::{extract_function, process_function_args, FunctionType},
+		metadata::{FunctionType, extract_function, process_function_args},
 		parse_balance,
 	},
-	Bytes, DefaultEnvironment, Environment, UploadCode, Weight,
 };
 #[cfg(feature = "v6")]
 use pop_common::account_id::parse_h160_account;
-use pop_common::{create_signer, DefaultConfig, Keypair};
+use pop_common::{DefaultConfig, Keypair, create_signer};
 use std::path::{Path, PathBuf};
 use subxt::{
+	SubstrateConfig,
 	blocks::ExtrinsicEvents,
 	tx::{Payload, SubmittableExtrinsic},
-	SubstrateConfig,
 };
 #[cfg(feature = "v5")]
 use {
 	contract_extrinsics::{
-		events::{CodeStored, ContractInstantiated},
-		extrinsic_calls::{Instantiate, InstantiateWithCode},
-		upload::Determinism,
 		BalanceVariant, Code, ErrorVariant, ExtrinsicOptsBuilder, InstantiateCommandBuilder,
 		InstantiateExec, InstantiateExecResult, TokenMetadata, UploadCommandBuilder, UploadExec,
 		UploadResult, WasmCode as ContractBinary,
+		events::{CodeStored, ContractInstantiated},
+		extrinsic_calls::{Instantiate, InstantiateWithCode},
+		upload::Determinism,
 	},
 	sp_core::bytes::from_hex,
 	subxt::Config,
@@ -34,11 +34,11 @@ use {
 #[cfg(feature = "v6")]
 use {
 	contract_extrinsics_inkv6::{
-		contract_address,
+		BalanceVariant, Code, ContractBinary, ErrorVariant, ExtrinsicOptsBuilder,
+		InstantiateCommandBuilder, InstantiateExec, InstantiateExecResult, TokenMetadata,
+		UploadCommandBuilder, UploadExec, UploadResult, contract_address,
 		extrinsic_calls::{Instantiate, InstantiateWithCode},
-		fetch_contract_binary, BalanceVariant, Code, ContractBinary, ErrorVariant,
-		ExtrinsicOptsBuilder, InstantiateCommandBuilder, InstantiateExec, InstantiateExecResult,
-		TokenMetadata, UploadCommandBuilder, UploadExec, UploadResult,
+		fetch_contract_binary,
 	},
 	sp_core_inkv6::bytes::{from_hex, to_hex},
 };

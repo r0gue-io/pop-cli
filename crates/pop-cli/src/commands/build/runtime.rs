@@ -8,7 +8,7 @@ use crate::{
 		runtime::{build_runtime, ensure_runtime_binary_exists},
 	},
 };
-use pop_common::{find_workspace_toml, Profile};
+use pop_common::{Profile, find_workspace_toml};
 use std::{
 	env::current_dir,
 	path::{Path, PathBuf},

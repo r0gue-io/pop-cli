@@ -3,8 +3,8 @@
 use crate::{
 	cli::{self, Cli},
 	common::{
-		builds::ensure_project_path,
 		Project::{self, *},
+		builds::ensure_project_path,
 	},
 };
 use clap::{Args, Subcommand};
@@ -146,7 +146,7 @@ mod tests {
 	#[cfg(feature = "chain")]
 	use {
 		crate::style::format_url,
-		pop_chains::{instantiate_template_dir, ChainTemplate, Config, DeploymentProvider},
+		pop_chains::{ChainTemplate, Config, DeploymentProvider, instantiate_template_dir},
 		strum::VariantArray,
 	};
 

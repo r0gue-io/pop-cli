@@ -3,9 +3,9 @@
 #[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 use crate::cli;
 use crate::common::{
-	builds::ensure_project_path,
 	Project::{self, *},
 	TestFeature::{self, Unit},
+	builds::ensure_project_path,
 };
 use clap::{Args, Subcommand};
 use pop_common::test_project;

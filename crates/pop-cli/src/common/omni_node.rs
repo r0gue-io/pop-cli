@@ -1,22 +1,23 @@
 use crate::{
 	cli::traits::Cli,
-	common::binary::{check_and_prompt, BinaryGenerator},
+	common::binary::{BinaryGenerator, check_and_prompt},
 	impl_binary_generator,
 };
 use pop_common::{
+	Error,
 	git::GitHub,
 	polkadot_sdk::sort_by_latest_semantic_version,
 	sourcing::{
-		filters::prefix,
-		traits::{
-			enums::{Source as _, *},
-			Source as SourceT,
-		},
 		ArchiveFileSpec, Binary,
 		GitHub::*,
 		Source,
+		filters::prefix,
+		traits::{
+			Source as SourceT,
+			enums::{Source as _, *},
+		},
 	},
-	target, Error,
+	target,
 };
 use std::path::{Path, PathBuf};
 use strum_macros::EnumProperty;

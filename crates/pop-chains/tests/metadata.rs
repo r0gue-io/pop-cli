@@ -6,9 +6,9 @@
 
 use anyhow::Result;
 use pop_chains::{
-	construct_extrinsic, construct_proxy_extrinsic, decode_call_data, encode_call_data,
-	field_to_param, find_dispatchable_by_name, find_pallet_by_name, parse_chain_metadata,
-	set_up_client, sign_and_submit_extrinsic, Error, Function, Payload,
+	Error, Function, Payload, construct_extrinsic, construct_proxy_extrinsic, decode_call_data,
+	encode_call_data, field_to_param, find_dispatchable_by_name, find_pallet_by_name,
+	parse_chain_metadata, set_up_client, sign_and_submit_extrinsic,
 };
 use pop_common::test_env::TestNode;
 use url::Url;
@@ -131,7 +131,10 @@ async fn find_dispatchable_by_name_works() -> Result<()> {
 	));
 	let function = find_dispatchable_by_name(&pallets, "Balances", "force_transfer")?;
 	assert_eq!(function.name, "force_transfer");
-	assert_eq!(function.docs, "Exactly as `transfer_allow_death`, except the origin must be root and the source account may be specified.");
+	assert_eq!(
+		function.docs,
+		"Exactly as `transfer_allow_death`, except the origin must be root and the source account may be specified."
+	);
 	assert!(function.is_supported);
 	assert_eq!(function.params.len(), 3);
 	Ok(())
@@ -154,7 +157,10 @@ async fn field_to_param_works() -> Result<()> {
 	}
 	assert_eq!(params.len(), 3);
 	assert_eq!(params.first().unwrap().name, "source");
-	assert_eq!(params.first().unwrap().type_name, "MultiAddress<AccountId32 ([u8;32]),()>: Id(AccountId32 ([u8;32])), Index(Compact<()>), Raw([u8]), Address32([u8;32]), Address20([u8;20])");
+	assert_eq!(
+		params.first().unwrap().type_name,
+		"MultiAddress<AccountId32 ([u8;32]),()>: Id(AccountId32 ([u8;32])), Index(Compact<()>), Raw([u8]), Address32([u8;32]), Address20([u8;20])"
+	);
 	assert_eq!(params.first().unwrap().sub_params.len(), 5);
 	assert_eq!(params.first().unwrap().sub_params.first().unwrap().name, "Id");
 	assert_eq!(params.first().unwrap().sub_params.first().unwrap().type_name, "");

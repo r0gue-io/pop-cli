@@ -4,7 +4,7 @@ use crate::errors::Error;
 use params::Param;
 use scale_value::stringify::custom_parsers;
 use std::fmt::{Display, Formatter};
-use subxt::{dynamic::Value, utils::to_hex, Metadata, OnlineClient, SubstrateConfig};
+use subxt::{Metadata, OnlineClient, SubstrateConfig, dynamic::Value, utils::to_hex};
 
 pub mod action;
 pub mod params;

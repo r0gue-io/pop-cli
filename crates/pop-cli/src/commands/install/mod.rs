@@ -2,19 +2,18 @@
 
 use crate::{
 	cli::{
-		self,
+		self, Cli,
 		traits::{Cli as _, *},
-		Cli,
 	},
 	common::Os::{self, *},
 };
+use Dependencies::*;
 use anyhow::Context;
 use clap::Args;
 use duct::cmd;
 use os_info::Type;
 use strum_macros::Display;
 use tokio::fs;
-use Dependencies::*;
 
 const DOCS_URL: &str = "https://docs.polkadot.com/develop/parachains/install-polkadot-sdk/";
 

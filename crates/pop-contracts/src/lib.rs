@@ -17,10 +17,10 @@ mod testing;
 mod up;
 mod utils;
 
-pub use build::{build_smart_contract, is_supported, Verbosity};
+pub use build::{Verbosity, build_smart_contract, is_supported};
 pub use call::{
-	call_smart_contract, call_smart_contract_from_signed_payload, dry_run_call,
-	dry_run_gas_estimate_call, get_call_payload, set_up_call, CallOpts,
+	CallOpts, call_smart_contract, call_smart_contract_from_signed_payload, dry_run_call,
+	dry_run_gas_estimate_call, get_call_payload, set_up_call,
 };
 pub use errors::Error;
 pub use new::{create_smart_contract, is_valid_contract_name};
@@ -29,13 +29,13 @@ pub use templates::{Contract, ContractType};
 pub use test::test_e2e_smart_contract;
 pub use testing::{mock_build_process, new_environment};
 pub use up::{
-	dry_run_gas_estimate_instantiate, dry_run_upload, get_contract_code,
+	ContractInfo, UpOpts, dry_run_gas_estimate_instantiate, dry_run_upload, get_contract_code,
 	instantiate_contract_signed, instantiate_smart_contract, set_up_deployment, set_up_upload,
-	submit_signed_payload, upload_contract_signed, upload_smart_contract, ContractInfo, UpOpts,
+	submit_signed_payload, upload_contract_signed, upload_smart_contract,
 };
 pub use utils::{
 	metadata::{
-		extract_function, get_message, get_messages, ContractFunction, FunctionType, Param,
+		ContractFunction, FunctionType, Param, extract_function, get_message, get_messages,
 	},
 	parse_hex_bytes,
 };
@@ -43,7 +43,7 @@ pub use utils::{
 pub use sp_weights::Weight;
 #[cfg(feature = "v5")]
 pub use {
-	contract_extrinsics::{extrinsic_calls::UploadCode, CallExec},
+	contract_extrinsics::{CallExec, extrinsic_calls::UploadCode},
 	ink_env::{DefaultEnvironment, Environment},
 	sp_core::Bytes,
 	up::{get_code_hash_from_event, get_instantiate_payload, get_upload_payload},

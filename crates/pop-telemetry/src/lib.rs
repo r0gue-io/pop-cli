@@ -3,11 +3,11 @@
 #![doc = include_str!("../README.md")]
 
 use reqwest::Client;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use serde_json::{Value, json};
 use std::{
 	env,
-	fs::{create_dir_all, File},
+	fs::{File, create_dir_all},
 	io,
 	io::{Read, Write},
 	path::PathBuf,
@@ -292,19 +292,29 @@ mod tests {
 		let _ = env_logger::try_init();
 
 		// assert that no config file, and env vars not existing sets opt-out to false
-		env::remove_var("DO_NOT_TRACK");
-		env::set_var("CI", "false");
+		unsafe {
+			env::remove_var("DO_NOT_TRACK");
+			env::set_var("CI", "false");
+		}
 		assert!(!Telemetry::init("".to_string(), &PathBuf::new()).opt_out);
 
 		// assert that if DO_NOT_TRACK env var is set, opt-out is true
-		env::set_var("DO_NOT_TRACK", "true");
+		unsafe {
+			env::set_var("DO_NOT_TRACK", "true");
+		}
 		assert!(Telemetry::init("".to_string(), &PathBuf::new()).opt_out);
-		env::remove_var("DO_NOT_TRACK");
+		unsafe {
+			env::remove_var("DO_NOT_TRACK");
+		}
 
 		// assert that if CI env var is set, opt-out is true
-		env::set_var("CI", "true");
+		unsafe {
+			env::set_var("CI", "true");
+		}
 		assert!(Telemetry::init("".to_string(), &PathBuf::new()).opt_out);
-		env::remove_var("CI");
+		unsafe {
+			env::remove_var("CI");
+		}
 	}
 
 	#[tokio::test]

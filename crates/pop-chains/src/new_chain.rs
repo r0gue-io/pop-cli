@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{
+	ChainTemplate, Config, Provider,
 	generator::chain::{ChainSpec, Network},
 	utils::helpers::{sanitize, write_to_file},
-	ChainTemplate, Config, Provider,
 };
 use anyhow::Result;
 use pop_common::{
 	git::Git,
-	templates::{extractor::extract_template_files, Template, Type},
+	templates::{Template, Type, extractor::extract_template_files},
 };
 use std::{fs, path::Path};
 use walkdir::WalkDir;
@@ -119,10 +119,14 @@ mod tests {
 		let generated_file_content =
 			fs::read_to_string(temp_dir.path().join("node/src/chain_spec.rs"))
 				.expect("Failed to read file");
-		assert!(generated_file_content
-			.contains("properties.insert(\"tokenSymbol\".into(), \"DOT\".into());"));
-		assert!(generated_file_content
-			.contains("properties.insert(\"tokenDecimals\".into(), 18.into());"));
+		assert!(
+			generated_file_content
+				.contains("properties.insert(\"tokenSymbol\".into(), \"DOT\".into());")
+		);
+		assert!(
+			generated_file_content
+				.contains("properties.insert(\"tokenDecimals\".into(), 18.into());")
+		);
 		assert!(generated_file_content.contains("1000000"));
 
 		// Verify network.toml contains expected content

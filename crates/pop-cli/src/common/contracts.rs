@@ -2,12 +2,12 @@
 
 use crate::{
 	cli::traits::*,
-	common::binary::{check_and_prompt, BinaryGenerator},
+	common::binary::{BinaryGenerator, check_and_prompt},
 	impl_binary_generator,
 };
 use cliclack::ProgressBar;
 use pop_common::{manifest::from_path, sourcing::Binary};
-use pop_contracts::{contracts_node_generator, ContractFunction};
+use pop_contracts::{ContractFunction, contracts_node_generator};
 use std::{
 	path::{Path, PathBuf},
 	process::{Child, Command},
@@ -177,7 +177,7 @@ mod tests {
 	use duct::cmd;
 	use pop_common::{find_free_port, set_executable_permission};
 	use pop_contracts::{
-		extract_function, is_chain_alive, run_contracts_node, FunctionType, Param,
+		FunctionType, Param, extract_function, is_chain_alive, run_contracts_node,
 	};
 	use std::{
 		env,
@@ -232,10 +232,12 @@ mod tests {
 		let node_path =
 			check_contracts_node_and_prompt(&mut cli, &spinner(), cache_path.path(), false).await?;
 		// Binary path is at least equal to the cache path + the contracts node binary.
-		assert!(node_path
-			.to_str()
-			.unwrap()
-			.starts_with(cache_path.path().join(CONTRACTS_NODE_BINARY).to_str().unwrap()));
+		assert!(
+			node_path
+				.to_str()
+				.unwrap()
+				.starts_with(cache_path.path().join(CONTRACTS_NODE_BINARY).to_str().unwrap())
+		);
 		cli.verify()
 	}
 
@@ -248,10 +250,12 @@ mod tests {
 		let node_path =
 			check_contracts_node_and_prompt(&mut cli, &spinner(), cache_path.path(), true).await?;
 		// Binary path is at least equal to the cache path + the contracts node binary.
-		assert!(node_path
-			.to_str()
-			.unwrap()
-			.starts_with(cache_path.path().join(CONTRACTS_NODE_BINARY).to_str().unwrap()));
+		assert!(
+			node_path
+				.to_str()
+				.unwrap()
+				.starts_with(cache_path.path().join(CONTRACTS_NODE_BINARY).to_str().unwrap())
+		);
 		cli.verify()
 	}
 

@@ -13,7 +13,7 @@ use std::path::PathBuf;
 #[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "chain"))]
 use {
 	crate::cli::traits::*,
-	pop_common::sourcing::{set_executable_permission, Binary},
+	pop_common::sourcing::{Binary, set_executable_permission},
 	std::path::Path,
 };
 

@@ -7,7 +7,7 @@ use crate::{
 	call::chain::Call,
 	cli::traits::*,
 	common::{
-		chain::{configure, Chain},
+		chain::{Chain, configure},
 		urls,
 		wallet::submit_extrinsic,
 	},
@@ -18,10 +18,10 @@ use anyhow::Result;
 use clap::Args;
 use cliclack::spinner;
 use pop_chains::{
-	construct_proxy_extrinsic, find_dispatchable_by_name, Action, ChainTemplate,
-	DeploymentProvider, Payload, Reserved, SupportedChains,
+	Action, ChainTemplate, DeploymentProvider, Payload, Reserved, SupportedChains,
+	construct_proxy_extrinsic, find_dispatchable_by_name,
 };
-use pop_common::{parse_account, templates::Template, Profile};
+use pop_common::{Profile, parse_account, templates::Template};
 use std::{
 	env,
 	path::{Path, PathBuf},
@@ -114,8 +114,9 @@ impl UpCommand {
 						"{}\n{}",
 						e,
 						style(format!(
-						"Retry registration without reserve or rebuilding the chain specs using: {}", pop_command
-					))
+							"Retry registration without reserve or rebuilding the chain specs using: {}",
+							pop_command
+						))
 						.black()
 					))?;
 					return Ok(());
@@ -137,11 +138,20 @@ impl UpCommand {
 				))
 			))?,
 			Err(e) => {
-				cli.outro_cancel(format!("{}\n{}", e, style(format!(
-					"Retry deployment without registration or rebuilding the chain specs using: {}", style(format!("`pop up --id {} --chain-spec {} --skip-registration`",
-					config.id, config.genesis_artifacts.chain_spec.display())).bold()
-				))
-				.black()))?;
+				cli.outro_cancel(format!(
+					"{}\n{}",
+					e,
+					style(format!(
+						"Retry deployment without registration or rebuilding the chain specs using: {}",
+						style(format!(
+							"`pop up --id {} --chain-spec {} --skip-registration`",
+							config.id,
+							config.genesis_artifacts.chain_spec.display()
+						))
+						.bold()
+					))
+					.black()
+				))?;
 			},
 		}
 		Ok(())
@@ -199,7 +209,11 @@ impl UpCommand {
 		}
 		if let Some(api) = api {
 			if api.provider == DeploymentProvider::PDP {
-				cli.info(format!("{}The provider {} requires registration via a pure proxy for security and best practices.", format_step_prefix(1,5, show_deployment_steps), api.provider.name()))?;
+				cli.info(format!(
+					"{}The provider {} requires registration via a pure proxy for security and best practices.",
+					format_step_prefix(1, 5, show_deployment_steps),
+					api.provider.name()
+				))?;
 				return Ok(Some(prompt_for_proxy_address(
 					self.skip_registration,
 					relay_chain_url,
@@ -207,9 +221,19 @@ impl UpCommand {
 				)?));
 			}
 		}
-		if cli.confirm("Would you like to use a pure proxy for registration? This is considered a best practice.").initial_value(true).interact()? {
-            return Ok(Some(prompt_for_proxy_address(self.skip_registration, relay_chain_url, cli)?));
-        }
+		if cli
+			.confirm(
+				"Would you like to use a pure proxy for registration? This is considered a best practice.",
+			)
+			.initial_value(true)
+			.interact()?
+		{
+			return Ok(Some(prompt_for_proxy_address(
+				self.skip_registration,
+				relay_chain_url,
+				cli,
+			)?));
+		}
 		Ok(None)
 	}
 
@@ -585,7 +609,9 @@ mod tests {
 
 		// A backup of the existing env variable to restore it at the end of the test.
 		let original_api_key = env::var(PDP_API_KEY).ok();
-		env::set_var(PDP_API_KEY, "test_api_key");
+		unsafe {
+			env::set_var(PDP_API_KEY, "test_api_key");
+		}
 		let chain_config = UpCommand { skip_registration: true, ..Default::default() }
 			.prepare_for_deployment(&mut cli)?;
 		assert!(chain_config.api.is_some());
@@ -595,9 +621,13 @@ mod tests {
 
 		// Ensure a clean environment.
 		if let Some(original) = original_api_key {
-			env::set_var(PDP_API_KEY, original);
+			unsafe {
+				env::set_var(PDP_API_KEY, original);
+			}
 		} else {
-			env::remove_var(PDP_API_KEY);
+			unsafe {
+				env::remove_var(PDP_API_KEY);
+			}
 		}
 		cli.verify()
 	}
@@ -642,11 +672,15 @@ mod tests {
 		// Nothing provided, should show steps.
 		assert!(UpCommand::default().should_show_deployment_steps(&deployment));
 		// skip_registration is true, should not show steps.
-		assert!(!UpCommand { id: Some(2000), skip_registration: true, ..Default::default() }
-			.should_show_deployment_steps(&deployment));
+		assert!(
+			!UpCommand { id: Some(2000), skip_registration: true, ..Default::default() }
+				.should_show_deployment_steps(&deployment)
+		);
 		// No API provided, should not show steps.
-		assert!(!UpCommand::default()
-			.should_show_deployment_steps(&Deployment { api: None, ..Default::default() }));
+		assert!(
+			!UpCommand::default()
+				.should_show_deployment_steps(&Deployment { api: None, ..Default::default() })
+		);
 		Ok(())
 	}
 
@@ -717,9 +751,9 @@ mod tests {
 		cli.verify()?;
 
 		cli = MockCli::new().expect_confirm(
-            "Would you like to use a pure proxy for registration? This is considered a best practice.",
-            false,
-        );
+			"Would you like to use a pure proxy for registration? This is considered a best practice.",
+			false,
+		);
 		let proxied_address = UpCommand::default().resolve_proxied_address(
 			&None,
 			false,
@@ -899,7 +933,9 @@ mod tests {
 	#[test]
 	fn prompt_api_key_works() -> Result<()> {
 		let test_env_var = "TEST_PDP_API_KEY";
-		env::remove_var(test_env_var);
+		unsafe {
+			env::remove_var(test_env_var);
+		}
 		let provider = DeploymentProvider::PDP;
 
 		let mut cli = MockCli::new()
@@ -911,7 +947,9 @@ mod tests {
 		cli.verify()?;
 
 		// Test when API KEY exist in the env variable.
-		env::set_var(test_env_var, "test_api_key");
+		unsafe {
+			env::set_var(test_env_var, "test_api_key");
+		}
 		cli = MockCli::new()
 			.expect_info(format!("Using API key from environment variable ({test_env_var})."));
 

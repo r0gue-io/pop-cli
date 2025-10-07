@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::cli::traits::*;
-use cliclack::{spinner, ProgressBar};
+use cliclack::{ProgressBar, spinner};
 use console::style;
 use pop_chains::utils::helpers::get_preset_names;
 #[cfg(feature = "chain")]
 use pop_chains::{
-	build_project, get_runtime_path, runtime_binary_path, ContainerEngine, DeterministicBuilder,
-	GenesisBuilderPolicy,
+	ContainerEngine, DeterministicBuilder, GenesisBuilderPolicy, build_project, get_runtime_path,
+	runtime_binary_path,
 };
-use pop_common::{manifest::from_path, Profile};
+use pop_common::{Profile, manifest::from_path};
 use std::{
 	self,
 	ffi::OsStr,

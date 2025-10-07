@@ -6,8 +6,8 @@
 
 use anyhow::Result;
 use pop_chains::{
-	up::{Binary, Source::GitHub},
 	ChainTemplate,
+	up::{Binary, Source::GitHub},
 };
 use pop_common::{
 	find_free_port,

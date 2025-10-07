@@ -2,7 +2,7 @@
 
 use crate::{errors::Error, utils::get_manifest_path};
 pub use contract_build::Verbosity;
-use contract_build::{execute, BuildMode, BuildResult, ExecuteArgs};
+use contract_build::{BuildMode, BuildResult, ExecuteArgs, execute};
 #[cfg(feature = "v6")]
 use contract_build_inkv6 as contract_build;
 use std::path::Path;

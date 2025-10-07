@@ -8,10 +8,10 @@ use crate::{
 	common::{
 		prompt::display_message,
 		try_runtime::{
+			ArgumentConstructor, BuildRuntimeParams, DEFAULT_BLOCK_TIME,
 			check_try_runtime_and_prompt, collect_args, collect_shared_arguments,
 			collect_state_arguments, guide_user_to_select_try_state, partition_arguments,
-			update_runtime_source, update_state_source, ArgumentConstructor, BuildRuntimeParams,
-			DEFAULT_BLOCK_TIME,
+			update_runtime_source, update_state_source,
 		},
 	},
 };
@@ -19,10 +19,9 @@ use clap::Args;
 use cliclack::spinner;
 use console::style;
 use pop_chains::{
-	parse_try_state_string, run_try_runtime,
+	SharedParams, TryRuntimeCliCommand, parse_try_state_string, run_try_runtime,
 	state::{LiveState, State, StateCommand},
 	try_runtime::TryStateSelect,
-	SharedParams, TryRuntimeCliCommand,
 };
 
 // Custom arguments which are not in `try-runtime fast-forward`.
@@ -242,15 +241,15 @@ mod tests {
 	use crate::{
 		cli::MockCli,
 		common::{
-			runtime::{get_mock_runtime, Feature},
+			runtime::{Feature, get_mock_runtime},
 			try_runtime::{
-				get_mock_snapshot, get_subcommands, get_try_state_items, source_try_runtime_binary,
-				DEFAULT_BLOCK_TIME,
+				DEFAULT_BLOCK_TIME, get_mock_snapshot, get_subcommands, get_try_state_items,
+				source_try_runtime_binary,
 			},
 			urls,
 		},
 	};
-	use pop_chains::{state::LiveState, Runtime};
+	use pop_chains::{Runtime, state::LiveState};
 	use pop_common::Profile;
 
 	#[tokio::test]

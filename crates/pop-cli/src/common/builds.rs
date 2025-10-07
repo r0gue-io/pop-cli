@@ -6,7 +6,7 @@ use std::{env::current_dir, path::PathBuf};
 use {
 	crate::cli::traits::{Cli, Select},
 	pop_chains::{binary_path, build_chain},
-	pop_common::{manifest::get_workspace_project_names, Profile},
+	pop_common::{Profile, manifest::get_workspace_project_names},
 	std::path::Path,
 	strum::{EnumMessage, VariantArray},
 };

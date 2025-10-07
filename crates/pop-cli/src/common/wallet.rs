@@ -9,10 +9,10 @@ use crate::{
 use cliclack::{log, spinner};
 #[cfg(feature = "chain")]
 use {
-	anyhow::{anyhow, Result},
+	anyhow::{Result, anyhow},
 	pop_chains::{
-		parse_and_format_events, submit_signed_extrinsic, ExtrinsicEvents, OnlineClient,
-		SubstrateConfig,
+		ExtrinsicEvents, OnlineClient, SubstrateConfig, parse_and_format_events,
+		submit_signed_extrinsic,
 	},
 	url::Url,
 };

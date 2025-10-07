@@ -8,9 +8,10 @@ use crate::{
 	common::{
 		prompt::display_message,
 		try_runtime::{
-			argument_exists, check_try_runtime_and_prompt, collect_args, collect_shared_arguments,
+			ArgumentConstructor, BuildRuntimeParams, DEFAULT_BLOCK_TIME, argument_exists,
+			check_try_runtime_and_prompt, collect_args, collect_shared_arguments,
 			collect_state_arguments, partition_arguments, update_runtime_source,
-			update_state_source, ArgumentConstructor, BuildRuntimeParams, DEFAULT_BLOCK_TIME,
+			update_state_source,
 		},
 	},
 };
@@ -20,10 +21,10 @@ use clap::Parser;
 use cliclack::spinner;
 use console::style;
 use pop_chains::{
-	run_try_runtime,
+	SharedParams, TryRuntimeCliCommand, run_try_runtime,
 	state::{State, StateCommand},
 	try_runtime::UpgradeCheckSelect,
-	upgrade_checks_details, SharedParams, TryRuntimeCliCommand,
+	upgrade_checks_details,
 };
 use std::{str::FromStr, time::Duration};
 
@@ -249,10 +250,12 @@ impl TestOnRuntimeUpgradeCommand {
 		cli: &mut impl cli::traits::Cli,
 	) -> anyhow::Result<()> {
 		if error.contains(DISABLE_SPEC_VERSION_CHECK) {
-			let disabled = cli.confirm(
-    			    "⚠️ New runtime spec version must be greater than the on-chain runtime spec version. \
+			let disabled = cli
+				.confirm(
+					"⚠️ New runtime spec version must be greater than the on-chain runtime spec version. \
     				Do you want to disable the spec version check and try again?",
-    			).interact()?;
+				)
+				.interact()?;
 			if !disabled {
 				return Err(anyhow::anyhow!(format!(
 					"Failed to run migrations: Invalid spec version. \
@@ -326,14 +329,14 @@ fn guide_user_to_select_upgrade_checks(
 mod tests {
 	use super::*;
 	use crate::common::{
-		runtime::{get_mock_runtime, Feature::TryRuntime},
+		runtime::{Feature::TryRuntime, get_mock_runtime},
 		try_runtime::{
-			get_mock_snapshot, get_subcommands, source_try_runtime_binary, DEFAULT_BLOCK_HASH,
+			DEFAULT_BLOCK_HASH, get_mock_snapshot, get_subcommands, source_try_runtime_binary,
 		},
 		urls,
 	};
 	use cli::MockCli;
-	use pop_chains::{state::LiveState, Runtime};
+	use pop_chains::{Runtime, state::LiveState};
 	use pop_common::Profile;
 	use std::path::PathBuf;
 
@@ -477,7 +480,7 @@ mod tests {
 				),
 				true,
 			)
-            .expect_warning("NOTE: Make sure your runtime is built with `try-runtime` feature.")
+			.expect_warning("NOTE: Make sure your runtime is built with `try-runtime` feature.")
 			.expect_input(
 				"Please specify the path to the runtime project or the runtime binary.",
 				get_mock_runtime(None).to_str().unwrap().to_string(),
@@ -490,14 +493,17 @@ mod tests {
 				1, // all
 				None,
 			)
-            .expect_warning("NOTE: this may take some time...")
-            .expect_confirm("⚠️ Runtime spec names must match. Do you want to disable the spec name check and try again?", true)
 			.expect_warning("NOTE: this may take some time...")
 			.expect_confirm(
-			    "⚠️ New runtime spec version must be greater than the on-chain runtime spec version. \
+				"⚠️ Runtime spec names must match. Do you want to disable the spec name check and try again?",
+				true,
+			)
+			.expect_warning("NOTE: this may take some time...")
+			.expect_confirm(
+				"⚠️ New runtime spec version must be greater than the on-chain runtime spec version. \
 				Do you want to disable the spec version check and try again?",
-                true
-    		);
+				true,
+			);
 		cmd.execute(&mut cli).await?;
 		cli.verify()
 	}
@@ -509,13 +515,18 @@ mod tests {
 		// --disable-spec-version-check.
 		for (confirm, result) in [
 			(true, Ok(())),
-			(false, Err(anyhow::anyhow!("Failed to run migrations: Invalid spec version. You can disable the check manually by adding the `--disable-spec-version-check` flag.")))
+			(
+				false,
+				Err(anyhow::anyhow!(
+					"Failed to run migrations: Invalid spec version. You can disable the check manually by adding the `--disable-spec-version-check` flag."
+				)),
+			),
 		] {
 			let mut cli = MockCli::new().expect_confirm(
-			    "⚠️ New runtime spec version must be greater than the on-chain runtime spec version. \
+				"⚠️ New runtime spec version must be greater than the on-chain runtime spec version. \
 				Do you want to disable the spec version check and try again?",
-                confirm
-    		);
+				confirm,
+			);
 			let _result =
 				command.handle_check_errors(DISABLE_SPEC_VERSION_CHECK.to_string(), &mut cli);
 			if result.is_ok() {
@@ -528,12 +539,17 @@ mod tests {
 		// --disable-spec-name-check.
 		for (confirm, result) in [
 			(true, Ok(())),
-			(false, Err(anyhow::anyhow!("Failed to run migrations: Invalid spec name. You can disable the check manually by adding the `--disable-spec-name-check` flag.")))
+			(
+				false,
+				Err(anyhow::anyhow!(
+					"Failed to run migrations: Invalid spec name. You can disable the check manually by adding the `--disable-spec-name-check` flag."
+				)),
+			),
 		] {
 			let mut cli = MockCli::new().expect_confirm(
-    			"⚠️ Runtime spec names must match. Do you want to disable the spec name check and try again?",
-                confirm
-    		);
+				"⚠️ Runtime spec names must match. Do you want to disable the spec name check and try again?",
+				confirm,
+			);
 			let _result =
 				command.handle_check_errors(DISABLE_SPEC_NAME_CHECK.to_string(), &mut cli);
 			if result.is_ok() {
@@ -567,8 +583,11 @@ mod tests {
 		cmd.shared_params.disable_spec_name_check = true;
 		cmd.command.disable_spec_version_check = true;
 		let error = cmd.run(&mut MockCli::new()).await.unwrap_err().to_string();
-		assert!(error
-			.contains(r#"Input("Given runtime is not compiled with the try-runtime feature.")"#,));
+		assert!(
+			error.contains(
+				r#"Input("Given runtime is not compiled with the try-runtime feature.")"#,
+			)
+		);
 		Ok(())
 	}
 

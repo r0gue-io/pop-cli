@@ -111,7 +111,7 @@ impl Display for Data {
 			feature = "wasm-contracts",
 			feature = "chain"
 		))]
-		use {strum::EnumMessage, Template::*};
+		use {Template::*, strum::EnumMessage};
 
 		match self {
 			Null => write!(f, ""),

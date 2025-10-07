@@ -8,9 +8,9 @@ use anyhow::Result;
 use assert_cmd::Command;
 use pop_common::{find_free_port, pop, set_executable_permission, templates::Template};
 use pop_contracts::{
-	contracts_node_generator, dry_run_call, dry_run_gas_estimate_call,
-	dry_run_gas_estimate_instantiate, instantiate_smart_contract, run_contracts_node, set_up_call,
-	set_up_deployment, CallOpts, Contract, UpOpts, Weight,
+	CallOpts, Contract, UpOpts, Weight, contracts_node_generator, dry_run_call,
+	dry_run_gas_estimate_call, dry_run_gas_estimate_instantiate, instantiate_smart_contract,
+	run_contracts_node, set_up_call, set_up_deployment,
 };
 use serde::{Deserialize, Serialize};
 use std::{path::Path, process::Command as Cmd, time::Duration};

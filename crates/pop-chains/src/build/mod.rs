@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::errors::{handle_command_error, Error};
-use anyhow::{anyhow, Result};
+use crate::errors::{Error, handle_command_error};
+use anyhow::{Result, anyhow};
 use duct::cmd;
 use pop_common::{
-	account_id::convert_to_evm_accounts, find_workspace_toml, manifest::from_path, Profile,
+	Profile, account_id::convert_to_evm_accounts, find_workspace_toml, manifest::from_path,
 };
 use sc_chain_spec::{GenericChainSpec, NoExtension};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use sp_core::bytes::to_hex;
 use std::{
 	fs,
@@ -764,12 +764,12 @@ impl ChainSpec {
 mod tests {
 	use super::*;
 	use crate::{
-		new_chain::instantiate_standard_template, templates::ChainTemplate, up::Zombienet, Config,
-		Error,
+		Config, Error, new_chain::instantiate_standard_template, templates::ChainTemplate,
+		up::Zombienet,
 	};
 	use anyhow::Result;
 	use pop_common::{
-		manifest::{add_feature, Dependency},
+		manifest::{Dependency, add_feature},
 		set_executable_permission,
 	};
 	use sp_core::bytes::from_hex;
@@ -779,7 +779,7 @@ mod tests {
 		path::Path,
 	};
 	use strum::VariantArray;
-	use tempfile::{tempdir, Builder, TempDir};
+	use tempfile::{Builder, TempDir, tempdir};
 
 	fn setup_template_and_instantiate() -> Result<TempDir> {
 		let temp_dir = tempdir().expect("Failed to create temp dir");

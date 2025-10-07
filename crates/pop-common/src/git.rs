@@ -3,8 +3,8 @@
 use crate::{api::ApiClient, errors::Error, polkadot_sdk::parse_latest_tag};
 use anyhow::Result;
 use git2::{
-	build::RepoBuilder, FetchOptions, IndexAddOption, RemoteCallbacks, Repository as GitRepository,
-	ResetType,
+	FetchOptions, IndexAddOption, RemoteCallbacks, Repository as GitRepository, ResetType,
+	build::RepoBuilder,
 };
 use git2_credentials::CredentialHandler;
 use std::{fs, path::Path, sync::LazyLock};

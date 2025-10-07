@@ -11,13 +11,13 @@ use crate::{
 		wallet::{self, prompt_to_use_wallet},
 	},
 };
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use clap::Args;
 use pop_chains::{
-	construct_extrinsic, construct_sudo_extrinsic, decode_call_data, encode_call_data,
-	find_dispatchable_by_name, find_pallet_by_name, sign_and_submit_extrinsic, supported_actions,
 	Action, CallData, DynamicPayload, Function, OnlineClient, Pallet, Param, Payload,
-	SubstrateConfig,
+	SubstrateConfig, construct_extrinsic, construct_sudo_extrinsic, decode_call_data,
+	encode_call_data, find_dispatchable_by_name, find_pallet_by_name, sign_and_submit_extrinsic,
+	supported_actions,
 };
 use url::Url;
 
@@ -252,7 +252,9 @@ impl CallChainCommand {
 			return Ok(());
 		}
 		let spinner = cliclack::spinner();
-		spinner.start("Signing and submitting the extrinsic and then waiting for finalization, please be patient...");
+		spinner.start(
+			"Signing and submitting the extrinsic and then waiting for finalization, please be patient...",
+		);
 		let call_data_bytes =
 			decode_call_data(call_data).map_err(|err| anyhow!("{}", format!("{err:?}")))?;
 		let result = sign_and_submit_extrinsic(client, url, CallData::new(call_data_bytes), &suri)
@@ -294,11 +296,11 @@ impl CallChainCommand {
 			Ok(_) => {
 				if !self.skip_confirm {
 					self.sudo = cli
-                        .confirm(
-                            "Are you sure you want to dispatch this function call with `Root` origin?",
-                        )
-                        .initial_value(true)
-                        .interact()?;
+						.confirm(
+							"Are you sure you want to dispatch this function call with `Root` origin?",
+						)
+						.initial_value(true)
+						.interact()?;
 				}
 				Ok(())
 			},
@@ -407,7 +409,9 @@ impl Call {
 			return Ok(());
 		}
 		let spinner = cliclack::spinner();
-		spinner.start("Signing and submitting the extrinsic and then waiting for finalization, please be patient...");
+		spinner.start(
+			"Signing and submitting the extrinsic and then waiting for finalization, please be patient...",
+		);
 		let result = sign_and_submit_extrinsic(client, url, tx, &self.suri)
 			.await
 			.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
@@ -498,15 +502,15 @@ fn get_param_value(cli: &mut impl Cli, param: &Param) -> Result<String> {
 // Prompt for the value when it is a sequence.
 fn prompt_for_sequence_param(cli: &mut impl Cli, param: &Param) -> Result<String> {
 	let input_value = cli
-        .input(format!(
-            "The value for `{}` might be too large to enter. You may enter the path to a file instead.",
-            param.name
-        ))
-        .placeholder(&format!(
-            "Enter a value of type {} or provide a file path (e.g. /path/to/your/file)",
-            param.type_name
-        ))
-        .interact()?;
+		.input(format!(
+			"The value for `{}` might be too large to enter. You may enter the path to a file instead.",
+			param.name
+		))
+		.placeholder(&format!(
+			"Enter a value of type {} or provide a file path (e.g. /path/to/your/file)",
+			param.type_name
+		))
+		.interact()?;
 	if Path::new(&input_value).is_file() {
 		return std::fs::read_to_string(&input_value)
 			.map_err(|err| anyhow!("Failed to read file {}", err.to_string()));
@@ -669,7 +673,12 @@ mod tests {
 		assert_eq!(call_chain.suri, "//Alice"); // Default value
 		assert!(call_chain.use_wallet);
 		assert!(call_chain.sudo);
-		assert_eq!(call_chain.display(&chain), format!("pop call chain --pallet System --function remark --args \"0x11\" --url {node_url}/ --use-wallet --sudo"));
+		assert_eq!(
+			call_chain.display(&chain),
+			format!(
+				"pop call chain --pallet System --function remark --args \"0x11\" --url {node_url}/ --use-wallet --sudo"
+			)
+		);
 		cli.verify()
 	}
 
@@ -747,7 +756,12 @@ mod tests {
 		);
 		assert_eq!(call_chain.suri, "//Bob");
 		assert!(!call_chain.sudo);
-		assert_eq!(call_chain.display(&chain), format!("pop call chain --pallet Assets --function create --args \"10000\" \"Id(5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty)\" \"2000\" --url {node_url}/ --suri //Bob"));
+		assert_eq!(
+			call_chain.display(&chain),
+			format!(
+				"pop call chain --pallet Assets --function create --args \"10000\" \"Id(5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty)\" \"2000\" --url {node_url}/ --suri //Bob"
+			)
+		);
 		cli.verify()
 	}
 

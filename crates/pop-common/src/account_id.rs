@@ -3,7 +3,7 @@
 use crate::{Config, DefaultConfig, Error};
 use sp_core::keccak_256;
 use std::str::FromStr;
-use subxt::utils::{to_hex, H160};
+use subxt::utils::{H160, to_hex};
 
 /// Parses an account ID from its string representation.
 ///

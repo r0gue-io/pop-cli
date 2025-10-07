@@ -31,7 +31,10 @@ async fn format_type_works() -> Result<()> {
 		.collect();
 	assert_eq!(assets_create_types.len(), 3);
 	assert_eq!(assets_create_types[0], "Compact<u32>"); // id
-	assert_eq!(assets_create_types[1], "MultiAddress<AccountId32 ([u8;32]),()>: Id(AccountId32 ([u8;32])), Index(Compact<()>), Raw([u8]), Address32([u8;32]), Address20([u8;20])"); // admin
+	assert_eq!(
+		assets_create_types[1],
+		"MultiAddress<AccountId32 ([u8;32]),()>: Id(AccountId32 ([u8;32])), Index(Compact<()>), Raw([u8]), Address32([u8;32]), Address20([u8;20])"
+	); // admin
 	assert_eq!(assets_create_types[2], "u128"); // minBalance
 
 	//  Validate `System::remark` to cover Sequences.
