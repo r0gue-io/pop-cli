@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use cliclack::ProgressBar;
 use duct::cmd;
 #[cfg(any(feature = "chain", test))]
 use std::cmp::Ordering;
@@ -44,7 +43,7 @@ pub(crate) trait BinaryGenerator {
 #[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "chain"))]
 pub async fn check_and_prompt<Generator: BinaryGenerator>(
 	cli: &mut impl Cli,
-	spinner: &ProgressBar,
+	spinner: &cliclack::ProgressBar,
 	binary_name: &'static str,
 	cache_path: &Path,
 	skip_confirm: bool,
