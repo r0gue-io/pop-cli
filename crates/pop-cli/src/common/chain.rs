@@ -24,7 +24,7 @@ pub(crate) async fn configure(
 	input_message: &str,
 	default_input: &str,
 	url: &Option<Url>,
-	filter_fn: fn(&str, Option<&str>, bool) -> bool,
+	filter_fn: fn(&RPCNode) -> bool,
 	cli: &mut impl Cli,
 ) -> Result<Chain> {
 	// Resolve url.
@@ -44,9 +44,9 @@ pub(crate) async fn configure(
 				// Select from available endpoints
 				let chains = extract_chain_endpoints().await?;
 				let mut prompt = cli.select("Select a chain (type to filter):");
-				for (pos, RPCNode { name, is_relay, relay_name, .. }) in chains.iter().enumerate() {
-					if filter_fn(name, relay_name.as_deref(), *is_relay) {
-						prompt = prompt.item(pos, name, "");
+				for (pos, node) in chains.iter().enumerate() {
+					if filter_fn(node) {
+						prompt = prompt.item(pos, &node.name, "");
 					}
 				}
 				let selected = prompt.filter_mode().interact()?;
@@ -88,7 +88,7 @@ mod tests {
 		let mut cli = MockCli::new()
 			.expect_confirm("Do you want to enter the node URL manually?", true)
 			.expect_input(message, node.ws_url().into());
-		let chain = configure(message, node.ws_url(), &None, |_, _, _| true, &mut cli).await?;
+		let chain = configure(message, node.ws_url(), &None, |_| true, &mut cli).await?;
 		assert_eq!(chain.url, Url::parse(node.ws_url())?);
 		// Get pallets
 		let pallets = get_pallets(&chain.client).await?;

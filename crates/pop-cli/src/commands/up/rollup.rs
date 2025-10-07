@@ -184,7 +184,7 @@ impl UpCommand {
 			"Enter the relay chain node URL",
 			urls::LOCAL,
 			&self.relay_chain_url,
-			|_, _, is_relay| is_relay,
+			|node| node.is_relay,
 			cli,
 		)
 		.await?;
@@ -829,7 +829,7 @@ mod tests {
 			"Enter the relay chain node URL",
 			urls::LOCAL,
 			&Some(Url::parse(urls::POLKADOT)?),
-			|_, _, is_relay| is_relay,
+			|node| node.is_relay,
 			&mut cli,
 		)
 		.await?;
@@ -916,7 +916,7 @@ mod tests {
 			"Enter the relay chain node URL",
 			urls::LOCAL,
 			&Some(Url::parse(urls::POLKADOT)?),
-			|_, _, is_relay| is_relay,
+			|node| node.is_relay,
 			&mut cli,
 		)
 		.await?;

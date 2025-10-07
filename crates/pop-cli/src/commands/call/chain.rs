@@ -83,7 +83,7 @@ impl CallChainCommand {
 			"Which chain would you like to interact with?",
 			urls::LOCAL,
 			&self.url,
-			|_, _, _| true,
+			|_| true,
 			&mut cli,
 		)
 		.await?;
@@ -613,12 +613,22 @@ fn parse_function_name(name: &str) -> Result<String, String> {
 	Ok(name.to_ascii_lowercase())
 }
 
+/// Represents a node in the network with its RPC endpoints and chain properties.
+#[allow(dead_code)]
 #[derive(Debug)]
 pub(crate) struct RPCNode {
+	/// Name of the chain (e.g. "Polkadot Relay", "Kusama Relay").
 	pub name: String,
+	/// List of RPC endpoint URLs that can be used to connect to this chain.
 	pub providers: Vec<String>,
+	/// Indicates if this chain is a relay chain.
 	pub is_relay: bool,
+	/// For parachains, contains the name of their relay chain. None for relay chains or
+	/// solochains.
 	pub relay_name: Option<String>,
+	/// Indicates if this chain supports smart contracts. Particularly, whether pallet-revive is
+	/// present in the runtime or not.
+	pub supports_contracts: bool,
 }
 
 // Get the RPC endpoints from the maintained source.
@@ -642,12 +652,22 @@ async fn extract_chain_endpoints_from_url(url: &str) -> Result<Vec<RPCNode>> {
 			.filter_map(|v| v.as_str().map(|s| s.to_string()))
 			.collect::<Vec<String>>();
 		let is_relay = chain_data.get("isRelay").map(|r| r.as_bool().unwrap()).unwrap_or(false);
+		let supports_contracts = chain_data
+			.get("supportsContracts")
+			.map(|r| r.as_bool().unwrap())
+			.unwrap_or(false);
 		let relay_name = chain_data
 			.get("relay")
 			.map(|r| r.as_str())
 			.unwrap_or_default()
 			.map(|r| r.to_string());
-		result.push(RPCNode { name: chain_name, providers, is_relay, relay_name });
+		result.push(RPCNode {
+			name: chain_name,
+			providers,
+			is_relay,
+			relay_name,
+			supports_contracts,
+		});
 	}
 	Ok(result)
 }
@@ -706,7 +726,7 @@ mod tests {
 			"Which chain would you like to interact with?",
 			node_url,
 			&None,
-			|_, _, _| true,
+			|_| true,
 			&mut cli,
 		)
 		.await?;
@@ -741,7 +761,7 @@ mod tests {
 			"Which chain would you like to interact with?",
 			node_url,
 			&None,
-			|_, _, _| true,
+			|_| true,
 			&mut cli,
 		)
 		.await?;
