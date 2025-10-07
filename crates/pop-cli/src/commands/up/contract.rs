@@ -98,6 +98,10 @@ pub struct UpContractCommand {
 	/// confirmation.
 	#[clap(short = 'y', long)]
 	pub(crate) skip_confirm: bool,
+	/// Skip building the contract before deployment.
+	/// If the contract is not built, it will be built regardless.
+	#[clap(long)]
+	pub(crate) skip_build: bool,
 }
 
 impl UpContractCommand {
@@ -105,9 +109,12 @@ impl UpContractCommand {
 	pub(crate) async fn execute(mut self) -> anyhow::Result<()> {
 		Cli.intro("Deploy a smart contract")?;
 		// Check if build exists in the specified "Contract build directory"
-		if !has_contract_been_built(self.path.as_deref()) {
+		let contract_already_built = has_contract_been_built(self.path.as_deref());
+		if !self.skip_build || !contract_already_built {
 			// Build the contract in release mode
-			Cli.warning("NOTE: contract has not yet been built.")?;
+			if !contract_already_built {
+				Cli.warning("NOTE: contract has not yet been built.")?;
+			}
 			let spinner = spinner();
 			spinner.start("Building contract in RELEASE mode...");
 			let result = match build_smart_contract(self.path.as_deref(), true, Verbosity::Quiet) {
@@ -522,6 +529,7 @@ impl Default for UpContractCommand {
 			dry_run: false,
 			upload_only: false,
 			skip_confirm: false,
+			skip_build: false,
 		}
 	}
 }
