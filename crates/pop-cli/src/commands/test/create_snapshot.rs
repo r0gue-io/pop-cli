@@ -91,7 +91,7 @@ impl TestCreateSnapshotCommand {
 	async fn run(&self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		let spinner = spinner();
 		let user_provided_args: Vec<String> = std::env::args().skip(3).collect();
-		let binary_path = check_try_runtime_and_prompt(cli, self.skip_confirm).await?;
+		let binary_path = check_try_runtime_and_prompt(cli, &spinner, self.skip_confirm).await?;
 		if let Some(ref uri) = self.from.uri {
 			spinner.start(format!(
 				"Creating a snapshot of a remote node at {}...\n{}",
@@ -158,7 +158,7 @@ mod tests {
 	async fn create_snapshot_invalid_uri() -> anyhow::Result<()> {
 		let mut command = TestCreateSnapshotCommand::default();
 		command.from.uri = Some("ws://127.0.0.1:9999".to_string());
-		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
+		source_try_runtime_binary(&mut MockCli::new(), &spinner(), &crate::cache()?, true).await?;
 
 		let error = command.run(&mut MockCli::new()).await.unwrap_err().to_string();
 		assert!(error.contains("Connection refused"));

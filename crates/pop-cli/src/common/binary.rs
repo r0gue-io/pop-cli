@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
+use cliclack::ProgressBar;
 use duct::cmd;
 #[cfg(any(feature = "chain", test))]
 use std::cmp::Ordering;
@@ -13,7 +14,6 @@ use std::path::PathBuf;
 #[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "chain"))]
 use {
 	crate::cli::traits::*,
-	cliclack::spinner,
 	pop_common::sourcing::{set_executable_permission, Binary},
 	std::path::Path,
 };
@@ -44,6 +44,7 @@ pub(crate) trait BinaryGenerator {
 #[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "chain"))]
 pub async fn check_and_prompt<Generator: BinaryGenerator>(
 	cli: &mut impl Cli,
+	spinner: &ProgressBar,
 	binary_name: &'static str,
 	cache_path: &Path,
 	skip_confirm: bool,
@@ -60,13 +61,12 @@ pub async fn check_and_prompt<Generator: BinaryGenerator>(
 			true
 		};
 		if latest {
-			let spinner = spinner();
 			spinner.start(format!("📦 Sourcing {binary_name}..."));
 
 			binary.source(false, &(), true).await?;
 			set_executable_permission(binary.path())?;
 
-			spinner.stop(format!(
+			spinner.set_message(format!(
 				"✅ {binary_name} successfully sourced. Cached at: {}",
 				binary.path().to_str().unwrap()
 			));
@@ -91,14 +91,13 @@ pub async fn check_and_prompt<Generator: BinaryGenerator>(
 			true
 		};
 		if latest {
-			let spinner = spinner();
 			spinner.start(format!("📦 Sourcing {binary_name}..."));
 
 			binary = Generator::generate(crate::cache()?, binary.latest()).await?;
 			binary.source(false, &(), true).await?;
 			set_executable_permission(binary.path())?;
 
-			spinner.stop(format!(
+			spinner.set_message(format!(
 				"✅ {binary_name} successfully sourced. Cached at: {}",
 				binary.path().to_str().unwrap()
 			));

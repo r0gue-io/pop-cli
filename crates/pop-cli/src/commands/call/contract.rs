@@ -473,7 +473,7 @@ impl CallContractCommand {
 			let spinner = spinner();
 			spinner.start("Calling the contract...");
 			let call_dry_run_result = dry_run_call(&call_exec).await?;
-			spinner.stop("");
+			spinner.clear();
 			cli.info(format!("Result: {}", call_dry_run_result))?;
 			cli.warning("Your call has not been executed.")?;
 		} else {

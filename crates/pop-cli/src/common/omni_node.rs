@@ -89,11 +89,13 @@ pub async fn polkadot_omni_node_generator(
 /// * `anyhow::Result<PathBuf>` - Path to the installed binary on success, or an error
 pub async fn source_polkadot_omni_node_binary(
 	cli: &mut impl Cli,
+	spinner: &cliclack::ProgressBar,
 	cache_path: &Path,
 	skip_confirm: bool,
 ) -> anyhow::Result<PathBuf> {
 	check_and_prompt::<PolkadotOmniNodeGenerator>(
 		cli,
+		spinner,
 		PolkadotOmniNodeCli::PolkadotOmniNode.binary(),
 		cache_path,
 		skip_confirm,

@@ -667,7 +667,7 @@ impl BuildSpec {
 			let genesis_file_name = format!("para-{}-genesis-state", self.id);
 			let binary_path = match builder {
 				ChainSpecBuilder::Runtime { .. } =>
-					source_polkadot_omni_node_binary(cli, &crate::cache()?, true).await?,
+					source_polkadot_omni_node_binary(cli, &spinner, &crate::cache()?, true).await?,
 				ChainSpecBuilder::Node { .. } => builder.artifact_path()?,
 			};
 			let genesis_state_file = generate_genesis_state_file_with_node(

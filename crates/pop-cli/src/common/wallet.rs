@@ -56,7 +56,7 @@ pub async fn request_signature(call_data: Vec<u8>, rpc: String) -> anyhow::Resul
 			break;
 		}
 	}
-	spinner.stop("");
+	spinner.clear();
 
 	let signed_payload = wallet.state.lock().await.signed_payload.take();
 	let contract_address = wallet.state.lock().await.contract_address.take();

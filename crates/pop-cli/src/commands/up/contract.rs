@@ -150,10 +150,12 @@ impl UpContractCommand {
 			self.url = Url::parse(urls::LOCAL).expect("default url is valid");
 
 			let log = NamedTempFile::new()?;
+			let spinner = spinner();
 
 			// uses the cache location
 			let binary_path = match check_contracts_node_and_prompt(
 				&mut Cli,
+				&spinner,
 				&crate::cache()?,
 				self.skip_confirm,
 			)
@@ -168,7 +170,6 @@ impl UpContractCommand {
 				},
 			};
 
-			let spinner = spinner();
 			spinner.start("Starting local node...");
 
 			let process =

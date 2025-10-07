@@ -5,6 +5,7 @@ use crate::{
 	common::binary::{check_and_prompt, BinaryGenerator},
 	impl_binary_generator,
 };
+use cliclack::ProgressBar;
 use pop_common::{manifest::from_path, sourcing::Binary};
 use pop_contracts::{contracts_node_generator, ContractFunction};
 use std::{
@@ -35,11 +36,18 @@ const CONTRACTS_NODE_BINARY: &str = "ink-node";
 /// * `skip_confirm`: A boolean indicating whether to skip confirmation prompts.
 pub async fn check_contracts_node_and_prompt(
 	cli: &mut impl Cli,
+	spinner: &ProgressBar,
 	cache_path: &Path,
 	skip_confirm: bool,
 ) -> anyhow::Result<PathBuf> {
-	check_and_prompt::<ContractsNodeGenerator>(cli, CONTRACTS_NODE_BINARY, cache_path, skip_confirm)
-		.await
+	check_and_prompt::<ContractsNodeGenerator>(
+		cli,
+		spinner,
+		CONTRACTS_NODE_BINARY,
+		cache_path,
+		skip_confirm,
+	)
+	.await
 }
 
 /// Handles the optional termination of a local running node.
@@ -165,6 +173,7 @@ pub(crate) async fn map_account(
 mod tests {
 	use super::*;
 	use crate::cli::MockCli;
+	use cliclack::spinner;
 	use duct::cmd;
 	use pop_common::{find_free_port, set_executable_permission};
 	use pop_contracts::{
@@ -220,7 +229,8 @@ mod tests {
 			.expect_confirm("📦 Would you like to source it automatically now?", true)
 			.expect_warning(format!("⚠️ The {CONTRACTS_NODE_BINARY} binary is not found."));
 
-		let node_path = check_contracts_node_and_prompt(&mut cli, cache_path.path(), false).await?;
+		let node_path =
+			check_contracts_node_and_prompt(&mut cli, &spinner(), cache_path.path(), false).await?;
 		// Binary path is at least equal to the cache path + the contracts node binary.
 		assert!(node_path
 			.to_str()
@@ -235,7 +245,8 @@ mod tests {
 		let mut cli = MockCli::new()
 			.expect_warning(format!("⚠️ The {CONTRACTS_NODE_BINARY} binary is not found."));
 
-		let node_path = check_contracts_node_and_prompt(&mut cli, cache_path.path(), true).await?;
+		let node_path =
+			check_contracts_node_and_prompt(&mut cli, &spinner(), cache_path.path(), true).await?;
 		// Binary path is at least equal to the cache path + the contracts node binary.
 		assert!(node_path
 			.to_str()

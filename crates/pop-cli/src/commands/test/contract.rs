@@ -8,6 +8,7 @@ use crate::{
 	},
 };
 use clap::Args;
+use cliclack::spinner;
 use pop_common::test_project;
 use pop_contracts::test_e2e_smart_contract;
 use std::path::PathBuf;
@@ -37,9 +38,10 @@ impl TestContractCommand {
 	) -> anyhow::Result<TestFeature> {
 		if self.e2e {
 			cli.intro("Starting end-to-end tests")?;
-
+			let spinner = spinner();
 			self.node = match check_contracts_node_and_prompt(
 				cli,
+				&spinner,
 				&crate::cache()?,
 				self.skip_confirm,
 			)
@@ -52,6 +54,7 @@ impl TestContractCommand {
 				},
 			};
 
+			spinner.clear();
 			test_e2e_smart_contract(&self.path, self.node.as_deref())?;
 			cli.outro("End-to-end testing complete")?;
 			Ok(E2e)

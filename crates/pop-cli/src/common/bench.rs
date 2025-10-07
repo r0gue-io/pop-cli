@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0
 
+use super::binary::{which_version, SemanticVersion};
 use crate::{
 	cli::traits::*,
 	common::binary::{check_and_prompt, BinaryGenerator},
 	impl_binary_generator,
 };
+use cliclack::ProgressBar;
 use pop_chains::omni_bencher_generator;
 use pop_common::sourcing::Binary;
 use std::{
@@ -13,8 +15,6 @@ use std::{
 	fs,
 	path::{Path, PathBuf},
 };
-
-use super::binary::{which_version, SemanticVersion};
 
 pub(crate) const EXECUTED_COMMAND_COMMENT: &str = "// Executed Command:";
 const TARGET_BINARY_VERSION: SemanticVersion = SemanticVersion(0, 11, 1);
@@ -31,12 +31,13 @@ impl_binary_generator!(OmniBencherGenerator, omni_bencher_generator);
 /// * `skip_confirm`: A boolean indicating whether to skip confirmation prompts.
 pub async fn check_omni_bencher_and_prompt(
 	cli: &mut impl Cli,
+	spinner: &ProgressBar,
 	skip_confirm: bool,
 ) -> anyhow::Result<PathBuf> {
 	Ok(if let Ok(path) = which_version(BINARY_NAME, &TARGET_BINARY_VERSION, &Ordering::Greater) {
 		path
 	} else {
-		source_omni_bencher_binary(cli, &crate::cache()?, skip_confirm).await?
+		source_omni_bencher_binary(cli, spinner, &crate::cache()?, skip_confirm).await?
 	})
 }
 
@@ -48,10 +49,12 @@ pub async fn check_omni_bencher_and_prompt(
 /// * `skip_confirm`: A boolean indicating whether to skip confirmation prompts.
 pub async fn source_omni_bencher_binary(
 	cli: &mut impl Cli,
+	spinner: &ProgressBar,
 	cache_path: &Path,
 	skip_confirm: bool,
 ) -> anyhow::Result<PathBuf> {
-	check_and_prompt::<OmniBencherGenerator>(cli, BINARY_NAME, cache_path, skip_confirm).await
+	check_and_prompt::<OmniBencherGenerator>(cli, spinner, BINARY_NAME, cache_path, skip_confirm)
+		.await
 }
 
 /// Overwrite the generated weight files' executed command in the destination directory.
@@ -133,6 +136,7 @@ pub(crate) fn overwrite_weight_file_command(
 mod tests {
 	use super::*;
 	use crate::{cli::MockCli, common::binary::SemanticVersion};
+	use cliclack::spinner;
 	use fs::File;
 	use tempfile::tempdir;
 
@@ -144,7 +148,8 @@ mod tests {
 			.expect_confirm("📦 Would you like to source it automatically now?", true)
 			.expect_warning(format!("⚠️ The {} binary is not found.", BINARY_NAME));
 
-		let path = source_omni_bencher_binary(&mut cli, cache_path.path(), false).await?;
+		let path =
+			source_omni_bencher_binary(&mut cli, &spinner(), cache_path.path(), false).await?;
 		// Binary path is at least equal to the cache path + "frame-omni-bencher".
 		assert!(path
 			.to_str()
@@ -155,7 +160,8 @@ mod tests {
 		// Test binary sourcing with skip_confirm = true (no user interaction)
 		cli = MockCli::new();
 
-		let path = source_omni_bencher_binary(&mut cli, cache_path.path(), true).await?;
+		let path =
+			source_omni_bencher_binary(&mut cli, &spinner(), cache_path.path(), true).await?;
 		assert!(path
 			.to_str()
 			.unwrap()
