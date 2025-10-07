@@ -1,0 +1,146 @@
+name: integration tests
+
+permissions:
+  contents: read
+  packages: read
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+
+env:
+  CARGO_TERM_COLOR: always
+  GITHUB_ACTOR: pop-cli
+  CARGO_INCREMENTAL: 1
+  RUST_BACKTRACE: 1
+  # It is important to always use the same flags. Otherwise, the cache will not work.
+  RUSTFLAGS: "-Dwarnings"
+  RUSTDOCFLAGS: "-Dwarnings"
+
+concurrency:
+  # Cancel any in-progress jobs for the same pull request or branch
+  group: integration-tests-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract-integration-tests:
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          default: true
+          target: wasm32-unknown-unknown
+          components: rust-src, clippy
+
+      - name: Rust Cache Linux
+        if: matrix.os == 'ubuntu-latest'
+        uses: Swatinem/rust-cache@v2
+        with:
+          save-if: false
+          shared-key: shared-linux-contract${{ github.head_ref || github.ref_name }}
+
+      - name: Rust Cache MacOS
+        if: matrix.os == 'macos-latest'
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          cache-all-crates: true
+          shared-key: shared-macos-contract-${{ github.head_ref || github.ref_name }}-macos
+
+      - name: Install packages (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+          protoc --version
+
+      - name: Install packages (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          brew install protobuf
+          protoc --version
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+
+      - name: Run integration tests
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: cargo nextest run --no-default-features --features "contract,integration-tests" --test contract --nocapture --status-level all
+
+  chain-integration-tests:
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          default: true
+          target: wasm32-unknown-unknown
+          components: rust-src
+
+      - name: Rust Cache Linux
+        if: matrix.os == 'ubuntu-latest'
+        uses: Swatinem/rust-cache@v2
+        with:
+          save-if: false
+          shared-key: shared-linux-chain-${{ github.head_ref || github.ref_name }}
+
+      - name: Rust Cache MacOS
+        if: matrix.os == 'macos-latest'
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          cache-all-crates: true
+          shared-key: shared-macos-chain-${{ github.head_ref || github.ref_name }}-macos
+
+      - name: Install packages (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+          protoc --version
+
+      - name: Install packages (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          brew install protobuf
+          protoc --version
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+
+      - name: Run integration tests
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cargo nextest run --no-default-features --features "chain,integration-tests" --test chain --test metadata --nocapture --status-level all
