@@ -4,7 +4,10 @@ use crate::errors::Error;
 use params::Param;
 use scale_value::stringify::custom_parsers;
 use std::fmt::{Display, Formatter};
-use subxt::{Metadata, OnlineClient, SubstrateConfig, dynamic::Value, utils::to_hex};
+use subxt::{
+	Metadata, OnlineClient, SubstrateConfig, dynamic::Value, metadata::types::PalletMetadata,
+	utils::to_hex,
+};
 
 pub mod action;
 pub mod params;
@@ -20,6 +23,8 @@ pub struct Pallet {
 	pub docs: String,
 	/// The dispatchable functions of the pallet.
 	pub functions: Vec<Function>,
+	/// The constants of the pallet.
+	pub constants: Vec<Constant>,
 }
 
 impl Display for Pallet {
@@ -51,6 +56,118 @@ impl Display for Function {
 	}
 }
 
+/// Represents a runtime constant.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Constant {
+	/// The pallet containing the dispatchable function.
+	pub pallet: String,
+	/// The name of the constant.
+	pub name: String,
+	/// The documentation of the constant.
+	pub docs: String,
+	/// The value of the constant.
+	pub value: Value<u32>,
+}
+
+impl Display for Constant {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{}", self.name)
+	}
+}
+
+fn extract_constants_from_pallet_metadata(
+	pallet: &PalletMetadata,
+	metadata: &Metadata,
+) -> anyhow::Result<Vec<Constant>> {
+	let types = metadata.types();
+	pallet
+		.constants()
+		.map(|constant| {
+			// Decode the SCALE-encoded constant value using its type information
+			let mut value_bytes = constant.value();
+			let decoded_value =
+				scale_value::scale::decode_as_type(&mut value_bytes, constant.ty(), types)
+					.map_err(|e| {
+						Error::MetadataParsingError(format!(
+							"Failed to decode constant {}: {}",
+							constant.name(),
+							e
+						))
+					})?;
+
+			Ok(Constant {
+				pallet: pallet.name().to_string(),
+				name: constant.name().to_string(),
+				docs: constant.docs()
+                    .iter()
+                    .filter(|l| !l.is_empty())
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .join(" "),
+				value: decoded_value,
+			})
+		})
+		.collect::<Result<Vec<Constant>, Error>>()
+		.map_err(|e| anyhow::Error::msg(e.to_string()))
+}
+
+fn extract_functions_from_pallet_metadata(
+	pallet: &PalletMetadata,
+	metadata: &Metadata,
+) -> anyhow::Result<Vec<Function>> {
+	pallet
+		.call_variants()
+		.map(|variants| {
+			variants
+				.iter()
+				.map(|variant| {
+					let mut is_supported = true;
+
+					// Parse parameters for the dispatchable function.
+					let params = {
+						let mut parsed_params = Vec::new();
+						for field in &variant.fields {
+							match params::field_to_param(metadata, field) {
+								Ok(param) => parsed_params.push(param),
+								Err(_) => {
+									// If an error occurs while parsing the values, mark the
+									// dispatchable function as unsupported rather than
+									// error.
+									is_supported = false;
+									break;
+								},
+							}
+						}
+						parsed_params
+					};
+
+					Ok(Function {
+						pallet: pallet.name().to_string(),
+						name: variant.name.clone(),
+						index: variant.index,
+						docs: if is_supported {
+							// Filter out blank lines and then flatten into a single value.
+							variant
+								.docs
+								.iter()
+								.filter(|l| !l.is_empty())
+								.cloned()
+								.collect::<Vec<_>>()
+								.join(" ")
+						} else {
+							// To display the message in the UI
+							"Function Not Supported".to_string()
+						},
+						params,
+						is_supported,
+					})
+				})
+				.collect::<Result<Vec<Function>, Error>>()
+		})
+		.unwrap_or_else(|| Ok(vec![]))
+		.map_err(|e| anyhow::Error::msg(e.to_string()))
+}
+
 /// Parses the chain metadata to extract information about pallets and their dispatchable functions.
 ///
 /// # Arguments
@@ -63,62 +180,12 @@ pub fn parse_chain_metadata(client: &OnlineClient<SubstrateConfig>) -> Result<Ve
 	let pallets = metadata
 		.pallets()
 		.map(|pallet| {
-			let functions = pallet
-				.call_variants()
-				.map(|variants| {
-					variants
-						.iter()
-						.map(|variant| {
-							let mut is_supported = true;
-
-							// Parse parameters for the dispatchable function.
-							let params = {
-								let mut parsed_params = Vec::new();
-								for field in &variant.fields {
-									match params::field_to_param(&metadata, field) {
-										Ok(param) => parsed_params.push(param),
-										Err(_) => {
-											// If an error occurs while parsing the values, mark the
-											// dispatchable function as unsupported rather than
-											// error.
-											is_supported = false;
-											break;
-										},
-									}
-								}
-								parsed_params
-							};
-
-							Ok(Function {
-								pallet: pallet.name().to_string(),
-								name: variant.name.clone(),
-								index: variant.index,
-								docs: if is_supported {
-									// Filter out blank lines and then flatten into a single value.
-									variant
-										.docs
-										.iter()
-										.filter(|l| !l.is_empty())
-										.cloned()
-										.collect::<Vec<_>>()
-										.join(" ")
-								} else {
-									// To display the message in the UI
-									"Function Not Supported".to_string()
-								},
-								params,
-								is_supported,
-							})
-						})
-						.collect::<Result<Vec<Function>, Error>>()
-				})
-				.unwrap_or_else(|| Ok(vec![]))?;
-
 			Ok(Pallet {
 				name: pallet.name().to_string(),
 				index: pallet.index(),
 				docs: pallet.docs().join(" "),
-				functions,
+				functions: extract_functions_from_pallet_metadata(&pallet, &metadata)?,
+				constants: extract_constants_from_pallet_metadata(&pallet, &metadata)?,
 			})
 		})
 		.collect::<Result<Vec<Pallet>, Error>>()?;
