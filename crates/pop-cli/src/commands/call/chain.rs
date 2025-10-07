@@ -19,10 +19,14 @@ use pop_chains::{
 	encode_call_data, find_dispatchable_by_name, find_pallet_by_name, sign_and_submit_extrinsic,
 	supported_actions,
 };
+use serde_json::Value;
+use std::collections::HashMap;
 use url::Url;
 
 const DEFAULT_URI: &str = "//Alice";
 const ENCODED_CALL_DATA_MAX_LEN: usize = 500; // Maximum length of encoded call data to display.
+const CHAIN_ENDPOINTS_URL: &str =
+	"https://raw.githubusercontent.com/r0gue-io/polkadot-chains/refs/heads/master/endpoints.json";
 
 /// Command to construct and execute extrinsics with configurable pallets, functions, arguments, and
 /// signing options.
@@ -606,6 +610,31 @@ fn parse_pallet_name(name: &str) -> Result<String, String> {
 // Parser to convert the function name to lowercase.
 fn parse_function_name(name: &str) -> Result<String, String> {
 	Ok(name.to_ascii_lowercase())
+}
+
+// Get the RPC endpoints from the maintained source.
+pub(crate) async fn extract_chain_endpoints() -> Result<Vec<(String, Vec<String>)>> {
+	// Fetch the JSON from the URL
+	let response = reqwest::get(CHAIN_ENDPOINTS_URL).await?;
+	let json_text = response.text().await?;
+
+	// Parse the JSON
+	let json: HashMap<String, Value> = serde_json::from_str(&json_text)?;
+
+	// Get the first entry (chain name and its data)
+	let mut result = Vec::with_capacity(json.len());
+	for (chain_name, chain_data) in json.into_iter() {
+		// Extract the providers field
+		let providers = chain_data
+			.get("providers")
+			.and_then(|v| v.as_array())
+			.ok_or_else(|| anyhow!("No providers field found for chain: {}", chain_name))?
+			.iter()
+			.filter_map(|v| v.as_str().map(|s| s.to_string()))
+			.collect::<Vec<String>>();
+		result.push((chain_name, providers));
+	}
+	Ok(result)
 }
 
 #[cfg(test)]

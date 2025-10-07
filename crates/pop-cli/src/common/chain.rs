@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::cli::traits::*;
+use crate::{cli::traits::*, commands::call::chain::extract_chain_endpoints};
 use anyhow::{Result, anyhow};
 use pop_chains::{OnlineClient, Pallet, SubstrateConfig, parse_chain_metadata, set_up_client};
+use rand::prelude::IndexedRandom;
 use url::Url;
 
 // Represents a chain and its associated metadata.
@@ -26,8 +27,29 @@ pub(crate) async fn configure(
 	let url = match url {
 		Some(url) => url.clone(),
 		None => {
-			// Prompt for url.
-			let url: String = cli.input(input_message).default_input(default_input).interact()?;
+			// Ask the user if they want to enter URL manually or select from a list of well-known
+			// endpoints.
+			let manual = cli
+				.confirm("Do you want to enter the URL manually?")
+				.initial_value(false)
+				.interact()?;
+			let url = if manual {
+				// Prompt for manual URL input
+				cli.input(input_message).default_input(default_input).interact()?
+			} else {
+				// Select from available endpoints
+				let chains = extract_chain_endpoints().await?;
+				let mut prompt = cli.select("Select a chain (type to filter):");
+				for (pos, (name, _)) in chains.iter().enumerate() {
+					prompt = prompt.item(pos, name, "");
+				}
+				let selected = prompt.filter_mode().interact()?;
+				let providers = &chains[selected].1;
+				providers
+					.choose(&mut rand::rng())
+					.ok_or_else(|| anyhow!("No providers available for selected chain"))?
+					.to_string()
+			};
 			Url::parse(&url)?
 		},
 	};
