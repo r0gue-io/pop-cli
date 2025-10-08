@@ -79,6 +79,7 @@ impl CallChainCommand {
 			"Which chain would you like to interact with?",
 			urls::LOCAL,
 			&self.url,
+			|_| true,
 			&mut cli,
 		)
 		.await?;
@@ -630,6 +631,7 @@ mod tests {
 		};
 
 		let mut cli = MockCli::new()
+            .expect_confirm("Do you want to enter the node URL manually?", true)
             .expect_input("Which chain would you like to interact with?", node_url.into())
             .expect_select(
                 "Select the function to call:",
@@ -661,6 +663,7 @@ mod tests {
 			"Which chain would you like to interact with?",
 			node_url,
 			&None,
+			|_| true,
 			&mut cli,
 		)
 		.await?;
@@ -689,11 +692,13 @@ mod tests {
 		let mut call_config = CallChainCommand::default();
 
 		let mut cli = MockCli::new()
+			.expect_confirm("Do you want to enter the node URL manually?", true)
 			.expect_input("Which chain would you like to interact with?", node_url.into());
 		let chain = chain::configure(
 			"Which chain would you like to interact with?",
 			node_url,
 			&None,
+			|_| true,
 			&mut cli,
 		)
 		.await?;

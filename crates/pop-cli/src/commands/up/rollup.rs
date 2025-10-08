@@ -180,9 +180,14 @@ impl UpCommand {
 		show_deployment_steps: bool,
 		cli: &mut impl Cli,
 	) -> Result<Registration> {
-		let chain =
-			configure("Enter the relay chain node URL", urls::LOCAL, &self.relay_chain_url, cli)
-				.await?;
+		let chain = configure(
+			"Enter the relay chain node URL",
+			urls::LOCAL,
+			&self.relay_chain_url,
+			|node| node.is_relay,
+			cli,
+		)
+		.await?;
 		let proxy = self.resolve_proxied_address(
 			&deployment_config.api,
 			show_deployment_steps,
@@ -687,8 +692,9 @@ mod tests {
 	async fn prepare_for_registration_works() -> Result<()> {
 		let node = TestNode::spawn().await?;
 		let node_url = node.ws_url();
-		let mut cli =
-			MockCli::new().expect_input("Enter the relay chain node URL", node_url.into());
+		let mut cli = MockCli::new()
+			.expect_confirm("Do you want to enter the node URL manually?", true)
+			.expect_input("Enter the relay chain node URL", node_url.into());
 		let (genesis_state, genesis_code) = create_temp_genesis_files()?;
 		let chain_config = UpCommand {
 			id: Some(2000),
@@ -823,6 +829,7 @@ mod tests {
 			"Enter the relay chain node URL",
 			urls::LOCAL,
 			&Some(Url::parse(urls::POLKADOT)?),
+			|node| node.is_relay,
 			&mut cli,
 		)
 		.await?;
@@ -909,6 +916,7 @@ mod tests {
 			"Enter the relay chain node URL",
 			urls::LOCAL,
 			&Some(Url::parse(urls::POLKADOT)?),
+			|node| node.is_relay,
 			&mut cli,
 		)
 		.await?;
