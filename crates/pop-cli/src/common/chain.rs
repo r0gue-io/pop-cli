@@ -3,7 +3,15 @@
 use crate::cli::traits::*;
 use anyhow::{Result, anyhow};
 use pop_chains::{OnlineClient, Pallet, SubstrateConfig, parse_chain_metadata, set_up_client};
+use serde_json::Value;
+use std::{
+	collections::HashMap,
+	time::{SystemTime, UNIX_EPOCH},
+};
 use url::Url;
+
+const CHAIN_ENDPOINTS_URL: &str =
+	"https://raw.githubusercontent.com/r0gue-io/polkadot-chains/refs/heads/master/endpoints.json";
 
 // Represents a chain and its associated metadata.
 pub(crate) struct Chain {
@@ -15,19 +23,101 @@ pub(crate) struct Chain {
 	pub pallets: Vec<Pallet>,
 }
 
+/// Represents a node in the network with its RPC endpoints and chain properties.
+#[allow(dead_code)]
+#[derive(Debug)]
+pub(crate) struct RPCNode {
+	/// Name of the chain (e.g. "Polkadot Relay", "Kusama Relay").
+	pub name: String,
+	/// List of RPC endpoint URLs that can be used to connect to this chain.
+	pub providers: Vec<String>,
+	/// Indicates if this chain is a relay chain.
+	pub is_relay: bool,
+	/// For parachains, contains the name of their relay chain. None for relay chains or
+	/// solochains.
+	pub relay_name: Option<String>,
+	/// Indicates if this chain supports smart contracts. Particularly, whether pallet-revive is
+	/// present in the runtime or not.
+	pub supports_contracts: bool,
+}
+
+// Get the RPC endpoints from the maintained source.
+pub(crate) async fn extract_chain_endpoints() -> Result<Vec<RPCNode>> {
+	extract_chain_endpoints_from_url(CHAIN_ENDPOINTS_URL).await
+}
+
+// Internal function that accepts a URL parameter, making it testable with mockito.
+async fn extract_chain_endpoints_from_url(url: &str) -> Result<Vec<RPCNode>> {
+	let response = reqwest::get(url).await?;
+	let json_text = response.text().await?;
+	let json: HashMap<String, Value> = serde_json::from_str(&json_text)?;
+
+	let mut result = Vec::with_capacity(json.len());
+	for (chain_name, chain_data) in json.into_iter() {
+		let providers = chain_data
+			.get("providers")
+			.and_then(|v| v.as_array())
+			.ok_or_else(|| anyhow!("No providers field found for chain: {}", chain_name))?
+			.iter()
+			.filter_map(|v| v.as_str().map(|s| s.to_string()))
+			.collect::<Vec<String>>();
+		let is_relay = chain_data.get("isRelay").map(|r| r.as_bool().unwrap()).unwrap_or(false);
+		let supports_contracts = chain_data
+			.get("supportsContracts")
+			.map(|r| r.as_bool().unwrap())
+			.unwrap_or(false);
+		let relay_name = chain_data
+			.get("relay")
+			.map(|r| r.as_str())
+			.unwrap_or_default()
+			.map(|r| r.to_string());
+		result.push(RPCNode {
+			name: chain_name,
+			providers,
+			is_relay,
+			relay_name,
+			supports_contracts,
+		});
+	}
+	Ok(result)
+}
+
 // Configures a chain by resolving the URL and fetching its metadata.
 pub(crate) async fn configure(
 	input_message: &str,
 	default_input: &str,
 	url: &Option<Url>,
+	filter_fn: fn(&RPCNode) -> bool,
 	cli: &mut impl Cli,
 ) -> Result<Chain> {
 	// Resolve url.
 	let url = match url {
 		Some(url) => url.clone(),
 		None => {
-			// Prompt for url.
-			let url: String = cli.input(input_message).default_input(default_input).interact()?;
+			// Ask the user if they want to enter URL manually or select from a list of well-known
+			// endpoints.
+			let manual = cli
+				.confirm("Do you want to enter the node URL manually?")
+				.initial_value(false)
+				.interact()?;
+			let url = if manual {
+				// Prompt for manual URL input
+				cli.input(input_message).default_input(default_input).interact()?
+			} else {
+				// Select from available endpoints
+				let chains = extract_chain_endpoints().await?;
+				let mut prompt = cli.select("Select a chain (type to filter):");
+				for (pos, node) in chains.iter().enumerate() {
+					if filter_fn(node) {
+						prompt = prompt.item(pos, &node.name, "");
+					}
+				}
+				let selected = prompt.filter_mode().interact()?;
+				let providers = &chains[selected].providers;
+				let random_position = (SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis()
+					as usize) % providers.len();
+				providers[random_position].clone()
+			};
 			Url::parse(&url)?
 		},
 	};
@@ -57,13 +147,106 @@ mod tests {
 	async fn configure_works() -> Result<()> {
 		let node = TestNode::spawn().await?;
 		let message = "Enter the URL of the chain:";
-		let mut cli = MockCli::new().expect_input(message, node.ws_url().into());
-		let chain = configure(message, node.ws_url(), &None, &mut cli).await?;
+		let mut cli = MockCli::new()
+			.expect_confirm("Do you want to enter the node URL manually?", true)
+			.expect_input(message, node.ws_url().into());
+		let chain = configure(message, node.ws_url(), &None, |_| true, &mut cli).await?;
 		assert_eq!(chain.url, Url::parse(node.ws_url())?);
 		// Get pallets
 		let pallets = get_pallets(&chain.client).await?;
 		assert!(!pallets.is_empty());
 
 		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn extract_chain_endpoints_works() -> Result<()> {
+		// Create a mock server
+		let mut server = mockito::Server::new_async().await;
+
+		// Create mock response data
+		let mock_response = serde_json::json!({
+			"Polkadot Relay": {
+				"providers": [
+					"wss://polkadot.api.onfinality.io/public-ws",
+					"wss://rpc.polkadot.io"
+				],
+				"isRelay": true
+			},
+			"Kusama Relay": {
+				"providers": [
+					"wss://kusama.api.onfinality.io/public-ws",
+				],
+				"isRelay": true
+			},
+			"Asset Hub - Polkadot Relay": {
+				"providers": [
+					"wss://polkadot-asset-hub-rpc.polkadot.io",
+				],
+				"isRelay": false,
+				"relay": "Polkadot Relay"
+			}
+		});
+
+		// Set up the mock endpoint
+		let mock = server
+			.mock("GET", "/")
+			.with_status(200)
+			.with_header("content-type", "application/json")
+			.with_body(mock_response.to_string())
+			.create_async()
+			.await;
+
+		// Call the function with the mock server URL
+		let result = extract_chain_endpoints_from_url(&server.url()).await?;
+
+		// Verify the mock was called
+		mock.assert_async().await;
+
+		// Verify the parsed results
+		assert_eq!(result.len(), 3);
+
+		let polkadot = result.iter().find(|n| n.name == "Polkadot Relay").unwrap();
+		assert_eq!(polkadot.providers.len(), 2);
+		assert!(polkadot.is_relay);
+		assert_eq!(polkadot.relay_name, None);
+
+		let kusama = result.iter().find(|n| n.name == "Kusama Relay").unwrap();
+		assert_eq!(kusama.providers.len(), 1);
+		assert!(kusama.is_relay);
+
+		let asset_hub = result.iter().find(|n| n.name == "Asset Hub - Polkadot Relay").unwrap();
+		assert_eq!(asset_hub.providers.len(), 1);
+		assert!(!asset_hub.is_relay);
+		assert_eq!(asset_hub.relay_name, Some("Polkadot Relay".to_string()));
+
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn extract_chain_endpoints_handles_missing_providers() -> Result<()> {
+		let mut server = mockito::Server::new_async().await;
+
+		// Mock response with missing providers field
+		let mock_response = serde_json::json!({
+			"invalid-chain": {
+				"isRelay": false
+			}
+		});
+
+		server
+			.mock("GET", "/")
+			.with_status(200)
+			.with_header("content-type", "application/json")
+			.with_body(mock_response.to_string())
+			.create_async()
+			.await;
+
+		// Should return an error for missing providers
+		let result = extract_chain_endpoints_from_url(&server.url()).await;
+		assert!(result.is_err());
+		assert!(result.unwrap_err().to_string().contains("No providers field found"));
+
+		Ok(())
 	}
 }
