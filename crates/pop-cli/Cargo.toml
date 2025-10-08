@@ -44,7 +44,6 @@ pop-chains = { path = "../pop-chains", version = "0.10.0", optional = true }
 git2 = { workspace = true, optional = true }
 regex.workspace = true
 tracing-subscriber = { workspace = true, optional = true }
-rand = { workspace = true, optional = true }
 
 # telemetry
 pop-telemetry = { path = "../pop-telemetry", version = "0.10.0", optional = true }
@@ -67,7 +66,7 @@ subxt-signer.workspace = true
 default = ["chain", "telemetry", "wasm-contracts"]
 contract = ["wasm-contracts"]
 contracts = ["polkavm-contracts"]
-chain = ["dep:pop-chains", "dep:git2", "dep:tracing-subscriber", "dep:rand", "wallet-integration"]
+chain = ["dep:pop-chains", "dep:git2", "dep:tracing-subscriber", "wallet-integration"]
 v6 = []
 polkavm-contracts = ["pop-contracts/v6", "dep:pop-contracts", "wallet-integration"]
 telemetry = ["dep:pop-telemetry"]

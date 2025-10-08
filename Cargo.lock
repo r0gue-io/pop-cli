@@ -8899,7 +8899,6 @@ dependencies = [
  "pop-common",
  "pop-contracts",
  "pop-telemetry",
- "rand 0.9.2",
  "regex",
  "reqwest",
  "serde",

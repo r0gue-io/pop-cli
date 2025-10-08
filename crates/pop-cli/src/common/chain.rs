@@ -6,7 +6,7 @@ use crate::{
 };
 use anyhow::{Result, anyhow};
 use pop_chains::{OnlineClient, Pallet, SubstrateConfig, parse_chain_metadata, set_up_client};
-use rand::prelude::IndexedRandom;
+use std::time::{SystemTime, UNIX_EPOCH};
 use url::Url;
 
 // Represents a chain and its associated metadata.
@@ -51,10 +51,9 @@ pub(crate) async fn configure(
 				}
 				let selected = prompt.filter_mode().interact()?;
 				let providers = &chains[selected].providers;
-				providers
-					.choose(&mut rand::rng())
-					.ok_or_else(|| anyhow!("No providers available for selected chain"))?
-					.to_string()
+				let random_position = (SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis()
+					as usize) % providers.len();
+				providers[random_position].clone()
 			};
 			Url::parse(&url)?
 		},
