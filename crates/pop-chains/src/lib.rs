@@ -42,11 +42,11 @@ pub use call::{
 	CallData, construct_extrinsic, construct_proxy_extrinsic, construct_sudo_extrinsic,
 	decode_call_data, encode_call_data,
 	metadata::{
-		Function, Pallet,
+		CallItem, Constant, Function, Pallet, Storage,
 		action::{Action, supported_actions},
-		find_dispatchable_by_name, find_pallet_by_name,
-		params::{Param, field_to_param},
-		parse_chain_metadata,
+		find_callable_by_name, find_pallet_by_name,
+		params::{Param, field_to_param, type_to_param},
+		parse_chain_metadata, parse_dispatchable_arguments, raw_value_to_string,
 	},
 	parse_and_format_events, set_up_client, sign_and_submit_extrinsic, submit_signed_extrinsic,
 };

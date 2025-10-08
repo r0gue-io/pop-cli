@@ -45,9 +45,9 @@ pub enum Error {
 	/// An error occurred during the submission of an extrinsic.
 	#[error("Extrinsic submission error: {0}")]
 	ExtrinsicSubmissionError(String),
-	/// The dispatchable function is not supported.
-	#[error("The dispatchable function is not supported")]
-	FunctionNotSupported,
+	/// The callable item is not supported.
+	#[error("The callable item is not supported")]
+	CallableNotSupported,
 	/// An error occurred while working with the genesis builder.
 	#[error("Genesis builder error: {0}")]
 	GenesisBuilderError(String),

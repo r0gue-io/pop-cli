@@ -14,10 +14,10 @@ use crate::{
 use anyhow::{Result, anyhow};
 use clap::Args;
 use pop_chains::{
-	Action, CallData, DynamicPayload, Function, OnlineClient, Pallet, Param, Payload,
+	Action, CallData, CallItem, DynamicPayload, OnlineClient, Pallet, Param, Payload,
 	SubstrateConfig, construct_extrinsic, construct_sudo_extrinsic, decode_call_data,
-	encode_call_data, find_dispatchable_by_name, find_pallet_by_name, sign_and_submit_extrinsic,
-	supported_actions,
+	encode_call_data, find_callable_by_name, find_pallet_by_name, raw_value_to_string,
+	sign_and_submit_extrinsic, supported_actions, type_to_param,
 };
 use url::Url;
 
@@ -109,29 +109,85 @@ impl CallChainCommand {
 			};
 			// Display the configured call.
 			cli.info(call.display(&chain))?;
-			// Prepare the extrinsic.
-			let xt = match call.prepare_extrinsic(&chain.client, &mut cli) {
-				Ok(payload) => payload,
-				Err(e) => {
-					display_message(&e.to_string(), false, &mut cli)?;
-					break;
+			match call.function {
+				CallItem::Function(_) => {
+					// Prepare the extrinsic.
+					let xt = match call.prepare_extrinsic(&chain.client, &mut cli) {
+						Ok(payload) => payload,
+						Err(e) => {
+							display_message(&e.to_string(), false, &mut cli)?;
+							break;
+						},
+					};
+
+					// Sign and submit the extrinsic.
+					let result = if self.use_wallet {
+						let call_data = xt.encode_call_data(&chain.client.metadata())?;
+						wallet::submit_extrinsic(&chain.client, &chain.url, call_data, &mut cli)
+							.await
+							.map(|_| ()) // Mapping to `()` since we don't need events returned
+					} else {
+						call.submit_extrinsic(&chain.client, &chain.url, xt, &mut cli).await
+					};
+
+					if let Err(e) = result {
+						display_message(&e.to_string(), false, &mut cli)?;
+						break;
+					}
+				},
+				CallItem::Constant(constant) => {
+					display_message(&raw_value_to_string(&constant.value)?, true, &mut cli)?;
+				},
+				CallItem::Storage(ref storage) => {
+					// Parse string arguments to Value types for storage query
+					let keys = if !call.args.is_empty() {
+						// Storage map with keys - need to parse and prepare them
+						if let Some(key_ty) = storage.key_id {
+							// Get metadata to convert type_id to Param for parsing
+							let metadata = chain.client.metadata();
+							let registry = metadata.types();
+							let type_info = registry
+								.resolve(key_ty)
+								.ok_or(anyhow!("Failed to resolve storage key type: {key_ty}"))?;
+							let name = type_info.path.segments.last().expect("path must exists");
+
+							// Convert the key type_id to a Param for parsing
+							let key_param = type_to_param(name, registry, key_ty)
+								.map_err(|e| anyhow!("Failed to parse storage key type: {e}"))?;
+
+							// Parse the string arguments into Value types
+							pop_chains::parse_dispatchable_arguments(
+								&[key_param],
+								call.args.clone(),
+							)
+							.map_err(|e| anyhow!("Failed to parse storage arguments: {e}"))?
+						} else {
+							vec![]
+						}
+					} else {
+						// StorageValue - no keys needed
+						vec![]
+					};
+
+					// Query the storage
+					match storage.query(&chain.client, keys).await {
+						Ok(Some(value)) => {
+							display_message(&raw_value_to_string(&value)?, true, &mut cli)?;
+						},
+						Ok(None) => {
+							display_message("Storage value not found", true, &mut cli)?;
+						},
+						Err(e) => {
+							display_message(
+								&format!("Failed to query storage: {}", e),
+								false,
+								&mut cli,
+							)?;
+							break;
+						},
+					}
 				},
 			};
-
-			// Sign and submit the extrinsic.
-			let result = if self.use_wallet {
-				let call_data = xt.encode_call_data(&chain.client.metadata())?;
-				wallet::submit_extrinsic(&chain.client, &chain.url, call_data, &mut cli)
-					.await
-					.map(|_| ()) // Mapping to `()` since we don't need events returned
-			} else {
-				call.submit_extrinsic(&chain.client, &chain.url, xt, &mut cli).await
-			};
-
-			if let Err(e) = result {
-				display_message(&e.to_string(), false, &mut cli)?;
-				break;
-			}
 
 			if !prompt_to_repeat_call ||
 				!cli.confirm("Do you want to perform another call?")
@@ -162,54 +218,95 @@ impl CallChainCommand {
 						for pallet_item in &chain.pallets {
 							prompt = prompt.item(pallet_item, &pallet_item.name, &pallet_item.docs);
 						}
-						prompt.interact()?
+						prompt.filter_mode().interact()?
 					}
 				},
 			};
 
 			// Resolve dispatchable function.
-			let function = match self.function {
-				Some(ref name) => find_dispatchable_by_name(&chain.pallets, &pallet.name, name)?,
+			let call_item = match self.function {
+				Some(ref name) => find_callable_by_name(&chain.pallets, &pallet.name, name)?,
 				None => {
 					let mut prompt = cli.select("Select the function to call:");
-					for function in &pallet.functions {
-						prompt = prompt.item(function, &function.name, &function.docs);
+					for callable in pallet.get_all_callables() {
+						let name = format!("{} {}", callable.hint(), callable);
+						let docs = callable.docs();
+						prompt = prompt.item(callable.clone(), &name, docs);
 					}
-					prompt.interact()?
+					prompt.filter_mode().interact()?
 				},
 			};
-			// Certain dispatchable functions are not supported yet due to complexity.
-			if !function.is_supported {
-				cli.outro_cancel(
-					"The selected function is not supported yet. Please choose another one.",
-				)?;
-				self.reset_for_new_call();
-				continue;
-			}
 
-			// Resolve dispatchable function arguments.
-			let args = if self.args.is_empty() {
-				let mut args = Vec::new();
-				for param in &function.params {
-					let input = prompt_for_param(cli, param)?;
-					args.push(input);
-				}
-				args
-			} else {
-				self.expand_file_arguments()?
+			let (args, suri) = match &call_item {
+				CallItem::Function(function) => {
+					// Certain dispatchable functions are not supported yet due to complexity.
+					if !function.is_supported {
+						cli.outro_cancel(
+							"The selected function is not supported yet. Please choose another one.",
+						)?;
+						self.reset_for_new_call();
+						continue;
+					}
+
+					// Resolve dispatchable function arguments.
+					let args = if self.args.is_empty() {
+						let mut args = Vec::new();
+						for param in &function.params {
+							let input = prompt_for_param(cli, param)?;
+							args.push(input);
+						}
+						args
+					} else {
+						self.expand_file_arguments()?
+					};
+
+					// If the chain has sudo prompt the user to confirm if they want to execute the
+					// call via sudo.
+					if self.sudo {
+						self.check_sudo(chain, cli)?;
+					}
+
+					let (use_wallet, suri) = self.determine_signing_method(cli)?;
+					self.use_wallet = use_wallet;
+					(args, Some(suri))
+				},
+				CallItem::Storage(storage) => {
+					// Handle storage queries - check if parameters are needed
+					let args = if let Some(key_ty) = storage.key_id {
+						// Storage map requires key parameters
+						if self.args.is_empty() {
+							// Get metadata to convert type_id to Param
+							let metadata = chain.client.metadata();
+							let registry = metadata.types();
+							let type_info = registry
+								.resolve(key_ty)
+								.ok_or(anyhow!("Failed to resolve storage key type: {key_ty}"))?;
+							let name = type_info.path.segments.last().expect("path must exists");
+
+							// Convert the key type_id to a Param for prompting
+							let key_param = type_to_param(&name.to_string(), registry, key_ty)
+								.map_err(|e| anyhow!("Failed to parse storage key type: {e}"))?;
+
+							// Prompt user for the storage key
+							let key_value = prompt_for_param(cli, &key_param)?;
+							vec![key_value]
+						} else {
+							self.expand_file_arguments()?
+						}
+					} else {
+						// Plain storage - no parameters needed
+						vec![]
+					};
+
+					// Storage queries don't require signing
+					(args, None)
+				},
+				// Constants don't require parameters
+				CallItem::Constant(_) => (vec![], None),
 			};
 
-			// If chain has sudo prompt the user to confirm if they want to execute the call via
-			// sudo.
-			if self.sudo {
-				self.check_sudo(chain, cli)?;
-			}
-
-			let (use_wallet, suri) = self.determine_signing_method(cli)?;
-			self.use_wallet = use_wallet;
-
 			return Ok(Call {
-				function: function.clone(),
+				function: call_item,
 				args,
 				suri,
 				skip_confirm: self.skip_confirm,
@@ -293,7 +390,7 @@ impl CallChainCommand {
 	// Checks if the chain has the Sudo pallet and prompts the user to confirm if they want to
 	// execute the call via `sudo`.
 	fn check_sudo(&mut self, chain: &Chain, cli: &mut impl Cli) -> Result<()> {
-		match find_dispatchable_by_name(&chain.pallets, "Sudo", "sudo") {
+		match find_callable_by_name(&chain.pallets, "Sudo", "sudo") {
 			Ok(_) => {
 				if !self.skip_confirm {
 					self.sudo = cli
@@ -348,8 +445,8 @@ impl CallChainCommand {
 /// and signing options.
 #[derive(Clone, Default)]
 pub(crate) struct Call {
-	/// The dispatchable function to execute.
-	pub(crate) function: Function,
+	/// The callable to execute. It can read from storage or execute an extrinsic.
+	pub(crate) function: CallItem,
 	/// The dispatchable function arguments, encoded as strings.
 	pub(crate) args: Vec<String>,
 	/// Secret key URI for the account signing the extrinsic.
@@ -357,7 +454,7 @@ pub(crate) struct Call {
 	/// e.g.
 	/// - for a dev account "//Alice"
 	/// - with a password "//Alice///SECRET_PASSWORD"
-	pub(crate) suri: String,
+	pub(crate) suri: Option<String>,
 	/// Whether to use your browser wallet to sign the extrinsic.
 	pub(crate) use_wallet: bool,
 	/// Whether to automatically sign and submit the extrinsic without prompting for confirmation.
@@ -373,7 +470,11 @@ impl Call {
 		client: &OnlineClient<SubstrateConfig>,
 		cli: &mut impl Cli,
 	) -> Result<DynamicPayload> {
-		let xt = match construct_extrinsic(&self.function, self.args.clone()) {
+		let function = match &self.function {
+			CallItem::Function(f) => f,
+			_ => return Err(anyhow!("Error: The call is not an extrinsic call")),
+		};
+		let xt = match construct_extrinsic(function, self.args.clone()) {
 			Ok(tx) => tx,
 			Err(e) => {
 				return Err(anyhow!("Error: {}", e));
@@ -397,13 +498,17 @@ impl Call {
 		tx: DynamicPayload,
 		cli: &mut impl Cli,
 	) -> Result<()> {
+		let function = match &self.function {
+			CallItem::Function(f) => f,
+			_ => return Err(anyhow!("Error: The call is not an extrinsic call")),
+		};
 		if !self.skip_confirm &&
 			!cli.confirm("Do you want to submit the extrinsic?")
 				.initial_value(true)
 				.interact()?
 		{
 			display_message(
-				&format!("Extrinsic for `{}` was not submitted.", self.function.name),
+				&format!("Extrinsic for `{}` was not submitted.", function.name),
 				false,
 				cli,
 			)?;
@@ -413,7 +518,8 @@ impl Call {
 		spinner.start(
 			"Signing and submitting the extrinsic and then waiting for finalization, please be patient...",
 		);
-		let result = sign_and_submit_extrinsic(client, url, tx, &self.suri)
+		let suri = self.suri.clone().ok_or(anyhow!("Error: The secret key URI is missing"))?;
+		let result = sign_and_submit_extrinsic(client, url, tx, &suri)
 			.await
 			.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
 		spinner.stop(result);
@@ -422,7 +528,7 @@ impl Call {
 
 	fn display(&self, chain: &Chain) -> String {
 		let mut full_message = "pop call chain".to_string();
-		full_message.push_str(&format!(" --pallet {}", self.function.pallet));
+		full_message.push_str(&format!(" --pallet {}", self.function.pallet()));
 		full_message.push_str(&format!(" --function {}", self.function));
 		if !self.args.is_empty() {
 			let args: Vec<_> = self
@@ -442,8 +548,8 @@ impl Call {
 		full_message.push_str(&format!(" --url {}", chain.url));
 		if self.use_wallet {
 			full_message.push_str(" --use-wallet");
-		} else {
-			full_message.push_str(&format!(" --suri {}", self.suri));
+		} else if let Some(suri) = &self.suri {
+			full_message.push_str(&format!(" --suri {suri}"));
 		}
 		if self.sudo {
 			full_message.push_str(" --sudo");
@@ -613,7 +719,7 @@ fn parse_function_name(name: &str) -> Result<String, String> {
 mod tests {
 	use super::*;
 	use crate::{cli::MockCli, common::wallet::USE_WALLET_PROMPT};
-	use pop_chains::{parse_chain_metadata, set_up_client};
+	use pop_chains::{Function, parse_chain_metadata, set_up_client};
 	use pop_common::test_env::TestNode;
 	use tempfile::tempdir;
 	use url::Url;
@@ -670,10 +776,10 @@ mod tests {
 		assert_eq!(chain.url, Url::parse(node_url)?);
 
 		let call_chain = call_config.configure_call(&chain, &mut cli)?;
-		assert_eq!(call_chain.function.pallet, "System");
-		assert_eq!(call_chain.function.name, "remark");
+		assert_eq!(call_chain.function.pallet(), "System");
+		assert_eq!(call_chain.function.name(), "remark");
 		assert_eq!(call_chain.args, vec!["0x11".to_string()]);
-		assert_eq!(call_chain.suri, "//Alice"); // Default value
+		assert_eq!(call_chain.suri, Some("//Alice".to_string())); // Default value
 		assert!(call_chain.use_wallet);
 		assert!(call_chain.sudo);
 		assert_eq!(
@@ -749,8 +855,8 @@ mod tests {
 
 		let call_chain = call_config.configure_call(&chain, &mut cli)?;
 
-		assert_eq!(call_chain.function.pallet, "Assets");
-		assert_eq!(call_chain.function.name, "create");
+		assert_eq!(call_chain.function.pallet(), "Assets");
+		assert_eq!(call_chain.function.name(), "create");
 		assert_eq!(
 			call_chain.args,
 			[
@@ -759,7 +865,7 @@ mod tests {
 				"2000".to_string()
 			]
 		);
-		assert_eq!(call_chain.suri, "//Bob");
+		assert_eq!(call_chain.suri, Some("//Bob".to_string()));
 		assert!(!call_chain.sudo);
 		assert_eq!(
 			call_chain.display(&chain),
@@ -776,13 +882,13 @@ mod tests {
 		let node_url = node.ws_url();
 		let client = set_up_client(node_url).await?;
 		let mut call_config = Call {
-			function: Function {
+			function: CallItem::Function(Function {
 				pallet: "WrongName".to_string(),
 				name: "WrongName".to_string(),
 				..Default::default()
-			},
+			}),
 			args: vec!["0x11".to_string()],
-			suri: DEFAULT_URI.to_string(),
+			suri: Some(DEFAULT_URI.to_string()),
 			use_wallet: false,
 			skip_confirm: false,
 			sudo: false,
@@ -794,7 +900,9 @@ mod tests {
 				Err(message)
 					if message.to_string().contains("Failed to encode call data. Metadata Error: Pallet with name WrongName not found")));
 		let pallets = parse_chain_metadata(&client)?;
-		call_config.function.pallet = "System".to_string();
+		if let CallItem::Function(ref mut function) = call_config.function {
+			function.pallet = "System".to_string();
+		}
 		// Error, wrong name of the function.
 		assert!(matches!(
 				call_config.prepare_extrinsic(&client, &mut cli),
@@ -802,7 +910,7 @@ mod tests {
 					if message.to_string().contains("Failed to encode call data. Metadata Error: Call with name WrongName not found")));
 		// Success, pallet and dispatchable function specified.
 		cli = MockCli::new().expect_info("Encoded call data: 0x00000411");
-		call_config.function = find_dispatchable_by_name(&pallets, "System", "remark")?.clone();
+		call_config.function = find_callable_by_name(&pallets, "System", "remark")?.clone();
 		let xt = call_config.prepare_extrinsic(&client, &mut cli)?;
 		assert_eq!(xt.call_name(), "remark");
 		assert_eq!(xt.pallet_name(), "System");

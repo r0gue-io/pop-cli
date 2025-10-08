@@ -19,7 +19,7 @@ use clap::Args;
 use cliclack::spinner;
 use pop_chains::{
 	Action, ChainTemplate, DeploymentProvider, Payload, Reserved, SupportedChains,
-	construct_proxy_extrinsic, find_dispatchable_by_name,
+	construct_proxy_extrinsic, find_callable_by_name,
 };
 use pop_common::{Profile, parse_account, templates::Template};
 use std::{
@@ -361,7 +361,7 @@ impl Registration {
 	// Prepares and returns the encoded call data for registering a chain.
 	fn prepare_register_call_data(&self, cli: &mut impl Cli) -> Result<Vec<u8>> {
 		let Registration { id, genesis_artifacts, chain, proxy, .. } = self;
-		let dispatchable = find_dispatchable_by_name(
+		let dispatchable = find_callable_by_name(
 			&chain.pallets,
 			Action::Register.pallet_name(),
 			Action::Register.function_name(),
@@ -398,7 +398,7 @@ async fn reserve(chain: &Chain, proxy: &Proxy, cli: &mut impl Cli) -> Result<u32
 
 // Prepares and returns the encoded call data for reserving an ID.
 fn prepare_reserve_call_data(chain: &Chain, proxy: &Proxy, cli: &mut impl Cli) -> Result<Vec<u8>> {
-	let dispatchable = find_dispatchable_by_name(
+	let dispatchable = find_callable_by_name(
 		&chain.pallets,
 		Action::Reserve.pallet_name(),
 		Action::Reserve.function_name(),

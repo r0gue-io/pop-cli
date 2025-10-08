@@ -2,10 +2,15 @@
 
 use crate::errors::Error;
 use params::Param;
-use scale_value::stringify::custom_parsers;
-use std::fmt::{Display, Formatter};
+use scale_value::{
+	Composite, ValueDef,
+	stringify::{custom_formatters::format_hex, custom_parsers},
+};
+use std::fmt::{Display, Formatter, Write};
 use subxt::{
-	Metadata, OnlineClient, SubstrateConfig, dynamic::Value, metadata::types::PalletMetadata,
+	Metadata, OnlineClient, SubstrateConfig,
+	dynamic::Value,
+	metadata::types::{PalletMetadata, StorageEntryType},
 	utils::to_hex,
 };
 
@@ -13,6 +18,134 @@ pub mod action;
 pub mod params;
 
 pub type RawValue = Value<u32>;
+
+fn format_single_tuples<W: Write>(value: &RawValue, mut writer: W) -> Option<core::fmt::Result> {
+	if let ValueDef::Composite(Composite::Unnamed(vals)) = &value.value {
+		if vals.len() == 1 {
+			let val = &vals[0];
+			return match raw_value_to_string(val) {
+				Ok(r) => match writer.write_str(&r) {
+					Ok(_) => Some(Ok(())),
+					Err(_) => None,
+				},
+				Err(_) => None,
+			}
+		}
+	}
+	None
+}
+
+/// Converts a raw SCALE value to a human-readable string representation.
+///
+/// This function takes a raw SCALE value and formats it into a string using custom formatters:
+/// - Formats byte sequences as hex strings.
+/// - Unwraps single-element tuples.
+/// - Uses pretty printing for better readability.
+///
+/// # Arguments
+/// * `value` - The raw SCALE value to convert to string.
+///
+/// # Returns
+/// * `Ok(String)` - The formatted string representation of the value.
+/// * `Err(_)` - If the value cannot be converted to string.
+pub fn raw_value_to_string(value: &RawValue) -> anyhow::Result<String> {
+	let mut result = String::new();
+	scale_value::stringify::to_writer_custom()
+		.compact()
+		.pretty()
+		.add_custom_formatter(|v, w| format_hex(v, w))
+		.add_custom_formatter(|v, w| format_single_tuples(v, w))
+		.write(value, &mut result)?;
+	Ok(result)
+}
+
+/// Represents different types of callable items that can be interacted with in the runtime.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum CallItem {
+	/// A dispatchable function (extrinsic) that can be called.
+	Function(Function),
+	/// A constant value defined in the runtime.
+	Constant(Constant),
+	/// A storage item that can be queried.
+	Storage(Storage),
+}
+
+impl Default for CallItem {
+	fn default() -> Self {
+		Self::Function(Function::default())
+	}
+}
+
+impl Display for CallItem {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		match self {
+			CallItem::Function(function) => function.fmt(f),
+			CallItem::Constant(constant) => constant.fmt(f),
+			CallItem::Storage(storage) => storage.fmt(f),
+		}
+	}
+}
+
+impl CallItem {
+	/// Returns a reference to the [`Function`] if this is a function call item.
+	pub fn as_function(&self) -> Option<&Function> {
+		match self {
+			CallItem::Function(f) => Some(f),
+			_ => None,
+		}
+	}
+
+	/// Returns a reference to the [`Constant`] if this is a constant call item.
+	pub fn as_constant(&self) -> Option<&Constant> {
+		match self {
+			CallItem::Constant(c) => Some(c),
+			_ => None,
+		}
+	}
+
+	/// Returns a reference to the [`Storage`] if this is a storage call item.
+	pub fn as_storage(&self) -> Option<&Storage> {
+		match self {
+			CallItem::Storage(s) => Some(s),
+			_ => None,
+		}
+	}
+
+	/// Returns the name of this call item.
+	pub fn name(&self) -> &str {
+		match self {
+			CallItem::Function(function) => &function.name,
+			CallItem::Constant(constant) => &constant.name,
+			CallItem::Storage(storage) => &storage.name,
+		}
+	}
+	/// Returns a descriptive hint string indicating the type of this call item.
+	pub fn hint(&self) -> &str {
+		match self {
+			CallItem::Function(_) => "📝 [EXTRINSIC]",
+			CallItem::Constant(_) => "[CONSTANT]",
+			CallItem::Storage(_) => "[STORAGE]",
+		}
+	}
+
+	/// Returns the documentation string associated with this call item.
+	pub fn docs(&self) -> &str {
+		match self {
+			CallItem::Function(function) => &function.docs,
+			CallItem::Constant(constant) => &constant.docs,
+			CallItem::Storage(storage) => &storage.docs,
+		}
+	}
+
+	/// Returns the name of the pallet containing this call item.
+	pub fn pallet(&self) -> &str {
+		match self {
+			CallItem::Function(function) => &function.pallet,
+			CallItem::Constant(constant) => &constant.pallet,
+			CallItem::Storage(storage) => &storage.pallet,
+		}
+	}
+}
 
 /// Represents a pallet in the blockchain, including its dispatchable functions.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -34,6 +167,32 @@ pub struct Pallet {
 impl Display for Pallet {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
 		write!(f, "{}", self.name)
+	}
+}
+
+impl Pallet {
+	/// Returns a vector containing all callable items (functions, constants, and storage) defined
+	/// in this pallet.
+	///
+	/// This method collects and returns all available callable items from the pallet:
+	/// - Dispatchable functions (extrinsics)
+	/// - Constants
+	/// - Storage items
+	///
+	/// # Returns
+	/// A `Vec<CallItem>` containing all callable items from this pallet.
+	pub fn get_all_callables(&self) -> Vec<CallItem> {
+		let mut callables = Vec::new();
+		for function in &self.functions {
+			callables.push(CallItem::Function(function.clone()));
+		}
+		for constant in &self.constants {
+			callables.push(CallItem::Constant(constant.clone()));
+		}
+		for storage in &self.state {
+			callables.push(CallItem::Storage(storage.clone()));
+		}
+		callables
 	}
 }
 
@@ -90,6 +249,8 @@ pub struct Storage {
 	pub docs: String,
 	/// The type ID for decoding the storage value.
 	pub type_id: u32,
+	/// Optional type ID for map-type storage items. Usually a tuple.
+	pub key_id: Option<u32>,
 }
 
 impl Display for Storage {
@@ -165,6 +326,10 @@ fn extract_chain_state_from_pallet_metadata(
 							.collect::<Vec<_>>()
 							.join(" "),
 						type_id: entry.entry_type().value_ty(),
+						key_id: match entry.entry_type() {
+							StorageEntryType::Plain(_) => None,
+							StorageEntryType::Map { key_ty, .. } => Some(*key_ty),
+						},
 					})
 				})
 				.collect::<Result<Vec<Storage>, Error>>()
@@ -315,17 +480,22 @@ pub fn find_pallet_by_name<'a>(
 /// * `pallets`: List of pallets available within the chain's runtime.
 /// * `pallet_name`: The name of the pallet.
 /// * `function_name`: Name of the dispatchable function to locate.
-pub fn find_dispatchable_by_name<'a>(
-	pallets: &'a [Pallet],
+pub fn find_callable_by_name(
+	pallets: &[Pallet],
 	pallet_name: &str,
 	function_name: &str,
-) -> Result<&'a Function, Error> {
+) -> Result<CallItem, Error> {
 	let pallet = find_pallet_by_name(pallets, pallet_name)?;
 	if let Some(function) = pallet.functions.iter().find(|&e| e.name == function_name) {
-		Ok(function)
-	} else {
-		Err(Error::FunctionNotSupported)
+		return Ok(CallItem::Function(function.clone()))
 	}
+	if let Some(constant) = pallet.constants.iter().find(|&e| e.name == function_name) {
+		return Ok(CallItem::Constant(constant.clone()))
+	}
+	if let Some(storage) = pallet.state.iter().find(|&e| e.name == function_name) {
+		return Ok(CallItem::Storage(storage.clone()))
+	}
+	Err(Error::CallableNotSupported)
 }
 
 /// Parses and processes raw string parameter values for a dispatchable function, mapping them to
@@ -470,22 +640,9 @@ mod tests {
 			name: "Account".to_string(),
 			docs: "The full account information for a particular account ID.".to_string(),
 			type_id: 42,
+			key_id: None,
 		};
 		assert_eq!(format!("{storage}"), "Account");
-	}
-
-	#[test]
-	fn storage_struct_fields_work() {
-		let storage = Storage {
-			pallet: "Balances".to_string(),
-			name: "TotalIssuance".to_string(),
-			docs: "The total units issued in the system.".to_string(),
-			type_id: 123,
-		};
-		assert_eq!(storage.pallet, "Balances");
-		assert_eq!(storage.name, "TotalIssuance");
-		assert_eq!(storage.docs, "The total units issued in the system.");
-		assert_eq!(storage.type_id, 123);
 	}
 
 	#[test]
@@ -508,6 +665,7 @@ mod tests {
 				name: "Account".to_string(),
 				docs: "The full account information for a particular account ID.".to_string(),
 				type_id: 42,
+				key_id: None,
 			}],
 		};
 		assert_eq!(pallet.constants.len(), 1);
