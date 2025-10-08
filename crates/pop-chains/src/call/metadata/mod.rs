@@ -12,6 +12,8 @@ use subxt::{
 pub mod action;
 pub mod params;
 
+pub type RawValue = Value<u32>;
+
 /// Represents a pallet in the blockchain, including its dispatchable functions.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Pallet {
@@ -25,6 +27,8 @@ pub struct Pallet {
 	pub functions: Vec<Function>,
 	/// The constants of the pallet.
 	pub constants: Vec<Constant>,
+	/// The storage items of the pallet.
+	pub state: Vec<Storage>,
 }
 
 impl Display for Pallet {
@@ -66,13 +70,107 @@ pub struct Constant {
 	/// The documentation of the constant.
 	pub docs: String,
 	/// The value of the constant.
-	pub value: Value<u32>,
+	pub value: RawValue,
 }
 
 impl Display for Constant {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
 		write!(f, "{}", self.name)
 	}
+}
+
+/// Represents a storage item.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Storage {
+	/// The pallet containing the storage item.
+	pub pallet: String,
+	/// The name of the storage item.
+	pub name: String,
+	/// The documentation of the storage item.
+	pub docs: String,
+	/// The type ID for decoding the storage value.
+	pub type_id: u32,
+}
+
+impl Display for Storage {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{}", self.name)
+	}
+}
+
+impl Storage {
+	/// Query the storage value from the chain and return it as a formatted string.
+	///
+	/// # Arguments
+	/// * `client` - The client to interact with the chain.
+	/// * `keys` - Optional storage keys for map-type storage items.
+	pub async fn query(
+		&self,
+		client: &OnlineClient<SubstrateConfig>,
+		keys: Vec<Value>,
+	) -> Result<Option<RawValue>, Error> {
+		let metadata = client.metadata();
+		let types = metadata.types();
+		let storage_address = subxt::dynamic::storage(&self.pallet, &self.name, keys);
+		let storage_data = client
+			.storage()
+			.at_latest()
+			.await
+			.map_err(|e| Error::MetadataParsingError(format!("Failed to get storage: {}", e)))?
+			.fetch(&storage_address)
+			.await
+			.map_err(|e| {
+				Error::MetadataParsingError(format!("Failed to fetch storage value: {}", e))
+			})?;
+
+		// Decode the value if it exists
+		match storage_data {
+			Some(value) => {
+				// Try to decode using the type information
+				let mut bytes = value.encoded();
+				let decoded_value = scale_value::scale::decode_as_type(
+					&mut bytes,
+					self.type_id,
+					types,
+				)
+				.map_err(|e| {
+					Error::MetadataParsingError(format!("Failed to decode storage value: {}", e))
+				})?;
+
+				Ok(Some(decoded_value))
+			},
+			None => Ok(None),
+		}
+	}
+}
+
+fn extract_chain_state_from_pallet_metadata(
+	pallet: &PalletMetadata,
+) -> anyhow::Result<Vec<Storage>> {
+	pallet
+		.storage()
+		.map(|storage_metadata| {
+			storage_metadata
+				.entries()
+				.iter()
+				.map(|entry| {
+					Ok(Storage {
+						pallet: pallet.name().to_string(),
+						name: entry.name().to_string(),
+						docs: entry
+							.docs()
+							.iter()
+							.filter(|l| !l.is_empty())
+							.cloned()
+							.collect::<Vec<_>>()
+							.join(" "),
+						type_id: entry.entry_type().value_ty(),
+					})
+				})
+				.collect::<Result<Vec<Storage>, Error>>()
+		})
+		.unwrap_or_else(|| Ok(vec![]))
+		.map_err(|e| anyhow::Error::msg(e.to_string()))
 }
 
 fn extract_constants_from_pallet_metadata(
@@ -98,12 +196,13 @@ fn extract_constants_from_pallet_metadata(
 			Ok(Constant {
 				pallet: pallet.name().to_string(),
 				name: constant.name().to_string(),
-				docs: constant.docs()
-                    .iter()
-                    .filter(|l| !l.is_empty())
-                    .cloned()
-                    .collect::<Vec<_>>()
-                    .join(" "),
+				docs: constant
+					.docs()
+					.iter()
+					.filter(|l| !l.is_empty())
+					.cloned()
+					.collect::<Vec<_>>()
+					.join(" "),
 				value: decoded_value,
 			})
 		})
@@ -186,6 +285,7 @@ pub fn parse_chain_metadata(client: &OnlineClient<SubstrateConfig>) -> Result<Ve
 				docs: pallet.docs().join(" "),
 				functions: extract_functions_from_pallet_metadata(&pallet, &metadata)?,
 				constants: extract_constants_from_pallet_metadata(&pallet, &metadata)?,
+				state: extract_chain_state_from_pallet_metadata(&pallet)?,
 			})
 		})
 		.collect::<Result<Vec<Pallet>, Error>>()?;
@@ -288,8 +388,7 @@ mod tests {
 		]
 		.to_vec();
 		let addr: Vec<_> =
-			from_hex("8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48")
-				.unwrap()
+			from_hex("8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48")?
 				.into_iter()
 				.map(|b| Value::u128(b as u128))
 				.collect();
@@ -300,7 +399,7 @@ mod tests {
 			Param { type_name: "bool".to_string(), ..Default::default() },
 			Param { type_name: "char".to_string(), ..Default::default() },
 			Param { type_name: "string".to_string(), ..Default::default() },
-			Param { type_name: "compostie".to_string(), ..Default::default() },
+			Param { type_name: "composite".to_string(), ..Default::default() },
 			Param { type_name: "variant".to_string(), is_variant: true, ..Default::default() },
 			Param { type_name: "bit_sequence".to_string(), ..Default::default() },
 			Param { type_name: "tuple".to_string(), is_tuple: true, ..Default::default() },
