@@ -19,14 +19,10 @@ use pop_chains::{
 	encode_call_data, find_dispatchable_by_name, find_pallet_by_name, sign_and_submit_extrinsic,
 	supported_actions,
 };
-use serde_json::Value;
-use std::collections::HashMap;
 use url::Url;
 
 const DEFAULT_URI: &str = "//Alice";
 const ENCODED_CALL_DATA_MAX_LEN: usize = 500; // Maximum length of encoded call data to display.
-const CHAIN_ENDPOINTS_URL: &str =
-	"https://raw.githubusercontent.com/r0gue-io/polkadot-chains/refs/heads/master/endpoints.json";
 
 /// Command to construct and execute extrinsics with configurable pallets, functions, arguments, and
 /// signing options.
@@ -613,65 +609,6 @@ fn parse_function_name(name: &str) -> Result<String, String> {
 	Ok(name.to_ascii_lowercase())
 }
 
-/// Represents a node in the network with its RPC endpoints and chain properties.
-#[allow(dead_code)]
-#[derive(Debug)]
-pub(crate) struct RPCNode {
-	/// Name of the chain (e.g. "Polkadot Relay", "Kusama Relay").
-	pub name: String,
-	/// List of RPC endpoint URLs that can be used to connect to this chain.
-	pub providers: Vec<String>,
-	/// Indicates if this chain is a relay chain.
-	pub is_relay: bool,
-	/// For parachains, contains the name of their relay chain. None for relay chains or
-	/// solochains.
-	pub relay_name: Option<String>,
-	/// Indicates if this chain supports smart contracts. Particularly, whether pallet-revive is
-	/// present in the runtime or not.
-	pub supports_contracts: bool,
-}
-
-// Get the RPC endpoints from the maintained source.
-pub(crate) async fn extract_chain_endpoints() -> Result<Vec<RPCNode>> {
-	extract_chain_endpoints_from_url(CHAIN_ENDPOINTS_URL).await
-}
-
-// Internal function that accepts a URL parameter, making it testable with mockito.
-async fn extract_chain_endpoints_from_url(url: &str) -> Result<Vec<RPCNode>> {
-	let response = reqwest::get(url).await?;
-	let json_text = response.text().await?;
-	let json: HashMap<String, Value> = serde_json::from_str(&json_text)?;
-
-	let mut result = Vec::with_capacity(json.len());
-	for (chain_name, chain_data) in json.into_iter() {
-		let providers = chain_data
-			.get("providers")
-			.and_then(|v| v.as_array())
-			.ok_or_else(|| anyhow!("No providers field found for chain: {}", chain_name))?
-			.iter()
-			.filter_map(|v| v.as_str().map(|s| s.to_string()))
-			.collect::<Vec<String>>();
-		let is_relay = chain_data.get("isRelay").map(|r| r.as_bool().unwrap()).unwrap_or(false);
-		let supports_contracts = chain_data
-			.get("supportsContracts")
-			.map(|r| r.as_bool().unwrap())
-			.unwrap_or(false);
-		let relay_name = chain_data
-			.get("relay")
-			.map(|r| r.as_str())
-			.unwrap_or_default()
-			.map(|r| r.to_string());
-		result.push(RPCNode {
-			name: chain_name,
-			providers,
-			is_relay,
-			relay_name,
-			supports_contracts,
-		});
-	}
-	Ok(result)
-}
-
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -1004,97 +941,6 @@ mod tests {
 		assert_eq!(parse_function_name("Remark").unwrap(), "remark");
 		assert_eq!(parse_function_name("Force_transfer").unwrap(), "force_transfer");
 		assert_eq!(parse_function_name("MINT").unwrap(), "mint");
-		Ok(())
-	}
-
-	#[tokio::test]
-	async fn extract_chain_endpoints_works() -> Result<()> {
-		// Create a mock server
-		let mut server = mockito::Server::new_async().await;
-
-		// Create mock response data
-		let mock_response = serde_json::json!({
-			"polkadot": {
-				"providers": [
-					"wss://polkadot.api.onfinality.io/public-ws",
-					"wss://rpc.polkadot.io"
-				],
-				"isRelay": true
-			},
-			"kusama": {
-				"providers": [
-					"wss://kusama.api.onfinality.io/public-ws"
-				],
-				"isRelay": true
-			},
-			"asset-hub-polkadot": {
-				"providers": [
-					"wss://polkadot-asset-hub-rpc.polkadot.io"
-				],
-				"isRelay": false,
-				"relay": "polkadot"
-			}
-		});
-
-		// Set up the mock endpoint
-		let mock = server
-			.mock("GET", "/")
-			.with_status(200)
-			.with_header("content-type", "application/json")
-			.with_body(mock_response.to_string())
-			.create_async()
-			.await;
-
-		// Call the function with the mock server URL
-		let result = extract_chain_endpoints_from_url(&server.url()).await?;
-
-		// Verify the mock was called
-		mock.assert_async().await;
-
-		// Verify the parsed results
-		assert_eq!(result.len(), 3);
-
-		let polkadot = result.iter().find(|n| n.name == "polkadot").unwrap();
-		assert_eq!(polkadot.providers.len(), 2);
-		assert!(polkadot.is_relay);
-		assert_eq!(polkadot.relay_name, None);
-
-		let kusama = result.iter().find(|n| n.name == "kusama").unwrap();
-		assert_eq!(kusama.providers.len(), 1);
-		assert!(kusama.is_relay);
-
-		let asset_hub = result.iter().find(|n| n.name == "asset-hub-polkadot").unwrap();
-		assert_eq!(asset_hub.providers.len(), 1);
-		assert!(!asset_hub.is_relay);
-		assert_eq!(asset_hub.relay_name, Some("polkadot".to_string()));
-
-		Ok(())
-	}
-
-	#[tokio::test]
-	async fn extract_chain_endpoints_handles_missing_providers() -> Result<()> {
-		let mut server = mockito::Server::new_async().await;
-
-		// Mock response with missing providers field
-		let mock_response = serde_json::json!({
-			"invalid-chain": {
-				"isRelay": false
-			}
-		});
-
-		server
-			.mock("GET", "/")
-			.with_status(200)
-			.with_header("content-type", "application/json")
-			.with_body(mock_response.to_string())
-			.create_async()
-			.await;
-
-		// Should return an error for missing providers
-		let result = extract_chain_endpoints_from_url(&server.url()).await;
-		assert!(result.is_err());
-		assert!(result.unwrap_err().to_string().contains("No providers field found"));
-
 		Ok(())
 	}
 }
