@@ -673,4 +673,369 @@ mod tests {
 		assert_eq!(pallet.constants[0].name, "BlockHashCount");
 		assert_eq!(pallet.state[0].name, "Account");
 	}
+
+	#[test]
+	fn storage_struct_with_key_id_works() {
+		// Test storage without key_id (plain storage)
+		let plain_storage = Storage {
+			pallet: "Timestamp".to_string(),
+			name: "Now".to_string(),
+			docs: "Current time for the current block.".to_string(),
+			type_id: 10,
+			key_id: None,
+		};
+		assert_eq!(plain_storage.pallet, "Timestamp");
+		assert_eq!(plain_storage.name, "Now");
+		assert!(plain_storage.key_id.is_none());
+
+		// Test storage with key_id (storage map)
+		let map_storage = Storage {
+			pallet: "System".to_string(),
+			name: "Account".to_string(),
+			docs: "The full account information for a particular account ID.".to_string(),
+			type_id: 42,
+			key_id: Some(100),
+		};
+		assert_eq!(map_storage.pallet, "System");
+		assert_eq!(map_storage.name, "Account");
+		assert_eq!(map_storage.key_id, Some(100));
+	}
+
+	#[test]
+	fn raw_value_to_string_works() -> Result<()> {
+		// Test simple integer value
+		let value = Value::u128(250).map_context(|_| 0u32);
+		let result = raw_value_to_string(&value)?;
+		assert_eq!(result, "250");
+
+		// Test boolean value
+		let value = Value::bool(true).map_context(|_| 0u32);
+		let result = raw_value_to_string(&value)?;
+		assert_eq!(result, "true");
+
+		// Test string value
+		let value = Value::string("hello").map_context(|_| 0u32);
+		let result = raw_value_to_string(&value)?;
+		assert_eq!(result, "\"hello\"");
+
+		// Test single-element tuple (should unwrap) - demonstrates format_single_tuples
+		let inner = Value::u128(42);
+		let value = Value::unnamed_composite(vec![inner]).map_context(|_| 0u32);
+		let result = raw_value_to_string(&value)?;
+		assert_eq!(result, "0x2A"); // 42 in hex - unwrapped from tuple
+
+		// Test multi-element composite - hex formatted
+		let value =
+			Value::unnamed_composite(vec![Value::u128(1), Value::u128(2)]).map_context(|_| 0u32);
+		let result = raw_value_to_string(&value)?;
+		assert_eq!(result, "0x0102"); // Formatted as hex bytes
+
+		Ok(())
+	}
+
+	#[test]
+	fn call_item_default_works() {
+		let item = CallItem::default();
+		assert!(matches!(item, CallItem::Function(_)));
+		if let CallItem::Function(f) = item {
+			assert_eq!(f, Function::default());
+		}
+	}
+
+	#[test]
+	fn call_item_display_works() {
+		let function = Function {
+			pallet: "System".to_string(),
+			name: "remark".to_string(),
+			..Default::default()
+		};
+		let item = CallItem::Function(function);
+		assert_eq!(format!("{item}"), "remark");
+
+		let constant = Constant {
+			pallet: "System".to_string(),
+			name: "BlockHashCount".to_string(),
+			docs: "docs".to_string(),
+			value: Value::u128(250).map_context(|_| 0u32),
+		};
+		let item = CallItem::Constant(constant);
+		assert_eq!(format!("{item}"), "BlockHashCount");
+
+		let storage = Storage {
+			pallet: "System".to_string(),
+			name: "Account".to_string(),
+			docs: "docs".to_string(),
+			type_id: 42,
+			key_id: None,
+		};
+		let item = CallItem::Storage(storage);
+		assert_eq!(format!("{item}"), "Account");
+	}
+
+	#[test]
+	fn call_item_as_methods_work() {
+		let function = Function {
+			pallet: "System".to_string(),
+			name: "remark".to_string(),
+			..Default::default()
+		};
+		let item = CallItem::Function(function.clone());
+		assert_eq!(item.as_function(), Some(&function));
+		assert_eq!(item.as_constant(), None);
+		assert_eq!(item.as_storage(), None);
+
+		let constant = Constant {
+			pallet: "System".to_string(),
+			name: "BlockHashCount".to_string(),
+			docs: "docs".to_string(),
+			value: Value::u128(250).map_context(|_| 0u32),
+		};
+		let item = CallItem::Constant(constant.clone());
+		assert_eq!(item.as_function(), None);
+		assert_eq!(item.as_constant(), Some(&constant));
+		assert_eq!(item.as_storage(), None);
+
+		let storage = Storage {
+			pallet: "System".to_string(),
+			name: "Account".to_string(),
+			docs: "docs".to_string(),
+			type_id: 42,
+			key_id: None,
+		};
+		let item = CallItem::Storage(storage.clone());
+		assert_eq!(item.as_function(), None);
+		assert_eq!(item.as_constant(), None);
+		assert_eq!(item.as_storage(), Some(&storage));
+	}
+
+	#[test]
+	fn call_item_name_works() {
+		let function = Function {
+			pallet: "System".to_string(),
+			name: "remark".to_string(),
+			..Default::default()
+		};
+		let item = CallItem::Function(function);
+		assert_eq!(item.name(), "remark");
+
+		let constant = Constant {
+			pallet: "System".to_string(),
+			name: "BlockHashCount".to_string(),
+			docs: "docs".to_string(),
+			value: Value::u128(250).map_context(|_| 0u32),
+		};
+		let item = CallItem::Constant(constant);
+		assert_eq!(item.name(), "BlockHashCount");
+
+		let storage = Storage {
+			pallet: "System".to_string(),
+			name: "Account".to_string(),
+			docs: "docs".to_string(),
+			type_id: 42,
+			key_id: None,
+		};
+		let item = CallItem::Storage(storage);
+		assert_eq!(item.name(), "Account");
+	}
+
+	#[test]
+	fn call_item_hint_works() {
+		let function = Function {
+			pallet: "System".to_string(),
+			name: "remark".to_string(),
+			..Default::default()
+		};
+		let item = CallItem::Function(function);
+		assert_eq!(item.hint(), "📝 [EXTRINSIC]");
+
+		let constant = Constant {
+			pallet: "System".to_string(),
+			name: "BlockHashCount".to_string(),
+			docs: "docs".to_string(),
+			value: Value::u128(250).map_context(|_| 0u32),
+		};
+		let item = CallItem::Constant(constant);
+		assert_eq!(item.hint(), "[CONSTANT]");
+
+		let storage = Storage {
+			pallet: "System".to_string(),
+			name: "Account".to_string(),
+			docs: "docs".to_string(),
+			type_id: 42,
+			key_id: None,
+		};
+		let item = CallItem::Storage(storage);
+		assert_eq!(item.hint(), "[STORAGE]");
+	}
+
+	#[test]
+	fn call_item_docs_works() {
+		let function = Function {
+			pallet: "System".to_string(),
+			name: "remark".to_string(),
+			docs: "Make some on-chain remark.".to_string(),
+			..Default::default()
+		};
+		let item = CallItem::Function(function);
+		assert_eq!(item.docs(), "Make some on-chain remark.");
+
+		let constant = Constant {
+			pallet: "System".to_string(),
+			name: "BlockHashCount".to_string(),
+			docs: "Maximum number of block number to block hash mappings to keep.".to_string(),
+			value: Value::u128(250).map_context(|_| 0u32),
+		};
+		let item = CallItem::Constant(constant);
+		assert_eq!(item.docs(), "Maximum number of block number to block hash mappings to keep.");
+
+		let storage = Storage {
+			pallet: "System".to_string(),
+			name: "Account".to_string(),
+			docs: "The full account information for a particular account ID.".to_string(),
+			type_id: 42,
+			key_id: None,
+		};
+		let item = CallItem::Storage(storage);
+		assert_eq!(item.docs(), "The full account information for a particular account ID.");
+	}
+
+	#[test]
+	fn call_item_pallet_works() {
+		let function = Function {
+			pallet: "System".to_string(),
+			name: "remark".to_string(),
+			..Default::default()
+		};
+		let item = CallItem::Function(function);
+		assert_eq!(item.pallet(), "System");
+
+		let constant = Constant {
+			pallet: "Balances".to_string(),
+			name: "ExistentialDeposit".to_string(),
+			docs: "docs".to_string(),
+			value: Value::u128(100).map_context(|_| 0u32),
+		};
+		let item = CallItem::Constant(constant);
+		assert_eq!(item.pallet(), "Balances");
+
+		let storage = Storage {
+			pallet: "Timestamp".to_string(),
+			name: "Now".to_string(),
+			docs: "docs".to_string(),
+			type_id: 10,
+			key_id: None,
+		};
+		let item = CallItem::Storage(storage);
+		assert_eq!(item.pallet(), "Timestamp");
+	}
+
+	#[test]
+	fn pallet_get_all_callables_works() {
+		let function = Function {
+			pallet: "System".to_string(),
+			name: "remark".to_string(),
+			..Default::default()
+		};
+		let constant = Constant {
+			pallet: "System".to_string(),
+			name: "BlockHashCount".to_string(),
+			docs: "docs".to_string(),
+			value: Value::u128(250).map_context(|_| 0u32),
+		};
+		let storage = Storage {
+			pallet: "System".to_string(),
+			name: "Account".to_string(),
+			docs: "docs".to_string(),
+			type_id: 42,
+			key_id: None,
+		};
+
+		let pallet = Pallet {
+			name: "System".to_string(),
+			index: 0,
+			docs: "System pallet".to_string(),
+			functions: vec![function.clone()],
+			constants: vec![constant.clone()],
+			state: vec![storage.clone()],
+		};
+
+		let callables = pallet.get_all_callables();
+		assert_eq!(callables.len(), 3);
+		assert!(matches!(callables[0], CallItem::Function(_)));
+		assert!(matches!(callables[1], CallItem::Constant(_)));
+		assert!(matches!(callables[2], CallItem::Storage(_)));
+
+		// Verify the items match
+		if let CallItem::Function(f) = &callables[0] {
+			assert_eq!(f, &function);
+		}
+		if let CallItem::Constant(c) = &callables[1] {
+			assert_eq!(c, &constant);
+		}
+		if let CallItem::Storage(s) = &callables[2] {
+			assert_eq!(s, &storage);
+		}
+	}
+
+	#[test]
+	fn find_callable_by_name_works() {
+		let function = Function {
+			pallet: "System".to_string(),
+			name: "remark".to_string(),
+			..Default::default()
+		};
+		let constant = Constant {
+			pallet: "System".to_string(),
+			name: "BlockHashCount".to_string(),
+			docs: "docs".to_string(),
+			value: Value::u128(250).map_context(|_| 0u32),
+		};
+		let storage = Storage {
+			pallet: "System".to_string(),
+			name: "Account".to_string(),
+			docs: "docs".to_string(),
+			type_id: 42,
+			key_id: None,
+		};
+
+		let pallets = vec![Pallet {
+			name: "System".to_string(),
+			index: 0,
+			docs: "System pallet".to_string(),
+			functions: vec![function.clone()],
+			constants: vec![constant.clone()],
+			state: vec![storage.clone()],
+		}];
+
+		// Test finding a function
+		let result = find_callable_by_name(&pallets, "System", "remark");
+		assert!(result.is_ok());
+		if let Ok(CallItem::Function(f)) = result {
+			assert_eq!(f.name, "remark");
+		}
+
+		// Test finding a constant
+		let result = find_callable_by_name(&pallets, "System", "BlockHashCount");
+		assert!(result.is_ok());
+		if let Ok(CallItem::Constant(c)) = result {
+			assert_eq!(c.name, "BlockHashCount");
+		}
+
+		// Test finding a storage item
+		let result = find_callable_by_name(&pallets, "System", "Account");
+		assert!(result.is_ok());
+		if let Ok(CallItem::Storage(s)) = result {
+			assert_eq!(s.name, "Account");
+		}
+
+		// Test not finding a callable
+		let result = find_callable_by_name(&pallets, "System", "NonExistent");
+		assert!(result.is_err());
+		assert!(matches!(result.unwrap_err(), Error::CallableNotSupported));
+
+		// Test pallet not found
+		let result = find_callable_by_name(&pallets, "NonExistent", "remark");
+		assert!(result.is_err());
+		assert!(matches!(result.unwrap_err(), Error::PalletNotFound(_)));
+	}
 }

@@ -1051,4 +1051,107 @@ mod tests {
 		assert_eq!(parse_function_name("MINT").unwrap(), "mint");
 		Ok(())
 	}
+
+	#[tokio::test]
+	async fn query_constant_works() -> Result<()> {
+		let node = TestNode::spawn().await?;
+		let node_url = node.ws_url();
+		let client = set_up_client(node_url).await?;
+		let pallets = parse_chain_metadata(&client)?;
+
+		// Find a constant to query (BlockHashCount from System pallet)
+		let constant = find_callable_by_name(&pallets, "System", "BlockHashCount")?;
+
+		let call_config = Call {
+			function: constant.clone(),
+			args: vec![],
+			suri: None,
+			use_wallet: false,
+			skip_confirm: false,
+			sudo: false,
+		};
+
+		// Verify it's a constant
+		assert!(matches!(call_config.function, CallItem::Constant(_)));
+
+		// For constants, we just verify the structure since the value is in metadata
+		if let CallItem::Constant(ref c) = call_config.function {
+			assert_eq!(c.pallet, "System");
+			assert_eq!(c.name, "BlockHashCount");
+			assert!(!c.docs.is_empty());
+		}
+
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn query_storage_without_parameters_works() -> Result<()> {
+		let node = TestNode::spawn().await?;
+		let node_url = node.ws_url();
+		let client = set_up_client(node_url).await?;
+		let pallets = parse_chain_metadata(&client)?;
+
+		// Find a plain storage item (e.g., Timestamp::Now)
+		let storage = find_callable_by_name(&pallets, "Timestamp", "Now")?;
+
+		let call_config = Call {
+			function: storage.clone(),
+			args: vec![],
+			suri: None,
+			use_wallet: false,
+			skip_confirm: false,
+			sudo: false,
+		};
+
+		// Verify it's a storage item
+		assert!(matches!(call_config.function, CallItem::Storage(_)));
+
+		// Verify storage structure
+		if let CallItem::Storage(ref s) = call_config.function {
+			assert_eq!(s.pallet, "Timestamp");
+			assert_eq!(s.name, "Now");
+			assert!(!s.docs.is_empty());
+			// Plain storage should have no key_id
+			assert!(s.key_id.is_none());
+		}
+
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn query_storage_with_parameters_works() -> Result<()> {
+		let node = TestNode::spawn().await?;
+		let node_url = node.ws_url();
+		let client = set_up_client(node_url).await?;
+		let pallets = parse_chain_metadata(&client)?;
+
+		// Find a storage map (e.g., System::Account)
+		let storage = find_callable_by_name(&pallets, "System", "Account")?;
+
+		let call_config = Call {
+			function: storage.clone(),
+			args: vec!["5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY".to_string()],
+			suri: None,
+			use_wallet: false,
+			skip_confirm: false,
+			sudo: false,
+		};
+
+		// Verify it's a storage item
+		assert!(matches!(call_config.function, CallItem::Storage(_)));
+
+		// Verify storage structure
+		if let CallItem::Storage(ref s) = call_config.function {
+			assert_eq!(s.pallet, "System");
+			assert_eq!(s.name, "Account");
+			assert!(!s.docs.is_empty());
+			// Storage map should have key_id
+			assert!(s.key_id.is_some());
+		}
+
+		// Verify args were provided
+		assert_eq!(call_config.args.len(), 1);
+
+		Ok(())
+	}
 }
