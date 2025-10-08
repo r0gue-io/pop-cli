@@ -75,15 +75,7 @@ impl<CLI: Cli> CleanCacheCommand<'_, CLI> {
 			))
 			.to_string();
 
-			if !self
-				.cli
-				.confirm(format!("Would you like to cleanup all cached artifacts...\n {list} \n"))
-				.interact()?
-			{
-				self.cli.outro_cancel("ℹ️ No artifacts removed")?;
-				return Ok(());
-			}
-
+			self.cli.info(format!("Cleaning up the following artifacts...\n {list} \n"))?;
 			for (_, file, _) in &contents {
 				// confirm removal
 				remove_file(file)?;
@@ -300,46 +292,10 @@ mod tests {
 		.to_string();
 
 		let mut cli = MockCli::new()
-			.expect_confirm(
-				format!("Would you like to cleanup all cached artifacts...\n {list} \n"),
-				true,
-			)
+			.expect_info(format!("Cleaning up the following artifacts...\n {list} \n"))
 			.expect_outro("ℹ️ 2 artifacts removed");
 
 		CleanCacheCommand { cli: &mut cli, cache, all: true }.execute()?;
-
-		cli.verify()
-	}
-
-	#[test]
-	fn clean_cache_all_removes_nothing_if_unconfirmed() -> Result<()> {
-		let temp = tempfile::tempdir()?;
-		let cache = temp.path().to_path_buf();
-		let artifacts = ["polkadot-parachain", "pop-node"];
-		let mut items = vec![];
-		for artifact in &artifacts {
-			File::create(cache.join(artifact))?;
-			items.push((artifact, "0MiB".to_string()));
-		}
-
-		let list = style(format!(
-			"\n{}",
-			items
-				.iter()
-				.map(|(name, size)| format!("{} : {}", name, size))
-				.collect::<Vec<_>>()
-				.join("; \n")
-		))
-		.to_string();
-
-		let mut cli = MockCli::new()
-			.expect_confirm(
-				format!("Would you like to cleanup all cached artifacts...\n {list} \n"),
-				false,
-			)
-			.expect_outro_cancel("ℹ️ No artifacts removed");
-
-		CleanCacheCommand { cli: &mut cli, cache: cache.clone(), all: true }.execute()?;
 
 		cli.verify()
 	}
