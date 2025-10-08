@@ -435,4 +435,84 @@ mod tests {
 		);
 		Ok(())
 	}
+
+	#[test]
+	fn constant_display_works() {
+		let value = Value::u128(250).map_context(|_| 0u32);
+		let constant = Constant {
+			pallet: "System".to_string(),
+			name: "BlockHashCount".to_string(),
+			docs: "Maximum number of block number to block hash mappings to keep.".to_string(),
+			value,
+		};
+		assert_eq!(format!("{constant}"), "BlockHashCount");
+	}
+
+	#[test]
+	fn constant_struct_fields_work() {
+		let value = Value::u128(100).map_context(|_| 0u32);
+		let constant = Constant {
+			pallet: "Balances".to_string(),
+			name: "ExistentialDeposit".to_string(),
+			docs: "The minimum amount required to keep an account open.".to_string(),
+			value: value.clone(),
+		};
+		assert_eq!(constant.pallet, "Balances");
+		assert_eq!(constant.name, "ExistentialDeposit");
+		assert_eq!(constant.docs, "The minimum amount required to keep an account open.");
+		assert_eq!(constant.value, value);
+	}
+
+	#[test]
+	fn storage_display_works() {
+		let storage = Storage {
+			pallet: "System".to_string(),
+			name: "Account".to_string(),
+			docs: "The full account information for a particular account ID.".to_string(),
+			type_id: 42,
+		};
+		assert_eq!(format!("{storage}"), "Account");
+	}
+
+	#[test]
+	fn storage_struct_fields_work() {
+		let storage = Storage {
+			pallet: "Balances".to_string(),
+			name: "TotalIssuance".to_string(),
+			docs: "The total units issued in the system.".to_string(),
+			type_id: 123,
+		};
+		assert_eq!(storage.pallet, "Balances");
+		assert_eq!(storage.name, "TotalIssuance");
+		assert_eq!(storage.docs, "The total units issued in the system.");
+		assert_eq!(storage.type_id, 123);
+	}
+
+	#[test]
+	fn pallet_with_constants_and_storage() {
+		// Create a test value using map_context to convert Value<()> to Value<u32>
+		let value = Value::u128(250).map_context(|_| 0u32);
+		let pallet = Pallet {
+			name: "System".to_string(),
+			index: 0,
+			docs: "System pallet".to_string(),
+			functions: vec![],
+			constants: vec![Constant {
+				pallet: "System".to_string(),
+				name: "BlockHashCount".to_string(),
+				docs: "Maximum number of block number to block hash mappings to keep.".to_string(),
+				value,
+			}],
+			state: vec![Storage {
+				pallet: "System".to_string(),
+				name: "Account".to_string(),
+				docs: "The full account information for a particular account ID.".to_string(),
+				type_id: 42,
+			}],
+		};
+		assert_eq!(pallet.constants.len(), 1);
+		assert_eq!(pallet.state.len(), 1);
+		assert_eq!(pallet.constants[0].name, "BlockHashCount");
+		assert_eq!(pallet.state[0].name, "Account");
+	}
 }
