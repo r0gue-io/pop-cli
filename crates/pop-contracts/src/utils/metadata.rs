@@ -69,6 +69,15 @@ where
 	get_contract_functions(path.as_ref(), FunctionType::Constructor)
 }
 
+fn collapse_docs(docs: &[String]) -> String {
+	docs.iter()
+		.map(|s| if s.is_empty() { " " } else { s })
+		.collect::<Vec<_>>()
+		.join("")
+		.trim()
+		.to_string()
+}
+
 /// Extracts a list of smart contract functions (messages or constructors) parsing the contract
 /// artifact.
 ///
@@ -99,7 +108,7 @@ fn get_contract_functions(
 				mutates: message.mutates(),
 				payable: message.payable(),
 				args: process_args(message.args(), metadata.registry()),
-				docs: message.docs().join(" "),
+				docs: collapse_docs(message.docs()),
 				#[cfg(feature = "v5")]
 				default: *message.default(),
 				#[cfg(feature = "v6")]
@@ -117,7 +126,7 @@ fn get_contract_functions(
 				#[cfg(feature = "v6")]
 				payable: constructor.payable(),
 				args: process_args(constructor.args(), metadata.registry()),
-				docs: constructor.docs().join(" "),
+				docs: collapse_docs(constructor.docs()),
 				#[cfg(feature = "v5")]
 				default: *constructor.default(),
 				#[cfg(feature = "v6")]
@@ -243,14 +252,14 @@ mod tests {
 			assert_eq!(message[0].label, "flip");
 			assert_eq!(
 				message[0].docs,
-				" A message that can be called on instantiated contracts.  This one flips the value of the stored `bool` from `true`  to `false` and vice versa."
+				"A message that can be called on instantiated contracts. This one flips the value of the stored `bool` from `true` to `false` and vice versa."
 			);
 			assert_eq!(message[1].label, "get");
-			assert_eq!(message[1].docs, " Simply returns the current value of our `bool`.");
+			assert_eq!(message[1].docs, "Simply returns the current value of our `bool`.");
 			assert_eq!(message[2].label, "specific_flip");
 			assert_eq!(
 				message[2].docs,
-				" A message for testing, flips the value of the stored `bool` with `new_value`  and is payable"
+				"A message for testing, flips the value of the stored `bool` with `new_value` and is payable"
 			);
 			// assert parsed arguments
 			assert_eq!(message[2].args.len(), 2);
@@ -294,7 +303,7 @@ mod tests {
 		assert_eq!(message.label, "specific_flip");
 		assert_eq!(
 			message.docs,
-			" A message for testing, flips the value of the stored `bool` with `new_value`  and is payable"
+			"A message for testing, flips the value of the stored `bool` with `new_value` and is payable"
 		);
 		// assert parsed arguments
 		assert_eq!(message.args.len(), 2);
@@ -324,7 +333,7 @@ mod tests {
 		assert_eq!(constructor[1].label, "default");
 		assert_eq!(
 			constructor[1].docs,
-			"Constructor that initializes the `bool` value to `false`.  Constructors can delegate to other constructors."
+			"Constructor that initializes the `bool` value to `false`. Constructors can delegate to other constructors."
 		);
 		// assert parsed arguments
 		assert_eq!(constructor[0].args.len(), 1);
@@ -354,7 +363,7 @@ mod tests {
 		assert_eq!(constructor.label, "default");
 		assert_eq!(
 			constructor.docs,
-			"Constructor that initializes the `bool` value to `false`.  Constructors can delegate to other constructors."
+			"Constructor that initializes the `bool` value to `false`. Constructors can delegate to other constructors."
 		);
 		// assert parsed arguments
 		assert_eq!(constructor.args.len(), 2);

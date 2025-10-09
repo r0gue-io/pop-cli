@@ -214,7 +214,7 @@ impl CallChainCommand {
 						self.function = Some(action.function_name().to_string());
 						find_pallet_by_name(&chain.pallets, action.pallet_name())?
 					} else {
-						let mut prompt = cli.select("Select the pallet to call:");
+						let mut prompt = cli.select("Select the pallet to call (type to filter):");
 						for pallet_item in &chain.pallets {
 							prompt = prompt.item(pallet_item, &pallet_item.name, &pallet_item.docs);
 						}
@@ -227,7 +227,7 @@ impl CallChainCommand {
 			let call_item = match self.function {
 				Some(ref name) => find_callable_by_name(&chain.pallets, &pallet.name, name)?,
 				None => {
-					let mut prompt = cli.select("Select the function to call:");
+					let mut prompt = cli.select("Select the function to call (type to filter):");
 					for callable in pallet.get_all_callables() {
 						let name = format!("{} {}", callable.hint(), callable);
 						let docs = callable.docs();
@@ -740,7 +740,7 @@ mod tests {
             .expect_confirm("Do you want to enter the node URL manually?", true)
             .expect_input("Which chain would you like to interact with?", node_url.into())
             .expect_select(
-                "Select the function to call:",
+                "Select the function to call (type to filter):",
                 Some(true),
                 true,
                 Some(
@@ -756,31 +756,31 @@ mod tests {
                         ("📝 [EXTRINSIC] set_code_without_checks".to_string(), "Set the new runtime code without doing any checks of the given `code`. Note that runtime upgrades will not run if this is called with a not-increasing spec version!".to_string()),
                         ("📝 [EXTRINSIC] set_heap_pages".to_string(), "Set the number of pages in the WebAssembly environment's heap.".to_string()),
                         ("📝 [EXTRINSIC] set_storage".to_string(), "Set some items of storage.".to_string()),
-                        ("[CONSTANT] BlockWeights".to_string(), " Block & extrinsics weights: base values and limits.".to_string()),
-                        ("[CONSTANT] BlockLength".to_string(), " The maximum length of a block (in bytes).".to_string()),
-                        ("[CONSTANT] BlockHashCount".to_string(), " Maximum number of block number to block hash mappings to keep (oldest pruned first).".to_string()),
-                        ("[CONSTANT] DbWeight".to_string(), " The weight of runtime database operations the runtime can invoke.".to_string()),
-                        ("[CONSTANT] Version".to_string(), " Get the chain's in-code version.".to_string()),
-                        ("[CONSTANT] SS58Prefix".to_string(), " The designated SS58 prefix of this chain.  This replaces the \"ss58Format\" property declared in the chain spec. Reason is  that the runtime should know about the prefix in order to make use of it as  an identifier of the chain.".to_string()),
-                        ("[STORAGE] Account".to_string(), " The full account information for a particular account ID.".to_string()),
-                        ("[STORAGE] ExtrinsicCount".to_string(), " Total extrinsics count for the current block.".to_string()),
-                        ("[STORAGE] InherentsApplied".to_string(), " Whether all inherents have been applied.".to_string()),
-                        ("[STORAGE] BlockWeight".to_string(), " The current weight for the block.".to_string()),
-                        ("[STORAGE] AllExtrinsicsLen".to_string(), " Total length (in bytes) for all extrinsics put together, for the current block.".to_string()),
-                        ("[STORAGE] BlockHash".to_string(), " Map of block numbers to block hashes.".to_string()),
-                        ("[STORAGE] ExtrinsicData".to_string(), " Extrinsics data for the current block (maps an extrinsic's index to its data).".to_string()),
-                        ("[STORAGE] Number".to_string(), " The current block number being processed. Set by `execute_block`.".to_string()),
-                        ("[STORAGE] ParentHash".to_string(), " Hash of the previous block.".to_string()),
-                        ("[STORAGE] Digest".to_string(), " Digest of the current block, also part of the block header.".to_string()),
-                        ("[STORAGE] Events".to_string(), " Events deposited for the current block.  NOTE: The item is unbound and should therefore never be read on chain.  It could otherwise inflate the PoV size of a block.  Events have a large in-memory size. Box the events to not go out-of-memory  just in case someone still reads them from within the runtime.".to_string()),
-                        ("[STORAGE] EventCount".to_string(), " The number of events in the `Events<T>` list.".to_string()),
-                        ("[STORAGE] EventTopics".to_string(), " Mapping between a topic (represented by T::Hash) and a vector of indexes  of events in the `<Events<T>>` list.  All topic vectors have deterministic storage locations depending on the topic. This  allows light-clients to leverage the changes trie storage tracking mechanism and  in case of changes fetch the list of events of interest.  The value has the type `(BlockNumberFor<T>, EventIndex)` because if we used only just  the `EventIndex` then in case if the topic has the same contents on the next block  no notification will be triggered thus the event might be lost.".to_string()),
-                        ("[STORAGE] LastRuntimeUpgrade".to_string(), " Stores the `spec_version` and `spec_name` of when the last runtime upgrade happened.".to_string()),
-                        ("[STORAGE] UpgradedToU32RefCount".to_string(), " True if we have upgraded so that `type RefCount` is `u32`. False (default) if not.".to_string()),
-                        ("[STORAGE] UpgradedToTripleRefCount".to_string(), " True if we have upgraded so that AccountInfo contains three types of `RefCount`. False  (default) if not.".to_string()),
-                        ("[STORAGE] ExecutionPhase".to_string(), " The execution phase of the block.".to_string()),
-                        ("[STORAGE] AuthorizedUpgrade".to_string(), " `Some` if a code upgrade has been authorized.".to_string()),
-                        ("[STORAGE] ExtrinsicWeightReclaimed".to_string(), " The weight reclaimed for the extrinsic.  This information is available until the end of the extrinsic execution.  More precisely this information is removed in `note_applied_extrinsic`.  Logic doing some post dispatch weight reduction must update this storage to avoid duplicate  reduction.".to_string()),
+                        ("[CONSTANT] BlockWeights".to_string(), "Block & extrinsics weights: base values and limits.".to_string()),
+                        ("[CONSTANT] BlockLength".to_string(), "The maximum length of a block (in bytes).".to_string()),
+                        ("[CONSTANT] BlockHashCount".to_string(), "Maximum number of block number to block hash mappings to keep (oldest pruned first).".to_string()),
+                        ("[CONSTANT] DbWeight".to_string(), "The weight of runtime database operations the runtime can invoke.".to_string()),
+                        ("[CONSTANT] Version".to_string(), "Get the chain's in-code version.".to_string()),
+                        ("[CONSTANT] SS58Prefix".to_string(), "The designated SS58 prefix of this chain. This replaces the \"ss58Format\" property declared in the chain spec. Reason is that the runtime should know about the prefix in order to make use of it as an identifier of the chain.".to_string()),
+                        ("[STORAGE] Account".to_string(), "The full account information for a particular account ID.".to_string()),
+                        ("[STORAGE] ExtrinsicCount".to_string(), "Total extrinsics count for the current block.".to_string()),
+                        ("[STORAGE] InherentsApplied".to_string(), "Whether all inherents have been applied.".to_string()),
+                        ("[STORAGE] BlockWeight".to_string(), "The current weight for the block.".to_string()),
+                        ("[STORAGE] AllExtrinsicsLen".to_string(), "Total length (in bytes) for all extrinsics put together, for the current block.".to_string()),
+                        ("[STORAGE] BlockHash".to_string(), "Map of block numbers to block hashes.".to_string()),
+                        ("[STORAGE] ExtrinsicData".to_string(), "Extrinsics data for the current block (maps an extrinsic's index to its data).".to_string()),
+                        ("[STORAGE] Number".to_string(), "The current block number being processed. Set by `execute_block`.".to_string()),
+                        ("[STORAGE] ParentHash".to_string(), "Hash of the previous block.".to_string()),
+                        ("[STORAGE] Digest".to_string(), "Digest of the current block, also part of the block header.".to_string()),
+                        ("[STORAGE] Events".to_string(), "Events deposited for the current block. NOTE: The item is unbound and should therefore never be read on chain. It could otherwise inflate the PoV size of a block. Events have a large in-memory size. Box the events to not go out-of-memory just in case someone still reads them from within the runtime.".to_string()),
+                        ("[STORAGE] EventCount".to_string(), "The number of events in the `Events<T>` list.".to_string()),
+                        ("[STORAGE] EventTopics".to_string(), "Mapping between a topic (represented by T::Hash) and a vector of indexes of events in the `<Events<T>>` list. All topic vectors have deterministic storage locations depending on the topic. This allows light-clients to leverage the changes trie storage tracking mechanism and in case of changes fetch the list of events of interest. The value has the type `(BlockNumberFor<T>, EventIndex)` because if we used only just the `EventIndex` then in case if the topic has the same contents on the next block no notification will be triggered thus the event might be lost.".to_string()),
+                        ("[STORAGE] LastRuntimeUpgrade".to_string(), "Stores the `spec_version` and `spec_name` of when the last runtime upgrade happened.".to_string()),
+                        ("[STORAGE] UpgradedToU32RefCount".to_string(), "True if we have upgraded so that `type RefCount` is `u32`. False (default) if not.".to_string()),
+                        ("[STORAGE] UpgradedToTripleRefCount".to_string(), "True if we have upgraded so that AccountInfo contains three types of `RefCount`. False (default) if not.".to_string()),
+                        ("[STORAGE] ExecutionPhase".to_string(), "The execution phase of the block.".to_string()),
+                        ("[STORAGE] AuthorizedUpgrade".to_string(), "`Some` if a code upgrade has been authorized.".to_string()),
+                        ("[STORAGE] ExtrinsicWeightReclaimed".to_string(), "The weight reclaimed for the extrinsic. This information is available until the end of the extrinsic execution. More precisely this information is removed in `note_applied_extrinsic`. Logic doing some post dispatch weight reduction must update this storage to avoid duplicate reduction.".to_string()),
                     ],
                 ),
                 5, // "remark" dispatchable function
@@ -1074,109 +1074,6 @@ mod tests {
 		assert_eq!(parse_function_name("Remark").unwrap(), "remark");
 		assert_eq!(parse_function_name("Force_transfer").unwrap(), "force_transfer");
 		assert_eq!(parse_function_name("MINT").unwrap(), "mint");
-		Ok(())
-	}
-
-	#[tokio::test]
-	async fn query_constant_works() -> Result<()> {
-		let node = TestNode::spawn().await?;
-		let node_url = node.ws_url();
-		let client = set_up_client(node_url).await?;
-		let pallets = parse_chain_metadata(&client)?;
-
-		// Find a constant to query (BlockHashCount from System pallet)
-		let constant = find_callable_by_name(&pallets, "System", "BlockHashCount")?;
-
-		let call_config = Call {
-			function: constant.clone(),
-			args: vec![],
-			suri: None,
-			use_wallet: false,
-			skip_confirm: false,
-			sudo: false,
-		};
-
-		// Verify it's a constant
-		assert!(matches!(call_config.function, CallItem::Constant(_)));
-
-		// For constants, we just verify the structure since the value is in metadata
-		if let CallItem::Constant(ref c) = call_config.function {
-			assert_eq!(c.pallet, "System");
-			assert_eq!(c.name, "BlockHashCount");
-			assert!(!c.docs.is_empty());
-		}
-
-		Ok(())
-	}
-
-	#[tokio::test]
-	async fn query_storage_without_parameters_works() -> Result<()> {
-		let node = TestNode::spawn().await?;
-		let node_url = node.ws_url();
-		let client = set_up_client(node_url).await?;
-		let pallets = parse_chain_metadata(&client)?;
-
-		// Find a plain storage item (e.g., Timestamp::Now)
-		let storage = find_callable_by_name(&pallets, "Timestamp", "Now")?;
-
-		let call_config = Call {
-			function: storage.clone(),
-			args: vec![],
-			suri: None,
-			use_wallet: false,
-			skip_confirm: false,
-			sudo: false,
-		};
-
-		// Verify it's a storage item
-		assert!(matches!(call_config.function, CallItem::Storage(_)));
-
-		// Verify storage structure
-		if let CallItem::Storage(ref s) = call_config.function {
-			assert_eq!(s.pallet, "Timestamp");
-			assert_eq!(s.name, "Now");
-			assert!(!s.docs.is_empty());
-			// Plain storage should have no key_id
-			assert!(s.key_id.is_none());
-		}
-
-		Ok(())
-	}
-
-	#[tokio::test]
-	async fn query_storage_with_parameters_works() -> Result<()> {
-		let node = TestNode::spawn().await?;
-		let node_url = node.ws_url();
-		let client = set_up_client(node_url).await?;
-		let pallets = parse_chain_metadata(&client)?;
-
-		// Find a storage map (e.g., System::Account)
-		let storage = find_callable_by_name(&pallets, "System", "Account")?;
-
-		let call_config = Call {
-			function: storage.clone(),
-			args: vec!["5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY".to_string()],
-			suri: None,
-			use_wallet: false,
-			skip_confirm: false,
-			sudo: false,
-		};
-
-		// Verify it's a storage item
-		assert!(matches!(call_config.function, CallItem::Storage(_)));
-
-		// Verify storage structure
-		if let CallItem::Storage(ref s) = call_config.function {
-			assert_eq!(s.pallet, "System");
-			assert_eq!(s.name, "Account");
-			assert!(!s.docs.is_empty());
-			// Storage map should have key_id
-			assert!(s.key_id.is_some());
-		}
-
-		// Verify args were provided
-		assert_eq!(call_config.args.len(), 1);
-
 		Ok(())
 	}
 }

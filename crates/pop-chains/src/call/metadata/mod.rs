@@ -324,7 +324,9 @@ fn extract_chain_state_from_pallet_metadata(
 							.filter(|l| !l.is_empty())
 							.cloned()
 							.collect::<Vec<_>>()
-							.join(" "),
+							.join("")
+							.trim()
+							.to_string(),
 						type_id: entry.entry_type().value_ty(),
 						key_id: match entry.entry_type() {
 							StorageEntryType::Plain(_) => None,
@@ -367,7 +369,9 @@ fn extract_constants_from_pallet_metadata(
 					.filter(|l| !l.is_empty())
 					.cloned()
 					.collect::<Vec<_>>()
-					.join(" "),
+					.join("")
+					.trim()
+					.to_string(),
 				value: decoded_value,
 			})
 		})
@@ -418,6 +422,8 @@ fn extract_functions_from_pallet_metadata(
 								.cloned()
 								.collect::<Vec<_>>()
 								.join(" ")
+								.trim()
+								.to_string()
 						} else {
 							// To display the message in the UI
 							"Function Not Supported".to_string()
@@ -447,7 +453,7 @@ pub fn parse_chain_metadata(client: &OnlineClient<SubstrateConfig>) -> Result<Ve
 			Ok(Pallet {
 				name: pallet.name().to_string(),
 				index: pallet.index(),
-				docs: pallet.docs().join(" "),
+				docs: pallet.docs().join("").trim().to_string(),
 				functions: extract_functions_from_pallet_metadata(&pallet, &metadata)?,
 				constants: extract_constants_from_pallet_metadata(&pallet, &metadata)?,
 				state: extract_chain_state_from_pallet_metadata(&pallet)?,
