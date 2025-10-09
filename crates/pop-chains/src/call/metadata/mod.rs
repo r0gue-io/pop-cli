@@ -1044,4 +1044,139 @@ mod tests {
 		assert!(result.is_err());
 		assert!(matches!(result.unwrap_err(), Error::PalletNotFound(_)));
 	}
+
+	#[test]
+	fn format_single_tuples_single_element_works() -> Result<()> {
+		// Create a single-element tuple
+		let inner_value = Value::u128(42);
+		let single_tuple = Value::unnamed_composite(vec![inner_value]).map_context(|_| 0u32);
+
+		let mut output = String::new();
+		let result = format_single_tuples(&single_tuple, &mut output);
+
+		// Should return Some(Ok(())) and unwrap the tuple
+		assert!(result.is_some());
+		assert!(result.unwrap().is_ok());
+		assert_eq!(output, "42");
+		Ok(())
+	}
+
+	#[test]
+	fn format_single_tuples_multi_element_returns_none() -> Result<()> {
+		// Create a multi-element tuple
+		let tuple =
+			Value::unnamed_composite(vec![Value::u128(1), Value::u128(2)]).map_context(|_| 0u32);
+
+		let mut output = String::new();
+		let result = format_single_tuples(&tuple, &mut output);
+
+		// Should return None for multi-element tuples
+		assert!(result.is_none());
+		assert_eq!(output, "");
+		Ok(())
+	}
+
+	#[test]
+	fn format_single_tuples_empty_tuple_returns_none() -> Result<()> {
+		// Create an empty tuple
+		let empty_tuple = Value::unnamed_composite(vec![]).map_context(|_| 0u32);
+
+		let mut output = String::new();
+		let result = format_single_tuples(&empty_tuple, &mut output);
+
+		// Should return None for empty tuples
+		assert!(result.is_none());
+		assert_eq!(output, "");
+		Ok(())
+	}
+
+	#[test]
+	fn format_single_tuples_non_composite_returns_none() -> Result<()> {
+		// Create a non-composite value (not a tuple)
+		let simple_value = Value::u128(42).map_context(|_| 0u32);
+
+		let mut output = String::new();
+		let result = format_single_tuples(&simple_value, &mut output);
+
+		// Should return None for non-composite values
+		assert!(result.is_none());
+		assert_eq!(output, "");
+		Ok(())
+	}
+
+	#[test]
+	fn format_single_tuples_named_composite_returns_none() -> Result<()> {
+		// Create a named composite (not an unnamed tuple)
+		let named_composite =
+			Value::named_composite(vec![("field", Value::u128(42))]).map_context(|_| 0u32);
+
+		let mut output = String::new();
+		let result = format_single_tuples(&named_composite, &mut output);
+
+		// Should return None for named composites
+		assert!(result.is_none());
+		assert_eq!(output, "");
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn query_storage_works() -> Result<()> {
+		use crate::{parse_chain_metadata, set_up_client};
+		use pop_common::test_env::TestNode;
+
+		// Spawn a test node
+		let node = TestNode::spawn().await?;
+		let client = set_up_client(node.ws_url()).await?;
+		let pallets = parse_chain_metadata(&client)?;
+
+		// Find a storage item (System::Number is a simple storage item that always exists)
+		let storage = pallets
+			.iter()
+			.find(|p| p.name == "System")
+			.and_then(|p| p.state.iter().find(|s| s.name == "Number"))
+			.expect("System::Number storage should exist");
+
+		// Query the storage (without keys for plain storage)
+		let result = storage.query(&client, vec![]).await?;
+
+		// Should return Some value (block number)
+		assert!(result.is_some());
+		let value = result.unwrap();
+		// The value should be decodable as a block number (u32 or u64)
+		assert!(matches!(value.value, ValueDef::Primitive(_)));
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn query_storage_with_key_works() -> Result<()> {
+		use crate::{parse_chain_metadata, set_up_client};
+		use pop_common::test_env::TestNode;
+
+		// Spawn a test node
+		let node = TestNode::spawn().await?;
+		let client = set_up_client(node.ws_url()).await?;
+		let pallets = parse_chain_metadata(&client)?;
+
+		// Find a map storage item (System::Account requires a key)
+		let storage = pallets
+			.iter()
+			.find(|p| p.name == "System")
+			.and_then(|p| p.state.iter().find(|s| s.name == "Account"))
+			.expect("System::Account storage should exist");
+
+		// Use Alice's account as the key
+		let alice_address = "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY";
+		let account_key = scale_value::stringify::from_str_custom()
+			.add_custom_parser(custom_parsers::parse_ss58)
+			.parse(alice_address)
+			.0
+			.expect("Should parse Alice's address");
+
+		// Query the storage with the account key
+		let result = storage.query(&client, vec![account_key]).await?;
+
+		// Should return Some value for Alice's account (which should exist in a test chain)
+		assert!(result.is_some());
+		Ok(())
+	}
 }
