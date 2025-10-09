@@ -3,11 +3,8 @@
 use crate::cli::traits::*;
 use anyhow::{Result, anyhow};
 use pop_chains::{OnlineClient, Pallet, SubstrateConfig, parse_chain_metadata, set_up_client};
-use serde_json::Value;
-use std::{
-	collections::HashMap,
-	time::{SystemTime, UNIX_EPOCH},
-};
+use serde::Deserialize;
+use std::time::{SystemTime, UNIX_EPOCH};
 use url::Url;
 
 const CHAIN_ENDPOINTS_URL: &str =
@@ -25,7 +22,8 @@ pub(crate) struct Chain {
 
 /// Represents a node in the network with its RPC endpoints and chain properties.
 #[allow(dead_code)]
-#[derive(Debug)]
+#[derive(Debug, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct RPCNode {
 	/// Name of the chain (e.g. "Polkadot Relay", "Kusama Relay").
 	pub name: String,
@@ -49,37 +47,7 @@ pub(crate) async fn extract_chain_endpoints() -> Result<Vec<RPCNode>> {
 // Internal function that accepts a URL parameter, making it testable with mockito.
 async fn extract_chain_endpoints_from_url(url: &str) -> Result<Vec<RPCNode>> {
 	let response = reqwest::get(url).await?;
-	let json_text = response.text().await?;
-	let json: HashMap<String, Value> = serde_json::from_str(&json_text)?;
-
-	let mut result = Vec::with_capacity(json.len());
-	for (chain_name, chain_data) in json.into_iter() {
-		let providers = chain_data
-			.get("providers")
-			.and_then(|v| v.as_array())
-			.ok_or_else(|| anyhow!("No providers field found for chain: {}", chain_name))?
-			.iter()
-			.filter_map(|v| v.as_str().map(|s| s.to_string()))
-			.collect::<Vec<String>>();
-		let is_relay = chain_data.get("isRelay").map(|r| r.as_bool().unwrap()).unwrap_or(false);
-		let supports_contracts = chain_data
-			.get("supportsContracts")
-			.map(|r| r.as_bool().unwrap())
-			.unwrap_or(false);
-		let relay_name = chain_data
-			.get("relay")
-			.map(|r| r.as_str())
-			.unwrap_or_default()
-			.map(|r| r.to_string());
-		result.push(RPCNode {
-			name: chain_name,
-			providers,
-			is_relay,
-			relay_name,
-			supports_contracts,
-		});
-	}
-	Ok(result)
+	response.json().await.map_err(|e| anyhow!(e.to_string()))
 }
 
 // Configures a chain by resolving the URL and fetching its metadata.
