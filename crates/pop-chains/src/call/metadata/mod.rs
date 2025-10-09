@@ -501,7 +501,9 @@ pub fn find_callable_by_name(
 	if let Some(storage) = pallet.state.iter().find(|&e| e.name == function_name) {
 		return Ok(CallItem::Storage(storage.clone()))
 	}
-	Err(Error::CallableNotSupported)
+	Err(Error::FunctionNotFound(format!(
+		"Could not find a function, constant or storage with the name \"{function_name}\""
+	)))
 }
 
 /// Parses and processes raw string parameter values for a dispatchable function, mapping them to

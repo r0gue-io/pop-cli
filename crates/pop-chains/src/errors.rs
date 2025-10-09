@@ -48,6 +48,9 @@ pub enum Error {
 	/// The callable item is not supported.
 	#[error("The callable item is not supported")]
 	CallableNotSupported,
+	/// Function not found.
+	#[error("Function not found")]
+	FunctionNotFound(String),
 	/// An error occurred while working with the genesis builder.
 	#[error("Genesis builder error: {0}")]
 	GenesisBuilderError(String),
