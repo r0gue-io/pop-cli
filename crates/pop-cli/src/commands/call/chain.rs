@@ -561,6 +561,7 @@ impl Call {
 // Prompts the user for some predefined actions.
 fn prompt_predefined_actions(pallets: &[Pallet], cli: &mut impl Cli) -> Result<Option<Action>> {
 	let mut predefined_action = cli.select("What would you like to do?");
+	predefined_action = predefined_action.item(None, "Other", "Explore all pallets and functions");
 	for action in supported_actions(pallets) {
 		predefined_action = predefined_action.item(
 			Some(action.clone()),
@@ -568,7 +569,6 @@ fn prompt_predefined_actions(pallets: &[Pallet], cli: &mut impl Cli) -> Result<O
 			action.pallet_name(),
 		);
 	}
-	predefined_action = predefined_action.item(None, "All", "Explore all pallets and functions");
 	Ok(predefined_action.interact()?)
 }
 
@@ -848,7 +848,7 @@ mod tests {
 							(action.description().to_string(), action.pallet_name().to_string())
 						})
 						.chain(std::iter::once((
-							"All".to_string(),
+							"Other".to_string(),
 							"Explore all pallets and functions".to_string(),
 						)))
 						.collect::<Vec<_>>(),
