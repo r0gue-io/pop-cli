@@ -32,7 +32,7 @@ pub struct CallChainCommand {
 	#[arg(short, long, value_parser = parse_pallet_name)]
 	pallet: Option<String>,
 	/// The dispatchable function to execute within the specified pallet.
-	#[arg(short, long, value_parser = parse_function_name)]
+	#[arg(short, long)]
 	function: Option<String>,
 	/// The dispatchable function arguments, encoded as strings.
 	#[arg(short, long, num_args = 0..,)]
@@ -710,11 +710,6 @@ fn parse_pallet_name(name: &str) -> Result<String, String> {
 	}
 }
 
-// Parser to convert the function name to lowercase.
-fn parse_function_name(name: &str) -> Result<String, String> {
-	Ok(name.to_ascii_lowercase())
-}
-
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -1064,14 +1059,6 @@ mod tests {
 		assert_eq!(parse_pallet_name("system").unwrap(), "System");
 		assert_eq!(parse_pallet_name("balances").unwrap(), "Balances");
 		assert_eq!(parse_pallet_name("nfts").unwrap(), "Nfts");
-		Ok(())
-	}
-
-	#[test]
-	fn parse_function_name_works() -> Result<()> {
-		assert_eq!(parse_function_name("Remark").unwrap(), "remark");
-		assert_eq!(parse_function_name("Force_transfer").unwrap(), "force_transfer");
-		assert_eq!(parse_function_name("MINT").unwrap(), "mint");
 		Ok(())
 	}
 
