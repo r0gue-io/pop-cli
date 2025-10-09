@@ -129,7 +129,7 @@ async fn find_dispatchable_by_name_works() -> Result<()> {
         Err(Error::PalletNotFound(pallet)) if pallet == *"WrongName"));
 	assert!(matches!(
 		find_callable_by_name(&pallets, "Balances", "wrong_name"),
-		Err(Error::CallableNotSupported)
+		Err(Error::FunctionNotFound(_))
 	));
 	let call_item = find_callable_by_name(&pallets, "Balances", "force_transfer")?;
 	let function = call_item.as_function().unwrap();
