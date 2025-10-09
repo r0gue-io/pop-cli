@@ -594,4 +594,140 @@ mod tests {
 			read_to_string(&cargo_toml_path).expect("Cargo.toml should be readable");
 		assert_eq!(initial_toml_content, final_toml_content);
 	}
+
+	#[test]
+	fn get_workspace_project_names_works() {
+		let test_builder = TestBuilder::default().add_workspace().add_workspace_cargo_toml(
+			r#"[workspace]
+members = ["crate1", "crate2"]
+
+[workspace.package]
+name = "test-workspace"
+"#,
+		);
+
+		let binding = test_builder.workspace.expect("Workspace should exist");
+		let workspace_path = binding.path();
+
+		// Create member crates
+		let crate1_path = workspace_path.join("crate1");
+		std::fs::create_dir(&crate1_path).expect("Should create crate1 directory");
+		write(
+			crate1_path.join("Cargo.toml"),
+			r#"[package]
+name = "crate1"
+version = "0.1.0"
+"#,
+		)
+		.expect("Should write crate1 Cargo.toml");
+
+		let crate2_path = workspace_path.join("crate2");
+		std::fs::create_dir(&crate2_path).expect("Should create crate2 directory");
+		write(
+			crate2_path.join("Cargo.toml"),
+			r#"[package]
+name = "crate2"
+version = "0.1.0"
+"#,
+		)
+		.expect("Should write crate2 Cargo.toml");
+
+		let result = get_workspace_project_names(workspace_path).expect("Should succeed");
+		assert_eq!(result.len(), 2);
+
+		// Check that both crates are found
+		let names: Vec<String> = result.iter().map(|(name, _)| name.clone()).collect();
+		assert!(names.contains(&"crate1".to_string()));
+		assert!(names.contains(&"crate2".to_string()));
+
+		// Check paths
+		let paths: Vec<PathBuf> = result.iter().map(|(_, path)| path.clone()).collect();
+		assert!(paths.contains(&crate1_path));
+		assert!(paths.contains(&crate2_path));
+	}
+
+	#[test]
+	fn get_workspace_project_names_with_glob_patterns_works() {
+		let test_builder = TestBuilder::default().add_workspace().add_workspace_cargo_toml(
+			r#"[workspace]
+members = ["crates/*"]
+
+[workspace.package]
+name = "test-workspace"
+"#,
+		);
+
+		let binding = test_builder.workspace.expect("Workspace should exist");
+		let workspace_path = binding.path();
+
+		// Create crates directory
+		let crates_dir = workspace_path.join("crates");
+		std::fs::create_dir(&crates_dir).expect("Should create crates directory");
+
+		// Create member crates using glob pattern
+		let crate1_path = crates_dir.join("crate1");
+		std::fs::create_dir(&crate1_path).expect("Should create crate1 directory");
+		write(
+			crate1_path.join("Cargo.toml"),
+			r#"[package]
+name = "crate1"
+version = "0.1.0"
+"#,
+		)
+		.expect("Should write crate1 Cargo.toml");
+
+		let crate2_path = crates_dir.join("crate2");
+		std::fs::create_dir(&crate2_path).expect("Should create crate2 directory");
+		write(
+			crate2_path.join("Cargo.toml"),
+			r#"[package]
+name = "crate2"
+version = "0.1.0"
+"#,
+		)
+		.expect("Should write crate2 Cargo.toml");
+
+		let result = get_workspace_project_names(workspace_path).expect("Should succeed");
+		assert_eq!(result.len(), 2);
+
+		// Check that both crates are found
+		let names: Vec<String> = result.iter().map(|(name, _)| name.clone()).collect();
+		assert!(names.contains(&"crate1".to_string()));
+		assert!(names.contains(&"crate2".to_string()));
+	}
+
+	#[test]
+	fn get_workspace_project_names_fails_for_non_workspace() {
+		let test_builder = TestBuilder::default().add_workspace().add_workspace_cargo_toml(
+			r#"[package]
+name = "not-a-workspace"
+version = "0.1.0"
+"#,
+		);
+
+		let binding = test_builder.workspace.expect("Workspace should exist");
+		let workspace_path = binding.path();
+
+		let result = get_workspace_project_names(workspace_path);
+		assert!(result.is_err());
+		assert!(matches!(result.unwrap_err(), Error::Config(_)));
+	}
+
+	#[test]
+	fn get_workspace_project_names_returns_empty_for_no_members() {
+		let test_builder = TestBuilder::default().add_workspace().add_workspace_cargo_toml(
+			r#"[workspace]
+members = []
+
+[workspace.package]
+name = "test-workspace"
+"#,
+		);
+
+		let binding = test_builder.workspace.expect("Workspace should exist");
+		let workspace_path = binding.path();
+
+		let result = get_workspace_project_names(workspace_path).expect("Should succeed");
+		assert_eq!(result.len(), 0);
+	}
 }

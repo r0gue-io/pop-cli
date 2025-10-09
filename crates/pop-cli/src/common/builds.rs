@@ -151,4 +151,171 @@ mod tests {
 		assert_eq!(binary_path, target_path.join("node"));
 		cli.verify()
 	}
+
+	#[test]
+	fn get_project_path_works() {
+		// Test with positional path
+		let pos_path = Some(PathBuf::from("/path/to/project"));
+		let flag_path = Some(PathBuf::from("/another/path"));
+		assert_eq!(get_project_path(flag_path.clone(), pos_path.clone()), pos_path);
+
+		// Test with flag path only
+		assert_eq!(get_project_path(flag_path.clone(), None), flag_path);
+
+		// Test with neither
+		assert_eq!(get_project_path(None, None), None);
+	}
+
+	#[test]
+	fn ensure_project_path_works() {
+		// Test with positional path
+		let pos_path = Some(PathBuf::from("."));
+		assert_eq!(ensure_project_path(None, pos_path.clone()), PathBuf::from("."));
+
+		// Test with flag path
+		let flag_path = Some(PathBuf::from("."));
+		assert_eq!(ensure_project_path(flag_path.clone(), None), PathBuf::from("."));
+
+		// Test with neither - should return current directory
+		let result = ensure_project_path(None, None);
+		assert_eq!(result, current_dir().expect("Unable to get current directory"));
+	}
+
+	#[test]
+	#[cfg(feature = "chain")]
+	fn find_runtime_dir_with_default_path_works() -> anyhow::Result<()> {
+		let mut cli = MockCli::new();
+		let temp_dir = tempdir()?;
+
+		// Create default runtime directory
+		let runtime_dir = temp_dir.path().join("runtime");
+		fs::create_dir(&runtime_dir)?;
+
+		let result = find_runtime_dir(temp_dir.path(), &mut cli)?;
+		assert_eq!(result, runtime_dir.canonicalize()?);
+		cli.verify()
+	}
+
+	#[test]
+	#[cfg(feature = "chain")]
+	fn find_runtime_dir_with_single_workspace_runtime_works() -> anyhow::Result<()> {
+		let mut cli = MockCli::new();
+		let temp_dir = tempdir()?;
+
+		// Create workspace structure
+		let workspace_toml = temp_dir.path().join("Cargo.toml");
+		fs::write(
+			&workspace_toml,
+			r#"[workspace]
+members = ["my-runtime"]
+
+[workspace.package]
+name = "test-workspace"
+"#,
+		)?;
+
+		// Create runtime project
+		let runtime_path = temp_dir.path().join("my-runtime");
+		fs::create_dir(&runtime_path)?;
+		fs::write(
+			runtime_path.join("Cargo.toml"),
+			r#"[package]
+name = "my-runtime"
+version = "0.1.0"
+"#,
+		)?;
+
+		let result = find_runtime_dir(temp_dir.path(), &mut cli)?;
+		assert_eq!(result, runtime_path.canonicalize()?);
+		cli.verify()
+	}
+
+	#[test]
+	#[cfg(feature = "chain")]
+	fn find_runtime_dir_with_multiple_runtimes_prompts_user() -> anyhow::Result<()> {
+		let temp_dir = tempdir()?;
+
+		// Create workspace structure
+		let workspace_toml = temp_dir.path().join("Cargo.toml");
+		fs::write(
+			&workspace_toml,
+			r#"[workspace]
+members = ["runtime1", "runtime2"]
+
+[workspace.package]
+name = "test-workspace"
+"#,
+		)?;
+
+		// Create first runtime project
+		let runtime1_path = temp_dir.path().join("runtime1");
+		fs::create_dir(&runtime1_path)?;
+		fs::write(
+			runtime1_path.join("Cargo.toml"),
+			r#"[package]
+name = "runtime1"
+version = "0.1.0"
+"#,
+		)?;
+
+		// Create second runtime project
+		let runtime2_path = temp_dir.path().join("runtime2");
+		fs::create_dir(&runtime2_path)?;
+		fs::write(
+			runtime2_path.join("Cargo.toml"),
+			r#"[package]
+name = "runtime2"
+version = "0.1.0"
+"#,
+		)?;
+
+		let mut cli = MockCli::new().expect_select(
+			"Choose the runtime project:".to_string(),
+			Some(true),
+			true,
+			None,
+			0,
+			None,
+		);
+
+		let result = find_runtime_dir(temp_dir.path(), &mut cli)?;
+		// Should return one of the runtimes (the selected one)
+		assert!(result == runtime1_path.canonicalize()? || result == runtime2_path.canonicalize()?);
+		cli.verify()
+	}
+
+	#[test]
+	#[cfg(feature = "chain")]
+	fn find_runtime_dir_fails_when_no_runtime_found() -> anyhow::Result<()> {
+		let mut cli = MockCli::new();
+		let temp_dir = tempdir()?;
+
+		// Create workspace structure without runtime
+		let workspace_toml = temp_dir.path().join("Cargo.toml");
+		fs::write(
+			&workspace_toml,
+			r#"[workspace]
+members = ["some-other-crate"]
+
+[workspace.package]
+name = "test-workspace"
+"#,
+		)?;
+
+		// Create non-runtime project
+		let other_path = temp_dir.path().join("some-other-crate");
+		fs::create_dir(&other_path)?;
+		fs::write(
+			other_path.join("Cargo.toml"),
+			r#"[package]
+name = "some-other-crate"
+version = "0.1.0"
+"#,
+		)?;
+
+		let result = find_runtime_dir(temp_dir.path(), &mut cli);
+		assert!(result.is_err());
+		assert!(result.unwrap_err().to_string().contains("No runtime project found"));
+		Ok(())
+	}
 }
