@@ -33,7 +33,7 @@ pub(crate) struct RPCNode {
 	pub is_relay: bool,
 	/// For parachains, contains the name of their relay chain. None for relay chains or
 	/// solochains.
-	pub relay_name: Option<String>,
+	pub relay: Option<String>,
 	/// Indicates if this chain supports smart contracts. Particularly, whether pallet-revive is
 	/// present in the runtime or not.
 	pub supports_contracts: bool,
@@ -133,28 +133,34 @@ mod tests {
 		let mut server = mockito::Server::new_async().await;
 
 		// Create mock response data
-		let mock_response = serde_json::json!({
-			"Polkadot Relay": {
+		let mock_response = serde_json::json!([
+			{
+				"name": "Polkadot Relay",
 				"providers": [
 					"wss://polkadot.api.onfinality.io/public-ws",
 					"wss://rpc.polkadot.io"
 				],
-				"isRelay": true
+				"isRelay": true,
+				"supportsContracts": false,
 			},
-			"Kusama Relay": {
+			{
+				"name": "Kusama Relay",
 				"providers": [
 					"wss://kusama.api.onfinality.io/public-ws",
 				],
-				"isRelay": true
+				"isRelay": true,
+				"supportsContracts": false
 			},
-			"Asset Hub - Polkadot Relay": {
+			{
+				"name": "Asset Hub - Polkadot Relay",
 				"providers": [
 					"wss://polkadot-asset-hub-rpc.polkadot.io",
 				],
 				"isRelay": false,
-				"relay": "Polkadot Relay"
+				"relay": "Polkadot Relay",
+				"supportsContracts": true,
 			}
-		});
+		]);
 
 		// Set up the mock endpoint
 		let mock = server
@@ -177,16 +183,19 @@ mod tests {
 		let polkadot = result.iter().find(|n| n.name == "Polkadot Relay").unwrap();
 		assert_eq!(polkadot.providers.len(), 2);
 		assert!(polkadot.is_relay);
-		assert_eq!(polkadot.relay_name, None);
+		assert_eq!(polkadot.relay, None);
+		assert!(!polkadot.supports_contracts);
 
 		let kusama = result.iter().find(|n| n.name == "Kusama Relay").unwrap();
 		assert_eq!(kusama.providers.len(), 1);
 		assert!(kusama.is_relay);
+		assert!(!kusama.supports_contracts);
 
 		let asset_hub = result.iter().find(|n| n.name == "Asset Hub - Polkadot Relay").unwrap();
 		assert_eq!(asset_hub.providers.len(), 1);
 		assert!(!asset_hub.is_relay);
-		assert_eq!(asset_hub.relay_name, Some("Polkadot Relay".to_string()));
+		assert_eq!(asset_hub.relay, Some("Polkadot Relay".to_string()));
+		assert!(asset_hub.supports_contracts);
 
 		Ok(())
 	}
@@ -213,7 +222,6 @@ mod tests {
 		// Should return an error for missing providers
 		let result = extract_chain_endpoints_from_url(&server.url()).await;
 		assert!(result.is_err());
-		assert!(result.unwrap_err().to_string().contains("No providers field found"));
 
 		Ok(())
 	}
