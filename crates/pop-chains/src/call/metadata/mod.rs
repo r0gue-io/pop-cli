@@ -1039,7 +1039,7 @@ mod tests {
 		// Test not finding a callable
 		let result = find_callable_by_name(&pallets, "System", "NonExistent");
 		assert!(result.is_err());
-		assert!(matches!(result.unwrap_err(), Error::CallableNotSupported));
+		assert!(matches!(result.unwrap_err(), Error::FunctionNotFound(_)));
 
 		// Test pallet not found
 		let result = find_callable_by_name(&pallets, "NonExistent", "remark");
