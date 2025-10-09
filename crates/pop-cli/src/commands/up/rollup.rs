@@ -41,7 +41,7 @@ const PDP_API_KEY: &str = "PDP_API_KEY";
 pub struct UpCommand {
 	/// Path to the project.
 	#[clap(skip)]
-	pub(crate) path: Option<PathBuf>,
+	pub(crate) path: PathBuf,
 	/// ID to use. If not specified, a new ID will be reserved.
 	#[arg(short, long)]
 	pub(crate) id: Option<u32>,
@@ -286,7 +286,7 @@ impl UpCommand {
 			self.chain_spec.as_deref(),
 			deployment_config,
 			id,
-			self.path.as_deref(),
+			&self.path,
 			self.profile.clone(),
 			cli,
 		)
@@ -416,7 +416,7 @@ async fn generate_spec_files(
 	chain_spec: Option<&Path>,
 	deployment_config: &mut Deployment,
 	id: u32,
-	path: Option<&Path>,
+	path: &Path,
 	profile: Option<Profile>,
 	cli: &mut impl Cli,
 ) -> anyhow::Result<GenesisArtifacts> {
@@ -424,9 +424,10 @@ async fn generate_spec_files(
 		.map(|p| p.canonicalize().unwrap_or_else(|_| p.to_path_buf()).display().to_string());
 	// Changes the working directory if a path is provided to ensure the build spec process runs in
 	// the correct context.
-	if let Some(path) = path {
-		std::env::set_current_dir(path)?;
+	if !path.as_os_str().is_empty() {
+		env::set_current_dir(path)?;
 	}
+
 	let mut build_spec = BuildSpecCommand {
 		id: Some(id),
 		genesis_code: Some(true),
@@ -443,7 +444,7 @@ async fn generate_spec_files(
 	.configure_build_spec(cli)
 	.await?;
 
-	let mut genesis_artifacts = build_spec.clone().build(cli)?;
+	let mut genesis_artifacts = build_spec.clone().build(cli).await?;
 	if let Some(api) = &deployment_config.api {
 		let spinner = spinner();
 		spinner.start("Fetching collator keys...");
@@ -452,7 +453,7 @@ async fn generate_spec_files(
 		build_spec
 			.update_chain_spec_with_keys(keys.collator_keys, &genesis_artifacts.chain_spec)?;
 		build_spec.enable_existing_plain_spec();
-		genesis_artifacts = build_spec.build(cli)?;
+		genesis_artifacts = build_spec.build(cli).await?;
 		deployment_config.collator_file_id = Some(keys.collator_file_id);
 		spinner.stop("Collator keys successfully fetched and chain spec updated.");
 	}
@@ -812,7 +813,7 @@ mod tests {
 			genesis_state: Some(genesis_state.clone()),
 			genesis_code: Some(genesis_code.clone()),
 			relay_chain_url: Some(Url::parse(node_url)?),
-			path: None,
+			path: PathBuf::from("./"),
 			proxied_address: None,
 			..Default::default()
 		}
@@ -899,7 +900,7 @@ mod tests {
 			genesis_state: Some(genesis_state.clone()),
 			genesis_code: Some(genesis_code.clone()),
 			relay_chain_url: Some(Url::parse(node_url)?),
-			path: None,
+			path: PathBuf::from("./"),
 			proxied_address: None,
 			..Default::default()
 		}

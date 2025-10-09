@@ -149,12 +149,12 @@ mod tests {
 		instantiate_openzeppelin_template(&ChainTemplate::OpenZeppelinEVM, temp_dir.path(), None)?;
 
 		let node_manifest =
-			pop_common::manifest::from_path(Some(&temp_dir.path().join("node/Cargo.toml")))
+			pop_common::manifest::from_path(&temp_dir.path().join("node/Cargo.toml"))
 				.expect("Failed to read file");
 		assert_eq!("evm-template-node", node_manifest.package().name());
 
 		let runtime_manifest =
-			pop_common::manifest::from_path(Some(&temp_dir.path().join("runtime/Cargo.toml")))
+			pop_common::manifest::from_path(&temp_dir.path().join("runtime/Cargo.toml"))
 				.expect("Failed to read file");
 		assert_eq!("evm-runtime-template", runtime_manifest.package().name());
 

@@ -5,7 +5,7 @@ use crate::cli;
 use crate::common::{
 	Project::{self, *},
 	TestFeature::{self, Unit},
-	builds::get_project_path,
+	builds::ensure_project_path,
 };
 use clap::{Args, Subcommand};
 use pop_common::test_project;
@@ -75,20 +75,20 @@ impl Command {
 		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 		cli: &mut impl cli::traits::Cli,
 	) -> anyhow::Result<(Project, TestFeature)> {
-		let project_path = get_project_path(args.path.clone(), args.path_pos.clone());
+		let project_path = ensure_project_path(args.path.clone(), args.path_pos.clone());
 
 		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
-		if pop_contracts::is_supported(project_path.as_deref())? {
+		if pop_contracts::is_supported(&project_path)? {
 			let mut cmd = args.contract;
-			cmd.path = project_path;
+			cmd.path = project_path.clone();
 			let feature = contract::TestContractCommand::execute(cmd, cli).await?;
 			return Ok((Contract, feature));
 		}
 
-		test_project(project_path.as_deref())?;
+		test_project(&project_path)?;
 
 		#[cfg(feature = "chain")]
-		if pop_chains::is_supported(project_path.as_deref())? {
+		if pop_chains::is_supported(&project_path) {
 			return Ok((Chain, Unit));
 		}
 		Ok((Unknown, Unit))

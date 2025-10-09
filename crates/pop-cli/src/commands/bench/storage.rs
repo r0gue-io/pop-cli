@@ -49,7 +49,7 @@ impl BenchmarkStorage {
 			cli,
 			target_path,
 			self.profile.as_ref().ok_or_else(|| anyhow::anyhow!("No profile provided"))?,
-			vec![Benchmark.as_ref()],
+			&[Benchmark.as_ref().to_string()],
 		)?;
 
 		cli.warning("NOTE: this may take some time...")?;

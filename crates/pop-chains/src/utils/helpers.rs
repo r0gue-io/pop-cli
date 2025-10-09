@@ -1,11 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::errors::Error;
+use sc_chain_spec::GenesisConfigBuilderRuntimeCaller;
 use std::{
 	fs::{self, OpenOptions},
 	io::{self, Write, stdin, stdout},
-	path::Path,
+	path::{Path, PathBuf},
 };
+
+pub(crate) type HostFunctions = (
+	sp_statement_store::runtime_api::HostFunctions,
+	cumulus_primitives_proof_size_hostfunction::storage_proof_size::HostFunctions,
+);
 
 pub(crate) fn sanitize(target: &Path) -> Result<(), Error> {
 	if target.exists() {
@@ -83,6 +89,18 @@ pub(crate) fn write_to_file(path: &Path, contents: &str) -> Result<(), Error> {
 	Ok(())
 }
 
+/// Get genesis builder preset names of the runtime.
+///
+/// # Arguments
+/// * `binary_path` - Path to the runtime binary.
+pub fn get_preset_names(binary_path: &PathBuf) -> Result<Vec<String>, Error> {
+	let binary = fs::read(binary_path)?;
+	let genesis_config_builder = GenesisConfigBuilderRuntimeCaller::<HostFunctions>::new(&binary);
+	genesis_config_builder
+		.preset_names()
+		.map_err(|e| Error::GenesisBuilderError(e.to_string()))
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -134,5 +152,14 @@ mod tests {
 		assert_eq!(is_valid_bitwise_left_shift("1 << 60").unwrap(), 1152921504606846976);
 		let result = is_valid_bitwise_left_shift("wrong");
 		assert!(result.is_err());
+	}
+
+	#[test]
+	fn test_get_preset_names() -> Result<(), Box<dyn std::error::Error>> {
+		let path = PathBuf::from("../../tests/runtimes/base_parachain_benchmark.wasm");
+		assert!(path.is_file());
+		let presets = get_preset_names(&path)?;
+		assert_eq!(presets, vec!["development", "local_testnet"]);
+		Ok(())
 	}
 }

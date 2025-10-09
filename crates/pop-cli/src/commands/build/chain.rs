@@ -41,10 +41,10 @@ impl BuildChain {
 		// Enable the features based on the user's input.
 		let mut features = vec![];
 		if self.benchmark {
-			features.push(Benchmark.as_ref());
+			features.push(Benchmark.as_ref().to_string());
 		}
 		if self.try_runtime {
-			features.push(TryRuntime.as_ref());
+			features.push(TryRuntime.as_ref().to_string());
 		}
 		cli.intro(if features.is_empty() {
 			format!("Building your {project}")
@@ -58,7 +58,7 @@ impl BuildChain {
 
 		// Build parachain.
 		cli.warning("NOTE: this may take some time...")?;
-		let binary = build_chain(&self.path, self.package, &self.profile, None, features)?;
+		let binary = build_chain(&self.path, self.package, &self.profile, None, &features)?;
 		cli.info(format!("The {project} was built in {} mode.", self.profile))?;
 		cli.outro("Build completed successfully!")?;
 		let generated_files = [format!("Binary generated at: {}", binary.display())];

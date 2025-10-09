@@ -4,7 +4,7 @@ use crate::{
 	cli::{self, Cli},
 	common::{
 		Project::{self, *},
-		builds::get_project_path,
+		builds::ensure_project_path,
 	},
 };
 use clap::{Args, Subcommand};
@@ -92,28 +92,26 @@ impl Command {
 		args: UpArgs,
 		cli: &mut impl cli::traits::Cli,
 	) -> anyhow::Result<Project> {
-		let project_path = get_project_path(args.path.clone(), args.path_pos.clone());
+		let project_path = ensure_project_path(args.path.clone(), args.path_pos.clone());
 		#[cfg(feature = "chain")]
-		if let Some(path) = project_path.as_deref() {
-			if path.is_file() {
-				let cmd =
-					network::ConfigFileCommand { path: Some(path.into()), ..Default::default() };
-				cmd.execute(cli).await?;
-				return Ok(Network);
-			}
+		if project_path.is_file() {
+			let cmd = network::ConfigFileCommand { path: Some(project_path), ..Default::default() };
+			cmd.execute(cli).await?;
+			return Ok(Network);
 		}
+
 		// If only contract feature enabled, deploy a contract
 		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
-		if pop_contracts::is_supported(project_path.as_deref())? {
+		if pop_contracts::is_supported(&project_path)? {
 			let mut cmd = args.contract;
-			cmd.path = project_path;
+			cmd.path = project_path.clone();
 			cmd.execute().await?;
 			return Ok(Contract);
 		}
 		#[cfg(feature = "chain")]
-		if pop_chains::is_supported(project_path.as_deref())? {
+		if pop_chains::is_supported(&project_path) {
 			let mut cmd = args.rollup;
-			cmd.path = project_path;
+			cmd.path = project_path.clone();
 			cmd.execute(cli).await?;
 			return Ok(Chain);
 		}
@@ -154,11 +152,11 @@ mod tests {
 
 	fn create_up_args(project_path: PathBuf) -> anyhow::Result<UpArgs> {
 		Ok(UpArgs {
-			path: Some(project_path),
+			path: Some(project_path.clone()),
 			path_pos: None,
 			#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 			contract: UpContractCommand {
-				path: None,
+				path: project_path,
 				constructor: "new".to_string(),
 				args: vec!["false".to_string()],
 				value: "0".to_string(),

@@ -3,7 +3,7 @@
 use crate::{
 	cli::{self, traits::*},
 	common::{
-		builds::get_project_path,
+		builds::{ensure_project_path, get_project_path},
 		contracts::{has_contract_been_built, normalize_call_args, request_contract_function_args},
 		prompt::display_message,
 		urls,
@@ -186,12 +186,12 @@ impl CallContractCommand {
 
 	/// If the contract has not been built, build it in release mode.
 	async fn ensure_contract_built(&self, cli: &mut impl Cli) -> Result<()> {
-		let project_path = get_project_path(self.path.clone(), self.path_pos.clone());
+		let project_path = ensure_project_path(self.path.clone(), self.path_pos.clone());
 		// Build the contract in release mode
 		cli.warning("NOTE: contract has not yet been built.")?;
 		let spinner = spinner();
 		spinner.start("Building contract in RELEASE mode...");
-		let result = match build_smart_contract(project_path.as_deref(), true, Verbosity::Quiet) {
+		let result = match build_smart_contract(&project_path, true, Verbosity::Quiet) {
 			Ok(result) => result,
 			Err(e) => {
 				return Err(anyhow!(format!(
@@ -225,7 +225,7 @@ impl CallContractCommand {
 
 		project_path
 			.as_ref()
-			.map(|p| p.is_dir() && !has_contract_been_built(Some(p)))
+			.map(|p| p.is_dir() && !has_contract_been_built(p))
 			.unwrap_or_default()
 	}
 
@@ -401,7 +401,7 @@ impl CallContractCommand {
 		cli: &mut impl Cli,
 		prompt_to_repeat_call: bool,
 	) -> Result<()> {
-		let project_path = get_project_path(self.path.clone(), self.path_pos.clone());
+		let project_path = ensure_project_path(self.path.clone(), self.path_pos.clone());
 
 		let message = match &self.message {
 			Some(message) => message.to_string(),
@@ -410,9 +410,7 @@ impl CallContractCommand {
 			},
 		};
 		// Disable wallet signing and display warning if the call is read-only.
-		let path = PathBuf::from("./");
-		let message_metadata =
-			get_message(project_path.as_deref().unwrap_or_else(|| &path), &message)?;
+		let message_metadata = get_message(project_path.clone(), &message)?;
 		if !message_metadata.mutates && self.use_wallet {
 			cli.warning("NOTE: Signing is not required for this read-only call. The '--use-wallet' flag will be ignored.")?;
 			self.use_wallet = false;
@@ -475,7 +473,7 @@ impl CallContractCommand {
 			let spinner = spinner();
 			spinner.start("Calling the contract...");
 			let call_dry_run_result = dry_run_call(&call_exec).await?;
-			spinner.stop("");
+			spinner.clear();
 			cli.info(format!("Result: {}", call_dry_run_result))?;
 			cli.warning("Your call has not been executed.")?;
 		} else {

@@ -17,7 +17,7 @@ use pop_contracts::{
 use sp_core::bytes::from_hex;
 #[cfg(feature = "v6")]
 use sp_core_inkv6::bytes::from_hex;
-use std::env;
+use std::{env, path::PathBuf};
 use subxt::{
 	config::{Hasher, substrate::BlakeTwo256},
 	utils::H256,
@@ -132,7 +132,7 @@ async fn map_account_works(localhost_url: &str) -> Result<()> {
 
 async fn set_up_deployment_works(temp_dir: &TempDir, localhost_url: &str) -> Result<()> {
 	let up_opts = UpOpts {
-		path: Some(temp_dir.path().join("testing")),
+		path: temp_dir.path().join("testing"),
 		constructor: "new".to_string(),
 		args: ["false".to_string()].to_vec(),
 		value: "1000".to_string(),
@@ -148,7 +148,7 @@ async fn set_up_deployment_works(temp_dir: &TempDir, localhost_url: &str) -> Res
 
 async fn set_up_upload_works(temp_dir: &TempDir, localhost_url: &str) -> Result<()> {
 	let up_opts = UpOpts {
-		path: Some(temp_dir.path().join("testing")),
+		path: temp_dir.path().join("testing"),
 		constructor: "new".to_string(),
 		args: ["false".to_string()].to_vec(),
 		value: "1000".to_string(),
@@ -164,7 +164,7 @@ async fn set_up_upload_works(temp_dir: &TempDir, localhost_url: &str) -> Result<
 
 async fn get_payload_works(temp_dir: &TempDir, localhost_url: &str) -> Result<()> {
 	let up_opts = UpOpts {
-		path: Some(temp_dir.path().join("testing")),
+		path: temp_dir.path().join("testing"),
 		constructor: "new".to_string(),
 		args: ["false".to_string()].to_vec(),
 		value: "1000".to_string(),
@@ -205,7 +205,7 @@ async fn dry_run_gas_estimate_instantiate_works(
 	localhost_url: &str,
 ) -> Result<()> {
 	let up_opts = UpOpts {
-		path: Some(temp_dir.path().join("testing")),
+		path: temp_dir.path().join("testing"),
 		constructor: "new".to_string(),
 		args: ["false".to_string()].to_vec(),
 		value: "0".to_string(),
@@ -228,7 +228,7 @@ async fn dry_run_gas_estimate_instantiate_throw_custom_error(
 	localhost_url: &str,
 ) -> Result<()> {
 	let up_opts = UpOpts {
-		path: Some(temp_dir.path().join("testing")),
+		path: temp_dir.path().join("testing"),
 		constructor: "new".to_string(),
 		args: ["false".to_string()].to_vec(),
 		value: "10000".to_string(),
@@ -248,7 +248,7 @@ async fn dry_run_gas_estimate_instantiate_throw_custom_error(
 
 async fn dry_run_upload_throw_custom_error(temp_dir: &TempDir, localhost_url: &str) -> Result<()> {
 	let up_opts = UpOpts {
-		path: Some(temp_dir.path().join("testing")),
+		path: temp_dir.path().join("testing"),
 		constructor: "new".to_string(),
 		args: ["false".to_string()].to_vec(),
 		value: "1000".to_string(),
@@ -267,7 +267,7 @@ async fn dry_run_upload_throw_custom_error(temp_dir: &TempDir, localhost_url: &s
 
 async fn instantiate_and_upload(temp_dir: &TempDir, localhost_url: &str) -> Result<String> {
 	let upload_exec = set_up_upload(UpOpts {
-		path: Some(temp_dir.path().join("testing")),
+		path: temp_dir.path().join("testing"),
 		constructor: "new".to_string(),
 		args: [].to_vec(),
 		value: "1000".to_string(),
@@ -291,7 +291,7 @@ async fn instantiate_and_upload(temp_dir: &TempDir, localhost_url: &str) -> Resu
 
 	// Instantiate a Smart Contract
 	let instantiate_exec = set_up_deployment(UpOpts {
-		path: Some(temp_dir.path().join("testing")),
+		path: temp_dir.path().join("testing"),
 		constructor: "new".to_string(),
 		args: ["false".to_string()].to_vec(),
 		value: "0".to_string(),
@@ -323,7 +323,7 @@ async fn test_set_up_call(
 	contract_address: &str,
 ) -> Result<()> {
 	let call_opts = CallOpts {
-		path: Some(temp_dir.path().join("testing")),
+		path: temp_dir.path().join("testing"),
 		contract: contract_address.to_string(),
 		message: "get".to_string(),
 		args: [].to_vec(),
@@ -345,7 +345,7 @@ async fn test_set_up_call_from_artifact_file(
 ) -> Result<()> {
 	let current_dir = env::current_dir().expect("Failed to get current directory");
 	let call_opts = CallOpts {
-		path: Some(current_dir.join("./tests/files/testing.json")),
+		path: current_dir.join("./tests/files/testing.json"),
 		contract: contract_address.to_string(),
 		message: "get".to_string(),
 		args: [].to_vec(),
@@ -367,7 +367,7 @@ async fn test_set_up_call_error_contract_not_build(
 ) -> Result<()> {
 	let temp_dir = new_environment("contract_not_build")?;
 	let call_opts = CallOpts {
-		path: Some(temp_dir.path().join("contract_not_build")),
+		path: temp_dir.path().join("contract_not_build"),
 		contract: contract_address.to_string(),
 		message: "get".to_string(),
 		args: [].to_vec(),
@@ -389,7 +389,7 @@ async fn test_set_up_call_fails_no_smart_contract_directory(
 	contract_address: &str,
 ) -> Result<()> {
 	let call_opts = CallOpts {
-		path: None,
+		path: PathBuf::from("./"),
 		contract: contract_address.to_string(),
 		message: "get".to_string(),
 		args: [].to_vec(),
@@ -413,7 +413,7 @@ async fn test_dry_run_call_error_contract_not_deployed(
 	contract_address: &str,
 ) -> Result<()> {
 	let call_opts = CallOpts {
-		path: Some(temp_dir.path().join("testing")),
+		path: temp_dir.path().join("testing"),
 		contract: contract_address.to_string(),
 		message: "get".to_string(),
 		args: [].to_vec(),
@@ -435,7 +435,7 @@ async fn test_dry_run_estimate_call_error_contract_not_deployed(
 	contract_address: &str,
 ) -> Result<()> {
 	let call_opts = CallOpts {
-		path: Some(temp_dir.path().join("testing")),
+		path: temp_dir.path().join("testing"),
 		contract: contract_address.to_string(),
 		message: "get".to_string(),
 		args: [].to_vec(),
@@ -457,7 +457,7 @@ async fn test_dry_run_estimate_call_error_contract_not_deployed(
 async fn call_works(temp_dir: &TempDir, localhost_url: &str, contract_address: &str) -> Result<()> {
 	// Test querying a value.
 	let query_exec = set_up_call(CallOpts {
-		path: Some(temp_dir.path().join("testing")),
+		path: temp_dir.path().join("testing"),
 		contract: contract_address.to_string(),
 		message: "get".to_string(),
 		args: [].to_vec(),
@@ -473,7 +473,7 @@ async fn call_works(temp_dir: &TempDir, localhost_url: &str, contract_address: &
 	assert_eq!(query, "Ok(false)");
 	// Test extrinsic execution by flipping the value.
 	let call_exec = set_up_call(CallOpts {
-		path: Some(temp_dir.path().join("testing")),
+		path: temp_dir.path().join("testing"),
 		contract: contract_address.to_string(),
 		message: "flip".to_string(),
 		args: [].to_vec(),

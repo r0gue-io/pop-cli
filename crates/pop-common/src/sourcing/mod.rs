@@ -424,11 +424,11 @@ impl GitHub {
 #[derive(Clone, Debug, PartialEq)]
 pub struct ArchiveFileSpec {
 	/// The name of the file within the archive.
-	name: String,
+	pub name: String,
 	/// An optional file name to be used for the file once extracted.
-	target: Option<PathBuf>,
+	pub target: Option<PathBuf>,
 	/// Whether the file is required.
-	required: bool,
+	pub required: bool,
 }
 
 impl ArchiveFileSpec {
