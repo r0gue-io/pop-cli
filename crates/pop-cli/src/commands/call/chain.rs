@@ -191,7 +191,7 @@ impl CallChainCommand {
 
 			if !prompt_to_repeat_call ||
 				!cli.confirm("Do you want to perform another call?")
-					.initial_value(false)
+					.initial_value(true)
 					.interact()?
 			{
 				display_message("Call complete.", true, &mut cli)?;
