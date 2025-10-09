@@ -136,7 +136,8 @@ impl CallChainCommand {
 					}
 				},
 				CallItem::Constant(constant) => {
-					display_message(&raw_value_to_string(&constant.value)?, true, &mut cli)?;
+					// We already have the value of a constant, so we don't need to query it
+					cli.success(&raw_value_to_string(&constant.value)?)?;
 				},
 				CallItem::Storage(ref storage) => {
 					// Parse string arguments to Value types for storage query
@@ -162,34 +163,31 @@ impl CallChainCommand {
 							)
 							.map_err(|e| anyhow!("Failed to parse storage arguments: {e}"))?
 						} else {
+							// StorageValue - no keys needed
 							vec![]
 						}
 					} else {
-						// StorageValue - no keys needed
+						// No arguments needed
 						vec![]
 					};
 
 					// Query the storage
 					match storage.query(&chain.client, keys).await {
 						Ok(Some(value)) => {
-							display_message(&raw_value_to_string(&value)?, true, &mut cli)?;
+							cli.success(&raw_value_to_string(&value)?)?;
 						},
 						Ok(None) => {
-							display_message("Storage value not found", true, &mut cli)?;
+							cli.warning("Storage value not found")?;
 						},
 						Err(e) => {
-							display_message(
-								&format!("Failed to query storage: {}", e),
-								false,
-								&mut cli,
-							)?;
+							cli.error(format!("Failed to query storage: {e}"))?;
 							break;
 						},
 					}
 				},
 			};
 
-			if !prompt_to_repeat_call ||
+			if (!prompt_to_repeat_call && self.skip_confirm) ||
 				!cli.confirm("Do you want to perform another call?")
 					.initial_value(true)
 					.interact()?
@@ -418,11 +416,7 @@ impl CallChainCommand {
 
 	// Function to check if all required fields are specified.
 	fn requires_user_input(&self) -> bool {
-		self.pallet.is_none() ||
-			self.function.is_none() ||
-			self.args.is_empty() ||
-			self.url.is_none() ||
-			self.suri.is_none()
+		self.pallet.is_none() || self.function.is_none() || self.url.is_none()
 	}
 
 	/// Replaces file arguments with their contents, leaving other arguments unchanged.

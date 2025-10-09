@@ -243,6 +243,7 @@ rpc_port = {random_port}
 			"Ss58Prefix",
 			"--url",
 			&localhost_url,
+			"--skip-confirm",
 		],
 	);
 	assert!(command.spawn()?.wait()?.success());
