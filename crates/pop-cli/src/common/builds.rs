@@ -2,12 +2,14 @@
 
 use std::{env::current_dir, path::PathBuf};
 
-use pop_common::manifest::Manifest;
 #[cfg(feature = "chain")]
 use {
 	crate::cli::traits::{Cli, Select},
 	pop_chains::{binary_path, build_chain},
-	pop_common::{Profile, manifest::get_workspace_project_names},
+	pop_common::{
+		Profile,
+		manifest::{Manifest, get_workspace_project_names},
+	},
 	std::path::Path,
 	strum::{EnumMessage, VariantArray},
 };
@@ -189,9 +191,31 @@ mod tests {
 		let mut cli = MockCli::new();
 		let temp_dir = tempdir()?;
 
+		let workspace_toml = temp_dir.path().join("Cargo.toml");
+		fs::write(
+			&workspace_toml,
+			r#"[workspace]
+members = ["runtime"]
+
+[workspace.package]
+name = "test-workspace"
+"#,
+		)?;
+
 		// Create default runtime directory
 		let runtime_dir = temp_dir.path().join("runtime");
+		// Along with its Cargo.toml file
 		fs::create_dir(&runtime_dir)?;
+		fs::write(
+			runtime_dir.join("Cargo.toml"),
+			r#"[package]
+name = "runtime"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+"#,
+		)?;
 
 		let result = find_runtime_dir(temp_dir.path(), &mut cli)?;
 		assert_eq!(result, runtime_dir.canonicalize()?);
