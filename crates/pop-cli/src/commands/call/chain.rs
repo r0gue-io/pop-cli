@@ -842,18 +842,16 @@ mod tests {
 				Some(true),
 				true,
 				Some(
-					supported_actions(&chain.pallets)
-						.into_iter()
-						.map(|action| {
-							(action.description().to_string(), action.pallet_name().to_string())
-						})
-						.chain(std::iter::once((
-							"Other".to_string(),
-							"Explore all pallets and functions".to_string(),
-						)))
-						.collect::<Vec<_>>(),
+					std::iter::once((
+						"Other".to_string(),
+						"Explore all pallets and functions".to_string(),
+					))
+					.chain(supported_actions(&chain.pallets).into_iter().map(|action| {
+						(action.description().to_string(), action.pallet_name().to_string())
+					}))
+					.collect::<Vec<_>>(),
 				),
-				1, // "Create an asset" action
+				2, // "Create an asset" action
 				None,
 			)
 			.expect_input("Enter the value for the parameter: id", "10000".into())
