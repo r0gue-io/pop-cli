@@ -1074,4 +1074,113 @@ mod tests {
 		assert_eq!(parse_function_name("MINT").unwrap(), "mint");
 		Ok(())
 	}
+
+	#[tokio::test]
+	async fn query_storage_from_test_node_works() -> Result<()> {
+		use pop_chains::raw_value_to_string;
+		use scale_value::ValueDef;
+
+		// Spawn a test node
+		let node = TestNode::spawn().await?;
+		let client = set_up_client(node.ws_url()).await?;
+		let pallets = parse_chain_metadata(&client)?;
+
+		// Find the System pallet
+		let system_pallet =
+			pallets.iter().find(|p| p.name == "System").expect("System pallet should exist");
+
+		// Test querying a plain storage item (System::Number - current block number)
+		let number_storage = system_pallet
+			.state
+			.iter()
+			.find(|s| s.name == "Number")
+			.expect("System::Number storage should exist");
+
+		let result = number_storage.query(&client, vec![]).await?;
+		assert!(result.is_some(), "Storage query should return a value");
+		let value = result.unwrap();
+		// The value should be a primitive (block number)
+		assert!(matches!(value.value, ValueDef::Primitive(_)));
+		let formatted_value = raw_value_to_string(&value)?;
+		assert!(!formatted_value.is_empty(), "Formatted value should not be empty");
+
+		// Test querying a map storage item (System::Account with Alice's account)
+		let account_storage = system_pallet
+			.state
+			.iter()
+			.find(|s| s.name == "Account")
+			.expect("System::Account storage should exist");
+
+		// Use Alice's account address
+		let alice_address = "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY";
+		let account_key = scale_value::stringify::from_str_custom()
+			.add_custom_parser(scale_value::stringify::custom_parsers::parse_ss58)
+			.parse(alice_address)
+			.0
+			.expect("Should parse Alice's address");
+
+		let account_result = account_storage.query(&client, vec![account_key]).await?;
+		assert!(account_result.is_some(), "Alice's account should exist in test chain");
+		let account_value = account_result.unwrap();
+		let formatted_account = raw_value_to_string(&account_value)?;
+		assert!(!formatted_account.is_empty(), "Account data should not be empty");
+
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn query_constants_from_test_node_works() -> Result<()> {
+		use pop_chains::raw_value_to_string;
+		use scale_value::ValueDef;
+
+		// Spawn a test node
+		let node = TestNode::spawn().await?;
+		let client = set_up_client(node.ws_url()).await?;
+		let pallets = parse_chain_metadata(&client)?;
+
+		// Find the System pallet
+		let system_pallet =
+			pallets.iter().find(|p| p.name == "System").expect("System pallet should exist");
+
+		// Test querying a constant (System::Version)
+		let version_constant = system_pallet
+			.constants
+			.iter()
+			.find(|c| c.name == "Version")
+			.expect("System::Version constant should exist");
+
+		// Constants have their values already decoded
+		let constant_value = &version_constant.value;
+		let formatted_value = raw_value_to_string(constant_value)?;
+		assert!(!formatted_value.is_empty(), "Constant value should not be empty");
+		// Version should be a composite value with spec_name, spec_version, etc.
+		assert!(matches!(constant_value.value, ValueDef::Composite(_)));
+
+		// Test querying another constant (System::BlockHashCount)
+		let block_hash_count_constant = system_pallet
+			.constants
+			.iter()
+			.find(|c| c.name == "BlockHashCount")
+			.expect("System::BlockHashCount constant should exist");
+
+		let block_hash_count_value = &block_hash_count_constant.value;
+		let formatted_block_hash_count = raw_value_to_string(block_hash_count_value)?;
+		assert!(!formatted_block_hash_count.is_empty(), "BlockHashCount value should not be empty");
+		// BlockHashCount should be a primitive value (u32)
+		assert!(matches!(block_hash_count_value.value, ValueDef::Primitive(_)));
+
+		// Test that SS58Prefix constant exists and has a valid value
+		let ss58_prefix_constant = system_pallet
+			.constants
+			.iter()
+			.find(|c| c.name == "SS58Prefix")
+			.expect("System::SS58Prefix constant should exist");
+
+		let ss58_prefix_value = &ss58_prefix_constant.value;
+		let formatted_ss58_prefix = raw_value_to_string(ss58_prefix_value)?;
+		assert!(!formatted_ss58_prefix.is_empty(), "SS58Prefix value should not be empty");
+		assert!(matches!(ss58_prefix_value.value, ValueDef::Primitive(_)));
+
+		Ok(())
+	}
 }
