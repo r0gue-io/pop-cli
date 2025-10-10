@@ -86,6 +86,8 @@ jobs:
   publish-homebrew:
     name: Publish to Homebrew
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     needs: build-node
     if: github.event_name == 'release'
     steps:
