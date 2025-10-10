@@ -82,3 +82,30 @@ jobs:
         with:
           files: |
             ${{ env.path }}/${{ env.package }}
+
+  publish-homebrew:
+    name: Publish to Homebrew
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    needs: build-node
+    if: github.event_name == 'release'
+    steps:
+      - name: Extract version
+        id: extract_version
+        run: |
+          echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
+
+      - name: Checkout tap repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/homebrew-pop-cli
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Update the formula
+        run: |
+          cd homebrew-tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          ./update.sh "${VERSION}"
