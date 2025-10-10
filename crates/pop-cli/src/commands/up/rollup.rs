@@ -693,7 +693,14 @@ mod tests {
 		let node = TestNode::spawn().await?;
 		let node_url = node.ws_url();
 		let mut cli = MockCli::new()
-			.expect_confirm("Do you want to enter the node URL manually?", true)
+			.expect_select(
+				"Select a chain (type to filter):".to_string(),
+				Some(true),
+				true,
+				Some(vec![("Custom".to_string(), "Type the chain URL manually".to_string())]),
+				0,
+				None,
+			)
 			.expect_input("Enter the relay chain node URL", node_url.into());
 		let (genesis_state, genesis_code) = create_temp_genesis_files()?;
 		let chain_config = UpCommand {

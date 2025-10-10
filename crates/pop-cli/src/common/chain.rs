@@ -7,6 +7,7 @@ use serde::Deserialize;
 use std::time::{SystemTime, UNIX_EPOCH};
 use url::Url;
 
+#[cfg(not(test))]
 const CHAIN_ENDPOINTS_URL: &str =
 	"https://raw.githubusercontent.com/r0gue-io/polkadot-chains/refs/heads/master/endpoints.json";
 
@@ -40,8 +41,15 @@ pub(crate) struct RPCNode {
 }
 
 // Get the RPC endpoints from the maintained source.
+#[cfg(not(test))]
 pub(crate) async fn extract_chain_endpoints() -> Result<Vec<RPCNode>> {
 	extract_chain_endpoints_from_url(CHAIN_ENDPOINTS_URL).await
+}
+
+// Do not fetch the RPC endpoints from the maintained source. Used for testing.
+#[cfg(test)]
+pub(crate) async fn extract_chain_endpoints() -> Result<Vec<RPCNode>> {
+	Ok(Vec::new())
 }
 
 // Internal function that accepts a URL parameter, making it testable with mockito.
@@ -62,29 +70,24 @@ pub(crate) async fn configure(
 	let url = match url {
 		Some(url) => url.clone(),
 		None => {
-			// Ask the user if they want to enter URL manually or select from a list of well-known
-			// endpoints.
-			let manual = cli
-				.confirm("Do you want to enter the node URL manually?")
-				.initial_value(false)
-				.interact()?;
-			let url = if manual {
-				// Prompt for manual URL input
-				cli.input(input_message).default_input(default_input).interact()?
-			} else {
+			let url = {
 				// Select from available endpoints
-				let chains = extract_chain_endpoints().await?;
 				let mut prompt = cli.select("Select a chain (type to filter):");
-				for (pos, node) in chains.iter().enumerate() {
-					if filter_fn(node) {
-						prompt = prompt.item(pos, &node.name, "");
-					}
-				}
+				prompt = prompt.item(0, "Custom", "Type the chain URL manually");
+				let chains = extract_chain_endpoints().await.unwrap_or_default();
+				let prompt = chains.iter().enumerate().fold(prompt, |acc, (pos, node)| {
+					if filter_fn(node) { acc.item(pos + 1, &node.name, "") } else { acc }
+				});
+
 				let selected = prompt.filter_mode().interact()?;
-				let providers = &chains[selected].providers;
-				let random_position = (SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis()
-					as usize) % providers.len();
-				providers[random_position].clone()
+				if selected == 0 {
+					cli.input(input_message).default_input(default_input).interact()?
+				} else {
+					let providers = &chains[selected - 1].providers;
+					let random_position = (SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis()
+						as usize) % providers.len();
+					providers[random_position].clone()
+				}
 			};
 			Url::parse(&url)?
 		},
@@ -116,7 +119,14 @@ mod tests {
 		let node = TestNode::spawn().await?;
 		let message = "Enter the URL of the chain:";
 		let mut cli = MockCli::new()
-			.expect_confirm("Do you want to enter the node URL manually?", true)
+			.expect_select(
+				"Select a chain (type to filter):".to_string(),
+				Some(true),
+				true,
+				Some(vec![("Custom".to_string(), "Type the chain URL manually".to_string())]),
+				0,
+				None,
+			)
 			.expect_input(message, node.ws_url().into());
 		let chain = configure(message, node.ws_url(), &None, |_| true, &mut cli).await?;
 		assert_eq!(chain.url, Url::parse(node.ws_url())?);

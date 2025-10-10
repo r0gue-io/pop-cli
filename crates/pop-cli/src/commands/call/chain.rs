@@ -464,10 +464,10 @@ impl Call {
 		client: &OnlineClient<SubstrateConfig>,
 		cli: &mut impl Cli,
 	) -> Result<DynamicPayload> {
-		let function = match &self.function {
-			CallItem::Function(f) => f,
-			_ => return Err(anyhow!("Error: The call is not an extrinsic call")),
-		};
+		let function = self
+			.function
+			.as_function()
+			.ok_or(anyhow!("Error: The call is not an extrinsic call"))?;
 		let xt = match construct_extrinsic(function, self.args.clone()) {
 			Ok(tx) => tx,
 			Err(e) => {
@@ -492,10 +492,10 @@ impl Call {
 		tx: DynamicPayload,
 		cli: &mut impl Cli,
 	) -> Result<()> {
-		let function = match &self.function {
-			CallItem::Function(f) => f,
-			_ => return Err(anyhow!("Error: The call is not an extrinsic call")),
-		};
+		let function = self
+			.function
+			.as_function()
+			.ok_or(anyhow!("Error: The call is not an extrinsic call"))?;
 		if !self.skip_confirm &&
 			!cli.confirm("Do you want to submit the extrinsic?")
 				.initial_value(true)
@@ -726,7 +726,14 @@ mod tests {
 		};
 
 		let mut cli = MockCli::new()
-            .expect_confirm("Do you want to enter the node URL manually?", true)
+            .expect_select(
+                "Select a chain (type to filter):".to_string(),
+                Some(true),
+                true,
+                Some(vec![("Custom".to_string(), "Type the chain URL manually".to_string())]),
+                0,
+                None,
+            )
             .expect_input("Which chain would you like to interact with?", node_url.into())
             .expect_select(
                 "Select the function to call (type to filter):",
@@ -810,9 +817,15 @@ mod tests {
 		let node = TestNode::spawn().await?;
 		let node_url = node.ws_url();
 		let mut call_config = CallChainCommand::default();
-
 		let mut cli = MockCli::new()
-			.expect_confirm("Do you want to enter the node URL manually?", true)
+			.expect_select(
+				"Select a chain (type to filter):".to_string(),
+				Some(true),
+				true,
+				Some(vec![("Custom".to_string(), "Type the chain URL manually".to_string())]),
+				0,
+				None,
+			)
 			.expect_input("Which chain would you like to interact with?", node_url.into());
 		let chain = chain::configure(
 			"Which chain would you like to interact with?",
