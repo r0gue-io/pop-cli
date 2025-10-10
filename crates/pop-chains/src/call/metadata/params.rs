@@ -33,7 +33,7 @@ pub fn field_to_param(metadata: &Metadata, field: &Field<PortableForm>) -> Resul
 	let registry = metadata.types();
 	if let Some(name) = field.type_name.as_deref() {
 		if name.contains("RuntimeCall") {
-			return Err(Error::FunctionNotSupported);
+			return Err(Error::CallableNotSupported);
 		}
 	}
 	let name = field.name.as_deref().unwrap_or("Unnamed"); //It can be unnamed field
@@ -46,17 +46,21 @@ pub fn field_to_param(metadata: &Metadata, field: &Field<PortableForm>) -> Resul
 /// * `name`: The name of the parameter.
 /// * `registry`: Type registry containing all types used in the metadata.
 /// * `type_id`: The ID of the type to be converted.
-fn type_to_param(name: &str, registry: &PortableRegistry, type_id: u32) -> Result<Param, Error> {
+pub fn type_to_param(
+	name: &str,
+	registry: &PortableRegistry,
+	type_id: u32,
+) -> Result<Param, Error> {
 	let type_info = registry
 		.resolve(type_id)
 		.ok_or_else(|| Error::MetadataParsingError(name.to_string()))?;
 	// Check for unsupported `RuntimeCall` type
 	if type_info.path.segments.contains(&"RuntimeCall".to_string()) {
-		return Err(Error::FunctionNotSupported);
+		return Err(Error::CallableNotSupported);
 	}
 	for param in &type_info.type_params {
 		if param.name.contains("RuntimeCall") {
-			return Err(Error::FunctionNotSupported);
+			return Err(Error::CallableNotSupported);
 		}
 	}
 	if type_info.path.segments == ["Option"] {

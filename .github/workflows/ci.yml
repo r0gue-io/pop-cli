@@ -149,6 +149,9 @@ jobs:
     permissions:
       checks: write
       packages: read
+    env:
+      # We cannot propagate the "mising_docs" flag, as otherwise other tests fail.
+      RUSTFLAGS: "-Dwarnings -Dmissing_docs"
     steps:
       - uses: actions/checkout@v4
 
@@ -160,9 +163,6 @@ jobs:
 
       - name: Check no default features
         run: cargo doc --no-deps
-        env:
-          # We cannot propagate the "mising_docs" flag, as otherwise other tests fail.
-          RUSTFLAGS: "-Dwarnings -Dmissing_docs"
 
   polkavm-unit-tests:
     needs:
