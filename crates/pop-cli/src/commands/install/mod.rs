@@ -12,6 +12,7 @@ use anyhow::Context;
 use clap::Args;
 use duct::cmd;
 use os_info::Type;
+use std::{fs::Permissions, os::unix::fs::PermissionsExt};
 use strum_macros::Display;
 use tokio::fs;
 
@@ -275,7 +276,7 @@ async fn install_rustup(cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		Err(_) => {
 			let spinner = cliclack::spinner();
 			spinner.start("Installing rustup ...");
-			run_external_script("https://sh.rustup.rs").await?;
+			run_external_script("https://sh.rustup.rs", &["-y"]).await?;
 			cli.outro("rustup installed!")?;
 			cmd("source", vec!["~/.cargo/env"]).run()?;
 		},
@@ -308,13 +309,14 @@ async fn install_homebrew(cli: &mut impl cli::traits::Cli) -> anyhow::Result<()>
 		Err(_) =>
 			run_external_script(
 				"https://raw.githubusercontent.com/Homebrew/install/master/install.sh",
+				&[],
 			)
 			.await?,
 	}
 	Ok(())
 }
 
-async fn run_external_script(script_url: &str) -> anyhow::Result<()> {
+async fn run_external_script(script_url: &str, args: &[&str]) -> anyhow::Result<()> {
 	let temp = tempfile::tempdir()?;
 	let scripts_path = temp.path().join("install.sh");
 	let client = reqwest::Client::new();
@@ -326,10 +328,17 @@ async fn run_external_script(script_url: &str) -> anyhow::Result<()> {
 		.error_for_status()?
 		.text()
 		.await?;
-	fs::write(scripts_path.as_path(), script).await?;
-	tokio::process::Command::new("bash").arg(scripts_path).status().await?;
+	fs::write(&scripts_path, script).await?;
+	fs::set_permissions(&scripts_path, Permissions::from_mode(0o755)).await?;
+	let mut command = tokio::process::Command::new(scripts_path);
+	command.args(args);
+	let status = command.status().await?;
 	temp.close()?;
-	Ok(())
+	if !status.success() {
+		Err(anyhow::anyhow!("Failed to install external script: `{} {:?}`", script_url, args))
+	} else {
+		Ok(())
+	}
 }
 
 #[cfg(test)]
