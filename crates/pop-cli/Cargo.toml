@@ -34,7 +34,6 @@ tempfile.workspace = true
 tokio.workspace = true
 toml.workspace = true
 url.workspace = true
-sc-chain-spec.workspace = true
 
 # contracts
 pop-contracts = { path = "../pop-contracts", version = "0.10.0", default-features = false, optional = true }
