@@ -17,7 +17,7 @@ pub mod params;
 
 pub type RawValue = Value<u32>;
 
-fn format_single_tuples<W: Write>(value: &RawValue, mut writer: W) -> Option<core::fmt::Result> {
+fn format_single_tuples<T, W: Write>(value: &Value<T>, mut writer: W) -> Option<core::fmt::Result> {
 	if let ValueDef::Composite(Composite::Unnamed(vals)) = &value.value {
 		if vals.len() == 1 {
 			let val = &vals[0];
@@ -61,7 +61,7 @@ fn format_hex<T, W: Write>(value: &Value<T>, mut writer: W) -> Option<core::fmt:
 /// # Returns
 /// * `Ok(String)` - The formatted string representation of the value.
 /// * `Err(_)` - If the value cannot be converted to string.
-pub fn raw_value_to_string(value: &RawValue) -> anyhow::Result<String> {
+pub fn raw_value_to_string<T>(value: &Value<T>) -> anyhow::Result<String> {
 	let mut result = String::new();
 	scale_value::stringify::to_writer_custom()
 		.compact()
@@ -69,6 +69,38 @@ pub fn raw_value_to_string(value: &RawValue) -> anyhow::Result<String> {
 		.add_custom_formatter(|v, w| format_hex(v, w))
 		.add_custom_formatter(|v, w| format_single_tuples(v, w))
 		.write(value, &mut result)?;
+	Ok(result)
+}
+
+/// Renders storage key-value pairs into a human-readable string format.
+///
+/// Takes a slice of tuples containing storage keys and their associated values and formats them
+/// into a readable string representation. Each key-value pair is rendered on separate lines within
+/// square brackets.
+///
+/// # Arguments
+/// * `key_value_pairs` - A slice of tuples where each tuple contains:
+///   - A vector of storage keys (`Vec<Value<T>>`).
+///   - The associated storage value (`Value<T>`).
+///
+/// # Returns
+/// * `Ok(String)` - A formatted string containing the rendered key-value pairs.
+/// * `Err(_)` - If there's an error converting the values to strings.
+pub fn render_storage_key_values(
+	key_value_pairs: &[(Vec<Value>, RawValue)],
+) -> anyhow::Result<String> {
+	let mut result = String::new();
+	for (keys, value) in key_value_pairs {
+		result.push_str("[\n");
+		if !keys.is_empty() {
+			for key in keys {
+				result.push_str(&format!("  {},\n", raw_value_to_string(key)?));
+			}
+		}
+		let value = raw_value_to_string(value)?;
+		result.push_str(&format!("  {}\n", value.replace('\n', "\n  ")));
+		result.push_str("]\n");
+	}
 	Ok(result)
 }
 
@@ -288,7 +320,7 @@ impl Storage {
 		&self,
 		client: &OnlineClient<SubstrateConfig>,
 		keys: Vec<Value>,
-	) -> Result<Vec<RawValue>, Error> {
+	) -> Result<Vec<(Vec<Value>, RawValue)>, Error> {
 		let mut elements = Vec::new();
 		let metadata = client.metadata();
 		let types = metadata.types();
@@ -307,12 +339,13 @@ impl Storage {
 		while let Some(storage_data) = stream.try_next().await.map_err(|e| {
 			Error::MetadataParsingError(format!("Failed to fetch storage value: {}", e))
 		})? {
+			let keys = storage_data.keys;
 			let mut bytes = storage_data.value.encoded();
 			let decoded_value = scale_value::scale::decode_as_type(&mut bytes, self.type_id, types)
 				.map_err(|e| {
 					Error::MetadataParsingError(format!("Failed to decode storage value: {}", e))
 				})?;
-			elements.push(decoded_value);
+			elements.push((keys, decoded_value));
 		}
 		Ok(elements)
 	}
@@ -1248,6 +1281,38 @@ mod tests {
 
 		// Should return Some value for Alice's account (which should exist in a test chain)
 		assert!(result.is_some());
+		Ok(())
+	}
+
+	#[test]
+	fn render_storage_key_values_with_keys_works() -> Result<()> {
+		// Create test data with keys
+		let key1 = Value::u128(42);
+		let key2 = Value::string("test_key");
+		let value = Value::bool(true).map_context(|_| 0u32);
+
+		let key_value_pairs = vec![(vec![key1, key2], value)];
+
+		let result = render_storage_key_values(&key_value_pairs)?;
+
+		// Expected format with keys
+		let expected = "[\n  42,\n  \"test_key\",\n  true\n]\n";
+		assert_eq!(result, expected);
+		Ok(())
+	}
+
+	#[test]
+	fn render_storage_key_values_without_keys_works() -> Result<()> {
+		// Create test data without keys (empty key vector)
+		let value = Value::u128(100).map_context(|_| 0u32);
+
+		let key_value_pairs = vec![(vec![], value)];
+
+		let result = render_storage_key_values(&key_value_pairs)?;
+
+		// Expected format without keys
+		let expected = "[\n  100\n]\n";
+		assert_eq!(result, expected);
 		Ok(())
 	}
 }

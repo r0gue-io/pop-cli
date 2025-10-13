@@ -17,7 +17,7 @@ use pop_chains::{
 	Action, CallData, CallItem, DynamicPayload, OnlineClient, Pallet, Param, Payload,
 	SubstrateConfig, construct_extrinsic, construct_sudo_extrinsic, decode_call_data,
 	encode_call_data, find_callable_by_name, find_pallet_by_name, raw_value_to_string,
-	sign_and_submit_extrinsic, supported_actions, type_to_param,
+	render_storage_key_values, sign_and_submit_extrinsic, supported_actions, type_to_param,
 };
 use url::Url;
 
@@ -180,11 +180,7 @@ impl CallChainCommand {
 					if storage.query_all {
 						match storage.query_all(&chain.client, keys).await {
 							Ok(values) => {
-								let mut result = String::new();
-								for value in values {
-									result.push_str(&format!("{}\n", raw_value_to_string(&value)?));
-								}
-								cli.success(result)?;
+								cli.success(&render_storage_key_values(values.as_slice())?)?;
 							},
 							Err(e) => {
 								cli.error(format!("Failed to query storage: {e}"))?;
@@ -192,9 +188,10 @@ impl CallChainCommand {
 							},
 						}
 					} else {
-						match storage.query(&chain.client, keys).await {
+						match storage.query(&chain.client, keys.clone()).await {
 							Ok(Some(value)) => {
-								cli.success(&raw_value_to_string(&value)?)?;
+								let result = vec![(keys, value)];
+								cli.success(&render_storage_key_values(result.as_slice())?)?;
 							},
 							Ok(None) => {
 								cli.warning("Storage value not found")?;
@@ -645,7 +642,11 @@ fn get_param_value(cli: &mut impl Cli, param: &Param, force_required: bool) -> R
 }
 
 // Prompt for the value when it is a sequence.
-fn prompt_for_sequence_param(cli: &mut impl Cli, param: &Param, force_required: bool) -> Result<String> {
+fn prompt_for_sequence_param(
+	cli: &mut impl Cli,
+	param: &Param,
+	force_required: bool,
+) -> Result<String> {
 	let input_value = cli
 		.input(format!(
 			"The value for `{}` might be too large to enter. You may enter the path to a file instead.",
@@ -665,7 +666,11 @@ fn prompt_for_sequence_param(cli: &mut impl Cli, param: &Param, force_required: 
 }
 
 // Prompt for the value when it is a primitive.
-fn prompt_for_primitive_param(cli: &mut impl Cli, param: &Param, force_required: bool) -> Result<String> {
+fn prompt_for_primitive_param(
+	cli: &mut impl Cli,
+	param: &Param,
+	force_required: bool,
+) -> Result<String> {
 	Ok(cli
 		.input(format!("Enter the value for the parameter: {}", param.name))
 		.placeholder(&format!("Type required: {}", param.type_name))
@@ -676,7 +681,11 @@ fn prompt_for_primitive_param(cli: &mut impl Cli, param: &Param, force_required:
 // Prompt the user to select the value of the variant parameter and recursively prompt for nested
 // fields. Output example: `Id(5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY)` for the `Id`
 // variant.
-fn prompt_for_variant_param(cli: &mut impl Cli, param: &Param, force_required: bool) -> Result<String> {
+fn prompt_for_variant_param(
+	cli: &mut impl Cli,
+	param: &Param,
+	force_required: bool,
+) -> Result<String> {
 	let selected_variant = {
 		let mut select = cli.select(format!("Select the value for the parameter: {}", param.name));
 		for option in &param.sub_params {
@@ -714,7 +723,11 @@ fn prompt_for_variant_param(cli: &mut impl Cli, param: &Param, force_required: b
 //     ],
 //     is_variant: false
 // }
-fn prompt_for_composite_param(cli: &mut impl Cli, param: &Param, force_required: bool) -> Result<String> {
+fn prompt_for_composite_param(
+	cli: &mut impl Cli,
+	param: &Param,
+	force_required: bool,
+) -> Result<String> {
 	let mut field_values = Vec::new();
 	for field_arg in &param.sub_params {
 		let field_value = prompt_for_param(cli, field_arg, force_required)?;
@@ -732,7 +745,11 @@ fn prompt_for_composite_param(cli: &mut impl Cli, param: &Param, force_required:
 }
 
 // Recursively prompt the user for the tuple values.
-fn prompt_for_tuple_param(cli: &mut impl Cli, param: &Param, force_required: bool) -> Result<String> {
+fn prompt_for_tuple_param(
+	cli: &mut impl Cli,
+	param: &Param,
+	force_required: bool,
+) -> Result<String> {
 	let mut tuple_values = Vec::new();
 	for tuple_param in param.sub_params.iter() {
 		let tuple_value = prompt_for_param(cli, tuple_param, force_required)?;

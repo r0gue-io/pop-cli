@@ -57,6 +57,7 @@ pub use call::{
 		find_callable_by_name, find_pallet_by_name,
 		params::{Param, field_to_param, type_to_param},
 		parse_chain_metadata, parse_dispatchable_arguments, raw_value_to_string,
+		render_storage_key_values,
 	},
 	parse_and_format_events, set_up_client, sign_and_submit_extrinsic, submit_signed_extrinsic,
 };
