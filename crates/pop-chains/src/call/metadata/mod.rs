@@ -742,7 +742,7 @@ mod tests {
 		let inner = Value::u128(42);
 		let value = Value::unnamed_composite(vec![inner]).map_context(|_| 0u32);
 		let result = raw_value_to_string(&value)?;
-		assert_eq!(result, "0x2A"); // 42 in hex - unwrapped from tuple
+		assert_eq!(result, "0x2a"); // 42 in hex - unwrapped from tuple
 
 		// Test multi-element composite - hex formatted
 		let value =
