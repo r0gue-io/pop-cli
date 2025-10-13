@@ -157,6 +157,7 @@ impl Command {
 				profile,
 				benchmark: feature_list.contains(&Benchmark.as_ref()),
 				try_runtime: feature_list.contains(&TryRuntime.as_ref()),
+				features: feature_list.into_iter().map(|f| f.to_string()).collect(),
 			}
 			.execute()?;
 			return Ok(Chain);

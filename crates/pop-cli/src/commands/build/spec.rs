@@ -6,7 +6,7 @@ use crate::{
 		traits::{Cli as _, *},
 	},
 	common::{
-		builds::{find_runtime_dir, guide_user_to_select_profile},
+		builds::{create_chain_spec_builder, guide_user_to_select_profile},
 		omni_node::source_polkadot_omni_node_binary,
 		runtime::build_deterministic_runtime,
 	},
@@ -544,34 +544,18 @@ pub(crate) struct BuildSpec {
 }
 
 impl BuildSpec {
-	fn builder(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<ChainSpecBuilder> {
-		let default_node_path = self.path.join("node");
-		if default_node_path.is_dir() {
-			let node_path = default_node_path.canonicalize()?;
-			cli.info(format!("Using node at {}", node_path.display()))?;
-			Ok(ChainSpecBuilder::Node {
-				node_path,
-				default_bootnode: self.default_bootnode,
-				profile: self.profile.clone(),
-			})
-		} else {
-			let runtime_path = find_runtime_dir(&self.path, cli)?;
-			cli.info(format!("Using runtime at {}", runtime_path.display()))?;
-			Ok(ChainSpecBuilder::Runtime { runtime_path, profile: self.profile.clone() })
-		}
-	}
-
 	// Executes the process of generating the chain specification.
 	//
 	// This function generates plain and raw chain spec files based on the provided configuration,
 	// optionally including genesis state and runtime artifacts. If the node binary is missing,
 	// it triggers a build process.
 	pub(crate) async fn build(
-		mut self,
+		self,
 		cli: &mut impl cli::traits::Cli,
 	) -> anyhow::Result<GenesisArtifacts> {
 		let mut generated_files = vec![];
-		let builder = self.builder(cli)?;
+		let builder =
+			create_chain_spec_builder(&self.path, &self.profile, self.default_bootnode, cli)?;
 		let is_runtime_build = matches!(builder, ChainSpecBuilder::Runtime { .. });
 		let artifact_exists = builder.artifact_path().is_ok();
 		if self.skip_build && builder.artifact_path().is_err() {
