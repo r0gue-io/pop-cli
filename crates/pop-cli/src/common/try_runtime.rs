@@ -15,7 +15,7 @@ use crate::{
 	impl_binary_generator,
 };
 use clap::Args;
-use cliclack::spinner;
+use cliclack::{ProgressBar, spinner};
 use console::style;
 use pop_chains::{
 	Runtime, SharedParams, parse, set_up_client,
@@ -75,12 +75,13 @@ impl BuildRuntimeParams {
 /// * `skip_confirm`: A boolean indicating whether to skip confirmation prompts.
 pub async fn check_try_runtime_and_prompt(
 	cli: &mut impl Cli,
+	spinner: &ProgressBar,
 	skip_confirm: bool,
 ) -> anyhow::Result<PathBuf> {
 	Ok(if let Ok(path) = which_version(BINARY_NAME, &TARGET_BINARY_VERSION, &Ordering::Greater) {
 		path
 	} else {
-		source_try_runtime_binary(cli, &crate::cache()?, skip_confirm).await?
+		source_try_runtime_binary(cli, spinner, &crate::cache()?, skip_confirm).await?
 	})
 }
 
@@ -92,10 +93,12 @@ pub async fn check_try_runtime_and_prompt(
 /// * `skip_confirm`: A boolean indicating whether to skip confirmation prompts.
 pub async fn source_try_runtime_binary(
 	cli: &mut impl Cli,
+	spinner: &ProgressBar,
 	cache_path: &Path,
 	skip_confirm: bool,
 ) -> anyhow::Result<PathBuf> {
-	check_and_prompt::<TryRuntimeGenerator>(cli, BINARY_NAME, cache_path, skip_confirm).await
+	check_and_prompt::<TryRuntimeGenerator>(cli, spinner, BINARY_NAME, cache_path, skip_confirm)
+		.await
 }
 
 /// Update the state source.
@@ -108,9 +111,8 @@ pub(crate) fn update_state_source(
 	state: &mut Option<State>,
 ) -> anyhow::Result<()> {
 	let (subcommand, path, mut live_state) = match state {
-		&mut Some(State::Live(ref state)) => (&StateCommand::Live, None, state.clone()),
-		&mut Some(State::Snap { ref path }) =>
-			(&StateCommand::Snap, path.clone(), LiveState::default()),
+		Some(State::Live(state)) => (&StateCommand::Live, None, state.clone()),
+		Some(State::Snap { path }) => (&StateCommand::Snap, path.clone(), LiveState::default()),
 		None => (guide_user_to_select_state_source(cli)?, None, LiveState::default()),
 	};
 	match subcommand {
@@ -295,7 +297,7 @@ pub(crate) async fn guide_user_to_select_try_state(
 				for pallet in pallets {
 					prompt = prompt.item(pallet.name.clone(), pallet.name, pallet.docs);
 				}
-				spinner.stop("");
+				spinner.clear();
 				let selected_pallets = prompt.interact()?;
 				TryStateSelect::Only(
 					selected_pallets
@@ -1165,7 +1167,9 @@ mod tests {
 	#[tokio::test]
 	async fn try_runtime_version_works() -> anyhow::Result<()> {
 		let cache_path = tempdir().expect("Could create temp dir");
-		let path = source_try_runtime_binary(&mut MockCli::new(), cache_path.path(), true).await?;
+		let path =
+			source_try_runtime_binary(&mut MockCli::new(), &spinner(), cache_path.path(), true)
+				.await?;
 		assert!(
 			SemanticVersion::try_from(path.to_str().unwrap().to_string())? >= TARGET_BINARY_VERSION
 		);

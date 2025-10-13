@@ -47,7 +47,7 @@ use {
 #[derive(Clone, Debug, PartialEq)]
 pub struct UpOpts {
 	/// Path to the contract build directory.
-	pub path: Option<PathBuf>,
+	pub path: PathBuf,
 	/// The name of the contract constructor to call.
 	pub constructor: String,
 	/// The constructor arguments, encoded as strings.
@@ -75,7 +75,7 @@ pub struct UpOpts {
 pub async fn set_up_deployment(
 	up_opts: UpOpts,
 ) -> anyhow::Result<InstantiateExec<DefaultConfig, DefaultEnvironment, Keypair>> {
-	let manifest_path = get_manifest_path(up_opts.path.as_deref())?;
+	let manifest_path = get_manifest_path(&up_opts.path)?;
 
 	let token_metadata = TokenMetadata::query::<DefaultConfig>(&up_opts.url).await?;
 
@@ -89,11 +89,7 @@ pub async fn set_up_deployment(
 		parse_balance(&up_opts.value)?;
 
 	// Process the provided argument values.
-	let function = extract_function(
-		up_opts.path.unwrap_or_else(|| PathBuf::from("./")),
-		&up_opts.constructor,
-		FunctionType::Constructor,
-	)?;
+	let function = extract_function(up_opts.path, &up_opts.constructor, FunctionType::Constructor)?;
 	let args = process_function_args(&function, up_opts.args)?;
 	let instantiate_exec: InstantiateExec<DefaultConfig, DefaultEnvironment, Keypair> =
 		InstantiateCommandBuilder::new(extrinsic_opts)
@@ -116,7 +112,7 @@ pub async fn set_up_deployment(
 pub async fn set_up_upload(
 	up_opts: UpOpts,
 ) -> anyhow::Result<UploadExec<DefaultConfig, DefaultEnvironment, Keypair>> {
-	let manifest_path = get_manifest_path(up_opts.path.as_deref())?;
+	let manifest_path = get_manifest_path(&up_opts.path)?;
 
 	let signer = create_signer(&up_opts.suri)?;
 	let extrinsic_opts = ExtrinsicOptsBuilder::new(signer)
@@ -277,8 +273,8 @@ pub async fn get_instantiate_payload(
 ///
 /// # Arguments
 /// * `path` - path to the contract file.
-pub fn get_contract_code(path: Option<&PathBuf>) -> anyhow::Result<ContractBinary> {
-	let manifest_path = get_manifest_path(path.map(|p| p as &Path))?;
+pub fn get_contract_code(path: &Path) -> anyhow::Result<ContractBinary> {
+	let manifest_path = get_manifest_path(path)?;
 
 	// signer does not matter for this
 	let signer = create_signer("//Alice")?;

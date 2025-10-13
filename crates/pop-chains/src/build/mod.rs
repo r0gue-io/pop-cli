@@ -3,7 +3,10 @@
 use crate::errors::{Error, handle_command_error};
 use anyhow::{Result, anyhow};
 use duct::cmd;
-use pop_common::{Profile, account_id::convert_to_evm_accounts, manifest::from_path};
+use pop_common::{
+	Profile, account_id::convert_to_evm_accounts, find_workspace_toml, manifest::from_path,
+};
+use sc_chain_spec::{GenericChainSpec, NoExtension};
 use serde_json::{Value, json};
 use sp_core::bytes::to_hex;
 use std::{
@@ -15,11 +18,181 @@ use std::{
 /// Build the deterministic runtime.
 pub mod runtime;
 
+/// A builder for generating chain specifications.
+///
+/// This enum represents two different ways to build a chain specification:
+/// - Using an existing node.
+/// - Using a runtime.
+pub enum ChainSpecBuilder {
+	/// A node-based chain specification builder.
+	Node {
+		/// Path to the node directory.
+		node_path: PathBuf,
+		/// Whether to include a default bootnode in the specification.
+		default_bootnode: bool,
+		/// The build profile to use (debug, release, production, etc).
+		profile: Profile,
+	},
+	/// A runtime-based chain specification builder.
+	Runtime {
+		/// Path to the runtime directory.
+		runtime_path: PathBuf,
+		/// The build profile to use (debug, release, production, etc).
+		profile: Profile,
+	},
+}
+
+impl ChainSpecBuilder {
+	/// Builds the chain specification using the provided profile and features.
+	///
+	/// # Arguments
+	/// * `features` - A list of cargo features to enable during the build
+	///
+	/// # Returns
+	/// The path to the built artifact
+	pub fn build(&self, features: &[String]) -> Result<PathBuf> {
+		build_project(&self.path(), None, &self.profile(), features, None)?;
+		// Check the artifact is found after being built
+		self.artifact_path()
+	}
+
+	/// Gets the path associated with this chain specification builder.
+	///
+	/// # Returns
+	/// The path to either the node or runtime directory.
+	pub fn path(&self) -> PathBuf {
+		match self {
+			ChainSpecBuilder::Node { node_path, .. } => node_path,
+			ChainSpecBuilder::Runtime { runtime_path, .. } => runtime_path,
+		}
+		.clone()
+	}
+
+	/// Gets the build profile associated with this chain specification builder.
+	///
+	/// # Returns
+	/// The build profile (debug, release, production, etc.) to use when building the chain.
+	pub fn profile(&self) -> Profile {
+		match self {
+			ChainSpecBuilder::Node { profile, .. } => profile,
+			ChainSpecBuilder::Runtime { profile, .. } => profile,
+		}
+		.clone()
+	}
+
+	/// Gets the path to the built artifact.
+	///
+	/// # Returns
+	/// The path to the built artifact (node binary or runtime WASM).
+	pub fn artifact_path(&self) -> Result<PathBuf> {
+		let manifest = from_path(&self.path())?;
+		let package = manifest.package().name();
+		let root_folder = find_workspace_toml(&self.path())
+			.ok_or(anyhow::anyhow!("Not inside a workspace"))?
+			.parent()
+			.expect("Path to Cargo.toml workspace root folder must exist")
+			.to_path_buf();
+		let path = match self {
+			ChainSpecBuilder::Node { profile, .. } =>
+				profile.target_directory(&root_folder).join(package),
+			ChainSpecBuilder::Runtime { profile, .. } => {
+				let base = profile.target_directory(&root_folder).join("wbuild").join(package);
+				let wasm_file = package.replace("-", "_");
+				let compact_compressed = base.join(format!("{wasm_file}.compact.compressed.wasm"));
+				let raw = base.join(format!("{wasm_file}.wasm"));
+				if compact_compressed.is_file() {
+					compact_compressed
+				} else if raw.is_file() {
+					raw
+				} else {
+					return Err(anyhow::anyhow!("No runtime found"));
+				}
+			},
+		};
+		Ok(path.canonicalize()?)
+	}
+
+	/// Generates a plain (human readable) chain specification file.
+	///
+	/// # Arguments
+	/// * `chain_or_preset` - The chain (when using a node) or preset (when using a runtime) name.
+	/// * `output_file` - The path where the chain spec should be written.
+	pub fn generate_plain_chain_spec(
+		&self,
+		chain_or_preset: &str,
+		output_file: &Path,
+	) -> Result<(), Error> {
+		match self {
+			ChainSpecBuilder::Node { default_bootnode, .. } => generate_plain_chain_spec_with_node(
+				&self.artifact_path()?,
+				output_file,
+				*default_bootnode,
+				chain_or_preset,
+			),
+			ChainSpecBuilder::Runtime { .. } => generate_plain_chain_spec_with_runtime(
+				fs::read(self.artifact_path()?)?,
+				output_file,
+				chain_or_preset,
+			),
+		}
+	}
+
+	/// Generates a raw (encoded) chain specification file from a plain one.
+	///
+	/// # Arguments
+	/// * `plain_chain_spec` - The path to the plain chain spec file.
+	/// * `raw_chain_spec_name` - The name for the generated raw chain spec file.
+	///
+	/// # Returns
+	/// The path to the generated raw chain spec file.
+	pub fn generate_raw_chain_spec(
+		&self,
+		plain_chain_spec: &Path,
+		raw_chain_spec_name: &str,
+	) -> Result<PathBuf, Error> {
+		match self {
+			ChainSpecBuilder::Node { .. } => generate_raw_chain_spec_with_node(
+				&self.artifact_path()?,
+				plain_chain_spec,
+				raw_chain_spec_name,
+			),
+			ChainSpecBuilder::Runtime { .. } =>
+				generate_raw_chain_spec_with_runtime(plain_chain_spec, raw_chain_spec_name),
+		}
+	}
+
+	/// Extracts and exports the WebAssembly runtime code from a raw chain specification.
+	///
+	/// # Arguments
+	/// * `raw_chain_spec` - Path to the raw chain specification file to extract the runtime from.
+	/// * `wasm_file_name` - Name for the file where the extracted runtime will be saved.
+	///
+	/// # Returns
+	/// The path to the generated WASM runtime file.
+	///
+	/// # Errors
+	/// Returns an error if:
+	/// - The chain specification file cannot be read or parsed.
+	/// - The runtime cannot be extracted from the chain spec.
+	/// - The runtime cannot be written to the output file.
+	pub fn export_wasm_file(
+		&self,
+		raw_chain_spec: &Path,
+		wasm_file_name: &str,
+	) -> Result<PathBuf, Error> {
+		match self {
+			ChainSpecBuilder::Node { .. } =>
+				export_wasm_file_with_node(&self.artifact_path()?, raw_chain_spec, wasm_file_name),
+			ChainSpecBuilder::Runtime { .. } =>
+				export_wasm_file_with_runtime(raw_chain_spec, wasm_file_name),
+		}
+	}
+}
+
 /// Build the chain and returns the path to the binary.
 ///
 /// # Arguments
-/// * `path` - The optional path to the chain manifest, defaulting to the current directory if not
-///   specified.
+/// * `path` - The path to the chain manifest.
 /// * `package` - The optional package to be built.
 /// * `profile` - Whether the chain should be built without any debugging functionality.
 /// * `node_path` - An optional path to the node directory. Defaults to the `node` subdirectory of
@@ -30,7 +203,7 @@ pub fn build_chain(
 	package: Option<String>,
 	profile: &Profile,
 	node_path: Option<&Path>,
-	features: Vec<&str>,
+	features: &[String],
 ) -> Result<PathBuf, Error> {
 	build_project(path, package, profile, features, None)?;
 	binary_path(&profile.target_directory(path), node_path.unwrap_or(&path.join("node")))
@@ -49,7 +222,7 @@ pub fn build_project(
 	path: &Path,
 	package: Option<String>,
 	profile: &Profile,
-	features: Vec<&str>,
+	features: &[String],
 	target: Option<&str>,
 ) -> Result<(), Error> {
 	let mut args = vec!["build"];
@@ -83,15 +256,18 @@ pub fn build_project(
 /// # Arguments
 /// * `path` - The optional path to the manifest, defaulting to the current directory if not
 ///   specified.
-pub fn is_supported(path: Option<&Path>) -> Result<bool, Error> {
-	let manifest = from_path(path)?;
+pub fn is_supported(path: &Path) -> bool {
+	let manifest = match from_path(path) {
+		Ok(m) => m,
+		Err(_) => return false,
+	};
 	// Simply check for a chain dependency
 	const DEPENDENCIES: [&str; 4] =
 		["cumulus-client-collator", "cumulus-primitives-core", "parachains-common", "polkadot-sdk"];
-	Ok(DEPENDENCIES.into_iter().any(|d| {
+	DEPENDENCIES.into_iter().any(|d| {
 		manifest.dependencies.contains_key(d) ||
 			manifest.workspace.as_ref().is_some_and(|w| w.dependencies.contains_key(d))
-	}))
+	})
 }
 
 /// Constructs the node binary path based on the target path and the node directory path.
@@ -118,7 +294,7 @@ fn build_binary_path<F>(project_path: &Path, path_builder: F) -> Result<PathBuf,
 where
 	F: Fn(&str) -> PathBuf,
 {
-	let manifest = from_path(Some(project_path))?;
+	let manifest = from_path(project_path)?;
 	let project_name = manifest.package().name();
 	let release = path_builder(project_name);
 	if !release.exists() {
@@ -127,7 +303,75 @@ where
 	Ok(release)
 }
 
-/// Generates the plain text chain specification for a chain.
+/// Generates a raw chain specification file from a plain chain specification for a runtime.
+///
+/// # Arguments
+/// * `plain_chain_spec` - Location of the plain chain specification file.
+/// * `raw_chain_spec_name` - The name of the raw chain specification file to be generated.
+///
+/// # Returns
+/// The path to the generated raw chain specification file.
+pub fn generate_raw_chain_spec_with_runtime(
+	plain_chain_spec: &Path,
+	raw_chain_spec_name: &str,
+) -> Result<PathBuf, Error> {
+	let chain_spec = GenericChainSpec::<Option<()>>::from_json_file(plain_chain_spec.to_path_buf())
+		.map_err(|e| anyhow::anyhow!(e))?;
+	let raw_chain_spec = chain_spec.as_json(true).map_err(|e| anyhow::anyhow!(e))?;
+	let raw_chain_spec_file = plain_chain_spec.with_file_name(raw_chain_spec_name);
+	fs::write(&raw_chain_spec_file, raw_chain_spec)?;
+	Ok(raw_chain_spec_file)
+}
+
+/// Generates a plain chain specification file for a runtime.
+///
+/// # Arguments
+/// * `wasm` - The WebAssembly runtime bytes.
+/// * `plain_chain_spec` - The path where the plain chain specification should be written.
+/// * `preset` - Preset name for genesis configuration.
+pub fn generate_plain_chain_spec_with_runtime(
+	wasm: Vec<u8>,
+	plain_chain_spec: &Path,
+	preset: &str,
+) -> Result<(), Error> {
+	let chain_spec = GenericChainSpec::<NoExtension>::builder(&wasm[..], None)
+		.with_genesis_config_preset_name(preset.trim())
+		.build()
+		.as_json(false)
+		.map_err(|e| anyhow::anyhow!(e))?;
+	fs::write(plain_chain_spec, chain_spec)?;
+
+	Ok(())
+}
+
+/// Extracts and exports the WebAssembly runtime from a raw chain specification.
+///
+/// # Arguments
+/// * `raw_chain_spec` - The path to the raw chain specification file to extract the runtime from.
+/// * `wasm_file_name` - The name of the file where the extracted runtime will be saved.
+///
+/// # Returns
+/// The path to the generated WASM runtime file wrapped in a Result.
+///
+/// # Errors
+/// Returns an error if:
+/// - The chain specification file cannot be read or parsed.
+/// - The runtime cannot be extracted from the chain spec.
+/// - The runtime cannot be written to the output file.
+pub fn export_wasm_file_with_runtime(
+	raw_chain_spec: &Path,
+	wasm_file_name: &str,
+) -> Result<PathBuf, Error> {
+	let chain_spec = GenericChainSpec::<Option<()>>::from_json_file(raw_chain_spec.to_path_buf())
+		.map_err(|e| anyhow::anyhow!(e))?;
+	let raw_wasm_blob =
+		cumulus_client_cli::extract_genesis_wasm(&chain_spec).map_err(|e| anyhow::anyhow!(e))?;
+	let wasm_file = raw_chain_spec.parent().unwrap_or(Path::new("./")).join(wasm_file_name);
+	fs::write(&wasm_file, raw_wasm_blob)?;
+	Ok(wasm_file)
+}
+
+/// Generates the plain text chain specification for a chain with its own node.
 ///
 /// # Arguments
 /// * `binary_path` - The path to the node binary executable that contains the `build-spec` command.
@@ -135,7 +379,7 @@ where
 /// * `default_bootnode` - Whether to include localhost as a bootnode.
 /// * `chain` - The chain specification. It can be one of the predefined ones (e.g. dev, local or a
 ///   custom one) or the path to an existing chain spec.
-pub fn generate_plain_chain_spec(
+pub fn generate_plain_chain_spec_with_node(
 	binary_path: &Path,
 	plain_chain_spec: &Path,
 	default_bootnode: bool,
@@ -172,7 +416,7 @@ pub fn generate_plain_chain_spec(
 /// * `binary_path` - The path to the node binary executable that contains the `build-spec` command.
 /// * `plain_chain_spec` - Location of the plain chain specification file.
 /// * `chain_spec_file_name` - The name of the chain specification file to be generated.
-pub fn generate_raw_chain_spec(
+pub fn generate_raw_chain_spec_with_node(
 	binary_path: &Path,
 	plain_chain_spec: &Path,
 	chain_spec_file_name: &str,
@@ -205,24 +449,24 @@ pub fn generate_raw_chain_spec(
 /// # Arguments
 /// * `binary_path` - The path to the node binary executable that contains the `export-genesis-wasm`
 ///   command.
-/// * `chain_spec` - Location of the raw chain specification file.
+/// * `raw_chain_spec` - Location of the raw chain specification file.
 /// * `wasm_file_name` - The name of the wasm runtime file to be generated.
-pub fn export_wasm_file(
+pub fn export_wasm_file_with_node(
 	binary_path: &Path,
-	chain_spec: &Path,
+	raw_chain_spec: &Path,
 	wasm_file_name: &str,
 ) -> Result<PathBuf, Error> {
-	if !chain_spec.exists() {
-		return Err(Error::MissingChainSpec(chain_spec.display().to_string()));
+	if !raw_chain_spec.exists() {
+		return Err(Error::MissingChainSpec(raw_chain_spec.display().to_string()));
 	}
 	check_command_exists(binary_path, "export-genesis-wasm")?;
-	let wasm_file = chain_spec.parent().unwrap_or(Path::new("./")).join(wasm_file_name);
+	let wasm_file = raw_chain_spec.parent().unwrap_or(Path::new("./")).join(wasm_file_name);
 	let output = cmd(
 		binary_path,
 		vec![
 			"export-genesis-wasm",
 			"--chain",
-			&chain_spec.display().to_string(),
+			&raw_chain_spec.display().to_string(),
 			&wasm_file.display().to_string(),
 		],
 	)
@@ -239,24 +483,24 @@ pub fn export_wasm_file(
 /// # Arguments
 /// * `binary_path` - The path to the node binary executable that contains the
 ///   `export-genesis-state` command.
-/// * `chain_spec` - Location of the raw chain specification file.
+/// * `raw_chain_spec` - Location of the raw chain specification file.
 /// * `genesis_file_name` - The name of the genesis state file to be generated.
-pub fn generate_genesis_state_file(
+pub fn generate_genesis_state_file_with_node(
 	binary_path: &Path,
-	chain_spec: &Path,
+	raw_chain_spec: &Path,
 	genesis_file_name: &str,
 ) -> Result<PathBuf, Error> {
-	if !chain_spec.exists() {
-		return Err(Error::MissingChainSpec(chain_spec.display().to_string()));
+	if !raw_chain_spec.exists() {
+		return Err(Error::MissingChainSpec(raw_chain_spec.display().to_string()));
 	}
 	check_command_exists(binary_path, "export-genesis-state")?;
-	let genesis_file = chain_spec.parent().unwrap_or(Path::new("./")).join(genesis_file_name);
+	let genesis_file = raw_chain_spec.parent().unwrap_or(Path::new("./")).join(genesis_file_name);
 	let output = cmd(
 		binary_path,
 		vec![
 			"export-genesis-state",
 			"--chain",
-			&chain_spec.display().to_string(),
+			&raw_chain_spec.display().to_string(),
 			&genesis_file.display().to_string(),
 		],
 	)
@@ -287,7 +531,7 @@ impl ChainSpec {
 	/// # Arguments
 	/// * `path` - The path to a chain specification file.
 	pub fn from(path: &Path) -> Result<ChainSpec> {
-		Ok(ChainSpec(Value::from_str(&std::fs::read_to_string(path)?)?))
+		Ok(ChainSpec(Value::from_str(&fs::read_to_string(path)?)?))
 	}
 
 	/// Get the chain type from the chain specification.
@@ -337,26 +581,18 @@ impl ChainSpec {
 	/// * `para_id` - The new value for the para_id.
 	pub fn replace_para_id(&mut self, para_id: u32) -> Result<(), Error> {
 		// Replace para_id
-		let replace = self
+		let root = self
 			.0
-			.get_mut("para_id")
-			.ok_or_else(|| Error::Config("expected `para_id`".into()))?;
-		*replace = json!(para_id);
+			.as_object_mut()
+			.ok_or_else(|| Error::Config("expected root object".into()))?;
+		root.insert("para_id".to_string(), json!(para_id));
 
 		// Replace genesis.runtimeGenesis.patch.parachainInfo.parachainId
-		let replace = self
-			.0
-			.get_mut("genesis")
-			.ok_or_else(|| Error::Config("expected `genesis`".into()))?
-			.get_mut("runtimeGenesis")
-			.ok_or_else(|| Error::Config("expected `runtimeGenesis`".into()))?
-			.get_mut("patch")
-			.ok_or_else(|| Error::Config("expected `patch`".into()))?
-			.get_mut("parachainInfo")
-			.ok_or_else(|| Error::Config("expected `parachainInfo`".into()))?
-			.get_mut("parachainId")
-			.ok_or_else(|| Error::Config("expected `parachainInfo.parachainId`".into()))?;
-		*replace = json!(para_id);
+		let replace = self.0.pointer_mut("/genesis/runtimeGenesis/patch/parachainInfo/parachainId");
+		// If this fails, it means it is a raw chainspec
+		if let Some(replace) = replace {
+			*replace = json!(para_id);
+		}
 		Ok(())
 	}
 
@@ -366,11 +602,11 @@ impl ChainSpec {
 	/// * `relay_name` - The new value for the relay chain field in the specification.
 	pub fn replace_relay_chain(&mut self, relay_name: &str) -> Result<(), Error> {
 		// Replace relay_chain
-		let replace = self
+		let root = self
 			.0
-			.get_mut("relay_chain")
-			.ok_or_else(|| Error::Config("expected `relay_chain`".into()))?;
-		*replace = json!(relay_name);
+			.as_object_mut()
+			.ok_or_else(|| Error::Config("expected root object".into()))?;
+		root.insert("relay_chain".to_string(), json!(relay_name));
 		Ok(())
 	}
 
@@ -399,6 +635,30 @@ impl ChainSpec {
 			.get_mut("protocolId")
 			.ok_or_else(|| Error::Config("expected `protocolId`".into()))?;
 		*replace = json!(protocol_id);
+		Ok(())
+	}
+
+	/// Replaces the properties with the given ones.
+	///
+	/// # Arguments
+	/// * `raw_properties` - Comma-separated, key-value pairs. Example: "KEY1=VALUE1,KEY2=VALUE2".
+	pub fn replace_properties(&mut self, raw_properties: &str) -> Result<(), Error> {
+		// Replace properties
+		let replace = self
+			.0
+			.get_mut("properties")
+			.ok_or_else(|| Error::Config("expected `properties`".into()))?;
+		let mut properties = serde_json::Map::new();
+		let mut iter = raw_properties
+			.split(',')
+			.flat_map(|s| s.split('=').map(|p| p.trim()).collect::<Vec<_>>())
+			.collect::<Vec<_>>()
+			.into_iter();
+		while let Some(key) = iter.next() {
+			let value = iter.next().expect("Property value expected but not found");
+			properties.insert(key.to_string(), Value::String(value.to_string()));
+		}
+		*replace = Value::Object(properties);
 		Ok(())
 	}
 
@@ -656,7 +916,7 @@ mod tests {
 						package.clone(),
 						profile,
 						node_path,
-						vec!["dummy-feature"],
+						&["dummy-feature".to_string()],
 					)?;
 					let target_directory = profile.target_directory(&project);
 					assert!(target_directory.exists());
@@ -681,7 +941,13 @@ mod tests {
 		add_feature(&project, ("dummy-feature".to_string(), vec![]))?;
 		for package in [None, Some(String::from(name))] {
 			for profile in Profile::VARIANTS {
-				build_project(&project, package.clone(), profile, vec!["dummy-feature"], None)?;
+				build_project(
+					&project,
+					package.clone(),
+					profile,
+					&["dummy-feature".to_string()],
+					None,
+				)?;
 				let target_directory = profile.target_directory(&project);
 				let binary = build_binary_path(&project, |runtime_name| {
 					target_directory.join(runtime_name)
@@ -754,7 +1020,7 @@ mod tests {
 		let binary_path = replace_mock_with_binary(temp_dir.path(), binary_name)?;
 		// Test generate chain spec
 		let plain_chain_spec = &temp_dir.path().join("plain-parachain-chainspec.json");
-		generate_plain_chain_spec(
+		generate_plain_chain_spec_with_node(
 			&binary_path,
 			&temp_dir.path().join("plain-parachain-chainspec.json"),
 			false,
@@ -766,7 +1032,7 @@ mod tests {
 			chain_spec.replace_para_id(2001)?;
 			chain_spec.to_file(plain_chain_spec)?;
 		}
-		let raw_chain_spec = generate_raw_chain_spec(
+		let raw_chain_spec = generate_raw_chain_spec_with_node(
 			&binary_path,
 			plain_chain_spec,
 			"raw-parachain-chainspec.json",
@@ -776,11 +1042,15 @@ mod tests {
 		assert!(content.contains("\"para_id\": 2001"));
 		assert!(content.contains("\"bootNodes\": []"));
 		// Test export wasm file
-		let wasm_file = export_wasm_file(&binary_path, &raw_chain_spec, "para-2001-wasm")?;
+		let wasm_file =
+			export_wasm_file_with_node(&binary_path, &raw_chain_spec, "para-2001-wasm")?;
 		assert!(wasm_file.exists());
 		// Test generate chain state file
-		let genesis_file =
-			generate_genesis_state_file(&binary_path, &raw_chain_spec, "para-2001-genesis-state")?;
+		let genesis_file = generate_genesis_state_file_with_node(
+			&binary_path,
+			&raw_chain_spec,
+			"para-2001-genesis-state",
+		)?;
 		assert!(genesis_file.exists());
 		Ok(())
 	}
@@ -793,7 +1063,7 @@ mod tests {
 		let binary_name = fetch_binary(temp_dir.path()).await?;
 		let binary_path = replace_mock_with_binary(temp_dir.path(), binary_name)?;
 		assert!(matches!(
-			generate_plain_chain_spec(
+			generate_plain_chain_spec_with_node(
 				&binary_path,
 				&temp_dir.path().join("plain-parachain-chainspec.json"),
 				false,
@@ -808,7 +1078,7 @@ mod tests {
 	#[test]
 	fn raw_chain_spec_fails_wrong_chain_spec() -> Result<()> {
 		assert!(matches!(
-			generate_raw_chain_spec(
+			generate_raw_chain_spec_with_node(
 				Path::new("./binary"),
 				Path::new("./plain-parachain-chainspec.json"),
 				"plain-parachain-chainspec.json"
@@ -821,7 +1091,7 @@ mod tests {
 	#[test]
 	fn export_wasm_file_fails_wrong_chain_spec() -> Result<()> {
 		assert!(matches!(
-			export_wasm_file(
+			export_wasm_file_with_node(
 				Path::new("./binary"),
 				Path::new("./raw-parachain-chainspec"),
 				"para-2001-wasm"
@@ -834,7 +1104,7 @@ mod tests {
 	#[test]
 	fn generate_genesis_state_file_wrong_chain_spec() -> Result<()> {
 		assert!(matches!(
-			generate_genesis_state_file(
+			generate_genesis_state_file_with_node(
 				Path::new("./binary"),
 				Path::new("./raw-parachain-chainspec"),
 				"para-2001-genesis-state",
@@ -957,20 +1227,6 @@ mod tests {
 	#[test]
 	fn replace_para_id_fails() -> Result<()> {
 		let mut chain_spec = ChainSpec(json!({
-			"genesis": {
-				"runtimeGenesis": {
-					"patch": {
-						"parachainInfo": {
-							"parachainId": 1000
-						}
-					}
-				}
-			},
-		}));
-		assert!(
-			matches!(chain_spec.replace_para_id(2001), Err(Error::Config(error)) if error == "expected `para_id`")
-		);
-		chain_spec = ChainSpec(json!({
 			"para_id": 2001,
 			"": {
 				"runtimeGenesis": {
@@ -982,9 +1238,7 @@ mod tests {
 				}
 			},
 		}));
-		assert!(
-			matches!(chain_spec.replace_para_id(2001), Err(Error::Config(error)) if error == "expected `genesis`")
-		);
+		assert!(chain_spec.replace_para_id(2001).is_ok());
 		chain_spec = ChainSpec(json!({
 			"para_id": 2001,
 			"genesis": {
@@ -997,9 +1251,7 @@ mod tests {
 				}
 			},
 		}));
-		assert!(
-			matches!(chain_spec.replace_para_id(2001), Err(Error::Config(error)) if error == "expected `runtimeGenesis`")
-		);
+		assert!(chain_spec.replace_para_id(2001).is_ok());
 		chain_spec = ChainSpec(json!({
 			"para_id": 2001,
 			"genesis": {
@@ -1012,9 +1264,7 @@ mod tests {
 				}
 			},
 		}));
-		assert!(
-			matches!(chain_spec.replace_para_id(2001), Err(Error::Config(error)) if error == "expected `patch`")
-		);
+		assert!(chain_spec.replace_para_id(2001).is_ok());
 		chain_spec = ChainSpec(json!({
 			"para_id": 2001,
 			"genesis": {
@@ -1027,9 +1277,7 @@ mod tests {
 				}
 			},
 		}));
-		assert!(
-			matches!(chain_spec.replace_para_id(2001), Err(Error::Config(error)) if error == "expected `parachainInfo`")
-		);
+		assert!(chain_spec.replace_para_id(2001).is_ok());
 		chain_spec = ChainSpec(json!({
 			"para_id": 2001,
 			"genesis": {
@@ -1041,9 +1289,7 @@ mod tests {
 				}
 			},
 		}));
-		assert!(
-			matches!(chain_spec.replace_para_id(2001), Err(Error::Config(error)) if error == "expected `parachainInfo.parachainId`")
-		);
+		assert!(chain_spec.replace_para_id(2001).is_ok());
 		Ok(())
 	}
 
@@ -1052,15 +1298,6 @@ mod tests {
 		let mut chain_spec = ChainSpec(json!({"relay_chain": "old-relay"}));
 		chain_spec.replace_relay_chain("new-relay")?;
 		assert_eq!(chain_spec.0, json!({"relay_chain": "new-relay"}));
-		Ok(())
-	}
-
-	#[test]
-	fn replace_relay_chain_fails() -> Result<()> {
-		let mut chain_spec = ChainSpec(json!({"": "old-relay"}));
-		assert!(
-			matches!(chain_spec.replace_relay_chain("new-relay"), Err(Error::Config(error)) if error == "expected `relay_chain`")
-		);
 		Ok(())
 	}
 
@@ -1284,16 +1521,177 @@ mod tests {
 		// Standard rust project
 		let name = "hello_world";
 		cmd("cargo", ["new", name]).dir(path).run()?;
-		assert!(!is_supported(Some(&path.join(name)))?);
+		assert!(!is_supported(&path.join(name)));
 
 		// Chain
-		let mut manifest = from_path(Some(&path.join(name)))?;
+		let mut manifest = from_path(&path.join(name))?;
 		manifest
 			.dependencies
 			.insert("cumulus-client-collator".into(), Dependency::Simple("^0.14.0".into()));
 		let manifest = toml_edit::ser::to_string_pretty(&manifest)?;
 		write(path.join(name).join("Cargo.toml"), manifest)?;
-		assert!(is_supported(Some(&path.join(name)))?);
+		assert!(is_supported(&path.join(name)));
+		Ok(())
+	}
+
+	#[test]
+	fn chain_spec_builder_node_path_works() -> Result<()> {
+		let node_path = PathBuf::from("/test/node");
+		let builder = ChainSpecBuilder::Node {
+			node_path: node_path.clone(),
+			default_bootnode: true,
+			profile: Profile::Release,
+		};
+		assert_eq!(builder.path(), node_path);
+		Ok(())
+	}
+
+	#[test]
+	fn chain_spec_builder_runtime_path_works() -> Result<()> {
+		let runtime_path = PathBuf::from("/test/runtime");
+		let builder = ChainSpecBuilder::Runtime {
+			runtime_path: runtime_path.clone(),
+			profile: Profile::Release,
+		};
+		assert_eq!(builder.path(), runtime_path);
+		Ok(())
+	}
+
+	#[test]
+	fn chain_spec_builder_node_profile_works() -> Result<()> {
+		for profile in Profile::VARIANTS {
+			let builder = ChainSpecBuilder::Node {
+				node_path: PathBuf::from("/test/node"),
+				default_bootnode: true,
+				profile: profile.clone(),
+			};
+			assert_eq!(builder.profile(), *profile);
+		}
+		Ok(())
+	}
+
+	#[test]
+	fn chain_spec_builder_runtime_profile_works() -> Result<()> {
+		for profile in Profile::VARIANTS {
+			let builder = ChainSpecBuilder::Runtime {
+				runtime_path: PathBuf::from("/test/runtime"),
+				profile: profile.clone(),
+			};
+			assert_eq!(builder.profile(), *profile);
+		}
+		Ok(())
+	}
+
+	#[test]
+	fn chain_spec_builder_node_artifact_path_works() -> Result<()> {
+		let temp_dir =
+			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
+		mock_build_process(temp_dir.path())?;
+
+		let builder = ChainSpecBuilder::Node {
+			node_path: temp_dir.path().join("node"),
+			default_bootnode: true,
+			profile: Profile::Release,
+		};
+		let artifact_path = builder.artifact_path()?;
+		assert!(artifact_path.exists());
+		assert!(artifact_path.ends_with("parachain-template-node"));
+		Ok(())
+	}
+
+	#[test]
+	fn chain_spec_builder_runtime_artifact_path_works() -> Result<()> {
+		let temp_dir =
+			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
+		mock_build_runtime_process(temp_dir.path())?;
+
+		let builder = ChainSpecBuilder::Runtime {
+			runtime_path: temp_dir.path().join("runtime"),
+			profile: Profile::Release,
+		};
+		let artifact_path = builder.artifact_path()?;
+		assert!(artifact_path.is_file());
+		assert!(artifact_path.ends_with("parachain_template_runtime.wasm"));
+		Ok(())
+	}
+
+	#[test]
+	fn chain_spec_builder_node_artifact_path_fails() -> Result<()> {
+		let temp_dir =
+			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
+
+		let builder = ChainSpecBuilder::Node {
+			node_path: temp_dir.path().join("node"),
+			default_bootnode: true,
+			profile: Profile::Release,
+		};
+		assert!(builder.artifact_path().is_err());
+		Ok(())
+	}
+
+	#[test]
+	fn chain_spec_builder_runtime_artifact_path_fails() -> Result<()> {
+		let temp_dir =
+			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
+
+		let builder = ChainSpecBuilder::Runtime {
+			runtime_path: temp_dir.path().join("runtime"),
+			profile: Profile::Release,
+		};
+		let result = builder.artifact_path();
+		assert!(result.is_err());
+		assert!(matches!(result, Err(e) if e.to_string().contains("No runtime found")));
+		Ok(())
+	}
+
+	#[test]
+	fn chain_spec_builder_generate_raw_chain_spec_works() -> Result<()> {
+		let temp_dir = tempdir()?;
+		let builder = ChainSpecBuilder::Runtime {
+			runtime_path: temp_dir.path().join("runtime"),
+			profile: Profile::Release,
+		};
+		let original_chain_spec_path =
+			PathBuf::from("artifacts/passet-hub-spec.json").canonicalize()?;
+		assert!(original_chain_spec_path.exists());
+		let chain_spec_path = temp_dir.path().join(original_chain_spec_path.file_name().unwrap());
+		fs::copy(&original_chain_spec_path, &chain_spec_path)?;
+		let raw_chain_spec_path = temp_dir.path().join("raw.json");
+		let final_raw_path = builder.generate_raw_chain_spec(
+			&chain_spec_path,
+			raw_chain_spec_path.file_name().unwrap().to_str().unwrap(),
+		)?;
+		assert!(final_raw_path.is_file());
+		assert_eq!(final_raw_path, raw_chain_spec_path);
+
+		// Check raw chain spec contains expected fields
+		let raw_content = fs::read_to_string(&raw_chain_spec_path)?;
+		let raw_json: Value = serde_json::from_str(&raw_content)?;
+		assert!(raw_json.get("genesis").is_some());
+		assert!(raw_json.get("genesis").unwrap().get("raw").is_some());
+		assert!(raw_json.get("genesis").unwrap().get("raw").unwrap().get("top").is_some());
+		Ok(())
+	}
+
+	#[test]
+	fn chain_spec_builder_export_wasm_works() -> Result<()> {
+		let temp_dir = tempdir()?;
+		let builder = ChainSpecBuilder::Runtime {
+			runtime_path: temp_dir.path().join("runtime"),
+			profile: Profile::Release,
+		};
+		let original_chain_spec_path =
+			PathBuf::from("artifacts/passet-hub-spec.json").canonicalize()?;
+		let chain_spec_path = temp_dir.path().join(original_chain_spec_path.file_name().unwrap());
+		fs::copy(&original_chain_spec_path, &chain_spec_path)?;
+		let final_wasm_path = temp_dir.path().join("runtime.wasm");
+		let final_raw_path = builder.generate_raw_chain_spec(&chain_spec_path, "raw.json")?;
+		let wasm_path = builder.export_wasm_file(
+			&final_raw_path,
+			final_wasm_path.file_name().unwrap().to_str().unwrap(),
+		)?;
+		assert!(wasm_path.is_file());
+		assert_eq!(final_wasm_path, wasm_path);
 		Ok(())
 	}
 }

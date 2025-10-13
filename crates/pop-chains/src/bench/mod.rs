@@ -1,17 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::Error;
+use crate::{Error, utils::helpers::HostFunctions};
 use clap::Parser;
 use duct::cmd;
 use frame_benchmarking_cli::PalletCmd;
 pub use frame_benchmarking_cli::{BlockCmd, MachineCmd, OverheadCmd, StorageCmd};
-use sc_chain_spec::GenesisConfigBuilderRuntimeCaller;
 use serde::{Deserialize, Serialize};
 use sp_runtime::traits::BlakeTwo256;
 use std::{
 	collections::BTreeMap,
 	fmt::Display,
-	fs,
 	io::Read,
 	path::{Path, PathBuf},
 };
@@ -26,11 +24,6 @@ pub mod binary;
 ///
 /// (Recommended for testing with a single node, e.g., for benchmarking)
 pub const GENESIS_BUILDER_DEV_PRESET: &str = "development";
-
-type HostFunctions = (
-	sp_statement_store::runtime_api::HostFunctions,
-	cumulus_primitives_proof_size_hostfunction::storage_proof_size::HostFunctions,
-);
 
 /// Type alias for records where the key is the pallet name and the value is an array of its
 /// extrinsics.
@@ -104,18 +97,6 @@ impl TryFrom<String> for GenesisBuilderPolicy {
 			_ => Err(format!("Invalid genesis builder policy: {}", s)),
 		}
 	}
-}
-
-/// Get genesis builder preset names of the runtime.
-///
-/// # Arguments
-/// * `binary_path` - Path to the runtime binary.
-pub fn get_preset_names(binary_path: &PathBuf) -> Result<Vec<String>, Error> {
-	let binary = fs::read(binary_path)?;
-	let genesis_config_builder = GenesisConfigBuilderRuntimeCaller::<HostFunctions>::new(&binary);
-	genesis_config_builder
-		.preset_names()
-		.map_err(|e| Error::GenesisBuilderError(e.to_string()))
 }
 
 /// Get the runtime folder path and throws error if it does not exist.
@@ -263,6 +244,7 @@ pub fn generate_omni_bencher_benchmarks(
 mod tests {
 	use super::*;
 	use binary::omni_bencher_generator;
+	use std::fs;
 	use tempfile::tempdir;
 
 	#[test]
