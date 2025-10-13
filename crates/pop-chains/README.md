@@ -25,34 +25,34 @@ Build a chain:
 
 ```rust,no_run
 use pop_common::Profile;
-use pop_chains::build_chain;
+use pop_chains::ChainSpecBuilder;
 use std::path::Path;
 
 let path = Path::new("./");
-let package = None;  // The optional package to be built.
-let binary_path = build_chain(&path, package, &Profile::Release, None, &[]).unwrap();
+let builder = ChainSpecBuilder::Node { node_path: path.join("node"), default_bootnode: false, profile: Profile::Release };
+let binary_path = builder.build(&[]).unwrap();
 ```
 
 Build a chain with `runtime-benchmarks` feature:
 
 ```rs
-let binary_path = build_chain(&path, package, &Profile::Release, None, &["runtime-benchmarks".to_string()]).unwrap();
+let binary_path = builder.build(&["runtime-benchmarks".to_string()]).unwrap();
 ```
 
 Generate a plain chain specification file and customize it with your specific chain values:
 
 ```rust,no_run
 use pop_common::Profile;
-use pop_chains::{build_chain, generate_plain_chain_spec_with_node, ChainSpec};
+use pop_chains::{ChainSpecBuilder, ChainSpec};
 use std::path::Path;
 
 let path = Path::new("./"); // Location of the parachain project.
-let package = None;  // The optional package to be built.
-// The path to the node binary executable.
-let binary_path = build_chain(&path, package, &Profile::Release, None, &[]).unwrap();
+let builder = ChainSpecBuilder::Node { node_path: path.join("node"), default_bootnode: false, profile: Profile::Release };
+// Build the node binary first
+builder.build(&[]).unwrap();
 // Generate a plain chain specification file of a parachain
 let plain_chain_spec_path = path.join("plain-parachain-chainspec.json");
-generate_plain_chain_spec_with_node(&binary_path, &plain_chain_spec_path, true, "dev");
+builder.generate_plain_chain_spec("dev", &plain_chain_spec_path).unwrap();
 // Customize your chain specification
 let mut chain_spec = ChainSpec::from(&plain_chain_spec_path).unwrap();
 chain_spec.replace_para_id(2002);
@@ -67,20 +67,20 @@ Generate a raw chain specification file and export the WASM and genesis state fi
 
 ```rust,no_run
 use pop_common::Profile;
-use pop_chains::{build_chain, export_wasm_file_with_node, generate_plain_chain_spec_with_node, generate_raw_chain_spec_with_node, generate_genesis_state_file_with_node};
+use pop_chains::{ChainSpecBuilder, generate_genesis_state_file_with_node};
 use std::path::Path;
 
 let path = Path::new("./"); // Location of the parachain project.
-let package = None;  // The optional package to be built.
-// The path to the node binary executable.
-let binary_path = build_chain(&path, package, &Profile::Release, None, &[]).unwrap();;
+let builder = ChainSpecBuilder::Node { node_path: path.join("node"), default_bootnode: false, profile: Profile::Release };
+// Build the node binary first
+let binary_path = builder.build(&[]).unwrap();
 // Generate a plain chain specification file of a parachain
 let plain_chain_spec_path = path.join("plain-parachain-chainspec.json");
-generate_plain_chain_spec_with_node(&binary_path, &plain_chain_spec_path, true, "dev");
+builder.generate_plain_chain_spec("dev", &plain_chain_spec_path).unwrap();
 // Generate a raw chain specification file of a parachain
-let chain_spec = generate_raw_chain_spec_with_node(&binary_path, &plain_chain_spec_path, "raw-parachain-chainspec.json").unwrap();
+let chain_spec = builder.generate_raw_chain_spec(&plain_chain_spec_path, "raw-parachain-chainspec.json").unwrap();
 // Export the WebAssembly runtime for the parachain.
-let wasm_file = export_wasm_file_with_node(&binary_path, &chain_spec, "para-2000-wasm").unwrap();
+let wasm_file = builder.export_wasm_file(&chain_spec, "para-2000-wasm").unwrap();
 // Generate the parachain genesis state.
 let genesis_state_file = generate_genesis_state_file_with_node(&binary_path, &chain_spec, "para-2000-genesis-state").unwrap();
 ```
