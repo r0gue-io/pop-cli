@@ -15,7 +15,7 @@ use std::path::Path;
 /// * `release` - Whether the smart contract should be built without any debugging functionality.
 /// * `verbosity` - The build output verbosity.
 pub fn build_smart_contract(
-	path: Option<&Path>,
+	path: &Path,
 	release: bool,
 	verbosity: Verbosity,
 ) -> anyhow::Result<BuildResult> {
@@ -38,7 +38,7 @@ pub fn build_smart_contract(
 /// # Arguments
 /// * `path` - The optional path to the manifest, defaulting to the current directory if not
 ///   specified.
-pub fn is_supported(path: Option<&Path>) -> Result<bool, Error> {
+pub fn is_supported(path: &Path) -> Result<bool, Error> {
 	Ok(pop_common::manifest::from_path(path)?.dependencies.contains_key("ink"))
 }
 
@@ -56,12 +56,12 @@ mod tests {
 		// Standard rust project
 		let name = "hello_world";
 		cmd("cargo", ["new", name]).dir(path).run()?;
-		assert!(!is_supported(Some(&path.join(name)))?);
+		assert!(!is_supported(&path.join(name))?);
 
 		// Contract
 		let name = "flipper";
 		new_contract_project(name, Some(&path))?;
-		assert!(is_supported(Some(&path.join(name)))?);
+		assert!(is_supported(&path.join(name))?);
 		Ok(())
 	}
 }

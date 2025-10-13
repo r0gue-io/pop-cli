@@ -2,39 +2,49 @@
 
 #![doc = include_str!("../README.md")]
 
+/// Account management and utility functions.
 mod accounts;
 /// Provides functionality for benchmarking.
 pub mod bench;
+/// Provides functionality for building chain binaries and runtime artifacts.
 mod build;
 /// Provides functionality to construct, encode, sign, and submit chain extrinsics.
 mod call;
 /// Deployment providers' metadata and utility functions.
 mod deployer_providers;
+/// Error types and handling for the crate.
 mod errors;
+/// Code generation utilities.
 mod generator;
+/// Functionality for creating new blockchain implementations.
 mod new_chain;
+/// Tools for creating new runtime pallets.
 mod new_pallet;
 /// A registry of parachains.
 pub mod registry;
+/// Relay chain interaction and management.
 mod relay;
+/// Template definitions and processing.
 mod templates;
+/// Common traits used throughout the crate.
 mod traits;
 /// Provides functionality for testing runtime upgrades.
 pub mod try_runtime;
 /// Provides functionality for launching a local network.
 pub mod up;
-mod utils;
+/// General utility functions and helpers.
+pub mod utils;
 
 pub use bench::{
 	BenchmarkingCliCommand, GENESIS_BUILDER_DEV_PRESET, GenesisBuilderPolicy,
 	PalletExtrinsicsRegistry, binary::*, generate_binary_benchmarks,
-	generate_omni_bencher_benchmarks, generate_pallet_benchmarks, get_preset_names,
-	get_runtime_path, load_pallet_extrinsics,
+	generate_omni_bencher_benchmarks, generate_pallet_benchmarks, get_runtime_path,
+	load_pallet_extrinsics,
 };
 pub use build::{
-	ChainSpec, binary_path, build_chain, build_project, export_wasm_file,
-	generate_genesis_state_file, generate_plain_chain_spec, generate_raw_chain_spec, is_supported,
-	runtime,
+	ChainSpec, ChainSpecBuilder, binary_path, build_chain, build_project,
+	export_wasm_file_with_node, generate_genesis_state_file_with_node,
+	generate_plain_chain_spec_with_node, generate_raw_chain_spec_with_node, is_supported, runtime,
 	runtime::{ContainerEngine, DeterministicBuilder},
 	runtime_binary_path,
 };

@@ -109,14 +109,14 @@ pub fn parse_version(value: &str) -> Option<Version> {
 	}
 }
 
-/// Sorts the provided versions using semantic versioning, with the latest version first. Prerelease
-/// versions are omitted.
+/// Sorts the provided versions using stable and semantic versioning,
+/// with the latest version first. Prerelease versions are omitted.
 ///
 /// # Arguments
 /// * `versions` - The versions to sort.
 pub fn sort_by_latest_semantic_version<T: AsRef<str>>(versions: &mut [T]) -> SortedSlice<T> {
 	SortedSlice::by_key(versions, |tag| {
-		parse_semantic_version(tag.as_ref())
+		parse_version(tag.as_ref())
 			.map(|version| Reverse(Some(version)))
 			.unwrap_or(Reverse(None))
 	})
@@ -232,11 +232,17 @@ mod tests {
 					"polkadot-v1.8.0",
 					"polkadot-v1.9.0",
 					"v1.18.1",
+					"stable2503-7",
+					"stable2506",
+					"stable2407-5",
 				]
 				.as_mut_slice()
 			)
 			.0,
 			[
+				"stable2506",
+				"stable2503-7",
+				"stable2407-5",
 				"v1.18.1",
 				"v1.18.0",
 				"v1.17.0",

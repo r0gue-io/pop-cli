@@ -102,7 +102,8 @@ impl TestExecuteBlockCommand {
 		cli: &mut impl cli::traits::Cli,
 		user_provided_args: Vec<String>,
 	) -> anyhow::Result<()> {
-		let binary_path = check_try_runtime_and_prompt(cli, self.build_params.skip_confirm).await?;
+		let binary_path =
+			check_try_runtime_and_prompt(cli, &spinner(), self.build_params.skip_confirm).await?;
 		cli.warning("NOTE: this may take some time...")?;
 
 		let spinner = spinner();
@@ -116,7 +117,7 @@ impl TestExecuteBlockCommand {
 			[before_subcommand, vec![StateCommand::Live.to_string()], after_subcommand].concat(),
 			&CUSTOM_ARGS,
 		)?;
-		spinner.stop("");
+		spinner.clear();
 		Ok(())
 	}
 
@@ -194,7 +195,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn execute_block_works() -> anyhow::Result<()> {
-		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
+		source_try_runtime_binary(&mut MockCli::new(), &spinner(), &crate::cache()?, true).await?;
 
 		let mut cli = MockCli::new()
 			.expect_intro("Testing block execution")
@@ -236,7 +237,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn execute_block_invalid_uri() -> anyhow::Result<()> {
-		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
+		source_try_runtime_binary(&mut MockCli::new(), &spinner(), &crate::cache()?, true).await?;
 		let mut cmd = TestExecuteBlockCommand::default();
 		cmd.state.uri = Some("ws://127.0.0.1:9999".to_string());
 		let error = cmd.run(&mut MockCli::new(), vec![]).await.unwrap_err();
