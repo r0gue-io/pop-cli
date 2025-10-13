@@ -150,10 +150,15 @@ impl CallChainCommand {
 							let type_info = registry
 								.resolve(key_ty)
 								.ok_or(anyhow!("Failed to resolve storage key type: {key_ty}"))?;
-							let name = type_info.path.segments.last().expect("path must exists");
+							let name = type_info
+								.path
+								.segments
+								.last()
+								.unwrap_or(&format!("{:?}", type_info.type_def))
+								.to_string();
 
 							// Convert the key type_id to a Param for parsing
-							let key_param = type_to_param(name, registry, key_ty)
+							let key_param = type_to_param(&name, registry, key_ty)
 								.map_err(|e| anyhow!("Failed to parse storage key type: {e}"))?;
 
 							// Parse the string arguments into Value types
@@ -279,7 +284,12 @@ impl CallChainCommand {
 							let type_info = registry
 								.resolve(key_ty)
 								.ok_or(anyhow!("Failed to resolve storage key type: {key_ty}"))?;
-							let name = type_info.path.segments.last().expect("path must exists");
+							let name = type_info
+								.path
+								.segments
+								.last()
+								.unwrap_or(&format!("{:?}", type_info.type_def))
+								.to_string();
 
 							// Convert the key type_id to a Param for prompting
 							let key_param = type_to_param(&name.to_string(), registry, key_ty)
