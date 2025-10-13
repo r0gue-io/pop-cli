@@ -154,7 +154,7 @@ impl CallChainCommand {
 								.path
 								.segments
 								.last()
-								.unwrap_or(&format!("{:?}", type_info.type_def))
+								.unwrap_or(&"".to_string())
 								.to_string();
 
 							// Convert the key type_id to a Param for parsing
@@ -177,17 +177,33 @@ impl CallChainCommand {
 					};
 
 					// Query the storage
-					match storage.query(&chain.client, keys).await {
-						Ok(Some(value)) => {
-							cli.success(&raw_value_to_string(&value)?)?;
-						},
-						Ok(None) => {
-							cli.warning("Storage value not found")?;
-						},
-						Err(e) => {
-							cli.error(format!("Failed to query storage: {e}"))?;
-							break;
-						},
+					if storage.query_all {
+						match storage.query_all(&chain.client, keys).await {
+							Ok(values) => {
+								let mut result = String::new();
+								for value in values {
+									result.push_str(&format!("{}\n", raw_value_to_string(&value)?));
+								}
+								cli.success(result)?;
+							},
+							Err(e) => {
+								cli.error(format!("Failed to query storage: {e}"))?;
+								break;
+							},
+						}
+					} else {
+						match storage.query(&chain.client, keys).await {
+							Ok(Some(value)) => {
+								cli.success(&raw_value_to_string(&value)?)?;
+							},
+							Ok(None) => {
+								cli.warning("Storage value not found")?;
+							},
+							Err(e) => {
+								cli.error(format!("Failed to query storage: {e}"))?;
+								break;
+							},
+						}
 					}
 				},
 			};
@@ -227,7 +243,7 @@ impl CallChainCommand {
 			};
 
 			// Resolve dispatchable function.
-			let call_item = match self.function {
+			let mut call_item = match self.function {
 				Some(ref name) => find_callable_by_name(&chain.pallets, &pallet.name, name)?,
 				None => {
 					let mut prompt = cli.select("Select the function to call (type to filter):");
@@ -240,7 +256,7 @@ impl CallChainCommand {
 				},
 			};
 
-			let (args, suri) = match &call_item {
+			let (args, suri) = match &mut call_item {
 				CallItem::Function(function) => {
 					// Certain dispatchable functions are not supported yet due to complexity.
 					if !function.is_supported {
@@ -255,7 +271,7 @@ impl CallChainCommand {
 					let args = if self.args.is_empty() {
 						let mut args = Vec::new();
 						for param in &function.params {
-							let input = prompt_for_param(cli, param)?;
+							let input = prompt_for_param(cli, param, true)?;
 							args.push(input);
 						}
 						args
@@ -288,16 +304,34 @@ impl CallChainCommand {
 								.path
 								.segments
 								.last()
-								.unwrap_or(&format!("{:?}", type_info.type_def))
+								.unwrap_or(&"".to_string())
 								.to_string();
 
 							// Convert the key type_id to a Param for prompting
 							let key_param = type_to_param(&name.to_string(), registry, key_ty)
 								.map_err(|e| anyhow!("Failed to parse storage key type: {e}"))?;
 
-							// Prompt user for the storage key
-							let key_value = prompt_for_param(cli, &key_param)?;
-							vec![key_value]
+							let mut params = vec![];
+							if key_param.sub_params.is_empty() {
+								// Prompt user for the storage key
+								let key_value = prompt_for_param(cli, &key_param, false)?;
+								if !key_value.is_empty() {
+									params.push(key_value);
+								} else {
+									storage.query_all = true;
+								}
+							} else {
+								for sub_param in key_param.sub_params {
+									let sub_key_value = prompt_for_param(cli, &sub_param, false)?;
+									if !sub_key_value.is_empty() {
+										params.push(sub_key_value);
+									} else {
+										storage.query_all = true;
+										break;
+									}
+								}
+							}
+							params
 						} else {
 							self.expand_file_arguments()?
 						}
@@ -577,7 +611,7 @@ fn prompt_predefined_actions(pallets: &[Pallet], cli: &mut impl Cli) -> Result<O
 }
 
 // Prompts the user for the value of a parameter.
-fn prompt_for_param(cli: &mut impl Cli, param: &Param) -> Result<String> {
+fn prompt_for_param(cli: &mut impl Cli, param: &Param, force_required: bool) -> Result<String> {
 	if param.is_optional {
 		if !cli
 			.confirm(format!(
@@ -588,30 +622,30 @@ fn prompt_for_param(cli: &mut impl Cli, param: &Param) -> Result<String> {
 		{
 			return Ok("None()".to_string());
 		}
-		let value = get_param_value(cli, param)?;
+		let value = get_param_value(cli, param, true)?;
 		Ok(format!("Some({})", value))
 	} else {
-		get_param_value(cli, param)
+		get_param_value(cli, param, force_required)
 	}
 }
 
 // Resolves the value of a parameter based on its type.
-fn get_param_value(cli: &mut impl Cli, param: &Param) -> Result<String> {
+fn get_param_value(cli: &mut impl Cli, param: &Param, force_required: bool) -> Result<String> {
 	if param.is_sequence {
-		prompt_for_sequence_param(cli, param)
+		prompt_for_sequence_param(cli, param, force_required)
 	} else if param.sub_params.is_empty() {
-		prompt_for_primitive_param(cli, param)
+		prompt_for_primitive_param(cli, param, force_required)
 	} else if param.is_variant {
-		prompt_for_variant_param(cli, param)
+		prompt_for_variant_param(cli, param, force_required)
 	} else if param.is_tuple {
-		prompt_for_tuple_param(cli, param)
+		prompt_for_tuple_param(cli, param, force_required)
 	} else {
-		prompt_for_composite_param(cli, param)
+		prompt_for_composite_param(cli, param, force_required)
 	}
 }
 
 // Prompt for the value when it is a sequence.
-fn prompt_for_sequence_param(cli: &mut impl Cli, param: &Param) -> Result<String> {
+fn prompt_for_sequence_param(cli: &mut impl Cli, param: &Param, force_required: bool) -> Result<String> {
 	let input_value = cli
 		.input(format!(
 			"The value for `{}` might be too large to enter. You may enter the path to a file instead.",
@@ -621,6 +655,7 @@ fn prompt_for_sequence_param(cli: &mut impl Cli, param: &Param) -> Result<String
 			"Enter a value of type {} or provide a file path (e.g. /path/to/your/file)",
 			param.type_name
 		))
+		.required(param.is_optional || force_required)
 		.interact()?;
 	if Path::new(&input_value).is_file() {
 		return std::fs::read_to_string(&input_value)
@@ -630,17 +665,18 @@ fn prompt_for_sequence_param(cli: &mut impl Cli, param: &Param) -> Result<String
 }
 
 // Prompt for the value when it is a primitive.
-fn prompt_for_primitive_param(cli: &mut impl Cli, param: &Param) -> Result<String> {
+fn prompt_for_primitive_param(cli: &mut impl Cli, param: &Param, force_required: bool) -> Result<String> {
 	Ok(cli
 		.input(format!("Enter the value for the parameter: {}", param.name))
 		.placeholder(&format!("Type required: {}", param.type_name))
+		.required(param.is_optional || force_required)
 		.interact()?)
 }
 
 // Prompt the user to select the value of the variant parameter and recursively prompt for nested
 // fields. Output example: `Id(5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY)` for the `Id`
 // variant.
-fn prompt_for_variant_param(cli: &mut impl Cli, param: &Param) -> Result<String> {
+fn prompt_for_variant_param(cli: &mut impl Cli, param: &Param, force_required: bool) -> Result<String> {
 	let selected_variant = {
 		let mut select = cli.select(format!("Select the value for the parameter: {}", param.name));
 		for option in &param.sub_params {
@@ -652,7 +688,7 @@ fn prompt_for_variant_param(cli: &mut impl Cli, param: &Param) -> Result<String>
 	if !selected_variant.sub_params.is_empty() {
 		let mut field_values = Vec::new();
 		for field_arg in &selected_variant.sub_params {
-			let field_value = prompt_for_param(cli, field_arg)?;
+			let field_value = prompt_for_param(cli, field_arg, force_required)?;
 			field_values.push(field_value);
 		}
 		Ok(format!("{}({})", selected_variant.name, field_values.join(", ")))
@@ -678,10 +714,10 @@ fn prompt_for_variant_param(cli: &mut impl Cli, param: &Param) -> Result<String>
 //     ],
 //     is_variant: false
 // }
-fn prompt_for_composite_param(cli: &mut impl Cli, param: &Param) -> Result<String> {
+fn prompt_for_composite_param(cli: &mut impl Cli, param: &Param, force_required: bool) -> Result<String> {
 	let mut field_values = Vec::new();
 	for field_arg in &param.sub_params {
-		let field_value = prompt_for_param(cli, field_arg)?;
+		let field_value = prompt_for_param(cli, field_arg, force_required)?;
 		if param.sub_params.len() == 1 && param.name == param.sub_params[0].name {
 			field_values.push(field_value);
 		} else {
@@ -696,10 +732,10 @@ fn prompt_for_composite_param(cli: &mut impl Cli, param: &Param) -> Result<Strin
 }
 
 // Recursively prompt the user for the tuple values.
-fn prompt_for_tuple_param(cli: &mut impl Cli, param: &Param) -> Result<String> {
+fn prompt_for_tuple_param(cli: &mut impl Cli, param: &Param, force_required: bool) -> Result<String> {
 	let mut tuple_values = Vec::new();
 	for tuple_param in param.sub_params.iter() {
-		let tuple_value = prompt_for_param(cli, tuple_param)?;
+		let tuple_value = prompt_for_param(cli, tuple_param, force_required)?;
 		tuple_values.push(tuple_value);
 	}
 	Ok(format!("({})", tuple_values.join(", ")))

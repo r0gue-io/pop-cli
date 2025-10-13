@@ -7,6 +7,7 @@ use std::fmt::{Display, Formatter, Write};
 use subxt::{
 	Metadata, OnlineClient, SubstrateConfig,
 	dynamic::Value,
+	ext::futures::TryStreamExt,
 	metadata::types::{PalletMetadata, StorageEntryType},
 	utils::to_hex,
 };
@@ -263,6 +264,8 @@ pub struct Storage {
 	pub type_id: u32,
 	/// Optional type ID for map-type storage items. Usually a tuple.
 	pub key_id: Option<u32>,
+	/// Whether to query all values for a storage item, optionally filtered by provided keys.
+	pub query_all: bool,
 }
 
 impl Display for Storage {
@@ -272,6 +275,47 @@ impl Display for Storage {
 }
 
 impl Storage {
+	/// Queries all values for a storage item, optionally filtered by provided keys.
+	///
+	/// This method allows retrieving multiple values from storage by iterating through all entries
+	/// that match the provided keys. For map-type storage items, keys can be used to filter
+	/// the results.
+	///
+	/// # Arguments
+	/// * `client` - The client to interact with the chain.
+	/// * `keys` - Optional storage keys for map-type storage items to filter results.
+	pub async fn query_all(
+		&self,
+		client: &OnlineClient<SubstrateConfig>,
+		keys: Vec<Value>,
+	) -> Result<Vec<RawValue>, Error> {
+		let mut elements = Vec::new();
+		let metadata = client.metadata();
+		let types = metadata.types();
+		let storage_address = subxt::dynamic::storage(&self.pallet, &self.name, keys);
+		let mut stream = client
+			.storage()
+			.at_latest()
+			.await
+			.map_err(|e| Error::MetadataParsingError(format!("Failed to get storage: {}", e)))?
+			.iter(storage_address)
+			.await
+			.map_err(|e| {
+				Error::MetadataParsingError(format!("Failed to fetch storage value: {}", e))
+			})?;
+
+		while let Some(storage_data) = stream.try_next().await.map_err(|e| {
+			Error::MetadataParsingError(format!("Failed to fetch storage value: {}", e))
+		})? {
+			let mut bytes = storage_data.value.encoded();
+			let decoded_value = scale_value::scale::decode_as_type(&mut bytes, self.type_id, types)
+				.map_err(|e| {
+					Error::MetadataParsingError(format!("Failed to decode storage value: {}", e))
+				})?;
+			elements.push(decoded_value);
+		}
+		Ok(elements)
+	}
 	/// Query the storage value from the chain and return it as a formatted string.
 	///
 	/// # Arguments
@@ -344,6 +388,7 @@ fn extract_chain_state_from_pallet_metadata(
 							StorageEntryType::Plain(_) => None,
 							StorageEntryType::Map { key_ty, .. } => Some(*key_ty),
 						},
+						query_all: false,
 					})
 				})
 				.collect::<Result<Vec<Storage>, Error>>()
@@ -661,6 +706,7 @@ mod tests {
 			docs: "The full account information for a particular account ID.".to_string(),
 			type_id: 42,
 			key_id: None,
+			query_all: false,
 		};
 		assert_eq!(format!("{storage}"), "Account");
 	}
@@ -686,6 +732,7 @@ mod tests {
 				docs: "The full account information for a particular account ID.".to_string(),
 				type_id: 42,
 				key_id: None,
+				query_all: false,
 			}],
 		};
 		assert_eq!(pallet.constants.len(), 1);
@@ -703,6 +750,7 @@ mod tests {
 			docs: "Current time for the current block.".to_string(),
 			type_id: 10,
 			key_id: None,
+			query_all: false,
 		};
 		assert_eq!(plain_storage.pallet, "Timestamp");
 		assert_eq!(plain_storage.name, "Now");
@@ -715,6 +763,7 @@ mod tests {
 			docs: "The full account information for a particular account ID.".to_string(),
 			type_id: 42,
 			key_id: Some(100),
+			query_all: false,
 		};
 		assert_eq!(map_storage.pallet, "System");
 		assert_eq!(map_storage.name, "Account");
@@ -787,6 +836,7 @@ mod tests {
 			docs: "docs".to_string(),
 			type_id: 42,
 			key_id: None,
+			query_all: false,
 		};
 		let item = CallItem::Storage(storage);
 		assert_eq!(format!("{item}"), "Account");
@@ -821,6 +871,7 @@ mod tests {
 			docs: "docs".to_string(),
 			type_id: 42,
 			key_id: None,
+			query_all: false,
 		};
 		let item = CallItem::Storage(storage.clone());
 		assert_eq!(item.as_function(), None);
@@ -853,6 +904,7 @@ mod tests {
 			docs: "docs".to_string(),
 			type_id: 42,
 			key_id: None,
+			query_all: false,
 		};
 		let item = CallItem::Storage(storage);
 		assert_eq!(item.name(), "Account");
@@ -883,6 +935,7 @@ mod tests {
 			docs: "docs".to_string(),
 			type_id: 42,
 			key_id: None,
+			query_all: false,
 		};
 		let item = CallItem::Storage(storage);
 		assert_eq!(item.hint(), "[STORAGE]");
@@ -914,6 +967,7 @@ mod tests {
 			docs: "The full account information for a particular account ID.".to_string(),
 			type_id: 42,
 			key_id: None,
+			query_all: false,
 		};
 		let item = CallItem::Storage(storage);
 		assert_eq!(item.docs(), "The full account information for a particular account ID.");
@@ -944,6 +998,7 @@ mod tests {
 			docs: "docs".to_string(),
 			type_id: 10,
 			key_id: None,
+			query_all: false,
 		};
 		let item = CallItem::Storage(storage);
 		assert_eq!(item.pallet(), "Timestamp");
@@ -968,6 +1023,7 @@ mod tests {
 			docs: "docs".to_string(),
 			type_id: 42,
 			key_id: None,
+			query_all: false,
 		};
 
 		let pallet = Pallet {
@@ -1016,6 +1072,7 @@ mod tests {
 			docs: "docs".to_string(),
 			type_id: 42,
 			key_id: None,
+			query_all: false,
 		};
 
 		let pallets = vec![Pallet {
