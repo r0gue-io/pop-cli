@@ -290,48 +290,41 @@ impl CallChainCommand {
 					// Handle storage queries - check if parameters are needed
 					let args = if let Some(key_ty) = storage.key_id {
 						// Storage map requires key parameters
-						if self.args.is_empty() {
-							// Get metadata to convert type_id to Param
-							let metadata = chain.client.metadata();
-							let registry = metadata.types();
-							let type_info = registry
-								.resolve(key_ty)
-								.ok_or(anyhow!("Failed to resolve storage key type: {key_ty}"))?;
-							let name = type_info
-								.path
-								.segments
-								.last()
-								.unwrap_or(&"".to_string())
-								.to_string();
+						self.expand_file_arguments()?;
+						// Get metadata to convert type_id to Param
+						let metadata = chain.client.metadata();
+						let registry = metadata.types();
+						let type_info = registry
+							.resolve(key_ty)
+							.ok_or(anyhow!("Failed to resolve storage key type: {key_ty}"))?;
+						let name =
+							type_info.path.segments.last().unwrap_or(&"".to_string()).to_string();
 
-							// Convert the key type_id to a Param for prompting
-							let key_param = type_to_param(&name.to_string(), registry, key_ty)
-								.map_err(|e| anyhow!("Failed to parse storage key type: {e}"))?;
+						// Convert the key type_id to a Param for prompting
+						let key_param = type_to_param(&name.to_string(), registry, key_ty)
+							.map_err(|e| anyhow!("Failed to parse storage key type: {e}"))?;
 
-							let mut params = vec![];
-							if key_param.sub_params.is_empty() {
-								// Prompt user for the storage key
-								let key_value = prompt_for_param(cli, &key_param, false)?;
-								if !key_value.is_empty() {
-									params.push(key_value);
+						let mut params = self.args.clone();
+						if key_param.sub_params.is_empty() && params.is_empty() {
+							// Prompt user for the storage key
+							let key_value = prompt_for_param(cli, &key_param, false)?;
+							if !key_value.is_empty() {
+								params.push(key_value);
+							} else {
+								storage.query_all = true;
+							}
+						} else {
+							for sub_param in key_param.sub_params.iter().skip(self.args.len()) {
+								let sub_key_value = prompt_for_param(cli, sub_param, false)?;
+								if !sub_key_value.is_empty() {
+									params.push(sub_key_value);
 								} else {
 									storage.query_all = true;
-								}
-							} else {
-								for sub_param in key_param.sub_params {
-									let sub_key_value = prompt_for_param(cli, &sub_param, false)?;
-									if !sub_key_value.is_empty() {
-										params.push(sub_key_value);
-									} else {
-										storage.query_all = true;
-										break;
-									}
+									break;
 								}
 							}
-							params
-						} else {
-							self.expand_file_arguments()?
 						}
+						params
 					} else {
 						// Plain storage - no parameters needed
 						vec![]
