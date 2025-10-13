@@ -2,10 +2,7 @@
 
 use crate::errors::Error;
 use params::Param;
-use scale_value::{
-	Composite, ValueDef,
-	stringify::{custom_formatters::format_hex, custom_parsers},
-};
+use scale_value::{Composite, ValueDef, stringify::custom_parsers};
 use std::fmt::{Display, Formatter, Write};
 use subxt::{
 	Metadata, OnlineClient, SubstrateConfig,
@@ -33,6 +30,21 @@ fn format_single_tuples<W: Write>(value: &RawValue, mut writer: W) -> Option<cor
 		}
 	}
 	None
+}
+
+// Formats to hexadecimal in lowercase
+fn format_hex<T, W: Write>(value: &Value<T>, mut writer: W) -> Option<core::fmt::Result> {
+	let mut result = String::new();
+	match scale_value::stringify::custom_formatters::format_hex(value, &mut result) {
+		Some(res) => match res {
+			Ok(_) => match writer.write_str(&result.to_lowercase()) {
+				Ok(_) => Some(Ok(())),
+				Err(_) => None,
+			},
+			Err(_) => None,
+		},
+		None => None,
+	}
 }
 
 /// Converts a raw SCALE value to a human-readable string representation.
