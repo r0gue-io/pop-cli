@@ -128,7 +128,8 @@ impl Command {
 				None => args.release.into(),
 			};
 			let features = args.features.unwrap_or_default();
-			let feature_list = collect_features(&features, args.benchmark, args.try_runtime);
+			let mut feature_list = collect_features(&features, args.benchmark, args.try_runtime);
+			feature_list.sort();
 
 			BuildRuntime {
 				path: project_path,
@@ -136,6 +137,7 @@ impl Command {
 				benchmark: feature_list.contains(&Benchmark.as_ref()),
 				try_runtime: feature_list.contains(&TryRuntime.as_ref()),
 				deterministic: args.deterministic,
+				features: feature_list.into_iter().map(|f| f.to_string()).collect(),
 			}
 			.execute()?;
 			return Ok(Chain);

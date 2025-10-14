@@ -10,7 +10,7 @@ use crate::{
 };
 use pop_common::{Profile, find_workspace_toml};
 use std::{
-	env::current_dir,
+	collections::HashSet,
 	path::{Path, PathBuf},
 };
 
@@ -26,15 +26,17 @@ pub struct BuildRuntime {
 	pub(crate) try_runtime: bool,
 	/// Whether to build a runtime deterministically.
 	pub(crate) deterministic: bool,
+	/// List of features that project is built with.
+	pub(crate) features: Vec<String>,
 }
 
 impl BuildRuntime {
 	/// Executes the build process.
 	pub(crate) fn execute(self) -> anyhow::Result<()> {
 		let cli = &mut cli::Cli;
-		let current_dir = current_dir().unwrap_or(PathBuf::from("./"));
-		let is_parachain = pop_chains::is_supported(&current_dir);
-		let is_runtime = pop_chains::runtime::is_supported(&current_dir);
+		let path = self.path.canonicalize().map_err(|e| anyhow::anyhow!("Invalid path: {}", e))?;
+		let is_parachain = pop_chains::is_supported(&self.path);
+		let is_runtime = pop_chains::runtime::is_supported(&self.path);
 		// `pop build runtime` must be run inside a parachain project or a specific runtime folder.
 		if !is_parachain && !is_runtime {
 			return display_message(
@@ -43,7 +45,7 @@ impl BuildRuntime {
 				cli,
 			);
 		}
-		self.build(cli, &current_dir, !is_runtime && is_parachain)
+		self.build(cli, &path, !is_runtime && is_parachain)
 	}
 
 	fn build(
@@ -53,23 +55,24 @@ impl BuildRuntime {
 		is_parachain: bool,
 	) -> anyhow::Result<()> {
 		// Enable the features based on the user's input.
-		let mut features = vec![];
+		let mut features = HashSet::new();
+		self.features.iter().for_each(|f| {
+			features.insert(f.as_str().into());
+		});
 		if self.benchmark {
-			features.push(Benchmark);
+			features.insert(Benchmark);
 		}
 		if self.try_runtime {
-			features.push(TryRuntime);
+			features.insert(TryRuntime);
 		}
 
+		let mut features: Vec<_> = features.into_iter().collect();
+		features.sort();
 		cli.intro(if features.is_empty() {
 			"Building your runtime".to_string()
 		} else {
-			let joined = features
-				.iter()
-				.map(|feat| feat.as_ref().to_string())
-				.collect::<Vec<String>>()
-				.join(",");
-			format!("Building your runtime with features: {}", joined)
+			let joined = features.iter().map(|feat| feat.as_ref()).collect::<Vec<_>>().join(",");
+			format!("Building your runtime with features: {joined}")
 		})?;
 
 		if is_parachain {
@@ -86,10 +89,10 @@ impl BuildRuntime {
 		if self.profile == Profile::Debug {
 			cli.warning("NOTE: this command now defaults to DEBUG builds. Please use `--release` (or simply `-r`) for a release build...")?;
 		}
-		let workspace_root = find_workspace_toml(path);
+		let workspace_root = find_workspace_toml(&self.path);
 		let target_path = self
 			.profile
-			.target_directory(&workspace_root.unwrap_or(path.to_path_buf()))
+			.target_directory(&workspace_root.unwrap_or(self.path.to_path_buf()))
 			.join("wbuild");
 		build_runtime(cli, &self.path, &target_path, &self.profile, &features, self.deterministic)?;
 		Ok(())
@@ -118,9 +121,10 @@ mod tests {
 		let target_dir = path.join(runtime_name);
 		add_feature(target_dir.as_path(), ("try-runtime".to_string(), vec![]))?;
 		add_feature(target_dir.as_path(), ("runtime-benchmarks".to_string(), vec![]))?;
+		add_feature(target_dir.as_path(), ("dummy-feature".to_string(), vec![]))?;
 
 		let project_path = path.join(runtime_name);
-		let features = &[Benchmark, TryRuntime];
+		let features = &[Benchmark, TryRuntime, Other("dummy-feature".to_string())];
 		add_production_profile(&project_path)?;
 		for feature in features {
 			add_feature(&project_path, (feature.as_ref().to_string(), vec![]))?;
@@ -150,12 +154,13 @@ mod tests {
 		profile: &Profile,
 		features: &[Feature],
 	) -> anyhow::Result<()> {
+		let mut raw_features: Vec<String> =
+			features.iter().map(|feat| feat.as_ref().to_string()).collect();
+		raw_features.sort();
 		let mut cli = MockCli::new().expect_intro(if features.is_empty() {
 			"Building your runtime".to_string()
 		} else {
-			let features: Vec<String> =
-				features.iter().map(|feat| feat.as_ref().to_string()).collect();
-			format!("Building your runtime with features: {}", features.join(","))
+			format!("Building your runtime with features: {}", raw_features.join(","))
 		});
 		if profile == &Profile::Debug {
 			cli = cli.expect_warning("NOTE: this command now defaults to DEBUG builds. Please use `--release` (or simply `-r`) for a release build...");
@@ -182,6 +187,7 @@ mod tests {
 			benchmark: features.contains(&Benchmark),
 			try_runtime: features.contains(&TryRuntime),
 			deterministic: false,
+			features: raw_features,
 		}
 		.build(&mut cli, project_path, false)?;
 		cli.verify()
