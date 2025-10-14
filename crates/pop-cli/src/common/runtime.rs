@@ -1,39 +1,62 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::cli::traits::*;
+use crate::{cli::traits::*, common::builds::find_runtime_dir};
 use cliclack::{ProgressBar, spinner};
 use console::style;
 use pop_chains::utils::helpers::get_preset_names;
 #[cfg(feature = "chain")]
 use pop_chains::{
-	ContainerEngine, DeterministicBuilder, GenesisBuilderPolicy, build_project, get_runtime_path,
-	runtime_binary_path,
+	ContainerEngine, DeterministicBuilder, GenesisBuilderPolicy, build_project, runtime_binary_path,
 };
 use pop_common::{Profile, manifest::from_path};
 use std::{
 	self,
+	cmp::Ordering,
 	ffi::OsStr,
 	fs,
 	path::{Path, PathBuf},
 };
 use strum::{EnumMessage, IntoEnumIterator};
 
-const DEFAULT_RUNTIME_DIR: &str = "./runtime";
-
 /// Runtime features.
-#[derive(PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone, Hash)]
 pub enum Feature {
 	/// `runtime-benchmarks` feature.
 	Benchmark,
 	/// `try-runtime` feature.
 	TryRuntime,
+	/// Other feature.
+	Other(String),
+}
+
+impl PartialOrd for Feature {
+	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+		Some(self.cmp(other))
+	}
+}
+
+impl Ord for Feature {
+	fn cmp(&self, other: &Self) -> Ordering {
+		self.as_ref().cmp(other.as_ref())
+	}
 }
 
 impl AsRef<str> for Feature {
 	fn as_ref(&self) -> &str {
 		match self {
-			Feature::Benchmark => "runtime-benchmarks",
-			Feature::TryRuntime => "try-runtime",
+			Self::Benchmark => "runtime-benchmarks",
+			Self::TryRuntime => "try-runtime",
+			Self::Other(value) => value.as_str(),
+		}
+	}
+}
+
+impl From<&str> for Feature {
+	fn from(value: &str) -> Self {
+		match value {
+			"runtime-benchmarks" => Self::Benchmark,
+			"try-runtime" => Self::TryRuntime,
+			_ => Self::Other(value.to_string()),
 		}
 	}
 }
@@ -144,7 +167,7 @@ pub(crate) fn build_deterministic_runtime(
 		let engine = ContainerEngine::detect().map_err(|_| anyhow::anyhow!("No container engine detected. A supported containerization solution (Docker or Podman) is required."))?;
 		// Warning from srtool-cli: https://github.com/chevdor/srtool-cli/blob/master/cli/src/main.rs#L28).
 		if engine == ContainerEngine::Docker {
-			cli.warning("WARNING: You are using docker. It is recommend to use podman instead.")?;
+			cli.warning("WARNING: You are using docker. It is recommended to use podman instead.")?;
 		}
 		spinner.set_message(
 			"NOTE: This process may take longer than 10-15 minutes. Please be patient...",
