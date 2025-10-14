@@ -150,14 +150,13 @@ pub fn guide_user_to_select_profile(cli: &mut impl Cli) -> anyhow::Result<Profil
 
 #[cfg(test)]
 mod tests {
-	use std::fs::{self, File};
-
 	use super::*;
-	use crate::cli::MockCli;
-	use duct::cmd;
-	use tempfile::tempdir;
+
+	#[cfg(feature = "chain")]
+	use {crate::cli::MockCli, duct::cmd, std::fs, std::fs::File, tempfile::tempdir};
 
 	#[test]
+	#[cfg(feature = "chain")]
 	fn guide_user_to_select_profile_works() -> anyhow::Result<()> {
 		let mut cli = MockCli::new().expect_select(
 			"Choose the build profile of the binary that should be used: ".to_string(),
@@ -172,6 +171,7 @@ mod tests {
 	}
 
 	#[test]
+	#[cfg(feature = "chain")]
 	fn ensure_node_binary_exists_works() -> anyhow::Result<()> {
 		let mut cli = MockCli::new();
 		let name = "node";
@@ -219,6 +219,7 @@ mod tests {
 	}
 
 	#[test]
+	#[cfg(feature = "chain")]
 	fn find_runtime_dir_with_default_path_works() -> anyhow::Result<()> {
 		let mut cli = MockCli::new();
 		let temp_dir = tempdir()?;
@@ -254,6 +255,7 @@ version = "0.1.0"
 	}
 
 	#[test]
+	#[cfg(feature = "chain")]
 	fn find_runtime_dir_with_single_workspace_runtime_works() -> anyhow::Result<()> {
 		let mut cli = MockCli::new();
 		let temp_dir = tempdir()?;
@@ -287,6 +289,7 @@ version = "0.1.0"
 	}
 
 	#[test]
+	#[cfg(feature = "chain")]
 	fn find_runtime_dir_with_multiple_runtimes_prompts_user() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
 
@@ -340,6 +343,7 @@ version = "0.1.0"
 	}
 
 	#[test]
+	#[cfg(feature = "chain")]
 	fn find_runtime_dir_fails_when_no_runtime_found() -> anyhow::Result<()> {
 		let mut cli = MockCli::new();
 		let temp_dir = tempdir()?;
@@ -374,6 +378,7 @@ version = "0.1.0"
 	}
 
 	#[test]
+	#[cfg(feature = "chain")]
 	fn create_chain_spec_builder_with_node_works() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
 
@@ -400,6 +405,7 @@ version = "0.1.0"
 	}
 
 	#[test]
+	#[cfg(feature = "chain")]
 	fn create_chain_spec_builder_with_runtime_works() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
 
