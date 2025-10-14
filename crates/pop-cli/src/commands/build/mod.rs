@@ -389,4 +389,180 @@ mod tests {
 			vec!["runtime-benchmarks", "try-runtime"]
 		);
 	}
+
+	#[test]
+	fn execute_works_with_basic_option() -> anyhow::Result<()> {
+		let name = "hello_world";
+		let temp_dir = tempfile::tempdir()?;
+		let path = temp_dir.path();
+		let project_path = path.join(name);
+		cmd("cargo", ["new", name, "--bin"]).dir(path).run()?;
+
+		let result = Command::execute(BuildArgs {
+			#[cfg(feature = "chain")]
+			command: None,
+			path: Some(project_path.clone()),
+			path_pos: None,
+			package: None,
+			release: false,
+			profile: None,
+			features: None,
+			#[cfg(feature = "chain")]
+			benchmark: false,
+			#[cfg(feature = "chain")]
+			try_runtime: false,
+			#[cfg(feature = "chain")]
+			deterministic: false,
+			#[cfg(feature = "chain")]
+			only_runtime: false,
+		})?;
+
+		assert_eq!(result, Unknown);
+		Ok(())
+	}
+
+	#[test]
+	fn execute_works_with_advanced_options() -> anyhow::Result<()> {
+		let name = "hello_world";
+		let temp_dir = tempfile::tempdir()?;
+		let path = temp_dir.path();
+		let project_path = path.join(name);
+
+		// Create a binary project
+		cmd("cargo", ["new", name, "--bin"]).dir(path).run()?;
+
+		// Add production profile to Cargo.toml
+		add_production_profile(&project_path)?;
+
+		// Add some custom features to test with
+		#[cfg(feature = "chain")]
+		{
+			add_feature(&project_path, ("runtime-benchmarks".to_string(), vec![]))?;
+			add_feature(&project_path, ("try-runtime".to_string(), vec![]))?;
+		}
+
+		// Test 1: Execute with release mode
+		let result = Command::execute(BuildArgs {
+			#[cfg(feature = "chain")]
+			command: None,
+			path: Some(project_path.clone()),
+			path_pos: None,
+			package: None,
+			release: true,
+			profile: None,
+			features: None,
+			#[cfg(feature = "chain")]
+			benchmark: false,
+			#[cfg(feature = "chain")]
+			try_runtime: false,
+			#[cfg(feature = "chain")]
+			deterministic: false,
+			#[cfg(feature = "chain")]
+			only_runtime: false,
+		})?;
+		assert_eq!(result, Unknown);
+
+		// Test 2: Execute with production profile
+		let result = Command::execute(BuildArgs {
+			#[cfg(feature = "chain")]
+			command: None,
+			path: Some(project_path.clone()),
+			path_pos: None,
+			package: None,
+			release: false,
+			profile: Some(Profile::Production),
+			features: None,
+			#[cfg(feature = "chain")]
+			benchmark: false,
+			#[cfg(feature = "chain")]
+			try_runtime: false,
+			#[cfg(feature = "chain")]
+			deterministic: false,
+			#[cfg(feature = "chain")]
+			only_runtime: false,
+		})?;
+		assert_eq!(result, Unknown);
+
+		// Test 3: Execute with custom features
+		#[cfg(feature = "chain")]
+		{
+			let result = Command::execute(BuildArgs {
+				command: None,
+				path: Some(project_path.clone()),
+				path_pos: None,
+				package: None,
+				release: false,
+				profile: None,
+				features: Some("runtime-benchmarks,try-runtime".to_string()),
+				benchmark: false,
+				try_runtime: false,
+				deterministic: false,
+				only_runtime: false,
+			})?;
+			assert_eq!(result, Unknown);
+		}
+
+		// Test 4: Execute with package parameter
+		let result = Command::execute(BuildArgs {
+			#[cfg(feature = "chain")]
+			command: None,
+			path: Some(project_path.clone()),
+			path_pos: None,
+			package: Some(name.to_string()),
+			release: true,
+			profile: Some(Profile::Release),
+			features: None,
+			#[cfg(feature = "chain")]
+			benchmark: false,
+			#[cfg(feature = "chain")]
+			try_runtime: false,
+			#[cfg(feature = "chain")]
+			deterministic: false,
+			#[cfg(feature = "chain")]
+			only_runtime: false,
+		})?;
+		assert_eq!(result, Unknown);
+
+		// Test 5: Execute with path_pos instead of path
+		let result = Command::execute(BuildArgs {
+			#[cfg(feature = "chain")]
+			command: None,
+			path: None,
+			path_pos: Some(project_path.clone()),
+			package: None,
+			release: false,
+			profile: Some(Profile::Debug),
+			features: None,
+			#[cfg(feature = "chain")]
+			benchmark: false,
+			#[cfg(feature = "chain")]
+			try_runtime: false,
+			#[cfg(feature = "chain")]
+			deterministic: false,
+			#[cfg(feature = "chain")]
+			only_runtime: false,
+		})?;
+		assert_eq!(result, Unknown);
+
+		// Test 6: Execute with benchmark and try_runtime flags
+		#[cfg(feature = "chain")]
+		{
+			let result = Command::execute(BuildArgs {
+				command: None,
+				path: Some(project_path.clone()),
+				path_pos: None,
+				package: None,
+				release: true,
+				profile: None,
+				features: None,
+				benchmark: true,
+				try_runtime: true,
+				deterministic: false,
+				only_runtime: false,
+			})?;
+			assert_eq!(result, Unknown);
+		}
+
+		Ok(())
+	}
 }
