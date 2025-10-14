@@ -192,6 +192,7 @@ impl traits::Confirm for Confirm {
 }
 
 /// A input prompt using cliclack.
+#[allow(dead_code)]
 struct Input(cliclack::Input);
 impl traits::Input for Input {
 	/// Sets the default value for the input.
@@ -252,6 +253,7 @@ impl<T: Clone + Eq> traits::MultiSelect<T> for MultiSelect<T> {
 }
 
 /// A password prompt using cliclack.
+#[allow(dead_code)]
 struct Password(cliclack::Password);
 impl traits::Password for Password {
 	/// Starts the prompt interaction.
@@ -261,6 +263,7 @@ impl traits::Password for Password {
 }
 
 /// A select prompt using cliclack.
+#[allow(dead_code)]
 struct Select<T: Clone + Eq>(cliclack::Select<T>);
 
 impl<T: Clone + Eq> traits::Select<T> for Select<T> {
@@ -659,6 +662,7 @@ pub(crate) mod tests {
 	}
 
 	/// Mock multi-select prompt
+	#[allow(dead_code)]
 	pub(crate) struct MockMultiSelect<T> {
 		required_expectation: Option<bool>,
 		items_expectation: Option<Vec<(String, String)>>,
@@ -717,6 +721,7 @@ pub(crate) mod tests {
 	}
 
 	/// Mock password prompt
+	#[allow(dead_code)]
 	#[derive(Default)]
 	struct MockPassword {
 		prompt: String,
@@ -729,6 +734,7 @@ pub(crate) mod tests {
 	}
 
 	/// Mock select prompt
+	#[allow(dead_code)]
 	pub(crate) struct MockSelect<T> {
 		items_expectation: Option<Vec<(String, String)>>,
 		collect: bool,

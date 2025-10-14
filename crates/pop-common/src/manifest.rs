@@ -42,12 +42,11 @@ pub fn find_workspace_toml(target_dir: &Path) -> Option<PathBuf> {
 			return None;
 		}
 		let cargo_toml = parent.join("Cargo.toml");
-		if cargo_toml.exists() {
-			if let Ok(contents) = read_to_string(&cargo_toml) {
-				if contents.contains("[workspace]") {
-					return Some(cargo_toml);
-				}
-			}
+		if cargo_toml.exists() &&
+			let Ok(contents) = read_to_string(&cargo_toml) &&
+			contents.contains("[workspace]")
+		{
+			return Some(cargo_toml);
 		}
 		dir = parent;
 	}
@@ -120,10 +119,10 @@ pub fn get_workspace_project_names(project_path: &Path) -> Result<Vec<(String, P
 			let member_manifest_path = entry.join("Cargo.toml");
 			if member_manifest_path.is_file() {
 				// Parse the member's manifest to get its name
-				if let Ok(member_manifest) = from_path(&member_manifest_path) {
-					if let Some(package) = &member_manifest.package {
-						result.push((package.name.clone(), entry));
-					}
+				if let Ok(member_manifest) = from_path(&member_manifest_path) &&
+					let Some(package) = &member_manifest.package
+				{
+					result.push((package.name.clone(), entry));
 				}
 			}
 		}

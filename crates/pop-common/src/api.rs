@@ -50,7 +50,7 @@ impl ApiClient {
 		#[cfg(test)]
 		// Check if a request for url already cached
 		if let Some(response) = &self.cache.lock().await.get(url.as_str()) {
-			return Ok((*response).clone())
+			return Ok((*response).clone());
 		}
 
 		// Acquire a permit based on the concurrency control
@@ -59,12 +59,12 @@ impl ApiClient {
 		// Check if prior evidence of being rate limited
 		// Note: only applies if multiple attempts within the same process (e.g., tests)
 		let mut rate_limits = self.rate_limits.lock().await;
-		if let Some(0) = rate_limits.remaining {
-			if let Some(reset) = rate_limits.reset {
-				let now = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)?.as_secs();
-				if now < reset {
-					return Err(rate_limits.deref().into());
-				}
+		if let Some(0) = rate_limits.remaining &&
+			let Some(reset) = rate_limits.reset
+		{
+			let now = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)?.as_secs();
+			if now < reset {
+				return Err(rate_limits.deref().into());
 			}
 		}
 
