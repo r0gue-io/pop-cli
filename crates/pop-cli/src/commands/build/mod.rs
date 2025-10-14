@@ -9,7 +9,7 @@ use clap::{Args, Subcommand};
 use contract::BuildContract;
 use duct::cmd;
 use pop_common::Profile;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 #[cfg(feature = "chain")]
 use {
 	chain::BuildChain,
@@ -104,7 +104,6 @@ fn collect_features(input: &str, benchmark: bool, try_runtime: bool) -> Vec<&str
 impl Command {
 	/// Executes the command.
 	pub(crate) fn execute(args: BuildArgs) -> anyhow::Result<Project> {
-		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "chain"))]
 		// If only contract feature enabled, build as contract
 		let project_path =
 			crate::common::builds::ensure_project_path(args.path.clone(), args.path_pos.clone());
@@ -169,7 +168,7 @@ impl Command {
 		}
 
 		// Otherwise build as a normal Rust project
-		Self::build(args, &mut Cli).map(|_| Unknown)
+		Self::build(args, &project_path, &mut Cli).map(|_| Unknown)
 	}
 
 	/// Builds a Rust project.
@@ -178,20 +177,20 @@ impl Command {
 	/// * `path` - The path to the project.
 	/// * `package` - A specific package to be built.
 	/// * `release` - Whether the release profile is to be used.
-	fn build(args: BuildArgs, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+	fn build(args: BuildArgs, path: &Path, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		let project = if args.package.is_some() { PACKAGE } else { PROJECT };
 		cli.intro(format!("Building your {project}"))?;
 
-		let mut _args = vec!["build"];
+		let mut cargo_args = vec!["build"];
 		if let Some(package) = args.package.as_deref() {
-			_args.push("--package");
-			_args.push(package)
+			cargo_args.push("--package");
+			cargo_args.push(package)
 		}
 		let profile = args.profile.unwrap_or(Profile::Debug);
 		if profile == Profile::Release {
-			_args.push("--release");
+			cargo_args.push("--release");
 		} else if profile == Profile::Production {
-			_args.push("--profile=production");
+			cargo_args.push("--profile=production");
 		}
 
 		let feature_input = args.features.unwrap_or_default();
@@ -207,10 +206,10 @@ impl Command {
 		}
 		let feature_arg = format!("--features={}", features.join(","));
 		if !features.is_empty() {
-			_args.push(&feature_arg);
+			cargo_args.push(&feature_arg);
 		}
 
-		cmd("cargo", _args).dir(args.path.unwrap_or_else(|| "./".into())).run()?;
+		cmd("cargo", cargo_args).dir(path).run()?;
 
 		cli.info(format!(
 			"The {project} was built in {profile} mode{}.",
@@ -351,6 +350,7 @@ mod tests {
 					#[cfg(feature = "chain")]
 					only_runtime: false
 				},
+				project_path,
 				&mut cli,
 			)
 			.is_ok()
