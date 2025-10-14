@@ -712,10 +712,18 @@ mod tests {
 				None,
 			)
 			.expect_warning("NOTE: Make sure your runtime is built with `try-runtime` feature.")
+			.expect_warning(format!(
+				"No runtime folder found at {}. Please input the runtime path manually.",
+				std::env::current_dir()?.display()
+			))
 			.expect_input(
-				"Please specify the path to the runtime project or the runtime binary.",
+				"Please, specify the path to the runtime project or the runtime binary.",
 				get_mock_runtime(Some(Feature::TryRuntime)).to_str().unwrap().to_string(),
-			);
+			)
+			.expect_info(format!(
+				"Using runtime at {}",
+				get_mock_runtime(Some(Feature::TryRuntime)).display()
+			));
 		update_runtime_source(
 			&mut cli,
 			"Do you want to specify a runtime?",

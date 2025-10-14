@@ -273,21 +273,26 @@ mod tests {
 				0,
 				None,
 			)
-			.expect_warning("NOTE: Make sure your runtime is built with `try-runtime` feature.")
-			.expect_input(
-				"Please specify the path to the runtime project or the runtime binary.",
-				get_mock_runtime(Some(Feature::TryRuntime)).to_str().unwrap().to_string(),
-			)
-			.expect_input("How many empty blocks should be processed?", "10".to_string())
-			.expect_confirm("Do you want to run pending migrations before fast-forwarding?", true)
-			.expect_select(
-				"Select source of runtime state:",
-				Some(true),
-				true,
-				Some(get_subcommands()),
-				0, // live
-				None,
-			)
+ 		.expect_warning("NOTE: Make sure your runtime is built with `try-runtime` feature.")
+ 		.expect_warning(format!(
+ 			"No runtime folder found at {}. Please input the runtime path manually.",
+ 			std::env::current_dir()?.display()
+ 		))
+ 		.expect_input(
+ 			"Please, specify the path to the runtime project or the runtime binary.",
+ 			get_mock_runtime(Some(Feature::TryRuntime)).to_str().unwrap().to_string(),
+ 		)
+ 		.expect_info(format!("Using runtime at {}", get_mock_runtime(Some(Feature::TryRuntime)).display()))
+ 		.expect_input("How many empty blocks should be processed?", "10".to_string())
+ 		.expect_confirm("Do you want to run pending migrations before fast-forwarding?", true)
+ 		.expect_select(
+ 			"Select source of runtime state:",
+ 			Some(true),
+ 			true,
+ 			Some(get_subcommands()),
+ 			0, // live
+ 			None,
+ 		)
 			.expect_input("Enter the live chain of your node:", urls::LOCAL.to_string())
 			.expect_input("Enter the block hash (optional):", String::default())
 			.expect_select(
@@ -332,21 +337,26 @@ mod tests {
 				0,
 				None,
 			)
-			.expect_warning("NOTE: Make sure your runtime is built with `try-runtime` feature.")
-			.expect_input(
-				"Please specify the path to the runtime project or the runtime binary.",
-				get_mock_runtime(Some(Feature::TryRuntime)).to_str().unwrap().to_string(),
-			)
-			.expect_input("How many empty blocks should be processed?", "10".to_string())
-			.expect_confirm("Do you want to run pending migrations before fast-forwarding?", true)
-			.expect_select(
-				"Select source of runtime state:",
-				Some(true),
-				true,
-				Some(get_subcommands()),
-				1, // snap
-				None,
-			)
+ 		.expect_warning("NOTE: Make sure your runtime is built with `try-runtime` feature.")
+ 		.expect_warning(format!(
+ 			"No runtime folder found at {}. Please input the runtime path manually.",
+ 			std::env::current_dir()?.display()
+ 		))
+ 		.expect_input(
+ 			"Please, specify the path to the runtime project or the runtime binary.",
+ 			get_mock_runtime(Some(Feature::TryRuntime)).to_str().unwrap().to_string(),
+ 		)
+ 		.expect_info(format!("Using runtime at {}", get_mock_runtime(Some(Feature::TryRuntime)).display()))
+ 		.expect_input("How many empty blocks should be processed?", "10".to_string())
+ 		.expect_confirm("Do you want to run pending migrations before fast-forwarding?", true)
+ 		.expect_select(
+ 			"Select source of runtime state:",
+ 			Some(true),
+ 			true,
+ 			Some(get_subcommands()),
+ 			1, // snap
+ 			None,
+ 		)
 			.expect_input(
 				format!(
 					"Enter path to your snapshot file?\n{}.",

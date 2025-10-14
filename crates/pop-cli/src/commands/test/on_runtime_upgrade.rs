@@ -75,7 +75,7 @@ struct Command {
 	print_storage_diff: bool,
 
 	/// Whether or multi-block migrations should be executed to completion after single block
-	/// migratons are completed.
+	/// migrations are completed.
 	#[clap(long, default_value = "false", default_missing_value = "true")]
 	disable_mbm_checks: bool,
 
@@ -364,10 +364,18 @@ mod tests {
 				None,
 			)
 			.expect_warning("NOTE: Make sure your runtime is built with `try-runtime` feature.")
+			.expect_warning(format!(
+				"No runtime folder found at {}. Please input the runtime path manually.",
+				std::env::current_dir()?.display()
+			))
 			.expect_input(
-				"Please specify the path to the runtime project or the runtime binary.",
+				"Please, specify the path to the runtime project or the runtime binary.",
 				get_mock_runtime(Some(TryRuntime)).to_str().unwrap().to_string(),
 			)
+			.expect_info(format!(
+				"Using runtime at {}",
+				get_mock_runtime(Some(TryRuntime)).display()
+			))
 			.expect_select(
 				"Select source of runtime state:",
 				Some(true),
@@ -422,10 +430,18 @@ mod tests {
 				None,
 			)
 			.expect_warning("NOTE: Make sure your runtime is built with `try-runtime` feature.")
+			.expect_warning(format!(
+				"No runtime folder found at {}. Please input the runtime path manually.",
+				std::env::current_dir()?.display()
+			))
 			.expect_input(
-				"Please specify the path to the runtime project or the runtime binary.",
+				"Please, specify the path to the runtime project or the runtime binary.",
 				get_mock_runtime(Some(TryRuntime)).to_str().unwrap().to_string(),
 			)
+			.expect_info(format!(
+				"Using runtime at {}",
+				get_mock_runtime(Some(TryRuntime)).display()
+			))
 			.expect_select(
 				"Select source of runtime state:",
 				Some(true),
@@ -481,10 +497,15 @@ mod tests {
 				true,
 			)
 			.expect_warning("NOTE: Make sure your runtime is built with `try-runtime` feature.")
+			.expect_warning(format!(
+				"No runtime folder found at {}. Please input the runtime path manually.",
+				std::env::current_dir()?.display()
+			))
 			.expect_input(
-				"Please specify the path to the runtime project or the runtime binary.",
+				"Please, specify the path to the runtime project or the runtime binary.",
 				get_mock_runtime(None).to_str().unwrap().to_string(),
 			)
+			.expect_info(format!("Using runtime at {}", get_mock_runtime(None).display()))
 			.expect_select(
 				"Select upgrade checks to perform:",
 				Some(true),

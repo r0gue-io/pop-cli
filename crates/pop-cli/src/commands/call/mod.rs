@@ -71,23 +71,9 @@ impl Display for Command {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use std::{
-		env::{current_dir, set_current_dir},
-		fs,
-		path::Path,
-	};
+	use crate::common::helpers::with_current_dir;
+	use std::{env::set_current_dir, fs};
 	use tempfile::tempdir;
-
-	fn with_current_dir<F, R>(dir: &Path, f: F) -> anyhow::Result<R>
-	where
-		F: FnOnce() -> anyhow::Result<R>,
-	{
-		let original_dir = current_dir()?;
-		set_current_dir(dir)?;
-		let result = f();
-		set_current_dir(original_dir)?;
-		result
-	}
 
 	#[test]
 	fn command_display_works() {

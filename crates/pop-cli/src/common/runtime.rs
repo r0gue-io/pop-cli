@@ -81,8 +81,23 @@ pub fn ensure_runtime_binary_exists(
 	let target_path = mode.target_directory(project_path).join("wbuild");
 	let runtime_path = match default_runtime_path {
 		Some(path) => path.clone(),
-		None => guide_user_to_input_runtime_path(cli, project_path)?,
+		None => match find_runtime_dir(project_path, cli) {
+			Ok(path) => path,
+			Err(_) => {
+				cli.warning(format!(
+					"No runtime folder found at {}. Please input the runtime path manually.",
+					project_path.display()
+				))?;
+				let input: PathBuf = cli
+					.input("Please, specify the path to the runtime project or the runtime binary.")
+					.required(true)
+					.interact()?
+					.into();
+				input.canonicalize()?
+			},
+		},
 	};
+	cli.info(format!("Using runtime at {}", runtime_path.display()))?;
 
 	// Return if the user has specified a path to the runtime binary.
 	if runtime_path.extension() == Some(OsStr::new("wasm")) {
@@ -184,69 +199,6 @@ pub(crate) fn build_deterministic_runtime(
 	Ok((runtime_path, code))
 }
 
-/// Guide the user to input a runtime path.
-///
-/// # Arguments
-/// * `cli`: Command line interface.
-/// * `target_path`: The target path.
-#[cfg(feature = "chain")]
-pub fn guide_user_to_input_runtime_path(
-	cli: &mut impl Cli,
-	target_path: &Path,
-) -> anyhow::Result<PathBuf> {
-	let mut project_path = match get_runtime_path(target_path) {
-		Ok(path) => path,
-		Err(_) => {
-			cli.warning(format!(
-				"No runtime folder found at {}. Please input the runtime path manually.",
-				target_path.display()
-			))?;
-			let input: PathBuf = cli
-				.input("Please specify the path to the runtime project or the runtime binary.")
-				.required(true)
-				.default_input(DEFAULT_RUNTIME_DIR)
-				.placeholder(DEFAULT_RUNTIME_DIR)
-				.interact()?
-				.into();
-			input.canonicalize()?
-		},
-	};
-
-	// If a TOML file does not exist, list all directories in the runtime folder and prompt the
-	// user to select one.
-	if project_path.is_dir() && !project_path.join("Cargo.toml").exists() {
-		let runtime = guide_user_to_select_runtime(cli, &project_path)?;
-		project_path = project_path.join(runtime);
-	}
-	Ok(project_path)
-}
-
-/// Guide the user to select a runtime project.
-///
-/// # Arguments
-/// * `cli`: Command line interface.
-/// * `project_path`: Path to the project containing runtimes.
-#[cfg(feature = "chain")]
-pub fn guide_user_to_select_runtime(
-	cli: &mut impl Cli,
-	project_path: &PathBuf,
-) -> anyhow::Result<PathBuf> {
-	let runtimes = fs::read_dir(project_path)?;
-	let mut prompt = cli.select("Select the runtime:");
-	for runtime in runtimes {
-		let path = runtime?.path();
-		if !path.is_dir() {
-			continue;
-		}
-		let manifest = from_path(&path)?;
-		let package = manifest.package();
-		let name = package.clone().name;
-		let description = package.description().unwrap_or_default().to_string();
-		prompt = prompt.item(path, &name, &description);
-	}
-	Ok(prompt.interact()?)
-}
-
 /// Guide the user to select a genesis builder policy.
 ///
 /// # Arguments
@@ -340,8 +292,8 @@ mod tests {
 
 			// Input path to binary file.
 			let binary_path = target_path.join("runtime.wasm");
-			let mut cli = expect_input_runtime_path(&temp_path, &binary_path);
 			File::create(binary_path.as_path())?;
+			let mut cli = expect_input_runtime_path(&temp_path, &binary_path);
 			assert_eq!(
 				ensure_runtime_binary_exists(
 					&mut cli,
@@ -423,66 +375,6 @@ mod tests {
 	}
 
 	#[test]
-	fn guide_user_to_select_runtime_works() -> anyhow::Result<()> {
-		let temp_dir = tempdir()?;
-		let runtimes = ["runtime-1", "runtime-2", "runtime-3"];
-		let runtime_path = temp_dir.path().join("runtime");
-		let runtime_items = runtimes.map(|runtime| (runtime.to_string(), "".to_string())).to_vec();
-
-		// Found runtimes in the specified runtime path.
-		let mut cli = MockCli::new();
-		cli = cli.expect_select(
-			"Select the runtime:",
-			Some(true),
-			true,
-			Some(runtime_items),
-			0,
-			None,
-		);
-
-		fs::create_dir(&runtime_path)?;
-		for runtime in runtimes {
-			cmd("cargo", ["new", runtime, "--bin"]).dir(&runtime_path).run()?;
-		}
-		guide_user_to_select_runtime(&mut cli, &runtime_path)?;
-		cli.verify()
-	}
-
-	#[test]
-	fn guide_user_to_input_runtime_path_works() -> anyhow::Result<()> {
-		let temp_dir = tempdir()?;
-		let temp_path = temp_dir.path().to_path_buf();
-		let runtime_path = temp_dir.path().join("runtimes");
-
-		// No runtime path found, ask for manual input from user.
-		let runtime_binary_path = temp_path.join("dummy.wasm");
-		let mut cli = expect_input_runtime_path(&temp_path, &runtime_binary_path);
-		File::create(runtime_binary_path)?;
-		guide_user_to_input_runtime_path(&mut cli, &temp_path)?;
-		cli.verify()?;
-
-		// Runtime folder found and not a Rust project, select from existing runtimes.
-		fs::create_dir(&runtime_path)?;
-		let runtimes = ["runtime-1", "runtime-2", "runtime-3"];
-		let runtime_items = runtimes.map(|runtime| (runtime.to_string(), "".to_string())).to_vec();
-		cli = MockCli::new();
-		cli = cli.expect_select(
-			"Select the runtime:",
-			Some(true),
-			true,
-			Some(runtime_items),
-			0,
-			None,
-		);
-		for runtime in runtimes {
-			cmd("cargo", ["new", runtime, "--bin"]).dir(&runtime_path).run()?;
-		}
-		guide_user_to_input_runtime_path(&mut cli, &temp_path)?;
-
-		cli.verify()
-	}
-
-	#[test]
 	fn guide_user_to_select_genesis_policy_works() -> anyhow::Result<()> {
 		// Select genesis builder policy `none`.
 		let mut cli = MockCli::new();
@@ -522,15 +414,17 @@ mod tests {
 	}
 
 	fn expect_input_runtime_path(project_path: &Path, binary_path: &Path) -> MockCli {
+		let canonical_path = binary_path.canonicalize().unwrap();
 		MockCli::new()
 			.expect_warning(format!(
 				"No runtime folder found at {}. Please input the runtime path manually.",
 				project_path.display()
 			))
 			.expect_input(
-				"Please specify the path to the runtime project or the runtime binary.",
+				"Please, specify the path to the runtime project or the runtime binary.",
 				binary_path.to_str().unwrap().to_string(),
 			)
+			.expect_info(format!("Using runtime at {}", canonical_path.display()))
 	}
 
 	fn expect_select_genesis_policy(cli: MockCli, item: usize) -> MockCli {

@@ -26,7 +26,7 @@ pub struct BuildRuntime {
 	pub(crate) try_runtime: bool,
 	/// Whether to build a runtime deterministically.
 	pub(crate) deterministic: bool,
-	/// List of features that project is built with.
+	/// List of features the project is built with.
 	pub(crate) features: Vec<String>,
 }
 

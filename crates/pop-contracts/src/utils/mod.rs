@@ -26,9 +26,11 @@ pub mod metadata;
 /// # Arguments
 /// * `path` - A path to the project directory.
 pub fn get_manifest_path(path: &Path) -> Result<ManifestPath, Error> {
-	let full_path = PathBuf::from(path.to_string_lossy().to_string()).join("Cargo.toml");
+	let full_path = PathBuf::from(path.to_string_lossy().to_string())
+		.join("Cargo.toml")
+		.canonicalize()?;
 	ManifestPath::try_from(Some(full_path))
-		.map_err(|e| Error::ManifestPath(format!("Failed to get manifest path: {}", e)))
+		.map_err(|e| Error::ManifestPath(format!("Failed to get manifest path: {e}")))
 }
 
 /// Parses a balance value from a string representation.
