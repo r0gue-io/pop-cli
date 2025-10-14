@@ -1,18 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0
 
-#![cfg(feature = "chain")]
-
-use crate::cli::traits::{Cli, Select};
-use pop_chains::{ChainSpecBuilder, binary_path, build_chain};
-use pop_common::{
-	Profile,
-	manifest::{Manifest, get_workspace_project_names},
+use std::{env::current_dir, path::PathBuf};
+#[cfg(feature = "chain")]
+use {
+	crate::cli::traits::{Cli, Select},
+	pop_chains::{ChainSpecBuilder, binary_path, build_chain},
+	pop_common::{
+		Profile,
+		manifest::{Manifest, get_workspace_project_names},
+	},
+	std::path::Path,
+	strum::{EnumMessage, VariantArray},
 };
-use std::{
-	env::current_dir,
-	path::{Path, PathBuf},
-};
-use strum::{EnumMessage, VariantArray};
 
 /// This method is used to get the proper project path format (with or without cli flag)
 pub fn get_project_path(path_flag: Option<PathBuf>, path_pos: Option<PathBuf>) -> Option<PathBuf> {
@@ -65,6 +64,7 @@ pub fn ensure_node_binary_exists(
 ///
 /// # Returns
 /// The chain spec builder for the node or the runtime.
+#[cfg(feature = "chain")]
 pub fn create_chain_spec_builder(
 	path: &Path,
 	profile: &Profile,
@@ -91,6 +91,7 @@ pub fn create_chain_spec_builder(
 ///
 /// # Returns
 /// Path to the selected runtime directory.
+#[cfg(feature = "chain")]
 pub fn find_runtime_dir(project_path: &Path, cli: &mut impl Cli) -> anyhow::Result<PathBuf> {
 	let default_runtime_path = project_path.join("runtime");
 	let runtime_path =
@@ -130,6 +131,7 @@ pub fn find_runtime_dir(project_path: &Path, cli: &mut impl Cli) -> anyhow::Resu
 ///
 /// # Arguments
 /// * `cli`: Command line interface.
+#[cfg(feature = "chain")]
 pub fn guide_user_to_select_profile(cli: &mut impl Cli) -> anyhow::Result<Profile> {
 	let default = Profile::Release;
 	// Prompt for build profile.
