@@ -31,7 +31,8 @@ pub struct CallChainCommand {
 	/// The pallet containing the dispatchable function to execute.
 	#[arg(short, long, value_parser = parse_pallet_name)]
 	pallet: Option<String>,
-	/// The dispatchable function to execute within the specified pallet.
+	/// The dispatchable function, storage item, or constant to execute/query within the specified
+	/// pallet.
 	#[arg(short, long)]
 	function: Option<String>,
 	/// The dispatchable function arguments, encoded as strings.
