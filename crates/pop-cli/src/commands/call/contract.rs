@@ -4,6 +4,7 @@ use crate::{
 	cli::{self, traits::*},
 	common::{
 		builds::{ensure_project_path, get_project_path},
+		chain::prompt_to_select_chain_rpc,
 		contracts::{has_contract_been_built, normalize_call_args, request_contract_function_args},
 		prompt::display_message,
 		urls,
@@ -276,13 +277,14 @@ impl CallContractCommand {
 
 		// Resolve url.
 		if !repeat && !self.deployed && self.url.as_str() == urls::LOCAL {
-			// Prompt for url.
-			let url: String = cli
-				.input("Where is your contract deployed?")
-				.placeholder(urls::LOCAL)
-				.default_input(urls::LOCAL)
-				.interact()?;
-			self.url = url::Url::parse(&url)?
+			self.url = prompt_to_select_chain_rpc(
+				"Where is your contract deployed? (type to filter)",
+				"Type the chain URL manually",
+				urls::LOCAL,
+				|n| n.supports_contracts,
+				cli,
+			)
+			.await?;
 		};
 
 		// Resolve contract address.
@@ -312,7 +314,7 @@ impl CallContractCommand {
 
 		// Resolve message.
 		let message = {
-			let mut prompt = cli.select("Select the message to call (type to filter):");
+			let mut prompt = cli.select("Select the message to call (type to filter)");
 			for select_message in &messages {
 				let (icon, clarification) =
 					if select_message.mutates { ("📝 ", "[MUTATES] ") } else { ("", "") };
@@ -631,15 +633,23 @@ mod tests {
 		// The inputs are processed in reverse order.
 		let mut cli = MockCli::new()
 			.expect_select(
-				"Select the message to call (type to filter):",
+				"Where is your contract deployed? (type to filter)",
+				Some(true),
+				true,
+				Some(vec![("Custom".to_string(), "Type the chain URL manually".to_string())]),
+				0,
+				None,
+			)
+			.expect_input("Type the chain URL manually", urls::LOCAL.into())
+			.expect_input("Provide the on-chain contract address:", "CONTRACT_ADDRESS".into())
+			.expect_select(
+				"Select the message to call (type to filter)",
 				Some(false),
 				true,
 				Some(items),
 				1, // "get" message
 				None,
 			)
-			.expect_input("Where is your contract deployed?", urls::LOCAL.into())
-			.expect_input("Provide the on-chain contract address:", "CONTRACT_ADDRESS".into())
 			.expect_info(format!(
 				"pop call contract --path {} --contract CONTRACT_ADDRESS --message get --url {} --suri //Alice",
 				temp_dir.path().join("testing").display(),
@@ -706,16 +716,21 @@ mod tests {
         ];
 		// The inputs are processed in reverse order.
 		let mut cli = MockCli::new()
-            .expect_input(
-                "Where is your contract deployed?",
-                urls::LOCAL.into(),
+            .expect_select(
+                "Where is your contract deployed? (type to filter)",
+                Some(true),
+                true,
+                Some(vec![("Custom".to_string(), "Type the chain URL manually".to_string())]),
+                0,
+                None,
             )
+            .expect_input("Type the chain URL manually", urls::LOCAL.into())
             .expect_input(
                 "Provide the on-chain contract address:",
                 "CONTRACT_ADDRESS".into(),
             )
             .expect_select(
-                "Select the message to call (type to filter):",
+                "Select the message to call (type to filter)",
                 Some(false),
                 true,
                 Some(items),
@@ -797,20 +812,25 @@ mod tests {
 		// The inputs are processed in reverse order.
 		let mut cli = MockCli::new()
             .expect_select(
-                "Select the message to call (type to filter):",
+                "Where is your contract deployed? (type to filter)",
+                Some(true),
+                true,
+                Some(vec![("Custom".to_string(), "Type the chain URL manually".to_string())]),
+                0,
+                None,
+            )
+            .expect_input("Type the chain URL manually", urls::LOCAL.into())
+            .expect_input(
+                "Provide the on-chain contract address:",
+                "CONTRACT_ADDRESS".into(),
+            )
+            .expect_select(
+                "Select the message to call (type to filter)",
                 Some(false),
                 true,
                 Some(items),
                 2, // "specific_flip" message
                 None,
-            )
-            .expect_input(
-                "Where is your contract deployed?",
-                urls::LOCAL.into(),
-            )
-            .expect_input(
-                "Provide the on-chain contract address:",
-                "CONTRACT_ADDRESS".into(),
             )
             .expect_input("Enter the value for the parameter: new_value", "true".into()) // Args for specific_flip
             .expect_input("Enter the value for the parameter: number", "2".into()) // Args for specific_flip

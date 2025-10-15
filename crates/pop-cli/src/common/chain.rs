@@ -58,8 +58,39 @@ async fn extract_chain_endpoints_from_url(url: &str) -> Result<Vec<RPCNode>> {
 	response.json().await.map_err(|e| anyhow!(e.to_string()))
 }
 
+// Prompts the user to select an RPC endpoint from a list of available chains or enter a custom URL.
+pub(crate) async fn prompt_to_select_chain_rpc(
+	select_message: &str,
+	input_message: &str,
+	default_input: &str,
+	filter_fn: fn(&RPCNode) -> bool,
+	cli: &mut impl Cli,
+) -> Result<Url> {
+	// Select from available endpoints
+	let mut prompt = cli.select(select_message);
+	prompt = prompt.item(0, "Custom", "Type the chain URL manually");
+	let chains = extract_chain_endpoints().await.unwrap_or_default();
+	let prompt = chains.iter().enumerate().fold(prompt, |acc, (pos, node)| {
+		if filter_fn(node) { acc.item(pos + 1, &node.name, "") } else { acc }
+	});
+
+	let selected = prompt.filter_mode().interact()?;
+	let url = if selected == 0 {
+		// Manually enter the URL
+		cli.input(input_message).default_input(default_input).interact()?
+	} else {
+		// Randomly select a provider from the chain's provider list
+		let providers = &chains[selected - 1].providers;
+		let random_position =
+			(SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis() as usize) % providers.len();
+		providers[random_position].clone()
+	};
+	Ok(Url::parse(&url)?)
+}
+
 // Configures a chain by resolving the URL and fetching its metadata.
 pub(crate) async fn configure(
+	select_message: &str,
 	input_message: &str,
 	default_input: &str,
 	url: &Option<Url>,
@@ -69,28 +100,9 @@ pub(crate) async fn configure(
 	// Resolve url.
 	let url = match url {
 		Some(url) => url.clone(),
-		None => {
-			let url = {
-				// Select from available endpoints
-				let mut prompt = cli.select("Select a chain (type to filter):");
-				prompt = prompt.item(0, "Custom", "Type the chain URL manually");
-				let chains = extract_chain_endpoints().await.unwrap_or_default();
-				let prompt = chains.iter().enumerate().fold(prompt, |acc, (pos, node)| {
-					if filter_fn(node) { acc.item(pos + 1, &node.name, "") } else { acc }
-				});
-
-				let selected = prompt.filter_mode().interact()?;
-				if selected == 0 {
-					cli.input(input_message).default_input(default_input).interact()?
-				} else {
-					let providers = &chains[selected - 1].providers;
-					let random_position = (SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis()
-						as usize) % providers.len();
-					providers[random_position].clone()
-				}
-			};
-			Url::parse(&url)?
-		},
+		None =>
+			prompt_to_select_chain_rpc(select_message, input_message, default_input, filter_fn, cli)
+				.await?,
 	};
 	let client = set_up_client(url.as_str()).await?;
 	let pallets = get_pallets(&client).await?;
@@ -117,18 +129,21 @@ mod tests {
 	#[tokio::test]
 	async fn configure_works() -> Result<()> {
 		let node = TestNode::spawn().await?;
-		let message = "Enter the URL of the chain:";
+		let select_message = "Select a chain (type to filter)";
+		let input_message = "Enter the URL of the chain:";
 		let mut cli = MockCli::new()
 			.expect_select(
-				"Select a chain (type to filter):".to_string(),
+				select_message.to_string(),
 				Some(true),
 				true,
 				Some(vec![("Custom".to_string(), "Type the chain URL manually".to_string())]),
 				0,
 				None,
 			)
-			.expect_input(message, node.ws_url().into());
-		let chain = configure(message, node.ws_url(), &None, |_| true, &mut cli).await?;
+			.expect_input(input_message, node.ws_url().into());
+		let chain =
+			configure(select_message, input_message, node.ws_url(), &None, |_| true, &mut cli)
+				.await?;
 		assert_eq!(chain.url, Url::parse(node.ws_url())?);
 		// Get pallets
 		let pallets = get_pallets(&chain.client).await?;
