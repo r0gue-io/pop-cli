@@ -110,7 +110,6 @@ pub fn guide_user_to_select_command(cli: &mut impl cli::traits::Cli) -> AnyhowRe
 			decimals: None,
 			initial_endowment: None,
 			verify: false,
-			// TODO
 			with_frontend: false,
 		})),
 		#[cfg(feature = "chain")]
@@ -125,7 +124,6 @@ pub fn guide_user_to_select_command(cli: &mut impl cli::traits::Cli) -> AnyhowRe
 			name: None,
 			contract_type: None,
 			template: None,
-			// TODO
 			with_frontend: false,
 		})),
 		_ => Err(anyhow::anyhow!("Invalid selection")),
