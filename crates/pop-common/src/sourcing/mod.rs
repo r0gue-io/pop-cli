@@ -2,6 +2,7 @@
 
 use crate::{Git, Release, SortedSlice, Status, api, git::GITHUB_API_CLIENT};
 pub use binary::*;
+use derivative::Derivative;
 use duct::cmd;
 use flate2::read::GzDecoder;
 use regex::Regex;
@@ -160,7 +161,8 @@ impl Source {
 }
 
 /// A binary sourced from GitHub.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Derivative)]
+#[derivative(PartialEq)]
 pub enum GitHub {
 	/// An archive for download from a GitHub release.
 	ReleaseArchive {
@@ -176,6 +178,7 @@ pub enum GitHub {
 		/// Whether pre-releases are to be used.
 		prerelease: bool,
 		/// A function that orders candidates for selection when multiple versions are available.
+		#[derivative(PartialEq = "ignore")]
 		version_comparator: for<'a> fn(&'a mut [String]) -> SortedSlice<'a, String>,
 		/// The version to use if an appropriate version cannot be resolved.
 		fallback: String,
