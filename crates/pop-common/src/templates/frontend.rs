@@ -64,8 +64,8 @@ pub enum FrontendTemplate {
 	/// Parity template: Create Polkadot DApp in one command.
 	#[strum(
 		serialize = "create-polkadot-dapp",
-		message = "Parity",
-		detailed_message = "Create Polkadot DApp in one command.",
+		message = "create-polkadot-dapp",
+		detailed_message = "Create Polkadot DApp in one command (Parity).",
 		props(Command = "create-polkadot-dapp@latest", Type = "Chain",)
 	)]
 	CreatePolkadotDapp,

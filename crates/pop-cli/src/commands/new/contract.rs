@@ -143,12 +143,16 @@ async fn guide_user_to_generate_contract(
 		.default_input("./my_contract")
 		.interact()?;
 
+	let with_frontend = cli
+		.confirm("Would you like to scaffold a frontend template as well?".to_string())
+		.initial_value(true)
+		.interact()?;
+
 	Ok(NewContractCommand {
 		name: Some(name),
 		contract_type: Some(contract_type.clone()),
 		template: Some(template),
-		// TODO: Prompt if not indicated?
-		with_frontend: false,
+		with_frontend,
 	})
 }
 
@@ -289,12 +293,13 @@ mod tests {
 				Some(items_select_contract),
 				0, // "ERC20"
 				None,
-			);
+			).expect_confirm("Would you like to scaffold a frontend template as well?", true);
 
 		let user_input = guide_user_to_generate_contract(&mut cli).await?;
 		assert_eq!(user_input.name, Some("./erc20".to_string()));
 		assert_eq!(user_input.contract_type, Some(ContractType::Erc));
 		assert_eq!(user_input.template, Some(ContractTemplate::ERC20));
+		assert!(user_input.with_frontend);
 
 		cli.verify()
 	}

@@ -174,6 +174,11 @@ async fn guide_user_to_generate_parachain(
 		customizable_options = prompt_customizable_options(cli)?;
 	}
 
+	let with_frontend = cli
+		.confirm("Would you like to scaffold a frontend template as well?".to_string())
+		.initial_value(true)
+		.interact()?;
+
 	Ok(NewChainCommand {
 		name: Some(name),
 		provider: Some(provider.clone()),
@@ -183,8 +188,7 @@ async fn guide_user_to_generate_parachain(
 		decimals: Some(customizable_options.decimals),
 		initial_endowment: Some(customizable_options.initial_endowment),
 		verify,
-		// TODO: Prompt if not indicated?
-		with_frontend: false,
+		with_frontend,
 	})
 }
 
