@@ -130,10 +130,11 @@ impl TestCreateSnapshotCommand {
 				!matches!(arg.as_str(), "--show-output" | "--nocapture" | "--ignored")
 			});
 		}
-		if let Some(arg) = user_provided_args.last() {
-			if !arg.starts_with("--") && arg.ends_with(".snap") {
-				provided_path = user_provided_args.pop();
-			}
+		if let Some(arg) = user_provided_args.last() &&
+			!arg.starts_with("--") &&
+			arg.ends_with(".snap")
+		{
+			provided_path = user_provided_args.pop();
 		}
 		let collected_args = collect_args(user_provided_args.into_iter());
 		let mut args = vec![];

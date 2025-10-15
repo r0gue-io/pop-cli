@@ -120,10 +120,10 @@ impl BenchmarkStorage {
 				!matches!(arg.as_str(), "--show-output" | "--nocapture" | "--ignored")
 			});
 		}
-		if !argument_exists(&arguments, "--profile") {
-			if let Some(ref profile) = self.profile {
-				arguments.push(format!("--profile={}", profile));
-			}
+		if !argument_exists(&arguments, "--profile") &&
+			let Some(ref profile) = self.profile
+		{
+			arguments.push(format!("--profile={}", profile));
 		}
 		args.extend(arguments);
 		args

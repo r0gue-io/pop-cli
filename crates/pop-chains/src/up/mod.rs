@@ -184,11 +184,11 @@ impl Zombienet {
 			}
 
 			// Check if parachain binary source specified as an argument
-			if let Some(parachains) = parachains.as_ref() {
-				if let Some(repo) = parachains.iter().find(|r| command == r.package) {
-					paras.insert(id, Chain::from_repository(id, repo, chain, cache)?);
-					continue 'outer;
-				}
+			if let Some(parachains) = parachains.as_ref() &&
+				let Some(repo) = parachains.iter().find(|r| command == r.package)
+			{
+				paras.insert(id, Chain::from_repository(id, repo, chain, cache)?);
+				continue 'outer;
 			}
 
 			// Check if command references a local binary
@@ -237,12 +237,12 @@ impl Zombienet {
 				relay::from(default_command, version, runtime_version, chain, cache).await?;
 			// Validate any node config is supported
 			for node in relay_chain.nodes() {
-				if let Some(command) = node.command().map(|c| c.as_str()) {
-					if command.to_lowercase() != relay.binary.name() {
-						return Err(Error::UnsupportedCommand(format!(
-							"the relay chain command is unsupported: {command}",
-						)));
-					}
+				if let Some(command) = node.command().map(|c| c.as_str()) &&
+					command.to_lowercase() != relay.binary.name()
+				{
+					return Err(Error::UnsupportedCommand(format!(
+						"the relay chain command is unsupported: {command}",
+					)));
 				}
 			}
 			return Ok(relay);

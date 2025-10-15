@@ -9033,6 +9033,7 @@ dependencies = [
  "cargo_toml",
  "contract-build 5.0.3",
  "contract-extrinsics 5.0.3",
+ "derivative",
  "duct",
  "flate2",
  "git2",

@@ -94,7 +94,7 @@ impl ConfigFileCommand {
 			None => match self.file.as_deref() {
 				None => {
 					cli.outro_cancel("🚫 A network configuration file must be specified. See `pop up network --help` for usage.".to_string())?;
-					return Ok(())
+					return Ok(());
 				},
 				Some(path) => path,
 			},
@@ -311,7 +311,7 @@ pub(crate) async fn spawn(
 	.await
 	{
 		Ok(n) => n,
-		Err(e) =>
+		Err(e) => {
 			return match e {
 				Error::Config(message) => {
 					cli.outro_cancel(format!("🚫 A configuration error occurred: `{message}`"))?;
@@ -322,7 +322,8 @@ pub(crate) async fn spawn(
 					Ok(())
 				},
 				_ => Err(e.into()),
-			},
+			};
+		},
 	};
 
 	// Source any missing/stale binaries

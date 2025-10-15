@@ -2,6 +2,7 @@
 
 use crate::{Git, Release, SortedSlice, Status, api, git::GITHUB_API_CLIENT};
 pub use binary::*;
+use derivative::Derivative;
 use duct::cmd;
 use flate2::read::GzDecoder;
 use regex::Regex;
@@ -160,7 +161,8 @@ impl Source {
 }
 
 /// A binary sourced from GitHub.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Derivative)]
+#[derivative(PartialEq)]
 pub enum GitHub {
 	/// An archive for download from a GitHub release.
 	ReleaseArchive {
@@ -176,6 +178,7 @@ pub enum GitHub {
 		/// Whether pre-releases are to be used.
 		prerelease: bool,
 		/// A function that orders candidates for selection when multiple versions are available.
+		#[derivative(PartialEq = "ignore")]
 		version_comparator: for<'a> fn(&'a mut [String]) -> SortedSlice<'a, String>,
 		/// The version to use if an appropriate version cannot be resolved.
 		fallback: String,
@@ -528,13 +531,13 @@ async fn from_archive(
 		let src = working_dir.join(name);
 		if src.exists() {
 			set_executable_permission(&src)?;
-			if let Some(target) = target {
-				if let Err(_e) = rename(&src, target) {
-					// If rename fails (e.g., due to cross-device linking), fallback to copy and
-					// remove
-					copy(&src, target)?;
-					std::fs::remove_file(&src)?;
-				}
+			if let Some(target) = target &&
+				let Err(_e) = rename(&src, target)
+			{
+				// If rename fails (e.g., due to cross-device linking), fallback to copy and
+				// remove
+				copy(&src, target)?;
+				std::fs::remove_file(&src)?;
 			}
 		} else if *required {
 			return Err(Error::ArchiveError(format!(
@@ -625,11 +628,11 @@ async fn from_github_archive(
 			for url in urls {
 				status.update(&format!("Downloading from {url}..."));
 				response = Some(GITHUB_API_CLIENT.get(url).await);
-				if let Some(Err(api::Error::HttpError(e))) = &response {
-					if e.status() == Some(StatusCode::NOT_FOUND) {
-						tokio::time::sleep(Duration::from_secs(1)).await;
-						continue;
-					}
+				if let Some(Err(api::Error::HttpError(e))) = &response &&
+					e.status() == Some(StatusCode::NOT_FOUND)
+				{
+					tokio::time::sleep(Duration::from_secs(1)).await;
+					continue;
 				}
 				break;
 			}
@@ -654,10 +657,11 @@ async fn from_github_archive(
 	// Prepare archive contents for build
 	let entries: Vec<_> = read_dir(&working_dir)?.take(2).filter_map(|x| x.ok()).collect();
 	match entries.len() {
-		0 =>
+		0 => {
 			return Err(Error::ArchiveError(
 				"The downloaded archive does not contain any entries.".into(),
-			)),
+			));
+		},
 		1 => working_dir = entries[0].path(), // Automatically switch to top level directory
 		_ => {},                              /* Assume that downloaded archive does not have a
 		                                        * top level directory */
@@ -1281,7 +1285,7 @@ pub(super) mod tests {
 		assert_eq!(pattern.version("polkadot-stable2503"), Some("stable2503"));
 	}
 
-	fn version_comparator<T: AsRef<str> + Ord>(versions: &mut [T]) -> SortedSlice<T> {
+	fn version_comparator<T: AsRef<str> + Ord>(versions: &'_ mut [T]) -> SortedSlice<'_, T> {
 		SortedSlice::by(versions, |a, b| parse_version(b.as_ref()).cmp(&parse_version(a.as_ref())))
 	}
 

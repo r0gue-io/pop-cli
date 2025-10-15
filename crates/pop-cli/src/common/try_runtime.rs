@@ -367,16 +367,15 @@ impl<'a> ArgumentConstructor<'a> {
 	) {
 		if !self.seen.contains(flag) &&
 			condition_args.iter().all(|a| !self.seen.contains(*a)) &&
-			external_condition
+			external_condition &&
+			let Some(v) = value
 		{
-			if let Some(v) = value {
-				if !v.is_empty() {
-					self.args.push(format_arg(flag, v));
-				} else {
-					self.args.push(flag.to_string());
-				}
-				self.mark_added(flag);
+			if !v.is_empty() {
+				self.args.push(format_arg(flag, v));
+			} else {
+				self.args.push(flag.to_string());
 			}
+			self.mark_added(flag);
 		}
 	}
 
@@ -512,14 +511,15 @@ pub(crate) fn collect_args<A: Iterator<Item = String>>(args: A) -> Vec<String> {
 	let mut format_args = Vec::new();
 	let mut args = args.peekable();
 	while let Some(arg) = args.next() {
-		if (arg.starts_with("--") || arg.starts_with("-")) && !arg.contains("=") {
-			if let Some(value) = args.peek() {
-				if !value.starts_with("--") && !value.starts_with("-") {
-					let next_value = args.next().unwrap();
-					format_args.push(format_arg(arg, next_value));
-					continue;
-				}
-			}
+		if (arg.starts_with("--") || arg.starts_with("-")) &&
+			!arg.contains("=") &&
+			let Some(value) = args.peek() &&
+			!value.starts_with("--") &&
+			!value.starts_with("-")
+		{
+			let next_value = args.next().unwrap();
+			format_args.push(format_arg(arg, next_value));
+			continue;
 		}
 		format_args.push(arg);
 	}

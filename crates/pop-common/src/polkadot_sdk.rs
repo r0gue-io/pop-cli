@@ -114,7 +114,7 @@ pub fn parse_version(value: &str) -> Option<Version> {
 ///
 /// # Arguments
 /// * `versions` - The versions to sort.
-pub fn sort_by_latest_semantic_version<T: AsRef<str>>(versions: &mut [T]) -> SortedSlice<T> {
+pub fn sort_by_latest_semantic_version<T: AsRef<str>>(versions: &mut [T]) -> SortedSlice<'_, T> {
 	SortedSlice::by_key(versions, |tag| {
 		parse_version(tag.as_ref())
 			.map(|version| Reverse(Some(version)))
@@ -127,7 +127,7 @@ pub fn sort_by_latest_semantic_version<T: AsRef<str>>(versions: &mut [T]) -> Sor
 ///
 /// # Arguments
 /// * `versions` - The versions to sort.
-pub fn sort_by_latest_stable_version<T: AsRef<str>>(versions: &mut [T]) -> SortedSlice<T> {
+pub fn sort_by_latest_stable_version<T: AsRef<str>>(versions: &mut [T]) -> SortedSlice<'_, T> {
 	SortedSlice::by_key(versions, |tag| {
 		parse_stable_version(tag.as_ref())
 			.map(|version| Reverse(Some(version)))
@@ -140,7 +140,7 @@ pub fn sort_by_latest_stable_version<T: AsRef<str>>(versions: &mut [T]) -> Sorte
 ///
 /// # Arguments
 /// * `versions` - The versions to sort.
-pub fn sort_by_latest_version<T: AsRef<str>>(versions: &mut [T]) -> SortedSlice<T> {
+pub fn sort_by_latest_version<T: AsRef<str>>(versions: &mut [T]) -> SortedSlice<'_, T> {
 	SortedSlice::by_key(versions, |tag| {
 		parse_version(tag.as_ref())
 			.map(|version| Reverse(Some(version)))
