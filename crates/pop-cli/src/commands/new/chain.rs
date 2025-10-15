@@ -191,12 +191,13 @@ async fn generate_parachain_from_template(
 	let spinner = cliclack::spinner();
 	spinner.start("Generating parachain...");
 	let tag = instantiate_template_dir(template, &destination_path, tag_version, config)?;
-	if let Err(err) = Git::git_init(&destination_path, "initialized parachain") {
-		if err.class() == git2::ErrorClass::Config && err.code() == git2::ErrorCode::NotFound {
-			cli.outro_cancel(
-				"git signature could not be found. Please configure your git config with your name and email",
-			)?;
-		}
+	if let Err(err) = Git::git_init(&destination_path, "initialized parachain") &&
+		err.class() == git2::ErrorClass::Config &&
+		err.code() == git2::ErrorCode::NotFound
+	{
+		cli.outro_cancel(
+			"git signature could not be found. Please configure your git config with your name and email",
+		)?;
 	}
 	spinner.clear();
 

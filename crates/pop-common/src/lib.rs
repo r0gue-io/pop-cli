@@ -75,16 +75,18 @@ pub fn target() -> Result<&'static str, Error> {
 	}
 
 	match ARCH {
-		"aarch64" =>
+		"aarch64" => {
 			return match OS {
 				"macos" => Ok("aarch64-apple-darwin"),
 				_ => Ok("aarch64-unknown-linux-gnu"),
-			},
-		"x86_64" | "x86" =>
+			};
+		},
+		"x86_64" | "x86" => {
 			return match OS {
 				"macos" => Ok("x86_64-apple-darwin"),
 				_ => Ok("x86_64-unknown-linux-gnu"),
-			},
+			};
+		},
 		&_ => {},
 	}
 	Err(Error::UnsupportedPlatform { arch: ARCH, os: OS })
@@ -111,10 +113,10 @@ pub fn pop(dir: &Path, args: impl IntoIterator<Item = impl AsRef<OsStr>>) -> Com
 /// Checks if preferred port is available, otherwise returns a random available port.
 pub fn find_free_port(preferred_port: Option<u16>) -> u16 {
 	// Try to bind to preferred port if provided.
-	if let Some(port) = preferred_port {
-		if TcpListener::bind(format!("127.0.0.1:{}", port)).is_ok() {
-			return port;
-		}
+	if let Some(port) = preferred_port &&
+		TcpListener::bind(format!("127.0.0.1:{}", port)).is_ok()
+	{
+		return port;
 	}
 
 	// Else, fallback to a random available port

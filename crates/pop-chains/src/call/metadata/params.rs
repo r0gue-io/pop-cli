@@ -31,10 +31,10 @@ pub struct Param {
 /// * `field`: A parameter of a dispatchable function (as [Field]).
 pub fn field_to_param(metadata: &Metadata, field: &Field<PortableForm>) -> Result<Param, Error> {
 	let registry = metadata.types();
-	if let Some(name) = field.type_name.as_deref() {
-		if name.contains("RuntimeCall") {
-			return Err(Error::CallableNotSupported);
-		}
+	if let Some(name) = field.type_name.as_deref() &&
+		name.contains("RuntimeCall")
+	{
+		return Err(Error::CallableNotSupported);
 	}
 	let name = field.name.as_deref().unwrap_or("Unnamed"); //It can be unnamed field
 	type_to_param(name, registry, field.ty.id)

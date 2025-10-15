@@ -17,7 +17,7 @@ edition = "2024"
 documentation = "https://learn.onpop.io/"
 license = "GPL-3.0"
 repository = "https://github.com/r0gue-io/pop-cli"
-rust-version = "1.86.0"
+rust-version = "1.90"
 version = "0.10.0"
 
 [workspace.dependencies]
@@ -25,6 +25,7 @@ anyhow = { version = "1.0", default-features = false }
 assert_cmd = { version = "2.0.14", default-features = false }
 bytes = { version = "1.10.1", default-features = false }
 cargo_toml = { version = "0.20.3", default-features = false }
+derivative = { version = "2.2.0", default-features = false }
 dirs = { version = "5.0", default-features = false }
 duct = { version = "0.13", default-features = false }
 env_logger = { version = "0.11.7", default-features = false }

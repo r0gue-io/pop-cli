@@ -18,16 +18,16 @@ pub mod params;
 pub type RawValue = Value<u32>;
 
 fn format_single_tuples<T, W: Write>(value: &Value<T>, mut writer: W) -> Option<core::fmt::Result> {
-	if let ValueDef::Composite(Composite::Unnamed(vals)) = &value.value {
-		if vals.len() == 1 {
-			let val = &vals[0];
-			return match raw_value_to_string(val) {
-				Ok(r) => match writer.write_str(&r) {
-					Ok(_) => Some(Ok(())),
-					Err(_) => None,
-				},
+	if let ValueDef::Composite(Composite::Unnamed(vals)) = &value.value &&
+		vals.len() == 1
+	{
+		let val = &vals[0];
+		return match raw_value_to_string(val) {
+			Ok(r) => match writer.write_str(&r) {
+				Ok(_) => Some(Ok(())),
 				Err(_) => None,
-			}
+			},
+			Err(_) => None,
 		}
 	}
 	None

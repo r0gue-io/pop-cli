@@ -763,10 +763,10 @@ fn prepare_output_path(output_path: impl AsRef<Path>) -> anyhow::Result<PathBuf>
 		output_path.push(DEFAULT_SPEC_NAME);
 	} else {
 		// Treat as file.
-		if let Some(parent_dir) = output_path.parent() {
-			if !parent_dir.exists() {
-				create_dir_all(parent_dir)?;
-			}
+		if let Some(parent_dir) = output_path.parent() &&
+			!parent_dir.exists()
+		{
+			create_dir_all(parent_dir)?;
 		}
 	}
 	Ok(output_path)

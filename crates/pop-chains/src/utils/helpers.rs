@@ -79,8 +79,7 @@ pub(crate) fn write_to_file(path: &Path, contents: &str) -> Result<(), Error> {
 			.map_err(Error::RustfmtError)?;
 
 		if !output.status.success() {
-			return Err(Error::RustfmtError(io::Error::new(
-				io::ErrorKind::Other,
+			return Err(Error::RustfmtError(io::Error::other(
 				"rustfmt exited with non-zero status code",
 			)));
 		}

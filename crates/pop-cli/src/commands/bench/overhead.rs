@@ -199,10 +199,8 @@ impl BenchmarkOverhead {
 			print_weight_path = print_weight_path && !argument.starts_with("--weight-path");
 		}
 
-		if print_runtime {
-			if let Some(ref runtime) = self.command.params.runtime {
-				arguments.push(format!("--runtime={}", runtime.display()));
-			}
+		if print_runtime && let Some(ref runtime) = self.command.params.runtime {
+			arguments.push(format!("--runtime={}", runtime.display()));
 		}
 		if print_genesis_builder {
 			arguments.push("--genesis-builder=runtime".to_string());
@@ -213,10 +211,8 @@ impl BenchmarkOverhead {
 				self.command.params.genesis_builder_preset
 			));
 		}
-		if print_weight_path {
-			if let Some(ref weight_path) = self.command.params.weight.weight_path {
-				arguments.push(format!("--weight-path={}", weight_path.display()));
-			}
+		if print_weight_path && let Some(ref weight_path) = self.command.params.weight.weight_path {
+			arguments.push(format!("--weight-path={}", weight_path.display()));
 		}
 		arguments
 	}

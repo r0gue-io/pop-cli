@@ -50,7 +50,7 @@ pub(crate) fn format_url(url: &str) -> String {
 /// Formats the step label if steps should be shown.
 #[cfg(feature = "chain")]
 pub(crate) fn format_step_prefix(current: usize, total: usize, show: bool) -> String {
-	show.then(|| format!("[{}/{}]: ", current, total)).unwrap_or_default()
+	if show { format!("[{}/{}]: ", current, total) } else { Default::default() }
 }
 
 #[cfg(test)]

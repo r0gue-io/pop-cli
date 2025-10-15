@@ -309,10 +309,8 @@ impl BenchmarkPallet {
 			},
 			None => true,
 		};
-		if invalid_runtime {
-			if let Err(e) = self.update_runtime_path(cli) {
-				return display_message(&e.to_string(), false, cli);
-			}
+		if invalid_runtime && let Err(e) = self.update_runtime_path(cli) {
+			return display_message(&e.to_string(), false, cli);
 		}
 
 		if self.list {
@@ -348,11 +346,11 @@ impl BenchmarkPallet {
 		}
 
 		// No pallet provided, prompts user to select the pallet fetched from runtime.
-		if self.pallets.is_empty() {
-			if let Err(e) = self.update_pallets(cli, &mut registry).await {
-				return display_message(&e.to_string(), false, cli);
-			};
-		}
+		if self.pallets.is_empty() &&
+			let Err(e) = self.update_pallets(cli, &mut registry).await
+		{
+			return display_message(&e.to_string(), false, cli);
+		};
 		// No extrinsic provided, prompts user to select the extrinsics fetched from runtime.
 		if self.extrinsic.is_none() {
 			self.update_extrinsics(cli, &mut registry).await?;
@@ -594,15 +592,15 @@ impl BenchmarkPallet {
 		if let Some(ref template) = self.template {
 			args.push(format!("--template={}", template.display()));
 		}
-		if self.output_analysis != default_values.output_analysis {
-			if let Some(ref output_analysis) = self.output_analysis {
-				args.push(format!("--output-analysis={}", output_analysis));
-			}
+		if self.output_analysis != default_values.output_analysis &&
+			let Some(ref output_analysis) = self.output_analysis
+		{
+			args.push(format!("--output-analysis={}", output_analysis));
 		}
-		if self.output_pov_analysis != default_values.output_pov_analysis {
-			if let Some(ref output_pov_analysis) = self.output_pov_analysis {
-				args.push(format!("--output-pov-analysis={}", output_pov_analysis));
-			}
+		if self.output_pov_analysis != default_values.output_pov_analysis &&
+			let Some(ref output_pov_analysis) = self.output_pov_analysis
+		{
+			args.push(format!("--output-pov-analysis={}", output_pov_analysis));
 		}
 		if let Some(ref heap_pages) = self.heap_pages {
 			args.push(format!("--heap-pages={}", heap_pages));
@@ -619,14 +617,14 @@ impl BenchmarkPallet {
 		{
 			args.push("--allow-missing-host-functions".to_string());
 		}
-		if self.genesis_builder != default_values.genesis_builder {
-			if let Some(ref genesis_builder) = self.genesis_builder {
-				args.push(format!("--genesis-builder={}", genesis_builder));
-				if genesis_builder == &GenesisBuilderPolicy::Runtime &&
-					self.genesis_builder_preset != default_values.genesis_builder_preset
-				{
-					args.push(format!("--genesis-builder-preset={}", self.genesis_builder_preset));
-				}
+		if self.genesis_builder != default_values.genesis_builder &&
+			let Some(ref genesis_builder) = self.genesis_builder
+		{
+			args.push(format!("--genesis-builder={}", genesis_builder));
+			if genesis_builder == &GenesisBuilderPolicy::Runtime &&
+				self.genesis_builder_preset != default_values.genesis_builder_preset
+			{
+				args.push(format!("--genesis-builder-preset={}", self.genesis_builder_preset));
 			}
 		}
 		args

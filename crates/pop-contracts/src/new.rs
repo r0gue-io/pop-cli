@@ -203,7 +203,6 @@ mod tests {
 				name = "erc20"
 				version = "5.0.0"
 				authors = ["R0GUE"]
-				edition = "2021"
 				publish = false
 			"#
 		)?;
