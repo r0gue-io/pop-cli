@@ -67,8 +67,8 @@ pub struct CallContractCommand {
 	/// e.g.
 	/// - for a dev account "//Alice"
 	/// - with a password "//Alice///SECRET_PASSWORD"
-	#[arg(short, long, default_value = DEFAULT_URI)]
-	suri: String,
+	#[arg(short, long)]
+	suri: Option<String>,
 	/// Use a browser extension wallet to sign the extrinsic.
 	#[arg(
 		name = "use-wallet",
@@ -105,7 +105,7 @@ impl Default for CallContractCommand {
 			gas_limit: None,
 			proof_size: None,
 			url: url::Url::parse(urls::LOCAL).unwrap(),
-			suri: "//Alice".to_string(),
+			suri: Some("//Alice".to_string()),
 			use_wallet: false,
 			execute: false,
 			dry_run: false,
@@ -177,8 +177,8 @@ impl CallContractCommand {
 		full_message.push_str(&format!(" --url {}", self.url));
 		if self.use_wallet {
 			full_message.push_str(" --use-wallet");
-		} else {
-			full_message.push_str(&format!(" --suri {}", self.suri));
+		} else if let Some(suri) = &self.suri {
+			full_message.push_str(&format!(" --suri {}", suri));
 		}
 		if self.execute {
 			full_message.push_str(" --execute");
@@ -237,7 +237,7 @@ impl CallContractCommand {
 	fn configure_storage(&mut self) -> Result<()> {
 		// Display storage field information
 		self.use_wallet = false;
-		self.suri = "".to_string();
+		self.suri = None;
 		Ok(())
 	}
 
@@ -283,15 +283,16 @@ impl CallContractCommand {
 
 		// Resolve who is calling the contract. If a `suri` was provided via the command line, skip
 		// the prompt.
-		if self.suri == DEFAULT_URI && !self.use_wallet && message.mutates {
+		if !self.use_wallet && message.mutates && self.suri.is_none() {
 			if prompt_to_use_wallet(cli)? {
 				self.use_wallet = true;
 			} else {
-				self.suri = cli
-					.input("Signer calling the contract:")
-					.placeholder("//Alice")
-					.default_input("//Alice")
-					.interact()?;
+				self.suri = Some(
+					cli.input("Signer calling the contract:")
+						.placeholder(DEFAULT_URI)
+						.default_input(DEFAULT_URI)
+						.interact()?,
+				);
 			};
 		}
 
@@ -482,7 +483,7 @@ impl CallContractCommand {
 			gas_limit: self.gas_limit,
 			proof_size: self.proof_size,
 			url: self.url.clone(),
-			suri: self.suri.clone(),
+			suri: self.suri.clone().unwrap_or(DEFAULT_URI.to_string()),
 			execute: self.execute,
 		})
 		.await
@@ -715,7 +716,7 @@ mod tests {
 				None,
 			)
 			.expect_info(format!(
-				"pop call contract --path {} --contract CONTRACT_ADDRESS --message get --url {} --suri //Alice",
+				"pop call contract --path {} --contract CONTRACT_ADDRESS --message get --url {}",
 				temp_dir.path().join("testing").display(),
 				urls::LOCAL
 			));
@@ -730,7 +731,7 @@ mod tests {
 			gas_limit: None,
 			proof_size: None,
 			url: Url::parse(urls::LOCAL)?,
-			suri: DEFAULT_URI.to_string(),
+			suri: None,
 			use_wallet: false,
 			dry_run: false,
 			execute: false,
@@ -745,13 +746,13 @@ mod tests {
 		assert_eq!(call_config.gas_limit, None);
 		assert_eq!(call_config.proof_size, None);
 		assert_eq!(call_config.url.to_string(), urls::LOCAL);
-		assert_eq!(call_config.suri, "//Alice");
+		assert_eq!(call_config.suri, None);
 		assert!(!call_config.execute);
 		assert!(!call_config.dry_run);
 		assert_eq!(
 			call_config.display(),
 			format!(
-				"pop call contract --path {} --contract CONTRACT_ADDRESS --message get --url {} --suri //Alice",
+				"pop call contract --path {} --contract CONTRACT_ADDRESS --message get --url {}",
 				temp_dir.path().join("testing").display(),
 				urls::LOCAL
 			)
@@ -824,7 +825,7 @@ mod tests {
 			gas_limit: None,
 			proof_size: None,
 			url: Url::parse(urls::LOCAL)?,
-			suri: DEFAULT_URI.to_string(),
+			suri: None,
 			use_wallet: false,
 			dry_run: false,
 			execute: false,
@@ -841,7 +842,7 @@ mod tests {
 		assert_eq!(call_config.gas_limit, None);
 		assert_eq!(call_config.proof_size, None);
 		assert_eq!(call_config.url.to_string(), urls::LOCAL);
-		assert_eq!(call_config.suri, "//Alice");
+		assert_eq!(call_config.suri, None);
 		assert!(call_config.use_wallet);
 		assert!(call_config.execute);
 		assert!(!call_config.dry_run);
@@ -919,7 +920,7 @@ mod tests {
 			gas_limit: None,
 			proof_size: None,
 			url: Url::parse(urls::LOCAL)?,
-			suri: DEFAULT_URI.to_string(),
+			suri: None,
 			use_wallet: false,
 			dry_run: false,
 			execute: false,
@@ -936,7 +937,7 @@ mod tests {
 		assert_eq!(call_config.gas_limit, None);
 		assert_eq!(call_config.proof_size, None);
 		assert_eq!(call_config.url.to_string(), urls::LOCAL);
-		assert_eq!(call_config.suri, "//Alice");
+		assert_eq!(call_config.suri, Some("//Alice".to_string()));
 		assert!(call_config.execute);
 		assert!(!call_config.dry_run);
 		assert!(call_config.dev_mode);
@@ -984,7 +985,7 @@ mod tests {
 			gas_limit: None,
 			proof_size: None,
 			url: Url::parse(urls::LOCAL)?,
-			suri: "//Alice".to_string(),
+			suri: None,
 			use_wallet: false,
 			dry_run: false,
 			execute: false,
@@ -1040,11 +1041,6 @@ mod tests {
 			)
 			.expect_input("Type the chain URL manually", urls::LOCAL.into())
 			.expect_input("Provide the on-chain contract address:", "".into())
-			.expect_info(format!(
-				"pop call contract --path {} --contract  --message get --url {} --suri //Alice",
-				temp_dir.path().join("testing").display(),
-				urls::LOCAL
-			))
 			.expect_outro_cancel("Failed to parse account address: Length is bad");
 
 		let result = CallContractCommand {
@@ -1057,7 +1053,7 @@ mod tests {
 			gas_limit: None,
 			proof_size: None,
 			url: Url::parse(urls::LOCAL)?,
-			suri: "//Alice".to_string(),
+			suri: None,
 			use_wallet: false,
 			dry_run: false,
 			execute: false,
@@ -1084,7 +1080,7 @@ mod tests {
 			gas_limit: None,
 			proof_size: None,
 			url: Url::parse(urls::LOCAL)?,
-			suri: "//Alice".to_string(),
+			suri: None,
 			use_wallet: false,
 			dry_run: false,
 			execute: false,
@@ -1117,7 +1113,7 @@ mod tests {
 			gas_limit: None,
 			proof_size: None,
 			url: Url::parse(urls::LOCAL)?,
-			suri: "//Alice".to_string(),
+			suri: None,
 			use_wallet: false,
 			dry_run: false,
 			execute: false,
@@ -1164,7 +1160,7 @@ mod tests {
 			gas_limit: None,
 			proof_size: None,
 			url: Url::parse(urls::LOCAL)?,
-			suri: "//Alice".to_string(),
+			suri: None,
 			use_wallet: false,
 			dry_run: false,
 			execute: false,
@@ -1209,7 +1205,7 @@ mod tests {
 			gas_limit: None,
 			proof_size: None,
 			url: Url::parse(urls::LOCAL)?,
-			suri: "//Alice".to_string(),
+			suri: None,
 			use_wallet: false,
 			dry_run: false,
 			execute: false,
@@ -1229,11 +1225,6 @@ mod tests {
 			)
 			.expect_input("Type the chain URL manually", urls::LOCAL.into())
 			.expect_input("Provide the on-chain contract address:", "".into())
-			.expect_info(format!(
-				"pop call contract --path {} --contract  --message get --url {} --suri //Alice",
-				temp_dir.path().join("testing").display(),
-				urls::LOCAL
-			))
 			.expect_outro_cancel("Failed to parse account address: Length is bad");
 
 		// Execute should handle the execute_call error gracefully and return Ok
@@ -1272,7 +1263,7 @@ mod tests {
 			gas_limit: None,
 			proof_size: None,
 			url: Url::parse(urls::LOCAL)?,
-			suri: "//Alice".to_string(),
+			suri: Some("//Alice".to_string()),
 			use_wallet: false,
 			dry_run: false,
 			execute: false,
@@ -1326,7 +1317,7 @@ mod tests {
 			gas_limit: None,
 			proof_size: None,
 			url: Url::parse(urls::LOCAL)?,
-			suri: "//Alice".to_string(),
+			suri: Some("//Alice".to_string()),
 			use_wallet: false,
 			dry_run: false,
 			execute: false,
