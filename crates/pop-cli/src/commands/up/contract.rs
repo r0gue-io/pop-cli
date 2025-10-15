@@ -7,6 +7,7 @@ use crate::{
 	},
 	commands::call::contract::CallContractCommand,
 	common::{
+		chain::prompt_to_select_chain_rpc,
 		contracts::{
 			check_contracts_node_and_prompt, has_contract_been_built, normalize_call_args,
 			request_contract_function_args, terminate_node,
@@ -132,8 +133,9 @@ impl UpContractCommand {
 
 		// Check if specified chain is accessible
 		let process = if !is_chain_alive(self.url.clone()).await? {
-			if !self.skip_confirm {
-				let chain = if self.url.as_str() == urls::LOCAL {
+			let local_url = Url::parse(urls::LOCAL).expect("default url is valid");
+			let start_local_node = if !self.skip_confirm {
+				let msg = if self.url.as_str() == urls::LOCAL {
 					"No endpoint was specified.".into()
 				} else {
 					format!("The specified endpoint of {} is inaccessible.", self.url)
@@ -141,63 +143,79 @@ impl UpContractCommand {
 
 				if !Cli
 					.confirm(format!(
-						"{chain} Would you like to start a local node in the background for testing?",
+						"{msg} Would you like to start a local node in the background for testing?",
 					))
 					.initial_value(true)
 					.interact()?
 				{
-					Cli.outro_cancel(
-						"🚫 You need to specify an accessible endpoint to deploy the contract.",
-					)?;
-					return Ok(());
+					self.url = prompt_to_select_chain_rpc(
+						"Where is your contract deployed? (type to filter)",
+						"Type the chain URL manually",
+						urls::LOCAL,
+						|n| n.supports_contracts,
+						&mut Cli,
+					)
+					.await?;
+					self.url == local_url
+				} else {
+					true
 				}
-			}
-
-			// Update url to that of the launched node
-			self.url = Url::parse(urls::LOCAL).expect("default url is valid");
-
-			let log = NamedTempFile::new()?;
-			let spinner = spinner();
-
-			// uses the cache location
-			let binary_path = match check_contracts_node_and_prompt(
-				&mut Cli,
-				&spinner,
-				&crate::cache()?,
-				self.skip_confirm,
-			)
-			.await
-			{
-				Ok(binary_path) => binary_path,
-				Err(_) => {
-					Cli.outro_cancel(
-						"🚫 You need to specify an accessible endpoint to deploy the contract.",
-					)?;
-					return Ok(());
-				},
+			} else {
+				Cli.outro_cancel(
+					"🚫 You need to specify an accessible endpoint to deploy the contract.",
+				)?;
+				return Ok(());
 			};
 
-			spinner.start("Starting local node...");
+			if start_local_node {
+				// Update url to that of the launched node
+				self.url = local_url;
 
-			let process =
-				run_contracts_node(binary_path, Some(log.as_file()), DEFAULT_PORT).await?;
-			let bar = Style::new().magenta().dim().apply_to(Emoji("│", "|"));
-			spinner.stop(format!(
-				"Local node started successfully:{}",
-				style(format!(
-					"
+				let log = NamedTempFile::new()?;
+				let spinner = spinner();
+
+				// uses the cache location
+				let binary_path = match check_contracts_node_and_prompt(
+					&mut Cli,
+					&spinner,
+					&crate::cache()?,
+					self.skip_confirm,
+				)
+				.await
+				{
+					Ok(binary_path) => binary_path,
+					Err(_) => {
+						Cli.outro_cancel(
+							"🚫 You need to specify an accessible endpoint to deploy the contract.",
+						)?;
+						return Ok(());
+					},
+				};
+
+				spinner.start("Starting local node...");
+
+				let process =
+					run_contracts_node(binary_path, Some(log.as_file()), DEFAULT_PORT).await?;
+				let bar = Style::new().magenta().dim().apply_to(Emoji("│", "|"));
+				spinner.stop(format!(
+					"Local node started successfully:{}",
+					style(format!(
+						"
 {bar}  {}
 {bar}  {}",
-					style(format!(
-						"portal: https://polkadot.js.org/apps/?rpc={}#/explorer",
-						self.url
+						style(format!(
+							"portal: https://polkadot.js.org/apps/?rpc={}#/explorer",
+							self.url
+						))
+						.dim(),
+						style(format!("logs: tail -f {}", log.path().display())).dim(),
 					))
-					.dim(),
-					style(format!("logs: tail -f {}", log.path().display())).dim(),
-				))
-				.dim()
-			));
-			Some((process, log))
+					.dim()
+				));
+				Some((process, log))
+			} else {
+				None
+			}
 		} else {
 			None
 		};
