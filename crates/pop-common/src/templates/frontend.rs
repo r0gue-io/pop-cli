@@ -12,18 +12,10 @@ use crate::templates::{Template, Type};
 pub enum FrontendType {
 	/// Contract-based frontend templates.
 	#[default]
-	#[strum(
-		ascii_case_insensitive,
-		serialize = "contract",
-        message = "Contract",
-	)]
+	#[strum(ascii_case_insensitive, serialize = "contract", message = "Contract")]
 	Contract,
 	/// Chain-based frontend templates.
-	#[strum(
-		ascii_case_insensitive,
-		serialize = "chain",
-        message = "Chain",
-	)]
+	#[strum(ascii_case_insensitive, serialize = "chain", message = "Chain")]
 	Chain,
 }
 impl Type<FrontendTemplate> for FrontendType {
@@ -51,66 +43,56 @@ impl Type<FrontendTemplate> for FrontendType {
 	VariantArray,
 )]
 pub enum FrontendTemplate {
-    /// Inkathon template: Next generation full-stack boilerplate for ink! smart contracts running on PolkaVM.
-    #[default]
-    #[strum(
+	/// Inkathon template: Next generation full-stack boilerplate for ink! smart contracts running
+	/// on PolkaVM.
+	#[default]
+	#[strum(
 		serialize = "inkathon",
 		message = "Inkathon",
 		detailed_message = "Next generation full-stack boilerplate for ink! smart contracts running on PolkaVM.",
-		props(
-			Command = "npx create-inkathon-app@latest frontend",
-            Type = "Contract",
-		)
+		props(Command = "create-inkathon-app@latest", Type = "Contract",)
 	)]
-    Inkathon,
-    /// Typeink template: The ultimate toolkit for dApps development on Polkadot, powered by https://dedot.dev!.
-    #[strum(
+	Inkathon,
+	/// Typeink template: The ultimate toolkit for dApps development on Polkadot, powered by https://dedot.dev!.
+	#[strum(
 		serialize = "typink",
 		message = "Typink",
 		detailed_message = "The ultimate toolkit for dApps development on Polkadot, powered by https://dedot.dev!",
-		props(
-			Command = "npx create-typink@latest frontend",
-            Type = "Contract",
-		)
+		props(Command = "create-typink@latest", Type = "Contract",)
 	)]
-    Typink,
-    /// Parity template: Create Polkadot DApp in one command.
-    #[strum(
+	Typink,
+	/// Parity template: Create Polkadot DApp in one command.
+	#[strum(
 		serialize = "create-polkadot-dapp",
 		message = "Parity",
 		detailed_message = "Create Polkadot DApp in one command.",
-		props(
-			Command = "npx create-polkadot-dapp@latest frontend",
-            Type = "Chain",
-		)
+		props(Command = "create-polkadot-dapp@latest", Type = "Chain",)
 	)]
-    CreatePolkadotDapp,
-    /// Create Dot App template: A command-line interface (CLI) tool designed to streamline the development process for Polkadot-based decentralized applications (dApps).
-    #[strum(
+	CreatePolkadotDapp,
+	/// Create Dot App template: A command-line interface (CLI) tool designed to streamline the
+	/// development process for Polkadot-based decentralized applications (dApps).
+	#[strum(
 		serialize = "create-dot-app",
 		message = "create-dot-app",
 		detailed_message = "A command-line interface (CLI) tool designed to streamline the development process for Polkadot-based decentralized applications (dApps)",
-		props(
-			Command = "npx create-dot-app@latest frontend",
-            Type = "Chain",
-		)
+		props(Command = "create-dot-app@latest", Type = "Chain",)
 	)]
-    CreateDotApp,
+	CreateDotApp,
 }
 
 impl Template for FrontendTemplate {}
 
 impl FrontendTemplate {
-    /// Get the command to create a new project using this template.
-    pub fn command(&self) -> Option<&str> {
-        self.get_str("Command")
-    }
+	/// Get the command to create a new project using this template.
+	pub fn command(&self) -> Option<&str> {
+		self.get_str("Command")
+	}
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
-    use FrontendTemplate::*;
+	use FrontendTemplate::*;
 	use std::{collections::HashMap, str::FromStr};
 	use strum::VariantArray;
 
@@ -125,19 +107,28 @@ mod tests {
 
 	fn templates_commands() -> HashMap<String, &'static str> {
 		HashMap::from([
-			("inkathon".to_string(), "npx create-inkathon-app@latest frontend"),
-			("typink".to_string(), "npx create-typink@latest frontend"),
-			("create-polkadot-dapp".to_string(), "npx create-polkadot-dapp@latest frontend"),
-			("create-dot-app".to_string(), "npx create-dot-app@latest frontend"),
+			("inkathon".to_string(), "create-inkathon-app@latest"),
+			("typink".to_string(), "create-typink@latest"),
+			("create-polkadot-dapp".to_string(), "create-polkadot-dapp@latest"),
+			("create-dot-app".to_string(), "create-dot-app@latest"),
 		])
 	}
 
 	fn templates_description() -> HashMap<FrontendTemplate, &'static str> {
 		HashMap::from([
-			(Inkathon, "Next generation full-stack boilerplate for ink! smart contracts running on PolkaVM."),
-			(Typink, "The ultimate toolkit for dApps development on Polkadot, powered by https://dedot.dev!"),
+			(
+				Inkathon,
+				"Next generation full-stack boilerplate for ink! smart contracts running on PolkaVM.",
+			),
+			(
+				Typink,
+				"The ultimate toolkit for dApps development on Polkadot, powered by https://dedot.dev!",
+			),
 			(CreatePolkadotDapp, "Create Polkadot DApp in one command."),
-			(CreateDotApp, "A command-line interface (CLI) tool designed to streamline the development process for Polkadot-based decentralized applications (dApps)"),
+			(
+				CreateDotApp,
+				"A command-line interface (CLI) tool designed to streamline the development process for Polkadot-based decentralized applications (dApps)",
+			),
 		])
 	}
 
@@ -159,10 +150,10 @@ mod tests {
 	fn test_repository_command() {
 		let template_urls = templates_commands();
 		for template in FrontendTemplate::VARIANTS {
-				assert_eq!(
-					&template.command().unwrap(),
-					template_urls.get(&template.to_string()).unwrap()
-				);
+			assert_eq!(
+				&template.command().unwrap(),
+				template_urls.get(&template.to_string()).unwrap()
+			);
 		}
 	}
 

@@ -3,6 +3,7 @@
 use crate::{
 	cli::{self, traits::*},
 	common::helpers::check_destination_path,
+	new::frontend::{create_frontend, prompt_frontend_template},
 };
 use anyhow::Result;
 use clap::{
@@ -14,7 +15,8 @@ use pop_chains::{
 	ChainTemplate, Config, Provider, instantiate_template_dir, is_initial_endowment_valid,
 };
 use pop_common::{
-	Git, GitHub, Release, enum_variants, enum_variants_without_deprecated,
+	FrontendTemplate, FrontendType, Git, GitHub, Release, enum_variants,
+	enum_variants_without_deprecated,
 	templates::{Template, Type},
 };
 use std::{path::Path, str::FromStr, thread::sleep, time::Duration};
@@ -66,6 +68,12 @@ pub struct NewChainCommand {
 		help = "Verifies the commit SHA when fetching the latest license and release from GitHub."
 	)]
 	pub(crate) verify: bool,
+	#[arg(
+		short = 'f',
+		long = "with-frontend",
+		help = "Also scaffold a frontend. If a value is provided, it will be preselected in the prompt."
+	)]
+	pub(crate) with_frontend: bool,
 }
 
 impl NewChainCommand {
@@ -99,6 +107,11 @@ impl NewChainCommand {
 
 		let tag_version = parachain_config.release_tag.clone();
 
+		let mut frontend_template: Option<FrontendTemplate> = None;
+		if self.with_frontend {
+			frontend_template =
+				Some(prompt_frontend_template(&FrontendType::Chain, &mut cli::Cli)?);
+		}
 		generate_parachain_from_template(
 			name,
 			provider,
@@ -106,9 +119,11 @@ impl NewChainCommand {
 			tag_version,
 			config,
 			self.verify,
+			frontend_template,
 			&mut cli::Cli,
 		)
 		.await?;
+
 		Ok(template)
 	}
 }
@@ -168,6 +183,8 @@ async fn guide_user_to_generate_parachain(
 		decimals: Some(customizable_options.decimals),
 		initial_endowment: Some(customizable_options.initial_endowment),
 		verify,
+		// TODO: Prompt if not indicated?
+		with_frontend: false,
 	})
 }
 
@@ -178,6 +195,7 @@ async fn generate_parachain_from_template(
 	tag_version: Option<String>,
 	config: Config,
 	verify: bool,
+	frontend_template: Option<FrontendTemplate>,
 	cli: &mut impl Cli,
 ) -> Result<()> {
 	cli.intro(format!(
@@ -243,6 +261,13 @@ async fn generate_parachain_from_template(
 			"Use `pop up chain -f {network_config}` to launch your parachain on a local network."
 		))
 	}
+	if let Some(frontend_template) = &frontend_template {
+		create_frontend(&destination_path, frontend_template)?;
+		next_steps.push(format!(
+			"Frontend template {frontend_template} created inside \"{name_template}\". Go to the folder and follow the README instructions to get started."
+		))
+	};
+
 	let next_steps: Vec<_> = next_steps
 		.iter()
 		.map(|s| style(format!("{} {s}", console::Emoji("●", ">"))).dim().to_string())
