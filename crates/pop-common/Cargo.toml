@@ -36,6 +36,7 @@ thiserror.workspace = true
 tokio.workspace = true
 toml.workspace = true
 url.workspace = true
+derivative.workspace = true
 
 [dev-dependencies]
 mockito.workspace = true
