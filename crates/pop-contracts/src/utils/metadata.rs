@@ -1,16 +1,54 @@
 // SPDX-License-Identifier: GPL-3.0
 
+//! Functionality for processing and extracting metadata from ink! smart contracts.
+
 use crate::errors::Error;
-use pop_common::format_type;
+use contract_transcode::ContractMessageTranscoder;
+use ink_env::DefaultEnvironment;
+use pop_common::{DefaultConfig, format_type};
 use scale_info::{PortableRegistry, form::PortableForm};
+use sp_core::Encode;
 use std::path::Path;
+use url::Url;
 #[cfg(feature = "v5")]
-use {contract_extrinsics::ContractArtifacts, contract_transcode::ink_metadata::MessageParamSpec};
+use {
+	contract_extrinsics::ContractArtifacts,
+	contract_extrinsics::ContractStorageRpc,
+	contract_transcode::ink_metadata::{MessageParamSpec, layout::Layout},
+	pop_common::parse_account,
+};
 #[cfg(feature = "v6")]
 use {
 	contract_extrinsics_inkv6::ContractArtifacts,
-	contract_transcode_inkv6::ink_metadata::MessageParamSpec,
+	contract_extrinsics_inkv6::ContractStorageRpc,
+	contract_transcode_inkv6::ink_metadata::{MessageParamSpec, layout::Layout},
+	pop_common::account_id::parse_h160_account,
 };
+
+/// Represents a callable entity within a smart contract, either a function or storage item.
+#[derive(Clone, Eq, PartialEq, Debug)]
+pub enum ContractCallable {
+	/// A callable function (message or constructor).
+	Function(ContractFunction),
+	/// A storage item that can be queried.
+	Storage(ContractStorage),
+}
+
+impl ContractCallable {
+	/// Returns the name/label of the callable entity.
+	///
+	/// For functions, returns the function label.
+	/// For storage items, returns the storage field name.
+	///
+	/// # Returns
+	/// A string containing the name of the callable entity.
+	pub fn name(&self) -> String {
+		match self {
+			ContractCallable::Function(f) => f.label.clone(),
+			ContractCallable::Storage(s) => s.name.clone(),
+		}
+	}
+}
 
 /// Describes a parameter.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -22,7 +60,7 @@ pub struct Param {
 }
 
 /// Describes a contract function.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct ContractFunction {
 	/// The label of the function.
 	pub label: String,
@@ -36,6 +74,19 @@ pub struct ContractFunction {
 	pub default: bool,
 	/// If the message is allowed to mutate the contract state. true for constructors.
 	pub mutates: bool,
+}
+
+/// Describes a contract storage item.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContractStorage {
+	/// The name of the storage field.
+	pub name: String,
+	/// The type name of the storage field.
+	pub type_name: String,
+	/// The storage key used to fetch the value from the contract.
+	pub storage_key: u32,
+	/// The type ID from the metadata registry, used for decoding storage values.
+	pub type_id: u32,
 }
 
 /// Specifies the type of contract function, either a constructor or a message.
@@ -78,6 +129,188 @@ fn collapse_docs(docs: &[String]) -> String {
 		.to_string()
 }
 
+fn get_contract_transcoder(path: &Path) -> anyhow::Result<ContractMessageTranscoder> {
+	let contract_artifacts = if path.is_dir() || path.ends_with("Cargo.toml") {
+		let cargo_toml_path =
+			if path.ends_with("Cargo.toml") { path.to_path_buf() } else { path.join("Cargo.toml") };
+		ContractArtifacts::from_manifest_or_file(Some(&cargo_toml_path), None)?
+	} else {
+		ContractArtifacts::from_manifest_or_file(None, Some(&path.to_path_buf()))?
+	};
+	contract_artifacts.contract_transcoder()
+}
+
+/// Fetches and decodes a storage value from a deployed smart contract.
+///
+/// # Arguments
+/// * `storage` - Storage item descriptor containing key and type information
+/// * `account` - Contract address as string
+/// * `rpc_url` - URL of the RPC endpoint to connect to
+/// * `path` - Path to contract artifacts for metadata access
+///
+/// # Returns
+/// * `Ok(String)` - The decoded storage value as a string
+/// * `Err(anyhow::Error)` - If any step fails
+pub async fn fetch_contract_storage(
+	storage: &ContractStorage,
+	account: &str,
+	rpc_url: &Url,
+	path: &Path,
+) -> anyhow::Result<String> {
+	// Get the transcoder to decode the storage value
+	let transcoder = get_contract_transcoder(path)?;
+
+	// Create RPC client
+	let rpc = ContractStorageRpc::<DefaultConfig>::new(rpc_url).await?;
+
+	// Parse account address to AccountId
+	let account_id = parse_account(account)?;
+
+	// Fetch contract info to get the trie_id
+	let contract_info = rpc.fetch_contract_info::<DefaultEnvironment>(&account_id).await?;
+	let trie_id = contract_info.trie_id();
+
+	// Encode the storage key as bytes
+	// The storage key needs to be properly formatted:
+	// blake2_128 hash (16 bytes) + root_key (4 bytes)
+	let root_key_bytes = storage.storage_key.encode();
+	let mut full_key = sp_core::blake2_128(&root_key_bytes).to_vec();
+	full_key.extend_from_slice(&root_key_bytes);
+
+	// Fetch the storage value
+	let bytes = full_key.into();
+	let value = rpc.fetch_contract_storage(trie_id, &bytes, None).await?;
+
+	match value {
+		Some(data) => {
+			// Decode the raw bytes using the type_id from storage
+			let decoded_value = transcoder.decode(storage.type_id, &mut &data.0[..])?;
+			Ok(decoded_value.to_string())
+		},
+		None => Ok("No value found".to_string()),
+	}
+}
+
+/// Extracts a list of smart contract storage items parsing the contract artifact.
+///
+/// # Arguments
+/// * `path` - Location path of the project or contract artifact.
+pub fn get_contract_storage_info(path: &Path) -> Result<Vec<ContractStorage>, Error> {
+	let transcoder = get_contract_transcoder(path)?;
+	let metadata = transcoder.metadata();
+	let layout = metadata.layout();
+	let registry = metadata.registry();
+
+	let mut storage_items = Vec::new();
+	extract_storage_fields(layout, registry, &mut storage_items);
+
+	Ok(storage_items)
+}
+
+// Recursively extracts storage fields from the layout
+fn extract_storage_fields(
+	layout: &Layout<PortableForm>,
+	registry: &PortableRegistry,
+	storage_items: &mut Vec<ContractStorage>,
+) {
+	match layout {
+		Layout::Root(root_layout) => {
+			// For root layout, capture the root key and traverse into the nested layout
+			let root_key = *root_layout.root_key().key();
+			extract_storage_fields_with_key(
+				root_layout.layout(),
+				registry,
+				storage_items,
+				root_key,
+			);
+		},
+		Layout::Struct(struct_layout) => {
+			// For struct layout at the top level (no root key yet), skip it
+			// This shouldn't normally happen as Root should be the outermost layout
+			for field in struct_layout.fields() {
+				extract_storage_fields(field.layout(), registry, storage_items);
+			}
+		},
+		Layout::Leaf(_) => {
+			// Leaf nodes represent individual storage items but without a name at this level
+			// They are typically accessed through their parent (struct field)
+		},
+		Layout::Hash(_) | Layout::Array(_) | Layout::Enum(_) => {
+			// For complex layouts (hash maps, arrays, enums), we could expand this
+			// but for now we focus on simple struct fields
+		},
+	}
+}
+
+// Helper function to extract storage fields with a known root key
+fn extract_storage_fields_with_key(
+	layout: &Layout<PortableForm>,
+	registry: &PortableRegistry,
+	storage_items: &mut Vec<ContractStorage>,
+	root_key: u32,
+) {
+	match layout {
+		Layout::Root(root_layout) => {
+			// Nested root layout, update the root key
+			let new_root_key = *root_layout.root_key().key();
+			extract_storage_fields_with_key(
+				root_layout.layout(),
+				registry,
+				storage_items,
+				new_root_key,
+			);
+		},
+		Layout::Struct(struct_layout) => {
+			// For struct layout, extract all fields with the current root key
+			for field in struct_layout.fields() {
+				extract_field(field.name(), field.layout(), registry, storage_items, root_key);
+			}
+		},
+		Layout::Leaf(_) => {
+			// Leaf nodes represent individual storage items but without a name at this level
+		},
+		Layout::Hash(_) | Layout::Array(_) | Layout::Enum(_) => {
+			// For complex layouts, we could expand this later
+		},
+	}
+}
+
+// Extracts a single field and recursively processes nested layouts
+fn extract_field(
+	name: &str,
+	layout: &Layout<PortableForm>,
+	registry: &PortableRegistry,
+	storage_items: &mut Vec<ContractStorage>,
+	root_key: u32,
+) {
+	match layout {
+		Layout::Leaf(leaf_layout) => {
+			// Get the type ID and resolve it to get the type name
+			let type_id = leaf_layout.ty();
+			if let Some(ty) = registry.resolve(type_id.id) {
+				let type_name = format_type(ty, registry);
+				storage_items.push(ContractStorage {
+					name: name.to_string(),
+					type_name,
+					storage_key: root_key,
+					type_id: type_id.id,
+				});
+			}
+		},
+		Layout::Struct(struct_layout) => {
+			// Nested struct - recursively extract its fields with qualified names
+			for field in struct_layout.fields() {
+				let qualified_name = format!("{}.{}", name, field.name());
+				extract_field(&qualified_name, field.layout(), registry, storage_items, root_key);
+			}
+		},
+		Layout::Hash(_) | Layout::Array(_) | Layout::Enum(_) | Layout::Root(_) => {
+			// For complex nested types, we could add more detailed handling
+			// For now, we'll skip or handle them simply
+		},
+	}
+}
+
 /// Extracts a list of smart contract functions (messages or constructors) parsing the contract
 /// artifact.
 ///
@@ -88,14 +321,7 @@ fn get_contract_functions(
 	path: &Path,
 	function_type: FunctionType,
 ) -> Result<Vec<ContractFunction>, Error> {
-	let contract_artifacts = if path.is_dir() || path.ends_with("Cargo.toml") {
-		let cargo_toml_path =
-			if path.ends_with("Cargo.toml") { path.to_path_buf() } else { path.join("Cargo.toml") };
-		ContractArtifacts::from_manifest_or_file(Some(&cargo_toml_path), None)?
-	} else {
-		ContractArtifacts::from_manifest_or_file(None, Some(&path.to_path_buf()))?
-	};
-	let transcoder = contract_artifacts.contract_transcoder()?;
+	let transcoder = get_contract_transcoder(path)?;
 	let metadata = transcoder.metadata();
 
 	Ok(match function_type {
@@ -440,6 +666,36 @@ mod tests {
 			)?,
 			["true".to_string(), "None".to_string()]
 		);
+		Ok(())
+	}
+
+	#[test]
+	fn get_contract_storage_work() -> Result<()> {
+		let temp_dir = new_environment("testing")?;
+		let current_dir = env::current_dir().expect("Failed to get current directory");
+		mock_build_process(
+			temp_dir.path().join("testing"),
+			current_dir.join("./tests/files/testing.contract"),
+			current_dir.join("./tests/files/testing.json"),
+		)?;
+
+		// Test with a directory path
+		let storage = get_contract_storage_info(temp_dir.path().join("testing").as_path())?;
+		assert_eq!(storage.len(), 2);
+		assert_eq!(storage[0].name, "value");
+		assert_eq!(storage[0].type_name, "bool");
+		assert_eq!(storage[1].name, "number");
+		// The exact type name may vary, but it should contain u32
+		assert!(storage[1].type_name.contains("u32"));
+
+		// Test with a metadata file path
+		let storage = get_contract_storage_info(
+			current_dir.join("./tests/files/testing.contract").as_path(),
+		)?;
+		assert_eq!(storage.len(), 2);
+		assert_eq!(storage[0].name, "value");
+		assert_eq!(storage[0].type_name, "bool");
+
 		Ok(())
 	}
 }
