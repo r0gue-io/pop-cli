@@ -420,7 +420,7 @@ impl UpContractCommand {
 			let mut cmd = CallContractCommand::default();
 			cmd.path_pos = Some(self.path.clone());
 			cmd.contract = Some(address);
-			cmd.url = self.url;
+			cmd.url = Some(self.url);
 			cmd.deployed = true;
 			cmd.execute(cli).await?;
 		}

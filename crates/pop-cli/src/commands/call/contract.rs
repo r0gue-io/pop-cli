@@ -60,8 +60,8 @@ pub struct CallContractCommand {
 	#[arg(short = 'P', long)]
 	proof_size: Option<u64>,
 	/// Websocket endpoint of a node.
-	#[arg(short, long, value_parser, default_value = urls::LOCAL)]
-	pub(crate) url: url::Url,
+	#[arg(short, long, value_parser)]
+	pub(crate) url: Option<url::Url>,
 	/// Secret key URI for the account calling the contract.
 	///
 	/// e.g.
@@ -104,7 +104,7 @@ impl Default for CallContractCommand {
 			value: DEFAULT_PAYABLE_VALUE.to_string(),
 			gas_limit: None,
 			proof_size: None,
-			url: url::Url::parse(urls::LOCAL).unwrap(),
+			url: None,
 			suri: Some("//Alice".to_string()),
 			use_wallet: false,
 			execute: false,
@@ -116,6 +116,10 @@ impl Default for CallContractCommand {
 }
 
 impl CallContractCommand {
+	fn url(&self) -> Result<url::Url> {
+		self.url.as_ref().ok_or(anyhow::anyhow!("url not set")).cloned()
+	}
+
 	/// Executes the command.
 	pub(crate) async fn execute(mut self, cli: &mut impl Cli) -> Result<()> {
 		// Check if message specified via command line argument.
@@ -174,7 +178,9 @@ impl CallContractCommand {
 		if let Some(proof_size) = self.proof_size {
 			full_message.push_str(&format!(" --proof-size {}", proof_size));
 		}
-		full_message.push_str(&format!(" --url {}", self.url));
+		if let Some(url) = &self.url {
+			full_message.push_str(&format!(" --url {}", url));
+		}
 		if self.use_wallet {
 			full_message.push_str(" --use-wallet");
 		} else if let Some(suri) = &self.suri {
@@ -358,15 +364,17 @@ impl CallContractCommand {
 			.for_each(|storage| callables.push(ContractCallable::Storage(storage)));
 
 		// Resolve url.
-		if !repeat && !self.deployed && self.url.as_str() == urls::LOCAL {
-			self.url = prompt_to_select_chain_rpc(
-				"Where is your contract deployed? (type to filter)",
-				"Type the chain URL manually",
-				urls::LOCAL,
-				|n| n.supports_contracts,
-				cli,
-			)
-			.await?;
+		if !repeat && !self.deployed && self.url.is_none() {
+			self.url = Some(
+				prompt_to_select_chain_rpc(
+					"Where is your contract deployed? (type to filter)",
+					"Type the chain URL manually",
+					urls::LOCAL,
+					|n| n.supports_contracts,
+					cli,
+				)
+				.await?,
+			);
 		};
 
 		// Resolve contract address.
@@ -447,7 +455,7 @@ impl CallContractCommand {
 		let value = fetch_contract_storage(
 			&storage,
 			self.contract.as_ref().expect("no contract address specified"),
-			&self.url,
+			&self.url()?,
 			&ensure_project_path(self.path.clone(), self.path_pos.clone()),
 		)
 		.await?;
@@ -482,7 +490,7 @@ impl CallContractCommand {
 			value: self.value.clone(),
 			gas_limit: self.gas_limit,
 			proof_size: self.proof_size,
-			url: self.url.clone(),
+			url: self.url()?,
 			suri: self.suri.clone().unwrap_or(DEFAULT_URI.to_string()),
 			execute: self.execute,
 		})
@@ -547,7 +555,7 @@ impl CallContractCommand {
 			let spinner = spinner();
 			spinner.start("Calling the contract...");
 
-			let call_result = call_smart_contract(call_exec, weight_limit, &self.url)
+			let call_result = call_smart_contract(call_exec, weight_limit, &self.url()?)
 				.await
 				.map_err(|err| anyhow!("{} {}", "ERROR:", format!("{err:?}")))?;
 
@@ -617,7 +625,7 @@ impl CallContractCommand {
 		})?;
 
 		let maybe_payload =
-			request_signature(call_data, self.url.to_string()).await?.signed_payload;
+			request_signature(call_data, self.url()?.to_string()).await?.signed_payload;
 		if let Some(payload) = maybe_payload {
 			cli.success("Signed payload received.")?;
 			let spinner = spinner();
@@ -625,7 +633,7 @@ impl CallContractCommand {
 				.start("Calling the contract and waiting for finalization, please be patient...");
 
 			let call_result =
-				call_smart_contract_from_signed_payload(call_exec, payload, &self.url)
+				call_smart_contract_from_signed_payload(call_exec, payload, &self.url()?)
 					.await
 					.map_err(|err| anyhow!("{} {}", "ERROR:", format!("{err:?}")))?;
 
@@ -697,15 +705,6 @@ mod tests {
         ];
 		// The inputs are processed in reverse order.
 		let mut cli = MockCli::new()
-			.expect_select(
-				"Where is your contract deployed? (type to filter)",
-				Some(true),
-				true,
-				Some(vec![("Custom".to_string(), "Type the chain URL manually".to_string())]),
-				0,
-				None,
-			)
-			.expect_input("Type the chain URL manually", urls::LOCAL.into())
 			.expect_input("Provide the on-chain contract address:", "CONTRACT_ADDRESS".into())
 			.expect_select(
 				"Select the message to call (type to filter)",
@@ -730,7 +729,7 @@ mod tests {
 			value: DEFAULT_PAYABLE_VALUE.to_string(),
 			gas_limit: None,
 			proof_size: None,
-			url: Url::parse(urls::LOCAL)?,
+			url: Some(Url::parse(urls::LOCAL)?),
 			suri: None,
 			use_wallet: false,
 			dry_run: false,
@@ -745,7 +744,7 @@ mod tests {
 		assert_eq!(call_config.value, "0".to_string());
 		assert_eq!(call_config.gas_limit, None);
 		assert_eq!(call_config.proof_size, None);
-		assert_eq!(call_config.url.to_string(), urls::LOCAL);
+		assert_eq!(call_config.url()?.to_string(), urls::LOCAL);
 		assert_eq!(call_config.suri, None);
 		assert!(!call_config.execute);
 		assert!(!call_config.dry_run);
@@ -783,15 +782,6 @@ mod tests {
         ];
 		// The inputs are processed in reverse order.
 		let mut cli = MockCli::new()
-            .expect_select(
-                "Where is your contract deployed? (type to filter)",
-                Some(true),
-                true,
-                Some(vec![("Custom".to_string(), "Type the chain URL manually".to_string())]),
-                0,
-                None,
-            )
-            .expect_input("Type the chain URL manually", urls::LOCAL.into())
             .expect_input(
                 "Provide the on-chain contract address:",
                 "CONTRACT_ADDRESS".into(),
@@ -824,7 +814,7 @@ mod tests {
 			value: DEFAULT_PAYABLE_VALUE.to_string(),
 			gas_limit: None,
 			proof_size: None,
-			url: Url::parse(urls::LOCAL)?,
+			url: Some(Url::parse(urls::LOCAL)?),
 			suri: None,
 			use_wallet: false,
 			dry_run: false,
@@ -841,7 +831,7 @@ mod tests {
 		assert_eq!(call_config.value, "50".to_string());
 		assert_eq!(call_config.gas_limit, None);
 		assert_eq!(call_config.proof_size, None);
-		assert_eq!(call_config.url.to_string(), urls::LOCAL);
+		assert_eq!(call_config.url()?.to_string(), urls::LOCAL);
 		assert_eq!(call_config.suri, None);
 		assert!(call_config.use_wallet);
 		assert!(call_config.execute);
@@ -880,15 +870,6 @@ mod tests {
         ];
 		// The inputs are processed in reverse order.
 		let mut cli = MockCli::new()
-            .expect_select(
-                "Where is your contract deployed? (type to filter)",
-                Some(true),
-                true,
-                Some(vec![("Custom".to_string(), "Type the chain URL manually".to_string())]),
-                0,
-                None,
-            )
-            .expect_input("Type the chain URL manually", urls::LOCAL.into())
             .expect_input(
                 "Provide the on-chain contract address:",
                 "CONTRACT_ADDRESS".into(),
@@ -919,7 +900,7 @@ mod tests {
 			value: DEFAULT_PAYABLE_VALUE.to_string(),
 			gas_limit: None,
 			proof_size: None,
-			url: Url::parse(urls::LOCAL)?,
+			url: Some(Url::parse(urls::LOCAL)?),
 			suri: None,
 			use_wallet: false,
 			dry_run: false,
@@ -936,7 +917,7 @@ mod tests {
 		assert_eq!(call_config.value, "50".to_string());
 		assert_eq!(call_config.gas_limit, None);
 		assert_eq!(call_config.proof_size, None);
-		assert_eq!(call_config.url.to_string(), urls::LOCAL);
+		assert_eq!(call_config.url()?.to_string(), urls::LOCAL);
 		assert_eq!(call_config.suri, Some("//Alice".to_string()));
 		assert!(call_config.execute);
 		assert!(!call_config.dry_run);
@@ -984,7 +965,7 @@ mod tests {
 			value: "0".to_string(),
 			gas_limit: None,
 			proof_size: None,
-			url: Url::parse(urls::LOCAL)?,
+			url: Some(Url::parse(urls::LOCAL)?),
 			suri: None,
 			use_wallet: false,
 			dry_run: false,
@@ -1031,15 +1012,6 @@ mod tests {
 		// contract address."
 		let mut cli = MockCli::new()
 			.expect_intro("Call a contract")
-			.expect_select(
-				"Where is your contract deployed? (type to filter)",
-				Some(true),
-				true,
-				Some(vec![("Custom".to_string(), "Type the chain URL manually".to_string())]),
-				0,
-				None,
-			)
-			.expect_input("Type the chain URL manually", urls::LOCAL.into())
 			.expect_input("Provide the on-chain contract address:", "".into())
 			.expect_outro_cancel("Failed to parse account address: Length is bad");
 
@@ -1052,7 +1024,7 @@ mod tests {
 			value: "0".to_string(),
 			gas_limit: None,
 			proof_size: None,
-			url: Url::parse(urls::LOCAL)?,
+			url: Some(Url::parse(urls::LOCAL)?),
 			suri: None,
 			use_wallet: false,
 			dry_run: false,
@@ -1079,7 +1051,7 @@ mod tests {
 			value: "0".to_string(),
 			gas_limit: None,
 			proof_size: None,
-			url: Url::parse(urls::LOCAL)?,
+			url: Some(Url::parse(urls::LOCAL)?),
 			suri: None,
 			use_wallet: false,
 			dry_run: false,
@@ -1112,7 +1084,7 @@ mod tests {
 			value: "0".to_string(),
 			gas_limit: None,
 			proof_size: None,
-			url: Url::parse(urls::LOCAL)?,
+			url: Some(Url::parse(urls::LOCAL)?),
 			suri: None,
 			use_wallet: false,
 			dry_run: false,
@@ -1159,7 +1131,7 @@ mod tests {
 			value: "0".to_string(),
 			gas_limit: None,
 			proof_size: None,
-			url: Url::parse(urls::LOCAL)?,
+			url: Some(Url::parse(urls::LOCAL)?),
 			suri: None,
 			use_wallet: false,
 			dry_run: false,
@@ -1204,7 +1176,7 @@ mod tests {
 			value: "0".to_string(),
 			gas_limit: None,
 			proof_size: None,
-			url: Url::parse(urls::LOCAL)?,
+			url: Some(Url::parse(urls::LOCAL)?),
 			suri: None,
 			use_wallet: false,
 			dry_run: false,
@@ -1215,15 +1187,6 @@ mod tests {
 
 		let mut cli = MockCli::new()
 			.expect_intro("Call a contract")
-			.expect_select(
-				"Where is your contract deployed? (type to filter)",
-				Some(true),
-				true,
-				Some(vec![("Custom".to_string(), "Type the chain URL manually".to_string())]),
-				0,
-				None,
-			)
-			.expect_input("Type the chain URL manually", urls::LOCAL.into())
 			.expect_input("Provide the on-chain contract address:", "".into())
 			.expect_outro_cancel("Failed to parse account address: Length is bad");
 
@@ -1262,7 +1225,7 @@ mod tests {
 			value: "0".to_string(),
 			gas_limit: None,
 			proof_size: None,
-			url: Url::parse(urls::LOCAL)?,
+			url: Some(Url::parse(urls::LOCAL)?),
 			suri: Some("//Alice".to_string()),
 			use_wallet: false,
 			dry_run: false,
@@ -1316,7 +1279,7 @@ mod tests {
 			value: "0".to_string(),
 			gas_limit: None,
 			proof_size: None,
-			url: Url::parse(urls::LOCAL)?,
+			url: Some(Url::parse(urls::LOCAL)?),
 			suri: Some("//Alice".to_string()),
 			use_wallet: false,
 			dry_run: false,
