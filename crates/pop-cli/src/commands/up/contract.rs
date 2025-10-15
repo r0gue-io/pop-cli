@@ -422,7 +422,7 @@ impl UpContractCommand {
 			cmd.contract = Some(address);
 			cmd.url = self.url;
 			cmd.deployed = true;
-			cmd.execute().await?;
+			cmd.execute(cli).await?;
 		}
 		Ok(())
 	}

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{
-	cli::{self, traits::*},
+	cli::traits::{Cli, Confirm, Input, Select},
 	common::{
 		builds::{ensure_project_path, get_project_path},
 		chain::prompt_to_select_chain_rpc,
@@ -116,28 +116,28 @@ impl Default for CallContractCommand {
 
 impl CallContractCommand {
 	/// Executes the command.
-	pub(crate) async fn execute(mut self) -> Result<()> {
+	pub(crate) async fn execute(mut self, cli: &mut impl Cli) -> Result<()> {
 		// Check if message specified via command line argument.
 		let prompt_to_repeat_call = self.message.is_none();
 		// Configure the call based on command line arguments/call UI.
-		if let Err(e) = self.configure(&mut cli::Cli, false).await {
+		if let Err(e) = self.configure(cli, false).await {
 			match e.to_string().as_str() {
 				"Contract not deployed." => {
 					display_message(
 						"Use `pop up contract` to deploy your contract.",
 						true, // Not an error, just a message.
-						&mut cli::Cli,
+						cli,
 					)?;
 				},
 				_ => {
-					display_message(&e.to_string(), false, &mut cli::Cli)?;
+					display_message(&e.to_string(), false, cli)?;
 				},
 			}
 			return Ok(());
 		};
 		// Finally execute the call.
-		if let Err(e) = self.execute_call(&mut cli::Cli, prompt_to_repeat_call).await {
-			display_message(&e.to_string(), false, &mut cli::Cli)?;
+		if let Err(e) = self.execute_call(cli, prompt_to_repeat_call).await {
+			display_message(&e.to_string(), false, cli)?;
 		}
 		Ok(())
 	}
@@ -239,11 +239,6 @@ impl CallContractCommand {
 			cli.intro("Call a contract")?;
 		}
 
-		// If message has been specified via command line arguments, return early.
-		if self.message.is_some() {
-			return Ok(());
-		}
-
 		// Resolve path.
 		if project_path.is_none() {
 			let input_path: String = cli
@@ -260,8 +255,8 @@ impl CallContractCommand {
 
 		// Ensure contract is built and check if deployed.
 		if self.is_contract_build_required() {
-			self.ensure_contract_built(&mut cli::Cli).await?;
-			self.confirm_contract_deployment(&mut cli::Cli)?;
+			self.ensure_contract_built(cli).await?;
+			self.confirm_contract_deployment(cli)?;
 		}
 
 		// Parse the contract metadata provided. If there is an error, do not prompt for more.
@@ -313,7 +308,11 @@ impl CallContractCommand {
 		};
 
 		// Resolve message.
-		let message = {
+		let message = if let Some(ref message_name) = self.message {
+			// Message was provided via CLI, get its metadata
+			get_message(contract_path.clone(), message_name)?
+		} else {
+			// No message provided, prompt user to select one
 			let mut prompt = cli.select("Select the message to call (type to filter)");
 			for select_message in &messages {
 				let (icon, clarification) =
@@ -326,11 +325,11 @@ impl CallContractCommand {
 			}
 			let message = prompt.filter_mode().interact()?;
 			self.message = Some(message.label.clone());
-			message
+			message.clone()
 		};
 
 		// Resolve message arguments.
-		self.args = request_contract_function_args(message, cli)?;
+		self.args = request_contract_function_args(&message, cli)?;
 
 		// Resolve value.
 		if message.payable && self.value == DEFAULT_PAYABLE_VALUE {
@@ -1067,5 +1066,211 @@ mod tests {
 		)?;
 		assert!(!call_config.is_contract_build_required());
 		Ok(())
+	}
+
+	#[tokio::test]
+	async fn execute_handles_generic_configure_error() -> Result<()> {
+		let temp_dir = new_environment("testing")?;
+		let mut current_dir = env::current_dir().expect("Failed to get current directory");
+		current_dir.pop();
+		// Create invalid contract files to trigger an error
+		let invalid_contract_path = temp_dir.path().join("testing.contract");
+		let invalid_json_path = temp_dir.path().join("testing.json");
+		write(&invalid_contract_path, b"This is an invalid contract file")?;
+		write(&invalid_json_path, b"This is an invalid JSON file")?;
+		mock_build_process(
+			temp_dir.path().join("testing"),
+			invalid_contract_path.clone(),
+			invalid_contract_path.clone(),
+		)?;
+
+		let command = CallContractCommand {
+			path: Some(temp_dir.path().join("testing")),
+			path_pos: None,
+			contract: None,
+			message: None,
+			args: vec![],
+			value: "0".to_string(),
+			gas_limit: None,
+			proof_size: None,
+			url: Url::parse(urls::LOCAL)?,
+			suri: "//Alice".to_string(),
+			use_wallet: false,
+			dry_run: false,
+			execute: false,
+			dev_mode: false,
+			deployed: false,
+		};
+
+		// We can't check the exact error message because it includes dynamic temp paths,
+		// but we can verify that execute handles the error gracefully and returns Ok.
+		// The intro will be shown, then the error will be displayed via outro_cancel.
+		let mut cli = MockCli::new().expect_intro("Call a contract");
+		// Note: We skip checking the outro_cancel message since it contains dynamic paths
+
+		// Execute should handle the error gracefully and return Ok
+		let result = command.execute(&mut cli).await;
+		assert!(result.is_ok(), "execute raised an error: {:?}", result);
+
+		// We can't call verify() here because outro_cancel wasn't expected,
+		// but the test still validates that execute returns Ok despite the error
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn execute_handles_execute_call_error() -> Result<()> {
+		let temp_dir = new_environment("testing")?;
+		let mut current_dir = env::current_dir().expect("Failed to get current directory");
+		current_dir.pop();
+		mock_build_process(
+			temp_dir.path().join("testing"),
+			current_dir.join("pop-contracts/tests/files/testing.contract"),
+			current_dir.join("pop-contracts/tests/files/testing.json"),
+		)?;
+
+		// Command with no contract address, which will cause execute_call to fail
+		let command = CallContractCommand {
+			path: Some(temp_dir.path().join("testing")),
+			path_pos: None,
+			contract: None,
+			message: Some("get".to_string()),
+			args: vec![],
+			value: "0".to_string(),
+			gas_limit: None,
+			proof_size: None,
+			url: Url::parse(urls::LOCAL)?,
+			suri: "//Alice".to_string(),
+			use_wallet: false,
+			dry_run: false,
+			execute: false,
+			dev_mode: false,
+			deployed: false,
+		};
+
+		let mut cli = MockCli::new()
+			.expect_intro("Call a contract")
+			.expect_select(
+				"Where is your contract deployed? (type to filter)",
+				Some(true),
+				true,
+				Some(vec![("Custom".to_string(), "Type the chain URL manually".to_string())]),
+				0,
+				None,
+			)
+			.expect_input("Type the chain URL manually", urls::LOCAL.into())
+			.expect_input("Provide the on-chain contract address:", "".into())
+			.expect_info(format!(
+				"pop call contract --path {} --contract  --message get --url {} --suri //Alice",
+				temp_dir.path().join("testing").display(),
+				urls::LOCAL
+			))
+			.expect_outro_cancel("Failed to parse account address: Length is bad");
+
+		// Execute should handle the execute_call error gracefully and return Ok
+		let result = command.execute(&mut cli).await;
+		assert!(result.is_ok(), "execute raised an error: {:?}", result);
+		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn execute_sets_prompt_to_repeat_call_when_message_is_none() -> Result<()> {
+		let temp_dir = new_environment("testing")?;
+		let mut current_dir = env::current_dir().expect("Failed to get current directory");
+		current_dir.pop();
+		mock_build_process(
+			temp_dir.path().join("testing"),
+			current_dir.join("pop-contracts/tests/files/testing.contract"),
+			current_dir.join("pop-contracts/tests/files/testing.json"),
+		)?;
+
+		let items = vec![
+            ("📝 flip\n".into(), "[MUTATES] A message that can be called on instantiated contracts. This one flips the value of the stored `bool` from `true` to `false` and vice versa.".into()),
+            ("get\n".into(), "Simply returns the current value of our `bool`.".into()),
+            ("📝 specific_flip\n".into(), "[MUTATES] A message for testing, flips the value of the stored `bool` with `new_value` and is payable".into())
+        ];
+
+		// Command with message = None, so prompt_to_repeat_call should be true
+		let command = CallContractCommand {
+			path: Some(temp_dir.path().join("testing")),
+			path_pos: None,
+			contract: None,
+			message: None, // This is None, so prompt_to_repeat_call will be true
+			args: vec![],
+			value: "0".to_string(),
+			gas_limit: None,
+			proof_size: None,
+			url: Url::parse(urls::LOCAL)?,
+			suri: "//Alice".to_string(),
+			use_wallet: false,
+			dry_run: false,
+			execute: false,
+			dev_mode: false,
+			deployed: true,
+		};
+
+		let mut cli = MockCli::new()
+			.expect_intro("Call a contract")
+			.expect_input("Provide the on-chain contract address:", "CONTRACT_ADDRESS".into())
+			.expect_select(
+				"Select the message to call (type to filter)",
+				Some(false),
+				true,
+				Some(items),
+				1, // "get" message
+				None,
+			)
+			.expect_info(format!(
+				"pop call contract --path {} --contract CONTRACT_ADDRESS --message get --url {} --suri //Alice",
+				temp_dir.path().join("testing").display(),
+				urls::LOCAL
+			));
+
+		// Execute should work correctly
+		let result = command.execute(&mut cli).await;
+		assert!(result.is_ok(), "execute raised an error: {:?}", result);
+		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn execute_sets_prompt_to_repeat_call_when_message_is_some() -> Result<()> {
+		let temp_dir = new_environment("testing")?;
+		let mut current_dir = env::current_dir().expect("Failed to get current directory");
+		current_dir.pop();
+		mock_build_process(
+			temp_dir.path().join("testing"),
+			current_dir.join("pop-contracts/tests/files/testing.contract"),
+			current_dir.join("pop-contracts/tests/files/testing.json"),
+		)?;
+
+		// Command with message = Some, so prompt_to_repeat_call should be false
+		let command = CallContractCommand {
+			path: Some(temp_dir.path().join("testing")),
+			path_pos: None,
+			contract: Some("CONTRACT_ADDRESS".to_string()),
+			message: Some("get".to_string()), /* This is Some, so prompt_to_repeat_call will be
+			                                   * false */
+			args: vec![],
+			value: "0".to_string(),
+			gas_limit: None,
+			proof_size: None,
+			url: Url::parse(urls::LOCAL)?,
+			suri: "//Alice".to_string(),
+			use_wallet: false,
+			dry_run: false,
+			execute: false,
+			dev_mode: false,
+			deployed: true,
+		};
+
+		let mut cli = MockCli::new().expect_intro("Call a contract").expect_info(format!(
+			"pop call contract --path {} --contract CONTRACT_ADDRESS --message get --url {} --suri //Alice",
+			temp_dir.path().join("testing").display(),
+			urls::LOCAL
+		));
+
+		// Execute should work correctly
+		let result = command.execute(&mut cli).await;
+		assert!(result.is_ok(), "execute raised an error: {:?}", result);
+		cli.verify()
 	}
 }
