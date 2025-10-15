@@ -533,7 +533,7 @@ impl CallContractCommand {
 			spinner.start("Calling the contract...");
 			let call_dry_run_result = dry_run_call(&call_exec).await?;
 			spinner.clear();
-			cli.info(format!("Result: {}", call_dry_run_result))?;
+			cli.success(call_dry_run_result)?;
 			cli.warning("Your call has not been executed.")?;
 		} else {
 			let weight_limit = if self.gas_limit.is_some() && self.proof_size.is_some() {
