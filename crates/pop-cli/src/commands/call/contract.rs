@@ -591,13 +591,13 @@ impl CallContractCommand {
 		}
 		if cli
 			.confirm("Do you want to perform another call using the existing smart contract?")
-			.initial_value(false)
+			.initial_value(true)
 			.interact()?
 		{
 			// Reset specific items from the last call and repeat.
-			self.reset_for_new_call();
-			self.configure(cli, true).await?;
-			Box::pin(self.clone().execute(cli)).await
+			let mut new_call = self.clone();
+			new_call.reset_for_new_call();
+			Box::pin(new_call.execute(cli)).await
 		} else {
 			display_message("Contract calling complete.", true, cli)?;
 			Ok(())
