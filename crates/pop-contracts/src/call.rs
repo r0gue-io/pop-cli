@@ -66,9 +66,12 @@ pub struct CallOpts {
 pub async fn set_up_call(
 	call_opts: CallOpts,
 ) -> Result<CallExec<DefaultConfig, DefaultEnvironment, Keypair>, Error> {
-	let token_metadata = TokenMetadata::query::<DefaultConfig>(&call_opts.url).await?;
-	let signer = create_signer(&call_opts.suri)?;
+	#[cfg(feature = "v5")]
+	let contract: <DefaultConfig as Config>::AccountId = parse_account(&call_opts.contract)?;
+	#[cfg(feature = "v6")]
+	let contract = parse_h160_account(&call_opts.contract)?;
 
+	let signer = create_signer(&call_opts.suri)?;
 	let extrinsic_opts = if call_opts.path.is_file() {
 		// If path is a file construct the ExtrinsicOptsBuilder from the file.
 		let artifacts = ContractArtifacts::from_manifest_or_file(None, Some(&call_opts.path))?;
@@ -86,14 +89,10 @@ pub async fn set_up_call(
 
 	let value: BalanceVariant<<DefaultEnvironment as Environment>::Balance> =
 		parse_balance(&call_opts.value)?;
-
-	#[cfg(feature = "v5")]
-	let contract: <DefaultConfig as Config>::AccountId = parse_account(&call_opts.contract)?;
-	#[cfg(feature = "v6")]
-	let contract = parse_h160_account(&call_opts.contract)?;
 	// Process the provided argument values.
 	let function = extract_function(call_opts.path, &call_opts.message, FunctionType::Message)?;
 	let args = process_function_args(&function, call_opts.args)?;
+	let token_metadata = TokenMetadata::query::<DefaultConfig>(&call_opts.url).await?;
 
 	let call_exec: CallExec<DefaultConfig, DefaultEnvironment, Keypair> =
 		CallCommandBuilder::new(contract, &call_opts.message, extrinsic_opts)
