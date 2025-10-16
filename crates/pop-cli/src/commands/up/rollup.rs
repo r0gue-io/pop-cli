@@ -19,7 +19,7 @@ use clap::Args;
 use cliclack::spinner;
 use pop_chains::{
 	Action, ChainTemplate, DeploymentProvider, Payload, Reserved, SupportedChains,
-	construct_proxy_extrinsic, find_dispatchable_by_name,
+	construct_proxy_extrinsic, find_callable_by_name,
 };
 use pop_common::{Profile, parse_account, templates::Template};
 use std::{
@@ -361,7 +361,7 @@ impl Registration {
 	// Prepares and returns the encoded call data for registering a chain.
 	fn prepare_register_call_data(&self, cli: &mut impl Cli) -> Result<Vec<u8>> {
 		let Registration { id, genesis_artifacts, chain, proxy, .. } = self;
-		let dispatchable = find_dispatchable_by_name(
+		let dispatchable = find_callable_by_name(
 			&chain.pallets,
 			Action::Register.pallet_name(),
 			Action::Register.function_name(),
@@ -398,7 +398,7 @@ async fn reserve(chain: &Chain, proxy: &Proxy, cli: &mut impl Cli) -> Result<u32
 
 // Prepares and returns the encoded call data for reserving an ID.
 fn prepare_reserve_call_data(chain: &Chain, proxy: &Proxy, cli: &mut impl Cli) -> Result<Vec<u8>> {
-	let dispatchable = find_dispatchable_by_name(
+	let dispatchable = find_callable_by_name(
 		&chain.pallets,
 		Action::Reserve.pallet_name(),
 		Action::Reserve.function_name(),
@@ -694,7 +694,14 @@ mod tests {
 		let node = TestNode::spawn().await?;
 		let node_url = node.ws_url();
 		let mut cli = MockCli::new()
-			.expect_confirm("Do you want to enter the node URL manually?", true)
+			.expect_select(
+				"Select a chain (type to filter):".to_string(),
+				Some(true),
+				true,
+				Some(vec![("Custom".to_string(), "Type the chain URL manually".to_string())]),
+				0,
+				None,
+			)
 			.expect_input("Enter the relay chain node URL", node_url.into());
 		let (genesis_state, genesis_code) = create_temp_genesis_files()?;
 		let chain_config = UpCommand {
@@ -803,7 +810,7 @@ mod tests {
                 None,
             )
             .expect_info(format!("You will need to sign a transaction to register on {}, using the `Registrar::register` function.", Url::parse(node_url)?.as_str()))
-            .expect_outro_cancel(format!("Failed to find the pallet Registrar\n{}", style(format!(
+            .expect_outro_cancel(format!("Failed to find the pallet: Registrar\n{}", style(format!(
 				"Retry registration without reserve or rebuilding the chain specs using: {}", style("`pop up --id 2000 --skip-registration`").bold()
 			)).black()
 			));
@@ -893,7 +900,7 @@ mod tests {
                 None,
             )
             .expect_info(format!("You will need to sign a transaction to reserve an ID on {} using the `Registrar::reserve` function.", Url::parse(node_url)?.as_str()))
-            .expect_outro_cancel("Failed to find the pallet Registrar");
+            .expect_outro_cancel("Failed to find the pallet: Registrar");
 		let (genesis_state, genesis_code) = create_temp_genesis_files()?;
 		UpCommand {
 			id: None,

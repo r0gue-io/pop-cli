@@ -221,6 +221,45 @@ rpc_port = {random_port}
 	);
 	assert!(command.spawn()?.wait()?.success());
 
+	// `pop call chain --pallet System --function Account --args
+	// "15oF4uVJwmo4TdGW7VfQxNLavjCXviqxT9S1MgbjMNHr6Sp5" --url ws://127.0.0.1:random_port
+	// --skip-confirm`
+	let mut command = pop(
+		&working_dir,
+		[
+			"call",
+			"chain",
+			"--pallet",
+			"System",
+			"--function",
+			"Account",
+			"--args",
+			"15oF4uVJwmo4TdGW7VfQxNLavjCXviqxT9S1MgbjMNHr6Sp5",
+			"--url",
+			&localhost_url,
+			"--skip-confirm",
+		],
+	);
+	assert!(command.spawn()?.wait()?.success());
+
+	// `pop call chain --pallet System --function Account --args
+	// "15oF4uVJwmo4TdGW7VfQxNLavjCXviqxT9S1MgbjMNHr6Sp5" --url ws://127.0.0.1:random_port`
+	let mut command = pop(
+		&working_dir,
+		[
+			"call",
+			"chain",
+			"--pallet",
+			"System",
+			"--function",
+			"Ss58Prefix",
+			"--url",
+			&localhost_url,
+			"--skip-confirm",
+		],
+	);
+	assert!(command.spawn()?.wait()?.success());
+
 	// pop call chain --call 0x00000411 --url ws://127.0.0.1:random_port --suri //Alice
 	// --skip-confirm
 	let mut command = pop(

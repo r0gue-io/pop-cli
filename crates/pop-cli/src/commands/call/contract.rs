@@ -312,17 +312,17 @@ impl CallContractCommand {
 
 		// Resolve message.
 		let message = {
-			let mut prompt = cli.select("Select the message to call:");
+			let mut prompt = cli.select("Select the message to call (type to filter):");
 			for select_message in &messages {
 				let (icon, clarification) =
-					if select_message.mutates { ("📝 ", "[MUTATES]") } else { ("", "") };
+					if select_message.mutates { ("📝 ", "[MUTATES] ") } else { ("", "") };
 				prompt = prompt.item(
 					select_message,
 					format!("{}{}\n", icon, &select_message.label),
 					format!("{}{}", clarification, &select_message.docs),
 				);
 			}
-			let message = prompt.interact()?;
+			let message = prompt.filter_mode().interact()?;
 			self.message = Some(message.label.clone());
 			message
 		};
@@ -624,14 +624,14 @@ mod tests {
 		)?;
 
 		let items = vec![
-            ("📝 flip\n".into(), "[MUTATES] A message that can be called on instantiated contracts.  This one flips the value of the stored `bool` from `true`  to `false` and vice versa.".into()),
-            ("get\n".into(), " Simply returns the current value of our `bool`.".into()),
-            ("📝 specific_flip\n".into(), "[MUTATES] A message for testing, flips the value of the stored `bool` with `new_value`  and is payable".into())
+            ("📝 flip\n".into(), "[MUTATES] A message that can be called on instantiated contracts. This one flips the value of the stored `bool` from `true` to `false` and vice versa.".into()),
+            ("get\n".into(), "Simply returns the current value of our `bool`.".into()),
+            ("📝 specific_flip\n".into(), "[MUTATES] A message for testing, flips the value of the stored `bool` with `new_value` and is payable".into())
         ];
 		// The inputs are processed in reverse order.
 		let mut cli = MockCli::new()
 			.expect_select(
-				"Select the message to call:",
+				"Select the message to call (type to filter):",
 				Some(false),
 				true,
 				Some(items),
@@ -700,9 +700,9 @@ mod tests {
 		)?;
 
 		let items = vec![
-            ("📝 flip\n".into(), "[MUTATES] A message that can be called on instantiated contracts.  This one flips the value of the stored `bool` from `true`  to `false` and vice versa.".into()),
-            ("get\n".into(), " Simply returns the current value of our `bool`.".into()),
-            ("📝 specific_flip\n".into(), "[MUTATES] A message for testing, flips the value of the stored `bool` with `new_value`  and is payable".into())
+            ("📝 flip\n".into(), "[MUTATES] A message that can be called on instantiated contracts. This one flips the value of the stored `bool` from `true` to `false` and vice versa.".into()),
+            ("get\n".into(), "Simply returns the current value of our `bool`.".into()),
+            ("📝 specific_flip\n".into(), "[MUTATES] A message for testing, flips the value of the stored `bool` with `new_value` and is payable".into())
         ];
 		// The inputs are processed in reverse order.
 		let mut cli = MockCli::new()
@@ -715,7 +715,7 @@ mod tests {
                 "CONTRACT_ADDRESS".into(),
             )
             .expect_select(
-                "Select the message to call:",
+                "Select the message to call (type to filter):",
                 Some(false),
                 true,
                 Some(items),
@@ -790,14 +790,14 @@ mod tests {
 		)?;
 
 		let items = vec![
-            ("📝 flip\n".into(), "[MUTATES] A message that can be called on instantiated contracts.  This one flips the value of the stored `bool` from `true`  to `false` and vice versa.".into()),
-            ("get\n".into(), " Simply returns the current value of our `bool`.".into()),
-            ("📝 specific_flip\n".into(), "[MUTATES] A message for testing, flips the value of the stored `bool` with `new_value`  and is payable".into())
+            ("📝 flip\n".into(), "[MUTATES] A message that can be called on instantiated contracts. This one flips the value of the stored `bool` from `true` to `false` and vice versa.".into()),
+            ("get\n".into(), "Simply returns the current value of our `bool`.".into()),
+            ("📝 specific_flip\n".into(), "[MUTATES] A message for testing, flips the value of the stored `bool` with `new_value` and is payable".into())
         ];
 		// The inputs are processed in reverse order.
 		let mut cli = MockCli::new()
             .expect_select(
-                "Select the message to call:",
+                "Select the message to call (type to filter):",
                 Some(false),
                 true,
                 Some(items),

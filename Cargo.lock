@@ -9008,6 +9008,7 @@ dependencies = [
  "pop-telemetry",
  "regex",
  "reqwest",
+ "scale-value",
  "serde",
  "serde_json",
  "sp-core 32.0.0",

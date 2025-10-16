@@ -93,6 +93,16 @@ pub fn target() -> Result<&'static str, Error> {
 }
 
 #[cfg(feature = "integration-tests")]
+/// Creates a new Command instance for running the `pop` binary in integration tests.
+///
+/// # Arguments
+///
+/// * `dir` - The working directory where the command will be executed.
+/// * `args` - An iterator of arguments to pass to the command.
+///
+/// # Returns
+///
+/// A new Command instance configured to run the pop binary with the specified arguments
 pub fn pop(dir: &Path, args: impl IntoIterator<Item = impl AsRef<OsStr>>) -> Command {
 	let mut command = Command::new(cargo_bin("pop"));
 	command.current_dir(dir).args(args);
