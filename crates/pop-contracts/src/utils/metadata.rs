@@ -3,26 +3,29 @@
 //! Functionality for processing and extracting metadata from ink! smart contracts.
 
 use crate::errors::Error;
-use contract_transcode::ContractMessageTranscoder;
-use ink_env::DefaultEnvironment;
 use pop_common::{DefaultConfig, format_type};
 use scale_info::{PortableRegistry, form::PortableForm};
-use sp_core::Encode;
 use std::path::Path;
 use url::Url;
 #[cfg(feature = "v5")]
 use {
 	contract_extrinsics::ContractArtifacts,
 	contract_extrinsics::ContractStorageRpc,
+	contract_transcode::ContractMessageTranscoder,
 	contract_transcode::ink_metadata::{MessageParamSpec, layout::Layout},
+	ink_env::DefaultEnvironment,
 	pop_common::parse_account,
+	sp_core::{Encode, blake2_128},
 };
 #[cfg(feature = "v6")]
 use {
 	contract_extrinsics_inkv6::ContractArtifacts,
 	contract_extrinsics_inkv6::ContractStorageRpc,
+	contract_transcode_inkv6::ContractMessageTranscoder,
 	contract_transcode_inkv6::ink_metadata::{MessageParamSpec, layout::Layout},
-	pop_common::account_id::parse_h160_account,
+	ink_env_v6::DefaultEnvironment,
+	pop_common::account_id::parse_h160_account as parse_account,
+	sp_core_inkv6::{Encode, blake2_128},
 };
 
 /// Represents a callable entity within a smart contract, either a function or storage item.
@@ -174,7 +177,7 @@ pub async fn fetch_contract_storage(
 	// The storage key needs to be properly formatted:
 	// blake2_128 hash (16 bytes) + root_key (4 bytes)
 	let root_key_bytes = storage.storage_key.encode();
-	let mut full_key = sp_core::blake2_128(&root_key_bytes).to_vec();
+	let mut full_key = blake2_128(&root_key_bytes).to_vec();
 	full_key.extend_from_slice(&root_key_bytes);
 
 	// Fetch the storage value
