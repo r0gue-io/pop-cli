@@ -810,7 +810,7 @@ mod tests {
                 None,
             )
             .expect_info(format!("You will need to sign a transaction to register on {}, using the `Registrar::register` function.", Url::parse(node_url)?.as_str()))
-            .expect_outro_cancel(format!("Failed to find the pallet Registrar\n{}", style(format!(
+            .expect_outro_cancel(format!("Failed to find the pallet: Registrar\n{}", style(format!(
 				"Retry registration without reserve or rebuilding the chain specs using: {}", style("`pop up --id 2000 --skip-registration`").bold()
 			)).black()
 			));
@@ -900,7 +900,7 @@ mod tests {
                 None,
             )
             .expect_info(format!("You will need to sign a transaction to reserve an ID on {} using the `Registrar::reserve` function.", Url::parse(node_url)?.as_str()))
-            .expect_outro_cancel("Failed to find the pallet Registrar");
+            .expect_outro_cancel("Failed to find the pallet: Registrar");
 		let (genesis_state, genesis_code) = create_temp_genesis_files()?;
 		UpCommand {
 			id: None,
