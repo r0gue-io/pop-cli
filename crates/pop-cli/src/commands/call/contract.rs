@@ -4,9 +4,9 @@ use crate::{
 	cli::traits::{Cli, Confirm, Input, Select},
 	common::{
 		builds::{ensure_project_path, get_project_path},
-		chain::prompt_to_select_chain_rpc,
 		contracts::{has_contract_been_built, normalize_call_args, request_contract_function_args},
 		prompt::display_message,
+		rpc::prompt_to_select_chain_rpc,
 		urls,
 		wallet::{prompt_to_use_wallet, request_signature},
 	},

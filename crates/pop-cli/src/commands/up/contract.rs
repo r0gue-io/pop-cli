@@ -7,11 +7,11 @@ use crate::{
 	},
 	commands::call::contract::CallContractCommand,
 	common::{
-		chain::prompt_to_select_chain_rpc,
 		contracts::{
 			check_contracts_node_and_prompt, has_contract_been_built, normalize_call_args,
 			request_contract_function_args, terminate_node,
 		},
+		rpc::prompt_to_select_chain_rpc,
 		urls,
 		wallet::request_signature,
 	},
