@@ -80,8 +80,8 @@ pub fn raw_value_to_string<T>(value: &Value<T>) -> anyhow::Result<String> {
 ///
 /// # Arguments
 /// * `key_value_pairs` - A slice of tuples where each tuple contains:
-///   - A vector of storage keys (`Vec<Value<T>>`).
-///   - The associated storage value (`Value<T>`).
+///   - A vector of storage keys.
+///   - The associated storage value.
 ///
 /// # Returns
 /// * `Ok(String)` - A formatted string containing the rendered key-value pairs.
