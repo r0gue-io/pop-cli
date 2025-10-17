@@ -12,6 +12,7 @@ use anyhow::Context;
 use clap::Args;
 use duct::cmd;
 use os_info::Type;
+use std::{fs::Permissions, os::unix::fs::PermissionsExt};
 use strum_macros::Display;
 use tokio::fs;
 
@@ -174,6 +175,7 @@ async fn install_ubuntu(skip_confirm: bool, cli: &mut impl cli::traits::Cli) -> 
 			&ProtobufCompiler.to_string(),
 		],
 	)
+	.env("DEBIAN_FRONTEND", "noninteractive")
 	.run()?;
 
 	Ok(())
@@ -208,6 +210,7 @@ async fn install_debian(skip_confirm: bool, cli: &mut impl cli::traits::Cli) -> 
 			&Make.to_string(),
 		],
 	)
+	.env("DEBIAN_FRONTEND", "noninteractive")
 	.run()?;
 
 	Ok(())
@@ -267,24 +270,25 @@ fn not_supported_message(cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> 
 }
 
 async fn install_rustup(cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
-	match cmd("which", vec!["rustup"]).read() {
+	let rustup = match cmd("which", vec!["rustup"]).read() {
 		Ok(output) => {
 			cli.info(format!("ℹ️ rustup installed already at {}.", output))?;
 			cmd("rustup", vec!["update"]).run()?;
+			"rustup".to_string()
 		},
 		Err(_) => {
-			let spinner = cliclack::spinner();
-			spinner.start("Installing rustup ...");
-			run_external_script("https://sh.rustup.rs").await?;
+			cli.info("Installing rustup...")?;
+			run_external_script("https://sh.rustup.rs", &["-y"]).await?;
 			cli.outro("rustup installed!")?;
-			cmd("source", vec!["~/.cargo/env"]).run()?;
+			let home = std::env::var("HOME")?;
+			format!("{home}/.cargo/bin/rustup")
 		},
-	}
-	cmd("rustup", vec!["default", "stable"]).run()?;
-	cmd("rustup", vec!["update"]).run()?;
-	cmd("rustup", vec!["target", "add", "wasm32-unknown-unknown"]).run()?;
+	};
+	cmd(&rustup, vec!["default", "stable"]).run()?;
+	cmd(&rustup, vec!["update"]).run()?;
+	cmd(&rustup, vec!["target", "add", "wasm32-unknown-unknown"]).run()?;
 	cmd(
-		"rustup",
+		&rustup,
 		vec![
 			"component",
 			"add",
@@ -308,13 +312,14 @@ async fn install_homebrew(cli: &mut impl cli::traits::Cli) -> anyhow::Result<()>
 		Err(_) =>
 			run_external_script(
 				"https://raw.githubusercontent.com/Homebrew/install/master/install.sh",
+				&[],
 			)
 			.await?,
 	}
 	Ok(())
 }
 
-async fn run_external_script(script_url: &str) -> anyhow::Result<()> {
+async fn run_external_script(script_url: &str, args: &[&str]) -> anyhow::Result<()> {
 	let temp = tempfile::tempdir()?;
 	let scripts_path = temp.path().join("install.sh");
 	let client = reqwest::Client::new();
@@ -327,7 +332,8 @@ async fn run_external_script(script_url: &str) -> anyhow::Result<()> {
 		.text()
 		.await?;
 	fs::write(scripts_path.as_path(), script).await?;
-	tokio::process::Command::new("bash").arg(scripts_path).status().await?;
+	fs::set_permissions(scripts_path.as_path(), Permissions::from_mode(0o755)).await?;
+	cmd(scripts_path, args).run()?;
 	temp.close()?;
 	Ok(())
 }
