@@ -92,7 +92,6 @@ pub fn target() -> Result<&'static str, Error> {
 	Err(Error::UnsupportedPlatform { arch: ARCH, os: OS })
 }
 
-#[cfg(feature = "integration-tests")]
 /// Creates a new Command instance for running the `pop` binary in integration tests.
 ///
 /// # Arguments
@@ -103,6 +102,7 @@ pub fn target() -> Result<&'static str, Error> {
 /// # Returns
 ///
 /// A new Command instance configured to run the pop binary with the specified arguments
+#[cfg(feature = "integration-tests")]
 pub fn pop(dir: &Path, args: impl IntoIterator<Item = impl AsRef<OsStr>>) -> Command {
 	let mut command = Command::new(cargo_bin("pop"));
 	command.current_dir(dir).args(args);

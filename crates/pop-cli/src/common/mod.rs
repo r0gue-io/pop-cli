@@ -16,6 +16,8 @@ pub mod helpers;
 pub mod omni_node;
 /// Contains utilities for interacting with the CLI prompt.
 pub mod prompt;
+/// Contains utilities for interacting with RPC nodes.
+pub mod rpc;
 /// Contains runtime utilities.
 #[cfg(feature = "chain")]
 pub mod runtime;
