@@ -354,8 +354,8 @@ async fn choose_release(
 }
 
 async fn get_latest_release(repo: &GitHub) -> Result<Release> {
-	let releases = repo.releases(false).await?;
-	releases.into_iter().next().ok_or(anyhow::anyhow!("No releases found"))
+	let release = repo.latest_release().await?;
+	Ok(release)
 }
 
 async fn get_latest_3_releases(repo: &GitHub, verify: bool) -> Result<Vec<Release>> {
@@ -579,8 +579,38 @@ mod tests {
 			);
 		assert!(matches!(
 			prompt_customizable_options(&mut cli),
-			anyhow::Result::Err(message) if message.to_string() == "incorrect initial endowment value"
+			Err(message) if message.to_string() == "incorrect initial endowment value"
 		));
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn test_get_latest_release_success() -> Result<(), Box<dyn std::error::Error>> {
+		use mockito::{Mock, Server};
+		let mut server = Server::new_async().await;
+		let repo = GitHub::parse(&format!("{}/paritytech/polkadot-sdk", server.url()))?
+			.with_api(server.url());
+		let expected_payload = r#"{
+		    "tag_name": "polkadot-v1.12.0",
+		    "name": "Polkadot v1.12.0",
+		    "prerelease": false,
+		    "published_at": "2025-01-01T00:00:00Z"
+		  }"#;
+		let mock: Mock = server
+			.mock("GET", format!("/repos/{}/{}/releases/latest", repo.org, repo.name).as_str())
+			.with_status(200)
+			.with_header("content-type", "application/json")
+			.with_body(expected_payload)
+			.create_async()
+			.await;
+
+		let latest = get_latest_release(&repo).await?;
+		assert_eq!(latest.tag_name, "polkadot-v1.12.0");
+		assert_eq!(latest.name, "Polkadot v1.12.0");
+		assert!(!latest.prerelease);
+		assert_eq!(latest.published_at, "2025-01-01T00:00:00Z");
+		assert!(latest.commit.is_none());
+		mock.assert_async().await;
 		Ok(())
 	}
 }
