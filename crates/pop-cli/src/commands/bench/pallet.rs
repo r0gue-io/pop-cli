@@ -1320,6 +1320,7 @@ mod tests {
 		cli::MockCli,
 		common::{
 			bench::source_omni_bencher_binary,
+			helpers::with_current_dir,
 			runtime::{Feature::Benchmark, get_mock_runtime},
 		},
 	};
@@ -2001,14 +2002,49 @@ mod tests {
 	fn update_runtime_path_works() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
 		let temp_path = temp_dir.into_path();
+
+		// Create workspace structure
+		let workspace_toml = temp_path.join("Cargo.toml");
+		fs::write(
+			&workspace_toml,
+			r#"[workspace]
+members = ["runtime"]
+resolver = "2"
+
+[workspace.package]
+name = "test-workspace"
+"#,
+		)?;
+
+		// Create runtime directory with Cargo.toml
+		let runtime_dir = temp_path.join("runtime");
+		fs::create_dir_all(runtime_dir.join("src"))?;
+		fs::write(
+			runtime_dir.join("Cargo.toml"),
+			r#"[package]
+name = "runtime"
+version = "0.1.0"
+
+[dependencies]
+
+[features]
+runtime-benchmarks = []
+"#,
+		)?;
+		fs::write(runtime_dir.join("src").join("lib.rs"), "fn main() {}")?;
+
+		// Create target directory structure with wasm binary
 		fs::create_dir(temp_path.join("target"))?;
-
 		let target_path = Profile::Debug.target_directory(temp_path.as_path());
-		fs::create_dir(target_path.clone())?;
+		fs::create_dir(&target_path)?;
+		let wbuild_path = target_path.join("wbuild").join("runtime");
+		fs::create_dir_all(&wbuild_path)?;
+		let binary_path = wbuild_path.join("runtime.wasm");
+		File::create(&binary_path)?;
 
-		// Input path to binary file.
-		let binary_path = target_path.join("runtime.wasm");
-		File::create(binary_path.as_path())?;
+		// Canonicalize the runtime path before setting up expectations
+		let canonicalized_runtime = runtime_dir.canonicalize()?;
+
 		let mut cli = MockCli::new()
 			.expect_select(
 				"Choose the build profile of the binary that should be used: ".to_string(),
@@ -2018,18 +2054,12 @@ mod tests {
 				0,
 				None,
 			)
-			.expect_warning(format!(
-				"No runtime folder found at {}. Please input the runtime path manually.",
-				get_current_directory().display()
-			))
-			.expect_input(
-				"Please specify the path to the runtime project or the runtime binary.",
-				binary_path.to_str().unwrap().to_string(),
-			);
+			.expect_info(format!("Using runtime at {}", canonicalized_runtime.display()));
+		let mut cmd = BenchmarkPallet { no_build: true, ..Default::default() };
+		let result = with_current_dir(&temp_path, || cmd.update_runtime_path(&mut cli));
 
-		let mut cmd = BenchmarkPallet::default();
-		assert!(cmd.update_runtime_path(&mut cli).is_ok());
-		assert_eq!(cmd.runtime, Some(binary_path.canonicalize()?));
+		assert!(result.is_ok(), "Failed to update runtime path: {:?}", result);
+		assert_eq!(cmd.runtime, Some(PathBuf::from("runtime")));
 		cli.verify()?;
 		Ok(())
 	}

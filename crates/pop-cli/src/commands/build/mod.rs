@@ -9,7 +9,7 @@ use clap::{Args, Subcommand};
 use contract::BuildContract;
 use duct::cmd;
 use pop_common::Profile;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 #[cfg(feature = "chain")]
 use {
 	chain::BuildChain,
@@ -70,7 +70,7 @@ pub(crate) struct BuildArgs {
 	#[clap(short, long, help_heading = CHAIN_HELP_HEADER)]
 	#[cfg(feature = "chain")]
 	pub(crate) try_runtime: bool,
-	/// Whether to build a runtime deterministically.
+	/// Whether to build a runtime deterministically. Implies --only-runtime.
 	#[clap(short, long, help_heading = RUNTIME_HELP_HEADER)]
 	#[cfg(feature = "chain")]
 	pub(crate) deterministic: bool,
@@ -104,7 +104,6 @@ fn collect_features(input: &str, benchmark: bool, try_runtime: bool) -> Vec<&str
 impl Command {
 	/// Executes the command.
 	pub(crate) fn execute(args: BuildArgs) -> anyhow::Result<Project> {
-		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "chain"))]
 		// If only contract feature enabled, build as contract
 		let project_path =
 			crate::common::builds::ensure_project_path(args.path.clone(), args.path_pos.clone());
@@ -122,13 +121,17 @@ impl Command {
 
 		// If project is a parachain runtime, build as parachain runtime
 		#[cfg(feature = "chain")]
-		if args.only_runtime || pop_chains::runtime::is_supported(&project_path) {
+		if args.only_runtime ||
+			args.deterministic ||
+			pop_chains::runtime::is_supported(&project_path)
+		{
 			let profile = match args.profile {
 				Some(profile) => profile,
 				None => args.release.into(),
 			};
 			let features = args.features.unwrap_or_default();
-			let feature_list = collect_features(&features, args.benchmark, args.try_runtime);
+			let mut feature_list = collect_features(&features, args.benchmark, args.try_runtime);
+			feature_list.sort();
 
 			BuildRuntime {
 				path: project_path,
@@ -136,6 +139,7 @@ impl Command {
 				benchmark: feature_list.contains(&Benchmark.as_ref()),
 				try_runtime: feature_list.contains(&TryRuntime.as_ref()),
 				deterministic: args.deterministic,
+				features: feature_list.into_iter().map(|f| f.to_string()).collect(),
 			}
 			.execute()?;
 			return Ok(Chain);
@@ -157,13 +161,14 @@ impl Command {
 				profile,
 				benchmark: feature_list.contains(&Benchmark.as_ref()),
 				try_runtime: feature_list.contains(&TryRuntime.as_ref()),
+				features: feature_list.into_iter().map(|f| f.to_string()).collect(),
 			}
 			.execute()?;
 			return Ok(Chain);
 		}
 
 		// Otherwise build as a normal Rust project
-		Self::build(args, &mut Cli).map(|_| Unknown)
+		Self::build(args, &project_path, &mut Cli).map(|_| Unknown)
 	}
 
 	/// Builds a Rust project.
@@ -172,20 +177,20 @@ impl Command {
 	/// * `path` - The path to the project.
 	/// * `package` - A specific package to be built.
 	/// * `release` - Whether the release profile is to be used.
-	fn build(args: BuildArgs, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+	fn build(args: BuildArgs, path: &Path, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		let project = if args.package.is_some() { PACKAGE } else { PROJECT };
 		cli.intro(format!("Building your {project}"))?;
 
-		let mut _args = vec!["build"];
+		let mut cargo_args = vec!["build"];
 		if let Some(package) = args.package.as_deref() {
-			_args.push("--package");
-			_args.push(package)
+			cargo_args.push("--package");
+			cargo_args.push(package)
 		}
 		let profile = args.profile.unwrap_or(Profile::Debug);
 		if profile == Profile::Release {
-			_args.push("--release");
+			cargo_args.push("--release");
 		} else if profile == Profile::Production {
-			_args.push("--profile=production");
+			cargo_args.push("--profile=production");
 		}
 
 		let feature_input = args.features.unwrap_or_default();
@@ -201,10 +206,10 @@ impl Command {
 		}
 		let feature_arg = format!("--features={}", features.join(","));
 		if !features.is_empty() {
-			_args.push(&feature_arg);
+			cargo_args.push(&feature_arg);
 		}
 
-		cmd("cargo", _args).dir(args.path.unwrap_or_else(|| "./".into())).run()?;
+		cmd("cargo", cargo_args).dir(path).run()?;
 
 		cli.info(format!(
 			"The {project} was built in {profile} mode{}.",
@@ -345,6 +350,7 @@ mod tests {
 					#[cfg(feature = "chain")]
 					only_runtime: false
 				},
+				project_path,
 				&mut cli,
 			)
 			.is_ok()
@@ -382,5 +388,181 @@ mod tests {
 			collect_features("runtime-benchmarks,try-runtime", true, true),
 			vec!["runtime-benchmarks", "try-runtime"]
 		);
+	}
+
+	#[test]
+	fn execute_works_with_basic_option() -> anyhow::Result<()> {
+		let name = "hello_world";
+		let temp_dir = tempfile::tempdir()?;
+		let path = temp_dir.path();
+		let project_path = path.join(name);
+		cmd("cargo", ["new", name, "--bin"]).dir(path).run()?;
+
+		let result = Command::execute(BuildArgs {
+			#[cfg(feature = "chain")]
+			command: None,
+			path: Some(project_path.clone()),
+			path_pos: None,
+			package: None,
+			release: false,
+			profile: None,
+			features: None,
+			#[cfg(feature = "chain")]
+			benchmark: false,
+			#[cfg(feature = "chain")]
+			try_runtime: false,
+			#[cfg(feature = "chain")]
+			deterministic: false,
+			#[cfg(feature = "chain")]
+			only_runtime: false,
+		})?;
+
+		assert_eq!(result, Unknown);
+		Ok(())
+	}
+
+	#[test]
+	fn execute_works_with_advanced_options() -> anyhow::Result<()> {
+		let name = "hello_world";
+		let temp_dir = tempfile::tempdir()?;
+		let path = temp_dir.path();
+		let project_path = path.join(name);
+
+		// Create a binary project
+		cmd("cargo", ["new", name, "--bin"]).dir(path).run()?;
+
+		// Add production profile to Cargo.toml
+		add_production_profile(&project_path)?;
+
+		// Add some custom features to test with
+		#[cfg(feature = "chain")]
+		{
+			add_feature(&project_path, ("runtime-benchmarks".to_string(), vec![]))?;
+			add_feature(&project_path, ("try-runtime".to_string(), vec![]))?;
+		}
+
+		// Test 1: Execute with release mode
+		let result = Command::execute(BuildArgs {
+			#[cfg(feature = "chain")]
+			command: None,
+			path: Some(project_path.clone()),
+			path_pos: None,
+			package: None,
+			release: true,
+			profile: None,
+			features: None,
+			#[cfg(feature = "chain")]
+			benchmark: false,
+			#[cfg(feature = "chain")]
+			try_runtime: false,
+			#[cfg(feature = "chain")]
+			deterministic: false,
+			#[cfg(feature = "chain")]
+			only_runtime: false,
+		})?;
+		assert_eq!(result, Unknown);
+
+		// Test 2: Execute with production profile
+		let result = Command::execute(BuildArgs {
+			#[cfg(feature = "chain")]
+			command: None,
+			path: Some(project_path.clone()),
+			path_pos: None,
+			package: None,
+			release: false,
+			profile: Some(Profile::Production),
+			features: None,
+			#[cfg(feature = "chain")]
+			benchmark: false,
+			#[cfg(feature = "chain")]
+			try_runtime: false,
+			#[cfg(feature = "chain")]
+			deterministic: false,
+			#[cfg(feature = "chain")]
+			only_runtime: false,
+		})?;
+		assert_eq!(result, Unknown);
+
+		// Test 3: Execute with custom features
+		#[cfg(feature = "chain")]
+		{
+			let result = Command::execute(BuildArgs {
+				command: None,
+				path: Some(project_path.clone()),
+				path_pos: None,
+				package: None,
+				release: false,
+				profile: None,
+				features: Some("runtime-benchmarks,try-runtime".to_string()),
+				benchmark: false,
+				try_runtime: false,
+				deterministic: false,
+				only_runtime: false,
+			})?;
+			assert_eq!(result, Unknown);
+		}
+
+		// Test 4: Execute with package parameter
+		let result = Command::execute(BuildArgs {
+			#[cfg(feature = "chain")]
+			command: None,
+			path: Some(project_path.clone()),
+			path_pos: None,
+			package: Some(name.to_string()),
+			release: true,
+			profile: Some(Profile::Release),
+			features: None,
+			#[cfg(feature = "chain")]
+			benchmark: false,
+			#[cfg(feature = "chain")]
+			try_runtime: false,
+			#[cfg(feature = "chain")]
+			deterministic: false,
+			#[cfg(feature = "chain")]
+			only_runtime: false,
+		})?;
+		assert_eq!(result, Unknown);
+
+		// Test 5: Execute with path_pos instead of path
+		let result = Command::execute(BuildArgs {
+			#[cfg(feature = "chain")]
+			command: None,
+			path: None,
+			path_pos: Some(project_path.clone()),
+			package: None,
+			release: false,
+			profile: Some(Profile::Debug),
+			features: None,
+			#[cfg(feature = "chain")]
+			benchmark: false,
+			#[cfg(feature = "chain")]
+			try_runtime: false,
+			#[cfg(feature = "chain")]
+			deterministic: false,
+			#[cfg(feature = "chain")]
+			only_runtime: false,
+		})?;
+		assert_eq!(result, Unknown);
+
+		// Test 6: Execute with benchmark and try_runtime flags
+		#[cfg(feature = "chain")]
+		{
+			let result = Command::execute(BuildArgs {
+				command: None,
+				path: Some(project_path.clone()),
+				path_pos: None,
+				package: None,
+				release: true,
+				profile: None,
+				features: None,
+				benchmark: true,
+				try_runtime: true,
+				deterministic: false,
+				only_runtime: false,
+			})?;
+			assert_eq!(result, Unknown);
+		}
+
+		Ok(())
 	}
 }
