@@ -293,7 +293,8 @@ mod tests {
 				Some(items_select_contract),
 				0, // "ERC20"
 				None,
-			).expect_confirm("Would you like to scaffold a frontend template as well?", true);
+			)
+			.expect_confirm("Would you like to scaffold a frontend template as well?", true);
 
 		let user_input = guide_user_to_generate_contract(&mut cli).await?;
 		assert_eq!(user_input.name, Some("./erc20".to_string()));
