@@ -4,13 +4,13 @@ on:
   push:
     branches: ["main"]
     paths:
-      - '.github/workflows/install.yml'
-      - 'crates/pop-cli/commands/install/**'
+      - '.github/workflows/src/install.yml'
+      - 'crates/pop-cli/src/commands/install/**'
   pull_request:
     branches: ["main"]
     paths:
-      - '.github/workflows/install.yml'
-      - 'crates/pop-cli/commands/install/**'
+      - '.github/workflows/src/install.yml'
+      - 'crates/pop-cli/src/commands/install/**'
 
 defaults:
   run:
