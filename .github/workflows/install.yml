@@ -2,15 +2,20 @@ name: pop install
 
 on:
   push:
-    branches: ["main"]
+    branches:
+      - "main"
     paths:
       - '.github/workflows/install.yml'
-      - 'crates/pop-cli/commands/install/**'
+      - 'crates/pop-cli/src/commands/install/**'
   pull_request:
-    branches: ["main"]
+    branches:
+      - "main"
     paths:
       - '.github/workflows/install.yml'
-      - 'crates/pop-cli/commands/install/**'
+      - 'crates/pop-cli/src/commands/install/**'
+
+permissions:
+  contents: read
 
 defaults:
   run:

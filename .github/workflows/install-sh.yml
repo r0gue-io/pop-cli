@@ -1,0 +1,88 @@
+name: install pop binaries
+
+on:
+  push:
+    branches:
+      - "main"
+    paths:
+      - 'install.sh'
+  pull_request:
+    branches:
+      - "main"
+    paths:
+      - 'install.sh'
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  RUST_BACKTRACE: 1
+
+concurrency:
+  # Cancel any in-progress jobs for the same pull request or branch
+  group: install-sh-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  arch:
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pop-cli
+        run: ./install.sh
+      - name: Run pop install
+        run: |
+          export PATH="${HOME}/.local/bin:$PATH"
+          pop install -y
+  debian:
+    runs-on: ubuntu-latest
+    container: debian
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: apt-get update && apt-get -y install curl
+      - name: Install pop-cli
+        run: ./install.sh
+      - name: Run pop install
+        run: |
+          export PATH="${HOME}/.local/bin:$PATH"
+          pop install -y
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pop-cli
+        run: ./install.sh
+      - name: Run pop install
+        run: |
+          export PATH="${HOME}/.local/bin:$PATH"
+          pop install -y
+  redhat:
+    runs-on: ubuntu-latest
+    container: redhat/ubi8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pop-cli
+        run: ./install.sh
+      - name: Run pop install
+        run: |
+          export PATH="${HOME}/.local/bin:$PATH"
+          pop install -y
+  ubuntu:
+    runs-on: ubuntu-latest
+    container: ubuntu
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: apt-get update && apt-get -y install curl
+      - name: Install pop-cli
+        run: ./install.sh
+      - name: Run pop install
+        run: |
+          export PATH="${HOME}/.local/bin:$PATH"
+          pop install -y
