@@ -124,7 +124,7 @@ mod tests {
 				Typink,
 				"The ultimate toolkit for dApps development on Polkadot, powered by https://dedot.dev!",
 			),
-			(CreatePolkadotDapp, "Create Polkadot DApp in one command."),
+			(CreatePolkadotDapp, "Create Polkadot DApp in one command (Parity)."),
 			(
 				CreateDotApp,
 				"A command-line interface (CLI) tool designed to streamline the development process for Polkadot-based decentralized applications (dApps)",
