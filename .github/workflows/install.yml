@@ -4,12 +4,12 @@ on:
   push:
     branches: ["main"]
     paths:
-      - '.github/workflows/src/install.yml'
+      - '.github/workflows/install.yml'
       - 'crates/pop-cli/src/commands/install/**'
   pull_request:
     branches: ["main"]
     paths:
-      - '.github/workflows/src/install.yml'
+      - '.github/workflows/install.yml'
       - 'crates/pop-cli/src/commands/install/**'
 
 defaults:
@@ -35,9 +35,10 @@ jobs:
         run: |
           . "$HOME/.cargo/env"
           cargo install --locked --no-default-features --features contract,chain --path ./crates/pop-cli
+          cp $(which pop) /usr/local/bin/pop
+          rustup self uninstall -y
       - name: Run Pop install
         run: |
-          . "$HOME/.cargo/env"
           pop install -y
   debian:
     runs-on: ubuntu-latest
@@ -52,9 +53,10 @@ jobs:
         run: |
           . "$HOME/.cargo/env"
           cargo install --locked --no-default-features --features contract,chain --path ./crates/pop-cli
+          cp $(which pop) /usr/local/bin/pop
+          rustup self uninstall -y
       - name: Run Pop Install
         run: |
-          . "$HOME/.cargo/env"
           pop install -y
   macos:
     runs-on: macos-latest
@@ -71,11 +73,12 @@ jobs:
         run: |
           . "$HOME/.cargo/env"
           cargo install --locked --no-default-features --features contract,chain --path ./crates/pop-cli
+          cp $(which pop) /usr/local/bin/pop
+          rustup self uninstall -y
       - name: Run Pop Install
         env:
           HOMEBREW_NO_AUTO_UPDATE: 1
         run: |
-          . "$HOME/.cargo/env"
           pop install -y
   redhat:
     runs-on: ubuntu-latest
@@ -90,9 +93,10 @@ jobs:
         run: |
           . "$HOME/.cargo/env"
           cargo install --locked --no-default-features --features contract,chain --path ./crates/pop-cli
+          cp $(which pop) /usr/local/bin/pop
+          rustup self uninstall -y
       - name: Run Pop install
         run: |
-          . "$HOME/.cargo/env"
           pop install -y
   ubuntu:
     runs-on: ubuntu-latest
@@ -107,7 +111,8 @@ jobs:
         run: |
           . "$HOME/.cargo/env"
           cargo install --locked --no-default-features --features contract,chain --path ./crates/pop-cli
+          cp $(which pop) /usr/local/bin/pop
+          rustup self uninstall -y
       - name: Run Pop install
         run: |
-          . "$HOME/.cargo/env"
           pop install -y
