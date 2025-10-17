@@ -1012,6 +1012,11 @@ mod tests {
 			current_dir.join("pop-contracts/tests/files/testing.json"),
 		)?;
 
+		#[cfg(not(feature = "v6"))]
+		let error_msg = "Failed to parse account address: Length is bad";
+		#[cfg(feature = "v6")]
+		let error_msg = "Failed to parse account address: H160 must be 20 bytes in length, got 0";
+
 		// Test case 1: No contract address specified
 		// When there's no contract and no message, the user would be prompted interactively,
 		// but without proper contract address, execute_message will fail with "Please specify the
@@ -1019,7 +1024,7 @@ mod tests {
 		let mut cli = MockCli::new()
 			.expect_intro("Call a contract")
 			.expect_input("Provide the on-chain contract address:", "".into())
-			.expect_outro_cancel("Failed to parse account address: Length is bad");
+			.expect_outro_cancel(error_msg);
 
 		let result = CallContractCommand {
 			path: Some(temp_dir.path().join("testing")),
@@ -1191,10 +1196,15 @@ mod tests {
 			deployed: false,
 		};
 
+		#[cfg(not(feature = "v6"))]
+		let error_msg = "Failed to parse account address: Length is bad";
+		#[cfg(feature = "v6")]
+		let error_msg = "Failed to parse account address: H160 must be 20 bytes in length, got 0";
+
 		let mut cli = MockCli::new()
 			.expect_intro("Call a contract")
 			.expect_input("Provide the on-chain contract address:", "".into())
-			.expect_outro_cancel("Failed to parse account address: Length is bad");
+			.expect_outro_cancel(error_msg);
 
 		// Execute should handle the execute_call error gracefully and return Ok
 		let result = command.execute(&mut cli).await;
