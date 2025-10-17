@@ -326,12 +326,18 @@ impl CallContractCommand {
 
 		// Resolve path.
 		if project_path.is_none() {
-			let input_path: String = cli
-				.input("Where is your project or contract artifact located?")
-				.placeholder("./")
-				.default_input("./")
-				.interact()?;
-			project_path = Some(PathBuf::from(input_path));
+			let current_dir = std::env::current_dir()?;
+			let path = if matches!(pop_contracts::is_supported(&current_dir), Ok(true)) {
+				current_dir
+			} else {
+				let input_path: String = cli
+					.input("Where is your project or contract artifact located?")
+					.placeholder("./")
+					.default_input("./")
+					.interact()?;
+				PathBuf::from(input_path)
+			};
+			project_path = Some(path);
 			self.path = project_path.clone();
 		}
 		let contract_path = project_path
